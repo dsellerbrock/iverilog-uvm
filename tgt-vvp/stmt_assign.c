@@ -3064,7 +3064,13 @@ static int show_stmt_assign_sig_string(ivl_statement_t net)
 
 	/* Calculate the character select for the word. */
       int mux_word = allocate_word();
-      draw_eval_expr_into_integer(part, mux_word);
+      /* A string character selector is passed to getc/putc as a signed,
+       * two-state int. Convert here so X/Z and wide indices match reads. */
+      draw_eval_vec4(part);
+      resize_vec4_wid(part, 32);
+      fprintf(vvp_out, "    %%cast2; string character selector to int\n");
+      fprintf(vvp_out, "    %%ix/vec4/s %d; capture string character selector\n",
+              mux_word);
 
       fprintf(vvp_out, "    %%putc/str/vec4 v%p_0, %d;\n", var, mux_word);
 

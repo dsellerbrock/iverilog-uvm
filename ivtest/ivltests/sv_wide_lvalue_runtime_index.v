@@ -75,11 +75,13 @@ module sv_wide_lvalue_runtime_index;
       $display("FAILED property negative clip=%h", obj.words[0]); errors++;
     end
 
+    // IEEE 1800-2017/2023 6.16.2: string character indices convert to int,
+    // so the low 32 bits of this value select character zero.
     text = "ab";
     word_index = 65'h0_0000_0001_0000_0000;
     text[word_index] = "Z";
-    if (text != "ab") begin
-      $display("FAILED string huge character=%s", text); errors++;
+    if (text != "Zb") begin
+      $display("FAILED string int-converted character=%s", text); errors++;
     end
 
     if (errors == 0) $display("PASSED");
