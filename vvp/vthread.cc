@@ -4907,6 +4907,10 @@ static bool rand_leaf_active_(const class_type*defn, vvp_cobject*cobj,
 {
       if (sel) return pid < sel->size() ? (*sel)[pid] : false;
       if (!defn->property_is_rand(pid)) return false;
+      const std::string&bt = defn->property_base_type(pid);
+	  if (bt.compare(0, 3, "oc:") == 0
+	      && defn->property_array_size(pid) <= 1)
+	    return cobj->rand_mode_any(pid);
       if (defn->property_array_size(pid) <= 1)
 	    return cobj->rand_mode(pid);
       return cobj->rand_mode(pid, leaf);

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2568_struct_member_rand_mode.sv",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "issue2568_struct_member_rand_mode"
+}

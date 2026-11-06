@@ -260,9 +260,19 @@ bool vvp_cobject::rand_mode_any(size_t pid) const
 	    bool object_backed = bt == "o" || bt.compare(0, 3, "oc:") == 0
 		  || (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
 				      || bt[0] == 'M'));
+	    vvp_object_t obj;
+	    const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
+	    if (vvp_cobject*aggregate = obj.peek<vvp_cobject>()) {
+		  if (aggregate->get_defn()->is_struct_type()
+		      && !aggregate->get_defn()->is_union_type()) {
+			const class_type*members = aggregate->get_defn();
+			for (size_t member = 0; member < members->property_count(); ++member)
+			      if (members->property_is_rand(member)
+				  && aggregate->rand_mode_any(member)) return true;
+			return false;
+		  }
+	    }
 	    if (object_backed) {
-		  vvp_object_t obj;
-		  const_cast<vvp_cobject*>(this)->get_object(pid, obj, 0);
 		  if (vvp_darray*array = obj.peek<vvp_darray>()) {
 			if (array->get_size()) return array->rand_mode_any();
 			return defn_->property_is_static(pid)

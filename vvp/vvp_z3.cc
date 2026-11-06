@@ -8815,6 +8815,21 @@ static bool rand_active_(const class_type* defn, vvp_cobject* cobj,
 {
       if (sel) return pid < sel->size() ? (*sel)[pid] : false;
       if (!defn->property_is_rand(pid)) return false;
+      // For an unpacked struct, rand_mode on the aggregate sets each
+      // member's mode. A later member call can re-enable one member while
+      // the aggregate's saved mode remains off, so its effective activity
+      // is the activity of its randomized members.
+      if (cobj) {
+	    vvp_cobject*aggregate = cobj_struct_prop(cobj, pid);
+	    if (aggregate && aggregate->get_defn()->is_struct_type()
+		&& !aggregate->get_defn()->is_union_type()) {
+		  const class_type*members = aggregate->get_defn();
+		  for (unsigned member = 0; member < members->property_count(); ++member)
+			if (members->property_is_rand(member)
+			    && aggregate->rand_mode_any(member)) return true;
+		  return false;
+	    }
+      }
       return cobj ? cobj->rand_mode_any(pid) : true;
 }
 
