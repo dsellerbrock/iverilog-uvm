@@ -3500,6 +3500,14 @@ void compile_class_covgrp_parent(uint64_t prop)
       compile_class->set_covgrp_parent_prop((int)prop);
 }
 
+void compile_class_covgrp_event(uint64_t prop)
+{
+      if (!compile_class || !compile_class->is_covergroup() || prop == 0
+	  || prop - 1 > INT_MAX)
+	    return;
+      compile_class->set_covgrp_event_prop((int)(prop - 1));
+}
+
 void compile_class_covgrp_src(uint64_t srcprop, uint64_t guardsrc)
 {
       assert(compile_class);
