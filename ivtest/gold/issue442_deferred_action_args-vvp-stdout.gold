@@ -1,0 +1,10 @@
+source done v=9
+rep x=5 s=a
+rr x=6 y=9
+rep x=0 s=loop
+rep x=1 s=loop
+rep x=2 s=loop
+cr y=9
+final x=7 s=b
+fv x=10 r=2.5
+ra a='{12, 11, 10} a0=12 m01=5 m10=6 d='{7, 8}

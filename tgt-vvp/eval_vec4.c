@@ -3948,6 +3948,7 @@ static void draw_eval_vec4_core_(ivl_expr_t expr)
 
 void draw_eval_vec4(ivl_expr_t expr)
 {
+      if (deferred_preload_take(expr, 'v', 0)) return;
       draw_eval_vec4_core_(expr);
       event_expr_capture_vec4_result(expr);
 }

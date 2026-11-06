@@ -287,6 +287,14 @@ extern uint64_t get_number_immediate64(ivl_expr_t ex);
  * evaluation is the vec4 result in the top of the vec4 expression stack.
  */
 extern void draw_eval_vec4(ivl_expr_t ex);
+
+/* Deferred-assertion action copy-in (vvp_process.c): true when EX is the
+ * r-value whose value the deferred report will supply on the KIND stack
+ * ('v' vec4, 'r' real, 's' string, 'o' object, 'c' object value copy of
+ * ELEMENT_TYPE), so the caller must not evaluate it. */
+extern int deferred_preload_take(ivl_expr_t ex, char kind,
+                                 ivl_type_t element_type);
+extern int draw_eval_fixed_array_object(ivl_expr_t expr);
 extern void resize_vec4_wid(ivl_expr_t expr, unsigned wid);
 extern void event_expr_capture_vec4_result(ivl_expr_t ex);
 extern void event_expr_capture_object_result(ivl_expr_t ex);

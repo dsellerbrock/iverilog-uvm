@@ -172,6 +172,9 @@ struct deferred_assert_args_s {
       std::vector<vvp_object_t> obj;
 };
 
+/* Filled by %defer/capture, consumed by the next user-task %defer opcode. */
+static deferred_assert_args_s deferred_task_capture_;
+
 struct deferred_assert_report_s {
       unsigned long source_id;
       unsigned result;
@@ -18864,6 +18867,10 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
       vvp_code_t action_pc = deferred_action_next_code_(key);
       deferred_assert_args_s action_args;
       if (task_key) {
+            action_args.vec4.swap(deferred_task_capture_.vec4);
+            action_args.real.swap(deferred_task_capture_.real);
+            action_args.str.swap(deferred_task_capture_.str);
+            action_args.obj.swap(deferred_task_capture_.obj);
             if (!validate_final_deferred_task_thunk_(action_pc)) {
                   fprintf(stderr,
                           "vvp: malformed observed-deferred user-task thunk; "
@@ -18957,6 +18964,55 @@ bool of_DEFER_CANCEL_PROCESS(vthread_t, vvp_code_t cp)
  * statements, while marking the execution thread final keeps the fork/join
  * synchronous in Postponed.
  */
+/* IEEE 1800-2017/2023 16.4.1: a pending report carries "the current
+ * values of its input arguments". %defer/capture runs immediately before
+ * the %defer/enqueue or %defer/final of a user-subroutine action and moves
+ * the evaluated by-value actuals off the source stacks. Each stack is kept
+ * top first, so the replay leaves the first-evaluated actual on top, where
+ * the thunk's first copy-in store expects it. */
+
+bool of_DEFER_CAPTURE(vthread_t thr, vvp_code_t cp)
+{
+      size_t vec_count = cp->number & 0xff;
+      size_t real_count = (cp->number >> 8) & 0xff;
+      size_t str_count = (cp->number >> 16) & 0xff;
+      size_t obj_count = (cp->number >> 24) & 0xff;
+      deferred_task_capture_ = deferred_assert_args_s();
+      for (size_t idx = 0 ; idx < vec_count ; idx += 1)
+            deferred_task_capture_.vec4.push_back(thr->peek_vec4(idx));
+      for (size_t idx = 0 ; idx < real_count ; idx += 1)
+            deferred_task_capture_.real.push_back(thr->peek_real(idx));
+      for (size_t idx = 0 ; idx < str_count ; idx += 1)
+            deferred_task_capture_.str.push_back(thr->peek_str(idx));
+      for (size_t idx = 0 ; idx < obj_count ; idx += 1)
+            deferred_task_capture_.obj.push_back(
+                  thr->peek_object(idx).value_copy_element());
+      thr->pop_vec4(vec_count);
+      thr->pop_real(real_count);
+      thr->pop_str(str_count);
+      thr->pop_object(obj_count);
+      return true;
+}
+
+/* A user-subroutine thunk is [%alloc] {copy-in store | ref bind}
+ * (%fork task; %join | %callf/void function) [%free] %end. The copy-in
+ * stores consume the replayed report values; nothing in it may branch,
+ * wait, or call anything else. */
+static bool deferred_thunk_copy_in_op_(vvp_code_t action)
+{
+      return action->opcode == of_STORE_VEC4 || action->opcode == of_STORE_STR
+          || action->opcode == of_STORE_REAL || action->opcode == of_STORE_OBJ
+          || action->opcode == of_REF_BIND || action->opcode == of_PAD_S
+          || action->opcode == of_PAD_U || action->opcode == of_CAST2
+          || action->opcode == of_IX_LOAD || action->opcode == of_DIM_PUSH
+          || action->opcode == of_STORE_QOBJ_V
+          || action->opcode == of_STORE_QOBJ_R
+          || action->opcode == of_STORE_QOBJ_STR
+          || action->opcode == of_STORE_QOBJ_OBJ
+          || action->opcode == of_STORE_ARR_DAR
+          || action->opcode == of_STORE_ARR_DAR_MD;
+}
+
 static bool validate_final_deferred_task_thunk_(vvp_code_t action)
 {
       if (!action)
@@ -18965,15 +19021,20 @@ static bool validate_final_deferred_task_thunk_(vvp_code_t action)
       __vpiScope*alloc_scope = 0;
       if (action->opcode == of_ALLOC) {
             alloc_scope = action->scope;
-            if (!alloc_scope || alloc_scope->get_type_code() != vpiTask
+            if (!alloc_scope || (alloc_scope->get_type_code() != vpiTask
+                                 && alloc_scope->get_type_code() != vpiFunction)
                 || !alloc_scope->has_automatic_context())
                   return false;
             action = deferred_action_next_code_(action);
       }
+      while (action && deferred_thunk_copy_in_op_(action))
+            action = deferred_action_next_code_(action);
 
-      if (!action || action->opcode != of_FORK || !action->cptr2
-          || !action->scope
-          || action->scope->get_type_code() != vpiTask)
+      bool is_function = action && action->opcode == of_CALLF_VOID;
+      if (!action || (action->opcode != of_FORK && !is_function)
+          || !action->cptr2 || !action->scope
+          || action->scope->get_type_code() != (is_function ? vpiFunction
+                                                             : vpiTask))
             return false;
       if (alloc_scope) {
             if (action->scope != alloc_scope)
@@ -18983,10 +19044,12 @@ static bool validate_final_deferred_task_thunk_(vvp_code_t action)
       }
 
       action = deferred_action_next_code_(action);
-      if (!action || action->opcode != of_JOIN)
-            return false;
+      if (!is_function) {
+            if (!action || action->opcode != of_JOIN)
+                  return false;
+            action = deferred_action_next_code_(action);
+      }
 
-      action = deferred_action_next_code_(action);
       if (alloc_scope) {
             if (!action || action->opcode != of_FREE
                 || action->scope != alloc_scope)
@@ -19035,6 +19098,10 @@ bool of_DEFER_FINAL(vthread_t thr, vvp_code_t cp)
       vvp_code_t action_pc = deferred_action_next_code_(key);
       deferred_assert_args_s action_args;
       if (task_key) {
+            action_args.vec4.swap(deferred_task_capture_.vec4);
+            action_args.real.swap(deferred_task_capture_.real);
+            action_args.str.swap(deferred_task_capture_.str);
+            action_args.obj.swap(deferred_task_capture_.obj);
             if (!validate_final_deferred_task_thunk_(action_pc)) {
                   fprintf(stderr,
                           "vvp: malformed final-deferred user-task thunk; "

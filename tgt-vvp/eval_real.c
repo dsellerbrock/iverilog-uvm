@@ -876,6 +876,7 @@ static void draw_unary_real(ivl_expr_t expr)
 
 void draw_eval_real(ivl_expr_t expr)
 {
+      if (deferred_preload_take(expr, 'r', 0)) return;
 
 	/* If this expression/sub-expression is not real then we need
 	 * to evaluate it as a bit value and then convert the bit based

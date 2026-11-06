@@ -7592,8 +7592,11 @@ static bool deferred_action_marker_(const struct vlltype&loc,
 	    }
       }
 
+	/* IEEE 1800-2017/2023 16.4: by-value actuals are captured when the
+	 * assertion is evaluated and ref actuals bind when the action runs;
+	 * the VVP target lowers both around the preserved call. */
       bool user_subroutine = !tail_name.nil() && tail_name[0] != '$';
-      if (user_subroutine && parms.empty()
+      if (user_subroutine
           && call->leading_type_args() == 0
           && call->with_constraints().empty()) {
             marker = deferred_final_task_action_(loc, source_id, call,
