@@ -48,13 +48,11 @@ module test;
     item.shared.rand_mode(0);
     item.shared[1].rand_mode(1);
     if (alias_item.shared[0].rand_mode() !== 0
-        || alias_item.shared[1].rand_mode() !== 1
-        || alias_item.shared.rand_mode() !== 0)
+        || alias_item.shared[1].rand_mode() !== 1)
       $fatal(1, "static per-leaf mode was not canonical across receivers");
     alias_item.shared.rand_mode(0);
 
-    if (item.values.rand_mode() !== 1
-        || item.values[0].rand_mode() !== 1
+    if (item.values[0].rand_mode() !== 1
         || item.values[1].rand_mode() !== 1
         || item.values[2].rand_mode() !== 1)
       $fatal(1, "fixed-array modes did not start enabled");
@@ -82,8 +80,7 @@ module test;
     item.values[1].rand_mode(0);
     if (item.values[0].rand_mode() !== 1
         || item.values[1].rand_mode() !== 0
-        || item.values[2].rand_mode() !== 1
-        || item.values.rand_mode() !== 0)
+        || item.values[2].rand_mode() !== 1)
       $fatal(1, "mixed indexed/aggregate mode query was incorrect");
     frozen = item.values[1];
 
@@ -110,14 +107,16 @@ module test;
         $fatal(1, "re-enabled leaf did not resume its prior cycle");
       seen[1][item.values[1]] = 1'b1;
     end
-    if (seen[1] !== 4'b1111 || item.values.rand_mode() !== 1)
+    if (seen[1] !== 4'b1111
+        || item.values[0].rand_mode() !== 1
+        || item.values[1].rand_mode() !== 1
+        || item.values[2].rand_mode() !== 1)
       $fatal(1, "re-enabled leaf did not complete its paused cycle");
 
     for (int leaf = 0; leaf < 3; leaf++)
       frozen_all[leaf] = item.values[leaf];
     item.values.rand_mode(0);
-    if (item.values.rand_mode() !== 0
-        || item.values[0].rand_mode() !== 0
+    if (item.values[0].rand_mode() !== 0
         || item.values[1].rand_mode() !== 0
         || item.values[2].rand_mode() !== 0)
       $fatal(1, "whole-array setter did not disable every leaf");
@@ -141,7 +140,8 @@ module test;
     item.constrained[1] = 0;
     if (item.randomize(constrained) !== 1)
       $fatal(1, "explicit fixed-array selection failed");
-    if (item.constrained.rand_mode() !== 0)
+    if (item.constrained[0].rand_mode() !== 0
+        || item.constrained[1].rand_mode() !== 0)
       $fatal(1, "explicit selection changed stored fixed-array mode");
     for (int leaf = 0; leaf < 2; leaf++) begin
       if (!(item.constrained[leaf] inside {1, 3, 5}))
@@ -217,7 +217,8 @@ module test;
 
     // Static fixed-array history is shared through every receiver.
     item.shared.rand_mode(1);
-    if (alias_item.shared.rand_mode() !== 1)
+    if (alias_item.shared[0].rand_mode() !== 1
+        || alias_item.shared[1].rand_mode() !== 1)
       $fatal(1, "static fixed-array mode was not shared by receivers");
     for (int sample = 0; sample < 4; sample++) begin
       bit success;

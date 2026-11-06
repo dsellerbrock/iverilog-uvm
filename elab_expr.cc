@@ -18883,6 +18883,19 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 						      leaf_count *= dims[dim].width();
 					  }
 				    }
+				    if (obj_expr && used < dims.size()) {
+					  cerr << get_fileline() << ": error: rand_mode() query on "
+					       << "unpacked-array property `" << fname
+					       << "' requires selecting one element (IEEE 1800-2017 "
+					       << "18.8)."
+					       << endl;
+					  des->errors += 1;
+					  delete obj_expr;
+					  obj_expr = nullptr;
+					  delete leaf_expr;
+					  leaf_expr = nullptr;
+					  field_diagnostic = true;
+				    }
 			      } else if (const netdarray_t*container_type =
 					   dynamic_cast<const netdarray_t*>(prop_type)) {
 				    const index_component_t&idx =
@@ -18941,7 +18954,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				    obj_expr = nullptr;
 				    field_diagnostic = true;
 			      }
-			} else if (dynamic_cast<const netdarray_t*>(prop_type)) {
+			} else if (dynamic_cast<const netdarray_t*>(prop_type)
+				   || dynamic_cast<const netuarray_t*>(prop_type)) {
 			      cerr << get_fileline() << ": error: rand_mode() query on "
 				   << "unpacked-array property `" << fname
 				   << "' requires selecting one element (IEEE 1800-2017 "
