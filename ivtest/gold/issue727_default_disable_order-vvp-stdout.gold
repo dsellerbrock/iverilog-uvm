@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue727_default_disable_order.v:97: $finish called at 36 (1s)

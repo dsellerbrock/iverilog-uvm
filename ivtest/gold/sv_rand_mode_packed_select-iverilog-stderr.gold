@@ -1,0 +1,3 @@
+ivltests/sv_rand_mode_packed_select.v:9: error: rand_mode() index is only valid for an unpacked array property.
+ivltests/sv_rand_mode_packed_select.v:10: error: rand_mode() index is only valid for an unpacked array property.
+2 error(s) during elaboration.

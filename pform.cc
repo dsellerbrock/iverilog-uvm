@@ -54,6 +54,7 @@
 # include  <climits>
 # include  <cmath>
 # include  <utility>
+# include  <memory>
 
 # include  "ivl_assert.h"
 # include  "ivl_alloc.h"
@@ -61,6 +62,7 @@
 using namespace std;
 
 static void sva_destroy_match_items_(std::vector<sva_match_item_t>&items);
+static void sva_resolve_late_disable_slots_(const Module*module);
 
 static bool sva_step_has_assignment_(const sva_seq_step_t&step)
 {
@@ -2864,8 +2866,9 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	    cur_module->default_clocking = perm_string();
       }
 	/* M9-SV: bind or diagnose any sampled value function still
-	   waiting for a clock. Before the pop, because binding
-	   synthesizes a sampler process into THIS module's scope. */
+	   waiting for a clock. */
+	  if (!pform_cur_module.empty())
+		sva_resolve_late_disable_slots_(pform_cur_module.front());
       pform_flush_pending_sampled_calls();
 
 	/* M9-SV2: retry any assert/assume/cover that named a property before
@@ -8976,7 +8979,118 @@ static std::set<sva_scoped_name_t> sva_property_shaped_sequences;
    evaluated in the Observed region rather than through the procedural event. */
 static std::map<sva_scoped_name_t, perm_string> sva_sequence_trigger_events;
 static std::map<perm_string, sva_scoped_name_t> sva_sequence_trigger_sources;
-static PExpr* sva_default_disable = nullptr;
+/* A default disable declaration belongs to its module or generate scope.
+   Assertions parsed before the declaration keep a shared expression slot;
+   its contents are fixed when the scope closes, without moving assertion
+   lowering away from its source position. */
+static std::map<const LexicalScope*, PExpr*> sva_default_disables;
+static std::set<const LexicalScope*> sva_default_disable_scopes;
+static PExpr* sva_default_disable_override_ = nullptr;
+static const LexicalScope* sva_default_disable_override_scope_ = nullptr;
+struct sva_late_disable_slot_t {
+	  struct abort_t {
+		LexicalScope*scope = nullptr;
+		PProcess*marker = nullptr;
+		Statement*statement = nullptr;
+		struct vlltype loc;
+		unsigned inst = 0;
+	  };
+      PExpr*expr = nullptr;
+      bool has_default = false;
+	  std::vector<abort_t> abort_processes;
+      ~sva_late_disable_slot_t() { delete expr; }
+};
+
+class PELateDefaultDisable : public PExpr {
+    public:
+      explicit PELateDefaultDisable(
+		std::shared_ptr<sva_late_disable_slot_t> slot)
+	  : slot_(slot) {}
+      std::shared_ptr<sva_late_disable_slot_t> slot() const
+	  { return slot_; }
+      bool refs_name(perm_string name) const override
+	  { return !slot_->expr || slot_->expr->refs_name(name); }
+      void dump(std::ostream&out) const override
+	  { if (slot_->expr) slot_->expr->dump(out); else out << "<late disable>"; }
+      void declare_implicit_nets(LexicalScope*scope,
+				 NetNet::Type type) override
+	  { if (slot_->expr) slot_->expr->declare_implicit_nets(scope, type); }
+      void reloc_lexical_pos_bind(bool parameter_context = false) override
+	  { if (slot_->expr) slot_->expr->reloc_lexical_pos_bind(parameter_context); }
+      bool has_aa_term(Design*des, NetScope*scope) const override
+	  { return slot_->expr && slot_->expr->has_aa_term(des, scope); }
+      unsigned test_width(Design*des, NetScope*scope,
+			  width_mode_t&mode) override
+	  {
+		if (!slot_->expr) {
+		      expr_type_ = IVL_VT_LOGIC;
+		      expr_width_ = min_width_ = 1;
+		      signed_flag_ = false;
+		      return 1;
+		}
+		unsigned width = slot_->expr->test_width(des, scope, mode);
+		expr_type_ = slot_->expr->expr_type();
+		expr_width_ = slot_->expr->expr_width();
+		min_width_ = slot_->expr->min_width();
+		signed_flag_ = slot_->expr->has_sign();
+		return width;
+	  }
+	  NetExpr*elaborate_expr(Design*des, NetScope*scope,
+				 ivl_type_t type, unsigned flags) const override
+	  { return slot_->expr
+		? slot_->expr->elaborate_expr(des, scope, type, flags) : nullptr; }
+	  NetExpr*elaborate_expr(Design*des, NetScope*scope,
+				 unsigned width, unsigned flags) const override
+	  { return slot_->expr
+		? slot_->expr->elaborate_expr(des, scope, width, flags) : nullptr; }
+    private:
+      std::shared_ptr<sva_late_disable_slot_t>slot_;
+};
+
+static std::map<const LexicalScope*,
+		std::shared_ptr<sva_late_disable_slot_t> > sva_late_disable_slots;
+static std::map<const LexicalScope*, PELateDefaultDisable*>
+		sva_late_disable_exprs;
+static void sva_resolve_late_disable_slots_(const Module*module);
+static PProcess* sva_make_disable_abort_process_(
+	  const struct vlltype&loc, unsigned inst, Statement*statement);
+
+static PExpr* sva_default_disable_for_scope_(const LexicalScope*scope)
+{
+      while (dynamic_cast<const PBlock*>(scope) && scope->parent_scope())
+	    scope = scope->parent_scope();
+      if (!scope) return nullptr;
+      if (scope == sva_default_disable_override_scope_)
+	    return sva_default_disable_override_;
+      std::map<const LexicalScope*, PExpr*>::const_iterator declared =
+	    sva_default_disables.find(scope);
+      if (declared != sva_default_disables.end()) return declared->second;
+      std::map<const LexicalScope*, PELateDefaultDisable*>::const_iterator found =
+	    sva_late_disable_exprs.find(scope);
+      if (found != sva_late_disable_exprs.end()) return found->second;
+      std::shared_ptr<sva_late_disable_slot_t>slot(
+	    new sva_late_disable_slot_t);
+      PELateDefaultDisable*expr = new PELateDefaultDisable(slot);
+      sva_late_disable_slots[scope] = slot;
+      sva_late_disable_exprs[scope] = expr;
+      return expr;
+}
+
+static const Module* sva_scope_module_(const LexicalScope*scope)
+{
+      for (const LexicalScope*cur = scope ; cur ; cur = cur->parent_scope())
+	    if (const Module*module = dynamic_cast<const Module*>(cur))
+		  return module;
+      return nullptr;
+}
+
+static bool sva_module_within_(const Module*module,
+			       const Module*ancestor)
+{
+      for (const LexicalScope*cur = module ; cur ; cur = cur->parent_scope())
+	    if (cur == ancestor) return true;
+      return false;
+}
 static unsigned sva_gensym_counter = 0;
 
 /* M9D: parameterized named property/sequence declarations. The formal
@@ -9009,7 +9123,6 @@ struct sva_param_prop_t {
 };
 static std::map<sva_scoped_name_t, sva_param_seq_t> sva_param_sequences;
 static std::map<sva_scoped_name_t, sva_param_prop_t> sva_param_properties;
-static std::set<const PGenerate*> sva_default_disable_scopes;
 
 /* Sampled calls in a DECLARATION acquire their clock only when the named
    property/sequence is instantiated. They must not remain in the generic
@@ -9579,14 +9692,22 @@ Statement* pform_sva_sequence_event(const struct vlltype&loc,
 
 void pform_sva_set_default_disable(const struct vlltype&loc, PExpr*expr)
 {
-      if (!sva_default_disable_scopes.insert(pform_cur_generate).second) {
+      LexicalScope*scope = pform_cur_generate
+	    ? static_cast<LexicalScope*>(pform_cur_generate)
+	    : pform_cur_module.empty() ? nullptr
+	    : static_cast<LexicalScope*>(pform_cur_module.front());
+      if (!scope) {
+	    delete expr;
+	    return;
+      }
+      if (!sva_default_disable_scopes.insert(scope).second) {
 	    cerr << loc << ": error: More than one default disable iff declaration "
 		 << "in the same scope." << endl;
 	    error_count += 1;
 	    delete expr;
 	    return;
       }
-      sva_default_disable = expr;
+      sva_default_disables[scope] = expr;
 }
 
 void pform_sva_sorry(const struct vlltype&loc, const char*what)
@@ -10621,9 +10742,29 @@ void pform_sva_module_done(void)
 	  }
       sva_sequence_trigger_events.clear();
       sva_sequence_trigger_sources.clear();
-      sva_default_disable_scopes.clear();
-      delete sva_default_disable;
-      sva_default_disable = nullptr;
+      sva_resolve_late_disable_slots_(module);
+      for (std::map<const LexicalScope*, PExpr*>::iterator it =
+	       sva_default_disables.begin() ; it != sva_default_disables.end() ; ) {
+	    if (sva_scope_module_(it->first) != module) { ++it; continue; }
+	    delete it->second;
+	    sva_default_disable_scopes.erase(it->first);
+	    sva_default_disables.erase(it++);
+      }
+      for (std::map<const LexicalScope*, PELateDefaultDisable*>::iterator it =
+	       sva_late_disable_exprs.begin() ; it != sva_late_disable_exprs.end() ; ) {
+	    std::map<const LexicalScope*,
+		std::shared_ptr<sva_late_disable_slot_t> >::const_iterator slot =
+		  sva_late_disable_slots.find(it->first);
+	    if (slot != sva_late_disable_slots.end() && !slot->second->expr) {
+		  ++it; continue;
+	    }
+	    if (!sva_module_within_(sva_scope_module_(it->first), module)) {
+		  ++it; continue;
+	    }
+	    delete it->second;
+	    sva_late_disable_slots.erase(it->first);
+	    sva_late_disable_exprs.erase(it++);
+      }
 }
 
 static PExpr* sva_clone_subst_(
@@ -10738,6 +10879,11 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 				    const std::map<perm_string,PExpr*>*subst)
 {
       if (!e) return nullptr;
+	  if (PELateDefaultDisable*late = dynamic_cast<PELateDefaultDisable*>(e)) {
+		PELateDefaultDisable*copy = new PELateDefaultDisable(late->slot());
+		copy->set_line(*e);
+		return copy;
+	  }
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
 	    /* A dotted formal reference such as `x.triggered' is represented as
 	       one PEIdent path, not as PEMemberAccess. Substitute the formal base
@@ -11109,6 +11255,84 @@ static PExpr* sva_clone_subst_(PExpr*e,
 static PExpr* sva_clone_expr_(PExpr*e)
 {
       return sva_clone_subst_(e, nullptr);
+}
+
+static void sva_resolve_late_disable_slots_(const Module*closing)
+{
+      if (!closing) return;
+      bool enclosing_scope_open =
+	    sva_scope_module_(closing->parent_scope()) != nullptr;
+      for (std::map<const LexicalScope*,
+		   std::shared_ptr<sva_late_disable_slot_t> >::iterator it =
+	       sva_late_disable_slots.begin() ;
+	   it != sva_late_disable_slots.end() ; ++it) {
+	    const Module*owner = sva_scope_module_(it->first);
+	    if (!owner || !sva_module_within_(owner, closing)
+		|| it->second->expr) continue;
+
+	    PExpr*source = nullptr;
+	    for (const LexicalScope*scope = it->first ; scope ;
+		 scope = scope->parent_scope()) {
+		  std::map<const LexicalScope*, PExpr*>::const_iterator found =
+			sva_default_disables.find(scope);
+		  if (found != sva_default_disables.end()) {
+			source = found->second;
+			break;
+		  }
+	    }
+	    if (!source && enclosing_scope_open) continue;
+	    it->second->expr = source ? sva_clone_expr_(source)
+				      : new PENumber(new verinum(uint64_t(0), 1));
+	    it->second->has_default = source != nullptr;
+	    if (!it->second->expr) {
+		  cerr << closing->get_fileline()
+		       << ": error: cannot preserve this late-bound `default disable iff' expression."
+		       << endl;
+		  error_count += 1;
+		  it->second->expr = new PENumber(
+			new verinum(verinum::Vx, 1));
+	    }
+	    for (sva_late_disable_slot_t::abort_t&pending :
+		 it->second->abort_processes) {
+		  LexicalScope*scope = pending.scope;
+		  std::list<PProcess*>::iterator marker = std::find(
+			scope->behaviors.begin(), scope->behaviors.end(),
+			pending.marker);
+		  if (marker == scope->behaviors.end()) {
+			cerr << pending.loc
+			     << ": internal error: late default-disable abort marker was lost."
+			     << endl;
+			error_count += 1;
+			delete pending.statement;
+			delete pending.marker;
+			continue;
+		  }
+		  if (!it->second->has_default) {
+			scope->behaviors.erase(marker);
+			delete pending.marker;
+			delete pending.statement;
+			continue;
+		  }
+		  LexicalScope*saved_scope = lexical_scope;
+		  std::list<Module*>saved_modules = pform_cur_module;
+		  lexical_scope = scope;
+		  pform_cur_module.clear();
+		  pform_cur_module.push_front(
+			const_cast<Module*>(sva_scope_module_(scope)));
+		  PProcess*process = sva_make_disable_abort_process_(
+			pending.loc, pending.inst, pending.statement);
+		  pending.statement = nullptr;
+		  pform_cur_module.swap(saved_modules);
+		  lexical_scope = saved_scope;
+		  if (process) {
+			scope->behaviors.remove(process);
+			scope->behaviors.insert(marker, process);
+		  }
+		scope->behaviors.erase(marker);
+		delete pending.marker;
+	    }
+	    it->second->abort_processes.clear();
+      }
 }
 
 /* Single cycle delays share the range path's instance-elaboration boundary.
@@ -18718,8 +18942,9 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 
 	/* disable iff: own, else the module default. */
       PExpr*disable = prop->disable_iff_expr;
-      if (!disable && sva_default_disable)
-	    disable = sva_clone_expr_(sva_default_disable);
+      PExpr*default_disable = sva_default_disable_for_scope_(lexical_scope);
+      if (!disable && default_disable)
+	    disable = sva_clone_expr_(default_disable);
 
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
@@ -22572,8 +22797,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* disable iff: own, else the module default (cloned). */
       PExpr*disable = prop->disable_iff_expr;
-      if (!disable && sva_default_disable) {
-	    disable = sva_clone_expr_(sva_default_disable);
+	PExpr*default_disable = sva_default_disable_for_scope_(lexical_scope);
+      if (!disable && default_disable) {
+	    disable = sva_clone_expr_(default_disable);
 	    if (!disable) {
 		  cerr << loc << ": sorry: the `default disable iff` "
 		       << "expression is too complex to copy; this "
@@ -24506,6 +24732,8 @@ static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
 static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
                                PExpr*disable, Statement*clear)
 {
+      PELateDefaultDisable*late =
+	    dynamic_cast<PELateDefaultDisable*>(disable);
       PExpr*copy = sva_clone_expr_(disable);
       if (!copy) {
             cerr << loc << ": sorry: cannot preserve asynchronous disable iff "
@@ -24525,8 +24753,31 @@ static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
       disabled.push_back(sva_report_stmt_(loc, inst, SVA_CB_DISABLED_EVAL));
       disabled.push_back(clear);
       abort->set_statement(sva_block_(loc, disabled));
-      PProcess*process = pform_make_behavior(IVL_PR_ALWAYS, abort, nullptr);
-      FILE_NAME(process, loc);
+      if (late) {
+	    PNoop*marker_stmt = new PNoop;
+	    FILE_NAME(marker_stmt, loc);
+	    PProcess*marker = new PProcess(IVL_PR_INITIAL, marker_stmt);
+	    FILE_NAME(marker, loc);
+	    lexical_scope->behaviors.push_back(marker);
+	    sva_late_disable_slot_t::abort_t pending;
+	    pending.scope = lexical_scope;
+	    pending.marker = marker;
+	    pending.statement = abort;
+	    pending.loc = loc;
+	    pending.inst = inst;
+	    late->slot()->abort_processes.push_back(pending);
+	  } else {
+	    (void)sva_make_disable_abort_process_(loc, inst, abort);
+      }
+}
+
+static PProcess* sva_make_disable_abort_process_(
+	  const struct vlltype&loc, unsigned inst, Statement*statement)
+{
+	  (void)inst;
+	  PProcess*process = pform_make_behavior(IVL_PR_ALWAYS, statement, nullptr);
+	  FILE_NAME(process, loc);
+	  return process;
 }
 
 /* Track each fixed antecedent from its enabled start to its first failed
@@ -29144,7 +29395,8 @@ static bool sva_parameter_checker_preflight_(
 	   process. Pre-create both so neither semantic half can disappear after
 	   the checker has committed. */
       PExpr*disable_src = prop->disable_iff_expr
-	    ? prop->disable_iff_expr : sva_default_disable;
+	    ? prop->disable_iff_expr
+	    : sva_default_disable_for_scope_(lexical_scope);
       if (disable_src) {
 	    prep.disable_level = sva_clone_expr_(disable_src);
 	    prep.disable_event = sva_clone_expr_(disable_src);
@@ -30794,8 +31046,9 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       fail_action = sva_fail_action_(loc, inst, fail_action);
 
       PExpr*disable = prop->disable_iff_expr;
-      if (!disable && sva_default_disable) {
-	    disable = sva_clone_expr_(sva_default_disable);
+      PExpr*default_disable = sva_default_disable_for_scope_(lexical_scope);
+      if (!disable && default_disable) {
+	    disable = sva_clone_expr_(default_disable);
 	    if (!disable) {
 		  cerr << loc << ": sorry: the `default disable iff` "
 		       << "expression is too complex to copy; this "
@@ -30995,9 +31248,10 @@ static bool sva_defer_hierarchical_assertion_(
       LexicalScope*scope = lexical_scope;
       while (dynamic_cast<PBlock*>(scope) && scope->parent_scope())
 	    scope = scope->parent_scope();
-      PExpr*default_disable = sva_default_disable
-	    ? sva_clone_expr_(sva_default_disable) : nullptr;
-      if (sva_default_disable && !default_disable) return false;
+      PExpr*current_default = sva_default_disable_for_scope_(lexical_scope);
+      PExpr*default_disable = current_default
+	    ? sva_clone_expr_(current_default) : nullptr;
+	if (current_default && !default_disable) return false;
 
       PNoop*marker_stmt = new PNoop;
       FILE_NAME(marker_stmt, loc);
@@ -31116,7 +31370,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	  && (!sva_validate_disable_condition_(loc, prop->disable_iff_expr,
 					       prop->local_names)
 	      || (!prop->disable_iff_expr
-		  && !sva_validate_disable_condition_(loc, sva_default_disable,
+		  && !sva_validate_disable_condition_(loc,
+						       sva_default_disable_for_scope_(lexical_scope),
 						      prop->local_names)))) {
 	    delete fail_stmt;
 	    delete pass_stmt;
@@ -31800,7 +32055,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      }
 			      if (!fatal && !sva_build_property_subst_(loc, nm,
 				    pit->second.formals, cf->get_parms(), inferred_clock,
-				    sva_default_disable, subst,
+				    sva_default_disable_for_scope_(lexical_scope), subst,
 				    event_subst,
 				    owned_subst, *formal_initializers, local_carriers,
 				    caller_locals, actual_local_reads))
@@ -32559,8 +32814,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* disable iff: own, else the module `default disable iff`
 	   (cloned so every assertion can use it). */
       PExpr*disable = prop->disable_iff_expr;
-      if (!disable && sva_default_disable) {
-	    disable = sva_clone_expr_(sva_default_disable);
+      PExpr*default_disable = sva_default_disable_for_scope_(lexical_scope);
+      if (!disable && default_disable) {
+	    disable = sva_clone_expr_(default_disable);
 	    if (!disable) {
 		  cerr << loc << ": sorry: the `default disable iff` "
 		       << "expression is too complex to copy; this "
@@ -33619,21 +33875,25 @@ static void sva_flush_pending_hier_assertions_()
 
 	    LexicalScope*saved_scope = lexical_scope;
 	    PGenerate*saved_generate = pform_cur_generate;
-	    PExpr*saved_disable = sva_default_disable;
+	    PExpr*saved_override = sva_default_disable_override_;
+	    const LexicalScope*saved_override_scope =
+		  sva_default_disable_override_scope_;
 	    bool saved_retry = sva_hier_assertion_retry_active_;
 	    std::list<Module*>saved_modules = pform_cur_module;
 	    lexical_scope = scope;
 	    pform_cur_generate = item.generate;
 	    pform_cur_module.clear();
 	    pform_cur_module.push_front(item.owner);
-	    sva_default_disable = item.default_disable;
+	    sva_default_disable_override_ = item.default_disable;
+	    sva_default_disable_override_scope_ = scope;
 	    sva_hier_assertion_retry_active_ = true;
 	    pform_make_assertion(item.loc, item.prop, item.fail_stmt,
 			 item.pass_stmt, item.kind, item.label);
 	    item.prop = nullptr;
 	    item.fail_stmt = item.pass_stmt = nullptr;
 	    sva_hier_assertion_retry_active_ = saved_retry;
-	    sva_default_disable = saved_disable;
+	    sva_default_disable_override_ = saved_override;
+	    sva_default_disable_override_scope_ = saved_override_scope;
 	    pform_cur_module.swap(saved_modules);
 	    pform_cur_generate = saved_generate;
 	    lexical_scope = saved_scope;

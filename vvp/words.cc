@@ -72,6 +72,7 @@ class packed_dims_resolv_t : public resolv_list_s {
                         sig->value_width = width_;
                         sig->msb.set_value(ranges_[0].left);
                         sig->lsb.set_value(ranges_[0].right);
+                        vpip_trim_packed_base_dimension(sig);
                   }
             } else if (__vpiArray*array = dynamic_cast<__vpiArray*>(obj_)) {
                   if (unpacked_) {

@@ -75,6 +75,7 @@ static PLI_INT32 ivl_enum_method_next_prev_compiletf(ICARUS_VPI_CONST PLI_BYTE8*
 	    return 0;
       }
       switch(vpi_get(vpiType, arg_var)) {
+	case vpiEnumVar:
 	case vpiBitVar:
 	case vpiByteVar:
 	case vpiIntegerVar:
@@ -425,6 +426,7 @@ static PLI_INT32 ivl_enum_method_name_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    return 0;
       }
       switch(vpi_get(vpiType, arg_var)) {
+	case vpiEnumVar:
 	case vpiBitVar:
 	case vpiByteVar:
 	case vpiIntegerVar:
