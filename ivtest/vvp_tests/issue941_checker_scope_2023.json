@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue941_checker_scope.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue941_checker_scope"],
+  "gold": "issue941_checker_scope_2023"
+}

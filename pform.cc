@@ -412,6 +412,7 @@ extern int VLdebug;
      exactly one module currently being parsed, since Verilog does not
      allow nested module definitions. */
 static list<Module*>pform_cur_module;
+static list<PGenerate*>pform_module_generate_stack;
 
 bool pform_library_flag = false;
 
@@ -1381,6 +1382,11 @@ PGenerate* pform_parent_generate(void)
 bool pform_error_in_generate(const vlltype&loc, const char *type)
 {
 	if (!pform_parent_generate())
+		return false;
+	// IEEE 1800-2017/2023 17.2 permits checker declarations in generate
+	// blocks. Preserve the existing rejection in older language modes.
+	if (generation_flag >= GN_VER2017
+	    && strcmp(type, "checker declaration") == 0)
 		return false;
 
 	VLerror(loc, "error: %s is not allowed in generate block.", type);
@@ -2695,7 +2701,7 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
 			  "declarations are not allowed in checkers." << endl;
 		  error_count += 1;
 	    }
-	    if (pform_cur_module.front()->program_block) {
+	    if (pform_cur_module.front()->program_block && !is_checker) {
 		  cerr << loc << ": error: module, program, or interface "
 				 "declarations are not allowed in program "
 				 "blocks." << endl;
@@ -2722,6 +2728,11 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
 
       cur_module->library_flag = pform_library_flag;
 
+	// A nested design element has its own generate namespace. Preserve the
+	// enclosing generate scope so a checker declaration can be registered
+	// there when this design element closes.
+      pform_module_generate_stack.push_front(pform_cur_generate);
+      pform_cur_generate = 0;
       pform_cur_module.push_front(cur_module);
 
       allow_timeunit_decl = true;
@@ -2889,6 +2900,13 @@ void pform_endmodule(const char*name, bool inside_celldefine,
       pform_sva_module_done();
       pform_cur_module.pop_front();
 
+	// Restore the generate scope that lexically contained this design
+	// element. It owns checker declarations parsed as generate items.
+      if (!pform_module_generate_stack.empty()) {
+	    pform_cur_generate = pform_module_generate_stack.front();
+	    pform_module_generate_stack.pop_front();
+      }
+
 	// Oops, there may be some sort of nesting problem. If
 	// SystemVerilog is activated, it is possible for modules to
 	// be nested. But if the nested module is broken, the parser
@@ -2927,14 +2945,18 @@ void pform_endmodule(const char*name, bool inside_celldefine,
       cur_module->is_cell = inside_celldefine;
       cur_module->uc_drive = uc_drive_def;
 
-	// If this is a root module, then there is no parent module
-	// and we try to put this newly defined module into the global
-	// root list of modules. Otherwise, this is a nested module
-	// and we put it into the parent module scope to be elaborated
-	// if needed.
-      map<perm_string,Module*>&use_module_map = (pform_cur_module.empty())
-	    ? pform_modules
-	    : pform_cur_module.front()->nested_modules;
+	  // If this is a root module, then there is no parent module
+	  // and we try to put this newly defined module into the global
+	  // root list of modules. Otherwise, this is a nested module
+	  // and we put it into its lexical parent to be elaborated if
+	  // needed. A checker declared in a generate block belongs to that
+	  // block's scope instead of the enclosing module's scope.
+	map<perm_string,Module*>&use_module_map =
+	      cur_module->is_checker && pform_cur_generate
+	      ? pform_cur_generate->nested_modules
+	      : pform_cur_module.empty()
+	      ? pform_modules
+	      : pform_cur_module.front()->nested_modules;
 
       map<perm_string,Module*>::const_iterator test =
 	    use_module_map.find(mod_name);
@@ -3934,6 +3956,36 @@ static void pform_make_modgate(perm_string type,
       pform_bind_attributes(cur->attributes, attr);
 }
 
+/* Find a design element using the lexical declaration scopes available
+ * during parsing. Local checker definitions are supported for the 2017 and
+ * 2023 editions; older modes retain their existing nested-checker behavior. */
+static Module* pform_find_visible_module_type_(const LexicalScope*scope,
+						       perm_string type)
+{
+      for (const LexicalScope*cur = scope; cur; cur = cur->parent_scope()) {
+	    const std::map<perm_string,Module*>*nested_modules = nullptr;
+	    if (const Module*owner = dynamic_cast<const Module*>(cur))
+		  nested_modules = &owner->nested_modules;
+	    else if (const PGenerate*generate = dynamic_cast<const PGenerate*>(cur))
+		  nested_modules = &generate->nested_modules;
+
+	    if (nested_modules) {
+		  std::map<perm_string,Module*>::const_iterator nested
+			= nested_modules->find(type);
+		  if (nested != nested_modules->end()) {
+			if (nested->second->is_checker
+			    && generation_flag < GN_VER2017)
+			      return nullptr;
+			return nested->second;
+		  }
+      }
+      }
+
+      std::map<perm_string,Module*>::const_iterator module
+	    = pform_modules.find(type);
+      return module == pform_modules.end()? nullptr : module->second;
+}
+
 void pform_make_modgates(const struct vlltype&loc,
 			 perm_string type,
 			 struct parmvalue_t*overrides,
@@ -4047,10 +4099,9 @@ void pform_make_modgates(const struct vlltype&loc,
 
 	// Detect some more realistic errors.
 
-      map<perm_string,Module*>::const_iterator instance_type
-	    = pform_modules.find(type);
-      bool checker_instance = instance_type != pform_modules.end()
-	    && instance_type->second->is_checker;
+	  Module*instance_type = pform_find_visible_module_type_(lexical_scope,
+								  type);
+	  bool checker_instance = instance_type && instance_type->is_checker;
       if (pform_cur_module.front()->program_block && !checker_instance) {
 	    cerr << loc << ": error: Module instantiations are not allowed in "
 		 << "program blocks." << endl;
@@ -9074,6 +9125,17 @@ static PExpr* sva_default_disable_for_scope_(const LexicalScope*scope)
       sva_late_disable_slots[scope] = slot;
       sva_late_disable_exprs[scope] = expr;
       return expr;
+}
+
+static const Module* sva_default_clocking_owner_(const LexicalScope*scope)
+{
+      for (const LexicalScope*cur = scope; cur; cur = cur->parent_scope()) {
+	    const Module*module = dynamic_cast<const Module*>(cur);
+	    if (!module) continue;
+	    if (!module->default_clocking.nil()) return module;
+	    if (!module->is_checker) return nullptr;
+      }
+      return nullptr;
 }
 
 static const Module* sva_scope_module_(const LexicalScope*scope)
@@ -17460,8 +17522,9 @@ void pform_flush_pending_sampled_calls()
       if (sampled_pending_.empty())
 	    return;
 
-      bool have_default = !pform_cur_module.empty()
-			  && !pform_cur_module.front()->default_clocking.nil();
+      const Module*default_clocking =
+	    sva_default_clocking_owner_(lexical_scope);
+      bool have_default = default_clocking != nullptr;
 
       if (!have_default) {
 	    for (size_t i = 0 ; i < sampled_pending_.size() ; i += 1) {
@@ -17496,11 +17559,11 @@ void pform_flush_pending_sampled_calls()
       std::map<std::string, pform_name_t> sampled;
       unsigned live_operands = 0;
       PEventStatement*default_event = nullptr;
-      if (!pform_cur_module.empty()) {
-	    Module*mod = pform_cur_module.front();
+	  if (default_clocking) {
 	    std::map<perm_string,Module::PClocking*>::const_iterator cb_it =
-		  mod->clocking_blocks.find(mod->default_clocking);
-	    if (cb_it != mod->clocking_blocks.end())
+		  default_clocking->clocking_blocks.find(
+			default_clocking->default_clocking);
+	    if (cb_it != default_clocking->clocking_blocks.end())
 		  default_event = cb_it->second->event;
       }
 
@@ -18919,8 +18982,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	/* Clock: explicit, else the module's default clocking. */
       PEventStatement*clk = prop->clk_evt;
       if (!clk) {
-	    Module*mod = pform_cur_module.empty() ? nullptr
-			 : pform_cur_module.front();
+	    const Module*mod = sva_default_clocking_owner_(lexical_scope);
 	    if (!mod || mod->default_clocking.nil()) {
 		  cerr << loc << ": error: concurrent assertion has no "
 		       << "clocking event and no default clocking block "
@@ -22711,8 +22773,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   identical diagnostic. */
       PEventStatement*clk = prop->clk_evt;
       if (!clk) {
-	    Module*mod = pform_cur_module.empty() ? nullptr
-			 : pform_cur_module.front();
+	    const Module*mod = sva_default_clocking_owner_(lexical_scope);
 	    if (!mod || mod->default_clocking.nil())
 		  return false;
 	    std::list<named_pexpr_t> no_parms;
@@ -29018,7 +29079,7 @@ void pform_sva_flush_pending_procedural(void)
 		  keep.push_back(p);
 		  continue;
 	    }
-	    if (owner && !owner->default_clocking.nil()) {
+	    if (owner && sva_default_clocking_owner_(p.scope)) {
 		  LexicalScope*saved = lexical_scope;
 		  PGenerate*saved_generate = pform_cur_generate;
 		  bool saved_retry = sva_named_prop_retry_active_;
@@ -29408,8 +29469,7 @@ static bool sva_parameter_checker_preflight_(
 
       prep.clk = prop->clk_evt;
       if (!prep.clk) {
-	    Module*mod = pform_cur_module.empty() ? nullptr
-		       : pform_cur_module.front();
+	    const Module*mod = sva_default_clocking_owner_(lexical_scope);
 	    if (!mod || mod->default_clocking.nil()) {
 		  sva_parameter_preflight_discard_(prep);
 		  return false;
@@ -31008,8 +31068,7 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
 	 procedural assertion, so failure here means this is not our shape. */
       PEventStatement*clk = prop->clk_evt;
       if (!clk) {
-	    Module*mod = pform_cur_module.empty() ? nullptr
-		       : pform_cur_module.front();
+	    const Module*mod = sva_default_clocking_owner_(lexical_scope);
 	    if (!mod || mod->default_clocking.nil()) return false;
 	    std::list<named_pexpr_t> no_parms;
 	    PECallFunction*mark = new PECallFunction(
@@ -32038,8 +32097,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      PEventStatement*inferred_clock = prop->clk_evt;
 			      bool owns_inferred_clock = false;
 			      if (!inferred_clock) {
-				    Module*mod = pform_cur_module.empty() ? nullptr
-					  : pform_cur_module.front();
+			    const Module*mod =
+				  sva_default_clocking_owner_(lexical_scope);
 				    if (mod && !mod->default_clocking.nil()) {
 					  std::list<named_pexpr_t> no_parms;
 					  PECallFunction*mark = new PECallFunction(
@@ -32790,8 +32849,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Clock: explicit, else the module's default clocking. */
       PEventStatement*clk = prop->clk_evt;
       if (!clk) {
-	    Module*mod = pform_cur_module.empty() ? nullptr
-			 : pform_cur_module.front();
+	    const Module*mod = sva_default_clocking_owner_(lexical_scope);
 	    if (!mod || mod->default_clocking.nil()) {
 		  cerr << loc << ": error: concurrent assertion has no "
 		       << "clocking event and no default clocking block "
@@ -33767,6 +33825,10 @@ static void pform_validate_nettype_resolvers_(LexicalScope*scope,
       }
 
       if (PGenerate*generate = dynamic_cast<PGenerate*>(scope)) {
+	    for (map<perm_string,Module*>::const_iterator cur =
+		       generate->nested_modules.begin();
+		 cur != generate->nested_modules.end(); ++cur)
+		  pform_validate_nettype_resolvers_(cur->second, seen);
 	    for (const auto&item : generate->classes)
 		  pform_validate_nettype_resolvers_(item.second, seen);
 	    for (PGenerate*child : generate->generate_schemes)
@@ -33775,15 +33837,16 @@ static void pform_validate_nettype_resolvers_(LexicalScope*scope,
 
 }
 
-static void pform_check_checker_instantiations_(const std::list<PGate*>&gates)
+static void pform_check_checker_instantiations_(const std::list<PGate*>&gates,
+							const LexicalScope*scope)
 {
       for (PGate*gate : gates) {
 	    PGModule*instance = dynamic_cast<PGModule*>(gate);
 	    if (!instance) continue;
 
-	    map<perm_string,Module*>::const_iterator target
-		  = pform_modules.find(instance->get_type());
-	    if (target != pform_modules.end() && !target->second->is_checker) {
+	    Module*target = pform_find_visible_module_type_(
+		  scope, instance->get_type());
+	    if (target && !target->is_checker) {
 		  cerr << instance->get_fileline() << ": error: Module, interface, "
 		       << "and program instantiations are not allowed in checkers."
 		       << endl;
@@ -33793,16 +33856,16 @@ static void pform_check_checker_instantiations_(const std::list<PGate*>&gates)
 }
 
 static void pform_check_checker_wildcard_connections_(
-	const std::list<PGate*>&gates)
+	const std::list<PGate*>&gates, const LexicalScope*scope)
 {
       for (PGate*gate : gates) {
 	    PGModule*instance = dynamic_cast<PGModule*>(gate);
 	    if (!instance || !instance->has_duplicate_wildcard_port_connections())
 		  continue;
 
-	    map<perm_string,Module*>::const_iterator target
-		  = pform_modules.find(instance->get_type());
-	    if (target != pform_modules.end() && target->second->is_checker) {
+	    Module*target = pform_find_visible_module_type_(
+		  scope, instance->get_type());
+	    if (target && target->is_checker) {
 		  cerr << instance->get_fileline() << ": error: Checker instantiation `"
 		       << instance->get_name()
 		       << "' has more than one wildcard port connection."
@@ -33812,36 +33875,50 @@ static void pform_check_checker_wildcard_connections_(
       }
 }
 
+static void pform_check_checker_wildcard_module_(Module*module);
+
 static void pform_check_checker_wildcard_generate_(PGenerate*generate)
 {
-      pform_check_checker_wildcard_connections_(generate->gates);
+	  pform_check_checker_wildcard_connections_(generate->gates, generate);
+	  for (map<perm_string,Module*>::value_type&nested
+	       : generate->nested_modules)
+		pform_check_checker_wildcard_module_(nested.second);
       for (PGenerate*child : generate->generate_schemes)
 	    pform_check_checker_wildcard_generate_(child);
 }
 
 static void pform_check_checker_wildcard_module_(Module*module)
 {
-      pform_check_checker_wildcard_connections_(module->get_gates());
+	  pform_check_checker_wildcard_connections_(module->get_gates(), module);
       for (PGenerate*generate : module->generate_schemes)
 	    pform_check_checker_wildcard_generate_(generate);
       for (map<perm_string,Module*>::value_type&nested : module->nested_modules)
 	    pform_check_checker_wildcard_module_(nested.second);
 }
 
-static void pform_check_checker_generate_instantiations_(PGenerate*generate)
+static void pform_check_checker_module_instantiations_(Module*module);
+
+static void pform_check_checker_generate_instantiations_(PGenerate*generate,
+							  bool checker_scope)
 {
-      pform_check_checker_instantiations_(generate->gates);
+	  if (checker_scope)
+		pform_check_checker_instantiations_(generate->gates, generate);
+	  for (map<perm_string,Module*>::value_type&nested
+	       : generate->nested_modules)
+		pform_check_checker_module_instantiations_(nested.second);
       for (PGenerate*child : generate->generate_schemes)
-	    pform_check_checker_generate_instantiations_(child);
+		pform_check_checker_generate_instantiations_(child, checker_scope);
 }
 
 static void pform_check_checker_module_instantiations_(Module*module)
 {
       if (module->is_checker) {
-	    pform_check_checker_instantiations_(module->get_gates());
-	    for (PGenerate*generate : module->generate_schemes)
-		  pform_check_checker_generate_instantiations_(generate);
+	    pform_check_checker_instantiations_(module->get_gates(), module);
       }
+
+	  for (PGenerate*generate : module->generate_schemes)
+		pform_check_checker_generate_instantiations_(generate,
+							     module->is_checker);
 
       for (map<perm_string,Module*>::value_type&nested : module->nested_modules)
 	    pform_check_checker_module_instantiations_(nested.second);
@@ -33995,6 +34072,9 @@ static void pform_release_scope_memory_(LexicalScope*scope,
       }
 
       if (PGenerate*generate = dynamic_cast<PGenerate*>(scope)) {
+	    for (map<perm_string,Module*>::value_type&item :
+		 generate->nested_modules)
+		  pform_release_scope_memory_(item.second, seen);
 	    for (map<perm_string,PTask*>::value_type&item : generate->tasks)
 		  pform_release_scope_memory_(item.second, seen);
 	    for (map<perm_string,PFunction*>::value_type&item : generate->funcs)

@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue941_checker_scope.v:51: $finish called at 7 (1s)

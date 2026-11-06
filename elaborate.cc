@@ -365,16 +365,55 @@ static bool checker_formal_used_in_code_(Module*checker,
       return false;
 }
 
+static bool lexical_scope_is_within_(const LexicalScope*scope,
+				     const LexicalScope*ancestor)
+{
+      for (const LexicalScope*cur = scope; cur; cur = cur->parent_scope())
+	    if (cur == ancestor) return true;
+      return false;
+}
+
+static const Module* find_default_clocking_module_(const Module*module)
+{
+      for (const LexicalScope*scope = module; scope;
+	   scope = scope->parent_scope()) {
+	    const Module*owner = dynamic_cast<const Module*>(scope);
+	    if (!owner) continue;
+	    if (!owner->default_clocking.nil()) return owner;
+	    if (!owner->is_checker) return nullptr;
+      }
+      return nullptr;
+}
+
 static Module* find_module_type_(perm_string type, const NetScope*scope)
 {
       for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    const PGenerate*selected_generate = nullptr;
+	    auto select_generate = [&] (const PGenerate*generate) {
+		  if (!generate) return;
+		  if (generate->nested_modules.find(type)
+		      == generate->nested_modules.end()) return;
+		  if (!selected_generate
+		      || lexical_scope_is_within_(generate, selected_generate))
+			selected_generate = generate;
+	    };
+	    select_generate(cur->generate_definition());
+	    for (const PGenerate*generate : cur->active_generate_definitions())
+		  select_generate(generate);
+	    if (selected_generate && generation_flag >= GN_VER2017) {
+		  std::map<perm_string,Module*>::const_iterator nested
+			= selected_generate->nested_modules.find(type);
+		  if (nested != selected_generate->nested_modules.end())
+			return nested->second;
+	    }
+
 	    const Module*owner = cur->module_definition();
 	    if (!owner)
 		  continue;
 	    std::map<perm_string,Module*>::const_iterator nested
 		  = owner->nested_modules.find(type);
 	    if (nested != owner->nested_modules.end()
-		&& !nested->second->is_checker)
+		&& (!nested->second->is_checker || generation_flag >= GN_VER2017))
 		  return nested->second;
       }
 
@@ -25742,24 +25781,49 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			}
 			const Module::PClocking*gcb = nullptr;
 			NetScope*gdef_scope = nullptr;
-			for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
-			      if (walker->type() != NetScope::MODULE)
-				    continue;
-			      perm_string mn = walker->module_name();
-			      if (mn.nil()) continue;
-			      auto pmod_it = pform_modules.find(mn);
-			      if (pmod_it == pform_modules.end()) continue;
-			      perm_string cbn = is_gclk
-				    ? pmod_it->second->global_clocking
-				    : pmod_it->second->default_clocking;
-			      if (cbn.nil()) continue;
-			      auto cb_it = pmod_it->second->clocking_blocks.find(cbn);
-			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
-				    gcb = cb_it->second;
-				    gdef_scope = walker;
-				    break;
-			      }
-			}
+		    if (is_gclk) {
+			  for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
+				if (walker->type() != NetScope::MODULE)
+				      continue;
+				perm_string mn = walker->module_name();
+				if (mn.nil()) continue;
+				auto pmod_it = pform_modules.find(mn);
+				if (pmod_it == pform_modules.end()) continue;
+				if (pmod_it->second->global_clocking.nil()) continue;
+				auto cb_it = pmod_it->second->clocking_blocks.find(
+				      pmod_it->second->global_clocking);
+				if (cb_it != pmod_it->second->clocking_blocks.end()) {
+				      gcb = cb_it->second;
+				      gdef_scope = walker;
+				      break;
+				}
+			  }
+		    } else {
+			  NetScope*module_scope = nullptr;
+			  for (NetScope*walker = scope; walker;
+			       walker = walker->parent()) {
+				if (!walker->module_definition()) continue;
+				module_scope = walker;
+				break;
+			  }
+			  const Module*clock_owner = module_scope
+				? find_default_clocking_module_(
+				      module_scope->module_definition()) : nullptr;
+			  if (clock_owner) {
+				auto cb_it = clock_owner->clocking_blocks.find(
+				      clock_owner->default_clocking);
+				if (cb_it != clock_owner->clocking_blocks.end()) {
+				      gcb = cb_it->second;
+				      for (NetScope*walker = module_scope; walker;
+					   walker = walker->parent()) {
+					    if (walker->module_definition() == clock_owner) {
+						  gdef_scope = walker;
+						  break;
+					    }
+				      }
+				}
+			  }
+		    }
 			if (!gcb || !gdef_scope || !gcb->event
 			    || gcb->event->event_expressions().empty()) {
 			      cerr << get_fileline() << ": error: "
