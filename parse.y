@@ -10965,6 +10965,13 @@ tf_port_declaration /* IEEE1800-2005: A.2.7 */
       { $$ = pform_make_task_ports(@1, $1.direction, $3, $4, true,
 				   $1.is_const, $1.is_ref_static);
       }
+  | tf_port_direction K_event list_of_port_identifiers ';'
+      { if ($1.direction != NetNet::PINPUT) {
+	      yyerror(@2, "error: An event task/function formal must have input direction.");
+	}
+	$$ = pform_make_task_ports(@2, NetNet::PINPUT, nullptr, $3, true,
+				   false, false, true);
+      }
   ;
 
 
@@ -11026,6 +11033,18 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	      assert(tmp->size()==1);
 	      tmp->front().defe = $6;
 	}
+      }
+
+  | tf_port_direction_opt K_event IDENTIFIER
+      { NetNet::PortType use_port_type = $1.direction;
+	if (use_port_type == NetNet::PIMPLICIT)
+	      use_port_type = NetNet::PINPUT;
+	if (use_port_type != NetNet::PINPUT)
+	      yyerror(@2, "error: An event task/function formal must have input direction.");
+	list<pform_port_t>*port_list = make_port_list($3, @3.lexical_pos, 0, 0);
+	$$ = pform_make_task_ports(
+	      @2, NetNet::PINPUT, nullptr, port_list, false,
+	      false, false, true);
       }
 
   /* Allow TYPE_IDENTIFIER as port name — type name shadows in local port scope */

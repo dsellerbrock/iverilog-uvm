@@ -22895,6 +22895,36 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  ivl_type_t formal_type = port->unpacked_dimensions() > 0
 			? static_cast<ivl_type_t>(port->array_type())
 			: port->net_type();
+	  if (port->is_event_formal()) {
+		const PEIdent*event_actual = dynamic_cast<const PEIdent*>(actual);
+		if (event_actual) {
+		      symbol_search_results actual_symbol;
+		      if (symbol_search(this, des, actual_scope,
+					event_actual->path(),
+					event_actual->lexical_pos(),
+					&actual_symbol)) {
+			    if (actual_symbol.net && actual_symbol.path_tail.empty()
+				&& actual_symbol.net->is_event_formal()) {
+				  rv = new NetESignal(actual_symbol.net);
+				  rv->set_line(*event_actual);
+			    } else if (actual_symbol.eve
+				       && actual_symbol.path_tail.empty()
+				       && !actual_symbol.eve->is_event_array()) {
+				  rv = new NetEEvent(actual_symbol.eve);
+				  rv->set_line(*event_actual);
+			    }
+		      }
+		}
+		if (!rv) {
+		      cerr << get_fileline() << ": error: Event task/function formal `"
+			   << port->name()
+			   << "' requires a named event or another event formal as its actual."
+			   << endl;
+		      des->errors += 1;
+		      delete lv;
+		      continue;
+		}
+	  }
 		  bool dpi_open_argument =
 			dpi_open_array_formal_needs_copy_in_(port, task);
 		  unsigned argument_flags =
@@ -22902,7 +22932,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			? (dpi_open_argument ? PExpr::DPI_OPEN_ARRAY_ARG
 					     : PExpr::NATIVE_ARRAY_FORMAL_ARG)
 			: PExpr::NO_FLAGS;
-		  if (gn_commercial_unsafe_flag && !dpi_open_argument
+	  if (!rv && gn_commercial_unsafe_flag && !dpi_open_argument
 		      && port->port_type() != NetNet::PREF) {
 			const PEIdent*actual_id = dynamic_cast<const PEIdent*>(actual);
 			if (actual_id && !actual_id->leading_type_args()
@@ -22999,13 +23029,6 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			      des, actual_scope, formal_type, actual,
 			      false, false, argument_flags);
 		  copy_in_error[idx] = des->errors != copy_in_errors_before;
-		  if (const NetEEvent*evt = dynamic_cast<NetEEvent*> (rv)) {
-			cerr << evt->get_fileline() << ": error: An event '"
-			     << evt->event()->name() << "' can not be a user "
-			      "task argument." << endl;
-			des->errors += 1;
-			continue;
-		  }
 
 	    } else if (def->port_defe(idx)) {
 		  if (! gn_system_verilog()) {
@@ -23029,6 +23052,33 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		       << "Missing argument " << (parms_idx+1)
 		       << " ('" << port->name() << "') of call to task." << endl;
 		  des->errors += 1;
+		  continue;
+	    }
+
+	    if (port->is_event_formal()) {
+		  const NetESignal*event_formal =
+			    dynamic_cast<const NetESignal*>(rv);
+		  const NetEEvent*named_event =
+			    dynamic_cast<const NetEEvent*>(rv);
+		  if (port->port_type() != NetNet::PINPUT
+		      || (!named_event
+			  && !(event_formal && event_formal->sig()->is_event_formal()))) {
+			cerr << get_fileline() << ": error: Event task/function formal `"
+			     << port->name()
+			     << "' requires a named event or another event formal as its actual."
+			     << endl;
+			des->errors += 1;
+			delete lv;
+			delete rv;
+			continue;
+		  }
+	    } else if (const NetEEvent*evt = dynamic_cast<NetEEvent*>(rv)) {
+		  cerr << evt->get_fileline() << ": error: An event '"
+		       << evt->event()->name() << "' can not be a user task argument."
+		       << endl;
+		  des->errors += 1;
+		  delete lv;
+		  delete rv;
 		  continue;
 	    }
 
@@ -27902,6 +27952,33 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	    return result;
       }
 
+	/* `@(ev)` on an event task formal waits on the event handle value
+	 * copied into the formal at the call site. */
+      if (expr_.size() == 1 && expr_[0]
+	  && expr_[0]->type() == PEEvent::ANYEDGE
+	  && expr_[0]->expr()) {
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
+		  symbol_search_results sr;
+		  if (symbol_search(id, des, scope, id->path(),
+				    id->lexical_pos(), &sr)
+		      && sr.net && sr.net->is_event_formal()
+		      && sr.path_tail.empty()) {
+			NetESignal*handle = new NetESignal(sr.net);
+			handle->set_line(*this);
+			NetProc*body = statement_
+			      ? statement_->elaborate(des, scope) : nullptr;
+			if (statement_ && !body) {
+			      delete handle;
+			      return nullptr;
+			}
+			NetEvWaitObj*wait = new NetEvWaitObj(handle, 0, true);
+			wait->set_line(*this);
+			wait->set_statement(body);
+			return wait;
+		  }
+	    }
+      }
+
 	/* A wait on a single non-static class event property
 	   (`@(obj.ev)`) is per-instance: wait on that object's own event
 	   (IEEE 1800-2017 15.5). */
@@ -30243,6 +30320,16 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 	    return 0;
       }
 
+	/* An event task formal is an object handle, not a compile-time named
+	 * event. Resolve its current value when the task executes. */
+	if (sr.net && sr.net->is_event_formal() && sr.path_tail.empty()) {
+	      NetESignal*handle = new NetESignal(sr.net);
+	      handle->set_line(*this);
+	      NetEvTrigObj*trig = new NetEvTrigObj(handle, 0, false, 0, true);
+	      trig->set_line(*this);
+	      return trig;
+	}
+
       NetEvent*eve = resolve_named_event_member_from_search_(sr);
       if (!eve) {
 	    /* ->vif.ev on an interface's named event: toggle its request
@@ -30319,6 +30406,15 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 	    des->errors += 1;
 	    return 0;
       }
+	if (sr.net && sr.net->is_event_formal() && sr.path_tail.empty()) {
+	      NetESignal*handle = new NetESignal(sr.net);
+	      handle->set_line(*this);
+	      NetExpr*dly = 0;
+	      if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
+	      NetEvTrigObj*trig = new NetEvTrigObj(handle, 0, true, dly, true);
+	      trig->set_line(*this);
+	      return guard_function_background_event_(scope, *this, trig);
+	}
 
       NetEvent*eve = resolve_named_event_member_from_search_(sr);
       if (eve == 0) {

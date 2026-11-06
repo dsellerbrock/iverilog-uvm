@@ -3593,10 +3593,16 @@ static int show_stmt_trigger_obj(ivl_statement_t net)
 		  draw_expr_into_idx(expr, use_idx);
 	    else
 		  fprintf(vvp_out, "    %%ix/load %d, 0, 0;\n", use_idx);
-	    fprintf(vvp_out, "    %%evt/obj/nb %u, %d;\n", slot, use_idx);
+	    if (ivl_stmt_evobj_is_handle(net))
+		  fprintf(vvp_out, "    %%evt/handle/nb %d;\n", use_idx);
+	    else
+		  fprintf(vvp_out, "    %%evt/obj/nb %u, %d;\n", slot, use_idx);
 	    clr_word(use_idx);
       } else {
-	    fprintf(vvp_out, "    %%evt/obj %u;\n", slot);
+	    if (ivl_stmt_evobj_is_handle(net))
+		  fprintf(vvp_out, "    %%evt/handle;\n");
+	    else
+		  fprintf(vvp_out, "    %%evt/obj %u;\n", slot);
       }
       return 0;
 }
@@ -3613,7 +3619,10 @@ static int show_stmt_wait_obj(ivl_statement_t net, ivl_scope_t sscope)
       show_stmt_file_line(net, "Per-instance class event wait (@).");
 
       draw_eval_object(ivl_stmt_evobj_expr(net));
-      fprintf(vvp_out, "    %%wait/obj %u;\n", slot);
+	  if (ivl_stmt_evobj_is_handle(net))
+	    fprintf(vvp_out, "    %%wait/handle;\n");
+	  else
+	    fprintf(vvp_out, "    %%wait/obj %u;\n", slot);
 
       return show_statement(ivl_stmt_sub_stmt(net), sscope);
 }

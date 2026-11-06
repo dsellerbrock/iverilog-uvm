@@ -20,6 +20,7 @@
  */
 
 # include  "vvp_net.h"
+# include  "vvp_object.h"
 # include  "array.h"
 # include  "vthread.h"
 # include  "config.h"
@@ -615,6 +616,10 @@ class vvp_named_event_aa : public vvp_named_event, public automatic_hooks_s {
 
       vthread_t add_waiting_thread(vthread_t thread) override;
       vthread_t add_triggered_change_waiter(vthread_t thread);
+      vvp_context_t capture_context(vvp_context_t candidate) const;
+      bool add_waiting_thread_at_context(vthread_t thread,
+					 vvp_context_t context,
+					 vthread_t&next);
       bool triggered_now(void) const override;
       void collect_waiting_threads(std::vector<vthread_t>&threads) const override;
 
@@ -652,6 +657,22 @@ class vvp_named_event_dyn : public vvp_named_event {
 
     private:
       vthread_t threads_;
+};
+
+/* An event formal carries a handle to the named event value supplied by its
+ * caller. Keep the VVP event net and, for an automatic event, the activation
+ * that owns that event. */
+class vvp_event_handle : public vvp_object {
+    public:
+      vvp_event_handle(vvp_net_t*net, vvp_context_t context);
+      ~vvp_event_handle() override;
+      vvp_net_t*net() const { return net_; }
+      vvp_context_t context() const { return context_; }
+      vvp_object*duplicate() const override;
+      void shallow_copy(const vvp_object*that) override;
+    private:
+      vvp_net_t*net_;
+      vvp_context_t context_;
 };
 
 /*

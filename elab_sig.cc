@@ -4173,6 +4173,13 @@ bool test_ranges_eeq(const netranges_t&lef, const netranges_t&rig)
 ivl_type_t PWire::elaborate_type(Design*des, NetScope*scope,
 			         const netranges_t &packed_dimensions) const
 {
+      if (is_event_formal()) {
+	    ivl_assert(*this, packed_dimensions.empty());
+	    static netclass_t*event_handle_type = new netclass_t(
+		  perm_string::literal("__ivl_event_handle"), nullptr);
+	    return event_handle_type;
+      }
+
       if (const nettype_t*decl = user_nettype()) {
             NetNetType*info = scope->elaborate_nettype(des, decl);
             if (info && info->data_type()) {
@@ -4259,8 +4266,10 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 
 		// Check if we elaborated this signal earlier because it was
 		// used in another declaration.
-      if (NetNet*sig = scope->find_signal(name_))
+	if (NetNet*sig = scope->find_signal(name_)) {
+	      if (is_event_formal()) sig->set_event_formal(true);
             return sig;
+	}
 
 	// IEEE 1800-2017/2023 25.9 forbids a virtual-interface variable
 	// from being used as any module, interface, or program port. Ordinary
@@ -4620,6 +4629,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    sig->port_type(port_type_);
 	    sig->lexical_pos(lexical_pos_);
       }
+      sig->set_event_formal(is_event_formal_);
 
       if (user_type) {
             sig->set_user_nettype(user_type);

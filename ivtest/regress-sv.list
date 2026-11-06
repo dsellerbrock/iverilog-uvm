@@ -6618,3 +6618,6 @@ issue2480_sdf_line_2017 normal,-g2017,-gspecify,-s,issue2480_sdf_line ivltests g
 issue2480_sdf_line_2023 normal,-g2023,-gspecify,-s,issue2480_sdf_line ivltests gold=issue2480_sdf_line-vvp-stdout.gold
 issue2546_invalid_distribute_option_2017 CE,-g2017,-s,tb ivltests gold=issue2546_invalid_distribute_option_2017.gold
 issue2546_invalid_distribute_option_2023 CE,-g2023,-s,tb ivltests gold=issue2546_invalid_distribute_option_2023.gold
+
+issue829_event_formal_task_2017 normal,-g2017,-s,issue829_event_formal_task ivltests gold=issue829_event_formal_task.gold
+issue829_event_formal_task_2023 normal,-g2023,-s,issue829_event_formal_task ivltests gold=issue829_event_formal_task.gold

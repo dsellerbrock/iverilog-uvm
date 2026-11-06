@@ -4661,6 +4661,11 @@ static int draw_eval_object_core_(ivl_expr_t ex)
 {
       switch (ivl_expr_type(ex)) {
 
+	  case IVL_EX_EVENT:
+	    fprintf(vvp_out, "    %%event/handle/load E_%p;\n",
+		    ivl_expr_event(ex));
+	    return 0;
+
 	  case IVL_EX_NEW:
 	    switch (ivl_expr_value(ex)) {
 		case IVL_VT_CLASS:

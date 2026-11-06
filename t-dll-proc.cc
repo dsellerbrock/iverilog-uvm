@@ -1067,6 +1067,7 @@ bool dll_target::proc_trigger_obj(const NetEvTrigObj*net)
       stmt_cur_->type_ = net->is_nb() ? IVL_ST_NB_TRIGGER_OBJ
 	                              : IVL_ST_TRIGGER_OBJ;
       stmt_cur_->u_.evobj_.ev_slot = net->slot();
+	  stmt_cur_->u_.evobj_.event_handle = net->is_event_handle();
       stmt_cur_->u_.evobj_.delay = 0;
       stmt_cur_->u_.evobj_.stmt_ = 0;
 
@@ -1092,6 +1093,7 @@ bool dll_target::proc_wait_obj(const NetEvWaitObj*net)
 
       stmt_cur_->type_ = IVL_ST_WAIT_OBJ;
       stmt_cur_->u_.evobj_.ev_slot = net->slot();
+	  stmt_cur_->u_.evobj_.event_handle = net->is_event_handle();
       stmt_cur_->u_.evobj_.delay = 0;
       stmt_cur_->u_.evobj_.stmt_ = new struct ivl_statement_s();
 
