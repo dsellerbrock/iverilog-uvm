@@ -2001,6 +2001,53 @@ static Z3_ast parse_member(IRParser&, Z3Builder& b, const string& tok)
 
 static Z3_ast mk_free_bv(Z3Builder& b, unsigned wid);
 
+/* Resolve a constraint property path such as `outer.inner' to its live
+ * canonical solver property. Intermediate components are rand class handles;
+ * the final component is the property being constrained. */
+static bool resolve_constraint_property_path_(Z3Builder&b,
+					       const string&path,
+					       unsigned&idx)
+{
+      vector<unsigned> properties;
+      istringstream input(path);
+      string part;
+      while (getline(input, part, '.')) {
+	    if (part.empty()) return false;
+	    errno = 0;
+	    char*end = nullptr;
+	    unsigned long value = strtoul(part.c_str(), &end, 10);
+	    if (end == part.c_str() || *end || errno == ERANGE || value > UINT_MAX)
+		  return false;
+	    properties.push_back((unsigned)value);
+      }
+      if (properties.empty()) return false;
+      if (properties.size() == 1) {
+	    idx = b.property_index(properties.front());
+	    return true;
+      }
+      if (!b.cobj) return false;
+      vvp_cobject*owner = b.cobj;
+      string error;
+      for (size_t pos = 0; owner && pos + 1 < properties.size(); ++pos) {
+	    vvp_object_t handle;
+	    if (!constraint_object_property_(owner, properties[pos], handle,
+					     error, 0, true)) {
+		  owner = nullptr;
+		  break;
+	    }
+	    owner = handle.peek<vvp_cobject>();
+      }
+      if (!owner || !owner->get_defn()
+	  || properties.back() >= owner->get_defn()->property_count()) {
+	    b.state_errors.push_back(error.empty()
+		  ? "null/invalid nested constraint array owner" : error);
+	    return false;
+      }
+      idx = b.graph ? b.graph->intern(owner, properties.back())
+		    : properties.back();
+      return true;
+}
+
 // Parse "s:N:T" or "s:N:#L:T" -- returns one container's 32-bit size.
 static Z3_ast parse_size(Z3Builder& b, const string& tok,
 			 unsigned*idx_out = nullptr)
@@ -2136,8 +2183,18 @@ static Z3_ast parse_size(Z3Builder& b, const string& tok,
 static Z3_ast parse_elem(IRParser&, Z3Builder& b, const string& tok)
 {
       const char*s = tok.c_str() + 2; // skip "e:"
-      unsigned idx = (unsigned)atoi(s);
-      while (*s && *s != ':') ++s;
+	const char*path_end = strchr(s, ':');
+	if (!path_end) {
+	      b.state_errors.push_back("invalid dynamic-array element property path");
+	      return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, 32));
+	}
+	string property_path(s, path_end - s);
+	unsigned idx = 0;
+	if (!resolve_constraint_property_path_(b, property_path, idx)) {
+	      b.state_errors.push_back("invalid dynamic-array element property path");
+	      return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, 32));
+	}
+	s = path_end;
       unsigned width = 32;
       if (*s == ':') { width = (unsigned)atoi(s + 1); ++s; }
       while (*s && *s != ':') ++s;
@@ -2145,7 +2202,6 @@ static Z3_ast parse_elem(IRParser&, Z3Builder& b, const string& tok)
       if (*s == ':') { elem = (unsigned)atoi(s + 1); ++s; }
       while (*s && *s != ':') ++s;
       bool sflag = (*s == ':' && s[1] == 's');
-      idx = b.property_index(idx);
       if (b.collect_refs) {
 	    Z3Builder::VarRef ref = {Z3Builder::VarRef::ELEM, idx, elem};
 	    b.collect_refs->insert(ref);
@@ -3734,8 +3790,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    string red = par.read_token();
 	    par.skip_ws(); par.expect(')');
 	    unsigned local = 0, ewid = 32; bool esig = false;
-	    parse_pws_header(hdr, local, ewid, esig);
-	    unsigned pidx = b.property_index(local);
+	    string::size_type colon = hdr.find(':');
+	    string path = colon == string::npos ? string() : hdr.substr(0, colon);
+	    string width_text = colon == string::npos ? string() : hdr.substr(colon + 1);
+	    if (path.empty() || width_text.empty()) {
+		  b.state_errors.push_back("malformed dynamic-array reduction header");
+		  return b.mk_true();
+	    }
+	    parse_pws_header(path.substr(path.rfind('.') == string::npos
+		  ? 0 : path.rfind('.') + 1) + ":" + width_text, local, ewid, esig);
+	    unsigned pidx = 0;
+	    if (!resolve_constraint_property_path_(b, path, pidx))
+		  return b.mk_true();
 	    if (!b.dyn_sizes) {
 		  bool seen = false;
 		  for (const auto& d : b.dyn_foreach)
@@ -3787,8 +3853,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    string body = capture_balanced_form(par);
 	    par.skip_ws(); par.expect(')');
 	    unsigned local = 0, rwid = 32; bool rsig = false;
-	    parse_pws_header(hdr, local, rwid, rsig);
-	    unsigned pidx = b.property_index(local);
+	    string::size_type colon = hdr.find(':');
+	    string path = colon == string::npos ? string() : hdr.substr(0, colon);
+	    string width_text = colon == string::npos ? string() : hdr.substr(colon + 1);
+	    if (path.empty() || width_text.empty()) {
+		  b.state_errors.push_back("malformed dynamic-array reduction header");
+		  return b.mk_true();
+	    }
+	    parse_pws_header(path.substr(path.rfind('.') == string::npos
+		  ? 0 : path.rfind('.') + 1) + ":" + width_text, local, rwid, rsig);
+	    unsigned pidx = 0;
+	    if (!resolve_constraint_property_path_(b, path, pidx))
+		  return b.mk_true();
 	    if (!b.dyn_sizes) {
 		  bool seen = false;
 		  for (const auto& d : b.dyn_foreach)
@@ -4653,8 +4729,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  if (esig) b.signed_vars.insert(var);
 		  return var;
 	    }
-	    parse_pws_header(hdr, pidx, ewid, esig);
-            pidx = b.property_index(pidx);
+	    string::size_type colon = hdr.find(':');
+	    string path = colon == string::npos ? string() : hdr.substr(0, colon);
+	    string width_text = colon == string::npos ? string() : hdr.substr(colon + 1);
+	    if (path.empty() || width_text.empty()) {
+		  b.state_errors.push_back("malformed dynamic-array element header");
+		  return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, ewid));
+	    }
+	    parse_pws_header(path.substr(path.rfind('.') == string::npos
+		  ? 0 : path.rfind('.') + 1) + ":" + width_text,
+		  pidx, ewid, esig);
+	    if (!resolve_constraint_property_path_(b, path, pidx))
+		  return Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, ewid));
 	    vvp_assoc_base*assoc = nullptr;
 	    if (b.cobj) {
 		  vvp_object_t object;
