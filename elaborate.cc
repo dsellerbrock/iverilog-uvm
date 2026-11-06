@@ -12114,14 +12114,6 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
       if (used_dims == 0 || used_dims >= total_dims)
 	    return 0;
 
-      if (total_dims - used_dims != 1) {
-	    cerr << loc.get_fileline() << ": sorry: a procedural unpacked"
-		 << " subarray source with more than one remaining dimension"
-		 << " is not yet supported." << endl;
-	    des->errors += 1;
-	    return -1;
-      }
-
       for (const index_component_t&idx : indices) {
 	    if (idx.sel != index_component_t::SEL_BIT) {
 		  cerr << loc.get_fileline() << ": error: an unpacked-array"
@@ -12209,6 +12201,154 @@ static NetProc* make_uarray_prefix_copy_(NetScope*scope, const LineInfo&loc,
 	return make_uarray_signal_range_copy_(scope, loc, dst_sig, dst_base,
 				      src.sig, src_base, src.count, reverse_src,
 				      nonblocking);
+}
+
+/* Copy a fixed subarray with more than one remaining dimension between
+ * plain signals, e.g. `a[i] = b[j]' on int a[2][2][3], b[4][2][3]. IEEE
+ * 1800-2017/2023 7.6: elements correspond left to left in every dimension,
+ * so each dimension whose source and destination directions differ is
+ * walked in reverse. Both selector bases are evaluated once. A blocking copy
+ * snapshots the complete RHS first, so an overlapping self-copy observes the
+ * old value; an invalid (x/z or out-of-range) source prefix reads the
+ * element type's default and an invalid destination prefix writes nothing,
+ * as for any invalid word address. HANDLED is false when the statement is
+ * not this shape. On error LV is consumed and nullptr is returned. */
+static NetProc* make_uarray_multidim_prefix_copy_(
+	      Design*des, NetScope*scope, const LineInfo&loc, NetAssign_*lv,
+	      const netuarray_t*lv_uarray, const PExpr*rval, bool nonblocking,
+	      bool&handled)
+{
+	handled = false;
+	const netranges_t&dst_dims = lv_uarray->static_dimensions();
+	if (lv->more || dst_dims.size() < 2 || (lv->word() && !lv->is_array_slice()))
+	      return nullptr;
+
+	const PExpr*rsrc = see_through_const_ternary_(des, scope, rval);
+	uarray_prefix_source_t src;
+	int decoded = decode_uarray_prefix_source_(des, scope, loc, rsrc, src);
+	if (decoded < 0) {
+	      handled = true;
+	      delete lv;
+	      return nullptr;
+	}
+	if (decoded == 0) {
+	      // A whole signal source only needs this path for a prefix destination.
+	      const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc);
+	      symbol_search_results sr;
+	      if (!lv->is_array_slice() || !rid
+		  || !rid->path().name.back().index.empty()
+		  || !symbol_search(&loc, des, scope, rid->path(),
+				    rid->lexical_pos(), &sr)
+		  || !sr.net || !sr.path_tail.empty()
+		  || sr.net->unpacked_dimensions() < 2)
+		    return nullptr;
+	      src.sig = sr.net;
+	      src.remaining_dims = sr.net->unpacked_dims();
+	      src.count = sr.net->unpacked_count();
+	      src.element_type = sr.net->net_type();
+	}
+	handled = true;
+
+	if (lv->nest() != nullptr || lv->get_property_idx() >= 0 || !lv->sig()) {
+	      cerr << loc.get_fileline() << ": sorry: a fixed-prefix"
+		   << " unpacked-subarray source assigned to a"
+		   << " class or aggregate member is not yet"
+		   << " supported." << endl;
+	      des->errors += 1;
+	      delete lv;
+	      return nullptr;
+	}
+	netuarray_t src_type(src.remaining_dims, src.element_type);
+	if (src.range_slice || !lv_uarray->type_equivalent(&src_type)) {
+	      cerr << loc.get_fileline() << ": error: unpacked subarray"
+		   << " types are not equivalent in assignment." << endl;
+	      des->errors += 1;
+	      delete lv;
+	      return nullptr;
+	}
+
+	  // Source canonical offset of each destination word, row-major.
+	vector<unsigned long> src_offset(src.count);
+	for (unsigned long word = 0 ; word < src.count ; word += 1) {
+	      unsigned long rest = word, offset = 0;
+	      unsigned long stride = src.count;
+	      for (size_t dim = 0 ; dim < dst_dims.size() ; dim += 1) {
+		    unsigned long width = dst_dims[dim].width();
+		    stride /= width;
+		    unsigned long coord = rest / stride;
+		    rest %= stride;
+		    bool dst_up = dst_dims[dim].get_msb() < dst_dims[dim].get_lsb();
+		    bool src_up = src.remaining_dims[dim].get_msb()
+				  < src.remaining_dims[dim].get_lsb();
+		    if (dst_up != src_up) coord = width - 1 - coord;
+		    offset += coord * stride;
+	      }
+	      src_offset[word] = offset;
+	}
+
+	NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+	block->set_line(loc);
+	auto snapshot = [&](NetExpr*value) {
+	      NetNet*base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+	      base->local_flag(true);
+	      base->set_line(loc);
+	      NetAssign*save = new NetAssign(new NetAssign_(base), value);
+	      save->set_line(loc);
+	      block->append(save);
+	      return base;
+	};
+	auto word_at = [&](NetNet*base, unsigned long offset) -> NetExpr* {
+	      NetESignal*read = new NetESignal(base);
+	      read->set_line(loc);
+	      NetEBAdd*word = new NetEBAdd('+', read,
+		    new NetEConst(verinum(static_cast<uint64_t>(offset), 64)),
+		    64, true);
+	      word->set_line(loc);
+	      return word;
+	};
+	auto copy_word = [&](NetNet*dst_sig, NetExpr*dst_word, NetNet*src_sig,
+			     NetExpr*src_word, bool nb) {
+	      NetAssign_*word_lv = new NetAssign_(dst_sig);
+	      word_lv->set_word(dst_word);
+	      NetESignal*word_rv = new NetESignal(src_sig, src_word);
+	      word_rv->set_line(loc);
+	      NetProc*assign = nb
+		    ? static_cast<NetProc*>(new NetAssignNB(word_lv, word_rv, 0, 0))
+		    : static_cast<NetProc*>(new NetAssign(word_lv, word_rv));
+	      assign->set_line(loc);
+	      block->append(assign);
+	};
+
+	NetNet*dst_base = snapshot(lv->word() ? lv->word()->dup_expr()
+					      : make_const_val_s(0));
+	NetNet*src_base = snapshot(src.canonical_base_expr
+				   ? src.canonical_base_expr
+				   : make_const_val_s(src.canonical_base));
+	src.canonical_base_expr = nullptr;
+	NetNet*dst_sig = lv->sig();
+	delete lv;
+
+	if (nonblocking) {
+	      for (unsigned long word = 0 ; word < src.count ; word += 1)
+		    copy_word(dst_sig, word_at(dst_base, word), src.sig,
+			      word_at(src_base, src_offset[word]), true);
+	      return block;
+	}
+
+	netranges_t tmp_dims(1, netrange_t((long)src.count - 1, 0));
+	NetNet*rhs = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				tmp_dims, src.sig->net_type());
+	rhs->local_flag(true);
+	rhs->set_line(loc);
+	if (scope->is_auto()) rhs->lifetime_override(IVL_VLT_AUTOMATIC);
+	for (unsigned long word = 0 ; word < src.count ; word += 1)
+	      copy_word(rhs, make_const_val_s(word), src.sig,
+			word_at(src_base, src_offset[word]), false);
+	for (unsigned long word = 0 ; word < src.count ; word += 1)
+	      copy_word(dst_sig, word_at(dst_base, word), rhs,
+			make_const_val_s(word), false);
+	return block;
 }
 
 static bool uarray_ranges_need_reverse_(const netrange_t&dst,
@@ -13355,6 +13495,13 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		}
 		return make_direct_darray_indexed_slice_store_(
 		  scope, *this, lv, slice_value, rhs_prelude, slice_count);
+	    }
+
+	    if (delay_ == 0 && event_ == 0 && count_ == 0) {
+		  bool handled = false;
+		  NetProc*copy = make_uarray_multidim_prefix_copy_(
+			des, scope, *this, lv, lv_uarray, rval(), false, handled);
+		  if (handled) return copy;
 	    }
 
 	      // Whole and fixed-prefix static-array copies (IEEE 1800-2017
@@ -14546,6 +14693,14 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	   the blocking spelling proves it has the representation. */
       if (const netuarray_t*lv_uarray =
 	  dynamic_cast<const netuarray_t*>(lv->net_type())) {
+	    if (delay_ == 0 && event_ == 0 && count_ == 0) {
+		  bool handled = false;
+		  NetProc*copy = make_uarray_multidim_prefix_copy_(
+			des, scope, *this, lv, lv_uarray, rval(), true, handled);
+		  if (handled)
+			return copy ? guard_function_background_event_(scope, *this, copy)
+				    : nullptr;
+	    }
 	    if (lv->more == 0 && delay_ == 0 && event_ == 0 && count_ == 0
 		&& (!lv->word() || lv->is_array_slice())
 		&& lv_uarray->static_dimensions().size() == 1) {

@@ -1,0 +1,5 @@
+{
+    "type" : "CE",
+    "source" : "issue712_past_gclk_no_global_fail.sv",
+    "iverilog-args" : [ "-g2023" ]
+}

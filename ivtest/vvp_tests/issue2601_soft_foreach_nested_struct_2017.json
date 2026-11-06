@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2601_soft_foreach_nested_struct.v",
+  "iverilog-args": ["-g2017", "-s", "main"],
+  "gold": "issue2601_soft_foreach_nested_struct"
+}

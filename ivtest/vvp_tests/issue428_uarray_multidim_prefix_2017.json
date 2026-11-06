@@ -1,0 +1,5 @@
+{
+    "type" : "normal",
+    "source" : "issue428_uarray_multidim_prefix.sv",
+    "iverilog-args" : [ "-g2017" ]
+}

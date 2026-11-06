@@ -1,0 +1,7 @@
+9 a=1 past=0 rose=1 fell=0 stable=0 changed=1
+17 a=2 past=1 rose=0 fell=1 stable=0 changed=1
+25 a=3 past=2 rose=1 fell=0 stable=0 changed=1
+33 a=0 past=3 rose=0 fell=1 stable=0 changed=1
+35 a=0 past=0 rose=0 fell=0 stable=1 changed=0
+assert pass=4 fail=1
+ivltests/issue712_past_gclk.sv:19: $finish called at 41 (1s)

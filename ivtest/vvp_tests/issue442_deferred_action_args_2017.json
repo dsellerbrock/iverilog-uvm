@@ -1,0 +1,6 @@
+{
+    "type" : "normal",
+    "source" : "issue442_deferred_action_args.sv",
+    "iverilog-args" : [ "-g2017" ],
+    "gold" : "issue442_deferred_action_args"
+}

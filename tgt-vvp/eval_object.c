@@ -1180,6 +1180,14 @@ static int eval_object_ufunc(ivl_expr_t ex)
  * storage below. The illegal single-handle forms are rejected during
  * elaboration, where both source and destination types are visible.
  */
+static int eval_object_array(ivl_expr_t expr);
+
+/* Marshal the whole fixed array that EXPR reads into a container. */
+int draw_eval_fixed_array_object(ivl_expr_t expr)
+{
+      return eval_object_array(expr);
+}
+
 static int eval_object_array(ivl_expr_t expr)
 {
       ivl_signal_t sig = ivl_expr_signal(expr);
@@ -4758,6 +4766,7 @@ static int draw_eval_object_core_(ivl_expr_t ex)
 
 int draw_eval_object(ivl_expr_t ex)
 {
+      if (deferred_preload_take(ex, 'o', 0)) return 0;
       int errors = draw_eval_object_core_(ex);
       event_expr_capture_object_result(ex);
       return errors;
@@ -4799,6 +4808,7 @@ int draw_eval_assoc_queue_lvalue(ivl_expr_t expr)
  */
 int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type)
 {
+      if (deferred_preload_take(ex, 'c', element_type)) return 0;
       ivl_expr_type_t rvt = ivl_expr_type(ex);
       int rval_aliases = (rvt == IVL_EX_SIGNAL || rvt == IVL_EX_PROPERTY
 			  || rvt == IVL_EX_SELECT);

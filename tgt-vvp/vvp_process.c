@@ -3708,9 +3708,65 @@ struct deferred_final_task_frame_s {
       ivl_scope_t action_scope;
       ivl_scope_t task_scope;
       ivl_scope_t alloc_scope;
+	/* The thunk is drawn into a buffer: its copy-in r-values must be
+	 * evaluated by the source process, ahead of the %defer opcode. */
+      FILE*saved_out;
+      FILE*thunk_out;
+      char*thunk_text;
+      size_t thunk_len;
 };
 
 static struct deferred_final_task_frame_s deferred_final_task_frame_;
+
+/* IEEE 1800-2017/2023 16.4: by-value actuals of a deferred action "shall be
+ * fully evaluated at the instant the deferred assertion expression is
+ * evaluated", and 16.4.1 queues "the current values of its input arguments"
+ * with the report. Each copy-in assignment of the thunk marks its r-value;
+ * the draw_eval_* routine that would evaluate it records the stack it uses
+ * and emits nothing, because the report replays the value there. The end
+ * marker then evaluates the recorded r-values in the source process. */
+struct deferred_preload_s {
+      ivl_expr_t expr;
+      char kind;
+      ivl_type_t element_type;
+};
+static struct deferred_preload_s*deferred_preloads_ = 0;
+static unsigned deferred_preload_count_ = 0;
+static ivl_expr_t deferred_preload_pending_ = 0;
+
+int deferred_preload_take(ivl_expr_t ex, char kind, ivl_type_t element_type)
+{
+      if (!ex || ex != deferred_preload_pending_)
+            return 0;
+      deferred_preload_pending_ = 0;
+      deferred_preloads_ = realloc(deferred_preloads_,
+            (deferred_preload_count_ + 1) * sizeof *deferred_preloads_);
+      assert(deferred_preloads_);
+      deferred_preloads_[deferred_preload_count_].expr = ex;
+      deferred_preloads_[deferred_preload_count_].kind = kind;
+      deferred_preloads_[deferred_preload_count_].element_type = element_type;
+      deferred_preload_count_ += 1;
+      return 1;
+}
+
+/* Only a by-value input or a ref/const ref formal is legal (16.4). */
+static int deferred_task_ports_ok_(ivl_statement_t net, ivl_scope_t task)
+{
+      unsigned idx = ivl_scope_type(task) == IVL_SCT_FUNCTION ? 1 : 0;
+      for ( ; idx < ivl_scope_ports(task) ; idx += 1) {
+            ivl_signal_port_t dir = ivl_signal_port(ivl_scope_port(task, idx));
+            if (dir != IVL_SIP_INPUT && dir != IVL_SIP_REF) {
+                  fprintf(stderr,
+                          "%s:%u: error: a deferred assertion action argument "
+                          "must be passed by value as an input or by reference "
+                          "as a ref or const ref (IEEE 1800-2017/2023 16.4).\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net));
+                  vvp_errors += 1;
+                  return 0;
+            }
+      }
+      return 1;
+}
 
 static int deferred_final_task_is_method_(ivl_scope_t task)
 {
@@ -3871,13 +3927,14 @@ static int deferred_final_task_validate_(ivl_statement_t net,
                                          ivl_scope_t task)
 {
       const char*reason = 0;
-      if (!task || ivl_scope_type(task) != IVL_SCT_TASK) {
-            reason = "the resolved subroutine is not a task";
+      if (!task || (ivl_scope_type(task) != IVL_SCT_TASK
+                    && ivl_scope_type(task) != IVL_SCT_FUNCTION)) {
+            reason = "the resolved subroutine is not a task or void function";
       } else if (deferred_final_task_is_method_(task)
                  || ivl_scope_is_virtual_method(task)) {
             reason = "class/interface method calls are outside this slice";
-      } else if (ivl_scope_ports(task) != 0) {
-            reason = "the resolved task has formal arguments";
+      } else if (!deferred_task_ports_ok_(net, task)) {
+            return 0;
       } else if (ivl_scope_is_dpi_import(task)) {
             reason = "DPI task calls are outside this slice";
       } else if (!ivl_scope_def(task)) {
@@ -3891,8 +3948,8 @@ static int deferred_final_task_validate_(ivl_statement_t net,
 
       fprintf(stderr,
               "%s:%u: sorry: final-deferred user-task action is not "
-              "supported yet because %s; only a zero-argument direct task "
-              "with an unnamed sequential/noop body containing passive "
+              "supported yet because %s; only a direct task or void "
+              "function with an unnamed sequential/noop body containing passive "
               "$display/$error calls is supported.\n",
               ivl_stmt_file(net), ivl_stmt_lineno(net),
               reason ? reason : "its resolved shape is unsupported");
@@ -3904,10 +3961,11 @@ static int deferred_observed_task_validate_(ivl_statement_t net,
                                              ivl_scope_t task)
 {
       const char*reason = 0;
-      if (!task || ivl_scope_type(task) != IVL_SCT_TASK) {
-            reason = "the resolved subroutine is not a task";
-      } else if (ivl_scope_ports(task) != 0) {
-            reason = "the task has formal arguments";
+      if (!task || (ivl_scope_type(task) != IVL_SCT_TASK
+                    && ivl_scope_type(task) != IVL_SCT_FUNCTION)) {
+            reason = "the resolved subroutine is not a task or void function";
+      } else if (!deferred_task_ports_ok_(net, task)) {
+            return 0;
       } else if (ivl_scope_is_dpi_import(task)) {
             reason = "DPI task calls are outside this slice";
       } else {
@@ -3916,8 +3974,8 @@ static int deferred_observed_task_validate_(ivl_statement_t net,
 
       fprintf(stderr,
               "%s:%u: sorry: observed-deferred user-task action is not "
-              "supported because %s; only a zero-argument direct "
-              "SystemVerilog task is supported.\n",
+              "supported because %s; only a direct SystemVerilog task "
+              "or void function is supported.\n",
               ivl_stmt_file(net), ivl_stmt_lineno(net),
               reason ? reason : "its resolved shape is unsupported");
       vvp_errors += 1;
@@ -6171,23 +6229,13 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
             deferred_final_task_frame_.action_scope = sscope;
             deferred_final_task_frame_.action_lab = local_count++;
             deferred_final_task_frame_.after_lab = local_count++;
-
-            show_stmt_file_line(net, is_final
-                  ? "Final deferred user-task assertion pin."
-                  : "Observed deferred user-task assertion enqueue.");
-            fprintf(vvp_out, is_final
-                  ? "    %%defer/final T_%u.%u, S_%p;\n"
-                  : "    %%defer/enqueue T_%u.%u, S_%p;\n",
-                    thread_count, deferred_final_task_frame_.action_lab,
-                    sscope);
-            fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count,
-                    deferred_final_task_frame_.after_lab);
-            fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
-                    deferred_final_task_frame_.action_lab);
-            fprintf(vvp_out, is_final
-                  ? "    %%defer/final/taskkey %ld, %u;\n"
-                  : "    %%defer/enqueue/taskkey %ld, %u;\n",
-                  source_id, deferred_final_task_frame_.result);
+            deferred_final_task_frame_.saved_out = vvp_out;
+            deferred_final_task_frame_.thunk_out = open_memstream(
+                  &deferred_final_task_frame_.thunk_text,
+                  &deferred_final_task_frame_.thunk_len);
+            assert(deferred_final_task_frame_.thunk_out);
+            vvp_out = deferred_final_task_frame_.thunk_out;
+            deferred_preload_count_ = 0;
             return 0;
       }
 
@@ -6199,6 +6247,9 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
             vvp_errors += 1;
             return 1;
       }
+
+      fclose(deferred_final_task_frame_.thunk_out);
+      vvp_out = deferred_final_task_frame_.saved_out;
 
       int rc = 0;
       if (deferred_final_task_frame_.source_id != source_id) {
@@ -6225,6 +6276,55 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
             vvp_errors += 1;
             rc = 1;
       }
+
+      show_stmt_file_line(net, is_final
+            ? "Final deferred user-task assertion pin."
+            : "Observed deferred user-task assertion enqueue.");
+      unsigned counts[4] = { 0, 0, 0, 0 };
+      for (unsigned idx = 0 ; idx < deferred_preload_count_ ; idx += 1) {
+            struct deferred_preload_s*cur = deferred_preloads_ + idx;
+            switch (cur->kind) {
+                case 'v': draw_eval_vec4(cur->expr); counts[0] += 1; break;
+                case 'r': draw_eval_real(cur->expr); counts[1] += 1; break;
+                case 's': draw_eval_string(cur->expr); counts[2] += 1; break;
+                case 'o': draw_eval_object(cur->expr); counts[3] += 1; break;
+                case 'a':
+                  draw_eval_fixed_array_object(cur->expr);
+                  counts[3] += 1;
+                  break;
+                default:
+                  draw_eval_object_value_copy(cur->expr, cur->element_type);
+                  counts[3] += 1;
+                  break;
+            }
+      }
+      deferred_preload_count_ = 0;
+      if (counts[0] > 255 || counts[1] > 255 || counts[2] > 255
+          || counts[3] > 255) {
+            fprintf(stderr, "%s:%u: sorry: a deferred assertion action with "
+                    "more than 255 arguments of one kind is not supported.\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net));
+            vvp_errors += 1;
+            rc = 1;
+      }
+      fprintf(vvp_out, "    %%defer/capture %u;\n", counts[0]
+                    | counts[1] << 8 | counts[2] << 16 | counts[3] << 24);
+      fprintf(vvp_out, is_final
+            ? "    %%defer/final T_%u.%u, S_%p;\n"
+            : "    %%defer/enqueue T_%u.%u, S_%p;\n",
+              thread_count, deferred_final_task_frame_.action_lab,
+              deferred_final_task_frame_.action_scope);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count,
+              deferred_final_task_frame_.after_lab);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
+              deferred_final_task_frame_.action_lab);
+      fprintf(vvp_out, is_final
+            ? "    %%defer/final/taskkey %ld, %u;\n"
+            : "    %%defer/enqueue/taskkey %ld, %u;\n",
+            source_id, deferred_final_task_frame_.result);
+      fwrite(deferred_final_task_frame_.thunk_text, 1,
+             deferred_final_task_frame_.thunk_len, vvp_out);
+      free(deferred_final_task_frame_.thunk_text);
 
       fprintf(vvp_out, "    %%end;\n");
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count,
@@ -8383,6 +8483,94 @@ static unsigned is_utask_call_with_args(ivl_scope_t scope,
       return 1;
 }
 
+/* One by-value copy-in of a deferred action: its r-value must come from
+ * the report (see deferred_preload_take), never from a late evaluation. */
+static int show_deferred_task_copy_in_(ivl_statement_t net)
+{
+      ivl_lval_t lval = ivl_stmt_lvals(net) == 1 ? ivl_stmt_lval(net, 0) : 0;
+      ivl_signal_t sig = lval ? ivl_lval_sig(lval) : 0;
+      int rc = 1;
+      if (sig && ivl_signal_port(sig) == IVL_SIP_INPUT) {
+            deferred_preload_pending_ = ivl_stmt_rval(net);
+            rc = show_stmt_assign(net);
+      }
+      if (!sig || ivl_signal_port(sig) != IVL_SIP_INPUT
+          || deferred_preload_pending_) {
+            fprintf(stderr,
+                    "%s:%u: sorry: this deferred assertion action argument "
+                    "cannot be captured when the assertion is evaluated "
+                    "yet.\n",
+                    ivl_stmt_file(net), ivl_stmt_lineno(net));
+            vvp_errors += 1;
+            deferred_final_task_frame_.phase = 2;
+            rc = 1;
+      }
+      deferred_preload_pending_ = 0;
+      return rc;
+}
+
+/* A fixed unpacked-array input is copied in by a word loop. Snapshot the
+ * whole actual as one container when the assertion is evaluated and store
+ * it into the formal when the action runs. */
+static int show_deferred_task_array_copy_in_(ivl_statement_t net)
+{
+      ivl_statement_t body = ivl_stmt_sub_stmt(net);
+	/* A multidimensional copy nests one loop per dimension. */
+      while (body && (ivl_statement_type(body) == IVL_ST_FORLOOP
+                      || (ivl_statement_type(body) == IVL_ST_BLOCK
+                          && !ivl_stmt_block_scope(body)
+                          && ivl_stmt_block_count(body) == 1)))
+            body = ivl_statement_type(body) == IVL_ST_FORLOOP
+                  ? ivl_stmt_sub_stmt(body) : ivl_stmt_block_stmt(body, 0);
+      ivl_lval_t lval = body && ivl_statement_type(body) == IVL_ST_ASSIGN
+            && ivl_stmt_lvals(body) == 1 ? ivl_stmt_lval(body, 0) : 0;
+      ivl_signal_t formal = lval ? ivl_lval_sig(lval) : 0;
+      ivl_expr_t rval = lval ? ivl_stmt_rval(body) : 0;
+      ivl_signal_t actual = rval && ivl_expr_type(rval) == IVL_EX_SIGNAL
+            ? ivl_expr_signal(rval) : 0;
+      unsigned kind = 0;
+      if (formal && actual && ivl_signal_port(formal) == IVL_SIP_INPUT
+          && ivl_signal_dimensions(formal) > 0
+          && ivl_signal_dimensions(actual) > 0
+          && uarray_container_kind_(formal, &kind, ivl_stmt_file(net),
+                                    ivl_stmt_lineno(net))) {
+            deferred_preload_pending_ = rval;
+            deferred_preload_take(rval, 'a', 0);
+            emit_store_arr_dar_(formal, kind);
+            return 0;
+      }
+      fprintf(stderr,
+              "%s:%u: sorry: this deferred assertion action argument "
+              "cannot be captured when the assertion is evaluated yet.\n",
+              ivl_stmt_file(net), ivl_stmt_lineno(net));
+      vvp_errors += 1;
+      deferred_final_task_frame_.phase = 2;
+      return 1;
+}
+
+/* 16.4: "It shall be an error to pass automatic or dynamic variables as
+ * actuals to a ref or const ref formal." */
+static int deferred_task_ref_bind_ok_(ivl_statement_t net)
+{
+      ivl_expr_t actual = ivl_stmt_parm_count(net) > 1
+            ? ivl_stmt_parm(net, 1) : 0;
+      ivl_signal_t asig = actual && ivl_expr_type(actual) == IVL_EX_SIGNAL
+            ? ivl_expr_signal(actual) : 0;
+      int automatic = asig && (ivl_signal_lifetime(asig) == IVL_VLT_AUTOMATIC
+            || (ivl_signal_lifetime(asig) != IVL_VLT_STATIC
+                && ivl_scope_is_auto(ivl_signal_scope(asig))));
+      if (strcmp(ivl_stmt_name(net), "$ivl_ref_bind") == 0 && asig
+          && !automatic)
+            return 1;
+      fprintf(stderr,
+              "%s:%u: error: an automatic or dynamic variable cannot be "
+              "passed to a ref or const ref formal of a deferred assertion "
+              "action (IEEE 1800-2017/2023 16.4).\n",
+              ivl_stmt_file(net), ivl_stmt_lineno(net));
+      vvp_errors += 1;
+      return 0;
+}
+
 /*
  * This function draws a statement as vvp assembly. It basically
  * switches on the statement type and draws code based on the type and
@@ -8422,6 +8610,19 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
             } else if (code == IVL_ST_UTASK
                        && deferred_final_task_frame_.phase == 0) {
                   /* show_stmt_utask validates the resolved task and body. */
+            } else if (code == IVL_ST_ASSIGN
+                       && deferred_final_task_frame_.phase == 0) {
+                  return show_deferred_task_copy_in_(net);
+            } else if (code == IVL_ST_FORLOOP
+                       && deferred_final_task_frame_.phase == 0) {
+                  return show_deferred_task_array_copy_in_(net);
+            } else if (code == IVL_ST_STASK
+                       && deferred_final_task_frame_.phase == 0
+                       && strncmp(ivl_stmt_name(net), "$ivl_ref_bind", 13) == 0) {
+                  if (!deferred_task_ref_bind_ok_(net)) {
+                        deferred_final_task_frame_.phase = 2;
+                        return 1;
+                  }
             } else if (code == IVL_ST_FREE
                        && deferred_final_task_frame_.phase == 1
                        && deferred_final_task_frame_.saw_alloc
@@ -8431,10 +8632,10 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
                   deferred_final_task_frame_.saw_free = 1;
             } else {
                   fprintf(stderr,
-                          "%s:%u: sorry: final-deferred user-task action "
-                          "generated unsupported call plumbing; task actuals, "
-                          "methods, nested/timed calls, and mutating forms "
-                          "remain unsupported.\n",
+                          "%s:%u: sorry: deferred user-subroutine action "
+                          "generated unsupported call plumbing; methods, "
+                          "nested/timed calls, and mutating forms remain "
+                          "unsupported.\n",
                           ivl_stmt_file(net), ivl_stmt_lineno(net));
                   vvp_errors += 1;
                   deferred_final_task_frame_.phase = 2;

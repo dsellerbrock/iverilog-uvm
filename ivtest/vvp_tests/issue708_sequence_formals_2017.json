@@ -1,0 +1,5 @@
+{
+    "type" : "normal",
+    "source" : "issue708_sequence_formals.sv",
+    "iverilog-args" : [ "-g2017" ]
+}

@@ -9381,23 +9381,99 @@ sva_property_formal_list
 /* Named sequence formals include IEEE 1800-2017 16.8.2 local input
    arguments. Preserve the existing untyped substitution formals. */
 sva_sequence_formal_list
-  : sva_sequence_formal_list ',' IDENTIFIER
+  /* IEEE 1800-2017/2023 16.8: "A type shall apply to all formal arguments
+     whose identifiers both follow the type and precede the next type". */
+  : sva_sequence_formal_list ',' IDENTIFIER initializer_opt
       { sva_sequence_formal_t formal;
 	formal.name = lex_strings.make($3);
-	if (!$1->empty() && $1->back().local_input) {
-	      formal.local_input = true;
+	if (!$1->empty()) {
+	      formal.local_input = $1->back().local_input;
 	      formal.type = $1->back().type;
+	      formal.sequence_type = $1->back().sequence_type;
+	      formal.event_type = $1->back().event_type;
 	}
+	formal.default_expr = $4;
 	$1->push_back(formal);
 	delete[]$3;
 	$$ = $1; }
-  | IDENTIFIER
+  | IDENTIFIER initializer_opt
       { std::list<sva_sequence_formal_t>*l =
 	      new std::list<sva_sequence_formal_t>;
 	sva_sequence_formal_t formal;
 	formal.name = lex_strings.make($1);
+	formal.default_expr = $2;
 	l->push_back(formal);
 	delete[]$1;
+	$$ = l; }
+  | sva_sequence_formal_list ',' data_type IDENTIFIER initializer_opt
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($4);
+	formal.type = $3;
+	formal.default_expr = $5;
+	$1->push_back(formal);
+	delete[]$4;
+	$$ = $1; }
+  | data_type IDENTIFIER initializer_opt
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($2);
+	formal.type = $1;
+	formal.default_expr = $3;
+	l->push_back(formal);
+	delete[]$2;
+	$$ = l; }
+  | sva_sequence_formal_list ',' K_untyped IDENTIFIER initializer_opt
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($4);
+	formal.default_expr = $5;
+	$1->push_back(formal);
+	delete[]$4;
+	$$ = $1; }
+  | K_untyped IDENTIFIER initializer_opt
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($2);
+	formal.default_expr = $3;
+	l->push_back(formal);
+	delete[]$2;
+	$$ = l; }
+  | sva_sequence_formal_list ',' K_sequence IDENTIFIER initializer_opt
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($4);
+	formal.sequence_type = true;
+	formal.default_expr = $5;
+	$1->push_back(formal);
+	delete[]$4;
+	$$ = $1; }
+  | K_sequence IDENTIFIER initializer_opt
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($2);
+	formal.sequence_type = true;
+	formal.default_expr = $3;
+	l->push_back(formal);
+	delete[]$2;
+	$$ = l; }
+  | sva_sequence_formal_list ',' K_event IDENTIFIER initializer_opt
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($4);
+	formal.event_type = true;
+	formal.default_expr = $5;
+	$1->push_back(formal);
+	delete[]$4;
+	$$ = $1; }
+  | K_event IDENTIFIER initializer_opt
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($2);
+	formal.event_type = true;
+	formal.default_expr = $3;
+	l->push_back(formal);
+	delete[]$2;
 	$$ = l; }
   | sva_sequence_formal_list ',' K_local K_input data_type IDENTIFIER
       { sva_sequence_formal_t formal;
@@ -14852,14 +14928,36 @@ expr_primary
       }
   | SYSTEM_IDENTIFIER argument_list_parens
       { perm_string tn = lex_strings.make($1);
+	  /* IEEE 1800-2017/2023 16.9.4: "$rose_gclk(v) is $rose(v,
+	     @$global_clock)", and likewise $past/$fell/$stable/$changed. */
+	const char*gclk_base = pform_global_clock_past_function($1);
+	if (gclk_base)
+	      tn = lex_strings.make(gclk_base);
 	PECallFunction *tmp = new PECallFunction(tn, *$2);
 	if ($2->empty())
 	      pform_requires_sv(@1, "Empty function argument list");
 	FILE_NAME(tmp, @1);
+	if (gclk_base) {
+	      if ($2->size() != 1)
+		    yyerror(@1, "error: %s takes exactly one argument "
+			    "(IEEE 1800-2017/2023 16.9.4).", $1);
+	      PECallFunction*gclk = new PECallFunction(
+		    lex_strings.make("$global_clock"));
+	      FILE_NAME(gclk, @1);
+	      PEventStatement*ev = new PEventStatement(
+		    new PEEvent(PEEvent::ANYEDGE, gclk));
+	      FILE_NAME(ev, @1);
+	      pform_bind_sampled_call_to_event(@1, tmp, ev);
+	      delete ev;
+	} else if (pform_global_clock_future_function($1)) {
+	      yyerror(@1, "sorry: the global clocking future sampled value "
+		      "function %s is not supported yet (IEEE 1800-2017/2023 "
+		      "16.9.4).", $1);
+	}
 	  /* M9-SV: a sampled value function needs a clocking event to
 	     mean anything (16.9.3). Record it so the enclosing
 	     behavior can bind it to one. */
-	if (pform_is_sampled_value_function($1))
+	else if (pform_is_sampled_value_function($1))
 	      pform_note_sampled_call(@1, tmp);
 	delete[]$1;
 	delete $2;

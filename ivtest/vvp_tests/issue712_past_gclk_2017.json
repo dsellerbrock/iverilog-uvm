@@ -1,0 +1,6 @@
+{
+    "type" : "normal",
+    "source" : "issue712_past_gclk.sv",
+    "iverilog-args" : [ "-g2017" ],
+    "gold" : "issue712_past_gclk"
+}
