@@ -2713,6 +2713,29 @@ extern "C" ivl_type_t ivl_scope_typedef_type(ivl_scope_t net, unsigned idx)
       return (*net->aux_->typedefs_)[idx].second;
 }
 
+extern "C" unsigned ivl_scope_imports(ivl_scope_t net)
+{
+      assert(net);
+      assert(net->net_);
+      return net->net_->import_count();
+}
+
+extern "C" const char* ivl_scope_import_name(ivl_scope_t net, unsigned idx)
+{
+      assert(net);
+      assert(net->net_);
+      assert(idx < net->net_->import_count());
+      return net->net_->import_name(idx);
+}
+
+extern "C" const char* ivl_scope_import_package(ivl_scope_t net, unsigned idx)
+{
+      assert(net);
+      assert(net->net_);
+      assert(idx < net->net_->import_count());
+      return net->net_->import_package(idx);
+}
+
 extern "C" unsigned ivl_scope_nettypes(ivl_scope_t net)
 {
       assert(net && net->net_);

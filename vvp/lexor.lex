@@ -195,6 +195,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".modport"      { return K_MODPORT; }
 ".nettype_decl" { return K_NETTYPE_DECL; }
 ".typedef" { return K_TYPEDEF; }
+".vpi_import" { return K_VPI_IMPORT; }
 ".cmp/eeq"      { return K_CMP_EEQ; }
 ".cmp/eqx"      { return K_CMP_EQX; }
 ".cmp/eqz"      { return K_CMP_EQZ; }
