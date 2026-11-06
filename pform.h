@@ -1132,6 +1132,8 @@ extern void pform_timing_check_sorry(const struct vlltype&loc,
  * still unbound when the module closes gets a diagnostic instead of a
  * silent unsampled answer. */
 extern bool pform_is_sampled_value_function(const char*name);
+extern const char* pform_global_clock_past_function(const char*name);
+extern bool pform_global_clock_future_function(const char*name);
 extern void pform_note_sampled_call(const struct vlltype&loc,
 				    class PECallFunction*cf);
 extern void pform_flush_pending_sampled_calls();

@@ -823,9 +823,8 @@ void sys_sva_register(void)
       register_one_("$stable", sva_const_calltf);
       register_one_("$past",   sva_past_calltf);
       register_one_("$sampled", sva_sampled_calltf);
-      register_one_("$rose_gclk",   sva_const_calltf);
-      register_one_("$fell_gclk",   sva_const_calltf);
-      register_one_("$stable_gclk", sva_const_calltf);
+	/* The 16.9.4 global clocking past functions are rewritten by the
+	   parser to the functions above sampled on @$global_clock. */
 
 	/* Assertion control (20.12): the enable-query function used by
 	   synthesized checkers, and the control tasks. */

@@ -16710,6 +16710,28 @@ static bool pform_past_automatic_bit_select_(LexicalScope*scope,
       return pform_ident_is_automatic_(scope, index);
 }
 
+/* IEEE 1800-2017/2023 16.9.4: the base sampled value function of a global
+ * clocking past sampled value function, or nullptr. */
+const char* pform_global_clock_past_function(const char*name)
+{
+      static const char*const map[][2] = {
+	    { "$past_gclk", "$past" }, { "$rose_gclk", "$rose" },
+	    { "$fell_gclk", "$fell" }, { "$stable_gclk", "$stable" },
+	    { "$changed_gclk", "$changed" } };
+      for (const auto&entry : map)
+	    if (name && !strcmp(name, entry[0])) return entry[1];
+      return nullptr;
+}
+
+bool pform_global_clock_future_function(const char*name)
+{
+      return name && (!strcmp(name, "$future_gclk")
+		      || !strcmp(name, "$rising_gclk")
+		      || !strcmp(name, "$falling_gclk")
+		      || !strcmp(name, "$steady_gclk")
+		      || !strcmp(name, "$changing_gclk"));
+}
+
 bool pform_is_sampled_value_function(const char*name)
 {
       if (!name) return false;
