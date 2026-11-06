@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2584_signed_wide_power_negative_exponent.v",
+  "iverilog-args": ["-g2017", "-s", "issue2584_signed_wide_power_negative_exponent"],
+  "gold": "issue2584_signed_wide_power_negative_exponent_2017"
+}

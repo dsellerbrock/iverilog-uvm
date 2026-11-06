@@ -30461,21 +30461,26 @@ static bool of_POW_base(vthread_t thr, bool signed_flag, bool base_signed)
 	// Is the exponent negative? If so, table 5-6 in IEEE1364-2005
 	// defines what value is returned.
       if (signed_flag && yv2.value(yv2.size()-1)) {
-	    int a_val;
 	    vvp_bit4_t pad = BIT4_0, lsb = BIT4_0;
-	    if (vector2_to_value(xv2, a_val, base_signed)) {
-		  if (a_val == 0) {
-			pad = BIT4_X; lsb = BIT4_X;
-		  }
-		  if (a_val == 1) {
+	    bool base_zero = true;
+	    bool base_one = xv2.size() > 0 && xv2.value(0)
+		  && (!base_signed || xv2.size() > 1);
+	    bool base_minus_one = base_signed;
+	    for (unsigned idx = 0; idx < xv2.size(); idx += 1) {
+		  bool bit = xv2.value(idx);
+		  if (bit) base_zero = false;
+		  if (idx > 0 && bit) base_one = false;
+		  if (!bit) base_minus_one = false;
+	    }
+	    if (base_zero) {
+		  pad = BIT4_X; lsb = BIT4_X;
+	    } else if (base_one) {
+		  pad = BIT4_0; lsb = BIT4_1;
+	    } else if (base_minus_one) {
+		  if (yv2.value(0)) {
+			pad = BIT4_1; lsb = BIT4_1;
+		  } else {
 			pad = BIT4_0; lsb = BIT4_1;
-		  }
-		  if (a_val == -1) {
-			if (yv2.value(0)) {
-			      pad = BIT4_1; lsb = BIT4_1;
-			} else {
-			      pad = BIT4_0; lsb = BIT4_1;
-			}
 		  }
 	    }
 	    vvp_vector4_t tmp (wid, pad);
