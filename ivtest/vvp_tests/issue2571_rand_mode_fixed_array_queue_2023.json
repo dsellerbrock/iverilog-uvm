@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2571_rand_mode_fixed_array_queue_2023.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "issue2571_rand_mode_fixed_array_queue"
+}

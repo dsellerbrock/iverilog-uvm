@@ -1957,11 +1957,15 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
       }
       if (strcmp(ivl_expr_name(expr),"$ivl_class_method$rand_mode_get")==0
 	  || strcmp(ivl_expr_name(expr),
+		    "$ivl_class_method$rand_mode_get_nested") == 0
+	  || strcmp(ivl_expr_name(expr),
 		    "$ivl_class_method$rand_mode_get_assoc") == 0
 	  || strcmp(ivl_expr_name(expr),
 		    "$ivl_class_method$rand_mode_get_last") == 0) {
 	    int assoc_index = strcmp(ivl_expr_name(expr),
 			     "$ivl_class_method$rand_mode_get_assoc") == 0;
+	    int nested_index = strcmp(ivl_expr_name(expr),
+			     "$ivl_class_method$rand_mode_get_nested") == 0;
 	    int last_index = strcmp(ivl_expr_name(expr),
 			     "$ivl_class_method$rand_mode_get_last") == 0;
 	      /* M3B-12 (IEEE 1800-2017 18.8): parm[0] = object,
@@ -1974,7 +1978,18 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 		  fprintf(vvp_out, "    %%rand_mode/get/last %ld;\n", pid);
 		  return;
 	    }
-	    if (parm_count >= 4) {
+	    if (nested_index) {
+		  ivl_expr_t leaf_arg = ivl_expr_parm(expr, 2);
+		  ivl_expr_t elem_arg = ivl_expr_parm(expr, 3);
+		  int leaf_word = allocate_word();
+		  int elem_word = allocate_word();
+		  draw_expr_into_idx(leaf_arg, leaf_word);
+		  draw_expr_into_idx(elem_arg, elem_word);
+		  fprintf(vvp_out, "    %%rand_mode/get/q %ld, %d, %d;\n",
+			  pid, leaf_word, elem_word);
+		  clr_word(elem_word);
+		  clr_word(leaf_word);
+	    } else if (parm_count >= 4) {
 		  ivl_expr_t leaf_arg = ivl_expr_parm(expr, 2);
 		  ivl_expr_t count_arg = ivl_expr_parm(expr, 3);
 		  if (assoc_index) {
