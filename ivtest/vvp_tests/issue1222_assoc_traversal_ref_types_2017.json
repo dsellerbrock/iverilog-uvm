@@ -1,0 +1,5 @@
+{
+    "type" : "normal",
+    "source" : "issue1222_assoc_traversal_ref_types.sv",
+    "iverilog-args" : [ "-g2017" ]
+}
