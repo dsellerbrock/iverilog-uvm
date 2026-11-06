@@ -18715,8 +18715,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 					      && !queue_type->assoc_compat()
 					      && used == dims.size() + 1;
 					  if (used > dims.size()) {
-						if (queue_element || dynamic_cast<const netvector_t*>(
-						      array_type->element_type()))
+						if (queue_element)
 						      used = dims.size();
 						else {
 						      cerr << get_fileline() << ": error: Got "
@@ -18831,7 +18830,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 						      leaf_count = 1;
 						}
 					  }
-				    } else if (!dynamic_cast<const netvector_t*>(prop_type)) {
+				      } else {
 					  cerr << get_fileline() << ": error: rand_mode() "
 					       << "index is only valid for an unpacked array "
 					       << "property." << endl;
