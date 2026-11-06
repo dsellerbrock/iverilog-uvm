@@ -9,6 +9,10 @@ module issue428_uarray_multidim_prefix;
   int m[0:1][2:0];          // second dimension runs the other way
   int s[3][2][2];
   int i = 1, j = 2, bad = 9;
+  logic [7:0] csrc [2][2][2];
+  logic [7:0] cdst [2][2];
+  int csel = 0;
+  always_comb cdst = csrc[csel];
   bit ok = 1;
 
   task check(bit c, string what);
@@ -49,6 +53,13 @@ module issue428_uarray_multidim_prefix;
     check(a[1][0][0] == 100, "nonblocking copy is deferred");
     #1;
     check(a[1][1][2] == 12 && c[1][1] == 311, "nonblocking copy");
+
+    foreach (csrc[p,q,r]) csrc[p][q][r] = p*100 + q*10 + r;
+    #1 check(cdst[1][1] == 11, "always_comb prefix copy");
+    csrc[0][1][1] = 77;
+    #1 check(cdst[1][1] == 77, "always_comb follows the source");
+    csel = 1;
+    #1 check(cdst[0][0] == 100 && cdst[1][1] == 111, "always_comb follows the selector");
 
     if (ok) $display("PASSED");
   end
