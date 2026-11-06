@@ -1,0 +1,7 @@
+bit const oob: 00
+logic const oob: xx
+bit var oob: 00
+logic var oob: xx
+bit x-index: 00
+logic x-index: xx
+PASSED

@@ -26513,10 +26513,13 @@ bool of_LOAD_PREPONED_AV(vthread_t thr, vvp_code_t cp)
       vvp_array_t array = resolve_runtime_array_(cp, "%load/preponed/av");
 
       long adr = thr->words[adr_index].w_int;
+	const bool two_state = array
+	      && array->value_kind == __vpiArray::ARRAY_VALUE_INTEGRAL;
 
 	/* Same out-of-range convention as %load/vec4a. */
       if (thr->flags[4] == BIT4_1) {
-	    vvp_vector4_t tmp (array ? array->get_word_size() : 1, BIT4_X);
+	    vvp_vector4_t tmp (array ? array->get_word_size() : 1,
+				two_state ? BIT4_0 : BIT4_X);
 	    thr->push_vec4(tmp);
 	    return true;
       }
@@ -26571,12 +26574,15 @@ bool of_LOAD_VEC4A(vthread_t thr, vvp_code_t cp)
       vvp_array_t array = resolve_runtime_array_(cp, "%load/vec4a");
 
       int64_t adr = thr->words[adr_index].w_int;
+	const bool two_state = array
+	      && array->value_kind == __vpiArray::ARRAY_VALUE_INTEGRAL;
 
 	// If flag[3] is set, then the calculation of the address
 	// failed, and this load should return X instead of the actual
 	// value.
       if (thr->flags[4] != BIT4_0) {
-	    vvp_vector4_t tmp (array ? array->get_word_size() : 1, BIT4_X);
+	    vvp_vector4_t tmp (array ? array->get_word_size() : 1,
+				two_state ? BIT4_0 : BIT4_X);
 	    thr->push_vec4(tmp);
 	    return true;
       }
@@ -26587,7 +26593,8 @@ bool of_LOAD_VEC4A(vthread_t thr, vvp_code_t cp)
       }
 
       if (adr < 0 || uint64_t(adr) >= array->get_size()) {
-	    vvp_vector4_t tmp (array->get_word_size(), BIT4_X);
+	    vvp_vector4_t tmp (array->get_word_size(),
+				two_state ? BIT4_0 : BIT4_X);
 	    thr->push_vec4(tmp);
 	    return true;
       }

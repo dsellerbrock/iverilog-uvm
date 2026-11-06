@@ -1,0 +1,4 @@
+ivltests/issue2575_oob_2state_array.v:13: warning: returning 'b0 for out of bounds array access bits_array[7].
+ivltests/issue2575_oob_2state_array.v:14: warning: returning 'bx for out of bounds array access logic_array[7].
+ivltests/issue2575_oob_2state_array.v:17: warning: returning 'b0 for out of bounds array access bits_array[7].
+ivltests/issue2575_oob_2state_array.v:18: warning: returning 'bx for out of bounds array access logic_array[7].
