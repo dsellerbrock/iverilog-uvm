@@ -1,0 +1,2 @@
+PASSED
+ivltests/sva_property_if_multiclock.sv:79: $finish called at 590 (1s)
