@@ -386,6 +386,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%debug/thr",  of_DEBUG_THR,  1,{OA_STRING,   OA_NONE,     OA_NONE} },
       { "%defer/cancel/label",of_DEFER_CANCEL_LABEL,1,{OA_VPI_PTR,OA_NONE,OA_NONE} },
       { "%defer/cancel/process",of_DEFER_CANCEL_PROCESS,1,{OA_VPI_PTR,OA_NONE,OA_NONE} },
+      { "%defer/capture",of_DEFER_CAPTURE,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%defer/enqueue",of_DEFER_ENQUEUE,2,{OA_CODE_PTR2,OA_VPI_PTR,OA_NONE} },
       { "%defer/enqueue/key",of_DEFER_ENQUEUE_KEY,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
       { "%defer/enqueue/taskkey",of_DEFER_ENQUEUE_TASK_KEY,2,{OA_NUMBER,OA_BIT1,OA_NONE} },

@@ -537,6 +537,7 @@ static void draw_ternary_string(ivl_expr_t expr)
 
 void draw_eval_string(ivl_expr_t expr)
 {
+      if (deferred_preload_take(expr, 's', 0)) return;
 
       switch (ivl_expr_type(expr)) {
 	  case IVL_EX_STRING:

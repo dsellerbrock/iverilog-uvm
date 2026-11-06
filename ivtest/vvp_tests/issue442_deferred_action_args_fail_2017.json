@@ -1,0 +1,5 @@
+{
+    "type" : "CE",
+    "source" : "issue442_deferred_action_args_fail.sv",
+    "iverilog-args" : [ "-g2017" ]
+}
