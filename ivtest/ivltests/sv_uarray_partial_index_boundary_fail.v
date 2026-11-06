@@ -24,9 +24,3 @@ module class_property_prefix_source_loud;
     dst = holder.words[0];
   end
 endmodule
-
-module two_residual_dimensions_loud;
-  logic [7:0] src [2][2][2];
-  logic [7:0] dst [2][2];
-  always_comb dst = src[0];
-endmodule

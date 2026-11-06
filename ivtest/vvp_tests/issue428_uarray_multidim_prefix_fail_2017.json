@@ -1,0 +1,5 @@
+{
+    "type" : "CE",
+    "source" : "issue428_uarray_multidim_prefix_fail.sv",
+    "iverilog-args" : [ "-g2017" ]
+}
