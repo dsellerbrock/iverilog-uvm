@@ -1,0 +1,5 @@
+{
+    "type" : "CE",
+    "source" : "issue426_assoc_struct_key_dup_fail.sv",
+    "iverilog-args" : [ "-g2017" ]
+}

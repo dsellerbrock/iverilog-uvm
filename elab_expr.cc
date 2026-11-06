@@ -4954,6 +4954,28 @@ static assoc_pattern_key_result_t assoc_pattern_key_identity_(
 	    return ASSOC_PATTERN_KEY_OK;
       }
 
+	/* IEEE 1800-2017/2023 7.8.5: an unpacked-struct index compares by
+	 * value, and x/z in any member makes it invalid, so a constant struct
+	 * pattern is identified by its members' identities. */
+      if (const NetEArrayPattern*pattern =
+		dynamic_cast<const NetEArrayPattern*>(expr)) {
+	    if (integral_index || pattern->union_active_member() >= 0)
+		  return ASSOC_PATTERN_KEY_NOT_CONSTANT;
+	    ostringstream out;
+	    out << "p:" << pattern->item_size() << "(";
+	    for (size_t idx = 0 ; idx < pattern->item_size() ; idx += 1) {
+		  string item;
+		  assoc_pattern_key_result_t result =
+			assoc_pattern_key_identity_(pattern->item(idx), true, item);
+		  if (result != ASSOC_PATTERN_KEY_OK)
+			return result;
+		  out << item << ",";
+	    }
+	    out << ")";
+	    identity = out.str();
+	    return ASSOC_PATTERN_KEY_OK;
+      }
+
       const NetEConst*constant = dynamic_cast<const NetEConst*>(expr);
       if (!constant)
 	    return ASSOC_PATTERN_KEY_NOT_CONSTANT;
