@@ -8634,6 +8634,8 @@ package_export_item_list
 
 package_item /* IEEE1800-2005 A.1.10 */
   : timeunits_declaration
+  /* IEEE 1800-2017/2023 17.2 permits checker declarations in packages. */
+  | checker_declaration
   /* Named properties and sequences are assertion declarations in package
      and $unit scope too (IEEE 1800-2017/2023 16.8, 16.12). */
   | property_declaration
@@ -12608,17 +12610,9 @@ nature_item
       { delete[] $3; }
   ;
 
-  /* SystemVerilog checkers (IEEE 1800-2017 clause 17): the checker
-     declaration syntax is a strict subset of the module syntax (typed
-     formals, assertion items, procedures, sequence/property
-     declarations), and checker INSTANTIATION matches module
-     instantiation. Checkers therefore ride the module machinery: the
-     "module" rule accepts K_checker/K_endchecker and elaborates the
-     checker as a module-like scope, giving per-instance assertion
-     elaboration, which matches clause-17 semantics for this subset.
-     (Untyped formals and procedural checker instantiation are not
-     covered and diagnose loudly through the normal port/syntax
-     paths.) */
+  /* SystemVerilog checker declarations use the module-like scope and
+     instantiation machinery, with their own grammar production so they can
+     appear in all scopes permitted by IEEE 1800-2017/2023 17.2. */
 
 config_declaration
   : K_config IDENTIFIER ';'
@@ -16871,14 +16865,8 @@ cont_assign_list
 module
   : attribute_list_opt module_start lifetime_opt module_identifier
       { pform_startmodule(@2, $4, $2==K_program, $2==K_interface,
-			  $2==K_checker, $3, $1);
+			  false, $3, $1);
         port_declaration_context_init();
-	  // Checker formals without an explicit direction are INPUTS
-	  // (IEEE 1800-2017 17.4); module ports default to inout.
-	if ($2 == K_checker)
-	      port_declaration_context.checker_formals = true;
-	if ($2 == K_checker)
-	      port_declaration_context.port_type = NetNet::PINPUT;
       }
     module_package_import_list_opt
     module_parameter_port_list_opt
@@ -16918,9 +16906,6 @@ module
 		  case K_interface:
 		    yyerror(@15, "error: interface not closed by endinterface.");
 		    break;
-		  case K_checker:
-		    yyerror(@15, "error: checker not closed by endchecker.");
-		    break;
 		  default:
 		    break;
 	      }
@@ -16943,9 +16928,6 @@ module
 	    case K_interface:
 	      check_end_label(@17, "interface", $4, $17);
 	      break;
-	    case K_checker:
-	      check_end_label(@17, "checker", $4, $17);
-	      break;
 	    default:
 	      break;
 	}
@@ -16953,8 +16935,42 @@ module
       }
   ;
 
+/* Keep checker declarations separate from module/interface/program
+   declarations so they can also be accepted as package items. */
+checker_declaration
+  : attribute_list_opt K_checker lifetime_opt module_identifier
+      { pform_error_in_generate(@2, "checker declaration");
+        pform_startmodule(@2, $4, false, false, true, $3, $1);
+        port_declaration_context_init();
+        port_declaration_context.checker_formals = true;
+        port_declaration_context.port_type = NetNet::PINPUT;
+      }
+    module_package_import_list_opt
+    module_parameter_port_list_opt
+    module_port_list_opt
+    module_attribute_foreign ';'
+      { pform_module_set_ports($8); }
+    timeunits_declaration_opt
+      { pform_set_scope_timescale(@2); }
+    module_item_list_opt
+    K_endchecker
+      { Module::UCDriveType ucd;
+        switch (uc_drive) {
+            case UCD_PULL0: ucd = Module::UCD_PULL0; break;
+            case UCD_PULL1: ucd = Module::UCD_PULL1; break;
+            case UCD_NONE:
+            default: ucd = Module::UCD_NONE; break;
+        }
+        pform_endmodule($4, in_celldefine, ucd);
+      }
+    label_opt
+      { check_end_label(@17, "checker", $4, $17);
+        delete[]$4;
+      }
+  ;
+
   /* Modules start with a module/macromodule, program, or interface
-     keyword, and end with a endmodule, endprogram, or endinterface
+     keyword, and end with an endmodule, endprogram, or endinterface
      keyword. The syntax for modules programs, and interfaces is
      almost identical, so let semantics sort out the differences. */
 module_start
@@ -16974,10 +16990,6 @@ module_start
       { pform_error_in_generate(@1, "interface declaration");
         $$ = K_interface;
       }
-  | K_checker
-      { pform_error_in_generate(@1, "checker declaration");
-        $$ = K_checker;
-      }
   ;
 
 /* A package and a design unit occupy distinct global name spaces. The
@@ -16992,7 +17004,6 @@ module_end
   : K_endmodule    { $$ = K_module; }
   | K_endprogram   { $$ = K_program; }
   | K_endinterface { $$ = K_interface; }
-  | K_endchecker   { $$ = K_checker; }
   ;
 
 label_opt
@@ -17088,6 +17099,7 @@ module_item
 
   /* Modules can contain further sub-module definitions. */
   : module
+  | checker_declaration
 
   | nettype_declaration
 

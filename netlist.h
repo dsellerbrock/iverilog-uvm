@@ -1508,6 +1508,8 @@ class NetScope : public Definitions, public Attrib {
             { active_generate_definitions_.insert(def); }
       bool has_active_generate(const PGenerate*def) const
             { return active_generate_definitions_.count(def) != 0; }
+      const std::set<const PGenerate*>& active_generate_definitions() const
+            { return active_generate_definitions_; }
       void is_bind_instance(bool flag) { is_bind_instance_ = flag; }
       bool is_bind_instance() const { return is_bind_instance_; }
       const PGModule* reserve_bind_instance_name(perm_string name,

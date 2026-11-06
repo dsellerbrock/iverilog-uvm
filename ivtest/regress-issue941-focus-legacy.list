@@ -1,0 +1,2 @@
+issue941_checker_scope_2017 normal,-g2017,-gassertions,-s,issue941_checker_scope ivltests gold=issue941_checker_scope.gold
+issue941_checker_scope_2023 normal,-g2023,-gassertions,-s,issue941_checker_scope ivltests gold=issue941_checker_scope.gold
