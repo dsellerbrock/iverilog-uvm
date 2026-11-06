@@ -11986,7 +11986,7 @@ static vector<Z3_ast> z3_joint_free_projection_(Z3_context ctx,
                         ++i;
                   }
             }
-      } while (changed && !projection.empty());
+      } while (changed);
       return projection;
 }
 
@@ -16103,10 +16103,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         if (feasible != Z3_L_TRUE)
                               return fail_joint("the solver returned UNKNOWN before uniform joint rejection sampling");
 
-                        vector<Z3_ast> projection = component.size() == 1
-                              ? component
-                              : z3_joint_free_projection_(ctx, base,
-                                    component);
+                        vector<Z3_ast> projection =
+                              z3_joint_free_projection_(ctx, base, component);
                         set<Z3_ast> projected(projection.begin(),
                               projection.end());
                         vector<char> bounded(projection.size(), false);

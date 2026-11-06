@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2590_nested_wide_rand_array.v",
+  "iverilog-args": ["-g2017", "-s", "main"],
+  "gold": "issue2590_nested_wide_rand_array"
+}
