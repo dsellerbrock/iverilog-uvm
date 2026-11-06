@@ -291,8 +291,134 @@ static void get_time_real(char *rtn, double value, int prec,
   sprintf(rtn, "%0.*f%s", prec, value, timeformat_info.suff);
 }
 
+/* Format a packed-struct field from the aggregate VPI vector. Typespec
+   metadata supplies member names and widths; packed member views are not
+   independently exposed as VPI handles. */
+static char* format_packed_struct_bits(vpiHandle typespec,
+                                       const s_vpi_vecval *vec,
+                                       unsigned low, unsigned width,
+                                       unsigned depth)
+{
+  if (depth > 32) return strdup("...");
+
+  if (vpi_get(vpiType, typespec) == vpiStructTypespec) {
+    vpiHandle iter = vpi_iterate(vpiTypespecMember, typespec);
+    char *acc = strdup("'{");
+    size_t used = 2;
+    unsigned remaining = width;
+    int first = 1;
+    vpiHandle member;
+    while (iter && (member = vpi_scan(iter)) != 0) {
+      unsigned member_width = (unsigned)vpi_get(vpiSize, member);
+      if (member_width > remaining) break;
+      remaining -= member_width;
+      char *name = vpi_get_str(vpiName, member);
+      vpiHandle member_type = vpi_handle(vpiTypespec, member);
+      char *value = format_packed_struct_bits(member_type, vec,
+                                               low + remaining,
+                                               member_width, depth + 1);
+      size_t name_len = name ? strlen(name) + 1 : 0;
+      size_t value_len = strlen(value);
+      acc = realloc(acc, used + (first ? 0 : 2) + name_len + value_len + 2);
+      if (!first) { strcpy(acc + used, ", "); used += 2; }
+      if (name) used += (size_t)sprintf(acc + used, "%s:", name);
+      strcpy(acc + used, value); used += value_len;
+      free(value);
+      first = 0;
+    }
+    acc = realloc(acc, used + 2);
+    strcpy(acc + used, "}");
+    return acc;
+  }
+
+  /* The %p element rule uses decimal for ordinary integral values. Convert
+     the selected range without narrowing it to a host integer. */
+  unsigned char *bits = calloc(width ? width : 1, sizeof *bits);
+  int unknown = 0;
+  for (unsigned bit = 0; bit < width; bit += 1) {
+    unsigned pos = low + bit;
+    uint32_t mask = (uint32_t)1 << (pos % 32);
+    if ((vec[pos / 32].bval & mask) != 0) unknown = 1;
+    else bits[bit] = (vec[pos / 32].aval & mask) != 0;
+  }
+  if (unknown) {
+    free(bits);
+    return strdup("x");
+  }
+
+  int negative = width > 0 && vpi_get(vpiSigned, typespec)
+               && bits[width - 1];
+  if (negative) {
+    unsigned carry = 1;
+    for (unsigned bit = 0; bit < width; bit += 1) {
+      unsigned value = (bits[bit] ^ 1U) + carry;
+      bits[bit] = value & 1U;
+      carry = value >> 1;
+    }
+  }
+
+  size_t cap = (size_t)(width * 30103ULL / 100000ULL) + 3;
+  char *digits = calloc(cap, 1);
+  size_t used = 1;
+  digits[0] = '0';
+  for (unsigned bit = width; bit > 0; bit -= 1) {
+    unsigned carry = bits[bit - 1];
+    for (size_t idx = used; idx > 0; idx -= 1) {
+      unsigned value = (unsigned)(digits[idx - 1] - '0') * 2 + carry;
+      digits[idx - 1] = (char)('0' + value % 10);
+      carry = value / 10;
+    }
+    if (carry) {
+      memmove(digits + 1, digits, used);
+      digits[0] = (char)('0' + carry);
+      used += 1;
+    }
+  }
+  char *out;
+  if (negative) {
+    out = malloc(used + 2);
+    out[0] = '-';
+    memcpy(out + 1, digits, used);
+    out[used + 1] = '\0';
+  } else {
+    out = strdup(digits);
+  }
+  free(digits);
+  free(bits);
+
+  vpiHandle enum_iter = vpi_get(vpiType, typespec) == vpiEnumTypespec
+                      ? vpi_iterate(vpiEnumConst, typespec) : 0;
+  vpiHandle enum_member;
+  while (enum_iter && (enum_member = vpi_scan(enum_iter)) != 0) {
+    s_vpi_value enum_value;
+    enum_value.format = vpiDecStrVal;
+    vpi_get_value(enum_member, &enum_value);
+    const char *enum_text = enum_value.value.str;
+    while (enum_text && *enum_text == ' ') enum_text += 1;
+    if (enum_text && strcmp(enum_text, out) == 0) {
+      char *name = vpi_get_str(vpiName, enum_member);
+      if (name) {
+        free(out);
+        return strdup(name);
+      }
+    }
+  }
+  return out;
+}
+
+static char* format_packed_struct(vpiHandle item)
+{
+  s_vpi_value value;
+  value.format = vpiVectorVal;
+  vpi_get_value(item, &value);
+  vpiHandle typespec = vpi_handle(vpiTypespec, item);
+  if (!value.value.vector || !typespec) return 0;
+  return format_packed_struct_bits(typespec, value.value.vector, 0,
+                                   (unsigned)vpi_get(vpiSize, item), 0);
+}
+
 /*
- * SV %p (IEEE 1800-2017 21.2.1.3): pretty-print a value using assignment-
+ * SV %p (IEEE 1800-2017 21.2.1.6): pretty-print a value using assignment-
  * pattern notation. Returns a malloc'd NUL-terminated string; the caller
  * frees it. Recurses into arrays/queues/dynamic/associative arrays so
  * nested aggregates format element-by-element. Leaf values format by their
@@ -381,6 +507,14 @@ static char* format_p_value(vpiHandle item)
     acc = realloc(acc, used + 2);
     strcpy(acc + used, "}");
     return acc;
+  }
+
+  /* Packed structures are one VPI vector, but %p must still expose their
+     assignment-pattern member names (including nested packed structures). */
+  vpiHandle item_typespec = vpi_handle(vpiTypespec, item);
+  if (item_typespec && vpi_get(vpiType, item_typespec) == vpiStructTypespec) {
+    char *packed = format_packed_struct(item);
+    if (packed) return packed;
   }
 
   /* A class/struct object: render as '{member:value, ...} by iterating its

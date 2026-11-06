@@ -215,8 +215,8 @@ void enum_delete(vpiHandle item)
  * types. A plain vector member has a vpiLogicTypespec or vpiBitTypespec.
  */
 struct __vpiVectorTypespec : public __vpiHandle {
-      __vpiVectorTypespec(int code, int left, int right)
-      : code_(code), left_(left), right_(right) { }
+      __vpiVectorTypespec(int code, int left, int right, bool signed_flag)
+      : code_(code), left_(left), right_(right), signed_(signed_flag) { }
       int get_type_code(void) const override { return code_; }
       int vpi_get(int code) override
       {
@@ -224,11 +224,13 @@ struct __vpiVectorTypespec : public __vpiHandle {
 		case vpiSize: return abs(left_ - right_) + 1;
 		case vpiLeftRange: return left_;
 		case vpiRightRange: return right_;
+		case vpiSigned: return signed_;
 		default: return 0;
 	    }
       }
     private:
       int code_, left_, right_;
+      bool signed_;
 };
 
 struct __vpiTypespecMember : public __vpiHandle {
@@ -281,14 +283,17 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 	  case 'V':
 	  case 'B': {
 		int code = *cp == 'V' ? vpiLogicTypespec : vpiBitTypespec;
-		long left = strtol(cp+1, &end, 10);
-		if (end == cp+1 || *end != ':') return 0;
+		++cp;
+		bool signed_flag = *cp == 's';
+		if (signed_flag) ++cp;
+		long left = strtol(cp, &end, 10);
+		if (end == cp || *end != ':') return 0;
 		cp = end + 1;
 		long right = strtol(cp, &end, 10);
 		if (end == cp) return 0;
 		cp = end;
 		width = labs(left - right) + 1;
-		return new __vpiVectorTypespec(code, left, right);
+		return new __vpiVectorTypespec(code, left, right, signed_flag);
 	  }
 	  case 'E': {
 		width = strtoul(cp+1, &end, 10);
