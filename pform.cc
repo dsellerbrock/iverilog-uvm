@@ -1271,7 +1271,8 @@ pattern_bindings_(const struct vlltype&loc, const PMatchPattern*pattern,
 
 PBlock* pform_pattern_push_scope(const struct vlltype&loc,
                                  const PExpr*subject,
-                                 const PMatchPattern*pattern)
+                                 const PMatchPattern*pattern,
+                                 bool expression_subject)
 {
       PBlock*block = pform_push_block_scope(loc, nullptr, PBlock::BL_SEQ);
 
@@ -1282,15 +1283,19 @@ PBlock* pform_pattern_push_scope(const struct vlltype&loc,
 
       pform_scoped_name_t subject_path;
       unsigned lexical_pos = 0;
-      if (!pattern_subject_path_(loc, subject, subject_path, lexical_pos))
+      if (!expression_subject
+          && !pattern_subject_path_(loc, subject, subject_path, lexical_pos))
             return block;
 
       for (const pattern_binding_t&binding : bindings) {
             PWire*wire = pform_makewire(
                   loc, pform_ident_t(binding.name, loc.lexical_pos),
                   NetNet::IMPLICIT_REG, nullptr);
-            pattern_binding_type_t*type = new pattern_binding_type_t(
-                  subject_path, lexical_pos, binding.path);
+            pattern_binding_type_t*type = expression_subject
+                  ? new pattern_binding_type_t(
+                        const_cast<PExpr*>(subject), binding.path)
+                  : new pattern_binding_type_t(subject_path, lexical_pos,
+                                               binding.path);
             FILE_NAME(type, loc);
             wire->set_data_type(type);
       }
@@ -1301,7 +1306,8 @@ PBlock* pform_pattern_finish_scope(const struct vlltype&loc,
                                    PBlock*block,
                                    Statement*statement,
                                    const PExpr*subject,
-                                   const PMatchPattern*pattern)
+                                   const PMatchPattern*pattern,
+                                   bool expression_subject)
 {
       pform_pop_scope();
 
@@ -1317,13 +1323,16 @@ PBlock* pform_pattern_finish_scope(const struct vlltype&loc,
 
       pform_scoped_name_t subject_path;
       unsigned lexical_pos = 0;
-      if (!pattern_subject_path_(loc, subject, subject_path, lexical_pos))
+      if (!expression_subject
+          && !pattern_subject_path_(loc, subject, subject_path, lexical_pos))
             return block;
 
       for (vector<pattern_binding_t>::reverse_iterator it = bindings.rbegin();
            it != bindings.rend(); ++it) {
-            PPatternAssign*assign = new PPatternAssign(
-                  subject_path, lexical_pos, it->path, it->name);
+            PPatternAssign*assign = expression_subject
+                  ? new PPatternAssign(it->path, it->name)
+                  : new PPatternAssign(subject_path, lexical_pos,
+                                       it->path, it->name);
             FILE_NAME(assign, loc);
             block->push_statement_front(assign);
       }
