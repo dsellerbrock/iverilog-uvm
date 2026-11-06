@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2512_nested_object_array_reduction_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue2512_nested_object_array_reduction"],
+  "gold": "issue2512_nested_object_array_reduction"
+}

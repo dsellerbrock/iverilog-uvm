@@ -3757,6 +3757,13 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		    modport ? vvp_mangle_name(modport) : "");
       }
 
+	/* Keep only package names that elaboration resolved through an import. */
+      for (idx = 0; idx < ivl_scope_imports(net); idx += 1) {
+	    fprintf(vvp_out, " .vpi_import \"%s\" \"%s\";\n",
+		    vvp_mangle_name(ivl_scope_import_package(net, idx)),
+		    vvp_mangle_name(ivl_scope_import_name(net, idx)));
+      }
+
 	/* M12: modport declarations of an interface, for VPI —
 	   M12-6 appends each port as "name" direction pairs. */
       if (ivl_scope_is_interface(net)) {

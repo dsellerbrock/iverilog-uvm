@@ -603,6 +603,7 @@ extern void compile_scope_decl(char*typ, char*lab, char*nam, char*tnam,
                                long is_cell);
 extern void compile_io_decl(long direction, char*name, char*formal);
 extern void compile_scope_recall(char*sym);
+extern void compile_vpi_import(char*package, char*name);
 extern void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type,
                               char*name);
 extern void compile_stmt_at(uint64_t id);

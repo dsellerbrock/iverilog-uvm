@@ -8106,6 +8106,9 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 		     Queue and dynamic-array values keep using the runtime
 		     $ivl_inside_arr helper below. */
 		  NetNet*fixed_array = nullptr;
+		  NetNet*fixed_array_base = nullptr;
+		  int fixed_array_property = -1;
+		  const netuarray_t*fixed_property_type = nullptr;
 		  bool is_param_array = false;
 		  NetEArrayPattern*param_array = nullptr;
 		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(r.hi)) {
@@ -8119,6 +8122,50 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 			    && sr.net->darray_type() == nullptr
 			    && sr.net->queue_type() == nullptr)
 			      fixed_array = sr.net;
+			/* A class property is represented by the receiver handle plus
+			 * a path tail, rather than by a NetNet for the property itself.
+			 * Resolve that shape here so an unpacked property in a set is
+			 * traversed just like a fixed array signal (11.4.13). */
+			if (found && sr.net && sr.path_head.size() == 1
+			    && sr.path_tail.size() == 1
+			    && sr.path_tail.front().index.empty()) {
+			      const netclass_t*ct = dynamic_cast<const netclass_t*>(
+				    sr.net->net_type());
+			      if (ct) {
+				    int pidx = ct->property_idx_from_name(
+					  sr.path_tail.front().name);
+				    bool readable = pidx >= 0;
+				    if (readable && ct->get_prop_qual(pidx).test_local()
+					&& !ct->get_prop_declaring_class(pidx)
+					      ->test_scope_is_method(scope)) {
+					  cerr << r.hi->get_fileline() << ": error: Local property "
+					       << ct->get_prop_name(pidx)
+					       << " is not accessible in this context." << endl;
+					  des->errors += 1;
+					  readable = false;
+				    }
+				    if (readable && ct->get_prop_qual(pidx).test_protected()
+					&& !ct->get_prop_declaring_class(pidx)
+					      ->test_scope_is_protected_access(scope)) {
+					  cerr << r.hi->get_fileline() << ": error: Protected property "
+					       << ct->get_prop_name(pidx)
+					       << " is not accessible in this context." << endl;
+					  des->errors += 1;
+					  readable = false;
+				    }
+				    if (!readable) continue;
+				    if (readable && !ct->get_prop_qual(pidx).test_static()) {
+					  fixed_property_type = dynamic_cast<const netuarray_t*>(
+						ct->get_prop_type(pidx));
+					  if (fixed_property_type
+					      && fixed_property_type->static_dimensions().size()
+						   > 0) {
+						fixed_array_base = sr.net;
+						fixed_array_property = pidx;
+					  }
+				    }
+			      }
+			}
 			/* Constant unpacked array parameters elaborate to an
 			 * ArrayPattern. In an inside set, that pattern represents the
 			 * array's elements (IEEE 1800-2017 11.4.13), so expand its leaves
@@ -8181,13 +8228,22 @@ NetExpr* PEInside::elaborate_expr(Design*des, NetScope*scope,
 					term = combined;
 				  }
 			    }
-		  } else if (fixed_array) {
-			for (unsigned word = 0;
-			     word < fixed_array->unpacked_count(); word += 1) {
+		  } else if (fixed_array || fixed_array_base) {
+			unsigned count = fixed_array
+			      ? fixed_array->unpacked_count()
+			      : netrange_width(fixed_property_type->static_dimensions());
+			for (unsigned word = 0; word < count; word += 1) {
 			      NetEConst*word_index = make_const_val_s(word);
 			      word_index->set_line(*r.hi);
-			      NetESignal*item = new NetESignal(fixed_array,
-							 word_index);
+			      NetExpr*item;
+			      if (fixed_array) {
+				    item = new NetESignal(fixed_array, word_index);
+			      } else {
+				    NetESignal*receiver = new NetESignal(fixed_array_base);
+				    receiver->set_line(*r.hi);
+				    item = new NetEProperty(receiver,
+					  fixed_array_property, word_index);
+			      }
 			      item->set_line(*r.hi);
 
 			      char op = type_is_vectorable(base->expr_type())
@@ -18801,6 +18857,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  uint64_t leaf_count = 0;
 		  bool assoc_index = false;
 		  bool last_index = false;
+	  bool nested_index = false;
+	  NetExpr*queue_index_expr = nullptr;
 		  bool field_diagnostic = false;
 		  if (ctype && pid < 0 && path_.name.size() >= 3) {
 			cerr << get_fileline() << ": error: Class `"
@@ -18837,7 +18895,15 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				    const netranges_t&dims =
 					  array_type->static_dimensions();
 				    size_t used = field_comp.index.size();
+			const netqueue_t*queue_type =
+			      dynamic_cast<const netqueue_t*>(array_type->element_type());
+			const bool queue_element = queue_type
+			      && !queue_type->assoc_compat()
+			      && used == dims.size() + 1;
 				    if (used > dims.size()) {
+			      if (queue_element) {
+				    used = dims.size();
+			      } else {
 						cerr << get_fileline() << ": error: Got "
 						     << field_comp.index.size()
 						     << " indices, expecting at most "
@@ -18848,6 +18914,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 						delete obj_expr;
 						obj_expr = nullptr;
 						field_diagnostic = true;
+			      }
 				    }
 				    std::list<index_component_t> word_indices;
 				    auto wi = field_comp.index.begin();
@@ -18881,7 +18948,37 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 						for (size_t dim = used ; dim < dims.size();
 						     dim += 1)
 						      leaf_count *= dims[dim].width();
+				if (queue_element) {
+				      const index_component_t&qidx =
+					*std::next(field_comp.index.begin(), used);
+				      if (qidx.sel == index_component_t::SEL_BIT)
+					queue_index_expr = elab_and_eval(des, scope,
+					      qidx.msb, -1, false);
+				      if (!queue_index_expr) {
+					cerr << get_fileline() << ": error: rand_mode() query "
+					     << "requires an indexed queue element." << endl;
+					des->errors += 1;
+					delete obj_expr;
+					obj_expr = nullptr;
+					field_diagnostic = true;
+				      } else {
+					nested_index = true;
+				      }
+			}
 					  }
+				    }
+				    if (obj_expr && used < dims.size()) {
+					  cerr << get_fileline() << ": error: rand_mode() query on "
+					       << "unpacked-array property `" << fname
+					       << "' requires selecting one element (IEEE 1800-2017 "
+					       << "18.8)."
+					       << endl;
+					  des->errors += 1;
+					  delete obj_expr;
+					  obj_expr = nullptr;
+					  delete leaf_expr;
+					  leaf_expr = nullptr;
+					  field_diagnostic = true;
 				    }
 			      } else if (const netdarray_t*container_type =
 					   dynamic_cast<const netdarray_t*>(prop_type)) {
@@ -18941,7 +19038,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 				    obj_expr = nullptr;
 				    field_diagnostic = true;
 			      }
-			} else if (dynamic_cast<const netdarray_t*>(prop_type)) {
+			} else if (dynamic_cast<const netdarray_t*>(prop_type)
+				   || dynamic_cast<const netuarray_t*>(prop_type)) {
 			      cerr << get_fileline() << ": error: rand_mode() query on "
 				   << "unpacked-array property `" << fname
 				   << "' requires selecting one element (IEEE 1800-2017 "
@@ -18964,21 +19062,27 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			      verinum((uint64_t)pid, 32));
 			pe->set_line(*this);
 			NetESFunc*tmp = new NetESFunc(
-			      last_index
+		      nested_index
+			? "$ivl_class_method$rand_mode_get_nested"
+		      : last_index
 				? "$ivl_class_method$rand_mode_get_last"
 			      : assoc_index
 				? "$ivl_class_method$rand_mode_get_assoc"
 				: "$ivl_class_method$rand_mode_get",
-			      IVL_VT_BOOL, 1, leaf_expr ? 4 : 2);
+		      IVL_VT_BOOL, 1, leaf_expr ? 4 : 2);
 			tmp->set_line(*this);
 			tmp->parm(0, obj_expr);
 			tmp->parm(1, pe);
 			if (leaf_expr) {
 			      tmp->parm(2, leaf_expr);
-			      NetExpr*count_expr = new NetEConst(
-				    verinum(leaf_count, 64));
-			      count_expr->set_line(*this);
-			      tmp->parm(3, count_expr);
+		      if (nested_index) {
+			    tmp->parm(3, queue_index_expr);
+		      } else {
+			    NetExpr*count_expr = new NetEConst(
+				  verinum(leaf_count, 64));
+			    count_expr->set_line(*this);
+			    tmp->parm(3, count_expr);
+		      }
 			}
 			return tmp;
 		  }

@@ -678,6 +678,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%rand_mode/get/a/v",of_RAND_MODE_GET_A_V,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%rand_mode/get/i",of_RAND_MODE_GET_I, 3,{OA_NUMBER, OA_BIT1,OA_BIT2} },
       { "%rand_mode/get/last",of_RAND_MODE_GET_LAST,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%rand_mode/get/q",of_RAND_MODE_GET_Q, 3,{OA_NUMBER, OA_BIT1,OA_BIT2} },
       { "%rand_mode/p",    of_RAND_MODE_P,     1,{OA_NUMBER, OA_NONE,OA_NONE} },
       { "%rand_mode/p/a/obj",of_RAND_MODE_P_A_OBJ,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%rand_mode/p/a/str",of_RAND_MODE_P_A_STR,1,{OA_NUMBER,OA_NONE,OA_NONE} },

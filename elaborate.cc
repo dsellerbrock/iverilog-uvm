@@ -42332,18 +42332,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		    }
 	      }
 	    }
-	    if (!call->path().package && (cpath.size() == 2 || cpath.size() == 3)
+	    if (!call->path().package && cpath.size() >= 2
 		&& call->get_parms().size() <= 1 && call->with_constraints().size() <= 1
 		&& (call->get_parms().empty() || !call->with_constraints().empty())) {
 		  pform_name_t::const_iterator dprop = cpath.begin();
-		  pform_name_t::const_iterator dmethod = cpath.end();
-		  if (cpath.size() == 2) {
-			dmethod = std::next(dprop);
-		  } else if (cls && dprop->name == perm_string::literal("this")
-			     && dprop->index.empty()) {
-			++dprop;
-			dmethod = std::next(dprop);
-		  }
+		  pform_name_t::const_iterator dmethod = std::prev(cpath.end());
+		  if (cls && dprop->name == perm_string::literal("this")
+		      && dprop->index.empty()) ++dprop;
 		  const char*dop = nullptr;
 		  if (dmethod != cpath.end() && dmethod->index.empty()
 		      && dprop->index.empty() && !dprop->local_scope) {
@@ -42374,6 +42369,48 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    dtype = typed->second;
 				    head = "0";
 			      }
+			}
+			/* A global constraint may reduce a dynamic array owned by a
+			 * nested rand object. Keep the complete property path so the
+			 * solver can resolve the live owner in its active object graph. */
+			if (cls && scope_randomize_emit_ctx_ == nullptr
+			    && !call->path().package && !dprop->local_scope
+			    && dmethod != cpath.end()
+			    && std::distance(dprop, dmethod) > 1) {
+			      head.clear();
+			      dtype = nullptr;
+			      const netclass_t*owner = cls;
+			      pform_name_t::const_iterator component = dprop;
+			      bool valid_path = true;
+			      for (; component != dmethod; ++component) {
+				    if (component->local_scope || !component->index.empty()) {
+					  valid_path = false;
+					  break;
+				    }
+				    int property = owner->property_idx_from_name(component->name);
+				    if (property < 0) { valid_path = false; break; }
+				    bool leaf = std::next(component) == dmethod;
+				    if (leaf) {
+					  if (!owner->get_prop_qual((size_t)property).test_rand())
+						valid_path = false;
+					  else {
+						dtype = owner->get_prop_type((size_t)property);
+						head = head.empty() ? to_string(property)
+						      : head + "." + to_string(property);
+					  }
+				    } else {
+					  if (!owner->get_prop_qual((size_t)property).test_rand()) {
+						valid_path = false;
+						break;
+					  }
+					  owner = dynamic_cast<const netclass_t*>(
+						owner->get_prop_type((size_t)property));
+					  if (!owner) { valid_path = false; break; }
+					  head = head.empty() ? to_string(property)
+						: head + "." + to_string(property);
+				    }
+			      }
+			      if (!valid_path) { head.clear(); dtype = nullptr; }
 			}
 			const netdarray_t*darray = dynamic_cast<const netdarray_t*>(dtype);
 			const netqueue_t*dqueue = dynamic_cast<const netqueue_t*>(dtype);
@@ -43060,7 +43097,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& constraint_inline_prebuilt_value_slots_ && value_slots
 		&& !constraint_ir_state_calls_ctx_ && !call->receiver_expr()
 		&& !call->path().package && !call->has_scoped_type_prefix()
-		&& call->with_constraints().empty() && call->get_parms().empty()
+		&& call->with_constraints().empty()
 		&& !cpath.empty() && !cpath.front().local_scope
 		&& (cpath.size() != 1
 		    || constraint_inline_target_name_(cpath.front().name))) {
@@ -43107,9 +43144,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    && (result_type->base_type() == IVL_VT_BOOL
 				|| result_type->base_type() == IVL_VT_LOGIC)
 			    && result && result->unpacked_dimensions() == 0 && def
-			    && def->port_count() == implicit_this) {
-			      vector<named_pexpr_t> no_args;
-			      PECallFunction*target_call = new PECallFunction(cpath, no_args);
+		    && def->port_count() == implicit_this + call->get_parms().size()) {
+		      /* An unqualified method in an inline constraint resolves in the
+		       * randomized object's scope. Preserve its actual arguments when
+		       * evaluating it through that object's retained receiver. */
+		      PECallFunction*target_call = new PECallFunction(
+			    cpath, call->get_parms());
 			      target_call->set_line(*call);
 			      NetEUFunc*capture = nullptr;
 			      if (!constraint_state_expression_slot_(call, target_call,
@@ -45196,6 +45236,36 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			  // expanded against the live container by the
 			  // solver.
 			const PEIdent*cid = dynamic_cast<const PEIdent*>(r.hi);
+			/* A fixed unpacked class property in an inside value list
+			 * contributes each scalar element, just as a dynamic property
+			 * contributes its current contents. `e:' reads a live fixed-array
+			 * element from the randomized object state. */
+			if (cls && cid && !is_dist && cid->path().size() == 1
+			    && cid->path().back().index.empty()) {
+			      int cpi = cls->property_idx_from_name(
+				    cid->path().back().name);
+			      const netuarray_t*ua = cpi >= 0
+				    ? dynamic_cast<const netuarray_t*>(
+					  cls->get_prop_type((size_t)cpi)) : nullptr;
+			      ivl_type_t et = ua ? ua->element_type() : nullptr;
+			      ivl_variable_type_t eb = et
+				    ? et->base_type() : IVL_VT_NO_TYPE;
+			      if (ua && !ua->static_dimensions().empty() && et
+				  && et->packed() && et->packed_width() > 0
+				  && et->packed_width() <= 64
+				  && (eb == IVL_VT_BOOL || eb == IVL_VT_LOGIC)) {
+				    unsigned count = (unsigned)netrange_width(
+					  ua->static_dimensions());
+				    for (unsigned elem = 0; elem < count; ++elem) {
+					  if (!range_ir.empty()) range_ir += " ";
+					  range_ir += "e:" + to_string(cpi) + ":"
+						+ to_string(et->packed_width()) + ":"
+						+ to_string(elem)
+						+ (et->get_signed() ? ":s" : "");
+				    }
+				    if (count == 0) range_ir = "qempty";
+			      }
+			}
 			if (cls && cid && !is_dist && cid->path().size() == 1
 			    && cid->path().back().index.empty()) {
 			      perm_string cnm = cid->path().back().name;

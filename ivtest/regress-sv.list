@@ -1,6 +1,8 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue2590_nested_wide_rand_array normal,-g2017,-s,main ivltests gold=issue2590_nested_wide_rand_array-legacy.gold
+
 issue2428_class_property_array_percent_p_2017 normal,-g2017,-s,issue2428_class_property_array_percent_p_2017 ivltests gold=issue2428_class_property_array_percent_p-legacy.gold
 issue2428_class_property_array_percent_p_2023 normal,-g2023,-s,issue2428_class_property_array_percent_p_2023 ivltests gold=issue2428_class_property_array_percent_p-legacy.gold
 
@@ -33,6 +35,8 @@ issue2471_struct_dynamic_nested_2017 normal,-g2017,-s,issue2471_struct_dynamic_n
 issue2471_struct_dynamic_nested_2023 normal,-g2023,-s,issue2471_struct_dynamic_nested ivltests gold=issue2471_struct_dynamic_nested-vvp-stdout.gold
 issue2506_nested_dynamic_array_reduction_2017 normal,-g2017,-s,issue2506_nested_dynamic_array_reduction ivltests gold=issue2506_nested_dynamic_array_reduction-vvp-stdout.gold
 issue2506_nested_dynamic_array_reduction_2023 normal,-g2023,-s,issue2506_nested_dynamic_array_reduction ivltests gold=issue2506_nested_dynamic_array_reduction-vvp-stdout.gold
+issue2512_nested_object_array_reduction_2017 normal,-g2017,-s,issue2512_nested_object_array_reduction ivltests gold=issue2512_nested_object_array_reduction-vvp-stdout.gold
+issue2512_nested_object_array_reduction_2023 normal,-g2023,-s,issue2512_nested_object_array_reduction ivltests gold=issue2512_nested_object_array_reduction-vvp-stdout.gold
 issue2516_class_array_part_store_2017 normal,-g2017,-s,issue2516_class_array_part_store ivltests gold=issue2516_class_array_part_store-legacy-vvp-stdout.gold
 issue2516_class_array_part_store_2023 normal,-g2023,-s,issue2516_class_array_part_store ivltests gold=issue2516_class_array_part_store-legacy-vvp-stdout.gold
 
@@ -2774,6 +2778,8 @@ sv_rand_mode_invalid_field_fail CE,-g2012 ivltests gold=sv_rand_mode_invalid_fie
 sv_rand_mode_dynamic_indexing normal,-g2012 ivltests gold=sv_rand_mode_dynamic_indexing.gold
 sv_static_rand_mode_dynamic_indexing normal,-g2012 ivltests gold=sv_static_rand_mode_dynamic_indexing.gold
 sv_rand_mode_dynamic_whole_query_fail CE,-g2012 ivltests gold=sv_rand_mode_dynamic_whole_query_fail.gold
+sv_rand_mode_fixed_array_query_fail_2017 CE,-g2017 ivltests gold=sv_rand_mode_fixed_array_query_fail_2017.gold
+sv_rand_mode_fixed_array_query_fail_2023 CE,-g2023 ivltests gold=sv_rand_mode_fixed_array_query_fail_2023.gold
 
 # Randc constraint qualifier provenance (strict Slang differential polarity)
 sv_randc_constraint_provenance normal,-g2012 ivltests gold=sv_randc_constraint_provenance.gold
@@ -6635,3 +6641,9 @@ issue2546_invalid_distribute_option_2017 CE,-g2017,-s,tb ivltests gold=issue2546
 issue2546_invalid_distribute_option_2023 CE,-g2023,-s,tb ivltests gold=issue2546_invalid_distribute_option_2023.gold
 issue2481_sdf_instance_wildcard_2017 normal,-g2017,-gspecify,-Iivltests,-s,issue2481_sdf_instance_wildcard ivltests gold=issue2481_sdf_instance_wildcard-legacy.gold
 issue2481_sdf_instance_wildcard_2023 normal,-g2023,-gspecify,-Iivltests,-s,issue2481_sdf_instance_wildcard ivltests gold=issue2481_sdf_instance_wildcard-legacy.gold
+issue2586_inline_randomize_method_arg_2017 normal,-g2017,-s,top ivltests gold=issue2586_inline_randomize_method_arg-vvp-stdout.gold
+issue2586_inline_randomize_method_arg_2023 normal,-g2023,-s,top ivltests gold=issue2586_inline_randomize_method_arg-vvp-stdout.gold
+issue2571_rand_mode_fixed_array_queue_2017 normal,-g2017,-s,test ivltests gold=issue2571_rand_mode_fixed_array_queue.gold
+issue2571_rand_mode_fixed_array_queue_2023 normal,-g2023,-s,test ivltests gold=issue2571_rand_mode_fixed_array_queue.gold
+issue2587_inside_2d_array_2017 normal,-g2017,-s,issue2587_inside_2d_array ivltests gold=issue2587_inside_2d_array-legacy.gold
+issue2587_inside_2d_array_2023 normal,-g2023,-s,issue2587_inside_2d_array ivltests gold=issue2587_inside_2d_array-legacy.gold
