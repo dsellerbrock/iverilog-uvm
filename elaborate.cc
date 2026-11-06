@@ -42145,18 +42145,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		    }
 	      }
 	    }
-	    if (!call->path().package && (cpath.size() == 2 || cpath.size() == 3)
+	    if (!call->path().package && cpath.size() >= 2
 		&& call->get_parms().size() <= 1 && call->with_constraints().size() <= 1
 		&& (call->get_parms().empty() || !call->with_constraints().empty())) {
 		  pform_name_t::const_iterator dprop = cpath.begin();
-		  pform_name_t::const_iterator dmethod = cpath.end();
-		  if (cpath.size() == 2) {
-			dmethod = std::next(dprop);
-		  } else if (cls && dprop->name == perm_string::literal("this")
-			     && dprop->index.empty()) {
-			++dprop;
-			dmethod = std::next(dprop);
-		  }
+		  pform_name_t::const_iterator dmethod = std::prev(cpath.end());
+		  if (cls && dprop->name == perm_string::literal("this")
+		      && dprop->index.empty()) ++dprop;
 		  const char*dop = nullptr;
 		  if (dmethod != cpath.end() && dmethod->index.empty()
 		      && dprop->index.empty() && !dprop->local_scope) {
@@ -42187,6 +42182,48 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    dtype = typed->second;
 				    head = "0";
 			      }
+			}
+			/* A global constraint may reduce a dynamic array owned by a
+			 * nested rand object. Keep the complete property path so the
+			 * solver can resolve the live owner in its active object graph. */
+			if (cls && scope_randomize_emit_ctx_ == nullptr
+			    && !call->path().package && !dprop->local_scope
+			    && dmethod != cpath.end()
+			    && std::distance(dprop, dmethod) > 1) {
+			      head.clear();
+			      dtype = nullptr;
+			      const netclass_t*owner = cls;
+			      pform_name_t::const_iterator component = dprop;
+			      bool valid_path = true;
+			      for (; component != dmethod; ++component) {
+				    if (component->local_scope || !component->index.empty()) {
+					  valid_path = false;
+					  break;
+				    }
+				    int property = owner->property_idx_from_name(component->name);
+				    if (property < 0) { valid_path = false; break; }
+				    bool leaf = std::next(component) == dmethod;
+				    if (leaf) {
+					  if (!owner->get_prop_qual((size_t)property).test_rand())
+						valid_path = false;
+					  else {
+						dtype = owner->get_prop_type((size_t)property);
+						head = head.empty() ? to_string(property)
+						      : head + "." + to_string(property);
+					  }
+				    } else {
+					  if (!owner->get_prop_qual((size_t)property).test_rand()) {
+						valid_path = false;
+						break;
+					  }
+					  owner = dynamic_cast<const netclass_t*>(
+						owner->get_prop_type((size_t)property));
+					  if (!owner) { valid_path = false; break; }
+					  head = head.empty() ? to_string(property)
+						: head + "." + to_string(property);
+				    }
+			      }
+			      if (!valid_path) { head.clear(); dtype = nullptr; }
 			}
 			const netdarray_t*darray = dynamic_cast<const netdarray_t*>(dtype);
 			const netqueue_t*dqueue = dynamic_cast<const netqueue_t*>(dtype);
