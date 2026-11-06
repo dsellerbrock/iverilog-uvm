@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_abort_temporal.sv",
+  "iverilog-args": ["-g2023", "-s", "sva_abort_temporal"],
+  "gold": "sva_abort_temporal"
+}
