@@ -5233,6 +5233,16 @@ extern "C" unsigned ivl_type_covgrp_item_goal(ivl_type_t net, int idx)
       return 100;
 }
 
+extern "C" unsigned ivl_type_covgrp_item_cross_num_print_missing(
+	ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).cross_num_print_missing;
+      return 0;
+}
+
 extern "C" int ivl_type_covgrp_item_goal_prop(ivl_type_t net, int idx)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
