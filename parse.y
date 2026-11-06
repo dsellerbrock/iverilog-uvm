@@ -2464,6 +2464,8 @@ static Module::port_t *module_declare_explicit_port(
       pform_specify_terminal_t*specify_terminal;
       std::list<pform_specify_terminal_t>*specify_terminals;
       std::list<sva_sequence_formal_t>*sva_formals;
+      cond_clause_t*cond_clause;
+      std::vector<cond_clause_t*>*cond_clauses;
       std::list<sva_property_formal_t>*sva_property_formals;
 
       std::list<pform_ident_t>*identifiers;
@@ -2931,7 +2933,10 @@ static Module::port_t *module_declare_explicit_port(
 %type <match_pattern> match_pattern_item
 %type <match_patterns> match_pattern_list
 %type <expr> pattern_subject pattern_condition
-%type <statement> pattern_if_prefix
+%type <statement> pattern_if_prefix tand_if_prefix
+%type <cond_clause> tand_clause
+%type <cond_clauses> tand_chain
+%type <expr> pattern_expr_head
 %destructor { delete $$; } match_pattern match_pattern_item
 %destructor {
       if ($$) {
@@ -12350,6 +12355,31 @@ pattern_condition
       }
   ;
 
+/* IEEE 1800-2017/2023 12.4 cond_predicate: clauses joined by &&&. A pattern
+   clause's scope stays open for the later clauses and the true arm. */
+tand_clause
+  : expression
+      { $$ = new cond_clause_t; $$->cond = $1; }
+  | pattern_condition
+      { $$ = new cond_clause_t; $$->cond = $1;
+	$$->block = current_pattern_blocks.top();
+	current_pattern_blocks.pop(); }
+  ;
+
+tand_chain
+  : tand_clause K_TAND tand_clause
+      { pform_requires_sv(@2, "&&& in an if predicate");
+	$$ = new std::vector<cond_clause_t*>;
+	$$->push_back($1); $$->push_back($3); }
+  | tand_chain K_TAND tand_clause
+      { $1->push_back($3); $$ = $1; }
+  ;
+
+tand_if_prefix
+  : K_if '(' tand_chain ')' statement_or_null
+      { $$ = pform_make_tand_if(@1, $3, $5); }
+  ;
+
 pattern_if_prefix
   : K_if '(' pattern_condition ')' statement_or_null
       { assert(!current_pattern_blocks.empty());
@@ -13147,25 +13177,39 @@ expression
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
-  | pattern_subject K_matches match_pattern
-      { pform_requires_sv(@2, "pattern-matching conditional expression");
-	/* Keep the pattern declarations active only while parsing the
-	 * consequent; its elaborator owns the block through expression lowering. */
-	PBlock*block = pform_pattern_push_scope(@2, $1, $3);
-	current_pattern_blocks.push(block);
-      }
-    '?' attribute_list_opt expression
+  | pattern_expr_head '?' attribute_list_opt expression
       { pform_pop_scope(); }
     ':' expression
       { assert(!current_pattern_blocks.empty());
 	PBlock*block = current_pattern_blocks.top();
 	current_pattern_blocks.pop();
+	PETernary*tmp = new PETernary($1, $4, $7);
+	tmp->set_pattern_scope(block);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
+      }
+    /* Close the pattern scope opened by the head, so a malformed or
+       unsupported predicate is a diagnostic rather than a parser abort. */
+  | pattern_expr_head error
+      { yyerror(@1, "sorry: an &&& clause in a conditional-expression "
+		"predicate is not supported yet (IEEE 1800-2017/2023 12.6.3).");
+	assert(!current_pattern_blocks.empty());
+	current_pattern_blocks.pop();
+	pform_pop_scope();
+	$$ = $1;
+      }
+  ;
+
+/* Keep the pattern declarations active only while parsing the consequent;
+   its elaborator owns the block through expression lowering. */
+pattern_expr_head
+  : pattern_subject K_matches match_pattern
+      { pform_requires_sv(@2, "pattern-matching conditional expression");
+	PBlock*block = pform_pattern_push_scope(@2, $1, $3);
+	current_pattern_blocks.push(block);
 	PEMatches*condition = new PEMatches($1, $3, NetCase::EQ);
 	FILE_NAME(condition, @2);
-	PETernary*tmp = new PETernary(condition, $7, $10);
-	tmp->set_pattern_scope(block);
-	FILE_NAME(tmp, @5);
-	$$ = tmp;
+	$$ = condition;
       }
   ;
 
@@ -20771,6 +20815,10 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | pattern_if_prefix %prec less_than_K_else
       { $$ = $1; }
+  | tand_if_prefix %prec less_than_K_else
+      { $$ = $1; }
+  | tand_if_prefix K_else statement_or_null
+      { pform_tand_if_set_else(@1, $1, $3); $$ = $1; }
   | pattern_if_prefix K_else statement_or_null
       { PCondit*tmp = dynamic_cast<PCondit*>($1);
 	assert(tmp);

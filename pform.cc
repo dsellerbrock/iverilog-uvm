@@ -14043,6 +14043,68 @@ static PExpr* sva_not_(const struct vlltype&loc, PExpr*e)
       return u;
 }
 
+/* IEEE 1800-2017/2023 12.4/12.6.2: "The predicate in an if-else statement
+ * can be a series of clauses separated with the &&& operator"; the clauses
+ * are evaluated in order, a pattern's variables are visible to the later
+ * clauses and the true arm, and the else arm runs when any clause fails.
+ * The clauses nest as ifs inside their pattern scopes; an automatic flag in
+ * an enclosing block records that the innermost clause succeeded, so the
+ * else arm runs once, outside every pattern scope. */
+static std::map<const Statement*, perm_string> tand_if_flags_;
+
+Statement* pform_make_tand_if(const struct vlltype&loc,
+			      std::vector<cond_clause_t*>*clauses,
+			      Statement*if_true)
+{
+      perm_string flag = lex_strings.make("_ivl_tand_ok");
+      std::vector<Statement*> body;
+      body.push_back(sva_assign_(loc, flag, sva_bit_(loc, 1)));
+      if (if_true) body.push_back(if_true);
+      Statement*inner = sva_block_(loc, body);
+      for (size_t idx = clauses->size() ; idx > 0 ; idx -= 1) {
+	    cond_clause_t*clause = (*clauses)[idx - 1];
+	    if (clause->block) {
+		  PEMatches*match = dynamic_cast<PEMatches*>(clause->cond);
+		  assert(match);
+		  inner = pform_pattern_finish_scope(loc, clause->block, inner,
+						     match->subject(),
+						     match->pattern());
+	    }
+	    PCondit*test = new PCondit(clause->cond, inner, nullptr);
+	    FILE_NAME(test, loc);
+	    inner = test;
+	    delete clause;
+      }
+      delete clauses;
+
+      PBlock*outer = pform_push_block_scope(loc, nullptr, PBlock::BL_SEQ);
+      PWire*wire = pform_makewire(loc, pform_ident_t(flag, loc.lexical_pos),
+				  NetNet::REG, nullptr);
+      wire->set_data_type(new vector_type_t(IVL_VT_BOOL, false, nullptr));
+      wire->lifetime_override(IVL_VLT_AUTOMATIC);
+      pform_pop_scope();
+      std::vector<Statement*> stmts;
+      stmts.push_back(sva_assign_(loc, flag, sva_bit_(loc, 0)));
+      stmts.push_back(inner);
+      outer->set_statement(stmts);
+      tand_if_flags_[outer] = flag;
+      return outer;
+}
+
+void pform_tand_if_set_else(const struct vlltype&loc, Statement*prefix,
+			    Statement*if_false)
+{
+      PBlock*outer = dynamic_cast<PBlock*>(prefix);
+      assert(outer && tand_if_flags_.count(outer));
+      perm_string flag = tand_if_flags_[outer];
+      PCondit*test = new PCondit(sva_not_(loc, sva_id_(loc, flag)), if_false,
+				 nullptr);
+      FILE_NAME(test, loc);
+      std::vector<Statement*> stmts = outer->statements();
+      stmts.push_back(test);
+      outer->set_statement(stmts);
+}
+
 /* Convert an assertion expression to its one-bit procedural-if truth value
    before storing it in a sample register. A direct assignment would truncate
    multi-bit expressions, losing nonzero bits above bit zero. */
