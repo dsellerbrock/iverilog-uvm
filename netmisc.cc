@@ -4715,7 +4715,9 @@ bool ref_formal_is_bound(const NetNet*port)
 	    return false;
 
       ivl_type_t ptype = port->net_type();
-      if (dynamic_cast<const netdarray_t*>(ptype))    // dynamic array, queue
+      if (dynamic_cast<const netqueue_t*>(ptype))
+	    return owner->type() == NetScope::TASK;
+      if (dynamic_cast<const netdarray_t*>(ptype))    // dynamic array
 	    return false;
       if (dynamic_cast<const netarray_t*>(ptype))     // fixed array
 	    return false;
