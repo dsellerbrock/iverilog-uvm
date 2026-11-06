@@ -8819,7 +8819,9 @@ static bool rand_active_(const class_type* defn, vvp_cobject* cobj,
       // member's mode. A later member call can re-enable one member while
       // the aggregate's saved mode remains off, so its effective activity
       // is the activity of its randomized members.
-      if (cobj) {
+      const std::string&bt = defn->property_base_type(pid);
+      if (cobj && bt.compare(0, 3, "oc:") == 0
+          && defn->property_array_size(pid) <= 1) {
 	    vvp_cobject*aggregate = cobj_struct_prop(cobj, pid);
 	    if (aggregate && aggregate->get_defn()->is_struct_type()
 		&& !aggregate->get_defn()->is_union_type()) {
