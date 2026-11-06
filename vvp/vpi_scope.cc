@@ -743,6 +743,36 @@ static vpiHandle module_iter(int code, vpiHandle obj)
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
       assert(ref);
 
+      if (code == vpiImport) {
+            vector<vpiHandle> items;
+            for (const auto&import : ref->imports) {
+                  vpiHandle imported = 0;
+                  for (vpiHandle root : vpip_root_table) {
+                        __vpiScope*package = dynamic_cast<__vpiScope*>(root);
+                        if (!package || package->get_type_code() != vpiPackage)
+                              continue;
+                        const char*package_name = package->vpi_get_str(vpiName);
+                        if (!package_name || strcmp(package_name, import.first) != 0)
+                              continue;
+                        for (vpiHandle item : package->intern) {
+                              const char*item_name = item->vpi_get_str(vpiName);
+                              if (item_name && strcmp(item_name, import.second) == 0) {
+                                    imported = item;
+                                    break;
+                              }
+                        }
+                        break;
+                  }
+                  if (imported) items.push_back(imported);
+            }
+            if (items.empty()) return 0;
+            vpiHandle*args = static_cast<vpiHandle*>(
+                  calloc(items.size(), sizeof(vpiHandle)));
+            for (unsigned idx = 0; idx < items.size(); idx += 1)
+                  args[idx] = items[idx];
+            return vpip_make_iterator(items.size(), args, true);
+      }
+
       if (code == vpiVirtualInterfaceVar) {
 	    vector<vpiHandle> items;
 	    set<vpiHandle> seen;
@@ -910,6 +940,16 @@ void compile_nettype_decl(char*name, char*alias, char*with)
       delete[] name;
       delete[] alias;
       delete[] with;
+}
+
+void compile_vpi_import(char*package, char*name)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      assert(scope);
+      scope->imports.push_back(std::make_pair(vpip_name_string(package),
+                                              vpip_name_string(name)));
+      delete[] package;
+      delete[] name;
 }
 
 /* Task/function formal declarations are distinct VPI objects from their
