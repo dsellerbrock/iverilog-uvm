@@ -1,0 +1,5 @@
+{
+    "type" : "CE",
+    "source" : "issue708_sequence_formal_missing_fail.sv",
+    "iverilog-args" : [ "-g2023" ]
+}
