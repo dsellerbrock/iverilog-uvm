@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue624_embedded_covergroup_event.v",
+  "iverilog-args": ["-g2017", "-s", "issue624_embedded_covergroup_event"],
+  "gold": "issue624_embedded_covergroup_event"
+}

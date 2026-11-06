@@ -5978,8 +5978,6 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 		  uint64_t count = defn->property_array_size(pid);
 		  bool all_active = sel && pid < sel->size() && (*sel)[pid];
 		  for (uint64_t leaf = 0; leaf < count; ++leaf) {
-			if (!rand_leaf_active_(defn, cobj, sel, pid,
-					   (size_t)leaf)) continue;
 			vvp_object_t object;
 			cobj->get_object(pid, object, (size_t)leaf);
 			vvp_darray*array = object.peek<vvp_darray>();
@@ -10632,95 +10630,146 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	}
 }
 
-/* %covgrp/sample/all <class> (M11-3): event-driven sampling of a
- * class-embedded covergroup. Walk every live instance of the
- * covergroup class; read each instance's coverpoint source (and iff
- * guard) values from its PARENT object's properties, reached through
- * the hidden parent handle, then run the shared sampling core. */
+static void covgrp_sample_embedded_instance_(const class_type*defn,
+					     vvp_cobject*cg)
+{
+	if (!defn || !cg || !cg->cov_enabled()) return;
+	int pprop = defn->covgrp_parent_prop();
+	if (pprop < 0) return;
+	vvp_object_t pobj;
+	cg->get_object((size_t)pprop, pobj, 0);
+	vvp_cobject*parent = pobj.peek<vvp_cobject>();
+	if (!parent) return;
+	unsigned ncp = defn->covgrp_src_count();
+
+	auto read_u64 = [](vvp_cobject*o, unsigned prop, uint64_t&val,
+			   bool&low_is_1, vvp_vector4_t*wide = nullptr) {
+	      vvp_vector4_t v;
+	      o->get_vec4(prop, v);
+	      if (wide && (v.size() > 64 || v.has_xz())) *wide = v;
+	      val = 0;
+	      for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1)
+		    if (v.value(b) == BIT4_1)
+			  val |= ((uint64_t)1 << b);
+	      low_is_1 = (v.size() > 0 && v.value(0) == BIT4_1);
+	};
+
+	vector<uint64_t> vals(ncp, 0);
+	vector<vvp_vector4_t> wide_vals(ncp);
+	vector<uint64_t> guards(ncp, 1);
+	for (unsigned ci = 0 ; ci < ncp ; ci += 1) {
+	      uint64_t v; bool low;
+	      int sp = defn->covgrp_srcprop(ci);
+	      if (sp >= 0) {
+		    if (defn->covgrp_cp_real(ci))
+			  v = covgrp_real_key_(parent->get_real((unsigned)sp));
+		    else
+			  read_u64(parent, (unsigned)sp, v, low, &wide_vals[ci]);
+		    vals[ci] = v;
+	      }
+	      int gp = defn->covgrp_guardsrc(ci);
+	      if (gp >= 0) {
+		    read_u64(parent, (unsigned)gp, v, low);
+		    guards[ci] = low ? 1 : 0;
+	      }
+	}
+	size_t nitems = defn->covgrp_item_count();
+	vector<uint64_t> cross_guards(nitems > ncp ? nitems - ncp : 0, 1);
+	for (size_t item = ncp; item < nitems; item += 1) {
+	      int gp = defn->covgrp_item(item).iff_src;
+	      if (gp < 0) continue;
+	      uint64_t v; bool low;
+	      read_u64(parent, (unsigned)gp, v, low);
+	      cross_guards[item - ncp] = low ? 1 : 0;
+	}
+	unsigned nbin_guards = 0;
+	for (size_t bi = 0; bi < defn->covgrp_bin_count(); bi++) {
+	      unsigned gi = defn->covgrp_bin(bi).guard_idx;
+	      if (gi != class_type::COV_NO_GUARD && gi + 1 > nbin_guards)
+		    nbin_guards = gi + 1;
+	}
+	for (size_t bi = 0; bi < defn->covgrp_dyn_bin_count(); bi++) {
+	      unsigned gi = defn->covgrp_dyn_bin(bi).guard_idx;
+	      if (gi != class_type::COV_NO_GUARD && gi + 1 > nbin_guards)
+		    nbin_guards = gi + 1;
+	}
+	for (size_t bi = 0; bi < defn->covgrp_cross_bin_count(); bi++) {
+	      unsigned gi = defn->covgrp_cross_bin(bi).guard_idx;
+	      if (gi != class_type::COV_NO_GUARD && gi + 1 > nbin_guards)
+		    nbin_guards = gi + 1;
+	}
+	// Embedded event sampling currently recovers non-property bin guards as
+	// enabled, matching the module-wide sampler's existing behavior.
+	vector<uint64_t> bin_guards(nbin_guards, 1);
+	covgrp_sample_core_(cg, ncp, vals, wide_vals, guards, cross_guards,
+			    bin_guards);
+}
+
+/* A declaration event on a direct parent member changes only the embedded
+ * covergroup instances owned by the mutated object. Queue sampling in Active
+ * as an event-controlled process would; a pending instance coalesces writes
+ * until that process runs and is ready for its next event. */
+class covgrp_embedded_sample_event_s : public vvp_gen_event_s {
+    public:
+	  explicit covgrp_embedded_sample_event_s(vvp_cobject*cg) : cg_(cg) { }
+	  void run_run() override
+	  {
+		vvp_cobject*cg = cg_.peek<vvp_cobject>();
+		if (!cg) return;
+		covgrp_sample_embedded_instance_(cg->get_defn(), cg);
+		cg->set_covgrp_event_pending(false);
+	  }
+    private:
+	  vvp_object_t cg_;
+};
+
+void vvp_covgrp_parent_property_changed(vvp_cobject*parent,
+					       unsigned property)
+{
+	if (!parent) return;
+	static const std::vector<const class_type*> event_types = []() {
+	      std::vector<const class_type*> result;
+	      for (const class_type*defn : class_type::covgrp_registry())
+		    if (defn->covgrp_event_prop() >= 0)
+			  result.push_back(defn);
+	      return result;
+	}();
+	const class_type*parent_type = parent->get_defn();
+	if (!parent_type) return;
+	for (const class_type*defn : event_types) {
+	      if ((int)property != defn->covgrp_event_prop()
+		  || defn->covgrp_parent_prop() < 0
+		  || property >= parent->get_defn()->property_count())
+		    continue;
+	      const class_type*owner_type = defn->property_declared_class_type(
+		    (size_t)defn->covgrp_parent_prop());
+	      bool owner_matches = !owner_type;
+	      for (const class_type*base = parent_type; base && !owner_matches;
+		   base = base->runtime_super())
+		    owner_matches = base == owner_type;
+	      if (!owner_matches) continue;
+	      std::vector<vvp_cobject*> live = defn->covgrp_live();
+	      for (vvp_cobject*cg : live) {
+		    if (!cg || cg->covgrp_event_pending()) continue;
+		    vvp_object_t owner;
+		    cg->get_object((size_t)defn->covgrp_parent_prop(), owner, 0);
+		    if (owner.peek<vvp_cobject>() != parent) continue;
+		    cg->set_covgrp_event_pending(true);
+		    schedule_generic(new covgrp_embedded_sample_event_s(cg), 0,
+			     false, false, true);
+	      }
+	}
+}
+
+/* %covgrp/sample/all <class> (M11-3): retain module-driven sampling for
+ * embedded clocking events that do not use the per-object member path. */
 bool of_COVGRP_SAMPLE_ALL(vthread_t, vvp_code_t cp)
 {
-      const class_type*defn = dynamic_cast<const class_type*>(cp->handle);
-      if (!defn) return true;
-      int pprop = defn->covgrp_parent_prop();
-      if (pprop < 0) return true;
-      unsigned ncp = defn->covgrp_src_count();
-
-	      auto read_u64 = [](vvp_cobject*o, unsigned prop,
-			 uint64_t&val, bool&low_is_1,
-			 vvp_vector4_t*wide = nullptr) {
-	    vvp_vector4_t v;
-	    o->get_vec4(prop, v);
-	    if (wide && (v.size() > 64 || v.has_xz())) *wide = v;
-	    val = 0;
-	    for (unsigned b = 0 ; b < v.size() && b < 64 ; b += 1)
-		  if (v.value(b) == BIT4_1)
-			val |= ((uint64_t)1 << b);
-	    low_is_1 = (v.size() > 0 && v.value(0) == BIT4_1);
-      };
-
-	// Copy the list: sampling must stay safe even if it perturbs
-	// the registry.
-      std::vector<vvp_cobject*> live = defn->covgrp_live();
-      for (vvp_cobject*cg : live) {
-	    if (!cg->cov_enabled()) continue;
-	    vvp_object_t pobj;
-	    cg->get_object((size_t)pprop, pobj, 0);
-	    vvp_cobject*parent = pobj.peek<vvp_cobject>();
-	    if (!parent) continue;
-
-	    vector<uint64_t> vals(ncp, 0);
-	    vector<vvp_vector4_t> wide_vals(ncp);
-	    vector<uint64_t> guards(ncp, 1);
-	    for (unsigned ci = 0 ; ci < ncp ; ci += 1) {
-		  uint64_t v; bool low;
-		  int sp = defn->covgrp_srcprop(ci);
-		  if (sp >= 0) {
-			if (defn->covgrp_cp_real(ci))
-			      v = covgrp_real_key_(parent->get_real((unsigned)sp));
-			else
-			      read_u64(parent, (unsigned)sp, v, low,
-				       &wide_vals[ci]);
-			vals[ci] = v;
-		  }
-		  int gp = defn->covgrp_guardsrc(ci);
-		  if (gp >= 0) {
-			read_u64(parent, (unsigned)gp, v, low);
-			guards[ci] = low ? 1 : 0;
-		  }
-	    }
-	    size_t nitems = defn->covgrp_item_count();
-	    vector<uint64_t> cross_guards(nitems > ncp ? nitems - ncp : 0, 1);
-	    for (size_t item = ncp; item < nitems; item += 1) {
-		  int gp = defn->covgrp_item(item).iff_src;
-		  if (gp < 0) continue;
-		  uint64_t v; bool low;
-		  read_u64(parent, (unsigned)gp, v, low);
-		  cross_guards[item - ncp] = low ? 1 : 0;
-	    }
-	    unsigned nbin_guards = 0;
-	    for (size_t bi = 0; bi < defn->covgrp_bin_count(); bi++) {
-		  unsigned gi = defn->covgrp_bin(bi).guard_idx;
-		  if (gi != class_type::COV_NO_GUARD && gi + 1 > nbin_guards)
-			nbin_guards = gi + 1;
-	    }
-	    for (size_t bi = 0; bi < defn->covgrp_dyn_bin_count(); bi++) {
-		  unsigned gi = defn->covgrp_dyn_bin(bi).guard_idx;
-		  if (gi != class_type::COV_NO_GUARD && gi + 1 > nbin_guards)
-			nbin_guards = gi + 1;
-	    }
-	    for (size_t bi = 0; bi < defn->covgrp_cross_bin_count(); bi++) {
-		  unsigned gi = defn->covgrp_cross_bin(bi).guard_idx;
-		  if (gi != class_type::COV_NO_GUARD && gi + 1 > nbin_guards)
-			nbin_guards = gi + 1;
-	    }
-	    // Class-embedded event samplers can only recover parent-property
-	    // guards today. Complex expressions are diagnosed at elaboration;
-	    // retain the historical enabled recovery rather than silently
-	    // disabling every guarded bin.
-	    vector<uint64_t> bin_guards(nbin_guards, 1);
-	    covgrp_sample_core_(cg, ncp, vals, wide_vals, guards, cross_guards,
-				 bin_guards);
-      }
+	const class_type*defn = dynamic_cast<const class_type*>(cp->handle);
+	if (!defn || defn->covgrp_parent_prop() < 0) return true;
+	std::vector<vvp_cobject*> live = defn->covgrp_live();
+	for (vvp_cobject*cg : live)
+	      covgrp_sample_embedded_instance_(defn, cg);
       return true;
 }
 

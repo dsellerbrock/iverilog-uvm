@@ -307,6 +307,8 @@ class vvp_cobject : public vvp_object {
 	// M11: covergroup start()/stop() sampling enable.
       bool cov_enabled() const { return cov_enabled_; }
       void set_cov_enabled(bool f) { cov_enabled_ = f; }
+      bool covgrp_event_pending() const { return covgrp_event_pending_; }
+      void set_covgrp_event_pending(bool f) { covgrp_event_pending_ = f; }
       bool cov_item_enabled(unsigned item) const
       { auto it = cov_item_enabled_.find(item);
 	return it == cov_item_enabled_.end() || it->second; }
@@ -404,6 +406,7 @@ class vvp_cobject : public vvp_object {
       std::map<unsigned,covgrp_cross_state_t> cov_cross_states_;
       bool cov_cross_resolved_ = false;
       bool cov_enabled_ = true;
+      bool covgrp_event_pending_ = false;
       std::map<unsigned, bool> cov_item_enabled_;
 	// Lazily-allocated per-instance event nets, keyed by event slot.
       std::map<uint32_t, class vvp_net_t*> inst_events_;

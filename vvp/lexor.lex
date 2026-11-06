@@ -190,6 +190,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".covgrp_item_option_values" { return K_COVGRP_ITEM_OPTION_VALUES; }
 ".covgrp_item_guard" { return K_COVGRP_ITEM_GUARD; }
 ".covgrp_parent" { return K_COVGRP_PARENT; }
+".covgrp_event" { return K_COVGRP_EVENT; }
 ".covgrp_src"   { return K_COVGRP_SRC; }
 ".covgrp_src_expr" { return K_COVGRP_SRC_EXPR; }
 ".modport"      { return K_MODPORT; }

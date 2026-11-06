@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2544_union_percent_p_2023.v",
+    "iverilog-args": ["-g2023", "-s", "issue2544_union_percent_p_2023"],
+    "gold": "issue2544_union_percent_p"
+}

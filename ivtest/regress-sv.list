@@ -7,6 +7,9 @@ issue2428_class_property_array_percent_p_2023 normal,-g2023,-s,issue2428_class_p
 issue722_followed_by_2017 normal,-g2017,-s,issue722_followed_by ivltests gold=issue722_followed_by_legacy.gold
 issue722_followed_by_2023 normal,-g2023,-s,issue722_followed_by ivltests gold=issue722_followed_by_legacy.gold
 
+issue2572_fixed_queue_rand_mode_2017 normal,-g2017,-s,main ivltests gold=issue2572_fixed_queue_rand_mode-vvp-stdout.gold
+issue2572_fixed_queue_rand_mode_2023 normal,-g2023,-s,main ivltests gold=issue2572_fixed_queue_rand_mode-vvp-stdout.gold
+
 issue2406_const_ref_class_property_array_2017 normal,-g2017,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
 issue2406_const_ref_class_property_array_2023 normal,-g2023,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
 issue1198_dynamic_set_2017 normal,-g2017,-s,issue1198_dynamic_set ivltests gold=issue1198_dynamic_set-vvp-stdout.gold
@@ -2817,6 +2820,8 @@ sv_concat_initial_port_delivery normal,-g2012,-ssv_concat_initial_port_delivery 
 sv_quality_if normal,-g2012 ivltests gold=sv_quality_if.gold
 
 # IEEE 1800-2017 unpacked and tagged union runtime semantics
+issue2544_union_percent_p_2017 normal,-g2017 ivltests gold=issue2544_union_percent_p-legacy.gold
+issue2544_union_percent_p_2023 normal,-g2023 ivltests gold=issue2544_union_percent_p-legacy.gold
 sv_union_unpacked_storage normal,-g2012 ivltests gold=sv_union_unpacked_storage.gold
 sv_union_tagged_runtime normal,-g2012 ivltests gold=sv_union_tagged_runtime.gold
 sv_union_tagged_packed_storage normal,-g2012 ivltests gold=sv_union_tagged_packed_storage.gold
@@ -3338,6 +3343,8 @@ sv_extern_method_arg_count_fail_2017 CE,-g2017,-s,main ivltests gold=sv_extern_m
 sv_extern_method_arg_count_fail_2023 CE,-g2023,-s,main ivltests gold=sv_extern_method_arg_count_fail_2023.gold
 sv_ref_queue_formal_unrelated_fork normal,-g2017,-s,main ivltests gold=sv_ref_queue_formal_unrelated_fork.gold
 sv_ref_queue_formal_unrelated_fork_2023 normal,-g2023,-s,main ivltests gold=sv_ref_queue_formal_unrelated_fork.gold
+sv_ref_queue_formal_identity normal,-g2017,-s,main ivltests gold=sv_ref_queue_formal_identity.gold
+sv_ref_queue_formal_identity_2023 normal,-g2023,-s,main ivltests gold=sv_ref_queue_formal_identity.gold
 sv_ref_static_task_2017 CE,-g2017,-s,sv_ref_static_task_2023 ivltests gold=sv_ref_static_task_2017.gold
 sv_ref_static_task_2023 normal,-g2023,-s,sv_ref_static_task_2023 ivltests gold=sv_ref_static_task_2023.gold
 sv_ref_static_auto_actual_fail_2023 CE,-g2023,-s,sv_ref_static_auto_actual_fail_2023 ivltests gold=sv_ref_static_auto_actual_fail_2023.gold
