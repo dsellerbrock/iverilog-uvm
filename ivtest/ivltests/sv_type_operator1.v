@@ -12,9 +12,8 @@
 //  - generate-if selecting a branch by type equality
 //  - type(expr) does NOT evaluate expr (a side-effecting function call
 //    inside type() must not run)
-//  - enum and class-handle operands (supported); struct/union operands
-//    are NOT supported by this fork (see tests/negative/
-//    type_operator_struct_compare.sv) and so are not exercised here.
+//  - enum and class-handle operands; struct/union/array operands are
+//    covered by issue756_type_match_aggregates.sv.
 //
 // Everything below is gathered under ONE top module with a single
 // shared `failed` flag and a single final "PASSED" line -- the ivtest
