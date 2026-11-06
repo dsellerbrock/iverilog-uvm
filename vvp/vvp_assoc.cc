@@ -37,7 +37,9 @@ vvp_assoc_element_ref::vvp_assoc_element_ref(
       vvp_assoc_base*owner, const vvp_object_t&key, kind_t kind,
       unsigned vec4_width)
 : owner_(owner), key_kind_(KEY_OBJECT), kind_(kind), valid_(owner != 0),
-  object_key_(key), vec4_value_(vec4_width, BIT4_X), real_value_(0.0)
+  object_key_(vvp_assoc_value_key(key.peek<vvp_object>())
+              ? key.value_copy_element() : key),
+  vec4_value_(vec4_width, BIT4_X), real_value_(0.0)
 {
       if (owner_) owner_->register_element_ref_(this);
 }
@@ -64,7 +66,8 @@ bool vvp_assoc_element_ref::matches(const std::string&key) const
 bool vvp_assoc_element_ref::matches(const vvp_object_t&key) const
 {
       return key_kind_ == KEY_OBJECT
-          && object_key_.peek<vvp_object>() == key.peek<vvp_object>();
+          && vvp_assoc_object_keys_equal(object_key_.peek<vvp_object>(),
+                                         key.peek<vvp_object>());
 }
 
 bool vvp_assoc_element_ref::matches(const vvp_vector4_t&key) const
@@ -339,9 +342,10 @@ vvp_object_t vvp_assoc_base::capture_element_ref(
       return vvp_object_t(new vvp_assoc_element_ref(this, key, kind, width));
 }
 
-const vvp_object* vvp_assoc_base::object_key_(const vvp_object_t&key)
+const vvp_object* vvp_assoc_base::object_key_(const vvp_object_t&key) const
 {
-      return key.peek<vvp_object>();
+      const vvp_object*raw = key.peek<vvp_object>();
+      return vvp_assoc_value_key(raw) ? stored_value_key_(raw) : raw;
 }
 
 std::string vvp_assoc_base::vec4_key_(const vvp_vector4_t&key)
