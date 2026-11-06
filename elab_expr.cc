@@ -27221,7 +27221,9 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
       } else if (idx_flags.undefined) {
 	    cerr << get_fileline() << ": warning: "
-		 << "returning 'bx for undefined array access "
+		 << (net->array_type()->base_type() == IVL_VT_BOOL
+		     ? "returning 'b0 for undefined array access "
+		     : "returning 'bx for undefined array access ")
 		 << net->name() << as_indices(unpacked_indices)
 		 << "." << endl;
 
@@ -31135,16 +31137,20 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 
 	    if (canon_index == 0) {
 		  cerr << get_fileline() << ": warning: "
-		       << "returning 'bx for out of bounds array access "
+		       << (net->array_type()->base_type() == IVL_VT_BOOL
+			   ? "returning 'b0 for out of bounds array access "
+			   : "returning 'bx for out of bounds array access ")
 		       << net->name() << as_indices(unpacked_indices_const)
 		       << "." << endl;
 	    }
       }
 
       if (canon_index == 0) {
-	    NetEConst*xxx = make_const_x(net->vector_width());
-	    xxx->set_line(*this);
-	    return xxx;
+	    NetEConst*invalid = net->array_type()->base_type() == IVL_VT_BOOL
+		  ? make_const_0(net->vector_width())
+		  : make_const_x(net->vector_width());
+	    invalid->set_line(*this);
+	    return invalid;
       }
       canon_index->set_line(*this);
 
