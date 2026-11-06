@@ -1,6 +1,8 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue2590_nested_wide_rand_array normal,-g2017,-s,main ivltests gold=issue2590_nested_wide_rand_array-legacy.gold
+
 issue2428_class_property_array_percent_p_2017 normal,-g2017,-s,issue2428_class_property_array_percent_p_2017 ivltests gold=issue2428_class_property_array_percent_p-legacy.gold
 issue2428_class_property_array_percent_p_2023 normal,-g2023,-s,issue2428_class_property_array_percent_p_2023 ivltests gold=issue2428_class_property_array_percent_p-legacy.gold
 

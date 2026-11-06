@@ -1,0 +1,2 @@
+0
+./ivltests/issue2590_nested_wide_rand_array.v:35: $finish called at 0 (1s)
