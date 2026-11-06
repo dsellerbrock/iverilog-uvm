@@ -23,6 +23,7 @@
 # include  "netparray.h"
 # include  "netmisc.h"
 # include  "compiler.h"
+# include  "Module.h"
 # include  "PPackage.h"
 # include  "PExpr.h"
 # include  "PTask.h"
@@ -794,8 +795,21 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 	    // for a scope name. Note that only scopes can be searched for up
 	    // past module boundaries. To handle that, set a flag to indicate
 	    // that we passed a module boundary on the way up.
-	    if (scope->type()==NetScope::MODULE && !scope->nested_module())
+	    if (scope->type() == NetScope::MODULE && !scope->nested_module()) {
+		  const Module*module = scope->module_definition();
+		  const PPackage*package = module && module->is_checker
+			? dynamic_cast<const PPackage*>(module->parent_scope()) : nullptr;
+		  NetScope*package_scope = package
+			? des->find_package(package->pscope_name()) : nullptr;
+		  if (package_scope) {
+			// A package-declared checker resolves free names in its
+			// declaration package, not in the module where it is used.
+			scope = package_scope;
+			passed_module_boundary = false;
+			continue;
+		  }
 		  passed_module_boundary = true;
+	    }
 
 	    scope = scope->parent();
 

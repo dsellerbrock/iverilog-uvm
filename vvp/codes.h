@@ -416,6 +416,7 @@ extern bool of_POP_STR(vthread_t thr, vvp_code_t code);
 extern bool of_POP_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_POW(vthread_t thr, vvp_code_t code);
 extern bool of_POW_S(vthread_t thr, vvp_code_t code);
+extern bool of_POW_S_U(vthread_t thr, vvp_code_t code);
 extern bool of_POW_WR(vthread_t thr, vvp_code_t code);
 extern bool of_QINSERT_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_QINSERT_OBJ(vthread_t thr, vvp_code_t code);

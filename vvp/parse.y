@@ -100,7 +100,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_ARITH_ABS K_ARITH_DIV K_ARITH_DIV_R K_ARITH_DIV_S K_ARITH_MOD
 %token K_ARITH_MOD_R K_ARITH_MOD_S
 %token K_ARITH_MULT K_ARITH_MULT_R K_ARITH_SUB K_ARITH_SUB_R
-%token K_ARITH_SUM K_ARITH_SUM_R K_ARITH_POW K_ARITH_POW_R K_ARITH_POW_S
+%token K_ARITH_SUM K_ARITH_SUM_R K_ARITH_POW K_ARITH_POW_R K_ARITH_POW_S K_ARITH_POW_SU
 %token K_ARRAY K_ARRAY_2U K_ARRAY_2S K_ARRAY_I K_ARRAY_OBJ K_ARRAY_VIF K_ARRAY_R K_ARRAY_S K_ARRAY_STR K_ARRAY_PORT
 %token K_CAST_INT K_CAST_REAL K_CAST_REAL_S K_CAST_2
 %token K_CLASS K_CLASS_STRUCT K_CLASS_UNION K_CLASS_UNION_TAGGED K_IMPLEMENTS K_STATIC_PROP K_CONSTRAINT_DEF K_CONSTRAINT_CALL K_CONSTRAINT_DEP K_COVGRP_BIN K_COVGRP_WIDE_RANGE K_COVGRP_DYN_BIN K_COVGRP_DYN_TRANS K_COVGRP_CROSS K_COVGRP_CROSS_TERM K_COVGRP_CROSS_BIN K_COVGRP_ITEM K_COVGRP_OPTIONS K_COVGRP_OPTION_VALUES K_COVGRP_PER_INSTANCE K_COVGRP_TYPE_WEIGHT K_COVGRP_ITEM_TYPE_WEIGHT K_COVGRP_ITEM_TYPE_WEIGHT_PROP K_COVGRP_ITEM_OPTIONS K_COVGRP_ITEM_OPTION_VALUES K_COVGRP_ITEM_GUARD K_COVGRP_PARENT K_COVGRP_EVENT K_COVGRP_SRC K_COVGRP_SRC_EXPR K_MODPORT
@@ -490,7 +490,7 @@ statement
 
 	| T_LABEL K_ARITH_POW T_NUMBER ',' symbols ';'
 		{ struct symbv_s obj = $5;
-		  compile_arith_pow($1, $3, false, obj.cnt, obj.vect);
+		  compile_arith_pow($1, $3, false, false, obj.cnt, obj.vect);
 		}
 
 	| T_LABEL K_ARITH_POW_R T_NUMBER ',' symbols ';'
@@ -500,7 +500,12 @@ statement
 
 	| T_LABEL K_ARITH_POW_S T_NUMBER ',' symbols ';'
 		{ struct symbv_s obj = $5;
-		  compile_arith_pow($1, $3, true, obj.cnt, obj.vect);
+		  compile_arith_pow($1, $3, true, true, obj.cnt, obj.vect);
+		}
+
+	| T_LABEL K_ARITH_POW_SU T_NUMBER ',' symbols ';'
+		{ struct symbv_s obj = $5;
+		  compile_arith_pow($1, $3, true, false, obj.cnt, obj.vect);
 		}
 
 	| T_LABEL K_ARITH_SUB T_NUMBER ',' symbols ';'

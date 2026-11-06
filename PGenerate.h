@@ -29,6 +29,7 @@
 # include  "pform_types.h"
 
 class Design;
+class Module;
 class NetScope;
 class PExpr;
 class PFunction;
@@ -92,6 +93,10 @@ class PGenerate : public PNamedItem, public LexicalScope {
 
       std::list<PGate*> gates;
       void add_gate(PGate*);
+
+	/* Checker declarations inside a generate block are local to that
+	   generate scope and are elaborated only when instantiated there. */
+      std::map<perm_string,Module*> nested_modules;
 
 	// Tasks instantiated within this scheme.
       std::map<perm_string,PTask*> tasks;

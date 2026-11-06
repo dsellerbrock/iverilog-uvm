@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "issue2494_string_char_index.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "issue2494_string_char_index"
+    ],
+    "gold": "issue2494_string_char_index"
+}

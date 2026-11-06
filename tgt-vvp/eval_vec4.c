@@ -194,7 +194,10 @@ static void draw_binary_vec4_arith(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%mod%s;\n", signed_string);
 	    break;
 	  case 'p':
-	    fprintf(vvp_out, "    %%pow%s;\n", signed_string);
+	    if (signed_flag && !ivl_expr_signed(le))
+	      fprintf(vvp_out, "    %%pow/s/u;\n");
+	    else
+	      fprintf(vvp_out, "    %%pow%s;\n", signed_string);
 	    break;
 
 	  default:

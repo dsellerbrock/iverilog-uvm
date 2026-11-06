@@ -1,0 +1,2 @@
+0 0
+ivltests/issue2583_unsigned_power_negative_exponent.v:7: $finish called at 0 (1s)

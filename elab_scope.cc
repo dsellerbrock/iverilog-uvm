@@ -5659,7 +5659,9 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
       for (map<perm_string,Module*>::iterator cur = nested_modules.begin()
 		 ; cur != nested_modules.end() ; ++cur) {
 	      // Skip modules that must be explicitly instantiated.
-	    if (cur->second->port_count() > 0)
+	    // Checker declarations are never implicitly instantiated, even when
+	    // they have no formal ports.
+	    if (cur->second->is_checker || cur->second->port_count() > 0)
 		  continue;
 
 	    PGModule*nested_gate = new PGModule(cur->second, cur->second->mod_name());
@@ -6380,6 +6382,15 @@ void PGModule::elaborate_scope_mod_(Design*des, Module*mod, NetScope*sc) const
  * This method is called to process a module instantiation after basic
  * sanity testing is already complete.
  */
+static bool checker_is_lexically_nested_(const Module*module)
+{
+      if (!module->is_checker) return false;
+      for (const LexicalScope*scope = module->parent_scope(); scope;
+	   scope = scope->parent_scope())
+	    if (dynamic_cast<const Module*>(scope)) return true;
+      return false;
+}
+
 void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*sc) const
 {
       long instance_low  = 0;
@@ -6393,6 +6404,8 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
       struct attrib_list_t*attrib_list;
       unsigned attrib_list_n = 0;
       attrib_list = evaluate_attributes(attributes, attrib_list_n, des, sc);
+
+      bool nested_checker = checker_is_lexically_nested_(mod);
 
 	// Run through the module instances, and make scopes out of
 	// them. Also do parameter overrides that are done on the
@@ -6421,7 +6434,7 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	      // that if this is a nested module, mark it thus so that
 	      // scope searches will continue into the parent scope.
 	    NetScope*my_scope = new NetScope(sc, use_name, NetScope::MODULE, 0,
-					     bound_type_? true : false,
+					     bound_type_ || nested_checker,
 					     mod->program_block,
 					     mod->is_interface);
 	    my_scope->set_module_definition(mod);

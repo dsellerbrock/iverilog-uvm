@@ -365,16 +365,55 @@ static bool checker_formal_used_in_code_(Module*checker,
       return false;
 }
 
+static bool lexical_scope_is_within_(const LexicalScope*scope,
+				     const LexicalScope*ancestor)
+{
+      for (const LexicalScope*cur = scope; cur; cur = cur->parent_scope())
+	    if (cur == ancestor) return true;
+      return false;
+}
+
+static const Module* find_default_clocking_module_(const Module*module)
+{
+      for (const LexicalScope*scope = module; scope;
+	   scope = scope->parent_scope()) {
+	    const Module*owner = dynamic_cast<const Module*>(scope);
+	    if (!owner) continue;
+	    if (!owner->default_clocking.nil()) return owner;
+	    if (!owner->is_checker) return nullptr;
+      }
+      return nullptr;
+}
+
 static Module* find_module_type_(perm_string type, const NetScope*scope)
 {
       for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
+	    const PGenerate*selected_generate = nullptr;
+	    auto select_generate = [&] (const PGenerate*generate) {
+		  if (!generate) return;
+		  if (generate->nested_modules.find(type)
+		      == generate->nested_modules.end()) return;
+		  if (!selected_generate
+		      || lexical_scope_is_within_(generate, selected_generate))
+			selected_generate = generate;
+	    };
+	    select_generate(cur->generate_definition());
+	    for (const PGenerate*generate : cur->active_generate_definitions())
+		  select_generate(generate);
+	    if (selected_generate && generation_flag >= GN_VER2017) {
+		  std::map<perm_string,Module*>::const_iterator nested
+			= selected_generate->nested_modules.find(type);
+		  if (nested != selected_generate->nested_modules.end())
+			return nested->second;
+	    }
+
 	    const Module*owner = cur->module_definition();
 	    if (!owner)
 		  continue;
 	    std::map<perm_string,Module*>::const_iterator nested
 		  = owner->nested_modules.find(type);
 	    if (nested != owner->nested_modules.end()
-		&& !nested->second->is_checker)
+		&& (!nested->second->is_checker || generation_flag >= GN_VER2017))
 		  return nested->second;
       }
 
@@ -571,7 +610,51 @@ namespace {
 struct pattern_subject_t {
       NetNet*net = nullptr;
       ivl_type_t type = nullptr;
+      bool use_object_tag = false;
 };
+
+/* Evaluate the case subject into one typed temporary before any pattern is
+ * tested. Besides implementing 1800-2017/2023 12.6.1's exactly-once rule,
+ * this gives expression subjects (including function calls) a stable value
+ * for all arms. Unpacked tagged-union values carry their active member in
+ * their object, so matching this temporary must read that tag rather than a
+ * declared-variable companion signal. */
+static bool capture_pattern_case_subject_(const LineInfo*loc, PExpr*subject,
+                                          Design*des, NetScope*scope,
+                                          pattern_subject_t&result,
+                                          NetProc*&capture)
+{
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      subject->test_width(des, scope, mode);
+      NetExpr*value = subject->elaborate_expr(
+            des, scope, subject->expr_width(), PExpr::NO_FLAGS);
+      if (!value)
+            return false;
+
+      ivl_type_t type = value->net_type();
+      if (!type) {
+            cerr << loc->get_fileline()
+                 << ": error: Unable to determine the type of the "
+                    "pattern-matching subject expression." << endl;
+            des->errors += 1;
+            delete value;
+            return false;
+      }
+
+      NetNet*net = new NetNet(scope, scope->local_symbol(), NetNet::REG, type);
+      net->set_line(*loc);
+      net->local_flag(true);
+      if (scope->is_auto())
+            net->lifetime_override(IVL_VLT_AUTOMATIC);
+
+      NetAssign*save = new NetAssign(new NetAssign_(net), value);
+      save->set_line(*loc);
+      capture = save;
+      result.net = net;
+      result.type = type;
+      result.use_object_tag = true;
+      return true;
+}
 
 static bool resolve_pattern_subject_(const LineInfo*loc, PExpr*subject,
                                      Design*des, NetScope*scope,
@@ -885,6 +968,15 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
                   NetEUnionTag*active_tag = new NetEUnionTag(union_value);
                   active_tag->set_line(*pattern);
                   tag_value = active_tag;
+            } else if (subject.use_object_tag) {
+                  ivl_type_t selected_type = nullptr;
+                  NetExpr*union_value = select_pattern_value_(
+                        loc, subject, path, des, selected_type);
+                  if (!union_value)
+                        return nullptr;
+                  NetEUnionTag*active_tag = new NetEUnionTag(union_value);
+                  active_tag->set_line(*pattern);
+                  tag_value = active_tag;
             } else {
                   perm_string companion_name = lex_strings.make(
                         string(subject.net->name().str())
@@ -931,6 +1023,17 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
       return nullptr;
 }
 
+static NetExpr* elaborate_pattern_match_(const LineInfo*loc,
+                                         const pattern_subject_t&subject,
+                                         const PMatchPattern*pattern,
+                                         NetCase::TYPE case_type,
+                                         Design*des, NetScope*scope)
+{
+      pform_pattern_path_t path;
+      return elaborate_pattern_node_(loc, subject, pattern, path, case_type,
+                                     des, scope);
+}
+
 static NetExpr* elaborate_pattern_match_(const LineInfo*loc, PExpr*subject_expr,
                                          const PMatchPattern*pattern,
                                          NetCase::TYPE case_type,
@@ -939,8 +1042,7 @@ static NetExpr* elaborate_pattern_match_(const LineInfo*loc, PExpr*subject_expr,
       pattern_subject_t subject;
       if (!resolve_pattern_subject_(loc, subject_expr, des, scope, subject))
             return nullptr;
-      pform_pattern_path_t path;
-      return elaborate_pattern_node_(loc, subject, pattern, path, case_type,
+      return elaborate_pattern_match_(loc, subject, pattern, case_type,
                                      des, scope);
 }
 
@@ -15403,6 +15505,20 @@ static bool pattern_filter_fallback_(NetProc*body, NetProc*fallback)
  * validates and lowers each complete typed pattern; the item's implicit block
  * performs pattern-variable copies before its user statement. Invalid
  * patterns leave no executable fallback branch. */
+static void set_pattern_assignment_snapshot_(Statement*statement,
+                                             NetNet*subject)
+{
+      PBlock*block = dynamic_cast<PBlock*>(statement);
+      if (!block)
+            return;
+
+      for (Statement*child : block->statements()) {
+            PPatternAssign*assignment = dynamic_cast<PPatternAssign*>(child);
+            if (assignment)
+                  assignment->set_subject_snapshot(subject);
+      }
+}
+
 NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -15425,6 +15541,12 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
             return nullptr;
       }
 
+      pattern_subject_t subject;
+      NetProc*subject_capture = nullptr;
+      if (!capture_pattern_case_subject_(this, expr_, des, scope, subject,
+                                         subject_capture))
+            return nullptr;
+
       /* Qualified pattern cases use the existing case-quality runtime
        * checks. Each pattern predicate is a Boolean case item against a
        * constant true selector; retaining the original quality here makes
@@ -15444,10 +15566,11 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                         res->set_case(idx, nullptr, body, idx);
                         continue;
                   }
+                  set_pattern_assignment_snapshot_(item->stat, subject.net);
                   NetExpr*match = elaborate_pattern_match_(
                         item->pattern ? static_cast<const LineInfo*>(item->pattern)
                                       : static_cast<const LineInfo*>(this),
-                        expr_, item->pattern, case_type_, des, scope);
+                        subject, item->pattern, case_type_, des, scope);
                   if (!match) continue;
                   NetProc*body = item->stat
                         ? item->stat->elaborate(des, scope) : nullptr;
@@ -15460,7 +15583,10 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
                   }
                   res->set_case(idx, match, body, idx);
             }
-            return res;
+            NetBlock*sequence = new NetBlock(NetBlock::SEQU, nullptr);
+            sequence->append(subject_capture);
+            sequence->append(res);
+            return sequence;
       }
 
       NetProc*cascade = nullptr;
@@ -15476,10 +15602,11 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
             for (auto rit = items_->rbegin(); rit != items_->rend(); ++rit) {
                   Item*it = *rit;
                   if (!it || it->is_default) continue;
+                  set_pattern_assignment_snapshot_(it->stat, subject.net);
                   NetExpr*match = elaborate_pattern_match_(
                         it->pattern ? static_cast<const LineInfo*>(it->pattern)
                                     : static_cast<const LineInfo*>(this),
-                        expr_, it->pattern, case_type_, des, scope);
+                        subject, it->pattern, case_type_, des, scope);
                   if (!match)
                         continue;
                   NetProc*body = it->stat ? it->stat->elaborate(des, scope) : nullptr;
@@ -15496,7 +15623,10 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
             }
       }
       if (!cascade) cascade = new NetBlock(NetBlock::SEQU, nullptr);
-      return cascade;
+      NetBlock*sequence = new NetBlock(NetBlock::SEQU, nullptr);
+      sequence->append(subject_capture);
+      sequence->append(cascade);
+      return sequence;
 }
 
 void PCaseMatches::elaborate_scope(Design*des, NetScope*scope) const
@@ -15517,16 +15647,23 @@ void PCaseMatches::elaborate_sig(Design*des, NetScope*scope) const
 
 NetProc* PPatternAssign::elaborate(Design*des, NetScope*scope) const
 {
-      PEIdent subject_expr(subject_.package, subject_.name, lexical_pos_);
-      subject_expr.set_line(*this);
       pattern_subject_t subject;
-      // The destination lives in this implicit match-arm scope, but the
-      // subject was parsed before that scope existed and must resolve in the
-      // enclosing scope even when the binding shadows its name.
-      NetScope*subject_scope = scope->parent() ? scope->parent() : scope;
-      if (!resolve_pattern_subject_(this, &subject_expr, des, subject_scope,
-                                    subject))
-            return nullptr;
+      if (subject_snapshot_) {
+            subject.net = subject_snapshot_;
+            subject.type = subject_snapshot_->net_type();
+      } else {
+            PEIdent subject_expr(subject_.package, subject_.name,
+                                 lexical_pos_);
+            subject_expr.set_line(*this);
+            // The destination lives in this implicit match-arm scope, but
+            // the subject was parsed before that scope existed and must
+            // resolve in the enclosing scope even when the binding shadows
+            // its name.
+            NetScope*subject_scope = scope->parent() ? scope->parent() : scope;
+            if (!resolve_pattern_subject_(this, &subject_expr, des,
+                                          subject_scope, subject))
+                  return nullptr;
+      }
 
       ivl_type_t selected_type = nullptr;
       NetExpr*source = select_pattern_value_(
@@ -25742,24 +25879,49 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			}
 			const Module::PClocking*gcb = nullptr;
 			NetScope*gdef_scope = nullptr;
-			for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
-			      if (walker->type() != NetScope::MODULE)
-				    continue;
-			      perm_string mn = walker->module_name();
-			      if (mn.nil()) continue;
-			      auto pmod_it = pform_modules.find(mn);
-			      if (pmod_it == pform_modules.end()) continue;
-			      perm_string cbn = is_gclk
-				    ? pmod_it->second->global_clocking
-				    : pmod_it->second->default_clocking;
-			      if (cbn.nil()) continue;
-			      auto cb_it = pmod_it->second->clocking_blocks.find(cbn);
-			      if (cb_it != pmod_it->second->clocking_blocks.end()) {
-				    gcb = cb_it->second;
-				    gdef_scope = walker;
-				    break;
-			      }
-			}
+		    if (is_gclk) {
+			  for (NetScope*walker = scope ; walker ; walker = walker->parent()) {
+				if (walker->type() != NetScope::MODULE)
+				      continue;
+				perm_string mn = walker->module_name();
+				if (mn.nil()) continue;
+				auto pmod_it = pform_modules.find(mn);
+				if (pmod_it == pform_modules.end()) continue;
+				if (pmod_it->second->global_clocking.nil()) continue;
+				auto cb_it = pmod_it->second->clocking_blocks.find(
+				      pmod_it->second->global_clocking);
+				if (cb_it != pmod_it->second->clocking_blocks.end()) {
+				      gcb = cb_it->second;
+				      gdef_scope = walker;
+				      break;
+				}
+			  }
+		    } else {
+			  NetScope*module_scope = nullptr;
+			  for (NetScope*walker = scope; walker;
+			       walker = walker->parent()) {
+				if (!walker->module_definition()) continue;
+				module_scope = walker;
+				break;
+			  }
+			  const Module*clock_owner = module_scope
+				? find_default_clocking_module_(
+				      module_scope->module_definition()) : nullptr;
+			  if (clock_owner) {
+				auto cb_it = clock_owner->clocking_blocks.find(
+				      clock_owner->default_clocking);
+				if (cb_it != clock_owner->clocking_blocks.end()) {
+				      gcb = cb_it->second;
+				      for (NetScope*walker = module_scope; walker;
+					   walker = walker->parent()) {
+					    if (walker->module_definition() == clock_owner) {
+						  gdef_scope = walker;
+						  break;
+					    }
+				      }
+				}
+			  }
+		    }
 			if (!gcb || !gdef_scope || !gcb->event
 			    || gcb->event->event_expressions().empty()) {
 			      cerr << get_fileline() << ": error: "
