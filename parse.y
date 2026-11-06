@@ -14928,14 +14928,36 @@ expr_primary
       }
   | SYSTEM_IDENTIFIER argument_list_parens
       { perm_string tn = lex_strings.make($1);
+	  /* IEEE 1800-2017/2023 16.9.4: "$rose_gclk(v) is $rose(v,
+	     @$global_clock)", and likewise $past/$fell/$stable/$changed. */
+	const char*gclk_base = pform_global_clock_past_function($1);
+	if (gclk_base)
+	      tn = lex_strings.make(gclk_base);
 	PECallFunction *tmp = new PECallFunction(tn, *$2);
 	if ($2->empty())
 	      pform_requires_sv(@1, "Empty function argument list");
 	FILE_NAME(tmp, @1);
+	if (gclk_base) {
+	      if ($2->size() != 1)
+		    yyerror(@1, "error: %s takes exactly one argument "
+			    "(IEEE 1800-2017/2023 16.9.4).", $1);
+	      PECallFunction*gclk = new PECallFunction(
+		    lex_strings.make("$global_clock"));
+	      FILE_NAME(gclk, @1);
+	      PEventStatement*ev = new PEventStatement(
+		    new PEEvent(PEEvent::ANYEDGE, gclk));
+	      FILE_NAME(ev, @1);
+	      pform_bind_sampled_call_to_event(@1, tmp, ev);
+	      delete ev;
+	} else if (pform_global_clock_future_function($1)) {
+	      yyerror(@1, "sorry: the global clocking future sampled value "
+		      "function %s is not supported yet (IEEE 1800-2017/2023 "
+		      "16.9.4).", $1);
+	}
 	  /* M9-SV: a sampled value function needs a clocking event to
 	     mean anything (16.9.3). Record it so the enclosing
 	     behavior can bind it to one. */
-	if (pform_is_sampled_value_function($1))
+	else if (pform_is_sampled_value_function($1))
 	      pform_note_sampled_call(@1, tmp);
 	delete[]$1;
 	delete $2;
