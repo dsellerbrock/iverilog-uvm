@@ -6974,7 +6974,14 @@ static PExpr* aggregate_compare_(const PEIdent*left, const PEIdent*right,
 	    return both;
       };
       auto leaf = [&](const PEIdent*l, const PEIdent*r) -> PExpr* {
-	    PExpr*cmp = new PEBComp(leaf_op, aggregate_operand_with_(l, nullptr, nullptr, li),
+	    /* Strings have no X or Z bits, so case equality on a string member
+	       has the same value semantics as logical equality. Keep the
+	       ordinary scalar ===/!== diagnostic for direct string operands. */
+	    char effective_op = leaf_op;
+	    if (effective_op == 'E'
+		&& dynamic_cast<const netstring_t*>(type))
+		  effective_op = 'e';
+	    PExpr*cmp = new PEBComp(effective_op, aggregate_operand_with_(l, nullptr, nullptr, li),
 				    aggregate_operand_with_(r, nullptr, nullptr, li));
 	    cmp->set_line(li);
 	    return cmp;
