@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2575_oob_2state_array.v",
+    "iverilog-args": ["-g2023", "-s", "issue2575_oob_2state_array"],
+    "gold": "issue2575_oob_2state_array"
+}

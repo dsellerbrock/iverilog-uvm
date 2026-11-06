@@ -864,6 +864,16 @@ void __vpiArrayVthrA::vpi_get_value(p_vpi_value vp)
       assert(array);
 
       unsigned index = get_address();
+	// An invalid unpacked-array read uses the default for its element type.
+	// ARRAY_VALUE_INTEGRAL is the compact representation of 2-state values;
+	// the vec4 representation below remains X for 4-state elements.
+      if (index >= array->get_size()
+	  && array->value_kind == __vpiArray::ARRAY_VALUE_INTEGRAL) {
+	    unsigned width = array->get_word_size();
+	    vvp_vector4_t tmp(width, BIT4_0);
+	    vpip_vec4_get_value(tmp, width, array->signed_flag, vp);
+	    return;
+      }
 	// An object element (class handle or object-backed unpacked struct):
 	// render as `'{...}` for %p / string fetches; the vec4 path below reads
 	// the object handle as a garbage vector and aborts the formatter.

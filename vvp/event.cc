@@ -2473,6 +2473,23 @@ bool vvp_named_event_aa::triggered_now(void) const
             && state->last_trigger_time == schedule_simtime();
 }
 
+vvp_context_t vvp_named_event_aa::capture_context(
+      vvp_context_t candidate) const
+{
+      return recover_automatic_event_context_(candidate, context_scope_,
+					       "event-handle argument");
+}
+
+bool vvp_named_event_aa::add_waiting_thread_at_context(
+      vthread_t thread, vvp_context_t context, vthread_t&next)
+{
+      named_event_aa_state_s*state = static_cast<named_event_aa_state_s*>(
+	    vvp_get_context_item(context, context_idx_));
+      if (!state) return false;
+      next = vthread_add_event_wait(thread, &state->threads);
+      return true;
+}
+
 void vvp_named_event_aa::collect_waiting_threads(
       std::vector<vthread_t>&threads) const
 {
@@ -2492,6 +2509,28 @@ vvp_named_event_dyn::~vvp_named_event_dyn()
 vthread_t vvp_named_event_dyn::add_waiting_thread(vthread_t thread)
 {
       return vthread_add_event_wait(thread, &threads_);
+}
+
+vvp_event_handle::vvp_event_handle(vvp_net_t*net, vvp_context_t context)
+: net_(net), context_(context)
+{
+}
+
+vvp_event_handle::~vvp_event_handle()
+{
+}
+
+vvp_object*vvp_event_handle::duplicate() const
+{
+      return new vvp_event_handle(net_, context_);
+}
+
+void vvp_event_handle::shallow_copy(const vvp_object*that)
+{
+      const vvp_event_handle*src = dynamic_cast<const vvp_event_handle*>(that);
+      assert(src);
+      net_ = src->net_;
+      context_ = src->context_;
 }
 
 void vvp_named_event_dyn::collect_waiting_threads(
