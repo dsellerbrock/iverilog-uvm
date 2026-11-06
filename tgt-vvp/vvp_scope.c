@@ -19,6 +19,7 @@
 
 # include  "vvp_priv.h"
 # include  "vpi_user.h"
+# include  "sv_vpi_user.h"
 # include  <stdlib.h>
 # include  <math.h>
 # include  <string.h>
@@ -665,6 +666,7 @@ static void emit_unpacked_dims_(ivl_signal_t sig)
  */
 struct vartype_note_s {
       ivl_signal_t sig;
+      ivl_type_t type;
       char suffix[16];
 };
 static struct vartype_note_s*vartype_notes = 0;
@@ -677,10 +679,16 @@ static int type_has_vartype_(ivl_type_t type)
 
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
 {
-      if (!type_has_vartype_(ivl_signal_net_type(sig))) return;
+      ivl_type_t type = ivl_signal_net_type(sig);
+      if (type && ivl_signal_dimensions(sig) == 0 &&
+          ivl_signal_packed_dimensions(sig) > 1 &&
+          ivl_type_typedef_vpi_type(type) == vpiArrayTypespec)
+	    type = ivl_type_element(type);
+      if (!type_has_vartype_(type)) return;
       vartype_notes = realloc(vartype_notes,
                               (nvartype_notes+1) * sizeof(*vartype_notes));
       vartype_notes[nvartype_notes].sig = sig;
+      vartype_notes[nvartype_notes].type = type;
       snprintf(vartype_notes[nvartype_notes].suffix,
                sizeof vartype_notes[nvartype_notes].suffix, "%s", suffix);
       nvartype_notes += 1;
@@ -769,9 +777,16 @@ void emit_signal_vartypes(void)
 
       for (idx = 0 ; idx < nvartype_notes ; idx += 1) {
 	    ivl_signal_t sig = vartype_notes[idx].sig;
+	    ivl_type_t type = vartype_notes[idx].type;
 	    buf.len = 0;
 	    vartype_put_(&buf, "");
-	    if (vartype_spec_(&buf, ivl_signal_net_type(sig)) == ivl_signal_width(sig))
+	    unsigned type_width = vartype_spec_(&buf, type);
+	    int packed_aggregate = ivl_type_enum(type) ||
+	                           ivl_type_properties(type) > 0;
+	    if (type_width == ivl_signal_width(sig) ||
+	        (packed_aggregate && ivl_signal_dimensions(sig) == 0 &&
+	         ivl_signal_packed_dimensions(sig) > 1 && type_width > 0 &&
+	         ivl_signal_width(sig) % type_width == 0))
 		  fprintf(vvp_out, " .vartype v%p%s, \"%s\";\n", sig,
 		          vartype_notes[idx].suffix, buf.text);
       }

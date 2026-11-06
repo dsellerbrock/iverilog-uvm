@@ -141,6 +141,7 @@ class __vpiHandle {
       virtual ~__vpiHandle();
 
       virtual int get_type_code(void) const =0;
+      virtual int get_vpi_type_code(void) const { return get_type_code(); }
       virtual bool is_typedef_typespec(void) const { return false; }
 	// The net that holds this object's value, for the signal-like
 	// handles (__vpiSignal, __vpiRealVar and __vpiBaseVar), or nil.
@@ -508,6 +509,7 @@ extern void vpip_make_root_iterator(class __vpiHandle**&table,
 struct __vpiSignal : public __vpiHandle {
       vvp_net_t*backing_net() override { return node; }
       int vpi_get(int code) override;
+      int get_vpi_type_code(void) const override;
       int64_t vpi_get64(int code) override;
       char* vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value val) override;
@@ -541,6 +543,7 @@ struct __vpiSignal : public __vpiHandle {
       std::vector<packed_range_t> packed_ranges;
       std::vector<vpiHandle> packed_children;
       unsigned packed_depth = 0;
+      unsigned packed_base_width = 0;
       unsigned value_base = 0;
       unsigned value_width = 0;
       vpiHandle packed_parent = nullptr;
@@ -583,6 +586,7 @@ struct __vpiSignal : public __vpiHandle {
       static void*operator new[] (std::size_t size);
       static void operator delete[](void*);
 };
+extern void vpip_trim_packed_base_dimension(__vpiSignal*sig);
 extern unsigned vpip_size(__vpiSignal *sig);
 extern __vpiScope* vpip_scope(__vpiSignal*sig);
 extern vpiHandle vpip_wrap_refobj(vpiHandle formal);

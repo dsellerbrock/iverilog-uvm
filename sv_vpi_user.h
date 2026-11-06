@@ -67,7 +67,11 @@ EXTERN_C_START
 #define vpiLogicVar         vpiReg
 #define vpiClassVar         615
 #define vpiStringVar        616
+#define vpiEnumVar          617
+#define vpiStructVar        618
+#define vpiUnionVar         619
 #define vpiBitVar           620
+#define vpiPackedArrayVar   623
 #define vpiArrayVar         vpiRegArray
 #define vpiVirtualInterfaceVar 728
 
@@ -136,6 +140,7 @@ EXTERN_C_START
 #define vpiMember           742
 
 /********* One-to-One and One-to-Many ***********/
+#define vpiElement          743
 #define vpiInstance         745
 
 /********* Assertion object iterator (IEEE 1800-2017/2023 Annex M) ***********/
