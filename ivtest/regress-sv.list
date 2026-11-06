@@ -6651,3 +6651,5 @@ issue2587_inside_2d_array_2017 normal,-g2017,-s,issue2587_inside_2d_array ivltes
 issue2587_inside_2d_array_2023 normal,-g2023,-s,issue2587_inside_2d_array ivltests gold=issue2587_inside_2d_array-legacy.gold
 sva_property_and_or_2017 normal,-g2017,-s,sva_property_and_or ivltests gold=sva_property_and_or.gold
 sva_property_and_or_2023 normal,-g2023,-s,sva_property_and_or ivltests gold=sva_property_and_or.gold
+sva_abort_temporal_2017 normal,-g2017,-s,sva_abort_temporal ivltests gold=sva_abort_temporal.gold
+sva_abort_temporal_2023 normal,-g2023,-s,sva_abort_temporal ivltests gold=sva_abort_temporal.gold
