@@ -5548,6 +5548,7 @@ sv_constraint_parent_child_class_joint_2023 normal,-g2023,-s,test ivltests gold=
 sv_constraint_rand_real_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_rand_real_2023.gold
 sv_constraint_rand_real_dist_points_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_rand_real_dist_points_2023.gold
 sv_constraint_rand_real_2017_fail CE,-g2017,-s,test ivltests gold=sv_constraint_rand_real_2017_fail.gold
+issue2563_rand_real_negative_2023 normal,-g2023,-s,test ivltests gold=issue2563_rand_real_negative.gold
 sv_constraint_rand_real_randc_2023_fail CE,-g2023,-s,test ivltests gold=sv_constraint_rand_real_randc_2023_fail.gold
 sv_constraint_solve_before_fixed_array_neg CE,-g2017,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
 sv_constraint_solve_before_fixed_array_neg_2023 CE,-g2023,-s,top ivltests gold=sv_constraint_solve_before_fixed_array_neg.gold
