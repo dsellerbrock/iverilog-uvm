@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_display_packed_struct_p.v",
+  "iverilog-args": ["-g2023", "-s", "sv_display_packed_struct_p"],
+  "gold": "sv_display_packed_struct_p"
+}

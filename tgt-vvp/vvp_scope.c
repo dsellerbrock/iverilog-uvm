@@ -766,6 +766,7 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
 	    break;
       }
       vartype_put_(buf, ivl_type_base(type) == IVL_VT_BOOL ? "B" : "V");
+      if (ivl_type_signed(type)) vartype_put_(buf, "s");
       vartype_put_(buf, tmp);
       return ivl_type_packed_width(type);
 }
