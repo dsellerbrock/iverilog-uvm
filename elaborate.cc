@@ -43060,7 +43060,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		&& constraint_inline_prebuilt_value_slots_ && value_slots
 		&& !constraint_ir_state_calls_ctx_ && !call->receiver_expr()
 		&& !call->path().package && !call->has_scoped_type_prefix()
-		&& call->with_constraints().empty() && call->get_parms().empty()
+		&& call->with_constraints().empty()
 		&& !cpath.empty() && !cpath.front().local_scope
 		&& (cpath.size() != 1
 		    || constraint_inline_target_name_(cpath.front().name))) {
@@ -43107,9 +43107,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    && (result_type->base_type() == IVL_VT_BOOL
 				|| result_type->base_type() == IVL_VT_LOGIC)
 			    && result && result->unpacked_dimensions() == 0 && def
-			    && def->port_count() == implicit_this) {
-			      vector<named_pexpr_t> no_args;
-			      PECallFunction*target_call = new PECallFunction(cpath, no_args);
+		    && def->port_count() == implicit_this + call->get_parms().size()) {
+		      /* An unqualified method in an inline constraint resolves in the
+		       * randomized object's scope. Preserve its actual arguments when
+		       * evaluating it through that object's retained receiver. */
+		      PECallFunction*target_call = new PECallFunction(
+			    cpath, call->get_parms());
 			      target_call->set_line(*call);
 			      NetEUFunc*capture = nullptr;
 			      if (!constraint_state_expression_slot_(call, target_call,
