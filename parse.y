@@ -9381,23 +9381,99 @@ sva_property_formal_list
 /* Named sequence formals include IEEE 1800-2017 16.8.2 local input
    arguments. Preserve the existing untyped substitution formals. */
 sva_sequence_formal_list
-  : sva_sequence_formal_list ',' IDENTIFIER
+  /* IEEE 1800-2017/2023 16.8: "A type shall apply to all formal arguments
+     whose identifiers both follow the type and precede the next type". */
+  : sva_sequence_formal_list ',' IDENTIFIER initializer_opt
       { sva_sequence_formal_t formal;
 	formal.name = lex_strings.make($3);
-	if (!$1->empty() && $1->back().local_input) {
-	      formal.local_input = true;
+	if (!$1->empty()) {
+	      formal.local_input = $1->back().local_input;
 	      formal.type = $1->back().type;
+	      formal.sequence_type = $1->back().sequence_type;
+	      formal.event_type = $1->back().event_type;
 	}
+	formal.default_expr = $4;
 	$1->push_back(formal);
 	delete[]$3;
 	$$ = $1; }
-  | IDENTIFIER
+  | IDENTIFIER initializer_opt
       { std::list<sva_sequence_formal_t>*l =
 	      new std::list<sva_sequence_formal_t>;
 	sva_sequence_formal_t formal;
 	formal.name = lex_strings.make($1);
+	formal.default_expr = $2;
 	l->push_back(formal);
 	delete[]$1;
+	$$ = l; }
+  | sva_sequence_formal_list ',' data_type IDENTIFIER initializer_opt
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($4);
+	formal.type = $3;
+	formal.default_expr = $5;
+	$1->push_back(formal);
+	delete[]$4;
+	$$ = $1; }
+  | data_type IDENTIFIER initializer_opt
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($2);
+	formal.type = $1;
+	formal.default_expr = $3;
+	l->push_back(formal);
+	delete[]$2;
+	$$ = l; }
+  | sva_sequence_formal_list ',' K_untyped IDENTIFIER initializer_opt
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($4);
+	formal.default_expr = $5;
+	$1->push_back(formal);
+	delete[]$4;
+	$$ = $1; }
+  | K_untyped IDENTIFIER initializer_opt
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($2);
+	formal.default_expr = $3;
+	l->push_back(formal);
+	delete[]$2;
+	$$ = l; }
+  | sva_sequence_formal_list ',' K_sequence IDENTIFIER initializer_opt
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($4);
+	formal.sequence_type = true;
+	formal.default_expr = $5;
+	$1->push_back(formal);
+	delete[]$4;
+	$$ = $1; }
+  | K_sequence IDENTIFIER initializer_opt
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($2);
+	formal.sequence_type = true;
+	formal.default_expr = $3;
+	l->push_back(formal);
+	delete[]$2;
+	$$ = l; }
+  | sva_sequence_formal_list ',' K_event IDENTIFIER initializer_opt
+      { sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($4);
+	formal.event_type = true;
+	formal.default_expr = $5;
+	$1->push_back(formal);
+	delete[]$4;
+	$$ = $1; }
+  | K_event IDENTIFIER initializer_opt
+      { std::list<sva_sequence_formal_t>*l =
+	      new std::list<sva_sequence_formal_t>;
+	sva_sequence_formal_t formal;
+	formal.name = lex_strings.make($2);
+	formal.event_type = true;
+	formal.default_expr = $3;
+	l->push_back(formal);
+	delete[]$2;
 	$$ = l; }
   | sva_sequence_formal_list ',' K_local K_input data_type IDENTIFIER
       { sva_sequence_formal_t formal;

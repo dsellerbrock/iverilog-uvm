@@ -13369,11 +13369,20 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    }
 	    actuals[formal_idx] = &parms[k];
       }
+	/* IEEE 1800-2017/2023 16.8: "The instance shall provide an actual
+	 * argument ... for each formal argument that does not have a default
+	 * actual argument declared." */
       for (size_t k = 0 ; k < actuals.size() ; k += 1) {
-	    if (!actuals[k]) {
+	    if (!actuals[k] && !decl.formals[k].default_expr) {
 		  cerr << loc << ": error: sequence `" << nm
 		       << "' is missing required argument `"
 		       << decl.formals[k].name << "'." << endl;
+		  error_count += 1;
+		  return nullptr;
+	    }
+	    if (decl.formals[k].event_type) {
+		  cerr << loc << ": sorry: sequence `" << nm << "' event formal `"
+		       << decl.formals[k].name << "' is not supported yet." << endl;
 		  error_count += 1;
 		  return nullptr;
 	    }
@@ -13382,7 +13391,10 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
       std::vector<sva_seq_step_t> initializers;
       for (size_t k = 0 ; k < decl.formals.size() ; k += 1) {
 	    const sva_sequence_formal_t&formal = decl.formals[k];
-	    if (!actuals[k]->parm) {
+	    /* A default actual is resolved in the declaration's scope, like
+	       the body text, so it is substituted without the actual mark. */
+	    PExpr*parm = actuals[k] ? actuals[k]->parm : formal.default_expr;
+	    if (!parm) {
 		  cerr << loc << ": error: sequence `" << nm
 		       << "' argument " << (k+1) << " is empty." << endl;
 		  error_count += 1;
@@ -13390,8 +13402,27 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		  for (PExpr*expr : owned_subst) delete expr;
 		  return nullptr;
 	    }
+	    if (!formal.local_input && formal.type) {
+		  /* 16.8.1 c): a non-lvalue actual "shall be cast to the type
+		     of the formal argument before being substituted". */
+		  PExpr*actual = sva_clone_subst_(parm, nullptr);
+		  if (!actual) {
+			cerr << loc << ": sorry: sequence `" << nm
+			     << "' typed argument cannot be copied." << endl;
+			error_count += 1;
+			pform_sva_destroy_sequence(&initializers);
+			for (PExpr*expr : owned_subst) delete expr;
+			return nullptr;
+		  }
+		  PECastType*typed = new PECastType(formal.type, actual);
+		  FILE_NAME(typed, loc);
+		  if (actuals[k]) typed->sva_actual_scope(true);
+		  subst[formal.name] = typed;
+		  owned_subst.push_back(typed);
+		  continue;
+	    }
 	    if (!formal.local_input) {
-		  subst[formal.name] = actuals[k]->parm;
+		  subst[formal.name] = parm;
 		  continue;
 	    }
 
@@ -13403,7 +13434,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    subst[formal.name]->sva_actual_scope(true);
 	    owned_subst.push_back(subst[formal.name]);
 
-	    PExpr*actual = sva_clone_subst_(actuals[k]->parm, nullptr);
+	    PExpr*actual = sva_clone_subst_(parm, nullptr);
 	    if (!actual) {
 		  cerr << loc << ": sorry: sequence `" << nm
 		       << "' local input argument cannot be copied." << endl;

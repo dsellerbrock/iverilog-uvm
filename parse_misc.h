@@ -171,6 +171,11 @@ struct sva_sequence_formal_t {
       perm_string name;
       bool local_input = false;
       data_type_t* type = nullptr;
+	// IEEE 1800-2017/2023 16.8: an optional default actual, and the
+	// `sequence'/`event' formal types (16.8.1 a/b).
+      PExpr* default_expr = nullptr;
+      bool sequence_type = false;
+      bool event_type = false;
 };
 
 /* Property formals retain the declaration information needed when the
