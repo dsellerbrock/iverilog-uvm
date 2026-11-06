@@ -3498,6 +3498,7 @@ void compile_class_covgrp_item_option_values(uint64_t item_idx,
 					     uint64_t goal_prop,
 					     uint64_t goal,
 					     uint64_t comment_prop,
+					     uint64_t cross_num_print_missing,
 					     char*comment)
 {
       assert(compile_class);
@@ -3505,6 +3506,7 @@ void compile_class_covgrp_item_option_values(uint64_t item_idx,
 	compile_class_covgrp_split_comment_(comment, type, instance);
 	bool bad = item_idx > std::numeric_limits<size_t>::max()
 	      || goal > std::numeric_limits<unsigned>::max()
+	      || cross_num_print_missing > std::numeric_limits<unsigned>::max()
 	      || !compile_class_covgrp_property_valid_(goal_prop, 32)
 	      || !compile_class_covgrp_string_property_valid_(comment_prop);
 	if (!bad) {
@@ -3514,6 +3516,9 @@ void compile_class_covgrp_item_option_values(uint64_t item_idx,
 			(unsigned)goal, comment_prop ? (int)(comment_prop - 1) : -1,
 			instance)
 		    || !compile_class->set_covgrp_item_type_comment(idx, type);
+	      if (!bad)
+		    bad = !compile_class->set_covgrp_item_cross_num_print_missing(
+			  idx, static_cast<unsigned>(cross_num_print_missing));
 	}
 	if (bad) yyerror("invalid .covgrp_item_option_values metadata value");
 	delete[]comment;
@@ -4608,6 +4613,7 @@ void class_type::covgrp_report(FILE*fd)
 	    }
 	    for (auto&ip : item_props) {
 		  unsigned at_least = 1, weight = 1;
+		  unsigned missing_cross_bins_printed = 0;
 		  bool is_cross = false;
 		  if (ip.first < ct->covgrp_items_.size()) {
 			at_least = ct->covgrp_cumulative_at_least_(ip.first);
@@ -4629,6 +4635,13 @@ void class_type::covgrp_report(FILE*fd)
 			       : (k == 3 || k == 6 || k == 7) ? "default"
 				       : "bin";
 			uint32_t cnt = ct->type_count(prop);
+			if (is_cross && (k == 0 || k == 4) && cnt < at_least) {
+			      unsigned limit = ip.first < ct->covgrp_items_.size()
+				    ? ct->covgrp_items_[ip.first].cross_num_print_missing
+				    : 0;
+			      if (missing_cross_bins_printed >= limit) continue;
+			      missing_cross_bins_printed += 1;
+			}
 			fprintf(fd, "    %s %s count %u %s\n", tag,
 				ct->property_name(prop).c_str(), cnt,
 				(k == 0 || k == 4)
@@ -4662,6 +4675,7 @@ void class_type::covgrp_report(FILE*fd)
 			      covgrp_report_string_(fd, instance.item_comments[idx]);
 			}
 			fputc('\n', fd);
+			unsigned missing_cross_bins_printed = 0;
 			for (unsigned prop : ip.second) {
 			      unsigned kind = prop_kind[prop];
 			      const char*tag = (kind == 2 || kind == 5) ? "illegal"
@@ -4669,6 +4683,14 @@ void class_type::covgrp_report(FILE*fd)
 			      auto count_it = instance.bin_counts.find(prop);
 			      uint32_t count = count_it == instance.bin_counts.end()
 				    ? 0 : count_it->second;
+			      if (is_cross && (kind == 0 || kind == 4)
+				  && count < at_least) {
+				    unsigned limit = idx < ct->covgrp_items_.size()
+					  ? ct->covgrp_items_[idx].cross_num_print_missing
+					  : 0;
+				    if (missing_cross_bins_printed >= limit) continue;
+				    missing_cross_bins_printed += 1;
+			      }
 			      fprintf(fd, "      %s %s count %u %s\n", tag,
 				      ct->property_name(prop).c_str(), count,
 				      (kind == 0 || kind == 4)

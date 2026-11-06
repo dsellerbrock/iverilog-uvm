@@ -483,8 +483,9 @@ unsigned NetEvent::obj_slot()
       return obj_slot_;
 }
 
-NetEvTrigObj::NetEvTrigObj(NetExpr*obj, unsigned slot, bool nb, NetExpr*dly)
-: obj_(obj), slot_(slot), nb_(nb), dly_(dly)
+NetEvTrigObj::NetEvTrigObj(NetExpr*obj, unsigned slot, bool nb, NetExpr*dly,
+                           bool event_handle)
+: obj_(obj), slot_(slot), nb_(nb), event_handle_(event_handle), dly_(dly)
 {
 }
 
@@ -494,8 +495,8 @@ NetEvTrigObj::~NetEvTrigObj()
       delete dly_;
 }
 
-NetEvWaitObj::NetEvWaitObj(NetExpr*obj, unsigned slot)
-: obj_(obj), slot_(slot)
+NetEvWaitObj::NetEvWaitObj(NetExpr*obj, unsigned slot, bool event_handle)
+: obj_(obj), slot_(slot), event_handle_(event_handle)
 {
 }
 

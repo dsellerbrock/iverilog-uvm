@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue829_event_formal_task_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue829_event_formal_task"],
+  "gold": "issue829_event_formal_task"
+}

@@ -340,6 +340,7 @@ class class_type : public __vpiHandle {
 	    int auto_bin_max_prop = -1;
 	    std::string auto_bin_max_ir;
 	    unsigned goal = 100;
+	    unsigned cross_num_print_missing = 0;
 	    std::string comment;
 	    std::string type_comment;
 	    int goal_prop = -1;
@@ -445,6 +446,10 @@ class class_type : public __vpiHandle {
 	  covgrp_items_[idx].goal = goal;
 	  covgrp_items_[idx].comment_prop = comment_prop;
 	  covgrp_items_[idx].comment = comment;
+	  return true; }
+      bool set_covgrp_item_cross_num_print_missing(size_t idx, unsigned value)
+	{ if (idx >= covgrp_items_.size()) return false;
+	  covgrp_items_[idx].cross_num_print_missing = value;
 	  return true; }
       bool set_covgrp_item_type_comment(size_t idx, const std::string&comment)
       { if (idx >= covgrp_items_.size()) return false;

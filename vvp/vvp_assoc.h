@@ -39,6 +39,12 @@ extern unsigned vpip_vec4_to_dec_str(const vvp_vector4_t&vec4,
 
 class vvp_assoc_base;
 
+  // IEEE 1800-2017/2023 7.8.5 key identity, defined in vthread.cc: an
+  // unpacked-struct key compares by value, every other object by handle.
+extern bool vvp_assoc_value_key(const vvp_object*key);
+extern bool vvp_assoc_object_keys_equal(const vvp_object*left,
+                                        const vvp_object*right);
+
 /*
  * A stable reference to one associative-array element.
  *
@@ -205,7 +211,10 @@ class vvp_assoc_base : public vvp_object {
     protected:
       friend class vvp_assoc_element_ref;
 
-      static const vvp_object* object_key_(const vvp_object_t&key);
+      const vvp_object* object_key_(const vvp_object_t&key) const;
+	// The stored key equal in value to KEY, or KEY when there is none.
+      virtual const vvp_object* stored_value_key_(const vvp_object*key) const
+      { return key; }
       static std::string vec4_key_(const vvp_vector4_t&key);
       void register_element_ref_(vvp_assoc_element_ref*ref);
       void unregister_element_ref_(vvp_assoc_element_ref*ref);
@@ -378,7 +387,12 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       void set(const vvp_object_t&key, const TYPE&value)
       {
             const vvp_object*raw_key = object_key_(key);
-            obj_key_refs_[raw_key] = key;
+            if (obj_key_refs_.find(raw_key) == obj_key_refs_.end()) {
+                  vvp_object_t stored = vvp_assoc_value_key(raw_key)
+                        ? key.value_copy_element() : key;
+                  raw_key = stored.peek<vvp_object>();
+                  obj_key_refs_[raw_key] = stored;
+            }
             obj_map_[raw_key] = value;
       }
       void set(const vvp_vector4_t&key, const TYPE&value)
@@ -560,8 +574,13 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       static void assign_key_(std::string&dst, const std::string&src)
       { dst = src; }
 
+	// A struct key is handed out as a copy, so the caller cannot mutate
+	// the stored key in place.
       static void assign_key_(vvp_object_t&dst, const vvp_object*src)
-      { dst = const_cast<vvp_object*>(src); }
+      {
+            dst = const_cast<vvp_object*>(src);
+            if (vvp_assoc_value_key(src)) dst = dst.value_copy_element();
+      }
 
       static void assign_key_(vvp_vector4_t&dst, const vec_entry_t&src)
       { dst = src.key; }
@@ -677,7 +696,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             return true;
       }
 
-      static bool next_key_(const std::map<const vvp_object*, TYPE>&map, vvp_object_t&key)
+      bool next_key_(const std::map<const vvp_object*, TYPE>&map, vvp_object_t&key) const
       {
             typename std::map<const vvp_object*, TYPE>::const_iterator cur =
                   map.upper_bound(object_key_(key));
@@ -710,7 +729,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
             return true;
       }
 
-      static bool prev_key_(const std::map<const vvp_object*, TYPE>&map, vvp_object_t&key)
+      bool prev_key_(const std::map<const vvp_object*, TYPE>&map, vvp_object_t&key) const
       {
             const vvp_object*raw_key = object_key_(key);
             typename std::map<const vvp_object*, TYPE>::const_iterator cur = map.lower_bound(raw_key);
@@ -959,6 +978,17 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       // unrelated later key in obj_map_.
       std::map<const vvp_object*, TYPE> obj_map_;
       std::map<const vvp_object*, vvp_object_t> obj_key_refs_;
+
+      const vvp_object* stored_value_key_(const vvp_object*key) const override
+      {
+	    // ponytail: linear scan; add a value-ordered index if struct-keyed
+	    // maps ever get large.
+            for (typename std::map<const vvp_object*, vvp_object_t>::const_iterator
+                       cur = obj_key_refs_.begin(); cur != obj_key_refs_.end(); ++cur)
+                  if (vvp_assoc_object_keys_equal(cur->first, key))
+                        return cur->first;
+            return key;
+      }
       std::map<std::string, vec_entry_t> vec_map_;
       mutable vec_index_t vec_unsigned_index_;
       mutable vec_index_t vec_signed_index_;

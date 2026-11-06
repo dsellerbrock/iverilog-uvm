@@ -23031,6 +23031,37 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  ivl_type_t formal_type = port->unpacked_dimensions() > 0
 			? static_cast<ivl_type_t>(port->array_type())
 			: port->net_type();
+		  if (port->is_event_formal()) {
+			const PEIdent*event_actual = dynamic_cast<const PEIdent*>(actual);
+			if (event_actual) {
+			      symbol_search_results actual_symbol;
+			      if (symbol_search(this, des, actual_scope,
+					event_actual->path(),
+					event_actual->lexical_pos(),
+					&actual_symbol)) {
+				    if (actual_symbol.net && actual_symbol.path_tail.empty()
+					&& actual_symbol.net->is_event_formal()) {
+					  rv = new NetESignal(actual_symbol.net);
+					  rv->set_line(*event_actual);
+				    } else if (actual_symbol.eve
+					       && actual_symbol.path_tail.empty()
+					       && !actual_symbol.eve->is_event_array()
+					       && !actual_symbol.eve->is_class_event()) {
+					  rv = new NetEEvent(actual_symbol.eve);
+					  rv->set_line(*event_actual);
+				    }
+			      }
+			}
+			if (!rv) {
+			      cerr << get_fileline() << ": error: Event task/function formal `"
+				   << port->name()
+				   << "' requires a scalar named event or another event formal as its actual."
+				   << endl;
+			      des->errors += 1;
+			      delete lv;
+			      continue;
+			}
+		  }
 		  bool dpi_open_argument =
 			dpi_open_array_formal_needs_copy_in_(port, task);
 		  unsigned argument_flags =
@@ -23038,7 +23069,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			? (dpi_open_argument ? PExpr::DPI_OPEN_ARRAY_ARG
 					     : PExpr::NATIVE_ARRAY_FORMAL_ARG)
 			: PExpr::NO_FLAGS;
-		  if (gn_commercial_unsafe_flag && !dpi_open_argument
+		  if (!rv && gn_commercial_unsafe_flag && !dpi_open_argument
 		      && port->port_type() != NetNet::PREF) {
 			const PEIdent*actual_id = dynamic_cast<const PEIdent*>(actual);
 			if (actual_id && !actual_id->leading_type_args()
@@ -23135,12 +23166,14 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			      des, actual_scope, formal_type, actual,
 			      false, false, argument_flags);
 		  copy_in_error[idx] = des->errors != copy_in_errors_before;
-		  if (const NetEEvent*evt = dynamic_cast<NetEEvent*> (rv)) {
+		  if (!port->is_event_formal()) {
+		    if (const NetEEvent*evt = dynamic_cast<NetEEvent*> (rv)) {
 			cerr << evt->get_fileline() << ": error: An event '"
 			     << evt->event()->name() << "' can not be a user "
 			      "task argument." << endl;
 			des->errors += 1;
 			continue;
+		    }
 		  }
 
 	    } else if (def->port_defe(idx)) {
@@ -23166,6 +23199,24 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		       << " ('" << port->name() << "') of call to task." << endl;
 		  des->errors += 1;
 		  continue;
+	    }
+
+	    if (port->is_event_formal()) {
+		  const NetESignal*event_formal =
+			    dynamic_cast<const NetESignal*>(rv);
+		  const NetEEvent*named_event = dynamic_cast<const NetEEvent*>(rv);
+		  if (port->port_type() != NetNet::PINPUT
+		      || (!named_event
+			  && !(event_formal && event_formal->sig()->is_event_formal()))) {
+			cerr << get_fileline() << ": error: Event task/function formal `"
+			     << port->name()
+			     << "' requires a named event or another event formal as its actual."
+			     << endl;
+			des->errors += 1;
+			delete lv;
+			delete rv;
+			continue;
+		  }
 	    }
 
 	    NetAssign*pr = new NetAssign(lv, rv);
@@ -28063,6 +28114,33 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	    return result;
       }
 
+	/* `@(ev)` on an event task formal waits on the event handle value
+	 * copied in at the call site. */
+      if (expr_.size() == 1 && expr_[0]
+	  && expr_[0]->type() == PEEvent::ANYEDGE
+	  && expr_[0]->expr()) {
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
+		  symbol_search_results sr;
+		  if (symbol_search(id, des, scope, id->path(),
+				    id->lexical_pos(), &sr)
+		      && sr.net && sr.net->is_event_formal()
+		      && sr.path_tail.empty()) {
+			NetESignal*handle = new NetESignal(sr.net);
+			handle->set_line(*this);
+			NetProc*body = statement_
+			      ? statement_->elaborate(des, scope) : nullptr;
+			if (statement_ && !body) {
+			      delete handle;
+			      return nullptr;
+			}
+			NetEvWaitObj*wait = new NetEvWaitObj(handle, 0, true);
+			wait->set_line(*this);
+			wait->set_statement(body);
+			return wait;
+		  }
+	    }
+      }
+
 	/* A wait on a single non-static class event property
 	   (`@(obj.ev)`) is per-instance: wait on that object's own event
 	   (IEEE 1800-2017 15.5). */
@@ -30404,6 +30482,16 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 	    return 0;
       }
 
+	/* A task event formal is a run-time event handle rather than a
+	 * compile-time NetEvent. Resolve it when the task executes. */
+	if (sr.net && sr.net->is_event_formal() && sr.path_tail.empty()) {
+	      NetESignal*handle = new NetESignal(sr.net);
+	      handle->set_line(*this);
+	      NetEvTrigObj*trig = new NetEvTrigObj(handle, 0, false, 0, true);
+	      trig->set_line(*this);
+	      return trig;
+	}
+
       NetEvent*eve = resolve_named_event_member_from_search_(sr);
       if (!eve) {
 	    /* ->vif.ev on an interface's named event: toggle its request
@@ -30480,6 +30568,13 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 	    des->errors += 1;
 	    return 0;
       }
+	if (sr.net && sr.net->is_event_formal() && sr.path_tail.empty()) {
+	      cerr << get_fileline()
+		   << ": sorry: Nonblocking trigger through an event task formal is not yet supported."
+		   << endl;
+	      des->errors += 1;
+	      return nullptr;
+	}
 
       NetEvent*eve = resolve_named_event_member_from_search_(sr);
       if (eve == 0) {
@@ -46851,6 +46946,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				validate_instance_weight(group_weight_it->second,
 						 "covergroup");
 			    unsigned cg_at_least = opt_uint(cgdef->options, "at_least", 1);
+		    unsigned cg_cross_num_print_missing = opt_uint(
+			  cgdef->options, "cross_num_print_missing", 0);
 			    unsigned cg_auto_bin_max = opt_uint(cgdef->options, "auto_bin_max", 64);
 			    unsigned cg_detect_overlap = opt_uint(cgdef->options, "detect_overlap", 0);
 			unsigned cg_distribute_first = opt_uint(cgdef->options,
@@ -50972,6 +51069,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				x_at_least_expr = nullptr;
 		  std::string x_at_least_ir = runtime_option_ir(
 			x_at_least_expr, "at_least");
+			  unsigned x_cross_num_print_missing = opt_uint(
+				cross.options, "cross_num_print_missing",
+				cg_cross_num_print_missing);
 			  std::pair<unsigned,std::string> x_weight =
 				opt_weight(cross.options, 1, "cross");
 				  unsigned retain_auto = cg_retain_auto;
@@ -51049,6 +51149,8 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			x_at_least_ir, -1, std::string());
 			  cg_class->set_covgrp_item_type_comment(item_idx,
 				x_type_comment);
+			  cg_class->set_covgrp_item_cross_num_print_missing(item_idx,
+				x_cross_num_print_missing);
 			  cg_class->set_covgrp_item_at_least_inherited(item_idx,
 				group_options.at_least_expr && cross.options.count(
 				      perm_string::literal("at_least")) == 0);

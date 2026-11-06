@@ -730,10 +730,11 @@ void draw_class_in_scope(ivl_type_t classtype)
 			  idx, auto_bin_max_prop + 1,
 			  at_least_ir, auto_bin_max_ir);
           fprintf(vvp_out,
-                  " .covgrp_item_option_values %u %d %u %d \"%s\"\n", idx,
+                  " .covgrp_item_option_values %u %d %u %d %u \"%s\"\n", idx,
                   ivl_type_covgrp_item_goal_prop(classtype, idx) + 1,
                   ivl_type_covgrp_item_goal(classtype, idx),
                   ivl_type_covgrp_item_comment_prop(classtype, idx) + 1,
+                  ivl_type_covgrp_item_cross_num_print_missing(classtype, idx),
                   vvp_mangle_name(
                         covgrp_comment_metadata(
 			      ivl_type_covgrp_item_type_comment(classtype, idx),

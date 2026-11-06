@@ -1,0 +1,5 @@
+{
+    "type" : "normal",
+    "source" : "issue426_assoc_struct_key.sv",
+    "iverilog-args" : [ "-g2017" ]
+}

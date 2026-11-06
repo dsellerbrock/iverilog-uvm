@@ -539,6 +539,7 @@ class netclass_t : public ivl_type_s {
 	    int goal_prop = -1;
 	    int comment_prop = -1;
 	    unsigned goal = 100;
+	    unsigned cross_num_print_missing = 0;
 	    std::string comment;
 	    std::string type_comment;
 	    PExpr* goal_expr = nullptr;
@@ -718,6 +719,10 @@ class netclass_t : public ivl_type_s {
 	 covgrp_items_[idx].auto_bin_max_prop = auto_bin_max_prop;
 	 covgrp_items_[idx].auto_bin_max_ir = auto_bin_max_ir;
 	} }
+      bool set_covgrp_item_cross_num_print_missing(size_t idx, unsigned value)
+      { if (idx >= covgrp_items_.size()) return false;
+	covgrp_items_[idx].cross_num_print_missing = value;
+	return true; }
       void set_covgrp_item_option_props(size_t idx, int goal_prop, int comment_prop)
       { covgrp_items_[idx].goal_prop = goal_prop;
         covgrp_items_[idx].comment_prop = comment_prop; }
