@@ -491,21 +491,23 @@ void vvp_arith_pow::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 	// Is the exponent negative? If so, table 5-6 in IEEE1364-2005
 	// defines what value is returned.
       if (signed_flag_ && b2.value(b2.size()-1)) {
-	    int a_val;
-	    double r_val = 0.0;
-	    if (vector2_to_value(a2, a_val, true)) {
-		  if (a_val == 0) {
-			ptr.ptr()->send_vec4(x_val_, 0);
-			return;
-		  }
-		  if (a_val == 1) {
-			r_val = 1.0;
-		  }
-		  if (a_val == -1) {
-			r_val = b2.value(0) ? -1.0 : 1.0;
-		  }
+	    bool zero = true, one = a2.value(0), minus_one = true;
+	    for (unsigned idx = 0; idx < a2.size(); ++idx) {
+		  bool base_bit = a2.value(idx);
+		  zero &= !base_bit;
+		  minus_one &= base_bit;
+		  if (idx && base_bit) one = false;
 	    }
-	    ptr.ptr()->send_vec4(vvp_vector4_t(wid_, r_val), 0);
+	    if (zero) {
+		  ptr.ptr()->send_vec4(x_val_, 0);
+		  return;
+	    }
+	    vvp_vector4_t result(wid_, BIT4_0);
+	    if (one || minus_one) {
+		  if (minus_one && b2.value(0)) result = vvp_vector4_t(wid_, BIT4_1);
+		  else result.set_bit(0, BIT4_1);
+	    }
+	    ptr.ptr()->send_vec4(result, 0);
 	    return;
       }
 

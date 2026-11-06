@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2584_power_negative_wide.v",
+  "iverilog-args": ["-g2017", "-s", "issue2584_power_negative_wide"],
+  "gold": "issue2584_power_negative_wide"
+}
