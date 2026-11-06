@@ -185,7 +185,12 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
       int active = defn->is_tagged_union_type()
 	    ? cobj->union_active_member() : -1;
       bool first = true;
-      for (size_t i = 0 ; i < defn->property_count() ; i += 1) {
+      size_t property_count = defn->property_count();
+	// An untagged union has no active-member tag. IEEE 1800 requires
+	// %p to print only its first declared member.
+      if (defn->is_union_type() && !defn->is_tagged_union_type())
+	    property_count = 1;
+      for (size_t i = 0 ; i < property_count ; i += 1) {
 	    if (defn->is_tagged_union_type() && active != (int)i)
 		  continue;
 	    if (!first) out += ", ";

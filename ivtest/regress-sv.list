@@ -2816,6 +2816,8 @@ sv_concat_initial_port_delivery normal,-g2012,-ssv_concat_initial_port_delivery 
 sv_quality_if normal,-g2012 ivltests gold=sv_quality_if.gold
 
 # IEEE 1800-2017 unpacked and tagged union runtime semantics
+issue2544_union_percent_p_2017 normal,-g2017 ivltests gold=issue2544_union_percent_p-legacy.gold
+issue2544_union_percent_p_2023 normal,-g2023 ivltests gold=issue2544_union_percent_p-legacy.gold
 sv_union_unpacked_storage normal,-g2012 ivltests gold=sv_union_unpacked_storage.gold
 sv_union_tagged_runtime normal,-g2012 ivltests gold=sv_union_tagged_runtime.gold
 sv_union_tagged_packed_storage normal,-g2012 ivltests gold=sv_union_tagged_packed_storage.gold

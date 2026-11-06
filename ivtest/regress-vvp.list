@@ -1543,6 +1543,8 @@ sv_concat_initial_port_delivery	vvp_tests/sv_concat_initial_port_delivery.json
 sv_quality_if	vvp_tests/sv_quality_if.json
 
 # IEEE 1800-2017 unpacked and tagged union runtime semantics
+issue2544_union_percent_p_2017	vvp_tests/issue2544_union_percent_p_2017.json
+issue2544_union_percent_p_2023	vvp_tests/issue2544_union_percent_p_2023.json
 sv_union_unpacked_storage	vvp_tests/sv_union_unpacked_storage.json
 sv_union_tagged_runtime	vvp_tests/sv_union_tagged_runtime.json
 sv_union_tagged_packed_storage	vvp_tests/sv_union_tagged_packed_storage.json
