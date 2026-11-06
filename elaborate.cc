@@ -45009,6 +45009,36 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			  // expanded against the live container by the
 			  // solver.
 			const PEIdent*cid = dynamic_cast<const PEIdent*>(r.hi);
+			/* A fixed unpacked class property in an inside value list
+			 * contributes each scalar element, just as a dynamic property
+			 * contributes its current contents. `e:' reads a live fixed-array
+			 * element from the randomized object state. */
+			if (cls && cid && !is_dist && cid->path().size() == 1
+			    && cid->path().back().index.empty()) {
+			      int cpi = cls->property_idx_from_name(
+				    cid->path().back().name);
+			      const netuarray_t*ua = cpi >= 0
+				    ? dynamic_cast<const netuarray_t*>(
+					  cls->get_prop_type((size_t)cpi)) : nullptr;
+			      ivl_type_t et = ua ? ua->element_type() : nullptr;
+			      ivl_variable_type_t eb = et
+				    ? et->base_type() : IVL_VT_NO_TYPE;
+			      if (ua && !ua->static_dimensions().empty() && et
+				  && et->packed() && et->packed_width() > 0
+				  && et->packed_width() <= 64
+				  && (eb == IVL_VT_BOOL || eb == IVL_VT_LOGIC)) {
+				    unsigned count = (unsigned)netrange_width(
+					  ua->static_dimensions());
+				    for (unsigned elem = 0; elem < count; ++elem) {
+					  if (!range_ir.empty()) range_ir += " ";
+					  range_ir += "e:" + to_string(cpi) + ":"
+						+ to_string(et->packed_width()) + ":"
+						+ to_string(elem)
+						+ (et->get_signed() ? ":s" : "");
+				    }
+				    if (count == 0) range_ir = "qempty";
+			      }
+			}
 			if (cls && cid && !is_dist && cid->path().size() == 1
 			    && cid->path().back().index.empty()) {
 			      perm_string cnm = cid->path().back().name;
