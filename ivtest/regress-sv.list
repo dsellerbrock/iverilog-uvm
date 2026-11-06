@@ -3579,6 +3579,8 @@ sv_covergroup_type_weight_nonconstant_fail CE,-g2017 ivltests gold=sv_covergroup
 sv_covergroup_type_weight_nonconstant_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_type_weight_nonconstant_fail_2023.gold
 sv_covergroup_type_weight_signed_fail CE,-g2017 ivltests gold=sv_covergroup_type_weight_signed_fail.gold
 sv_covergroup_type_weight_signed_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_type_weight_signed_fail_2023.gold
+issue1203_invalid_coverage_weights_fail CE,-g2017 ivltests gold=issue1203_invalid_coverage_weights_fail.gold
+issue1203_invalid_coverage_weights_fail_2023 CE,-g2023 ivltests gold=issue1203_invalid_coverage_weights_fail.gold
 sv_assert_attempt_verdict normal,-g2017 ivltests gold=sv_assert_attempt_verdict.gold
 sv_assert_attempt_verdict_2023 normal,-g2023 ivltests gold=sv_assert_attempt_verdict.gold
 sv_assert_literal_overlap_failure_count normal,-g2017 ivltests gold=sv_assert_literal_overlap_failure_count.gold
@@ -3917,6 +3919,7 @@ sv_procedural_package_import_late_fail CE,-g2017	ivltests
 sv_procedural_package_import_substatement_fail CE,-g2017	ivltests
 sv_packed_mixed_driver_compound normal,-g2017	ivltests gold=sv_packed_mixed_driver_compound.gold
 sv_packed_indexed_subpart_read_bounds normal,-g2017 ivltests gold=sv_packed_indexed_subpart_read_bounds.gold
+sv_packed_indexed_runtime_prefix_bounds normal,-g2017,-s,sv_packed_indexed_runtime_prefix_bounds ivltests gold=sv_packed_indexed_runtime_prefix_bounds.gold
 sv_packed_wide_constant_select_read normal,-g2017 ivltests gold=sv_packed_wide_constant_select_read.gold
 sv_packed_wide_select_monitor normal,-g2017 ivltests gold=sv_packed_wide_select_monitor.gold
 sv_wire_procedural_compound_fail CE,-g2017	ivltests gold=sv_wire_procedural_compound_fail.gold
@@ -6618,3 +6621,5 @@ issue2480_sdf_line_2017 normal,-g2017,-gspecify,-s,issue2480_sdf_line ivltests g
 issue2480_sdf_line_2023 normal,-g2023,-gspecify,-s,issue2480_sdf_line ivltests gold=issue2480_sdf_line-vvp-stdout.gold
 issue2546_invalid_distribute_option_2017 CE,-g2017,-s,tb ivltests gold=issue2546_invalid_distribute_option_2017.gold
 issue2546_invalid_distribute_option_2023 CE,-g2023,-s,tb ivltests gold=issue2546_invalid_distribute_option_2023.gold
+issue2481_sdf_instance_wildcard_2017 normal,-g2017,-gspecify,-Iivltests,-s,issue2481_sdf_instance_wildcard ivltests gold=issue2481_sdf_instance_wildcard-legacy.gold
+issue2481_sdf_instance_wildcard_2023 normal,-g2023,-gspecify,-Iivltests,-s,issue2481_sdf_instance_wildcard ivltests gold=issue2481_sdf_instance_wildcard-legacy.gold
