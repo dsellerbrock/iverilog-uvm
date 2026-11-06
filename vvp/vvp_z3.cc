@@ -3566,6 +3566,11 @@ static bool selected_queue_leaf_(Z3Builder&b, unsigned&idx, unsigned leaf)
           && type->property_is_dyn2(local)) {
             // Rows of a dynamic array of dynamic arrays are leaves 1..N.
             if (leaf == 0 || type->property_is_randc(local)) return false;
+            // During the outer-size pass, the rows have not been allocated
+            // yet. A constant-index constraint can still refer to one: the
+            // selected element will be checked against the solved row count
+            // when dyn_sizes is available below.
+            if (!b.dyn_sizes && !b.row_pass) return true;
             uint64_t rows = cobj_darray_size(b.object(idx), local, 0);
             if (b.dyn_sizes) {
                   auto found = b.dyn_sizes->find(make_pair(idx, 0u));
@@ -4698,7 +4703,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 						   Z3_mk_bv_sort(b.ctx, ewid));
 		  bool active = rand_nested_elem_active_(b, b.prop_active,
 						  pidx, leaf, (unsigned)index);
-		  if (b.dyn_sizes || !active) {
+		  if ((b.dyn_sizes && !b.row_pass) || !active) {
 			uint64_t count = cobj_darray_size(b.object(pidx), local, leaf);
 			if (b.dyn_sizes) {
 			  auto found = b.dyn_sizes->find(make_pair(pidx, leaf));
@@ -13054,6 +13059,10 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    *dyn_out = builder.dyn_foreach;
       const bool defer_joint = exact_joint && !dyn_sizes && !builder.dyn_foreach.empty();
 
+      const bool defer_nested_elements = (!dyn_sizes || builder.row_pass)
+	    && any_of(builder.dyn_foreach.begin(), builder.dyn_foreach.end(),
+		  [](const Z3Builder::DynForeach&loop) { return loop.rows; });
+
       // STATE VARIABLES (IEEE 1800-2017 18.3). Every class property the
       // constraints mention became a solver variable while the IR was
       // parsed, whether or not this call randomizes it. Pin the ones it
@@ -17429,7 +17438,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	 * that does not remove the evaluation error. */
       set<size_t> vacuous_elems;
       bool absent_vacuous = false;
-      if (!defer_joint) {
+      if (!defer_joint && !defer_nested_elements) {
 	    vector<size_t> outside;
 	    for (size_t k = 0 ; k < builder.elem_vars.size() ; k += 1) {
 		  const auto&ev = builder.elem_vars[k];
@@ -17484,7 +17493,8 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	      });
 	    absent_vacuous = outside_vacuous && absent_guarded_out;
       }
-      if (!defer_joint && !builder.absent_elems.empty() && !absent_vacuous) {
+      if (!defer_joint && !defer_nested_elements
+	  && !builder.absent_elems.empty() && !absent_vacuous) {
 	    fprintf(stderr, "ERROR: constraint state read: %s.\n",
 		    builder.absent_elems.front().message.c_str());
 	    Z3_model_dec_ref(ctx, model);
@@ -17496,7 +17506,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // Apply solved array-element values.
       for (size_t ev_pos = 0 ; ev_pos < builder.elem_vars.size() ; ev_pos += 1) {
 	    auto&ev = builder.elem_vars[ev_pos];
-            if (defer_joint) continue;
+            if (defer_joint || (defer_nested_elements && ev.nested)) continue;
 	    if (!rand_elem_var_active_(builder, prop_active, ev))
 		  continue;
 	    if (vacuous_elems.count(ev_pos)) continue;
