@@ -438,6 +438,14 @@ vpiHandle vpip_make_binary_const(unsigned wid, const char*bits)
       return obj;
 }
 
+vpiHandle vpip_make_binary_const(const vvp_vector4_t&bits, bool signed_flag)
+{
+      struct __vpiBinaryConst*obj = new __vpiBinaryConst;
+      obj->bits = bits;
+      obj->signed_flag = signed_flag;
+      return obj;
+}
+
 vvp_vector4_t vector4_from_text(const char*bits, unsigned wid)
 {
       vvp_vector4_t res (wid);

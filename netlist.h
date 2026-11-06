@@ -1719,8 +1719,8 @@ class NetScope : public Definitions, public Attrib {
 	    param_expr_t() : val_expr(0), source_expr(0), val_type(0),
 			     val_scope(0), source_scope(0),
 			     solving(false), is_annotatable(false),
-			     local_flag(false),
-		             range(0), val(0), ivl_type(0) { }
+			     local_flag(false), is_overridden(false), range(0), val(0),
+			     assign_rhs(0), ivl_type(0) { }
 	    // Source expression and data type (before elaboration)
 	    PExpr*val_expr;
 	    // Preserve the supplied source after val_expr is cleared on evaluation.
@@ -1739,6 +1739,8 @@ class NetScope : public Definitions, public Attrib {
 	    bool local_flag;
 	    // Can it be overridden?
 	    bool overridable = false;
+	    // The parameter has an explicit instance/defparam assignment.
+	    bool is_overridden;
 	    // Preserve every defparam declaration scope after value evaluation.
 	    // IEEE 1800-2017/2023 25.9 needs this provenance to distinguish a
 	    // declaration inside an interface from one outside it, including a
@@ -1775,6 +1777,10 @@ class NetScope : public Definitions, public Attrib {
 	    // Expression value. Elaborated version of val_expr.
 	    // For type parameters this will always be 0.
 	    NetExpr*val;
+	    // Separately retain the elaborated RHS of an explicit value override.
+	    // This is captured from the assignment expression before it becomes the
+	    // parameter's value, for VPI parameter-assignment introspection.
+	    NetExpr*assign_rhs;
 
 	    // For non-type parameter this contains the elaborate type of the
 	    // parameter itself. For type parameters this contains the

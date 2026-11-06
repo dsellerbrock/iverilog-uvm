@@ -469,6 +469,8 @@ class vpiScopeFunction  : public __vpiScope {
 extern __vpiScope* vpip_peek_current_scope(void);
 extern void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj);
 extern void vpip_attach_to_current_scope(vpiHandle obj);
+extern vpiHandle vpip_make_param_assign(__vpiScope*scope,
+					       vpiHandle lhs, vpiHandle rhs);
 extern __vpiScope* vpip_peek_context_scope(void);
 extern unsigned vpip_add_item_to_context(automatic_hooks_s*item,
                                          __vpiScope*scope);
@@ -1534,6 +1536,7 @@ struct __vpiBinaryConst : public __vpiHandle {
 };
 
 vpiHandle vpip_make_binary_const(unsigned wid, const char*bits);
+vpiHandle vpip_make_binary_const(const vvp_vector4_t&bits, bool signed_flag);
 vpiHandle vpip_make_binary_param(const char*name, const vvp_vector4_t&bits,
 				 bool signed_flag, bool local_flag,
 				 long file_idx, long lineno);

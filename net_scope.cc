@@ -539,6 +539,8 @@ void NetScope::set_parameter(perm_string key, bool is_annotatable,
       ivl_assert(param, !ref.range);
       ref.range = range_list;
       ref.val = 0;
+      ref.assign_rhs = 0;
+      ref.is_overridden = false;
       ref.ivl_type = 0;
       ref.set_line(param);
 }
@@ -561,6 +563,8 @@ void NetScope::set_parameter(perm_string key, NetExpr*val,
       ref.ivl_type = netvector_t::integer_type();
       ivl_assert(file_line, ref.ivl_type);
       ref.val = val;
+      ref.assign_rhs = 0;
+      ref.is_overridden = false;
       ref.set_line(file_line);
 }
 
@@ -570,6 +574,7 @@ void NetScope::release_parameters()
 		 ; cur != parameters.end() ; ++cur) {
 	    param_expr_t&param = cur->second;
 	    delete param.val;
+	    delete param.assign_rhs;
 
 	    range_t*range = param.range;
 	    while (range) {
@@ -715,6 +720,7 @@ void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
       ref.val_scope = scope;
       ref.source_expr = val;
       ref.source_scope = scope;
+      ref.is_overridden = true;
       if (defparam)
 	    ref.defparam_source_scopes.insert(scope);
 }

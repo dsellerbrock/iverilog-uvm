@@ -3582,6 +3582,52 @@ void compile_param_real(char*label, const char*name, char*value,
       free(value);
 }
 
+static void compile_param_assign(char*label, vpiHandle rhs)
+{
+      symbol_value_t value = sym_get_value(sym_vpi, label);
+      vpiHandle lhs = static_cast<vpiHandle>(value.ptr);
+      if (!lhs || lhs->get_type_code() != vpiParameter) {
+	    yyerror(".param/assign references an unknown parameter");
+	    compile_errors += 1;
+	    delete rhs;
+	    free(label);
+	    return;
+      }
+
+      vpiHandle assign = vpip_make_param_assign(vpip_peek_current_scope(),
+							 lhs, rhs);
+      if (!assign) {
+	    yyerror("invalid .param/assign metadata");
+	    compile_errors += 1;
+	    delete rhs;
+	    free(label);
+	    return;
+      }
+      vpip_attach_to_current_scope(assign);
+      free(label);
+}
+
+void compile_param_assign_logic(char*label, char*value, bool signed_flag)
+{
+      vvp_vector4_t value4 = c4string_to_vector4(value);
+      vpiHandle rhs = vpip_make_binary_const(value4, signed_flag);
+      compile_param_assign(label, rhs);
+      free(value);
+}
+
+void compile_param_assign_string(char*label, char*value)
+{
+      vpiHandle rhs = vpip_make_string_const(value);
+      compile_param_assign(label, rhs);
+}
+
+void compile_param_assign_real(char*label, char*value)
+{
+      vpiHandle rhs = vpip_make_real_const(crstring_to_double(value));
+      compile_param_assign(label, rhs);
+      free(value);
+}
+
 void compile_island(char*label, char*type)
 {
       if (strcmp(type,"tran") == 0)
