@@ -574,6 +574,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%pop/vec4",of_POP_VEC4,1, {OA_NUMBER,  OA_NONE,     OA_NONE} },
       { "%pow",     of_POW,     0,  {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%pow/s",   of_POW_S,   0,  {OA_NONE,   OA_NONE,     OA_NONE} },
+      { "%pow/s/u", of_POW_S_U, 0,  {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%pow/wr",  of_POW_WR,  0,  {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%process/await",of_PROCESS_AWAIT,0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%process/kill", of_PROCESS_KILL, 0,{OA_NONE, OA_NONE, OA_NONE} },
@@ -2461,6 +2462,7 @@ void compile_arith_mult_r(char*label, unsigned argc, struct symb_s*argv)
 
 
 void compile_arith_pow(char*label, long wid, bool signed_flag,
+		       bool base_signed,
 		       unsigned argc, struct symb_s*argv)
 {
       assert( wid > 0 );
@@ -2474,7 +2476,7 @@ void compile_arith_pow(char*label, long wid, bool signed_flag,
 	    return;
       }
 
-      vvp_arith_ *arith = new vvp_arith_pow(wid, signed_flag);
+	  vvp_arith_ *arith = new vvp_arith_pow(wid, signed_flag, base_signed);
       make_arith(arith, label, argc, argv);
 }
 

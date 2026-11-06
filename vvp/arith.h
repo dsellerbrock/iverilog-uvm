@@ -270,12 +270,13 @@ class vvp_arith_mult  : public vvp_arith_ {
 class vvp_arith_pow  : public vvp_arith_ {
 
     public:
-      explicit vvp_arith_pow(unsigned wid, bool signed_flag);
+      explicit vvp_arith_pow(unsigned wid, bool signed_flag, bool base_signed = true);
       ~vvp_arith_pow() override;
       void recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
                      vvp_context_t) override;
     private:
       bool signed_flag_;
+      bool base_signed_;
 };
 
 class vvp_arith_sub  : public vvp_arith_ {

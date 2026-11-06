@@ -220,6 +220,7 @@ extern void compile_part_select_var(char*label, char*src,
  * comparison functors.
  */
 extern void compile_arith_pow(char*label, long width, bool signed_flag,
+			      bool base_signed,
 			      unsigned argc, struct symb_s*argv);
 extern void compile_arith_abs(char*label,
 			      unsigned argc, struct symb_s*argv);
