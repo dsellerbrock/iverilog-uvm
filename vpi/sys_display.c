@@ -413,8 +413,15 @@ static char* format_packed_struct(vpiHandle item)
   vpi_get_value(item, &value);
   vpiHandle typespec = vpi_handle(vpiTypespec, item);
   if (!value.value.vector || !typespec) return 0;
-  return format_packed_struct_bits(typespec, value.value.vector, 0,
-                                   (unsigned)vpi_get(vpiSize, item), 0);
+  /* The vector lives in the VPI result buffer, which the enum member
+     lookups made while formatting reuse; work on a copy. */
+  unsigned width = (unsigned)vpi_get(vpiSize, item);
+  size_t words = (width + 31) / 32;
+  s_vpi_vecval *vec = malloc(words * sizeof *vec);
+  memcpy(vec, value.value.vector, words * sizeof *vec);
+  char *result = format_packed_struct_bits(typespec, vec, 0, width, 0);
+  free(vec);
+  return result;
 }
 
 struct p_array_range {
@@ -690,8 +697,13 @@ static char* format_p_value(vpiHandle item)
         }
       }
     }
+    /* sv points into the VPI result buffer, which the member lookups
+       above reuse; return the bare number from our own copy. */
+    const char *bare = numeric;
+    while (*bare == ' ') bare += 1;
+    char *result = strdup(bare);
     free(numeric);
-    return strdup(sv);
+    return result;
   }
 }
 
