@@ -52,6 +52,13 @@ int is_escaped_id(const char *name)
 }
 
 /* Check if there are any things that could be dumped in this item. */
+int vcd_scope_scan_skip(int iter_type, vpiHandle item)
+{
+      if (iter_type != vpiVariables) return 0;
+      int type = vpi_get(vpiType, item);
+      return type == vpiReg || type == vpiMemory;
+}
+
 int vcd_instance_contains_dumpable_items(const int dumpable_types[], vpiHandle item)
 {
       int i;

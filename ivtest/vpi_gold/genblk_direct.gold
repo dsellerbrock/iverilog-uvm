@@ -1,5 +1,6 @@
 Compiling vpi/genblk_names.c...
 Making genblk_direct.vpi from  genblk_names.o...
+reg test.genblk4
 reg test.genblk01[0].r1
 reg test.genblk01[1].r1
 reg test.genblk02[0].genblk1[0].r2

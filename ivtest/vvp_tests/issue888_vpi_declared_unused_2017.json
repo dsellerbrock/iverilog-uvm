@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue888_vpi_declared_unused.v",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue888_vpi_declared_unused_2017"],
+  "vpi-sources": ["vpi/issue888_vpi_declared_unused.c"],
+  "output-contains": ["PASSED"]
+}

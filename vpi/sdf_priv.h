@@ -31,6 +31,9 @@ extern void sdf_process_file(FILE*fd, const char*path);
 
 extern int sdf_flag_warning;
 extern int sdf_flag_inform;
+  /* Set while an INCREMENT construct is parsed: its values add to the
+     annotated delays instead of replacing them (IEEE 1800 32.5). */
+extern int sdf_increment;
 
 extern int sdf_min_typ_max;
 extern double sdf_scale_factors[3];

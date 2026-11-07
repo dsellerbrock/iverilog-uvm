@@ -14384,9 +14384,25 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 				cur = da->element_type();
 			  } else break;
 		    }
+		      /* 20.7: the packed dimensions of a fixed-size element
+		         follow the unpacked ones and are just as constant
+		         ($size(Ram, 2) for Word Ram[0:9]), so fold them too. */
+		    size_t unpacked_count = dims.size();
+		    ivl_type_t element = sub->net_type();
+		    while (const netarray_t*arr =
+			   dynamic_cast<const netarray_t*>(element))
+			  element = arr->element_type();
+		    if (element && element->packed()
+			&& !dynamic_cast<const netdarray_t*>(element)) {
+			  netranges_t packed = element->slice_dimensions();
+			  if (packed.empty() && element->packed_width() > 0)
+				packed.push_back(netrange_t(element->packed_width()-1, 0));
+			  for (const netrange_t&range : packed)
+				dims.push_back({false, range});
+		    }
 		    if (strcmp(name, "$unpacked_dimensions") == 0) {
 			  delete sub;
-			  NetExpr*res = make_const_val((long)dims.size());
+			  NetExpr*res = make_const_val((long)unpacked_count);
 			  res->set_line(*this);
 			  return cast_to_width_(res, expr_wid);
 		    }
@@ -32429,6 +32445,26 @@ NetExpr* PEIdent::elaborate_expr_net_bit_last_(Design*, NetScope*,
       return ss;
 }
 
+/* IEEE 1800-2017/2023 25.9 disallows a virtual interface whose definition
+ * references an object outside its body. Record a hierarchical reference
+ * from SCOPE that resolved into FOUND_IN outside the enclosing interface on
+ * the interface definition, for the final design check. */
+void note_virtual_interface_outside_reference(const NetScope*scope,
+					      const NetScope*found_in)
+{
+      const NetScope*interface_scope = scope;
+      while (interface_scope && interface_scope->type() != NetScope::MODULE)
+	    interface_scope = interface_scope->parent();
+      if (!interface_scope || !interface_scope->is_interface() || !found_in)
+	    return;
+      for (const NetScope*owner = found_in; owner; owner = owner->parent())
+	    if (owner == interface_scope)
+		  return;
+      if (const Module*definition = interface_scope->module_definition())
+	    const_cast<Module*>(definition)->
+		  has_unsupported_virtual_interface_reference = true;
+}
+
 NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 				     NetNet*net, NetScope*found_in,
                                      unsigned expr_wid,
@@ -32442,6 +32478,9 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 		 << ", net->net_type()=" << *net->net_type()
 		 << endl;
       }
+
+      if (path_.size() > 1)
+	    note_virtual_interface_outside_reference(scope, found_in);
 
       if (net->unpacked_dimensions() > 0)
 	    return elaborate_expr_net_word_(des, scope, net, found_in,
@@ -35054,7 +35093,11 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	  case '-':
 	    if (const NetEConst*ipc = dynamic_cast<NetEConst*>(ip)) {
 
-		  verinum val = - ipc->value();
+		  verinum val = ipc->value();
+		  if (val.has_sign() && !val.is_defined())
+			val = verinum(verinum::Vx, expr_wid);
+		  else
+			val = - val;
 		  tmp = new NetEConst(val);
 		  tmp->cast_signed(signed_flag_);
 		  tmp->set_line(*this);
@@ -35076,7 +35119,15 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    break;
 
 	  case '+':
-	    tmp = ip;
+	      /* Unary plus is a no-op, except that 11.8.4 makes it all X
+	       * for a signed 4-state operand with an X/Z bit. Keep the
+	       * operator only where that can matter. */
+	    if (ip->has_sign() && ip->expr_type() == IVL_VT_LOGIC) {
+		  tmp = new NetEUnary(op_, ip, expr_wid, signed_flag_);
+		  tmp->set_line(*this);
+	    } else {
+		  tmp = ip;
+	    }
 	    break;
 
 	  case '!': // Logical NOT

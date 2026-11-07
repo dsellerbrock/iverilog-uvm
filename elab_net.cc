@@ -542,6 +542,8 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_.name, lexical_pos_, &sr);
+      if (path_.name.size() > 1)
+	    note_virtual_interface_outside_reference(scope, sr.scope);
 
       if (sr.eve != 0) {
 	    cerr << get_fileline() << ": error: named events (" << path_

@@ -1052,10 +1052,11 @@ static void emit_expr_unary(ivl_scope_t scope, ivl_expr_t expr, unsigned wid,
 	    emit_expr(scope, oper1,  0, 0, 0, 0);
 	    fprintf(vlog_out, ")");
 	    break;
+	case '+':
 	case '2':
 	case 'v':
 	case 'r':
-	    /* A cast is a noop. */
+	    /* A cast or unary plus is a noop. */
 	    emit_expr(scope, oper1,  0, 0, 0, 0);
 	    break;
 	case 'I':

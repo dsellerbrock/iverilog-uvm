@@ -223,6 +223,12 @@ void nodangle_f::signal(Design*, NetNet*sig)
       if (sig->get_refs() > 0)
 	    return;
 
+	/* A declared variable is a VPI object (IEEE 1800 37.17) and must stay
+	   reachable through vpi_iterate() and vpi_handle_by_name() even when
+	   nothing reads or writes it. */
+      if (sig->type() == NetNet::REG && !sig->local_flag())
+	    return;
+
 	/* Cannot delete the ports of tasks, functions or modules. There
 	   are too many places where they are referenced. */
       if ((sig->port_type() != NetNet::NOT_A_PORT) &&
