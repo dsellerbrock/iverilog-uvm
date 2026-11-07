@@ -22401,7 +22401,7 @@ static bool sva_nfa_local_prefix_safe_(
 bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,
-				 int kind)
+				 int kind, sva_nfa_sub_t*sub)
 {
       if (!prop) return false;
       bool have_tree = (prop->tree != nullptr);
@@ -22411,6 +22411,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	/* `cover property (not ...)` is a legacy sorry; fall back for
 	   the diagnostic. */
       if (kind == 2 && prop->op_type == 3) return false;
+	/* A sub-monitor operand has its clock, disable and reporting owned by
+	   the enclosing property operator, and must yield one pass/fail
+	   verdict per attempt. */
+      if (sub && (kind == 2 || prop->strength != 0 || prop->clk_evt
+		  || prop->disable_iff_expr))
+	    return false;
 	/* An implication may carry both operands as automaton trees. */
       bool tree_implication = have_tree && prop->ante_tree
 			   && (prop->op_type == 1 || prop->op_type == 2);
@@ -22494,6 +22500,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	  && !prop->seq->empty())
 	    match_calls = sva_step_calls_(prop->seq->back());
 	  bool preserve_match_endpoints = !match_calls.empty();
+      if (sub && preserve_match_endpoints) return false;
       std::map<std::string, pform_name_t> prep_sampled;
       unsigned prep_live_operands = 0;
       std::vector< std::vector<named_pexpr_t> > match_args;
@@ -22623,6 +22630,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    cerr << loc << ": error: an implication antecedent that can never "
 		 << "match is illegal (IEEE 1800-2017/2023 16.12.22)" << endl;
 	    error_count += 1;
+	    if (sub) { sub->error = true; return false; }
 	    delete fail_stmt;
 	    delete pass_stmt;
 	    pform_sva_destroy_property(prop);
@@ -22755,7 +22763,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		 values), and STRONG sequence properties (C.2: the legacy
 		 engine has no end-of-sim obligation for a bare sequence),
 		 which MUST use the automaton's cyclic pool. */
-	    if (!endpoint_fanout && !have_tree && !has_lv
+	    if (!sub && !endpoint_fanout && !have_tree && !has_lv
 		&& prop->strength == 0 && !forbidden
 		&& sva_nfa_legacy_supports_(*prop->seq, ante_delay_sum,
 					    implication))
@@ -22818,6 +22826,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (K_unfloored <= 0 || !size_pools(K_unfloored)) return false;
 	    K = K_unfloored;
       }
+	/* A sub-monitor shares its parent's slot index space. */
+      if (sub && !sub->plan && sub->K > K) {
+	    if (!size_pools(sub->K)) return false;
+	    K = sub->K;
+      }
 
 	/* Obligation trigger for |->/|=>: the antecedent completes the
 	   tick its final boolean fires while the attempt sits in the
@@ -22853,7 +22866,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   missing clock fall back — the legacy engine emits the
 	   identical diagnostic. */
       PEventStatement*clk = prop->clk_evt;
-      if (!clk) {
+      if (!clk && !sub) {
 	    const Module*mod = sva_default_clocking_owner_(lexical_scope);
 	    if (!mod || mod->default_clocking.nil())
 		  return false;
@@ -22868,13 +22881,18 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    FILE_NAME(clk, loc);
       }
 
+      if (sub && sub->plan) {
+	    sub->K = K;
+	    return true;
+      }
+
 	/* ---- Committed: everything below consumes the property. ---- */
 
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init_zero;
       perm_string vacuous, pass_req, vac_req;
-      if (implication && !cover) {
+      if (implication && !cover && !sub) {
 	    vacuous = sva_make_reg_(loc, inst, "vac", 0, true);
 	    pass_req = sva_make_reg_(loc, inst, "passreq", 0, true);
 	    vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
@@ -22912,7 +22930,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   fold, so replicate it): assertion matches report
 	   cbAssertionSuccess. Negated properties have no pass path; cover
 	   keeps a counter and dispatches attached calls separately. */
-      if (!negated && !cover) {
+      if (sub) {
+	      /* no reporting: the parent dispatches */
+      } else if (!negated && !cover) {
 	    if (match_action) {
 		  std::vector<Statement*>ordered;
 		  ordered.push_back(match_action);
@@ -22940,7 +22960,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	/* disable iff: own, else the module default (cloned). */
       PExpr*disable = prop->disable_iff_expr;
 	PExpr*default_disable = sva_default_disable_for_scope_(lexical_scope);
-      if (!disable && default_disable) {
+      if (!disable && default_disable && !sub) {
 	    disable = sva_clone_expr_(default_disable);
 	    if (!disable) {
 		  cerr << loc << ": sorry: the `default disable iff` "
@@ -23190,12 +23210,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
       }
       perm_string r_f;
-      if (!cover) {
+      if (!cover && !sub) {
 	    r_f = sva_make_reg_(loc, inst, "f", 0, endpoint_fanout);
 	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
       }
       perm_string r_p;
-      if (!negated && !cover) {
+      if (!negated && !cover && !sub) {
 	    r_p = sva_make_reg_(loc, inst, "p", 0, implication);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
@@ -23204,7 +23224,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	// (sf), dispatched once per tick like the pass/fail flags.
 	// Cover has no step notion (its counter is the record).
       perm_string r_sp, r_sf;
-      if (!cover) {
+      if (!cover && !sub) {
 	    r_sp = sva_make_reg_(loc, inst, "sp", 0);
 	    init_zero.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
 	    r_sf = sva_make_reg_(loc, inst, "sf", 0);
@@ -23226,6 +23246,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    r_match = sva_make_reg_(loc, inst, "match", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_match, sva_num32_(loc, 0)));
       }
+      std::vector<perm_string> vd (sub ? K : 0);
+      for (long k = 0 ; k < (long)vd.size() ; k += 1) {
+	    vd[k] = sva_make_reg_(loc, inst, "vd", (unsigned)k, true);
+	    init_zero.push_back(sva_assign_(loc, vd[k], sva_num32_(loc, 0)));
+      }
+      auto set_verdict = [&](long k, int code) -> Statement* {
+	    return sva_assign_(loc, vd[k], sva_num32_(loc, code));
+      };
       perm_string r_ovf = sva_make_reg_(loc, inst, "ovf", 0);
       init_zero.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 0)));
       perm_string r_oovf;
@@ -23321,7 +23349,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    return ordinary;
       };
 
-      perm_string r_kill = sva_kill_seen_reg_(loc, inst, 0, init_zero);
+      perm_string r_kill;
+      if (!sub) r_kill = sva_kill_seen_reg_(loc, inst, 0, init_zero);
       auto clear_attempt_state = [&]() -> Statement* {
 	    std::vector<Statement*> clr;
 	    for (long k = 0 ; k < K ; k += 1) {
@@ -23352,8 +23381,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	/* cbAssertionStart: an attempt launches every evaluated tick
 	   while this directive is enabled (inside the disable guard, like the
 	   legacy engine). Existing slots continue advancing after $assertoff. */
-      body.push_back(sva_kill_reset_stmt_(
-	    loc, inst, r_kill, clear_attempt_state()));
+      if (!sub)
+	    body.push_back(sva_kill_reset_stmt_(
+		  loc, inst, r_kill, clear_attempt_state()));
       if (cover && match_action)
 	    body.push_back(sva_assign_(loc, r_match, sva_num32_(loc, 0)));
 
@@ -23415,6 +23445,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    once.push_back(warn);
 	    Statement*inj = sva_if_(loc, sva_not_(loc, sva_id_(loc, r_ovf)),
 				    sva_block_(loc, once), nullptr);
+	    if (sub) sub->inject.resize(K);
 	    for (long k = K-1 ; k >= 0 ; k -= 1) {
 		  std::vector<Statement*> take;
 		  take.push_back(sva_assign_(loc, s[k][nfa.start], sva_bit_(loc, 1)));
@@ -23436,12 +23467,19 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			 take.push_back(sva_assign_(loc, parent_live[k], sva_bit_(loc, 1)));
 			 take.push_back(sva_assign_(loc, matched[k], sva_bit_(loc, 0)));
 		  }
+		  if (sub) {
+			sub->inject[k] = take;
+			continue;
+		  }
 		  inj = sva_if_(loc, sva_not_(loc, endpoint_fanout
 			      ? (PExpr*)sva_id_(loc, parent_live[k]) : busy_expr(k)),
 			      sva_block_(loc, take), inj);
 	    }
-	    body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
-			     inj, nullptr));
+	    if (sub)
+		  delete inj;
+	    else
+		  body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+				   inj, nullptr));
       }
 
 	/* Per-slot advance. */
@@ -23555,7 +23593,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		     For |=> the new obligation is intentionally allocated only after
 		     old consequences advance, so consequence-side bookkeeping cannot
 		     supply this once/checker/tick aggregate. */
-		  if (!cover)
+		  if (!cover && !sub)
 			acc_v.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 1)));
 		  /* Remove only the accepted endpoint. Other active antecedent
 		     states represent later match endpoints from this SAME start and
@@ -23576,6 +23614,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 						    SVA_CB_SUCCESS));
 		  if (match_action)
 		    acc_v.push_back(increment_verdict(r_match));
+	    } else if (sub) {
+		  acc_v.push_back(set_verdict(k, (negated || forbidden) ? 3 : 1));
 	    } else if (implication && !forbidden) {
 		  acc_v.push_back(increment_verdict(r_p));
 	    } else {
@@ -23604,7 +23644,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					  sva_block_(loc, retire), nullptr));
 	    }
 
-	    if (track_ob) {
+	    if (track_ob && sub) {
+		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
+			set_verdict(k, forbidden ? 1 : 3), set_verdict(k, 2)));
+		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
+	    } else if (sub) {
+		  if (!endpoint_fanout)
+			die_v.push_back(set_verdict(k, negated ? 1 : 3));
+	    } else if (track_ob) {
 		  std::vector<Statement*> vac;
 		  vac.push_back(increment_verdict(r_p));
 		  vac.push_back(increment_verdict(vacuous));
@@ -23619,7 +23666,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	      /* M12-1: this branch is taken only when the slot was live
 		 and has no surviving next state (dead_busy), i.e. an
 		 attempt just failed a step of the sequence. */
-	    if (!cover)
+	    if (!cover && !sub)
 		  die_v.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    clear_slot(k, die_v);
 
@@ -23628,7 +23675,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		 excluded), so a pre-advance busy test identifies exactly
 		 the stepping attempts. It must precede the state writes
 		 below, which overwrite the bits busy_expr reads. */
-	    if (!cover)
+	    if (!cover && !sub)
 		  cont_v.push_back(sva_if_(loc, busy_expr(k),
 					   sva_assign_(loc, r_sp,
 						       sva_bit_(loc, 1)),
@@ -23726,11 +23773,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    std::vector<Statement*> acc_v, die_v, cont_v;
 	    (forbidden ? acc_v : die_v).push_back(
 		  sva_assign_(loc, failed[o], sva_bit_(loc, 1)));
-	    if (!cover)
+	    if (!cover && !sub)
 		  die_v.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    clear_obligation(o, acc_v);
 	    clear_obligation(o, die_v);
-	    if (!cover)
+	    if (!cover && !sub)
 		  cont_v.push_back(sva_if_(loc, obligation_busy_expr(o),
 				sva_assign_(loc, r_sp, sva_bit_(loc, 1)), nullptr));
 	    for (unsigned j = 0 ; j < ON ; j += 1)
@@ -23775,6 +23822,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (cover) {
 		  pass.push_back(sva_if_(loc, sva_id_(loc, matched[k]),
 			    increment_verdict(r_cnt), nullptr));
+	    } else if (sub) {
+		  pass.push_back(sva_if_(loc, sva_id_(loc, matched[k]),
+			    set_verdict(k, 1), set_verdict(k, 2)));
+		  fail.push_back(set_verdict(k, 3));
 	    } else {
 		  pass.push_back(increment_verdict(r_p));
 		  pass.push_back(sva_if_(loc, sva_not_(loc, sva_id_(loc, matched[k])),
@@ -23809,6 +23860,72 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    body.push_back(sva_repeat_(loc, sva_id_(loc, r_match),
 				       sva_cover_spawn_(loc, match_action)));
 	    match_action = nullptr;
+      }
+
+	/* Release the borrowed guard templates and the consumed property. */
+      auto release_property = [&]() {
+	    for (std::map<PExpr*,PExpr*>::iterator it = local_guard_expr.begin()
+		 ; it != local_guard_expr.end() ; ++it) {
+		  if (it->second != it->first) {
+			sva_expr_forget_sampled_(it->second);
+			delete it->second;
+		  }
+	    }
+	    for (size_t li = 0 ; li < local_rhs_expr.size() ; li += 1) {
+		  if (!local_rhs_expr[li]) continue;
+		  sva_expr_forget_sampled_(local_rhs_expr[li]);
+		  delete local_rhs_expr[li];
+	    }
+	    for (size_t li = 0 ; li < lv_width_probe.size() ; li += 1) {
+		  if (!lv_width_probe[li]) continue;
+		  sva_expr_forget_sampled_(lv_width_probe[li]);
+		  delete lv_width_probe[li];
+	    }
+	    if (have_tree) {
+		  sva_tree_delete_(prop->ante_tree, false);
+		  prop->ante_tree = nullptr;
+		  sva_tree_delete_(prop->tree, false);
+		  prop->tree = nullptr;
+	    }
+	    if (!match_calls.empty() && prop->seq && !prop->seq->empty())
+		  sva_destroy_match_items_(prop->seq->back().items);
+	    delete prop->antecedent;
+	    delete prop->seq;
+	    delete prop;
+      };
+
+	/* Sub-monitor: hand the per-slot checker to the parent operator,
+	   which splices it into its own clocked block, owns injection and
+	   reads vd[k]. kill(k) retires slot k with every obligation it owns,
+	   so an attempt the parent decided can never be revived. */
+      if (sub) {
+	    sub->kill.resize(K);
+	    for (long k = 0 ; k < K ; k += 1) {
+		  std::vector<Statement*>&out = sub->kill[k];
+		  clear_slot(k, out);
+		  if (track_ob)
+			out.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
+		  if (endpoint_fanout) {
+			out.push_back(sva_assign_(loc, spawn[k], sva_bit_(loc, 0)));
+			out.push_back(sva_assign_(loc, parent_live[k], sva_bit_(loc, 0)));
+			for (long o = 0 ; o < OK ; o += 1) {
+			      std::vector<Statement*> clear;
+			      clear_obligation(o, clear);
+			      out.push_back(sva_if_(loc, owned_by(o, k),
+					    sva_block_(loc, clear), nullptr));
+			}
+		  }
+		  out.push_back(set_verdict(k, 0));
+	    }
+	    sub->vd = vd;
+	    sub->pre = pre;
+	    sub->body = body;
+	    sub->post = post;
+	    sub->init = init_zero;
+	    delete pass_stmt;
+	    delete fail_stmt;
+	    release_property();
+	    return true;
       }
 
 	/* Pass then fail dispatch: one report site each per tick, in
@@ -24072,37 +24189,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
 
       delete eos_fail_stmt;
-
-      for (std::map<PExpr*,PExpr*>::iterator it = local_guard_expr.begin()
-	   ; it != local_guard_expr.end() ; ++it) {
-	    if (it->second != it->first) {
-		  sva_expr_forget_sampled_(it->second);
-		  delete it->second;
-	    }
-      }
-
-      for (size_t li = 0 ; li < local_rhs_expr.size() ; li += 1) {
-	    if (!local_rhs_expr[li]) continue;
-	    sva_expr_forget_sampled_(local_rhs_expr[li]);
-	    delete local_rhs_expr[li];
-      }
-	for (size_t li = 0 ; li < lv_width_probe.size() ; li += 1) {
-	      if (!lv_width_probe[li]) continue;
-	      sva_expr_forget_sampled_(lv_width_probe[li]);
-	      delete lv_width_probe[li];
-	}
-
-      if (have_tree) {
-	    sva_tree_delete_(prop->ante_tree, false);
-	    prop->ante_tree = nullptr;
-	    sva_tree_delete_(prop->tree, false);
-	    prop->tree = nullptr;
-      }
-	if (!match_calls.empty() && prop->seq && !prop->seq->empty())
-	    sva_destroy_match_items_(prop->seq->back().items);
-      delete prop->antecedent;
-      delete prop->seq;
-      delete prop;
+      release_property();
       return true;
 }
 
