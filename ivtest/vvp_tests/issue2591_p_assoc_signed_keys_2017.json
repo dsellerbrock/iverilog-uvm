@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2591_p_assoc_signed_keys.sv",
+  "iverilog-args": ["-g2017"],
+  "output-contains": ["PASSED"]
+}
