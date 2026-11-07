@@ -18546,6 +18546,9 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.packed_width = 0;
 		      arr.packed_four_state = false;
 		      arr.shortreal_scratch = false;
+		      arr.string_scratch = false;
+		      arr.string_values.clear();
+		      arr.string_ptrs.clear();
 		      arr.storage = 0;
 		      arr.outer = 0;
 		      arr.has_range = false;
@@ -18581,6 +18584,19 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  dpi_pack_open_array_(c_name, slot+1, da,
 				sig[slot].base == 'y' || sig[slot].base == 'Y',
 				arr, arr_packed_store[slot]);
+		      } else if (da && (dynamic_cast<vvp_darray_string*>(da)
+					|| dynamic_cast<vvp_queue_string*>(da))) {
+			    arr.storage = da;
+			    arr.string_scratch = true;
+			    arr.length = (unsigned)da->get_size();
+			    arr.string_values.resize(arr.length);
+			    arr.string_ptrs.resize(arr.length);
+			    for (unsigned idx = 0 ; idx < arr.length ; idx += 1) {
+				  da->get_word(idx, arr.string_values[idx]);
+				  arr.string_ptrs[idx] = arr.string_values[idx].c_str();
+			    }
+			    arr.data = arr.length ? (void*)arr.string_ptrs.data() : 0;
+			    arr.elem_bytes = sizeof(const char*);
 		      } else if (da) {
 			    arr.storage = da;
 			    unsigned eb = da->dpi_elem_bytes();
@@ -18754,6 +18770,13 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    if (dpi_packed_open_letter_(args[ii].type)
 		&& arr_store[ii].packed_scratch)
 		  dpi_unpack_open_array_(arr_store[ii]);
+	    if (native_call_ok && arr_store[ii].string_scratch) {
+		  vvp_dpi_open_array_t&sarr = arr_store[ii];
+		  for (unsigned idx = 0 ; idx < sarr.length ; idx += 1)
+			if (sarr.string_ptrs[idx] != sarr.string_values[idx].c_str())
+			      sarr.storage->set_word(idx, std::string(
+				    sarr.string_ptrs[idx] ? sarr.string_ptrs[idx] : ""));
+	    }
 	    switch (args[ii].type) {
 		case 'b': dpi_push_int64(thr, args[ii].ival, 8);  break;
 		case 'h': dpi_push_int64(thr, args[ii].ival, 16); break;
@@ -20309,6 +20332,45 @@ bool of_EVTEST(vthread_t thr, vvp_code_t cp)
       bool trig = fun && fun->triggered_now();
       vvp_vector4_t val(1, trig ? BIT4_1 : BIT4_0);
       thr->push_vec4(val);
+      return true;
+}
+
+/*
+ * %event/assign <dst>, <src>  and  %event/assign/null <dst>
+ * IEEE 1800-2017/2023 15.5.5: point the destination event variable at the
+ * source's synchronization queue, or at none.
+ */
+bool of_EVENT_ASSIGN(vthread_t, vvp_code_t cp)
+{
+      vvp_named_event_sa::assign(cp->net, cp->net2);
+      return true;
+}
+
+bool of_EVENT_ASSIGN_NULL(vthread_t, vvp_code_t cp)
+{
+      vvp_named_event_sa::assign(cp->net, nullptr);
+      return true;
+}
+
+static vvp_net_t* event_queue_(vvp_net_t*net)
+{
+      vvp_named_event_sa*fun = dynamic_cast<vvp_named_event_sa*>(net->fun);
+      return fun ? fun->queue(net) : nullptr;
+}
+
+/* %event/cmp <a>, <b> pushes 1 when both name the same queue (15.5.5.3);
+ * %event/isnull <a> pushes 1 when it names none. */
+bool of_EVENT_CMP(vthread_t thr, vvp_code_t cp)
+{
+      bool same = event_queue_(cp->net) == event_queue_(cp->net2);
+      thr->push_vec4(vvp_vector4_t(1, same ? BIT4_1 : BIT4_0));
+      return true;
+}
+
+bool of_EVENT_ISNULL(vthread_t thr, vvp_code_t cp)
+{
+      bool null = event_queue_(cp->net) == nullptr;
+      thr->push_vec4(vvp_vector4_t(1, null ? BIT4_1 : BIT4_0));
       return true;
 }
 
@@ -24367,12 +24429,37 @@ static bool aa_exists_signal(vthread_t thr, vvp_net_t*net, unsigned wid)
       return true;
 }
 
+/* IEEE 1800-2017/2023 7.9.8: the traversal argument is assigned the index,
+ * so a wider argument receives a signed index type's value sign-extended. */
+template <typename KEY>
+static const KEY& extend_traversal_key_(const KEY&key, vvp_net_t*, bool,
+                                        KEY&)
+{
+      return key;
+}
+
+static const vvp_vector4_t& extend_traversal_key_(const vvp_vector4_t&key,
+                                                  vvp_net_t*net, bool sign,
+                                                  vvp_vector4_t&scratch)
+{
+      vvp_signal_value*fun = net ? signal_vec4_fun_(net) : 0;
+      if (!sign || !fun || key.size() == 0 || fun->value_size() <= key.size())
+            return key;
+      scratch = key;
+      scratch.resize(fun->value_size(), key.value(key.size() - 1));
+      return scratch;
+}
+
 template <typename KEY>
 static bool aa_traversal_finish_(vthread_t thr, vvp_net_t*key_net,
                                  const KEY&key, bool ok,
-                                 unsigned wid, const char*why)
+                                 unsigned wid, const char*why,
+                                 bool signed_key)
 {
-      if (ok && !write_signal_assoc_key_<KEY>(thr, key_net, key, why))
+      KEY scratch;
+      if (ok && !write_signal_assoc_key_<KEY>(
+                  thr, key_net,
+                  extend_traversal_key_(key, key_net, signed_key, scratch), why))
             ok = false;
 
       // Push the success flag as a `wid`-bit value: zero-padded with
@@ -24452,7 +24539,8 @@ static bool aa_first(vthread_t thr, vvp_net_t*key_net, unsigned wid,
       }
       bool ok = assoc_first_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "first", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24468,7 +24556,8 @@ static bool aa_last(vthread_t thr, vvp_net_t*key_net, unsigned wid,
       }
       bool ok = assoc_last_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "last", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24485,7 +24574,8 @@ static bool aa_next(vthread_t thr, vvp_net_t*key_net, unsigned wid,
       }
       ok = ok && assoc_next_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "next", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24502,7 +24592,8 @@ static bool aa_prev(vthread_t thr, vvp_net_t*key_net, unsigned wid,
       }
       ok = ok && assoc_prev_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "prev", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24514,7 +24605,8 @@ static bool aa_first_signal(vthread_t thr, vvp_net_t*recv_net,
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
       bool ok = assoc_first_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "first-sig", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first-sig");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first-sig",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24526,7 +24618,8 @@ static bool aa_last_signal(vthread_t thr, vvp_net_t*recv_net,
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
       bool ok = assoc_last_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "last-sig", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last-sig");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last-sig",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24539,7 +24632,8 @@ static bool aa_next_signal(vthread_t thr, vvp_net_t*recv_net,
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
       ok = ok && assoc_next_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "next-sig", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next-sig");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next-sig",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24552,7 +24646,8 @@ static bool aa_prev_signal(vthread_t thr, vvp_net_t*recv_net,
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
       ok = ok && assoc_prev_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "prev-sig", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev-sig");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev-sig",
+                                  signed_order);
 }
 
 template <typename KEY, typename ELEM, class ASSOC>

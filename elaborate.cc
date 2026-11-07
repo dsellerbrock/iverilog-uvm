@@ -13032,6 +13032,83 @@ class procedural_process_type_guard_t {
       ivl_process_type_t previous_;
 };
 
+/* A plain identifier naming a named event, or nullptr. */
+static NetEvent* find_named_event_(Design*des, NetScope*scope,
+				   const PExpr*expr)
+{
+	// symbol_search reports errors of its own (e.g. hierarchical
+	// references to automatic items), so only probe a plain name.
+      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+      if (!id || id->path().package || id->path().name.size() != 1
+	  || !id->path().name.back().index.empty())
+	    return nullptr;
+      perm_string name = id->path().name.back().name;
+      bool declared = false;
+      for (NetScope*cur = scope; cur && !declared; cur = cur->parent())
+	    declared = cur->find_event(name) != nullptr;
+      if (!declared)
+	    return nullptr;
+      symbol_search_results sr;
+      if (!symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr)
+	  || !sr.eve || sr.net || !sr.path_tail.empty())
+	    return nullptr;
+      return sr.eve;
+}
+
+/* Only a static module/package/block event has a queue binding here; class
+ * and automatic events keep their existing lowering. */
+static bool event_has_static_queue_(const NetEvent*event)
+{
+      for (const NetScope*cur = event->scope(); cur; cur = cur->parent()) {
+	    if (cur->is_auto() || cur->type() == NetScope::CLASS)
+		  return false;
+	    if (cur->type() == NetScope::MODULE
+		|| cur->type() == NetScope::PACKAGE)
+		  return true;
+      }
+      return true;
+}
+
+/* IEEE 1800-2017/2023 15.5.5: "When one event is assigned to another, the
+ * synchronization queue of the source event is shared by both the source
+ * and the destination event", and assigning null breaks the association
+ * (15.5.5.2). HANDLED is false when the l-value is not a named event. */
+static NetProc* elaborate_event_assign_(Design*des, NetScope*scope,
+					const PAssign_&assign, bool&handled)
+{
+      handled = false;
+      NetEvent*dst = find_named_event_(des, scope, assign.lval());
+      if (!dst || !event_has_static_queue_(dst))
+	    return nullptr;
+      handled = true;
+      NetEvent*src = find_named_event_(des, scope, assign.rval());
+      bool null_src = dynamic_cast<const PENull*>(assign.rval()) != nullptr;
+      if (!src && !null_src) {
+	    cerr << assign.get_fileline() << ": error: an event variable can "
+		 << "only be assigned another event or null (IEEE 1800-2017/"
+		 << "2023 15.5.5)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+      if (src && !event_has_static_queue_(src)) {
+	    cerr << assign.get_fileline() << ": sorry: assignment of an "
+		 << "automatic event variable is not supported yet." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+      vector<NetExpr*>argv(src ? 2 : 1);
+      argv[0] = new NetEEvent(dst);
+      argv[0]->set_line(assign);
+      if (src) {
+	    argv[1] = new NetEEvent(src);
+	    argv[1]->set_line(assign);
+      }
+      NetSTask*task = new NetSTask("$ivl_event_assign",
+				   IVL_SFUNC_AS_TASK_IGNORE, argv);
+      task->set_line(assign);
+      return task;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
 	bool in_checker = false;
@@ -13047,6 +13124,14 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 	        "in a checker always_ff procedure." << endl;
 	des->errors += 1;
 	return nullptr;
+      }
+
+      if (!delay_ && !event_ && !count_) {
+	    bool handled = false;
+	    NetProc*event_assign = elaborate_event_assign_(des, scope, *this,
+							   handled);
+	    if (handled)
+		  return event_assign;
       }
 
       NetProc*result = elaborate_unwrapped_(des, scope);
@@ -16564,6 +16649,15 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	// If the condition expression is more than 1 bits, then
 	// generate a comparison operator to get the result down to
 	// one bit. Turn <e> into <e> != 0;
+
+	// IEEE 1800-2017/2023 15.5.5.3: an event's Boolean value "shall be 0
+	// if the event is null and 1 otherwise".
+      if (NetEEvent*event = dynamic_cast<NetEEvent*>(expr)) {
+	    NetENull*null = new NetENull(nullptr);
+	    null->set_line(*this);
+	    expr = new NetEBComp('n', event, null);
+	    expr->set_line(*this);
+      }
 
       if (expr->expr_width() < 1) {
 	    // Compile-progress: class-typed expressions (e.g. foreach index
@@ -32722,6 +32816,7 @@ struct dynforeach_emit_ctx_t {
       int prop_idx;
       unsigned elem_wid;
       bool elem_signed;
+      string nested_path;
       ivl_type_t index_type = nullptr;
       const netclass_t*assoc_key_type = nullptr;
 	// Class- or string-key associative array: the runtime iterates its
@@ -40547,6 +40642,65 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  break;
 				    const netdarray_t*dynamic_array =
 					  dynamic_cast<const netdarray_t*>(nested_type);
+				    if (constraint_dyn2_inner_type_(nested_type)
+					&& nested->index.size() == 2
+					&& dynforeach_emit_ctx_
+					&& dynforeach_emit_ctx_->nested_path == nested_path) {
+				      const index_component_t&row = nested->index.front();
+				      const index_component_t&col = nested->index.back();
+				      string row_ir = pexpr_to_constraint_ir(row.msb, cls,
+					    value_slots, scope, loop_env);
+				      string col_ir = pexpr_to_constraint_ir(col.msb, cls,
+					    value_slots, scope, loop_env);
+				      ivl_type_t leaf = constraint_dyn2_inner_type_(nested_type);
+				      if (row.sel == index_component_t::SEL_BIT && !row.lsb
+					  && col.sel == index_component_t::SEL_BIT && !col.lsb
+					  && !row_ir.empty() && !col_ir.empty())
+					    return "(xelem " + nested_path + " "
+						  + to_string(leaf->packed_width()) + " "
+						  + row_ir + " " + col_ir + ")";
+				      return "";
+				    }
+				    if (constraint_dyn2_inner_type_(nested_type)
+					&& nested->index.size() == 2) {
+				      string indices[2];
+				      uint64_t words[2] = {0, 0};
+				      bool valid = true;
+			      list<index_component_t>::const_iterator select_it =
+				    nested->index.begin();
+				      for (unsigned dim = 0; dim < 2; ++dim) {
+				    const index_component_t&select = *select_it++;
+					    indices[dim] = select.msb && !select.lsb
+						  && select.sel == index_component_t::SEL_BIT
+						  ? pexpr_to_constraint_ir(select.msb, cls,
+							value_slots, scope, loop_env) : "";
+					    constraint_const_ir_t index;
+					    valid = valid && !indices[dim].empty()
+						  && constraint_parse_const_ir_(indices[dim], index)
+						  && index.width <= 64;
+					    if (valid) {
+						  words[dim] = constraint_resize_const_bits_(
+							index, 64, index.is_signed);
+						  valid = !index.is_signed
+							|| (int64_t)words[dim] >= 0;
+					    }
+				      }
+				      if (valid) {
+					    ivl_type_t leaf = constraint_dyn2_inner_type_(nested_type);
+					    return "x:" + nested_path + ":"
+						  + to_string(leaf->packed_width())
+						  + ":dd:" + to_string(words[0]) + ":"
+						  + to_string(words[1])
+						  + (leaf->get_signed() ? ":s" : "");
+				      }
+				      if (!nested_root_rand) break;
+				      cerr << id->get_fileline() << ": error: nested dynamic-array-of-arrays "
+					   << "constraint selectors must be constant nonnegative "
+					   << "integral indices on an integral or enum element no wider "
+					   << "than 64 bits." << endl;
+				      constraint_ir_design_ctx_->errors += 1;
+				      return "";
+				    }
 				    if (dynamic_array && !dynamic_array->packed()
 					&& nested->index.size() == 1) {
 					  ivl_type_t element = dynamic_array->element_type();
@@ -44392,6 +44546,51 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      return acc;
 			}
 		  }
+	    if (cfe->prefix_names().empty() && cfe->loop_vars().size() == 2
+		&& cls && !cfe->member_name().nil()
+		&& !cfe->source_path().size()) {
+	      int handle = cls->property_idx_from_name(cfe->array_name());
+	      const netclass_t*child = handle >= 0
+		    ? dynamic_cast<const netclass_t*>(cls->get_prop_type((size_t)handle))
+		    : nullptr;
+	      int array = child
+		    ? child->property_idx_from_name(cfe->member_name()) : -1;
+	      ivl_type_t type = array >= 0
+		    ? child->get_prop_type((size_t)array) : nullptr;
+	      ivl_type_t leaf = constraint_dyn2_inner_type_(type);
+	      property_qualifier_t handle_qual = handle >= 0
+		    ? cls->get_prop_qual((size_t)handle) : property_qualifier_t();
+	      property_qualifier_t array_qual = array >= 0
+		    ? child->get_prop_qual((size_t)array) : property_qualifier_t();
+	      if (!child || !leaf || !handle_qual.test_rand()
+		  || !array_qual.test_rand() || cfe->loop_vars()[0].nil()
+		  || cfe->loop_vars()[1].nil()) return "";
+	      string object_path = to_string(handle) + "." + to_string(array);
+	      dynforeach_emit_ctx_t context;
+	      context.prop_idx = array;
+	      context.elem_wid = leaf->packed_width();
+	      context.elem_signed = leaf->get_signed();
+	      context.nested_path = object_path;
+	      context.rows_var = cfe->loop_vars()[0];
+	      context.loop_var = cfe->loop_vars()[1];
+	      string body;
+	      dynforeach_emit_ctx_ = &context;
+	      bool ok = true;
+	      for (const PExpr*item : cfe->items()) {
+		    if (!item) continue;
+		    string part = pexpr_to_constraint_ir(item, cls, value_slots,
+			  scope, loop_env);
+		    if (part.empty()) { ok = false; break; }
+		    body = body.empty() ? part : "(and " + body + " " + part + ")";
+	      }
+	      dynforeach_emit_ctx_ = nullptr;
+	      if (!ok || body.empty()) return "";
+	      string width = to_string(context.elem_wid)
+		    + (context.elem_signed ? ":s" : "");
+	      body = "(xdynforeach " + object_path + ":#R:" + width
+		    + " " + body + ")";
+	      return "(xdynrows " + object_path + ":" + width + " " + body + ")";
+	    }
                   if (cfe->loop_vars().size() != 1
                       || cfe->loop_vars()[0].nil()) return "";
                   if (!cls || !value_slots || !scope_randomize_object_slots_
@@ -44546,6 +44745,79 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      // elements then read as the values it holds, which is how
 	      // `foreach (mask[i]) data[i] <= mask[i];' constrains a rand
 	      // array against a non-rand one.
+	    vector<perm_string> nested_foreach_path = cfe->source_path();
+	    if (nested_foreach_path.empty() && cfe->has_hierarchical_target()
+		&& cfe->prefix_names().empty() && !cfe->member_name().nil()) {
+	      nested_foreach_path.push_back(cfe->array_name());
+	      nested_foreach_path.push_back(cfe->member_name());
+	    }
+	    if (nested_foreach_path.size() >= 2
+		&& !dynforeach_emit_ctx_) {
+	      const netclass_t*owner = cls;
+	      string object_path;
+	      bool valid_path = true;
+	      for (size_t pos = 0; pos < nested_foreach_path.size(); ++pos) {
+		    int property = owner
+			  ? owner->property_idx_from_name(nested_foreach_path[pos]) : -1;
+		    if (property < 0) { valid_path = false; break; }
+		    property_qualifier_t qualifier = owner->get_prop_qual((size_t)property);
+		    if (!qualifier.test_rand() && !qualifier.test_randc()) {
+			  valid_path = false;
+			  break;
+		    }
+		    object_path += (object_path.empty() ? "" : ".")
+			  + to_string(property);
+		    ivl_type_t type = owner->get_prop_type((size_t)property);
+		    if (pos + 1 == nested_foreach_path.size()) {
+			  ivl_type_t leaf = constraint_dyn2_inner_type_(type);
+			  if (!leaf || cfe->loop_vars().size() > 2
+			      || cfe->loop_vars().empty()
+			      || cfe->loop_vars()[0].nil()
+			      || (cfe->loop_vars().size() == 2
+				  && cfe->loop_vars()[1].nil()))
+				valid_path = false;
+			  else {
+				dynforeach_emit_ctx_t context;
+				context.prop_idx = property;
+				context.elem_wid = leaf->packed_width();
+				context.elem_signed = leaf->get_signed();
+				context.nested_path = object_path;
+				context.rows_var = cfe->loop_vars()[0];
+				if (cfe->loop_vars().size() == 2)
+				      context.loop_var = cfe->loop_vars()[1];
+				string body;
+				dynforeach_emit_ctx_ = &context;
+				bool ok = true;
+				for (const PExpr*item : cfe->items()) {
+				      if (!item) continue;
+				      string part = pexpr_to_constraint_ir(
+					    item, cls, value_slots, scope, loop_env);
+				      if (part.empty()) { ok = false; break; }
+				      body = body.empty() ? part
+					    : "(and " + body + " " + part + ")";
+				}
+				dynforeach_emit_ctx_ = nullptr;
+				if (!ok || body.empty()) valid_path = false;
+				else {
+				      string width = to_string(context.elem_wid)
+					    + (context.elem_signed ? ":s" : "");
+				      if (cfe->loop_vars().size() == 2)
+					    body = "(xdynforeach " + object_path + ":#R:"
+						  + width + " " + body + ")";
+				      return "(xdynrows " + object_path + ":" + width
+					    + " " + body + ")";
+				}
+			  }
+		    } else {
+			  owner = dynamic_cast<const netclass_t*>(type);
+			  if (!owner) valid_path = false;
+		    }
+		    if (!valid_path) break;
+	      }
+	      if (!valid_path && constraint_dyn2_inner_type_(
+		    constraint_foreach_source_type_(cfe, cls, value_slots, scope).type))
+		    return "";
+	    }
 	    int idx = cls->property_idx_from_name(cfe->array_name());
 	    if (idx < 0)
 		  return "";

@@ -2352,7 +2352,9 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
       char*end = nullptr;
       unsigned long width_ul = 0;
       unsigned long elem_ul = ULONG_MAX;
+      unsigned long row_ul = ULONG_MAX;
       bool dynamic_element = false;
+      bool dynamic_nested_element = false;
       bool fields_ok = *p == ':';
       if (fields_ok) {
 	    const char*field = p + 1;
@@ -2362,13 +2364,22 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
       }
       if (fields_ok) {
 	    const char*field = p + 1;
-	    if (*field == 'd' && field[1] == ':') {
+	    if (*field == 'd' && field[1] == 'd' && field[2] == ':') {
+		  dynamic_nested_element = true;
+		  field += 3;
+		  row_ul = strtoul(field, &end, 10);
+		  fields_ok = end != field && *end == ':'
+			&& row_ul < UINT_MAX;
+		  if (fields_ok) field = end + 1;
+	    } else if (*field == 'd' && field[1] == ':') {
 		  dynamic_element = true;
 		  field += 2;
 	    }
-	    elem_ul = strtoul(field, &end, 10);
-	    fields_ok = end != field && (*end == 0 || *end == ':');
-	    p = end;
+	    if (fields_ok) {
+		  elem_ul = strtoul(field, &end, 10);
+		  fields_ok = end != field && (*end == 0 || *end == ':');
+		  p = end;
+	    }
       }
       bool sflag = fields_ok && *p == ':' && p[1] == 's';
       if (sflag) p += 2;
@@ -2380,7 +2391,8 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
       string error;
       if (!b.graph || path.size() < 2 || width_ul > UINT_MAX
 	  || !width
-	  || elem_ul > UINT_MAX || !suffix_ok) {
+	    || elem_ul > UINT_MAX || !suffix_ok
+	    || (dynamic_nested_element && row_ul >= UINT_MAX)) {
 	    error = "invalid nested fixed-array constraint metadata";
       } else {
 	    for (size_t pos = 0; owner && pos + 1 < path.size(); ++pos) {
@@ -2397,6 +2409,12 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
 	    unsigned pid = path.back();
 	    if (pid >= owner->get_defn()->property_count()) {
 		  error = "invalid nested array constraint property";
+	    } else if (dynamic_nested_element) {
+		  if (!owner->get_defn()->property_is_dyn2(pid)) {
+			error = "invalid nested dynamic-array-of-arrays constraint property";
+		  } else {
+			  idx = b.graph->intern(owner, pid);
+		  }
 	    } else if (dynamic_element) {
 		  const string&base_type =
 			owner->get_defn()->property_base_type(pid);
@@ -2424,13 +2442,68 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
 		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width ? width : 1));
       }
       if (b.collect_refs) {
-	    Z3Builder::VarRef ref = {
-		  Z3Builder::VarRef::ELEM, idx, (unsigned)elem_ul};
+	    Z3Builder::VarRef ref = dynamic_nested_element
+		  ? Z3Builder::VarRef{Z3Builder::VarRef::NESTED_ELEM, idx,
+				     (unsigned)row_ul + 1, (unsigned)elem_ul}
+		  : Z3Builder::VarRef{Z3Builder::VarRef::ELEM, idx,
+				     (unsigned)elem_ul};
 	    b.collect_refs->insert(ref);
       }
       if (b.collect_refs_only)
 	    return Z3_mk_unsigned_int64(
 		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
+	  if (dynamic_nested_element) {
+	    unsigned local = b.local_index(idx);
+	    unsigned leaf = (unsigned)row_ul + 1;
+	    bool active = rand_nested_elem_active_(b, b.prop_active,
+						      idx, leaf, (unsigned)elem_ul);
+	    /* Before the outer/row size passes run, a newly randomized nested
+	     * dynamic array has no allocated row storage yet. Its rand property is
+	     * nevertheless an active solver variable (18.5.8); defer shape checks
+	     * until the solved dynamic sizes are available. */
+	    if (!b.dyn_sizes && b.graph && b.graph->active(idx)) active = true;
+	    uint64_t count = cobj_darray_size(owner, local, leaf);
+	    uint64_t rows = cobj_darray_size(owner, local, 0);
+	    bool sizes_known = false;
+	    if (b.dyn_sizes) {
+		  auto outer = b.dyn_sizes->find(make_pair(idx, 0u));
+		  auto found = b.dyn_sizes->find(make_pair(idx, leaf));
+		  if (outer != b.dyn_sizes->end() && found != b.dyn_sizes->end()) {
+			rows = outer->second;
+			count = found->second;
+			sizes_known = true;
+		  }
+	    }
+	    if ((sizes_known && (row_ul >= rows || elem_ul >= count))
+		|| (!active && (row_ul >= rows || elem_ul >= count))) {
+		  ostringstream msg;
+		  msg << "nested selected dynamic-array element is outside property "
+		      << path.back() << " row " << row_ul << " size " << count;
+		  Z3_ast absent = Z3_mk_fresh_const(b.ctx, "absent",
+			Z3_mk_bv_sort(b.ctx, width));
+		  b.absent_elems.push_back({absent, msg.str(), b.constraint_guards});
+		  return absent;
+	    }
+	    if (!active) {
+		  vvp_vector4_t current;
+		  Z3_ast ground;
+		  if (!cobj_elem_vec4_(owner, path.back(), (unsigned)elem_ul,
+				      current, leaf)
+		      || current.size() != width
+		      || !vec4_to_bv_const_(b.ctx, current, width, ground)) {
+			b.state_errors.push_back(state_read
+			      ? "X/Z value in constraint state (IEEE 1800-2017/2023 18.3)"
+			      : "X/Z value in constraint guard (IEEE 1800-2017/2023 18.3)");
+			ground = Z3_mk_unsigned_int64(b.ctx, 0,
+			      Z3_mk_bv_sort(b.ctx, width));
+		  }
+		  return sflag ? b.tag_signed_constant(ground) : ground;
+	    }
+	    Z3_ast var = b.get_elem_var(idx, width, (unsigned)elem_ul,
+				       leaf, true);
+	    if (sflag) b.signed_vars.insert(var);
+	    return var;
+	  }
 	  if (dynamic_element) {
 		bool active = b.graph->element_active(idx, (unsigned)elem_ul);
 		if (b.dyn_sizes || !active) {
@@ -4108,6 +4181,123 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    }
 	    return conj;
       }
+
+	  /* A foreach over a two-dimensional dynamic array owned by a nested
+	   * rand object carries that object's property path through both runtime
+	   * expansion passes. */
+	  if (op == "xdynrows") {
+	    string hdr = par.read_token();
+	    string body = capture_balanced_form(par);
+	    bool signed_leaf = hdr.size() >= 2 && hdr.substr(hdr.size() - 2) == ":s";
+	    if (signed_leaf) hdr.erase(hdr.size() - 2);
+	    string::size_type colon = hdr.rfind(':');
+	    if (colon == string::npos) {
+		  b.state_errors.push_back("malformed nested dynamic rows header");
+		  return b.mk_true();
+	    }
+	    string path = hdr.substr(0, colon);
+	    unsigned width = (unsigned)strtoul(hdr.c_str() + colon + 1, nullptr, 10);
+	    uint64_t row_count = 0;
+	    unsigned pidx = UINT_MAX;
+	    if (!resolve_constraint_property_path_(b, path, pidx)) {
+		  b.state_errors.push_back("invalid nested dynamic rows property path");
+		  return b.mk_true();
+	    }
+	    const class_type*owner_type = b.type(pidx);
+	    if (!owner_type || b.local_index(pidx) >= owner_type->property_count()
+		|| !owner_type->property_is_dyn2(b.local_index(pidx))) {
+		  b.state_errors.push_back("invalid nested dynamic rows property");
+		  return b.mk_true();
+	    }
+	    row_count = cobj_darray_size(b.object(pidx), b.local_index(pidx), 0);
+	    if (b.dyn_sizes) {
+		  auto found = b.dyn_sizes->find(make_pair(pidx, 0u));
+		  if (found != b.dyn_sizes->end()) row_count = found->second;
+	    }
+	    if (!b.dyn_sizes) {
+		  bool seen = false;
+		  for (const auto&d : b.dyn_foreach)
+			if (d.rows && d.pidx == pidx && d.body == body) { seen = true; break; }
+		  if (!seen) {
+			Z3Builder::DynForeach rec;
+			rec.pidx = pidx; rec.leaf = 0; rec.nested = false;
+			rec.ewid = width; rec.esigned = signed_leaf;
+			rec.body = body; rec.rows = true;
+			b.dyn_foreach.push_back(rec);
+		  }
+		  return b.mk_true();
+	    }
+	    Z3_ast result = b.mk_true();
+	    for (uint64_t row = 0; row < row_count; ++row) {
+		  string instance = subst_loop_token(body, row, 32, true, 'R');
+		  for (size_t at = instance.find("#R:"); at != string::npos;
+		       at = instance.find("#R:", at))
+			instance.replace(at, 2, "#" + to_string(row + 1));
+		  IRParser sub(instance);
+		  Z3_ast item = bv_to_bool(b.ctx, build_z3_atom(sub, b));
+		  Z3_ast both[2] = { result, item };
+		  result = Z3_mk_and(b.ctx, 2, both);
+	    }
+	    return result;
+	  }
+	  if (op == "xdynforeach") {
+	    string hdr = par.read_token();
+	    bool sign = hdr.size() >= 2 && hdr.substr(hdr.size() - 2) == ":s";
+	    if (sign) hdr.erase(hdr.size() - 2);
+	    string::size_type row_mark = hdr.rfind(":#");
+	    if (row_mark == string::npos) {
+		  b.state_errors.push_back("malformed nested dynamic foreach header");
+		  return b.mk_true();
+	    }
+	    string path = hdr.substr(0, row_mark);
+	    const char*row_text = hdr.c_str() + row_mark + 2;
+	    char*end = nullptr;
+	    unsigned long leaf = strtoul(row_text, &end, 10);
+	    if (end == row_text || *end != ':') {
+		  b.state_errors.push_back("malformed nested dynamic foreach row");
+		  return b.mk_true();
+	    }
+	    unsigned width = (unsigned)strtoul(end + 1, nullptr, 10);
+	    unsigned pidx = UINT_MAX;
+	    if (!resolve_constraint_property_path_(b, path, pidx)) return b.mk_true();
+	    string body = capture_balanced_form(par);
+	    if (b.row_pass) return b.mk_true();
+	    if (!b.dyn_sizes) {
+		  Z3Builder::DynForeach rec;
+		  rec.pidx = pidx; rec.leaf = (unsigned)leaf;
+		  rec.nested = true; rec.ewid = width; rec.esigned = sign;
+		  rec.body = body;
+		  b.dyn_foreach.push_back(rec);
+		  return b.mk_true();
+	    }
+	    uint64_t count = 0;
+	    auto found = b.dyn_sizes->find(make_pair(pidx, (unsigned)leaf));
+	    if (found != b.dyn_sizes->end()) count = found->second;
+	    Z3_ast result = b.mk_true();
+	    for (uint64_t i = 0; i < count; ++i) {
+		  string instance = subst_loop_token(body, i);
+		  IRParser sub(instance);
+		  Z3_ast item = bv_to_bool(b.ctx, build_z3_atom(sub, b));
+		  Z3_ast both[2] = { result, item };
+		  result = Z3_mk_and(b.ctx, 2, both);
+	    }
+	    return result;
+	  }
+	  if (op == "xelem") {
+	    string path = par.read_token();
+	    string width = par.read_token();
+	    uint64_t row = 0, col = 0;
+	    if (!eval_const_ir(par, row)) {
+		  b.state_errors.push_back("nested dynamic-array foreach row is not constant");
+		  return b.mk_true();
+	    }
+	    if (!eval_const_ir(par, col) || !par.expect(')')) {
+		  b.state_errors.push_back("nested dynamic-array foreach index is not constant");
+		  return b.mk_true();
+	    }
+	    return parse_nested_elem(b, "x:" + path + ":" + width
+		  + ":dd:" + to_string(row) + ":" + to_string(col));
+	  }
 
       /* Associative foreach over class-valued keys. The key set is state at
 	 * randomize time; expand every actual key and let qkeymember read that

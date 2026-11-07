@@ -1,0 +1,5 @@
+{
+    "type" : "normal",
+    "source" : "issue1228_constant_sformatf.sv",
+    "iverilog-args" : [ "-g2023" ]
+}

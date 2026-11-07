@@ -586,14 +586,30 @@ class vvp_named_event_sa : public vvp_named_event {
       vthread_t add_waiting_thread(vthread_t thread) override;
       vthread_t add_triggered_change_waiter(vthread_t thread);
       void triggered_time_advance();
+      bool triggered_now(void) const override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
       void collect_waiting_threads(std::vector<vthread_t>&threads) const override;
 
+	// IEEE 1800-2017/2023 15.5.5: this event variable's synchronization
+	// queue is the queue owned by QUEUE_NET's event (its own net unless
+	// assigned), or none after `= null'. SELF is this functor's net.
+      static void assign(vvp_net_t*dst, vvp_net_t*src);
+      vvp_net_t* queue(vvp_net_t*self) const
+      { return detached_ ? nullptr : alias_ ? alias_ : self; }
+
     private:
+	// Operations on the queue this functor owns, whichever event
+	// variable currently names it.
+      void deliver_(vvp_net_ptr_t port, const vvp_vector4_t&bit);
+      vthread_t add_local_waiter_(vthread_t thread);
+      static vvp_named_event_sa* queue_owner_(vvp_net_t*net);
+
       vthread_t threads_;
       vthread_t triggered_change_threads_;
+      vvp_net_t*alias_ = nullptr;
+      bool detached_ = false;
 };
 
 /* Notify triggered-property observers only when simulation time advances. */

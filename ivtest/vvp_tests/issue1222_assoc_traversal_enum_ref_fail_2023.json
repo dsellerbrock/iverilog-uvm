@@ -1,0 +1,5 @@
+{
+    "type" : "CE",
+    "source" : "issue1222_assoc_traversal_enum_ref_fail.sv",
+    "iverilog-args" : [ "-g2023" ]
+}

@@ -1,0 +1,6 @@
+{
+    "type" : "normal",
+    "source" : "issue1190_endpoint_variable_length.sv",
+    "iverilog-args" : [ "-g2023" ],
+    "gold" : "issue1190_endpoint_variable_length"
+}

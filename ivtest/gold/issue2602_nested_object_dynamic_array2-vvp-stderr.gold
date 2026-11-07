@@ -1,0 +1,2 @@
+ERROR: constraint state read: null nested constraint object owner.
+ERROR: constraint state read: null/invalid nested constraint array owner.

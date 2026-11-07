@@ -1,0 +1,5 @@
+{
+    "type" : "CE",
+    "source" : "issue699_event_assign_fail.sv",
+    "iverilog-args" : [ "-g2023" ]
+}

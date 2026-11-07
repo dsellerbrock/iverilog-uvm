@@ -1,0 +1,5 @@
+{
+    "type" : "normal",
+    "source" : "issue780_if_tand_predicate.sv",
+    "iverilog-args" : [ "-g2017" ]
+}

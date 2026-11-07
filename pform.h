@@ -768,6 +768,19 @@ extern PBlock*pform_push_block_scope(const struct vlltype&loc, const char*name,
 /* Create/finalize the implicit lexical block that owns pattern variables for
  * one case item, the true arm of a pattern statement, or the consequent of a
  * pattern conditional expression. */
+/* One `&&&' clause of an if statement's cond_predicate (IEEE 1800-2017/2023
+ * 12.4, 12.6.2): an expression, or a PEMatches whose pattern scope BLOCK is
+ * still open while later clauses and the true arm are parsed. */
+struct cond_clause_t {
+      PExpr* cond = nullptr;
+      class PBlock* block = nullptr;
+};
+
+extern Statement*pform_make_tand_if(const struct vlltype&loc,
+				     std::vector<cond_clause_t*>*clauses,
+				     Statement*if_true);
+extern void pform_tand_if_set_else(const struct vlltype&loc, Statement*prefix,
+				   Statement*if_false);
 extern PBlock*pform_pattern_push_scope(const struct vlltype&loc,
                                        const PExpr*subject,
                                        const PMatchPattern*pattern,
@@ -1060,11 +1073,30 @@ extern void pform_module_timing_check(PTimingCheck*obj);
    the legacy linear engine. See
    docs/conformance/m9_nfa_design_2026-07-19.md. */
 extern bool pform_sva_nfa_enabled();
+
+/* Per-attempt sub-monitor interface (sva-attempts design). An enclosing
+   property operator owns the clock, disable, slot injection and
+   reporting; the operand checker only advances and leaves each slot's
+   verdict in vd[k]: 0 pending, 1 pass, 2 vacuous pass, 3 fail. The slot
+   index is the attempt identity shared by every operand of one parent.
+   plan: analyse only and return the required slot count in K. Otherwise
+   K is the slot count to build with (at least the planned value). */
+struct sva_nfa_sub_t {
+      bool plan = false;
+      bool error = false;   // a diagnostic was already emitted
+      long K = 0;
+      std::vector<Statement*> pre, body, post, init;
+      std::vector< std::vector<Statement*> > inject;  // per slot
+      std::vector< std::vector<Statement*> > kill;    // per slot
+      std::vector<perm_string> vd;                    // per slot
+};
+
 extern bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					struct sva_property_t*prop,
 					Statement*fail_stmt,
 					Statement*pass_stmt,
-					int kind);
+					int kind,
+					sva_nfa_sub_t*sub = nullptr);
 
 /* M13: synthesize real timing-check checker processes (clause 31).
    Active with -gspecify; loud ignored-warning otherwise. The event

@@ -1,0 +1,5 @@
+{
+    "type" : "normal",
+    "source" : "issue699_event_handles.sv",
+    "iverilog-args" : [ "-g2017" ]
+}
