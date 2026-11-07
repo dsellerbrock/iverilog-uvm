@@ -1,0 +1,10 @@
+ivltests/issue733_string_cast_required_fail.v:10: error: An integral value assigned to a string requires a cast, e.g. string'(...) (IEEE 1800-2017/2023 6.16).
+ivltests/issue733_string_cast_required_fail.v:11: error: An integral value assigned to a string requires a cast, e.g. string'(...) (IEEE 1800-2017/2023 6.16).
+ivltests/issue733_string_cast_required_fail.v:13: error: An integral value assigned to a string requires a cast, e.g. string'(...) (IEEE 1800-2017/2023 6.16).
+ivltests/issue733_string_cast_required_fail.v:14: error: An integral value assigned to a string requires a cast, e.g. string'(...) (IEEE 1800-2017/2023 6.16).
+ivltests/issue733_string_cast_required_fail.v:15: error: An integral value assigned to a string requires a cast, e.g. string'(...) (IEEE 1800-2017/2023 6.16).
+ivltests/issue733_string_cast_required_fail.v:16: error: An integral value assigned to a string requires a cast, e.g. string'(...) (IEEE 1800-2017/2023 6.16).
+ivltests/issue733_string_cast_required_fail.v:17: error: An integral value assigned to a string requires a cast, e.g. string'(...) (IEEE 1800-2017/2023 6.16).
+ivltests/issue733_string_cast_required_fail.v:18: error: An integral value assigned to a string requires a cast, e.g. string'(...) (IEEE 1800-2017/2023 6.16).
+ivltests/issue733_string_cast_required_fail.v:19: error: An integral value assigned to a string requires a cast, e.g. string'(...) (IEEE 1800-2017/2023 6.16).
+Elaboration failed
