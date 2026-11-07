@@ -67,6 +67,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
 %token K_01 K_10 K_0Z K_Z1 K_1Z K_Z0
 %token K_EQ K_NE K_CEQ K_CNE K_LOGICAL_ONE K_LOGICAL_ZERO
 %token K_LAND K_LOR
+%token K_LABEL
 
 %token HCHAR
 %token <string_val> QSTRING IDENTIFIER
@@ -88,6 +89,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
 %type <port_with_edge> port_edge port_spec
 
 %type <delval_list> delval_list
+%type <delay> lbl_value
 %type <string_val> conditional_port_expr
 %type <int_val> scalar_constant
 
@@ -314,6 +316,42 @@ timing_spec
       { vpi_printf("SDF ERROR: %s:%d: Syntax error in TIMINGCHECK SPEC\n",
 	           sdf_parse_path, @2.first_line); }
   | '(' K_TIMINGENV ')'
+  | '(' K_LABEL lbl_type_list ')'
+  | '(' K_LABEL error ')'
+      { vpi_printf("SDF ERROR: %s:%d: Syntax error in LABEL SPEC\n",
+	           sdf_parse_path, @2.first_line); }
+  ;
+
+  /* IEEE 1800-2023 32.4.3: LABEL annotates specparams. */
+lbl_type_list
+  : lbl_type_list lbl_type
+  | lbl_type
+  ;
+
+lbl_type
+  : '(' K_ABSOLUTE lbl_def_list ')'
+  | '(' K_INCREMENT { sdf_increment = 1; } lbl_def_list ')'
+      { sdf_increment = 0; }
+  ;
+
+lbl_def_list
+  : lbl_def_list lbl_def
+  | lbl_def
+  ;
+
+lbl_def
+  : '(' IDENTIFIER lbl_value ')'
+      { sdf_label_value($2, &$3, @2.first_line);
+	free($2);
+      }
+  ;
+
+  /* An rvalue, or the bare number of the IEEE 1800 32.4.3 example. */
+lbl_value
+  : rvalue { $$ = $1; }
+  | signed_real_number
+      { $$.defined = 1;
+	$$.value = $1 * sdf_time_scale(); }
   ;
 
 deltype_list

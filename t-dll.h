@@ -298,6 +298,8 @@ struct ivl_delaypath_s {
       bool posedge;
       bool negedge;
       uint64_t delay[12];
+      struct token_s { char kind; double value; ivl_signal_t sig; };
+      std::vector<std::vector<token_s>> exprs;
 };
 
 struct ivl_obj_mutation_path_s {

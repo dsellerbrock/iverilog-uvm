@@ -54,6 +54,8 @@ vector <const char*> file_names;
 static struct __vpiModPath*modpath_dst = 0;
   /* The .tchk record whose terms and limits are being parsed. */
 static struct __vpiTchk*tchk_cur = 0;
+  /* The expression strings of the .pathexpr being parsed. */
+static std::vector<char*> pathexpr_strings;
 static vpiHandle force_release_statement = 0;
 
 static bool is_force_release_opcode(const char* name)
@@ -115,6 +117,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_DFF_P K_DFF_P_ACLR K_DFF_P_ACLR_ASET K_DFF_P_ASET K_DFF_P_ASET_ACLR
 %token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR K_EVENT_ORDER
 %token K_EXPORT K_EXTEND_S K_SAMPLE K_REACTIVE K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH K_TCHK
+%token K_PATHEXPR K_PARAM_STORAGE
 %token K_PARAM_TYPE
 %token K_VIF_PROXY K_EVENT_VALID
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
@@ -668,6 +671,14 @@ statement
     { modpath_dst = compile_modpath($1, $3, $4 != 0, $5, $6); }
    modpath_src_list ';'
     { modpath_dst = 0; }
+
+  /* .pathexpr <modpath>, <source index>, <n> "<rpn>"... ; and
+     P_<p> .param/storage <variable> ; (SDF LABEL, IEEE 1800 32.4.3) */
+ | K_PATHEXPR T_SYMBOL ',' T_NUMBER ',' T_NUMBER pathexpr_string_list ';'
+    { compile_pathexpr($2, $4, pathexpr_strings);
+      pathexpr_strings.clear(); }
+ | T_LABEL K_PARAM_STORAGE T_SYMBOL ';'
+    { compile_param_storage($1, $3); }
 
   /* .tchk <type> <file> <line>, <ref term>, <data term>,
      <n> {<limit var> <value>}, <notifier> ; */
@@ -1844,6 +1855,11 @@ modport_ports_opt
         : /* empty */
         | modport_ports_opt T_STRING T_NUMBER
                 { compile_modport_port($2, $3); }
+        ;
+
+pathexpr_string_list
+        : T_STRING { pathexpr_strings.push_back($1); }
+        | pathexpr_string_list T_STRING { pathexpr_strings.push_back($2); }
         ;
 
 tchk_term

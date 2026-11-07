@@ -29,6 +29,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <list>
+#include <cstring>
 #include <cassert>
 #include <cmath>
 #include "ivl_alloc.h"
@@ -2343,4 +2344,102 @@ void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value)
 void compile_tchk_notifier(__vpiTchk*tchk, char*notifier)
 {
       compile_vpi_lookup(&tchk->notifier, notifier);
+}
+
+/*
+ * Path delays that use specparams (IEEE 1800-2017/2023 32.4.3): "Any
+ * expression containing one or more specparams is reevaluated when
+ * annotated to from an SDF file." Each expression is a reverse Polish
+ * token list over constants and the specparams' run-time variables.
+ */
+struct path_token_s {
+      char kind;		// 'c', 's', '+', '-', '*', '/', 'n'
+      double value;
+      vpiHandle var;
+};
+
+struct path_expr_s {
+      __vpiModPathSrc*src;
+      std::vector<std::vector<path_token_s>> exprs;
+};
+
+static std::map<__vpiScope*, std::vector<path_expr_s>> path_exprs_by_scope;
+
+__vpiModPath* compile_find_modpath(const char*label);
+
+void compile_pathexpr(char*label, unsigned idx, std::vector<char*>&exprs)
+{
+      __vpiModPath*path = compile_find_modpath(label);
+      assert(path && idx < path->srcs.size());
+      path_expr_s entry;
+      entry.src = path->srcs[idx];
+      for (char*text : exprs) {
+	    std::vector<path_token_s> tokens;
+	    for (char*tok = strtok(text, " "); tok; tok = strtok(0, " ")) {
+		  path_token_s cur = { 'c', 0.0, 0 };
+		  if (tok[0] == 'v') {
+			cur.kind = 's';
+			cur.var = vvp_lookup_handle(tok);
+			assert(cur.var);
+		  } else if (strchr("+*/n", tok[0]) || (tok[0] == '-' && tok[1] == 0)) {
+			cur.kind = tok[0];
+		  } else {
+			cur.value = strtod(tok, 0);
+		  }
+		  tokens.push_back(cur);
+	    }
+	    entry.exprs.push_back(tokens);
+	    free(text);
+      }
+      path_exprs_by_scope[path->scope].push_back(entry);
+      free(label);
+}
+
+static double eval_path_expr(const std::vector<path_token_s>&tokens)
+{
+      std::vector<double> stack;
+      for (const path_token_s&tok : tokens) {
+	    if (tok.kind == 'c') {
+		  stack.push_back(tok.value);
+	    } else if (tok.kind == 's') {
+		  s_vpi_value val;
+		  val.format = vpiRealVal;
+		  tok.var->vpi_get_value(&val);
+		  stack.push_back(val.value.real);
+	    } else if (tok.kind == 'n') {
+		  stack.back() = -stack.back();
+	    } else {
+		  double right = stack.back();
+		  stack.pop_back();
+		  double&left = stack.back();
+		  switch (tok.kind) {
+		      case '+': left += right; break;
+		      case '-': left -= right; break;
+		      case '*': left *= right; break;
+		      case '/': left = right != 0.0 ? left / right : 0.0; break;
+		  }
+	    }
+      }
+      return stack.empty() ? 0.0 : stack.back();
+}
+
+void vpip_specparam_changed(__vpiScope*scope)
+{
+      auto found = path_exprs_by_scope.find(scope);
+      if (found == path_exprs_by_scope.end()) return;
+      for (path_expr_s&entry : found->second) {
+	    s_vpi_delay delays;
+	    t_vpi_time times[12];
+	    delays.da = times;
+	    delays.no_of_delays = entry.exprs.size();
+	    delays.time_type = vpiScaledRealTime;
+	    delays.mtm_flag = 0;
+	    delays.append_flag = 0;
+	    delays.pulsere_flag = 0;
+	    for (size_t idx = 0; idx < entry.exprs.size(); idx += 1) {
+		  times[idx].type = vpiScaledRealTime;
+		  times[idx].real = eval_path_expr(entry.exprs[idx]);
+	    }
+	    entry.src->vpi_put_delays(&delays);
+      }
 }

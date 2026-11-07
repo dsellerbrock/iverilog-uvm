@@ -3184,6 +3184,30 @@ extern "C" ivl_signal_t ivl_scope_sig(ivl_scope_t net, unsigned idx)
       return net->sigs_[idx];
 }
 
+extern "C" unsigned ivl_path_delay_exprs(ivl_delaypath_t net)
+{
+      assert(net);
+      return net->exprs.size();
+}
+
+extern "C" unsigned ivl_path_delay_expr_tokens(ivl_delaypath_t net,
+					       unsigned expr)
+{
+      assert(net && expr < net->exprs.size());
+      return net->exprs[expr].size();
+}
+
+extern "C" int ivl_path_delay_expr_token(ivl_delaypath_t net, unsigned expr,
+					 unsigned idx, double*value,
+					 ivl_signal_t*sig)
+{
+      assert(net && expr < net->exprs.size() && idx < net->exprs[expr].size());
+      const ivl_delaypath_s::token_s&tok = net->exprs[expr][idx];
+      if (value) *value = tok.value;
+      if (sig) *sig = tok.sig;
+      return tok.kind;
+}
+
 extern "C" unsigned ivl_scope_tchks(ivl_scope_t net)
 {
       assert(net);

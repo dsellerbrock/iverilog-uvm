@@ -373,6 +373,11 @@ extern void compile_vpi_lookup(vpiHandle *objref, char*label);
 /* The .tchk timing-check record (IEEE 1800-2023 37.40): the object, then
    its reference and data terms in that order, its limits, and its
    notifier. A null sig is the absent data term of a one-signal check. */
+extern void compile_param_storage(char*label, char*var);
+  /* .pathexpr: the delay expressions of source idx of a .modpath. */
+extern void compile_pathexpr(char*label, unsigned idx,
+			     std::vector<char*>&exprs);
+
 struct __vpiTchk;
 extern __vpiTchk* compile_tchk(char*label, int type, long file_idx,
 			       long lineno);

@@ -650,6 +650,15 @@ struct NetTchk : public LineInfo {
       NetNet*notifier = nullptr;
 };
 
+/* One token of a path delay expression in reverse Polish order: 'c' a
+   constant, 's' a specparam storage variable, or an operator '+', '-',
+   '*', '/', or 'n' (negation). */
+struct NetPathToken {
+      char kind;
+      double value;
+      const NetNet*sig;
+};
+
 class NetDelaySrc  : public NetObj {
 
     public:
@@ -693,6 +702,11 @@ class NetDelaySrc  : public NetObj {
       const Link&condit_pin() const;
 
       bool is_parallel() const;
+
+	// The delay expressions that use annotatable specparams, one per
+	// declared delay, so SDF LABEL can re-evaluate them (IEEE 1800
+	// 32.4.3). Empty when the delays are plain constants.
+      std::vector<std::vector<NetPathToken>> delay_exprs;
 
       void dump(std::ostream&, unsigned ind) const;
 
@@ -1408,6 +1422,14 @@ class NetScope : public Definitions, public Attrib {
       void add_event(NetEvent*);
 
       void add_tchk(NetTchk*tchk) { tchks_.push_back(tchk); }
+
+	/* The run-time value of an annotatable specparam (IEEE 1800
+	   32.4.3), present when the design calls $sdf_annotate. */
+      void specparam_storage(perm_string name, NetNet*net)
+	    { specparam_storage_[name] = net; }
+      NetNet* specparam_storage(perm_string name) const
+	    { auto cur = specparam_storage_.find(name);
+	      return cur == specparam_storage_.end() ? nullptr : cur->second; }
       const std::vector<NetTchk*>& tchks() const { return tchks_; }
       void rem_event(NetEvent*);
       NetEvent*find_event(perm_string name);
@@ -1910,6 +1932,7 @@ class NetScope : public Definitions, public Attrib {
 
       NetEvent *events_;
       std::vector<NetTchk*> tchks_;
+      std::map<perm_string,NetNet*> specparam_storage_;
 
       std::map<perm_string,LineInfo*> genvars_;
 

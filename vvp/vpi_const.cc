@@ -19,6 +19,7 @@
 
 # include  "vpi_priv.h"
 # include  "compile.h"
+# include  "schedule.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
@@ -481,6 +482,12 @@ struct __vpiBinaryParam  : public __vpiBinaryConst {
       int vpi_get(int code) override;
       char*vpi_get_str(int code) override;
       vpiHandle vpi_handle(int code) override;
+      void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+
+	// The run-time value of a specparam that SDF LABEL can annotate
+	// (IEEE 1800 32.4.3), or nil; see compile_param_storage.
+      vpiHandle storage = 0;
 
     private:
       __vpiScope*scope_;
@@ -551,6 +558,20 @@ vpiHandle __vpiBinaryParam::vpi_handle(int code)
       }
 }
 
+
+void __vpiBinaryParam::vpi_get_value(p_vpi_value val)
+{
+      if (storage) storage->vpi_get_value(val);
+      else __vpiBinaryConst::vpi_get_value(val);
+}
+
+vpiHandle __vpiBinaryParam::vpi_put_value(p_vpi_value val, int flags)
+{
+      if (!storage) return __vpiBinaryConst::vpi_put_value(val, flags);
+      storage->vpi_put_value(val, vpiNoDelay);
+      vpip_specparam_changed(scope_);
+      return this;
+}
 
 vpiHandle vpip_make_binary_param(const char*name, const vvp_vector4_t&bits,
 				 bool signed_flag, bool local_flag,
@@ -714,6 +735,12 @@ struct __vpiRealParam  : public __vpiRealConst {
       int vpi_get(int code) override;
       char*vpi_get_str(int code) override;
       vpiHandle vpi_handle(int code) override;
+      void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+
+	// The run-time value of a specparam that SDF LABEL can annotate
+	// (IEEE 1800 32.4.3), or nil; see compile_param_storage.
+      vpiHandle storage = 0;
 
     private:
       __vpiScope* scope_;
@@ -783,6 +810,20 @@ vpiHandle __vpiRealParam::vpi_handle(int code)
 }
 
 
+void __vpiRealParam::vpi_get_value(p_vpi_value val)
+{
+      if (storage) storage->vpi_get_value(val);
+      else __vpiRealConst::vpi_get_value(val);
+}
+
+vpiHandle __vpiRealParam::vpi_put_value(p_vpi_value val, int flags)
+{
+      if (!storage) return __vpiRealConst::vpi_put_value(val, flags);
+      storage->vpi_put_value(val, vpiNoDelay);
+      vpip_specparam_changed(scope_);
+      return this;
+}
+
 vpiHandle vpip_make_real_param(const char*name, double value,
                                bool local_flag, long file_idx, long lineno)
 {
@@ -790,6 +831,28 @@ vpiHandle vpip_make_real_param(const char*name, double value,
                                                      value, name, local_flag,
                                                      file_idx, lineno);
       return obj;
+}
+
+/*
+ * .param/storage: the specparam P_<p> keeps its run-time value in the
+ * variable var (IEEE 1800 32.4.3). The variable is seeded with the
+ * declared value when the design loads, like any initial value.
+ */
+void compile_param_storage(char*label, char*var)
+{
+      vpiHandle par = vvp_lookup_handle(label);
+      vpiHandle storage = vvp_lookup_handle(var);
+      vvp_net_t*net = vvp_net_lookup(var);
+      assert(par && storage && net);
+      if (__vpiBinaryParam*bin = dynamic_cast<__vpiBinaryParam*>(par)) {
+	    bin->storage = storage;
+	    schedule_init_vector(vvp_net_ptr_t(net, 0), bin->bits);
+      } else if (__vpiRealParam*real = dynamic_cast<__vpiRealParam*>(par)) {
+	    real->storage = storage;
+	    schedule_init_vector(vvp_net_ptr_t(net, 0), real->value);
+      }
+      free(label);
+      free(var);
 }
 
 /*

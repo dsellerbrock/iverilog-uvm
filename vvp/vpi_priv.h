@@ -795,6 +795,8 @@ struct __vpiModPathSrc : public __vpiHandle {
 
 struct __vpiModPath {
       __vpiScope   *scope ;
+	/* The sources, in .modpath record order (for .pathexpr). */
+      std::vector<struct __vpiModPathSrc*> srcs;
 
       class vvp_fun_modpath*modpath;
 
@@ -807,6 +809,10 @@ struct __vpiModPath {
  * The Function is used to create the vpiHandle
  * for vpiModPath && vpiModPathIn objects
  */
+
+/* A specparam of scope changed at run time (SDF LABEL, IEEE 1800 32.4.3):
+   re-evaluate the path delays of that scope that use specparams. */
+extern void vpip_specparam_changed(__vpiScope*scope);
 
 extern struct __vpiModPathSrc* vpip_make_modpath_src(struct __vpiModPath*path,
                                                      vvp_net_t *net) ;

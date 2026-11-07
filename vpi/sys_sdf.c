@@ -771,6 +771,61 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
       }
 }
 
+/* IEEE 1800-2017/2023 32.4.3: "The SDF LABEL construct annotates to
+   specparams. Any expression containing one or more specparams is
+   reevaluated when annotated to from an SDF file." The value is written
+   through the specparam's vpiParameter handle; the run time re-evaluates
+   the dependent path delays and procedural delays. A label value is a
+   plain number, not a delay, so the SDF TIMESCALE does not scale it. */
+static void sdf_label_value_one(const char*name, double value,
+				int sdf_lineno)
+{
+      vpiHandle iter = vpi_iterate(vpiParameter, sdf_cur_cell), par;
+      int found = 0;
+
+      if (iter) while ((par = vpi_scan(iter))) {
+	    s_vpi_value val;
+	    const char*pname = vpi_get_str(vpiName, par);
+	    if (!pname || strcmp(pname, name) != 0) continue;
+	    found = 1;
+	    if (sdf_increment) {
+		  val.format = vpiRealVal;
+		  vpi_get_value(par, &val);
+		  value += val.value.real;
+	    }
+	    val.format = vpiRealVal;
+	    val.value.real = value;
+	    vpi_put_value(par, &val, 0, vpiNoDelay);
+	      /* Only a specparam with run-time storage takes the value
+	         (32.3: warn about what cannot be annotated). */
+	    vpi_get_value(par, &val);
+	    if (fabs(val.value.real - value) > 1e-9 * (1.0 + fabs(value)))
+		  vpi_printf("SDF WARNING: %s:%d: LABEL %s in %s cannot be "
+			     "annotated.\n", sdf_fname, sdf_lineno, name,
+			     vpi_get_str(vpiFullName, sdf_cur_cell));
+	    vpi_release_handle(iter);
+	    break;
+      }
+      if (!found)
+	    vpi_printf("SDF WARNING: %s:%d: Unable to match LABEL %s in %s\n",
+		       sdf_fname, sdf_lineno, name,
+		       vpi_get_str(vpiFullName, sdf_cur_cell));
+}
+
+void sdf_label_value(const char*name, const struct sdf_delay_s*value,
+		     const int sdf_lineno)
+{
+      size_t idx;
+      if (!value->defined) return;
+      for (idx = 0; idx < sdf_cell_count; idx += 1) {
+	    double scale;
+	    sdf_cur_cell = sdf_cells[idx];
+	    scale = sdf_time_scale();
+	    sdf_label_value_one(name, scale != 0.0 ? value->value / scale
+				: value->value, sdf_lineno);
+      }
+}
+
 static void sdf_device_delays_one(const char*dst,
                                   const struct sdf_delval_list_s*delval_list,
                                   const int sdf_lineno)

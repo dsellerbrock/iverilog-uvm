@@ -10334,7 +10334,12 @@ static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 
 static NetExpr* elaborate_delay_expr(PExpr*expr, Design*des, NetScope*scope)
 {
-      return elaborate_delay_expr_(expr, des, scope, false);
+	// A procedural delay that uses a specparam reads its run-time value.
+      bool saved = elab_specparam_storage;
+      elab_specparam_storage = true;
+      NetExpr*dex = elaborate_delay_expr_(expr, des, scope, false);
+      elab_specparam_storage = saved;
+      return dex;
 }
 
 static NetExpr* elaborate_clocking_skew_expr(PExpr*expr, Design*des,
@@ -31599,6 +31604,48 @@ static void finalize_interface_specify_paths_(Design*des)
       pending_interface_specify_paths_.clear();
 }
 
+/* A path delay as reverse Polish tokens over constants and specparam
+   storage (see NetPathToken). False when the expression uses an operator
+   outside + - * / and negation; it then stays a plain constant. */
+static bool path_delay_tokens_(const NetExpr*expr, vector<NetPathToken>&out,
+			       bool&uses_storage)
+{
+      if (const NetECReal*rcon = dynamic_cast<const NetECReal*>(expr)) {
+	    out.push_back({'c', rcon->value().as_double(), nullptr});
+	    return true;
+      }
+      if (const NetEConst*con = dynamic_cast<const NetEConst*>(expr)) {
+	    if (!con->value().is_defined()) return false;
+	    out.push_back({'c', con->value().has_sign()
+				? double(con->value().as_long())
+				: double(con->value().as_ulong64()), nullptr});
+	    return true;
+      }
+      if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
+	    if (sig->word_index() || !sig->sig()->local_flag()) return false;
+	    out.push_back({'s', 0.0, sig->sig()});
+	    uses_storage = true;
+	    return true;
+      }
+      if (const NetECast*cast = dynamic_cast<const NetECast*>(expr))
+	    return path_delay_tokens_(cast->expr(), out, uses_storage);
+      if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(expr)) {
+	    if (un->op() != '-') return false;
+	    if (!path_delay_tokens_(un->expr(), out, uses_storage)) return false;
+	    out.push_back({'n', 0.0, nullptr});
+	    return true;
+      }
+      if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(expr)) {
+	    char op = bin->op();
+	    if (op != '+' && op != '-' && op != '*' && op != '/') return false;
+	    if (!path_delay_tokens_(bin->left(), out, uses_storage)) return false;
+	    if (!path_delay_tokens_(bin->right(), out, uses_storage)) return false;
+	    out.push_back({op, 0.0, nullptr});
+	    return true;
+      }
+      return false;
+}
+
 void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 {
       uint64_t delay_value[12];
@@ -31637,6 +31684,31 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  des->errors += 1;
 	    }
 	    delete cur;
+      }
+
+	/* IEEE 1800-2017/2023 32.4.3: a path delay that uses a specparam is
+	   re-evaluated when SDF LABEL annotates the specparam. Keep it as
+	   tokens over the specparams' run-time storage. */
+      vector<vector<NetPathToken>> delay_exprs;
+      if (gn_sdf_annotate_flag) {
+	    bool any_storage = false;
+	    for (unsigned idx = 0; idx < ndelays && idx < delays.size(); idx += 1) {
+		  bool saved = elab_specparam_storage;
+		  elab_specparam_storage = true;
+		  NetExpr*cur = elab_and_eval(des, scope, delays[idx], -1);
+		  elab_specparam_storage = saved;
+		  vector<NetPathToken> tokens;
+		  bool uses_storage = false;
+		  if (!cur || !path_delay_tokens_(cur, tokens, uses_storage))
+			tokens.clear();
+		  delete cur;
+		  any_storage |= uses_storage;
+		  delay_exprs.push_back(tokens);
+	    }
+	    bool complete = true;
+	    for (const auto&tokens : delay_exprs)
+		  if (tokens.empty()) complete = false;
+	    if (!any_storage || !complete) delay_exprs.clear();
       }
 
       switch (delays.size()) {
@@ -31781,6 +31853,7 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 					       conditional, !full_flag_,
 					       condition_text.str());
 	    path->set_line(*this);
+	    path->delay_exprs = delay_exprs;
 
 	      // The presence of the data_source_expression indicates
 	      // that this is an edge sensitive path. If so, then set
@@ -33277,9 +33350,40 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
       }
 }
 
+/* IEEE 1800-2017/2023 32.4.3: SDF LABEL annotates specparams. When the
+   design calls $sdf_annotate, each annotatable specparam of the instance
+   gets a hidden variable holding its run-time value, seeded with the
+   declared value when the simulation loads (see .param/storage). */
+static void elaborate_specparam_storage_(Design*des, NetScope*scope)
+{
+      if (!gn_sdf_annotate_flag || !gn_specify_blocks_flag) return;
+      for (const auto&cur : scope->parameters) {
+	    if (!cur.second.is_annotatable) continue;
+	    ivl_type_t type = 0;
+	    const NetExpr*value = scope->get_parameter(des, cur.first, type);
+	    netvector_t*vec = 0;
+	    if (dynamic_cast<const NetECReal*>(value))
+		  vec = new netvector_t(IVL_VT_REAL);
+	    else if (const NetEConst*con = dynamic_cast<const NetEConst*>(value))
+		  vec = new netvector_t(IVL_VT_LOGIC, con->expr_width() - 1, 0,
+					con->has_sign());
+	    else
+		  continue;
+	    string name = string("_ivl_sp_") + cur.first.str();
+	    NetNet*storage = new NetNet(scope, lex_strings.make(name.c_str()),
+					NetNet::REG, vec);
+	    storage->set_line(cur.second);
+	    storage->local_flag(true);
+	    storage->incr_eref();
+	    scope->specparam_storage(cur.first, storage);
+      }
+}
+
 bool Module::elaborate(Design*des, NetScope*scope) const
 {
       bool result_flag = true;
+
+      elaborate_specparam_storage_(des, scope);
 
 	// Elaborate the elaboration tasks.
       for (const auto et : elab_tasks) {

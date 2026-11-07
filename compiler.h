@@ -271,6 +271,16 @@ extern bool gn_interconnect_flag;
  * designs and non-VVP target flows. */
 extern bool gn_dumpports_flag;
 
+/* True when the parsed design calls $sdf_annotate. SDF LABEL (IEEE 1800
+ * 32.4.3) can then change specparams at run time, so their non-constant
+ * uses read per-instance storage. Other designs compile as before. */
+extern bool gn_sdf_annotate_flag;
+
+/* While true, a reference to an annotatable specparam that has run-time
+ * storage elaborates to that storage instead of the constant (IEEE 1800
+ * 32.4.3: procedural delays re-evaluate after SDF LABEL annotation). */
+extern bool elab_specparam_storage;
+
 /* If this flag is true, then elaborate supported assertion statements. If
    this flag is false, then stub out supported assertion statements. */
 extern bool gn_supported_assertions_flag;
