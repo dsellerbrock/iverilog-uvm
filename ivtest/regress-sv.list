@@ -6659,3 +6659,5 @@ sva_property_if_multiclock_2017 normal,-g2017,-s,sva_property_if_multiclock ivlt
 sva_property_if_multiclock_2023 normal,-g2023,-s,sva_property_if_multiclock ivltests gold=sva_property_if_multiclock.gold
 sva_named_property_consequent_2017 normal,-g2017,-s,sva_named_property_consequent ivltests gold=sva_named_property_consequent.gold
 sva_named_property_consequent_2023 normal,-g2023,-s,sva_named_property_consequent ivltests gold=sva_named_property_consequent.gold
+sva_local_init_multiclock_2017 normal,-g2017,-s,sva_local_init_multiclock ivltests gold=sva_local_init_multiclock.gold
+sva_local_init_multiclock_2023 normal,-g2023,-s,sva_local_init_multiclock ivltests gold=sva_local_init_multiclock.gold
