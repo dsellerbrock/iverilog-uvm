@@ -652,7 +652,9 @@ static int compare_types(int code, int type, bool is_typedef = false)
 	    return 1;
 
       if ( code == vpiVariables &&
-	     (type == vpiIntegerVar  ||
+	     (type == vpiLogicVar    ||
+	      type == vpiMemory      ||
+	      type == vpiIntegerVar  ||
 	      type == vpiBitVar      ||
 	      type == vpiByteVar     ||
 	      type == vpiShortIntVar ||
@@ -679,6 +681,10 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
       unsigned mcnt = 0, ncnt = 0;
       vpiHandle*args;
 
+	// A net array also reports vpiMemory; it is not a variable.
+      const auto is_net_memory = [](vpiHandle item) {
+	    return item->get_vpi_type_code() == vpiMemory && is_net_array(item);
+      };
       const auto is_vif_array_word = [](vpiHandle item) {
 	    struct __vpiArrayWord*word = array_var_word_from_handle(item);
 	    if (!word) return false;
@@ -690,7 +696,8 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
 	    if (compare_types(type_code, table[idx]->get_vpi_type_code(),
 			      table[idx]->is_typedef_typespec())
 		&& !(type_code == vpiVariables
-		     && is_vif_array_word(table[idx])))
+		     && (is_vif_array_word(table[idx])
+			 || is_net_memory(table[idx]))))
 		  mcnt += 1;
 
       if (mcnt == 0)
@@ -701,7 +708,8 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
 	    if (compare_types(type_code, table[idx]->get_vpi_type_code(),
 			      table[idx]->is_typedef_typespec())
 		&& !(type_code == vpiVariables
-		     && is_vif_array_word(table[idx])))
+		     && (is_vif_array_word(table[idx])
+			 || is_net_memory(table[idx]))))
 		  args[ncnt++] = table[idx];
 
       assert(ncnt == mcnt);
