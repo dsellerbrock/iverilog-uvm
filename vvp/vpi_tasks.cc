@@ -1020,6 +1020,111 @@ extern "C" int vpip_systf_call_returns_string(void)
 	&& dynamic_cast<sysfunc_str*>(vpip_cur_task) != 0;
 }
 
+/*
+ * 37.42 detail 9 and 37.59 detail 2: vpiDecompile of a system task or
+ * function call and of the argument objects that carry no compiled text of
+ * their own (constants, omitted arguments, named objects). Returns nil for
+ * other objects.
+ */
+static __vpiScope*decompile_scope_ = 0;
+
+static bool decompile_(vpiHandle ref, std::string&out)
+{
+      char buf[64];
+      switch (ref->get_type_code()) {
+	  case vpiSysTaskCall:
+	  case vpiSysFuncCall: {
+	    __vpiSysTaskCall*call = dynamic_cast<__vpiSysTaskCall*>(ref);
+	    if (!call) return false;
+	    __vpiScope*saved = decompile_scope_;
+	    decompile_scope_ = call->scope;
+	    out += call->defn->info.tfname;
+	    bool ok = true;
+	    if (call->nargs) {
+		  out += "(";
+		  for (unsigned idx = 0; ok && idx < call->nargs; idx += 1) {
+			if (idx) out += ", ";
+			ok = call->args[idx] && decompile_(call->args[idx], out);
+		  }
+		  out += ")";
+	    }
+	    decompile_scope_ = saved;
+	    return ok;
+	  }
+	  case vpiOperation:
+	      /* 37.42 detail 8: an omitted argument is a vpiNullOp. */
+	    return ref->vpi_get(vpiOpType) == vpiNullOp;
+	  case vpiConstant: {
+	    s_vpi_value val;
+	    switch (ref->vpi_get(vpiConstType)) {
+		case vpiNullConst:
+		  out += "null";
+		  return true;
+		case vpiStringConst:
+		  val.format = vpiStringVal;
+		  ref->vpi_get_value(&val);
+		  out += "\"";
+		  for (const char*cp = val.value.str; cp && *cp; ++cp) {
+			if (*cp == '"' || *cp == '\\') out += '\\';
+			out += *cp;
+		  }
+		  out += "\"";
+		  return true;
+		case vpiRealConst:
+		  val.format = vpiRealVal;
+		  ref->vpi_get_value(&val);
+		  snprintf(buf, sizeof buf, "%.17g", val.value.real);
+		  out += buf;
+		  if (!strpbrk(buf, ".eEn")) out += ".0";
+		  return true;
+		default: {
+		  int wid = ref->vpi_get(vpiSize);
+		  bool is_signed = ref->vpi_get(vpiSigned) == 1;
+		  val.format = vpiBinStrVal;
+		  ref->vpi_get_value(&val);
+		  std::string bits = val.value.str ? val.value.str : "";
+		  if (bits.find_first_not_of("01") != std::string::npos) {
+			snprintf(buf, sizeof buf, "%d'%sb", wid, is_signed ? "s" : "");
+			out += buf + bits;
+			return true;
+		  }
+		    /* An unsized decimal literal elaborates to a signed 32-bit
+		       constant; write it back the same way. Other sizes keep
+		       their exact bit pattern. */
+		  val.format = wid == 32 && is_signed ? vpiDecStrVal : vpiHexStrVal;
+		  ref->vpi_get_value(&val);
+		  if (val.format != vpiDecStrVal) {
+			snprintf(buf, sizeof buf, "%d'%sh", wid, is_signed ? "s" : "");
+			out += buf;
+		  }
+		  out += val.value.str ? val.value.str : "0";
+		  return true;
+		}
+	    }
+	  }
+	  default: {
+	      /* A named object: its local name in the calling scope, else
+		 its full name. */
+	    char*name = ref->vpi_get_str(vpiName);
+	    if (!name) return false;
+	    vpiHandle scope = ref->vpi_handle(vpiScope);
+	    if (decompile_scope_ && scope && scope != decompile_scope_) {
+		  char*full = ref->vpi_get_str(vpiFullName);
+		  if (full) name = full;
+	    }
+	    out += name;
+	    return true;
+	  }
+      }
+}
+
+char* vpip_decompile_str(vpiHandle ref)
+{
+      std::string text;
+      if (!ref || !decompile_(ref, text)) return 0;
+      return simple_set_rbuf_str(text.c_str());
+}
+
 void vpip_execute_vpi_call(vthread_t thr, vpiHandle ref)
 {
       vpip_current_vthread = thr;
