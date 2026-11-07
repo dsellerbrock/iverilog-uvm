@@ -1,0 +1,7 @@
+ivltests/issue826_mailbox_untyped_get_type.v:33: error: mailbox get() failed: the message type is not equivalent to the type of the message variable (IEEE 1800-2023 15.4.5, 6.22.2). The variable is unchanged.
+ivltests/issue826_mailbox_untyped_get_type.v:35: error: mailbox peek() failed: the message type is not equivalent to the type of the message variable (IEEE 1800-2023 15.4.7, 6.22.2). The variable is unchanged.
+ivltests/issue826_mailbox_untyped_get_type.v:37: error: mailbox get() failed: the message type is not equivalent to the type of the message variable (IEEE 1800-2023 15.4.5, 6.22.2). The variable is unchanged.
+ivltests/issue826_mailbox_untyped_get_type.v:40: error: mailbox get() failed: the message type is not equivalent to the type of the message variable (IEEE 1800-2023 15.4.5, 6.22.2). The variable is unchanged.
+ivltests/issue826_mailbox_untyped_get_type.v:41: error: mailbox get() failed: the message type is not equivalent to the type of the message variable (IEEE 1800-2023 15.4.5, 6.22.2). The variable is unchanged.
+ivltests/issue826_mailbox_untyped_get_type.v:42: error: mailbox get() failed: the message type is not equivalent to the type of the message variable (IEEE 1800-2023 15.4.5, 6.22.2). The variable is unchanged.
+ivltests/issue826_mailbox_untyped_get_type.v:58: error: mailbox get() failed: the message type is not equivalent to the type of the message variable (IEEE 1800-2023 15.4.5, 6.22.2). The variable is unchanged.

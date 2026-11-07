@@ -21107,7 +21107,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      perm_string::literal("message")
 			};
 			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
-							  method_name, "$ivl_mailbox$get",
+							  method_name,
+							  class_type->is_typed_mailbox()
+							  ? "$ivl_mailbox$get"
+							  : "$ivl_mailbox$get$untyped",
 							  parm_names);
 		  }
 		  if (method_name == perm_string::literal("peek")) {
@@ -21115,7 +21118,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      perm_string::literal("message")
 			};
 			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
-							  method_name, "$ivl_mailbox$peek",
+							  method_name,
+							  class_type->is_typed_mailbox()
+							  ? "$ivl_mailbox$peek"
+							  : "$ivl_mailbox$peek$untyped",
 							  parm_names);
 		  }
 		  if (method_name == perm_string::literal("try_put")) {
