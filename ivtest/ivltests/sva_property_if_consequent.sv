@@ -94,7 +94,8 @@ module sva_property_if_consequent;
                for (int k = e; k <= r.at && k < N + 6; k++)
                  if (vc[k]) begin r = mk(0, k); break; end
              end else begin
-               // a pulse between ticks k-1 and k, e < k, is seen at tick k
+               // a pulse between ticks k-1 and k, e < k, decides when it
+               // falls, just before tick k (user ruling 2026-11-06)
                for (int k = e + 1; k <= r.at && k < N + 6; k++)
                  if (pulse[k]) begin r = mk(0, k); break; end
              end
@@ -110,7 +111,8 @@ module sva_property_if_consequent;
     for (int t = 0; t <= last; t++) begin
       v_t r = model(id, t);
       if (r.at > last) continue;
-      if (r.ok) ep.push_back(10*r.at + 5); else ef.push_back(10*r.at + 5);
+      // i5 fails only on a stop pulse, which falls at 10k+3
+      if (r.ok) ep.push_back(10*r.at + 5); else ef.push_back(10*r.at + (id == 5 ? 3 : 5));
     end
     pass_q[id].sort(); fail_q[id].sort(); ep.sort(); ef.sort();
     if (pass_q[id] != ep || fail_q[id] != ef) begin

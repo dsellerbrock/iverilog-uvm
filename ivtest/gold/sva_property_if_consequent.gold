@@ -1,2 +1,2 @@
 PASSED
-./ivltests/sva_property_if_consequent.sv:140: $finish called at 736 (1s)
+./ivltests/sva_property_if_consequent.sv:142: $finish called at 736 (1s)
