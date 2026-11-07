@@ -32142,7 +32142,8 @@ static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
 /* IEEE 1800-2023 16.12.14: accept_on/reject_on (asynchronous) and
    sync_accept_on/sync_reject_on over a full property operand. While an
    attempt's operand is still undecided, a sampled true abort condition
-   decides it: accept -> vacuous pass (16.14.8 ab/ad), reject -> fail. The
+   decides it: accept -> vacuous pass, reject -> vacuous fail (16.14.8
+   ab-ae). The
    check runs after the operand advanced, so an abort in the time step
    where the operand ends takes precedence, and an outer abort is checked
    after an inner one, so the outer wins a tie (lexical order).
@@ -32151,9 +32152,8 @@ static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
    the attempt. The asynchronous forms also see every time step between
    ticks: the condition's sampled value is constant between its changes,
    so testing $sampled(cond) whenever cond changes, plus at every tick,
-   covers every time step. A hit between ticks is latched and decides the
-   attempts that were live across it at the next tick (OPEN ruling 2 in
-   the design note: the reporting time step). */
+   covers every time step. A change of the condition is its own clock
+   domain, so a hit between ticks decides at that change (see below). */
 static bool sva_comp_emit_abort_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 				 long K, unsigned inst, unsigned&serial,
 				 sva_nfa_sub_t&m)
