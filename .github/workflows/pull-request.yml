@@ -24,6 +24,9 @@ jobs:
     - name: Windows export list
       run: python3 ci/check-def-exports.py
 
+    - name: Windows-missing POSIX calls
+      run: python3 ci/check-win-posix.py
+
     - name: Install
       run: |
         sudo apt update -qq
