@@ -5147,6 +5147,35 @@ class randomize_graph_session_t {
             return true;
       }
 
+      /* #2152, IEEE 1800-2023 18.4: "Up to the new size, existing class
+         objects are retained and their content randomized." An object a
+         size constraint dropped from a rand handle array (and that nothing
+         else still reaches) is not part of the call: it keeps the content,
+         random state and randc history it had, and 18.6.2 gives
+         post_randomize only to the members "after the new random values
+         are computed and assigned". Its pre_randomize already ran, at
+         invocation, while it was still a member. */
+      void release_unreachable(const std::set<vvp_cobject*>&reachable)
+      {
+            for (auto it = entries_.begin(); it != entries_.end();) {
+                  if (reachable.count(it->cobj)
+                      || it->cobj->get_defn()->is_struct_type()) {
+                        ++it;
+                        continue;
+                  }
+                  auto pending = std::find(pending_randc_.begin(),
+                                           pending_randc_.end(), it->cobj);
+                  if (pending != pending_randc_.end()) {
+                        (*pending)->randc_transaction_rollback();
+                        pending_randc_.erase(pending);
+                  }
+                  randomize_restore_(it->cobj, it->values);
+                  (void)it->cobj->rng_set_state(it->rng_state);
+                  it->cobj->randc_history_restore(it->instance_history);
+                  it = entries_.erase(it);
+            }
+      }
+
       void callback_objects(std::vector<vvp_object_t>&objects) const
       {
             for (const randomize_graph_entry_s&entry : entries_)
@@ -5723,6 +5752,23 @@ static bool randomize_visit_property_objects_(vvp_cobject*cobj,
       return true;
 }
 
+/* The active random objects reachable from OBJ as the call leaves them. */
+static void randomize_reachable_(const vvp_object_t&obj,
+      const std::vector<bool>*sel, std::set<vvp_cobject*>&seen)
+{
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj || !seen.insert(cobj).second) return;
+      for (size_t pid = 0; pid < cobj->get_defn()->property_count(); ++pid)
+            randomize_visit_property_objects_(cobj, sel, pid,
+                  [&](const vvp_object_t&value, size_t) {
+                        return randomize_visit_object_value_(value,
+                              [&](const vvp_object_t&leaf) {
+                                    randomize_reachable_(leaf, nullptr, seen);
+                                    return true;
+                              });
+                  });
+}
+
 /* IEEE 1800-2017 18.5.9 / 1800-2023 18.5.8: select and journal the
  * complete active graph before filling any values. Static aggregate journals
  * can install value copies, so enumerate their children after enter(). Soft
@@ -6212,8 +6258,12 @@ static bool randomize_solve_(randomize_graph_session_t&session,
 {
       if (!cobj) return true;
       if (!session.joint()) return randomize_cobject_(session, cobj, sel, options);
-      return randomize_prepare_graph_(session, cobj, sel, options)
-            && vvp_z3_randomize_graph(session.solve_objects);
+      if (!randomize_prepare_graph_(session, cobj, sel, options)
+          || !vvp_z3_randomize_graph(session.solve_objects)) return false;
+      std::set<vvp_cobject*> reachable;
+      randomize_reachable_(vvp_object_t(cobj), sel, reachable);
+      session.release_unreachable(reachable);
+      return true;
 }
 
 /* Retain the actual successful participants before the transaction journal
@@ -6249,7 +6299,13 @@ static bool randomize_staged_finish_(vthread_t thr, bool success,
 {
       randomize_call_context_s&call = thr->randomize_calls.back();
       auto state = call.staged;
-      if (success) success = state->session.commit();
+      if (success) {
+            std::set<vvp_cobject*> reachable;
+            randomize_reachable_(call.root, call.explicit_selection
+                                 ? &call.selection : nullptr, reachable);
+            state->session.release_unreachable(reachable);
+            success = state->session.commit();
+      }
       if (!success) state->session.rollback(!keep_rng_advance);
       randomize_callbacks_solved_(thr, call.root.peek<vvp_cobject>(),
                                  state->session, success);
