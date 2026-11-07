@@ -75,6 +75,33 @@ struct interconnect_port_s {
       int index; // invalid if has_index is false
 };
 
+/* A port of an SDF timing check (IEEE 1497 port_tchk): the port, its
+   optional bit, edge and COND text (nil when absent). */
+struct sdf_tchk_port_s {
+      char*name;
+      bool has_index;
+      int index;
+      int vpi_edge;
+      char*condition;
+};
+
+/* The SDF timing checks of IEEE 1800-2023 Table 32-2. */
+enum sdf_tchk_kind_e {
+      SDF_TCHK_SETUP, SDF_TCHK_HOLD, SDF_TCHK_SETUPHOLD,
+      SDF_TCHK_RECOVERY, SDF_TCHK_REMOVAL, SDF_TCHK_RECREM,
+      SDF_TCHK_SKEW, SDF_TCHK_BIDIRECTSKEW, SDF_TCHK_WIDTH,
+      SDF_TCHK_PERIOD, SDF_TCHK_NOCHANGE
+};
+
+/* Annotate one TIMINGCHECK entry. second is nil for WIDTH and PERIOD and
+   v2 for the one-value checks. The ports' strings are released. */
+extern void sdf_timingcheck_delays(enum sdf_tchk_kind_e kind,
+                                   struct sdf_tchk_port_s*first,
+                                   struct sdf_tchk_port_s*second,
+                                   const struct sdf_delay_s*v1,
+                                   const struct sdf_delay_s*v2,
+                                   const int sdf_lineno);
+
 extern void sdf_select_instance(const char*celltype, const char*inst,
                                 const int sdf_lineno);
 extern void sdf_clear_instance_selection(void);

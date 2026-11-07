@@ -32,6 +32,29 @@ static void yyerror(const char*msg);
 /* This is the hierarchy separator to use. */
 char sdf_use_hchar = '.';
 
+/* A port, with its bit, as the compiler prints an identifier. The name is
+   released. */
+static char* sdf_port_text(struct interconnect_port_s*port)
+{
+      size_t len;
+      char*result;
+      if (!port->has_index) return port->name;
+      len = strlen(port->name) + 24;
+      result = (char*)malloc(len);
+      if (result) snprintf(result, len, "%s[%d]", port->name, port->index);
+      free(port->name);
+      return result;
+}
+
+static char* sdf_condition_unary(char op, char*operand)
+{
+      size_t len = strlen(operand) + 4;
+      char*result = (char*)malloc(len);
+      if (result) snprintf(result, len, "%c(%s)", op, operand);
+      free(operand);
+      return result;
+}
+
 static char* sdf_condition_binary(char*left, const char*op, char*right)
 {
       size_t len = strlen(left) + strlen(op) + strlen(right) + 5;
@@ -53,6 +76,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
       struct port_with_edge_s port_with_edge;
       struct sdf_delval_list_s delval_list;
       struct interconnect_port_s interconnect_port;
+      struct sdf_tchk_port_s tchk_port;
       struct { char* src; char* dst; } pathpulse;
 };
 
@@ -63,7 +87,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
 %token K_PORT
 %token K_RECREM K_RECOVERY K_REMOVAL K_SDFVERSION K_SETUP K_SETUPHOLD
 %token K_TEMPERATURE K_TIMESCALE K_TIMINGCHECK K_VENDOR K_VERSION
-%token K_TIMINGENV K_VOLTAGE K_WIDTH
+%token K_TIMINGENV K_VOLTAGE K_WIDTH K_SKEW K_BIDIRECTSKEW K_NOCHANGE
 %token K_01 K_10 K_0Z K_Z1 K_1Z K_Z0
 %token K_EQ K_NE K_CEQ K_CNE K_LOGICAL_ONE K_LOGICAL_ZERO
 %token K_LAND K_LOR
@@ -90,6 +114,9 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
 %type <delval_list> delval_list
 %type <string_val> conditional_port_expr
 %type <int_val> scalar_constant
+%type <tchk_port> port_tchk
+%type <int_val> cond_edge_start cond_edge_identifier equality_operator
+%type <string_val> timing_check_condition
 
 %left K_LOR
 %left K_LAND
@@ -308,8 +335,6 @@ timing_spec
       { vpi_printf("SDF ERROR: %s:%d: Syntax error in CELL DELAY SPEC\n",
 	           sdf_parse_path, @2.first_line); }
   | '(' K_TIMINGCHECK tchk_def_list ')'
-      { vpi_printf("SDF WARNING: %s:%d: TIMINGCHECK not supported.\n",
-	           sdf_parse_path, @2.first_line); }
   | '(' K_TIMINGCHECK error ')'
       { vpi_printf("SDF ERROR: %s:%d: Syntax error in TIMINGCHECK SPEC\n",
 	           sdf_parse_path, @2.first_line); }
@@ -432,58 +457,98 @@ tchk_def_list
   | tchk_def
   ;
 
-  /* Timing checks are ignored. */
+  /* IEEE 1800-2023 32.4.2, Table 32-2. */
 tchk_def
   : '(' K_SETUP port_tchk port_tchk rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_SETUP, &$3, &$4, &$5, 0, @2.first_line); }
   | '(' K_HOLD port_tchk port_tchk rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_HOLD, &$3, &$4, &$5, 0, @2.first_line); }
   | '(' K_SETUPHOLD port_tchk port_tchk rvalue rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_SETUPHOLD, &$3, &$4, &$5, &$6, @2.first_line); }
   | '(' K_RECOVERY port_tchk port_tchk rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_RECOVERY, &$3, &$4, &$5, 0, @2.first_line); }
   | '(' K_RECREM port_tchk port_tchk rvalue rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_RECREM, &$3, &$4, &$5, &$6, @2.first_line); }
   | '(' K_REMOVAL port_tchk port_tchk rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_REMOVAL, &$3, &$4, &$5, 0, @2.first_line); }
+  | '(' K_SKEW port_tchk port_tchk rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_SKEW, &$3, &$4, &$5, 0, @2.first_line); }
+  | '(' K_BIDIRECTSKEW port_tchk port_tchk rvalue rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_BIDIRECTSKEW, &$3, &$4, &$5, &$6, @2.first_line); }
   | '(' K_WIDTH port_tchk rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_WIDTH, &$3, 0, &$4, 0, @2.first_line); }
   | '(' K_PERIOD port_tchk rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_PERIOD, &$3, 0, &$4, 0, @2.first_line); }
+  | '(' K_NOCHANGE port_tchk port_tchk rvalue rvalue ')'
+      { sdf_timingcheck_delays(SDF_TCHK_NOCHANGE, &$3, &$4, &$5, &$6, @2.first_line); }
   ;
 
 port_tchk
-  : port_instance
-      { free($1); }
-  /* This must only be an edge. For now we just accept everything. */
-  | cond_edge_start port_instance ')'
-      { free($2); }
-  /* These must only be a cond. For now we just accept everything. */
+  : port_interconnect
+      { $$.name = $1.name;
+	$$.has_index = $1.has_index;
+	$$.index = $1.index;
+	$$.vpi_edge = vpiNoEdge;
+	$$.condition = 0;
+      }
+  | cond_edge_start port_interconnect ')'
+      { $$.name = $2.name;
+	$$.has_index = $2.has_index;
+	$$.index = $2.index;
+	$$.vpi_edge = $1 < 0 ? vpiNoEdge : $1;
+	$$.condition = 0;
+	if ($1 < 0)
+	      vpi_printf("SDF ERROR: %s:%d: COND needs a condition and a port\n",
+			 sdf_parse_path, @2.first_line);
+      }
   | cond_edge_start timing_check_condition port_spec ')'
-      { free($3.string_val); }
+      { $$.name = $3.string_val;
+	$$.has_index = false;
+	$$.index = 0;
+	$$.vpi_edge = $3.vpi_edge;
+	$$.condition = $2;
+      }
   | cond_edge_start QSTRING timing_check_condition port_spec ')'
       { free($2);
-	free($4.string_val);
+	$$.name = $4.string_val;
+	$$.has_index = false;
+	$$.index = 0;
+	$$.vpi_edge = $4.vpi_edge;
+	$$.condition = $3;
       }
   ;
 
 cond_edge_start
   : '(' { start_edge_id(1); } cond_edge_identifier { stop_edge_id(); }
+      { $$ = $3; }
   ;
 
+  /* An edge, or -1 for COND. */
 cond_edge_identifier
-  : K_POSEDGE
-  | K_NEGEDGE
-  | K_01
-  | K_10
-  | K_0Z
-  | K_Z1
-  | K_1Z
-  | K_Z0
-  | K_COND
+  : K_POSEDGE { $$ = vpiPosedge; }
+  | K_NEGEDGE { $$ = vpiNegedge; }
+  | K_01      { $$ = vpiEdge01; }
+  | K_10      { $$ = vpiEdge10; }
+  | K_0Z      { $$ = vpiEdge0x; }
+  | K_Z1      { $$ = vpiEdgex1; }
+  | K_1Z      { $$ = vpiEdge1x; }
+  | K_Z0      { $$ = vpiEdgex0; }
+  | K_COND    { $$ = -1; }
   ;
 
+  /* The text matches the compiler's condition text (_vpiTchkConditionText). */
 timing_check_condition
   : port_interconnect
-      { free($1.name); }
+      { $$ = sdf_port_text(&$1); }
   | '~' port_interconnect
-      { free($2.name); }
+      { $$ = sdf_condition_unary('~', sdf_port_text(&$2)); }
   | '!' port_interconnect
-      { free($2.name); }
+      { $$ = sdf_condition_unary('!', sdf_port_text(&$2)); }
   | port_interconnect equality_operator scalar_constant
-      { free($1.name); }
+      { static const char*ops[] = { "==", "!=", "===", "!==" };
+	$$ = sdf_condition_binary(sdf_port_text(&$1), ops[$2],
+				  strdup($3 ? "1'd1" : "1'd0"));
+      }
   ;
 
   /* This is not complete! */
@@ -509,10 +574,10 @@ conditional_port_expr
   ;
 
 equality_operator
-  : K_EQ
-  | K_NE
-  | K_CEQ
-  | K_CNE
+  : K_EQ  { $$ = 0; }
+  | K_NE  { $$ = 1; }
+  | K_CEQ { $$ = 2; }
+  | K_CNE { $$ = 3; }
   ;
 
 scalar_constant

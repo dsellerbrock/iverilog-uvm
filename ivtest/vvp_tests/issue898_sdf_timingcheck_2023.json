@@ -1,0 +1,25 @@
+{
+    "type": "normal",
+    "source": "issue898_sdf_timingcheck.v",
+    "iverilog-args": ["-g2023", "-gspecify", "-s", "top"],
+    "vpi-modules": ["issue898_sdf_timingcheck_2023"],
+    "vpi-sources": ["vpi/issue898_sdf_timingcheck.c"],
+    "output-contains": [
+        "Unable to match SETUP d clk in top.u1",
+        "LIMITS line8 type1 2\n",
+        "LIMITS line9 type2 3\n",
+        "LIMITS line10 type8 14 3\n",
+        "LIMITS line11 type8 4 5\n",
+        "LIMITS line12 type6 6\n",
+        "LIMITS line13 type11 7\n",
+        "LIMITS line14 type10 6 7\n",
+        "LIMITS line15 type5 8\n",
+        "LIMITS line16 type12 8\n",
+        "LIMITS line17 type9 9 10\n",
+        "LIMITS line18 type4 11 0\n",
+        "LIMITS line19 type3 12\n",
+        "LIMITS line20 type7 0 0\n",
+        "LIMITS line21 type1 13\n",
+        "(setup) check in top.u1 at time 10"
+    ]
+}
