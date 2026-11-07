@@ -204,6 +204,7 @@ typedef struct ivl_scope_s    *ivl_scope_t;
 typedef struct ivl_signal_s   *ivl_signal_t;
 typedef struct ivl_port_info_s*ivl_port_info_t;
 typedef struct ivl_switch_s   *ivl_switch_t;
+typedef struct ivl_tchk_s     *ivl_tchk_t;
 typedef struct ivl_memory_s   *ivl_memory_t; //XXXX __attribute__((deprecated));
 typedef struct ivl_statement_s*ivl_statement_t;
 typedef const _CLASS ivl_type_s*ivl_type_t;
@@ -2166,6 +2167,29 @@ extern ivl_signal_t ivl_scope_port(ivl_scope_t net, unsigned idx);
 extern ivl_nexus_t  ivl_scope_mod_port(ivl_scope_t net, unsigned idx);
 extern unsigned     ivl_scope_sigs(ivl_scope_t net);
 extern ivl_signal_t ivl_scope_sig(ivl_scope_t net, unsigned idx);
+/* Timing checks (IEEE 1800-2023 37.40) of a module scope, emitted only
+ * with -gspecify. ivl_tchk_type is the Annex K vpiTchkType code. Term 0 is
+ * the reference event and term 1 the data event; a one-signal check
+ * ($width, $period) has no data term signal. ivl_tchk_term_bit returns 1
+ * and the declared index when a term is a constant bit select. A term
+ * edge is an Annex K vpiEdge mask (0: no edge).
+ * Each limit is a hidden real variable the synthesized checker reads,
+ * with its elaborated value in scope time units. */
+extern unsigned     ivl_scope_tchks(ivl_scope_t net);
+extern ivl_tchk_t   ivl_scope_tchk(ivl_scope_t net, unsigned idx);
+extern int          ivl_tchk_type(ivl_tchk_t net);
+extern const char*  ivl_tchk_file(ivl_tchk_t net);
+extern unsigned     ivl_tchk_lineno(ivl_tchk_t net);
+extern ivl_signal_t ivl_tchk_term_sig(ivl_tchk_t net, unsigned term);
+extern int          ivl_tchk_term_bit(ivl_tchk_t net, unsigned term, long*bit);
+extern unsigned     ivl_tchk_term_edge(ivl_tchk_t net, unsigned term);
+extern ivl_signal_t ivl_tchk_term_condit(ivl_tchk_t net, unsigned term);
+extern const char*  ivl_tchk_term_condition_text(ivl_tchk_t net, unsigned term);
+extern unsigned     ivl_tchk_limits(ivl_tchk_t net);
+extern ivl_signal_t ivl_tchk_limit_sig(ivl_tchk_t net, unsigned idx);
+extern double       ivl_tchk_limit(ivl_tchk_t net, unsigned idx);
+extern ivl_signal_t ivl_tchk_notifier(ivl_tchk_t net);
+
 extern unsigned     ivl_scope_switches(ivl_scope_t net);
 extern ivl_switch_t ivl_scope_switch(ivl_scope_t net, unsigned idx);
 extern ivl_scope_type_t ivl_scope_type(ivl_scope_t net);
