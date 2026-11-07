@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2593_p_enum_nonmember.sv",
+  "iverilog-args": ["-g2017"],
+  "output-contains": ["PASSED"]
+}
