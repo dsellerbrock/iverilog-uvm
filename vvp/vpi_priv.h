@@ -1452,6 +1452,14 @@ extern vpiHandle vpip_make_cobject_property_vec_var(char*label,
                                                     bool signed_flag,
                                                     unsigned prop_cnt,
                                                     long*prop_idx);
+/* #2475: an element of a fixed-array class property; INDEX_LABEL names the
+   handle that yields the element index. */
+extern vpiHandle vpip_make_cobject_property_vec_elem(char*label,
+                                                     unsigned width,
+                                                     bool signed_flag,
+                                                     unsigned prop_cnt,
+                                                     long*prop_idx,
+                                                     char*index_label);
 
 /*
  * When a loaded VPI module announces a system task/function, one

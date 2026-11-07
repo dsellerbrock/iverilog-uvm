@@ -1712,10 +1712,13 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
     public:
       __vpiClassPropertyVecVar(unsigned width, bool signed_flag,
                                const std::vector<size_t>&prop_path)
-            : cobj_net_(nullptr), width_(width), signed_flag_(signed_flag),
-              prop_path_(prop_path) {}
+            : cobj_net_(nullptr), index_(nullptr), width_(width),
+              signed_flag_(signed_flag), prop_path_(prop_path) {}
 
       vvp_net_t*cobj_net_;
+	/* #2475: for an element of a fixed-array property, the handle that
+	   yields its storage index (else nil). */
+      vpiHandle index_;
 
       int get_type_code(void) const override { return vpiReg; }
 
@@ -1736,6 +1739,14 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
       {
             vvp_object_t obj = resolve_container_();
             vvp_cobject*cobj = obj.peek<vvp_cobject>();
+            if (index_) {
+                  vvp_vector4_t current(width_, BIT4_X);
+                  size_t elem;
+                  if (cobj && element_(cobj, elem))
+                        cobj->get_vec4(prop_path_.back(), current, elem);
+                  vpip_vec4_get_value(current, width_, signed_flag_, val);
+                  return;
+            }
             if (cobj && val->format == vpiDecStrVal) {
                   const class_type*defn = cobj->get_defn();
                   const size_t pid = prop_path_.back();
@@ -1777,9 +1788,15 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
 
       vpiHandle vpi_put_value(p_vpi_value val, int) override
       {
+            /* Convert first: reading the index reuses the VPI result
+               buffer that a vector or string VAL may point into. */
+            vvp_vector4_t value = vec4_from_vpi_value(val, width_);
             vvp_object_t obj = resolve_container_();
-            if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
-                  cobj->set_vec4(prop_path_.back(), vec4_from_vpi_value(val, width_));
+            size_t elem = 0;
+            if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+                  if (!index_ || element_(cobj, elem))
+                        cobj->set_vec4(prop_path_.back(), value, elem);
+            }
             else if (obj.peek<vvp_vinterface>())
                   report_vinterface_property_write_();
             else
@@ -1793,6 +1810,25 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
       unsigned width_;
       bool signed_flag_;
       std::vector<size_t> prop_path_;
+
+	/* The element index now; an X/Z or out-of-range index selects
+	   nothing (reads give X, writes are dropped), as for a variable
+	   array (IEEE 1800-2023 7.4.6). */
+      bool element_(vvp_cobject*cobj, size_t&elem)
+      {
+            s_vpi_value iv;
+            iv.format = vpiBinStrVal;
+            ::vpi_get_value(index_, &iv);
+            if (!iv.value.str || strspn(iv.value.str, "01") != strlen(iv.value.str))
+                  return false;
+            iv.format = vpiIntVal;
+            ::vpi_get_value(index_, &iv);
+            uint64_t size = cobj->get_defn()->property_array_size(prop_path_.back());
+            if (iv.value.integer < 0 || (uint64_t)iv.value.integer >= size)
+                  return false;
+            elem = (size_t)iv.value.integer;
+            return true;
+      }
 
       /* Same walk as __vpiClassPropertyStringVar::resolve_container_():
          every hop but the last is an intermediate object-typed property,
@@ -1826,6 +1862,18 @@ vpiHandle vpip_make_cobject_property_vec_var(char*label, unsigned width,
       __vpiClassPropertyVecVar*obj =
             new __vpiClassPropertyVecVar(width, signed_flag, path);
       functor_ref_lookup(&obj->cobj_net_, label);
+      return obj;
+}
+
+vpiHandle vpip_make_cobject_property_vec_elem(char*label, unsigned width,
+                                              bool signed_flag,
+                                              unsigned prop_cnt, long*prop_idx,
+                                              char*index_label)
+{
+      __vpiClassPropertyVecVar*obj = static_cast<__vpiClassPropertyVecVar*>(
+            vpip_make_cobject_property_vec_var(label, width, signed_flag,
+                                               prop_cnt, prop_idx));
+      compile_vpi_lookup(&obj->index_, index_label);
       return obj;
 }
 
