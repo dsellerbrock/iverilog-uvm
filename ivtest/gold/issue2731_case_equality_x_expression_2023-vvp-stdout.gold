@@ -1,0 +1,3 @@
+expr=xxxxxxxx saved=xxxxxxxx expr_case_eq=1 saved_case_eq=1
+PASS
+ivltests/issue2731_case_equality_x_expression.v:12: $finish called at 0 (1s)
