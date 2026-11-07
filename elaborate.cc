@@ -4975,6 +4975,71 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 
 }
 
+/* IEEE 1800-2017/2023 6.24.3: a bit-stream cast of a packed value to a
+ * fixed-size unpacked array fills the elements in left-to-right order from
+ * the most significant bits. For a continuous assignment (10.3.2), lower it
+ * to an array pattern of part-selects, so each word gets its own structural
+ * driver. Return nullptr for a shape this does not handle; REPORTED says
+ * whether an error was already printed. */
+static NetExpr*unpacked_bitstream_cast_pattern_(Design*des, NetScope*scope,
+						const NetNet*lval,
+						const PECastType*cast,
+						bool&reported)
+{
+      reported = false;
+	// ponytail: one unpacked dimension of packed elements; a nested array
+	// or an unpacked element type still takes the generic error.
+      const netuarray_t*array = dynamic_cast<const netuarray_t*>(
+	    cast->resolve_target_type(des, scope));
+      if (!array || array->static_dimensions().size() != 1
+	  || lval->unpacked_dims().size() != 1
+	  || !netrange_equivalent(array->static_dimensions(),
+				  lval->unpacked_dims()))
+	    return nullptr;
+      ivl_type_t element = array->element_type();
+      if (!element || !element->packed()
+	  || (unsigned long)element->packed_width() != lval->vector_width())
+	    return nullptr;
+
+      NetExpr*src = elab_and_eval(des, scope, cast->cast_base(), -1);
+      if (!src)
+	    return nullptr;
+      unsigned count = array->static_dimensions().front().width();
+      unsigned width = lval->vector_width();
+      if ((src->expr_type() != IVL_VT_LOGIC && src->expr_type() != IVL_VT_BOOL)
+	  || src->expr_width() != count * width) {
+	    cerr << cast->get_fileline() << ": error: Bit-stream cast source is "
+		 << src->expr_width() << " bits; the target array is "
+		 << count * width << " bits." << endl;
+	    des->errors += 1;
+	    reported = true;
+	    delete src;
+	    return nullptr;
+      }
+
+	// Pattern items drive the words in address order. The left bound's
+	// element takes the most significant bits, so with an ascending range
+	// address 0 is the leftmost element, and with a descending one it is
+	// the rightmost.
+      const netrange_t&range = array->static_dimensions().front();
+      bool ascending = range.get_msb() < range.get_lsb();
+      std::vector<NetExpr*> items(count);
+      for (unsigned idx = 0; idx < count; idx += 1) {
+	    unsigned slot = ascending ? count-1-idx : idx;
+	    NetExpr*base = new NetEConst(verinum((uint64_t)slot*width,
+						 integer_width));
+	    NetExpr*item = new NetESelect(idx + 1 == count ? src
+					  : src->dup_expr(), base, width);
+	    item->set_line(*cast);
+	    if (element->base_type() == IVL_VT_BOOL)
+		  item = cast_to_int2(item, width);
+	    items[idx] = item;
+      }
+      NetEArrayPattern*pattern = new NetEArrayPattern(lval->array_type(), items);
+      pattern->set_line(*cast);
+      return pattern;
+}
+
 NetNet *elaborate_unpacked_array(Design *des, NetScope *scope, const LineInfo &loc,
 			         const NetNet *lval, PExpr *expr)
 {
@@ -5040,6 +5105,20 @@ NetNet *elaborate_unpacked_array(Design *des, NetScope *scope, const LineInfo &l
 		  auto net_expr = elaborate_rval_expr(des, scope, lval->array_type(), expr);
 		  if (! net_expr) return nullptr;
 		  expr_net = net_expr->synthesize(des, scope, net_expr);
+	    } else if (const PECastType*cast = dynamic_cast<PECastType*>(expr)) {
+		  bool reported;
+		  NetExpr*pattern = unpacked_bitstream_cast_pattern_(
+			des, scope, lval, cast, reported);
+		  if (!pattern) {
+			if (!reported) {
+			      cerr << loc.get_fileline() << ": sorry: This cast "
+				   << "to an unpacked array is not supported in "
+				   << "a continuous assignment." << endl;
+			      des->errors++;
+			}
+			return nullptr;
+		  }
+		  expr_net = pattern->synthesize(des, scope, pattern);
 	    } else {
 		  cout << loc.get_fileline() << ": error: Can not assign"
 		       << " non-array expression `" << *expr << "` to array."
