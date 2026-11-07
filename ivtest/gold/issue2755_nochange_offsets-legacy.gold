@@ -1,0 +1,5 @@
+./ivltests/issue2755_nochange_offsets.v:16: Timing violation: $nochange check in issue2755_nochange_offsets.start_expanded at time 10000
+./ivltests/issue2755_nochange_offsets.v:4: Timing violation: $nochange check in issue2755_nochange_offsets.expanded at time 20500
+./ivltests/issue2755_nochange_offsets.v:10: Timing violation: $nochange check in issue2755_nochange_offsets.shrunk at time 39500
+expanded=1 start=1 shrunk=1
+./ivltests/issue2755_nochange_offsets.v:54: $finish called at 41000 (1ps)

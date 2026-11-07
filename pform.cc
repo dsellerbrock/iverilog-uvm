@@ -16142,15 +16142,6 @@ void pform_timing_check_fullskew(const struct vlltype&loc,
       tc_fullskew_timer_synth_(loc, ref_ev, data_ev, lim1, lim2, notifier);
 }
 
-static bool tc_expr_is_zero_(PExpr*e)
-{
-      if (PENumber*n = dynamic_cast<PENumber*>(e))
-	    return n->value().is_defined() && n->value().as_ulong() == 0;
-      if (PEFNumber*f = dynamic_cast<PEFNumber*>(e))
-	    return f->value().as_double() == 0.0;
-      return false;
-}
-
 void pform_timing_check_nochange(const struct vlltype&loc,
 				 const PTimingCheck::event_t&ref_ev,
 				 const PTimingCheck::event_t&data_ev,
@@ -16169,34 +16160,58 @@ void pform_timing_check_nochange(const struct vlltype&loc,
 	    error_count += 1;
 	    return;
       }
-      if (!tc_expr_is_zero_(start_off) || !tc_expr_is_zero_(end_off)) {
-	    cerr << loc.get_fileline() << ": sorry: $nochange with "
-		 << "non-zero start/end edge offsets is not supported; "
-		 << "the check is dropped." << endl;
-	    error_count += 1;
-	    return;
-      }
 
-	// The offsets are recorded for VPI and SDF; the checker below
-	// models the zero offsets only.
+	// Record the offsets for VPI and SDF first: the checker then reads
+	// the recorded variables, so an annotated offset takes effect.
       tc_take_limit_refs_(tc_record_(loc, vpiNoChange, ref_ev, &data_ev,
 				     {start_off, end_off}, notifier),
 			  {&start_off, &end_off});
 
-	// With zero offsets the forbidden window is exactly the level
-	// of the reference signal that FOLLOWS the given edge (posedge
-	// ref: while ref is high). Track it with a window flag set at
-	// the reference edge and cleared at the opposite edge, and
-	// report a violation when the data event fires with the window
-	// open. (Data changing in the same simulation step as the
-	// window edge is the 31.4.1 simultaneity race, a recorded
-	// corner shared with the other checks.)
-      unsigned inst = tc_gensym_counter++;
-      perm_string win_var = tc_make_real_(loc, inst, "window");
+      PExpr*start_expr = sva_clone_expr_(start_off);
+      PExpr*end_expr = sva_clone_expr_(end_off);
+      PExpr*end_test = sva_clone_expr_(end_off);
+      if (!start_expr || !end_expr || !end_test) {
+	    cerr << loc.get_fileline() << ": sorry: $nochange offset expression "
+		 << "shape is not supported; the check is dropped." << endl;
+	    error_count += 1;
+	    delete start_expr;
+	    delete end_expr;
+	    delete end_test;
+	    return;
+      }
 
-      PAssign*w1 = new PAssign(sva_id_(loc, win_var), tc_real_(loc, 1.0));
-      FILE_NAME(w1, loc);
-      tc_always_at_(loc, ref_ev, w1);
+      // IEEE 1800-2017/2023 31.4.6 defines the open interval
+      // (leading reference edge - start offset, trailing reference edge +
+      // end offset). Retain the most recent data-event time so the edge
+      // processes can account for offsets that move an endpoint past an
+      // event that has already occurred.
+      unsigned inst = tc_gensym_counter++;
+      perm_string begin_var = tc_make_real_(loc, inst, "begin");
+      perm_string end_var = tc_make_real_(loc, inst, "end");
+      perm_string data_var = tc_make_real_(loc, inst, "data");
+      perm_string have_begin_var = tc_make_real_(loc, inst, "have_begin", 0.0);
+      perm_string have_end_var = tc_make_real_(loc, inst, "have_end", 0.0);
+      perm_string have_data_var = tc_make_real_(loc, inst, "have_data", 0.0);
+
+      PExpr*begin_value = new PEBinary('-', tc_realtime_(loc), start_expr);
+      PExpr*prior_start = new PEBLogic('a',
+	    new PEBComp('>', sva_id_(loc, have_data_var), tc_real_(loc, 0.0)),
+	    new PEBLogic('a',
+	      new PEBComp('>', new PEBinary('-', sva_id_(loc, data_var),
+						     sva_clone_expr_(begin_value)),
+			  tc_real_(loc, 0.0)),
+	      new PEBComp('<', sva_id_(loc, data_var), tc_realtime_(loc))));
+      PCondit*check_prior_start = new PCondit(prior_start,
+	    tc_violation_(loc, "$nochange", notifier), nullptr);
+      FILE_NAME(check_prior_start, loc);
+      std::vector<Statement*> lead_stmts;
+      lead_stmts.push_back(check_prior_start);
+      lead_stmts.push_back(new PAssign(sva_id_(loc, begin_var), begin_value));
+      lead_stmts.push_back(new PAssign(sva_id_(loc, have_begin_var), tc_real_(loc, 1.0)));
+      lead_stmts.push_back(new PAssign(sva_id_(loc, have_end_var), tc_real_(loc, 0.0)));
+      Statement*lead_body = sva_block_(loc, lead_stmts);
+      FILE_NAME(lead_body, loc);
+      tc_always_at_(loc, ref_ev, lead_body);
 
       PTimingCheck::event_t opp;
       opp.name = ref_ev.name;
@@ -16213,17 +16228,54 @@ void pform_timing_check_nochange(const struct vlltype&loc,
 	    }
 	    opp.condition.reset(ccl);
       }
-      PAssign*w0 = new PAssign(sva_id_(loc, win_var), tc_real_(loc, 0.0));
-      FILE_NAME(w0, loc);
-      tc_always_at_(loc, opp, w0);
 
-      PExpr*cond = new PEBComp('>', sva_id_(loc, win_var),
-			       tc_real_(loc, 0.0));
-      PCondit*chk = new PCondit(cond,
-				tc_violation_(loc, "$nochange", notifier),
-				nullptr);
+      PExpr*end_value_for_check = new PEBinary('+', tc_realtime_(loc),
+						       sva_clone_expr_(end_expr));
+      PExpr*prior_end = new PEBLogic('a',
+	    new PEBLogic('a',
+	      new PEBComp('>', sva_id_(loc, have_begin_var), tc_real_(loc, 0.0)),
+	      new PEBComp('>', sva_id_(loc, have_data_var), tc_real_(loc, 0.0))),
+	    new PEBLogic('a',
+	      new PEBComp('>', new PEBinary('-', sva_id_(loc, data_var),
+						     sva_id_(loc, begin_var)),
+			  tc_real_(loc, 0.0)),
+	      new PEBComp('<', new PEBinary('-', sva_id_(loc, data_var),
+						     end_value_for_check),
+			  tc_real_(loc, 0.0))));
+      PCondit*check_prior_end = new PCondit(prior_end,
+	    tc_violation_(loc, "$nochange", notifier), nullptr);
+      FILE_NAME(check_prior_end, loc);
+      std::vector<Statement*> trail_stmts;
+      trail_stmts.push_back(check_prior_end);
+      trail_stmts.push_back(new PAssign(sva_id_(loc, end_var),
+	    new PEBinary('+', tc_realtime_(loc), end_expr)));
+      trail_stmts.push_back(new PAssign(sva_id_(loc, have_end_var), tc_real_(loc, 1.0)));
+      Statement*trail_body = sva_block_(loc, trail_stmts);
+      FILE_NAME(trail_body, loc);
+      tc_always_at_(loc, opp, trail_body);
+
+      PExpr*end_known = new PEBComp('>', sva_id_(loc, have_end_var), tc_real_(loc, 0.0));
+      PExpr*after_begin = new PEBComp('>',
+	    new PEBinary('-', tc_realtime_(loc), sva_id_(loc, begin_var)),
+	    tc_real_(loc, 0.0));
+      PExpr*before_end = new PEBComp('<', tc_realtime_(loc), sva_id_(loc, end_var));
+      PExpr*nonnegative_end = new PEBComp('G', end_test, tc_real_(loc, 0.0));
+      PExpr*end_ok = new PEBLogic('o',
+	    new PEBLogic('a', end_known, before_end),
+	    new PEBLogic('a', new PEBComp('e', sva_id_(loc, have_end_var),
+						 tc_real_(loc, 0.0)), nonnegative_end));
+      PExpr*in_window = new PEBLogic('a',
+	    new PEBLogic('a',
+	      new PEBComp('>', sva_id_(loc, have_begin_var), tc_real_(loc, 0.0)),
+	      after_begin), end_ok);
+      PCondit*chk = new PCondit(in_window,
+	    tc_violation_(loc, "$nochange", notifier), nullptr);
       FILE_NAME(chk, loc);
-      tc_always_at_(loc, data_ev, chk);
+      std::vector<Statement*> data_stmts;
+      data_stmts.push_back(chk);
+      data_stmts.push_back(new PAssign(sva_id_(loc, data_var), tc_realtime_(loc)));
+      data_stmts.push_back(new PAssign(sva_id_(loc, have_data_var), tc_real_(loc, 1.0)));
+      tc_always_at_(loc, data_ev, sva_block_(loc, data_stmts));
 }
 
 void pform_timing_check_sorry(const struct vlltype&loc,
