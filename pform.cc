@@ -24871,7 +24871,8 @@ static bool sva_check_first_match_(const struct vlltype&loc,
    end. The endpoint is the OR of those path conjunctions. Returns null when
    the body has locals, is unbounded, or has more than 256 paths. */
 static PExpr* sva_endpoint_indicator_paths_(const struct vlltype&loc,
-					    std::vector<sva_seq_step_t>&body)
+						    std::vector<sva_seq_step_t>&body,
+						    bool empty_is_false)
 {
       for (const sva_seq_step_t&st : body)
 	    if (sva_step_has_assignment_(st) || sva_step_has_call_(st))
@@ -24898,8 +24899,12 @@ static PExpr* sva_endpoint_indicator_paths_(const struct vlltype&loc,
 	    }
       };
       walk(nfa.start);
-      if (overflow || paths.empty())
+      if (overflow)
 	    return nullptr;
+      if (paths.empty())
+	    /* Empty-only bounded sequences have no nonempty endpoint shape.
+	       IEEE 1800-2017/2023 16.9.11 says they cannot activate triggered. */
+	    return empty_is_false ? sva_bit_(loc, 0) : nullptr;
 
       PExpr*any = nullptr;
       for (const std::vector<const sva_nfa_edge_t*>&one : paths) {
@@ -24940,7 +24945,8 @@ static PExpr* sva_endpoint_indicator_body_(const struct vlltype&loc,
 	    else { L += st.delay_lo; off[j] = L; }
       }
       if (!ok) {
-	    if (PExpr*bounded = sva_endpoint_indicator_paths_(loc, body))
+	    if (PExpr*bounded = sva_endpoint_indicator_paths_(
+			loc, body, method == perm_string::literal("triggered")))
 		  return bounded;
 	    cerr << loc << ": sorry: `" << seqname << "." << method
 		 << "' is supported only for a bounded sequence "

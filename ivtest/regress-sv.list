@@ -208,6 +208,8 @@ issue1853_uninstantiated_interface_port_2017 normal,-g2017 ivltests gold=issue18
 issue1853_uninstantiated_interface_port_2023 normal,-g2023 ivltests gold=issue1853_uninstantiated_interface_port.gold
 issue653_sequence_triggered_2017 normal,-g2017,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
 issue653_sequence_triggered_2023 normal,-g2023,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
+issue2695_sequence_triggered_empty_2017 normal,-g2017,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
+issue2695_sequence_triggered_empty_2023 normal,-g2023,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
 issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold
 issue1322_vpi_loop_types_2023 normal,-g2023,-s,top ivltests gold=issue1322_vpi_loop_types_2023.gold
 issue1320_vpi_assignment_op_2017 normal,-g2017 ivltests
