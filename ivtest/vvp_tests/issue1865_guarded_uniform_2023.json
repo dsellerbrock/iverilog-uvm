@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue1865_guarded_uniform.v",
+  "iverilog-args": ["-g2023", "-s", "issue1865_guarded_uniform"],
+  "output-contains": ["PASSED"],
+  "timeout": 60
+}
