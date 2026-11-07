@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2670_cond_tand.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue2670_cond_tand"
+}

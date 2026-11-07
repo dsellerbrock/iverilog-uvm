@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2695_sequence_triggered_empty.v",
+  "iverilog-args": ["-g2017", "-s", "issue2695_sequence_triggered_empty"],
+  "gold": "issue2695_sequence_triggered_empty"
+}

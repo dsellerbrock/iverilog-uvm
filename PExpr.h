@@ -338,11 +338,9 @@ class PExprTypeOperatorContextGuard {
       bool old_;
 };
 
-/* Boolean match predicate. Statement contexts install pattern variables in
- * their implicit true-arm/item scopes; use of a binding from the true operand
- * of a conditional expression remains outside this first slice. This node is
- * responsible only for evaluating the typed pattern and remains reusable by
- * all three 12.6 forms. */
+/* Boolean match predicate, with an optional &&& tail in a conditional
+ * expression. Pattern bindings remain owned by the conditional expression's
+ * implicit true-arm scope. */
 class PEMatches : public PExpr {
     public:
       PEMatches(PExpr*subject, PMatchPattern*pattern,
@@ -352,6 +350,8 @@ class PEMatches : public PExpr {
       PExpr* subject() const { return subject_; }
       PMatchPattern* pattern() const { return pattern_; }
       NetCase::TYPE case_type() const { return case_type_; }
+      void set_conditional_tail(PExpr*tail) { conditional_tail_ = tail; }
+      PExpr* conditional_tail() const { return conditional_tail_; }
 
       void dump(std::ostream&out) const override;
       void declare_implicit_nets(LexicalScope*scope,
@@ -368,6 +368,7 @@ class PEMatches : public PExpr {
       PExpr*subject_;
       PMatchPattern*pattern_;
       NetCase::TYPE case_type_;
+      PExpr*conditional_tail_ = nullptr;
 };
 
 std::ostream& operator << (std::ostream&, const PExpr&);

@@ -2762,7 +2762,7 @@ static void put_real_to_lval(ivl_lval_t lval, struct real_lval_info*slice)
       }
 }
 
-static void store_real_to_lval(ivl_lval_t lval)
+void draw_store_real_lval(ivl_lval_t lval)
 {
       ivl_signal_t var;
 
@@ -2864,7 +2864,7 @@ static int show_stmt_assign_sig_real(ivl_statement_t net)
 	    put_real_to_lval(lval, &slice);
       } else {
 	    draw_eval_real(rval);
-	    store_real_to_lval(lval);
+	    draw_store_real_lval(lval);
       }
 
       return 0;
