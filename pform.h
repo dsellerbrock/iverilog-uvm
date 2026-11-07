@@ -398,6 +398,11 @@ extern sva_property_t* pform_sva_apply_property_context(
 				       PEventStatement*clk,
 				       PExpr*disable_iff);
 extern void pform_sva_destroy_mc_segments(std::vector<sva_mc_seg_t>*segs);
+extern sva_property_t* pform_sva_clocked_paren_impl(const struct vlltype&loc,
+						    PEventStatement*clk,
+						    int op_type,
+						    std::vector<sva_seq_step_t>*ante,
+						    sva_property_t*conseq);
 extern sva_property_t* pform_sva_prop_compose(const struct vlltype&loc,
 					      int op_type, sva_property_t*a,
 					      sva_property_t*b);
