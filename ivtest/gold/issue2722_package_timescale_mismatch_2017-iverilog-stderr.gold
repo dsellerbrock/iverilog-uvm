@@ -1,0 +1,2 @@
+error: Some design elements have a time unit and precision specified and others do not (IEEE 1800 3.14.2.3): issue2722_package_timescale_mismatch (ivltests/issue2722_package_timescale_mismatch.v:5; definition at ivltests/issue2722_package_timescale_mismatch.v:5) is specified, but pk (ivltests/issue2722_package_timescale_mismatch.v:1; definition at ivltests/issue2722_package_timescale_mismatch.v:1) is not.
+1 error(s) during elaboration.

@@ -53854,6 +53854,24 @@ static void check_sv_timescales(Design*des)
       for (NetScope*root : des->find_root_scopes())
 	    check_scope(root);
 
+      // Packages are design elements too, but they are not descendants of
+      // module roots. Include their time scopes in the same consistency check.
+      for (vector<PPackage*>::const_iterator pkg = pform_packages.begin()
+		   ; pkg != pform_packages.end() ; ++pkg) {
+	    NetScope*scope = des->find_package((*pkg)->pscope_name());
+	    if (!scope)
+		  continue;
+	    if (scope->time_from_timescale()) {
+		  some_explicit = true;
+		  if (!explicit_scope)
+			  explicit_scope = scope;
+	    } else {
+		  some_implicit = true;
+		  if (!implicit_scope)
+			  implicit_scope = scope;
+	    }
+      }
+
       if (some_explicit && some_implicit) {
 	    cerr << "error: Some design elements have a time unit and "
 		 << "precision specified and others do not "
