@@ -214,6 +214,7 @@ ivl_nexus_ptr_log
 ivl_nexus_ptr_sig
 ivl_nexus_ptr_switch
 
+ivl_parameter_assign_expr
 ivl_parameter_basename
 ivl_parameter_expr
 ivl_parameter_file

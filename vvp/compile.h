@@ -379,6 +379,10 @@ extern void compile_param_logic(char*label, const char*name, char*value,
 extern void compile_param_real(char*label, const char*name, char*value,
                                bool local_flag,
                                long file_idx, long lineno);
+extern void compile_param_assign_logic(char*label, char*value,
+				       bool signed_flag);
+extern void compile_param_assign_string(char*label, char*value);
+extern void compile_param_assign_real(char*label, char*value);
 
 /*
  * The resolv_list_s is the base class for a symbol resolve
