@@ -1,0 +1,3 @@
+Y 1 0
+PASSED
+ivltests/issue2699_pathpulse_order.v:20: $finish called at 32 (1ns)
