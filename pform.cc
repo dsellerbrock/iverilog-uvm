@@ -3819,6 +3819,8 @@ void pform_make_events(const struct vlltype&loc,
 {
       for (auto cur = names->begin() ;  cur != names->end() ; ++ cur ) {
 	    pform_make_event(loc, (*cur)->ident, (*cur)->array_dims, lifetime);
+	    if (PExpr*initializer = (*cur)->initializer.release())
+		  pform_make_var_init(loc, (*cur)->ident, initializer);
 	    delete *cur;
       }
 

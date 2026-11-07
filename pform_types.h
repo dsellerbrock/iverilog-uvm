@@ -95,6 +95,7 @@ typedef std::pair<PExpr*,PExpr*> pform_range_t;
 struct pform_event_ident_t {
       pform_ident_t ident;
       std::list<pform_range_t>*array_dims;
+      std::unique_ptr<PExpr> initializer;
 };
 
 /* The lgate is gate instantiation information. */
