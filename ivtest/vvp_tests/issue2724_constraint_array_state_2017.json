@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2724_constraint_array_state_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue2724_constraint_array_state"],
+  "gold": "issue2724_constraint_array_state"
+}
