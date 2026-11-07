@@ -7692,8 +7692,7 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
         // Propagate the comparison type (signed/unsigned) down to
         // the operands. A signed unary plus must keep its signed operand type
         // so the 11.8.4 X/Z result is evaluated before equality conversion.
-      const bool equality_op = op_ == 'e' || op_ == 'E'
-	  || op_ == 'n' || op_ == 'N';
+      const bool equality_op = op_ == 'E' || op_ == 'N';
       const PEUnary* right_unary = dynamic_cast<const PEUnary*>(right_);
       const bool right_signed_unary_plus = equality_op && right_unary
 	  && right_unary->get_op() == '+' && right_->has_sign()
