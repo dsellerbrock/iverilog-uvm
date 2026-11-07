@@ -1,6 +1,8 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue2717_cond_string_cast normal,-g2017,-s,issue2717_cond_string_cast ivltests gold=issue2717_cond_string_cast-vvp-stdout.gold
+
 issue2602_nested_object_dynamic_array2_2017 normal,-g2017,-s,issue2602_nested_object_dynamic_array2 ivltests gold=issue2602_nested_object_dynamic_array2.gold
 issue2602_nested_object_dynamic_array2_2023 normal,-g2023,-s,issue2602_nested_object_dynamic_array2 ivltests gold=issue2602_nested_object_dynamic_array2.gold
 

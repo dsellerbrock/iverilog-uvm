@@ -23702,8 +23702,17 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    if (base_->expr_type() == IVL_VT_STRING)
 		  return sub; // no conversion
 	    if (base_->expr_type() == IVL_VT_LOGIC ||
-		base_->expr_type() == IVL_VT_BOOL)
-		  return sub; // handled by the target as special cases
+		base_->expr_type() == IVL_VT_BOOL) {
+		  /* An integral-to-string cast normally gets its conversion from the
+		     destination assignment. Keep the cast explicitly string-typed
+		     when it is itself an expression (for example, a conditional arm),
+		     where there may be no string assignment target to perform it. */
+		  NetESFunc*cast = new NetESFunc(
+			"$ivl_stream$cast$string$1", target_type_, 1);
+		  cast->parm(0, sub);
+		  cast->set_line(*this);
+		  return cast;
+	    }
       } else if (target_type_ && target_type_->packed()) {
 	    switch (target_type_->base_type()) {
 		case IVL_VT_BOOL:
