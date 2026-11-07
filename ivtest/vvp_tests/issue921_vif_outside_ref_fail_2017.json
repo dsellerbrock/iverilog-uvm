@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue921_vif_outside_ref_fail.v",
+  "iverilog-args": ["-g2017", "-s", "issue921_top"],
+  "gold": "issue921_vif_outside_ref_fail_2017"
+}

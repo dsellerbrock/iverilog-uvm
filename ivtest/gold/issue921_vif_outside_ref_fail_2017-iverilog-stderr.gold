@@ -1,0 +1,4 @@
+ivltests/issue921_vif_outside_ref_fail.v:39: error: Interface `issue921_port_if' contains a hierarchical reference outside its body or a port referencing another interface and may not be used as a virtual-interface type (IEEE 1800-2017/2023 25.9).
+ivltests/issue921_vif_outside_ref_fail.v:37: error: Interface `issue921_read_if' contains a hierarchical reference outside its body or a port referencing another interface and may not be used as a virtual-interface type (IEEE 1800-2017/2023 25.9).
+ivltests/issue921_vif_outside_ref_fail.v:38: error: Interface `issue921_write_if' contains a hierarchical reference outside its body or a port referencing another interface and may not be used as a virtual-interface type (IEEE 1800-2017/2023 25.9).
+3 error(s) during elaboration.

@@ -32420,6 +32420,26 @@ NetExpr* PEIdent::elaborate_expr_net_bit_last_(Design*, NetScope*,
       return ss;
 }
 
+/* IEEE 1800-2017/2023 25.9 disallows a virtual interface whose definition
+ * references an object outside its body. Record a hierarchical reference
+ * from SCOPE that resolved into FOUND_IN outside the enclosing interface on
+ * the interface definition, for the final design check. */
+void note_virtual_interface_outside_reference(const NetScope*scope,
+					      const NetScope*found_in)
+{
+      const NetScope*interface_scope = scope;
+      while (interface_scope && interface_scope->type() != NetScope::MODULE)
+	    interface_scope = interface_scope->parent();
+      if (!interface_scope || !interface_scope->is_interface() || !found_in)
+	    return;
+      for (const NetScope*owner = found_in; owner; owner = owner->parent())
+	    if (owner == interface_scope)
+		  return;
+      if (const Module*definition = interface_scope->module_definition())
+	    const_cast<Module*>(definition)->
+		  has_unsupported_virtual_interface_reference = true;
+}
+
 NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 				     NetNet*net, NetScope*found_in,
                                      unsigned expr_wid,
@@ -32433,6 +32453,9 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 		 << ", net->net_type()=" << *net->net_type()
 		 << endl;
       }
+
+      if (path_.size() > 1)
+	    note_virtual_interface_outside_reference(scope, found_in);
 
       if (net->unpacked_dimensions() > 0)
 	    return elaborate_expr_net_word_(des, scope, net, found_in,

@@ -54622,6 +54622,7 @@ Design* elaborate(list<perm_string>roots)
       finalize_interface_continuous_drivers_(des);
       finalize_interface_specify_paths_(des);
       finalize_unsafe_interface_drivers_(des);
+      finalize_virtual_interface_hierarchical_references(des);
 
       /* Port-based generic type propagation is complete only after every
        * hierarchy edge and late specialized body has elaborated.  Diagnose
