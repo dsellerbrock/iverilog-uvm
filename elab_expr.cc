@@ -7749,11 +7749,34 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       }
 
         // Propagate the comparison type (signed/unsigned) down to
-        // the operands.
-      if (type_is_vectorable(left_->expr_type()) && !left_->has_sign())
+        // the operands. A signed unary plus must keep its signed operand type
+        // so the 11.8.4 X/Z result is evaluated before equality conversion.
+      const bool equality_op = op_ == 'E' || op_ == 'N';
+      const PEUnary* right_unary = dynamic_cast<const PEUnary*>(right_);
+      const bool right_signed_unary_plus = equality_op && right_unary
+	  && right_unary->get_op() == '+' && right_->has_sign()
+	  && right_->expr_type() == IVL_VT_LOGIC;
+      const PEUnary* left_unary = dynamic_cast<const PEUnary*>(left_);
+      const bool left_signed_unary_plus = equality_op && left_unary
+	  && left_unary->get_op() == '+' && left_->has_sign()
+	  && left_->expr_type() == IVL_VT_LOGIC;
+      if (type_is_vectorable(left_->expr_type()) && !left_->has_sign()
+	  && !right_signed_unary_plus)
 	    right_->cast_signed(false);
-      if (type_is_vectorable(right_->expr_type()) && !right_->has_sign())
-	    left_->cast_signed(false);
+      if (type_is_vectorable(right_->expr_type()) && !right_->has_sign()) {
+	    if (!left_signed_unary_plus)
+		  left_->cast_signed(false);
+      }
+
+        // Keep unary plus at its self-determined width, then apply the
+        // comparison's common width/sign conversion to its result. Otherwise
+        // the equality context changes the operand type before 11.8.4 handles
+        // its X/Z bits.
+      const unsigned left_context_width = left_signed_unary_plus
+	  ? left_->expr_width() : l_width_;
+      const unsigned right_context_width = right_signed_unary_plus
+	  ? right_->expr_width() : r_width_;
+      const bool common_signed = left_->has_sign() && right_->has_sign();
 
       NetExpr*lp = 0;
       NetExpr*rp = 0;
@@ -7898,8 +7921,8 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 		  lp = left_->elaborate_expr(des, scope, l_width_, flags);
 	    }
       } else {
-	    lp = left_->elaborate_expr(des, scope, l_width_, flags);
-	    rp = right_->elaborate_expr(des, scope, r_width_, flags);
+	    lp = left_->elaborate_expr(des, scope, left_context_width, flags);
+	    rp = right_->elaborate_expr(des, scope, right_context_width, flags);
       }
 
       if (lp && debug_elaborate) {
@@ -7916,6 +7939,11 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    delete rp;
 	    return 0;
       }
+
+      if (left_signed_unary_plus)
+	    lp = pad_to_width(lp, l_width_, common_signed, *this);
+      if (right_signed_unary_plus)
+	    rp = pad_to_width(rp, r_width_, common_signed, *this);
 
 	/* IEEE 1800-2017/2023 8.4 allows class-handle equality only when one
 	   operand's class type is assignment compatible with the other. The

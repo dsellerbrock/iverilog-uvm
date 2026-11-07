@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2731_case_equality_x_expression.v",
+  "iverilog-args": ["-g2017", "-s", "issue2731_case_equality_x_expression"],
+  "gold": "issue2731_case_equality_x_expression_2017"
+}
