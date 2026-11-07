@@ -44,6 +44,34 @@
 
 using namespace std;
 
+  /* Every package-qualified reference (pkg::name ...) is built as one of
+     these three node types, in many grammar rules, and every rule names
+     the node. Checking here covers them all: a name declared in an
+     anonymous program is accessible only from programs (IEEE 1800 24.6). */
+static void FILE_NAME(PEIdent*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      if (!tmp->path().name.empty())
+	    pform_check_programwide_ref(where, tmp->path().package,
+					tmp->path().name.front().name);
+}
+
+static void FILE_NAME(PECallFunction*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      if (!tmp->path().name.empty())
+	    pform_check_programwide_ref(where, tmp->path().package,
+					tmp->path().name.front().name);
+}
+
+static void FILE_NAME(PCallTask*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      if (!tmp->path().empty())
+	    pform_check_programwide_ref(where, tmp->package(),
+					tmp->path().front().name);
+}
+
 class PSpecPath;
 
 extern void lex_end_table();
@@ -9074,6 +9102,32 @@ package_item_list
   | package_item
   | package_item_list nettype_declaration
   | nettype_declaration
+  | package_item_list anonymous_program
+  | anonymous_program
+  ;
+
+  /* IEEE 1800-2017/2023 24.6, A.1.11: an anonymous program declares
+     programwide items in the enclosing package or compilation unit
+     without opening a scope. The compilation-unit form is in the module
+     rule, where `program' is already shifted as a module_start. */
+anonymous_program
+  : K_program ';'
+      { pform_set_anonymous_program(true); }
+    anonymous_program_item_list_opt K_endprogram
+      { pform_set_anonymous_program(false); }
+  ;
+
+anonymous_program_item_list_opt
+  : anonymous_program_item_list_opt anonymous_program_item
+  |
+  ;
+
+anonymous_program_item
+  : package_task_declaration
+  | package_function_declaration
+  | class_declaration
+  | package_covergroup_declaration
+  | ';'
   ;
 
 package_item_list_opt : package_item_list | ;
@@ -17128,6 +17182,10 @@ module
 	}
 	delete[]$4;
       }
+  | attribute_list_opt K_program ';'
+      { pform_set_anonymous_program(true); }
+    anonymous_program_item_list_opt K_endprogram
+      { pform_set_anonymous_program(false); }
   ;
 
 /* Keep checker declarations separate from module/interface/program

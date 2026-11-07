@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue876_anonymous_program.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue876_anonymous_program"
+}
