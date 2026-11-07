@@ -2421,6 +2421,12 @@ extern "C" int ivl_parameter_is_type(ivl_parameter_t net)
       return net->is_type;
 }
 
+extern "C" ivl_type_t ivl_parameter_type(ivl_parameter_t net)
+{
+      assert(net);
+      return net->is_type ? net->type : 0;
+}
+
 extern "C" int ivl_parameter_signed(ivl_parameter_t net)
 {
       assert(net);
@@ -2456,6 +2462,12 @@ extern "C" ivl_expr_t ivl_parameter_expr(ivl_parameter_t net)
 {
       assert(net);
       return net->value;
+}
+
+extern "C" ivl_expr_t ivl_parameter_assign_expr(ivl_parameter_t net)
+{
+      assert(net);
+      return net->assign_expr;
 }
 
 extern "C" const char* ivl_parameter_file(ivl_parameter_t net)
@@ -5288,6 +5300,15 @@ extern "C" int ivl_type_covgrp_item_at_least_prop(ivl_type_t net, int idx)
       return -1;
 }
 
+extern "C" const char* ivl_type_covgrp_item_at_least_ir(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).at_least_ir.c_str();
+      return "";
+}
+
 extern "C" int ivl_type_covgrp_item_weight_prop(ivl_type_t net, int idx)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
@@ -5295,6 +5316,24 @@ extern "C" int ivl_type_covgrp_item_weight_prop(ivl_type_t net, int idx)
 	  && (size_t)idx < class_type->covgrp_item_count())
 	    return class_type->covgrp_item((size_t)idx).weight_prop;
       return -1;
+}
+
+extern "C" int ivl_type_covgrp_item_auto_bin_max_prop(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).auto_bin_max_prop;
+      return -1;
+}
+
+extern "C" const char* ivl_type_covgrp_item_auto_bin_max_ir(ivl_type_t net, int idx)
+{
+      const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
+      if (class_type && idx >= 0
+	  && (size_t)idx < class_type->covgrp_item_count())
+	    return class_type->covgrp_item((size_t)idx).auto_bin_max_ir.c_str();
+      return "";
 }
 
 extern "C" int ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx)

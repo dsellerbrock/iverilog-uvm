@@ -1897,6 +1897,10 @@ extern ivl_signal_t ivl_nexus_ptr_sig(ivl_nexus_ptr_t net);
  *    Return the value of the parameter. This should be a simple
  *    constant expression, an IVL_EX_STRING or IVL_EX_NUMBER.
  *
+ * ivl_parameter_assign_expr
+ *    Return the separately elaborated RHS of an explicit value parameter
+ *    assignment, or NULL if the parameter was not explicitly assigned.
+ *
  * ivl_parameter_msb
  * ivl_parameter_lsb
  *    Returns the MSB and LSB for the parameter. For a parameter without
@@ -1923,12 +1927,16 @@ extern ivl_signal_t ivl_nexus_ptr_sig(ivl_nexus_ptr_t net);
 extern const char* ivl_parameter_basename(ivl_parameter_t net);
 extern ivl_scope_t ivl_parameter_scope(ivl_parameter_t net);
 extern ivl_expr_t  ivl_parameter_expr(ivl_parameter_t net);
+extern ivl_expr_t  ivl_parameter_assign_expr(ivl_parameter_t net);
 extern int         ivl_parameter_msb(ivl_parameter_t net);
 extern int         ivl_parameter_lsb(ivl_parameter_t net);
 extern unsigned    ivl_parameter_width(ivl_parameter_t net);
 extern int         ivl_parameter_signed(ivl_parameter_t net);
 extern int         ivl_parameter_local(ivl_parameter_t net);
 extern int         ivl_parameter_is_type(ivl_parameter_t net);
+/* Return the effective data type of a type parameter, or NULL for a value
+ * parameter. */
+extern ivl_type_t  ivl_parameter_type(ivl_parameter_t net);
 extern const char* ivl_parameter_file(ivl_parameter_t net);
 extern unsigned    ivl_parameter_lineno(ivl_parameter_t net);
 
@@ -2920,6 +2928,9 @@ extern int ivl_type_covgrp_item_comment_prop(ivl_type_t net, int idx);
      (-1 for legacy metadata without materialized runtime state). */
 extern int      ivl_type_covgrp_item_at_least_prop(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_item_weight_prop(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_item_at_least_ir(ivl_type_t net, int idx);
+extern int      ivl_type_covgrp_item_auto_bin_max_prop(ivl_type_t net, int idx);
+extern const char* ivl_type_covgrp_item_auto_bin_max_ir(ivl_type_t net, int idx);
 extern int      ivl_type_covgrp_item_is_cross(ivl_type_t net, int idx);
   /* M12-7: coverpoint/cross label ("" when unnamed). */
 extern const char* ivl_type_covgrp_item_name(ivl_type_t net, int idx);

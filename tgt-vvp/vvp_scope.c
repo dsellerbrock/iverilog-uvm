@@ -3932,14 +3932,27 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
+      struct vartype_buf_s param_type_buf = { 0, 0, 0 };
       for (idx = 0 ;  idx < ivl_scope_params(net) ;  idx += 1) {
 	    ivl_parameter_t par = ivl_scope_param(net, idx);
 
-	      // Skip type parameters for now. Support for type parameters
-	      // should be added together with support for quering types through
-	      // VPI.
-	    if (ivl_parameter_is_type(par))
-		  continue;
+	    if (ivl_parameter_is_type(par)) {
+	      ivl_type_t type = ivl_parameter_type(par);
+	      param_type_buf.len = 0;
+	      vartype_put_(&param_type_buf, "");
+	        // ponytail: packed types only; a class, string or unpacked
+	        // type parameter has no vartype string (vartype_spec_ would
+	        // recurse through a class's own handle properties).
+	      if (type && (ivl_type_base(type) == IVL_VT_LOGIC
+			   || ivl_type_base(type) == IVL_VT_BOOL)
+		  && vartype_spec_(&param_type_buf, type))
+		fprintf(vvp_out, "P_%p .param/type \"%s\" %d %u %u, \"%s\";\n",
+			par, vvp_mangle_name(ivl_parameter_basename(par)),
+			ivl_parameter_local(par),
+			ivl_file_table_index(ivl_parameter_file(par)),
+			ivl_parameter_lineno(par), param_type_buf.text);
+	      continue;
+	    }
 
 	    ivl_expr_t pex = ivl_parameter_expr(par);
 	    switch (ivl_expr_type(pex)) {
@@ -3983,7 +3996,39 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 			  ivl_expr_type(pex));
 		  break;
 	    }
+
+	    ivl_expr_t assign_rhs = ivl_parameter_assign_expr(par);
+	    if (assign_rhs) {
+		  switch (ivl_expr_type(assign_rhs)) {
+		      case IVL_EX_STRING:
+			fprintf(vvp_out, "P_%p .param/assign/str \"%s\";\n",
+				par, ivl_expr_string(assign_rhs));
+			break;
+		      case IVL_EX_NUMBER: {
+			const char*bits = ivl_expr_bits(assign_rhs);
+			unsigned nbits = ivl_expr_width(assign_rhs);
+			fprintf(vvp_out, "P_%p .param/assign/l %sC4<",
+				par, ivl_expr_signed(assign_rhs) ? "+" : "");
+			for (unsigned bb = 0; bb < nbits; bb += 1)
+			      fprintf(vvp_out, "%c", bits[nbits-bb-1]);
+			fprintf(vvp_out, ">;\n");
+			break;
+		      }
+		      case IVL_EX_REALNUM: {
+			char *res = draw_Cr_to_string(ivl_expr_dvalue(assign_rhs));
+			fprintf(vvp_out, "P_%p .param/assign/real %s;\n",
+				par, res);
+			free(res);
+			break;
+		      }
+		      default:
+			fprintf(vvp_out, "; parameter assignment RHS type %d unsupported\n",
+				ivl_expr_type(assign_rhs));
+			break;
+		  }
+	    }
       }
+      free(param_type_buf.text);
 
       for (idx = 0 ; idx < ivl_scope_classes(net) ; idx += 1) {
 	    ivl_type_t class_type = ivl_scope_class(net,idx);

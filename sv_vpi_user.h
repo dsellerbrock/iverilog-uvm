@@ -107,6 +107,7 @@ EXTERN_C_START
 #define vpiBitTypespec      640
 #define vpiLogicTypespec    641
 #define vpiTypespecMember   644
+#define vpiTypeParameter    609
 /* One-to-one relation from a variable or net to its typespec. Icarus uses
  * the same number for the vpiCovergroup object type above. */
 #define vpiTypespec         605

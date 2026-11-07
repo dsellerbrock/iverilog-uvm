@@ -214,6 +214,7 @@ ivl_nexus_ptr_log
 ivl_nexus_ptr_sig
 ivl_nexus_ptr_switch
 
+ivl_parameter_assign_expr
 ivl_parameter_basename
 ivl_parameter_expr
 ivl_parameter_file
@@ -224,6 +225,7 @@ ivl_parameter_lsb
 ivl_parameter_msb
 ivl_parameter_scope
 ivl_parameter_signed
+ivl_parameter_type
 ivl_parameter_width
 
 ivl_path_condit
@@ -545,9 +547,12 @@ ivl_type_covgrp_item_type_weight
 ivl_type_covgrp_item_type_weight_prop
 ivl_type_covgrp_item_at_least
 ivl_type_covgrp_item_at_least_prop
+ivl_type_covgrp_item_at_least_ir
 ivl_type_covgrp_item_weight
 ivl_type_covgrp_item_weight_ir
 ivl_type_covgrp_item_weight_prop
+ivl_type_covgrp_item_auto_bin_max_prop
+ivl_type_covgrp_item_auto_bin_max_ir
 ivl_type_covgrp_item_goal
 ivl_type_covgrp_item_cross_num_print_missing
 ivl_type_covgrp_item_goal_prop

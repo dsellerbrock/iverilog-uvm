@@ -6727,43 +6727,71 @@ const type_reference_t* type_operator_reference(const PExpr*expr)
 }
 
 /*
- * The `type()` equality fold below reuses ivl_type_s::type_equivalent()
- * as its MATCHING predicate -- the same structural test that
- * elaborate_specialized_class_type()'s specialization cache key
- * (elab_scope.cc, append_cache_ivl_type_key_) uses to decide whether
- * two class specializations (e.g. C#(int) and C#(bit signed[31:0]))
- * share one netclass_t: for vectors/packed arrays/packed structs it
- * compares base_type()+packed_width()+get_signed()
- * (packed_types_equivalent, nettypes.cc), for dynamic arrays/queues it
- * recurses on the element type, and for classes and enums (which don't
- * override test_equivalence) it falls back to pointer identity -- which
- * is exactly right here too, since a class/enum operand's ivl_type_t
- * was already resolved through the same class-specialization cache
- * elsewhere, so two `type()` operands naming "the same" specialization
- * really do share one pointer.
- *
- * We restrict which *kinds* of type this fold is willing to call, via
- * an allow-list: type_equivalent()'s coarse width/base-type comparison
- * is a good match for 6.22.1 "matching types" on vectors/atoms/reals/
- * strings/enums/classes, but for packed structs, packed arrays of a
- * non-vector base, dynamic arrays, queues and unpacked arrays it only
- * checks total width/element-type -- not the member-by-member matching
- * 6.22.1 actually requires -- so accepting those risks a *wrong*
- * "matching" verdict rather than merely an incomplete one. Those kinds
- * are sorried instead (see the sv_type_operator1.v test). Packed vector
- * dimensions are checked separately below because packed_types_equivalent
- * intentionally compares only flattened representation.
+ * IEEE 1800-2017/2023 6.22.1 matching types for `type()` equality:
+ *  - (c)/(d) a struct or union matches only itself: the same typedef, or the
+ *    same anonymous declaration (which elaborates to one netstruct_t);
+ *  - (f) arrays match when they are the same kind (packed, fixed unpacked,
+ *    dynamic, queue, associative), fixed/packed ones have the same left and
+ *    right bounds, associative ones matching index types, and their element
+ *    types match;
+ *  - (e)/(g) vectors compare their packed dimensions and then the
+ *    representation-level type_equivalent() test; reals, strings, enums and
+ *    classes keep type_equivalent() (pointer identity for enums/classes).
  */
-static bool type_operator_kind_supported_(ivl_type_t t)
+static bool type_operator_types_match_(ivl_type_t lt, ivl_type_t rt)
 {
-      if (!t)
+      if (lt == rt)
+	    return true;
+      if (!lt || !rt)
 	    return false;
-      if (dynamic_cast<const netvector_t*>(t)) return true;
-      if (dynamic_cast<const netreal_t*>(t))   return true;
-      if (dynamic_cast<const netstring_t*>(t)) return true;
-      if (dynamic_cast<const netenum_t*>(t))   return true;
-      if (dynamic_cast<const netclass_t*>(t))  return true;
-      return false;
+
+      const netvector_t*lv = dynamic_cast<const netvector_t*>(lt);
+      const netvector_t*rv = dynamic_cast<const netvector_t*>(rt);
+      if (lv && rv)
+	    return lv->packed_dims() == rv->packed_dims()
+		&& lt->type_equivalent(rt);
+
+      if (dynamic_cast<const netstruct_t*>(lt)
+	  || dynamic_cast<const netstruct_t*>(rt))
+	    return false;
+
+      const netsarray_t*ls = dynamic_cast<const netsarray_t*>(lt);
+      const netsarray_t*rs = dynamic_cast<const netsarray_t*>(rt);
+      if (ls || rs) {
+	    if (!ls || !rs
+		|| (dynamic_cast<const netparray_t*>(lt) == nullptr)
+		   != (dynamic_cast<const netparray_t*>(rt) == nullptr)
+		|| !(ls->static_dimensions() == rs->static_dimensions()))
+		  return false;
+	    return type_operator_types_match_(ls->element_type(),
+					      rs->element_type());
+      }
+
+      const netdarray_t*ld = dynamic_cast<const netdarray_t*>(lt);
+      const netdarray_t*rd = dynamic_cast<const netdarray_t*>(rt);
+      if (ld || rd) {
+	    if (!ld || !rd)
+		  return false;
+	    const netqueue_t*lq = dynamic_cast<const netqueue_t*>(lt);
+	    const netqueue_t*rq = dynamic_cast<const netqueue_t*>(rt);
+	    if ((lq == nullptr) != (rq == nullptr))
+		  return false;
+	    if (lq) {
+		  if (lq->assoc_compat() != rq->assoc_compat()
+		      || lq->assoc_wildcard() != rq->assoc_wildcard())
+			return false;
+		  if (lq->assoc_compat() && !lq->assoc_wildcard()
+		      && !type_operator_types_match_(lq->assoc_index_type(),
+						     rq->assoc_index_type()))
+			return false;
+		  if (!lq->assoc_compat() && lq->max_idx() != rq->max_idx())
+			return false;
+	    }
+	    return type_operator_types_match_(ld->element_type(),
+					      rd->element_type());
+      }
+
+      return lt->type_equivalent(rt);
 }
 
 bool elaborate_type_operator_match(Design*des, NetScope*scope,
@@ -6780,33 +6808,7 @@ bool elaborate_type_operator_match(Design*des, NetScope*scope,
       if (!lt || !rt)
 	    return false; // Already diagnosed by type_reference_t::elaborate_type_raw().
 
-      if (!type_operator_kind_supported_(lt) || !type_operator_kind_supported_(rt)) {
-	    cerr << loc.get_fileline() << ": sorry: type() comparison/case "
-		 << "matching of struct/union or array-typed operands is not "
-		 << "supported (member/element-wise matching per IEEE 1800-2017 "
-		 << "6.22.1 is not modeled for these operand shapes)." << endl;
-	    des->errors += 1;
-	    return false;
-      }
-
-      const netvector_t* lv = dynamic_cast<const netvector_t*>(lt);
-      const netvector_t* rv = dynamic_cast<const netvector_t*>(rt);
-      if (lv && rv) {
-	    const netranges_t& left_dims = lv->packed_dims();
-	    const netranges_t& right_dims = rv->packed_dims();
-	    if (left_dims.size() != right_dims.size()) {
-		  match = false;
-		  return true;
-	    }
-	    for (size_t idx = 0; idx < left_dims.size(); idx += 1) {
-		  if (left_dims[idx] != right_dims[idx]) {
-			match = false;
-			return true;
-		  }
-	    }
-      }
-
-      match = (lt == rt) || lt->type_equivalent(rt);
+      match = type_operator_types_match_(lt, rt);
       return true;
 }
 
@@ -6974,7 +6976,14 @@ static PExpr* aggregate_compare_(const PEIdent*left, const PEIdent*right,
 	    return both;
       };
       auto leaf = [&](const PEIdent*l, const PEIdent*r) -> PExpr* {
-	    PExpr*cmp = new PEBComp(leaf_op, aggregate_operand_with_(l, nullptr, nullptr, li),
+	    /* Strings have no X or Z bits, so case equality on a string member
+	       has the same value semantics as logical equality. Keep the
+	       ordinary scalar ===/!== diagnostic for direct string operands. */
+	    char effective_op = leaf_op;
+	    if (effective_op == 'E'
+		&& dynamic_cast<const netstring_t*>(type))
+		  effective_op = 'e';
+	    PExpr*cmp = new PEBComp(effective_op, aggregate_operand_with_(l, nullptr, nullptr, li),
 				    aggregate_operand_with_(r, nullptr, nullptr, li));
 	    cmp->set_line(li);
 	    return cmp;

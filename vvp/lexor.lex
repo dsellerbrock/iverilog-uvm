@@ -189,6 +189,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".covgrp_item_type_weight_prop" { return K_COVGRP_ITEM_TYPE_WEIGHT_PROP; }
 ".covgrp_item_options" { return K_COVGRP_ITEM_OPTIONS; }
 ".covgrp_item_option_values" { return K_COVGRP_ITEM_OPTION_VALUES; }
+".covgrp_item_option_irs" { return K_COVGRP_ITEM_OPTION_IRS; }
 ".covgrp_item_guard" { return K_COVGRP_ITEM_GUARD; }
 ".covgrp_parent" { return K_COVGRP_PARENT; }
 ".covgrp_event" { return K_COVGRP_EVENT; }
@@ -256,9 +257,13 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".net8/s"       { return K_NET8_S; }
 ".net/real"     { return K_NET_R; }
 ".net/s"        { return K_NET_S; }
+".param/assign/l"    { return K_PARAM_ASSIGN_L; }
+".param/assign/str"  { return K_PARAM_ASSIGN_STR; }
+".param/assign/real" { return K_PARAM_ASSIGN_REAL; }
 ".param/l"      { return K_PARAM_L; }
 ".param/str"    { return K_PARAM_STR; }
 ".param/real"   { return K_PARAM_REAL; }
+".param/type"   { return K_PARAM_TYPE; }
 ".part"         { return K_PART; }
 ".part/event"   { return K_PART_EVENT; }
 ".part/pv"      { return K_PART_PV; }

@@ -231,6 +231,8 @@ issue1239_global_clocking_generate_2023 CE,-g2023,-s,issue1239_global_clocking_g
 issue1249_pure_dpi_formals_2023 CE,-g2023,-s,test ivltests
 issue1371_sequence_local_formal_redeclared_2017 CE,-g2017,-s,issue1371_sequence_local_formal_redeclared ivltests
 issue1371_sequence_local_formal_redeclared_2023 CE,-g2023,-s,issue1371_sequence_local_formal_redeclared ivltests
+issue1378_local_sequence_actual_2017 normal,-g2017,-s,issue1378_local_sequence_actual ivltests gold=issue1378_local_sequence_actual.gold
+issue1378_local_sequence_actual_2023 normal,-g2023,-s,issue1378_local_sequence_actual ivltests gold=issue1378_local_sequence_actual.gold
 sv_assert_first_match_match_item normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_cut_isolation normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_cut_isolation.gold
@@ -2000,6 +2002,7 @@ sv_covergroup_sample_unpacked_default_shape_fail CE,-g2017 ivltests gold=sv_cove
 sv_covergroup_sample_unpacked_default_shape_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_sample_unpacked_default_shape_fail.gold
 sv_covergroup_fixed_bin_post_carve normal,-g2017 ivltests gold=sv_covergroup_fixed_bin_post_carve.gold
 sv_covergroup_fixed_bin_post_carve_2023 normal,-g2023 ivltests gold=sv_covergroup_fixed_bin_post_carve.gold
+issue835_covergroup_option_args normal,-g2017,-gno-icarus-misc,-gno-xtypes,-s,issue835_covergroup_option_args ivltests gold=issue835_covergroup_option_args-vvp-stdout.gold
 sv_covergroup_dynamic_cross normal,-g2017 ivltests gold=sv_covergroup_dynamic_cross.gold
 sv_covergroup_dynamic_cross_2023 normal,-g2023 ivltests gold=sv_covergroup_dynamic_cross.gold
 sv_covergroup_dynamic_cross_binsof normal,-g2017 ivltests gold=sv_covergroup_dynamic_cross_binsof.gold
@@ -6602,6 +6605,8 @@ issue736_string_property_index_2017 normal,-g2017,-s,issue736_string_property_in
 issue736_string_property_index_2023 normal,-g2023,-s,issue736_string_property_index ivltests gold=issue736_string_property_index.gold
 issue2417_descending_array_percent_p_2017 normal,-g2017,-s,issue2417_descending_array_percent_p ivltests gold=issue2417_descending_array_percent_p.gold
 issue2417_descending_array_percent_p_2023 normal,-g2023,-s,issue2417_descending_array_percent_p ivltests gold=issue2417_descending_array_percent_p.gold
+issue2656_descending_inner_array_percent_p_2017 normal,-g2017,-s,issue2656_descending_inner_array_percent_p_2017 ivltests gold=issue2656_descending_inner_array_percent_p.gold
+issue2656_descending_inner_array_percent_p_2023 normal,-g2023,-s,issue2656_descending_inner_array_percent_p_2023 ivltests gold=issue2656_descending_inner_array_percent_p.gold
 
 # IEEE 1800-2017/2023 §18.4.2: constrained wide randc fixed-array leaves
 issue2029_randc_fixed_array_wide normal,-g2017 ivltests gold=issue2029_randc_fixed_array_wide.gold

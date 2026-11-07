@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2657_struct_case_eq_string.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "issue2657_struct_case_eq_string"
+}

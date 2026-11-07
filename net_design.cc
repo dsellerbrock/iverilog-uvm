@@ -1482,6 +1482,12 @@ void NetScope::evaluate_parameter_logic_(Design*des, param_ref_t cur)
       if (! expr)
             return;
 
+      // Keep the explicit RHS independently from the parameter value. Targets
+      // use this source-side expression for vpiParamAssign/vpiRhs instead of
+      // trying to reconstruct the assignment from the resolved parameter.
+      if (cur->second.is_overridden && !cur->second.type_flag)
+            cur->second.assign_rhs = expr->dup_expr();
+
       if (!param_type && use_type == IVL_VT_NO_TYPE) {
 	    use_type = val_expr->expr_type();
 	    if (use_type == IVL_VT_NO_TYPE)
@@ -1719,6 +1725,8 @@ void NetScope::evaluate_parameter_real_(Design*des, param_ref_t cur)
                                    param_type->base_type());
       if (! expr)
             return;
+      if (cur->second.is_overridden)
+            cur->second.assign_rhs = expr->dup_expr();
 
       NetECReal*res = 0;
 
@@ -1826,6 +1834,8 @@ void NetScope::evaluate_parameter_string_(Design*des, param_ref_t cur)
 	    delete expr;
 	    return;
       }
+      if (cur->second.is_overridden)
+            cur->second.assign_rhs = expr->dup_expr();
 
       cur->second.val = expr;
 

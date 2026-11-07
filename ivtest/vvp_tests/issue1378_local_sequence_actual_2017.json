@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1378_local_sequence_actual_2017.v",
+    "iverilog-args": ["-g2017"],
+    "output-contains": ["PASSED"]
+}

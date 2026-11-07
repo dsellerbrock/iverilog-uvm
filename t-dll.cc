@@ -809,9 +809,12 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
             assert(idx < param.size());
             ivl_parameter_t cur_par = &param[idx];
 	    cur_par->basename = cur_pit->first;
+	    cur_par->value = 0;
+	    cur_par->assign_expr = 0;
 	    cur_par->local = cur_pit->second.local_flag ||
 			     !cur_pit->second.overridable;
 	    cur_par->is_type = cur_pit->second.type_flag;
+            cur_par->type = cur_pit->second.ivl_type;
 
 	    if (cur_pit->second.ivl_type == 0) {
 		  cerr << "?:?: internal error: "
@@ -850,20 +853,26 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 		  }
 		  assert(etmp);
 		  make_scope_param_expr(cur_par, etmp);
+		  if (cur_pit->second.assign_rhs) {
+			expr_ = 0;
+			make_scope_param_expr(0, cur_pit->second.assign_rhs,
+					      &cur_par->assign_expr);
+		  }
 	    }
 
 	    idx += 1;
       }
 }
 
-void dll_target::make_scope_param_expr(ivl_parameter_t cur_par, NetExpr*etmp)
+void dll_target::make_scope_param_expr(ivl_parameter_t cur_par, NetExpr*etmp,
+				      ivl_expr_t*out)
 {
       if (const NetEConst*e = dynamic_cast<const NetEConst*>(etmp)) {
 
 	    expr_const(e);
 	    assert(expr_);
 
-	    switch (expr_->type_) {
+	    if (cur_par) switch (expr_->type_) {
 		case IVL_EX_STRING:
 		  expr_->u_.string_.parameter = cur_par;
 		  break;
@@ -879,7 +888,8 @@ void dll_target::make_scope_param_expr(ivl_parameter_t cur_par, NetExpr*etmp)
 	    expr_creal(er);
 	    assert(expr_);
 	    assert(expr_->type_ == IVL_EX_REALNUM);
-	    expr_->u_.real_.parameter = cur_par;
+	    if (cur_par)
+		  expr_->u_.real_.parameter = cur_par;
 
       } else if (const NetEArrayPattern*ap =
 		       dynamic_cast<const NetEArrayPattern*>(etmp)) {
@@ -902,7 +912,10 @@ void dll_target::make_scope_param_expr(ivl_parameter_t cur_par, NetExpr*etmp)
       }
       ivl_assert(*etmp, expr_);
 
-      cur_par->value = expr_;
+	    if (cur_par)
+		  cur_par->value = expr_;
+	    if (out)
+		  *out = expr_;
       expr_ = 0;
 }
 

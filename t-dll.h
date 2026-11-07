@@ -271,7 +271,8 @@ struct dll_target  : public target_t, public expr_scan_t {
       void make_lpm_delays_(struct ivl_lpm_s*obj, const NetObj*net);
       void make_const_delays_(struct ivl_net_const_s*obj, const NetObj*net);
       void make_scope_parameters(ivl_scope_t scope, const NetScope*net);
-      void make_scope_param_expr(ivl_parameter_t cur_par, NetExpr*etmp);
+      void make_scope_param_expr(ivl_parameter_t cur_par, NetExpr*etmp,
+				 ivl_expr_t*out = 0);
 
       ivl_event_t make_lpm_trigger(const NetEvWait*ev);
 
@@ -839,7 +840,9 @@ struct ivl_nexus_s {
 struct ivl_parameter_s {
       perm_string basename;
       ivl_scope_t scope;
+      ivl_type_t  type;
       ivl_expr_t  value;
+      ivl_expr_t  assign_expr;
       long          msb;
       long          lsb;
       bool  signed_flag;

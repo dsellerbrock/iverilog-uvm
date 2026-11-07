@@ -379,6 +379,10 @@ extern void compile_param_logic(char*label, const char*name, char*value,
 extern void compile_param_real(char*label, const char*name, char*value,
                                bool local_flag,
                                long file_idx, long lineno);
+extern void compile_param_assign_logic(char*label, char*value,
+				       bool signed_flag);
+extern void compile_param_assign_string(char*label, char*value);
+extern void compile_param_assign_real(char*label, char*value);
 
 /*
  * The resolv_list_s is the base class for a symbol resolve
@@ -498,6 +502,8 @@ extern void compile_array_port(char*label, char*name, long addr);
 extern void compile_array_cleanup(void);
 extern void compile_packed_dims(char*label, char*layout);
 extern void compile_vartype(char*label, char*text);
+extern void compile_type_param(char*label, const char*name, char*type,
+                               bool local_flag, long file_idx, long lineno);
 
 /*
  * Compile the .ufunc statement.
@@ -794,6 +800,10 @@ extern void compile_class_covgrp_item_type_weight_prop(
 extern void compile_class_covgrp_item_options(uint64_t item_idx,
 					      uint64_t at_least_prop,
 					      uint64_t weight_prop);
+extern void compile_class_covgrp_item_option_irs(uint64_t item_idx,
+						 uint64_t auto_bin_max_prop,
+						 char*at_least_ir,
+						 char*auto_bin_max_ir);
 extern void compile_class_covgrp_item_option_values(uint64_t item_idx,
 						    uint64_t goal_prop,
 						    uint64_t goal,

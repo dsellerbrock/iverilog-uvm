@@ -26,6 +26,7 @@
 # include  "vvp_darray.h"
 # include  "vvp_net.h"
 # include  "vvp_net_sig.h"
+# include  "schedule.h"
 # include  "config.h"
 # include  <cstddef>
 # include  <algorithm>
@@ -3127,15 +3128,30 @@ void compile_class_covgrp_dyn_bin(uint64_t cp_idx, uint64_t item_idx,
 	       unsigned long parsed = value_type_bad ? 0
 		     : strtoul(value_type + 1, &end, 10);
 	       value_type_bad = value_type_bad || end == value_type + 1 || *end != 0
-		     || errno == ERANGE || parsed == 0 || parsed > 64;
+	       || errno == ERANGE || parsed == 0
+	       || parsed > ((kind & class_type::COV_DYN_AUTO_BINS) ? 4096 : 64);
 	       bad_type = bad_type || value_type_bad;
 	       if (!value_type_bad) value_width = (unsigned)parsed;
+	 }
+	 bool bad_auto_bin_size = false;
+	 if (kind & class_type::COV_DYN_AUTO_BINS) {
+	       if ((kind & 7) != 0 || array_size == 0
+		   || array_size - 1 >= compile_class->property_count()) {
+		     bad_auto_bin_size = true;
+	       } else {
+		     size_t prop = static_cast<size_t>(array_size - 1);
+		     bad_auto_bin_size = compile_class->property_base_type(prop) != "sb32"
+			   || compile_class->property_vec4_width(prop) != 32
+			   || compile_class->property_array_size(prop) != 1
+			   || !compile_class->property_dimensions(prop).empty()
+			   || compile_class->property_is_static(prop);
+	       }
 	 }
       if (cp_idx > u32_max || item_idx > u32_max || kind > u32_max
 	  || family > u32_max || guard_idx > u32_max
 	  || trans_seq > 255 || trans_term > 255 || trans_repeat > 3
 	  || trans_min == 0 || trans_max < trans_min || trans_max > 65536
-	  || bad_type) {
+	  || bad_type || bad_auto_bin_size) {
 	yyerror("invalid .covgrp_dyn_bin metadata value");
 	free(name);
 	free(lo_ir);
@@ -3440,6 +3456,42 @@ void compile_class_covgrp_item_options(uint64_t item_idx,
 		  bad = true;
       if (bad)
 	    yyerror("invalid .covgrp_item_options metadata value");
+}
+
+void compile_class_covgrp_item_option_irs(uint64_t item_idx,
+					  uint64_t auto_bin_max_prop,
+					  char*at_least_ir,
+					  char*auto_bin_max_ir)
+{
+      assert(compile_class);
+      const uint64_t int_max = std::numeric_limits<int>::max();
+      int auto_prop = -1;
+      bool bad = item_idx >= compile_class->covgrp_item_count()
+	    || auto_bin_max_prop > int_max + 1;
+      if (!bad && auto_bin_max_prop) {
+	    auto_prop = static_cast<int>(auto_bin_max_prop - 1);
+	    bad = !compile_class_covgrp_property_valid_(auto_bin_max_prop, 32)
+		  || compile_class->property_base_type((size_t)auto_prop) != "sb32"
+		  || !compile_class->property_dimensions((size_t)auto_prop).empty();
+      }
+      auto valid_ir = [](const char*ir) {
+	    if (!ir || !*ir) return true;
+	    bool uses_parent = false;
+	    return covgrp_ir_syntax_t(ir).validate(uses_parent) && !uses_parent;
+      };
+      if (!bad)
+	    bad = !valid_ir(at_least_ir) || !valid_ir(auto_bin_max_ir)
+		  || (at_least_ir && *at_least_ir
+		      && compile_class->covgrp_item((size_t)item_idx).at_least_prop < 0)
+		  || ((auto_bin_max_ir && *auto_bin_max_ir) != (auto_prop >= 0));
+      if (!bad)
+	    bad = !compile_class->set_covgrp_item_option_irs(
+		  static_cast<size_t>(item_idx), auto_prop,
+		  at_least_ir ? at_least_ir : "",
+		  auto_bin_max_ir ? auto_bin_max_ir : "");
+      if (bad) yyerror("invalid .covgrp_item_option_irs metadata value");
+      free(at_least_ir);
+      free(auto_bin_max_ir);
 }
 
 void compile_class_covgrp_item_option_values(uint64_t item_idx,
@@ -4117,8 +4169,37 @@ void class_type::covgrp_init_options(vvp_cobject*obj) const
 
       for (size_t idx = 0; idx < covgrp_items_.size(); idx += 1) {
 	    const cov_item_t&item = covgrp_items_[idx];
-	    store(item.at_least_prop, item.at_least);
+	    unsigned at_least = item.at_least;
+	    if (!item.at_least_ir.empty()) {
+		  uint64_t value = at_least;
+		  if (covgrp_eval_ir(obj, item.at_least_ir, value)) {
+			at_least = static_cast<unsigned>(value);
+		  } else {
+			std::cerr << "ERROR: covergroup option 'at_least' has an invalid "
+			     "constructor-time value."
+			     << std::endl;
+			vpip_set_return_value(1);
+			if (!schedule_finished()) schedule_finish(0);
+		  }
+	    }
+	    store(item.at_least_prop, at_least);
 	    store(item.weight_prop, covgrp_decl_weight_(obj, idx));
+	    if (item.auto_bin_max_prop >= 0) {
+		  unsigned auto_bin_max = 64;
+		  uint64_t value = auto_bin_max;
+		  if (item.auto_bin_max_ir.empty()) {
+			auto_bin_max = 64;
+		  } else if (covgrp_eval_ir(obj, item.auto_bin_max_ir, value)) {
+			auto_bin_max = static_cast<unsigned>(value);
+		  } else {
+			std::cerr << "ERROR: covergroup option 'auto_bin_max' has an invalid "
+			     "constructor-time value."
+			     << std::endl;
+			vpip_set_return_value(1);
+			if (!schedule_finished()) schedule_finish(0);
+		  }
+		  store(item.auto_bin_max_prop, auto_bin_max);
+	    }
 	    store(item.goal_prop, item.goal);
 	    if (item.comment_prop >= 0
 		&& (size_t)item.comment_prop < property_count())
@@ -4263,6 +4344,24 @@ void class_type::dyn_type_register_ranges(unsigned family,
       for (const auto&range : universe)
             total += (unsigned __int128)range.second - range.first + 1;
       covgrp_dyn_type_totals_[family] = total;
+}
+
+uint64_t class_type::dyn_type_register_auto_bin(unsigned family,
+	  uint64_t low, uint64_t high) const
+{
+	  std::vector<uint64_t> low_words(1, low);
+	  std::vector<uint64_t> high_words(1, high);
+	  return dyn_type_register_auto_bin(family, low_words, high_words);
+}
+
+uint64_t class_type::dyn_type_register_auto_bin(unsigned family,
+	  const std::vector<uint64_t>&low,
+	  const std::vector<uint64_t>&high) const
+{
+      auto&bins = covgrp_dyn_auto_type_bins_[family];
+	  auto inserted = bins.emplace(std::make_pair(low, high), bins.size());
+      dyn_type_register_total(family, bins.size());
+      return inserted.first->second;
 }
 
 uint64_t class_type::cross_type_register_bin(unsigned family,
