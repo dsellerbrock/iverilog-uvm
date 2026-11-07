@@ -14384,9 +14384,25 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 				cur = da->element_type();
 			  } else break;
 		    }
+		      /* 20.7: the packed dimensions of a fixed-size element
+		         follow the unpacked ones and are just as constant
+		         ($size(Ram, 2) for Word Ram[0:9]), so fold them too. */
+		    size_t unpacked_count = dims.size();
+		    ivl_type_t element = sub->net_type();
+		    while (const netarray_t*arr =
+			   dynamic_cast<const netarray_t*>(element))
+			  element = arr->element_type();
+		    if (element && element->packed()
+			&& !dynamic_cast<const netdarray_t*>(element)) {
+			  netranges_t packed = element->slice_dimensions();
+			  if (packed.empty() && element->packed_width() > 0)
+				packed.push_back(netrange_t(element->packed_width()-1, 0));
+			  for (const netrange_t&range : packed)
+				dims.push_back({false, range});
+		    }
 		    if (strcmp(name, "$unpacked_dimensions") == 0) {
 			  delete sub;
-			  NetExpr*res = make_const_val((long)dims.size());
+			  NetExpr*res = make_const_val((long)unpacked_count);
 			  res->set_line(*this);
 			  return cast_to_width_(res, expr_wid);
 		    }
