@@ -6326,10 +6326,15 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
       }
 
       NetESignal*lsig = dynamic_cast<NetESignal*>(lp);
-      const bool concat_lvalue = lval->more != 0
-	    || dynamic_cast<NetEConcat*>(lp) != 0;
-      if ((!concat_lvalue && (!lsig || lsig->word_index()))
-          || (concat_lvalue && op_ != '=')) {
+	/* 11.3.6 allows any variable l-value. A plain `=' to anything but a
+	   whole scalar variable (an array element, a part-select, a
+	   concatenation) stores through the elaborated l-value. */
+      const bool real_lvalue = expr_type_ == IVL_VT_REAL;
+      const bool scalar_lvalue = lsig && !lsig->word_index()
+	    && lval->more == 0 && !dynamic_cast<NetEConcat*>(lp)
+	    && !real_lvalue;
+      const bool concat_lvalue = !scalar_lvalue;
+      if (concat_lvalue && op_ != '=') {
             cerr << get_fileline() << ": sorry: Assignment expressions "
                  << "currently require a scalar variable l-value." << endl;
             des->errors += 1;
@@ -6338,9 +6343,11 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
             return nullptr;
       }
 
-      if (expr_type_ != IVL_VT_LOGIC && expr_type_ != IVL_VT_BOOL) {
+      if (expr_type_ != IVL_VT_LOGIC && expr_type_ != IVL_VT_BOOL
+	  && !(real_lvalue && op_ == '=' && lval->more == 0)) {
             cerr << get_fileline() << ": sorry: Assignment expressions "
-                 << "currently require an integral variable l-value." << endl;
+                 << "currently require an integral or real variable l-value."
+		 << endl;
             des->errors += 1;
             delete lp;
             delete lval;
@@ -6354,7 +6361,10 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
             delete lval;
             return nullptr;
       }
-      rp = cast_to_width(rp, l_width, signed_flag_, *this);
+      if (real_lvalue)
+	    rp = cast_to_real(rp);
+      else
+	    rp = cast_to_width(rp, l_width, signed_flag_, *this);
 
       /* The ordinary l-value used for validation above is temporary;
 	 without this permanent note, `x = (member = 1)' can evade the
@@ -6388,6 +6398,9 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
       else
 	delete lval;
 
+	/* A real value has no width to adjust. */
+      if (real_lvalue)
+	    return fun;
       return cast_to_width(fun, expr_wid, signed_flag_, *this);
 }
 

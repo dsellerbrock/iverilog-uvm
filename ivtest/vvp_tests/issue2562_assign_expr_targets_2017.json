@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2562_assign_expr_targets.sv",
+  "iverilog-args": ["-g2017"],
+  "output-contains": ["PASSED"]
+}
