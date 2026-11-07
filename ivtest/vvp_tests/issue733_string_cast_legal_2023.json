@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue733_string_cast_legal.v",
+  "iverilog-args": ["-g2023", "-s", "issue733_string_cast_legal"]
+}
