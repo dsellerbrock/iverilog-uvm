@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue733_string_cast_required_fail.v",
+  "iverilog-args": ["-g2023", "-s", "issue733_string_cast_required_fail"],
+  "gold": "issue733_string_cast_required_fail_2023"
+}

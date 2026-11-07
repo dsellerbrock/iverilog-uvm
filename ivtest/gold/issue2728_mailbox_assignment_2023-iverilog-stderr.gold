@@ -1,0 +1,4 @@
+ivltests/issue2728_mailbox_assignment_2023.v:9: error: the type of the variable 'typed_mbx' doesn't match the context type.
+ivltests/issue2728_mailbox_assignment_2023.v:9:      : variable type=class mailbox{}
+ivltests/issue2728_mailbox_assignment_2023.v:9:      : context type=class mailbox{}
+1 error(s) during elaboration.

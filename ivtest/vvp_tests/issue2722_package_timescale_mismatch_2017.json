@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2722_package_timescale_mismatch.v",
+  "iverilog-args": ["-g2017", "-s", "issue2722_package_timescale_mismatch"],
+  "gold": "issue2722_package_timescale_mismatch_2017"
+}

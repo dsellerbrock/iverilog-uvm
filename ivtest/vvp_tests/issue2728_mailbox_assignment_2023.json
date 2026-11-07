@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "issue2728_mailbox_assignment_2023.v",
+    "iverilog-args" : [ "-g2023", "-s", "issue2728_mailbox_assignment" ],
+    "gold"          : "issue2728_mailbox_assignment_2023"
+}
