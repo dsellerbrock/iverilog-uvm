@@ -6671,3 +6671,5 @@ issue2700_negpulse_2017 normal,-g2017,-gspecify,-s,issue2700_negpulse ivltests g
 issue2700_negpulse_2023 normal,-g2023,-gspecify,-s,issue2700_negpulse ivltests gold=issue2700_negpulse_2023-vvp-stdout.gold
 sva_matched_cross_clock_2017 normal,-g2017,-s,sva_matched_cross_clock ivltests gold=sva_matched_cross_clock.gold
 sva_matched_cross_clock_2023 normal,-g2023,-s,sva_matched_cross_clock ivltests gold=sva_matched_cross_clock.gold
+sva_abort_temporal_2017 normal,-g2017,-s,sva_abort_temporal ivltests gold=sva_abort_temporal.gold
+sva_abort_temporal_2023 normal,-g2023,-s,sva_abort_temporal ivltests gold=sva_abort_temporal.gold

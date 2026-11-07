@@ -1080,10 +1080,20 @@ extern bool pform_sva_nfa_enabled();
 /* Per-attempt sub-monitor interface (sva-attempts design). An enclosing
    property operator owns the clock, disable, slot injection and
    reporting; the operand checker only advances and leaves each slot's
-   verdict in vd[k]: 0 pending, 1 pass, 2 vacuous pass, 3 fail. The slot
+   verdict in vd[k]: 0 pending, 1 pass, 2 vacuous pass, 3 fail, 4 vacuous
+   fail (16.14.8 ac: an attempt that reject_on aborted). A verdict holds
+   until the slot is killed. The slot
    index is the attempt identity shared by every operand of one parent.
    plan: analyse only and return the required slot count in K. Otherwise
    K is the slot count to build with (at least the planned value). */
+/* Statements of a sub-monitor that run in a different clock domain (an
+   operand behind a clock switch, IEEE 1800-2023 16.13, or the watcher of
+   an asynchronous abort condition, 16.12.14). */
+struct sva_nfa_domain_t {
+      PEventStatement*clk = nullptr;
+      std::vector<Statement*> pre, body, post;
+};
+
 struct sva_nfa_sub_t {
       bool plan = false;
       bool error = false;   // a diagnostic was already emitted
@@ -1093,6 +1103,12 @@ struct sva_nfa_sub_t {
       std::vector< std::vector<Statement*> > kill;    // per slot
       std::vector<perm_string> vd;                    // per slot
       bool built = false;   // the synthesizer accepted the operand
+      // A composite's verdict re-evaluation from its operands' verdicts,
+      // without advancing anything. Every other clock domain runs it after
+      // its own operands advanced, so a verdict is reported at the tick of
+      // the domain that produced it.
+      std::vector<Statement*> recompute;
+      std::vector<sva_nfa_domain_t> domains;
 };
 
 extern bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
