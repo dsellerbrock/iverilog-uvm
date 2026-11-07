@@ -647,6 +647,8 @@ struct NetTchk : public LineInfo {
       term_t ref, data;
       std::vector<NetNet*> limit_vars;
       std::vector<double> limits;	// declared values, scope time units
+	// With -gneg-tchk, the checker uses limit + shift (clamped at 0).
+      std::vector<double> shifts;
       NetNet*notifier = nullptr;
 };
 

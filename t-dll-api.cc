@@ -3264,6 +3264,12 @@ extern "C" double ivl_tchk_limit(ivl_tchk_t net, unsigned idx)
       return net->limits[idx];
 }
 
+extern "C" double ivl_tchk_limit_shift(ivl_tchk_t net, unsigned idx)
+{
+      assert(net && idx < net->limits.size());
+      return idx < net->shifts.size() ? net->shifts[idx] : 0.0;
+}
+
 extern "C" ivl_signal_t ivl_tchk_notifier(ivl_tchk_t net)
 {
       assert(net);

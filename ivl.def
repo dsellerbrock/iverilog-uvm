@@ -430,6 +430,7 @@ ivl_switch_width
 
 ivl_tchk_file
 ivl_tchk_limit
+ivl_tchk_limit_shift
 ivl_tchk_limit_sig
 ivl_tchk_limits
 ivl_tchk_lineno

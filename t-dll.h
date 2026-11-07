@@ -913,6 +913,7 @@ struct ivl_tchk_s {
       term_s term[2];
       std::vector<ivl_signal_t> limit_sigs;
       std::vector<double> limits;
+      std::vector<double> shifts;
       ivl_signal_t notifier;
 };
 

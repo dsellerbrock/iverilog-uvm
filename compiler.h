@@ -266,6 +266,12 @@ extern bool gn_specify_blocks_flag;
    is false, then no input/output buffers are inserted if not needed. */
 extern bool gn_interconnect_flag;
 
+/* If this flag is true, $setuphold and $recrem accept negative limits
+   (IEEE 1800-2017/2023 31.9): timing checks read delayed copies of their
+   reference and data signals, and the limits are adjusted to match. If
+   it is false, delayed signals are plain copies (31.9.4). */
+extern bool gn_neg_tchk_flag;
+
 /* True when the parsed design contains an actual $dumpports task call.
  * This keeps EVCD-only hierarchy boundaries and metadata out of ordinary
  * designs and non-VVP target flows. */
