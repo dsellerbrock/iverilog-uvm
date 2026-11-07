@@ -768,6 +768,19 @@ extern PBlock*pform_push_block_scope(const struct vlltype&loc, const char*name,
 /* Create/finalize the implicit lexical block that owns pattern variables for
  * one case item, the true arm of a pattern statement, or the consequent of a
  * pattern conditional expression. */
+/* One `&&&' clause of an if statement's cond_predicate (IEEE 1800-2017/2023
+ * 12.4, 12.6.2): an expression, or a PEMatches whose pattern scope BLOCK is
+ * still open while later clauses and the true arm are parsed. */
+struct cond_clause_t {
+      PExpr* cond = nullptr;
+      class PBlock* block = nullptr;
+};
+
+extern Statement*pform_make_tand_if(const struct vlltype&loc,
+				     std::vector<cond_clause_t*>*clauses,
+				     Statement*if_true);
+extern void pform_tand_if_set_else(const struct vlltype&loc, Statement*prefix,
+				   Statement*if_false);
 extern PBlock*pform_pattern_push_scope(const struct vlltype&loc,
                                        const PExpr*subject,
                                        const PMatchPattern*pattern,
