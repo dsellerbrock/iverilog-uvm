@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_multiclock_unbounded_antecedent.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_multiclock_unbounded_antecedent"],
+  "gold": "sva_multiclock_unbounded_antecedent"
+}

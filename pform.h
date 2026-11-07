@@ -1107,6 +1107,19 @@ struct sva_nfa_sub_t {
       // of each operand's kill code instead of one per owner); the root
       // runs it after every decision pass.
       std::vector<Statement*> sweep;
+      // Merge support (#446): per slot, the registers that make up its
+      // entire future behaviour, and a register that is zero when the slot
+      // owns no pending evaluation. Slots equal in all of them while quiet
+      // are indistinguishable from then on. Empty when not available.
+      std::vector< std::vector<perm_string> > state;
+      std::vector<perm_string> pending;
+      // Local-variable transport (#446): names the parent copies into each
+      // new attempt (a consequent seeing its antecedent's values), with a
+      // register of the source whose width a carrier takes; and, out, per
+      // slot the carriers the parent sets for each name.
+      std::vector<perm_string> imports;
+      std::map<perm_string, perm_string> import_from;
+      std::vector< std::map<perm_string, std::vector<perm_string> > > locals;
 };
 
 extern bool pform_sva_nfa_try_assertion(const struct vlltype&loc,

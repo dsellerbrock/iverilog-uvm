@@ -22663,6 +22663,22 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    prop->tree_sorry = 10;
 	    return false;
       }
+	/* Sub-monitor imports: carriers the parent fills when it starts an
+	   attempt (no assignment here). */
+      std::vector<bool> lv_imported (lv_list.size(), false);
+      if (sub)
+	    for (perm_string nm : sub->imports) {
+		  if (lv_index.count(nm)) {
+			lv_imported[lv_index[nm]] = true;
+			continue;
+		  }
+		  lv_index[nm] = (unsigned)lv_list.size();
+		  lv_list.push_back(nm);
+		  lv_rhs_expr.push_back(nullptr);
+		  lv_gate_expr.push_back(nullptr);
+		  lv_initialization.push_back(false);
+		  lv_imported.push_back(true);
+	    }
       bool has_lv = !lv_list.empty();
 	/* Declaration identity is broader than storage identity. `lv_index'
 	   contains assignment destinations because only those need vk/ovk
@@ -22711,6 +22727,26 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   diagnostic for every other topology. Apply the same proof independently
 	   to the antecedent and consequence machines, and reject duplicate writes
 	   to one property local across them. */
+	/* Endpoint mode hands each end point's values to a consequent, so it
+	   needs the same one-value-per-attempt proof. */
+      sva_stree_t endpoint_leaf;
+      if (sub && sub->endpoints && has_lv && !endpoint_fanout) {
+	    endpoint_leaf.chain = have_tree ? nullptr : &chain;
+	    std::map<perm_string,unsigned> assignments;
+	    bool zero_inclusive_read = false;
+	    bool dependent_rhs_unassigned = false;
+	    bool dependent_rhs_unsupported = false;
+	    if (!sva_nfa_local_prefix_safe_(have_tree ? prop->tree : &endpoint_leaf,
+					    assignments, lv_analysis,
+					    zero_inclusive_read,
+					    dependent_rhs_unassigned,
+					    dependent_rhs_unsupported)) {
+		  prop->tree_sorry = dependent_rhs_unassigned ? 9
+			: dependent_rhs_unsupported ? 8
+			: zero_inclusive_read ? 7 : 6;
+		  return false;
+	    }
+      }
       if (endpoint_fanout && has_lv) {
 	    std::map<perm_string,unsigned> assignments;
 	    bool zero_inclusive_read = false;
@@ -22809,7 +22845,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		     g += 1)
 		  if (machines[mi]->edges[i].guards[g] == lv_gate_expr[li])
 			cnt += 1;
-	    if (cnt == 0) return false;
+	    if (cnt == 0 && lv_gate_expr[li]) return false;
       }
 
       bool cyclic = pform_sva_nfa_has_cycle(nfa);
@@ -23106,6 +23142,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       std::vector<bool> lv_rhs_reads_local (lv_list.size(), false);
       std::vector<PExpr*> local_rhs_expr (lv_list.size(), nullptr);
       for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
+	    if (!lv_rhs_expr[li]) continue;  // imported: no assignment here
 	    bool reads_local = sva_expr_reads_lv_(lv_rhs_expr[li], lv_index);
 	    lv_rhs_reads_local[li] = reads_local;
 	    PExpr*src = lv_rhs_expr[li];
@@ -23186,10 +23223,19 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
 		  char what[24];
 		  snprintf(what, sizeof what, "k%ldv%u", k, li);
+		  PExpr*width = lv_width_probe[li] ? lv_width_probe[li]
+						   : lv_rhs_expr[li];
+		  PExpr*imported_width = nullptr;
+		  bool is_signed = sva_expr_signed_(lv_rhs_expr[li]);
+		  if (!width && sub && sub->import_from.count(lv_list[li])) {
+			/* An imported carrier copies its source's type. */
+			imported_width = sva_id_(loc, sub->import_from[lv_list[li]]);
+			width = imported_width;
+			is_signed = sva_expr_signed_(imported_width);
+		  }
 		  vk[k][li] = sva_make_reg_(loc, inst, what, 0, true, false,
-					   lv_width_probe[li] ? lv_width_probe[li]
-								      : lv_rhs_expr[li],
-					   sva_expr_signed_(lv_rhs_expr[li]));
+					   width, is_signed);
+		  delete imported_width;
 		  init_zero.push_back(sva_assign_(loc, vk[k][li],
 			new PENumber(new verinum((uint64_t)0, 32))));
 	    }
@@ -24002,6 +24048,19 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  out.push_back(set_verdict(k, 0));
 	    }
 	    sub->vd = vd;
+	    sub->locals.resize(K);
+	    for (long k = 0 ; k < K ; k += 1)
+		  for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
+			sub->locals[k][lv_list[li]].push_back(vk[k][li]);
+	    if (!endpoint_fanout) {
+		  sub->state.resize(K);
+		  for (long k = 0 ; k < K ; k += 1) {
+			sub->state[k] = s[k];
+			for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
+			      sub->state[k].push_back(vk[k][li]);
+			if (track_ob) sub->state[k].push_back(ob[k]);
+		  }
+	    }
 	    sub->pre = pre;
 	    sub->body = body;
 	    sub->post = post;
@@ -25506,6 +25565,29 @@ static Statement* sva_assoc_delete_(const struct vlltype&loc,
    NBA request update, so a coincident c2 tick necessarily sees the old
    request. Operand reads themselves are rewritten to the runtime's
    Preponed-value loads in both domains. */
+static bool sva_mc_try_composite_(const struct vlltype&loc,
+				  sva_property_t*prop, Statement*fail_stmt,
+				  Statement*pass_stmt, int kind);
+
+/* A first-clock source whose attempts the fixed-slot transport below
+   cannot bound: an unbounded delay or repetition, goto/nonconsecutive
+   repetition, or a local-variable assignment (#446). */
+static bool sva_mc_source_needs_attempts_(const std::vector<sva_seq_step_t>&steps)
+{
+      bool needs = false;
+      for (const sva_seq_step_t&st : steps) {
+	    /* first_match and finite repetitions keep their own lowering
+	       and diagnostics */
+	    if (st.fm || st.grouped_repeat) return false;
+	    if (st.delay_hi == -1 || st.rep_tail < 0
+		|| st.rep_kind == 1 || st.rep_kind == 2
+		|| (st.rep_kind == 3 && st.rep_hi == -1)
+		|| sva_step_has_assignment_(st))
+		  needs = true;
+      }
+      return needs;
+}
+
 static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 					     sva_property_t*prop,
 					     Statement*fail_stmt,
@@ -25578,6 +25660,16 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    if (prop->antecedent)
 		  for (size_t k = 0; k < prop->antecedent->size(); ++k)
 			antecedent_group |= (*prop->antecedent)[k].grouped_repeat;
+	      /* An unbounded or local-variable source keeps attempts live for
+		 an unbounded time; the per-attempt composite lowering hosts
+		 it (an implication node whose consequent sits behind a clock
+		 switch, attempts with equal state merged). */
+	    const std::vector<sva_seq_step_t>*src = prop->antecedent
+		  ? prop->antecedent : (plain ? prop->mc_prefix : nullptr);
+	    if (!ranged_antecedent && !antecedent_group && src
+		&& sva_mc_source_needs_attempts_(*src)
+		&& sva_mc_try_composite_(loc, prop, fail_stmt, pass_stmt, kind))
+		  return;
 	    if (prop->antecedent && !ranged_antecedent
 		&& (antecedent_group
 		    || !sva_mc_expand_chain_(*prop->antecedent, a_slots)))
@@ -31809,6 +31901,10 @@ struct sva_comp_ctx_t {
       PEventStatement*clk;        // the composite's resolved clock (borrowed)
       unsigned*hist_idx;          // sampled-value history of the composite
       long rate = 1;              // attempts started per tick, at most
+	// Locals the parent copies into each new attempt, and a register
+	// of each one's source type (sva_nfa_sub_t::imports).
+      const std::vector<perm_string>*imports = nullptr;
+      const std::map<perm_string, perm_string>*import_from = nullptr;
 };
 
 static void sva_comp_sorry_(const struct vlltype&loc, const char*what)
@@ -31844,6 +31940,10 @@ static bool sva_comp_leaf_(const sva_comp_ctx_t&ctx, sva_property_t*leaf,
       if (!sva_comp_check_leaf_clock_(ctx, leaf)) {
 	    pform_sva_destroy_property(leaf);
 	    return false;
+      }
+      if (ctx.imports) {
+	    req.imports = *ctx.imports;
+	    req.import_from = *ctx.import_from;
       }
       sva_nfa_sub_t*saved = sva_sub_request_;
       unsigned errors = error_count;
@@ -31911,6 +32011,13 @@ static void sva_comp_append_(std::vector<Statement*>&to,
 /* A node takes over its operand's re-evaluation and clock domains. */
 static void sva_comp_inherit_(sva_nfa_sub_t&m, sva_nfa_sub_t&child)
 {
+	/* Imported carriers of every operand are set together. */
+      if (m.locals.size() < child.locals.size()) m.locals.resize(child.locals.size());
+      for (size_t k = 0 ; k < child.locals.size() ; k += 1)
+	    for (std::map<perm_string, std::vector<perm_string> >::iterator it =
+		       child.locals[k].begin() ; it != child.locals[k].end() ; ++it)
+		  m.locals[k][it->first].insert(m.locals[k][it->first].end(),
+					       it->second.begin(), it->second.end());
       sva_comp_append_(m.recompute, child.recompute);
       sva_comp_append_(m.sweep, child.sweep);
       m.domains.insert(m.domains.end(), child.domains.begin(),
@@ -32201,6 +32308,19 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
       }
       sva_comp_ctx_t conseq_ctx = ctx;
       conseq_ctx.rate = ctx.rate * KA;
+	/* 16.10: the antecedent's local values flow into every consequence
+	   evaluation it starts; each evaluation gets its own copy. */
+      std::vector<perm_string> flow;
+      std::map<perm_string, perm_string> flow_from;
+      if (!ma.locals.empty())
+	    for (std::map<perm_string, std::vector<perm_string> >::iterator it =
+		       ma.locals[0].begin() ; it != ma.locals[0].end() ; ++it)
+		  if (!it->second.empty()) {
+			flow.push_back(it->first);
+			flow_from[it->first] = it->second.front();
+		  }
+      conseq_ctx.imports = &flow;
+      conseq_ctx.import_from = &flow_from;
       if (!sva_comp_emit_(conseq_ctx, conseq, OK, inst, serial, mc)) return false;
       unsigned node = serial++;
       char what[32];
@@ -32231,6 +32351,8 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 	    rq[k] = reg("rq", k, false);
 	    if (!overlap) sp1[k] = reg("sp", k, false);
       }
+      std::vector<perm_string> np (K);  // pending evaluations owned by k
+      for (long k = 0 ; k < K ; k += 1) np[k] = reg("np", k, true);
       std::vector<perm_string> olive (OK), owner (OK), drop (OK);
       for (long o = 0 ; o < OK ; o += 1) {
 	    olive[o] = reg("ol", o, false);
@@ -32267,6 +32389,8 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 		  m.inject[k].push_back(sva_assign_(loc, f, sva_bit_(loc, 0)));
 		  m.kill[k].push_back(sva_assign_(loc, f, sva_bit_(loc, 0)));
 	    }
+	    m.inject[k].push_back(sva_assign_(loc, np[k], sva_num32_(loc, 0)));
+	    m.kill[k].push_back(sva_assign_(loc, np[k], sva_num32_(loc, 0)));
 	    if (!overlap) {
 		  m.inject[k].push_back(sva_assign_(loc, sp1[k], sva_bit_(loc, 0)));
 		  m.kill[k].push_back(sva_assign_(loc, sp1[k], sva_bit_(loc, 0)));
@@ -32296,6 +32420,19 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
       }
       sva_comp_inherit_(m, ma);
       sva_comp_inherit_(m, mc);
+      m.locals = ma.locals;  // a parent's imports land in the antecedent
+	/* Merge support: an attempt's future is its antecedent state and these
+	   flags, once it owns no pending evaluation. */
+      if (ma.state.size() == (size_t)K) {
+	    m.state.resize(K);
+	    m.pending = np;
+	    for (long k = 0 ; k < K ; k += 1) {
+		  m.state[k] = ma.state[k];
+		  perm_string flags[] = { matched[k], bad[k], nv[k], adone[k], rq[k] };
+		  for (perm_string f : flags) m.state[k].push_back(f);
+		  if (!overlap) m.state[k].push_back(sp1[k]);
+	    }
+      }
 
 	/* Allocation: each requesting parent gets the next free evaluation
 	   slot; the slot's start statements exist once. */
@@ -32306,6 +32443,14 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 		  std::vector<Statement*> take;
 		  take.push_back(sva_assign_(loc, owner[o], sva_num32_(loc, k)));
 		  take.push_back(sva_assign_(loc, rq[k], sva_bit_(loc, 0)));
+		  if (o < (long)mc.locals.size() && k < (long)ma.locals.size())
+			for (perm_string nm : flow)
+			      for (perm_string dst : mc.locals[o][nm])
+				    take.push_back(sva_assign_(loc, dst,
+					  sva_id_(loc, ma.locals[k][nm].front())));
+		  PEBinary*inc = new PEBinary('+', sva_id_(loc, np[k]), sva_num32_(loc, 1));
+		  FILE_NAME(inc, loc);
+		  take.push_back(sva_assign_(loc, np[k], inc));
 		  pick = sva_if_(loc, sva_id_(loc, rq[k]), sva_block_(loc, take), pick);
 	    }
 	    std::vector<Statement*> start;
@@ -32373,6 +32518,9 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 			: sva_comp_eq_(loc, mc.vd[o], 1);
 		  note.push_back(sva_if_(loc, good,
 				 sva_assign_(loc, nv[k], sva_bit_(loc, 1)), nullptr));
+		  PEBinary*dec = new PEBinary('-', sva_id_(loc, np[k]), sva_num32_(loc, 1));
+		  FILE_NAME(dec, loc);
+		  note.push_back(sva_assign_(loc, np[k], dec));
 		  done.push_back(sva_if_(loc, mine, sva_block_(loc, note), nullptr));
 	    }
 	    done.push_back(sva_assign_(loc, olive[o], sva_bit_(loc, 0)));
@@ -32454,6 +32602,9 @@ static bool sva_comp_emit_switch_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 	    FILE_NAME(t, loc);
 	    return t;
       };
+      std::vector<perm_string> staged;
+      if (ctx.imports) staged = *ctx.imports;
+      m.locals.resize(K);
       sva_nfa_domain_t dom;
       dom.clk = clk;
       sva_comp_append_(dom.pre, mq.pre);
@@ -32490,6 +32641,20 @@ static bool sva_comp_emit_switch_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 	    std::vector<Statement*> start;
 	    start.push_back(sva_assign_(loc, go, sva_bit_(loc, 1)));
 	    sva_comp_append_(start, mq.inject[k]);
+	      /* Locals flowing in were staged when the parent asked; the
+		 operand's copies take them at its first tick. */
+	    for (size_t i = 0 ; i < staged.size() ; i += 1) {
+		  snprintf(what, sizeof what, "c%ust%zu_", node, i);
+		  /* the stage keeps the source's type */
+		  PExpr*w = sva_id_(loc, ctx.import_from->at(staged[i]));
+		  perm_string st = sva_make_reg_(loc, inst, what, (unsigned)k, true,
+				false, w, sva_expr_signed_(w));
+		  delete w;
+		  m.locals[k][staged[i]].push_back(st);
+		  if (k < (long)mq.locals.size())
+			for (perm_string dst : mq.locals[k][staged[i]])
+			      start.push_back(sva_assign_(loc, dst, sva_id_(loc, st)));
+	    }
 	    dom.body.push_back(sva_if_(loc, due, sva_block_(loc, start), nullptr));
       }
       sva_comp_append_(dom.body, mq.body);
@@ -32880,6 +33045,19 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    live[k] = sva_make_reg_(loc, inst, "live", (unsigned)k);
 	    init.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
       }
+	/* #446: attempts whose whole future is equal are folded into one
+	   slot, which then stands for cnt[k] attempts and reports that many
+	   verdicts. This bounds the pool of an unbounded antecedent: equal
+	   attempts never coexist once they own no pending evaluation. */
+      bool merge = !m.pending.empty() && m.state.size() == (size_t)K;
+      std::vector<perm_string> cnt (merge ? K : 0);
+      for (long k = 0 ; k < (long)cnt.size() ; k += 1) {
+	    cnt[k] = sva_make_reg_(loc, inst, "cnt", (unsigned)k, true);
+	    init.push_back(sva_assign_(loc, cnt[k], sva_num32_(loc, 0)));
+      }
+      auto one = [&](long k) -> PExpr* {
+	    return merge ? (PExpr*)sva_id_(loc, cnt[k]) : sva_bit_(loc, 1);
+      };
       perm_string r_p0 = sva_make_reg_(loc, inst, "p", 0, true);
       perm_string r_vac0 = sva_make_reg_(loc, inst, "vac", 0, true);
       perm_string r_f0 = sva_make_reg_(loc, inst, "f", 0, true);
@@ -32942,6 +33120,8 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    for (long k = K-1 ; k >= 0 ; k -= 1) {
 		  std::vector<Statement*> take = m.inject[k];
 		  take.insert(take.begin(), sva_assign_(loc, live[k], sva_bit_(loc, 1)));
+		  if (merge)
+			take.push_back(sva_assign_(loc, cnt[k], sva_num32_(loc, 1)));
 		  inj = sva_if_(loc, sva_not_(loc, sva_id_(loc, live[k])),
 				sva_block_(loc, take), inj);
 	    }
@@ -32987,16 +33167,16 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
       for (long k = 0 ; k < K ; k += 1) {
 	    std::vector<Statement*> done;
-	    PEBinary*inc_p = new PEBinary('+', sva_id_(loc, r_p), sva_bit_(loc, 1));
+	    PEBinary*inc_p = new PEBinary('+', sva_id_(loc, r_p), one(k));
 	    FILE_NAME(inc_p, loc);
-	    PEBinary*inc_v = new PEBinary('+', sva_id_(loc, r_vac), sva_bit_(loc, 1));
+	    PEBinary*inc_v = new PEBinary('+', sva_id_(loc, r_vac), one(k));
 	    FILE_NAME(inc_v, loc);
-	    PEBinary*inc_f = new PEBinary('+', sva_id_(loc, r_f), sva_bit_(loc, 1));
+	    PEBinary*inc_f = new PEBinary('+', sva_id_(loc, r_f), one(k));
 	    FILE_NAME(inc_f, loc);
 	    std::vector<Statement*> vac;
 	    vac.push_back(sva_assign_(loc, r_p, inc_p));
 	    vac.push_back(sva_assign_(loc, r_vac, inc_v));
-	    PEBinary*inc_p1 = new PEBinary('+', sva_id_(loc, r_p), sva_bit_(loc, 1));
+	    PEBinary*inc_p1 = new PEBinary('+', sva_id_(loc, r_p), one(k));
 	    FILE_NAME(inc_p1, loc);
 	    done.push_back(sva_if_(loc, sva_comp_eq_(loc, m.vd[k], 3),
 		  sva_assign_(loc, r_f, inc_f),
@@ -33041,6 +33221,42 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
       };
       decide(body, actions[0], 0);
+
+	/* Merge pass (only the main clock advances an antecedent state). */
+      for (long k = 1 ; merge && k < K ; k += 1) {
+	    perm_string dead = sva_make_reg_(loc, inst, "mrg", (unsigned)k);
+	    Statement*chain = nullptr;
+	    for (long j = k - 1 ; j >= 0 ; j -= 1) {
+		  PExpr*same = sva_logic_(loc, 'a',
+			sva_logic_(loc, 'a', sva_id_(loc, live[j]), sva_id_(loc, live[k])),
+			sva_logic_(loc, 'a', sva_comp_eq_(loc, m.pending[j], 0),
+					     sva_comp_eq_(loc, m.pending[k], 0)));
+		  for (size_t r = 0 ; r < m.state[k].size() ; r += 1) {
+			PEBComp*eq = new PEBComp('E', sva_id_(loc, m.state[j][r]),
+						 sva_id_(loc, m.state[k][r]));
+			FILE_NAME(eq, loc);
+			same = sva_logic_(loc, 'a', same, eq);
+		  }
+		  PEBinary*sum = new PEBinary('+', sva_id_(loc, cnt[j]), sva_id_(loc, cnt[k]));
+		  FILE_NAME(sum, loc);
+		  std::vector<Statement*> fold;
+		  fold.push_back(sva_assign_(loc, cnt[j], sum));
+		  fold.push_back(sva_assign_(loc, dead, sva_bit_(loc, 1)));
+		  chain = sva_if_(loc, same, sva_block_(loc, fold), chain);
+	    }
+	    std::vector<Statement*> drop;
+	    for (Statement*st : m.kill[k]) {
+		  Statement*c = sva_clone_stmt_(st);
+		  assert(c);
+		  drop.push_back(c);
+	    }
+	    drop.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
+	    drop.push_back(sva_assign_(loc, cnt[k], sva_num32_(loc, 0)));
+	    body.push_back(sva_assign_(loc, dead, sva_bit_(loc, 0)));
+	    body.push_back(chain);
+	    body.push_back(sva_if_(loc, sva_id_(loc, dead), sva_block_(loc, drop), nullptr));
+      }
+      if (merge) sweep(body);
 
 	/* The other clock domains: advance their operands, re-evaluate every
 	   node, decide. */
@@ -33096,6 +33312,39 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL, sva_block_(loc, init),
 					nullptr);
       FILE_NAME(ip, loc);
+}
+
+/* #446: lower a multiclocked `s |=> @(c) t' / `s ##1 @(c) t' through the
+   composite. Returns false (nothing consumed) for shapes the split does
+   not take, so the caller keeps its own diagnostic. */
+static bool sva_mc_try_composite_(const struct vlltype&loc,
+				  sva_property_t*prop, Statement*fail_stmt,
+				  Statement*pass_stmt, int kind)
+{
+      bool implication = prop->op_type == 2 && prop->antecedent && !prop->mc_prefix;
+      bool sequence = prop->op_type == 0 && prop->mc_prefix && !prop->antecedent
+		      && prop->mc_boundary == 1;
+      if ((!implication && !sequence) || prop->tree || prop->ante_tree
+	  || (prop->mc_more && !prop->mc_more->empty()) || !prop->seq
+	  || kind == 2)
+	    return false;
+      PEventStatement*clk = prop->clk_evt;
+      PExpr*disable = prop->disable_iff_expr;
+      std::vector<perm_string> locals = prop->local_names;
+      prop->clk_evt = nullptr;
+      prop->disable_iff_expr = nullptr;
+      bool ok = true;
+      sva_property_t*node = sva_comp_split_multiclock_(loc, prop, ok);
+      if (!ok) {
+	    pform_sva_destroy_property(node);
+	    delete clk; delete disable; delete fail_stmt; delete pass_stmt;
+	    return true;
+      }
+      node->clk_evt = clk;
+      node->disable_iff_expr = disable;
+      node->local_names = locals;
+      pform_make_composite_assertion_(loc, node, fail_stmt, pass_stmt, kind);
+      return true;
 }
 
 /* An operand reached an assertion engine other than the slot synthesizer.
