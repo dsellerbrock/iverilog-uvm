@@ -1815,6 +1815,12 @@ static void draw_assign_expr_vec4(ivl_expr_t expr)
       unsigned lval_count = ivl_expr_ref_lval_count(expr);
       if (lval_count > 0) {
             draw_eval_vec4(rhs);
+	      /* A single 2-state destination converts x/z to 0, and the
+	         expression's value is the value stored. */
+            ivl_signal_t only = lval_count == 1
+                  ? ivl_lval_sig(ivl_expr_ref_lval_at(expr, 0)) : 0;
+            if (only && ivl_signal_data_type(only) == IVL_VT_BOOL)
+                  fprintf(vvp_out, "    %%cast2; assignment expression destination\n");
             fprintf(vvp_out, "    %%dup/vec4; preserve concatenation assignment value\n");
             for (unsigned idx = 0; idx < lval_count; idx += 1) {
                   ivl_lval_t lval = ivl_expr_ref_lval_at(expr, idx);

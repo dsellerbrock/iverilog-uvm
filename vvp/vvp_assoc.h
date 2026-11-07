@@ -154,9 +154,12 @@ class vvp_assoc_base : public vvp_object {
 	// size() sums them).  key_text receives a printable form of
 	// the key; val_kind receives 0=vec4, 1=real, 2=string,
 	// 3=object.  Returns false when pos is out of range.
+	// SIGNED_ORDER orders and prints vector keys as signed numbers, for
+	// a signed index type (7.8.4).
       virtual bool peek_entry(size_t pos, std::string&key_text,
 			      vvp_vector4_t&val_vec, double&val_real,
-			      std::string&val_str, int&val_kind) const =0;
+			      std::string&val_str, int&val_kind,
+			      bool signed_order = false) const =0;
 	  virtual bool get_vec4_bitstream(unsigned key_kind, bool signed_order,
 					  vvp_vector4_t&stream) const =0;
 
@@ -179,7 +182,8 @@ class vvp_assoc_base : public vvp_object {
 	// (object values are not writable through value puts).
       virtual bool poke_entry(size_t pos, const vvp_vector4_t&val_vec,
 			      double val_real, const std::string&val_str,
-			      int val_kind) =0;
+			      int val_kind,
+			      bool signed_order = false) =0;
 
 	// IEEE 1800-2017 18.8 per-element mode state. Overrides are keyed by
 	// the same typed key identity as the associative array and are removed
@@ -758,7 +762,8 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 
       bool peek_entry(size_t pos, std::string&key_text,
 		      vvp_vector4_t&val_vec, double&val_real,
-		      std::string&val_str, int&val_kind) const override
+		      std::string&val_str, int&val_kind,
+		      bool signed_order = false) const override
       {
 	    if (pos < str_map_.size()) {
 		  typename std::map<std::string, TYPE>::const_iterator cur
@@ -781,16 +786,13 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 	    }
 	    pos -= obj_map_.size();
 	    if (pos < vec_map_.size()) {
-		  typename std::map<std::string, vec_entry_t>::const_iterator cur
-			= vec_map_.begin();
-		  std::advance(cur, pos);
-		    // cur->first is the internal raw-byte lookup key; the
-		    // caller wants a printable form, so render the stored key
-		    // vector as decimal.
+		  const vec_entry_t&entry = vec_entry_at_(pos, signed_order);
+		    // Render the stored key vector as decimal for the caller.
 		  char kbuf[128];
-		  vpip_vec4_to_dec_str(cur->second.key, kbuf, sizeof kbuf, 0);
+		  vpip_vec4_to_dec_str(entry.key, kbuf, sizeof kbuf,
+				       signed_order ? 1 : 0);
 		  key_text = kbuf;
-		  val_kind = assign_entry_val_(cur->second.value, val_vec,
+		  val_kind = assign_entry_val_(entry.value, val_vec,
 					       val_real, val_str);
 		  return true;
 	    }
@@ -860,7 +862,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 
       bool poke_entry(size_t pos, const vvp_vector4_t&val_vec,
 		      double val_real, const std::string&val_str,
-		      int val_kind) override
+		      int val_kind, bool signed_order = false) override
       {
 	    if (pos < str_map_.size()) {
 		  typename std::map<std::string, TYPE>::iterator cur
@@ -879,13 +881,28 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 	    }
 	    pos -= obj_map_.size();
 	    if (pos < vec_map_.size()) {
-		  typename std::map<std::string, vec_entry_t>::iterator cur
-			= vec_map_.begin();
-		  std::advance(cur, pos);
-		  return update_entry_val_(cur->second.value, val_vec,
+		  vec_entry_t&entry = const_cast<vec_entry_t&>(
+			vec_entry_at_(pos, signed_order));
+		  return update_entry_val_(entry.value, val_vec,
 					   val_real, val_str, val_kind);
 	    }
 	    return false;
+      }
+
+	// The POS-th vector-keyed entry: in map order, or in signed key
+	// order for a signed index type.
+      const vec_entry_t& vec_entry_at_(size_t pos, bool signed_order) const
+      {
+	    if (!signed_order) {
+		  typename std::map<std::string, vec_entry_t>::const_iterator cur
+			= vec_map_.begin();
+		  std::advance(cur, pos);
+		  return cur->second;
+	    }
+	    const vec_index_t&index = vec_index_(true);
+	    typename vec_index_t::const_iterator cur = index.begin();
+	    std::advance(cur, pos);
+	    return **cur;
       }
 
     private:

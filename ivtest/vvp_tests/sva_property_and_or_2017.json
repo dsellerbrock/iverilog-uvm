@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_property_and_or.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_property_and_or"],
+  "gold": "sva_property_and_or"
+}

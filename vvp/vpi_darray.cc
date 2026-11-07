@@ -104,7 +104,8 @@ char*__vpiDarrayVar::get_word_str(struct __vpiArrayWord*word, int code)
 		  vvp_vector4_t vval;
 		  double rval = 0.0;
 		  int kind = -1;
-		  if (mobj->peek_entry(index, key, vval, rval, sval, kind))
+		  if (mobj->peek_entry(index, key, vval, rval, sval, kind,
+				       readmem_index_signed_))
 			return simple_set_rbuf_str(key.c_str());
 	    }
       }
@@ -127,7 +128,8 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 		  vvp_vector4_t vval;
 		  double rval = 0.0;
 		  int kind = -1;
-		  if (! mobj->peek_entry(index, key, vval, rval, sval, kind)) {
+		  if (! mobj->peek_entry(index, key, vval, rval, sval, kind,
+				       readmem_index_signed_)) {
 			vp->format = vpiSuppressVal;
 			return;
 		  }
@@ -311,7 +313,7 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
 	    double cur_real = 0.0;
 	    int kind = -1;
 	    if (! mobj->peek_entry(index, key, cur_vec, cur_real,
-				   cur_str, kind)) {
+				   cur_str, kind, readmem_index_signed_)) {
 		  fprintf(stderr, "vpi error: associative array element "
 			  "index %u does not exist.\n", index);
 		  return;
@@ -375,7 +377,8 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
 		      break;
 	    }
 	    if (!ok || ! mobj->poke_entry(index, new_vec, new_real,
-					  new_str, kind)) {
+					  new_str, kind,
+					  readmem_index_signed_)) {
 		  fprintf(stderr, "vpi sorry: value format %d cannot be "
 			  "written to this associative array element "
 			  "(value kind %d).\n", (int)vp->format, kind);

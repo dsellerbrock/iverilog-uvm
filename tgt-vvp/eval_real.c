@@ -470,6 +470,16 @@ static void draw_sfunc_real(ivl_expr_t expr)
             return;
       }
 
+	/* `(r = value)' with a real l-value (IEEE 1800 11.3.6): store the
+	   value and leave a copy as the expression's result. */
+      if (strcmp(ivl_expr_name(expr), "$ivl_assign_expr$=") == 0) {
+	    assert(ivl_expr_ref_lval_count(expr) == 1);
+	    draw_eval_real(ivl_expr_parm(expr, 1));
+	    fprintf(vvp_out, "    %%dup/real;\n");
+	    draw_store_real_lval(ivl_expr_ref_lval_at(expr, 0));
+	    return;
+      }
+
       /* R11: $ivl_clocking_sample(r) on a REAL operand -- the Preponed
        * value of the raw signal (IEEE 1800-2017 16.5.1). The vec4 form of
        * this lives in eval_vec4.c; a real operand needs the real-valued
