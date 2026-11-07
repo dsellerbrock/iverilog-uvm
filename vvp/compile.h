@@ -448,6 +448,11 @@ extern void functor_ref_lookup(vvp_net_t**ref, char*lab);
  */
 extern void code_label_lookup(struct vvp_code_s *code, char *label, bool cptr2);
 
+/* A lazily evaluated VPI argument expression node (.vpi_expr). */
+extern void compile_vpi_expr(char*label, long type, long op_type, long width,
+			     char*kind, char*thunk, char*decompile,
+			     unsigned argc, vpiHandle*argv);
+
 /*
  * The `compile_udp_def' function creates a UDP.  The `table' is a
  * NULL terminated array of char*, as assembled by `compile_udp_table'.
