@@ -36,6 +36,7 @@
 # include  "PTask.h"
 # include  "Statement.h"
 # include  "PTimingCheck.h"
+# include  "vpi_user.h"
 # include  "netvector.h"
 # include  "pform_sva_nfa.h"
 # include  "discipline.h"
@@ -15084,7 +15085,8 @@ static PExpr* sva_past_(const struct vlltype&loc, PExpr*e, long d)
 static unsigned tc_gensym_counter = 0;
 
 static perm_string tc_make_real_(const struct vlltype&loc, unsigned inst,
-				 const char*what, double init_val = -1.0)
+				 const char*what, double init_val = -1.0,
+				 bool has_init = true)
 {
       char buf[64];
       snprintf(buf, sizeof buf, "_ivl_tc%u_%s", inst, what);
@@ -15093,7 +15095,8 @@ static perm_string tc_make_real_(const struct vlltype&loc, unsigned inst,
       list<decl_assignment_t*>*decls = new list<decl_assignment_t*>;
       decl_assignment_t*decl = new decl_assignment_t;
       decl->name = pform_ident_t(name, loc.lexical_pos);
-      decl->expr.reset(new PEFNumber(new verireal(init_val)));
+      if (has_init)
+	    decl->expr.reset(new PEFNumber(new verireal(init_val)));
       decls->push_back(decl);
 
       real_type_t*rtype = new real_type_t(real_type_t::REAL);
@@ -15434,6 +15437,95 @@ static bool tc_active_(const struct vlltype&loc, const char*check_name)
 	// opt-in contract, so ignoring the check is silent here.
       if (!gn_specify_blocks_flag) return false;
       return true;
+}
+
+/* A deep copy of a timing-check event for the PTchk record; nullptr when
+   the &&& condition cannot be cloned (the checker drops such a check
+   loudly anyway). */
+static PTimingCheck::event_t* tc_event_copy_(const PTimingCheck::event_t&ev)
+{
+      PTimingCheck::event_t*copy = new PTimingCheck::event_t;
+      copy->name = ev.name;
+      copy->posedge = ev.posedge;
+      copy->negedge = ev.negedge;
+      copy->edges = ev.edges;
+      if (ev.condition.get()) {
+	    copy->condition.reset(sva_clone_expr_(ev.condition.get()));
+	    if (!copy->condition) {
+		  delete copy;
+		  return nullptr;
+	    }
+      }
+      return copy;
+}
+
+/* Record one timing-check directive (see PTchk) and give each limit a
+   hidden real variable for the synthesized checker to read. The
+   variables have no initializer: the elaborated limit values travel with
+   the timing-check object and are seeded when the simulation loads, so a
+   VPI client or SDF annotator sees the declared limits from the start of
+   simulation and no time-zero thread overwrites an annotated value.
+   Returns references to the variables in limit order, or an empty vector
+   when no record could be built (the caller then keeps its inline
+   limits). The limit expressions stay the caller's. */
+static std::vector<PExpr*> tc_record_(const struct vlltype&loc, int type,
+				       const PTimingCheck::event_t&ref_ev,
+				       const PTimingCheck::event_t*data_ev,
+				       const std::vector<PExpr*>&limits,
+				       const pform_name_t*notifier)
+{
+      std::vector<PExpr*> refs;
+      PTimingCheck::event_t*ref = tc_event_copy_(ref_ev);
+      PTimingCheck::event_t*data = data_ev ? tc_event_copy_(*data_ev) : nullptr;
+      bool ok = ref && (data_ev == nullptr || data);
+      std::vector<PExpr*> kept;
+      for (PExpr*limit : limits) {
+	    PExpr*copy = ok ? sva_clone_expr_(limit) : nullptr;
+	    if (copy == nullptr) ok = false;
+	    kept.push_back(copy);
+      }
+      if (!ok) {
+	    delete ref;
+	    delete data;
+	    for (PExpr*copy : kept) delete copy;
+	    return refs;
+      }
+
+      unsigned inst = tc_gensym_counter++;
+      std::vector<perm_string> vars;
+      for (size_t idx = 0; idx < limits.size(); idx += 1) {
+	    char what[16];
+	    snprintf(what, sizeof what, "lim%zu", idx + 1);
+	    vars.push_back(tc_make_real_(loc, inst, what, 0.0, false));
+	    refs.push_back(sva_id_(loc, vars.back()));
+      }
+      PTchk*rec = new PTchk(type, ref, data, kept, vars,
+			    notifier ? new pform_name_t(*notifier) : nullptr);
+      FILE_NAME(rec, loc);
+      pform_module_timing_check(rec);
+      return refs;
+}
+
+/* Swap the caller-owned limits for the recorded variables. */
+static void tc_take_limit_refs_(const std::vector<PExpr*>&refs,
+				std::initializer_list<PExpr**> limits)
+{
+      if (refs.empty()) return;
+      size_t idx = 0;
+      for (PExpr**limit : limits) {
+	    if (*limit == nullptr) continue;
+	    delete *limit;
+	    *limit = refs[idx++];
+      }
+}
+
+static int tc_pair_type_(const char*check_name)
+{
+      if (strcmp(check_name, "$setup") == 0) return vpiSetup;
+      if (strcmp(check_name, "$hold") == 0) return vpiHold;
+      if (strcmp(check_name, "$recovery") == 0) return vpiRecovery;
+      if (strcmp(check_name, "$removal") == 0) return vpiRemoval;
+      return vpiSkew;
 }
 
 static void tc_pair_synth_(const struct vlltype&loc,
@@ -15792,6 +15884,15 @@ void pform_timing_check_pair(const struct vlltype&loc,
 			     const pform_name_t*notifier)
 {
       if (!tc_active_(loc, check_name)) return;
+	/* $setup and $removal name their data event first, so their
+	   timestamp event is the data term (IEEE 1800-2023 37.40 detail 1). */
+      bool data_first = strcmp(check_name, "$setup") == 0
+		     || strcmp(check_name, "$removal") == 0;
+      tc_take_limit_refs_(tc_record_(loc, tc_pair_type_(check_name),
+				     data_first ? check_ev : stamp_ev,
+				     data_first ? &stamp_ev : &check_ev,
+				     {limit}, notifier),
+			  {&limit});
       tc_pair_synth_(loc, check_name, stamp_ev, check_ev, limit,
 		     violation_if_greater, notifier);
 }
@@ -15810,8 +15911,14 @@ void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
 {
       if (!tc_active_(loc, base_name)) return;
 
-      PExpr*lim1c = sva_clone_expr_(lim1);
-      PExpr*lim2c = sva_clone_expr_(lim2);
+	/* The limits are borrowed here; the checkers read the recorded
+	   variables, or clones when no record could be built. */
+      bool recrem = strcmp(base_name, "$recrem") == 0;
+      std::vector<PExpr*> refs = tc_record_(loc,
+	    recrem ? vpiRecrem : vpiSetupHold, ref_ev, &data_ev,
+	    {lim1, lim2}, notifier);
+      PExpr*lim1c = refs.empty() ? sva_clone_expr_(lim1) : refs[0];
+      PExpr*lim2c = refs.empty() ? sva_clone_expr_(lim2) : refs[1];
       if (lim1c == 0 || lim2c == 0) {
 	    cerr << loc.get_fileline() << ": sorry: " << base_name
 		 << " limit expression shape is not supported by the "
@@ -15848,6 +15955,9 @@ void pform_timing_check_period(const struct vlltype&loc,
 {
       if (!tc_active_(loc, "$period")) return;
       if (!tc_check_supported_(loc, "$period", ev)) return;
+      tc_take_limit_refs_(tc_record_(loc, vpiPeriod, ev, nullptr,
+				     {limit}, notifier),
+			  {&limit});
 
       unsigned inst = tc_gensym_counter++;
       perm_string last_var = tc_make_real_(loc, inst, "last");
@@ -15906,6 +16016,11 @@ void pform_timing_check_width(const struct vlltype&loc,
 		  return;
 	    }
       }
+      std::vector<PExpr*> width_limits(1, limit);
+      if (threshold) width_limits.push_back(threshold);
+      tc_take_limit_refs_(tc_record_(loc, vpiWidth, ev, nullptr,
+				     width_limits, notifier),
+			  {&limit, &threshold});
       PWidth*check = new PWidth(loc.text, loc.first_line, loc.lexical_pos,
 				 event, limit, threshold,
 				 notifier ? new pform_name_t(*notifier) : nullptr);
@@ -16090,6 +16205,9 @@ void pform_timing_check_timeskew(const struct vlltype&loc,
 				 PExpr*event_based, PExpr*remain_active)
 {
       if (!tc_active_(loc, "$timeskew")) return;
+      tc_take_limit_refs_(tc_record_(loc, vpiTimeskew, ref_ev, &data_ev,
+				     {limit}, notifier),
+			  {&limit});
       tc_skew_timer_synth_(loc, "$timeskew", ref_ev, data_ev, limit,
 			   notifier, event_based, remain_active);
 }
@@ -16103,6 +16221,9 @@ void pform_timing_check_fullskew(const struct vlltype&loc,
 				 PExpr*event_based, PExpr*remain_active)
 {
       if (!tc_active_(loc, "$fullskew")) return;
+      tc_take_limit_refs_(tc_record_(loc, vpiFullskew, ref_ev, &data_ev,
+				     {lim1, lim2}, notifier),
+			  {&lim1, &lim2});
 	// The default timer mode is a shared window: whichever event
 	// starts it selects the corresponding direction's limit.
       tc_fullskew_timer_synth_(loc, ref_ev, data_ev, lim1, lim2, notifier,
@@ -16143,6 +16264,12 @@ void pform_timing_check_nochange(const struct vlltype&loc,
 	    error_count += 1;
 	    return;
       }
+
+	// The offsets are recorded for VPI and SDF; the checker below
+	// models the zero offsets only.
+      tc_take_limit_refs_(tc_record_(loc, vpiNoChange, ref_ev, &data_ev,
+				     {start_off, end_off}, notifier),
+			  {&start_off, &end_off});
 
 	// With zero offsets the forbidden window is exactly the level
 	// of the reference signal that FOLLOWS the given edge (posedge

@@ -317,6 +317,8 @@ typedef struct t_vpi_delay  {
 #define vpiReturnStmt  691
 #define vpiNet         36
 #define vpiNullStmt    38 /* a semicolon */
+#define vpiTchk        61 /* timing check */
+#define vpiTchkTerm    62 /* terminal of timing check */
 #define vpiNetBit      37
 #define vpiOperation   39 /* behavioral operation */
 #define vpiNettypeDecl 523
@@ -358,6 +360,9 @@ typedef struct t_vpi_delay  {
 #define vpiRightRange  83
 #define vpiScope       84
 #define vpiSysTfCall   85
+#define vpiTchkDataTerm 86 /* timing check data term */
+#define vpiTchkNotifier 87 /* timing check notifier */
+#define vpiTchkRefTerm  88 /* timing check reference term */
 #define vpiArgument    89
 #define vpiBit         90
 #define vpiInternalScope 92
@@ -486,6 +491,19 @@ typedef struct t_vpi_delay  {
 #   define vpiPosedge      (vpiEdgex1|vpiEdge01|vpiEdge0x)
 #   define vpiNegedge      (vpiEdgex0|vpiEdge10|vpiEdge1x)
 #   define vpiAnyEdge      (vpiPosedge|vpiNegedge)
+#define vpiTchkType      38 /* timing check subtypes (IEEE 1800 Annex K) */
+#   define vpiSetup        1 /* $setup */
+#   define vpiHold         2 /* $hold */
+#   define vpiPeriod       3 /* $period */
+#   define vpiWidth        4 /* $width */
+#   define vpiSkew         5 /* $skew */
+#   define vpiRecovery     6 /* $recovery */
+#   define vpiNoChange     7 /* $nochange */
+#   define vpiSetupHold    8 /* $setuphold */
+#   define vpiFullskew     9 /* $fullskew */
+#   define vpiRecrem      10 /* $recrem */
+#   define vpiRemoval     11 /* $removal */
+#   define vpiTimeskew    12 /* $timeskew */
 #define vpiConstType 40
 #define vpiAssignmentOp 82 /* Normal assignment */
 #define vpiIsModPort 669
@@ -545,6 +563,9 @@ typedef struct t_vpi_delay  {
 /* used in vvp/vpi_priv.h  0x1000004 */
 #define _vpiModPathConditionText 0x1000005
 #define _vpiModPathIfNone        0x1000006
+  /* The &&& condition text of a vpiTchkTerm, in the form the compiler
+     prints conditions (for SDF COND matching, IEEE 1800 32.4.2). */
+#define _vpiTchkConditionText    0x1000007
 
 /* DELAY MODES */
 #define vpiNoDelay            1

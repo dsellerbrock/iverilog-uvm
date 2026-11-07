@@ -70,3 +70,18 @@ PSetupHold::PSetupHold(event_t* reference_event,
 PSetupHold::~PSetupHold()
 {
 }
+
+PTchk::PTchk(int type, event_t*ref, event_t*data,
+	     const std::vector<PExpr*>&limits,
+	     const std::vector<perm_string>&limit_vars,
+	     pform_name_t*notifier)
+: type_(type), ref_(ref), data_(data), limit_vars_(limit_vars),
+  notifier_(notifier)
+{
+      for (PExpr*limit : limits)
+	    limits_.emplace_back(limit);
+}
+
+PTchk::~PTchk()
+{
+}
