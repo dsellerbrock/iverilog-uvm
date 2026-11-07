@@ -417,6 +417,46 @@ static char* format_packed_struct(vpiHandle item)
                                    (unsigned)vpi_get(vpiSize, item), 0);
 }
 
+struct p_array_range {
+  int left;
+  int right;
+};
+
+static char* format_p_value(vpiHandle item);
+
+static void format_p_memory_dimension(vpiHandle item,
+                                      const struct p_array_range *ranges,
+                                      unsigned dimensions, unsigned dimension,
+                                      size_t offset, char **acc, size_t *used,
+                                      int *first)
+{
+  int left = ranges[dimension].left;
+  int right = ranges[dimension].right;
+  int step = left <= right ? 1 : -1;
+  int low = left < right ? left : right;
+  size_t dimension_size = (size_t)(left <= right ? right - left : left - right) + 1;
+  for (int index = left;; index += step) {
+    size_t coordinate = (size_t)((int64_t)index - low);
+    size_t next = offset * dimension_size + coordinate;
+    if (dimension + 1 < dimensions) {
+      format_p_memory_dimension(item, ranges, dimensions, dimension + 1,
+                                next, acc, used, first);
+    } else {
+      vpiHandle word = vpi_handle_by_index(item, (PLI_INT32)next);
+      if (word) {
+        char *value = format_p_value(word);
+        size_t value_length = strlen(value);
+        *acc = realloc(*acc, *used + (*first ? 0 : 2) + value_length + 2);
+        if (!*first) { strcpy(*acc + *used, ", "); *used += 2; }
+        strcpy(*acc + *used, value); *used += value_length;
+        free(value);
+        *first = 0;
+      }
+    }
+    if (index == right) break;
+  }
+}
+
 /*
  * SV %p (IEEE 1800-2017 21.2.1.6): pretty-print a value using assignment-
  * pattern notation. Returns a malloc'd NUL-terminated string; the caller
@@ -451,6 +491,32 @@ static char* format_p_value(vpiHandle item)
        assignment-pattern order is instead its declared left-to-right
        order, which is descending for a range such as [2:0]. */
     if (itype == vpiMemory && !is_assoc) {
+      vpiHandle range_iter = vpi_iterate(vpiRange, item);
+      struct p_array_range *ranges = 0;
+      unsigned dimensions = 0;
+      vpiHandle range;
+      while (range_iter && (range = vpi_scan(range_iter)) != 0) {
+        ranges = realloc(ranges, (dimensions + 1) * sizeof *ranges);
+        s_vpi_value bound;
+        vpiHandle left_bound = vpi_handle(vpiLeftRange, range);
+        vpiHandle right_bound = vpi_handle(vpiRightRange, range);
+        bound.format = vpiIntVal;
+        vpi_get_value(left_bound, &bound);
+        ranges[dimensions].left = bound.value.integer;
+        bound.format = vpiIntVal;
+        vpi_get_value(right_bound, &bound);
+        ranges[dimensions].right = bound.value.integer;
+        dimensions += 1;
+      }
+      if (dimensions > 1) {
+        format_p_memory_dimension(item, ranges, dimensions, 0, 0,
+                                  &acc, &used, &first);
+        free(ranges);
+        acc = realloc(acc, used + 2);
+        strcpy(acc + used, "}");
+        return acc;
+      }
+      free(ranges);
       left = vpi_handle(vpiLeftRange, item);
       right = vpi_handle(vpiRightRange, item);
       if (left && right) {
