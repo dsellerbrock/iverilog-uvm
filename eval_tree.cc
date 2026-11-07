@@ -27,6 +27,51 @@
 
 # include  "netlist.h"
 # include  "ivl_assert.h"
+
+static void eval_debug(const NetExpr*expr, NetExpr*res, bool is_real);
+
+static bool signed_xz_constant_(const NetExpr*expr)
+{
+      const NetEConst*value = dynamic_cast<const NetEConst*>(expr);
+      return value && value->value().has_sign()
+          && !value->value().is_defined();
+}
+
+static NetEConst* all_x_result_(const NetExpr&expr, unsigned width)
+{
+      verinum value(verinum::Vx, width);
+      value.has_sign(expr.has_sign());
+      NetEConst*result = new NetEConst(value);
+      ivl_assert(expr, result);
+      return result;
+}
+
+static bool signed_xz_nonlogical_binary_(char op)
+{
+      switch (op) {
+          case '+': case '-': case '*': case '/': case '%': case 'p':
+          case '&': case '|': case '^': case 'A': case 'O': case 'X':
+          case '<': case '>': case 'L': case 'G':
+          case 'l': case 'r': case 'R': case 'm': case 'M':
+            return true;
+          default:
+            return false;
+      }
+}
+
+static NetEConst* eval_signed_xz_binary_(const NetEBinary&expr,
+                                         const NetExpr*left,
+                                         const NetExpr*right)
+{
+      if (!signed_xz_nonlogical_binary_(expr.op())
+          || expr.expr_type() == IVL_VT_REAL
+          || (!signed_xz_constant_(left) && !signed_xz_constant_(right)))
+            return 0;
+
+      NetEConst*result = all_x_result_(expr, expr.expr_width());
+      eval_debug(&expr, result, false);
+      return result;
+}
 # include  "netmisc.h"
 # include  "netenum.h"
 # include  "netvector.h"
@@ -98,6 +143,9 @@ NetExpr* NetEBinary::eval_tree()
       eval_expr(left_);
       eval_expr(right_);
 
+      if (NetEConst*result = eval_signed_xz_binary_(*this, left_, right_))
+	    return result;
+
       return eval_arguments_(left_, right_);
 }
 
@@ -139,6 +187,11 @@ NetExpr* NetEBAdd::eval_tree()
 {
       eval_expr(left_);
       eval_expr(right_);
+
+	/* IEEE 1800-2017/2023 11.8.4: signed X/Z operands poison every
+	 * nonlogical integral result, even where arithmetic retains known bits. */
+      if (NetEConst*result = eval_signed_xz_binary_(*this, left_, right_))
+	    return result;
 
 	// First try to elaborate the expression completely.
       NetExpr*res = eval_arguments_(left_,right_);
@@ -1503,6 +1556,20 @@ NetExpr*NetETernary::blended_arguments_(const NetExpr*te, const NetExpr*fe) cons
 NetExpr* NetEUnary::eval_tree()
 {
       eval_expr(expr_);
+
+      if (expr_type() != IVL_VT_REAL && signed_xz_constant_(expr_)) {
+	    switch (op_) {
+		case '+': case '-': case '~': case 'm':
+		case '&': case '|': case '^': case 'A': case 'N': case 'X': {
+		      NetEConst*result = all_x_result_(*this, expr_width());
+		      eval_debug(this, result, false);
+		      return result;
+		}
+		default:
+		      break;
+	    }
+      }
+
       return eval_arguments_(expr_);
 }
 

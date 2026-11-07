@@ -1,0 +1,2 @@
+unary_plus=xxxxxxxx bitwise_not=xxxxxxxx left_shift=xxxxxxxx
+PASS: signed X nonlogical results are all X

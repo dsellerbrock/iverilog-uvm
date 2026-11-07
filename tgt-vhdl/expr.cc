@@ -177,6 +177,8 @@ static vhdl_expr *translate_unary(ivl_expr_t e)
 
    char opcode = ivl_expr_opcode(e);
    switch (opcode) {
+   case '+':
+      return operand;
    case '!':
    case '~':
       return new vhdl_unaryop_expr

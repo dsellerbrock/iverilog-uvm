@@ -6659,3 +6659,5 @@ issue2587_inside_2d_array_2017 normal,-g2017,-s,issue2587_inside_2d_array ivltes
 issue2587_inside_2d_array_2023 normal,-g2023,-s,issue2587_inside_2d_array ivltests gold=issue2587_inside_2d_array-legacy.gold
 issue2672_sva_repetition_boolean_operand_2017 CE,-g2017,-gsupported-assertions ivltests
 issue2672_sva_repetition_boolean_operand_2023 CE,-g2023,-gsupported-assertions ivltests
+issue1790_signed_x_nonlogical_2017 normal,-g2017,-s,issue1790_signed_x_nonlogical ivltests gold=issue1790_signed_x_nonlogical-vvp-stdout.gold
+issue1790_signed_x_nonlogical_2023 normal,-g2023,-s,issue1790_signed_x_nonlogical ivltests gold=issue1790_signed_x_nonlogical-vvp-stdout.gold

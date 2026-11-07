@@ -35070,7 +35070,11 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	  case '-':
 	    if (const NetEConst*ipc = dynamic_cast<NetEConst*>(ip)) {
 
-		  verinum val = - ipc->value();
+		  verinum val = ipc->value();
+		  if (val.has_sign() && !val.is_defined())
+			val = verinum(verinum::Vx, expr_wid);
+		  else
+			val = - val;
 		  tmp = new NetEConst(val);
 		  tmp->cast_signed(signed_flag_);
 		  tmp->set_line(*this);
@@ -35092,7 +35096,15 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    break;
 
 	  case '+':
-	    tmp = ip;
+	      /* Unary plus is a no-op, except that 11.8.4 makes it all X
+	       * for a signed 4-state operand with an X/Z bit. Keep the
+	       * operator only where that can matter. */
+	    if (ip->has_sign() && ip->expr_type() == IVL_VT_LOGIC) {
+		  tmp = new NetEUnary(op_, ip, expr_wid, signed_flag_);
+		  tmp->set_line(*this);
+	    } else {
+		  tmp = ip;
+	    }
 	    break;
 
 	  case '!': // Logical NOT
