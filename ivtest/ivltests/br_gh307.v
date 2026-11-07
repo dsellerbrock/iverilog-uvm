@@ -25,8 +25,8 @@ module main;
       src.b1.b = 1'b1;
       src.b2.b = 1'b0;
       #1 ; // Let values settle.
-      $display("src=%b (s.b. 10), dst=%b (s.b. 10)", src, dst);
-      if (src !== 2'b10 || dst !== 2'b10) begin
+      $display("src=%b (s.b. 10), dst=%b (s.b. 1x)", src, dst);
+      if (src !== 2'b10 || dst !== 2'b1x) begin
 	 $display("FAILED");
 	 $finish;
       end

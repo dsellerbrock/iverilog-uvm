@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2337_partial_variable.v",
+  "iverilog-args": ["-g2023", "-s", "issue2337_partial_variable"]
+}

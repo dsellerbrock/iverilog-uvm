@@ -56,6 +56,7 @@
 # include  "PTimingCheck.h"
 # include  "netlist.h"
 # include  "target.h"
+# include  "functor.h"
 # include  "netenum.h"
 # include  "netvector.h"
 # include  "netdarray.h"
@@ -3715,6 +3716,56 @@ static void finalize_interface_ref_actuals_()
 	      pending.interface_type, pending.property_idx});
       }
       pending_interface_ref_actuals_.clear();
+}
+
+/* IEEE 1800 6.5 / Table 6-7: a variable that continuous assignments turn
+ * into an unresolved wire is still a variable. Bits that no continuous or
+ * procedural assignment writes keep its initial value (x, or 0 for a
+ * two-state type) instead of reading z, so give them a constant driver. */
+struct variable_uwire_collect_f : public functor_t {
+      std::vector<NetNet*> nets;
+      void signal(Design*, NetNet*net) override
+      {
+	    if (net->is_variable_uwire()) nets.push_back(net);
+      }
+};
+
+static void fill_unwritten_variable_uwire_bits_(Design*des)
+{
+      variable_uwire_collect_f collect;
+      des->functor(&collect);
+      for (NetNet*net : collect.nets) {
+	      // ponytail: packed vectors only; unpacked-array words keep z.
+	    if (net->type() != NetNet::UNRESOLVED_WIRE || net->pin_count() != 1
+		|| (net->data_type() != IVL_VT_LOGIC
+		    && net->data_type() != IVL_VT_BOOL))
+		  continue;
+	    unsigned width = net->vector_width();
+	    auto written = [net](unsigned bit) {
+		  return net->test_part_driven(bit, bit)
+		      || net->test_part_procedurally_driven(bit, bit);
+	    };
+	    for (unsigned lo = 0; lo < width; lo += 1) {
+		  if (written(lo))
+			continue;
+		  unsigned hi = lo;
+		  while (hi + 1 < width && !written(hi + 1))
+			hi += 1;
+		  unsigned wid = hi - lo + 1;
+		    // No recorded driver at all: not a partial assignment.
+		  if (wid == width)
+			break;
+		  NetNet*value = net->data_type() == IVL_VT_BOOL
+			? make_const_0(des, net->scope(), wid)
+			: make_const_x(des, net->scope(), wid);
+		  NetPartSelect*ps = new NetPartSelect(net, lo, wid,
+						       NetPartSelect::PV);
+		  ps->set_line(*net);
+		  des->add_node(ps);
+		  connect(ps->pin(0), value->pin(0));
+		  lo = hi;
+	    }
+      }
 }
 
 static void finalize_interface_continuous_drivers_(Design*des)
@@ -54801,6 +54852,7 @@ Design* elaborate(list<perm_string>roots)
        * scalar, array, and forwarded interface bindings are complete. */
       finalize_interface_ref_actuals_();
       finalize_interface_continuous_drivers_(des);
+      fill_unwritten_variable_uwire_bits_(des);
       finalize_interface_specify_paths_(des);
       finalize_unsafe_interface_drivers_(des);
       finalize_virtual_interface_hierarchical_references(des);

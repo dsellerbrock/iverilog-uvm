@@ -31,20 +31,20 @@ module sv_packed_partial_feedback;
     payload = 2'b01;
     #1;
     if (independent[0] !== 2'b01 || independent[1][0] !== 1'b1 ||
-        unrelated_reader !== 4'bz101 || unrelated_compare !== 1'b1 ||
+        unrelated_reader !== 4'bx101 || unrelated_compare !== 1'b1 ||
         dependent[0] !== 2'b01 || dependent[1][0] !== 1'b1 ||
         nested[0][0] !== 2'b01 || nested[1][0] !== 2'b01 ||
-        nested[2][0] !== 2'b01 || whole_read !== 3'bz11 ||
-        two_state !== 4'b0001 || registered !== 3'bz11)
+        nested[2][0] !== 2'b01 || whole_read !== 3'bx11 ||
+        two_state !== 4'b0001 || registered !== 3'bx11)
       $fatal(1, "packed partial feedback lost initial value");
     payload = 2'b10;
     #1;
     if (independent[0] !== 2'b10 || independent[1][0] !== 1'b1 ||
-        unrelated_reader !== 4'bz110 || unrelated_compare !== 1'b0 ||
+        unrelated_reader !== 4'bx110 || unrelated_compare !== 1'b0 ||
         dependent[0] !== 2'b10 || dependent[1][0] !== 1'b0 ||
         nested[0][0] !== 2'b10 || nested[1][0] !== 2'b10 ||
-        nested[2][0] !== 2'b10 || whole_read !== 3'bz11 ||
-        two_state !== 4'b0000 || registered !== 3'bz00)
+        nested[2][0] !== 2'b10 || whole_read !== 3'bx11 ||
+        two_state !== 4'b0000 || registered !== 3'bx00)
       $fatal(1, "packed partial feedback lost changed value");
     $display("PASSED");
     $finish(0);
