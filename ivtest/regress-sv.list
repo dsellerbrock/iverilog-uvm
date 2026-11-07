@@ -208,6 +208,8 @@ issue1853_uninstantiated_interface_port_2017 normal,-g2017 ivltests gold=issue18
 issue1853_uninstantiated_interface_port_2023 normal,-g2023 ivltests gold=issue1853_uninstantiated_interface_port.gold
 issue653_sequence_triggered_2017 normal,-g2017,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
 issue653_sequence_triggered_2023 normal,-g2023,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
+issue2695_sequence_triggered_empty_2017 normal,-g2017,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
+issue2695_sequence_triggered_empty_2023 normal,-g2023,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
 issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold
 issue1322_vpi_loop_types_2023 normal,-g2023,-s,top ivltests gold=issue1322_vpi_loop_types_2023.gold
 issue1320_vpi_assignment_op_2017 normal,-g2017 ivltests
@@ -6649,6 +6651,8 @@ issue2546_invalid_distribute_option_2017 CE,-g2017,-s,tb ivltests gold=issue2546
 issue2546_invalid_distribute_option_2023 CE,-g2023,-s,tb ivltests gold=issue2546_invalid_distribute_option_2023.gold
 issue829_event_formal_task_2017 normal,-g2017,-s,issue829_event_formal_task ivltests gold=issue829_event_formal_task.gold
 issue829_event_formal_task_2023 normal,-g2023,-s,issue829_event_formal_task ivltests gold=issue829_event_formal_task.gold
+issue2694_event_alias_initializer_2017 normal,-g2017,-s,tb ivltests gold=issue2694_event_alias_initializer-legacy.gold
+issue2694_event_alias_initializer_2023 normal,-g2023,-s,tb ivltests gold=issue2694_event_alias_initializer-legacy.gold
 issue2481_sdf_instance_wildcard_2017 normal,-g2017,-gspecify,-Iivltests,-s,issue2481_sdf_instance_wildcard ivltests gold=issue2481_sdf_instance_wildcard-legacy.gold
 issue2481_sdf_instance_wildcard_2023 normal,-g2023,-gspecify,-Iivltests,-s,issue2481_sdf_instance_wildcard ivltests gold=issue2481_sdf_instance_wildcard-legacy.gold
 issue2586_inline_randomize_method_arg_2017 normal,-g2017,-s,top ivltests gold=issue2586_inline_randomize_method_arg-vvp-stdout.gold
@@ -6661,3 +6665,5 @@ issue2672_sva_repetition_boolean_operand_2017 CE,-g2017,-gsupported-assertions i
 issue2672_sva_repetition_boolean_operand_2023 CE,-g2023,-gsupported-assertions ivltests
 issue1790_signed_x_nonlogical_2017 normal,-g2017,-s,issue1790_signed_x_nonlogical ivltests gold=issue1790_signed_x_nonlogical-vvp-stdout.gold
 issue1790_signed_x_nonlogical_2023 normal,-g2023,-s,issue1790_signed_x_nonlogical ivltests gold=issue1790_signed_x_nonlogical-vvp-stdout.gold
+sva_property_and_or_2017 normal,-g2017,-s,sva_property_and_or ivltests gold=sva_property_and_or.gold
+sva_property_and_or_2023 normal,-g2023,-s,sva_property_and_or ivltests gold=sva_property_and_or.gold

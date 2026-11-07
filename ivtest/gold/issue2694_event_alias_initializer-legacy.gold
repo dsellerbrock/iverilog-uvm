@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue2694_event_alias_initializer.v:11: $finish called at 0 (1s)

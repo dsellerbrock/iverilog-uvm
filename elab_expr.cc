@@ -6385,10 +6385,15 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
       }
 
       NetESignal*lsig = dynamic_cast<NetESignal*>(lp);
-      const bool concat_lvalue = lval->more != 0
-	    || dynamic_cast<NetEConcat*>(lp) != 0;
-      if ((!concat_lvalue && (!lsig || lsig->word_index()))
-          || (concat_lvalue && op_ != '=')) {
+	/* 11.3.6 allows any variable l-value. A plain `=' to anything but a
+	   whole scalar variable (an array element, a part-select, a
+	   concatenation) stores through the elaborated l-value. */
+      const bool real_lvalue = expr_type_ == IVL_VT_REAL;
+      const bool scalar_lvalue = lsig && !lsig->word_index()
+	    && lval->more == 0 && !dynamic_cast<NetEConcat*>(lp)
+	    && !real_lvalue;
+      const bool concat_lvalue = !scalar_lvalue;
+      if (concat_lvalue && op_ != '=') {
             cerr << get_fileline() << ": sorry: Assignment expressions "
                  << "currently require a scalar variable l-value." << endl;
             des->errors += 1;
@@ -6397,9 +6402,11 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
             return nullptr;
       }
 
-      if (expr_type_ != IVL_VT_LOGIC && expr_type_ != IVL_VT_BOOL) {
+      if (expr_type_ != IVL_VT_LOGIC && expr_type_ != IVL_VT_BOOL
+	  && !(real_lvalue && op_ == '=' && lval->more == 0)) {
             cerr << get_fileline() << ": sorry: Assignment expressions "
-                 << "currently require an integral variable l-value." << endl;
+                 << "currently require an integral or real variable l-value."
+		 << endl;
             des->errors += 1;
             delete lp;
             delete lval;
@@ -6413,7 +6420,10 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
             delete lval;
             return nullptr;
       }
-      rp = cast_to_width(rp, l_width, signed_flag_, *this);
+      if (real_lvalue)
+	    rp = cast_to_real(rp);
+      else
+	    rp = cast_to_width(rp, l_width, signed_flag_, *this);
 
       /* The ordinary l-value used for validation above is temporary;
 	 without this permanent note, `x = (member = 1)' can evade the
@@ -6447,6 +6457,9 @@ NetExpr* PEAssignExpr::elaborate_expr(Design*des, NetScope*scope,
       else
 	delete lval;
 
+	/* A real value has no width to adjust. */
+      if (real_lvalue)
+	    return fun;
       return cast_to_width(fun, expr_wid, signed_flag_, *this);
 }
 
@@ -14204,21 +14217,15 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    if (const PETypename*type_expr = dynamic_cast<PETypename*>(expr)) {
 		  ivl_type_t data_type = type_expr->get_type()->elaborate_type(des, scope);
 		  ivl_assert(*this, data_type);
-		  use_width = 1;
-		  while (const netuarray_t *utype =
-			 dynamic_cast<const netuarray_t*>(data_type)) {
-			use_width = netrange_width(utype->static_dimensions(),
-			                           use_width);
-			data_type = utype->element_type();
-		  }
-		  if (!data_type->packed()) {
+		    /* 20.6.2: the number of data bits of a fixed-size type,
+		       including unpacked structs and arrays of them. */
+		  if (dynamic_cast<const netclass_t*>(data_type)
+		      || !fixed_bitstream_width_(data_type, use_width)) {
 			use_width = 0;
 			cerr << get_fileline() << ": error: "
 			     << "Invalid data type for $bits()."
 			     << endl;
 			des->errors++;
-		  } else {
-			use_width *= data_type->packed_width();
 		  }
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_sfunc_: "
@@ -26319,9 +26326,18 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 		  use_depth = 0;
 	    }
 
-	    const auto &slice_dims = type->slice_dimensions();
-	    for ( ; use_depth < slice_dims.size(); use_depth++)
-		  use_width *= slice_dims[use_depth].width();
+	      // An unpacked struct has no slice dimensions; for $bits() its
+	      // width is the sum of its members' data bits (20.6.2).
+	    uint64_t record_width = 0;
+	    const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+	    if (record && !record->packed()
+		&& fixed_bitstream_width_(type, record_width)) {
+		  use_width *= record_width;
+	    } else {
+		  const auto &slice_dims = type->slice_dimensions();
+		  for ( ; use_depth < slice_dims.size(); use_depth++)
+			use_width *= slice_dims[use_depth].width();
+	    }
 
 	    expr_type_   = type->base_type();
 	    expr_width_  = use_width;
@@ -34385,6 +34401,16 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
       if (capture)
 	    con = ternary_capture_before_true_(*this, con, capture);
 
+	  const PEMatches*matches = dynamic_cast<const PEMatches*>(expr_);
+	  if (matches && matches->conditional_tail()) {
+	    PExpr*tail_expr = matches->conditional_tail();
+	    NetExpr*tail = elab_and_eval(des, true_scope,
+					 tail_expr, -1,
+					 NEED_CONST & flags);
+	    if (!tail) return nullptr;
+	    con = condition_reduce(new NetEBLogic('a', con, tail));
+      }
+
 	// Short-circuit on a constant condition, as the width form
 	// does -- but keep elaborating the dead arm so its errors are
 	// still reported.
@@ -34614,6 +34640,16 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 						     true_scope);
       if (capture)
 	    con = ternary_capture_before_true_(*this, con, capture);
+
+	  const PEMatches*matches = dynamic_cast<const PEMatches*>(expr_);
+	  if (matches && matches->conditional_tail()) {
+	    PExpr*tail_expr = matches->conditional_tail();
+	    NetExpr*tail = elab_and_eval(des, true_scope,
+					 tail_expr, -1,
+					 NEED_CONST & flags);
+	    if (!tail) return nullptr;
+	    con = condition_reduce(new NetEBLogic('a', con, tail));
+      }
 
 	// Verilog doesn't say that we must do short circuit evaluation
 	// of ternary expressions, but it doesn't disallow it.
