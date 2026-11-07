@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2699_pathpulse_order.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "issue2699_pathpulse_order"],
+  "gold": "issue2699_pathpulse_order"
+}
