@@ -794,6 +794,10 @@ extern void compile_class_covgrp_item_type_weight_prop(
 extern void compile_class_covgrp_item_options(uint64_t item_idx,
 					      uint64_t at_least_prop,
 					      uint64_t weight_prop);
+extern void compile_class_covgrp_item_option_irs(uint64_t item_idx,
+						 uint64_t auto_bin_max_prop,
+						 char*at_least_ir,
+						 char*auto_bin_max_ir);
 extern void compile_class_covgrp_item_option_values(uint64_t item_idx,
 						    uint64_t goal_prop,
 						    uint64_t goal,

@@ -2000,6 +2000,7 @@ sv_covergroup_sample_unpacked_default_shape_fail CE,-g2017 ivltests gold=sv_cove
 sv_covergroup_sample_unpacked_default_shape_fail_2023 CE,-g2023 ivltests gold=sv_covergroup_sample_unpacked_default_shape_fail.gold
 sv_covergroup_fixed_bin_post_carve normal,-g2017 ivltests gold=sv_covergroup_fixed_bin_post_carve.gold
 sv_covergroup_fixed_bin_post_carve_2023 normal,-g2023 ivltests gold=sv_covergroup_fixed_bin_post_carve.gold
+issue835_covergroup_option_args normal,-g2017,-gno-icarus-misc,-gno-xtypes,-s,issue835_covergroup_option_args ivltests gold=issue835_covergroup_option_args-vvp-stdout.gold
 sv_covergroup_dynamic_cross normal,-g2017 ivltests gold=sv_covergroup_dynamic_cross.gold
 sv_covergroup_dynamic_cross_2023 normal,-g2023 ivltests gold=sv_covergroup_dynamic_cross.gold
 sv_covergroup_dynamic_cross_binsof normal,-g2017 ivltests gold=sv_covergroup_dynamic_cross_binsof.gold
