@@ -4549,6 +4549,52 @@ static bool expr_needs_typed_elab_(const PExpr*expr)
       return false;
 }
 
+/*
+ * IEEE 1800-2023 6.16: "A string literal or an expression of string type can
+ * be assigned directly to a variable of string type ... Values of integral
+ * type can be assigned to a string variable, but require a cast." A string
+ * literal stays a literal through an untyped parameter and through a
+ * concatenation, replication or conditional that it is an operand of; such an
+ * operand makes the whole expression string-like (5.9, 11.4.12.2).
+ */
+static bool rval_is_implicit_string_(const NetExpr*rval)
+{
+      if (rval->expr_type() == IVL_VT_STRING)
+	    return true;
+      if (const NetEConst*con = dynamic_cast<const NetEConst*>(rval))
+	    return con->value().is_string();
+      if (const NetEConcat*cat = dynamic_cast<const NetEConcat*>(rval)) {
+	    for (unsigned idx = 0 ; idx < cat->nparms() ; idx += 1)
+		  if (cat->parm(idx) && rval_is_implicit_string_(cat->parm(idx)))
+			return true;
+	    return false;
+      }
+      if (const NetETernary*ter = dynamic_cast<const NetETernary*>(rval))
+	    return rval_is_implicit_string_(ter->true_expr())
+		|| rval_is_implicit_string_(ter->false_expr());
+      return false;
+}
+
+/* A cast to a string type returns its integral operand unchanged and leaves
+ * the conversion to the store, so the cast is only visible in the source. */
+static bool expr_has_string_cast_(Design*des, NetScope*scope, const PExpr*expr)
+{
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
+	    ivl_type_t type = cast->resolve_target_type(des, scope);
+	    return type && type->base_type() == IVL_VT_STRING;
+      }
+      if (const PEConcat*cat = dynamic_cast<const PEConcat*>(expr)) {
+	    for (const PExpr*item : cat->stream_parms())
+		  if (item && expr_has_string_cast_(des, scope, item))
+			return true;
+	    return false;
+      }
+      if (const PETernary*ter = dynamic_cast<const PETernary*>(expr))
+	    return expr_has_string_cast_(des, scope, ter->get_true())
+		|| expr_has_string_cast_(des, scope, ter->get_false());
+      return false;
+}
+
 NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 			     ivl_variable_type_t lv_type, unsigned lv_width,
 			     PExpr*expr, bool need_const, bool force_unsigned,
@@ -4670,6 +4716,19 @@ NetExpr* elaborate_rval_expr(Design*des, NetScope*scope, ivl_type_t lv_net_type,
 		  delete rval;
 		  return 0;
 	    }
+      }
+
+      if (gn_system_verilog() && lv_type == IVL_VT_STRING
+	  && type_is_vectorable(rval->expr_type())
+	  && !rval->deferred_type_parameter_stub()
+	  && !rval_is_implicit_string_(rval)
+	  && !expr_has_string_cast_(des, scope, expr)) {
+	    cerr << expr->get_fileline() << ": error: An integral value "
+		 << "assigned to a string requires a cast, e.g. string'(...) "
+		 << "(IEEE 1800-2017/2023 6.16)." << endl;
+	    des->errors += 1;
+	    delete rval;
+	    return 0;
       }
 
 	/* A nonconstant replication of string data is intrinsically string,
