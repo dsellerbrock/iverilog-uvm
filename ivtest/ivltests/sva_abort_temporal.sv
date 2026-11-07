@@ -4,8 +4,9 @@
 // - an abort decides an attempt still being evaluated (accept -> pass,
 //   reject -> fail), and wins over an operand verdict in the same step;
 // - the sync_ forms see the condition only at clock ticks;
-// - the asynchronous forms also see a pulse between ticks (decided at the
-//   next tick), but not a glitch that rises and falls in one time step,
+// - the asynchronous forms also see a pulse between ticks (decided when it
+//   falls, the first point the checker can see it held; user ruling
+//   2026-11-06), but not a glitch that rises and falls in one time step,
 //   because the condition is a sampled value;
 // - nested aborts: the outer one wins a tie;
 // - an aborted operand inside `and'.
@@ -36,7 +37,7 @@ module sva_abort_temporal;
   s6: assert property (@(posedge clk) sync_reject_on(x) d[->2])
         pass_q[6].push_back($time); else fail_q[6].push_back($time);
 
-  typedef struct { bit ok; int at; } v_t;
+  typedef struct { bit ok; int at; bit fall; } v_t;  // fall: at the y pulse
   function automatic v_t seq_ab(int t);       // a ##1 b
     v_t r; r.ok = va[t] && vb[t+1]; r.at = va[t] ? t+1 : t; return r;
   endfunction
@@ -62,10 +63,11 @@ module sva_abort_temporal;
     return r;
   endfunction
   // Asynchronous abort on y pulses: a pulse before tick k, t < k <= r.at,
-  // is seen at tick k. (y is low at every tick, and glitches never count.)
+  // decides when it falls, just before tick k. (y is low at every tick, and
+  // glitches never count.)
   function automatic v_t async_abort(v_t r, int t, bit acc);
     for (int k = t + 1; k <= r.at; k++)
-      if (pulse[k]) begin r.ok = acc; r.at = k; return r; end
+      if (pulse[k]) begin r.ok = acc; r.at = k; r.fall = 1; return r; end
     return r;
   endfunction
   function automatic v_t goto_d2(int t);     // d[->2]: pending until it
@@ -107,7 +109,8 @@ module sva_abort_temporal;
            end
       endcase
       if (r.at > last) continue;
-      if (r.ok) ep.push_back(10*r.at + 5); else ef.push_back(10*r.at + 5);
+      if (r.ok) ep.push_back(10*r.at + (r.fall ? 3 : 5));
+      else ef.push_back(10*r.at + (r.fall ? 3 : 5));
     end
     pass_q[id].sort(); fail_q[id].sort(); ep.sort(); ef.sort();
     if (pass_q[id] != ep || fail_q[id] != ef) begin

@@ -32110,6 +32110,25 @@ static void sva_comp_append_(std::vector<Statement*>&to,
       from.clear();
 }
 
+/* A node takes over its operand's re-evaluation and clock domains. */
+static void sva_comp_inherit_(sva_nfa_sub_t&m, sva_nfa_sub_t&child)
+{
+      sva_comp_append_(m.recompute, child.recompute);
+      m.domains.insert(m.domains.end(), child.domains.begin(),
+		       child.domains.end());
+      child.domains.clear();
+}
+
+/* Statement st goes to the node body; a copy also re-evaluates the node
+   from another clock domain. */
+static void sva_comp_body_and_recompute_(sva_nfa_sub_t&m, Statement*st)
+{
+      Statement*copy = sva_clone_stmt_(st);
+      assert(copy);
+      m.body.push_back(st);
+      m.recompute.push_back(copy);
+}
+
 static PExpr* sva_comp_eq_(const struct vlltype&loc, perm_string reg, int v)
 {
       PEBComp*eq = new PEBComp('e', sva_id_(loc, reg), sva_num32_(loc, v));
@@ -32181,20 +32200,18 @@ static bool sva_comp_emit_abort_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 		 << live_operands << " operand(s) that are read live instead "
 		 << "of sampled (IEEE 1800-2017 16.5.1)." << endl;
 
-      perm_string al;
+	/* An asynchronous condition (16.12.14) is checked at the time step
+	   it holds in, which a discrete-event checker sees at the next tick
+	   (cs) or at the next change of the condition, whichever is first
+	   (user ruling 2026-11-06). The change is a clock domain of its own:
+	   it aborts every slot whose operand is still evaluating when the
+	   condition's Preponed value is true, then re-evaluates and decides. */
+      sva_nfa_domain_t watch;
       if (async) {
-	    snprintf(what, sizeof what, "c%ual", node);
-	    al = sva_make_reg_(loc, inst, what, 0);
-	    m.init.push_back(sva_assign_(loc, al, sva_bit_(loc, 0)));
 	    std::vector<PEEvent*> evs;
 	    evs.push_back(new PEEvent(PEEvent::ANYEDGE, cond));
-	    PEventStatement*watch = new PEventStatement(evs);
-	    FILE_NAME(watch, loc);
-	    watch->set_statement(sva_if_(loc, sva_booleanize_(loc, async_prep),
-				 sva_assign_(loc, al, sva_bit_(loc, 1)), nullptr));
-	    PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, watch, nullptr);
-	    FILE_NAME(pp, loc);
-	    pform_mark_generated_verification_process_(pp);
+	    watch.clk = new PEventStatement(evs);
+	    FILE_NAME(watch.clk, loc);
       } else {
 	    delete cond;
       }
@@ -32205,7 +32222,8 @@ static bool sva_comp_emit_abort_(const sva_comp_ctx_t&ctx, sva_property_t*p,
       sva_comp_append_(m.pre, ma.pre);
       sva_comp_append_(m.post, ma.post);
       sva_comp_append_(m.init, ma.init);
-      std::vector<perm_string> ab (K), pd (K), fr (K);
+      sva_comp_inherit_(m, ma);
+      std::vector<perm_string> ab (K), pd (K);
       for (long k = 0 ; k < K ; k += 1) {
 	    snprintf(what, sizeof what, "c%uvd", node);
 	    m.vd[k] = sva_make_reg_(loc, inst, what, (unsigned)k, true);
@@ -32213,14 +32231,10 @@ static bool sva_comp_emit_abort_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 	    ab[k] = sva_make_reg_(loc, inst, what, (unsigned)k);
 	    snprintf(what, sizeof what, "c%upd", node);
 	    pd[k] = sva_make_reg_(loc, inst, what, (unsigned)k);
-	    snprintf(what, sizeof what, "c%ufr", node);
-	    fr[k] = sva_make_reg_(loc, inst, what, (unsigned)k);
 	    m.init.push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
 	    m.init.push_back(sva_assign_(loc, ab[k], sva_bit_(loc, 0)));
-	    m.init.push_back(sva_assign_(loc, fr[k], sva_bit_(loc, 0)));
 	    sva_comp_append_(m.inject[k], ma.inject[k]);
 	    m.inject[k].push_back(sva_assign_(loc, ab[k], sva_bit_(loc, 0)));
-	    m.inject[k].push_back(sva_assign_(loc, fr[k], sva_bit_(loc, 1)));
 	    /* vd is recomputed every tick, also for a free slot; a stale value
 	       must not reach an enclosing node before this tick's recompute. */
 	    m.inject[k].push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
@@ -32233,20 +32247,24 @@ static bool sva_comp_emit_abort_(const sva_comp_ctx_t&ctx, sva_property_t*p,
       }
       sva_comp_append_(m.body, ma.body);
       for (long k = 0 ; k < K ; k += 1) {
-	    PExpr*hit = sva_id_(loc, cs);
-	    if (async)
-		  hit = sva_logic_(loc, 'o', hit,
-			sva_logic_(loc, 'a', sva_not_(loc, sva_id_(loc, fr[k])),
-				   sva_id_(loc, al)));
-	    m.body.push_back(sva_if_(loc, sva_logic_(loc, 'a', sva_id_(loc, pd[k]), hit),
+	    m.body.push_back(sva_if_(loc, sva_logic_(loc, 'a', sva_id_(loc, pd[k]),
+						     sva_id_(loc, cs)),
 				     sva_assign_(loc, ab[k], sva_bit_(loc, 1)), nullptr));
-	    m.body.push_back(sva_if_(loc, sva_id_(loc, ab[k]),
-		  sva_assign_(loc, m.vd[k], sva_num32_(loc, accept ? 2 : 3)),
+	    if (async) {
+		  PExpr*hold = sva_booleanize_(loc, k + 1 < K
+			? sva_clone_expr_(async_prep) : async_prep);
+		  watch.body.push_back(sva_if_(loc, sva_logic_(loc, 'a',
+			sva_comp_eq_(loc, ma.vd[k], 0), hold),
+			sva_assign_(loc, ab[k], sva_bit_(loc, 1)), nullptr));
+	    }
+	    /* An abort decides the attempt: accept_on succeeds and reject_on
+	       fails, vacuously either way (16.14.8 ab, ac). */
+	    sva_comp_body_and_recompute_(m, sva_if_(loc, sva_id_(loc, ab[k]),
+		  sva_assign_(loc, m.vd[k], sva_num32_(loc, accept ? 2 : 4)),
 		  sva_assign_(loc, m.vd[k], sva_id_(loc, ma.vd[k]))));
-	    m.body.push_back(sva_assign_(loc, fr[k], sva_bit_(loc, 0)));
       }
       if (async)
-	    m.body.push_back(sva_assign_(loc, al, sva_bit_(loc, 0)));
+	    m.domains.push_back(watch);
       m.built = true;
       return true;
 }
@@ -32285,6 +32303,8 @@ static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
       sva_comp_append_(m.post, mb.post);
       sva_comp_append_(m.init, ma.init);
       sva_comp_append_(m.init, mb.init);
+      sva_comp_inherit_(m, ma);
+      sva_comp_inherit_(m, mb);
       for (long k = 0 ; k < K ; k += 1) {
 	    char what[32];
 	    snprintf(what, sizeof what, "c%uvd", node);
@@ -32303,10 +32323,15 @@ static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
 		  return sva_logic_(loc, 'o', sva_comp_eq_(loc, r, 1),
 				    sva_comp_eq_(loc, r, 2));
 	    };
+	    auto failed = [&](perm_string r) {
+		  return sva_logic_(loc, 'o', sva_comp_eq_(loc, r, 3),
+				    sva_comp_eq_(loc, r, 4));
+	    };
 	    /* Vacuity is a property of the attempt, not of its truth
 	       (16.14.8): a finished operand counts whether it passed or
-	       failed. Every failure (3) here is nonvacuous: a leaf fails only
-	       on a sequence match or a matched antecedent (16.14.8 a, d, h). */
+	       failed. A leaf fails only on a sequence match or a matched
+	       antecedent (16.14.8 a, d, h), so only an abort (4) fails
+	       vacuously. */
 	    auto nonvacuous = [&]() {
 		  return sva_logic_(loc, 'o',
 			sva_logic_(loc, 'o', sva_comp_eq_(loc, A, 1),
@@ -32318,9 +32343,8 @@ static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
 	    if (op == 20) {
 		  /* 16.12.5: false as soon as either operand is false; true
 		     when both are true, nonvacuous iff either is (16.14.8 f). */
-		  combine = sva_if_(loc, sva_logic_(loc, 'o', sva_comp_eq_(loc, A, 3),
-						       sva_comp_eq_(loc, B, 3)),
-			set(3),
+		  combine = sva_if_(loc, sva_logic_(loc, 'o', failed(A), failed(B)),
+			sva_if_(loc, nonvacuous(), set(3), set(4)),
 			sva_if_(loc, sva_logic_(loc, 'a', passed(A), passed(B)),
 				sva_if_(loc, nonvacuous(), set(1), set(2)),
 				set(0)));
@@ -32331,11 +32355,10 @@ static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
 		     still running when the other decides does not count). */
 		  combine = sva_if_(loc, sva_logic_(loc, 'o', passed(A), passed(B)),
 			sva_if_(loc, nonvacuous(), set(1), set(2)),
-			sva_if_(loc, sva_logic_(loc, 'a', sva_comp_eq_(loc, A, 3),
-						       sva_comp_eq_(loc, B, 3)),
-				set(3), set(0)));
+			sva_if_(loc, sva_logic_(loc, 'a', failed(A), failed(B)),
+				sva_if_(loc, nonvacuous(), set(3), set(4)), set(0)));
 	    }
-	    m.body.push_back(combine);
+	    sva_comp_body_and_recompute_(m, combine);
       }
       m.built = true;
       return true;
@@ -32474,13 +32497,13 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    live[k] = sva_make_reg_(loc, inst, "live", (unsigned)k);
 	    init.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
       }
-      perm_string r_p = sva_make_reg_(loc, inst, "p", 0, true);
-      perm_string r_vac = sva_make_reg_(loc, inst, "vac", 0, true);
-      perm_string r_f = sva_make_reg_(loc, inst, "f", 0, true);
+      perm_string r_p0 = sva_make_reg_(loc, inst, "p", 0, true);
+      perm_string r_vac0 = sva_make_reg_(loc, inst, "vac", 0, true);
+      perm_string r_f0 = sva_make_reg_(loc, inst, "f", 0, true);
       perm_string pass_req = sva_make_reg_(loc, inst, "passreq", 0, true);
       perm_string vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
       perm_string r_ovf = sva_make_reg_(loc, inst, "ovf", 0);
-      perm_string regs0[] = { r_p, r_vac, r_f, pass_req, vac_req };
+      perm_string regs0[] = { r_p0, r_vac0, r_f0, pass_req, vac_req };
       for (perm_string r : regs0)
 	    init.push_back(sva_assign_(loc, r, sva_num32_(loc, 0)));
       init.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 0)));
@@ -32495,9 +32518,9 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 		  }
 		  clr.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
 	    }
-	    clr.push_back(sva_assign_(loc, r_p, sva_num32_(loc, 0)));
-	    clr.push_back(sva_assign_(loc, r_vac, sva_num32_(loc, 0)));
-	    clr.push_back(sva_assign_(loc, r_f, sva_num32_(loc, 0)));
+	    clr.push_back(sva_assign_(loc, r_p0, sva_num32_(loc, 0)));
+	    clr.push_back(sva_assign_(loc, r_vac0, sva_num32_(loc, 0)));
+	    clr.push_back(sva_assign_(loc, r_f0, sva_num32_(loc, 0)));
 	    return sva_block_(loc, clr);
       };
 
@@ -32535,8 +32558,43 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
       sva_comp_append_(body, m.body);
 
+	/* Fail actions: one copy per clock domain that can decide. */
+      Statement*action = fail_stmt;
+      if (!action) {
+	    std::list<named_pexpr_t> no_args;
+	    PCallTask*err = new PCallTask(lex_strings.make("$error"), no_args);
+	    FILE_NAME(err, loc);
+	    action = err;
+      }
+      std::vector<Statement*> actions (1, action);
+      for (size_t d = 0 ; d < m.domains.size() ; d += 1) {
+	    Statement*copy = sva_clone_stmt_(action);
+	    if (!copy) {
+		  sva_comp_sorry_(loc, "the action block of this property "
+				  "cannot be duplicated for its abort "
+				  "condition");
+		  return;
+	    }
+	    actions.push_back(copy);
+      }
+      sva_pass_dispatcher_(loc, inst, pass_req, vac_req, pass_stmt);
+
 	/* Decide: each live attempt reports once, then every operand's slot
-	   is retired so nothing can revive the attempt. */
+	   is retired so nothing can revive the attempt. Every clock domain
+	   runs this after it advanced its operands. */
+      auto decide = [&](std::vector<Statement*>&body, Statement*fail_action,
+			unsigned dom) {
+	/* Verdict counters per clock domain: a domain's fail dispatch waits
+	   for the Reactive region, and another domain running meanwhile must
+	   not see (and report again) counts that are not its own. */
+      perm_string r_p = dom ? sva_make_reg_(loc, inst, "p", dom, true) : r_p0;
+      perm_string r_vac = dom ? sva_make_reg_(loc, inst, "vac", dom, true) : r_vac0;
+      perm_string r_f = dom ? sva_make_reg_(loc, inst, "f", dom, true) : r_f0;
+      if (dom) {
+	    perm_string fresh[] = { r_p, r_vac, r_f };
+	    for (perm_string r : fresh)
+		  init.push_back(sva_assign_(loc, r, sva_num32_(loc, 0)));
+      }
       for (long k = 0 ; k < K ; k += 1) {
 	    std::vector<Statement*> done;
 	    PEBinary*inc_p = new PEBinary('+', sva_id_(loc, r_p), sva_bit_(loc, 1));
@@ -32550,7 +32608,8 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    vac.push_back(sva_assign_(loc, r_vac, inc_v));
 	    PEBinary*inc_p1 = new PEBinary('+', sva_id_(loc, r_p), sva_bit_(loc, 1));
 	    FILE_NAME(inc_p1, loc);
-	    done.push_back(sva_if_(loc, sva_comp_eq_(loc, m.vd[k], 3),
+	    done.push_back(sva_if_(loc, sva_logic_(loc, 'o',
+			sva_comp_eq_(loc, m.vd[k], 3), sva_comp_eq_(loc, m.vd[k], 4)),
 		  sva_assign_(loc, r_f, inc_f),
 		  sva_if_(loc, sva_comp_eq_(loc, m.vd[k], 2),
 			  sva_block_(loc, vac), sva_assign_(loc, r_p, inc_p1))));
@@ -32577,27 +32636,50 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 		  new PEBinary('+', sva_id_(loc, vac_req), sva_id_(loc, r_vac))));
 	    hit.push_back(sva_assign_(loc, r_vac, sva_num32_(loc, 0)));
 	    hit.push_back(sva_assign_(loc, r_p, sva_num32_(loc, 0)));
-	    sva_pass_dispatcher_(loc, inst, pass_req, vac_req, pass_stmt);
 	    PEBComp*any = new PEBComp('N', sva_id_(loc, r_p), sva_num32_(loc, 0));
 	    FILE_NAME(any, loc);
 	    body.push_back(sva_if_(loc, any, sva_block_(loc, hit), nullptr));
       }
       {
-	    Statement*action = fail_stmt;
-	    if (!action) {
-		  std::list<named_pexpr_t> no_args;
-		  PCallTask*err = new PCallTask(lex_strings.make("$error"), no_args);
-		  FILE_NAME(err, loc);
-		  action = err;
-	    }
 	    std::vector<Statement*> hit;
 	    hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f),
-				      sva_fail_action_(loc, inst, action)));
+				      sva_fail_action_(loc, inst, fail_action)));
 	    hit.push_back(sva_assign_(loc, r_f, sva_num32_(loc, 0)));
 	    PEBComp*any = new PEBComp('N', sva_id_(loc, r_f), sva_num32_(loc, 0));
 	    FILE_NAME(any, loc);
 	    body.push_back(sva_if_(loc, any, sva_block_(loc, hit), nullptr));
       }
+      };
+      decide(body, actions[0], 0);
+
+	/* The other clock domains: advance their operands, re-evaluate every
+	   node, decide. */
+      for (size_t d = 0 ; d < m.domains.size() ; d += 1) {
+	    sva_nfa_domain_t&dom = m.domains[d];
+	    std::vector<Statement*> dbody = dom.body;
+	    for (Statement*st : m.recompute) {
+		  Statement*c = sva_clone_stmt_(st);
+		  assert(c);
+		  dbody.push_back(c);
+	    }
+	    decide(dbody, actions[d + 1], (unsigned)(d + 1));
+	    std::vector<Statement*> dfull = dom.pre;
+	    dfull.push_back(sva_observed_wait_(loc));
+	    Statement*dcore = sva_block_(loc, dbody);
+	    PExpr*ddisable = disable ? sva_clone_expr_(disable) : nullptr;
+	    if (ddisable) {
+		  PCondit*dc = new PCondit(ddisable, clear_all(), dcore);
+		  FILE_NAME(dc, loc);
+		  dfull.push_back(dc);
+	    } else {
+		  dfull.push_back(dcore);
+	    }
+	    sva_comp_append_(dfull, dom.post);
+	    dom.clk->set_statement(sva_block_(loc, dfull));
+	    PProcess*dp = pform_make_behavior(IVL_PR_ALWAYS, dom.clk, nullptr);
+	    FILE_NAME(dp, loc);
+      }
+      for (Statement*st : m.recompute) delete st;
 
       std::vector<Statement*> full = m.pre;
       full.push_back(sva_observed_wait_(loc));
