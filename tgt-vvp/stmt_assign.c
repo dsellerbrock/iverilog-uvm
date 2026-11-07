@@ -4383,7 +4383,6 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 {
       int errors = 0;
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
-      ivl_signal_t recv = ivl_lval_sig(lval);
       ivl_expr_t rval = ivl_stmt_rval(net);
       ivl_expr_t idx_expr = prop_lval_index_expr_(lval);
       ivl_type_t element_type;
@@ -4401,6 +4400,10 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		  int mux_word = allocate_word();
 		  int flag = allocate_flag();
 
+		  /* Keep the receiver produced by draw_lval_expr(). A nested
+		     receiver (for example boxes[i].values[j]) has no signal of
+		     its own, so reloading ivl_lval_sig() here loses the handle. */
+		  fprintf(vvp_out, "    %%dup/obj/ref; retain property receiver for compound store\n");
 		  draw_eval_expr_into_integer(idx_expr, 3);
 		  fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
 		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
@@ -4411,7 +4414,6 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		  draw_stmt_assign_real_opcode(ivl_stmt_opcode(net));
 		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
 		  fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
 		  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
 		  fprintf(vvp_out, "    %%set/dar/obj/real 3;\n");
@@ -4458,6 +4460,9 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		      int mux_word = allocate_word();
 		      int flag = allocate_flag();
 
+		      /* Preserve the already evaluated receiver across the RHS. This
+		         also supports nested receivers whose l-value signal is null. */
+		      fprintf(vvp_out, "    %%dup/obj/ref; retain property receiver for compound store\n");
 		      draw_eval_expr_into_integer(idx_expr, 3);
 		      fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
 		      fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
@@ -4467,7 +4472,6 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		      draw_stmt_assign_vector_rhs(net, ivl_stmt_lwidth(net));
 		      fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
 		      fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
-		      fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
 		      fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
 		      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
 		      fprintf(vvp_out, "    %%set/dar/obj/vec4 3;\n");
