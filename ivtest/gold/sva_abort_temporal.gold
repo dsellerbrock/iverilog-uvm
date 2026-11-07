@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sva_abort_temporal.sv:144: $finish called at 736 (1s)
