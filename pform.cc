@@ -138,6 +138,8 @@ void pform_mc_translate_on(bool flag) { pform_mc_translate_flag = flag; }
  * pform_primitives is similar, but for UDP primitives.
  */
 map<perm_string,Module*> pform_modules;
+/* Extern module headers (IEEE 1800 23.5) waiting for their definition. */
+static map<perm_string,Module*> pform_extern_modules;
 map<perm_string,PUdp*> pform_primitives;
 
 /*
@@ -2806,6 +2808,98 @@ static bool pform_is_interface_port_type_(const data_type_t*type)
 	    type = ref->typedef_ref()->get_data_type();
       }
       return false;
+}
+
+void pform_end_extern_module(void)
+{
+      Module*ext = pform_cur_module.front();
+      pform_cur_module.pop_front();
+      if (!pform_module_generate_stack.empty()) {
+	    pform_cur_generate = pform_module_generate_stack.front();
+	    pform_module_generate_stack.pop_front();
+      }
+      ivl_assert(*ext, lexical_scope == ext);
+      pform_pop_scope();
+	// The definition, not the extern header, declares the name.
+      lexical_scope->local_symbols.erase(ext->mod_name());
+
+      Module*&slot = pform_extern_modules[ext->mod_name()];
+      if (slot) {
+	    cerr << ext->get_fileline() << ": error: Extern module "
+		 << ext->mod_name() << " was already declared here: "
+		 << slot->get_fileline() << endl;
+	    error_count += 1;
+	    return;
+      }
+      slot = ext;
+}
+
+void pform_module_use_extern_ports(const struct vlltype&loc)
+{
+      Module*def = pform_cur_module.front();
+      map<perm_string,Module*>::iterator cur = pform_extern_modules.find(def->mod_name());
+      if (cur == pform_extern_modules.end()) {
+	    cerr << loc << ": error: A (.*) port list needs an extern "
+		 << "module declaration of " << def->mod_name()
+		 << " (IEEE 1800 23.5)." << endl;
+	    error_count += 1;
+	    return;
+      }
+      if (!def->param_names.empty()) {
+	    cerr << loc << ": error: A module with a (.*) port list takes "
+		 << "its parameter port list from the extern declaration "
+		 << "(IEEE 1800 23.5)." << endl;
+	    error_count += 1;
+	    return;
+      }
+	/* (.*) is "equivalent to placing the ports (and possibly
+	   parameters) of the extern declaration on the module": the
+	   definition continues in the extern header's scope. */
+      Module*ext = cur->second;
+      pform_extern_modules.erase(cur);
+      ext->set_file(def->get_file());
+      ext->set_lineno(def->get_lineno());
+      ext->default_lifetime = def->default_lifetime;
+      ext->library_flag = def->library_flag;
+      ext->attributes = def->attributes;
+      ext->potential_imports.insert(ext->potential_imports.end(),
+				    def->potential_imports.begin(),
+				    def->potential_imports.end());
+      ext->explicit_imports.insert(def->explicit_imports.begin(),
+				   def->explicit_imports.end());
+      lexical_scope = ext->parent_scope();
+      lexical_scope->local_symbols[ext->mod_name()] = ext;
+      lexical_scope = ext;
+      pform_cur_module.front() = ext;
+}
+
+/* IEEE 1800 23.5: "An extern module declaration shall match the actual
+   module declaration's port and parameter lists in correspondence of
+   names, positions, and their equivalent types." Names and positions are
+   checked here; types are not compared. */
+void pform_check_extern_module_header(void)
+{
+      const Module*def = pform_cur_module.front();
+      map<perm_string,Module*>::iterator cur = pform_extern_modules.find(def->mod_name());
+      if (cur == pform_extern_modules.end())
+	    return;
+      const Module*ext = cur->second;
+      pform_extern_modules.erase(cur);
+
+      bool match = def->ports.size() == ext->ports.size()
+	    && def->param_names == ext->param_names;
+      for (size_t idx = 0 ; match && idx < def->ports.size() ; idx += 1) {
+	    const Module::port_t*dp = def->ports[idx];
+	    const Module::port_t*ep = ext->ports[idx];
+	    match = (dp ? dp->name : perm_string()) == (ep ? ep->name : perm_string());
+      }
+      if (!match) {
+	    cerr << def->get_fileline() << ": error: The port or parameter "
+		 << "list of module " << def->mod_name() << " does not match "
+		 << "its extern declaration at " << ext->get_fileline()
+		 << " (IEEE 1800 23.5)." << endl;
+	    error_count += 1;
+      }
 }
 
 void pform_module_set_ports(vector<Module::port_t*>*ports)
