@@ -38,11 +38,15 @@ module sv_randomize_joint_element_order_fail;
         cycle.child.value || cycle.posts || cycle.get_randstate()!=cycle_state ||
         cycle.child.get_randstate()!=cycle_child_state)
       $fatal(1,"element cycle changed state");
-    if (cap.randomize()) cap_changed=1;
-    foreach (cap.values[i]) cap_changed |= cap.values[i];
-    if (cap_changed || cap.child.value || cap.posts ||
-        cap.get_randstate()!=cap_state || cap.child.get_randstate()!=cap_child_state)
-      $fatal(1,"element cap changed state");
+    // The cyclic solve-before above must still fail (18.5.9: circular
+    // dependencies are not allowed). The cap case has 2048 legal tuples,
+    // past the solver's 1024-tuple enumeration cap.
+    // IEEE 1800-2023 18.5.9: "a solve...before... constraint does not change the solution
+    // space and, therefore, cannot cause the solver to fail" (#2228).
+    if (!cap.randomize()) $fatal(1,"element cap failed");
+    foreach (cap.values[i]) cap_changed ^= cap.values[i];
+    if (cap.child.value != cap_changed || cap.posts != 1)
+      $fatal(1,"element cap solution");
     $display("PASSED");
   end
 endmodule
