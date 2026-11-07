@@ -39,6 +39,7 @@ extern vpiHandle vpip_interconnect_net_to_load(vpiHandle net,
 
 int sdf_flag_warning = 0;
 int sdf_flag_inform = 0;
+int sdf_increment = 0;
 int sdf_min_typ_max;
 double sdf_scale_factors[3] = { 1.0, 1.0, 1.0 };
 int sdf_scale_type = SDF_SCALE_FROM_MTM;
@@ -350,7 +351,8 @@ static void sdf_put_interconnect_delays(vpiHandle path,
                   if (sdf_flag_inform)
                         vpi_printf("SDF INFO: %s:%d: Putting delay: %f for index %d\n",
                                    sdf_fname, sdf_lineno, delval_list->val[idx].value, idx);
-                  delay_vals[idx].real = delval_list->val[idx].value;
+                  delay_vals[idx].real = delval_list->val[idx].value
+                        + (sdf_increment ? delay_vals[idx].real : 0.0);
             }
       }
       vpi_put_delays(path, &delays);
@@ -680,7 +682,8 @@ static void sdf_put_modpath_delays(vpiHandle path,
       for (idx = 0 ; idx < delval_list->count ; idx += 1) {
 	    delay_vals[idx].type = vpiScaledRealTime;
 	    if (delval_list->val[idx].defined)
-		  delay_vals[idx].real = delval_list->val[idx].value;
+		  delay_vals[idx].real = delval_list->val[idx].value
+			+ (sdf_increment ? delay_vals[idx].real : 0.0);
       }
 
       vpi_put_delays(path, &delays);
