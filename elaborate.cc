@@ -54661,7 +54661,7 @@ Design* elaborate(list<perm_string>roots)
 	    return des;
 
 	// Now we have the full design, check for timescale inconsistencies.
-	      if (gn_system_verilog())
+	      if (generation_flag >= GN_VER2017)
 		    check_sv_timescales(des);
 	      else if (warn_timescale)
 		    check_timescales();
