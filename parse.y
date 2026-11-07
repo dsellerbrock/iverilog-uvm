@@ -3022,7 +3022,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <expr>  constraint_dist_consequent
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
 %type <exprs> randomize_constraint_block_opt
-%type <exprs> constraint_expression_list constraint_set constraint_trigger
+%type <exprs> constraint_expression_list constraint_set
 
 %type <decl_assignment> variable_decl_assignment
 %type <decl_assignments> list_of_variable_decl_assignments
@@ -4987,10 +4987,10 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
               $$ = nullptr;
         }
       }
-  | expression constraint_trigger
-      { /* A -> { items... } — implication onto a constraint set
-	   (IEEE 1800-2017 18.5.6). */
-	PEConstraintIf*tmp = new PEConstraintIf($1, $2, nullptr);
+  | expression K_CONSTRAINT_IMPL constraint_set
+      { /* Implication onto a constraint set
+	   (IEEE 1800-2017 18.5.6 / 2023 18.5.5). */
+	PEConstraintIf*tmp = new PEConstraintIf($1, $3, nullptr);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
@@ -5219,11 +5219,6 @@ dist_item
         $$->lo = nullptr; $$->hi = nullptr; $$->is_range = false;
         $$->weight = $4; $$->weight_is_divided = true;
         $$->is_default = true; }
-  ;
-
-constraint_trigger
-  : K_CONSTRAINT_IMPL '{' constraint_expression_list '}'
-      { $$ = $3; }
   ;
 
 constraint_expression_list /* */
