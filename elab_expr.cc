@@ -13432,6 +13432,175 @@ static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width)
       return false;
 }
 
+/* IEEE 1800-2017/2023 11.2.1 lists $sformatf among the constant system
+ * functions when its arguments are constant expressions. Fold the
+ * conversions whose text depends only on the argument values, following the
+ * SystemVerilog-mode rules of vpi/sys_display.c exactly, so a folded string
+ * equals what the same call produces at run time. Any other conversion (%t,
+ * %p, %u, %z, %v, ...), an x/z digit, a vector wider than 64 bits, a
+ * non-constant argument, or a missing/extra argument returns false and the
+ * call stays unfolded. */
+static bool fold_constant_sformatf_(const std::string&fmt,
+				    const std::vector<const NetExpr*>&args,
+				    const std::string&scope_name,
+				    std::string&out)
+{
+      size_t next_arg = 0;
+      auto pad = [](const std::string&text, int width, bool ljust,
+		    char fill = ' ') {
+	    if (width < 0 || (int)text.size() >= width) return text;
+	    std::string filler((size_t)width - text.size(), fill);
+	    return ljust ? text + filler : filler + text;
+      };
+      auto integral = [](const NetExpr*arg, uint64_t&bits, unsigned&wid,
+			 bool&is_signed) {
+	    const NetEConst*c = dynamic_cast<const NetEConst*>(arg);
+	    if (!c || dynamic_cast<const NetECString*>(arg)
+		|| c->value().is_string() || !c->value().is_defined())
+		  return false;
+	    const verinum&v = c->value();
+	    wid = v.len();
+	    if (wid == 0 || wid > 64) return false;
+	    bits = 0;
+	    for (unsigned idx = 0 ; idx < wid ; idx += 1)
+		  if (v.get(idx) == verinum::V1) bits |= (uint64_t)1 << idx;
+	    is_signed = c->has_sign();
+	    return true;
+      };
+
+      for (size_t pos = 0 ; pos < fmt.size() ; pos += 1) {
+	    if (fmt[pos] != '%') { out += fmt[pos]; continue; }
+	    pos += 1;
+	    bool ljust = false, plus = false, ld_zero = false;
+	    for ( ; pos < fmt.size() ; pos += 1) {
+		  if (fmt[pos] == '-') ljust = true;
+		  else if (fmt[pos] == '+') plus = true;
+		  else if (fmt[pos] == '0') ld_zero = true;
+		  else break;
+	    }
+	    int width = -1, prec = -1;
+	    if (pos < fmt.size() && isdigit((unsigned char)fmt[pos])) {
+		  width = 0;
+		  while (pos < fmt.size() && isdigit((unsigned char)fmt[pos]))
+			width = width * 10 + (fmt[pos++] - '0');
+	    }
+	    if (pos < fmt.size() && fmt[pos] == '.') {
+		  prec = 0;
+		  pos += 1;
+		  while (pos < fmt.size() && isdigit((unsigned char)fmt[pos]))
+			prec = prec * 10 + (fmt[pos++] - '0');
+	    }
+	    if (pos >= fmt.size()) return false;
+	    char conv = fmt[pos];
+	    if (conv == '%') {
+		  if (ljust || plus || ld_zero || width != -1 || prec != -1)
+			return false;
+		  out += '%';
+		  continue;
+	    }
+	    if (conv == 'm' || conv == 'M') {
+		  out += pad(scope_name, width, ljust);
+		  continue;
+	    }
+	    if (next_arg >= args.size()) return false;
+	    const NetExpr*arg = args[next_arg++];
+	    uint64_t bits = 0;
+	    unsigned wid = 0;
+	    bool is_signed = false;
+	    switch (conv) {
+		case 's': case 'S': {
+		      const NetEConst*c = dynamic_cast<const NetEConst*>(arg);
+		      if (plus || prec != -1 || !c
+			  || !(dynamic_cast<const NetECString*>(arg)
+			       || c->value().is_string()))
+			    return false;
+		      out += pad(c->value().as_string(), width, ljust);
+		      break;
+		}
+		case 'd': case 'D': {
+		      if (prec != -1 || !integral(arg, bits, wid, is_signed))
+			    return false;
+		      bool negative = is_signed && ((bits >> (wid - 1)) & 1);
+		      uint64_t magnitude = bits;
+		      if (negative)
+			    magnitude = (wid == 64 ? ~bits : (~bits & (((uint64_t)1 << wid) - 1))) + 1;
+		      std::string digits = std::to_string(magnitude);
+		      std::string sign = negative ? "-" : (plus ? "+" : "");
+		      int swidth = (int)(digits.size() + sign.size());
+		      if (!ljust && ld_zero && swidth < width)
+			    digits = std::string((size_t)(width - swidth), '0') + digits;
+		      if (width == -1) {
+			    int nr = (int)wid;
+			    if (is_signed) nr -= 1;
+			    width = ld_zero ? 0 : (int)((nr * 146L + 484) / 485)
+				  + (is_signed ? 1 : 0);
+			  }
+		      out += pad(sign + digits, width, ljust);
+		      break;
+		}
+		case 'h': case 'H': case 'x': case 'X':
+		case 'o': case 'O': case 'b': case 'B': {
+		      if (plus || prec != -1 || !integral(arg, bits, wid, is_signed))
+			    return false;
+		      unsigned radix_bits = (conv == 'b' || conv == 'B') ? 1
+			    : (conv == 'o' || conv == 'O') ? 3 : 4;
+		      unsigned ndigits = (wid + radix_bits - 1) / radix_bits;
+		      std::string digits;
+		      for (unsigned idx = ndigits ; idx > 0 ; idx -= 1) {
+			    unsigned shift = (idx - 1) * radix_bits;
+			    unsigned d = (unsigned)((bits >> shift)
+						    & ((1u << radix_bits) - 1));
+			    digits += "0123456789abcdef"[d];
+		      }
+		      if ((width != -1 || ld_zero) && (!ljust || ld_zero)) {
+			    size_t first = digits.find_first_not_of('0');
+			    digits = first == std::string::npos ? "0"
+				  : digits.substr(first);
+		      }
+		      if (!ljust && width > 0)
+			    digits = pad(digits, width, false, '0');
+		      out += pad(digits, width < 0 ? 0 : width, ljust);
+		      break;
+		}
+		case 'c': case 'C': {
+		      if (plus || prec != -1 || !integral(arg, bits, wid, is_signed))
+			    return false;
+		      int w = width < 1 ? 1 : width;
+		      std::string text(1, (char)(bits & 0xff));
+		      out += ljust ? pad(text, w, true)
+			    : std::string((size_t)(w - 1), ld_zero ? '0' : ' ') + text;
+		      break;
+		}
+		case 'e': case 'f': case 'g': case 'E': case 'F': case 'G': {
+		      double value;
+		      if (const NetECReal*r = dynamic_cast<const NetECReal*>(arg))
+			    value = r->value().as_double();
+		      else if (integral(arg, bits, wid, is_signed))
+			    value = is_signed && wid < 64 && ((bits >> (wid - 1)) & 1)
+				  ? (double)(int64_t)(bits | (~(uint64_t)0 << wid))
+				  : (double)bits;
+		      else
+			    return false;
+		      std::string cfmt = "%";
+		      if (ljust) cfmt += '-';
+		      if (plus) cfmt += '+';
+		      if (ld_zero) cfmt += '0';
+		      if (width != -1) cfmt += std::to_string(width);
+		      if (prec != -1) cfmt += "." + std::to_string(prec);
+		      cfmt += conv;
+		      char buf[512];
+		      if (snprintf(buf, sizeof buf, cfmt.c_str(), value) >= (int)sizeof buf)
+			    return false;
+		      out += buf;
+		      break;
+		}
+		default:
+		  return false;
+	    }
+      }
+      return next_arg == args.size();
+}
+
 NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
                                           unsigned expr_wid,
                                           unsigned flags) const
@@ -13546,6 +13715,34 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			std::ostringstream text;
 			text << scope_path(scope);
 			NetECString*result = new NetECString(text.str());
+			result->set_line(*this);
+			return result;
+		  }
+	    }
+      }
+      if ((flags & NEED_CONST) && name == "$sformatf" && !parms_.empty()
+	  && parms_[0].parm && gn_system_verilog()) {
+	    if (const PEString*format =
+		  dynamic_cast<const PEString*>(parms_[0].parm)) {
+		  std::vector<NetExpr*> owned;
+		  bool all_constant = true;
+		  for (size_t idx = 1 ; idx < parms_.size() && all_constant ; idx += 1) {
+			NetExpr*arg = parms_[idx].parm
+			      ? elab_and_eval(des, scope, parms_[idx].parm, -1, true)
+			      : nullptr;
+			all_constant = arg && (dynamic_cast<NetEConst*>(arg)
+					       || dynamic_cast<NetECReal*>(arg));
+			if (arg) owned.push_back(arg);
+		  }
+		  std::vector<const NetExpr*> args(owned.begin(), owned.end());
+		  std::ostringstream path;
+		  path << scope_path(scope);
+		  std::string text;
+		  bool folded = all_constant && fold_constant_sformatf_(
+			format->parsed_value().as_string(), args, path.str(), text);
+		  for (NetExpr*arg : owned) delete arg;
+		  if (folded) {
+			NetECString*result = new NetECString(text);
 			result->set_line(*this);
 			return result;
 		  }
