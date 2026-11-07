@@ -896,6 +896,8 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+      if (path_.name.size() > 1)
+	    note_virtual_interface_outside_reference(scope, sr.scope);
 
 	  // IEEE 1800-2017/2023 17.7.1 prohibits hierarchical-name
 	  // references to checker variables on assignment left-hand sides.

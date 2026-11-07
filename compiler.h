@@ -136,6 +136,9 @@ void release_deferred_static_inits(Design*des);
 void release_elaboration_specialization_caches();
 void release_elaboration_interface_caches();
 void release_elaboration_interface_types();
+void finalize_virtual_interface_hierarchical_references(Design*des);
+void note_virtual_interface_outside_reference(const NetScope*scope,
+					      const NetScope*found_in);
 void collect_module_parameter_declarations(Design*des, NetScope*scope,
                                            const Module*module);
 void elaborate_interface_declaration_classes(Design*des, NetScope*scope,
