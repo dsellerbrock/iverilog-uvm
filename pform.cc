@@ -9044,6 +9044,14 @@ static std::set<sva_scoped_name_t> sva_property_shaped_sequences;
    evaluated in the Observed region rather than through the procedural event. */
 static std::map<sva_scoped_name_t, perm_string> sva_sequence_trigger_events;
 static std::map<perm_string, sva_scoped_name_t> sva_sequence_trigger_sources;
+/* Every `seq.triggered' reference becomes a reference to its monitor event;
+   an assertion lowers the reference itself with its own clock (16.13.6). A
+   monitor whose sequence has no clock is only needed by references outside
+   assertions, so these counts let module end drop it instead of reporting
+   a missing clock that no consumer depends on. */
+static std::map<perm_string, unsigned> sva_trigger_refs_;
+static std::map<perm_string, unsigned> sva_trigger_assertion_refs_;
+static perm_string sva_trigger_monitor_event_;
 /* A default disable declaration belongs to its module or generate scope.
    Assertions parsed before the declaration keep a shared expression slot;
    its contents are fixed when the scope closes, without moving assertion
@@ -10818,6 +10826,8 @@ void pform_sva_module_done(void)
 	  }
       sva_sequence_trigger_events.clear();
       sva_sequence_trigger_sources.clear();
+      sva_trigger_refs_.clear();
+      sva_trigger_assertion_refs_.clear();
       sva_resolve_late_disable_slots_(module);
       for (std::map<const LexicalScope*, PExpr*>::iterator it =
 	       sva_default_disables.begin() ; it != sva_default_disables.end() ; ) {
@@ -20341,11 +20351,15 @@ PExpr* pform_sva_sequence_triggered(const struct vlltype&loc, PExpr*expr)
 	    FILE_NAME(no_failure_action, loc);
 	    sva_sequence_trigger_events[key] = event_name;
 	    sva_sequence_trigger_sources[event_name] = key;
+	    perm_string saved_monitor = sva_trigger_monitor_event_;
+	    sva_trigger_monitor_event_ = event_name;
 	    pform_make_assertion(loc, monitor, no_failure_action, trigger, 0);
+	    sva_trigger_monitor_event_ = saved_monitor;
 	    lexical_scope = saved_scope;
 	    pform_cur_generate = saved_generate;
       }
 
+      sva_trigger_refs_[event_name] += 1;
       pform_name_t event_path;
       event_path.push_back(name_component_t(event_name));
       event_path.push_back(name_component_t(perm_string::literal("triggered")));
@@ -24510,6 +24524,61 @@ static bool sva_check_first_match_(const struct vlltype&loc,
    diagnostic. Under a single clock `.triggered' and `.matched' coincide
    (the observed-region distinction is a stage-D multiclock concern).
    Returns false (diagnosed) on an unsupported endpoint. */
+/* IEEE 1800-2017/2023 16.13.6: a sequence endpoint is "a match ending at
+   this tick"; "an empty match does not cause triggered/matched to be true".
+   For a bounded variable-length body, every nonempty match is one path of
+   its acyclic tick automaton, and a path of L ticks ending now is the
+   conjunction of each tick's guard $past-sampled by its distance from the
+   end. The endpoint is the OR of those path conjunctions. Returns null when
+   the body has locals, is unbounded, or has more than 256 paths. */
+static PExpr* sva_endpoint_indicator_paths_(const struct vlltype&loc,
+					    std::vector<sva_seq_step_t>&body)
+{
+      for (const sva_seq_step_t&st : body)
+	    if (sva_step_has_assignment_(st) || sva_step_has_call_(st))
+		  return nullptr;
+      sva_nfa_t nfa;
+      if (!pform_sva_nfa_build_from_chain(nfa, body)
+	  || pform_sva_nfa_has_cycle(nfa))
+	    return nullptr;
+
+      std::vector<std::vector<const sva_nfa_edge_t*> > paths;
+      std::vector<const sva_nfa_edge_t*> path;
+      bool overflow = false;
+      std::function<void(unsigned)> walk = [&](unsigned state) {
+	    if (overflow) return;
+	    if (state == nfa.accept && !path.empty()) {
+		  if (paths.size() >= 256) { overflow = true; return; }
+		  paths.push_back(path);
+	    }
+	    for (const sva_nfa_edge_t&edge : nfa.edges) {
+		  if (edge.from != state || edge.epsilon) continue;
+		  path.push_back(&edge);
+		  walk(edge.to);
+		  path.pop_back();
+	    }
+      };
+      walk(nfa.start);
+      if (overflow || paths.empty())
+	    return nullptr;
+
+      PExpr*any = nullptr;
+      for (const std::vector<const sva_nfa_edge_t*>&one : paths) {
+	    PExpr*conj = nullptr;
+	    for (size_t tick = 0 ; tick < one.size() ; tick += 1) {
+		  for (PExpr*guard : one[tick]->guards) {
+			PExpr*g = sva_clone_expr_(guard);
+			if (!g) { delete conj; delete any; return nullptr; }
+			PExpr*term = sva_past_(loc, g, (long)(one.size() - 1 - tick));
+			conj = conj ? sva_logic_(loc, 'a', conj, term) : term;
+		  }
+	    }
+	    if (!conj) conj = sva_bit_(loc, 1);
+	    any = any ? sva_logic_(loc, 'o', any, conj) : conj;
+      }
+      return any;
+}
+
 /* Build the $past-conjunction indicator for `seqname.method'. Returns
    the expression, or null: with `failed' set when the sequence exists
    but cannot be lowered (diagnosed here), clear when the name is not a
@@ -24532,10 +24601,13 @@ static PExpr* sva_endpoint_indicator_body_(const struct vlltype&loc,
 	    else { L += st.delay_lo; off[j] = L; }
       }
       if (!ok) {
+	    if (PExpr*bounded = sva_endpoint_indicator_paths_(loc, body))
+		  return bounded;
 	    cerr << loc << ": sorry: `" << seqname << "." << method
-		 << "' is supported only for a fixed-length sequence "
-		 << "(constant ##N delays, no ##[m:n]/##[m:$]/[*]/goto/"
-		 << "local variables); the assertion is dropped." << endl;
+		 << "' is supported only for a bounded sequence "
+		 << "(no ##[m:$]/[*m:$]/unbounded goto, local variables, "
+		 << "or more than 256 match shapes); the assertion is dropped."
+		 << endl;
 	    error_count += 1;
 	    failed = true;
 	    return nullptr;
@@ -24630,6 +24702,7 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 	    std::map<perm_string, sva_scoped_name_t>::iterator source =
 		  sva_sequence_trigger_sources.find(nm.front().name);
 	    if (source != sva_sequence_trigger_sources.end()) {
+		  sva_trigger_assertion_refs_[nm.front().name] += 1;
 		  ind = sva_endpoint_indicator_key_(loc, source->second,
 						    method, failed);
 		  if (!ind && !failed) {
@@ -28924,6 +28997,7 @@ struct sva_pending_proc_t {
       Statement*pass_stmt;
       int kind;
       perm_string label;
+      perm_string trigger_event; // set for a `seq.triggered' monitor
 };
 static std::vector<sva_pending_proc_t> sva_pending_proc_;
 
@@ -29161,6 +29235,14 @@ void pform_sva_flush_pending_procedural(void)
 		  sva_named_prop_retry_active_ = saved_retry;
 		  pform_cur_generate = saved_generate;
 		  lexical_scope = saved;
+		  continue;
+	    }
+	    if (!p.trigger_event.nil()
+		&& sva_trigger_refs_[p.trigger_event]
+		   == sva_trigger_assertion_refs_[p.trigger_event]) {
+		  delete p.fail_stmt;
+		  delete p.pass_stmt;
+		  pform_sva_destroy_property(p.prop);
 		  continue;
 	    }
 	    cerr << p.loc << ": error: concurrent assertion has no clocking "
@@ -31525,6 +31607,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    pend.pass_stmt = pass_stmt;
 	    pend.kind = kind;
 	    pend.label = sva_active_assertion_label_;
+	    pend.trigger_event = sva_trigger_monitor_event_;
+	    sva_trigger_monitor_event_ = perm_string();
 	    sva_pending_proc_.push_back(pend);
 	    return;
       }

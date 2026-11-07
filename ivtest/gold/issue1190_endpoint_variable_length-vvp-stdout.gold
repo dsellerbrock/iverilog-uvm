@@ -1,0 +1,8 @@
+t=3 maybe
+t=4 maybe
+t=4 opt
+t=5 win
+t=5 rep
+t=12 maybe
+t=14 maybe
+ivltests/issue1190_endpoint_variable_length.sv:39: $finish called at 160 (1s)

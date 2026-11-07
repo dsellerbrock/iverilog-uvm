@@ -1,0 +1,5 @@
+{
+    "type" : "normal",
+    "source" : "issue1190_endpoint_empty_inferred.sv",
+    "iverilog-args" : [ "-g2017" ]
+}
