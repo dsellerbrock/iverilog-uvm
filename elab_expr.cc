@@ -14145,21 +14145,15 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	    if (const PETypename*type_expr = dynamic_cast<PETypename*>(expr)) {
 		  ivl_type_t data_type = type_expr->get_type()->elaborate_type(des, scope);
 		  ivl_assert(*this, data_type);
-		  use_width = 1;
-		  while (const netuarray_t *utype =
-			 dynamic_cast<const netuarray_t*>(data_type)) {
-			use_width = netrange_width(utype->static_dimensions(),
-			                           use_width);
-			data_type = utype->element_type();
-		  }
-		  if (!data_type->packed()) {
+		    /* 20.6.2: the number of data bits of a fixed-size type,
+		       including unpacked structs and arrays of them. */
+		  if (dynamic_cast<const netclass_t*>(data_type)
+		      || !fixed_bitstream_width_(data_type, use_width)) {
 			use_width = 0;
 			cerr << get_fileline() << ": error: "
 			     << "Invalid data type for $bits()."
 			     << endl;
 			des->errors++;
-		  } else {
-			use_width *= data_type->packed_width();
 		  }
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_sfunc_: "
@@ -26260,9 +26254,18 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 		  use_depth = 0;
 	    }
 
-	    const auto &slice_dims = type->slice_dimensions();
-	    for ( ; use_depth < slice_dims.size(); use_depth++)
-		  use_width *= slice_dims[use_depth].width();
+	      // An unpacked struct has no slice dimensions; for $bits() its
+	      // width is the sum of its members' data bits (20.6.2).
+	    uint64_t record_width = 0;
+	    const netstruct_t*record = dynamic_cast<const netstruct_t*>(type);
+	    if (record && !record->packed()
+		&& fixed_bitstream_width_(type, record_width)) {
+		  use_width *= record_width;
+	    } else {
+		  const auto &slice_dims = type->slice_dimensions();
+		  for ( ; use_depth < slice_dims.size(); use_depth++)
+			use_width *= slice_dims[use_depth].width();
+	    }
 
 	    expr_type_   = type->base_type();
 	    expr_width_  = use_width;

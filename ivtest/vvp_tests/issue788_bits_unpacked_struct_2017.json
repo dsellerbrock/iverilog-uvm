@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue788_bits_unpacked_struct.sv",
+  "iverilog-args": ["-g2017"],
+  "output-contains": ["PASSED"]
+}
