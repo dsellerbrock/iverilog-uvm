@@ -881,6 +881,10 @@ void vvp_fun_modpath::schedule_pulse_transition_(vvp_time64_t delay,
 		  schedule_generic(new pulse_wakeup_(this), delay, false, true, true);
 		  return;
 	    }
+	    if (due < pending_pulse_->sim_time) {
+		  cancel_pulse_event_(pending_pulse_);
+		  return;
+	    }
 	    vvp_time64_t width = due > pending_pulse_->sim_time ?
 		  due - pending_pulse_->sim_time : 0;
 	    reject = std::min(reject, delay);
