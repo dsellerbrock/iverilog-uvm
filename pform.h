@@ -1145,22 +1145,24 @@ extern void pform_timing_check_width(const struct vlltype&loc,
 				     PExpr*threshold,
 				     const pform_name_t*notifier);
 /* M13B: $timeskew/$fullskew are skew checks (violation when the delta
-   exceeds the limit). have_flags is true when the source gave the
-   event_based/remain_active flag arguments, whose report-granularity
-   semantics are not modeled: loud sorry, check dropped. */
+   exceeds the limit). The optional event_based/remain_active flag
+   expressions (nullptr when absent) are borrowed: the synthesizer
+   clones what it keeps. */
 extern void pform_timing_check_timeskew(const struct vlltype&loc,
 					const PTimingCheck::event_t&ref_ev,
 					const PTimingCheck::event_t&data_ev,
 					PExpr*limit,
 					const pform_name_t*notifier,
-					bool have_flags);
+					PExpr*event_based,
+					PExpr*remain_active);
 extern void pform_timing_check_fullskew(const struct vlltype&loc,
 					const PTimingCheck::event_t&ref_ev,
 					const PTimingCheck::event_t&data_ev,
 					PExpr*lim1,
 					PExpr*lim2,
 					const pform_name_t*notifier,
-					bool have_flags);
+					PExpr*event_based,
+					PExpr*remain_active);
 /* M13B: $nochange(edge ref, data, start_off, end_off): data must not
    change during the reference level following the edge. Exact for
    zero offsets; non-zero offsets get a loud sorry. */

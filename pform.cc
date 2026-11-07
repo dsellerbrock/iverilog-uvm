@@ -15486,20 +15486,71 @@ static void tc_pair_synth_(const struct vlltype&loc,
       tc_always_at_(loc, check_ev, chk);
 }
 
+static PExpr* tc_not_(const struct vlltype&loc, PExpr*e)
+{
+      PEUnary*not_e = new PEUnary('!', e);
+      FILE_NAME(not_e, loc);
+      return not_e;
+}
+
+/* Clone an optional event_based/remain_active flag for one more use. A
+   missing flag stays missing; a flag that cannot be cloned drops the
+   check loudly. */
+static bool tc_flag_copy_(const struct vlltype&loc, const char*check_name,
+			  PExpr*flag, PExpr*&copy)
+{
+      copy = nullptr;
+      if (flag == nullptr) return true;
+      copy = sva_clone_expr_(flag);
+      if (copy) return true;
+      cerr << loc.get_fileline() << ": sorry: " << check_name
+	   << " flag expression shape is not supported; the check is dropped."
+	   << endl;
+      error_count += 1;
+      return false;
+}
+
 /* $timeskew and $fullskew use timer-based reporting by default. Keep
    one active window per direction. A detached timer is started for each
    timestamp event; stale timers compare against the current timestamp
    and therefore cannot report for a replaced window. The data process
-   makes the check dormant after its first in-window event or violation. */
+   makes the check dormant after its first in-window event or violation.
+
+   IEEE 1800-2017/2023 31.4.2: a set event_based_flag drops the timer and
+   reports at a late data event instead, like $skew; the check then turns
+   dormant after its first violation unless remain_active_flag is set too.
+   A set remain_active_flag also keeps a false-condition reference event
+   from turning the check dormant. The flags are constant expressions
+   (possibly parameters), so each is tested where it acts. */
 static void tc_skew_timer_synth_(const struct vlltype&loc,
 				 const char*check_name,
 				 const PTimingCheck::event_t&stamp_ev,
 				 const PTimingCheck::event_t&check_ev,
 				 PExpr*limit,
-				 const pform_name_t*notifier)
+				 const pform_name_t*notifier,
+				 PExpr*event_based, PExpr*remain_active)
 {
       if (!tc_check_supported_(loc, check_name, stamp_ev)) return;
       if (!tc_check_supported_(loc, check_name, check_ev)) return;
+
+      PExpr*timer_eb = nullptr, *data_eb = nullptr;
+      PExpr*stamp_ra = nullptr, *data_ra = nullptr;
+      if (!tc_flag_copy_(loc, check_name, event_based, timer_eb)
+	  || !tc_flag_copy_(loc, check_name, event_based, data_eb)
+	  || !tc_flag_copy_(loc, check_name, remain_active, stamp_ra)
+	  || !tc_flag_copy_(loc, check_name, remain_active, data_ra)) {
+	    delete timer_eb; delete data_eb; delete stamp_ra; delete data_ra;
+	    return;
+      }
+      PExpr*late_limit = nullptr;
+      if (event_based && (late_limit = sva_clone_expr_(limit)) == nullptr) {
+	    cerr << loc.get_fileline() << ": sorry: " << check_name
+		 << " limit expression cannot be duplicated for event-based "
+		 << "reporting; the check is dropped." << endl;
+	    error_count += 1;
+	    delete timer_eb; delete data_eb; delete stamp_ra; delete data_ra;
+	    return;
+      }
 
       unsigned inst = tc_gensym_counter++;
       perm_string stamp_var = tc_make_real_(loc, inst, "stamp");
@@ -15547,12 +15598,22 @@ static void tc_skew_timer_synth_(const struct vlltype&loc,
       std::vector<Statement*> timer_stmts(1, limit_delay);
       timer->set_statement(timer_stmts);
 
+      Statement*start_timer = timer;
+      if (timer_eb) {
+	    start_timer = new PCondit(tc_not_(loc, timer_eb), timer, nullptr);
+	    FILE_NAME(start_timer, loc);
+      }
+
       std::vector<Statement*> stamp_stmts;
       stamp_stmts.push_back(sva_assign_(loc, stamp_var, tc_realtime_(loc)));
       stamp_stmts.push_back(sva_assign_(loc, active_var, tc_real_(loc, 1.0)));
-      stamp_stmts.push_back(timer);
+      stamp_stmts.push_back(start_timer);
       Statement*stamp_body = sva_block_(loc, stamp_stmts);
       Statement*false_stamp = sva_assign_(loc, active_var, tc_real_(loc, 0.0));
+      if (stamp_ra) {
+	    false_stamp = new PCondit(tc_not_(loc, stamp_ra), false_stamp, nullptr);
+	    FILE_NAME(false_stamp, loc);
+      }
       tc_always_at_conditioned_(loc, stamp_ev, stamp_body, false_stamp);
 
       PExpr*data_delta = new PEBinary('-', tc_realtime_(loc),
@@ -15562,8 +15623,23 @@ static void tc_skew_timer_synth_(const struct vlltype&loc,
       data_stmts.push_back(new PCondit(data_late,
 					       tc_violation_(loc, check_name, notifier),
 					       nullptr));
-      data_stmts.push_back(sva_assign_(loc, active_var,
-					       tc_real_(loc, 0.0)));
+      Statement*dormant = sva_assign_(loc, active_var, tc_real_(loc, 0.0));
+      if (data_eb) {
+	      /* Event-based: an in-limit data event keeps the check
+		 active; a violation turns it dormant unless it remains
+		 active. */
+	    PExpr*late_again = new PEBComp('>',
+		  new PEBinary('-', tc_realtime_(loc), sva_id_(loc, stamp_var)),
+		  late_limit);
+	    if (data_ra)
+		  late_again = new PEBLogic('a', late_again, tc_not_(loc, data_ra));
+	    Statement*event_dormant = new PCondit(late_again,
+		  sva_assign_(loc, active_var, tc_real_(loc, 0.0)), nullptr);
+	    FILE_NAME(event_dormant, loc);
+	    dormant = new PCondit(tc_not_(loc, data_eb), dormant, event_dormant);
+	    FILE_NAME(dormant, loc);
+      }
+      data_stmts.push_back(dormant);
       PExpr*data_active = new PEBComp('>', sva_id_(loc, active_var),
 					      tc_real_(loc, 0.0));
       PCondit*data_check = new PCondit(data_active,
@@ -15579,7 +15655,8 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
 				     const PTimingCheck::event_t&ref_ev,
 				     const PTimingCheck::event_t&data_ev,
 				     PExpr*lim1, PExpr*lim2,
-				     const pform_name_t*notifier)
+				     const pform_name_t*notifier,
+				     PExpr*event_based, PExpr*remain_active)
 {
       if (!tc_check_supported_(loc, "$fullskew", ref_ev)) return;
       if (!tc_check_supported_(loc, "$fullskew", data_ev)) return;
@@ -15589,6 +15666,12 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
       perm_string limit_var = tc_make_real_(loc, inst, "limit", 0.0);
       perm_string origin_var = tc_make_real_(loc, inst, "origin", 0.0);
       perm_string active_var = tc_make_real_(loc, inst, "active", 0.0);
+
+      PExpr*flag_probe = nullptr;
+      if (!tc_flag_copy_(loc, "$fullskew", event_based, flag_probe)) return;
+      delete flag_probe;
+      if (!tc_flag_copy_(loc, "$fullskew", remain_active, flag_probe)) return;
+      delete flag_probe;
 
       PExpr*late_lim1 = sva_clone_expr_(lim1);
       PExpr*late_lim2 = sva_clone_expr_(lim2);
@@ -15632,7 +15715,15 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
 	    FILE_NAME(timer, loc);
 	    std::vector<Statement*> timer_stmts(1, after_limit);
 	    timer->set_statement(timer_stmts);
-	    start.push_back(timer);
+	      /* 31.4.3: the event-based mode has no timer; a late
+		 timecheck event reports instead. */
+	    Statement*start_timer = timer;
+	    if (event_based) {
+		  start_timer = new PCondit(tc_not_(loc,
+			sva_clone_expr_(event_based)), timer, nullptr);
+		  FILE_NAME(start_timer, loc);
+	    }
+	    start.push_back(start_timer);
 	    return sva_block_(loc, start);
       };
 
@@ -15647,6 +15738,13 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
 					   sva_id_(loc, stamp_var));
     PExpr*late = new PEBComp('>', delta, sva_id_(loc, limit_var));
 	    PExpr*late_active = new PEBLogic('a', active, late);
+	      /* With a flag present only a late event on the other signal
+		 is a timecheck; a same-signal event replaces the window
+		 (the event-based mode has no timer to retire it first). */
+	    if (event_based)
+		  late_active = new PEBLogic('a', late_active,
+			new PEBComp('e', sva_id_(loc, origin_var),
+				    tc_real_(loc, other_origin)));
 	    std::vector<Statement*> late_body;
 	    late_body.push_back(tc_violation_(loc, "$fullskew", notifier));
 	    late_body.push_back(start_window(late_limit, this_origin));
@@ -15667,6 +15765,11 @@ static void tc_fullskew_timer_synth_(const struct vlltype&loc,
 						tc_real_(loc, this_origin));
 	    PExpr*dormant = new PEBLogic('a', active, same_origin);
 	    Statement*clear = sva_assign_(loc, active_var, tc_real_(loc, 0.0));
+	      /* 31.4.3: with remain_active_flag set the false-condition
+		 timestamp event is simply ignored. */
+	    if (remain_active)
+		  dormant = new PEBLogic('a', dormant,
+			tc_not_(loc, sva_clone_expr_(remain_active)));
 	    PCondit*false_action = new PCondit(dormant, clear, nullptr);
 	    FILE_NAME(false_action, loc);
 	    return false_action;
@@ -15979,31 +16082,16 @@ void PWidth::elaborate(Design*des, NetScope*scope) const
       }
 }
 
-/* Loud drop for the event_based/remain_active flag arguments of
-   $timeskew/$fullskew: they change violation-report granularity in
-   ways this synthesizer does not model. */
-static bool tc_skew_flags_ok_(const struct vlltype&loc,
-			      const char*check_name, bool have_flags)
-{
-      if (!have_flags) return true;
-      cerr << loc.get_fileline() << ": sorry: " << check_name
-	   << " event_based/remain_active flag arguments are not "
-	   << "supported; the check is dropped." << endl;
-      error_count += 1;
-      return false;
-}
-
 void pform_timing_check_timeskew(const struct vlltype&loc,
 				 const PTimingCheck::event_t&ref_ev,
 				 const PTimingCheck::event_t&data_ev,
 				 PExpr*limit,
 				 const pform_name_t*notifier,
-				 bool have_flags)
+				 PExpr*event_based, PExpr*remain_active)
 {
       if (!tc_active_(loc, "$timeskew")) return;
-      if (!tc_skew_flags_ok_(loc, "$timeskew", have_flags)) return;
       tc_skew_timer_synth_(loc, "$timeskew", ref_ev, data_ev, limit,
-			   notifier);
+			   notifier, event_based, remain_active);
 }
 
 void pform_timing_check_fullskew(const struct vlltype&loc,
@@ -16012,13 +16100,13 @@ void pform_timing_check_fullskew(const struct vlltype&loc,
 				 PExpr*lim1,
 				 PExpr*lim2,
 				 const pform_name_t*notifier,
-				 bool have_flags)
+				 PExpr*event_based, PExpr*remain_active)
 {
       if (!tc_active_(loc, "$fullskew")) return;
-      if (!tc_skew_flags_ok_(loc, "$fullskew", have_flags)) return;
 	// The default timer mode is a shared window: whichever event
 	// starts it selects the corresponding direction's limit.
-      tc_fullskew_timer_synth_(loc, ref_ev, data_ev, lim1, lim2, notifier);
+      tc_fullskew_timer_synth_(loc, ref_ev, data_ev, lim1, lim2, notifier,
+			       event_based, remain_active);
 }
 
 static bool tc_expr_is_zero_(PExpr*e)
