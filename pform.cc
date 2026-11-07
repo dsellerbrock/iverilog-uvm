@@ -20422,6 +20422,39 @@ static sva_property_t* sva_composite_impl_(int op_type, sva_property_t*ante,
       return p;
 }
 
+/* IEEE 1800-2023 16.12.1: an instance of a named property is a
+   property_expr. A bare consequent `p' or `p(args)' naming a property
+   declared so far (not a sequence) is such an instance. */
+static bool sva_seq_names_property_(const sva_property_t*p)
+{
+      if (!p || p->op_type != 0 || p->tree || p->antecedent || p->pa
+	  || p->seq_clk_evt || p->mc_prefix || !p->seq || p->seq->size() != 1)
+	    return false;
+      const sva_seq_step_t&st = p->seq->front();
+      if (st.delay_lo != 0 || st.delay_hi != 0 || st.rep_tail != 0
+	  || st.rep_kind != 0 || !st.items.empty())
+	    return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr)) {
+	    if (id->path().package || id->path().name.size() != 1
+		|| !id->path().name.front().index.empty())
+		  return false;
+	    perm_string nm = id->path().name.front().name;
+	    if (sva_in_scope_(sva_module_sequences, nm)) return false;
+	    std::map<sva_scoped_name_t, sva_property_t*>::iterator pit =
+		  sva_resolve_(sva_module_properties, nm);
+	    return pit != sva_module_properties.end() && pit->second
+		&& !sva_property_shaped_sequences.count(pit->first);
+      }
+      if (const PECallFunction*cf = dynamic_cast<const PECallFunction*>(st.expr)) {
+	    if (cf->path().package || cf->path().name.size() != 1
+		|| cf->receiver_expr())
+		  return false;
+	    perm_string nm = cf->path().name.front().name;
+	    return sva_resolve_(sva_param_properties, nm) != sva_param_properties.end();
+      }
+      return false;
+}
+
 static sva_property_t* sva_seq_prop_(std::vector<sva_seq_step_t>*chain)
 {
       sva_property_t*p = new sva_property_t;
@@ -20942,6 +20975,9 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    return nullptr;
       }
       if (conseq && conseq->pa)
+	    return sva_composite_impl_(op_type, sva_seq_prop_(ante), conseq);
+	/* A named property instance as the consequent (#918). */
+      if (sva_seq_names_property_(conseq))
 	    return sva_composite_impl_(op_type, sva_seq_prop_(ante), conseq);
       if (sva_prop_is_plain_seq_(conseq)) {
 	    std::vector<sva_seq_step_t>*chain = conseq->seq;
