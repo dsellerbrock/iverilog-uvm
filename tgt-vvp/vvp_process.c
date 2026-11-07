@@ -3718,6 +3718,39 @@ struct deferred_final_task_frame_s {
 
 static struct deferred_final_task_frame_s deferred_final_task_frame_;
 
+/* The thunk buffer is a temporary file read back on close, because
+ * open_memstream() is not available on Windows. */
+static FILE*deferred_thunk_open_(void)
+{
+      FILE*fd = tmpfile();
+#ifdef _WIN32
+	/* The Windows C runtime creates a tmpfile() in the drive root, which
+	   may not be writable. Fall back to a file in the TMP directory that
+	   is deleted on close ("D" is a Microsoft C runtime mode flag). */
+      if (!fd) {
+	    char*name = tempnam(NULL, "ivl");
+	    if (name) fd = fopen(name, "w+bD");
+	    free(name);
+      }
+#endif
+      return fd;
+}
+
+/* Read the drawn thunk into a malloc'ed, NUL-terminated buffer and close
+ * the temporary file. */
+static void deferred_thunk_close_(FILE*fd, char**text, size_t*len)
+{
+      long size = ftell(fd);
+      assert(size >= 0);
+      *text = malloc((size_t)size + 1);
+      assert(*text);
+      rewind(fd);
+      *len = fread(*text, 1, (size_t)size, fd);
+      assert(*len == (size_t)size);
+      (*text)[*len] = 0;
+      fclose(fd);
+}
+
 /* IEEE 1800-2017/2023 16.4: by-value actuals of a deferred action "shall be
  * fully evaluated at the instant the deferred assertion expression is
  * evaluated", and 16.4.1 queues "the current values of its input arguments"
@@ -6230,9 +6263,7 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
             deferred_final_task_frame_.action_lab = local_count++;
             deferred_final_task_frame_.after_lab = local_count++;
             deferred_final_task_frame_.saved_out = vvp_out;
-            deferred_final_task_frame_.thunk_out = open_memstream(
-                  &deferred_final_task_frame_.thunk_text,
-                  &deferred_final_task_frame_.thunk_len);
+            deferred_final_task_frame_.thunk_out = deferred_thunk_open_();
             assert(deferred_final_task_frame_.thunk_out);
             vvp_out = deferred_final_task_frame_.thunk_out;
             deferred_preload_count_ = 0;
@@ -6248,7 +6279,9 @@ static int show_deferred_final_task_marker_(ivl_statement_t net,
             return 1;
       }
 
-      fclose(deferred_final_task_frame_.thunk_out);
+      deferred_thunk_close_(deferred_final_task_frame_.thunk_out,
+			    &deferred_final_task_frame_.thunk_text,
+			    &deferred_final_task_frame_.thunk_len);
       vvp_out = deferred_final_task_frame_.saved_out;
 
       int rc = 0;
