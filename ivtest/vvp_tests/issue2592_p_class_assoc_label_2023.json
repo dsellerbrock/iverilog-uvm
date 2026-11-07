@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2592_p_class_assoc_label.sv",
+  "iverilog-args": ["-g2023"],
+  "output-contains": ["PASSED"]
+}
