@@ -1,0 +1,6 @@
+{
+    "type" : "normal",
+    "source" : "issue2694_event_alias_initializer.v",
+    "output-contains" : [ "PASSED" ],
+    "iverilog-args" : [ "-g2017" ]
+}

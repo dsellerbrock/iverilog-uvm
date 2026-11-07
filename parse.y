@@ -18991,10 +18991,11 @@ net_variable_list
   ;
 
 event_variable
-  : IDENTIFIER dimensions_opt
+  : IDENTIFIER dimensions_opt initializer_opt
       { pform_event_ident_t*tmp = new pform_event_ident_t;
 	tmp->ident = pform_ident_t(lex_strings.make($1), @1.lexical_pos);
 	tmp->array_dims = $2;
+	tmp->initializer.reset($3);
 	if ($2 && $2->size() > 1) {
 	      yyerror(@2, "sorry: multi-dimensional event arrays are "
 		      "not supported.");
