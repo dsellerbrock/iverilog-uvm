@@ -6667,3 +6667,5 @@ issue1790_signed_x_nonlogical_2017 normal,-g2017,-s,issue1790_signed_x_nonlogica
 issue1790_signed_x_nonlogical_2023 normal,-g2023,-s,issue1790_signed_x_nonlogical ivltests gold=issue1790_signed_x_nonlogical-vvp-stdout.gold
 sva_property_and_or_2017 normal,-g2017,-s,sva_property_and_or ivltests gold=sva_property_and_or.gold
 sva_property_and_or_2023 normal,-g2023,-s,sva_property_and_or ivltests gold=sva_property_and_or.gold
+issue2700_negpulse_2017 normal,-g2017,-gspecify,-s,issue2700_negpulse ivltests gold=issue2700_negpulse_2017-vvp-stdout.gold
+issue2700_negpulse_2023 normal,-g2023,-gspecify,-s,issue2700_negpulse ivltests gold=issue2700_negpulse_2023-vvp-stdout.gold
