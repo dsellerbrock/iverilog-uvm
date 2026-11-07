@@ -231,6 +231,8 @@ issue1239_global_clocking_generate_2023 CE,-g2023,-s,issue1239_global_clocking_g
 issue1249_pure_dpi_formals_2023 CE,-g2023,-s,test ivltests
 issue1371_sequence_local_formal_redeclared_2017 CE,-g2017,-s,issue1371_sequence_local_formal_redeclared ivltests
 issue1371_sequence_local_formal_redeclared_2023 CE,-g2023,-s,issue1371_sequence_local_formal_redeclared ivltests
+issue1378_local_sequence_actual_2017 normal,-g2017,-s,issue1378_local_sequence_actual ivltests gold=issue1378_local_sequence_actual.gold
+issue1378_local_sequence_actual_2023 normal,-g2023,-s,issue1378_local_sequence_actual ivltests gold=issue1378_local_sequence_actual.gold
 sv_assert_first_match_match_item normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_match_item_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_match_item.gold
 sv_assert_first_match_cut_isolation normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_cut_isolation.gold

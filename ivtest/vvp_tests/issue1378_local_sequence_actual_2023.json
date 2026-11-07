@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1378_local_sequence_actual_2023.v",
+    "iverilog-args": ["-g2023"],
+    "output-contains": ["PASSED"]
+}
