@@ -871,7 +871,7 @@ void vvp_fun_modpath::schedule_pulse_transition_(vvp_time64_t delay,
       cur_vec4_ = bit;
       vvp_time64_t due = schedule_simtime() + delay;
 
-      if (pending_pulse_ && bit.eeq(pending_pulse_->from)) {
+      if (pending_pulse_) {
 	    if (showcancelled_ && due < pending_pulse_->sim_time) {
 		  vvp_time64_t leading_time = pending_pulse_->sim_time;
 		  vvp_vector4_t pulse_from = pending_pulse_->from;
@@ -881,6 +881,10 @@ void vvp_fun_modpath::schedule_pulse_transition_(vvp_time64_t delay,
 		  schedule_generic(new pulse_wakeup_(this), delay, false, true, true);
 		  return;
 	    }
+	    if (due < pending_pulse_->sim_time) {
+		  cancel_pulse_event_(pending_pulse_);
+		  return;
+	    }
 	    vvp_time64_t width = due > pending_pulse_->sim_time ?
 		  due - pending_pulse_->sim_time : 0;
 	    reject = std::min(reject, delay);
@@ -888,10 +892,11 @@ void vvp_fun_modpath::schedule_pulse_transition_(vvp_time64_t delay,
 
 	    if (width < reject) {
 		  cancel_pulse_event_(pending_pulse_);
-		  return;
-	    }
-	    if (width < error)
+		  if (bit.eeq(from))
+			return;
+	    } else if (width < error) {
 		  pending_pulse_->to = vvp_vector4_t(bit.size(), BIT4_X);
+	    }
       }
 
       pending_pulse_ = enqueue_pulse_event_(due, from, bit);

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2700_negpulse.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "issue2700_negpulse"],
+  "gold": "issue2700_negpulse"
+}

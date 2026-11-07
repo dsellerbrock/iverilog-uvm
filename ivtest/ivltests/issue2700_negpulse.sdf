@@ -1,0 +1,11 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "issue2700_negpulse")
+  (TIMESCALE 1ns)
+  (CELL (CELLTYPE "issue2700_buf") (INSTANCE u)
+    (DELAY
+      (ABSOLUTE (IOPATH a y (4) (2)))
+      (PATHPULSE a y (0) (0))
+    )
+  )
+)
