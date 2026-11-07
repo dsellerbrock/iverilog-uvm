@@ -9087,6 +9087,22 @@ static std::map<perm_string, sva_scoped_name_t> sva_sequence_trigger_sources;
 static std::map<perm_string, unsigned> sva_trigger_refs_;
 static std::map<perm_string, unsigned> sva_trigger_assertion_refs_;
 static perm_string sva_trigger_monitor_event_;
+/* Cross-clock `.matched' handoff registers (sva_matched_cross_clock_). */
+struct sva_matched_key_t {
+      sva_scoped_name_t source;
+      const LexicalScope*scope;
+      std::string dest;
+      bool operator<(const sva_matched_key_t&that) const
+      {
+	    if (source < that.source) return true;
+	    if (that.source < source) return false;
+	    if (scope != that.scope) return scope < that.scope;
+	    return dest < that.dest;
+      }
+};
+static std::map<std::pair<sva_scoped_name_t,const LexicalScope*>, perm_string>
+      sva_matched_req_;
+static std::map<sva_matched_key_t, perm_string> sva_matched_ack_;
 /* A default disable declaration belongs to its module or generate scope.
    Assertions parsed before the declaration keep a shared expression slot;
    its contents are fixed when the scope closes, without moving assertion
@@ -10873,6 +10889,8 @@ void pform_sva_module_done(void)
       sva_sequence_trigger_sources.clear();
       sva_trigger_refs_.clear();
       sva_trigger_assertion_refs_.clear();
+      sva_matched_req_.clear();
+      sva_matched_ack_.clear();
       sva_resolve_late_disable_slots_(module);
       for (std::map<const LexicalScope*, PExpr*>::iterator it =
 	       sva_default_disables.begin() ; it != sva_default_disables.end() ; ) {
@@ -25025,6 +25043,141 @@ static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
 	  return sva_endpoint_indicator_key_(loc, *tag, method, failed);
 }
 
+/* IEEE 1800-2023 16.13.5/16.13.6: `seq.matched' where the source sequence
+   has its own clock, different from the destination's. The end point is
+   detected on the source clock and held until the first destination tick
+   strictly after the match (F.6.1: a match at letter i is seen at the
+   first destination tick j > i).
+
+   A source-clock monitor (a cover of every match) increments req; each
+   destination clock has its own ack, updated `ack <= req' at every
+   destination tick. The destination reads `req != ack' through its
+   ordinary Preponed sampling: a match in the current time step lands in
+   req only in the Reactive region, after the tick sampled it, so it is
+   seen by the next tick and not this one, whatever the process order.
+   Counts, not time stamps, so ticks closer than the timescale cannot
+   observe one match twice. */
+static const PEventStatement*sva_endpoint_dest_clock_ = nullptr;
+
+
+static PExpr* sva_matched_cross_clock_(const struct vlltype&loc,
+				       perm_string seqname, bool&failed)
+{
+      std::set<sva_scoped_name_t>::iterator tag =
+	    sva_resolve_(sva_property_shaped_sequences, seqname);
+      if (tag == sva_property_shaped_sequences.end()) return nullptr;
+      std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
+	    sva_module_properties.find(*tag);
+      if (pit == sva_module_properties.end() || !pit->second
+	  || !pit->second->clk_evt)
+	    return nullptr;
+      const sva_property_t*body = pit->second;
+
+      const PEventStatement*dest = sva_endpoint_dest_clock_;
+      if (!dest) {
+	    const Module*mod = sva_default_clocking_owner_(lexical_scope);
+	    if (mod && !mod->default_clocking.nil()) {
+		  std::map<perm_string,Module::PClocking*>::const_iterator cb =
+			mod->clocking_blocks.find(mod->default_clocking);
+		  if (cb != mod->clocking_blocks.end()) dest = cb->second->event;
+	    }
+      }
+	/* Same clock: not a clock-domain crossing; leave it to the
+	   single-clock endpoint lowering. */
+      if (!dest || sva_event_controls_identical_(body->clk_evt, dest))
+	    return nullptr;
+
+      if (tag->package || tag->unit || pform_cur_module.empty()
+	  || body->seq_clk_evt || body->mc_prefix || body->antecedent
+	  || (body->mc_more && !body->mc_more->empty())
+	  || body->op_type != 0 || body->disable_iff_expr
+	  || !body->local_names.empty()) {
+	    cerr << loc << ": sorry: `" << seqname << ".matched' across clock "
+		 << "domains is supported only for a singly clocked module "
+		 << "sequence without local variables; the assertion is "
+		 << "dropped." << endl;
+	    error_count += 1;
+	    failed = true;
+	    return nullptr;
+      }
+
+      std::pair<sva_scoped_name_t,const LexicalScope*> rkey (*tag, lexical_scope);
+      perm_string req;
+      std::map<std::pair<sva_scoped_name_t,const LexicalScope*>,
+	       perm_string>::iterator rit = sva_matched_req_.find(rkey);
+      if (rit != sva_matched_req_.end()) {
+	    req = rit->second;
+      } else {
+	    std::map<perm_string,PExpr*> no_subst;
+	    sva_property_t*monitor = new sva_property_t;
+	    monitor->op_type = 0;
+	    monitor->sequence_cover = true;
+	    monitor->clk_evt = sva_clone_event_control_(body->clk_evt, loc);
+	    monitor->seq = body->seq
+		  ? sva_clone_steps_subst_(loc, body->seq, no_subst) : nullptr;
+	    monitor->tree = body->tree ? sva_tree_clone_(loc, body->tree) : nullptr;
+	    if (!monitor->clk_evt || (body->seq && !monitor->seq)
+		|| (body->tree && !monitor->tree)
+		|| (!monitor->seq && !monitor->tree)) {
+		  pform_sva_destroy_property(monitor);
+		  cerr << loc << ": sorry: `" << seqname << ".matched' cannot "
+		       << "be monitored on its source clock in this form; the "
+		       << "assertion is dropped." << endl;
+		  error_count += 1;
+		  failed = true;
+		  return nullptr;
+	    }
+	    unsigned inst = sva_gensym_counter++;
+	    req = sva_make_reg_(loc, inst, "matchreq", 0, true);
+	    PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
+		  sva_assign_(loc, req, sva_num32_(loc, 0)), nullptr);
+	    FILE_NAME(ip, loc);
+	    PEBinary*inc = new PEBinary('+', sva_id_(loc, req), sva_num32_(loc, 1));
+	    FILE_NAME(inc, loc);
+	    PBlock*no_failure_action = new PBlock(PBlock::BL_SEQ);
+	    FILE_NAME(no_failure_action, loc);
+	    sva_matched_req_[rkey] = req;
+	    pform_make_assertion(loc, monitor, no_failure_action,
+				 sva_assign_(loc, req, inc), 2);
+      }
+
+      std::ostringstream dest_text;
+      dest->dump_inline(dest_text);
+      sva_matched_key_t akey;
+      akey.source = *tag;
+      akey.scope = lexical_scope;
+      akey.dest = dest_text.str();
+      perm_string ack;
+      std::map<sva_matched_key_t, perm_string>::iterator ait =
+	    sva_matched_ack_.find(akey);
+      if (ait != sva_matched_ack_.end()) {
+	    ack = ait->second;
+      } else {
+	    PEventStatement*tick = sva_clone_event_control_(dest, loc);
+	    if (!tick) {
+		  cerr << loc << ": sorry: the destination clock of `" << seqname
+		       << ".matched' cannot be copied; the assertion is "
+		       << "dropped." << endl;
+		  error_count += 1;
+		  failed = true;
+		  return nullptr;
+	    }
+	    unsigned inst = sva_gensym_counter++;
+	    ack = sva_make_reg_(loc, inst, "matchack", 0, true);
+	    PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
+		  sva_assign_(loc, ack, sva_num32_(loc, 0)), nullptr);
+	    FILE_NAME(ip, loc);
+	    tick->set_statement(sva_assign_nb_(loc, ack, sva_id_(loc, req)));
+	    PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, tick, nullptr);
+	    FILE_NAME(pp, loc);
+	    pform_mark_generated_verification_process_(pp);
+	    sva_matched_ack_[akey] = ack;
+      }
+      PEBComp*pending = new PEBComp('n', sva_id_(loc, req), sva_id_(loc, ack));
+      FILE_NAME(pending, loc);
+      return pending;
+}
+
 /* Recursively rewrite `seq.triggered'/`seq.matched' references INSIDE
    a step's boolean expression (16.13.6: the endpoint methods are
    ordinary booleans and compose with any operator). The old lowering
@@ -25061,8 +25214,11 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 			failed = true;
 		  }
 	    } else {
-		  ind = sva_endpoint_indicator_(loc, nm.front().name,
-						method, failed);
+		  if (!strcmp(method, "matched"))
+			ind = sva_matched_cross_clock_(loc, nm.front().name, failed);
+		  if (!ind && !failed)
+			ind = sva_endpoint_indicator_(loc, nm.front().name,
+						      method, failed);
 	    }
 	    if (!ind) return e;
 	    delete e;
@@ -32703,9 +32859,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	         dispatch used to bypass it, leaving the references
 	         unresolved and the assertion silently wrong
 	         (recovery C5). */
-	    if ((prop->ante_tree
-		 && !sva_lower_endpoint_methods_tree_(loc, prop->ante_tree))
-		|| !sva_lower_endpoint_methods_tree_(loc, prop->tree)) {
+	    sva_endpoint_dest_clock_ = prop->clk_evt;
+	    bool endpoints_ok = (!prop->ante_tree
+		 || sva_lower_endpoint_methods_tree_(loc, prop->ante_tree))
+		&& sva_lower_endpoint_methods_tree_(loc, prop->tree);
+	    sva_endpoint_dest_clock_ = nullptr;
+	    if (!endpoints_ok) {
 		  sva_tree_delete_(prop->ante_tree, true);
 		  prop->ante_tree = nullptr;
 		  sva_tree_delete_(prop->tree, true);
@@ -33490,9 +33649,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   methods to their fixed-length $past match indicator (both engines
 	   handle the resulting boolean). Unsupported endpoints are a loud
 	   sorry with full cleanup. */
-      if (!sva_lower_endpoint_methods_(loc, *prop->seq)
-	  || (prop->antecedent
-	      && !sva_lower_endpoint_methods_(loc, *prop->antecedent))) {
+      sva_endpoint_dest_clock_ = prop->clk_evt;
+      bool endpoints_ok = sva_lower_endpoint_methods_(loc, *prop->seq)
+	  && (!prop->antecedent
+	      || sva_lower_endpoint_methods_(loc, *prop->antecedent));
+      sva_endpoint_dest_clock_ = nullptr;
+      if (!endpoints_ok) {
 	    delete fail_stmt; delete pass_stmt;
 	    delete prop->antecedent; delete prop->seq;
 	    delete prop->clk_evt; delete prop->disable_iff_expr;

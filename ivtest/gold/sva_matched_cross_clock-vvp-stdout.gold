@@ -1,0 +1,2 @@
+PASSED
+ivltests/sva_matched_cross_clock.sv:79: $finish called at 790 (1s)
