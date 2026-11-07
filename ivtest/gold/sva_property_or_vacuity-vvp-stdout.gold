@@ -1,0 +1,4 @@
+o1: V5 P15 V35 P45 P55 V55 V65 V75
+o2: V5 P15 V35 P45 P55 V55 V65 V75
+o3: P5 P15 P35 P35 P45 P55 P65 P75
+ivltests/sva_property_or_vacuity.sv:36: $finish called at 76 (1s)
