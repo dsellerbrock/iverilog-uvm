@@ -615,7 +615,10 @@ static char* format_p_value(vpiHandle item)
       int first = 1;
       vpiHandle mem;
       while ((mem = vpi_scan(iter)) != 0) {
+        /* vpi_get_str() returns a shared buffer that formatting the value
+           (an associative array's keys, for one) overwrites; copy it. */
         char *nm = vpi_get_str(vpiName, mem);
+        if (nm) nm = strdup(nm);
         char *ev = format_p_value(mem);
         size_t nlen = nm ? strlen(nm) + 1 /* ':' */ : 0;
         size_t elen = strlen(ev);
@@ -624,6 +627,7 @@ static char* format_p_value(vpiHandle item)
         if (nm) { used += (size_t)sprintf(acc + used, "%s:", nm); }
         strcpy(acc + used, ev); used += elen;
         free(ev);
+        free(nm);
         first = 0;
       }
       acc = realloc(acc, used + 2);
