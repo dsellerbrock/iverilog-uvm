@@ -15674,6 +15674,7 @@ PEMatches::~PEMatches()
 {
       delete subject_;
       delete pattern_;
+      delete conditional_tail_;
 }
 
 void PEMatches::dump(ostream&out) const
@@ -15689,18 +15690,24 @@ void PEMatches::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
 {
       if (subject_) subject_->declare_implicit_nets(scope, type);
       if (pattern_) pattern_->declare_implicit_nets(scope, type);
+      if (conditional_tail_)
+	    conditional_tail_->declare_implicit_nets(scope, type);
 }
 
 bool PEMatches::has_aa_term(Design*des, NetScope*scope) const
 {
       return (subject_ && subject_->has_aa_term(des, scope))
-          || (pattern_ && pattern_->has_aa_term(des, scope));
+          || (pattern_ && pattern_->has_aa_term(des, scope))
+          || (conditional_tail_
+	      && conditional_tail_->has_aa_term(des, scope));
 }
 
 void PEMatches::reloc_lexical_pos_bind(bool parameter_context)
 {
       if (subject_) subject_->reloc_lexical_pos_bind(parameter_context);
       if (pattern_) pattern_->reloc_lexical_pos_bind(parameter_context);
+      if (conditional_tail_)
+	    conditional_tail_->reloc_lexical_pos_bind(parameter_context);
 }
 
 unsigned PEMatches::test_width(Design*, NetScope*, width_mode_t&)

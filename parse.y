@@ -2936,7 +2936,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <statement> pattern_if_prefix tand_if_prefix
 %type <cond_clause> tand_clause
 %type <cond_clauses> tand_chain
-%type <expr> pattern_expr_head
+%type <expr> pattern_expr_head pattern_expr_predicate conditional_tand_tail
 %destructor { delete $$; } match_pattern match_pattern_item
 %destructor {
       if ($$) {
@@ -3135,7 +3135,9 @@ static Module::port_t *module_declare_explicit_port(
 %nonassoc K_XOR_EQ K_LS_EQ K_RS_EQ K_RSS_EQ K_NB_TRIGGER
 %right K_TRIGGER K_LEQUIV
 %precedence K_dist
+%left K_TAND
 %right '?' ':'
+%precedence COND_TAND_PREC
 %left K_LOR
 %left K_LAND
 %left '|'
@@ -12452,9 +12454,9 @@ pattern_condition
 /* IEEE 1800-2017/2023 12.4 cond_predicate: clauses joined by &&&. A pattern
    clause's scope stays open for the later clauses and the true arm. */
 tand_clause
-  : expression
+  : expression %prec COND_TAND_PREC
       { $$ = new cond_clause_t; $$->cond = $1; }
-  | pattern_condition
+  | pattern_condition %prec COND_TAND_PREC
       { $$ = new cond_clause_t; $$->cond = $1;
 	$$->block = current_pattern_blocks.top();
 	current_pattern_blocks.pop(); }
@@ -13271,7 +13273,14 @@ expression
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
-  | pattern_expr_head '?' attribute_list_opt expression
+  | expression K_TAND conditional_tand_tail '?' attribute_list_opt expression ':' expression
+      { PEBLogic*condition = new PEBLogic('a', $1, $3);
+	FILE_NAME(condition, @2);
+	PETernary*tmp = new PETernary(condition, $6, $8);
+	FILE_NAME(tmp, @4);
+	$$ = tmp;
+      }
+  | pattern_expr_predicate '?' attribute_list_opt expression
       { pform_pop_scope(); }
     ':' expression
       { assert(!current_pattern_blocks.empty());
@@ -13291,6 +13300,27 @@ expression
 	current_pattern_blocks.pop();
 	pform_pop_scope();
 	$$ = $1;
+      }
+  ;
+
+pattern_expr_predicate
+  : pattern_expr_head %prec COND_TAND_PREC
+      { $$ = $1; }
+  | pattern_expr_head K_TAND conditional_tand_tail %prec COND_TAND_PREC
+      { PEMatches*matches = dynamic_cast<PEMatches*>($1);
+	assert(matches);
+	matches->set_conditional_tail($3);
+	$$ = $1;
+      }
+  ;
+
+conditional_tand_tail
+  : expression %prec COND_TAND_PREC
+      { $$ = $1; }
+  | conditional_tand_tail K_TAND expression %prec COND_TAND_PREC
+      { PEBLogic*tmp = new PEBLogic('a', $1, $3);
+	FILE_NAME(tmp, @2);
+	$$ = tmp;
       }
   ;
 

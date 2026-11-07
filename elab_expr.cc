@@ -34278,6 +34278,16 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
       if (capture)
 	    con = ternary_capture_before_true_(*this, con, capture);
 
+	  const PEMatches*matches = dynamic_cast<const PEMatches*>(expr_);
+	  if (matches && matches->conditional_tail()) {
+	    PExpr*tail_expr = matches->conditional_tail();
+	    NetExpr*tail = elab_and_eval(des, true_scope,
+					 tail_expr, -1,
+					 NEED_CONST & flags);
+	    if (!tail) return nullptr;
+	    con = condition_reduce(new NetEBLogic('a', con, tail));
+      }
+
 	// Short-circuit on a constant condition, as the width form
 	// does -- but keep elaborating the dead arm so its errors are
 	// still reported.
@@ -34507,6 +34517,16 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 						     true_scope);
       if (capture)
 	    con = ternary_capture_before_true_(*this, con, capture);
+
+	  const PEMatches*matches = dynamic_cast<const PEMatches*>(expr_);
+	  if (matches && matches->conditional_tail()) {
+	    PExpr*tail_expr = matches->conditional_tail();
+	    NetExpr*tail = elab_and_eval(des, true_scope,
+					 tail_expr, -1,
+					 NEED_CONST & flags);
+	    if (!tail) return nullptr;
+	    con = condition_reduce(new NetEBLogic('a', con, tail));
+      }
 
 	// Verilog doesn't say that we must do short circuit evaluation
 	// of ternary expressions, but it doesn't disallow it.
