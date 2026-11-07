@@ -18546,6 +18546,9 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.packed_width = 0;
 		      arr.packed_four_state = false;
 		      arr.shortreal_scratch = false;
+		      arr.string_scratch = false;
+		      arr.string_values.clear();
+		      arr.string_ptrs.clear();
 		      arr.storage = 0;
 		      arr.outer = 0;
 		      arr.has_range = false;
@@ -18581,6 +18584,19 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  dpi_pack_open_array_(c_name, slot+1, da,
 				sig[slot].base == 'y' || sig[slot].base == 'Y',
 				arr, arr_packed_store[slot]);
+		      } else if (da && (dynamic_cast<vvp_darray_string*>(da)
+					|| dynamic_cast<vvp_queue_string*>(da))) {
+			    arr.storage = da;
+			    arr.string_scratch = true;
+			    arr.length = (unsigned)da->get_size();
+			    arr.string_values.resize(arr.length);
+			    arr.string_ptrs.resize(arr.length);
+			    for (unsigned idx = 0 ; idx < arr.length ; idx += 1) {
+				  da->get_word(idx, arr.string_values[idx]);
+				  arr.string_ptrs[idx] = arr.string_values[idx].c_str();
+			    }
+			    arr.data = arr.length ? (void*)arr.string_ptrs.data() : 0;
+			    arr.elem_bytes = sizeof(const char*);
 		      } else if (da) {
 			    arr.storage = da;
 			    unsigned eb = da->dpi_elem_bytes();
@@ -18754,6 +18770,13 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    if (dpi_packed_open_letter_(args[ii].type)
 		&& arr_store[ii].packed_scratch)
 		  dpi_unpack_open_array_(arr_store[ii]);
+	    if (native_call_ok && arr_store[ii].string_scratch) {
+		  vvp_dpi_open_array_t&sarr = arr_store[ii];
+		  for (unsigned idx = 0 ; idx < sarr.length ; idx += 1)
+			if (sarr.string_ptrs[idx] != sarr.string_values[idx].c_str())
+			      sarr.storage->set_word(idx, std::string(
+				    sarr.string_ptrs[idx] ? sarr.string_ptrs[idx] : ""));
+	    }
 	    switch (args[ii].type) {
 		case 'b': dpi_push_int64(thr, args[ii].ival, 8);  break;
 		case 'h': dpi_push_int64(thr, args[ii].ival, 16); break;
