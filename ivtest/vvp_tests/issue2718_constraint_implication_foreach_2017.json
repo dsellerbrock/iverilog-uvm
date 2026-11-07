@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2718_constraint_implication_foreach.v",
+  "iverilog-args": ["-g2017", "-s", "issue2718_constraint_implication_foreach"],
+  "gold": "issue2718_constraint_implication_foreach"
+}

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sva_property_or_vacuity.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_property_or_vacuity"],
+  "vpi-modules": ["sva_property_or_vacuity_2017"],
+  "vpi-sources": ["vpi/sva_vacuity_log.c"],
+  "gold": "sva_property_or_vacuity"
+}

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sva_abort_async_report.sv",
+  "iverilog-args": ["-g2023", "-s", "sva_abort_async_report"],
+  "vpi-modules": ["sva_abort_async_report_2023"],
+  "vpi-sources": ["vpi/sva_vacuity_log.c"],
+  "gold": "sva_abort_async_report"
+}

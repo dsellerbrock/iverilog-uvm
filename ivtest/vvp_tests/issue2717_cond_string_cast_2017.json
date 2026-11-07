@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2717_cond_string_cast.v",
+  "iverilog-args": ["-g2017", "-s", "issue2717_cond_string_cast"],
+  "gold": "issue2717_cond_string_cast"
+}

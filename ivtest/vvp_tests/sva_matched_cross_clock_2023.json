@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_matched_cross_clock.sv",
+  "iverilog-args": ["-g2023", "-s", "sva_matched_cross_clock"],
+  "gold": "sva_matched_cross_clock"
+}
