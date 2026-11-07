@@ -18697,7 +18697,7 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
       if (sub->op_type != 0 || sub->antecedent || !sub->seq
 	  || sub->seq->size() != 1
 	  || (*sub->seq)[0].delay_lo != 0 || (*sub->seq)[0].delay_hi != 0
-	  || (*sub->seq)[0].rep_tail != 0
+	  || (*sub->seq)[0].rep_tail != 0 || (*sub->seq)[0].rep_kind != 0
 	  || sub->clk_evt || sub->seq_clk_evt || sub->mc_prefix
 	  || sub->mc_boundary != -1 || sub->disable_iff_expr) {
 	    cerr << loc << ": sorry: `" << w << "' is supported only with a "
@@ -18745,7 +18745,7 @@ pform_sva_abort(const struct vlltype&loc, int op_type, PExpr*cond,
       if (sub->op_type != 0 || sub->antecedent || !sub->seq
 	  || sub->seq->size() != 1
 	  || (*sub->seq)[0].delay_lo != 0 || (*sub->seq)[0].delay_hi != 0
-	  || (*sub->seq)[0].rep_tail != 0
+	  || (*sub->seq)[0].rep_tail != 0 || (*sub->seq)[0].rep_kind != 0
 	  || sub->clk_evt || sub->seq_clk_evt || sub->mc_prefix
 	  || sub->mc_boundary != -1 || sub->disable_iff_expr) {
 	    cerr << loc << ": sorry: `" << w << "' is supported only with a "
@@ -18789,7 +18789,8 @@ static PExpr* sva_take_bool_seq_(const struct vlltype&loc, const char*w,
       }
       PExpr*e = nullptr;
       if (seq->size() == 1 && (*seq)[0].delay_lo == 0
-	  && (*seq)[0].delay_hi == 0 && (*seq)[0].rep_tail == 0) {
+	  && (*seq)[0].delay_hi == 0 && (*seq)[0].rep_tail == 0
+	  && (*seq)[0].rep_kind == 0) {
 	    e = (*seq)[0].expr;
 	    (*seq)[0].expr = nullptr;
       } else {
@@ -18818,6 +18819,7 @@ static PExpr* sva_take_bool_prop_(const struct vlltype&loc, const char*w,
 		 && sub->seq->size() == 1
 		 && (*sub->seq)[0].delay_lo == 0 && (*sub->seq)[0].delay_hi == 0
 		 && (*sub->seq)[0].rep_tail == 0
+		 && (*sub->seq)[0].rep_kind == 0
 		 && !sub->clk_evt && !sub->seq_clk_evt && !sub->mc_prefix
 		 && sub->mc_boundary == -1 && !sub->disable_iff_expr);
       PExpr*e = nullptr;
