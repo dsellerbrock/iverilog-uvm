@@ -10522,7 +10522,21 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 	    ivl_type_t expected = queue && queue->assoc_compat()
 		  ? queue->assoc_index_type() : nullptr;
 	    ivl_type_t actual = key_expr->net_type();
-	    if (expected && actual
+	      /* IEEE 1800-2017/2023 7.9.8: the argument "shall be assignment
+		 compatible with the index type"; any integral (non-enum)
+		 argument is assignment compatible with an integral index.
+		 "If the argument has an integral type that is smaller than the
+		 size of the corresponding array index type, then the function
+		 returns -1 and shall truncate in order to fit into the
+		 argument." */
+	    bool integral_pair = expected && actual
+		  && expected->packed() && actual->packed()
+		  && type_is_vectorable(expected->base_type())
+		  && type_is_vectorable(actual->base_type())
+		  && !dynamic_cast<const netenum_t*>(actual);
+	    bool narrower = integral_pair
+		  && actual->packed_width() < expected->packed_width();
+	    if (expected && actual && !integral_pair
 		&& expected != actual
 		&& (!expected->type_equivalent(actual)
 		    || !actual->type_equivalent(expected))) {
@@ -10544,6 +10558,11 @@ static NetExpr* elaborate_assoc_array_compat_method_(Design*des, NetScope*scope,
 	    sys_expr->set_line(*li);
 	    sys_expr->parm(0, sub_expr);
 	    sys_expr->parm(1, key_expr);
+	    if (narrower) {
+		  NetEUnary*minus = new NetEUnary('-', sys_expr, 32, true);
+		  minus->set_line(*li);
+		  return minus;
+	    }
 	    return sys_expr;
       }
 

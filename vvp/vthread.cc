@@ -24429,12 +24429,37 @@ static bool aa_exists_signal(vthread_t thr, vvp_net_t*net, unsigned wid)
       return true;
 }
 
+/* IEEE 1800-2017/2023 7.9.8: the traversal argument is assigned the index,
+ * so a wider argument receives a signed index type's value sign-extended. */
+template <typename KEY>
+static const KEY& extend_traversal_key_(const KEY&key, vvp_net_t*, bool,
+                                        KEY&)
+{
+      return key;
+}
+
+static const vvp_vector4_t& extend_traversal_key_(const vvp_vector4_t&key,
+                                                  vvp_net_t*net, bool sign,
+                                                  vvp_vector4_t&scratch)
+{
+      vvp_signal_value*fun = net ? signal_vec4_fun_(net) : 0;
+      if (!sign || !fun || key.size() == 0 || fun->value_size() <= key.size())
+            return key;
+      scratch = key;
+      scratch.resize(fun->value_size(), key.value(key.size() - 1));
+      return scratch;
+}
+
 template <typename KEY>
 static bool aa_traversal_finish_(vthread_t thr, vvp_net_t*key_net,
                                  const KEY&key, bool ok,
-                                 unsigned wid, const char*why)
+                                 unsigned wid, const char*why,
+                                 bool signed_key)
 {
-      if (ok && !write_signal_assoc_key_<KEY>(thr, key_net, key, why))
+      KEY scratch;
+      if (ok && !write_signal_assoc_key_<KEY>(
+                  thr, key_net,
+                  extend_traversal_key_(key, key_net, signed_key, scratch), why))
             ok = false;
 
       // Push the success flag as a `wid`-bit value: zero-padded with
@@ -24514,7 +24539,8 @@ static bool aa_first(vthread_t thr, vvp_net_t*key_net, unsigned wid,
       }
       bool ok = assoc_first_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "first", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24530,7 +24556,8 @@ static bool aa_last(vthread_t thr, vvp_net_t*key_net, unsigned wid,
       }
       bool ok = assoc_last_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "last", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24547,7 +24574,8 @@ static bool aa_next(vthread_t thr, vvp_net_t*key_net, unsigned wid,
       }
       ok = ok && assoc_next_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "next", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24564,7 +24592,8 @@ static bool aa_prev(vthread_t thr, vvp_net_t*key_net, unsigned wid,
       }
       ok = ok && assoc_prev_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "prev", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24576,7 +24605,8 @@ static bool aa_first_signal(vthread_t thr, vvp_net_t*recv_net,
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
       bool ok = assoc_first_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "first-sig", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first-sig");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-first-sig",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24588,7 +24618,8 @@ static bool aa_last_signal(vthread_t thr, vvp_net_t*recv_net,
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
       bool ok = assoc_last_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "last-sig", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last-sig");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-last-sig",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24601,7 +24632,8 @@ static bool aa_next_signal(vthread_t thr, vvp_net_t*recv_net,
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
       ok = ok && assoc_next_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "next-sig", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next-sig");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-next-sig",
+                                  signed_order);
 }
 
 template <typename KEY, class ASSOC>
@@ -24614,7 +24646,8 @@ static bool aa_prev_signal(vthread_t thr, vvp_net_t*recv_net,
       ASSOC*assoc = peek_signal_assoc_<ASSOC>(recv_net);
       ok = ok && assoc_prev_key_(assoc, key, signed_order);
       assoc_trace_traversal_(thr, "prev-sig", assoc, ok, key);
-      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev-sig");
+      return aa_traversal_finish_(thr, key_net, key, ok, wid, "aa-prev-sig",
+                                  signed_order);
 }
 
 template <typename KEY, typename ELEM, class ASSOC>
