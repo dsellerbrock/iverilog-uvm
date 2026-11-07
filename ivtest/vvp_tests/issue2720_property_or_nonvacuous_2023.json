@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue2720_property_or_nonvacuous.sv",
+  "iverilog-args": ["-g2023"],
+  "vpi-modules": ["issue2720_property_or_nonvacuous"],
+  "vpi-sources": ["vpi/issue2720_property_or_nonvacuous.c"]
+}

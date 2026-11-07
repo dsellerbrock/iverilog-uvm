@@ -32162,6 +32162,13 @@ static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
 		  return sva_logic_(loc, 'o', sva_comp_eq_(loc, A, 1),
 				    sva_comp_eq_(loc, B, 1));
 	    };
+	    auto either_nonvacuous = [&]() {
+		  PExpr* a_nonvacuous = sva_logic_(loc, 'o',
+			  sva_comp_eq_(loc, A, 1), sva_comp_eq_(loc, A, 3));
+		  PExpr* b_nonvacuous = sva_logic_(loc, 'o',
+			  sva_comp_eq_(loc, B, 1), sva_comp_eq_(loc, B, 3));
+		  return sva_logic_(loc, 'o', a_nonvacuous, b_nonvacuous);
+	    };
 	    Statement*combine;
 	    if (op == 20) {
 		  /* 16.12.5: false as soon as either operand is false; true
@@ -32174,10 +32181,10 @@ static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
 				set(0)));
 	    } else {
 		  /* 16.12.4: true as soon as either operand is true; false when
-		     both are false. Nonvacuity counts the operands that have
-		     finished (16.14.8 e; OPEN ruling in the design note). */
+		     both are false. Nonvacuity is independent of each operand's
+		     result (16.14.8 e). */
 		  combine = sva_if_(loc, sva_logic_(loc, 'o', passed(A), passed(B)),
-			sva_if_(loc, nonvacuous(), set(1), set(2)),
+			sva_if_(loc, either_nonvacuous(), set(1), set(2)),
 			sva_if_(loc, sva_logic_(loc, 'a', sva_comp_eq_(loc, A, 3),
 						       sva_comp_eq_(loc, B, 3)),
 				set(3), set(0)));
