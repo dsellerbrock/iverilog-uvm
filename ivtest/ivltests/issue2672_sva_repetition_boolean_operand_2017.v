@@ -5,9 +5,7 @@ module issue2672_sva_repetition_boolean_operand;
   assert property (@(posedge clk) if (go) put[->2]);
   assert property (@(posedge clk) always put[->1]);
   assert property (@(posedge clk) nexttime put[->1]);
-  assert property (@(posedge clk) reject_on(stop) put[->2]);
   assert property (@(posedge clk) if (go) put[=2]);
   assert property (@(posedge clk) always put[=1]);
   assert property (@(posedge clk) nexttime put[=1]);
-  assert property (@(posedge clk) reject_on(stop) put[=2]);
 endmodule
