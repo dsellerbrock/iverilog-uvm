@@ -758,6 +758,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 			vpiHandle hand;
 			vpiHandle argv = vpi_iterate(types[i], item);
 			while (argv && (hand = vpi_scan(argv))) {
+			      if (vcd_scope_scan_skip(types[i], hand)) continue;
 			      scan_item(depth-1, hand, nskip);
 			}
 		  }

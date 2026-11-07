@@ -31,6 +31,11 @@ EXTERN int is_escaped_id(const char *name);
 
 EXTERN int vcd_instance_contains_dumpable_items(const int dumpable_types[], vpiHandle item);
 
+/* vpiVariables also yields logic/reg variables (scanned by their own vpiReg
+ * pass) and variable arrays (not dumped from a scope scan). Skip both there
+ * so a scope scan reports each variable once. */
+EXTERN int vcd_scope_scan_skip(int iter_type, vpiHandle item);
+
 struct vcd_names_s;
 EXTERN struct stringheap_s name_heap;
 

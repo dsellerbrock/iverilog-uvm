@@ -669,6 +669,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 			vpiHandle hand;
 			vpiHandle argv = vpi_iterate(dumpable_types[i], item);
 			while (argv && (hand = vpi_scan(argv))) {
+			      if (vcd_scope_scan_skip(dumpable_types[i], hand)) continue;
 			      scan_item(depth-1, hand, nskip);
 			}
 		  }
