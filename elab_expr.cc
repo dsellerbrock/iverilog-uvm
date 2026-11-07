@@ -23709,8 +23709,9 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    if (base_->expr_type() == IVL_VT_STRING)
 		  return sub; // no conversion
 	    if (base_->expr_type() == IVL_VT_LOGIC ||
-		base_->expr_type() == IVL_VT_BOOL)
+		base_->expr_type() == IVL_VT_BOOL) {
 		  return sub; // handled by the target as special cases
+	    }
       } else if (target_type_ && target_type_->packed()) {
 	    switch (target_type_->base_type()) {
 		case IVL_VT_BOOL:
@@ -34394,6 +34395,30 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 			    (flags & NEED_CONST) != 0, flags & ~NEED_CONST)
 	    : fal_->elaborate_expr(des, scope, type, flags);
       if (fal == 0) { delete con; delete tru; return 0; }
+
+	/* An integral-to-string cast normally gets its conversion from the
+	 * destination assignment. A nonconstant conditional needs each cast to
+	 * produce a string before the arms are combined, so preserve that explicit
+	 * conversion only for direct string-cast arms. Keeping it local to this
+	 * case also leaves constant casts available to elaboration-time folding. */
+	if (type->base_type() == IVL_VT_STRING) {
+	      auto cast_conditional_arm = [&](const PExpr*operand,
+					      NetExpr*value) -> NetExpr* {
+		    const PECastType*cast = dynamic_cast<const PECastType*>(operand);
+		    if (!cast || !dynamic_cast<const netstring_t*>(
+			 cast->resolve_target_type(des, scope)))
+			  return value;
+		    if (value->expr_type() == IVL_VT_STRING)
+			  return value;
+		    NetESFunc*result = new NetESFunc(
+			  "$ivl_stream$cast$string$1", type, 1);
+		    result->parm(0, value);
+		    result->set_line(*operand);
+		    return result;
+	      };
+	      tru = cast_conditional_arm(tru_, tru);
+	      fal = cast_conditional_arm(fal_, fal);
+	}
 
       if (! NetETernary::test_operand_compat(tru->expr_type(), fal->expr_type())) {
 	    cerr << get_fileline() << ": error: Incompatible operand types "
