@@ -4383,6 +4383,7 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 {
       int errors = 0;
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
+      ivl_signal_t recv = ivl_lval_sig(lval);
       ivl_expr_t rval = ivl_stmt_rval(net);
       ivl_expr_t idx_expr = prop_lval_index_expr_(lval);
       ivl_type_t element_type;
@@ -4400,10 +4401,14 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		  int mux_word = allocate_word();
 		  int flag = allocate_flag();
 
-		  /* Keep the receiver produced by draw_lval_expr(). A nested
-		     receiver (for example boxes[i].values[j]) has no signal of
-		     its own, so reloading ivl_lval_sig() here loses the handle. */
-		  fprintf(vvp_out, "    %%dup/obj/ref; retain property receiver for compound store\n");
+		  if (recv) {
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
+		  } else {
+			/* A nested receiver (for example boxes[i].values[j]) has no
+			   signal of its own. Retain the handle produced by
+			   draw_lval_expr() instead of loading a null placeholder. */
+			fprintf(vvp_out, "    %%dup/obj/ref; retain nested property receiver\n");
+		  }
 		  draw_eval_expr_into_integer(idx_expr, 3);
 		  fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
 		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
@@ -4460,9 +4465,14 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		      int mux_word = allocate_word();
 		      int flag = allocate_flag();
 
-		      /* Preserve the already evaluated receiver across the RHS. This
-		         also supports nested receivers whose l-value signal is null. */
-		      fprintf(vvp_out, "    %%dup/obj/ref; retain property receiver for compound store\n");
+		      if (recv) {
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
+		      } else {
+			/* A nested receiver (for example boxes[i].values[j]) has no
+			   signal of its own. Retain the handle produced by
+			   draw_lval_expr() instead of loading a null placeholder. */
+			fprintf(vvp_out, "    %%dup/obj/ref; retain nested property receiver\n");
+		      }
 		      draw_eval_expr_into_integer(idx_expr, 3);
 		      fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
 		      fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
