@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2553_bitstream_cast_cont.sv",
+  "iverilog-args": ["-g2017"],
+  "output-contains": ["PASSED"]
+}
