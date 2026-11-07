@@ -39463,7 +39463,9 @@ static string constraint_fixed_locator_count_ir_(
 	  || locator->has_scoped_type_prefix()) return "";
       const pform_name_t&path = locator->path().name;
       if (path.size() != 2
-	  || path.back().name != perm_string::literal("find")
+	  || (path.back().name != perm_string::literal("find")
+	      && path.back().name != perm_string::literal("find_index")
+	      && path.back().name != perm_string::literal("find_first"))
 	  || !path.back().index.empty()) return "";
 	/* Explicit caller-local names and roots omitted from an inline
 	 * randomize identifier list cannot fall through to a same-named target
@@ -39598,6 +39600,7 @@ static string constraint_fixed_locator_count_ir_(
       for (size_t dim = 1; dim < dimensions.size(); ++dim)
 	    stride *= dimensions[dim].width();
       string count;
+      string any;
       for (unsigned long word = 0; word < range.width(); ++word) {
 	    constraint_reduction_iter_ctx_t ctx;
 	    ctx.name = iterator;
@@ -39631,7 +39634,11 @@ static string constraint_fixed_locator_count_ir_(
 	    string term = "(ite " + predicate
 		  + " c:1:32:s c:0:32:s)";
 	    count = count.empty() ? term : "(add " + count + " " + term + ")";
+	    any = any.empty() ? predicate : "(or " + any + " " + predicate + ")";
       }
+      if (path.back().name == perm_string::literal("find_first"))
+	    return "(ite " + (any.empty() ? "c:0:1" : any)
+		  + " c:1:32:s c:0:32:s)";
       return count.empty() ? "c:0:32:s" : "(trunc:32:s " + count + ")";
 }
 
@@ -43368,6 +43375,100 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			}
 		  }
 	    }
+	      /* A fixed integral array reached through non-random class handles is
+	       * state at randomize time, rather than a solver array. Capture each
+	       * element through the ordinary state-expression wrapper and fold the
+	       * reduction over those captured values. */
+	      if (cls && call->get_parms().empty()
+	      && call->with_constraints().empty()) {
+	    const PEIdent*receiver = dynamic_cast<const PEIdent*>(
+		  call->receiver_expr());
+	    pform_name_t flattened_path;
+	    const pform_name_t*receiver_path = receiver
+		  ? &receiver->path().name : nullptr;
+	    bool valid_receiver = receiver && !receiver->path().package
+		  && !receiver->has_scoped_type_prefix();
+	    if (!receiver && !call->path().package
+		&& !call->has_scoped_type_prefix() && cpath.size() >= 3) {
+		  flattened_path.assign(cpath.begin(), std::prev(cpath.end()));
+		  receiver_path = &flattened_path;
+		  valid_receiver = true;
+	    }
+	    if (valid_receiver && receiver_path && receiver_path->size() >= 2) {
+		  const netclass_t*owner = cls;
+		  bool state_path = true;
+		  for (pform_name_t::const_iterator part = receiver_path->begin();
+		       part != std::prev(receiver_path->end()); ++part) {
+			if (part->local_scope || !part->index.empty()) {
+			      state_path = false;
+			      break;
+			}
+			int property = owner->property_idx_from_name(part->name);
+			if (property < 0) {
+			      state_path = false;
+			      break;
+			}
+			property_qualifier_t qual = owner->get_prop_qual(property);
+			ivl_type_t type = owner->get_prop_type(property);
+			owner = !qual.test_rand() && !qual.test_randc()
+			      ? dynamic_cast<const netclass_t*>(type) : nullptr;
+			if (!owner) {
+			      state_path = false;
+			      break;
+			}
+		  }
+		  const name_component_t&array_name = receiver_path->back();
+		  int property = state_path && !array_name.local_scope
+			&& array_name.index.empty()
+			? owner->property_idx_from_name(array_name.name) : -1;
+		  const netuarray_t*array = property < 0 ? nullptr
+			: dynamic_cast<const netuarray_t*>(
+			      owner->get_prop_type((size_t)property));
+		  property_qualifier_t array_qual = property >= 0
+			? owner->get_prop_qual((size_t)property) : property_qualifier_t();
+		  if (array && (array_qual.test_rand() || array_qual.test_randc()))
+			array = nullptr;
+		  const char*op = nullptr;
+		  const pform_name_t&method_path = call->path().name;
+		  if (!method_path.empty()) {
+			if (method_path.back().name == perm_string::literal("sum")) op = "add";
+			else if (method_path.back().name == perm_string::literal("product")) op = "mul";
+			else if (method_path.back().name == perm_string::literal("and")) op = "band";
+			else if (method_path.back().name == perm_string::literal("or")) op = "bor";
+			else if (method_path.back().name == perm_string::literal("xor")) op = "bxor";
+		  }
+		  const netranges_t*dims = array ? &array->static_dimensions() : nullptr;
+		  ivl_type_t element = array ? array->element_type() : nullptr;
+		  if (op && dims && dims->size() == 1 && element && element->packed()
+		      && element->packed_width() > 0 && element->packed_width() <= 64
+		      && (element->base_type() == IVL_VT_BOOL
+			  || element->base_type() == IVL_VT_LOGIC)) {
+			const netrange_t&range = dims->front();
+			long first = range.get_msb();
+			long step = first <= range.get_lsb() ? 1 : -1;
+			string reduction;
+			for (unsigned long idx = 0; idx < range.width(); ++idx) {
+			      pform_name_t element_path = *receiver_path;
+			      index_component_t select;
+			      select.sel = index_component_t::SEL_BIT;
+			      select.msb = new PENumber(new verinum(
+				    (int64_t)(first + step * (long)idx)));
+			      element_path.back().index.push_back(select);
+			      PEIdent*value = new PEIdent(element_path, UINT_MAX);
+			      value->set_line(*call);
+			      string item = constraint_state_expression_slot_(
+				    call, value, element, cls, false);
+			      if (item.empty()) return "";
+			      reduction = reduction.empty() ? item
+				    : "(" + string(op) + " " + reduction + " " + item + ")";
+			}
+			if (!reduction.empty())
+			      return "(trunc:" + to_string(element->packed_width())
+				    + (element->get_signed() ? ":s " : " ")
+				    + reduction + ")";
+		  }
+	    }
+	      }
 	      /* UVM register constraints commonly use get_n_bits() on a nested
 	         uvm_reg_field. It is the pure accessor for that object's m_size
 	         state property, so retain it as a runtime state path rather than
