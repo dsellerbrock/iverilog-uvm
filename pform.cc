@@ -16360,6 +16360,10 @@ void pform_timing_check_nochange(const struct vlltype&loc,
       perm_string have_begin_var = tc_make_real_(loc, inst, "have_begin", 0.0);
       perm_string have_end_var = tc_make_real_(loc, inst, "have_end", 0.0);
       perm_string have_data_var = tc_make_real_(loc, inst, "have_data", 0.0);
+	// The earliest data event of this window that waited for a negative
+	// end offset to fix the region's end.
+      perm_string deferred_var = tc_make_real_(loc, inst, "deferred");
+      perm_string have_deferred_var = tc_make_real_(loc, inst, "have_deferred", 0.0);
 
       PExpr*begin_value = new PEBinary('-', tc_realtime_(loc), start_expr);
       PExpr*prior_start = new PEBLogic('a',
@@ -16377,6 +16381,7 @@ void pform_timing_check_nochange(const struct vlltype&loc,
       lead_stmts.push_back(new PAssign(sva_id_(loc, begin_var), begin_value));
       lead_stmts.push_back(new PAssign(sva_id_(loc, have_begin_var), tc_real_(loc, 1.0)));
       lead_stmts.push_back(new PAssign(sva_id_(loc, have_end_var), tc_real_(loc, 0.0)));
+      lead_stmts.push_back(new PAssign(sva_id_(loc, have_deferred_var), tc_real_(loc, 0.0)));
       Statement*lead_body = sva_block_(loc, lead_stmts);
       FILE_NAME(lead_body, loc);
       tc_always_at_(loc, ref_ev, lead_body);
@@ -16399,15 +16404,14 @@ void pform_timing_check_nochange(const struct vlltype&loc,
 
       PExpr*end_value_for_check = new PEBinary('+', tc_realtime_(loc),
 						       sva_clone_expr_(end_expr));
-      PExpr*prior_end = new PEBLogic('a',
+	// Only a negative end offset defers a data event (see the data
+	// process below); report the earliest one once the end is known.
+      PExpr*negative_end = new PEBComp('<', sva_clone_expr_(end_expr),
+				       tc_real_(loc, 0.0));
+      PExpr*prior_end = new PEBLogic('a', negative_end,
 	    new PEBLogic('a',
-	      new PEBComp('>', sva_id_(loc, have_begin_var), tc_real_(loc, 0.0)),
-	      new PEBComp('>', sva_id_(loc, have_data_var), tc_real_(loc, 0.0))),
-	    new PEBLogic('a',
-	      new PEBComp('>', new PEBinary('-', sva_id_(loc, data_var),
-						     sva_id_(loc, begin_var)),
-			  tc_real_(loc, 0.0)),
-	      new PEBComp('<', new PEBinary('-', sva_id_(loc, data_var),
+	      new PEBComp('>', sva_id_(loc, have_deferred_var), tc_real_(loc, 0.0)),
+	      new PEBComp('<', new PEBinary('-', sva_id_(loc, deferred_var),
 						     end_value_for_check),
 			  tc_real_(loc, 0.0))));
       PCondit*check_prior_end = new PCondit(prior_end,
@@ -16439,8 +16443,25 @@ void pform_timing_check_nochange(const struct vlltype&loc,
       PCondit*chk = new PCondit(in_window,
 	    tc_violation_(loc, "$nochange", notifier), nullptr);
       FILE_NAME(chk, loc);
+      PExpr*defer = new PEBLogic('a',
+	    new PEBLogic('a',
+	      new PEBComp('>', sva_id_(loc, have_begin_var), tc_real_(loc, 0.0)),
+	      new PEBComp('>', new PEBinary('-', tc_realtime_(loc),
+						     sva_id_(loc, begin_var)),
+			  tc_real_(loc, 0.0))),
+	    new PEBLogic('a',
+	      new PEBLogic('a',
+		new PEBComp('e', sva_id_(loc, have_end_var), tc_real_(loc, 0.0)),
+		new PEBComp('<', sva_clone_expr_(end_expr), tc_real_(loc, 0.0))),
+	      new PEBComp('e', sva_id_(loc, have_deferred_var), tc_real_(loc, 0.0))));
+      std::vector<Statement*> defer_stmts;
+      defer_stmts.push_back(new PAssign(sva_id_(loc, deferred_var), tc_realtime_(loc)));
+      defer_stmts.push_back(new PAssign(sva_id_(loc, have_deferred_var), tc_real_(loc, 1.0)));
+      PCondit*record_deferred = new PCondit(defer, sva_block_(loc, defer_stmts), nullptr);
+      FILE_NAME(record_deferred, loc);
       std::vector<Statement*> data_stmts;
       data_stmts.push_back(chk);
+      data_stmts.push_back(record_deferred);
       data_stmts.push_back(new PAssign(sva_id_(loc, data_var), tc_realtime_(loc)));
       data_stmts.push_back(new PAssign(sva_id_(loc, have_data_var), tc_real_(loc, 1.0)));
       tc_always_at_(loc, data_ev, sva_block_(loc, data_stmts));

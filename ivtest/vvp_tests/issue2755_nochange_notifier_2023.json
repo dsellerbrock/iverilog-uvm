@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2755_nochange_notifier.v",
+  "iverilog-args": ["-g2023", "-gspecify"]
+}
