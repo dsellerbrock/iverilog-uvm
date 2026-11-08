@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue2798_assoc_unsigned_query.v:25: $finish called at 0 (1s)

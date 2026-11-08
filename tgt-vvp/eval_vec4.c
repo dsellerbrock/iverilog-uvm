@@ -2453,6 +2453,18 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    else if (strcmp(name, "high") == 0) query = 4;
 	    else if (strcmp(name, "increment") == 0) query = 5;
 
+	    /* The associative-array query is evaluated at runtime, where the
+	     * array's declared index signedness is otherwise unavailable. Carry
+	     * it alongside the query so $low/$high use the index type's ordering. */
+	    ivl_type_t array_type = ivl_expr_net_type(arg);
+	    if (!array_type && arg && ivl_expr_signal(arg))
+		  array_type = ivl_signal_net_type(ivl_expr_signal(arg));
+	    ivl_type_t index_type = array_type
+		  && ivl_type_queue_assoc_compat(array_type)
+		  ? ivl_type_assoc_index(array_type) : 0;
+	    if (index_type && ivl_type_signed(index_type))
+		  query |= 8;
+
 	    draw_eval_object(arg);
 	    draw_eval_expr_into_integer(dim, 3);
 	    fprintf(vvp_out, "    %%qrange/o %u;\n", query);

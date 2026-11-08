@@ -3304,6 +3304,8 @@ bool of_QSIZE_O(vthread_t thr, vvp_code_t)
 bool of_QRANGE_O(vthread_t thr, vvp_code_t cp)
 {
       int dim = thr->words[3].w_int;
+      bool signed_index = (cp->number & 8) != 0;
+      unsigned query = cp->number & 7;
       vvp_object_t recv;
       thr->pop_object(recv);
       vvp_darray*array = recv.peek<vvp_darray>();
@@ -3311,18 +3313,19 @@ bool of_QRANGE_O(vthread_t thr, vvp_code_t cp)
 
 	  if (assoc && dim == 1) {
 		int32_t value = 0;
-		if (cp->number == 0) {
+		if (query == 0) {
 		      value = static_cast<int32_t>(assoc->size());
-		} else if (cp->number == 3 || cp->number == 4) {
+		} else if (query == 3 || query == 4) {
 		      vvp_vector4_t key;
-		      bool found = cp->number == 3
-			    ? assoc->first_key(key, true) : assoc->last_key(key, true);
+		      bool found = query == 3
+			    ? assoc->first_key(key, signed_index)
+			    : assoc->last_key(key, signed_index);
 		      if (!found) {
 			    vvp_vector4_t unknown(32, BIT4_X);
 			    thr->push_vec4(unknown);
 			    return true;
 		      }
-		      vector4_to_value(key, value, true, false);
+		      vector4_to_value(key, value, signed_index, false);
 		}
 		vvp_vector4_t result;
 		size_to_vec4_(static_cast<uint32_t>(value), result);
@@ -3362,7 +3365,7 @@ bool of_QRANGE_O(vthread_t thr, vvp_code_t cp)
 		case 5: value = (left >= right) ? 1 : -1; break;
 		default: value = 0; break;
 	    }
-      } else if (cp->number == 2 || cp->number == 4) {
+	  } else if (query == 2 || query == 4) {
 	      // Empty/invalid dimension: the ordinary dynamic-array right/high
 	      // answer is -1.
 	    value = -1;
