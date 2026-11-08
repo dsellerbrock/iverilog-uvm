@@ -187,3 +187,62 @@ void cleanup_modpath(void)
 	    free(cur);
       }
 }
+
+static void draw_tchk_term(ivl_tchk_t tchk, unsigned term)
+{
+      ivl_signal_t sig = ivl_tchk_term_sig(tchk, term);
+      ivl_signal_t condit = ivl_tchk_term_condit(tchk, term);
+      const char*text = ivl_tchk_term_condition_text(tchk, term);
+      long bit = 0;
+      int has_bit;
+
+      if (sig == 0) {
+	    fprintf(vvp_out, "0 0 0 0");
+	    return;
+      }
+      has_bit = ivl_tchk_term_bit(tchk, term, &bit);
+      fprintf(vvp_out, "v%p_0 %d %ld %u", sig, has_bit, bit,
+	      ivl_tchk_term_edge(tchk, term));
+      if (condit || text) {
+	    if (condit) fprintf(vvp_out, " ? v%p_0 ", condit);
+	    else fprintf(vvp_out, " ? 0 ");
+	    draw_quoted_condition(text ? text : "");
+      }
+}
+
+/*
+ * Draw the .tchk records of a scope and its children (IEEE 1800-2023
+ * 37.40). They come after every other structural record so that the
+ * signal labels they name are all defined.
+ */
+void draw_tchks(ivl_scope_t scope)
+{
+      unsigned idx, lim;
+
+      for (idx = 0; idx < ivl_scope_childs(scope); idx += 1)
+	    draw_tchks(ivl_scope_child(scope, idx));
+
+      if (ivl_scope_tchks(scope) == 0) return;
+
+      fprintf(vvp_out, "  .scope S_%p;\n", scope);
+      for (idx = 0; idx < ivl_scope_tchks(scope); idx += 1) {
+	    ivl_tchk_t tchk = ivl_scope_tchk(scope, idx);
+	    ivl_signal_t notifier = ivl_tchk_notifier(tchk);
+
+	    fprintf(vvp_out, "TC_%p .tchk %d %u %u, ", tchk, ivl_tchk_type(tchk),
+		    ivl_file_table_index(ivl_tchk_file(tchk)),
+		    ivl_tchk_lineno(tchk));
+	    draw_tchk_term(tchk, 0);
+	    fprintf(vvp_out, ", ");
+	    draw_tchk_term(tchk, 1);
+	    fprintf(vvp_out, ", %u", ivl_tchk_limits(tchk));
+	    for (lim = 0; lim < ivl_tchk_limits(tchk); lim += 1) {
+		  char*value = draw_Cr_to_string(ivl_tchk_limit(tchk, lim));
+		  fprintf(vvp_out, " v%p_0 %s", ivl_tchk_limit_sig(tchk, lim),
+			  value);
+		  free(value);
+	    }
+	    if (notifier) fprintf(vvp_out, ", v%p_0;\n", notifier);
+	    else fprintf(vvp_out, ", 0;\n");
+      }
+}

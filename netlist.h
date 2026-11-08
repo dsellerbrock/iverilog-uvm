@@ -626,6 +626,30 @@ class NetNode  : public NetObj {
  * NetNet class, and NetDelaySrc objects cannot exist outside of its
  * association with NetNet objects.
  */
+/*
+ * A NetTchk is the identity of one timing-check directive in an instance
+ * scope (IEEE 1800-2017 37.38, 1800-2023 37.40). The checker itself is a
+ * set of synthesized processes; this object names its terms and the
+ * hidden variables those processes read the limits from, so VPI and SDF
+ * annotation (32.4.2) can reach it. The referenced signals have their
+ * expression reference counts raised so the netlist keeps them.
+ */
+struct NetTchk : public LineInfo {
+      struct term_t {
+	    NetNet*sig = nullptr;	// nullptr: no data term
+	    bool has_bit = false;	// a constant bit select of sig
+	    long bit = 0;		// its declared index
+	    unsigned edge = 0;		// Annex K vpiEdge mask
+	    NetNet*condit = nullptr;	// synthesized &&& condition, if any
+	    std::string condition_text;
+      };
+      int type = 0;			// Annex K vpiTchkType
+      term_t ref, data;
+      std::vector<NetNet*> limit_vars;
+      std::vector<double> limits;	// declared values, scope time units
+      NetNet*notifier = nullptr;
+};
+
 class NetDelaySrc  : public NetObj {
 
     public:
@@ -1382,6 +1406,9 @@ class NetScope : public Definitions, public Attrib {
 	   scope. */
 
       void add_event(NetEvent*);
+
+      void add_tchk(NetTchk*tchk) { tchks_.push_back(tchk); }
+      const std::vector<NetTchk*>& tchks() const { return tchks_; }
       void rem_event(NetEvent*);
       NetEvent*find_event(perm_string name);
 
@@ -1882,6 +1909,7 @@ class NetScope : public Definitions, public Attrib {
       std::set<perm_string>class_search_active_;
 
       NetEvent *events_;
+      std::vector<NetTchk*> tchks_;
 
       std::map<perm_string,LineInfo*> genvars_;
 

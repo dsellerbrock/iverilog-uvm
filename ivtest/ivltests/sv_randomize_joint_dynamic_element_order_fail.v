@@ -63,8 +63,14 @@ module sv_randomize_joint_dynamic_element_order_fail;
   if(wide.randomize()||wide.values.size()!=2||!wide.values[0]||!wide.values[1]||wide.scalar||wide.posts||wide.get_randstate()!=ws)$fatal(1,"dynamic wide-index rollback");
   if(negative.randomize()||negative.values.size()!=2||!negative.values[0]||!negative.values[1]||negative.scalar||negative.posts||negative.get_randstate()!=ns)$fatal(1,"dynamic negative-index rollback");
   if(!ambiguous.randomize()||(ambiguous.values.size()!=1&&ambiguous.values.size()!=2)||ambiguous.scalar!=ambiguous.values[0]||ambiguous.child.value!=ambiguous.scalar||ambiguous.posts!=1)$fatal(1,"ranged size with element ordering was not solved validly");
-  if(cap.randomize())cap_changed=1;foreach(cap.values[i])cap_changed|=cap.values[i];
-  if(cap_changed||cap.values.size()!=11||cap.child.value||cap.posts||cap.get_randstate()!=caps||cap.child.get_randstate()!=capcs)$fatal(1,"dynamic cap rollback");
+  // IEEE 1800-2023 18.5.9: "a solve...before... constraint does not change the solution
+  // space and, therefore, cannot cause the solver to fail". 2048 legal tuples past the
+  // solver's 1024-tuple enumeration cap must still solve (#2228).
+  begin bit x; x=0;
+   if(!cap.randomize())$fatal(1,"dynamic cap failed");
+   foreach(cap.values[i])x^=cap.values[i];
+   if(cap.values.size()!=11||cap.child.value!=x||cap.posts!=1)$fatal(1,"dynamic cap solution");
+  end
   $display("PASSED");
  end
 endmodule

@@ -3184,6 +3184,92 @@ extern "C" ivl_signal_t ivl_scope_sig(ivl_scope_t net, unsigned idx)
       return net->sigs_[idx];
 }
 
+extern "C" unsigned ivl_scope_tchks(ivl_scope_t net)
+{
+      assert(net);
+      return net->aux_ && net->aux_->tchks ? net->aux_->tchks->size() : 0;
+}
+
+extern "C" ivl_tchk_t ivl_scope_tchk(ivl_scope_t net, unsigned idx)
+{
+      assert(idx < ivl_scope_tchks(net));
+      return (*net->aux_->tchks)[idx];
+}
+
+extern "C" int ivl_tchk_type(ivl_tchk_t net)
+{
+      assert(net);
+      return net->type;
+}
+
+extern "C" const char* ivl_tchk_file(ivl_tchk_t net)
+{
+      assert(net);
+      return net->file.str();
+}
+
+extern "C" unsigned ivl_tchk_lineno(ivl_tchk_t net)
+{
+      assert(net);
+      return net->lineno;
+}
+
+extern "C" ivl_signal_t ivl_tchk_term_sig(ivl_tchk_t net, unsigned term)
+{
+      assert(net && term < 2);
+      return net->term[term].sig;
+}
+
+extern "C" int ivl_tchk_term_bit(ivl_tchk_t net, unsigned term, long*bit)
+{
+      assert(net && term < 2 && bit);
+      *bit = net->term[term].bit;
+      return net->term[term].has_bit;
+}
+
+extern "C" unsigned ivl_tchk_term_edge(ivl_tchk_t net, unsigned term)
+{
+      assert(net && term < 2);
+      return net->term[term].edge;
+}
+
+extern "C" ivl_signal_t ivl_tchk_term_condit(ivl_tchk_t net, unsigned term)
+{
+      assert(net && term < 2);
+      return net->term[term].condit;
+}
+
+extern "C" const char* ivl_tchk_term_condition_text(ivl_tchk_t net,
+						    unsigned term)
+{
+      assert(net && term < 2);
+      return net->term[term].condition_text;
+}
+
+extern "C" unsigned ivl_tchk_limits(ivl_tchk_t net)
+{
+      assert(net);
+      return net->limits.size();
+}
+
+extern "C" ivl_signal_t ivl_tchk_limit_sig(ivl_tchk_t net, unsigned idx)
+{
+      assert(net && idx < net->limit_sigs.size());
+      return net->limit_sigs[idx];
+}
+
+extern "C" double ivl_tchk_limit(ivl_tchk_t net, unsigned idx)
+{
+      assert(net && idx < net->limits.size());
+      return net->limits[idx];
+}
+
+extern "C" ivl_signal_t ivl_tchk_notifier(ivl_tchk_t net)
+{
+      assert(net);
+      return net->notifier;
+}
+
 extern "C" unsigned ivl_scope_switches(ivl_scope_t net)
 {
       assert(net);

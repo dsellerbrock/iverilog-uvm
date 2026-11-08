@@ -970,6 +970,11 @@ static int begin_design_output(ivl_design_t des)
       for (i = 0; i < nroots; i++)
 	    emit_vpi_primitive_metadata_scope(roots[i], 0);
 
+	/* Timing checks name signals from anywhere in their scope, so
+	 * they are drawn after every other record. */
+      for (i = 0; i < nroots; i++)
+	    draw_tchks(roots[i]);
+
       return 0;
 }
 

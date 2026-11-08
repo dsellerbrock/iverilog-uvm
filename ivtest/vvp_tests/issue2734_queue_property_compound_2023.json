@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2734_queue_property_compound.v",
+  "iverilog-args": ["-g2023", "-s", "issue2734_queue_property_compound"],
+  "gold": "issue2734_queue_property_compound"
+}

@@ -25,6 +25,7 @@
 # include  "vpi_priv.h"
 # include  "vthread.h"
 # include  "compile.h"
+# include  "codes.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
@@ -1018,6 +1019,269 @@ extern "C" int vpip_systf_call_returns_string(void)
 {
       return vpip_cur_task
 	&& dynamic_cast<sysfunc_str*>(vpip_cur_task) != 0;
+}
+
+/*
+ * A lazily evaluated system task/function argument (IEEE 1800-2023 36.10.3,
+ * 37.42 detail 7, 37.59). The compiler emits one .vpi_expr record per
+ * expression node of an argument to a system task or function that Icarus's
+ * own modules do not provide. The record carries the node's vpiType,
+ * vpiOpType, size, decompiled text, operands and its own evaluation code: no
+ * value exists until an application asks for one, and each request
+ * evaluates the expression again.
+ */
+# define IEEE_vpiDecompile 54
+# define IEEE_vpiOperand 97
+
+class __vpiLazyExpr : public __vpiHandle {
+    public:
+      __vpiLazyExpr(int type, int op_type, unsigned width, char kind,
+		    bool signed_flag, char*decompile, unsigned nops,
+		    vpiHandle*ops)
+      : type_(type), op_type_(op_type), width_(width), kind_(kind),
+	signed_(signed_flag), decompile_(decompile), nops_(nops), ops_(ops),
+	scope_(vpip_peek_current_scope())
+      { thunk_.cptr = 0; }
+
+      int get_type_code(void) const override { return type_; }
+      int vpi_get(int code) override;
+      char* vpi_get_str(int code) override;
+      void vpi_get_value(p_vpi_value vp) override;
+      vpiHandle vpi_handle(int code) override;
+      vpiHandle vpi_iterate(int code) override;
+
+      int type_, op_type_;
+      unsigned width_;
+      char kind_;
+      bool signed_;
+      char*decompile_;
+      unsigned nops_;
+      vpiHandle*ops_;
+      __vpiScope*scope_;
+	/* The evaluation code; thunk_.cptr is resolved like a jump target. */
+      struct vvp_code_s thunk_;
+};
+
+int __vpiLazyExpr::vpi_get(int code)
+{
+      switch (code) {
+	  case vpiOpType:
+	    return type_ == vpiOperation ? op_type_ : vpiUndefined;
+	  case vpiSize:
+	    return (int)width_;
+	  case vpiSigned:
+	    return signed_;
+	  default:
+	    return vpiUndefined;
+      }
+}
+
+char* __vpiLazyExpr::vpi_get_str(int code)
+{
+      if (code == IEEE_vpiDecompile) return simple_set_rbuf_str(decompile_);
+      return 0;
+}
+
+vpiHandle __vpiLazyExpr::vpi_handle(int code)
+{
+      return code == vpiScope ? scope_ : 0;
+}
+
+vpiHandle __vpiLazyExpr::vpi_iterate(int code)
+{
+      if (code != IEEE_vpiOperand || type_ != vpiOperation || nops_ == 0)
+	    return 0;
+      return vpip_make_iterator(nops_, ops_, false);
+}
+
+/* A value that cannot be computed yet reads as the stack argument it
+   replaces did: all X for a vector, 0.0 for a real, "" for a string. */
+static void lazy_placeholder_(char kind, unsigned width, bool signed_flag,
+			      p_vpi_value vp)
+{
+      switch (kind) {
+	  case 'r':
+	    vpip_real_get_value(0.0, vp);
+	    break;
+	  case 's':
+	    vpip_string_get_value(std::string(), vp);
+	    break;
+	  default:
+	    vpip_vec4_get_value(vvp_vector4_t(width, BIT4_X), width,
+				signed_flag, vp);
+	    break;
+      }
+}
+
+void __vpiLazyExpr::vpi_get_value(p_vpi_value vp)
+{
+	/* compiletf runs before simulation: there is nothing to evaluate. */
+      if (vpi_mode_flag == VPI_MODE_COMPILETF || !thunk_.cptr) {
+	    lazy_placeholder_(kind_, width_, signed_, vp);
+	    return;
+      }
+	/* Inside calltf the calling thread lends its automatic contexts. A
+	   callback outside the call reaches static storage only. */
+      vthread_t caller = vpi_mode_flag == VPI_MODE_CALLTF
+	    ? vpip_current_vthread : 0;
+      if (!caller && scope_ && scope_->is_automatic()) {
+	    vpi_printf("Warning: an argument expression in automatic scope %s "
+		       "can only be evaluated during its call.\n",
+		       ::vpi_get_str(vpiFullName, scope_));
+	    lazy_placeholder_(kind_, width_, signed_, vp);
+	    return;
+      }
+	/* The expression may itself call system tasks and functions. */
+      vpi_mode_t saved_mode = vpi_mode_flag;
+      __vpiSysTaskCall*saved_task = vpip_cur_task;
+      vthread_t saved_thread = vpip_current_vthread;
+      vpi_mode_flag = VPI_MODE_NONE;
+      vvp_vector4_t vec;
+      double real = 0.0;
+      std::string str;
+      bool done = vthread_eval_thunk(caller, thunk_.cptr, scope_, kind_,
+				     vec, real, str);
+      vpi_mode_flag = saved_mode;
+      vpip_cur_task = saved_task;
+      vpip_current_vthread = saved_thread;
+      if (!done) {
+	    lazy_placeholder_(kind_, width_, signed_, vp);
+	    return;
+      }
+      switch (kind_) {
+	  case 'r':
+	    vpip_real_get_value(real, vp);
+	    break;
+	  case 's':
+	    vpip_string_get_value(str, vp);
+	    break;
+	  default:
+	    vpip_vec4_get_value(vec, width_, signed_, vp);
+	    break;
+      }
+}
+
+/*
+ * 37.42 detail 9 and 37.59 detail 2: vpiDecompile of a system task or
+ * function call and of the argument objects that carry no compiled text of
+ * their own (constants, omitted arguments, named objects). Lazy argument
+ * expressions answer from their record. Returns nil for other objects.
+ */
+static __vpiScope*decompile_scope_ = 0;
+
+static bool decompile_(vpiHandle ref, std::string&out)
+{
+      char buf[64];
+      if (__vpiLazyExpr*expr = dynamic_cast<__vpiLazyExpr*>(ref)) {
+	    out += expr->decompile_;
+	    return true;
+      }
+      switch (ref->get_type_code()) {
+	  case vpiSysTaskCall:
+	  case vpiSysFuncCall: {
+	    __vpiSysTaskCall*call = dynamic_cast<__vpiSysTaskCall*>(ref);
+	    if (!call) return false;
+	    __vpiScope*saved = decompile_scope_;
+	    decompile_scope_ = call->scope;
+	    out += call->defn->info.tfname;
+	    bool ok = true;
+	    if (call->nargs) {
+		  out += "(";
+		  for (unsigned idx = 0; ok && idx < call->nargs; idx += 1) {
+			if (idx) out += ", ";
+			ok = call->args[idx] && decompile_(call->args[idx], out);
+		  }
+		  out += ")";
+	    }
+	    decompile_scope_ = saved;
+	    return ok;
+	  }
+	  case vpiOperation:
+	      /* 37.42 detail 8: an omitted argument is a vpiNullOp. */
+	    return ref->vpi_get(vpiOpType) == vpiNullOp;
+	  case vpiConstant: {
+	    s_vpi_value val;
+	    switch (ref->vpi_get(vpiConstType)) {
+		case vpiNullConst:
+		  out += "null";
+		  return true;
+		case vpiStringConst:
+		  val.format = vpiStringVal;
+		  ref->vpi_get_value(&val);
+		  out += "\"";
+		  for (const char*cp = val.value.str; cp && *cp; ++cp) {
+			if (*cp == '"' || *cp == '\\') out += '\\';
+			out += *cp;
+		  }
+		  out += "\"";
+		  return true;
+		case vpiRealConst:
+		  val.format = vpiRealVal;
+		  ref->vpi_get_value(&val);
+		  snprintf(buf, sizeof buf, "%.17g", val.value.real);
+		  out += buf;
+		  if (!strpbrk(buf, ".eEn")) out += ".0";
+		  return true;
+		default: {
+		  int wid = ref->vpi_get(vpiSize);
+		  bool is_signed = ref->vpi_get(vpiSigned) == 1;
+		  val.format = vpiBinStrVal;
+		  ref->vpi_get_value(&val);
+		  std::string bits = val.value.str ? val.value.str : "";
+		  if (bits.find_first_not_of("01") != std::string::npos) {
+			snprintf(buf, sizeof buf, "%d'%sb", wid, is_signed ? "s" : "");
+			out += buf + bits;
+			return true;
+		  }
+		    /* An unsized decimal literal elaborates to a signed 32-bit
+		       constant; write it back the same way. Other sizes keep
+		       their exact bit pattern. */
+		  val.format = wid == 32 && is_signed ? vpiDecStrVal : vpiHexStrVal;
+		  ref->vpi_get_value(&val);
+		  if (val.format != vpiDecStrVal) {
+			snprintf(buf, sizeof buf, "%d'%sh", wid, is_signed ? "s" : "");
+			out += buf;
+		  }
+		  out += val.value.str ? val.value.str : "0";
+		  return true;
+		}
+	    }
+	  }
+	  default: {
+	      /* A named object: its local name in the calling scope, else
+		 its full name. */
+	    char*name = ref->vpi_get_str(vpiName);
+	    if (!name) return false;
+	    vpiHandle scope = ref->vpi_handle(vpiScope);
+	    if (decompile_scope_ && scope && scope != decompile_scope_) {
+		  char*full = ref->vpi_get_str(vpiFullName);
+		  if (full) name = full;
+	    }
+	    out += name;
+	    return true;
+	  }
+      }
+}
+
+char* vpip_decompile_str(vpiHandle ref)
+{
+      std::string text;
+      if (!ref || !decompile_(ref, text)) return 0;
+      return simple_set_rbuf_str(text.c_str());
+}
+
+void compile_vpi_expr(char*label, long type, long op_type, long width,
+		      char*kind, char*thunk, char*decompile,
+		      unsigned argc, vpiHandle*argv)
+{
+      char k = kind[0] == 'r' ? 'r' : kind[0] == 'S' ? 's' : 'v';
+      __vpiLazyExpr*obj = new __vpiLazyExpr((int)type, (int)op_type,
+					    (unsigned)width, k, kind[0] == 's',
+					    decompile, argc, argv);
+      code_label_lookup(&obj->thunk_, thunk, false);
+      compile_vpi_symbol(label, obj);
+      free(label);
+      free(kind);
 }
 
 void vpip_execute_vpi_call(vthread_t thr, vpiHandle ref)

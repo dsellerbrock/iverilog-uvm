@@ -539,6 +539,8 @@ void NetScope::emit_scope(struct target_t*tgt) const
 	    tgt->signal_paths(cur->second);
       }
 
+      if (!tchks_.empty()) tgt->scope_tchks(this);
+
       if (type_ == MODULE) tgt->convert_module_ports(this);
 
 	/* Delay paths and declaration-delay boundary indexes are complete once

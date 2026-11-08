@@ -248,6 +248,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".island"       { return K_ISLAND; }
 ".latch"        { return K_LATCH; }
 ".modpath"      { return K_MODPATH; }
+".tchk"         { return K_TCHK; }
 ".net"          { return K_NET; }
 ".net/2s"       { return K_NET_2S; }
 ".net/2u"       { return K_NET_2U; }
@@ -274,6 +275,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".port"         { return K_PORT; }
 ".port_info/evcd" { return K_PORT_INFO_EVCD; }
 ".port_info"    { return K_PORT_INFO; }
+".vpi_expr"     { return K_VPI_EXPR; }
 ".reduce/and"   { return K_REDUCE_AND; }
 ".reduce/or"    { return K_REDUCE_OR; }
 ".reduce/xor"   { return K_REDUCE_XOR; }

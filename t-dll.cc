@@ -4000,6 +4000,36 @@ bool dll_target::signal_paths(const NetNet*net)
 }
 
 
+bool dll_target::scope_tchks(const NetScope*scope)
+{
+      ivl_scope_t obj = lookup_scope_(scope);
+      ivl_scope_aux_s*aux = obj->ensure_aux_();
+      if (!aux->tchks) aux->tchks = new vector<ivl_tchk_t>();
+      for (const NetTchk*cur : scope->tchks()) {
+	    ivl_tchk_t tchk = new struct ivl_tchk_s;
+	    tchk->type = cur->type;
+	    tchk->file = cur->get_file();
+	    tchk->lineno = cur->get_lineno();
+	    const NetTchk::term_t*terms[2] = { &cur->ref, &cur->data };
+	    for (unsigned idx = 0; idx < 2; idx += 1) {
+		  const NetTchk::term_t&term = *terms[idx];
+		  tchk->term[idx].sig = term.sig ? find_signal(term.sig) : 0;
+		  tchk->term[idx].has_bit = term.has_bit;
+		  tchk->term[idx].bit = term.bit;
+		  tchk->term[idx].edge = term.edge;
+		  tchk->term[idx].condit = term.condit ? find_signal(term.condit) : 0;
+		  tchk->term[idx].condition_text = term.condition_text.empty()
+			? 0 : term.condition_text.c_str();
+	    }
+	    for (const NetNet*var : cur->limit_vars)
+		  tchk->limit_sigs.push_back(find_signal(var));
+	    tchk->limits = cur->limits;
+	    tchk->notifier = cur->notifier ? find_signal(cur->notifier) : 0;
+	    aux->tchks->push_back(tchk);
+      }
+      return true;
+}
+
 void dll_target::test_version(const char*target_name)
 {
       dll_ = ivl_dlopen(target_name);

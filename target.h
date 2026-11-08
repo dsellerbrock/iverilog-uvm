@@ -94,6 +94,8 @@ struct target_t {
 	/* Output a signal (called for each signal) */
       virtual void signal(const NetNet*) =0;
       virtual bool signal_paths(const NetNet*);
+	/* Output the timing checks of a scope, after its signals. */
+      virtual bool scope_tchks(const NetScope*);
 
         /* Analog branches */
       virtual bool branch(const NetBranch*);
