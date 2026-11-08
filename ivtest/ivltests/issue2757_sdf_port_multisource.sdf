@@ -1,0 +1,12 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "issue2757_sdf_port_multisource")
+    (INSTANCE)
+    (DELAY (ABSOLUTE
+      (PORT port_load.a (3))
+      (NETDELAY net_load.a (5))
+    ))
+  )
+)

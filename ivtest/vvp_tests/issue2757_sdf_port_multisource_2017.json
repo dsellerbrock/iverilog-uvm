@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2757_sdf_port_multisource.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-ginterconnect", "-s", "issue2757_sdf_port_multisource"]
+}
