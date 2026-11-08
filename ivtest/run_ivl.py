@@ -84,10 +84,11 @@ def build_runtime(it_key: str) -> None:
     except FileExistsError:
         pass
 
-    try:
-        os.remove(os.path.join("work", "a.out"))
-    except FileNotFoundError:
-        pass
+    for stale in ("a.out", "a.out.dpiexport.c"):
+        try:
+            os.remove(os.path.join("work", stale))
+        except FileNotFoundError:
+            pass
 
 def get_log_file(key: str, title: str, stream: str) -> str:
     '''Get the name of the log file'''
@@ -208,9 +209,8 @@ def build_dpi_library(options: dict, it_key: str) -> list:
     '''Build DPI C sources together with the export stub emitted by iverilog.'''
     if not options['dpi_sources']:
         return []
+    # The export stub exists only when the design exports a subroutine.
     export_stub = os.path.join("work", "a.out.dpiexport.c")
-    if not os.path.isfile(export_stub):
-        return [1, "Failed - iverilog did not emit a DPI export stub."]
     output = os.path.join("work", "dpi.dylib" if platform.system() == "Darwin" else "dpi.so")
     cmd = ["cc", "-shared", "-fPIC"]
     if platform.system() == "Darwin":
@@ -219,7 +219,8 @@ def build_dpi_library(options: dict, it_key: str) -> list:
         cmd.append("-Wl,--allow-shlib-undefined")
     cmd.extend(["-I../local-install/include/iverilog", "-o", output])
     cmd.extend(options['dpi_sources'])
-    cmd.append(export_stub)
+    if os.path.isfile(export_stub):
+        cmd.append(export_stub)
     res = run_cmd(cmd)
     log_results(it_key, "dpi", res)
     if res.returncode != 0:

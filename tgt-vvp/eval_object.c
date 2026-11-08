@@ -4224,6 +4224,11 @@ static int emit_aggregate_property_store_(ivl_type_t prop_type,
             if (wid == 0)
                   wid = ivl_expr_width(value_expr);
             draw_eval_vec4(value_expr);
+              /* A member value is not always elaborated at the member width
+               * (a chandle null is one bit); the property store needs it. */
+            if (ivl_expr_width(value_expr) != wid)
+                  fprintf(vvp_out, "    %%pad/%c %u;\n",
+                          ivl_expr_signed(value_expr) ? 's' : 'u', wid);
             if (ivl_type_base(prop_type) == IVL_VT_BOOL
                 && ivl_expr_value(value_expr) != IVL_VT_BOOL)
                   fprintf(vvp_out, "    %%cast2;\n");
