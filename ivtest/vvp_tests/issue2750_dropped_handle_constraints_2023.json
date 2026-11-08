@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2750_dropped_handle_constraints_2023.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "issue2750_dropped_handle_constraints"
+}

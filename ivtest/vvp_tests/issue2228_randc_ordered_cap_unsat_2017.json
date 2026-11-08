@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2228_randc_ordered_cap_unsat.v",
+  "iverilog-args": ["-g2017", "-s", "issue2228_randc_ordered_cap_unsat"],
+  "output-contains": ["PASSED"]
+}
