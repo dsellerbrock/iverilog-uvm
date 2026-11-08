@@ -3152,9 +3152,10 @@ static VVP_QUEUE*pop_queue_receiver_(vthread_t thr, vvp_object_t&recv,
  * %inside/arr <signal>
  *
  * Pops one vec4 value from the thread's vec4 stack.  Gets the array/queue
- * object stored in <signal>.  Iterates every element (as a vec4) and
- * compares with the popped value using 4-state equality (X/Z bits ignored).
- * Pushes a 1-bit result: '1' if any element matched, '0' otherwise.
+ * object stored in <signal>. Iterates every element (as a vec4) and compares
+ * with the popped value using wildcard equality: X/Z bits in the element are
+ * wildcards, but X/Z bits in the value produce an unknown comparison result.
+ * The comparison results are OR-reduced, as required by the inside operator.
  */
 static void inside_arr_match_(vthread_t thr, vvp_darray*arr)
 {
@@ -3165,9 +3166,9 @@ static void inside_arr_match_(vthread_t thr, vvp_darray*arr)
       }
 
       vvp_vector4_t val = thr->pop_vec4();
-      bool matched = false;
+      vvp_bit4_t result = BIT4_0;
       size_t sz = arr->get_size();
-      for (size_t i = 0 ; i < sz && !matched ; i += 1) {
+      for (size_t i = 0 ; i < sz && result != BIT4_1 ; i += 1) {
             vvp_vector4_t elem;
             arr->get_word((unsigned)i, elem);
             if (elem.size() != val.size()) {
@@ -3177,19 +3178,24 @@ static void inside_arr_match_(vthread_t thr, vvp_darray*arr)
                   for (size_t b = 0 ; b < copy_sz ; b += 1) tmp.set_bit(b, elem.value(b));
                   elem = tmp;
             }
-            /* 4-state equality: treat X/Z as don't-care in the element */
-            bool eq = true;
-            for (size_t b = 0 ; b < val.size() && eq ; b += 1) {
+            vvp_bit4_t eq = BIT4_1;
+            for (size_t b = 0 ; b < val.size() && eq != BIT4_0 ; b += 1) {
                   vvp_bit4_t ev = elem.value(b);
                   vvp_bit4_t vv = val.value(b);
-                  if (ev == BIT4_X || ev == BIT4_Z) continue; /* wildcard */
-                  if (vv == BIT4_X || vv == BIT4_Z) continue; /* wildcard */
-                  if (ev != vv) eq = false;
+                  if (ev == BIT4_X || ev == BIT4_Z) continue; /* RHS wildcard */
+                  if (vv == BIT4_X || vv == BIT4_Z) {
+                        eq = BIT4_X;
+                        continue;
+                  }
+                  if (ev != vv) eq = BIT4_0;
             }
-            if (eq) matched = true;
+            if (eq == BIT4_1 || result == BIT4_1)
+                  result = BIT4_1;
+            else if (eq == BIT4_X || result == BIT4_X)
+                  result = BIT4_X;
       }
 
-      thr->push_vec4(vvp_vector4_t(1, matched ? BIT4_1 : BIT4_0));
+      thr->push_vec4(vvp_vector4_t(1, result));
 }
 
 bool of_INSIDE_ARR(vthread_t thr, vvp_code_t cp)
