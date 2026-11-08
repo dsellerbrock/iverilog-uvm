@@ -3069,18 +3069,28 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
 					 const LineInfo*li, PExpr*lval,
 					 PExpr*rval,
 					 NetNet*signal_lval = 0,
-					 bool continuous_lval = false)
+					 bool continuous_lval = false,
+					 bool dynamic_read = false)
 {
       const PEIdent*lid = dynamic_cast<const PEIdent*>(lval);
+	// A dynamic-variable read takes this path only for its sensitivity, so
+	// report a bad right-hand side the way the structural path does.
+      auto report_failure = [&]() {
+	    cerr << li->get_fileline() << ": error: Unable to elaborate ";
+	    if (dynamic_read) {
+		  cerr << "r-value: " << *rval << endl;
+	    } else {
+		  cerr << "continuous assignment involving an interface member";
+		  if (lid)
+			cerr << " `" << lid->path() << "`";
+		  cerr << "." << endl;
+	    }
+	    des->errors += 1;
+      };
       NetProc*cur0 = elaborate_vif_member_assignment_(
 	    des, scope, li, lval, rval, signal_lval, continuous_lval);
       if (cur0 == 0) {
-	    cerr << li->get_fileline() << ": error: Unable to elaborate "
-		 << "continuous assignment involving an interface member";
-	    if (lid)
-		  cerr << " `" << lid->path() << "`";
-	    cerr << "." << endl;
-	    des->errors += 1;
+	    report_failure();
 	    return false;
       }
       NetProcTop*t0 = new NetProcTop(scope, IVL_PR_INITIAL, cur0);
@@ -3102,12 +3112,7 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
       NetProc*assignment = elaborate_vif_member_assignment_(
 	    des, scope, li, lval, rval, signal_lval, continuous_lval);
       if (!assignment) {
-	    cerr << li->get_fileline() << ": error: Unable to elaborate "
-		 << "continuous assignment involving an interface member";
-	    if (lid)
-		  cerr << " `" << lid->path() << "`";
-	    cerr << "." << endl;
-	    des->errors += 1;
+	    report_failure();
 	    return false;
       }
 
@@ -3116,12 +3121,7 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
       NetProc*cur1 = wait.elaborate_st(des, scope, assignment);
       if (!cur1) {
 	    delete assignment;
-	    cerr << li->get_fileline() << ": error: Unable to elaborate "
-		 << "continuous assignment involving an interface member";
-	    if (lid)
-		  cerr << " `" << lid->path() << "`";
-	    cerr << "." << endl;
-	    des->errors += 1;
+	    report_failure();
 	    return false;
       }
       NetProcTop*t1 = new NetProcTop(scope, IVL_PR_ALWAYS, cur1);
@@ -4814,10 +4814,12 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	   ports, where each constant word/member read remains a handle access.
 	   A queue, dynamic array, associative array or string read is lowered
 	   the same way. */
-      if (reads_interface_member_(this, des, scope,
-				  const_cast<PExpr*>(pin(1)))
-	  || reads_dynamic_variable_(this, des, scope,
-				     const_cast<PExpr*>(pin(1)))) {
+      bool iface_read = reads_interface_member_(this, des, scope,
+						const_cast<PExpr*>(pin(1)));
+      bool dynamic_read = !iface_read
+	    && reads_dynamic_variable_(this, des, scope,
+				       const_cast<PExpr*>(pin(1)));
+      if (iface_read || dynamic_read) {
 	    NetNet*lval = pin(0)->elaborate_lnet(
 		  des, scope, var_allowed_in_sv);
 	    if (!lval) {
@@ -4842,7 +4844,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 		  rise_time, fall_time, decay_time);
 	    elaborate_vif_member_assign_(
 		  des, scope, this, const_cast<PExpr*>(pin(0)),
-		  const_cast<PExpr*>(pin(1)), proxy);
+		  const_cast<PExpr*>(pin(1)), proxy, false, dynamic_read);
 	    return;
       }
 
