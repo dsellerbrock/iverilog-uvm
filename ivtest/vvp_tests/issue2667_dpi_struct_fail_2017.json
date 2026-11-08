@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2667_dpi_struct_fail.sv",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue2667_dpi_struct_fail"
+}

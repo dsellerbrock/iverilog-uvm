@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2658_member_subarray_copy_fail.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue2658_member_subarray_copy_fail"
+}

@@ -9769,6 +9769,13 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   /* A clocked sequence property may itself be grouped. Preserve the
      explicit consequent clock until an enclosing implication supplies
      its overlapping/nonoverlapping clock-flow boundary (16.13). */
+  /* IEEE 1800-2023 16.13.2: a parenthesized implication with its own
+     leading clock, e.g. the operands of 16.13.7's
+     `(@(posedge clk1) s1 |-> p1) and (@(posedge clk2) s2 |-> p2)'. */
+  | '(' event_control sva_seq_expr K_PIPE_IMPL_OV property_expr ')'
+      { $$ = pform_sva_clocked_paren_impl(@4, $2, 1, $3, $5); }
+  | '(' event_control sva_seq_expr K_PIPE_IMPL_NOV property_expr ')'
+      { $$ = pform_sva_clocked_paren_impl(@4, $2, 2, $3, $5); }
   | '(' event_control sva_seq_expr sva_mc_tail_opt ')'
       { sva_property_t*p = new sva_property_t;
         p->seq = $3;
@@ -10102,6 +10109,10 @@ sva_comb_atom
      atom, and pform_sva_tree_comb then builds a property-level operator. */
   | '(' property_expr ')'
       { $$ = $2; }
+  | '(' event_control sva_seq_expr K_PIPE_IMPL_OV property_expr ')'
+      { $$ = pform_sva_clocked_paren_impl(@4, $2, 1, $3, $5); }
+  | '(' event_control sva_seq_expr K_PIPE_IMPL_NOV property_expr ')'
+      { $$ = pform_sva_clocked_paren_impl(@4, $2, 2, $3, $5); }
   ;
 
 /* At a property boundary, a complete parenthesized combinator may be the

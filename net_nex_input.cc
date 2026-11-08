@@ -274,7 +274,14 @@ NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func
       bool const_select = result->size() == 0;
       if (always_sens && const_select) {
 	    if (const NetEConst *val = dynamic_cast <NetEConst*> (base_)) {
-		  if (const NetESignal *sig = dynamic_cast<NetESignal*> (expr_)) {
+		  const NetESignal *sig = dynamic_cast<NetESignal*> (expr_);
+		  ivl_variable_type_t sig_base = sig
+			? ivl_type_base(sig->sig()->net_type()) : IVL_VT_NO_TYPE;
+		  if (sig_base == IVL_VT_STRING || sig_base == IVL_VT_DARRAY
+		      || sig_base == IVL_VT_QUEUE) {
+			/* An object or string signal has no bits to part
+			 * select; it stays sensitive to the whole value. */
+		  } else if (sig) {
 			delete tmp;
 			tmp = sig->nex_input_base(rem_out, always_sens, nested_func,
                                                   val->value().as_unsigned(), expr_width());

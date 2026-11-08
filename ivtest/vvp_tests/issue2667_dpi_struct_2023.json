@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2667_dpi_struct.sv",
+  "iverilog-args": ["-g2023"],
+  "dpi-sources": ["dpi/issue2667_dpi_struct.c"]
+}
