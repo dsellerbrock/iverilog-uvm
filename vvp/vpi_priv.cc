@@ -2264,6 +2264,97 @@ check_connected_through_part_pv(vvp_net_ptr_t cur, vvp_net_t*net2)
 }
 
 static bool quiet_intermodpath_lookup = false;
+  /* Set while a PORT/NETDELAY-style lookup tries every source; such a
+     delay is from all sources, never one source/load pair. */
+static bool any_source_lookup = false;
+
+/*
+ * IEEE 1800-2023 32.4.4: "In the case of multisource nets, unique delays
+ * can be annotated between each source/load pair". The load port reads a
+ * resolver that has already combined every source, so the load gets its
+ * own copy of that resolver: each source the SDF names reaches the copy
+ * through its own intermodpath, the other drivers reach it directly (and
+ * keep their strengths), and only this load is moved to the copy.
+ */
+struct load_resolver_s {
+      vvp_net_t*net;			// the copy's output net
+      resolv_core*core;
+      std::vector<vvp_net_ptr_t> dest;	// where each port's driver lands
+      std::vector<vvp_net_t*> delayed;	// a port's intermodpath, if any
+};
+static std::map<vvp_net_t*, load_resolver_s> load_resolvers;
+
+static bool fanout_has(const vvp_net_t*from, vvp_net_ptr_t to)
+{
+      for (vvp_net_ptr_t cur = from->out_; cur.ptr();
+	   cur = cur.ptr()->port[cur.port()])
+	    if (cur == to) return true;
+      return false;
+}
+
+static vvp_net_t* multisource_intermodpath(vvp_net_t*source, vvp_net_t*load,
+					    unsigned width,
+					    vvp_fun_intermodpath*&fun)
+{
+      vvp_net_ptr_t load_in(load, 0);
+      auto found = load_resolvers.find(load);
+      if (found == load_resolvers.end()) {
+	      /* Find the resolver that the source drives and the load reads. */
+	    resolv_core*core = 0;
+	    for (vvp_net_ptr_t cur = source->out_; cur.ptr() && !core;
+		 cur = cur.ptr()->port[cur.port()]) {
+		  resolv_core*cand = dynamic_cast<resolv_core*>(cur.ptr()->fun);
+		  if (!cand)
+			if (auto*ext = dynamic_cast<resolv_extend*>(cur.ptr()->fun))
+			      cand = ext->core();
+		  if (cand && fanout_has(cand->output_net(), load_in))
+			core = cand;
+	    }
+	    if (!core) return 0;
+
+	    load_resolver_s copy;
+	    copy.net = new vvp_net_t;
+	    copy.core = core->clone_empty(copy.net);
+	    copy.net->fun = copy.core;
+	    unsigned nports = core->port_count();
+	    for (unsigned base = 0; base < nports; base += 4) {
+		  vvp_net_t*node = copy.net;
+		  if (base > 0) {
+			node = new vvp_net_t;
+			node->fun = new resolv_extend(copy.core, base);
+		  }
+		  for (unsigned port = base; port < nports && port < base + 4; port += 1)
+			copy.dest.push_back(vvp_net_ptr_t(node, port - base));
+	    }
+	    copy.delayed.assign(nports, 0);
+	    for (unsigned port = 0; port < nports; port += 1) {
+		  core->replay_input(port, copy.dest[port]);
+		  if (vvp_net_t*driver = core->input_source(port)) {
+			copy.core->set_input_source(port, driver);
+			driver->link(copy.dest[port]);
+		  }
+	    }
+	    core->output_net()->unlink(load_in);
+	    copy.net->link(load_in);
+	    found = load_resolvers.insert(std::make_pair(load, copy)).first;
+      }
+
+      load_resolver_s&copy = found->second;
+      for (unsigned port = 0; port < copy.core->port_count(); port += 1) {
+	    if (copy.core->input_source(port) != source) continue;
+	    if (!copy.delayed[port]) {
+		  vvp_net_t*node = new vvp_net_t;
+		  node->fun = new vvp_fun_intermodpath(node, width);
+		  source->unlink(copy.dest[port]);
+		  source->link(vvp_net_ptr_t(node, 0));
+		  node->link(copy.dest[port]);
+		  copy.delayed[port] = node;
+	    }
+	    fun = dynamic_cast<vvp_fun_intermodpath*>(copy.delayed[port]->fun);
+	    return copy.delayed[port];
+      }
+      return 0;
+}
 
 static vpiHandle find_intermodpath_from_scope(vpiHandle scope, vpiHandle load)
 {
@@ -2397,7 +2488,9 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    while (scope && vpi_handle(vpiScope, scope))
 		  scope = vpi_handle(vpiScope, scope);
 	    quiet_intermodpath_lookup = true;
+	    any_source_lookup = true;
 	    vpiHandle path = scope ? find_intermodpath_from_scope(scope, ref2) : nullptr;
+	    any_source_lookup = false;
 	    quiet_intermodpath_lookup = false;
 	    return path;
       }
@@ -2627,6 +2720,16 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    cur = cur.ptr()->port[cur.port()]; // Next net in linked list
 	      }
 	      }
+
+      if (!port1_has_index && !port2_has_index && !any_source_lookup) {
+	    vvp_fun_intermodpath*fun = 0;
+	    if (vvp_net_t*path = multisource_intermodpath(net1, net2,
+							   vpi_get(vpiSize, ref2), fun)) {
+		  __vpiInterModPath*intermodpath = vpip_make_intermodpath(path, port1, port2);
+		  intermodpath->intermodpath = fun;
+		  return intermodpath;
+	    }
+      }
 
       if (!quiet_intermodpath_lookup) {
 	    fprintf(stderr, "VPI error: Could not insert intermodpath!\n");
