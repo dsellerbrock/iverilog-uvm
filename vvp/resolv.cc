@@ -160,6 +160,12 @@ resolv_tri::~resolv_tri()
       delete[] val_;
 }
 
+void resolv_tri::replay_input(unsigned port, vvp_net_ptr_t dest) const
+{
+      if (val_[port].size() > 0)
+	    dest.ptr()->fun->recv_vec8(dest, val_[port]);
+}
+
 void resolv_tri::recv_vec4_(unsigned port, const vvp_vector4_t&bit)
 {
       recv_vec8_(port, vvp_vector8_t(bit, 6,6 /* STRONG */));
@@ -252,6 +258,12 @@ resolv_wired_logic::resolv_wired_logic(unsigned nports, vvp_net_t*net)
 resolv_wired_logic::~resolv_wired_logic()
 {
       delete[] val_;
+}
+
+void resolv_wired_logic::replay_input(unsigned port, vvp_net_ptr_t dest) const
+{
+      if (val_[port].size() > 0)
+	    dest.ptr()->fun->recv_vec4(dest, val_[port], 0);
 }
 
 void resolv_wired_logic::recv_vec4_(unsigned port, const vvp_vector4_t&bit)

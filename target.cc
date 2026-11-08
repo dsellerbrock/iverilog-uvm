@@ -74,6 +74,11 @@ bool target_t::signal_paths(const NetNet*)
 {
       return true;
 }
+
+bool target_t::scope_tchks(const NetScope*)
+{
+      return true;
+}
 bool target_t::func_def(const NetScope*)
 {
       cerr << "target (" << typeid(*this).name() <<  "): "

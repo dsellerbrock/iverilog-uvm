@@ -1,0 +1,16 @@
+{
+    "type": "normal",
+    "source": "issue1300_tchk_vpi.v",
+    "iverilog-args": ["-g2017", "-gspecify", "-s", "top"],
+    "vpi-modules": ["issue1300_tchk_vpi_2017"],
+    "vpi-sources": ["vpi/issue1300_tchk_vpi.c"],
+    "output-contains": [
+        "TCHK type=1 line=6 ref=top.u1.clk/62/edge13/cond:no data=top.u1.data/62/edge13/cond:no notifier=notifier limits=1 exprs=4 terms=2",
+        "TCHK type=8 line=7 ref=top.u1.clk/62/edge13/cond:yes data=top.u1.bus[2]/62/edge0/cond:no notifier=notifier limits=2,3 exprs=5 terms=2",
+        "TCHK type=4 line=8 ref=top.u1.clk/62/edge50/cond:no data=none notifier=- limits=4 exprs=2 terms=1",
+        "TCHK_COUNT=3",
+        "SETUP_LIMIT=5",
+        "setup check in top.u1 at time 10",
+        "notifier=1"
+    ]
+}

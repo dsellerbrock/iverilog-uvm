@@ -44,9 +44,9 @@ bool vvp_mailbox::try_put(const vvp_object_t& item)
       return true;
 }
 
-static bool mailbox_item_matches_ref_(const vvp_object_t&item,
-				      unsigned value_kind,
-				      unsigned value_width)
+bool mailbox_item_matches_ref(const vvp_object_t&item,
+			      unsigned value_kind,
+			      unsigned value_width)
 {
       /* These tags have the same values as vvp_lvalue_ref::value_kind_t.
        * Mailbox values are boxed on insertion, so compare their runtime
@@ -76,7 +76,7 @@ int vvp_mailbox::try_get(vvp_object_t& item, unsigned value_kind,
 	    return 0;
       item = items_.front();
 
-      if (!mailbox_item_matches_ref_(item, value_kind, value_width))
+      if (!mailbox_item_matches_ref(item, value_kind, value_width))
 	    return -1;
 
       items_.pop_front();
@@ -91,7 +91,7 @@ int vvp_mailbox::try_peek(vvp_object_t& item, unsigned value_kind,
 	    return 0;
       item = items_.front();
 
-      if (!mailbox_item_matches_ref_(item, value_kind, value_width))
+      if (!mailbox_item_matches_ref(item, value_kind, value_width))
 	    return -1;
 
       return 1;

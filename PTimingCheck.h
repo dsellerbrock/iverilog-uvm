@@ -158,4 +158,35 @@ class PWidth : public PTimingCheck {
       unsigned lexical_pos_;
 };
 
+/* The PTchk is the identity of one timing-check directive. The checker
+   itself is synthesized into processes while parsing; this record keeps
+   what VPI (IEEE 1800-2017 37.38, 1800-2023 37.40) and SDF annotation
+   (32.4.2) need: the check type, its reference and data terms, and the
+   hidden variables the synthesized checker reads its limits from. It
+   elaborates to a NetTchk of the instance scope. */
+class PTchk : public PTimingCheck {
+
+    public:
+	// type is the IEEE 1800 Annex K vpiTchkType code. data may be
+	// nullptr for the one-signal checks ($width, $period). The record
+	// takes ownership of the events, the limit expressions and the
+	// notifier.
+      PTchk(int type, event_t*ref, event_t*data,
+	    const std::vector<PExpr*>&limits,
+	    const std::vector<perm_string>&limit_vars,
+	    pform_name_t*notifier);
+      ~PTchk() override;
+
+      void elaborate(class Design*des, class NetScope*scope) const override;
+      void dump(std::ostream&out, unsigned ind) const override;
+
+    private:
+      int type_;
+      std::unique_ptr<event_t> ref_;
+      std::unique_ptr<event_t> data_;
+      std::vector<std::unique_ptr<PExpr>> limits_;
+      std::vector<perm_string> limit_vars_;
+      std::unique_ptr<pform_name_t> notifier_;
+};
+
 #endif /* IVL_PTimingCheck_H */

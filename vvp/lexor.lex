@@ -248,6 +248,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".island"       { return K_ISLAND; }
 ".latch"        { return K_LATCH; }
 ".modpath"      { return K_MODPATH; }
+".tchk"         { return K_TCHK; }
 ".net"          { return K_NET; }
 ".net/2s"       { return K_NET_2S; }
 ".net/2u"       { return K_NET_2U; }

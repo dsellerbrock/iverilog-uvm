@@ -5147,6 +5147,35 @@ class randomize_graph_session_t {
             return true;
       }
 
+      /* #2152, IEEE 1800-2023 18.4: "Up to the new size, existing class
+         objects are retained and their content randomized." An object a
+         size constraint dropped from a rand handle array (and that nothing
+         else still reaches) is not part of the call: it keeps the content,
+         random state and randc history it had, and 18.6.2 gives
+         post_randomize only to the members "after the new random values
+         are computed and assigned". Its pre_randomize already ran, at
+         invocation, while it was still a member. */
+      void release_unreachable(const std::set<vvp_cobject*>&reachable)
+      {
+            for (auto it = entries_.begin(); it != entries_.end();) {
+                  if (reachable.count(it->cobj)
+                      || it->cobj->get_defn()->is_struct_type()) {
+                        ++it;
+                        continue;
+                  }
+                  auto pending = std::find(pending_randc_.begin(),
+                                           pending_randc_.end(), it->cobj);
+                  if (pending != pending_randc_.end()) {
+                        (*pending)->randc_transaction_rollback();
+                        pending_randc_.erase(pending);
+                  }
+                  randomize_restore_(it->cobj, it->values);
+                  (void)it->cobj->rng_set_state(it->rng_state);
+                  it->cobj->randc_history_restore(it->instance_history);
+                  it = entries_.erase(it);
+            }
+      }
+
       void callback_objects(std::vector<vvp_object_t>&objects) const
       {
             for (const randomize_graph_entry_s&entry : entries_)
@@ -5723,6 +5752,23 @@ static bool randomize_visit_property_objects_(vvp_cobject*cobj,
       return true;
 }
 
+/* The active random objects reachable from OBJ as the call leaves them. */
+static void randomize_reachable_(const vvp_object_t&obj,
+      const std::vector<bool>*sel, std::set<vvp_cobject*>&seen)
+{
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj || !seen.insert(cobj).second) return;
+      for (size_t pid = 0; pid < cobj->get_defn()->property_count(); ++pid)
+            randomize_visit_property_objects_(cobj, sel, pid,
+                  [&](const vvp_object_t&value, size_t) {
+                        return randomize_visit_object_value_(value,
+                              [&](const vvp_object_t&leaf) {
+                                    randomize_reachable_(leaf, nullptr, seen);
+                                    return true;
+                              });
+                  });
+}
+
 /* IEEE 1800-2017 18.5.9 / 1800-2023 18.5.8: select and journal the
  * complete active graph before filling any values. Static aggregate journals
  * can install value copies, so enumerate their children after enter(). Soft
@@ -6212,8 +6258,12 @@ static bool randomize_solve_(randomize_graph_session_t&session,
 {
       if (!cobj) return true;
       if (!session.joint()) return randomize_cobject_(session, cobj, sel, options);
-      return randomize_prepare_graph_(session, cobj, sel, options)
-            && vvp_z3_randomize_graph(session.solve_objects);
+      if (!randomize_prepare_graph_(session, cobj, sel, options)
+          || !vvp_z3_randomize_graph(session.solve_objects)) return false;
+      std::set<vvp_cobject*> reachable;
+      randomize_reachable_(vvp_object_t(cobj), sel, reachable);
+      session.release_unreachable(reachable);
+      return true;
 }
 
 /* Retain the actual successful participants before the transaction journal
@@ -6249,7 +6299,13 @@ static bool randomize_staged_finish_(vthread_t thr, bool success,
 {
       randomize_call_context_s&call = thr->randomize_calls.back();
       auto state = call.staged;
-      if (success) success = state->session.commit();
+      if (success) {
+            std::set<vvp_cobject*> reachable;
+            randomize_reachable_(call.root, call.explicit_selection
+                                 ? &call.selection : nullptr, reachable);
+            state->session.release_unreachable(reachable);
+            success = state->session.commit();
+      }
       if (!success) state->session.rollback(!keep_rng_advance);
       randomize_callbacks_solved_(thr, call.root.peek<vvp_cobject>(),
                                  state->session, success);
@@ -33355,6 +33411,47 @@ bool of_REF_PART(vthread_t thr, vvp_code_t cp)
  * %ref/store/mbx
  * Stack (top->bottom): mailbox item, captured target. Both are consumed.
  */
+/*
+ * %ref/store/mbx/chk <peek>, <signed>, <2-state>
+ * Stack (top->bottom): item, captured output. A get or peek from a typeless
+ * mailbox shall generate a run-time error when the type of the message
+ * variable is not equivalent to the type of the message (IEEE 1800-2023
+ * 15.4.5, 15.4.7). The operands give the variable's signedness and 2-state
+ * kind (2 means unknown). On a mismatch the variable is left unchanged; a get
+ * has still removed the message, a peek has not.
+ */
+bool of_REF_STORE_MBX_CHK(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->object_stack_size() >= 2) {
+	    vvp_object_t item = thr->peek_object(0);
+	    vvp_lvalue_ref*target = thr->peek_object(1).peek<vvp_lvalue_ref>();
+	    bool match = item.test_nil() || !target
+		  || mailbox_item_matches_ref(item, target->value_kind(),
+					       target->mailbox_value_width());
+	    vvp_boxed_vec4*box = item.peek<vvp_boxed_vec4>();
+	    if (match && box && target
+		&& !(box->type_tag() & vvp_boxed_vec4::MBX_TYPE_UNKNOWN)) {
+		  if (cp->bit_idx[0] < 2 && bool(cp->bit_idx[0])
+		      != bool(box->type_tag() & vvp_boxed_vec4::MBX_TYPE_SIGNED))
+			match = false;
+		  if (cp->bit_idx[1] < 2 && bool(cp->bit_idx[1])
+		      != bool(box->type_tag() & vvp_boxed_vec4::MBX_TYPE_2STATE))
+			match = false;
+	    }
+	    if (!match) {
+		  cerr << thr->get_fileline() << "error: mailbox "
+		       << (cp->number ? "peek()" : "get()") << " failed: the "
+		       << "message type is not equivalent to the type of the "
+		       << "message variable (IEEE 1800-2023 "
+		       << (cp->number ? "15.4.7" : "15.4.5") << ", 6.22.2). "
+		       << "The variable is unchanged." << endl;
+		  thr->pop_object(2);
+		  return true;
+	    }
+      }
+      return of_REF_STORE_MBX(thr, cp);
+}
+
 bool of_REF_STORE_MBX(vthread_t thr, vvp_code_t)
 {
       if (thr->object_stack_size() < 2) {
@@ -39074,17 +39171,35 @@ bool of_SEM_TRY_GET(vthread_t thr, vvp_code_t)
  * Pop a <width>-bit vec4 from the vec4 stack, wrap it in a
  * vvp_boxed_vec4 object, and push the object onto the obj stack.
  */
-bool of_BOX_VEC4(vthread_t thr, vvp_code_t cp)
+static void box_vec4_(vthread_t thr, unsigned wid, unsigned type_tag)
 {
-      unsigned wid = cp->number;
       vvp_vector4_t v(wid);
       const vvp_vector4_t& top = thr->peek_vec4(0);
       unsigned bits = top.size() < wid ? top.size() : wid;
       for (unsigned i = 0; i < bits; ++i)
 	    v.set_bit(i, top.value(i));
       thr->pop_vec4(1);
-      vvp_object_t box(new vvp_boxed_vec4(v));
+      vvp_object_t box(new vvp_boxed_vec4(v, type_tag));
       thr->push_object(box);
+}
+
+bool of_BOX_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      box_vec4_(thr, cp->number, vvp_boxed_vec4::MBX_TYPE_UNKNOWN);
+      return true;
+}
+
+/*
+ * %box/vec4/t <width>, <signed>, <2-state>
+ * As %box/vec4, but the box also records the message's signedness and
+ * 2-state/4-state kind, so a typeless-mailbox get or peek can test type
+ * equivalence (IEEE 1800-2023 6.22.2 c).
+ */
+bool of_BOX_VEC4_T(vthread_t thr, vvp_code_t cp)
+{
+      unsigned tag = (cp->bit_idx[0] ? vvp_boxed_vec4::MBX_TYPE_SIGNED : 0)
+		   | (cp->bit_idx[1] ? vvp_boxed_vec4::MBX_TYPE_2STATE : 0);
+      box_vec4_(thr, cp->number, tag);
       return true;
 }
 

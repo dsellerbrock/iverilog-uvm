@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2152_handle_array_shrink.v",
+  "iverilog-args": ["-g2023", "-s", "issue2152_handle_array_shrink"],
+  "output-contains": ["PASSED"]
+}
