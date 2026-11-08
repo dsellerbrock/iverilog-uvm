@@ -1108,12 +1108,21 @@ struct sva_nfa_sub_t {
       std::vector< std::vector<Statement*> > kill;    // per slot
       std::vector<perm_string> vd;                    // per slot
       bool built = false;   // the synthesizer accepted the operand
+      // Endpoint mode, for an implication antecedent: a slot stays live
+      // after a match while later matches are possible, and vd[k] is
+      // rewritten every tick: bit 0 = a match ends this tick, bit 1 = no
+      // live state is left.
+      bool endpoints = false;
       // A composite's verdict re-evaluation from its operands' verdicts,
       // without advancing anything. Every other clock domain runs it after
       // its own operands advanced, so a verdict is reported at the tick of
       // the domain that produced it.
       std::vector<Statement*> recompute;
       std::vector<sva_nfa_domain_t> domains;
+      // Deferred retirement of operand slots dropped by kill(k) (one copy
+      // of each operand's kill code instead of one per owner); the root
+      // runs it after every decision pass.
+      std::vector<Statement*> sweep;
 };
 
 extern bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
