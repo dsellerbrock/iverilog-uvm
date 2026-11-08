@@ -15938,7 +15938,9 @@ void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
 					 const PTimingCheck::event_t&data_ev,
 					 PExpr*lim1,
 					 PExpr*lim2,
-					 const pform_name_t*notifier)
+					 const pform_name_t*notifier,
+					 PExpr*timestamp_cond,
+					 PExpr*timecheck_cond)
 {
       if (!tc_active_(loc, base_name)) return;
 
@@ -15950,6 +15952,30 @@ void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
 	    {lim1, lim2}, notifier);
       PExpr*lim1c = refs.empty() ? sva_clone_expr_(lim1) : refs[0];
       PExpr*lim2c = refs.empty() ? sva_clone_expr_(lim2) : refs[1];
+
+      // For each paired check, timestamp_condition gates the event that
+      // timestamps the window and timecheck_condition gates the event that
+      // checks it. $setuphold and $recrem reverse those roles between their
+      // two constituent checks.
+      auto conditioned_event = [](const PTimingCheck::event_t&src,
+				  PExpr*condition) {
+		    PTimingCheck::event_t result;
+		    result.name = src.name;
+		    result.posedge = src.posedge;
+		    result.negedge = src.negedge;
+		    result.edges = src.edges;
+		    if (src.condition)
+			  result.condition.reset(sva_clone_expr_(src.condition.get()));
+		    if (condition) {
+			  PExpr*extra = sva_clone_expr_(condition);
+			  if (result.condition && extra)
+				result.condition.reset(new PEBLogic('a',
+								    result.condition.release(), extra));
+			  else if (extra)
+				result.condition.reset(extra);
+		    }
+		    return result;
+	      };
       if (lim1c == 0 || lim2c == 0) {
 	    cerr << loc.get_fileline() << ": sorry: " << base_name
 		 << " limit expression shape is not supported by the "
@@ -15966,16 +15992,24 @@ void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
 	    snprintf(nam1, sizeof nam1, "%s(recovery)", base_name);
 	    snprintf(nam2, sizeof nam2, "%s(removal)", base_name);
 	      // recovery: stamp=async ref, check=clock data
-	    tc_pair_synth_(loc, nam1, ref_ev, data_ev, lim1c, false, notifier);
+	      PTimingCheck::event_t stamp = conditioned_event(ref_ev, timestamp_cond);
+	      PTimingCheck::event_t check = conditioned_event(data_ev, timecheck_cond);
+	      tc_pair_synth_(loc, nam1, stamp, check, lim1c, false, notifier);
 	      // removal: stamp=clock data, check=async ref
-	    tc_pair_synth_(loc, nam2, data_ev, ref_ev, lim2c, false, notifier);
+	      stamp = conditioned_event(data_ev, timestamp_cond);
+	      check = conditioned_event(ref_ev, timecheck_cond);
+	      tc_pair_synth_(loc, nam2, stamp, check, lim2c, false, notifier);
       } else {
 	    snprintf(nam1, sizeof nam1, "%s(setup)", base_name);
 	    snprintf(nam2, sizeof nam2, "%s(hold)", base_name);
 	      // setup: stamp=data, check=clock ref
-	    tc_pair_synth_(loc, nam1, data_ev, ref_ev, lim1c, false, notifier);
+	      PTimingCheck::event_t stamp = conditioned_event(data_ev, timestamp_cond);
+	      PTimingCheck::event_t check = conditioned_event(ref_ev, timecheck_cond);
+	      tc_pair_synth_(loc, nam1, stamp, check, lim1c, false, notifier);
 	      // hold: stamp=clock ref, check=data
-	    tc_pair_synth_(loc, nam2, ref_ev, data_ev, lim2c, false, notifier);
+	      stamp = conditioned_event(ref_ev, timestamp_cond);
+	      check = conditioned_event(data_ev, timecheck_cond);
+	      tc_pair_synth_(loc, nam2, stamp, check, lim2c, false, notifier);
       }
 }
 
