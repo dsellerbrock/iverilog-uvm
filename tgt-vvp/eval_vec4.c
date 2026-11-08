@@ -2457,7 +2457,8 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	     * array's declared index signedness is otherwise unavailable. Carry
 	     * it alongside the query so $low/$high use the index type's ordering. */
 	    ivl_type_t array_type = ivl_expr_net_type(arg);
-	    if (!array_type && arg && ivl_expr_signal(arg))
+	    if (!array_type && arg && ivl_expr_type(arg) == IVL_EX_SIGNAL
+		&& ivl_expr_signal(arg))
 		  array_type = ivl_signal_net_type(ivl_expr_signal(arg));
 	    ivl_type_t index_type = array_type
 		  && ivl_type_queue_assoc_compat(array_type)

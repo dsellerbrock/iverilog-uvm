@@ -3356,7 +3356,7 @@ bool of_QRANGE_O(vthread_t thr, vvp_code_t cp)
 	    int32_t low = left < right ? left : right;
 	    int32_t high = left < right ? right : left;
 
-	    switch (cp->number) {
+	    switch (query) {
 		case 0: value = size; break;
 		case 1: value = left; break;
 		case 2: value = right; break;
