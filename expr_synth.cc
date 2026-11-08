@@ -272,6 +272,70 @@ NetNet* NetEProperty::synthesize(Design*des, NetScope*scope, NetExpr*root)
 /*
  * Make an LPM_ADD_SUB device from addition operators.
  */
+/* IEEE 1800-2017/2023 11.8.4: "If any bit of a signed value is X or Z,
+ * then any nonlogical operation involving the value shall result in the
+ * entire resultant value being an X." The bitwise, shift and identity
+ * nets work bit by bit, so fold the rule in here as the procedural
+ * %sxz/check does: v - v is all X when v holds an X or Z bit and 0
+ * otherwise; its sign bit, replicated to the result width and XORed in,
+ * leaves the result unchanged or makes all of it X. */
+static NetNet* poison_signed_xz_(Design*des, NetScope*scope,
+				 const LineInfo&loc, NetNet*result,
+				 const NetExpr*operand, NetNet*value)
+{
+	/* Synthesized hardware has no X or Z values. */
+      extern bool synthesis;
+      if (synthesis || !result || !value || !operand->has_sign()
+	  || operand->expr_type() != IVL_VT_LOGIC
+	  || result->data_type() != IVL_VT_LOGIC)
+	    return result;
+
+      unsigned vwid = value->vector_width();
+      netvector_t*diff_vec = new netvector_t(IVL_VT_LOGIC, vwid-1, 0);
+      NetNet*diff = new NetNet(scope, scope->local_symbol(),
+			       NetNet::IMPLICIT, diff_vec);
+      diff->set_line(loc);
+      diff->local_flag(true);
+      NetAddSub*self_sub = new NetAddSub(scope, scope->local_symbol(), vwid);
+      self_sub->set_line(loc);
+      self_sub->attribute(perm_string::literal("LPM_Direction"),
+			  verinum("SUB"));
+      connect(value->pin(0), self_sub->pin_DataA());
+      connect(value->pin(0), self_sub->pin_DataB());
+      connect(diff->pin(0), self_sub->pin_Result());
+      des->add_node(self_sub);
+
+      NetPartSelect*top = new NetPartSelect(diff, vwid-1, 1,
+					    NetPartSelect::VP);
+      top->set_line(loc);
+      des->add_node(top);
+      netvector_t*bit_vec = new netvector_t(IVL_VT_LOGIC, 0, 0);
+      bit_vec->set_signed(true);
+      NetNet*bit = new NetNet(scope, scope->local_symbol(),
+			      NetNet::IMPLICIT, bit_vec);
+      bit->set_line(loc);
+      bit->local_flag(true);
+      connect(bit->pin(0), top->pin(0));
+
+      unsigned rwid = result->vector_width();
+      NetNet*mask = pad_to_width_signed(des, bit, rwid, loc);
+
+      netvector_t*out_vec = new netvector_t(IVL_VT_LOGIC, rwid-1, 0);
+      out_vec->set_signed(result->get_signed());
+      NetNet*out = new NetNet(scope, scope->local_symbol(),
+			      NetNet::IMPLICIT, out_vec);
+      out->set_line(loc);
+      out->local_flag(true);
+      NetLogic*poison = new NetLogic(scope, scope->local_symbol(), 3,
+				     NetLogic::XOR, rwid, true);
+      poison->set_line(loc);
+      connect(out->pin(0), poison->pin(0));
+      connect(result->pin(0), poison->pin(1));
+      connect(mask->pin(0), poison->pin(2));
+      des->add_node(poison);
+      return out;
+}
+
 NetNet* NetEBAdd::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
       ivl_assert(*this, (op()=='+') || (op()=='-'));
@@ -398,7 +462,8 @@ NetNet* NetEBBits::synthesize(Design*des, NetScope*scope, NetExpr*root)
       gate->set_line(*this);
       des->add_node(gate);
 
-      return osig;
+      osig = poison_signed_xz_(des, scope, *this, osig, left_, lsig);
+      return poison_signed_xz_(des, scope, *this, osig, right_, rsig);
 }
 
 NetNet* NetEBComp::synthesize(Design*des, NetScope*scope, NetExpr*root)
@@ -815,7 +880,7 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		  shift = 0-shift;
 
 	    if (shift == 0)
-		  return lsig;
+		  return poison_signed_xz_(des, scope, *this, lsig, left_, lsig);
 
 	    const netvector_t*osig_vec = new netvector_t(expr_type(), expr_width()-1,0);
 	    NetNet*osig = new NetNet(scope, scope->local_symbol(),
@@ -857,7 +922,7 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
 		  connect(pad->pin(1), psig->pin(0));
 		  connect(pad->pin(0), osig->pin(0));
-		  return osig;
+		  return poison_signed_xz_(des, scope, *this, osig, left_, lsig);
 	    }
 
 	      // Other cases are handled by zero-extending on the
@@ -891,7 +956,7 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		  connect(ccat->pin(2), zsig->pin(0));
 	    }
 
-	    return osig;
+	    return poison_signed_xz_(des, scope, *this, osig, left_, lsig);
       }
 
       NetNet*rsig = right_->synthesize(des, scope, root);
@@ -918,7 +983,7 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
       connect(dev->pin_Distance(), rsig->pin(0));
 
-      return osig;
+      return poison_signed_xz_(des, scope, *this, osig, left_, lsig);
 }
 
 NetNet* NetEConcat::synthesize(Design*des, NetScope*scope, NetExpr*root)
@@ -1194,13 +1259,15 @@ NetNet* NetEUBits::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
       des->add_node(gate);
 
-      return osig;
+      return poison_signed_xz_(des, scope, *this, osig, expr_, isig);
 }
 
 NetNet* NetEUnary::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
-      if (op_ == '+')
-	    return expr_->synthesize(des, scope, root);
+      if (op_ == '+') {
+	    NetNet*sig = expr_->synthesize(des, scope, root);
+	    return poison_signed_xz_(des, scope, *this, sig, expr_, sig);
+      }
 
       if (op_ == '-') {
 	    NetNet*sig = expr_->synthesize(des, scope, root);
@@ -1226,7 +1293,7 @@ NetNet* NetEUnary::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
 	    connect(tmp->pin(1), sub->pin(0));
 	    connect(tmp->pin(0), sig->pin(0));
-	    return sig;
+	    return poison_signed_xz_(des, scope, *this, sig, expr_, sub);
       }
 
       cerr << get_fileline() << ": internal error: "

@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2674_cont_signed_xz.v",
+  "iverilog-args": ["-g2017"]
+}
