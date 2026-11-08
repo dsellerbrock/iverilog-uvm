@@ -19238,18 +19238,11 @@ specify_item
       {
 	// $recrem(ref, data, rec, rem) = $recovery(ref, data, rec) +
 	// $removal(ref, data, rem).
-	if ($10->timestamp_cond != nullptr || $10->timecheck_cond != nullptr) {
-	      if (gn_specify_blocks_flag) {
-		    cerr << @1 << ": sorry: $recrem timestamp/timecheck "
-			 << "condition arguments are not supported; the "
-			 << "violation checks are dropped." << endl;
-		    error_count += 1;
-	      }
-	} else {
-	      pform_timing_check_setuphold_recrem(@1, "$recrem",
+	pform_timing_check_setuphold_recrem(@1, "$recrem",
 						  *$3, *$5, $7, $9,
-						  $10->notifier);
-	}
+						  $10->notifier,
+						  $10->timestamp_cond,
+						  $10->timecheck_cond);
 
 	PRecRem*recrem = pform_make_recrem(@1, $3, $5, $7, $9, $10);
 	pform_module_timing_check(recrem);
@@ -19278,23 +19271,13 @@ specify_item
   | K_Ssetuphold '(' spec_reference_event ',' spec_reference_event
     ',' expr_mintypmax ',' expr_mintypmax setuphold_opt_args ')' ';'
       {
-	// $setuphold(ref, data, s, h) = $setup(data, ref, s) +
-	// $hold(ref, data, h). The synthesized checkers use CLONES of
-	// the limit expressions; the originals go to PSetupHold below
-	// for delayed-signal aliasing. Timestamp/timecheck condition
-	// arguments modify check semantics we do not model: loud sorry.
-	if ($10->timestamp_cond != nullptr || $10->timecheck_cond != nullptr) {
-	      if (gn_specify_blocks_flag) {
-		    cerr << @1 << ": sorry: $setuphold timestamp/timecheck "
-			 << "condition arguments are not supported; the "
-			 << "violation checks are dropped." << endl;
-		    error_count += 1;
-	      }
-	} else {
-	      pform_timing_check_setuphold_recrem(@1, "$setuphold",
+	// The synthesized checkers use clones of limits and conditions;
+	// originals go to PSetupHold for delayed-signal aliasing.
+	pform_timing_check_setuphold_recrem(@1, "$setuphold",
 						  *$3, *$5, $7, $9,
-						  $10->notifier);
-	}
+						  $10->notifier,
+						  $10->timestamp_cond,
+						  $10->timecheck_cond);
 
 	PSetupHold*setuphold = pform_make_setuphold(@1, $3, $5, $7, $9, $10);
 	pform_module_timing_check(setuphold);

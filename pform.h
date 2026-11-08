@@ -1153,7 +1153,9 @@ extern void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
 						const PTimingCheck::event_t&data_ev,
 						PExpr*lim1,
 						PExpr*lim2,
-						const pform_name_t*notifier);
+						const pform_name_t*notifier,
+						PExpr*timestamp_cond,
+						PExpr*timecheck_cond);
 extern void pform_timing_check_period(const struct vlltype&loc,
 				      const PTimingCheck::event_t&ev,
 				      PExpr*limit,
