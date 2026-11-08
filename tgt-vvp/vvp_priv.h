@@ -166,6 +166,9 @@ extern char* process_octal_codes(const char*txt, unsigned wid);
 extern void draw_modpath(ivl_signal_t path_sig, char*drive_label, unsigned drive_index);
 extern void cleanup_modpath(void);
 
+/* Draw the .tchk timing-check records of a scope tree. */
+extern void draw_tchks(ivl_scope_t scope);
+
 /*
  * This function draws the execution of a vpi_call statement, along
  * with the tricky handling of arguments. If this is called with a
@@ -1393,6 +1396,10 @@ extern void darray_new(ivl_type_t element_type, unsigned size_reg);
  * not a stream-pack function.
  */
 extern int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw);
+/* Word count of a fixed unpacked-array dynamic-array element, stored flat
+   in an object element; 0 for any other element type. */
+extern unsigned darray_fixed_element_words(ivl_type_t type, ivl_type_t*leaf);
+
 extern void stream_elem_type_text(ivl_type_t element_type,
                                   char*buf, size_t bufsz);
 

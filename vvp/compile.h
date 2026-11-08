@@ -370,6 +370,18 @@ extern void compile_typedef(char*name, long type, char*defname, char*modport);
 extern void compile_vpi_symbol(const char*label, vpiHandle obj);
 extern void compile_vpi_lookup(vpiHandle *objref, char*label);
 
+/* The .tchk timing-check record (IEEE 1800-2023 37.40): the object, then
+   its reference and data terms in that order, its limits, and its
+   notifier. A null sig is the absent data term of a one-signal check. */
+struct __vpiTchk;
+extern __vpiTchk* compile_tchk(char*label, int type, long file_idx,
+			       long lineno);
+extern void compile_tchk_term(__vpiTchk*tchk, char*sig, bool has_bit,
+			      long bit, unsigned edge, char*condit,
+			      char*text);
+extern void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value);
+extern void compile_tchk_notifier(__vpiTchk*tchk, char*notifier);
+
 extern void compile_param_string(char*label, const char*name, char*value,
                                  bool local_flag,
                                  long file_idx, long lineno);
@@ -447,6 +459,11 @@ extern void functor_ref_lookup(vvp_net_t**ref, char*lab);
  * cptr2 member of the code, instead of the cptr member.
  */
 extern void code_label_lookup(struct vvp_code_s *code, char *label, bool cptr2);
+
+/* A lazily evaluated VPI argument expression node (.vpi_expr). */
+extern void compile_vpi_expr(char*label, long type, long op_type, long width,
+			     char*kind, char*thunk, char*decompile,
+			     unsigned argc, vpiHandle*argv);
 
 /*
  * The `compile_udp_def' function creates a UDP.  The `table' is a

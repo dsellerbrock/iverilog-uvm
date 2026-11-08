@@ -54,6 +54,7 @@
 # include  "PScope.h"
 # include  "PSpec.h"
 # include  "PTimingCheck.h"
+# include  "vpi_user.h"
 # include  "netlist.h"
 # include  "target.h"
 # include  "functor.h"
@@ -2887,6 +2888,8 @@ static void collect_pform_reads_(PExpr*e, std::vector<PExpr*>&out)
 	    return;
       }
       if (PECallFunction*call = dynamic_cast<PECallFunction*>(e)) {
+	    // The call itself names a method receiver (q.size()) in its path.
+	    out.push_back(call);
 	    collect_pform_reads_(call->receiver_expr(), out);
 	    for (const named_pexpr_t&parm : call->get_parms())
 		  collect_pform_reads_(parm.parm, out);
@@ -2955,6 +2958,44 @@ static bool reads_virtual_interface_member_(const LineInfo*li, Design*des,
 		&& base_type && base_type->is_interface()
 		&& !sr.path_tail.empty())
 		  return true;
+      }
+      return false;
+}
+
+/* A queue, dynamic or associative array, or string variable is an object
+ * value with no structural net, so a continuous assignment that reads one
+ * (q[0], $size(q), q.size(), s.len()) needs the behavioral path. IEEE
+ * 1800-2017/2023 10.3 allows any expression on the right-hand side. */
+static bool reads_dynamic_variable_(const LineInfo*li, Design*des,
+                                    NetScope*scope, PExpr*expr)
+{
+      std::vector<PExpr*> reads;
+      collect_pform_reads_(expr, reads);
+      for (PExpr*read : reads) {
+	    pform_scoped_name_t path;
+	    if (PEIdent*id = dynamic_cast<PEIdent*>(read)) {
+		  path = id->path();
+	    } else if (PECallFunction*call = dynamic_cast<PECallFunction*>(read)) {
+		  if (call->receiver_expr() || call->path().name.size() < 2)
+			continue;
+		  path = call->path();
+		  path.name.pop_back();
+	    } else {
+		  continue;
+	    }
+
+	    symbol_search_results sr;
+	    if (!symbol_search(li, des, scope, path, UINT_MAX, &sr) || !sr.net
+		|| !sr.path_tail.empty())
+		  continue;
+	    switch (ivl_type_base(sr.net->net_type())) {
+		case IVL_VT_STRING:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		  return true;
+		default:
+		  break;
+	    }
       }
       return false;
 }
@@ -3029,18 +3070,28 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
 					 const LineInfo*li, PExpr*lval,
 					 PExpr*rval,
 					 NetNet*signal_lval = 0,
-					 bool continuous_lval = false)
+					 bool continuous_lval = false,
+					 bool dynamic_read = false)
 {
       const PEIdent*lid = dynamic_cast<const PEIdent*>(lval);
+	// A dynamic-variable read takes this path only for its sensitivity, so
+	// report a bad right-hand side the way the structural path does.
+      auto report_failure = [&]() {
+	    cerr << li->get_fileline() << ": error: Unable to elaborate ";
+	    if (dynamic_read) {
+		  cerr << "r-value: " << *rval << endl;
+	    } else {
+		  cerr << "continuous assignment involving an interface member";
+		  if (lid)
+			cerr << " `" << lid->path() << "`";
+		  cerr << "." << endl;
+	    }
+	    des->errors += 1;
+      };
       NetProc*cur0 = elaborate_vif_member_assignment_(
 	    des, scope, li, lval, rval, signal_lval, continuous_lval);
       if (cur0 == 0) {
-	    cerr << li->get_fileline() << ": error: Unable to elaborate "
-		 << "continuous assignment involving an interface member";
-	    if (lid)
-		  cerr << " `" << lid->path() << "`";
-	    cerr << "." << endl;
-	    des->errors += 1;
+	    report_failure();
 	    return false;
       }
       NetProcTop*t0 = new NetProcTop(scope, IVL_PR_INITIAL, cur0);
@@ -3062,12 +3113,7 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
       NetProc*assignment = elaborate_vif_member_assignment_(
 	    des, scope, li, lval, rval, signal_lval, continuous_lval);
       if (!assignment) {
-	    cerr << li->get_fileline() << ": error: Unable to elaborate "
-		 << "continuous assignment involving an interface member";
-	    if (lid)
-		  cerr << " `" << lid->path() << "`";
-	    cerr << "." << endl;
-	    des->errors += 1;
+	    report_failure();
 	    return false;
       }
 
@@ -3076,12 +3122,7 @@ static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
       NetProc*cur1 = wait.elaborate_st(des, scope, assignment);
       if (!cur1) {
 	    delete assignment;
-	    cerr << li->get_fileline() << ": error: Unable to elaborate "
-		 << "continuous assignment involving an interface member";
-	    if (lid)
-		  cerr << " `" << lid->path() << "`";
-	    cerr << "." << endl;
-	    des->errors += 1;
+	    report_failure();
 	    return false;
       }
       NetProcTop*t1 = new NetProcTop(scope, IVL_PR_ALWAYS, cur1);
@@ -4901,9 +4942,15 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	   cannot be turned into a gate net. Lower the continuous assignment
 	   to the same event-driven behavioral equivalent used for an interface
 	   member l-value. This is especially important for arrays of modport
-	   ports, where each constant word/member read remains a handle access. */
-      if (reads_interface_member_(this, des, scope,
-				  const_cast<PExpr*>(pin(1)))) {
+	   ports, where each constant word/member read remains a handle access.
+	   A queue, dynamic array, associative array or string read is lowered
+	   the same way. */
+      bool iface_read = reads_interface_member_(this, des, scope,
+						const_cast<PExpr*>(pin(1)));
+      bool dynamic_read = !iface_read
+	    && reads_dynamic_variable_(this, des, scope,
+				       const_cast<PExpr*>(pin(1)));
+      if (iface_read || dynamic_read) {
 	    NetNet*lval = pin(0)->elaborate_lnet(
 		  des, scope, var_allowed_in_sv);
 	    if (!lval) {
@@ -4913,7 +4960,8 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    if (lval->unpacked_dimensions() > 0 || lval->pin_count() != 1
 		|| !type_is_vectorable(lval->data_type())) {
 		  cerr << get_fileline() << ": sorry: A continuous assignment "
-		       << "from an interface member currently requires one packed "
+		       << "from an interface member or a dynamic variable currently "
+			  "requires one packed "
 			  "integral destination." << endl;
 		  des->errors += 1;
 		  if (lval->local_flag())
@@ -4927,7 +4975,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 		  rise_time, fall_time, decay_time);
 	    elaborate_vif_member_assign_(
 		  des, scope, this, const_cast<PExpr*>(pin(0)),
-		  const_cast<PExpr*>(pin(1)), proxy);
+		  const_cast<PExpr*>(pin(1)), proxy, false, dynamic_read);
 	    return;
       }
 
@@ -13369,6 +13417,202 @@ static NetProc* elaborate_event_assign_(Design*des, NetScope*scope,
       return task;
 }
 
+/* IEEE 1800-2017/2023 7.4 and 7.6: one index into a multi-dimensional
+ * unpacked array names a subarray, which can be copied to and from an
+ * unpacked array of equivalent shape. Describe an identifier operand that
+ * names a whole unpacked array or such a subarray: its remaining dimensions,
+ * element type, and whether it is reached through a class property or
+ * struct member. */
+struct uarray_operand_shape_t {
+      netranges_t dims;
+      ivl_type_t element = nullptr;
+      bool member = false;
+};
+
+static bool uarray_operand_shape_(const LineInfo*li, Design*des,
+				  NetScope*scope, const PExpr*expr,
+				  uarray_operand_shape_t&shape)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+      if (!id)
+	    return false;
+      for (const name_component_t&comp : id->path().name)
+	    for (const index_component_t&index : comp.index)
+		  if (index.sel != index_component_t::SEL_BIT)
+			return false;
+
+      symbol_search_results sr;
+      if (!symbol_search(li, des, scope, id->path(), id->lexical_pos(), &sr)
+	  || !sr.net || sr.path_head.empty())
+	    return false;
+
+      netranges_t dims = sr.net->unpacked_dims();
+      ivl_type_t type = sr.net->net_type();
+      size_t given = sr.path_head.back().index.size();
+      pform_name_t::const_iterator tail = sr.path_tail.begin();
+      for (;;) {
+	    if (dims.empty())
+		  if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+			dims = array->static_dimensions();
+			type = array->element_type();
+		  }
+	    bool last = tail == sr.path_tail.end();
+	    if (given < dims.size()) {
+		  if (!last)
+			return false;
+		  shape.dims.assign(std::next(dims.begin(), given), dims.end());
+		  shape.element = type;
+		  shape.member = !sr.path_tail.empty();
+		  return true;
+	    }
+	    if (last || given > dims.size())
+		  return false;
+
+	    ivl_type_t next = nullptr;
+	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(type)) {
+		  int pidx = cls->property_idx_from_name(tail->name);
+		  if (pidx >= 0)
+			next = cls->get_prop_type(pidx);
+	    } else if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+		  if (!record->packed())
+			for (const netstruct_t::member_t&member : record->members())
+			      if (member.name == tail->name)
+				    next = member.net_type;
+	    }
+	    if (!next)
+		  return false;
+	    type = next;
+	    dims.clear();
+	    given = tail->index.size();
+	    ++tail;
+      }
+}
+
+/* A prefix index that can be re-evaluated for every element: no side
+ * effects, and no read of the destination array. */
+static bool subarray_index_is_plain_(const PExpr*expr, perm_string dest_root)
+{
+      if (!expr || dynamic_cast<const PENumber*>(expr))
+	    return true;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    if (id->path().name.front().name == dest_root)
+		  return false;
+	    for (const name_component_t&comp : id->path().name)
+		  for (const index_component_t&index : comp.index)
+			if (!subarray_index_is_plain_(index.msb, dest_root)
+			    || !subarray_index_is_plain_(index.lsb, dest_root))
+			      return false;
+	    return true;
+      }
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr))
+	    return subarray_index_is_plain_(bin->get_left(), dest_root)
+		&& subarray_index_is_plain_(bin->get_right(), dest_root);
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr))
+	    return !strchr("iIdD", un->get_op())
+		&& subarray_index_is_plain_(un->get_expr(), dest_root);
+      return false;
+}
+
+extern PEIdent* aggregate_operand_with_(const PEIdent*base,
+					const name_component_t*member,
+					const index_component_t*select,
+					const LineInfo&li);
+
+/* A copy between unpacked arrays or subarrays where either side is a class
+ * property or struct member. The full-index element forms already elaborate
+ * for every member kind, so expand the copy into one assignment per element,
+ * pairing elements left to right in each dimension. Two complete subarrays
+ * of one shape either coincide or do not overlap, so the element order
+ * cannot change the result while no index reads the destination. */
+static NetProc* elaborate_member_subarray_copy_(Design*des, NetScope*scope,
+						const LineInfo&loc,
+						const PExpr*lval, PExpr*rval,
+						bool nonblocking, bool&handled)
+{
+      handled = false;
+      const PEIdent*lid = dynamic_cast<const PEIdent*>(lval);
+      const PEIdent*rid = dynamic_cast<const PEIdent*>(rval);
+      if (!lid || !rid)
+	    return nullptr;
+      uarray_operand_shape_t lshape, rshape;
+      if (!uarray_operand_shape_(&loc, des, scope, lval, lshape)
+	  || !uarray_operand_shape_(&loc, des, scope, rval, rshape)
+	  || !(lshape.member || rshape.member))
+	    return nullptr;
+      handled = true;
+
+      netuarray_t ltype(lshape.dims, lshape.element);
+      netuarray_t rtype(rshape.dims, rshape.element);
+      if (!ltype.type_equivalent(&rtype)) {
+	    cerr << loc.get_fileline() << ": error: unpacked subarray"
+		 << " types are not equivalent in assignment." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      perm_string dest_root = lid->path().name.front().name;
+      for (const PEIdent*side : {lid, rid})
+	    for (const name_component_t&comp : side->path().name)
+		  for (const index_component_t&index : comp.index)
+			if (!subarray_index_is_plain_(index.msb, dest_root)) {
+			      cerr << loc.get_fileline() << ": sorry: a member"
+				   << " subarray copy whose index has side"
+				   << " effects or reads the destination is not"
+				   << " yet supported." << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+
+      auto element = [&](const PEIdent*base, const netranges_t&dims,
+			 const vector<unsigned long>&pos) {
+	    PEIdent*cur = nullptr;
+	    for (size_t dim = 0; dim < dims.size(); dim += 1) {
+		  long msb = dims[dim].get_msb();
+		  long lsb = dims[dim].get_lsb();
+		  long index = msb >= lsb ? msb - (long)pos[dim]
+					  : msb + (long)pos[dim];
+		  index_component_t select;
+		  select.sel = index_component_t::SEL_BIT;
+		  select.msb = new PENumber(new verinum((int64_t)index, 32U));
+		  select.msb->set_line(loc);
+		  PEIdent*next = aggregate_operand_with_(cur ? cur : base,
+							 nullptr, &select, loc);
+		  delete cur;
+		  cur = next;
+	    }
+	    return cur;
+      };
+
+      NetBlock*block = new NetBlock(NetBlock::SEQU, nullptr);
+      block->set_line(loc);
+      vector<unsigned long> pos(lshape.dims.size(), 0);
+      for (bool more = true; more; ) {
+	    PExpr*lelem = element(lid, lshape.dims, pos);
+	    PExpr*relem = element(rid, rshape.dims, pos);
+	    PAssign_*store = nonblocking
+		  ? static_cast<PAssign_*>(new PAssignNB(lelem, relem))
+		  : static_cast<PAssign_*>(new PAssign(lelem, relem));
+	    store->set_line(loc);
+	    NetProc*proc = store->elaborate(des, scope);
+	    delete store;
+	    if (!proc) {
+		  delete block;
+		  return nullptr;
+	    }
+	    block->append(proc);
+
+	    more = false;
+	    for (size_t dim = pos.size(); dim-- > 0; ) {
+		  if (++pos[dim] < lshape.dims[dim].width()) {
+			more = true;
+			break;
+		  }
+		  pos[dim] = 0;
+	    }
+      }
+      return block;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
 	bool in_checker = false;
@@ -13392,6 +13636,12 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 							   handled);
 	    if (handled)
 		  return event_assign;
+	    if (op_ == 0) {
+		  NetProc*copy = elaborate_member_subarray_copy_(
+			des, scope, *this, lval(), rval(), false, handled);
+		  if (handled)
+			return copy;
+	    }
       }
 
       NetProc*result = elaborate_unwrapped_(des, scope);
@@ -13559,6 +13809,27 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 							level, false);
 				      if (!k) { shape_ok = false; break; }
 				      keys.push_back(k);
+				      /* A fixed unpacked-array element is stored flat:
+					 all of its keys together are one canonical
+					 index into it (int d[][2][3]: d[i][j][k]). */
+				      const netuarray_t*fixed =
+					    dynamic_cast<const netuarray_t*>(level->element_type());
+				      if (fixed && kn + 1 < nkeys
+					  && !dynamic_cast<const netqueue_t*>(level)) {
+					    list<index_component_t> fixed_index(
+						  std::next(ii), tail.index.end());
+					    if (fixed_index.size()
+						!= fixed->static_dimensions().size()) {
+						  shape_ok = false;
+						  break;
+					    }
+					    NetExpr*canon = make_checked_canonical_property_index(
+						  des, scope, this, fixed_index, fixed, false);
+					    if (!canon) { shape_ok = false; break; }
+					    keys.push_back(canon);
+					    val_type = fixed->element_type();
+					    break;
+				      }
 				      /* Every key but the last must land on a
 					 further container level. */
 				      if (kn + 1 < nkeys) {
@@ -13569,7 +13840,7 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 					    level = next;
 				      }
 				}
-			if (shape_ok)
+			if (shape_ok && !val_type)
 			      val_type = level->element_type();
 		  }
 
@@ -13628,6 +13899,45 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 	   expressions that might exist. */
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
+
+	/* A fixed unpacked-array element of a dynamic array is addressed
+	   word by word (d[i][j]); the whole element is not an l-value yet. */
+      if (lv->sig() && lv->word() && !lv->more) {
+	    const netdarray_t*da = lv->sig()->darray_type();
+	    if (da && !lv->sig()->queue_type()
+		&& dynamic_cast<const netuarray_t*>(da->element_type())
+		&& lv->net_type() == da->element_type()) {
+		  cerr << get_fileline() << ": sorry: assigning a whole "
+		       << "unpacked-array element of a dynamic array is not "
+		       << "yet supported; assign its words." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  return 0;
+	    }
+      }
+      if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rval())) {
+	    const std::list<index_component_t>&ri = rid->path().name.back().index;
+	      /* Search the bare name: evaluating the index of an instance
+		 array (pins[i]) would report a non-constant scope index. */
+	    pform_scoped_name_t bare = rid->path();
+	    for (name_component_t&comp : bare.name)
+		  comp.index.clear();
+	    symbol_search_results rsr;
+	    if (ri.size() == 1 && ri.front().sel == index_component_t::SEL_BIT
+		&& symbol_search(this, des, scope, bare,
+				 rid->lexical_pos(), &rsr)
+		&& rsr.net && rsr.path_tail.empty() && rsr.net->darray_type()
+		&& !rsr.net->queue_type()
+		&& dynamic_cast<const netuarray_t*>(
+		      rsr.net->darray_type()->element_type())) {
+		  cerr << get_fileline() << ": sorry: reading a whole "
+		       << "unpacked-array element of a dynamic array is not "
+		       << "yet supported; read its words." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  return 0;
+	    }
+      }
 
 
 
@@ -14938,6 +15248,14 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	            "assignments." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+      if (!has_timing_control()) {
+	    bool handled = false;
+	    NetProc*copy = elaborate_member_subarray_copy_(
+		  des, scope, *this, lval(), rval(), true, handled);
+	    if (handled)
+		  return copy;
       }
 
 	/* M8-2b: plain drives to output clockvars get the buffered
@@ -21374,7 +21692,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      perm_string::literal("message")
 			};
 			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
-							  method_name, "$ivl_mailbox$get",
+							  method_name,
+							  class_type->is_typed_mailbox()
+							  ? "$ivl_mailbox$get"
+							  : "$ivl_mailbox$get$untyped",
 							  parm_names);
 		  }
 		  if (method_name == perm_string::literal("peek")) {
@@ -21382,7 +21703,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      perm_string::literal("message")
 			};
 			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
-							  method_name, "$ivl_mailbox$peek",
+							  method_name,
+							  class_type->is_typed_mailbox()
+							  ? "$ivl_mailbox$peek"
+							  : "$ivl_mailbox$peek$untyped",
 							  parm_names);
 		  }
 		  if (method_name == perm_string::literal("try_put")) {
@@ -31823,6 +32147,120 @@ void PSetupHold::elaborate(Design*des, NetScope*scope) const
 
 	      connect(sig->pin(0), sig_delayed->pin(0));
       }
+}
+
+/* The scalar_timing_check_condition forms of IEEE 1800-2017/2023 31.3
+   (an identifier, its negation, or its comparison with a constant)
+   synthesize to a net for the VPI vpiCondition handle. Other shapes keep
+   only their text. */
+static bool tchk_condition_synthesizable_(const PExpr*cond)
+{
+      if (dynamic_cast<const PEIdent*>(cond)) return true;
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(cond))
+	    return (un->get_op() == '~' || un->get_op() == '!')
+		  && dynamic_cast<const PEIdent*>(un->get_expr());
+      if (const PEBComp*cmp = dynamic_cast<const PEBComp*>(cond)) {
+	    char op = cmp->get_op();
+	    return (op == 'e' || op == 'n' || op == 'E' || op == 'N')
+		  && dynamic_cast<const PEIdent*>(cmp->get_left())
+		  && dynamic_cast<const PENumber*>(cmp->get_right());
+      }
+      return false;
+}
+
+static unsigned tchk_edge_mask_(const PTimingCheck::event_t&ev)
+{
+      if (ev.posedge) return vpiPosedge;
+      if (ev.negedge) return vpiNegedge;
+      unsigned mask = 0;
+      for (PTimingCheck::EdgeType edge : ev.edges) {
+	    switch (edge) {
+		case PTimingCheck::EDGE_01: mask |= vpiEdge01; break;
+		case PTimingCheck::EDGE_0X: mask |= vpiEdge0x; break;
+		case PTimingCheck::EDGE_10: mask |= vpiEdge10; break;
+		case PTimingCheck::EDGE_1X: mask |= vpiEdge1x; break;
+		case PTimingCheck::EDGE_X0: mask |= vpiEdgex0; break;
+		case PTimingCheck::EDGE_X1: mask |= vpiEdgex1; break;
+	    }
+      }
+      return mask;
+}
+
+static bool tchk_term_elaborate_(Design*des, NetScope*scope,
+				 const PTimingCheck::event_t&ev,
+				 NetTchk::term_t&term)
+{
+      term.sig = des->find_signal(scope, ev.name);
+      if (term.sig == nullptr) return false;
+      term.sig->incr_eref();
+      term.edge = tchk_edge_mask_(ev);
+
+	// A constant bit select names one bit; any other select keeps the
+	// whole signal. ponytail: part selects; add when SDF needs them.
+      const list<index_component_t>&index = ev.name.back().index;
+      if (index.size() == 1 && index.front().sel == index_component_t::SEL_BIT) {
+	    NetExpr*bit = elab_and_eval(des, scope, index.front().msb, -1, true);
+	    if (const NetEConst*con = dynamic_cast<NetEConst*>(bit)) {
+		  term.has_bit = true;
+		  term.bit = con->value().as_long();
+	    }
+	    delete bit;
+      }
+
+      if (PExpr*cond = ev.condition.get()) {
+	    ostringstream text;
+	    cond->dump(text);
+	    term.condition_text = text.str();
+	    if (tchk_condition_synthesizable_(cond)) {
+		  NetExpr*tmp = elab_and_eval(des, scope, cond, -1);
+		  if (tmp) term.condit = tmp->synthesize(des, scope, tmp);
+		  if (term.condit) term.condit->incr_eref();
+	    }
+      }
+      return true;
+}
+
+void PTchk::elaborate(Design*des, NetScope*scope) const
+{
+      NetTchk*tchk = new NetTchk;
+      tchk->set_line(*this);
+      tchk->type = type_;
+      if (!tchk_term_elaborate_(des, scope, *ref_, tchk->ref)
+	  || (data_ && !tchk_term_elaborate_(des, scope, *data_, tchk->data))) {
+	    delete tchk;
+	    return;
+      }
+
+	/* The limits are constant expressions (IEEE 1800-2017/2023
+	   Tables 31-1 to 31-12) in the scope's time units, the units the
+	   checker's $realtime arithmetic uses. */
+      for (size_t idx = 0; idx < limits_.size(); idx += 1) {
+	    NetNet*var = scope->find_signal(limit_vars_[idx]);
+	    ivl_assert(*this, var);
+	    var->incr_eref();
+	    double value = 0.0;
+	    NetExpr*limit = elab_and_eval(des, scope, limits_[idx].get(), -1);
+	    if (const NetEConst*con = dynamic_cast<NetEConst*>(limit)) {
+		  value = con->value().has_sign() ? double(con->value().as_long())
+						  : double(con->value().as_ulong64());
+	    } else if (const NetECReal*rcon = dynamic_cast<NetECReal*>(limit)) {
+		  value = rcon->value().as_double();
+	    } else if (limit) {
+		  cerr << get_fileline() << ": error: A timing check limit must "
+		       << "be a constant expression (IEEE 1800-2017/2023 31.2)."
+		       << endl;
+		  des->errors += 1;
+	    }
+	    delete limit;
+	    tchk->limit_vars.push_back(var);
+	    tchk->limits.push_back(value);
+      }
+
+      if (notifier_) {
+	    tchk->notifier = des->find_signal(scope, *notifier_);
+	    if (tchk->notifier) tchk->notifier->incr_eref();
+      }
+      scope->add_tchk(tchk);
 }
 
 static void elaborate_functions(Design*des, NetScope*scope,
@@ -46069,6 +46507,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						    if (v == verinum::V0 || v == verinum::V1)
 							  known_mask |= UINT64_C(1) << bit;
 					      }
+			      uint64_t full_mask = width == 64 ? UINT64_MAX
+					    : (UINT64_C(1) << width) - 1;
+			      if (known_mask != full_mask) {
+				    if (!range_ir.empty()) range_ir += " ";
+				    range_ir += "qbadconst";
+				    continue;
+			      }
 					      string token = "cw:" + to_string(value_bits)
 						    + ":" + to_string(known_mask)
 						    + ":" + to_string(width)

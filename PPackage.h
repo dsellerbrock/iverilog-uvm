@@ -24,6 +24,7 @@
 # include  "LineInfo.h"
 # include  "StringHeap.h"
 # include  <iostream>
+# include  <set>
 # include  <vector>
 
 class PLet;
@@ -52,6 +53,11 @@ class PPackage : public PScopeExtra, public LineInfo {
       };
 
       std::vector<export_t> exports;
+
+	// Tasks and functions declared by an anonymous program in this
+	// package or compilation unit, which only program blocks may
+	// reference (IEEE 1800-2017/2023 24.6).
+      std::set<perm_string> programwide_symbols;
 };
 
 #endif /* IVL_PPackage_H */

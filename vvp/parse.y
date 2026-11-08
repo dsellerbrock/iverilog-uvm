@@ -52,6 +52,8 @@ vector <const char*> file_names;
  * the source items will attach themselves to.
  */
 static struct __vpiModPath*modpath_dst = 0;
+  /* The .tchk record whose terms and limits are being parsed. */
+static struct __vpiTchk*tchk_cur = 0;
 static vpiHandle force_release_statement = 0;
 
 static bool is_force_release_opcode(const char* name)
@@ -112,12 +114,13 @@ static bool is_force_release_opcode(const char* name)
 %token K_DFF_N_ACLR_ASET K_DFF_N_ASET K_DFF_N_ASET_ACLR
 %token K_DFF_P K_DFF_P_ACLR K_DFF_P_ACLR_ASET K_DFF_P_ASET K_DFF_P_ASET_ACLR
 %token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR K_EVENT_ORDER
-%token K_EXPORT K_EXTEND_S K_SAMPLE K_REACTIVE K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH
+%token K_EXPORT K_EXTEND_S K_SAMPLE K_REACTIVE K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH K_TCHK
 %token K_PARAM_TYPE
 %token K_VIF_PROXY K_EVENT_VALID
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PARAM_ASSIGN_STR K_PARAM_ASSIGN_L K_PARAM_ASSIGN_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS K_VARTYPE
+%token K_VPI_EXPR
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
@@ -666,6 +669,13 @@ statement
    modpath_src_list ';'
     { modpath_dst = 0; }
 
+  /* .tchk <type> <file> <line>, <ref term>, <data term>,
+     <n> {<limit var> <value>}, <notifier> ; */
+ | T_LABEL K_TCHK T_NUMBER T_NUMBER T_NUMBER ','
+    { tchk_cur = compile_tchk($1, $3, $4, $5); }
+   tchk_term ',' tchk_term ',' T_NUMBER tchk_limits ',' tchk_notifier ';'
+    { tchk_cur = 0; }
+
   /* DFF nodes have an output and take up to 4 inputs. */
 
   | T_LABEL K_DFF_N T_NUMBER symbol ',' symbol ',' symbol ';'
@@ -806,6 +816,14 @@ statement
 
 	| T_LABEL K_EVENT T_SYMBOL ',' symbols ';'
                 { compile_event($1, $3, $5.cnt, $5.vect); }
+
+  /* A lazily evaluated system task/function argument node (IEEE 1800-2023
+     37.42 detail 7): vpiType, vpiOpType, vpiSize, value kind, evaluation
+     code label, vpiDecompile text, then the vpiOperand handles. */
+	| T_LABEL K_VPI_EXPR T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_STRING ','
+	  T_SYMBOL ',' T_STRING argument_opt ';'
+		{ compile_vpi_expr($1, $3, $5, $7, $9, $11, $13,
+				   $14.argc, $14.argv); }
 
 	| T_LABEL K_EVENT K_DEBUG T_SYMBOL ',' symbols ';'
                 { compile_event($1, $4, $6.cnt, $6.vect); }
@@ -1732,6 +1750,10 @@ symbol_access
          continues the chain or starts the fixed fields). numbers
          followed only by '>' is unambiguous, same as K_CPS. */
       { $$ = vpip_make_cobject_property_vec_var($3, $5, $7, $9.cnt, $9.nvec); }
+  | K_CPV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' numbers ',' T_SYMBOL '>'
+      /* #2475: an element of a fixed-array property; the trailing handle
+         (a vec4 stack reference) holds the element index. */
+      { $$ = vpip_make_cobject_property_vec_elem($3, $5, $7, $9.cnt, $9.nvec, $11); }
   ;
 
   /* functor operands can only be a list of symbols. */
@@ -1822,6 +1844,28 @@ modport_ports_opt
         : /* empty */
         | modport_ports_opt T_STRING T_NUMBER
                 { compile_modport_port($2, $3); }
+        ;
+
+tchk_term
+        : T_SYMBOL T_NUMBER signed_t_number T_NUMBER
+                { compile_tchk_term(tchk_cur, $1, $2 != 0, $3, $4, 0, 0); }
+        | T_SYMBOL T_NUMBER signed_t_number T_NUMBER '?' T_SYMBOL T_STRING
+                { compile_tchk_term(tchk_cur, $1, $2 != 0, $3, $4, $6, $7); }
+        | T_SYMBOL T_NUMBER signed_t_number T_NUMBER '?' T_NUMBER T_STRING
+                { compile_tchk_term(tchk_cur, $1, $2 != 0, $3, $4, 0, $7); }
+        | T_NUMBER T_NUMBER T_NUMBER T_NUMBER
+                { compile_tchk_term(tchk_cur, 0, false, 0, 0, 0, 0); }
+        ;
+
+tchk_limits
+        : /* empty */
+        | tchk_limits T_SYMBOL T_SYMBOL
+                { compile_tchk_limit(tchk_cur, $2, $3); }
+        ;
+
+tchk_notifier
+        : T_SYMBOL { compile_tchk_notifier(tchk_cur, $1); }
+        | T_NUMBER
         ;
 
 modpath_condition_text_opt

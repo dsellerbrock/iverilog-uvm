@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1476_darray_fixed_element_fail.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue1476_darray_fixed_element_fail"
+}

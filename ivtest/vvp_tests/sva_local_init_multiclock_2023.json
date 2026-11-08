@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_local_init_multiclock.sv",
+  "iverilog-args": ["-g2023", "-s", "sva_local_init_multiclock"],
+  "gold": "sva_local_init_multiclock"
+}

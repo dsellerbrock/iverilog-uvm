@@ -1587,6 +1587,14 @@ void PSetupHold::dump(std::ostream&out, unsigned ind) const
 	    out << setw(ind) << "" << "setuphold ";
 }
 
+void PTchk::dump(std::ostream&out, unsigned ind) const
+{
+      out << setw(ind) << "" << "timing check type " << type_
+	  << " ref " << ref_->name;
+      if (data_) out << " data " << data_->name;
+      out << endl;
+}
+
 void PGenerate::dump(ostream&out, unsigned indent) const
 {
       out << setw(indent) << "" << "generate(" << id_number << ")";

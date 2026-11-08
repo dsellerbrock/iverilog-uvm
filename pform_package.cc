@@ -223,6 +223,7 @@ void pform_package_import(const struct vlltype&loc, PPackage*pkg, const char*ide
 		  error_count += 1;
 		  return;
 	    }
+	    pform_check_programwide_ref(loc, pkg_decl, use_ident);
 
 	      // Check for conflict with local symbol.
 	    auto cur_sym = scope->local_symbols.find(use_ident);
@@ -314,6 +315,8 @@ PExpr* pform_package_ident(const struct vlltype&loc,
 			   PPackage*pkg, const pform_name_t*ident_name)
 {
       ivl_assert(loc, ident_name);
+      if (!ident_name->empty())
+	    pform_check_programwide_ref(loc, pkg, ident_name->front().name);
       PEIdent*tmp = new PEIdent(pkg, *ident_name, loc.lexical_pos);
       FILE_NAME(tmp, loc);
       return tmp;

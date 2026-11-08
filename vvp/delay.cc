@@ -20,6 +20,7 @@
 #include "delay.h"
 #include "schedule.h"
 #include "vpi_priv.h"
+#include "compile.h"
 #include "config.h"
 #ifdef CHECK_WITH_VALGRIND
 #include "vvp_cleanup.h"
@@ -781,6 +782,7 @@ vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width,
   has_conditional_paths_(false), showcancelled_(showcancelled)
 {
       cur_vec4_ = vvp_vector4_t(width, BIT4_X);
+      out_vec4_ = cur_vec4_;
       pulse_vec4_ = cur_vec4_;
       schedule_init_propagate(net_, cur_vec4_);
 }
@@ -911,6 +913,17 @@ void vvp_fun_modpath::pulse_wakeup_::run_run()
 void vvp_fun_modpath::resolve_wakeup_::run_run()
 {
       owner_->resolve_pending_();
+}
+
+void vvp_fun_modpath::bit_wakeup_::run_run()
+{
+      owner_->run_bit_event_(index_, value_);
+}
+
+void vvp_fun_modpath::run_bit_event_(unsigned index, vvp_bit4_t value)
+{
+      out_vec4_.set_bit(index, value);
+      net_->send_vec4(out_vec4_, 0);
 }
 
 void vvp_fun_modpath::run_pulse_events_()
@@ -1089,33 +1102,22 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
 						      bit.value(0));
       vvp_time64_t use_delay = out_at[use_edge];
 
-	/* FIXME: This bases the edge delay on only the least
-	   bit. This is WRONG! I need to find all the possible delays,
-	   and schedule an event for each partial change. Hard! */
-      for (unsigned idx = 1 ;  idx < bit.size() ;  idx += 1) {
-	    vvp_time64_t tmp = delay_from_edge(cur_vec4_.value(idx),
-					       bit.value(idx),
-					       out_at);
-	      /* If the current and new bit values match then no delay
-	       * is needed for this bit. */
-	    if (cur_vec4_.value(idx) == bit.value(idx)) continue;
-	    if (tmp != use_delay) {
-		  fprintf(stderr, "sorry: multi-bit module path delays are "
-		                  "currently not fully supported.\n");
-		  fprintf(stderr, "     : using the LSB delay for all bits.\n");
-		  continue;
-            }
-      }
-
-      // shortcut: pulse filtering covers scalar paths until vector path events are modeled per bit.
+      // Pulse filtering is implemented for scalar paths; vectors are scheduled per bit.
       if (bit.size() == 1) {
 	    schedule_pulse_transition_(use_delay, reject_at[use_edge],
 				       error_at[use_edge], bit);
 	    return;
       }
 
-      cur_vec4_ = bit;
-      schedule_generic(this, use_delay, false);
+	for (unsigned idx = 0 ; idx < bit.size() ; idx += 1) {
+	      if (cur_vec4_.value(idx) == bit.value(idx))
+		    continue;
+	      vvp_time64_t delay = delay_from_edge(cur_vec4_.value(idx),
+						   bit.value(idx), out_at);
+	      schedule_generic(new bit_wakeup_(this, idx, bit.value(idx)),
+			       delay, false, true, true);
+	}
+	cur_vec4_ = bit;
 }
 
 void vvp_fun_modpath::run_run()
@@ -2096,4 +2098,249 @@ void vvp_fun_sample::run_run()
       sent_ = value_;
       sent_valid_ = true;
       net_->send_vec4(sent_, 0);
+}
+
+/*
+ * Timing checks (IEEE 1800-2017 37.38, 1800-2023 37.40). The checker is
+ * a set of compiled processes; a __vpiTchk names its terms and the real
+ * variables those processes read the limits from, so vpi_get_delays and
+ * vpi_put_delays reach the live limits (SDF TIMINGCHECK, 32.4.2).
+ */
+struct __vpiTchkTerm : public __vpiHandle {
+      int get_type_code(void) const override { return vpiTchkTerm; }
+      int vpi_get(int code) override;
+      char* vpi_get_str(int code) override;
+      vpiHandle vpi_handle(int code) override;
+
+      vpiHandle sig = 0;
+      bool has_bit = false;
+      int bit = 0;
+      int edge = vpiNoEdge;
+      vpiHandle condition = 0;
+      std::string condition_text;
+};
+
+/* A limit argument, as vpiExpr iteration returns it: a real constant
+   whose value is the live limit. */
+struct __vpiTchkLimit : public __vpiHandle {
+      int get_type_code(void) const override { return vpiConstant; }
+      int vpi_get(int code) override;
+      void vpi_get_value(p_vpi_value val) override;
+
+      vpiHandle var = 0;
+};
+
+struct __vpiTchk : public __vpiHandle {
+      int get_type_code(void) const override { return vpiTchk; }
+      int vpi_get(int code) override;
+      char* vpi_get_str(int code) override;
+      vpiHandle vpi_handle(int code) override;
+      vpiHandle vpi_iterate(int code) override;
+      void vpi_get_delays(p_vpi_delay del) override;
+      void vpi_put_delays(p_vpi_delay del) override;
+
+      int type = 0;
+      long file_idx = 0;
+      long lineno = 0;
+      __vpiScope*scope = 0;
+      __vpiTchkTerm term[2];
+      unsigned nterm = 0;
+      bool has_data = false;
+      std::vector<__vpiTchkLimit> limits;
+      vpiHandle notifier = 0;
+};
+
+int __vpiTchkTerm::vpi_get(int code)
+{
+      return code == vpiEdge ? edge : vpiUndefined;
+}
+
+char* __vpiTchkTerm::vpi_get_str(int code)
+{
+      if (code == _vpiTchkConditionText && !condition_text.empty())
+	    return simple_set_rbuf_str(condition_text.c_str());
+      return 0;
+}
+
+vpiHandle __vpiTchkTerm::vpi_handle(int code)
+{
+      switch (code) {
+	  case vpiExpr:
+	    return has_bit && sig ? ::vpi_handle_by_index(sig, bit) : sig;
+	  case vpiCondition:
+	    return condition;
+	  default:
+	    return 0;
+      }
+}
+
+int __vpiTchkLimit::vpi_get(int code)
+{
+      switch (code) {
+	  case vpiConstType:
+	    return vpiRealConst;
+	  case vpiSize:
+	    return 1;
+	  default:
+	    return vpiUndefined;
+      }
+}
+
+void __vpiTchkLimit::vpi_get_value(p_vpi_value val)
+{
+      var->vpi_get_value(val);
+}
+
+int __vpiTchk::vpi_get(int code)
+{
+      switch (code) {
+	  case vpiTchkType:
+	    return type;
+	  case vpiLineNo:
+	    return lineno;
+	  default:
+	    return vpiUndefined;
+      }
+}
+
+char* __vpiTchk::vpi_get_str(int code)
+{
+      if (code == vpiFile && (size_t)file_idx < file_names.size())
+	    return simple_set_rbuf_str(file_names[file_idx]);
+      return 0;
+}
+
+vpiHandle __vpiTchk::vpi_handle(int code)
+{
+      switch (code) {
+	  case vpiTchkRefTerm:
+	    return &term[0];
+	  case vpiTchkDataTerm:
+	    return has_data ? &term[1] : 0;
+	  case vpiTchkNotifier:
+	    return notifier;
+	  case vpiModule:
+	  case vpiScope:
+	    return scope;
+	  default:
+	    return 0;
+      }
+}
+
+/* 37.40 detail 2: the event terms come first as vpiTchkTerm handles, then
+   the remaining arguments in order. */
+vpiHandle __vpiTchk::vpi_iterate(int code)
+{
+      if (code != vpiExpr) return 0;
+      std::vector<vpiHandle> items;
+      items.push_back(&term[0]);
+      if (has_data) items.push_back(&term[1]);
+      for (__vpiTchkLimit&limit : limits) items.push_back(&limit);
+      if (notifier) items.push_back(notifier);
+      vpiHandle*args = static_cast<vpiHandle*>(calloc(items.size(), sizeof(vpiHandle)));
+      std::copy(items.begin(), items.end(), args);
+      return vpip_make_iterator(items.size(), args, true);
+}
+
+void __vpiTchk::vpi_get_delays(p_vpi_delay del)
+{
+      unsigned per = del->mtm_flag ? 3 : 1;
+      for (unsigned idx = 0; idx < (unsigned)del->no_of_delays; idx += 1) {
+	    double value = 0.0;
+	    if (idx < limits.size()) {
+		  s_vpi_value val;
+		  val.format = vpiRealVal;
+		  limits[idx].var->vpi_get_value(&val);
+		  value = val.value.real;
+	    }
+	    for (unsigned sub = 0; sub < per; sub += 1) {
+		  p_vpi_time time = del->da + idx*per + sub;
+		  time->type = del->time_type;
+		  if (del->time_type == vpiScaledRealTime) {
+			time->real = value;
+		  } else if (del->time_type == vpiSimTime) {
+			vpip_time_to_timestruct(time,
+			      vpip_scaled_real_to_time64(value, scope));
+		  }
+	    }
+      }
+}
+
+void __vpiTchk::vpi_put_delays(p_vpi_delay del)
+{
+      unsigned per = del->mtm_flag ? 3 : 1;
+      for (unsigned idx = 0; idx < (unsigned)del->no_of_delays
+		 && idx < limits.size(); idx += 1) {
+	      // With min:typ:max triples the typical value is annotated.
+	    const s_vpi_time&time = del->da[idx*per + (per == 3 ? 1 : 0)];
+	    s_vpi_value val;
+	    val.format = vpiRealVal;
+	    if (del->time_type == vpiScaledRealTime)
+		  val.value.real = time.real;
+	    else if (del->time_type == vpiSimTime)
+		  val.value.real = vpip_time_to_scaled_real(
+			vpip_timestruct_to_time(&time), scope);
+	    else
+		  continue;
+	    limits[idx].var->vpi_put_value(&val, vpiNoDelay);
+      }
+}
+
+__vpiTchk* compile_tchk(char*label, int type, long file_idx, long lineno)
+{
+      __vpiTchk*tchk = new __vpiTchk;
+      tchk->type = type;
+      tchk->file_idx = file_idx;
+      tchk->lineno = lineno;
+      tchk->scope = vpip_peek_current_scope();
+      vpip_attach_to_current_scope(tchk);
+      free(label);
+      return tchk;
+}
+
+void compile_tchk_term(__vpiTchk*tchk, char*sig, bool has_bit, long bit,
+		       unsigned edge, char*condit, char*text)
+{
+      assert(tchk->nterm < 2);
+      __vpiTchkTerm&term = tchk->term[tchk->nterm];
+      if (tchk->nterm == 1) tchk->has_data = sig != 0;
+      tchk->nterm += 1;
+      term.has_bit = has_bit;
+      term.bit = bit;
+      term.edge = edge;
+      if (text) {
+	    term.condition_text = text;
+	    free(text);
+      }
+      if (sig) compile_vpi_lookup(&term.sig, sig);
+      if (condit) {
+	      /* A synthesized condition net is local and has no VPI
+		 handle of its own, so give it one here. */
+	    term.condition = vvp_lookup_handle(condit);
+	    if (!term.condition) {
+		  vvp_net_t*net = vvp_net_lookup(condit);
+		  if (net) term.condition = vpip_make_net4(tchk->scope,
+			      vpip_name_string("condition"), 0, 0, false, net);
+	    }
+	    free(condit);
+      }
+}
+
+void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value)
+{
+      __vpiTchkLimit limit;
+      limit.var = vvp_lookup_handle(var);
+      assert(limit.var);
+	/* Seed the limit when the design loads; initialization events run
+	   in order before cbStartOfSimulation, after the variable's own. */
+      vvp_net_t*net = vvp_net_lookup(var);
+      schedule_init_vector(vvp_net_ptr_t(net, 0), crstring_to_double(value));
+      tchk->limits.push_back(limit);
+      free(var);
+      free(value);
+}
+
+void compile_tchk_notifier(__vpiTchk*tchk, char*notifier)
+{
+      compile_vpi_lookup(&tchk->notifier, notifier);
 }

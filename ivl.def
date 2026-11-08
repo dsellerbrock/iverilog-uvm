@@ -260,6 +260,8 @@ ivl_scope_def_file
 ivl_scope_def_lineno
 ivl_scope_enumerate
 ivl_scope_enumerates
+ivl_scope_tchk
+ivl_scope_tchks
 ivl_scope_typedefs
 ivl_scope_typedef_name
 ivl_scope_typedef_type
@@ -426,6 +428,18 @@ ivl_switch_scope
 ivl_switch_type
 ivl_switch_width
 
+ivl_tchk_file
+ivl_tchk_limit
+ivl_tchk_limit_sig
+ivl_tchk_limits
+ivl_tchk_lineno
+ivl_tchk_notifier
+ivl_tchk_term_bit
+ivl_tchk_term_condit
+ivl_tchk_term_condition_text
+ivl_tchk_term_edge
+ivl_tchk_term_sig
+ivl_tchk_type
 ivl_type_base
 ivl_type_assoc_index
 ivl_type_element

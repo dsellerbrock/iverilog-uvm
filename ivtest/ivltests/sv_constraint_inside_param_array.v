@@ -4,7 +4,9 @@ module top;
   parameter bit [2:0] GRID[0:1][0:1] =
       '{'{3'd1, 3'd2}, '{3'd5, 3'd7}};
   parameter logic [3:0] WILDCARDS[] = {4'b10x1, 4'bzz00};
+  parameter logic [3:0] FIXED_WILDCARDS[0:1] = '{4'b10x1, 4'bzz00};
   parameter logic signed [3:0] SIGNED_WILDCARDS[] = {4'bx001};
+  bit [3:0] procedural_match;
   bit [7:0] opcode;
   bit [2:0] small_value;
   bit [3:0] nibble;
@@ -38,21 +40,31 @@ module top;
           small_value inside {GRID}; small_value == 3'd7;
         } || small_value != 3'd7) $fatal(1, "multidimensional array");
 
-    if (!std::randomize(nibble) with {
+    nibble = 4'hc;
+    if (std::randomize(nibble) with {
           nibble inside {WILDCARDS}; nibble == 4'b1011;
-        } || nibble != 4'b1011) $fatal(1, "X wildcard bit");
-    if (!std::randomize(nibble) with {
+        } || nibble != 4'hc) $fatal(1, "X parameter value accepted");
+    if (std::randomize(nibble) with {
           nibble inside {WILDCARDS}; nibble == 4'b0100;
-        } || nibble != 4'b0100) $fatal(1, "Z wildcard bits");
+        } || nibble != 4'hc) $fatal(1, "Z parameter value accepted");
+    if (std::randomize(nibble) with {
+          nibble inside {FIXED_WILDCARDS}; nibble == 4'b1011;
+        } || nibble != 4'hc) $fatal(1, "fixed-array X/Z parameter value accepted");
     if (std::randomize(nibble) with {
           nibble inside {WILDCARDS}; nibble == 4'b0111;
         }) $fatal(1, "wildcard control matched nonmember");
 
-    if (!std::randomize(signed_value) with {
+    signed_value = 8'sh35;
+    if (std::randomize(signed_value) with {
           signed_value inside {SIGNED_WILDCARDS};
           signed_value == 8'shA1;
-        } || signed_value != 8'shA1)
-      $fatal(1, "signed wildcard extension");
+        } || signed_value != 8'sh35)
+      $fatal(1, "signed X parameter value accepted");
+
+    procedural_match = 4'b1011;
+    if (!(procedural_match inside {WILDCARDS}) ||
+        !(4'b1011 inside {4'b10x1}))
+      $fatal(1, "procedural inside lost wildcard matching");
 
     empty_item = new;
     empty_item.value = 8'h33;

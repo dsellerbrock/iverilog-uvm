@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue2475_plusargs_class_array_element.v",
+  "iverilog-args": ["-g2017", "-s", "issue2475_plusargs_class_array_element"],
+  "vvp-args-extended": ["+AE=77", "+BE=ab", "+NE=42", "+ME=70"],
+  "output-contains": ["PASSED"]
+}

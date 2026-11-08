@@ -1,4 +1,0 @@
-./ivltests/sv_uarray_partial_index_boundary_fail.v:12: sorry: a fixed-prefix unpacked-subarray source assigned to a class or aggregate member is not yet supported.
-./ivltests/sv_uarray_partial_index_boundary_fail.v:24: error: Got 1 indices, expecting 2 to index the property words.
-./ivltests/sv_uarray_partial_index_boundary_fail.v:24: error: The expression 'holder.words['sd0]' cannot be implicitly cast to the target type.
-3 error(s) during elaboration.

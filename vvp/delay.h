@@ -224,6 +224,15 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 	    vvp_fun_modpath* owner_;
       };
 
+      struct bit_wakeup_ : vvp_gen_event_s {
+	    bit_wakeup_(vvp_fun_modpath*owner, unsigned index, vvp_bit4_t value)
+	    : owner_(owner), index_(index), value_(value) { }
+	    void run_run() override;
+	    vvp_fun_modpath* owner_;
+	    unsigned index_;
+	    vvp_bit4_t value_;
+      };
+
     public:
       vvp_fun_modpath(vvp_net_t*net, unsigned width, bool showcancelled);
       ~vvp_fun_modpath() override;
@@ -248,6 +257,7 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 				      vvp_time64_t error,
 				      const vvp_vector4_t&bit);
       void run_pulse_events_();
+      void run_bit_event_(unsigned index, vvp_bit4_t value);
       void schedule_transition_(const vvp_vector4_t&bit);
       void resolve_pending_();
 
@@ -255,6 +265,7 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       vvp_net_t*net_;
 
       vvp_vector4_t cur_vec4_;
+      vvp_vector4_t out_vec4_;
 
       vvp_fun_modpath_src*src_list_;
       vvp_fun_modpath_src*ifnone_list_;

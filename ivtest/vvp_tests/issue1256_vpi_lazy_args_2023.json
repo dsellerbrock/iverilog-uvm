@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1256_vpi_lazy_args.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue1256_vpi_lazy_args_2023"],
+  "vpi-sources": ["vpi/issue1256_vpi_lazy_args.c"],
+  "output-contains": ["SV DONE", "VPI LAZY PASS"]
+}
