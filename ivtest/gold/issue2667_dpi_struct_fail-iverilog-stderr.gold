@@ -1,0 +1,5 @@
+ivltests/issue2667_dpi_struct_fail.sv:12: sorry: DPI import 'c_nested': argument 's' is an unpacked struct with a member that is not an integer atom, scalar bit/logic, real, shortreal or chandle (IEEE 1800 Annex H.7.8 layouts of other members are not supported yet).
+ivltests/issue2667_dpi_struct_fail.sv:10: sorry: DPI import 'c_packed': argument 's' is an unpacked struct with a member that is not an integer atom, scalar bit/logic, real, shortreal or chandle (IEEE 1800 Annex H.7.8 layouts of other members are not supported yet).
+ivltests/issue2667_dpi_struct_fail.sv:11: sorry: DPI import 'c_string': argument 's' is an unpacked struct with a member that is not an integer atom, scalar bit/logic, real, shortreal or chandle (IEEE 1800 Annex H.7.8 layouts of other members are not supported yet).
+ivltests/issue2667_dpi_struct_fail.sv:13: sorry: DPI import 'c_union': argument 'u' is an unpacked union (IEEE 1800 Annex H.7.8 union layouts are not supported yet).
+error: Code generation had 4 error(s).

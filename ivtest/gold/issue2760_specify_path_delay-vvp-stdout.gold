@@ -1,0 +1,5 @@
+0 a=0 y=x
+2000 a=0 y=0
+4000 a=1 y=0
+ivltests/issue2760_specify_path_delay.v:23: $finish called at 6100 (1ps)
+6000 a=1 y=1

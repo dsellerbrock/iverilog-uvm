@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2658_member_subarray_copy.v",
+  "iverilog-args": ["-g2017"]
+}

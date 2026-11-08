@@ -1,0 +1,3 @@
+ivltests/issue2658_member_subarray_copy_fail.v:8: error: unpacked subarray types are not equivalent in assignment.
+ivltests/issue2658_member_subarray_copy_fail.v:9: error: unpacked subarray types are not equivalent in assignment.
+2 error(s) during elaboration.

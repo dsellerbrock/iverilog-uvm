@@ -139,6 +139,8 @@ void pform_mc_translate_on(bool flag) { pform_mc_translate_flag = flag; }
  * pform_primitives is similar, but for UDP primitives.
  */
 map<perm_string,Module*> pform_modules;
+/* Extern module headers (IEEE 1800 23.5) waiting for their definition. */
+static map<perm_string,Module*> pform_extern_modules;
 map<perm_string,PUdp*> pform_primitives;
 
 /*
@@ -519,6 +521,7 @@ static bool pform_in_parameter_port_list = false;
  * Items that have scoped names are put in the lexical_scope object.
  */
 static LexicalScope* lexical_scope = 0;
+static bool anonymous_program_items = false;
 
 LexicalScope* pform_peek_scope(void)
 {
@@ -655,6 +658,12 @@ static void add_local_symbol(LexicalScope*scope, perm_string name, PNamedItem*it
       }
 
       scope->local_symbols[name] = item;
+	// Only tasks and functions are tracked. References to classes and
+	// covergroups of an anonymous program arrive as type identifiers
+	// and are not diagnosed outside programs (a known gap, IEEE 24.6).
+      if (anonymous_program_items && dynamic_cast<PTaskFunc*>(item))
+	    if (PPackage*pkg = dynamic_cast<PPackage*>(scope))
+		  pkg->programwide_symbols.insert(name);
 }
 
 namespace {
@@ -748,8 +757,10 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
 {
       LexicalScope*scope = lexical_scope;
       while (scope) {
-	    if (scope->local_symbols.find(name) != scope->local_symbols.end())
+	    if (scope->local_symbols.find(name) != scope->local_symbols.end()) {
+		  pform_check_programwide_ref(loc, dynamic_cast<PPackage*>(scope), name);
 		  return;
+	    }
 	    if (PClass*class_scope = dynamic_cast<PClass*>(scope)) {
 		  if (class_scope->type && class_scope->type->properties.find(name)
 		      != class_scope->type->properties.end())
@@ -763,7 +774,8 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
 		  scope->wildcard_pin_used.insert(name);
 		  return;
 	    }
-	    if (pform_find_potential_import(loc, scope, name, tf_call, true)) {
+	    if (PPackage*pkg = pform_find_potential_import(loc, scope, name, tf_call, true)) {
+		  pform_check_programwide_ref(loc, pkg, name);
 		  scope->wildcard_pin_used.insert(name);
 		  return;
 	    }
@@ -1425,6 +1437,24 @@ bool pform_in_program_block()
       if (pform_cur_module.front()->program_block)
 	    return true;
       return false;
+}
+
+void pform_set_anonymous_program(bool enable)
+{
+      anonymous_program_items = enable;
+}
+
+void pform_check_programwide_ref(const struct vlltype&loc,
+				 const PPackage*pkg, perm_string name)
+{
+      if (!pkg || anonymous_program_items || pform_in_program_block())
+	    return;
+      if (pkg->programwide_symbols.count(name) == 0)
+	    return;
+      cerr << loc.get_fileline() << ": error: '" << name << "' is declared "
+	   << "in an anonymous program and is accessible only from a program "
+	   << "block (IEEE 1800-2017/2023 24.6)." << endl;
+      error_count += 1;
 }
 
 bool pform_in_interface()
@@ -2807,6 +2837,98 @@ static bool pform_is_interface_port_type_(const data_type_t*type)
 	    type = ref->typedef_ref()->get_data_type();
       }
       return false;
+}
+
+void pform_end_extern_module(void)
+{
+      Module*ext = pform_cur_module.front();
+      pform_cur_module.pop_front();
+      if (!pform_module_generate_stack.empty()) {
+	    pform_cur_generate = pform_module_generate_stack.front();
+	    pform_module_generate_stack.pop_front();
+      }
+      ivl_assert(*ext, lexical_scope == ext);
+      pform_pop_scope();
+	// The definition, not the extern header, declares the name.
+      lexical_scope->local_symbols.erase(ext->mod_name());
+
+      Module*&slot = pform_extern_modules[ext->mod_name()];
+      if (slot) {
+	    cerr << ext->get_fileline() << ": error: Extern module "
+		 << ext->mod_name() << " was already declared here: "
+		 << slot->get_fileline() << endl;
+	    error_count += 1;
+	    return;
+      }
+      slot = ext;
+}
+
+void pform_module_use_extern_ports(const struct vlltype&loc)
+{
+      Module*def = pform_cur_module.front();
+      map<perm_string,Module*>::iterator cur = pform_extern_modules.find(def->mod_name());
+      if (cur == pform_extern_modules.end()) {
+	    cerr << loc << ": error: A (.*) port list needs an extern "
+		 << "module declaration of " << def->mod_name()
+		 << " (IEEE 1800 23.5)." << endl;
+	    error_count += 1;
+	    return;
+      }
+      if (!def->param_names.empty()) {
+	    cerr << loc << ": error: A module with a (.*) port list takes "
+		 << "its parameter port list from the extern declaration "
+		 << "(IEEE 1800 23.5)." << endl;
+	    error_count += 1;
+	    return;
+      }
+	/* (.*) is "equivalent to placing the ports (and possibly
+	   parameters) of the extern declaration on the module": the
+	   definition continues in the extern header's scope. */
+      Module*ext = cur->second;
+      pform_extern_modules.erase(cur);
+      ext->set_file(def->get_file());
+      ext->set_lineno(def->get_lineno());
+      ext->default_lifetime = def->default_lifetime;
+      ext->library_flag = def->library_flag;
+      ext->attributes = def->attributes;
+      ext->potential_imports.insert(ext->potential_imports.end(),
+				    def->potential_imports.begin(),
+				    def->potential_imports.end());
+      ext->explicit_imports.insert(def->explicit_imports.begin(),
+				   def->explicit_imports.end());
+      lexical_scope = ext->parent_scope();
+      lexical_scope->local_symbols[ext->mod_name()] = ext;
+      lexical_scope = ext;
+      pform_cur_module.front() = ext;
+}
+
+/* IEEE 1800 23.5: "An extern module declaration shall match the actual
+   module declaration's port and parameter lists in correspondence of
+   names, positions, and their equivalent types." Names and positions are
+   checked here; types are not compared. */
+void pform_check_extern_module_header(void)
+{
+      const Module*def = pform_cur_module.front();
+      map<perm_string,Module*>::iterator cur = pform_extern_modules.find(def->mod_name());
+      if (cur == pform_extern_modules.end())
+	    return;
+      const Module*ext = cur->second;
+      pform_extern_modules.erase(cur);
+
+      bool match = def->ports.size() == ext->ports.size()
+	    && def->param_names == ext->param_names;
+      for (size_t idx = 0 ; match && idx < def->ports.size() ; idx += 1) {
+	    const Module::port_t*dp = def->ports[idx];
+	    const Module::port_t*ep = ext->ports[idx];
+	    match = (dp ? dp->name : perm_string()) == (ep ? ep->name : perm_string());
+      }
+      if (!match) {
+	    cerr << def->get_fileline() << ": error: The port or parameter "
+		 << "list of module " << def->mod_name() << " does not match "
+		 << "its extern declaration at " << ext->get_fileline()
+		 << " (IEEE 1800 23.5)." << endl;
+	    error_count += 1;
+      }
 }
 
 void pform_module_set_ports(vector<Module::port_t*>*ports)
@@ -13371,6 +13493,18 @@ static bool sva_prepend_property_formal_inits_(
 				const std::vector<sva_seq_step_t>&initializers)
 {
       if (initializers.empty()) return true;
+	/* A property operator over full properties (16.13.7): each operand
+	   gets its own copy, initialized when that operand's evaluation
+	   begins -- the attempt start, or behind a clock change the first
+	   tick of the operand's clock. An implication's consequent cannot
+	   see its antecedent's copy, so that shape is not handled. */
+      if (prop->pa) {
+	    if (prop->op_type == 23 || prop->op_type == 24 || prop->op_type == 25)
+		  return false;
+	    return sva_prepend_property_formal_inits_(loc, prop->pa, initializers)
+		&& (!prop->pb
+		    || sva_prepend_property_formal_inits_(loc, prop->pb, initializers));
+      }
 	    std::map<perm_string,PExpr*>no_subst;
 	    auto prepend = [&](std::vector<sva_seq_step_t>*steps) -> bool {
 	    if (!steps || steps->empty()) return false;
@@ -19323,6 +19457,26 @@ sva_property_t*
 pform_sva_prop_if(const struct vlltype&loc, PExpr*cond,
 		  sva_property_t*then_p, sva_property_t*else_p)
 {
+	/* IEEE 1800-2023 16.12.6: the branches are full properties. Only an
+	   all-boolean if-else folds into one boolean; anything else is a
+	   property operator evaluated per attempt. */
+      auto boolean = [](const sva_property_t*b) -> bool {
+	    return b && b->op_type == 0 && !b->antecedent && !b->tree && !b->pa
+		&& b->seq && b->seq->size() == 1
+		&& sva_step_is_single_boolean_((*b->seq)[0])
+		&& !b->clk_evt && !b->seq_clk_evt && !b->mc_prefix
+		&& b->mc_boundary == -1 && !b->disable_iff_expr;
+      };
+      if (cond && then_p && (!boolean(then_p) || (else_p && !boolean(else_p)))
+	  && !sva_property_has_match_calls_(then_p)
+	  && !(else_p && sva_property_has_match_calls_(else_p))) {
+	    sva_property_t*p = new sva_property_t;
+	    p->op_type = 22;
+	    p->pcond = cond;
+	    p->pa = then_p;
+	    p->pb = else_p;
+	    return p;
+      }
       PExpr*pe = sva_take_bool_prop_(loc, "if", then_p);
       PExpr*qe = else_p ? sva_take_bool_prop_(loc, "if", else_p) : nullptr;
       if (!cond || !pe || (else_p && !qe)) {
@@ -20604,20 +20758,57 @@ static sva_stree_t* sva_prop_take_tree_(const struct vlltype&loc, sva_property_t
 static bool sva_prop_is_property_shaped_(const sva_property_t*p);
 static bool sva_leaf_names_property_(const sva_property_t*p);
 
-/* A property operator over full properties (and/or, an abort) is a legal
-   implication consequent (A.2.10), but the per-attempt lowering does not
-   host one inside an obligation yet. Consumes conseq when it says so. */
-static bool sva_composite_conseq_sorry_(const struct vlltype&loc,
-					sva_property_t*conseq)
+/* A property operator over full properties (and/or, if-else, an abort)
+   as an implication consequent (A.2.10): build the per-attempt
+   implication node (op 23 |->, 24 |=>). ante is a sequence property. */
+static sva_property_t* sva_composite_impl_(int op_type, sva_property_t*ante,
+					   sva_property_t*conseq)
 {
-      if (!conseq || !conseq->pa) return false;
-      cerr << loc << ": sorry: a property operator over full properties "
-	   << "(`and', `or', an abort) as an implication consequent is not "
-	   << "supported yet; the "
-	   << "assertion is dropped." << endl;
-      error_count += 1;
-      pform_sva_destroy_property(conseq);
-      return true;
+      sva_property_t*p = new sva_property_t;
+      p->op_type = op_type == 1 ? 23 : 24;
+      p->pa = ante;
+      p->pb = conseq;
+      return p;
+}
+
+/* IEEE 1800-2023 16.12.1: an instance of a named property is a
+   property_expr. A bare consequent `p' or `p(args)' naming a property
+   declared so far (not a sequence) is such an instance. */
+static bool sva_seq_names_property_(const sva_property_t*p)
+{
+      if (!p || p->op_type != 0 || p->tree || p->antecedent || p->pa
+	  || p->seq_clk_evt || p->mc_prefix || !p->seq || p->seq->size() != 1)
+	    return false;
+      const sva_seq_step_t&st = p->seq->front();
+      if (st.delay_lo != 0 || st.delay_hi != 0 || st.rep_tail != 0
+	  || st.rep_kind != 0 || !st.items.empty())
+	    return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr)) {
+	    if (id->path().package || id->path().name.size() != 1
+		|| !id->path().name.front().index.empty())
+		  return false;
+	    perm_string nm = id->path().name.front().name;
+	    if (sva_in_scope_(sva_module_sequences, nm)) return false;
+	    std::map<sva_scoped_name_t, sva_property_t*>::iterator pit =
+		  sva_resolve_(sva_module_properties, nm);
+	    return pit != sva_module_properties.end() && pit->second
+		&& !sva_property_shaped_sequences.count(pit->first);
+      }
+      if (const PECallFunction*cf = dynamic_cast<const PECallFunction*>(st.expr)) {
+	    if (cf->path().package || cf->path().name.size() != 1
+		|| cf->receiver_expr())
+		  return false;
+	    perm_string nm = cf->path().name.front().name;
+	    return sva_resolve_(sva_param_properties, nm) != sva_param_properties.end();
+      }
+      return false;
+}
+
+static sva_property_t* sva_seq_prop_(std::vector<sva_seq_step_t>*chain)
+{
+      sva_property_t*p = new sva_property_t;
+      p->seq = chain;
+      return p;
 }
 
 static PEventStatement* sva_clone_event_control_(
@@ -20925,9 +21116,16 @@ sva_property_t* pform_sva_tree_implication(
 					sva_property_t*ante,
 					sva_property_t*conseq)
 {
-      if (sva_composite_conseq_sorry_(loc, conseq)) {
-	    pform_sva_destroy_property(ante);
-	    return nullptr;
+      if (conseq && conseq->pa) {
+	    if (sva_prop_is_property_shaped_(ante)) {
+		  cerr << loc << ": error: an implication antecedent shall be a "
+		       << "sequence (IEEE 1800-2023 16.12.7)." << endl;
+		  error_count += 1;
+		  pform_sva_destroy_property(ante);
+		  pform_sva_destroy_property(conseq);
+		  return nullptr;
+	    }
+	    return sva_composite_impl_(op_type, ante, conseq);
       }
       sva_stree_t*at = sva_prop_take_tree_(loc, ante);
       sva_stree_t*ct = sva_prop_take_tree_(loc, conseq);
@@ -21064,10 +21262,8 @@ sva_property_t* pform_sva_comb_consequent_sorry(
 					std::vector<sva_seq_step_t>*ante,
 					sva_property_t*conseq)
 {
-      if (sva_composite_conseq_sorry_(loc, conseq)) {
-	    pform_sva_destroy_sequence(ante);
-	    return nullptr;
-      }
+      if (conseq && conseq->pa)
+	    return sva_composite_impl_(op_type, sva_seq_prop_(ante), conseq);
       sva_stree_t*at = sva_chain_take_tree_(ante);
       sva_stree_t*ct = sva_prop_take_tree_(loc, conseq);
       if (!at || !ct) {
@@ -21127,10 +21323,11 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    pform_sva_destroy_property(conseq);
 	    return nullptr;
       }
-      if (sva_composite_conseq_sorry_(loc, conseq)) {
-	    pform_sva_destroy_sequence(ante);
-	    return nullptr;
-      }
+      if (conseq && conseq->pa)
+	    return sva_composite_impl_(op_type, sva_seq_prop_(ante), conseq);
+	/* A named property instance as the consequent (#918). */
+      if (sva_seq_names_property_(conseq))
+	    return sva_composite_impl_(op_type, sva_seq_prop_(ante), conseq);
       if (sva_prop_is_plain_seq_(conseq)) {
 	    std::vector<sva_seq_step_t>*chain = conseq->seq;
 	    conseq->seq = nullptr;
@@ -22827,7 +23024,11 @@ static bool sva_nfa_local_prefix_safe_(
 			return false;
 		  }
 		  assignments[item.lv_name] = 1;
-		  assigned_here[item.lv_name] = 0;
+		  /* A declaration initializer on the first step is performed
+		     when the slot is injected, before that tick's guards are
+		     sampled (16.13.7), so a same-tick read sees it. */
+		  if (!(item.lv_initialization && i == 0))
+			assigned_here[item.lv_name] = 0;
 	    }
 	    for (size_t j = i + 1 ; !assigned_here.empty()
 		 && j < tree->chain->size() ; j += 1) {
@@ -22992,6 +23193,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    match_calls = sva_step_calls_(prop->seq->back());
 	  bool preserve_match_endpoints = !match_calls.empty();
       if (sub && preserve_match_endpoints) return false;
+      if (sub && sub->endpoints) {
+	    if (prop->op_type != 0 || prop->antecedent || prop->ante_tree)
+		  return false;
+	    preserve_match_endpoints = true;
+      }
       std::map<std::string, pform_name_t> prep_sampled;
       unsigned prep_live_operands = 0;
       std::vector< std::vector<named_pexpr_t> > match_args;
@@ -23975,6 +24181,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				   inj, nullptr));
       }
 
+	/* Endpoint mode reports this tick's events only. */
+      if (sub && sub->endpoints)
+	    for (long k = 0 ; k < K ; k += 1)
+		  body.push_back(set_verdict(k, 0));
+
 	/* Per-slot advance. */
       for (long k = 0 ; k < K ; k += 1) {
 	      /* Obligation: set the sticky bit the tick the antecedent
@@ -24142,7 +24353,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			set_verdict(k, forbidden ? 1 : 3), set_verdict(k, 2)));
 		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
 	    } else if (sub) {
-		  if (!endpoint_fanout)
+		  /* Endpoint mode reports `nothing left' after the advance. */
+		  if (!sub->endpoints && !endpoint_fanout)
 			die_v.push_back(set_verdict(k, negated ? 1 : 3));
 	    } else if (track_ob) {
 		  std::vector<Statement*> vac;
@@ -24184,6 +24396,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					   sva_block_(loc, die_v),
 					   sva_block_(loc, cont_v)));
 	    body.push_back(st);
+	    if (sub && sub->endpoints) {
+		  PEBinary*done = new PEBinary('|', sva_id_(loc, vd[k]),
+					       sva_num32_(loc, 2));
+		  FILE_NAME(done, loc);
+		  body.push_back(sva_if_(loc, sva_not_(loc, busy_expr(k)),
+				   sva_assign_(loc, vd[k], done), nullptr));
+	    }
       }
 
 	/* |-> consumes the consequence's first tick on the endpoint tick. All
@@ -32348,6 +32567,30 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
       return p;
 }
 
+/* `( @(c) s |-> p )': an implication with its own leading clock. */
+sva_property_t* pform_sva_clocked_paren_impl(const struct vlltype&loc,
+					     PEventStatement*clk, int op_type,
+					     std::vector<sva_seq_step_t>*ante,
+					     sva_property_t*conseq)
+{
+      sva_property_t*p = pform_sva_paren_conseq(loc, op_type, ante, conseq);
+      if (!p) {
+	    delete clk;
+	    return nullptr;
+      }
+      if (p->pa || p->clk_evt) {
+	    cerr << loc << ": sorry: a parenthesized clocked implication with "
+		 << "this consequent is not supported yet; the assertion is "
+		 << "dropped." << endl;
+	    error_count += 1;
+	    delete clk;
+	    pform_sva_destroy_property(p);
+	    return nullptr;
+      }
+      p->clk_evt = clk;
+      return p;
+}
+
 /* Build a property-level and/or. An operand that is a bare reference to a
    declared property stays a reference; the composite lowering expands it. */
 sva_property_t* pform_sva_prop_compose(const struct vlltype&loc, int op_type,
@@ -32405,6 +32648,7 @@ struct sva_comp_ctx_t {
       const struct vlltype*loc;
       PEventStatement*clk;        // the composite's resolved clock (borrowed)
       unsigned*hist_idx;          // sampled-value history of the composite
+      long rate = 1;              // attempts started per tick, at most
 };
 
 static void sva_comp_sorry_(const struct vlltype&loc, const char*what)
@@ -32456,8 +32700,28 @@ static bool sva_comp_leaf_(const sva_comp_ctx_t&ctx, sva_property_t*leaf,
 /* Plan pass: the slot count every operand needs. Operands are planned on
    copies, so nothing is consumed. */
 static bool sva_comp_plan_(const sva_comp_ctx_t&ctx, const sva_property_t*p,
-			   long&K)
+			   long&K, bool endpoints = false,
+			   PEventStatement*domain_clk = nullptr)
 {
+	/* An implication's parent attempt lives through its antecedent and
+	   the consequence evaluations it starts. */
+      if (p && p->op_type == 27) {
+	    /* An attempt also waits for the first tick of the other clock;
+	       that wait is not bounded in ticks of this clock. */
+	    long KQ = 1;
+	    if (!sva_comp_plan_(ctx, p->pa, KQ, false, p->seq_clk_evt))
+		  return false;
+	    if (KQ + 4 > K) K = KQ + 4;
+	    return true;
+      }
+      if (p && (p->op_type == 23 || p->op_type == 24 || p->op_type == 25)) {
+	    long KA = 1, KC = 1;
+	    if (!sva_comp_plan_(ctx, p->pa, KA, true)
+		|| !sva_comp_plan_(ctx, p->pb, KC))
+		  return false;
+	    if (KA + KC > K) K = KA + KC;
+	    return true;
+      }
       if (sva_prop_is_composite_(p))
 	    return sva_comp_plan_(ctx, p->pa, K)
 		&& (!p->pb || sva_comp_plan_(ctx, p->pb, K));
@@ -32469,7 +32733,10 @@ static bool sva_comp_plan_(const sva_comp_ctx_t&ctx, const sva_property_t*p,
       }
       sva_nfa_sub_t req;
       req.plan = true;
-      if (!sva_comp_leaf_(ctx, copy, req)) return false;
+      req.endpoints = endpoints;
+      sva_comp_ctx_t leaf_ctx = ctx;
+      if (domain_clk) leaf_ctx.clk = domain_clk;
+      if (!sva_comp_leaf_(leaf_ctx, copy, req)) return false;
       if (req.K > K) K = req.K;
       return true;
 }
@@ -32485,6 +32752,7 @@ static void sva_comp_append_(std::vector<Statement*>&to,
 static void sva_comp_inherit_(sva_nfa_sub_t&m, sva_nfa_sub_t&child)
 {
       sva_comp_append_(m.recompute, child.recompute);
+      sva_comp_append_(m.sweep, child.sweep);
       m.domains.insert(m.domains.end(), child.domains.begin(),
 		       child.domains.end());
       child.domains.clear();
@@ -32509,6 +32777,102 @@ static PExpr* sva_comp_eq_(const struct vlltype&loc, perm_string reg, int v)
 
 static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
 			   unsigned inst, unsigned&serial, sva_nfa_sub_t&m);
+
+/* A boolean of a property operator (an abort or if condition) sampled at
+   the composite's tick through the same Preponed / sampled-value rewrite
+   as an automaton guard; the register is written in m.pre. Does not
+   consume cond. Returns a nil name when cond cannot be sampled. */
+static perm_string sva_comp_sample_(const sva_comp_ctx_t&ctx, unsigned inst,
+				    unsigned node, PExpr*cond,
+				    sva_nfa_sub_t&m)
+{
+      const struct vlltype&loc = *ctx.loc;
+      std::map<std::string, pform_name_t> sampled;
+      unsigned live_operands = 0;
+      PExpr*copy = sva_clone_expr_(cond);
+      PExpr*prep = copy ? sva_wrap_preponed_(copy, sampled, live_operands)
+			: nullptr;
+      if (!prep) return perm_string();
+      PExpr*be = sva_booleanize_(loc, sva_rewrite_sampled_(loc, prep, inst,
+				 *ctx.hist_idx, m.pre, m.post, m.init));
+      char what[32];
+      snprintf(what, sizeof what, "c%ucs", node);
+      perm_string cs = sva_make_reg_(loc, inst, what, 0);
+      m.pre.push_back(sva_assign_(loc, cs, be));
+      for (std::map<std::string, pform_name_t>::const_iterator it =
+		 sampled.begin() ; it != sampled.end() ; ++it)
+	    m.init.push_back(sva_hist_on_stmt_(loc, it->second));
+      if (live_operands > 0)
+	    cerr << loc << ": warning: this property condition has "
+		 << live_operands << " operand(s) that are read live instead "
+		 << "of sampled (IEEE 1800-2017 16.5.1)." << endl;
+      return cs;
+}
+
+/* IEEE 1800-2023 16.12.6: `if (c) P1 [else P2]' with full property
+   branches. c is sampled at the attempt's first tick and selects the one
+   branch that is started; without an else, a false c is a vacuous
+   success (16.14.8 g). */
+static bool sva_comp_emit_if_(const sva_comp_ctx_t&ctx, sva_property_t*p,
+			      long K, unsigned inst, unsigned&serial,
+			      sva_nfa_sub_t&m)
+{
+      const struct vlltype&loc = *ctx.loc;
+      PExpr*cond = p->pcond;
+      sva_property_t*pa = p->pa;
+      sva_property_t*pb = p->pb;
+      p->pcond = nullptr;
+      p->pa = p->pb = nullptr;
+      pform_sva_destroy_property(p);
+      sva_nfa_sub_t ma, mb;
+      bool ok = sva_comp_emit_(ctx, pa, K, inst, serial, ma);
+      if (ok && pb) ok = sva_comp_emit_(ctx, pb, K, inst, serial, mb);
+      else if (!ok) pform_sva_destroy_property(pb);
+      if (!ok) { delete cond; return false; }
+      unsigned node = serial++;
+      perm_string cs = sva_comp_sample_(ctx, inst, node, cond, m);
+      delete cond;
+      if (cs.nil()) {
+	    sva_comp_sorry_(loc, "this if condition cannot be sampled");
+	    return false;
+      }
+      sva_comp_append_(m.pre, ma.pre);
+      sva_comp_append_(m.pre, mb.pre);
+      sva_comp_append_(m.body, ma.body);
+      sva_comp_append_(m.body, mb.body);
+      sva_comp_append_(m.post, ma.post);
+      sva_comp_append_(m.post, mb.post);
+      sva_comp_append_(m.init, ma.init);
+      sva_comp_append_(m.init, mb.init);
+      sva_comp_inherit_(m, ma);
+      sva_comp_inherit_(m, mb);
+      m.vd.resize(K);
+      m.inject.resize(K);
+      m.kill.resize(K);
+      char what[32];
+      for (long k = 0 ; k < K ; k += 1) {
+	    snprintf(what, sizeof what, "c%uvd", node);
+	    m.vd[k] = sva_make_reg_(loc, inst, what, (unsigned)k, true);
+	    snprintf(what, sizeof what, "c%usel", node);
+	    perm_string sel = sva_make_reg_(loc, inst, what, (unsigned)k);
+	    m.init.push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+	    m.init.push_back(sva_assign_(loc, sel, sva_bit_(loc, 0)));
+	    m.inject[k].push_back(sva_assign_(loc, sel, sva_id_(loc, cs)));
+	    Statement*then_inj = sva_block_(loc, ma.inject[k]);
+	    Statement*else_inj = pb ? sva_block_(loc, mb.inject[k]) : nullptr;
+	    m.inject[k].push_back(sva_if_(loc, sva_id_(loc, cs), then_inj, else_inj));
+	    m.inject[k].push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+	    sva_comp_append_(m.kill[k], ma.kill[k]);
+	    if (pb) sva_comp_append_(m.kill[k], mb.kill[k]);
+	    m.kill[k].push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+	    PExpr*other = pb ? (PExpr*)sva_id_(loc, mb.vd[k]) : sva_num32_(loc, 2);
+	    sva_comp_body_and_recompute_(m, sva_if_(loc, sva_id_(loc, sel),
+		  sva_assign_(loc, m.vd[k], sva_id_(loc, ma.vd[k])),
+		  sva_assign_(loc, m.vd[k], other)));
+      }
+      m.built = true;
+      return true;
+}
 
 /* IEEE 1800-2023 16.12.14: accept_on/reject_on (asynchronous) and
    sync_accept_on/sync_reject_on over a full property operand. While an
@@ -32545,31 +32909,19 @@ static bool sva_comp_emit_abort_(const sva_comp_ctx_t&ctx, sva_property_t*p,
       unsigned node = serial++;
       char what[32];
 
-	/* The tick sample, through the same Preponed / sampled-value rewrite
-	   as an automaton guard. */
+	/* The tick sample of the condition. */
+      perm_string cs = sva_comp_sample_(ctx, inst, node, cond, m);
       std::map<std::string, pform_name_t> sampled;
       unsigned live_operands = 0;
-      PExpr*tick_cond = sva_clone_expr_(cond);
-      PExpr*prep = tick_cond ? sva_wrap_preponed_(tick_cond, sampled,
-						  live_operands) : nullptr;
       PExpr*async_prep = async && cond
 	    ? sva_wrap_preponed_(cond, sampled, live_operands) : nullptr;
-      if (!prep || (async && !async_prep)) {
-	    sva_comp_sorry_(loc, "this abort condition cannot be sampled");
-	    return false;
-      }
-      PExpr*be = sva_booleanize_(loc, sva_rewrite_sampled_(loc, prep, inst,
-				 *ctx.hist_idx, m.pre, m.post, m.init));
-      snprintf(what, sizeof what, "c%ucs", node);
-      perm_string cs = sva_make_reg_(loc, inst, what, 0);
-      m.pre.push_back(sva_assign_(loc, cs, be));
       for (std::map<std::string, pform_name_t>::const_iterator it =
 		 sampled.begin() ; it != sampled.end() ; ++it)
 	    m.init.push_back(sva_hist_on_stmt_(loc, it->second));
-      if (live_operands > 0)
-	    cerr << loc << ": warning: this abort condition has "
-		 << live_operands << " operand(s) that are read live instead "
-		 << "of sampled (IEEE 1800-2017 16.5.1)." << endl;
+      if (cs.nil() || (async && !async_prep)) {
+	    sva_comp_sorry_(loc, "this abort condition cannot be sampled");
+	    return false;
+      }
 
 	/* An asynchronous condition (16.12.14) is checked at the time step
 	   it holds in, which a discrete-event checker sees at the next tick
@@ -32640,6 +32992,364 @@ static bool sva_comp_emit_abort_(const sva_comp_ctx_t&ctx, sva_property_t*p,
       return true;
 }
 
+
+/* `s |-> P' / `s |=> P' whose consequent P is itself a property operator
+   (16.12.7; A.2.10 makes the consequent a property_expr). Parent slot k
+   runs s in endpoint mode. Every end point of s starts one evaluation of
+   P (|=> one tick later) in its own slot o of P's pool, owned by k. The
+   parent fails as soon as an owned evaluation fails; it succeeds when s
+   can produce no more end points and no owned evaluation is pending,
+   nonvacuously iff s matched and some evaluation succeeded nonvacuously
+   (16.14.8 h). */
+static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
+				long K, unsigned inst, unsigned&serial,
+				sva_nfa_sub_t&m)
+{
+      const struct vlltype&loc = *ctx.loc;
+	/* op 25 is the existential form (a multiclocked sequence used as a
+	   property, `s ##1 @(c) t': true iff some end point of s is followed
+	   by a match, 16.13.2), with no end point a failure. */
+      bool exist = p->op_type == 25;
+      bool overlap = p->op_type == 23 || exist;
+      sva_property_t*ante = p->pa;
+      sva_property_t*conseq = p->pb;
+      p->pa = p->pb = nullptr;
+      pform_sva_destroy_property(p);
+
+      long KA = 1, KC = 1;
+      if (!sva_comp_plan_(ctx, ante, KA, true)
+	  || !sva_comp_plan_(ctx, conseq, KC)) {
+	    pform_sva_destroy_property(ante);
+	    pform_sva_destroy_property(conseq);
+	    return false;
+      }
+	/* Live evaluations: those started in the last KC ticks. Each tick at
+	   most `rate' attempts start here and each lives at most KA ticks, so
+	   at most rate*KA antecedent attempts can end in one tick. */
+      long OK = ctx.rate * KA * KC;
+      const long ok_cap = 64;
+      if (OK > ok_cap) OK = ok_cap;
+
+      sva_nfa_sub_t ma, mc;
+      ma.endpoints = true;
+      ma.K = K;
+      if (!sva_comp_leaf_(ctx, ante, ma)) {
+	    pform_sva_destroy_property(conseq);
+	    return false;
+      }
+      sva_comp_ctx_t conseq_ctx = ctx;
+      conseq_ctx.rate = ctx.rate * KA;
+      if (!sva_comp_emit_(conseq_ctx, conseq, OK, inst, serial, mc)) return false;
+      unsigned node = serial++;
+      char what[32];
+
+      sva_comp_append_(m.pre, ma.pre);
+      sva_comp_append_(m.pre, mc.pre);
+      sva_comp_append_(m.post, ma.post);
+      sva_comp_append_(m.post, mc.post);
+      sva_comp_append_(m.init, ma.init);
+      sva_comp_append_(m.init, mc.init);
+
+      auto reg = [&](const char*tag, long idx, bool wide) -> perm_string {
+	    snprintf(what, sizeof what, "c%u%s", node, tag);
+	    perm_string r = sva_make_reg_(loc, inst, what, (unsigned)idx, wide);
+	    m.init.push_back(sva_assign_(loc, r, wide ? sva_num32_(loc, 0)
+						 : sva_bit_(loc, 0)));
+	    return r;
+      };
+      std::vector<perm_string> matched (K), bad (K), nv (K), adone (K), sp1 (K),
+			       rq (K);
+      m.vd.resize(K);
+      for (long k = 0 ; k < K ; k += 1) {
+	    m.vd[k] = reg("vd", k, true);
+	    matched[k] = reg("m", k, false);
+	    bad[k] = reg("bad", k, false);
+	    nv[k] = reg("nv", k, false);
+	    adone[k] = reg("ad", k, false);
+	    rq[k] = reg("rq", k, false);
+	    if (!overlap) sp1[k] = reg("sp", k, false);
+      }
+      std::vector<perm_string> olive (OK), owner (OK), drop (OK);
+      for (long o = 0 ; o < OK ; o += 1) {
+	    olive[o] = reg("ol", o, false);
+	    owner[o] = reg("ow", o, true);
+	    drop[o] = reg("dr", o, false);
+      }
+      perm_string ovf = reg("ovf", 0, false);
+
+      auto owned = [&](long o, long k) -> PExpr* {
+	    PEBComp*eq = new PEBComp('e', sva_id_(loc, owner[o]), sva_num32_(loc, k));
+	    FILE_NAME(eq, loc);
+	    return sva_logic_(loc, 'a', sva_id_(loc, olive[o]), eq);
+      };
+      auto bit = [&](perm_string r, int b) -> PExpr* {
+	    PEBinary*and_ = new PEBinary('&', sva_id_(loc, r), sva_num32_(loc, b));
+	    FILE_NAME(and_, loc);
+	    PEBComp*ne = new PEBComp('n', and_, sva_num32_(loc, 0));
+	    FILE_NAME(ne, loc);
+	    return ne;
+      };
+      auto any_request = [&]() -> PExpr* {
+	    PExpr*any = sva_id_(loc, rq[0]);
+	    for (long k = 1 ; k < K ; k += 1)
+		  any = sva_logic_(loc, 'o', any, sva_id_(loc, rq[k]));
+	    return any;
+      };
+
+      m.inject.resize(K);
+      m.kill.resize(K);
+      for (long k = 0 ; k < K ; k += 1) {
+	    sva_comp_append_(m.inject[k], ma.inject[k]);
+	    perm_string flags[] = { matched[k], bad[k], nv[k], adone[k], rq[k] };
+	    for (perm_string f : flags) {
+		  m.inject[k].push_back(sva_assign_(loc, f, sva_bit_(loc, 0)));
+		  m.kill[k].push_back(sva_assign_(loc, f, sva_bit_(loc, 0)));
+	    }
+	    if (!overlap) {
+		  m.inject[k].push_back(sva_assign_(loc, sp1[k], sva_bit_(loc, 0)));
+		  m.kill[k].push_back(sva_assign_(loc, sp1[k], sva_bit_(loc, 0)));
+	    }
+	    m.inject[k].push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+	    sva_comp_append_(m.kill[k], ma.kill[k]);
+	      /* Owned evaluations are only marked here; the sweep retires
+		 them once, so the evaluation pool is not copied per parent. */
+	    for (long o = 0 ; o < OK ; o += 1) {
+		  std::vector<Statement*> mark;
+		  mark.push_back(sva_assign_(loc, olive[o], sva_bit_(loc, 0)));
+		  mark.push_back(sva_assign_(loc, drop[o], sva_bit_(loc, 1)));
+		  m.kill[k].push_back(sva_if_(loc, owned(o, k),
+				      sva_block_(loc, mark), nullptr));
+	    }
+	    m.kill[k].push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+      }
+	/* The sweep: every retired evaluation is killed exactly once, before
+	   its slot can be reused (the parent runs it at the end of each tick,
+	   in every clock domain). Inner pools sweep after this one. */
+      for (long o = 0 ; o < OK ; o += 1) {
+	    std::vector<Statement*> retire = mc.kill[o];
+	    mc.kill[o].clear();
+	    retire.push_back(sva_assign_(loc, drop[o], sva_bit_(loc, 0)));
+	    m.sweep.push_back(sva_if_(loc, sva_id_(loc, drop[o]),
+				      sva_block_(loc, retire), nullptr));
+      }
+      sva_comp_inherit_(m, ma);
+      sva_comp_inherit_(m, mc);
+
+	/* Allocation: each requesting parent gets the next free evaluation
+	   slot; the slot's start statements exist once. */
+      std::vector<Statement*> alloc;
+      for (long o = 0 ; o < OK ; o += 1) {
+	    Statement*pick = nullptr;
+	    for (long k = K - 1 ; k >= 0 ; k -= 1) {
+		  std::vector<Statement*> take;
+		  take.push_back(sva_assign_(loc, owner[o], sva_num32_(loc, k)));
+		  take.push_back(sva_assign_(loc, rq[k], sva_bit_(loc, 0)));
+		  pick = sva_if_(loc, sva_id_(loc, rq[k]), sva_block_(loc, take), pick);
+	    }
+	    std::vector<Statement*> start;
+	    start.push_back(pick);
+	    start.push_back(sva_assign_(loc, olive[o], sva_bit_(loc, 1)));
+	    start.push_back(sva_assign_(loc, drop[o], sva_bit_(loc, 0)));
+	    sva_comp_append_(start, mc.inject[o]);
+	    alloc.push_back(sva_if_(loc, sva_logic_(loc, 'a',
+			    sva_not_(loc, sva_id_(loc, olive[o])), any_request()),
+			    sva_block_(loc, start), nullptr));
+      }
+      {
+	    char msg[256];
+	    snprintf(msg, sizeof msg, "%s:%u: SVA: consequence evaluation pool "
+		     "overflow (%ld slots) -- evaluations are being dropped",
+		     loc.text ? loc.text : "?", (unsigned)loc.first_line, OK);
+	    std::list<named_pexpr_t> dargs;
+	    named_pexpr_t darg;
+	    darg.parm = new PEString(strdup(msg));
+	    dargs.push_back(darg);
+	    PCallTask*warn = new PCallTask(lex_strings.make("$display"), dargs);
+	    FILE_NAME(warn, loc);
+	    std::vector<Statement*> lost;
+	    lost.push_back(sva_if_(loc, sva_not_(loc, sva_id_(loc, ovf)), warn, nullptr));
+	    lost.push_back(sva_assign_(loc, ovf, sva_bit_(loc, 1)));
+	    for (long k = 0 ; k < K ; k += 1)
+		  lost.push_back(sva_assign_(loc, rq[k], sva_bit_(loc, 0)));
+	    alloc.push_back(sva_if_(loc, any_request(), sva_block_(loc, lost), nullptr));
+      }
+
+	/* |=>: last tick's end points start their evaluations now. */
+      if (!overlap) {
+	    for (long k = 0 ; k < K ; k += 1) {
+		  m.body.push_back(sva_if_(loc, sva_id_(loc, sp1[k]),
+			sva_assign_(loc, rq[k], sva_bit_(loc, 1)), nullptr));
+		  m.body.push_back(sva_assign_(loc, sp1[k], sva_bit_(loc, 0)));
+	    }
+	    sva_comp_append_(m.body, alloc);
+      }
+      sva_comp_append_(m.body, ma.body);
+      for (long k = 0 ; k < K ; k += 1) {
+	    std::vector<Statement*> hit;
+	    hit.push_back(sva_assign_(loc, matched[k], sva_bit_(loc, 1)));
+	    hit.push_back(sva_assign_(loc, overlap ? rq[k] : sp1[k], sva_bit_(loc, 1)));
+	    m.body.push_back(sva_if_(loc, bit(ma.vd[k], 1),
+				     sva_block_(loc, hit), nullptr));
+	    m.body.push_back(sva_if_(loc, bit(ma.vd[k], 2),
+			     sva_assign_(loc, adone[k], sva_bit_(loc, 1)), nullptr));
+      }
+      if (overlap) sva_comp_append_(m.body, alloc);
+      sva_comp_append_(m.body, mc.body);
+      for (long o = 0 ; o < OK ; o += 1) {
+	    std::vector<Statement*> done;
+	    for (long k = 0 ; k < K ; k += 1) {
+		  PEBComp*mine = new PEBComp('e', sva_id_(loc, owner[o]),
+					     sva_num32_(loc, k));
+		  FILE_NAME(mine, loc);
+		  std::vector<Statement*> note;
+		  auto failed = [&]() {
+			return sva_logic_(loc, 'o', sva_comp_eq_(loc, mc.vd[o], 3),
+					  sva_comp_eq_(loc, mc.vd[o], 4));
+		  };
+		  if (!exist)
+			note.push_back(sva_if_(loc, failed(),
+				 sva_assign_(loc, bad[k], sva_bit_(loc, 1)), nullptr));
+		  /* universal: nonvacuous evaluation seen, passed or failed
+		     (16.14.8 h); existential: a match */
+		  PExpr*good = exist ? sva_not_(loc, failed())
+			: sva_logic_(loc, 'o', sva_comp_eq_(loc, mc.vd[o], 1),
+				     sva_comp_eq_(loc, mc.vd[o], 3));
+		  note.push_back(sva_if_(loc, good,
+				 sva_assign_(loc, nv[k], sva_bit_(loc, 1)), nullptr));
+		  done.push_back(sva_if_(loc, mine, sva_block_(loc, note), nullptr));
+	    }
+	    done.push_back(sva_assign_(loc, olive[o], sva_bit_(loc, 0)));
+	    done.push_back(sva_assign_(loc, drop[o], sva_bit_(loc, 1)));
+	    PExpr*decided = sva_logic_(loc, 'a', sva_id_(loc, olive[o]),
+			    sva_not_(loc, sva_comp_eq_(loc, mc.vd[o], 0)));
+	    sva_comp_body_and_recompute_(m, sva_if_(loc, decided,
+					     sva_block_(loc, done), nullptr));
+      }
+      for (long k = 0 ; k < K ; k += 1) {
+	    PExpr*pending = sva_id_(loc, rq[k]);
+	    for (long o = 0 ; o < OK ; o += 1)
+		  pending = sva_logic_(loc, 'o', pending, owned(o, k));
+	    if (!overlap)
+		  pending = sva_logic_(loc, 'o', pending, sva_id_(loc, sp1[k]));
+	    PExpr*ready = sva_logic_(loc, 'a', sva_id_(loc, adone[k]),
+					 sva_not_(loc, pending));
+	    if (exist) {
+		  sva_comp_body_and_recompute_(m, sva_if_(loc, sva_id_(loc, nv[k]),
+			sva_assign_(loc, m.vd[k], sva_num32_(loc, 1)),
+			sva_if_(loc, ready,
+				sva_assign_(loc, m.vd[k], sva_num32_(loc, 3)),
+				sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)))));
+	    } else {
+		  PExpr*nonvac = sva_logic_(loc, 'a', sva_id_(loc, matched[k]),
+					    sva_id_(loc, nv[k]));
+		  sva_comp_body_and_recompute_(m, sva_if_(loc, sva_id_(loc, bad[k]),
+			sva_if_(loc, sva_id_(loc, nv[k]),
+				sva_assign_(loc, m.vd[k], sva_num32_(loc, 3)),
+				sva_assign_(loc, m.vd[k], sva_num32_(loc, 4))),
+			sva_if_(loc, ready,
+				sva_if_(loc, nonvac,
+					sva_assign_(loc, m.vd[k], sva_num32_(loc, 1)),
+					sva_assign_(loc, m.vd[k], sva_num32_(loc, 2))),
+				sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)))));
+	    }
+      }
+      m.built = true;
+      return true;
+}
+
+/* A clock switch with a strictly-subsequent boundary (16.13.1 `##1 @(c)',
+   16.13.2 `|=> @(c)'): attempt k of the operand starts at the first tick
+   of clock c strictly after the parent asked for it. The operand runs in
+   a process of its own on c. The request carries its $realtime, so a tick
+   in the same time step as the request never takes it, whatever the
+   process order, and the next tick always does. */
+static bool sva_comp_emit_switch_(const sva_comp_ctx_t&ctx, sva_property_t*p,
+				  long K, unsigned inst, unsigned&serial,
+				  sva_nfa_sub_t&m)
+{
+      const struct vlltype&loc = *ctx.loc;
+      PEventStatement*clk = p->seq_clk_evt;
+      sva_property_t*leaf = p->pa;
+      p->seq_clk_evt = nullptr;
+      p->pa = nullptr;
+      pform_sva_destroy_property(p);
+      if (sva_prop_is_composite_(leaf)) {
+	    sva_comp_sorry_(loc, "a property operator behind a clock change is "
+			    "not supported yet");
+	    delete clk;
+	    pform_sva_destroy_property(leaf);
+	    return false;
+      }
+      sva_comp_ctx_t leaf_ctx = ctx;
+      leaf_ctx.clk = clk;
+      sva_nfa_sub_t mq;
+      mq.K = K;
+      if (!sva_comp_leaf_(leaf_ctx, leaf, mq)) {
+	    delete clk;
+	    return false;
+      }
+      unsigned node = serial++;
+      char what[32];
+      sva_comp_append_(m.init, mq.init);
+
+      std::list<named_pexpr_t> no_args;
+      auto now = [&]() -> PExpr* {
+	    PECallFunction*t = new PECallFunction(
+		  perm_string::literal("$realtime"), no_args);
+	    FILE_NAME(t, loc);
+	    return t;
+      };
+      sva_nfa_domain_t dom;
+      dom.clk = clk;
+      sva_comp_append_(dom.pre, mq.pre);
+      sva_comp_append_(dom.post, mq.post);
+      m.vd.resize(K);
+      m.inject.resize(K);
+      m.kill.resize(K);
+      for (long k = 0 ; k < K ; k += 1) {
+	    snprintf(what, sizeof what, "c%uvd", node);
+	    m.vd[k] = sva_make_reg_(loc, inst, what, (unsigned)k, true);
+	    snprintf(what, sizeof what, "c%ureq", node);
+	    perm_string req = sva_make_reg_(loc, inst, what, (unsigned)k);
+	    snprintf(what, sizeof what, "c%ugo", node);
+	    perm_string go = sva_make_reg_(loc, inst, what, (unsigned)k);
+	    snprintf(what, sizeof what, "c%urt", node);
+	    perm_string rt = sva_make_reg_(loc, inst, what, (unsigned)k,
+					   false, true);
+	    m.init.push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+	    m.init.push_back(sva_assign_(loc, req, sva_bit_(loc, 0)));
+	    m.init.push_back(sva_assign_(loc, go, sva_bit_(loc, 0)));
+	    m.inject[k].push_back(sva_assign_(loc, req, sva_bit_(loc, 1)));
+	    m.inject[k].push_back(sva_assign_(loc, go, sva_bit_(loc, 0)));
+	    m.inject[k].push_back(sva_assign_(loc, rt, now()));
+	    m.inject[k].push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+	    m.kill[k].push_back(sva_assign_(loc, req, sva_bit_(loc, 0)));
+	    m.kill[k].push_back(sva_assign_(loc, go, sva_bit_(loc, 0)));
+	    sva_comp_append_(m.kill[k], mq.kill[k]);
+	    m.kill[k].push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+
+	    PEBComp*earlier = new PEBComp('<', sva_id_(loc, rt), now());
+	    FILE_NAME(earlier, loc);
+	    PExpr*due = sva_logic_(loc, 'a', sva_logic_(loc, 'a',
+		  sva_id_(loc, req), sva_not_(loc, sva_id_(loc, go))), earlier);
+	    std::vector<Statement*> start;
+	    start.push_back(sva_assign_(loc, go, sva_bit_(loc, 1)));
+	    sva_comp_append_(start, mq.inject[k]);
+	    dom.body.push_back(sva_if_(loc, due, sva_block_(loc, start), nullptr));
+      }
+      sva_comp_append_(dom.body, mq.body);
+	/* The operand's verdict passes through; the parent domain only ever
+	   re-reads it. */
+      for (long k = 0 ; k < K ; k += 1) {
+	    Statement*copy = sva_assign_(loc, m.vd[k], sva_id_(loc, mq.vd[k]));
+	    dom.body.push_back(sva_assign_(loc, m.vd[k], sva_id_(loc, mq.vd[k])));
+	    m.recompute.push_back(copy);
+      }
+      m.domains.push_back(dom);
+      m.built = true;
+      return true;
+}
+
 /* Emit pass: build the monitor for p with K slots into m (consumes p). */
 static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
 			   unsigned inst, unsigned&serial, sva_nfa_sub_t&m)
@@ -32651,6 +33361,12 @@ static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
       }
       if (p->op_type >= 14 && p->op_type <= 17)
 	    return sva_comp_emit_abort_(ctx, p, K, inst, serial, m);
+      if (p->op_type == 22)
+	    return sva_comp_emit_if_(ctx, p, K, inst, serial, m);
+      if (p->op_type == 23 || p->op_type == 24 || p->op_type == 25)
+	    return sva_comp_emit_impl_(ctx, p, K, inst, serial, m);
+      if (p->op_type == 27)
+	    return sva_comp_emit_switch_(ctx, p, K, inst, serial, m);
       sva_nfa_sub_t ma, mb;
       sva_property_t*pa = p->pa;
       sva_property_t*pb = p->pb;
@@ -32735,6 +33451,144 @@ static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
       return true;
 }
 
+/* Rewrite each multiclocked leaf (16.13.1/16.13.2) into an implication or
+   existential node whose second part sits behind a clock switch:
+     s |=> @(c) t      ->  s |-> switch(c, t)
+     s ##1 @(c) t      ->  exists an end point of s followed by switch(c, t)
+   Only the strictly-subsequent boundaries and one clock change are
+   handled; anything else is refused loudly. */
+static sva_property_t* sva_comp_split_multiclock_(const struct vlltype&loc,
+						  sva_property_t*p, bool&ok)
+{
+      if (!p || !ok) return p;
+      if (sva_prop_is_composite_(p)) {
+	    p->pa = sva_comp_split_multiclock_(loc, p->pa, ok);
+	    p->pb = sva_comp_split_multiclock_(loc, p->pb, ok);
+	    return p;
+      }
+      if (!p->seq_clk_evt) return p;
+      bool implication = (p->op_type == 1 || p->op_type == 2) && p->antecedent
+			 && !p->mc_prefix;
+      bool sequence = p->op_type == 0 && p->mc_prefix && !p->antecedent;
+      bool strict = implication ? p->op_type == 2 : p->mc_boundary == 1;
+      if ((!implication && !sequence) || !strict || p->tree || p->ante_tree
+	  || (p->mc_more && !p->mc_more->empty()) || !p->seq) {
+	    sva_comp_sorry_(loc, "this multiclocked operand of a property "
+			    "operator is not supported yet (only one `|=> @(c)' "
+			    "or `##1 @(c)' clock change is)");
+	    ok = false;
+	    return p;
+      }
+      sva_property_t*first = new sva_property_t;
+      first->seq = implication ? p->antecedent : p->mc_prefix;
+      first->clk_evt = p->clk_evt;
+      first->local_names = p->local_names;
+      sva_property_t*second = new sva_property_t;
+      second->seq = p->seq;
+      second->local_names = p->local_names;
+      sva_property_t*sw = new sva_property_t;
+      sw->op_type = 27;
+      sw->pa = second;
+      sw->seq_clk_evt = p->seq_clk_evt;
+      sva_property_t*node = new sva_property_t;
+      node->op_type = implication ? 23 : 25;
+      node->pa = first;
+      node->pb = sw;
+      p->antecedent = p->mc_prefix = p->seq = nullptr;
+      p->clk_evt = p->seq_clk_evt = nullptr;
+      pform_sva_destroy_property(p);
+      return node;
+}
+
+/* A clock that differs from the composite's own clock, if leaf has one. */
+static bool sva_comp_leaf_other_clock_(const sva_property_t*leaf,
+				       const PEventStatement*clk)
+{
+      return leaf && leaf->clk_evt
+	  && !(clk && sva_event_controls_identical_(leaf->clk_evt, clk));
+}
+
+static bool sva_comp_has_other_clock_(const sva_property_t*p,
+				      const PEventStatement*clk)
+{
+      if (!p) return false;
+      if (p->op_type == 20 || p->op_type == 21)
+	    return sva_comp_has_other_clock_(p->pa, clk)
+		|| sva_comp_has_other_clock_(p->pb, clk);
+      return !sva_prop_is_composite_(p) && sva_comp_leaf_other_clock_(p, clk);
+}
+
+/* Put every operand reached through and/or behind a strictly-subsequent
+   clock switch on its own leading clock (or the incoming clock). */
+static sva_property_t* sva_comp_switch_operands_(const struct vlltype&loc,
+						 sva_property_t*p,
+						 const PEventStatement*clk,
+						 bool&ok)
+{
+      if (!p || !ok) return p;
+      if (p->op_type == 20 || p->op_type == 21) {
+	    p->pa = sva_comp_switch_operands_(loc, p->pa, clk, ok);
+	    p->pb = sva_comp_switch_operands_(loc, p->pb, clk, ok);
+	    return p;
+      }
+      if (sva_prop_is_composite_(p)) {
+	    sva_comp_sorry_(loc, "a multiclocked `|=>' consequent with this "
+			    "property operator is not supported yet");
+	    ok = false;
+	    return p;
+      }
+      PEventStatement*domain = p->clk_evt
+	    ? sva_clone_event_control_(p->clk_evt, loc)
+	    : (clk ? sva_clone_event_control_(clk, loc) : nullptr);
+      if (!domain) {
+	    sva_comp_sorry_(loc, "the clock of a multiclocked `|=>' operand "
+			    "cannot be copied");
+	    ok = false;
+	    return p;
+      }
+      sva_property_t*sw = new sva_property_t;
+      sw->op_type = 27;
+      sw->pa = p;
+      sw->seq_clk_evt = domain;
+      return sw;
+}
+
+/* IEEE 1800-2023 16.13.2: in `s |=> (@(c1) p1) and (@(c2) p2)' each operand
+   starts at the nearest strictly future tick of its own clock. Rewrite
+   such an implication as `s |->' with every and/or operand behind a
+   strictly-subsequent clock switch (the operands that flow the incoming
+   clock switch to that clock, i.e. its next tick). */
+static void sva_comp_distribute_nonoverlap_(const struct vlltype&loc,
+					    sva_property_t*p,
+					    const PEventStatement*clk, bool&ok)
+{
+      if (!p || !ok || !sva_prop_is_composite_(p)) return;
+      if (p->op_type == 24 && sva_comp_has_other_clock_(p->pb, clk)) {
+	    p->op_type = 23;
+	    p->pb = sva_comp_switch_operands_(loc, p->pb, clk, ok);
+	    return;
+      }
+      if (p->op_type == 27) return;
+      sva_comp_distribute_nonoverlap_(loc, p->pa, clk, ok);
+      sva_comp_distribute_nonoverlap_(loc, p->pb, clk, ok);
+}
+
+/* Assertion local variables declared on the property are visible to every
+   operand evaluation (each keeps its own copy, 16.10). */
+static void sva_comp_propagate_locals_(sva_property_t*p,
+				       const std::vector<perm_string>&names)
+{
+      if (!p) return;
+      for (perm_string nm : names)
+	    if (std::find(p->local_names.begin(), p->local_names.end(), nm)
+		== p->local_names.end())
+		  p->local_names.push_back(nm);
+      if (!sva_prop_is_composite_(p)) return;
+      std::vector<perm_string> mine = p->local_names;
+      sva_comp_propagate_locals_(p->pa, mine);
+      sva_comp_propagate_locals_(p->pb, mine);
+}
+
 /* Expand bare named-property references among the operands, in place. */
 static bool sva_comp_expand_refs_(const struct vlltype&loc, sva_property_t*p)
 {
@@ -32801,7 +33655,14 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    pform_sva_destroy_property(prop);
 	    return;
       }
-      if (!sva_comp_expand_refs_(loc, prop)) {
+      bool split_ok = true;
+      if (sva_comp_expand_refs_(loc, prop))
+	    prop = sva_comp_split_multiclock_(loc, prop, split_ok);
+      else
+	    split_ok = false;
+      if (split_ok)
+	    sva_comp_propagate_locals_(prop, prop->local_names);
+      if (!split_ok) {
 	    delete fail_stmt; delete pass_stmt;
 	    pform_sva_destroy_property(prop);
 	    return;
@@ -32843,6 +33704,13 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
 
       unsigned hist_idx = 0;
+      bool distribute_ok = true;
+      sva_comp_distribute_nonoverlap_(loc, prop, clk, distribute_ok);
+      if (!distribute_ok) {
+	    delete clk; delete disable; delete fail_stmt; delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
       sva_comp_ctx_t ctx;
       ctx.loc = &loc;
       ctx.clk = clk;
@@ -32879,6 +33747,13 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    init.push_back(sva_assign_(loc, r, sva_num32_(loc, 0)));
       init.push_back(sva_assign_(loc, r_ovf, sva_bit_(loc, 0)));
 
+      auto sweep = [&](std::vector<Statement*>&out) {
+	    for (Statement*s : m.sweep) {
+		  Statement*c = sva_clone_stmt_(s);
+		  assert(c);
+		  out.push_back(c);
+	    }
+      };
       auto clear_all = [&]() -> Statement* {
 	    std::vector<Statement*> clr;
 	    for (long k = 0 ; k < K ; k += 1) {
@@ -32889,6 +33764,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 		  }
 		  clr.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
 	    }
+	    sweep(clr);
 	    clr.push_back(sva_assign_(loc, r_p0, sva_num32_(loc, 0)));
 	    clr.push_back(sva_assign_(loc, r_vac0, sva_num32_(loc, 0)));
 	    clr.push_back(sva_assign_(loc, r_f0, sva_num32_(loc, 0)));
@@ -32942,8 +33818,8 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    Statement*copy = sva_clone_stmt_(action);
 	    if (!copy) {
 		  sva_comp_sorry_(loc, "the action block of this property "
-				  "cannot be duplicated for its abort "
-				  "condition");
+				  "cannot be duplicated for each of its "
+				  "clock domains");
 		  return;
 	    }
 	    actions.push_back(copy);
@@ -32994,6 +33870,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 				       sva_not_(loc, sva_comp_eq_(loc, m.vd[k], 0)));
 	    body.push_back(sva_if_(loc, decided, sva_block_(loc, done), nullptr));
       }
+      sweep(body);
 
 	/* Pass (nonvacuous and vacuous, via the shared Reactive dispatcher)
 	   then fail, once per decided attempt, in the order of the slot
@@ -33068,6 +33945,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       if (disable) sva_disable_abort_(loc, inst, disable, clear_all());
       for (long k = 0 ; k < K ; k += 1)
 	    for (Statement*s : m.kill[k]) delete s;
+      for (Statement*st : m.sweep) delete st;
 
       clk->set_statement(sva_block_(loc, full));
       PProcess*pp = pform_make_behavior(IVL_PR_ALWAYS, clk, nullptr);

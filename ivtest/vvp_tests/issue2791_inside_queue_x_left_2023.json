@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue2791_inside_queue_x_left.v",
+  "iverilog-args": ["-g2023", "-s", "issue2791_inside_queue_x_left"],
+  "output-contains": ["PASSED"],
+  "timeout": 60
+}

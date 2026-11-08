@@ -75,6 +75,7 @@
 # include  <cctype>
 # include  <cstdlib>
 # include  <climits>
+# include  <cstddef>
 # include  <cstring>
 # include  <cmath>
 # include  <cassert>
@@ -3152,9 +3153,10 @@ static VVP_QUEUE*pop_queue_receiver_(vthread_t thr, vvp_object_t&recv,
  * %inside/arr <signal>
  *
  * Pops one vec4 value from the thread's vec4 stack.  Gets the array/queue
- * object stored in <signal>.  Iterates every element (as a vec4) and
- * compares with the popped value using 4-state equality (X/Z bits ignored).
- * Pushes a 1-bit result: '1' if any element matched, '0' otherwise.
+ * object stored in <signal>. Iterates every element (as a vec4) and compares
+ * with the popped value using wildcard equality: X/Z bits in the element are
+ * wildcards, but X/Z bits in the value produce an unknown comparison result.
+ * The comparison results are OR-reduced, as required by the inside operator.
  */
 static void inside_arr_match_(vthread_t thr, vvp_darray*arr)
 {
@@ -3165,9 +3167,9 @@ static void inside_arr_match_(vthread_t thr, vvp_darray*arr)
       }
 
       vvp_vector4_t val = thr->pop_vec4();
-      bool matched = false;
+      vvp_bit4_t result = BIT4_0;
       size_t sz = arr->get_size();
-      for (size_t i = 0 ; i < sz && !matched ; i += 1) {
+      for (size_t i = 0 ; i < sz && result != BIT4_1 ; i += 1) {
             vvp_vector4_t elem;
             arr->get_word((unsigned)i, elem);
             if (elem.size() != val.size()) {
@@ -3177,16 +3179,90 @@ static void inside_arr_match_(vthread_t thr, vvp_darray*arr)
                   for (size_t b = 0 ; b < copy_sz ; b += 1) tmp.set_bit(b, elem.value(b));
                   elem = tmp;
             }
-            /* 4-state equality: treat X/Z as don't-care in the element */
-            bool eq = true;
-            for (size_t b = 0 ; b < val.size() && eq ; b += 1) {
+            vvp_bit4_t eq = BIT4_1;
+            for (size_t b = 0 ; b < val.size() && eq != BIT4_0 ; b += 1) {
                   vvp_bit4_t ev = elem.value(b);
                   vvp_bit4_t vv = val.value(b);
-                  if (ev == BIT4_X || ev == BIT4_Z) continue; /* wildcard */
-                  if (vv == BIT4_X || vv == BIT4_Z) continue; /* wildcard */
-                  if (ev != vv) eq = false;
+                  if (ev == BIT4_X || ev == BIT4_Z) continue; /* RHS wildcard */
+                  if (vv == BIT4_X || vv == BIT4_Z) {
+                        eq = BIT4_X;
+                        continue;
+                  }
+                  if (ev != vv) eq = BIT4_0;
             }
-            if (eq) matched = true;
+            if (eq == BIT4_1 || result == BIT4_1)
+                  result = BIT4_1;
+            else if (eq == BIT4_X || result == BIT4_X)
+                  result = BIT4_X;
+      }
+
+      thr->push_vec4(vvp_vector4_t(1, result));
+}
+
+/* Associative arrays use a separate runtime object from positional arrays.
+ * The inside operator still traverses their stored values (IEEE 1800-2017/
+ * 2023 11.4.13), so inspect each entry without exposing or depending on its
+ * key type. */
+static void inside_assoc_match_(vthread_t thr, vvp_assoc_base*assoc)
+{
+      vvp_vector4_t val = thr->pop_vec4();
+      bool matched = false;
+      bool unknown = false;
+
+      if (assoc) {
+	    for (size_t idx = 0 ; idx < assoc->size() && !matched ; idx += 1) {
+		  std::string key_text, elem_str;
+		  vvp_vector4_t elem;
+		  double elem_real = 0.0;
+		  int elem_kind = -1;
+		  if (!assoc->peek_entry(idx, key_text, elem, elem_real,
+					 elem_str, elem_kind))
+			continue;
+		  if (elem_kind != 0) continue;
+		  if (elem.size() != val.size()) {
+			vvp_vector4_t tmp(val.size(), BIT4_0);
+			size_t copy_sz = (elem.size() < val.size())
+			      ? elem.size() : val.size();
+			for (size_t bit = 0 ; bit < copy_sz ; bit += 1)
+			      tmp.set_bit(bit, elem.value(bit));
+			elem = tmp;
+		  }
+		  bool eq = true;
+		  bool eq_unknown = false;
+		  for (size_t bit = 0 ; bit < val.size() && eq ; bit += 1) {
+			vvp_bit4_t ev = elem.value(bit);
+			vvp_bit4_t vv = val.value(bit);
+			if (ev == BIT4_X || ev == BIT4_Z) continue;
+			if (vv == BIT4_X || vv == BIT4_Z) {
+			      eq_unknown = true;
+			      continue;
+			}
+			if (ev != vv) eq = false;
+		  }
+		  if (eq && !eq_unknown) matched = true;
+		  else if (eq && eq_unknown) unknown = true;
+	    }
+      }
+
+      thr->push_vec4(vvp_vector4_t(1, matched ? BIT4_1
+							  : unknown ? BIT4_X : BIT4_0));
+}
+
+static void inside_assoc_match_string_(vthread_t thr, vvp_assoc_base*assoc)
+{
+      string val = thr->pop_str();
+      bool matched = false;
+
+      if (assoc) {
+	    for (size_t idx = 0 ; idx < assoc->size() && !matched ; idx += 1) {
+		  std::string key_text, elem_str;
+		  vvp_vector4_t elem_vec;
+		  double elem_real = 0.0;
+		  int elem_kind = -1;
+		  if (assoc->peek_entry(idx, key_text, elem_vec, elem_real,
+					elem_str, elem_kind) && elem_kind == 2)
+			matched = elem_str == val;
+	    }
       }
 
       thr->push_vec4(vvp_vector4_t(1, matched ? BIT4_1 : BIT4_0));
@@ -3196,12 +3272,15 @@ bool of_INSIDE_ARR(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*fun = vvp_fun_as_signal_object(cp->net->fun);
       vvp_darray*arr = 0;
+      vvp_assoc_base*assoc = 0;
       vvp_object_t obj;
       if (fun) {
             obj = fun->get_object();
             arr = obj.peek<vvp_darray>();
+            assoc = obj.peek<vvp_assoc_base>();
       }
-      inside_arr_match_(thr, arr);
+      if (assoc) inside_assoc_match_(thr, assoc);
+      else inside_arr_match_(thr, arr);
       return true;
 }
 
@@ -3216,7 +3295,10 @@ bool of_INSIDE_ARR_O(vthread_t thr, vvp_code_t)
 {
       vvp_object_t recv;
       thr->pop_object(recv);
-      inside_arr_match_(thr, recv.peek<vvp_darray>());
+      if (vvp_assoc_base*assoc = recv.peek<vvp_assoc_base>())
+	    inside_assoc_match_(thr, assoc);
+      else
+	    inside_arr_match_(thr, recv.peek<vvp_darray>());
       return true;
 }
 
@@ -3246,11 +3328,14 @@ bool of_INSIDE_ARR_STR(vthread_t thr, vvp_code_t cp)
 	    vvp_fun_as_signal_object(cp->net->fun);
       vvp_object_t obj;
       vvp_darray*arr = 0;
+      vvp_assoc_base*assoc = 0;
       if (fun) {
 	    obj = fun->get_object();
 	    arr = obj.peek<vvp_darray>();
+	    assoc = obj.peek<vvp_assoc_base>();
       }
-      inside_arr_match_string_(thr, arr);
+      if (assoc) inside_assoc_match_string_(thr, assoc);
+      else inside_arr_match_string_(thr, arr);
       return true;
 }
 
@@ -3258,7 +3343,10 @@ bool of_INSIDE_ARR_O_STR(vthread_t thr, vvp_code_t)
 {
       vvp_object_t recv;
       thr->pop_object(recv);
-      inside_arr_match_string_(thr, recv.peek<vvp_darray>());
+      if (vvp_assoc_base*assoc = recv.peek<vvp_assoc_base>())
+	    inside_assoc_match_string_(thr, assoc);
+      else
+	    inside_arr_match_string_(thr, recv.peek<vvp_darray>());
       return true;
 }
 
@@ -5070,6 +5158,16 @@ class randomize_graph_session_t {
       std::vector<vvp_z3_object_s> solve_objects;
       std::map<vvp_cobject*, size_t> object_indices;
 
+      /* Keep the original graph journal while rebuilding the solver graph
+       * after a dynamic-array size has selected its retained handles. */
+      void clear_solve_graph()
+      {
+            solve_objects.clear();
+            object_indices.clear();
+            prefilled_.clear();
+            prefilled_static_.clear();
+      }
+
       bool begin_prefill(vvp_cobject*cobj, const std::vector<bool>*sel,
                          vvp_cobject*rng_owner = nullptr)
       {
@@ -5147,11 +5245,40 @@ class randomize_graph_session_t {
             return true;
       }
 
+      /* #2152, IEEE 1800-2023 18.4: "Up to the new size, existing class
+         objects are retained and their content randomized." An object a
+         size constraint dropped from a rand handle array (and that nothing
+         else still reaches) is not part of the call: it keeps the content,
+         random state and randc history it had, and 18.6.2 gives
+         post_randomize only to the members "after the new random values
+         are computed and assigned". Its pre_randomize already ran, at
+         invocation, while it was still a member. */
+      void release_unreachable(const std::set<vvp_cobject*>&reachable)
+      {
+            for (auto it = entries_.begin(); it != entries_.end();) {
+                  if (reachable.count(it->cobj)
+                      || it->cobj->get_defn()->is_struct_type()) {
+                        ++it;
+                        continue;
+                  }
+                  auto pending = std::find(pending_randc_.begin(),
+                                           pending_randc_.end(), it->cobj);
+                  if (pending != pending_randc_.end()) {
+                        (*pending)->randc_transaction_rollback();
+                        pending_randc_.erase(pending);
+                  }
+                  randomize_restore_(it->cobj, it->values);
+                  (void)it->cobj->rng_set_state(it->rng_state);
+                  it->cobj->randc_history_restore(it->instance_history);
+                  it = entries_.erase(it);
+            }
+      }
+
       void callback_objects(std::vector<vvp_object_t>&objects) const
       {
-            for (const randomize_graph_entry_s&entry : entries_)
-                  if (!entry.cobj->get_defn()->is_struct_type())
-                        objects.push_back(entry.hold);
+            for (const vvp_z3_object_s&scope : solve_objects)
+                  if (!scope.object->get_defn()->is_struct_type())
+                        objects.push_back(vvp_object_t(scope.object));
       }
 
       void rollback(bool restore_rng = true)
@@ -5723,6 +5850,23 @@ static bool randomize_visit_property_objects_(vvp_cobject*cobj,
       return true;
 }
 
+/* The active random objects reachable from OBJ as the call leaves them. */
+static void randomize_reachable_(const vvp_object_t&obj,
+      const std::vector<bool>*sel, std::set<vvp_cobject*>&seen)
+{
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      if (!cobj || !seen.insert(cobj).second) return;
+      for (size_t pid = 0; pid < cobj->get_defn()->property_count(); ++pid)
+            randomize_visit_property_objects_(cobj, sel, pid,
+                  [&](const vvp_object_t&value, size_t) {
+                        return randomize_visit_object_value_(value,
+                              [&](const vvp_object_t&leaf) {
+                                    randomize_reachable_(leaf, nullptr, seen);
+                                    return true;
+                              });
+                  });
+}
+
 /* IEEE 1800-2017 18.5.9 / 1800-2023 18.5.8: select and journal the
  * complete active graph before filling any values. Static aggregate journals
  * can install value copies, so enumerate their children after enter(). Soft
@@ -5830,6 +5974,53 @@ static bool randomize_object_value_(randomize_graph_session_t&session,
             }
             return session.joint() || randomize_cobject_(session, subcobj, nullptr);
       });
+}
+
+/* Remove dynamic iterative bodies for the root's size-selection pass. Size
+ * expressions remain in the surrounding constraint block; the removed
+ * templates are expanded later, after the retained handle graph is known. */
+static std::string randomize_without_dynamic_iterations_(const std::string&ir)
+{
+      std::string result = ir;
+      size_t position = 0;
+      while ((position = result.find("(dynforeach", position)) != std::string::npos
+             || (position = result.find("(dynrows", position)) != std::string::npos) {
+            size_t end = position;
+            unsigned depth = 0;
+            do {
+                  if (result[end] == '(') ++depth;
+                  else if (result[end] == ')') --depth;
+                  ++end;
+            } while (end < result.size() && depth != 0);
+            if (depth != 0) return std::string();
+            result.erase(position, end - position);
+      }
+      return result;
+}
+
+static void randomize_append_size_expressions_(const std::string&source,
+                                                std::vector<std::string>&out)
+{
+      std::string ir = randomize_without_dynamic_iterations_(source);
+      size_t position = 0;
+      while (position < ir.size()) {
+            while (position < ir.size() && std::isspace(
+                        static_cast<unsigned char>(ir[position]))) ++position;
+            if (position == ir.size()) break;
+            if (ir[position] != '(') return;
+            size_t end = position;
+            unsigned depth = 0;
+            do {
+                  if (ir[end] == '(') ++depth;
+                  else if (ir[end] == ')') --depth;
+                  ++end;
+            } while (end < ir.size() && depth != 0);
+            if (depth != 0) return;
+            std::string expression = ir.substr(position, end - position);
+            if (expression.find("s:") != std::string::npos)
+                  out.push_back(std::move(expression));
+            position = end;
+      }
 }
 
 template <class KEY>
@@ -6193,6 +6384,48 @@ static bool randomize_prepare_graph_(randomize_graph_session_t&session,
       const randomize_solve_options_s*options)
 {
       if (!randomize_collect_graph_(session, cobj, sel, options)) return false;
+      /* A rand dynamic array of class handles determines which child objects
+       * participate in this call. Solve the root constraints first, while the
+       * graph contains only the root, so a handle removed by the chosen size
+       * cannot contribute its own constraints. The original graph remains in
+       * the transaction journal for rollback; only the solver graph is then
+       * rebuilt over the retained handles. */
+      bool has_dynamic_handles = false;
+      const class_type*root_type = cobj->get_defn();
+      for (size_t pid = 0; pid < root_type->property_count(); ++pid) {
+            if (!rand_call_active_(root_type, cobj, sel, pid)) continue;
+            const std::string&base = root_type->property_base_type(pid);
+            if (base == "Do" || base == "Qo") {
+                  has_dynamic_handles = true;
+                  break;
+            }
+      }
+      if (has_dynamic_handles && !session.solve_objects.empty()) {
+            vvp_z3_object_s root_scope = session.solve_objects.front();
+            root_scope.include_class_constraints = false;
+            root_scope.inherited_ir.clear();
+            root_scope.extra_ir.clear();
+            std::vector<std::string> inherited;
+            collect_unmerged_base_constraints_(root_type, inherited);
+            for (const std::string&source : inherited)
+                  randomize_append_size_expressions_(source,
+                                                     root_scope.extra_ir);
+            for (size_t ci = 0; ci < root_type->constraint_count(); ++ci) {
+                  if (!cobj->constraint_mode(ci)) continue;
+                  randomize_append_size_expressions_(
+                        root_type->constraint_ir(ci), root_scope.extra_ir);
+            }
+            if (options && options->extra_ir)
+                  for (const std::string&source : *options->extra_ir) {
+                        randomize_append_size_expressions_(source,
+                                                           root_scope.extra_ir);
+                  }
+            std::vector<vvp_z3_object_s> size_objects(1, root_scope);
+            if (!vvp_z3_randomize_graph(size_objects)) return false;
+            session.clear_solve_graph();
+            if (!randomize_collect_graph_(session, cobj, sel, options))
+                  return false;
+      }
       if (!vvp_z3_graph_history_supported(session.solve_objects)) return false;
       // Prefill in collection order so the first active static owner stages
       // its history exactly once. Class recursion is deferred to this loop;
@@ -6212,8 +6445,12 @@ static bool randomize_solve_(randomize_graph_session_t&session,
 {
       if (!cobj) return true;
       if (!session.joint()) return randomize_cobject_(session, cobj, sel, options);
-      return randomize_prepare_graph_(session, cobj, sel, options)
-            && vvp_z3_randomize_graph(session.solve_objects);
+      if (!randomize_prepare_graph_(session, cobj, sel, options)
+          || !vvp_z3_randomize_graph(session.solve_objects)) return false;
+      std::set<vvp_cobject*> reachable;
+      randomize_reachable_(vvp_object_t(cobj), sel, reachable);
+      session.release_unreachable(reachable);
+      return true;
 }
 
 /* Retain the actual successful participants before the transaction journal
@@ -6249,7 +6486,13 @@ static bool randomize_staged_finish_(vthread_t thr, bool success,
 {
       randomize_call_context_s&call = thr->randomize_calls.back();
       auto state = call.staged;
-      if (success) success = state->session.commit();
+      if (success) {
+            std::set<vvp_cobject*> reachable;
+            randomize_reachable_(call.root, call.explicit_selection
+                                 ? &call.selection : nullptr, reachable);
+            state->session.release_unreachable(reachable);
+            success = state->session.commit();
+      }
       if (!success) state->session.rollback(!keep_rng_advance);
       randomize_callbacks_solved_(thr, call.root.peek<vvp_cobject>(),
                                  state->session, success);
@@ -12756,6 +12999,68 @@ class dispatch_pin_list_s {
       std::vector<vthread_t> more_;
 };
 
+/* Nesting depth of lazy VPI argument evaluation (vthread_eval_thunk). The
+   thunk runs inside a VPI call, under an opcode of the calling thread, so a
+   function call in the argument must complete synchronously: the trampoline
+   would hand the callee to a vthread_run loop that is not running. */
+static unsigned vpi_thunk_depth_ = 0;
+
+/*
+ * Evaluate a lazy VPI argument (IEEE 1800-2023 37.42 detail 7): run the
+ * expression code at PC to its %end on a temporary thread and pop the value
+ * it leaves on the stack selected by KIND ('v' vec4, 'r' real, 's' string).
+ * Inside the call, CALLER is the thread executing it: the temporary thread
+ * borrows its automatic contexts and counts as its callf child, so process
+ * RNG and identity resolve to the calling process. Outside a call CALLER is
+ * nil and only static storage is reachable. Returns false if the code
+ * blocked or failed instead of reaching %end.
+ */
+bool vthread_eval_thunk(vthread_t caller, vvp_code_t pc, __vpiScope*scope,
+                        char kind, vvp_vector4_t&vec, double&real,
+                        string&str)
+{
+      vthread_t thr = vthread_new_(pc, caller ? caller->parent_scope : scope,
+                                   false);
+      if (caller) {
+            thr->parent = caller;
+            thr->is_callf_child = 1;
+            thr->rd_context = caller->rd_context;
+            thr->wt_context = caller->wt_context;
+      }
+      thr->i_am_in_function = 1;
+      vthread_t saved_running = running_thread;
+      running_thread = thr;
+      vpi_thunk_depth_ += 1;
+      bool done = false;
+      for (;;) {
+            vvp_code_t cp = thr->pc;
+            if (cp->opcode == &of_END) {
+                  done = true;
+                  break;
+            }
+            thr->pc += 1;
+            if (!cp->opcode(thr, cp) || thr->i_have_ended) break;
+      }
+      vpi_thunk_depth_ -= 1;
+      running_thread = saved_running;
+      if (done) switch (kind) {
+          case 'r':
+            real = thr->pop_real();
+            break;
+          case 's':
+            str = thr->pop_str();
+            break;
+          default:
+            vec = thr->pop_vec4();
+            break;
+      }
+      thr->parent = 0;
+      thr->rd_context = 0;
+      thr->wt_context = 0;
+      if (done && thr->children.empty()) vthread_delete(thr);
+      return done;
+}
+
 void vthread_run(vthread_t thr)
 {
 #ifdef VVP_PERF_STATS
@@ -16232,7 +16537,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
          * rather than the SV call depth.  The callf_depth/scope_stack
          * bookkeeping belongs to the synchronous path's C++ recursion,
          * so drop it here; the trampoline tracks its own depth. */
-      if (trampoline_callf_enabled_()) {
+      if (trampoline_callf_enabled_() && !vpi_thunk_depth_) {
             child->is_trampoline_child = 1;
             child->i_am_in_function = 1;
               /* No delay_delete: the dispatch run pin keeps this frame
@@ -18325,7 +18630,7 @@ static bool dpi_packed_open_letter_(char type)
 static bool dpi_fixed_array_letter_(char type)
 {
       return type == 'O' || type == 'Q' || type == 'B' || type == 'G'
-	  || type == 'X' || type == 'Y';
+	  || type == 'X' || type == 'Y' || type == 'T';
 }
 
 static bool dpi_shortreal_array_letter_(char type)
@@ -18719,7 +19024,185 @@ struct dpi_sig_tok_t {
       char base;
       bool is_unsigned;
       bool is_output;
+	// Member letters of an unpacked-struct formal ('S', 'T', 't').
+      string members;
 };
+
+static bool dpi_struct_letter_(char type)
+{
+      return type == 'S' || type == 'T' || type == 't';
+}
+
+/* IEEE 1800-2017/2023 H.7.8: an unpacked struct of unpacked basic members has
+ * the C compiler's layout. One member per signature letter, in declaration
+ * order, which is also the vvp_cobject property order. */
+struct dpi_struct_member_t {
+      char type;
+      bool is_unsigned;
+      size_t offset;
+};
+
+template <class T> static size_t dpi_c_member_align_()
+{
+      struct probe { char c; T t; };
+      return offsetof(probe, t);
+}
+
+/* Lay out the members and return sizeof the C struct, or 0 for a malformed
+ * descriptor. */
+static size_t dpi_struct_layout_(const string&desc,
+				 vector<dpi_struct_member_t>&members)
+{
+      size_t off = 0, align = 1;
+      members.clear();
+      for (size_t idx = 0 ; idx < desc.size() ; idx += 1) {
+	    dpi_struct_member_t mem;
+	    mem.is_unsigned = desc[idx] == 'u';
+	    if (mem.is_unsigned && ++idx >= desc.size())
+		  return 0;
+	    mem.type = desc[idx];
+	    size_t size, al;
+	    switch (mem.type) {
+		case 'b': case 'c': case 'g':
+		  size = al = 1; break;
+		case 'h': size = 2; al = dpi_c_member_align_<int16_t>(); break;
+		case 'i': size = 4; al = dpi_c_member_align_<int32_t>(); break;
+		case 'l': size = 8; al = dpi_c_member_align_<int64_t>(); break;
+		case 'f': size = sizeof(float);
+			  al = dpi_c_member_align_<float>(); break;
+		case 'r': size = sizeof(double);
+			  al = dpi_c_member_align_<double>(); break;
+		case 'p': size = sizeof(void*);
+			  al = dpi_c_member_align_<void*>(); break;
+		default:
+		  return 0;
+	    }
+	    off = (off + al - 1) / al * al;
+	    mem.offset = off;
+	    off += size;
+	    if (al > align) align = al;
+	    members.push_back(mem);
+      }
+      return (off + align - 1) / align * align;
+}
+
+static uint64_t dpi_vec4_bits_(const vvp_vector4_t&val)
+{
+      uint64_t bits = 0;
+      unsigned nbits = val.size() < 64 ? val.size() : 64;
+      for (unsigned idx = 0 ; idx < nbits ; idx += 1)
+	    if (val.value(idx) == BIT4_1)
+		  bits |= (uint64_t)1 << idx;
+      return bits;
+}
+
+/* Write one element's members into DST. A nil element (a slot never written)
+ * has the members' default values. */
+static void dpi_struct_pack_(vvp_cobject*obj,
+			     const vector<dpi_struct_member_t>&members,
+			     uint8_t*dst)
+{
+      for (size_t pid = 0 ; pid < members.size() ; pid += 1) {
+	    const dpi_struct_member_t&mem = members[pid];
+	    uint8_t*ptr = dst + mem.offset;
+	    if (mem.type == 'f' || mem.type == 'r') {
+		  double val = obj ? obj->get_real(pid) : 0.0;
+		  if (mem.type == 'f') {
+			float fval = (float)val;
+			memcpy(ptr, &fval, sizeof fval);
+		  } else {
+			memcpy(ptr, &val, sizeof val);
+		  }
+		  continue;
+	    }
+	    vvp_vector4_t val;
+	    if (obj)
+		  obj->get_vec4(pid, val);
+	    if (mem.type == 'g') {
+		  uint8_t code = 3;
+		  if (val.size() > 0) switch (val.value(0)) {
+		      case BIT4_0: code = 0; break;
+		      case BIT4_1: code = 1; break;
+		      case BIT4_Z: code = 2; break;
+		      case BIT4_X: code = 3; break;
+		  }
+		  *ptr = code;
+		  continue;
+	    }
+	    uint64_t bits = dpi_vec4_bits_(val);
+	    switch (mem.type) {
+		case 'b': case 'c': { uint8_t v = (uint8_t)bits;
+				      memcpy(ptr, &v, sizeof v); break; }
+		case 'h': { uint16_t v = (uint16_t)bits;
+			    memcpy(ptr, &v, sizeof v); break; }
+		case 'i': { uint32_t v = (uint32_t)bits;
+			    memcpy(ptr, &v, sizeof v); break; }
+		case 'l': memcpy(ptr, &bits, sizeof bits); break;
+		case 'p': { void*v = (void*)(uintptr_t)bits;
+			    memcpy(ptr, &v, sizeof v); break; }
+	    }
+      }
+}
+
+static void dpi_struct_unpack_(vvp_cobject*obj,
+			       const vector<dpi_struct_member_t>&members,
+			       const uint8_t*src)
+{
+      for (size_t pid = 0 ; pid < members.size() ; pid += 1) {
+	    const dpi_struct_member_t&mem = members[pid];
+	    const uint8_t*ptr = src + mem.offset;
+	    uint64_t bits = 0;
+	    unsigned wid = 0;
+	    switch (mem.type) {
+		case 'f': { float v; memcpy(&v, ptr, sizeof v);
+			    obj->set_real(pid, v); continue; }
+		case 'r': { double v; memcpy(&v, ptr, sizeof v);
+			    obj->set_real(pid, v); continue; }
+		case 'g': {
+		      static const vvp_bit4_t codes[4] = {
+			    BIT4_0, BIT4_1, BIT4_Z, BIT4_X };
+		      obj->set_vec4(pid, vvp_vector4_t(1, codes[*ptr & 3]));
+		      continue;
+		}
+		case 'c': bits = *ptr & 1; wid = 1; break;
+		case 'b': bits = *ptr; wid = 8; break;
+		case 'h': { uint16_t v; memcpy(&v, ptr, sizeof v);
+			    bits = v; wid = 16; break; }
+		case 'i': { uint32_t v; memcpy(&v, ptr, sizeof v);
+			    bits = v; wid = 32; break; }
+		case 'l': memcpy(&bits, ptr, sizeof bits); wid = 64; break;
+		case 'p': { void*v; memcpy(&v, ptr, sizeof v);
+			    bits = (uintptr_t)v; wid = 64; break; }
+	    }
+	    vvp_vector4_t val (wid, BIT4_0);
+	    for (unsigned idx = 0 ; idx < wid ; idx += 1)
+		  if ((bits >> idx) & 1)
+			val.set_bit(idx, BIT4_1);
+	    obj->set_vec4(pid, val);
+      }
+}
+
+/* The elements of a struct formal: the struct itself ('S') or the words of
+ * the marshaled fixed or open array ('T', 't'). A nil word of an array with an
+ * element prototype is materialized so output values have a home. */
+static void dpi_struct_elements_(const vvp_object_t&actual,
+				 vector<vvp_object_t>&elems)
+{
+      elems.clear();
+      if (vvp_darray*da = actual.peek<vvp_darray>()) {
+	    elems.resize(da->get_size());
+	    for (size_t idx = 0 ; idx < elems.size() ; idx += 1) {
+		  da->get_word(idx, elems[idx]);
+		  if (elems[idx].test_nil() && da->elem_class()) {
+			elems[idx] = vvp_object_t(
+			      new vvp_cobject(da->elem_class()));
+			da->set_word(idx, elems[idx]);
+		  }
+	    }
+      } else if (!actual.test_nil()) {
+	    elems.push_back(actual);
+      }
+}
 
 static void dpi_parse_types_(const char*types, char dflt, unsigned nargs,
 			     vector<dpi_sig_tok_t>&sig)
@@ -18734,6 +19217,13 @@ static void dpi_parse_types_(const char*types, char dflt, unsigned nargs,
 	    if (*cp == '+') { tok.is_output = true; cp += 1; }
 	    if (*cp == 'u') { tok.is_unsigned = true; cp += 1; }
 	    if (*cp) tok.base = *cp++;
+	    if (*cp == '{') {
+		  const char*end = strchr(cp, '}');
+		  if (end) {
+			tok.members.assign(cp + 1, end);
+			cp = end + 1;
+		  }
+	    }
 	    sig[idx] = tok;
       }
 }
@@ -18819,6 +19309,11 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
       vector<vvp_object_t> obj_store (nargs);
       vector<vector<uint8_t> > arr_scalar_store (nargs);
       vector<vector<uint32_t> > arr_packed_store (nargs);
+	// Unpacked-struct formals: C layout, element objects, call buffer
+	// (uint64_t words keep every member type aligned).
+      vector<vector<dpi_struct_member_t> > struct_members (nargs);
+      vector<vector<vvp_object_t> > struct_elems (nargs);
+      vector<vector<uint64_t> > struct_store (nargs);
       for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
 	    unsigned slot = nargs - 1 - ii;
 	    vvp_dpi_arg_t&arg = args[slot];
@@ -18849,6 +19344,9 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		  break;
 		case 'o':
 		case 'O':
+		case 'S':
+		case 'T':
+		case 't':
 		case 'q':
 		case 'Q':
 		case 'B':
@@ -18889,7 +19387,32 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			    arr.left  = da->dpi_decl_left();
 			    arr.right = da->dpi_decl_right();
 		      }
-	      if (da && dpi_shortreal_array_letter_(sig[slot].base)) {
+	      if (dpi_struct_letter_(sig[slot].base)) {
+		    size_t bytes = dpi_struct_layout_(sig[slot].members,
+						      struct_members[slot]);
+		    if (bytes == 0) {
+			  fprintf(stderr, "DPI error: '%s': argument %u has a "
+				  "malformed struct descriptor \"%s\".\n",
+				  c_name, slot+1, sig[slot].members.c_str());
+			  array_marshaling_ok = false;
+		    } else {
+			  vector<vvp_object_t>&elems = struct_elems[slot];
+			  dpi_struct_elements_(obj_store[slot], elems);
+			  size_t count = sig[slot].base == 'S' ? 1 : elems.size();
+			  struct_store[slot].assign(
+				(bytes * count + sizeof(uint64_t) - 1)
+				/ sizeof(uint64_t) + 1, 0);
+			  uint8_t*buf = (uint8_t*)struct_store[slot].data();
+			  for (size_t idx = 0 ; idx < count ; idx += 1)
+				dpi_struct_pack_(idx < elems.size()
+				      ? elems[idx].peek<vvp_cobject>() : 0,
+				      struct_members[slot], buf + idx * bytes);
+			  arr.data = buf;
+			  arr.length = (unsigned)count;
+			  arr.elem_bytes = (unsigned)bytes;
+			  arr.storage = da;
+		    }
+	      } else if (da && dpi_shortreal_array_letter_(sig[slot].base)) {
 		    if (dpi_shortreal_array_letter_(sig[slot].base)
 			&& dpi_open_array_is_multidim_(da))
 			  arr.outer = da;
@@ -19094,6 +19617,15 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    if (dpi_packed_open_letter_(args[ii].type)
 		&& arr_store[ii].packed_scratch)
 		  dpi_unpack_open_array_(arr_store[ii]);
+	    if (native_call_ok && dpi_struct_letter_(args[ii].type)
+		&& arr_store[ii].data) {
+		  const uint8_t*buf = (const uint8_t*)arr_store[ii].data;
+		  vector<vvp_object_t>&elems = struct_elems[ii];
+		  for (size_t idx = 0 ; idx < elems.size() ; idx += 1)
+			if (vvp_cobject*obj = elems[idx].peek<vvp_cobject>())
+			      dpi_struct_unpack_(obj, struct_members[ii],
+				    buf + idx * arr_store[ii].elem_bytes);
+	    }
 	    if (native_call_ok && arr_store[ii].string_scratch) {
 		  vvp_dpi_open_array_t&sarr = arr_store[ii];
 		  for (unsigned idx = 0 ; idx < sarr.length ; idx += 1)
@@ -19116,6 +19648,9 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  break;
 		case 'o':
 		case 'O':
+		case 'S':
+		case 'T':
+		case 't':
 		case 'q':
 		case 'Q':
 		case 'B':
@@ -30377,6 +30912,31 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %dar/fill/new <count>, "<enc>"
+ *
+ * Give every nil element of the object dynamic array on top of the object
+ * stack (which stays there) a fresh dynamic array of <count> elements of
+ * encoding <enc>. This is the flattened, default-initialized storage of a
+ * fixed unpacked-array element of a dynamic array (IEEE 1800 7.5.1), which
+ * the element selects address by canonical index. Elements copied in by
+ * new[](src) are not nil and keep their values.
+ */
+bool of_DAR_FILL_NEW(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t recv = thr->peek_object();
+      vvp_darray*arr = recv.peek<vvp_darray>();
+      if (!arr)
+	    return true;
+      for (size_t idx = 0 ; idx < arr->get_size() ; idx += 1) {
+	    vvp_object_t word;
+	    arr->get_word(idx, word);
+	    if (word.test_nil())
+		  arr->set_word(idx, make_darray_for_enc_(cp->text, cp->bit_idx[0]));
+      }
+      return true;
+}
+
 /* Build a fresh destination-typed dynamic-array value from any positional
  * runtime collection. This is shared by whole-container conversion and by
  * object-collection splices whose declared inner element is a darray. A null
@@ -33355,6 +33915,47 @@ bool of_REF_PART(vthread_t thr, vvp_code_t cp)
  * %ref/store/mbx
  * Stack (top->bottom): mailbox item, captured target. Both are consumed.
  */
+/*
+ * %ref/store/mbx/chk <peek>, <signed>, <2-state>
+ * Stack (top->bottom): item, captured output. A get or peek from a typeless
+ * mailbox shall generate a run-time error when the type of the message
+ * variable is not equivalent to the type of the message (IEEE 1800-2023
+ * 15.4.5, 15.4.7). The operands give the variable's signedness and 2-state
+ * kind (2 means unknown). On a mismatch the variable is left unchanged; a get
+ * has still removed the message, a peek has not.
+ */
+bool of_REF_STORE_MBX_CHK(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->object_stack_size() >= 2) {
+	    vvp_object_t item = thr->peek_object(0);
+	    vvp_lvalue_ref*target = thr->peek_object(1).peek<vvp_lvalue_ref>();
+	    bool match = item.test_nil() || !target
+		  || mailbox_item_matches_ref(item, target->value_kind(),
+					       target->mailbox_value_width());
+	    vvp_boxed_vec4*box = item.peek<vvp_boxed_vec4>();
+	    if (match && box && target
+		&& !(box->type_tag() & vvp_boxed_vec4::MBX_TYPE_UNKNOWN)) {
+		  if (cp->bit_idx[0] < 2 && bool(cp->bit_idx[0])
+		      != bool(box->type_tag() & vvp_boxed_vec4::MBX_TYPE_SIGNED))
+			match = false;
+		  if (cp->bit_idx[1] < 2 && bool(cp->bit_idx[1])
+		      != bool(box->type_tag() & vvp_boxed_vec4::MBX_TYPE_2STATE))
+			match = false;
+	    }
+	    if (!match) {
+		  cerr << thr->get_fileline() << "error: mailbox "
+		       << (cp->number ? "peek()" : "get()") << " failed: the "
+		       << "message type is not equivalent to the type of the "
+		       << "message variable (IEEE 1800-2023 "
+		       << (cp->number ? "15.4.7" : "15.4.5") << ", 6.22.2). "
+		       << "The variable is unchanged." << endl;
+		  thr->pop_object(2);
+		  return true;
+	    }
+      }
+      return of_REF_STORE_MBX(thr, cp);
+}
+
 bool of_REF_STORE_MBX(vthread_t thr, vvp_code_t)
 {
       if (thr->object_stack_size() < 2) {
@@ -35517,6 +36118,61 @@ bool of_ASSIGN_PROP_V_BITSX(vthread_t thr, vvp_code_t cp)
 bool of_ASSIGN_PROP_V_BITSUX(vthread_t thr, vvp_code_t cp)
 {
       return assign_prop_v_bitsx_(thr, cp, false);
+}
+
+/*
+ * %assign/prop/v/i/bits/x  <pid>, <idx_reg>, <off_reg>
+ * %assign/prop/v/i/bits/ux <pid>, <idx_reg>, <off_reg>
+ *
+ * Nonblocking store of the vec4 popped from the stack into bits
+ * [off +: wid] of element <idx> of the unpacked-array vec4 property <pid>
+ * of the popped receiver (IEEE 1800 10.4.2). The element index, the bit
+ * offset and the value are captured now; the read-modify-write runs in the
+ * NBA region. Flag 4 set (an x/z index or offset) or an index outside the
+ * array makes the write a no-op (7.4.6). A whole element is offset 0 with
+ * the element's width.
+ */
+static bool assign_prop_v_i_bits_(vthread_t thr, vvp_code_t cp,
+				  bool signed_offset)
+{
+      bool synchronous_drive = thr->synchronous_drive;
+      thr->synchronous_drive = false;
+      unsigned pid = cp->number;
+      unsigned idx_reg = cp->bit_idx[0];
+      unsigned off_reg = cp->bit_idx[1];
+      if (idx_reg >= vthread_s::WORDS_COUNT || off_reg >= vthread_s::WORDS_COUNT)
+	    return false;
+
+      vvp_vector4_t val = thr->pop_vec4();
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (obj.test_nil() || thr->flags[4] != BIT4_0)
+	    return true;
+
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      const class_type*defn = cobj ? cobj->get_defn() : vif ? vif->get_defn() : 0;
+      int64_t idx = thr->words[idx_reg].w_int;
+      if (!defn || pid >= defn->property_count() || idx < 0
+	  || (uint64_t)idx >= defn->property_array_size(pid))
+	    return true;
+
+      schedule_assign_prop_vec4_bits(obj, pid, thr->words[off_reg].w_uint,
+				     val, root_obj, 0,
+				     vthread_is_reactive(thr) || synchronous_drive,
+				     signed_offset, (size_t)idx);
+      return true;
+}
+
+bool of_ASSIGN_PROP_V_I_BITSX(vthread_t thr, vvp_code_t cp)
+{
+      return assign_prop_v_i_bits_(thr, cp, true);
+}
+
+bool of_ASSIGN_PROP_V_I_BITSUX(vthread_t thr, vvp_code_t cp)
+{
+      return assign_prop_v_i_bits_(thr, cp, false);
 }
 
 /*
@@ -39019,17 +39675,35 @@ bool of_SEM_TRY_GET(vthread_t thr, vvp_code_t)
  * Pop a <width>-bit vec4 from the vec4 stack, wrap it in a
  * vvp_boxed_vec4 object, and push the object onto the obj stack.
  */
-bool of_BOX_VEC4(vthread_t thr, vvp_code_t cp)
+static void box_vec4_(vthread_t thr, unsigned wid, unsigned type_tag)
 {
-      unsigned wid = cp->number;
       vvp_vector4_t v(wid);
       const vvp_vector4_t& top = thr->peek_vec4(0);
       unsigned bits = top.size() < wid ? top.size() : wid;
       for (unsigned i = 0; i < bits; ++i)
 	    v.set_bit(i, top.value(i));
       thr->pop_vec4(1);
-      vvp_object_t box(new vvp_boxed_vec4(v));
+      vvp_object_t box(new vvp_boxed_vec4(v, type_tag));
       thr->push_object(box);
+}
+
+bool of_BOX_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      box_vec4_(thr, cp->number, vvp_boxed_vec4::MBX_TYPE_UNKNOWN);
+      return true;
+}
+
+/*
+ * %box/vec4/t <width>, <signed>, <2-state>
+ * As %box/vec4, but the box also records the message's signedness and
+ * 2-state/4-state kind, so a typeless-mailbox get or peek can test type
+ * equivalence (IEEE 1800-2023 6.22.2 c).
+ */
+bool of_BOX_VEC4_T(vthread_t thr, vvp_code_t cp)
+{
+      unsigned tag = (cp->bit_idx[0] ? vvp_boxed_vec4::MBX_TYPE_SIGNED : 0)
+		   | (cp->bit_idx[1] ? vvp_boxed_vec4::MBX_TYPE_2STATE : 0);
+      box_vec4_(thr, cp->number, tag);
       return true;
 }
 

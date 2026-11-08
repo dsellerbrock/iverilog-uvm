@@ -4,7 +4,7 @@ sv_nb_uarray_copy normal,-g2012 ivltests
 sv_uarray_nb_pattern normal,-g2012 ivltests
 sv_uarray_nb_pattern_slice normal,-g2012 ivltests
 sv_uarray_partial_index_copy normal,-g2012 ivltests
-sv_uarray_partial_index_boundary_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_boundary_fail.gold
+sv_uarray_partial_index_boundary_fail normal,-g2012 ivltests
 sv_uarray_partial_index_driver_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_driver_fail.gold
 sv_uarray_partial_index_type_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_type_fail.gold
 sv_uarray_partial_index_oob normal,-g2012 ivltests

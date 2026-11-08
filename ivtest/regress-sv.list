@@ -3,6 +3,9 @@
 
 issue2717_cond_string_cast normal,-g2017,-s,issue2717_cond_string_cast ivltests gold=issue2717_cond_string_cast-vvp-stdout.gold
 
+issue2791_inside_queue_x_left_2017 normal,-g2017,-s,issue2791_inside_queue_x_left ivltests gold=issue2791_inside_queue_x_left.gold
+issue2791_inside_queue_x_left_2023 normal,-g2023,-s,issue2791_inside_queue_x_left ivltests gold=issue2791_inside_queue_x_left.gold
+
 issue2602_nested_object_dynamic_array2_2017 normal,-g2017,-s,issue2602_nested_object_dynamic_array2 ivltests gold=issue2602_nested_object_dynamic_array2.gold
 issue2602_nested_object_dynamic_array2_2023 normal,-g2023,-s,issue2602_nested_object_dynamic_array2 ivltests gold=issue2602_nested_object_dynamic_array2.gold
 
@@ -25,6 +28,8 @@ issue2409_class_property_display_2017 normal,-g2017,-s,issue2409_class_property_
 issue2409_class_property_display_2023 normal,-g2023,-s,issue2409_class_property_display ivltests gold=issue2409_class_property_display-vvp-stdout.gold
 issue1824_rand_inside_part_select_2017 normal,-g2017,-s,main ivltests gold=issue1824_rand_inside_part_select-legacy.gold
 issue1824_rand_inside_part_select_2023 normal,-g2023,-s,main ivltests gold=issue1824_rand_inside_part_select-legacy.gold
+issue2790_assoc_inside_2017 normal,-g2017,-s,issue2790_assoc_inside ivltests gold=issue2790_assoc_inside-legacy.gold
+issue2790_assoc_inside_2023 normal,-g2023,-s,issue2790_assoc_inside ivltests gold=issue2790_assoc_inside-legacy.gold
 issue1411_covergroup_ref_event_2017 normal,-g2017,-s,issue1411_covergroup_ref_event ivltests gold=issue1411_covergroup_ref_event-vvp-stdout.gold
 issue1411_covergroup_ref_event_2023 normal,-g2023,-s,issue1411_covergroup_ref_event ivltests gold=issue1411_covergroup_ref_event-vvp-stdout.gold
 issue1515_vector_strength CE,-g2017 ivltests
@@ -1675,6 +1680,8 @@ sv_cast_enum_check normal,-g2012 ivltests
 sv_covergroup_chained_sample normal,-g2012 ivltests
 sv_inside_property_container normal,-g2012 ivltests
 sv_constraint_inside_container normal,-g2012 ivltests
+sv_constraint_inside_param_array normal,-g2017 ivltests gold=sv_constraint_inside_param_array_legacy.gold
+sv_constraint_inside_param_array_2023 normal,-g2023 ivltests gold=sv_constraint_inside_param_array_legacy.gold
 sv_constraint_nonrand_queue_size normal,-g2012 ivltests
 sv_constraint_rand_queue_size normal,-g2012 ivltests
 sv_constraint_darray_size_parenless normal,-g2012 ivltests gold=sv_constraint_darray_size_parenless.gold
@@ -2332,7 +2339,7 @@ sva_paren_prop_conseq_ce normal,-g2012 ivltests
 sv_uarray_nb_pattern normal,-g2012 ivltests
 sv_uarray_nb_pattern_slice normal,-g2012 ivltests
 sv_uarray_partial_index_copy normal,-g2012 ivltests
-sv_uarray_partial_index_boundary_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_boundary_fail.gold
+sv_uarray_partial_index_boundary_fail normal,-g2012 ivltests
 sv_uarray_partial_index_driver_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_driver_fail.gold
 sv_uarray_partial_index_type_fail CE,-g2012 ivltests gold=sv_uarray_partial_index_type_fail.gold
 sv_uarray_slice_ops normal,-g2012 ivltests gold=sv_uarray_slice_ops.gold
@@ -6669,6 +6676,8 @@ issue2587_inside_2d_array_2017 normal,-g2017,-s,issue2587_inside_2d_array ivltes
 issue2587_inside_2d_array_2023 normal,-g2023,-s,issue2587_inside_2d_array ivltests gold=issue2587_inside_2d_array-legacy.gold
 issue2672_sva_repetition_boolean_operand_2017 CE,-g2017,-gsupported-assertions ivltests
 issue2672_sva_repetition_boolean_operand_2023 CE,-g2023,-gsupported-assertions ivltests
+issue2771_parallel_modpath_vector_2017 normal,-g2017,-gspecify,-s,issue2771_parallel_modpath_vector ivltests gold=issue2771_parallel_modpath_vector-legacy.gold
+issue2771_parallel_modpath_vector_2023 normal,-g2023,-gspecify,-s,issue2771_parallel_modpath_vector ivltests gold=issue2771_parallel_modpath_vector-legacy.gold
 issue1790_signed_x_nonlogical_2017 normal,-g2017,-s,issue1790_signed_x_nonlogical ivltests gold=issue1790_signed_x_nonlogical-vvp-stdout.gold
 issue1790_signed_x_nonlogical_2023 normal,-g2023,-s,issue1790_signed_x_nonlogical ivltests gold=issue1790_signed_x_nonlogical-vvp-stdout.gold
 sva_property_and_or_2017 normal,-g2017,-s,sva_property_and_or ivltests gold=sva_property_and_or.gold
@@ -6679,3 +6688,11 @@ sva_matched_cross_clock_2017 normal,-g2017,-s,sva_matched_cross_clock ivltests g
 sva_matched_cross_clock_2023 normal,-g2023,-s,sva_matched_cross_clock ivltests gold=sva_matched_cross_clock.gold
 sva_abort_temporal_2017 normal,-g2017,-s,sva_abort_temporal ivltests gold=sva_abort_temporal.gold
 sva_abort_temporal_2023 normal,-g2023,-s,sva_abort_temporal ivltests gold=sva_abort_temporal.gold
+sva_property_if_consequent_2017 normal,-g2017,-s,sva_property_if_consequent ivltests gold=sva_property_if_consequent.gold
+sva_property_if_consequent_2023 normal,-g2023,-s,sva_property_if_consequent ivltests gold=sva_property_if_consequent.gold
+sva_property_if_multiclock_2017 normal,-g2017,-s,sva_property_if_multiclock ivltests gold=sva_property_if_multiclock.gold
+sva_property_if_multiclock_2023 normal,-g2023,-s,sva_property_if_multiclock ivltests gold=sva_property_if_multiclock.gold
+sva_named_property_consequent_2017 normal,-g2017,-s,sva_named_property_consequent ivltests gold=sva_named_property_consequent.gold
+sva_named_property_consequent_2023 normal,-g2023,-s,sva_named_property_consequent ivltests gold=sva_named_property_consequent.gold
+sva_local_init_multiclock_2017 normal,-g2017,-s,sva_local_init_multiclock ivltests gold=sva_local_init_multiclock.gold
+sva_local_init_multiclock_2023 normal,-g2023,-s,sva_local_init_multiclock ivltests gold=sva_local_init_multiclock.gold

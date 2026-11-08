@@ -1,0 +1,4 @@
+ivltests/issue895_extern_module_fail.v:5: error: The port or parameter list of module p_order does not match its extern declaration at ivltests/issue895_extern_module_fail.v:4 (IEEE 1800 23.5).
+ivltests/issue895_extern_module_fail.v:9: error: The port or parameter list of module p_param does not match its extern declaration at ivltests/issue895_extern_module_fail.v:8 (IEEE 1800 23.5).
+ivltests/issue895_extern_module_fail.v:12: error: A (.*) port list needs an extern module declaration of no_ext (IEEE 1800 23.5).
+ivltests/issue895_extern_module_fail.v:15: error: Only a module can be declared extern (IEEE 1800 23.5).

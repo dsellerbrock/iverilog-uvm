@@ -38,12 +38,15 @@
 using namespace std;
 
 namespace {
-static std::vector<pform_name_t> modport_expression_contexts;
+  // The receiver path and the lexical position of the reference that
+  // named the modport port. Operands of the port's expression are looked
+  // up from that reference, not from the interface source they came from.
+static std::vector<std::pair<pform_name_t,unsigned> > modport_expression_contexts;
 }
 
-void push_modport_expression_context(const pform_name_t&root)
+void push_modport_expression_context(const pform_name_t&root, unsigned lexical_pos)
 {
-      modport_expression_contexts.push_back(root);
+      modport_expression_contexts.push_back(std::make_pair(root, lexical_pos));
 }
 
 void pop_modport_expression_context()
@@ -55,7 +58,13 @@ void pop_modport_expression_context()
 const pform_name_t* modport_expression_context()
 {
       return modport_expression_contexts.empty()
-	    ? nullptr : &modport_expression_contexts.back();
+	    ? nullptr : &modport_expression_contexts.back().first;
+}
+
+unsigned modport_expression_context_lexical_pos()
+{
+      assert(!modport_expression_contexts.empty());
+      return modport_expression_contexts.back().second;
 }
 
 PMatchPattern::PMatchPattern(kind_t kind)

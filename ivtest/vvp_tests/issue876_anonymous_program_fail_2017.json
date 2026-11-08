@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue876_anonymous_program_fail.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue876_anonymous_program_fail"
+}

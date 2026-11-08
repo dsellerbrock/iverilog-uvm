@@ -114,7 +114,7 @@ module test;
       $fatal(1, "excluded-fiber failure changed RNG before preflight");
 
     // The coupled component has 1536 solutions, beyond the fixed 1024
-    // exact-table cap. It must reject before the implicit randc draw.
+    // exact-table cap.
     cap.cycle = 1'b1;
     cap.gate = 1'b1;
     cap.data = 10'h3ff;
@@ -123,13 +123,14 @@ module test;
     cap.child.srandom(32'h43415043);
     subject_rng = cap.get_randstate();
     child_rng = cap.child.get_randstate();
-    if (cap.randomize()) $fatal(1, "over-cap ordered randc solve succeeded");
-    if (cap.cycle !== 1'b1 || cap.gate !== 1'b1 || cap.data !== 10'h3ff
-        || cap.child.value !== 8'hff || cap.posts != 0)
-      $fatal(1, "over-cap failure changed values/callbacks");
-    if (cap.get_randstate() != subject_rng
-        || cap.child.get_randstate() != child_rng)
-      $fatal(1, "over-cap failure changed RNG before preflight completed");
+    // That cap is an implementation limit. IEEE 1800-2023 18.5.9: "a solve...before... constraint does not change the solution
+    // space and, therefore, cannot cause the solver to fail" (#2228).
+    // 18.4.2's randc-first exception does not apply: cycle <= data[0] is
+    // satisfiable for either value of the randc bit.
+    if (!cap.randomize()) $fatal(1, "over-cap ordered randc solve failed");
+    if (cap.cycle > cap.data[0] || cap.gate != cap.data[1]
+        || cap.child.value != cap.data[9:2] || cap.posts != 1)
+      $fatal(1, "over-cap ordered randc solution");
 
     $display("PASSED");
   end

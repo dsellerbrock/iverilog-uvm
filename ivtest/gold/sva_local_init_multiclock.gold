@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sva_local_init_multiclock.sv:99: $finish called at 990 (1s)

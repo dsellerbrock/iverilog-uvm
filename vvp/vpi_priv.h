@@ -1452,6 +1452,14 @@ extern vpiHandle vpip_make_cobject_property_vec_var(char*label,
                                                     bool signed_flag,
                                                     unsigned prop_cnt,
                                                     long*prop_idx);
+/* #2475: an element of a fixed-array class property; INDEX_LABEL names the
+   handle that yields the element index. */
+extern vpiHandle vpip_make_cobject_property_vec_elem(char*label,
+                                                     unsigned width,
+                                                     bool signed_flag,
+                                                     unsigned prop_cnt,
+                                                     long*prop_idx,
+                                                     char*index_label);
 
 /*
  * When a loaded VPI module announces a system task/function, one
@@ -1753,6 +1761,8 @@ enum vpi_rbuf_t {
 extern void *need_result_buf(unsigned cnt, vpi_rbuf_t type);
 /* following two routines use need_result_buf(, RBUF_STR) */
 extern char *simple_set_rbuf_str(const char *s1);
+/* vpiDecompile (IEEE 1800-2023 37.42, 37.59) for objects without text. */
+extern char *vpip_decompile_str(vpiHandle ref);
 extern char *generic_get_str(int code, vpiHandle ref, const char *name, const char *index);
 
 /* A routine to find the enclosing module. */

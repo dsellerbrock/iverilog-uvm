@@ -1,0 +1,2 @@
+PASSED
+./ivltests/sva_named_property_consequent.sv:81: $finish called at 736 (1s)
