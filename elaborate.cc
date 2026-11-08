@@ -13430,6 +13430,27 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 							level, false);
 				      if (!k) { shape_ok = false; break; }
 				      keys.push_back(k);
+				      /* A fixed unpacked-array element is stored flat:
+					 all of its keys together are one canonical
+					 index into it (int d[][2][3]: d[i][j][k]). */
+				      const netuarray_t*fixed =
+					    dynamic_cast<const netuarray_t*>(level->element_type());
+				      if (fixed && kn + 1 < nkeys
+					  && !dynamic_cast<const netqueue_t*>(level)) {
+					    list<index_component_t> fixed_index(
+						  std::next(ii), tail.index.end());
+					    if (fixed_index.size()
+						!= fixed->static_dimensions().size()) {
+						  shape_ok = false;
+						  break;
+					    }
+					    NetExpr*canon = make_checked_canonical_property_index(
+						  des, scope, this, fixed_index, fixed, false);
+					    if (!canon) { shape_ok = false; break; }
+					    keys.push_back(canon);
+					    val_type = fixed->element_type();
+					    break;
+				      }
 				      /* Every key but the last must land on a
 					 further container level. */
 				      if (kn + 1 < nkeys) {
@@ -13440,7 +13461,7 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 					    level = next;
 				      }
 				}
-			if (shape_ok)
+			if (shape_ok && !val_type)
 			      val_type = level->element_type();
 		  }
 
@@ -13499,6 +13520,45 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 	   expressions that might exist. */
       NetAssign_*lv = elaborate_lval(des, scope);
       if (lv == 0) return 0;
+
+	/* A fixed unpacked-array element of a dynamic array is addressed
+	   word by word (d[i][j]); the whole element is not an l-value yet. */
+      if (lv->sig() && lv->word() && !lv->more) {
+	    const netdarray_t*da = lv->sig()->darray_type();
+	    if (da && !lv->sig()->queue_type()
+		&& dynamic_cast<const netuarray_t*>(da->element_type())
+		&& lv->net_type() == da->element_type()) {
+		  cerr << get_fileline() << ": sorry: assigning a whole "
+		       << "unpacked-array element of a dynamic array is not "
+		       << "yet supported; assign its words." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  return 0;
+	    }
+      }
+      if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rval())) {
+	    const std::list<index_component_t>&ri = rid->path().name.back().index;
+	      /* Search the bare name: evaluating the index of an instance
+		 array (pins[i]) would report a non-constant scope index. */
+	    pform_scoped_name_t bare = rid->path();
+	    for (name_component_t&comp : bare.name)
+		  comp.index.clear();
+	    symbol_search_results rsr;
+	    if (ri.size() == 1 && ri.front().sel == index_component_t::SEL_BIT
+		&& symbol_search(this, des, scope, bare,
+				 rid->lexical_pos(), &rsr)
+		&& rsr.net && rsr.path_tail.empty() && rsr.net->darray_type()
+		&& !rsr.net->queue_type()
+		&& dynamic_cast<const netuarray_t*>(
+		      rsr.net->darray_type()->element_type())) {
+		  cerr << get_fileline() << ": sorry: reading a whole "
+		       << "unpacked-array element of a dynamic array is not "
+		       << "yet supported; read its words." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  return 0;
+	    }
+      }
 
 
 

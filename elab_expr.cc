@@ -14455,7 +14455,13 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	      // dynamic dimension (for example int a[3][][5]). Walk the unpacked
 	      // type layers so queries number every declared dimension, rather
 	      // than treating only the outermost array type as the whole shape.
-	      if (sub && !dynamic_cast<const netdarray_t*>(sub->net_type())
+	      const netdarray_t*sub_darray = sub
+		    ? dynamic_cast<const netdarray_t*>(sub->net_type()) : nullptr;
+	        // A dynamic array of fixed unpacked elements (int d[][2][3])
+	        // folds its fixed dimensions here too; dimension 1 stays a
+	        // runtime query below.
+	      if (sub && (!sub_darray
+			  || dynamic_cast<const netuarray_t*>(sub_darray->element_type()))
 		  && (strcmp(name, "$unpacked_dimensions") == 0
 		  || strcmp(name, "$size") == 0 || strcmp(name, "$high") == 0
 		  || strcmp(name, "$low") == 0 || strcmp(name, "$left") == 0
@@ -32743,17 +32749,29 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 
 			NetExpr*mux = nullptr;
 			if (level_fixed) {
-			      if (level_fixed->static_dimensions().size() != 1) {
-				    cerr << get_fileline() << ": sorry: an associative-array"
-					 << " value with more than one fixed dimension is not"
-					 << " yet supported." << endl;
+				/* A fixed level takes one index per dimension, all
+				   at once: the element is stored flat and addressed
+				   by canonical index (int d[][2][3]: d[i][j][k]). */
+			      size_t ndims = level_fixed->static_dimensions().size();
+			      list<index_component_t>fixed_index;
+			      for (auto it = idx_it ; it != path_.back().index.end()
+					 && fixed_index.size() < ndims ; ++it) {
+				    if (it->sel != index_component_t::SEL_BIT
+					|| !it->msb || it->lsb)
+					  break;
+				    fixed_index.push_back(*it);
+			      }
+			      if (fixed_index.size() != ndims) {
+				    cerr << get_fileline() << ": sorry: selecting part "
+					 << "of a multi-dimensional unpacked element "
+					 << "of a container is not yet supported." << endl;
 				    des->errors += 1;
 				    delete cur_sel;
 				    return 0;
 			      }
-			      list<index_component_t>fixed_index(1, level_index);
 			      mux = make_checked_canonical_property_index(
 				    des, scope, this, fixed_index, level_fixed, need_const);
+			      std::advance(idx_it, ndims - 1);
 			} else {
 			      mux = elab_assoc_index(des, scope, level_index.msb,
 						     level, need_const);

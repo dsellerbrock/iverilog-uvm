@@ -30594,6 +30594,31 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %dar/fill/new <count>, "<enc>"
+ *
+ * Give every nil element of the object dynamic array on top of the object
+ * stack (which stays there) a fresh dynamic array of <count> elements of
+ * encoding <enc>. This is the flattened, default-initialized storage of a
+ * fixed unpacked-array element of a dynamic array (IEEE 1800 7.5.1), which
+ * the element selects address by canonical index. Elements copied in by
+ * new[](src) are not nil and keep their values.
+ */
+bool of_DAR_FILL_NEW(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t recv = thr->peek_object();
+      vvp_darray*arr = recv.peek<vvp_darray>();
+      if (!arr)
+	    return true;
+      for (size_t idx = 0 ; idx < arr->get_size() ; idx += 1) {
+	    vvp_object_t word;
+	    arr->get_word(idx, word);
+	    if (word.test_nil())
+		  arr->set_word(idx, make_darray_for_enc_(cp->text, cp->bit_idx[0]));
+      }
+      return true;
+}
+
 /* Build a fresh destination-typed dynamic-array value from any positional
  * runtime collection. This is shared by whole-container conversion and by
  * object-collection splices whose declared inner element is a darray. A null
