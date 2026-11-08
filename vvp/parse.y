@@ -1741,6 +1741,10 @@ symbol_access
          continues the chain or starts the fixed fields). numbers
          followed only by '>' is unambiguous, same as K_CPS. */
       { $$ = vpip_make_cobject_property_vec_var($3, $5, $7, $9.cnt, $9.nvec); }
+  | K_CPV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' numbers ',' T_SYMBOL '>'
+      /* #2475: an element of a fixed-array property; the trailing handle
+         (a vec4 stack reference) holds the element index. */
+      { $$ = vpip_make_cobject_property_vec_elem($3, $5, $7, $9.cnt, $9.nvec, $11); }
   ;
 
   /* functor operands can only be a list of symbols. */
