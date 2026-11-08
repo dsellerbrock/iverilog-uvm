@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue923_struct_nettype.v",
+  "iverilog-args": ["-g2023"]
+}

@@ -1555,6 +1555,16 @@ class PECallFunction : public PExpr {
             { leading_type_args_ = type_args; }
       void set_lexical_pos(unsigned lexical_pos)
             { lexical_pos_ = lexical_pos; }
+	// Rebind a queue index `$' placeholder (parse.y) to `<base>.size',
+	// either by hierarchical path or as a method of a receiver.
+      void set_path_name(const pform_name_t&name)
+            { path_.name = name; }
+      void set_path_package(PPackage*pkg)
+            { path_.package = pkg; }
+      void set_receiver_method(PExpr*receiver, perm_string method)
+            { receiver_ = receiver;
+              path_.name.clear();
+              path_.name.push_back(name_component_t(method)); }
       unsigned lexical_pos() const { return lexical_pos_; }
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }

@@ -5658,6 +5658,8 @@ sv_joint_ordered_guard_randc_reject normal,-g2017 ivltests gold=sv_joint_ordered
 sv_joint_ordered_guard_randc_reject_2023 normal,-g2023,-Iivltests ivltests gold=sv_joint_ordered_guard_randc_reject.gold
 sv_joint_ordered_guard_prefix_cap_reject normal,-g2017 ivltests gold=sv_joint_ordered_guard_prefix_cap_reject.gold
 sv_joint_ordered_guard_prefix_cap_reject_2023 normal,-g2023,-Iivltests ivltests gold=sv_joint_ordered_guard_prefix_cap_reject.gold
+sv_joint_ordered_guard_prefix_cap normal,-g2017 ivltests gold=sv_joint_ordered_guard_prefix_cap.gold
+sv_joint_ordered_guard_prefix_cap_2023 normal,-g2023,-Iivltests ivltests gold=sv_joint_ordered_guard_prefix_cap.gold
 sv_interface_task_mixed_driver_strict CE,-g2017,-ssv_interface_task_mixed_driver_strict ivltests gold=sv_interface_task_mixed_driver_strict.gold
 sv_interface_task_mixed_driver_strict_2023 CE,-g2023,-ssv_interface_task_mixed_driver_strict ivltests gold=sv_interface_task_mixed_driver_strict.gold
 sv_interface_task_mixed_driver_unused_unsafe normal,-g2017,-gcommercial-unsafe,-ssv_interface_task_mixed_driver_unused_unsafe ivltests gold=sv_interface_task_mixed_driver_unused_unsafe.gold
@@ -6031,8 +6033,8 @@ sv_foreach_dynamic_selector_prefix normal,-g2017,-s,main ivltests gold=sv_foreac
 sv_foreach_dynamic_selector_prefix_2023 normal,-g2023,-s,main ivltests gold=sv_foreach_dynamic_selector_prefix.gold
 sv_udp_ansi_grouped_inputs normal,-g2017,-s,main ivltests gold=sv_udp_ansi_grouped_inputs.gold
 sv_udp_ansi_grouped_inputs_2023 normal,-g2023,-s,main ivltests gold=sv_udp_ansi_grouped_inputs.gold
-sv_nettype_struct_pattern_neg CE,-g2017,-s,top ivltests gold=sv_nettype_struct_pattern_neg.gold
-sv_nettype_struct_pattern_neg_2023 CE,-g2023,-s,top ivltests gold=sv_nettype_struct_pattern_neg_2023.gold
+sv_nettype_struct_pattern_neg normal,-g2017,-s,top ivltests
+sv_nettype_struct_pattern_neg_2023 normal,-g2023,-s,top ivltests
 sv_packed_property_runtime_tail_range normal,-g2017,-s,main ivltests gold=sv_packed_property_runtime_tail_range.gold
 sv_packed_property_runtime_tail_range_2023 normal,-g2023,-s,main ivltests gold=sv_packed_property_runtime_tail_range.gold
 sv_constraint_solve_before_aggregate_unsafe normal,-g2017,-gcommercial-unsafe ivltests gold=sv_constraint_solve_before_aggregate_unsafe.gold
