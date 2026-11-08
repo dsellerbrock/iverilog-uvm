@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2778_this_bitstream_local.v",
+  "iverilog-args": ["-g2023", "-s", "issue2778_this_bitstream_local"],
+  "gold": "issue2778_this_bitstream_local"
+}

@@ -23023,7 +23023,7 @@ static bool bitstream_cast_source_is_this_(const PExpr*expr)
 	    return false;
       const pform_scoped_name_t&path = ident->path();
       return !path.package && path.name.size() == 1
-	    && path.name.front().name == perm_string::literal("this")
+	    && path.name.front().name == perm_string::literal(THIS_TOKEN)
 	    && path.name.front().index.empty();
 }
 
