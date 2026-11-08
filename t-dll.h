@@ -155,6 +155,7 @@ struct dll_target  : public target_t, public expr_scan_t {
       void convert_module_ports(const NetScope*) override;
       void signal(const NetNet*) override;
       bool signal_paths(const NetNet*) override;
+      bool scope_tchks(const NetScope*) override;
       ivl_dll_t dll_;
 
       ivl_design_s des_;
@@ -896,12 +897,32 @@ struct ivl_scope_proc_s {
       unsigned ports;
 };
 
+/* One timing-check directive of a scope (see NetTchk). */
+struct ivl_tchk_s {
+      struct term_s {
+	    ivl_signal_t sig;
+	    bool has_bit;
+	    long bit;
+	    unsigned edge;
+	    ivl_signal_t condit;
+	    const char*condition_text;
+      };
+      int type;
+      perm_string file;
+      unsigned lineno;
+      term_s term[2];
+      std::vector<ivl_signal_t> limit_sigs;
+      std::vector<double> limits;
+      ivl_signal_t notifier;
+};
+
 struct ivl_scope_aux_s {
       std::vector<ivl_type_t>*classes;
       std::vector<ivl_enumtype_t>*enumerations_;
       std::vector<std::pair<const char*, ivl_type_t> >*typedefs_;
       std::vector<struct ivl_parameter_s>*param;
       std::vector<ivl_switch_t>*switches;
+      std::vector<ivl_tchk_t>*tchks;
       ivl_scope_objects_s*objects_;
       ivl_scope_proc_s*proc_;
       struct ivl_attribute_s*attr;
