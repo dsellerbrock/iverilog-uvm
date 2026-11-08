@@ -7950,7 +7950,8 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	   width check above can distinguish handles from scalar operands, but
 	   cannot distinguish unrelated class types. Check the elaborated types
 	   here, after specialized class types have been resolved. */
-      if ((op_ == 'e' || op_ == 'n' || op_ == 'E' || op_ == 'N')
+      if ((op_ == 'e' || op_ == 'n' || op_ == 'E' || op_ == 'N'
+	   || op_ == 'w' || op_ == 'W')
 	  && lp->expr_type() == IVL_VT_CLASS
 	  && rp->expr_type() == IVL_VT_CLASS) {
 	    const netclass_t*left_class =
@@ -8014,6 +8015,8 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       eval_expr(lp, l_width_);
       eval_expr(rp, r_width_);
 
+      char net_op = op_;
+
 	// Handle some operand-specific special cases...
       switch (op_) {
 	  case 'E': /* === */
@@ -8032,6 +8035,15 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    break;
 	  case 'w': /* ==? */
 	  case 'W': /* !=? */
+	    // IEEE 1800-2017/2023 11.4.6 defines wildcard equality on
+	    // class handles and null as logical equality. Keep the integral
+	    // wildcard implementation for all other operands.
+	    if (lp->expr_type() == IVL_VT_CLASS
+		|| rp->expr_type() == IVL_VT_CLASS
+		|| dynamic_cast<NetENull*>(lp) || dynamic_cast<NetENull*>(rp)) {
+		  net_op = (op_ == 'w') ? 'e' : 'n';
+		  break;
+	    }
 	    if ((lp->expr_type() != IVL_VT_BOOL && lp->expr_type() != IVL_VT_LOGIC) ||
 		(rp->expr_type() != IVL_VT_BOOL && rp->expr_type() != IVL_VT_LOGIC)) {
 		  cerr << get_fileline() << ": error: "
@@ -8064,7 +8076,7 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    break;
       }
 
-      NetExpr*tmp = new NetEBComp(op_, lp, rp);
+      NetExpr*tmp = new NetEBComp(net_op, lp, rp);
       tmp->set_line(*this);
 
       return pad_to_width(tmp, expr_wid, signed_flag_, *this);
