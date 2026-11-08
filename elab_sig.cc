@@ -4337,7 +4337,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       bool struct_udnt = false;
       if (user_type && port_type_ == NetNet::NOT_A_PORT && unpacked_.empty()) {
 	    const netstruct_t*st = dynamic_cast<const netstruct_t*>(user_type->data_type());
-	    struct_udnt = st && !st->packed();
+	    struct_udnt = st && !st->packed() && !st->union_flag();
       }
       if (struct_udnt)
 	    wtype = NetNet::REG;

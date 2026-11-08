@@ -4308,6 +4308,16 @@ static void finalize_resolved_struct_nets_(Design*des)
 	    const NetFuncDef*def = net->user_nettype()->resolution_function();
 	    if (!def)
 		  continue;   // The nettype reported its resolver.
+	      // The collected assignments never mark the net driven, so a
+	      // mark means a driver of another kind, such as a port.
+	    if (net->test_part_driven(0, 0, 0)) {
+		  cerr << net->get_fileline() << ": sorry: Net `" << net->name()
+		       << "' of a resolved unpacked-struct nettype can only be "
+		       << "driven by continuous assignments in its own scope."
+		       << endl;
+		  des->errors += 1;
+		  continue;
+	    }
 	    NetScope*scope = net->scope();
 	    const NetScope*owner = def->scope()->parent();
 	    PPackage*pkg = nullptr;
