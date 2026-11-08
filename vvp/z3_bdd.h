@@ -19,6 +19,7 @@
  * to another sampler without perturbing the object's random stream.
  */
 # include  <z3.h>
+# include  <cstddef>
 # include  <cstdint>
 # include  <functional>
 # include  <vector>
