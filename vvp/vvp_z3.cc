@@ -12474,6 +12474,66 @@ static bool z3_full_power_two_domain_(Z3_context ctx, Z3_solver base,
       return hole == Z3_L_FALSE;
 }
 
+/* Prove that every value of one bit-vector projection has a completion in
+ * BASE. Unlike z3_full_power_two_domain_, this keeps coupled residual
+ * variables and asks Z3 to prove the projection property symbolically. */
+static bool z3_full_power_two_projection_(Z3_context ctx, Z3_solver base,
+      Z3_ast var, unsigned&bits)
+{
+      bits = 0;
+      Z3_sort sort = Z3_get_sort(ctx, var);
+      if (Z3_get_sort_kind(ctx, sort) != Z3_BV_SORT
+          || Z3_get_bv_sort_size(ctx, sort) == 0
+          || Z3_get_bv_sort_size(ctx, sort) > 64)
+            return false;
+
+      Z3_ast_vector assertions = Z3_solver_get_assertions(ctx, base);
+      Z3_ast_vector_inc_ref(ctx, assertions);
+      vector<Z3_ast> clauses;
+      set<Z3_ast> constants;
+      for (unsigned i = 0; i < Z3_ast_vector_size(ctx, assertions); ++i) {
+            Z3_ast clause = Z3_ast_vector_get(ctx, assertions, i);
+            clauses.push_back(clause);
+            if (!z3_collect_constants_(ctx, clause, constants)) {
+                  Z3_ast_vector_dec_ref(ctx, assertions);
+                  return false;
+            }
+      }
+      Z3_ast_vector_dec_ref(ctx, assertions);
+      vector<Z3_app> existential;
+      for (Z3_ast constant : constants)
+            if (constant != var) existential.push_back(Z3_to_app(ctx, constant));
+      Z3_ast body = clauses.empty() ? Z3_mk_true(ctx)
+            : clauses.size() == 1 ? clauses.front()
+            : Z3_mk_and(ctx, (unsigned)clauses.size(), clauses.data());
+      if (!existential.empty())
+            body = Z3_mk_exists_const(ctx, 0,
+                  (unsigned)existential.size(), existential.data(), 0, nullptr,
+                  body);
+      Z3_app universal = Z3_to_app(ctx, var);
+      Z3_ast projection = Z3_mk_forall_const(ctx, 0, 1, &universal, 0,
+            nullptr, body);
+      Z3_solver proof = Z3_mk_solver(ctx);
+      Z3_solver_inc_ref(ctx, proof);
+      Z3_solver_assert(ctx, proof, projection);
+      Z3_lbool result = Z3_solver_check(ctx, proof);
+      Z3_solver_dec_ref(ctx, proof);
+      if (result != Z3_L_TRUE) return false;
+      bits = Z3_get_bv_sort_size(ctx, sort);
+      return true;
+}
+
+/* Constant distribution weights cannot make a legal constraint solution
+ * fail (IEEE 1800-2017 18.5.4 / 2023 18.5.3). */
+static bool z3_constant_dist_weights_(const Z3Builder::DistSpec&spec)
+{
+      return !spec.disableable
+            && all_of(spec.branches.begin(), spec.branches.end(),
+                  [](const Z3Builder::DistBranch&branch) {
+                        return !branch.weight_expression;
+                  });
+}
+
 /* IEEE 1800-2017 18.5.9/18.5.10; IEEE 1800-2023 18.5.8/18.5.9:
  * independent factors have a Cartesian product of legal projected tuples.
  * Split only conjunctions. Include every symbolic constant, even state and
@@ -16168,6 +16228,30 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               if (found != stages.end() && found->second < stage)
                                     prefix_vars.push_back(var);
                         }
+                        /* A full one-variable power-of-two projection is a
+                         * symbolic proof that every prefix value has a hard
+                         * completion. Constant dist weights cannot make any
+                         * of those legal fibers fail. */
+                        unsigned prefix_bits = 0;
+                        bool full_prefix = prefix_vars.size() == 1;
+                        if (full_prefix
+                            && !z3_full_power_two_domain_(ctx, base,
+                                  prefix_vars.front(), prefix_bits))
+                              full_prefix = z3_full_power_two_projection_(ctx,
+                                    base, prefix_vars.front(), prefix_bits);
+                        (void)prefix_bits;
+                        if (full_prefix) {
+                              bool full_support = true;
+                              for (const auto&binding : bindings) {
+                                    if (binding.stage != stage) continue;
+                                    if (!z3_constant_dist_weights_(
+                                                *binding.spec)) {
+                                          full_support = false;
+                                          break;
+                                    }
+                              }
+                              if (full_support) continue;
+                        }
                         vector<vector<uint64_t> > prefixes;
                         const char*reason = nullptr;
                         if (z3_enumerate_joint_(ctx, base, prefix_vars,
@@ -16312,6 +16396,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     projection.push_back(var);
                         }
                         if (projection.empty()) continue;
+                        unsigned projection_bits = 0;
+                        bool full_projection = projection.size() == 1;
+                        if (full_projection
+                            && !z3_full_power_two_domain_(ctx, base,
+                                  projection.front(), projection_bits))
+                              full_projection = z3_full_power_two_projection_(
+                                    ctx, base, projection.front(),
+                                    projection_bits);
+                        if (full_projection) continue;
                         vector<vector<uint64_t> > values;
                         const char*reason = nullptr;
                         if (z3_enumerate_joint_(ctx, base, projection,
@@ -16798,6 +16891,26 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     }
                               }
                               if (projection.empty()) continue;
+                              unsigned projection_bits = 0;
+                              bool full_projection = projection.size() == 1;
+                              if (full_projection
+                                  && !z3_full_power_two_domain_(ctx, base,
+                                        projection.front(), projection_bits))
+                                    full_projection =
+                                          z3_full_power_two_projection_(ctx,
+                                                base, projection.front(),
+                                                projection_bits);
+                              if (full_projection) {
+                                    uint64_t chosen = 0;
+                                    if (projection_bits == 64)
+                                          chosen = ((uint64_t)root_rng.next()
+                                                << 32) | root_rng.next();
+                                    else if (projection_bits != 0)
+                                          chosen = root_rng.uniform_u64(
+                                                uint64_t(1) << projection_bits);
+                                    pin_column(columns.front(), chosen);
+                                    continue;
+                              }
                               vector<vector<uint64_t> > values;
                               const char*reason = nullptr;
                               if (z3_enumerate_joint_(ctx, base, projection,
