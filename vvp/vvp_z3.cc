@@ -31,6 +31,7 @@
 # include  "vvp_assoc.h"
 # include  "vvp_z3.h"
 # include  "vvp_perf_stats.h"
+# include  "z3_bdd.h"
 
 # include  <z3.h>
 # include  <z3_optimization.h>
@@ -9928,6 +9929,62 @@ static bool z3_collect_constants_(Z3_context ctx, Z3_ast value,
       return true;
 }
 
+/* Exact uniform draw of STAGES (18.5.9) through the BDD sampler, pinned into
+ * BASE and OPT. Only the assertions that reach the staged variables through
+ * shared constants are compiled. UNDEF (unsupported operator, BDD budget)
+ * pins nothing and consumes no random words, so the caller's own sampler
+ * runs exactly as before. */
+static Z3_lbool z3_bdd_pin_stages_(Z3_context ctx, Z3_solver base,
+      Z3_optimize opt, const vector<vector<Z3_ast> >&stages,
+      z3_rng_stream_t&rng)
+{
+      static int disabled = -1;
+      if (disabled < 0) {
+            const char*env = getenv("IVL_Z3_NO_BDD");
+            disabled = env && *env && strcmp(env, "0") != 0;
+      }
+      if (disabled) return Z3_L_UNDEF;
+      Z3_ast_vector avec = Z3_solver_get_assertions(ctx, base);
+      Z3_ast_vector_inc_ref(ctx, avec);
+      vector<Z3_ast> all;
+      vector<set<Z3_ast> > uses;
+      bool ok = true;
+      for (unsigned i = 0; ok && i < Z3_ast_vector_size(ctx, avec); ++i) {
+            all.push_back(Z3_ast_vector_get(ctx, avec, i));
+            uses.emplace_back();
+            ok = z3_collect_constants_(ctx, all.back(), uses.back());
+      }
+      set<Z3_ast> reach;
+      for (const auto&stage : stages) reach.insert(stage.begin(), stage.end());
+      vector<bool> taken(all.size(), false);
+      for (bool grew = ok; grew;) {
+            grew = false;
+            for (size_t i = 0; i < all.size(); ++i) {
+                  if (taken[i] || none_of(uses[i].begin(), uses[i].end(),
+                        [&](Z3_ast c) { return reach.count(c) != 0; })) continue;
+                  taken[i] = grew = true;
+                  reach.insert(uses[i].begin(), uses[i].end());
+            }
+      }
+      vector<Z3_ast> relevant;
+      for (size_t i = 0; i < all.size(); ++i)
+            if (taken[i]) relevant.push_back(all[i]);
+      vector<Z3_ast> values;
+      Z3_lbool result = ok ? z3_bdd_sample(ctx, relevant, stages,
+            [&rng]() { return rng.next(); }, values, 1u << 18) : Z3_L_UNDEF;
+      if (result == Z3_L_TRUE) {
+            size_t k = 0;
+            for (const auto&stage : stages)
+                  for (Z3_ast var : stage) {
+                        Z3_ast pin = Z3_mk_eq(ctx, var, values[k++]);
+                        Z3_solver_assert(ctx, base, pin);
+                        Z3_optimize_assert(ctx, opt, pin);
+                  }
+      }
+      Z3_ast_vector_dec_ref(ctx, avec);
+      return result;
+}
+
 static uint64_t z3_randc_wide_permute_(uint64_t index, unsigned width,
 				       const uint64_t*keys)
 {
@@ -14327,6 +14384,19 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			else if (uniform_joint_width.at(var) > 64)
 			      wide_direct_scalars = true;
 		  for (unsigned attempt = 0; attempt < uniform_joint_attempt_cap; ++attempt) {
+			if (attempt == uniform_joint_enumerate_after) {
+			      /* Rejection missed: the legal set is sparse in its box.
+			         Draw it exactly when it compiles to a BDD. */
+			      Z3_lbool exact = z3_bdd_pin_stages_(ctx, base, opt,
+				    vector<vector<Z3_ast> >(1, component),
+				    property_rng(uniform_joint_property.at(component.front())));
+			      if (exact == Z3_L_FALSE) return fail_joint(nullptr);
+			      if (exact == Z3_L_TRUE) {
+				    for (Z3_ast var : component)
+					  uniform_sampled_vars.insert(var);
+				    break;
+			      }
+			}
 			if (enumerate_direct_scalars && !wide_direct_scalars
 			    && attempt == enumerate_after) {
 			      bool sampled_projection = false;
