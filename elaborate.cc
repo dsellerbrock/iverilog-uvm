@@ -46363,6 +46363,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						    if (v == verinum::V0 || v == verinum::V1)
 							  known_mask |= UINT64_C(1) << bit;
 					      }
+			      uint64_t full_mask = width == 64 ? UINT64_MAX
+					    : (UINT64_C(1) << width) - 1;
+			      if (known_mask != full_mask) {
+				    if (!range_ir.empty()) range_ir += " ";
+				    range_ir += "qbadconst";
+				    continue;
+			      }
 					      string token = "cw:" + to_string(value_bits)
 						    + ":" + to_string(known_mask)
 						    + ":" + to_string(width)

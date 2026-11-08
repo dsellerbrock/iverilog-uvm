@@ -1675,6 +1675,8 @@ sv_cast_enum_check normal,-g2012 ivltests
 sv_covergroup_chained_sample normal,-g2012 ivltests
 sv_inside_property_container normal,-g2012 ivltests
 sv_constraint_inside_container normal,-g2012 ivltests
+sv_constraint_inside_param_array normal,-g2017 ivltests gold=sv_constraint_inside_param_array_legacy.gold
+sv_constraint_inside_param_array_2023 normal,-g2023 ivltests gold=sv_constraint_inside_param_array_legacy.gold
 sv_constraint_nonrand_queue_size normal,-g2012 ivltests
 sv_constraint_rand_queue_size normal,-g2012 ivltests
 sv_constraint_darray_size_parenless normal,-g2012 ivltests gold=sv_constraint_darray_size_parenless.gold
