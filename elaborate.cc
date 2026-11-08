@@ -13537,9 +13537,14 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
       }
       if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rval())) {
 	    const std::list<index_component_t>&ri = rid->path().name.back().index;
+	      /* Search the bare name: evaluating the index of an instance
+		 array (pins[i]) would report a non-constant scope index. */
+	    pform_scoped_name_t bare = rid->path();
+	    for (name_component_t&comp : bare.name)
+		  comp.index.clear();
 	    symbol_search_results rsr;
 	    if (ri.size() == 1 && ri.front().sel == index_component_t::SEL_BIT
-		&& symbol_search(this, des, scope, rid->path(),
+		&& symbol_search(this, des, scope, bare,
 				 rid->lexical_pos(), &rsr)
 		&& rsr.net && rsr.path_tail.empty() && rsr.net->darray_type()
 		&& !rsr.net->queue_type()
