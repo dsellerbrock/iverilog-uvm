@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue895_extern_module.v",
+  "iverilog-args": ["-g2023", "-s", "top"]
+}

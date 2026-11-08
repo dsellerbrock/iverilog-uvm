@@ -6536,6 +6536,7 @@ deferred_mode
 
 description /* IEEE1800-2005: A.1.2 */
   : module
+  | extern_module_declaration
   | udp_primitive
   | config_declaration
   | nature_declaration
@@ -17064,6 +17065,29 @@ cont_assign_list
      section, with optional ports, then an optional list of module
      items, and finally an end marker. */
 
+
+  /* IEEE 1800-2017/2023 23.5: an extern module declaration is the module
+     header alone. It is kept aside for a later definition, which either
+     repeats a matching header or takes the extern ports with (.*). It is
+     a description, not a module item: inside a module, `extern' already
+     starts an extern task/function prototype. */
+extern_module_declaration
+  : K_extern module_start lifetime_opt module_identifier
+      { if ($2 != K_module)
+	      yyerror(@2, "error: Only a module can be declared extern "
+			  "(IEEE 1800 23.5).");
+	pform_startmodule(@2, $4, false, false, false, $3, nullptr);
+	port_declaration_context_init();
+      }
+    module_package_import_list_opt
+    module_parameter_port_list_opt
+    module_port_list_opt ';'
+      { pform_module_set_ports($8);
+	pform_end_extern_module();
+	delete[]$4;
+      }
+  ;
+
 module
   : attribute_list_opt module_start lifetime_opt module_identifier
       { pform_startmodule(@2, $4, $2==K_program, $2==K_interface,
@@ -17074,7 +17098,9 @@ module
     module_parameter_port_list_opt
     module_port_list_opt
     module_attribute_foreign ';'
-      { pform_module_set_ports($8); }
+      { pform_module_set_ports($8);
+	pform_check_extern_module_header();
+      }
     timeunits_declaration_opt
       { pform_set_scope_timescale(@2); }
     module_item_list_opt
@@ -17227,6 +17253,10 @@ module_port_list_opt
       { $$ = $2; }
   | '(' list_of_port_declarations ')'
       { $$ = $2; }
+  | '(' K_DOTSTAR ')'
+      { pform_module_use_extern_ports(@2);
+	$$ = 0;
+      }
   |
       { $$ = 0; }
   | '(' error ')'
