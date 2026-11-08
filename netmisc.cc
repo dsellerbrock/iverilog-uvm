@@ -1899,6 +1899,41 @@ NetExpr* condition_reduce(NetExpr*expr)
       return cmp;
 }
 
+/*
+ * Real-target arm of the compile-progress fallback shared by both
+ * elab_and_eval() overloads. Consumes tmp and returns the placeholder,
+ * or 0 after reporting an error.
+ *
+ * A well-typed STRING source has no implicit conversion to real: IEEE
+ * 1800-2017/2023 6.16 defines only string<->integral (explicit
+ * right-justified pack/truncate) and string<->string implicit
+ * conversions, nothing to/from real. This is R30's exact hole (silently
+ * substituting a default instead of hard-erroring an ill-typed
+ * assignment) recurring for a real target instead of a vector one:
+ * `real r; r = some_string;' compiled clean and always read 0.0,
+ * discarding the string value with no diagnostic (confirmed via
+ * evidence/campaign-20260908/dd046/c22_real_string.sv). Hard error,
+ * never a stub, for a well-typed string; a genuinely unresolved/generic
+ * tmp type still gets the compile-progress placeholder.
+ */
+static NetExpr* real_target_fallback_(Design*des, const PExpr*pe, NetExpr*tmp)
+{
+      if (tmp->expr_type() == IVL_VT_STRING) {
+	    cerr << pe->get_fileline() << ": error: "
+		 << "A string value has no implicit "
+		 << "conversion to real (IEEE 1800-2017/2023 "
+		 << "6.16); an explicit conversion such as "
+		 << "string::atoreal() is required." << endl;
+	    des->errors += 1;
+	    delete tmp;
+	    return 0;
+      }
+      NetECReal*stub = new NetECReal(verireal(0.0));
+      stub->set_line(*tmp);
+      delete tmp;
+      return stub;
+}
+
 NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 		       int context_width, bool need_const, bool annotatable,
 		       ivl_variable_type_t cast_type, bool force_unsigned,
@@ -2247,34 +2282,9 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			goto cast_done;
 		  }
 		  if (cast_type == IVL_VT_REAL) {
-			// A well-typed STRING source has no implicit conversion
-			// to real: IEEE 1800-2017/2023 6.16 defines only
-			// string<->integral (explicit right-justified pack/
-			// truncate) and string<->string implicit conversions,
-			// nothing to/from real. This is R30's exact hole
-			// (silently substituting a default instead of hard-
-			// erroring an ill-typed assignment) recurring for a
-			// real target instead of a vector one: `real r; r =
-			// some_string;' compiled clean and always read 0.0,
-			// discarding the string value with no diagnostic
-			// (confirmed via evidence/campaign-20260908/dd046/
-			// c22_real_string.sv). Hard error, never a stub, for
-			// a well-typed string; a genuinely unresolved/generic
-			// tmp type still gets the compile-progress placeholder.
-			if (tmp->expr_type() == IVL_VT_STRING) {
-			      cerr << pe->get_fileline() << ": error: "
-				   << "A string value has no implicit "
-				   << "conversion to real (IEEE 1800-2017/2023 "
-				   << "6.16); an explicit conversion such as "
-				   << "string::atoreal() is required." << endl;
-			      des->errors += 1;
-			      delete tmp;
+			tmp = real_target_fallback_(des, pe, tmp);
+			if (tmp == 0)
 			      return 0;
-			}
-			NetECReal*stub = new NetECReal(verireal(0.0));
-			stub->set_line(*tmp);
-			delete tmp;
-			tmp = stub;
 			goto cast_done;
 		  }
 		  // A well-typed STRING expression in a vector context is
@@ -2711,28 +2721,8 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 			delete tmp;
 			return stub;
 		  }
-		  if (cast_type == IVL_VT_REAL) {
-			// See the sibling elab_and_eval(cast_type) overload
-			// above for the rationale: IEEE 1800-2017/2023 6.16
-			// defines no implicit string-to-real conversion, so a
-			// well-typed STRING source is a hard error here too,
-			// not a silent 0.0 (evidence/campaign-20260908/dd046/
-			// c22_real_string.sv).
-			if (tmp->expr_type() == IVL_VT_STRING) {
-			      cerr << pe->get_fileline() << ": error: "
-				   << "A string value has no implicit "
-				   << "conversion to real (IEEE 1800-2017/2023 "
-				   << "6.16); an explicit conversion such as "
-				   << "string::atoreal() is required." << endl;
-			      des->errors += 1;
-			      delete tmp;
-			      return 0;
-			}
-			NetECReal*stub = new NetECReal(verireal(0.0));
-			stub->set_line(*tmp);
-			delete tmp;
-			return stub;
-		  }
+		  if (cast_type == IVL_VT_REAL)
+			return real_target_fallback_(des, pe, tmp);
 		  if (cast_type == IVL_VT_BOOL || cast_type == IVL_VT_LOGIC
 		      || type_is_vectorable(cast_type)) {
 			NetEConst*stub = make_const_val(0);
