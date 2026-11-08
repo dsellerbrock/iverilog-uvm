@@ -72,6 +72,146 @@ static void FILE_NAME(PCallTask*tmp, const struct vlltype&where)
 					tmp->path().front().name);
 }
 
+/* IEEE 1800-2017/2023 7.10.1: `$' in a queue index or slice bound is the
+   last index, so any integral index expression may hold it. A `$' outside
+   the forms with their own rules below parses as `<placeholder>.size() - 1'.
+   When the enclosing index reduces, every placeholder between its brackets
+   (by token ordinal, which the lexer keeps in the column fields) is bound to
+   that queue. Inner brackets reduce first, so each `$' binds to its
+   innermost index. An unbound placeholder is reported at elaboration. */
+struct queue_last_placeholder_t {
+      PECallFunction*size_call;
+      PEBinary*last;
+      int ordinal;
+};
+static std::vector<queue_last_placeholder_t> queue_last_placeholders;
+
+static PExpr* make_queue_last_placeholder_(const struct vlltype&loc)
+{
+      pform_name_t name;
+      name.push_back(name_component_t(lex_strings.make("$")));
+      name.push_back(name_component_t(lex_strings.make("size")));
+      std::vector<named_pexpr_t> no_args;
+      PECallFunction*size_call = new PECallFunction(name, no_args);
+      FILE_NAME(static_cast<LineInfo*>(size_call), loc);
+      PENumber*one = new PENumber(new verinum((uint64_t)1, integer_width));
+      FILE_NAME(one, loc);
+      PEBinary*last = new PEBinary('-', size_call, one);
+      FILE_NAME(last, loc);
+      queue_last_placeholders.push_back({size_call, last, loc.first_column});
+      return last;
+}
+
+/* A slice upper bound that is exactly `$ - e' keeps the SEL_PART_LAST form,
+   which evaluates the receiver once and treats e as an unsigned offset
+   from the last index. Returns e, or null for any other bound (including
+   `$-a+b', which is ($-a)+b and takes the general path). */
+static PExpr* take_last_minus_offset_(PExpr*bound)
+{
+      PEBinary*minus = dynamic_cast<PEBinary*>(bound);
+      if (!minus || minus->get_op() != '-')
+	    return nullptr;
+      for (size_t idx = 0 ; idx < queue_last_placeholders.size() ; idx += 1) {
+	    if (queue_last_placeholders[idx].last != minus->get_left())
+		  continue;
+	    queue_last_placeholders.erase(queue_last_placeholders.begin() + idx);
+	    return minus->get_right();
+      }
+      return nullptr;
+}
+
+/* Placeholders bound to a hierarchical BASE, kept until a package scope
+   prefix (pkg::q[...]) has had the chance to qualify them. */
+struct queue_last_bound_t {
+      PECallFunction*size_call;
+      int ordinal;
+      const pform_name_t*base;
+};
+static std::vector<queue_last_bound_t> queue_last_bound;
+
+/* The size() path is a copy of the indexed prefix. A `[$]' already in that
+   prefix is a SEL_BIT_LAST selector, which a method-call path cannot
+   carry; make it the explicit index `<prefix>.size() - 1'. */
+static void materialize_last_selects_(pform_name_t&name,
+				      const struct vlltype&loc)
+{
+      for (pform_name_t::iterator comp = name.begin()
+		 ; comp != name.end() ; ++comp) {
+	    for (std::list<index_component_t>::iterator idx = comp->index.begin()
+		       ; idx != comp->index.end() ; ++idx) {
+		  if (idx->sel != index_component_t::SEL_BIT_LAST)
+			continue;
+		  pform_name_t prefix(name.begin(), comp);
+		  name_component_t head(comp->name);
+		  head.index.assign(comp->index.begin(), idx);
+		  prefix.push_back(head);
+		  materialize_last_selects_(prefix, loc);
+		  prefix.push_back(name_component_t(lex_strings.make("size")));
+		  std::vector<named_pexpr_t> no_args;
+		  PECallFunction*size_call = new PECallFunction(prefix, no_args);
+		  FILE_NAME(static_cast<LineInfo*>(size_call), loc);
+		  PENumber*one = new PENumber(
+			new verinum((uint64_t)1, integer_width));
+		  FILE_NAME(one, loc);
+		  PEBinary*last = new PEBinary('-', size_call, one);
+		  FILE_NAME(last, loc);
+		  idx->sel = index_component_t::SEL_BIT;
+		  idx->msb = last;
+		  idx->lsb = 0;
+	    }
+      }
+}
+
+/* Give the placeholders bound to NAME within SPAN the package of a
+   pkg::name prefix, and forget the bindings that can no longer be
+   qualified. */
+static void qualify_queue_last_placeholders_(PPackage*pkg,
+					     const pform_name_t*name,
+					     const struct vlltype&span)
+{
+      size_t idx = 0;
+      while (idx < queue_last_bound.size()) {
+	    queue_last_bound_t&cur = queue_last_bound[idx];
+	    if (cur.ordinal > span.last_column) {
+		  idx += 1;
+		  continue;
+	    }
+	    if (cur.base == name && cur.ordinal > span.first_column)
+		  cur.size_call->set_path_package(pkg);
+	    queue_last_bound.erase(queue_last_bound.begin() + idx);
+      }
+}
+
+/* Bind the placeholders between OPEN and CLOSE to BASE.size(), where BASE
+   is a hierarchical path or, when null, the RECEIVER expression. */
+static void bind_queue_last_placeholders_(const pform_name_t*base,
+					  PEIdent*receiver,
+					  const struct vlltype&open,
+					  const struct vlltype&close)
+{
+      size_t idx = 0;
+      while (idx < queue_last_placeholders.size()) {
+	    queue_last_placeholder_t&cur = queue_last_placeholders[idx];
+	    if (cur.ordinal <= open.first_column
+		|| cur.ordinal >= close.last_column) {
+		  idx += 1;
+		  continue;
+	    }
+	    if (base) {
+		  pform_name_t name(*base);
+		  materialize_last_selects_(name, open);
+		  name.push_back(name_component_t(lex_strings.make("size")));
+		  cur.size_call->set_path_name(name);
+		  queue_last_bound.push_back({cur.size_call, cur.ordinal, base});
+	    } else {
+		  cur.size_call->set_receiver_method(
+			receiver->clone_for_reference(),
+			lex_strings.make("size"));
+	    }
+	    queue_last_placeholders.erase(queue_last_placeholders.begin() + idx);
+      }
+}
+
 class PSpecPath;
 
 extern void lex_end_table();
@@ -14090,6 +14230,7 @@ parameterized_scoped_identifier
       }
   | parameterized_scoped_identifier '[' expression ']'
       { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	bind_queue_last_placeholders_(nullptr, dynamic_cast<PEIdent*>($1), @2, @4);
 	assert(tmp);
 	index_component_t idx;
 	idx.sel = index_component_t::SEL_BIT;
@@ -14099,6 +14240,7 @@ parameterized_scoped_identifier
       }
   | parameterized_scoped_identifier '[' '$' ']'
       { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	bind_queue_last_placeholders_(nullptr, dynamic_cast<PEIdent*>($1), @2, @4);
 	assert(tmp);
 	PEIdent*receiver = tmp->clone_for_reference();
 	FILE_NAME(receiver, @3);
@@ -14117,40 +14259,22 @@ parameterized_scoped_identifier
 	tmp->append_index(idx);
 	$$ = tmp;
       }
-  | parameterized_scoped_identifier '[' '$' '-' expression ']'
-      { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
-	assert(tmp);
-	PEIdent*receiver = tmp->clone_for_reference();
-	FILE_NAME(receiver, @3);
-	std::list<named_pexpr_t> no_args;
-	PECallFunction*size_call = new PECallFunction(
-	      receiver, lex_strings.make("size"), no_args);
-	FILE_NAME(size_call, @3);
-	PENumber*one = new PENumber(
-	      new verinum((uint64_t)1, integer_width));
-	FILE_NAME(one, @3);
-	PEBinary*last_idx = new PEBinary('-', size_call, one);
-	FILE_NAME(last_idx, @3);
-	PEBinary*offset_idx = new PEBinary('-', last_idx, $5);
-	FILE_NAME(offset_idx, @4);
-	index_component_t idx;
-	idx.sel = index_component_t::SEL_BIT;
-	idx.msb = offset_idx;
-	tmp->append_index(idx);
-	$$ = tmp;
-      }
   | parameterized_scoped_identifier '[' expression ':' expression ']'
       { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	PExpr*last_offset = take_last_minus_offset_($5);
+	bind_queue_last_placeholders_(nullptr, dynamic_cast<PEIdent*>($1), @2, @6);
 	assert(tmp);
 	index_component_t idx;
-	idx.sel = index_component_t::SEL_PART;
+	idx.sel = last_offset ? index_component_t::SEL_PART_LAST
+			      : index_component_t::SEL_PART;
 	idx.msb = $3;
-	idx.lsb = $5;
+	idx.lsb = last_offset ? last_offset : $5;
 	tmp->append_index(idx);
 	$$ = tmp;
       }
   | parameterized_scoped_identifier '[' '$' ':' expression ']'
       { pform_requires_sv(@3, "Queue slice [$:hi]");
+	bind_queue_last_placeholders_(nullptr, dynamic_cast<PEIdent*>($1), @2, @6);
 	PEIdent*tmp = dynamic_cast<PEIdent*>($1);
 	assert(tmp);
 	index_component_t idx;
@@ -14162,6 +14286,7 @@ parameterized_scoped_identifier
       }
   | parameterized_scoped_identifier '[' expression ':' '$' ']'
       { pform_requires_sv(@5, "Queue slice [lo:$]");
+	bind_queue_last_placeholders_(nullptr, dynamic_cast<PEIdent*>($1), @2, @6);
 	PEIdent*tmp = dynamic_cast<PEIdent*>($1);
 	assert(tmp);
 	index_component_t idx;
@@ -14171,19 +14296,9 @@ parameterized_scoped_identifier
 	tmp->append_index(idx);
 	$$ = tmp;
       }
-  | parameterized_scoped_identifier '[' expression ':' '$' '-' expression ']'
-      { pform_requires_sv(@5, "Queue slice [lo:$-offset]");
-	PEIdent*tmp = dynamic_cast<PEIdent*>($1);
-	assert(tmp);
-	index_component_t idx;
-	idx.sel = index_component_t::SEL_PART_LAST;
-	idx.msb = $3;
-	idx.lsb = $7;
-	tmp->append_index(idx);
-	$$ = tmp;
-      }
   | parameterized_scoped_identifier '[' expression K_PO_POS expression ']'
       { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	bind_queue_last_placeholders_(nullptr, dynamic_cast<PEIdent*>($1), @2, @6);
 	assert(tmp);
 	index_component_t idx;
 	idx.sel = index_component_t::SEL_IDX_UP;
@@ -14194,6 +14309,7 @@ parameterized_scoped_identifier
       }
   | parameterized_scoped_identifier '[' expression K_PO_NEG expression ']'
       { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	bind_queue_last_placeholders_(nullptr, dynamic_cast<PEIdent*>($1), @2, @6);
 	assert(tmp);
 	index_component_t idx;
 	idx.sel = index_component_t::SEL_IDX_DO;
@@ -14205,7 +14321,11 @@ parameterized_scoped_identifier
   ;
 
 expr_primary
-  : number
+  : '$'
+      { pform_requires_sv(@1, "Last element expression ($)");
+	$$ = make_queue_last_placeholder_(@1);
+      }
+  | number
       { assert($1);
 	PENumber*tmp = new PENumber($1);
 	FILE_NAME(tmp, @1);
@@ -14451,6 +14571,7 @@ expr_primary
 
   | package_scope hierarchy_identifier
       { lex_in_package_scope(0);
+	qualify_queue_last_placeholders_($1, $2, @2);
 	$$ = pform_package_ident(@2, $1, $2);
 	delete $2;
       }
@@ -16425,6 +16546,7 @@ hierarchy_identifier
       }
   | hierarchy_identifier '[' expression ']'
       { pform_name_t * tmp = $1;
+	bind_queue_last_placeholders_($1, nullptr, @2, @4);
 	name_component_t&tail = tmp->back();
 	index_component_t itmp;
 	itmp.sel = index_component_t::SEL_BIT;
@@ -16434,6 +16556,7 @@ hierarchy_identifier
       }
   | hierarchy_identifier '[' '$' ']'
       { pform_requires_sv(@3, "Last element expression ($)");
+	bind_queue_last_placeholders_($1, nullptr, @2, @4);
         pform_name_t * tmp = $1;
 	name_component_t&tail = tmp->back();
 	index_component_t itmp;
@@ -16443,73 +16566,22 @@ hierarchy_identifier
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }
-      /* IEEE 1800-2017 7.10.1: within an index expression, `$' stands
-	 for the queue's top bound (size()-1) and may be combined with
-	 ordinary arithmetic, e.g. `q[$-1]' for the second-to-last
-	 element. Rather than teach the many SEL_BIT_LAST consumers
-	 (lvalue, rvalue, sizing -- elab_expr.cc/elab_lval.cc/
-	 elaborate.cc each have several) a second "relative to last"
-	 selector kind, rewrite this at parse time into the exactly
-	 equivalent ordinary index `q[q.size()-1-<offset>]', built on a
-	 COPY of the base path so the original `q[...]' path is left
-	 untouched for the actual index. This reuses the already-correct
-	 plain-SEL_BIT machinery instead of adding a new one. */
-  | hierarchy_identifier '[' '$' '-' expression ']'
-      { pform_requires_sv(@3, "Last element expression ($)");
-        pform_name_t * tmp = $1;
-	pform_name_t * size_path = new pform_name_t(*tmp);
-	size_path->push_back(name_component_t(lex_strings.make("size")));
-	std::vector<named_pexpr_t> no_args;
-	PECallFunction*size_call = new PECallFunction(*size_path, no_args);
-	FILE_NAME(size_call, @3);
-	delete size_path;
-	PENumber*one = new PENumber(new verinum((uint64_t)1, integer_width));
-	FILE_NAME(one, @3);
-	PEBinary*last_idx = new PEBinary('-', size_call, one);
-	FILE_NAME(last_idx, @3);
-	PEBinary*offset_idx = new PEBinary('-', last_idx, $5);
-	FILE_NAME(offset_idx, @4);
-	name_component_t&tail = tmp->back();
-	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_BIT;
-	itmp.msb = offset_idx;
-	tail.index.push_back(itmp);
-	$$ = tmp;
-      }
-  | hierarchy_identifier '[' '$' '+' expression ']'
-      { pform_requires_sv(@3, "Last element expression ($)");
-        pform_name_t * tmp = $1;
-	pform_name_t * size_path = new pform_name_t(*tmp);
-	size_path->push_back(name_component_t(lex_strings.make("size")));
-	std::vector<named_pexpr_t> no_args;
-	PECallFunction*size_call = new PECallFunction(*size_path, no_args);
-	FILE_NAME(size_call, @3);
-	delete size_path;
-	PENumber*one = new PENumber(new verinum((uint64_t)1, integer_width));
-	FILE_NAME(one, @3);
-	PEBinary*last_idx = new PEBinary('-', size_call, one);
-	FILE_NAME(last_idx, @3);
-	PEBinary*offset_idx = new PEBinary('+', last_idx, $5);
-	FILE_NAME(offset_idx, @4);
-	name_component_t&tail = tmp->back();
-	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_BIT;
-	itmp.msb = offset_idx;
-	tail.index.push_back(itmp);
-	$$ = tmp;
-      }
   | hierarchy_identifier '[' expression ':' expression ']'
       { pform_name_t * tmp = $1;
+	PExpr*last_offset = take_last_minus_offset_($5);
+	bind_queue_last_placeholders_($1, nullptr, @2, @6);
 	name_component_t&tail = tmp->back();
 	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_PART;
+	itmp.sel = last_offset ? index_component_t::SEL_PART_LAST
+			       : index_component_t::SEL_PART;
 	itmp.msb = $3;
-	itmp.lsb = $5;
+	itmp.lsb = last_offset ? last_offset : $5;
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }
   | hierarchy_identifier '[' '$' ':' expression ']'
       { pform_requires_sv(@3, "Queue slice [$:hi]");
+	bind_queue_last_placeholders_($1, nullptr, @2, @6);
 	pform_name_t * tmp = $1;
 	name_component_t&tail = tmp->back();
 	index_component_t itmp;
@@ -16521,6 +16593,7 @@ hierarchy_identifier
       }
   | hierarchy_identifier '[' expression ':' '$' ']'
       { pform_requires_sv(@5, "Queue slice [lo:$]");
+	bind_queue_last_placeholders_($1, nullptr, @2, @6);
 	pform_name_t * tmp = $1;
 	name_component_t&tail = tmp->back();
 	index_component_t itmp;
@@ -16530,19 +16603,9 @@ hierarchy_identifier
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }
-  | hierarchy_identifier '[' expression ':' '$' '-' expression ']'
-      { pform_requires_sv(@5, "Queue slice [lo:$-offset]");
-	pform_name_t * tmp = $1;
-	name_component_t&tail = tmp->back();
-	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_PART_LAST;
-	itmp.msb = $3;
-	itmp.lsb = $7;
-	tail.index.push_back(itmp);
-	$$ = tmp;
-      }
   | hierarchy_identifier '[' expression K_PO_POS expression ']'
       { pform_name_t * tmp = $1;
+	bind_queue_last_placeholders_($1, nullptr, @2, @6);
 	name_component_t&tail = tmp->back();
 	index_component_t itmp;
 	itmp.sel = index_component_t::SEL_IDX_UP;
@@ -16553,6 +16616,7 @@ hierarchy_identifier
       }
   | hierarchy_identifier '[' expression K_PO_NEG expression ']'
       { pform_name_t * tmp = $1;
+	bind_queue_last_placeholders_($1, nullptr, @2, @6);
 	name_component_t&tail = tmp->back();
 	index_component_t itmp;
 	itmp.sel = index_component_t::SEL_IDX_DO;
@@ -17098,6 +17162,7 @@ lpvalue
      FOLLOW(expr_primary), so bison picks lpvalue for assignment contexts. */
   | package_scope hierarchy_identifier
       { lex_in_package_scope(0);
+	qualify_queue_last_placeholders_($1, $2, @2);
 	$$ = pform_package_ident(@2, $1, $2);
 	delete $2;
       }
