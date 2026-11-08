@@ -5237,7 +5237,11 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 	    return -1;
       if (prop_idx < 0)
 	    return -1;
-      if (ivl_lval_idx(lval))
+	/* An element of an unpacked-array property (h.v[i] <= ...) takes
+	   the indexed form below, without a delay or event control. */
+      ivl_expr_t elem_idx = ivl_lval_idx(lval);
+      if (elem_idx && (delay != 0 || ivl_stmt_nevent(net) != 0
+		       || dynamic_carrier))
 	    return -1;
       if (part_off_ex) {
 	    if (packed_property_offset_is_immediate_(part_off_ex))
@@ -5259,6 +5263,47 @@ int show_stmt_assign_nb_cobject(ivl_statement_t net, uint64_t delay)
 	      /* Receiver already pushed: discard and fall back. */
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
 	    return -1;
+      }
+
+      if (elem_idx) {
+	      /* IEEE 1800 10.4.2: the element index, the selected bits and
+	         the value are taken now; the update happens in the NBA
+	         region. An x/z index or offset makes it a no-op. */
+	    int idx_reg = allocate_word();
+	    int sel_reg = allocate_word();
+	    int valid_flag = allocate_flag();
+	    draw_eval_expr_into_integer(elem_idx, idx_reg);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4; capture NBA element index validity\n",
+		    valid_flag);
+	    if (dynamic_part_off) {
+		  uint64_t negative_bits;
+		  if (packed_property_negative_offset_bits64_(part_off_ex,
+							       &negative_bits))
+			emit_packed_property_negative_offset_(sel_reg, negative_bits);
+		  else
+			draw_eval_expr_into_integer(part_off_ex, sel_reg);
+		  fprintf(vvp_out, "    %%flag_or 4, %d;\n", valid_flag);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", valid_flag);
+	    } else {
+		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", sel_reg, bitoff);
+	    }
+	    draw_eval_vec4(rval);
+	    resize_property_vec4_wid(rval, lwid);
+	    if (ivl_type_base(prop_type) == IVL_VT_BOOL &&
+		ivl_expr_value(rval) != IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    if (ivl_stmt_is_clocking_drive(net))
+		  fprintf(vvp_out, "    %%evctl/sync;\n");
+	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", valid_flag);
+	    fprintf(vvp_out, "    %%assign/prop/v/i/bits/%s %d, %d, %d;"
+		    " NBA store to an element of property %s\n",
+		    part_off_ex && ivl_expr_signed(part_off_ex) ? "x" : "ux",
+		    prop_idx, idx_reg, sel_reg,
+		    ivl_type_prop_name(sig_type, prop_idx));
+	    clr_word(idx_reg);
+	    clr_word(sel_reg);
+	    clr_flag(valid_flag);
+	    return 0;
       }
 
       if (dynamic_part_off) {
