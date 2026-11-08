@@ -27,6 +27,7 @@ static map<string,void*> dpi_sym_cache;
 static bool dpi_array_pointer_arg_(char type)
 {
       return type == 'o' || type == 'O'
+	  || type == 'S' || type == 'T' || type == 't'
 	  || type == 'q' || type == 'Q'
 	  || type == 'B' || type == 'G'
 	  || type == 'x' || type == 'X'
@@ -42,11 +43,14 @@ static void*dpi_array_argument_(const vvp_dpi_arg_t&arg)
       if (!arg.aval) return 0;
       switch (arg.type) {
 	  case 'o':
+	  case 't':
 	  case 'x':
 	  case 'y':
 	  case 'q':
 	    return arg.aval;
 	  case 'O':
+	  case 'S':
+	  case 'T':
 	  case 'Q':
 	    return arg.aval->data;
 	  case 'B':
@@ -200,6 +204,9 @@ bool vvp_dpi_call(void*sym, const char*c_name, char ret_type,
 		  break;
 		case 'o': // generic dynamic/open svOpenArrayHandle
 		case 'O': // generic fixed unpacked-array C pointer
+		case 'S': // unpacked struct C pointer (H.7.8, H.8.7)
+		case 'T': // fixed unpacked array of structs C pointer
+		case 't': // open array of structs svOpenArrayHandle
 		case 'q': // shortreal dynamic/open svOpenArrayHandle
 		case 'Q': // shortreal fixed unpacked-array C pointer
 		case 'B': // svBit fixed scalar unpacked-array C pointer

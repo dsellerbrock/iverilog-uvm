@@ -13493,6 +13493,18 @@ static bool sva_prepend_property_formal_inits_(
 				const std::vector<sva_seq_step_t>&initializers)
 {
       if (initializers.empty()) return true;
+	/* A property operator over full properties (16.13.7): each operand
+	   gets its own copy, initialized when that operand's evaluation
+	   begins -- the attempt start, or behind a clock change the first
+	   tick of the operand's clock. An implication's consequent cannot
+	   see its antecedent's copy, so that shape is not handled. */
+      if (prop->pa) {
+	    if (prop->op_type == 23 || prop->op_type == 24 || prop->op_type == 25)
+		  return false;
+	    return sva_prepend_property_formal_inits_(loc, prop->pa, initializers)
+		&& (!prop->pb
+		    || sva_prepend_property_formal_inits_(loc, prop->pb, initializers));
+      }
 	    std::map<perm_string,PExpr*>no_subst;
 	    auto prepend = [&](std::vector<sva_seq_step_t>*steps) -> bool {
 	    if (!steps || steps->empty()) return false;
@@ -22924,7 +22936,11 @@ static bool sva_nfa_local_prefix_safe_(
 			return false;
 		  }
 		  assignments[item.lv_name] = 1;
-		  assigned_here[item.lv_name] = 0;
+		  /* A declaration initializer on the first step is performed
+		     when the slot is injected, before that tick's guards are
+		     sampled (16.13.7), so a same-tick read sees it. */
+		  if (!(item.lv_initialization && i == 0))
+			assigned_here[item.lv_name] = 0;
 	    }
 	    for (size_t j = i + 1 ; !assigned_here.empty()
 		 && j < tree->chain->size() ; j += 1) {
@@ -32463,6 +32479,30 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
       return p;
 }
 
+/* `( @(c) s |-> p )': an implication with its own leading clock. */
+sva_property_t* pform_sva_clocked_paren_impl(const struct vlltype&loc,
+					     PEventStatement*clk, int op_type,
+					     std::vector<sva_seq_step_t>*ante,
+					     sva_property_t*conseq)
+{
+      sva_property_t*p = pform_sva_paren_conseq(loc, op_type, ante, conseq);
+      if (!p) {
+	    delete clk;
+	    return nullptr;
+      }
+      if (p->pa || p->clk_evt) {
+	    cerr << loc << ": sorry: a parenthesized clocked implication with "
+		 << "this consequent is not supported yet; the assertion is "
+		 << "dropped." << endl;
+	    error_count += 1;
+	    delete clk;
+	    pform_sva_destroy_property(p);
+	    return nullptr;
+      }
+      p->clk_evt = clk;
+      return p;
+}
+
 /* Build a property-level and/or. An operand that is a bare reference to a
    declared property stays a reference; the composite lowering expands it. */
 sva_property_t* pform_sva_prop_compose(const struct vlltype&loc, int op_type,
@@ -33372,6 +33412,95 @@ static sva_property_t* sva_comp_split_multiclock_(const struct vlltype&loc,
       return node;
 }
 
+/* A clock that differs from the composite's own clock, if leaf has one. */
+static bool sva_comp_leaf_other_clock_(const sva_property_t*leaf,
+				       const PEventStatement*clk)
+{
+      return leaf && leaf->clk_evt
+	  && !(clk && sva_event_controls_identical_(leaf->clk_evt, clk));
+}
+
+static bool sva_comp_has_other_clock_(const sva_property_t*p,
+				      const PEventStatement*clk)
+{
+      if (!p) return false;
+      if (p->op_type == 20 || p->op_type == 21)
+	    return sva_comp_has_other_clock_(p->pa, clk)
+		|| sva_comp_has_other_clock_(p->pb, clk);
+      return !sva_prop_is_composite_(p) && sva_comp_leaf_other_clock_(p, clk);
+}
+
+/* Put every operand reached through and/or behind a strictly-subsequent
+   clock switch on its own leading clock (or the incoming clock). */
+static sva_property_t* sva_comp_switch_operands_(const struct vlltype&loc,
+						 sva_property_t*p,
+						 const PEventStatement*clk,
+						 bool&ok)
+{
+      if (!p || !ok) return p;
+      if (p->op_type == 20 || p->op_type == 21) {
+	    p->pa = sva_comp_switch_operands_(loc, p->pa, clk, ok);
+	    p->pb = sva_comp_switch_operands_(loc, p->pb, clk, ok);
+	    return p;
+      }
+      if (sva_prop_is_composite_(p)) {
+	    sva_comp_sorry_(loc, "a multiclocked `|=>' consequent with this "
+			    "property operator is not supported yet");
+	    ok = false;
+	    return p;
+      }
+      PEventStatement*domain = p->clk_evt
+	    ? sva_clone_event_control_(p->clk_evt, loc)
+	    : (clk ? sva_clone_event_control_(clk, loc) : nullptr);
+      if (!domain) {
+	    sva_comp_sorry_(loc, "the clock of a multiclocked `|=>' operand "
+			    "cannot be copied");
+	    ok = false;
+	    return p;
+      }
+      sva_property_t*sw = new sva_property_t;
+      sw->op_type = 27;
+      sw->pa = p;
+      sw->seq_clk_evt = domain;
+      return sw;
+}
+
+/* IEEE 1800-2023 16.13.2: in `s |=> (@(c1) p1) and (@(c2) p2)' each operand
+   starts at the nearest strictly future tick of its own clock. Rewrite
+   such an implication as `s |->' with every and/or operand behind a
+   strictly-subsequent clock switch (the operands that flow the incoming
+   clock switch to that clock, i.e. its next tick). */
+static void sva_comp_distribute_nonoverlap_(const struct vlltype&loc,
+					    sva_property_t*p,
+					    const PEventStatement*clk, bool&ok)
+{
+      if (!p || !ok || !sva_prop_is_composite_(p)) return;
+      if (p->op_type == 24 && sva_comp_has_other_clock_(p->pb, clk)) {
+	    p->op_type = 23;
+	    p->pb = sva_comp_switch_operands_(loc, p->pb, clk, ok);
+	    return;
+      }
+      if (p->op_type == 27) return;
+      sva_comp_distribute_nonoverlap_(loc, p->pa, clk, ok);
+      sva_comp_distribute_nonoverlap_(loc, p->pb, clk, ok);
+}
+
+/* Assertion local variables declared on the property are visible to every
+   operand evaluation (each keeps its own copy, 16.10). */
+static void sva_comp_propagate_locals_(sva_property_t*p,
+				       const std::vector<perm_string>&names)
+{
+      if (!p) return;
+      for (perm_string nm : names)
+	    if (std::find(p->local_names.begin(), p->local_names.end(), nm)
+		== p->local_names.end())
+		  p->local_names.push_back(nm);
+      if (!sva_prop_is_composite_(p)) return;
+      std::vector<perm_string> mine = p->local_names;
+      sva_comp_propagate_locals_(p->pa, mine);
+      sva_comp_propagate_locals_(p->pb, mine);
+}
+
 /* Expand bare named-property references among the operands, in place. */
 static bool sva_comp_expand_refs_(const struct vlltype&loc, sva_property_t*p)
 {
@@ -33443,6 +33572,8 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    prop = sva_comp_split_multiclock_(loc, prop, split_ok);
       else
 	    split_ok = false;
+      if (split_ok)
+	    sva_comp_propagate_locals_(prop, prop->local_names);
       if (!split_ok) {
 	    delete fail_stmt; delete pass_stmt;
 	    pform_sva_destroy_property(prop);
@@ -33485,6 +33616,13 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
 
       unsigned hist_idx = 0;
+      bool distribute_ok = true;
+      sva_comp_distribute_nonoverlap_(loc, prop, clk, distribute_ok);
+      if (!distribute_ok) {
+	    delete clk; delete disable; delete fail_stmt; delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
       sva_comp_ctx_t ctx;
       ctx.loc = &loc;
       ctx.clk = clk;

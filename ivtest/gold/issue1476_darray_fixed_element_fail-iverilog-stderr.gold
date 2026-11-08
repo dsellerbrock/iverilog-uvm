@@ -1,0 +1,4 @@
+ivltests/issue1476_darray_fixed_element_fail.v:12: sorry: assigning a whole unpacked-array element of a dynamic array is not yet supported; assign its words.
+ivltests/issue1476_darray_fixed_element_fail.v:13: sorry: reading a whole unpacked-array element of a dynamic array is not yet supported; read its words.
+ivltests/issue1476_darray_fixed_element_fail.v:14: sorry: selecting part of a multi-dimensional unpacked element of a container is not yet supported.
+3 error(s) during elaboration.
