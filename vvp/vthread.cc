@@ -5070,6 +5070,16 @@ class randomize_graph_session_t {
       std::vector<vvp_z3_object_s> solve_objects;
       std::map<vvp_cobject*, size_t> object_indices;
 
+      /* Keep the original graph journal while rebuilding the solver graph
+       * after a dynamic-array size has selected its retained handles. */
+      void clear_solve_graph()
+      {
+            solve_objects.clear();
+            object_indices.clear();
+            prefilled_.clear();
+            prefilled_static_.clear();
+      }
+
       bool begin_prefill(vvp_cobject*cobj, const std::vector<bool>*sel,
                          vvp_cobject*rng_owner = nullptr)
       {
@@ -5178,9 +5188,9 @@ class randomize_graph_session_t {
 
       void callback_objects(std::vector<vvp_object_t>&objects) const
       {
-            for (const randomize_graph_entry_s&entry : entries_)
-                  if (!entry.cobj->get_defn()->is_struct_type())
-                        objects.push_back(entry.hold);
+            for (const vvp_z3_object_s&scope : solve_objects)
+                  if (!scope.object->get_defn()->is_struct_type())
+                        objects.push_back(vvp_object_t(scope.object));
       }
 
       void rollback(bool restore_rng = true)
@@ -5878,6 +5888,53 @@ static bool randomize_object_value_(randomize_graph_session_t&session,
       });
 }
 
+/* Remove dynamic iterative bodies for the root's size-selection pass. Size
+ * expressions remain in the surrounding constraint block; the removed
+ * templates are expanded later, after the retained handle graph is known. */
+static std::string randomize_without_dynamic_iterations_(const std::string&ir)
+{
+      std::string result = ir;
+      size_t position = 0;
+      while ((position = result.find("(dynforeach", position)) != std::string::npos
+             || (position = result.find("(dynrows", position)) != std::string::npos) {
+            size_t end = position;
+            unsigned depth = 0;
+            do {
+                  if (result[end] == '(') ++depth;
+                  else if (result[end] == ')') --depth;
+                  ++end;
+            } while (end < result.size() && depth != 0);
+            if (depth != 0) return std::string();
+            result.erase(position, end - position);
+      }
+      return result;
+}
+
+static void randomize_append_size_expressions_(const std::string&source,
+                                                std::vector<std::string>&out)
+{
+      std::string ir = randomize_without_dynamic_iterations_(source);
+      size_t position = 0;
+      while (position < ir.size()) {
+            while (position < ir.size() && std::isspace(
+                        static_cast<unsigned char>(ir[position]))) ++position;
+            if (position == ir.size()) break;
+            if (ir[position] != '(') return;
+            size_t end = position;
+            unsigned depth = 0;
+            do {
+                  if (ir[end] == '(') ++depth;
+                  else if (ir[end] == ')') --depth;
+                  ++end;
+            } while (end < ir.size() && depth != 0);
+            if (depth != 0) return;
+            std::string expression = ir.substr(position, end - position);
+            if (expression.find("s:") != std::string::npos)
+                  out.push_back(std::move(expression));
+            position = end;
+      }
+}
+
 template <class KEY>
 static void randomize_assoc_vec4_key_(vvp_cobject*cobj, size_t pid,
 				      size_t word, size_t position,
@@ -6239,6 +6296,48 @@ static bool randomize_prepare_graph_(randomize_graph_session_t&session,
       const randomize_solve_options_s*options)
 {
       if (!randomize_collect_graph_(session, cobj, sel, options)) return false;
+      /* A rand dynamic array of class handles determines which child objects
+       * participate in this call. Solve the root constraints first, while the
+       * graph contains only the root, so a handle removed by the chosen size
+       * cannot contribute its own constraints. The original graph remains in
+       * the transaction journal for rollback; only the solver graph is then
+       * rebuilt over the retained handles. */
+      bool has_dynamic_handles = false;
+      const class_type*root_type = cobj->get_defn();
+      for (size_t pid = 0; pid < root_type->property_count(); ++pid) {
+            if (!rand_call_active_(root_type, cobj, sel, pid)) continue;
+            const std::string&base = root_type->property_base_type(pid);
+            if (base == "Do" || base == "Qo") {
+                  has_dynamic_handles = true;
+                  break;
+            }
+      }
+      if (has_dynamic_handles && !session.solve_objects.empty()) {
+            vvp_z3_object_s root_scope = session.solve_objects.front();
+            root_scope.include_class_constraints = false;
+            root_scope.inherited_ir.clear();
+            root_scope.extra_ir.clear();
+            std::vector<std::string> inherited;
+            collect_unmerged_base_constraints_(root_type, inherited);
+            for (const std::string&source : inherited)
+                  randomize_append_size_expressions_(source,
+                                                     root_scope.extra_ir);
+            for (size_t ci = 0; ci < root_type->constraint_count(); ++ci) {
+                  if (!cobj->constraint_mode(ci)) continue;
+                  randomize_append_size_expressions_(
+                        root_type->constraint_ir(ci), root_scope.extra_ir);
+            }
+            if (options && options->extra_ir)
+                  for (const std::string&source : *options->extra_ir) {
+                        randomize_append_size_expressions_(source,
+                                                           root_scope.extra_ir);
+                  }
+            std::vector<vvp_z3_object_s> size_objects(1, root_scope);
+            if (!vvp_z3_randomize_graph(size_objects)) return false;
+            session.clear_solve_graph();
+            if (!randomize_collect_graph_(session, cobj, sel, options))
+                  return false;
+      }
       if (!vvp_z3_graph_history_supported(session.solve_objects)) return false;
       // Prefill in collection order so the first active static owner stages
       // its history exactly once. Class recursion is deferred to this loop;
