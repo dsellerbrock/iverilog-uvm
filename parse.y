@@ -2992,7 +2992,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <expr>  attribute_value_opt
 %type <expr>  inc_or_dec_expression inside_expression lpvalue
 %type <expr>  branch_probe_expression streaming_concatenation
-%type <expr>  delay_value delay_value_simple
+%type <expr>  delay_value delay_value_simple path_delay_expr
 %type <exprs> delay1 delay1_opt delay3 delay3_opt delay_value_list
 %type <exprs> expression_list_with_nuls expression_list_proper
 %type <exprs> cont_assign cont_assign_list
@@ -12630,6 +12630,13 @@ delay_value
       { $$ = pform_select_mtm_expr($1, $3, $5); }
   ;
 
+path_delay_expr
+  : expression
+      { $$ = $1; }
+  | expression ':' expression ':' expression
+      { $$ = pform_select_mtm_expr($1, $3, $5); }
+  ;
+
 
 delay_value_simple
   : DEC_NUMBER
@@ -19353,7 +19360,7 @@ polarity_operator
 specify_simple_path_decl
   : specify_simple_path '=' '(' delay_value_list ')'
       { $$ = pform_assign_path_delay($1, $4); }
-  | specify_simple_path '=' delay_value_simple
+  | specify_simple_path '=' path_delay_expr
       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
 	tmp->push_back($3);
 	$$ = pform_assign_path_delay($1, tmp);
