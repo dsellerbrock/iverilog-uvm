@@ -3193,16 +3193,88 @@ static void inside_arr_match_(vthread_t thr, vvp_darray*arr)
       thr->push_vec4(vvp_vector4_t(1, matched ? BIT4_1 : BIT4_0));
 }
 
+/* Associative arrays use a separate runtime object from positional arrays.
+ * The inside operator still traverses their stored values (IEEE 1800-2017/
+ * 2023 11.4.13), so inspect each entry without exposing or depending on its
+ * key type. */
+static void inside_assoc_match_(vthread_t thr, vvp_assoc_base*assoc)
+{
+      vvp_vector4_t val = thr->pop_vec4();
+      bool matched = false;
+      bool unknown = false;
+
+      if (assoc) {
+	    for (size_t idx = 0 ; idx < assoc->size() && !matched ; idx += 1) {
+		  std::string key_text, elem_str;
+		  vvp_vector4_t elem;
+		  double elem_real = 0.0;
+		  int elem_kind = -1;
+		  if (!assoc->peek_entry(idx, key_text, elem, elem_real,
+					 elem_str, elem_kind))
+			continue;
+		  if (elem_kind != 0) continue;
+		  if (elem.size() != val.size()) {
+			vvp_vector4_t tmp(val.size(), BIT4_0);
+			size_t copy_sz = (elem.size() < val.size())
+			      ? elem.size() : val.size();
+			for (size_t bit = 0 ; bit < copy_sz ; bit += 1)
+			      tmp.set_bit(bit, elem.value(bit));
+			elem = tmp;
+		  }
+		  bool eq = true;
+		  bool eq_unknown = false;
+		  for (size_t bit = 0 ; bit < val.size() && eq ; bit += 1) {
+			vvp_bit4_t ev = elem.value(bit);
+			vvp_bit4_t vv = val.value(bit);
+			if (ev == BIT4_X || ev == BIT4_Z) continue;
+			if (vv == BIT4_X || vv == BIT4_Z) {
+			      eq_unknown = true;
+			      continue;
+			}
+			if (ev != vv) eq = false;
+		  }
+		  if (eq && !eq_unknown) matched = true;
+		  else if (eq && eq_unknown) unknown = true;
+	    }
+      }
+
+      thr->push_vec4(vvp_vector4_t(1, matched ? BIT4_1
+							  : unknown ? BIT4_X : BIT4_0));
+}
+
+static void inside_assoc_match_string_(vthread_t thr, vvp_assoc_base*assoc)
+{
+      string val = thr->pop_str();
+      bool matched = false;
+
+      if (assoc) {
+	    for (size_t idx = 0 ; idx < assoc->size() && !matched ; idx += 1) {
+		  std::string key_text, elem_str;
+		  vvp_vector4_t elem_vec;
+		  double elem_real = 0.0;
+		  int elem_kind = -1;
+		  if (assoc->peek_entry(idx, key_text, elem_vec, elem_real,
+					elem_str, elem_kind) && elem_kind == 2)
+			matched = elem_str == val;
+	    }
+      }
+
+      thr->push_vec4(vvp_vector4_t(1, matched ? BIT4_1 : BIT4_0));
+}
+
 bool of_INSIDE_ARR(vthread_t thr, vvp_code_t cp)
 {
       vvp_fun_signal_object*fun = vvp_fun_as_signal_object(cp->net->fun);
       vvp_darray*arr = 0;
+      vvp_assoc_base*assoc = 0;
       vvp_object_t obj;
       if (fun) {
             obj = fun->get_object();
             arr = obj.peek<vvp_darray>();
+            assoc = obj.peek<vvp_assoc_base>();
       }
-      inside_arr_match_(thr, arr);
+      if (assoc) inside_assoc_match_(thr, assoc);
+      else inside_arr_match_(thr, arr);
       return true;
 }
 
@@ -3217,7 +3289,10 @@ bool of_INSIDE_ARR_O(vthread_t thr, vvp_code_t)
 {
       vvp_object_t recv;
       thr->pop_object(recv);
-      inside_arr_match_(thr, recv.peek<vvp_darray>());
+      if (vvp_assoc_base*assoc = recv.peek<vvp_assoc_base>())
+	    inside_assoc_match_(thr, assoc);
+      else
+	    inside_arr_match_(thr, recv.peek<vvp_darray>());
       return true;
 }
 
@@ -3247,11 +3322,14 @@ bool of_INSIDE_ARR_STR(vthread_t thr, vvp_code_t cp)
 	    vvp_fun_as_signal_object(cp->net->fun);
       vvp_object_t obj;
       vvp_darray*arr = 0;
+      vvp_assoc_base*assoc = 0;
       if (fun) {
 	    obj = fun->get_object();
 	    arr = obj.peek<vvp_darray>();
+	    assoc = obj.peek<vvp_assoc_base>();
       }
-      inside_arr_match_string_(thr, arr);
+      if (assoc) inside_assoc_match_string_(thr, assoc);
+      else inside_arr_match_string_(thr, arr);
       return true;
 }
 
@@ -3259,7 +3337,10 @@ bool of_INSIDE_ARR_O_STR(vthread_t thr, vvp_code_t)
 {
       vvp_object_t recv;
       thr->pop_object(recv);
-      inside_arr_match_string_(thr, recv.peek<vvp_darray>());
+      if (vvp_assoc_base*assoc = recv.peek<vvp_assoc_base>())
+	    inside_assoc_match_string_(thr, assoc);
+      else
+	    inside_arr_match_string_(thr, recv.peek<vvp_darray>());
       return true;
 }
 
