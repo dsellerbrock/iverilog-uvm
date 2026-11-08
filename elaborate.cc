@@ -54,6 +54,7 @@
 # include  "PScope.h"
 # include  "PSpec.h"
 # include  "PTimingCheck.h"
+# include  "vpi_user.h"
 # include  "netlist.h"
 # include  "target.h"
 # include  "functor.h"
@@ -21304,7 +21305,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      perm_string::literal("message")
 			};
 			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
-							  method_name, "$ivl_mailbox$get",
+							  method_name,
+							  class_type->is_typed_mailbox()
+							  ? "$ivl_mailbox$get"
+							  : "$ivl_mailbox$get$untyped",
 							  parm_names);
 		  }
 		  if (method_name == perm_string::literal("peek")) {
@@ -21312,7 +21316,10 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			      perm_string::literal("message")
 			};
 			return elaborate_sys_task_method_(des, scope, obj_expr, obj_type,
-							  method_name, "$ivl_mailbox$peek",
+							  method_name,
+							  class_type->is_typed_mailbox()
+							  ? "$ivl_mailbox$peek"
+							  : "$ivl_mailbox$peek$untyped",
 							  parm_names);
 		  }
 		  if (method_name == perm_string::literal("try_put")) {
@@ -31739,6 +31746,120 @@ void PSetupHold::elaborate(Design*des, NetScope*scope) const
 
 	      connect(sig->pin(0), sig_delayed->pin(0));
       }
+}
+
+/* The scalar_timing_check_condition forms of IEEE 1800-2017/2023 31.3
+   (an identifier, its negation, or its comparison with a constant)
+   synthesize to a net for the VPI vpiCondition handle. Other shapes keep
+   only their text. */
+static bool tchk_condition_synthesizable_(const PExpr*cond)
+{
+      if (dynamic_cast<const PEIdent*>(cond)) return true;
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(cond))
+	    return (un->get_op() == '~' || un->get_op() == '!')
+		  && dynamic_cast<const PEIdent*>(un->get_expr());
+      if (const PEBComp*cmp = dynamic_cast<const PEBComp*>(cond)) {
+	    char op = cmp->get_op();
+	    return (op == 'e' || op == 'n' || op == 'E' || op == 'N')
+		  && dynamic_cast<const PEIdent*>(cmp->get_left())
+		  && dynamic_cast<const PENumber*>(cmp->get_right());
+      }
+      return false;
+}
+
+static unsigned tchk_edge_mask_(const PTimingCheck::event_t&ev)
+{
+      if (ev.posedge) return vpiPosedge;
+      if (ev.negedge) return vpiNegedge;
+      unsigned mask = 0;
+      for (PTimingCheck::EdgeType edge : ev.edges) {
+	    switch (edge) {
+		case PTimingCheck::EDGE_01: mask |= vpiEdge01; break;
+		case PTimingCheck::EDGE_0X: mask |= vpiEdge0x; break;
+		case PTimingCheck::EDGE_10: mask |= vpiEdge10; break;
+		case PTimingCheck::EDGE_1X: mask |= vpiEdge1x; break;
+		case PTimingCheck::EDGE_X0: mask |= vpiEdgex0; break;
+		case PTimingCheck::EDGE_X1: mask |= vpiEdgex1; break;
+	    }
+      }
+      return mask;
+}
+
+static bool tchk_term_elaborate_(Design*des, NetScope*scope,
+				 const PTimingCheck::event_t&ev,
+				 NetTchk::term_t&term)
+{
+      term.sig = des->find_signal(scope, ev.name);
+      if (term.sig == nullptr) return false;
+      term.sig->incr_eref();
+      term.edge = tchk_edge_mask_(ev);
+
+	// A constant bit select names one bit; any other select keeps the
+	// whole signal. ponytail: part selects; add when SDF needs them.
+      const list<index_component_t>&index = ev.name.back().index;
+      if (index.size() == 1 && index.front().sel == index_component_t::SEL_BIT) {
+	    NetExpr*bit = elab_and_eval(des, scope, index.front().msb, -1, true);
+	    if (const NetEConst*con = dynamic_cast<NetEConst*>(bit)) {
+		  term.has_bit = true;
+		  term.bit = con->value().as_long();
+	    }
+	    delete bit;
+      }
+
+      if (PExpr*cond = ev.condition.get()) {
+	    ostringstream text;
+	    cond->dump(text);
+	    term.condition_text = text.str();
+	    if (tchk_condition_synthesizable_(cond)) {
+		  NetExpr*tmp = elab_and_eval(des, scope, cond, -1);
+		  if (tmp) term.condit = tmp->synthesize(des, scope, tmp);
+		  if (term.condit) term.condit->incr_eref();
+	    }
+      }
+      return true;
+}
+
+void PTchk::elaborate(Design*des, NetScope*scope) const
+{
+      NetTchk*tchk = new NetTchk;
+      tchk->set_line(*this);
+      tchk->type = type_;
+      if (!tchk_term_elaborate_(des, scope, *ref_, tchk->ref)
+	  || (data_ && !tchk_term_elaborate_(des, scope, *data_, tchk->data))) {
+	    delete tchk;
+	    return;
+      }
+
+	/* The limits are constant expressions (IEEE 1800-2017/2023
+	   Tables 31-1 to 31-12) in the scope's time units, the units the
+	   checker's $realtime arithmetic uses. */
+      for (size_t idx = 0; idx < limits_.size(); idx += 1) {
+	    NetNet*var = scope->find_signal(limit_vars_[idx]);
+	    ivl_assert(*this, var);
+	    var->incr_eref();
+	    double value = 0.0;
+	    NetExpr*limit = elab_and_eval(des, scope, limits_[idx].get(), -1);
+	    if (const NetEConst*con = dynamic_cast<NetEConst*>(limit)) {
+		  value = con->value().has_sign() ? double(con->value().as_long())
+						  : double(con->value().as_ulong64());
+	    } else if (const NetECReal*rcon = dynamic_cast<NetECReal*>(limit)) {
+		  value = rcon->value().as_double();
+	    } else if (limit) {
+		  cerr << get_fileline() << ": error: A timing check limit must "
+		       << "be a constant expression (IEEE 1800-2017/2023 31.2)."
+		       << endl;
+		  des->errors += 1;
+	    }
+	    delete limit;
+	    tchk->limit_vars.push_back(var);
+	    tchk->limits.push_back(value);
+      }
+
+      if (notifier_) {
+	    tchk->notifier = des->find_signal(scope, *notifier_);
+	    if (tchk->notifier) tchk->notifier->incr_eref();
+      }
+      scope->add_tchk(tchk);
 }
 
 static void elaborate_functions(Design*des, NetScope*scope,

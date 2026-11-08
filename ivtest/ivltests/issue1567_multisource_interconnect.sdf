@@ -1,0 +1,16 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "tb")
+  (DIVIDER .)
+  (TIMESCALE 1 ns)
+  (CELL
+    (CELLTYPE "tb")
+    (INSTANCE)
+    (DELAY
+      (ABSOLUTE
+        (INTERCONNECT u1.y u3.a (3.0))
+        (INTERCONNECT u2.y u3.a (5.0))
+      )
+    )
+  )
+)

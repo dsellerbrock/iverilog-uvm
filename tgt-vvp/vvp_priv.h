@@ -166,6 +166,9 @@ extern char* process_octal_codes(const char*txt, unsigned wid);
 extern void draw_modpath(ivl_signal_t path_sig, char*drive_label, unsigned drive_index);
 extern void cleanup_modpath(void);
 
+/* Draw the .tchk timing-check records of a scope tree. */
+extern void draw_tchks(ivl_scope_t scope);
+
 /*
  * This function draws the execution of a vpi_call statement, along
  * with the tricky handling of arguments. If this is called with a

@@ -6615,6 +6615,30 @@ malformed:
       return 1;
 }
 
+/*
+ * A typeless mailbox get or peek stores through %ref/store/mbx/chk, which
+ * reports a run-time error unless the message type is equivalent to the
+ * variable's (IEEE 1800-2023 15.4.5, 15.4.7, 6.22.2). Pass the variable's
+ * signedness and 2-state kind, or 2 when it is not an integral type.
+ */
+static void draw_mailbox_untyped_store_(ivl_statement_t net, int is_peek)
+{
+      ivl_lval_t lval = ivl_stmt_ref_lval(net);
+      ivl_type_t type = ivl_lval_net_type(lval);
+      int sgn = 2, two_state = 2;
+      if (type && (ivl_type_base(type) == IVL_VT_BOOL
+		   || ivl_type_base(type) == IVL_VT_LOGIC)) {
+	    two_state = ivl_type_base(type) == IVL_VT_BOOL;
+	    sgn = ivl_lval_part_off(lval) ? 0 : (ivl_type_signed(type) ? 1 : 0);
+      }
+	/* The location is for the error message. */
+      fprintf(vvp_out, "    %%file_line %u %u \"mailbox %s\";\n",
+	      ivl_file_table_index(ivl_stmt_file(net)), ivl_stmt_lineno(net),
+	      is_peek ? "peek" : "get");
+      fprintf(vvp_out, "    %%ref/store/mbx/chk %d, %d, %d;\n",
+	      is_peek, sgn, two_state);
+}
+
 static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 {
       const char*stmt_name = ivl_stmt_name(net);
@@ -7527,7 +7551,9 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  draw_eval_vec4(item_expr); \
 		  unsigned _wid = ivl_expr_width(item_expr); \
 		  if (!_wid) _wid = 32; \
-		  fprintf(vvp_out, "    %%box/vec4 %u;\n", _wid); \
+		  fprintf(vvp_out, "    %%box/vec4/t %u, %d, %d;\n", _wid, \
+			  ivl_expr_signed(item_expr) ? 1 : 0, \
+			  ivl_expr_value(item_expr) == IVL_VT_BOOL ? 1 : 0); \
 	    } else { \
 		  fprintf(vvp_out, "    %%null;\n"); \
 	    } \
@@ -7579,7 +7605,8 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
       /* $ivl_mailbox$get(mailbox, item)
        * Blocking get: suspend if empty; on resume item is on obj stack.
        * Then store item to output variable. */
-      if (strcmp(stmt_name, "$ivl_mailbox$get") == 0) {
+      if (strcmp(stmt_name, "$ivl_mailbox$get") == 0
+	  || strcmp(stmt_name, "$ivl_mailbox$get$untyped") == 0) {
 	    ivl_expr_t mbx = ivl_stmt_parm(net, 0);
 	    if (mbx) draw_eval_object(mbx);
 	    if (ivl_stmt_ref_lval(net)) {
@@ -7587,7 +7614,9 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
 	    }
 	    fprintf(vvp_out, "    %%mbx/get;\n");
-	    if (ivl_stmt_ref_lval(net))
+	    if (ivl_stmt_ref_lval(net) && strcmp(stmt_name, "$ivl_mailbox$get") != 0)
+		  draw_mailbox_untyped_store_(net, 0);
+	    else if (ivl_stmt_ref_lval(net))
 		  fprintf(vvp_out, "    %%ref/store/mbx;\n");
 	    else
 		  EMIT_MBX_STORE_ITEM(1);
@@ -7596,7 +7625,8 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 
       /* $ivl_mailbox$peek(mailbox, item)
        * Blocking peek: suspend if empty; on resume item is on obj stack. */
-      if (strcmp(stmt_name, "$ivl_mailbox$peek") == 0) {
+      if (strcmp(stmt_name, "$ivl_mailbox$peek") == 0
+	  || strcmp(stmt_name, "$ivl_mailbox$peek$untyped") == 0) {
 	    ivl_expr_t mbx = ivl_stmt_parm(net, 0);
 	    if (mbx) draw_eval_object(mbx);
 	    if (ivl_stmt_ref_lval(net)) {
@@ -7604,7 +7634,9 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  fprintf(vvp_out, "    %%swap/obj; mailbox receiver above captured output\n");
 	    }
 	    fprintf(vvp_out, "    %%mbx/peek;\n");
-	    if (ivl_stmt_ref_lval(net))
+	    if (ivl_stmt_ref_lval(net) && strcmp(stmt_name, "$ivl_mailbox$peek") != 0)
+		  draw_mailbox_untyped_store_(net, 1);
+	    else if (ivl_stmt_ref_lval(net))
 		  fprintf(vvp_out, "    %%ref/store/mbx;\n");
 	    else
 		  EMIT_MBX_STORE_ITEM(1);
