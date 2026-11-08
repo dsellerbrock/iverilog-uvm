@@ -18,7 +18,10 @@
 
 # include  "z3_bdd.h"
 # include  <algorithm>
+# include  <cstdio>
+# include  <cstdlib>
 # include  <map>
+# include  <set>
 # include  <string>
 # include  <unordered_map>
 
@@ -28,6 +31,14 @@ namespace {
 
 struct budget_exceeded { };
 struct unsupported { };
+
+/* IVL_Z3_BDD_TRACE names the first construct a compile gives up on. */
+static Z3_ast unsupported_ast_ = 0;
+static unsupported refuse_(Z3_ast e)
+{
+      if (!unsupported_ast_) unsupported_ast_ = e;
+      return unsupported();
+}
 
 /* Little-endian arbitrary-precision unsigned integer: just the operations
    counting and decoding need. */
@@ -234,7 +245,7 @@ class blaster_t {
       }
       Z3_decl_kind kind_(Z3_ast e)
       {
-	    if (Z3_get_ast_kind(ctx_, e) != Z3_APP_AST) throw unsupported();
+	    if (Z3_get_ast_kind(ctx_, e) != Z3_APP_AST) throw refuse_(e);
 	    return Z3_get_decl_kind(ctx_, Z3_get_app_decl(ctx_, Z3_to_app(ctx_, e)));
       }
       int param_(Z3_ast e, unsigned i)
@@ -349,7 +360,7 @@ class blaster_t {
 		  return numeral_(e);
 		case Z3_OP_UNINTERPRETED: {
 		  auto found = levels_.find(Z3_get_ast_id(ctx_, e));
-		  if (n || found == levels_.end()) throw unsupported();
+		  if (n || found == levels_.end()) throw refuse_(e);
 		  bits_t r;
 		  for (uint32_t level : found->second) r.push_back(bdd_.ithvar(level));
 		  return r;
@@ -427,7 +438,7 @@ class blaster_t {
 		case Z3_OP_BCOMP:
 		  return bits_t(1, eq_(bv(arg_(e, 0)), bv(arg_(e, 1))));
 		default:
-		  throw unsupported();
+		  throw refuse_(e);
 	    }
       }
 
@@ -441,7 +452,7 @@ class blaster_t {
 		case Z3_OP_UNINTERPRETED: {
 		  auto found = levels_.find(Z3_get_ast_id(ctx_, e));
 		  if (n || found == levels_.end() || found->second.size() != 1)
-			throw unsupported();
+			throw refuse_(e);
 		  return bdd_.ithvar(found->second[0]);
 		}
 		case Z3_OP_AND: case Z3_OP_OR: {
@@ -492,7 +503,7 @@ class blaster_t {
 		  return bdd_.NOT(ult_(y, x));
 		}
 		default:
-		  throw unsupported();
+		  throw refuse_(e);
 	    }
       }
 
@@ -565,13 +576,46 @@ class counter_t {
 Z3_lbool z3_bdd_sample(Z3_context ctx, const vector<Z3_ast>&assertions,
 		       const vector<vector<Z3_ast> >&stages,
 		       const function<uint32_t()>&rand32,
-		       vector<Z3_ast>&values, size_t node_budget)
+		       vector<Z3_ast>&values, size_t node_budget,
+		       uint64_t*count)
 {
       values.clear();
       try {
+	      /* Inline the auxiliary constants an assertion pins to a numeral
+	         (state reads, signed-literal tags) and simplify: a pinned shift
+	         amount left symbolic below the data bits would make a barrel
+	         shifter exponential. Staged variables keep their pins. */
+	    set<unsigned> staged;
+	    for (const auto&stage : stages)
+		  for (Z3_ast v : stage) staged.insert(Z3_get_ast_id(ctx, v));
+	    vector<Z3_ast> from, to;
+	    for (Z3_ast a : assertions) {
+		  if (Z3_get_ast_kind(ctx, a) != Z3_APP_AST) continue;
+		  Z3_app app = Z3_to_app(ctx, a);
+		  if (Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app)) != Z3_OP_EQ
+		      || Z3_get_app_num_args(ctx, app) != 2) continue;
+		  Z3_ast l = Z3_get_app_arg(ctx, app, 0), r = Z3_get_app_arg(ctx, app, 1);
+		  if (Z3_get_ast_kind(ctx, l) == Z3_NUMERAL_AST) swap(l, r);
+		  if (Z3_get_ast_kind(ctx, r) != Z3_NUMERAL_AST
+		      || Z3_get_ast_kind(ctx, l) != Z3_APP_AST
+		      || staged.count(Z3_get_ast_id(ctx, l))) continue;
+		  Z3_app lapp = Z3_to_app(ctx, l);
+		  if (Z3_get_app_num_args(ctx, lapp) == 0
+		      && Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, lapp))
+			 == Z3_OP_UNINTERPRETED) {
+			from.push_back(l);
+			to.push_back(r);
+		  }
+	    }
+	    vector<Z3_ast> work;
+	    for (Z3_ast a : assertions)
+		  work.push_back(from.empty() ? a : Z3_simplify(ctx,
+			Z3_substitute(ctx, a, (unsigned)from.size(),
+				      from.data(), to.data())));
+
 	    map<unsigned, Z3_ast> constants;
 	    unordered_map<unsigned, bool> seen;
-	    for (Z3_ast a : assertions) collect_constants_(ctx, a, constants, seen);
+	    for (Z3_ast a : work) collect_constants_(ctx, a, constants, seen);
 
 	      /* Lay out the levels: each stage interleaved MSB first, then the
 	         auxiliary constants below every semantic level. */
@@ -604,8 +648,19 @@ Z3_lbool z3_bdd_sample(Z3_context ctx, const vector<Z3_ast>&assertions,
 	    bdd_t bdd(node_budget);
 	    blaster_t blaster(ctx, bdd, levels);
 	    uint32_t f = 1;
-	    for (Z3_ast a : assertions) f = bdd.AND(f, blaster.boolean(a));
+	    for (Z3_ast a : work) f = bdd.AND(f, blaster.boolean(a));
 	    if (f == 0) return Z3_L_FALSE;
+	    if (!rand32) {
+		  if (count) {
+			uint32_t hi = stage_end.empty() ? 0 : stage_end.back();
+			counter_t counter(bdd, hi);
+			big_t total = big_shl(counter.count(f), counter.level(f));
+			*count = total.bits() > 64 ? UINT64_MAX
+			       : (total.w.size() > 1 ? (uint64_t)total.w[1] << 32 : 0)
+				 | (total.w.empty() ? 0 : total.w[0]);
+		  }
+		  return Z3_L_TRUE;
+	    }
 
 	      /* Draw each stage over its projection, given the earlier ones. */
 	    vector<bool> chosen(next, false);
@@ -662,7 +717,13 @@ Z3_lbool z3_bdd_sample(Z3_context ctx, const vector<Z3_ast>&assertions,
 		  }
 	    return Z3_L_TRUE;
       } catch (const budget_exceeded&) {
+	    if (getenv("IVL_Z3_BDD_TRACE"))
+		  fprintf(stderr, "trace z3-bdd: node budget %zu exceeded\n", node_budget);
       } catch (const unsupported&) {
+	    if (getenv("IVL_Z3_BDD_TRACE"))
+		  fprintf(stderr, "trace z3-bdd: unsupported %s\n", unsupported_ast_
+			  ? Z3_ast_to_string(ctx, unsupported_ast_) : "sort or level");
+	    unsupported_ast_ = 0;
       }
       values.clear();
       return Z3_L_UNDEF;

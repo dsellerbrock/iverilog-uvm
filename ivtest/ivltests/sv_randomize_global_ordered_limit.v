@@ -27,10 +27,13 @@ module main;
   if(!w.randomize() || w.child.value!=w.b) $fatal(1,"ordered dist failed or violated child relation");
   if(!c.randomize() || c.posts!=1 || c.tail_value!=c.value[0] || c.child.value!=c.tail_value) $fatal(1,"1024 ordered tuples failed");
   old_value=c.value; old_tail=c.tail_value; old_child=c.child.value;
+  // 1025 ordered tuples, past the solver's 1024-tuple enumeration cap.
+  // IEEE 1800-2023 18.5.9: "a solve...before... constraint does not change the solution
+  // space and, therefore, cannot cause the solver to fail" (#2228).
   c.limit=1024;
   for (int seed=0; seed<4; seed++) begin
    c.srandom(seed);
-   if(c.randomize() || c.value!=old_value || c.tail_value!=old_tail || c.child.value!=old_child || c.posts!=1) $fatal(1,"ordered cap failure changed values/posts");
+   if(!c.randomize() || c.value>1024 || c.tail_value!=c.value[0] || c.child.value!=c.tail_value || c.posts!=seed+2) $fatal(1,"ordered solve past the cap failed or was invalid");
   end
   $display("PASSED");
  end

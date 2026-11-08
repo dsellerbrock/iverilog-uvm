@@ -9933,10 +9933,10 @@ static bool z3_collect_constants_(Z3_context ctx, Z3_ast value,
  * BASE and OPT. Only the assertions that reach the staged variables through
  * shared constants are compiled. UNDEF (unsupported operator, BDD budget)
  * pins nothing and consumes no random words, so the caller's own sampler
- * runs exactly as before. */
+ * runs exactly as before. A nil RNG only checks, and pins nothing. */
 static Z3_lbool z3_bdd_pin_stages_(Z3_context ctx, Z3_solver base,
       Z3_optimize opt, const vector<vector<Z3_ast> >&stages,
-      z3_rng_stream_t&rng)
+      z3_rng_stream_t*rng, uint64_t*count = nullptr)
 {
       static int disabled = -1;
       if (disabled < 0) {
@@ -9970,9 +9970,28 @@ static Z3_lbool z3_bdd_pin_stages_(Z3_context ctx, Z3_solver base,
       for (size_t i = 0; i < all.size(); ++i)
             if (taken[i]) relevant.push_back(all[i]);
       vector<Z3_ast> values;
-      Z3_lbool result = ok ? z3_bdd_sample(ctx, relevant, stages,
-            [&rng]() { return rng.next(); }, values, 1u << 18) : Z3_L_UNDEF;
-      if (result == Z3_L_TRUE) {
+      /* A nil RNG only proves the BDD compiles and has a solution. */
+      std::function<uint32_t()> rand32;
+      if (rng) rand32 = [rng]() { return rng->next(); };
+      Z3_lbool result = ok ? z3_bdd_sample(ctx, relevant, stages, rand32,
+            values, 1u << 18, count) : Z3_L_UNDEF;
+      static int trace = -1;
+      if (trace < 0) {
+            const char*env = getenv("IVL_Z3_BDD_TRACE");
+            trace = env && *env && strcmp(env, "0") != 0;
+      }
+      if (trace) {
+            size_t nvars = 0;
+            for (const auto&stage : stages) nvars += stage.size();
+            fprintf(stderr, "trace z3-bdd: %s stages=%zu vars=%zu assertions=%zu"
+                    " result=%d count=%llu\n", rng ? "draw" : "check",
+                    stages.size(), nvars, relevant.size(), (int)result,
+                    count ? (unsigned long long)*count : 0ULL);
+            if (trace > 0 && getenv("IVL_Z3_BDD_TRACE")[0] == '2')
+                  for (Z3_ast a : relevant)
+                        fprintf(stderr, "  %s\n", Z3_ast_to_string(ctx, a));
+      }
+      if (result == Z3_L_TRUE && rng) {
             size_t k = 0;
             for (const auto&stage : stages)
                   for (Z3_ast var : stage) {
@@ -14389,7 +14408,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			         Draw it exactly when it compiles to a BDD. */
 			      Z3_lbool exact = z3_bdd_pin_stages_(ctx, base, opt,
 				    vector<vector<Z3_ast> >(1, component),
-				    property_rng(uniform_joint_property.at(component.front())));
+				    &property_rng(uniform_joint_property.at(component.front())));
 			      if (exact == Z3_L_FALSE) return fail_joint(nullptr);
 			      if (exact == Z3_L_TRUE) {
 				    for (Z3_ast var : component)
@@ -15971,6 +15990,27 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                over-cap components use checked candidates and warn; uniformity is
                not guaranteed for their constrained solution sets. */
             vector<bool> sampled_component(components.size(), false);
+            /* An ordered or randc component past the enumeration cap is
+               drawn stage by stage from a BDD (18.5.9; randc first, 18.4.2):
+               earlier stages first, each uniform over its projection. */
+            vector<bool> bdd_component(components.size(), false);
+            auto bdd_stages = [&](size_t ci, bool with_randc) {
+                  map<unsigned, vector<Z3_ast> > by_stage;
+                  vector<Z3_ast> randc;
+                  for (Z3_ast var : components[ci]) {
+                        if (active_randc_var(var)) {
+                              if (with_randc) randc.push_back(var);
+                              continue;
+                        }
+                        auto found = stages.find(var);
+                        by_stage[found == stages.end() ? final_stage
+                                                       : found->second].push_back(var);
+                  }
+                  vector<vector<Z3_ast> > out;
+                  if (!randc.empty()) out.push_back(randc);
+                  for (auto&stage : by_stage) out.push_back(stage.second);
+                  return out;
+            };
             for (size_t ci = 0; ci < components.size(); ++ci) {
                   bool component_has_randc = any_of(components[ci].begin(),
                         components[ci].end(), active_randc_var);
@@ -15993,6 +16033,20 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                             ENUM_DOMAIN_CAP)) {
                         sampled_component[ci] = true;
                         continue;
+                  }
+                  /* An ordered or randc component whose BDD counts more
+                     solutions than the table cap is proved here, like a
+                     table, and drawn from the BDD later. */
+                  if (distributions[ci].empty() && !component_has_dist_spec
+                      && (component_has_randc || ordered_component)) {
+                        uint64_t count = 0;
+                        Z3_lbool proved = z3_bdd_pin_stages_(ctx, base, opt,
+                              bdd_stages(ci, true), nullptr, &count);
+                        if (proved == Z3_L_FALSE) return fail_joint(nullptr);
+                        if (proved == Z3_L_TRUE && count > ENUM_DOMAIN_CAP) {
+                              bdd_component[ci] = true;
+                              continue;
+                        }
                   }
                   const char*reason = nullptr;
                   Z3_lbool enumerated = z3_enumerate_joint_(ctx, base,
@@ -16452,6 +16506,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   // value came from a feasible domain, so its component keeps
                   // at least one complete tuple.
                   for (size_t ci = 0; ci < components.size(); ++ci) {
+                        if (bdd_component[ci]) continue;
                         auto&tuples = tables[ci];
                         const auto&component = components[ci];
                         for (size_t column = 0; column < component.size(); ++column) {
@@ -16474,6 +16529,15 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   }
             }
             for (size_t ci = 0; ci < components.size(); ++ci) {
+                  if (bdd_component[ci]) {
+                        /* The randc values are pinned by now. */
+                        Z3_lbool drawn = z3_bdd_pin_stages_(ctx, base, opt,
+                              bdd_stages(ci, false), &root_rng);
+                        if (drawn == Z3_L_FALSE) return fail_joint(nullptr);
+                        if (drawn != Z3_L_TRUE)
+                              return fail_joint("an ordered joint component could not be drawn from its BDD");
+                        continue;
+                  }
                   const auto&component = components[ci];
                   auto&tuples = tables[ci];
                   const auto&bindings = distributions[ci];
