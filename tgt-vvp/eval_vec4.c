@@ -2562,7 +2562,9 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 			unsigned wid = ivl_expr_width(item_e);
 			if (!wid) wid = 32;
 			draw_eval_vec4(item_e);
-			fprintf(vvp_out, "    %%box/vec4 %u;\n", wid);
+			fprintf(vvp_out, "    %%box/vec4/t %u, %d, %d;\n", wid,
+				ivl_expr_signed(item_e) ? 1 : 0,
+				ivl_expr_value(item_e) == IVL_VT_BOOL ? 1 : 0);
 		  }
 	    } else {
 		  fprintf(vvp_out, "    %%null;\n");

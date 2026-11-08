@@ -55,6 +55,15 @@ class resolv_core : public vvp_net_fun_t {
       virtual void count_drivers(unsigned bit_idx, unsigned counts[3]) =0;
 
       void set_input_source(unsigned port, vvp_net_t*source);
+      vvp_net_t* input_source(unsigned port) const
+            { return input_sources_[port]; }
+      unsigned port_count() const { return nports_; }
+	// An empty resolver of the same kind and size, driving net, and
+	// the value last received on one of this resolver's ports, sent to
+	// dest. Together they copy a resolver for one load (IEEE 1800-2023
+	// 32.4.4 source/load interconnect delays on multisource nets).
+      virtual resolv_core* clone_empty(vvp_net_t*net) const =0;
+      virtual void replay_input(unsigned port, vvp_net_ptr_t dest) const =0;
       bool sole_part_pv_source(unsigned bit, const vvp_net_t*source,
                                unsigned source_port) const;
       vvp_net_t* output_net() const { return net_; }
@@ -134,6 +143,9 @@ class resolv_tri : public resolv_core {
 
       void count_drivers(unsigned bit_idx, unsigned counts[3]) override;
       bool is_plain_tri() const { return hiz_value_.is_hiz(); }
+      resolv_core* clone_empty(vvp_net_t*net) const override
+            { return new resolv_tri(nports_, net, hiz_value_); }
+      void replay_input(unsigned port, vvp_net_ptr_t dest) const override;
 
     private:
       void recv_vec4_(unsigned port, const vvp_vector4_t&bit) override;
@@ -162,6 +174,7 @@ class resolv_wired_logic : public resolv_core {
       virtual ~resolv_wired_logic() override;
 
       void count_drivers(unsigned bit_idx, unsigned counts[3]) override;
+      void replay_input(unsigned port, vvp_net_ptr_t dest) const override;
 
     protected:
       virtual vvp_vector4_t wired_logic_math_(vvp_vector4_t&a, vvp_vector4_t&b) =0;
@@ -180,6 +193,8 @@ class resolv_triand : public resolv_wired_logic {
     public:
       explicit resolv_triand(unsigned nports, vvp_net_t*net);
       ~resolv_triand() override;
+      resolv_core* clone_empty(vvp_net_t*net) const override
+            { return new resolv_triand(nports_, net); }
 
     private:
       virtual vvp_vector4_t wired_logic_math_(vvp_vector4_t&a, vvp_vector4_t&b) override;
@@ -190,6 +205,8 @@ class resolv_trior : public resolv_wired_logic {
     public:
       explicit resolv_trior(unsigned nports, vvp_net_t*net);
       ~resolv_trior() override;
+      resolv_core* clone_empty(vvp_net_t*net) const override
+            { return new resolv_trior(nports_, net); }
 
     private:
       virtual vvp_vector4_t wired_logic_math_(vvp_vector4_t&a, vvp_vector4_t&b) override;

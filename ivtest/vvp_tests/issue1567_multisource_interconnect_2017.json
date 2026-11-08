@@ -1,0 +1,5 @@
+{
+    "type": "normal",
+    "source": "issue1567_multisource_interconnect.v",
+    "iverilog-args": ["-g2017", "-gspecify", "-ginterconnect", "-s", "tb"]
+}

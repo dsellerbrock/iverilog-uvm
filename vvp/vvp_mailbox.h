@@ -144,21 +144,30 @@ class vvp_semaphore : public vvp_object {
  */
 class vvp_boxed_vec4 : public vvp_object {
     public:
-      explicit vvp_boxed_vec4(const vvp_vector4_t& v) : value_(v) {}
+	/* TYPE_TAG is MBX_TYPE_UNKNOWN, or the message's signedness and
+	 * 2-state bits (MBX_TYPE_SIGNED, MBX_TYPE_2STATE) from %box/vec4/t. */
+      enum { MBX_TYPE_SIGNED = 1, MBX_TYPE_2STATE = 2, MBX_TYPE_UNKNOWN = 4 };
+      explicit vvp_boxed_vec4(const vvp_vector4_t& v,
+			      unsigned type_tag = MBX_TYPE_UNKNOWN)
+      : value_(v), type_tag_(type_tag) {}
       ~vvp_boxed_vec4() override {}
 
       vvp_object* duplicate() const override {
-	    return new vvp_boxed_vec4(value_);
+	    return new vvp_boxed_vec4(value_, type_tag_);
       }
       void shallow_copy(const vvp_object* src) override {
-	    if (const vvp_boxed_vec4* s = dynamic_cast<const vvp_boxed_vec4*>(src))
+	    if (const vvp_boxed_vec4* s = dynamic_cast<const vvp_boxed_vec4*>(src)) {
 		  value_ = s->value_;
+		  type_tag_ = s->type_tag_;
+	    }
       }
 
       const vvp_vector4_t& get_value() const { return value_; }
+      unsigned type_tag() const { return type_tag_; }
 
     private:
       vvp_vector4_t value_;
+      unsigned type_tag_;
 };
 
 /* As vvp_boxed_vec4, but for STRING mailbox messages (mailbox
@@ -202,5 +211,10 @@ class vvp_boxed_real : public vvp_object {
     private:
       double value_;
 };
+
+/* Whether a boxed mailbox message has the kind (and, for a vec4, the width)
+ * of a captured output; VALUE_KIND is a vvp_lvalue_ref::value_kind_t. */
+extern bool mailbox_item_matches_ref(const vvp_object_t&item,
+				     unsigned value_kind, unsigned value_width);
 
 #endif /* VVP_MAILBOX_H */

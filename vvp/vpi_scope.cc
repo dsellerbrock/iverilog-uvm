@@ -104,6 +104,7 @@ static void delete_sub_scopes(__vpiScope *scope)
 		  delete item;
 		  break;
 		case vpiInterModPath:
+		case vpiTchk:
 		  delete item;
 		  break;
 		case vpiNamedEvent:
