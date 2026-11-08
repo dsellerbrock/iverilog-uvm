@@ -9344,6 +9344,64 @@ int draw_task_definition(ivl_scope_t scope)
  * the call is not emitted — the body pushes a zero/empty result so
  * simulation can proceed deterministically.
  */
+/* IEEE 1800-2017/2023 H.7.8: an unpacked struct formal, or a fixed or open
+   one-dimensional array of them, is passed in the C compiler's struct layout.
+   Return the struct type for these shapes, otherwise NULL. */
+static ivl_type_t dpi_struct_formal_type_(ivl_signal_t port)
+{
+      ivl_type_t nt = ivl_signal_net_type(port);
+      if (nt && ivl_signal_data_type(port) == IVL_VT_DARRAY)
+	    nt = ivl_type_element(nt);
+      if (nt && ivl_type_base(nt) == IVL_VT_NO_TYPE
+	  && ivl_type_properties(nt) > 0)
+	    return nt;
+      return 0;
+}
+
+/* Describe the struct members for the runtime marshaler, one signature letter
+   per member in declaration order: b/h/i/l for the integer atoms ('u' prefix
+   when unsigned), c/g for scalar bit/logic, f/r for shortreal/real and p for
+   chandle. Returns 0 when a member has no supported C layout (packed vectors,
+   strings, nested aggregates) or the struct is a union. */
+static int dpi_struct_member_desc_(ivl_type_t st, char*buf, size_t cap)
+{
+      size_t pos = 0;
+      if (ivl_type_is_union(st))
+	    return 0;
+      for (int idx = 0 ; idx < ivl_type_properties(st) ; idx += 1) {
+	    ivl_type_t mt = ivl_type_prop_type(st, idx);
+	    ivl_variable_type_t mb = mt ? ivl_type_base(mt) : IVL_VT_NO_TYPE;
+	    unsigned mw = mt ? ivl_type_packed_width(mt) : 0;
+	    char letter = 0;
+	    if (mb == IVL_VT_REAL) {
+		  letter = ivl_type_is_shortreal(mt) ? 'f' : 'r';
+	    } else if (mb == IVL_VT_BOOL || mb == IVL_VT_LOGIC) {
+		  if (ivl_type_is_chandle(mt))
+			letter = 'p';
+		  else if (ivl_type_is_packed_vector(mt))
+			letter = 0;
+		  else if (mw == 1)
+			letter = (mb == IVL_VT_LOGIC) ? 'g' : 'c';
+		  else if (mb == IVL_VT_BOOL && mw == 8)
+			letter = 'b';
+		  else if (mb == IVL_VT_BOOL && mw == 16)
+			letter = 'h';
+		  else if (mb == IVL_VT_BOOL && mw == 32)
+			letter = 'i';
+		  else if (mb == IVL_VT_BOOL && mw == 64)
+			letter = 'l';
+	    }
+	    if (!letter || pos + 2 >= cap)
+		  return 0;
+	    if ((letter == 'b' || letter == 'h' || letter == 'i'
+		 || letter == 'l') && !ivl_type_signed(mt))
+		  buf[pos++] = 'u';
+	    buf[pos++] = letter;
+      }
+      buf[pos] = 0;
+      return pos > 0;
+}
+
 static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 {
       const char*c_name = ivl_scope_dpi_c_name(scope);
@@ -9385,7 +9443,7 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  return_letter = ivl_scope_func_signed(scope) ? 'l' : 'L';
       }
 
-      char arg_types[256];
+      char arg_types[2048];
       unsigned types_pos = 0;
 
       if (ncp > 64) {
@@ -9453,7 +9511,43 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  break;
 	    }
 
-	    if (ivl_signal_dimensions(port) > 0) {
+	    ivl_type_t struct_type = dpi_struct_formal_type_(port);
+	    char struct_desc[256];
+	    if (struct_type) {
+		  if (!dpi_struct_member_desc_(struct_type, struct_desc,
+					       sizeof struct_desc)
+		      || types_pos + strlen(struct_desc) + 8
+			 >= sizeof arg_types) {
+			if (ivl_type_is_union(struct_type))
+			      fprintf(stderr, "%s:%u: sorry: DPI import "
+				      "'%s': argument '%s' is an unpacked "
+				      "union (IEEE 1800 Annex H.7.8 union "
+				      "layouts are not supported yet).\n",
+				      ivl_scope_def_file(scope),
+				      ivl_scope_def_lineno(scope), c_name,
+				      ivl_signal_basename(port));
+			else
+			      fprintf(stderr, "%s:%u: sorry: DPI import "
+				      "'%s': argument '%s' is an unpacked "
+				      "struct with a member that is not an "
+				      "integer atom, scalar bit/logic, real, "
+				      "shortreal or chandle (IEEE 1800 Annex "
+				      "H.7.8 layouts of other members are "
+				      "not supported yet).\n",
+				      ivl_scope_def_file(scope),
+				      ivl_scope_def_lineno(scope), c_name,
+				      ivl_signal_basename(port));
+			unsupported = 1;
+			vvp_errors += 1;
+			break;
+		  }
+		  if (ptype == IVL_VT_DARRAY)
+			letter = 't';
+		  else if (ivl_signal_dimensions(port) > 0)
+			letter = 'T';
+		  else
+			letter = 'S';
+	    } else if (ivl_signal_dimensions(port) > 0) {
 	    /* Fixed unpacked arrays use the Annex H direct C-pointer ABI.
 	       Materialize the inline word array before the call and copy it
 	       back below for output/inout directions. */
@@ -9603,6 +9697,7 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    else if (letter == 's')
 		  fprintf(vvp_out, "    %%load/str v%p_0;\n", (void*)port);
 	    else if (letter == 'o' || letter == 'O'
+		     || letter == 'S' || letter == 'T' || letter == 't'
 		     || letter == 'q' || letter == 'Q'
 		     || letter == 'B' || letter == 'G'
 		     || letter == 'x' || letter == 'X'
@@ -9632,6 +9727,12 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		 || letter == 'l') && ! ivl_signal_signed(port))
 		  arg_types[types_pos++] = 'u';
 	    arg_types[types_pos++] = letter;
+	    if (struct_type) {
+		  arg_types[types_pos++] = '{';
+		  for (const char*cp = struct_desc ; *cp ; cp += 1)
+			arg_types[types_pos++] = *cp;
+		  arg_types[types_pos++] = '}';
+	    }
 
 	    if (is_out) {
 		  out_ports[nout] = port;
@@ -9703,6 +9804,9 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  break;
 		case 'o':
 		case 'O':
+		case 'S':
+		case 'T':
+		case 't':
 		case 'q':
 		case 'Q':
 		case 'B':

@@ -1,5 +1,6 @@
 {
-  "type": "CE",
+  "type": "normal",
   "source": "issue872_dpi_struct_open_array_fail.sv",
-  "iverilog-args": ["-g2023"]
+  "iverilog-args": ["-g2023"],
+  "dpi-sources": ["dpi/issue872_dpi_struct_open_array.c"]
 }
