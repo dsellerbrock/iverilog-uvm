@@ -3,6 +3,7 @@
 
 issue2796_wildcard_handle_eq_2017 normal,-g2017,-s,issue2796_wildcard_handle_eq ivltests gold=issue2796_wildcard_handle_eq-vvp-stdout.gold
 issue2796_wildcard_handle_eq_2023 normal,-g2023,-s,issue2796_wildcard_handle_eq ivltests gold=issue2796_wildcard_handle_eq-vvp-stdout.gold
+issue2798_assoc_unsigned_query normal,-g2017,-s,issue2798_assoc_unsigned_query ivltests gold=issue2798_assoc_unsigned_query-legacy.gold
 
 issue2717_cond_string_cast normal,-g2017,-s,issue2717_cond_string_cast ivltests gold=issue2717_cond_string_cast-vvp-stdout.gold
 
