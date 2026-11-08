@@ -81,6 +81,7 @@ static void FILE_NAME(PCallTask*tmp, const struct vlltype&where)
    innermost index. An unbound placeholder is reported at elaboration. */
 struct queue_last_placeholder_t {
       PECallFunction*size_call;
+      PEBinary*last;
       int ordinal;
 };
 static std::vector<queue_last_placeholder_t> queue_last_placeholders;
@@ -93,12 +94,30 @@ static PExpr* make_queue_last_placeholder_(const struct vlltype&loc)
       std::vector<named_pexpr_t> no_args;
       PECallFunction*size_call = new PECallFunction(name, no_args);
       FILE_NAME(static_cast<LineInfo*>(size_call), loc);
-      queue_last_placeholders.push_back({size_call, loc.first_column});
       PENumber*one = new PENumber(new verinum((uint64_t)1, integer_width));
       FILE_NAME(one, loc);
       PEBinary*last = new PEBinary('-', size_call, one);
       FILE_NAME(last, loc);
+      queue_last_placeholders.push_back({size_call, last, loc.first_column});
       return last;
+}
+
+/* A slice upper bound that is exactly `$ - e' keeps the SEL_PART_LAST form,
+   which evaluates the receiver once and treats e as an unsigned offset
+   from the last index. Returns e, or null for any other bound (including
+   `$-a+b', which is ($-a)+b and takes the general path). */
+static PExpr* take_last_minus_offset_(PExpr*bound)
+{
+      PEBinary*minus = dynamic_cast<PEBinary*>(bound);
+      if (!minus || minus->get_op() != '-')
+	    return nullptr;
+      for (size_t idx = 0 ; idx < queue_last_placeholders.size() ; idx += 1) {
+	    if (queue_last_placeholders[idx].last != minus->get_left())
+		  continue;
+	    queue_last_placeholders.erase(queue_last_placeholders.begin() + idx);
+	    return minus->get_right();
+      }
+      return nullptr;
 }
 
 /* Placeholders bound to a hierarchical BASE, kept until a package scope
@@ -14242,12 +14261,14 @@ parameterized_scoped_identifier
       }
   | parameterized_scoped_identifier '[' expression ':' expression ']'
       { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
+	PExpr*last_offset = take_last_minus_offset_($5);
 	bind_queue_last_placeholders_(nullptr, dynamic_cast<PEIdent*>($1), @2, @6);
 	assert(tmp);
 	index_component_t idx;
-	idx.sel = index_component_t::SEL_PART;
+	idx.sel = last_offset ? index_component_t::SEL_PART_LAST
+			      : index_component_t::SEL_PART;
 	idx.msb = $3;
-	idx.lsb = $5;
+	idx.lsb = last_offset ? last_offset : $5;
 	tmp->append_index(idx);
 	$$ = tmp;
       }
@@ -16547,12 +16568,14 @@ hierarchy_identifier
       }
   | hierarchy_identifier '[' expression ':' expression ']'
       { pform_name_t * tmp = $1;
+	PExpr*last_offset = take_last_minus_offset_($5);
 	bind_queue_last_placeholders_($1, nullptr, @2, @6);
 	name_component_t&tail = tmp->back();
 	index_component_t itmp;
-	itmp.sel = index_component_t::SEL_PART;
+	itmp.sel = last_offset ? index_component_t::SEL_PART_LAST
+			       : index_component_t::SEL_PART;
 	itmp.msb = $3;
-	itmp.lsb = $5;
+	itmp.lsb = last_offset ? last_offset : $5;
 	tail.index.push_back(itmp);
 	$$ = tmp;
       }
