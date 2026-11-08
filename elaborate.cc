@@ -13239,6 +13239,202 @@ static NetProc* elaborate_event_assign_(Design*des, NetScope*scope,
       return task;
 }
 
+/* IEEE 1800-2017/2023 7.4 and 7.6: one index into a multi-dimensional
+ * unpacked array names a subarray, which can be copied to and from an
+ * unpacked array of equivalent shape. Describe an identifier operand that
+ * names a whole unpacked array or such a subarray: its remaining dimensions,
+ * element type, and whether it is reached through a class property or
+ * struct member. */
+struct uarray_operand_shape_t {
+      netranges_t dims;
+      ivl_type_t element = nullptr;
+      bool member = false;
+};
+
+static bool uarray_operand_shape_(const LineInfo*li, Design*des,
+				  NetScope*scope, const PExpr*expr,
+				  uarray_operand_shape_t&shape)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+      if (!id)
+	    return false;
+      for (const name_component_t&comp : id->path().name)
+	    for (const index_component_t&index : comp.index)
+		  if (index.sel != index_component_t::SEL_BIT)
+			return false;
+
+      symbol_search_results sr;
+      if (!symbol_search(li, des, scope, id->path(), id->lexical_pos(), &sr)
+	  || !sr.net || sr.path_head.empty())
+	    return false;
+
+      netranges_t dims = sr.net->unpacked_dims();
+      ivl_type_t type = sr.net->net_type();
+      size_t given = sr.path_head.back().index.size();
+      pform_name_t::const_iterator tail = sr.path_tail.begin();
+      for (;;) {
+	    if (dims.empty())
+		  if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type)) {
+			dims = array->static_dimensions();
+			type = array->element_type();
+		  }
+	    bool last = tail == sr.path_tail.end();
+	    if (given < dims.size()) {
+		  if (!last)
+			return false;
+		  shape.dims.assign(std::next(dims.begin(), given), dims.end());
+		  shape.element = type;
+		  shape.member = !sr.path_tail.empty();
+		  return true;
+	    }
+	    if (last || given > dims.size())
+		  return false;
+
+	    ivl_type_t next = nullptr;
+	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(type)) {
+		  int pidx = cls->property_idx_from_name(tail->name);
+		  if (pidx >= 0)
+			next = cls->get_prop_type(pidx);
+	    } else if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+		  if (!record->packed())
+			for (const netstruct_t::member_t&member : record->members())
+			      if (member.name == tail->name)
+				    next = member.net_type;
+	    }
+	    if (!next)
+		  return false;
+	    type = next;
+	    dims.clear();
+	    given = tail->index.size();
+	    ++tail;
+      }
+}
+
+/* A prefix index that can be re-evaluated for every element: no side
+ * effects, and no read of the destination array. */
+static bool subarray_index_is_plain_(const PExpr*expr, perm_string dest_root)
+{
+      if (!expr || dynamic_cast<const PENumber*>(expr))
+	    return true;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    if (id->path().name.front().name == dest_root)
+		  return false;
+	    for (const name_component_t&comp : id->path().name)
+		  for (const index_component_t&index : comp.index)
+			if (!subarray_index_is_plain_(index.msb, dest_root)
+			    || !subarray_index_is_plain_(index.lsb, dest_root))
+			      return false;
+	    return true;
+      }
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr))
+	    return subarray_index_is_plain_(bin->get_left(), dest_root)
+		&& subarray_index_is_plain_(bin->get_right(), dest_root);
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr))
+	    return !strchr("iIdD", un->get_op())
+		&& subarray_index_is_plain_(un->get_expr(), dest_root);
+      return false;
+}
+
+extern PEIdent* aggregate_operand_with_(const PEIdent*base,
+					const name_component_t*member,
+					const index_component_t*select,
+					const LineInfo&li);
+
+/* A copy between unpacked arrays or subarrays where either side is a class
+ * property or struct member. The full-index element forms already elaborate
+ * for every member kind, so expand the copy into one assignment per element,
+ * pairing elements left to right in each dimension. Two complete subarrays
+ * of one shape either coincide or do not overlap, so the element order
+ * cannot change the result while no index reads the destination. */
+static NetProc* elaborate_member_subarray_copy_(Design*des, NetScope*scope,
+						const LineInfo&loc,
+						const PExpr*lval, PExpr*rval,
+						bool nonblocking, bool&handled)
+{
+      handled = false;
+      const PEIdent*lid = dynamic_cast<const PEIdent*>(lval);
+      const PEIdent*rid = dynamic_cast<const PEIdent*>(rval);
+      if (!lid || !rid)
+	    return nullptr;
+      uarray_operand_shape_t lshape, rshape;
+      if (!uarray_operand_shape_(&loc, des, scope, lval, lshape)
+	  || !uarray_operand_shape_(&loc, des, scope, rval, rshape)
+	  || !(lshape.member || rshape.member))
+	    return nullptr;
+      handled = true;
+
+      netuarray_t ltype(lshape.dims, lshape.element);
+      netuarray_t rtype(rshape.dims, rshape.element);
+      if (!ltype.type_equivalent(&rtype)) {
+	    cerr << loc.get_fileline() << ": error: unpacked subarray"
+		 << " types are not equivalent in assignment." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      perm_string dest_root = lid->path().name.front().name;
+      for (const PEIdent*side : {lid, rid})
+	    for (const name_component_t&comp : side->path().name)
+		  for (const index_component_t&index : comp.index)
+			if (!subarray_index_is_plain_(index.msb, dest_root)) {
+			      cerr << loc.get_fileline() << ": sorry: a member"
+				   << " subarray copy whose index has side"
+				   << " effects or reads the destination is not"
+				   << " yet supported." << endl;
+			      des->errors += 1;
+			      return nullptr;
+			}
+
+      auto element = [&](const PEIdent*base, const netranges_t&dims,
+			 const vector<unsigned long>&pos) {
+	    PEIdent*cur = nullptr;
+	    for (size_t dim = 0; dim < dims.size(); dim += 1) {
+		  long msb = dims[dim].get_msb();
+		  long lsb = dims[dim].get_lsb();
+		  long index = msb >= lsb ? msb - (long)pos[dim]
+					  : msb + (long)pos[dim];
+		  index_component_t select;
+		  select.sel = index_component_t::SEL_BIT;
+		  select.msb = new PENumber(new verinum((int64_t)index, 32U));
+		  select.msb->set_line(loc);
+		  PEIdent*next = aggregate_operand_with_(cur ? cur : base,
+							 nullptr, &select, loc);
+		  delete cur;
+		  cur = next;
+	    }
+	    return cur;
+      };
+
+      NetBlock*block = new NetBlock(NetBlock::SEQU, nullptr);
+      block->set_line(loc);
+      vector<unsigned long> pos(lshape.dims.size(), 0);
+      for (bool more = true; more; ) {
+	    PExpr*lelem = element(lid, lshape.dims, pos);
+	    PExpr*relem = element(rid, rshape.dims, pos);
+	    PAssign_*store = nonblocking
+		  ? static_cast<PAssign_*>(new PAssignNB(lelem, relem))
+		  : static_cast<PAssign_*>(new PAssign(lelem, relem));
+	    store->set_line(loc);
+	    NetProc*proc = store->elaborate(des, scope);
+	    delete store;
+	    if (!proc) {
+		  delete block;
+		  return nullptr;
+	    }
+	    block->append(proc);
+
+	    more = false;
+	    for (size_t dim = pos.size(); dim-- > 0; ) {
+		  if (++pos[dim] < lshape.dims[dim].width()) {
+			more = true;
+			break;
+		  }
+		  pos[dim] = 0;
+	    }
+      }
+      return block;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
 	bool in_checker = false;
@@ -13262,6 +13458,12 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 							   handled);
 	    if (handled)
 		  return event_assign;
+	    if (op_ == 0) {
+		  NetProc*copy = elaborate_member_subarray_copy_(
+			des, scope, *this, lval(), rval(), false, handled);
+		  if (handled)
+			return copy;
+	    }
       }
 
       NetProc*result = elaborate_unwrapped_(des, scope);
@@ -14808,6 +15010,14 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	            "assignments." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+      if (!has_timing_control()) {
+	    bool handled = false;
+	    NetProc*copy = elaborate_member_subarray_copy_(
+		  des, scope, *this, lval(), rval(), true, handled);
+	    if (handled)
+		  return copy;
       }
 
 	/* M8-2b: plain drives to output clockvars get the buffered

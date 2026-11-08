@@ -7020,7 +7020,7 @@ static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
  * ordinary operators compare each leaf (integral, real, string, queues...).
  * Only identifier operands are handled so nothing with side effects is
  * evaluated more than once. */
-static PEIdent* aggregate_operand_with_(const PEIdent*base,
+PEIdent* aggregate_operand_with_(const PEIdent*base,
 					const name_component_t*member,
 					const index_component_t*select,
 					const LineInfo&li)
