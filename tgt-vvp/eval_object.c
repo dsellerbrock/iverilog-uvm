@@ -184,9 +184,47 @@ static int stream_struct_type_encoding_(ivl_type_t type,
       return 0;
 }
 
+/*
+ * A dynamic-array element that is a fixed unpacked array of scalars
+ * (int d[][2][3]) is stored as an object element holding a flat dynamic
+ * array of all its words, addressed by canonical index. Return the word
+ * count and set *leaf to the word type, or return 0 for any other element.
+ */
+unsigned darray_fixed_element_words(ivl_type_t type, ivl_type_t*leaf)
+{
+      ivl_type_t word = ivl_type_element(type);
+      if (!word || ivl_type_is_packed_vector(type))
+	    return 0;
+      switch (ivl_type_base(type)) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	  case IVL_VT_REAL:
+	  case IVL_VT_STRING:
+	    break;
+	  default:
+	    return 0;
+      }
+      if (ivl_type_element(word))
+	    return 0;
+      unsigned count = 1;
+      for (unsigned dim = 0 ; dim < ivl_type_packed_dimensions(type) ; dim += 1) {
+	    int msb = ivl_type_packed_msb(type, dim);
+	    int lsb = ivl_type_packed_lsb(type, dim);
+	    count *= (unsigned)(msb >= lsb ? msb - lsb + 1 : lsb - msb + 1);
+      }
+      *leaf = word;
+      return count;
+}
+
 void darray_new(ivl_type_t element_type, unsigned size_reg)
 {
       static int warned_unhandled_elem_type = 0;
+      ivl_type_t fixed_leaf = 0;
+      if (darray_fixed_element_words(element_type, &fixed_leaf)) {
+	    fprintf(vvp_out, "    %%new/darray %u, \"o\";\n", size_reg);
+	    clr_word(size_reg);
+	    return;
+      }
       int wid;
       const char*signed_char;
       ivl_variable_type_t type = ivl_type_base(element_type);
@@ -564,6 +602,29 @@ static int eval_darray_new(ivl_expr_t ex)
       assert(element_type);
 
       darray_new(element_type, size_reg);
+
+      ivl_type_t fixed_leaf = 0;
+      unsigned fixed_words = darray_fixed_element_words(element_type, &fixed_leaf);
+      if (fixed_words) {
+	      /* new[n] or new[n](src) of fixed unpacked-array elements: copy
+	         src (a deep %scopy), then give every remaining element its
+	         default-initialized storage. */
+	    if (init_expr && ivl_expr_value(init_expr) != IVL_VT_DARRAY) {
+		  fprintf(stderr, "%s:%u: sorry: this dynamic-array new[] "
+			  "initializer is not supported for fixed unpacked-array "
+			  "elements.\n", ivl_expr_file(ex), ivl_expr_lineno(ex));
+		  return 1;
+	    }
+	    if (init_expr) {
+		  draw_eval_object(init_expr);
+		  fprintf(vvp_out, "    %%scopy;\n");
+	    }
+	    char leaf_text[32];
+	    stream_elem_type_text(fixed_leaf, leaf_text, sizeof leaf_text);
+	    fprintf(vvp_out, "    %%dar/fill/new %u, \"%s\";\n",
+		    fixed_words, leaf_text);
+	    return 0;
+      }
 
       if (init_expr && ivl_expr_type(init_expr) == IVL_EX_SFUNC
 	  && ivl_expr_name(init_expr)

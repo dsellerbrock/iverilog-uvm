@@ -7307,8 +7307,12 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 			inner_type = ivl_type_element(inner_type);
 		  }
 	    }
+	      /* A fixed unpacked-array element is stored as a flat
+	         positional container (see darray_fixed_element_words). */
+	    ivl_type_t fixed_leaf_ = 0;
 	    if (!type_is_runtime_container_(outer_type)
-		|| !type_is_runtime_container_(inner_type)) {
+		|| (!type_is_runtime_container_(inner_type)
+		    && !darray_fixed_element_words(inner_type, &fixed_leaf_))) {
 		  fprintf(stderr, "Warning: $ivl_assoc$store2 lost a nested "
 			  "container type at %s:%u; skipping\n",
 			  ivl_stmt_file(net), ivl_stmt_lineno(net));
@@ -7325,8 +7329,10 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  for (ki_ = 1 ; ki_ < nkeys_ ; ki_ += 1) {
 			ivl_expr_t key = ivl_stmt_parm(net, ki_);
 			ivl_type_t next_type = ivl_type_element(recv_type);
+			ivl_type_t hop_leaf_ = 0;
+			int next_fixed = darray_fixed_element_words(next_type, &hop_leaf_) != 0;
 
-			if (!type_is_runtime_container_(next_type)) {
+			if (!type_is_runtime_container_(next_type) && !next_fixed) {
 			      fprintf(stderr, "Warning: $ivl_assoc$store2 has a "
 				      "non-container navigation hop at %s:%u; skipping\n",
 				      ivl_stmt_file(net), ivl_stmt_lineno(net));
@@ -7375,7 +7381,8 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 					  draw_eval_object(outer_arg);
 			      }
 			      draw_eval_expr_into_integer(key, 3);
-			      if (ivl_type_base(next_type) == IVL_VT_DARRAY) {
+			      if (ivl_type_base(next_type) == IVL_VT_DARRAY
+				  || next_fixed) {
 				    fprintf(vvp_out, "    %%load/qo/obj;\n");
 			      } else {
 				    unsigned next_spec =

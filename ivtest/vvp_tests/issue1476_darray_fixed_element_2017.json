@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue1476_darray_fixed_element.v",
+  "iverilog-args": ["-g2017"]
+}
