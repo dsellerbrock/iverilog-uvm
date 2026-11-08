@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2582_container_continuous.v",
+  "iverilog-args": ["-g2023"]
+}

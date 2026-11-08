@@ -2887,6 +2887,8 @@ static void collect_pform_reads_(PExpr*e, std::vector<PExpr*>&out)
 	    return;
       }
       if (PECallFunction*call = dynamic_cast<PECallFunction*>(e)) {
+	    // The call itself names a method receiver (q.size()) in its path.
+	    out.push_back(call);
 	    collect_pform_reads_(call->receiver_expr(), out);
 	    for (const named_pexpr_t&parm : call->get_parms())
 		  collect_pform_reads_(parm.parm, out);
@@ -2955,6 +2957,44 @@ static bool reads_virtual_interface_member_(const LineInfo*li, Design*des,
 		&& base_type && base_type->is_interface()
 		&& !sr.path_tail.empty())
 		  return true;
+      }
+      return false;
+}
+
+/* A queue, dynamic or associative array, or string variable is an object
+ * value with no structural net, so a continuous assignment that reads one
+ * (q[0], $size(q), q.size(), s.len()) needs the behavioral path. IEEE
+ * 1800-2017/2023 10.3 allows any expression on the right-hand side. */
+static bool reads_dynamic_variable_(const LineInfo*li, Design*des,
+                                    NetScope*scope, PExpr*expr)
+{
+      std::vector<PExpr*> reads;
+      collect_pform_reads_(expr, reads);
+      for (PExpr*read : reads) {
+	    pform_scoped_name_t path;
+	    if (PEIdent*id = dynamic_cast<PEIdent*>(read)) {
+		  path = id->path();
+	    } else if (PECallFunction*call = dynamic_cast<PECallFunction*>(read)) {
+		  if (call->receiver_expr() || call->path().name.size() < 2)
+			continue;
+		  path = call->path();
+		  path.name.pop_back();
+	    } else {
+		  continue;
+	    }
+
+	    symbol_search_results sr;
+	    if (!symbol_search(li, des, scope, path, UINT_MAX, &sr) || !sr.net
+		|| !sr.path_tail.empty())
+		  continue;
+	    switch (ivl_type_base(sr.net->net_type())) {
+		case IVL_VT_STRING:
+		case IVL_VT_DARRAY:
+		case IVL_VT_QUEUE:
+		  return true;
+		default:
+		  break;
+	    }
       }
       return false;
 }
@@ -4771,9 +4811,13 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	   cannot be turned into a gate net. Lower the continuous assignment
 	   to the same event-driven behavioral equivalent used for an interface
 	   member l-value. This is especially important for arrays of modport
-	   ports, where each constant word/member read remains a handle access. */
+	   ports, where each constant word/member read remains a handle access.
+	   A queue, dynamic array, associative array or string read is lowered
+	   the same way. */
       if (reads_interface_member_(this, des, scope,
-				  const_cast<PExpr*>(pin(1)))) {
+				  const_cast<PExpr*>(pin(1)))
+	  || reads_dynamic_variable_(this, des, scope,
+				     const_cast<PExpr*>(pin(1)))) {
 	    NetNet*lval = pin(0)->elaborate_lnet(
 		  des, scope, var_allowed_in_sv);
 	    if (!lval) {
@@ -4783,7 +4827,8 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    if (lval->unpacked_dimensions() > 0 || lval->pin_count() != 1
 		|| !type_is_vectorable(lval->data_type())) {
 		  cerr << get_fileline() << ": sorry: A continuous assignment "
-		       << "from an interface member currently requires one packed "
+		       << "from an interface member or a dynamic variable currently "
+			  "requires one packed "
 			  "integral destination." << endl;
 		  des->errors += 1;
 		  if (lval->local_flag())
