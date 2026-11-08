@@ -49,6 +49,11 @@ struct args_info {
       char index_sign;
       unsigned index_width;
       struct args_info *child; /* Arguments can be nested. */
+	/* An element of a fixed-array class property (#2475): text holds the
+	   &CPV<... prefix and the element index is on the vec4 stack. */
+      int cpv_index;
+      char cpv_index_sign;
+      unsigned cpv_index_width;
 };
 
 struct deferred_vpi_call_info {
@@ -267,11 +272,12 @@ static int is_fixed_memory_word(ivl_expr_t net)
  * properties. That scoping choice is deliberate; those are separate,
  * untested code paths left for a future pass. */
 static int collect_property_chain_(ivl_expr_t expr, ivl_signal_t*sig,
-                                    long*idx, unsigned*count, unsigned max)
+                                    long*idx, unsigned*count, unsigned max,
+                                    int leaf_index_ok)
 {
       if (ivl_expr_type(expr) != IVL_EX_PROPERTY)
             return 0;
-      if (ivl_expr_oper1(expr))
+      if (ivl_expr_oper1(expr) && !leaf_index_ok)
             return 0;
 
       if (ivl_expr_signal(expr)) {
@@ -308,7 +314,7 @@ static int collect_property_chain_(ivl_expr_t expr, ivl_signal_t*sig,
                             return 0;
                       break;
                 case IVL_EX_PROPERTY:
-                      if (!collect_property_chain_(base, sig, idx, count, max))
+                      if (!collect_property_chain_(base, sig, idx, count, max, 0))
                             return 0;
                       break;
                 default:
@@ -353,7 +359,7 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 		    unsigned chain_len = 0;
 		    if (collect_property_chain_(expr, &root_sig, chain,
 		                                &chain_len,
-		                                sizeof chain/sizeof chain[0])) {
+		                                sizeof chain/sizeof chain[0], 0)) {
 			  unsigned idx2;
 			  int n = snprintf(buffer, sizeof buffer, "&CPS<v%p_0",
 			                   (void*)root_sig);
@@ -384,9 +390,15 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 		    ivl_signal_t root_sig = 0;
 		    long chain[16];
 		    unsigned chain_len = 0;
+		    /* #2475: an element of a fixed-array property (c.arr[i])
+		       is just as writable; its index is evaluated now, onto
+		       the vec4 stack, and read when the handle is used. */
+		    ivl_expr_t elem = property_selects_fixed_uarray_slot_(expr)
+			  ? ivl_expr_oper1(expr) : 0;
 		    if (collect_property_chain_(expr, &root_sig, chain,
 		                                &chain_len,
-		                                sizeof chain/sizeof chain[0])) {
+		                                sizeof chain/sizeof chain[0],
+		                                elem != 0)) {
 			  unsigned idx2;
 			  int n = snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %u",
 			                   (void*)root_sig, ivl_expr_width(expr),
@@ -396,7 +408,14 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 			       ; idx2 += 1)
 				n += snprintf(buffer+n, sizeof buffer-n, ", %ld",
 				             chain[idx2]);
-			  snprintf(buffer+n, sizeof buffer-n, ">");
+			  if (elem) {
+				draw_eval_vec4(elem);
+				result->cpv_index = 1;
+				result->cpv_index_sign = ivl_expr_signed(elem) ? 's' : 'u';
+				result->cpv_index_width = ivl_expr_width(elem);
+			  } else {
+				snprintf(buffer+n, sizeof buffer-n, ">");
+			  }
 			  result->text = strdup(buffer);
 			  return 1;
 		    }
@@ -1003,8 +1022,11 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 
 	    if (!force_value_capture && tf_name
 		&& strcmp(tf_name, "$cast") == 0 && idx == 0) {
-		  if (get_vpi_taskfunc_lvalue_arg(&args[idx], expr))
+		  if (get_vpi_taskfunc_lvalue_arg(&args[idx], expr)) {
+			if (args[idx].cpv_index)
+			      args[idx].stack = vec4_stack_need++;
 			continue;
+		  }
 	    }
 
 	    /* VPI array-word aliases support fixed arrays. Queue and dynamic-array
@@ -1189,7 +1211,7 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		      }
 		}
 		if (get_vpi_taskfunc_signal_arg(&args[idx], expr)) {
-			      if (args[idx].vec_flag) {
+			      if (args[idx].vec_flag || args[idx].cpv_index) {
 				    vec4_stack_need += 1;
 			      } else {
 				    args[idx].stack = 0;
@@ -1374,6 +1396,11 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    } else if (args[idx].real_flag) {
 		  unsigned pos = real_stack_need - args[idx].stack - 1;
 		  fprintf(vvp_out, ", W<%u,r>",pos);
+	    } else if (args[idx].cpv_index) {
+		  unsigned pos = vec4_stack_need - args[idx].stack - 1;
+		  fprintf(vvp_out, ", %s, S<%u,vec4,%c%u>>", args[idx].text,
+		          pos, args[idx].cpv_index_sign,
+		          args[idx].cpv_index_width);
 	    } else if (args[idx].vec_flag) {
 		  unsigned pos = vec4_stack_need - args[idx].stack - 1;
 		  char sign_flag = args[idx].vec_flag;

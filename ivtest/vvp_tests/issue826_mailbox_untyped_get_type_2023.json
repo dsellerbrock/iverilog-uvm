@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue826_mailbox_untyped_get_type.v",
+  "iverilog-args": ["-g2023", "-s", "issue826_mailbox_untyped_get_type"],
+  "gold": "issue826_mailbox_untyped_get_type_2023"
+}

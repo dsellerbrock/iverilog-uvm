@@ -4401,6 +4401,14 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		  int mux_word = allocate_word();
 		  int flag = allocate_flag();
 
+		  if (recv) {
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
+		  } else {
+			/* A nested receiver (for example boxes[i].values[j]) has no
+			   signal of its own. Retain the handle produced by
+			   draw_lval_expr() instead of loading a null placeholder. */
+			fprintf(vvp_out, "    %%dup/obj/ref; retain nested property receiver\n");
+		  }
 		  draw_eval_expr_into_integer(idx_expr, 3);
 		  fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
 		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
@@ -4411,7 +4419,6 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		  draw_stmt_assign_real_opcode(ivl_stmt_opcode(net));
 		  fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
 		  fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
-		  fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
 		  fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
 		  fprintf(vvp_out, "    %%set/dar/obj/real 3;\n");
@@ -4458,6 +4465,14 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		      int mux_word = allocate_word();
 		      int flag = allocate_flag();
 
+		      if (recv) {
+			fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
+		      } else {
+			/* A nested receiver (for example boxes[i].values[j]) has no
+			   signal of its own. Retain the handle produced by
+			   draw_lval_expr() instead of loading a null placeholder. */
+			fprintf(vvp_out, "    %%dup/obj/ref; retain nested property receiver\n");
+		      }
 		      draw_eval_expr_into_integer(idx_expr, 3);
 		      fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
 		      fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
@@ -4467,7 +4482,6 @@ static int show_stmt_assign_sig_prop_queue_index(ivl_statement_t net,
 		      draw_stmt_assign_vector_rhs(net, ivl_stmt_lwidth(net));
 		      fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
 		      fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
-		      fprintf(vvp_out, "    %%load/obj v%p_0;\n", recv);
 		      fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
 		      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
 		      fprintf(vvp_out, "    %%set/dar/obj/vec4 3;\n");
