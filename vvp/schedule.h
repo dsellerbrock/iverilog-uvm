@@ -65,7 +65,8 @@ extern void schedule_assign_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
 					   const vvp_object_t&root_obj,
 					   vvp_time64_t delay,
 					   bool reactive,
-					   bool signed_offset = false);
+					   bool signed_offset = false,
+					   size_t elem = 0);
 
 extern void schedule_assign_vector(vvp_net_ptr_t ptr,
 				   unsigned base, unsigned vwid,

@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2533_class_prop_array_nba.v",
+  "iverilog-args": ["-g2023"]
+}
