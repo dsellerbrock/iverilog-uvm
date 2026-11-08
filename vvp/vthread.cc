@@ -12911,6 +12911,68 @@ class dispatch_pin_list_s {
       std::vector<vthread_t> more_;
 };
 
+/* Nesting depth of lazy VPI argument evaluation (vthread_eval_thunk). The
+   thunk runs inside a VPI call, under an opcode of the calling thread, so a
+   function call in the argument must complete synchronously: the trampoline
+   would hand the callee to a vthread_run loop that is not running. */
+static unsigned vpi_thunk_depth_ = 0;
+
+/*
+ * Evaluate a lazy VPI argument (IEEE 1800-2023 37.42 detail 7): run the
+ * expression code at PC to its %end on a temporary thread and pop the value
+ * it leaves on the stack selected by KIND ('v' vec4, 'r' real, 's' string).
+ * Inside the call, CALLER is the thread executing it: the temporary thread
+ * borrows its automatic contexts and counts as its callf child, so process
+ * RNG and identity resolve to the calling process. Outside a call CALLER is
+ * nil and only static storage is reachable. Returns false if the code
+ * blocked or failed instead of reaching %end.
+ */
+bool vthread_eval_thunk(vthread_t caller, vvp_code_t pc, __vpiScope*scope,
+                        char kind, vvp_vector4_t&vec, double&real,
+                        string&str)
+{
+      vthread_t thr = vthread_new_(pc, caller ? caller->parent_scope : scope,
+                                   false);
+      if (caller) {
+            thr->parent = caller;
+            thr->is_callf_child = 1;
+            thr->rd_context = caller->rd_context;
+            thr->wt_context = caller->wt_context;
+      }
+      thr->i_am_in_function = 1;
+      vthread_t saved_running = running_thread;
+      running_thread = thr;
+      vpi_thunk_depth_ += 1;
+      bool done = false;
+      for (;;) {
+            vvp_code_t cp = thr->pc;
+            if (cp->opcode == &of_END) {
+                  done = true;
+                  break;
+            }
+            thr->pc += 1;
+            if (!cp->opcode(thr, cp) || thr->i_have_ended) break;
+      }
+      vpi_thunk_depth_ -= 1;
+      running_thread = saved_running;
+      if (done) switch (kind) {
+          case 'r':
+            real = thr->pop_real();
+            break;
+          case 's':
+            str = thr->pop_str();
+            break;
+          default:
+            vec = thr->pop_vec4();
+            break;
+      }
+      thr->parent = 0;
+      thr->rd_context = 0;
+      thr->wt_context = 0;
+      if (done && thr->children.empty()) vthread_delete(thr);
+      return done;
+}
+
 void vthread_run(vthread_t thr)
 {
 #ifdef VVP_PERF_STATS
@@ -16387,7 +16449,7 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
          * rather than the SV call depth.  The callf_depth/scope_stack
          * bookkeeping belongs to the synchronous path's C++ recursion,
          * so drop it here; the trampoline tracks its own depth. */
-      if (trampoline_callf_enabled_()) {
+      if (trampoline_callf_enabled_() && !vpi_thunk_depth_) {
             child->is_trampoline_child = 1;
             child->i_am_in_function = 1;
               /* No delay_delete: the dispatch run pin keeps this frame
