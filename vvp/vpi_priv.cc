@@ -698,6 +698,8 @@ char* vpi_get_str(PLI_INT32 property, vpiHandle ref)
       }
 
       char*res = ref->vpi_get_str(property);
+      if (!res && property == 54 /* vpiDecompile */)
+	    res = vpip_decompile_str(ref);
 
       if (vpi_trace) {
 	    fprintf(vpi_trace, "vpi_get_str(%s, %p) --> %s\n",
