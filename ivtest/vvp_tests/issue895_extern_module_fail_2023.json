@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue895_extern_module_fail.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue895_extern_module_fail"
+}

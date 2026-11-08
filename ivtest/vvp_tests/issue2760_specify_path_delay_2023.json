@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2760_specify_path_delay.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "issue2760_specify_path_delay"],
+  "gold": "issue2760_specify_path_delay"
+}

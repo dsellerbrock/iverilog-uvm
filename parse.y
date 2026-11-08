@@ -44,6 +44,34 @@
 
 using namespace std;
 
+  /* Every package-qualified reference (pkg::name ...) is built as one of
+     these three node types, in many grammar rules, and every rule names
+     the node. Checking here covers them all: a name declared in an
+     anonymous program is accessible only from programs (IEEE 1800 24.6). */
+static void FILE_NAME(PEIdent*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      if (!tmp->path().name.empty())
+	    pform_check_programwide_ref(where, tmp->path().package,
+					tmp->path().name.front().name);
+}
+
+static void FILE_NAME(PECallFunction*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      if (!tmp->path().name.empty())
+	    pform_check_programwide_ref(where, tmp->path().package,
+					tmp->path().name.front().name);
+}
+
+static void FILE_NAME(PCallTask*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      if (!tmp->path().empty())
+	    pform_check_programwide_ref(where, tmp->package(),
+					tmp->path().front().name);
+}
+
 class PSpecPath;
 
 extern void lex_end_table();
@@ -2992,7 +3020,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <expr>  attribute_value_opt
 %type <expr>  inc_or_dec_expression inside_expression lpvalue
 %type <expr>  branch_probe_expression streaming_concatenation
-%type <expr>  delay_value delay_value_simple
+%type <expr>  delay_value delay_value_simple path_delay_expr
 %type <exprs> delay1 delay1_opt delay3 delay3_opt delay_value_list
 %type <exprs> expression_list_with_nuls expression_list_proper
 %type <exprs> cont_assign cont_assign_list
@@ -6536,6 +6564,7 @@ deferred_mode
 
 description /* IEEE1800-2005: A.1.2 */
   : module
+  | extern_module_declaration
   | udp_primitive
   | config_declaration
   | nature_declaration
@@ -9074,6 +9103,32 @@ package_item_list
   | package_item
   | package_item_list nettype_declaration
   | nettype_declaration
+  | package_item_list anonymous_program
+  | anonymous_program
+  ;
+
+  /* IEEE 1800-2017/2023 24.6, A.1.11: an anonymous program declares
+     programwide items in the enclosing package or compilation unit
+     without opening a scope. The compilation-unit form is in the module
+     rule, where `program' is already shifted as a module_start. */
+anonymous_program
+  : K_program ';'
+      { pform_set_anonymous_program(true); }
+    anonymous_program_item_list_opt K_endprogram
+      { pform_set_anonymous_program(false); }
+  ;
+
+anonymous_program_item_list_opt
+  : anonymous_program_item_list_opt anonymous_program_item
+  |
+  ;
+
+anonymous_program_item
+  : package_task_declaration
+  | package_function_declaration
+  | class_declaration
+  | package_covergroup_declaration
+  | ';'
   ;
 
 package_item_list_opt : package_item_list | ;
@@ -12626,6 +12681,13 @@ delay_value
       { PExpr*tmp = $1;
 	$$ = tmp;
       }
+  | expression ':' expression ':' expression
+      { $$ = pform_select_mtm_expr($1, $3, $5); }
+  ;
+
+path_delay_expr
+  : expression
+      { $$ = $1; }
   | expression ':' expression ':' expression
       { $$ = pform_select_mtm_expr($1, $3, $5); }
   ;
@@ -17057,6 +17119,29 @@ cont_assign_list
      section, with optional ports, then an optional list of module
      items, and finally an end marker. */
 
+
+  /* IEEE 1800-2017/2023 23.5: an extern module declaration is the module
+     header alone. It is kept aside for a later definition, which either
+     repeats a matching header or takes the extern ports with (.*). It is
+     a description, not a module item: inside a module, `extern' already
+     starts an extern task/function prototype. */
+extern_module_declaration
+  : K_extern module_start lifetime_opt module_identifier
+      { if ($2 != K_module)
+	      yyerror(@2, "error: Only a module can be declared extern "
+			  "(IEEE 1800 23.5).");
+	pform_startmodule(@2, $4, false, false, false, $3, nullptr);
+	port_declaration_context_init();
+      }
+    module_package_import_list_opt
+    module_parameter_port_list_opt
+    module_port_list_opt ';'
+      { pform_module_set_ports($8);
+	pform_end_extern_module();
+	delete[]$4;
+      }
+  ;
+
 module
   : attribute_list_opt module_start lifetime_opt module_identifier
       { pform_startmodule(@2, $4, $2==K_program, $2==K_interface,
@@ -17067,7 +17152,9 @@ module
     module_parameter_port_list_opt
     module_port_list_opt
     module_attribute_foreign ';'
-      { pform_module_set_ports($8); }
+      { pform_module_set_ports($8);
+	pform_check_extern_module_header();
+      }
     timeunits_declaration_opt
       { pform_set_scope_timescale(@2); }
     module_item_list_opt
@@ -17128,6 +17215,10 @@ module
 	}
 	delete[]$4;
       }
+  | attribute_list_opt K_program ';'
+      { pform_set_anonymous_program(true); }
+    anonymous_program_item_list_opt K_endprogram
+      { pform_set_anonymous_program(false); }
   ;
 
 /* Keep checker declarations separate from module/interface/program
@@ -17220,6 +17311,10 @@ module_port_list_opt
       { $$ = $2; }
   | '(' list_of_port_declarations ')'
       { $$ = $2; }
+  | '(' K_DOTSTAR ')'
+      { pform_module_use_extern_ports(@2);
+	$$ = 0;
+      }
   |
       { $$ = 0; }
   | '(' error ')'
@@ -19353,7 +19448,7 @@ polarity_operator
 specify_simple_path_decl
   : specify_simple_path '=' '(' delay_value_list ')'
       { $$ = pform_assign_path_delay($1, $4); }
-  | specify_simple_path '=' delay_value_simple
+  | specify_simple_path '=' path_delay_expr
       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
 	tmp->push_back($3);
 	$$ = pform_assign_path_delay($1, tmp);

@@ -1,0 +1,8 @@
+0 y=xx
+7 y=00
+13 y=01
+33 y=11
+37 y=10
+53 y=11
+77 y=00
+./ivltests/issue2771_parallel_modpath_vector.v:19: $finish called at 90 (1ns)

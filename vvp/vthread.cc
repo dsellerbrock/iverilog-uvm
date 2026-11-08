@@ -35778,6 +35778,61 @@ bool of_ASSIGN_PROP_V_BITSUX(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %assign/prop/v/i/bits/x  <pid>, <idx_reg>, <off_reg>
+ * %assign/prop/v/i/bits/ux <pid>, <idx_reg>, <off_reg>
+ *
+ * Nonblocking store of the vec4 popped from the stack into bits
+ * [off +: wid] of element <idx> of the unpacked-array vec4 property <pid>
+ * of the popped receiver (IEEE 1800 10.4.2). The element index, the bit
+ * offset and the value are captured now; the read-modify-write runs in the
+ * NBA region. Flag 4 set (an x/z index or offset) or an index outside the
+ * array makes the write a no-op (7.4.6). A whole element is offset 0 with
+ * the element's width.
+ */
+static bool assign_prop_v_i_bits_(vthread_t thr, vvp_code_t cp,
+				  bool signed_offset)
+{
+      bool synchronous_drive = thr->synchronous_drive;
+      thr->synchronous_drive = false;
+      unsigned pid = cp->number;
+      unsigned idx_reg = cp->bit_idx[0];
+      unsigned off_reg = cp->bit_idx[1];
+      if (idx_reg >= vthread_s::WORDS_COUNT || off_reg >= vthread_s::WORDS_COUNT)
+	    return false;
+
+      vvp_vector4_t val = thr->pop_vec4();
+      vvp_object_t root_obj = thr->peek_object_root(0);
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (obj.test_nil() || thr->flags[4] != BIT4_0)
+	    return true;
+
+      vvp_cobject*cobj = obj.peek<vvp_cobject>();
+      vvp_vinterface*vif = obj.peek<vvp_vinterface>();
+      const class_type*defn = cobj ? cobj->get_defn() : vif ? vif->get_defn() : 0;
+      int64_t idx = thr->words[idx_reg].w_int;
+      if (!defn || pid >= defn->property_count() || idx < 0
+	  || (uint64_t)idx >= defn->property_array_size(pid))
+	    return true;
+
+      schedule_assign_prop_vec4_bits(obj, pid, thr->words[off_reg].w_uint,
+				     val, root_obj, 0,
+				     vthread_is_reactive(thr) || synchronous_drive,
+				     signed_offset, (size_t)idx);
+      return true;
+}
+
+bool of_ASSIGN_PROP_V_I_BITSX(vthread_t thr, vvp_code_t cp)
+{
+      return assign_prop_v_i_bits_(thr, cp, true);
+}
+
+bool of_ASSIGN_PROP_V_I_BITSUX(vthread_t thr, vvp_code_t cp)
+{
+      return assign_prop_v_i_bits_(thr, cp, false);
+}
+
+/*
  * %store/prop/v/bits/x  <pid>, <off_reg>, <wid>
  * %store/prop/v/bits/ux <pid>, <off_reg>, <wid>
  * %store/prop/v/i/bits/x  <pid>, <idx_reg>, <off_reg>
