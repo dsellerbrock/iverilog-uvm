@@ -3960,7 +3960,8 @@ static void finalize_interface_continuous_drivers_(Design*des)
       for (const pending_variable_continuous_driver_t&pending :
 	   pending_variable_continuous_drivers_) {
 	    unsigned msb = pending.signal->vector_width() - 1;
-	    if (pending.signal->test_part_procedurally_driven(msb, 0, 0)) {
+	    if (!pending.signal->user_nettype()
+		&& pending.signal->test_part_procedurally_driven(msb, 0, 0)) {
 		  cerr << pending.location->get_fileline() << ": error: Variable '"
 		       << pending.signal->name()
 		       << "' cannot have continuous and procedural drivers on the "
@@ -4282,6 +4283,101 @@ static bool elaborate_string_variable_continuous_(
       return true;
 }
 
+/* Nets of a resolved unpacked-struct nettype and their continuous drivers,
+   in declaration order (see note_resolved_struct_net). */
+static std::vector<NetNet*> resolved_struct_nets_;
+static std::map<NetNet*, std::vector<const PGAssign*> > resolved_struct_net_drivers_;
+
+void note_resolved_struct_net(NetNet*sig)
+{
+      resolved_struct_nets_.push_back(sig);
+}
+
+/*
+ * IEEE 1800 6.6.7: when a driver of the net changes, "the simulator calls
+ * the resolution function to compute the value of the net from the values
+ * of the drivers", passed as a dynamic array. 6.7.3: the resolution
+ * function "shall be activated at time zero at least once", even with no
+ * drivers. So each net gets an initial process and, when it has drivers,
+ * an always_comb process, both storing
+ *     net = resolver('{driver_0, ..., driver_n-1})
+ */
+static void finalize_resolved_struct_nets_(Design*des)
+{
+      for (NetNet*net : resolved_struct_nets_) {
+	    const NetFuncDef*def = net->user_nettype()->resolution_function();
+	    if (!def)
+		  continue;   // The nettype reported its resolver.
+	    NetScope*scope = net->scope();
+	    const NetScope*owner = def->scope()->parent();
+	    PPackage*pkg = nullptr;
+	    if (owner && owner->type() == NetScope::PACKAGE) {
+		  for (PPackage*cur : pform_packages)
+			if (cur->pscope_name() == owner->basename())
+			      pkg = cur;
+	    } else {
+		  const NetScope*up = scope;
+		  while (up && up != owner)
+			up = up->parent();
+		  if (!up) {
+			cerr << net->get_fileline() << ": sorry: The resolution "
+			     << "function of net `" << net->name() << "' must be "
+			     << "declared in a package or an enclosing scope."
+			     << endl;
+			des->errors += 1;
+			continue;
+		  }
+	    }
+
+	      // ponytail: the synthesized call borrows the drivers' r-values
+	      // and is never freed, like the other elaboration-time PExprs.
+	    std::list<PExpr*> values;
+	    for (const PGAssign*drv : resolved_struct_net_drivers_[net])
+		  values.push_back(const_cast<PExpr*>(drv->pin(1)));
+	    pform_name_t fname;
+	    fname.push_back(name_component_t(def->scope()->basename()));
+	    named_pexpr_t arg;
+	    arg.parm = new PEAssignPattern(values);
+	    arg.parm->set_line(*net);
+	    arg.set_line(*net);
+	    std::vector<named_pexpr_t> args(1, arg);
+	    PECallFunction*call = pkg ? new PECallFunction(pkg, fname, args)
+				      : new PECallFunction(fname, args);
+	    call->set_line(*net);
+	    PEIdent*lval = new PEIdent(net->name(), net->lexical_pos());
+	    lval->set_line(*net);
+
+	    PAssign store(lval, call);
+	    store.set_continuous_lval();
+	    store.set_line(*net);
+	    NetProc*first = store.elaborate(des, scope);
+	    NetProc*again = values.empty() ? nullptr : store.elaborate(des, scope);
+	    store.replace_lval_rval(0, 0);
+	    if (!first)
+		  continue;
+	    NetProcTop*initial = new NetProcTop(scope, IVL_PR_INITIAL, first);
+	    initial->set_line(*net);
+	    des->add_process(initial);
+	    if (!again)
+		  continue;
+
+	    PEventStatement wait(true);
+	    wait.set_line(*net);
+	    NetProc*body = wait.elaborate_st(des, scope, again);
+	    if (!body) {
+		  delete again;
+		  continue;
+	    }
+	    NetProcTop*always = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
+	    always->set_line(*net);
+	    always->attribute(perm_string::literal("_ivl_function_background_ok"),
+			      verinum(1));
+	    des->add_process(always);
+      }
+      resolved_struct_nets_.clear();
+      resolved_struct_net_drivers_.clear();
+}
+
 static bool elaborate_unpacked_struct_variable_continuous_(
       Design*des, NetScope*scope, const PGAssign*assignment,
       NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
@@ -4311,14 +4407,38 @@ static bool elaborate_unpacked_struct_variable_continuous_(
       }
       delete_unique_delays_(rise_time, fall_time, decay_time);
 
+      if (signal->user_nettype()
+	  && signal->user_nettype()->has_resolution_function()) {
+	    if (signal->scope() != scope) {
+		  cerr << assignment->get_fileline() << ": sorry: A driver of "
+		       << "net `" << signal->name() << "' of a resolved "
+		       << "unpacked-struct nettype must be in the net's own "
+		       << "scope." << endl;
+		  des->errors += 1;
+		  return true;
+	    }
+	    resolved_struct_net_drivers_[signal].push_back(assignment);
+	    return true;
+      }
+
       if (signal->test_part_driven(0, 0, 0)) {
-	    cerr << assignment->get_fileline() << ": error: Variable '"
-		 << signal->name()
-		 << "' cannot have multiple continuous drivers." << endl;
+	    cerr << assignment->get_fileline() << ": error: ";
+	    if (signal->user_nettype())
+		  cerr << "Net `" << signal->name()
+		       << "' with user-defined nettype `"
+		       << signal->declared_user_nettype()->pform_type()->name()
+		       << "' cannot have multiple drivers because it has "
+		       << "no resolution function." << endl;
+	    else
+		  cerr << "Variable '" << signal->name()
+		       << "' cannot have multiple continuous drivers." << endl;
 	    des->errors += 1;
 	    return true;
       }
-      if (signal->test_part_procedurally_driven(0, 0, 0)) {
+	// A nettype net is written procedurally only by its initial value
+	// (6.7.3); other procedural writes were rejected as l-values.
+      if (!signal->user_nettype()
+	  && signal->test_part_procedurally_driven(0, 0, 0)) {
 	    cerr << assignment->get_fileline() << ": error: Variable '"
 		 << signal->name()
 		 << "' cannot have continuous and procedural drivers on the "
@@ -28804,6 +28924,20 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
 		des, lval, this, "force")) {
 	    delete lval;
 	    return 0;
+      }
+
+	/* An unpacked struct is object-backed and the runtime force
+	   mechanism only handles vector and real values. */
+      if (const NetNet*sig = lval->sig()) {
+	    const netstruct_t*st = sig->struct_type();
+	    if (st && !st->packed()) {
+		  cerr << get_fileline() << ": sorry: force of the unpacked "
+		       << "struct `" << sig->name() << "' is not supported."
+		       << endl;
+		  des->errors += 1;
+		  delete lval;
+		  return 0;
+	    }
       }
 
       unsigned lwid = count_lval_width(lval);
@@ -54971,6 +55105,7 @@ Design* elaborate(list<perm_string>roots)
        * scalar, array, and forwarded interface bindings are complete. */
       finalize_interface_ref_actuals_();
       finalize_interface_continuous_drivers_(des);
+      finalize_resolved_struct_nets_(des);
       fill_unwritten_variable_uwire_bits_(des);
       finalize_interface_specify_paths_(des);
       finalize_unsafe_interface_drivers_(des);

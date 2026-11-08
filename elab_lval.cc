@@ -1255,6 +1255,25 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 	    return nullptr;
       }
 
+	/* A net of an unpacked-struct user-defined nettype is kept as a
+	   variable (see PWire::elaborate_sig), but it is still a net: only its
+	   continuous driver (elaborated as a cassign l-value), a force, or its
+	   initial value may write it.
+	   ponytail: a procedural assign statement also passes is_cassign and
+	   so is not rejected here; mark the synthesized store if that matters. */
+      if (reg->type() == NetNet::REG && reg->user_nettype()
+	  && !is_cassign && !is_force && !is_init) {
+	    cerr << get_fileline() << ": error: '" << path_
+		 << "' is not a valid l-value for a procedural assignment."
+		 << endl;
+	    cerr << reg->get_fileline() << ":      : '" << path_ <<
+		  "' is declared here as a net of user-defined nettype `"
+		 << reg->declared_user_nettype()->pform_type()->name()
+		 << "'." << endl;
+	    des->errors += 1;
+	    return 0;
+      }
+
 	/* We are elaborating procedural assignments. Wires are not allowed
 	   unless this is the l-value of a force. */
       if ((reg->type() != NetNet::REG)

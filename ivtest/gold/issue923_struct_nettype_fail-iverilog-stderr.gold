@@ -1,0 +1,6 @@
+ivltests/issue923_struct_nettype_fail.v:12: error: Net `w' with user-defined nettype `ns' cannot have multiple drivers because it has no resolution function.
+ivltests/issue923_struct_nettype_fail.v:13: error: 'p' is not a valid l-value for a procedural assignment.
+ivltests/issue923_struct_nettype_fail.v:10:      : 'p' is declared here as a net of user-defined nettype `ns'.
+ivltests/issue923_struct_nettype_fail.v:16: sorry: force of the unpacked struct `f' is not supported.
+ivltests/issue923_struct_nettype_fail.v:17: sorry: force of the unpacked struct `v1' is not supported.
+Elaboration failed

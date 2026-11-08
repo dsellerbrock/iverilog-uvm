@@ -5816,6 +5816,25 @@ PWire *pform_makewire(const vlltype&li, const pform_ident_t&name,
       return cur;
 }
 
+/*
+ * IEEE 1800 6.7.3: "For a net with a user-defined nettype whose data type
+ * is a struct type, any initialization expressions for the members within
+ * the struct shall be applied." They set the initial value, as for a
+ * variable; a driver of the net takes over later. Arrays of such nets are
+ * not handled here.
+ */
+static void pform_nettype_member_defaults_(const struct vlltype&li,
+					   nettype_t*nettype,
+					   decl_assignment_t*decl)
+{
+      const nettype_t*canon = nettype->canonical_type();
+      if (!canon || !decl->index.empty())
+	    return;
+      if (pform_validate_struct_member_defaults(li, canon->direct_type(), decl))
+	    pform_make_struct_member_defaults(li, canon->direct_type(), decl,
+					      lexical_scope->var_inits);
+}
+
 void pform_set_nettype_wires(const struct vlltype&li,
                              nettype_t*nettype,
                              vector<PWire*>*wires,
@@ -5830,6 +5849,12 @@ void pform_set_nettype_wires(const struct vlltype&li,
                   error_count += 1;
             }
             pform_bind_attributes((*cur)->attributes, attr, true);
+            if ((*cur)->unpacked_indices().empty()) {
+                  decl_assignment_t decl;
+                  decl.name = pform_ident_t((*cur)->basename(),
+                                            (*cur)->lexical_pos());
+                  pform_nettype_member_defaults_(li, nettype, &decl);
+            }
       }
       delete wires;
       delete attr;
@@ -5861,6 +5886,7 @@ void pform_make_nettype_wires(const struct vlltype&li,
                   PGAssign*ass = pform_make_pgassign(lval, expr, delay, str);
                   FILE_NAME(ass, li);
             }
+            pform_nettype_member_defaults_(li, nettype, decl);
             delete decl;
       }
       delete assign_list;
