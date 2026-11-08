@@ -33355,6 +33355,47 @@ bool of_REF_PART(vthread_t thr, vvp_code_t cp)
  * %ref/store/mbx
  * Stack (top->bottom): mailbox item, captured target. Both are consumed.
  */
+/*
+ * %ref/store/mbx/chk <peek>, <signed>, <2-state>
+ * Stack (top->bottom): item, captured output. A get or peek from a typeless
+ * mailbox shall generate a run-time error when the type of the message
+ * variable is not equivalent to the type of the message (IEEE 1800-2023
+ * 15.4.5, 15.4.7). The operands give the variable's signedness and 2-state
+ * kind (2 means unknown). On a mismatch the variable is left unchanged; a get
+ * has still removed the message, a peek has not.
+ */
+bool of_REF_STORE_MBX_CHK(vthread_t thr, vvp_code_t cp)
+{
+      if (thr->object_stack_size() >= 2) {
+	    vvp_object_t item = thr->peek_object(0);
+	    vvp_lvalue_ref*target = thr->peek_object(1).peek<vvp_lvalue_ref>();
+	    bool match = item.test_nil() || !target
+		  || mailbox_item_matches_ref(item, target->value_kind(),
+					       target->mailbox_value_width());
+	    vvp_boxed_vec4*box = item.peek<vvp_boxed_vec4>();
+	    if (match && box && target
+		&& !(box->type_tag() & vvp_boxed_vec4::MBX_TYPE_UNKNOWN)) {
+		  if (cp->bit_idx[0] < 2 && bool(cp->bit_idx[0])
+		      != bool(box->type_tag() & vvp_boxed_vec4::MBX_TYPE_SIGNED))
+			match = false;
+		  if (cp->bit_idx[1] < 2 && bool(cp->bit_idx[1])
+		      != bool(box->type_tag() & vvp_boxed_vec4::MBX_TYPE_2STATE))
+			match = false;
+	    }
+	    if (!match) {
+		  cerr << thr->get_fileline() << "error: mailbox "
+		       << (cp->number ? "peek()" : "get()") << " failed: the "
+		       << "message type is not equivalent to the type of the "
+		       << "message variable (IEEE 1800-2023 "
+		       << (cp->number ? "15.4.7" : "15.4.5") << ", 6.22.2). "
+		       << "The variable is unchanged." << endl;
+		  thr->pop_object(2);
+		  return true;
+	    }
+      }
+      return of_REF_STORE_MBX(thr, cp);
+}
+
 bool of_REF_STORE_MBX(vthread_t thr, vvp_code_t)
 {
       if (thr->object_stack_size() < 2) {
@@ -39019,17 +39060,35 @@ bool of_SEM_TRY_GET(vthread_t thr, vvp_code_t)
  * Pop a <width>-bit vec4 from the vec4 stack, wrap it in a
  * vvp_boxed_vec4 object, and push the object onto the obj stack.
  */
-bool of_BOX_VEC4(vthread_t thr, vvp_code_t cp)
+static void box_vec4_(vthread_t thr, unsigned wid, unsigned type_tag)
 {
-      unsigned wid = cp->number;
       vvp_vector4_t v(wid);
       const vvp_vector4_t& top = thr->peek_vec4(0);
       unsigned bits = top.size() < wid ? top.size() : wid;
       for (unsigned i = 0; i < bits; ++i)
 	    v.set_bit(i, top.value(i));
       thr->pop_vec4(1);
-      vvp_object_t box(new vvp_boxed_vec4(v));
+      vvp_object_t box(new vvp_boxed_vec4(v, type_tag));
       thr->push_object(box);
+}
+
+bool of_BOX_VEC4(vthread_t thr, vvp_code_t cp)
+{
+      box_vec4_(thr, cp->number, vvp_boxed_vec4::MBX_TYPE_UNKNOWN);
+      return true;
+}
+
+/*
+ * %box/vec4/t <width>, <signed>, <2-state>
+ * As %box/vec4, but the box also records the message's signedness and
+ * 2-state/4-state kind, so a typeless-mailbox get or peek can test type
+ * equivalence (IEEE 1800-2023 6.22.2 c).
+ */
+bool of_BOX_VEC4_T(vthread_t thr, vvp_code_t cp)
+{
+      unsigned tag = (cp->bit_idx[0] ? vvp_boxed_vec4::MBX_TYPE_SIGNED : 0)
+		   | (cp->bit_idx[1] ? vvp_boxed_vec4::MBX_TYPE_2STATE : 0);
+      box_vec4_(thr, cp->number, tag);
       return true;
 }
 
