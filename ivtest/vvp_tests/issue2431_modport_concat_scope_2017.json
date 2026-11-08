@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2431_modport_concat_scope.v",
+  "iverilog-args": ["-g2017", "-s", "top"]
+}
