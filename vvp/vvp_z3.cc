@@ -537,6 +537,7 @@ static bool constraint_inside_token_is_variable_(IRParser par)
       return !tok.empty() && tok.compare(0, 3, "cw:") != 0
 	    && tok.compare(0, 2, "c:") != 0 && tok.compare(0, 2, "f:") != 0
 	    && tok.compare(0, 5, "qbad:") != 0
+	    && tok != "qbadconst"
 	    && tok.compare(0, 6, "qempty") != 0 && tok.compare(0, 2, "q:") != 0;
 }
 
@@ -6429,6 +6430,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      }
 			      // Placeholder only; the guarded state check above
 			      // prevents every active solve from accepting it.
+			      clauses.push_back(Z3_mk_false(b.ctx));
+			} else if (tok == "qbadconst") {
+			      if (b.collect_preferences && !b.collect_refs_only) {
+				    Z3Builder::StateCheck check = {
+					  b.mk_true(),
+					  "X/Z value in constant constraint expression (IEEE 1800-2017/2023 18.3)"
+				    };
+				    b.state_checks.push_back(check);
+			      }
 			      clauses.push_back(Z3_mk_false(b.ctx));
 			} else if (tok == "qempty"
 				   || tok.compare(0, 7, "qempty:") == 0) {

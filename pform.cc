@@ -139,6 +139,8 @@ void pform_mc_translate_on(bool flag) { pform_mc_translate_flag = flag; }
  * pform_primitives is similar, but for UDP primitives.
  */
 map<perm_string,Module*> pform_modules;
+/* Extern module headers (IEEE 1800 23.5) waiting for their definition. */
+static map<perm_string,Module*> pform_extern_modules;
 map<perm_string,PUdp*> pform_primitives;
 
 /*
@@ -519,6 +521,7 @@ static bool pform_in_parameter_port_list = false;
  * Items that have scoped names are put in the lexical_scope object.
  */
 static LexicalScope* lexical_scope = 0;
+static bool anonymous_program_items = false;
 
 LexicalScope* pform_peek_scope(void)
 {
@@ -655,6 +658,12 @@ static void add_local_symbol(LexicalScope*scope, perm_string name, PNamedItem*it
       }
 
       scope->local_symbols[name] = item;
+	// Only tasks and functions are tracked. References to classes and
+	// covergroups of an anonymous program arrive as type identifiers
+	// and are not diagnosed outside programs (a known gap, IEEE 24.6).
+      if (anonymous_program_items && dynamic_cast<PTaskFunc*>(item))
+	    if (PPackage*pkg = dynamic_cast<PPackage*>(scope))
+		  pkg->programwide_symbols.insert(name);
 }
 
 namespace {
@@ -748,8 +757,10 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
 {
       LexicalScope*scope = lexical_scope;
       while (scope) {
-	    if (scope->local_symbols.find(name) != scope->local_symbols.end())
+	    if (scope->local_symbols.find(name) != scope->local_symbols.end()) {
+		  pform_check_programwide_ref(loc, dynamic_cast<PPackage*>(scope), name);
 		  return;
+	    }
 	    if (PClass*class_scope = dynamic_cast<PClass*>(scope)) {
 		  if (class_scope->type && class_scope->type->properties.find(name)
 		      != class_scope->type->properties.end())
@@ -763,7 +774,8 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
 		  scope->wildcard_pin_used.insert(name);
 		  return;
 	    }
-	    if (pform_find_potential_import(loc, scope, name, tf_call, true)) {
+	    if (PPackage*pkg = pform_find_potential_import(loc, scope, name, tf_call, true)) {
+		  pform_check_programwide_ref(loc, pkg, name);
 		  scope->wildcard_pin_used.insert(name);
 		  return;
 	    }
@@ -1425,6 +1437,24 @@ bool pform_in_program_block()
       if (pform_cur_module.front()->program_block)
 	    return true;
       return false;
+}
+
+void pform_set_anonymous_program(bool enable)
+{
+      anonymous_program_items = enable;
+}
+
+void pform_check_programwide_ref(const struct vlltype&loc,
+				 const PPackage*pkg, perm_string name)
+{
+      if (!pkg || anonymous_program_items || pform_in_program_block())
+	    return;
+      if (pkg->programwide_symbols.count(name) == 0)
+	    return;
+      cerr << loc.get_fileline() << ": error: '" << name << "' is declared "
+	   << "in an anonymous program and is accessible only from a program "
+	   << "block (IEEE 1800-2017/2023 24.6)." << endl;
+      error_count += 1;
 }
 
 bool pform_in_interface()
@@ -2807,6 +2837,98 @@ static bool pform_is_interface_port_type_(const data_type_t*type)
 	    type = ref->typedef_ref()->get_data_type();
       }
       return false;
+}
+
+void pform_end_extern_module(void)
+{
+      Module*ext = pform_cur_module.front();
+      pform_cur_module.pop_front();
+      if (!pform_module_generate_stack.empty()) {
+	    pform_cur_generate = pform_module_generate_stack.front();
+	    pform_module_generate_stack.pop_front();
+      }
+      ivl_assert(*ext, lexical_scope == ext);
+      pform_pop_scope();
+	// The definition, not the extern header, declares the name.
+      lexical_scope->local_symbols.erase(ext->mod_name());
+
+      Module*&slot = pform_extern_modules[ext->mod_name()];
+      if (slot) {
+	    cerr << ext->get_fileline() << ": error: Extern module "
+		 << ext->mod_name() << " was already declared here: "
+		 << slot->get_fileline() << endl;
+	    error_count += 1;
+	    return;
+      }
+      slot = ext;
+}
+
+void pform_module_use_extern_ports(const struct vlltype&loc)
+{
+      Module*def = pform_cur_module.front();
+      map<perm_string,Module*>::iterator cur = pform_extern_modules.find(def->mod_name());
+      if (cur == pform_extern_modules.end()) {
+	    cerr << loc << ": error: A (.*) port list needs an extern "
+		 << "module declaration of " << def->mod_name()
+		 << " (IEEE 1800 23.5)." << endl;
+	    error_count += 1;
+	    return;
+      }
+      if (!def->param_names.empty()) {
+	    cerr << loc << ": error: A module with a (.*) port list takes "
+		 << "its parameter port list from the extern declaration "
+		 << "(IEEE 1800 23.5)." << endl;
+	    error_count += 1;
+	    return;
+      }
+	/* (.*) is "equivalent to placing the ports (and possibly
+	   parameters) of the extern declaration on the module": the
+	   definition continues in the extern header's scope. */
+      Module*ext = cur->second;
+      pform_extern_modules.erase(cur);
+      ext->set_file(def->get_file());
+      ext->set_lineno(def->get_lineno());
+      ext->default_lifetime = def->default_lifetime;
+      ext->library_flag = def->library_flag;
+      ext->attributes = def->attributes;
+      ext->potential_imports.insert(ext->potential_imports.end(),
+				    def->potential_imports.begin(),
+				    def->potential_imports.end());
+      ext->explicit_imports.insert(def->explicit_imports.begin(),
+				   def->explicit_imports.end());
+      lexical_scope = ext->parent_scope();
+      lexical_scope->local_symbols[ext->mod_name()] = ext;
+      lexical_scope = ext;
+      pform_cur_module.front() = ext;
+}
+
+/* IEEE 1800 23.5: "An extern module declaration shall match the actual
+   module declaration's port and parameter lists in correspondence of
+   names, positions, and their equivalent types." Names and positions are
+   checked here; types are not compared. */
+void pform_check_extern_module_header(void)
+{
+      const Module*def = pform_cur_module.front();
+      map<perm_string,Module*>::iterator cur = pform_extern_modules.find(def->mod_name());
+      if (cur == pform_extern_modules.end())
+	    return;
+      const Module*ext = cur->second;
+      pform_extern_modules.erase(cur);
+
+      bool match = def->ports.size() == ext->ports.size()
+	    && def->param_names == ext->param_names;
+      for (size_t idx = 0 ; match && idx < def->ports.size() ; idx += 1) {
+	    const Module::port_t*dp = def->ports[idx];
+	    const Module::port_t*ep = ext->ports[idx];
+	    match = (dp ? dp->name : perm_string()) == (ep ? ep->name : perm_string());
+      }
+      if (!match) {
+	    cerr << def->get_fileline() << ": error: The port or parameter "
+		 << "list of module " << def->mod_name() << " does not match "
+		 << "its extern declaration at " << ext->get_fileline()
+		 << " (IEEE 1800 23.5)." << endl;
+	    error_count += 1;
+      }
 }
 
 void pform_module_set_ports(vector<Module::port_t*>*ports)
@@ -13371,6 +13493,18 @@ static bool sva_prepend_property_formal_inits_(
 				const std::vector<sva_seq_step_t>&initializers)
 {
       if (initializers.empty()) return true;
+	/* A property operator over full properties (16.13.7): each operand
+	   gets its own copy, initialized when that operand's evaluation
+	   begins -- the attempt start, or behind a clock change the first
+	   tick of the operand's clock. An implication's consequent cannot
+	   see its antecedent's copy, so that shape is not handled. */
+      if (prop->pa) {
+	    if (prop->op_type == 23 || prop->op_type == 24 || prop->op_type == 25)
+		  return false;
+	    return sva_prepend_property_formal_inits_(loc, prop->pa, initializers)
+		&& (!prop->pb
+		    || sva_prepend_property_formal_inits_(loc, prop->pb, initializers));
+      }
 	    std::map<perm_string,PExpr*>no_subst;
 	    auto prepend = [&](std::vector<sva_seq_step_t>*steps) -> bool {
 	    if (!steps || steps->empty()) return false;
@@ -15804,7 +15938,9 @@ void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
 					 const PTimingCheck::event_t&data_ev,
 					 PExpr*lim1,
 					 PExpr*lim2,
-					 const pform_name_t*notifier)
+					 const pform_name_t*notifier,
+					 PExpr*timestamp_cond,
+					 PExpr*timecheck_cond)
 {
       if (!tc_active_(loc, base_name)) return;
 
@@ -15816,6 +15952,30 @@ void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
 	    {lim1, lim2}, notifier);
       PExpr*lim1c = refs.empty() ? sva_clone_expr_(lim1) : refs[0];
       PExpr*lim2c = refs.empty() ? sva_clone_expr_(lim2) : refs[1];
+
+      // For each paired check, timestamp_condition gates the event that
+      // timestamps the window and timecheck_condition gates the event that
+      // checks it. $setuphold and $recrem reverse those roles between their
+      // two constituent checks.
+      auto conditioned_event = [](const PTimingCheck::event_t&src,
+				  PExpr*condition) {
+		    PTimingCheck::event_t result;
+		    result.name = src.name;
+		    result.posedge = src.posedge;
+		    result.negedge = src.negedge;
+		    result.edges = src.edges;
+		    if (src.condition)
+			  result.condition.reset(sva_clone_expr_(src.condition.get()));
+		    if (condition) {
+			  PExpr*extra = sva_clone_expr_(condition);
+			  if (result.condition && extra)
+				result.condition.reset(new PEBLogic('a',
+								    result.condition.release(), extra));
+			  else if (extra)
+				result.condition.reset(extra);
+		    }
+		    return result;
+	      };
       if (lim1c == 0 || lim2c == 0) {
 	    cerr << loc.get_fileline() << ": sorry: " << base_name
 		 << " limit expression shape is not supported by the "
@@ -15832,16 +15992,24 @@ void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
 	    snprintf(nam1, sizeof nam1, "%s(recovery)", base_name);
 	    snprintf(nam2, sizeof nam2, "%s(removal)", base_name);
 	      // recovery: stamp=async ref, check=clock data
-	    tc_pair_synth_(loc, nam1, ref_ev, data_ev, lim1c, false, notifier);
+	      PTimingCheck::event_t stamp = conditioned_event(ref_ev, timestamp_cond);
+	      PTimingCheck::event_t check = conditioned_event(data_ev, timecheck_cond);
+	      tc_pair_synth_(loc, nam1, stamp, check, lim1c, false, notifier);
 	      // removal: stamp=clock data, check=async ref
-	    tc_pair_synth_(loc, nam2, data_ev, ref_ev, lim2c, false, notifier);
+	      stamp = conditioned_event(data_ev, timestamp_cond);
+	      check = conditioned_event(ref_ev, timecheck_cond);
+	      tc_pair_synth_(loc, nam2, stamp, check, lim2c, false, notifier);
       } else {
 	    snprintf(nam1, sizeof nam1, "%s(setup)", base_name);
 	    snprintf(nam2, sizeof nam2, "%s(hold)", base_name);
 	      // setup: stamp=data, check=clock ref
-	    tc_pair_synth_(loc, nam1, data_ev, ref_ev, lim1c, false, notifier);
+	      PTimingCheck::event_t stamp = conditioned_event(data_ev, timestamp_cond);
+	      PTimingCheck::event_t check = conditioned_event(ref_ev, timecheck_cond);
+	      tc_pair_synth_(loc, nam1, stamp, check, lim1c, false, notifier);
 	      // hold: stamp=clock ref, check=data
-	    tc_pair_synth_(loc, nam2, ref_ev, data_ev, lim2c, false, notifier);
+	      stamp = conditioned_event(ref_ev, timestamp_cond);
+	      check = conditioned_event(data_ev, timecheck_cond);
+	      tc_pair_synth_(loc, nam2, stamp, check, lim2c, false, notifier);
       }
 }
 
@@ -22854,7 +23022,11 @@ static bool sva_nfa_local_prefix_safe_(
 			return false;
 		  }
 		  assignments[item.lv_name] = 1;
-		  assigned_here[item.lv_name] = 0;
+		  /* A declaration initializer on the first step is performed
+		     when the slot is injected, before that tick's guards are
+		     sampled (16.13.7), so a same-tick read sees it. */
+		  if (!(item.lv_initialization && i == 0))
+			assigned_here[item.lv_name] = 0;
 	    }
 	    for (size_t j = i + 1 ; !assigned_here.empty()
 		 && j < tree->chain->size() ; j += 1) {
@@ -23117,6 +23289,22 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    prop->tree_sorry = 10;
 	    return false;
       }
+	/* Sub-monitor imports: carriers the parent fills when it starts an
+	   attempt (no assignment here). */
+      std::vector<bool> lv_imported (lv_list.size(), false);
+      if (sub)
+	    for (perm_string nm : sub->imports) {
+		  if (lv_index.count(nm)) {
+			lv_imported[lv_index[nm]] = true;
+			continue;
+		  }
+		  lv_index[nm] = (unsigned)lv_list.size();
+		  lv_list.push_back(nm);
+		  lv_rhs_expr.push_back(nullptr);
+		  lv_gate_expr.push_back(nullptr);
+		  lv_initialization.push_back(false);
+		  lv_imported.push_back(true);
+	    }
       bool has_lv = !lv_list.empty();
 	/* Declaration identity is broader than storage identity. `lv_index'
 	   contains assignment destinations because only those need vk/ovk
@@ -23165,6 +23353,26 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   diagnostic for every other topology. Apply the same proof independently
 	   to the antecedent and consequence machines, and reject duplicate writes
 	   to one property local across them. */
+	/* Endpoint mode hands each end point's values to a consequent, so it
+	   needs the same one-value-per-attempt proof. */
+      sva_stree_t endpoint_leaf;
+      if (sub && sub->endpoints && has_lv && !endpoint_fanout) {
+	    endpoint_leaf.chain = have_tree ? nullptr : &chain;
+	    std::map<perm_string,unsigned> assignments;
+	    bool zero_inclusive_read = false;
+	    bool dependent_rhs_unassigned = false;
+	    bool dependent_rhs_unsupported = false;
+	    if (!sva_nfa_local_prefix_safe_(have_tree ? prop->tree : &endpoint_leaf,
+					    assignments, lv_analysis,
+					    zero_inclusive_read,
+					    dependent_rhs_unassigned,
+					    dependent_rhs_unsupported)) {
+		  prop->tree_sorry = dependent_rhs_unassigned ? 9
+			: dependent_rhs_unsupported ? 8
+			: zero_inclusive_read ? 7 : 6;
+		  return false;
+	    }
+      }
       if (endpoint_fanout && has_lv) {
 	    std::map<perm_string,unsigned> assignments;
 	    bool zero_inclusive_read = false;
@@ -23263,7 +23471,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		     g += 1)
 		  if (machines[mi]->edges[i].guards[g] == lv_gate_expr[li])
 			cnt += 1;
-	    if (cnt == 0) return false;
+	    if (cnt == 0 && lv_gate_expr[li]) return false;
       }
 
       bool cyclic = pform_sva_nfa_has_cycle(nfa);
@@ -23560,6 +23768,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       std::vector<bool> lv_rhs_reads_local (lv_list.size(), false);
       std::vector<PExpr*> local_rhs_expr (lv_list.size(), nullptr);
       for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
+	    if (!lv_rhs_expr[li]) continue;  // imported: no assignment here
 	    bool reads_local = sva_expr_reads_lv_(lv_rhs_expr[li], lv_index);
 	    lv_rhs_reads_local[li] = reads_local;
 	    PExpr*src = lv_rhs_expr[li];
@@ -23640,10 +23849,19 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (unsigned li = 0 ; li < lv_list.size() ; li += 1) {
 		  char what[24];
 		  snprintf(what, sizeof what, "k%ldv%u", k, li);
+		  PExpr*width = lv_width_probe[li] ? lv_width_probe[li]
+						   : lv_rhs_expr[li];
+		  PExpr*imported_width = nullptr;
+		  bool is_signed = sva_expr_signed_(lv_rhs_expr[li]);
+		  if (!width && sub && sub->import_from.count(lv_list[li])) {
+			/* An imported carrier copies its source's type. */
+			imported_width = sva_id_(loc, sub->import_from[lv_list[li]]);
+			width = imported_width;
+			is_signed = sva_expr_signed_(imported_width);
+		  }
 		  vk[k][li] = sva_make_reg_(loc, inst, what, 0, true, false,
-					   lv_width_probe[li] ? lv_width_probe[li]
-								      : lv_rhs_expr[li],
-					   sva_expr_signed_(lv_rhs_expr[li]));
+					   width, is_signed);
+		  delete imported_width;
 		  init_zero.push_back(sva_assign_(loc, vk[k][li],
 			new PENumber(new verinum((uint64_t)0, 32))));
 	    }
@@ -24456,6 +24674,19 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  out.push_back(set_verdict(k, 0));
 	    }
 	    sub->vd = vd;
+	    sub->locals.resize(K);
+	    for (long k = 0 ; k < K ; k += 1)
+		  for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
+			sub->locals[k][lv_list[li]].push_back(vk[k][li]);
+	    if (!endpoint_fanout) {
+		  sub->state.resize(K);
+		  for (long k = 0 ; k < K ; k += 1) {
+			sub->state[k] = s[k];
+			for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
+			      sub->state[k].push_back(vk[k][li]);
+			if (track_ob) sub->state[k].push_back(ob[k]);
+		  }
+	    }
 	    sub->pre = pre;
 	    sub->body = body;
 	    sub->post = post;
@@ -26163,6 +26394,29 @@ static Statement* sva_assoc_delete_(const struct vlltype&loc,
    NBA request update, so a coincident c2 tick necessarily sees the old
    request. Operand reads themselves are rewritten to the runtime's
    Preponed-value loads in both domains. */
+static bool sva_mc_try_composite_(const struct vlltype&loc,
+				  sva_property_t*prop, Statement*fail_stmt,
+				  Statement*pass_stmt, int kind);
+
+/* A first-clock source whose attempts the fixed-slot transport below
+   cannot bound: an unbounded delay or repetition, goto/nonconsecutive
+   repetition, or a local-variable assignment (#446). */
+static bool sva_mc_source_needs_attempts_(const std::vector<sva_seq_step_t>&steps)
+{
+      bool needs = false;
+      for (const sva_seq_step_t&st : steps) {
+	    /* first_match and finite repetitions keep their own lowering
+	       and diagnostics */
+	    if (st.fm || st.grouped_repeat) return false;
+	    if (st.delay_hi == -1 || st.rep_tail < 0
+		|| st.rep_kind == 1 || st.rep_kind == 2
+		|| (st.rep_kind == 3 && st.rep_hi == -1)
+		|| sva_step_has_assignment_(st))
+		  needs = true;
+      }
+      return needs;
+}
+
 static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 					     sva_property_t*prop,
 					     Statement*fail_stmt,
@@ -26235,6 +26489,16 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    if (prop->antecedent)
 		  for (size_t k = 0; k < prop->antecedent->size(); ++k)
 			antecedent_group |= (*prop->antecedent)[k].grouped_repeat;
+	      /* An unbounded or local-variable source keeps attempts live for
+		 an unbounded time; the per-attempt composite lowering hosts
+		 it (an implication node whose consequent sits behind a clock
+		 switch, attempts with equal state merged). */
+	    const std::vector<sva_seq_step_t>*src = prop->antecedent
+		  ? prop->antecedent : (plain ? prop->mc_prefix : nullptr);
+	    if (!ranged_antecedent && !antecedent_group && src
+		&& sva_mc_source_needs_attempts_(*src)
+		&& sva_mc_try_composite_(loc, prop, fail_stmt, pass_stmt, kind))
+		  return;
 	    if (prop->antecedent && !ranged_antecedent
 		&& (antecedent_group
 		    || !sva_mc_expand_chain_(*prop->antecedent, a_slots)))
@@ -32393,6 +32657,30 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
       return p;
 }
 
+/* `( @(c) s |-> p )': an implication with its own leading clock. */
+sva_property_t* pform_sva_clocked_paren_impl(const struct vlltype&loc,
+					     PEventStatement*clk, int op_type,
+					     std::vector<sva_seq_step_t>*ante,
+					     sva_property_t*conseq)
+{
+      sva_property_t*p = pform_sva_paren_conseq(loc, op_type, ante, conseq);
+      if (!p) {
+	    delete clk;
+	    return nullptr;
+      }
+      if (p->pa || p->clk_evt) {
+	    cerr << loc << ": sorry: a parenthesized clocked implication with "
+		 << "this consequent is not supported yet; the assertion is "
+		 << "dropped." << endl;
+	    error_count += 1;
+	    delete clk;
+	    pform_sva_destroy_property(p);
+	    return nullptr;
+      }
+      p->clk_evt = clk;
+      return p;
+}
+
 /* Build a property-level and/or. An operand that is a bare reference to a
    declared property stays a reference; the composite lowering expands it. */
 sva_property_t* pform_sva_prop_compose(const struct vlltype&loc, int op_type,
@@ -32451,6 +32739,10 @@ struct sva_comp_ctx_t {
       PEventStatement*clk;        // the composite's resolved clock (borrowed)
       unsigned*hist_idx;          // sampled-value history of the composite
       long rate = 1;              // attempts started per tick, at most
+	// Locals the parent copies into each new attempt, and a register
+	// of each one's source type (sva_nfa_sub_t::imports).
+      const std::vector<perm_string>*imports = nullptr;
+      const std::map<perm_string, perm_string>*import_from = nullptr;
 };
 
 static void sva_comp_sorry_(const struct vlltype&loc, const char*what)
@@ -32486,6 +32778,10 @@ static bool sva_comp_leaf_(const sva_comp_ctx_t&ctx, sva_property_t*leaf,
       if (!sva_comp_check_leaf_clock_(ctx, leaf)) {
 	    pform_sva_destroy_property(leaf);
 	    return false;
+      }
+      if (ctx.imports) {
+	    req.imports = *ctx.imports;
+	    req.import_from = *ctx.import_from;
       }
       sva_nfa_sub_t*saved = sva_sub_request_;
       unsigned errors = error_count;
@@ -32553,6 +32849,13 @@ static void sva_comp_append_(std::vector<Statement*>&to,
 /* A node takes over its operand's re-evaluation and clock domains. */
 static void sva_comp_inherit_(sva_nfa_sub_t&m, sva_nfa_sub_t&child)
 {
+	/* Imported carriers of every operand are set together. */
+      if (m.locals.size() < child.locals.size()) m.locals.resize(child.locals.size());
+      for (size_t k = 0 ; k < child.locals.size() ; k += 1)
+	    for (std::map<perm_string, std::vector<perm_string> >::iterator it =
+		       child.locals[k].begin() ; it != child.locals[k].end() ; ++it)
+		  m.locals[k][it->first].insert(m.locals[k][it->first].end(),
+					       it->second.begin(), it->second.end());
       sva_comp_append_(m.recompute, child.recompute);
       sva_comp_append_(m.sweep, child.sweep);
       m.domains.insert(m.domains.end(), child.domains.begin(),
@@ -32841,6 +33144,19 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
       }
       sva_comp_ctx_t conseq_ctx = ctx;
       conseq_ctx.rate = ctx.rate * KA;
+	/* 16.10: the antecedent's local values flow into every consequence
+	   evaluation it starts; each evaluation gets its own copy. */
+      std::vector<perm_string> flow;
+      std::map<perm_string, perm_string> flow_from;
+      if (!ma.locals.empty())
+	    for (std::map<perm_string, std::vector<perm_string> >::iterator it =
+		       ma.locals[0].begin() ; it != ma.locals[0].end() ; ++it)
+		  if (!it->second.empty()) {
+			flow.push_back(it->first);
+			flow_from[it->first] = it->second.front();
+		  }
+      conseq_ctx.imports = &flow;
+      conseq_ctx.import_from = &flow_from;
       if (!sva_comp_emit_(conseq_ctx, conseq, OK, inst, serial, mc)) return false;
       unsigned node = serial++;
       char what[32];
@@ -32871,6 +33187,8 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 	    rq[k] = reg("rq", k, false);
 	    if (!overlap) sp1[k] = reg("sp", k, false);
       }
+      std::vector<perm_string> np (K);  // pending evaluations owned by k
+      for (long k = 0 ; k < K ; k += 1) np[k] = reg("np", k, true);
       std::vector<perm_string> olive (OK), owner (OK), drop (OK);
       for (long o = 0 ; o < OK ; o += 1) {
 	    olive[o] = reg("ol", o, false);
@@ -32907,6 +33225,8 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 		  m.inject[k].push_back(sva_assign_(loc, f, sva_bit_(loc, 0)));
 		  m.kill[k].push_back(sva_assign_(loc, f, sva_bit_(loc, 0)));
 	    }
+	    m.inject[k].push_back(sva_assign_(loc, np[k], sva_num32_(loc, 0)));
+	    m.kill[k].push_back(sva_assign_(loc, np[k], sva_num32_(loc, 0)));
 	    if (!overlap) {
 		  m.inject[k].push_back(sva_assign_(loc, sp1[k], sva_bit_(loc, 0)));
 		  m.kill[k].push_back(sva_assign_(loc, sp1[k], sva_bit_(loc, 0)));
@@ -32936,6 +33256,19 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
       }
       sva_comp_inherit_(m, ma);
       sva_comp_inherit_(m, mc);
+      m.locals = ma.locals;  // a parent's imports land in the antecedent
+	/* Merge support: an attempt's future is its antecedent state and these
+	   flags, once it owns no pending evaluation. */
+      if (ma.state.size() == (size_t)K) {
+	    m.state.resize(K);
+	    m.pending = np;
+	    for (long k = 0 ; k < K ; k += 1) {
+		  m.state[k] = ma.state[k];
+		  perm_string flags[] = { matched[k], bad[k], nv[k], adone[k], rq[k] };
+		  for (perm_string f : flags) m.state[k].push_back(f);
+		  if (!overlap) m.state[k].push_back(sp1[k]);
+	    }
+      }
 
 	/* Allocation: each requesting parent gets the next free evaluation
 	   slot; the slot's start statements exist once. */
@@ -32946,6 +33279,14 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 		  std::vector<Statement*> take;
 		  take.push_back(sva_assign_(loc, owner[o], sva_num32_(loc, k)));
 		  take.push_back(sva_assign_(loc, rq[k], sva_bit_(loc, 0)));
+		  if (o < (long)mc.locals.size() && k < (long)ma.locals.size())
+			for (perm_string nm : flow)
+			      for (perm_string dst : mc.locals[o][nm])
+				    take.push_back(sva_assign_(loc, dst,
+					  sva_id_(loc, ma.locals[k][nm].front())));
+		  PEBinary*inc = new PEBinary('+', sva_id_(loc, np[k]), sva_num32_(loc, 1));
+		  FILE_NAME(inc, loc);
+		  take.push_back(sva_assign_(loc, np[k], inc));
 		  pick = sva_if_(loc, sva_id_(loc, rq[k]), sva_block_(loc, take), pick);
 	    }
 	    std::vector<Statement*> start;
@@ -33018,6 +33359,9 @@ static bool sva_comp_emit_impl_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 				     sva_comp_eq_(loc, mc.vd[o], 3));
 		  note.push_back(sva_if_(loc, good,
 				 sva_assign_(loc, nv[k], sva_bit_(loc, 1)), nullptr));
+		  PEBinary*dec = new PEBinary('-', sva_id_(loc, np[k]), sva_num32_(loc, 1));
+		  FILE_NAME(dec, loc);
+		  note.push_back(sva_assign_(loc, np[k], dec));
 		  done.push_back(sva_if_(loc, mine, sva_block_(loc, note), nullptr));
 	    }
 	    done.push_back(sva_assign_(loc, olive[o], sva_bit_(loc, 0)));
@@ -33101,6 +33445,9 @@ static bool sva_comp_emit_switch_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 	    FILE_NAME(t, loc);
 	    return t;
       };
+      std::vector<perm_string> staged;
+      if (ctx.imports) staged = *ctx.imports;
+      m.locals.resize(K);
       sva_nfa_domain_t dom;
       dom.clk = clk;
       sva_comp_append_(dom.pre, mq.pre);
@@ -33137,6 +33484,20 @@ static bool sva_comp_emit_switch_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 	    std::vector<Statement*> start;
 	    start.push_back(sva_assign_(loc, go, sva_bit_(loc, 1)));
 	    sva_comp_append_(start, mq.inject[k]);
+	      /* Locals flowing in were staged when the parent asked; the
+		 operand's copies take them at its first tick. */
+	    for (size_t i = 0 ; i < staged.size() ; i += 1) {
+		  snprintf(what, sizeof what, "c%ust%zu_", node, i);
+		  /* the stage keeps the source's type */
+		  PExpr*w = sva_id_(loc, ctx.import_from->at(staged[i]));
+		  perm_string st = sva_make_reg_(loc, inst, what, (unsigned)k, true,
+				false, w, sva_expr_signed_(w));
+		  delete w;
+		  m.locals[k][staged[i]].push_back(st);
+		  if (k < (long)mq.locals.size())
+			for (perm_string dst : mq.locals[k][staged[i]])
+			      start.push_back(sva_assign_(loc, dst, sva_id_(loc, st)));
+	    }
 	    dom.body.push_back(sva_if_(loc, due, sva_block_(loc, start), nullptr));
       }
       sva_comp_append_(dom.body, mq.body);
@@ -33302,6 +33663,95 @@ static sva_property_t* sva_comp_split_multiclock_(const struct vlltype&loc,
       return node;
 }
 
+/* A clock that differs from the composite's own clock, if leaf has one. */
+static bool sva_comp_leaf_other_clock_(const sva_property_t*leaf,
+				       const PEventStatement*clk)
+{
+      return leaf && leaf->clk_evt
+	  && !(clk && sva_event_controls_identical_(leaf->clk_evt, clk));
+}
+
+static bool sva_comp_has_other_clock_(const sva_property_t*p,
+				      const PEventStatement*clk)
+{
+      if (!p) return false;
+      if (p->op_type == 20 || p->op_type == 21)
+	    return sva_comp_has_other_clock_(p->pa, clk)
+		|| sva_comp_has_other_clock_(p->pb, clk);
+      return !sva_prop_is_composite_(p) && sva_comp_leaf_other_clock_(p, clk);
+}
+
+/* Put every operand reached through and/or behind a strictly-subsequent
+   clock switch on its own leading clock (or the incoming clock). */
+static sva_property_t* sva_comp_switch_operands_(const struct vlltype&loc,
+						 sva_property_t*p,
+						 const PEventStatement*clk,
+						 bool&ok)
+{
+      if (!p || !ok) return p;
+      if (p->op_type == 20 || p->op_type == 21) {
+	    p->pa = sva_comp_switch_operands_(loc, p->pa, clk, ok);
+	    p->pb = sva_comp_switch_operands_(loc, p->pb, clk, ok);
+	    return p;
+      }
+      if (sva_prop_is_composite_(p)) {
+	    sva_comp_sorry_(loc, "a multiclocked `|=>' consequent with this "
+			    "property operator is not supported yet");
+	    ok = false;
+	    return p;
+      }
+      PEventStatement*domain = p->clk_evt
+	    ? sva_clone_event_control_(p->clk_evt, loc)
+	    : (clk ? sva_clone_event_control_(clk, loc) : nullptr);
+      if (!domain) {
+	    sva_comp_sorry_(loc, "the clock of a multiclocked `|=>' operand "
+			    "cannot be copied");
+	    ok = false;
+	    return p;
+      }
+      sva_property_t*sw = new sva_property_t;
+      sw->op_type = 27;
+      sw->pa = p;
+      sw->seq_clk_evt = domain;
+      return sw;
+}
+
+/* IEEE 1800-2023 16.13.2: in `s |=> (@(c1) p1) and (@(c2) p2)' each operand
+   starts at the nearest strictly future tick of its own clock. Rewrite
+   such an implication as `s |->' with every and/or operand behind a
+   strictly-subsequent clock switch (the operands that flow the incoming
+   clock switch to that clock, i.e. its next tick). */
+static void sva_comp_distribute_nonoverlap_(const struct vlltype&loc,
+					    sva_property_t*p,
+					    const PEventStatement*clk, bool&ok)
+{
+      if (!p || !ok || !sva_prop_is_composite_(p)) return;
+      if (p->op_type == 24 && sva_comp_has_other_clock_(p->pb, clk)) {
+	    p->op_type = 23;
+	    p->pb = sva_comp_switch_operands_(loc, p->pb, clk, ok);
+	    return;
+      }
+      if (p->op_type == 27) return;
+      sva_comp_distribute_nonoverlap_(loc, p->pa, clk, ok);
+      sva_comp_distribute_nonoverlap_(loc, p->pb, clk, ok);
+}
+
+/* Assertion local variables declared on the property are visible to every
+   operand evaluation (each keeps its own copy, 16.10). */
+static void sva_comp_propagate_locals_(sva_property_t*p,
+				       const std::vector<perm_string>&names)
+{
+      if (!p) return;
+      for (perm_string nm : names)
+	    if (std::find(p->local_names.begin(), p->local_names.end(), nm)
+		== p->local_names.end())
+		  p->local_names.push_back(nm);
+      if (!sva_prop_is_composite_(p)) return;
+      std::vector<perm_string> mine = p->local_names;
+      sva_comp_propagate_locals_(p->pa, mine);
+      sva_comp_propagate_locals_(p->pb, mine);
+}
+
 /* Expand bare named-property references among the operands, in place. */
 static bool sva_comp_expand_refs_(const struct vlltype&loc, sva_property_t*p)
 {
@@ -33373,6 +33823,8 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    prop = sva_comp_split_multiclock_(loc, prop, split_ok);
       else
 	    split_ok = false;
+      if (split_ok)
+	    sva_comp_propagate_locals_(prop, prop->local_names);
       if (!split_ok) {
 	    delete fail_stmt; delete pass_stmt;
 	    pform_sva_destroy_property(prop);
@@ -33415,6 +33867,13 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
 
       unsigned hist_idx = 0;
+      bool distribute_ok = true;
+      sva_comp_distribute_nonoverlap_(loc, prop, clk, distribute_ok);
+      if (!distribute_ok) {
+	    delete clk; delete disable; delete fail_stmt; delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
       sva_comp_ctx_t ctx;
       ctx.loc = &loc;
       ctx.clk = clk;
@@ -33440,6 +33899,19 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    live[k] = sva_make_reg_(loc, inst, "live", (unsigned)k);
 	    init.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
       }
+	/* #446: attempts whose whole future is equal are folded into one
+	   slot, which then stands for cnt[k] attempts and reports that many
+	   verdicts. This bounds the pool of an unbounded antecedent: equal
+	   attempts never coexist once they own no pending evaluation. */
+      bool merge = !m.pending.empty() && m.state.size() == (size_t)K;
+      std::vector<perm_string> cnt (merge ? K : 0);
+      for (long k = 0 ; k < (long)cnt.size() ; k += 1) {
+	    cnt[k] = sva_make_reg_(loc, inst, "cnt", (unsigned)k, true);
+	    init.push_back(sva_assign_(loc, cnt[k], sva_num32_(loc, 0)));
+      }
+      auto one = [&](long k) -> PExpr* {
+	    return merge ? (PExpr*)sva_id_(loc, cnt[k]) : sva_bit_(loc, 1);
+      };
       perm_string r_p0 = sva_make_reg_(loc, inst, "p", 0, true);
       perm_string r_vac0 = sva_make_reg_(loc, inst, "vac", 0, true);
       perm_string r_f0 = sva_make_reg_(loc, inst, "f", 0, true);
@@ -33502,6 +33974,8 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    for (long k = K-1 ; k >= 0 ; k -= 1) {
 		  std::vector<Statement*> take = m.inject[k];
 		  take.insert(take.begin(), sva_assign_(loc, live[k], sva_bit_(loc, 1)));
+		  if (merge)
+			take.push_back(sva_assign_(loc, cnt[k], sva_num32_(loc, 1)));
 		  inj = sva_if_(loc, sva_not_(loc, sva_id_(loc, live[k])),
 				sva_block_(loc, take), inj);
 	    }
@@ -33548,16 +34022,16 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
       for (long k = 0 ; k < K ; k += 1) {
 	    std::vector<Statement*> done;
-	    PEBinary*inc_p = new PEBinary('+', sva_id_(loc, r_p), sva_bit_(loc, 1));
+	    PEBinary*inc_p = new PEBinary('+', sva_id_(loc, r_p), one(k));
 	    FILE_NAME(inc_p, loc);
-	    PEBinary*inc_v = new PEBinary('+', sva_id_(loc, r_vac), sva_bit_(loc, 1));
+	    PEBinary*inc_v = new PEBinary('+', sva_id_(loc, r_vac), one(k));
 	    FILE_NAME(inc_v, loc);
-	    PEBinary*inc_f = new PEBinary('+', sva_id_(loc, r_f), sva_bit_(loc, 1));
+	    PEBinary*inc_f = new PEBinary('+', sva_id_(loc, r_f), one(k));
 	    FILE_NAME(inc_f, loc);
 	    std::vector<Statement*> vac;
 	    vac.push_back(sva_assign_(loc, r_p, inc_p));
 	    vac.push_back(sva_assign_(loc, r_vac, inc_v));
-	    PEBinary*inc_p1 = new PEBinary('+', sva_id_(loc, r_p), sva_bit_(loc, 1));
+	    PEBinary*inc_p1 = new PEBinary('+', sva_id_(loc, r_p), one(k));
 	    FILE_NAME(inc_p1, loc);
 	    done.push_back(sva_if_(loc, sva_logic_(loc, 'o',
 			sva_comp_eq_(loc, m.vd[k], 3), sva_comp_eq_(loc, m.vd[k], 4)),
@@ -33603,6 +34077,42 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
       };
       decide(body, actions[0], 0);
+
+	/* Merge pass (only the main clock advances an antecedent state). */
+      for (long k = 1 ; merge && k < K ; k += 1) {
+	    perm_string dead = sva_make_reg_(loc, inst, "mrg", (unsigned)k);
+	    Statement*chain = nullptr;
+	    for (long j = k - 1 ; j >= 0 ; j -= 1) {
+		  PExpr*same = sva_logic_(loc, 'a',
+			sva_logic_(loc, 'a', sva_id_(loc, live[j]), sva_id_(loc, live[k])),
+			sva_logic_(loc, 'a', sva_comp_eq_(loc, m.pending[j], 0),
+					     sva_comp_eq_(loc, m.pending[k], 0)));
+		  for (size_t r = 0 ; r < m.state[k].size() ; r += 1) {
+			PEBComp*eq = new PEBComp('E', sva_id_(loc, m.state[j][r]),
+						 sva_id_(loc, m.state[k][r]));
+			FILE_NAME(eq, loc);
+			same = sva_logic_(loc, 'a', same, eq);
+		  }
+		  PEBinary*sum = new PEBinary('+', sva_id_(loc, cnt[j]), sva_id_(loc, cnt[k]));
+		  FILE_NAME(sum, loc);
+		  std::vector<Statement*> fold;
+		  fold.push_back(sva_assign_(loc, cnt[j], sum));
+		  fold.push_back(sva_assign_(loc, dead, sva_bit_(loc, 1)));
+		  chain = sva_if_(loc, same, sva_block_(loc, fold), chain);
+	    }
+	    std::vector<Statement*> drop;
+	    for (Statement*st : m.kill[k]) {
+		  Statement*c = sva_clone_stmt_(st);
+		  assert(c);
+		  drop.push_back(c);
+	    }
+	    drop.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
+	    drop.push_back(sva_assign_(loc, cnt[k], sva_num32_(loc, 0)));
+	    body.push_back(sva_assign_(loc, dead, sva_bit_(loc, 0)));
+	    body.push_back(chain);
+	    body.push_back(sva_if_(loc, sva_id_(loc, dead), sva_block_(loc, drop), nullptr));
+      }
+      if (merge) sweep(body);
 
 	/* The other clock domains: advance their operands, re-evaluate every
 	   node, decide. */
@@ -33658,6 +34168,39 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL, sva_block_(loc, init),
 					nullptr);
       FILE_NAME(ip, loc);
+}
+
+/* #446: lower a multiclocked `s |=> @(c) t' / `s ##1 @(c) t' through the
+   composite. Returns false (nothing consumed) for shapes the split does
+   not take, so the caller keeps its own diagnostic. */
+static bool sva_mc_try_composite_(const struct vlltype&loc,
+				  sva_property_t*prop, Statement*fail_stmt,
+				  Statement*pass_stmt, int kind)
+{
+      bool implication = prop->op_type == 2 && prop->antecedent && !prop->mc_prefix;
+      bool sequence = prop->op_type == 0 && prop->mc_prefix && !prop->antecedent
+		      && prop->mc_boundary == 1;
+      if ((!implication && !sequence) || prop->tree || prop->ante_tree
+	  || (prop->mc_more && !prop->mc_more->empty()) || !prop->seq
+	  || kind == 2)
+	    return false;
+      PEventStatement*clk = prop->clk_evt;
+      PExpr*disable = prop->disable_iff_expr;
+      std::vector<perm_string> locals = prop->local_names;
+      prop->clk_evt = nullptr;
+      prop->disable_iff_expr = nullptr;
+      bool ok = true;
+      sva_property_t*node = sva_comp_split_multiclock_(loc, prop, ok);
+      if (!ok) {
+	    pform_sva_destroy_property(node);
+	    delete clk; delete disable; delete fail_stmt; delete pass_stmt;
+	    return true;
+      }
+      node->clk_evt = clk;
+      node->disable_iff_expr = disable;
+      node->local_names = locals;
+      pform_make_composite_assertion_(loc, node, fail_stmt, pass_stmt, kind);
+      return true;
 }
 
 /* An operand reached an assertion engine other than the slot synthesizer.

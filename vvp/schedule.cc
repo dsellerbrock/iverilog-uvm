@@ -1186,8 +1186,10 @@ struct assign_prop_vec4_bits_event_s : public event_s {
       explicit assign_prop_vec4_bits_event_s(const vvp_object_t&o, unsigned p,
 					     uint64_t b,
 					     const vvp_vector4_t&v,
-					     const vvp_object_t&r, bool s)
-      : obj(o), pid(p), bitoff(b), val(v), root_obj(r), signed_offset(s)
+					     const vvp_object_t&r, bool s,
+					     size_t e)
+      : obj(o), pid(p), bitoff(b), val(v), root_obj(r), signed_offset(s),
+	elem(e)
       { next = NULL; }
       vvp_object_t obj;
       unsigned pid;
@@ -1195,15 +1197,18 @@ struct assign_prop_vec4_bits_event_s : public event_s {
       vvp_vector4_t val;
       vvp_object_t root_obj;
       bool signed_offset;
+	// The unpacked-array element of the property, captured with the
+	// value at the statement (IEEE 1800 10.4.2).
+      size_t elem;
       void run_run(void) override
       {
 	    vvp_vector4_t current;
 	    vvp_cobject*cobj = obj.peek<vvp_cobject>();
 	    vvp_vinterface*vif = obj.peek<vvp_vinterface>();
 	    if (cobj)
-		  cobj->get_vec4(pid, current, 0);
+		  cobj->get_vec4(pid, current, elem);
 	    else if (vif)
-		  vif->get_vec4(pid, current, 0);
+		  vif->get_vec4(pid, current, elem);
 	    else
 		  return;
 
@@ -1237,9 +1242,9 @@ struct assign_prop_vec4_bits_event_s : public event_s {
 	    }
 
 	    if (cobj)
-		  cobj->set_vec4(pid, current, 0);
+		  cobj->set_vec4(pid, current, elem);
 	    else {
-		  vif->set_vec4(pid, current, 0);
+		  vif->set_vec4(pid, current, elem);
 		  obj.touch();
 	    }
 	    obj.notify_signal_aliases();
@@ -1258,11 +1263,11 @@ void schedule_assign_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
 				    const vvp_vector4_t&val,
 				    const vvp_object_t&root_obj,
 				    vvp_time64_t delay, bool reactive,
-				    bool signed_offset)
+				    bool signed_offset, size_t elem)
 {
       struct assign_prop_vec4_bits_event_s*cur =
 	    new assign_prop_vec4_bits_event_s(obj, pid, bitoff, val, root_obj,
-					       signed_offset);
+					       signed_offset, elem);
       schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
 					  : SEQ_NBASSIGN);
 }

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2771_parallel_modpath_vector.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "issue2771_parallel_modpath_vector"],
+  "gold": "issue2771_parallel_modpath_vector"
+}

@@ -869,7 +869,7 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 		  pform_name_t mapped_path = *root;
 		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
 				     path_.name.end());
-		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  PEIdent mapped_ident(mapped_path, modport_expression_context_lexical_pos());
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_modport_expression_access();
 		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
@@ -977,7 +977,7 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 			     && std::distance(path_.name.begin(), head) < (long)prefix;
 			     ++head)
 			  receiver.push_back(*head);
-			push_modport_expression_context(receiver);
+			push_modport_expression_context(receiver, lexical_pos_);
 			NetAssign_*expression_lval = port->second.second->elaborate_lval(
 			      des, scope, is_cassign, is_force, is_init, read_only_ref);
 			pop_modport_expression_context();

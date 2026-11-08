@@ -121,6 +121,11 @@ extern void pform_set_default_nettype(NetNet::Type net,
   /* Return true if currently processing a program block. This can be
      used to reject statements that cannot exist in program blocks. */
 extern bool pform_in_program_block(void);
+  /* Bracket the items of an anonymous program (IEEE 1800 24.6), and
+     report a reference from outside any program to a name it declared. */
+extern void pform_set_anonymous_program(bool enable);
+extern void pform_check_programwide_ref(const struct vlltype&loc,
+					const PPackage*pkg, perm_string name);
 
   /* Return true if currently processing an interface. This can be
      used to reject statements that cannot exist in interfaces. */
@@ -162,6 +167,11 @@ extern void pform_startmodule(const struct vlltype&loc, const char*name,
 			      LexicalScope::lifetime_t lifetime,
 			      std::list<named_pexpr_t>*attr);
 extern void pform_module_set_ports(std::vector<Module::port_t*>*);
+  /* IEEE 1800 23.5 extern modules: close an extern header, and let a
+     definition with a (.*) port list take the extern ports. */
+extern void pform_end_extern_module(void);
+extern void pform_module_use_extern_ports(const struct vlltype&loc);
+extern void pform_check_extern_module_header(void);
 extern bool pform_module_is_checker(void);
 extern void pform_set_scope_timescale(const struct vlltype&loc);
 
@@ -398,6 +408,11 @@ extern sva_property_t* pform_sva_apply_property_context(
 				       PEventStatement*clk,
 				       PExpr*disable_iff);
 extern void pform_sva_destroy_mc_segments(std::vector<sva_mc_seg_t>*segs);
+extern sva_property_t* pform_sva_clocked_paren_impl(const struct vlltype&loc,
+						    PEventStatement*clk,
+						    int op_type,
+						    std::vector<sva_seq_step_t>*ante,
+						    sva_property_t*conseq);
 extern sva_property_t* pform_sva_prop_compose(const struct vlltype&loc,
 					      int op_type, sva_property_t*a,
 					      sva_property_t*b);
@@ -1118,6 +1133,19 @@ struct sva_nfa_sub_t {
       // of each operand's kill code instead of one per owner); the root
       // runs it after every decision pass.
       std::vector<Statement*> sweep;
+      // Merge support (#446): per slot, the registers that make up its
+      // entire future behaviour, and a register that is zero when the slot
+      // owns no pending evaluation. Slots equal in all of them while quiet
+      // are indistinguishable from then on. Empty when not available.
+      std::vector< std::vector<perm_string> > state;
+      std::vector<perm_string> pending;
+      // Local-variable transport (#446): names the parent copies into each
+      // new attempt (a consequent seeing its antecedent's values), with a
+      // register of the source whose width a carrier takes; and, out, per
+      // slot the carriers the parent sets for each name.
+      std::vector<perm_string> imports;
+      std::map<perm_string, perm_string> import_from;
+      std::vector< std::map<perm_string, std::vector<perm_string> > > locals;
 };
 
 extern bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
@@ -1143,7 +1171,9 @@ extern void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
 						const PTimingCheck::event_t&data_ev,
 						PExpr*lim1,
 						PExpr*lim2,
-						const pform_name_t*notifier);
+						const pform_name_t*notifier,
+						PExpr*timestamp_cond,
+						PExpr*timecheck_cond);
 extern void pform_timing_check_period(const struct vlltype&loc,
 				      const PTimingCheck::event_t&ev,
 				      PExpr*limit,

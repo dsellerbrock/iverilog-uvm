@@ -1,0 +1,6 @@
+ivltests/issue876_anonymous_program_fail.v:17: error: 'twice' is declared in an anonymous program and is accessible only from a program block (IEEE 1800-2017/2023 24.6).
+ivltests/issue876_anonymous_program_fail.v:21: error: 'twice' is declared in an anonymous program and is accessible only from a program block (IEEE 1800-2017/2023 24.6).
+ivltests/issue876_anonymous_program_fail.v:22: error: 'twice' is declared in an anonymous program and is accessible only from a program block (IEEE 1800-2017/2023 24.6).
+ivltests/issue876_anonymous_program_fail.v:26: error: 'unit_add' is declared in an anonymous program and is accessible only from a program block (IEEE 1800-2017/2023 24.6).
+ivltests/issue876_anonymous_program_fail.v:32: error: 'twice' is declared in an anonymous program and is accessible only from a program block (IEEE 1800-2017/2023 24.6).
+ivltests/issue876_anonymous_program_fail.v:33: error: 'twice' is declared in an anonymous program and is accessible only from a program block (IEEE 1800-2017/2023 24.6).

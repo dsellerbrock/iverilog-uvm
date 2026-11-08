@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2756_tchk_conditions.v",
+  "iverilog-args": ["-g2017", "-gspecify"]
+}

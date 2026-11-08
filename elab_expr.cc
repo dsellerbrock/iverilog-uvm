@@ -7020,7 +7020,7 @@ static bool elaborate_fixed_uarray_comparison_(Design*des, NetScope*scope,
  * ordinary operators compare each leaf (integral, real, string, queues...).
  * Only identifier operands are handled so nothing with side effects is
  * evaluated more than once. */
-static PEIdent* aggregate_operand_with_(const PEIdent*base,
+PEIdent* aggregate_operand_with_(const PEIdent*base,
 					const name_component_t*member,
 					const index_component_t*select,
 					const LineInfo&li)
@@ -7950,7 +7950,8 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	   width check above can distinguish handles from scalar operands, but
 	   cannot distinguish unrelated class types. Check the elaborated types
 	   here, after specialized class types have been resolved. */
-      if ((op_ == 'e' || op_ == 'n' || op_ == 'E' || op_ == 'N')
+      if ((op_ == 'e' || op_ == 'n' || op_ == 'E' || op_ == 'N'
+	   || op_ == 'w' || op_ == 'W')
 	  && lp->expr_type() == IVL_VT_CLASS
 	  && rp->expr_type() == IVL_VT_CLASS) {
 	    const netclass_t*left_class =
@@ -8014,6 +8015,8 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       eval_expr(lp, l_width_);
       eval_expr(rp, r_width_);
 
+      char net_op = op_;
+
 	// Handle some operand-specific special cases...
       switch (op_) {
 	  case 'E': /* === */
@@ -8032,6 +8035,15 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    break;
 	  case 'w': /* ==? */
 	  case 'W': /* !=? */
+	    // IEEE 1800-2017/2023 11.4.6 defines wildcard equality on
+	    // class handles and null as logical equality. Keep the integral
+	    // wildcard implementation for all other operands.
+	    if (lp->expr_type() == IVL_VT_CLASS
+		|| rp->expr_type() == IVL_VT_CLASS
+		|| dynamic_cast<NetENull*>(lp) || dynamic_cast<NetENull*>(rp)) {
+		  net_op = (op_ == 'w') ? 'e' : 'n';
+		  break;
+	    }
 	    if ((lp->expr_type() != IVL_VT_BOOL && lp->expr_type() != IVL_VT_LOGIC) ||
 		(rp->expr_type() != IVL_VT_BOOL && rp->expr_type() != IVL_VT_LOGIC)) {
 		  cerr << get_fileline() << ": error: "
@@ -8064,7 +8076,7 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 	    break;
       }
 
-      NetExpr*tmp = new NetEBComp(op_, lp, rp);
+      NetExpr*tmp = new NetEBComp(net_op, lp, rp);
       tmp->set_line(*this);
 
       return pad_to_width(tmp, expr_wid, signed_flag_, *this);
@@ -14455,7 +14467,13 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	      // dynamic dimension (for example int a[3][][5]). Walk the unpacked
 	      // type layers so queries number every declared dimension, rather
 	      // than treating only the outermost array type as the whole shape.
-	      if (sub && !dynamic_cast<const netdarray_t*>(sub->net_type())
+	      const netdarray_t*sub_darray = sub
+		    ? dynamic_cast<const netdarray_t*>(sub->net_type()) : nullptr;
+	        // A dynamic array of fixed unpacked elements (int d[][2][3])
+	        // folds its fixed dimensions here too; dimension 1 stays a
+	        // runtime query below.
+	      if (sub && (!sub_darray
+			  || dynamic_cast<const netuarray_t*>(sub_darray->element_type()))
 		  && (strcmp(name, "$unpacked_dimensions") == 0
 		  || strcmp(name, "$size") == 0 || strcmp(name, "$high") == 0
 		  || strcmp(name, "$low") == 0 || strcmp(name, "$left") == 0
@@ -17580,7 +17598,7 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		       && std::distance(path_.name.begin(), head) < (long)prefix;
 		       ++head)
 			receiver.push_back(*head);
-		  push_modport_expression_context(receiver);
+		  push_modport_expression_context(receiver, lexical_pos_);
 	  NetExpr*expression = port->second.second->elaborate_expr(
 			des, scope, port->second.second->expr_width(), flags);
 		  pop_modport_expression_context();
@@ -23023,7 +23041,7 @@ static bool bitstream_cast_source_is_this_(const PExpr*expr)
 	    return false;
       const pform_scoped_name_t&path = ident->path();
       return !path.package && path.name.size() == 1
-	    && path.name.front().name == perm_string::literal("this")
+	    && path.name.front().name == perm_string::literal(THIS_TOKEN)
 	    && path.name.front().index.empty();
 }
 
@@ -25934,7 +25952,7 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 		  pform_name_t mapped_path = *root;
 		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
 				     path_.name.end());
-		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  PEIdent mapped_ident(mapped_path, modport_expression_context_lexical_pos());
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_modport_expression_access();
 		  unsigned width = mapped_ident.test_width(des, scope, mode);
@@ -25995,7 +26013,7 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 			     && std::distance(path_.name.begin(), head) < (long)prefix;
 			     ++head)
 			  receiver.push_back(*head);
-			push_modport_expression_context(receiver);
+			push_modport_expression_context(receiver, lexical_pos_);
 			port->second.second->test_width(des, scope, mode);
 			pop_modport_expression_context();
 			expr_type_ = port->second.second->expr_type();
@@ -26586,7 +26604,7 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  pform_name_t mapped_path = *root;
 		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
 				     path_.name.end());
-		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  PEIdent mapped_ident(mapped_path, modport_expression_context_lexical_pos());
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_modport_expression_access();
 		  return mapped_ident.elaborate_expr(des, scope, ntype, flags);
@@ -27649,7 +27667,7 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  pform_name_t mapped_path = *root;
 		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
 				     path_.name.end());
-		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  PEIdent mapped_ident(mapped_path, modport_expression_context_lexical_pos());
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_modport_expression_access();
 		  return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
@@ -32743,17 +32761,29 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 
 			NetExpr*mux = nullptr;
 			if (level_fixed) {
-			      if (level_fixed->static_dimensions().size() != 1) {
-				    cerr << get_fileline() << ": sorry: an associative-array"
-					 << " value with more than one fixed dimension is not"
-					 << " yet supported." << endl;
+				/* A fixed level takes one index per dimension, all
+				   at once: the element is stored flat and addressed
+				   by canonical index (int d[][2][3]: d[i][j][k]). */
+			      size_t ndims = level_fixed->static_dimensions().size();
+			      list<index_component_t>fixed_index;
+			      for (auto it = idx_it ; it != path_.back().index.end()
+					 && fixed_index.size() < ndims ; ++it) {
+				    if (it->sel != index_component_t::SEL_BIT
+					|| !it->msb || it->lsb)
+					  break;
+				    fixed_index.push_back(*it);
+			      }
+			      if (fixed_index.size() != ndims) {
+				    cerr << get_fileline() << ": sorry: selecting part "
+					 << "of a multi-dimensional unpacked element "
+					 << "of a container is not yet supported." << endl;
 				    des->errors += 1;
 				    delete cur_sel;
 				    return 0;
 			      }
-			      list<index_component_t>fixed_index(1, level_index);
 			      mux = make_checked_canonical_property_index(
 				    des, scope, this, fixed_index, level_fixed, need_const);
+			      std::advance(idx_it, ndims - 1);
 			} else {
 			      mux = elab_assoc_index(des, scope, level_index.msb,
 						     level, need_const);

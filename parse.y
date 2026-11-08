@@ -44,6 +44,34 @@
 
 using namespace std;
 
+  /* Every package-qualified reference (pkg::name ...) is built as one of
+     these three node types, in many grammar rules, and every rule names
+     the node. Checking here covers them all: a name declared in an
+     anonymous program is accessible only from programs (IEEE 1800 24.6). */
+static void FILE_NAME(PEIdent*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      if (!tmp->path().name.empty())
+	    pform_check_programwide_ref(where, tmp->path().package,
+					tmp->path().name.front().name);
+}
+
+static void FILE_NAME(PECallFunction*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      if (!tmp->path().name.empty())
+	    pform_check_programwide_ref(where, tmp->path().package,
+					tmp->path().name.front().name);
+}
+
+static void FILE_NAME(PCallTask*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      if (!tmp->path().empty())
+	    pform_check_programwide_ref(where, tmp->package(),
+					tmp->path().front().name);
+}
+
 class PSpecPath;
 
 extern void lex_end_table();
@@ -2992,7 +3020,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <expr>  attribute_value_opt
 %type <expr>  inc_or_dec_expression inside_expression lpvalue
 %type <expr>  branch_probe_expression streaming_concatenation
-%type <expr>  delay_value delay_value_simple
+%type <expr>  delay_value delay_value_simple path_delay_expr
 %type <exprs> delay1 delay1_opt delay3 delay3_opt delay_value_list
 %type <exprs> expression_list_with_nuls expression_list_proper
 %type <exprs> cont_assign cont_assign_list
@@ -6536,6 +6564,7 @@ deferred_mode
 
 description /* IEEE1800-2005: A.1.2 */
   : module
+  | extern_module_declaration
   | udp_primitive
   | config_declaration
   | nature_declaration
@@ -9074,6 +9103,32 @@ package_item_list
   | package_item
   | package_item_list nettype_declaration
   | nettype_declaration
+  | package_item_list anonymous_program
+  | anonymous_program
+  ;
+
+  /* IEEE 1800-2017/2023 24.6, A.1.11: an anonymous program declares
+     programwide items in the enclosing package or compilation unit
+     without opening a scope. The compilation-unit form is in the module
+     rule, where `program' is already shifted as a module_start. */
+anonymous_program
+  : K_program ';'
+      { pform_set_anonymous_program(true); }
+    anonymous_program_item_list_opt K_endprogram
+      { pform_set_anonymous_program(false); }
+  ;
+
+anonymous_program_item_list_opt
+  : anonymous_program_item_list_opt anonymous_program_item
+  |
+  ;
+
+anonymous_program_item
+  : package_task_declaration
+  | package_function_declaration
+  | class_declaration
+  | package_covergroup_declaration
+  | ';'
   ;
 
 package_item_list_opt : package_item_list | ;
@@ -9714,6 +9769,13 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   /* A clocked sequence property may itself be grouped. Preserve the
      explicit consequent clock until an enclosing implication supplies
      its overlapping/nonoverlapping clock-flow boundary (16.13). */
+  /* IEEE 1800-2023 16.13.2: a parenthesized implication with its own
+     leading clock, e.g. the operands of 16.13.7's
+     `(@(posedge clk1) s1 |-> p1) and (@(posedge clk2) s2 |-> p2)'. */
+  | '(' event_control sva_seq_expr K_PIPE_IMPL_OV property_expr ')'
+      { $$ = pform_sva_clocked_paren_impl(@4, $2, 1, $3, $5); }
+  | '(' event_control sva_seq_expr K_PIPE_IMPL_NOV property_expr ')'
+      { $$ = pform_sva_clocked_paren_impl(@4, $2, 2, $3, $5); }
   | '(' event_control sva_seq_expr sva_mc_tail_opt ')'
       { sva_property_t*p = new sva_property_t;
         p->seq = $3;
@@ -10047,6 +10109,10 @@ sva_comb_atom
      atom, and pform_sva_tree_comb then builds a property-level operator. */
   | '(' property_expr ')'
       { $$ = $2; }
+  | '(' event_control sva_seq_expr K_PIPE_IMPL_OV property_expr ')'
+      { $$ = pform_sva_clocked_paren_impl(@4, $2, 1, $3, $5); }
+  | '(' event_control sva_seq_expr K_PIPE_IMPL_NOV property_expr ')'
+      { $$ = pform_sva_clocked_paren_impl(@4, $2, 2, $3, $5); }
   ;
 
 /* At a property boundary, a complete parenthesized combinator may be the
@@ -12626,6 +12692,13 @@ delay_value
       { PExpr*tmp = $1;
 	$$ = tmp;
       }
+  | expression ':' expression ':' expression
+      { $$ = pform_select_mtm_expr($1, $3, $5); }
+  ;
+
+path_delay_expr
+  : expression
+      { $$ = $1; }
   | expression ':' expression ':' expression
       { $$ = pform_select_mtm_expr($1, $3, $5); }
   ;
@@ -17057,6 +17130,29 @@ cont_assign_list
      section, with optional ports, then an optional list of module
      items, and finally an end marker. */
 
+
+  /* IEEE 1800-2017/2023 23.5: an extern module declaration is the module
+     header alone. It is kept aside for a later definition, which either
+     repeats a matching header or takes the extern ports with (.*). It is
+     a description, not a module item: inside a module, `extern' already
+     starts an extern task/function prototype. */
+extern_module_declaration
+  : K_extern module_start lifetime_opt module_identifier
+      { if ($2 != K_module)
+	      yyerror(@2, "error: Only a module can be declared extern "
+			  "(IEEE 1800 23.5).");
+	pform_startmodule(@2, $4, false, false, false, $3, nullptr);
+	port_declaration_context_init();
+      }
+    module_package_import_list_opt
+    module_parameter_port_list_opt
+    module_port_list_opt ';'
+      { pform_module_set_ports($8);
+	pform_end_extern_module();
+	delete[]$4;
+      }
+  ;
+
 module
   : attribute_list_opt module_start lifetime_opt module_identifier
       { pform_startmodule(@2, $4, $2==K_program, $2==K_interface,
@@ -17067,7 +17163,9 @@ module
     module_parameter_port_list_opt
     module_port_list_opt
     module_attribute_foreign ';'
-      { pform_module_set_ports($8); }
+      { pform_module_set_ports($8);
+	pform_check_extern_module_header();
+      }
     timeunits_declaration_opt
       { pform_set_scope_timescale(@2); }
     module_item_list_opt
@@ -17128,6 +17226,10 @@ module
 	}
 	delete[]$4;
       }
+  | attribute_list_opt K_program ';'
+      { pform_set_anonymous_program(true); }
+    anonymous_program_item_list_opt K_endprogram
+      { pform_set_anonymous_program(false); }
   ;
 
 /* Keep checker declarations separate from module/interface/program
@@ -17220,6 +17322,10 @@ module_port_list_opt
       { $$ = $2; }
   | '(' list_of_port_declarations ')'
       { $$ = $2; }
+  | '(' K_DOTSTAR ')'
+      { pform_module_use_extern_ports(@2);
+	$$ = 0;
+      }
   |
       { $$ = 0; }
   | '(' error ')'
@@ -19143,18 +19249,11 @@ specify_item
       {
 	// $recrem(ref, data, rec, rem) = $recovery(ref, data, rec) +
 	// $removal(ref, data, rem).
-	if ($10->timestamp_cond != nullptr || $10->timecheck_cond != nullptr) {
-	      if (gn_specify_blocks_flag) {
-		    cerr << @1 << ": sorry: $recrem timestamp/timecheck "
-			 << "condition arguments are not supported; the "
-			 << "violation checks are dropped." << endl;
-		    error_count += 1;
-	      }
-	} else {
-	      pform_timing_check_setuphold_recrem(@1, "$recrem",
+	pform_timing_check_setuphold_recrem(@1, "$recrem",
 						  *$3, *$5, $7, $9,
-						  $10->notifier);
-	}
+						  $10->notifier,
+						  $10->timestamp_cond,
+						  $10->timecheck_cond);
 
 	PRecRem*recrem = pform_make_recrem(@1, $3, $5, $7, $9, $10);
 	pform_module_timing_check(recrem);
@@ -19183,23 +19282,13 @@ specify_item
   | K_Ssetuphold '(' spec_reference_event ',' spec_reference_event
     ',' expr_mintypmax ',' expr_mintypmax setuphold_opt_args ')' ';'
       {
-	// $setuphold(ref, data, s, h) = $setup(data, ref, s) +
-	// $hold(ref, data, h). The synthesized checkers use CLONES of
-	// the limit expressions; the originals go to PSetupHold below
-	// for delayed-signal aliasing. Timestamp/timecheck condition
-	// arguments modify check semantics we do not model: loud sorry.
-	if ($10->timestamp_cond != nullptr || $10->timecheck_cond != nullptr) {
-	      if (gn_specify_blocks_flag) {
-		    cerr << @1 << ": sorry: $setuphold timestamp/timecheck "
-			 << "condition arguments are not supported; the "
-			 << "violation checks are dropped." << endl;
-		    error_count += 1;
-	      }
-	} else {
-	      pform_timing_check_setuphold_recrem(@1, "$setuphold",
+	// The synthesized checkers use clones of limits and conditions;
+	// originals go to PSetupHold for delayed-signal aliasing.
+	pform_timing_check_setuphold_recrem(@1, "$setuphold",
 						  *$3, *$5, $7, $9,
-						  $10->notifier);
-	}
+						  $10->notifier,
+						  $10->timestamp_cond,
+						  $10->timecheck_cond);
 
 	PSetupHold*setuphold = pform_make_setuphold(@1, $3, $5, $7, $9, $10);
 	pform_module_timing_check(setuphold);
@@ -19353,7 +19442,7 @@ polarity_operator
 specify_simple_path_decl
   : specify_simple_path '=' '(' delay_value_list ')'
       { $$ = pform_assign_path_delay($1, $4); }
-  | specify_simple_path '=' delay_value_simple
+  | specify_simple_path '=' path_delay_expr
       { std::list<PExpr*>*tmp = new std::list<PExpr*>;
 	tmp->push_back($3);
 	$$ = pform_assign_path_delay($1, tmp);

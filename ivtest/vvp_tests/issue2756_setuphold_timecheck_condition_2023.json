@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2756_setuphold_timecheck_condition.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "issue2756_setuphold_timecheck_condition"],
+  "gold": "issue2756_setuphold_timecheck_condition_2023"
+}
