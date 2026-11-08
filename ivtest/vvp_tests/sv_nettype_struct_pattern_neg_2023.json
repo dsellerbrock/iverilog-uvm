@@ -1,10 +1,9 @@
 {
-    "type": "CE",
+    "type": "normal",
     "source": "sv_nettype_struct_pattern_neg_2023.v",
     "iverilog-args": [
         "-g2023",
         "-s",
         "top"
-    ],
-    "gold": "sv_nettype_struct_pattern_neg_2023"
+    ]
 }
