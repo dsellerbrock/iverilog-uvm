@@ -781,6 +781,7 @@ vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width,
   has_conditional_paths_(false), showcancelled_(showcancelled)
 {
       cur_vec4_ = vvp_vector4_t(width, BIT4_X);
+      out_vec4_ = cur_vec4_;
       pulse_vec4_ = cur_vec4_;
       schedule_init_propagate(net_, cur_vec4_);
 }
@@ -911,6 +912,17 @@ void vvp_fun_modpath::pulse_wakeup_::run_run()
 void vvp_fun_modpath::resolve_wakeup_::run_run()
 {
       owner_->resolve_pending_();
+}
+
+void vvp_fun_modpath::bit_wakeup_::run_run()
+{
+      owner_->run_bit_event_(index_, value_);
+}
+
+void vvp_fun_modpath::run_bit_event_(unsigned index, vvp_bit4_t value)
+{
+      out_vec4_.set_bit(index, value);
+      net_->send_vec4(out_vec4_, 0);
 }
 
 void vvp_fun_modpath::run_pulse_events_()
@@ -1089,33 +1101,22 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
 						      bit.value(0));
       vvp_time64_t use_delay = out_at[use_edge];
 
-	/* FIXME: This bases the edge delay on only the least
-	   bit. This is WRONG! I need to find all the possible delays,
-	   and schedule an event for each partial change. Hard! */
-      for (unsigned idx = 1 ;  idx < bit.size() ;  idx += 1) {
-	    vvp_time64_t tmp = delay_from_edge(cur_vec4_.value(idx),
-					       bit.value(idx),
-					       out_at);
-	      /* If the current and new bit values match then no delay
-	       * is needed for this bit. */
-	    if (cur_vec4_.value(idx) == bit.value(idx)) continue;
-	    if (tmp != use_delay) {
-		  fprintf(stderr, "sorry: multi-bit module path delays are "
-		                  "currently not fully supported.\n");
-		  fprintf(stderr, "     : using the LSB delay for all bits.\n");
-		  continue;
-            }
-      }
-
-      // shortcut: pulse filtering covers scalar paths until vector path events are modeled per bit.
+      // Pulse filtering is implemented for scalar paths; vectors are scheduled per bit.
       if (bit.size() == 1) {
 	    schedule_pulse_transition_(use_delay, reject_at[use_edge],
 				       error_at[use_edge], bit);
 	    return;
       }
 
-      cur_vec4_ = bit;
-      schedule_generic(this, use_delay, false);
+	for (unsigned idx = 0 ; idx < bit.size() ; idx += 1) {
+	      if (cur_vec4_.value(idx) == bit.value(idx))
+		    continue;
+	      vvp_time64_t delay = delay_from_edge(cur_vec4_.value(idx),
+						   bit.value(idx), out_at);
+	      schedule_generic(new bit_wakeup_(this, idx, bit.value(idx)),
+			       delay, false, true, true);
+	}
+	cur_vec4_ = bit;
 }
 
 void vvp_fun_modpath::run_run()
