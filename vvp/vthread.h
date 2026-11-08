@@ -142,6 +142,16 @@ extern void vthread_delay_delete();
 extern void vthread_run(vthread_t thr);
 
 /*
+ * Run a lazy VPI argument's expression code at PC to its %end and return
+ * the value it leaves on the KIND stack ('v' vec4, 'r' real, 's' string).
+ * CALLER, when not nil, lends its automatic contexts and process identity.
+ */
+extern bool vthread_eval_thunk(vthread_t caller, vvp_code_t pc,
+                               __vpiScope*scope, char kind,
+                               vvp_vector4_t&vec, double&real,
+                               std::string&str);
+
+/*
  * This function schedules all the threads in the list to be scheduled
  * for execution with delay 0. The thr pointer is taken to be the head
  * of a list, and all the threads in the list are presumably placed in

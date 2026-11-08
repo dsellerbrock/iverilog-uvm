@@ -57,6 +57,7 @@ all: dep vvp.tgt vvp.conf vvp-s.conf
 check: all
 
 clean:
+	rm -f vpi_builtin_names.h
 	rm -rf *.o dep vvp.tgt vvp.conf vvp-s.conf
 
 distclean: clean
@@ -75,6 +76,13 @@ Makefile: $(srcdir)/Makefile.in ../config.status
 
 dep:
 	mkdir dep
+
+# The system task/function names Icarus's own VPI modules register (every
+# "$name" string literal in vpi/). draw_vpi.c keeps eager arguments for them.
+vpi_builtin_names.h: $(wildcard $(srcdir)/../vpi/*.c $(srcdir)/../vpi/*.cc)
+	LC_ALL=C grep -ho '"\$$[A-Za-z_][A-Za-z0-9_$$]*"' $^ | LC_ALL=C sort -u | sed 's/$$/,/' > $@
+
+draw_vpi.o: vpi_builtin_names.h
 
 %.o: %.c vvp_config.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) @DEPENDENCY_FLAG@ -c $< -o $*.o

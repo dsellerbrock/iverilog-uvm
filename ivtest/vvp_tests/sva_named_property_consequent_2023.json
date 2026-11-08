@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_named_property_consequent.sv",
+  "iverilog-args": ["-g2023", "-s", "sva_named_property_consequent"],
+  "gold": "sva_named_property_consequent"
+}
