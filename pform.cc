@@ -521,6 +521,7 @@ static bool pform_in_parameter_port_list = false;
  * Items that have scoped names are put in the lexical_scope object.
  */
 static LexicalScope* lexical_scope = 0;
+static bool anonymous_program_items = false;
 
 LexicalScope* pform_peek_scope(void)
 {
@@ -657,6 +658,12 @@ static void add_local_symbol(LexicalScope*scope, perm_string name, PNamedItem*it
       }
 
       scope->local_symbols[name] = item;
+	// Only tasks and functions are tracked. References to classes and
+	// covergroups of an anonymous program arrive as type identifiers
+	// and are not diagnosed outside programs (a known gap, IEEE 24.6).
+      if (anonymous_program_items && dynamic_cast<PTaskFunc*>(item))
+	    if (PPackage*pkg = dynamic_cast<PPackage*>(scope))
+		  pkg->programwide_symbols.insert(name);
 }
 
 namespace {
@@ -750,8 +757,10 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
 {
       LexicalScope*scope = lexical_scope;
       while (scope) {
-	    if (scope->local_symbols.find(name) != scope->local_symbols.end())
+	    if (scope->local_symbols.find(name) != scope->local_symbols.end()) {
+		  pform_check_programwide_ref(loc, dynamic_cast<PPackage*>(scope), name);
 		  return;
+	    }
 	    if (PClass*class_scope = dynamic_cast<PClass*>(scope)) {
 		  if (class_scope->type && class_scope->type->properties.find(name)
 		      != class_scope->type->properties.end())
@@ -765,7 +774,8 @@ static void check_potential_imports(const struct vlltype&loc, perm_string name, 
 		  scope->wildcard_pin_used.insert(name);
 		  return;
 	    }
-	    if (pform_find_potential_import(loc, scope, name, tf_call, true)) {
+	    if (PPackage*pkg = pform_find_potential_import(loc, scope, name, tf_call, true)) {
+		  pform_check_programwide_ref(loc, pkg, name);
 		  scope->wildcard_pin_used.insert(name);
 		  return;
 	    }
@@ -1427,6 +1437,24 @@ bool pform_in_program_block()
       if (pform_cur_module.front()->program_block)
 	    return true;
       return false;
+}
+
+void pform_set_anonymous_program(bool enable)
+{
+      anonymous_program_items = enable;
+}
+
+void pform_check_programwide_ref(const struct vlltype&loc,
+				 const PPackage*pkg, perm_string name)
+{
+      if (!pkg || anonymous_program_items || pform_in_program_block())
+	    return;
+      if (pkg->programwide_symbols.count(name) == 0)
+	    return;
+      cerr << loc.get_fileline() << ": error: '" << name << "' is declared "
+	   << "in an anonymous program and is accessible only from a program "
+	   << "block (IEEE 1800-2017/2023 24.6)." << endl;
+      error_count += 1;
 }
 
 bool pform_in_interface()
