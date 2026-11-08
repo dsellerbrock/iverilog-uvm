@@ -993,9 +993,10 @@ class PEIdent : public PExpr {
 			     long&midx, long&lidx) const;
 };
 
-void push_modport_expression_context(const pform_name_t&root);
+void push_modport_expression_context(const pform_name_t&root, unsigned lexical_pos);
 void pop_modport_expression_context();
 const pform_name_t* modport_expression_context();
+unsigned modport_expression_context_lexical_pos();
 
 class PEMemberAccess : public PExpr {
 

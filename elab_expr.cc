@@ -17580,7 +17580,7 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		       && std::distance(path_.name.begin(), head) < (long)prefix;
 		       ++head)
 			receiver.push_back(*head);
-		  push_modport_expression_context(receiver);
+		  push_modport_expression_context(receiver, lexical_pos_);
 	  NetExpr*expression = port->second.second->elaborate_expr(
 			des, scope, port->second.second->expr_width(), flags);
 		  pop_modport_expression_context();
@@ -25934,7 +25934,7 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 		  pform_name_t mapped_path = *root;
 		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
 				     path_.name.end());
-		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  PEIdent mapped_ident(mapped_path, modport_expression_context_lexical_pos());
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_modport_expression_access();
 		  unsigned width = mapped_ident.test_width(des, scope, mode);
@@ -25995,7 +25995,7 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 			     && std::distance(path_.name.begin(), head) < (long)prefix;
 			     ++head)
 			  receiver.push_back(*head);
-			push_modport_expression_context(receiver);
+			push_modport_expression_context(receiver, lexical_pos_);
 			port->second.second->test_width(des, scope, mode);
 			pop_modport_expression_context();
 			expr_type_ = port->second.second->expr_type();
@@ -26586,7 +26586,7 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  pform_name_t mapped_path = *root;
 		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
 				     path_.name.end());
-		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  PEIdent mapped_ident(mapped_path, modport_expression_context_lexical_pos());
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_modport_expression_access();
 		  return mapped_ident.elaborate_expr(des, scope, ntype, flags);
@@ -27649,7 +27649,7 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  pform_name_t mapped_path = *root;
 		  mapped_path.insert(mapped_path.end(), path_.name.begin(),
 				     path_.name.end());
-		  PEIdent mapped_ident(mapped_path, lexical_pos_);
+		  PEIdent mapped_ident(mapped_path, modport_expression_context_lexical_pos());
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_modport_expression_access();
 		  return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
