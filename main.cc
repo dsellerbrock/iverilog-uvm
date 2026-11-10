@@ -126,6 +126,7 @@ bool gn_specify_blocks_flag = true;
 bool gn_interconnect_flag = true;
 bool gn_neg_tchk_flag = false;
 bool gn_dumpports_flag = false;
+bool gn_sdf_annotate_flag = false;
 bool gn_supported_assertions_flag = true;
 // iverilog-uvm: this default was once flipped to false so concurrent
 // assertions would parse as silent no-ops. That rationale is obsolete:

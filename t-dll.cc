@@ -3990,6 +3990,12 @@ bool dll_target::signal_paths(const NetNet*net)
 		  for (unsigned pe = 0 ;  pe < 12 ;  pe += 1) {
 			aux->path[ptr].delay[pe] = src->get_delay(pe);
 		  }
+		  for (const auto&tokens : src->delay_exprs) {
+			aux->path[ptr].exprs.emplace_back();
+			for (const NetPathToken&tok : tokens)
+			      aux->path[ptr].exprs.back().push_back({tok.kind, tok.value,
+				    tok.sig ? find_signal(tok.sig) : 0});
+		  }
 
 		  ptr += 1;
 	    }

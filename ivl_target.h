@@ -2175,6 +2175,17 @@ extern ivl_signal_t ivl_scope_sig(ivl_scope_t net, unsigned idx);
  * edge is an Annex K vpiEdge mask (0: no edge).
  * Each limit is a hidden real variable the synthesized checker reads,
  * with its elaborated value in scope time units. */
+/* When the design calls $sdf_annotate, a path delay that uses an
+ * annotatable specparam keeps its expressions (one per declared delay) in
+ * reverse Polish tokens: 'c' a constant (value), 's' the specparam's
+ * run-time storage signal (sig), or an operator '+', '-', '*', '/', 'n'
+ * (negation). ivl_path_delay_exprs is 0 for plain constant delays. */
+extern unsigned ivl_path_delay_exprs(ivl_delaypath_t net);
+extern unsigned ivl_path_delay_expr_tokens(ivl_delaypath_t net, unsigned expr);
+extern int ivl_path_delay_expr_token(ivl_delaypath_t net, unsigned expr,
+				     unsigned idx, double*value,
+				     ivl_signal_t*sig);
+
 extern unsigned     ivl_scope_tchks(ivl_scope_t net);
 extern ivl_tchk_t   ivl_scope_tchk(ivl_scope_t net, unsigned idx);
 extern int          ivl_tchk_type(ivl_tchk_t net);

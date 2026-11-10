@@ -2837,6 +2837,14 @@ void compile_reactive(char*label, struct symb_s arg)
       input_connect(ptr, 0, arg.text);
 }
 
+static std::map<std::string, __vpiModPath*> modpaths_by_label;
+
+__vpiModPath* compile_find_modpath(const char*label)
+{
+      auto cur = modpaths_by_label.find(label);
+      return cur == modpaths_by_label.end() ? 0 : cur->second;
+}
+
 struct __vpiModPath* compile_modpath(char*label, unsigned width,
 				     bool showcancelled,
                                      struct symb_s drv, struct symb_s dest)
@@ -2853,6 +2861,7 @@ struct __vpiModPath* compile_modpath(char*label, unsigned width,
 
       compile_vpi_lookup(&modpath->path_term_out.expr, dest.text);
 
+      modpaths_by_label[label] = modpath;
       free(label);
 
       modpath->modpath = obj;
@@ -2915,6 +2924,7 @@ static struct __vpiModPathSrc*make_modpath_src(struct __vpiModPath*path,
       struct __vpiModPathSrc* srcobj = vpip_make_modpath_src(path, net) ;
       srcobj->ifnone = ifnone;
       if (condition_text) srcobj->condition_text = condition_text;
+      path->srcs.push_back(srcobj);
       vpip_attach_to_current_scope(srcobj);
       net->fun = obj;
 
