@@ -1077,6 +1077,14 @@ static void signal_get_value(vpiHandle ref, s_vpi_value*vp)
 	    format_vpiIntVal(vsig, base, wid, rfp->signed_flag, vp);
 	    break;
 
+	  case vpiTimeVal: {
+		  vvp_vector4_t vec4;
+		  vsig->vec4_value(vec4);
+		  vpip_vec4_get_value(vec4.subvalue(base, wid), wid,
+				      rfp->signed_flag, vp);
+		  break;
+	  }
+
 	  case vpiScalarVal:
 	    format_vpiScalarVal(vsig, base, vp);
 	    break;
