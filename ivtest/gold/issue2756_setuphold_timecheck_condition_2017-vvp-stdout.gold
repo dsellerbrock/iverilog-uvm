@@ -1,0 +1,2 @@
+ivltests/issue2756_setuphold_timecheck_condition.v:6: Timing violation: $setuphold(setup) check in issue2756_setuphold_timecheck_condition at time 18
+notifier=1

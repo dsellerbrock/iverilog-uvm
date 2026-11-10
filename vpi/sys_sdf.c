@@ -119,21 +119,6 @@ static vpiHandle sdf_containing_module(vpiHandle scope)
       return scope;
 }
 
-/* Percent limits depend on the final IOPATH delays, so apply pulse records after parsing. */
-struct sdf_pathpulse_annotation_s {
-      struct sdf_pathpulse_annotation_s*next;
-      vpiHandle cell;
-      char*src;
-      char*dst;
-      int percent;
-      struct sdf_delay_s reject;
-      struct sdf_delay_s error;
-      int lineno;
-};
-
-static struct sdf_pathpulse_annotation_s* sdf_pathpulse_head = NULL;
-static struct sdf_pathpulse_annotation_s* sdf_pathpulse_tail = NULL;
-
 static vpiHandle find_scope(vpiHandle scope, const char*name)
 {
       vpiHandle idx = vpi_iterate(vpiModule, scope);
@@ -668,7 +653,7 @@ static void sdf_put_modpath_delays(vpiHandle path,
                                    const struct sdf_delval_list_s*delval_list)
 {
       s_vpi_delay delays;
-      struct t_vpi_time delay_vals[12];
+      struct t_vpi_time delay_vals[36];
       int idx;
 
       delays.da = delay_vals;
@@ -676,14 +661,17 @@ static void sdf_put_modpath_delays(vpiHandle path,
       delays.time_type = vpiScaledRealTime;
       delays.mtm_flag = 0;
       delays.append_flag = 0;
-      delays.pulsere_flag = 0;
+      delays.pulsere_flag = 1;
       vpi_get_delays(path, &delays);
 
+      /* Delay annotations default omitted pulse limits to 100% of delay. */
       for (idx = 0 ; idx < delval_list->count ; idx += 1) {
 	    delay_vals[idx].type = vpiScaledRealTime;
 	    if (delval_list->val[idx].defined)
 		  delay_vals[idx].real = delval_list->val[idx].value
 			+ (sdf_increment ? delay_vals[idx].real : 0.0);
+	    delay_vals[delval_list->count + idx] = delay_vals[idx];
+	    delay_vals[2 * delval_list->count + idx] = delay_vals[idx];
       }
 
       vpi_put_delays(path, &delays);
@@ -771,6 +759,157 @@ void sdf_iopath_delays(int vpi_edge, const char*src, const char*dst,
       }
 }
 
+/* IEEE 1800-2023 Table 32-2: which limit of which SystemVerilog check
+   each SDF timing check value annotates. slot[i] names the SDF value
+   (1 = v1, 2 = v2) for limit i, 0 = x (not annotated). */
+static const struct sdf_tchk_map_s {
+      enum sdf_tchk_kind_e kind;
+      int type;
+      int slot[2];
+} sdf_tchk_map[] = {
+      { SDF_TCHK_SETUP,        vpiSetup,     { 1, 0 } },
+      { SDF_TCHK_SETUP,        vpiSetupHold, { 1, 0 } },
+      { SDF_TCHK_HOLD,         vpiHold,      { 1, 0 } },
+      { SDF_TCHK_HOLD,         vpiSetupHold, { 0, 1 } },
+      { SDF_TCHK_SETUPHOLD,    vpiSetup,     { 1, 0 } },
+      { SDF_TCHK_SETUPHOLD,    vpiHold,      { 2, 0 } },
+      { SDF_TCHK_SETUPHOLD,    vpiSetupHold, { 1, 2 } },
+      { SDF_TCHK_RECOVERY,     vpiRecovery,  { 1, 0 } },
+      { SDF_TCHK_RECOVERY,     vpiRecrem,    { 1, 0 } },
+      { SDF_TCHK_REMOVAL,      vpiRemoval,   { 1, 0 } },
+      { SDF_TCHK_REMOVAL,      vpiRecrem,    { 0, 1 } },
+      { SDF_TCHK_RECREM,       vpiRecovery,  { 1, 0 } },
+      { SDF_TCHK_RECREM,       vpiRemoval,   { 2, 0 } },
+      { SDF_TCHK_RECREM,       vpiRecrem,    { 1, 2 } },
+      { SDF_TCHK_SKEW,         vpiSkew,      { 1, 0 } },
+      { SDF_TCHK_SKEW,         vpiTimeskew,  { 1, 0 } },
+      { SDF_TCHK_BIDIRECTSKEW, vpiFullskew,  { 1, 2 } },
+      { SDF_TCHK_WIDTH,        vpiWidth,     { 1, 0 } },
+      { SDF_TCHK_PERIOD,       vpiPeriod,    { 1, 0 } },
+      { SDF_TCHK_NOCHANGE,     vpiNoChange,  { 1, 2 } },
+};
+
+static const char*sdf_tchk_name(enum sdf_tchk_kind_e kind)
+{
+      static const char*names[] = { "SETUP", "HOLD", "SETUPHOLD", "RECOVERY",
+				    "REMOVAL", "RECREM", "SKEW", "BIDIRECTSKEW",
+				    "WIDTH", "PERIOD", "NOCHANGE" };
+      return names[kind];
+}
+
+/* 32.4.2: the port must match the term; an SDF edge or COND, when given,
+   must match the term's edge or condition too. */
+static int sdf_tchk_port_matches(vpiHandle term, const struct sdf_tchk_port_s*port)
+{
+      vpiHandle expr;
+      const char*name;
+      char want[256];
+
+      if (!term || !port) return term == 0 && port == 0;
+      expr = vpi_handle(vpiExpr, term);
+      if (!expr) return 0;
+      if (port->has_index)
+	    snprintf(want, sizeof want, "%s[%d]", port->name, port->index);
+      else
+	    snprintf(want, sizeof want, "%s", port->name);
+      name = vpi_get_str(vpiName, expr);
+      if (!name || strcmp(name, want) != 0) return 0;
+      if (port->vpi_edge != vpiNoEdge && vpi_get(vpiEdge, term) != port->vpi_edge)
+	    return 0;
+      if (port->condition) {
+	    const char*text = vpi_get_str(_vpiTchkConditionText, term);
+	    if (!text || strcmp(text, port->condition) != 0) return 0;
+      }
+      return 1;
+}
+
+static int sdf_timingcheck_one(enum sdf_tchk_kind_e kind,
+			       const struct sdf_tchk_port_s*first,
+			       const struct sdf_tchk_port_s*second,
+			       const struct sdf_delay_s*v1,
+			       const struct sdf_delay_s*v2)
+{
+	/* SETUP/HOLD/SETUPHOLD name the data port first (IEEE 1497); the
+	   other checks name the reference first. */
+      int data_first = kind == SDF_TCHK_SETUP || kind == SDF_TCHK_HOLD
+		    || kind == SDF_TCHK_SETUPHOLD;
+      const struct sdf_tchk_port_s*ref = data_first ? second : first;
+      const struct sdf_tchk_port_s*data = data_first ? first : second;
+      int match_count = 0;
+      vpiHandle iter, tchk;
+
+      if (sdf_cur_cell == 0) return 0;
+      iter = vpi_iterate(vpiTchk, sdf_cur_cell);
+      if (iter) while ((tchk = vpi_scan(iter))) {
+	    int type = vpi_get(vpiTchkType, tchk);
+	    const struct sdf_tchk_map_s*map = 0;
+	    s_vpi_delay delays;
+	    struct t_vpi_time times[2];
+	    size_t idx;
+	    int lim;
+
+	    for (idx = 0; idx < sizeof sdf_tchk_map / sizeof sdf_tchk_map[0]; idx += 1)
+		  if (sdf_tchk_map[idx].kind == kind && sdf_tchk_map[idx].type == type)
+			map = sdf_tchk_map + idx;
+	    if (!map) continue;
+	    if (!sdf_tchk_port_matches(vpi_handle(vpiTchkRefTerm, tchk), ref))
+		  continue;
+	      /* $width and $period have no data term, and WIDTH/PERIOD
+	         give no second port. */
+	    if (!sdf_tchk_port_matches(vpi_handle(vpiTchkDataTerm, tchk), data))
+		  continue;
+
+	    delays.da = times;
+	    delays.no_of_delays = map->slot[1] || type == vpiSetupHold
+		  || type == vpiRecrem || type == vpiNoChange || type == vpiFullskew
+		  ? 2 : 1;
+	    delays.time_type = vpiScaledRealTime;
+	    delays.mtm_flag = 0;
+	    delays.append_flag = 0;
+	    delays.pulsere_flag = 0;
+	    vpi_get_delays(tchk, &delays);
+	    for (lim = 0; lim < delays.no_of_delays; lim += 1) {
+		  const struct sdf_delay_s*value = map->slot[lim] == 1 ? v1
+						 : map->slot[lim] == 2 ? v2 : 0;
+		  times[lim].type = vpiScaledRealTime;
+		  if (value && value->defined)
+			times[lim].real = value->value
+			      + (sdf_increment ? times[lim].real : 0.0);
+	    }
+	    vpi_put_delays(tchk, &delays);
+	    if (type == vpiNoChange && (times[0].real != 0.0 || times[1].real != 0.0))
+		  vpi_printf("SDF WARNING: %s: $nochange offsets other than 0 "
+			     "are not modeled.\n", vpi_get_str(vpiFullName, sdf_cur_cell));
+	    match_count += 1;
+      }
+      return match_count;
+}
+
+void sdf_timingcheck_delays(enum sdf_tchk_kind_e kind,
+			    struct sdf_tchk_port_s*first,
+			    struct sdf_tchk_port_s*second,
+			    const struct sdf_delay_s*v1,
+			    const struct sdf_delay_s*v2,
+			    const int sdf_lineno)
+{
+      size_t idx;
+      for (idx = 0; idx < sdf_cell_count; idx += 1) {
+	    sdf_cur_cell = sdf_cells[idx];
+	    if (sdf_timingcheck_one(kind, first, second, v1, v2) == 0)
+		  vpi_printf("SDF WARNING: %s:%d: Unable to match %s %s%s%s in %s\n",
+			     sdf_fname, sdf_lineno, sdf_tchk_name(kind),
+			     first->name, second ? " " : "",
+			     second ? second->name : "",
+			     vpi_get_str(vpiFullName, sdf_cur_cell));
+      }
+      free(first->name);
+      free(first->condition);
+      if (second) {
+	    free(second->name);
+	    free(second->condition);
+      }
+}
+
 static void sdf_device_delays_one(const char*dst,
                                   const struct sdf_delval_list_s*delval_list,
                                   const int sdf_lineno)
@@ -825,58 +964,9 @@ static void sdf_pathpulse_delays_one(int percent, const char*src, const char*dst
                                      const struct sdf_delay_s*error,
                                      const int sdf_lineno)
 {
-      if (sdf_cur_cell == 0)
-	    return;
+      if (sdf_cur_cell == 0) return;
 
-      struct sdf_pathpulse_annotation_s*entry =
-	    malloc(sizeof(struct sdf_pathpulse_annotation_s));
-      if (entry == NULL) {
-	    vpi_printf("SDF ERROR: %s:%d: Unable to allocate PATHPULSE annotation\n",
-	               sdf_fname, sdf_lineno);
-	    return;
-      }
-
-      entry->next = NULL;
-      entry->cell = sdf_cur_cell;
-      entry->src = src ? strdup(src) : NULL;
-      entry->dst = dst ? strdup(dst) : NULL;
-      entry->percent = percent;
-      entry->reject = *reject;
-      entry->error = *error;
-      entry->lineno = sdf_lineno;
-      if ((src && entry->src == NULL) || (dst && entry->dst == NULL)) {
-	    vpi_printf("SDF ERROR: %s:%d: Unable to allocate PATHPULSE path\n",
-	               sdf_fname, sdf_lineno);
-	    free(entry->src);
-	    free(entry->dst);
-	    free(entry);
-	    return;
-      }
-
-      if (sdf_pathpulse_tail)
-	    sdf_pathpulse_tail->next = entry;
-      else
-	    sdf_pathpulse_head = entry;
-      sdf_pathpulse_tail = entry;
-}
-
-void sdf_pathpulse_delays(int percent, const char*src, const char*dst,
-                          const struct sdf_delay_s*reject,
-                          const struct sdf_delay_s*error,
-                          const int sdf_lineno)
-{
-      size_t idx;
-      for (idx = 0; idx < sdf_cell_count; idx += 1) {
-            sdf_cur_cell = sdf_cells[idx];
-            sdf_pathpulse_delays_one(percent, src, dst, reject, error, sdf_lineno);
-      }
-}
-
-static void sdf_apply_pathpulse_annotations(void)
-{
-      while (sdf_pathpulse_head) {
-	    struct sdf_pathpulse_annotation_s*entry = sdf_pathpulse_head;
-	    vpiHandle iter = vpi_iterate(vpiModPath, entry->cell);
+	    vpiHandle iter = vpi_iterate(vpiModPath, sdf_cur_cell);
 	    vpiHandle path;
 	    int match_count = 0;
 
@@ -887,12 +977,12 @@ static void sdf_apply_pathpulse_annotations(void)
 		  vpiHandle path_out = vpi_handle(vpiExpr, path_t_out);
 		  int idx;
 
-		  if (entry->src) {
+		  if (src) {
 			vpiHandle path_t_in = vpi_handle(vpiModPathIn, path);
 			vpiHandle path_in = vpi_handle(vpiExpr, path_t_in);
 
-			if (strcmp(entry->src, vpi_get_str(vpiName, path_in)) != 0 ||
-			    strcmp(entry->dst, vpi_get_str(vpiName, path_out)) != 0)
+			if (strcmp(src, vpi_get_str(vpiName, path_in)) != 0 ||
+			    strcmp(dst, vpi_get_str(vpiName, path_out)) != 0)
 			      continue;
 		  }
 
@@ -906,14 +996,14 @@ static void sdf_apply_pathpulse_annotations(void)
 
 		  for (idx = 0 ; idx < 12 ; idx += 1) {
 			double delay = delay_vals[idx].real;
-			if (entry->reject.defined) {
-			      delay_vals[12+idx].real = entry->percent ?
-				    delay * entry->reject.value / 100.0 : entry->reject.value;
+			if (reject->defined) {
+			      delay_vals[12+idx].real = percent ?
+				    delay * reject->value / 100.0 : reject->value;
 			}
-			if (entry->error.defined) {
-			      delay_vals[24+idx].real = entry->percent ?
-				    delay * entry->error.value / 100.0 : entry->error.value;
-			} else if (entry->reject.defined) {
+			if (error->defined) {
+			      delay_vals[24+idx].real = percent ?
+				    delay * error->value / 100.0 : error->value;
+			} else if (reject->defined) {
 			      delay_vals[24+idx].real = delay_vals[12+idx].real;
 			}
 			delay_vals[idx].type = vpiScaledRealTime;
@@ -925,25 +1015,28 @@ static void sdf_apply_pathpulse_annotations(void)
 		  if (vpi_get(vpiSize, path_out) > 1) {
 			vpi_printf("SDF WARNING: %s:%d: PATHPULSE filtering for vector "
 			           "module-path outputs is not supported.\n",
-			           sdf_fname, entry->lineno);
+			           sdf_fname, sdf_lineno);
 		  }
 		  match_count += 1;
 	    }
 
 	    if (match_count == 0) {
 		  vpi_printf("SDF WARNING: %s:%d: Unable to match PATHPULSE%s%s%s%s in %s\n",
-		             sdf_fname, entry->lineno, entry->src ? " " : "",
-		             entry->src ? entry->src : "", entry->dst ? " " : "",
-		             entry->dst ? entry->dst : "",
-		             vpi_get_str(vpiFullName, entry->cell));
+		             sdf_fname, sdf_lineno, src ? " " : "",
+		             src ? src : "", dst ? " " : "", dst ? dst : "",
+		             vpi_get_str(vpiFullName, sdf_cur_cell));
 	    }
+}
 
-	    sdf_pathpulse_head = entry->next;
-	    if (sdf_pathpulse_head == NULL)
-		  sdf_pathpulse_tail = NULL;
-	    free(entry->src);
-	    free(entry->dst);
-	    free(entry);
+void sdf_pathpulse_delays(int percent, const char*src, const char*dst,
+                          const struct sdf_delay_s*reject,
+                          const struct sdf_delay_s*error,
+                          const int sdf_lineno)
+{
+      size_t idx;
+      for (idx = 0; idx < sdf_cell_count; idx += 1) {
+            sdf_cur_cell = sdf_cells[idx];
+            sdf_pathpulse_delays_one(percent, src, dst, reject, error, sdf_lineno);
       }
 }
 
@@ -1129,7 +1222,6 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       sdf_callh = callh;
       sdf_reset_timescale();
       sdf_process_file(sdf_fd, fname);
-      sdf_apply_pathpulse_annotations();
       sdf_clear_instance_selection();
       sdf_callh = 0;
 

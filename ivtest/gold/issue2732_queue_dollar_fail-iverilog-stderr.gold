@@ -1,0 +1,2 @@
+ivltests/issue2732_queue_dollar_fail.sv:5: error: `$' may only be used in a queue index or slice bound, where it is the last index.
+Elaboration failed

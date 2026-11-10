@@ -50,6 +50,11 @@ extern nettype_t* pform_test_nettype_identifier(PPackage*pkg,
 extern bool pform_in_compilation_unit_scope();
 extern bool pform_in_task_function_scope();
 
+/* Each token's ordinal, kept in the otherwise unused column fields, orders
+   tokens within a statement (the parser binds a queue index `$' to the
+   innermost brackets around it). */
+static int lexor_token_ordinal = 0;
+
 # define YY_USER_INIT do { reset_lexor(); yylloc.lexical_pos = 0; } while (0);
 # define YY_USER_ACTION do { \
       if (pending_source_close_token) { \
@@ -59,6 +64,7 @@ extern bool pform_in_task_function_scope();
             return token__; \
       } \
       apply_pending_source_location(); \
+      yylloc.first_column = yylloc.last_column = ++lexor_token_ordinal; \
 } while (0);
 # define yylval VLlval
 

@@ -1,3 +1,8 @@
+// `x == y` with conflicting guarded dist weights on x and y. Nonzero
+// weights "do not change the solution space and, therefore, cannot cause
+// the solver to fail" (IEEE 1800-2023 18.5.3; 1800-2017 18.5.4), so every
+// randomize() succeeds and satisfies the hard constraint; the solve-before
+// order still draws gate first (18.5.9).
 class guard_coupled_leaf;
   rand bit gate, x, y;
   int posts;
@@ -21,22 +26,21 @@ endclass
 
 module sv_joint_ordered_guard_coupled_reject;
   guard_coupled_root root;
-  string root_rng, child_rng;
+  int gates[2];
   initial begin
     root = new;
-    root.child.gate = 1;
-    root.child.x = 1;
-    root.child.y = 1;
     root.srandom(32'h47f1de);
     root.child.srandom(32'h47f1df);
-    root_rng = root.get_randstate();
-    child_rng = root.child.get_randstate();
-    if (root.randomize()) $fatal(1, "unproved coupled weights were sampled");
-    if (root.child.gate != 1 || root.child.x != 1 || root.child.y != 1 ||
-        root.posts != 0 || root.child.posts != 0 ||
-        root.get_randstate() != root_rng ||
-        root.child.get_randstate() != child_rng)
-      $fatal(1, "rejected coupled weights changed the transaction");
+    for (int i = 0; i < 200; i++) begin
+      if (!root.randomize()) $fatal(1, "randomize() failed at draw %0d", i);
+      if (root.child.x != root.child.y)
+        $fatal(1, "x == y violated at draw %0d", i);
+      gates[root.child.gate]++;
+    end
+    if (root.posts != 200 || root.child.posts != 200)
+      $fatal(1, "post_randomize counts %0d %0d", root.posts, root.child.posts);
+    if (gates[0] == 0 || gates[1] == 0)
+      $fatal(1, "gate never took both values: %0d %0d", gates[0], gates[1]);
     $display("PASSED");
   end
 endmodule

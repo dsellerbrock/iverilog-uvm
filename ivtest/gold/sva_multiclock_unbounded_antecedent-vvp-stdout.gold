@@ -1,0 +1,2 @@
+PASSED
+ivltests/sva_multiclock_unbounded_antecedent.sv:151: $finish called at 790 (1s)

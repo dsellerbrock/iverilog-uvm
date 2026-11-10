@@ -4328,6 +4328,19 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
        * target/runtime stream. */
       if (user_type && user_type->has_resolution_function())
             wtype = NetNet::WIRE;
+      /* An unpacked-struct value is object-backed and has no net form in
+       * the target, so a net of such a nettype is kept as a variable of the
+       * type. Its initial value is the type's default, member initializers
+       * included (IEEE 1800 6.7.3). Without a resolver it has at most one
+       * driver (6.6.7), which takes the struct-variable process path; with
+       * one, a process calls the resolver on all of its drivers. */
+      bool struct_udnt = false;
+      if (user_type && port_type_ == NetNet::NOT_A_PORT && unpacked_.empty()) {
+	    const netstruct_t*st = dynamic_cast<const netstruct_t*>(user_type->data_type());
+	    struct_udnt = st && !st->packed() && !st->union_flag();
+      }
+      if (struct_udnt)
+	    wtype = NetNet::REG;
 
       NetNet*sig = 0;
       bool sig_predeclared = false;
@@ -4636,6 +4649,8 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
             if (!user_type->has_resolution_function())
                   sig->attribute(perm_string::literal("_ivl_udnt_unresolved"),
                                  verinum("1"));
+            else if (struct_udnt && !sig_predeclared)
+                  note_resolved_struct_net(sig);
       }
       sig->set_virtual_interface(resolved_virtual_interface);
 

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2732_queue_dollar_fail.sv",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue2732_queue_dollar_fail"
+}
