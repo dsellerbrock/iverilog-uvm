@@ -4069,6 +4069,23 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
+	/* A specparam annotatable by SDF LABEL (IEEE 1800 32.4.3) keeps its
+	   run-time value in a hidden local variable named _ivl_sp_<name>,
+	   present only when the design calls $sdf_annotate. */
+      for (idx = 0 ; idx < ivl_scope_params(net) ; idx += 1) {
+	    ivl_parameter_t par = ivl_scope_param(net, idx);
+	    unsigned sdx;
+	    for (sdx = 0 ; sdx < ivl_scope_sigs(net) ; sdx += 1) {
+		  ivl_signal_t sig = ivl_scope_sig(net, sdx);
+		  const char*name = ivl_signal_basename(sig);
+		  if (ivl_signal_local(sig) && strncmp(name, "_ivl_sp_", 8) == 0
+		      && strcmp(name + 8, ivl_parameter_basename(par)) == 0) {
+			fprintf(vvp_out, "P_%p .param/storage v%p_0;\n", par, sig);
+			break;
+		  }
+	    }
+      }
+
 	/* Task/function formal declarations are VPI objects in their own
 	   right (IEEE 1800-2017/2023 37.13). Emit them after their same-named
 	   signal handles so hierarchical name lookup continues to find the
@@ -4109,6 +4126,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    ivl_switch_t sw = ivl_scope_switch(net, idx);
 	    draw_switch_in_scope(sw);
       }
+
+      draw_contassigns_in_scope(net);
 
 	/* A system-task call records the current scope when vvp reads its
 	   instruction. Emit a task's nested scopes before its body so a .scope

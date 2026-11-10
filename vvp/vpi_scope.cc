@@ -143,6 +143,7 @@ static void delete_sub_scopes(__vpiScope *scope)
 		  break;
 		case VPI_IODECL_TYPE:
 		case vpiParamAssign:
+		case vpiContAssign:
 		  delete item;
 		  break;
 		case vpiClassVar:

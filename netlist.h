@@ -647,7 +647,18 @@ struct NetTchk : public LineInfo {
       term_t ref, data;
       std::vector<NetNet*> limit_vars;
       std::vector<double> limits;	// declared values, scope time units
+	// With -gneg-tchk, the checker uses limit + shift (clamped at 0).
+      std::vector<double> shifts;
       NetNet*notifier = nullptr;
+};
+
+/* One token of a path delay expression in reverse Polish order: 'c' a
+   constant, 's' a specparam storage variable, or an operator '+', '-',
+   '*', '/', or 'n' (negation). */
+struct NetPathToken {
+      char kind;
+      double value;
+      const NetNet*sig;
 };
 
 class NetDelaySrc  : public NetObj {
@@ -693,6 +704,11 @@ class NetDelaySrc  : public NetObj {
       const Link&condit_pin() const;
 
       bool is_parallel() const;
+
+	// The delay expressions that use annotatable specparams, one per
+	// declared delay, so SDF LABEL can re-evaluate them (IEEE 1800
+	// 32.4.3). Empty when the delays are plain constants.
+      std::vector<std::vector<NetPathToken>> delay_exprs;
 
       void dump(std::ostream&, unsigned ind) const;
 
@@ -1408,6 +1424,14 @@ class NetScope : public Definitions, public Attrib {
       void add_event(NetEvent*);
 
       void add_tchk(NetTchk*tchk) { tchks_.push_back(tchk); }
+
+	/* The run-time value of an annotatable specparam (IEEE 1800
+	   32.4.3), present when the design calls $sdf_annotate. */
+      void specparam_storage(perm_string name, NetNet*net)
+	    { specparam_storage_[name] = net; }
+      NetNet* specparam_storage(perm_string name) const
+	    { auto cur = specparam_storage_.find(name);
+	      return cur == specparam_storage_.end() ? nullptr : cur->second; }
       const std::vector<NetTchk*>& tchks() const { return tchks_; }
       void rem_event(NetEvent*);
       NetEvent*find_event(perm_string name);
@@ -1831,6 +1855,19 @@ class NetScope : public Definitions, public Attrib {
       };
       std::map<perm_string,param_expr_t>parameters;
 
+	/* Continuous assignments of this scope, kept for VPI (IEEE 1800-2023
+	   37.47). The structural driver is identified by its device name,
+	   which survives optimization replacing the device (cprop keeps
+	   the name), and matched in the target. */
+      struct contassign_t : public LineInfo {
+	    NetExpr*lval;	// The l-value read as an expression, or nil
+	    NetExpr*rval;	// The r-value at the l-value width
+	    perm_string driver;	// Name of the driving device, or nil
+	    ivl_drive_t drive0, drive1;
+	    bool net_decl;
+      };
+      std::vector<contassign_t> contassigns;
+
 	/* The DLL target copies every parameter value while materializing its
 	 * corresponding scope. Release the elaborated, owned value/range trees
 	 * after that copy while leaving borrowed pform source expressions and
@@ -1910,6 +1947,7 @@ class NetScope : public Definitions, public Attrib {
 
       NetEvent *events_;
       std::vector<NetTchk*> tchks_;
+      std::map<perm_string,NetNet*> specparam_storage_;
 
       std::map<perm_string,LineInfo*> genvars_;
 

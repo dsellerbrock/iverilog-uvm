@@ -31242,6 +31242,8 @@ NetExpr* PEIdent::elaborate_expr_param_idx_do_(Design*des, NetScope*scope,
       return tmp;
 }
 
+bool elab_specparam_storage = false;
+
 NetExpr* PEIdent::elaborate_expr_param_or_specparam_(Design*des,
 						     NetScope*scope,
 						     const NetExpr*par,
@@ -31261,6 +31263,15 @@ NetExpr* PEIdent::elaborate_expr_param_or_specparam_(Design*des,
                   des->errors += 1;
                   return 0;
             }
+      }
+
+      if (elab_specparam_storage && !need_const
+	  && path_.back().index.empty()) {
+	    if (NetNet*storage = found_in->specparam_storage(peek_tail_name(path_))) {
+		  NetESignal*sig = new NetESignal(storage);
+		  sig->set_line(*this);
+		  return sig;
+	    }
       }
 
       return elaborate_expr_param_(des, scope, par, found_in, par_type,
