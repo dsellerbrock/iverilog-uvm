@@ -1,0 +1,8 @@
+a1 (if en, en only at 25): 25
+a2 (every edge): 5 15 25 35 45 55 65 75
+a3 (disabled while pending): 0
+a4 (initial): 1
+a5 (queued between edges): 1
+a6 (matured, then Off before its edge): 0
+a7 (matured, then Kill before its edge): 0
+ivltests/sva_proc_queue.sv:58: $finish called at 80 (1s)
