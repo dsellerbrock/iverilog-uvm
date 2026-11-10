@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_assertcontrol.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_assertcontrol"],
+  "gold": "sva_assertcontrol"
+}

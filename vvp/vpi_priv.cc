@@ -419,7 +419,6 @@ static int vpip_get_global(int property)
 
 	  default:
 	    fprintf(stderr, "vpi error: bad global property: %d\n", property);
-	    assert(0);
 	    return vpiUndefined;
       }
 }
@@ -3096,9 +3095,8 @@ vpip_routines_s vpi_routines = {
     .assertion_report_all       = vpip_assertion_report_all,
     .object_urandom             = vpip_object_urandom,
     .print_stacktrace           = vpip_print_stacktrace,
-    .cancel_deferred_asserts    = vpip_cancel_deferred_asserts,
-    .deferred_assertion_enabled = vpip_deferred_assertion_enabled,
-    .set_deferred_assertions_enabled = vpip_set_deferred_assertions_enabled,
+    .assertion_control          = vpip_assertion_control,
+    .assertion_state            = vpip_assertion_state,
     .register_immediate_cover   = vpip_register_immediate_cover,
     .report_immediate_cover    = vpip_report_immediate_cover,
     .report_immediate_assertion = vpip_report_immediate_assertion,
