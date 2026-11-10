@@ -87,6 +87,12 @@ static PLI_INT32 probe_calltf(PLI_BYTE8*ud)
 	     && vpi_get(vpiStrength1, assign_out) == vpiWeakDrive, "out strengths");
       expect(!strcmp(full_name(vpi_handle(vpiParent, assign_out)), "top"), "out parent");
       expect(vpi_get(vpiLineNo, assign_out) == 9, "out line");
+      {
+	    const char*file = vpi_get_str(vpiFile, assign_out);
+	    const char*tail = "issue1310_vpi_contassign.v";
+	    expect(file && strlen(file) >= strlen(tail)
+		   && !strcmp(file + strlen(file) - strlen(tail), tail), "out file");
+      }
 
       vpiHandle rhs = vpi_handle(vpiRhs, assign_sum);
       vpi_printf("sum: lhs=%s rhs type=%d op=%d str0=%d decl=%d\n",

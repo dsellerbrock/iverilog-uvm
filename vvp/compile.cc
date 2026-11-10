@@ -1252,11 +1252,12 @@ struct contassign_driver_resolv_s : public resolv_list_s {
 };
 
 void compile_vpi_contassign(char*label, long flags, long str0, long str1,
-			    long lineno, char*file, char*driver,
+			    long file_idx, long lineno, char*driver,
 			    unsigned argc, vpiHandle*argv)
 {
       vpiHandle obj = vpip_make_contassign((int)flags, (int)str0, (int)str1,
-					   (unsigned)lineno, file, argc, argv);
+					   (unsigned)file_idx, (unsigned)lineno,
+					   argc, argv);
       if (obj && driver[0])
 	    resolv_submit(new contassign_driver_resolv_s(driver, obj));
       else

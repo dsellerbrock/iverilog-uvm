@@ -96,11 +96,11 @@ class contassign_tap_fil : public vvp_net_fil_t {
 
 class __vpiContAssign : public __vpiHandle {
     public:
-      __vpiContAssign(int flags, int str0, int str1, unsigned lineno,
-		      char*file, unsigned argc, vpiHandle*argv)
+      __vpiContAssign(int flags, int str0, int str1, unsigned file_idx,
+		      unsigned lineno, unsigned argc, vpiHandle*argv)
       : scope_(vpip_peek_current_scope()), argc_(argc), argv_(argv),
 	driver_(0), tap_(0), flags_(flags), str0_(str0), str1_(str1),
-	lineno_(lineno), file_(file) { }
+	file_idx_(file_idx), lineno_(lineno) { }
 
       int get_type_code(void) const override { return vpiContAssign; }
       int vpi_get(int code) override;
@@ -121,8 +121,7 @@ class __vpiContAssign : public __vpiHandle {
       vvp_net_t*driver_;
       contassign_tap_fil*tap_;
       int flags_, str0_, str1_;
-      unsigned lineno_;
-      char*file_;
+      unsigned file_idx_, lineno_;
 };
 
 int __vpiContAssign::vpi_get(int code)
@@ -147,8 +146,8 @@ int __vpiContAssign::vpi_get(int code)
 
 char* __vpiContAssign::vpi_get_str(int code)
 {
-      if (code == vpiFile)
-	    return simple_set_rbuf_str(file_);
+      if (code == vpiFile && file_idx_ < file_names.size())
+	    return simple_set_rbuf_str(file_names[file_idx_]);
       return 0;
 }
 
@@ -216,15 +215,14 @@ void vpip_contassign_set_driver(vpiHandle ref, vvp_net_t*net)
 }
 
 vpiHandle vpip_make_contassign(int flags, int str0, int str1,
-			       unsigned lineno, char*file,
+			       unsigned file_idx, unsigned lineno,
 			       unsigned argc, vpiHandle*argv)
 {
       if (argc == 0) {
 	    free(argv);
-	    free(file);
 	    return 0;
       }
-      vpiHandle obj = new __vpiContAssign(flags, str0, str1, lineno, file,
+      vpiHandle obj = new __vpiContAssign(flags, str0, str1, file_idx, lineno,
 					  argc, argv);
       vpip_attach_to_current_scope(obj);
       return obj;

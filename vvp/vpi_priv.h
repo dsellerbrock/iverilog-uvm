@@ -473,7 +473,7 @@ extern void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj);
 extern void vpip_attach_to_current_scope(vpiHandle obj);
 /* Continuous assignment objects (IEEE 1800-2023 37.47). */
 extern vpiHandle vpip_make_contassign(int flags, int str0, int str1,
-				      unsigned lineno, char*file,
+				      unsigned file_idx, unsigned lineno,
 				      unsigned argc, vpiHandle*argv);
 extern void vpip_contassign_set_driver(vpiHandle ref, vvp_net_t*net);
 extern bool vpip_contassign_add_callback(vpiHandle ref,

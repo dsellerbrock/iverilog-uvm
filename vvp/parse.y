@@ -827,10 +827,10 @@ statement
 
   /* A continuous assignment object (IEEE 1800-2023 37.47): flags (1 net
      declaration assignment, 2 has an l-value handle), vpiStrength0,
-     vpiStrength1, vpiLineNo, vpiFile, driver functor label ("" for none),
-     then the l-value handle (if any) and the r-value handle. */
+     vpiStrength1, file index, vpiLineNo, driver functor label ("" for
+     none), then the l-value handle (if any) and the r-value handle. */
 	| T_LABEL K_VPI_CONTASSIGN T_NUMBER ',' T_NUMBER ',' T_NUMBER ','
-	  T_NUMBER ',' T_STRING ',' T_STRING argument_opt ';'
+	  T_NUMBER ',' T_NUMBER ',' T_STRING argument_opt ';'
 		{ compile_vpi_contassign($1, $3, $5, $7, $9, $11, $13,
 					 $14.argc, $14.argv); }
 

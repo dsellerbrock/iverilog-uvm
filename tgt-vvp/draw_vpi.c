@@ -562,13 +562,13 @@ void draw_contassigns_in_scope(ivl_scope_t scope)
 	    char*drv = rhs ? contassign_driver_label_(scope,
 				ivl_contassign_driver(ca)) : 0;
 	    if (rhs) {
-		  fprintf(vvp_out, "CA_%u .vpi_contassign %d, %d, %d, %u, "
-			  "\"%s\", \"%s\"", contassign_count_++,
+		  fprintf(vvp_out, "CA_%u .vpi_contassign %d, %d, %d, %u, %u, "
+			  "\"%s\"", contassign_count_++,
 			  (ivl_contassign_net_decl(ca) ? 1 : 0) | (lhs ? 2 : 0),
 			  1 << ivl_contassign_drive0(ca),
 			  1 << ivl_contassign_drive1(ca),
-			  ivl_contassign_lineno(ca), ivl_contassign_file(ca),
-			  drv ? drv : "");
+			  ivl_file_table_index(ivl_contassign_file(ca)),
+			  ivl_contassign_lineno(ca), drv ? drv : "");
 		  if (lhs) fprintf(vvp_out, ", %s", lhs);
 		  fprintf(vvp_out, ", %s;\n", rhs);
 	    }
