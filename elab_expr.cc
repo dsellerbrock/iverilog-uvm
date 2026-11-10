@@ -24835,6 +24835,24 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 			      }
 			      if (fixed
 				  && fixed->static_dimensions().size() > 1) {
+				    netranges_t remaining(
+					  fixed->static_dimensions().begin() + 1,
+					  fixed->static_dimensions().end());
+				    netuarray_t source_suffix(
+					  remaining, fixed->element_type());
+				    if (!unpacked_concat_value_type_matches_(
+					  elem_type, &source_suffix)) {
+					  cerr << parms_[idx]->get_fileline()
+					       << ": error: fixed unpacked array "
+					          "concatenation operand has elements "
+					          "incompatible with the destination queue "
+					          "element (IEEE 1800-2017/2023 10.10)."
+					       << endl;
+					  des->errors += 1;
+					  for (size_t prev = 0; prev < idx; prev += 1)
+						delete elem_exprs[prev];
+					  return nullptr;
+				    }
 				    want_type = ntype;
 				    item_flags |= PExpr::CONTAINER_SPLICE_ARG;
 			      }
