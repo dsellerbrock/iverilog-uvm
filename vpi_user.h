@@ -323,6 +323,7 @@ typedef struct t_vpi_delay  {
 #define vpiOperation   39 /* behavioral operation */
 #define vpiNettypeDecl 523
 #define vpiParamAssign 40 /* parameter assignment */
+#define vpiDefParam    10 /* defparam */
 #define vpiParameter   41
 #define vpiPartSelect  42
 #define vpiIndexedPartSelect 130

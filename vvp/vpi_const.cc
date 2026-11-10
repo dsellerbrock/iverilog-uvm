@@ -28,7 +28,12 @@
 # include  <cstring>
 # include  <climits>
 # include  <cassert>
+# include  <list>
+# include  <map>
 # include  "ivl_alloc.h"
+
+/* vpiExpr of a value parameter (IEEE 1800-2023 37.28 detail 3). */
+static vpiHandle param_default_(vpiHandle param);
 
 class __vpiStringConst : public __vpiHandle {
     public:
@@ -332,6 +337,9 @@ char*__vpiStringParam::vpi_get_str(int code)
 vpiHandle __vpiStringParam::vpi_handle(int code)
 {
       switch (code) {
+	  case vpiExpr:
+	    return param_default_(this);
+
 	  case vpiScope:
 	    return scope_;
 
@@ -540,6 +548,9 @@ char*__vpiBinaryParam::vpi_get_str(int code)
 vpiHandle __vpiBinaryParam::vpi_handle(int code)
 {
       switch (code) {
+	  case vpiExpr:
+	    return param_default_(this);
+
 	  case vpiScope:
 	    return scope_;
 
@@ -771,6 +782,9 @@ char* __vpiRealParam::vpi_get_str(int code)
 vpiHandle __vpiRealParam::vpi_handle(int code)
 {
       switch (code) {
+	  case vpiExpr:
+	    return param_default_(this);
+
           case vpiScope:
             return scope_;
 
@@ -950,3 +964,53 @@ void parameter_delete(vpiHandle item)
       }
 }
 #endif
+
+/*
+ * Default expressions of value parameters (37.28 detail 3). A parameter
+ * with a .vpi_param_expr record gets that expression. Any other value
+ * parameter has a plain constant default equal to its value, built on
+ * first request.
+ */
+struct param_default_s {
+      vpiHandle param;
+      unsigned argc;
+      vpiHandle*argv;
+};
+static std::list<param_default_s> param_defaults_;
+static std::map<vpiHandle,vpiHandle> param_default_consts_;
+
+void compile_vpi_param_expr(char*label, unsigned argc, vpiHandle*argv)
+{
+      param_defaults_.push_back(param_default_s());
+      param_default_s&cur = param_defaults_.back();
+      cur.param = 0;
+      cur.argc = argc;
+      cur.argv = argv;
+      compile_vpi_lookup(&cur.param, label);
+}
+
+static vpiHandle param_default_(vpiHandle param)
+{
+      for (const param_default_s&cur : param_defaults_)
+	    if (cur.param == param && cur.argc)
+		  return cur.argv[cur.argc-1];
+
+      vpiHandle&made = param_default_consts_[param];
+      if (made)
+	    return made;
+      if (__vpiBinaryParam*bp = dynamic_cast<__vpiBinaryParam*>(param)) {
+	    __vpiBinaryConst*obj = new __vpiBinaryConst;
+	    obj->bits = bp->bits;
+	    obj->signed_flag = bp->signed_flag;
+	    obj->sized_flag = 1;
+	    made = obj;
+      } else if (__vpiRealParam*rp = dynamic_cast<__vpiRealParam*>(param)) {
+	    made = new __vpiRealConst(rp->value);
+      } else {
+	    s_vpi_value val;
+	    val.format = vpiStringVal;
+	    param->vpi_get_value(&val);
+	    made = new __vpiStringConst(strdup(val.value.str));
+      }
+      return made;
+}

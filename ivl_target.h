@@ -205,6 +205,7 @@ typedef struct ivl_signal_s   *ivl_signal_t;
 typedef struct ivl_port_info_s*ivl_port_info_t;
 typedef struct ivl_switch_s   *ivl_switch_t;
 typedef struct ivl_contassign_s*ivl_contassign_t;
+typedef struct ivl_defparam_s*ivl_defparam_t;
 typedef struct ivl_tchk_s     *ivl_tchk_t;
 typedef struct ivl_memory_s   *ivl_memory_t; //XXXX __attribute__((deprecated));
 typedef struct ivl_statement_s*ivl_statement_t;
@@ -1903,6 +1904,12 @@ extern ivl_signal_t ivl_nexus_ptr_sig(ivl_nexus_ptr_t net);
  *    Return the separately elaborated RHS of an explicit value parameter
  *    assignment, or NULL if the parameter was not explicitly assigned.
  *
+ * ivl_parameter_default_expr
+ *    The declaration's default expression, elaborated in the declaring
+ *    scope without folding (IEEE 1800-2023 37.28 detail 3). NULL when
+ *    the default is the plain constant the parameter's value already
+ *    is, or when it cannot be described.
+ *
  * ivl_parameter_msb
  * ivl_parameter_lsb
  *    Returns the MSB and LSB for the parameter. For a parameter without
@@ -1930,6 +1937,7 @@ extern const char* ivl_parameter_basename(ivl_parameter_t net);
 extern ivl_scope_t ivl_parameter_scope(ivl_parameter_t net);
 extern ivl_expr_t  ivl_parameter_expr(ivl_parameter_t net);
 extern ivl_expr_t  ivl_parameter_assign_expr(ivl_parameter_t net);
+extern ivl_expr_t  ivl_parameter_default_expr(ivl_parameter_t net);
 extern int         ivl_parameter_msb(ivl_parameter_t net);
 extern int         ivl_parameter_lsb(ivl_parameter_t net);
 extern unsigned    ivl_parameter_width(ivl_parameter_t net);
@@ -2227,6 +2235,21 @@ extern ivl_drive_t      ivl_contassign_drive1(ivl_contassign_t net);
 extern int              ivl_contassign_net_decl(ivl_contassign_t net);
 extern const char*      ivl_contassign_file(ivl_contassign_t net);
 extern unsigned         ivl_contassign_lineno(ivl_contassign_t net);
+
+/* DEFPARAMS (IEEE 1800-2023 37.28)
+ *
+ * ivl_scope_defparams
+ * ivl_scope_defparam
+ *    The defparam statements of a scope, once resolved: each names the
+ *    parameter it assigns (ivl_defparam_parameter) and the r-value as
+ *    elaborated in this scope (ivl_defparam_rhs).
+ */
+extern unsigned        ivl_scope_defparams(ivl_scope_t net);
+extern ivl_defparam_t  ivl_scope_defparam(ivl_scope_t net, unsigned idx);
+extern ivl_parameter_t ivl_defparam_parameter(ivl_defparam_t net);
+extern ivl_expr_t      ivl_defparam_rhs(ivl_defparam_t net);
+extern const char*     ivl_defparam_file(ivl_defparam_t net);
+extern unsigned        ivl_defparam_lineno(ivl_defparam_t net);
 
 extern unsigned     ivl_scope_switches(ivl_scope_t net);
 extern ivl_switch_t ivl_scope_switch(ivl_scope_t net, unsigned idx);

@@ -811,6 +811,12 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 	    cur_par->basename = cur_pit->first;
 	    cur_par->value = 0;
 	    cur_par->assign_expr = 0;
+	      /* The default's tree is translated once every scope exists
+		 (make_scope_contassigns_); take it before the parameters
+		 are released. */
+	    cur_par->default_expr = 0;
+	    cur_par->default_net = cur_pit->second.default_net;
+	    const_cast<NetScope::param_expr_t&>(cur_pit->second).default_net = 0;
 	    cur_par->local = cur_pit->second.local_flag ||
 			     !cur_pit->second.overridable;
 	    cur_par->is_type = cur_pit->second.type_flag;
@@ -1287,6 +1293,38 @@ void dll_target::make_scope_contassigns_(ivl_scope_t scope)
 		  list->push_back(obj);
 	    }
 	    scope->ensure_aux_()->contassigns = list;
+      }
+	/* Parameter defaults and defparam r-values (37.28). */
+      if (scope->aux_ && scope->aux_->param)
+	    for (ivl_parameter_s&par : *scope->aux_->param) {
+		  if (!par.default_net) continue;
+		  assert(expr_ == 0);
+		  par.default_net->expr_scan(this);
+		  par.default_expr = expr_;
+		  expr_ = 0;
+		  par.default_net = 0;
+	    }
+      if (net && !net->defparams_kept.empty()) {
+	    std::vector<ivl_defparam_s>*list = new std::vector<ivl_defparam_s>;
+	    for (const NetScope::defparam_t&cur : net->defparams_kept) {
+		  ivl_scope_t target = find_scope(des_, cur.target);
+		  ivl_parameter_t par = target
+			? scope_find_param(target, cur.name.str()) : 0;
+		  if (!par || !cur.rhs_net) continue;
+		  ivl_defparam_s obj;
+		  assert(expr_ == 0);
+		  cur.rhs_net->expr_scan(this);
+		  obj.rhs = expr_;
+		  expr_ = 0;
+		  obj.param = par;
+		  obj.file = cur.get_file();
+		  obj.lineno = cur.get_lineno();
+		  list->push_back(obj);
+	    }
+	    if (list->empty())
+		  delete list;
+	    else
+		  scope->ensure_aux_()->defparams = list;
       }
       for (unsigned idx = 0; idx < scope->child_count_; idx += 1)
 	    make_scope_contassigns_(scope->child[idx]);

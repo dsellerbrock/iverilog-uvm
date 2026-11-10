@@ -2470,6 +2470,12 @@ extern "C" ivl_expr_t ivl_parameter_assign_expr(ivl_parameter_t net)
       return net->assign_expr;
 }
 
+extern "C" ivl_expr_t ivl_parameter_default_expr(ivl_parameter_t net)
+{
+      assert(net);
+      return net->default_expr;
+}
+
 extern "C" const char* ivl_parameter_file(ivl_parameter_t net)
 {
       assert(net);
@@ -3268,6 +3274,44 @@ extern "C" ivl_signal_t ivl_tchk_notifier(ivl_tchk_t net)
 {
       assert(net);
       return net->notifier;
+}
+
+extern "C" unsigned ivl_scope_defparams(ivl_scope_t net)
+{
+      assert(net);
+      return net->aux_ && net->aux_->defparams
+	   ? net->aux_->defparams->size() : 0;
+}
+
+extern "C" ivl_defparam_t ivl_scope_defparam(ivl_scope_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < ivl_scope_defparams(net));
+      return &(*net->aux_->defparams)[idx];
+}
+
+extern "C" ivl_parameter_t ivl_defparam_parameter(ivl_defparam_t net)
+{
+      assert(net);
+      return net->param;
+}
+
+extern "C" ivl_expr_t ivl_defparam_rhs(ivl_defparam_t net)
+{
+      assert(net);
+      return net->rhs;
+}
+
+extern "C" const char* ivl_defparam_file(ivl_defparam_t net)
+{
+      assert(net);
+      return net->file.str();
+}
+
+extern "C" unsigned ivl_defparam_lineno(ivl_defparam_t net)
+{
+      assert(net);
+      return net->lineno;
 }
 
 extern "C" unsigned ivl_scope_contassigns(ivl_scope_t net)

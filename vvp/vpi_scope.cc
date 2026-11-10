@@ -144,6 +144,7 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case VPI_IODECL_TYPE:
 		case vpiParamAssign:
 		case vpiContAssign:
+		case vpiDefParam:
 		  delete item;
 		  break;
 		case vpiClassVar:
@@ -848,6 +849,56 @@ class __vpiParamAssign : public __vpiHandle {
       vpiHandle lhs_;
       vpiHandle rhs_;
 };
+
+/* A def param object (IEEE 1800-2023 37.28): the defparam statement of
+   this scope, with the parameter it assigns and its r-value. */
+class __vpiDefParam : public __vpiHandle {
+    public:
+      __vpiDefParam(__vpiScope*scope, unsigned file_idx, unsigned lineno,
+		    unsigned argc, vpiHandle*argv)
+      : scope_(scope), param_(0), file_idx_(file_idx), lineno_(lineno),
+	argc_(argc), argv_(argv) { }
+      int get_type_code(void) const override { return vpiDefParam; }
+      int vpi_get(int code) override
+      {
+	    return code == vpiLineNo ? (int)lineno_ : vpiUndefined;
+      }
+      char*vpi_get_str(int code) override
+      {
+	    if (code == vpiFile && file_idx_ < file_names.size())
+		  return simple_set_rbuf_str(file_names[file_idx_]);
+	    return 0;
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    switch (code) {
+		case vpiLhs: return param_;
+		case vpiRhs: return argc_ ? argv_[argc_-1] : 0;
+		case vpiParent:
+		case vpiScope:
+		case vpiModule: return scope_;
+		default: return 0;
+	    }
+      }
+
+      __vpiScope*scope_;
+	/* Resolved after construction, in place. */
+      vpiHandle param_;
+    private:
+      unsigned file_idx_, lineno_;
+      unsigned argc_;
+      vpiHandle*argv_;
+};
+
+void compile_vpi_defparam(char*param, long file_idx, long lineno,
+			  unsigned argc, vpiHandle*argv)
+{
+      __vpiDefParam*obj = new __vpiDefParam(vpip_peek_current_scope(),
+					    (unsigned)file_idx,
+					    (unsigned)lineno, argc, argv);
+      compile_vpi_lookup(&obj->param_, param);
+      vpip_attach_to_current_scope(obj);
+}
 
 vpiHandle vpip_make_param_assign(__vpiScope*scope, vpiHandle lhs,
 				 vpiHandle rhs)

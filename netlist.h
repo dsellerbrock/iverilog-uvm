@@ -1788,6 +1788,10 @@ class NetScope : public Definitions, public Attrib {
 	    // declaration inside an interface from one outside it, including a
 	    // defparam that targets a parameter deeper in the interface hierarchy.
 	    std::set<const NetScope*> defparam_source_scopes;
+	    // The declaration's own default, never replaced by an override,
+	    // and its tree elaborated for VPI (IEEE 1800-2023 37.28 detail 3).
+	    PExpr*default_expr = nullptr;
+	    NetExpr*default_net = nullptr;
 	    // Is it a type parameter
 	    bool type_flag = false;
 	    // Is it an unpacked array parameter (elements stored as "name[i]")
@@ -1843,6 +1847,20 @@ class NetScope : public Definitions, public Attrib {
 	    bool net_decl;
       };
       std::vector<contassign_t> contassigns;
+
+	/* Defparam statements of this scope once resolved, kept for VPI
+	   (37.28): the target parameter and the r-value elaborated here. */
+      struct defparam_t : public LineInfo {
+	    NetScope*target;
+	    perm_string name;
+	    PExpr*rhs;
+	    NetExpr*rhs_net;
+      };
+      std::vector<defparam_t> defparams_kept;
+
+	/* Elaborate the expressions VPI keeps for parameters and defparams
+	   in this scope and its children, once parameters are final. */
+      void elaborate_vpi_parameter_exprs(Design*des);
 
 	/* The DLL target copies every parameter value while materializing its
 	 * corresponding scope. Release the elaborated, owned value/range trees

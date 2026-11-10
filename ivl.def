@@ -35,6 +35,11 @@ ivl_contassign_lval
 ivl_contassign_net_decl
 ivl_contassign_rval
 
+ivl_defparam_file
+ivl_defparam_lineno
+ivl_defparam_parameter
+ivl_defparam_rhs
+
 ivl_discipline_domain
 ivl_discipline_flow
 ivl_discipline_name
@@ -224,6 +229,7 @@ ivl_nexus_ptr_sig
 ivl_nexus_ptr_switch
 
 ivl_parameter_assign_expr
+ivl_parameter_default_expr
 ivl_parameter_basename
 ivl_parameter_expr
 ivl_parameter_file
@@ -321,6 +327,8 @@ ivl_scope_sigs
 ivl_scope_sig
 ivl_scope_contassign
 ivl_scope_contassigns
+ivl_scope_defparam
+ivl_scope_defparams
 ivl_scope_switch
 ivl_scope_switches
 ivl_scope_time_precision
