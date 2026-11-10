@@ -1028,6 +1028,23 @@ void vpip_vec4_get_value(const vvp_vector4_t&word_val, unsigned width,
 		break;
 	  }
 
+	  case vpiTimeVal: {
+		uint32_t low = 0;
+		uint32_t high = 0;
+		for (unsigned idx = 0; idx < width && idx < 64; idx += 1) {
+		      if (word_val.value(idx) != BIT4_1)
+			    continue;
+		      if (idx < 32)
+			    low |= uint32_t(1) << idx;
+		      else
+			    high |= uint32_t(1) << (idx - 32);
+		}
+		vp->value.time->type = vpiSimTime;
+		vp->value.time->high = high;
+		vp->value.time->low = low;
+		break;
+	  }
+
 	  case vpiObjTypeVal:
 	    // Use the following case to actually set the value!
 	    vp->format = vpiVectorVal;
