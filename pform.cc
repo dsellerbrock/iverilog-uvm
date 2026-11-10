@@ -36,6 +36,7 @@
 # include  "PTask.h"
 # include  "Statement.h"
 # include  "PTimingCheck.h"
+# include  "netmisc.h"
 # include  "vpi_user.h"
 # include  "netvector.h"
 # include  "pform_sva_nfa.h"
@@ -16358,7 +16359,15 @@ void PWidth::elaborate(Design*des, NetScope*scope) const
       /* Resolve the packed shape here, after parameter and instance
 	 overrides are known. Each bit gets its own edge event and timestamp. */
       PEIdent*signal_id = tc_name_id_(loc, event_->name);
-      NetNet*signal = signal_id->elaborate_lnet(des, scope, true);
+      symbol_search_results signal_search;
+      symbol_search(signal_id, des, scope, signal_id->path(),
+		    signal_id->lexical_pos(), &signal_search);
+      NetNet*signal = signal_search.net;
+      if (!signal) {
+	    // Preserve normal l-value diagnostics for invalid timing-check
+	    // terminals, but don't register a continuous driver for valid ones.
+	    signal = signal_id->elaborate_lnet(des, scope, true);
+      }
       delete signal_id;
       if (signal == nullptr) return;
 
