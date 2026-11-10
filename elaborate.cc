@@ -5197,6 +5197,28 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       if (rise_time || fall_time || decay_time)
 	    rval->pin(0).drivers_delays(rise_time, fall_time, decay_time);
 
+	/* Keep the assignment for VPI (IEEE 1800-2023 37.47). Its driver is
+	   the device on the r-value side, found before the l-value joins
+	   the nexus. A part-select or concatenation l-value is a local net
+	   and has no expression handle yet. */
+      NetScope::contassign_t contassign;
+      contassign.set_line(*this);
+      contassign.lval = lval->local_flag() ? 0 : new NetESignal(lval);
+	/* Synthesis leaves the expression intact; the record keeps it. */
+      contassign.rval = rval_expr;
+      for (const Link*cur = rval->pin(0).nexus()->first_nlink()
+		 ; cur ; cur = cur->next_nlink()) {
+	    const NetNode*node = dynamic_cast<const NetNode*>(cur->get_obj());
+	    if (node && cur->get_dir() == Link::OUTPUT) {
+		  contassign.driver = node->name();
+		  break;
+	    }
+      }
+      contassign.drive0 = drive0;
+      contassign.drive1 = drive1;
+      contassign.net_decl = net_decl_assign;
+      scope->contassigns.push_back(contassign);
+
       connect(lval->pin(0), rval->pin(0));
 
       if (lval->local_flag())

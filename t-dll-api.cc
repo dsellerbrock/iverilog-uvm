@@ -3300,6 +3300,68 @@ extern "C" ivl_signal_t ivl_tchk_notifier(ivl_tchk_t net)
       return net->notifier;
 }
 
+extern "C" unsigned ivl_scope_contassigns(ivl_scope_t net)
+{
+      assert(net);
+      return net->aux_ && net->aux_->contassigns
+	   ? net->aux_->contassigns->size() : 0;
+}
+
+extern "C" ivl_contassign_t ivl_scope_contassign(ivl_scope_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < ivl_scope_contassigns(net));
+      return &(*net->aux_->contassigns)[idx];
+}
+
+extern "C" ivl_expr_t ivl_contassign_lval(ivl_contassign_t net)
+{
+      assert(net);
+      return net->lval;
+}
+
+extern "C" ivl_expr_t ivl_contassign_rval(ivl_contassign_t net)
+{
+      assert(net);
+      return net->rval;
+}
+
+extern "C" const char* ivl_contassign_driver(ivl_contassign_t net)
+{
+      assert(net);
+      return net->driver.nil() ? 0 : net->driver.str();
+}
+
+extern "C" ivl_drive_t ivl_contassign_drive0(ivl_contassign_t net)
+{
+      assert(net);
+      return net->drive0;
+}
+
+extern "C" ivl_drive_t ivl_contassign_drive1(ivl_contassign_t net)
+{
+      assert(net);
+      return net->drive1;
+}
+
+extern "C" int ivl_contassign_net_decl(ivl_contassign_t net)
+{
+      assert(net);
+      return net->net_decl;
+}
+
+extern "C" const char* ivl_contassign_file(ivl_contassign_t net)
+{
+      assert(net);
+      return net->file.str();
+}
+
+extern "C" unsigned ivl_contassign_lineno(ivl_contassign_t net)
+{
+      assert(net);
+      return net->lineno;
+}
+
 extern "C" unsigned ivl_scope_switches(ivl_scope_t net)
 {
       assert(net);

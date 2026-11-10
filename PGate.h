@@ -190,6 +190,9 @@ class PGAssign  : public PGate {
       void dump(std::ostream&out, unsigned ind =4) const override;
       virtual void elaborate(Design*des, NetScope*scope) const override;
 
+	// True for a net declaration assignment (vpiNetDeclAssign, 37.47).
+      bool net_decl_assign = false;
+
     private:
       void elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval,
 				     NetExpr*rise_time = 0,

@@ -6008,6 +6008,7 @@ void pform_make_nettype_wires(const struct vlltype&li,
                   FILE_NAME(lval, li);
                   PGAssign*ass = pform_make_pgassign(lval, expr, delay, str);
                   FILE_NAME(ass, li);
+                  ass->net_decl_assign = true;
             }
             pform_nettype_member_defaults_(li, nettype, decl);
             delete decl;
@@ -6627,6 +6628,7 @@ void pform_makewire(const struct vlltype&li,
 		        FILE_NAME(lval, li);
 		        PGAssign*ass = pform_make_pgassign(lval, expr, delay, str);
 		        FILE_NAME(ass, li);
+		        ass->net_decl_assign = true;
                   }
             }
 	    delete first;

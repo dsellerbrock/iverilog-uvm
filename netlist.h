@@ -1855,6 +1855,19 @@ class NetScope : public Definitions, public Attrib {
       };
       std::map<perm_string,param_expr_t>parameters;
 
+	/* Continuous assignments of this scope, kept for VPI (IEEE 1800-2023
+	   37.47). The structural driver is identified by its device name,
+	   which survives optimization replacing the device (cprop keeps
+	   the name), and matched in the target. */
+      struct contassign_t : public LineInfo {
+	    NetExpr*lval;	// The l-value read as an expression, or nil
+	    NetExpr*rval;	// The r-value at the l-value width
+	    perm_string driver;	// Name of the driving device, or nil
+	    ivl_drive_t drive0, drive1;
+	    bool net_decl;
+      };
+      std::vector<contassign_t> contassigns;
+
 	/* The DLL target copies every parameter value while materializing its
 	 * corresponding scope. Release the elaborated, owned value/range trees
 	 * after that copy while leaving borrowed pform source expressions and

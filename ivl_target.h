@@ -204,6 +204,7 @@ typedef struct ivl_scope_s    *ivl_scope_t;
 typedef struct ivl_signal_s   *ivl_signal_t;
 typedef struct ivl_port_info_s*ivl_port_info_t;
 typedef struct ivl_switch_s   *ivl_switch_t;
+typedef struct ivl_contassign_s*ivl_contassign_t;
 typedef struct ivl_tchk_s     *ivl_tchk_t;
 typedef struct ivl_memory_s   *ivl_memory_t; //XXXX __attribute__((deprecated));
 typedef struct ivl_statement_s*ivl_statement_t;
@@ -2203,6 +2204,43 @@ extern double       ivl_tchk_limit(ivl_tchk_t net, unsigned idx);
      clamped at 0; the shift is 0 otherwise. */
 extern double       ivl_tchk_limit_shift(ivl_tchk_t net, unsigned idx);
 extern ivl_signal_t ivl_tchk_notifier(ivl_tchk_t net);
+
+/* CONTINUOUS ASSIGNMENTS (IEEE 1800-2023 37.47)
+ *
+ * ivl_scope_contassigns
+ * ivl_scope_contassign
+ *    The continuous assignments elaborated in a scope. They are kept
+ *    only so that targets can expose them as objects; the structural
+ *    netlist already carries their behavior.
+ *
+ * ivl_contassign_lval
+ *    The l-value read as an expression, or nil when the l-value is not
+ *    a whole net.
+ *
+ * ivl_contassign_rval
+ *    The r-value expression, at the width of the l-value.
+ *
+ * ivl_contassign_driver
+ *    The basename of the logic device or LPM in the same scope that
+ *    drives the l-value, or nil when there is none (a constant).
+ *
+ * ivl_contassign_drive0
+ * ivl_contassign_drive1
+ *    The drive strengths of the assignment.
+ *
+ * ivl_contassign_net_decl
+ *    True for a net declaration assignment.
+ */
+extern unsigned         ivl_scope_contassigns(ivl_scope_t net);
+extern ivl_contassign_t ivl_scope_contassign(ivl_scope_t net, unsigned idx);
+extern ivl_expr_t       ivl_contassign_lval(ivl_contassign_t net);
+extern ivl_expr_t       ivl_contassign_rval(ivl_contassign_t net);
+extern const char*      ivl_contassign_driver(ivl_contassign_t net);
+extern ivl_drive_t      ivl_contassign_drive0(ivl_contassign_t net);
+extern ivl_drive_t      ivl_contassign_drive1(ivl_contassign_t net);
+extern int              ivl_contassign_net_decl(ivl_contassign_t net);
+extern const char*      ivl_contassign_file(ivl_contassign_t net);
+extern unsigned         ivl_contassign_lineno(ivl_contassign_t net);
 
 extern unsigned     ivl_scope_switches(ivl_scope_t net);
 extern ivl_switch_t ivl_scope_switch(ivl_scope_t net, unsigned idx);
