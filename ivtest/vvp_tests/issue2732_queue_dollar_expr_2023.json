@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2732_queue_dollar_expr.sv",
+  "iverilog-args": ["-g2023"]
+}

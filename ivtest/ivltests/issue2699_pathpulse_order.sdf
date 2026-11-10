@@ -1,0 +1,10 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (TIMESCALE 1ns)
+  (CELL (CELLTYPE "issue2699_buf") (INSTANCE u)
+    (DELAY
+      (PATHPULSE a y (2) (3))
+      (ABSOLUTE (IOPATH a y (4) (4)))
+    )
+  )
+)

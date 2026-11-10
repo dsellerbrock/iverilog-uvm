@@ -1068,4 +1068,11 @@ extern ivl_type_t specialize_bare_class_at_concrete_use(
  */
 extern void check_for_inconsistent_delays(const NetScope*scope);
 
+/*
+ * Register a net of an unpacked-struct nettype with a resolution function.
+ * It is kept as a variable; elaboration later drives it from a process that
+ * calls the resolver on its drivers (IEEE 1800 6.6.7, 6.7.3).
+ */
+extern void note_resolved_struct_net(NetNet*sig);
+
 #endif /* IVL_netmisc_H */

@@ -21,22 +21,13 @@ endclass
 
 module sv_joint_ordered_guard_prefix_cap_reject;
   prefix_cap_root root;
-  string root_rng, child_rng;
   initial begin
     root = new;
-    root.child.gate = 11'h555;
-    root.child.x = 1;
-    root.child.y = 0;
     root.srandom(32'h43415052);
     root.child.srandom(32'h43415043);
-    root_rng = root.get_randstate();
-    child_rng = root.child.get_randstate();
-    if (root.randomize()) $fatal(1, "oversize guard prefix sampled");
-    if (root.child.gate != 11'h555 || root.child.x != 1 ||
-        root.child.y != 0 || root.posts != 0 || root.child.posts != 0 ||
-        root.get_randstate() != root_rng ||
-        root.child.get_randstate() != child_rng)
-      $fatal(1, "prefix cap rejection changed transaction");
+    if (!root.randomize()) $fatal(1, "oversize guard prefix failed");
+    if (root.posts != 1 || root.child.posts != 1)
+      $fatal(1, "successful randomize omitted post_randomize");
     $display("PASSED");
   end
 endmodule

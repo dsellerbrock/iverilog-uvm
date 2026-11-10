@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2796_wildcard_handle_eq_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue2796_wildcard_handle_eq"],
+  "gold": "issue2796_wildcard_handle_eq"
+}

@@ -1413,6 +1413,18 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    for (unsigned long idx = 0; idx < selected_word_count; idx += 1) {
 		  if (sig->test_part_driven(
 			midx, lidx, selected_word_base + idx)) {
+			if (sig->user_nettype()
+			    && sig->user_nettype()->has_resolution_function()) {
+			        // Only an unpacked-struct nettype net (a variable,
+			        // see PWire::elaborate_sig) is checked here.
+			      cerr << get_fileline() << ": sorry: Net `"
+				   << sig->name() << "' of a resolved "
+				   << "unpacked-struct nettype can only be driven "
+				   << "by continuous assignments in its own scope."
+				   << endl;
+			      des->errors += 1;
+			      return 0;
+			}
 			cerr << get_fileline() << ": error: ";
 			if (sig->user_nettype()) {
 			      cerr << "Net `" << sig->name()
