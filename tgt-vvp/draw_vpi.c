@@ -540,15 +540,19 @@ static char* contassign_driver_label_(ivl_scope_t scope, const char*name)
 
 static unsigned contassign_count_ = 0;
 
+/* Pseudo-thread numbers for evaluation code that no thread runs. They
+   start far above any real thread, so the real threads keep their labels. */
+static unsigned static_thunk_count_ = 1u << 30;
+
 /* Emit a .vpi_contassign record for each continuous assignment of SCOPE
    (IEEE 1800-2023 37.47). Its l-value and r-value are .vpi_expr handles
-   whose evaluation code no thread runs: it gets a pseudo-thread number of
-   its own so the labels cannot collide. */
+   whose evaluation code no thread runs. */
 void draw_contassigns_in_scope(ivl_scope_t scope)
 {
-      unsigned idx, save_local = local_count;
+      unsigned idx, save_local = local_count, save_thread = thread_count;
 
       if (ivl_scope_contassigns(scope) == 0) return;
+      thread_count = static_thunk_count_++;
       local_count = 0;
       for (idx = 0; idx < ivl_scope_contassigns(scope); idx += 1) {
 	    ivl_contassign_t ca = ivl_scope_contassign(scope, idx);
@@ -572,7 +576,7 @@ void draw_contassigns_in_scope(ivl_scope_t scope)
 	    free(rhs);
 	    free(drv);
       }
-      thread_count += 1;
+      thread_count = save_thread;
       local_count = save_local;
 }
 
