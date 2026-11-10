@@ -149,6 +149,11 @@ static void draw_modpath_record(const char*label, const char*driver,
 		  fprintf(vvp_out, " [%u %u %u %u]", ivl_path_dst_base(path),
 			  ivl_path_dst_width(path), ivl_path_src_base(path),
 			  ivl_path_src_width(path));
+	    {
+		  uint64_t reject, error;
+		  if (ivl_path_pulse_limits(path, &reject, &error))
+			fprintf(vvp_out, " / %" PRIu64 " %" PRIu64, reject, error);
+	    }
       }
 
       fprintf(vvp_out, ";\n");

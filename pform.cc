@@ -7027,6 +7027,24 @@ void pform_set_specparam(const struct vlltype&loc, perm_string name,
       }
 }
 
+/* IEEE 1800 30.7.1: PATHPULSE$ = (reject[, error]) sets the pulse limits
+   of every path in the module, and PATHPULSE$in$out those of one path. */
+void pform_set_pathpulse(const struct vlltype&loc, const char*name,
+			 PExpr*reject, PExpr*error)
+{
+      ivl_assert(loc, !pform_cur_module.empty());
+      Module*scope = pform_cur_module.front();
+      if (scope != lexical_scope) {
+	    delete reject;
+	    delete error;
+	    return;
+      }
+      ivl_assert(loc, strncmp(name, "PATHPULSE$", 10) == 0);
+      Module::pathpulse_t&cur = scope->pathpulses[lex_strings.make(name + 10)];
+      cur.reject = reject;
+      cur.error = error;
+}
+
 void pform_set_defparam(const pform_name_t&name, PExpr*expr)
 {
       assert(expr);

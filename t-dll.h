@@ -301,6 +301,9 @@ struct ivl_delaypath_s {
       unsigned dst_width;
       unsigned src_base;
       unsigned src_width;
+      bool has_pulse_limits;
+      uint64_t pulse_reject;
+      uint64_t pulse_error;
       uint64_t delay[12];
 };
 

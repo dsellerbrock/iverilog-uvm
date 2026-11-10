@@ -1831,9 +1831,17 @@ modpath_src_list
         ;
 
 modpath_src_item
-        : modpath_src
+        : modpath_src modpath_pulse_opt
         | modpath_src '[' T_NUMBER T_NUMBER T_NUMBER T_NUMBER ']'
             { compile_modpath_src_part(modpath_dst, $3, $4, $5, $6); }
+          modpath_pulse_opt
+        ;
+
+  /* IEEE 1800 30.7.1 PATHPULSE$ reject and error limits. */
+modpath_pulse_opt
+        : /* empty */
+        | '/' T_NUMBER T_NUMBER
+            { compile_modpath_src_pulse(modpath_dst, $2, $3); }
         ;
 
 port_type
