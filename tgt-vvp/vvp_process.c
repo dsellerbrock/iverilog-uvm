@@ -6446,10 +6446,10 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
       }
 
       fprintf(vvp_out,
-	      "    %%defer/register \"%ld,%ld,%u,%u\", S_%p;\n",
+	      "    %%defer/register \"%ld,%ld,%u,%u,%ld\", S_%p;\n",
 	      source_id, assertion_kind,
 	      ivl_file_table_index(ivl_stmt_file(net)), ivl_stmt_lineno(net),
-	      sscope);
+	      mode, sscope);
 
       /* Action arguments must be evaluated by the source process and captured
        * before either pending report is queued. The shared VPI lowering emits

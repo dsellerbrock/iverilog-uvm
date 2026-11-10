@@ -2007,12 +2007,21 @@ void compile_cleanup(void)
                   unsigned assertion_kind = 0;
                   unsigned file_idx = 0;
                   unsigned line = 0;
+                  unsigned is_final = 0;
                   int consumed = 0;
+                  /* The optional fifth field (0 = observed, 1 = final)
+                     selects the 20.11 assertion_type bit. */
+                  if (code->text
+                      && sscanf(code->text, "%u,%u,%u,%u,%u%n", &source_id,
+                                &assertion_kind, &file_idx, &line, &is_final,
+                                &consumed) != 5)
+                        consumed = 0;
                   if (!code->text
-		      || sscanf(code->text, "%u,%u,%u,%u%n", &source_id,
-				&assertion_kind, &file_idx, &line,
-				&consumed) != 4
-		      || code->text[consumed] != 0
+		      || (!consumed
+			  && sscanf(code->text, "%u,%u,%u,%u%n", &source_id,
+				    &assertion_kind, &file_idx, &line,
+				    &consumed) != 4)
+		      || code->text[consumed] != 0 || is_final > 1
 		      || !source_id || !line || file_idx >= file_names.size()
 		      || (assertion_kind != 1 && assertion_kind != 2
 			  && assertion_kind != 4)
@@ -2024,7 +2033,7 @@ void compile_cleanup(void)
                   }
                   vpip_register_deferred_assertion(
                         static_cast<unsigned long>(source_id),
-			assertion_kind, file_idx, line, scope);
+			assertion_kind, file_idx, line, scope, is_final != 0);
             }
       }
       deferred_assertion_registrations.clear();

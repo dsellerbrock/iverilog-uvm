@@ -1667,19 +1667,30 @@ class __vpiAssertion : public __vpiHandle {
 	  // start is the failing tick itself.
 	fail_full_latency_((flags & 1) != 0),
 	assertion_type_(assertion_kind == 4 ? vpiAssume
-			: assertion_kind == 2 ? vpiCover : vpiAssert) { }
+			: assertion_kind == 2 ? vpiCover : vpiAssert),
+	ctl_dir_(assertion_kind == 4 || assertion_kind == 2 ? assertion_kind : 1)
+      { }
 
       __vpiAssertion(unsigned long source_id, __vpiScope*scope,
-		     int deferred_type, const char*file, int line)
+		     int deferred_type, const char*file, int line,
+		     bool is_final)
 	: idx_(-1), name_(""), file_(file ? file : ""), line_(line),
 	  scope_(scope), latency_(-1), fail_full_latency_(false),
-	  deferred_source_id_(source_id), deferred_type_(deferred_type) { }
+	  deferred_source_id_(source_id), deferred_type_(deferred_type),
+	  ctl_type_(is_final ? 8 : 4), ctl_dir_(immediate_dir_(deferred_type)) { }
 
       __vpiAssertion(const char*name, const char*file, int line,
 		     __vpiScope*scope, int immediate_type)
 	: idx_(-1), name_(name ? name : ""), file_(file ? file : ""),
 	  line_(line), scope_(scope), latency_(-1),
-	  fail_full_latency_(false), immediate_type_(immediate_type) { }
+	  fail_full_latency_(false), immediate_type_(immediate_type),
+	  ctl_type_(2), ctl_dir_(immediate_dir_(immediate_type)) { }
+
+      static int immediate_dir_(int type)
+	{
+	    return type == vpiImmediateCover ? 2
+		 : type == vpiImmediateAssume ? 4 : 1;
+	}
 
       int get_type_code(void) const override { return vpiAssertion; }
 
@@ -1740,16 +1751,90 @@ class __vpiAssertion : public __vpiHandle {
 	    return true;
 	}
 
-      PLI_INT32 deferred_enabled(void) const
+      bool is_deferred(void) const { return deferred_source_id_ != 0; }
+
+	/* IEEE 1800-2023 20.11: a rule selects this assertion by its
+	   assertion_type (Table 20-6) and directive_type (Table 20-7)
+	   bits, then by the hierarchical selector. A selector names either
+	   the assertion itself or a scope; scope levels count module
+	   instances, as for $dumpvars (21.7.1.2). */
+      bool control_selected(int atype, int dtype, const char*selector,
+			    int levels) const
 	{
-	    return deferred_source_id_ ? deferred_enabled_ : -1;
+	    if (!(atype & ctl_type_) || !(dtype & ctl_dir_)) return false;
+	    if (!selector) return true;
+	    if (!name_.empty() && scope_
+		&& std::string(scope_->vpi_get_str(vpiFullName)) + "." + name_
+		   == selector)
+		  return true;
+	    return vpip_deferred_assert_scope_matches(scope_, selector, levels);
 	}
 
-      void set_deferred_enabled(bool enabled)
+	/* Apply one control_type (Table 20-5). Lock and Unlock always apply;
+	   every other control skips a locked assertion. Callbacks keep the
+	   reasons each assertion kind reported before 20.11 control existed:
+	   concurrent assertions report enable changes and kill/reset,
+	   deferred ones report enable changes and reset (fired by the
+	   caller once every selected report is flushed), immediate ones none.
+	   Returns true when a deferred assertion was killed. */
+      bool apply_control(int ctl, bool callbacks)
 	{
-	    if (!deferred_source_id_ || deferred_enabled_ == enabled) return;
-	    deferred_enabled_ = enabled;
-	    fire(enabled ? cbAssertionEnable : cbAssertionDisable);
+	    if (ctl == 1 || ctl == 2) {
+		  locked_ = ctl == 1;
+		  return false;
+	    }
+	    if (locked_) return false;
+	    bool was = enabled_;
+	    bool notify = callbacks && (idx_ >= 0 || deferred_source_id_);
+	    switch (ctl) {
+		case 3:
+		case 4:
+		  enabled_ = ctl == 3;
+		  if (notify && was != enabled_)
+			fire(enabled_ ? cbAssertionEnable : cbAssertionDisable);
+		  return false;
+		case 5:
+		  enabled_ = false;
+		  kill_generation_ += 1;
+		  if (notify && was) fire(cbAssertionDisable);
+		  if (deferred_source_id_) {
+			vpip_cancel_deferred_assertion(deferred_source_id_, scope_);
+			return true;
+		  }
+		  if (notify) {
+			fire(cbAssertionKill);
+			fire(cbAssertionReset);
+		  }
+		  return false;
+		case 6:  pass_nonvacuous_ = pass_vacuous_ = true;  return false;
+		case 7:  pass_nonvacuous_ = pass_vacuous_ = false; return false;
+		case 8:  fail_action_ = true;  return false;
+		case 9:  fail_action_ = false; return false;
+		case 10: pass_nonvacuous_ = true; return false;
+		case 11: pass_vacuous_ = false; return false;
+		default: return false;
+	    }
+	}
+
+      PLI_INT32 control_state(int what) const
+	{
+	    switch (what) {
+		case vpipAssertStateEnabled:        return enabled_;
+		case vpipAssertStateKillGeneration: return (PLI_INT32)kill_generation_;
+		case vpipAssertStateFailAction:     return fail_action_;
+		case vpipAssertStatePassAction:     return pass_nonvacuous_;
+		case vpipAssertStateVacuousAction:  return pass_vacuous_;
+		default: return -1;
+	    }
+	}
+
+	/* A probe that stands for an assertion whose registration has not
+	   run yet: it has the kind's assertion_type bit and matches every
+	   directive. */
+      void make_control_probe(int type_bit)
+	{
+	    ctl_type_ = type_bit;
+	    ctl_dir_ = 7;
 	}
 
       void report_control_reset(void)
@@ -1908,8 +1993,16 @@ class __vpiAssertion : public __vpiHandle {
       int assertion_type_ = vpiAssert;
       unsigned long deferred_source_id_ = 0;
       int deferred_type_ = vpiUndefined;
-      bool deferred_enabled_ = true;
       int immediate_type_ = vpiUndefined;
+	/* IEEE 1800-2023 20.11 control state. */
+      int ctl_type_ = 1;                 // Table 20-6 assertion_type bit
+      int ctl_dir_ = 1;                  // Table 20-7 directive_type bit
+      bool locked_ = false;
+      bool enabled_ = true;
+      unsigned kill_generation_ = 0;
+      bool fail_action_ = true;
+      bool pass_nonvacuous_ = true;
+      bool pass_vacuous_ = true;
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
       std::vector<vvp_time64_t> clocks_;  // Raw sampled times, including off gaps
 };
@@ -1970,18 +2063,7 @@ bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
       return cur == selected_module && depth <= levels;
 }
 
-void vpip_report_deferred_assertion_reset_callbacks(const char*selector,
-						     int levels)
-{
-      for (std::map<std::pair<__vpiScope*,unsigned long>,
-			__vpiAssertion*>::const_iterator cur =
-		       deferred_assertion_by_key.begin();
-	   cur != deferred_assertion_by_key.end(); ++cur) {
-	    if (vpip_deferred_assert_scope_matches(cur->first.first,
-						 selector, levels))
-		  cur->second->report_control_reset();
-      }
-}
+static void replay_assertion_control_(__vpiAssertion*obj);
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg,
@@ -1992,6 +2074,7 @@ void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 					      sc, (int)depth_arg, (int)flags,
 					      (int)assertion_kind);
       assertion_registry.push_back(obj);
+      replay_assertion_control_(obj);
       if (sc) {
 	    vpip_attach_to_scope(sc, obj);
 	    assertion_by_key[std::make_pair(sc, (int)idx)] = obj;
@@ -2002,7 +2085,8 @@ void vpip_register_deferred_assertion(unsigned long source_id,
 				     unsigned assertion_kind,
 				     unsigned file_idx,
 				     unsigned line,
-				     vpiHandle scope)
+				     vpiHandle scope,
+				     bool is_final)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       int deferred_type;
@@ -2021,8 +2105,9 @@ void vpip_register_deferred_assertion(unsigned long source_id,
 	    return;
       __vpiAssertion*obj = new __vpiAssertion(source_id, sc, deferred_type,
 						      file_names[file_idx],
-						      line);
+						      line, is_final);
       assertion_registry.push_back(obj);
+      replay_assertion_control_(obj);
       deferred_assertion_by_key[key] = obj;
       vpip_attach_to_scope(sc, obj);
 }
@@ -2039,6 +2124,7 @@ void vpip_register_immediate_cover(PLI_INT32 source_id, const char*name,
       __vpiAssertion*obj = new __vpiAssertion(name, file, line, sc,
 						      vpiImmediateCover);
       assertion_registry.push_back(obj);
+      replay_assertion_control_(obj);
       immediate_cover_by_key[key] = obj;
       vpip_attach_to_scope(sc, obj);
 }
@@ -2074,6 +2160,7 @@ void vpip_register_immediate_assertion(PLI_INT32 source_id, const char*name,
       __vpiAssertion*obj = new __vpiAssertion(name, file, line, sc,
 						     immediate_type);
       assertion_registry.push_back(obj);
+      replay_assertion_control_(obj);
       immediate_assertion_by_key[key] = obj;
       vpip_attach_to_scope(sc, obj);
 }
@@ -2095,30 +2182,140 @@ void vpip_report_immediate_assertion(PLI_INT32 source_id, PLI_INT32 success,
       }
 }
 
-PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,
-					  vpiHandle scope)
+/* IEEE 1800-2023 20.11 assertion control. Every request is kept as a
+   chronological rule, so an assertion that registers after a time-zero
+   control call (its registration runs in an initial process) still sees it. */
+struct assert_ctl_rule_t {
+      bool all;
+      std::string selector;
+      int levels;
+      int ctl;
+      int atype;
+      int dtype;
+};
+static std::vector<assert_ctl_rule_t> assert_ctl_rules;
+static const size_t assert_ctl_rule_limit = 4096;
+
+static void replay_assertion_control_(__vpiAssertion*obj)
 {
-      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
-      if (!source_id || !sc) return -1;
-      std::map<std::pair<__vpiScope*,unsigned long>,
-	       __vpiAssertion*>::const_iterator it = deferred_assertion_by_key.find(
-					    std::make_pair(sc, source_id));
-      return it == deferred_assertion_by_key.end()
-	    ? -1 : it->second->deferred_enabled();
+      for (size_t i = 0 ; i < assert_ctl_rules.size() ; i += 1) {
+	    const assert_ctl_rule_t&r = assert_ctl_rules[i];
+	    if (obj->control_selected(r.atype, r.dtype,
+				      r.all ? 0 : r.selector.c_str(), r.levels))
+		  obj->apply_control(r.ctl, false);
+      }
 }
 
-void vpip_set_deferred_assertions_enabled(const char*selector,
-					 PLI_INT32 levels,
-					 PLI_INT32 enabled)
+PLI_INT32 vpip_assertion_control(PLI_INT32 ctl, PLI_INT32 atype,
+				 PLI_INT32 dtype, PLI_INT32 levels,
+				 const char*const*selectors, PLI_INT32 nsel)
 {
-      for (std::map<std::pair<__vpiScope*,unsigned long>,
-			__vpiAssertion*>::iterator cur =
-	       deferred_assertion_by_key.begin();
-	   cur != deferred_assertion_by_key.end(); ++cur) {
-	    if (vpip_deferred_assert_scope_matches(cur->first.first,
-						  selector, levels))
-		  cur->second->set_deferred_enabled(enabled != 0);
+      size_t first = assert_ctl_rules.size();
+      if (ctl < 1 || ctl > 11) return 0;
+      for (PLI_INT32 i = 0 ; i < (nsel > 0 ? nsel : 1) ; i += 1) {
+	    if (assert_ctl_rules.size() >= assert_ctl_rule_limit) {
+		  vpi_printf("SVA runtime error: assertion-control history "
+			     "exceeded %zu entries; the control request was not "
+			     "applied.\n", assert_ctl_rule_limit);
+		  break;
+	    }
+	    assert_ctl_rule_t r;
+	    r.all = nsel <= 0;
+	    r.selector = r.all ? "" : selectors[i];
+	    r.levels = levels;
+	    r.ctl = ctl;
+	    r.atype = atype;
+	    r.dtype = dtype;
+	    assert_ctl_rules.push_back(r);
+
+	      /* Deferred assertions first, as before: every enable change,
+		 then every flush and its reset callback, in the order of
+		 deferred_assertion_by_key that their callbacks always used. */
+	    std::vector<__vpiAssertion*> killed;
+	    for (auto cur = deferred_assertion_by_key.begin() ;
+		 cur != deferred_assertion_by_key.end() ; ++cur) {
+		  __vpiAssertion*obj = cur->second;
+		  if (obj->control_selected(atype, dtype,
+					    r.all ? 0 : r.selector.c_str(),
+					    levels)
+		      && obj->apply_control(ctl, true))
+			killed.push_back(obj);
+	    }
+	    for (size_t j = 0 ; j < killed.size() ; j += 1)
+		  killed[j]->fire(cbAssertionReset);
       }
+      for (size_t i = first ; i < assert_ctl_rules.size() ; i += 1) {
+	    const assert_ctl_rule_t&r = assert_ctl_rules[i];
+	    for (size_t j = 0 ; j < assertion_registry.size() ; j += 1) {
+		  __vpiAssertion*obj = assertion_registry[j];
+		  if (!obj->is_deferred()
+		      && obj->control_selected(atype, dtype,
+					       r.all ? 0 : r.selector.c_str(),
+					       levels))
+			obj->apply_control(ctl, true);
+	    }
+      }
+      return assert_ctl_rules.size() > first;
+}
+
+template <class Key> static __vpiAssertion* find_assertion_up_(
+      const std::map<std::pair<__vpiScope*,Key>, __vpiAssertion*>&map,
+      __vpiScope*sc, Key id, bool walk_up)
+{
+      for ( ; sc ; sc = walk_up ? sc->scope : 0) {
+	    auto it = map.find(std::make_pair(sc, id));
+	    if (it != map.end()) return it->second;
+      }
+      return 0;
+}
+
+PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
+			       PLI_INT32 id, PLI_INT32 what)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      __vpiAssertion*obj = 0;
+      int type_bit = 1;
+      switch (space) {
+	  case vpipAssertSpaceConcurrent:
+	    obj = find_assertion_up_(assertion_by_key, sc, (int)id, false);
+	    break;
+	  case vpipAssertSpaceImmediate:
+	    obj = find_assertion_up_(immediate_assertion_by_key, sc, (int)id, true);
+	    type_bit = 2;
+	    break;
+	  case vpipAssertSpaceDeferred:
+	    obj = find_assertion_up_(deferred_assertion_by_key, sc,
+				     (unsigned long)id, true);
+	    type_bit = 4 | 8;
+	    break;
+	  case vpipAssertSpaceImmediateCover:
+	    obj = find_assertion_up_(immediate_cover_by_key, sc, (int)id, true);
+	    type_bit = 2;
+	    break;
+	  default:
+	    return -1;
+      }
+      if (obj) return obj->control_state(what);
+
+	/* Not registered yet: fold the rule history over a probe in the
+	   calling scope. */
+      __vpiAssertion probe("", "", 0, sc, vpiUndefined);
+      probe.make_control_probe(type_bit);
+      replay_assertion_control_(&probe);
+      return probe.control_state(what);
+}
+
+/* A matured deferred report runs its pass or fail action only when the
+   assertion's action control allows it (20.11). The report itself and its
+   callbacks are statistics and stay unconditional. */
+bool vpip_deferred_action_enabled(unsigned long source_id, __vpiScope*scope,
+				  unsigned result)
+{
+      __vpiAssertion*obj = find_assertion_up_(deferred_assertion_by_key, scope,
+					      source_id, true);
+      if (!obj) return true;
+      return obj->control_state(result == 2 ? vpipAssertStateFailAction
+					    : vpipAssertStatePassAction) != 0;
 }
 
 PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion)

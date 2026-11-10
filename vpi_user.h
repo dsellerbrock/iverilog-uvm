@@ -869,14 +869,29 @@ extern int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val);
 extern const char* vpip_get_stacktrace(const char*call_file, long call_line);
 extern void vpip_print_stacktrace(const char*call_file, long call_line);
 extern void vpip_print_finish_stats(void);
-/* Cancel pending deferred-immediate reports selected by hierarchy path. */
-extern void vpip_cancel_deferred_asserts(const char*selector,
-                                         PLI_INT32 levels);
-extern PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,
-                                                  vpiHandle scope);
-extern void vpip_set_deferred_assertions_enabled(const char*selector,
-                                                  PLI_INT32 levels,
-                                                  PLI_INT32 enabled);
+/* IEEE 1800-2023 20.11 assertion control: apply control_type ctl
+   (Table 20-5) to the assertions selected by assertion_type atype
+   (Table 20-6), directive_type dtype (Table 20-7), levels, and the nsel
+   hierarchical selectors (nsel 0 means the whole design). Returns 0 when
+   nothing was recorded. */
+extern PLI_INT32 vpip_assertion_control(PLI_INT32 ctl, PLI_INT32 atype,
+                                        PLI_INT32 dtype, PLI_INT32 levels,
+                                        const char*const*selectors,
+                                        PLI_INT32 nsel);
+/* Control state `what' (vpipAssertState*) of the assertion that the front
+   end numbered `id' in identity space `space' (vpipAssertSpace*), looked up
+   from the calling scope. */
+extern PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
+                                      PLI_INT32 id, PLI_INT32 what);
+#define vpipAssertSpaceConcurrent     0
+#define vpipAssertSpaceImmediate      1
+#define vpipAssertSpaceDeferred       2
+#define vpipAssertSpaceImmediateCover 3
+#define vpipAssertStateEnabled        0
+#define vpipAssertStateKillGeneration 1
+#define vpipAssertStateFailAction     2
+#define vpipAssertStatePassAction     3
+#define vpipAssertStateVacuousAction  4
 /* True while a VPI string function call is executing with a result slot. */
 extern int vpip_systf_call_returns_string(void);
 /* True when the current VVP design was compiled as SystemVerilog. */
@@ -996,7 +1011,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 14;
+static const PLI_UINT32 vpip_routines_version = 15;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1055,10 +1070,9 @@ typedef struct {
     void        (*assertion_report_all)(PLI_INT32);
     int         (*object_urandom)(const PLI_INT32*, unsigned int*);
     void        (*print_stacktrace)(const char*, long);
-    void        (*cancel_deferred_asserts)(const char*, PLI_INT32);
-    PLI_INT32   (*deferred_assertion_enabled)(unsigned long, vpiHandle);
-    void        (*set_deferred_assertions_enabled)(const char*, PLI_INT32,
-                                                   PLI_INT32);
+    PLI_INT32   (*assertion_control)(PLI_INT32, PLI_INT32, PLI_INT32,
+                                     PLI_INT32, const char*const*, PLI_INT32);
+    PLI_INT32   (*assertion_state)(vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32);
     void        (*register_immediate_cover)(PLI_INT32, const char*,
                                              const char*, PLI_INT32,
                                              vpiHandle);
