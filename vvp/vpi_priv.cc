@@ -2837,6 +2837,21 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
 	    schedule_stop(diag_msg);
 	    break;
 
+	  case vpiAssertionSysLock:
+	  case vpiAssertionSysUnlock:
+	  case vpiAssertionSysOn:
+	  case vpiAssertionSysOff:
+	  case vpiAssertionSysKill:
+	  case vpiAssertionSysReset:
+	  case vpiAssertionSysEnd:
+	  case vpiAssertionSysEnablePassAction:
+	  case vpiAssertionSysDisablePassAction:
+	  case vpiAssertionSysEnableFailAction:
+	  case vpiAssertionSysDisableFailAction:
+	  case vpiAssertionSysEnableNonvacuousAction:
+	  case vpiAssertionSysDisableVacuousAction:
+	    return vpip_assertion_sys_control(operation, va_arg(ap, vpiHandle));
+
 	  case vpiAssertionReset:
 	    if (!vpip_reset_deferred_assertion(va_arg(ap, vpiHandle))) {
 		  vpi_printf("vpiAssertionReset currently supports deferred immediate assertions only.\n");
