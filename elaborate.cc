@@ -17570,9 +17570,19 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       vector<NetExpr*>eparms (parm_count);
 
       perm_string name = peek_tail_name(path_);
-      const bool assertion_control_task =
-	    name == "$asserton" || name == "$assertoff"
-	    || name == "$assertkill";
+	/* IEEE 1800-2023 20.11: identifiers in list_of_scopes_or_assertions
+	   become hierarchical selector strings. The leading integer arguments
+	   (levels; for $assertcontrol also control, assertion and directive
+	   type) stay ordinary expressions, so `let' constants work there. */
+      unsigned assertion_selector_first = 0;
+      if (name == "$assertcontrol")
+	    assertion_selector_first = 4;
+      else if (name == "$asserton" || name == "$assertoff"
+	       || name == "$assertkill" || name == "$assertpasson"
+	       || name == "$assertpassoff" || name == "$assertfailon"
+	       || name == "$assertfailoff" || name == "$assertnonvacuouson"
+	       || name == "$assertvacuousoff")
+	    assertion_selector_first = 1;
       const bool coverage_db_task =
 	    name == "$set_coverage_db_name" || name == "$load_coverage_db";
 
@@ -17643,7 +17653,7 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	       their hierarchical spelling for the runtime assertion registry;
 	       ordinary expression elaboration would incorrectly try to bind the
 	       assertion label as a signal (Caliptra relies on this form). */
-	    if (assertion_control_task && idx >= 1) {
+	    if (assertion_selector_first && idx >= assertion_selector_first) {
 		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(parm.parm)) {
 			NetECString*selector = new NetECString(
 			      assertion_control_selector_(des, scope, id));

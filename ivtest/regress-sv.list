@@ -6700,3 +6700,5 @@ sva_local_init_multiclock_2017 normal,-g2017,-s,sva_local_init_multiclock ivltes
 sva_local_init_multiclock_2023 normal,-g2023,-s,sva_local_init_multiclock ivltests gold=sva_local_init_multiclock.gold
 sva_multiclock_unbounded_antecedent_2017 normal,-g2017,-s,sva_multiclock_unbounded_antecedent ivltests gold=sva_multiclock_unbounded_antecedent.gold
 sva_multiclock_unbounded_antecedent_2023 normal,-g2023,-s,sva_multiclock_unbounded_antecedent ivltests gold=sva_multiclock_unbounded_antecedent.gold
+sva_assertcontrol_2017 normal,-g2017,-s,sva_assertcontrol ivltests gold=sva_assertcontrol.gold
+sva_assertcontrol_2023 normal,-g2023,-s,sva_assertcontrol ivltests gold=sva_assertcontrol.gold
