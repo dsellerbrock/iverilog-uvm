@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue2831_sdf_log.v:28: $finish called at 1 (1ns)
