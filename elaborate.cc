@@ -41458,6 +41458,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						      + to_string(width) + ":d:"
 						      + to_string(word)
 						      + (element->get_signed() ? ":s" : "");
+					    /* Inside `foreach (obj.q[i])' over this very array
+					       the index is the loop variable: the runtime
+					       resolves it per expanded element. */
+					  if (integral && !index_ir.empty()
+					      && !constraint_parse_const_ir_(index_ir, index)
+					      && dynforeach_emit_ctx_
+					      && dynforeach_emit_ctx_->nested_path == nested_path
+					      && dynforeach_emit_ctx_->rows_var.nil())
+						return "(xdelem " + nested_path + " "
+						      + to_string(width)
+						      + (element->get_signed() ? ":s" : "")
+						      + " " + index_ir + ")";
 					  if (!nested_root_rand) break;
 					  cerr << id->get_fileline() << ": error: nested dynamic-array "
 					       << "constraint selector must be one constant, "
@@ -45410,6 +45422,57 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      body = "(xdynforeach " + object_path + ":#R:" + width
 		    + " " + body + ")";
 	      return "(xdynrows " + object_path + ":" + width + " " + body + ")";
+	    }
+	      /* `foreach (obj.q[i])' over a one-dimensional rand dynamic array
+		 or queue of a rand member object (18.5.8): solved with the
+		 object's own variables. The runtime expands the template over
+		 that array's leaf 0 once its size is known; each element is an
+		 (xdelem) at the substituted index. */
+	    if (cfe->prefix_names().empty() && cfe->loop_vars().size() == 1
+		&& !cfe->loop_vars()[0].nil() && cls
+		&& !cfe->member_name().nil() && cfe->source_path().empty()) {
+	      int handle = cls->property_idx_from_name(cfe->array_name());
+	      const netclass_t*child = handle >= 0
+		    ? dynamic_cast<const netclass_t*>(cls->get_prop_type((size_t)handle))
+		    : nullptr;
+	      int array = child
+		    ? child->property_idx_from_name(cfe->member_name()) : -1;
+	      const netdarray_t*flat = array >= 0
+		    ? dynamic_cast<const netdarray_t*>(child->get_prop_type((size_t)array))
+		    : nullptr;
+	      ivl_type_t elem = flat && !flat->packed()
+		    && !constraint_dyn2_inner_type_(flat) ? flat->element_type() : nullptr;
+	      ivl_variable_type_t base = elem ? elem->base_type() : IVL_VT_NO_TYPE;
+	      property_qualifier_t handle_qual = handle >= 0
+		    ? cls->get_prop_qual((size_t)handle) : property_qualifier_t();
+	      if (child && elem && elem->packed() && elem->packed_width()
+		  && elem->packed_width() <= 64
+		  && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+		      || dynamic_cast<const netenum_t*>(elem))
+		  && (handle_qual.test_rand() || handle_qual.test_randc())) {
+		    string object_path = to_string(handle) + "." + to_string(array);
+		    dynforeach_emit_ctx_t context;
+		    context.prop_idx = array;
+		    context.elem_wid = elem->packed_width();
+		    context.elem_signed = elem->get_signed();
+		    context.nested_path = object_path;
+		    context.loop_var = cfe->loop_vars()[0];
+		    string body;
+		    dynforeach_emit_ctx_ = &context;
+		    bool ok = true;
+		    for (const PExpr*item : cfe->items()) {
+			  if (!item) continue;
+			  string part = pexpr_to_constraint_ir(item, cls, value_slots,
+				scope, loop_env);
+			  if (part.empty()) { ok = false; break; }
+			  body = body.empty() ? part : "(and " + body + " " + part + ")";
+		    }
+		    dynforeach_emit_ctx_ = nullptr;
+		    if (!ok || body.empty()) return "";
+		    return "(xdynforeach " + object_path + ":#0:"
+			  + to_string(context.elem_wid)
+			  + (context.elem_signed ? ":s" : "") + " " + body + ")";
+	      }
 	    }
                   if (cfe->loop_vars().size() != 1
                       || cfe->loop_vars()[0].nil()) return "";
