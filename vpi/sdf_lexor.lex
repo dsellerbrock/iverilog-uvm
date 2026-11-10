@@ -61,7 +61,7 @@ static unsigned sdf_timingenv_depth;
 <CCOMMENT>\n   { sdflloc.first_line += 1; }
 <CCOMMENT>"*/" { BEGIN(0); }
 
-[ \m\t] { /* Skip white space. */; }
+[ \r\t] { /* Skip white space. */; }
 
   /* TIMINGENV is not related to SystemVerilog timing. Skip its complete
      parenthesized SDF expression without interpreting its contents. */
