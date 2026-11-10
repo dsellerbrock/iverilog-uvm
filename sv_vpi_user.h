@@ -91,6 +91,11 @@ EXTERN_C_START
 #define vpiCoverBin         662
 #define vpiCoverAtLeast     663
 #define vpiCoverWeight      664
+/* IEEE 1800-2023 Annex M object types. They share their values with the
+   coverpoint and cover-weight types above, which are not standard; the
+   object a vpi_iterate() call starts from tells them apart. */
+#define vpiPropertyInst     660
+#define vpiSequenceInst     664
 #define vpiCoverCount       665
 #define vpiCoverTypeCount   666
 #define vpiPackedArrayMember 655
@@ -215,6 +220,30 @@ EXTERN_C_START
 #define cbAssertionKill         614
 #define cbAssertionVacuousSuccess 657
 #define cbAssertionDisabledEvaluation 658
+/* IEEE 1800-2023 39.4.2 per-assertion control reasons (Annex M values). */
+#define cbAssertionLock                   661
+#define cbAssertionUnlock                 662
+#define cbAssertionEnablePassAction       645
+#define cbAssertionEnableFailAction       646
+#define cbAssertionDisablePassAction      647
+#define cbAssertionDisableFailAction      648
+#define cbAssertionEnableNonvacuousAction 649
+#define cbAssertionDisableVacuousAction   650
+/* IEEE 1800-2023 39.4.1 assertion system callback reasons (Annex M). */
+#define cbAssertionSysInitialized            615
+#define cbAssertionSysOn                     616
+#define cbAssertionSysOff                    617
+#define cbAssertionSysKill                   631
+#define cbAssertionSysLock                   659
+#define cbAssertionSysUnlock                 660
+#define cbAssertionSysEnd                    618
+#define cbAssertionSysReset                  619
+#define cbAssertionSysEnablePassAction       651
+#define cbAssertionSysEnableFailAction       652
+#define cbAssertionSysDisablePassAction      653
+#define cbAssertionSysDisableFailAction      654
+#define cbAssertionSysEnableNonvacuousAction 655
+#define cbAssertionSysDisableVacuousAction   656
 
 /* Attempt information passed to an assertion callback.
 

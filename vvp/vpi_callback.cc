@@ -1098,25 +1098,24 @@ void vpip_run_error_callbacks(void)
       running = false;
 }
 
-/* IEEE 1800-2023 39.4.1 assertion system callbacks. sv_vpi_user.h does not
-   name these reasons yet (#883), so use their standard values. */
+/* IEEE 1800-2023 39.4.1 assertion system callbacks. */
 static bool is_assertion_sys_reason_(PLI_INT32 reason)
 {
       switch (reason) {
-	  case 615: /* cbAssertionSysInitialized */
-	  case 616: /* cbAssertionSysOn */
-	  case 617: /* cbAssertionSysOff */
-	  case 618: /* cbAssertionSysEnd */
-	  case 619: /* cbAssertionSysReset */
-	  case 631: /* cbAssertionSysKill */
-	  case 651: /* cbAssertionSysEnablePassAction */
-	  case 652: /* cbAssertionSysEnableFailAction */
-	  case 653: /* cbAssertionSysDisablePassAction */
-	  case 654: /* cbAssertionSysDisableFailAction */
-	  case 655: /* cbAssertionSysEnableNonvacuousAction */
-	  case 656: /* cbAssertionSysDisableVacuousAction */
-	  case 659: /* cbAssertionSysLock */
-	  case 660: /* cbAssertionSysUnlock */
+	  case cbAssertionSysInitialized:
+	  case cbAssertionSysOn:
+	  case cbAssertionSysOff:
+	  case cbAssertionSysEnd:
+	  case cbAssertionSysReset:
+	  case cbAssertionSysKill:
+	  case cbAssertionSysEnablePassAction:
+	  case cbAssertionSysEnableFailAction:
+	  case cbAssertionSysDisablePassAction:
+	  case cbAssertionSysDisableFailAction:
+	  case cbAssertionSysEnableNonvacuousAction:
+	  case cbAssertionSysDisableVacuousAction:
+	  case cbAssertionSysLock:
+	  case cbAssertionSysUnlock:
 	    return true;
 	  default:
 	    return false;
@@ -1132,7 +1131,7 @@ static bool assertion_sys_ended = false;
 void vpip_fire_assertion_sys_cb(PLI_INT32 reason)
 {
       if (assertion_sys_ended) return;
-      if (reason == 618) assertion_sys_ended = true;
+      if (reason == cbAssertionSysEnd) assertion_sys_ended = true;
       for (size_t i = 0 ; i < assertion_sys_callbacks.size() ; i += 1) {
 	    simulator_callback*cur = assertion_sys_callbacks[i];
 	    if (cur->cb_data.reason != reason || !cur->cb_data.cb_rtn)
@@ -1217,8 +1216,8 @@ void vpiStartOfSim(void) {
 	/* 39.4.1: the assertion system initializes, then is "started" on
 	   simulation startup. Firing after cbStartOfSimulation lets those
 	   callbacks register for these events. */
-      vpip_fire_assertion_sys_cb(615);
-      vpip_fire_assertion_sys_cb(616);
+      vpip_fire_assertion_sys_cb(cbAssertionSysInitialized);
+      vpip_fire_assertion_sys_cb(cbAssertionSysOn);
 
       vpi_mode_flag = VPI_MODE_NONE;
 }
@@ -1244,7 +1243,7 @@ void vpiPostsim(void) {
 
 	/* 39.4.1: cbAssertionSysEnd "typically occurs after the end of
 	   simulation" (unless vpiAssertionSysEnd already ended the system). */
-      vpip_fire_assertion_sys_cb(618);
+      vpip_fire_assertion_sys_cb(cbAssertionSysEnd);
 
       vpi_mode_flag = VPI_MODE_NONE;
 }

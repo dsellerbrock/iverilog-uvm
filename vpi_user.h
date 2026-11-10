@@ -1033,7 +1033,9 @@ extern void vpip_register_assertion(PLI_INT32 idx, const char*name,
                                     const char*file, PLI_INT32 line,
                                     vpiHandle scope, PLI_INT32 depth_arg,
                                     PLI_INT32 flags,
-                                    PLI_INT32 assertion_kind);
+                                    PLI_INT32 assertion_kind,
+                                    PLI_INT32 inst_kind,
+                                    const char*inst_name);
 /* M12B-cb: report a success/failure event for the assertion identified
    by (scope, idx); fires any matching registered callbacks. */
 extern void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason,
@@ -1170,7 +1172,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 18;
+static const PLI_UINT32 vpip_routines_version = 19;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1220,7 +1222,7 @@ typedef struct {
     void        (*make_systf_system_defined)(vpiHandle);
     void        (*mcd_rawwrite)(PLI_UINT32, const char*, size_t);
     void        (*set_return_value)(int);
-    void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32);
+    void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32, PLI_INT32, const char*);
     void        (*assertion_report)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*assertion_clock)(PLI_INT32, vpiHandle);
     void        (*assertion_report_age)(PLI_INT32, PLI_INT32, vpiHandle, PLI_INT32);
