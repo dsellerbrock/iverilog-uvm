@@ -2420,7 +2420,8 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
 	    } else if (dynamic_element) {
 		  const string&base_type =
 			owner->get_defn()->property_base_type(pid);
-		  if (base_type.empty() || base_type[0] != 'D') {
+		  if (base_type.empty()
+		      || (base_type[0] != 'D' && base_type[0] != 'Q')) {
 			error = "invalid nested dynamic-array constraint property";
 		  } else {
 			  idx = b.graph->intern(owner, pid);
@@ -4275,6 +4276,11 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    uint64_t count = 0;
 	    auto found = b.dyn_sizes->find(make_pair(pidx, (unsigned)leaf));
 	    if (found != b.dyn_sizes->end()) count = found->second;
+	      /* A one-dimensional array (leaf 0) whose size is not being
+		 solved keeps its current size (18.5.8.1). */
+	    else if (leaf == 0 && b.type(pidx)
+		     && !b.type(pidx)->property_is_dyn2(b.local_index(pidx)))
+		  count = cobj_darray_size(b.object(pidx), b.local_index(pidx));
 	    Z3_ast result = b.mk_true();
 	    for (uint64_t i = 0; i < count; ++i) {
 		  string instance = subst_loop_token(body, i);
@@ -4284,6 +4290,22 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  result = Z3_mk_and(b.ctx, 2, both);
 	    }
 	    return result;
+	  }
+	  /* (xdelem path W[:s] idx): an element of a one-dimensional dynamic
+	   * array or queue owned by a nested rand object, at an index known
+	   * once the enclosing (xdynforeach) has substituted its loop token. */
+	  if (op == "xdelem") {
+	    string path = par.read_token();
+	    string width = par.read_token();
+	    uint64_t elem = 0;
+	    if (!eval_const_ir(par, elem) || !par.expect(')')) {
+		  b.state_errors.push_back("nested dynamic-array foreach index is not constant");
+		  return b.mk_true();
+	    }
+	    bool sign = width.size() >= 2 && width.substr(width.size() - 2) == ":s";
+	    if (sign) width.erase(width.size() - 2);
+	    return parse_nested_elem(b, "x:" + path + ":" + width + ":d:"
+		  + to_string(elem) + (sign ? ":s" : ""));
 	  }
 	  if (op == "xelem") {
 	    string path = par.read_token();
