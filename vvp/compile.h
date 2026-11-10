@@ -379,7 +379,8 @@ extern __vpiTchk* compile_tchk(char*label, int type, long file_idx,
 extern void compile_tchk_term(__vpiTchk*tchk, char*sig, bool has_bit,
 			      long bit, unsigned edge, char*condit,
 			      char*text);
-extern void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value);
+extern void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value,
+			       char*shift);
 extern void compile_tchk_notifier(__vpiTchk*tchk, char*notifier);
 
 extern void compile_param_string(char*label, const char*name, char*value,

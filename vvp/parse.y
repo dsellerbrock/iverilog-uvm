@@ -1860,7 +1860,9 @@ tchk_term
 tchk_limits
         : /* empty */
         | tchk_limits T_SYMBOL T_SYMBOL
-                { compile_tchk_limit(tchk_cur, $2, $3); }
+                { compile_tchk_limit(tchk_cur, $2, $3, 0); }
+        | tchk_limits T_SYMBOL T_SYMBOL '/' T_SYMBOL
+                { compile_tchk_limit(tchk_cur, $2, $3, $5); }
         ;
 
 tchk_notifier

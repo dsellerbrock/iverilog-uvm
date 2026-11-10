@@ -124,6 +124,7 @@ bool gn_icarus_misc_flag = true;
 bool gn_cadence_types_flag = true;
 bool gn_specify_blocks_flag = true;
 bool gn_interconnect_flag = true;
+bool gn_neg_tchk_flag = false;
 bool gn_dumpports_flag = false;
 bool gn_supported_assertions_flag = true;
 // iverilog-uvm: this default was once flipped to false so concurrent
@@ -363,6 +364,12 @@ static void process_generation_flag(const char*gen)
 
       } else if (strcmp(gen,"no-interconnect") == 0) {
 	    gn_interconnect_flag = false;
+
+      } else if (strcmp(gen,"neg-tchk") == 0) {
+	    gn_neg_tchk_flag = true;
+
+      } else if (strcmp(gen,"no-neg-tchk") == 0) {
+	    gn_neg_tchk_flag = false;
 
       } else if (strcmp(gen,"assertions") == 0) {
 	    gn_supported_assertions_flag = true;

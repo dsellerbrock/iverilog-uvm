@@ -4024,6 +4024,7 @@ bool dll_target::scope_tchks(const NetScope*scope)
 	    for (const NetNet*var : cur->limit_vars)
 		  tchk->limit_sigs.push_back(find_signal(var));
 	    tchk->limits = cur->limits;
+	    tchk->shifts = cur->shifts;
 	    tchk->notifier = cur->notifier ? find_signal(cur->notifier) : 0;
 	    aux->tchks->push_back(tchk);
       }

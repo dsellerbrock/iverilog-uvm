@@ -2121,13 +2121,20 @@ struct __vpiTchkTerm : public __vpiHandle {
 };
 
 /* A limit argument, as vpiExpr iteration returns it: a real constant
-   whose value is the live limit. */
+   whose value is the live limit. With -gneg-tchk (IEEE 1800 31.9) the
+   checker's variable holds the limit adjusted by shift, clamped at 0,
+   while VPI keeps reading and writing the declared limit. */
 struct __vpiTchkLimit : public __vpiHandle {
       int get_type_code(void) const override { return vpiConstant; }
       int vpi_get(int code) override;
       void vpi_get_value(p_vpi_value val) override;
 
       vpiHandle var = 0;
+      double declared = 0.0;
+      double shift = 0.0;
+	// The value the checker uses for a declared limit.
+      double effective(double value) const
+	    { return shift != 0.0 && value + shift < 0.0 ? 0.0 : value + shift; }
 };
 
 struct __vpiTchk : public __vpiHandle {
@@ -2188,7 +2195,7 @@ int __vpiTchkLimit::vpi_get(int code)
 
 void __vpiTchkLimit::vpi_get_value(p_vpi_value val)
 {
-      var->vpi_get_value(val);
+      vpip_real_get_value(declared, val);
 }
 
 int __vpiTchk::vpi_get(int code)
@@ -2247,12 +2254,7 @@ void __vpiTchk::vpi_get_delays(p_vpi_delay del)
       unsigned per = del->mtm_flag ? 3 : 1;
       for (unsigned idx = 0; idx < (unsigned)del->no_of_delays; idx += 1) {
 	    double value = 0.0;
-	    if (idx < limits.size()) {
-		  s_vpi_value val;
-		  val.format = vpiRealVal;
-		  limits[idx].var->vpi_get_value(&val);
-		  value = val.value.real;
-	    }
+	    if (idx < limits.size()) value = limits[idx].declared;
 	    for (unsigned sub = 0; sub < per; sub += 1) {
 		  p_vpi_time time = del->da + idx*per + sub;
 		  time->type = del->time_type;
@@ -2282,7 +2284,16 @@ void __vpiTchk::vpi_put_delays(p_vpi_delay del)
 			vpip_timestruct_to_time(&time), scope);
 	    else
 		  continue;
-	    limits[idx].var->vpi_put_value(&val, vpiNoDelay);
+	    __vpiTchkLimit&limit = limits[idx];
+	    limit.declared = val.value.real;
+	    double effective = limit.effective(limit.declared);
+	    if (limit.shift != 0.0 && limit.declared + limit.shift < 0.0)
+		  vpi_printf("Warning: %s:%ld: the adjusted timing check limit "
+			     "%g is set to 0 (IEEE 1800-2023 31.9).\n",
+			     file_names[file_idx], lineno,
+			     limit.declared + limit.shift);
+	    val.value.real = effective;
+	    limit.var->vpi_put_value(&val, vpiNoDelay);
       }
 }
 
@@ -2326,18 +2337,22 @@ void compile_tchk_term(__vpiTchk*tchk, char*sig, bool has_bit, long bit,
       }
 }
 
-void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value)
+void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value, char*shift)
 {
       __vpiTchkLimit limit;
       limit.var = vvp_lookup_handle(var);
       assert(limit.var);
+      limit.declared = crstring_to_double(value);
+      if (shift) limit.shift = crstring_to_double(shift);
 	/* Seed the limit when the design loads; initialization events run
 	   in order before cbStartOfSimulation, after the variable's own. */
       vvp_net_t*net = vvp_net_lookup(var);
-      schedule_init_vector(vvp_net_ptr_t(net, 0), crstring_to_double(value));
+      schedule_init_vector(vvp_net_ptr_t(net, 0),
+			   limit.effective(limit.declared));
       tchk->limits.push_back(limit);
       free(var);
       free(value);
+      free(shift);
 }
 
 void compile_tchk_notifier(__vpiTchk*tchk, char*notifier)

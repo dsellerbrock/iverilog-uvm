@@ -83,6 +83,12 @@ class PRecRem : public PTimingCheck {
 
       void dump(std::ostream&out, unsigned ind) const override;
 
+	// For the negative timing-check pass (IEEE 1800 31.9).
+      const event_t& reference_event() const { return *reference_event_; }
+      const event_t& data_event() const { return *data_event_; }
+      const pform_name_t* delayed_reference() const { return delayed_reference_.get(); }
+      const pform_name_t* delayed_data() const { return delayed_data_.get(); }
+
     private:
       std::unique_ptr<event_t> reference_event_;
       std::unique_ptr<event_t> data_event_;
@@ -120,6 +126,12 @@ class PSetupHold : public PTimingCheck {
       void elaborate(class Design*des, class NetScope*scope) const override;
 
       void dump(std::ostream&out, unsigned ind) const override;
+
+	// For the negative timing-check pass (IEEE 1800 31.9).
+      const event_t& reference_event() const { return *reference_event_; }
+      const event_t& data_event() const { return *data_event_; }
+      const pform_name_t* delayed_reference() const { return delayed_reference_.get(); }
+      const pform_name_t* delayed_data() const { return delayed_data_.get(); }
 
     private:
       std::unique_ptr<event_t> reference_event_;
@@ -179,6 +191,12 @@ class PTchk : public PTimingCheck {
 
       void elaborate(class Design*des, class NetScope*scope) const override;
       void dump(std::ostream&out, unsigned ind) const override;
+
+      int type() const { return type_; }
+      const event_t& ref() const { return *ref_; }
+      const event_t* data() const { return data_.get(); }
+      PExpr* limit(unsigned idx) const { return limits_[idx].get(); }
+      unsigned limit_count() const { return limits_.size(); }
 
     private:
       int type_;

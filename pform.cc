@@ -15679,6 +15679,23 @@ static void tc_take_limit_refs_(const std::vector<PExpr*>&refs,
       }
 }
 
+/* IEEE 1800-2017/2023 31.9: with -gneg-tchk the $setup, $hold,
+   $setuphold, $recovery, $removal, $recrem, $width, $period and
+   $nochange checks read delayed copies of their reference and data
+   signals. The copy of signal s is the net _ivl_tcv_s, which elaboration
+   makes per instance (elaborate_tchk_views_). The &&& condition is not
+   delayed (31.9.2). Returns nullptr when the original event is to be
+   used. */
+static PTimingCheck::event_t* tc_view_(const PTimingCheck::event_t&ev)
+{
+      if (!gn_neg_tchk_flag || ev.name.size() != 1) return nullptr;
+      PTimingCheck::event_t*view = tc_event_copy_(ev);
+      if (!view) return nullptr;
+      std::string name = std::string("_ivl_tcv_") + ev.name.front().name.str();
+      view->name.front().name = lex_strings.make(name.c_str());
+      return view;
+}
+
 static int tc_pair_type_(const char*check_name)
 {
       if (strcmp(check_name, "$setup") == 0) return vpiSetup;
@@ -16053,7 +16070,14 @@ void pform_timing_check_pair(const struct vlltype&loc,
 				     data_first ? &stamp_ev : &check_ev,
 				     {limit}, notifier),
 			  {&limit});
-      tc_pair_synth_(loc, check_name, stamp_ev, check_ev, limit,
+	/* $skew keeps the undelayed signals (31.9). */
+      std::unique_ptr<PTimingCheck::event_t> stamp_view, check_view;
+      if (strcmp(check_name, "$skew") != 0) {
+	    stamp_view.reset(tc_view_(stamp_ev));
+	    check_view.reset(tc_view_(check_ev));
+      }
+      tc_pair_synth_(loc, check_name, stamp_view ? *stamp_view : stamp_ev,
+		     check_view ? *check_view : check_ev, limit,
 		     violation_if_greater, notifier);
 }
 
@@ -16116,28 +16140,33 @@ void pform_timing_check_setuphold_recrem(const struct vlltype&loc,
 	    return;
       }
 
+      std::unique_ptr<PTimingCheck::event_t> ref_view(tc_view_(ref_ev));
+      std::unique_ptr<PTimingCheck::event_t> data_view(tc_view_(data_ev));
+      const PTimingCheck::event_t&ref_use = ref_view ? *ref_view : ref_ev;
+      const PTimingCheck::event_t&data_use = data_view ? *data_view : data_ev;
+
       char nam1[48], nam2[48];
       if (strcmp(base_name, "$recrem") == 0) {
 	    snprintf(nam1, sizeof nam1, "%s(recovery)", base_name);
 	    snprintf(nam2, sizeof nam2, "%s(removal)", base_name);
 	      // recovery: stamp=async ref, check=clock data
-	      PTimingCheck::event_t stamp = conditioned_event(ref_ev, timestamp_cond);
-	      PTimingCheck::event_t check = conditioned_event(data_ev, timecheck_cond);
+	      PTimingCheck::event_t stamp = conditioned_event(ref_use, timestamp_cond);
+	      PTimingCheck::event_t check = conditioned_event(data_use, timecheck_cond);
 	      tc_pair_synth_(loc, nam1, stamp, check, lim1c, false, notifier);
 	      // removal: stamp=clock data, check=async ref
-	      stamp = conditioned_event(data_ev, timestamp_cond);
-	      check = conditioned_event(ref_ev, timecheck_cond);
+	      stamp = conditioned_event(data_use, timestamp_cond);
+	      check = conditioned_event(ref_use, timecheck_cond);
 	      tc_pair_synth_(loc, nam2, stamp, check, lim2c, false, notifier);
       } else {
 	    snprintf(nam1, sizeof nam1, "%s(setup)", base_name);
 	    snprintf(nam2, sizeof nam2, "%s(hold)", base_name);
 	      // setup: stamp=data, check=clock ref
-	      PTimingCheck::event_t stamp = conditioned_event(data_ev, timestamp_cond);
-	      PTimingCheck::event_t check = conditioned_event(ref_ev, timecheck_cond);
+	      PTimingCheck::event_t stamp = conditioned_event(data_use, timestamp_cond);
+	      PTimingCheck::event_t check = conditioned_event(ref_use, timecheck_cond);
 	      tc_pair_synth_(loc, nam1, stamp, check, lim1c, false, notifier);
 	      // hold: stamp=clock ref, check=data
-	      stamp = conditioned_event(ref_ev, timestamp_cond);
-	      check = conditioned_event(data_ev, timecheck_cond);
+	      stamp = conditioned_event(ref_use, timestamp_cond);
+	      check = conditioned_event(data_use, timecheck_cond);
 	      tc_pair_synth_(loc, nam2, stamp, check, lim2c, false, notifier);
       }
 }
@@ -16173,7 +16202,8 @@ void pform_timing_check_period(const struct vlltype&loc,
       std::vector<Statement*> stmts;
       stmts.push_back(chk);
       stmts.push_back(rec);
-      tc_always_at_(loc, ev, sva_block_(loc, stmts));
+      std::unique_ptr<PTimingCheck::event_t> view(tc_view_(ev));
+      tc_always_at_(loc, view ? *view : ev, sva_block_(loc, stmts));
 }
 
 void pform_timing_check_width(const struct vlltype&loc,
@@ -16193,7 +16223,8 @@ void pform_timing_check_width(const struct vlltype&loc,
       }
 
       PTimingCheck::event_t*event = new PTimingCheck::event_t;
-      event->name = ev.name;
+      std::unique_ptr<PTimingCheck::event_t> view(tc_view_(ev));
+      event->name = view ? view->name : ev.name;
       event->posedge = ev.posedge;
       event->negedge = ev.negedge;
       event->edges = ev.edges;
@@ -16478,10 +16509,12 @@ void pform_timing_check_nochange(const struct vlltype&loc,
 
       PAssign*w1 = new PAssign(sva_id_(loc, win_var), tc_real_(loc, 1.0));
       FILE_NAME(w1, loc);
-      tc_always_at_(loc, ref_ev, w1);
+      std::unique_ptr<PTimingCheck::event_t> ref_view(tc_view_(ref_ev));
+      std::unique_ptr<PTimingCheck::event_t> data_view(tc_view_(data_ev));
+      tc_always_at_(loc, ref_view ? *ref_view : ref_ev, w1);
 
       PTimingCheck::event_t opp;
-      opp.name = ref_ev.name;
+      opp.name = ref_view ? ref_view->name : ref_ev.name;
       opp.posedge = ref_ev.negedge;
       opp.negedge = ref_ev.posedge;
       if (ref_ev.condition.get()) {
@@ -16505,7 +16538,7 @@ void pform_timing_check_nochange(const struct vlltype&loc,
 				tc_violation_(loc, "$nochange", notifier),
 				nullptr);
       FILE_NAME(chk, loc);
-      tc_always_at_(loc, data_ev, chk);
+      tc_always_at_(loc, data_view ? *data_view : data_ev, chk);
 }
 
 void pform_timing_check_sorry(const struct vlltype&loc,

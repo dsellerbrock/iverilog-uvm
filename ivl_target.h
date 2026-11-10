@@ -2188,6 +2188,9 @@ extern const char*  ivl_tchk_term_condition_text(ivl_tchk_t net, unsigned term);
 extern unsigned     ivl_tchk_limits(ivl_tchk_t net);
 extern ivl_signal_t ivl_tchk_limit_sig(ivl_tchk_t net, unsigned idx);
 extern double       ivl_tchk_limit(ivl_tchk_t net, unsigned idx);
+  /* With -gneg-tchk (IEEE 1800 31.9) the checker uses limit + shift,
+     clamped at 0; the shift is 0 otherwise. */
+extern double       ivl_tchk_limit_shift(ivl_tchk_t net, unsigned idx);
 extern ivl_signal_t ivl_tchk_notifier(ivl_tchk_t net);
 
 extern unsigned     ivl_scope_switches(ivl_scope_t net);
