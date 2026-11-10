@@ -2917,7 +2917,7 @@ NetAssign_* PEIdent::elaborate_lval_darray_bit_(Design*des,
 	    const netdarray_t*da = lv->sig()->darray_type();
 	    const netuarray_t*fixed = da
 		  ? dynamic_cast<const netuarray_t*>(da->element_type()) : nullptr;
-	    if (fixed && fixed->static_dimensions().size() == 1
+		  if (!is_force && fixed && fixed->static_dimensions().size() == 1
 		&& elem_index.sel == index_component_t::SEL_BIT) {
 		  list<index_component_t> fixed_indices(1, elem_index);
 		  NetExpr*fixed_word = make_checked_canonical_property_index(
