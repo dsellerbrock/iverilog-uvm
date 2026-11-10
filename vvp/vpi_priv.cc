@@ -419,7 +419,6 @@ static int vpip_get_global(int property)
 
 	  default:
 	    fprintf(stderr, "vpi error: bad global property: %d\n", property);
-	    assert(0);
 	    return vpiUndefined;
       }
 }
