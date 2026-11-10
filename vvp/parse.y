@@ -120,7 +120,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PARAM_ASSIGN_STR K_PARAM_ASSIGN_L K_PARAM_ASSIGN_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS K_VARTYPE
-%token K_VPI_EXPR
+%token K_VPI_EXPR K_VPI_CONTASSIGN
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
@@ -824,6 +824,15 @@ statement
 	  T_SYMBOL ',' T_STRING argument_opt ';'
 		{ compile_vpi_expr($1, $3, $5, $7, $9, $11, $13,
 				   $14.argc, $14.argv); }
+
+  /* A continuous assignment object (IEEE 1800-2023 37.47): flags (1 net
+     declaration assignment, 2 has an l-value handle), vpiStrength0,
+     vpiStrength1, vpiLineNo, vpiFile, driver functor label ("" for none),
+     then the l-value handle (if any) and the r-value handle. */
+	| T_LABEL K_VPI_CONTASSIGN T_NUMBER ',' T_NUMBER ',' T_NUMBER ','
+	  T_NUMBER ',' T_STRING ',' T_STRING argument_opt ';'
+		{ compile_vpi_contassign($1, $3, $5, $7, $9, $11, $13,
+					 $14.argc, $14.argv); }
 
 	| T_LABEL K_EVENT K_DEBUG T_SYMBOL ',' symbols ';'
                 { compile_event($1, $4, $6.cnt, $6.vect); }

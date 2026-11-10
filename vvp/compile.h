@@ -459,6 +459,9 @@ extern void functor_ref_lookup(vvp_net_t**ref, char*lab);
  * cptr2 member of the code, instead of the cptr member.
  */
 extern void code_label_lookup(struct vvp_code_s *code, char *label, bool cptr2);
+extern void compile_vpi_contassign(char*label, long flags, long str0,
+				   long str1, long lineno, char*file,
+				   char*driver, unsigned argc, vpiHandle*argv);
 
 /* A lazily evaluated VPI argument expression node (.vpi_expr). */
 extern void compile_vpi_expr(char*label, long type, long op_type, long width,

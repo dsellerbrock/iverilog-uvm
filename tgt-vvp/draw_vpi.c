@@ -496,6 +496,86 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
       return strdup(buffer);
 }
 
+/* The functor label whose output is the driver named NAME in SCOPE (a
+   logic device or LPM), or nil. An elided BUFZ is represented by its
+   input. The runtime resolves this label leniently: a driver that is not
+   drawn under it only loses its value-change callbacks. */
+static char* contassign_driver_label_(ivl_scope_t scope, const char*name)
+{
+      char buf[64];
+      unsigned idx, pdx;
+
+      if (!name) return 0;
+      for (idx = 0; idx < ivl_scope_logs(scope); idx += 1) {
+	    ivl_net_logic_t lptr = ivl_scope_log(scope, idx);
+	    ivl_nexus_t out;
+	    if (strcmp(ivl_logic_basename(lptr), name) != 0) continue;
+	    out = ivl_logic_pin(lptr, 0);
+	    if (ivl_logic_type(lptr) == IVL_LO_BUFZ)
+		  for (pdx = 0; pdx < ivl_nexus_ptrs(out); pdx += 1) {
+			ivl_nexus_ptr_t nptr = ivl_nexus_ptr(out, pdx);
+			const char*in;
+			if (ivl_nexus_ptr_log(nptr) != lptr
+			    || ivl_nexus_ptr_pin(nptr) != 0) continue;
+			if (!can_elide_bufz(lptr, nptr)) break;
+			if (bufz_input_is_var(lptr)) {
+			      snprintf(buf, sizeof buf, "S_%p", lptr);
+			      return strdup(buf);
+			}
+			in = draw_net_input(ivl_logic_pin(lptr, 1));
+			  /* A literal input never changes. */
+			return in[0] == 'C' && strchr(in, '<') ? 0 : strdup(in);
+		  }
+	    snprintf(buf, sizeof buf, "L_%p", lptr);
+	    return strdup(buf);
+      }
+      for (idx = 0; idx < ivl_scope_lpms(scope); idx += 1) {
+	    ivl_lpm_t lpm = ivl_scope_lpm(scope, idx);
+	    if (strcmp(ivl_lpm_basename(lpm), name) != 0) continue;
+	    snprintf(buf, sizeof buf, "L_%p", lpm);
+	    return strdup(buf);
+      }
+      return 0;
+}
+
+static unsigned contassign_count_ = 0;
+
+/* Emit a .vpi_contassign record for each continuous assignment of SCOPE
+   (IEEE 1800-2023 37.47). Its l-value and r-value are .vpi_expr handles
+   whose evaluation code no thread runs: it gets a pseudo-thread number of
+   its own so the labels cannot collide. */
+void draw_contassigns_in_scope(ivl_scope_t scope)
+{
+      unsigned idx, save_local = local_count;
+
+      if (ivl_scope_contassigns(scope) == 0) return;
+      local_count = 0;
+      for (idx = 0; idx < ivl_scope_contassigns(scope); idx += 1) {
+	    ivl_contassign_t ca = ivl_scope_contassign(scope, idx);
+	    char*lhs = ivl_contassign_lval(ca)
+		  ? draw_lazy_expr_(ivl_contassign_lval(ca)) : 0;
+	    char*rhs = draw_lazy_expr_(ivl_contassign_rval(ca));
+	    char*drv = rhs ? contassign_driver_label_(scope,
+				ivl_contassign_driver(ca)) : 0;
+	    if (rhs) {
+		  fprintf(vvp_out, "CA_%u .vpi_contassign %d, %d, %d, %u, "
+			  "\"%s\", \"%s\"", contassign_count_++,
+			  (ivl_contassign_net_decl(ca) ? 1 : 0) | (lhs ? 2 : 0),
+			  1 << ivl_contassign_drive0(ca),
+			  1 << ivl_contassign_drive1(ca),
+			  ivl_contassign_lineno(ca), ivl_contassign_file(ca),
+			  drv ? drv : "");
+		  if (lhs) fprintf(vvp_out, ", %s", lhs);
+		  fprintf(vvp_out, ", %s;\n", rhs);
+	    }
+	    free(lhs);
+	    free(rhs);
+	    free(drv);
+      }
+      thread_count += 1;
+      local_count = save_local;
+}
+
 static int is_mutating_string_method_(const char*name)
 {
       return name && (!strcmp(name, "$ivl_string_method$itoa")

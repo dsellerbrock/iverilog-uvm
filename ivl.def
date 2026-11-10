@@ -26,6 +26,15 @@ ivl_const_type
 ivl_const_event_synchronous
 ivl_const_width
 
+ivl_contassign_driver
+ivl_contassign_drive0
+ivl_contassign_drive1
+ivl_contassign_file
+ivl_contassign_lineno
+ivl_contassign_lval
+ivl_contassign_net_decl
+ivl_contassign_rval
+
 ivl_discipline_domain
 ivl_discipline_flow
 ivl_discipline_name
@@ -310,6 +319,8 @@ ivl_scope_port
 ivl_scope_ports
 ivl_scope_sigs
 ivl_scope_sig
+ivl_scope_contassign
+ivl_scope_contassigns
 ivl_scope_switch
 ivl_scope_switches
 ivl_scope_time_precision
