@@ -779,7 +779,8 @@ void vvp_fun_delay::run_run_real_(const struct vvp_fun_delay::event_*cur)
 vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width,
 				 bool showcancelled)
 : net_(net), src_list_(0), ifnone_list_(0), pending_pulse_(0),
-  has_conditional_paths_(false), showcancelled_(showcancelled)
+  has_conditional_paths_(false), has_dst_parts_(false),
+  showcancelled_(showcancelled)
 {
       cur_vec4_ = vvp_vector4_t(width, BIT4_X);
       out_vec4_ = cur_vec4_;
@@ -994,11 +995,15 @@ void vvp_fun_modpath::resolve_pending_()
       }
 }
 
-void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
+/*
+ * Select the delays for a transition of output bit index (-1 for the
+ * whole output) from the active paths to it (IEEE 1800 30.5.3). Return
+ * false if no path applies.
+ */
+bool vvp_fun_modpath::select_delays_(int index, vvp_time64_t out_at[12],
+				     vvp_time64_t reject_at[12],
+				     vvp_time64_t error_at[12])
 {
-      if (cur_vec4_.eeq(bit))
-	    return;
-
 	/* Select a time delay source that applies. Notice that there
 	   may be multiple delay sources that apply, so collect all
 	   the candidates into a list first. */
@@ -1007,6 +1012,8 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
       for (vvp_fun_modpath_src*cur = src_list_ ;  cur ;  cur=cur->next_) {
 	      /* Skip paths that are disabled by conditions. */
 	    if (cur->condition_flag_ == false)
+		  continue;
+	    if (!cur->covers_(index))
 		  continue;
 
 	    if (candidate_list.empty()) {
@@ -1026,6 +1033,8 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
 	 * if there are no normal delays. */
       vvp_time64_t ifnone_wake_time = candidate_wake_time;
       for (vvp_fun_modpath_src*cur = ifnone_list_ ;  cur ;  cur=cur->next_) {
+	    if (!cur->covers_(index))
+		  continue;
 	    if (candidate_list.empty()) {
 		  candidate_list.push_back(cur);
 		  ifnone_wake_time = cur->wake_time_;
@@ -1040,21 +1049,13 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
 	    }
       }
 
-	/* Handle the special case that there are no delays that
-	   match. This may happen, for example, if the set of
-	   conditional delays is incomplete, leaving some cases
-	   uncovered. In that case, just pass the data without delay */
-      if (candidate_list.empty()) {
-	    cur_vec4_ = bit;
-	    schedule_generic(this, 0, false);
-	    return;
-      }
+      if (candidate_list.empty())
+	    return false;
 
 	/* Now given that we have a list of candidate delays, find for
 	   each if the 12 numbers the minimum from all the
 	   candidates. This minimum set becomes the chosen delay to
 	   use. */
-      vvp_time64_t out_at[12], reject_at[12], error_at[12];
       bool pulse_at[12];
       vvp_time64_t now = schedule_simtime();
 
@@ -1095,6 +1096,39 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
 			pulse_at[idx] = src->has_pulse_limits();
 	    }
       }
+      }
+
+      return true;
+}
+
+void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
+{
+      if (cur_vec4_.eeq(bit))
+	    return;
+
+	/* Paths to a bit/part select of the output (30.4.2) apply only
+	   to their bits; a bit with no path changes without delay. */
+      if (has_dst_parts_ && bit.size() > 1) {
+	    for (unsigned idx = 0 ; idx < bit.size() ; idx += 1) {
+		  if (cur_vec4_.value(idx) == bit.value(idx))
+			continue;
+		  vvp_time64_t out_at[12], reject_at[12], error_at[12];
+		  vvp_time64_t delay = 0;
+		  if (select_delays_(idx, out_at, reject_at, error_at))
+			delay = delay_from_edge(cur_vec4_.value(idx),
+						bit.value(idx), out_at);
+		  schedule_generic(new bit_wakeup_(this, idx, bit.value(idx)),
+				   delay, false, true, true);
+	    }
+	    cur_vec4_ = bit;
+	    return;
+      }
+
+      vvp_time64_t out_at[12], reject_at[12], error_at[12];
+      if (!select_delays_(-1, out_at, reject_at, error_at)) {
+	    cur_vec4_ = bit;
+	    schedule_generic(this, 0, false);
+	    return;
       }
 
 	/* Given the scheduled output time, create an output event. */
@@ -1175,7 +1209,17 @@ void vvp_fun_modpath_src::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                     vvp_context_t)
 {
       if (port.port() == 0) {
-	      // The modpath input...
+	      // The modpath input. A source select (30.4.2) wakes the
+	      // path only when its bits change.
+	    if (src_width_ != 0) {
+		  vvp_vector4_t sel(bit, src_base_, src_width_);
+		  if (src_sel_.size() == sel.size() && src_sel_.eeq(sel))
+			return;
+		  src_sel_ = sel;
+		  if (test_vec4(sel))
+			wake_time_ = schedule_simtime();
+		  return;
+	    }
 	    if (test_vec4(bit))
 		  wake_time_ = schedule_simtime();
 

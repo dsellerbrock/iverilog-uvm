@@ -297,6 +297,10 @@ struct ivl_delaypath_s {
       bool parallel;
       bool posedge;
       bool negedge;
+      unsigned dst_base;
+      unsigned dst_width;
+      unsigned src_base;
+      unsigned src_width;
       uint64_t delay[12];
 };
 

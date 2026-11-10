@@ -608,6 +608,15 @@ extern const char* ivl_path_condition_text(ivl_delaypath_t obj);
 extern int ivl_path_is_condit(ivl_delaypath_t obj);
 
 extern int ivl_path_is_parallel(ivl_delaypath_t obj);
+  /* A path to a bit/part select of its output (IEEE 1800 30.4.2)
+     covers the canonical bits [dst_base, dst_base+dst_width), and a
+     path from a select of its source is triggered by the bits
+     [src_base, src_base+src_width) of the source. A width of 0 means
+     the whole vector. */
+extern unsigned ivl_path_dst_base(ivl_delaypath_t obj);
+extern unsigned ivl_path_dst_width(ivl_delaypath_t obj);
+extern unsigned ivl_path_src_base(ivl_delaypath_t obj);
+extern unsigned ivl_path_src_width(ivl_delaypath_t obj);
 
 extern int ivl_path_source_posedge(ivl_delaypath_t obj);
 extern int ivl_path_source_negedge(ivl_delaypath_t obj);

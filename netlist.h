@@ -694,9 +694,29 @@ class NetDelaySrc  : public NetObj {
 
       bool is_parallel() const;
 
+	// A destination bit/part select (30.4.2): the canonical bits
+	// [dst_base, dst_base+dst_width) of the output. dst_width 0 means
+	// the whole vector.
+      void set_dst_part(unsigned base, unsigned wid)
+      { dst_base_ = base; dst_width_ = wid; }
+      unsigned dst_base() const { return dst_base_; }
+      unsigned dst_width() const { return dst_width_; }
+	// A source select: only the bits [base, base+wid) of source pin
+	// idx trigger the path. A width of 0 means the whole vector.
+      void set_src_part(unsigned idx, unsigned base, unsigned wid)
+      { src_parts_.resize(src_count());
+	src_parts_[idx] = std::make_pair(base, wid); }
+      unsigned src_base(unsigned idx) const
+      { return idx < src_parts_.size() ? src_parts_[idx].first : 0; }
+      unsigned src_width(unsigned idx) const
+      { return idx < src_parts_.size() ? src_parts_[idx].second : 0; }
+
       void dump(std::ostream&, unsigned ind) const;
 
     private:
+      unsigned dst_base_ = 0;
+      unsigned dst_width_ = 0;
+      std::vector<std::pair<unsigned,unsigned> > src_parts_;
       uint64_t transition_delays_[12];
       bool condit_flag_;
       bool conditional_;

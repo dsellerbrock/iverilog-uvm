@@ -3272,6 +3272,7 @@ static Module::port_t *module_declare_explicit_port(
 
 %type <letter> spec_polarity
 %type <specify_terminal> specify_path_terminal
+%type <letter> polarity_operator
 %type <specify_terminals> specify_path_identifiers
 %destructor { delete $$; } specify_path_terminal specify_path_identifiers
 
@@ -19497,9 +19498,9 @@ specify_edge_path
   ;
 
 polarity_operator
-  : K_PO_POS
-  | K_PO_NEG
-  | ':'
+  : K_PO_POS { $$ = '+'; }
+  | K_PO_NEG { $$ = '-'; }
+  | ':'      { $$ = ':'; }
   ;
 
 specify_simple_path_decl
@@ -19550,21 +19551,16 @@ specify_path_terminal
 	delete[]$1;
       }
   | IDENTIFIER '[' expr_primary ']'
-      { if (gn_specify_blocks_flag) {
-	      yywarn(@4, "warning: Bit selects are not currently supported "
-			 "in path declarations. The declaration "
-			 "will be applied to the whole vector.");
-	}
-	$$ = new pform_specify_terminal_t(lex_strings.make($1));
+      { $$ = new pform_specify_terminal_t(lex_strings.make($1));
+	$$->sel = 'b';
+	$$->msb = $3;
 	delete[]$1;
       }
   | IDENTIFIER '[' expr_primary polarity_operator expr_primary ']'
-      { if (gn_specify_blocks_flag) {
-	      yywarn(@4, "warning: Part selects are not currently supported "
-			 "in path declarations. The declaration "
-			 "will be applied to the whole vector.");
-	}
-	$$ = new pform_specify_terminal_t(lex_strings.make($1));
+      { $$ = new pform_specify_terminal_t(lex_strings.make($1));
+	$$->sel = $4;
+	$$->msb = $3;
+	$$->lsb = $5;
 	delete[]$1;
       }
   | IDENTIFIER '.' IDENTIFIER
@@ -19574,24 +19570,19 @@ specify_path_terminal
 	delete[]$3;
       }
   | IDENTIFIER '.' IDENTIFIER '[' expr_primary ']'
-      { if (gn_specify_blocks_flag) {
-	      yywarn(@4, "warning: Bit selects are not currently supported "
-			 "in path declarations. The declaration "
-			 "will be applied to the whole vector.");
-	}
-	$$ = new pform_specify_terminal_t(lex_strings.make($1),
+      { $$ = new pform_specify_terminal_t(lex_strings.make($1),
 					       lex_strings.make($3));
+	$$->sel = 'b';
+	$$->msb = $5;
 	delete[]$1;
 	delete[]$3;
       }
   | IDENTIFIER '.' IDENTIFIER '[' expr_primary polarity_operator expr_primary ']'
-      { if (gn_specify_blocks_flag) {
-	      yywarn(@4, "warning: Part selects are not currently supported "
-			 "in path declarations. The declaration "
-			 "will be applied to the whole vector.");
-	}
-	$$ = new pform_specify_terminal_t(lex_strings.make($1),
+      { $$ = new pform_specify_terminal_t(lex_strings.make($1),
 					       lex_strings.make($3));
+	$$->sel = $6;
+	$$->msb = $5;
+	$$->lsb = $7;
 	delete[]$1;
 	delete[]$3;
       }

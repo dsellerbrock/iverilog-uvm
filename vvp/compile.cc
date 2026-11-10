@@ -2859,6 +2859,8 @@ struct __vpiModPath* compile_modpath(char*label, unsigned width,
       return modpath;
 }
 
+static vvp_fun_modpath_src*last_modpath_src_ = 0;
+
 static struct __vpiModPathSrc*make_modpath_src(struct __vpiModPath*path,
 					       char edge,
 					       const struct symb_s&src,
@@ -2911,6 +2913,7 @@ static struct __vpiModPathSrc*make_modpath_src(struct __vpiModPath*path,
 	    obj = new vvp_fun_modpath_edge(use_delay, posedge, negedge);
       }
 
+      last_modpath_src_ = obj;
       vvp_net_t*net = new vvp_net_t;
       struct __vpiModPathSrc* srcobj = vpip_make_modpath_src(path, net) ;
       srcobj->ifnone = ifnone;
@@ -2961,6 +2964,17 @@ void compile_modpath_src(struct __vpiModPath*dst, char edge,
       struct __vpiModPathSrc*obj =
 	    make_modpath_src(dst, edge, src, vals, ifnone, 0);
       compile_vpi_lookup(&obj->path_term_in.expr, path_term_in.text);
+}
+
+void compile_modpath_src_part(struct __vpiModPath*dst,
+			      unsigned dbase, unsigned dwid,
+			      unsigned sbase, unsigned swid)
+{
+      assert(last_modpath_src_);
+      last_modpath_src_->set_dst_part(dbase, dwid);
+      last_modpath_src_->set_src_part(sbase, swid);
+      if (dwid)
+	    dst->modpath->set_has_dst_parts();
 }
 
 /*

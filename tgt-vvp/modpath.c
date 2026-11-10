@@ -145,6 +145,10 @@ static void draw_modpath_record(const char*label, const char*driver,
 
 	    src_sig = find_path_source_port(path);
 	    fprintf(vvp_out, " v%p_0", src_sig);
+	    if (ivl_path_dst_width(path) || ivl_path_src_width(path))
+		  fprintf(vvp_out, " [%u %u %u %u]", ivl_path_dst_base(path),
+			  ivl_path_dst_width(path), ivl_path_src_base(path),
+			  ivl_path_src_width(path));
       }
 
       fprintf(vvp_out, ";\n");

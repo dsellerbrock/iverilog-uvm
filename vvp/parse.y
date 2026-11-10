@@ -1826,8 +1826,14 @@ symbol_opt
      and saved it in the modpath_dst variable. The modpath_src rule,
      then simply needs to attach the items it creates. */
 modpath_src_list
+        : modpath_src_item
+        | modpath_src_list ',' modpath_src_item
+        ;
+
+modpath_src_item
         : modpath_src
-        | modpath_src_list ',' modpath_src
+        | modpath_src '[' T_NUMBER T_NUMBER T_NUMBER T_NUMBER ']'
+            { compile_modpath_src_part(modpath_dst, $3, $4, $5, $6); }
         ;
 
 port_type

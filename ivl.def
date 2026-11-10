@@ -233,6 +233,10 @@ ivl_path_condition_text
 ivl_path_delay
 ivl_path_is_condit
 ivl_path_is_parallel
+ivl_path_dst_base
+ivl_path_dst_width
+ivl_path_src_base
+ivl_path_src_width
 ivl_path_scope
 ivl_path_source
 ivl_path_source_negedge

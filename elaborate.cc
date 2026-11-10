@@ -31716,6 +31716,69 @@ static bool resolve_specify_path_terminal_(Design*des, const LineInfo*loc,
       return true;
 }
 
+/* IEEE 1800 30.4.2: a path terminal may name a constant bit- or
+   part-select of a vector port. Return its canonical bits as [lo,
+   lo+wid). A terminal without a select is the whole vector. */
+static bool specify_terminal_part_(Design*des, NetScope*scope,
+				   const LineInfo*loc,
+				   const pform_specify_terminal_t&terminal,
+				   const NetNet*sig, unsigned&lo, unsigned&wid)
+{
+      lo = 0;
+      wid = sig->vector_width();
+      if (terminal.sel == 0)
+	    return true;
+
+      long msb = 0, lsb = 0;
+      NetExpr*mexpr = elab_and_eval(des, scope, terminal.msb, -1, true);
+      NetExpr*lexpr = terminal.lsb
+	    ? elab_and_eval(des, scope, terminal.lsb, -1, true) : nullptr;
+      bool ok = mexpr && eval_as_long(msb, mexpr)
+	    && (!terminal.lsb || (lexpr && eval_as_long(lsb, lexpr)));
+      delete mexpr;
+      delete lexpr;
+      if (!ok) {
+	    cerr << loc->get_fileline() << ": error: The select of path "
+		 << "terminal " << terminal << " must be constant." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+
+      long first = msb, last = msb;
+      switch (terminal.sel) {
+	  case ':':
+	    last = lsb;
+	    break;
+	  case '+':
+	    last = msb + lsb - 1;
+	    break;
+	  case '-':
+	    last = msb - lsb + 1;
+	    break;
+	  default:
+	    break;
+      }
+      const std::list<long> prefix;
+      if ((terminal.sel == '+' || terminal.sel == '-') && lsb <= 0) {
+	    cerr << loc->get_fileline() << ": error: The width of the select "
+		 << "of path terminal " << terminal << " must be positive."
+		 << endl;
+	    des->errors += 1;
+	    return false;
+      }
+      if (!sig->sb_is_valid(prefix, first) || !sig->sb_is_valid(prefix, last)) {
+	    cerr << loc->get_fileline() << ": error: The select of path "
+		 << "terminal " << terminal << " is out of range." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+      long a = sig->sb_to_idx(prefix, first);
+      long b = sig->sb_to_idx(prefix, last);
+      lo = a < b ? a : b;
+      wid = (a < b ? b - a : a - b) + 1;
+      return true;
+}
+
 void PSpecPath::elaborate(Design*des, NetScope*scope) const
 {
       if (!gn_specify_blocks_flag)
@@ -31844,6 +31907,23 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
       if (unbound || !terminals_valid)
 	    return;
 
+      vector<pair<unsigned,unsigned> > src_part(src.size());
+      vector<pair<unsigned,unsigned> > dst_part(dst.size());
+      for (size_t idx = 0; idx < src.size(); idx += 1)
+	    if (resolved_src[idx].net
+		&& !specify_terminal_part_(des, scope, this, src[idx],
+					   resolved_src[idx].net,
+					   src_part[idx].first,
+					   src_part[idx].second))
+		  return;
+      for (size_t idx = 0; idx < dst.size(); idx += 1)
+	    if (resolved_dst[idx].net
+		&& !specify_terminal_part_(des, scope, this, dst[idx],
+					   resolved_dst[idx].net,
+					   dst_part[idx].first,
+					   dst_part[idx].second))
+		  return;
+
 	/* A parallel connection does not support more than a one to one
 	   connection (source/destination). */
       if (! full_flag_ && ((src.size() != 1) || (dst.size() != 1))) {
@@ -31851,18 +31931,16 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 	     * with multiple sources/destinations if all the paths are only a
 	     * single bit wide (a scalar or a one bit vector). */
 	    bool all_single = true;
-	    for (const resolved_specify_path_terminal_t&terminal : resolved_src) {
-		  const NetNet *psig = terminal.net;
+	    for (size_t idx = 0; idx < src.size(); idx += 1) {
 		    /* We will report a missing signal as invalid later. For
 		     * now assume it's a single bit. */
-		  if (psig == 0) continue;
-		  if (psig->vector_width() != 1) all_single = false;
+		  if (resolved_src[idx].net == 0) continue;
+		  if (src_part[idx].second != 1) all_single = false;
 	    }
-	    for (const resolved_specify_path_terminal_t&terminal : resolved_dst) {
-		  const NetNet *psig = terminal.net;
+	    for (size_t idx = 0; idx < dst.size(); idx += 1) {
 		    /* The same as above for source paths. */
-		  if (psig == 0) continue;
-		  if (psig->vector_width() != 1) all_single = false;
+		  if (resolved_dst[idx].net == 0) continue;
+		  if (dst_part[idx].second != 1) all_single = false;
 	    }
 
 	    if (! all_single) {
@@ -31896,7 +31974,7 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  continue;
 	    }
 
-	    unsigned long dst_wid = dst_sig->vector_width();
+	    unsigned long dst_wid = dst_part[dst_idx].second;
 
 	    if (resolved_dst_terminal.direction != NetNet::POUTPUT
 		&& resolved_dst_terminal.direction != NetNet::PINOUT) {
@@ -31925,6 +32003,8 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 					       conditional, !full_flag_,
 					       condition_text.str());
 	    path->set_line(*this);
+	    if (dst_wid != dst_sig->vector_width())
+		  path->set_dst_part(dst_part[dst_idx].first, dst_wid);
 
 	      // The presence of the data_source_expression indicates
 	      // that this is an edge sensitive path. If so, then set
@@ -31989,8 +32069,8 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 
 		    // For a parallel connection the source and destination
 		    // must be the same width.
+		  unsigned long src_wid = src_part[src_idx].second;
 		  if (! full_flag_) {
-			unsigned long src_wid = src_sig->vector_width();
 			if (src_wid != dst_wid) {
 			      cerr << get_fileline() << ": error: For a "
 			              "parallel connection the "
@@ -32002,6 +32082,8 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  }
 
 		  connect(src_sig->pin(0), path->pin(idx));
+		  if (src_wid != src_sig->vector_width())
+			path->set_src_part(idx, src_part[src_idx].first, src_wid);
 		  idx += 1;
 	    }
 	    if (debug_elaborate) {
