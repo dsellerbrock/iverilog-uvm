@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2814_multidim_concat_wrong_type.sv",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue2814_multidim_concat_wrong_type"
+}
