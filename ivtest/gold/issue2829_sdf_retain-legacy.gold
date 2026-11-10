@@ -1,2 +1,2 @@
 PASSED
-./ivltests/issue2829_sdf_retain.v:35: $finish called at 16 (1ns)
+./ivltests/issue2829_sdf_retain.v:38: $finish called at 15 (1ns)

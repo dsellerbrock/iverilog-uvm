@@ -28,7 +28,10 @@ module issue2829_sdf_retain;
     if (y !== 0 || yc !== 0 || ye !== 0)
       $fatal(1, "RETAIN IOPATHs did not apply the 5 ns initial delay");
     #4 a = 1;
-    #6;
+    #2;
+    if (y !== 0 || yc !== 0 || ye !== 0)
+      $fatal(1, "RETAIN IOPATHs did not delay the transition by 5 ns");
+    #3;
     if (y !== 1 || yc !== 1 || ye !== 1)
       $fatal(1, "RETAIN IOPATHs did not apply the 5 ns transition delay");
     $display("PASSED");
