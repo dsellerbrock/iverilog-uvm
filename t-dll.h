@@ -109,6 +109,7 @@ struct dll_target  : public target_t, public expr_scan_t {
       bool can_emit_processes_before_definitions() const override
 	    { return !stream_processes_; }
       bool start_processes() override;
+      void make_scope_contassigns_(ivl_scope_t scope);
       bool end_processes() override;
       bool ordered_process_callbacks() const override
 	    { return order_processes_; }
@@ -298,6 +299,8 @@ struct ivl_delaypath_s {
       bool posedge;
       bool negedge;
       uint64_t delay[12];
+      struct token_s { char kind; double value; ivl_signal_t sig; };
+      std::vector<std::vector<token_s>> exprs;
 };
 
 struct ivl_obj_mutation_path_s {
@@ -913,6 +916,7 @@ struct ivl_tchk_s {
       term_s term[2];
       std::vector<ivl_signal_t> limit_sigs;
       std::vector<double> limits;
+      std::vector<double> shifts;
       ivl_signal_t notifier;
 };
 
@@ -922,10 +926,21 @@ struct ivl_scope_aux_s {
       std::vector<std::pair<const char*, ivl_type_t> >*typedefs_;
       std::vector<struct ivl_parameter_s>*param;
       std::vector<ivl_switch_t>*switches;
+      std::vector<struct ivl_contassign_s>*contassigns;
       std::vector<ivl_tchk_t>*tchks;
       ivl_scope_objects_s*objects_;
       ivl_scope_proc_s*proc_;
       struct ivl_attribute_s*attr;
+};
+
+struct ivl_contassign_s {
+      ivl_expr_t lval;
+      ivl_expr_t rval;
+      perm_string driver;
+      perm_string file;
+      unsigned lineno;
+      ivl_drive_t drive0, drive1;
+      bool net_decl;
 };
 
 /* Scopes are kept in a tree. Children retain the exact target creation order.

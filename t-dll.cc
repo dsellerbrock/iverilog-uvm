@@ -1257,8 +1257,48 @@ bool dll_target::order_processes(vector<target_process_ref_t>&processes)
       return true;
 }
 
+/* Translate the kept continuous assignments (37.47) once every signal
+   exists, and before any target code runs. */
+void dll_target::make_scope_contassigns_(ivl_scope_t scope)
+{
+      const NetScope*net = scope->net_;
+      if (net && !net->contassigns.empty()) {
+	    std::vector<ivl_contassign_s>*list = new std::vector<ivl_contassign_s>;
+	    list->reserve(net->contassigns.size());
+	    for (const NetScope::contassign_t&cur : net->contassigns) {
+		  ivl_contassign_s obj;
+		  obj.lval = 0;
+		  if (cur.lval) {
+			assert(expr_ == 0);
+			cur.lval->expr_scan(this);
+			obj.lval = expr_;
+			expr_ = 0;
+		  }
+		  assert(expr_ == 0);
+		  cur.rval->expr_scan(this);
+		  obj.rval = expr_;
+		  expr_ = 0;
+		  obj.driver = cur.driver;
+		  obj.file = cur.get_file();
+		  obj.lineno = cur.get_lineno();
+		  obj.drive0 = cur.drive0;
+		  obj.drive1 = cur.drive1;
+		  obj.net_decl = cur.net_decl;
+		  list->push_back(obj);
+	    }
+	    scope->ensure_aux_()->contassigns = list;
+      }
+      for (unsigned idx = 0; idx < scope->child_count_; idx += 1)
+	    make_scope_contassigns_(scope->child[idx]);
+}
+
 bool dll_target::start_processes()
 {
+      for (ivl_scope_t scope : des_.packages)
+	    make_scope_contassigns_(scope);
+      for (ivl_scope_t scope : des_.roots)
+	    make_scope_contassigns_(scope);
+
       if (!stream_processes_)
 	    return true;
       assert(!stream_started_);
@@ -3990,6 +4030,12 @@ bool dll_target::signal_paths(const NetNet*net)
 		  for (unsigned pe = 0 ;  pe < 12 ;  pe += 1) {
 			aux->path[ptr].delay[pe] = src->get_delay(pe);
 		  }
+		  for (const auto&tokens : src->delay_exprs) {
+			aux->path[ptr].exprs.emplace_back();
+			for (const NetPathToken&tok : tokens)
+			      aux->path[ptr].exprs.back().push_back({tok.kind, tok.value,
+				    tok.sig ? find_signal(tok.sig) : 0});
+		  }
 
 		  ptr += 1;
 	    }
@@ -4024,6 +4070,7 @@ bool dll_target::scope_tchks(const NetScope*scope)
 	    for (const NetNet*var : cur->limit_vars)
 		  tchk->limit_sigs.push_back(find_signal(var));
 	    tchk->limits = cur->limits;
+	    tchk->shifts = cur->shifts;
 	    tchk->notifier = cur->notifier ? find_signal(cur->notifier) : 0;
 	    aux->tchks->push_back(tchk);
       }
