@@ -4127,7 +4127,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    draw_switch_in_scope(sw);
       }
 
-      draw_contassigns_in_scope(net);
+      draw_vpi_objects_in_scope(net);
 
 	/* A system-task call records the current scope when vvp reads its
 	   instruction. Emit a task's nested scopes before its body so a .scope

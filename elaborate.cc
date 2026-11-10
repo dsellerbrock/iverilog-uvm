@@ -55959,6 +55959,15 @@ Design* elaborate(list<perm_string>roots)
        * including when an earlier statement already set rc or errors. */
       des->finalize_interconnects();
 
+	/* VPI's parameter default and defparam expressions (37.28), now
+	   that every parameter is final. */
+      if (rc && des->errors == 0) {
+	    for (NetScope*scope : des->find_package_scopes())
+		  scope->elaborate_vpi_parameter_exprs(des);
+	    for (NetScope*scope : des->find_root_scopes())
+		  scope->elaborate_vpi_parameter_exprs(des);
+      }
+
       if (rc == false) {
 	    delete des;
 	    return 0;

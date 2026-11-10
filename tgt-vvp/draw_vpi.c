@@ -544,16 +544,40 @@ static unsigned contassign_count_ = 0;
    start far above any real thread, so the real threads keep their labels. */
 static unsigned static_thunk_count_ = 1u << 30;
 
-/* Emit a .vpi_contassign record for each continuous assignment of SCOPE
-   (IEEE 1800-2023 37.47). Its l-value and r-value are .vpi_expr handles
-   whose evaluation code no thread runs. */
-void draw_contassigns_in_scope(ivl_scope_t scope)
+/* Emit the VPI objects of SCOPE that describe source expressions: a
+   .vpi_contassign record for each continuous assignment (IEEE 1800-2023
+   37.47), a .vpi_param_expr record for each parameter whose default is
+   not simply its value, and a .vpi_defparam record for each defparam
+   (37.28). Their expressions are .vpi_expr handles whose evaluation code
+   no thread runs. */
+void draw_vpi_objects_in_scope(ivl_scope_t scope)
 {
       unsigned idx, save_local = local_count, save_thread = thread_count;
+      int any = ivl_scope_contassigns(scope) || ivl_scope_defparams(scope);
 
-      if (ivl_scope_contassigns(scope) == 0) return;
+      for (idx = 0; !any && idx < ivl_scope_params(scope); idx += 1)
+	    any = ivl_parameter_default_expr(ivl_scope_param(scope, idx)) != 0;
+      if (!any) return;
       thread_count = static_thunk_count_++;
       local_count = 0;
+      for (idx = 0; idx < ivl_scope_params(scope); idx += 1) {
+	    ivl_parameter_t par = ivl_scope_param(scope, idx);
+	    ivl_expr_t def = ivl_parameter_default_expr(par);
+	    char*text = def ? draw_lazy_expr_(def) : 0;
+	    if (text)
+		  fprintf(vvp_out, " .vpi_param_expr P_%p, %s;\n", par, text);
+	    free(text);
+      }
+      for (idx = 0; idx < ivl_scope_defparams(scope); idx += 1) {
+	    ivl_defparam_t dp = ivl_scope_defparam(scope, idx);
+	    char*text = draw_lazy_expr_(ivl_defparam_rhs(dp));
+	    if (text)
+		  fprintf(vvp_out, " .vpi_defparam P_%p, %u, %u, %s;\n",
+			  ivl_defparam_parameter(dp),
+			  ivl_file_table_index(ivl_defparam_file(dp)),
+			  ivl_defparam_lineno(dp), text);
+	    free(text);
+      }
       for (idx = 0; idx < ivl_scope_contassigns(scope); idx += 1) {
 	    ivl_contassign_t ca = ivl_scope_contassign(scope, idx);
 	    char*lhs = ivl_contassign_lval(ca)
