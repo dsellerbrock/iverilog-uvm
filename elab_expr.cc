@@ -7126,10 +7126,21 @@ static PExpr* aggregate_compare_(const PEIdent*left, const PEIdent*right,
       return leaf(left, right);
 }
 
-/* The aggregate type of a comparison operand that needs the expansion above:
- * a direct unpacked-structure variable, or a struct/class member path that
- * ends in an unpacked structure or a fixed unpacked array. Plain fixed-array
- * variables keep their own comparison path. */
+/* The aggregate type of an operand that can use the expansion above: an
+ * unpacked structure, a struct/class member path ending in an unpacked
+ * structure or fixed unpacked array, or an indexed container element whose
+ * type is a fixed unpacked array. */
+static bool direct_fixed_uarray_operand_(Design*des, NetScope*scope,
+						 const PEIdent*id)
+{
+      if (id->path().name.empty() || !id->path().name.back().index.empty())
+	    return false;
+      symbol_search_results sr;
+      return symbol_search(id, des, scope, id->path(), id->lexical_pos(), &sr)
+	    && sr.net && sr.path_tail.empty()
+	    && sr.net->unpacked_dimensions() != 0;
+}
+
 static ivl_type_t unpacked_aggregate_operand_type_(Design*des, NetScope*scope,
 						   const PEIdent*id)
 {
@@ -7139,14 +7150,25 @@ static ivl_type_t unpacked_aggregate_operand_type_(Design*des, NetScope*scope,
 	    return nullptr;
       ivl_type_t cur = sr.net->net_type();
       if (sr.path_tail.empty()) {
+	    /* A direct fixed array is represented by the signal's array type, and
+	       indexing a queue (or dynamic array) can expose a fixed-array element
+	       type through the array type's element_type(). */
+	    if (!id->path().name.back().index.empty()) {
+		  const netarray_t*array = dynamic_cast<const netarray_t*>(cur);
+		  if (!array)
+			return nullptr;
+		  cur = array->element_type();
+	    } else if (sr.net->unpacked_dimensions() != 0) {
+		  cur = sr.net->array_type();
+	    }
 	    const netstruct_t*direct = dynamic_cast<const netstruct_t*>(cur);
 	    if (direct && !direct->packed() && sr.net->unpacked_dimensions() == 0)
 		  return direct;
+	    if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(cur))
+		  return array;
 	    return nullptr;
       }
       for (const name_component_t&comp : sr.path_tail) {
-	    if (!comp.index.empty())
-		  return nullptr;
 	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(cur)) {
 		  int pidx = cls->property_idx_from_name(comp.name);
 		  if (pidx < 0)
@@ -7165,10 +7187,17 @@ static ivl_type_t unpacked_aggregate_operand_type_(Design*des, NetScope*scope,
 	    } else {
 		  return nullptr;
 	    }
+	    for (size_t idx = 0; idx < comp.index.size(); ++idx) {
+		  const netarray_t*array = dynamic_cast<const netarray_t*>(cur);
+		  if (!array)
+			return nullptr;
+		  cur = array->element_type();
+	    }
       }
       if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(cur))
 	    return st->packed() ? nullptr : cur;
-      if (dynamic_cast<const netsarray_t*>(cur)
+
+      if (dynamic_cast<const netuarray_t*>(cur)
 	  && !dynamic_cast<const netdarray_t*>(cur))
 	    return cur;
       return nullptr;
@@ -7678,7 +7707,9 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
 		  ? unpacked_aggregate_operand_type_(des, scope, lid) : nullptr;
 	    ivl_type_t rtype = rid
 		  ? unpacked_aggregate_operand_type_(des, scope, rid) : nullptr;
-	    if (ltype && rtype) {
+	    if (ltype && rtype
+		&& !(direct_fixed_uarray_operand_(des, scope, lid)
+		     && direct_fixed_uarray_operand_(des, scope, rid))) {
 		  if (!ltype->type_compatible(rtype)) {
 			cerr << get_fileline() << ": error: operands of an "
 			     << "aggregate comparison must have equivalent "
