@@ -649,8 +649,14 @@ static int signal_get(int code, vpiHandle ref)
 #endif
 
 	  default:
+	    {
+	          char message[128];
+	          snprintf(message, sizeof(message),
+	                   "unknown signal_get property %d.", code);
+	          vpip_set_error(vpiError, message);
 	    fprintf(stderr, "VPI error: unknown signal_get property %d.\n",
 	            code);
+	    }
 	    return vpiUndefined;
       }
 }
