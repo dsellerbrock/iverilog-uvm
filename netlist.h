@@ -1319,11 +1319,12 @@ class Definitions {
       virtual void class_definitions_changed_();
 
     protected:
-	// Enumerations. The enum_sets_ is a list of all the
-	// enumerations present in this scope. The enum_names_ is a
-	// map of all the enumeration names back to the sets that
-	// contain them.
+	// Enumerations. The enum_sets_ map looks up enumerations by
+	// their pform type, while enum_sets_order_ preserves the order
+	// in which they were added. The enum_names_ map looks up enum
+	// names and their values.
       std::map<const enum_type_t*,netenum_t*> enum_sets_;
+      std::vector<netenum_t*> enum_sets_order_;
       std::map<perm_string,NetEConstEnum*> enum_names_;
 
 	// This is a map of all the classes (by name) in this scope.
