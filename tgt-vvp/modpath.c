@@ -153,6 +153,31 @@ static void draw_modpath_record(const char*label, const char*driver,
 
       fprintf(vvp_out, ";\n");
 
+	/* A delay that uses a specparam keeps its expressions for SDF
+	   LABEL re-evaluation (IEEE 1800 32.4.3). */
+      for (idx = 0 ;  idx < ivl_signal_npath(path_sig); idx += 1) {
+	    ivl_delaypath_t path = ivl_signal_path(path_sig, idx);
+	    unsigned expr, tok;
+	    if (ivl_path_delay_exprs(path) == 0) continue;
+	    fprintf(vvp_out, "    .pathexpr %s, %u, %u", label, idx,
+		    ivl_path_delay_exprs(path));
+	    for (expr = 0 ; expr < ivl_path_delay_exprs(path) ; expr += 1) {
+		  fprintf(vvp_out, " \"");
+		  for (tok = 0 ; tok < ivl_path_delay_expr_tokens(path, expr) ; tok += 1) {
+			double value;
+			ivl_signal_t sig;
+			int kind = ivl_path_delay_expr_token(path, expr, tok,
+							     &value, &sig);
+			if (tok) fputc(' ', vvp_out);
+			if (kind == 'c') fprintf(vvp_out, "%.17g", value);
+			else if (kind == 's') fprintf(vvp_out, "v%p_0", sig);
+			else fputc(kind, vvp_out);
+		  }
+		  fprintf(vvp_out, "\"");
+	    }
+	    fprintf(vvp_out, ";\n");
+      }
+
       free(src_drivers);
       free(con_drivers);
       free(condition_texts);
@@ -242,9 +267,15 @@ void draw_tchks(ivl_scope_t scope)
 	    fprintf(vvp_out, ", %u", ivl_tchk_limits(tchk));
 	    for (lim = 0; lim < ivl_tchk_limits(tchk); lim += 1) {
 		  char*value = draw_Cr_to_string(ivl_tchk_limit(tchk, lim));
+		  double shift = ivl_tchk_limit_shift(tchk, lim);
 		  fprintf(vvp_out, " v%p_0 %s", ivl_tchk_limit_sig(tchk, lim),
 			  value);
 		  free(value);
+		  if (shift != 0.0) {
+			value = draw_Cr_to_string(shift);
+			fprintf(vvp_out, " / %s", value);
+			free(value);
+		  }
 	    }
 	    if (notifier) fprintf(vvp_out, ", v%p_0;\n", notifier);
 	    else fprintf(vvp_out, ", 0;\n");

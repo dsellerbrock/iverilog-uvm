@@ -204,6 +204,8 @@ typedef struct ivl_scope_s    *ivl_scope_t;
 typedef struct ivl_signal_s   *ivl_signal_t;
 typedef struct ivl_port_info_s*ivl_port_info_t;
 typedef struct ivl_switch_s   *ivl_switch_t;
+typedef struct ivl_contassign_s*ivl_contassign_t;
+typedef struct ivl_defparam_s*ivl_defparam_t;
 typedef struct ivl_tchk_s     *ivl_tchk_t;
 typedef struct ivl_memory_s   *ivl_memory_t; //XXXX __attribute__((deprecated));
 typedef struct ivl_statement_s*ivl_statement_t;
@@ -1911,6 +1913,12 @@ extern ivl_signal_t ivl_nexus_ptr_sig(ivl_nexus_ptr_t net);
  *    Return the separately elaborated RHS of an explicit value parameter
  *    assignment, or NULL if the parameter was not explicitly assigned.
  *
+ * ivl_parameter_default_expr
+ *    The declaration's default expression, elaborated in the declaring
+ *    scope without folding (IEEE 1800-2023 37.28 detail 3). NULL when
+ *    the default is the plain constant the parameter's value already
+ *    is, or when it cannot be described.
+ *
  * ivl_parameter_msb
  * ivl_parameter_lsb
  *    Returns the MSB and LSB for the parameter. For a parameter without
@@ -1938,6 +1946,7 @@ extern const char* ivl_parameter_basename(ivl_parameter_t net);
 extern ivl_scope_t ivl_parameter_scope(ivl_parameter_t net);
 extern ivl_expr_t  ivl_parameter_expr(ivl_parameter_t net);
 extern ivl_expr_t  ivl_parameter_assign_expr(ivl_parameter_t net);
+extern ivl_expr_t  ivl_parameter_default_expr(ivl_parameter_t net);
 extern int         ivl_parameter_msb(ivl_parameter_t net);
 extern int         ivl_parameter_lsb(ivl_parameter_t net);
 extern unsigned    ivl_parameter_width(ivl_parameter_t net);
@@ -2184,6 +2193,17 @@ extern ivl_signal_t ivl_scope_sig(ivl_scope_t net, unsigned idx);
  * edge is an Annex K vpiEdge mask (0: no edge).
  * Each limit is a hidden real variable the synthesized checker reads,
  * with its elaborated value in scope time units. */
+/* When the design calls $sdf_annotate, a path delay that uses an
+ * annotatable specparam keeps its expressions (one per declared delay) in
+ * reverse Polish tokens: 'c' a constant (value), 's' the specparam's
+ * run-time storage signal (sig), or an operator '+', '-', '*', '/', 'n'
+ * (negation). ivl_path_delay_exprs is 0 for plain constant delays. */
+extern unsigned ivl_path_delay_exprs(ivl_delaypath_t net);
+extern unsigned ivl_path_delay_expr_tokens(ivl_delaypath_t net, unsigned expr);
+extern int ivl_path_delay_expr_token(ivl_delaypath_t net, unsigned expr,
+				     unsigned idx, double*value,
+				     ivl_signal_t*sig);
+
 extern unsigned     ivl_scope_tchks(ivl_scope_t net);
 extern ivl_tchk_t   ivl_scope_tchk(ivl_scope_t net, unsigned idx);
 extern int          ivl_tchk_type(ivl_tchk_t net);
@@ -2197,7 +2217,62 @@ extern const char*  ivl_tchk_term_condition_text(ivl_tchk_t net, unsigned term);
 extern unsigned     ivl_tchk_limits(ivl_tchk_t net);
 extern ivl_signal_t ivl_tchk_limit_sig(ivl_tchk_t net, unsigned idx);
 extern double       ivl_tchk_limit(ivl_tchk_t net, unsigned idx);
+  /* With -gneg-tchk (IEEE 1800 31.9) the checker uses limit + shift,
+     clamped at 0; the shift is 0 otherwise. */
+extern double       ivl_tchk_limit_shift(ivl_tchk_t net, unsigned idx);
 extern ivl_signal_t ivl_tchk_notifier(ivl_tchk_t net);
+
+/* CONTINUOUS ASSIGNMENTS (IEEE 1800-2023 37.47)
+ *
+ * ivl_scope_contassigns
+ * ivl_scope_contassign
+ *    The continuous assignments elaborated in a scope. They are kept
+ *    only so that targets can expose them as objects; the structural
+ *    netlist already carries their behavior.
+ *
+ * ivl_contassign_lval
+ *    The l-value read as an expression, or nil when the l-value is not
+ *    a whole net.
+ *
+ * ivl_contassign_rval
+ *    The r-value expression, at the width of the l-value.
+ *
+ * ivl_contassign_driver
+ *    The basename of the logic device or LPM in the same scope that
+ *    drives the l-value, or nil when there is none (a constant).
+ *
+ * ivl_contassign_drive0
+ * ivl_contassign_drive1
+ *    The drive strengths of the assignment.
+ *
+ * ivl_contassign_net_decl
+ *    True for a net declaration assignment.
+ */
+extern unsigned         ivl_scope_contassigns(ivl_scope_t net);
+extern ivl_contassign_t ivl_scope_contassign(ivl_scope_t net, unsigned idx);
+extern ivl_expr_t       ivl_contassign_lval(ivl_contassign_t net);
+extern ivl_expr_t       ivl_contassign_rval(ivl_contassign_t net);
+extern const char*      ivl_contassign_driver(ivl_contassign_t net);
+extern ivl_drive_t      ivl_contassign_drive0(ivl_contassign_t net);
+extern ivl_drive_t      ivl_contassign_drive1(ivl_contassign_t net);
+extern int              ivl_contassign_net_decl(ivl_contassign_t net);
+extern const char*      ivl_contassign_file(ivl_contassign_t net);
+extern unsigned         ivl_contassign_lineno(ivl_contassign_t net);
+
+/* DEFPARAMS (IEEE 1800-2023 37.28)
+ *
+ * ivl_scope_defparams
+ * ivl_scope_defparam
+ *    The defparam statements of a scope, once resolved: each names the
+ *    parameter it assigns (ivl_defparam_parameter) and the r-value as
+ *    elaborated in this scope (ivl_defparam_rhs).
+ */
+extern unsigned        ivl_scope_defparams(ivl_scope_t net);
+extern ivl_defparam_t  ivl_scope_defparam(ivl_scope_t net, unsigned idx);
+extern ivl_parameter_t ivl_defparam_parameter(ivl_defparam_t net);
+extern ivl_expr_t      ivl_defparam_rhs(ivl_defparam_t net);
+extern const char*     ivl_defparam_file(ivl_defparam_t net);
+extern unsigned        ivl_defparam_lineno(ivl_defparam_t net);
 
 extern unsigned     ivl_scope_switches(ivl_scope_t net);
 extern ivl_switch_t ivl_scope_switch(ivl_scope_t net, unsigned idx);

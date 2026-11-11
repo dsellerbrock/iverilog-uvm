@@ -102,6 +102,11 @@ extern void sdf_timingcheck_delays(enum sdf_tchk_kind_e kind,
                                    const struct sdf_delay_s*v2,
                                    const int sdf_lineno);
 
+/* Annotate one LABEL entry (IEEE 1800 32.4.3) onto the specparam name of
+   each selected cell. */
+extern void sdf_label_value(const char*name, const struct sdf_delay_s*value,
+                            const int sdf_lineno);
+
 extern void sdf_select_instance(const char*celltype, const char*inst,
                                 const int sdf_lineno);
 extern void sdf_clear_instance_selection(void);

@@ -24835,6 +24835,24 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 			      }
 			      if (fixed
 				  && fixed->static_dimensions().size() > 1) {
+				    netranges_t remaining(
+					  fixed->static_dimensions().begin() + 1,
+					  fixed->static_dimensions().end());
+				    netuarray_t source_suffix(
+					  remaining, fixed->element_type());
+				    if (!unpacked_concat_value_type_matches_(
+					  elem_type, &source_suffix)) {
+					  cerr << parms_[idx]->get_fileline()
+					       << ": error: fixed unpacked array "
+					          "concatenation operand has elements "
+					          "incompatible with the destination queue "
+					          "element (IEEE 1800-2017/2023 10.10)."
+					       << endl;
+					  des->errors += 1;
+					  for (size_t prev = 0; prev < idx; prev += 1)
+						delete elem_exprs[prev];
+					  return nullptr;
+				    }
 				    want_type = ntype;
 				    item_flags |= PExpr::CONTAINER_SPLICE_ARG;
 			      }
@@ -31224,6 +31242,8 @@ NetExpr* PEIdent::elaborate_expr_param_idx_do_(Design*des, NetScope*scope,
       return tmp;
 }
 
+bool elab_specparam_storage = false;
+
 NetExpr* PEIdent::elaborate_expr_param_or_specparam_(Design*des,
 						     NetScope*scope,
 						     const NetExpr*par,
@@ -31243,6 +31263,15 @@ NetExpr* PEIdent::elaborate_expr_param_or_specparam_(Design*des,
                   des->errors += 1;
                   return 0;
             }
+      }
+
+      if (elab_specparam_storage && !need_const
+	  && path_.back().index.empty()) {
+	    if (NetNet*storage = found_in->specparam_storage(peek_tail_name(path_))) {
+		  NetESignal*sig = new NetESignal(storage);
+		  sig->set_line(*this);
+		  return sig;
+	    }
       }
 
       return elaborate_expr_param_(des, scope, par, found_in, par_type,

@@ -54,6 +54,8 @@ vector <const char*> file_names;
 static struct __vpiModPath*modpath_dst = 0;
   /* The .tchk record whose terms and limits are being parsed. */
 static struct __vpiTchk*tchk_cur = 0;
+  /* The expression strings of the .pathexpr being parsed. */
+static std::vector<char*> pathexpr_strings;
 static vpiHandle force_release_statement = 0;
 
 static bool is_force_release_opcode(const char* name)
@@ -115,12 +117,13 @@ static bool is_force_release_opcode(const char* name)
 %token K_DFF_P K_DFF_P_ACLR K_DFF_P_ACLR_ASET K_DFF_P_ASET K_DFF_P_ASET_ACLR
 %token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR K_EVENT_ORDER
 %token K_EXPORT K_EXTEND_S K_SAMPLE K_REACTIVE K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH K_TCHK
+%token K_PATHEXPR K_PARAM_STORAGE
 %token K_PARAM_TYPE
 %token K_VIF_PROXY K_EVENT_VALID
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PARAM_ASSIGN_STR K_PARAM_ASSIGN_L K_PARAM_ASSIGN_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS K_VARTYPE
-%token K_VPI_EXPR
+%token K_VPI_EXPR K_VPI_CONTASSIGN K_VPI_PARAM_EXPR K_VPI_DEFPARAM
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
@@ -669,6 +672,14 @@ statement
    modpath_src_list ';'
     { modpath_dst = 0; }
 
+  /* .pathexpr <modpath>, <source index>, <n> "<rpn>"... ; and
+     P_<p> .param/storage <variable> ; (SDF LABEL, IEEE 1800 32.4.3) */
+ | K_PATHEXPR T_SYMBOL ',' T_NUMBER ',' T_NUMBER pathexpr_string_list ';'
+    { compile_pathexpr($2, $4, pathexpr_strings);
+      pathexpr_strings.clear(); }
+ | T_LABEL K_PARAM_STORAGE T_SYMBOL ';'
+    { compile_param_storage($1, $3); }
+
   /* .tchk <type> <file> <line>, <ref term>, <data term>,
      <n> {<limit var> <value>}, <notifier> ; */
  | T_LABEL K_TCHK T_NUMBER T_NUMBER T_NUMBER ','
@@ -824,6 +835,25 @@ statement
 	  T_SYMBOL ',' T_STRING argument_opt ';'
 		{ compile_vpi_expr($1, $3, $5, $7, $9, $11, $13,
 				   $14.argc, $14.argv); }
+
+  /* A continuous assignment object (IEEE 1800-2023 37.47): flags (1 net
+     declaration assignment, 2 has an l-value handle), vpiStrength0,
+     vpiStrength1, file index, vpiLineNo, driver functor label ("" for
+     none), then the l-value handle (if any) and the r-value handle. */
+	| T_LABEL K_VPI_CONTASSIGN T_NUMBER ',' T_NUMBER ',' T_NUMBER ','
+	  T_NUMBER ',' T_NUMBER ',' T_STRING argument_opt ';'
+		{ compile_vpi_contassign($1, $3, $5, $7, $9, $11, $13,
+					 $14.argc, $14.argv); }
+
+  /* The default expression of a value parameter (IEEE 1800-2023 37.28
+     detail 3), when it is not simply the parameter's value. */
+	| K_VPI_PARAM_EXPR T_SYMBOL argument_opt ';'
+		{ compile_vpi_param_expr($2, $3.argc, $3.argv); }
+
+  /* A def param object of the current scope (37.28): the parameter it
+     assigns, file index, line, then the r-value handle. */
+	| K_VPI_DEFPARAM T_SYMBOL ',' T_NUMBER ',' T_NUMBER argument_opt ';'
+		{ compile_vpi_defparam($2, $4, $6, $7.argc, $7.argv); }
 
 	| T_LABEL K_EVENT K_DEBUG T_SYMBOL ',' symbols ';'
                 { compile_event($1, $4, $6.cnt, $6.vect); }
@@ -1852,6 +1882,11 @@ modport_ports_opt
                 { compile_modport_port($2, $3); }
         ;
 
+pathexpr_string_list
+        : T_STRING { pathexpr_strings.push_back($1); }
+        | pathexpr_string_list T_STRING { pathexpr_strings.push_back($2); }
+        ;
+
 tchk_term
         : T_SYMBOL T_NUMBER signed_t_number T_NUMBER
                 { compile_tchk_term(tchk_cur, $1, $2 != 0, $3, $4, 0, 0); }
@@ -1866,7 +1901,9 @@ tchk_term
 tchk_limits
         : /* empty */
         | tchk_limits T_SYMBOL T_SYMBOL
-                { compile_tchk_limit(tchk_cur, $2, $3); }
+                { compile_tchk_limit(tchk_cur, $2, $3, 0); }
+        | tchk_limits T_SYMBOL T_SYMBOL '/' T_SYMBOL
+                { compile_tchk_limit(tchk_cur, $2, $3, $5); }
         ;
 
 tchk_notifier

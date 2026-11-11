@@ -266,10 +266,26 @@ extern bool gn_specify_blocks_flag;
    is false, then no input/output buffers are inserted if not needed. */
 extern bool gn_interconnect_flag;
 
+/* If this flag is true, $setuphold and $recrem accept negative limits
+   (IEEE 1800-2017/2023 31.9): timing checks read delayed copies of their
+   reference and data signals, and the limits are adjusted to match. If
+   it is false, delayed signals are plain copies (31.9.4). */
+extern bool gn_neg_tchk_flag;
+
 /* True when the parsed design contains an actual $dumpports task call.
  * This keeps EVCD-only hierarchy boundaries and metadata out of ordinary
  * designs and non-VVP target flows. */
 extern bool gn_dumpports_flag;
+
+/* True when the parsed design calls $sdf_annotate. SDF LABEL (IEEE 1800
+ * 32.4.3) can then change specparams at run time, so their non-constant
+ * uses read per-instance storage. Other designs compile as before. */
+extern bool gn_sdf_annotate_flag;
+
+/* While true, a reference to an annotatable specparam that has run-time
+ * storage elaborates to that storage instead of the constant (IEEE 1800
+ * 32.4.3: procedural delays re-evaluate after SDF LABEL annotation). */
+extern bool elab_specparam_storage;
 
 /* If this flag is true, then elaborate supported assertion statements. If
    this flag is false, then stub out supported assertion statements. */

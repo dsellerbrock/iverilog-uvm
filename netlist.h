@@ -647,7 +647,18 @@ struct NetTchk : public LineInfo {
       term_t ref, data;
       std::vector<NetNet*> limit_vars;
       std::vector<double> limits;	// declared values, scope time units
+	// With -gneg-tchk, the checker uses limit + shift (clamped at 0).
+      std::vector<double> shifts;
       NetNet*notifier = nullptr;
+};
+
+/* One token of a path delay expression in reverse Polish order: 'c' a
+   constant, 's' a specparam storage variable, or an operator '+', '-',
+   '*', '/', or 'n' (negation). */
+struct NetPathToken {
+      char kind;
+      double value;
+      const NetNet*sig;
 };
 
 class NetDelaySrc  : public NetObj {
@@ -710,6 +721,10 @@ class NetDelaySrc  : public NetObj {
       { return idx < src_parts_.size() ? src_parts_[idx].first : 0; }
       unsigned src_width(unsigned idx) const
       { return idx < src_parts_.size() ? src_parts_[idx].second : 0; }
+	// The delay expressions that use annotatable specparams, one per
+	// declared delay, so SDF LABEL can re-evaluate them (IEEE 1800
+	// 32.4.3). Empty when the delays are plain constants.
+      std::vector<std::vector<NetPathToken>> delay_exprs;
 
       void dump(std::ostream&, unsigned ind) const;
 
@@ -1428,6 +1443,14 @@ class NetScope : public Definitions, public Attrib {
       void add_event(NetEvent*);
 
       void add_tchk(NetTchk*tchk) { tchks_.push_back(tchk); }
+
+	/* The run-time value of an annotatable specparam (IEEE 1800
+	   32.4.3), present when the design calls $sdf_annotate. */
+      void specparam_storage(perm_string name, NetNet*net)
+	    { specparam_storage_[name] = net; }
+      NetNet* specparam_storage(perm_string name) const
+	    { auto cur = specparam_storage_.find(name);
+	      return cur == specparam_storage_.end() ? nullptr : cur->second; }
       const std::vector<NetTchk*>& tchks() const { return tchks_; }
       void rem_event(NetEvent*);
       NetEvent*find_event(perm_string name);
@@ -1808,6 +1831,10 @@ class NetScope : public Definitions, public Attrib {
 	    // declaration inside an interface from one outside it, including a
 	    // defparam that targets a parameter deeper in the interface hierarchy.
 	    std::set<const NetScope*> defparam_source_scopes;
+	    // The declaration's own default, never replaced by an override,
+	    // and its tree elaborated for VPI (IEEE 1800-2023 37.28 detail 3).
+	    PExpr*default_expr = nullptr;
+	    NetExpr*default_net = nullptr;
 	    // Is it a type parameter
 	    bool type_flag = false;
 	    // Is it an unpacked array parameter (elements stored as "name[i]")
@@ -1850,6 +1877,33 @@ class NetScope : public Definitions, public Attrib {
 	    ivl_type_t ivl_type;
       };
       std::map<perm_string,param_expr_t>parameters;
+
+	/* Continuous assignments of this scope, kept for VPI (IEEE 1800-2023
+	   37.47). The structural driver is identified by its device name,
+	   which survives optimization replacing the device (cprop keeps
+	   the name), and matched in the target. */
+      struct contassign_t : public LineInfo {
+	    NetExpr*lval;	// The l-value read as an expression, or nil
+	    NetExpr*rval;	// The r-value at the l-value width
+	    perm_string driver;	// Name of the driving device, or nil
+	    ivl_drive_t drive0, drive1;
+	    bool net_decl;
+      };
+      std::vector<contassign_t> contassigns;
+
+	/* Defparam statements of this scope once resolved, kept for VPI
+	   (37.28): the target parameter and the r-value elaborated here. */
+      struct defparam_t : public LineInfo {
+	    NetScope*target;
+	    perm_string name;
+	    PExpr*rhs;
+	    NetExpr*rhs_net;
+      };
+      std::vector<defparam_t> defparams_kept;
+
+	/* Elaborate the expressions VPI keeps for parameters and defparams
+	   in this scope and its children, once parameters are final. */
+      void elaborate_vpi_parameter_exprs(Design*des);
 
 	/* The DLL target copies every parameter value while materializing its
 	 * corresponding scope. Release the elaborated, owned value/range trees
@@ -1930,6 +1984,7 @@ class NetScope : public Definitions, public Attrib {
 
       NetEvent *events_;
       std::vector<NetTchk*> tchks_;
+      std::map<perm_string,NetNet*> specparam_storage_;
 
       std::map<perm_string,LineInfo*> genvars_;
 
