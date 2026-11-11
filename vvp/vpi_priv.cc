@@ -132,6 +132,22 @@ FILE*vpi_trace = 0;
 static s_vpi_vlog_info  vpi_vlog_info;
 static s_vpi_error_info vpip_last_error = { 0, 0, 0, 0, 0, 0, 0 };
 
+void vpip_set_error(PLI_INT32 level, const char* message)
+{
+      vpip_last_error.state = vpiRun;
+      vpip_last_error.level = level;
+      vpip_last_error.message = const_cast<char*>(vpip_string(message));
+      vpip_last_error.product = 0;
+      vpip_last_error.code = 0;
+      vpip_last_error.file = 0;
+      vpip_last_error.line = 0;
+}
+
+void vpip_clear_error(void)
+{
+      memset(&vpip_last_error, 0, sizeof(vpip_last_error));
+}
+
 const char* direction_as_string(int dir)
 {
       switch (dir) {
@@ -600,6 +616,7 @@ const char* vpi_type_as_string(PLI_INT32 code)
 
 PLI_INT32 vpi_get(int property, vpiHandle ref)
 {
+	  vpip_clear_error();
 	/* We don't care what the ref is there is only one delay selection. */
       if (property == _vpiDelaySelection) return vpip_delay_selection;
 
