@@ -497,6 +497,16 @@ void netclass_t::emit_scope(struct target_t*tgt) const
       class_scope_->emit_scope(tgt);
 }
 
+static vector<NetNet*> deferred_path_signals_;
+
+static bool has_foreign_path_(const NetNet*net, const NetScope*scope)
+{
+      for (unsigned idx = 0 ; idx < net->delay_paths() ; idx += 1)
+	    if (net->delay_path(idx)->scope() != scope)
+		  return true;
+      return false;
+}
+
 void NetScope::emit_scope(struct target_t*tgt) const
 {
       if (debug_emit) {
@@ -531,12 +541,15 @@ void NetScope::emit_scope(struct target_t*tgt) const
 	// Run the signals again, but this time to connect the
 	// delay paths. This is done as a second pass because
 	// the paths reference other signals that may be later
-	// in the list. We can do it here because delay paths are
-	// always connected within the scope.
+	// in the list. A path whose destination is an interface
+	// member (IEEE 1800 25.6) belongs to a module scope that
+	// may not be emitted yet, so defer it to Design::emit.
       for (signals_map_iter_t cur = signals_map_.begin()
 		 ; cur != signals_map_.end() ; ++ cur) {
-
-	    tgt->signal_paths(cur->second);
+	    if (has_foreign_path_(cur->second, this))
+		  deferred_path_signals_.push_back(cur->second);
+	    else
+		  tgt->signal_paths(cur->second);
       }
 
       if (!tchks_.empty()) tgt->scope_tchks(this);
@@ -548,7 +561,8 @@ void NetScope::emit_scope(struct target_t*tgt) const
 	 * binding metadata remains live for later procedural property lowering. */
       for (signals_map_iter_t cur = signals_map_.begin()
 		 ; cur != signals_map_.end() ; ++cur) {
-	    cur->second->release_emitted_signal_aux();
+	    if (!has_foreign_path_(cur->second, this))
+		  cur->second->release_emitted_signal_aux();
       }
 }
 
@@ -629,6 +643,11 @@ int Design::emit(struct target_t*tgt)
 		 ; scope != root_scopes_.end(); ++ scope ) {
 	    (*scope)->emit_scope(tgt);
       }
+      for (NetNet*net : deferred_path_signals_) {
+	    tgt->signal_paths(net);
+	    net->release_emitted_signal_aux();
+      }
+      deferred_path_signals_.clear();
       size_t released_heap_bytes = release_unused_heap_pages();
       if (verbose_flag)
 	    cout << " ... target scopes and signals complete" << endl;
