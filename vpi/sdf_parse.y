@@ -123,6 +123,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
 %left K_LOR
 %left K_LAND
 %left K_EQ K_NE K_CEQ K_CNE
+%right '!' '~'
 
 %%
 
@@ -597,6 +598,10 @@ conditional_port_expr
       { $$ = strdup($1 ? "1'd1" : "1'd0"); }
   | '(' conditional_port_expr ')'
       { $$ = $2; }
+  | '!' conditional_port_expr
+      { $$ = sdf_condition_unary('!', $2); }
+  | '~' conditional_port_expr
+      { $$ = sdf_condition_unary('~', $2); }
   | conditional_port_expr K_LAND conditional_port_expr
       { $$ = sdf_condition_binary($1, "&&", $3); }
   | conditional_port_expr K_LOR conditional_port_expr
