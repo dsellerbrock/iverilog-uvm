@@ -9216,6 +9216,22 @@ struct sva_scoped_name_t {
       }
 };
 
+/* IEEE 1800-2023 16.14.6: the procedural assertion id of the procedural
+   concurrent assertion being synthesized, or 0 for a static one. Its checker
+   starts an attempt only for an instance its procedure queued. */
+static unsigned sva_active_proc_id_ = 0;
+
+/* A `.triggered' monitor and other internal checkers synthesized while a
+   procedural assertion is being built are static checkers of their own. */
+class sva_static_checker_scope_t {
+    public:
+      sva_static_checker_scope_t() : outer_(sva_active_proc_id_)
+      { sva_active_proc_id_ = 0; }
+      ~sva_static_checker_scope_t() { sva_active_proc_id_ = outer_; }
+    private:
+      unsigned outer_;
+};
+
 static std::map<sva_scoped_name_t, sva_property_t*> sva_module_properties;
 static std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*> sva_module_sequences;
 static std::map<sva_scoped_name_t, std::vector<perm_string> >
@@ -9950,7 +9966,10 @@ Statement* pform_sva_sequence_event(const struct vlltype&loc,
       prop->clk_evt = clock;
       PBlock*no_failure_action = new PBlock(PBlock::BL_SEQ);
       FILE_NAME(no_failure_action, loc);
+      {
+            sva_static_checker_scope_t static_checker;
       pform_make_assertion(loc, prop, no_failure_action, trigger, 0);
+      }
 
       PEIdent*wait_id = new PEIdent(event_path, loc.lexical_pos);
       FILE_NAME(wait_id, loc);
@@ -13247,14 +13266,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
  * %wait/observed), built for clocking blocks with numeric input skew; this
  * points the assertion engines at them.
  */
-static Statement* sva_observed_wait_(const struct vlltype&loc)
-{
-      std::list<named_pexpr_t> no_args;
-      PCallTask*t = new PCallTask(
-	    lex_strings.make("$ivl_observed_wait"), no_args);
-      FILE_NAME(t, loc);
-      return t;
-}
+static Statement* sva_observed_wait_(const struct vlltype&loc);
 
 /* R2: defer an assertion ACTION block to the Reactive region of the
  * current time slot (IEEE 1800-2017 4.4.2.5), one region after the
@@ -14698,10 +14710,11 @@ static PExpr* sva_rewrite_symbolic_uarray_operand_(
    vpi_user.h. Each identity space numbers its assertions separately, so a
    concurrent checker index and a deferred source id cannot collide. */
 enum { SVA_SPACE_CONCURRENT = 0, SVA_SPACE_IMMEDIATE = 1,
-       SVA_SPACE_DEFERRED = 2, SVA_SPACE_IMMEDIATE_COVER = 3 };
+       SVA_SPACE_DEFERRED = 2, SVA_SPACE_IMMEDIATE_COVER = 3,
+       SVA_SPACE_PROCEDURAL = 4 };
 enum { SVA_STATE_ENABLED = 0, SVA_STATE_KILL_GENERATION = 1,
        SVA_STATE_FAIL_ACTION = 2, SVA_STATE_PASS_ACTION = 3,
-       SVA_STATE_VACUOUS_ACTION = 4 };
+       SVA_STATE_VACUOUS_ACTION = 4, SVA_STATE_TAKE_MATURED = 5 };
 
 static PExpr* sva_state_expr_(const struct vlltype&loc, unsigned space,
 			      long id, unsigned what)
@@ -14729,11 +14742,69 @@ static PExpr* sva_state_bool_(const struct vlltype&loc, unsigned space,
       return sva_not_(loc, sva_not_(loc, sva_state_expr_(loc, space, id, what)));
 }
 
+/* IEEE 1800-2023 16.14.6: the register in which a procedural assertion's
+   checker takes, once per clock, the pending instances its procedure queued
+   and the Observed region matured. */
+static perm_string sva_proc_take_reg_(const struct vlltype&loc)
+{
+      static std::set<unsigned> made;
+      char buf[64];
+      snprintf(buf, sizeof buf, "_ivl_sva%u_proctake0", sva_active_proc_id_);
+      if (made.insert(sva_active_proc_id_).second)
+	    return sva_make_reg_(loc, sva_active_proc_id_, "proctake", 0, true);
+      return lex_strings.make(buf);
+}
+
+/* 16.14.5: `always assert property (...)' with no timing control is the
+   static assertion. pform_sva_static_always_assertion() turns such a
+   process into one that sets this register, which ungates the checker. */
+static perm_string sva_proc_static_reg_(const struct vlltype&loc,
+					unsigned pid)
+{
+      static std::set<unsigned> made;
+      char buf[64];
+      snprintf(buf, sizeof buf, "_ivl_sva%u_procstatic0", pid);
+      if (made.insert(pid).second)
+	    return sva_make_reg_(loc, pid, "procstatic", 0);
+      return lex_strings.make(buf);
+}
+
 /* Is one synthesized concurrent assertion enabled (inst < 0: the whole
-   design, before any checker index applies)? */
+   design, before any checker index applies)? A procedural assertion's
+   checker also needs a matured instance to start an attempt. */
 static PExpr* sva_enabled_expr_(const struct vlltype&loc, long inst)
 {
-      return sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst, SVA_STATE_ENABLED);
+      PExpr*en = sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
+				 SVA_STATE_ENABLED);
+      if (!sva_active_proc_id_ || inst < 0) return en;
+      PExpr*taken = new PEBComp('n', sva_id_(loc, sva_proc_take_reg_(loc)),
+				new PENumber(new verinum((uint64_t)0, 64)));
+      FILE_NAME(taken, loc);
+	/* === keeps the never-set register's X out of the gate. */
+      PExpr*is_static = new PEBComp('E', sva_id_(loc,
+			      sva_proc_static_reg_(loc, sva_active_proc_id_)),
+			      sva_bit_(loc, 1));
+      FILE_NAME(is_static, loc);
+      PExpr*gate = sva_logic_(loc, 'o', taken, is_static);
+      return sva_logic_(loc, 'a', en, gate);
+}
+
+/* Resume in the Observed region. A procedural assertion's checker then
+   takes the instances matured for this clock (16.14.6). */
+static Statement* sva_observed_wait_(const struct vlltype&loc)
+{
+      std::list<named_pexpr_t> no_args;
+      PCallTask*t = new PCallTask(
+	    lex_strings.make("$ivl_observed_wait"), no_args);
+      FILE_NAME(t, loc);
+      if (!sva_active_proc_id_) return t;
+      std::vector<Statement*> v;
+      v.push_back(t);
+      v.push_back(sva_assign_(loc, sva_proc_take_reg_(loc),
+			      sva_state_expr_(loc, SVA_SPACE_PROCEDURAL,
+					      sva_active_proc_id_,
+					      SVA_STATE_TAKE_MATURED)));
+      return sva_block_(loc, v);
 }
 
 static PExpr* sva_deferred_enabled_expr_(const struct vlltype&loc,
@@ -14881,7 +14952,22 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
       PCallTask*t = new PCallTask(
 	    lex_strings.make("$ivl_register_assertion"), args);
       FILE_NAME(t, loc);
-      return t;
+      if (!sva_active_proc_id_) return t;
+	/* 16.14.6: tie the procedural assertion id to this checker. */
+      std::list<named_pexpr_t> pargs;
+      named_pexpr_t p0;
+      p0.parm = new PENumber(new verinum((uint64_t)inst, 32));
+      pargs.push_back(p0);
+      named_pexpr_t p1;
+      p1.parm = new PENumber(new verinum((uint64_t)sva_active_proc_id_, 32));
+      pargs.push_back(p1);
+      PCallTask*preg = new PCallTask(
+	    lex_strings.make("$ivl_sva_proc_register"), pargs);
+      FILE_NAME(preg, loc);
+      std::vector<Statement*> both;
+      both.push_back(t);
+      both.push_back(preg);
+      return sva_block_(loc, both);
 }
 
 /* Assign a real assertion-API identity to each simple immediate cover and
@@ -21130,7 +21216,10 @@ PExpr* pform_sva_sequence_triggered(const struct vlltype&loc, PExpr*expr)
 	    sva_sequence_trigger_sources[event_name] = key;
 	    perm_string saved_monitor = sva_trigger_monitor_event_;
 	    sva_trigger_monitor_event_ = event_name;
+	    {
+	          sva_static_checker_scope_t static_checker;
 	    pform_make_assertion(loc, monitor, no_failure_action, trigger, 0);
+	    }
 	    sva_trigger_monitor_event_ = saved_monitor;
 	    lexical_scope = saved_scope;
 	    pform_cur_generate = saved_generate;
@@ -21980,7 +22069,10 @@ sva_property_t* pform_sva_apply_property_context(
 							     loc.lexical_pos);
 			PBlock*no_failure_action = new PBlock(PBlock::BL_SEQ);
 			FILE_NAME(no_failure_action, loc);
+			{
+			      sva_static_checker_scope_t static_checker;
 			pform_make_assertion(loc, seq_prop, no_failure_action, trigger, 0);
+			}
 
 			PEIdent*wait_id = new PEIdent(event_path, loc.lexical_pos);
 			FILE_NAME(wait_id, loc);
@@ -25776,6 +25868,7 @@ static PExpr* sva_matched_cross_clock_(const struct vlltype&loc,
 	    PBlock*no_failure_action = new PBlock(PBlock::BL_SEQ);
 	    FILE_NAME(no_failure_action, loc);
 	    sva_matched_req_[rkey] = req;
+	    sva_static_checker_scope_t static_checker;
 	    pform_make_assertion(loc, monitor, no_failure_action,
 				 sva_assign_(loc, req, inc), 2);
       }
@@ -30198,6 +30291,7 @@ struct sva_pending_proc_t {
       int kind;
       perm_string label;
       perm_string trigger_event; // set for a `seq.triggered' monitor
+      unsigned proc_id = 0;
 };
 static std::vector<sva_pending_proc_t> sva_pending_proc_;
 
@@ -30216,6 +30310,7 @@ struct sva_pending_hier_assertion_t {
       PExpr*default_disable = nullptr;
       int kind = 0;
       perm_string label;
+      unsigned proc_id = 0;
 };
 static std::vector<sva_pending_hier_assertion_t>
 	  sva_pending_hier_assertions_;
@@ -30248,14 +30343,18 @@ void pform_sva_clear_assertion_label(void)
 
 class sva_assertion_label_scope_t {
     public:
-      explicit sva_assertion_label_scope_t(perm_string label, int kind)
-      : outer_(sva_active_assertion_label_), outer_kind_(sva_active_assertion_kind_)
+      explicit sva_assertion_label_scope_t(perm_string label, int kind,
+					   unsigned proc_id)
+      : outer_(sva_active_assertion_label_), outer_kind_(sva_active_assertion_kind_),
+	outer_proc_id_(sva_active_proc_id_)
       {
 	    if (sva_assertion_label_depth_ == 0)
 		  sva_active_assertion_label_ = label.nil()
 			? sva_parser_assertion_label_ : label;
 	    if (sva_assertion_label_depth_ == 0)
 		  sva_active_assertion_kind_ = kind == 1 ? 4 : kind == 2 ? 2 : 1;
+	    if (sva_assertion_label_depth_ == 0)
+		  sva_active_proc_id_ = proc_id;
 	    sva_assertion_label_depth_ += 1;
       }
 
@@ -30265,11 +30364,13 @@ class sva_assertion_label_scope_t {
 	    sva_assertion_label_depth_ -= 1;
 	    sva_active_assertion_label_ = outer_;
 	    sva_active_assertion_kind_ = outer_kind_;
+	    sva_active_proc_id_ = outer_proc_id_;
       }
 
     private:
       perm_string outer_;
       unsigned outer_kind_;
+      unsigned outer_proc_id_;
 };
 
 static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
@@ -30399,7 +30500,7 @@ void pform_sva_infer_procedural_clock(PEventStatement*ctl)
 	    }
 	    p.prop->clk_evt = clk;
 	    pform_make_assertion(p.loc, p.prop, p.fail_stmt, p.pass_stmt,
-			 p.kind, p.label);
+			 p.kind, p.label, p.proc_id);
       }
 }
 
@@ -30430,7 +30531,7 @@ void pform_sva_flush_pending_procedural(void)
 		  bool saved_proc_retry = sva_proc_clock_retry_active_;
 		  sva_proc_clock_retry_active_ = true;
 		  pform_make_assertion(p.loc, p.prop, p.fail_stmt, p.pass_stmt,
-				       p.kind, p.label);
+				       p.kind, p.label, p.proc_id);
 		  sva_proc_clock_retry_active_ = saved_proc_retry;
 		  sva_named_prop_retry_active_ = saved_retry;
 		  pform_cur_generate = saved_generate;
@@ -30471,6 +30572,7 @@ struct sva_pending_named_property_t {
       Statement*pass_stmt;
       int kind;
       perm_string label;
+      unsigned proc_id;
 };
 static std::vector<sva_pending_named_property_t> sva_pending_named_property_;
 
@@ -30493,7 +30595,7 @@ void pform_sva_flush_pending_named_properties(void)
       for (size_t idx = 0 ; idx < pending.size() ; idx += 1) {
 	    sva_pending_named_property_t&p = pending[idx];
 	    pform_make_assertion(p.loc, p.prop, p.fail_stmt, p.pass_stmt,
-				 p.kind, p.label);
+				 p.kind, p.label, p.proc_id);
       }
       sva_named_prop_retry_active_ = false;
 }
@@ -32681,6 +32783,7 @@ static bool sva_defer_hierarchical_assertion_(
       pending.default_disable = default_disable;
       pending.kind = kind;
       pending.label = label;
+      pending.proc_id = sva_active_proc_id_;
       sva_pending_hier_assertions_.push_back(pending);
       return true;
 }
@@ -34387,12 +34490,93 @@ static void sva_sub_refuse_(const struct vlltype&loc, sva_property_t*prop,
       pform_sva_destroy_property(prop);
 }
 
+/* IEEE 1800-2023 16.14.6. concurrent_assertion_statement is reduced before
+   the rule that says whether it is a module item or a procedural statement,
+   so it holds its assertion here for that rule to release. */
+static struct {
+      bool held = false;
+      struct vlltype loc;
+      sva_property_t*prop = nullptr;
+      Statement*fail_stmt = nullptr;
+      Statement*pass_stmt = nullptr;
+      int kind = 0;
+} sva_held_assertion_;
+static unsigned sva_proc_assertion_id_ = 0;
+
+void pform_sva_hold_assertion(const struct vlltype&loc, sva_property_t*prop,
+			      Statement*fail_stmt, Statement*pass_stmt,
+			      int kind)
+{
+      assert(!sva_held_assertion_.held);
+      sva_held_assertion_.held = true;
+      sva_held_assertion_.loc = loc;
+      sva_held_assertion_.prop = prop;
+      sva_held_assertion_.fail_stmt = fail_stmt;
+      sva_held_assertion_.pass_stmt = pass_stmt;
+      sva_held_assertion_.kind = kind;
+}
+
+/* IEEE 1800-2023 16.14.5: "assert property (property_spec) action_block"
+   is equivalent to "always assert property (property_spec) action_block;".
+   An always process whose whole body is a procedural concurrent assertion
+   (perhaps labeled, perhaps alone in a begin-end) therefore keeps the
+   static assertion's meaning. Returns the body of the initial process that
+   replaces it, or null when body is not of that form. */
+Statement* pform_sva_static_always_assertion(Statement*body)
+{
+      while (PBlock*block = dynamic_cast<PBlock*>(body)) {
+	    if (block->statements().size() != 1) return nullptr;
+	    body = block->statements().front();
+      }
+      PCallTask*call = dynamic_cast<PCallTask*>(body);
+      if (!call || call->path().size() != 1
+	  || peek_tail_name(call->path()) != "$ivl_sva_proc_enqueue"
+	  || call->parms().size() != 1)
+	    return nullptr;
+      const PENumber*num = dynamic_cast<const PENumber*>(call->parms()[0].parm);
+      if (!num) return nullptr;
+      unsigned pid = num->value().as_ulong();
+      const struct vlltype&loc = sva_held_assertion_.loc;
+      return sva_assign_(loc, sva_proc_static_reg_(loc, pid), sva_bit_(loc, 1));
+}
+
+/* A module item becomes a static assertion. A procedural concurrent
+   assertion becomes the same checker, gated to start an attempt only for a
+   matured pending instance, plus the statement that queues one where the
+   procedure reaches it. */
+Statement* pform_sva_release_assertion(bool procedural)
+{
+      if (!sva_held_assertion_.held) return nullptr;
+      sva_held_assertion_.held = false;
+      const struct vlltype loc = sva_held_assertion_.loc;
+      if (!procedural) {
+	    pform_make_assertion(loc, sva_held_assertion_.prop,
+				 sva_held_assertion_.fail_stmt,
+				 sva_held_assertion_.pass_stmt,
+				 sva_held_assertion_.kind);
+	    return nullptr;
+      }
+      unsigned pid = ++sva_proc_assertion_id_;
+      pform_make_assertion(loc, sva_held_assertion_.prop,
+			   sva_held_assertion_.fail_stmt,
+			   sva_held_assertion_.pass_stmt,
+			   sva_held_assertion_.kind, perm_string(), pid);
+      std::list<named_pexpr_t> args;
+      named_pexpr_t a0;
+      a0.parm = new PENumber(new verinum((uint64_t)pid, 32));
+      args.push_back(a0);
+      PCallTask*enqueue = new PCallTask(
+	    lex_strings.make("$ivl_sva_proc_enqueue"), args);
+      FILE_NAME(enqueue, loc);
+      return enqueue;
+}
+
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			  Statement*fail_stmt, Statement*pass_stmt, int kind,
-			  perm_string label)
+			  perm_string label, unsigned proc_id)
 {
       pform_generated_verification_scope_t verification_scope;
-      sva_assertion_label_scope_t assertion_label_scope(label, kind);
+      sva_assertion_label_scope_t assertion_label_scope(label, kind, proc_id);
       sva_clocking_scope_guard_t clocking_scope(prop);
 
 	/* `else ;' is an explicit null failure action, whereas a null
@@ -34465,6 +34649,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    pend.pass_stmt = pass_stmt;
 	    pend.kind = kind;
 	    pend.label = sva_active_assertion_label_;
+	    pend.proc_id = sva_active_proc_id_;
 	    pend.trigger_event = sva_trigger_monitor_event_;
 	    sva_trigger_monitor_event_ = perm_string();
 	    sva_pending_proc_.push_back(pend);
@@ -34805,6 +34990,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      pend.pass_stmt = pass_stmt;
 			      pend.kind = kind;
 			      pend.label = label;
+			      pend.proc_id = sva_active_proc_id_;
 			      sva_pending_named_property_.push_back(pend);
 			      return;
 			}
@@ -37025,7 +37211,7 @@ static void sva_flush_pending_hier_assertions_()
 	    sva_default_disable_override_scope_ = scope;
 	    sva_hier_assertion_retry_active_ = true;
 	    pform_make_assertion(item.loc, item.prop, item.fail_stmt,
-			 item.pass_stmt, item.kind, item.label);
+			 item.pass_stmt, item.kind, item.label, item.proc_id);
 	    item.prop = nullptr;
 	    item.fail_stmt = item.pass_stmt = nullptr;
 	    sva_hier_assertion_retry_active_ = saved_retry;
