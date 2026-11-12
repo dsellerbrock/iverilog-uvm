@@ -674,7 +674,10 @@ static unsigned nvartype_notes = 0;
 
 static int type_has_vartype_(ivl_type_t type)
 {
-      return type && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
+      /* Class properties are emitted in .class metadata; they are not a
+         struct/union typespec for an array of class handles. */
+      return type && ivl_type_base(type) != IVL_VT_CLASS
+          && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
 }
 
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
@@ -718,6 +721,13 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
       char tmp[64];
       ivl_enumtype_t enumtype = ivl_type_enum(type);
       int nmembers = ivl_type_properties(type);
+
+	/* Only a packed type has a type string. A class also has properties,
+	   and one can hold a handle of its own type: treating it as a struct
+	   would recurse without end. */
+      if (ivl_type_base(type) != IVL_VT_LOGIC
+	  && ivl_type_base(type) != IVL_VT_BOOL)
+	    return 0;
 
       if (enumtype) {
 	    if (!enumeration_is_drawn(enumtype)) return 0;
@@ -3940,12 +3950,9 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	      ivl_type_t type = ivl_parameter_type(par);
 	      param_type_buf.len = 0;
 	      vartype_put_(&param_type_buf, "");
-	        // ponytail: packed types only; a class, string or unpacked
-	        // type parameter has no vartype string (vartype_spec_ would
-	        // recurse through a class's own handle properties).
-	      if (type && (ivl_type_base(type) == IVL_VT_LOGIC
-			   || ivl_type_base(type) == IVL_VT_BOOL)
-		  && vartype_spec_(&param_type_buf, type))
+	        // A class, string or unpacked type parameter has no vartype
+	        // string (vartype_spec_ describes packed types only).
+	      if (type && vartype_spec_(&param_type_buf, type))
 		fprintf(vvp_out, "P_%p .param/type \"%s\" %d %u %u, \"%s\";\n",
 			par, vvp_mangle_name(ivl_parameter_basename(par)),
 			ivl_parameter_local(par),

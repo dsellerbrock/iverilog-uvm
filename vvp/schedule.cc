@@ -1546,6 +1546,30 @@ void schedule_at_observed(vvp_gen_event_t obj, vvp_time64_t delay)
       schedule_event_(cur, delay, SEQ_OBSERVED);
 }
 
+/* Like schedule_at_observed(obj, 0), but ahead of every Observed event
+   already queued for the current time step. */
+void schedule_at_observed_front(vvp_gen_event_t obj)
+{
+      struct generic_event_s*cur = new generic_event_s;
+      cur->obj = obj;
+      cur->delete_obj_when_done = false;
+      cur->region = SEQ_OBSERVED;
+      if (sched_list == 0 || sched_list->delay > 0) {
+	    schedule_event_(cur, 0, SEQ_OBSERVED);
+	    return;
+      }
+      struct event_s*&q = sched_list->observed;
+      if (q == 0) {
+	    cur->next = cur;
+	    q = cur;
+	    return;
+      }
+	/* The list is circular with q at its tail: insert after the tail
+	   without moving it. */
+      cur->next = q->next;
+      q->next = cur;
+}
+
 /*
  * Pre-NBA PLI callback point (cbNBASynch, IEEE 1800 4.4.3.3/4.10 and
  * 38.36.2): run immediately before the slot's nonblocking assignments.

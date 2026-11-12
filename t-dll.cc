@@ -4065,6 +4065,10 @@ bool dll_target::signal_paths(const NetNet*net)
 		  aux->path[ptr].parallel = src->is_parallel();
 		  aux->path[ptr].posedge = src->is_posedge();
 		  aux->path[ptr].negedge = src->is_negedge();
+		  aux->path[ptr].dst_base = src->dst_base();
+		  aux->path[ptr].dst_width = src->dst_width();
+		  aux->path[ptr].src_base = src->src_base(pin);
+		  aux->path[ptr].src_width = src->src_width(pin);
 		  for (unsigned pe = 0 ;  pe < 12 ;  pe += 1) {
 			aux->path[ptr].delay[pe] = src->get_delay(pe);
 		  }
