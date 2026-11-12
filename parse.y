@@ -16773,6 +16773,24 @@ list_of_port_declarations
 	(*tmp)[0] = $1;
 	$$ = tmp;
       }
+  | port_direction_opt '.' IDENTIFIER '(' expression_opt ')'
+      { std::vector<Module::port_t*>*tmp = new std::vector<Module::port_t*>;
+        NetNet::PortType direction = $1 == NetNet::PIMPLICIT
+              ? port_declaration_context.port_type : $1;
+        Module::port_t* port = module_declare_explicit_port(
+              @3, $3, $5, direction);
+        if (port) tmp->push_back(port);
+        $$ = tmp;
+        // As for an explicitly named port following a comma, its direction
+        // is inherited by subsequent ports, but its expression does not
+        // establish port-kind or data-type defaults.
+        port_declaration_context.port_type = direction;
+        port_declaration_context.port_net_type = NetNet::IMPLICIT;
+        port_declaration_context.data_type = nullptr;
+        port_declaration_context.user_nettype = nullptr;
+        port_declaration_context.interconnect = false;
+        port_declaration_context.event_type = false;
+      }
   | list_of_port_declarations ',' port_declaration
       { std::vector<Module::port_t*>*tmp = $1;
 	tmp->push_back($3);
