@@ -6706,3 +6706,6 @@ sva_assertcontrol_2017 normal,-g2017,-s,sva_assertcontrol ivltests gold=sva_asse
 sva_assertcontrol_2023 normal,-g2023,-s,sva_assertcontrol ivltests gold=sva_assertcontrol.gold
 sva_proc_queue_2017 normal,-g2017,-s,sva_proc_queue ivltests gold=sva_proc_queue.gold
 sva_proc_queue_2023 normal,-g2023,-s,sva_proc_queue ivltests gold=sva_proc_queue.gold
+
+issue2831_sdf_log_2017 normal,-g2017,-gspecify,-s,top ivltests gold=issue2831_sdf_log_2017.gold
+issue2831_sdf_log_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue2831_sdf_log_2023.gold
