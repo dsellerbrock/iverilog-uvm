@@ -61,7 +61,7 @@ static unsigned sdf_timingenv_depth;
 <CCOMMENT>\n   { sdflloc.first_line += 1; }
 <CCOMMENT>"*/" { BEGIN(0); }
 
-[ \m\t] { /* Skip white space. */; }
+[ \r\t] { /* Skip white space. */; }
 
   /* TIMINGENV is not related to SystemVerilog timing. Skip its complete
      parenthesized SDF expression without interpreting its contents. */
@@ -162,6 +162,7 @@ static struct {
       { "HOLD",         K_HOLD },
       { "INCREMENT",    K_INCREMENT },
       { "INTERCONNECT", K_INTERCONNECT },
+      { "LABEL",        K_LABEL },
       { "NETDELAY",    K_NETDELAY },
       { "INSTANCE",     K_INSTANCE },
       { "IOPATH",       K_IOPATH },
@@ -171,6 +172,7 @@ static struct {
       { "PERIOD",       K_PERIOD },
       { "PROCESS",      K_PROCESS },
       { "PROGRAM",      K_PROGRAM },
+      { "RETAIN",       K_RETAIN },
       { "RECREM",       K_RECREM },
       { "RECOVERY",     K_RECOVERY },
       { "REMOVAL",      K_REMOVAL },

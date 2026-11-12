@@ -458,24 +458,30 @@ void vpip_report_immediate_assertion(PLI_INT32 source_id, PLI_INT32 success,
       assert(vpip_routines);
       vpip_routines->report_immediate_assertion(source_id, success, scope);
 }
-void vpip_cancel_deferred_asserts(const char*selector, PLI_INT32 levels)
+PLI_INT32 vpip_assertion_control(PLI_INT32 ctl, PLI_INT32 atype,
+                                 PLI_INT32 dtype, PLI_INT32 levels,
+                                 const char*const*selectors, PLI_INT32 nsel)
 {
       assert(vpip_routines);
-      vpip_routines->cancel_deferred_asserts(selector, levels);
+      return vpip_routines->assertion_control(ctl, atype, dtype, levels,
+                                              selectors, nsel);
 }
-PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,
-                                          vpiHandle scope)
+PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
+                               PLI_INT32 id, PLI_INT32 what)
 {
       assert(vpip_routines);
-      return vpip_routines->deferred_assertion_enabled(source_id, scope);
+      return vpip_routines->assertion_state(scope, space, id, what);
 }
-void vpip_set_deferred_assertions_enabled(const char*selector,
-                                          PLI_INT32 levels,
-                                          PLI_INT32 enabled)
+void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle scope)
 {
       assert(vpip_routines);
-      vpip_routines->set_deferred_assertions_enabled(selector, levels,
-                                                     enabled);
+      vpip_routines->proc_assert_enqueue(pid, scope);
+}
+void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
+                                  vpiHandle scope)
+{
+      assert(vpip_routines);
+      vpip_routines->register_proc_assertion(idx, pid, scope);
 }
 void vpip_set_return_value(int value)
 {

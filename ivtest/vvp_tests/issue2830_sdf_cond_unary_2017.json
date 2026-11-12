@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2830_sdf_cond_unary.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "issue2830_sdf_cond_unary"],
+  "gold": "issue2830_sdf_cond_unary"
+}

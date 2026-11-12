@@ -676,6 +676,16 @@ static value_callback* make_value_change(p_cb_data data)
       value_callback*obj = new value_callback(data);
 
       assert(data->obj);
+	/* A continuous assignment reports its driver's output (37.47). */
+      if (target->get_type_code() == vpiContAssign) {
+	    if (vpip_contassign_add_callback(target, obj))
+		  return obj;
+	    fprintf(stderr, "vpi error: the continuous assignment at %s:%d "
+		    "has no driver output to watch\n",
+		    vpi_get_str(vpiFile, target), vpi_get(vpiLineNo, target));
+	    delete obj;
+	    return 0;
+      }
 	/* Scalar members of object-backed structs are variable views over the
 	 * owning object signal, not standalone __vpiSignal instances. Attach
 	 * their callbacks to that signal while retaining the member handle for

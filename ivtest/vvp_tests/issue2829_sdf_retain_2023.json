@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2829_sdf_retain.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "issue2829_sdf_retain"],
+  "output-contains": ["PASSED"]
+}

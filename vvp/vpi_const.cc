@@ -19,6 +19,7 @@
 
 # include  "vpi_priv.h"
 # include  "compile.h"
+# include  "schedule.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
@@ -28,7 +29,12 @@
 # include  <cstring>
 # include  <climits>
 # include  <cassert>
+# include  <list>
+# include  <map>
 # include  "ivl_alloc.h"
+
+/* vpiExpr of a value parameter (IEEE 1800-2023 37.28 detail 3). */
+static vpiHandle param_default_(vpiHandle param);
 
 class __vpiStringConst : public __vpiHandle {
     public:
@@ -332,6 +338,9 @@ char*__vpiStringParam::vpi_get_str(int code)
 vpiHandle __vpiStringParam::vpi_handle(int code)
 {
       switch (code) {
+	  case vpiExpr:
+	    return param_default_(this);
+
 	  case vpiScope:
 	    return scope_;
 
@@ -481,6 +490,12 @@ struct __vpiBinaryParam  : public __vpiBinaryConst {
       int vpi_get(int code) override;
       char*vpi_get_str(int code) override;
       vpiHandle vpi_handle(int code) override;
+      void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+
+	// The run-time value of a specparam that SDF LABEL can annotate
+	// (IEEE 1800 32.4.3), or nil; see compile_param_storage.
+      vpiHandle storage = 0;
 
     private:
       __vpiScope*scope_;
@@ -540,6 +555,9 @@ char*__vpiBinaryParam::vpi_get_str(int code)
 vpiHandle __vpiBinaryParam::vpi_handle(int code)
 {
       switch (code) {
+	  case vpiExpr:
+	    return param_default_(this);
+
 	  case vpiScope:
 	    return scope_;
 
@@ -551,6 +569,20 @@ vpiHandle __vpiBinaryParam::vpi_handle(int code)
       }
 }
 
+
+void __vpiBinaryParam::vpi_get_value(p_vpi_value val)
+{
+      if (storage) storage->vpi_get_value(val);
+      else __vpiBinaryConst::vpi_get_value(val);
+}
+
+vpiHandle __vpiBinaryParam::vpi_put_value(p_vpi_value val, int flags)
+{
+      if (!storage) return __vpiBinaryConst::vpi_put_value(val, flags);
+      storage->vpi_put_value(val, vpiNoDelay);
+      vpip_specparam_changed(scope_);
+      return this;
+}
 
 vpiHandle vpip_make_binary_param(const char*name, const vvp_vector4_t&bits,
 				 bool signed_flag, bool local_flag,
@@ -714,6 +746,12 @@ struct __vpiRealParam  : public __vpiRealConst {
       int vpi_get(int code) override;
       char*vpi_get_str(int code) override;
       vpiHandle vpi_handle(int code) override;
+      void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+
+	// The run-time value of a specparam that SDF LABEL can annotate
+	// (IEEE 1800 32.4.3), or nil; see compile_param_storage.
+      vpiHandle storage = 0;
 
     private:
       __vpiScope* scope_;
@@ -771,6 +809,9 @@ char* __vpiRealParam::vpi_get_str(int code)
 vpiHandle __vpiRealParam::vpi_handle(int code)
 {
       switch (code) {
+	  case vpiExpr:
+	    return param_default_(this);
+
           case vpiScope:
             return scope_;
 
@@ -783,6 +824,20 @@ vpiHandle __vpiRealParam::vpi_handle(int code)
 }
 
 
+void __vpiRealParam::vpi_get_value(p_vpi_value val)
+{
+      if (storage) storage->vpi_get_value(val);
+      else __vpiRealConst::vpi_get_value(val);
+}
+
+vpiHandle __vpiRealParam::vpi_put_value(p_vpi_value val, int flags)
+{
+      if (!storage) return __vpiRealConst::vpi_put_value(val, flags);
+      storage->vpi_put_value(val, vpiNoDelay);
+      vpip_specparam_changed(scope_);
+      return this;
+}
+
 vpiHandle vpip_make_real_param(const char*name, double value,
                                bool local_flag, long file_idx, long lineno)
 {
@@ -790,6 +845,28 @@ vpiHandle vpip_make_real_param(const char*name, double value,
                                                      value, name, local_flag,
                                                      file_idx, lineno);
       return obj;
+}
+
+/*
+ * .param/storage: the specparam P_<p> keeps its run-time value in the
+ * variable var (IEEE 1800 32.4.3). The variable is seeded with the
+ * declared value when the design loads, like any initial value.
+ */
+void compile_param_storage(char*label, char*var)
+{
+      vpiHandle par = vvp_lookup_handle(label);
+      vpiHandle storage = vvp_lookup_handle(var);
+      vvp_net_t*net = vvp_net_lookup(var);
+      assert(par && storage && net);
+      if (__vpiBinaryParam*bin = dynamic_cast<__vpiBinaryParam*>(par)) {
+	    bin->storage = storage;
+	    schedule_init_vector(vvp_net_ptr_t(net, 0), bin->bits);
+      } else if (__vpiRealParam*real = dynamic_cast<__vpiRealParam*>(par)) {
+	    real->storage = storage;
+	    schedule_init_vector(vvp_net_ptr_t(net, 0), real->value);
+      }
+      free(label);
+      free(var);
 }
 
 /*
@@ -950,3 +1027,53 @@ void parameter_delete(vpiHandle item)
       }
 }
 #endif
+
+/*
+ * Default expressions of value parameters (37.28 detail 3). A parameter
+ * with a .vpi_param_expr record gets that expression. Any other value
+ * parameter has a plain constant default equal to its value, built on
+ * first request.
+ */
+struct param_default_s {
+      vpiHandle param;
+      unsigned argc;
+      vpiHandle*argv;
+};
+static std::list<param_default_s> param_defaults_;
+static std::map<vpiHandle,vpiHandle> param_default_consts_;
+
+void compile_vpi_param_expr(char*label, unsigned argc, vpiHandle*argv)
+{
+      param_defaults_.push_back(param_default_s());
+      param_default_s&cur = param_defaults_.back();
+      cur.param = 0;
+      cur.argc = argc;
+      cur.argv = argv;
+      compile_vpi_lookup(&cur.param, label);
+}
+
+static vpiHandle param_default_(vpiHandle param)
+{
+      for (const param_default_s&cur : param_defaults_)
+	    if (cur.param == param && cur.argc)
+		  return cur.argv[cur.argc-1];
+
+      vpiHandle&made = param_default_consts_[param];
+      if (made)
+	    return made;
+      if (__vpiBinaryParam*bp = dynamic_cast<__vpiBinaryParam*>(param)) {
+	    __vpiBinaryConst*obj = new __vpiBinaryConst;
+	    obj->bits = bp->bits;
+	    obj->signed_flag = bp->signed_flag;
+	    obj->sized_flag = 1;
+	    made = obj;
+      } else if (__vpiRealParam*rp = dynamic_cast<__vpiRealParam*>(param)) {
+	    made = new __vpiRealConst(rp->value);
+      } else {
+	    s_vpi_value val;
+	    val.format = vpiStringVal;
+	    param->vpi_get_value(&val);
+	    made = new __vpiStringConst(strdup(val.value.str));
+      }
+      return made;
+}

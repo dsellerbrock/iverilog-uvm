@@ -1303,6 +1303,19 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	      || ivl_type_base(sub_type) == IVL_VT_DARRAY))
 	    return sub_type;
 
+	/* A nested word may select a fixed-array element from a queue or
+	 * dynamic-array receiver. Keep the selected array object on the stack
+	 * for the outer word store instead of treating its scalar leaf type as
+	 * an invalid class-property receiver. */
+      if (prop_idx < 0 && ivl_lval_idx(lval)
+	  && lval_nest && ivl_lval_sig(lval_nest)
+	  && (ivl_type_base(ivl_signal_net_type(
+		ivl_lval_sig(lval_nest))) == IVL_VT_QUEUE
+	      || ivl_type_base(ivl_signal_net_type(
+		ivl_lval_sig(lval_nest))) == IVL_VT_DARRAY)
+	  && type_is_fixed_uarray_property_(sub_type))
+	return sub_type;
+
       /* Keep a module associative array's fixed child alive for the
 	 fixed-slot store in its enclosing l-value. */
       if (prop_idx < 0 && ivl_lval_idx(lval) && sub_type
@@ -6588,6 +6601,14 @@ static int rval_is_whole_container_(ivl_expr_t rv)
 	    return 0;
 
       if (vvp_expr_is_fixed_uarray_value(rv))
+	    return 1;
+
+      /* An associative-array element whose value is a fixed unpacked array
+       * is represented by IVL_EX_SELECT rather than IVL_EX_ARRAY. Preserve
+       * its array value here so the whole-array assignment uses the container
+       * copy path instead of treating the packed leaf width as the l-value
+       * width. */
+      if (fixed_uarray_expr_type_(rv))
 	    return 1;
 
       if (ivl_expr_type(rv) == IVL_EX_SIGNAL && !ivl_expr_oper1(rv)) {

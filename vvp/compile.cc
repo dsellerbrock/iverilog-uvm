@@ -1224,6 +1224,48 @@ void resolv_submit(resolv_list_s*cur)
 
 
 /*
+ * The driver of a continuous assignment object is a convenience for its
+ * value-change callbacks, never a connection: a label that names no
+ * functor or signal leaves the object without one instead of failing the
+ * load.
+ */
+struct contassign_driver_resolv_s : public resolv_list_s {
+      contassign_driver_resolv_s(char*l, vpiHandle obj)
+      : resolv_list_s(l), obj_(obj) { }
+      bool resolve(bool mes) override
+      {
+	    vvp_net_t*net = 0;
+	    symbol_value_t val = sym_get_value(sym_vpi, label());
+	    if (val.ptr) {
+		  if (__vpiSignal*sig = dynamic_cast<__vpiSignal*>(
+			    static_cast<vpiHandle>(val.ptr)))
+			net = sig->node;
+	    } else {
+		  net = lookup_functor_symbol(label());
+	    }
+	    if (net)
+		  vpip_contassign_set_driver(obj_, net);
+	    return net != 0 || mes;
+      }
+    private:
+      vpiHandle obj_;
+};
+
+void compile_vpi_contassign(char*label, long flags, long str0, long str1,
+			    long file_idx, long lineno, char*driver,
+			    unsigned argc, vpiHandle*argv)
+{
+      vpiHandle obj = vpip_make_contassign((int)flags, (int)str0, (int)str1,
+					   (unsigned)file_idx, (unsigned)lineno,
+					   argc, argv);
+      if (obj && driver[0])
+	    resolv_submit(new contassign_driver_resolv_s(driver, obj));
+      else
+	    free(driver);
+      free(label);
+}
+
+/*
  * Look up vvp_nets in the symbol table. The "source" is the label for
  * the net that I want to feed, and net->port[port] is the vvp_net
  * input that I want that node to feed into. When the name is found,
@@ -1965,12 +2007,21 @@ void compile_cleanup(void)
                   unsigned assertion_kind = 0;
                   unsigned file_idx = 0;
                   unsigned line = 0;
+                  unsigned is_final = 0;
                   int consumed = 0;
+                  /* The optional fifth field (0 = observed, 1 = final)
+                     selects the 20.11 assertion_type bit. */
+                  if (code->text
+                      && sscanf(code->text, "%u,%u,%u,%u,%u%n", &source_id,
+                                &assertion_kind, &file_idx, &line, &is_final,
+                                &consumed) != 5)
+                        consumed = 0;
                   if (!code->text
-		      || sscanf(code->text, "%u,%u,%u,%u%n", &source_id,
-				&assertion_kind, &file_idx, &line,
-				&consumed) != 4
-		      || code->text[consumed] != 0
+		      || (!consumed
+			  && sscanf(code->text, "%u,%u,%u,%u%n", &source_id,
+				    &assertion_kind, &file_idx, &line,
+				    &consumed) != 4)
+		      || code->text[consumed] != 0 || is_final > 1
 		      || !source_id || !line || file_idx >= file_names.size()
 		      || (assertion_kind != 1 && assertion_kind != 2
 			  && assertion_kind != 4)
@@ -1982,7 +2033,7 @@ void compile_cleanup(void)
                   }
                   vpip_register_deferred_assertion(
                         static_cast<unsigned long>(source_id),
-			assertion_kind, file_idx, line, scope);
+			assertion_kind, file_idx, line, scope, is_final != 0);
             }
       }
       deferred_assertion_registrations.clear();
@@ -2837,6 +2888,14 @@ void compile_reactive(char*label, struct symb_s arg)
       input_connect(ptr, 0, arg.text);
 }
 
+static std::map<std::string, __vpiModPath*> modpaths_by_label;
+
+__vpiModPath* compile_find_modpath(const char*label)
+{
+      auto cur = modpaths_by_label.find(label);
+      return cur == modpaths_by_label.end() ? 0 : cur->second;
+}
+
 struct __vpiModPath* compile_modpath(char*label, unsigned width,
 				     bool showcancelled,
                                      struct symb_s drv, struct symb_s dest)
@@ -2853,6 +2912,7 @@ struct __vpiModPath* compile_modpath(char*label, unsigned width,
 
       compile_vpi_lookup(&modpath->path_term_out.expr, dest.text);
 
+      modpaths_by_label[label] = modpath;
       free(label);
 
       modpath->modpath = obj;
@@ -2918,6 +2978,7 @@ static struct __vpiModPathSrc*make_modpath_src(struct __vpiModPath*path,
       struct __vpiModPathSrc* srcobj = vpip_make_modpath_src(path, net) ;
       srcobj->ifnone = ifnone;
       if (condition_text) srcobj->condition_text = condition_text;
+      path->srcs.push_back(srcobj);
       vpip_attach_to_current_scope(srcobj);
       net->fun = obj;
 
