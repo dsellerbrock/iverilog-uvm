@@ -2851,7 +2851,7 @@ static Module::port_t *module_declare_explicit_port(
 %token K_PSTAR K_STARP K_DOTSTAR
 %token K_LOR K_LAND K_NAND K_NOR K_NXOR K_TRIGGER K_NB_TRIGGER K_LEQUIV
 %token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV K_FOLLOWED_BY_OV K_FOLLOWED_BY_NOV
-%token K_LBSTAR K_LBGOTO K_LBEQ
+%token K_LBSTAR K_LBGOTO K_LBEQ K_LBPLUS K_LBSPACESTAR
 %token K_SCOPE_RES
 %token <text> K_edge_descriptor
 
@@ -10632,6 +10632,13 @@ sva_seq_atom
      the plain star form did not, so `a[*1:$]' was a syntax error. */
   | sva_seq_atom K_LBSTAR expression ':' '$' ']'
       { $$ = pform_sva_repeat(@2, $1, $3, nullptr, true); }
+  /* 16.9.2: [*] and [+] abbreviate [*0:$] and [*1:$]. */
+  | sva_seq_atom K_LBSTAR ']'
+      { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(0)), nullptr, true); }
+  | sva_seq_atom K_LBSPACESTAR '*' ']'
+      { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(0)), nullptr, true); }
+  | sva_seq_atom K_LBPLUS '+' ']'
+      { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(1)), nullptr, true); }
   /* M9-NFA stage C.1: goto `b[->n]'/`b[->m:n]' and nonconsecutive
      `b[=n]'/`b[=m:n]' repetition of a boolean (16.9.2). kind 1 = goto,
      2 = nonconsecutive; the trailing bool marks an unbounded `:$' upper.
@@ -11563,7 +11570,7 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	tmp->push_back(index);
 	$$ = tmp;
       }
-  | '[' '*' ']'
+  | K_LBSPACESTAR '*' ']'
       { // Whitespace prevents the lexer from folding `[*' into K_LBSTAR.
 	// Preserve the identical IEEE 1800-2017 7.8.1 wildcard-index type
 	// for all four legal whitespace spellings: [*], [* ], [ *], [ * ].
