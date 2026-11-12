@@ -673,11 +673,15 @@ static value_callback* make_value_change(p_cb_data data)
 	if (target->get_type_code() == vpiMemory)
 	    return vpip_array_change_target(data, target);
 
-      value_callback*obj = new value_callback(data);
-
       assert(data->obj);
 	/* A continuous assignment reports its driver's output (37.47). */
       if (target->get_type_code() == vpiContAssign) {
+	    extern value_callback* vpip_contassign_add_bit_callback(vpiHandle,
+									 p_cb_data);
+	    if (value_callback*bit_cb =
+		  vpip_contassign_add_bit_callback(target, data))
+		  return bit_cb;
+	    value_callback*obj = new value_callback(data);
 	    if (vpip_contassign_add_callback(target, obj))
 		  return obj;
 	    fprintf(stderr, "vpi error: the continuous assignment at %s:%d "
@@ -686,6 +690,7 @@ static value_callback* make_value_change(p_cb_data data)
 	    delete obj;
 	    return 0;
       }
+	value_callback*obj = new value_callback(data);
 	/* Scalar members of object-backed structs are variable views over the
 	 * owning object signal, not standalone __vpiSignal instances. Attach
 	 * their callbacks to that signal while retaining the member handle for
