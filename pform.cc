@@ -15550,7 +15550,8 @@ static void tc_always_at_conditioned_(const struct vlltype&loc,
       tc_always_at_(loc, unconditioned, conditioned);
 }
 
-/* The violation action: $display diagnostic + optional notifier toggle. */
+/* The violation action: $display diagnostic + VPI callback + optional
+   notifier toggle. */
 static Statement* tc_violation_(const struct vlltype&loc,
 				const char*check_name,
 				const pform_name_t*notifier)
@@ -15578,8 +15579,38 @@ static Statement* tc_violation_(const struct vlltype&loc,
 	    = new PCallTask(perm_string::literal("$display"), parms);
       FILE_NAME(disp, loc);
 
+	/* The internal task matches the VPI timing-check object by source
+	   location, scope, and vpiTchkType before dispatching cbTchkViolation. */
+      int tchk_type = vpiUndefined;
+      if (strstr(check_name, "$setuphold") != nullptr) tchk_type = vpiSetupHold;
+      else if (strstr(check_name, "$recrem") != nullptr) tchk_type = vpiRecrem;
+      else if (strcmp(check_name, "$setup") == 0) tchk_type = vpiSetup;
+      else if (strcmp(check_name, "$hold") == 0) tchk_type = vpiHold;
+      else if (strcmp(check_name, "$period") == 0) tchk_type = vpiPeriod;
+      else if (strcmp(check_name, "$width") == 0) tchk_type = vpiWidth;
+      else if (strcmp(check_name, "$skew") == 0) tchk_type = vpiSkew;
+      else if (strcmp(check_name, "$recovery") == 0) tchk_type = vpiRecovery;
+      else if (strcmp(check_name, "$nochange") == 0) tchk_type = vpiNoChange;
+      else if (strcmp(check_name, "$fullskew") == 0) tchk_type = vpiFullskew;
+      else if (strcmp(check_name, "$timeskew") == 0) tchk_type = vpiTimeskew;
+      else if (strcmp(check_name, "$removal") == 0) tchk_type = vpiRemoval;
+
+      std::list<named_pexpr_t> violation_parms;
+      named_pexpr_t type_parm;
+      type_parm.name = perm_string();
+      type_parm.parm = new PENumber(new verinum((uint64_t)tchk_type, 32));
+      violation_parms.push_back(type_parm);
+      PCallTask*violation = new PCallTask(
+	    perm_string::literal("$ivl_tchk_violation"), violation_parms);
+      FILE_NAME(violation, loc);
+
+      std::vector<Statement*> violation_stmts;
+      violation_stmts.push_back(disp);
+      violation_stmts.push_back(violation);
+      Statement*action = sva_block_(loc, violation_stmts);
+
       if (notifier == 0)
-	    return disp;
+	    return action;
 
       /* IEEE 1800-2017/2023 Table 31-13: x becomes either 0 or 1,
          known 0/1 values toggle, and z remains z. */
@@ -15602,7 +15633,9 @@ static Statement* tc_violation_(const struct vlltype&loc,
       FILE_NAME(tog, loc);
 
       std::vector<Statement*> stmts;
-      stmts.push_back(disp);
+	/* Keep the timing violation report before callback execution and the
+	   notifier update after it, as in the generated action order. */
+      stmts.push_back(action);
       stmts.push_back(tog);
       return sva_block_(loc, stmts);
 }

@@ -90,6 +90,20 @@ struct statement_dispatch_s {
 
 bool vpip_statement_callbacks_active = false;
 static std::vector<statement_callback*> statement_callbacks;
+class tchk_callback : public __vpiCallback {
+    public:
+      explicit tchk_callback(p_cb_data data)
+      {
+	    cb_data = *data;
+	    if (data->time) {
+		  cb_time = *data->time;
+		  cb_data.time = &cb_time;
+	    }
+      }
+
+      struct t_vpi_time cb_time;
+};
+static std::vector<tchk_callback*> tchk_callbacks;
 static std::unordered_map<vvp_code_t, std::vector<__vpiStmtNode*> >
       statement_code_nodes;
 static std::unordered_map<vvp_code_t, std::vector<statement_dispatch_s> >
@@ -1285,6 +1299,38 @@ void vpip_run_statement_callbacks(vvp_code_t code)
 					      dispatch[idx].statement);
 }
 
+void vpip_tchk_violation(vpiHandle scope, const char*file,
+			 long lineno, int type)
+{
+      vpiHandle iter = vpi_iterate(vpiTchk, scope);
+      vpiHandle tchk = 0;
+      while (iter && (tchk = vpi_scan(iter))) {
+	    const char* tchk_file = vpi_get_str(vpiFile, tchk);
+	    if (vpi_get(vpiLineNo, tchk) == lineno
+		&& vpi_get(vpiTchkType, tchk) == type
+		&& tchk_file && file && strcmp(tchk_file, file) == 0)
+		  break;
+	    tchk = 0;
+      }
+      if (!tchk) return;
+
+	  /* A callback can change registrations, so dispatch a stable snapshot. */
+      std::vector<tchk_callback*> dispatch = tchk_callbacks;
+      const vpi_mode_t save_mode = vpi_mode_flag;
+      vpi_mode_flag = VPI_MODE_RWSYNC;
+      for (size_t idx = 0; idx < dispatch.size(); idx += 1) {
+	    tchk_callback*callback = dispatch[idx];
+	    if (!callback->cb_data.cb_rtn) continue;
+	    struct t_cb_data call_data = callback->cb_data;
+	    call_data.reason = cbTchkViolation;
+	    call_data.obj = tchk;
+	    call_data.value = 0;
+	    if (call_data.time) set_callback_time(&call_data);
+	    call_data.cb_rtn(&call_data);
+      }
+      vpi_mode_flag = save_mode;
+}
+
 vpiHandle vpi_register_cb(p_cb_data data)
 {
       struct __vpiCallback*obj = 0;
@@ -1334,6 +1380,13 @@ vpiHandle vpi_register_cb(p_cb_data data)
 	  case cbEndOfSimulation:
 	  case cbNextSimTime:
 	    obj = make_prepost(data);
+	    break;
+
+	  case cbTchkViolation:
+	    if (data->time && !check_callback_time(data, true))
+		  break;
+	    obj = new tchk_callback(data);
+	    tchk_callbacks.push_back(static_cast<tchk_callback*>(obj));
 	    break;
 
 	  default:

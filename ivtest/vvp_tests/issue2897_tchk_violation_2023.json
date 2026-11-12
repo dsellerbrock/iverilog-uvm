@@ -1,0 +1,14 @@
+{
+  "type": "normal",
+  "source": "issue2897_tchk_violation.sv",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "top"],
+  "vpi-modules": ["issue2897_tchk_violation_2023"],
+  "vpi-sources": ["vpi/issue2897_tchk_violation.c"],
+  "output-contains": [
+    "REGISTER cbTchkViolation=ok",
+    "Timing violation: $setup check in top at time 12",
+    "DONE notifier=1",
+    "PASSED",
+    "VIOLATION_CALLBACKS=1 OBJECTS=1"
+  ]
+}
