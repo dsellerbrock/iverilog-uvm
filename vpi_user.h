@@ -284,6 +284,8 @@ typedef struct t_vpi_delay  {
 #define vpiContAssign   8
 #define vpiDeassign     9
 #define vpiConstant     7
+#define vpiIntConst     7
+#define vpiTimeConst    8
 #define vpiCase         5 /* case statement */
 #define vpiCaseItem     6 /* case statement item */
 #define vpiDelayControl 11 /* delay statement (e.g., #10) */
@@ -399,8 +401,27 @@ typedef struct t_vpi_delay  {
 #define vpiNullOp         36 /* null operation */
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiCaseType      42 /* case statement subtype */
+#define vpiCaseExact      1 /* exact match */
 #define vpiCaseX          2 /* ignore X's */
 #define vpiCaseZ          3 /* ignore Z's */
+#define vpiNetDeclAssign 43 /* assign part of declaration (Boolean) */
+#define vpiScheduled     46 /* object still scheduled (Boolean) */
+#define vpiActive        49
+#define vpiCell          51
+#define vpiConfig        52
+#define vpiDecompile     54 /* decompile the object */
+#define vpiDelayType     56 /* delay subtype */
+#define vpiModPathDelay            1 /* module path delay */
+#define vpiInterModPathDelay       2 /* intermodule path delay */
+#define vpiMIPDelay                3 /* module input port delay */
+#define vpiLibrary       58 /* configuration library */
+#define vpiOffset        60 /* offset from LSB */
+#define vpiResolvedNetType 61 /* net subtype after resolution */
+#define vpiSaveRestartID 62 /* unique ID for save/restart data */
+#define vpiSaveRestartLocation 63 /* name of save/restart data file */
+#define vpiValid         64 /* validity of a reentrant task/function frame */
+#define vpiValidFalse     0
+#define vpiValidTrue      1
 #define vpiName           2
 #define vpiFullName       3
 #define vpiSize           4
@@ -553,6 +574,10 @@ typedef struct t_vpi_delay  {
 #define vpiSigned         65
 #define vpiLocalParam     70
 #define vpiCondition      71
+#define vpiModPathHasIfNone 71 /* mod path has an ifnone statement */
+#define vpiIndexedPartSelectType 72 /* indexed part-select type */
+#define vpiPosIndexed      1 /* +: */
+#define vpiNegIndexed      2 /* -: */
 /* IVL private properties, also see vvp/vpi_priv.h for other properties */
 #define _vpiNexusId        0x1000000
 /* used in vvp/vpi_priv.h  0x1000001 */
