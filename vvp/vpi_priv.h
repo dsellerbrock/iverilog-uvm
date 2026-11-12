@@ -408,9 +408,9 @@ class __vpiStmtNode : public __vpiHandle {
 extern bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
 					       const char*selector,
 					       int levels);
-extern void vpip_report_deferred_assertion_reset_callbacks(
-					       const char*selector,
-					       int levels);
+/* IEEE 1800-2023 20.11: may a matured deferred report run its action? */
+extern bool vpip_deferred_action_enabled(unsigned long source_id,
+					 __vpiScope*scope, unsigned result);
 
 /* Function return values are carried on the function-call stack and do not
    have a regular signal object in the runtime hierarchy. This handle exposes
@@ -501,7 +501,8 @@ extern void vpip_register_deferred_assertion(unsigned long source_id,
 					     unsigned assertion_kind,
 					     unsigned file_idx,
 					     unsigned line,
-					     vpiHandle scope);
+					     vpiHandle scope,
+					     bool is_final);
 extern void vpip_cancel_deferred_assertion(unsigned long source_id,
 					   vpiHandle scope);
 extern void vpip_deferred_assertion_report(unsigned long source_id,

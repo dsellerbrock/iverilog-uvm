@@ -847,6 +847,8 @@ struct ivl_parameter_s {
       ivl_type_t  type;
       ivl_expr_t  value;
       ivl_expr_t  assign_expr;
+      ivl_expr_t  default_expr;
+      const NetExpr*default_net;
       long          msb;
       long          lsb;
       bool  signed_flag;
@@ -927,10 +929,18 @@ struct ivl_scope_aux_s {
       std::vector<struct ivl_parameter_s>*param;
       std::vector<ivl_switch_t>*switches;
       std::vector<struct ivl_contassign_s>*contassigns;
+      std::vector<struct ivl_defparam_s>*defparams;
       std::vector<ivl_tchk_t>*tchks;
       ivl_scope_objects_s*objects_;
       ivl_scope_proc_s*proc_;
       struct ivl_attribute_s*attr;
+};
+
+struct ivl_defparam_s {
+      ivl_parameter_t param;
+      ivl_expr_t rhs;
+      perm_string file;
+      unsigned lineno;
 };
 
 struct ivl_contassign_s {

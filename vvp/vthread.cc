@@ -217,7 +217,6 @@ class vvp_process : public vvp_object {
       void cancel_deferred_asserts(__vpiScope*scope);
       void cancel_deferred_assertion(unsigned long source_id,
 				     __vpiScope*scope);
-      void cancel_deferred_asserts(const char*selector, int levels);
       void mature_deferred_asserts();
       void pin_final_deferred_assert(unsigned long source_id,
                                      unsigned result,
@@ -1868,15 +1867,6 @@ void vvp_process::cancel_all_deferred_asserts()
       });
 }
 
-void vvp_process::cancel_deferred_asserts(const char*selector, int levels)
-{
-      cancel_deferred_asserts_([selector, levels](
-            const deferred_assert_report_s&report) {
-            return vpip_deferred_assert_scope_matches(
-                  report.action_scope, selector, levels);
-      });
-}
-
 void vvp_process::cancel_deferred_assertion(unsigned long source_id,
                                             __vpiScope*scope)
 {
@@ -1885,18 +1875,6 @@ void vvp_process::cancel_deferred_assertion(unsigned long source_id,
             return report.source_id == source_id
                   && report.action_scope == scope;
       });
-}
-
-extern "C" void vpip_cancel_deferred_asserts(const char*selector,
-                                               PLI_INT32 levels)
-{
-      for (std::set<vvp_process*>::iterator cur =
-                 deferred_assert_processes_.begin();
-           cur != deferred_assert_processes_.end();) {
-            vvp_process*process = *cur++;
-            process->cancel_deferred_asserts(selector, levels);
-      }
-      vpip_report_deferred_assertion_reset_callbacks(selector, levels);
 }
 
 void vpip_cancel_deferred_assertion(unsigned long source_id,
@@ -1930,6 +1908,11 @@ void vvp_process::mature_deferred_asserts()
 			  report.action_scope);
 
 	    if (!report.action_pc || !report.action_scope)
+		  continue;
+	    if (report.source_id
+		&& !vpip_deferred_action_enabled(report.source_id,
+						 report.action_scope,
+						 report.result))
 		  continue;
 
 	    vthread_t action = vthread_new(report.action_pc,
@@ -2027,6 +2010,11 @@ void vvp_process::mature_final_deferred_asserts()
 			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
 			  report.action_scope);
 	    if (!report.action_pc || !report.action_scope)
+		  continue;
+	    if (report.source_id
+		&& !vpip_deferred_action_enabled(report.source_id,
+						 report.action_scope,
+						 report.result))
 		  continue;
 
 	    /* The action fragment is passive and ends in %end. Rebuild the

@@ -199,7 +199,7 @@ void draw_enumeration_in_scope(ivl_enumtype_t enumtype);
  * Switches (tran)
  */
 extern void draw_switch_in_scope(ivl_switch_t sw);
-extern void draw_contassigns_in_scope(ivl_scope_t scope);
+extern void draw_vpi_objects_in_scope(ivl_scope_t scope);
 
 /* Draw_net_input and friends uses this. */
 struct vvp_nexus_data {

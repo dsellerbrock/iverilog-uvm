@@ -36,6 +36,7 @@
 # include  "PTask.h"
 # include  "Statement.h"
 # include  "PTimingCheck.h"
+# include  "netmisc.h"
 # include  "vpi_user.h"
 # include  "netvector.h"
 # include  "pform_sva_nfa.h"
@@ -14692,41 +14693,54 @@ static PExpr* sva_rewrite_symbolic_uarray_operand_(
       return sva_id_(loc, history.back());
 }
 
-/* M12/20.12: query global immediate-assertion state (no argument), or the
-   state of one synthesized concurrent assertion (instance argument). */
-static PExpr* sva_enabled_expr_(const struct vlltype&loc, long inst)
+/* IEEE 1800-2023 20.11 control state of one assertion: $ivl_sva_state(space,
+   id, what) with the vpipAssertSpace* and vpipAssertState* values of
+   vpi_user.h. Each identity space numbers its assertions separately, so a
+   concurrent checker index and a deferred source id cannot collide. */
+enum { SVA_SPACE_CONCURRENT = 0, SVA_SPACE_IMMEDIATE = 1,
+       SVA_SPACE_DEFERRED = 2, SVA_SPACE_IMMEDIATE_COVER = 3 };
+enum { SVA_STATE_ENABLED = 0, SVA_STATE_KILL_GENERATION = 1,
+       SVA_STATE_FAIL_ACTION = 2, SVA_STATE_PASS_ACTION = 3,
+       SVA_STATE_VACUOUS_ACTION = 4 };
+
+static PExpr* sva_state_expr_(const struct vlltype&loc, unsigned space,
+			      long id, unsigned what)
 {
       std::list<named_pexpr_t> parms;
-      if (inst >= 0) {
+      const long vals[3] = { (long)space, id, (long)what };
+      for (long v : vals) {
 	    named_pexpr_t arg;
-	    arg.parm = new PENumber(new verinum((uint64_t)inst, 32));
+	    arg.parm = new PENumber(new verinum((uint64_t)(uint32_t)v, 32));
 	    parms.push_back(arg);
       }
-      PECallFunction*en = new PECallFunction(
-	    perm_string::literal("$ivl_sva_enabled"), parms);
-      FILE_NAME(en, loc);
-
-      /* The VPI function has a 32-bit return ABI, but every consumer uses it
-	 as a Boolean.  Normalize it here so inserting the enable term into an
-	 instance-sized token expression cannot widen that expression and retain
-	 bits which the checker deliberately shifts out of its state vector. */
-      return sva_not_(loc, sva_not_(loc, en));
+      PECallFunction*call = new PECallFunction(
+	    perm_string::literal("$ivl_sva_state"), parms);
+      FILE_NAME(call, loc);
+      return call;
 }
 
-/* Deferred immediate assertions have source ids rather than the per-scope
-   checker indices used by concurrent assertions. Keep their query separate
-   so the two identity spaces cannot collide. */
+/* A Boolean state. The VPI function has a 32-bit return ABI; normalizing it
+   keeps an enable term inserted into an instance-sized token expression
+   from widening that expression and retaining bits which the checker
+   deliberately shifts out of its state vector. */
+static PExpr* sva_state_bool_(const struct vlltype&loc, unsigned space,
+			      long id, unsigned what)
+{
+      return sva_not_(loc, sva_not_(loc, sva_state_expr_(loc, space, id, what)));
+}
+
+/* Is one synthesized concurrent assertion enabled (inst < 0: the whole
+   design, before any checker index applies)? */
+static PExpr* sva_enabled_expr_(const struct vlltype&loc, long inst)
+{
+      return sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst, SVA_STATE_ENABLED);
+}
+
 static PExpr* sva_deferred_enabled_expr_(const struct vlltype&loc,
 					 unsigned source_id)
 {
-      std::list<named_pexpr_t> parms;
-      named_pexpr_t arg;
-      arg.parm = new PENumber(new verinum((uint64_t)source_id, 32));
-      parms.push_back(arg);
-      PECallFunction*en = new PECallFunction(
-	    perm_string::literal("$ivl_deferred_assert_enabled"), parms);
-      FILE_NAME(en, loc);
-      return sva_not_(loc, sva_not_(loc, en));
+      return sva_state_bool_(loc, SVA_SPACE_DEFERRED, source_id,
+			     SVA_STATE_ENABLED);
 }
 
 /* Runtime assertion control keeps a kill generation per (scope, checker).
@@ -14736,14 +14750,26 @@ static PExpr* sva_deferred_enabled_expr_(const struct vlltype&loc,
 static PExpr* sva_kill_generation_expr_(const struct vlltype&loc,
 					 unsigned inst)
 {
-      std::list<named_pexpr_t> parms;
-      named_pexpr_t arg;
-      arg.parm = new PENumber(new verinum((uint64_t)inst, 32));
-      parms.push_back(arg);
-      PECallFunction*gen = new PECallFunction(
-	    perm_string::literal("$ivl_sva_kill_generation"), parms);
-      FILE_NAME(gen, loc);
-      return gen;
+      return sva_state_expr_(loc, SVA_SPACE_CONCURRENT, inst,
+			     SVA_STATE_KILL_GENERATION);
+}
+
+/* Statements that already carry their own action guard: a pass action merged
+   after sequence match-item calls (16.11), which are not action blocks and
+   run whatever the action control says. Dispatch helpers leave them as is. */
+static std::set<const Statement*> sva_self_guarded_actions_;
+
+/* Guard one action statement with its 20.11 action control, read when the
+   action is dispatched. */
+static Statement* sva_action_guard_(const struct vlltype&loc, unsigned space,
+				    unsigned id, unsigned what,
+				    Statement*action)
+{
+      if (!action || sva_self_guarded_actions_.count(action)) return action;
+      PCondit*guard = new PCondit(sva_state_bool_(loc, space, id, what),
+				  action, nullptr);
+      FILE_NAME(guard, loc);
+      return guard;
 }
 
 static perm_string sva_kill_seen_reg_(const struct vlltype&loc,
@@ -14786,16 +14812,6 @@ static PExpr* sva_kill_generation_current_(const struct vlltype&loc,
 	    sva_kill_generation_expr_(loc, inst), sva_id_(loc, seen));
       FILE_NAME(same, loc);
       return same;
-}
-
-/* Concurrent action blocks belong to attempts that may have started before
-   `$assertoff'. IEEE 1800-2017 20.12 requires those attempts and actions to
-   complete, so action execution itself is deliberately not enable-gated;
-   each engine gates only new-attempt injection. */
-static Statement* sva_gate_(const struct vlltype&loc, Statement*action)
-{
-      (void)loc;
-      return action;
 }
 
 /* Active source label for the checker currently being synthesized. The
@@ -14879,13 +14895,17 @@ Statement* pform_make_immediate_cover(const struct vlltype&loc, PExpr*expr,
       if (id == 0) id = ++immediate_cover_id_;
       char nbuf[64];
       snprintf(nbuf, sizeof nbuf, "cover_L%d_%u", loc.first_line, id);
+	/* A labeled cover is selected by its label (20.11), as an immediate
+	   assertion is. */
+      std::string cover_name = sva_parser_assertion_label_.nil()
+	    ? std::string(nbuf) : std::string(sva_parser_assertion_label_.str());
 
       std::list<named_pexpr_t> reg_args;
       named_pexpr_t a0;
       a0.parm = new PENumber(new verinum((uint64_t)id, 32));
       reg_args.push_back(a0);
       named_pexpr_t a1;
-      a1.parm = new PEString(strdup(nbuf));
+      a1.parm = new PEString(strdup(cover_name.c_str()));
       reg_args.push_back(a1);
       named_pexpr_t a2;
       a2.parm = new PEString(strdup(loc.text ? loc.text : ""));
@@ -14923,14 +14943,20 @@ Statement* pform_make_immediate_cover(const struct vlltype&loc, PExpr*expr,
 
       std::vector<Statement*> pass;
       pass.push_back(report(true));
-      if (pass_stmt) pass.push_back(pass_stmt);
+      if (pass_stmt)
+	    pass.push_back(sva_action_guard_(loc, SVA_SPACE_IMMEDIATE_COVER, id,
+					     SVA_STATE_PASS_ACTION, pass_stmt));
       std::vector<Statement*> fail;
       fail.push_back(report(false));
       PCondit*result = new PCondit(expr, sva_block_(loc, pass),
 				   sva_block_(loc, fail));
       result->immediate_assertion();
       FILE_NAME(result, loc);
-      return result;
+      PCondit*guarded = new PCondit(sva_state_bool_(loc,
+				    SVA_SPACE_IMMEDIATE_COVER, id,
+				    SVA_STATE_ENABLED), result, nullptr);
+      FILE_NAME(guarded, loc);
+      return guarded;
 }
 
 /* Simple immediate assertions are controlled when the statement executes,
@@ -15055,18 +15081,17 @@ Statement* pform_make_immediate_assertion(const struct vlltype&loc,
 
       std::vector<Statement*> pass;
       pass.push_back(report(true));
-      if (pass_stmt) pass.push_back(pass_stmt);
+      if (pass_stmt)
+	    pass.push_back(sva_action_guard_(loc, SVA_SPACE_IMMEDIATE, id,
+					     SVA_STATE_PASS_ACTION, pass_stmt));
       std::vector<Statement*> fail;
       fail.push_back(report(false));
-      if (fail_stmt) fail.push_back(fail_stmt);
+      if (fail_stmt)
+	    fail.push_back(sva_action_guard_(loc, SVA_SPACE_IMMEDIATE, id,
+					     SVA_STATE_FAIL_ACTION, fail_stmt));
 
-      std::list<named_pexpr_t> enabled_args;
-      named_pexpr_t enabled_id;
-      enabled_id.parm = new PENumber(new verinum((uint64_t)id, 32));
-      enabled_args.push_back(enabled_id);
-      PECallFunction*enabled = new PECallFunction(
-	    perm_string::literal("$ivl_immediate_assert_enabled"), enabled_args);
-      FILE_NAME(enabled, loc);
+      PExpr*enabled = sva_state_bool_(loc, SVA_SPACE_IMMEDIATE, id,
+				      SVA_STATE_ENABLED);
 
 	PCondit*assertion = new PCondit(expr, sva_block_(loc, pass),
 				       sva_block_(loc, fail));
@@ -15154,7 +15179,8 @@ static Statement* sva_fail_action_(const struct vlltype&loc, unsigned inst,
 {
       std::vector<Statement*> v;
       v.push_back(sva_reactive_wait_(loc));
-      v.push_back(sva_gate_(loc, action));
+      v.push_back(sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+				    SVA_STATE_FAIL_ACTION, action));
       v.push_back(sva_report_stmt_(loc, inst, SVA_CB_FAILURE));
       return sva_block_(loc, v);
 }
@@ -15169,29 +15195,32 @@ static Statement* sva_pass_action_(const struct vlltype&loc, unsigned inst,
       std::vector<Statement*> v;
       v.push_back(sva_reactive_wait_(loc));
       v.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
-      if (pass_stmt) v.push_back(pass_stmt);
+      if (pass_stmt)
+	    v.push_back(sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+					  SVA_STATE_PASS_ACTION, pass_stmt));
       return sva_block_(loc, v);
 }
 
 /* A cover property executes its pass statement in the Reactive region;
    coverage reporting is attached at the match counter update. */
-static Statement* sva_cover_action_(const struct vlltype&loc,
+static Statement* sva_cover_action_(const struct vlltype&loc, unsigned inst,
 				    Statement*pass_stmt)
 {
       std::vector<Statement*> v;
       v.push_back(sva_reactive_wait_(loc));
-      v.push_back(sva_gate_(loc, pass_stmt));
+      v.push_back(sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+				    SVA_STATE_PASS_ACTION, pass_stmt));
       return sva_block_(loc, v);
 }
 
 /* Cover actions must not hold the checker process while they run. */
-static Statement* sva_cover_spawn_(const struct vlltype&loc,
+static Statement* sva_cover_spawn_(const struct vlltype&loc, unsigned inst,
 				   Statement*pass_stmt)
 {
       PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
       FILE_NAME(spawn, loc);
       std::vector<Statement*>child;
-      child.push_back(sva_cover_action_(loc, pass_stmt));
+      child.push_back(sva_cover_action_(loc, inst, pass_stmt));
       spawn->set_statement(child);
       return spawn;
 }
@@ -16330,7 +16359,15 @@ void PWidth::elaborate(Design*des, NetScope*scope) const
       /* Resolve the packed shape here, after parameter and instance
 	 overrides are known. Each bit gets its own edge event and timestamp. */
       PEIdent*signal_id = tc_name_id_(loc, event_->name);
-      NetNet*signal = signal_id->elaborate_lnet(des, scope, true);
+      symbol_search_results signal_search;
+      symbol_search(signal_id, des, scope, signal_id->path(),
+		    signal_id->lexical_pos(), &signal_search);
+      NetNet*signal = signal_search.net;
+      if (!signal) {
+	    // Preserve normal l-value diagnostics for invalid timing-check
+	    // terminals, but don't register a continuous driver for valid ones.
+	    signal = signal_id->elaborate_lnet(des, scope, true);
+      }
       delete signal_id;
       if (signal == nullptr) return;
 
@@ -20234,7 +20271,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 				 sva_report_stmt_(loc, inst, SVA_CB_SUCCESS), nullptr));
 		  if (pass_stmt) {
 			body.push_back(sva_if_(loc, sva_id_(loc, r_c),
-				       sva_cover_spawn_(loc, pass_stmt), nullptr));
+				       sva_cover_spawn_(loc, inst, pass_stmt), nullptr));
 			pass_stmt = nullptr;
 		  }
 		  delete fail_stmt;
@@ -23766,8 +23803,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (match_action) {
 		  std::vector<Statement*>ordered;
 		  ordered.push_back(match_action);
-		  if (pass_stmt) ordered.push_back(pass_stmt);
+		  if (pass_stmt)
+			ordered.push_back(sva_action_guard_(loc,
+			      SVA_SPACE_CONCURRENT, inst, SVA_STATE_PASS_ACTION,
+			      pass_stmt));
 		  pass_stmt = sva_block_(loc, ordered);
+		  sva_self_guarded_actions_.insert(pass_stmt);
 		  match_action = nullptr;
 	    }
 	    if (!implication)
@@ -23778,8 +23819,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		if (match_action) {
 		      std::vector<Statement*>ordered;
 		      ordered.push_back(match_action);
-		      ordered.push_back(pass_stmt);
+		      ordered.push_back(sva_action_guard_(loc,
+			    SVA_SPACE_CONCURRENT, inst, SVA_STATE_PASS_ACTION,
+			    pass_stmt));
 		      match_action = sva_block_(loc, ordered);
+		      sva_self_guarded_actions_.insert(match_action);
 		      pass_stmt = nullptr;
 		} else {
 		      match_action = pass_stmt;
@@ -24711,7 +24755,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   child enters Reactive before executing the source-ordered calls. */
       if (cover && match_action) {
 	    body.push_back(sva_repeat_(loc, sva_id_(loc, r_match),
-				       sva_cover_spawn_(loc, match_action)));
+				       sva_cover_spawn_(loc, inst, match_action)));
 	    match_action = nullptr;
       }
 
@@ -26000,11 +26044,20 @@ static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
 	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 	    FILE_NAME(spawn, loc);
 	    std::vector<Statement*> one;
-	    one.push_back(sva_gate_(loc, action));
+	    one.push_back(action);
 	    spawn->set_statement(one);
-	    loop.push_back(sva_repeat_(loc,
-		  new PEBinary('+', sva_id_(loc, due), sva_id_(loc, vac_due)),
-		  spawn));
+	      /* 20.11 action control, read at dispatch: vacuous and
+		 nonvacuous successes are enabled separately. */
+	    PExpr*runs = sva_self_guarded_actions_.count(action)
+		  ? new PEBinary('+', sva_id_(loc, due), sva_id_(loc, vac_due))
+		  : new PEBinary('+',
+		  new PEBinary('*', sva_id_(loc, due),
+			sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
+					SVA_STATE_PASS_ACTION)),
+		  new PEBinary('*', sva_id_(loc, vac_due),
+			sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
+					SVA_STATE_VACUOUS_ACTION)));
+	    loop.push_back(sva_repeat_(loc, runs, spawn));
       }
       PForever*forever = new PForever(sva_block_(loc, loop));
       FILE_NAME(forever, loc);
@@ -27697,7 +27750,9 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       Statement*coverstmt = nullptr;
       if (cover && pass_stmt) {
 	    coverstmt = ranged_antecedent
-		  ? pass_stmt : sva_cover_action_(loc, pass_stmt);
+		  ? sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+				      SVA_STATE_PASS_ACTION, pass_stmt)
+		  : sva_cover_action_(loc, inst, pass_stmt);
 	    pass_stmt = nullptr;
       }
 
@@ -28591,7 +28646,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 			FILE_NAME(spawn, loc);
 			std::vector<Statement*>one;
-			one.push_back(sva_gate_(loc, coverstmt));
+			one.push_back(coverstmt);
 			spawn->set_statement(one);
 			coverstmt = nullptr;
 			cloop.push_back(sva_repeat_(loc,
@@ -28672,11 +28727,17 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 		  FILE_NAME(spawn, loc);
 		  std::vector<Statement*>one;
-		  one.push_back(sva_gate_(loc, pass_stmt));
+		  one.push_back(pass_stmt);
 		  spawn->set_statement(one);
 		  pass_stmt = nullptr;
-		  PEBinary*ptotal = new PEBinary(
-			'+', sva_id_(loc, pn_due), sva_id_(loc, pv_due));
+		    /* 20.11 action control, read at dispatch. */
+		  PEBinary*ptotal = new PEBinary('+',
+			new PEBinary('*', sva_id_(loc, pn_due),
+			      sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
+					      SVA_STATE_PASS_ACTION)),
+			new PEBinary('*', sva_id_(loc, pv_due),
+			      sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
+					      SVA_STATE_VACUOUS_ACTION)));
 		  FILE_NAME(ptotal, loc);
 		  ploop.push_back(sva_repeat_(loc, ptotal, spawn));
 	    }
@@ -28750,7 +28811,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 	    FILE_NAME(spawn, loc);
 	    std::vector<Statement*>one;
-	    one.push_back(sva_gate_(loc, action));
+	    one.push_back(sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+						  SVA_STATE_FAIL_ACTION, action));
 	    spawn->set_statement(one);
 	    floop.push_back(sva_repeat_(loc, ftotal, spawn));
 
@@ -29022,7 +29084,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    delete fail_stmt;
 	    fail_stmt = nullptr;
 	    if (pass_stmt) {
-		  coverstmt = sva_cover_action_(loc, pass_stmt);
+		  coverstmt = sva_cover_action_(loc, inst, pass_stmt);
 		  pass_stmt = nullptr;
 	    }
       }
@@ -29678,11 +29740,17 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 		  FILE_NAME(spawn, loc);
 		  std::vector<Statement*>one;
-		  one.push_back(sva_gate_(loc, pass_stmt));
+		  one.push_back(pass_stmt);
 		  spawn->set_statement(one);
 		  pass_stmt = nullptr;
-		  PEBinary*ptotal = new PEBinary(
-			'+', sva_id_(loc, pn_due), sva_id_(loc, pv_due));
+		    /* 20.11 action control, read at dispatch. */
+		  PEBinary*ptotal = new PEBinary('+',
+			new PEBinary('*', sva_id_(loc, pn_due),
+			      sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
+					      SVA_STATE_PASS_ACTION)),
+			new PEBinary('*', sva_id_(loc, pv_due),
+			      sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
+					      SVA_STATE_VACUOUS_ACTION)));
 		  FILE_NAME(ptotal, loc);
 		  ploop.push_back(sva_repeat_(loc, ptotal, spawn));
 	    }
@@ -29756,7 +29824,8 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 	    FILE_NAME(spawn, loc);
 	    std::vector<Statement*>one;
-	    one.push_back(sva_gate_(loc, action));
+	    one.push_back(sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+						  SVA_STATE_FAIL_ACTION, action));
 	    spawn->set_statement(one);
 	    floop.push_back(sva_repeat_(loc, ftotal, spawn));
 
@@ -31802,7 +31871,8 @@ static bool sva_parameter_repeat_try_assertion_(
 		  PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 		  FILE_NAME(spawn, loc);
 		  std::vector<Statement*>one;
-		  one.push_back(sva_gate_(loc, action));
+		  one.push_back(sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+						  SVA_STATE_FAIL_ACTION, action));
 		  spawn->set_statement(one);
 		  loop.push_back(sva_repeat_(loc, sva_id_(loc, due), spawn));
 	    }
@@ -32271,7 +32341,8 @@ static bool sva_parameter_consequent_repeat_try_assertion_(
       PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
       FILE_NAME(spawn, loc);
       std::vector<Statement*>one;
-      one.push_back(sva_gate_(loc, fail_stmt));
+      one.push_back(sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+						  SVA_STATE_FAIL_ACTION, fail_stmt));
       spawn->set_statement(one);
       dispatch.push_back(sva_repeat_(loc, sva_id_(loc, fail_due), spawn));
       PForever*loop = new PForever(sva_block_(loc, dispatch));
@@ -36152,7 +36223,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  sat.push_back(nm);
 		  anyw = nullptr;
 	    } else if (pass_stmt && kind != 2) {
-		  PCondit*pm = new PCondit(anyw, pass_stmt, nullptr);
+		  PCondit*pm = new PCondit(anyw,
+			sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+					  SVA_STATE_PASS_ACTION, pass_stmt),
+			nullptr);
 		  FILE_NAME(pm, loc);
 		  sat.push_back(pm);
 		  pass_stmt = nullptr;
@@ -36245,7 +36319,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  FILE_NAME(report, loc);
 		  sat.push_back(report);
 	    } else if (pass_stmt) {
-		  PCondit*pm = new PCondit(elig, pass_stmt, nullptr);
+		  PCondit*pm = new PCondit(elig,
+			sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+					  SVA_STATE_PASS_ACTION, pass_stmt),
+			nullptr);
 		  FILE_NAME(pm, loc);
 		  sat.push_back(pm);
 		  pass_stmt = nullptr;
@@ -36316,7 +36393,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  if (pass_stmt) {
 			PCondit*pm = new PCondit(
 			      sva_clone_expr_(match),
-			      sva_cover_spawn_(loc, pass_stmt), nullptr);
+			      sva_cover_spawn_(loc, inst, pass_stmt), nullptr);
 			FILE_NAME(pm, loc);
 			body.push_back(pm);
 			pass_stmt = nullptr;
@@ -36327,7 +36404,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  FILE_NAME(nm, loc);
 		  body.push_back(nm);
 	    } else {
-		  PCondit*pm = new PCondit(match, pass_stmt, nullptr);
+		  PCondit*pm = new PCondit(match,
+			sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+					  SVA_STATE_PASS_ACTION, pass_stmt),
+			nullptr);
 		  FILE_NAME(pm, loc);
 		  body.push_back(pm);
 		  pass_stmt = nullptr;
@@ -36370,7 +36450,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				sva_block_(loc, report), nullptr));
 		  }
 		  hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f),
-					     sva_gate_(loc, action)));
+					     sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+						  SVA_STATE_FAIL_ACTION, action)));
 	    } else {
 		  hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f),
 				     sva_fail_action_(loc, inst, action)));
