@@ -6898,6 +6898,9 @@ void pform_set_parameter(const struct vlltype&loc,
 			 type_parameter_restriction_t restriction)
 {
       LexicalScope*scope = lexical_scope;
+      // Class items are local parameters; parameter port declarations are not.
+      if (dynamic_cast<PClass*>(scope) && !pform_in_parameter_port_list)
+	    is_local = true;
       if (is_compilation_unit(scope) && !gn_system_verilog()) {
 	    VLerror(loc, "error: %s declarations must be contained within a module.",
 		         is_local ? "localparam" : "parameter");
