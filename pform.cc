@@ -9980,10 +9980,43 @@ struct sva_clone_scope_t {
       const pform_name_t*prefix = nullptr;
       const std::set<perm_string>*local_names = nullptr;
       bool qualify_sequence_refs = false;
+	/* 17.3: the $unit a checker is declared in. A name its assertion
+	   reads from there must keep that binding where the assertion is
+	   placed at a procedural instance. */
+      const LexicalScope*free_scope = nullptr;
 };
+
 
 static sva_clone_scope_t sva_clone_scope_;
 static sva_clone_scope_t sva_clone_actual_scope_;
+
+static bool sva_scope_declares_name_(const LexicalScope*sc, perm_string name)
+{
+      if (sc->wires.count(name) || sc->parameters.count(name)
+	  || sc->genvars.count(name) || sva_local_symbol_(sc, name))
+	    return true;
+      if (const PScopeExtra*extra = dynamic_cast<const PScopeExtra*>(sc))
+	    return extra->funcs.count(name) || extra->tasks.count(name);
+      return false;
+}
+
+/* The first free name of a checker assertion that a scope between the
+   procedural instance and the checker's $unit declares again. */
+static perm_string sva_checker_shadowed_;
+
+static void sva_check_free_name_(perm_string name)
+{
+      const LexicalScope*unit = sva_clone_scope_.free_scope;
+      if (!unit || !sva_scope_declares_name_(unit, name)
+	  || !sva_checker_shadowed_.nil())
+	    return;
+      for (const LexicalScope*sc = lexical_scope ; sc && sc != unit
+	   ; sc = sc->parent_scope())
+	    if (sva_scope_declares_name_(sc, name)) {
+		  sva_checker_shadowed_ = name;
+		  return;
+	    }
+}
 
 class sva_clone_scope_guard_t {
     public:
@@ -11373,6 +11406,8 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
       delete formals;
 }
 
+static void sva_checker_finish_(const Module*checker);
+
 void pform_sva_module_done(void)
 {
       /* Error recovery can abandon a malformed declaration before its
@@ -11382,6 +11417,8 @@ void pform_sva_module_done(void)
       Module*module = pform_cur_module.empty() ? nullptr
 						    : pform_cur_module.front();
       sva_retain_module_sequences_(module);
+      if (module && module->is_checker)
+	    sva_checker_finish_(module);
       for (std::map<sva_scoped_name_t, sva_property_t*>::iterator it =
 		sva_module_properties.begin() ; it != sva_module_properties.end() ; ) {
 	    if (it->first.package || it->first.unit) { ++it; continue; }
@@ -11827,6 +11864,8 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 		  }
 		  path.push_back(copy);
 	    }
+	    if (!id->path().package && !qualify)
+		  sva_check_free_name_(id->path().name.front().name);
 	    PEIdent*cp = id->path().package
 		  ? new PEIdent(id->path().package, path, id->lexical_pos())
 		  : new PEIdent(path, id->lexical_pos());
@@ -12061,6 +12100,8 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 		  }
 		  np.push_back(a);
 	    }
+	    if (!cf->path().package && !qualify_call && cf->path().name.size() == 1)
+		  sva_check_free_name_(cf->path().name.front().name);
 	    PECallFunction*cp = cf->path().package
 		  ? new PECallFunction(cf->path().package, call_path, np)
 		  : new PECallFunction(call_path, np);
@@ -14819,6 +14860,15 @@ static void sva_capture_check_lval_(const PExpr*lv)
 	    if (cap.src == name) sva_capture_ctx_->modified = true;
 }
 
+/* IEEE 1800-2023 17.3: a procedural checker instance copies the checker's
+   action blocks with its formals bound to the instance's actuals. */
+static const std::map<perm_string,PExpr*>*sva_stmt_subst_ = nullptr;
+
+static PExpr* sva_clone_stmt_expr_(PExpr*e)
+{
+      return sva_clone_subst_(e, sva_stmt_subst_);
+}
+
 static Statement* sva_clone_stmt_(Statement*st)
 {
       if (!st) return nullptr;
@@ -14833,7 +14883,7 @@ static Statement* sva_clone_stmt_(Statement*st)
 	    for (size_t i = 0 ; i < ct->parms().size() ; i += 1) {
 		  named_pexpr_t np;
 		  np.name = ct->parms()[i].name;
-		  np.parm = sva_clone_expr_(ct->parms()[i].parm);
+		  np.parm = sva_clone_stmt_expr_(ct->parms()[i].parm);
 		  if (ct->parms()[i].parm && !np.parm) return nullptr;
 		  parms.push_back(np);
 	    }
@@ -14853,8 +14903,8 @@ static Statement* sva_clone_stmt_(Statement*st)
       }
 
       if (PAssignNB*an = dynamic_cast<PAssignNB*> (st)) {
-	    PExpr*lv = sva_clone_expr_(const_cast<PExpr*>(an->lval()));
-	    PExpr*rv = sva_clone_expr_(an->rval());
+	    PExpr*lv = sva_clone_stmt_expr_(const_cast<PExpr*>(an->lval()));
+	    PExpr*rv = sva_clone_stmt_expr_(an->rval());
 	    if (!lv || !rv) return nullptr;
 	    sva_capture_check_lval_(lv);
 	    PAssignNB*out = new PAssignNB(lv, rv);
@@ -14864,8 +14914,8 @@ static Statement* sva_clone_stmt_(Statement*st)
       }
 
       if (PAssign*as = dynamic_cast<PAssign*> (st)) {
-	    PExpr*lv = sva_clone_expr_(const_cast<PExpr*>(as->lval()));
-	    PExpr*rv = sva_clone_expr_(as->rval());
+	    PExpr*lv = sva_clone_stmt_expr_(const_cast<PExpr*>(as->lval()));
+	    PExpr*rv = sva_clone_stmt_expr_(as->rval());
 	    if (!lv || !rv) return nullptr;
 	    sva_capture_check_lval_(lv);
 	    PAssign*out = as->op() ? new PAssign(lv, as->op(), rv)
@@ -14876,7 +14926,7 @@ static Statement* sva_clone_stmt_(Statement*st)
       }
 
       if (PCondit*cd = dynamic_cast<PCondit*> (st)) {
-	    PExpr*ce = sva_clone_expr_(cd->cond_expr());
+	    PExpr*ce = sva_clone_stmt_expr_(cd->cond_expr());
 	    if (!ce) return nullptr;
 	    Statement*ic = nullptr;
 	    Statement*ec = nullptr;
@@ -35633,6 +35683,185 @@ void pform_sva_hold_assertion(const struct vlltype&loc, sva_property_t*prop,
       sva_held_assertion_.kind = kind;
 }
 
+/* IEEE 1800-2023 17.3: "static assertion statements within a checker are
+   treated as if they appear at the checker's instantiation point". A checker
+   keeps a copy of each static concurrent assertion, so that a procedural
+   instance can place it there as a procedural concurrent assertion
+   (16.14.6), and records the items the static lowering emitted, so that the
+   instance's copy of the checker contents leaves them out. */
+struct sva_checker_template_t {
+      struct vlltype loc;
+      sva_property_t*prop = nullptr;
+      Statement*fail_stmt = nullptr;
+      Statement*pass_stmt = nullptr;
+      int kind = 0;
+      perm_string label;
+      bool explicit_clock = false;
+      bool explicit_disable = false;
+};
+
+struct sva_checker_info_t {
+      std::vector<sva_checker_template_t> asserts;
+	/* Why a procedural instance cannot place this checker's static
+	   assertions; nullptr when it can. */
+      const char*refused = nullptr;
+      std::string refused_at;
+};
+
+static std::map<const Module*, sva_checker_info_t> sva_checker_info_;
+
+std::set<const PProcess*> pform_checker_static_behaviors;
+std::set<const PGate*> pform_checker_static_gates;
+
+struct sva_checker_items_t {
+      Module*checker = nullptr;
+      struct vlltype loc;
+      LexicalScope*scope = nullptr;
+      std::set<const PProcess*> behaviors;
+      std::set<const PGate*> gates;
+      size_t pending_hier = 0;
+      size_t pending_named = 0;
+      size_t pending_proc = 0;
+};
+static sva_checker_items_t sva_checker_items_;
+
+static void sva_checker_refuse_(const Module*checker,
+				const struct vlltype&loc, const char*why)
+{
+      sva_checker_info_t&info = sva_checker_info_[checker];
+      if (info.refused) return;
+      info.refused = why;
+      std::ostringstream at;
+      at << loc;
+      info.refused_at = at.str();
+}
+
+static const std::list<PGate*>& sva_scope_gates_(LexicalScope*scope)
+{
+      if (PGenerate*gen = dynamic_cast<PGenerate*>(scope)) return gen->gates;
+      return dynamic_cast<Module*>(scope)->get_gates();
+}
+
+/* Called before a static concurrent assertion is lowered: inside a checker,
+   keep its template and note the items already in its scope. */
+static sva_checker_items_t* sva_checker_keep_template_(const struct vlltype&loc)
+{
+      if (!pform_module_is_checker() || sva_active_proc_id_) return nullptr;
+      Module*checker = pform_cur_module.front();
+      if (pform_cur_generate) {
+	    sva_checker_refuse_(checker, loc,
+				"a static assertion in a generate block");
+      } else {
+	    sva_checker_template_t t;
+	    t.loc = loc;
+	    t.kind = sva_held_assertion_.kind;
+	    t.label = sva_parser_assertion_label_;
+	    sva_property_t*prop = sva_held_assertion_.prop;
+	    Statement*fail = sva_held_assertion_.fail_stmt;
+	    Statement*pass = sva_held_assertion_.pass_stmt;
+	    bool ok = prop && (t.prop = sva_clone_property_(loc, prop));
+	    if (ok && fail && !dynamic_cast<PNoop*>(fail))
+		  ok = (t.fail_stmt = sva_clone_stmt_(fail)) != nullptr;
+	    if (ok && pass && !dynamic_cast<PNoop*>(pass))
+		  ok = (t.pass_stmt = sva_clone_stmt_(pass)) != nullptr;
+	    if (!ok)
+		  sva_checker_refuse_(checker, loc, "a static assertion whose "
+				      "property or action blocks cannot be "
+				      "copied");
+	    t.explicit_clock = prop && prop->clk_evt;
+	    t.explicit_disable = prop && prop->disable_iff_expr;
+	    if (ok) {
+		  sva_checker_info_[checker].asserts.push_back(t);
+	    } else {
+		  pform_sva_destroy_property(t.prop);
+		  delete t.fail_stmt;
+		  delete t.pass_stmt;
+	    }
+      }
+      sva_checker_items_t&items = sva_checker_items_;
+      items.checker = checker;
+      items.loc = loc;
+      items.scope = lexical_scope;
+      items.behaviors.clear();
+      items.behaviors.insert(lexical_scope->behaviors.begin(),
+			     lexical_scope->behaviors.end());
+      items.gates.clear();
+      const std::list<PGate*>&gates = sva_scope_gates_(lexical_scope);
+      items.gates.insert(gates.begin(), gates.end());
+      items.pending_hier = sva_pending_hier_assertions_.size();
+      items.pending_named = sva_pending_named_property_.size();
+      items.pending_proc = sva_pending_proc_.size();
+      return &items;
+}
+
+/* Called after the static lowering: what it added belongs to the static
+   assertion, and a procedural instance's copy of the checker omits it. */
+static void sva_checker_take_static_items_(const sva_checker_items_t&before)
+{
+      for (const PProcess*proc : before.scope->behaviors)
+	    if (!before.behaviors.count(proc))
+		  pform_checker_static_behaviors.insert(proc);
+      for (const PGate*gate : sva_scope_gates_(before.scope))
+	    if (!before.gates.count(gate))
+		  pform_checker_static_gates.insert(gate);
+      if (sva_pending_hier_assertions_.size() != before.pending_hier)
+	    sva_checker_refuse_(before.checker, before.loc,
+				"a static assertion through a hierarchical "
+				"sequence reference");
+	/* Lowered later (a sequence or property declared after it, or a
+	   clock found at the end of the checker): its items would escape the
+	   record above. */
+      if (sva_pending_named_property_.size() != before.pending_named
+	  || sva_pending_proc_.size() != before.pending_proc)
+	    sva_checker_refuse_(before.checker, before.loc,
+				"a static assertion lowered after its "
+				"declaration (a sequence or property "
+				"declared after it)");
+}
+
+/* At endchecker, everything that decides how its static assertions read is
+   known. A checker's default clocking and default disable iff (which may be
+   declared after an assertion) are not carried into the copies yet, and its
+   named properties end with it, so a copy could not resolve one. */
+static void sva_checker_finish_(const Module*checker)
+{
+      sva_checker_info_t&info = sva_checker_info_[checker];
+      if (info.refused || info.asserts.empty()) return;
+      bool has_disable = sva_default_disables.count(checker) != 0;
+      for (const sva_checker_template_t&t : info.asserts) {
+	    if (!t.explicit_clock && !checker->default_clocking.nil())
+		  sva_checker_refuse_(checker, t.loc, "a static assertion "
+				      "clocked by the checker's default "
+				      "clocking");
+	    else if (!t.explicit_disable && has_disable)
+		  sva_checker_refuse_(checker, t.loc, "a static assertion under "
+				      "the checker's default disable iff");
+      }
+      if (info.refused) return;
+      bool named = false;
+      for (const auto&p : sva_module_properties)
+	    if (!p.first.package && !p.first.unit) named = true;
+      for (const auto&p : sva_param_properties)
+	    if (!p.first.package && !p.first.unit) named = true;
+      if (!named) return;
+      info.refused = "a named property declaration";
+      info.refused_at = checker->get_fileline();
+}
+
+/* 17.3: a static deferred assertion of a checker is placed at a procedural
+   instance as a procedural deferred assertion; that is not done yet, so a
+   procedural instance of such a checker is refused rather than losing it. */
+void pform_checker_note_static_deferred(const struct vlltype&loc)
+{
+      if (pform_module_is_checker() && !pform_cur_generate)
+	    sva_checker_refuse_(pform_cur_module.front(), loc,
+				"a static deferred assertion");
+      else if (pform_module_is_checker())
+	    sva_checker_refuse_(pform_cur_module.front(), loc,
+				"a static deferred assertion in a generate "
+				"block");
+}
+
 /* IEEE 1800-2023 16.14.5: "assert property (property_spec) action_block"
    is equivalent to "always assert property (property_spec) action_block;".
    An always process whose whole body is a procedural concurrent assertion
@@ -35671,10 +35900,12 @@ Statement* pform_sva_release_assertion(bool procedural)
       sva_held_assertion_.held = false;
       const struct vlltype loc = sva_held_assertion_.loc;
       if (!procedural) {
+	    sva_checker_items_t*items = sva_checker_keep_template_(loc);
 	    pform_make_assertion(loc, sva_held_assertion_.prop,
 				 sva_held_assertion_.fail_stmt,
 				 sva_held_assertion_.pass_stmt,
 				 sva_held_assertion_.kind);
+	    if (items) sva_checker_take_static_items_(*items);
 	    return nullptr;
       }
       unsigned pid = ++sva_proc_assertion_id_;
@@ -35768,6 +35999,347 @@ Statement* pform_sva_release_assertion(bool procedural)
 	    lex_strings.make("$ivl_sva_proc_enqueue"), args);
       FILE_NAME(enqueue, loc);
       return enqueue;
+}
+
+/* True when the actual reads a const cast or an automatic variable of the
+   procedure (16.14.6.1), which a module-scope port cannot be bound to. */
+static bool sva_actual_has_capture_(PExpr*e)
+{
+      if (!e) return false;
+      if (PEEvent*ev = dynamic_cast<PEEvent*>(e))
+	    return sva_actual_has_capture_(ev->expr())
+		  || sva_actual_has_capture_(ev->condition());
+      sva_capture_ctx_t ctx;
+      ctx.scope = lexical_scope;
+      ctx.pid = 0;
+      sva_capture_ctx_t*outer = sva_capture_ctx_;
+      sva_capture_ctx_ = &ctx;
+      PExpr*copy = sva_clone_subst_(e, nullptr);
+      sva_capture_ctx_ = outer;
+      delete copy;
+      for (sva_proc_capture_t&cap : ctx.caps) {
+	    delete cap.source;
+	    delete cap.type_expr;
+      }
+      return !ctx.caps.empty();
+}
+
+/* A copy of an actual that keeps resolving where the instance is written,
+   not in the checker the assertion came from. */
+static PExpr* sva_checker_actual_copy_(PExpr*e)
+{
+      PExpr*copy = sva_clone_subst_(e, nullptr);
+      if (copy) copy->sva_actual_scope(true);
+      return copy;
+}
+
+static unsigned sva_proc_checker_count_ = 0;
+
+/* IEEE 1800-2023 17.3: a checker instantiated in procedural code. "All
+   contents of a checker instance other than static assertion statements are
+   considered to exist during every time step ... One copy of these contents
+   exists for each instantiation", so the contents are instantiated once at
+   module scope, without the static assertions. Those "are added to the
+   pending procedural assertion queue when the checker instantiation is
+   reached in process execution", so each becomes a procedural concurrent
+   assertion here, with the formals replaced by the actuals (the rewriting of
+   F.4.2) and the checker's own names reaching into the module-scope copy. */
+Statement* pform_procedural_checker_instance(const struct vlltype&loc,
+					     perm_string type, lgate*gate)
+{
+      std::unique_ptr<lgate> own(gate);
+      perm_string inst = lex_strings.make(gate->name);
+      PBlock*result = new PBlock(PBlock::BL_SEQ);
+      FILE_NAME(result, loc);
+      result->concurrent_assertion_only();
+
+      std::vector<PExpr*> act;
+      auto drop_actuals = [&act]() {
+	    for (PExpr*e : act) delete e;
+	    act.clear();
+      };
+      if (gate->parms)
+	    for (PExpr*e : *gate->parms) act.push_back(e);
+      if (gate->parms_by_name)
+	    for (named_pexpr_t&np : *gate->parms_by_name) act.push_back(np.parm);
+      delete gate->parms;
+      gate->parms = nullptr;
+      std::list<named_pexpr_t>*by_name = gate->parms_by_name;
+      gate->parms_by_name = nullptr;
+      std::unique_ptr<std::list<named_pexpr_t>> own_by_name(by_name);
+
+      Module*checker = pform_find_visible_module_type_(lexical_scope, type);
+      if (!checker || !checker->is_checker) {
+	    if (checker)
+		  cerr << loc << ": error: `" << type << "' is not a checker; "
+		       << "only a checker may be instantiated in procedural "
+		       << "code (IEEE 1800-2023 17.3)." << endl;
+	    else
+		  cerr << loc << ": sorry: procedural instance `" << inst
+		       << "' of `" << type << "': the checker must be declared "
+		       << "before the procedure that instantiates it." << endl;
+	    error_count += 1;
+	    drop_actuals();
+	    return result;
+      }
+      if (pform_module_is_checker()) {
+	    cerr << loc << ": error: It shall be illegal to instantiate a "
+		 << "checker in a procedure of another checker (IEEE 1800-2023 "
+		 << "17.3)." << endl;
+	    error_count += 1;
+	    drop_actuals();
+	    return result;
+      }
+      for (LexicalScope*s = lexical_scope ; s ; s = s->parent_scope()) {
+	    PBlock*block = dynamic_cast<PBlock*>(s);
+	    if (!block) break;
+	    if (block->bl_type() != PBlock::BL_SEQ) {
+		  cerr << loc << ": error: It shall be illegal to instantiate "
+		       << "checkers in fork-join, fork-join_any, or "
+		       << "fork-join_none blocks (IEEE 1800-2023 17.3)." << endl;
+		  error_count += 1;
+		  drop_actuals();
+		  return result;
+	    }
+      }
+
+      const sva_checker_info_t&info = sva_checker_info_[checker];
+      const char*refused = info.refused;
+      std::string refused_at = info.refused_at;
+      if (!refused && !checker->lets.empty()) {
+	    refused = "a let declaration";
+	    refused_at = checker->get_fileline();
+      }
+	/* Its assertions' other names resolve where it is declared. Placed
+	   at the instance they resolve there instead, which is the same only
+	   for a checker of this compilation unit, checked name by name. */
+      if (!refused && checker->parent_scope()
+	  != pform_cur_module.front()->parent_scope()) {
+	    refused = "its declaration outside this compilation unit's scope "
+		      "(in a package or a design element)";
+	    refused_at = checker->get_fileline();
+      }
+      for (PGate*g : checker->get_gates()) {
+	    PGModule*sub = dynamic_cast<PGModule*>(g);
+	    Module*target = sub ? pform_find_visible_module_type_(checker,
+							  sub->get_type())
+		  : nullptr;
+	    if (!refused && target && target->is_checker) {
+		  refused = "a nested checker instance";
+		  refused_at = sub->get_fileline();
+	    }
+      }
+      if (refused) {
+	    cerr << loc << ": sorry: procedural instance `" << inst
+		 << "' of checker `" << type << "' is not supported: the "
+		 << "checker has " << refused << " (" << refused_at << ")."
+		 << endl;
+	    error_count += 1;
+	    drop_actuals();
+	    return result;
+      }
+
+	/* Bind the actuals to the formals in checker port order. */
+      const std::vector<Module::port_t*>&ports = checker->ports;
+      std::vector<PExpr*> bound(ports.size(), nullptr);
+      bool fatal = false;
+      if (by_name) {
+	    bool wildcard = false;
+	    std::vector<bool> named(ports.size(), false);
+	    size_t k = 0;
+	    for (named_pexpr_t&np : *by_name) {
+		  PExpr*e = act[k];
+		  act[k++] = nullptr;
+		  if (np.name == "*") { wildcard = true; continue; }
+		  size_t idx = 0;
+		  while (idx < ports.size()
+			 && !(ports[idx] && ports[idx]->name == np.name))
+			idx += 1;
+		  if (idx == ports.size() || named[idx]) {
+			cerr << loc << ": error: checker `" << type << "' has "
+			     << (idx == ports.size() ? "no formal" : "a second "
+				 "connection to formal")
+			     << " `" << np.name << "'." << endl;
+			error_count += 1;
+			fatal = true;
+			delete e;
+			continue;
+		  }
+		  named[idx] = true;
+		  bound[idx] = e;
+	    }
+	    for (size_t idx = 0 ; wildcard && idx < ports.size() ; idx += 1) {
+		  if (named[idx] || !ports[idx]) continue;
+		  PEIdent*id = new PEIdent(ports[idx]->name, loc.lexical_pos);
+		  FILE_NAME(id, loc);
+		  bound[idx] = id;
+	    }
+      } else {
+	    if (act.size() == 1 && !act.front()) act.clear();
+	    if (act.size() > ports.size()) {
+		  cerr << loc << ": error: checker `" << type << "' has "
+		       << ports.size() << " formal(s), but instance `" << inst
+		       << "' gives " << act.size() << " actuals." << endl;
+		  error_count += 1;
+		  fatal = true;
+	    }
+	    for (size_t idx = 0 ; idx < act.size() && idx < ports.size() ; idx += 1) {
+		  bound[idx] = act[idx];
+		  act[idx] = nullptr;
+	    }
+      }
+      drop_actuals();
+
+      std::map<perm_string,PExpr*> subst;
+      std::map<perm_string,const PEventStatement*> event_subst;
+      std::vector<PEventStatement*> owned_events;
+      std::list<PExpr*>*wires = new std::list<PExpr*>;
+      for (size_t idx = 0 ; idx < ports.size() ; idx += 1) {
+	    PExpr*e = bound[idx];
+	    perm_string formal = ports[idx] ? ports[idx]->name : perm_string();
+	    if (!fatal && !e) {
+		  cerr << loc << ": sorry: procedural instance `" << inst
+		       << "' gives no actual for checker formal `" << formal
+		       << "'; defaults are not supported for a procedural "
+		       << "checker instance." << endl;
+		  error_count += 1;
+		  fatal = true;
+	    }
+	    if (fatal || !e) {
+		  delete e;
+		  wires->push_back(nullptr);
+		  continue;
+	    }
+	    bool capture = sva_actual_has_capture_(e);
+	    std::map<perm_string,PWire*>::const_iterator w =
+		  checker->wires.find(formal);
+	    bool output = w != checker->wires.end()
+		  && w->second->get_port_type() == NetNet::POUTPUT;
+	    if (output && capture) {
+		  cerr << e->get_fileline() << ": error: the actual of checker "
+		       << "output `" << formal << "' must be a variable_lvalue "
+		       << "or net_lvalue, not an automatic or const value "
+		       << "(IEEE 1800-2023 17.3)." << endl;
+		  error_count += 1;
+		  fatal = true;
+	    }
+	    PEEvent*ev = dynamic_cast<PEEvent*>(e);
+	    if ((ports[idx] && ports[idx]->event_port) || ev) {
+		  PExpr*expr = sva_checker_actual_copy_(ev ? ev->expr() : e);
+		  PExpr*cond = ev && ev->condition()
+			? sva_checker_actual_copy_(ev->condition()) : nullptr;
+		  if (!expr || (ev && ev->condition() && !cond)) {
+			delete expr;
+			delete cond;
+			fatal = true;
+		  } else {
+			PEEvent*copy = new PEEvent(ev ? ev->type()
+						   : PEEvent::ANYEDGE, expr, cond);
+			FILE_NAME(copy, loc);
+			std::vector<PEEvent*> evs(1, copy);
+			PEventStatement*control = new PEventStatement(evs);
+			FILE_NAME(control, loc);
+			owned_events.push_back(control);
+			event_subst[formal] = control;
+		  }
+	    } else if (PExpr*copy = sva_checker_actual_copy_(e)) {
+		  subst[formal] = copy;
+	    } else {
+		  cerr << e->get_fileline() << ": sorry: the actual of checker "
+		       << "formal `" << formal << "' cannot be copied into the "
+		       << "checker's assertions." << endl;
+		  error_count += 1;
+		  fatal = true;
+	    }
+	      /* 17.3: a formal bound to a const cast or automatic value
+		 "shall not be used in a continuous assignment or in the
+		 procedural code within the checker", so only the assertions
+		 read it, and the module-scope copy leaves it unconnected. */
+	    if (capture) {
+		  delete e;
+		  e = nullptr;
+	    }
+	    wires->push_back(e);
+      }
+
+      if (!fatal) {
+	    char buf[64];
+	    snprintf(buf, sizeof buf, "_ivl_pchk%u_", ++sva_proc_checker_count_);
+	    perm_string hoisted = lex_strings.make((std::string(buf) + inst.str()).c_str());
+	    pform_make_modgate(type, hoisted, nullptr, wires, nullptr, *gate,
+			       nullptr, gate->no_port_list);
+	    wires = nullptr;
+
+	    pform_name_t prefix;
+	    prefix.push_back(name_component_t(hoisted));
+	    sva_clone_scope_t declaration;
+	    declaration.module = checker;
+	    declaration.prefix = &prefix;
+	    declaration.qualify_sequence_refs = true;
+	    declaration.free_scope = checker->parent_scope();
+	    sva_checker_shadowed_ = perm_string();
+	    std::vector<Statement*> body;
+	    for (const sva_checker_template_t&t : info.asserts) {
+		  sva_property_t*prop = nullptr;
+		  Statement*fail = nullptr;
+		  Statement*pass = nullptr;
+		  bool ok;
+		  {
+			sva_clone_scope_guard_t guard(declaration);
+			prop = sva_clone_property_(t.loc, t.prop, &subst,
+						   &event_subst);
+			ok = prop != nullptr;
+			sva_stmt_subst_ = &subst;
+			if (ok && t.fail_stmt)
+			      ok = (fail = sva_clone_stmt_(t.fail_stmt)) != nullptr;
+			if (ok && t.pass_stmt)
+			      ok = (pass = sva_clone_stmt_(t.pass_stmt)) != nullptr;
+			sva_stmt_subst_ = nullptr;
+		  }
+		  if (ok && !sva_checker_shadowed_.nil()) {
+			cerr << loc << ": sorry: procedural instance `" << inst
+			     << "' of checker `" << type << "' is not supported: "
+			     << "`" << sva_checker_shadowed_ << "', which the "
+			     << "checker's assertion (" << t.loc << ") reads, is "
+			     << "declared again nearer the instance." << endl;
+			error_count += 1;
+			sva_checker_shadowed_ = perm_string();
+			pform_sva_destroy_property(prop);
+			delete fail;
+			delete pass;
+			continue;
+		  }
+		  if (!ok) {
+			cerr << t.loc << ": sorry: this checker assertion cannot "
+			     << "be placed at procedural checker instance `"
+			     << inst << "' (" << loc << ")." << endl;
+			error_count += 1;
+			pform_sva_destroy_property(prop);
+			delete fail;
+			delete pass;
+			continue;
+		  }
+		  pform_sva_hold_assertion(t.loc, prop, fail, pass, t.kind);
+		  pform_sva_set_assertion_label(t.label.nil() ? nullptr
+						: t.label.str());
+		  Statement*queue = pform_sva_release_assertion(true);
+		  pform_sva_clear_assertion_label();
+		  if (queue) body.push_back(queue);
+	    }
+	    if (!body.empty()) {
+		  delete result;
+		  result = new PBlock(PBlock::BL_SEQ);
+		  FILE_NAME(result, loc);
+		  result->set_statement(body);
+	    }
+      }
+      if (wires) {
+	    for (PExpr*e : *wires) delete e;
+	    delete wires;
+      }
+      for (std::map<perm_string,PExpr*>::value_type&s : subst) delete s.second;
+      for (PEventStatement*control : owned_events) delete control;
+      return result;
 }
 
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,

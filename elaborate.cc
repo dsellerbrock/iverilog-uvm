@@ -7693,6 +7693,11 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    for (unsigned idx = 0 ; idx < pins.size() ; idx += 1) {
 		  if (pins[idx] || rmod->get_port_default_value(idx))
 			continue;
+		    /* 17.3: in a procedural instance's module-scope copy, a
+		       formal bound to a const cast or automatic value is read
+		       only by the assertions placed at the instance. */
+		  if (strncmp(get_name().str(), "_ivl_pchk", 9) == 0)
+			continue;
 
 		  cerr << get_fileline() << ": error: checker port `"
 		       << rmod->get_port_name(idx) << "' of instance `"
@@ -34273,6 +34278,18 @@ static void elaborate_specparam_storage_(Design*des, NetScope*scope)
       }
 }
 
+/* IEEE 1800-2023 17.3: the module-scope copy of a procedural checker instance
+   holds the checker's contents without its static assertions, which are
+   placed where the instance is written (pform_procedural_checker_instance). */
+static bool procedural_checker_copy(const NetScope*scope)
+{
+      for (const NetScope*s = scope ; s ; s = s->parent())
+	    if (s->type() == NetScope::MODULE
+		&& strncmp(s->basename().str(), "_ivl_pchk", 9) == 0)
+		  return true;
+      return false;
+}
+
 bool Module::elaborate(Design*des, NetScope*scope) const
 {
       bool result_flag = true;
@@ -34321,7 +34338,11 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // complex.
 	    const list<PGate*>&gl = get_gates();
 
-	    for (const auto gt : gl) gt->elaborate(des, scope);
+	    for (const auto gt : gl) {
+		  if (pform_checker_static_gates.count(gt)
+		      && procedural_checker_copy(scope)) continue;
+		  gt->elaborate(des, scope);
+	    }
 
 	      // Elaborate the variable initialization statements, making a
 	      // single initial process out of them.
@@ -54987,6 +55008,8 @@ bool PScope::elaborate_behaviors_(Design*des, NetScope*scope) const
 	// for each process.
       for (list<PProcess*>::const_iterator st = behaviors.begin()
 		 ; st != behaviors.end() ; ++ st ) {
+	    if (pform_checker_static_behaviors.count(*st)
+		&& procedural_checker_copy(scope)) continue;
 
 	    result_flag &= (*st)->elaborate(des, scope);
       }

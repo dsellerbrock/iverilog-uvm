@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sva_proc_checker_sorry.sv",
+    "iverilog-args" : [ "-g2017", "-s", "top" ],
+    "gold"           : "sva_proc_checker_sorry_2017"
+}

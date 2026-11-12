@@ -4415,7 +4415,9 @@ bool NetScope::check_synth(ivl_process_type_t pr_type,
 bool NetSTask::check_synth(ivl_process_type_t pr_type,
                            const NetScope* /* scope */) const
 {
-      if (assertion_action_)
+	/* A procedural concurrent assertion (16.14.6) is a $ivl_sva_ task
+	   where it is written, and may be written in an always_ff. */
+      if (assertion_action_ || strncmp(name(), "$ivl_sva_", 9) == 0)
 	    return false;
 
       if (strcmp(name(), "$ivl_darray_method$delete") == 0) {
