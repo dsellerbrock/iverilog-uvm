@@ -2585,12 +2585,16 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
 
       unsigned width = 32;
       bool sflag = false;
+	/* :z reads the size of the dynamic array or queue at the path, as
+	   state (a non-rand link, 18.3). */
+      bool size_read = false;
       if (*p == ':') {
 	    char*end = nullptr;
 	    width = (unsigned)strtoul(p + 1, &end, 10);
 	    if (width == 0) width = 32;
 	    p = end;
 	    sflag = (*p == ':' && p[1] == 's');
+	    size_read = (*p == ':' && p[1] == 'z');
       }
 
       vvp_vector4_t state_value;
@@ -2652,6 +2656,11 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
 	    if (!static_state_read
 		&& (!cur || path.back() >= cur->get_defn()->property_count()))
                   path_error = "null/invalid constraint object path";
+	    if (path_error.empty() && !static_state_read && size_read) {
+		  uint64_t size = cobj_darray_size(cur, path.back());
+		  return Z3_mk_unsigned_int64(b.ctx, size,
+			Z3_mk_bv_sort(b.ctx, width));
+	    }
 	    if (path_error.empty() && !static_state_read) {
 		  cur->get_vec4(path.back(), state_value);
 	    }
