@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3003_property_x.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3003_property_x"],
+  "gold": "issue3003_property_x"
+}

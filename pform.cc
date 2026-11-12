@@ -23980,11 +23980,15 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			PExpr*be = sva_rewrite_sampled_(loc, src, inst,
 							hist_idx, pre, post,
 							init_zero);
+			/* An assertion guard has procedural-if truth: X and Z
+			   are false, including after reduction of a vector. */
+			be = new PEBComp('E', sva_booleanize_(loc, be),
+					 sva_bit_(loc, 1));
+			FILE_NAME(be, loc);
 			if (reads_local) {
 			      local_guard_expr[key] = be;
 			      continue;
 			}
-			be = sva_booleanize_(loc, be);
 			perm_string r = sva_make_reg_(loc, inst, "b", bidx++);
 			pre.push_back(sva_assign_(loc, r, be));
 			guard_reg[key] = r;
