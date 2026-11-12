@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2845_nested_module.v",
+  "iverilog-args": ["-g2017", "-s", "issue2845_nested_module"],
+  "gold": "issue2845_nested_module"
+}

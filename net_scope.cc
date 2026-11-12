@@ -56,6 +56,7 @@ void Definitions::add_enumeration_set(const enum_type_t*key, netenum_t*enum_set)
       netenum_t*&tmp = enum_sets_[key];
       assert(tmp == 0);
       tmp = enum_set;
+      enum_sets_order_.push_back(enum_set);
 }
 
 bool Definitions::add_enumeration_name(const netenum_t*enum_set, perm_string name)
