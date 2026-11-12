@@ -5663,6 +5663,19 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 	    // they have no formal ports.
 	    if (cur->second->is_checker || cur->second->port_count() > 0)
 		  continue;
+	      // A nested module with an explicit instance is not also implicitly
+	      // instantiated. Check the gates in this declaring module before
+	      // adding the default instance.
+	    bool explicitly_instantiated = false;
+	    for (PGate*gate : gates_) {
+		  PGModule*instance = dynamic_cast<PGModule*>(gate);
+		  if (instance && instance->get_type() == cur->first) {
+			explicitly_instantiated = true;
+			break;
+		  }
+	    }
+	    if (explicitly_instantiated)
+		  continue;
 
 	    PGModule*nested_gate = new PGModule(cur->second, cur->second->mod_name());
 	    nested_gate->set_line(*cur->second);
@@ -6382,9 +6395,8 @@ void PGModule::elaborate_scope_mod_(Design*des, Module*mod, NetScope*sc) const
  * This method is called to process a module instantiation after basic
  * sanity testing is already complete.
  */
-static bool checker_is_lexically_nested_(const Module*module)
+static bool module_is_lexically_nested_(const Module*module)
 {
-      if (!module->is_checker) return false;
       for (const LexicalScope*scope = module->parent_scope(); scope;
 	   scope = scope->parent_scope())
 	    if (dynamic_cast<const Module*>(scope)) return true;
@@ -6405,7 +6417,7 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
       unsigned attrib_list_n = 0;
       attrib_list = evaluate_attributes(attributes, attrib_list_n, des, sc);
 
-      bool nested_checker = checker_is_lexically_nested_(mod);
+      bool nested_module = module_is_lexically_nested_(mod);
 
 	// Run through the module instances, and make scopes out of
 	// them. Also do parameter overrides that are done on the
@@ -6434,7 +6446,7 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	      // that if this is a nested module, mark it thus so that
 	      // scope searches will continue into the parent scope.
 	    NetScope*my_scope = new NetScope(sc, use_name, NetScope::MODULE, 0,
-					     bound_type_ || nested_checker,
+					     bound_type_ || nested_module,
 					     mod->program_block,
 					     mod->is_interface);
 	    my_scope->set_module_definition(mod);
