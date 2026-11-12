@@ -14296,7 +14296,16 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  }
 
 	    } else {
-		  use_width = expr->expr_width();
+		  const PECastType*cast_expr =
+			dynamic_cast<const PECastType*>(expr);
+		  if (cast_expr) {
+			ivl_type_t cast_type =
+			      cast_expr->resolve_target_type(des, scope);
+			if (!fixed_bitstream_width_(cast_type, use_width))
+			      use_width = expr->expr_width();
+		  } else {
+			use_width = expr->expr_width();
+		  }
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_sfunc_: "
 			     << " Width of expression argument is " << use_width << endl;
