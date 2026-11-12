@@ -356,6 +356,8 @@ typedef struct t_vpi_delay  {
 #define vpiIndex       78
 #define vpiLeftRange   79
 #define vpiLhs         77 /* left-hand side of assignment */
+#define vpiHighConn    76 /* higher connection to port */
+#define vpiLowConn     80 /* lower connection to port */
 #define vpiParent      81
 #define vpiRhs         82 /* right-hand side of assignment */
 #define vpiRightRange  83

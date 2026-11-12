@@ -3116,6 +3116,16 @@ extern "C" unsigned ivl_scope_mod_module_ports(ivl_scope_t net)
       return static_cast<unsigned>(net->net_->module_port_info().size());
 }
 
+extern "C" ivl_expr_t ivl_scope_mod_module_port_highconn(ivl_scope_t net,
+							 unsigned idx)
+{
+      assert(net);
+      if (!net->aux_ || !net->aux_->port_highconns
+	  || idx >= net->aux_->port_highconns->size())
+	    return 0;
+      return (*net->aux_->port_highconns)[idx];
+}
+
 extern "C" const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx )
 {
       assert(net);

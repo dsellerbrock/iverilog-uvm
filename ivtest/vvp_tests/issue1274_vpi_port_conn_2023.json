@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1274_vpi_port_conn.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue1274_vpi_port_conn_2023"],
+  "vpi-sources": ["vpi/issue1274_vpi_port_conn.c"],
+  "output-contains": ["VPI PORT CONN PASS"]
+}
