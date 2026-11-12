@@ -1050,6 +1050,7 @@ extern PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
 #define vpipAssertSpaceDeferred       2
 #define vpipAssertSpaceImmediateCover 3
 #define vpipAssertSpaceProcedural     4   /* id = procedural assertion id */
+#define vpipAssertSpaceExpect         5   /* id = expect statement id */
 #define vpipAssertStateEnabled        0
 #define vpipAssertStateKillGeneration 1
 #define vpipAssertStateFailAction     2
@@ -1081,7 +1082,8 @@ extern void vpip_register_assertion(PLI_INT32 idx, const char*name,
                                     PLI_INT32 flags,
                                     PLI_INT32 assertion_kind,
                                     PLI_INT32 inst_kind,
-                                    const char*inst_name);
+                                    const char*inst_name,
+                                    PLI_INT32 control_type);
 /* M12B-cb: report a success/failure event for the assertion identified
    by (scope, idx); fires any matching registered callbacks. */
 extern void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason,
@@ -1268,7 +1270,7 @@ typedef struct {
     void        (*make_systf_system_defined)(vpiHandle);
     void        (*mcd_rawwrite)(PLI_UINT32, const char*, size_t);
     void        (*set_return_value)(int);
-    void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32, PLI_INT32, const char*);
+    void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32, PLI_INT32, const char*, PLI_INT32);
     void        (*assertion_report)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*assertion_clock)(PLI_INT32, vpiHandle);
     void        (*assertion_report_age)(PLI_INT32, PLI_INT32, vpiHandle, PLI_INT32);

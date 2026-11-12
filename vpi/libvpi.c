@@ -373,12 +373,12 @@ void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
                              PLI_INT32 line, vpiHandle scope,
                              PLI_INT32 depth_arg, PLI_INT32 flags,
                              PLI_INT32 assertion_kind, PLI_INT32 inst_kind,
-                             const char*inst_name)
+                             const char*inst_name, PLI_INT32 control_type)
 {
       assert(vpip_routines);
       vpip_routines->register_assertion(idx, name, file, line, scope,
                                         depth_arg, flags, assertion_kind,
-                                        inst_kind, inst_name);
+                                        inst_kind, inst_name, control_type);
 }
 
 void vpip_assertion_report_all(PLI_INT32 reason)
