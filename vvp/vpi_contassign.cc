@@ -26,6 +26,7 @@
  */
 
 # include  "compile.h"
+# include  "delay.h"
 # include  "vpi_priv.h"
 # include  "vvp_net.h"
 # include  <cstdlib>
@@ -106,6 +107,7 @@ class __vpiContAssign : public __vpiHandle {
       int vpi_get(int code) override;
       char* vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value vp) override;
+      void vpi_get_delays(p_vpi_delay del) override;
       vpiHandle vpi_handle(int code) override;
 
       bool add_value_callback(value_callback*cb);
@@ -123,6 +125,23 @@ class __vpiContAssign : public __vpiHandle {
       int flags_, str0_, str1_;
       unsigned file_idx_, lineno_;
 };
+
+void __vpiContAssign::vpi_get_delays(p_vpi_delay del)
+{
+      vvp_fun_delay*fun = driver_ ? dynamic_cast<vvp_fun_delay*>(driver_->fun) : 0;
+      vvp_time64_t values[3] = {0, 0, 0};
+      if (fun) {
+	    values[0] = fun->get_delay(BIT4_0, BIT4_1);
+	    values[1] = fun->get_delay(BIT4_1, BIT4_0);
+	    values[2] = fun->get_delay(BIT4_0, BIT4_Z);
+      }
+      for (int idx = 0; idx < del->no_of_delays && idx < 3; idx += 1) {
+	    if (del->time_type == vpiSimTime)
+		  vpip_time_to_timestruct(del->da + idx, values[idx]);
+	    else if (del->time_type == vpiScaledRealTime)
+		  del->da[idx].real = vpip_time_to_scaled_real(values[idx], scope_);
+      }
+}
 
 int __vpiContAssign::vpi_get(int code)
 {

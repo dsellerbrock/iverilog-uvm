@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2943_vpi_contassign_delay.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2943_vpi_contassign_delay_2017"],
+  "vpi-sources": ["vpi/issue2943_vpi_contassign_delay.c"],
+  "output-contains": ["VPI CONTASSIGN DELAY PASSED"]
+}
