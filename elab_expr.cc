@@ -13776,11 +13776,63 @@ static bool fold_constant_sformatf_(const std::string&fmt,
       return next_arg == args.size();
 }
 
+/* IEEE 1800-2017/2023 13.5.3: a default argument is evaluated in the scope
+   that declares the subroutine, each time a call uses it. The default is
+   elaborated once in that scope but its expression is copied into every
+   calling process, and vvp scales $time, $stime and $realtime by the scope
+   of the code that runs them. While a default is elaborated, express those
+   functions through $simtime with the declaring scope's time unit fixed in,
+   so every copy reports that scope's time. The integer forms round like
+   vvp's own scaling (vpi_time.cc: add half a unit, then divide). */
+NetScope*elab_port_default_scope = nullptr;
+
+static NetExpr* scoped_time_function_(Design*des, NetScope*decl,
+				      perm_string name, const LineInfo&li)
+{
+      uint64_t divisor = 1;
+      for (int units = decl->time_unit() ; units > des->get_precision()
+		 ; units -= 1)
+	    divisor *= 10;
+
+      NetESFunc*sim = new NetESFunc("$simtime", IVL_VT_LOGIC, 64, 0);
+      sim->set_line(li);
+      if (name == "$realtime") {
+	    NetExpr*real_sim = cast_to_real(sim);
+	    if (divisor == 1) return real_sim;
+	    NetECReal*den = new NetECReal(verireal((double)divisor));
+	    den->set_line(li);
+	    NetEBDiv*quot = new NetEBDiv('/', real_sim, den, 1, true);
+	    quot->set_line(li);
+	    return quot;
+      }
+
+      NetExpr*scaled = sim;
+      if (divisor > 1) {
+	    NetEConst*half = new NetEConst(verinum(divisor / 2, 64));
+	    half->set_line(li);
+	    NetEBAdd*sum = new NetEBAdd('+', sim, half, 64, false);
+	    sum->set_line(li);
+	    NetEConst*den = new NetEConst(verinum(divisor, 64));
+	    den->set_line(li);
+	    NetEBDiv*quot = new NetEBDiv('/', sum, den, 64, false);
+	    quot->set_line(li);
+	    scaled = quot;
+      }
+      if (name == "$stime")
+	    return cast_to_width(scaled, 32, false, li);
+      return scaled;
+}
+
 NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
                                           unsigned expr_wid,
                                           unsigned flags) const
 {
       perm_string name = peek_tail_name(path_);
+
+      if (elab_port_default_scope && parms_.empty()
+	  && (name == "$time" || name == "$stime" || name == "$realtime"))
+	    return scoped_time_function_(des, elab_port_default_scope, name,
+					 *this);
 
 	/* IEEE 1800-2023 20.17.2 adds the string-function form of
 	   $stacktrace alongside its task form. */
