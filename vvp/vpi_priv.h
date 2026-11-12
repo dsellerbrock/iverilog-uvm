@@ -93,6 +93,10 @@ extern const char* vpi_type_as_string(PLI_INT32 code);
  */
 extern const char* direction_as_string(int dir);
 
+/* Record or clear the error status reported by vpi_chk_error(). */
+extern void vpip_set_error(PLI_INT32 level, const char* message);
+extern void vpip_clear_error(void);
+
 /*
  * Private VPI properties that are only used in the cleanup code.
  */
