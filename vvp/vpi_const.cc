@@ -119,8 +119,7 @@ int __vpiStringConst::vpi_get(int code)
 	  default:
 	      fprintf(stderr, "vvp error: get %d not supported "
 		      "by vpiStringConst\n", code);
-	      assert(0);
-	      return 0;
+	      return vpiUndefined;
       }
 }
 
@@ -396,8 +395,7 @@ int __vpiBinaryConst::vpi_get(int code)
 	  default:
 	    fprintf(stderr, "vvp error: get %d not supported "
 		    "by vpiBinaryConst\n", code);
-	    assert(0);
-	    return 0;
+	    return vpiUndefined;
       }
 }
 
@@ -634,8 +632,7 @@ int __vpiDecConst::vpi_get(int code)
 	  default:
 	    fprintf(stderr, "vvp error: get %d not supported "
 		    "by vpiDecConst\n", code);
-	    assert(0);
-	    return 0;
+	    return vpiUndefined;
       }
 }
 
@@ -720,8 +717,7 @@ int __vpiRealConst::vpi_get(int code)
 	  default:
 	    fprintf(stderr, "vvp error: get %d not supported "
 		    "by vpiRealConst\n", code);
-	    assert(0);
-	    return 0;
+	    return vpiUndefined;
       }
 }
 
@@ -904,8 +900,7 @@ int __vpiNullConst::vpi_get(int code)
 	  default:
 	    fprintf(stderr, "vvp error: get %d not supported "
 		    "by vpiNullConst\n", code);
-	    assert(0);
-	    return 0;
+	    return vpiUndefined;
       }
 }
 
