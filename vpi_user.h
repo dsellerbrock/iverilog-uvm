@@ -887,11 +887,19 @@ extern PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
 #define vpipAssertSpaceImmediate      1
 #define vpipAssertSpaceDeferred       2
 #define vpipAssertSpaceImmediateCover 3
+#define vpipAssertSpaceProcedural     4   /* id = procedural assertion id */
 #define vpipAssertStateEnabled        0
 #define vpipAssertStateKillGeneration 1
 #define vpipAssertStateFailAction     2
 #define vpipAssertStatePassAction     3
 #define vpipAssertStateVacuousAction  4
+#define vpipAssertStateTakeMatured    5   /* procedural: take matured count */
+/* IEEE 1800-2023 16.14.6: queue a pending instance of procedural concurrent
+   assertion pid on the calling process, and tie pid to the checker that
+   the front end numbered idx in scope. */
+extern void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle scope);
+extern void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
+                                         vpiHandle scope);
 /* True while a VPI string function call is executing with a result slot. */
 extern int vpip_systf_call_returns_string(void);
 /* True when the current VVP design was compiled as SystemVerilog. */
@@ -1011,7 +1019,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 15;
+static const PLI_UINT32 vpip_routines_version = 16;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1073,6 +1081,8 @@ typedef struct {
     PLI_INT32   (*assertion_control)(PLI_INT32, PLI_INT32, PLI_INT32,
                                      PLI_INT32, const char*const*, PLI_INT32);
     PLI_INT32   (*assertion_state)(vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32);
+    void        (*proc_assert_enqueue)(PLI_INT32, vpiHandle);
+    void        (*register_proc_assertion)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*register_immediate_cover)(PLI_INT32, const char*,
                                              const char*, PLI_INT32,
                                              vpiHandle);

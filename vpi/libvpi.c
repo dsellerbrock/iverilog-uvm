@@ -472,6 +472,17 @@ PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
       assert(vpip_routines);
       return vpip_routines->assertion_state(scope, space, id, what);
 }
+void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle scope)
+{
+      assert(vpip_routines);
+      vpip_routines->proc_assert_enqueue(pid, scope);
+}
+void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
+                                  vpiHandle scope)
+{
+      assert(vpip_routines);
+      vpip_routines->register_proc_assertion(idx, pid, scope);
+}
 void vpip_set_return_value(int value)
 {
       assert(vpip_routines);
