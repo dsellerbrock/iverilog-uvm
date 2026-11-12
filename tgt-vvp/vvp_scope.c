@@ -3317,6 +3317,21 @@ static ivl_switch_t evcd_port_component_switch(ivl_scope_t scope,
       return 0;
 }
 
+/* An inout port isolated for SDF INTERCONNECT (IEEE 1800 32.4.4) is one
+   whole-width tran: name its inner island port so VPI can find the
+   boundary. A concatenated or part-select port has no single boundary. */
+static ivl_switch_t sdf_inout_port_switch(ivl_scope_t scope, unsigned port_index,
+                                          unsigned width)
+{
+      ivl_switch_t sw = evcd_port_component_switch(scope, port_index, 0);
+      if (!sw || ivl_switch_type(sw) != IVL_SW_TRAN
+          || evcd_port_component_switch(scope, port_index, 1))
+            return 0;
+      if (ivl_switch_width(sw) != 0 && ivl_switch_width(sw) != width)
+            return 0;
+      return sw;
+}
+
 #define EVCD_METADATA_MAX_RECORDS 4096U
 #define EVCD_METADATA_MAX_BITS (4ULL * 1024ULL * 1024ULL)
 static unsigned evcd_metadata_records;
@@ -3782,6 +3797,10 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       if( ivl_scope_type(net) == IVL_SCT_MODULE ) {
 	    unsigned flat_port = 0;
+	    const char*sdf_inout_flag =
+		  ivl_design_flag(vvp_get_saved_design(), "SDF_INOUT");
+	    int sdf_inout = sdf_inout_flag && *sdf_inout_flag;
+	    ivl_switch_t inout_sw;
 
 	      // Port data for VPI: needed for vpiPorts property of vpiModule
 	    for( idx = 0; idx < ivl_scope_mod_module_ports(net); ++idx ) {
@@ -3796,6 +3815,9 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		           idx, vvp_port_info_type_str(ptype), width, vpi_type,
 		           vvp_mangle_name(name) );
 		  if (buffer) fprintf( vvp_out, " L_%p;\n", buffer);
+		  else if (sdf_inout && ptype == IVL_SIP_INOUT
+			   && (inout_sw = sdf_inout_port_switch(net, idx, width)))
+			fprintf( vvp_out, " p%p;\n", ivl_switch_b(inout_sw));
 		  else fprintf( vvp_out, ";\n");
 
 		  /* Preserve the flattened declaration components for EVCD.  A

@@ -6308,6 +6308,15 @@ static void convert_net(Design*des, const LineInfo *line,
       des->errors += 1;
 }
 
+/* $dumpports needs a boundary on each inout port (EVCD). So does an SDF
+   INTERCONNECT annotation on an inout endpoint (IEEE 1800 32.4.4), which
+   delays one side's drivers as seen from the other. */
+static bool isolate_inout_ports_()
+{
+      return gn_dumpports_flag
+	    || (gn_interconnect_flag && gn_sdf_annotate_flag);
+}
+
 static void isolate_and_connect(Design*des, NetScope*scope, const PGModule*mod,
 				NetNet*port, NetNet*sig, NetNet::PortType ptype, int idx = -1,
 				bool reactive_output = false)
@@ -9157,7 +9166,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  if ((ptype == NetNet::POUTPUT
 		       && (is_variable_output_port_(prts[0]) || rmod->is_checker
 			   || sig->coerced_to_uwire())) ||
-		      (gn_dumpports_flag && ptype == NetNet::PINOUT) ||
+		      (isolate_inout_ports_() && ptype == NetNet::PINOUT) ||
 		      prts[0]->delay_paths() > 0 ||
 		      (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
 			  // FIXME improve this for multiple module instances
@@ -9251,14 +9260,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  for (unsigned ldx = 0, spin = 0 ;
 		       ldx < prts.size() ;  ldx += 1) {
 			NetNet*sp = prts[prts.size()-ldx-1];
-			NetScope*tran_scope = gn_dumpports_flag ? sp->scope() : scope;
+			NetScope*tran_scope = isolate_inout_ports_() ? sp->scope() : scope;
 			NetTran*ttmp = new NetTran(tran_scope,
 			                           tran_scope->local_symbol(),
 			                           sig->vector_width(),
 			                           sp->vector_width(),
 			                           spin,
-			                           gn_dumpports_flag ? (int)idx : -1,
-			                           gn_dumpports_flag
+			                           isolate_inout_ports_() ? (int)idx : -1,
+			                           isolate_inout_ports_()
 			                             ? (int)(prts.size()-ldx-1) : -1);
 			ttmp->set_line(*this);
 			des->add_node(ttmp);
