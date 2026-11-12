@@ -534,6 +534,11 @@ extern void vpip_deferred_assertion_report(unsigned long source_id,
 					   PLI_INT32 reason,
 					   vpiHandle scope);
 extern PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion);
+/* IEEE 1800-2023 39.5.2 vpiAssertionEnableStep/DisableStep for the attempt
+   of `assertion' that starts at *start. Returns 1 when the call applies. */
+extern PLI_INT32 vpip_assertion_step_control(vpiHandle assertion,
+					     const s_vpi_time*start,
+					     bool enable, PLI_INT32 mode);
 extern void vpip_make_root_iterator(class __vpiHandle**&table,
 				    unsigned&ntable);
 
