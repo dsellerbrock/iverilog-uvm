@@ -396,7 +396,49 @@ typedef struct t_vpi_delay  {
 #define vpiPriorityQualifier  2
 #define vpiType           1
 #define vpiOpType         39 /* operation subtype */
+#define vpiMinusOp         1
+#define vpiPlusOp          2
+#define vpiNotOp           3
+#define vpiBitNegOp        4
+#define vpiUnaryAndOp      5
+#define vpiUnaryNandOp     6
+#define vpiUnaryOrOp       7
+#define vpiUnaryNorOp      8
+#define vpiUnaryXorOp      9
+#define vpiUnaryXNorOp    10
+#define vpiSubOp          11
+#define vpiDivOp          12
+#define vpiModOp          13
+#define vpiEqOp           14
+#define vpiNeqOp          15
+#define vpiCaseEqOp       16
+#define vpiCaseNeqOp      17
+#define vpiGtOp           18
+#define vpiGeOp           19
+#define vpiLtOp           20
+#define vpiLeOp           21
+#define vpiLShiftOp       22
+#define vpiRShiftOp       23
+#define vpiAddOp          24
+#define vpiMultOp         25
+#define vpiLogAndOp       26
+#define vpiLogOrOp        27
+#define vpiBitAndOp       28
+#define vpiBitOrOp        29
+#define vpiBitXorOp       30
+#define vpiBitXNorOp      31
+#define vpiConditionOp    32
+#define vpiConcatOp       33
+#define vpiMultiConcatOp  34
+#define vpiEventOrOp      35
 #define vpiNullOp         36 /* null operation */
+#define vpiListOp         37
+#define vpiMinTypMaxOp    38
+#define vpiPosedgeOp      39
+#define vpiNegedgeOp      40
+#define vpiArithLShiftOp  41
+#define vpiArithRShiftOp  42
+#define vpiPowerOp        43
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiCaseType      42 /* case statement subtype */
 #define vpiCaseX          2 /* ignore X's */
