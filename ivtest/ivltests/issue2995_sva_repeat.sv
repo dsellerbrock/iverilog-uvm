@@ -6,8 +6,8 @@ module issue2995_sva_repeat;
   integer group_hits = 0, group_range_hits = 0;
   always #5 clk = ~clk;
 
-  cover property (@(posedge clk) a[+] ##1 b) plus_hits++;
-  cover property (@(posedge clk) a[*1:$] ##1 b) plus_range_hits++;
+  cover property (@(posedge clk) a[+] ##1 b) plus_hits++; cover property (@(posedge clk) a ##[+] b) ;
+  cover property (@(posedge clk) a[*1:$] ##1 b) plus_range_hits++; cover property (@(posedge clk) a ##[1:$] b) ;
   cover property (@(posedge clk) a[*] ##1 b) star_hits++;
   cover property (@(posedge clk) a[*0:$] ##1 b) star_range_hits++;
   cover property (@(posedge clk) (a) [ + ] ##1 b) spaced_plus_hits++;

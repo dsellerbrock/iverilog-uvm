@@ -10720,7 +10720,7 @@ sva_seq_expr
 	$1->insert($1->end(), $5->begin(), $5->end());
 	delete $5;
 	$$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY '[' '+' ']' sva_seq_atom
+  | sva_seq_expr K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_atom
       { sva_seq_step_t&f0 = (*$6)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -10773,7 +10773,7 @@ sva_seq_expr
 	$1->insert($1->end(), $5->begin(), $5->end());
 	delete $5;
 	$$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY '[' '+' ']' sva_seq_lead_delay
+  | sva_seq_expr K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_lead_delay
       { sva_seq_step_t&f0 = (*$6)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -10849,7 +10849,7 @@ sva_seq_lead_delay
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	$$ = $4; }
-  | K_CYCLE_DELAY '[' '+' ']' sva_seq_atom
+  | K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_atom
       { sva_seq_step_t&f0 = (*$5)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -10857,7 +10857,7 @@ sva_seq_lead_delay
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	$$ = $5; }
-  | K_CYCLE_DELAY '[' '+' ']' sva_seq_lead_delay
+  | K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_lead_delay
       { sva_seq_step_t&f0 = (*$5)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
