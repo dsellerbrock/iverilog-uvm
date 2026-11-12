@@ -72,6 +72,10 @@ static ivl_type_t get_indexed_property_type_from_base_(ivl_type_t prop_type)
       if (auto array_type = dynamic_cast<const netarray_t*>(prop_type))
 	    return array_type->element_type();
 
+	/* IEEE 1800-2017/2023 6.16: an index into a string selects a byte. */
+      if (prop_type->base_type() == IVL_VT_STRING)
+	    return &netvector_t::atom2s8;
+
       return prop_type;
 }
 
