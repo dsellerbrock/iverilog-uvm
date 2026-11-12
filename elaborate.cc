@@ -10772,17 +10772,22 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
                   NetESignal*key_sig = dynamic_cast<NetESignal*>(key);
                     // Find the read's copy of the key: a local element read
                     // is a select of the whole array keyed by its select
-                    // operand; a word read or a property read carries it as
+                    // operand (the innermost select, under any part
+                    // select); a word read or a property read carries it as
                     // the word or property index. This code owns rd.
-                  NetESelect*rd_sel = dynamic_cast<NetESelect*>(rd);
-                  NetExpr*rd_base = rd_sel ? const_cast<NetExpr*>(rd_sel->sub_expr()) : rd;
+                  NetESelect*rd_sel = 0;
+                  NetExpr*rd_base = rd;
+                  while (NetESelect*sel = dynamic_cast<NetESelect*>(rd_base)) {
+                        rd_sel = sel;
+                        rd_base = const_cast<NetExpr*>(sel->sub_expr());
+                  }
                   NetESignal*rd_sig = dynamic_cast<NetESignal*>(rd_base);
                   NetEProperty*rd_prop = dynamic_cast<NetEProperty*>(rd_base);
                   if (rd_sig && rd_sig->sig() != lv->sig()) rd_sig = 0;
                   if (rd_prop && (int)rd_prop->property_idx()
                                  != lv->get_property_idx()) rd_prop = 0;
                   bool key_in_sel = rd_sel && rd_sig && !rd_sig->word_index()
-                        && rd_sel->select() && !lv->get_base();
+                        && rd_sel->select();
                   bool rd_keyed = key_in_sel
                         || (rd_sig && rd_sig->word_index())
                         || (rd_prop && rd_prop->get_index());

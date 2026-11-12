@@ -3,7 +3,8 @@
 // left-hand index expression is only evaluated once"; 11.4.2 increment and
 // decrement behave as blocking assignments). Also covers ++/-- used as an
 // expression on a local associative element, which yields the old (postfix)
-// or new (prefix) value and creates a missing element from its default.
+// or new (prefix) value and creates a missing element from its default,
+// for integral and real elements.
 module issue2762_assoc_compound_key_once;
   class K; endclass
   class C;
@@ -18,6 +19,7 @@ module issue2762_assoc_compound_key_once;
   real rm[int];
   int keys, v, failed = 0;
   byte bv;
+  real r;
   string trace;
   K kk;
   C c;
@@ -65,6 +67,17 @@ module issue2762_assoc_compound_key_once;
     end
     im[5] = 10; v = im[5]++ + im[5]++; check("two postfix", v, 21, 0, 0);
     check("im[5] after two", im[5], 12, 0, 0);
+    // A part select of an element, and ++/-- on a real element.
+    im[6] = 'h1ff; keys = 0; im[ikey() + 5][7:0] += 1;
+    check("im[k][7:0] +=", im[6], 'h100, keys, 1);
+    rm[1] = 1.5; keys = 0; r = rm[ikey()]++;
+    if (r != 1.5 || rm[1] != 2.5 || keys != 1) begin
+      $display("FAILED: real postfix r=%g rm=%g keys=%0d", r, rm[1], keys); failed++;
+    end
+    keys = 0; r = --rm[ikey()];
+    if (r != 1.5 || rm[1] != 1.5 || keys != 1) begin
+      $display("FAILED: real prefix r=%g rm=%g keys=%0d", r, rm[1], keys); failed++;
+    end
     if (failed == 0) $display("PASSED");
   end
 endmodule
