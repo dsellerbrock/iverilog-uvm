@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2744_enum_order.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2744_enum_order_2017"],
+  "vpi-sources": ["vpi/issue2744_enum_order.c"],
+  "output-contains": ["ENUM ORDER PASS"]
+}

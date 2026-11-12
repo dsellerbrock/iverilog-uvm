@@ -408,9 +408,16 @@ class __vpiStmtNode : public __vpiHandle {
 extern bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
 					       const char*selector,
 					       int levels);
-extern void vpip_report_deferred_assertion_reset_callbacks(
-					       const char*selector,
-					       int levels);
+/* IEEE 1800-2023 16.14.6 procedural concurrent assertions: a pending
+   instance sits on the deferred assertion queue with this bit in its source
+   id; the rest is the front end's procedural assertion id. */
+#define VPIP_PROC_ASSERT_SOURCE (1UL << 40)
+extern bool vpip_proc_assert_may_queue(PLI_INT32 pid, __vpiScope*scope);
+extern void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope);
+extern void vpip_cancel_proc_asserts(PLI_INT32 pid, __vpiScope*module_scope);
+/* IEEE 1800-2023 20.11: may a matured deferred report run its action? */
+extern bool vpip_deferred_action_enabled(unsigned long source_id,
+					 __vpiScope*scope, unsigned result);
 
 /* Function return values are carried on the function-call stack and do not
    have a regular signal object in the runtime hierarchy. This handle exposes
@@ -471,6 +478,13 @@ class vpiScopeFunction  : public __vpiScope {
 extern __vpiScope* vpip_peek_current_scope(void);
 extern void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj);
 extern void vpip_attach_to_current_scope(vpiHandle obj);
+/* Continuous assignment objects (IEEE 1800-2023 37.47). */
+extern vpiHandle vpip_make_contassign(int flags, int str0, int str1,
+				      unsigned file_idx, unsigned lineno,
+				      unsigned argc, vpiHandle*argv);
+extern void vpip_contassign_set_driver(vpiHandle ref, vvp_net_t*net);
+extern bool vpip_contassign_add_callback(vpiHandle ref,
+					 class value_callback*cb);
 extern vpiHandle vpip_make_param_assign(__vpiScope*scope,
 					       vpiHandle lhs, vpiHandle rhs);
 extern __vpiScope* vpip_peek_context_scope(void);
@@ -494,7 +508,8 @@ extern void vpip_register_deferred_assertion(unsigned long source_id,
 					     unsigned assertion_kind,
 					     unsigned file_idx,
 					     unsigned line,
-					     vpiHandle scope);
+					     vpiHandle scope,
+					     bool is_final);
 extern void vpip_cancel_deferred_assertion(unsigned long source_id,
 					   vpiHandle scope);
 extern void vpip_deferred_assertion_report(unsigned long source_id,
@@ -795,6 +810,8 @@ struct __vpiModPathSrc : public __vpiHandle {
 
 struct __vpiModPath {
       __vpiScope   *scope ;
+	/* The sources, in .modpath record order (for .pathexpr). */
+      std::vector<struct __vpiModPathSrc*> srcs;
 
       class vvp_fun_modpath*modpath;
 
@@ -807,6 +824,10 @@ struct __vpiModPath {
  * The Function is used to create the vpiHandle
  * for vpiModPath && vpiModPathIn objects
  */
+
+/* A specparam of scope changed at run time (SDF LABEL, IEEE 1800 32.4.3):
+   re-evaluate the path delays of that scope that use specparams. */
+extern void vpip_specparam_changed(__vpiScope*scope);
 
 extern struct __vpiModPathSrc* vpip_make_modpath_src(struct __vpiModPath*path,
                                                      vvp_net_t *net) ;

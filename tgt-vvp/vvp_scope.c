@@ -674,7 +674,10 @@ static unsigned nvartype_notes = 0;
 
 static int type_has_vartype_(ivl_type_t type)
 {
-      return type && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
+      /* Class properties are emitted in .class metadata; they are not a
+         struct/union typespec for an array of class handles. */
+      return type && ivl_type_base(type) != IVL_VT_CLASS
+          && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
 }
 
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
@@ -718,6 +721,13 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
       char tmp[64];
       ivl_enumtype_t enumtype = ivl_type_enum(type);
       int nmembers = ivl_type_properties(type);
+
+	/* Only a packed type has a type string. A class also has properties,
+	   and one can hold a handle of its own type: treating it as a struct
+	   would recurse without end. */
+      if (ivl_type_base(type) != IVL_VT_LOGIC
+	  && ivl_type_base(type) != IVL_VT_BOOL)
+	    return 0;
 
       if (enumtype) {
 	    if (!enumeration_is_drawn(enumtype)) return 0;
@@ -3940,12 +3950,9 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	      ivl_type_t type = ivl_parameter_type(par);
 	      param_type_buf.len = 0;
 	      vartype_put_(&param_type_buf, "");
-	        // ponytail: packed types only; a class, string or unpacked
-	        // type parameter has no vartype string (vartype_spec_ would
-	        // recurse through a class's own handle properties).
-	      if (type && (ivl_type_base(type) == IVL_VT_LOGIC
-			   || ivl_type_base(type) == IVL_VT_BOOL)
-		  && vartype_spec_(&param_type_buf, type))
+	        // A class, string or unpacked type parameter has no vartype
+	        // string (vartype_spec_ describes packed types only).
+	      if (type && vartype_spec_(&param_type_buf, type))
 		fprintf(vvp_out, "P_%p .param/type \"%s\" %d %u %u, \"%s\";\n",
 			par, vvp_mangle_name(ivl_parameter_basename(par)),
 			ivl_parameter_local(par),
@@ -4069,6 +4076,23 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
+	/* A specparam annotatable by SDF LABEL (IEEE 1800 32.4.3) keeps its
+	   run-time value in a hidden local variable named _ivl_sp_<name>,
+	   present only when the design calls $sdf_annotate. */
+      for (idx = 0 ; idx < ivl_scope_params(net) ; idx += 1) {
+	    ivl_parameter_t par = ivl_scope_param(net, idx);
+	    unsigned sdx;
+	    for (sdx = 0 ; sdx < ivl_scope_sigs(net) ; sdx += 1) {
+		  ivl_signal_t sig = ivl_scope_sig(net, sdx);
+		  const char*name = ivl_signal_basename(sig);
+		  if (ivl_signal_local(sig) && strncmp(name, "_ivl_sp_", 8) == 0
+		      && strcmp(name + 8, ivl_parameter_basename(par)) == 0) {
+			fprintf(vvp_out, "P_%p .param/storage v%p_0;\n", par, sig);
+			break;
+		  }
+	    }
+      }
+
 	/* Task/function formal declarations are VPI objects in their own
 	   right (IEEE 1800-2017/2023 37.13). Emit them after their same-named
 	   signal handles so hierarchical name lookup continues to find the
@@ -4109,6 +4133,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    ivl_switch_t sw = ivl_scope_switch(net, idx);
 	    draw_switch_in_scope(sw);
       }
+
+      draw_vpi_objects_in_scope(net);
 
 	/* A system-task call records the current scope when vvp reads its
 	   instruction. Emit a task's nested scopes before its body so a .scope

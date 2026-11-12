@@ -1,0 +1,2 @@
+ivltests/issue2827_width_variable.v:3: Timing violation: $width check in issue2827_width_variable at time 12
+ivltests/issue2827_width_variable.v:8: $finish called at 22 (1ns)

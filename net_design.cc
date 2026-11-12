@@ -817,6 +817,15 @@ void NetScope::run_defparams(Design*des)
 
 	    des->record_defparam_resolution(this, eval_path, targ_scope, val);
 	    targ_scope->replace_parameter(des, perm_name, val, this, true);
+	    {
+		  defparam_t kept;
+		  kept.set_line(*val);
+		  kept.target = targ_scope;
+		  kept.name = perm_name;
+		  kept.rhs = val;
+		  kept.rhs_net = 0;
+		  defparams_kept.push_back(kept);
+	    }
       }
 
 	// If some of the defparams didn't find a scope in the name,
@@ -853,6 +862,15 @@ void NetScope::run_defparams_later(Design*des)
 
 	    des->record_defparam_resolution(this, eval_path, targ_scope, val);
 	    targ_scope->replace_parameter(des, name, val, this, true);
+	    {
+		  defparam_t kept;
+		  kept.set_line(*val);
+		  kept.target = targ_scope;
+		  kept.name = name;
+		  kept.rhs = val;
+		  kept.rhs_net = 0;
+		  defparams_kept.push_back(kept);
+	    }
 
 	      // We'll need to re-evaluate parameters in this scope
 	    target_scopes.insert(targ_scope);

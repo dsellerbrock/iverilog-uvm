@@ -29,6 +29,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <list>
+#include <cstring>
 #include <cassert>
 #include <cmath>
 #include "ivl_alloc.h"
@@ -2165,13 +2166,20 @@ struct __vpiTchkTerm : public __vpiHandle {
 };
 
 /* A limit argument, as vpiExpr iteration returns it: a real constant
-   whose value is the live limit. */
+   whose value is the live limit. With -gneg-tchk (IEEE 1800 31.9) the
+   checker's variable holds the limit adjusted by shift, clamped at 0,
+   while VPI keeps reading and writing the declared limit. */
 struct __vpiTchkLimit : public __vpiHandle {
       int get_type_code(void) const override { return vpiConstant; }
       int vpi_get(int code) override;
       void vpi_get_value(p_vpi_value val) override;
 
       vpiHandle var = 0;
+      double declared = 0.0;
+      double shift = 0.0;
+	// The value the checker uses for a declared limit.
+      double effective(double value) const
+	    { return shift != 0.0 && value + shift < 0.0 ? 0.0 : value + shift; }
 };
 
 struct __vpiTchk : public __vpiHandle {
@@ -2232,7 +2240,7 @@ int __vpiTchkLimit::vpi_get(int code)
 
 void __vpiTchkLimit::vpi_get_value(p_vpi_value val)
 {
-      var->vpi_get_value(val);
+      vpip_real_get_value(declared, val);
 }
 
 int __vpiTchk::vpi_get(int code)
@@ -2291,12 +2299,7 @@ void __vpiTchk::vpi_get_delays(p_vpi_delay del)
       unsigned per = del->mtm_flag ? 3 : 1;
       for (unsigned idx = 0; idx < (unsigned)del->no_of_delays; idx += 1) {
 	    double value = 0.0;
-	    if (idx < limits.size()) {
-		  s_vpi_value val;
-		  val.format = vpiRealVal;
-		  limits[idx].var->vpi_get_value(&val);
-		  value = val.value.real;
-	    }
+	    if (idx < limits.size()) value = limits[idx].declared;
 	    for (unsigned sub = 0; sub < per; sub += 1) {
 		  p_vpi_time time = del->da + idx*per + sub;
 		  time->type = del->time_type;
@@ -2326,7 +2329,16 @@ void __vpiTchk::vpi_put_delays(p_vpi_delay del)
 			vpip_timestruct_to_time(&time), scope);
 	    else
 		  continue;
-	    limits[idx].var->vpi_put_value(&val, vpiNoDelay);
+	    __vpiTchkLimit&limit = limits[idx];
+	    limit.declared = val.value.real;
+	    double effective = limit.effective(limit.declared);
+	    if (limit.shift != 0.0 && limit.declared + limit.shift < 0.0)
+		  vpi_printf("Warning: %s:%ld: the adjusted timing check limit "
+			     "%g is set to 0 (IEEE 1800-2023 31.9).\n",
+			     file_names[file_idx], lineno,
+			     limit.declared + limit.shift);
+	    val.value.real = effective;
+	    limit.var->vpi_put_value(&val, vpiNoDelay);
       }
 }
 
@@ -2370,21 +2382,123 @@ void compile_tchk_term(__vpiTchk*tchk, char*sig, bool has_bit, long bit,
       }
 }
 
-void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value)
+void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value, char*shift)
 {
       __vpiTchkLimit limit;
       limit.var = vvp_lookup_handle(var);
       assert(limit.var);
+      limit.declared = crstring_to_double(value);
+      if (shift) limit.shift = crstring_to_double(shift);
 	/* Seed the limit when the design loads; initialization events run
 	   in order before cbStartOfSimulation, after the variable's own. */
       vvp_net_t*net = vvp_net_lookup(var);
-      schedule_init_vector(vvp_net_ptr_t(net, 0), crstring_to_double(value));
+      schedule_init_vector(vvp_net_ptr_t(net, 0),
+			   limit.effective(limit.declared));
       tchk->limits.push_back(limit);
       free(var);
       free(value);
+      free(shift);
 }
 
 void compile_tchk_notifier(__vpiTchk*tchk, char*notifier)
 {
       compile_vpi_lookup(&tchk->notifier, notifier);
+}
+
+/*
+ * Path delays that use specparams (IEEE 1800-2017/2023 32.4.3): "Any
+ * expression containing one or more specparams is reevaluated when
+ * annotated to from an SDF file." Each expression is a reverse Polish
+ * token list over constants and the specparams' run-time variables.
+ */
+struct path_token_s {
+      char kind;		// 'c', 's', '+', '-', '*', '/', 'n'
+      double value;
+      vpiHandle var;
+};
+
+struct path_expr_s {
+      __vpiModPathSrc*src;
+      std::vector<std::vector<path_token_s>> exprs;
+};
+
+static std::map<__vpiScope*, std::vector<path_expr_s>> path_exprs_by_scope;
+
+__vpiModPath* compile_find_modpath(const char*label);
+
+void compile_pathexpr(char*label, unsigned idx, std::vector<char*>&exprs)
+{
+      __vpiModPath*path = compile_find_modpath(label);
+      assert(path && idx < path->srcs.size());
+      path_expr_s entry;
+      entry.src = path->srcs[idx];
+      for (char*text : exprs) {
+	    std::vector<path_token_s> tokens;
+	    for (char*tok = strtok(text, " "); tok; tok = strtok(0, " ")) {
+		  path_token_s cur = { 'c', 0.0, 0 };
+		  if (tok[0] == 'v') {
+			cur.kind = 's';
+			cur.var = vvp_lookup_handle(tok);
+			assert(cur.var);
+		  } else if (strchr("+*/n", tok[0]) || (tok[0] == '-' && tok[1] == 0)) {
+			cur.kind = tok[0];
+		  } else {
+			cur.value = strtod(tok, 0);
+		  }
+		  tokens.push_back(cur);
+	    }
+	    entry.exprs.push_back(tokens);
+	    free(text);
+      }
+      path_exprs_by_scope[path->scope].push_back(entry);
+      free(label);
+}
+
+static double eval_path_expr(const std::vector<path_token_s>&tokens)
+{
+      std::vector<double> stack;
+      for (const path_token_s&tok : tokens) {
+	    if (tok.kind == 'c') {
+		  stack.push_back(tok.value);
+	    } else if (tok.kind == 's') {
+		  s_vpi_value val;
+		  val.format = vpiRealVal;
+		  tok.var->vpi_get_value(&val);
+		  stack.push_back(val.value.real);
+	    } else if (tok.kind == 'n') {
+		  stack.back() = -stack.back();
+	    } else {
+		  double right = stack.back();
+		  stack.pop_back();
+		  double&left = stack.back();
+		  switch (tok.kind) {
+		      case '+': left += right; break;
+		      case '-': left -= right; break;
+		      case '*': left *= right; break;
+		      case '/': left = right != 0.0 ? left / right : 0.0; break;
+		  }
+	    }
+      }
+      return stack.empty() ? 0.0 : stack.back();
+}
+
+void vpip_specparam_changed(__vpiScope*scope)
+{
+      auto found = path_exprs_by_scope.find(scope);
+      if (found == path_exprs_by_scope.end()) return;
+      for (path_expr_s&entry : found->second) {
+	    s_vpi_delay delays;
+	    t_vpi_time times[12];
+	    delays.da = times;
+	    delays.no_of_delays = entry.exprs.size();
+	    delays.time_type = vpiScaledRealTime;
+	    delays.mtm_flag = 0;
+	    delays.append_flag = 0;
+	    delays.pulsere_flag = 0;
+	    for (size_t idx = 0; idx < entry.exprs.size(); idx += 1) {
+		  times[idx].type = vpiScaledRealTime;
+		  times[idx].real = eval_path_expr(entry.exprs[idx]);
+	    }
+	    entry.src->vpi_put_delays(&delays);
+      }
 }

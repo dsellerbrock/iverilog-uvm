@@ -419,7 +419,6 @@ static int vpip_get_global(int property)
 
 	  default:
 	    fprintf(stderr, "vpi error: bad global property: %d\n", property);
-	    assert(0);
 	    return vpiUndefined;
       }
 }
@@ -1026,6 +1025,23 @@ void vpip_vec4_get_value(const vvp_vector4_t&word_val, unsigned width,
 		      vector4_to_value(word_val, val, signed_flag, false);
 
 		vp->value.integer = val;
+		break;
+	  }
+
+	  case vpiTimeVal: {
+		uint32_t low = 0;
+		uint32_t high = 0;
+		for (unsigned idx = 0; idx < width && idx < 64; idx += 1) {
+		      if (word_val.value(idx) != BIT4_1)
+			    continue;
+		      if (idx < 32)
+			    low |= uint32_t(1) << idx;
+		      else
+			    high |= uint32_t(1) << (idx - 32);
+		}
+		vp->value.time->type = vpiSimTime;
+		vp->value.time->high = high;
+		vp->value.time->low = low;
 		break;
 	  }
 
@@ -3096,9 +3112,10 @@ vpip_routines_s vpi_routines = {
     .assertion_report_all       = vpip_assertion_report_all,
     .object_urandom             = vpip_object_urandom,
     .print_stacktrace           = vpip_print_stacktrace,
-    .cancel_deferred_asserts    = vpip_cancel_deferred_asserts,
-    .deferred_assertion_enabled = vpip_deferred_assertion_enabled,
-    .set_deferred_assertions_enabled = vpip_set_deferred_assertions_enabled,
+    .assertion_control          = vpip_assertion_control,
+    .assertion_state            = vpip_assertion_state,
+    .proc_assert_enqueue        = vpip_proc_assert_enqueue,
+    .register_proc_assertion    = vpip_register_proc_assertion,
     .register_immediate_cover   = vpip_register_immediate_cover,
     .report_immediate_cover    = vpip_report_immediate_cover,
     .report_immediate_assertion = vpip_report_immediate_assertion,

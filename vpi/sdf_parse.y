@@ -83,7 +83,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
 %token K_ABSOLUTE K_CELL K_CELLTYPE K_COND K_CONDELSE K_DATE K_DELAYFILE K_DEVICE
 %token K_DELAY K_DESIGN K_DIVIDER K_HOLD K_INCREMENT K_INSTANCE
 %token K_INTERCONNECT K_IOPATH K_NEGEDGE K_NETDELAY K_PATHPULSE K_PATHPULSEPERCENT
-%token K_PERIOD K_POSEDGE K_PROCESS K_PROGRAM
+%token K_PERIOD K_POSEDGE K_PROCESS K_PROGRAM K_RETAIN
 %token K_PORT
 %token K_RECREM K_RECOVERY K_REMOVAL K_SDFVERSION K_SETUP K_SETUPHOLD
 %token K_TEMPERATURE K_TIMESCALE K_TIMINGCHECK K_VENDOR K_VERSION
@@ -91,6 +91,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
 %token K_01 K_10 K_0Z K_Z1 K_1Z K_Z0
 %token K_EQ K_NE K_CEQ K_CNE K_LOGICAL_ONE K_LOGICAL_ZERO
 %token K_LAND K_LOR
+%token K_LABEL
 
 %token HCHAR
 %token <string_val> QSTRING IDENTIFIER
@@ -112,6 +113,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
 %type <port_with_edge> port_edge port_spec
 
 %type <delval_list> delval_list
+%type <delay> lbl_value
 %type <string_val> conditional_port_expr
 %type <int_val> scalar_constant
 %type <tchk_port> port_tchk
@@ -121,6 +123,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
 %left K_LOR
 %left K_LAND
 %left K_EQ K_NE K_CEQ K_CNE
+%right '!' '~'
 
 %%
 
@@ -339,6 +342,42 @@ timing_spec
       { vpi_printf("SDF ERROR: %s:%d: Syntax error in TIMINGCHECK SPEC\n",
 	           sdf_parse_path, @2.first_line); }
   | '(' K_TIMINGENV ')'
+  | '(' K_LABEL lbl_type_list ')'
+  | '(' K_LABEL error ')'
+      { vpi_printf("SDF ERROR: %s:%d: Syntax error in LABEL SPEC\n",
+	           sdf_parse_path, @2.first_line); }
+  ;
+
+  /* IEEE 1800-2023 32.4.3: LABEL annotates specparams. */
+lbl_type_list
+  : lbl_type_list lbl_type
+  | lbl_type
+  ;
+
+lbl_type
+  : '(' K_ABSOLUTE lbl_def_list ')'
+  | '(' K_INCREMENT { sdf_increment = 1; } lbl_def_list ')'
+      { sdf_increment = 0; }
+  ;
+
+lbl_def_list
+  : lbl_def_list lbl_def
+  | lbl_def
+  ;
+
+lbl_def
+  : '(' IDENTIFIER lbl_value ')'
+      { sdf_label_value($2, &$3, @2.first_line);
+	free($2);
+      }
+  ;
+
+  /* An rvalue, or the bare number of the IEEE 1800 32.4.3 example. */
+lbl_value
+  : rvalue { $$ = $1; }
+  | signed_real_number
+      { $$.defined = 1;
+	$$.value = $1 * sdf_time_scale(); }
   ;
 
 deltype_list
@@ -371,9 +410,9 @@ del_def_list
   ;
 
 del_def
-  : '(' K_IOPATH port_spec port_instance delval_list ')'
+  : '(' K_IOPATH port_spec port_instance retain_def_list delval_list ')'
       { sdf_iopath_delays($3.vpi_edge, $3.string_val, $4, 0, 0,
-                          &$5, @2.first_line);
+                          &$6, @2.first_line);
 	free($3.string_val);
 	free($4);
       }
@@ -381,17 +420,17 @@ del_def
       { vpi_printf("SDF ERROR: %s:%d: Invalid/malformed IOPATH\n",
 	           sdf_parse_path, @2.first_line); }
   | '(' K_COND conditional_port_expr
-    '(' K_IOPATH port_spec port_instance delval_list ')' ')'
+    '(' K_IOPATH port_spec port_instance retain_def_list delval_list ')' ')'
 	  { sdf_iopath_delays($6.vpi_edge, $6.string_val, $7, $3, 0,
-	                      &$8, @2.first_line);
+	                      &$9, @2.first_line);
 	free($3);
 	free($6.string_val);
 	free($7);
       }
   | '(' K_COND QSTRING conditional_port_expr
-    '(' K_IOPATH port_spec port_instance delval_list ')' ')'
+    '(' K_IOPATH port_spec port_instance retain_def_list delval_list ')' ')'
 	  { sdf_iopath_delays($7.vpi_edge, $7.string_val, $8, $4, 0,
-	                      &$9, @2.first_line);
+	                      &$10, @2.first_line);
 	free($3);
 	free($4);
 	free($7.string_val);
@@ -400,9 +439,9 @@ del_def
   | '(' K_COND error ')'
       { vpi_printf("SDF ERROR: %s:%d: Invalid/malformed COND\n",
 	           sdf_parse_path, @2.first_line); }
-  | '(' K_CONDELSE '(' K_IOPATH port_spec port_instance delval_list ')' ')'
+  | '(' K_CONDELSE '(' K_IOPATH port_spec port_instance retain_def_list delval_list ')' ')'
 	  { sdf_iopath_delays($5.vpi_edge, $5.string_val, $6, 0, 1,
-	                      &$7, @2.first_line);
+	                      &$8, @2.first_line);
 	free($5.string_val);
 	free($6);
       }
@@ -450,6 +489,12 @@ del_def
       { vpi_printf("SDF ERROR: %s:%d: Invalid/malformed NETDELAY\n",
 	           sdf_parse_path, @2.first_line);
       }
+  ;
+
+/* IEEE 1497 retain_def entries do not affect delay annotation. */
+retain_def_list
+  : /* empty */
+  | retain_def_list '(' K_RETAIN delval_list ')'
   ;
 
 tchk_def_list
@@ -559,6 +604,10 @@ conditional_port_expr
       { $$ = strdup($1 ? "1'd1" : "1'd0"); }
   | '(' conditional_port_expr ')'
       { $$ = $2; }
+  | '!' conditional_port_expr
+      { $$ = sdf_condition_unary('!', $2); }
+  | '~' conditional_port_expr
+      { $$ = sdf_condition_unary('~', $2); }
   | conditional_port_expr K_LAND conditional_port_expr
       { $$ = sdf_condition_binary($1, "&&", $3); }
   | conditional_port_expr K_LOR conditional_port_expr

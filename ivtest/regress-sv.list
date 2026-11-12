@@ -6525,6 +6525,8 @@ sv_multidimensional_array_equality_shape_err CE,-g2017,-s,sv_multidimensional_ar
 sv_multidimensional_array_equality_shape_err_2023 CE,-g2023,-Iivltests,-s,sv_multidimensional_array_equality_shape_err ivltests gold=sv_multidimensional_array_equality_shape_err_2023.gold
 sv_packed_struct_array_equality normal,-g2017,-s,sv_packed_struct_array_equality ivltests gold=sv_packed_struct_array_equality.gold
 sv_packed_struct_array_equality_2023 normal,-g2023,-s,sv_packed_struct_array_equality_2023 ivltests gold=sv_packed_struct_array_equality.gold
+sv_fixed_array_member_queue_element_equality_2017 normal,-g2017,-s,sv_fixed_array_member_queue_element_equality ivltests gold=sv_fixed_array_member_queue_element_equality.gold
+sv_fixed_array_member_queue_element_equality_2023 normal,-g2023,-s,sv_fixed_array_member_queue_element_equality ivltests gold=sv_fixed_array_member_queue_element_equality.gold
 sv_uarray_equality_untyped_pattern_fail CE,-g2017,-s,sv_uarray_equality_untyped_pattern_fail ivltests gold=sv_uarray_equality_untyped_pattern_fail.gold
 sv_uarray_equality_untyped_pattern_fail_2023 CE,-g2023,-s,sv_uarray_equality_untyped_pattern_fail_2023 ivltests gold=sv_uarray_equality_untyped_pattern_fail_2023.gold
 sv_bits_dynamic_queue	normal,-g2017		ivltests gold=sv_bits_dynamic_queue.gold
@@ -6700,3 +6702,14 @@ sva_local_init_multiclock_2017 normal,-g2017,-s,sva_local_init_multiclock ivltes
 sva_local_init_multiclock_2023 normal,-g2023,-s,sva_local_init_multiclock ivltests gold=sva_local_init_multiclock.gold
 sva_multiclock_unbounded_antecedent_2017 normal,-g2017,-s,sva_multiclock_unbounded_antecedent ivltests gold=sva_multiclock_unbounded_antecedent.gold
 sva_multiclock_unbounded_antecedent_2023 normal,-g2023,-s,sva_multiclock_unbounded_antecedent ivltests gold=sva_multiclock_unbounded_antecedent.gold
+issue2828_sdf_whitespace_2017 normal,-g2017,-gspecify,-s,issue2828_sdf_whitespace ivltests gold=issue2828_sdf_whitespace_2017-legacy.gold
+issue2828_sdf_whitespace_2023 normal,-g2023,-gspecify,-s,issue2828_sdf_whitespace ivltests gold=issue2828_sdf_whitespace_2023-legacy.gold
+sva_assertcontrol_2017 normal,-g2017,-s,sva_assertcontrol ivltests gold=sva_assertcontrol.gold
+sva_assertcontrol_2023 normal,-g2023,-s,sva_assertcontrol ivltests gold=sva_assertcontrol.gold
+sva_proc_queue_2017 normal,-g2017,-s,sva_proc_queue ivltests gold=sva_proc_queue.gold
+sva_proc_queue_2023 normal,-g2023,-s,sva_proc_queue ivltests gold=sva_proc_queue.gold
+
+issue2831_sdf_log_2017 normal,-g2017,-gspecify,-s,top ivltests gold=issue2831_sdf_log_2017.gold
+issue2831_sdf_log_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue2831_sdf_log_2023.gold
+issue2618_assoc_fixed_array_copy_2017 normal,-g2017,-s,issue2618_assoc_fixed_array_copy ivltests gold=issue2618_assoc_fixed_array_copy_2017-legacy.gold
+issue2618_assoc_fixed_array_copy_2023 normal,-g2023,-s,issue2618_assoc_fixed_array_copy ivltests gold=issue2618_assoc_fixed_array_copy_2023-legacy.gold

@@ -5197,6 +5197,28 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       if (rise_time || fall_time || decay_time)
 	    rval->pin(0).drivers_delays(rise_time, fall_time, decay_time);
 
+	/* Keep the assignment for VPI (IEEE 1800-2023 37.47). Its driver is
+	   the device on the r-value side, found before the l-value joins
+	   the nexus. A part-select or concatenation l-value is a local net
+	   and has no expression handle yet. */
+      NetScope::contassign_t contassign;
+      contassign.set_line(*this);
+      contassign.lval = lval->local_flag() ? 0 : new NetESignal(lval);
+	/* Synthesis leaves the expression intact; the record keeps it. */
+      contassign.rval = rval_expr;
+      for (const Link*cur = rval->pin(0).nexus()->first_nlink()
+		 ; cur ; cur = cur->next_nlink()) {
+	    const NetNode*node = dynamic_cast<const NetNode*>(cur->get_obj());
+	    if (node && cur->get_dir() == Link::OUTPUT) {
+		  contassign.driver = node->name();
+		  break;
+	    }
+      }
+      contassign.drive0 = drive0;
+      contassign.drive1 = drive1;
+      contassign.net_decl = net_decl_assign;
+      scope->contassigns.push_back(contassign);
+
       connect(lval->pin(0), rval->pin(0));
 
       if (lval->local_flag())
@@ -10464,7 +10486,12 @@ static NetExpr* elaborate_delay_expr_(PExpr*expr, Design*des, NetScope*scope,
 
 static NetExpr* elaborate_delay_expr(PExpr*expr, Design*des, NetScope*scope)
 {
-      return elaborate_delay_expr_(expr, des, scope, false);
+	// A procedural delay that uses a specparam reads its run-time value.
+      bool saved = elab_specparam_storage;
+      elab_specparam_storage = true;
+      NetExpr*dex = elaborate_delay_expr_(expr, des, scope, false);
+      elab_specparam_storage = saved;
+      return dex;
 }
 
 static NetExpr* elaborate_clocking_skew_expr(PExpr*expr, Design*des,
@@ -17570,9 +17597,19 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       vector<NetExpr*>eparms (parm_count);
 
       perm_string name = peek_tail_name(path_);
-      const bool assertion_control_task =
-	    name == "$asserton" || name == "$assertoff"
-	    || name == "$assertkill";
+	/* IEEE 1800-2023 20.11: identifiers in list_of_scopes_or_assertions
+	   become hierarchical selector strings. The leading integer arguments
+	   (levels; for $assertcontrol also control, assertion and directive
+	   type) stay ordinary expressions, so `let' constants work there. */
+      unsigned assertion_selector_first = 0;
+      if (name == "$assertcontrol")
+	    assertion_selector_first = 4;
+      else if (name == "$asserton" || name == "$assertoff"
+	       || name == "$assertkill" || name == "$assertpasson"
+	       || name == "$assertpassoff" || name == "$assertfailon"
+	       || name == "$assertfailoff" || name == "$assertnonvacuouson"
+	       || name == "$assertvacuousoff")
+	    assertion_selector_first = 1;
       const bool coverage_db_task =
 	    name == "$set_coverage_db_name" || name == "$load_coverage_db";
 
@@ -17643,7 +17680,7 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	       their hierarchical spelling for the runtime assertion registry;
 	       ordinary expression elaboration would incorrectly try to bind the
 	       assertion label as a signal (Caliptra relies on this form). */
-	    if (assertion_control_task && idx >= 1) {
+	    if (assertion_selector_first && idx >= assertion_selector_first) {
 		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(parm.parm)) {
 			NetECString*selector = new NetECString(
 			      assertion_control_selector_(des, scope, id));
@@ -31828,6 +31865,48 @@ static void finalize_interface_specify_paths_(Design*des)
       pending_interface_specify_paths_.clear();
 }
 
+/* A path delay as reverse Polish tokens over constants and specparam
+   storage (see NetPathToken). False when the expression uses an operator
+   outside + - * / and negation; it then stays a plain constant. */
+static bool path_delay_tokens_(const NetExpr*expr, vector<NetPathToken>&out,
+			       bool&uses_storage)
+{
+      if (const NetECReal*rcon = dynamic_cast<const NetECReal*>(expr)) {
+	    out.push_back({'c', rcon->value().as_double(), nullptr});
+	    return true;
+      }
+      if (const NetEConst*con = dynamic_cast<const NetEConst*>(expr)) {
+	    if (!con->value().is_defined()) return false;
+	    out.push_back({'c', con->value().has_sign()
+				? double(con->value().as_long())
+				: double(con->value().as_ulong64()), nullptr});
+	    return true;
+      }
+      if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
+	    if (sig->word_index() || !sig->sig()->local_flag()) return false;
+	    out.push_back({'s', 0.0, sig->sig()});
+	    uses_storage = true;
+	    return true;
+      }
+      if (const NetECast*cast = dynamic_cast<const NetECast*>(expr))
+	    return path_delay_tokens_(cast->expr(), out, uses_storage);
+      if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(expr)) {
+	    if (un->op() != '-') return false;
+	    if (!path_delay_tokens_(un->expr(), out, uses_storage)) return false;
+	    out.push_back({'n', 0.0, nullptr});
+	    return true;
+      }
+      if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(expr)) {
+	    char op = bin->op();
+	    if (op != '+' && op != '-' && op != '*' && op != '/') return false;
+	    if (!path_delay_tokens_(bin->left(), out, uses_storage)) return false;
+	    if (!path_delay_tokens_(bin->right(), out, uses_storage)) return false;
+	    out.push_back({op, 0.0, nullptr});
+	    return true;
+      }
+      return false;
+}
+
 void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 {
       uint64_t delay_value[12];
@@ -31866,6 +31945,31 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  des->errors += 1;
 	    }
 	    delete cur;
+      }
+
+	/* IEEE 1800-2017/2023 32.4.3: a path delay that uses a specparam is
+	   re-evaluated when SDF LABEL annotates the specparam. Keep it as
+	   tokens over the specparams' run-time storage. */
+      vector<vector<NetPathToken>> delay_exprs;
+      if (gn_sdf_annotate_flag) {
+	    bool any_storage = false;
+	    for (unsigned idx = 0; idx < ndelays && idx < delays.size(); idx += 1) {
+		  bool saved = elab_specparam_storage;
+		  elab_specparam_storage = true;
+		  NetExpr*cur = elab_and_eval(des, scope, delays[idx], -1);
+		  elab_specparam_storage = saved;
+		  vector<NetPathToken> tokens;
+		  bool uses_storage = false;
+		  if (!cur || !path_delay_tokens_(cur, tokens, uses_storage))
+			tokens.clear();
+		  delete cur;
+		  any_storage |= uses_storage;
+		  delay_exprs.push_back(tokens);
+	    }
+	    bool complete = true;
+	    for (const auto&tokens : delay_exprs)
+		  if (tokens.empty()) complete = false;
+	    if (!any_storage || !complete) delay_exprs.clear();
       }
 
       switch (delays.size()) {
@@ -32027,6 +32131,7 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 	    path->set_line(*this);
 	    if (dst_wid != dst_sig->vector_width())
 		  path->set_dst_part(dst_part[dst_idx].first, dst_wid);
+	    path->delay_exprs = delay_exprs;
 
 	      // The presence of the data_source_expression indicates
 	      // that this is an edge sensitive path. If so, then set
@@ -32138,6 +32243,13 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
       }
 }
 
+static bool tchk_has_view_(NetScope*scope, const NetNet*sig)
+{
+      string name = string("_ivl_tcv_") + sig->name().str();
+      return gn_neg_tchk_flag
+	  && scope->find_signal(lex_strings.make(name.c_str())) != nullptr;
+}
+
 void PRecRem::elaborate(Design*des, NetScope*scope) const
 {
       // At present, no timing checks are supported.
@@ -32172,7 +32284,10 @@ void PRecRem::elaborate(Design*des, NetScope*scope) const
 		    return;
 	      }
 
-	      connect(sig->pin(0), sig_delayed->pin(0));
+	      // With -gneg-tchk the timing checks' delayed copy is this
+	      // signal (elaborate_tchk_views_).
+	      if (!tchk_has_view_(scope, sig))
+		    connect(sig->pin(0), sig_delayed->pin(0));
       }
 
       if (delayed_data_ != nullptr)
@@ -32201,7 +32316,10 @@ void PRecRem::elaborate(Design*des, NetScope*scope) const
 		    return;
 	      }
 
-	      connect(sig->pin(0), sig_delayed->pin(0));
+	      // With -gneg-tchk the timing checks' delayed copy is this
+	      // signal (elaborate_tchk_views_).
+	      if (!tchk_has_view_(scope, sig))
+		    connect(sig->pin(0), sig_delayed->pin(0));
       }
 }
 
@@ -32239,7 +32357,10 @@ void PSetupHold::elaborate(Design*des, NetScope*scope) const
 		    return;
 	      }
 
-	      connect(sig->pin(0), sig_delayed->pin(0));
+	      // With -gneg-tchk the timing checks' delayed copy is this
+	      // signal (elaborate_tchk_views_).
+	      if (!tchk_has_view_(scope, sig))
+		    connect(sig->pin(0), sig_delayed->pin(0));
       }
 
       if (delayed_data_ != nullptr)
@@ -32268,7 +32389,10 @@ void PSetupHold::elaborate(Design*des, NetScope*scope) const
 		    return;
 	      }
 
-	      connect(sig->pin(0), sig_delayed->pin(0));
+	      // With -gneg-tchk the timing checks' delayed copy is this
+	      // signal (elaborate_tchk_views_).
+	      if (!tchk_has_view_(scope, sig))
+		    connect(sig->pin(0), sig_delayed->pin(0));
       }
 }
 
@@ -32343,6 +32467,229 @@ static bool tchk_term_elaborate_(Design*des, NetScope*scope,
       return true;
 }
 
+/*
+ * Negative timing checks (IEEE 1800-2017/2023 31.9), with -gneg-tchk.
+ *
+ * The checkers of $setup, $hold, $setuphold, $recovery, $removal, $recrem,
+ * $width, $period and $nochange read the net _ivl_tcv_<s> instead of each
+ * reference or data signal s (see tc_view_ in pform.cc). This pass makes
+ * those nets per instance, before the checkers elaborate:
+ * - A data event inside (t_ref - S, t_ref + H) violates a $setuphold
+ *   (S = setup, H = hold) or a $recrem (S = removal, H = recovery). A
+ *   negative limit shifts that window off the reference edge, so the
+ *   reference or the data signal gets a delay d that brings the window
+ *   back over the delayed edge: S < 0 needs d_ref - d_data > -S, and
+ *   H < 0 needs d_data - d_ref > -H. With one limit negative, the other
+ *   bounds the shift so that the window stays open. Strict bounds use one
+ *   unit of the scope's precision (31.9.1 a, Figure 31-6). Zero and
+ *   positive limits add no constraint, so no signal is delayed without a
+ *   negative limit.
+ * - The delays are the least that satisfy every constraint of the module
+ *   (longest-path relaxation). One delay per signal is shared by all of
+ *   its checks (31.9 examples 2 and 3).
+ * - When no solution exists, the negative limit closest to zero becomes 0,
+ *   with a warning, and the delays are solved again (31.9; "smallest" read
+ *   as smallest magnitude, user ruling 2026-11-07).
+ * - A signal with no delay is a plain copy. Otherwise it is a transport
+ *   delay (every change arrives, none is cancelled). An explicit delayed
+ *   signal named by a $setuphold or $recrem is that copy.
+ * - Each check's limits are adjusted by the delays of its terms; an
+ *   adjusted limit <= 0 becomes 0 with a warning (31.9). PTchk::elaborate
+ *   records them, and the declared limits stay visible through VPI.
+ */
+struct tchk_neg_adjust_t {
+      std::vector<double> limits;	// declared, after inconsistency resolution
+      std::vector<double> shifts;	// adjusted = limit + shift
+};
+static map<pair<const NetScope*, const PTchk*>, tchk_neg_adjust_t> tchk_neg_adjust_;
+
+static bool tchk_reads_delayed_(int type)
+{
+      switch (type) {
+	  case vpiSetup: case vpiHold: case vpiSetupHold: case vpiRecovery:
+	  case vpiRemoval: case vpiRecrem: case vpiWidth: case vpiPeriod:
+	  case vpiNoChange:
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
+/* The indexes of the S (window before the reference) and H (window after
+   it) limits of a check, or -1. */
+static void tchk_window_roles_(int type, int&s_idx, int&h_idx)
+{
+      s_idx = h_idx = -1;
+      switch (type) {
+	  case vpiSetup: case vpiRemoval: s_idx = 0; break;
+	  case vpiHold: case vpiRecovery: h_idx = 0; break;
+	  case vpiSetupHold: s_idx = 0; h_idx = 1; break;
+	  case vpiRecrem: s_idx = 1; h_idx = 0; break;
+      }
+}
+
+static void elaborate_tchk_views_(Design*des, NetScope*scope,
+				  const list<PTimingCheck*>&checks)
+{
+      struct check_t {
+	    const PTchk*tchk;
+	    perm_string ref, data;
+	    vector<double> limits;
+      };
+      vector<check_t> found;
+      map<perm_string, perm_string> explicit_delayed;
+      auto note_delayed = [&](const PTimingCheck::event_t&ev,
+			      const pform_name_t*delayed) {
+	    if (delayed && ev.name.size() == 1 && delayed->size() == 1)
+		  explicit_delayed[ev.name.front().name] = delayed->front().name;
+      };
+      for (PTimingCheck*cur : checks) {
+	    if (const PSetupHold*sh = dynamic_cast<const PSetupHold*>(cur)) {
+		  note_delayed(sh->reference_event(), sh->delayed_reference());
+		  note_delayed(sh->data_event(), sh->delayed_data());
+	    }
+	    if (const PRecRem*rr = dynamic_cast<const PRecRem*>(cur)) {
+		  note_delayed(rr->reference_event(), rr->delayed_reference());
+		  note_delayed(rr->data_event(), rr->delayed_data());
+	    }
+	    const PTchk*tchk = dynamic_cast<const PTchk*>(cur);
+	    if (!tchk || !tchk_reads_delayed_(tchk->type())) continue;
+	    check_t chk;
+	    chk.tchk = tchk;
+	    chk.ref = tchk->ref().name.front().name;
+	    if (tchk->data()) chk.data = tchk->data()->name.front().name;
+	    for (unsigned idx = 0; idx < tchk->limit_count(); idx += 1) {
+		  double value = 0.0;
+		  NetExpr*limit = elab_and_eval(des, scope, tchk->limit(idx), -1);
+		  if (const NetEConst*con = dynamic_cast<NetEConst*>(limit))
+			value = con->value().has_sign() ? double(con->value().as_long())
+							: double(con->value().as_ulong64());
+		  else if (const NetECReal*rcon = dynamic_cast<NetECReal*>(limit))
+			value = rcon->value().as_double();
+		  delete limit;
+		  chk.limits.push_back(value);
+	    }
+	    found.push_back(chk);
+      }
+      if (found.empty()) return;
+
+      const double eps = pow(10.0, scope->time_precision() - scope->time_unit());
+      map<perm_string, double> delay;
+      for (;;) {
+	    struct constraint_t { perm_string hi, lo; double min; };
+	    vector<constraint_t> cons;
+	    for (const check_t&chk : found) {
+		  int s_idx, h_idx;
+		  tchk_window_roles_(chk.tchk->type(), s_idx, h_idx);
+		  if (s_idx < 0 || h_idx < 0 || chk.data.nil() || chk.ref == chk.data)
+			continue;
+		  double S = chk.limits[s_idx], H = chk.limits[h_idx];
+		  if (S < 0) cons.push_back({chk.ref, chk.data, eps - S});
+		  if (H < 0) cons.push_back({chk.data, chk.ref, eps - H});
+		  if (S < 0 && H >= 0) cons.push_back({chk.data, chk.ref, eps - H});
+		  if (H < 0 && S >= 0) cons.push_back({chk.ref, chk.data, eps - S});
+	    }
+	    delay.clear();
+	    bool changed = true;
+	    for (size_t round = 0; changed && round <= 2*cons.size(); round += 1) {
+		  changed = false;
+		  for (const constraint_t&con : cons) {
+			double want = delay[con.lo] + con.min;
+			if (delay[con.hi] < want - eps*1e-6) {
+			      delay[con.hi] = want;
+			      changed = true;
+			}
+		  }
+	    }
+	    if (!changed) break;
+
+	    check_t*pick = nullptr;
+	    int pick_idx = -1;
+	    for (check_t&chk : found) {
+		  int roles[2];
+		  tchk_window_roles_(chk.tchk->type(), roles[0], roles[1]);
+		  for (int idx : roles)
+			if (idx >= 0 && chk.limits[idx] < 0
+			    && (!pick || chk.limits[idx] > pick->limits[pick_idx])) {
+			      pick = &chk;
+			      pick_idx = idx;
+			}
+	    }
+	    ivl_assert(*found.front().tchk, pick);
+	    cerr << pick->tchk->get_fileline() << ": warning: inconsistent "
+		 << "negative timing check limits: the limit "
+		 << pick->limits[pick_idx] << " is set to 0 and the delayed "
+		 << "signals are recalculated (IEEE 1800-2023 31.9)." << endl;
+	    pick->limits[pick_idx] = 0.0;
+      }
+
+      set<perm_string> signals;
+      for (const check_t&chk : found) {
+	    signals.insert(chk.ref);
+	    if (!chk.data.nil()) signals.insert(chk.data);
+      }
+      for (perm_string base : signals) {
+	    NetNet*sig = scope->find_signal(base);
+	    if (sig == nullptr) continue;	// the checker reports it
+	    string view_name = string("_ivl_tcv_") + base.str();
+	    NetNet*view = new NetNet(scope, lex_strings.make(view_name.c_str()),
+				     NetNet::WIRE, sig->net_type());
+	    view->set_line(*sig);
+	    view->local_flag(true);
+	    auto named = explicit_delayed.find(base);
+	    if (named != explicit_delayed.end())
+		  if (NetNet*dsig = scope->find_signal(named->second))
+			connect(view->pin(0), dsig->pin(0));
+	    double d = delay.count(base) ? delay[base] : 0.0;
+	    if (d <= 0.0) {
+		  connect(view->pin(0), sig->pin(0));
+		  continue;
+	    }
+	      // always @(sig) copy <= #(d) sig;
+	    NetNet*copy = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				     sig->net_type());
+	    copy->set_line(*sig);
+	    copy->local_flag(true);
+	    connect(view->pin(0), copy->pin(0));
+	    pform_name_t sig_name, copy_name;
+	    sig_name.push_back(name_component_t(base));
+	    copy_name.push_back(name_component_t(copy->name()));
+	    PEIdent*lval = new PEIdent(copy_name, UINT_MAX);
+	    lval->set_line(*sig);
+	    PEIdent*rval = new PEIdent(sig_name, UINT_MAX);
+	    rval->set_line(*sig);
+	    PEFNumber*amount = new PEFNumber(new verireal(d));
+	    amount->set_line(*sig);
+	    PAssignNB*assign = new PAssignNB(lval, amount, rval);
+	    assign->set_line(*sig);
+	    PEIdent*watch = new PEIdent(sig_name, UINT_MAX);
+	    watch->set_line(*sig);
+	    PEventStatement*wait = new PEventStatement(new PEEvent(PEEvent::ANYEDGE, watch));
+	    wait->set_line(*sig);
+	    wait->set_statement(assign);
+	    PProcess process(IVL_PR_ALWAYS, wait);
+	    process.set_line(*sig);
+	    process.elaborate(des, scope);
+      }
+
+      for (const check_t&chk : found) {
+	    tchk_neg_adjust_t adj;
+	    adj.limits = chk.limits;
+	    adj.shifts.assign(chk.limits.size(), 0.0);
+	    double d_ref = delay.count(chk.ref) ? delay[chk.ref] : 0.0;
+	    double d_data = !chk.data.nil() && delay.count(chk.data) ? delay[chk.data] : 0.0;
+	    int s_idx, h_idx;
+	    tchk_window_roles_(chk.tchk->type(), s_idx, h_idx);
+	    if (s_idx >= 0) adj.shifts[s_idx] = d_ref - d_data;
+	    if (h_idx >= 0) adj.shifts[h_idx] = d_data - d_ref;
+	    if (chk.tchk->type() == vpiNoChange && d_ref != d_data)
+		  cerr << chk.tchk->get_fileline() << ": warning: $nochange "
+		       << "reads delayed signals with different delays; its "
+		       << "offsets are not adjusted." << endl;
+	    tchk_neg_adjust_[make_pair(scope, chk.tchk)] = adj;
+      }
+}
+
 void PTchk::elaborate(Design*des, NetScope*scope) const
 {
       NetTchk*tchk = new NetTchk;
@@ -32377,6 +32724,20 @@ void PTchk::elaborate(Design*des, NetScope*scope) const
 	    delete limit;
 	    tchk->limit_vars.push_back(var);
 	    tchk->limits.push_back(value);
+      }
+
+      auto adjusted = tchk_neg_adjust_.find(make_pair(scope, this));
+      if (adjusted != tchk_neg_adjust_.end()) {
+	    tchk->limits = adjusted->second.limits;
+	    tchk->shifts = adjusted->second.shifts;
+	    for (size_t idx = 0; idx < tchk->limits.size(); idx += 1) {
+		  double effective = tchk->limits[idx] + tchk->shifts[idx];
+		  if (effective <= 0.0 && (tchk->shifts[idx] != 0.0
+					   || tchk->limits[idx] < 0.0))
+			cerr << get_fileline() << ": warning: the adjusted timing "
+			     << "check limit " << effective << " is set to 0 "
+			     << "(IEEE 1800-2023 31.9)." << endl;
+	    }
       }
 
       if (notifier_) {
@@ -33544,9 +33905,40 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
       }
 }
 
+/* IEEE 1800-2017/2023 32.4.3: SDF LABEL annotates specparams. When the
+   design calls $sdf_annotate, each annotatable specparam of the instance
+   gets a hidden variable holding its run-time value, seeded with the
+   declared value when the simulation loads (see .param/storage). */
+static void elaborate_specparam_storage_(Design*des, NetScope*scope)
+{
+      if (!gn_sdf_annotate_flag || !gn_specify_blocks_flag) return;
+      for (const auto&cur : scope->parameters) {
+	    if (!cur.second.is_annotatable) continue;
+	    ivl_type_t type = 0;
+	    const NetExpr*value = scope->get_parameter(des, cur.first, type);
+	    netvector_t*vec = 0;
+	    if (dynamic_cast<const NetECReal*>(value))
+		  vec = new netvector_t(IVL_VT_REAL);
+	    else if (const NetEConst*con = dynamic_cast<const NetEConst*>(value))
+		  vec = new netvector_t(IVL_VT_LOGIC, con->expr_width() - 1, 0,
+					con->has_sign());
+	    else
+		  continue;
+	    string name = string("_ivl_sp_") + cur.first.str();
+	    NetNet*storage = new NetNet(scope, lex_strings.make(name.c_str()),
+					NetNet::REG, vec);
+	    storage->set_line(cur.second);
+	    storage->local_flag(true);
+	    storage->incr_eref();
+	    scope->specparam_storage(cur.first, storage);
+      }
+}
+
 bool Module::elaborate(Design*des, NetScope*scope) const
 {
       bool result_flag = true;
+
+      elaborate_specparam_storage_(des, scope);
 
 	// Elaborate the elaboration tasks.
       for (const auto et : elab_tasks) {
@@ -33603,6 +33995,11 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // Elaborate the behaviors, making processes out of them. This
 	      // involves scanning the PProcess* list, creating a NetProcTop
 	      // for each process.
+	      // IEEE 1800 31.9: with -gneg-tchk, make the delayed signals the
+	      // timing checks read before their checkers elaborate.
+	    if (gn_neg_tchk_flag && gn_specify_blocks_flag)
+		  elaborate_tchk_views_(des, scope, timing_checks);
+
 	    result_flag &= elaborate_behaviors_(des, scope);
 
 	      // Elaborate the specify paths of the module.
@@ -41581,6 +41978,18 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						      + to_string(width) + ":d:"
 						      + to_string(word)
 						      + (element->get_signed() ? ":s" : "");
+					    /* Inside `foreach (obj.q[i])' over this very array
+					       the index is the loop variable: the runtime
+					       resolves it per expanded element. */
+					  if (integral && !index_ir.empty()
+					      && !constraint_parse_const_ir_(index_ir, index)
+					      && dynforeach_emit_ctx_
+					      && dynforeach_emit_ctx_->nested_path == nested_path
+					      && dynforeach_emit_ctx_->rows_var.nil())
+						return "(xdelem " + nested_path + " "
+						      + to_string(width)
+						      + (element->get_signed() ? ":s" : "")
+						      + " " + index_ir + ")";
 					  if (!nested_root_rand) break;
 					  cerr << id->get_fileline() << ": error: nested dynamic-array "
 					       << "constraint selector must be one constant, "
@@ -45533,6 +45942,57 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	      body = "(xdynforeach " + object_path + ":#R:" + width
 		    + " " + body + ")";
 	      return "(xdynrows " + object_path + ":" + width + " " + body + ")";
+	    }
+	      /* `foreach (obj.q[i])' over a one-dimensional rand dynamic array
+		 or queue of a rand member object (18.5.8): solved with the
+		 object's own variables. The runtime expands the template over
+		 that array's leaf 0 once its size is known; each element is an
+		 (xdelem) at the substituted index. */
+	    if (cfe->prefix_names().empty() && cfe->loop_vars().size() == 1
+		&& !cfe->loop_vars()[0].nil() && cls
+		&& !cfe->member_name().nil() && cfe->source_path().empty()) {
+	      int handle = cls->property_idx_from_name(cfe->array_name());
+	      const netclass_t*child = handle >= 0
+		    ? dynamic_cast<const netclass_t*>(cls->get_prop_type((size_t)handle))
+		    : nullptr;
+	      int array = child
+		    ? child->property_idx_from_name(cfe->member_name()) : -1;
+	      const netdarray_t*flat = array >= 0
+		    ? dynamic_cast<const netdarray_t*>(child->get_prop_type((size_t)array))
+		    : nullptr;
+	      ivl_type_t elem = flat && !flat->packed()
+		    && !constraint_dyn2_inner_type_(flat) ? flat->element_type() : nullptr;
+	      ivl_variable_type_t base = elem ? elem->base_type() : IVL_VT_NO_TYPE;
+	      property_qualifier_t handle_qual = handle >= 0
+		    ? cls->get_prop_qual((size_t)handle) : property_qualifier_t();
+	      if (child && elem && elem->packed() && elem->packed_width()
+		  && elem->packed_width() <= 64
+		  && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+		      || dynamic_cast<const netenum_t*>(elem))
+		  && (handle_qual.test_rand() || handle_qual.test_randc())) {
+		    string object_path = to_string(handle) + "." + to_string(array);
+		    dynforeach_emit_ctx_t context;
+		    context.prop_idx = array;
+		    context.elem_wid = elem->packed_width();
+		    context.elem_signed = elem->get_signed();
+		    context.nested_path = object_path;
+		    context.loop_var = cfe->loop_vars()[0];
+		    string body;
+		    dynforeach_emit_ctx_ = &context;
+		    bool ok = true;
+		    for (const PExpr*item : cfe->items()) {
+			  if (!item) continue;
+			  string part = pexpr_to_constraint_ir(item, cls, value_slots,
+				scope, loop_env);
+			  if (part.empty()) { ok = false; break; }
+			  body = body.empty() ? part : "(and " + body + " " + part + ")";
+		    }
+		    dynforeach_emit_ctx_ = nullptr;
+		    if (!ok || body.empty()) return "";
+		    return "(xdynforeach " + object_path + ":#0:"
+			  + to_string(context.elem_wid)
+			  + (context.elem_signed ? ":s" : "") + " " + body + ")";
+	      }
 	    }
                   if (cfe->loop_vars().size() != 1
                       || cfe->loop_vars()[0].nil()) return "";
@@ -55694,6 +56154,15 @@ Design* elaborate(list<perm_string>roots)
        * unresolved/illegal interconnect components once at that fixed point,
        * including when an earlier statement already set rc or errors. */
       des->finalize_interconnects();
+
+	/* VPI's parameter default and defparam expressions (37.28), now
+	   that every parameter is final. */
+      if (rc && des->errors == 0) {
+	    for (NetScope*scope : des->find_package_scopes())
+		  scope->elaborate_vpi_parameter_exprs(des);
+	    for (NetScope*scope : des->find_root_scopes())
+		  scope->elaborate_vpi_parameter_exprs(des);
+      }
 
       if (rc == false) {
 	    delete des;

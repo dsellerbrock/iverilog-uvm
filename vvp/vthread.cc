@@ -212,12 +212,14 @@ class vvp_process : public vvp_object {
                                    vvp_code_t action_pc,
                                    __vpiScope*action_scope,
                                    const deferred_assert_args_s&action_args);
+      void enqueue_proc_assert(unsigned long source_id, __vpiScope*scope);
       void flush_deferred_asserts();
       void cancel_all_deferred_asserts();
       void cancel_deferred_asserts(__vpiScope*scope);
       void cancel_deferred_assertion(unsigned long source_id,
 				     __vpiScope*scope);
-      void cancel_deferred_asserts(const char*selector, int levels);
+      void cancel_proc_asserts_in(unsigned long source_id,
+				  __vpiScope*module_scope);
       void mature_deferred_asserts();
       void pin_final_deferred_assert(unsigned long source_id,
                                      unsigned result,
@@ -241,6 +243,9 @@ class vvp_process : public vvp_object {
 	// std::deque still allocates.
       std::vector<deferred_assert_report_s> deferred_asserts_;
       bool deferred_assert_observed_armed_;
+	// A procedural concurrent assertion's maturity event runs at the
+	// front of the Observed region (see enqueue_proc_assert).
+      bool proc_assert_front_armed_ = false;
       std::map<unsigned long, deferred_assert_report_s>
             final_deferred_asserts_;
       std::vector<unsigned long> final_deferred_order_;
@@ -1814,6 +1819,35 @@ void vvp_process::enqueue_deferred_assert(unsigned long source_id,
       schedule_at_observed(new deferred_assert_mature_event_s(this), 0);
 }
 
+/* IEEE 1800-2023 16.14.6: reaching a procedural concurrent assertion puts a
+ * pending instance on this process's procedural assertion queue. It shares
+ * the deferred assertion queue, whose flush points (16.14.6.2 lists the
+ * same ones as 16.4.2), label disables (16.14.6.4) and kill flushes already
+ * follow the rules. Its maturity event goes to the FRONT of the Observed
+ * region, so it runs before any assertion checker that this time step's
+ * clock resumed there: an instance whose leading clock occurs in the same
+ * step then starts its attempt in that step, whatever the process order.
+ */
+void vvp_process::enqueue_proc_assert(unsigned long source_id,
+				      __vpiScope*scope)
+{
+      if (deferred_asserts_.empty())
+            deferred_assert_processes_.insert(this);
+
+      deferred_assert_report_s report;
+      report.source_id = source_id;
+      report.result = 0;
+      report.action_pc = 0;
+      report.action_scope = scope;
+      deferred_asserts_.push_back(report);
+      pending_deferred_assert_reports_ += 1;
+
+      if (proc_assert_front_armed_)
+	    return;
+      proc_assert_front_armed_ = true;
+      schedule_at_observed_front(new deferred_assert_mature_event_s(this));
+}
+
 void vvp_process::flush_deferred_asserts()
 {
       pending_deferred_assert_reports_ -= deferred_asserts_.size();
@@ -1868,12 +1902,15 @@ void vvp_process::cancel_all_deferred_asserts()
       });
 }
 
-void vvp_process::cancel_deferred_asserts(const char*selector, int levels)
+void vvp_process::cancel_proc_asserts_in(unsigned long source_id,
+					 __vpiScope*module_scope)
 {
-      cancel_deferred_asserts_([selector, levels](
+      cancel_deferred_asserts_([source_id, module_scope](
             const deferred_assert_report_s&report) {
-            return vpip_deferred_assert_scope_matches(
-                  report.action_scope, selector, levels);
+            if (report.source_id != source_id) return false;
+            for (__vpiScope*cur = report.action_scope ; cur ; cur = cur->scope)
+                  if (cur == module_scope) return true;
+            return false;
       });
 }
 
@@ -1887,16 +1924,32 @@ void vvp_process::cancel_deferred_assertion(unsigned long source_id,
       });
 }
 
-extern "C" void vpip_cancel_deferred_asserts(const char*selector,
-                                               PLI_INT32 levels)
+/* The pending instances of procedural concurrent assertion pid, queued
+   anywhere inside module_scope (20.11 Kill). */
+void vpip_cancel_proc_asserts(PLI_INT32 pid, __vpiScope*module_scope)
 {
+      unsigned long source_id = VPIP_PROC_ASSERT_SOURCE | (unsigned long)pid;
       for (std::set<vvp_process*>::iterator cur =
-                 deferred_assert_processes_.begin();
-           cur != deferred_assert_processes_.end();) {
-            vvp_process*process = *cur++;
-            process->cancel_deferred_asserts(selector, levels);
+		 deferred_assert_processes_.begin();
+	   cur != deferred_assert_processes_.end();) {
+	    vvp_process*process = *cur++;
+	    process->cancel_proc_asserts_in(source_id, module_scope);
       }
-      vpip_report_deferred_assertion_reset_callbacks(selector, levels);
+}
+
+/* IEEE 1800-2023 16.14.6: queue a pending instance of procedural concurrent
+   assertion pid on the calling thread's process. */
+void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle scope_handle)
+{
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(scope_handle);
+      vthread_t owner = vpip_current_vthread
+	    ? logical_process_thread_(vpip_current_vthread) : 0;
+      vvp_process*process = owner ? owner->process_obj_.peek<vvp_process>() : 0;
+      if (!process || !scope || pid <= 0) return;
+	/* 20.11 Off: "no new instances may be queued". */
+      if (!vpip_proc_assert_may_queue(pid, scope)) return;
+      process->enqueue_proc_assert(VPIP_PROC_ASSERT_SOURCE
+				   | (unsigned long)pid, scope);
 }
 
 void vpip_cancel_deferred_assertion(unsigned long source_id,
@@ -1915,6 +1968,7 @@ void vpip_cancel_deferred_assertion(unsigned long source_id,
 void vvp_process::mature_deferred_asserts()
 {
       deferred_assert_observed_armed_ = false;
+      proc_assert_front_armed_ = false;
       if (final_deferred_asserts_.empty())
             deferred_assert_processes_.erase(this);
 
@@ -1924,12 +1978,23 @@ void vvp_process::mature_deferred_asserts()
 
       for (size_t rdx = 0 ; rdx < reports.size() ; rdx += 1) {
 	    deferred_assert_report_s report = reports[rdx];
+	    if (report.source_id & VPIP_PROC_ASSERT_SOURCE) {
+		  vpip_proc_assert_matured(
+			(PLI_INT32)(report.source_id & ~VPIP_PROC_ASSERT_SOURCE),
+			report.action_scope);
+		  continue;
+	    }
 	    if (report.source_id)
 		  vpip_deferred_assertion_report(report.source_id,
 			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
 			  report.action_scope);
 
 	    if (!report.action_pc || !report.action_scope)
+		  continue;
+	    if (report.source_id
+		&& !vpip_deferred_action_enabled(report.source_id,
+						 report.action_scope,
+						 report.result))
 		  continue;
 
 	    vthread_t action = vthread_new(report.action_pc,
@@ -2027,6 +2092,11 @@ void vvp_process::mature_final_deferred_asserts()
 			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
 			  report.action_scope);
 	    if (!report.action_pc || !report.action_scope)
+		  continue;
+	    if (report.source_id
+		&& !vpip_deferred_action_enabled(report.source_id,
+						 report.action_scope,
+						 report.result))
 		  continue;
 
 	    /* The action fragment is passive and ends in %end. Rebuild the

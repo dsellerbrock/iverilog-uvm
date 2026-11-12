@@ -1,0 +1,2 @@
+ivltests/issue2814_multidim_concat_wrong_type.sv:6: error: fixed unpacked array concatenation operand has elements incompatible with the destination queue element (IEEE 1800-2017/2023 10.10).
+1 error(s) during elaboration.
