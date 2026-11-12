@@ -1902,8 +1902,15 @@ class NetScope : public Definitions, public Attrib {
       };
       std::vector<defparam_t> defparams_kept;
 
-	/* Elaborate the expressions VPI keeps for parameters and defparams
-	   in this scope and its children, once parameters are final. */
+	/* The actual of each port of this instance, in port order (nil when
+	   unconnected), and its tree elaborated in the parent for VPI's
+	   vpiHighConn (37.14). */
+      std::vector<PExpr*> port_actuals;
+      std::vector<NetExpr*> port_highconns;
+
+	/* Elaborate the expressions VPI keeps for parameters, defparams and
+	   port connections in this scope and its children, once parameters
+	   are final. */
       void elaborate_vpi_parameter_exprs(Design*des);
 
 	/* The DLL target copies every parameter value while materializing its
