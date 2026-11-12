@@ -16252,6 +16252,26 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               }
                               if (full_support) continue;
                         }
+                        /* Any other prefix past the enumeration cap: a BDD
+                         * over the hard constraints proves they have a
+                         * solution, and the draw takes each prefix stage from
+                         * the same BDD, so only prefixes with a completion are
+                         * drawn (18.5.9). Constant weights cannot make one of
+                         * those fibers fail (18.5.3). */
+                        bool constant_weights = !prefix_vars.empty();
+                        for (const auto&binding : bindings)
+                              if (binding.stage == stage
+                                  && !z3_constant_dist_weights_(*binding.spec))
+                                    constant_weights = false;
+                        if (!full_prefix && constant_weights) {
+                              uint64_t count = 0;
+                              Z3_lbool proved = z3_bdd_pin_stages_(ctx, base,
+                                    opt, vector<vector<Z3_ast> >(1, prefix_vars),
+                                    nullptr, &count);
+                              if (proved == Z3_L_FALSE) return fail_joint(nullptr);
+                              if (proved == Z3_L_TRUE && count > ENUM_DOMAIN_CAP)
+                                    continue;
+                        }
                         vector<vector<uint64_t> > prefixes;
                         const char*reason = nullptr;
                         if (z3_enumerate_joint_(ctx, base, prefix_vars,
@@ -16405,6 +16425,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     ctx, base, projection.front(),
                                     projection_bits);
                         if (full_projection) continue;
+                          /* Past the cap, a BDD proves the projection
+                           * nonempty; the draw takes it from the same BDD
+                           * (18.5.9). Its count is cheap; enumerating up to
+                           * the cap first would not be. */
+                        uint64_t projection_count = 0;
+                        Z3_lbool counted = z3_bdd_pin_stages_(ctx, base, opt,
+                              vector<vector<Z3_ast> >(1, projection), nullptr,
+                              &projection_count);
+                        if (counted == Z3_L_FALSE) return fail_joint(nullptr);
+                        if (counted == Z3_L_TRUE
+                            && projection_count > ENUM_DOMAIN_CAP)
+                              continue;
                         vector<vector<uint64_t> > values;
                         const char*reason = nullptr;
                         if (z3_enumerate_joint_(ctx, base, projection,
@@ -16910,6 +16942,21 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                                 uint64_t(1) << projection_bits);
                                     pin_column(columns.front(), chosen);
                                     continue;
+                              }
+                                /* Past the cap, the BDD draws the stage
+                                 * exactly uniformly over its projection given
+                                 * the earlier pins (18.5.9). */
+                              uint64_t projection_count = 0;
+                              Z3_lbool counted = z3_bdd_pin_stages_(ctx, base,
+                                    opt, vector<vector<Z3_ast> >(1, projection),
+                                    nullptr, &projection_count);
+                              if (counted == Z3_L_TRUE
+                                  && projection_count > ENUM_DOMAIN_CAP) {
+                                    if (z3_bdd_pin_stages_(ctx, base, opt,
+                                          vector<vector<Z3_ast> >(1, projection),
+                                          &root_rng) == Z3_L_TRUE)
+                                          continue;
+                                    return fail_joint("a coupled stage projection could not be drawn from its BDD");
                               }
                               vector<vector<uint64_t> > values;
                               const char*reason = nullptr;
