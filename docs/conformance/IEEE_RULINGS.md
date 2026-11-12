@@ -28,7 +28,7 @@ ruled). A provisional reading an agent built on before a ruling is marked "provi
 | 2026-11-10 | | #953 | (see issue) | Left as is. | owner |
 | 2026-11-10 | 20.6.1 | #791 | Does `$typename` carry the package prefix? | Yes, per 20.6.1; the `sv_typename1` gold is updated. | owner |
 | 2026-11-10 | 37 VPI | #1310 | Emit `.vpi_contassign` records always or on demand? | Always (+0.7% VVP bytes on the sample, no run-time cost, existing lines unchanged). | supervisor |
-| 2026-11-10 | 37 VPI | #1290 | A parameter default's `vpiExpr`: evaluated where, and before or after overrides? | In the declaring instance, after overrides. **Provisional** (vpi-solver), not yet ruled by the owner. | provisional |
+| 2026-11-12 | 37.28, 23.10 | #1290 | A parameter default's `vpiExpr` refers to another, overridden parameter: which value does it read? | The declaring instance's values, after overrides, as elaboration uses them (23.10): in `m #(.P(10)) u2`, `Q = P + 1` reads 11, not 2. Shipped in PR #2839. | owner |
 | 2026-11-10 | 18.4 | #2535 | A grown leaf of a nested dynamic array during resize | 18.4 is explicit; the test's "grown leaf kept" check is dropped. | explicit text |
 | 2026-11-10 | 25.6 | #2804 (part B) | Which readers of a delayed path see the delayed value | Same reading as Eve's mppath ruling: the modport-path reader sees the undelayed shadow, other readers the delayed value. | supervisor (consistency with Eve) |
 | 2026-11-11 | 16.14.6 (SVA Q6) | #1192 | Order of same-tick action blocks of one procedural assertion | Strict enqueue order (a sequence number per slot), not slot order. | owner |
