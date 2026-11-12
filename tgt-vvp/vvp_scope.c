@@ -674,7 +674,10 @@ static unsigned nvartype_notes = 0;
 
 static int type_has_vartype_(ivl_type_t type)
 {
-      return type && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
+      /* Class properties are emitted in .class metadata; they are not a
+         struct/union typespec for an array of class handles. */
+      return type && ivl_type_base(type) != IVL_VT_CLASS
+          && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
 }
 
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
