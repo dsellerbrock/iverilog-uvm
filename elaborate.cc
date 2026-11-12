@@ -3174,6 +3174,12 @@ struct pending_interface_specify_path_t {
 static vector<pending_interface_specify_path_t>
       pending_interface_specify_paths_;
 
+/* The initializer expression of each interface port bound directly to an
+   interface instance, keyed by (port, word). A module path to a variable
+   member records its shadow there for the run-time handle. */
+static map<pair<const NetNet*,unsigned>,NetEScope*>
+      interface_port_scope_bindings_;
+
 struct pending_interface_variable_continuous_driver_t {
       NetNet*port;
       unsigned port_word;
@@ -8166,6 +8172,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 							    actual->second[scope_word],
 							    static_cast<ivl_type_t>(ifc));
 						      se->set_line(*aid);
+						      interface_port_scope_bindings_[
+							    make_pair(prts[0], (unsigned)word)] = se;
 						      NetAssign_*lv = new NetAssign_(prts[0]);
 						      NetEConst*word_expr =
 							    make_const_val_s(word);
@@ -8353,8 +8361,10 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			       * to the real member NetNet. A forwarded interface port
 			       * forms a chain which is resolved after the whole
 			       * hierarchy has been elaborated. */
-			      if (const NetEScope*bound_scope =
-				    dynamic_cast<const NetEScope*>(vif)) {
+			      if (NetEScope*bound_scope =
+				    dynamic_cast<NetEScope*>(vif)) {
+				    interface_port_scope_bindings_[
+					  make_pair(port_var, 0U)] = bound_scope;
 				    port_var->bind_interface_scope(
 					  0, const_cast<NetScope*>(
 						bound_scope->scope()));
@@ -31770,6 +31780,113 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
 	    }
       }
       elaborate_bound_(des, scope);
+}
+
+/*
+ * IEEE 1800 25.6: a module path may end on an interface variable reached
+ * through a modport port. The module writes that variable through its
+ * port handle at run time, so there is no structural driver to delay.
+ * Give the module a local shadow variable instead: the port's static
+ * binding and its run-time handle (%vif/bind) both reach the shadow, the
+ * path's destination becomes the shadow, and the interface variable
+ * turns into a net driven by the path. Reads inside the module therefore
+ * see the undelayed value and everything else sees the delayed one, as
+ * for an ordinary output port. (25.6 does not say whose view is delayed;
+ * this follows the supervisor's ruling of 2026-11-10.)
+ */
+static void prepare_interface_path_shadows_(Design*des)
+{
+      map<NetNet*,NetNet*> shadow_owner;	// member -> its shadow
+      for (const pending_interface_specify_path_t&pending :
+	   pending_interface_specify_paths_) {
+	    const PSpecPath*path = pending.path;
+	    NetScope*scope = pending.scope;
+	    for (const pform_specify_terminal_t&terminal : path->dst) {
+		  if (!terminal.dotted())
+			continue;
+		  NetNet*port = scope->find_signal(terminal.name);
+		  const netclass_t*itype = port
+			? dynamic_cast<const netclass_t*>(port->net_type()) : 0;
+		  if (!itype || !itype->is_interface() || port->pin_count() != 1)
+			continue;
+		  int pid = itype->property_idx_from_name(terminal.member);
+		  if (pid < 0)
+			continue;
+		    // Only a legal destination; elaborate_bound_ reports the rest.
+		  perm_string modport = itype->interface_modport();
+		  if (modport.nil()) {
+			verinum attr = port->attribute(
+			      perm_string::literal("ivl_modport"));
+			if (attr != verinum())
+			      modport = lex_strings.make(attr.as_string().c_str());
+		  }
+		  if (!modport.nil()) {
+			const PModport*view = interface_modport_view(itype, modport);
+			if (!view)
+			      continue;
+			auto mp = view->simple_ports.find(terminal.member);
+			if (mp == view->simple_ports.end() || mp->second.second
+			    || (mp->second.first != NetNet::POUTPUT
+				&& mp->second.first != NetNet::PINOUT))
+			      continue;
+		  }
+		  NetNet*member = port->resolve_interface_member(0, pid);
+		  if (!member || member->type() != NetNet::REG
+		      || member->unpacked_dimensions() > 0
+		      || !type_is_vectorable(member->data_type()))
+			continue;	// a net member needs no shadow
+
+		  auto old = shadow_owner.find(member);
+		  if (old != shadow_owner.end()) {
+			if (old->second->scope() == scope)
+			      continue;	// another path of the same module
+			cerr << path->get_fileline() << ": sorry: Module paths "
+			     << "from more than one instance to interface variable `"
+			     << member->name() << "' are not supported." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  auto bound = interface_port_scope_bindings_.find(
+			make_pair(static_cast<const NetNet*>(port), 0U));
+		  if (bound == interface_port_scope_bindings_.end()) {
+			  // ponytail: a forwarded port shares its parent's
+			  // handle, so it cannot take its own view; bind the
+			  // shadow at the root binding if this is ever needed.
+			cerr << path->get_fileline() << ": warning: The delay of "
+			     << "the module path to `" << terminal << "' is ignored: "
+			     << "interface port `" << terminal.name << "' is passed "
+			     << "through from another port, not bound to an "
+			     << "interface instance." << endl;
+			continue;
+		  }
+
+		  NetNet*shadow = new NetNet(scope, scope->local_symbol(),
+					     NetNet::REG, member->net_type());
+		  shadow->set_line(*path);
+		    // Not local_flag: nodangle drops a local signal that shares
+		    // its nexus with the member, and the handle needs it.
+		  port->bind_interface_member(0, pid, shadow);
+		  bound->second->add_vif_bind(pid, shadow);
+		  shadow_owner[member] = shadow;
+
+		    // With the module's own writes now on the shadow, any
+		    // remaining writer of the member would fight the path.
+		  if (member->test_part_procedurally_driven(
+			    member->vector_width()-1, 0, 0)
+		      || interface_member_has_property_writer_(member, itype)) {
+			cerr << path->get_fileline() << ": sorry: Interface "
+			     << "variable `" << member->name() << "' is a module "
+			     << "path destination and is also written outside `"
+			     << scope_path(scope) << "'; this is not supported."
+			     << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  member->type(NetNet::UNRESOLVED_WIRE);
+		  connect(shadow->pin(0), member->pin(0));
+	    }
+      }
 }
 
 static void finalize_interface_specify_paths_(Design*des)
@@ -55570,6 +55687,7 @@ Design* elaborate(list<perm_string>roots)
       pending_interface_continuous_drivers_.clear();
       pending_interface_specify_paths_.clear();
       pending_interface_variable_continuous_drivers_.clear();
+      interface_port_scope_bindings_.clear();
       pending_variable_continuous_drivers_.clear();
       pending_variable_array_continuous_drivers_.clear();
       pending_unsafe_interface_drivers_.clear();
@@ -55956,6 +56074,7 @@ Design* elaborate(list<perm_string>roots)
        * installed. Attach each persistent continuous net driver now, after all
        * scalar, array, and forwarded interface bindings are complete. */
       finalize_interface_ref_actuals_();
+      prepare_interface_path_shadows_(des);
       finalize_interface_continuous_drivers_(des);
       finalize_resolved_struct_nets_(des);
       fill_unwritten_variable_uwire_bits_(des);

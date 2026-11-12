@@ -116,6 +116,8 @@ ivl_expr_sized
 ivl_expr_string
 ivl_expr_uvalue
 ivl_expr_value
+ivl_expr_vif_bind
+ivl_expr_vif_binds
 	ivl_expr_vif_method
 	ivl_expr_vif_methods
 	ivl_expr_vif_parm_is_default

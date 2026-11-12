@@ -38,6 +38,8 @@ class vvp_vinterface : public vvp_object {
       vvp_vinterface(__vpiScope*scope, const class_type*defn);
       ~vvp_vinterface() override;
 
+      void bind_slot(size_t pid, vpiHandle item);
+
       void set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx = 0);
       void get_vec4(size_t pid, vvp_vector4_t&val, size_t idx = 0) const;
       bool reject_continuous_write(size_t pid, size_t idx = 0) const;

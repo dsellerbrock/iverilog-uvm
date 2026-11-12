@@ -952,6 +952,11 @@ static int eval_object_scope(ivl_expr_t ex)
 
       ensure_class_type_emitted(class_type);
       fprintf(vvp_out, "    %%new/vif S_%p, C%p;\n", scope, class_type);
+      for (unsigned idx = 0 ; idx < ivl_expr_vif_binds(ex) ; idx += 1) {
+	    unsigned pid;
+	    ivl_signal_t sig = ivl_expr_vif_bind(ex, idx, &pid);
+	    fprintf(vvp_out, "    %%vif/bind %u, v%p_0;\n", pid, sig);
+      }
       return 0;
 }
 

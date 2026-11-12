@@ -30013,6 +30013,22 @@ bool of_NEW_VIF(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %vif/bind <pid>, <signal>
+ *
+ * The interface handle on top of the object stack, a module's interface
+ * port, reaches member <pid> through the module-local <signal> instead:
+ * that member is a module path destination and the path drives the
+ * interface member from <signal> (IEEE 1800 25.6).
+ */
+bool of_VIF_BIND(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vinterface*vif = thr->peek_object().peek<vvp_vinterface>();
+      if (vif)
+	    vif->bind_slot(cp->bit_idx[0], cp->handle);
+      return true;
+}
+
 /* logical_process_thread_() moved up next to the thread-RNG helpers
    (R3, IEEE 1800-2017 18.13.1) -- it is the resolver both process::self()
    and the RNG hierarchy use to find "the" thread a nested callf/fork_v

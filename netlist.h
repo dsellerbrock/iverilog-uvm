@@ -6094,6 +6094,14 @@ class NetEScope  : public NetExpr {
 
       const NetScope* scope() const;
 
+	// An interface port binding whose member PID is a module path
+	// destination: the module's view of that member is the module-local
+	// shadow SIG (IEEE 1800 25.6).
+      void add_vif_bind(unsigned pid, NetNet*sig)
+      { vif_binds_.push_back(std::make_pair(pid, sig)); }
+      const std::vector<std::pair<unsigned,NetNet*> >& vif_binds() const
+      { return vif_binds_; }
+
       virtual void expr_scan(struct expr_scan_t*) const override;
       virtual NetEScope* dup_expr() const override;
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
@@ -6103,6 +6111,7 @@ class NetEScope  : public NetExpr {
 
     private:
       NetScope*scope_;
+      std::vector<std::pair<unsigned,NetNet*> > vif_binds_;
 };
 
 /*

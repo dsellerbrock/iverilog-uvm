@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2804_iface_var_path.v",
+  "iverilog-args": ["-g2023", "-gspecify"]
+}
