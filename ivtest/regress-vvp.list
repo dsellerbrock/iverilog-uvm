@@ -1,6 +1,8 @@
 
 # Test list files are a list of test names and the json that
 # describes the test.
+issue1274_vpi_port_conn_2017 vvp_tests/issue1274_vpi_port_conn_2017.json
+issue1274_vpi_port_conn_2023 vvp_tests/issue1274_vpi_port_conn_2023.json
 issue1290_vpi_param_default_2017 vvp_tests/issue1290_vpi_param_default_2017.json
 issue1290_vpi_param_default_2023 vvp_tests/issue1290_vpi_param_default_2023.json
 issue2372_nested_queue_foreach_2017 vvp_tests/issue2372_nested_queue_foreach_2017.json

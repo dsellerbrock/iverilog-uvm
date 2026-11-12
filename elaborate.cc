@@ -7641,6 +7641,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
       NetScope::scope_vec_t&instance = scope->instance_arrays[get_name()];
 
+	/* Each port's actual, for its vpiHighConn (IEEE 1800-2023 37.14
+	   detail 3). An instance array splits its actuals, so only a single
+	   instance keeps them. */
+      if (instance.size() == 1)
+	    instance[0]->port_actuals.assign(pins.begin(), pins.end());
+
 	// Capture the formal declaration kind before interface formals are
 	// retagged with the effective modport of their actual connection.
       vector<PortInfo::ModulePortVpiType> port_vpi_types(

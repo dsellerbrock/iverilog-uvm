@@ -1628,6 +1628,13 @@ void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 	    for (defparam_t&cur : defparams_kept)
 		  cur.rhs_net = elaborate_for_vpi_(des, this, cur.rhs);
       }
+      if (parent() && !port_actuals.empty()) {
+	    port_highconns.assign(port_actuals.size(), nullptr);
+	    for (size_t idx = 0; idx < port_actuals.size(); idx += 1)
+		  if (port_actuals[idx])
+			port_highconns[idx] = elaborate_for_vpi_(des, parent(),
+							     port_actuals[idx]);
+      }
       for (map<hname_t,NetScope*>::const_iterator cur = children_.begin()
 		 ; cur != children_.end() ; ++cur)
 	    cur->second->elaborate_vpi_parameter_exprs(des);

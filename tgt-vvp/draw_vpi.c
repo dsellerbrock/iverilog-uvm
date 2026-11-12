@@ -553,10 +553,14 @@ static unsigned static_thunk_count_ = 1u << 30;
 void draw_vpi_objects_in_scope(ivl_scope_t scope)
 {
       unsigned idx, save_local = local_count, save_thread = thread_count;
+      unsigned nports = ivl_scope_type(scope) == IVL_SCT_MODULE
+	    ? ivl_scope_mod_module_ports(scope) : 0;
       int any = ivl_scope_contassigns(scope) || ivl_scope_defparams(scope);
 
       for (idx = 0; !any && idx < ivl_scope_params(scope); idx += 1)
 	    any = ivl_parameter_default_expr(ivl_scope_param(scope, idx)) != 0;
+      for (idx = 0; !any && idx < nports; idx += 1)
+	    any = ivl_scope_mod_module_port_highconn(scope, idx) != 0;
       if (!any) return;
       thread_count = static_thunk_count_++;
       local_count = 0;
@@ -566,6 +570,15 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 	    char*text = def ? draw_lazy_expr_(def) : 0;
 	    if (text)
 		  fprintf(vvp_out, " .vpi_param_expr P_%p, %s;\n", par, text);
+	    free(text);
+      }
+	/* The actual of each connected port (vpiHighConn, IEEE 1800-2023
+	   37.14). vvp finds the port's own signal, its vpiLowConn, by name. */
+      for (idx = 0; idx < nports; idx += 1) {
+	    ivl_expr_t high = ivl_scope_mod_module_port_highconn(scope, idx);
+	    char*text = high ? draw_lazy_expr_(high) : 0;
+	    if (text)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 1, %s;\n", idx, text);
 	    free(text);
       }
       for (idx = 0; idx < ivl_scope_defparams(scope); idx += 1) {

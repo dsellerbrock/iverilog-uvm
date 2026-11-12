@@ -700,7 +700,13 @@ class vpiPortInfo  : public __vpiHandle {
       std::vector<vpiPortBitInfo*> port_bits_;
       std::vector<vpiPortComponentInfo*> evcd_components_;
 
+	/* The actual connected to this port (vpiHighConn), resolved in
+	   place after construction; argc 0 when it is unconnected. */
+      unsigned high_argc_ = 0;
+      vpiHandle*high_argv_ = nullptr;
+
     private:
+      vpiHandle low_conn_(void);
       __vpiScope *parent_;
       unsigned  index_;
       int       direction_;
