@@ -237,6 +237,7 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       const char*nm = "";
       const char*fl = "";
       PLI_INT32 idx = 0, ln = 0, depth = 0, flags = 0, assertion_kind = 1;
+      PLI_INT32 control_type = 1;
       (void)name;
       nbuf[0] = 0; fbuf[0] = 0;
       if (argv) {
@@ -287,12 +288,17 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 			v.format = vpiIntVal;
 			vpi_get_value(a, &v);
 			assertion_kind = v.value.integer;
+			if ((a = vpi_scan(argv))) {       /* assertion_type bit */
+			      v.format = vpiIntVal;
+			      vpi_get_value(a, &v);
+			      control_type = v.value.integer;
+			}
 		  }
 		  vpi_free_object(argv);
 	    }
       }
       vpip_register_assertion(idx, nm, fl, ln, vpi_handle(vpiScope, callh),
-			      depth, flags, assertion_kind);
+			      depth, flags, assertion_kind, control_type);
       return 0;
 }
 

@@ -14698,7 +14698,8 @@ static PExpr* sva_rewrite_symbolic_uarray_operand_(
    vpi_user.h. Each identity space numbers its assertions separately, so a
    concurrent checker index and a deferred source id cannot collide. */
 enum { SVA_SPACE_CONCURRENT = 0, SVA_SPACE_IMMEDIATE = 1,
-       SVA_SPACE_DEFERRED = 2, SVA_SPACE_IMMEDIATE_COVER = 3 };
+       SVA_SPACE_DEFERRED = 2, SVA_SPACE_IMMEDIATE_COVER = 3,
+       SVA_SPACE_EXPECT = 4 };
 enum { SVA_STATE_ENABLED = 0, SVA_STATE_KILL_GENERATION = 1,
        SVA_STATE_FAIL_ACTION = 2, SVA_STATE_PASS_ACTION = 3,
        SVA_STATE_VACUOUS_ACTION = 4 };
@@ -14846,7 +14847,8 @@ static unsigned sva_active_assertion_kind_ = 1;
 static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
 				     long edges = -1,
 				     bool fail_full_latency = false,
-				     PExpr*edges_expr = nullptr)
+				     PExpr*edges_expr = nullptr,
+				     unsigned ctl_type = 1)
 {
       char nbuf[64];
       if (sva_active_assertion_label_.nil())
@@ -14878,6 +14880,10 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
       a6.parm = new PENumber(new verinum(
 	    (uint64_t)sva_active_assertion_kind_, 32));
       args.push_back(a6);
+      /* Expect statements have their own Table 20-6 identity (bit 16). */
+      named_pexpr_t a7;
+      a7.parm = new PENumber(new verinum((uint64_t)ctl_type, 32));
+      args.push_back(a7);
       PCallTask*t = new PCallTask(
 	    lex_strings.make("$ivl_register_assertion"), args);
       FILE_NAME(t, loc);
@@ -30006,6 +30012,15 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 
       PEventStatement*clk = prop->clk_evt;
       unsigned inst = sva_gensym_counter++;
+	/* Register expect independently of the statement's execution so
+	   assertion-control rules can select it before the process reaches it. */
+      PProcess*reg = pform_make_behavior(IVL_PR_INITIAL,
+						 sva_register_stmt_(loc, inst, -1,
+								    false, nullptr, 16),
+						 nullptr);
+      struct vlltype initloc = loc;
+      initloc.first_line = 0;
+      FILE_NAME(reg, initloc);
 
       if (fast) {
 	    std::vector<sva_seq_step_t>&s = *prop->seq;
@@ -30042,7 +30057,11 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 	    }
 
 	      /* Terminal dispatch: pass on a match, else on a failure. */
-	    body.push_back(sva_if_(loc, sva_id_(loc, m), pass_stmt, else_stmt));
+	      body.push_back(sva_if_(loc, sva_id_(loc, m),
+			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_PASS_ACTION,
+					   pass_stmt),
+			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_FAIL_ACTION,
+					   else_stmt)));
 
 	      /* The clock was cloned per wait; the original is now free. */
 	    delete prop->clk_evt;
@@ -30138,7 +30157,11 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 			       sva_block_(loc, tick));
       FILE_NAME(loop, loc);
       body.push_back(loop);
-      body.push_back(sva_if_(loc, sva_id_(loc, ok_r), pass_stmt, else_stmt));
+	      body.push_back(sva_if_(loc, sva_id_(loc, ok_r),
+			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_PASS_ACTION,
+					   pass_stmt),
+			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_FAIL_ACTION,
+					   else_stmt)));
 
 	/* Null the stolen guard expressions at their sources so the
 	   deletes below cannot double-free them. */

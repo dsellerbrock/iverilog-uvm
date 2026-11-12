@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2872_expect_assertion_controls.v",
+  "iverilog-args": ["-g2023", "-s", "issue2872_expect_assertion_controls"],
+  "gold": "issue2872_expect_assertion_controls_2023"
+}

@@ -1654,7 +1654,7 @@ class __vpiAssertion : public __vpiHandle {
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
 		     __vpiScope*scope, int depth_arg, int flags,
-		     int assertion_kind)
+			     int assertion_kind)
       : idx_(idx), name_(nam?nam:""), file_(file?file:""), line_(line),
 	scope_(scope),
 	  // M12-2: depth_arg is the fixed start->accept edge count (>=1)
@@ -1670,6 +1670,8 @@ class __vpiAssertion : public __vpiHandle {
 			: assertion_kind == 2 ? vpiCover : vpiAssert),
 	ctl_dir_(assertion_kind == 4 || assertion_kind == 2 ? assertion_kind : 1)
       { }
+
+      void set_control_type(int type) { ctl_type_ = type; }
 
       __vpiAssertion(unsigned long source_id, __vpiScope*scope,
 		     int deferred_type, const char*file, int line,
@@ -1784,6 +1786,10 @@ class __vpiAssertion : public __vpiHandle {
 		  return false;
 	    }
 	    if (locked_) return false;
+	    /* IEEE 1800-2017 20.12 / 1800-2023 20.11: On, Off, and Kill
+	       do not affect expect statements. Action controls still do. */
+	    if ((ctl_type_ & 16) && (ctl == 3 || ctl == 4 || ctl == 5))
+		  return false;
 	    bool was = enabled_;
 	    bool notify = callbacks && (idx_ >= 0 || deferred_source_id_);
 	    switch (ctl) {
@@ -2067,12 +2073,14 @@ static void replay_assertion_control_(__vpiAssertion*obj);
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg,
-			     PLI_INT32 flags, PLI_INT32 assertion_kind)
+			     PLI_INT32 flags, PLI_INT32 assertion_kind,
+			     PLI_INT32 control_type)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line,
 					      sc, (int)depth_arg, (int)flags,
 					      (int)assertion_kind);
+	  obj->set_control_type(control_type);
       assertion_registry.push_back(obj);
       replay_assertion_control_(obj);
       if (sc) {
@@ -2291,6 +2299,10 @@ PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
 	  case vpipAssertSpaceImmediateCover:
 	    obj = find_assertion_up_(immediate_cover_by_key, sc, (int)id, true);
 	    type_bit = 2;
+	    break;
+	  case 4: /* procedural expect */
+	    obj = find_assertion_up_(assertion_by_key, sc, (int)id, false);
+	    type_bit = 16;
 	    break;
 	  default:
 	    return -1;
