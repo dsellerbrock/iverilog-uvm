@@ -2518,6 +2518,30 @@ extern "C" int ivl_path_is_parallel(ivl_delaypath_t obj)
       return obj->parallel ? 1 : 0;
 }
 
+extern "C" unsigned ivl_path_dst_base(ivl_delaypath_t obj)
+{
+      assert(obj);
+      return obj->dst_base;
+}
+
+extern "C" unsigned ivl_path_dst_width(ivl_delaypath_t obj)
+{
+      assert(obj);
+      return obj->dst_width;
+}
+
+extern "C" unsigned ivl_path_src_base(ivl_delaypath_t obj)
+{
+      assert(obj);
+      return obj->src_base;
+}
+
+extern "C" unsigned ivl_path_src_width(ivl_delaypath_t obj)
+{
+      assert(obj);
+      return obj->src_width;
+}
+
 extern uint64_t ivl_path_delay(ivl_delaypath_t obj, ivl_path_edge_t edg)
 {
       assert(obj);

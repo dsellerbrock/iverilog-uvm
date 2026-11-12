@@ -847,8 +847,8 @@ class PEIdent : public PExpr {
       bool elaborate_lval_net_packed_member_(Design*, NetScope*,
 					     NetAssign_*,
 					     pform_name_t member_path, bool is_force) const;
-      bool elaborate_lval_darray_bit_(Design*, NetScope*,
-				      NetAssign_*, bool is_force) const;
+      NetAssign_* elaborate_lval_darray_bit_(Design*, NetScope*,
+				     NetAssign_*, bool is_force) const;
       bool elaborate_lval_darray_part_(Design*, NetScope*,
 				       NetAssign_*, bool is_force) const;
 
