@@ -1,3 +1,5 @@
+issue2944_vpi_contassign_module_2017 vvp_tests/issue2944_vpi_contassign_module_2017.json
+issue2944_vpi_contassign_module_2023 vvp_tests/issue2944_vpi_contassign_module_2023.json
 
 # Test list files are a list of test names and the json that
 # describes the test.

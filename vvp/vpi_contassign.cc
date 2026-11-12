@@ -170,8 +170,9 @@ vpiHandle __vpiContAssign::vpi_handle(int code)
 	    return rhs();
 	  case vpiParent:
 	  case vpiScope:
-	  case vpiModule:
 	    return scope_;
+	  case vpiModule:
+	    return vpip_module(scope_);
 	  default:
 	    return 0;
       }
