@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue1572_inout_interconnect.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-ginterconnect"]
+}

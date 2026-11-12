@@ -1382,6 +1382,11 @@ int main(int argc, char*argv[])
 	    goto errors_summary;
       }
 
+      if (gn_interconnect_flag && gn_sdf_annotate_flag) {
+            map<string, const char*>::iterator prior = flags.find("SDF_INOUT");
+            if (prior != flags.end()) free((void *)prior->second);
+            flags["SDF_INOUT"] = strdup("1");
+      }
       if (gn_dumpports_flag) {
             map<string, const char*>::iterator prior = flags.find("DUMPPORTS");
             if (prior != flags.end()) free((void *)prior->second);

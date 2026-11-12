@@ -361,6 +361,13 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
 {
       ivl_expr_t node = lazy_strip_pad_(expr);
       struct lazy_text_ text = {0, 0, 0};
+	/* Whole unpacked-array operands are ordinary array handles, not values
+	   that need an expression thunk. Use the .array label directly. */
+	if (ivl_expr_type(node) == IVL_EX_ARRAY) {
+	      char buffer[64];
+	      snprintf(buffer, sizeof buffer, "v%p", ivl_expr_signal(node));
+	      return strdup(buffer);
+	}
       char kind = lazy_value_kind_(expr);
       char**ops = calloc(ivl_expr_type(node) == IVL_EX_CONCAT
 			 ? ivl_expr_parms(node) + 1 : 3, sizeof(char*));

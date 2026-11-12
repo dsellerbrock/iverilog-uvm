@@ -6031,6 +6031,48 @@ static bool randomize_collect_graph_(randomize_graph_session_t&session,
 
 /* Struct values consume the containing RNG; class handles use their own RNG.
  * Both remain in the existing outer graph transaction. */
+/*
+ * IEEE 1800-2023 18.4: "Arrays can be declared rand or randc, in which case
+ * all of their member elements are treated as rand or randc." The words of
+ * a rand dynamic array of dynamic arrays are its rows, and each row's words
+ * are the leaves. Draw every existing integral leaf; a constraint solve may
+ * replace it afterwards. Object leaves are left to the object visit.
+ */
+static bool randomize_dyn2_leaves_(vvp_cobject*cobj, const class_type*defn,
+				   size_t pid, bool all_active,
+				   const std::function<unsigned()>&next_random)
+{
+      vvp_object_t object;
+      cobj->get_object(pid, object, 0);
+      vvp_darray*rows = object.peek<vvp_darray>();
+      if (!rows) return true;
+      for (size_t row = 0; row < rows->get_size(); row += 1) {
+	    if (!all_active && !cobj->rand_mode(pid, row)) continue;
+	    vvp_object_t child;
+	    rows->get_word((unsigned)row, child);
+	    vvp_darray*leaves = child.peek<vvp_darray>();
+	    if (!leaves) continue;
+	    for (size_t position = 0; position < leaves->get_size(); position += 1) {
+		  vvp_vector4_t value;
+		  leaves->get_word((unsigned)position, value);
+		  if (value.size() == 0) continue;
+		  if (defn->property_is_enum(pid)) {
+			if (!randomize_enum_member_(cobj, defn, pid, position,
+						    value, next_random))
+			      return false;
+		  } else {
+			for (unsigned bit = 0; bit < value.size(); bit += 1)
+			      value.set_bit(bit, (next_random() & 1)
+					    ? BIT4_1 : BIT4_0);
+		  }
+		  leaves->set_word((unsigned)position, value);
+	    }
+      }
+      if (defn->property_is_static(pid))
+	    defn->static_randomize_transaction_mark_dirty(pid, 0);
+      return true;
+}
+
 static bool randomize_object_value_(randomize_graph_session_t&session,
                                     const vvp_object_t&obj,
                                     const std::function<unsigned()>&next_random,
@@ -6179,6 +6221,13 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 		  continue;
 
             if (!session.prefill_property(defn, pid)) continue;
+
+            if (defn->property_is_dyn2(pid) && !defn->property_is_randc(pid)
+                && !randomize_dyn2_leaves_(cobj, defn, pid,
+                        sel && pid < sel->size() && (*sel)[pid], next_random)) {
+                  solve_ok = false;
+                  break;
+            }
 
             const std::string&bt = defn->property_base_type(pid);
             bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;

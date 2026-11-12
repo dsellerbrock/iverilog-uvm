@@ -5419,10 +5419,34 @@ void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval
 					NetExpr*decay_time) const
 {
       NetNet *rval_net = elaborate_unpacked_array(des, scope, *this, lval, pin(1));
-      if (rval_net)
+      if (rval_net) {
 	    assign_unpacked_with_bufz(des, scope, lval, lval, rval_net,
 			      rise_time, fall_time, decay_time,
 			      lval->user_nettype() && delay_count() > 0);
+
+	    /* Keep the source-level assignment for VPI (IEEE 1800-2023 37.47).
+	       The structural driver for each array word is emitted above; the
+	       record retains the whole-array operands. */
+	    NetScope::contassign_t contassign;
+	    contassign.set_line(*this);
+	    contassign.lval = new NetESignal(lval);
+	    contassign.rval = new NetESignal(rval_net);
+	    for (unsigned idx = 0; idx < lval->pin_count(); idx += 1) {
+		  for (const Link*cur = lval->pin(idx).nexus()->first_nlink()
+		       ; cur ; cur = cur->next_nlink()) {
+			const NetNode*node = dynamic_cast<const NetNode*>(cur->get_obj());
+			if (node && cur->get_dir() == Link::OUTPUT) {
+			      contassign.driver = node->name();
+			      break;
+			}
+		  }
+		  if (contassign.driver) break;
+	    }
+	    contassign.drive0 = strength0();
+	    contassign.drive1 = strength1();
+	    contassign.net_decl = false;
+	    scope->contassigns.push_back(contassign);
+      }
 }
 
 void PGBuiltin::calculate_gate_and_lval_count_(unsigned&gate_count,
@@ -6306,6 +6330,15 @@ static void convert_net(Design*des, const LineInfo *line,
       cerr << line->get_fileline() << ": sorry: Can not pull floating "
               "input type '" << net->type() << "'." << endl;
       des->errors += 1;
+}
+
+/* $dumpports needs a boundary on each inout port (EVCD). So does an SDF
+   INTERCONNECT annotation on an inout endpoint (IEEE 1800 32.4.4), which
+   delays one side's drivers as seen from the other. */
+static bool isolate_inout_ports_()
+{
+      return gn_dumpports_flag
+	    || (gn_interconnect_flag && gn_sdf_annotate_flag);
 }
 
 static void isolate_and_connect(Design*des, NetScope*scope, const PGModule*mod,
@@ -9157,7 +9190,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  if ((ptype == NetNet::POUTPUT
 		       && (is_variable_output_port_(prts[0]) || rmod->is_checker
 			   || sig->coerced_to_uwire())) ||
-		      (gn_dumpports_flag && ptype == NetNet::PINOUT) ||
+		      (isolate_inout_ports_() && ptype == NetNet::PINOUT) ||
 		      prts[0]->delay_paths() > 0 ||
 		      (gn_interconnect_flag == true && ptype == NetNet::POUTPUT)) {
 			  // FIXME improve this for multiple module instances
@@ -9251,14 +9284,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  for (unsigned ldx = 0, spin = 0 ;
 		       ldx < prts.size() ;  ldx += 1) {
 			NetNet*sp = prts[prts.size()-ldx-1];
-			NetScope*tran_scope = gn_dumpports_flag ? sp->scope() : scope;
+			NetScope*tran_scope = isolate_inout_ports_() ? sp->scope() : scope;
 			NetTran*ttmp = new NetTran(tran_scope,
 			                           tran_scope->local_symbol(),
 			                           sig->vector_width(),
 			                           sp->vector_width(),
 			                           spin,
-			                           gn_dumpports_flag ? (int)idx : -1,
-			                           gn_dumpports_flag
+			                           isolate_inout_ports_() ? (int)idx : -1,
+			                           isolate_inout_ports_()
 			                             ? (int)(prts.size()-ldx-1) : -1);
 			ttmp->set_line(*this);
 			des->add_node(ttmp);
