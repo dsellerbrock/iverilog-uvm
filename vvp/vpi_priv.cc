@@ -3226,5 +3226,6 @@ vpip_routines_s vpi_routines = {
     .assertion_nfa              = vpip_assertion_nfa,
     .assertion_nfa_step         = vpip_assertion_nfa_step,
     .assertion_serial           = vpip_assertion_serial,
+    .proc_assert_cap            = vpip_proc_assert_cap,
 };
 #endif

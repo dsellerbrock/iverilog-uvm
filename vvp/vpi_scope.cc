@@ -1807,8 +1807,19 @@ class __vpiAssertion : public __vpiHandle {
 	/* IEEE 1800-2023 16.14.6: a procedural concurrent assertion starts
 	   an attempt only for an instance its procedure queued and the
 	   Observed region matured. */
-      void set_proc_id(int pid) { proc_id_ = pid; }
-      void proc_matured(void) { proc_matured_ += 1; }
+      void set_proc_id(int pid, bool each)
+	{ proc_id_ = pid; proc_each_ = each; }
+	/* 16.14.6.1: each instance keeps the values it saved when queued. */
+      void proc_matured(const std::vector<vvp_vector4_t>&saved)
+	{ proc_matured_ += 1; proc_saved_.push_back(saved); }
+	/* Saved value j of the idx-th instance taken at the last clock. */
+      const vvp_vector4_t* taken_value(PLI_INT32 idx, PLI_INT32 j) const
+	{
+	    if (idx < 0 || (size_t)idx >= proc_taken_.size()) return 0;
+	    const std::vector<vvp_vector4_t>&v = proc_taken_[idx];
+	    if (j < 0 || (size_t)j >= v.size()) return 0;
+	    return &v[j];
+	}
 	/* The checker takes every matured instance at its leading clock.
 	   Under $assertoff they start no attempt and are discarded (default
 	   pending a ruling: 20.11 Off "No new attempts will be started"). */
@@ -1816,8 +1827,10 @@ class __vpiAssertion : public __vpiHandle {
 	{
 	    PLI_INT32 n = proc_matured_;
 	    proc_matured_ = 0;
-	    if (!enabled_) return 0;
-	    if (n > 1 && !proc_multi_noted_) {
+	    proc_taken_.swap(proc_saved_);
+	    proc_saved_.clear();
+	    if (!enabled_) { proc_taken_.clear(); return 0; }
+	    if (n > 1 && !proc_each_ && !proc_multi_noted_) {
 		  proc_multi_noted_ = true;
 		  vpi_printf("SVA note: %d pending instances of procedural "
 			     "assertion %s matured for one clock; this "
@@ -1896,6 +1909,7 @@ class __vpiAssertion : public __vpiHandle {
 		       discarded too (default pending a ruling). */
 		  if (proc_id_) {
 			proc_matured_ = 0;
+			proc_saved_.clear();
 			vpip_cancel_proc_asserts(proc_id_, scope_);
 		  }
 		  if (notify && was) fire(cbAssertionDisable);
@@ -2324,7 +2338,10 @@ class __vpiAssertion : public __vpiHandle {
       int ctl_dir_ = 1;                  // Table 20-7 directive_type bit
       int proc_id_ = 0;
       PLI_INT32 proc_matured_ = 0;
+      bool proc_each_ = false;
       bool proc_multi_noted_ = false;
+      std::vector< std::vector<vvp_vector4_t> > proc_saved_;
+      std::vector< std::vector<vvp_vector4_t> > proc_taken_;
       bool locked_ = false;
       bool ended_ = false;
       bool vpi_action_noted_ = false;
@@ -2668,13 +2685,13 @@ static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>
       proc_assertion_by_key;
 
 void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
-				  vpiHandle scope)
+				  PLI_INT32 each, vpiHandle scope)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       if (!sc || pid <= 0) return;
       auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
       if (it == assertion_by_key.end()) return;
-      it->second->set_proc_id((int)pid);
+      it->second->set_proc_id((int)pid, each != 0);
       proc_assertion_by_key[std::make_pair(sc, (int)pid)] = it->second;
 }
 
@@ -2685,11 +2702,42 @@ bool vpip_proc_assert_may_queue(PLI_INT32 pid, __vpiScope*scope)
       return !obj || obj->control_state(vpipAssertStateEnabled) != 0;
 }
 
-void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope)
+void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope,
+			      const std::vector<vvp_vector4_t>&saved)
 {
       __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
 					      (int)pid, true);
-      if (obj) obj->proc_matured();
+      if (obj) obj->proc_matured(saved);
+}
+
+/* $ivl_sva_proc_cap(pid, idx, j, dest): the checker loads saved value j of
+   the idx-th instance it took into dest before starting its attempt. */
+void vpip_proc_assert_cap(vpiHandle callh)
+{
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      if (!argv) return;
+      PLI_INT32 n[3] = { 0, 0, 0 };
+      for (unsigned k = 0 ; k < 3 ; k += 1) {
+	    vpiHandle arg = vpi_scan(argv);
+	    if (!arg) return;
+	    s_vpi_value v;
+	    v.format = vpiIntVal;
+	    vpi_get_value(arg, &v);
+	    n[k] = v.value.integer;
+      }
+      vpiHandle dest = vpi_scan(argv);
+      if (!dest) return;
+      vpi_free_object(argv);
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(vpi_handle(vpiScope, callh));
+      __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
+					      (int)n[0], true);
+      const vvp_vector4_t*val = obj ? obj->taken_value(n[1], n[2]) : 0;
+      if (!val) return;
+      unsigned wid = vpi_get(vpiSize, dest);
+      s_vpi_value out;
+      out.format = vpiVectorVal;
+      vpip_vec4_get_value(*val, wid, false, &out);
+      vpi_put_value(dest, &out, 0, vpiNoDelay);
 }
 
 PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
