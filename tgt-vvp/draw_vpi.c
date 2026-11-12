@@ -848,6 +848,56 @@ static int collect_property_chain_(ivl_expr_t expr, ivl_signal_t*sig,
       return 1;
 }
 
+/* L33/L34: a writable &CPS (string) or &CPV (integral) handle on the class
+   property PROP (a chain collect_property_chain_() accepts), so a system
+   task's output updates the property rather than a discarded temporary.
+   #2475, #2745: with ELEM, the handle names that element of a fixed-array,
+   dynamic-array or queue property; the index is evaluated now, onto the
+   vec4 stack, and read when the handle is used, and the runtime handle
+   tells slots from container elements by the property's storage kind.
+   VALUE is the argument itself. For &CPV it gives the width and the flags:
+   bit 0 signed, bit 1 two-state (a missing element then reads 0, not X;
+   IEEE 1800-2023 7.4.6). A task that samples its arguments after the call
+   ($monitor, $strobe) cannot use an element handle, because the index it
+   reads is a vec4 stack entry popped when the call returns. */
+static int cpv_elem_live_sample_ = 0;
+static int draw_cpv_arg_(struct args_info*result, ivl_expr_t prop,
+                         ivl_expr_t elem, ivl_expr_t value)
+{
+      char buffer[4096];
+      ivl_signal_t root_sig = 0;
+      long chain[16];
+      unsigned chain_len = 0, idx;
+      int n;
+
+      if (elem && cpv_elem_live_sample_)
+            return 0;
+      if (!collect_property_chain_(prop, &root_sig, chain, &chain_len,
+                                   sizeof chain/sizeof chain[0], elem != 0))
+            return 0;
+
+      if (ivl_expr_value(value) == IVL_VT_STRING)
+            n = snprintf(buffer, sizeof buffer, "&CPS<v%p_0", (void*)root_sig);
+      else
+            n = snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %u",
+                         (void*)root_sig, ivl_expr_width(value),
+                         (ivl_expr_signed(value) ? 1 : 0)
+                         | (ivl_expr_value(value) == IVL_VT_BOOL ? 2 : 0));
+      for (idx = 0 ; idx < chain_len && n > 0 && (size_t)n < sizeof buffer
+           ; idx += 1)
+            n += snprintf(buffer+n, sizeof buffer-n, ", %ld", chain[idx]);
+      if (elem) {
+            draw_eval_vec4(elem);
+            result->cpv_index = 1;
+            result->cpv_index_sign = ivl_expr_signed(elem) ? 's' : 'u';
+            result->cpv_index_width = ivl_expr_width(elem);
+      } else {
+            snprintf(buffer+n, sizeof buffer-n, ">");
+      }
+      result->text = strdup(buffer);
+      return 1;
+}
+
 static int get_vpi_taskfunc_signal_arg(struct args_info *result,
                                        ivl_expr_t expr)
 {
@@ -871,27 +921,17 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	         isn't handled here; collect_property_chain_() says so and
 	         this falls through to the ordinary signal-base logic below,
 	         which itself falls through to the rvalue-only fallback for
-	         a nested/array-indexed string property. */
+	         a nested/array-indexed string property. #2745: an element of
+	         a fixed-array, dynamic-array or queue string property is
+	         addressed like its integral sibling below. */
 	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
 		  && ivl_expr_value(expr) == IVL_VT_STRING) {
-		    ivl_signal_t root_sig = 0;
-		    long chain[16];
-		    unsigned chain_len = 0;
-		    if (collect_property_chain_(expr, &root_sig, chain,
-		                                &chain_len,
-		                                sizeof chain/sizeof chain[0], 0)) {
-			  unsigned idx2;
-			  int n = snprintf(buffer, sizeof buffer, "&CPS<v%p_0",
-			                   (void*)root_sig);
-			  for (idx2 = 0
-			       ; idx2 < chain_len && n > 0 && (size_t)n < sizeof buffer
-			       ; idx2 += 1)
-				n += snprintf(buffer+n, sizeof buffer-n, ", %ld",
-				             chain[idx2]);
-			  snprintf(buffer+n, sizeof buffer-n, ">");
-			  result->text = strdup(buffer);
+		    ivl_expr_t elem = (property_selects_fixed_uarray_slot_(expr)
+				       || property_is_indexed_darray_expr_(expr)
+				       || property_is_indexed_queue_expr_(expr))
+			  ? ivl_expr_oper1(expr) : 0;
+		    if (draw_cpv_arg_(result, expr, elem, expr))
 			  return 1;
-		    }
 	      }
 	      /* L34: integral class properties need the same property-aware
 	         VPI lvalue treatment as strings (L33), for the same reason --
@@ -907,38 +947,15 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
 		  && (ivl_expr_value(expr) == IVL_VT_LOGIC
 		      || ivl_expr_value(expr) == IVL_VT_BOOL)) {
-		    ivl_signal_t root_sig = 0;
-		    long chain[16];
-		    unsigned chain_len = 0;
 		    /* #2475: an element of a fixed-array property (c.arr[i])
-		       is just as writable; its index is evaluated now, onto
-		       the vec4 stack, and read when the handle is used. */
-		    ivl_expr_t elem = property_selects_fixed_uarray_slot_(expr)
+		       is just as writable. #2745: so is an element of a
+		       dynamic-array or queue property (c.dq[i], c.q[i]). */
+		    ivl_expr_t elem = (property_selects_fixed_uarray_slot_(expr)
+				       || property_is_indexed_darray_expr_(expr)
+				       || property_is_indexed_queue_expr_(expr))
 			  ? ivl_expr_oper1(expr) : 0;
-		    if (collect_property_chain_(expr, &root_sig, chain,
-		                                &chain_len,
-		                                sizeof chain/sizeof chain[0],
-		                                elem != 0)) {
-			  unsigned idx2;
-			  int n = snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %u",
-			                   (void*)root_sig, ivl_expr_width(expr),
-			                   ivl_expr_signed(expr) ? 1 : 0);
-			  for (idx2 = 0
-			       ; idx2 < chain_len && n > 0 && (size_t)n < sizeof buffer
-			       ; idx2 += 1)
-				n += snprintf(buffer+n, sizeof buffer-n, ", %ld",
-				             chain[idx2]);
-			  if (elem) {
-				draw_eval_vec4(elem);
-				result->cpv_index = 1;
-				result->cpv_index_sign = ivl_expr_signed(elem) ? 's' : 'u';
-				result->cpv_index_width = ivl_expr_width(elem);
-			  } else {
-				snprintf(buffer+n, sizeof buffer-n, ">");
-			  }
-			  result->text = strdup(buffer);
+		    if (draw_cpv_arg_(result, expr, elem, expr))
 			  return 1;
-		    }
 	      }
 	      sig = expr_signal_base_(expr);
 	      if (!sig)
@@ -1063,6 +1080,21 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	    ivl_expr_t bexpr;
 	    ivl_expr_t wexpr;
 	    int indexed = ivl_expr_sel_type(expr) != IVL_SEL_OTHER;
+
+	    /* #2745: an element of a dynamic-array or queue property reached
+	     * through a nested chain (c.in.q[i]) arrives as a select over the
+	     * unindexed container property, with the element index as its
+	     * operand. A keyed (associative) container is not one. */
+	    if (vexpr && ivl_expr_type(vexpr) == IVL_EX_PROPERTY
+		&& !ivl_expr_oper1(vexpr) && ivl_expr_oper2(expr)
+		&& (ivl_expr_value(expr) == IVL_VT_LOGIC
+		    || ivl_expr_value(expr) == IVL_VT_BOOL
+		    || ivl_expr_value(expr) == IVL_VT_STRING)
+		&& expr_is_dynarray_container_(vexpr)
+		&& !(receiver_container_type_(vexpr)
+		     && ivl_type_queue_assoc_compat(receiver_container_type_(vexpr)))
+		&& draw_cpv_arg_(result, vexpr, ivl_expr_oper2(expr), expr))
+		  return 1;
 
 	    /* An aggregate select is a value, not a signal handle with one
 	     * array index. Let the object evaluator preserve every select. */
@@ -1732,7 +1764,10 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 			    }
 		      }
 		}
-		if (get_vpi_taskfunc_signal_arg(&args[idx], expr)) {
+		cpv_elem_live_sample_ = live_sample;
+		int got = get_vpi_taskfunc_signal_arg(&args[idx], expr);
+		cpv_elem_live_sample_ = 0;
+		if (got) {
 			      if (args[idx].vec_flag || args[idx].cpv_index) {
 				    vec4_stack_need += 1;
 			      } else {
