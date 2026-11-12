@@ -5051,6 +5051,8 @@ sv_randomize_joint_multiple_dist normal,-g2017 ivltests gold=sv_randomize_joint_
 sv_randomize_joint_multiple_dist_2023 normal,-g2023 ivltests gold=sv_randomize_joint_multiple_dist.gold
 sv_randomize_joint_multiple_dist_fail normal,-g2017 ivltests gold=sv_randomize_joint_multiple_dist_fail.gold
 sv_randomize_joint_multiple_dist_fail_2023 normal,-g2023 ivltests gold=sv_randomize_joint_multiple_dist_fail.gold
+sv_enum_next_xz_constraint_2017 normal,-g2017 ivltests gold=sv_enum_next_xz_constraint.gold
+sv_enum_next_xz_constraint_2023 normal,-g2023 ivltests gold=sv_enum_next_xz_constraint.gold
 
 # Inside common types and unsupported container widths
 sv_constraint_cast_inside_global_common normal,-g2017 ivltests gold=sv_constraint_cast_inside_global_common.gold

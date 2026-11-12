@@ -17142,6 +17142,35 @@ static bool randomize_invoke_state_call_(vthread_t thr,
 	    call.phase = randomize_call_context_s::READY;
 	    return true;
       };
+      /* Constraint helper calls are evaluated before their IR is handed to
+       * the solver.  A four-state value read by the helper would otherwise
+       * be converted by the helper's operation (for example enum next's
+       * atom2u32 argument) before the solver can apply the §18.3 check. */
+      for (const auto&dependency : desc.argument_dependencies) {
+	    if (dependency.kind != class_type::constraint_dependency_t::PROP
+		|| dependency.property >= cobj->get_defn()->property_count()
+		|| !cobj->get_defn()->property_dimensions(
+		      dependency.property).empty()) continue;
+	    const class_type*type = cobj->get_defn();
+	    if ((type->property_is_rand(dependency.property)
+		 || type->property_is_randc(dependency.property))
+		&& cobj->rand_mode(dependency.property)) continue;
+	    vvp_vector4_t value;
+	    cobj->get_vec4(dependency.property, value);
+	    bool unknown = false;
+	    for (unsigned bit = 0; bit < value.size(); ++bit)
+		  if (value.value(bit) == BIT4_X || value.value(bit) == BIT4_Z) {
+			unknown = true;
+			break;
+		  }
+	    if (unknown) {
+		  fprintf(stderr, "ERROR: constraint state read: X/Z value in constraint guard (IEEE 1800-2017/2023 18.3).\n");
+		  call.state_calls_ok = false;
+		  call.state_call_index = call.state_calls.size();
+		  call.phase = randomize_call_context_s::READY;
+		  return true;
+	    }
+      }
       string label;
       vvp_code_t target = nullptr;
       __vpiScope*scope = nullptr;
