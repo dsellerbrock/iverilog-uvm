@@ -446,6 +446,8 @@ br_gh383b			vvp_tests/br_gh383b.json
 br_gh383c			vvp_tests/br_gh383c.json
 br_gh383d			vvp_tests/br_gh383d.json
 br_gh440			vvp_tests/br_gh440.json
+issue2618_assoc_fixed_array_copy_2017 vvp_tests/issue2618_assoc_fixed_array_copy_2017.json
+issue2618_assoc_fixed_array_copy_2023 vvp_tests/issue2618_assoc_fixed_array_copy_2023.json
 issue2717_cond_string_cast_2017 vvp_tests/issue2717_cond_string_cast_2017.json
 issue2717_cond_string_cast_2023 vvp_tests/issue2717_cond_string_cast_2023.json
 issue2728_mailbox_assignment_2017 vvp_tests/issue2728_mailbox_assignment_2017.json

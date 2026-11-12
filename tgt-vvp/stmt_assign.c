@@ -6590,6 +6590,14 @@ static int rval_is_whole_container_(ivl_expr_t rv)
       if (vvp_expr_is_fixed_uarray_value(rv))
 	    return 1;
 
+      /* An associative-array element whose value is a fixed unpacked array
+       * is represented by IVL_EX_SELECT rather than IVL_EX_ARRAY. Preserve
+       * its array value here so the whole-array assignment uses the container
+       * copy path instead of treating the packed leaf width as the l-value
+       * width. */
+      if (fixed_uarray_expr_type_(rv))
+	    return 1;
+
       if (ivl_expr_type(rv) == IVL_EX_SIGNAL && !ivl_expr_oper1(rv)) {
 	    ivl_signal_t rsig = ivl_expr_signal(rv);
 	    ivl_variable_type_t dt = rsig ? ivl_signal_data_type(rsig)

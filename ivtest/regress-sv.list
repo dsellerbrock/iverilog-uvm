@@ -6704,3 +6704,5 @@ issue2828_sdf_whitespace_2017 normal,-g2017,-gspecify,-s,issue2828_sdf_whitespac
 issue2828_sdf_whitespace_2023 normal,-g2023,-gspecify,-s,issue2828_sdf_whitespace ivltests gold=issue2828_sdf_whitespace_2023-legacy.gold
 sva_assertcontrol_2017 normal,-g2017,-s,sva_assertcontrol ivltests gold=sva_assertcontrol.gold
 sva_assertcontrol_2023 normal,-g2023,-s,sva_assertcontrol ivltests gold=sva_assertcontrol.gold
+issue2618_assoc_fixed_array_copy_2017 normal,-g2017,-s,issue2618_assoc_fixed_array_copy ivltests gold=issue2618_assoc_fixed_array_copy_2017-legacy.gold
+issue2618_assoc_fixed_array_copy_2023 normal,-g2023,-s,issue2618_assoc_fixed_array_copy ivltests gold=issue2618_assoc_fixed_array_copy_2023-legacy.gold
