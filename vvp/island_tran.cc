@@ -23,7 +23,9 @@
 # include  "schedule.h"
 # include  <list>
 
+# include  "delay.h"
 # include  <iostream>
+# include  <set>
 
 using namespace std;
 
@@ -55,6 +57,12 @@ struct vvp_island_branch_tran : public vvp_island_branch {
       unsigned width, part, offset;
       bool active_high, resistive;
       tran_state_t state;
+
+	// SDF INTERCONNECT (IEEE 1800 32.4.4): when set, values do not
+	// cross this branch instantly. Side s's own value goes through
+	// delay_out[s] and arrives as an injected driver on the other side.
+      vvp_net_t*delay_out[2] = { 0, 0 };
+      vvp_vector8_t own_sent[2];
 };
 
 vvp_island_branch_tran::vvp_island_branch_tran(vvp_net_t*en__,
@@ -74,6 +82,61 @@ static inline vvp_island_branch_tran* BRANCH_TRAN(vvp_island_branch*tmp)
       vvp_island_branch_tran*res = dynamic_cast<vvp_island_branch_tran*>(tmp);
       assert(res);
       return res;
+}
+
+/*
+ * The value side SIDE of the delayed branch BR drives toward the other
+ * side: everything reachable from that end through instant branches,
+ * without what BR itself injects there. Sending the fully resolved value
+ * instead would echo the other side's delayed value back to it.
+ */
+static vvp_vector8_t own_value_(vvp_island_branch_tran*br, unsigned side)
+{
+      vvp_vector8_t val;
+      set<vvp_net_t*> seen;
+      list<vvp_branch_ptr_t> work;
+      work.push_back(vvp_branch_ptr_t(br, side));
+      seen.insert(side ? br->b : br->a);
+      while (!work.empty()) {
+	    vvp_branch_ptr_t cur = work.front();
+	    work.pop_front();
+	    vvp_net_t*net = cur.port() ? cur.ptr()->b : cur.ptr()->a;
+	    vvp_vector8_t in = island_get_input(net, br);
+	    if (in.size() != 0)
+		  val = val.size() == 0 ? in
+			: val.size() == in.size() ? resolve(val, in) : val;
+
+	    list<vvp_branch_ptr_t> node;
+	    island_collect_node(node, cur);
+	    for (vvp_branch_ptr_t end : node) {
+		  vvp_island_branch_tran*other = BRANCH_TRAN(end.ptr());
+		  if (other->state == tran_disabled || other->delay_out[0]
+		      || other->width != 0)
+			continue;
+		  vvp_branch_ptr_t far(other, end.port()^1);
+		  vvp_net_t*far_net = far.port() ? other->b : other->a;
+		  if (seen.insert(far_net).second)
+			work.push_back(far);
+	    }
+      }
+      return val;
+}
+
+static void send_own_values_(vvp_island_branch*branches)
+{
+      for (vvp_island_branch*cur = branches ; cur ; cur = cur->next_branch) {
+	    vvp_island_branch_tran*br = BRANCH_TRAN(cur);
+	    if (!br->delay_out[0])
+		  continue;
+	    for (unsigned side = 0 ; side < 2 ; side += 1) {
+		  vvp_vector8_t val = own_value_(br, side);
+		  if (val.size() == 0 || val.eeq(br->own_sent[side]))
+			continue;
+		  br->own_sent[side] = val;
+		  vvp_net_t*out = br->delay_out[side];
+		  out->fun->recv_vec8(vvp_net_ptr_t(out, 0), val);
+	    }
+      }
 }
 
 /*
@@ -106,6 +169,8 @@ rerun:
 	    assert(tmp);
 	    tmp->run_output();
       }
+
+      send_own_values_(branches_);
 
 	// Now check if the enable inputs have been affected by the resolution.
       bool enable_changed = false;
@@ -314,8 +379,9 @@ static void push_value_through_branch(const vvp_vector8_t&val,
 {
       vvp_island_branch_tran*branch = BRANCH_TRAN(cur.ptr());
 
-        // If the branch is disabled, skip.
-      if (branch->state == tran_disabled)
+        // If the branch is disabled, skip. A delayed branch never
+        // carries a value across instantly.
+      if (branch->state == tran_disabled || branch->delay_out[0])
             return;
 
       unsigned src_ab = cur.port();
@@ -329,7 +395,7 @@ static void push_value_through_branch(const vvp_vector8_t&val,
         // If the port on the other side has not yet been visited,
         // get its input value.
       if (dst_port->value.size() == 0)
-            dst_port->value = island_get_value(dst_net);
+            dst_port->value = island_get_input(dst_net);
 
         // If we don't yet have an initial value for the port, skip.
       if (dst_port->value.size() == 0)
@@ -393,7 +459,7 @@ void vvp_island_branch_tran::run_resolution()
 	    vvp_branch_ptr_t a_side(this, 0);
 	    island_collect_node(connections, a_side);
 
-	    port->value = island_get_value(a);
+	    port->value = island_get_input(a);
             if (port->value.size() != 0)
 	          push_value_through_branches(port->value, connections);
 
@@ -408,7 +474,7 @@ void vvp_island_branch_tran::run_resolution()
 	    vvp_branch_ptr_t b_side(this, 1);
 	    island_collect_node(connections, b_side);
 
-	    port->value = island_get_value(b);
+	    port->value = island_get_input(b);
 	    if (port->value.size() != 0)
 	          push_value_through_branches(port->value, connections);
 
@@ -483,4 +549,72 @@ void compile_island_tranvp(char*island, char*pa, char*pb,
 
       free(pa);
       free(pb);
+}
+
+/*
+ * Receives the delayed value from a branch's intermodpath and drives it
+ * into the island port on the far side, as a strong driver: the
+ * intermodpath delay works on 4-state values.
+ */
+class vvp_island_inject : public vvp_net_fun_t {
+    public:
+      vvp_island_inject(vvp_net_t*port, const void*from)
+      : port_(port), from_(from) { }
+      void recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
+		     vvp_context_t) override
+      {
+	    vvp_island_port*fun = dynamic_cast<vvp_island_port*>(port_->fun);
+	    fun->set_injection(from_, vvp_vector8_t(bit, 6, 6));
+      }
+    private:
+      vvp_net_t*port_;
+      const void*from_;
+};
+
+// ponytail: the delayed value crosses as strong 0/1/x/z (intermodpath is
+// 4-state); carry strength if an inout interconnect ever needs it.
+vvp_fun_intermodpath* island_tran_interconnect(vvp_net_t*inner_port,
+					       bool into_inner,
+					       unsigned width,
+					       vvp_net_t*&path_net)
+{
+      path_net = 0;
+      vvp_island_port*port = dynamic_cast<vvp_island_port*>(inner_port->fun);
+      if (!port)
+	    return 0;
+      vvp_island_branch_tran*br = 0;
+      for (vvp_island_branch*cur = port->island()->branches()
+		 ; cur ; cur = cur->next_branch) {
+	    vvp_island_branch_tran*tmp = dynamic_cast<vvp_island_branch_tran*>(cur);
+	    if (tmp && tmp->b == inner_port && !tmp->en && tmp->width == 0) {
+		  br = tmp;
+		  break;
+	    }
+      }
+      if (!br)
+	    return 0;
+
+      if (!br->delay_out[0]) {
+	    for (unsigned side = 0 ; side < 2 ; side += 1) {
+		  vvp_net_t*inj = new vvp_net_t;
+		  inj->fun = new vvp_island_inject(side ? br->a : br->b, br);
+		  vvp_net_t*imp = new vvp_net_t;
+		  imp->fun = new vvp_fun_intermodpath(imp, width);
+		  imp->out_ = vvp_net_ptr_t(inj, 0);
+		  br->delay_out[side] = imp;
+	    }
+	      // Send the values present now while the new delays are still
+	      // zero, so the annotation delays later changes only, as for an
+	      // output-to-input interconnect.
+	    for (unsigned side = 0 ; side < 2 ; side += 1) {
+		  br->own_sent[side] = own_value_(br, side);
+		  if (br->own_sent[side].size() != 0)
+			br->delay_out[side]->fun->recv_vec8(
+			      vvp_net_ptr_t(br->delay_out[side], 0),
+			      br->own_sent[side]);
+	    }
+	    port->island()->flag_island();
+      }
+      path_net = br->delay_out[into_inner ? 0 : 1];
+      return dynamic_cast<vvp_fun_intermodpath*>(path_net->fun);
 }

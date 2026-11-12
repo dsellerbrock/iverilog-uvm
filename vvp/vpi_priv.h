@@ -408,6 +408,17 @@ class __vpiStmtNode : public __vpiHandle {
 extern bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
 					       const char*selector,
 					       int levels);
+/* IEEE 1800-2023 39.5.1: vpi_control(vpiAssertionSys*, scope); a NULL
+   scope means every assertion. Returns 1 when the operation was applied. */
+extern PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation,
+					    vpiHandle scope);
+/* IEEE 1800-2023 16.14.6 procedural concurrent assertions: a pending
+   instance sits on the deferred assertion queue with this bit in its source
+   id; the rest is the front end's procedural assertion id. */
+#define VPIP_PROC_ASSERT_SOURCE (1UL << 40)
+extern bool vpip_proc_assert_may_queue(PLI_INT32 pid, __vpiScope*scope);
+extern void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope);
+extern void vpip_cancel_proc_asserts(PLI_INT32 pid, __vpiScope*module_scope);
 /* IEEE 1800-2023 20.11: may a matured deferred report run its action? */
 extern bool vpip_deferred_action_enabled(unsigned long source_id,
 					 __vpiScope*scope, unsigned result);

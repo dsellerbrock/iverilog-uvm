@@ -172,6 +172,7 @@ static struct {
       { "PERIOD",       K_PERIOD },
       { "PROCESS",      K_PROCESS },
       { "PROGRAM",      K_PROGRAM },
+      { "RETAIN",       K_RETAIN },
       { "RECREM",       K_RECREM },
       { "RECOVERY",     K_RECOVERY },
       { "REMOVAL",      K_REMOVAL },

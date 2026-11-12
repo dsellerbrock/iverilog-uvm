@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2535_dyn2_leaves_redrawn.v",
+  "iverilog-args": ["-g2017"]
+}

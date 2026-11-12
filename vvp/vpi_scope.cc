@@ -1752,6 +1752,49 @@ class __vpiAssertion : public __vpiHandle {
 	}
 
       bool is_deferred(void) const { return deferred_source_id_ != 0; }
+      bool is_concurrent(void) const { return idx_ >= 0; }
+
+	/* 39.5.1: a vpi_control action operation has "no effect on any
+	   existing attempts". The concurrent lowerings do not yet track
+	   when an attempt started, so the change also reaches attempts in
+	   progress; say so once per assertion. */
+      void note_vpi_action_control(int operation)
+	{
+	    if (vpi_action_noted_) return;
+	    vpi_action_noted_ = true;
+	    vpi_printf("SVA note: vpi_control(%d) also changes the action "
+		       "control of attempts of %s that are already in "
+		       "progress; IEEE 1800-2023 39.5.1 exempts them, but this "
+		       "assertion's lowering does not track when an attempt "
+		       "started.\n", operation,
+		       std::string(scope_ ? scope_->vpi_get_str(vpiFullName)
+				   : "").append(".").append(name_).c_str());
+	}
+
+	/* IEEE 1800-2023 16.14.6: a procedural concurrent assertion starts
+	   an attempt only for an instance its procedure queued and the
+	   Observed region matured. */
+      void set_proc_id(int pid) { proc_id_ = pid; }
+      void proc_matured(void) { proc_matured_ += 1; }
+	/* The checker takes every matured instance at its leading clock.
+	   Under $assertoff they start no attempt and are discarded (default
+	   pending a ruling: 20.11 Off "No new attempts will be started"). */
+      PLI_INT32 take_matured(void)
+	{
+	    PLI_INT32 n = proc_matured_;
+	    proc_matured_ = 0;
+	    if (!enabled_) return 0;
+	    if (n > 1 && !proc_multi_noted_) {
+		  proc_multi_noted_ = true;
+		  vpi_printf("SVA note: %d pending instances of procedural "
+			     "assertion %s matured for one clock; this "
+			     "assertion's lowering starts one attempt for "
+			     "them.\n", (int)n,
+			     std::string(scope_ ? scope_->vpi_get_str(vpiFullName)
+					 : "").append(".").append(name_).c_str());
+	    }
+	    return n;
+	}
 
 	/* IEEE 1800-2023 20.11: a rule selects this assertion by its
 	   assertion_type (Table 20-6) and directive_type (Table 20-7)
@@ -1770,8 +1813,11 @@ class __vpiAssertion : public __vpiHandle {
 	    return vpip_deferred_assert_scope_matches(scope_, selector, levels);
 	}
 
-	/* Apply one control_type (Table 20-5). Lock and Unlock always apply;
-	   every other control skips a locked assertion. Callbacks keep the
+	/* Apply one control_type (Table 20-5), or one of the 39.5.1 system
+	   controls vpiAssertionSysReset (12) and vpiAssertionSysEnd (13).
+	   Lock and Unlock always apply; every other control skips a locked
+	   assertion. Reset restores the initial state, lock included; after
+	   End nothing applies. Callbacks keep the
 	   reasons each assertion kind reported before 20.11 control existed:
 	   concurrent assertions report enable changes and kill/reset,
 	   deferred ones report enable changes and reset (fired by the
@@ -1779,6 +1825,22 @@ class __vpiAssertion : public __vpiHandle {
 	   Returns true when a deferred assertion was killed. */
       bool apply_control(int ctl, bool callbacks)
 	{
+	    if (ended_) return false;
+	    if (ctl == 12 || ctl == 13) {
+		  bool killed;
+		  locked_ = false;
+		  killed = apply_control(5, callbacks);
+		  if (ctl == 13) {
+			ended_ = true;
+			fail_action_ = pass_nonvacuous_ = pass_vacuous_ = false;
+			remove_callbacks(false);
+		  } else {
+			enabled_ = true;
+			fail_action_ = pass_nonvacuous_ = pass_vacuous_ = true;
+			remove_callbacks(true);
+		  }
+		  return killed;
+	    }
 	    if (ctl == 1 || ctl == 2) {
 		  locked_ = ctl == 1;
 		  return false;
@@ -1796,6 +1858,13 @@ class __vpiAssertion : public __vpiHandle {
 		case 5:
 		  enabled_ = false;
 		  kill_generation_ += 1;
+		    /* 20.11 Kill flushes the pending procedural instances;
+		       matured ones still waiting for their clock are
+		       discarded too (default pending a ruling). */
+		  if (proc_id_) {
+			proc_matured_ = 0;
+			vpip_cancel_proc_asserts(proc_id_, scope_);
+		  }
 		  if (notify && was) fire(cbAssertionDisable);
 		  if (deferred_source_id_) {
 			vpip_cancel_deferred_assertion(deferred_source_id_, scope_);
@@ -1813,6 +1882,17 @@ class __vpiAssertion : public __vpiHandle {
 		case 10: pass_nonvacuous_ = true; return false;
 		case 11: pass_vacuous_ = false; return false;
 		default: return false;
+	    }
+	}
+
+	/* 39.5.1: Reset removes the step callbacks, End removes them all. */
+      void remove_callbacks(bool steps_only)
+	{
+	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
+		  int reason = cbs_[i].callback->reason();
+		  if (!steps_only || reason == cbAssertionStepSuccess
+		      || reason == cbAssertionStepFailure)
+			cbs_[i].callback->remove();
 	    }
 	}
 
@@ -1997,7 +2077,12 @@ class __vpiAssertion : public __vpiHandle {
 	/* IEEE 1800-2023 20.11 control state. */
       int ctl_type_ = 1;                 // Table 20-6 assertion_type bit
       int ctl_dir_ = 1;                  // Table 20-7 directive_type bit
+      int proc_id_ = 0;
+      PLI_INT32 proc_matured_ = 0;
+      bool proc_multi_noted_ = false;
       bool locked_ = false;
+      bool ended_ = false;
+      bool vpi_action_noted_ = false;
       bool enabled_ = true;
       unsigned kill_generation_ = 0;
       bool fail_action_ = true;
@@ -2211,7 +2296,7 @@ PLI_INT32 vpip_assertion_control(PLI_INT32 ctl, PLI_INT32 atype,
 				 const char*const*selectors, PLI_INT32 nsel)
 {
       size_t first = assert_ctl_rules.size();
-      if (ctl < 1 || ctl > 11) return 0;
+      if (ctl < 1 || ctl > 13) return 0;
       for (PLI_INT32 i = 0 ; i < (nsel > 0 ? nsel : 1) ; i += 1) {
 	    if (assert_ctl_rules.size() >= assert_ctl_rule_limit) {
 		  vpi_printf("SVA runtime error: assertion-control history "
@@ -2258,6 +2343,45 @@ PLI_INT32 vpip_assertion_control(PLI_INT32 ctl, PLI_INT32 atype,
       return assert_ctl_rules.size() > first;
 }
 
+PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation, vpiHandle scope)
+{
+      int ctl;
+      switch (operation) {
+	  case vpiAssertionSysLock:   ctl = 1;  break;
+	  case vpiAssertionSysUnlock: ctl = 2;  break;
+	  case vpiAssertionSysOn:     ctl = 3;  break;
+	  case vpiAssertionSysOff:    ctl = 4;  break;
+	  case vpiAssertionSysKill:   ctl = 5;  break;
+	  case vpiAssertionSysReset:  ctl = 12; break;
+	  case vpiAssertionSysEnd:    ctl = 13; break;
+	  case vpiAssertionSysEnablePassAction:       ctl = 6;  break;
+	  case vpiAssertionSysDisablePassAction:      ctl = 7;  break;
+	  case vpiAssertionSysEnableFailAction:       ctl = 8;  break;
+	  case vpiAssertionSysDisableFailAction:      ctl = 9;  break;
+	  case vpiAssertionSysEnableNonvacuousAction: ctl = 10; break;
+	  case vpiAssertionSysDisableVacuousAction:   ctl = 11; break;
+	  default: return 0;
+      }
+      if (scope && !dynamic_cast<__vpiScope*>(scope)) {
+	    vpi_printf("VPI error: vpi_control(%d) needs a scope handle or "
+		       "NULL.\n", (int)operation);
+	    return 0;
+      }
+      const char*selector = scope ? scope->vpi_get_str(vpiFullName) : 0;
+      std::string copy = selector ? selector : "";
+      const char*sel = copy.c_str();
+      if (ctl >= 6 && ctl <= 11) {
+	    for (size_t j = 0 ; j < assertion_registry.size() ; j += 1) {
+		  __vpiAssertion*obj = assertion_registry[j];
+		  if (obj->is_concurrent()
+		      && obj->control_selected(255, 7, selector ? sel : 0, 0))
+			obj->note_vpi_action_control(operation);
+	    }
+      }
+      return vpip_assertion_control(ctl, 255, 7, 0, selector ? &sel : 0,
+				    selector ? 1 : 0);
+}
+
 template <class Key> static __vpiAssertion* find_assertion_up_(
       const std::map<std::pair<__vpiScope*,Key>, __vpiAssertion*>&map,
       __vpiScope*sc, Key id, bool walk_up)
@@ -2269,12 +2393,47 @@ template <class Key> static __vpiAssertion* find_assertion_up_(
       return 0;
 }
 
+/* Procedural concurrent assertions by (checker scope, procedural id). */
+static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>
+      proc_assertion_by_key;
+
+void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
+				  vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc || pid <= 0) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it == assertion_by_key.end()) return;
+      it->second->set_proc_id((int)pid);
+      proc_assertion_by_key[std::make_pair(sc, (int)pid)] = it->second;
+}
+
+bool vpip_proc_assert_may_queue(PLI_INT32 pid, __vpiScope*scope)
+{
+      __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
+					      (int)pid, true);
+      return !obj || obj->control_state(vpipAssertStateEnabled) != 0;
+}
+
+void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope)
+{
+      __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
+					      (int)pid, true);
+      if (obj) obj->proc_matured();
+}
+
 PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
 			       PLI_INT32 id, PLI_INT32 what)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       __vpiAssertion*obj = 0;
       int type_bit = 1;
+      if (space == vpipAssertSpaceProcedural) {
+	    obj = find_assertion_up_(proc_assertion_by_key, sc, (int)id, true);
+	    if (what == vpipAssertStateTakeMatured)
+		  return obj ? obj->take_matured() : 0;
+	    return obj ? obj->control_state(what) : 1;
+      }
       switch (space) {
 	  case vpipAssertSpaceConcurrent:
 	    obj = find_assertion_up_(assertion_by_key, sc, (int)id, false);

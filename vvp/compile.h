@@ -333,6 +333,12 @@ extern void compile_modpath_src(__vpiModPath*dst,
 				int condit_src, /* match with '0' */
 				const struct symb_s&path_term_in,
 				bool ifnone);
+  /* The last modpath source drives only the destination bits
+     [dbase, dbase+dwid) and is triggered only by the source bits
+     [sbase, sbase+swid) (IEEE 1800 30.4.2). A width of 0 is all. */
+extern void compile_modpath_src_part(__vpiModPath*dst,
+				     unsigned dbase, unsigned dwid,
+				     unsigned sbase, unsigned swid);
 
 extern void compile_reduce_and(char*label, const struct symb_s&arg);
 extern void compile_reduce_or(char*label, const struct symb_s&arg);

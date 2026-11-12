@@ -1,0 +1,5 @@
+(DELAYFILE (SDFVERSION "3.0") (DESIGN "issue1572_inout_interconnect") (DIVIDER /) (TIMESCALE 1ns)
+ (CELL (CELLTYPE "issue1572_inout_interconnect") (INSTANCE)
+  (DELAY (ABSOLUTE
+   (INTERCONNECT u1/y u2/a (3))
+   (INTERCONNECT u3/y u4/a (4))))))

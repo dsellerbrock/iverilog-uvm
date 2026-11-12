@@ -1,4 +1,7 @@
-// IEEE 1800-2017/2023 7.5, 18.4: outer size changes retain inner values.
+// IEEE 1800-2017/2023 7.5, 18.4: outer size changes retain the inner sizes.
+// The leaves themselves are rand, 18.4: "Arrays can be declared rand or
+// randc, in which case all of their member elements are treated as rand or
+// randc." So a successful randomize() redraws filter_cfg[0][0].value.
 typedef struct packed { bit value; } nested_filter_t;
 
 class nested_resize_two;
@@ -27,9 +30,8 @@ module test;
     if (!grown.randomize()) $fatal(1, "outer growth failed");
     if (grown.filter_cfg.size() != 2
         || grown.filter_cfg[0].size() != 1
-        || grown.filter_cfg[0][0].value != 1
         || grown.filter_cfg[1].size() != 0)
-      $fatal(1, "outer growth lost an inner value or initialized a new row");
+      $fatal(1, "outer growth lost an inner size or initialized a new row");
 
     emptied.filter_cfg = new[1];
     emptied.filter_cfg[0] = new[1];

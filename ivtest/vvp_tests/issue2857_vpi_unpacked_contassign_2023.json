@@ -1,0 +1,13 @@
+{
+  "type": "normal",
+  "source": "issue2857_vpi_unpacked_contassign.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue2857_vpi_unpacked_contassign_2023"],
+  "vpi-sources": ["vpi/issue2857_vpi_unpacked_contassign.c"],
+  "output-contains": [
+    "CONTASSIGN line=5 lhs=top.arr rhs=top.sarr",
+    "COUNT=1",
+    "DONE",
+    "PASSED"
+  ]
+}

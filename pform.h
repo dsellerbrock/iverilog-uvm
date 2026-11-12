@@ -419,7 +419,18 @@ extern sva_property_t* pform_sva_prop_compose(const struct vlltype&loc,
 extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,
-				 int kind, perm_string label = perm_string());
+				 int kind, perm_string label = perm_string(),
+				 unsigned proc_id = 0);
+/* IEEE 1800-2023 16.14.6: concurrent_assertion_statement holds its
+   assertion until the enclosing rule says where it is. A module item
+   synthesizes a static assertion (release returns null); a procedural
+   statement gets the statement that queues a pending instance. */
+extern void pform_sva_hold_assertion(const struct vlltype&loc,
+				     sva_property_t*prop,
+				     Statement*fail_stmt, Statement*pass_stmt,
+				     int kind);
+extern Statement* pform_sva_release_assertion(bool procedural);
+extern Statement* pform_sva_static_always_assertion(Statement*body);
 /* M9-10: implicit clock inference for a concurrent assertion written
    inside procedural code (IEEE 1800-2017 16.14.6). An unclocked assertion
    with no default clocking is parked by pform_make_assertion; the first
