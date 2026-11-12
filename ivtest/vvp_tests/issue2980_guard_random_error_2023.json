@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2980_guard_random_error.sv",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "issue2980_guard_random_error"
+}

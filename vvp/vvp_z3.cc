@@ -1086,6 +1086,7 @@ struct Z3Builder {
       vvp_cobject* cobj;
       const vector<vvp_object_t>*object_vals = nullptr;
       const vector<bool>*prop_active = nullptr;
+      bool predicate_guard = false;
       // Keep invalid state reads until enclosing guards can exclude them
       // (IEEE 1800-2017 18.5.13 / 1800-2023 18.5.12).
       vector<string> state_errors;
@@ -5625,11 +5626,24 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast right_sift_args[2] = {
 		  Z3_mk_not(b.ctx, left_error), left_decides
 	    };
-	    // The left operand is always evaluated before the operator can decide
-	    // whether to short-circuit the right operand. A value in the right
-	    // operand therefore cannot suppress an error while evaluating left.
-	    constraint_guard_state_checks_(b, checks_after_left, checks_after_right,
-		  Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, right_sift_args)), false);
+	    if (guard && b.predicate_guard) {
+		  // Predicate guards use the 0/1/E/R table, not a value
+		  // selected later by the solver. Only a definite, error-free
+		  // state operand can sift an error in the other operand.
+		  Z3_lbool deciding = op == "and" ? Z3_L_FALSE : Z3_L_TRUE;
+		  Z3_ast right_error = constraint_state_error_disjunction_(
+			b, checks_after_left, checks_after_right);
+		  if (right_guard == deciding)
+			constraint_guard_state_checks_(b, checks_before, checks_after_left,
+			      right_error, false);
+		  if (left_guard == deciding)
+			constraint_guard_state_checks_(b, checks_after_left, checks_after_right,
+			      left_error, false);
+	    } else {
+		  // Ordinary logical expressions short-circuit left to right.
+		  constraint_guard_state_checks_(b, checks_after_left, checks_after_right,
+			Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, right_sift_args)), false);
+	    }
 	    Z3_ast left_valid = constraint_side_conjunction_(
 		  b, side_before, side_after_left);
 	    Z3_ast right_valid = constraint_side_conjunction_(
@@ -5674,8 +5688,11 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    int outer_sign = b.integral_context_sign;
 	    b.integral_context_width = 0;
 	    b.integral_context_sign = -1;
+	    bool saved_predicate_guard = b.predicate_guard;
+	    b.predicate_guard = op == "impl";
 	    Z3_ast left  = constraint_value_to_bool_(
 		  b, build_z3_atom(par, b, &left_guard));
+	    b.predicate_guard = saved_predicate_guard;
 	    size_t after_left = b.state_errors.size();
 	    size_t side_after_left = b.side_constraints.size();
 	    size_t checks_after_left = b.state_checks.size();
