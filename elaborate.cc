@@ -5199,11 +5199,13 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 
 	/* Keep the assignment for VPI (IEEE 1800-2023 37.47). Its driver is
 	   the device on the r-value side, found before the l-value joins
-	   the nexus. A part-select or concatenation l-value is a local net
-	   and has no expression handle yet. */
+	   the nexus. A part-select or concatenation l-value is a local net,
+	   so its handle is the l-value read as an expression. */
       NetScope::contassign_t contassign;
       contassign.set_line(*this);
-      contassign.lval = lval->local_flag() ? 0 : new NetESignal(lval);
+      contassign.lval = lval->local_flag()
+	    ? elaborate_for_vpi(des, scope, const_cast<PExpr*>(pin(0)))
+	    : new NetESignal(lval);
 	/* Synthesis leaves the expression intact; the record keeps it. */
       contassign.rval = rval_expr;
       for (const Link*cur = rval->pin(0).nexus()->first_nlink()

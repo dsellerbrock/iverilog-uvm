@@ -240,6 +240,42 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 	    }
 	    return 100;
 	  }
+	  case IVL_EX_SELECT: {
+	      /* A constant bit- or part-select of a vector signal, written in
+		 the signal's declared range (the offset here is canonical:
+		 0 is the LSB). Anything else is left undescribed. */
+	    ivl_expr_t base = ivl_expr_oper1(expr);
+	    ivl_expr_t off = ivl_expr_oper2(expr);
+	    ivl_signal_t sig;
+	    long msb, lsb, lo, hi, first;
+	    unsigned wid = ivl_expr_width(expr);
+	    if (!base || ivl_expr_type(base) != IVL_EX_SIGNAL
+		|| ivl_expr_oper1(base) || !off || !wid
+		|| !number_is_immediate(off, 32, 0))
+		  return 0;
+	    sig = ivl_expr_signal(base);
+	    if (ivl_signal_packed_dimensions(sig) != 1) return 0;
+	    msb = ivl_signal_packed_msb(sig, 0);
+	    lsb = ivl_signal_packed_lsb(sig, 0);
+	    first = get_number_immediate(off);
+	    if (first + (long)wid > (long)ivl_signal_width(sig)) return 0;
+	    if (msb >= lsb) {
+		  lo = lsb + first;
+		  hi = lo + (long)wid - 1;
+	    } else {
+		  hi = lsb - first;
+		  lo = hi - (long)wid + 1;
+	    }
+	    lazy_puts_(t, ivl_signal_basename(sig));
+	    if (wid == 1)
+		  snprintf(buf, sizeof buf, "[%ld]", lo);
+	    else if (msb >= lsb)
+		  snprintf(buf, sizeof buf, "[%ld:%ld]", hi, lo);
+	    else
+		  snprintf(buf, sizeof buf, "[%ld:%ld]", lo, hi);
+	    lazy_puts_(t, buf);
+	    return 100;
+	  }
 	  case IVL_EX_REALNUM:
 	    snprintf(buf, sizeof buf, "%.17g", ivl_expr_dvalue(expr));
 	    if (!strpbrk(buf, ".eEn")) strcat(buf, ".0");
