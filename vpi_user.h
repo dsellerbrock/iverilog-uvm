@@ -252,6 +252,11 @@ typedef struct t_vpi_delay  {
 #define vpiTimeVal     11
 #define vpiObjTypeVal  12
 #define vpiSuppressVal 13
+#define vpiShortIntVal 14
+#define vpiLongIntVal  15
+#define vpiShortRealVal 16
+#define vpiRawTwoStateVal 17
+#define vpiRawFourStateVal 18
 
 
 /* SCALAR VALUES */
@@ -508,6 +513,8 @@ typedef struct t_vpi_delay  {
 #define vpiConstType 40
 #define vpiAssignmentOp 82 /* Normal assignment */
 #define vpiIsModPort 669
+#define vpiIsMemory 73
+#define vpiIsProtected 74
 #   define vpiDecConst    1
 #   define vpiRealConst   2
 #   define vpiBinaryConst 3
@@ -576,9 +583,13 @@ typedef struct t_vpi_delay  {
 
 #define vpiForceFlag   5
 #define vpiReleaseFlag 6
+#define vpiCancelEvent 7
 #define vpiForce       16 /* force statement */
 #define vpiRelease     50 /* release statement */
 #define vpiReturnEvent 0x1000
+#define vpiUserAllocFlag 0x2000
+#define vpiOneValue     0x4000
+#define vpiPropagateOff 0x8000
 
 /* VPI FUNCTIONS */
 extern vpiHandle vpi_register_systf(const struct t_vpi_systf_data*ss);
@@ -661,12 +672,13 @@ typedef struct t_cb_data {
 #define cbExitInteractive   22
 #define cbInteractiveScopeChange 23
 #define cbUnresolvedSystf   24
+#define cbAssign            25
+#define cbDeassign          26
+#define cbDisable           27
+#define cbSignal            29
 /* IEEE 1800-2017 clause 38 simulation-time callback: after every
    nonblocking update of the current time slot has been applied, and
-   before cbReadWriteSynch / cbAtEndOfSimTime.  (Reason codes 25-29 are
-   the other 1800 additions -- cbAssign, cbDeassign, cbDisable,
-   cbPLIError, cbSignal -- which this simulator does not implement and
-   therefore does not name.) */
+   before cbReadWriteSynch / cbAtEndOfSimTime. */
 #define cbNBASynch          30
 #define cbAtEndOfSimTime    31
 
