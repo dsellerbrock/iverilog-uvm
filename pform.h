@@ -225,6 +225,10 @@ extern Module::port_t* pform_module_port_reference(const struct vlltype&loc,
 						   perm_string name);
 extern void pform_module_defer_port_direction(perm_string name,
 						     NetNet::PortType direction);
+/* IEEE 1800-2023 17.7: `rand [const]' free checker variables. */
+extern void pform_checker_free_vars(const struct vlltype&loc,
+				    std::list<decl_assignment_t*>*decls,
+				    data_type_t*type, bool is_const);
 extern void pform_endmodule(const char*, bool inside_celldefine,
                             Module::UCDriveType uc_drive_def);
 
