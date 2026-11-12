@@ -18995,7 +18995,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	    return tmp;
       }
 
-	/* IEEE 1800-2017 18.8: a named constraint's zero-argument
+	/* IEEE 1800-2017/2023 18.9: a named constraint's zero-argument
 	   constraint_mode() form returns its current active state.  This is
 	   distinct from obj.constraint_mode(), which queries no particular
 	   block, and from the one-argument setter handled in the task path. */
@@ -19022,7 +19022,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			obj_expr = new NetESignal(obj_sr.net);
 			obj_expr->set_line(*this);
 		  } else {
-			PEIdent*obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
+			PEIdent*obj_id = new PEIdent(obj_path, UINT_MAX);
 			obj_id->set_file(get_file());
 			obj_id->set_lineno(get_lineno());
 			obj_expr = obj_id->elaborate_expr(des, scope,
