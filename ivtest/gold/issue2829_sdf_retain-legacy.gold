@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue2829_sdf_retain.v:38: $finish called at 15 (1ns)

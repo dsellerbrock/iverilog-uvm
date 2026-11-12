@@ -1771,6 +1771,31 @@ class __vpiAssertion : public __vpiHandle {
 				   : "").append(".").append(name_).c_str());
 	}
 
+	/* IEEE 1800-2023 16.14.6: a procedural concurrent assertion starts
+	   an attempt only for an instance its procedure queued and the
+	   Observed region matured. */
+      void set_proc_id(int pid) { proc_id_ = pid; }
+      void proc_matured(void) { proc_matured_ += 1; }
+	/* The checker takes every matured instance at its leading clock.
+	   Under $assertoff they start no attempt and are discarded (default
+	   pending a ruling: 20.11 Off "No new attempts will be started"). */
+      PLI_INT32 take_matured(void)
+	{
+	    PLI_INT32 n = proc_matured_;
+	    proc_matured_ = 0;
+	    if (!enabled_) return 0;
+	    if (n > 1 && !proc_multi_noted_) {
+		  proc_multi_noted_ = true;
+		  vpi_printf("SVA note: %d pending instances of procedural "
+			     "assertion %s matured for one clock; this "
+			     "assertion's lowering starts one attempt for "
+			     "them.\n", (int)n,
+			     std::string(scope_ ? scope_->vpi_get_str(vpiFullName)
+					 : "").append(".").append(name_).c_str());
+	    }
+	    return n;
+	}
+
 	/* IEEE 1800-2023 20.11: a rule selects this assertion by its
 	   assertion_type (Table 20-6) and directive_type (Table 20-7)
 	   bits, then by the hierarchical selector. A selector names either
@@ -1833,6 +1858,13 @@ class __vpiAssertion : public __vpiHandle {
 		case 5:
 		  enabled_ = false;
 		  kill_generation_ += 1;
+		    /* 20.11 Kill flushes the pending procedural instances;
+		       matured ones still waiting for their clock are
+		       discarded too (default pending a ruling). */
+		  if (proc_id_) {
+			proc_matured_ = 0;
+			vpip_cancel_proc_asserts(proc_id_, scope_);
+		  }
 		  if (notify && was) fire(cbAssertionDisable);
 		  if (deferred_source_id_) {
 			vpip_cancel_deferred_assertion(deferred_source_id_, scope_);
@@ -2045,6 +2077,9 @@ class __vpiAssertion : public __vpiHandle {
 	/* IEEE 1800-2023 20.11 control state. */
       int ctl_type_ = 1;                 // Table 20-6 assertion_type bit
       int ctl_dir_ = 1;                  // Table 20-7 directive_type bit
+      int proc_id_ = 0;
+      PLI_INT32 proc_matured_ = 0;
+      bool proc_multi_noted_ = false;
       bool locked_ = false;
       bool ended_ = false;
       bool vpi_action_noted_ = false;
@@ -2358,12 +2393,47 @@ template <class Key> static __vpiAssertion* find_assertion_up_(
       return 0;
 }
 
+/* Procedural concurrent assertions by (checker scope, procedural id). */
+static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>
+      proc_assertion_by_key;
+
+void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
+				  vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc || pid <= 0) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it == assertion_by_key.end()) return;
+      it->second->set_proc_id((int)pid);
+      proc_assertion_by_key[std::make_pair(sc, (int)pid)] = it->second;
+}
+
+bool vpip_proc_assert_may_queue(PLI_INT32 pid, __vpiScope*scope)
+{
+      __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
+					      (int)pid, true);
+      return !obj || obj->control_state(vpipAssertStateEnabled) != 0;
+}
+
+void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope)
+{
+      __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
+					      (int)pid, true);
+      if (obj) obj->proc_matured();
+}
+
 PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
 			       PLI_INT32 id, PLI_INT32 what)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       __vpiAssertion*obj = 0;
       int type_bit = 1;
+      if (space == vpipAssertSpaceProcedural) {
+	    obj = find_assertion_up_(proc_assertion_by_key, sc, (int)id, true);
+	    if (what == vpipAssertStateTakeMatured)
+		  return obj ? obj->take_matured() : 0;
+	    return obj ? obj->control_state(what) : 1;
+      }
       switch (space) {
 	  case vpipAssertSpaceConcurrent:
 	    obj = find_assertion_up_(assertion_by_key, sc, (int)id, false);

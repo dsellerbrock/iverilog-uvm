@@ -1028,6 +1028,23 @@ void vpip_vec4_get_value(const vvp_vector4_t&word_val, unsigned width,
 		break;
 	  }
 
+	  case vpiTimeVal: {
+		uint32_t low = 0;
+		uint32_t high = 0;
+		for (unsigned idx = 0; idx < width && idx < 64; idx += 1) {
+		      if (word_val.value(idx) != BIT4_1)
+			    continue;
+		      if (idx < 32)
+			    low |= uint32_t(1) << idx;
+		      else
+			    high |= uint32_t(1) << (idx - 32);
+		}
+		vp->value.time->type = vpiSimTime;
+		vp->value.time->high = high;
+		vp->value.time->low = low;
+		break;
+	  }
+
 	  case vpiObjTypeVal:
 	    // Use the following case to actually set the value!
 	    vp->format = vpiVectorVal;
@@ -3112,6 +3129,8 @@ vpip_routines_s vpi_routines = {
     .print_stacktrace           = vpip_print_stacktrace,
     .assertion_control          = vpip_assertion_control,
     .assertion_state            = vpip_assertion_state,
+    .proc_assert_enqueue        = vpip_proc_assert_enqueue,
+    .register_proc_assertion    = vpip_register_proc_assertion,
     .register_immediate_cover   = vpip_register_immediate_cover,
     .report_immediate_cover    = vpip_report_immediate_cover,
     .report_immediate_assertion = vpip_report_immediate_assertion,
