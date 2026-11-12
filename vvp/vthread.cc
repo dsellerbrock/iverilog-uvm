@@ -927,6 +927,10 @@ struct vthread_s {
 	   Counted at creation; when the last one completes, simulation
 	   implicitly finishes. */
       unsigned is_program_init :1;
+	/* Program instance whose initial procedure this thread descends from.
+	   This survives detach/reparent so $exit can still identify the owning
+	   program after the originating initial thread has ended. */
+	__vpiScope* program_scope;
 	// process::suspend()/resume() (IEEE 1800-2017 9.7.2). `suspended`
 	// marks the process as suspended; a suspended thread is skipped by
 	// vthread_run and reports PROCESS_STATE_SUSPENDED. `suspend_resched`
@@ -2118,6 +2122,9 @@ static string filter_string(const char*text)
 }
 
 static bool do_disable(vthread_t thr, vthread_t match);
+static void program_thread_add_(vthread_t thr);
+static void program_thread_remove_(vthread_t thr);
+static void program_init_completed_(void);
 static void do_join(vthread_t thr, vthread_t child);
 
 /* Trampolined-call state (M6 item 5, increment 2).  Declared here so the
@@ -12223,6 +12230,7 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
 	    }
       }
       thr->is_program_init = 0;
+	  thr->program_scope = 0;
       thr->suspended = 0;
       thr->suspend_resched = 0;
       thr->i_am_delaying = 0;
@@ -12441,6 +12449,7 @@ static void vthread_reap(vthread_t thr)
 
 	// Remove myself from the containing scope if needed.
       thr->parent_scope->threads.erase(thr);
+	  program_thread_remove_(thr);
 
       thr->pc = codespace_null();
 
@@ -12880,11 +12889,42 @@ void vthread_mark_clocking_sync(vthread_t thr)
  */
 static unsigned program_init_active = 0;
 static bool     program_init_seen   = false;
+static std::map<__vpiScope*, set<vthread_t> > program_threads;
+
+static __vpiScope* program_scope_for_(vthread_t thr)
+{
+      if (thr->program_scope) return thr->program_scope;
+      for (__vpiScope*scope = thr->parent_scope; scope; scope = scope->scope) {
+	    if (scope->get_type_code() == vpiProgram)
+		  return scope;
+      }
+      return 0;
+}
+
+static void program_thread_add_(vthread_t thr)
+{
+      if (!thr) return;
+      if (!thr->program_scope)
+	    thr->program_scope = program_scope_for_(thr);
+      if (thr->program_scope)
+	    program_threads[thr->program_scope].insert(thr);
+}
+
+static void program_thread_remove_(vthread_t thr)
+{
+      if (!thr || !thr->program_scope) return;
+      std::map<__vpiScope*, set<vthread_t> >::iterator cur =
+	    program_threads.find(thr->program_scope);
+      if (cur == program_threads.end()) return;
+      cur->second.erase(thr);
+      if (cur->second.empty()) program_threads.erase(cur);
+}
 
 void vthread_mark_program_init(vthread_t thr)
 {
       if (!thr) return;
       thr->is_program_init = 1;
+      program_thread_add_(thr);
       program_init_active += 1;
       program_init_seen = true;
 }
@@ -20334,6 +20374,10 @@ static bool do_disable(vthread_t thr, vthread_t match)
       thr->pc = codespace_null();
       thr->i_was_disabled = 1;
       thr->i_have_ended = 1;
+	  if (thr->is_program_init) {
+	    thr->is_program_init = 0;
+	    program_init_completed_();
+	  }
 
 	/* `disable fork' on a branch parked in mailbox.get()/semaphore.get()
 	   is the case this whole mechanism exists for. Unlink here rather
@@ -20600,6 +20644,36 @@ static void disable_fork_detached_descendants_(vthread_t thr, vthread_t match)
             disable_fork_detached_descendants_(child, match);
             bool res = do_disable(child, match);
             assert(! res);
+      }
+}
+
+/* Terminate every initial procedure and descendant belonging to one
+ * program instance. Detached children can outlive and lose the parent
+ * pointer to their initial procedure, so membership is tracked by the
+ * originating program scope. */
+static void program_exit_(vthread_t thr)
+{
+      __vpiScope*scope = thr ? thr->program_scope : 0;
+      if (!scope) return;
+      std::map<__vpiScope*, set<vthread_t> >::iterator entry =
+	    program_threads.find(scope);
+      if (entry == program_threads.end()) return;
+
+      std::vector<vthread_t> roots;
+      for (set<vthread_t>::const_iterator cur = entry->second.begin();
+	   cur != entry->second.end(); ++cur) {
+	    vthread_t parent = (*cur)->parent;
+	    if (!parent || !entry->second.count(parent)) roots.push_back(*cur);
+      }
+
+      for (std::vector<vthread_t>::const_iterator cur = roots.begin();
+	   cur != roots.end(); ++cur) {
+	    vthread_t root = *cur;
+	    entry = program_threads.find(scope);
+	    if (entry == program_threads.end() || !entry->second.count(root))
+		  continue;
+	    disable_fork_detached_descendants_(root, 0);
+	    do_disable(root, 0);
       }
 }
 
@@ -22035,6 +22109,11 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
+      if (thr->program_scope)
+	    child->program_scope = thr->program_scope;
+      else
+	    child->program_scope = program_scope_for_(thr);
+      program_thread_add_(child);
       child->is_reactive_process |= thr->is_reactive_process;
 	/* Task calls compiled as %fork...%join should share the parent's
 	   logical process for process::self(), matching SV semantics where
@@ -37787,18 +37866,9 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
       const char*called_task = cp->handle
           ? vpi_get_str(vpiName, cp->handle) : nullptr;
       if (called_task && strcmp(called_task, "$exit") == 0
-          && thr && thr->is_program_init) {
-            vpiHandle scope = vpi_handle(vpiScope, cp->handle);
-            bool in_program = false;
-            while (scope) {
-                  if (vpi_get(vpiType, scope) == vpiProgram) {
-                        in_program = true;
-                        break;
-                  }
-                  scope = vpi_handle(vpiScope, scope);
-            }
-            if (in_program)
-                  return of_END(thr, nullptr);
+          && thr && thr->program_scope) {
+            program_exit_(thr);
+            return false;
       }
 
       if (trace) {
