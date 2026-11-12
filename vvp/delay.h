@@ -239,6 +239,7 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 
       void add_modpath_src(vvp_fun_modpath_src*that, bool ifnone);
       void set_has_conditional_paths() { has_conditional_paths_ = true; }
+      void set_has_dst_parts() { has_dst_parts_ = true; }
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
@@ -258,6 +259,9 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 				      const vvp_vector4_t&bit);
       void run_pulse_events_();
       void run_bit_event_(unsigned index, vvp_bit4_t value);
+      bool select_delays_(int index, vvp_time64_t out_at[12],
+			  vvp_time64_t reject_at[12],
+			  vvp_time64_t error_at[12]);
       void schedule_transition_(const vvp_vector4_t&bit);
       void resolve_pending_();
 
@@ -273,6 +277,7 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       pulse_event_*pending_pulse_;
       vvp_vector4_t pulse_vec4_;
       bool has_conditional_paths_;
+      bool has_dst_parts_;
       bool showcancelled_;
       std::list<vvp_vector4_t> pending_bits_;
 
@@ -302,8 +307,23 @@ class vvp_fun_modpath_src  : public vvp_net_fun_t {
       void put_pulse_limits12(const vvp_time64_t reject[12],
                               const vvp_time64_t error[12]);
       bool has_pulse_limits() const { return pulse_limits_set_; }
+	// The path drives the output bits [base, base+wid); wid 0 is all.
+      void set_dst_part(unsigned base, unsigned wid)
+      { dst_base_ = base; dst_width_ = wid; }
+	// Only the source bits [base, base+wid) trigger the path.
+      void set_src_part(unsigned base, unsigned wid)
+      { src_base_ = base; src_width_ = wid; }
 
     private:
+      bool covers_(int index) const
+      { return index < 0 || dst_width_ == 0
+	    || ((unsigned)index >= dst_base_
+		&& (unsigned)index < dst_base_ + dst_width_); }
+      unsigned dst_base_ = 0;
+      unsigned dst_width_ = 0;
+      unsigned src_base_ = 0;
+      unsigned src_width_ = 0;
+      vvp_vector4_t src_sel_;
 	// FIXME: Needs to be a 12-value array
       vvp_time64_t delay_[12];
       vvp_time64_t pulse_reject_[12];
