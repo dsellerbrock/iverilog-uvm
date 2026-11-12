@@ -5431,6 +5431,13 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 		    clr_word(idx);
 		    return 0;
 	      }
+	      if (type_is_fixed_uarray_property_(element_type)) {
+		draw_queue_element_object_value_(parm1, element_type);
+		fprintf(vvp_out, "    %%store/%s/obj v%p_0, %d;\n",
+			type_code, var, idx);
+		clr_word(idx);
+		return 0;
+	      }
 	      switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
 	    draw_eval_real(parm1);

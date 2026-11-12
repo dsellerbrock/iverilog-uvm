@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2372_nested_queue_foreach.v",
+  "iverilog-args": ["-g2023"]
+}

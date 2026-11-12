@@ -30,7 +30,7 @@ class PExpr;
 struct pform_specify_terminal_t {
       pform_specify_terminal_t(perm_string name_arg,
                                perm_string member_arg = perm_string())
-      : name(name_arg), member(member_arg) { }
+      : name(name_arg), member(member_arg), sel(0), msb(0), lsb(0) { }
 
       bool operator==(const pform_specify_terminal_t&that) const
       { return name == that.name && member == that.member; }
@@ -40,6 +40,11 @@ struct pform_specify_terminal_t {
 
       perm_string name;
       perm_string member;
+	// IEEE 1800 30.4.2 terminal select: 0 = none, 'b' = [msb],
+	// ':' = [msb:lsb], '+' = [msb+:lsb], '-' = [msb-:lsb].
+      char sel;
+      class PExpr*msb;
+      class PExpr*lsb;
 };
 
 inline std::ostream& operator<<(std::ostream&out,
