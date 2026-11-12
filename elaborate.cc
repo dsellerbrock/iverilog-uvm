@@ -7471,6 +7471,27 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
       ivl_assert(*this, scope);
 
+	// IEEE 1800-2017/2023 23.3.2 requires parentheses on every module
+	// instance, including modules with no ports. The parser preserves the
+	// omitted-list form so user-type declarations and UDPs are not affected.
+      if (no_port_list_) {
+	    cerr << get_fileline() << ": "
+		 << (gn_commercial_unsafe_flag ? "warning: " : "error: ")
+		 << "module instance " << get_name()
+		 << " has no port list; IEEE 1800 23.3.2 requires parentheses"
+		 << endl;
+	    if (!gn_commercial_unsafe_flag) des->errors += 1;
+      }
+
+	// IEEE 1800-2017/2023 23.3.2 limits a module port list to one .*.
+      if (has_duplicate_wildcard_port_connections()) {
+	    cerr << get_fileline() << ": "
+		 << (gn_commercial_unsafe_flag ? "warning: " : "error: ")
+		 << ".* appears more than once in the port connections of "
+		 << get_name() << " (IEEE 1800 23.3.2)" << endl;
+	    if (!gn_commercial_unsafe_flag) des->errors += 1;
+      }
+
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Instantiate module "
 		 << rmod->mod_name() << " with instance name "

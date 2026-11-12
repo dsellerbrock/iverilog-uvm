@@ -16236,6 +16236,7 @@ gate_instance
 	tmp->name = $1;
 	tmp->parms = 0;
 	tmp->parms_by_name = 0;
+	tmp->no_port_list = true;
 	FILE_NAME(tmp, @1);
 	delete[]$1;
 	$$ = tmp;
@@ -16266,6 +16267,7 @@ gate_instance
 	tmp->name = $1;
 	tmp->parms = 0;
 	tmp->parms_by_name = 0;
+	tmp->no_port_list = true;
 	tmp->ranges = $2;
 	FILE_NAME(tmp, @1);
 	delete[]$1;
@@ -16395,6 +16397,7 @@ gate_instance
 	tmp->name = $1.text;
 	tmp->parms = 0;
 	tmp->parms_by_name = 0;
+	tmp->no_port_list = true;
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }

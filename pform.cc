@@ -4045,7 +4045,8 @@ static void pform_make_modgate(perm_string type,
 			       list<PExpr*>*wires,
 			       list<pform_range_t>*ranges,
 			       const LineInfo&li,
-			       std::list<named_pexpr_t>*attr)
+			       std::list<named_pexpr_t>*attr,
+			       bool no_port_list)
 {
       for (list<PExpr*>::iterator idx = wires->begin()
 		 ; idx != wires->end() ; ++idx) {
@@ -4053,6 +4054,7 @@ static void pform_make_modgate(perm_string type,
       }
 
       PGModule*cur = new PGModule(type, name, wires);
+      if (no_port_list) cur->mark_no_port_list();
       cur->set_line(li);
       cur->set_ranges(ranges);
 
@@ -4085,7 +4087,8 @@ static void pform_make_modgate(perm_string type,
 			       list<named_pexpr_t>*bind,
 			       list<pform_range_t>*ranges,
 			       const LineInfo&li,
-			       std::list<named_pexpr_t>*attr)
+			       std::list<named_pexpr_t>*attr,
+			       bool no_port_list)
 {
       unsigned npins = bind->size();
       named_pexpr_t *pins = new named_pexpr_t[npins];
@@ -4095,6 +4098,7 @@ static void pform_make_modgate(perm_string type,
       std::copy(bind->begin(), bind->end(), pins);
 
       PGModule*cur = new PGModule(type, name, pins, npins);
+      if (no_port_list) cur->mark_no_port_list();
       cur->set_line(li);
       cur->set_ranges(ranges);
 
@@ -4285,7 +4289,7 @@ void pform_make_modgates(const struct vlltype&loc,
 	    if (cur.parms_by_name) {
 		  pform_make_modgate(type, cur_name, overrides,
 				     cur.parms_by_name, cur.ranges,
-				     cur, attr);
+				     cur, attr, cur.no_port_list);
 
 	    } else if (cur.parms) {
 
@@ -4298,13 +4302,13 @@ void pform_make_modgates(const struct vlltype&loc,
 		  }
 		  pform_make_modgate(type, cur_name, overrides,
 				     cur.parms, cur.ranges,
-				     cur, attr);
+				     cur, attr, cur.no_port_list);
 
 	    } else {
 		  list<PExpr*>*wires = new list<PExpr*>;
 		  pform_make_modgate(type, cur_name, overrides,
 				     wires, cur.ranges,
-				     cur, attr);
+				     cur, attr, cur.no_port_list);
 	    }
       }
 
@@ -4818,6 +4822,7 @@ static vector<PGModule*> bind_apply_one(
 		  }
 		  gate = new PGModule(bind.type, cur_name, wires);
 	    }
+	    if (cur.no_port_list) gate->mark_no_port_list();
 	    gate->set_line(bind.li);
 	    gate->set_ranges(cur.ranges);
 	    gate->mark_bind_instance();
