@@ -250,13 +250,23 @@ static void show_prop_type_enum(ivl_enumtype_t enumtype,
 	      ivl_enum_width(enumtype));
 }
 
-static void show_queue_type_(const char*rand_prefix,
-			     const char*code, ivl_type_t type)
+/* The enumeration of a container's leaves: its elements, or the elements
+   of its elements when it is a container of dynamic arrays or queues. */
+static ivl_enumtype_t container_leaf_enum_(ivl_type_t type)
 {
       ivl_type_t element = ivl_type_element(type);
       ivl_enumtype_t element_enum = element ? ivl_type_enum(element) : 0;
+      if (!element_enum && element && ivl_type_element(element))
+	    element_enum = ivl_type_enum(ivl_type_element(element));
+      return element_enum;
+}
+
+static void show_queue_type_(const char*rand_prefix,
+			     const char*code, ivl_type_t type)
+{
+      ivl_enumtype_t element_enum = container_leaf_enum_(type);
       fprintf(vvp_out, "\"%s", rand_prefix ? rand_prefix : "");
-	/* A container of enums keeps its elements' literal set so that
+	/* A container of enums keeps its leaves' literal set so that
 	 * randomize() chooses only declared values (IEEE 1800-2017 18.4). */
       if (element_enum)
 	    show_enum_domain_(element_enum);
@@ -346,6 +356,12 @@ static void show_prop_type_darray(ivl_type_t ptype, const char*rand_prefix)
 	  }
 	  default:
 	    break;
+      }
+	/* A dynamic array of dynamic arrays or queues of enums keeps the
+	   leaves' literal set too (18.4). */
+      if (container_leaf_enum_(ptype)) {
+	    show_queue_type_(rp, code, ptype);
+	    return;
       }
       fprintf(vvp_out, "\"%s%s", rp, code);
       emit_container_layout_suffix_(ptype);
