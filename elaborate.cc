@@ -46690,8 +46690,16 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      if (ua && !expanded) {
 				    const netranges_t&dims =
 					  ua->static_dimensions();
-				    if (dims.size() != 1)
+				    if (dims.empty() || (dims.size() != 1
+				        && !id->path().back().index.empty()))
 					  return "";
+				    unsigned long count = 1;
+				    for (const netrange_t&dim : dims) {
+					  if (!dim.defined() || !dim.width()
+					      || count > UINT_MAX / dim.width())
+					        return "";
+					  count *= dim.width();
+				    }
 				    ivl_type_t etype = ua->element_type();
 				    unsigned ewid = etype
 					  ? etype->packed_width() : 32;
@@ -46700,7 +46708,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  (etype && etype->get_signed())
 						? ":s" : "";
 				    for (unsigned long k = 0
-					       ; k < dims[0].width() ; k += 1)
+					       ; k < count ; k += 1)
 					  atoms.push_back("e:"
 						+ to_string(pidx) + ":"
 						+ to_string(ewid) + ":"
