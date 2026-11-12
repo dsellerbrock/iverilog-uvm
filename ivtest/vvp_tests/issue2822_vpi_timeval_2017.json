@@ -1,0 +1,14 @@
+{
+  "type": "normal",
+  "source": "issue2822_vpi_timeval.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2822_vpi_timeval_2017"],
+  "vpi-sources": ["vpi/issue2822_vpi_timeval.c"],
+  "output-contains": [
+    "VPI TIMEVAL v=12345678:9abcdef0",
+    "VPI TIMEVAL xz=12340000:00005678",
+    "VPI TIMEVAL PASS",
+    "PASSED",
+    "DONE"
+  ]
+}
