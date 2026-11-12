@@ -16958,6 +16958,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                           continue;
                                     return fail_joint("a coupled stage projection could not be drawn from its BDD");
                               }
+                              /* ponytail: under the cap the projection is still
+                               * enumerated one Z3 model per solution, about
+                               * 0.1-0.45 s per randomize() near 1024. Drawing it
+                               * from the BDD above would be faster but would
+                               * change existing random streams that Eve compares
+                               * against (supervisor ruling 2026-11-12: keep them
+                               * stable); revisit only with Eve. */
                               vector<vector<uint64_t> > values;
                               const char*reason = nullptr;
                               if (z3_enumerate_joint_(ctx, base, projection,
