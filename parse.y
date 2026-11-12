@@ -19256,7 +19256,7 @@ specify_item
 	pform_module_specify_path(tmp);
       }
   | K_ifnone specify_edge_path_decl ';'
-      { yywarn(@1, "sorry: ifnone with an edge-sensitive path is not supported.");
+      { yyerror(@1, "ifnone may only be used with a simple module path (IEEE 1800 30.4.4.4).");
 	yyerrok;
       }
   | K_Sfullskew '(' spec_reference_event ',' spec_reference_event
