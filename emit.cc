@@ -515,9 +515,9 @@ void NetScope::emit_scope(struct target_t*tgt) const
 	    tgt->class_type(this, cur->second);
       }
 
-      for (map<const enum_type_t*,netenum_t*>::const_iterator cur = enum_sets_.begin()
-		 ; cur != enum_sets_.end() ;  ++cur)
-	    tgt->enumeration(this, cur->second);
+      for (vector<netenum_t*>::const_iterator cur = enum_sets_order_.begin()
+		 ; cur != enum_sets_order_.end() ; ++cur)
+	    tgt->enumeration(this, *cur);
 
       for (map<hname_t,NetScope*>::const_iterator cur = children_.begin()
 		 ; cur != children_.end() ; ++ cur )
