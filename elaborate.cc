@@ -5419,10 +5419,34 @@ void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval
 					NetExpr*decay_time) const
 {
       NetNet *rval_net = elaborate_unpacked_array(des, scope, *this, lval, pin(1));
-      if (rval_net)
+      if (rval_net) {
 	    assign_unpacked_with_bufz(des, scope, lval, lval, rval_net,
 			      rise_time, fall_time, decay_time,
 			      lval->user_nettype() && delay_count() > 0);
+
+	    /* Keep the source-level assignment for VPI (IEEE 1800-2023 37.47).
+	       The structural driver for each array word is emitted above; the
+	       record retains the whole-array operands. */
+	    NetScope::contassign_t contassign;
+	    contassign.set_line(*this);
+	    contassign.lval = new NetESignal(lval);
+	    contassign.rval = new NetESignal(rval_net);
+	    for (unsigned idx = 0; idx < lval->pin_count(); idx += 1) {
+		  for (const Link*cur = lval->pin(idx).nexus()->first_nlink()
+		       ; cur ; cur = cur->next_nlink()) {
+			const NetNode*node = dynamic_cast<const NetNode*>(cur->get_obj());
+			if (node && cur->get_dir() == Link::OUTPUT) {
+			      contassign.driver = node->name();
+			      break;
+			}
+		  }
+		  if (contassign.driver) break;
+	    }
+	    contassign.drive0 = strength0();
+	    contassign.drive1 = strength1();
+	    contassign.net_decl = false;
+	    scope->contassigns.push_back(contassign);
+      }
 }
 
 void PGBuiltin::calculate_gate_and_lval_count_(unsigned&gate_count,
