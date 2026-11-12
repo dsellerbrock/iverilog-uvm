@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2882_contassign_select.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2882_contassign_select_2017"],
+  "vpi-sources": ["vpi/issue2882_contassign_select.c"],
+  "output-contains": ["VPI CONTASSIGN SELECT PASS"]
+}

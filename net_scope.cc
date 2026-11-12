@@ -1569,7 +1569,7 @@ PLet* NetScope::find_let(const Design*des, perm_string name,
  * place, so any diagnostic this raises is swallowed and the expression
  * dropped: keeping it can never change what a design compiles to.
  */
-static NetExpr* elaborate_for_vpi_(Design*des, NetScope*scope, PExpr*pe)
+NetExpr* elaborate_for_vpi(Design*des, NetScope*scope, PExpr*pe)
 {
       std::ostringstream sink;
       std::streambuf*saved = cerr.rdbuf(sink.rdbuf());
@@ -1618,7 +1618,7 @@ void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 		  if (!ref.default_expr || ref.type_flag || ref.is_array_param
 		      || ref.is_assoc_param || ref.is_annotatable || !ref.val)
 			continue;
-		  NetExpr*tmp = elaborate_for_vpi_(des, this, ref.default_expr);
+		  NetExpr*tmp = elaborate_for_vpi(des, this, ref.default_expr);
 		  if (tmp && default_is_final_value_(tmp, ref.val)) {
 			delete tmp;
 			tmp = 0;
@@ -1626,7 +1626,7 @@ void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 		  ref.default_net = tmp;
 	    }
 	    for (defparam_t&cur : defparams_kept)
-		  cur.rhs_net = elaborate_for_vpi_(des, this, cur.rhs);
+		  cur.rhs_net = elaborate_for_vpi(des, this, cur.rhs);
       }
       for (map<hname_t,NetScope*>::const_iterator cur = children_.begin()
 		 ; cur != children_.end() ; ++cur)
