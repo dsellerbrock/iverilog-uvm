@@ -10749,6 +10749,7 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 	// m_severity_count[sev]++), so UVM_ERROR/UVM_WARNING counts stayed
 	// 0. Expand to the equivalent plain store a[k] = a[k] <op> rv,
 	// which uses the working associative read and store paths.
+      NetProc*key_init = 0;
       if (lv->word() && lv_is_assoc_element_(lv)) {
 	    {
 		  unsigned wid = count_lval_width(lv);
@@ -10761,6 +10762,54 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
                         ? max(wid, rv->expr_width()) : wid;
 		  NetExpr*rd = lval()->elaborate_expr(des, scope, wid,
 						      PExpr::NO_FLAGS);
+                    // IEEE 1800-2023 11.4.1: "any left-hand index
+                    // expression is only evaluated once". The read above
+                    // re-elaborated the key, so a key that may have side
+                    // effects is stored in a temporary that both the read
+                    // and the store use. A constant or plain variable key
+                    // reads the same value twice and needs no temporary.
+                  NetExpr*key = lv->word();
+                  NetESignal*key_sig = dynamic_cast<NetESignal*>(key);
+                    // Find the read's copy of the key: a local element read
+                    // is a select of the whole array keyed by its select
+                    // operand; a word read or a property read carries it as
+                    // the word or property index. This code owns rd.
+                  NetESelect*rd_sel = dynamic_cast<NetESelect*>(rd);
+                  NetExpr*rd_base = rd_sel ? const_cast<NetExpr*>(rd_sel->sub_expr()) : rd;
+                  NetESignal*rd_sig = dynamic_cast<NetESignal*>(rd_base);
+                  NetEProperty*rd_prop = dynamic_cast<NetEProperty*>(rd_base);
+                  if (rd_sig && rd_sig->sig() != lv->sig()) rd_sig = 0;
+                  if (rd_prop && (int)rd_prop->property_idx()
+                                 != lv->get_property_idx()) rd_prop = 0;
+                  bool key_in_sel = rd_sel && rd_sig && !rd_sig->word_index()
+                        && rd_sel->select() && !lv->get_base();
+                  bool rd_keyed = key_in_sel
+                        || (rd_sig && rd_sig->word_index())
+                        || (rd_prop && rd_prop->get_index());
+                  if (rd_keyed && !dynamic_cast<NetEConst*>(key)
+                      && !(key_sig && !key_sig->word_index())) {
+                        ivl_type_t key_type = key->net_type();
+                        if (!key_type)
+                              key_type = new netvector_t(key->expr_type(),
+                                    key->expr_width() - 1, 0, key->has_sign());
+                        NetNet*tmp = new NetNet(scope, scope->local_symbol(),
+                                                NetNet::REG, key_type);
+                        tmp->set_line(*this);
+                        tmp->local_flag(true);
+                        if (scope->is_auto())
+                              tmp->lifetime_override(IVL_VLT_AUTOMATIC);
+                        NetAssign*init = new NetAssign(new NetAssign_(tmp), lv->release_word());
+                        init->set_line(*this);
+                        key_init = init;
+                        NetESignal*store_key = new NetESignal(tmp);
+                        store_key->set_line(*this);
+                        lv->set_word(store_key);
+                        NetESignal*read_key = new NetESignal(tmp);
+                        read_key->set_line(*this);
+                        if (key_in_sel) rd_sel->set_select(read_key);
+                        else if (rd_sig) rd_sig->set_word_index(read_key);
+                        else rd_prop->set_index(read_key);
+                  }
                   if (rd && integral) {
                         // Apply binary expression context before extension;
                         // assignment narrowing/state conversion belongs to the store.
@@ -10773,13 +10822,25 @@ NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
 			NetAssign*asn = new NetAssign(lv, comb);
 			asn->set_assoc_rmw();
 			asn->set_line(*this);
-			return asn;
+			if (!key_init) return asn;
+			NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+			blk->set_line(*this);
+			blk->append(key_init);
+			blk->append(asn);
+			return blk;
 		  }
 	    }
       }
 
       NetAssign*cur = new NetAssign(lv, op, rv);
       cur->set_line(*this);
+      if (key_init) {
+	    NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
+	    blk->set_line(*this);
+	    blk->append(key_init);
+	    blk->append(cur);
+	    return blk;
+      }
 
       return cur;
 }
