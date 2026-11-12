@@ -1049,6 +1049,23 @@ extern "C" ivl_scope_t ivl_expr_scope(ivl_expr_t net)
       return net->u_.scope_.scope;
 }
 
+extern "C" unsigned ivl_expr_vif_binds(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SCOPE);
+      return net->u_.scope_.nbinds;
+}
+
+extern "C" ivl_signal_t ivl_expr_vif_bind(ivl_expr_t net, unsigned idx,
+					  unsigned*pid)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SCOPE);
+      assert(idx < net->u_.scope_.nbinds);
+      *pid = net->u_.scope_.bind_pid[idx];
+      return net->u_.scope_.bind_sig[idx];
+}
+
 extern "C" ivl_select_type_t ivl_expr_sel_type(ivl_expr_t net)
 {
       assert(net);
@@ -3114,6 +3131,16 @@ extern "C" unsigned ivl_scope_mod_module_ports(ivl_scope_t net)
       assert(net->type_ == IVL_SCT_MODULE );
       assert(net->net_);
       return static_cast<unsigned>(net->net_->module_port_info().size());
+}
+
+extern "C" ivl_expr_t ivl_scope_mod_module_port_highconn(ivl_scope_t net,
+							 unsigned idx)
+{
+      assert(net);
+      if (!net->aux_ || !net->aux_->port_highconns
+	  || idx >= net->aux_->port_highconns->size())
+	    return 0;
+      return (*net->aux_->port_highconns)[idx];
 }
 
 extern "C" const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx )

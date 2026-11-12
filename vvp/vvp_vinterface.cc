@@ -169,6 +169,14 @@ void vvp_vinterface::resolve_slots_(void)
       }
 }
 
+void vvp_vinterface::bind_slot(size_t pid, vpiHandle item)
+{
+      if (pid < slots_.size() && dynamic_cast<__vpiSignal*>(item)) {
+	    slots_[pid].handle = item;
+	    slots_[pid].kind = SLOT_SIGNAL;
+      }
+}
+
 vvp_vinterface::slot_t vvp_vinterface::get_slot_(size_t pid) const
 {
       if (pid >= slots_.size())

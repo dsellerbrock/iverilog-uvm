@@ -1138,6 +1138,11 @@ extern ivl_event_t ivl_expr_event(ivl_expr_t net);
 extern int ivl_expr_property_idx(ivl_expr_t net);
   /* IVL_EX_SCOPE */
 extern ivl_scope_t ivl_expr_scope(ivl_expr_t net);
+  /* IVL_EX_SCOPE of an interface port binding: members redirected to a
+     module-local shadow signal (a module path destination, 25.6). */
+extern unsigned ivl_expr_vif_binds(ivl_expr_t net);
+extern ivl_signal_t ivl_expr_vif_bind(ivl_expr_t net, unsigned idx,
+				      unsigned*pid);
   /* IVL_EX_ARRAY_SLICE IVL_EX_PROPERTY IVL_EX_SIGNAL */
 extern ivl_signal_t ivl_expr_signal(ivl_expr_t net);
   /* any expression */
@@ -2175,6 +2180,10 @@ extern ivl_scope_t  ivl_scope_parent(ivl_scope_t net);
 
 extern unsigned ivl_scope_mod_module_ports(ivl_scope_t net);
 extern const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx );
+  /* The actual connected to port IDX of this module instance, elaborated
+     in the parent scope (vpiHighConn, IEEE 1800-2023 37.14), or NULL
+     when the port is unconnected or the actual cannot be described. */
+extern ivl_expr_t ivl_scope_mod_module_port_highconn(ivl_scope_t net, unsigned idx);
 extern ivl_signal_port_t ivl_scope_mod_module_port_type(ivl_scope_t net, unsigned idx );
 extern int ivl_scope_mod_module_port_vpi_type(ivl_scope_t net, unsigned idx );
 extern unsigned ivl_scope_mod_module_port_width(ivl_scope_t net, unsigned idx );
