@@ -750,6 +750,7 @@ extern bool of_SUBSTR(vthread_t thr, vvp_code_t code);
 extern bool of_SUBSTR_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_TEST_NUL(vthread_t thr, vvp_code_t code);
 extern bool of_TEST_NUL_A(vthread_t thr, vvp_code_t code);
+extern bool of_TCHK_VIOLATION(vthread_t thr, vvp_code_t code);
 extern bool of_TEST_CLASS(vthread_t thr, vvp_code_t code);
 extern bool of_TEST_NUL_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_TEST_NUL_OBJ_PROP(vthread_t thr, vvp_code_t code);

@@ -2306,6 +2306,8 @@ __vpiTchk* compile_tchk(char*label, int type, long file_idx, long lineno)
       tchk->lineno = lineno;
       tchk->scope = vpip_peek_current_scope();
       vpip_attach_to_current_scope(tchk);
+	/* %tchk/violation names the record by its label. */
+      compile_vpi_symbol(label, tchk);
       free(label);
       return tchk;
 }

@@ -8030,6 +8030,27 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    }
       }
 
+      /* $ivl_tchk_violation(<limit variable>) -- a synthesized timing
+       * checker found a violation (IEEE 1800-2023 38.36.3). The
+       * variable is the first limit of exactly one timing check of its
+       * scope; %tchk/violation names that check's .tchk record. */
+      if (strcmp(stmt_name, "$ivl_tchk_violation") == 0) {
+	    ivl_expr_t arg = ivl_stmt_parm_count(net) == 1
+		  ? ivl_stmt_parm(net, 0) : 0;
+	    ivl_signal_t lim = arg ? ivl_expr_signal(arg) : 0;
+	    ivl_scope_t tscope = lim ? ivl_signal_scope(lim) : 0;
+	    unsigned idx;
+	    for (idx = 0; tscope && idx < ivl_scope_tchks(tscope); idx += 1) {
+		  ivl_tchk_t tchk = ivl_scope_tchk(tscope, idx);
+		  if (ivl_tchk_limits(tchk) > 0
+		      && ivl_tchk_limit_sig(tchk, 0) == lim) {
+			fprintf(vvp_out, "    %%tchk/violation TC_%p;\n", tchk);
+			break;
+		  }
+	    }
+	    return 0;
+      }
+
       /* $ivl_ref_bind(<formal>, <actual>) — point a `ref' formal at the
        * caller's variable (IEEE 1800-2017 13.5.2). The core emits this
        * where the copy-in used to be, which puts it between the

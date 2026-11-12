@@ -37624,6 +37624,18 @@ bool of_TEST_NUL_A(vthread_t thr, vvp_code_t cp)
  * into the destination -- silently breaking the type system rather than
  * returning 0 and leaving the destination alone.
  */
+/*
+ * %tchk/violation <tchk>
+ *
+ * A synthesized timing checker found a violation of the timing check
+ * <tchk>; run the cbTchkViolation callbacks (IEEE 1800-2023 38.36.3).
+ */
+bool of_TCHK_VIOLATION(vthread_t, vvp_code_t cp)
+{
+      vpip_tchk_violation(cp->handle);
+      return true;
+}
+
 bool of_TEST_CLASS(vthread_t thr, vvp_code_t cp)
 {
       const class_type*want = dynamic_cast<const class_type*> (cp->handle);

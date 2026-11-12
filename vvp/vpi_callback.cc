@@ -40,6 +40,7 @@
 # include  <cassert>
 # include  <cstdlib>
 # include  <unordered_map>
+# include  <vector>
 
 using namespace std;
 
@@ -1153,6 +1154,38 @@ void vpiNextSimTime(void)
       vpi_mode_flag = VPI_MODE_NONE;
 }
 
+/*
+ * cbTchkViolation (IEEE 1800-2023 38.36.3) is an action callback: it
+ * stays registered until vpi_remove_cb, which clears cb_rtn, and runs on
+ * every timing-check violation with obj set to the violated timing
+ * check.
+ */
+static std::vector<simulator_callback*> tchk_violation_callbacks;
+
+static simulator_callback* make_tchk_violation(p_cb_data data)
+{
+      if (!data->cb_rtn) {
+	    fprintf(stderr, "VPI error: cbTchkViolation callback has no "
+		    "callback routine\n");
+	    return 0;
+      }
+      simulator_callback*obj = new simulator_callback(data);
+      if (data->time) obj->cb_time.type = data->time->type;
+      tchk_violation_callbacks.push_back(obj);
+      return obj;
+}
+
+void vpip_tchk_violation(vpiHandle tchk)
+{
+	/* A callback may register another; run the ones present now. */
+      std::vector<simulator_callback*> run = tchk_violation_callbacks;
+      for (simulator_callback*cur : run) {
+	    if (!cur->cb_data.cb_rtn) continue;
+	    cur->cb_data.obj = tchk;
+	    callback_execute(cur);
+      }
+}
+
 static simulator_callback* make_prepost(p_cb_data data)
 {
       if ((data->reason == cbNextSimTime) && !check_callback_time(data, true))
@@ -1334,6 +1367,10 @@ vpiHandle vpi_register_cb(p_cb_data data)
 	  case cbEndOfSimulation:
 	  case cbNextSimTime:
 	    obj = make_prepost(data);
+	    break;
+
+	  case cbTchkViolation:
+	    obj = make_tchk_violation(data);
 	    break;
 
 	  default:
