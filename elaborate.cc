@@ -35783,7 +35783,7 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 static string constraint_class_state_path_ir_(
       const vector<perm_string>&names, const netclass_t*cls,
       bool indexed_outer = false, unsigned array_word = 0,
-      ivl_type_t*result_type = nullptr)
+      ivl_type_t*result_type = nullptr, bool container_size = false)
 {
       if (!cls || names.size() < 2) return "";
 
@@ -35791,6 +35791,9 @@ static string constraint_class_state_path_ir_(
       const netstruct_t*cur_struct = nullptr;
       ivl_type_t cur_type = nullptr;
       string path;
+	// Whether every link of the chain is rand: then the leaf is solved,
+	// not state (18.4).
+      bool all_rand = true;
       for (size_t pos = 0 ; pos < names.size() ; pos += 1) {
 	    unsigned idx;
 	    if (cur_cls) {
@@ -35798,6 +35801,8 @@ static string constraint_class_state_path_ir_(
 		  if (property < 0) return "";
 		  idx = (unsigned)property;
 		  cur_type = cur_cls->get_prop_type(idx);
+		  property_qualifier_t qual = cur_cls->get_prop_qual(idx);
+		  all_rand = all_rand && (qual.test_rand() || qual.test_randc());
 		  if (pos == 0 && indexed_outer) {
 			const netuarray_t*array =
 			      dynamic_cast<const netuarray_t*>(cur_type);
@@ -35813,6 +35818,8 @@ static string constraint_class_state_path_ir_(
 		  idx = cur_struct->member_index(names[pos]);
 		  if (idx >= cur_struct->members().size()) return "";
 		  cur_type = cur_struct->members()[idx].net_type;
+		  property_qualifier_t qual = cur_struct->members()[idx].qualifier;
+		  all_rand = all_rand && (qual.test_rand() || qual.test_randc());
 	    } else {
 		  return "";
 	    }
@@ -35829,6 +35836,18 @@ static string constraint_class_state_path_ir_(
 	    }
       }
 
+	/* The size of a dynamic array or queue reached through the chain is
+	   state when some link is not rand (18.3): `s.da.size()' of a
+	   non-rand struct member. A fully rand chain is solved, which this
+	   state read cannot represent. */
+      if (container_size) {
+	    const netqueue_t*queue = dynamic_cast<const netqueue_t*>(cur_type);
+	    if (all_rand || !dynamic_cast<const netdarray_t*>(cur_type)
+		|| (queue && queue->assoc_compat()))
+		  return "";
+	    if (result_type) *result_type = cur_type;
+	    return "r:" + path + ":32:z";
+      }
       if (!constraint_state_prop_ok_(cur_type, false)) return "";
       if (result_type) *result_type = cur_type;
       unsigned wid = cur_type ? cur_type->packed_width() : 0;
@@ -44773,6 +44792,24 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    container_size_path, cls, value_slots, scope, loop_env) : "";
 		  if (size_ir.empty() && !cls)
 		    size_ir = constraint_scope_queue_size_ir_(cpath);
+		    /* A container reached through a non-rand link, such as
+		       `s.da.size()' of a struct member, reads its size as state. */
+		  if (size_ir.empty() && cls && call->get_parms().empty()
+		      && call->with_constraints().empty()
+		      && container_size_path.size() >= 3) {
+			vector<perm_string> names;
+			bool plain = true;
+			for (pform_name_t::const_iterator part =
+				   container_size_path.begin()
+			     ; part != prev(container_size_path.end()) ; ++part) {
+			      if (!part->index.empty() || part->local_scope)
+				    plain = false;
+			      names.push_back(part->name);
+			}
+			if (plain)
+			      size_ir = constraint_class_state_path_ir_(names, cls,
+				    false, 0, nullptr, true);
+		  }
 		  if (!size_ir.empty()) return size_ir;
 	    }
 	      /* If target-property lookup did not claim an unqualified receiver,

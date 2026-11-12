@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2625_struct_member_container_size.v",
+  "iverilog-args": ["-g2023"]
+}
