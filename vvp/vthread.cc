@@ -5556,7 +5556,8 @@ static bool randomize_struct_darray_(vvp_darray*array,
 	    return true;
       }
 
-	    if (array->vec4_word_width() == 0)
+	    if (array->vec4_word_width() == 0
+		  && !dynamic_cast<vvp_queue*>(array))
 	    return false;
       for (size_t pos = 0; pos < array->get_size(); ++pos) {
 	    if (member_root ? !cobj->rand_mode(pid, pos)
@@ -5643,9 +5644,13 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 
 	    // A rand dynamic-array member keeps its current size when no size
 	    // constraint changes it; randomize each enabled integral element.
-	    bool integral_darray = bt.compare(0, 2, "Dv") == 0
-		  || bt.compare(0, 3, "Dsv") == 0;
-	    if ((integral_darray || subdefn->property_is_dyn2(mpid))
+	    bool integral_array = bt.compare(0, 2, "Dv") == 0
+		  || bt.compare(0, 3, "Dsv") == 0
+		  || bt.compare(0, 2, "Qv") == 0
+		  || bt.compare(0, 3, "Qsv") == 0
+		  || bt.compare(0, 3, "Qsb") == 0
+		  || bt.compare(0, 2, "Qb") == 0;
+	    if ((integral_array || subdefn->property_is_dyn2(mpid))
 		&& subdefn->property_dimensions(mpid).empty()
 		&& !subdefn->property_is_randc(mpid)) {
 		  vvp_object_t propobj;
@@ -5666,9 +5671,9 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 		  continue;
 	    }
 
-	    const char*unsupported_shape = bt == "o" ? "class-handle"
+    const char*unsupported_shape = bt == "o" ? "class-handle"
 		  : (!bt.empty() && bt[0] == 'D') ? "dynamic-array"
-		  : (!bt.empty() && bt[0] == 'Q') ? "queue"
+	          : (!bt.empty() && bt[0] == 'Q' && !integral_array) ? "queue"
 		  : (!bt.empty() && bt[0] == 'M') ? "associative-array"
 		  : (bt == "r") ? "real"
 		  : (bt == "S") ? "string" : nullptr;

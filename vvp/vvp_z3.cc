@@ -2155,7 +2155,7 @@ static Z3_ast parse_size(Z3Builder& b, const string& tok,
 	      for (size_t pos = 0; owner && pos + 1 < property_path.size(); ++pos) {
 		    vvp_object_t handle;
 		    if (!constraint_object_property_(owner, property_path[pos],
-			  handle, path_error, 0, true)) {
+		    handle, path_error, 0, false)) {
 			  owner = nullptr;
 			  break;
 		    }
@@ -2754,16 +2754,15 @@ static string capture_balanced_form(IRParser& par)
 }
 
 /* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: queue/darray
- * indices are signed int. Substitute `L` with "c:<i>:32:s" (token
- * boundaries only — L may not appear inside other tokens, but guard
- * anyway). */
+ * indices are signed int. Substitute `L` with "c:<i>:32:s" at atom or
+ * colon-delimited header boundaries, including struct-member element tokens. */
 static string subst_loop_token_text(const string& body, const string& text)
 {
       string out;
       const char* p = body.c_str();
       auto is_delim = [](char c) {
 	    return c == ' ' || c == '\t' || c == '\n' || c == '('
-		|| c == ')' || c == '[' || c == ']' || c == ',' || c == 0;
+		|| c == ')' || c == '[' || c == ']' || c == ',' || c == ':' || c == 0;
       };
       char prev = ' ';
       while (*p) {
@@ -2813,13 +2812,16 @@ static string subst_loop_token(const string& body, uint64_t i,
       const char* p = body.c_str();
       auto is_delim = [](char c) {
 	    return c == ' ' || c == '\t' || c == '\n' || c == '('
-		|| c == ')' || c == '[' || c == ']' || c == ',' || c == 0;
+		|| c == ')' || c == '[' || c == ']' || c == ',' || c == ':' || c == 0;
       };
       char prev = ' ';
       while (*p) {
 	    if (*p == token && is_delim(prev) && is_delim(p[1])) {
-		  out += "c:" + to_string(i) + ":" + to_string(width)
-		       + (sign ? ":s" : "");
+		  if (prev == ':' && p[1] == ':')
+			out += to_string(i);
+		  else
+			out += "c:" + to_string(i) + ":" + to_string(width)
+			     + (sign ? ":s" : "");
 		  prev = token;
 		  p++;
 		  continue;
@@ -4039,6 +4041,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	 * bound to each index and conjoin the instances. */
       if (op == "dynforeach") {
 	    string hdr = par.read_token();
+	    bool struct_member = !hdr.empty() && hdr[0] == 'S';
 	      // `foreach (q[i]) foreach (q[j])' over one array: the inner template
 	      // appends @M so its iterator is the token M, not the outer L.
 	    char loop_token = 'L';
@@ -4055,8 +4058,52 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  hdr.erase(slash);
 	    }
 	    unsigned pidx = 0, ewid = 0, leaf = 0; bool esig = false;
+	    if (struct_member) {
+		  unsigned outer = 0, member = 0;
+		  const char*text = hdr.c_str() + 1;
+		  char*end = nullptr;
+		  errno = 0;
+		  unsigned long value = strtoul(text, &end, 10);
+		  bool valid = end != text && errno != ERANGE && *end == ':'
+			&& value <= UINT_MAX;
+		  if (valid) { outer = (unsigned)value; text = end + 1; }
+		  errno = 0;
+		  value = valid ? strtoul(text, &end, 10) : 0;
+		  valid = valid && end != text && errno != ERANGE && *end == ':'
+			&& value <= UINT_MAX;
+		  if (valid) { member = (unsigned)value; text = end + 1; }
+		  errno = 0;
+		  value = valid ? strtoul(text, &end, 10) : 0;
+		  valid = valid && end != text && errno != ERANGE
+			&& (*end == 0 || (*end == ':' && end[1] == 's' && end[2] == 0))
+			&& value > 0 && value <= UINT_MAX;
+		  if (valid) {
+			ewid = (unsigned)value;
+			esig = *end == ':';
+		  }
+		  if (!valid || !b.graph || !b.cobj) {
+			b.state_errors.push_back("malformed unpacked-struct member foreach header");
+			return b.mk_true();
+		  }
+		  vvp_object_t object;
+		  string error;
+		  if (!constraint_object_property_(b.cobj, outer, object, error, 0,
+						   false)) {
+			b.state_errors.push_back(error.empty()
+			      ? "invalid unpacked-struct foreach owner" : error);
+			return b.mk_true();
+		  }
+		  vvp_cobject*owner = object.peek<vvp_cobject>();
+		  if (!owner || member >= owner->get_defn()->property_count()) {
+			b.state_errors.push_back("invalid unpacked-struct foreach member");
+			return b.mk_true();
+		  }
+		  pidx = b.graph->intern(owner, member);
+	    }
 	    bool nested = hdr.find(":#") != string::npos;
-	    if (nested) {
+	    if (struct_member) {
+		  // pidx is already the member's canonical graph identity.
+	    } else if (nested) {
 		  if (!parse_nested_pws_header_(hdr, pidx, leaf, ewid, esig)) {
 			b.state_errors.push_back("malformed selected queue foreach header");
 			return b.mk_true();
@@ -4067,7 +4114,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
                         b.state_errors.push_back("unsupported selected queue foreach metadata");
                         return b.mk_true();
                   }
-            } else pidx = b.property_index(pidx);
+	    } else if (!struct_member) pidx = b.property_index(pidx);
 	    string body = capture_balanced_form(par);
             if (nested && body.empty()) {
                   b.state_errors.push_back("malformed selected queue foreach body");
@@ -8458,10 +8505,32 @@ class state_foreach_expander_t {
             }
             if (op == "dynforeach" || op == "delem" || op == "qmelem") {
                   const char*begin = parser.p;
+                  string header = parser.read_token();
                   unsigned property = 0, member = 0, width = 0; bool sign = false;
-                  if (!header_(parser.read_token(), "", property, member, width,
-                               sign, op == "qmelem")
-                      || property >= receiver_->get_defn()->property_count()) return false;
+                  if (op == "dynforeach" && !header.empty()
+                      && header[0] == 'S') {
+                        const char*text = header.c_str() + 1;
+                        char*end = nullptr;
+                        unsigned long outer = strtoul(text, &end, 10);
+                        if (end == text || *end != ':'
+                            || outer >= receiver_->get_defn()->property_count())
+                              return false;
+                        text = end + 1;
+                        unsigned long field = strtoul(text, &end, 10);
+                        if (end == text || *end != ':') return false;
+                        text = end + 1;
+                        unsigned long element_width = strtoul(text, &end, 10);
+                        if (end == text || element_width == 0
+                            || (*end != 0 && !(*end == ':' && end[1] == 's'
+                                               && end[2] == 0))) return false;
+                        property = (unsigned)outer;
+                        member = (unsigned)field;
+                        width = (unsigned)element_width;
+                        sign = *end == ':';
+                  } else if (!header_(header, "", property, member, width,
+                                     sign, op == "qmelem")
+                             || property >= receiver_->get_defn()->property_count())
+                        return false;
                   bool loop = op == "dynforeach";
                   if (loop && template_depth_) return false;
                   if (loop) ++template_depth_;
@@ -18763,9 +18832,30 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                               goto fail;
                         }
                         unsigned local = 0, width = 0; bool is_signed = false;
-                        parse_pws_header(header, local, width, is_signed);
-                        unsigned canonical = graph.intern(
-                              objects[work[wi].item.object].object, local);
+                        unsigned canonical;
+                        if (!header.empty() && header[0] == 'S') {
+                              const char*text = header.c_str() + 1;
+                              char*end = nullptr;
+                              unsigned long outer = strtoul(text, &end, 10);
+                              if (end == text || *end != ':'
+                                  || outer >= objects[work[wi].item.object]
+                                        .object->get_defn()->property_count())
+                                    goto fail;
+                              text = end + 1;
+                              unsigned long member = strtoul(text, &end, 10);
+                              if (end == text || *end != ':') goto fail;
+                              vvp_cobject*record = cobj_struct_prop(
+                                    objects[work[wi].item.object].object,
+                                    (unsigned)outer);
+                              if (!record || member >= record->get_defn()
+                                        ->property_count()) goto fail;
+                              canonical = graph.intern(record,
+                                    (unsigned)member);
+                        } else {
+                              parse_pws_header(header, local, width, is_signed);
+                              canonical = graph.intern(
+                                    objects[work[wi].item.object].object, local);
+                        }
                         string body = capture_balanced_form(parser);
                         vector<Ref> exact;
                         for (const Ref&arg : all_args)
