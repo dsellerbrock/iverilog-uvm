@@ -1614,8 +1614,8 @@ static void leave_typed_context_(Z3Builder&b, unsigned width, int sign)
 }
 
 // Forward declaration
-static Z3_ast build_z3_expr(IRParser&, Z3Builder&, Z3_lbool* = nullptr);
-static Z3_ast build_z3_atom(IRParser&, Z3Builder&, Z3_lbool* = nullptr);
+static Z3_ast build_z3_expr(IRParser&, Z3Builder&, Z3_lbool* = nullptr, bool = false);
+static Z3_ast build_z3_atom(IRParser&, Z3Builder&, Z3_lbool* = nullptr, bool = false);
 static Z3_lbool state_guard_truth_(Z3Builder&, Z3_ast,
                                   const set<Z3Builder::VarRef>&);
 static bool rand_elem_active_(const Z3Builder&, const vector<bool>*,
@@ -3234,12 +3234,12 @@ static Z3_ast constraint_state_error_disjunction_(Z3Builder&b,
       return Z3_mk_or(b.ctx, (unsigned)errors.size(), errors.data());
 }
 
-static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
+static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool sift)
 {
       par.skip_ws();
       if (par.peek() == '(') {
 	    par.consume(); // '('
-	    return build_z3_expr(par, b, guard);
+	    return build_z3_expr(par, b, guard, sift);
       }
       string tok = par.read_token();
       if (tok.empty()) return b.mk_true();
@@ -3347,23 +3347,31 @@ static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       return b.mk_true();
 }
 
-static Z3_ast build_z3_atom(IRParser&par, Z3Builder&b, Z3_lbool*guard)
+static Z3_ast build_z3_atom(IRParser&par, Z3Builder&b, Z3_lbool*guard, bool sift)
 {
-      if (!guard) return build_z3_atom_impl_(par, b, nullptr);
+      if (!guard) return build_z3_atom_impl_(par, b, nullptr, sift);
       if (b.collect_refs_only) {
             *guard = Z3_L_UNDEF;
-            return build_z3_atom_impl_(par, b, nullptr);
+            return build_z3_atom_impl_(par, b, nullptr, sift);
       }
       set<Z3Builder::VarRef> refs;
       auto*saved = b.collect_refs;
       b.collect_refs = &refs;
       size_t errors = b.state_errors.size();
+      size_t checks = b.state_checks.size();
       *guard = Z3_L_UNDEF;
-      Z3_ast value = build_z3_atom_impl_(par, b, guard);
+      Z3_ast value = build_z3_atom_impl_(par, b, guard, sift);
       b.collect_refs = saved;
       if (saved) saved->insert(refs.begin(), refs.end());
       if (b.state_errors.size() != errors) *guard = Z3_L_UNDEF;
       else if (*guard == Z3_L_UNDEF) *guard = state_guard_truth_(b, value, refs);
+      if (sift && checks < b.state_checks.size()) {
+            Z3_ast error = Z3_simplify(b.ctx, constraint_state_error_disjunction_(
+                  b, checks, b.state_checks.size()));
+            if (Z3_get_bool_value(b.ctx, error) != Z3_L_FALSE
+                && state_guard_truth_(b, error, refs) != Z3_L_FALSE)
+                  *guard = Z3_L_UNDEF;
+      }
       return value;
 }
 
@@ -3675,7 +3683,7 @@ static Z3_ast mk_free_bv(Z3Builder& b, unsigned wid)
 			 Z3_mk_bv_sort(b.ctx, wid));
 }
 
-static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
+static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool sift)
 {
       par.skip_ws();
       string op = par.read_token();
@@ -5606,12 +5614,12 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    b.integral_context_width = 0;
 	    b.integral_context_sign = -1;
 	    Z3_ast left  = constraint_value_to_bool_(
-		  b, build_z3_atom(par, b, &left_guard));
+		  b, build_z3_atom(par, b, &left_guard, sift));
 	    size_t after_left = b.state_errors.size();
 	    size_t side_after_left = b.side_constraints.size();
 	    size_t checks_after_left = b.state_checks.size();
 	    Z3_ast right = constraint_value_to_bool_(
-		  b, build_z3_atom(par, b, &right_guard));
+		  b, build_z3_atom(par, b, &right_guard, sift));
 	    b.integral_context_width = outer_context;
 	    b.integral_context_sign = outer_sign;
 	    size_t side_after_right = b.side_constraints.size();
@@ -5625,11 +5633,20 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast right_sift_args[2] = {
 		  Z3_mk_not(b.ctx, left_error), left_decides
 	    };
-	    // The left operand is always evaluated before the operator can decide
-	    // whether to short-circuit the right operand. A value in the right
-	    // operand therefore cannot suppress an error while evaluating left.
-	    constraint_guard_state_checks_(b, checks_after_left, checks_after_right,
-		  Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, right_sift_args)), false);
+	    if (sift) {
+		  // A guard's FALSE/TRUE state operand suppresses an error on
+		  // either side; a random or erroneous operand cannot decide it.
+		  Z3_lbool deciding = op == "and" ? Z3_L_FALSE : Z3_L_TRUE;
+		  if (right_guard == deciding)
+		        constraint_guard_state_checks_(b, checks_before,
+		              checks_after_left, Z3_mk_false(b.ctx));
+		  if (left_guard == deciding)
+		        constraint_guard_state_checks_(b, checks_after_left,
+		              checks_after_right, Z3_mk_false(b.ctx));
+	    } else {
+		  constraint_guard_state_checks_(b, checks_after_left, checks_after_right,
+		        Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, right_sift_args)), false);
+	    }
 	    Z3_ast left_valid = constraint_side_conjunction_(
 		  b, side_before, side_after_left);
 	    Z3_ast right_valid = constraint_side_conjunction_(
@@ -5675,7 +5692,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    b.integral_context_width = 0;
 	    b.integral_context_sign = -1;
 	    Z3_ast left  = constraint_value_to_bool_(
-		  b, build_z3_atom(par, b, &left_guard));
+		  b, build_z3_atom(par, b, &left_guard, op == "impl"));
 	    size_t after_left = b.state_errors.size();
 	    size_t side_after_left = b.side_constraints.size();
 	    size_t checks_after_left = b.state_checks.size();
@@ -6080,7 +6097,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    int outer_sign = b.integral_context_sign;
 	    b.integral_context_width = 0;
 	    b.integral_context_sign = -1;
-	    Z3_ast raw = build_z3_atom(par, b, guard ? &child_guard : nullptr);
+	    Z3_ast raw = build_z3_atom(par, b, guard ? &child_guard : nullptr, sift);
 	    b.integral_context_width = outer_context;
 	    b.integral_context_sign = outer_sign;
             if (guard && child_guard != Z3_L_UNDEF)
