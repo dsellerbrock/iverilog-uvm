@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sva_property_recursive_sorry.sv",
+    "iverilog-args" : [ "-g2017", "-s", "sva_property_recursive_sorry" ],
+    "gold"          : "sva_property_recursive_sorry_2017"
+}
