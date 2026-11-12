@@ -1303,6 +1303,19 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	      || ivl_type_base(sub_type) == IVL_VT_DARRAY))
 	    return sub_type;
 
+	/* A nested word may select a fixed-array element from a queue or
+	 * dynamic-array receiver. Keep the selected array object on the stack
+	 * for the outer word store instead of treating its scalar leaf type as
+	 * an invalid class-property receiver. */
+      if (prop_idx < 0 && ivl_lval_idx(lval)
+	  && lval_nest && ivl_lval_sig(lval_nest)
+	  && (ivl_type_base(ivl_signal_net_type(
+		ivl_lval_sig(lval_nest))) == IVL_VT_QUEUE
+	      || ivl_type_base(ivl_signal_net_type(
+		ivl_lval_sig(lval_nest))) == IVL_VT_DARRAY)
+	  && type_is_fixed_uarray_property_(sub_type))
+	return sub_type;
+
       /* Keep a module associative array's fixed child alive for the
 	 fixed-slot store in its enclosing l-value. */
       if (prop_idx < 0 && ivl_lval_idx(lval) && sub_type
