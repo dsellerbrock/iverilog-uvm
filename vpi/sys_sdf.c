@@ -1246,7 +1246,7 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	      s_vpi_value value;
 	      value.format = vpiStringVal;
 	      vpi_get_value(log_arg, &value);
-	      if (value.value.str && value.value.str[0]) {
+	      if (value.value.str && !sdf_string_is_blank(value.value.str)) {
 	            sdf_log_fd = fopen(value.value.str, "w");
 	            if (!sdf_log_fd)
 	                  vpi_printf("SDF WARNING: Unable to open log file \"%s\".\n",
