@@ -21663,11 +21663,9 @@ static int sva_validate_match_items_(const struct vlltype&loc,
 	    return sva_match_item_sorry_(loc,
 		  "require a nonempty flat sequence");
 
-      for (size_t i = 0 ; i + 1 < prop->seq->size() ; i += 1)
-	    if (sva_step_has_call_((*prop->seq)[i]))
-		  return sva_match_item_sorry_(loc,
-			"are currently supported only on the final sequence step");
-	if (!sva_step_has_call_(prop->seq->back()))
+	/* 16.11: a call may be attached to any step; it runs at that step's
+	   end points (pform_sva_nfa_try_assertion). */
+      if (!sva_chain_has_match_calls_(prop->seq))
 	    return sva_match_item_sorry_(loc,
 		  "outside the main sequence are not supported yet");
 
@@ -21698,13 +21696,13 @@ static int sva_validate_match_items_(const struct vlltype&loc,
 			"currently require finite delays with no repetition");
       }
 
-	  const sva_seq_step_t&last = prop->seq->back();
-	  for (size_t i = 0 ; i < last.items.size() ; i += 1)
-	    if (last.items[i].kind == sva_match_item_t::SUBROUTINE_CALL
-		&& !sva_match_call_is_direct_(last.items[i].call, kind == 2))
-		  return sva_match_item_sorry_(loc,
-			"currently support only direct $display calls or "
-			"zero-argument user calls in a cover property");
+      for (const sva_seq_step_t&st : *prop->seq)
+	    for (size_t i = 0 ; i < st.items.size() ; i += 1)
+		  if (st.items[i].kind == sva_match_item_t::SUBROUTINE_CALL
+		      && !sva_match_call_is_direct_(st.items[i].call, kind == 2))
+			return sva_match_item_sorry_(loc,
+			      "currently support only direct $display calls or "
+			      "zero-argument user calls in a cover property");
       if (!pform_sva_nfa_enabled())
 	    return sva_match_item_sorry_(loc,
 		  "require the automaton engine (unset IVL_SVA_LEGACY)");
@@ -24283,8 +24281,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    chain = *prop->seq;
       }
 
-      /* The bounded 16.11 slice permits calls only on the final step of a
-	 flat sequence (validated by pform_make_assertion). Keep the source
+      /* The bounded 16.11 slice permits calls on the steps of a flat
+	 sequence (validated by pform_make_assertion); the final step's run
+	 with the match, inner steps' below (mid_steps). Keep the source
 	 vector borrowed until commit, but prebuild every argument as an exact
 	 Preponed expression now. If any argument cannot be represented, return
 	 before synthesizing state; the caller emits the one targeted fallback
@@ -24334,6 +24333,53 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			      delete match_args[i][j].parm;
 		  return false;
 	    }
+      }
+
+	/* 16.11: "All subroutine calls attached to a sequence are executed at
+	   every end point of the sequence." A call attached to an inner step
+	   runs where that step matches: on the automaton edge that consumes
+	   the step's boolean, whether or not the whole sequence matches later.
+	   Its arguments are Preponed samples like the final step's. */
+      struct sva_mid_step_t {
+	    PExpr*gate = nullptr;      // the step's boolean, an edge guard
+	    std::vector<const sva_match_item_t*> calls;
+	    std::vector< std::vector<named_pexpr_t> > args;
+	    std::vector< std::vector<named_pexpr_t> > rewritten;
+	    perm_string reg_base;
+      };
+      std::vector<sva_mid_step_t> mid_steps;
+      if (!have_tree && !implication && prop->seq)
+	    for (size_t i = 0 ; i + 1 < prop->seq->size() ; i += 1) {
+		  std::vector<const sva_match_item_t*> calls =
+			sva_step_calls_((*prop->seq)[i]);
+		  if (calls.empty()) continue;
+		  sva_mid_step_t ms;
+		  ms.gate = (*prop->seq)[i].expr;
+		  ms.calls = calls;
+		  for (const sva_match_item_t*item : calls) {
+			std::vector<named_pexpr_t> wrapped;
+			for (const named_pexpr_t&source : item->call->parms()) {
+			      named_pexpr_t arg;
+			      arg.name = source.name;
+			      arg.parm = source.parm
+				    ? sva_wrap_preponed_(source.parm, prep_sampled,
+							 prep_live_operands)
+				    : nullptr;
+			      if (source.parm && !arg.parm) prep_live_operands += 1;
+			      wrapped.push_back(arg);
+			}
+			ms.args.push_back(wrapped);
+		  }
+		  mid_steps.push_back(ms);
+	    }
+      if (!mid_steps.empty() && (sub || prep_live_operands != 0)) {
+	    for (sva_mid_step_t&ms : mid_steps)
+		  for (std::vector<named_pexpr_t>&a : ms.args)
+			for (named_pexpr_t&arg : a) delete arg.parm;
+	    for (size_t i = 0 ; i < match_args.size() ; i += 1)
+		  for (size_t j = 0 ; j < match_args[i].size(); j += 1)
+			delete match_args[i][j].parm;
+	    return false;
       }
 
 	/* LV-2: collect sequence local-variable assignments left on the
@@ -24577,6 +24623,20 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			cnt += 1;
 	    if (cnt == 0 && lv_gate_expr[li]) return false;
       }
+	/* An inner-step call fires on the edges that consume its step's
+	   boolean; a step with no such edge (or arguments that read a
+	   per-attempt local) would silently lose the call: refuse instead. */
+      for (const sva_mid_step_t&ms : mid_steps) {
+	    unsigned cnt = 0;
+	    for (const sva_nfa_edge_t&ed : nfa.edges)
+		  for (PExpr*g : ed.guards)
+			if (g == ms.gate) cnt += 1;
+	    if (cnt == 0) return false;
+	    for (const std::vector<named_pexpr_t>&a : ms.args)
+		  for (const named_pexpr_t&arg : a)
+			if (arg.parm && sva_expr_reads_lv_(arg.parm, lv_index))
+			      return false;
+      }
 
       bool cyclic = pform_sva_nfa_has_cycle(nfa);
       long depth = pform_sva_nfa_depth(nfa);
@@ -24620,6 +24680,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       const bool proc_each = sva_active_proc_id_ != 0 && !sub;
       const std::vector<sva_proc_capture_t>*proc_caps =
 	    proc_each ? sva_active_captures_() : nullptr;
+	/* Inner-step calls dispatch without loading a slot's saved values
+	   (16.14.6.1); a procedural assertion that saves any stays a sorry. */
+      if (!mid_steps.empty() && proc_caps && !proc_caps->empty())
+	    return false;
       if (proc_each && K <= LONG_MAX / sva_proc_instances_env_()) {
 	    if (K_unfloored <= 0) K_unfloored = K;
 	    K *= sva_proc_instances_env_();
@@ -24761,9 +24825,16 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  std::vector<named_pexpr_t>rewritten_args;
 		  for (size_t a = 0 ; a < match_args[c].size() ; a += 1) {
 			named_pexpr_t arg = match_args[c][a];
+			  /* 16.11: by-value arguments "use sampled values ...
+			     consistent with the variable values used to
+			     evaluate the sequence match". A cover's call runs in
+			     a Reactive child after this tick's history shift
+			     (post), so $past reads one entry deeper; an
+			     assertion's call is part of its pass action, which
+			     the checker runs inline before the shift. */
 			arg.parm = sva_rewrite_sampled_(loc, arg.parm, inst,
 						 hist_idx, pre, post, init_zero,
-						 false, 1);
+						 false, cover ? 1 : 0);
 			rewritten_args.push_back(arg);
 		  }
 		  PCallTask*call = sva_clone_match_call_(
@@ -24772,6 +24843,20 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  actions.push_back(call);
 	    }
 	    match_action = sva_block_(loc, actions);
+      }
+	/* Inner-step calls run inline in the checker, before the shift. */
+      for (sva_mid_step_t&ms : mid_steps) {
+	    for (std::vector<named_pexpr_t>&a : ms.args) {
+		  std::vector<named_pexpr_t> r;
+		  for (named_pexpr_t arg : a) {
+			arg.parm = sva_rewrite_sampled_(loc, arg.parm, inst,
+						 hist_idx, pre, post, init_zero,
+						 false, 0);
+			r.push_back(arg);
+		  }
+		  ms.rewritten.push_back(r);
+	    }
+	    ms.args.clear();
       }
 
 	/* M12B-cb SUCCESS fold (the NFA hook runs before the legacy
@@ -25478,6 +25563,57 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    FILE_NAME(active, loc);
 	    body.insert(body.begin(), sva_assign_(loc, r_watch, active));
       }
+	/* The condition for slot k taking an edge that consumes `gate' from
+	   its pre-advance state: where a local variable is assigned (LV-2) or
+	   an inner step's calls run (16.11). */
+      auto edges_taken = [&](PExpr*gate, long k,
+			     std::map<perm_string,PExpr*>&lvmap,
+			     std::map<unsigned,PExpr*>&exit_hits) -> PExpr* {
+	    PExpr*cap = nullptr;
+	    for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
+		  const sva_nfa_edge_t&ed = nfa.edges[i];
+		  bool is_assign = false;
+		  for (size_t g = 0 ; g < ed.guards.size() ; g += 1)
+			if (ed.guards[g] == gate) is_assign = true;
+		  if (!is_assign) continue;
+		  PExpr*t = sva_id_(loc, s[k][ed.from]);
+		  if (!ed.first_match_exit && ed.first_match_cut_group != 0) {
+			std::map<unsigned,PExpr*>::const_iterator hit =
+			      exit_hits.find(ed.first_match_cut_group);
+			if (hit != exit_hits.end()) {
+			      PExpr*copy = sva_clone_expr_(hit->second);
+			      assert(copy);
+			      t = sva_logic_(loc, 'a', t, sva_not_(loc, copy));
+			}
+		  }
+		  for (size_t g = 0 ; g < ed.guards.size() ; g += 1) {
+			PExpr*gk = ed.guards[g];
+			if (has_lv && sva_expr_reads_lv_(gk, lv_index)) {
+			      std::map<PExpr*,PExpr*>::iterator it =
+				    local_guard_expr.find(gk);
+			      assert(it != local_guard_expr.end());
+			      t = sva_logic_(loc, 'a', t,
+					     sva_clone_subst_(it->second, &lvmap));
+			}
+			else {
+			      std::map<PExpr*,perm_string>::iterator it =
+				    guard_reg.find(gk);
+			      assert(it != guard_reg.end());
+			      t = sva_logic_(loc, 'a', t, sva_id_(loc, it->second));
+			}
+		  }
+		  cap = cap ? sva_logic_(loc, 'o', cap, t) : t;
+	    }
+	    return cap;
+      };
+      std::vector< std::vector<perm_string> > mid_hit(K);
+      for (long k = 0 ; k < K && !mid_steps.empty() ; k += 1)
+	    for (size_t m = 0 ; m < mid_steps.size() ; m += 1) {
+		  mid_hit[k].push_back(sva_make_reg_(loc, inst, "mch",
+						      k * mid_steps.size() + m));
+		  init_zero.push_back(sva_assign_(loc, mid_hit[k].back(),
+						  sva_bit_(loc, 0)));
+	    }
 
 	/* Per-slot advance. */
       for (long k = 0 ; k < K ; k += 1) {
@@ -25580,43 +25716,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		    /* A procedural instance's saved value is assigned only
 		       when its attempt is injected (16.14.6.1). */
 		  if (sva_capture_src_.count(lv_list[li])) continue;
-		  PExpr*cap = nullptr;
-		  for (size_t i = 0 ; i < nfa.edges.size() ; i += 1) {
-			const sva_nfa_edge_t&ed = nfa.edges[i];
-			bool is_assign = false;
-			for (size_t g = 0 ; g < ed.guards.size() ; g += 1)
-			      if (ed.guards[g] == lv_gate_expr[li]) is_assign = true;
-			if (!is_assign) continue;
-			PExpr*t = sva_id_(loc, s[k][ed.from]);
-			if (!ed.first_match_exit && ed.first_match_cut_group != 0) {
-			      std::map<unsigned,PExpr*>::const_iterator hit =
-				    exit_hits.find(ed.first_match_cut_group);
-			      if (hit != exit_hits.end()) {
-				    PExpr*copy = sva_clone_expr_(hit->second);
-				    assert(copy);
-				    t = sva_logic_(loc, 'a', t, sva_not_(loc, copy));
-			      }
-			}
-			for (size_t g = 0 ; g < ed.guards.size() ; g += 1) {
-			      PExpr*gk = ed.guards[g];
-			      if (has_lv && sva_expr_reads_lv_(gk, lv_index)) {
-				    std::map<PExpr*,PExpr*>::iterator it =
-					  local_guard_expr.find(gk);
-				    assert(it != local_guard_expr.end());
-				    t = sva_logic_(loc, 'a', t,
-						   sva_clone_subst_(it->second,
-								    &lvmap));
-			      }
-			      else {
-				    std::map<PExpr*,perm_string>::iterator it =
-					  guard_reg.find(gk);
-				    assert(it != guard_reg.end());
-				    t = sva_logic_(loc, 'a', t,
-						   sva_id_(loc, it->second));
-			      }
-			}
-			cap = cap ? sva_logic_(loc, 'o', cap, t) : t;
-		  }
+		  PExpr*cap = edges_taken(lv_gate_expr[li], k, lvmap, exit_hits);
 		  if (cap)
 			{
 			      PExpr*rhs = lv_rhs_reads_local[li]
@@ -25630,6 +25730,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				    sva_assign_(loc, vk[k][li], rhs), nullptr));
 			}
 	    }
+	    for (size_t m = 0 ; m < mid_steps.size() ; m += 1)
+		  if (PExpr*hit = edges_taken(mid_steps[m].gate, k, lvmap, exit_hits))
+			body.push_back(sva_if_(loc, hit, sva_assign_(loc,
+				    mid_hit[k][m], sva_bit_(loc, 1)), nullptr));
 	    for (std::map<unsigned,PExpr*>::iterator it = exit_hits.begin();
 		 it != exit_hits.end(); ++it) delete it->second;
 	    for (std::map<perm_string,PExpr*>::iterator it = lvmap.begin();
@@ -25926,6 +26030,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
 	    if (!match_calls.empty() && prop->seq && !prop->seq->empty())
 		  sva_destroy_match_items_(prop->seq->back().items);
+	    if (!mid_steps.empty() && prop->seq)
+		  for (size_t i = 0 ; i + 1 < prop->seq->size() ; i += 1)
+			sva_destroy_match_items_((*prop->seq)[i].items);
 	    delete prop->antecedent;
 	    delete prop->seq;
 	    delete prop;
@@ -25983,6 +26090,49 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   (16.14.1), in the legacy engine's output order (pass before fail).
 	   Cover has neither — the counter is the record. With slot_dispatch
 	   the counts keep the callbacks and the actions run per slot. */
+	/* 16.11: each slot whose inner step matched this tick runs that
+	   step's calls, in list order, in the Reactive region "like an action
+	   block". */
+      if (!mid_steps.empty()) {
+	    PExpr*any = nullptr;
+	    std::vector<Statement*> run;
+	    run.push_back(sva_reactive_wait_(loc));
+	    for (long k = 0 ; k < K ; k += 1)
+		  for (size_t m = 0 ; m < mid_steps.size() ; m += 1) {
+			PExpr*bit = sva_id_(loc, mid_hit[k][m]);
+			any = any ? sva_logic_(loc, 'o', any, bit) : bit;
+			std::vector<Statement*> calls;
+			const sva_mid_step_t&ms = mid_steps[m];
+			for (size_t c = 0 ; c < ms.calls.size() ; c += 1) {
+			      std::vector<named_pexpr_t> args;
+			      for (const named_pexpr_t&a : ms.rewritten[c]) {
+				    named_pexpr_t arg;
+				    arg.name = a.name;
+				    arg.parm = a.parm ? sva_clone_expr_(a.parm) : nullptr;
+				    assert(!a.parm || arg.parm);
+				    args.push_back(arg);
+			      }
+			      PCallTask*call = sva_clone_match_call_(
+				    ms.calls[c]->call, nullptr, &args);
+			      if (!call) {
+				    cerr << loc << ": internal error: a sequence "
+					 << "match-item call could not be copied "
+					 << "(IEEE 1800-2023 16.11)." << endl;
+				    error_count += 1;
+				    continue;
+			      }
+			      calls.push_back(call);
+			}
+			calls.push_back(sva_assign_(loc, mid_hit[k][m],
+						    sva_bit_(loc, 0)));
+			run.push_back(sva_if_(loc, sva_id_(loc, mid_hit[k][m]),
+					      sva_block_(loc, calls), nullptr));
+		  }
+	    body.push_back(sva_if_(loc, any, sva_block_(loc, run), nullptr));
+	    for (sva_mid_step_t&ms : mid_steps)
+		  for (std::vector<named_pexpr_t>&a : ms.rewritten)
+			for (named_pexpr_t&arg : a) delete arg.parm;
+      }
       const size_t slot_dispatch_at = body.size();
       Statement*slot_pass = nullptr;
       Statement*slot_fail = nullptr;
