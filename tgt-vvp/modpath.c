@@ -44,7 +44,23 @@ static ivl_signal_t find_path_source_port(ivl_delaypath_t path)
 	    return sig;
       }
 
-      return 0;
+	/* An interface member reached through a port handle (IEEE 1800
+	   25.6) is not a port of the path scope; the member itself is the
+	   input terminal. Never return 0: "%p" of a null pointer is "0x0"
+	   on macOS but "(nil)" on glibc, which vvp cannot parse. */
+      ivl_signal_t any = 0;
+      for (idx = 0 ;  idx < ivl_nexus_ptrs(nex) ;  idx += 1) {
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ivl_nexus_ptr(nex, idx));
+	    if (sig == 0)
+		  continue;
+	    if (!ivl_signal_local(sig))
+		  return sig;
+	    if (any == 0)
+		  any = sig;
+      }
+
+      assert(any);
+      return any;
 }
 
 static void draw_quoted_condition(const char*text)

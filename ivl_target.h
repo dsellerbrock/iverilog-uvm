@@ -1138,6 +1138,11 @@ extern ivl_event_t ivl_expr_event(ivl_expr_t net);
 extern int ivl_expr_property_idx(ivl_expr_t net);
   /* IVL_EX_SCOPE */
 extern ivl_scope_t ivl_expr_scope(ivl_expr_t net);
+  /* IVL_EX_SCOPE of an interface port binding: members redirected to a
+     module-local shadow signal (a module path destination, 25.6). */
+extern unsigned ivl_expr_vif_binds(ivl_expr_t net);
+extern ivl_signal_t ivl_expr_vif_bind(ivl_expr_t net, unsigned idx,
+				      unsigned*pid);
   /* IVL_EX_ARRAY_SLICE IVL_EX_PROPERTY IVL_EX_SIGNAL */
 extern ivl_signal_t ivl_expr_signal(ivl_expr_t net);
   /* any expression */

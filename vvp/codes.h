@@ -409,6 +409,7 @@ extern bool of_NEW_COBJ_EMBEDDED(vthread_t thr, vvp_code_t code);
 extern bool of_NEW_DARRAY(vthread_t thr, vvp_code_t code);
 extern bool of_NEW_QUEUE(vthread_t thr, vvp_code_t code);
 extern bool of_NEW_VIF(vthread_t thr, vvp_code_t code);
+extern bool of_VIF_BIND(vthread_t thr, vvp_code_t code);
 extern bool of_NOOP(vthread_t thr, vvp_code_t code);
 extern bool of_NOR(vthread_t thr, vvp_code_t code);
 extern bool of_NORR(vthread_t thr, vvp_code_t code);

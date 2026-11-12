@@ -441,6 +441,9 @@ struct ivl_expr_s {
 
 	    struct {
 		  ivl_scope_t scope;
+		  unsigned nbinds;
+		  unsigned*bind_pid;
+		  ivl_signal_t*bind_sig;
 	    } scope_;
 
 	    struct {
