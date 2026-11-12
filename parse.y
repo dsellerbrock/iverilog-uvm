@@ -4914,7 +4914,8 @@ class_new /* IEEE1800-2005 A.2.4 */
 
 concurrent_assertion_item /* IEEE1800-2012 A.2.10 */
   : block_identifier_opt concurrent_assertion_statement
-      { pform_sva_clear_assertion_label();
+      { pform_sva_release_assertion(false);
+	pform_sva_clear_assertion_label();
 	delete[] $1;
 	delete $2;
       }
@@ -4924,7 +4925,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
   : assert_or_assume K_property '(' property_spec ')' statement_or_null %prec less_than_K_else
       { /* M9: pass action only. */
 	if (gn_supported_assertions_flag) {
-	      pform_make_assertion(@1, $4, 0, $6, ($1==4) ? 1 : 0);
+	      pform_sva_hold_assertion(@1, $4, 0, $6, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -4945,7 +4946,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 		    fail = new PNoop;
 		    FILE_NAME(fail, @6);
 	      }
-	      pform_make_assertion(@1, $4, fail, 0, ($1==4) ? 1 : 0);
+	      pform_sva_hold_assertion(@1, $4, fail, 0, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -4965,7 +4966,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 		    fail = new PNoop;
 		    FILE_NAME(fail, @7);
 	      }
-	      pform_make_assertion(@1, $4, fail, $6, ($1==4) ? 1 : 0);
+	      pform_sva_hold_assertion(@1, $4, fail, $6, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -4978,7 +4979,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
   | K_cover K_property '(' property_spec ')' statement_or_null
       { /* M9: cover property counts matches. */
 	if (gn_supported_assertions_flag) {
-	      pform_make_assertion(@1, $4, 0, $6, 2);
+	      pform_sva_hold_assertion(@1, $4, 0, $6, 2);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -4994,7 +4995,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
       { /* IEEE 1800-2017 16.14.3: count all sequence matches. */
 	if (gn_supported_assertions_flag) {
 	      $4->sequence_cover = true;
-	      pform_make_assertion(@1, $4, 0, $6, 2);
+	      pform_sva_hold_assertion(@1, $4, 0, $6, 2);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -9331,8 +9332,12 @@ tf_port_direction_opt
 
 procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
   : block_identifier_opt concurrent_assertion_statement
-      { pform_sva_clear_assertion_label();
-	Statement*item = $2;
+      { /* IEEE 1800-2023 16.14.6: the statement queues a pending
+	   instance where the procedure reaches it. */
+	Statement*item = pform_sva_release_assertion(true);
+	pform_sva_clear_assertion_label();
+	delete $2;
+	bool queues = item != 0;
 	if (!item) {
 	      PBlock*empty = new PBlock(PBlock::BL_SEQ);
 	      empty->concurrent_assertion_only();
@@ -9341,6 +9346,9 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 	}
 	if ($1) {
 	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	      /* 16.14.6.4: `disable label' clears the pending instances
+		 queued inside this scope, as for a deferred assertion. */
+	      if (queues) scope->deferred_assertion_label_scope();
 	      pform_pop_scope();
 	      std::vector<Statement*> body(1, item);
 	      scope->set_statement(body);
@@ -17950,7 +17958,11 @@ module_item
   /* Always and initial items are behavioral processes. */
 
   | attribute_list_opt K_always statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $3, $1);
+      { /* IEEE 1800-2023 16.14.5: `always assert property' is static. */
+	Statement*init = pform_sva_static_always_assertion($3);
+	if (init) delete $3;
+	PProcess*tmp = pform_make_behavior(init ? IVL_PR_INITIAL : IVL_PR_ALWAYS,
+					   init ? init : $3, $1);
 	FILE_NAME(tmp, @2);
       }
   /* Attributes between always and the body (IEEE 1800-2017 A.6.4:
