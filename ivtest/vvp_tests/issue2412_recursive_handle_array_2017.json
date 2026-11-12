@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2412_recursive_handle_array.v",
+  "iverilog-args": ["-g2017"]
+}
