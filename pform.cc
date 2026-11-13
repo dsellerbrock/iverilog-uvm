@@ -496,6 +496,7 @@ static NetNet::Type pform_default_nettype = NetNet::WIRE;
  */
 static int pform_time_unit;
 static int pform_time_prec;
+static int pform_min_timescale_prec = 0;
 
 /*
  * These variables track where the most recent `timescale directive
@@ -2424,6 +2425,8 @@ void pform_set_timescale(int unit, int prec,
       assert(unit >= prec);
       pform_time_unit = unit;
       pform_time_prec = prec;
+      if (file && prec < pform_min_timescale_prec)
+	    pform_min_timescale_prec = prec;
 
       if (pform_timescale_file) {
 	    free(pform_timescale_file);
@@ -2432,6 +2435,11 @@ void pform_set_timescale(int unit, int prec,
       if (file) pform_timescale_file = strdup(file);
       else pform_timescale_file = 0;
       pform_timescale_line = lineno;
+}
+
+int pform_get_min_timescale_precision()
+{
+      return pform_min_timescale_prec;
 }
 
 bool get_time_unit(const char*cp, int &unit)
