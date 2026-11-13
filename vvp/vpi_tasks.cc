@@ -1084,7 +1084,33 @@ char* __vpiLazyExpr::vpi_get_str(int code)
 
 vpiHandle __vpiLazyExpr::vpi_handle(int code)
 {
-      return code == vpiScope ? scope_ : 0;
+	/* A constant select carries its parent signal, then its declared
+	   index (37.58) or left and right bounds (37.59). */
+      bool bit = type_ == vpiBitSelect && nops_ == 2;
+      bool part = type_ == vpiPartSelect && nops_ == 3;
+      switch (code) {
+	  case vpiScope:
+	    return scope_;
+	  case vpiParent:
+	    return bit || part ? ops_[0] : 0;
+	  case vpiIndex:
+	    return bit ? ops_[1] : 0;
+	  case vpiLeftRange:
+	    return part ? ops_[1] : 0;
+	  case vpiRightRange:
+	    return part ? ops_[2] : 0;
+	  default:
+	    return 0;
+      }
+}
+
+bool vpip_lazy_expr_operands(vpiHandle ref, unsigned&nops, vpiHandle*&ops)
+{
+      __vpiLazyExpr*obj = dynamic_cast<__vpiLazyExpr*>(ref);
+      if (!obj || obj->type_ != vpiOperation) return false;
+      nops = obj->nops_;
+      ops = obj->ops_;
+      return true;
 }
 
 vpiHandle __vpiLazyExpr::vpi_iterate(int code)
