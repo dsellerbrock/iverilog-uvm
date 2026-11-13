@@ -37525,9 +37525,26 @@ static constraint_source_type_t constraint_source_expr_type_(
 	    result.qualifier_relevant = base.qualifier_relevant;
 	    return result;
       }
-      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(cast->cast_size());
+	    if (id && value_slots && scope && constraint_ir_design_ctx_ && !id->path().package
+		&& id->path().name.size() == 1
+		&& id->path().name.front().local_scope
+		&& id->path().name.front().index.empty()) {
+		  NetScope*caller = const_cast<NetScope*>(scope);
+		  if (typedef_t*td = caller->find_typedef(
+			constraint_ir_design_ctx_, id->path().name.front().name)) {
+			constraint_source_type_t base = constraint_source_expr_type_(
+			      cast->cast_base(), cls, value_slots, scope);
+			result = constraint_source_type_from_raw_(
+			      td->elaborate_type(constraint_ir_design_ctx_, caller));
+			result.qualifier_relevant = base.qualifier_relevant;
+			return result;
+		  }
+	    }
 	    return constraint_source_expr_type_(
 		  cast->cast_base(), cls, value_slots, scope);
+      }
       if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
 	    return constraint_source_expr_type_(
 		  cast->cast_base(), cls, value_slots, scope);
@@ -43882,6 +43899,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
        * retain an explicit integral cast, including self-determined width and
        * signedness, rather than silently reusing the uncast operand. */
       auto cast_to_constraint_ir = [&](const PExpr*base) -> string {
+            Design*des = constraint_ir_design_ctx_;
+            NetScope*cast_scope = const_cast<NetScope*>(scope
+                  ? scope : cls ? cls->class_scope() : nullptr);
+            ivl_type_t local_cast_type = nullptr;
+            if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+                  const PEIdent*id = dynamic_cast<const PEIdent*>(cast->cast_size());
+                  if (id && value_slots && des && cast_scope && !id->path().package
+                      && id->path().name.size() == 1
+                      && id->path().name.front().local_scope
+                      && id->path().name.front().index.empty()) {
+                        if (typedef_t*td = cast_scope->find_typedef(
+                              des, id->path().name.front().name))
+                              local_cast_type = td->elaborate_type(des, cast_scope);
+                  }
+            }
             const PENumber*fill_num = dynamic_cast<const PENumber*>(base);
             bool defer_fill = fill_num && fill_num->value().is_single()
                   && (dynamic_cast<const PECastType*>(expr)
@@ -43892,26 +43924,26 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                   ir = pexpr_to_constraint_ir(base, cls, value_slots,
                                               scope, loop_env);
                   if (ir.empty()) return ir;
-                  if (value_slots && ir.compare(0, 2, "v:") == 0
+                  if (!local_cast_type && value_slots && ir.compare(0, 2, "v:") == 0
                       && value_slots->size() == before + 1) {
                         value_slots->back() = expr;
                         return ir;
                   }
             }
-            Design*des = constraint_ir_design_ctx_;
-            NetScope*cast_scope = const_cast<NetScope*>(scope
-                  ? scope : cls ? cls->class_scope() : nullptr);
             if (!des || !cast_scope) return "";
             unsigned width = 0;
             unsigned sign = 2; // inherit for a size cast
             bool two_state_target = false;
-            if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
-                  ivl_type_t type = cast->resolve_target_type(des, cast_scope);
+            const PECastType*type_cast = dynamic_cast<const PECastType*>(expr);
+            if (type_cast || local_cast_type) {
+                  const PECastType*cast = type_cast;
+                  ivl_type_t type = cast ? cast->resolve_target_type(des, cast_scope)
+                                         : local_cast_type;
                   if (!type) return "";
                   if (type->base_type() == IVL_VT_REAL) {
-                        if (cast->tolerance_range())
+                        if (cast && cast->tolerance_range())
                               return "(tolerance-range-real " + ir + ")";
-                        if (cast->truncate_real_to_integral())
+                        if (cast && cast->truncate_real_to_integral())
                               return "(realcast " + ir + ")";
                   }
                   if (!type->packed() || !type_is_vectorable(type->base_type())) {
@@ -43924,10 +43956,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                   width = type->packed_width();
                   sign = type->get_signed() ? 1 : 0;
                   two_state_target = type->base_type() == IVL_VT_BOOL;
-                  if (cast->tolerance_range())
+                  if (cast && cast->tolerance_range())
                         return "(tolerance-range c:" + to_string(width)
                               + " c:" + to_string(sign) + " " + ir + ")";
-                  if (cast->truncate_real_to_integral())
+                  if (cast && cast->truncate_real_to_integral())
                         return "(trunc-real c:" + to_string(width)
                               + " c:" + to_string(sign) + " " + ir + ")";
             } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {

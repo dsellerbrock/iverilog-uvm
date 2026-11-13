@@ -6770,3 +6770,6 @@ issue3077_udp_all_x_bad_2017 CE,-g2017 ivltests gold=issue3077_udp_all_x_bad.gol
 issue3077_udp_all_x_good_2017 normal,-g2017,-s,test ivltests gold=issue3077_udp_all_x_good.gold
 issue3077_udp_all_x_bad_2023 CE,-g2023 ivltests gold=issue3077_udp_all_x_bad.gold
 issue3077_udp_all_x_good_2023 normal,-g2023,-s,test ivltests gold=issue3077_udp_all_x_good.gold
+
+issue2981_local_type_cast_2017 normal,-g2017,-s,main ivltests gold=issue2981_local_type_cast.gold
+issue2981_local_type_cast_2023 normal,-g2023,-s,main ivltests gold=issue2981_local_type_cast.gold
