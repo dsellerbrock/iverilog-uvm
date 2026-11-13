@@ -1,3 +1,0 @@
-override fail at 20
-override done
-./ivltests/issue2907_override.sv:8: $finish called at 22 (1s)
