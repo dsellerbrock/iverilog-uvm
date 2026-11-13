@@ -1726,10 +1726,12 @@ static bool interface_method_defaults_match_(const NetScope*prototype,
 	    // An implementation can omit a default supplied by the interface.
 	    if (!expected || !actual)
 		  continue;
-	    std::unique_ptr<NetExpr> expected_value(expected->dup_expr()->eval_tree());
-	    std::unique_ptr<NetExpr> actual_value(actual->dup_expr()->eval_tree());
-	    if (!expected_value || !actual_value)
-		  return false;
+	    NetExpr*expected_expr = expected->dup_expr();
+	    NetExpr*actual_expr = actual->dup_expr();
+	    eval_expr(expected_expr);
+	    eval_expr(actual_expr);
+	    std::unique_ptr<NetExpr> expected_value(expected_expr);
+	    std::unique_ptr<NetExpr> actual_value(actual_expr);
 	    const NetECReal*expected_real =
 		  dynamic_cast<const NetECReal*>(expected_value.get());
 	    const NetECReal*actual_real =
