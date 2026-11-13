@@ -270,3 +270,5 @@ issue3048_active_timeformat_2017 normal,-g2017 issue3048_active_timeformat.c iss
 issue3048_active_timeformat_2023 normal,-g2023 issue3048_active_timeformat.c issue3048_active_timeformat_2023.gold
 issue3055_vpi_prefix_2017 normal,-g2017 issue3055_vpi_prefix.c issue3055_vpi_prefix_2017.gold
 issue3055_vpi_prefix_2023 normal,-g2023 issue3055_vpi_prefix.c issue3055_vpi_prefix_2023.gold
+issue3046_vpi_blocking_2017 normal,-g2017 issue3046_vpi_blocking.c issue3046_vpi_blocking_2017.gold
+issue3046_vpi_blocking_2023 normal,-g2023 issue3046_vpi_blocking.c issue3046_vpi_blocking_2023.gold

@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "issue3046_vpi_blocking.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3046_vpi_blocking_2017"],
+  "vpi-sources": ["vpi/issue3046_vpi_blocking.c"],
+  "output-contains": ["ISSUE3046 PASSED"],
+  "output-not-contains": ["FAIL"]
+}
