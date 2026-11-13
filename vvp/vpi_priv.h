@@ -1084,6 +1084,8 @@ struct __vpiArrayBase {
       virtual __vpiScope*get_scope() const = 0;
 
       virtual int get_word_size() const = 0;
+      virtual int get_word_has_actual() { return 0; }
+      virtual vpiHandle get_word_prefix() { return 0; }
       virtual char*get_word_str(struct __vpiArrayWord*word, int code) = 0;
       virtual void get_word_value(struct __vpiArrayWord*word, p_vpi_value vp) = 0;
       virtual void put_word_value(struct __vpiArrayWord*word, p_vpi_value vp,

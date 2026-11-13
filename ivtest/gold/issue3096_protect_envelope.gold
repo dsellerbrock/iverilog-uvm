@@ -1,0 +1,2 @@
+./ivltests/issue3096_protect_envelope.sv:1: error: protected envelope decryption is unsupported.
+Preprocessor failed with 1 errors.

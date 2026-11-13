@@ -754,6 +754,8 @@ int __vpiArrayWord::as_word_t::vpi_get(int code)
       t_vpi_value val;
 
       switch (code) {
+	  case vpiHasActual:
+	    return my_parent->get_word_has_actual();
 	  case vpiArrayMember:
 	    return 1;
 	  case vpiLineNo:
@@ -786,6 +788,8 @@ int __vpiArrayWord::as_word_t::vpi_get(int code)
 	    return 0;
 
 	  case vpiAutomatic:
+	    if (vpiHandle prefix = my_parent->get_word_prefix())
+		  return prefix->vpi_get(vpiAutomatic);
 	    if (__vpiArray*fixed = dynamic_cast<__vpiArray*>(my_parent))
 		  return fixed->automatic_storage ? 1 : 0;
 	    if (__vpiDarrayVar*dynamic =

@@ -73,6 +73,7 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
       char*  string_val;
 
       struct sdf_delay_s delay;
+      struct sdf_delval_s delval;
       struct port_with_edge_s port_with_edge;
       struct sdf_delval_list_s delval_list;
       struct interconnect_port_s interconnect_port;
@@ -107,7 +108,8 @@ static char* sdf_condition_binary(char*left, const char*op, char*right)
 %type <pathpulse> input_output_path_opt input_output_path
 
 %type <real_val> signed_real_number
-%type <delay> delval rvalue_opt rvalue rtriple signed_real_number_opt
+%type <delay> rvalue_opt rvalue rtriple signed_real_number_opt
+%type <delval> delval
 
 %type <int_val> edge_identifier
 %type <port_with_edge> port_edge port_spec
@@ -705,17 +707,11 @@ delval_list
 
 delval
   : rvalue
-      { $$ = $1; }
+      { memset(&$$, 0, sizeof $$); $$.delay = $1; }
   | '(' rvalue rvalue ')'
-      { $$ = $2;
-	vpi_printf("SDF WARNING: %s:%d: Pulse rejection limits ignored\n",
-		   sdf_parse_path, @3.first_line);
-      }
+      { $$.delay = $2; $$.reject = $3; $$.error = $3; $$.has_limits = 1; }
   | '(' rvalue rvalue rvalue ')'
-      { $$ = $2;
-	vpi_printf("SDF WARNING: %s:%d: Pulse rejection limits ignored\n",
-		   sdf_parse_path, @3.first_line);
-      }
+      { $$.delay = $2; $$.reject = $3; $$.error = $4; $$.has_limits = 1; }
   ;
 
 rvalue_opt
@@ -812,7 +808,7 @@ signed_real_number
   | '-' REAL_NUMBER { $$ = -$2; }
   |     INTEGER { $$ = $1; }
   | '+' INTEGER { $$ = $2; }
-  | '-' INTEGER { $$ = -$2; }
+  | '-' INTEGER { $$ = -(double)$2; }
   ;
 
 %%

@@ -1,0 +1,2 @@
+./ivltests/issue3088_period_invalid.sv:3: error: $period requires an edge-qualified reference event.
+./ivltests/issue3088_period_invalid.sv:4: error: $period requires an edge-qualified reference event.

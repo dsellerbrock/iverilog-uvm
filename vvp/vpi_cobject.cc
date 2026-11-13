@@ -568,6 +568,11 @@ class __vpiClassMember : public __vpiDarrayVar {
 
       int vpi_get(int code) override
       {
+	    if (code == vpiHasActual)
+		  return defn_->property_is_static(idx_) || live_object_() != 0;
+	    if (code == vpiAutomatic && !defn_->property_is_static(idx_))
+		  return parent_member_ ? parent_member_->vpi_get(code)
+		                        : parent_->vpi_get(code);
 	    if (is_fixed_array_()) {
 		  switch (code) {
 		      case vpiArrayType:
@@ -797,6 +802,9 @@ class __vpiClassMember : public __vpiDarrayVar {
 
       vpiHandle vpi_handle(int code) override
       {
+	    if (code == vpiPrefix && !defn_->property_is_static(idx_))
+		  return parent_member_ ? static_cast<vpiHandle>(parent_member_)
+		                        : static_cast<vpiHandle>(parent_);
 	    if (code == vpiTypespec && !is_fixed_array_() && !is_container_()) {
 		  if (type_code_ == vpiIntVar)
 			return vpip_make_builtin_typespec(vpiIntTypespec);
@@ -913,6 +921,9 @@ class __vpiClassMember : public __vpiDarrayVar {
 	    return is_fixed_array_() ? canonical_array_()->get_word_size()
 				     : __vpiDarrayVar::get_word_size();
       }
+
+      int get_word_has_actual() override { return vpi_get(vpiHasActual); }
+      vpiHandle get_word_prefix() override { return vpi_handle(vpiPrefix); }
 
       void get_word_value(struct __vpiArrayWord*word,
 			  p_vpi_value value) override

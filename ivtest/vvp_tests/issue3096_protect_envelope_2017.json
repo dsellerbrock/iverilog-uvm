@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3096_protect_envelope.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3096_protect_envelope"],
+  "gold": "issue3096_protect_envelope"
+}
