@@ -1218,6 +1218,8 @@ struct Z3Builder {
       bool collect_refs_only = false;
       bool allow_planner_value_slots = false;
       vvp_cobject*assoc_foreach_key = nullptr;
+	// Non-null while expanding a string-key associative foreach.
+      const string*assoc_foreach_string_key = nullptr;
 	// Current entry of an associative foreach over class or string keys.
       size_t assoc_foreach_pos = SIZE_MAX;
       unsigned assoc_foreach_prop = UINT_MAX;
@@ -4409,15 +4411,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 	    }
 	    Z3_ast conjunction = b.mk_true();
 	    vvp_cobject*saved_key = b.assoc_foreach_key;
+	    const string*saved_string_key = b.assoc_foreach_string_key;
 	    size_t saved_pos = b.assoc_foreach_pos;
 	    unsigned saved_prop = b.assoc_foreach_prop;
-	    auto instance_term = [&](vvp_cobject*key_object, size_t position) -> bool {
+	    auto instance_term = [&](vvp_cobject*key_object, const string*string_key, size_t position) -> bool {
 		  IRParser instance(body);
 		  b.assoc_foreach_key = key_object;
+		  b.assoc_foreach_string_key = string_key;
 		  b.assoc_foreach_pos = position;
 		  b.assoc_foreach_prop = pidx;
 		  Z3_ast term = bv_to_bool(b.ctx, build_z3_atom(instance, b));
 		  b.assoc_foreach_key = saved_key;
+		  b.assoc_foreach_string_key = saved_string_key;
 		  b.assoc_foreach_pos = saved_pos;
 		  b.assoc_foreach_prop = saved_prop;
 		  instance.skip_ws();
@@ -4441,14 +4446,31 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			      b.state_errors.push_back("associative foreach key is not a class object");
 			      return b.mk_true();
 			}
-			if (!instance_term(key_object, position++)) return b.mk_true();
+			if (!instance_term(key_object, nullptr, position++)) return b.mk_true();
 		  } while (assoc->next_key(key));
 	    } else if (assoc->first_key(string_key)) {
 		  do {
-			if (!instance_term(nullptr, position++)) return b.mk_true();
+			if (!instance_term(nullptr, &string_key, position++)) return b.mk_true();
 		  } while (assoc->next_key(string_key));
 	    }
 	    return conjunction;
+      }
+
+      if (op == "qkeycmp") {
+	    string comparison = par.read_token();
+	    string encoded = par.read_token();
+	    par.skip_ws(); par.expect(')');
+	    if (!b.assoc_foreach_string_key || (comparison != "e" && comparison != "n")
+		|| encoded.empty() || encoded[0] != 'x' || encoded.size() % 2 != 1
+		|| encoded.find_first_not_of("0123456789abcdef", 1) != string::npos) {
+		  b.state_errors.push_back("invalid string associative foreach comparison");
+		  return b.mk_false();
+	    }
+	    string literal;
+	    for (size_t i = 1; i + 1 < encoded.size(); i += 2)
+		  literal += (char)strtoul(encoded.substr(i, 2).c_str(), nullptr, 16);
+	    bool equal = *b.assoc_foreach_string_key == literal;
+	    return (comparison == "e" ? equal : !equal) ? b.mk_true() : b.mk_false();
       }
 
       if (op == "qkeymember") {

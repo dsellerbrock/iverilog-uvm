@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2969_string_key.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue2969_string_key"
+}
