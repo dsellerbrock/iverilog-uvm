@@ -781,6 +781,7 @@ vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width,
 				 bool showcancelled)
 : net_(net), src_list_(0), ifnone_list_(0), pending_pulse_(0),
   has_conditional_paths_(false), has_dst_parts_(false),
+  seen_change_(false), last_change_time_(0),
   showcancelled_(showcancelled)
 {
       cur_vec4_ = vvp_vector4_t(width, BIT4_X);
@@ -1001,7 +1002,29 @@ void vvp_fun_modpath::resolve_pending_()
  * whole output) from the active paths to it (IEEE 1800 30.5.3). Return
  * false if no path applies.
  */
-bool vvp_fun_modpath::select_delays_(int index, vvp_time64_t out_at[12],
+/*
+ * Was this output change caused through a module path? It was if a path
+ * input changed since the previous output change arrived (with a
+ * distributed delay, that input changed in an earlier time step, 30.6).
+ * If not, the change came from an input with no path to the output.
+ */
+bool vvp_fun_modpath::path_input_changed_() const
+{
+      if (!seen_change_)
+	    return true;
+      for (vvp_fun_modpath_src*cur = src_list_ ; cur ; cur = cur->next_)
+	    if (cur->wake_time_ > last_change_time_) return true;
+      for (vvp_fun_modpath_src*cur = ifnone_list_ ; cur ; cur = cur->next_)
+	    if (cur->wake_time_ > last_change_time_) return true;
+      return false;
+}
+
+/*
+ * from_now measures the delay from now instead of from the path input's
+ * transition, for a change that no path input caused.
+ */
+bool vvp_fun_modpath::select_delays_(int index, bool from_now,
+				     vvp_time64_t out_at[12],
 				     vvp_time64_t reject_at[12],
 				     vvp_time64_t error_at[12])
 {
@@ -1068,7 +1091,7 @@ bool vvp_fun_modpath::select_delays_(int index, vvp_time64_t out_at[12],
       src->get_pulse_limits12(src_reject, src_error);
 
       for (unsigned idx = 0 ;  idx < 12 ;  idx += 1) {
-	    out_at[idx] = src->wake_time_ + src->delay_[idx];
+	    out_at[idx] = (from_now ? now : src->wake_time_) + src->delay_[idx];
 	    if (out_at[idx] <= now)
 		  out_at[idx] = 0;
 	    else
@@ -1082,7 +1105,8 @@ bool vvp_fun_modpath::select_delays_(int index, vvp_time64_t out_at[12],
 	    src = *cur;
 	    src->get_pulse_limits12(src_reject, src_error);
 	    for (unsigned idx = 0 ;  idx < 12 ;  idx += 1) {
-		  vvp_time64_t tmp = src->wake_time_ + src->delay_[idx];
+		  vvp_time64_t tmp = (from_now ? now : src->wake_time_)
+			+ src->delay_[idx];
 		  if (tmp <= now)
 			tmp = 0;
 		  else
@@ -1107,6 +1131,15 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
       if (cur_vec4_.eeq(bit))
 	    return;
 
+	/* 30.5.3 selects the delay from the active paths "when a specify
+	   path output is to be scheduled to transition". A change no path
+	   input caused is scheduled that delay from now (user ruling
+	   2026-11-10 on #2740); a path-caused one keeps the 30.6 rule of
+	   the larger of the path and distributed delays. */
+      bool from_now = !path_input_changed_();
+      seen_change_ = true;
+      last_change_time_ = schedule_simtime();
+
 	/* Paths to a bit/part select of the output (30.4.2) apply only
 	   to their bits; a bit with no path changes without delay. */
       if (has_dst_parts_ && bit.size() > 1) {
@@ -1115,7 +1148,7 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
 			continue;
 		  vvp_time64_t out_at[12], reject_at[12], error_at[12];
 		  vvp_time64_t delay = 0;
-		  if (select_delays_(idx, out_at, reject_at, error_at))
+		  if (select_delays_(idx, from_now, out_at, reject_at, error_at))
 			delay = delay_from_edge(cur_vec4_.value(idx),
 						bit.value(idx), out_at);
 		  schedule_generic(new bit_wakeup_(this, idx, bit.value(idx)),
@@ -1126,7 +1159,7 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
       }
 
       vvp_time64_t out_at[12], reject_at[12], error_at[12];
-      if (!select_delays_(-1, out_at, reject_at, error_at)) {
+      if (!select_delays_(-1, from_now, out_at, reject_at, error_at)) {
 	    cur_vec4_ = bit;
 	    schedule_generic(this, 0, false);
 	    return;

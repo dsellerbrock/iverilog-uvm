@@ -5057,6 +5057,8 @@ sv_randomize_joint_multiple_dist normal,-g2017 ivltests gold=sv_randomize_joint_
 sv_randomize_joint_multiple_dist_2023 normal,-g2023 ivltests gold=sv_randomize_joint_multiple_dist.gold
 sv_randomize_joint_multiple_dist_fail normal,-g2017 ivltests gold=sv_randomize_joint_multiple_dist_fail.gold
 sv_randomize_joint_multiple_dist_fail_2023 normal,-g2023 ivltests gold=sv_randomize_joint_multiple_dist_fail.gold
+sv_enum_next_xz_constraint_2017 normal,-g2017 ivltests gold=sv_enum_next_xz_constraint.gold
+sv_enum_next_xz_constraint_2023 normal,-g2023 ivltests gold=sv_enum_next_xz_constraint.gold
 
 # Inside common types and unsupported container widths
 sv_constraint_cast_inside_global_common normal,-g2017 ivltests gold=sv_constraint_cast_inside_global_common.gold
@@ -6721,3 +6723,6 @@ issue2618_assoc_fixed_array_copy_2017 normal,-g2017,-s,issue2618_assoc_fixed_arr
 issue2618_assoc_fixed_array_copy_2023 normal,-g2023,-s,issue2618_assoc_fixed_array_copy ivltests gold=issue2618_assoc_fixed_array_copy_2023-legacy.gold
 sva_same_tick_verdicts_2017 normal,-g2017,-s,sva_same_tick_verdicts ivltests gold=sva_same_tick_verdicts.gold
 sva_same_tick_verdicts_2023 normal,-g2023,-s,sva_same_tick_verdicts ivltests gold=sva_same_tick_verdicts.gold
+
+issue2952_constraint_side_effect_2017 CE,-g2017 ivltests gold=issue2952_constraint_side_effect_2017.gold
+issue2952_constraint_side_effect_2023 CE,-g2023 ivltests gold=issue2952_constraint_side_effect_2023.gold

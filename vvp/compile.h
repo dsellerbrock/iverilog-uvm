@@ -336,6 +336,10 @@ extern void compile_modpath_src(__vpiModPath*dst,
   /* The last modpath source drives only the destination bits
      [dbase, dbase+dwid) and is triggered only by the source bits
      [sbase, sbase+swid) (IEEE 1800 30.4.2). A width of 0 is all. */
+  /* The PATHPULSE$ reject and error limits of the last modpath source
+     (IEEE 1800 30.7.1). */
+extern void compile_modpath_src_pulse(__vpiModPath*dst, uint64_t reject,
+				      uint64_t error);
 extern void compile_modpath_src_part(__vpiModPath*dst,
 				     unsigned dbase, unsigned dwid,
 				     unsigned sbase, unsigned swid);

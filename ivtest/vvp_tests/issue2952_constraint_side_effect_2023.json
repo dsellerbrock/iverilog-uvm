@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2952_constraint_side_effect_2023.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue2952_constraint_side_effect_2023"
+}

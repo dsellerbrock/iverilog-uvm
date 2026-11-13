@@ -619,6 +619,11 @@ extern unsigned ivl_path_dst_base(ivl_delaypath_t obj);
 extern unsigned ivl_path_dst_width(ivl_delaypath_t obj);
 extern unsigned ivl_path_src_base(ivl_delaypath_t obj);
 extern unsigned ivl_path_src_width(ivl_delaypath_t obj);
+  /* The PATHPULSE$ reject and error limits of the path (IEEE 1800
+     30.7.1), scaled like the path delays. Returns 0 when the path has
+     no PATHPULSE$ specparam. */
+extern int ivl_path_pulse_limits(ivl_delaypath_t obj, uint64_t*reject,
+				 uint64_t*error);
 
 extern int ivl_path_source_posedge(ivl_delaypath_t obj);
 extern int ivl_path_source_negedge(ivl_delaypath_t obj);

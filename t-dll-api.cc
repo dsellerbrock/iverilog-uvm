@@ -2559,6 +2559,17 @@ extern "C" unsigned ivl_path_src_width(ivl_delaypath_t obj)
       return obj->src_width;
 }
 
+extern "C" int ivl_path_pulse_limits(ivl_delaypath_t obj, uint64_t*reject,
+				     uint64_t*error)
+{
+      assert(obj);
+      if (!obj->has_pulse_limits)
+	    return 0;
+      *reject = obj->pulse_reject;
+      *error = obj->pulse_error;
+      return 1;
+}
+
 extern uint64_t ivl_path_delay(ivl_delaypath_t obj, ivl_path_edge_t edg)
 {
       assert(obj);

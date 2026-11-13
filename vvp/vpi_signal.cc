@@ -585,10 +585,10 @@ static int signal_get(int code, vpiHandle ref)
 	    return 0;
 
 	  case vpiPacked:
-	    return rfp->get_vpi_type_code() == vpiPackedArrayVar ||
-	           rfp->get_vpi_type_code() == vpiStructVar ||
-	           rfp->get_vpi_type_code() == vpiUnionVar ||
-	           rfp->get_vpi_type_code() == vpiEnumVar;
+	    if (rfp->get_vpi_type_code() == vpiStructVar ||
+	        rfp->get_vpi_type_code() == vpiUnionVar)
+	      return vpi_get(vpiPacked, rfp->typespec);
+	    return rfp->get_vpi_type_code() == vpiPackedArrayVar;
 
 	  case vpiIndex: // This only works while we have a single index.
 	    if (rfp->is_netarray) {
@@ -1328,7 +1328,7 @@ void __vpiSignal::vpi_get_value(p_vpi_value val)
 
 int __vpiSignal::get_vpi_type_code(void) const
 {
-      if (!typespec || !packed_base_width) return get_type_code();
+      if (!typespec) return get_type_code();
       int type = typespec->get_type_code();
       int object_type;
       switch (type) {
