@@ -6752,3 +6752,6 @@ issue3010_program_explicit_always_2017 CE,-g2017,-gassertions,-s,issue3010_progr
 issue3010_program_explicit_always_2023 CE,-g2023,-gassertions,-s,issue3010_program_explicit_always ivltests
 issue3027_assoc_packed normal,-g2017,-s,issue3027_assoc_packed ivltests gold=issue3027_assoc_packed.gold
 issue3027_assoc_packed_size RE,-g2017,-s,issue3027_assoc_packed_size ivltests gold=issue3027_assoc_packed_size.gold
+
+sv_assert_first_match_leading_cont normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_leading_cont.gold
+sv_assert_first_match_leading_cont_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_leading_cont.gold
