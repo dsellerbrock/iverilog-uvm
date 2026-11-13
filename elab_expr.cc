@@ -17659,7 +17659,9 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       // leading_type_args identifies the specialization.  Replace the
       // resolved (base) class_type with its specialization so static
       // property access targets the right specialized signal.
-      if (class_type && leading_type_args()) {
+      if (class_type && leading_type_args() && sr.net && sr.net->scope()
+	  && class_type->class_scope() && sr.net->scope()->class_pform()
+	  && class_type->class_scope()->class_pform() == sr.net->scope()->class_pform()) {
 	    class_type = elaborate_specialized_class_type(des, scope,
 						class_type,
 						leading_type_args(),
