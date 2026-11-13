@@ -403,6 +403,12 @@ void vpi_get_systf_info(vpiHandle ref, p_vpi_systf_data data)
  * fathom the vpi_handle(vpiSysTfCall,0) function.
  */
 struct __vpiSysTaskCall*vpip_cur_task = 0;
+static vpiHandle active_timeformat = 0;
+
+extern "C" void vpip_set_active_timeformat(vpiHandle call)
+{
+      active_timeformat = call;
+}
 
 PLI_INT32 vpi_free_object(vpiHandle ref)
 {
@@ -1596,6 +1602,8 @@ vpiHandle vpi_handle(PLI_INT32 type, vpiHandle ref)
 	      // A few types can apply to a nil handle. These are ways
 	      // that the current function can get started finding things.
 	    switch (type) {
+		case vpiActiveTimeFormat:
+		  return active_timeformat;
 
 		case vpiScope:
 		    // The IEEE1364-2005 doesn't seem to allow this,
