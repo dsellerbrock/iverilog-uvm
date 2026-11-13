@@ -4129,7 +4129,7 @@ static void pform_make_modgate(perm_string type,
 /* Find a design element using the lexical declaration scopes available
  * during parsing. Local checker definitions are supported for the 2017 and
  * 2023 editions; older modes retain their existing nested-checker behavior. */
-static Module* pform_find_visible_module_type_(const LexicalScope*scope,
+Module* pform_find_visible_module_type_(const LexicalScope*scope,
 						       perm_string type)
 {
       for (const LexicalScope*cur = scope; cur; cur = cur->parent_scope()) {
