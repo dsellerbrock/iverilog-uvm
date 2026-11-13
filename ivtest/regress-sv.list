@@ -6726,3 +6726,23 @@ sva_same_tick_verdicts_2023 normal,-g2023,-s,sva_same_tick_verdicts ivltests gol
 
 issue2952_constraint_side_effect_2017 CE,-g2017 ivltests gold=issue2952_constraint_side_effect_2017.gold
 issue2952_constraint_side_effect_2023 CE,-g2023 ivltests gold=issue2952_constraint_side_effect_2023.gold
+issue2965_unique_multidim_2017 normal,-g2017,-s,issue2965_unique_multidim ivltests gold=issue2965_unique_multidim.gold
+issue2965_unique_multidim_2023 normal,-g2023,-s,issue2965_unique_multidim ivltests gold=issue2965_unique_multidim.gold
+issue2975_nested_constraint_mode_2017 normal,-g2017,-s,test ivltests gold=issue2975_nested_constraint_mode.gold
+issue2975_nested_constraint_mode_2023 normal,-g2023,-s,test ivltests gold=issue2975_nested_constraint_mode.gold
+issue2977_pure_static_2017 normal,-g2017,-s,top ivltests gold=issue2977_pure_static.gold
+issue2977_pure_static_2023 normal,-g2023,-s,top ivltests gold=issue2977_pure_static.gold
+issue2977_pure_static_mismatch_2017 CE,-g2017,-s,top ivltests gold=issue2977_pure_static_mismatch.gold
+issue2977_pure_static_mismatch_2023 CE,-g2023,-s,top ivltests gold=issue2977_pure_static_mismatch.gold
+issue2999_named_property_not_2017 normal,-g2017,-gassertions,-s,issue2999_named_property_not ivltests gold=issue2999_named_property_not.gold
+issue2999_named_property_not_2023 normal,-g2023,-gassertions,-s,issue2999_named_property_not ivltests gold=issue2999_named_property_not.gold
+issue3002_property_truth_2017 normal,-g2017,-gassertions,-s,issue3002_property_truth ivltests gold=issue3002_property_truth.gold
+issue3002_property_truth_2023 normal,-g2023,-gassertions,-s,issue3002_property_truth ivltests gold=issue3002_property_truth.gold
+issue2979_constraint_guard_order_2017 normal,-g2017,-s,main ivltests gold=issue2979_constraint_guard_order.gold
+issue2979_constraint_guard_order_2023 normal,-g2023,-s,main ivltests gold=issue2979_constraint_guard_order.gold
+issue2995_sva_repeat_2017 normal,-g2017,-gassertions,-s,issue2995_sva_repeat ivltests gold=issue2995_sva_repeat.gold
+issue2995_sva_repeat_2023 normal,-g2023,-gassertions,-s,issue2995_sva_repeat ivltests gold=issue2995_sva_repeat.gold
+issue3003_property_x_2017 normal,-g2017,-gassertions,-s,issue3003_property_x ivltests gold=issue3003_property_x.gold
+issue3003_property_x_2023 normal,-g2023,-gassertions,-s,issue3003_property_x ivltests gold=issue3003_property_x.gold
+issue3024_nested_handles_2017 normal,-g2017,-s,issue3024_nested_handles ivltests gold=issue3024_nested_handles.gold
+issue3024_nested_handles_2023 normal,-g2023,-s,issue3024_nested_handles ivltests gold=issue3024_nested_handles.gold

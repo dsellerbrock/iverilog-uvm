@@ -269,6 +269,7 @@ extern void pform_class_constraint_prototype(const struct vlltype&loc,
                                               unsigned override_specifiers,
 					      const char*name, bool is_extern = true);
 extern void pform_class_pure_constraint(const struct vlltype&loc,
+					 bool is_static,
 					 unsigned override_specifiers,
 					 const char*name);
 

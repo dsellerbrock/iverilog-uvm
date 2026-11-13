@@ -99,6 +99,9 @@ static vpiHandle real_var_get_handle(int code, vpiHandle ref)
 
 	  case vpiModule:
 	    return vpip_module(vpip_scope(rfp));
+
+	  case vpiTypespec:
+	    return vpip_make_builtin_typespec(vpiRealTypespec);
       }
 
       return 0;
