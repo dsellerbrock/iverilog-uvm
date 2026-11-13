@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2946_vpi_unpacked_struct.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue2946_vpi_unpacked_struct_2023"],
+  "vpi-sources": ["vpi/issue2946_vpi_unpacked_struct.c"],
+  "output-contains": ["UNPACKED STRUCT UNION VPI PASS"]
+}

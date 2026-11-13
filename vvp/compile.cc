@@ -1152,6 +1152,11 @@ vvp_net_t* vvp_net_lookup(const char*label)
 		      const __vpiBaseVar*sig = dynamic_cast<__vpiBaseVar*>(vpi);
 		      return sig->get_net();
 		}
+		case vpiStructVar:
+		case vpiUnionVar:
+		      if (const __vpiBaseVar*var = dynamic_cast<__vpiBaseVar*>(vpi))
+		            return var->get_net();
+		      return dynamic_cast<__vpiSignal*>(vpi)->node;
 
 		case vpiNamedEvent: {
 		      const __vpiNamedEvent*tmp = dynamic_cast<__vpiNamedEvent*>(vpi);

@@ -41,7 +41,7 @@
 
 namespace {
 
-static vvp_fun_signal_object* get_object_fun_(__vpiBaseVar*var)
+static vvp_fun_signal_object* get_object_fun_(const __vpiBaseVar*var)
 {
       if (!var || !var->get_net())
             return 0;
@@ -270,11 +270,21 @@ __vpiCobjectVar::__vpiCobjectVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
 }
 
 int __vpiCobjectVar::get_type_code(void) const
-{ return virtual_interface_ ? vpiVirtualInterfaceVar : vpiClassVar; }
+{
+      if (virtual_interface_) return vpiVirtualInterfaceVar;
+      const class_type*defn = get_declared_class_type_(get_object_fun_(this));
+      if (defn && defn->is_union_type()) return vpiUnionVar;
+      if (defn && defn->is_struct_type()) return vpiStructVar;
+      return vpiClassVar;
+}
 
 int __vpiCobjectVar::vpi_get(int code)
 {
       switch (code) {
+	case vpiPacked:
+	    if (get_type_code() == vpiStructVar || get_type_code() == vpiUnionVar)
+		  return 0;
+	    break;
 	case vpiIsModPort:
 	    return virtual_interface_modport_ ? 1 : 0;
 	case vpiIsStruct: {
@@ -303,10 +313,10 @@ int __vpiCobjectVar::vpi_get(int code)
 #endif
 
 	default:
-	    fprintf(stderr, "vvp error: get %d not supported "
-	                    "by vpiClassVar\n", code);
-	    return vpiUndefined;
+	    break;
       }
+      fprintf(stderr, "vvp error: get %d not supported by vpiClassVar\n", code);
+      return vpiUndefined;
 }
 
 char* __vpiCobjectVar::vpi_get_str(int code)

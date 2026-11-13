@@ -151,6 +151,13 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case vpiVirtualInterfaceVar:
 		  class_delete(item);
 		  break;
+		case vpiStructVar:
+		case vpiUnionVar:
+		  if (dynamic_cast<__vpiCobjectVar*>(item))
+		        class_delete(item);
+		  else
+		        signal_delete(item);
+		  break;
 		case vpiArrayVar:
 		  array_delete(item);
 		  break;
