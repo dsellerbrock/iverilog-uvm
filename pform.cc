@@ -8465,7 +8465,7 @@ void pform_set_clocking_default_skews(const struct vlltype&loc,
    shared with concurrent assertions below; randsequence code blocks use it
    so an undeclared production-condition name cannot degrade to the generic
    compile-progress warning and silently select the else branch. */
-static void sva_mark_strict_(PExpr*e);
+static void sva_mark_strict_(PExpr*e, bool assertion = true);
 static PExpr* sva_clone_subst_(
       PExpr*e, const std::map<perm_string,PExpr*>*subst);
 static parmvalue_t* sva_clone_parmvalue_(
@@ -8476,13 +8476,13 @@ static void pform_rs_mark_conditions_strict_(Statement*stmt)
 {
       if (!stmt) return;
       if (PCondit*cond = dynamic_cast<PCondit*>(stmt)) {
-	    sva_mark_strict_(cond->cond_expr());
+	    sva_mark_strict_(cond->cond_expr(), false);
 	    pform_rs_mark_conditions_strict_(cond->if_clause());
 	    pform_rs_mark_conditions_strict_(cond->else_clause());
 	    return;
       }
       if (PRepeat*repeat = dynamic_cast<PRepeat*>(stmt)) {
-	    sva_mark_strict_(repeat->count_expr());
+	    sva_mark_strict_(repeat->count_expr(), false);
 	    pform_rs_mark_conditions_strict_(repeat->body());
 	    return;
       }
@@ -8747,7 +8747,7 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 				       return_target)
 		: nullptr;
 	    if (!expr) { delete yes; delete no; goto unsupported; }
-	    sva_mark_strict_(expr);
+	    sva_mark_strict_(expr, false);
 	    PCondit*copy = new PCondit(expr, yes, no);
 	    copy->parsed_if_statement(cond->is_parsed_if_statement());
 	    copy->immediate_assertion(cond->is_immediate_assertion());
@@ -8759,7 +8759,7 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 	    Statement*body = pform_rs_clone_stmt_(ctx, repeat->body(), subst,
 						   loop_depth + 1, return_target);
 	    if (!count || !body) { delete count; delete body; goto unsupported; }
-	    sva_mark_strict_(count);
+	    sva_mark_strict_(count, false);
 	    PRepeat*copy = new PRepeat(count, body);
 	    copy->set_line(*stmt);
 	    return copy;
@@ -9112,7 +9112,7 @@ static Statement* pform_rs_expand_item_(
 		  error_count += 1; ctx.bad = true; delete yes; delete no;
 		  return nullptr;
 	    }
-	    sva_mark_strict_(condition);
+	    sva_mark_strict_(condition, false);
 	    PCondit*result = new PCondit(condition, yes, no);
 	    result->parsed_if_statement();
 	    result->set_line(item);
@@ -9128,7 +9128,7 @@ static Statement* pform_rs_expand_item_(
 		  error_count += 1; ctx.bad = true; delete count; delete body;
 		  return nullptr;
 	    }
-	    sva_mark_strict_(count);
+	    sva_mark_strict_(count, false);
 	    PRepeat*result = new PRepeat(count, body);
 	    result->set_line(item);
 	    return result;
@@ -9140,7 +9140,7 @@ static Statement* pform_rs_expand_item_(
 		  cerr << item.get_fileline() << ": sorry: cannot clone this "
 		       << "randsequence case selector." << endl;
 		  error_count += 1; ctx.bad = true;
-	    } else sva_mark_strict_(selector);
+	    } else sva_mark_strict_(selector, false);
 	    if (item.cases) for (const rs_case_item_t&source : *item.cases) {
 		  PCase::Item*target = new PCase::Item;
 		  if (source.expressions)
@@ -18526,11 +18526,9 @@ static void pform_enable_procedural_sampled_history_(
    are all silently inert today. Package-qualified names are left alone;
    they resolve through a different path and already error.
 
-   Marking happens at the pform level, so it cannot reach non-assertion
-   code -- in particular uvm-core/src, which contains no concurrent
-   assertions at all and whose reliance on the generic warning is
-   therefore untouched. */
-static void sva_mark_strict_(PExpr*e)
+   Randsequence also uses strict binding but does not impose concurrent
+   assertion restrictions on function calls or increment operators. */
+static void sva_mark_strict_(PExpr*e, bool assertion)
 {
       if (!e) return;
 
@@ -18540,46 +18538,46 @@ static void sva_mark_strict_(PExpr*e)
 	    return;
       }
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
-	    cf->mark_concurrent_assertion_expr();
+	    if (assertion) cf->mark_concurrent_assertion_expr();
 	    const std::vector<named<PExpr*> >&parms = cf->get_parms();
 	    for (size_t i = 0 ; i < parms.size() ; i += 1)
-		  sva_mark_strict_(parms[i].parm);
+		  sva_mark_strict_(parms[i].parm, assertion);
 	    return;
       }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
-	    un->mark_concurrent_assertion_expr();
-	    sva_mark_strict_(un->get_expr());
+	    if (assertion) un->mark_concurrent_assertion_expr();
+	    sva_mark_strict_(un->get_expr(), assertion);
 	    return;
       }
       if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
-	    sva_mark_strict_(bin->get_left());
-	    sva_mark_strict_(bin->get_right());
+	    sva_mark_strict_(bin->get_left(), assertion);
+	    sva_mark_strict_(bin->get_right(), assertion);
 	    return;
       }
       if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
-	    sva_mark_strict_(ter->get_cond());
-	    sva_mark_strict_(ter->get_true());
-	    sva_mark_strict_(ter->get_false());
+	    sva_mark_strict_(ter->get_cond(), assertion);
+	    sva_mark_strict_(ter->get_true(), assertion);
+	    sva_mark_strict_(ter->get_false(), assertion);
 	    return;
       }
       if (PECastSize*cast = dynamic_cast<PECastSize*>(e)) {
-	    sva_mark_strict_(cast->cast_size());
-	    sva_mark_strict_(cast->cast_base());
+	    sva_mark_strict_(cast->cast_size(), assertion);
+	    sva_mark_strict_(cast->cast_base(), assertion);
 	    return;
       }
       if (PECastType*cast = dynamic_cast<PECastType*>(e)) {
-	    sva_mark_strict_(cast->cast_base());
+	    sva_mark_strict_(cast->cast_base(), assertion);
 	    return;
       }
       if (PECastSign*cast = dynamic_cast<PECastSign*>(e)) {
-	    sva_mark_strict_(cast->cast_base());
+	    sva_mark_strict_(cast->cast_base(), assertion);
 	    return;
       }
       if (PEConcat*cc = dynamic_cast<PEConcat*>(e)) {
 	    const std::vector<PExpr*>&parms = cc->stream_parms();
 	    for (size_t i = 0 ; i < parms.size() ; i += 1)
-		  sva_mark_strict_(parms[i]);
-	    sva_mark_strict_(cc->repeat_expr());
+		  sva_mark_strict_(parms[i], assertion);
+	    sva_mark_strict_(cc->repeat_expr(), assertion);
 	    return;
       }
 }
