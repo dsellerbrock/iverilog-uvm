@@ -12642,11 +12642,20 @@ static bool z3_full_power_two_projection_(Z3_context ctx, Z3_solver base,
       Z3_app universal = Z3_to_app(ctx, var);
       Z3_ast projection = Z3_mk_forall_const(ctx, 0, 1, &universal, 0,
             nullptr, body);
-      Z3_solver proof = Z3_mk_solver(ctx);
-      Z3_solver_inc_ref(ctx, proof);
-      Z3_solver_assert(ctx, proof, projection);
-      Z3_lbool result = Z3_solver_check(ctx, proof);
-      Z3_solver_dec_ref(ctx, proof);
+      /* Prove with the quantified bit-vector (BV) logic strategy first:
+       * Z3 4.8.x's default solver (Ubuntu 22.04/24.04 packages) takes about
+       * 100 s on even an 8-bit projection here, while the BV strategy
+       * decides it at once on every version. The default solver remains
+       * the fallback for formulas that strategy cannot decide. */
+      Z3_lbool result = Z3_L_UNDEF;
+      for (int pass = 0; pass < 2 && result == Z3_L_UNDEF; ++pass) {
+            Z3_solver proof = pass ? Z3_mk_solver(ctx)
+                  : Z3_mk_solver_for_logic(ctx, Z3_mk_string_symbol(ctx, "BV"));
+            Z3_solver_inc_ref(ctx, proof);
+            Z3_solver_assert(ctx, proof, projection);
+            result = Z3_solver_check(ctx, proof);
+            Z3_solver_dec_ref(ctx, proof);
+      }
       if (result != Z3_L_TRUE) return false;
       bits = Z3_get_bv_sort_size(ctx, sort);
       return true;
