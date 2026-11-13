@@ -77,6 +77,7 @@
 extern const netclass_t* resolve_nested_clocking_child_type(
       const PEIdent*, Design*, NetScope*, size_t, const netclass_t*,
       perm_string, const LineInfo*);
+extern bool clocking_output_concat_lval;
 
 static bool covergroup_option_uses_sample_formal_(const PExpr*expr,
 							 perm_string formal);
@@ -14759,6 +14760,15 @@ static void clocking_register_lval_variables_(const NetAssign_*shape,
 	    ivl_register_clocking_output_variable(target, cb_name);
       clocking_register_lval_variables_(shape->nest(), cb_name);
       clocking_register_lval_variables_(shape->more, cb_name);
+}
+
+static void clocking_collect_lval_leaves_(const NetAssign_*shape,
+					  std::vector<const NetAssign_*>&leaves)
+{
+      if (!shape) return;
+      if (shape->sig()) leaves.push_back(shape);
+      clocking_collect_lval_leaves_(shape->nest(), leaves);
+      clocking_collect_lval_leaves_(shape->more, leaves);
 }
 
 static std::vector<NetNet*> capture_clocking_selectors_(
@@ -33706,9 +33716,15 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			    && !raw->coerced_to_uwire())
 			      target_shape.reset(id->elaborate_lval(
 				    des, scope, false, false, false));
-			else if (concat && concat->stream_parms().size() == 1)
-			      target_shape.reset(concat->stream_parms().front()->elaborate_lval(
+			else if (concat) {
+			      bool saved = clocking_output_concat_lval;
+			      clocking_output_concat_lval = true;
+			      const PExpr*target = concat->stream_parms().size() == 1
+				    ? concat->stream_parms().front() : da->second;
+			      target_shape.reset(target->elaborate_lval(
 				    des, scope, false, true, false));
+			      clocking_output_concat_lval = saved;
+			}
 			else
 			      target_shape.reset(da->second->elaborate_lval(
 				    des, scope, false, true, false));
@@ -34025,36 +34041,46 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			NetESelect*pend_bit = new NetESelect(pend_vec, pend_bit_idx, 1);
 			pend_bit->set_line(*cb);
 
-			NetAssign_*raw_bit = new NetAssign_(out_targets[idx]->sig());
-			if (const NetExpr*word = out_targets[idx]->word())
-			      raw_bit->set_word(word->dup_expr());
-			NetESignal*raw_bit_idx = new NetESignal(bit_idx);
-			raw_bit_idx->set_line(*cb);
-			if (const NetExpr*base = out_targets[idx]->get_base()) {
-			      NetEBAdd*offset = new NetEBAdd(
-				    '+', base->dup_expr(), raw_bit_idx, 32, true);
-			      offset->set_line(*cb);
-			      raw_bit->set_part(offset, 1);
-			} else {
-			      raw_bit->set_part(raw_bit_idx, 1);
+			std::vector<const NetAssign_*> leaves;
+			clocking_collect_lval_leaves_(out_targets[idx].get(), leaves);
+			std::vector<unsigned> offsets;
+			unsigned offset = 0;
+			for (const NetAssign_*leaf : leaves) {
+			      offsets.push_back(offset);
+			      offset += leaf->lwidth();
 			}
-			NetESignal*buf_vec = out_words[idx] >= 0
-			  ? new NetESignal(out_bufs[idx],
-					    make_const_val_s(out_words[idx]))
-			  : new NetESignal(out_bufs[idx]);
-			buf_vec->set_line(*cb);
-			NetESignal*buf_bit_idx = new NetESignal(bit_idx);
-			buf_bit_idx->set_line(*cb);
-			NetESelect*buf_bit = new NetESelect(buf_vec, buf_bit_idx, 1);
-			buf_bit->set_line(*cb);
-			NetAssignNB*drv = new NetAssignNB(raw_bit, buf_bit, 0, 0);
-			drv->set_line(*cb);
-			  /* Output skew (14.4): land #d after the event. */
-			if (PExpr*od = cb->output_skew_delay(out_names[idx])) {
-			      if (NetExpr*dly = elaborate_clocking_skew_expr(od, des, scope))
-				    drv->set_delay(dly);
+			NetProc*selected_drive = nullptr;
+			for (size_t n = leaves.size(); n > 0; --n) {
+			      const NetAssign_*leaf = leaves[n-1];
+			      NetAssign_*raw_bit = new NetAssign_(leaf->sig());
+			      if (const NetExpr*word = leaf->word())
+				    raw_bit->set_word(word->dup_expr());
+			      NetExpr*position = new NetESignal(bit_idx);
+			      if (offsets[n-1])
+				    position = new NetEBAdd('-', position,
+					  make_const_val_s(offsets[n-1]), 32, true);
+			      if (const NetExpr*base = leaf->get_base())
+				    position = new NetEBAdd('+', base->dup_expr(),
+					  position, 32, true);
+			      raw_bit->set_part(position, 1);
+			      NetESignal*buf_vec = out_words[idx] >= 0
+				    ? new NetESignal(out_bufs[idx], make_const_val_s(out_words[idx]))
+				    : new NetESignal(out_bufs[idx]);
+			      NetESelect*buf_bit = new NetESelect(buf_vec, new NetESignal(bit_idx), 1);
+			      NetAssignNB*drv = new NetAssignNB(raw_bit, buf_bit, 0, 0);
+			      drv->set_line(*cb);
+			      if (PExpr*od = cb->output_skew_delay(out_names[idx])) {
+				    if (NetExpr*dly = elaborate_clocking_skew_expr(od, des, scope))
+					  drv->set_delay(dly);
+			      }
+			      if (leaves.size() == 1) selected_drive = drv;
+			      else {
+				    NetEBComp*in_leaf = new NetEBComp('<', new NetESignal(bit_idx),
+					  make_const_val_s(offsets[n-1] + leaf->lwidth()));
+				    selected_drive = new NetCondit(in_leaf, drv, selected_drive);
+			      }
 			}
-			NetCondit*drive_bit = new NetCondit(pend_bit, drv, 0);
+			NetCondit*drive_bit = new NetCondit(pend_bit, selected_drive, 0);
 			drive_bit->set_line(*cb);
 			NetForLoop*drive_bits = new NetForLoop(bit_idx, init_expr,
 							loop_cond, drive_bit, step);
