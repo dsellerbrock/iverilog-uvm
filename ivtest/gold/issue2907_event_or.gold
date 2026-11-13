@@ -1,0 +1,4 @@
+event at 5
+event at 7
+event-or done
+./ivltests/issue2907_event_or.sv:9: $finish called at 17 (1s)

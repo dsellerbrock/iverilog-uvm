@@ -7754,19 +7754,74 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
       for (unsigned idx = 0; idx < pins.size(); idx += 1) {
 	    if (!rmod->is_event_port(idx))
 		  continue;
-	    if (!pins[idx]) {
+	    NetEvWait*checker_event_lifetime_wait = nullptr;
+	    NetEvent*actual_event = nullptr;
+	    if (!pins[idx] && rmod->is_checker
+		&& rmod->get_port_default_value(idx)) {
+		  NetScope*module_scope = scope;
+		  while (module_scope && !module_scope->module_definition())
+			module_scope = module_scope->parent();
+		  const Module*owner = module_scope
+			? find_default_clocking_module_(module_scope->module_definition())
+			: nullptr;
+		  NetScope*clock_scope = module_scope;
+		  while (clock_scope && clock_scope->module_definition() != owner)
+			clock_scope = clock_scope->parent();
+		  const Module::PClocking*clocking = nullptr;
+		  if (owner) {
+			auto it = owner->clocking_blocks.find(owner->default_clocking);
+			if (it != owner->clocking_blocks.end()) clocking = it->second;
+		  }
+		  if (!clocking || !clock_scope || !clocking->event) {
+			cerr << get_fileline() << ": error: $inferred_clock has no current resolved event expression (IEEE 1800-2017/2023 16.14.7, 17.4)." << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  const vector<PEEvent*>&events = clocking->event->event_expressions();
+		  if (events.size() == 1) {
+			actual_event = resolve_checker_event_port_actual_(des, clock_scope,
+			      events[0], &checker_event_lifetime_wait);
+		  } else {
+			bool conditional = false;
+			for (const PEEvent*event : events)
+			      if (event && event->condition()) conditional = true;
+			NetProc*proc = conditional ? nullptr
+			      : clocking->event->elaborate(des, clock_scope);
+			checker_event_lifetime_wait = dynamic_cast<NetEvWait*>(proc);
+			if (checker_event_lifetime_wait
+			    && checker_event_lifetime_wait->nevents() == 1) {
+			      actual_event = checker_event_lifetime_wait->event(0);
+			} else {
+			delete proc;
+			checker_event_lifetime_wait = nullptr;
+			      NetEvent*event = new NetEvent(clock_scope->local_symbol());
+			      event->set_line(*this);
+			      event->local_flag(true);
+			      NetEvTrig*trigger = new NetEvTrig(event);
+			      NetProc*body = clocking->event->elaborate_st(des, clock_scope, trigger);
+			      if (!body) {
+				    delete trigger;
+				    delete event;
+				    continue;
+			      }
+			      clock_scope->add_event(event);
+			      des->add_process(new NetProcTop(clock_scope, IVL_PR_ALWAYS, body));
+			      actual_event = event;
+			}
+		  }
+	    } else if (!pins[idx]) {
 		  cerr << get_fileline() << ": error: Event port `"
 		       << rmod->get_port_name(idx) << "' of module `"
 		       << rmod->mod_name()
 		       << "' requires a named-event actual." << endl;
 		  des->errors += 1;
 		  continue;
+	    } else {
+		  actual_event = rmod->is_checker
+			? resolve_checker_event_port_actual_(des, scope, pins[idx],
+						     &checker_event_lifetime_wait)
+			: resolve_event_port_actual_(des, scope, pins[idx]);
 	    }
-	    NetEvWait*checker_event_lifetime_wait = nullptr;
-	    NetEvent*actual_event = rmod->is_checker
-		  ? resolve_checker_event_port_actual_(des, scope, pins[idx],
-						       &checker_event_lifetime_wait)
-		  : resolve_event_port_actual_(des, scope, pins[idx]);
 	    if (!actual_event) {
 		  delete checker_event_lifetime_wait;
 		  continue;

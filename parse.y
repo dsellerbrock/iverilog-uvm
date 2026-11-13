@@ -2489,15 +2489,26 @@ static Module::port_t *module_declare_event_port(
 	    yyerror(loc, "sorry: Unpacked event ports are not supported.");
 	    delete unpacked_dims;
       }
-      if (default_value) {
-	    yyerror(loc, "sorry: Default values on event ports are not supported.");
+      PECallFunction*inferred = dynamic_cast<PECallFunction*>(default_value);
+      bool checker_inferred_clock = pform_module_is_checker()
+	    && port_type == NetNet::PINPUT && inferred
+	    && !inferred->path().package && inferred->path().name.size() == 1
+	    && inferred->path().name.front().name == perm_string::literal("$inferred_clock")
+	    && inferred->get_parms().empty() && !inferred->receiver_expr();
+      if (default_value && !checker_inferred_clock) {
+	    if (pform_module_is_checker())
+		  yyerror(loc, "error: Checker event port default must be $inferred_clock (IEEE 1800-2017/2023 17.4).");
+	    else
+		  yyerror(loc, "sorry: Default values on event ports are not supported.");
 	    delete default_value;
+	    default_value = nullptr;
       }
 
       pform_make_event_port(loc, name);
       Module::port_t*port = pform_module_port_reference(loc, name.first);
       port->event_port = true;
       port->event_direction = port_type;
+      port->default_value = default_value;
 
       port_declaration_context.port_type = port_type;
       port_declaration_context.port_net_type = NetNet::IMPLICIT;

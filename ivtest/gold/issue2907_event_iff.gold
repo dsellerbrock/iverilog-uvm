@@ -1,0 +1,4 @@
+guarded event at 7
+guarded event at 15
+guarded done
+./ivltests/issue2907_event_iff.sv:13: $finish called at 22 (1s)

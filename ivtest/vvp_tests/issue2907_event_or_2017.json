@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue2907_event_or.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "issue2907_event_or"
+  ],
+  "gold": "issue2907_event_or"
+}

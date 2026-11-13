@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue2907_event_iff.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue2907_event_iff"
+  ],
+  "gold": "issue2907_event_iff"
+}

@@ -1,0 +1,3 @@
+q04 fail at 15
+q04 done
+ivltests/issue2907_clock.sv:9: $finish called at 22 (1s)
