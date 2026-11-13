@@ -744,6 +744,8 @@ __vpiScope*vpip_timescale_scope_from_handle(vpiHandle obj)
 	    return task->scope;
 
 	  case vpiModule:
+	  case vpiInterface:
+	  case vpiProgram:
 	  case vpiPackage:
 	  case vpiTask:
 	  case vpiFunction:

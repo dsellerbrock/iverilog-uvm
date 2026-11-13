@@ -363,11 +363,26 @@ unsigned get_fd_mcd_from_arg(PLI_UINT32 *fd_mcd, vpiHandle arg,
  * Find the enclosing module. If there is no enclosing module (which can be
  * the case in SystemVerilog), return the highest enclosing scope.
  */
+/* IEEE 1800-2023 3.14: modules, interfaces and programs each carry their
+   own time unit and precision, so all three end the outward walk that finds
+   the design element enclosing a call. */
+int sys_is_design_element(vpiHandle obj)
+{
+      switch (vpi_get(vpiType, obj)) {
+	  case vpiModule:
+	  case vpiInterface:
+	  case vpiProgram:
+	    return 1;
+	  default:
+	    return 0;
+      }
+}
+
 vpiHandle sys_func_module(vpiHandle obj)
 {
       assert(obj);
 
-      while (vpi_get(vpiType, obj) != vpiModule) {
+      while (!sys_is_design_element(obj)) {
 	    vpiHandle scope = vpi_handle(vpiScope, obj);
 	    if (scope == 0)
 		  break;

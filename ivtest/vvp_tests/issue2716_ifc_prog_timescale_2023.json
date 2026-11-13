@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2716_ifc_prog_timescale.sv",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue2716_ifc_prog_timescale"
+}

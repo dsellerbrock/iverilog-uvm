@@ -66,6 +66,7 @@ extern unsigned get_fd_mcd_from_arg(PLI_UINT32 *fd_mcd, vpiHandle arg,
                                     vpiHandle callh, const char *name);
 
 extern vpiHandle sys_func_module(vpiHandle obj);
+extern int sys_is_design_element(vpiHandle obj);
 
 extern void sys_monitor_fclose(PLI_UINT32 fd_mcd);
 
