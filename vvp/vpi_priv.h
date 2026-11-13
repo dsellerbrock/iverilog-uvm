@@ -1487,6 +1487,12 @@ extern value_callback*vpip_array_change_target(p_cb_data data,
 extern vpiHandle vpip_make_cobject_property_string_var(char*label,
                                                        unsigned prop_cnt,
                                                        long*prop_idx);
+/* #2745: an element of a fixed-array, dynamic-array or queue string class
+   property; INDEX_LABEL names the handle that yields the element index. */
+extern vpiHandle vpip_make_cobject_property_string_elem(char*label,
+                                                         unsigned prop_cnt,
+                                                         long*prop_idx,
+                                                         char*index_label);
 /* L34: prop_idx is now a path of prop_cnt indices, same as the string
  * variant above (and for the same reason -- a nested integral class
  * property chain, e.g. obj.inner.n, needs the identical property-aware
@@ -1494,14 +1500,15 @@ extern vpiHandle vpip_make_cobject_property_string_var(char*label,
  * original direct-property case. */
 extern vpiHandle vpip_make_cobject_property_vec_var(char*label,
                                                     unsigned width,
-                                                    bool signed_flag,
+                                                    unsigned flags,
                                                     unsigned prop_cnt,
                                                     long*prop_idx);
-/* #2475: an element of a fixed-array class property; INDEX_LABEL names the
-   handle that yields the element index. */
+/* #2475, #2745: an element of a fixed-array, dynamic-array or queue class
+   property; INDEX_LABEL names the handle that yields the element index.
+   FLAGS: bit 0 signed, bit 1 two-state. */
 extern vpiHandle vpip_make_cobject_property_vec_elem(char*label,
                                                      unsigned width,
-                                                     bool signed_flag,
+                                                     unsigned flags,
                                                      unsigned prop_cnt,
                                                      long*prop_idx,
                                                      char*index_label);

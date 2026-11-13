@@ -32,6 +32,7 @@
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
+# include  "vthread.h"
 # include  <cstring>
 # include  <string>
 # include  <cstdlib>
@@ -1571,6 +1572,47 @@ vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
       return obj;
 }
 
+/* #2475, #2745: resolve the element of class property PID that the index
+   handle INDEX currently selects. A fixed-array property stores its
+   elements in property slots (DAR is left nil); a dynamic-array or queue
+   property stores one container object, returned in DAR, whose current
+   size bounds the index. An X/Z or out-of-range index selects nothing, as
+   for a variable array (IEEE 1800-2023 7.4.6): reads then give the element
+   type's default and writes are dropped. */
+static bool cobject_property_element_(vvp_cobject*cobj, size_t pid,
+                                      vpiHandle index, size_t&elem,
+                                      vvp_darray*&dar)
+{
+      const std::string&kind = cobj->get_defn()->property_base_type(pid);
+      uint64_t size;
+      dar = nullptr;
+      if (!kind.empty() && (kind[0] == 'D' || kind[0] == 'Q')) {
+            vvp_object_t held;
+            cobj->get_object(pid, held, 0);
+            dar = held.peek<vvp_darray>();
+            if (!dar) return false;
+            size = dar->get_size();
+      } else {
+            size = cobj->get_defn()->property_array_size(pid);
+      }
+	/* Read the index without the shared VPI result buffer: a caller
+	   may still hold a string this handle returned (sys_display asks
+	   a string handle for vpiSize after reading its value). */
+      vpip_vthr_stack_kind_t skind;
+      unsigned depth;
+      if (!vpip_get_vthr_stack_ref(index, &skind, &depth)
+          || skind != VPIP_VTHR_STACK_VEC4 || !vpip_current_vthread
+          || vthread_get_vec4_stack(vpip_current_vthread, depth).has_xz())
+            return false;
+      s_vpi_value iv;
+      iv.format = vpiIntVal;
+      ::vpi_get_value(index, &iv);
+      if (iv.value.integer < 0 || (uint64_t)iv.value.integer >= size)
+            return false;
+      elem = (size_t)iv.value.integer;
+      return true;
+}
+
 /*
  * Phase 51: a VPI handle that targets a specific string property of a
  * class instance or virtual interface. The wrapping object handle does not
@@ -1593,16 +1635,21 @@ vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
 class __vpiClassPropertyStringVar : public __vpiHandle {
     public:
       __vpiClassPropertyStringVar(const std::vector<size_t>&prop_path)
-            : cobj_net_(nullptr), prop_path_(prop_path) {}
+            : cobj_net_(nullptr), index_(nullptr), prop_path_(prop_path) {}
 
       vvp_net_t*cobj_net_;
+	/* #2745: for an element of a fixed-array, dynamic-array or queue
+	   string property, the handle that yields its index (else nil). */
+      vpiHandle index_;
 
       int get_type_code(void) const override { return vpiStringVar; }
 
       int vpi_get(int code) override
       {
             switch (code) {
-                case vpiSize:        return 8;
+		/* As for a string variable: the current length in
+		   characters, so an empty string displays as nothing. */
+                case vpiSize:        return read_property_string_().size();
                 case vpiAutomatic:   return 0;
                 case vpiSigned:      return 0;
                 case vpiConstType:   return vpiNullConst;
@@ -1665,6 +1712,20 @@ class __vpiClassPropertyStringVar : public __vpiHandle {
       std::string read_property_string_()
       {
             vvp_object_t obj = resolve_container_();
+            if (index_) {
+                  vvp_cobject*cobj = obj.peek<vvp_cobject>();
+                  size_t elem;
+                  vvp_darray*dar = nullptr;
+                  std::string value;
+                  if (cobj && cobject_property_element_(cobj,
+                                          prop_path_.back(), index_, elem, dar)) {
+                        if (dar)
+                              dar->get_word(elem, value);
+                        else
+                              value = cobj->get_string(prop_path_.back(), elem);
+                  }
+                  return value;
+            }
             if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
                   return cobj->get_string(prop_path_.back());
             if (vvp_vinterface*vif = obj.peek<vvp_vinterface>())
@@ -1675,8 +1736,20 @@ class __vpiClassPropertyStringVar : public __vpiHandle {
       void write_property_string_(const char*s)
       {
             vvp_object_t obj = resolve_container_();
-            if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
-                  cobj->set_string(prop_path_.back(), std::string(s));
+            size_t elem = 0;
+            vvp_darray*dar = nullptr;
+            if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+                  if (!index_)
+                        cobj->set_string(prop_path_.back(), std::string(s));
+                  else if (cobject_property_element_(cobj, prop_path_.back(),
+                                                     index_, elem, dar)) {
+                        if (dar)
+                              dar->set_word(elem, std::string(s));
+                        else
+                              cobj->set_string(prop_path_.back(),
+                                               std::string(s), elem);
+                  }
+            }
             else if (obj.peek<vvp_vinterface>())
                   report_vinterface_property_write_();
             else
@@ -1691,6 +1764,16 @@ vpiHandle vpip_make_cobject_property_string_var(char*label, unsigned prop_cnt,
       std::vector<size_t> path(prop_idx, prop_idx + prop_cnt);
       __vpiClassPropertyStringVar*obj = new __vpiClassPropertyStringVar(path);
       functor_ref_lookup(&obj->cobj_net_, label);
+      return obj;
+}
+
+vpiHandle vpip_make_cobject_property_string_elem(char*label, unsigned prop_cnt,
+                                                  long*prop_idx,
+                                                  char*index_label)
+{
+      __vpiClassPropertyStringVar*obj = static_cast<__vpiClassPropertyStringVar*>(
+            vpip_make_cobject_property_string_var(label, prop_cnt, prop_idx));
+      compile_vpi_lookup(&obj->index_, index_label);
       return obj;
 }
 
@@ -1710,10 +1793,11 @@ vpiHandle vpip_make_cobject_property_string_var(char*label, unsigned prop_cnt,
    whatever object that walk lands on. */
 class __vpiClassPropertyVecVar : public __vpiHandle {
     public:
-      __vpiClassPropertyVecVar(unsigned width, bool signed_flag,
+      __vpiClassPropertyVecVar(unsigned width, unsigned flags,
                                const std::vector<size_t>&prop_path)
             : cobj_net_(nullptr), index_(nullptr), width_(width),
-              signed_flag_(signed_flag), prop_path_(prop_path) {}
+              signed_flag_(flags & 1), two_state_(flags & 2),
+              prop_path_(prop_path) {}
 
       vvp_net_t*cobj_net_;
 	/* #2475: for an element of a fixed-array property, the handle that
@@ -1740,10 +1824,16 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
             vvp_object_t obj = resolve_container_();
             vvp_cobject*cobj = obj.peek<vvp_cobject>();
             if (index_) {
-                  vvp_vector4_t current(width_, BIT4_X);
+                  vvp_vector4_t current(width_, two_state_? BIT4_0 : BIT4_X);
                   size_t elem;
-                  if (cobj && element_(cobj, elem))
-                        cobj->get_vec4(prop_path_.back(), current, elem);
+                  vvp_darray*dar = nullptr;
+                  if (cobj && cobject_property_element_(cobj,
+                                          prop_path_.back(), index_, elem, dar)) {
+                        if (dar)
+                              dar->get_word(elem, current);
+                        else
+                              cobj->get_vec4(prop_path_.back(), current, elem);
+                  }
                   vpip_vec4_get_value(current, width_, signed_flag_, val);
                   return;
             }
@@ -1793,9 +1883,17 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
             vvp_vector4_t value = vec4_from_vpi_value(val, width_);
             vvp_object_t obj = resolve_container_();
             size_t elem = 0;
+            vvp_darray*dar = nullptr;
             if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
-                  if (!index_ || element_(cobj, elem))
-                        cobj->set_vec4(prop_path_.back(), value, elem);
+                  if (!index_)
+                        cobj->set_vec4(prop_path_.back(), value, 0);
+                  else if (cobject_property_element_(cobj, prop_path_.back(),
+                                                     index_, elem, dar)) {
+                        if (dar)
+                              dar->set_word(elem, value);
+                        else
+                              cobj->set_vec4(prop_path_.back(), value, elem);
+                  }
             }
             else if (obj.peek<vvp_vinterface>())
                   report_vinterface_property_write_();
@@ -1809,26 +1907,8 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
     private:
       unsigned width_;
       bool signed_flag_;
+      bool two_state_;
       std::vector<size_t> prop_path_;
-
-	/* The element index now; an X/Z or out-of-range index selects
-	   nothing (reads give X, writes are dropped), as for a variable
-	   array (IEEE 1800-2023 7.4.6). */
-      bool element_(vvp_cobject*cobj, size_t&elem)
-      {
-            s_vpi_value iv;
-            iv.format = vpiBinStrVal;
-            ::vpi_get_value(index_, &iv);
-            if (!iv.value.str || strspn(iv.value.str, "01") != strlen(iv.value.str))
-                  return false;
-            iv.format = vpiIntVal;
-            ::vpi_get_value(index_, &iv);
-            uint64_t size = cobj->get_defn()->property_array_size(prop_path_.back());
-            if (iv.value.integer < 0 || (uint64_t)iv.value.integer >= size)
-                  return false;
-            elem = (size_t)iv.value.integer;
-            return true;
-      }
 
       /* Same walk as __vpiClassPropertyStringVar::resolve_container_():
          every hop but the last is an intermediate object-typed property,
@@ -1855,23 +1935,23 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
 };
 
 vpiHandle vpip_make_cobject_property_vec_var(char*label, unsigned width,
-                                             bool signed_flag,
+                                             unsigned flags,
                                              unsigned prop_cnt, long*prop_idx)
 {
       std::vector<size_t> path(prop_idx, prop_idx + prop_cnt);
       __vpiClassPropertyVecVar*obj =
-            new __vpiClassPropertyVecVar(width, signed_flag, path);
+            new __vpiClassPropertyVecVar(width, flags, path);
       functor_ref_lookup(&obj->cobj_net_, label);
       return obj;
 }
 
 vpiHandle vpip_make_cobject_property_vec_elem(char*label, unsigned width,
-                                              bool signed_flag,
+                                              unsigned flags,
                                               unsigned prop_cnt, long*prop_idx,
                                               char*index_label)
 {
       __vpiClassPropertyVecVar*obj = static_cast<__vpiClassPropertyVecVar*>(
-            vpip_make_cobject_property_vec_var(label, width, signed_flag,
+            vpip_make_cobject_property_vec_var(label, width, flags,
                                                prop_cnt, prop_idx));
       compile_vpi_lookup(&obj->index_, index_label);
       return obj;
