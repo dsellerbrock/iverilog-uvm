@@ -1824,6 +1824,40 @@ static void collect_interface_class_graph_(const netclass_t*type,
 	    collect_interface_class_graph_(parent, nodes, seen);
 }
 
+typedef map<perm_string,set<const PClass*> > interface_declarations_t;
+
+static interface_declarations_t interface_class_declarations_(
+      const netclass_t*type, map<const netclass_t*,interface_declarations_t>&cache,
+      set<const netclass_t*>&visiting)
+{
+      auto cached = cache.find(type);
+      if (cached != cache.end())
+	    return cached->second;
+      interface_declarations_t declarations;
+      if (!type || !visiting.insert(type).second)
+	    return declarations;
+      for (const netclass_t*parent : type->interface_types()) {
+	    interface_declarations_t inherited = interface_class_declarations_(parent, cache, visiting);
+	    for (const auto&cur : inherited)
+		  declarations[cur.first].insert(cur.second.begin(), cur.second.end());
+      }
+      const NetScope*scope = type->class_scope();
+      const PClass*pclass = scope ? scope->class_pform() : 0;
+      if (pclass) {
+	    for (const auto&cur : pclass->parameters) {
+		  declarations[cur.first].clear();
+		  declarations[cur.first].insert(pclass);
+	    }
+	    for (const auto&cur : pclass->typedefs) {
+		  declarations[cur.first].clear();
+		  declarations[cur.first].insert(pclass);
+	    }
+      }
+      visiting.erase(type);
+      cache[type] = declarations;
+      return declarations;
+}
+
 static NetScope*find_concrete_class_method_(const netclass_t*type,
 					     perm_string name)
 {
@@ -1852,7 +1886,6 @@ static void validate_interface_class_relations_(Design*des,
 		  collect_interface_class_graph_(relation, interfaces, seen);
 
       map<perm_string,vector<NetScope*> >requirements;
-      map<perm_string,set<const PClass*> >type_declarations;
       map<const PClass*,const netclass_t*>specializations;
       set<const PClass*>reported_specializations;
 
@@ -1896,20 +1929,24 @@ static void validate_interface_class_relations_(Design*des,
 			requirements[cur.first].push_back(method);
 	    }
 
-	    for (const auto&cur : interface_pclass->parameters)
-		  if (cur.second && cur.second->type_flag)
-			type_declarations[cur.first].insert(interface_pclass);
-	    for (const auto&cur : interface_pclass->typedefs)
-		  type_declarations[cur.first].insert(interface_pclass);
       }
 
       if (use_class->is_interface_class()) {
-	    for (const auto&cur : type_declarations) {
+	    interface_declarations_t inherited;
+	    map<const netclass_t*,interface_declarations_t> cache;
+	    set<const netclass_t*> visiting;
+	    for (const netclass_t*parent : use_class->interface_types()) {
+		  interface_declarations_t declarations = interface_class_declarations_(parent, cache, visiting);
+		  for (const auto&cur : declarations)
+			inherited[cur.first].insert(cur.second.begin(), cur.second.end());
+	    }
+	    for (const auto&cur : inherited) {
 		  if (cur.second.size() < 2
-		      || pclass->typedefs.find(cur.first) != pclass->typedefs.end())
+		      || pclass->typedefs.find(cur.first) != pclass->typedefs.end()
+		      || pclass->parameters.find(cur.first) != pclass->parameters.end())
 			continue;
 		  cerr << pclass->get_fileline() << ": error: Interface class `"
-		       << use_class->get_name() << "' inherits conflicting type `"
+		       << use_class->get_name() << "' inherits conflicting parameter or type `"
 		       << cur.first << "' from multiple interface classes and must "
 		       << "declare a local resolution." << endl;
 		  des->errors += 1;
