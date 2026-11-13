@@ -15864,7 +15864,24 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 			}
 		  }
 
-		  if (member_net) {
+		  if (cur_struct->packed()) {
+			NetExpr*offset = make_const_val(dummy_off);
+			ivl_type_t select_type = member_type;
+			bool cast_to_bit = cur_struct->base_type() == IVL_VT_LOGIC
+			      && member_type->base_type() == IVL_VT_BOOL;
+			if (cast_to_bit)
+			      select_type = new netvector_t(IVL_VT_LOGIC,
+				    member_type->packed_width() - 1, 0);
+			NetESelect*sel = new NetESelect(base_expr, offset,
+				member_type->packed_width(), select_type);
+			sel->set_line(*li);
+			base_expr = sel;
+			if (cast_to_bit) {
+			      base_expr = new NetECast('2', sel,
+				    member_type->packed_width(), false, member_type);
+			      base_expr->set_line(*li);
+			}
+		  } else if (member_net) {
 			NetExpr*member_expr = member_net->unpacked_dimensions()
 			      ? static_cast<NetExpr*>(new NetESignal(
 					member_net, static_cast<NetExpr*>(nullptr)))
