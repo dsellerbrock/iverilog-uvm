@@ -953,6 +953,16 @@ statement
       { compile_vpi_call($1, $5, false, true, $3, $4,
 			 $6.argc, $6.argv, $8, $9, $10, $11, true); }
 
+  | label_opt K_vpi_call_observed T_NUMBER T_NUMBER T_NUMBER T_STRING
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
+      { if ($3 != 32 && $3 != 64 && $3 != 128) {
+	      fprintf(stderr, "vvp: invalid violation report type %llu\n",
+		      (unsigned long long)$3);
+	      compile_errors += 1;
+	}
+	compile_vpi_call($1, $6, false, true, $4, $5,
+			 $7.argc, $7.argv, $9, $10, $11, $12, $3); }
+
   /* This version allows a function to be called as a task and does not
    * print a message. */
   | label_opt K_vpi_call_i T_NUMBER T_NUMBER T_STRING

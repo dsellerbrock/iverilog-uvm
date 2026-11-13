@@ -1998,6 +1998,14 @@ void vvp_process::mature_deferred_asserts()
 
       for (size_t rdx = 0 ; rdx < reports.size() ; rdx += 1) {
 	    deferred_assert_report_s report = reports[rdx];
+	      /* Violation reports use result for the generation captured at
+	         enqueue; Off leaves it unchanged, while Kill advances it. */
+	    if (!report.source_id && report.action_pc
+		&& report.action_pc->bit_idx[0] > 1
+		&& report.result != (unsigned)vpip_violation_state(
+		      report.action_scope, report.action_pc->bit_idx[0],
+		      vpipAssertStateKillGeneration))
+		  continue;
 	    if (report.source_id & VPIP_PROC_ASSERT_SOURCE) {
 		  vpip_proc_assert_matured(
 			(PLI_INT32)(report.source_id & ~VPIP_PROC_ASSERT_SOURCE),
@@ -38034,6 +38042,10 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
 	    vvp_process*process = owner
 		  ? owner->process_obj_.peek<vvp_process>() : 0;
 	    __vpiScope*scope = thr->parent_scope;
+	    unsigned type = cp->bit_idx[0];
+	    if (type > 1 && !vpip_violation_state(scope, type,
+						 vpipAssertStateEnabled))
+		  return true;
 	    deferred_assert_args_s args;
 	    if (!process || !scope
 		|| !capture_deferred_args_(thr, cp, args, "observed", true)) {
@@ -38041,7 +38053,9 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
 			  "vvp: unable to queue unique/priority case violation report.\n");
 		  return true;
 	    }
-	    process->enqueue_deferred_assert(0, 0, cp, scope, args);
+	    unsigned generation = type > 1 ? vpip_violation_state(
+		  scope, type, vpipAssertStateKillGeneration) : 0;
+	    process->enqueue_deferred_assert(0, generation, cp, scope, args);
 	    return true;
       }
 

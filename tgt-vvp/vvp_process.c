@@ -2063,15 +2063,17 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
       fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
 	      thread_count, lab_after_warn, multi_flag);
       if (quality_if)
-	    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+	    fprintf(vvp_out, "    %%vpi_call/observed %u %u %u \"$warning\", "
 		    "\"multiple conditions match for unique or unique0 if "
 		    "statement\" {0 0 0 0};\n",
+		    (qual == IVL_CASE_QUALITY_UNIQUE ? 32 : 64),
 		    ivl_file_table_index(ivl_stmt_file(net)),
 		    ivl_stmt_lineno(net));
       else
-	    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+	    fprintf(vvp_out, "    %%vpi_call/observed %u %u %u \"$warning\", "
 		    "\"multiple case items match for unique or unique0 case "
 		    "statement\" {0 0 0 0};\n",
+		    (qual == IVL_CASE_QUALITY_UNIQUE ? 32 : 64),
 		    ivl_file_table_index(ivl_stmt_file(net)),
 		    ivl_stmt_lineno(net));
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_after_warn);
@@ -2109,13 +2111,13 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	    rc += show_statement(cst, sscope);
       } else if (qual == IVL_CASE_QUALITY_UNIQUE) {
 	    if (quality_if)
-		  fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+		  fprintf(vvp_out, "    %%vpi_call/observed 32 %u %u \"$warning\", "
 			  "\"no condition matches for priority or unique if statement\""
 			  " {0 0 0 0};\n",
 			  ivl_file_table_index(ivl_stmt_file(net)),
 			  ivl_stmt_lineno(net));
 	    else
-	      fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+	      fprintf(vvp_out, "    %%vpi_call/observed 32 %u %u \"$warning\", "
 			  "\"value is unhandled for priority or unique case statement\""
 			  " {0 0 0 0};\n",
 			  ivl_file_table_index(ivl_stmt_file(net)),
@@ -2240,13 +2242,13 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
       else if (default_case == count) {
           if (qual == IVL_CASE_QUALITY_PRIORITY) {
               if (quality_if)
-		    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+		    fprintf(vvp_out, "    %%vpi_call/observed 128 %u %u \"$warning\", "
 			    "\"no condition matches for priority or unique if statement\""
 			    " {0 0 0 0};\n",
 			    ivl_file_table_index(ivl_stmt_file(net)),
 			    ivl_stmt_lineno(net));
 		  else
-		    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+		    fprintf(vvp_out, "    %%vpi_call/observed 128 %u %u \"$warning\", "
 			    "\"value is unhandled for priority or unique case statement\""
 			    " {0 0 0 0};\n",
 			    ivl_file_table_index(ivl_stmt_file(net)),
