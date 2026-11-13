@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3078_udp_legal.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "top"
+  ],
+  "gold": "issue3078_udp_legal"
+}

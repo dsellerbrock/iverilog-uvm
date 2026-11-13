@@ -22720,7 +22720,12 @@ udp_sequ_entry_list
 
 udp_sequ_entry
   : udp_input_list ':' udp_input_sym ':' udp_output_sym ';'
-      { char*tmp = new char[strlen($1)+5];
+      { unsigned transitions = 0;
+	for (const char*cp = $1; *cp; ++cp)
+	      if (!strchr("01x?blh", *cp)) transitions += 1;
+	if (transitions > 1)
+	      yyerror(@1, "error: A sequential UDP table row may have at most one input transition (IEEE 1800 29.3.4, 29.6).");
+	char*tmp = new char[strlen($1)+5];
 	strcpy(tmp, $1);
 	char*tp = tmp+strlen(tmp);
 	*tp++ = ':';
@@ -22728,6 +22733,7 @@ udp_sequ_entry
 	*tp++ = ':';
 	*tp++ = $5;
 	*tp++ = 0;
+	delete[]$1;
 	$$ = tmp;
       }
   ;
