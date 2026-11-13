@@ -1010,7 +1010,10 @@ statement
 		{ compile_io_decl($2, $3, $4); }
 
 	| K_STMT_NODE T_NUMBER T_NUMBER T_NUMBER T_STRING ';'
-		{ compile_stmt_node($2, $3, $4, $5); }
+		{ compile_stmt_node($2, $3, $4, $5, -1); }
+
+	| K_STMT_NODE T_NUMBER T_NUMBER T_NUMBER T_STRING T_NUMBER ';'
+		{ compile_stmt_node($2, $3, $4, $5, $6); }
 
 	| K_STMT_AT T_NUMBER ';'
 		{ compile_stmt_at($2); }

@@ -399,8 +399,9 @@ class __vpiScope : public __vpiHandle {
    entries used by cbStmt dispatch; they do not occupy VVP instructions. */
 class __vpiStmtNode : public __vpiHandle {
     public:
-      __vpiStmtNode(int type, const char*name, __vpiScope*scope);
+      __vpiStmtNode(int type, const char*name, __vpiScope*scope, int blocking);
       int get_type_code(void) const override;
+      int vpi_get(int code) override;
       char* vpi_get_str(int code) override;
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_iterate(int code) override;
@@ -410,6 +411,7 @@ class __vpiStmtNode : public __vpiHandle {
       std::vector<struct vvp_code_s*> code_addresses_;
     private:
       int type_;
+      int blocking_;
       const char*name_;
       __vpiStmtNode*parent_;
       std::vector<__vpiStmtNode*> children_;

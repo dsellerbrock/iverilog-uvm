@@ -9217,6 +9217,12 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       fprintf(vvp_out, "    .stmt_node %" PRIu64 " %" PRIu64 " %u ",
               id, parent, type);
       emit_vpi_stmt_name_(name);
+      if (type == vpiEventStmt) {
+            ivl_statement_type_t kind = ivl_statement_type(stmt);
+            int blocking = kind == IVL_ST_TRIGGER || kind == IVL_ST_TRIGGER_OBJ
+                           || kind == IVL_ST_TRIGGER_ARR;
+            fprintf(vvp_out, " %d", blocking);
+      }
       fputs(";\n", vvp_out);
       return id;
 }

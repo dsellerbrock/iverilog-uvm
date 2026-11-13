@@ -579,12 +579,19 @@ void compile_vpi_primitive_term(char *primitive_label, long direction,
       delete[] expression_label;
 }
 
-__vpiStmtNode::__vpiStmtNode(int type, const char*name, __vpiScope*scope)
-: scope_(scope), type_(type), name_(vpip_name_string(name)), parent_(0)
+__vpiStmtNode::__vpiStmtNode(int type, const char*name, __vpiScope*scope, int blocking)
+: scope_(scope), type_(type), blocking_(blocking), name_(vpip_name_string(name)), parent_(0)
 { }
 
 int __vpiStmtNode::get_type_code(void) const
 { return type_; }
+
+int __vpiStmtNode::vpi_get(int code)
+{
+      if (code == vpiBlocking && type_ == vpiEventStmt && blocking_ >= 0)
+            return blocking_;
+      return __vpiHandle::vpi_get(code);
+}
 
 char* __vpiStmtNode::vpi_get_str(int code)
 {
@@ -3051,13 +3058,13 @@ void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj)
       scope->intern.push_back(obj);
 }
 
-void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
+void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name, int blocking)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       assert(id != 0 && type <= INT_MAX);
       assert(scope);
       __vpiStmtNode*obj = new __vpiStmtNode(static_cast<int>(type), name,
-						       scope);
+						       scope, blocking);
       assert(scope->statement_node_by_id.find(id)
 	     == scope->statement_node_by_id.end());
       if (parent == UINT64_MAX) {

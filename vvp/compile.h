@@ -654,7 +654,7 @@ extern void compile_io_decl(long direction, char*name, char*formal);
 extern void compile_scope_recall(char*sym);
 extern void compile_vpi_import(char*package, char*name);
 extern void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type,
-                              char*name);
+                              char*name, int blocking);
 extern void compile_stmt_at(uint64_t id);
 
 /*
