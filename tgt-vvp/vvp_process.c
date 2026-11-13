@@ -9132,7 +9132,8 @@ static unsigned vpi_statement_type_(ivl_statement_t stmt)
           case IVL_ST_CASEZ: return vpiCase;
           case IVL_ST_DELAY:
           case IVL_ST_DELAYX: return vpiDelayControl;
-          case IVL_ST_DISABLE: return vpiDisable;
+          case IVL_ST_DISABLE:
+            return ivl_stmt_call(stmt) ? vpiDisable : vpiDisableFork;
           case IVL_ST_FOREVER: return vpiForever;
           case IVL_ST_REPEAT: return vpiRepeat;
           case IVL_ST_WAIT: return vpiEventControl;
