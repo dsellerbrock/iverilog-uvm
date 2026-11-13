@@ -59,9 +59,14 @@ struct sdf_delay_s {
       double value;
 };
 
+struct sdf_delval_s {
+      struct sdf_delay_s delay, reject, error;
+      int has_limits;
+};
+
 struct sdf_delval_list_s {
       int count;
-      struct sdf_delay_s val[12];
+      struct sdf_delval_s val[12];
 };
 
 struct port_with_edge_s {

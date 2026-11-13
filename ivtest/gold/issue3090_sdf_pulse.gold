@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue3090_sdf_pulse.v:37: $finish called at 21 (1ns)

@@ -342,11 +342,14 @@ static void sdf_put_interconnect_delays(vpiHandle path,
       vpi_get_delays(path, &delays);
       for (int idx = 0; idx < delval_list->count; idx += 1) {
             delay_vals[idx].type = vpiScaledRealTime;
-            if (delval_list->val[idx].defined) {
+            if (delval_list->val[idx].has_limits)
+                  vpi_printf("SDF WARNING: %s:%d: Pulse rejection limits ignored\n",
+                             sdf_fname, sdf_lineno);
+            if (delval_list->val[idx].delay.defined) {
                   if (sdf_flag_inform)
                         vpi_printf("SDF INFO: %s:%d: Putting delay: %f for index %d\n",
-                                   sdf_fname, sdf_lineno, delval_list->val[idx].value, idx);
-                  delay_vals[idx].real = delval_list->val[idx].value
+                                   sdf_fname, sdf_lineno, delval_list->val[idx].delay.value, idx);
+                  delay_vals[idx].real = delval_list->val[idx].delay.value
                         + (sdf_increment ? delay_vals[idx].real : 0.0);
             }
       }
@@ -667,24 +670,64 @@ static void sdf_put_modpath_delays(vpiHandle path,
 {
       s_vpi_delay delays;
       struct t_vpi_time delay_vals[36];
-      int idx;
+      static const unsigned char maps[4][6] = {
+	    {0, 0, 0, 0, 0, 0}, {0, 1, 0, 0, 1, 1},
+	    {0, 1, 2, 0, 2, 1}, {0, 1, 2, 3, 4, 5}
+      };
+      int idx, part, count = delval_list->count;
+      int map_idx = count == 1 ? 0 : count == 2 ? 1 : count == 3 ? 2 : 3;
+      int changed[3][12] = {{0}};
+      double increment[3][6] = {{0}};
 
+      assert(count == 1 || count == 2 || count == 3 || count == 6 || count == 12);
       delays.da = delay_vals;
-      delays.no_of_delays = delval_list->count;
+      delays.no_of_delays = 12;
       delays.time_type = vpiScaledRealTime;
       delays.mtm_flag = 0;
       delays.append_flag = 0;
       delays.pulsere_flag = 1;
       vpi_get_delays(path, &delays);
 
-      /* Delay annotations default omitted pulse limits to 100% of delay. */
-      for (idx = 0 ; idx < delval_list->count ; idx += 1) {
-	    delay_vals[idx].type = vpiScaledRealTime;
-	    if (delval_list->val[idx].defined)
-		  delay_vals[idx].real = delval_list->val[idx].value
-			+ (sdf_increment ? delay_vals[idx].real : 0.0);
-	    delay_vals[delval_list->count + idx] = delay_vals[idx];
-	    delay_vals[2 * delval_list->count + idx] = delay_vals[idx];
+      /* Work on all twelve transitions so empty fields retain their own
+         previous values even when this annotation has fewer entries. */
+      for (idx = 0 ; idx < (count == 12 ? 12 : 6) ; idx += 1) {
+	    const struct sdf_delval_s*val = &delval_list->val[
+		  count == 12 ? idx : maps[map_idx][idx]];
+	    const struct sdf_delay_s*fields[3] = {
+		  &val->delay, val->has_limits ? &val->reject : &val->delay,
+		  val->has_limits ? &val->error : &val->delay
+	    };
+	    for (part = 0 ; part < 3 ; part += 1) {
+		  struct t_vpi_time*dst = &delay_vals[12 * part + idx];
+		  dst->type = vpiScaledRealTime;
+		  if (fields[part]->defined) {
+			if (idx < 6) increment[part][idx] = fields[part]->value;
+			dst->real = fields[part]->value
+			      + (sdf_increment ? dst->real : 0.0);
+			if (dst->real < 0.0) dst->real = 0.0;
+			changed[part][idx] = 1;
+		  }
+	    }
+      }
+
+      /* Derive X transitions using the same rules as module-path delays,
+         but retain an existing transition if neither input was annotated. */
+      if (count != 12) for (part = 0 ; part < 3 ; part += 1) {
+	    static const unsigned char a[6] = {2, 3, 4, 5, 4, 3};
+	    static const unsigned char b[6] = {0, 0, 1, 1, 2, 5};
+	    static const unsigned char use_max[6] = {0, 1, 0, 1, 1, 0};
+	    for (idx = 0 ; idx < 6 ; idx += 1) {
+		  int x = a[idx], y = b[idx];
+		  if (changed[part][x] || changed[part][y]) {
+			int add = sdf_increment && changed[part][x] && changed[part][y];
+			double vx = add ? increment[part][x] : delay_vals[12*part+x].real;
+			double vy = add ? increment[part][y] : delay_vals[12*part+y].real;
+			double value = (use_max[idx] ? vx > vy : vx < vy) ? vx : vy;
+			if (add) value += delay_vals[12*part+6+idx].real;
+			delay_vals[12*part+6+idx].real = value < 0.0 ? 0.0 : value;
+		  }
+		  delay_vals[12*part+6+idx].type = vpiScaledRealTime;
+	    }
       }
 
       vpi_put_delays(path, &delays);
