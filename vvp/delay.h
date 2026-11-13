@@ -259,9 +259,10 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 				      const vvp_vector4_t&bit);
       void run_pulse_events_();
       void run_bit_event_(unsigned index, vvp_bit4_t value);
-      bool select_delays_(int index, vvp_time64_t out_at[12],
+      bool select_delays_(int index, bool from_now, vvp_time64_t out_at[12],
 			  vvp_time64_t reject_at[12],
 			  vvp_time64_t error_at[12]);
+      bool path_input_changed_() const;
       void schedule_transition_(const vvp_vector4_t&bit);
       void resolve_pending_();
 
@@ -278,6 +279,9 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       vvp_vector4_t pulse_vec4_;
       bool has_conditional_paths_;
       bool has_dst_parts_;
+	// When the last output change arrived (see path_input_changed_).
+      bool seen_change_;
+      vvp_time64_t last_change_time_;
       bool showcancelled_;
       std::list<vvp_vector4_t> pending_bits_;
 
