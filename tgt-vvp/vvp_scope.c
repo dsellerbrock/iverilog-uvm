@@ -1628,7 +1628,8 @@ static void draw_udp_in_scope(ivl_net_logic_t lptr)
       }
 
 	/* Generate the UDP call. */
-      fprintf(vvp_out, "L_%p%s .udp UDP_%s", lptr, need_delay_flag ? "/d" : "",
+      fprintf(vvp_out, "L_%p%s .udp%s UDP_%s", lptr, need_delay_flag ? "/d" : "",
+                       need_delay_flag ? "/d" : "",
                        vvp_mangle_id(ivl_udp_name(udp)));
 
       for (pdx = 0 ;  pdx < ninp ;  pdx += 1) {
