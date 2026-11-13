@@ -7534,11 +7534,9 @@ static bool interface_scope_view_type_(Design*des, NetScope*instance_scope,
       }
 
       if (!candidate_modport.nil()) {
-	    map<perm_string,Module*>::const_iterator module =
-		  pform_modules.find(instance_scope->module_name());
-	    if (module == pform_modules.end()
-		|| !module->second->is_interface
-		|| !module->second->modports.count(candidate_modport)) {
+	    const Module*module = instance_scope->module_definition();
+	    if (!module || !module->is_interface
+		|| !module->modports.count(candidate_modport)) {
 		  if (candidate_required)
 			return false;
 	    } else {

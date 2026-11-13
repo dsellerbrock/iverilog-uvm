@@ -6784,3 +6784,5 @@ issue3096_protect_envelope_2017 CE,-g2017,-s,issue3096_protect_envelope ivltests
 issue3096_protect_envelope_2023 CE,-g2023,-s,issue3096_protect_envelope ivltests gold=issue3096_protect_envelope.gold
 issue3090_sdf_pulse_2017 normal,-g2017,-gspecify,-s,issue3090_sdf_pulse ivltests gold=issue3090_sdf_pulse.gold
 issue3090_sdf_pulse_2023 normal,-g2023,-gspecify,-s,issue3090_sdf_pulse ivltests gold=issue3090_sdf_pulse.gold
+issue3155_nested_interface_2017 normal,-g2017,-s,issue3155_nested_interface ivltests gold=issue3155_nested_interface.gold
+issue3155_nested_interface_2023 normal,-g2023,-s,issue3155_nested_interface ivltests gold=issue3155_nested_interface.gold
