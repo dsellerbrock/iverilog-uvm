@@ -2,7 +2,9 @@
  * $sva_sys(op) calls vpi_control(op, NULL); $sva_sys(op, scope) passes the
  * scope argument's handle. $sva_cb_setup(assertion_name) puts a failure, a
  * start and a step-failure callback on that assertion; $sva_cb_dump prints
- * how often each fired. */
+ * how often each fired. The step callbacks never fire: nothing calls
+ * vpiAssertionEnableStep, and "By default, stepping is disabled for all
+ * assertions" (39.5.2). */
 #include <stdio.h>
 #include <string.h>
 #include <vpi_user.h>

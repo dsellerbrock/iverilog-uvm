@@ -1650,6 +1650,34 @@ struct assert_cb_t {
       __vpiAssertionCallback* callback;
 };
 
+/* IEEE 1800-2023 39.4.2: an expression matched (or failed) in a step,
+   with its source reference. The checkers keep only the boolean's source
+   text, so the handle answers vpiDecompile, vpiFile and vpiLineNo. */
+class __vpiAssertionStepExpr : public __vpiHandle {
+    public:
+      __vpiAssertionStepExpr(const std::string&file, int line,
+			     const std::string&text)
+      : file_(file), line_(line), text_(text) { }
+      int get_type_code(void) const override { return vpiOperation; }
+      int vpi_get(int code) override
+      {
+	    return code == vpiLineNo ? line_ : vpiUndefined;
+      }
+      char* vpi_get_str(int code) override
+      {
+	    const std::string*use = code == vpiFile ? &file_
+				  : code == 54 /* vpiDecompile */ ? &text_ : 0;
+	    if (!use) return 0;
+	    char*rbuf = (char*)need_result_buf(use->size()+1, RBUF_STR);
+	    strcpy(rbuf, use->c_str());
+	    return rbuf;
+      }
+    private:
+      std::string file_;
+      int line_;
+      std::string text_;
+};
+
 class __vpiAssertion : public __vpiHandle {
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
@@ -1669,7 +1697,12 @@ class __vpiAssertion : public __vpiHandle {
 	assertion_type_(assertion_kind == 4 ? vpiAssume
 			: assertion_kind == 2 ? vpiCover : vpiAssert),
 	ctl_dir_(assertion_kind == 4 || assertion_kind == 2 ? assertion_kind : 1)
-      { }
+      {
+	      // 39.4.2: bit1 = the checker reports steps per attempt; bits 8+
+	      // carry the largest clock age a step report names.
+	    steps_ok_ = (flags & 2) != 0;
+	    step_depth_ = steps_ok_ ? (flags >> 8) : -1;
+      }
 
       __vpiAssertion(unsigned long source_id, __vpiScope*scope,
 		     int deferred_type, const char*file, int line,
@@ -1957,15 +1990,241 @@ class __vpiAssertion : public __vpiHandle {
 	   instead of assuming a fixed clock period or a gapless START ring. */
       void clock_tick()
       {
-	    if (latency_ < 0) return;
+	    int depth = latency_ > step_depth_ ? latency_ : step_depth_;
+	    if (depth < 0) return;
 	    clocks_.push_back(schedule_simtime());
-	    while ((int)clocks_.size() > latency_ + 1)
+	    while ((int)clocks_.size() > depth + 1)
 		  clocks_.erase(clocks_.begin());
+      }
+
+	/* IEEE 1800-2023 39.5.2 with the 2026-11-12 ruling (SVA Q7): an
+	   EnableStep/DisableStep names an attempt by its start time and
+	   applies when issued before that attempt starts, or during its own
+	   cbAssertionStart callback; later it has no effect. step_ctl_ maps
+	   start time -> whether that attempt has started. */
+      PLI_INT32 step_control(vvp_time64_t start, bool enable)
+      {
+	    if (!steps_ok_) {
+		  if (!steps_refused_)
+			vpi_printf("sorry: %s:%d: per-attempt step callbacks are "
+				   "not supported for this assertion form; "
+				   "vpiAssertionEnableStep has no effect.\n",
+				   file_.c_str(), line_);
+		  steps_refused_ = true;
+		  return 0;
+	    }
+	    vvp_time64_t now = schedule_simtime();
+	    bool open = start > now
+		  || (start == now && (in_start_ || start_now_ != now));
+	    if (!open) return 0;
+	    if (enable)
+		  step_ctl_[start] = (start == now && in_start_);
+	    else
+		  step_ctl_.erase(start);
+	    return 1;
+      }
+
+      int serial(void) const { return attempts_; }
+
+      void step_row(int row, int reason, int from, int to, int n,
+		    const char*const*files, const PLI_INT32*lines,
+		    const char*const*texts)
+      {
+	    if (row < 1) return;
+	    if ((size_t)row > step_rows_.size()) step_rows_.resize(row);
+	    step_row_t&r = step_rows_[row-1];
+	    r.reason = reason;
+	    r.from = from;
+	    r.to = to;
+	    for (int i = 0 ; i < n ; i += 1)
+		  r.exprs.push_back(expr_handle_(files[i], lines[i], texts[i]));
+      }
+
+      void step(int row, int age, int serial)
+      {
+	    if (step_ctl_.empty() || row < 1
+		|| (size_t)row > step_rows_.size()) return;
+	    step_row_t&r = step_rows_[row-1];
+	    vvp_time64_t start_raw;
+	    if (serial > 0) {
+		  std::map<int,vvp_time64_t>::const_iterator it =
+			serial_start_.find(serial);
+		  if (it == serial_start_.end()) return;
+		  start_raw = it->second;
+	    } else if (age >= 0 && (size_t)age < clocks_.size()) {
+		  start_raw = clocks_[clocks_.size() - 1 - age];
+	    } else {
+		  return;
+	    }
+	    std::map<vvp_time64_t,bool>::const_iterator on =
+		  step_ctl_.find(start_raw);
+	    if (on == step_ctl_.end() || !on->second) return;
+	    deliver_(r.reason, start_raw, r.from, r.to, r.exprs);
+      }
+
+	/* The automaton checker's description, for nfa_step(). */
+      void nfa(int nstates, int start, int accept, int nguards,
+	       const char*const*files, const PLI_INT32*lines,
+	       const char*const*texts, int nwords, const PLI_INT32*words)
+      {
+	    nfa_.nstates = nstates;
+	    nfa_.start = start;
+	    nfa_.accept = accept;
+	    nfa_.guards.clear();
+	    for (int g = 0 ; g < nguards ; g += 1)
+		  nfa_.guards.push_back(expr_handle_(files[g], lines[g], texts[g]));
+	    nfa_.edges.clear();
+	    for (int w = 0 ; w + 2 < nwords ; ) {
+		  nfa_edge_t e;
+		  e.from = words[w++];
+		  e.to = words[w++];
+		  int n = words[w++];
+		  for (int i = 0 ; i < n && w < nwords ; i += 1)
+			e.guards.push_back(words[w++]);
+		  nfa_.edges.push_back(e);
+	    }
+      }
+
+	/* IEEE 1800-2023 39.4.2, one tick of the automaton slot holding the
+	   attempt named by `serial': pre/nx are its state bits before and
+	   after the tick, gv the guard values (binary strings, bit 0 last),
+	   ob whether an implication's antecedent completed. A live attempt
+	   reports one taken edge: into accept first, else from the lowest
+	   state id. A dying one reports its lowest active state's first
+	   guarded edge, ending with the guard that failed; an implication
+	   whose antecedent died ends vacuously (a success into state 1).
+	   State ids: start 0, accept 1, state j otherwise j+2. */
+      void nfa_step(int serial, const char*pre, const char*nx,
+		    const char*gv, bool ob)
+      {
+	    if (step_ctl_.empty()) return;
+	    std::map<int,vvp_time64_t>::const_iterator it =
+		  serial_start_.find(serial);
+	    if (it == serial_start_.end()) return;
+	    std::map<vvp_time64_t,bool>::const_iterator on =
+		  step_ctl_.find(it->second);
+	    if (on == step_ctl_.end() || !on->second) return;
+	    auto bit = [](const char*v, int j) {
+		  int len = (int)strlen(v);
+		  return j < len && v[len-1-j] == '1';
+	    };
+	    auto id = [&](int j) {
+		  return j == nfa_.start ? 0 : j == nfa_.accept ? 1 : j + 2;
+	    };
+	    auto exprs = [&](const nfa_edge_t&e, size_t n) {
+		  std::vector<vpiHandle> r;
+		  for (size_t i = 0 ; i < n && i < e.guards.size() ; i += 1)
+			r.push_back(nfa_.guards[e.guards[i]]);
+		  return r;
+	    };
+	    bool alive = false;
+	    for (int j = 0 ; j < nfa_.nstates ; j += 1) alive |= bit(nx, j);
+	    if (alive) {
+		  const nfa_edge_t*best = 0;
+		  for (const nfa_edge_t&e : nfa_.edges) {
+			bool taken = bit(pre, e.from) && bit(nx, e.to);
+			for (int g : e.guards) taken = taken && bit(gv, g);
+			if (!taken) continue;
+			if (!best
+			    || (e.to == nfa_.accept && best->to != nfa_.accept)
+			    || ((e.to == nfa_.accept) == (best->to == nfa_.accept)
+				&& id(e.from) < id(best->from)))
+			      best = &e;
+		  }
+		  if (best)
+			deliver_(cbAssertionStepSuccess, it->second, id(best->from),
+				 id(best->to), exprs(*best, best->guards.size()));
+		  return;
+	    }
+	    int from = -1;
+	    for (int j = 0 ; j < nfa_.nstates ; j += 1)
+		  if (bit(pre, j) && (from < 0 || id(j) < id(from))) from = j;
+	    if (from < 0) return;
+	    const nfa_edge_t*first = 0;
+	    for (const nfa_edge_t&e : nfa_.edges)
+		  if (e.from == from
+		      && (!first || (first->guards.empty() && !e.guards.empty())))
+			first = &e;
+	    size_t n = 0;
+	    if (first) {
+		  n = first->guards.size();
+		  for (size_t i = 0 ; i < first->guards.size() ; i += 1)
+			if (!bit(gv, first->guards[i])) {
+			      n = i + 1;
+			      break;
+			}
+	    }
+	    deliver_(ob ? cbAssertionStepFailure : cbAssertionStepSuccess,
+		     it->second, id(from), !ob || !first ? 1 : id(first->to),
+		     first ? exprs(*first, n) : std::vector<vpiHandle>());
+      }
+
+    private:
+      void deliver_(int reason, vvp_time64_t start_raw, int from, int to,
+		    const std::vector<vpiHandle>&exprs)
+      {
+	    s_vpi_assertion_step_info stepinfo;
+	    stepinfo.matched_expression_count = (PLI_INT32)exprs.size();
+	    stepinfo.matched_exprs = exprs.empty() ? 0
+				   : const_cast<vpiHandle*>(&exprs[0]);
+	    stepinfo.stateFrom = from;
+	    stepinfo.stateTo = to;
+	    s_vpi_attempt_info info;
+	    info.detail.step = &stepinfo;
+	    info.attemptStartTime.type = vpiSimTime;
+	    vpip_time_to_timestruct(&info.attemptStartTime, start_raw);
+	    info.attemptStartTime.real = 0.0;
+	    s_vpi_time t;
+	    t.type = vpiSimTime;
+	    vpip_time_to_timestruct(&t, schedule_simtime());
+	    t.real = 0.0;
+	    for (size_t i = 0 ; i < cbs_.size() ; i += 1)
+		  if (cbs_[i].callback->reason() == reason
+		      && cbs_[i].callback->active())
+			cbs_[i].callback->call(&t, this, &info);
+      }
+
+      vpiHandle expr_handle_(const char*file_arg, int line, const char*text)
+      {
+	    std::string file = file_arg && file_arg[0] ? file_arg : file_;
+	    vpiHandle&h = step_exprs_[file + ":" + std::to_string(line)
+				      + ":" + text];
+	    if (!h) h = new __vpiAssertionStepExpr(file, line, text);
+	    return h;
+      }
+
+    public:
+
+	/* Bookkeeping around one attempt's cbAssertionStart dispatch: forget
+	   requests for start times that passed without a start, mark this
+	   start time's request as started, and name the attempt by serial
+	   for checkers that cannot recover its start from a clock age. */
+      void fire(int reason, int age = -1)
+      {
+	    if (reason == cbAssertionStepSuccess
+		|| reason == cbAssertionStepFailure)
+		  return;  // steps go through step() only, per attempt
+	    if (reason != cbAssertionStart) {
+		  fire_(reason, age);
+		  return;
+	    }
+	    vvp_time64_t now = schedule_simtime();
+	    for (std::map<vvp_time64_t,bool>::iterator it = step_ctl_.begin();
+		 it != step_ctl_.end() && it->first <= now ; ) {
+		  if (it->first == now) it->second = true;
+		  if (it->first < now && !it->second) step_ctl_.erase(it++);
+		  else ++it;
+	    }
+	    start_now_ = now;
+	    in_start_ = true;
+	    fire_(reason, age);
+	    in_start_ = false;
+	    if (step_ctl_.count(now)) serial_start_[attempts_] = now;
       }
 
 	/* Fire every registered callback whose reason matches. age < 0 keeps
 	   the established two-argument report behavior for other checkers. */
-      void fire(int reason, int age = -1)
+      void fire_(int reason, int age)
       {
 	      /* A passing deferred immediate cover is reported only after its
 	         result survives the assertion report queue. A failing cover's
@@ -2035,21 +2294,7 @@ class __vpiAssertion : public __vpiHandle {
 	    st.real = 0.0;
 
 	    s_vpi_attempt_info info;
-	      /* M12-1: for a STEP reason the detail union carries the
-		 step info, not failExpr. The matched-expression list and
-		 state pair are not modeled (a per-tick step report covers
-		 every attempt that advanced), so they are zeroed rather
-		 than guessed. */
-	    s_vpi_assertion_step_info stepinfo;
-	    stepinfo.matched_expression_count = 0;
-	    stepinfo.matched_exprs = 0;
-	    stepinfo.stateFrom = 0;
-	    stepinfo.stateTo = 0;
-	    if (reason == cbAssertionStepSuccess
-		|| reason == cbAssertionStepFailure)
-		  info.detail.step = &stepinfo;
-	    else
-		  info.detail.failExpr = 0;
+	    info.detail.failExpr = 0;
 	    info.attemptStartTime = st;
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
 		  if (cbs_[i].callback->reason() == reason
@@ -2090,6 +2335,31 @@ class __vpiAssertion : public __vpiHandle {
       bool pass_vacuous_ = true;
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
       std::vector<vvp_time64_t> clocks_;  // Raw sampled times, including off gaps
+	/* 39.5.2 per-attempt stepping. ponytail: entries for started
+	   attempts are kept for the run; they are bounded by the number of
+	   EnableStep calls, not by simulation length. */
+      bool steps_ok_ = false;
+      bool steps_refused_ = false;
+      int step_depth_ = -1;
+      bool in_start_ = false;
+      vvp_time64_t start_now_ = ~(vvp_time64_t)0;
+      std::map<vvp_time64_t,bool> step_ctl_;
+      std::map<int,vvp_time64_t> serial_start_;
+      std::map<std::string,vpiHandle> step_exprs_;
+      struct step_row_t {
+	    int reason = 0, from = 0, to = 0;
+	    std::vector<vpiHandle> exprs;
+      };
+      std::vector<step_row_t> step_rows_;
+      struct nfa_edge_t {
+	    int from = 0, to = 0;
+	    std::vector<int> guards;
+      };
+      struct {
+	    int nstates = 0, start = 0, accept = 0;
+	    std::vector<vpiHandle> guards;
+	    std::vector<nfa_edge_t> edges;
+      } nfa_;
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
@@ -2523,6 +2793,86 @@ void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
       if (!sc) return;
       auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
       if (it != assertion_by_key.end()) it->second->fire((int)reason, (int)age);
+}
+
+void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
+			     PLI_INT32 reason, PLI_INT32 from, PLI_INT32 to,
+			     PLI_INT32 n, const char*const*files,
+			     const PLI_INT32*lines, const char*const*texts)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end())
+	    it->second->step_row(row, reason, from, to, n, files, lines, texts);
+}
+
+void vpip_assertion_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
+			 PLI_INT32 age, PLI_INT32 serial)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end()) it->second->step(row, age, serial);
+}
+
+void vpip_assertion_nfa(PLI_INT32 idx, vpiHandle scope, PLI_INT32 nstates,
+			PLI_INT32 start, PLI_INT32 accept, PLI_INT32 nguards,
+			const char*const*files, const PLI_INT32*lines,
+			const char*const*texts, PLI_INT32 nwords,
+			const PLI_INT32*words)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end())
+	    it->second->nfa(nstates, start, accept, nguards, files, lines, texts,
+			    nwords, words);
+}
+
+void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
+			     const char*pre, const char*nx, const char*guards,
+			     PLI_INT32 ob)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end())
+	    it->second->nfa_step(serial, pre, nx, guards, ob != 0);
+}
+
+PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return 0;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      return it != assertion_by_key.end() ? it->second->serial() : 0;
+}
+
+PLI_INT32 vpip_assertion_step_control(vpiHandle assertion,
+				      const s_vpi_time*start, bool enable,
+				      PLI_INT32 mode)
+{
+      __vpiAssertion*obj = dynamic_cast<__vpiAssertion*>(assertion);
+      if (!obj || !start || mode != vpiAssertionClockSteps) {
+	    vpi_printf("ERROR: vpi_control(%s) needs a concurrent assertion "
+		       "handle, an attempt start time and "
+		       "vpiAssertionClockSteps.\n",
+		       enable ? "vpiAssertionEnableStep"
+			      : "vpiAssertionDisableStep");
+	    return 0;
+      }
+      vvp_time64_t t;
+      if (start->type == vpiSimTime) {
+	    t = vpip_timestruct_to_time(start);
+      } else {
+	    vpi_printf("ERROR: vpi_control(%s) takes a vpiSimTime attempt "
+		       "start time.\n",
+		       enable ? "vpiAssertionEnableStep"
+			      : "vpiAssertionDisableStep");
+	    return 0;
+      }
+      return obj->step_control(t, enable);
 }
 
 PLI_INT32 vpip_assertion_cb_active(void)

@@ -1,0 +1,72 @@
+seq enable 45 ahead -> 1
+seq enable 35 ahead -> 1
+seq disable 35 ahead -> 1
+seq enable 5 -> 1
+seq STEP_OK t=5 start=5 0->2 [a@26]
+imp enable 5 -> 1
+imp STEP_OK t=5 start=5 0->2 [a@28]
+sorry: ivltests/sva_step_attempt.sv:31: per-attempt step callbacks are not supported for this assertion form; vpiAssertionEnableStep has no effect.
+rim enable 5 -> 0
+aim enable 5 -> 1
+aim STEP_OK t=5 start=5 0->2 [a@32]
+nxt enable 5 -> 1
+nxt STEP_OK t=5 start=5 0->2 [a@33]
+nim enable 5 -> 1
+nim STEP_FAIL t=5 start=5 0->3 [a@34 b@34]
+exl enable 5 -> 1
+exl STEP_OK t=5 start=5 0->2 [(a || b)@35]
+exn enable 5 -> 1
+exn STEP_OK t=5 start=5 0->3 [(a || b)@36]
+seq STEP_OK t=15 start=5 2->3 [b@26]
+imp enable 15 -> 1
+imp STEP_OK t=15 start=15 0->1 [a@28]
+imp STEP_FAIL t=15 start=5 2->1 [c@28]
+rim enable 15 -> 0
+aim enable 15 -> 1
+aim STEP_OK t=15 start=15 0->1 [a@32]
+aim STEP_FAIL t=15 start=5 2->1 [b@32 c@32]
+nxt enable 15 -> 1
+nxt STEP_OK t=15 start=15 0->1 [a@33]
+nxt STEP_OK t=15 start=5 2->1 [b@33]
+exl enable 15 -> 1
+exl STEP_OK t=15 start=15 0->2 [(a || b)@35]
+exl STEP_OK t=15 start=5 2->3 [$fell(a)@35]
+exn enable 15 -> 1
+exn STEP_OK t=15 start=5 3->4 [b@36]
+exn STEP_OK t=15 start=15 0->3 [(a || b)@36]
+nim enable 15 -> 1
+nim STEP_OK t=15 start=15 0->1 [a@34]
+seq enable 15 late -> 0
+nxt enable 25 -> 1
+nxt STEP_OK t=25 start=25 0->2 [a@33]
+exl enable 25 -> 1
+exl STEP_OK t=25 start=25 0->2 [(a || b)@35]
+exl STEP_FAIL t=25 start=15 2->3 [$fell(a)@35]
+exl STEP_OK t=25 start=5 3->1 [!c@35]
+exn enable 25 -> 1
+exn STEP_OK t=25 start=5 4->1 [(c == 0)@36]
+exn STEP_FAIL t=25 start=15 3->4 [b@36]
+exn STEP_OK t=25 start=25 0->3 [(a || b)@36]
+nim enable 25 -> 1
+nim STEP_FAIL t=25 start=25 0->3 [a@34 b@34]
+seq enable 25 -> 1
+seq STEP_OK t=25 start=25 0->2 [a@26]
+seq STEP_FAIL t=25 start=5 3->1 [c@26]
+rep enable 25 -> 1
+rep STEP_OK t=25 start=25 0->3 [a@30]
+aim enable 25 -> 1
+aim STEP_OK t=25 start=25 0->2 [a@32]
+win enable 25 -> 1
+win STEP_OK t=25 start=25 0->2 [a@27]
+nxt STEP_OK t=35 start=25 2->1 [b@33]
+aim STEP_FAIL t=35 start=25 2->1 [b@32 c@32]
+win STEP_OK t=35 start=25 2->1 [b@27]
+seq STEP_OK t=35 start=25 2->3 [b@26]
+rep STEP_OK t=35 start=25 3->4 [b@30]
+exl STEP_OK t=35 start=25 2->3 [$fell(a)@35]
+exn STEP_OK t=35 start=25 3->4 [b@36]
+exl STEP_OK t=45 start=25 3->1 [!c@35]
+exn STEP_OK t=45 start=25 4->1 [(c == 0)@36]
+seq STEP_FAIL t=45 start=45 0->2 [a@26]
+seq STEP_FAIL t=45 start=25 3->1 [c@26]
+rep STEP_FAIL t=45 start=25 4->5 [b@30]
