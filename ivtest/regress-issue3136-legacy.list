@@ -1,0 +1,2 @@
+issue3136_clocking_select_2017 normal,-g2017,-gassertions,-s,issue3136_clocking_select ivltests gold=issue3136_clocking_select.gold
+issue3136_clocking_select_2023 normal,-g2023,-gassertions,-s,issue3136_clocking_select ivltests gold=issue3136_clocking_select.gold

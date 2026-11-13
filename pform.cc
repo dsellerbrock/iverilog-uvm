@@ -12904,8 +12904,28 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 				return nullptr;
 			  }
 			      if (raw_source) {
+				    const PEIdent*raw_ident = dynamic_cast<const PEIdent*>(raw_source);
+				    if (raw_ident && !raw_ident->path().name.empty()
+					&& raw_ident->path().name.back().index.empty()) {
+					  pform_name_t mapped = raw_ident->path().name;
+					  mapped.back().index = signal->index;
+					  mapped.insert(mapped.end(), after_signal, path.end());
+					  PEIdent mapped_id(raw_ident->path().package, mapped,
+							    raw_ident->lexical_pos());
+					  mapped_id.set_line(*id);
+					  return sva_wrap_preponed_(&mapped_id, sampled,
+							live_operands, unsampled_locals);
+				    }
 				    PExpr*raw_copy = sva_clone_expr_(raw_source);
 				    if (!raw_copy) return nullptr;
+				    if (after_signal != path.end()) {
+					  delete raw_copy;
+					  return nullptr;
+				    }
+				    for (const index_component_t&index : signal->index) {
+					  raw_copy = sva_clone_postselect_(raw_copy, index, id, nullptr);
+					  if (!raw_copy) return nullptr;
+				    }
 				    PExpr*sampled_raw = sva_wrap_preponed_(raw_copy,
 					  sampled, live_operands, unsampled_locals);
 				    delete raw_copy;
