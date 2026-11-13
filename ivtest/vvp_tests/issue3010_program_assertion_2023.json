@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3010_program_assertion.sv",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue3010_program_assertion"],
+  "gold": "issue3010_program_assertion"
+}

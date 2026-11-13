@@ -7574,6 +7574,7 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 
       ivl_assert(*st, ! pform_cur_module.empty());
       if (pform_cur_module.front()->program_block &&
+          pform_generated_verification_depth_ == 0 &&
           ((type == IVL_PR_ALWAYS) || (type == IVL_PR_ALWAYS_COMB) ||
            (type == IVL_PR_ALWAYS_FF) || (type == IVL_PR_ALWAYS_LATCH))) {
 	    cerr << st->get_fileline() << ": error: Always statements are not allowed"
@@ -34529,6 +34530,10 @@ void pform_sva_hold_assertion(const struct vlltype&loc, sva_property_t*prop,
    replaces it, or null when body is not of that form. */
 Statement* pform_sva_static_always_assertion(Statement*body)
 {
+      // An explicit always remains illegal in a program, even when its
+      // body is a concurrent assertion with equivalent static semantics.
+      if (!pform_cur_module.empty() && pform_cur_module.front()->program_block)
+	    return nullptr;
       while (PBlock*block = dynamic_cast<PBlock*>(body)) {
 	    if (block->statements().size() != 1) return nullptr;
 	    body = block->statements().front();
