@@ -1098,6 +1098,51 @@ void vpip_run_error_callbacks(void)
       running = false;
 }
 
+/* IEEE 1800-2023 39.4.1 assertion system callbacks. sv_vpi_user.h does not
+   name these reasons yet (#883), so use their standard values. */
+static bool is_assertion_sys_reason_(PLI_INT32 reason)
+{
+      switch (reason) {
+	  case 615: /* cbAssertionSysInitialized */
+	  case 616: /* cbAssertionSysOn */
+	  case 617: /* cbAssertionSysOff */
+	  case 618: /* cbAssertionSysEnd */
+	  case 619: /* cbAssertionSysReset */
+	  case 631: /* cbAssertionSysKill */
+	  case 651: /* cbAssertionSysEnablePassAction */
+	  case 652: /* cbAssertionSysEnableFailAction */
+	  case 653: /* cbAssertionSysDisablePassAction */
+	  case 654: /* cbAssertionSysDisableFailAction */
+	  case 655: /* cbAssertionSysEnableNonvacuousAction */
+	  case 656: /* cbAssertionSysDisableVacuousAction */
+	  case 659: /* cbAssertionSysLock */
+	  case 660: /* cbAssertionSysUnlock */
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
+static std::vector<simulator_callback*> assertion_sys_callbacks;
+static bool assertion_sys_ended = false;
+
+/* Run every live callback registered for this assertion system event.
+   After cbAssertionSysEnd "no more assertion-related callbacks shall
+   occur". */
+void vpip_fire_assertion_sys_cb(PLI_INT32 reason)
+{
+      if (assertion_sys_ended) return;
+      if (reason == 618) assertion_sys_ended = true;
+      for (size_t i = 0 ; i < assertion_sys_callbacks.size() ; i += 1) {
+	    simulator_callback*cur = assertion_sys_callbacks[i];
+	    if (cur->cb_data.reason != reason || !cur->cb_data.cb_rtn)
+		  continue;
+	    cur->cb_time.type = vpiSimTime;
+	    vpip_time_to_timestruct(&cur->cb_time, schedule_simtime());
+	    (cur->cb_data.cb_rtn)(&cur->cb_data);
+      }
+}
+
 #ifdef CHECK_WITH_VALGRIND
 /* This is really only needed if the simulator aborts before starting the
  * main event loop. For that reason we can skip the next sim time queue. */
@@ -1169,6 +1214,12 @@ void vpiStartOfSim(void) {
 	    delete cur;
       }
 
+	/* 39.4.1: the assertion system initializes, then is "started" on
+	   simulation startup. Firing after cbStartOfSimulation lets those
+	   callbacks register for these events. */
+      vpip_fire_assertion_sys_cb(615);
+      vpip_fire_assertion_sys_cb(616);
+
       vpi_mode_flag = VPI_MODE_NONE;
 }
 
@@ -1190,6 +1241,10 @@ void vpiPostsim(void) {
 	    }
 	    delete cur;
       }
+
+	/* 39.4.1: cbAssertionSysEnd "typically occurs after the end of
+	   simulation" (unless vpiAssertionSysEnd already ended the system). */
+      vpip_fire_assertion_sys_cb(618);
 
       vpi_mode_flag = VPI_MODE_NONE;
 }
@@ -1463,6 +1518,12 @@ vpiHandle vpi_register_cb(p_cb_data data)
 	    break;
 
 	  default:
+	    if (is_assertion_sys_reason_(data->reason)) {
+		  simulator_callback*cb = new simulator_callback(data);
+		  assertion_sys_callbacks.push_back(cb);
+		  obj = cb;
+		  break;
+	    }
 	    fprintf(stderr, "vpi error: vpi_register_cb invalid or "
 		    "unsupported callback reason: %d\n",
 		    (int)data->reason);
