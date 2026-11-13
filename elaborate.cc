@@ -41336,6 +41336,44 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 
       if (!expr) return "";
 
+	/* IEEE 1800-2017/2023 18.5 prohibits side effects in every
+	 * constraint expression. Check the source tree as it is lowered, before
+	 * an unsupported operator can be reduced to the generic solver warning.
+	 * Recursive calls cover nested operands, constraint sets and dist items;
+	 * function bodies remain outside this walk. */
+	string side_effect_op;
+	if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
+	      switch (unary->get_op()) {
+		    case 'I': case 'i': side_effect_op = "++"; break;
+		    case 'D': case 'd': side_effect_op = "--"; break;
+	      }
+	} else if (const PEAssignExpr*assign =
+		   dynamic_cast<const PEAssignExpr*>(expr)) {
+	      switch (assign->get_op()) {
+		    case '=': side_effect_op = "="; break;
+		    case '+': side_effect_op = "+="; break;
+		    case '-': side_effect_op = "-="; break;
+		    case '*': side_effect_op = "*="; break;
+		    case '/': side_effect_op = "/="; break;
+		    case '%': side_effect_op = "%="; break;
+		    case '&': side_effect_op = "&="; break;
+		    case '|': side_effect_op = "|="; break;
+		    case '^': side_effect_op = "^="; break;
+		    case 'l': side_effect_op = "<<="; break;
+		    case 'r': side_effect_op = ">>="; break;
+		    case 'R': side_effect_op = ">>>="; break;
+	      }
+	}
+	if (!side_effect_op.empty()) {
+	      cerr << expr->get_fileline() << ": error: Operator '"
+		   << side_effect_op
+		   << "' with side effects is not allowed in a constraint expression "
+		      "(IEEE 1800-2017/2023 18.5)." << endl;
+	      if (constraint_ir_design_ctx_)
+		constraint_ir_design_ctx_->errors += 1;
+	      return "";
+	}
+
 	/* A scalar member of an element selected from a random queue or
 	 * associative array of class handles is a solver leaf of that live
 	 * object, not an integral array element. Keep the selected key/index in
