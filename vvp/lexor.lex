@@ -334,6 +334,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".ref/str"      { return K_REF_STR; /* ... whose underlying type is string */ }
 ".ref/2s"       { return K_REF_2S; /* ... whose underlying type is 2-state */ }
 ".udp"          { return K_UDP; }
+".udp/d"        { return K_UDP_DELAY; }
 ".udp/c"(omb)?  { return K_UDP_C; }
 ".udp/s"(equ)?  { return K_UDP_S; }
 "-debug"        { return K_DEBUG; }

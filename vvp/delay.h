@@ -112,6 +112,8 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
 		    bool per_bit = false, bool whole_vector = false);
       ~vvp_fun_delay() override;
 
+      void initialize_udp_output(const vvp_vector4_t&bit);
+
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
       void recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit) override;

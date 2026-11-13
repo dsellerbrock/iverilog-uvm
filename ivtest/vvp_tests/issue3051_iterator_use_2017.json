@@ -1,0 +1,18 @@
+{
+  "type": "normal",
+  "source": "issue3051_iterator_use.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "top"
+  ],
+  "vpi-modules": [
+    "issue3051_iterator_use_2017"
+  ],
+  "vpi-sources": [
+    "vpi/issue3051_iterator_use.c"
+  ],
+  "output-contains": [
+    "PASSED\n"
+  ]
+}

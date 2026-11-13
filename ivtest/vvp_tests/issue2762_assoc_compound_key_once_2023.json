@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2762_assoc_compound_key_once.v",
+    "iverilog-args": ["-g2023"],
+    "output-contains": ["PASSED"]
+}

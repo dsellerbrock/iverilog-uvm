@@ -193,6 +193,16 @@ vvp_fun_delay::~vvp_fun_delay()
 		  delete *cur;
 }
 
+void vvp_fun_delay::initialize_udp_output(const vvp_vector4_t&bit)
+{
+      assert(initial_ && list_ == 0 && !per_bit_ && !whole_vector_);
+      type_ = VEC4_DELAY;
+      cur_vec4_ = bit;
+      cur_vec8_ = vvp_vector8_t(vvp_vector4_t(0, BIT4_X), 6, 6);
+      initial_ = false;
+      net_->send_vec4(bit, 0);
+}
+
 void vvp_fun_delay::cancel_all_events_(void)
 {
       while (struct event_*cur = dequeue_())
