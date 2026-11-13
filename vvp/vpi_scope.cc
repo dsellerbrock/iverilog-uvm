@@ -1762,8 +1762,10 @@ class __vpiAssertion : public __vpiHandle {
 			char*scope_name = scope_ ? scope_->vpi_get_str(vpiFullName) : 0;
 			full = scope_name ? scope_name : "";
 		  } else {
-			full = (scope_ ? std::string(scope_->scope_name()) + "." : "")
-			      + name_;
+			  /* The scope's full name, not its leaf name: an
+			     assertion in u of top is top.u.x, not u.x. */
+			full = (scope_ ? std::string(scope_->vpi_get_str(vpiFullName))
+					 + "." : "") + name_;
 		  }
 		  use = &full;
 	    } else if (code == vpiFile) {
@@ -1873,6 +1875,10 @@ class __vpiAssertion : public __vpiHandle {
 		  bool killed;
 		  locked_ = false;
 		  killed = apply_control(5, callbacks);
+		    /* 39.5.1: the initial state; "By default, stepping is
+		       disabled for all assertions" (39.5.2). */
+		  step_ctl_.clear();
+		  serial_start_.clear();
 		  if (ctl == 13) {
 			ended_ = true;
 			fail_action_ = pass_nonvacuous_ = pass_vacuous_ = false;
