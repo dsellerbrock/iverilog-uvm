@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2942_vpi_get_unsupported.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue2942_vpi_get_unsupported_2023"],
+  "vpi-sources": ["vpi/issue2942_vpi_get_unsupported.c"],
+  "output-contains": ["type=41", "packed=-1", "DONE", "PASSED"]
+}
