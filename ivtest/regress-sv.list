@@ -6788,3 +6788,5 @@ issue3155_nested_interface_2017 normal,-g2017,-s,issue3155_nested_interface ivlt
 issue3155_nested_interface_2023 normal,-g2023,-s,issue3155_nested_interface ivltests gold=issue3155_nested_interface.gold
 issue2846_size_fail CE,-g2017,-s,issue2846_size_fail ivltests gold=issue2846_size_fail.gold
 issue2846_aligned normal,-g2017,-s,issue2846_aligned ivltests gold=issue2846_aligned.gold
+issue3063_empty_coverpoint_2017 normal,-g2017,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold
+issue3063_empty_coverpoint_2023 normal,-g2023,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold

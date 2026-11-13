@@ -52742,7 +52742,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				  // values left is dropped entirely.
 				if (base_kind == 0 && !bin.arrayed && !bin.wildcard) {
 				      subtract_carved(rr);
-				      if (rr.empty()) continue;
+				      if (rr.empty()) {
+					    has_value_bins = true;
+					    continue;
+				      }
 				}
 
 				if (bin.arrayed && base_kind == 0) {
