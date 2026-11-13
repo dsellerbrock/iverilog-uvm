@@ -36,11 +36,7 @@ module sv_joint_ordered_guard_fiber;
   initial begin
     trial = new;
     trial.srandom(32'h47f1be);
-    // 1024 draws: P(gate)=0.3 gives active ~ 307 (sd 14.7); P(value==1 | gate)
-    // is 0.6, so active_one ~ 184 (sd 12.3); each inactive value ~ 239 (sd 13.5).
-    // The bands are about 4.5 sd wide and still reject a uniform gate (512),
-    // an ignored guarded dist (~102) and a dist leaking into the inactive fiber.
-    repeat (1024) begin
+    repeat (4096) begin
       if (!trial.randomize() || trial.a.gate != trial.b.gate ||
           trial.a.value != trial.b.value || trial.a.value > 2)
         $fatal(1, "ordered guard fiber failed");
@@ -49,11 +45,11 @@ module sv_joint_ordered_guard_fiber;
         if (trial.a.value == 1) active_one++;
       end else inactive[trial.a.value]++;
     end
-    if (active < 240 || active > 375 ||
-        active_one < 130 || active_one > 240)
+    if (active < 1000 || active > 1500 ||
+        active_one < 550 || active_one > 950)
       $fatal(1, "guard/active weights %0d %0d", active, active_one);
     foreach (inactive[i])
-      if (inactive[i] < 150)
+      if (inactive[i] < 400)
         $fatal(1, "inactive subject lost ordinary fiber %0d=%0d", i, inactive[i]);
     repeat (32) begin
       if (!trial.randomize() with { a.gate == 1; } || !trial.a.gate)
@@ -75,7 +71,7 @@ module sv_joint_ordered_guard_fiber;
         trial.a.gate != saved_gate || trial.a.value != saved_value ||
         trial.b.gate != saved_gate || trial.b.value != saved_value ||
         trial.get_randstate() != root_rng || trial.a.get_randstate() != a_rng ||
-        trial.b.get_randstate() != b_rng || trial.posts != 1089)
+        trial.b.get_randstate() != b_rng || trial.posts != 4161)
       $fatal(1, "failed guarded call changed transaction");
     if (!trial.randomize() || !control.randomize() ||
         trial.a.gate != control.a.gate || trial.a.value != control.a.value)

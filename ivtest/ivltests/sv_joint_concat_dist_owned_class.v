@@ -85,11 +85,10 @@ module sv_joint_concat_dist_owned_class;
       if ({cfg.boot_mode, cfg.auto_mode} == 8'h34) high_count++;
       child_ones += cfg.child.value;
     end
-    // Each staged randomize() enumerates the exact 256-value early projection
-    // (one solver check per value), so keep the call count small: 32 calls
-    // still resolve the 9:1 and 1:9 weights (expected 28.8 and 3.2, sd 1.7)
-    // and reject a uniform bit (16) by about 7 sd.
-    repeat (32) begin
+    // Each staged randomize() samples the exact 256-value early projection,
+    // so 128 calls keep the 9:1 and 1:9 weights well resolved (expected
+    // 115.2 and 12.8, sd 3.4) at a fraction of the cost of 1024.
+    repeat (128) begin
       if (!staged.randomize()) $fatal(1, "staged bit projection dist failed");
       if (staged.late !== staged.early ||
           staged.child.value !== staged.early[2])
@@ -99,7 +98,8 @@ module sv_joint_concat_dist_owned_class;
     end
     if (high_count < 320 || high_count > 450 ||
         child_ones < 200 || child_ones > 312 ||
-        early_ones < 22 || early_bit1_ones > 10)
+        early_ones < 102 || early_ones > 128 ||
+        early_bit1_ones < 2 || early_bit1_ones > 26)
       $fatal(1, "joint dist high=%0d child=%0d staged=%0d/%0d",
              high_count, child_ones, early_ones, early_bit1_ones);
     $display("PASSED");
