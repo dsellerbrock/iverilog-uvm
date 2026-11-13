@@ -25034,6 +25034,16 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    delete wait_stmt;
 	    return 0;
       }
+      if (expression_value_ && generation_flag >= GN_VER2023
+          && count_const && count_value < 0) {
+	    cerr << get_fileline() << ": error: expression-valued ## cycle delay "
+		 << "must evaluate to a non-negative integer (IEEE 1800-2023 14.11)."
+		 << endl;
+	    des->errors += 1;
+	    delete count_expr;
+	    delete wait_stmt;
+	    return 0;
+      }
       bool zero_count = count_const && count_value == 0;
       delete count_expr;
       if (zero_count) {

@@ -1,0 +1,2 @@
+PASS
+ivltests/issue2842_zero.v:10: $finish called at 5 (1s)
