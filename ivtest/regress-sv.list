@@ -3711,6 +3711,8 @@ sv_automatic_boolean_recursive_2023 normal,-g2023 ivltests gold=sv_automatic_boo
 sv_automatic_pkg_class_decl normal,-g2012	ivltests
 sv_foreach_selected_member_string normal,-g2017 ivltests gold=sv_foreach_selected_member_string.gold
 sv_foreach_selected_member_string_2023 normal,-g2023 ivltests gold=sv_foreach_selected_member_string.gold
+sv_foreach_class_property_string normal,-g2017,-s,main ivltests gold=sv_foreach_class_property_string.gold
+sv_foreach_class_property_string_2023 normal,-g2023,-s,main ivltests gold=sv_foreach_class_property_string.gold
 sv_foreach_selected_member_keys normal,-g2017 ivltests gold=sv_foreach_selected_member_keys.gold
 sv_foreach_selected_member_keys_2023 normal,-g2023 ivltests gold=sv_foreach_selected_member_keys.gold
 sv_foreach_selected_member_inherited normal,-g2017 ivltests gold=sv_foreach_selected_member_inherited.gold
