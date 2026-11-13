@@ -609,6 +609,14 @@ static int signal_get(int code, vpiHandle ref)
 	    else
 		  return vpiUndefined;
 
+	  case vpiExpanded:
+	    /* VVP exposes individual bits of vector nets, including nets
+	       declared vectored (the declaration keywords are advisory). */
+	    if (ref->get_type_code() == vpiNet ||
+	        ref->get_type_code() == vpiNetBit)
+		  return 1;
+	    return vpiUndefined;
+
 	  case vpiLeftRange:
             return rfp->msb.get_value();
 

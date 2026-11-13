@@ -26,6 +26,9 @@
 #ifndef vpiJoinType
 # define vpiJoinType 603
 #endif
+#ifndef vpiExpanded
+# define vpiExpanded 25
+#endif
 
 # include  <map>
 # include  <list>
