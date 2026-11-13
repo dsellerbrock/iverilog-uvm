@@ -3533,6 +3533,13 @@ static void process_udp_table(PUdp*udp, list<string>*table,
 	      assert(tmp[0] == ':');
 	      assert(tmp.size() == 2);
 	      output[idx] = tmp[1];
+	      if (!input[idx].empty() &&
+	          input[idx].find_first_not_of('x') == string::npos &&
+	          output[idx] != 'x') {
+		    cerr << loc << ": error: UDP table row with all inputs x "
+		         << "must specify an x output." << endl;
+		    error_count += 1;
+	      }
 	}
       }
 

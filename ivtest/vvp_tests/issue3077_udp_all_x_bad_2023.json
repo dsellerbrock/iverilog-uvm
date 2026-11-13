@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3077_udp_all_x_bad.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3077_udp_all_x_bad"
+}
