@@ -29591,6 +29591,55 @@ static NetExpr* make_foreach_array_query_expr_(const LineInfo&li,
       return query;
 }
 
+/* A string is a runtime-sized byte array for foreach. Keep the length query
+ * in the loop condition so the target expression is evaluated with the same
+ * runtime bounds as other dynamically sized foreach targets. */
+static NetProc* elaborate_string_foreach_(const LineInfo&li, Design*des,
+					  NetScope*scope,
+					  const vector<perm_string>&index_vars,
+					  Statement*statement,
+					  NetExpr*string_expr)
+{
+      if (index_vars.size() == 1 && index_vars.front().nil()) {
+	    delete string_expr;
+	    return new NetBlock(NetBlock::SEQU, nullptr);
+      }
+      if (index_vars.size() != 1) {
+	    delete string_expr;
+	    cerr << li.get_fileline() << ": error: foreach over a string requires exactly one named index variable." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      NetNet*idx_sig = find_assoc_foreach_index_signal_(
+	    des, scope, index_vars.front());
+      if (!idx_sig) {
+	    delete string_expr;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      NetESFunc*length = new NetESFunc(
+	    "$ivl_string_method$len", &netvector_t::atom2s32, 1);
+      length->set_line(li);
+      length->parm(0, string_expr);
+      NetESignal*idx_expr = new NetESignal(idx_sig);
+      idx_expr->set_line(li);
+      NetEBComp*condition = new NetEBComp('<', idx_expr, length);
+      condition->set_line(li);
+
+      NetProc*body = statement ? statement->elaborate(des, scope)
+	    : new NetBlock(NetBlock::SEQU, 0);
+      if (!body) return nullptr;
+      NetAssign*step = new NetAssign(new NetAssign_(idx_sig), '+',
+	    make_const_val(1));
+      step->set_line(li);
+      NetForLoop*loop = new NetForLoop(
+	    idx_sig, make_const_val(0), condition, body, step);
+      loop->set_line(li);
+      return loop;
+}
+
 static bool foreach_target_is_simple_(const pform_name_t&array_path)
 {
       return array_path.size() == 1 && array_path.front().index.empty();
@@ -29951,13 +30000,9 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    }
 
 	    if (dynamic_cast<const netstring_t*>(ptype)) {
-		  delete array_expr;
-		  NetProc*sub;
-		  if (statement_)
-			sub = statement_->elaborate(des, scope);
-		  else
-			sub = new NetBlock(NetBlock::SEQU, 0);
-		  return sub;
+		  return elaborate_string_foreach_(*this, des, scope,
+						    index_vars_, statement_,
+						    array_expr);
 	    }
 
 	    if (dynamic_cast<const netarray_t*>(ptype))
@@ -30073,14 +30118,34 @@ NetProc* PForeach::elaborate(Design*des, NetScope*scope) const
 	    }
 
 	    if (dynamic_cast<const netstring_t*>(ptype)) {
-		    // String foreach: iterate over characters. For compile-
-		    // progress, just elaborate the body without the loop.
-		  NetProc*sub;
-		  if (statement_)
-			sub = statement_->elaborate(des, scope);
-		  else
-			sub = new NetBlock(NetBlock::SEQU, 0);
-		  return sub;
+		  NetExpr*string_expr = 0;
+		  property_qualifier_t qual = class_scope->get_prop_qual(class_property);
+		  if (qual.test_static()) {
+			NetNet*psig = class_scope->find_static_property(array_var);
+			if (!psig) {
+			      cerr << get_fileline() << ": error: Failed to resolve static property "
+			           << array_var << " in class " << class_scope->get_name() << "." << endl;
+			      des->errors += 1;
+			      return 0;
+			}
+			string_expr = new NetESignal(psig);
+		  } else {
+			NetNet*this_net = find_foreach_this_handle_(des, scope);
+			if (!this_net) {
+			      cerr << get_fileline() << ": internal error: missing synthetic `"
+			           << THIS_TOKEN << "' handle in foreach scope `"
+			           << scope_path(scope) << "'." << endl;
+			      des->errors += 1;
+			      return 0;
+			}
+			NetESignal*this_expr = new NetESignal(this_net);
+			this_expr->set_line(*this);
+			string_expr = new NetEProperty(this_expr, class_property);
+		  }
+		  string_expr->set_line(*this);
+		  return elaborate_string_foreach_(*this, des, scope,
+						    index_vars_, statement_,
+						    string_expr);
 	    }
 
 	    if (dynamic_cast<const netarray_t*>(ptype)) {

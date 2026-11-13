@@ -2593,24 +2593,49 @@ static Module::port_t *module_declare_port_continuation(
             default_value, attributes);
 }
 
+static bool collect_explicit_port_identifiers(
+                                    PExpr*expression,
+                                    std::vector<PEIdent*>&identifiers)
+{
+      PEIdent*ident = dynamic_cast<PEIdent*>(expression);
+      if (ident) {
+            identifiers.push_back(
+                  ident->clone_for_reference());
+            return true;
+      }
+
+      PEConcat*concat = dynamic_cast<PEConcat*>(expression);
+      if (!concat || concat->has_repeat()) return false;
+      for (PExpr*operand : concat->stream_parms()) {
+            if (!collect_explicit_port_identifiers(operand, identifiers))
+                  return false;
+      }
+      return true;
+}
+
 static Module::port_t *module_declare_explicit_port(
                                     const YYLTYPE&loc, char*port_id,
                                     PExpr*expression,
                                     NetNet::PortType port_type)
 {
-      PEIdent*ident = dynamic_cast<PEIdent*>(expression);
-      if (!ident) {
-            yyerror(loc, "error: Explicit ANSI port expressions must be identifiers.");
-            delete expression;
+      std::vector<PEIdent*>identifiers;
+      bool valid = collect_explicit_port_identifiers(expression, identifiers);
+      delete expression;
+      if (!valid || identifiers.empty()) {
+            for (PEIdent*ident : identifiers) delete ident;
+            yyerror(loc, "error: Explicit ANSI port expressions must be identifiers or concatenations of identifiers.");
             delete[] port_id;
             return nullptr;
       }
 
-      perm_string internal_name = peek_tail_name(ident->path().name);
-      pform_module_defer_port_direction(internal_name, port_type);
-      delete expression;
-      Module::port_t*port = pform_module_port_reference(loc, internal_name);
+      Module::port_t*port = new Module::port_t;
       port->name = lex_strings.make(port_id);
+      port->default_value = 0;
+      for (PEIdent*ident : identifiers) {
+            perm_string internal_name = peek_tail_name(ident->path().name);
+            pform_module_defer_port_direction(internal_name, port_type);
+            port->expr.push_back(ident);
+      }
       delete[] port_id;
       return port;
 }
@@ -16775,6 +16800,24 @@ list_of_port_declarations
       { std::vector<Module::port_t*>*tmp = new std::vector<Module::port_t*>(1);
 	(*tmp)[0] = $1;
 	$$ = tmp;
+      }
+  | port_direction_opt '.' IDENTIFIER '(' expression_opt ')'
+      { std::vector<Module::port_t*>*tmp = new std::vector<Module::port_t*>;
+        NetNet::PortType direction = $1 == NetNet::PIMPLICIT
+              ? port_declaration_context.port_type : $1;
+        Module::port_t* port = module_declare_explicit_port(
+              @3, $3, $5, direction);
+        if (port) tmp->push_back(port);
+        $$ = tmp;
+        // As for an explicitly named port following a comma, its direction
+        // is inherited by subsequent ports, but its expression does not
+        // establish port-kind or data-type defaults.
+        port_declaration_context.port_type = direction;
+        port_declaration_context.port_net_type = NetNet::IMPLICIT;
+        port_declaration_context.data_type = nullptr;
+        port_declaration_context.user_nettype = nullptr;
+        port_declaration_context.interconnect = false;
+        port_declaration_context.event_type = false;
       }
   | list_of_port_declarations ',' port_declaration
       { std::vector<Module::port_t*>*tmp = $1;

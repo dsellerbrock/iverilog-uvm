@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2916_guarded_dist_overcap_prefix.v",
+  "iverilog-args": ["-g2017"],
+  "timeout": 120
+}

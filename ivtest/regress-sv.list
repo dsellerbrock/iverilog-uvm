@@ -1,6 +1,9 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue2935_ansi_port_concat_2017 normal,-g2017,-s,issue2935_ansi_port_concat_top ivltests gold=issue2935_ansi_port_concat-vvp-stdout.gold
+issue2935_ansi_port_concat_2023 normal,-g2023,-s,issue2935_ansi_port_concat_top ivltests gold=issue2935_ansi_port_concat-vvp-stdout.gold
+
 issue2796_wildcard_handle_eq_2017 normal,-g2017,-s,issue2796_wildcard_handle_eq ivltests gold=issue2796_wildcard_handle_eq-vvp-stdout.gold
 issue2796_wildcard_handle_eq_2023 normal,-g2023,-s,issue2796_wildcard_handle_eq ivltests gold=issue2796_wildcard_handle_eq-vvp-stdout.gold
 issue2798_assoc_unsigned_query normal,-g2017,-s,issue2798_assoc_unsigned_query ivltests gold=issue2798_assoc_unsigned_query-legacy.gold
@@ -3708,6 +3711,8 @@ sv_automatic_boolean_recursive_2023 normal,-g2023 ivltests gold=sv_automatic_boo
 sv_automatic_pkg_class_decl normal,-g2012	ivltests
 sv_foreach_selected_member_string normal,-g2017 ivltests gold=sv_foreach_selected_member_string.gold
 sv_foreach_selected_member_string_2023 normal,-g2023 ivltests gold=sv_foreach_selected_member_string.gold
+sv_foreach_class_property_string normal,-g2017,-s,main ivltests gold=sv_foreach_class_property_string.gold
+sv_foreach_class_property_string_2023 normal,-g2023,-s,main ivltests gold=sv_foreach_class_property_string.gold
 sv_foreach_selected_member_keys normal,-g2017 ivltests gold=sv_foreach_selected_member_keys.gold
 sv_foreach_selected_member_keys_2023 normal,-g2023 ivltests gold=sv_foreach_selected_member_keys.gold
 sv_foreach_selected_member_inherited normal,-g2017 ivltests gold=sv_foreach_selected_member_inherited.gold
@@ -6714,3 +6719,5 @@ issue2831_sdf_log_2017 normal,-g2017,-gspecify,-s,top ivltests gold=issue2831_sd
 issue2831_sdf_log_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue2831_sdf_log_2023.gold
 issue2618_assoc_fixed_array_copy_2017 normal,-g2017,-s,issue2618_assoc_fixed_array_copy ivltests gold=issue2618_assoc_fixed_array_copy_2017-legacy.gold
 issue2618_assoc_fixed_array_copy_2023 normal,-g2023,-s,issue2618_assoc_fixed_array_copy ivltests gold=issue2618_assoc_fixed_array_copy_2023-legacy.gold
+sva_same_tick_verdicts_2017 normal,-g2017,-s,sva_same_tick_verdicts ivltests gold=sva_same_tick_verdicts.gold
+sva_same_tick_verdicts_2023 normal,-g2023,-s,sva_same_tick_verdicts ivltests gold=sva_same_tick_verdicts.gold
