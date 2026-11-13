@@ -36,7 +36,7 @@ static vpiHandle sys_time_scope(vpiHandle obj)
 {
       assert(obj);
 
-      while (vpi_get(vpiType, obj) != vpiModule) {
+      while (!sys_is_design_element(obj)) {
 	    vpiHandle scope = vpi_handle(vpiScope, obj);
 	    if (scope == 0)
 		  break;

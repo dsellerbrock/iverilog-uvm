@@ -15641,10 +15641,21 @@ static void tc_always_at_conditioned_(const struct vlltype&loc,
       tc_always_at_(loc, unconditioned, conditioned);
 }
 
-/* The violation action: $display diagnostic + optional notifier toggle. */
+/* The first limit variable of the PTchk record tc_record_ made last, or
+   empty when it made none. Each pform_timing_check_* entry point records
+   its directive before synthesizing the checker, so this names the
+   directive whose violations the checker reports. */
+static perm_string tc_cur_rec_;
+
+/* The violation action: $display diagnostic + optional notifier toggle,
+   then $ivl_tchk_violation(<record variable>), which runs the VPI
+   cbTchkViolation callbacks with the directive's vpiTchk handle (IEEE
+   1800-2023 38.36.3). The callbacks run after the notifier toggles, so
+   they see its new value. */
 static Statement* tc_violation_(const struct vlltype&loc,
 				const char*check_name,
-				const pform_name_t*notifier)
+				const pform_name_t*notifier,
+				perm_string rec = tc_cur_rec_)
 {
       char msg[256];
       snprintf(msg, sizeof msg,
@@ -15669,8 +15680,25 @@ static Statement* tc_violation_(const struct vlltype&loc,
 	    = new PCallTask(perm_string::literal("$display"), parms);
       FILE_NAME(disp, loc);
 
-      if (notifier == 0)
-	    return disp;
+      std::vector<Statement*> stmts;
+      stmts.push_back(disp);
+      PCallTask*report = nullptr;
+      if (!rec.nil()) {
+	    list<named_pexpr_t> rparms;
+	    named_pexpr_t r1;
+	    r1.name = perm_string();
+	    r1.parm = sva_id_(loc, rec);
+	    rparms.push_back(r1);
+	    report = new PCallTask(perm_string::literal("$ivl_tchk_violation"),
+				   rparms);
+	    FILE_NAME(report, loc);
+      }
+
+      if (notifier == 0) {
+	    if (report == nullptr) return disp;
+	    stmts.push_back(report);
+	    return sva_block_(loc, stmts);
+      }
 
       /* IEEE 1800-2017/2023 Table 31-13: x becomes either 0 or 1,
          known 0/1 values toggle, and z remains z. */
@@ -15692,9 +15720,8 @@ static Statement* tc_violation_(const struct vlltype&loc,
       PAssign*tog = new PAssign(tc_name_id_(loc, *notifier), notifier_value);
       FILE_NAME(tog, loc);
 
-      std::vector<Statement*> stmts;
-      stmts.push_back(disp);
       stmts.push_back(tog);
+      if (report) stmts.push_back(report);
       return sva_block_(loc, stmts);
 }
 
@@ -15757,6 +15784,7 @@ static std::vector<PExpr*> tc_record_(const struct vlltype&loc, int type,
 				       const pform_name_t*notifier)
 {
       std::vector<PExpr*> refs;
+      tc_cur_rec_ = perm_string();
       PTimingCheck::event_t*ref = tc_event_copy_(ref_ev);
       PTimingCheck::event_t*data = data_ev ? tc_event_copy_(*data_ev) : nullptr;
       bool ok = ref && (data_ev == nullptr || data);
@@ -15781,6 +15809,7 @@ static std::vector<PExpr*> tc_record_(const struct vlltype&loc, int type,
 	    vars.push_back(tc_make_real_(loc, inst, what, 0.0, false));
 	    refs.push_back(sva_id_(loc, vars.back()));
       }
+      if (!vars.empty()) tc_cur_rec_ = vars.front();
       PTchk*rec = new PTchk(type, ref, data, kept, vars,
 			    notifier ? new pform_name_t(*notifier) : nullptr);
       FILE_NAME(rec, loc);
@@ -16370,16 +16399,17 @@ void pform_timing_check_width(const struct vlltype&loc,
 			  {&limit, &threshold});
       PWidth*check = new PWidth(loc.text, loc.first_line, loc.lexical_pos,
 				 event, limit, threshold,
-				 notifier ? new pform_name_t(*notifier) : nullptr);
+				 notifier ? new pform_name_t(*notifier) : nullptr,
+				 tc_cur_rec_);
       FILE_NAME(check, loc);
       pform_module_timing_check(check);
 }
 
 PWidth::PWidth(const char*file, int line, unsigned lexical_pos,
 	       event_t*event, PExpr*limit, PExpr*threshold,
-	       pform_name_t*notifier)
+	       pform_name_t*notifier, perm_string record)
 : event_(event), limit_(limit), threshold_(threshold), notifier_(notifier),
-  file_(file ? file : ""), lexical_pos_(lexical_pos)
+  file_(file ? file : ""), lexical_pos_(lexical_pos), record_(record)
 {
 	set_file(filename_strings.make(file_.c_str()));
 	set_lineno(line);
@@ -16542,7 +16572,8 @@ void PWidth::elaborate(Design*des, NetScope*scope) const
 					  thresholds[bit].release()));
 	    }
 	    PCondit*check = new PCondit(cond,
-					tc_violation_(loc, "$width", notifier_.get()),
+					tc_violation_(loc, "$width", notifier_.get(),
+						      record_),
 					nullptr);
 	    FILE_NAME(check, loc);
 	    tc_width_process_at_(loc, des, scope, bit_name, event_->negedge,
@@ -24192,12 +24223,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
       perm_string r_f;
       if (!cover && !sub) {
-	    r_f = sva_make_reg_(loc, inst, "f", 0, endpoint_fanout);
+	      /* IEEE 1800-2023 16.14.1: every attempt that fails runs the fail
+		 action, so these count the attempts decided in one tick. */
+	    r_f = sva_make_reg_(loc, inst, "f", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
       }
       perm_string r_p;
       if (!negated && !cover && !sub) {
-	    r_p = sva_make_reg_(loc, inst, "p", 0, implication);
+	    r_p = sva_make_reg_(loc, inst, "p", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
 	// M12-1: per-tick STEP flags — set by the slot advance when an
@@ -24605,9 +24638,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    } else if (implication && !forbidden) {
 		  acc_v.push_back(increment_verdict(r_p));
 	    } else {
-		  acc_v.push_back(sva_assign_(loc,
-					       (negated || forbidden) ? r_f : r_p,
-					      sva_bit_(loc, 1)));
+		  acc_v.push_back(increment_verdict(
+					       (negated || forbidden) ? r_f : r_p));
 	    }
 	    if (!endpoint_fanout
 		&& !(preserve_match_endpoints || (cover && sequence_cover))) {
@@ -24643,12 +24675,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  vac.push_back(increment_verdict(r_p));
 		  vac.push_back(increment_verdict(vacuous));
 		  Statement*nonvacuous = forbidden ? increment_verdict(r_p)
-			: sva_assign_(loc, r_f, sva_bit_(loc, 1));
+			: increment_verdict(r_f);
 		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
 					  nonvacuous, sva_block_(loc, vac)));
 		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
 	    } else if (!negated && !cover && !endpoint_fanout) {
-		  die_v.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 1)));
+		  die_v.push_back(increment_verdict(r_f));
 	    }
 	      /* M12-1: this branch is taken only when the slot was live
 		 and has no surviving next state (dead_busy), i.e. an
@@ -24936,9 +24968,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    return true;
       }
 
-	/* Pass then fail dispatch: one report site each per tick, in
-	   the legacy engine's output order (pass before fail). Cover
-	   has neither — the counter is the record. */
+	/* Pass then fail dispatch, once per attempt decided in this tick
+	   (16.14.1), in the legacy engine's output order (pass before fail).
+	   Cover has neither — the counter is the record. */
       if (!negated && !cover) {
 	    std::vector<Statement*> hit;
 	    if (implication) {
@@ -24951,7 +24983,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  hit.push_back(sva_assign_(loc, vacuous, sva_num32_(loc, 0)));
 		  sva_pass_dispatcher_(loc, inst, pass_req, vac_req, pass_stmt);
 	    } else {
-		  hit.push_back(pass_stmt);
+		  hit.push_back(sva_repeat_(loc, sva_id_(loc, r_p), pass_stmt));
 	    }
 	    hit.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
 	    body.push_back(sva_if_(loc, sva_id_(loc, r_p),
@@ -24986,10 +25018,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
 	    std::vector<Statement*> hit;
 	    Statement*fail_action = sva_fail_action_(loc, inst, action);
-	    if (endpoint_fanout)
-		  hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f), fail_action));
-	    else
-		  hit.push_back(fail_action);
+	    hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f), fail_action));
 	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
 	    body.push_back(sva_if_(loc, sva_id_(loc, r_f),
 				   sva_block_(loc, hit), nullptr));
@@ -36235,7 +36264,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       }
       perm_string r_pend;
       if (unbounded) {
-	    r_pend = sva_make_reg_(loc, inst, "pend", 0);
+	      /* An assertion counts its pending obligations: every one is an
+		 attempt of its own (16.14.1). Cover keeps its flag. */
+	    r_pend = sva_make_reg_(loc, inst, "pend", 0,
+				   kind != 2 && !negated);
 	    init_zero.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
       }
       perm_string r_g = sva_make_reg_(loc, inst, "g", 0);
@@ -36414,9 +36446,27 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  sat.push_back(nm);
 		  anyw = nullptr;
 	    } else if (pass_stmt && kind != 2) {
+		    /* 16.14.1: one pass action for each attempt satisfied
+		       now. The sum is balanced, and the 32-bit term keeps
+		       the one-bit window registers from summing in 1 bit. */
+		  std::vector<PExpr*> sat_terms;
+		  for (long q = win_m ; q <= win_n ; q += 1)
+			sat_terms.push_back(sva_id_(loc, w_regs[q]));
+		  while (sat_terms.size() > 1) {
+			std::vector<PExpr*> next;
+			for (size_t t = 0 ; t + 1 < sat_terms.size() ; t += 2)
+			      next.push_back(new PEBinary('+', sat_terms[t],
+							  sat_terms[t+1]));
+			if (sat_terms.size() % 2) next.push_back(sat_terms.back());
+			sat_terms.swap(next);
+		  }
+		  PExpr*satisfied = new PEBinary('+', sva_num32_(loc, 0),
+						 sat_terms.front());
+		  FILE_NAME(satisfied, loc);
 		  PCondit*pm = new PCondit(anyw,
-			sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
-					  SVA_STATE_PASS_ACTION, pass_stmt),
+			sva_repeat_(loc, satisfied,
+			      sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+						SVA_STATE_PASS_ACTION, pass_stmt)),
 			nullptr);
 		  FILE_NAME(pm, loc);
 		  sat.push_back(pm);
@@ -36510,9 +36560,16 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  FILE_NAME(report, loc);
 		  sat.push_back(report);
 	    } else if (pass_stmt) {
+		    /* 16.14.1: one pass action for every obligation the
+		       awaited boolean satisfies now. */
+		  PExpr*satisfied = new PEBinary('+', sva_num32_(loc, 0),
+			new PEBinary('+', sva_id_(loc, r_pend),
+				     sva_id_(loc, r_mat)));
+		  FILE_NAME(satisfied, loc);
 		  PCondit*pm = new PCondit(elig,
-			sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
-					  SVA_STATE_PASS_ACTION, pass_stmt),
+			sva_repeat_(loc, satisfied,
+			      sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+						SVA_STATE_PASS_ACTION, pass_stmt)),
 			nullptr);
 		  FILE_NAME(pm, loc);
 		  sat.push_back(pm);
@@ -36522,8 +36579,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  sequence_cover ? (PExpr*)elig
 				 : (PExpr*)sva_bit_(loc, 0)));
 	    std::vector<Statement*> miss;
-	    PEBLogic*acc = new PEBLogic('o', sva_id_(loc, r_pend),
-					sva_id_(loc, r_mat));
+	    PExpr*acc = (kind != 2 && !negated)
+		  ? (PExpr*)new PEBinary('+', sva_id_(loc, r_pend),
+					 sva_id_(loc, r_mat))
+		  : (PExpr*)new PEBLogic('o', sva_id_(loc, r_pend),
+					 sva_id_(loc, r_mat));
 	    FILE_NAME(acc, loc);
 	    miss.push_back(sva_assign_(loc, r_pend, acc));
 	    PCondit*wc = new PCondit(sva_id_(loc, bw),

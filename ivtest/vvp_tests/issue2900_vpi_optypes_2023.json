@@ -1,0 +1,19 @@
+{
+  "type": "normal",
+  "source": "issue2900_vpi_optypes.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "top"
+  ],
+  "vpi-modules": [
+    "issue2900_vpi_optypes_2023"
+  ],
+  "vpi-sources": [
+    "vpi/issue2900_vpi_optypes.c"
+  ],
+  "output-contains": [
+    "MISSING_COUNT=0",
+    "PASSED"
+  ]
+}

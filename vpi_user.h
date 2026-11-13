@@ -275,6 +275,7 @@ typedef struct t_vpi_delay  {
 
 /* OBJECT CODES */
 #define vpiAliasStmt    646 /* alias statement */
+#define vpiAlways        1 /* always procedure */
 #define vpiBegin          4 /* block statement */
 #define vpiDisable       12 /* named block disable statement */
 #define vpiEventControl  13 /* wait on event, e.g., @e */
@@ -284,16 +285,21 @@ typedef struct t_vpi_delay  {
 #define vpiContAssign   8
 #define vpiDeassign     9
 #define vpiConstant     7
+#define vpiIntConst     7
+#define vpiTimeConst    8
 #define vpiCase         5 /* case statement */
 #define vpiCaseItem     6 /* case statement item */
 #define vpiDelayControl 11 /* delay statement (e.g., #10) */
 #define vpiDoWhile    670 /* do-while statement */
 #define vpiFor         15
 #define vpiForever     17 /* forever statement */
+#define vpiFuncCall    19 /* function call */
 #define vpiFunction    20
+#define vpiGate        21 /* primitive gate */
 #define vpiFork        18 /* fork-join block */
 #define vpiIf          22 /* if statement */
 #define vpiIfElse      23 /* if-else statement */
+#define vpiInitial     24 /* initial procedure */
 #define vpiIntegerVar  25
 #define vpiInterModPath 26
 #define vpiIterator    27
@@ -329,6 +335,7 @@ typedef struct t_vpi_delay  {
 #define vpiIndexedPartSelect 130
 #define vpiBaseExpr  131
 #define vpiWidthExpr 132
+#define vpiAutomatics 136 /* automatic variables of a frame */
 #define vpiPathTerm    43
 #define vpiPort        44
 #define vpiPortBit     45
@@ -337,6 +344,9 @@ typedef struct t_vpi_delay  {
 #define vpiReg         48
 #define vpiRegBit      49
 #define vpiRepeatControl 52
+#define vpiSchedEvent  53 /* vpi_put_value() event */
+#define vpiSpecParam   54 /* specparam */
+#define vpiSwitch      55 /* transistor switch */
 #define vpiSysFuncCall 56
 #define vpiSysTaskCall 57
 #define vpiTableEntry  58 /* UDP state table entry */
@@ -344,7 +354,9 @@ typedef struct t_vpi_delay  {
 #define vpiTaskCall    60
 #define vpiTimeVar     63
 #define vpiTimeQueue   64
+#define vpiUdp         65 /* user-defined primitive */
 #define vpiRepeat      51 /* repeat statement */
+#define vpiVarSelect   68 /* variable array selection */
 #define vpiUdpDefn     66
 #define vpiPrimitive  103 /* primitive (gate, switch, UDP) */
 #define vpiUserSystf   67
@@ -367,14 +379,31 @@ typedef struct t_vpi_delay  {
 #define vpiTchkNotifier 87 /* timing check notifier */
 #define vpiTchkRefTerm  88 /* timing check reference term */
 #define vpiArgument    89
+#define vpiDriver      91 /* driver for a net */
 #define vpiBit         90
+#define vpiLoad        93 /* load on net or reg */
+#define vpiModDataPathIn 94 /* data terminal of a module path */
 #define vpiInternalScope 92
 #define vpiModPathIn     95
 #define vpiModPathOut    96
+#define vpiOperand       97 /* operand of expression */
+#define vpiPortInst      98 /* connected port instance */
+#define vpiProcess       99 /* process in module, program or interface */
 #define vpiVariables   100
+#define vpiUse         101 /* usage */
 #define vpiLoopVars    737 /* foreach loop index variables */
 #define vpiExpr        102
 #define vpiStmt        104 /* statement in process or task */
+
+/* IEEE 1800-2017 / 1800-2023 Annex K VPI relations. */
+#define vpiInTerm       120 /* drivers of a delay device */
+#define vpiInstanceArray 121 /* instance arrays */
+#define vpiLocalDriver  122 /* local drivers within a module */
+#define vpiLocalLoad    123 /* local loads within a module */
+#define vpiOutTerm      124 /* loads of a delay device */
+#define vpiPorts        125 /* module ports */
+#define vpiSimNet       126 /* simulated net after collapsing */
+#define vpiTaskFunc     127 /* task/function */
 
 /* IEEE 1800-2017/2023 Annex M pattern object types. */
 #define vpiAnyPattern     667
@@ -383,12 +412,24 @@ typedef struct t_vpi_delay  {
 
 /********************** object types added with 1364-2001 *********************/
 
+#define vpiAttribute  105 /* attribute of an object */
+#define vpiBitSelect  106 /* bit-select of parameter, var select */
 #define vpiCallback   107
+#define vpiDelayTerm  108 /* delay term which is a load or driver */
+#define vpiDelayDevice 109 /* delay object within a net */
+#define vpiFrame      110 /* reentrant task/function frame */
+#define vpiGateArray  111 /* gate instance array */
+#define vpiModuleArray 112 /* module instance array */
+#define vpiPrimitiveArray 113 /* primitive instance array */
 #define vpiRegArray   116
+#define vpiSwitchArray 117 /* switch instance array */
+#define vpiUdpArray   118 /* UDP instance array */
 
 /********************** object types added with 1364-2005 *********************/
-
+#define vpiContAssignBit 128 /* bit of a vector continuous assignment */
+#define vpiGenScopeArray 133 /* array of generated scopes */
 #define vpiGenScope   134
+#define vpiGenVar     135 /* object used to instantiate generate scopes */
 
 /* PROPERTIES */
 #define vpiUndefined   (-1)
@@ -398,11 +439,72 @@ typedef struct t_vpi_delay  {
 #define vpiPriorityQualifier  2
 #define vpiType           1
 #define vpiOpType         39 /* operation subtype */
+#define vpiMinusOp         1
+#define vpiPlusOp          2
+#define vpiNotOp           3
+#define vpiBitNegOp        4
+#define vpiUnaryAndOp      5
+#define vpiUnaryNandOp     6
+#define vpiUnaryOrOp       7
+#define vpiUnaryNorOp      8
+#define vpiUnaryXorOp      9
+#define vpiUnaryXNorOp    10
+#define vpiSubOp          11
+#define vpiDivOp          12
+#define vpiModOp          13
+#define vpiEqOp           14
+#define vpiNeqOp          15
+#define vpiCaseEqOp       16
+#define vpiCaseNeqOp      17
+#define vpiGtOp           18
+#define vpiGeOp           19
+#define vpiLtOp           20
+#define vpiLeOp           21
+#define vpiLShiftOp       22
+#define vpiRShiftOp       23
+#define vpiAddOp          24
+#define vpiMultOp         25
+#define vpiLogAndOp       26
+#define vpiLogOrOp        27
+#define vpiBitAndOp       28
+#define vpiBitOrOp        29
+#define vpiBitXorOp       30
+#define vpiBitXNorOp      31
+#define vpiConditionOp    32
+#define vpiConcatOp       33
+#define vpiMultiConcatOp  34
+#define vpiEventOrOp      35
 #define vpiNullOp         36 /* null operation */
+#define vpiListOp         37
+#define vpiMinTypMaxOp    38
+#define vpiPosedgeOp      39
+#define vpiNegedgeOp      40
+#define vpiArithLShiftOp  41
+#define vpiArithRShiftOp  42
+#define vpiPowerOp        43
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiCaseType      42 /* case statement subtype */
+#define vpiCaseExact      1 /* exact match */
 #define vpiCaseX          2 /* ignore X's */
 #define vpiCaseZ          3 /* ignore Z's */
+#define vpiNetDeclAssign 43 /* assign part of declaration (Boolean) */
+#define vpiScheduled     46 /* object still scheduled (Boolean) */
+#define vpiActive        49
+#define vpiCell          51
+#define vpiConfig        52
+#define vpiDecompile     54 /* decompile the object */
+#define vpiDelayType     56 /* delay subtype */
+#define vpiModPathDelay            1 /* module path delay */
+#define vpiInterModPathDelay       2 /* intermodule path delay */
+#define vpiMIPDelay                3 /* module input port delay */
+#define vpiLibrary       58 /* configuration library */
+#define vpiOffset        60 /* offset from LSB */
+#define vpiResolvedNetType 61 /* net subtype after resolution */
+#define vpiSaveRestartID 62 /* unique ID for save/restart data */
+#define vpiSaveRestartLocation 63 /* name of save/restart data file */
+#define vpiValid         64 /* validity of a reentrant task/function frame */
+#define vpiValidFalse     0
+#define vpiValidTrue      1
 #define vpiName           2
 #define vpiFullName       3
 #define vpiSize           4
@@ -555,6 +657,10 @@ typedef struct t_vpi_delay  {
 #define vpiSigned         65
 #define vpiLocalParam     70
 #define vpiCondition      71
+#define vpiModPathHasIfNone 71 /* mod path has an ifnone statement */
+#define vpiIndexedPartSelectType 72 /* indexed part-select type */
+#define vpiPosIndexed      1 /* +: */
+#define vpiNegIndexed      2 /* -: */
 /* IVL private properties, also see vvp/vpi_priv.h for other properties */
 #define _vpiNexusId        0x1000000
 /* used in vvp/vpi_priv.h  0x1000001 */

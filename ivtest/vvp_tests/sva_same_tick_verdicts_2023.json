@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_same_tick_verdicts.sv",
+  "iverilog-args": ["-g2023", "-s", "sva_same_tick_verdicts"],
+  "gold": "sva_same_tick_verdicts"
+}
