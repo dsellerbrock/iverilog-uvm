@@ -10014,10 +10014,10 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | sva_grouped_seq_comb K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail
       { $$ = pform_sva_multiclock_comb_antecedent(
 		@2, 1, $1, $3, $4, $5); }
-  /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
+  /* IEEE 1800-2017/2023 16.12.3: negation — the property holds iff the
      sequence has NO match starting at any attempt point. */
-  | K_not '(' property_expr ')'
-      { $$ = pform_sva_prop_not(@1, $3); }
+  | K_not property_expr
+      { $$ = pform_sva_prop_not(@1, $2); }
   /* IEEE 1800-2017 16.12.2: sequence property strength. `strong(seq)'
      requires every attempt to complete — an attempt still pending at end
      of simulation is a failure. `weak(seq)' is the explicit form of the

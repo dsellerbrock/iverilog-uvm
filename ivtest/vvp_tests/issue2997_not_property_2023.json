@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2997_not_property.v",
+    "iverilog-args": ["-g2023", "-gassertions", "-s", "issue2997_not_property"],
+    "gold": "issue2997_not_property"
+}
