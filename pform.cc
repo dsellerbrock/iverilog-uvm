@@ -6903,6 +6903,9 @@ void pform_set_parameter(const struct vlltype&loc,
 			 type_parameter_restriction_t restriction)
 {
       LexicalScope*scope = lexical_scope;
+      // Class items are local parameters; parameter port declarations are not.
+      if (dynamic_cast<PClass*>(scope) && !pform_in_parameter_port_list)
+	    is_local = true;
       if (is_compilation_unit(scope) && !gn_system_verilog()) {
 	    VLerror(loc, "error: %s declarations must be contained within a module.",
 		         is_local ? "localparam" : "parameter");
@@ -24298,11 +24301,15 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			PExpr*be = sva_rewrite_sampled_(loc, src, inst,
 							hist_idx, pre, post,
 							init_zero);
+			/* An assertion guard has procedural-if truth: X and Z
+			   are false, including after reduction of a vector. */
+			be = new PEBComp('E', sva_booleanize_(loc, be),
+					 sva_bit_(loc, 1));
+			FILE_NAME(be, loc);
 			if (reads_local) {
 			      local_guard_expr[key] = be;
 			      continue;
 			}
-			be = sva_booleanize_(loc, be);
 			perm_string r = sva_make_reg_(loc, inst, "b", bidx++);
 			pre.push_back(sva_assign_(loc, r, be));
 			guard_reg[key] = r;
