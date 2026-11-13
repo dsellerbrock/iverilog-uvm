@@ -6791,3 +6791,5 @@ issue2846_aligned normal,-g2017,-s,issue2846_aligned ivltests gold=issue2846_ali
 
 sv_assert_first_match_leading_cont normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_leading_cont.gold
 sv_assert_first_match_leading_cont_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_leading_cont.gold
+issue2416_stream_queue_2017 normal,-g2017,-s,issue2416_stream_queue ivltests gold=issue2416_stream_queue.gold
+issue2416_stream_queue_2023 normal,-g2023,-s,issue2416_stream_queue ivltests gold=issue2416_stream_queue.gold
