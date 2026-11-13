@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "issue3008_action_immediate.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-gassertions",
+    "-s",
+    "issue3008_action_immediate"
+  ],
+  "gold": "issue3008_action_immediate"
+}

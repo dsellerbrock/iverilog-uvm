@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "issue3008_action_nested.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "issue3008_action_nested"
+  ],
+  "gold": "issue3008_action_nested"
+}
