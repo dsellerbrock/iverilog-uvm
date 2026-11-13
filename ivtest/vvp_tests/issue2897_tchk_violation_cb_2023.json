@@ -1,0 +1,15 @@
+{
+  "type": "normal",
+  "source": "issue2897_tchk_violation_cb.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "top"],
+  "vpi-modules": ["issue2897_tchk_violation_cb_2023"],
+  "vpi-sources": ["vpi/issue2897_tchk_violation_cb.c"],
+  "output-contains": [
+    "CB_A t=12 type=8 line=8 scope=top.u1 n=1",
+    "CB_B t=12 type=8 line=8 scope=top.u1 n=1",
+    "CB_A t=12 type=1 line=7 scope=top.u1 n=0",
+    "CB_A t=14 type=4 line=9 scope=top.u1 n=0",
+    "CB_A t=35 type=8 line=8 scope=top.u2 n=1",
+    "A=4 B=1"
+  ]
+}

@@ -1,0 +1,2 @@
+local=5a/X port=5a/X
+ivltests/issue2903_unpacked_struct_member_ca.v:19: $finish called at 1 (1s)

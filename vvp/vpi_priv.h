@@ -259,6 +259,8 @@ class value_callback : public __vpiCallback {
 };
 
 extern void callback_execute(struct __vpiCallback*cur);
+/* Run the cbTchkViolation callbacks for a violation of tchk. */
+extern void vpip_tchk_violation(vpiHandle tchk);
 
 struct __vpiSystemTime : public __vpiHandle {
       __vpiSystemTime();

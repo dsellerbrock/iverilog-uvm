@@ -3024,6 +3024,30 @@ static bool reads_unpacked_union_member_(const LineInfo*li, Design*des,
       return false;
 }
 
+/* An unpacked-struct member is also represented as an object property
+ * expression. It has no structural net representation for a continuous
+ * assignment RHS, so lower the assignment through the behavioral proxy. */
+static bool reads_unpacked_struct_member_(const LineInfo*li, Design*des,
+                                          NetScope*scope, PExpr*expr)
+{
+      std::vector<PExpr*> reads;
+      collect_pform_reads_(expr, reads);
+      for (PExpr*read : reads) {
+	    PEIdent*id = dynamic_cast<PEIdent*>(read);
+	    if (!id || id->path().package || id->path().name.size() < 2)
+		  continue;
+
+	    symbol_search_results sr;
+	    symbol_search(li, des, scope, id->path(), UINT_MAX, &sr);
+	    const netstruct_t*record = sr.net
+		  ? dynamic_cast<const netstruct_t*>(sr.net->net_type()) : nullptr;
+	    if (record && !record->union_flag() && !record->packed()
+		&& !sr.path_tail.empty())
+		  return true;
+      }
+      return false;
+}
+
 static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
 						 const LineInfo*li, PExpr*lval,
 						 PExpr*rval,
@@ -4956,7 +4980,10 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       bool dynamic_read = !iface_read
 	    && reads_dynamic_variable_(this, des, scope,
 				       const_cast<PExpr*>(pin(1)));
-      if (iface_read || dynamic_read) {
+      bool struct_member_read = !iface_read && !dynamic_read
+	    && reads_unpacked_struct_member_(this, des, scope,
+					     const_cast<PExpr*>(pin(1)));
+      if (iface_read || dynamic_read || struct_member_read) {
 	    NetNet*lval = pin(0)->elaborate_lnet(
 		  des, scope, var_allowed_in_sv);
 	    if (!lval) {
@@ -4981,7 +5008,8 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 		  rise_time, fall_time, decay_time);
 	    elaborate_vif_member_assign_(
 		  des, scope, this, const_cast<PExpr*>(pin(0)),
-		  const_cast<PExpr*>(pin(1)), proxy, false, dynamic_read);
+		  const_cast<PExpr*>(pin(1)), proxy, false,
+		  dynamic_read || struct_member_read);
 	    return;
       }
 

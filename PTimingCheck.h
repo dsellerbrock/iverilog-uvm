@@ -156,7 +156,7 @@ class PWidth : public PTimingCheck {
     public:
       PWidth(const char*file, int line, unsigned lexical_pos,
              event_t* event, PExpr* limit, PExpr* threshold,
-             pform_name_t* notifier);
+             pform_name_t* notifier, perm_string record);
       ~PWidth() override;
       void elaborate(class Design*des, class NetScope*scope) const override;
       void dump(std::ostream&out, unsigned ind) const override;
@@ -168,6 +168,9 @@ class PWidth : public PTimingCheck {
       std::unique_ptr<pform_name_t> notifier_;
       std::string file_;
       unsigned lexical_pos_;
+	// The directive's PTchk record variable (see tc_record_), for
+	// the violation's cbTchkViolation report; empty when none.
+      perm_string record_;
 };
 
 /* The PTchk is the identity of one timing-check directive. The checker
