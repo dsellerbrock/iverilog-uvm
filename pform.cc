@@ -15641,10 +15641,21 @@ static void tc_always_at_conditioned_(const struct vlltype&loc,
       tc_always_at_(loc, unconditioned, conditioned);
 }
 
-/* The violation action: $display diagnostic + optional notifier toggle. */
+/* The first limit variable of the PTchk record tc_record_ made last, or
+   empty when it made none. Each pform_timing_check_* entry point records
+   its directive before synthesizing the checker, so this names the
+   directive whose violations the checker reports. */
+static perm_string tc_cur_rec_;
+
+/* The violation action: $display diagnostic + optional notifier toggle,
+   then $ivl_tchk_violation(<record variable>), which runs the VPI
+   cbTchkViolation callbacks with the directive's vpiTchk handle (IEEE
+   1800-2023 38.36.3). The callbacks run after the notifier toggles, so
+   they see its new value. */
 static Statement* tc_violation_(const struct vlltype&loc,
 				const char*check_name,
-				const pform_name_t*notifier)
+				const pform_name_t*notifier,
+				perm_string rec = tc_cur_rec_)
 {
       char msg[256];
       snprintf(msg, sizeof msg,
@@ -15669,8 +15680,25 @@ static Statement* tc_violation_(const struct vlltype&loc,
 	    = new PCallTask(perm_string::literal("$display"), parms);
       FILE_NAME(disp, loc);
 
-      if (notifier == 0)
-	    return disp;
+      std::vector<Statement*> stmts;
+      stmts.push_back(disp);
+      PCallTask*report = nullptr;
+      if (!rec.nil()) {
+	    list<named_pexpr_t> rparms;
+	    named_pexpr_t r1;
+	    r1.name = perm_string();
+	    r1.parm = sva_id_(loc, rec);
+	    rparms.push_back(r1);
+	    report = new PCallTask(perm_string::literal("$ivl_tchk_violation"),
+				   rparms);
+	    FILE_NAME(report, loc);
+      }
+
+      if (notifier == 0) {
+	    if (report == nullptr) return disp;
+	    stmts.push_back(report);
+	    return sva_block_(loc, stmts);
+      }
 
       /* IEEE 1800-2017/2023 Table 31-13: x becomes either 0 or 1,
          known 0/1 values toggle, and z remains z. */
@@ -15692,9 +15720,8 @@ static Statement* tc_violation_(const struct vlltype&loc,
       PAssign*tog = new PAssign(tc_name_id_(loc, *notifier), notifier_value);
       FILE_NAME(tog, loc);
 
-      std::vector<Statement*> stmts;
-      stmts.push_back(disp);
       stmts.push_back(tog);
+      if (report) stmts.push_back(report);
       return sva_block_(loc, stmts);
 }
 
@@ -15757,6 +15784,7 @@ static std::vector<PExpr*> tc_record_(const struct vlltype&loc, int type,
 				       const pform_name_t*notifier)
 {
       std::vector<PExpr*> refs;
+      tc_cur_rec_ = perm_string();
       PTimingCheck::event_t*ref = tc_event_copy_(ref_ev);
       PTimingCheck::event_t*data = data_ev ? tc_event_copy_(*data_ev) : nullptr;
       bool ok = ref && (data_ev == nullptr || data);
@@ -15781,6 +15809,7 @@ static std::vector<PExpr*> tc_record_(const struct vlltype&loc, int type,
 	    vars.push_back(tc_make_real_(loc, inst, what, 0.0, false));
 	    refs.push_back(sva_id_(loc, vars.back()));
       }
+      if (!vars.empty()) tc_cur_rec_ = vars.front();
       PTchk*rec = new PTchk(type, ref, data, kept, vars,
 			    notifier ? new pform_name_t(*notifier) : nullptr);
       FILE_NAME(rec, loc);
@@ -16370,16 +16399,17 @@ void pform_timing_check_width(const struct vlltype&loc,
 			  {&limit, &threshold});
       PWidth*check = new PWidth(loc.text, loc.first_line, loc.lexical_pos,
 				 event, limit, threshold,
-				 notifier ? new pform_name_t(*notifier) : nullptr);
+				 notifier ? new pform_name_t(*notifier) : nullptr,
+				 tc_cur_rec_);
       FILE_NAME(check, loc);
       pform_module_timing_check(check);
 }
 
 PWidth::PWidth(const char*file, int line, unsigned lexical_pos,
 	       event_t*event, PExpr*limit, PExpr*threshold,
-	       pform_name_t*notifier)
+	       pform_name_t*notifier, perm_string record)
 : event_(event), limit_(limit), threshold_(threshold), notifier_(notifier),
-  file_(file ? file : ""), lexical_pos_(lexical_pos)
+  file_(file ? file : ""), lexical_pos_(lexical_pos), record_(record)
 {
 	set_file(filename_strings.make(file_.c_str()));
 	set_lineno(line);
@@ -16542,7 +16572,8 @@ void PWidth::elaborate(Design*des, NetScope*scope) const
 					  thresholds[bit].release()));
 	    }
 	    PCondit*check = new PCondit(cond,
-					tc_violation_(loc, "$width", notifier_.get()),
+					tc_violation_(loc, "$width", notifier_.get(),
+						      record_),
 					nullptr);
 	    FILE_NAME(check, loc);
 	    tc_width_process_at_(loc, des, scope, bit_name, event_->negedge,
