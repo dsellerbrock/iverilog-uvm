@@ -860,6 +860,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%store/vec4",    of_STORE_VEC4,    3, {OA_FUNC_PTR,OA_BIT1, OA_BIT2} },
       { "%store/vec4/v",  of_STORE_VEC4_VALUE,2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%store/vec4a",   of_STORE_VEC4A,   3, {OA_ARR_PTR, OA_BIT1, OA_BIT2} },
+      { "%stream/cast/size", of_STREAM_CAST_SIZE, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/end/l",  of_STREAM_END_L,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/end/r",  of_STREAM_END_R,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/flatten/assoc", of_STREAM_FLATTEN_ASSOC, 1, {OA_NUMBER, OA_NONE, OA_NONE} },

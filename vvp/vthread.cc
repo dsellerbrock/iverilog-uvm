@@ -28722,6 +28722,22 @@ bool of_STREAM_FLATTEN_ASSOC(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_STREAM_CAST_SIZE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t value = thr->pop_vec4();
+      unsigned width = cp->number;
+      if (width == 0 || value.size() != width) {
+	    cerr << thr->get_fileline() << "VVP error: bit-stream cast source size "
+		 << value.size() << " does not match destination width "
+		 << width << "." << endl;
+	    vpip_set_return_value(1);
+	    if (!schedule_finished()) schedule_finish(0);
+	    return false;
+      }
+      thr->push_vec4(value);
+      return true;
+}
+
 namespace {
 
 /* Keep every range-derived allocation below a process-independent cap.  The
