@@ -24686,11 +24686,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* M12B-cb SUCCESS fold (the NFA hook runs before the legacy
 	   fold, so replicate it): assertion matches report
-	   cbAssertionSuccess. Negated properties have no pass path; cover
+	   cbAssertionSuccess. Cover
 	   keeps a counter and dispatches attached calls separately. */
       if (sub) {
 	      /* no reporting: the parent dispatches */
-      } else if (!negated && !cover) {
+      } else if (!cover) {
 	    if (match_action) {
 		  std::vector<Statement*>ordered;
 		  ordered.push_back(match_action);
@@ -25005,7 +25005,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
       }
       perm_string r_p;
-      if (!negated && !cover && !sub) {
+      if (!cover && !sub) {
 	    r_p = sva_make_reg_(loc, inst, "p", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
@@ -25207,7 +25207,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (!cover) {
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
 	    }
-	    if (!negated && !cover)
+	    if (!cover && !sub)
 		  clr.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
 	    return sva_block_(loc, clr);
       };
@@ -25621,8 +25621,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
 					  nonvacuous, sva_block_(loc, vac)));
 		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
-	    } else if (!negated && !cover && !endpoint_fanout) {
-		  die_v.push_back(increment_verdict(r_f, k));
+	    } else if (!cover && !endpoint_fanout) {
+		  die_v.push_back(increment_verdict(negated ? r_p : r_f, k));
 	    }
 	    clear_slot(k, die_v);
 
@@ -25897,7 +25897,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       Statement*slot_pass = nullptr;
       Statement*slot_fail = nullptr;
       bool slot_pass_guarded = false;
-      if (!negated && !cover) {
+      if (!cover) {
 	    std::vector<Statement*> hit;
 	    if (implication && slot_dispatch) {
 		  PExpr*nonvacuous = new PEBinary('-', sva_id_(loc, r_p),
@@ -37319,7 +37319,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    user_pass = pass_stmt;
 	    pass_stmt = sva_assign_(loc, pass_req,
 		  new PEBinary('+', sva_id_(loc, pass_req), sva_num32_(loc, 1)));
-      } else if (kind != 2 && !negated) {
+      } else if (kind != 2) {
 	    pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
       }
 
@@ -37495,6 +37495,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       perm_string r_g = sva_make_reg_(loc, inst, "g", 0);
       init_zero.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
       perm_string r_f;
+      perm_string r_neg_pass;
       perm_string r_cnt;
       if (kind == 2) {
 	    r_cnt = sva_make_reg_(loc, inst, "cnt", 0, true);
@@ -37506,12 +37507,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	       attempts until the Reactive action dispatch. */
 	    r_f = sva_make_reg_(loc, inst, "f", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+	    if (negated) {
+		  r_neg_pass = sva_make_reg_(loc, inst, "np", 0, true);
+		  init_zero.push_back(sva_assign_(loc, r_neg_pass, sva_bit_(loc, 0)));
+	    }
       }
       auto increment_failure = [&]() -> Statement* {
 	    PEBinary*add = new PEBinary('+', sva_id_(loc, r_f),
 				       sva_bit_(loc, 1));
 	    FILE_NAME(add, loc);
 	    return sva_assign_(loc, r_f, add);
+      };
+      auto increment_neg_pass = [&]() -> Statement* {
+	    return sva_assign_(loc, r_neg_pass,
+		  new PEBinary('+', sva_id_(loc, r_neg_pass), sva_bit_(loc, 1)));
       };
       /* Only fixed, non-negated chains have one unique failure age for
 	 each pipeline token. Keep the existing two-argument report for
@@ -37549,6 +37558,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    clr.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
 	    if (kind != 2) {
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+		  if (negated)
+			clr.push_back(sva_assign_(loc, r_neg_pass, sva_bit_(loc, 0)));
 		  for (size_t age = 0; age < failure_at_age.size(); ++age)
 			clr.push_back(sva_assign_(loc, failure_at_age[age],
 					      sva_bit_(loc, 0)));
@@ -37671,6 +37682,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    std::vector<Statement*> hit;
 	    if (kind != 2 && !negated)
 		  hit.push_back(increment_failure());
+	    else if (negated)
+		  hit.push_back(increment_neg_pass());
 	    if (track_failure_age)
 		  hit.push_back(sva_assign_(loc, failure_at_age[0],
 					    sva_bit_(loc, 1)));
@@ -37694,6 +37707,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    std::vector<Statement*> hit;
 	    if (kind != 2 && !negated)
 		  hit.push_back(increment_failure());
+	    else if (negated)
+		  hit.push_back(increment_neg_pass());
 	    if (track_failure_age)
 		  hit.push_back(sva_assign_(loc,
 			failure_at_age[(size_t)offs[j]], sva_bit_(loc, 1)));
@@ -37779,9 +37794,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			sat.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
 	    }
 	    std::vector<Statement*> miss;
-	    if (kind != 2 && !negated) {
+	    if (kind != 2) {
 		  std::vector<Statement*> mhit;
-		  mhit.push_back(increment_failure());
+		  mhit.push_back(negated ? increment_neg_pass() : increment_failure());
 		  mhit.push_back(sva_assign_(loc, w_regs[win_n], sva_bit_(loc, 0)));
 		  PCondit*mc = new PCondit(sva_id_(loc, w_regs[win_n]),
 					   sva_block_(loc, mhit), nullptr);
@@ -37941,6 +37956,15 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				       sva_id_(loc, t_regs[p-2])));
       if (P >= 1)
 	    body.push_back(sva_assign_(loc, t_regs[0], sva_id_(loc, r_g)));
+
+      if (negated) {
+	    std::vector<Statement*> hit;
+	    hit.push_back(sva_repeat_(loc, sva_id_(loc, r_neg_pass), pass_stmt));
+	    hit.push_back(sva_assign_(loc, r_neg_pass, sva_bit_(loc, 0)));
+	    body.push_back(sva_if_(loc, sva_id_(loc, r_neg_pass),
+				   sva_block_(loc, hit), nullptr));
+	    pass_stmt = nullptr;
+      }
 
 	/* Fail dispatch (assert/assume). */
       if (kind != 2) {
