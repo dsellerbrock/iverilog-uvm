@@ -33,11 +33,15 @@ extern void vpip_run_statement_callbacks(struct vvp_code_s*code);
 extern vpiHandle vpip_set_force_statement(vpiHandle statement);
 extern void vpip_note_force_statement(struct vvp_code_s*code, vpiHandle statement);
 extern vpiHandle vpip_force_statement_for(struct vvp_code_s*code);
+/* A force, release, assign or deassign statement runs: update which of
+   them are active (IEEE 1800-2023 37.16 details 14 and 15). */
+extern void vpip_force_statement_ran(vpiHandle statement);
 
 class vvp_force_statement_context {
     public:
       explicit vvp_force_statement_context(vpiHandle statement)
-          : previous_(vpip_set_force_statement(statement)) { }
+          : previous_(vpip_set_force_statement(statement))
+          { vpip_force_statement_ran(statement); }
       ~vvp_force_statement_context() { vpip_set_force_statement(previous_); }
     private:
       vpiHandle previous_;

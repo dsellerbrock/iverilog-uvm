@@ -600,6 +600,11 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
       return strdup(buffer);
 }
 
+char* draw_vpi_lazy_expr(ivl_expr_t expr)
+{
+      return draw_lazy_expr_(expr);
+}
+
 /* The functor label whose output is the driver named NAME in SCOPE (a
    logic device or LPM), or nil. An elided BUFZ is represented by its
    input. The runtime resolves this label leniently: a driver that is not
