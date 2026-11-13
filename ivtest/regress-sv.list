@@ -6740,3 +6740,7 @@ issue3002_property_truth_2017 normal,-g2017,-gassertions,-s,issue3002_property_t
 issue3002_property_truth_2023 normal,-g2023,-gassertions,-s,issue3002_property_truth ivltests gold=issue3002_property_truth.gold
 issue2979_constraint_guard_order_2017 normal,-g2017,-s,main ivltests gold=issue2979_constraint_guard_order.gold
 issue2979_constraint_guard_order_2023 normal,-g2023,-s,main ivltests gold=issue2979_constraint_guard_order.gold
+issue3088_period_invalid_2017 CE,-g2017,-gspecify,-s,top ivltests gold=issue3088_period_invalid.gold
+issue3088_period_valid_2017 normal,-g2017,-gspecify,-s,top ivltests gold=issue3088_period_valid.gold
+issue3088_period_invalid_2023 CE,-g2023,-gspecify,-s,top ivltests gold=issue3088_period_invalid.gold
+issue3088_period_valid_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue3088_period_valid.gold
