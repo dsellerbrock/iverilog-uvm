@@ -271,10 +271,12 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv  = vpi_iterate(vpiArgument, callh);
-      char nbuf[1024], fbuf[1024];
+      char nbuf[1024], fbuf[1024], ibuf[1024];
       const char*nm = "";
       const char*fl = "";
       PLI_INT32 idx = 0, ln = 0, depth = 0, flags = 0, assertion_kind = 1;
+      PLI_INT32 inst_kind = 0;
+      ibuf[0] = 0;
       (void)name;
       nbuf[0] = 0; fbuf[0] = 0;
       if (argv) {
@@ -325,12 +327,28 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 			v.format = vpiIntVal;
 			vpi_get_value(a, &v);
 			assertion_kind = v.value.integer;
+			  /* 39.4.2: optional top-level property (1) or
+			     sequence (2) instance and its name. */
+			if ((a = vpi_scan(argv))) {
+			      v.format = vpiIntVal;
+			      vpi_get_value(a, &v);
+			      inst_kind = v.value.integer;
+			      if ((a = vpi_scan(argv))) {
+				    v.format = vpiStringVal;
+				    vpi_get_value(a, &v);
+				    if (v.value.str) {
+					  strncpy(ibuf, v.value.str,
+						  sizeof ibuf - 1);
+					  ibuf[sizeof ibuf - 1] = 0;
+				    }
+			      }
+			}
 		  }
-		  vpi_free_object(argv);
+		  if (a) vpi_free_object(argv);
 	    }
       }
       vpip_register_assertion(idx, nm, fl, ln, vpi_handle(vpiScope, callh),
-			      depth, flags, assertion_kind);
+			      depth, flags, assertion_kind, inst_kind, ibuf);
       return 0;
 }
 

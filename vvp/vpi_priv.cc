@@ -1783,6 +1783,10 @@ static vpiHandle vpi_iterate_global(int type)
 	    // M12B: all concurrent assertions in the design.
 	    return vpip_make_assertion_iterator();
 
+	  case vpiPropertyInst:
+	  case vpiSequenceInst:
+	    return vpip_make_assertion_inst_iterator(type);
+
 	  case vpiUserSystf:
 	    return vpip_make_systf_iterator();
       }

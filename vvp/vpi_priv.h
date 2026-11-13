@@ -526,6 +526,8 @@ extern vpiHandle vpip_make_root_iterator(int type_code);
 extern vpiHandle vpip_make_covergroup_iterator(void);
 /* M12B: iterator over all registered assertions (vpi_iterate(vpiAssertion, 0)). */
 extern vpiHandle vpip_make_assertion_iterator(void);
+/* 39.4.2: every top-level vpiPropertyInst or vpiSequenceInst. */
+extern vpiHandle vpip_make_assertion_inst_iterator(int type);
 /* Simple immediate-assertion identities registered while the VVP image is
    linked, before VPI start-of-simulation callbacks run. */
 extern void vpip_register_immediate_assertion(PLI_INT32 source_id,

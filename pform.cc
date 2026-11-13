@@ -15484,6 +15484,11 @@ static perm_string sva_parser_assertion_label_;
 static unsigned sva_assertion_label_depth_ = 0;
 /* IEEE assertion-control selector: assert=1, cover=2, assume=4. */
 static unsigned sva_active_assertion_kind_ = 1;
+/* IEEE 1800-2023 39.4.2: the named property (1) or sequence (2) instance
+   that is the whole property of the assertion being synthesized, or 0. Its
+   VPI handle carries that instance's start, success and failure callbacks. */
+static unsigned sva_active_instance_kind_ = 0;
+static perm_string sva_active_instance_name_;
 
 /* M12B: build the one-time `$ivl_register_assertion` call that gives a
    synthesized concurrent-assertion checker a VPI identity
@@ -15544,6 +15549,15 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
       a6.parm = new PENumber(new verinum(
 	    (uint64_t)sva_active_assertion_kind_, 32));
       args.push_back(a6);
+      if (sva_active_instance_kind_) {
+	    named_pexpr_t a7;
+	    a7.parm = new PENumber(new verinum(
+		  (uint64_t)sva_active_instance_kind_, 32));
+	    args.push_back(a7);
+	    named_pexpr_t a8;
+	    a8.parm = new PEString(strdup(sva_active_instance_name_.str()));
+	    args.push_back(a8);
+      }
       PCallTask*t = new PCallTask(
 	    lex_strings.make("$ivl_register_assertion"), args);
       FILE_NAME(t, loc);
@@ -31489,7 +31503,9 @@ class sva_assertion_label_scope_t {
       explicit sva_assertion_label_scope_t(perm_string label, int kind,
 					   unsigned proc_id)
       : outer_(sva_active_assertion_label_), outer_kind_(sva_active_assertion_kind_),
-	outer_proc_id_(sva_active_proc_id_)
+	outer_proc_id_(sva_active_proc_id_),
+	outer_instance_kind_(sva_active_instance_kind_),
+	outer_instance_name_(sva_active_instance_name_)
       {
 	    if (sva_assertion_label_depth_ == 0)
 		  sva_active_assertion_label_ = label.nil()
@@ -31509,13 +31525,51 @@ class sva_assertion_label_scope_t {
 	    sva_active_assertion_label_ = outer_;
 	    sva_active_assertion_kind_ = outer_kind_;
 	    sva_active_proc_id_ = outer_proc_id_;
+	    sva_active_instance_kind_ = outer_instance_kind_;
+	    sva_active_instance_name_ = outer_instance_name_;
       }
 
     private:
       perm_string outer_;
       unsigned outer_kind_;
       unsigned outer_proc_id_;
+      unsigned outer_instance_kind_;
+      perm_string outer_instance_name_;
 };
+
+/* 39.4.2: is this whole property a bare named property or sequence
+   instance, `p', `p(args)', `s' or `s(args)'? Instances nested inside a
+   larger property have no handle yet. */
+static void sva_note_top_instance_(const sva_property_t*prop)
+{
+      sva_active_instance_kind_ = 0;
+      if (!prop || prop->op_type != 0 || prop->antecedent || prop->tree
+	  || !prop->seq || prop->seq->size() != 1)
+	    return;
+      const PExpr*expr = (*prop->seq)[0].expr;
+      perm_string name;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
+	    const pform_name_t&path = id->path().name;
+	    if (id->path().package || path.size() != 1
+		|| !path.front().index.empty())
+		  return;
+	    name = path.front().name;
+      } else if (const PECallFunction*call =
+		       dynamic_cast<const PECallFunction*>(expr)) {
+	    const pform_name_t&path = call->path().name;
+	    if (call->path().package || path.size() != 1) return;
+	    name = path.front().name;
+      } else {
+	    return;
+      }
+      if (sva_in_scope_(sva_module_properties, name)
+	  || sva_in_scope_(sva_param_properties, name))
+	    sva_active_instance_kind_ = 1;
+      else if (sva_in_scope_(sva_module_sequences, name)
+	       || sva_in_scope_(sva_param_sequences, name))
+	    sva_active_instance_kind_ = 2;
+      sva_active_instance_name_ = name;
+}
 
 static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
 						 const struct vlltype&loc,
@@ -35802,6 +35856,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 {
       pform_generated_verification_scope_t verification_scope;
       sva_assertion_label_scope_t assertion_label_scope(label, kind, proc_id);
+      if (sva_assertion_label_depth_ == 1)
+	    sva_note_top_instance_(prop);
       sva_clocking_scope_guard_t clocking_scope(prop);
       if (kind == 1) sva_note_checker_assume_(loc);
 
