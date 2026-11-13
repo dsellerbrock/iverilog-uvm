@@ -46,6 +46,10 @@
 # include  <climits>
 # include  "ivl_assert.h"
 
+// Clocking output targets may include both nets and variables. Nets need
+// the existing force-capable lvalue path; variables use ordinary lvalues.
+bool clocking_output_concat_lval = false;
+
 /* A bit or part select of a packed property. An enum or packed struct is
  * written as the flat vector of its bits, like a `logic [N-1:0]' property. */
 static const netvector_t*packed_select_view_(ivl_type_t type)
@@ -1134,6 +1138,11 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       }
 
       ivl_assert(*this, reg);
+
+      if (clocking_output_concat_lval
+	  && (reg->type() == NetNet::REG || reg->type() == NetNet::IMPLICIT_REG
+	      || (reg->type() == NetNet::UNRESOLVED_WIRE && reg->coerced_to_uwire())))
+	    is_force = false;
 
 	/* Match the constant-function read-side rule for a string character
 	   l-value. A declaration in the function or one of its nested lexical
