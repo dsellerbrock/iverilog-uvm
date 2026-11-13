@@ -1025,6 +1025,8 @@ extern void pform_set_parameter(const struct vlltype&loc,
                                 PExpr*expr, LexicalScope::range_t*value_range,
                                 type_parameter_restriction_t restriction =
                                       type_parameter_restriction_t::NONE);
+extern void pform_set_pathpulse(const struct vlltype&loc, const char*name,
+				PExpr*reject, PExpr*error);
 extern void pform_set_specparam(const struct vlltype&loc,
 				 perm_string name,
 				 std::list<pform_range_t>*range,

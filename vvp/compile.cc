@@ -3029,6 +3029,18 @@ void compile_modpath_src(struct __vpiModPath*dst, char edge,
       compile_vpi_lookup(&obj->path_term_in.expr, path_term_in.text);
 }
 
+void compile_modpath_src_pulse(struct __vpiModPath*, uint64_t reject,
+			       uint64_t error)
+{
+      assert(last_modpath_src_);
+      vvp_time64_t rej[12], err[12];
+      for (unsigned idx = 0 ; idx < 12 ; idx += 1) {
+	    rej[idx] = reject;
+	    err[idx] = error;
+      }
+      last_modpath_src_->put_pulse_limits12(rej, err);
+}
+
 void compile_modpath_src_part(struct __vpiModPath*dst,
 			      unsigned dbase, unsigned dwid,
 			      unsigned sbase, unsigned swid)

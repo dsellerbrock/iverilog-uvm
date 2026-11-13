@@ -721,6 +721,18 @@ class NetDelaySrc  : public NetObj {
       { return idx < src_parts_.size() ? src_parts_[idx].first : 0; }
       unsigned src_width(unsigned idx) const
       { return idx < src_parts_.size() ? src_parts_[idx].second : 0; }
+	// PATHPULSE$ limits (30.7.1) for the path from source pin idx.
+      void set_pulse_limits(unsigned idx, uint64_t reject, uint64_t error)
+      { pulse_limits_.resize(src_count());
+	pulse_limits_[idx].set = true;
+	pulse_limits_[idx].reject = reject;
+	pulse_limits_[idx].error = error; }
+      bool pulse_limits(unsigned idx, uint64_t&reject, uint64_t&error) const
+      { if (idx >= pulse_limits_.size() || !pulse_limits_[idx].set)
+		  return false;
+	reject = pulse_limits_[idx].reject;
+	error = pulse_limits_[idx].error;
+	return true; }
 	// The delay expressions that use annotatable specparams, one per
 	// declared delay, so SDF LABEL can re-evaluate them (IEEE 1800
 	// 32.4.3). Empty when the delays are plain constants.
@@ -732,6 +744,8 @@ class NetDelaySrc  : public NetObj {
       unsigned dst_base_ = 0;
       unsigned dst_width_ = 0;
       std::vector<std::pair<unsigned,unsigned> > src_parts_;
+      struct pulse_limit_t { bool set = false; uint64_t reject = 0, error = 0; };
+      std::vector<pulse_limit_t> pulse_limits_;
       uint64_t transition_delays_[12];
       bool condit_flag_;
       bool conditional_;

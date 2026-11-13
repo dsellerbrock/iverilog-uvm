@@ -19652,13 +19652,12 @@ specparam
 	delete[]$1;
       }
   | PATHPULSE_IDENTIFIER '=' expression
-      { delete[]$1;
-	delete $3;
+      { pform_set_pathpulse(@1, $1, $3, 0);
+	delete[]$1;
       }
   | PATHPULSE_IDENTIFIER '=' '(' expression ',' expression ')'
-      { delete[]$1;
-	delete $4;
-	delete $6;
+      { pform_set_pathpulse(@1, $1, $4, $6);
+	delete[]$1;
       }
   ;
 

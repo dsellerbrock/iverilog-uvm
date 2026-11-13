@@ -1,0 +1,23 @@
+4 oz=0
+4 oy=0
+4 gy=0
+4 y=0
+14 oy=1
+14 gy=1
+15 oy=0
+15 gy=0
+35 oy=1
+35 gy=1
+35 y=x
+37 oy=0
+37 gy=0
+37 y=0
+57 oz=1
+57 oy=1
+57 gy=1
+57 y=1
+62 oz=0
+62 oy=0
+62 gy=0
+62 y=0
+ivltests/issue1240_pathpulse.v:52: $finish called at 98 (1ns)

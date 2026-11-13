@@ -31919,6 +31919,28 @@ static bool resolve_specify_path_terminal_(Design*des, const LineInfo*loc,
       return true;
 }
 
+/* Evaluate a constant path delay or pulse limit, scaled for the scope's
+   timescale and precision like the path delays themselves. */
+static bool specify_delay_value_(Design*des, NetScope*scope, PExpr*exp,
+				 uint64_t&value)
+{
+      NetExpr*cur = elab_and_eval(des, scope, exp, -1);
+      bool ok = true;
+      if (const NetEConst*con = dynamic_cast<NetEConst*>(cur)) {
+	    value = des->scale_to_precision(con->value().as_ulong64(), scope);
+      } else if (const NetECReal*rcon = dynamic_cast<NetECReal*>(cur)) {
+	    value = get_scaled_time_from_real(des, scope, rcon);
+      } else {
+	    cerr << exp->get_fileline() << ": error: Path delay value "
+		 << "must be constant (" << *cur << ")." << endl;
+	    des->errors += 1;
+	    value = 0;
+	    ok = false;
+      }
+      delete cur;
+      return ok;
+}
+
 /* IEEE 1800 30.4.2: a path terminal may name a constant bit- or
    part-select of a vector port. Return its canonical bits as [lo,
    lo+wid). A terminal without a select is the whole vector. */
@@ -32462,6 +32484,25 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  connect(src_sig->pin(0), path->pin(idx));
 		  if (src_wid != src_sig->vector_width())
 			path->set_src_part(idx, src_part[src_idx].first, src_wid);
+
+		    // 30.7.1: PATHPULSE$<input>$<output> sets the pulse
+		    // limits of this path, and PATHPULSE$ those of every
+		    // path in the module. One value is both limits.
+		  if (module && !src_terminal.dotted() && !terminal.dotted()) {
+			std::string key = std::string(src_terminal.name.str())
+			      + "$" + terminal.name.str();
+			auto pp = module->pathpulses.find(lex_strings.make(key.c_str()));
+			if (pp == module->pathpulses.end())
+			      pp = module->pathpulses.find(perm_string::literal(""));
+			uint64_t reject, error;
+			if (pp != module->pathpulses.end()
+			    && specify_delay_value_(des, scope, pp->second.reject, reject)
+			    && (!pp->second.error
+				|| specify_delay_value_(des, scope, pp->second.error, error))) {
+			      if (!pp->second.error) error = reject;
+			      path->set_pulse_limits(idx, reject, error);
+			}
+		  }
 		  idx += 1;
 	    }
 	    if (debug_elaborate) {
