@@ -305,6 +305,18 @@ static char* scope_get_str(int code, vpiHandle obj)
 	    p = ref->scope_def_name();
 	    break;
 
+	  case vpiLibrary:
+	    if (ref->get_type_code() != vpiModule) return NULL;
+	    // Library-based configuration binding is not supported; all
+	    // accepted module definitions belong to the default work library.
+	    p = "work";
+	    break;
+
+	  case vpiCell:
+	    if (ref->get_type_code() != vpiModule) return NULL;
+	    p = ref->scope_def_name();
+	    break;
+
 	  case vpiDPICIdentifier:
 	    p = ref->dpi_c_identifier;
 	    if (!p) return NULL;
