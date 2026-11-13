@@ -1,0 +1,4 @@
+issue3096_protect_author_2017 normal,-g2017,-s,issue3096_protect_author ivltests gold=issue3096_protect_author.gold
+issue3096_protect_author_2023 normal,-g2023,-s,issue3096_protect_author ivltests gold=issue3096_protect_author.gold
+issue3096_protect_envelope_2017 CE,-g2017,-s,issue3096_protect_envelope ivltests gold=issue3096_protect_envelope.gold
+issue3096_protect_envelope_2023 CE,-g2023,-s,issue3096_protect_envelope ivltests gold=issue3096_protect_envelope.gold

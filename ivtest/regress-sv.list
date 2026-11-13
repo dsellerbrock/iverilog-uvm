@@ -6778,3 +6778,7 @@ issue3088_period_invalid_2023 CE,-g2023,-gspecify,-s,top ivltests gold=issue3088
 issue3088_period_valid_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue3088_period_valid.gold
 issue3136_clocking_select_2017 normal,-g2017,-gassertions,-s,issue3136_clocking_select ivltests gold=issue3136_clocking_select.gold
 issue3136_clocking_select_2023 normal,-g2023,-gassertions,-s,issue3136_clocking_select ivltests gold=issue3136_clocking_select.gold
+issue3096_protect_author_2017 normal,-g2017,-s,issue3096_protect_author ivltests gold=issue3096_protect_author.gold
+issue3096_protect_author_2023 normal,-g2023,-s,issue3096_protect_author ivltests gold=issue3096_protect_author.gold
+issue3096_protect_envelope_2017 CE,-g2017,-s,issue3096_protect_envelope ivltests gold=issue3096_protect_envelope.gold
+issue3096_protect_envelope_2023 CE,-g2023,-s,issue3096_protect_envelope ivltests gold=issue3096_protect_envelope.gold
