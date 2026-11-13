@@ -19927,6 +19927,10 @@ pform_sva_prop_implies(const struct vlltype&loc,
       PExpr*ae = sva_take_bool_seq_(loc, "implies", a);
       PExpr*be = sva_take_bool_seq_(loc, "implies", b);
       if (!ae || !be) { delete ae; delete be; return nullptr; }
+	/* Property operands interpret X and Z as false (16.6). */
+      ae = new PEBComp('E', sva_booleanize_(loc, ae), sva_bit_(loc, 1));
+      be = new PEBComp('E', sva_booleanize_(loc, be), sva_bit_(loc, 1));
+	FILE_NAME(ae, loc); FILE_NAME(be, loc);
 	/* a implies b  ==  !a | b */
       return sva_wrap_bool_(sva_logic_(loc, 'o', sva_not_(loc, ae), be));
 }
@@ -19939,6 +19943,10 @@ pform_sva_prop_iff(const struct vlltype&loc,
       PExpr*ae = sva_take_bool_seq_(loc, "iff", a);
       PExpr*be = sva_take_bool_seq_(loc, "iff", b);
       if (!ae || !be) { delete ae; delete be; return nullptr; }
+	/* Convert each expression to its two-state property outcome. */
+      ae = new PEBComp('E', sva_booleanize_(loc, ae), sva_bit_(loc, 1));
+      be = new PEBComp('E', sva_booleanize_(loc, be), sva_bit_(loc, 1));
+	FILE_NAME(ae, loc); FILE_NAME(be, loc);
 	/* a iff b  ==  (a & b) | (!a & !b) */
       PExpr*both = sva_logic_(loc, 'a', sva_clone_expr_(ae), sva_clone_expr_(be));
       PExpr*neither = sva_logic_(loc, 'a', sva_not_(loc, ae), sva_not_(loc, be));

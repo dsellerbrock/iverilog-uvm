@@ -6736,3 +6736,5 @@ issue2977_pure_static_mismatch_2017 CE,-g2017,-s,top ivltests gold=issue2977_pur
 issue2977_pure_static_mismatch_2023 CE,-g2023,-s,top ivltests gold=issue2977_pure_static_mismatch.gold
 issue2999_named_property_not_2017 normal,-g2017,-gassertions,-s,issue2999_named_property_not ivltests gold=issue2999_named_property_not.gold
 issue2999_named_property_not_2023 normal,-g2023,-gassertions,-s,issue2999_named_property_not ivltests gold=issue2999_named_property_not.gold
+issue3002_property_truth_2017 normal,-g2017,-gassertions,-s,issue3002_property_truth ivltests gold=issue3002_property_truth.gold
+issue3002_property_truth_2023 normal,-g2023,-gassertions,-s,issue3002_property_truth ivltests gold=issue3002_property_truth.gold
