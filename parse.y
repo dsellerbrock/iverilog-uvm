@@ -252,6 +252,10 @@ static void sva_mark_first_match_(std::vector<sva_seq_step_t>&steps)
 	  for (size_t i = 0 ; i < steps.size() ; i += 1)
 		nested = nested || steps[i].fm;
 	  unsigned group = nested ? 0 : pform_sva_new_first_match_group_id();
+	  if (!steps.empty()) {
+		steps[0].fm_first_delay_lo = steps[0].delay_lo;
+		steps[0].fm_first_delay_hi = steps[0].delay_hi;
+	  }
 	  for (size_t i = 0 ; i < steps.size() ; i += 1) {
 		steps[i].fm = true;
 		steps[i].fm_group = group;

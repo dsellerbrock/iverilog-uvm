@@ -48,8 +48,19 @@ sva_first_match_group_class_t pform_sva_first_match_group_class(
 		|| !st.group_repeat_opens.empty() || !st.group_repeat_closes.empty()
 		|| !st.group_repeat_members.empty())
 		  return SVA_FIRST_MATCH_UNSUPPORTED;
-	    if (i != first
-		&& (st.delay_lo != st.delay_hi || st.delay_hi == -1))
+	    if (i == first) {
+		  long lo = st.fm_first_delay_lo, hi = st.fm_first_delay_hi;
+		  if (lo != hi || hi == -1) {
+			/* An outer range would create distinct wrapper attempts;
+			   merging it into the intrinsic window cannot share one cut. */
+			if (lo < 0 || st.delay_lo < lo
+			    || (hi == -1 && st.delay_hi != -1)
+			    || (hi >= 0 && (st.delay_hi < hi
+			        || st.delay_hi - hi != st.delay_lo - lo)))
+			      return SVA_FIRST_MATCH_UNSUPPORTED;
+			variable = true;
+		  }
+	    } else if (st.delay_lo != st.delay_hi || st.delay_hi == -1)
 		  variable = true;
       }
       if (first == steps.size()) return SVA_FIRST_MATCH_UNSUPPORTED;
