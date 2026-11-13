@@ -18,7 +18,10 @@
  */
 
 # include  "netlist.h"
+# include  "netclass.h"
+# include  "netdarray.h"
 # include  "netparray.h"
+# include  "netscalar.h"
 # include  "netstruct.h"
 # include  "netvector.h"
 # include  <iostream>
@@ -26,6 +29,24 @@
 # include  "ivl_assert.h"
 
 using namespace std;
+
+static bool net_type_contains_dynamic_(ivl_type_t type)
+{
+      if (dynamic_cast<const netdarray_t*>(type)
+	  || dynamic_cast<const netclass_t*>(type)
+	  || dynamic_cast<const netstring_t*>(type))
+	    return true;
+
+      if (const netarray_t*array = dynamic_cast<const netarray_t*>(type))
+	    return net_type_contains_dynamic_(array->element_type());
+
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (net_type_contains_dynamic_(member.net_type))
+			return true;
+      }
+      return false;
+}
 
 static bool net_type_contains_chandle_(ivl_type_t type)
 {
@@ -102,6 +123,15 @@ void netstruct_t::packed(bool flag)
 void netstruct_t::append_member(Design*des, const netstruct_t::member_t&val)
 {
       ivl_assert(*this, val.net_type);
+
+	// IEEE 1800-2017/2023 7.3.2 forbids dynamic types in untagged
+	// unions, including aggregates containing dynamic members.
+      if (union_ && !tagged_ && net_type_contains_dynamic_(val.net_type)) {
+	    cerr << get_fileline() << ": error: dynamic type is not permitted "
+		 << "in untagged union member '" << val.name
+		 << "' (IEEE 1800-2017/2023 7.3.2)." << endl;
+	    des->errors += 1;
+      }
 
 	// IEEE 1800-2017/2023 6.14 excludes chandle from packed types and
 	// untagged unions. Check the elaborated member type so typedefs and
