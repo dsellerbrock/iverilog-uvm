@@ -1,0 +1,8 @@
+ai: V5 P15
+ae: P5 P15
+am: V5 P15
+ac: V5 P15
+ad: P5 P15
+an: V5 P15
+ax: P5 P15
+ivltests/issue3011_vacuity_cb.sv:17: $finish called at 16 (1s)

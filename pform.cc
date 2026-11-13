@@ -19707,8 +19707,10 @@ pform_sva_prop_implies(const struct vlltype&loc,
       PExpr*ae = sva_take_bool_seq_(loc, "implies", a);
       PExpr*be = sva_take_bool_seq_(loc, "implies", b);
       if (!ae || !be) { delete ae; delete be; return nullptr; }
-	/* a implies b  ==  !a | b */
-      return sva_wrap_bool_(sva_logic_(loc, 'o', sva_not_(loc, ae), be));
+	/* Boolean antecedents are always nonvacuous.  Preserve the false
+	   antecedent as a vacuous success instead of folding it into a
+	   nonvacuous Boolean sequence. */
+      return pform_sva_prop_if(loc, ae, sva_wrap_bool_(be), nullptr);
 }
 
 sva_property_t*
@@ -19729,17 +19731,9 @@ sva_property_t*
 pform_sva_prop_if(const struct vlltype&loc, PExpr*cond,
 		  sva_property_t*then_p, sva_property_t*else_p)
 {
-	/* IEEE 1800-2023 16.12.6: the branches are full properties. Only an
-	   all-boolean if-else folds into one boolean; anything else is a
-	   property operator evaluated per attempt. */
-      auto boolean = [](const sva_property_t*b) -> bool {
-	    return b && b->op_type == 0 && !b->antecedent && !b->tree && !b->pa
-		&& b->seq && b->seq->size() == 1
-		&& sva_step_is_single_boolean_((*b->seq)[0])
-		&& !b->clk_evt && !b->seq_clk_evt && !b->mc_prefix
-		&& b->mc_boundary == -1 && !b->disable_iff_expr;
-      };
-      if (cond && then_p && (!boolean(then_p) || (else_p && !boolean(else_p)))
+	/* Branch selection must remain visible to the per-attempt monitor:
+	   a missing else is a vacuous success, even for Boolean branches. */
+      if (cond && then_p
 	  && !sva_property_has_match_calls_(then_p)
 	  && !(else_p && sva_property_has_match_calls_(else_p))) {
 	    sva_property_t*p = new sva_property_t;
@@ -19823,10 +19817,9 @@ pform_sva_case(const struct vlltype&loc, PExpr*sel,
 	    return nullptr;
       }
 
-	/* No default -> an unmatched case evaluates to true (16.12.8). Fold
-	   right-to-left so the first listed branch is checked outermost:
-	     match_k ? p_k : rest   ==  (match_k & p_k) | (!match_k & rest) */
-      PExpr*result = defexpr ? defexpr : sva_bit_(loc, 1);
+	/* Preserve branch selection and the vacuous unmatched case by using
+	   property if nodes, with the first listed branch outermost. */
+      sva_property_t*result = defexpr ? sva_wrap_bool_(defexpr) : nullptr;
       for (size_t i = branches.size() ; i-- > 0 ; ) {
 	    std::list<PExpr*>*vals = branches[i].first;
 	    PExpr*matchcond = nullptr;
@@ -19839,13 +19832,11 @@ pform_sva_case(const struct vlltype&loc, PExpr*sel,
 	    }
 	    delete vals;   /* list shell; the value exprs are now owned by cmp */
 	    if (!matchcond) matchcond = sva_bit_(loc, 0);
-	    PExpr*pe = branches[i].second;
-	    PExpr*t = sva_logic_(loc, 'a', sva_clone_expr_(matchcond), pe);
-	    PExpr*f = sva_logic_(loc, 'a', sva_not_(loc, matchcond), result);
-	    result = sva_logic_(loc, 'o', t, f);
+	    result = pform_sva_prop_if(loc, matchcond,
+				       sva_wrap_bool_(branches[i].second), result);
       }
       delete sel;
-      return sva_wrap_bool_(result);
+      return result;
 }
 
 /*

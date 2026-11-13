@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3011_vacuity.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3011_vacuity"],
+  "gold": "issue3011_vacuity"
+}

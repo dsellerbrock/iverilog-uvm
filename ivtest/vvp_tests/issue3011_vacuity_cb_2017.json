@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3011_vacuity_cb.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3011_vacuity_cb"],
+  "vpi-modules": ["issue3011_vacuity_cb_2017"],
+  "vpi-sources": ["vpi/sva_vacuity_log.c"],
+  "gold": "issue3011_vacuity_cb"
+}
