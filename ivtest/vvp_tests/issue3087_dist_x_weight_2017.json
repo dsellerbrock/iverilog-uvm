@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3087_dist_x_weight_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "top"
+  ],
+  "gold": "issue3087_dist_x_weight"
+}

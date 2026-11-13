@@ -1095,6 +1095,7 @@ struct Z3Builder {
             string message;
       };
       vector<StateCheck> state_checks;
+      bool nonground_weight_state_checks = false;
       // C7 (Phase 62b): optional optimize handle for soft asserts.
       // When non-null, dist branches emit Z3_optimize_assert_soft per
       // branch with the user-specified weight, biasing the model toward
@@ -3390,8 +3391,10 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
                                      bool*negative = nullptr,
                                      bool*state_value = nullptr,
                                      Z3_ast*symbolic_value = nullptr,
-                                     bool*has_refs = nullptr)
+                                     bool*has_refs = nullptr,
+                                     bool*has_state_checks = nullptr)
 {
+      if (has_state_checks) *has_state_checks = false;
       if (state_value) *state_value = false;
       if (symbolic_value) *symbolic_value = nullptr;
       if (has_refs) *has_refs = false;
@@ -3409,6 +3412,7 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 	    par.p = start;
 	    return false;
       }
+      if (has_state_checks) *has_state_checks = !value_builder.state_checks.empty();
 	/* A rejected weight must leave its owning constraint unchanged. Commit
 	 * four-state checks only when the private expression has a ground value;
 	 * enclosing implication/if guards can then sift an inactive weight. */
@@ -3434,9 +3438,8 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 	// the value of its ordinary SystemVerilog expression, so truncate or
 	// extend to the self-determined semantic width before ground folding.
       value = value_builder.coerce(value, semantic_width);
-	/* An X/Z state check makes the weight invalid and the item weight zero.
-	 * Do not preserve the lowered AST as a dynamic weight: its encoding uses
-	 * zero for the unknown state and could accidentally make the item positive. */
+	/* An X/Z state check must accompany the lowered dynamic weight. The
+	 * caller rebuilds it in the owning solver if ground evaluation fails. */
       if (symbolic_value && state_value && !*state_value
 	  && value_builder.state_checks.empty()) {
 	    *symbolic_value = value;
@@ -6932,11 +6935,19 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  bool weight_overflow = false;
                   bool state_weight = false;
                   bool weight_has_refs = false;
+                  bool weight_has_state_checks = false;
 		  Z3_ast weight_expression = nullptr;
 		  if (!eval_runtime_integral_ir(par, b, weight64,
 						 weight_overflow, nullptr, &state_weight,
-						 &weight_expression, &weight_has_refs)) {
+						 &weight_expression, &weight_has_refs,
+                                                 &weight_has_state_checks)) {
                         state_weight = false;
+                        if (weight_has_state_checks) {
+                              // Rebuild in the owning solver so checks and their
+                              // symbolic guards refer to its actual variables.
+                              weight_expression = build_z3_atom(par, b);
+                              b.nonground_weight_state_checks = true;
+                        } else {
 			static bool warned_weight = false;
 			if (!warned_weight) {
 			      fprintf(stderr, "Warning: dist weight expression could "
@@ -6953,6 +6964,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			(void) build_z3_atom(par, ignored);
 			if (par.p == before && !par.at_end()) par.consume();
 			weight64 = 0;
+                        }
                   }
                   dspec.state_weights = dspec.state_weights && state_weight;
                   dspec.weight_state_refs = dspec.weight_state_refs
@@ -13990,6 +14002,28 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             state_check_scope = true;
             Z3_solver_assert(ctx, base, no_state_error);
             Z3_optimize_assert(ctx, opt, no_state_error);
+            // Diagnose selected invalid reads before distribution sampling,
+            // which otherwise may fail while materializing a dynamic weight.
+            if (builder.nonground_weight_state_checks
+                && Z3_solver_check(ctx, base) == Z3_L_FALSE) {
+                  Z3_solver_pop(ctx, base, 1);
+                  Z3_solver_assert(ctx, base, any_state_error);
+                  if (Z3_solver_check(ctx, base) == Z3_L_TRUE) {
+                        Z3_model model = Z3_solver_get_model(ctx, base);
+                        Z3_model_inc_ref(ctx, model);
+                        for (const auto&check : builder.state_checks) {
+                              Z3_ast value = nullptr;
+                              if (Z3_model_eval(ctx, model, check.error, 1, &value)
+                                  && value && Z3_get_bool_value(ctx, Z3_simplify(ctx, value)) == Z3_L_TRUE) {
+                                    fprintf(stderr, "ERROR: constraint state read: %s.\n", check.message.c_str());
+                                    break;
+                              }
+                        }
+                        Z3_model_dec_ref(ctx, model);
+                  }
+                  Z3_optimize_dec_ref(ctx, opt);
+                  return Z3PASS_FAILED;
+            }
       }
 
       // Apply queued explicit soft assertions. Dist preferences are retained
