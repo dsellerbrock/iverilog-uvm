@@ -176,8 +176,13 @@ struct deferred_assert_args_s {
 /* Filled by %defer/capture, consumed by the next user-task %defer opcode. */
 static deferred_assert_args_s deferred_task_capture_;
 
+/* A procedural assertion's flag must clear every 32-bit deferred source id
+   on every target, including LLP64 Windows where long is 32 bits. */
+static_assert(VPIP_PROC_ASSERT_SOURCE > UINT32_MAX,
+	      "VPIP_PROC_ASSERT_SOURCE must be a 64-bit flag");
+
 struct deferred_assert_report_s {
-      unsigned long source_id;
+      uint64_t source_id;
       unsigned result;
       vvp_code_t action_pc;
       __vpiScope*action_scope;
@@ -212,13 +217,13 @@ class vvp_process : public vvp_object {
                                    vvp_code_t action_pc,
                                    __vpiScope*action_scope,
                                    const deferred_assert_args_s&action_args);
-      void enqueue_proc_assert(unsigned long source_id, __vpiScope*scope);
+      void enqueue_proc_assert(uint64_t source_id, __vpiScope*scope);
       void flush_deferred_asserts();
       void cancel_all_deferred_asserts();
       void cancel_deferred_asserts(__vpiScope*scope);
       void cancel_deferred_assertion(unsigned long source_id,
 				     __vpiScope*scope);
-      void cancel_proc_asserts_in(unsigned long source_id,
+      void cancel_proc_asserts_in(uint64_t source_id,
 				  __vpiScope*module_scope);
       void mature_deferred_asserts();
       void pin_final_deferred_assert(unsigned long source_id,
@@ -1832,7 +1837,7 @@ void vvp_process::enqueue_deferred_assert(unsigned long source_id,
  * clock resumed there: an instance whose leading clock occurs in the same
  * step then starts its attempt in that step, whatever the process order.
  */
-void vvp_process::enqueue_proc_assert(unsigned long source_id,
+void vvp_process::enqueue_proc_assert(uint64_t source_id,
 				      __vpiScope*scope)
 {
       if (deferred_asserts_.empty())
@@ -1906,7 +1911,7 @@ void vvp_process::cancel_all_deferred_asserts()
       });
 }
 
-void vvp_process::cancel_proc_asserts_in(unsigned long source_id,
+void vvp_process::cancel_proc_asserts_in(uint64_t source_id,
 					 __vpiScope*module_scope)
 {
       cancel_deferred_asserts_([source_id, module_scope](
@@ -1932,7 +1937,7 @@ void vvp_process::cancel_deferred_assertion(unsigned long source_id,
    anywhere inside module_scope (20.11 Kill). */
 void vpip_cancel_proc_asserts(PLI_INT32 pid, __vpiScope*module_scope)
 {
-      unsigned long source_id = VPIP_PROC_ASSERT_SOURCE | (unsigned long)pid;
+      uint64_t source_id = VPIP_PROC_ASSERT_SOURCE | (uint64_t)pid;
       for (std::set<vvp_process*>::iterator cur =
 		 deferred_assert_processes_.begin();
 	   cur != deferred_assert_processes_.end();) {
@@ -1953,7 +1958,7 @@ void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle scope_handle)
 	/* 20.11 Off: "no new instances may be queued". */
       if (!vpip_proc_assert_may_queue(pid, scope)) return;
       process->enqueue_proc_assert(VPIP_PROC_ASSERT_SOURCE
-				   | (unsigned long)pid, scope);
+				   | (uint64_t)pid, scope);
 }
 
 void vpip_cancel_deferred_assertion(unsigned long source_id,
