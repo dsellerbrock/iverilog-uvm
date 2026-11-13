@@ -6740,3 +6740,5 @@ issue3002_property_truth_2017 normal,-g2017,-gassertions,-s,issue3002_property_t
 issue3002_property_truth_2023 normal,-g2023,-gassertions,-s,issue3002_property_truth ivltests gold=issue3002_property_truth.gold
 issue2979_constraint_guard_order_2017 normal,-g2017,-s,main ivltests gold=issue2979_constraint_guard_order.gold
 issue2979_constraint_guard_order_2023 normal,-g2023,-s,main ivltests gold=issue2979_constraint_guard_order.gold
+issue2995_sva_repeat_2017 normal,-g2017,-gassertions,-s,issue2995_sva_repeat ivltests gold=issue2995_sva_repeat.gold
+issue2995_sva_repeat_2023 normal,-g2023,-gassertions,-s,issue2995_sva_repeat ivltests gold=issue2995_sva_repeat.gold
