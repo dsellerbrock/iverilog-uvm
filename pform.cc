@@ -8882,14 +8882,21 @@ struct pform_rs_join_schedule_t {
 static void pform_rs_join_schedules_(
       pform_rs_expand_ctx_t&ctx,
       const std::vector<pform_rs_join_lane_t>&lanes,
-      std::vector<size_t>&positions, long previous,
-      double stay_probability, double probability,
+      std::vector<size_t>&positions,
+      double length_priority, double probability,
       std::vector<size_t>&order,
       std::vector<pform_rs_join_schedule_t>&out)
 {
       size_t eligible = 0;
-      for (size_t lane = 0 ; lane < lanes.size() ; ++lane)
-	    if (positions[lane] < lanes[lane].rule->items->size()) ++eligible;
+      double total_length = 0.0, total_inverse = 0.0;
+      for (size_t lane = 0 ; lane < lanes.size() ; ++lane) {
+	    size_t remaining = lanes[lane].rule->items->size() - positions[lane];
+	    if (remaining) {
+		  ++eligible;
+		  total_length += remaining;
+		  total_inverse += 1.0 / remaining;
+	    }
+      }
       if (!eligible) {
 	    if (out.size() >= 256) {
 		  if (!ctx.bad) {
@@ -8907,19 +8914,20 @@ static void pform_rs_join_schedules_(
 	    return;
       }
 
-      bool previous_active = previous >= 0
-	    && positions[previous] < lanes[previous].rule->items->size();
       for (size_t lane = 0 ; lane < lanes.size() && !ctx.bad ; ++lane) {
-	    if (positions[lane] >= lanes[lane].rule->items->size()) continue;
-	    double choose = 1.0 / eligible;
-	    if (previous_active) {
-		  choose = (1.0 - stay_probability) / eligible;
-		  if ((long)lane == previous) choose += stay_probability;
-	    }
+	    size_t remaining = lanes[lane].rule->items->size() - positions[lane];
+	    if (!remaining) continue;
+	    // Interpolate between inverse-length, uniform, and length weights.
+	    double uniform = 1.0 / eligible;
+	    double choose = length_priority <= 0.5
+		  ? (1.0 - 2.0 * length_priority) / remaining / total_inverse
+		    + 2.0 * length_priority * uniform
+		  : (2.0 - 2.0 * length_priority) * uniform
+		    + (2.0 * length_priority - 1.0) * remaining / total_length;
 	    ++positions[lane];
 	    order.push_back(lane);
-	    pform_rs_join_schedules_(ctx, lanes, positions, lane,
-				      stay_probability,
+	    pform_rs_join_schedules_(ctx, lanes, positions,
+				      length_priority,
 				      probability * choose, order, out);
 	    order.pop_back();
 	    --positions[lane];
@@ -8955,9 +8963,9 @@ static Statement* pform_rs_expand_join_(
       pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
       const std::map<perm_string,PExpr*>*outer)
 {
-      double stay_probability;
+      double length_priority;
       if (!pform_rs_join_probability_(ctx, item.expr, outer,
-				      stay_probability)) return nullptr;
+				      length_priority)) return nullptr;
 
       if (!item.join_items || item.join_items->size() < 2) {
 	    cerr << ctx.loc << ": error: randsequence rand join requires at "
@@ -9022,8 +9030,8 @@ static Statement* pform_rs_expand_join_(
       std::vector<size_t> positions(lanes.size(), 0), order;
       std::vector<pform_rs_join_schedule_t> schedules;
       if (join_scope) ctx.lexical_parent = join_scope;
-      pform_rs_join_schedules_(ctx, lanes, positions, -1,
-				      stay_probability, 1.0, order, schedules);
+      pform_rs_join_schedules_(ctx, lanes, positions,
+				      length_priority, 1.0, order, schedules);
       if (ctx.bad) {
 	    ctx.lexical_parent = saved_parent;
 	    for (pform_rs_join_lane_t&lane : lanes)
