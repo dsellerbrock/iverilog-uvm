@@ -54,6 +54,7 @@ struct timeformat_info_s {
 };
 
 extern struct timeformat_info_s timeformat_info;
+extern void vpip_set_active_timeformat(vpiHandle call);
 
 extern unsigned is_constant_obj(vpiHandle obj);
 extern unsigned is_numeric_obj(vpiHandle obj);

@@ -2601,6 +2601,7 @@ static PLI_INT32 sys_timeformat_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 
       (void)name; /* Parameter is not used. */
 
+      vpip_set_active_timeformat(sys);
       if (argv) {
             vpiHandle units = vpi_scan(argv);
             vpiHandle prec  = vpi_scan(argv);
