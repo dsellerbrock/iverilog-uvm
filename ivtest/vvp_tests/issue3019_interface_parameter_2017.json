@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3019_interface_parameter.sv",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "issue3019_interface_parameter"
+}
