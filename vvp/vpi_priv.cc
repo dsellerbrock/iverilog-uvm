@@ -2940,6 +2940,20 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
 	  case vpiAssertionSysDisableVacuousAction:
 	    return vpip_assertion_sys_control(operation, va_arg(ap, vpiHandle));
 
+	  case vpiAssertionEnableStep: {
+	    vpiHandle obj = va_arg(ap, vpiHandle);
+	    p_vpi_time start = va_arg(ap, p_vpi_time);
+	    PLI_INT32 mode = va_arg(ap, PLI_INT32);
+	    return vpip_assertion_step_control(obj, start, true, mode);
+	  }
+
+	  case vpiAssertionDisableStep: {
+	    vpiHandle obj = va_arg(ap, vpiHandle);
+	    p_vpi_time start = va_arg(ap, p_vpi_time);
+	    return vpip_assertion_step_control(obj, start, false,
+					       vpiAssertionClockSteps);
+	  }
+
 	  case vpiAssertionReset:
 	    if (!vpip_reset_deferred_assertion(va_arg(ap, vpiHandle))) {
 		  vpi_printf("vpiAssertionReset currently supports deferred immediate assertions only.\n");
@@ -3207,5 +3221,10 @@ vpip_routines_s vpi_routines = {
     .report_immediate_assertion = vpip_report_immediate_assertion,
     .print_finish_stats         = vpip_print_finish_stats,
     .covgrp_db                  = vpip_covgrp_db,
+    .assertion_step_row         = vpip_assertion_step_row,
+    .assertion_step             = vpip_assertion_step,
+    .assertion_nfa              = vpip_assertion_nfa,
+    .assertion_nfa_step         = vpip_assertion_nfa_step,
+    .assertion_serial           = vpip_assertion_serial,
 };
 #endif

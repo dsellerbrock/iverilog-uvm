@@ -404,6 +404,50 @@ void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
       vpip_routines->assertion_report_age(idx, reason, scope, age);
 }
 
+void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
+                             PLI_INT32 reason, PLI_INT32 from, PLI_INT32 to,
+                             PLI_INT32 n, const char*const*files,
+                             const PLI_INT32*lines, const char*const*texts)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_step_row(idx, scope, row, reason, from, to, n,
+                                        files, lines, texts);
+}
+
+void vpip_assertion_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
+                         PLI_INT32 age, PLI_INT32 serial)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_step(idx, scope, row, age, serial);
+}
+
+void vpip_assertion_nfa(PLI_INT32 idx, vpiHandle scope, PLI_INT32 nstates,
+                        PLI_INT32 start, PLI_INT32 accept, PLI_INT32 nguards,
+                        const char*const*files, const PLI_INT32*lines,
+                        const char*const*texts, PLI_INT32 nwords,
+                        const PLI_INT32*words)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_nfa(idx, scope, nstates, start, accept,
+                                   nguards, files, lines, texts, nwords,
+                                   words);
+}
+
+void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
+                             const char*pre, const char*nx, const char*guards,
+                             PLI_INT32 ob)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_nfa_step(idx, scope, serial, pre, nx, guards,
+                                        ob);
+}
+
+PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope)
+{
+      assert(vpip_routines);
+      return vpip_routines->assertion_serial(idx, scope);
+}
+
 PLI_INT32 vpip_assertion_cb_active(void)
 {
       assert(vpip_routines);

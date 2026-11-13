@@ -1053,6 +1053,36 @@ extern void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
 /* M12B-cb: non-zero iff any assertion callback is registered (lets the
    synthesized checkers skip reporting when nothing is watching). */
 extern PLI_INT32 vpip_assertion_cb_active(void);
+/* IEEE 1800-2023 39.4.2: register step-table row `row' of (scope, idx):
+   its reason, from/to state ids and n expressions (source file, line and
+   text). Then report one step of one attempt by row; the attempt is named
+   by its clock age (age >= 0) or by the START serial the checker saved for
+   it (serial > 0). Dropped unless stepping is enabled for the attempt
+   (39.5.2). */
+extern void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope,
+                                    PLI_INT32 row, PLI_INT32 reason,
+                                    PLI_INT32 from, PLI_INT32 to,
+                                    PLI_INT32 n, const char*const*files,
+                                    const PLI_INT32*lines,
+                                    const char*const*texts);
+extern void vpip_assertion_step(PLI_INT32 idx, vpiHandle scope,
+                                PLI_INT32 row, PLI_INT32 age,
+                                PLI_INT32 serial);
+/* The automaton checker describes its automaton once (guards as source
+   file/line/text; edges as from, to, guard count, guard indices), then
+   reports each slot's tick as state and guard bit strings. */
+extern void vpip_assertion_nfa(PLI_INT32 idx, vpiHandle scope,
+                               PLI_INT32 nstates, PLI_INT32 start,
+                               PLI_INT32 accept, PLI_INT32 nguards,
+                               const char*const*files, const PLI_INT32*lines,
+                               const char*const*texts, PLI_INT32 nwords,
+                               const PLI_INT32*words);
+extern void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope,
+                                    PLI_INT32 serial, const char*pre,
+                                    const char*nx, const char*guards,
+                                    PLI_INT32 ob);
+/* The serial of the most recent cbAssertionStart of (scope, idx). */
+extern PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope);
 /* M12B-rest: report an event on EVERY registered assertion (global
    assertion control: cbAssertionDisable/Enable/Reset from
    $assertoff/$asserton/$assertkill). */
@@ -1135,7 +1165,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 16;
+static const PLI_UINT32 vpip_routines_version = 17;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1206,6 +1236,20 @@ typedef struct {
     void        (*report_immediate_assertion)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*print_finish_stats)(void);
     int         (*covgrp_db)(int, const char*);
+    void        (*assertion_step_row)(PLI_INT32, vpiHandle, PLI_INT32,
+                                      PLI_INT32, PLI_INT32, PLI_INT32,
+                                      PLI_INT32, const char*const*,
+                                      const PLI_INT32*, const char*const*);
+    void        (*assertion_step)(PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32,
+                                  PLI_INT32);
+    void        (*assertion_nfa)(PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32,
+                                 PLI_INT32, PLI_INT32, const char*const*,
+                                 const PLI_INT32*, const char*const*,
+                                 PLI_INT32, const PLI_INT32*);
+    void        (*assertion_nfa_step)(PLI_INT32, vpiHandle, PLI_INT32,
+                                      const char*, const char*, const char*,
+                                      PLI_INT32);
+    PLI_INT32   (*assertion_serial)(PLI_INT32, vpiHandle);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);
