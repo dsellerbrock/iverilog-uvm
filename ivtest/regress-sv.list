@@ -6793,3 +6793,7 @@ sv_assert_first_match_leading_cont normal,-g2017,-gassertions ivltests gold=sv_a
 sv_assert_first_match_leading_cont_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_leading_cont.gold
 issue2416_stream_queue_2017 normal,-g2017,-s,issue2416_stream_queue ivltests gold=issue2416_stream_queue.gold
 issue2416_stream_queue_2023 normal,-g2023,-s,issue2416_stream_queue ivltests gold=issue2416_stream_queue.gold
+issue2842_negative_2017 CE,-g2017,-s,issue2842_negative ivltests
+issue2842_negative_2023 CE,-g2023,-s,issue2842_negative ivltests
+issue2842_zero_2017 CE,-g2017,-s,issue2842_zero ivltests
+issue2842_zero_2023 normal,-g2023,-s,issue2842_zero ivltests gold=issue2842_zero_2023.gold

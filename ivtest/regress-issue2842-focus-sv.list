@@ -1,0 +1,4 @@
+issue2842_negative_2017 CE,-g2017,-s,issue2842_negative ivltests
+issue2842_negative_2023 CE,-g2023,-s,issue2842_negative ivltests
+issue2842_zero_2017 CE,-g2017,-s,issue2842_zero ivltests
+issue2842_zero_2023 normal,-g2023,-s,issue2842_zero ivltests gold=issue2842_zero_2023.gold
