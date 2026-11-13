@@ -65,6 +65,7 @@ extern std::string vl_file;
 
 extern void pform_set_timescale(int units, int prec, const char*file,
                                 unsigned lineno);
+extern int pform_get_min_timescale_precision();
 extern int def_ts_units;
 extern int def_ts_prec;
 

@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3070_timescale_step.sv",
+    "iverilog-args": ["-g2017", "-s", "top"],
+    "gold": "issue3070_timescale_step"
+}

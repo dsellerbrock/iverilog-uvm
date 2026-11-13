@@ -55665,6 +55665,7 @@ static void seed_design_precision_(Design*des)
       if (!gn_system_verilog())
 	return;
 
+      des->set_precision(pform_get_min_timescale_precision());
       for (const PPackage*package : pform_packages)
 	des->set_precision(package->time_precision);
       for (const PPackage*unit : pform_units)
@@ -56384,6 +56385,10 @@ Design* elaborate(list<perm_string>roots)
 	    }
       }
       } while (pform_activate_deferred_binds(des));
+
+      // Library loading during scope elaboration can parse more directives.
+      if (gn_system_verilog())
+	    des->set_precision(pform_get_min_timescale_precision());
 
         // Bind-to-instance filters run while module scopes are created.
         // Audit them only after every delayed generate/instance-array work
