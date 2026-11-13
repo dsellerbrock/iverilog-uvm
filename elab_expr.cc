@@ -27377,6 +27377,31 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 	    }
       }
 
+      /* A fixed unpacked prefix selects a dynamic-container word before
+       * the remaining indices select its elements. Preserve that entire
+       * selection in class-handle contexts instead of treating the container
+       * type as the type of the selected handle. */
+      if (sr.path_tail.empty() && net->unpacked_dimensions() > 0
+	  && net->darray_type()
+	  && use_comp.index.size() > net->unpacked_dimensions()
+	  && ivl_type_base(ntype) == IVL_VT_CLASS) {
+	    ivl_type_t selected = net->net_type();
+	    auto idx = use_comp.index.begin();
+	    for (unsigned dim = 0; dim < net->unpacked_dimensions(); ++dim)
+		  ++idx;
+	    for (; idx != use_comp.index.end() && selected; ++idx) {
+		  const netdarray_t*array = dynamic_cast<const netdarray_t*>(selected);
+		  if (!array || idx->sel != index_component_t::SEL_BIT) {
+			selected = nullptr;
+			break;
+		  }
+		  selected = array->element_type();
+	    }
+	    if (selected && ntype->type_compatible(selected))
+		  return elaborate_expr_net(des, scope, net, sr.scope,
+					    expr_width_, flags);
+      }
+
       ivl_type_t indexed_elem_type = 0;
       if (sr.path_tail.empty() && !use_comp.index.empty()
 	  && net->unpacked_dimensions() == 0
