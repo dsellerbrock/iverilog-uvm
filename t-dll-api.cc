@@ -2674,6 +2674,13 @@ extern "C" const char* ivl_scope_basename(ivl_scope_t net)
       return net->name_;
 }
 
+extern "C" int ivl_scope_generate_array_member(ivl_scope_t net)
+{
+      assert(net && net->net_);
+      return net->type_ == IVL_SCT_GENERATE &&
+             net->net_->fullname().has_numbers() != 0;
+}
+
 extern "C" int ivl_scope_children(ivl_scope_t net,
 				  ivl_scope_f func,
 				  void*cd)
