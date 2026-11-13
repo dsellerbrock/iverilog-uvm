@@ -266,3 +266,5 @@ sv_assert_cover_api_2017 normal,-g2017 sv_assert_cover_api.c sv_assert_cover_api
 sv_assert_cover_api_2023 normal,-g2023 sv_assert_cover_api.c sv_assert_cover_api_2023.log
 issue445_deferred_vpi_2017 normal,-g2017 issue445_deferred_vpi.c issue445_deferred_vpi_2017.log
 issue445_deferred_vpi_2023 normal,-g2023 issue445_deferred_vpi.c issue445_deferred_vpi_2023.log
+issue3055_vpi_prefix_2017 normal,-g2017 issue3055_vpi_prefix.c issue3055_vpi_prefix_2017.gold
+issue3055_vpi_prefix_2023 normal,-g2023 issue3055_vpi_prefix.c issue3055_vpi_prefix_2023.gold

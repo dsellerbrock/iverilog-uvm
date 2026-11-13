@@ -1,0 +1,2 @@
+issue3055_vpi_prefix_2017 normal,-g2017 issue3055_vpi_prefix.c issue3055_vpi_prefix_2017.gold
+issue3055_vpi_prefix_2023 normal,-g2023 issue3055_vpi_prefix.c issue3055_vpi_prefix_2023.gold

@@ -182,6 +182,9 @@ vpiHandle __vpiArrayWord::as_word_t::vpi_handle(int code)
 	  case vpiParent:
 	    return dynamic_cast<vpiHandle>(my_parent);
 
+	  case vpiPrefix:
+	    return my_parent->get_word_prefix();
+
 	  case vpiTypespec:
 	    if (__vpiArray*array = dynamic_cast<__vpiArray*>(my_parent))
 		  return array->typespec;
