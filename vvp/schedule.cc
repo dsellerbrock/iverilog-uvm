@@ -705,6 +705,12 @@ extern "C" void signals_handler(int signum)
 	// signal is caught.
       signal(signum, &signals_handler);
 #endif
+	/* A signal a VPI application trapped with cbSignal is theirs: run
+	   their callbacks at a safe point instead of stopping (38.36.3). */
+      if (vpip_signal_trapped(signum)) {
+	    vpip_note_signal(signum);
+	    return;
+      }
       if (signum != SIGINT)
 	    stop_is_finish = true;
       schedule_stopped_flag = true;
@@ -1845,6 +1851,13 @@ void schedule_simulate(void)
       vvp_time64_t last_sim_time = schedule_time;
 
       if (schedule_runnable) while (sched_list) {
+
+	    if (vpip_signal_pending()) {
+		  vpi_mode_t saved = vpi_mode_flag;
+		  vpi_mode_flag = VPI_MODE_RWSYNC;
+		  vpip_run_signal_callbacks();
+		  vpi_mode_flag = saved;
+	    }
 
 	    if (schedule_stopped_flag) {
 		  schedule_stopped_flag = false;
