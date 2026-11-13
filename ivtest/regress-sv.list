@@ -6799,3 +6799,5 @@ issue2842_zero_2017 CE,-g2017,-s,issue2842_zero ivltests
 issue2842_zero_2023 normal,-g2023,-s,issue2842_zero ivltests gold=issue2842_zero_2023.gold
 issue2905_clocking_output_concat_2017 normal,-g2017,-s,issue2905_clocking_output_concat ivltests gold=issue2905_clocking_output_concat_2017.gold
 issue2905_clocking_output_concat_2023 normal,-g2023,-s,issue2905_clocking_output_concat ivltests gold=issue2905_clocking_output_concat_2023.gold
+issue2616_queue_part_store normal,-g2017,-s,top ivltests gold=issue2616_queue_part_store.gold
+issue2616_queue_part_store_2023 normal,-g2023,-s,top ivltests gold=issue2616_queue_part_store.gold
