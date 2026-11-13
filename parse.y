@@ -22579,7 +22579,11 @@ udp_sequ_entry
 
 udp_initial
   : K_initial IDENTIFIER '=' number ';'
-      { PExpr*etmp = new PENumber($4);
+      { if ($4->has_len() && $4->len() != 1) {
+	    cerr << @4 << ": error: UDP initial value must be a single-bit literal." << endl;
+	    error_count += 1;
+	}
+	PExpr*etmp = new PENumber($4);
 	PEIdent*itmp = new PEIdent(lex_strings.make($2), @2.lexical_pos);
 	PAssign*atmp = new PAssign(itmp, etmp);
 	FILE_NAME(atmp, @2);
