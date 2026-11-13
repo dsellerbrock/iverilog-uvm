@@ -3695,6 +3695,76 @@ PExpr* pform_select_mtm_expr(PExpr*min, PExpr*typ, PExpr*max)
       return res;
 }
 
+// Bit sets for the three UDP values (0, 1, x) and their transitions.
+static unsigned udp_level_mask(char c)
+{
+      switch (c) {
+	  case '0': return 1;
+	  case '1': return 2;
+	  case 'x': return 4;
+	  case 'b': return 3;
+	  case 'l': return 5;
+	  case 'h': return 6;
+	  case '?': return 7;
+	  default: return 0;
+      }
+}
+
+static unsigned udp_transition_mask(char c)
+{
+      // Bits are indexed by old_value * 3 + new_value.
+      const unsigned r = 1 << 1, f = 1 << 3, ox = 1 << 2;
+      const unsigned ix = 1 << 5, xo = 1 << 6, xi = 1 << 7;
+      switch (c) {
+	  case 'r': return r;
+	  case 'f': return f;
+	  case 'Q': return ox;
+	  case 'M': return ix;
+	  case 'F': return xo;
+	  case 'R': return xi;
+	  case 'P': return r | ox;
+	  case 'N': return f | ix;
+	  case 'B': return xo | xi;
+	  case 'q': case '%': return ox | ix;
+	  case '+': return r | xi;
+	  case '_': return f | xo;
+	  case 'p': return r | ox | xi;
+	  case 'n': return f | ix | xo;
+	  case '*': return r | f | ox | ix | xo | xi;
+	  default: return 0;
+      }
+}
+
+static bool udp_rows_overlap(const string&a, const string&b)
+{
+      int edge_a = -1, edge_b = -1;
+      for (unsigned i = 0; i < a.size(); ++i) {
+	    if (udp_transition_mask(a[i])) edge_a = i;
+	    if (udp_transition_mask(b[i])) edge_b = i;
+      }
+      // An input event changes one input at a time.
+      if (edge_a >= 0 && edge_b >= 0 && edge_a != edge_b) return false;
+      for (unsigned i = 0; i < a.size(); ++i) {
+	    unsigned ta = udp_transition_mask(a[i]);
+	    unsigned tb = udp_transition_mask(b[i]);
+	    if (ta && tb) {
+		  if (!(ta & tb)) return false;
+	    } else if (ta || tb) {
+		  unsigned transitions = ta ? ta : tb;
+		  unsigned levels = udp_level_mask(ta ? b[i] : a[i]);
+		  unsigned destinations = 0;
+		  for (unsigned from = 0; from < 3; ++from)
+			for (unsigned to = 0; to < 3; ++to)
+			      if (transitions & (1U << (from * 3 + to)))
+				    destinations |= 1U << to;
+		  if (!(levels & destinations)) return false;
+	    } else if (!(udp_level_mask(a[i]) & udp_level_mask(b[i]))) {
+		  return false;
+	    }
+      }
+      return true;
+}
+
 static void process_udp_table(PUdp*udp, list<string>*table,
 			      const struct vlltype&loc)
 {
@@ -3760,6 +3830,26 @@ static void process_udp_table(PUdp*udp, list<string>*table,
 		    cerr << loc << ": error: UDP table row with all inputs x "
 		         << "must specify an x output." << endl;
 		    error_count += 1;
+	      }
+	      for (unsigned prev = 0; prev < idx; ++prev) {
+		    if (!udp_rows_overlap(input[prev], input[idx])) continue;
+		    unsigned states = synchronous_flag
+			  ? udp_level_mask(current[prev]) & udp_level_mask(current[idx])
+			  : 7;
+		    bool conflict = false;
+		    for (unsigned state = 0; state < 3; ++state) {
+			  if (!(states & (1U << state))) continue;
+			  char old_value = "01x"[state];
+			  char left = output[prev] == '-' ? old_value : output[prev];
+			  char right = output[idx] == '-' ? old_value : output[idx];
+			  if (left != right) conflict = true;
+		    }
+		    if (conflict) {
+			  cerr << loc << ": error: Conflicting UDP table rows in primitive \""
+			       << udp->name_ << "\"." << endl;
+			  error_count += 1;
+			  break;
+		    }
 	      }
 	}
       }

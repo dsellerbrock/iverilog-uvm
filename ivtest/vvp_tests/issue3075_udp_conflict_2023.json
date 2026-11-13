@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3075_udp_conflict.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3075_udp_conflict"
+}

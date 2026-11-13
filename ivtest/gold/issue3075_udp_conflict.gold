@@ -1,0 +1,4 @@
+./ivltests/issue3075_udp_conflict.v:1: error: Conflicting UDP table rows in primitive "duplicate".
+./ivltests/issue3075_udp_conflict.v:8: error: Conflicting UDP table rows in primitive "overlap".
+./ivltests/issue3075_udp_conflict.v:15: error: Conflicting UDP table rows in primitive "edge_overlap".
+./ivltests/issue3075_udp_conflict.v:22: error: Conflicting UDP table rows in primitive "level_edge".

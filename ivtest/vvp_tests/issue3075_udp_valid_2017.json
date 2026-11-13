@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3075_udp_valid.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue3075_udp_valid"
+}
