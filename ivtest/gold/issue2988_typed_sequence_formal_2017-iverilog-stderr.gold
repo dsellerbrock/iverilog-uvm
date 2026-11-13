@@ -1,0 +1,3 @@
+ivltests/issue2988_typed_sequence_formal.v:3: error: typed sequence formal `x' assigned in a match item must be local (IEEE 1800-2017/2023 16.8.1).
+ivltests/issue2988_typed_sequence_formal.v:4: error: typed sequence formal `x' assigned in a match item must be local (IEEE 1800-2017/2023 16.8.1).
+ivltests/issue2988_typed_sequence_formal.v:5: error: typed sequence formal `x' assigned in a match item must be local (IEEE 1800-2017/2023 16.8.1).

@@ -11005,8 +11005,21 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
       }
       sva_param_seq_t rec;
       if (formals) {
-	    for (sva_sequence_formal_t f : *formals)
+	    for (sva_sequence_formal_t f : *formals) {
 	      rec.formals.push_back(f);
+	      if (!f.type || f.local_input || !steps) continue;
+	      for (const sva_seq_step_t&step : *steps) {
+		    for (const sva_match_item_t&item : step.items) {
+			  if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+			      || item.lv_initialization || item.lv_name != f.name)
+				continue;
+			  cerr << loc << ": error: typed sequence formal `" << f.name
+			       << "' assigned in a match item must be local "
+			       << "(IEEE 1800-2017/2023 16.8.1)." << endl;
+			  error_count += 1;
+		    }
+	      }
+	    }
       }
       sva_decl_sequence_forget_sampled_(steps);
       rec.body = steps;
