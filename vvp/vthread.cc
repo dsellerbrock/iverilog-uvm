@@ -212,7 +212,8 @@ class vvp_process : public vvp_object {
                                    vvp_code_t action_pc,
                                    __vpiScope*action_scope,
                                    const deferred_assert_args_s&action_args);
-      void enqueue_proc_assert(unsigned long source_id, __vpiScope*scope);
+      void enqueue_proc_assert(unsigned long source_id, __vpiScope*scope,
+			       const std::vector<vvp_vector4_t>&saved);
       void flush_deferred_asserts();
       void cancel_all_deferred_asserts();
       void cancel_deferred_asserts(__vpiScope*scope);
@@ -1833,7 +1834,8 @@ void vvp_process::enqueue_deferred_assert(unsigned long source_id,
  * step then starts its attempt in that step, whatever the process order.
  */
 void vvp_process::enqueue_proc_assert(unsigned long source_id,
-				      __vpiScope*scope)
+				      __vpiScope*scope,
+				      const std::vector<vvp_vector4_t>&saved)
 {
       if (deferred_asserts_.empty())
             deferred_assert_processes_.insert(this);
@@ -1843,6 +1845,7 @@ void vvp_process::enqueue_proc_assert(unsigned long source_id,
       report.result = 0;
       report.action_pc = 0;
       report.action_scope = scope;
+      report.action_args.vec4 = saved;
       deferred_asserts_.push_back(report);
       pending_deferred_assert_reports_ += 1;
 
@@ -1943,17 +1946,30 @@ void vpip_cancel_proc_asserts(PLI_INT32 pid, __vpiScope*module_scope)
 
 /* IEEE 1800-2023 16.14.6: queue a pending instance of procedural concurrent
    assertion pid on the calling thread's process. */
-void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle scope_handle)
+void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle callh)
 {
-      __vpiScope*scope = dynamic_cast<__vpiScope*>(scope_handle);
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(vpi_handle(vpiScope, callh));
       vthread_t owner = vpip_current_vthread
 	    ? logical_process_thread_(vpip_current_vthread) : 0;
       vvp_process*process = owner ? owner->process_obj_.peek<vvp_process>() : 0;
       if (!process || !scope || pid <= 0) return;
 	/* 20.11 Off: "no new instances may be queued". */
       if (!vpip_proc_assert_may_queue(pid, scope)) return;
+	/* 16.14.6.1: the instance saves its const expressions and automatic
+	   variables now, when it is queued. They follow pid. */
+      std::vector<vvp_vector4_t> saved;
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      if (argv && vpi_scan(argv)) {
+	    while (vpiHandle arg = vpi_scan(argv)) {
+		  unsigned wid = vpi_get(vpiSize, arg);
+		  s_vpi_value v;
+		  v.format = vpiVectorVal;
+		  vpi_get_value(arg, &v);
+		  saved.push_back(vec4_from_vpi_value(&v, wid));
+	    }
+      }
       process->enqueue_proc_assert(VPIP_PROC_ASSERT_SOURCE
-				   | (unsigned long)pid, scope);
+				   | (unsigned long)pid, scope, saved);
 }
 
 void vpip_cancel_deferred_assertion(unsigned long source_id,
@@ -1985,7 +2001,7 @@ void vvp_process::mature_deferred_asserts()
 	    if (report.source_id & VPIP_PROC_ASSERT_SOURCE) {
 		  vpip_proc_assert_matured(
 			(PLI_INT32)(report.source_id & ~VPIP_PROC_ASSERT_SOURCE),
-			report.action_scope);
+			report.action_scope, report.action_args.vec4);
 		  continue;
 	    }
 	    if (report.source_id)

@@ -6151,8 +6151,7 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	    return res;
       }
 
-      /* Phase 63b/B7 (gap close 2): for packed unions, the storage
-         is the size of one member (all members same packed_width).
+      /* For packed unions, the members share the same payload storage.
          Concatenating ALL items would produce a multi-of-packed-width
          result that gets truncated to the LSB, losing the named
          entry's value.  Instead emit a single-element concat of just
@@ -6189,6 +6188,9 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	      // discriminant. Keep the payload at the LSB so ordinary packed
 	      // member selects remain at offset zero.
 	    unsigned tag_width = struct_type->tag_bits();
+	    unsigned payload_width = struct_type->packed_width() - tag_width;
+	    if (single->expr_width() < payload_width)
+		  single = cast_to_width(single, payload_width, false, *this);
 	    unsigned tag_value = union_active_member < members.size()
 		  ? (unsigned)union_active_member : 0;
 	    verinum tag_bits((uint64_t)tag_value, tag_width);

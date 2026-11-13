@@ -767,6 +767,11 @@ NexusSet* NetCondit::nex_input(bool rem_out, bool always_sens, bool nested_func)
 {
       NexusSet*result = expr_->nex_input(rem_out, always_sens, nested_func);
 
+      // IEEE 1800 9.2.2.2.1: assertion action blocks do not contribute
+      // to always_comb/always_latch implicit sensitivity.
+      if (always_sens && is_immediate_assertion())
+	    return result;
+
       if (if_ != 0) {
 	    NexusSet*tmp = if_->nex_input(rem_out, always_sens, nested_func);
 	    result->add(*tmp);

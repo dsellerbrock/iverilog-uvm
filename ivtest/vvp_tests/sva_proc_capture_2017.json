@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_proc_capture.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_proc_capture"],
+  "gold": "sva_proc_capture"
+}

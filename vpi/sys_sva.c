@@ -143,10 +143,12 @@ static PLI_INT32 sva_state_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
-/* IEEE 1800-2023 16.14.6: $ivl_sva_proc_enqueue(pid) queues a pending
-   instance of a procedural concurrent assertion where its statement runs;
-   $ivl_sva_proc_register(idx, pid) ties pid to checker idx of the calling
-   scope. */
+/* IEEE 1800-2023 16.14.6: $ivl_sva_proc_enqueue(pid, saved...) queues a
+   pending instance of a procedural concurrent assertion where its statement
+   runs, with the values it saves (16.14.6.1); $ivl_sva_proc_register(idx,
+   pid, each) ties pid to checker idx of the calling scope, where each says
+   the checker starts one attempt per instance; $ivl_sva_proc_cap(pid, n, j,
+   dest) reads saved value j of the n-th instance the checker took. */
 static PLI_INT32 sva_proc_enqueue_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -154,7 +156,7 @@ static PLI_INT32 sva_proc_enqueue_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       PLI_INT32 pid = sva_int_arg_(argv, 0, 0);
       (void)name;
       if (argv) vpi_free_object(argv);
-      vpip_proc_assert_enqueue(pid, vpi_handle(vpiScope, callh));
+      vpip_proc_assert_enqueue(pid, callh);
       return 0;
 }
 
@@ -164,9 +166,18 @@ static PLI_INT32 sva_proc_register_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
       PLI_INT32 idx = sva_int_arg_(argv, 0, 0);
       PLI_INT32 pid = sva_int_arg_(argv, 0, 0);
+      PLI_INT32 each = sva_int_arg_(argv, 0, 0);
       (void)name;
       if (argv) vpi_free_object(argv);
-      vpip_register_proc_assertion(idx, pid, vpi_handle(vpiScope, callh));
+      vpip_register_proc_assertion(idx, pid, each,
+				   vpi_handle(vpiScope, callh));
+      return 0;
+}
+
+static PLI_INT32 sva_proc_cap_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      (void)name;
+      vpip_proc_assert_cap(vpi_handle(vpiSysTfCall, 0));
       return 0;
 }
 
@@ -813,6 +824,7 @@ void sys_sva_register(void)
       register_one_("$ivl_sva_state", sva_state_calltf);
       register_task_("$ivl_sva_proc_enqueue", sva_proc_enqueue_calltf);
       register_task_("$ivl_sva_proc_register", sva_proc_register_calltf);
+      register_task_("$ivl_sva_proc_cap", sva_proc_cap_calltf);
       register_task_("$assertcontrol", sva_control_calltf);
       {
 	    size_t t;

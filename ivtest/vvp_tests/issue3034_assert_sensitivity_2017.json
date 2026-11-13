@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3034_assert_sensitivity.v",
+  "iverilog-args": ["-g2017", "-s", "issue3034_assert_sensitivity"],
+  "gold": "issue3034_assert_sensitivity"
+}
