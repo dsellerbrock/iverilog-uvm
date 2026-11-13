@@ -133,7 +133,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_THREAD K_TIMESCALE K_TRAN K_TRANIF0 K_TRANIF1 K_TRANVP
 %token K_UFUNC_REAL K_UFUNC_VEC4 K_UFUNC_E
 %token K_UFUNC_RESOLV_REAL K_UFUNC_RESOLV_VEC2 K_UFUNC_RESOLV_VEC4
-%token K_UDP K_UDP_C K_UDP_S
+%token K_UDP K_UDP_C K_UDP_S K_UDP_DELAY
 %token K_VAR K_VAR_COBJECT K_VAR_VIF K_VAR_VIF_MODPORT K_VAR_DARRAY
 %token K_VAR_QUEUE
 %token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_VAR_TIME K_REF K_REF_R K_REF_STR K_REF_2S
@@ -287,6 +287,9 @@ statement
 
 	| T_LABEL K_UDP T_SYMBOL ',' symbols ';'
 		{ compile_udp_functor($1, $3, $5.cnt, $5.vect); }
+
+	| T_LABEL K_UDP_DELAY T_SYMBOL ',' symbols ';'
+		{ compile_udp_functor($1, $3, $5.cnt, $5.vect, true); }
 
 
   /* Memory.  Definition, port, initialization */

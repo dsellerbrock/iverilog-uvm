@@ -234,7 +234,7 @@ struct vvp_udp_s *udp_find_name(const char *name);
 class vvp_udp_fun_core  : public vvp_wide_fun_core, private vvp_gen_event_s {
 
     public:
-      vvp_udp_fun_core(vvp_net_t*net, vvp_udp_s*def);
+      vvp_udp_fun_core(vvp_net_t*net, vvp_udp_s*def, bool instance_delay);
       ~vvp_udp_fun_core() override;
 
       void recv_vec4_from_inputs(unsigned) override;
@@ -243,6 +243,8 @@ class vvp_udp_fun_core  : public vvp_wide_fun_core, private vvp_gen_event_s {
       void run_run() override;
 
       vvp_udp_s*def_;
+      vvp_net_t*net_;
+      bool initial_delay_pending_;
       vvp_bit4_t cur_out_;
       udp_levels_table current_;
 };

@@ -6764,3 +6764,5 @@ issue3008_action_immediate_2017 normal,-g2017,-gassertions,-s,issue3008_action_i
 issue3008_action_immediate_2023 normal,-g2023,-gassertions,-s,issue3008_action_immediate ivltests gold=issue3008_action_immediate.gold
 issue3070_timescale_step_2017 normal,-g2017,-Iivltests,-s,top ivltests gold=issue3070_timescale_step.gold
 issue3070_timescale_step_2023 normal,-g2023,-Iivltests,-s,top ivltests gold=issue3070_timescale_step.gold
+issue3079_udp_initial_delay_2017 normal,-g2017,-s,issue3079_udp_initial_delay ivltests gold=issue3079_udp_initial_delay.gold
+issue3079_udp_initial_delay_2023 normal,-g2023,-s,issue3079_udp_initial_delay ivltests gold=issue3079_udp_initial_delay.gold
