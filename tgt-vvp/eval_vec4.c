@@ -2787,6 +2787,78 @@ static void draw_inc_dec_select_part_(ivl_expr_t select_base, int select_index,
 	      ivl_expr_signed(select_base) ? 's' : 'u', wid, value_note);
 }
 
+/*
+ * ++/-- used as an expression on an element of a local associative array
+ * (v = aa[k]++). IEEE 1800-2023 11.4.2: the operand is read once, updated
+ * and stored, and the expression yields the old (postfix) or new (prefix)
+ * value. The key is evaluated once and kept for the store by %aa/loadk.
+ * A vec4 key shares the vec4 stack with the value, so the yielded value is
+ * parked under the key as {key,value}, split off for the store, and cut back
+ * to the value afterwards. Returns false for shapes this does not cover.
+ */
+static bool draw_assoc_elem_inc_dec_(ivl_expr_t sub, bool incr, bool pre)
+{
+      if (ivl_expr_type(sub) != IVL_EX_SELECT)
+	    return false;
+      ivl_expr_t arr = ivl_expr_oper1(sub);
+      ivl_expr_t key = ivl_expr_oper2(sub);
+      if (!arr || !key || ivl_expr_type(arr) != IVL_EX_SIGNAL
+	  || ivl_expr_oper1(arr))
+	    return false;
+      ivl_signal_t sig = ivl_expr_signal(arr);
+      ivl_type_t aa_type = ivl_signal_net_type(sig);
+      if (!aa_type || !ivl_type_queue_assoc_compat(aa_type))
+	    return false;
+      ivl_type_t elem = ivl_type_element(aa_type);
+      if (!elem || (ivl_type_base(elem) != IVL_VT_LOGIC
+		    && ivl_type_base(elem) != IVL_VT_BOOL))
+	    return false;
+
+      if (expr_is_object_assoc_key_(key)) {
+	    fprintf(stderr, "%s:%u: vvp.tgt sorry: ++/-- expression on an "
+		    "associative-array element with a class or aggregate "
+		    "index is not supported.\n",
+		    ivl_expr_file(sub), ivl_expr_lineno(sub));
+	    vvp_errors += 1;
+	    fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", ivl_expr_width(sub));
+	    return true;
+      }
+      bool vec_key = !expr_is_string_assoc_key_(key);
+      const char*kind = vec_key ? "v" : "str";
+      unsigned wid = ivl_type_packed_width(elem);
+      const char*cmd = incr ? "%addi" : "%subi";
+      bool two_state = ivl_type_base(elem) == IVL_VT_BOOL;
+
+      /* Evaluate the key first: a key that calls a function must not run
+       * with the receiver already pushed (the statement path orders it the
+       * same way). */
+      if (vec_key)
+	    draw_eval_vec4(key);
+      else
+	    draw_eval_string(key);
+      fprintf(vvp_out, "    %%load/obj v%p_0; associative ++/-- receiver\n", sig);
+      fprintf(vvp_out, "    %%aa/loadk/v/%s %u;\n", kind, wid);
+	/* A missing element is created with a 4-state default; a 2-state
+	   element's default is 0 (IEEE 1800-2023 7.8.6). */
+      if (two_state) fprintf(vvp_out, "    %%cast2; 2-state element value\n");
+      if (pre)
+	    fprintf(vvp_out, "    %s 1, 0, %u;\n", cmd, wid);
+      if (vec_key) {
+	    fprintf(vvp_out, "    %%concat/vec4; park {key,result}\n");
+	    fprintf(vvp_out, "    %%dup/vec4;\n");
+	    fprintf(vvp_out, "    %%split/vec4 %u; key and value for the store\n", wid);
+      } else {
+	    fprintf(vvp_out, "    %%dup/vec4; keep the yielded value\n");
+      }
+      if (!pre)
+	    fprintf(vvp_out, "    %s 1, 0, %u;\n", cmd, wid);
+      fprintf(vvp_out, "    %%aa/store/v/%s %u;\n", kind, wid);
+      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      if (vec_key)
+	    fprintf(vvp_out, "    %%pad/u %u; drop the parked key\n", wid);
+      return true;
+}
+
 static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 {
       ivl_variable_type_t destination_type = ivl_expr_value(sub);
@@ -2801,6 +2873,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	  && ivl_expr_oper1(sub)
 	  && ivl_expr_width(ivl_expr_oper1(sub)) == ivl_expr_width(sub))
 	    sub = ivl_expr_oper1(sub);
+
+      if (draw_assoc_elem_inc_dec_(sub, incr, pre))
+	    return;
 
       ivl_signal_t sig = 0;
       unsigned wid = 0;

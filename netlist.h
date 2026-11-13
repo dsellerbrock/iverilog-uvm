@@ -3750,6 +3750,7 @@ class NetAssign_ {
       ivl_select_type_t select_type() const;
 
       void set_word(NetExpr*);
+      NetExpr* release_word() { NetExpr*w = word_; word_ = 0; return w; }
       void set_array_word_prefix(unsigned first, unsigned count)
       { array_word_prefix_ = true; array_word_first_ = first;
         array_word_count_ = count; }
@@ -5928,6 +5929,7 @@ class NetESelect  : public NetExpr {
 
       const NetExpr*sub_expr() const;
       const NetExpr*select() const;
+      void set_select(NetExpr*sel) { delete base_; base_ = sel; }
       ivl_select_type_t select_type() const;
 
 	// The type of a bit/part select is the base type of the
@@ -6065,6 +6067,7 @@ class NetEProperty : public NetExpr {
       inline const NetExpr* get_base() const { return expr_; }
       inline size_t property_idx() const { return pidx_; }
       inline const NetExpr*get_index() const { return index_; }
+      void set_index(NetExpr*idx) { delete index_; index_ = idx; }
 
       // Resolve a direct member of a statically bound interface port to the
       // concrete signal in the interface-instance scope. Ordinary class
@@ -6543,6 +6546,7 @@ class NetESignal  : public NetExpr {
 	// This is the expression for selecting an array word, if this
 	// signal refers to an array.
       const NetExpr* word_index() const;
+      void set_word_index(NetExpr*idx) { delete word_; word_ = idx; }
 
 	// This is the width of the vector that this signal refers to.
       unsigned vector_width() const;
