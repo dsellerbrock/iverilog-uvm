@@ -17022,6 +17022,12 @@ void pform_timing_check_period(const struct vlltype&loc,
 			       PExpr*limit,
 			       const pform_name_t*notifier)
 {
+      if (!ev.posedge && !ev.negedge && ev.edges.empty()) {
+	    cerr << loc.get_fileline() << ": error: $period requires an "
+		 << "edge-qualified reference event." << endl;
+	    error_count += 1;
+	    return;
+      }
       if (!tc_active_(loc, "$period")) return;
       if (!tc_check_supported_(loc, "$period", ev)) return;
       tc_take_limit_refs_(tc_record_(loc, vpiPeriod, ev, nullptr,

@@ -6772,3 +6772,7 @@ issue3077_udp_all_x_bad_2023 CE,-g2023 ivltests gold=issue3077_udp_all_x_bad.gol
 issue3077_udp_all_x_good_2023 normal,-g2023,-s,test ivltests gold=issue3077_udp_all_x_good.gold
 issue3087_dist_x_weight_2017 normal,-g2017,-s,top ivltests gold=issue3087_dist_x_weight.gold
 issue3087_dist_x_weight_2023 normal,-g2023,-s,top ivltests gold=issue3087_dist_x_weight.gold
+issue3088_period_invalid_2017 CE,-g2017,-gspecify,-s,top ivltests gold=issue3088_period_invalid.gold
+issue3088_period_valid_2017 normal,-g2017,-gspecify,-s,top ivltests gold=issue3088_period_valid.gold
+issue3088_period_invalid_2023 CE,-g2023,-gspecify,-s,top ivltests gold=issue3088_period_invalid.gold
+issue3088_period_valid_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue3088_period_valid.gold
