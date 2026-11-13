@@ -1808,6 +1808,9 @@ vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle ref)
       else
 	    rtn = ref->vpi_iterate(type);
 
+      if (__vpiIterator*iter = dynamic_cast<__vpiIterator*>(rtn))
+	    iter->reference = ref;
+
       if (vpi_trace) {
 	    fprintf(vpi_trace, "vpi_iterate(%d, %p) ->%s\n",
 	    (int)type, ref, rtn ? "" : " (null)");
