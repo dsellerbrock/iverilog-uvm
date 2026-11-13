@@ -1778,6 +1778,10 @@ symbol_access
          for a nested chain (obj.inner.s -> [inner_idx, s_idx]); see the
          vpip_make_cobject_property_string_var doc comment. */
       { $$ = vpip_make_cobject_property_string_var($3, $5.cnt, $5.nvec); }
+  | K_CPS '<' T_SYMBOL ',' numbers ',' T_SYMBOL '>'
+      /* #2745: an element of a string-array property; the trailing handle
+         (a vec4 stack reference) holds the element index. */
+      { $$ = vpip_make_cobject_property_string_elem($3, $5.cnt, $5.nvec, $7); }
   | K_CPV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' numbers '>'
       /* L34: chain (numbers) moved to the END, after width/signed --
          unlike K_CPS above, K_CPV has two trailing fixed fields, and a

@@ -6726,3 +6726,7 @@ sva_same_tick_verdicts_2023 normal,-g2023,-s,sva_same_tick_verdicts ivltests gol
 
 issue2952_constraint_side_effect_2017 CE,-g2017 ivltests gold=issue2952_constraint_side_effect_2017.gold
 issue2952_constraint_side_effect_2023 CE,-g2023 ivltests gold=issue2952_constraint_side_effect_2023.gold
+issue2965_unique_multidim_2017 normal,-g2017,-s,issue2965_unique_multidim ivltests gold=issue2965_unique_multidim.gold
+issue2965_unique_multidim_2023 normal,-g2023,-s,issue2965_unique_multidim ivltests gold=issue2965_unique_multidim.gold
+issue2975_nested_constraint_mode_2017 normal,-g2017,-s,test ivltests gold=issue2975_nested_constraint_mode.gold
+issue2975_nested_constraint_mode_2023 normal,-g2023,-s,test ivltests gold=issue2975_nested_constraint_mode.gold

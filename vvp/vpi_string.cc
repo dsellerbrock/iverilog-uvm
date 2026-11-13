@@ -52,6 +52,13 @@ __vpiStringVar::__vpiStringVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
 int __vpiStringVar::get_type_code(void) const
 { return vpiStringVar; }
 
+vpiHandle __vpiStringVar::vpi_handle(int code)
+{
+      if (code == vpiTypespec)
+	    return vpip_make_builtin_typespec(vpiStringTypespec);
+      return __vpiBaseVar::vpi_handle(code);
+}
+
 int __vpiStringVar::vpi_get(int code)
 {
       if (code == vpiAutomatic)
