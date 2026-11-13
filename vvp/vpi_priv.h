@@ -181,8 +181,10 @@ class __vpiHandle {
 struct __vpiIterator : public __vpiHandle {
       __vpiIterator();
       int get_type_code(void) const override;
+      vpiHandle vpi_handle(int code) override;
       free_object_fun_t free_object_fun(void) override;
 
+      vpiHandle reference;
       vpiHandle *args;
       unsigned  nargs;
       unsigned  next;
