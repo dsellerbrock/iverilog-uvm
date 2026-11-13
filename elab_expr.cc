@@ -23331,6 +23331,27 @@ static NetExpr* make_positional_container_cast_(
       return cast;
 }
 
+static bool check_dynamic_cast_width_(Design*des, const LineInfo&loc,
+                                      ivl_type_t target, NetExpr*source)
+{
+      const netdarray_t*array = dynamic_cast<const netdarray_t*>(target);
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(target);
+      if (!array || (queue && queue->assoc_compat())
+	  || !type_is_vectorable(source->expr_type()))
+	    return true;
+      ivl_type_t element = array->element_type();
+      uint64_t width = 0;
+      if (!element || !element->packed()
+	  || !fixed_bitstream_width_(element, width)
+	  || source->expr_width() % width == 0)
+	    return true;
+      cerr << loc.get_fileline() << ": error: bit-stream cast source of "
+	   << source->expr_width() << " bits is not a multiple of the "
+	   << width << "-bit destination element size." << endl;
+      des->errors += 1;
+      return false;
+}
+
 NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
                                     ivl_type_t type, unsigned flags) const
 {
@@ -23386,6 +23407,10 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
         NetExpr*base = base_->elaborate_expr(des, scope, use_wid, NO_FLAGS);
 	if (!base)
 	      return nullptr;
+	if (!check_dynamic_cast_width_(des, *this, target_type_, base)) {
+	      delete base;
+	      return nullptr;
+	}
 
 	/* A string source is a dynamically sized byte stream for this cast.
 	 * Lower it before the packed-vector fallback expands the nominal string
@@ -23548,7 +23573,13 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    // A cast behaves exactly like an assignment to a temporary variable,
 	    // so the temporary result size may affect the sub-expression width.
 	    unsigned cast_width = base_->expr_width();
-	    if (type_is_vectorable(base_->expr_type()) &&
+	    const netdarray_t*cast_array = dynamic_cast<const netdarray_t*>(target_type_);
+	    const netqueue_t*cast_queue = dynamic_cast<const netqueue_t*>(target_type_);
+	    bool packed_array_element = cast_array && cast_array->element_type()
+		  && cast_array->element_type()->packed()
+		  && !(cast_queue && cast_queue->assoc_compat());
+	    if (!packed_array_element &&
+		type_is_vectorable(base_->expr_type()) &&
 		(cast_width < expr_width_))
 		  cast_width = expr_width_;
 
@@ -23626,6 +23657,14 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       if (dynamic_cast<const PEAssignPattern*>(base_) && target_type_ &&
 	  !target_type_->packed())
 	    return sub;
+
+      /* A packed bit stream must fill whole elements of a dynamic array or
+       * queue (IEEE 1800-2017/2023 6.24.3). Its width is self-determined,
+       * not extended to the destination element width. */
+      if (!check_dynamic_cast_width_(des, *this, target_type_, sub)) {
+	    delete sub;
+	    return nullptr;
+      }
 
 	/* IEEE 1800-2017/2023 6.24.3 permits unpacked structs as bit-stream
 	 * cast destinations. Preserve the object-valued result in a dedicated
