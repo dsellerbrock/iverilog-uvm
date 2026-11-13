@@ -23683,6 +23683,23 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       const netqueue_t*assoc_cast_target =
 	    dynamic_cast<const netqueue_t*>(target_type_);
       unsigned assoc_key_kind = 0;
+      if (assoc_source && assoc_source->assoc_compat()
+	  && target_type_ && target_type_->packed()
+	  && target_type_->packed_width() > 0
+	  && type_is_vectorable(target_type_->base_type())
+	  && assoc_integral_bitstream_source_(assoc_source, assoc_key_kind)
+	  && bitstream_cast_type_(assoc_source, false)) {
+	    const char*key_name = assoc_key_kind == 0 ? "t"
+		  : assoc_key_kind == 1 ? "o"
+		  : assoc_key_kind == 3 ? "s" : "u";
+	    char marker_name[40];
+	    snprintf(marker_name, sizeof marker_name,
+		     "$ivl_stream$cast$assoc$%s$1", key_name);
+	    NetESFunc*cast = new NetESFunc(marker_name, target_type_, 1);
+	    cast->parm(0, sub);
+	    cast->set_line(*this);
+	    return cast;
+      }
       if (!positional_pair && assoc_source && assoc_source->assoc_compat()
 	  && assoc_cast_target && !assoc_cast_target->assoc_compat()
 	  && assoc_integral_bitstream_source_(assoc_source, assoc_key_kind)

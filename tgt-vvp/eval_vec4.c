@@ -1975,6 +1975,11 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	         expression width (left-aligned, zero-filled right;
 	         error if the stream is wider). */
 	    draw_stream_pack_pieces(expr, ivl_expr_width(expr));
+	    if (strncmp(ivl_expr_name(expr), "$ivl_stream$cast$assoc$", 23) == 0) {
+		  fprintf(vvp_out, "    %%stream/cast/size %u;\n", ivl_expr_width(expr));
+		  if (ivl_expr_value(expr) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2;\n");
+	    }
 	    return;
       }
       if (strncmp(ivl_expr_name(expr),"$ivl_darray_method$reduce|",26)==0) {
