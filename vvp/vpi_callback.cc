@@ -1484,6 +1484,13 @@ PLI_INT32 vpi_remove_cb(vpiHandle ref)
       return obj->remove();
 }
 
+void vpi_get_cb_info(vpiHandle ref, p_cb_data data)
+{
+      struct __vpiCallback*obj = dynamic_cast<__vpiCallback*>(ref);
+      assert(obj && data);
+      *data = obj->cb_data;
+}
+
 void callback_execute(struct __vpiCallback*cur)
 {
       const vpi_mode_t save_mode = vpi_mode_flag;
