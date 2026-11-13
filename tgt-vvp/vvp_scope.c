@@ -3659,7 +3659,9 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    if (ivl_scope_is_auto(net) && !ivl_scope_auto_frame(net))
 		  snprintf(suffix, sizeof suffix, ".shared");
 	    break;
-      case IVL_SCT_GENERATE: type = "generate"; break;
+      case IVL_SCT_GENERATE:
+        type = ivl_scope_generate_array_member(net) ? "generate.array" : "generate";
+        break;
       case IVL_SCT_PACKAGE:  type = "package";  break;
       case IVL_SCT_CLASS:    type = "class";    break;
       default:               type = "?";        assert(0);

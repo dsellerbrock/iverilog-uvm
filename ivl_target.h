@@ -2179,6 +2179,8 @@ extern unsigned     ivl_scope_lpms(ivl_scope_t net);
 extern ivl_lpm_t    ivl_scope_lpm(ivl_scope_t, unsigned idx);
 extern const char*  ivl_scope_name(ivl_scope_t net);
 extern const char*  ivl_scope_basename(ivl_scope_t net);
+/* True for a loop-generate element, even if its name contains brackets. */
+extern int ivl_scope_generate_array_member(ivl_scope_t net);
 extern unsigned     ivl_scope_params(ivl_scope_t net);
 extern ivl_parameter_t ivl_scope_param(ivl_scope_t net, unsigned idx);
 extern ivl_scope_t  ivl_scope_parent(ivl_scope_t net);
