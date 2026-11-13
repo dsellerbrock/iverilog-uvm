@@ -6754,3 +6754,5 @@ issue3027_assoc_packed normal,-g2017,-s,issue3027_assoc_packed ivltests gold=iss
 issue3027_assoc_packed_size RE,-g2017,-s,issue3027_assoc_packed_size ivltests gold=issue3027_assoc_packed_size.gold
 issue3035_countbits_wide normal,-g2017,-s,top ivltests gold=issue3035_countbits_wide-legacy.gold
 issue3023_tagged_union_width normal,-g2017 ivltests gold=issue3023_tagged_union_width.gold
+issue3034_assert_sensitivity_2017 normal,-g2017,-s,issue3034_assert_sensitivity ivltests gold=issue3034_assert_sensitivity.gold
+issue3034_assert_sensitivity_2023 normal,-g2023,-s,issue3034_assert_sensitivity ivltests gold=issue3034_assert_sensitivity.gold
