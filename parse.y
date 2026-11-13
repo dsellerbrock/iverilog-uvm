@@ -5436,8 +5436,8 @@ constraint_prototype /* IEEE1800-2005: A.1.9 */
            (IEEE 1800-2017 18.5.1/18.5.14.1; 2023 18.5.1/18.5.13.1). */
         pform_class_constraint_prototype(@2, $1, $3, $4, false); delete[] $4;
       }
-  | K_pure K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
-      { pform_class_pure_constraint(@1, $3, $4); delete[] $4; }
+  | K_pure K_static_opt K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
+      { pform_class_pure_constraint(@1, $2, $4, $5); delete[] $5; }
   /* An explicit external prototype requires a matching out-of-body
      definition (IEEE 1800-2017 18.5.1). */
   | K_extern K_constraint constraint_override_specifiers_opt IDENTIFIER ';'

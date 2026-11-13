@@ -716,6 +716,7 @@ struct class_type_t : public data_type_t {
 	// descendant must replace every inherited entry with a constraint
 	// declaration of the same name before it can be instantiated.
       struct pure_constraint_info_t : public LineInfo {
+	    bool is_static = false;
 	    unsigned override_specifiers = 0;
       };
       std::map<perm_string, pure_constraint_info_t> pure_constraints;
