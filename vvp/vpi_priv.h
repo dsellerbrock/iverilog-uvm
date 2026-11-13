@@ -482,6 +482,11 @@ class vpiScopeFunction  : public __vpiScope {
 extern __vpiScope* vpip_peek_current_scope(void);
 extern void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj);
 extern void vpip_attach_to_current_scope(vpiHandle obj);
+/* The error state behind vpi_chk_error() (IEEE 1800-2023 38.2), and the
+   cbPLIError/cbError callbacks it runs (38.36.3). */
+extern void vpip_clear_error(void);
+extern void vpip_set_error(PLI_INT32 level, const char*message);
+extern void vpip_run_error_callbacks(void);
 /* Continuous assignment objects (IEEE 1800-2023 37.47). */
 extern vpiHandle vpip_make_contassign(int flags, int str0, int str1,
 				      unsigned file_idx, unsigned lineno,
