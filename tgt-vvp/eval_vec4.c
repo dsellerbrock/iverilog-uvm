@@ -614,28 +614,6 @@ static void draw_binary_vec4_compare(ivl_expr_t expr)
       }
 }
 
-/*
- * Handle the logical implication:
- *    <le> -> <re>
- * which is the same as the expression
- *    !<le> || <re>
- *
- */
-static void draw_binary_vec4_limpl(ivl_expr_t expr)
-{
-      ivl_expr_t le = ivl_expr_oper1(expr);
-      ivl_expr_t re = ivl_expr_oper2(expr);
-
-      /* The arguments should have alreacy been reduced. */
-      assert(ivl_expr_width(le) == 1);
-      assert(ivl_expr_width(re) == 1);
-
-      draw_eval_vec4(le);
-      fprintf(vvp_out, "    %%inv;\n");
-      draw_eval_vec4(re);
-      fprintf(vvp_out, "    %%or;\n");
-}
-
 static void draw_binary_vec4_lequiv(ivl_expr_t expr)
 {
       ivl_expr_t le = ivl_expr_oper1(expr);
@@ -666,6 +644,10 @@ static void draw_binary_vec4_logical(ivl_expr_t expr, char op)
 	    opcode = "or";
 	    jmp_type = "1";
 	    break;
+	  case 'q':
+	    opcode = "or";
+	    jmp_type = "0";
+	    break;
 	  default:
 	    assert(0);
 	    break;
@@ -676,10 +658,12 @@ static void draw_binary_vec4_logical(ivl_expr_t expr, char op)
       ivl_expr_t le = ivl_expr_oper1(expr);
       ivl_expr_t re = ivl_expr_oper2(expr);
 
-      /* Evaluate the left expression as a conditon and skip the right expression
-       * if the left is false. */
+      /* Evaluate the left expression and skip the right when its value
+       * determines the result. Implication uses !left || right. */
       int flag = draw_eval_condition(le);
       fprintf(vvp_out, "    %%flag_get/vec4 %d;\n", flag);
+      if (op == 'q')
+	    fprintf(vvp_out, "    %%inv;\n");
       fprintf(vvp_out, "    %%jmp/%s T_%u.%u, %d;\n", jmp_type, thread_count,
 	      label_out, flag);
       clr_flag(flag);
@@ -931,6 +915,7 @@ static void draw_binary_vec4(ivl_expr_t expr)
       switch (ivl_expr_opcode(expr)) {
 	  case 'a': /* Logical && */
 	  case 'o': /* || (logical or) */
+	  case 'q': /* -> (logical implication) */
 	    draw_binary_vec4_logical(expr, ivl_expr_opcode(expr));
 	    break;
 
@@ -974,10 +959,6 @@ static void draw_binary_vec4(ivl_expr_t expr)
 	  case 'r': /* >> */
 	  case 'R': /* >>> */
 	    draw_binary_vec4_lrs(expr);
-	    break;
-
-	  case 'q': /* -> (logical implication) */
-	    draw_binary_vec4_limpl(expr);
 	    break;
 
 	  case 'Q': /* <-> (logical equivalence) */
