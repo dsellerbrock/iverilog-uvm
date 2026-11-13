@@ -12,14 +12,14 @@ SVA note: vpi_control(641) also changes the action control of attempts of sva_vp
 50: vpi_control(642, sva_vpi_sys_control.im) = 1
 60: vpi_control(628, sva_vpi_sys_control.m) = 1
 60: vpi_control(640, sva_vpi_sys_control.im) = 1
-callbacks: failure 4, start 4, step 4
+callbacks: failure 4, start 4, step 0
 70: vpi_control(630, NULL) = 1
-callbacks: failure 6, start 6, step 4
+callbacks: failure 6, start 6, step 0
 90: vpi_control(629, NULL) = 1
 a1 fail actions: 6
 a2 fail actions: 4
 a3 fail actions: 1
 a4 pass actions: 4
 ia5 fail actions: 5
-callbacks: failure 6, start 6, step 4
+callbacks: failure 6, start 6, step 0
 ivltests/sva_vpi_sys_control.sv:65: $finish called at 110 (1s)

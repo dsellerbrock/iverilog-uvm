@@ -6903,6 +6903,9 @@ void pform_set_parameter(const struct vlltype&loc,
 			 type_parameter_restriction_t restriction)
 {
       LexicalScope*scope = lexical_scope;
+      // Class items are local parameters; parameter port declarations are not.
+      if (dynamic_cast<PClass*>(scope) && !pform_in_parameter_port_list)
+	    is_local = true;
       if (is_compilation_unit(scope) && !gn_system_verilog()) {
 	    VLerror(loc, "error: %s declarations must be contained within a module.",
 		         is_local ? "localparam" : "parameter");
@@ -10776,6 +10779,90 @@ static bool sva_prepare_clocking_declaration_(const struct vlltype&loc,
       return true;
 }
 
+/* IEEE 1800-2023 16.12.17: does a property body instantiate `name'? A
+   reference to a property not yet declared parses as a call or a plain
+   identifier, so any mention of the name counts. PExpr::refs_name is
+   conservative (true for kinds it does not open), which would refuse
+   legal properties, so walk the expression kinds a body uses; a kind not
+   opened here answers no. */
+static bool sva_names_(const PExpr*e, perm_string name)
+{
+      if (!e) return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(e))
+	    return pform_name_refs_name(id->path().name, name);
+      if (const PECallFunction*c = dynamic_cast<const PECallFunction*>(e)) {
+	    if (pform_name_refs_name(c->path().name, name)) return true;
+	    for (const named_pexpr_t&a : c->get_parms())
+		  if (sva_names_(a.parm, name)) return true;
+	    return false;
+      }
+      if (const PEBinary*b = dynamic_cast<const PEBinary*>(e))
+	    return sva_names_(b->get_left(), name) || sva_names_(b->get_right(), name);
+      if (const PEUnary*u = dynamic_cast<const PEUnary*>(e))
+	    return sva_names_(u->get_expr(), name);
+      if (const PETernary*t = dynamic_cast<const PETernary*>(e))
+	    return sva_names_(t->get_cond(), name) || sva_names_(t->get_true(), name)
+		|| sva_names_(t->get_false(), name);
+      if (const PEConcat*c = dynamic_cast<const PEConcat*>(e)) {
+	    for (const PExpr*x : c->stream_parms())
+		  if (sva_names_(x, name)) return true;
+	    return false;
+      }
+      return false;
+}
+
+static bool sva_steps_refs_(const std::vector<sva_seq_step_t>*steps,
+			    perm_string name)
+{
+      if (!steps) return false;
+      for (const sva_seq_step_t&st : *steps)
+	    if (sva_names_(st.expr, name) || sva_names_(st.delay_lo_expr, name)
+		|| sva_names_(st.delay_hi_expr, name))
+		  return true;
+      return false;
+}
+
+static bool sva_tree_refs_(const sva_stree_t*t, perm_string name)
+{
+      if (!t) return false;
+      return sva_steps_refs_(t->chain, name)
+	  || sva_names_(t->gexpr, name)
+	  || sva_tree_refs_(t->a, name) || sva_tree_refs_(t->b, name);
+}
+
+static bool sva_property_refs_(const sva_property_t*p, perm_string name)
+{
+      if (!p) return false;
+      return sva_steps_refs_(p->seq, name) || sva_steps_refs_(p->antecedent, name)
+	  || sva_steps_refs_(p->mc_prefix, name)
+	  || sva_tree_refs_(p->tree, name) || sva_tree_refs_(p->ante_tree, name)
+	  || sva_names_(p->pcond, name) || sva_names_(p->abort_cond, name)
+	  || sva_property_refs_(p->pa, name) || sva_property_refs_(p->pb, name);
+}
+
+/* Recursive and mutually recursive properties (16.12.17) need an engine
+   that spawns shared property attempts at later ticks; none exists yet.
+   Refuse them loudly at declaration instead of failing later on an
+   unresolved name. A cycle closes when this declaration names itself, or
+   names an earlier property that (through others) names it. */
+static bool sva_property_recursion_(const struct vlltype&loc,
+				    perm_string name, const sva_property_t*body)
+{
+      bool cycle = sva_property_refs_(body, name);
+      for (std::map<sva_scoped_name_t,sva_property_t*>::const_iterator it =
+		 sva_module_properties.begin() ; !cycle
+		 && it != sva_module_properties.end() ; ++it)
+	    if (sva_property_refs_(body, it->first.name)
+		&& sva_property_refs_(it->second, name))
+		  cycle = true;
+      if (!cycle) return false;
+      cerr << loc << ": sorry: recursive property `" << name << "' (IEEE "
+	   << "1800-2023 16.12.17) is not supported yet; its instances are "
+	   << "dropped." << endl;
+      error_count += 1;
+      return true;
+}
+
 void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
@@ -10787,6 +10874,10 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 		return;
 	  }
       perm_string use_name = lex_strings.make(name);
+      if (sva_property_recursion_(loc, use_name, prop)) {
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
       sva_scoped_name_t key = sva_decl_key_(use_name);
       if (sva_module_properties.count(key)
 	  || sva_module_sequences.count(key)) {
@@ -10933,6 +11024,11 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
       sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
+      if (prop && sva_property_recursion_(loc, use_name, prop)) {
+	    pform_sva_destroy_property(prop);
+	    delete formals;
+	    return;
+      }
 
       bool bad_local_direction = false;
       if (formals) {
@@ -14940,7 +15036,8 @@ static unsigned sva_active_assertion_kind_ = 1;
 static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
 				     long edges = -1,
 				     bool fail_full_latency = false,
-				     PExpr*edges_expr = nullptr)
+				     PExpr*edges_expr = nullptr,
+				     long step_depth = -1)
 {
       char nbuf[64];
       if (sva_active_assertion_label_.nil())
@@ -14964,8 +15061,12 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
 		  (uint64_t)(edges >= 1 ? edges : 0), 32)));
       args.push_back(a4);
       named_pexpr_t a5;
-      a5.parm = new PENumber(new verinum(
-	    (uint64_t)(fail_full_latency ? 1 : 0), 32));
+	/* bit0: failures run the full latency. bit1: the checker reports
+	   steps per attempt (IEEE 1800-2023 39.4.2), naming attempts by
+	   clock ages up to bits 8+. */
+      uint64_t flags = fail_full_latency ? 1 : 0;
+      if (step_depth >= 0) flags |= 2 | ((uint64_t)step_depth << 8);
+      a5.parm = new PENumber(new verinum(flags, 32));
       args.push_back(a5);
 	/* Preserve the declaration kind for its VPI assertion handle. */
       named_pexpr_t a6;
@@ -15216,9 +15317,8 @@ Statement* pform_make_immediate_assertion(const struct vlltype&loc,
 static const int SVA_CB_START   = 606;   /* cbAssertionStart */
 static const int SVA_CB_SUCCESS = 607;   /* cbAssertionSuccess */
 static const int SVA_CB_FAILURE = 608;   /* cbAssertionFailure */
-/* M12-1: per-STEP reports — an attempt advanced one step of the
-   sequence (STEP_SUCCESS) or died mid-sequence (STEP_FAILURE). Only
-   the automaton engine delivers these. */
+/* IEEE 1800-2023 39.4.2 step reports — one clock tick of one attempt
+   advanced (STEP_SUCCESS) or failed (STEP_FAILURE); see sva_step_table_t. */
 static const int SVA_CB_STEP_SUCCESS = 609;  /* cbAssertionStepSuccess */
 static const int SVA_CB_STEP_FAILURE = 610;  /* cbAssertionStepFailure */
 static const int SVA_CB_VACUOUS_SUCCESS = 657; /* cbAssertionVacuousSuccess */
@@ -15255,6 +15355,129 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
       FILE_NAME(c, loc);
       return c;
 }
+
+static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v);
+
+/* One source boolean of a step report: its line and text (39.4.2). */
+struct sva_step_expr_t {
+      std::string file;
+      unsigned line;
+      std::string text;
+};
+
+/* Source-like text of a sequence boolean for vpiDecompile: operators as
+   written, not the parse-tree op codes PExpr::dump prints. */
+static void sva_src_text_(std::ostream&out, const PExpr*e)
+{
+      if (const PEBinary*b = dynamic_cast<const PEBinary*>(e)) {
+	    if (b->get_left() && b->get_right()) {
+		  out << "(";
+		  sva_src_text_(out, b->get_left());
+		  out << " " << human_readable_op(b->get_op()) << " ";
+		  sva_src_text_(out, b->get_right());
+		  out << ")";
+		  return;
+	    }
+      }
+      if (const PEUnary*u = dynamic_cast<const PEUnary*>(e)) {
+	    out << human_readable_op(u->get_op(), true);
+	    sva_src_text_(out, u->get_expr());
+	    return;
+      }
+      if (const PENumber*n = dynamic_cast<const PENumber*>(e)) {
+	    const verinum&v = n->value();
+	    if (!v.has_len() && v.is_defined() && v.len() <= 64) {
+		  if (v.has_sign()) out << v.as_long();
+		  else out << v.as_ulong64();
+		  return;
+	    }
+      }
+      if (const PECallFunction*c = dynamic_cast<const PECallFunction*>(e)) {
+	    out << c->path() << "(";
+	    for (size_t i = 0 ; i < c->get_parms().size() ; i += 1) {
+		  if (i) out << ", ";
+		  if (c->get_parms()[i].parm)
+			sva_src_text_(out, c->get_parms()[i].parm);
+	    }
+	    out << ")";
+	    return;
+      }
+      e->dump(out);
+}
+
+static sva_step_expr_t sva_step_expr_(const PExpr*e)
+{
+      sva_step_expr_t r;
+      r.file = e->get_file().str() ? e->get_file().str() : "";
+      r.line = e->get_lineno();
+      std::ostringstream buf;
+      sva_src_text_(buf, e);
+      r.text = buf.str();
+      return r;
+}
+
+/* IEEE 1800-2023 39.4.2: a checker's distinct steps (reason, state ids,
+   expressions), registered once at time 0 so a report names only its
+   row. State 0 is the origin, 1 the accepting state. */
+struct sva_step_table_t {
+      sva_step_table_t(const struct vlltype&l, unsigned i) : loc(l), inst(i) { }
+      const struct vlltype&loc;
+      unsigned inst;
+      std::map<std::string,unsigned> ids;
+      std::vector<Statement*> rows;
+
+	/* `reg = row', registering the row on first use. */
+      Statement* pick(perm_string reg, int reason, long from, long to,
+		      const std::vector<sva_step_expr_t>&exprs)
+      {
+	    std::ostringstream key;
+	    key << reason << ' ' << from << ' ' << to;
+	    for (size_t i = 0 ; i < exprs.size() ; i += 1)
+		  key << '\n' << exprs[i].file << ':' << exprs[i].line
+		      << ':' << exprs[i].text;
+	    unsigned&id = ids[key.str()];
+	    if (!id) {
+		  id = ids.size();
+		  std::list<named_pexpr_t> args;
+		  auto arg = [&](PExpr*e) {
+			named_pexpr_t a;
+			a.parm = e;
+			args.push_back(a);
+		  };
+		  arg(sva_num32_(loc, inst));
+		  arg(sva_num32_(loc, id));
+		  arg(sva_num32_(loc, (uint64_t)reason));
+		  arg(sva_num32_(loc, (uint64_t)from));
+		  arg(sva_num32_(loc, (uint64_t)to));
+		  for (size_t i = 0 ; i < exprs.size() ; i += 1) {
+			arg(new PEString(strdup(exprs[i].file.c_str())));
+			arg(sva_num32_(loc, exprs[i].line));
+			arg(new PEString(strdup(exprs[i].text.c_str())));
+		  }
+		  PCallTask*t = new PCallTask(
+			lex_strings.make("$ivl_assert_step_row"), args);
+		  FILE_NAME(t, loc);
+		  rows.push_back(t);
+	    }
+	    return sva_assign_(loc, reg, sva_num32_(loc, id));
+      }
+
+	/* Report the step in `reg' for the attempt named by its clock age,
+	   or by the START serial its slot saved (age -1). The runtime drops
+	   it unless stepping was enabled for that attempt (39.5.2). */
+      Statement* fire(perm_string reg, PExpr*age, PExpr*serial)
+      {
+	    std::list<named_pexpr_t> args;
+	    named_pexpr_t a;
+	    a.parm = sva_num32_(loc, inst); args.push_back(a);
+	    a.parm = sva_id_(loc, reg); args.push_back(a);
+	    a.parm = age ? age : sva_num32_(loc, (uint64_t)-1); args.push_back(a);
+	    a.parm = serial ? serial : sva_num32_(loc, 0); args.push_back(a);
+	    PCallTask*t = new PCallTask(lex_strings.make("$ivl_assert_step"), args);
+	    FILE_NAME(t, loc);
+	    return t;
+      }
+};
 
 static Statement* sva_clock_stmt_(const struct vlltype&loc, unsigned inst)
 {
@@ -19707,6 +19930,10 @@ pform_sva_prop_implies(const struct vlltype&loc,
       PExpr*ae = sva_take_bool_seq_(loc, "implies", a);
       PExpr*be = sva_take_bool_seq_(loc, "implies", b);
       if (!ae || !be) { delete ae; delete be; return nullptr; }
+	/* Property operands interpret X and Z as false (16.6). */
+      ae = new PEBComp('E', sva_booleanize_(loc, ae), sva_bit_(loc, 1));
+      be = new PEBComp('E', sva_booleanize_(loc, be), sva_bit_(loc, 1));
+	FILE_NAME(ae, loc); FILE_NAME(be, loc);
 	/* a implies b  ==  !a | b */
       return sva_wrap_bool_(sva_logic_(loc, 'o', sva_not_(loc, ae), be));
 }
@@ -19719,6 +19946,10 @@ pform_sva_prop_iff(const struct vlltype&loc,
       PExpr*ae = sva_take_bool_seq_(loc, "iff", a);
       PExpr*be = sva_take_bool_seq_(loc, "iff", b);
       if (!ae || !be) { delete ae; delete be; return nullptr; }
+	/* Convert each expression to its two-state property outcome. */
+      ae = new PEBComp('E', sva_booleanize_(loc, ae), sva_bit_(loc, 1));
+      be = new PEBComp('E', sva_booleanize_(loc, be), sva_bit_(loc, 1));
+	FILE_NAME(ae, loc); FILE_NAME(be, loc);
 	/* a iff b  ==  (a & b) | (!a & !b) */
       PExpr*both = sva_logic_(loc, 'a', sva_clone_expr_(ae), sva_clone_expr_(be));
       PExpr*neither = sva_logic_(loc, 'a', sva_not_(loc, ae), sva_not_(loc, be));
@@ -21029,6 +21260,10 @@ static bool sva_prop_is_plain_seq_(const sva_property_t*prop)
 static sva_stree_t* sva_prop_take_tree_(const struct vlltype&loc, sva_property_t*p);
 static bool sva_prop_is_property_shaped_(const sva_property_t*p);
 static bool sva_leaf_names_property_(const sva_property_t*p);
+static sva_property_t* sva_clone_property_(const struct vlltype&loc,
+		const sva_property_t*src,
+		const std::map<perm_string,PExpr*>*subst = nullptr,
+		const std::map<perm_string,const PEventStatement*>*event_subst = nullptr);
 
 /* A property operator over full properties (and/or, if-else, an abort)
    as an implication consequent (A.2.10): build the per-attempt
@@ -21104,7 +21339,8 @@ static sva_stree_t* sva_chain_take_tree_(std::vector<sva_seq_step_t>*chain)
    are declarations and may be referenced more than once; transferring the
    declaration tree made the second assertion silently unresolved. */
 static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
-				    const sva_stree_t*src)
+				    const sva_stree_t*src,
+				    const std::map<perm_string,PExpr*>*subst = nullptr)
 {
       if (!src) return nullptr;
       sva_stree_t*out = new sva_stree_t;
@@ -21113,28 +21349,29 @@ static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
       out->concat_overlap = src->concat_overlap;
       std::map<perm_string,PExpr*> no_subst;
       if (src->chain) {
-	    out->chain = sva_clone_steps_subst_(loc, src->chain, no_subst);
+	    out->chain = sva_clone_steps_subst_(loc, src->chain,
+						subst ? *subst : no_subst);
 	    if (!out->chain) {
 		  sva_tree_delete_(out, true);
 		  return nullptr;
 	    }
       }
       if (src->gexpr) {
-	    out->gexpr = sva_clone_subst_(src->gexpr, nullptr);
+	    out->gexpr = sva_clone_subst_(src->gexpr, subst);
 	    if (!out->gexpr) {
 		  sva_tree_delete_(out, true);
 		  return nullptr;
 	    }
       }
       if (src->a) {
-	    out->a = sva_tree_clone_(loc, src->a);
+	    out->a = sva_tree_clone_(loc, src->a, subst);
 	    if (!out->a) {
 		  sva_tree_delete_(out, true);
 		  return nullptr;
 	    }
       }
       if (src->b) {
-	    out->b = sva_tree_clone_(loc, src->b);
+	    out->b = sva_tree_clone_(loc, src->b, subst);
 	    if (!out->b) {
 		  sva_tree_delete_(out, true);
 		  return nullptr;
@@ -21912,6 +22149,36 @@ sva_property_t* pform_sva_prop_not(const struct vlltype&loc,
 				   sva_property_t*sub)
 {
       if (!sub) return nullptr;
+      std::set<sva_scoped_name_t> visited;
+      while (sva_seq_names_property_(sub)) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(sub->seq->front().expr);
+	    if (!id) {
+		  return sva_nested_prop_sorry_(loc, "not", "16.12.9", sub);
+	    }
+	    auto it = sva_resolve_(sva_module_properties, id->path().name.front().name);
+	    if (it == sva_module_properties.end() || !it->second
+		|| !visited.insert(it->first).second) {
+		  return sva_nested_prop_sorry_(loc, "not", "16.12.9", sub);
+	    }
+	    if (it->second->disable_iff_expr) {
+		  cerr << loc << ": error: a property instance with a `disable iff' "
+		       << "clause cannot be an operand of another property "
+		       << "(IEEE 1800-2017/2023 16.12.1)." << endl;
+		  error_count += 1;
+		  pform_sva_destroy_property(sub);
+		  return nullptr;
+	    }
+	    sva_property_t*body = sva_clone_property_(loc, it->second);
+	    pform_sva_destroy_property(sub);
+	    if (!body) {
+		  cerr << loc << ": sorry: a named property operand cannot be instantiated here." << endl;
+		  error_count += 1;
+		  return nullptr;
+	    }
+	    sub = body;
+	    if (!sub->local_names.empty())
+		  return sva_nested_prop_sorry_(loc, "not", "16.12.9", sub);
+      }
       if (!sva_prop_is_plain_seq_(sub))
 	    return sva_nested_prop_sorry_(loc, "not", "16.12.9", sub);
 
@@ -24034,11 +24301,15 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			PExpr*be = sva_rewrite_sampled_(loc, src, inst,
 							hist_idx, pre, post,
 							init_zero);
+			/* An assertion guard has procedural-if truth: X and Z
+			   are false, including after reduction of a vector. */
+			be = new PEBComp('E', sva_booleanize_(loc, be),
+					 sva_bit_(loc, 1));
+			FILE_NAME(be, loc);
 			if (reads_local) {
 			      local_guard_expr[key] = be;
 			      continue;
 			}
-			be = sva_booleanize_(loc, be);
 			perm_string r = sva_make_reg_(loc, inst, "b", bidx++);
 			pre.push_back(sva_assign_(loc, r, be));
 			guard_reg[key] = r;
@@ -24251,17 +24522,28 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    r_p = sva_make_reg_(loc, inst, "p", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
-	// M12-1: per-tick STEP flags — set by the slot advance when an
-	// attempt moves forward one step (sp) or dies mid-sequence
-	// (sf), dispatched once per tick like the pass/fail flags.
-	// Cover has no step notion (its counter is the record).
-      perm_string r_sp, r_sf;
-      if (!cover && !sub) {
-	    r_sp = sva_make_reg_(loc, inst, "sp", 0);
-	    init_zero.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
-	    r_sf = sva_make_reg_(loc, inst, "sf", 0);
-	    init_zero.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
+	/* IEEE 1800-2023 39.4.2: a slot is one attempt; it saves the START
+	   serial that names it, and reports one step per tick. Endpoint
+	   fan-out splits an attempt into several obligation records, so it
+	   (with cover, `not' and sub-properties) refuses step control. */
+      bool steps_ok = !cover && !sub && !negated && !endpoint_fanout;
+      std::vector<perm_string> ser;
+      perm_string r_watch;  // a callback is registered, read once per tick
+      std::vector<PExpr*> step_guards;  // distinct edge guards, in order
+      if (steps_ok) {
+	    r_watch = sva_make_reg_(loc, inst, "watch", 0);
+	    init_zero.push_back(sva_assign_(loc, r_watch, sva_bit_(loc, 0)));
+	    for (size_t e = 0 ; e < nfa.edges.size() ; e += 1)
+		  for (PExpr*g : nfa.edges[e].guards)
+			if (find(step_guards.begin(), step_guards.end(), g)
+			    == step_guards.end())
+			      step_guards.push_back(g);
       }
+      if (steps_ok)
+	    for (long k = 0 ; k < K ; k += 1) {
+		  ser.push_back(sva_make_reg_(loc, inst, "ser", k, true));
+		  init_zero.push_back(sva_assign_(loc, ser[k], sva_num32_(loc, 0)));
+	    }
       perm_string r_cnt;
       if (cover) {
 	      /* Same name as the legacy engine's counter, so tests can
@@ -24401,8 +24683,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  clr.push_back(sva_assign_(loc, vacuous, sva_num32_(loc, 0)));
 	    if (!cover) {
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
-		  clr.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
-		  clr.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
 	    }
 	    if (!negated && !cover)
 		  clr.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
@@ -24481,6 +24761,18 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (long k = K-1 ; k >= 0 ; k -= 1) {
 		  std::vector<Statement*> take;
 		  take.push_back(sva_assign_(loc, s[k][nfa.start], sva_bit_(loc, 1)));
+		  if (steps_ok) {
+			std::list<named_pexpr_t> sargs;
+			named_pexpr_t sa;
+			sa.parm = sva_num32_(loc, inst);
+			sargs.push_back(sa);
+			PECallFunction*serial = new PECallFunction(
+			      lex_strings.make("$ivl_assert_serial"), sargs);
+			FILE_NAME(serial, loc);
+			take.push_back(sva_assign_(loc, ser[k],
+			      new PETernary(sva_id_(loc, r_watch), serial,
+					    sva_num32_(loc, 0))));
+		  }
 		  std::map<perm_string,PExpr*> init_lvmap;
 		  for (unsigned li = 0 ; li < lv_list.size(); li += 1)
 			init_lvmap[lv_list[li]] = sva_id_(loc, vk[k][li]);
@@ -24519,6 +24811,16 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (long k = 0 ; k < K ; k += 1)
 		  body.push_back(set_verdict(k, 0));
 
+	/* An attempt injected while no callback is registered has no serial
+	   and cannot step: it started before any EnableStep could reach it. */
+      if (steps_ok) {
+	    std::list<named_pexpr_t> no_parms;
+	    PECallFunction*active = new PECallFunction(
+		  perm_string::literal("$ivl_assert_cb_active"), no_parms);
+	    FILE_NAME(active, loc);
+	    body.insert(body.begin(), sva_assign_(loc, r_watch, active));
+      }
+
 	/* Per-slot advance. */
       for (long k = 0 ; k < K ; k += 1) {
 	      /* Obligation: set the sticky bit the tick the antecedent
@@ -24553,6 +24855,47 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (unsigned j = 0 ; j < N ; j += 1) {
 		  body.push_back(sva_assign_(loc, nx[j],
 			    next_state(nfa, s[k], j, lvmap, exit_hits)));
+	    }
+	      /* 39.4.2 step of this slot's attempt: its pre-advance state bits,
+		 this tick's next-state bits and guard values go to the runtime,
+		 which picks the step against the automaton registered at time
+		 0 (see vpip_assertion_nfa_step). */
+	    if (steps_ok) {
+		  auto bits = [&](std::vector<PExpr*>&v) {
+			std::list<PExpr*> l (v.rbegin(), v.rend());
+			PEConcat*c = new PEConcat(l);
+			FILE_NAME(c, loc);
+			return c;
+		  };
+		  std::vector<PExpr*> pre_bits, nxt, gv;
+		  for (unsigned j = 0 ; j < N ; j += 1) {
+			pre_bits.push_back(sva_id_(loc, s[k][j]));
+			nxt.push_back(sva_id_(loc, nx[j]));
+		  }
+		  for (size_t g = 0 ; g < step_guards.size() ; g += 1) {
+			PExpr*gk = step_guards[g];
+			if (has_lv && sva_expr_reads_lv_(gk, lv_index))
+			      gv.push_back(sva_not_(loc, sva_not_(loc,
+				    sva_clone_subst_(local_guard_expr[gk], &lvmap))));
+			else
+			      gv.push_back(sva_id_(loc, guard_reg[gk]));
+		  }
+		  if (gv.empty()) gv.push_back(sva_bit_(loc, 0));
+		  std::list<named_pexpr_t> args;
+		  named_pexpr_t a;
+		  a.parm = sva_num32_(loc, inst); args.push_back(a);
+		  a.parm = sva_id_(loc, ser[k]); args.push_back(a);
+		  a.parm = bits(pre_bits); args.push_back(a);
+		  a.parm = bits(nxt); args.push_back(a);
+		  a.parm = bits(gv); args.push_back(a);
+		  a.parm = track_ob ? (PExpr*)sva_id_(loc, ob[k]) : sva_bit_(loc, 1);
+		  args.push_back(a);
+		  PCallTask*t = new PCallTask(lex_strings.make("$ivl_assert_nfa_step"),
+					      args);
+		  FILE_NAME(t, loc);
+		  body.push_back(sva_if_(loc,
+			sva_logic_(loc, 'a', sva_id_(loc, r_watch), busy_expr(k)),
+			t, nullptr));
 	    }
 	      /* LV-2: capture — a slot takes a local variable's rhs sample
 		 exactly when the ASSIGNING EDGE fires (the gate matched
@@ -24626,12 +24969,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (endpoint_fanout) {
 		  acc_v.push_back(sva_assign_(loc, spawn[k], sva_bit_(loc, 1)));
 		  acc_v.push_back(sva_assign_(loc, matched[k], sva_bit_(loc, 1)));
-		  /* Reaching an antecedent endpoint is a successful checker step.
-		     For |=> the new obligation is intentionally allocated only after
-		     old consequences advance, so consequence-side bookkeeping cannot
-		     supply this once/checker/tick aggregate. */
-		  if (!cover && !sub)
-			acc_v.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 1)));
 		  /* Remove only the accepted endpoint. Other active antecedent
 		     states represent later match endpoints from this SAME start and
 		     must remain live. */
@@ -24700,23 +25037,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    } else if (!negated && !cover && !endpoint_fanout) {
 		  die_v.push_back(increment_verdict(r_f));
 	    }
-	      /* M12-1: this branch is taken only when the slot was live
-		 and has no surviving next state (dead_busy), i.e. an
-		 attempt just failed a step of the sequence. */
-	    if (!cover && !sub)
-		  die_v.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    clear_slot(k, die_v);
-
-	      /* M12-1: a live slot reaching the continue branch advanced
-		 one step (the accept and dead_busy branches are already
-		 excluded), so a pre-advance busy test identifies exactly
-		 the stepping attempts. It must precede the state writes
-		 below, which overwrite the bits busy_expr reads. */
-	    if (!cover && !sub)
-		  cont_v.push_back(sva_if_(loc, busy_expr(k),
-					   sva_assign_(loc, r_sp,
-						       sva_bit_(loc, 1)),
-					   nullptr));
 
 	    for (unsigned j = 0 ; j < N ; j += 1)
 		  cont_v.push_back(sva_assign_(loc, s[k][j],
@@ -24817,13 +25138,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    std::vector<Statement*> acc_v, die_v, cont_v;
 	    (forbidden ? acc_v : die_v).push_back(
 		  sva_assign_(loc, failed[o], sva_bit_(loc, 1)));
-	    if (!cover && !sub)
-		  die_v.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    clear_obligation(o, acc_v);
 	    clear_obligation(o, die_v);
-	    if (!cover && !sub)
-		  cont_v.push_back(sva_if_(loc, obligation_busy_expr(o),
-				sva_assign_(loc, r_sp, sva_bit_(loc, 1)), nullptr));
 	    for (unsigned j = 0 ; j < ON ; j += 1)
 		  cont_v.push_back(sva_assign_(loc, os[o][j],
 					       sva_id_(loc, onx[j])));
@@ -25043,23 +25359,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    fail_stmt = nullptr;
       }
 
-	/* M12-1: STEP dispatch, after the pass/fail sites so no existing
-	   report ordering changes. These carry no user action — they only
-	   drive cbAssertionStepSuccess/StepFailure, and the report site
-	   is itself gated on a callback being registered. */
-      if (!cover) {
-	    std::vector<Statement*> sp_hit;
-	    sp_hit.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
-	    sp_hit.push_back(sva_report_stmt_(loc, inst, SVA_CB_STEP_SUCCESS));
-	    body.push_back(sva_if_(loc, sva_id_(loc, r_sp),
-				   sva_block_(loc, sp_hit), nullptr));
-
-	    std::vector<Statement*> sf_hit;
-	    sf_hit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
-	    sf_hit.push_back(sva_report_stmt_(loc, inst, SVA_CB_STEP_FAILURE));
-	    body.push_back(sva_if_(loc, sva_id_(loc, r_sf),
-				   sva_block_(loc, sf_hit), nullptr));
-      }
 
 	/* Assemble: pre-captures; disable guard clears all slot state
 	   with no reports; history updates outside the guard. */
@@ -25090,7 +25389,44 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       init_zero.push_back(sva_register_stmt_(loc, inst,
 					     endpoint_fanout ? -1
 					       : pform_sva_nfa_fixed_latency(nfa),
-					     track_ob));
+					     track_ob, nullptr,
+					     steps_ok ? 0 : -1));
+	/* 39.4.2: describe the automaton once for the runtime step picker:
+	   $ivl_assert_nfa(idx, states, start, accept, guards, edges
+			   {, "file", line, "text"} x guards
+			   {, from, to, nguards, guard...} x edges) */
+      if (steps_ok) {
+	    std::list<named_pexpr_t> args;
+	    auto arg = [&](PExpr*e) {
+		  named_pexpr_t a;
+		  a.parm = e;
+		  args.push_back(a);
+	    };
+	    arg(sva_num32_(loc, inst));
+	    arg(sva_num32_(loc, N));
+	    arg(sva_num32_(loc, nfa.start));
+	    arg(sva_num32_(loc, nfa.accept));
+	    arg(sva_num32_(loc, step_guards.size()));
+	    arg(sva_num32_(loc, nfa.edges.size()));
+	    for (PExpr*g : step_guards) {
+		  sva_step_expr_t t = sva_step_expr_(g);
+		  arg(new PEString(strdup(t.file.c_str())));
+		  arg(sva_num32_(loc, t.line));
+		  arg(new PEString(strdup(t.text.c_str())));
+	    }
+	    for (const sva_nfa_edge_t&ed : nfa.edges) {
+		  arg(sva_num32_(loc, ed.from));
+		  arg(sva_num32_(loc, ed.to));
+		  arg(sva_num32_(loc, ed.guards.size()));
+		  for (PExpr*g : ed.guards)
+			arg(sva_num32_(loc, find(step_guards.begin(),
+						 step_guards.end(), g)
+					   - step_guards.begin()));
+	    }
+	    PCallTask*t = new PCallTask(lex_strings.make("$ivl_assert_nfa"), args);
+	    FILE_NAME(t, loc);
+	    init_zero.push_back(t);
+      }
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, init_zero), nullptr);
       FILE_NAME(ip, loc);
@@ -32920,8 +33256,8 @@ static bool sva_prop_is_property_shaped_(const sva_property_t*p)
    no clone recipe. */
 static sva_property_t* sva_clone_property_(const struct vlltype&loc,
 		const sva_property_t*src,
-		const std::map<perm_string,PExpr*>*subst = nullptr,
-		const std::map<perm_string,const PEventStatement*>*event_subst = nullptr)
+		const std::map<perm_string,PExpr*>*subst,
+		const std::map<perm_string,const PEventStatement*>*event_subst)
 {
       if (!src) return nullptr;
       std::map<perm_string,PExpr*> no_subst;
@@ -32958,12 +33294,11 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
 	    ok = false;
       if (src->seq && !(p->seq = sva_clone_steps_subst_(loc, src->seq, steps_subst)))
 	    ok = false;
-      if ((src->ante_tree || src->tree) && subst && !subst->empty())
-	    ok = false;   // sva_tree_clone_ has no formal substitution
       if (ok && src->ante_tree
-	  && !(p->ante_tree = sva_tree_clone_(loc, src->ante_tree)))
+	  && !(p->ante_tree = sva_tree_clone_(loc, src->ante_tree, subst)))
 	    ok = false;
-      if (ok && src->tree && !(p->tree = sva_tree_clone_(loc, src->tree)))
+      if (ok && src->tree
+	  && !(p->tree = sva_tree_clone_(loc, src->tree, subst)))
 	    ok = false;
       if (src->abort_cond && !(p->abort_cond = sva_clone_subst_(src->abort_cond, subst)))
 	    ok = false;
@@ -36189,6 +36524,21 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 							      init_zero));
       };
 
+	/* 39.4.2 step reports name each boolean by its source text; take it
+	   before the sampled-value rewrite below. */
+      std::vector<sva_step_expr_t> seq_text (seq.size());
+      for (size_t j = 0 ; j < seq.size() ; j += 1)
+	    if (seq[j].expr) seq_text[j] = sva_step_expr_(seq[j].expr);
+      std::vector<std::vector<sva_step_expr_t> > ante_text (ante_span+1);
+      if (fixed_antecedent_pipeline) {
+	    long offset = 0;
+	    for (size_t j = 0 ; j < prop->antecedent->size() ; j += 1) {
+		  offset += (*prop->antecedent)[j].delay_lo;
+		  ante_text[offset].push_back(
+			sva_step_expr_((*prop->antecedent)[j].expr));
+	    }
+      }
+
 	/* Rewrite sampled-value functions, then capture every step
 	   boolean (and the antecedent) into 1-bit sample registers at
 	   the top of the checker. */
@@ -36292,7 +36642,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       init_zero.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
       perm_string r_f;
       perm_string r_cnt;
-      perm_string r_sp, r_sf;
       if (kind == 2) {
 	    r_cnt = sva_make_reg_(loc, inst, "cnt", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_cnt,
@@ -36303,13 +36652,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	       attempts until the Reactive action dispatch. */
 	    r_f = sva_make_reg_(loc, inst, "f", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
-	    /* The compact linear checker must retain the assertion-step VPI
-	       contract that the NFA checker provides. These flags aggregate all
-	       attempts that advance or die during one sampled tick. */
-	    r_sp = sva_make_reg_(loc, inst, "sp", 0);
-	    init_zero.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
-	    r_sf = sva_make_reg_(loc, inst, "sf", 0);
-	    init_zero.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
       }
       auto increment_failure = [&]() -> Statement* {
 	    PEBinary*add = new PEBinary('+', sva_id_(loc, r_f),
@@ -36356,14 +36698,105 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  for (size_t age = 0; age < failure_at_age.size(); ++age)
 			clr.push_back(sva_assign_(loc, failure_at_age[age],
 					      sva_bit_(loc, 0)));
-		  clr.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
-		  clr.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
 	    }
 	    return sva_block_(loc, clr);
       };
 
 	/* The per-clock checker body. */
       std::vector<Statement*> body = ante_body;
+
+	/* IEEE 1800-2023 39.4.2: one step per live attempt per clock tick
+	   (SVA Q7), read from the pre-tick tokens before anything below
+	   advances them. An attempt of age a is the antecedent token for
+	   a <= ante_span, then the consequent token of age a - ante_span.
+	   State ids: 0 origin, 1 accepting, a+2 after the tick of age a.
+	   Each step lists the booleans checked on its tick; a failing step
+	   ends with the one that failed. An antecedent that does not match
+	   ends the attempt vacuously, reported as a successful step into
+	   the accepting state. A merged ##[m:$] wait has no per-attempt
+	   token, so it (and `not', cover) refuses step control instead. */
+      long step_last = ante_span + P + (has_window ? win_n : 0);
+	/* ponytail: one report block per age; very long windows refuse. */
+      bool steps_ok = kind != 2 && !negated && !unbounded && step_last <= 255;
+      sva_step_table_t step_tab (loc, inst);
+      perm_string r_step;   // the step-table row being reported
+      if (steps_ok) {
+	    r_step = sva_make_reg_(loc, inst, "step", 0, true);
+	    std::vector<Statement*> steps;
+	    for (long a = 0 ; a <= step_last ; a += 1) {
+		  long c = a - ante_span;
+		  PExpr*live;
+		  if (a == 0)
+			live = fixed_antecedent_pipeline
+			      ? sva_enabled_expr_(loc, inst)
+			      : sva_logic_(loc, 'a', sva_enabled_expr_(loc, inst),
+					   sva_id_(loc, r_ante));
+		  else if (c <= 0)
+			live = sva_id_(loc, ante_state[a-1]);
+		  else if (c <= P)
+			live = sva_id_(loc, t_regs[c-1]);
+		  else
+			live = sva_id_(loc, w_regs[c-P-1]);
+
+		  std::vector<perm_string> check_reg;
+		  std::vector<sva_step_expr_t> check_txt;
+		  size_t n_ante = 0;
+		  if (fixed_antecedent_pipeline && a <= ante_span) {
+			for (size_t k = 0 ; k < ante_checks[a].size() ; k += 1) {
+			      check_reg.push_back(ante_checks[a][k]);
+			      check_txt.push_back(ante_text[a][k]);
+			}
+			n_ante = check_reg.size();
+		  }
+		  if (c >= 0)
+			for (size_t j = 0 ; j < nfixed ; j += 1)
+			      if (offs[j] == c) {
+				    check_reg.push_back(r_b[j]);
+				    check_txt.push_back(seq_text[j]);
+			      }
+		  long q = c - P;
+		  bool win = has_window && q >= win_m && q <= win_n;
+		  long from = a == 0 ? 0 : a + 1;
+		  long to = (!has_window && a == step_last) ? 1 : a + 2;
+
+		  Statement*tail;
+		  if (win) {
+			std::vector<sva_step_expr_t> with_bw = check_txt;
+			with_bw.push_back(seq_text.back());
+			PEBComp*hit = new PEBComp('E', sva_id_(loc, r_b.back()),
+						  sva_bit_(loc, 1));
+			FILE_NAME(hit, loc);
+			Statement*miss = q == win_n
+			      ? step_tab.pick(r_step, SVA_CB_STEP_FAILURE, from, 1, with_bw)
+			      : step_tab.pick(r_step, SVA_CB_STEP_SUCCESS, from, a + 2, check_txt);
+			tail = sva_if_(loc, hit,
+			      step_tab.pick(r_step, SVA_CB_STEP_SUCCESS, from, 1, with_bw), miss);
+		  } else {
+			tail = step_tab.pick(r_step, SVA_CB_STEP_SUCCESS, from, to, check_txt);
+		  }
+		  for (size_t i = check_reg.size() ; i-- > 0 ; ) {
+			std::vector<sva_step_expr_t> upto (check_txt.begin(),
+							   check_txt.begin() + i + 1);
+			Statement*bad = i < n_ante
+			      ? step_tab.pick(r_step, SVA_CB_STEP_SUCCESS, from, 1, upto)
+			      : step_tab.pick(r_step, SVA_CB_STEP_FAILURE, from, win ? 1 : to, upto);
+			PEBComp*nb = new PEBComp('N', sva_id_(loc, check_reg[i]),
+						 sva_bit_(loc, 1));
+			FILE_NAME(nb, loc);
+			tail = sva_if_(loc, nb, bad, tail);
+		  }
+		  std::vector<Statement*> one;
+		  one.push_back(tail);
+		  one.push_back(step_tab.fire(r_step, sva_num32_(loc, a), nullptr));
+		  steps.push_back(sva_if_(loc, live, sva_block_(loc, one), nullptr));
+	    }
+	    std::list<named_pexpr_t> no_parms;
+	    PECallFunction*active = new PECallFunction(
+		  perm_string::literal("$ivl_assert_cb_active"), no_parms);
+	    FILE_NAME(active, loc);
+	    body.insert(body.begin(),
+			sva_if_(loc, active, sva_block_(loc, steps), nullptr));
+      }
 
 	/* g is the current tick's newly launched attempt. Off suppresses only
 	   this injection; older pipeline/window tokens continue to mature. */
@@ -36387,18 +36820,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (track_failure_age)
 		  hit.push_back(sva_assign_(loc, failure_at_age[0],
 					    sva_bit_(loc, 1)));
-	    if (kind != 2)
-		  hit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    hit.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
 	    PCondit*c = new PCondit(cond, sva_block_(loc, hit), nullptr);
 	    FILE_NAME(c, loc);
 	    body.push_back(c);
-	    if (kind != 2 && j + 1 < seq.size()) {
-		  PExpr*advanced = sva_logic_(loc, 'a', sva_id_(loc, r_g),
-					 sva_id_(loc, r_b[j]));
-		  body.push_back(sva_if_(loc, advanced,
-			sva_assign_(loc, r_sp, sva_bit_(loc, 1)), nullptr));
-	    }
       }
 
 	/* Checks at offsets >= 1 run against the PRE-shift pipeline:
@@ -36418,18 +36843,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (track_failure_age)
 		  hit.push_back(sva_assign_(loc,
 			failure_at_age[(size_t)offs[j]], sva_bit_(loc, 1)));
-	    if (kind != 2)
-		  hit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 	    hit.push_back(sva_assign_(loc, treg, sva_bit_(loc, 0)));
 	    PCondit*c = new PCondit(cond, sva_block_(loc, hit), nullptr);
 	    FILE_NAME(c, loc);
 	    body.push_back(c);
-	    if (kind != 2 && j + 1 < seq.size()) {
-		  PExpr*advanced = sva_logic_(loc, 'a', sva_id_(loc, treg),
-					 sva_id_(loc, r_b[j]));
-		  body.push_back(sva_if_(loc, advanced,
-			sva_assign_(loc, r_sp, sva_bit_(loc, 1)), nullptr));
-	    }
       }
 
       if (has_window) {
@@ -36511,7 +36928,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (kind != 2 && !negated) {
 		  std::vector<Statement*> mhit;
 		  mhit.push_back(increment_failure());
-		  mhit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 1)));
 		  mhit.push_back(sva_assign_(loc, w_regs[win_n], sva_bit_(loc, 0)));
 		  PCondit*mc = new PCondit(sva_id_(loc, w_regs[win_n]),
 					   sva_block_(loc, mhit), nullptr);
@@ -36523,15 +36939,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 						  : sva_block_(loc, miss));
 	    FILE_NAME(wc, loc);
 	    body.push_back(wc);
-	    if (kind != 2) {
-		  std::vector<PExpr*> live_window;
-		  live_window.reserve(wregs_n);
-		  for (long q = 0 ; q < wregs_n ; q += 1)
-			live_window.push_back(sva_id_(loc, w_regs[q]));
-		  body.push_back(sva_if_(loc,
-			sva_logic_reduce_(loc, 'o', live_window),
-			sva_assign_(loc, r_sp, sva_bit_(loc, 1)), nullptr));
-	    }
       } else if (unbounded) {
 	      /* Unbounded final window ##[m:$] — weak eventually
 		 (16.9.2): an obligation can never fail in finite
@@ -36609,16 +37016,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				     sva_block_(loc, miss));
 	    FILE_NAME(wc, loc);
 	    body.push_back(wc);
-	    if (kind != 2) {
-		  std::vector<PExpr*> live_wait;
-		  live_wait.reserve(wregs_n + 1);
-		  live_wait.push_back(sva_id_(loc, r_pend));
-		  for (long q = 0 ; q < wregs_n ; q += 1)
-			live_wait.push_back(sva_id_(loc, w_regs[q]));
-		  body.push_back(sva_if_(loc,
-			sva_logic_reduce_(loc, 'o', live_wait),
-			sva_assign_(loc, r_sp, sva_bit_(loc, 1)), nullptr));
-	    }
 
 	      /* End-of-simulation pending report. */
 	    if (kind != 2 && !negated) {
@@ -36730,18 +37127,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				     sva_block_(loc, hit), nullptr);
 	    FILE_NAME(fc, loc);
 	    body.push_back(fc);
-
-	    std::vector<Statement*> sp_hit;
-	    sp_hit.push_back(sva_assign_(loc, r_sp, sva_bit_(loc, 0)));
-	    sp_hit.push_back(sva_report_stmt_(loc, inst, SVA_CB_STEP_SUCCESS));
-	    body.push_back(sva_if_(loc, sva_id_(loc, r_sp),
-				   sva_block_(loc, sp_hit), nullptr));
-
-	    std::vector<Statement*> sf_hit;
-	    sf_hit.push_back(sva_assign_(loc, r_sf, sva_bit_(loc, 0)));
-	    sf_hit.push_back(sva_report_stmt_(loc, inst, SVA_CB_STEP_FAILURE));
-	    body.push_back(sva_if_(loc, sva_id_(loc, r_sf),
-				   sva_block_(loc, sf_hit), nullptr));
       } else {
 	    delete fail_stmt;
       }
@@ -36758,7 +37143,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   machinery; history updates. */
       std::vector<Statement*> full = pre;
       full.push_back(sva_observed_wait_(loc));
-      if (track_failure_age)
+      if (track_failure_age || steps_ok)
 	    full.push_back(sva_clock_stmt_(loc, inst));
 	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
@@ -36791,7 +37176,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    ? -1 : ante_span + P + 1;
       bool cb_fail_full_latency = prop->op_type == 1 || prop->op_type == 2;
       init_zero.push_back(sva_register_stmt_(loc, inst, cb_edges,
-					     cb_fail_full_latency));
+					     cb_fail_full_latency, nullptr,
+					     steps_ok ? step_last : -1));
+      init_zero.insert(init_zero.end(), step_tab.rows.begin(),
+		       step_tab.rows.end());
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
 					sva_block_(loc, init_zero), nullptr);
       FILE_NAME(ip, loc);

@@ -457,6 +457,182 @@ static PLI_INT32 sva_report_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+static PLI_INT32 sva_step_int_(vpiHandle argv, vpiHandle*a, PLI_INT32 dflt)
+{
+      s_vpi_value v;
+      if (!*a || !(*a = vpi_scan(argv))) return dflt;
+      v.format = vpiIntVal;
+      vpi_get_value(*a, &v);
+      return v.value.integer;
+}
+
+static char* sva_step_str_(vpiHandle argv, vpiHandle*a)
+{
+      s_vpi_value v;
+      if (!*a || !(*a = vpi_scan(argv))) return 0;
+      v.format = vpiStringVal;
+      vpi_get_value(*a, &v);
+      return strdup(v.value.str);
+}
+
+/* $ivl_assert_step_row(idx, row, reason, from, to {, "file", line, "text"})
+   — one row of a checker's step table (IEEE 1800-2023 39.4.2). */
+static PLI_INT32 sva_step_row_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle a = argv;
+      PLI_INT32 head[5], lines[64], n = 0, i;
+      char*files[64];
+      char*texts[64];
+      (void)name;
+      if (!argv) return 0;
+      for (i = 0 ; i < 5 ; i += 1) head[i] = sva_step_int_(argv, &a, 0);
+      while (n < 64 && (files[n] = sva_step_str_(argv, &a))) {
+	    lines[n] = sva_step_int_(argv, &a, 0);
+	    if (!(texts[n] = sva_step_str_(argv, &a))) {
+		  free(files[n]);
+		  break;
+	    }
+	    n += 1;
+      }
+      if (a) vpi_free_object(argv);
+      vpip_assertion_step_row(head[0], vpi_handle(vpiScope, callh), head[1],
+			      head[2], head[3], head[4], n,
+			      (const char*const*)files, lines,
+			      (const char*const*)texts);
+      for (i = 0 ; i < n ; i += 1) {
+	    free(files[i]);
+	    free(texts[i]);
+      }
+      return 0;
+}
+
+/* $ivl_assert_step(idx, row, age, serial) — one step of one attempt. */
+static PLI_INT32 sva_step_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle a = argv;
+      PLI_INT32 idx, row, age, serial;
+      (void)name;
+      if (!argv) return 0;
+      idx = sva_step_int_(argv, &a, 0);
+      row = sva_step_int_(argv, &a, 0);
+      age = sva_step_int_(argv, &a, -1);
+      serial = sva_step_int_(argv, &a, 0);
+      if (a && vpi_scan(argv)) vpi_free_object(argv);
+      vpip_assertion_step(idx, vpi_handle(vpiScope, callh), row, age, serial);
+      return 0;
+}
+
+/* $ivl_assert_nfa(idx, states, start, accept, guards, edges
+		   {, "file", line, "text"} x guards {, int ...})
+   — the automaton a checker reports steps against (39.4.2). */
+static PLI_INT32 sva_nfa_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle a = argv;
+      PLI_INT32 head[6], g, nwords = 0, cap = 64;
+      PLI_INT32*words;
+      PLI_INT32*lines;
+      char**files;
+      char**texts;
+      (void)name;
+      if (!argv) return 0;
+      for (g = 0 ; g < 6 ; g += 1) head[g] = sva_step_int_(argv, &a, 0);
+      if (head[4] < 0) head[4] = 0;
+      lines = calloc(head[4] + 1, sizeof *lines);
+      files = calloc(head[4] + 1, sizeof *files);
+      texts = calloc(head[4] + 1, sizeof *texts);
+      for (g = 0 ; g < head[4] ; g += 1) {
+	    files[g] = sva_step_str_(argv, &a);
+	    lines[g] = sva_step_int_(argv, &a, 0);
+	    texts[g] = sva_step_str_(argv, &a);
+	    if (!files[g]) files[g] = strdup("");
+	    if (!texts[g]) texts[g] = strdup("");
+      }
+      words = malloc(cap * sizeof *words);
+      while (a) {
+	    PLI_INT32 w = sva_step_int_(argv, &a, 0);
+	    if (!a) break;
+	    if (nwords == cap) {
+		  cap *= 2;
+		  words = realloc(words, cap * sizeof *words);
+	    }
+	    words[nwords++] = w;
+      }
+      vpip_assertion_nfa(head[0], vpi_handle(vpiScope, callh), head[1],
+			 head[2], head[3], head[4], (const char*const*)files,
+			 lines, (const char*const*)texts, nwords, words);
+      for (g = 0 ; g < head[4] ; g += 1) {
+	    free(files[g]);
+	    free(texts[g]);
+      }
+      free(files);
+      free(texts);
+      free(lines);
+      free(words);
+      return 0;
+}
+
+/* $ivl_assert_nfa_step(idx, serial, pre, nx, guards, ob) — one tick of
+   one automaton slot; the bit vectors are read as binary strings. */
+static PLI_INT32 sva_nfa_step_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle a = argv;
+      PLI_INT32 idx, serial, ob;
+      char*bits[3];
+      int i;
+      (void)name;
+      if (!argv) return 0;
+      idx = sva_step_int_(argv, &a, 0);
+      serial = sva_step_int_(argv, &a, 0);
+      for (i = 0 ; i < 3 ; i += 1) {
+	    s_vpi_value v;
+	    bits[i] = 0;
+	    if (a && (a = vpi_scan(argv))) {
+		  v.format = vpiBinStrVal;
+		  vpi_get_value(a, &v);
+		  bits[i] = strdup(v.value.str);
+	    }
+	    if (!bits[i]) bits[i] = strdup("");
+      }
+      ob = sva_step_int_(argv, &a, 1);
+      if (a && vpi_scan(argv)) vpi_free_object(argv);
+      vpip_assertion_nfa_step(idx, vpi_handle(vpiScope, callh), serial,
+			      bits[0], bits[1], bits[2], ob);
+      for (i = 0 ; i < 3 ; i += 1) free(bits[i]);
+      return 0;
+}
+
+/* $ivl_assert_serial(idx) — the serial of the assertion's latest
+   cbAssertionStart, saved by a checker slot to name its attempt. */
+static PLI_INT32 sva_serial_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      s_vpi_value rv;
+      PLI_INT32 idx = 0;
+      (void)name;
+      if (argv) {
+	    vpiHandle a = vpi_scan(argv);
+	    if (a) {
+		  rv.format = vpiIntVal;
+		  vpi_get_value(a, &rv);
+		  idx = rv.value.integer;
+		  vpi_free_object(argv);
+	    }
+      }
+      rv.format = vpiIntVal;
+      rv.value.integer = vpip_assertion_serial(idx, vpi_handle(vpiScope, callh));
+      vpi_put_value(callh, &rv, 0, vpiNoDelay);
+      return 0;
+}
+
 static PLI_INT32 sva_clock_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -554,5 +730,10 @@ void sys_sva_register(void)
 		     sva_immediate_assertion_report_calltf);
       register_task_("$ivl_assert_report", sva_report_calltf);
       register_task_("$ivl_assert_clock", sva_clock_calltf);
+      register_task_("$ivl_assert_step_row", sva_step_row_calltf);
+      register_task_("$ivl_assert_step", sva_step_calltf);
+      register_task_("$ivl_assert_nfa", sva_nfa_calltf);
+      register_task_("$ivl_assert_nfa_step", sva_nfa_step_calltf);
+      register_one_("$ivl_assert_serial", sva_serial_calltf);
       register_one_("$ivl_assert_cb_active", sva_cb_active_calltf);
 }

@@ -2876,7 +2876,7 @@ static Module::port_t *module_declare_explicit_port(
 %token K_PSTAR K_STARP K_DOTSTAR
 %token K_LOR K_LAND K_NAND K_NOR K_NXOR K_TRIGGER K_NB_TRIGGER K_LEQUIV
 %token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV K_FOLLOWED_BY_OV K_FOLLOWED_BY_NOV
-%token K_LBSTAR K_LBGOTO K_LBEQ
+%token K_LBSTAR K_LBGOTO K_LBEQ K_LBPLUS K_LBSPACESTAR
 %token K_SCOPE_RES
 %token <text> K_edge_descriptor
 
@@ -5436,8 +5436,8 @@ constraint_prototype /* IEEE1800-2005: A.1.9 */
            (IEEE 1800-2017 18.5.1/18.5.14.1; 2023 18.5.1/18.5.13.1). */
         pform_class_constraint_prototype(@2, $1, $3, $4, false); delete[] $4;
       }
-  | K_pure K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
-      { pform_class_pure_constraint(@1, $3, $4); delete[] $4; }
+  | K_pure K_static_opt K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
+      { pform_class_pure_constraint(@1, $2, $4, $5); delete[] $5; }
   /* An explicit external prototype requires a matching out-of-body
      definition (IEEE 1800-2017 18.5.1). */
   | K_extern K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
@@ -10039,10 +10039,10 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | sva_grouped_seq_comb K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail
       { $$ = pform_sva_multiclock_comb_antecedent(
 		@2, 1, $1, $3, $4, $5); }
-  /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
+  /* IEEE 1800-2017/2023 16.12.3: negation — the property holds iff the
      sequence has NO match starting at any attempt point. */
-  | K_not '(' property_expr ')'
-      { $$ = pform_sva_prop_not(@1, $3); }
+  | K_not property_expr
+      { $$ = pform_sva_prop_not(@1, $2); }
   /* IEEE 1800-2017 16.12.2: sequence property strength. `strong(seq)'
      requires every attempt to complete — an attempt still pending at end
      of simulation is a failure. `weak(seq)' is the explicit form of the
@@ -10657,6 +10657,13 @@ sva_seq_atom
      the plain star form did not, so `a[*1:$]' was a syntax error. */
   | sva_seq_atom K_LBSTAR expression ':' '$' ']'
       { $$ = pform_sva_repeat(@2, $1, $3, nullptr, true); }
+  /* 16.9.2: [*] and [+] abbreviate [*0:$] and [*1:$]. */
+  | sva_seq_atom K_LBSTAR ']'
+      { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(0)), nullptr, true); }
+  | sva_seq_atom K_LBSPACESTAR '*' ']'
+      { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(0)), nullptr, true); }
+  | sva_seq_atom K_LBPLUS '+' ']'
+      { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(1)), nullptr, true); }
   /* M9-NFA stage C.1: goto `b[->n]'/`b[->m:n]' and nonconsecutive
      `b[=n]'/`b[=m:n]' repetition of a boolean (16.9.2). kind 1 = goto,
      2 = nonconsecutive; the trailing bool marks an unbounded `:$' upper.
@@ -10738,7 +10745,7 @@ sva_seq_expr
 	$1->insert($1->end(), $5->begin(), $5->end());
 	delete $5;
 	$$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY '[' '+' ']' sva_seq_atom
+  | sva_seq_expr K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_atom
       { sva_seq_step_t&f0 = (*$6)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -10791,7 +10798,7 @@ sva_seq_expr
 	$1->insert($1->end(), $5->begin(), $5->end());
 	delete $5;
 	$$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY '[' '+' ']' sva_seq_lead_delay
+  | sva_seq_expr K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_lead_delay
       { sva_seq_step_t&f0 = (*$6)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -10867,7 +10874,7 @@ sva_seq_lead_delay
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	$$ = $4; }
-  | K_CYCLE_DELAY '[' '+' ']' sva_seq_atom
+  | K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_atom
       { sva_seq_step_t&f0 = (*$5)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -10875,7 +10882,7 @@ sva_seq_lead_delay
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	$$ = $5; }
-  | K_CYCLE_DELAY '[' '+' ']' sva_seq_lead_delay
+  | K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_lead_delay
       { sva_seq_step_t&f0 = (*$5)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -11588,7 +11595,7 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	tmp->push_back(index);
 	$$ = tmp;
       }
-  | '[' '*' ']'
+  | K_LBSPACESTAR '*' ']'
       { // Whitespace prevents the lexer from folding `[*' into K_LBSTAR.
 	// Preserve the identical IEEE 1800-2017 7.8.1 wildcard-index type
 	// for all four legal whitespace spellings: [*], [* ], [ *], [ * ].

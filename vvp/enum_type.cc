@@ -262,6 +262,21 @@ struct __vpiVectorTypespec : public __vpiHandle {
       __vpiVectorTypespec(int code, int left, int right, bool signed_flag)
       : code_(code), left_(left), right_(right), signed_(signed_flag) { }
       int get_type_code(void) const override { return code_; }
+      vpiHandle vpi_handle(int code) override
+      {
+	    switch (code) {
+		case vpiLeftRange: return new __vpiDecConst(left_);
+		case vpiRightRange: return new __vpiDecConst(right_);
+		default: return 0;
+	    }
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiRange) return 0;
+	    vpiHandle*args = new vpiHandle[1];
+	    args[0] = vpip_make_range(left_, right_);
+	    return vpip_make_iterator(1, args, true);
+      }
       int vpi_get(int code) override
       {
 	    switch (code) {
@@ -276,6 +291,41 @@ struct __vpiVectorTypespec : public __vpiHandle {
       int code_, left_, right_;
       bool signed_;
 };
+
+class __vpiBuiltinTypespec : public __vpiHandle {
+    public:
+      explicit __vpiBuiltinTypespec(int code) : code_(code) { }
+      int get_type_code(void) const override { return code_; }
+      int vpi_get(int code) override
+      {
+	    if (code == vpiSize) return code_ == vpiIntTypespec ? 32 : 1;
+	    if (code == vpiSigned) return code_ == vpiIntTypespec;
+	    return 0;
+      }
+    private:
+      int code_;
+};
+
+vpiHandle vpip_make_builtin_typespec(int type_code)
+{
+      static __vpiBuiltinTypespec int_typespec(vpiIntTypespec);
+      static __vpiBuiltinTypespec real_typespec(vpiRealTypespec);
+      static __vpiBuiltinTypespec string_typespec(vpiStringTypespec);
+      switch (type_code) {
+	  case vpiIntTypespec: return &int_typespec;
+	  case vpiRealTypespec: return &real_typespec;
+	  case vpiStringTypespec: return &string_typespec;
+	  default: return 0;
+      }
+}
+
+vpiHandle vpip_make_vector_typespec(int type_code, int left, int right,
+                                    bool signed_flag)
+{
+      if (type_code != vpiLogicTypespec && type_code != vpiBitTypespec)
+	    return 0;
+      return new __vpiVectorTypespec(type_code, left, right, signed_flag);
+}
 
 struct __vpiTypespecMember : public __vpiHandle {
       int get_type_code(void) const override { return vpiTypespecMember; }

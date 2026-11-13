@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3024_nested_handles.v",
+    "iverilog-args": ["-g2017", "-s", "issue3024_nested_handles"],
+    "gold": "issue3024_nested_handles"
+}

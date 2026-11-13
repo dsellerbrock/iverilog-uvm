@@ -1,0 +1,2 @@
+ivltests/issue3017_class.v:5: error: Cannot override localparam `DOUBLE` in `$unit._ivl_0`.
+1 error(s) during elaboration.

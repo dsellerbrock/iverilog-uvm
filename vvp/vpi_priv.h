@@ -225,6 +225,11 @@ class __vpiRange : public __vpiHandle {
 
 extern vpiHandle vpip_make_range(int left, int right);
 
+/* Build runtime handles for built-in scalar and packed vector typespecs. */
+extern vpiHandle vpip_make_builtin_typespec(int type_code);
+extern vpiHandle vpip_make_vector_typespec(int type_code, int left, int right,
+                                           bool signed_flag);
+
 /*
  * This represents callback handles. There are some private types that
  * are defined and used in vpi_callback.cc. The __vpiCallback are
@@ -534,6 +539,11 @@ extern void vpip_deferred_assertion_report(unsigned long source_id,
 					   PLI_INT32 reason,
 					   vpiHandle scope);
 extern PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion);
+/* IEEE 1800-2023 39.5.2 vpiAssertionEnableStep/DisableStep for the attempt
+   of `assertion' that starts at *start. Returns 1 when the call applies. */
+extern PLI_INT32 vpip_assertion_step_control(vpiHandle assertion,
+					     const s_vpi_time*start,
+					     bool enable, PLI_INT32 mode);
 extern void vpip_make_root_iterator(class __vpiHandle**&table,
 				    unsigned&ntable);
 
@@ -1048,6 +1058,7 @@ class __vpiStringVar : public __vpiBaseVar {
 
       int get_type_code(void) const override;
       int vpi_get(int code) override;
+      vpiHandle vpi_handle(int code) override;
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
 };
@@ -1487,6 +1498,12 @@ extern value_callback*vpip_array_change_target(p_cb_data data,
 extern vpiHandle vpip_make_cobject_property_string_var(char*label,
                                                        unsigned prop_cnt,
                                                        long*prop_idx);
+/* #2745: an element of a fixed-array, dynamic-array or queue string class
+   property; INDEX_LABEL names the handle that yields the element index. */
+extern vpiHandle vpip_make_cobject_property_string_elem(char*label,
+                                                         unsigned prop_cnt,
+                                                         long*prop_idx,
+                                                         char*index_label);
 /* L34: prop_idx is now a path of prop_cnt indices, same as the string
  * variant above (and for the same reason -- a nested integral class
  * property chain, e.g. obj.inner.n, needs the identical property-aware
@@ -1494,14 +1511,15 @@ extern vpiHandle vpip_make_cobject_property_string_var(char*label,
  * original direct-property case. */
 extern vpiHandle vpip_make_cobject_property_vec_var(char*label,
                                                     unsigned width,
-                                                    bool signed_flag,
+                                                    unsigned flags,
                                                     unsigned prop_cnt,
                                                     long*prop_idx);
-/* #2475: an element of a fixed-array class property; INDEX_LABEL names the
-   handle that yields the element index. */
+/* #2475, #2745: an element of a fixed-array, dynamic-array or queue class
+   property; INDEX_LABEL names the handle that yields the element index.
+   FLAGS: bit 0 signed, bit 1 two-state. */
 extern vpiHandle vpip_make_cobject_property_vec_elem(char*label,
                                                      unsigned width,
-                                                     bool signed_flag,
+                                                     unsigned flags,
                                                      unsigned prop_cnt,
                                                      long*prop_idx,
                                                      char*index_label);

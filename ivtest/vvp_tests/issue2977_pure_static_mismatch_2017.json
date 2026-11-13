@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2977_pure_static_mismatch.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue2977_pure_static_mismatch"
+}

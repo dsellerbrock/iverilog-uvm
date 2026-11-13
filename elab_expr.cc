@@ -17659,7 +17659,9 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       // leading_type_args identifies the specialization.  Replace the
       // resolved (base) class_type with its specialization so static
       // property access targets the right specialized signal.
-      if (class_type && leading_type_args()) {
+      if (class_type && leading_type_args() && sr.net && sr.net->scope()
+	  && class_type->class_scope() && sr.net->scope()->class_pform()
+	  && class_type->class_scope()->class_pform() == sr.net->scope()->class_pform()) {
 	    class_type = elaborate_specialized_class_type(des, scope,
 						class_type,
 						leading_type_args(),
@@ -19056,7 +19058,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	    return tmp;
       }
 
-	/* IEEE 1800-2017 18.8: a named constraint's zero-argument
+	/* IEEE 1800-2017/2023 18.9: a named constraint's zero-argument
 	   constraint_mode() form returns its current active state.  This is
 	   distinct from obj.constraint_mode(), which queries no particular
 	   block, and from the one-argument setter handled in the task path. */
@@ -19083,7 +19085,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			obj_expr = new NetESignal(obj_sr.net);
 			obj_expr->set_line(*this);
 		  } else {
-			PEIdent*obj_id = new PEIdent(obj_path, /*lexical_pos*/0);
+			PEIdent*obj_id = new PEIdent(obj_path, UINT_MAX);
 			obj_id->set_file(get_file());
 			obj_id->set_lineno(get_lineno());
 			obj_expr = obj_id->elaborate_expr(des, scope,
@@ -27375,6 +27377,31 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  }
 		  delete base;
 	    }
+      }
+
+      /* A fixed unpacked prefix selects a dynamic-container word before
+       * the remaining indices select its elements. Preserve that entire
+       * selection in class-handle contexts instead of treating the container
+       * type as the type of the selected handle. */
+      if (sr.path_tail.empty() && net->unpacked_dimensions() > 0
+	  && net->darray_type()
+	  && use_comp.index.size() > net->unpacked_dimensions()
+	  && ivl_type_base(ntype) == IVL_VT_CLASS) {
+	    ivl_type_t selected = net->net_type();
+	    auto idx = use_comp.index.begin();
+	    for (unsigned dim = 0; dim < net->unpacked_dimensions(); ++dim)
+		  ++idx;
+	    for (; idx != use_comp.index.end() && selected; ++idx) {
+		  const netdarray_t*array = dynamic_cast<const netdarray_t*>(selected);
+		  if (!array || idx->sel != index_component_t::SEL_BIT) {
+			selected = nullptr;
+			break;
+		  }
+		  selected = array->element_type();
+	    }
+	    if (selected && ntype->type_compatible(selected))
+		  return elaborate_expr_net(des, scope, net, sr.scope,
+					    expr_width_, flags);
       }
 
       ivl_type_t indexed_elem_type = 0;
