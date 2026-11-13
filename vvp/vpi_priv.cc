@@ -403,6 +403,12 @@ void vpi_get_systf_info(vpiHandle ref, p_vpi_systf_data data)
  * fathom the vpi_handle(vpiSysTfCall,0) function.
  */
 struct __vpiSysTaskCall*vpip_cur_task = 0;
+static vpiHandle active_timeformat = 0;
+
+extern "C" void vpip_set_active_timeformat(vpiHandle call)
+{
+      active_timeformat = call;
+}
 
 PLI_INT32 vpi_free_object(vpiHandle ref)
 {
@@ -1596,6 +1602,8 @@ vpiHandle vpi_handle(PLI_INT32 type, vpiHandle ref)
 	      // A few types can apply to a nil handle. These are ways
 	      // that the current function can get started finding things.
 	    switch (type) {
+		case vpiActiveTimeFormat:
+		  return active_timeformat;
 
 		case vpiScope:
 		    // The IEEE1364-2005 doesn't seem to allow this,
@@ -1799,6 +1807,9 @@ vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle ref)
 	    rtn = vpi_iterate_global(type);
       else
 	    rtn = ref->vpi_iterate(type);
+
+      if (__vpiIterator*iter = dynamic_cast<__vpiIterator*>(rtn))
+	    iter->reference = ref;
 
       if (vpi_trace) {
 	    fprintf(vpi_trace, "vpi_iterate(%d, %p) ->%s\n",
@@ -3226,5 +3237,6 @@ vpip_routines_s vpi_routines = {
     .assertion_nfa              = vpip_assertion_nfa,
     .assertion_nfa_step         = vpip_assertion_nfa_step,
     .assertion_serial           = vpip_assertion_serial,
+    .proc_assert_cap            = vpip_proc_assert_cap,
 };
 #endif

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3049_cb_info.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3049_cb_info_2017"],
+  "vpi-sources": ["vpi/issue3049_cb_info.c"],
+  "output-contains": ["PASSED"]
+}

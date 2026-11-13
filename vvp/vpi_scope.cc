@@ -1678,6 +1678,16 @@ class __vpiAssertionStepExpr : public __vpiHandle {
       std::string text_;
 };
 
+/* IEEE 1800-2023 39.4.2 per-assertion control callback reasons, with their
+   Annex M values; sv_vpi_user.h does not name them yet (#883). */
+enum {
+      cbAssertionEnablePassAction_ = 645, cbAssertionEnableFailAction_ = 646,
+      cbAssertionDisablePassAction_ = 647, cbAssertionDisableFailAction_ = 648,
+      cbAssertionEnableNonvacuousAction_ = 649,
+      cbAssertionDisableVacuousAction_ = 650,
+      cbAssertionLock_ = 661, cbAssertionUnlock_ = 662
+};
+
 class __vpiAssertion : public __vpiHandle {
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
@@ -1752,8 +1762,10 @@ class __vpiAssertion : public __vpiHandle {
 			char*scope_name = scope_ ? scope_->vpi_get_str(vpiFullName) : 0;
 			full = scope_name ? scope_name : "";
 		  } else {
-			full = (scope_ ? std::string(scope_->scope_name()) + "." : "")
-			      + name_;
+			  /* The scope's full name, not its leaf name: an
+			     assertion in u of top is top.u.x, not u.x. */
+			full = (scope_ ? std::string(scope_->vpi_get_str(vpiFullName))
+					 + "." : "") + name_;
 		  }
 		  use = &full;
 	    } else if (code == vpiFile) {
@@ -1807,8 +1819,19 @@ class __vpiAssertion : public __vpiHandle {
 	/* IEEE 1800-2023 16.14.6: a procedural concurrent assertion starts
 	   an attempt only for an instance its procedure queued and the
 	   Observed region matured. */
-      void set_proc_id(int pid) { proc_id_ = pid; }
-      void proc_matured(void) { proc_matured_ += 1; }
+      void set_proc_id(int pid, bool each)
+	{ proc_id_ = pid; proc_each_ = each; }
+	/* 16.14.6.1: each instance keeps the values it saved when queued. */
+      void proc_matured(const std::vector<vvp_vector4_t>&saved)
+	{ proc_matured_ += 1; proc_saved_.push_back(saved); }
+	/* Saved value j of the idx-th instance taken at the last clock. */
+      const vvp_vector4_t* taken_value(PLI_INT32 idx, PLI_INT32 j) const
+	{
+	    if (idx < 0 || (size_t)idx >= proc_taken_.size()) return 0;
+	    const std::vector<vvp_vector4_t>&v = proc_taken_[idx];
+	    if (j < 0 || (size_t)j >= v.size()) return 0;
+	    return &v[j];
+	}
 	/* The checker takes every matured instance at its leading clock.
 	   Under $assertoff they start no attempt and are discarded (default
 	   pending a ruling: 20.11 Off "No new attempts will be started"). */
@@ -1816,8 +1839,10 @@ class __vpiAssertion : public __vpiHandle {
 	{
 	    PLI_INT32 n = proc_matured_;
 	    proc_matured_ = 0;
-	    if (!enabled_) return 0;
-	    if (n > 1 && !proc_multi_noted_) {
+	    proc_taken_.swap(proc_saved_);
+	    proc_saved_.clear();
+	    if (!enabled_) { proc_taken_.clear(); return 0; }
+	    if (n > 1 && !proc_each_ && !proc_multi_noted_) {
 		  proc_multi_noted_ = true;
 		  vpi_printf("SVA note: %d pending instances of procedural "
 			     "assertion %s matured for one clock; this "
@@ -1863,6 +1888,10 @@ class __vpiAssertion : public __vpiHandle {
 		  bool killed;
 		  locked_ = false;
 		  killed = apply_control(5, callbacks);
+		    /* 39.5.1: the initial state; "By default, stepping is
+		       disabled for all assertions" (39.5.2). */
+		  step_ctl_.clear();
+		  serial_start_.clear();
 		  if (ctl == 13) {
 			ended_ = true;
 			fail_action_ = pass_nonvacuous_ = pass_vacuous_ = false;
@@ -1874,13 +1903,18 @@ class __vpiAssertion : public __vpiHandle {
 		  }
 		  return killed;
 	    }
+	    bool notify = callbacks && (idx_ >= 0 || deferred_source_id_);
 	    if (ctl == 1 || ctl == 2) {
+		  bool was_locked = locked_;
 		  locked_ = ctl == 1;
+		  if (notify && was_locked != locked_)
+			fire(locked_ ? cbAssertionLock_ : cbAssertionUnlock_);
 		  return false;
 	    }
 	    if (locked_) return false;
 	    bool was = enabled_;
-	    bool notify = callbacks && (idx_ >= 0 || deferred_source_id_);
+	    bool was_fail = fail_action_, was_pass = pass_nonvacuous_,
+		 was_vac = pass_vacuous_;
 	    switch (ctl) {
 		case 3:
 		case 4:
@@ -1896,6 +1930,7 @@ class __vpiAssertion : public __vpiHandle {
 		       discarded too (default pending a ruling). */
 		  if (proc_id_) {
 			proc_matured_ = 0;
+			proc_saved_.clear();
 			vpip_cancel_proc_asserts(proc_id_, scope_);
 		  }
 		  if (notify && was) fire(cbAssertionDisable);
@@ -1908,14 +1943,25 @@ class __vpiAssertion : public __vpiHandle {
 			fire(cbAssertionReset);
 		  }
 		  return false;
-		case 6:  pass_nonvacuous_ = pass_vacuous_ = true;  return false;
-		case 7:  pass_nonvacuous_ = pass_vacuous_ = false; return false;
-		case 8:  fail_action_ = true;  return false;
-		case 9:  fail_action_ = false; return false;
-		case 10: pass_nonvacuous_ = true; return false;
-		case 11: pass_vacuous_ = false; return false;
+		case 6:  pass_nonvacuous_ = pass_vacuous_ = true;  break;
+		case 7:  pass_nonvacuous_ = pass_vacuous_ = false; break;
+		case 8:  fail_action_ = true;  break;
+		case 9:  fail_action_ = false; break;
+		case 10: pass_nonvacuous_ = true; break;
+		case 11: pass_vacuous_ = false; break;
 		default: return false;
 	    }
+	      /* 39.4.2 per-assertion action callbacks, on a change. */
+	    if (notify && (was_fail != fail_action_ || was_pass != pass_nonvacuous_
+			   || was_vac != pass_vacuous_)) {
+		  static const int reason[] = {
+			cbAssertionEnablePassAction_, cbAssertionDisablePassAction_,
+			cbAssertionEnableFailAction_, cbAssertionDisableFailAction_,
+			cbAssertionEnableNonvacuousAction_,
+			cbAssertionDisableVacuousAction_ };
+		  fire(reason[ctl - 6]);
+	    }
+	    return false;
 	}
 
 	/* 39.5.1: Reset removes the step callbacks, End removes them all. */
@@ -2244,6 +2290,14 @@ class __vpiAssertion : public __vpiHandle {
 	      case cbAssertionEnable:
 	      case cbAssertionReset:
 	      case cbAssertionKill:
+	      case cbAssertionLock_:
+	      case cbAssertionUnlock_:
+	      case cbAssertionEnablePassAction_:
+	      case cbAssertionEnableFailAction_:
+	      case cbAssertionDisablePassAction_:
+	      case cbAssertionDisableFailAction_:
+	      case cbAssertionEnableNonvacuousAction_:
+	      case cbAssertionDisableVacuousAction_:
 		  no_attempt_info = true;
 		  break;
 	      default:
@@ -2324,7 +2378,10 @@ class __vpiAssertion : public __vpiHandle {
       int ctl_dir_ = 1;                  // Table 20-7 directive_type bit
       int proc_id_ = 0;
       PLI_INT32 proc_matured_ = 0;
+      bool proc_each_ = false;
       bool proc_multi_noted_ = false;
+      std::vector< std::vector<vvp_vector4_t> > proc_saved_;
+      std::vector< std::vector<vvp_vector4_t> > proc_taken_;
       bool locked_ = false;
       bool ended_ = false;
       bool vpi_action_noted_ = false;
@@ -2648,8 +2705,27 @@ PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation, vpiHandle scope)
 			obj->note_vpi_action_control(operation);
 	    }
       }
-      return vpip_assertion_control(ctl, 255, 7, 0, selector ? &sel : 0,
-				    selector ? 1 : 0);
+      PLI_INT32 rc = vpip_assertion_control(ctl, 255, 7, 0,
+					    selector ? &sel : 0,
+					    selector ? 1 : 0);
+	/* 39.4.1: the matching assertion system callback (standard reason
+	   values; sv_vpi_user.h does not name them yet). */
+      static const struct { int op, reason; } sys_reasons[] = {
+	    { vpiAssertionSysLock, 659 },   { vpiAssertionSysUnlock, 660 },
+	    { vpiAssertionSysOn, 616 },     { vpiAssertionSysOff, 617 },
+	    { vpiAssertionSysKill, 631 },   { vpiAssertionSysReset, 619 },
+	    { vpiAssertionSysEnd, 618 },
+	    { vpiAssertionSysEnablePassAction, 651 },
+	    { vpiAssertionSysEnableFailAction, 652 },
+	    { vpiAssertionSysDisablePassAction, 653 },
+	    { vpiAssertionSysDisableFailAction, 654 },
+	    { vpiAssertionSysEnableNonvacuousAction, 655 },
+	    { vpiAssertionSysDisableVacuousAction, 656 },
+      };
+      for (size_t i = 0 ; i < sizeof sys_reasons / sizeof *sys_reasons ; i += 1)
+	    if (sys_reasons[i].op == operation)
+		  vpip_fire_assertion_sys_cb(sys_reasons[i].reason);
+      return rc;
 }
 
 template <class Key> static __vpiAssertion* find_assertion_up_(
@@ -2668,13 +2744,13 @@ static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>
       proc_assertion_by_key;
 
 void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
-				  vpiHandle scope)
+				  PLI_INT32 each, vpiHandle scope)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       if (!sc || pid <= 0) return;
       auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
       if (it == assertion_by_key.end()) return;
-      it->second->set_proc_id((int)pid);
+      it->second->set_proc_id((int)pid, each != 0);
       proc_assertion_by_key[std::make_pair(sc, (int)pid)] = it->second;
 }
 
@@ -2685,11 +2761,42 @@ bool vpip_proc_assert_may_queue(PLI_INT32 pid, __vpiScope*scope)
       return !obj || obj->control_state(vpipAssertStateEnabled) != 0;
 }
 
-void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope)
+void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope,
+			      const std::vector<vvp_vector4_t>&saved)
 {
       __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
 					      (int)pid, true);
-      if (obj) obj->proc_matured();
+      if (obj) obj->proc_matured(saved);
+}
+
+/* $ivl_sva_proc_cap(pid, idx, j, dest): the checker loads saved value j of
+   the idx-th instance it took into dest before starting its attempt. */
+void vpip_proc_assert_cap(vpiHandle callh)
+{
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      if (!argv) return;
+      PLI_INT32 n[3] = { 0, 0, 0 };
+      for (unsigned k = 0 ; k < 3 ; k += 1) {
+	    vpiHandle arg = vpi_scan(argv);
+	    if (!arg) return;
+	    s_vpi_value v;
+	    v.format = vpiIntVal;
+	    vpi_get_value(arg, &v);
+	    n[k] = v.value.integer;
+      }
+      vpiHandle dest = vpi_scan(argv);
+      if (!dest) return;
+      vpi_free_object(argv);
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(vpi_handle(vpiScope, callh));
+      __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
+					      (int)n[0], true);
+      const vvp_vector4_t*val = obj ? obj->taken_value(n[1], n[2]) : 0;
+      if (!val) return;
+      unsigned wid = vpi_get(vpiSize, dest);
+      s_vpi_value out;
+      out.format = vpiVectorVal;
+      vpip_vec4_get_value(*val, wid, false, &out);
+      vpi_put_value(dest, &out, 0, vpiNoDelay);
 }
 
 PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,

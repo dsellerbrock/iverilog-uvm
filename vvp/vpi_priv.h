@@ -26,6 +26,9 @@
 #ifndef vpiJoinType
 # define vpiJoinType 603
 #endif
+#ifndef vpiExpanded
+# define vpiExpanded 25
+#endif
 
 # include  <map>
 # include  <list>
@@ -181,8 +184,10 @@ class __vpiHandle {
 struct __vpiIterator : public __vpiHandle {
       __vpiIterator();
       int get_type_code(void) const override;
+      vpiHandle vpi_handle(int code) override;
       free_object_fun_t free_object_fun(void) override;
 
+      vpiHandle reference;
       vpiHandle *args;
       unsigned  nargs;
       unsigned  next;
@@ -415,6 +420,8 @@ class __vpiStmtNode : public __vpiHandle {
 extern bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
 					       const char*selector,
 					       int levels);
+/* IEEE 1800-2023 39.4.1: run the assertion system callbacks for reason. */
+extern void vpip_fire_assertion_sys_cb(PLI_INT32 reason);
 /* IEEE 1800-2023 39.5.1: vpi_control(vpiAssertionSys*, scope); a NULL
    scope means every assertion. Returns 1 when the operation was applied. */
 extern PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation,
@@ -426,7 +433,8 @@ extern PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation,
    `1UL << 40' is undefined where long is 32 bits (LLP64 Windows). */
 #define VPIP_PROC_ASSERT_SOURCE (UINT64_C(1) << 40)
 extern bool vpip_proc_assert_may_queue(PLI_INT32 pid, __vpiScope*scope);
-extern void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope);
+extern void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope,
+				     const std::vector<vvp_vector4_t>&saved);
 extern void vpip_cancel_proc_asserts(PLI_INT32 pid, __vpiScope*module_scope);
 /* IEEE 1800-2023 20.11: may a matured deferred report run its action? */
 extern bool vpip_deferred_action_enabled(unsigned long source_id,

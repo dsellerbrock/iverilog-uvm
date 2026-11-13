@@ -124,7 +124,7 @@ void netstruct_t::append_member(Design*des, const netstruct_t::member_t&val)
 		  des->errors += 1;
 	    }
       }
-      if (union_ && packed_ && !soft_union_ && members_.size() > 1) {
+      if (union_ && packed_ && !soft_union_ && !tagged_ && members_.size() > 1) {
 	    unsigned long expect_wid = members_.front().net_type->packed_width();
 	    unsigned long got_wid = members_.back().net_type->packed_width();
 	    if (expect_wid != got_wid) {
@@ -161,12 +161,11 @@ long netstruct_t::packed_width(void) const
       if (! packed_)
 	    return -1;
 
-	// A hard packed union is exactly one member wide. A soft packed union
-	// uses the largest member width. A tagged packed
-	// union additionally stores the discriminant at the MSB.
+	// Soft and tagged packed unions use the largest member width.
+	// A tagged union additionally stores the discriminant at the MSB.
 	if (union_) {
 	    long width = members_.front().net_type->packed_width();
-	    if (soft_union_)
+	    if (soft_union_ || tagged_)
 		  for (size_t idx = 1; idx < members_.size(); idx += 1)
 			if (members_[idx].net_type->packed_width() > width)
 			      width = members_[idx].net_type->packed_width();

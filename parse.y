@@ -44,6 +44,16 @@
 
 using namespace std;
 
+/* Count reductions inside assertion actions, including those in nested
+   procedural statements. Immediate assertions do not change this count. */
+static unsigned sva_concurrent_count = 0;
+static void sva_check_action(const struct vlltype&loc, unsigned before, bool restricted)
+{
+      if (restricted && before != sva_concurrent_count)
+            yyerror(loc, "error: concurrent assertion in assertion action block.");
+      ++sva_concurrent_count;
+}
+
   /* Every package-qualified reference (pkg::name ...) is built as one of
      these three node types, in many grammar rules, and every rule names
      the node. Checking here covers them all: a name declared in an
@@ -2647,6 +2657,7 @@ static Module::port_t *module_declare_explicit_port(
 
       char letter;
       int  int_val;
+      unsigned sva_count;
 
       enum atom_type_t::type_code atom_type;
 
@@ -3305,6 +3316,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <specpath> specify_edge_path specify_edge_path_decl
 
 %type <real_type> non_integer_type
+%type <sva_count> sva_action_start
 %type <int_val> assert_or_assume
 %type <int_val> deferred_mode
 %type <int_val> sva_int_local_declarations
@@ -4946,32 +4958,16 @@ concurrent_assertion_item /* IEEE1800-2012 A.2.10 */
       }
   ;
 
+sva_action_start
+  : %empty { $$ = sva_concurrent_count; }
+  ;
+
 concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
-  : assert_or_assume K_property '(' property_spec ')' statement_or_null %prec less_than_K_else
-      { /* M9: pass action only. */
+  : assert_or_assume K_property '(' property_spec ')' sva_action_start statement_or_null %prec less_than_K_else
+      { sva_check_action(@1, $6, $1 == 1);
+	  /* M9: pass action only. */
 	if (gn_supported_assertions_flag) {
-	      pform_sva_hold_assertion(@1, $4, 0, $6, ($1==4) ? 1 : 0);
-	} else {
-	      if (gn_unsupported_assertions_flag)
-		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
-			    " Try -gno-assertions or -gsupported-assertions"
-			    " to turn this message off.");
-	      pform_sva_destroy_property($4); delete $6;
-	}
-	$$ = 0;
-      }
-  | assert_or_assume K_property '(' property_spec ')' K_else statement_or_null
-      { /* M9: fail action only. */
-	if (gn_supported_assertions_flag) {
-	      /* Preserve an explicit null else action. A null pointer in the
-	         factory means that the else arm was omitted and therefore
-	         requests the standard default $error action. */
-	      Statement*fail = $7;
-	      if (!fail) {
-		    fail = new PNoop;
-		    FILE_NAME(fail, @6);
-	      }
-	      pform_sva_hold_assertion(@1, $4, fail, 0, ($1==4) ? 1 : 0);
+	      pform_sva_hold_assertion(@1, $4, 0, $7, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -4981,52 +4977,77 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 	}
 	$$ = 0;
       }
-  | assert_or_assume K_property '(' property_spec ')' statement_or_null K_else statement_or_null
-      { /* M9: pass and fail actions. */
+  | assert_or_assume K_property '(' property_spec ')' sva_action_start K_else statement_or_null
+      { sva_check_action(@1, $6, $1 == 1);
+	  /* M9: fail action only. */
 	if (gn_supported_assertions_flag) {
-	      /* As above, distinguish an explicit null else arm from a
-	         syntactically absent else arm. */
+	      /* Preserve an explicit null else action. A null pointer in the
+	         factory means that the else arm was omitted and therefore
+	         requests the standard default $error action. */
 	      Statement*fail = $8;
 	      if (!fail) {
 		    fail = new PNoop;
 		    FILE_NAME(fail, @7);
 	      }
-	      pform_sva_hold_assertion(@1, $4, fail, $6, ($1==4) ? 1 : 0);
+	      pform_sva_hold_assertion(@1, $4, fail, 0, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      pform_sva_destroy_property($4); delete $6; delete $8;
+	      pform_sva_destroy_property($4); delete $8;
 	}
 	$$ = 0;
       }
-  | K_cover K_property '(' property_spec ')' statement_or_null
-      { /* M9: cover property counts matches. */
+  | assert_or_assume K_property '(' property_spec ')' sva_action_start statement_or_null K_else statement_or_null
+      { sva_check_action(@1, $6, $1 == 1);
+	  /* M9: pass and fail actions. */
 	if (gn_supported_assertions_flag) {
-	      pform_sva_hold_assertion(@1, $4, 0, $6, 2);
+	      /* As above, distinguish an explicit null else arm from a
+	         syntactically absent else arm. */
+	      Statement*fail = $9;
+	      if (!fail) {
+		    fail = new PNoop;
+		    FILE_NAME(fail, @8);
+	      }
+	      pform_sva_hold_assertion(@1, $4, fail, $7, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      pform_sva_destroy_property($4); delete $6;
+	      pform_sva_destroy_property($4); delete $7; delete $9;
+	}
+	$$ = 0;
+      }
+  | K_cover K_property '(' property_spec ')' sva_action_start statement_or_null
+      { sva_check_action(@1, $6, true);
+	  /* M9: cover property counts matches. */
+	if (gn_supported_assertions_flag) {
+	      pform_sva_hold_assertion(@1, $4, 0, $7, 2);
+	} else {
+	      if (gn_unsupported_assertions_flag)
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      pform_sva_destroy_property($4); delete $7;
 	}
 	$$ = 0;
       }
       /* For now, cheat, and use property_spec for the sequence specification.
          They are syntactically identical. */
-  | K_cover K_sequence '(' property_spec ')' statement_or_null
-      { /* IEEE 1800-2017 16.14.3: count all sequence matches. */
+  | K_cover K_sequence '(' property_spec ')' sva_action_start statement_or_null
+      { sva_check_action(@1, $6, true);
+	  /* IEEE 1800-2017 16.14.3: count all sequence matches. */
 	if (gn_supported_assertions_flag) {
 	      $4->sequence_cover = true;
-	      pform_sva_hold_assertion(@1, $4, 0, $6, 2);
+	      pform_sva_hold_assertion(@1, $4, 0, $7, 2);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      pform_sva_destroy_property($4); delete $6;
+	      pform_sva_destroy_property($4); delete $7;
 	}
 	$$ = 0;
       }
@@ -17529,6 +17550,13 @@ module_item
   : module
   | checker_declaration
 
+  /* IEEE 1800-2023 17.7 / Syntax 17-1: a checker variable may be a free
+     variable, `rand [const] data_declaration'. */
+  | attribute_list_opt K_rand K_const_opt data_type list_of_variable_decl_assignments ';'
+      { pform_checker_free_vars(@2, $5, $4, $3);
+	delete $1;
+      }
+
   | nettype_declaration
 
   /* SystemVerilog permits package imports as module items. */
@@ -22551,7 +22579,11 @@ udp_sequ_entry
 
 udp_initial
   : K_initial IDENTIFIER '=' number ';'
-      { PExpr*etmp = new PENumber($4);
+      { if ($4->has_len() && $4->len() != 1) {
+	    cerr << @4 << ": error: UDP initial value must be a single-bit literal." << endl;
+	    error_count += 1;
+	}
+	PExpr*etmp = new PENumber($4);
 	PEIdent*itmp = new PEIdent(lex_strings.make($2), @2.lexical_pos);
 	PAssign*atmp = new PAssign(itmp, etmp);
 	FILE_NAME(atmp, @2);

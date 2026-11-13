@@ -143,10 +143,12 @@ static PLI_INT32 sva_state_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
-/* IEEE 1800-2023 16.14.6: $ivl_sva_proc_enqueue(pid) queues a pending
-   instance of a procedural concurrent assertion where its statement runs;
-   $ivl_sva_proc_register(idx, pid) ties pid to checker idx of the calling
-   scope. */
+/* IEEE 1800-2023 16.14.6: $ivl_sva_proc_enqueue(pid, saved...) queues a
+   pending instance of a procedural concurrent assertion where its statement
+   runs, with the values it saves (16.14.6.1); $ivl_sva_proc_register(idx,
+   pid, each) ties pid to checker idx of the calling scope, where each says
+   the checker starts one attempt per instance; $ivl_sva_proc_cap(pid, n, j,
+   dest) reads saved value j of the n-th instance the checker took. */
 static PLI_INT32 sva_proc_enqueue_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -154,7 +156,7 @@ static PLI_INT32 sva_proc_enqueue_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       PLI_INT32 pid = sva_int_arg_(argv, 0, 0);
       (void)name;
       if (argv) vpi_free_object(argv);
-      vpip_proc_assert_enqueue(pid, vpi_handle(vpiScope, callh));
+      vpip_proc_assert_enqueue(pid, callh);
       return 0;
 }
 
@@ -164,9 +166,18 @@ static PLI_INT32 sva_proc_register_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
       PLI_INT32 idx = sva_int_arg_(argv, 0, 0);
       PLI_INT32 pid = sva_int_arg_(argv, 0, 0);
+      PLI_INT32 each = sva_int_arg_(argv, 0, 0);
       (void)name;
       if (argv) vpi_free_object(argv);
-      vpip_register_proc_assertion(idx, pid, vpi_handle(vpiScope, callh));
+      vpip_register_proc_assertion(idx, pid, each,
+				   vpi_handle(vpiScope, callh));
+      return 0;
+}
+
+static PLI_INT32 sva_proc_cap_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      (void)name;
+      vpip_proc_assert_cap(vpi_handle(vpiSysTfCall, 0));
       return 0;
 }
 
@@ -633,6 +644,108 @@ static PLI_INT32 sva_serial_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+/* IEEE 1800-2023 17.7.2 free checker variables. ponytail: one fixed-seed
+   xorshift stream for all of them, so runs repeat; seed it from the
+   simulator's seed if per-run variation is ever wanted. */
+static uint64_t sva_free_state_ = 0x9E3779B97F4A7C15ULL;
+
+static PLI_UINT32 sva_free_rand_(void)
+{
+      sva_free_state_ ^= sva_free_state_ << 13;
+      sva_free_state_ ^= sva_free_state_ >> 7;
+      sva_free_state_ ^= sva_free_state_ << 17;
+      return (PLI_UINT32)(sva_free_state_ >> 32);
+}
+
+/* Put a random value on one variable, or on each word of an array. */
+static void sva_free_randomize_(vpiHandle var)
+{
+      vpiHandle it, w;
+      PLI_INT32 type = vpi_get(vpiType, var);
+      if (type == vpiRegArray || type == vpiMemory || type == vpiNetArray) {
+	    it = vpi_iterate(type == vpiMemory ? vpiMemoryWord : vpiReg, var);
+	    while (it && (w = vpi_scan(it))) sva_free_randomize_(w);
+	    return;
+      }
+      if (type == vpiRealVar) {
+	    s_vpi_value v;
+	    v.format = vpiRealVal;
+	    v.value.real = (double)sva_free_rand_() / 4294967296.0;
+	    vpi_put_value(var, &v, 0, vpiNoDelay);
+	    return;
+      }
+      {
+	    PLI_INT32 size = vpi_get(vpiSize, var), i;
+	    PLI_INT32 words = size > 0 ? (size + 31) / 32 : 1;
+	    s_vpi_vecval*vec = calloc(words, sizeof *vec);
+	    s_vpi_value v;
+	    for (i = 0 ; i < words ; i += 1) vec[i].aval = sva_free_rand_();
+	    v.format = vpiVectorVal;
+	    v.value.vector = vec;
+	    vpi_put_value(var, &v, 0, vpiNoDelay);
+	    free(vec);
+      }
+}
+
+/* Active free variables: a new random value at every time step after the
+   first (17.7.2: implicitly clocked, updated before the Observed region
+   and then constant to the end of the time step). */
+static vpiHandle*sva_free_active_ = 0;
+static size_t sva_free_active_n_ = 0;
+
+static PLI_INT32 sva_free_tick_(p_cb_data cb)
+{
+      s_cb_data next;
+      s_vpi_time t;
+      size_t i;
+      (void)cb;
+      for (i = 0 ; i < sva_free_active_n_ ; i += 1)
+	    sva_free_randomize_(sva_free_active_[i]);
+      memset(&next, 0, sizeof next);
+      t.type = vpiSuppressTime;
+      next.reason = cbNextSimTime;
+      next.cb_rtn = sva_free_tick_;
+      next.time = &t;
+      vpi_free_object(vpi_register_cb(&next));
+      return 0;
+}
+
+/* $ivl_checker_free(var, flags): bit0 randomize now (no declaration
+   initializer), bit1 active (re-randomize at every later time step). */
+static PLI_INT32 sva_checker_free_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle var, a;
+      s_vpi_value v;
+      PLI_INT32 flags = 0;
+      (void)name;
+      if (!argv || !(var = vpi_scan(argv))) return 0;
+      if ((a = vpi_scan(argv))) {
+	    v.format = vpiIntVal;
+	    vpi_get_value(a, &v);
+	    flags = v.value.integer;
+	    vpi_free_object(argv);
+      }
+      if (flags & 1) sva_free_randomize_(var);
+      if (flags & 2) {
+	    if (sva_free_active_n_ == 0) {
+		  s_cb_data cb;
+		  s_vpi_time t;
+		  memset(&cb, 0, sizeof cb);
+		  t.type = vpiSuppressTime;
+		  cb.reason = cbNextSimTime;
+		  cb.cb_rtn = sva_free_tick_;
+		  cb.time = &t;
+		  vpi_free_object(vpi_register_cb(&cb));
+	    }
+	    sva_free_active_ = realloc(sva_free_active_,
+				       (sva_free_active_n_ + 1) * sizeof *sva_free_active_);
+	    sva_free_active_[sva_free_active_n_++] = var;
+      }
+      return 0;
+}
+
 static PLI_INT32 sva_clock_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -711,6 +824,7 @@ void sys_sva_register(void)
       register_one_("$ivl_sva_state", sva_state_calltf);
       register_task_("$ivl_sva_proc_enqueue", sva_proc_enqueue_calltf);
       register_task_("$ivl_sva_proc_register", sva_proc_register_calltf);
+      register_task_("$ivl_sva_proc_cap", sva_proc_cap_calltf);
       register_task_("$assertcontrol", sva_control_calltf);
       {
 	    size_t t;
@@ -735,5 +849,6 @@ void sys_sva_register(void)
       register_task_("$ivl_assert_nfa", sva_nfa_calltf);
       register_task_("$ivl_assert_nfa_step", sva_nfa_step_calltf);
       register_one_("$ivl_assert_serial", sva_serial_calltf);
+      register_task_("$ivl_checker_free", sva_checker_free_calltf);
       register_one_("$ivl_assert_cb_active", sva_cb_active_calltf);
 }

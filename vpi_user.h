@@ -1011,11 +1011,16 @@ extern PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
 #define vpipAssertStateVacuousAction  4
 #define vpipAssertStateTakeMatured    5   /* procedural: take matured count */
 /* IEEE 1800-2023 16.14.6: queue a pending instance of procedural concurrent
-   assertion pid on the calling process, and tie pid to the checker that
-   the front end numbered idx in scope. */
-extern void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle scope);
+   assertion pid on the process of the system task call callh, and tie pid
+   to the checker that the front end numbered idx in scope. The call's
+   arguments after pid are the values the instance saves (16.14.6.1);
+   vpip_proc_assert_cap(callh) is $ivl_sva_proc_cap(pid, idx, j, dest),
+   which writes saved value j of the idx-th instance the checker took at
+   its last clock into dest. */
+extern void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle callh);
 extern void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
-                                         vpiHandle scope);
+                                         PLI_INT32 each, vpiHandle scope);
+extern void vpip_proc_assert_cap(vpiHandle callh);
 /* True while a VPI string function call is executing with a result slot. */
 extern int vpip_systf_call_returns_string(void);
 /* True when the current VVP design was compiled as SystemVerilog. */
@@ -1165,7 +1170,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 17;
+static const PLI_UINT32 vpip_routines_version = 18;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1228,7 +1233,8 @@ typedef struct {
                                      PLI_INT32, const char*const*, PLI_INT32);
     PLI_INT32   (*assertion_state)(vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32);
     void        (*proc_assert_enqueue)(PLI_INT32, vpiHandle);
-    void        (*register_proc_assertion)(PLI_INT32, PLI_INT32, vpiHandle);
+    void        (*register_proc_assertion)(PLI_INT32, PLI_INT32, PLI_INT32,
+                                           vpiHandle);
     void        (*register_immediate_cover)(PLI_INT32, const char*,
                                              const char*, PLI_INT32,
                                              vpiHandle);
@@ -1250,6 +1256,7 @@ typedef struct {
                                       const char*, const char*, const char*,
                                       PLI_INT32);
     PLI_INT32   (*assertion_serial)(PLI_INT32, vpiHandle);
+    void        (*proc_assert_cap)(vpiHandle);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

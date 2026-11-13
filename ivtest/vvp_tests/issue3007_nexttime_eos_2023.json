@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3007_nexttime_eos.v",
+  "iverilog-args": ["-g2023", "-gassertions"],
+  "gold": "issue3007_nexttime_eos"
+}

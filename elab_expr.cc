@@ -6151,8 +6151,7 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	    return res;
       }
 
-      /* Phase 63b/B7 (gap close 2): for packed unions, the storage
-         is the size of one member (all members same packed_width).
+      /* For packed unions, the members share the same payload storage.
          Concatenating ALL items would produce a multi-of-packed-width
          result that gets truncated to the LSB, losing the named
          entry's value.  Instead emit a single-element concat of just
@@ -6189,6 +6188,9 @@ NetExpr* PEAssignPattern::elaborate_expr_struct_(Design *des, NetScope *scope,
 	      // discriminant. Keep the payload at the LSB so ordinary packed
 	      // member selects remain at offset zero.
 	    unsigned tag_width = struct_type->tag_bits();
+	    unsigned payload_width = struct_type->packed_width() - tag_width;
+	    if (single->expr_width() < payload_width)
+		  single = cast_to_width(single, payload_width, false, *this);
 	    unsigned tag_value = union_active_member < members.size()
 		  ? (unsigned)union_active_member : 0;
 	    verinum tag_bits((uint64_t)tag_value, tag_width);
@@ -23683,6 +23685,23 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
       const netqueue_t*assoc_cast_target =
 	    dynamic_cast<const netqueue_t*>(target_type_);
       unsigned assoc_key_kind = 0;
+      if (assoc_source && assoc_source->assoc_compat()
+	  && target_type_ && target_type_->packed()
+	  && target_type_->packed_width() > 0
+	  && type_is_vectorable(target_type_->base_type())
+	  && assoc_integral_bitstream_source_(assoc_source, assoc_key_kind)
+	  && bitstream_cast_type_(assoc_source, false)) {
+	    const char*key_name = assoc_key_kind == 0 ? "t"
+		  : assoc_key_kind == 1 ? "o"
+		  : assoc_key_kind == 3 ? "s" : "u";
+	    char marker_name[40];
+	    snprintf(marker_name, sizeof marker_name,
+		     "$ivl_stream$cast$assoc$%s$1", key_name);
+	    NetESFunc*cast = new NetESFunc(marker_name, target_type_, 1);
+	    cast->parm(0, sub);
+	    cast->set_line(*this);
+	    return cast;
+      }
       if (!positional_pair && assoc_source && assoc_source->assoc_compat()
 	  && assoc_cast_target && !assoc_cast_target->assoc_compat()
 	  && assoc_integral_bitstream_source_(assoc_source, assoc_key_kind)

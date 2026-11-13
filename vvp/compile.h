@@ -504,7 +504,8 @@ extern void compile_udp_def(int sequ, char*label, char *name,
 			    unsigned nin, unsigned init, char **table);
 
 extern void compile_udp_functor(char*label, char*type,
-				unsigned argc, struct symb_s*argv);
+			       unsigned argc, struct symb_s*argv,
+			       bool instance_delay = false);
 
 extern char **compile_udp_table(char **table, char *row);
 
