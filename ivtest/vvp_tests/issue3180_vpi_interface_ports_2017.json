@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3180_vpi_interface_ports.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3180_vpi_interface_ports_2017"],
+  "vpi-sources": ["vpi/issue3180_vpi_interface_ports.c"],
+  "output-contains": ["VPI INTERFACE PORTS PASS"]
+}

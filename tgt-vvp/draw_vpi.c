@@ -602,6 +602,18 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 
       for (idx = 0; !any && idx < ivl_scope_params(scope); idx += 1)
 	    any = ivl_parameter_default_expr(ivl_scope_param(scope, idx)) != 0;
+	/* An interface port: the instance it is bound to, and the modport
+	   it selects (37.14 detail 5, 37.15). These need no expression code. */
+      for (idx = 0; idx < nports; idx += 1) {
+	    const char*modport;
+	    ivl_scope_t iface = ivl_scope_mod_module_port_iface(scope, idx,
+								 &modport);
+	    if (iface && modport)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 2, S_%p, \"%s\";\n",
+			  idx, iface, modport);
+	    else if (iface)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 2, S_%p;\n", idx, iface);
+      }
       for (idx = 0; !any && idx < nports; idx += 1)
 	    any = ivl_scope_mod_module_port_highconn(scope, idx) != 0;
       if (!any) return;

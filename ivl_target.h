@@ -2189,6 +2189,11 @@ extern const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx 
      in the parent scope (vpiHighConn, IEEE 1800-2023 37.14), or NULL
      when the port is unconnected or the actual cannot be described. */
 extern ivl_expr_t ivl_scope_mod_module_port_highconn(ivl_scope_t net, unsigned idx);
+  /* For an interface port IDX of this module instance, the interface
+     instance it is bound to, and in *MODPORT the modport it selects (nil
+     for none); NULL for any other port (IEEE 1800-2023 37.14, 37.15). */
+extern ivl_scope_t ivl_scope_mod_module_port_iface(ivl_scope_t net, unsigned idx,
+						   const char**modport);
 extern ivl_signal_port_t ivl_scope_mod_module_port_type(ivl_scope_t net, unsigned idx );
 extern int ivl_scope_mod_module_port_vpi_type(ivl_scope_t net, unsigned idx );
 extern unsigned ivl_scope_mod_module_port_width(ivl_scope_t net, unsigned idx );
