@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2804_iface_net_path.v",
+  "iverilog-args": ["-g2017", "-gspecify"]
+}

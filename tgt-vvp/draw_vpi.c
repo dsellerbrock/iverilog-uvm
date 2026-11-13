@@ -240,6 +240,42 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 	    }
 	    return 100;
 	  }
+	  case IVL_EX_SELECT: {
+	      /* A constant bit- or part-select of a vector signal, written in
+		 the signal's declared range (the offset here is canonical:
+		 0 is the LSB). Anything else is left undescribed. */
+	    ivl_expr_t base = ivl_expr_oper1(expr);
+	    ivl_expr_t off = ivl_expr_oper2(expr);
+	    ivl_signal_t sig;
+	    long msb, lsb, lo, hi, first;
+	    unsigned wid = ivl_expr_width(expr);
+	    if (!base || ivl_expr_type(base) != IVL_EX_SIGNAL
+		|| ivl_expr_oper1(base) || !off || !wid
+		|| !number_is_immediate(off, 32, 0))
+		  return 0;
+	    sig = ivl_expr_signal(base);
+	    if (ivl_signal_packed_dimensions(sig) != 1) return 0;
+	    msb = ivl_signal_packed_msb(sig, 0);
+	    lsb = ivl_signal_packed_lsb(sig, 0);
+	    first = get_number_immediate(off);
+	    if (first + (long)wid > (long)ivl_signal_width(sig)) return 0;
+	    if (msb >= lsb) {
+		  lo = lsb + first;
+		  hi = lo + (long)wid - 1;
+	    } else {
+		  hi = lsb - first;
+		  lo = hi - (long)wid + 1;
+	    }
+	    lazy_puts_(t, ivl_signal_basename(sig));
+	    if (wid == 1)
+		  snprintf(buf, sizeof buf, "[%ld]", lo);
+	    else if (msb >= lsb)
+		  snprintf(buf, sizeof buf, "[%ld:%ld]", hi, lo);
+	    else
+		  snprintf(buf, sizeof buf, "[%ld:%ld]", lo, hi);
+	    lazy_puts_(t, buf);
+	    return 100;
+	  }
 	  case IVL_EX_REALNUM:
 	    snprintf(buf, sizeof buf, "%.17g", ivl_expr_dvalue(expr));
 	    if (!strpbrk(buf, ".eEn")) strcat(buf, ".0");
@@ -560,10 +596,14 @@ static unsigned static_thunk_count_ = 1u << 30;
 void draw_vpi_objects_in_scope(ivl_scope_t scope)
 {
       unsigned idx, save_local = local_count, save_thread = thread_count;
+      unsigned nports = ivl_scope_type(scope) == IVL_SCT_MODULE
+	    ? ivl_scope_mod_module_ports(scope) : 0;
       int any = ivl_scope_contassigns(scope) || ivl_scope_defparams(scope);
 
       for (idx = 0; !any && idx < ivl_scope_params(scope); idx += 1)
 	    any = ivl_parameter_default_expr(ivl_scope_param(scope, idx)) != 0;
+      for (idx = 0; !any && idx < nports; idx += 1)
+	    any = ivl_scope_mod_module_port_highconn(scope, idx) != 0;
       if (!any) return;
       thread_count = static_thunk_count_++;
       local_count = 0;
@@ -573,6 +613,15 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 	    char*text = def ? draw_lazy_expr_(def) : 0;
 	    if (text)
 		  fprintf(vvp_out, " .vpi_param_expr P_%p, %s;\n", par, text);
+	    free(text);
+      }
+	/* The actual of each connected port (vpiHighConn, IEEE 1800-2023
+	   37.14). vvp finds the port's own signal, its vpiLowConn, by name. */
+      for (idx = 0; idx < nports; idx += 1) {
+	    ivl_expr_t high = ivl_scope_mod_module_port_highconn(scope, idx);
+	    char*text = high ? draw_lazy_expr_(high) : 0;
+	    if (text)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 1, %s;\n", idx, text);
 	    free(text);
       }
       for (idx = 0; idx < ivl_scope_defparams(scope); idx += 1) {

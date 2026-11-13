@@ -123,7 +123,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PARAM_ASSIGN_STR K_PARAM_ASSIGN_L K_PARAM_ASSIGN_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS K_VARTYPE
-%token K_VPI_EXPR K_VPI_CONTASSIGN K_VPI_PARAM_EXPR K_VPI_DEFPARAM
+%token K_VPI_EXPR K_VPI_CONTASSIGN K_VPI_PARAM_EXPR K_VPI_DEFPARAM K_VPI_PORT_CONN
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
@@ -854,6 +854,12 @@ statement
      assigns, file index, line, then the r-value handle. */
 	| K_VPI_DEFPARAM T_SYMBOL ',' T_NUMBER ',' T_NUMBER argument_opt ';'
 		{ compile_vpi_defparam($2, $4, $6, $7.argc, $7.argv); }
+
+  /* The connections of port <index> of the current module instance
+     (IEEE 1800-2023 37.14): flags (1 has the actual, vpiHighConn), then
+     the actual's handle. */
+	| K_VPI_PORT_CONN T_NUMBER ',' T_NUMBER argument_opt ';'
+		{ compile_vpi_port_conn($2, $4, $5.argc, $5.argv); }
 
 	| T_LABEL K_EVENT K_DEBUG T_SYMBOL ',' symbols ';'
                 { compile_event($1, $4, $6.cnt, $6.vect); }

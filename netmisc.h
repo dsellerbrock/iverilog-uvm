@@ -585,6 +585,14 @@ extern NetNet* find_array_method_iter_index(const NetNet*iter_net);
 extern NetNet* find_array_method_iter_index(const NetNet*iter_net,
 					    perm_string index_name);
 
+/*
+ * Elaborate PE in SCOPE as VPI's view of a source expression: its own
+ * width, no constant folding. Any diagnostic it raises is swallowed and
+ * the expression dropped (nil), so keeping it never changes what a
+ * design compiles to.
+ */
+extern NetExpr* elaborate_for_vpi(Design*des, NetScope*scope, PExpr*pe);
+
 extern NetExpr* elab_and_eval(Design*des, NetScope*scope,
 			      PExpr*pe, int context_width,
                               bool need_const =false,

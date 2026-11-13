@@ -11,10 +11,10 @@ module top;
   reg [255:0] line, first, second;
   initial begin
     // Start from a known empty file so stale output cannot satisfy this test.
-    fd = $fopen("issue2831.log", "w");
+    fd = $fopen("work/issue2831.log", "w");
     if (fd) $fclose(fd);
-    $sdf_annotate("ivltests/issue2831_sdf_log.sdf", top, , "issue2831.log");
-    fd = $fopen("issue2831.log", "r");
+    $sdf_annotate("ivltests/issue2831_sdf_log.sdf", top, , "work/issue2831.log");
+    fd = $fopen("work/issue2831.log", "r");
     if (!fd) $display("FAILED: no SDF log");
     else begin
       line = 0;

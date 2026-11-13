@@ -3174,6 +3174,12 @@ struct pending_interface_specify_path_t {
 static vector<pending_interface_specify_path_t>
       pending_interface_specify_paths_;
 
+/* The initializer expression of each interface port bound directly to an
+   interface instance, keyed by (port, word). A module path to a variable
+   member records its shadow there for the run-time handle. */
+static map<pair<const NetNet*,unsigned>,NetEScope*>
+      interface_port_scope_bindings_;
+
 struct pending_interface_variable_continuous_driver_t {
       NetNet*port;
       unsigned port_word;
@@ -5199,11 +5205,13 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 
 	/* Keep the assignment for VPI (IEEE 1800-2023 37.47). Its driver is
 	   the device on the r-value side, found before the l-value joins
-	   the nexus. A part-select or concatenation l-value is a local net
-	   and has no expression handle yet. */
+	   the nexus. A part-select or concatenation l-value is a local net,
+	   so its handle is the l-value read as an expression. */
       NetScope::contassign_t contassign;
       contassign.set_line(*this);
-      contassign.lval = lval->local_flag() ? 0 : new NetESignal(lval);
+      contassign.lval = lval->local_flag()
+	    ? elaborate_for_vpi(des, scope, const_cast<PExpr*>(pin(0)))
+	    : new NetESignal(lval);
 	/* Synthesis leaves the expression intact; the record keeps it. */
       contassign.rval = rval_expr;
       for (const Link*cur = rval->pin(0).nexus()->first_nlink()
@@ -7504,6 +7512,28 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
       ivl_assert(*this, scope);
 
+	// IEEE 1800-2017/2023 23.3.2 requires parentheses on every module
+	// instance, including modules with no ports. The parser preserves the
+	// omitted-list form so user-type declarations and UDPs are not affected.
+      if (generation_flag >= GN_VER2017 && no_port_list_) {
+	    cerr << get_fileline() << ": "
+		 << (gn_commercial_unsafe_flag ? "warning: " : "error: ")
+		 << "module instance " << get_name()
+		 << " has no port list; IEEE 1800 23.3.2 requires parentheses"
+		 << endl;
+	    if (!gn_commercial_unsafe_flag) des->errors += 1;
+      }
+
+	// IEEE 1800-2017/2023 23.3.2 limits a module port list to one .*.
+      if (generation_flag >= GN_VER2017 &&
+          has_duplicate_wildcard_port_connections()) {
+	    cerr << get_fileline() << ": "
+		 << (gn_commercial_unsafe_flag ? "warning: " : "error: ")
+		 << ".* appears more than once in the port connections of "
+		 << get_name() << " (IEEE 1800 23.3.2)" << endl;
+	    if (!gn_commercial_unsafe_flag) des->errors += 1;
+      }
+
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Instantiate module "
 		 << rmod->mod_name() << " with instance name "
@@ -7673,6 +7703,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	// later.
 
       NetScope::scope_vec_t&instance = scope->instance_arrays[get_name()];
+
+	/* Each port's actual, for its vpiHighConn (IEEE 1800-2023 37.14
+	   detail 3). An instance array splits its actuals, so only a single
+	   instance keeps them. */
+      if (instance.size() == 1)
+	    instance[0]->port_actuals.assign(pins.begin(), pins.end());
 
 	// Capture the formal declaration kind before interface formals are
 	// retagged with the effective modport of their actual connection.
@@ -8199,6 +8235,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 							    actual->second[scope_word],
 							    static_cast<ivl_type_t>(ifc));
 						      se->set_line(*aid);
+						      interface_port_scope_bindings_[
+							    make_pair(prts[0], (unsigned)word)] = se;
 						      NetAssign_*lv = new NetAssign_(prts[0]);
 						      NetEConst*word_expr =
 							    make_const_val_s(word);
@@ -8386,8 +8424,10 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			       * to the real member NetNet. A forwarded interface port
 			       * forms a chain which is resolved after the whole
 			       * hierarchy has been elaborated. */
-			      if (const NetEScope*bound_scope =
-				    dynamic_cast<const NetEScope*>(vif)) {
+			      if (NetEScope*bound_scope =
+				    dynamic_cast<NetEScope*>(vif)) {
+				    interface_port_scope_bindings_[
+					  make_pair(port_var, 0U)] = bound_scope;
 				    port_var->bind_interface_scope(
 					  0, const_cast<NetScope*>(
 						bound_scope->scope()));
@@ -31934,6 +31974,113 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
       elaborate_bound_(des, scope);
 }
 
+/*
+ * IEEE 1800 25.6: a module path may end on an interface variable reached
+ * through a modport port. The module writes that variable through its
+ * port handle at run time, so there is no structural driver to delay.
+ * Give the module a local shadow variable instead: the port's static
+ * binding and its run-time handle (%vif/bind) both reach the shadow, the
+ * path's destination becomes the shadow, and the interface variable
+ * turns into a net driven by the path. Reads inside the module therefore
+ * see the undelayed value and everything else sees the delayed one, as
+ * for an ordinary output port. (25.6 does not say whose view is delayed;
+ * this follows the supervisor's ruling of 2026-11-10.)
+ */
+static void prepare_interface_path_shadows_(Design*des)
+{
+      map<NetNet*,NetNet*> shadow_owner;	// member -> its shadow
+      for (const pending_interface_specify_path_t&pending :
+	   pending_interface_specify_paths_) {
+	    const PSpecPath*path = pending.path;
+	    NetScope*scope = pending.scope;
+	    for (const pform_specify_terminal_t&terminal : path->dst) {
+		  if (!terminal.dotted())
+			continue;
+		  NetNet*port = scope->find_signal(terminal.name);
+		  const netclass_t*itype = port
+			? dynamic_cast<const netclass_t*>(port->net_type()) : 0;
+		  if (!itype || !itype->is_interface() || port->pin_count() != 1)
+			continue;
+		  int pid = itype->property_idx_from_name(terminal.member);
+		  if (pid < 0)
+			continue;
+		    // Only a legal destination; elaborate_bound_ reports the rest.
+		  perm_string modport = itype->interface_modport();
+		  if (modport.nil()) {
+			verinum attr = port->attribute(
+			      perm_string::literal("ivl_modport"));
+			if (attr != verinum())
+			      modport = lex_strings.make(attr.as_string().c_str());
+		  }
+		  if (!modport.nil()) {
+			const PModport*view = interface_modport_view(itype, modport);
+			if (!view)
+			      continue;
+			auto mp = view->simple_ports.find(terminal.member);
+			if (mp == view->simple_ports.end() || mp->second.second
+			    || (mp->second.first != NetNet::POUTPUT
+				&& mp->second.first != NetNet::PINOUT))
+			      continue;
+		  }
+		  NetNet*member = port->resolve_interface_member(0, pid);
+		  if (!member || member->type() != NetNet::REG
+		      || member->unpacked_dimensions() > 0
+		      || !type_is_vectorable(member->data_type()))
+			continue;	// a net member needs no shadow
+
+		  auto old = shadow_owner.find(member);
+		  if (old != shadow_owner.end()) {
+			if (old->second->scope() == scope)
+			      continue;	// another path of the same module
+			cerr << path->get_fileline() << ": sorry: Module paths "
+			     << "from more than one instance to interface variable `"
+			     << member->name() << "' are not supported." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  auto bound = interface_port_scope_bindings_.find(
+			make_pair(static_cast<const NetNet*>(port), 0U));
+		  if (bound == interface_port_scope_bindings_.end()) {
+			  // ponytail: a forwarded port shares its parent's
+			  // handle, so it cannot take its own view; bind the
+			  // shadow at the root binding if this is ever needed.
+			cerr << path->get_fileline() << ": warning: The delay of "
+			     << "the module path to `" << terminal << "' is ignored: "
+			     << "interface port `" << terminal.name << "' is passed "
+			     << "through from another port, not bound to an "
+			     << "interface instance." << endl;
+			continue;
+		  }
+
+		  NetNet*shadow = new NetNet(scope, scope->local_symbol(),
+					     NetNet::REG, member->net_type());
+		  shadow->set_line(*path);
+		    // Not local_flag: nodangle drops a local signal that shares
+		    // its nexus with the member, and the handle needs it.
+		  port->bind_interface_member(0, pid, shadow);
+		  bound->second->add_vif_bind(pid, shadow);
+		  shadow_owner[member] = shadow;
+
+		    // With the module's own writes now on the shadow, any
+		    // remaining writer of the member would fight the path.
+		  if (member->test_part_procedurally_driven(
+			    member->vector_width()-1, 0, 0)
+		      || interface_member_has_property_writer_(member, itype)) {
+			cerr << path->get_fileline() << ": sorry: Interface "
+			     << "variable `" << member->name() << "' is a module "
+			     << "path destination and is also written outside `"
+			     << scope_path(scope) << "'; this is not supported."
+			     << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  member->type(NetNet::UNRESOLVED_WIRE);
+		  connect(shadow->pin(0), member->pin(0));
+	    }
+      }
+}
+
 static void finalize_interface_specify_paths_(Design*des)
 {
       for (const pending_interface_specify_path_t&pending :
@@ -35724,7 +35871,7 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 static string constraint_class_state_path_ir_(
       const vector<perm_string>&names, const netclass_t*cls,
       bool indexed_outer = false, unsigned array_word = 0,
-      ivl_type_t*result_type = nullptr)
+      ivl_type_t*result_type = nullptr, bool container_size = false)
 {
       if (!cls || names.size() < 2) return "";
 
@@ -35732,6 +35879,9 @@ static string constraint_class_state_path_ir_(
       const netstruct_t*cur_struct = nullptr;
       ivl_type_t cur_type = nullptr;
       string path;
+	// Whether every link of the chain is rand: then the leaf is solved,
+	// not state (18.4).
+      bool all_rand = true;
       for (size_t pos = 0 ; pos < names.size() ; pos += 1) {
 	    unsigned idx;
 	    if (cur_cls) {
@@ -35739,6 +35889,8 @@ static string constraint_class_state_path_ir_(
 		  if (property < 0) return "";
 		  idx = (unsigned)property;
 		  cur_type = cur_cls->get_prop_type(idx);
+		  property_qualifier_t qual = cur_cls->get_prop_qual(idx);
+		  all_rand = all_rand && (qual.test_rand() || qual.test_randc());
 		  if (pos == 0 && indexed_outer) {
 			const netuarray_t*array =
 			      dynamic_cast<const netuarray_t*>(cur_type);
@@ -35754,6 +35906,8 @@ static string constraint_class_state_path_ir_(
 		  idx = cur_struct->member_index(names[pos]);
 		  if (idx >= cur_struct->members().size()) return "";
 		  cur_type = cur_struct->members()[idx].net_type;
+		  property_qualifier_t qual = cur_struct->members()[idx].qualifier;
+		  all_rand = all_rand && (qual.test_rand() || qual.test_randc());
 	    } else {
 		  return "";
 	    }
@@ -35770,6 +35924,18 @@ static string constraint_class_state_path_ir_(
 	    }
       }
 
+	/* The size of a dynamic array or queue reached through the chain is
+	   state when some link is not rand (18.3): `s.da.size()' of a
+	   non-rand struct member. A fully rand chain is solved, which this
+	   state read cannot represent. */
+      if (container_size) {
+	    const netqueue_t*queue = dynamic_cast<const netqueue_t*>(cur_type);
+	    if (all_rand || !dynamic_cast<const netdarray_t*>(cur_type)
+		|| (queue && queue->assoc_compat()))
+		  return "";
+	    if (result_type) *result_type = cur_type;
+	    return "r:" + path + ":32:z";
+      }
       if (!constraint_state_prop_ok_(cur_type, false)) return "";
       if (result_type) *result_type = cur_type;
       unsigned wid = cur_type ? cur_type->packed_width() : 0;
@@ -38815,6 +38981,55 @@ static string constraint_class_container_size_ir_(
 	  || cpath.back().local_scope
 	  || !cls)
 	    return "";
+
+	/* A queue declared as a rand member of a rand unpacked-struct
+	 * property is a separate solver container owned by the struct object.
+	 * Encode both canonical indices so parse_size() interns that member in
+	 * the same graph as its struct value. */
+	if (cpath.size() == 3) {
+	      const name_component_t&outer_name = cpath.front();
+	      const name_component_t&member_name = *std::next(cpath.begin());
+	      if (!outer_name.local_scope && outer_name.index.empty()
+	          && !member_name.local_scope && member_name.index.empty()) {
+	            int outer = cls->property_idx_from_name(outer_name.name);
+	            const netstruct_t*record = outer < 0 ? nullptr
+	                  : dynamic_cast<const netstruct_t*>(
+	                        cls->get_prop_type((size_t)outer));
+	            unsigned member = record && !record->packed()
+	                  && !record->union_flag()
+	                  ? record->member_index(member_name.name) : (unsigned)-1;
+	            if (outer >= 0 && cls->get_prop_qual((size_t)outer).test_rand()
+	                && member < (record ? record->members().size() : 0)) {
+	                  const netstruct_t::member_t&field = record->members()[member];
+	                  const netqueue_t*queue =
+	                        dynamic_cast<const netqueue_t*>(field.net_type);
+	                  const netdarray_t*darray =
+	                        dynamic_cast<const netdarray_t*>(field.net_type);
+	                  ivl_type_t element = queue ? queue->element_type()
+	                        : darray ? darray->element_type() : nullptr;
+	                  ivl_variable_type_t base = element
+	                        ? element->base_type() : IVL_VT_NO_TYPE;
+	                  bool integral = element && element->packed()
+	                        && element->packed_width() > 0
+	                        && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+	                            || dynamic_cast<const netenum_t*>(element));
+	                  if ((darray || (queue && !queue->assoc_compat()))
+	                      && field.qualifier.test_rand() && integral) {
+	                        unsigned width = element->packed_width();
+	                        string type = (element->get_signed() ? "sb" : "b")
+	                              + to_string(width);
+	                        if (darray)
+	                              return "s:" + to_string(outer) + "."
+	                                    + to_string(member) + ":" + type;
+	                        uint64_t maximum = queue->max_idx() < 0 ? 0
+	                              : (uint64_t)queue->max_idx() + 1;
+	                        return "s:" + to_string(outer) + "."
+	                              + to_string(member) + ":Q"
+	                              + to_string(maximum) + ":" + type;
+	                  }
+	            }
+	      }
+	}
 
 	// Follow rand object handles to the class that owns the container.
 	// The solver's object graph canonicalizes each property by its live owner,
@@ -42489,6 +42704,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      // shortcut: no nested size/foreach IR; upgrade with owner-aware tokens.
 			      const netdarray_t*mdarray =
 				    dynamic_cast<const netdarray_t*>(mtype);
+		      const netqueue_t*mqueue =
+			    dynamic_cast<const netqueue_t*>(mtype);
 		      // shortcut: nested member constraints need nonnegative constant indices; upgrade with owner-aware indexed IR.
 		      if (one_level && mem && mdarray
 			  && member->index.size() == 2) {
@@ -42535,14 +42752,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				  return token;
 			    }
 		      }
-			      if (one_level && mem && (marray || mdarray)
+		      if (one_level && mem && (marray || mdarray || mqueue)
 				  && member->index.size() == 1) {
 				    const netranges_t*dims = marray
 					  ? &marray->static_dimensions() : nullptr;
 				    const index_component_t&select =
 					  member->index.front();
 				    ivl_type_t etype = marray ? marray->element_type()
-					  : mdarray->element_type();
+					  : mdarray ? mdarray->element_type()
+					  : mqueue->element_type();
 				    ivl_variable_type_t ebase = etype
 					  ? etype->base_type() : IVL_VT_NO_TYPE;
 				    unsigned ewidth = etype && etype->packed()
@@ -42565,7 +42783,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					    dims->front().get_lsb());
 				      selected_element = constraint_fixed_index_offset_(index,
 					    (int64_t)low, dims->front().width(), digit);
-				    } else if (mdarray
+			    } else if ((mdarray || mqueue)
 					  && constraint_parse_const_ir_(index_ir, index)
 					  && index.width <= 64) {
 				      digit = constraint_resize_const_bits_(
@@ -42581,6 +42799,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  if (etype->get_signed()) token += ":s";
 					  return token;
 				    }
+			    if (integral && (mdarray || mqueue) && dynforeach_emit_ctx_
+				  && dynforeach_emit_ctx_->nested_path
+				       == to_string(pidx) + "." + to_string(midx)
+				  && select.msb && !select.lsb
+				  && select.sel == index_component_t::SEL_BIT) {
+				  string token = "a:" + to_string(pidx) + ":"
+					+ to_string(midx) + ":" + to_string(ewidth)
+					+ ":L";
+				  if (etype->get_signed()) token += ":s";
+				  return token;
+			    }
 			      }
 			      ivl_variable_type_t mbase = mtype
 				    ? mtype->base_type() : IVL_VT_NO_TYPE;
@@ -44714,6 +44943,24 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    container_size_path, cls, value_slots, scope, loop_env) : "";
 		  if (size_ir.empty() && !cls)
 		    size_ir = constraint_scope_queue_size_ir_(cpath);
+		    /* A container reached through a non-rand link, such as
+		       `s.da.size()' of a struct member, reads its size as state. */
+		  if (size_ir.empty() && cls && call->get_parms().empty()
+		      && call->with_constraints().empty()
+		      && container_size_path.size() >= 3) {
+			vector<perm_string> names;
+			bool plain = true;
+			for (pform_name_t::const_iterator part =
+				   container_size_path.begin()
+			     ; part != prev(container_size_path.end()) ; ++part) {
+			      if (!part->index.empty() || part->local_scope)
+				    plain = false;
+			      names.push_back(part->name);
+			}
+			if (plain)
+			      size_ir = constraint_class_state_path_ir_(names, cls,
+				    false, 0, nullptr, true);
+		  }
 		  if (!size_ir.empty()) return size_ir;
 	    }
 	      /* If target-property lookup did not claim an unqualified receiver,
@@ -45898,6 +46145,66 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	         the qforeach/dotted-member machinery, which assumes a real
 	         member and a dynamic-array (queue) element type. */
 	    if (cfe->has_hierarchical_target() && !cfe->member_name().nil()) {
+	      /* A dynamic array/queue which is a random member of an unpacked
+	       * struct needs the same post-size foreach expansion as a class
+	       * container. The body uses the existing struct-member element token,
+	       * while the runtime canonicalizes the member as a graph property. */
+	      if (cfe->prefix_names().empty() && cls
+	          && cfe->loop_vars().size() == 1
+	          && !cfe->loop_vars()[0].nil()) {
+	            int outer = cls->property_idx_from_name(cfe->array_name());
+	            const netstruct_t*record = outer < 0 ? nullptr
+	                  : dynamic_cast<const netstruct_t*>(
+	                        cls->get_prop_type((size_t)outer));
+	            unsigned member = record && !record->packed()
+	                  && !record->union_flag()
+	                  ? record->member_index(cfe->member_name()) : (unsigned)-1;
+	            const netstruct_t::member_t*field =
+	                  member < (record ? record->members().size() : 0)
+	                  ? &record->members()[member] : nullptr;
+	            const netqueue_t*queue = field
+	                  ? dynamic_cast<const netqueue_t*>(field->net_type) : nullptr;
+	            const netdarray_t*darray = field
+	                  ? dynamic_cast<const netdarray_t*>(field->net_type) : nullptr;
+	            ivl_type_t element = queue ? queue->element_type()
+	                  : darray ? darray->element_type() : nullptr;
+	            ivl_variable_type_t base = element
+	                  ? element->base_type() : IVL_VT_NO_TYPE;
+	            if (outer >= 0 && cls->get_prop_qual((size_t)outer).test_rand()
+	                && field && field->qualifier.test_rand()
+	                && (darray || (queue && !queue->assoc_compat()))
+	                && element->packed()
+	                && element->packed_width() && element->packed_width() <= 64
+	                && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+	                    || dynamic_cast<const netenum_t*>(element))) {
+	                  dynforeach_emit_ctx_t context;
+	                  context.prop_idx = (int)member;
+	                  context.elem_wid = element->packed_width();
+	                  context.elem_signed = element->get_signed();
+	                  context.nested_path = to_string(outer) + "."
+	                        + to_string(member);
+	                  context.loop_var = cfe->loop_vars()[0];
+	                  const dynforeach_emit_ctx_t*saved = dynforeach_emit_ctx_;
+	                  dynforeach_emit_ctx_ = &context;
+	                  string body;
+	                  bool ok = true;
+	                  for (const PExpr*item : cfe->items()) {
+	                        if (!item) continue;
+	                        string part = pexpr_to_constraint_ir(
+	                              item, cls, value_slots, scope, loop_env);
+	                        if (part.empty()) { ok = false; break; }
+	                        body = body.empty() ? part
+	                              : "(and " + body + " " + part + ")";
+	                  }
+	                  dynforeach_emit_ctx_ = saved;
+	                  if (!ok || body.empty()) return "";
+	                  string header = "S" + to_string(outer) + ":"
+	                        + to_string(member) + ":"
+	                        + to_string(context.elem_wid)
+	                        + (context.elem_signed ? ":s" : "");
+	                  return "(dynforeach " + header + " " + body + ")";
+	            }
+	      }
 		  /* A direct unpacked-struct member fixed array is a value within
 		   * the randomized object. Unroll its declared index range here;
 		   * selected leaves retain distinct solver identities at runtime. */
@@ -55814,6 +56121,7 @@ Design* elaborate(list<perm_string>roots)
       pending_interface_continuous_drivers_.clear();
       pending_interface_specify_paths_.clear();
       pending_interface_variable_continuous_drivers_.clear();
+      interface_port_scope_bindings_.clear();
       pending_variable_continuous_drivers_.clear();
       pending_variable_array_continuous_drivers_.clear();
       pending_unsafe_interface_drivers_.clear();
@@ -56200,6 +56508,7 @@ Design* elaborate(list<perm_string>roots)
        * installed. Attach each persistent continuous net driver now, after all
        * scalar, array, and forwarded interface bindings are complete. */
       finalize_interface_ref_actuals_();
+      prepare_interface_path_shadows_(des);
       finalize_interface_continuous_drivers_(des);
       finalize_resolved_struct_nets_(des);
       fill_unwritten_variable_uwire_bits_(des);

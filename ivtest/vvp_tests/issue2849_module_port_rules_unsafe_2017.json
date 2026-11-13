@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2849_module_instantiation.sv",
+  "iverilog-args": ["-g2017", "-gcommercial-unsafe"],
+  "gold": "issue2849_module_port_rules_unsafe_2017"
+}

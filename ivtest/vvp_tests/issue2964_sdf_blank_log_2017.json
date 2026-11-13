@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2964_sdf_blank_log.v",
+    "iverilog-args": ["-g2017", "-gspecify", "-s", "top"],
+    "output-contains": ["PASSED"]
+}

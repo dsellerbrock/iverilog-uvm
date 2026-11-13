@@ -324,6 +324,27 @@ const char* vpip_name_string(const char*text)
       return res;
 }
 
+/*
+ * vpi_chk_error() reports on the previous VPI routine call (IEEE 1800-2023
+ * 38.2). A routine that can fail clears the state on entry; a failure
+ * records it here and runs the cbPLIError/cbError callbacks (38.36.3).
+ */
+void vpip_clear_error(void)
+{
+      vpip_last_error.state = 0;
+      vpip_last_error.level = 0;
+}
+
+void vpip_set_error(PLI_INT32 level, const char*message)
+{
+      static std::string text;
+      text = message ? message : "";
+      vpip_last_error.state = vpiPLI;
+      vpip_last_error.level = level;
+      vpip_last_error.message = const_cast<char*>(text.c_str());
+      vpip_run_error_callbacks();
+}
+
 PLI_INT32 vpi_chk_error(p_vpi_error_info info)
 {
       if (vpip_last_error.state == 0)
@@ -601,6 +622,7 @@ const char* vpi_type_as_string(PLI_INT32 code)
 
 PLI_INT32 vpi_get(int property, vpiHandle ref)
 {
+      vpip_clear_error();
 	/* We don't care what the ref is there is only one delay selection. */
       if (property == _vpiDelaySelection) return vpip_delay_selection;
 

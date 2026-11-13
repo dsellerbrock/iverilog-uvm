@@ -3842,6 +3842,9 @@ void PTask::elaborate_sig(Design*des, NetScope*scope) const
 	    statement_->elaborate_sig(des, scope);
 }
 
+/* See elab_expr.cc: the subroutine scope while its port defaults elaborate. */
+extern NetScope*elab_port_default_scope;
+
 void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				     vector<NetNet*> &ports,
 				     vector<NetExpr*> &pdefs,
@@ -3959,11 +3962,14 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				      bool old_need_const_func = scope->need_const_func();
 				      if (interface_method_default)
 					    scope->need_const_func(true);
+				      NetScope*saved_default_scope = elab_port_default_scope;
+				      elab_port_default_scope = scope;
 				      tmp_def = elaborate_rval_expr(
 					    des, scope, formal_type,
 					    ports_->at(idx).defe,
 					    scope->need_const_func()
 					    || interface_method_default);
+				      elab_port_default_scope = saved_default_scope;
 				      scope->need_const_func(old_need_const_func);
 				      if (tmp_def
 					  && pform_default_argument_requires_procedural_context)
@@ -3976,9 +3982,12 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 					    old_requires_procedural_context
 					    || default_requires_procedural_context;
 				} else {
+				      NetScope*saved_default_scope = elab_port_default_scope;
+				      elab_port_default_scope = scope;
 				      tmp_def = elab_and_eval(
 					    des, scope, ports_->at(idx).defe, -1,
 					    scope->need_const_func());
+				      elab_port_default_scope = saved_default_scope;
 				}
 			if (tmp_def == 0) {
 			      cerr << get_fileline()

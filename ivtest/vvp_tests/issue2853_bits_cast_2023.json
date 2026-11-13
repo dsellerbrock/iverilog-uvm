@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2853_bits_cast.v",
+    "iverilog-args": ["-g2023", "-s", "issue2853_bits_cast"],
+    "gold": "issue2853_bits_cast"
+}

@@ -3072,10 +3072,50 @@ char *vpiPortInfo::vpi_get_str(int code)
 }
 
 
+/* vpiLowConn (IEEE 1800-2023 37.14 detail 4): the module's own signal
+   of an ordinary port's name. A null port has none (detail 10). An
+   interface or modport port needs a ref obj (detail 5), not built yet. */
+vpiHandle vpiPortInfo::low_conn_(void)
+{
+      if (!name_ || !*name_ || vpi_port_type_ != vpiPort)
+	    return 0;
+      for (vpiHandle item : parent_->intern) {
+	    switch (item->get_type_code()) {
+		case vpiNet:
+		case vpiReg:
+		case vpiIntegerVar:
+		case vpiBitVar:
+		case vpiByteVar:
+		case vpiShortIntVar:
+		case vpiIntVar:
+		case vpiLongIntVar:
+		case vpiRealVar:
+		case vpiStringVar:
+		case vpiStructVar:
+		case vpiEnumVar:
+		  {
+			const char*name = item->vpi_get_str(vpiName);
+			if (name && strcmp(name, name_) == 0)
+			      return item;
+		  }
+		  break;
+		default:
+		  break;
+	    }
+      }
+      return 0;
+}
+
 vpiHandle vpiPortInfo::vpi_handle(int code)
 {
 
       switch (code) {
+
+	  case vpiHighConn:
+	    return high_argc_ ? high_argv_[high_argc_-1] : 0;
+
+	  case vpiLowConn:
+	    return low_conn_();
 
           case vpiParent:
           case vpiScope:
@@ -3161,6 +3201,23 @@ int vpiPortBitInfo::vpi_get(int code)
  * code-generators etc.  There are no actual nets corresponding to instances of module ports
  * as elaboration directly connects nets connected through module ports.
  */
+void compile_vpi_port_conn(long index, long flags, unsigned argc,
+			   vpiHandle*argv)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      for (vpiHandle item : scope->intern) {
+	    vpiPortInfo*port = dynamic_cast<vpiPortInfo*>(item);
+	    if (!port || port->get_index() != (unsigned)index) continue;
+	    if (flags & 1) {
+		  port->high_argc_ = argc;
+		  port->high_argv_ = argv;
+		  return;
+	    }
+	    break;
+      }
+      free(argv);
+}
+
 void compile_port_info( unsigned index, int vpi_direction, int vpi_port_type, unsigned width, const char *name, char* buffer )
 {
       vpiPortInfo* obj = new vpiPortInfo( vpip_peek_current_scope(),
