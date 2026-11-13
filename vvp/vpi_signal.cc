@@ -741,6 +741,18 @@ static vpiHandle signal_get_handle(int code, vpiHandle ref)
 	    return vpip_module(vpip_scope(rfp));
 
 	  case vpiTypespec:
+	    if (!rfp->typespec) {
+		  int type_code = rfp->get_type_code();
+		  if (type_code == vpiReg || type_code == vpiBitVar) {
+			int type = type_code == vpiReg ? vpiLogicTypespec
+			                               : vpiBitTypespec;
+			rfp->typespec = vpip_make_vector_typespec(
+			      type, rfp->msb.get_value(), rfp->lsb.get_value(),
+			      rfp->signed_flag != 0);
+		  } else if (type_code == vpiIntVar) {
+			rfp->typespec = vpip_make_builtin_typespec(vpiIntTypespec);
+		  }
+	    }
 	    return rfp->typespec;
       }
 

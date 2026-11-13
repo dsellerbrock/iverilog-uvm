@@ -797,6 +797,14 @@ class __vpiClassMember : public __vpiDarrayVar {
 
       vpiHandle vpi_handle(int code) override
       {
+	    if (code == vpiTypespec && !is_fixed_array_() && !is_container_()) {
+		  if (type_code_ == vpiIntVar)
+			return vpip_make_builtin_typespec(vpiIntTypespec);
+		  if (type_code_ == vpiRealVar)
+			return vpip_make_builtin_typespec(vpiRealTypespec);
+		  if (type_code_ == vpiStringVar)
+			return vpip_make_builtin_typespec(vpiStringTypespec);
+	    }
 	    if (code == vpiClassObj)
 		  return class_object_handle_(get_class_object_(live_member_value_()));
 	    if (code == vpiClassTypespec && kind_ == 'o') {

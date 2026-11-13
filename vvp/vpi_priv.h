@@ -225,6 +225,11 @@ class __vpiRange : public __vpiHandle {
 
 extern vpiHandle vpip_make_range(int left, int right);
 
+/* Build runtime handles for built-in scalar and packed vector typespecs. */
+extern vpiHandle vpip_make_builtin_typespec(int type_code);
+extern vpiHandle vpip_make_vector_typespec(int type_code, int left, int right,
+                                           bool signed_flag);
+
 /*
  * This represents callback handles. There are some private types that
  * are defined and used in vpi_callback.cc. The __vpiCallback are
@@ -1048,6 +1053,7 @@ class __vpiStringVar : public __vpiBaseVar {
 
       int get_type_code(void) const override;
       int vpi_get(int code) override;
+      vpiHandle vpi_handle(int code) override;
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
 };

@@ -41,5 +41,5 @@ top.win: struct 7 packed=1
     RUN = 01
     DONE = 11
   flag: bit [0:0]
-top.plain: no typespec
-top.tg: no typespec
+top.plain: logic [7:0]
+top.tg: logic [4:0]
