@@ -1,0 +1,4 @@
+ivltests/sva_checker_free_fail.sv:3: error: free checker variable `x' is the target of a continuous assignment (IEEE 1800-2023 17.7.1).
+ivltests/sva_checker_free_fail.sv:6: error: free checker variable `y' is the target of a blocking assignment (IEEE 1800-2023 17.7.1).
+ivltests/sva_checker_free_fail.sv:8: error: constant free checker variable `c' is assigned (IEEE 1800-2023 17.7).
+ivltests/sva_checker_free_fail.sv:12: error: a `rand' variable declaration is only allowed in a checker body (IEEE 1800-2023 17.7).

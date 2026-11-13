@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sva_checker_free_fail.sv",
+    "iverilog-args" : [ "-g2017", "-s", "sva_checker_free_fail" ],
+    "gold"          : "sva_checker_free_fail_2017"
+}
