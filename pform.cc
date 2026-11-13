@@ -10776,6 +10776,90 @@ static bool sva_prepare_clocking_declaration_(const struct vlltype&loc,
       return true;
 }
 
+/* IEEE 1800-2023 16.12.17: does a property body instantiate `name'? A
+   reference to a property not yet declared parses as a call or a plain
+   identifier, so any mention of the name counts. PExpr::refs_name is
+   conservative (true for kinds it does not open), which would refuse
+   legal properties, so walk the expression kinds a body uses; a kind not
+   opened here answers no. */
+static bool sva_names_(const PExpr*e, perm_string name)
+{
+      if (!e) return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(e))
+	    return pform_name_refs_name(id->path().name, name);
+      if (const PECallFunction*c = dynamic_cast<const PECallFunction*>(e)) {
+	    if (pform_name_refs_name(c->path().name, name)) return true;
+	    for (const named_pexpr_t&a : c->get_parms())
+		  if (sva_names_(a.parm, name)) return true;
+	    return false;
+      }
+      if (const PEBinary*b = dynamic_cast<const PEBinary*>(e))
+	    return sva_names_(b->get_left(), name) || sva_names_(b->get_right(), name);
+      if (const PEUnary*u = dynamic_cast<const PEUnary*>(e))
+	    return sva_names_(u->get_expr(), name);
+      if (const PETernary*t = dynamic_cast<const PETernary*>(e))
+	    return sva_names_(t->get_cond(), name) || sva_names_(t->get_true(), name)
+		|| sva_names_(t->get_false(), name);
+      if (const PEConcat*c = dynamic_cast<const PEConcat*>(e)) {
+	    for (const PExpr*x : c->stream_parms())
+		  if (sva_names_(x, name)) return true;
+	    return false;
+      }
+      return false;
+}
+
+static bool sva_steps_refs_(const std::vector<sva_seq_step_t>*steps,
+			    perm_string name)
+{
+      if (!steps) return false;
+      for (const sva_seq_step_t&st : *steps)
+	    if (sva_names_(st.expr, name) || sva_names_(st.delay_lo_expr, name)
+		|| sva_names_(st.delay_hi_expr, name))
+		  return true;
+      return false;
+}
+
+static bool sva_tree_refs_(const sva_stree_t*t, perm_string name)
+{
+      if (!t) return false;
+      return sva_steps_refs_(t->chain, name)
+	  || sva_names_(t->gexpr, name)
+	  || sva_tree_refs_(t->a, name) || sva_tree_refs_(t->b, name);
+}
+
+static bool sva_property_refs_(const sva_property_t*p, perm_string name)
+{
+      if (!p) return false;
+      return sva_steps_refs_(p->seq, name) || sva_steps_refs_(p->antecedent, name)
+	  || sva_steps_refs_(p->mc_prefix, name)
+	  || sva_tree_refs_(p->tree, name) || sva_tree_refs_(p->ante_tree, name)
+	  || sva_names_(p->pcond, name) || sva_names_(p->abort_cond, name)
+	  || sva_property_refs_(p->pa, name) || sva_property_refs_(p->pb, name);
+}
+
+/* Recursive and mutually recursive properties (16.12.17) need an engine
+   that spawns shared property attempts at later ticks; none exists yet.
+   Refuse them loudly at declaration instead of failing later on an
+   unresolved name. A cycle closes when this declaration names itself, or
+   names an earlier property that (through others) names it. */
+static bool sva_property_recursion_(const struct vlltype&loc,
+				    perm_string name, const sva_property_t*body)
+{
+      bool cycle = sva_property_refs_(body, name);
+      for (std::map<sva_scoped_name_t,sva_property_t*>::const_iterator it =
+		 sva_module_properties.begin() ; !cycle
+		 && it != sva_module_properties.end() ; ++it)
+	    if (sva_property_refs_(body, it->first.name)
+		&& sva_property_refs_(it->second, name))
+		  cycle = true;
+      if (!cycle) return false;
+      cerr << loc << ": sorry: recursive property `" << name << "' (IEEE "
+	   << "1800-2023 16.12.17) is not supported yet; its instances are "
+	   << "dropped." << endl;
+      error_count += 1;
+      return true;
+}
+
 void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
@@ -10787,6 +10871,10 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 		return;
 	  }
       perm_string use_name = lex_strings.make(name);
+      if (sva_property_recursion_(loc, use_name, prop)) {
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
       sva_scoped_name_t key = sva_decl_key_(use_name);
       if (sva_module_properties.count(key)
 	  || sva_module_sequences.count(key)) {
@@ -10933,6 +11021,11 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
       sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
+      if (prop && sva_property_recursion_(loc, use_name, prop)) {
+	    pform_sva_destroy_property(prop);
+	    delete formals;
+	    return;
+      }
 
       bool bad_local_direction = false;
       if (formals) {
@@ -21104,7 +21197,8 @@ static sva_stree_t* sva_chain_take_tree_(std::vector<sva_seq_step_t>*chain)
    are declarations and may be referenced more than once; transferring the
    declaration tree made the second assertion silently unresolved. */
 static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
-				    const sva_stree_t*src)
+				    const sva_stree_t*src,
+				    const std::map<perm_string,PExpr*>*subst = nullptr)
 {
       if (!src) return nullptr;
       sva_stree_t*out = new sva_stree_t;
@@ -21113,28 +21207,29 @@ static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
       out->concat_overlap = src->concat_overlap;
       std::map<perm_string,PExpr*> no_subst;
       if (src->chain) {
-	    out->chain = sva_clone_steps_subst_(loc, src->chain, no_subst);
+	    out->chain = sva_clone_steps_subst_(loc, src->chain,
+						subst ? *subst : no_subst);
 	    if (!out->chain) {
 		  sva_tree_delete_(out, true);
 		  return nullptr;
 	    }
       }
       if (src->gexpr) {
-	    out->gexpr = sva_clone_subst_(src->gexpr, nullptr);
+	    out->gexpr = sva_clone_subst_(src->gexpr, subst);
 	    if (!out->gexpr) {
 		  sva_tree_delete_(out, true);
 		  return nullptr;
 	    }
       }
       if (src->a) {
-	    out->a = sva_tree_clone_(loc, src->a);
+	    out->a = sva_tree_clone_(loc, src->a, subst);
 	    if (!out->a) {
 		  sva_tree_delete_(out, true);
 		  return nullptr;
 	    }
       }
       if (src->b) {
-	    out->b = sva_tree_clone_(loc, src->b);
+	    out->b = sva_tree_clone_(loc, src->b, subst);
 	    if (!out->b) {
 		  sva_tree_delete_(out, true);
 		  return nullptr;
@@ -32958,12 +33053,11 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
 	    ok = false;
       if (src->seq && !(p->seq = sva_clone_steps_subst_(loc, src->seq, steps_subst)))
 	    ok = false;
-      if ((src->ante_tree || src->tree) && subst && !subst->empty())
-	    ok = false;   // sva_tree_clone_ has no formal substitution
       if (ok && src->ante_tree
-	  && !(p->ante_tree = sva_tree_clone_(loc, src->ante_tree)))
+	  && !(p->ante_tree = sva_tree_clone_(loc, src->ante_tree, subst)))
 	    ok = false;
-      if (ok && src->tree && !(p->tree = sva_tree_clone_(loc, src->tree)))
+      if (ok && src->tree
+	  && !(p->tree = sva_tree_clone_(loc, src->tree, subst)))
 	    ok = false;
       if (src->abort_cond && !(p->abort_cond = sva_clone_subst_(src->abort_cond, subst)))
 	    ok = false;
