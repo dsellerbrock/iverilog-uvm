@@ -7835,9 +7835,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			NetScope*iscope = scope->child(hname_t(ap.front().name));
 			if (iscope && iscope->type() == NetScope::MODULE
 			    && iscope->is_interface()) {
-			      auto pm = pform_modules.find(iscope->module_name());
-			      if (pm != pform_modules.end()
-				  && pm->second->is_interface)
+			      const Module*pm = iscope->module_definition();
+			      if (pm && pm->is_interface)
 				    actual_iface_scope = iscope;
 			}
 
@@ -7886,10 +7885,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  if (actual_iface_scope && ap.size() == 2
 		      && ap.back().index.empty()
 		      && ap.back().name != actual_iface_scope->basename()) {
-			auto pm = pform_modules.find(
-			      actual_iface_scope->module_name());
-			if (pm != pform_modules.end()
-			    && pm->second->modports.count(ap.back().name))
+			const Module*pm = actual_iface_scope->module_definition();
+			if (pm && pm->modports.count(ap.back().name))
 			      actual_modport = ap.back().name;
 		  }
 	    }

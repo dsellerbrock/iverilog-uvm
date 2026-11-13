@@ -1,0 +1,41 @@
+PropertyInst from NULL: sva_vpi_instance_cb.ap.p (p), type 660
+  step callback on it: refused
+PropertyInst from NULL: sva_vpi_instance_cb.ap2.pa (pa), type 660
+  step callback on it: refused
+PropertyInst from NULL: 2
+SequenceInst from NULL: sva_vpi_instance_cb.as.s (s), type 664
+  step callback on it: refused
+SequenceInst from NULL: 1
+PropertyInst from sva_vpi_instance_cb.ap: sva_vpi_instance_cb.ap.p (p), type 660
+PropertyInst from sva_vpi_instance_cb.ap: 1
+SequenceInst from sva_vpi_instance_cb.ap: 0
+PropertyInst from sva_vpi_instance_cb.as: 0
+SequenceInst from sva_vpi_instance_cb.as: sva_vpi_instance_cb.as.s (s), type 664
+SequenceInst from sva_vpi_instance_cb.as: 1
+PropertyInst from sva_vpi_instance_cb.ap2: sva_vpi_instance_cb.ap2.pa (pa), type 660
+PropertyInst from sva_vpi_instance_cb.ap2: 1
+SequenceInst from sva_vpi_instance_cb.ap2: 0
+PropertyInst from sva_vpi_instance_cb.a3: 0
+SequenceInst from sva_vpi_instance_cb.a3: 0
+  start sva_vpi_instance_cb.ap.p at 5
+  start sva_vpi_instance_cb.as.s at 5
+  start sva_vpi_instance_cb.ap2.pa at 5
+  start sva_vpi_instance_cb.ap.p at 15
+  start sva_vpi_instance_cb.as.s at 15
+  start sva_vpi_instance_cb.ap2.pa at 15
+  success sva_vpi_instance_cb.as.s at 15
+  success sva_vpi_instance_cb.ap.p at 15
+  success sva_vpi_instance_cb.ap2.pa at 15
+  start sva_vpi_instance_cb.ap.p at 25
+  start sva_vpi_instance_cb.ap2.pa at 25
+  start sva_vpi_instance_cb.as.s at 25
+  failure sva_vpi_instance_cb.ap.p at 25
+  failure sva_vpi_instance_cb.ap2.pa at 25
+  failure sva_vpi_instance_cb.as.s at 25
+  start sva_vpi_instance_cb.ap.p at 35
+  start sva_vpi_instance_cb.ap2.pa at 35
+  start sva_vpi_instance_cb.as.s at 35
+  success sva_vpi_instance_cb.as.s at 35
+  success sva_vpi_instance_cb.ap.p at 35
+  success sva_vpi_instance_cb.ap2.pa at 35
+ivltests/sva_vpi_instance_cb.sv:21: $finish called at 40 (1s)

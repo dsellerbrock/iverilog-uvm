@@ -305,6 +305,18 @@ static char* scope_get_str(int code, vpiHandle obj)
 	    p = ref->scope_def_name();
 	    break;
 
+	  case vpiLibrary:
+	    if (ref->get_type_code() != vpiModule) return NULL;
+	    // Library-based configuration binding is not supported; all
+	    // accepted module definitions belong to the default work library.
+	    p = "work";
+	    break;
+
+	  case vpiCell:
+	    if (ref->get_type_code() != vpiModule) return NULL;
+	    p = ref->scope_def_name();
+	    break;
+
 	  case vpiDPICIdentifier:
 	    p = ref->dpi_c_identifier;
 	    if (!p) return NULL;
@@ -1648,6 +1660,7 @@ class __vpiAssertionCallback : public __vpiCallback {
 
 struct assert_cb_t {
       __vpiAssertionCallback* callback;
+      vpiHandle report;            // handle the callback reports
 };
 
 /* IEEE 1800-2023 39.4.2: an expression matched (or failed) in a step,
@@ -1686,6 +1699,42 @@ enum {
       cbAssertionEnableNonvacuousAction_ = 649,
       cbAssertionDisableVacuousAction_ = 650,
       cbAssertionLock_ = 661, cbAssertionUnlock_ = 662
+};
+
+class __vpiAssertion;
+
+/* IEEE 1800-2023 39.4.2 / 37.51, 37.54: the named property or sequence
+   instance that is the whole property of an assertion. It accepts the
+   cbAssertionStart, cbAssertionSuccess and cbAssertionFailure callbacks,
+   which then report this handle. */
+class __vpiAssertionInst : public __vpiHandle {
+    public:
+      __vpiAssertionInst(__vpiAssertion*owner, int type, const char*name,
+			 std::string full)
+      : owner_(owner), type_(type), name_(name ? name : ""),
+	full_(std::move(full)) { }
+
+      int get_type_code(void) const override { return type_; }
+      int vpi_get(int code) override
+      {
+	    return code == vpiType ? type_ : vpiUndefined;
+      }
+      char* vpi_get_str(int code) override
+      {
+	    const std::string*use = code == vpiName ? &name_
+		  : code == vpiFullName ? &full_ : 0;
+	    if (!use) return 0;
+	    char*rbuf = (char*)need_result_buf(use->size()+1, RBUF_STR);
+	    strcpy(rbuf, use->c_str());
+	    return rbuf;
+      }
+      __vpiAssertion*owner(void) const { return owner_; }
+
+    private:
+      __vpiAssertion*owner_;
+      int type_;
+      std::string name_;
+      std::string full_;
 };
 
 class __vpiAssertion : public __vpiHandle {
@@ -1784,6 +1833,25 @@ class __vpiAssertion : public __vpiHandle {
 		  return scope_;
 	    return 0;
       }
+
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (!inst_ || code != inst_->get_type_code()) return 0;
+	    vpiHandle*args = (vpiHandle*)malloc(sizeof(vpiHandle));
+	    args[0] = inst_;
+	    return vpip_make_iterator(1, args, true);
+      }
+
+	/* 39.4.2: the top-level property (1) or sequence (2) instance. */
+      void set_instance(int kind, const char*name)
+	{
+	    if (kind != 1 && kind != 2) return;
+	    std::string full = (scope_ ? std::string(scope_->vpi_get_str(vpiFullName))
+				+ "." : std::string()) + name_ + "." + name;
+	    inst_ = new __vpiAssertionInst(this, kind == 1 ? vpiPropertyInst
+					   : vpiSequenceInst, name, full);
+	}
+      __vpiAssertionInst*instance(void) const { return inst_; }
 
       bool reset_deferred(void)
 	{
@@ -1908,7 +1976,7 @@ class __vpiAssertion : public __vpiHandle {
 		  bool was_locked = locked_;
 		  locked_ = ctl == 1;
 		  if (notify && was_locked != locked_)
-			fire(locked_ ? cbAssertionLock_ : cbAssertionUnlock_);
+			fire(locked_ ? cbAssertionLock : cbAssertionUnlock);
 		  return false;
 	    }
 	    if (locked_) return false;
@@ -1955,10 +2023,10 @@ class __vpiAssertion : public __vpiHandle {
 	    if (notify && (was_fail != fail_action_ || was_pass != pass_nonvacuous_
 			   || was_vac != pass_vacuous_)) {
 		  static const int reason[] = {
-			cbAssertionEnablePassAction_, cbAssertionDisablePassAction_,
-			cbAssertionEnableFailAction_, cbAssertionDisableFailAction_,
-			cbAssertionEnableNonvacuousAction_,
-			cbAssertionDisableVacuousAction_ };
+			cbAssertionEnablePassAction, cbAssertionDisablePassAction,
+			cbAssertionEnableFailAction, cbAssertionDisableFailAction,
+			cbAssertionEnableNonvacuousAction,
+			cbAssertionDisableVacuousAction };
 		  fire(reason[ctl - 6]);
 	    }
 	    return false;
@@ -2001,12 +2069,14 @@ class __vpiAssertion : public __vpiHandle {
 	    if (deferred_source_id_) fire(cbAssertionReset);
 	}
 
-      vpiHandle add_cb(int reason, vpi_assertion_cb_func cb, char*data)
+      vpiHandle add_cb(int reason, vpi_assertion_cb_func cb, char*data,
+		       vpiHandle report = 0)
       {
             __vpiAssertionCallback*callback =
                   new __vpiAssertionCallback(reason, cb, data);
             assert_cb_t c;
             c.callback = callback;
+	    c.report = report ? report : this;
 	    cbs_.push_back(c);
             return callback;
       }
@@ -2290,14 +2360,14 @@ class __vpiAssertion : public __vpiHandle {
 	      case cbAssertionEnable:
 	      case cbAssertionReset:
 	      case cbAssertionKill:
-	      case cbAssertionLock_:
-	      case cbAssertionUnlock_:
-	      case cbAssertionEnablePassAction_:
-	      case cbAssertionEnableFailAction_:
-	      case cbAssertionDisablePassAction_:
-	      case cbAssertionDisableFailAction_:
-	      case cbAssertionEnableNonvacuousAction_:
-	      case cbAssertionDisableVacuousAction_:
+	      case cbAssertionLock:
+	      case cbAssertionUnlock:
+	      case cbAssertionEnablePassAction:
+	      case cbAssertionEnableFailAction:
+	      case cbAssertionDisablePassAction:
+	      case cbAssertionDisableFailAction:
+	      case cbAssertionEnableNonvacuousAction:
+	      case cbAssertionDisableVacuousAction:
 		  no_attempt_info = true;
 		  break;
 	      default:
@@ -2353,7 +2423,7 @@ class __vpiAssertion : public __vpiHandle {
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
 		  if (cbs_[i].callback->reason() == reason
 		      && cbs_[i].callback->active())
-		  cbs_[i].callback->call(&t, this,
+		  cbs_[i].callback->call(&t, cbs_[i].report,
 				 no_attempt_info ? 0 : &info);
 	    }
       }
@@ -2385,6 +2455,7 @@ class __vpiAssertion : public __vpiHandle {
       bool locked_ = false;
       bool ended_ = false;
       bool vpi_action_noted_ = false;
+      __vpiAssertionInst*inst_ = 0;
       bool enabled_ = true;
       unsigned kill_generation_ = 0;
       bool fail_action_ = true;
@@ -2479,12 +2550,15 @@ static void replay_assertion_control_(__vpiAssertion*obj);
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg,
-			     PLI_INT32 flags, PLI_INT32 assertion_kind)
+			     PLI_INT32 flags, PLI_INT32 assertion_kind,
+			     PLI_INT32 inst_kind, const char*inst_name)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line,
 					      sc, (int)depth_arg, (int)flags,
 					      (int)assertion_kind);
+      if (inst_name && inst_name[0])
+	    obj->set_instance((int)inst_kind, inst_name);
       assertion_registry.push_back(obj);
       replay_assertion_control_(obj);
       if (sc) {
@@ -2708,19 +2782,18 @@ PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation, vpiHandle scope)
       PLI_INT32 rc = vpip_assertion_control(ctl, 255, 7, 0,
 					    selector ? &sel : 0,
 					    selector ? 1 : 0);
-	/* 39.4.1: the matching assertion system callback (standard reason
-	   values; sv_vpi_user.h does not name them yet). */
+	/* 39.4.1: the matching assertion system callback. */
       static const struct { int op, reason; } sys_reasons[] = {
-	    { vpiAssertionSysLock, 659 },   { vpiAssertionSysUnlock, 660 },
-	    { vpiAssertionSysOn, 616 },     { vpiAssertionSysOff, 617 },
-	    { vpiAssertionSysKill, 631 },   { vpiAssertionSysReset, 619 },
-	    { vpiAssertionSysEnd, 618 },
-	    { vpiAssertionSysEnablePassAction, 651 },
-	    { vpiAssertionSysEnableFailAction, 652 },
-	    { vpiAssertionSysDisablePassAction, 653 },
-	    { vpiAssertionSysDisableFailAction, 654 },
-	    { vpiAssertionSysEnableNonvacuousAction, 655 },
-	    { vpiAssertionSysDisableVacuousAction, 656 },
+	    { vpiAssertionSysLock, cbAssertionSysLock },   { vpiAssertionSysUnlock, cbAssertionSysUnlock },
+	    { vpiAssertionSysOn, cbAssertionSysOn },     { vpiAssertionSysOff, cbAssertionSysOff },
+	    { vpiAssertionSysKill, cbAssertionSysKill },   { vpiAssertionSysReset, cbAssertionSysReset },
+	    { vpiAssertionSysEnd, cbAssertionSysEnd },
+	    { vpiAssertionSysEnablePassAction, cbAssertionSysEnablePassAction },
+	    { vpiAssertionSysEnableFailAction, cbAssertionSysEnableFailAction },
+	    { vpiAssertionSysDisablePassAction, cbAssertionSysDisablePassAction },
+	    { vpiAssertionSysDisableFailAction, cbAssertionSysDisableFailAction },
+	    { vpiAssertionSysEnableNonvacuousAction, cbAssertionSysEnableNonvacuousAction },
+	    { vpiAssertionSysDisableVacuousAction, cbAssertionSysDisableVacuousAction },
       };
       for (size_t i = 0 ; i < sizeof sys_reasons / sizeof *sys_reasons ; i += 1)
 	    if (sys_reasons[i].op == operation)
@@ -3002,9 +3075,20 @@ vpiHandle vpi_register_assertion_cb(vpiHandle assertion, PLI_INT32 reason,
 				    PLI_BYTE8*user_data)
 {
       if (!assertion || !cb_rtn) return 0;
+      vpiHandle report = 0;
       __vpiAssertion*a = dynamic_cast<__vpiAssertion*>(assertion);
+      if (__vpiAssertionInst*inst = dynamic_cast<__vpiAssertionInst*>(assertion)) {
+	      /* 39.4.2: only these three reasons on a property or sequence
+		 instance. */
+	    if (reason != cbAssertionStart && reason != cbAssertionSuccess
+		&& reason != cbAssertionFailure)
+		  return 0;
+	    a = inst->owner();
+	    report = inst;
+      }
       if (!a) return 0;
-      vpiHandle callback = a->add_cb((int)reason, cb_rtn, (char*)user_data);
+      vpiHandle callback = a->add_cb((int)reason, cb_rtn, (char*)user_data,
+				     report);
       assertion_cb_total += 1;
       return callback;
 }
@@ -3012,6 +3096,22 @@ vpiHandle vpi_register_assertion_cb(vpiHandle assertion, PLI_INT32 reason,
 /* M12B: root iterator over all registered assertions
    (vpi_iterate(vpiAssertion, 0)). Scope-scoped iteration is served
    directly from the scope's intern list by module_iter. */
+/* 39.4.2: every top-level property (vpiPropertyInst) or sequence
+   (vpiSequenceInst) instance of an assertion in the design. */
+vpiHandle vpip_make_assertion_inst_iterator(int type)
+{
+      std::vector<vpiHandle> found;
+      for (size_t idx = 0 ; idx < assertion_registry.size() ; idx += 1) {
+	    __vpiAssertionInst*inst = assertion_registry[idx]->instance();
+	    if (inst && inst->get_type_code() == type) found.push_back(inst);
+      }
+      if (found.empty()) return 0;
+      vpiHandle*args = (vpiHandle*)malloc(found.size() * sizeof(vpiHandle));
+      for (size_t idx = 0 ; idx < found.size() ; idx += 1)
+	    args[idx] = found[idx];
+      return vpip_make_iterator(found.size(), args, true);
+}
+
 vpiHandle vpip_make_assertion_iterator(void)
 {
       if (assertion_registry.empty())
