@@ -32267,12 +32267,12 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 
 	    if (const NetEConst*con = dynamic_cast<NetEConst*> (cur)) {
 		  verinum fn = con->value();
-		  delay_value[idx] = des->scale_to_precision(fn.as_ulong64(),
-		                                             scope);
+		  delay_value[idx] = fn.is_negative() ? 0 :
+		        des->scale_to_precision(fn.as_ulong64(), scope);
 
 	    } else if (const NetECReal*rcon = dynamic_cast<NetECReal*>(cur)) {
-		  delay_value[idx] = get_scaled_time_from_real(des, scope,
-		                                               rcon);
+		  delay_value[idx] = rcon->value().as_double() < 0.0 ? 0 :
+		        get_scaled_time_from_real(des, scope, rcon);
 
 	    } else {
 		  cerr << get_fileline() << ": error: Path delay value "
