@@ -6756,3 +6756,7 @@ issue3035_countbits_wide normal,-g2017,-s,top ivltests gold=issue3035_countbits_
 issue3023_tagged_union_width normal,-g2017 ivltests gold=issue3023_tagged_union_width.gold
 issue3034_assert_sensitivity_2017 normal,-g2017,-s,issue3034_assert_sensitivity ivltests gold=issue3034_assert_sensitivity.gold
 issue3034_assert_sensitivity_2023 normal,-g2023,-s,issue3034_assert_sensitivity ivltests gold=issue3034_assert_sensitivity.gold
+issue3008_action_nested_2017 CE,-g2017,-gassertions,-s,issue3008_action_nested ivltests gold=issue3008_action_nested.gold
+issue3008_action_nested_2023 CE,-g2023,-gassertions,-s,issue3008_action_nested ivltests gold=issue3008_action_nested.gold
+issue3008_action_immediate_2017 normal,-g2017,-gassertions,-s,issue3008_action_immediate ivltests gold=issue3008_action_immediate.gold
+issue3008_action_immediate_2023 normal,-g2023,-gassertions,-s,issue3008_action_immediate ivltests gold=issue3008_action_immediate.gold
