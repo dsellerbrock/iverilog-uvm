@@ -1678,6 +1678,16 @@ class __vpiAssertionStepExpr : public __vpiHandle {
       std::string text_;
 };
 
+/* IEEE 1800-2023 39.4.2 per-assertion control callback reasons, with their
+   Annex M values; sv_vpi_user.h does not name them yet (#883). */
+enum {
+      cbAssertionEnablePassAction_ = 645, cbAssertionEnableFailAction_ = 646,
+      cbAssertionDisablePassAction_ = 647, cbAssertionDisableFailAction_ = 648,
+      cbAssertionEnableNonvacuousAction_ = 649,
+      cbAssertionDisableVacuousAction_ = 650,
+      cbAssertionLock_ = 661, cbAssertionUnlock_ = 662
+};
+
 class __vpiAssertion : public __vpiHandle {
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
@@ -1752,8 +1762,10 @@ class __vpiAssertion : public __vpiHandle {
 			char*scope_name = scope_ ? scope_->vpi_get_str(vpiFullName) : 0;
 			full = scope_name ? scope_name : "";
 		  } else {
-			full = (scope_ ? std::string(scope_->scope_name()) + "." : "")
-			      + name_;
+			  /* The scope's full name, not its leaf name: an
+			     assertion in u of top is top.u.x, not u.x. */
+			full = (scope_ ? std::string(scope_->vpi_get_str(vpiFullName))
+					 + "." : "") + name_;
 		  }
 		  use = &full;
 	    } else if (code == vpiFile) {
@@ -1863,6 +1875,10 @@ class __vpiAssertion : public __vpiHandle {
 		  bool killed;
 		  locked_ = false;
 		  killed = apply_control(5, callbacks);
+		    /* 39.5.1: the initial state; "By default, stepping is
+		       disabled for all assertions" (39.5.2). */
+		  step_ctl_.clear();
+		  serial_start_.clear();
 		  if (ctl == 13) {
 			ended_ = true;
 			fail_action_ = pass_nonvacuous_ = pass_vacuous_ = false;
@@ -1874,13 +1890,18 @@ class __vpiAssertion : public __vpiHandle {
 		  }
 		  return killed;
 	    }
+	    bool notify = callbacks && (idx_ >= 0 || deferred_source_id_);
 	    if (ctl == 1 || ctl == 2) {
+		  bool was_locked = locked_;
 		  locked_ = ctl == 1;
+		  if (notify && was_locked != locked_)
+			fire(locked_ ? cbAssertionLock_ : cbAssertionUnlock_);
 		  return false;
 	    }
 	    if (locked_) return false;
 	    bool was = enabled_;
-	    bool notify = callbacks && (idx_ >= 0 || deferred_source_id_);
+	    bool was_fail = fail_action_, was_pass = pass_nonvacuous_,
+		 was_vac = pass_vacuous_;
 	    switch (ctl) {
 		case 3:
 		case 4:
@@ -1908,14 +1929,25 @@ class __vpiAssertion : public __vpiHandle {
 			fire(cbAssertionReset);
 		  }
 		  return false;
-		case 6:  pass_nonvacuous_ = pass_vacuous_ = true;  return false;
-		case 7:  pass_nonvacuous_ = pass_vacuous_ = false; return false;
-		case 8:  fail_action_ = true;  return false;
-		case 9:  fail_action_ = false; return false;
-		case 10: pass_nonvacuous_ = true; return false;
-		case 11: pass_vacuous_ = false; return false;
+		case 6:  pass_nonvacuous_ = pass_vacuous_ = true;  break;
+		case 7:  pass_nonvacuous_ = pass_vacuous_ = false; break;
+		case 8:  fail_action_ = true;  break;
+		case 9:  fail_action_ = false; break;
+		case 10: pass_nonvacuous_ = true; break;
+		case 11: pass_vacuous_ = false; break;
 		default: return false;
 	    }
+	      /* 39.4.2 per-assertion action callbacks, on a change. */
+	    if (notify && (was_fail != fail_action_ || was_pass != pass_nonvacuous_
+			   || was_vac != pass_vacuous_)) {
+		  static const int reason[] = {
+			cbAssertionEnablePassAction_, cbAssertionDisablePassAction_,
+			cbAssertionEnableFailAction_, cbAssertionDisableFailAction_,
+			cbAssertionEnableNonvacuousAction_,
+			cbAssertionDisableVacuousAction_ };
+		  fire(reason[ctl - 6]);
+	    }
+	    return false;
 	}
 
 	/* 39.5.1: Reset removes the step callbacks, End removes them all. */
@@ -2244,6 +2276,14 @@ class __vpiAssertion : public __vpiHandle {
 	      case cbAssertionEnable:
 	      case cbAssertionReset:
 	      case cbAssertionKill:
+	      case cbAssertionLock_:
+	      case cbAssertionUnlock_:
+	      case cbAssertionEnablePassAction_:
+	      case cbAssertionEnableFailAction_:
+	      case cbAssertionDisablePassAction_:
+	      case cbAssertionDisableFailAction_:
+	      case cbAssertionEnableNonvacuousAction_:
+	      case cbAssertionDisableVacuousAction_:
 		  no_attempt_info = true;
 		  break;
 	      default:
@@ -2648,8 +2688,27 @@ PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation, vpiHandle scope)
 			obj->note_vpi_action_control(operation);
 	    }
       }
-      return vpip_assertion_control(ctl, 255, 7, 0, selector ? &sel : 0,
-				    selector ? 1 : 0);
+      PLI_INT32 rc = vpip_assertion_control(ctl, 255, 7, 0,
+					    selector ? &sel : 0,
+					    selector ? 1 : 0);
+	/* 39.4.1: the matching assertion system callback (standard reason
+	   values; sv_vpi_user.h does not name them yet). */
+      static const struct { int op, reason; } sys_reasons[] = {
+	    { vpiAssertionSysLock, 659 },   { vpiAssertionSysUnlock, 660 },
+	    { vpiAssertionSysOn, 616 },     { vpiAssertionSysOff, 617 },
+	    { vpiAssertionSysKill, 631 },   { vpiAssertionSysReset, 619 },
+	    { vpiAssertionSysEnd, 618 },
+	    { vpiAssertionSysEnablePassAction, 651 },
+	    { vpiAssertionSysEnableFailAction, 652 },
+	    { vpiAssertionSysDisablePassAction, 653 },
+	    { vpiAssertionSysDisableFailAction, 654 },
+	    { vpiAssertionSysEnableNonvacuousAction, 655 },
+	    { vpiAssertionSysDisableVacuousAction, 656 },
+      };
+      for (size_t i = 0 ; i < sizeof sys_reasons / sizeof *sys_reasons ; i += 1)
+	    if (sys_reasons[i].op == operation)
+		  vpip_fire_assertion_sys_cb(sys_reasons[i].reason);
+      return rc;
 }
 
 template <class Key> static __vpiAssertion* find_assertion_up_(

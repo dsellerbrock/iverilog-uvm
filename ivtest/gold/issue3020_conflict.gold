@@ -1,0 +1,4 @@
+./ivltests/issue3020_conflict.v:3: error: Interface class `C' inherits conflicting parameter or type `X' from multiple interface classes and must declare a local resolution.
+./ivltests/issue3020_conflict.v:7: error: Interface class `G' inherits conflicting parameter or type `Y' from multiple interface classes and must declare a local resolution.
+./ivltests/issue3020_conflict.v:10: error: Interface class `J' inherits conflicting parameter or type `Z' from multiple interface classes and must declare a local resolution.
+3 error(s) during elaboration.

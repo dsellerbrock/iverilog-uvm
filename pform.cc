@@ -2999,6 +2999,218 @@ bool pform_module_is_checker(void)
       return !pform_cur_module.empty() && pform_cur_module.front()->is_checker;
 }
 
+PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
+			      std::list<named_pexpr_t>*attr);
+
+/* IEEE 1800-2023 17.7 free checker variables, per checker definition. */
+struct checker_free_var_t {
+      perm_string name;
+      bool is_const;
+      bool initialized;
+      unsigned lexical_pos;  // just after the declared identifier
+      struct vlltype loc;
+};
+static std::map<Module*,std::vector<checker_free_var_t> > checker_free_vars_;
+static std::map<Module*,struct vlltype> checker_first_assume_;
+
+/* Is `id' a free variable of the checker being declared? 17.7.2: "A
+   sampled value of an active checker variable is defined as its current
+   value". An inactive one is written only by checker nonblocking
+   assignments, which update in Re-NBA after the Observed region, so its
+   current value at the clock tick is its sampled value too. Assertions
+   therefore read every free variable live. */
+static bool checker_free_name_(const PEIdent*id)
+{
+      if (pform_cur_module.empty() || !pform_cur_module.front()->is_checker
+	  || id->path().package || id->path().name.size() != 1)
+	    return false;
+      std::map<Module*,std::vector<checker_free_var_t> >::const_iterator it =
+	    checker_free_vars_.find(pform_cur_module.front());
+      if (it == checker_free_vars_.end()) return false;
+      for (const checker_free_var_t&v : it->second)
+	    if (v.name == id->path().name.front().name) return true;
+      return false;
+}
+
+static void sva_note_checker_assume_(const struct vlltype&loc)
+{
+      if (pform_cur_module.empty() || !pform_cur_module.front()->is_checker)
+	    return;
+      Module*m = pform_cur_module.front();
+      if (!checker_first_assume_.count(m))
+	    checker_first_assume_[m] = loc;
+}
+
+void pform_checker_free_vars(const struct vlltype&loc,
+			     std::list<decl_assignment_t*>*decls,
+			     data_type_t*type, bool is_const)
+{
+      if (pform_cur_module.empty() || !pform_cur_module.front()->is_checker
+	  || pform_cur_generate) {
+	    cerr << loc << ": error: a `rand' variable declaration is only "
+		 << "allowed in a checker body (IEEE 1800-2023 17.7)." << endl;
+	    error_count += 1;
+      } else {
+	    for (decl_assignment_t*d : *decls) {
+		  checker_free_var_t v;
+		  v.name = d->name.first;
+		  v.is_const = is_const;
+		  v.initialized = d->expr != nullptr;
+		  v.lexical_pos = d->name.second + 1;
+		  v.loc = loc;
+		  checker_free_vars_[pform_cur_module.front()].push_back(v);
+	    }
+      }
+      pform_make_var(loc, decls, type, nullptr, false);
+}
+
+/* Free variables written by a checker statement (17.7.1, 17.7.2). A
+   statement kind the walk does not open is taken to write every free
+   variable it mentions, which only makes those variables inactive. */
+static void checker_free_writes_(const Statement*st,
+				 const std::vector<checker_free_var_t>&vars,
+				 std::map<perm_string,const Statement*>&nb,
+				 std::map<perm_string,const Statement*>&blocking)
+{
+      if (!st) return;
+      if (const PAssign_*as = dynamic_cast<const PAssign_*>(st)) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(as->lval());
+	    if (id && !id->path().package && !id->path().name.empty()) {
+		  perm_string n = id->path().name.front().name;
+		  if (dynamic_cast<const PAssignNB*>(st)) nb[n] = st;
+		  else blocking[n] = st;
+		  return;
+	    }
+      }
+      if (const PBlock*bk = dynamic_cast<const PBlock*>(st)) {
+	    for (const Statement*c : bk->statements())
+		  checker_free_writes_(c, vars, nb, blocking);
+	    return;
+      }
+      if (const PCondit*cd = dynamic_cast<const PCondit*>(st)) {
+	    checker_free_writes_(cd->if_clause(), vars, nb, blocking);
+	    checker_free_writes_(cd->else_clause(), vars, nb, blocking);
+	    return;
+      }
+      if (const PEventStatement*ev = dynamic_cast<const PEventStatement*>(st)) {
+	    checker_free_writes_(ev->statement(), vars, nb, blocking);
+	    return;
+      }
+      if (const PDelayStatement*dl = dynamic_cast<const PDelayStatement*>(st)) {
+	    checker_free_writes_(dl->statement(), vars, nb, blocking);
+	    return;
+      }
+	/* A system task call does not write a checker variable. */
+      if (const PCallTask*ct = dynamic_cast<const PCallTask*>(st))
+	    if (!ct->path().empty() && !ct->receiver_expr()
+		&& ct->path().front().name.str()[0] == '$')
+		  return;
+      if (dynamic_cast<const PNoop*>(st)) return;
+      const Statement*body = nullptr;
+      if (const PRepeat*r = dynamic_cast<const PRepeat*>(st)) body = r->body();
+      else if (const PForever*f = dynamic_cast<const PForever*>(st)) body = f->body();
+      else if (const PWhile*w = dynamic_cast<const PWhile*>(st)) body = w->body();
+      else if (const PDoWhile*d = dynamic_cast<const PDoWhile*>(st)) body = d->body();
+      else if (const PForStatement*fs = dynamic_cast<const PForStatement*>(st)) {
+	    checker_free_writes_(fs->initialization(), vars, nb, blocking);
+	    checker_free_writes_(fs->step_stmt(), vars, nb, blocking);
+	    body = fs->body();
+      } else if (const PCase*cs = dynamic_cast<const PCase*>(st)) {
+	    if (cs->mutable_items())
+		  for (const PCase::Item*it : *cs->mutable_items())
+			checker_free_writes_(it->stat, vars, nb, blocking);
+	    return;
+      }
+      if (body) {
+	    checker_free_writes_(body, vars, nb, blocking);
+	    return;
+      }
+      for (const checker_free_var_t&v : vars)
+	    if (st->refs_name(v.name) && !nb.count(v.name)) nb[v.name] = st;
+}
+
+/* At endchecker: report the 17.7.1 assignment errors and start each free
+   variable's runtime randomization (17.7.2). All free variables not
+   initialized in their declaration start with a random value. An active
+   one (non-const and never assigned) takes a new random value at every
+   later time step; those are the implicitly clocked variables of a
+   checker with an empty assume set. */
+static void checker_free_finish_(Module*m)
+{
+      std::map<Module*,std::vector<checker_free_var_t> >::iterator it =
+	    checker_free_vars_.find(m);
+      if (it == checker_free_vars_.end()) return;
+      const std::vector<checker_free_var_t>&vars = it->second;
+      std::map<perm_string,const Statement*> nb, blocking;
+      for (PProcess*pp : m->behaviors)
+	    checker_free_writes_(pp->statement(), vars, nb, blocking);
+      std::set<perm_string> continuous;
+      for (PGate*g : m->get_gates())
+	    if (dynamic_cast<PGAssign*>(g) && g->pin_count() > 0)
+		  if (const PEIdent*id = dynamic_cast<const PEIdent*>(g->pin(0)))
+			if (!id->path().name.empty())
+			      continuous.insert(id->path().name.front().name);
+
+      std::vector<Statement*> init;
+      std::string unconstrained;
+      for (const checker_free_var_t&v : vars) {
+	    if (continuous.count(v.name)) {
+		  cerr << v.loc << ": error: free checker variable `" << v.name
+		       << "' is the target of a continuous assignment "
+		       << "(IEEE 1800-2023 17.7.1)." << endl;
+		  error_count += 1;
+	    }
+	    if (blocking.count(v.name)) {
+		  cerr << blocking[v.name]->get_fileline() << ": error: free "
+		       << "checker variable `" << v.name << "' is the target "
+		       << "of a blocking assignment (IEEE 1800-2023 17.7.1)."
+		       << endl;
+		  error_count += 1;
+	    }
+	    if (v.is_const && nb.count(v.name)) {
+		  cerr << nb[v.name]->get_fileline() << ": error: constant "
+		       << "free checker variable `" << v.name << "' is "
+		       << "assigned (IEEE 1800-2023 17.7)." << endl;
+		  error_count += 1;
+	    }
+	    bool active = !v.is_const && !nb.count(v.name)
+			  && !blocking.count(v.name) && !continuous.count(v.name);
+	    if (active && checker_first_assume_.count(m))
+		  unconstrained += std::string(unconstrained.empty() ? "" : ", ")
+				 + "`" + v.name.str() + "'";
+	    unsigned flags = (v.initialized ? 0 : 1) | (active ? 2 : 0);
+	    if (!flags) continue;
+	    std::list<named_pexpr_t> args;
+	    named_pexpr_t a;
+	    a.parm = new PEIdent(v.name, v.lexical_pos);
+	    FILE_NAME(a.parm, v.loc);
+	    args.push_back(a);
+	    a.parm = new PENumber(new verinum((uint64_t)flags, 32));
+	    FILE_NAME(a.parm, v.loc);
+	    args.push_back(a);
+	    PCallTask*t = new PCallTask(lex_strings.make("$ivl_checker_free"),
+					args);
+	    FILE_NAME(t, v.loc);
+	    init.push_back(t);
+      }
+      if (!unconstrained.empty()) {
+	    cerr << checker_first_assume_[m] << ": sorry: assume-based "
+		 << "randomization of free checker variables (IEEE 1800-2023 "
+		 << "17.7.2) is not supported. These active free variables "
+		 << "take an unconstrained random value at every time step, "
+		 << "so this checker's assumptions may fail: " << unconstrained
+		 << endl;
+      }
+      if (!init.empty()) {
+	    PBlock*bk = new PBlock(PBlock::BL_SEQ);
+	    bk->set_statement(init);
+	    FILE_NAME(bk, vars.front().loc);
+	    PProcess*pp = pform_make_behavior(IVL_PR_INITIAL, bk, nullptr);
+	    FILE_NAME(pp, vars.front().loc);
+      }
+      checker_free_vars_.erase(it);
+}
+
 void pform_endmodule(const char*name, bool inside_celldefine,
                      Module::UCDriveType uc_drive_def)
 {
@@ -3009,6 +3221,7 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	/* A default clocking reference may precede its block declaration, but
 	   must resolve before deferred assertions use it. */
       Module*cur_module = pform_cur_module.front();
+      if (cur_module->is_checker) checker_free_finish_(cur_module);
       perm_string mod_name = cur_module->mod_name();
       map<Module*, vector<pair<perm_string, NetNet::PortType> > >::iterator
             deferred = pform_deferred_explicit_port_directions.find(cur_module);
@@ -7595,6 +7808,7 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 
       ivl_assert(*st, ! pform_cur_module.empty());
       if (pform_cur_module.front()->program_block &&
+          pform_generated_verification_depth_ == 0 &&
           ((type == IVL_PR_ALWAYS) || (type == IVL_PR_ALWAYS_COMB) ||
            (type == IVL_PR_ALWAYS_FF) || (type == IVL_PR_ALWAYS_LATCH))) {
 	    cerr << st->get_fileline() << ": error: Always statements are not allowed"
@@ -11119,8 +11333,21 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
       }
       sva_param_seq_t rec;
       if (formals) {
-	    for (sva_sequence_formal_t f : *formals)
+	    for (sva_sequence_formal_t f : *formals) {
 	      rec.formals.push_back(f);
+	      if (!f.type || f.local_input || !steps) continue;
+	      for (const sva_seq_step_t&step : *steps) {
+		    for (const sva_match_item_t&item : step.items) {
+			  if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
+			      || item.lv_initialization || item.lv_name != f.name)
+				continue;
+			  cerr << loc << ": error: typed sequence formal `" << f.name
+			       << "' assigned in a match item must be local "
+			       << "(IEEE 1800-2017/2023 16.8.1)." << endl;
+			  error_count += 1;
+		    }
+	      }
+	    }
       }
       sva_decl_sequence_forget_sampled_(steps);
       rec.body = steps;
@@ -12942,7 +13169,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		 is subtler: retain the constant base and sample only expressions
 		 inside its selects. Sampling the aggregate parameter is both
 		 meaningless and illegal for an unpacked array. */
-	    if (pform_sva_ident_base_is_constant_(id)) {
+	    if (pform_sva_ident_base_is_constant_(id) || checker_free_name_(id)) {
 		  pform_name_t path = id->path().name;
 		  if (!sva_wrap_name_indices_(id->path().name, path, sampled,
 					      live_operands, unsampled_locals))
@@ -30741,6 +30968,7 @@ class sva_assertion_label_scope_t {
 			? sva_parser_assertion_label_ : label;
 	    if (sva_assertion_label_depth_ == 0)
 		  sva_active_assertion_kind_ = kind == 1 ? 4 : kind == 2 ? 2 : 1;
+
 	    if (sva_assertion_label_depth_ == 0)
 		  sva_active_proc_id_ = proc_id;
 	    sva_assertion_label_depth_ += 1;
@@ -34911,6 +35139,10 @@ void pform_sva_hold_assertion(const struct vlltype&loc, sva_property_t*prop,
    replaces it, or null when body is not of that form. */
 Statement* pform_sva_static_always_assertion(Statement*body)
 {
+      // An explicit always remains illegal in a program, even when its
+      // body is a concurrent assertion with equivalent static semantics.
+      if (!pform_cur_module.empty() && pform_cur_module.front()->program_block)
+	    return nullptr;
       while (PBlock*block = dynamic_cast<PBlock*>(body)) {
 	    if (block->statements().size() != 1) return nullptr;
 	    body = block->statements().front();
@@ -34965,6 +35197,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       pform_generated_verification_scope_t verification_scope;
       sva_assertion_label_scope_t assertion_label_scope(label, kind, proc_id);
       sva_clocking_scope_guard_t clocking_scope(prop);
+      if (kind == 1) sva_note_checker_assume_(loc);
 
 	/* `else ;' is an explicit null failure action, whereas a null
 	   fail_stmt pointer means there was no else arm and requests the LRM

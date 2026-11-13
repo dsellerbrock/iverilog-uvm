@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3010_program_explicit_always.sv",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue3010_program_explicit_always"],
+  "gold": "issue3010_program_explicit_always"
+}

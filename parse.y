@@ -17529,6 +17529,13 @@ module_item
   : module
   | checker_declaration
 
+  /* IEEE 1800-2023 17.7 / Syntax 17-1: a checker variable may be a free
+     variable, `rand [const] data_declaration'. */
+  | attribute_list_opt K_rand K_const_opt data_type list_of_variable_decl_assignments ';'
+      { pform_checker_free_vars(@2, $5, $4, $3);
+	delete $1;
+      }
+
   | nettype_declaration
 
   /* SystemVerilog permits package imports as module items. */
