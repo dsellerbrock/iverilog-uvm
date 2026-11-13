@@ -6784,3 +6784,5 @@ issue3096_protect_envelope_2017 CE,-g2017,-s,issue3096_protect_envelope ivltests
 issue3096_protect_envelope_2023 CE,-g2023,-s,issue3096_protect_envelope ivltests gold=issue3096_protect_envelope.gold
 issue3090_sdf_pulse_2017 normal,-g2017,-gspecify,-s,issue3090_sdf_pulse ivltests gold=issue3090_sdf_pulse.gold
 issue3090_sdf_pulse_2023 normal,-g2023,-gspecify,-s,issue3090_sdf_pulse ivltests gold=issue3090_sdf_pulse.gold
+issue3015_super_parameter_2017 normal,-g2017,-s,issue3015_super_parameter ivltests gold=issue3015_super_parameter.gold
+issue3015_super_parameter_2023 normal,-g2023,-s,issue3015_super_parameter ivltests gold=issue3015_super_parameter.gold
