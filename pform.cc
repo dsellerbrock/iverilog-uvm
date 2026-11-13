@@ -20787,6 +20787,16 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		       aggregated, every cycle T>=1 requires p@T. A
 		       $past(1,1) guard suppresses the first cycle. */
 		long nt_off = (prop->win_lo >= 0) ? prop->win_lo : 1;
+		Statement*eos_action = nullptr;
+		if (op == 10 && nt_off > 0) {
+		      eos_action = sva_clone_stmt_(action);
+		      if (!eos_action) {
+			    cerr << loc << ": sorry: this action block cannot be "
+			         << "reproduced for the end-of-simulation failure "
+			         << "of s_nexttime." << endl;
+			    error_count += 1;
+		      }
+		}
 		PExpr*valid = mature_attempt(nt_off);
 		  PExpr*failexpr = sva_logic_(loc, 'a', valid,
 					      sva_not_(loc, sva_id_(loc, r_p)));
@@ -20798,32 +20808,18 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 			  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
 					 sva_fail_action_(loc, inst, action), nullptr));
 
-		  if (op == 10) {
-			  /* Strong: the attempt at the final cycle has no
-			     next cycle and can never be satisfied. Report
-			     once at end of simulation, guarded by a "ran"
-			     flag so a zero-clock run stays quiet. */
-			std::list<named_pexpr_t> dargs;
-			named_pexpr_t darg;
-			darg.parm = new PEString(strdup(
-			      "SVA: strong nexttime obligation not met — no "
-			      "next cycle for the final attempt"));
-			dargs.push_back(darg);
-			PCallTask*warn = new PCallTask(lex_strings.make("$error"),
-						       dargs);
-			FILE_NAME(warn, loc);
-			PExpr*pending = nullptr;
+		  if (op == 10 && nt_off > 0 && eos_action) {
+			/* Every still-live attempt fails, including each pending
+			   age of an indexed s_nexttime. */
+			PExpr*pending = sva_num32_(loc, 0);
 			for (size_t k = 0 ; k < attempt_pipe.size() ; k += 1) {
 			      PExpr*term = sva_id_(loc, attempt_pipe[k]);
-			      pending = pending
-				    ? sva_logic_(loc, 'o', pending, term) : term;
+			      pending = new PEBinary('+', pending, term);
 			}
-			if (!pending) pending = sva_enabled_expr_(loc, inst);
-			pending = sva_logic_(
-			      loc, 'a', pending,
-			      sva_kill_generation_current_(loc, inst, r_kill));
-			Statement*fc = sva_if_(loc, pending,
-					       sva_fail_action_(loc, inst, warn), nullptr);
+			Statement*fc = sva_if_(loc,
+			      sva_kill_generation_current_(loc, inst, r_kill),
+			      sva_repeat_(loc, pending,
+				    sva_fail_action_(loc, inst, eos_action)), nullptr);
 			PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 			FILE_NAME(fp, loc);
 		  }
