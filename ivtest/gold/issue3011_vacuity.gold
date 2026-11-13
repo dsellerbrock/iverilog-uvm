@@ -1,0 +1,2 @@
+PASS
+./ivltests/issue3011_vacuity.sv:34: $finish called at 36 (1s)
