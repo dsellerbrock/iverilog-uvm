@@ -6752,3 +6752,5 @@ issue3010_program_explicit_always_2017 CE,-g2017,-gassertions,-s,issue3010_progr
 issue3010_program_explicit_always_2023 CE,-g2023,-gassertions,-s,issue3010_program_explicit_always ivltests
 issue3027_assoc_packed normal,-g2017,-s,issue3027_assoc_packed ivltests gold=issue3027_assoc_packed.gold
 issue3027_assoc_packed_size RE,-g2017,-s,issue3027_assoc_packed_size ivltests gold=issue3027_assoc_packed_size.gold
+issue2416_stream_queue_2017 normal,-g2017,-s,issue2416_stream_queue ivltests gold=issue2416_stream_queue.gold
+issue2416_stream_queue_2023 normal,-g2023,-s,issue2416_stream_queue ivltests gold=issue2416_stream_queue.gold
