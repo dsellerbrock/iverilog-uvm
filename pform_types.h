@@ -100,7 +100,9 @@ struct pform_event_ident_t {
 
 /* The lgate is gate instantiation information. */
 struct lgate : public LineInfo {
-      explicit lgate() : parms(0), parms_by_name(0), ranges(0), decl_init(0) { }
+      explicit lgate()
+	: parms(0), parms_by_name(0), ranges(0), decl_init(0), no_port_list(false)
+	{ }
 
       std::string name;
       std::list<PExpr*>*parms;
@@ -114,6 +116,11 @@ struct lgate : public LineInfo {
 	   `= expr` so such declarations can be initialized. A real module
 	   instantiation can never have one. */
       PExpr*decl_init;
+
+      /* The grammar also accepts this shape for user-type declarations;
+         preserve it so module elaboration can enforce the required port
+         parentheses without affecting those declarations. */
+      bool no_port_list;
 };
 
 /*
