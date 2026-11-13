@@ -1,0 +1,2 @@
+issue3071_time_radix_2017 normal,-g2017,-s,issue3071_time_radix ivltests gold=issue3071_time_radix.gold
+issue3071_time_radix_2023 normal,-g2023,-s,issue3071_time_radix ivltests gold=issue3071_time_radix.gold

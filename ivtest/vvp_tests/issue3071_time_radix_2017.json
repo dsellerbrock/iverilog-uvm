@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3071_time_radix.v",
+    "iverilog-args": ["-g2017", "-s", "issue3071_time_radix"],
+    "gold": "issue3071_time_radix"
+}

@@ -6746,3 +6746,5 @@ issue3003_property_x_2017 normal,-g2017,-gassertions,-s,issue3003_property_x ivl
 issue3003_property_x_2023 normal,-g2023,-gassertions,-s,issue3003_property_x ivltests gold=issue3003_property_x.gold
 issue3024_nested_handles_2017 normal,-g2017,-s,issue3024_nested_handles ivltests gold=issue3024_nested_handles.gold
 issue3024_nested_handles_2023 normal,-g2023,-s,issue3024_nested_handles ivltests gold=issue3024_nested_handles.gold
+issue3071_time_radix_2017 normal,-g2017,-s,issue3071_time_radix ivltests gold=issue3071_time_radix.gold
+issue3071_time_radix_2023 normal,-g2023,-s,issue3071_time_radix ivltests gold=issue3071_time_radix.gold

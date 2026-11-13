@@ -151,7 +151,7 @@ static void timevar_get_value(vpiHandle ref, s_vpi_value*vp, bool is_int_func,
 
 	  case vpiBinStrVal:
 	    x = simtime;
-	    num_bits = 8 * sizeof(vvp_time64_t);
+	    num_bits = is_stime ? 32 : 8 * sizeof(vvp_time64_t);
 
 	    rbuf[num_bits] = 0;
 	    for (unsigned i = 1; i <= num_bits; i++) {
@@ -168,12 +168,14 @@ static void timevar_get_value(vpiHandle ref, s_vpi_value*vp, bool is_int_func,
 	    break;
 
 	  case vpiOctStrVal:
-	    snprintf(rbuf, RBUF_USE_SIZE, "%" TIME_FMT_O, simtime);
+	    snprintf(rbuf, RBUF_USE_SIZE, "%0*" TIME_FMT_O,
+                     is_stime ? 11 : 22, simtime);
 	    vp->value.str = rbuf;
 	    break;
 
 	  case vpiHexStrVal:
-	    snprintf(rbuf, RBUF_USE_SIZE, "%" TIME_FMT_X, simtime);
+	    snprintf(rbuf, RBUF_USE_SIZE, "%0*" TIME_FMT_X,
+                     is_stime ? 8 : 16, simtime);
 	    vp->value.str = rbuf;
 	    break;
 
