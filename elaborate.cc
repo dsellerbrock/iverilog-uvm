@@ -7512,6 +7512,28 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
       ivl_assert(*this, scope);
 
+	// IEEE 1800-2017/2023 23.3.2 requires parentheses on every module
+	// instance, including modules with no ports. The parser preserves the
+	// omitted-list form so user-type declarations and UDPs are not affected.
+      if (generation_flag >= GN_VER2017 && no_port_list_) {
+	    cerr << get_fileline() << ": "
+		 << (gn_commercial_unsafe_flag ? "warning: " : "error: ")
+		 << "module instance " << get_name()
+		 << " has no port list; IEEE 1800 23.3.2 requires parentheses"
+		 << endl;
+	    if (!gn_commercial_unsafe_flag) des->errors += 1;
+      }
+
+	// IEEE 1800-2017/2023 23.3.2 limits a module port list to one .*.
+      if (generation_flag >= GN_VER2017 &&
+          has_duplicate_wildcard_port_connections()) {
+	    cerr << get_fileline() << ": "
+		 << (gn_commercial_unsafe_flag ? "warning: " : "error: ")
+		 << ".* appears more than once in the port connections of "
+		 << get_name() << " (IEEE 1800 23.3.2)" << endl;
+	    if (!gn_commercial_unsafe_flag) des->errors += 1;
+      }
+
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Instantiate module "
 		 << rmod->mod_name() << " with instance name "
@@ -38894,6 +38916,55 @@ static string constraint_class_container_size_ir_(
 	  || !cls)
 	    return "";
 
+	/* A queue declared as a rand member of a rand unpacked-struct
+	 * property is a separate solver container owned by the struct object.
+	 * Encode both canonical indices so parse_size() interns that member in
+	 * the same graph as its struct value. */
+	if (cpath.size() == 3) {
+	      const name_component_t&outer_name = cpath.front();
+	      const name_component_t&member_name = *std::next(cpath.begin());
+	      if (!outer_name.local_scope && outer_name.index.empty()
+	          && !member_name.local_scope && member_name.index.empty()) {
+	            int outer = cls->property_idx_from_name(outer_name.name);
+	            const netstruct_t*record = outer < 0 ? nullptr
+	                  : dynamic_cast<const netstruct_t*>(
+	                        cls->get_prop_type((size_t)outer));
+	            unsigned member = record && !record->packed()
+	                  && !record->union_flag()
+	                  ? record->member_index(member_name.name) : (unsigned)-1;
+	            if (outer >= 0 && cls->get_prop_qual((size_t)outer).test_rand()
+	                && member < (record ? record->members().size() : 0)) {
+	                  const netstruct_t::member_t&field = record->members()[member];
+	                  const netqueue_t*queue =
+	                        dynamic_cast<const netqueue_t*>(field.net_type);
+	                  const netdarray_t*darray =
+	                        dynamic_cast<const netdarray_t*>(field.net_type);
+	                  ivl_type_t element = queue ? queue->element_type()
+	                        : darray ? darray->element_type() : nullptr;
+	                  ivl_variable_type_t base = element
+	                        ? element->base_type() : IVL_VT_NO_TYPE;
+	                  bool integral = element && element->packed()
+	                        && element->packed_width() > 0
+	                        && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+	                            || dynamic_cast<const netenum_t*>(element));
+	                  if ((darray || (queue && !queue->assoc_compat()))
+	                      && field.qualifier.test_rand() && integral) {
+	                        unsigned width = element->packed_width();
+	                        string type = (element->get_signed() ? "sb" : "b")
+	                              + to_string(width);
+	                        if (darray)
+	                              return "s:" + to_string(outer) + "."
+	                                    + to_string(member) + ":" + type;
+	                        uint64_t maximum = queue->max_idx() < 0 ? 0
+	                              : (uint64_t)queue->max_idx() + 1;
+	                        return "s:" + to_string(outer) + "."
+	                              + to_string(member) + ":Q"
+	                              + to_string(maximum) + ":" + type;
+	                  }
+	            }
+	      }
+	}
+
 	// Follow rand object handles to the class that owns the container.
 	// The solver's object graph canonicalizes each property by its live owner,
 	// so encode the property path rather than pretending the leaf is on the
@@ -42567,6 +42638,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      // shortcut: no nested size/foreach IR; upgrade with owner-aware tokens.
 			      const netdarray_t*mdarray =
 				    dynamic_cast<const netdarray_t*>(mtype);
+		      const netqueue_t*mqueue =
+			    dynamic_cast<const netqueue_t*>(mtype);
 		      // shortcut: nested member constraints need nonnegative constant indices; upgrade with owner-aware indexed IR.
 		      if (one_level && mem && mdarray
 			  && member->index.size() == 2) {
@@ -42613,14 +42686,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				  return token;
 			    }
 		      }
-			      if (one_level && mem && (marray || mdarray)
+		      if (one_level && mem && (marray || mdarray || mqueue)
 				  && member->index.size() == 1) {
 				    const netranges_t*dims = marray
 					  ? &marray->static_dimensions() : nullptr;
 				    const index_component_t&select =
 					  member->index.front();
 				    ivl_type_t etype = marray ? marray->element_type()
-					  : mdarray->element_type();
+					  : mdarray ? mdarray->element_type()
+					  : mqueue->element_type();
 				    ivl_variable_type_t ebase = etype
 					  ? etype->base_type() : IVL_VT_NO_TYPE;
 				    unsigned ewidth = etype && etype->packed()
@@ -42643,7 +42717,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					    dims->front().get_lsb());
 				      selected_element = constraint_fixed_index_offset_(index,
 					    (int64_t)low, dims->front().width(), digit);
-				    } else if (mdarray
+			    } else if ((mdarray || mqueue)
 					  && constraint_parse_const_ir_(index_ir, index)
 					  && index.width <= 64) {
 				      digit = constraint_resize_const_bits_(
@@ -42659,6 +42733,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  if (etype->get_signed()) token += ":s";
 					  return token;
 				    }
+			    if (integral && (mdarray || mqueue) && dynforeach_emit_ctx_
+				  && dynforeach_emit_ctx_->nested_path
+				       == to_string(pidx) + "." + to_string(midx)
+				  && select.msb && !select.lsb
+				  && select.sel == index_component_t::SEL_BIT) {
+				  string token = "a:" + to_string(pidx) + ":"
+					+ to_string(midx) + ":" + to_string(ewidth)
+					+ ":L";
+				  if (etype->get_signed()) token += ":s";
+				  return token;
+			    }
 			      }
 			      ivl_variable_type_t mbase = mtype
 				    ? mtype->base_type() : IVL_VT_NO_TYPE;
@@ -45994,6 +46079,66 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	         the qforeach/dotted-member machinery, which assumes a real
 	         member and a dynamic-array (queue) element type. */
 	    if (cfe->has_hierarchical_target() && !cfe->member_name().nil()) {
+	      /* A dynamic array/queue which is a random member of an unpacked
+	       * struct needs the same post-size foreach expansion as a class
+	       * container. The body uses the existing struct-member element token,
+	       * while the runtime canonicalizes the member as a graph property. */
+	      if (cfe->prefix_names().empty() && cls
+	          && cfe->loop_vars().size() == 1
+	          && !cfe->loop_vars()[0].nil()) {
+	            int outer = cls->property_idx_from_name(cfe->array_name());
+	            const netstruct_t*record = outer < 0 ? nullptr
+	                  : dynamic_cast<const netstruct_t*>(
+	                        cls->get_prop_type((size_t)outer));
+	            unsigned member = record && !record->packed()
+	                  && !record->union_flag()
+	                  ? record->member_index(cfe->member_name()) : (unsigned)-1;
+	            const netstruct_t::member_t*field =
+	                  member < (record ? record->members().size() : 0)
+	                  ? &record->members()[member] : nullptr;
+	            const netqueue_t*queue = field
+	                  ? dynamic_cast<const netqueue_t*>(field->net_type) : nullptr;
+	            const netdarray_t*darray = field
+	                  ? dynamic_cast<const netdarray_t*>(field->net_type) : nullptr;
+	            ivl_type_t element = queue ? queue->element_type()
+	                  : darray ? darray->element_type() : nullptr;
+	            ivl_variable_type_t base = element
+	                  ? element->base_type() : IVL_VT_NO_TYPE;
+	            if (outer >= 0 && cls->get_prop_qual((size_t)outer).test_rand()
+	                && field && field->qualifier.test_rand()
+	                && (darray || (queue && !queue->assoc_compat()))
+	                && element->packed()
+	                && element->packed_width() && element->packed_width() <= 64
+	                && (base == IVL_VT_BOOL || base == IVL_VT_LOGIC
+	                    || dynamic_cast<const netenum_t*>(element))) {
+	                  dynforeach_emit_ctx_t context;
+	                  context.prop_idx = (int)member;
+	                  context.elem_wid = element->packed_width();
+	                  context.elem_signed = element->get_signed();
+	                  context.nested_path = to_string(outer) + "."
+	                        + to_string(member);
+	                  context.loop_var = cfe->loop_vars()[0];
+	                  const dynforeach_emit_ctx_t*saved = dynforeach_emit_ctx_;
+	                  dynforeach_emit_ctx_ = &context;
+	                  string body;
+	                  bool ok = true;
+	                  for (const PExpr*item : cfe->items()) {
+	                        if (!item) continue;
+	                        string part = pexpr_to_constraint_ir(
+	                              item, cls, value_slots, scope, loop_env);
+	                        if (part.empty()) { ok = false; break; }
+	                        body = body.empty() ? part
+	                              : "(and " + body + " " + part + ")";
+	                  }
+	                  dynforeach_emit_ctx_ = saved;
+	                  if (!ok || body.empty()) return "";
+	                  string header = "S" + to_string(outer) + ":"
+	                        + to_string(member) + ":"
+	                        + to_string(context.elem_wid)
+	                        + (context.elem_signed ? ":s" : "");
+	                  return "(dynforeach " + header + " " + body + ")";
+	            }
+	      }
 		  /* A direct unpacked-struct member fixed array is a value within
 		   * the randomized object. Unroll its declared index range here;
 		   * selected leaves retain distinct solver identities at runtime. */

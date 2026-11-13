@@ -663,12 +663,16 @@ typedef struct t_cb_data {
 #define cbExitInteractive   22
 #define cbInteractiveScopeChange 23
 #define cbUnresolvedSystf   24
+/* A run-time error in a PLI/VPI routine call (IEEE 1800-2023 38.36.3). */
+#define cbPLIError          28
+/* An operating-system signal occurred: cb_data.index names the signal
+   (IEEE 1800-2023 38.36.3). */
+#define cbSignal            29
 /* IEEE 1800-2017 clause 38 simulation-time callback: after every
    nonblocking update of the current time slot has been applied, and
-   before cbReadWriteSynch / cbAtEndOfSimTime.  (Reason codes 25-29 are
-   the other 1800 additions -- cbAssign, cbDeassign, cbDisable,
-   cbPLIError, cbSignal -- which this simulator does not implement and
-   therefore does not name.) */
+   before cbReadWriteSynch / cbAtEndOfSimTime.  (Reason codes 25-27 are
+   the other 1800 additions -- cbAssign, cbDeassign, cbDisable -- which
+   this simulator does not implement and therefore does not name.) */
 #define cbNBASynch          30
 #define cbAtEndOfSimTime    31
 
@@ -819,6 +823,10 @@ typedef struct t_vpi_error_info {
 # define  vpiRun      3
 
 /* error_info levels */
+/* vpi_chk_error() states (IEEE 1800-2023 Annex K) */
+# define  vpiCompile   1
+# define  vpiPLI       2
+# define  vpiRun       3
 # define  vpiNotice    1
 # define  vpiWarning   2
 # define  vpiError     3

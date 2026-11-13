@@ -37,6 +37,7 @@
 #include  "vvp_cleanup.h"
 #endif
 # include  <cstdio>
+# include  <csignal>
 # include  <cassert>
 # include  <cstdlib>
 # include  <unordered_map>
@@ -1035,6 +1036,66 @@ static simulator_callback*NextSimTime = 0;
 static simulator_callback*EndOfCompile = 0;
 static simulator_callback*StartOfSimulation = 0;
 static simulator_callback*EndOfSimulation = 0;
+/* cbError and cbPLIError (IEEE 1800-2023 38.36.3) stay registered: an
+   error can occur any number of times. */
+static simulator_callback*ErrorCallbacks = 0;
+static simulator_callback*PLIErrorCallbacks = 0;
+
+/*
+ * cbSignal (IEEE 1800-2023 38.36.3): "When this signal occurs, the
+ * simulator will trap the signal, proceed to a safe point (if possible),
+ * and then call the callback routine." The signal handler only marks the
+ * signal pending; the scheduler runs the callbacks between events.
+ */
+static simulator_callback*SignalCallbacks = 0;
+static bool signal_trapped_[NSIG];
+static volatile sig_atomic_t signal_pending_[NSIG];
+static volatile sig_atomic_t any_signal_pending_ = 0;
+
+bool vpip_signal_trapped(int signum)
+{
+      return signum > 0 && signum < NSIG && signal_trapped_[signum];
+}
+
+/* Called from the signal handler: async-signal-safe stores only. */
+void vpip_note_signal(int signum)
+{
+      signal_pending_[signum] = 1;
+      any_signal_pending_ = 1;
+}
+
+bool vpip_signal_pending(void)
+{
+      return any_signal_pending_ != 0;
+}
+
+void vpip_run_signal_callbacks(void)
+{
+      any_signal_pending_ = 0;
+      for (int signum = 1; signum < NSIG; signum += 1) {
+	    if (!signal_pending_[signum]) continue;
+	    signal_pending_[signum] = 0;
+	    for (simulator_callback*cur = SignalCallbacks ; cur
+		       ; cur = dynamic_cast<simulator_callback*>(cur->next))
+		  if (cur->cb_data.cb_rtn && cur->cb_data.index == signum)
+			(cur->cb_data.cb_rtn)(&cur->cb_data);
+      }
+}
+
+void vpip_run_error_callbacks(void)
+{
+	/* An error raised inside one of these callbacks does not recurse. */
+      static bool running = false;
+      if (running) return;
+      running = true;
+      for (simulator_callback*cur = PLIErrorCallbacks ; cur
+		 ; cur = dynamic_cast<simulator_callback*>(cur->next))
+	    if (cur->cb_data.cb_rtn) (cur->cb_data.cb_rtn)(&cur->cb_data);
+      for (simulator_callback*cur = ErrorCallbacks ; cur
+		 ; cur = dynamic_cast<simulator_callback*>(cur->next))
+	    if (cur->cb_data.cb_rtn) (cur->cb_data.cb_rtn)(&cur->cb_data);
+      running = false;
+}
 
 #ifdef CHECK_WITH_VALGRIND
 /* This is really only needed if the simulator aborts before starting the
@@ -1162,6 +1223,12 @@ static simulator_callback* make_prepost(p_cb_data data)
 {
       if ((data->reason == cbNextSimTime) && !check_callback_time(data, true))
 	    return 0;
+      if (data->reason == cbSignal
+	  && (data->index <= 0 || data->index >= NSIG)) {
+	    fprintf(stderr, "vpi error: cbSignal index %d is not a signal "
+		    "number\n", (int)data->index);
+	    return 0;
+      }
 
       simulator_callback*obj = new simulator_callback(data);
 
@@ -1182,6 +1249,20 @@ static simulator_callback* make_prepost(p_cb_data data)
 	  case cbNextSimTime:
 	    obj->next = NextSimTime;
 	    NextSimTime = obj;
+	    break;
+	  case cbError:
+	    obj->next = ErrorCallbacks;
+	    ErrorCallbacks = obj;
+	    break;
+	  case cbPLIError:
+	    obj->next = PLIErrorCallbacks;
+	    PLIErrorCallbacks = obj;
+	    break;
+	  case cbSignal:
+	    obj->next = SignalCallbacks;
+	    SignalCallbacks = obj;
+	    signal_trapped_[data->index] = true;
+	    signal(data->index, &signals_handler);
 	    break;
       }
 
@@ -1338,6 +1419,9 @@ vpiHandle vpi_register_cb(p_cb_data data)
 	  case cbStartOfSimulation:
 	  case cbEndOfSimulation:
 	  case cbNextSimTime:
+	  case cbError:
+	  case cbPLIError:
+	  case cbSignal:
 	    obj = make_prepost(data);
 	    break;
 

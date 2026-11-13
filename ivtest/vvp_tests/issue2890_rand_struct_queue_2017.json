@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2890_rand_struct_queue.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "issue2890_rand_struct_queue"
+}
