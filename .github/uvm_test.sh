@@ -13,6 +13,15 @@ TESTS="${UVM_TESTS_DIR:-tests}"
 
 RUN_LIMIT="$PWD/scripts/run_with_timeout.py"
 
+# Every scratch file of a run (DPI library, .vvp files, logs) lives in one
+# private directory, removed on exit. Fixed /tmp names let two runs on one
+# host -- CI, a merge-train gate, an agent's own check -- overwrite or
+# delete each other's files: a whole suite then failed at time 0 with
+# [UVM/DPI/REGEX] (2026-11-12). TMPDIR picks a disk-backed parent where
+# /tmp is a tmpfs charged to the job's memory.
+UVM_TMP="$(mktemp -d "${TMPDIR:-/tmp}/uvm_test.XXXXXX")" || exit 1
+trap 'rm -rf "$UVM_TMP"' EXIT
+
 # Verify UVM sources are available
 if [ ! -f "$UVM/uvm_pkg.sv" ]; then
     echo "ERROR: UVM sources not found at $UVM/uvm_pkg.sv"
@@ -41,7 +50,7 @@ SKIP=0
 # undefined imports. Both platforms therefore silently fell back to
 # UVM_NO_DPI and never exercised the real DPI layer. If iverilog-vpi is
 # missing or the build fails, fall back to UVM_NO_DPI so the suite still runs.
-UVM_DPI_SO="/tmp/uvm_dpi_iv.vpi"
+UVM_DPI_SO="$UVM_TMP/uvm_dpi_iv.vpi"
 IVPI="$(dirname "$BIN")/iverilog-vpi"
 REPO="$PWD"
 UMBRELLA="$REPO/uvm_dpi/uvm_dpi_iverilog.cc"
@@ -67,9 +76,9 @@ DPI_EXTRA_LIB=""
 case "$(uname -s)" in
     Darwin)
         # macOS has no top-level <malloc.h>; shim it to <stdlib.h>.
-        mkdir -p /tmp/uvm_compat
-        printf '#include <stdlib.h>\n' > /tmp/uvm_compat/malloc.h
-        DPI_COMPAT_INC="-I/tmp/uvm_compat"
+        mkdir -p "$UVM_TMP/uvm_compat"
+        printf '#include <stdlib.h>\n' > "$UVM_TMP/uvm_compat/malloc.h"
+        DPI_COMPAT_INC="-I$UVM_TMP/uvm_compat"
         ;;
     MINGW*|MSYS*|CYGWIN*)
         # A Windows loadable module must resolve every external at link time,
@@ -85,9 +94,9 @@ case "$(uname -s)" in
         # sv* AND __ivl_dpi_export_call_*) from vvp.exe routes every vpi_*/sv*
         # call to vvp's real implementation. Regex still comes from libsystre.
         if command -v dlltool >/dev/null 2>&1 && [ -f vvp/vvp.def ] ; then
-            if dlltool -d vvp/vvp.def -D vvp.exe -l /tmp/libvvpimp.a \
-                       2>/tmp/uvm_dpi_implib.log ; then
-                DPI_EXTRA_LIB="-L/tmp -lvvpimp"
+            if dlltool -d vvp/vvp.def -D vvp.exe -l "$UVM_TMP/libvvpimp.a" \
+                       2>"$UVM_TMP/uvm_dpi_implib.log" ; then
+                DPI_EXTRA_LIB="-L$UVM_TMP -lvvpimp"
             fi
         fi
         # POSIX regex: link libsystre (TRE-based) rather than a bare -lregex.
@@ -121,12 +130,12 @@ if [ "$UVM_WIN_MERGE" = 1 ]; then
     # resolves internally. DPI is still REAL (regex/command-line/HDL backdoor).
     echo "UVM DPI: real DPI via per-test merged umbrella (Windows link model)"
     UVM_DPI_SO=""     # no global -d umbrella; each test loads its own merged module
-elif [ -x "$IVPI" ] && "$IVPI" --name=/tmp/uvm_dpi_iv "$UMBRELLA_INC" $DPI_COMPAT_INC \
-       "$UMBRELLA" $DPI_EXTRA_LIB >/tmp/uvm_dpi_build.log 2>&1 ; then
+elif [ -x "$IVPI" ] && "$IVPI" --name="$UVM_TMP/uvm_dpi_iv" "$UMBRELLA_INC" $DPI_COMPAT_INC \
+       "$UMBRELLA" $DPI_EXTRA_LIB >"$UVM_TMP/uvm_dpi_build.log" 2>&1 ; then
     echo "UVM DPI library built ($UVM_DPI_SO via iverilog-vpi): running WITHOUT UVM_NO_DPI"
 else
     echo "WARNING: UVM DPI library build failed; falling back to UVM_NO_DPI"
-    sed 's/^/  /' /tmp/uvm_dpi_build.log
+    sed 's/^/  /' "$UVM_TMP/uvm_dpi_build.log"
     NO_DPI_FLAG="-DUVM_NO_DPI"
     UVM_DPI_SO=""
     UVM_DPI_REAL=0
@@ -200,7 +209,7 @@ compile_test() {
     local timeout=$(($2-SECONDS))
     local sv="$TESTS/${name}.sv"
     local xf; xf="$(ivflags_for "$name")"
-    python3 "$RUN_LIMIT" "$timeout" -- "$BIN" -g2012 $xf -I "$UVM" $NO_DPI_FLAG -o "/tmp/uvm_test_${name}.vvp" \
+    python3 "$RUN_LIMIT" "$timeout" -- "$BIN" -g2012 $xf -I "$UVM" $NO_DPI_FLAG -o "$UVM_TMP/uvm_test_${name}.vvp" \
          "$UVM/uvm_pkg.sv" "$sv"
 }
 
@@ -212,7 +221,7 @@ run_test() {
     # DPI export (35.5): iverilog emits a companion C stub next to the .vvp
     # output providing the exported C symbols. Compile it into the DPI object
     # alongside the user's C so the exports link.
-    local stub="/tmp/uvm_test_${name}.dpiexport.c"
+    local stub="$UVM_TMP/uvm_test_${name}.dpiexport.c"
     # Always load the UVM DPI library when present; a per-test C companion
     # and/or the generated DPI-export stub go into a second DPI object.
     local dflags=""
@@ -245,32 +254,32 @@ run_test() {
         # iverilog-vpi cannot pass -Wl flags, hence the explicit compilers
         # below ($DPI_MERGE_CC/CXX: gcc/g++ on MINGW64/UCRT64, clang/clang++
         # on CLANG64 which ships no gcc alias).
-        local blog="/tmp/uvm_dpi_${name}.buildlog"
-        local objs="/tmp/umb_${name}.o"
-        "$DPI_MERGE_CXX" -c $IVPI_CXX "$UMBRELLA_INC" "$UMBRELLA" -o "/tmp/umb_${name}.o" >"$blog" 2>&1
+        local blog="$UVM_TMP/uvm_dpi_${name}.buildlog"
+        local objs="$UVM_TMP/umb_${name}.o"
+        "$DPI_MERGE_CXX" -c $IVPI_CXX "$UMBRELLA_INC" "$UMBRELLA" -o "$UVM_TMP/umb_${name}.o" >"$blog" 2>&1
         local s b o
         for s in $srcs ; do
-            b="$(basename "$s")"; o="/tmp/${b%.*}_${name}.o"
+            b="$(basename "$s")"; o="$UVM_TMP/${b%.*}_${name}.o"
             "$DPI_MERGE_CC" -c $IVPI_CC "$UMBRELLA_INC" "$s" -o "$o" >>"$blog" 2>&1
             objs="$objs $o"
         done
         # NOTE: no $IVPI_LDL here (it carries -lvpi -lveriuser). libvpi.a must
         # NOT be linked on Windows — see the import-lib comment above. All
         # vvp symbols come from -lvvpimp; regex from -lsystre -ltre.
-        "$DPI_MERGE_CXX" $IVPI_LDF -Wl,--export-all-symbols -o "/tmp/uvm_dpi_${name}.vpi" \
+        "$DPI_MERGE_CXX" $IVPI_LDF -Wl,--export-all-symbols -o "$UVM_TMP/uvm_dpi_${name}.vpi" \
             $objs $DPI_EXTRA_LIB >>"$blog" 2>&1
-        dflags="-d /tmp/uvm_dpi_${name}.vpi"
+        dflags="-d $UVM_TMP/uvm_dpi_${name}.vpi"
     elif [ -n "$srcs" ]; then
         # Linux/macOS: the umbrella is loaded globally; here just build the
         # per-test companion (test C + DPI-export stub) via iverilog-vpi.
-        ( cd /tmp && "$IVPI" --name="/tmp/uvm_dpi_${name}" $srcs ) \
-            >"/tmp/uvm_dpi_${name}.buildlog" 2>&1
-        dflags="$dflags -d /tmp/uvm_dpi_${name}.vpi"
+        ( cd "$UVM_TMP" && "$IVPI" --name="$UVM_TMP/uvm_dpi_${name}" $srcs ) \
+            >"$UVM_TMP/uvm_dpi_${name}.buildlog" 2>&1
+        dflags="$dflags -d $UVM_TMP/uvm_dpi_${name}.vpi"
     fi
     # Keep the process status: a crash that prints nothing is otherwise
     # indistinguishable from a silent loader or callback failure.
-    python3 "$RUN_LIMIT" "$timeout" -- "$VVP" $dflags "/tmp/uvm_test_${name}.vvp" $extra 2>&1
-    echo $? >"/tmp/uvm_rc_${name}"
+    python3 "$RUN_LIMIT" "$timeout" -- "$VVP" $dflags "$UVM_TMP/uvm_test_${name}.vvp" $extra 2>&1
+    echo $? >"$UVM_TMP/uvm_rc_${name}"
 }
 
 # Run one test and print its report. The verdict (PASS, FAIL or SKIP) goes
@@ -289,9 +298,9 @@ process_test() {
         return
     fi
 
-    if ! compile_test "$name" "$deadline" 2>"/tmp/uvm_compile_${name}.log"; then
+    if ! compile_test "$name" "$deadline" 2>"$UVM_TMP/uvm_compile_${name}.log"; then
         echo "COMPILE_FAIL"
-        sed 's/^/      | /' "/tmp/uvm_compile_${name}.log" | head -6
+        sed 's/^/      | /' "$UVM_TMP/uvm_compile_${name}.log" | head -6
         echo FAIL >"$status"
         return
     fi
@@ -333,10 +342,10 @@ process_test() {
         else
             echo "      > (vvp produced no output at all)"
         fi
-        echo "      > vvp exit status: $(cat "/tmp/uvm_rc_${name}" 2>/dev/null || echo unknown)"
-        if [ -s "/tmp/uvm_dpi_${name}.buildlog" ]; then
+        echo "      > vvp exit status: $(cat "$UVM_TMP/uvm_rc_${name}" 2>/dev/null || echo unknown)"
+        if [ -s "$UVM_TMP/uvm_dpi_${name}.buildlog" ]; then
             echo "      > per-test DPI build:"
-            sed 's/^/      | /' "/tmp/uvm_dpi_${name}.buildlog" | head -4
+            sed 's/^/      | /' "$UVM_TMP/uvm_dpi_${name}.buildlog" | head -4
         fi
         echo FAIL >"$status"
     fi
@@ -348,7 +357,8 @@ process_test() {
 # job limit polls `jobs' rather than using `wait -n', which the macOS
 # system bash (3.2) lacks.
 UVM_JOBS="${UVM_JOBS:-1}"
-RESULT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/uvm_results.XXXXXX")"
+RESULT_DIR="$UVM_TMP/results"
+mkdir "$RESULT_DIR" || exit 1
 NAMES=""
 for sv in $TESTS/*.sv; do
     name=$(basename "$sv" .sv)
@@ -391,9 +401,9 @@ else
     # Repeat the umbrella build error next to the summary so the exact link
     # residue (e.g. the DPI-export dispatchers Windows cannot bind) is visible
     # in a truncated CI log tail, not only at the top of the step.
-    if [ -s /tmp/uvm_dpi_build.log ]; then
+    if [ -s "$UVM_TMP/uvm_dpi_build.log" ]; then
         echo "  --- umbrella build log (tail) ---"
-        tail -12 /tmp/uvm_dpi_build.log | sed 's/^/  | /'
+        tail -12 "$UVM_TMP/uvm_dpi_build.log" | sed 's/^/  | /'
     fi
 fi
 echo "UVM regression: $PASS passed, $FAIL failed, $SKIP skipped"

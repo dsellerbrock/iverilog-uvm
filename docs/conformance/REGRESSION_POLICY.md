@@ -61,8 +61,10 @@ tests most likely to expose the defect.
 
 Fast-failure order: reproducer -> adjacent micro -> Tier 1 -> Tier 2 ->
 smoke -> full. Stop escalation on the first failure; fix first. Do not run
-UVM batches concurrently (shared `/tmp/uvm_dpi_iv.vpi`; historical
-load-flake: m9h_combinator under parallel load). Cache: record full-UVM
+UVM batches concurrently (historical load-flake: m9h_combinator under
+parallel load). Each `uvm_test.sh` run keeps its DPI library and .vvp files
+in its own `mktemp -d` directory under `$TMPDIR`, so concurrent runs no
+longer share or delete each other's files. Cache: record full-UVM
 passes with exact tool/input fingerprints in the qualification record;
 [CURRENT_WORK](CURRENT_WORK.md) links it. Reuse identical validated evidence;
 changed tools, inputs, or unresolved concerns require fresh checks.
