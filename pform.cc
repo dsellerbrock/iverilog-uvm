@@ -21249,6 +21249,10 @@ static bool sva_prop_is_plain_seq_(const sva_property_t*prop)
 static sva_stree_t* sva_prop_take_tree_(const struct vlltype&loc, sva_property_t*p);
 static bool sva_prop_is_property_shaped_(const sva_property_t*p);
 static bool sva_leaf_names_property_(const sva_property_t*p);
+static sva_property_t* sva_clone_property_(const struct vlltype&loc,
+		const sva_property_t*src,
+		const std::map<perm_string,PExpr*>*subst = nullptr,
+		const std::map<perm_string,const PEventStatement*>*event_subst = nullptr);
 
 /* A property operator over full properties (and/or, if-else, an abort)
    as an implication consequent (A.2.10): build the per-attempt
@@ -22134,6 +22138,36 @@ sva_property_t* pform_sva_prop_not(const struct vlltype&loc,
 				   sva_property_t*sub)
 {
       if (!sub) return nullptr;
+      std::set<sva_scoped_name_t> visited;
+      while (sva_seq_names_property_(sub)) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(sub->seq->front().expr);
+	    if (!id) {
+		  return sva_nested_prop_sorry_(loc, "not", "16.12.9", sub);
+	    }
+	    auto it = sva_resolve_(sva_module_properties, id->path().name.front().name);
+	    if (it == sva_module_properties.end() || !it->second
+		|| !visited.insert(it->first).second) {
+		  return sva_nested_prop_sorry_(loc, "not", "16.12.9", sub);
+	    }
+	    if (it->second->disable_iff_expr) {
+		  cerr << loc << ": error: a property instance with a `disable iff' "
+		       << "clause cannot be an operand of another property "
+		       << "(IEEE 1800-2017/2023 16.12.1)." << endl;
+		  error_count += 1;
+		  pform_sva_destroy_property(sub);
+		  return nullptr;
+	    }
+	    sva_property_t*body = sva_clone_property_(loc, it->second);
+	    pform_sva_destroy_property(sub);
+	    if (!body) {
+		  cerr << loc << ": sorry: a named property operand cannot be instantiated here." << endl;
+		  error_count += 1;
+		  return nullptr;
+	    }
+	    sub = body;
+	    if (!sub->local_names.empty())
+		  return sva_nested_prop_sorry_(loc, "not", "16.12.9", sub);
+      }
       if (!sva_prop_is_plain_seq_(sub))
 	    return sva_nested_prop_sorry_(loc, "not", "16.12.9", sub);
 
@@ -33207,8 +33241,8 @@ static bool sva_prop_is_property_shaped_(const sva_property_t*p)
    no clone recipe. */
 static sva_property_t* sva_clone_property_(const struct vlltype&loc,
 		const sva_property_t*src,
-		const std::map<perm_string,PExpr*>*subst = nullptr,
-		const std::map<perm_string,const PEventStatement*>*event_subst = nullptr)
+		const std::map<perm_string,PExpr*>*subst,
+		const std::map<perm_string,const PEventStatement*>*event_subst)
 {
       if (!src) return nullptr;
       std::map<perm_string,PExpr*> no_subst;
