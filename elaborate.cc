@@ -20311,7 +20311,7 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 				    obj_expr->set_line(*this);
 			      } else {
 				    PEIdent *obj_id = new PEIdent(obj_path,
-							    /*lexical_pos*/0);
+							    UINT_MAX);
 				    obj_id->set_file(get_file());
 				    obj_id->set_lineno(get_lineno());
 				    obj_expr = obj_id->elaborate_expr(des, scope,
