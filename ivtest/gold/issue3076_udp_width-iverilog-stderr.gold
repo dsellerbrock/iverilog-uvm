@@ -1,0 +1,3 @@
+ivltests/issue3076_udp_width.v:4: error: UDP initial value must be a single-bit literal.
+ivltests/issue3076_udp_width.v:17: error: UDP initial value must be a single-bit literal.
+ivltests/issue3076_udp_width.v:22: error: UDP initial value must be a single-bit literal.
