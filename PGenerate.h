@@ -62,6 +62,7 @@ class PGenerate : public PNamedItem, public LexicalScope {
 	// implicit.
       const unsigned id_number;
       perm_string scope_name;
+      bool implicit_name;
 
 	// This is used during parsing to stack lexical scopes within
 	// this generate scheme.

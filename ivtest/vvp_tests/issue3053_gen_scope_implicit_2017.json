@@ -1,0 +1,16 @@
+{
+  "type": "normal",
+  "source": "issue3053_gen_scope_implicit.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "vpi-modules": [
+    "issue3053_gen_scope_implicit_2017"
+  ],
+  "vpi-sources": [
+    "vpi/issue3053_gen_scope_implicit.c"
+  ],
+  "output-contains": [
+    "PASSED"
+  ]
+}

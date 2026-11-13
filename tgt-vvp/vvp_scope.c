@@ -3688,7 +3688,15 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    if (ivl_scope_is_auto(net) && !ivl_scope_auto_frame(net))
 		  snprintf(suffix, sizeof suffix, ".shared");
 	    break;
-      case IVL_SCT_GENERATE: type = "generate"; break;
+      case IVL_SCT_GENERATE:
+            type = "generate";
+            for (idx = 0; idx < ivl_scope_attr_cnt(net); idx += 1) {
+                  ivl_attribute_t attr = ivl_scope_attr_val(net, idx);
+                  if (strcmp(attr->key, "_ivl_vpi_implicit_decl") == 0
+                      && attr->type == IVL_ATT_NUM && attr->val.num == 1)
+                        type = "generate.implicit";
+            }
+            break;
       case IVL_SCT_PACKAGE:  type = "package";  break;
       case IVL_SCT_CLASS:    type = "class";    break;
       default:               type = "?";        assert(0);

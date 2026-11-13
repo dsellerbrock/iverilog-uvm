@@ -3617,6 +3617,7 @@ void pform_endgenerate(bool end_conditional)
 	// the naming scheme used here is changed, PGenerate::elaborate
 	// must be changed to match.
       if (pform_cur_generate->scope_name == 0) {
+	    pform_cur_generate->implicit_name = true;
 	    char tmp[16];
 	    snprintf(tmp, sizeof tmp, "$gen%u", pform_cur_generate->id_number);
 	    pform_cur_generate->scope_name = lex_strings.make(tmp);

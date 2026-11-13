@@ -5941,6 +5941,9 @@ bool PGenerate::generate_scope_loop_(Design*des, NetScope*container)
 	    NetScope*scope = new NetScope(container, use_name,
 					  NetScope::GENBLOCK);
 	    scope->set_generate_definition(this);
+	    if (implicit_name)
+		  scope->attribute(perm_string::literal("_ivl_vpi_implicit_decl"),
+		                   verinum((uint64_t)1, 1));
 	    scope->set_line(get_file(), get_lineno());
 	    scope->add_imports(&explicit_imports);
 
@@ -6021,6 +6024,9 @@ bool PGenerate::generate_scope_condit_(Design*des, NetScope*container, bool else
 	// for myself. That is what I will pass to the subscope.
       NetScope*scope = new NetScope(container, use_name, NetScope::GENBLOCK);
       scope->set_generate_definition(this);
+      if (implicit_name)
+	    scope->attribute(perm_string::literal("_ivl_vpi_implicit_decl"),
+	                     verinum((uint64_t)1, 1));
       scope->set_line(get_file(), get_lineno());
       scope->add_imports(&explicit_imports);
 
@@ -6148,6 +6154,9 @@ bool PGenerate::generate_scope_case_(Design*des, NetScope*container)
       NetScope*scope = new NetScope(container, use_name,
 				    NetScope::GENBLOCK);
       scope->set_generate_definition(item);
+      if (item->implicit_name)
+	    scope->attribute(perm_string::literal("_ivl_vpi_implicit_decl"),
+	                     verinum((uint64_t)1, 1));
       scope->set_line(get_file(), get_lineno());
       scope->add_imports(&explicit_imports);
 
@@ -6166,6 +6175,9 @@ bool PGenerate::generate_scope_nblock_(Design*des, NetScope*container)
       NetScope*scope = new NetScope(container, use_name,
 				    NetScope::GENBLOCK);
       scope->set_generate_definition(this);
+      if (implicit_name)
+	    scope->attribute(perm_string::literal("_ivl_vpi_implicit_decl"),
+	                     verinum((uint64_t)1, 1));
       scope->set_line(get_file(), get_lineno());
       scope->add_imports(&explicit_imports);
 

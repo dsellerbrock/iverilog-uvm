@@ -26,6 +26,7 @@ using namespace std;
 PGenerate::PGenerate(LexicalScope*parent, unsigned id)
 : LexicalScope(parent), id_number(id)
 {
+      implicit_name = false;
       scheme_type = GS_NONE;
       directly_nested = false;
       local_index = false;

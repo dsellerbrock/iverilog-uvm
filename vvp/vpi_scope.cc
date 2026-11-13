@@ -1540,9 +1540,15 @@ class vpiScopeLoop : public __vpiScope {
 };
 
 struct vpiScopeGenerate  : public __vpiScope {
-      inline vpiScopeGenerate(const char*nam, const char*tnam)
-      : __vpiScope(nam,tnam) { }
+      inline vpiScopeGenerate(const char*nam, const char*tnam, bool implicit)
+      : __vpiScope(nam,tnam), implicit_(implicit) { }
       int get_type_code(void) const override { return vpiGenScope; }
+      int vpi_get(int code) override
+      {
+            if (code == vpiImplicitDecl) return implicit_ ? 1 : 0;
+            return __vpiScope::vpi_get(code);
+      }
+      bool implicit_;
 };
 
 struct vpiScopeFork  : public __vpiScope {
@@ -3557,8 +3563,9 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	          scope->set_owns_automatic_context();
       } else if (strcmp(type,"autoforeach.shared") == 0) {
 	    scope = new vpiScopeLoop(name, tname, true, true, vpiForeachStmt);
-      } else if (strcmp(type,"generate") == 0) {
-	    scope = new vpiScopeGenerate(name, tname);
+      } else if (strcmp(type,"generate") == 0 || strcmp(type,"generate.implicit") == 0) {
+	    scope = new vpiScopeGenerate(name, tname,
+	                                 strcmp(type,"generate.implicit") == 0);
       } else if (strcmp(type,"package") == 0) {
 	    scope = new vpiScopePackage(name, tname);
       } else if (strcmp(type,"class") == 0) {
