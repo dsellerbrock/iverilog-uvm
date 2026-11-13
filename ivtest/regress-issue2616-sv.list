@@ -1,0 +1,2 @@
+issue2616_queue_part_store normal,-g2017,-s,top ivltests gold=issue2616_queue_part_store.gold
+issue2616_queue_part_store_2023 normal,-g2023,-s,top ivltests gold=issue2616_queue_part_store.gold

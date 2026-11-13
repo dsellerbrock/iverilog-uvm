@@ -640,6 +640,7 @@ extern bool of_STORE_DAR_R(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_STR(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t code);
+extern bool of_STORE_DAR_VEC4_OFF_2(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_DAR_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_STORE_OBJ_OPEN(vthread_t thr, vvp_code_t code);

@@ -4087,17 +4087,29 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 	    int mux_word = allocate_word();
 	    int off_word = allocate_word();
 	    int flag = allocate_flag();
+	    int off_flag = allocate_flag();
+	    unsigned done = local_count++;
 
 	    draw_eval_expr_into_integer(mux, 3);
 	    fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
 	    fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
 	    draw_eval_expr_into_integer(part, off_word);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4;\n", off_flag);
 	    draw_eval_vec4(rval);
 	    resize_vec4_wid(rval, lwid);
+	    if (ivl_type_base(element_type) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
+		    thread_count, done, off_flag);
+	    fprintf(vvp_out, "    %%ix/load %d, 0, 2147483648; invalid part select\n",
+		    off_word);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
 	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
 	    fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
-	    fprintf(vvp_out, "    %%store/dar/vec4/off v%p_0, %d, %u;\n",
+	    fprintf(vvp_out, "    %%store/dar/vec4/off%s v%p_0, %d, %u;\n",
+		    ivl_type_base(element_type) == IVL_VT_BOOL ? "/2" : "",
 		    var, off_word, lwid);
+	    clr_flag(off_flag);
 	    clr_flag(flag);
 	    clr_word(off_word);
 	    clr_word(mux_word);

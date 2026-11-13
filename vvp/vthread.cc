@@ -35369,20 +35369,12 @@ bool of_STORE_DAR_VEC4(vthread_t thr, vvp_code_t cp)
  * integer register 3 (as for %store/dar/vec4); flag 4 marks an undefined
  * address. <wid> is the value width.
  */
-bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
+static bool store_dar_vec4_off(vthread_t thr, vvp_code_t cp, bool two_state)
 {
       int64_t adr = thr->words[3].w_int;
       int64_t soff = thr->words[cp->bit_idx[0]].w_int;
       unsigned wid = cp->bit_idx[1];
       vvp_vector4_t value = thr->pop_vec4();
-
-      if (soff < 0) {
-	    cerr << thr->get_fileline()
-	         << "Warning: negative bit offset into a darray element "
-	            "part-select is ignored." << endl;
-	    return true;
-      }
-      unsigned off = (unsigned) soff;
 
       vvp_net_t*net = cp->net;
       assert(net);
@@ -35404,6 +35396,36 @@ bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 	    /* Diagnosed no-op: never narrow ADR below. */
       }
       else if (darray) {
+	    vvp_queue*queue = dynamic_cast<vvp_queue*>(darray);
+	    if (queue) {
+		  if (soff >= static_cast<int64_t>(obj->size()) ||
+		      soff <= -static_cast<int64_t>(wid)) {
+			if (static_cast<size_t>(adr) > queue->get_size()) {
+			      vvp_vector4_t missing(obj->size(), two_state ? BIT4_0 : BIT4_X);
+			      queue->set_word_max(adr, missing, live_queue_max_count_(queue));
+			}
+			return true;
+		  }
+		  unsigned skip = soff < 0 ? static_cast<unsigned>(-soff) : 0;
+		  unsigned off = soff < 0 ? 0 : static_cast<unsigned>(soff);
+		  unsigned count = min(wid - skip, obj->size() - off);
+		  vvp_vector4_t elem;
+		  if (static_cast<size_t>(adr) >= queue->get_size())
+			elem = vvp_vector4_t(obj->size(), two_state ? BIT4_0 : BIT4_X);
+		  else
+			queue->get_word(adr, elem);
+		  elem.set_vec(off, value.subvalue(skip, count));
+		  queue->set_word_max(adr, elem, live_queue_max_count_(queue));
+		  notify_mutated_object_signal_(thr, net, "store-dar-off");
+		  return true;
+	    }
+	    if (soff < 0) {
+		  cerr << thr->get_fileline()
+		       << "Warning: negative bit offset into a darray element "
+		          "part-select is ignored." << endl;
+		  return true;
+	    }
+	    unsigned off = (unsigned) soff;
 	    vvp_vector4_t elem;
 	    darray->get_word(adr, elem);
 	      // Safety net: a never-written element may come back narrower
@@ -35425,6 +35447,16 @@ bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 	    notify_mutated_object_signal_(thr, net, "store-dar-off");
 
       return true;
+}
+
+bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
+{
+      return store_dar_vec4_off(thr, cp, false);
+}
+
+bool of_STORE_DAR_VEC4_OFF_2(vthread_t thr, vvp_code_t cp)
+{
+      return store_dar_vec4_off(thr, cp, true);
 }
 
 /*

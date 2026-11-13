@@ -6762,3 +6762,5 @@ issue3008_action_nested_2017 CE,-g2017,-gassertions,-s,issue3008_action_nested i
 issue3008_action_nested_2023 CE,-g2023,-gassertions,-s,issue3008_action_nested ivltests gold=issue3008_action_nested.gold
 issue3008_action_immediate_2017 normal,-g2017,-gassertions,-s,issue3008_action_immediate ivltests gold=issue3008_action_immediate.gold
 issue3008_action_immediate_2023 normal,-g2023,-gassertions,-s,issue3008_action_immediate ivltests gold=issue3008_action_immediate.gold
+issue2616_queue_part_store normal,-g2017,-s,top ivltests gold=issue2616_queue_part_store.gold
+issue2616_queue_part_store_2023 normal,-g2023,-s,top ivltests gold=issue2616_queue_part_store.gold
