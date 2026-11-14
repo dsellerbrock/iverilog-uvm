@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3218_stream_array_struct_2023.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue3218_stream_array_struct"
+}
