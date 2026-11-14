@@ -52475,6 +52475,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  source_cp = &candidate;
 						  break;
 					    }
+				      if (source_cp && source_cp != &cp) {
+					    cerr << "error: covergroup bin '" << bin.name
+						 << "' of coverpoint '" << cp.label
+						 << "' names coverpoint '" << bin.source_coverpoint
+						 << "': only the coverpoint containing the bin may "
+						    "be named (IEEE 1800-2017/2023 19.5.1.1)." << endl;
+					    des->errors += 1;
+					    continue;
+				      }
 				      unsigned source_width = 0;
 				      if (source_cp && source_cp->expr) {
 					      // A selected packed identifier carries its semantic
