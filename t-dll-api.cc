@@ -3167,6 +3167,16 @@ extern "C" ivl_scope_t ivl_scope_mod_module_port_iface(ivl_scope_t net,
       return (*net->aux_->port_ifaces)[idx].first;
 }
 
+extern "C" ivl_expr_t ivl_scope_mod_module_port_lowconn(ivl_scope_t net,
+							unsigned idx)
+{
+      assert(net);
+      if (!net->aux_ || !net->aux_->port_lowconns
+	  || idx >= net->aux_->port_lowconns->size())
+	    return 0;
+      return (*net->aux_->port_lowconns)[idx];
+}
+
 extern "C" const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx )
 {
       assert(net);

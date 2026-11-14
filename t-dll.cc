@@ -1326,6 +1326,19 @@ void dll_target::make_scope_contassigns_(ivl_scope_t scope)
 	    else
 		  scope->ensure_aux_()->defparams = list;
       }
+	/* Port expression formals, for vpiLowConn (37.14). */
+      if (net && !net->port_lowconns.empty()) {
+	    std::vector<ivl_expr_t>*list = new std::vector<ivl_expr_t>(
+		  net->port_lowconns.size(), (ivl_expr_t)0);
+	    for (size_t idx = 0; idx < net->port_lowconns.size(); idx += 1) {
+		  if (!net->port_lowconns[idx]) continue;
+		  assert(expr_ == 0);
+		  net->port_lowconns[idx]->expr_scan(this);
+		  (*list)[idx] = expr_;
+		  expr_ = 0;
+	    }
+	    scope->ensure_aux_()->port_lowconns = list;
+      }
 	/* Port actuals, for vpiHighConn (37.14). */
       if (net && !net->port_highconns.empty()) {
 	    std::vector<ivl_expr_t>*list = new std::vector<ivl_expr_t>(

@@ -615,7 +615,8 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 		  fprintf(vvp_out, " .vpi_port_conn %u, 2, S_%p;\n", idx, iface);
       }
       for (idx = 0; !any && idx < nports; idx += 1)
-	    any = ivl_scope_mod_module_port_highconn(scope, idx) != 0;
+	    any = ivl_scope_mod_module_port_highconn(scope, idx) != 0
+		  || ivl_scope_mod_module_port_lowconn(scope, idx) != 0;
       if (!any) return;
       thread_count = static_thunk_count_++;
       local_count = 0;
@@ -634,6 +635,12 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 	    char*text = high ? draw_lazy_expr_(high) : 0;
 	    if (text)
 		  fprintf(vvp_out, " .vpi_port_conn %u, 1, %s;\n", idx, text);
+	    free(text);
+	      /* A port expression formal is its vpiLowConn (23.2.2.1). */
+	    ivl_expr_t low = ivl_scope_mod_module_port_lowconn(scope, idx);
+	    text = low ? draw_lazy_expr_(low) : 0;
+	    if (text)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 4, %s;\n", idx, text);
 	    free(text);
       }
       for (idx = 0; idx < ivl_scope_defparams(scope); idx += 1) {

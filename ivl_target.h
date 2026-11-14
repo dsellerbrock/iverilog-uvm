@@ -2194,6 +2194,10 @@ extern ivl_expr_t ivl_scope_mod_module_port_highconn(ivl_scope_t net, unsigned i
      for none); NULL for any other port (IEEE 1800-2023 37.14, 37.15). */
 extern ivl_scope_t ivl_scope_mod_module_port_iface(ivl_scope_t net, unsigned idx,
 						   const char**modport);
+  /* The formal of port IDX when it is a port expression (a select or a
+     concatenation, IEEE 1800-2023 23.2.2.1) rather than a plain name,
+     elaborated in this scope (vpiLowConn, 37.14); NULL otherwise. */
+extern ivl_expr_t ivl_scope_mod_module_port_lowconn(ivl_scope_t net, unsigned idx);
 extern ivl_signal_port_t ivl_scope_mod_module_port_type(ivl_scope_t net, unsigned idx );
 extern int ivl_scope_mod_module_port_vpi_type(ivl_scope_t net, unsigned idx );
 extern unsigned ivl_scope_mod_module_port_width(ivl_scope_t net, unsigned idx );
