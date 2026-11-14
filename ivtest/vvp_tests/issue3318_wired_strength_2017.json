@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3318_wired_strength.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "top"
+  ],
+  "gold": "issue3318_wired_strength_2017"
+}
