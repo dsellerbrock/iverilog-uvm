@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2795_monitor_string.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "issue2795_monitor_string"
+}
