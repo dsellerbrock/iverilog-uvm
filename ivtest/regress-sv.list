@@ -6867,3 +6867,5 @@ issue3213_slice_dynamic_type_fail_2023 CE,-g2023,-s,main ivltests gold=issue3213
 
 issue3194_readmem_enum normal,-g2017,-s,issue3194_readmem_enum ivltests gold=issue3194_readmem_enum.gold
 issue3194_readmem_enum_2023 normal,-g2023,-s,issue3194_readmem_enum ivltests gold=issue3194_readmem_enum.gold
+issue3214_nexttime_named_2017 normal,-g2017,-gassertions,-s,main ivltests gold=issue3214_nexttime_named.gold
+issue3214_nexttime_named_2023 normal,-g2023,-gassertions,-s,main ivltests gold=issue3214_nexttime_named.gold
