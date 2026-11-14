@@ -201,6 +201,19 @@ void draw_enumeration_in_scope(ivl_enumtype_t enumtype);
 extern void draw_switch_in_scope(ivl_switch_t sw);
 extern void draw_vpi_objects_in_scope(ivl_scope_t scope);
 
+/*
+ * The expressions of a procedural statement (.stmt_expr relations, IEEE
+ * 1800-2023 37.64, 37.78, 37.79). Each returns the handle text, or nil for
+ * a shape no VPI argument describes. vpi_stmt_exprs_flag says whether the
+ * design asked for them: they cost a .vpi_expr record and a second copy of
+ * the evaluation code per operation, so they are generated only when the
+ * design is compiled with a user VPI module (-m), the only thing that can
+ * look at them (owner ruling 2026-11-14).
+ */
+extern int vpi_stmt_exprs_flag;
+extern char* draw_vpi_stmt_expr(ivl_expr_t expr);
+extern char* draw_vpi_stmt_lval(ivl_statement_t stmt);
+
 /* Draw_net_input and friends uses this. */
 struct vvp_nexus_data {
 	/* draw_net_input uses this */

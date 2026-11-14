@@ -810,6 +810,31 @@ __inline__ static void draw_execute_header(ivl_design_t des)
             fprintf(vvp_out, ":ivl_systemverilog;\n");
 }
 
+int vpi_stmt_exprs_flag = 0;
+
+/* Is NAME (a path, perhaps with a .vpi suffix) one of the VPI modules the
+   driver always loads, as opposed to one the user named with -m? */
+static int standard_vpi_module_(const char*name)
+{
+      static const char*const standard[] = {
+	    "system", "vhdl_sys", "vhdl_textio", "v2005_math", "va_math",
+	    "v2009", 0 };
+      const char*base = strrchr(name, '/');
+      const char*alt = strrchr(name, '\\');
+      const char*dot;
+      size_t len;
+      unsigned idx;
+      if (alt && (!base || alt > base)) base = alt;
+      base = base ? base + 1 : name;
+      dot = strrchr(base, '.');
+      len = dot ? (size_t)(dot - base) : strlen(base);
+      for (idx = 0; standard[idx]; idx += 1)
+	    if (strlen(standard[idx]) == len
+		&& strncmp(standard[idx], base, len) == 0)
+		  return 1;
+      return 0;
+}
+
 __inline__ static void draw_module_declarations(ivl_design_t des)
 {
       const char*cp = ivl_design_flag(des, "VPI_MODULE_LIST");
@@ -823,6 +848,8 @@ __inline__ static void draw_module_declarations(ivl_design_t des)
 	    char*buffer = malloc(comma - cp + 1);
 	    strncpy(buffer, cp, comma-cp);
 	    buffer[comma-cp] = 0;
+	    if (!standard_vpi_module_(buffer))
+		  vpi_stmt_exprs_flag = 1;
 	    fprintf(vvp_out, ":vpi_module \"%s\";\n", buffer);
 	    free(buffer);
 

@@ -47,10 +47,15 @@ using namespace std;
 
 class __vpiForceReleaseStmt : public __vpiHandle {
     public:
-      __vpiForceReleaseStmt(bool force_, long file_idx_, long lineno_)
-          : force(force_), file_idx(file_idx_), lineno(lineno_) { }
+      __vpiForceReleaseStmt(bool force_, long file_idx_, long lineno_,
+			    vpiHandle node_)
+          : force(force_), file_idx(file_idx_), lineno(lineno_), node(node_) { }
       int get_type_code(void) const override
           { return force ? vpiForce : vpiRelease; }
+	// The expressions (vpiLhs, vpiRhs) are kept by the statement node.
+      vpiHandle vpi_handle(int code) override
+          { return node ? node->vpi_handle(code)
+			: __vpiHandle::vpi_handle(code); }
       int vpi_get(int code) override
           { return code == vpiLineNo ? lineno : __vpiHandle::vpi_get(code); }
       char* vpi_get_str(int code) override
@@ -62,6 +67,7 @@ class __vpiForceReleaseStmt : public __vpiHandle {
       bool force;
       long file_idx;
       long lineno;
+      vpiHandle node;
 };
 
 static thread_local vpiHandle current_force_statement = 0;
@@ -187,7 +193,12 @@ vpiHandle vpip_set_force_statement(vpiHandle statement)
 
 vpiHandle vpip_build_force_statement(bool force, long file_idx, long lineno)
 {
-      return new __vpiForceReleaseStmt(force, file_idx, lineno);
+	/* The statement's own node was named by the .stmt_at that precedes
+	   its code. */
+      vpiHandle node = vpip_last_statement_node();
+      if (node && node->get_type_code() != (force ? vpiForce : vpiRelease))
+	    node = 0;
+      return new __vpiForceReleaseStmt(force, file_idx, lineno, node);
 }
 
 static const char*cb_reason_name(PLI_INT32 reason)

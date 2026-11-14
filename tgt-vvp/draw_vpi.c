@@ -648,6 +648,157 @@ static unsigned contassign_count_ = 0;
    start far above any real thread, so the real threads keep their labels. */
 static unsigned static_thunk_count_ = 1u << 30;
 
+/* Does EXPR call a system function anywhere? */
+static int expr_calls_sfunc_(ivl_expr_t expr)
+{
+      unsigned idx;
+      if (!expr) return 0;
+      switch (ivl_expr_type(expr)) {
+	  case IVL_EX_SFUNC:
+	    return 1;
+	  case IVL_EX_UFUNC:
+	  case IVL_EX_CONCAT:
+	    for (idx = 0; idx < ivl_expr_parms(expr); idx += 1)
+		  if (expr_calls_sfunc_(ivl_expr_parm(expr, idx))) return 1;
+	    return 0;
+	  case IVL_EX_BINARY:
+	  case IVL_EX_SELECT:
+	    return expr_calls_sfunc_(ivl_expr_oper1(expr))
+		  || expr_calls_sfunc_(ivl_expr_oper2(expr));
+	  case IVL_EX_UNARY:
+	  case IVL_EX_SIGNAL:
+	    return expr_calls_sfunc_(ivl_expr_oper1(expr));
+	  case IVL_EX_TERNARY:
+	    return expr_calls_sfunc_(ivl_expr_oper1(expr))
+		  || expr_calls_sfunc_(ivl_expr_oper2(expr))
+		  || expr_calls_sfunc_(ivl_expr_oper3(expr));
+	  default:
+	    return 0;
+      }
+}
+
+/* The handle of EXPR for a statement relation. Its evaluation code is not
+   part of the statement's thread, so it is drawn like the scope-level
+   expression objects, under a pseudo-thread number. An expression that
+   calls a system function gets no handle: the evaluation code would be a
+   second call site of that function, with a compiletf call and call-site
+   state of its own, which the design does not have. */
+char* draw_vpi_stmt_expr(ivl_expr_t expr)
+{
+      unsigned save_local = local_count, save_thread = thread_count;
+      char*text;
+      if (!expr || expr_calls_sfunc_(expr)) return 0;
+      thread_count = static_thunk_count_++;
+      local_count = 0;
+      text = draw_lazy_expr_(expr);
+      local_count = save_local;
+      thread_count = save_thread;
+      return text;
+}
+
+/* The handle of one l-value: a whole variable, a word of an array at a
+   constant index, or a constant part select of a variable. */
+static char* draw_vpi_lval_(ivl_lval_t lval)
+{
+      char buffer[96];
+      ivl_signal_t sig = ivl_lval_sig(lval);
+      ivl_expr_t word = ivl_lval_idx(lval);
+      ivl_expr_t part = ivl_lval_part_off(lval);
+
+      if (!sig || ivl_lval_nest(lval) || ivl_lval_property_idx(lval) >= 0)
+	    return 0;
+      if (ivl_signal_dimensions(sig) > 0) {
+	    if (!word || part || !number_is_immediate(word, 8*sizeof(long), 0)
+		|| number_is_unknown(word))
+		  return 0;
+	    snprintf(buffer, sizeof buffer, "&A<v%p, %ld>", sig,
+		     get_number_immediate(word));
+	    return strdup(buffer);
+      }
+      if (word)
+	    return 0;
+      if (!part) {
+	    snprintf(buffer, sizeof buffer, "v%p_0", sig);
+	    return strdup(buffer);
+      }
+      if (!number_is_immediate(part, 8*sizeof(long), 0)
+	  || number_is_unknown(part))
+	    return 0;
+      snprintf(buffer, sizeof buffer, "&PV<v%p_0, %ld, %u>", sig,
+	       get_number_immediate(part), ivl_lval_width(lval));
+      return strdup(buffer);
+}
+
+/* The l-value of STMT. Several l-values are a concatenation (37.64 detail:
+   vpiLhs is an expression): a vpiConcatOp whose operands are the parts in
+   source order and whose value reads the parts. Only whole static
+   variables can be read that way. */
+char* draw_vpi_stmt_lval(ivl_statement_t stmt)
+{
+      unsigned nlval = ivl_stmt_lvals(stmt), idx, width = 0, label, thunk, skip;
+      unsigned save_local, save_thread;
+      char**ops;
+      char buffer[64];
+
+      if (nlval == 0) return 0;
+      if (nlval == 1) return draw_vpi_lval_(ivl_stmt_lval(stmt, 0));
+
+      ops = calloc(nlval, sizeof(char*));
+      for (idx = 0; idx < nlval; idx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(stmt, idx);
+	    ivl_signal_t sig = ivl_lval_sig(lval);
+	    if (!sig || ivl_signal_dimensions(sig) > 0 || ivl_lval_idx(lval)
+		|| ivl_lval_part_off(lval) || ivl_lval_nest(lval)
+		|| ivl_signal_data_type(sig) == IVL_VT_REAL
+		|| ivl_signal_data_type(sig) == IVL_VT_STRING
+		|| ivl_scope_is_auto(ivl_signal_scope(sig))
+		|| !(ops[idx] = draw_vpi_lval_(lval)))
+		  break;
+	    width += ivl_lval_width(lval);
+      }
+      if (idx < nlval) {
+	    for (idx = 0; idx < nlval; idx += 1) free(ops[idx]);
+	    free(ops);
+	    return 0;
+      }
+
+      save_local = local_count;
+      save_thread = thread_count;
+      thread_count = static_thunk_count_++;
+      local_count = 0;
+      label = lazy_expr_count_++;
+      thunk = local_count++;
+      skip = local_count++;
+	/* The l-values are kept least significant first; the source, and
+	   so the operand list and the text, has them most significant
+	   first. */
+      fprintf(vvp_out, "XE_%u .vpi_expr %d, 33, %u, \"v\", T_%u.%u, \"{",
+	      label, LAZY_vpiOperation, width, thread_count, thunk);
+      for (idx = nlval; idx > 0; idx -= 1)
+	    fprintf(vvp_out, "%s%s", idx < nlval ? ", " : "",
+		    ivl_signal_basename(ivl_lval_sig(ivl_stmt_lval(stmt, idx-1))));
+      fprintf(vvp_out, "}\"");
+      for (idx = nlval; idx > 0; idx -= 1)
+	    fprintf(vvp_out, ", %s", ops[idx-1]);
+      fprintf(vvp_out, ";\n");
+	/* As in draw_lazy_expr_, the code sits out of line. */
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, skip);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, thunk);
+      for (idx = nlval; idx > 0; idx -= 1) {
+	    fprintf(vvp_out, "    %%load/vec4 %s;\n", ops[idx-1]);
+	    if (idx < nlval)
+		  fprintf(vvp_out, "    %%concat/vec4; draw_concat_vec4\n");
+      }
+      fprintf(vvp_out, "    %%end;\n");
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, skip);
+      for (idx = 0; idx < nlval; idx += 1) free(ops[idx]);
+      free(ops);
+      local_count = save_local;
+      thread_count = save_thread;
+      snprintf(buffer, sizeof buffer, "XE_%u", label);
+      return strdup(buffer);
+}
+
 /* Emit the VPI objects of SCOPE that describe source expressions: a
    .vpi_contassign record for each continuous assignment (IEEE 1800-2023
    37.47), a .vpi_param_expr record for each parameter whose default is

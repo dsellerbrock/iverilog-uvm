@@ -625,6 +625,9 @@ vpiHandle __vpiStmtNode::vpi_handle(int code)
 {
       if (code == vpiParent) return parent_;
       if (code == vpiScope) return scope_;
+      for (size_t idx = 0; idx < exprs_.size(); idx += 1)
+	    if (exprs_[idx].first == code)
+		  return *exprs_[idx].second;
       return __vpiHandle::vpi_handle(code);
 }
 
@@ -3358,6 +3361,32 @@ void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
       delete[] name;
 }
 
+void compile_stmt_expr(uint64_t id, uint64_t code, unsigned argc,
+		       vpiHandle*argv)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      __vpiStmtNode*node = 0;
+      std::map<uint64_t, vpiHandle>::iterator found;
+      if (scope && (found = scope->statement_node_by_id.find(id))
+		   != scope->statement_node_by_id.end())
+	    node = dynamic_cast<__vpiStmtNode*>(found->second);
+      if (!node || argc != 1 || code > INT_MAX) {
+	    yyerror("invalid .stmt_expr metadata");
+	    compile_errors += 1;
+	    return;
+      }
+      node->add_expr(static_cast<int>(code), argv);
+}
+
+/* The statement node the latest .stmt_at named: the statement whose code
+   is being loaded. */
+static vpiHandle last_statement_node_ = 0;
+
+vpiHandle vpip_last_statement_node(void)
+{
+      return last_statement_node_;
+}
+
 void compile_stmt_at(uint64_t id)
 {
       __vpiScope*scope = vpip_peek_current_scope();
@@ -3377,6 +3406,7 @@ void compile_stmt_at(uint64_t id)
 	    return;
       }
 
+      last_statement_node_ = node;
       vvp_code_t code = codespace_next();
       for (size_t idx = 0; idx < node->code_addresses_.size(); idx += 1)
 	    if (node->code_addresses_[idx] == code) return;

@@ -9219,6 +9219,44 @@ static int vpi_statement_visible_(ivl_statement_t stmt)
       }
 }
 
+/* One .stmt_expr record: statement ID has the expression TEXT under the
+   VPI relation CODE. Takes TEXT. */
+static void emit_vpi_stmt_expr_(uint64_t id, int code, char*text)
+{
+      if (!text) return;
+      fprintf(vvp_out, "    .stmt_expr %" PRIu64 " %d, %s;\n", id, code, text);
+      free(text);
+}
+
+/* The expressions of a statement: the two sides of a procedural or
+   procedural continuous assignment and of a force (IEEE 1800-2023 37.64,
+   37.79), the l-value of a deassign or release, and the value of a return
+   statement (37.78). */
+static void emit_vpi_stmt_exprs_(ivl_statement_t stmt, uint64_t id)
+{
+      switch (ivl_statement_type(stmt)) {
+	  case IVL_ST_ASSIGN:
+	  case IVL_ST_ASSIGN_NB:
+	  case IVL_ST_CASSIGN:
+	  case IVL_ST_FORCE:
+	    emit_vpi_stmt_expr_(id, vpiLhs, draw_vpi_stmt_lval(stmt));
+	    emit_vpi_stmt_expr_(id, vpiRhs,
+				draw_vpi_stmt_expr(ivl_stmt_rval(stmt)));
+	    break;
+	  case IVL_ST_DEASSIGN:
+	  case IVL_ST_RELEASE:
+	    emit_vpi_stmt_expr_(id, vpiLhs, draw_vpi_stmt_lval(stmt));
+	    break;
+	  case IVL_ST_BLOCK:
+	    if (vpi_value_return_block_(stmt))
+		  emit_vpi_stmt_expr_(id, vpiCondition, draw_vpi_stmt_expr(
+			ivl_stmt_rval(ivl_stmt_block_stmt(stmt, 0))));
+	    break;
+	  default:
+	    break;
+      }
+}
+
 static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
 {
       uint64_t id;
@@ -9249,6 +9287,8 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
               id, parent, type);
       emit_vpi_stmt_name_(name);
       fputs(";\n", vvp_out);
+      if (vpi_stmt_exprs_flag)
+	    emit_vpi_stmt_exprs_(stmt, id);
       return id;
 }
 

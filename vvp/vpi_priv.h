@@ -407,6 +407,11 @@ class __vpiStmtNode : public __vpiHandle {
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_iterate(int code) override;
       void add_child(__vpiStmtNode*child);
+	/* An expression of the statement (vpiLhs, vpiRhs, vpiCondition).
+	   The handle is read through SLOT, which is resolved after the
+	   whole design is loaded. */
+      void add_expr(int code, vpiHandle*slot)
+      { exprs_.push_back(std::make_pair(code, slot)); }
 
       __vpiScope*scope_;
       std::vector<struct vvp_code_s*> code_addresses_;
@@ -415,7 +420,10 @@ class __vpiStmtNode : public __vpiHandle {
       const char*name_;
       __vpiStmtNode*parent_;
       std::vector<__vpiStmtNode*> children_;
+      std::vector<std::pair<int,vpiHandle*> > exprs_;
 };
+
+extern vpiHandle vpip_last_statement_node(void);
 
 /* Deferred-report selectors use module/cell hierarchy depth, not the number
    of lexical scope components in a VPI full name. */
