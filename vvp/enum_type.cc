@@ -446,10 +446,11 @@ class vartype_resolv_t : public resolv_list_s {
       {
 	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(label()));
 	    __vpiArray*array = dynamic_cast<__vpiArray*>(vvp_lookup_handle(label()));
+	    __vpiDarrayVar*darray = dynamic_cast<__vpiDarrayVar*>(vvp_lookup_handle(label()));
 	    const char*cp = text_;
 	    unsigned width = 0;
 	    bool missing = false;
-	    vpiHandle spec = (sig || array)
+	    vpiHandle spec = (sig || array || darray)
 		  ? parse_vartype(cp, width, missing) : 0;
 	    bool aggregate_type = spec &&
 	          (spec->get_type_code() == vpiStructTypespec ||
@@ -469,10 +470,12 @@ class vartype_resolv_t : public resolv_list_s {
 	    bool packed_aggregate_width_matches =
 	          packed_aggregate_width_candidate &&
 	          packed_base_dimension_matches;
-	    if (((!sig && !array) || missing) && !message_flag) return false;
-	    if ((!sig && !array) || !spec || *cp ||
+	    if (((!sig && !array && !darray) || missing) && !message_flag) return false;
+	    if ((!sig && !array && !darray) || !spec || *cp ||
 	        !(signal_width_matches || packed_aggregate_width_matches ||
-	          (!sig && width == static_cast<unsigned>(array->get_word_size())))) {
+	          (array && width == static_cast<unsigned>(array->get_word_size())) ||
+	          (darray && spec->get_type_code() == vpiEnumTypespec &&
+	           width == darray->declared_element_width))) {
 		  yyerror("invalid .vartype metadata");
 		  compile_errors += 1;
 		  return true;
@@ -483,7 +486,8 @@ class vartype_resolv_t : public resolv_list_s {
 			sig->packed_base_width = width;
 			vpip_trim_packed_base_dimension(sig);
 		  }
-	    } else array->typespec = spec;
+	    } else if (array) array->typespec = spec;
+	    else darray->element_typespec = spec;
 	    return true;
       }
 

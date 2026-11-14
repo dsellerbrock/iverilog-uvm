@@ -404,7 +404,7 @@ void compile_var_darray(char*label, char*name, unsigned size,
       define_functor_symbol(label, net);
 
       vpiHandle obj = vpip_make_darray_var(name, net, use_auto,
-                                           element_signed);
+                                           element_signed, size);
       compile_vpi_symbol(label, obj);
 
       vpip_attach_to_current_scope(obj);

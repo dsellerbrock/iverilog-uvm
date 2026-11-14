@@ -31,7 +31,7 @@
 char **search_list = NULL;
 unsigned sl_count = 0;
 
-static int readmem_enum_value_valid(vpiHandle word, const s_vpi_value *value,
+static int readmem_enum_value_valid(vpiHandle typespec, s_vpi_value *value,
                                     unsigned width);
 
 static void get_mem_params(vpiHandle argv, vpiHandle callh, const char *name,
@@ -520,6 +520,14 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 				   start_addr, stop_addr);
 			goto bailout;
 		  }
+		  if (!readmem_enum_value_valid(vpip_assoc_readmem_typespec(mitem),
+		                                &value, wwid)) {
+			vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
+			           (int)vpi_get(vpiLineNo, callh));
+			vpi_printf("%s(%s): value is not a valid enumerated value; "
+			           "stopping read.\n", name, fname);
+			goto bailout;
+		  }
 		  if (!vpip_assoc_readmem_put(mitem, assoc_addr, key_width,
 					      &value)) {
 			vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
@@ -533,7 +541,8 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  vpiHandle word_index;
 		  word_index = vpi_handle_by_index(mitem, addr);
 		  assert(word_index);
-		  if (!readmem_enum_value_valid(word_index, &value, wwid)) {
+		  if (!readmem_enum_value_valid(vpi_handle(vpiTypespec, word_index),
+		                                &value, wwid)) {
 		      vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
 		                 (int)vpi_get(vpiLineNo, callh));
 		      vpi_printf("%s(%s): value is not a valid enumerated value; "
@@ -590,22 +599,30 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 /* A readmem word for an enumerated element must match one of that type's
  * declared values. Check before vpi_put_value so an invalid word leaves the
  * element unchanged and the caller can stop consuming the file. */
-static int readmem_enum_value_valid(vpiHandle word, const s_vpi_value *value,
+static int readmem_enum_value_valid(vpiHandle typespec, s_vpi_value *value,
                                     unsigned width)
 {
-      vpiHandle typespec = vpi_handle(vpiTypespec, word);
       vpiHandle iter;
       vpiHandle item;
       unsigned nwords = (width + 31) / 32;
       int valid = 0;
+      int two_state;
+      unsigned idx;
 
       if (!typespec || vpi_get(vpiType, typespec) != vpiEnumTypespec)
 	    return 1;
 
+      two_state = vpi_get(vpiBaseTypespec, typespec) == vpiBitVar;
+      if (two_state) {
+	    for (idx = 0; idx < nwords; idx += 1) {
+		  value->value.vector[idx].aval &= ~value->value.vector[idx].bval;
+		  value->value.vector[idx].bval = 0;
+	    }
+      }
+
       iter = vpi_iterate(vpiEnumConst, typespec);
       while (iter && (item = vpi_scan(iter)) != 0) {
 	    s_vpi_value enum_value;
-	    unsigned idx;
 
 	    enum_value.format = vpiVectorVal;
 	    vpi_get_value(item, &enum_value);

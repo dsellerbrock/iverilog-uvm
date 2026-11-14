@@ -48,6 +48,7 @@ vpip_count_drivers
 vpip_assoc_readmem_legal
 vpip_assoc_readmem_width
 vpip_assoc_readmem_index_width
+vpip_assoc_readmem_typespec
 vpip_assoc_readmem_in_range
 vpip_assoc_readmem_put
 vpip_assoc_writemem_key

@@ -75,6 +75,7 @@ extern void sys_monitor_fclose(PLI_UINT32 fd_mcd);
 extern int vpip_assoc_readmem_legal(vpiHandle array);
 extern unsigned vpip_assoc_readmem_width(vpiHandle array);
 extern unsigned vpip_assoc_readmem_index_width(vpiHandle array);
+extern vpiHandle vpip_assoc_readmem_typespec(vpiHandle array);
 extern int vpip_assoc_readmem_in_range(vpiHandle array,
 				      const struct t_vpi_vecval*key,
 				      unsigned key_width, int start, int stop,

@@ -746,7 +746,7 @@ int __vpiDarrayVar::assoc_writemem_key(unsigned position, int start,
 
 vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
 			       bool automatic_storage,
-                               bool element_signed)
+                                      bool element_signed, unsigned element_width)
 {
       __vpiScope*scope = vpip_peek_current_scope();
       const char*use_name = name ? vpip_name_string(name) : NULL;
@@ -754,6 +754,7 @@ vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
       __vpiDarrayVar*obj = new __vpiDarrayVar(scope, use_name, net,
                                               automatic_storage);
       obj->set_element_signed(element_signed);
+      obj->declared_element_width = element_width;
 
       return obj;
 }
@@ -769,6 +770,7 @@ __vpiQueueVar::__vpiQueueVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
 : __vpiDarrayVar(sc, na, ne, automatic_storage)
 {
       default_array_type_ = vpiQueueArray;
+      declared_element_width = element_width;
       set_assoc_readmem_type(element_width, assoc_index_width,
 			     assoc_index_signed);
 }
@@ -811,6 +813,12 @@ extern "C" unsigned vpip_assoc_readmem_index_width(vpiHandle array)
       __vpiDarrayVar*obj = dynamic_cast<__vpiDarrayVar*>(array);
       return obj && obj->assoc_readmem_legal()
 	    ? obj->assoc_readmem_index_width() : 0;
+}
+
+extern "C" vpiHandle vpip_assoc_readmem_typespec(vpiHandle array)
+{
+      __vpiDarrayVar*obj = dynamic_cast<__vpiDarrayVar*>(array);
+      return obj ? obj->element_typespec : 0;
 }
 
 extern "C" int vpip_assoc_readmem_in_range(

@@ -1354,6 +1354,8 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
 	// correctly instead of as large unsigned numbers.
       void set_element_signed(bool flag) { element_signed_ = flag; }
       bool element_signed() const { return element_signed_; }
+      vpiHandle element_typespec = 0;
+      unsigned declared_element_width = 0;
       void set_assoc_readmem_type(unsigned element_width,
 				  unsigned index_width,
 				  bool index_signed)
@@ -1419,7 +1421,8 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
 
 extern vpiHandle vpip_make_darray_var(const char*name, vvp_net_t*net,
                                       bool automatic_storage,
-                                      bool element_signed = false);
+                                      bool element_signed = false,
+                                      unsigned element_width = 0);
 
 /* M12: queues (and associative arrays declared through the queue
  * path) share the full darray element-access machinery. */
