@@ -9828,11 +9828,22 @@ sva_int_local_declarations
 	}
 	sva_destroy_parser_match_items_($2);
 	$$ = 0; }
+  | K_sva_bit_local dimensions sva_local_ident_list ';'
+      { pform_sva_begin_local_declarations();
+	for (std::vector<sva_match_item_t>::iterator it = $3->begin();
+	     it != $3->end(); ++it) {
+	      std::vector<sva_match_item_t>::iterator next = it; ++next;
+	      pform_sva_declare_bit_local(@1, it->lv_name.str(), $2,
+					   next == $3->end(), it->lv_rhs);
+	      it->lv_rhs = nullptr;
+	}
+	sva_destroy_parser_match_items_($3); $$ = 0; }
   | K_sva_bit_local sva_local_ident_list ';'
       { pform_sva_begin_local_declarations();
 	for (std::vector<sva_match_item_t>::iterator it = $2->begin();
 	     it != $2->end(); ++it) {
-	      pform_sva_declare_bit_local(@1, it->lv_name.str(), it->lv_rhs);
+	      pform_sva_declare_bit_local(@1, it->lv_name.str(), nullptr,
+					   true, it->lv_rhs);
 	      it->lv_rhs = nullptr;
 	}
 	sva_destroy_parser_match_items_($2); $$ = 0; }
@@ -9857,6 +9868,23 @@ sva_int_local_declarations
 	     it != $3->end(); ++it) {
 	      pform_sva_declare_logic_local(@2, it->lv_name.str(), nullptr,
 					     true, it->lv_rhs);
+	      it->lv_rhs = nullptr;
+	}
+	sva_destroy_parser_match_items_($3); $$ = 0; }
+  | sva_int_local_declarations K_sva_bit_local dimensions sva_local_ident_list ';'
+      { for (std::vector<sva_match_item_t>::iterator it = $4->begin();
+	     it != $4->end(); ++it) {
+	      std::vector<sva_match_item_t>::iterator next = it; ++next;
+	      pform_sva_declare_bit_local(@2, it->lv_name.str(), $3,
+					   next == $4->end(), it->lv_rhs);
+	      it->lv_rhs = nullptr;
+	}
+	sva_destroy_parser_match_items_($4); $$ = 0; }
+  | sva_int_local_declarations K_sva_bit_local sva_local_ident_list ';'
+      { for (std::vector<sva_match_item_t>::iterator it = $3->begin();
+	     it != $3->end(); ++it) {
+	      pform_sva_declare_bit_local(@2, it->lv_name.str(), nullptr,
+					   true, it->lv_rhs);
 	      it->lv_rhs = nullptr;
 	}
 	sva_destroy_parser_match_items_($3); $$ = 0; }
