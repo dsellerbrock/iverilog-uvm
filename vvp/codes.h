@@ -285,6 +285,7 @@ extern bool of_DUP_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_END(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_ASSIGN(vthread_t thr, vvp_code_t code);
+extern bool of_EVENT_ASSIGN_ARR(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_ASSIGN_NULL(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_CMP(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_ISNULL(vthread_t thr, vvp_code_t code);

@@ -445,6 +445,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%evctl/vif/posedge/s",of_EVCTLVIF_POSEDGE_S,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%event",    of_EVENT,    1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%event/assign",of_EVENT_ASSIGN,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%event/assign/arr",of_EVENT_ASSIGN_ARR,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%event/assign/null",of_EVENT_ASSIGN_NULL,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%event/cmp",of_EVENT_CMP,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%event/expr/load/o",of_EVENT_EXPR_LOAD_OBJECT,1,{OA_NUMBER,OA_NONE,OA_NONE} },

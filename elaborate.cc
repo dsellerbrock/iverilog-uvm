@@ -1845,6 +1845,17 @@ static NetEvent* elaborate_event_array_target_(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
+	/* The run-time finds an element by its offset from the low bound of
+	   the declared range (NetEvent::array_index_to_word), so `ev[4]' of
+	   `event ev[4:5]' is offset 0, not 4. */
+      long low = sr.eve->array_msb() >= sr.eve->array_lsb()
+	    ? sr.eve->array_lsb() : sr.eve->array_msb();
+      if (low != 0) {
+	    idx = new NetEBAdd('-', pad_to_width(idx, 32, loc),
+			       make_const_val_s(low), 32, true);
+	    idx->set_line(loc);
+      }
+
       idx_out = idx;
       return sr.eve;
 }
@@ -13667,6 +13678,29 @@ static NetProc* elaborate_event_assign_(Design*des, NetScope*scope,
       handled = true;
       NetEvent*src = find_named_event_(des, scope, assign.rval());
       bool null_src = dynamic_cast<const PENull*>(assign.rval()) != nullptr;
+	/* 7.4.5: an element of an event array is an event. The destination
+	   shares that element's queue; an invalid index reads as null. */
+      if (!src && !null_src) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(assign.rval());
+	    NetExpr*index = nullptr;
+	    NetEvent*array = id && !id->path().package
+		  ? elaborate_event_array_target_(des, scope, assign,
+						  id->path().name,
+						  id->lexical_pos(), index)
+		  : nullptr;
+	    if (array) {
+		  vector<NetExpr*>argv(4);
+		  argv[0] = new NetEEvent(dst);
+		  argv[0]->set_line(assign);
+		  argv[1] = make_const_val(array->array_base_slot());
+		  argv[2] = make_const_val(array->array_count());
+		  argv[3] = index;
+		  NetSTask*task = new NetSTask("$ivl_event_assign_arr",
+					       IVL_SFUNC_AS_TASK_IGNORE, argv);
+		  task->set_line(assign);
+		  return task;
+	    }
+      }
       if (!src && !null_src) {
 	    cerr << assign.get_fileline() << ": error: an event variable can "
 		 << "only be assigned another event or null (IEEE 1800-2017/"
