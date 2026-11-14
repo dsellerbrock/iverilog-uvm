@@ -9143,6 +9143,40 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  }
 	    }
 	    state.ranges.swap(merged);
+	      // Ignore and illegal values are no bins of the array (19.5.5):
+	      // carve this coverpoint's ignore_bins and illegal_bins ranges,
+	      // fixed or constructor-dependent, out of the merged value set.
+	    if ((state.meta->kind & 7) == 0) {
+		  std::vector<std::pair<uint64_t,uint64_t>> carved;
+		  for (size_t bi = 0; bi < defn->covgrp_bin_count(); bi += 1) {
+			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+			unsigned k = bin.kind & 7;
+			if ((k != 1 && k != 2) || bin.cp_idx != state.meta->cp_idx
+			    || (bin.kind & (8u | 128u | 1024u | 4096u))) continue;
+			carved.push_back(std::make_pair(bin.lo, bin.hi));
+		  }
+		  for (auto&other : out) {
+			const covgrp_dyn_state_t&cut = other.second;
+			unsigned k = cut.meta ? (cut.meta->kind & 7) : 0;
+			if (!cut.valid || (k != 1 && k != 2)
+			    || cut.meta->cp_idx != state.meta->cp_idx) continue;
+			carved.insert(carved.end(), cut.ranges.begin(), cut.ranges.end());
+		  }
+		  for (const auto&cut : carved) {
+			std::vector<std::pair<uint64_t,uint64_t>> kept;
+			for (const auto&range : state.ranges) {
+			      if (cut.second < range.first || cut.first > range.second) {
+				    kept.push_back(range);
+				    continue;
+			      }
+			      if (cut.first > range.first)
+				    kept.push_back(std::make_pair(range.first, cut.first - 1));
+			      if (cut.second < range.second)
+				    kept.push_back(std::make_pair(cut.second + 1, range.second));
+			}
+			state.ranges.swap(kept);
+		  }
+	    }
 	    state.total = 0;
 	    for (auto&range : state.ranges)
 		  state.total += (unsigned __int128)range.second
@@ -40131,5 +40165,21 @@ bool of_UNBOX_VEC4(vthread_t thr, vvp_code_t cp)
 		  res.set_bit(i, v.value(i));
       }
       thr->push_vec4(res);
+      return true;
+}
+
+/* The hits (counted at AT_LEAST) and logical size of value-keyed bin family
+   FAMILY in one covergroup instance, for the coverage report. */
+bool vvp_covgrp_dyn_family_count(vvp_cobject*cobj, unsigned family,
+				 unsigned at_least, uint64_t&hits,
+				 unsigned __int128&total)
+{
+      if (!cobj) return false;
+      const std::map<unsigned,covgrp_dyn_state_t>&states =
+	    covgrp_dyn_states_(cobj->get_defn(), cobj);
+      auto found = states.find(family);
+      if (found == states.end() || !found->second.valid) return false;
+      total = covgrp_dyn_logical_count_(found->second);
+      hits = at_least == 0 ? (uint64_t)total : cobj->cov_dyn_hits(family, at_least);
       return true;
 }

@@ -430,6 +430,10 @@ class vvp_cobject : public vvp_object {
 };
 
 // Raw per-instance score, independent of get_inst_coverage mode selection.
+/* Hits and logical size of a value-keyed bin family in one instance. */
+bool vvp_covgrp_dyn_family_count(vvp_cobject*cobj, unsigned family,
+				 unsigned at_least, uint64_t&hits,
+				 unsigned __int128&total);
 double vvp_covgrp_instance_coverage(vvp_cobject*obj,
 		bool*contributes = nullptr, int selected_item = -1,
 		long double*covered_bins = nullptr,
