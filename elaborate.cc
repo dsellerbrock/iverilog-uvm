@@ -10223,6 +10223,7 @@ NetProc* Statement::elaborate(Design*des, NetScope*) const
 
 NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope) const
 {
+      PExprCheckerAssignRvalGuard checker_rval_context(false);
 	// A function called as a task does not have an L-value.
       if (! lval_) {
 	      // The R-value must be a simple function call.
@@ -13889,6 +13890,20 @@ static NetProc* elaborate_member_subarray_copy_(Design*des, NetScope*scope,
       return block;
 }
 
+/* Is a statement in SCOPE a statement of a checker's own procedure, as
+   opposed to one in the body of a function or task the checker declares? */
+static bool checker_procedure_scope_(NetScope*scope)
+{
+      for (NetScope*owner = scope; owner; owner = owner->parent()) {
+	    if (owner->type() == NetScope::FUNC
+		|| owner->type() == NetScope::TASK)
+		  return false;
+	    if (const Module*module = owner->module_definition())
+		  return module->is_checker;
+      }
+      return false;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
 	bool in_checker = false;
@@ -13899,6 +13914,10 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		    break;
 	      }
 	}
+	/* 17.8 restricts the right-hand side of a checker variable
+	   assignment; elaborate_lval switches the context off again. */
+	PExprCheckerAssignRvalGuard checker_rval_context(
+	      lval() && checker_procedure_scope_(scope));
 	if (current_procedural_process_type == IVL_PR_ALWAYS_FF && in_checker) {
 	cerr << get_fileline() << ": error: blocking assignment is not allowed "
 	        "in a checker always_ff procedure." << endl;
@@ -15491,6 +15510,9 @@ static NetProc*guard_function_background_event_(NetScope*scope,
 NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+
+      PExprCheckerAssignRvalGuard checker_rval_context(
+	    lval() && checker_procedure_scope_(scope));
 
       NetScope*function_scope = scope;
       while (function_scope

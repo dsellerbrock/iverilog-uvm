@@ -327,6 +327,22 @@ class PExprProceduralContextGuard {
       bool old_;
 };
 
+// True while elaborating the right-hand side of a checker variable
+// assignment. IEEE 1800-2017/2023 17.8 forbids there a function with
+// output, inout, or non-const ref arguments.
+extern bool pform_checker_assign_rval_context;
+
+class PExprCheckerAssignRvalGuard {
+    public:
+      explicit PExprCheckerAssignRvalGuard(bool enable)
+      : old_(pform_checker_assign_rval_context)
+      { pform_checker_assign_rval_context = enable; }
+      ~PExprCheckerAssignRvalGuard()
+      { pform_checker_assign_rval_context = old_; }
+    private:
+      bool old_;
+};
+
 class PExprTypeOperatorContextGuard {
     public:
       PExprTypeOperatorContextGuard()
