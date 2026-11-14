@@ -6010,6 +6010,41 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 	    ivl_assert(*this, idx == 0 || lval_sigs[idx]->vector_width() == lval_sigs[0]->vector_width());
       }
 
+	/* IEEE 1800-2023 28.8: "A bidirectional switch may not connect nets
+	   of two different user-defined net types or a user-defined net type
+	   and a built-in net type", and only tran, tranif1 and tranif0 may
+	   connect user-defined net types at all. 1800-2017 28.8 has no such
+	   text, so the rule applies from -g2023 on; earlier generations
+	   keep accepting these connections (owner ruling 2026-11-14). */
+      const bool switch_nettype_rule = generation_flag >= GN_VER2023;
+      if (pass_switch && switch_nettype_rule && lval_count >= 2) {
+	    const NetNetType*type0 = lval_sigs[0]->user_nettype();
+	    const NetNetType*type1 = lval_sigs[1]->user_nettype();
+	    if (type0) type0 = type0->canonical_type();
+	    if (type1) type1 = type1->canonical_type();
+	    const bool resistive = type() == RTRAN || type() == RTRANIF0
+		  || type() == RTRANIF1;
+	    if (type0 != type1) {
+		  cerr << get_fileline() << ": error: A " << gate_name()
+		       << " switch cannot connect "
+		       << (type0 && type1
+			   ? "nets of two different user-defined net types"
+			   : "a net of a user-defined net type to a net of a "
+			     "built-in net type")
+		       << " (IEEE 1800-2023 28.8)." << endl;
+		  des->errors += 1;
+		  return;
+	    }
+	    if (type0 && resistive) {
+		  cerr << get_fileline() << ": error: An " << gate_name()
+		       << " switch cannot connect nets of a user-defined net "
+			  "type; only tran, tranif1 and tranif0 can (IEEE "
+			  "1800-2023 28.8)." << endl;
+		  des->errors += 1;
+		  return;
+	    }
+      }
+
 	/* Detect the special case that the l-value width exactly
 	   matches the gate count. In this case, we will make a single
 	   gate that has the desired vector width.
