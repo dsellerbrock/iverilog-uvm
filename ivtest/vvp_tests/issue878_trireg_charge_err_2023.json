@@ -1,5 +1,0 @@
-{
-  "type": "CE",
-  "source": "issue878_trireg_charge_err.v",
-  "iverilog-args": ["-g2023"]
-}
