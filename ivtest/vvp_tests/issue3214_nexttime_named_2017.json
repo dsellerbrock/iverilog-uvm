@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3214_nexttime_named.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "main"],
+  "gold": "issue3214_nexttime_named"
+}
