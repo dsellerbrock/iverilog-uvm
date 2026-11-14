@@ -3154,6 +3154,19 @@ extern "C" ivl_expr_t ivl_scope_mod_module_port_highconn(ivl_scope_t net,
       return (*net->aux_->port_highconns)[idx];
 }
 
+extern "C" ivl_scope_t ivl_scope_mod_module_port_iface(ivl_scope_t net,
+						      unsigned idx,
+						      const char**modport)
+{
+      assert(net);
+      if (modport) *modport = 0;
+      if (!net->aux_ || !net->aux_->port_ifaces
+	  || idx >= net->aux_->port_ifaces->size())
+	    return 0;
+      if (modport) *modport = (*net->aux_->port_ifaces)[idx].second;
+      return (*net->aux_->port_ifaces)[idx].first;
+}
+
 extern "C" const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx )
 {
       assert(net);

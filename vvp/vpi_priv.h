@@ -755,6 +755,13 @@ class vpiPortInfo  : public __vpiHandle {
 	   place after construction; argc 0 when it is unconnected. */
       unsigned high_argc_ = 0;
       vpiHandle*high_argv_ = nullptr;
+	/* For an interface port: the interface instance it is bound to
+	   (resolved in place), then the selected modport's name as a
+	   string constant (if any), and its two vpiRefObj connections. */
+      unsigned iface_argc_ = 0;
+      vpiHandle*iface_argv_ = nullptr;
+      vpiHandle iface_refs_[2] = { nullptr, nullptr };
+      __vpiScope*parent_scope(void) const { return parent_; }
 
     private:
       vpiHandle low_conn_(void);

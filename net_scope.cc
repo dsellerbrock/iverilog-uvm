@@ -1618,6 +1618,26 @@ void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 			port_highconns[idx] = elaborate_for_vpi(des, parent(),
 							     port_actuals[idx]);
       }
+	/* An interface port is a class-typed handle that elaboration has
+	   bound to one interface instance. */
+      if (type_ == MODULE && parent()) {
+	    const std::vector<PortInfo>&ports = module_port_info();
+	    for (size_t idx = 0; idx < ports.size(); idx += 1) {
+		  if (ports[idx].name.nil()) continue;
+		  NetNet*sig = find_signal(ports[idx].name);
+		  const netclass_t*cls = sig
+			? dynamic_cast<const netclass_t*>(sig->net_type()) : 0;
+		  if (!cls || !cls->is_interface()
+		      || sig->unpacked_dimensions() != 0)
+			continue;
+		  NetScope*inst = sig->resolve_interface_scope(0);
+		  if (!inst) continue;
+		  if (port_ifaces.empty())
+			port_ifaces.assign(ports.size(),
+					   std::make_pair((NetScope*)0, perm_string()));
+		  port_ifaces[idx] = std::make_pair(inst, cls->interface_modport());
+	    }
+      }
       if (!class_def() && type_ != TASK && type_ != FUNC) {
 	    for (map<perm_string,param_expr_t>::iterator cur = parameters.begin()
 		       ; cur != parameters.end() ; ++cur) {
