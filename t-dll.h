@@ -942,6 +942,7 @@ struct ivl_scope_aux_s {
       std::vector<struct ivl_defparam_s>*defparams;
       std::vector<ivl_expr_t>*port_highconns;
       std::vector<std::pair<ivl_scope_t, const char*> >*port_ifaces;
+      std::vector<ivl_expr_t>*port_lowconns;
       std::vector<ivl_tchk_t>*tchks;
       ivl_scope_objects_s*objects_;
       ivl_scope_proc_s*proc_;

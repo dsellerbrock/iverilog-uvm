@@ -762,6 +762,9 @@ class vpiPortInfo  : public __vpiHandle {
       vpiHandle*iface_argv_ = nullptr;
       vpiHandle iface_refs_[2] = { nullptr, nullptr };
       __vpiScope*parent_scope(void) const { return parent_; }
+	/* A port expression formal (vpiLowConn), resolved in place. */
+      unsigned low_argc_ = 0;
+      vpiHandle*low_argv_ = nullptr;
 
     private:
       vpiHandle low_conn_(void);

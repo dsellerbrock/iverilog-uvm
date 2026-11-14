@@ -29,6 +29,7 @@
 # include  "netqueue.h"
 # include  "netvector.h"
 # include  "PExpr.h"
+# include  "Module.h"
 # include  <sstream>
 # include  "PPackage.h"
 # include  "PTask.h"
@@ -1609,6 +1610,31 @@ static bool default_is_final_value_(const NetExpr*def, const NetExpr*val)
       return dr && vr && dr->value().as_double() == vr->value().as_double();
 }
 
+/* A port whose formal is not simply its own name: a select, or a
+   concatenation of several names (23.2.2.1). */
+static PExpr* port_expression_formal_(const Module::port_t*port)
+{
+      if (!port || port->expr.empty()) return 0;
+      if (port->expr.size() == 1) {
+	    const pform_scoped_name_t&path = port->expr[0]->path();
+	    if (path.size() == 1 && path.back().index.empty()
+		&& path.back().name == port->name)
+		  return 0;
+      }
+	/* The port list precedes the declarations it names, so each name is
+	   looked up as if it were used after them. */
+      std::list<PExpr*> parts;
+      for (PEIdent*cur : port->expr) {
+	    PEIdent*tmp = new PEIdent(cur->path().name, UINT_MAX);
+	    tmp->set_line(*cur);
+	    parts.push_back(tmp);
+      }
+      if (parts.size() == 1) return parts.front();
+      PEConcat*cat = new PEConcat(parts);
+      cat->set_line(*port->expr[0]);
+      return cat;
+}
+
 void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 {
       if (parent() && !port_actuals.empty()) {
@@ -1636,6 +1662,18 @@ void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 			port_ifaces.assign(ports.size(),
 					   std::make_pair((NetScope*)0, perm_string()));
 		  port_ifaces[idx] = std::make_pair(inst, cls->interface_modport());
+	    }
+      }
+	/* A port expression formal, elaborated where it is declared. */
+      if (type_ == MODULE && parent() && module_definition()) {
+	    const std::vector<Module::port_t*>&ports =
+		  module_definition()->ports;
+	    for (size_t idx = 0; idx < ports.size(); idx += 1) {
+		  PExpr*formal = port_expression_formal_(ports[idx]);
+		  if (!formal) continue;
+		  if (port_lowconns.empty())
+			port_lowconns.assign(ports.size(), nullptr);
+		  port_lowconns[idx] = elaborate_for_vpi(des, this, formal);
 	    }
       }
       if (!class_def() && type_ != TASK && type_ != FUNC) {

@@ -1925,6 +1925,9 @@ class NetScope : public Definitions, public Attrib {
 	   the modport it selects (nil for none), for its vpiRefObj
 	   connections (37.14 detail 5, 37.15). */
       std::vector<std::pair<NetScope*, perm_string> > port_ifaces;
+	/* The formal of a port that is a port expression rather than a
+	   plain name (23.2.2.1), elaborated in this scope for vpiLowConn. */
+      std::vector<NetExpr*> port_lowconns;
 
 	/* Elaborate the expressions VPI keeps for parameters, defparams and
 	   port connections in this scope and its children, once parameters

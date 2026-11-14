@@ -3661,6 +3661,7 @@ char *vpiPortInfo::vpi_get_str(int code)
    interface or modport port needs a ref obj (detail 5), not built yet. */
 vpiHandle vpiPortInfo::low_conn_(void)
 {
+      if (low_argc_) return low_argv_[low_argc_-1];
       if (!name_ || !*name_ || vpi_port_type_ != vpiPort)
 	    return 0;
       for (vpiHandle item : parent_->intern) {
@@ -3895,6 +3896,11 @@ void compile_vpi_port_conn(long index, long flags, unsigned argc,
 	    if ((flags & 2) && argc >= 1) {
 		  port->iface_argc_ = argc;
 		  port->iface_argv_ = argv;
+		  return;
+	    }
+	    if ((flags & 4) && argc >= 1) {
+		  port->low_argc_ = argc;
+		  port->low_argv_ = argv;
 		  return;
 	    }
 	    break;
