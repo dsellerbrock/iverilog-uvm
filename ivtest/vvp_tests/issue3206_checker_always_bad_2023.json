@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3206_checker_always_bad.sv",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3206_checker_always_bad"
+}
