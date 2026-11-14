@@ -463,6 +463,19 @@ static void real_ex_pop(ivl_expr_t expr)
       fprintf(vvp_out, "    %%qpop/%s/real v%p_0;\n", fb, ivl_expr_signal(arg));
 }
 
+/* Capture the (ref int, ref int) outputs of a coverage query (IEEE 1800
+ * 19.8) above its receiver. Returns the opcode suffix that tells the
+ * runtime to store the covered and total bin counts through them. */
+static const char* draw_covgrp_count_refs(ivl_expr_t expr)
+{
+      ivl_lval_t covered_lval = ivl_expr_ref_lval(expr);
+      ivl_lval_t total_lval = ivl_expr_ref_lval2(expr);
+      if (!covered_lval || !total_lval) return "";
+      draw_capture_lval_ref(covered_lval);
+      draw_capture_lval_ref(total_lval);
+      return "/ref";
+}
+
 static void draw_sfunc_real(ivl_expr_t expr)
 {
       if (strncmp(ivl_expr_name(expr), "$ivl_vif_func$", 14) == 0) {
@@ -510,12 +523,8 @@ static void draw_sfunc_real(ivl_expr_t expr)
 	    ivl_expr_t obj_arg = (ivl_expr_parms(expr) > 0)
 				  ? ivl_expr_parm(expr, 0) : 0;
 	    if (obj_arg) draw_eval_object(obj_arg);
-	    ivl_lval_t covered_lval = ivl_expr_ref_lval(expr);
-	    ivl_lval_t total_lval = ivl_expr_ref_lval2(expr);
-	    if (covered_lval) draw_capture_lval_ref(covered_lval);
-	    if (total_lval) draw_capture_lval_ref(total_lval);
 	    fprintf(vvp_out, "    %%covgrp/get_inst_coverage%s;\n",
-		    covered_lval && total_lval ? "/ref" : "");
+		    draw_covgrp_count_refs(expr));
 	    return;
       }
 
@@ -526,7 +535,8 @@ static void draw_sfunc_real(ivl_expr_t expr)
 	    ivl_expr_t obj_arg = (ivl_expr_parms(expr) > 0)
 				  ? ivl_expr_parm(expr, 0) : 0;
 	    if (obj_arg) draw_eval_object(obj_arg);
-	    fprintf(vvp_out, "    %%covgrp/get_coverage;\n");
+	    fprintf(vvp_out, "    %%covgrp/get_coverage%s;\n",
+		    draw_covgrp_count_refs(expr));
 	    return;
       }
 
@@ -578,7 +588,8 @@ static void draw_sfunc_real(ivl_expr_t expr)
 		  ivl_expr_t obj_arg = (ivl_expr_parms(expr) > 0)
 				  ? ivl_expr_parm(expr, 0) : 0;
 		  if (obj_arg) draw_eval_object(obj_arg);
-		  fprintf(vvp_out, "    %s %s;\n", opcode, index);
+		  const char*refs = draw_covgrp_count_refs(expr);
+		  fprintf(vvp_out, "    %s%s %s;\n", opcode, refs, index);
 		  return;
 	    }
       }
