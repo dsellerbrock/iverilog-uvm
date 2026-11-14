@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3182_vpi_errors.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3182_vpi_errors_2023"],
+  "vpi-sources": ["vpi/issue3182_vpi_errors.c"],
+  "gold": "issue3182_vpi_errors"
+}

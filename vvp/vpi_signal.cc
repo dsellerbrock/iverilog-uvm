@@ -1171,13 +1171,13 @@ static void signal_get_value(vpiHandle ref, s_vpi_value*vp)
 	    }
 	    break;
 
-	  default:
-	    fprintf(stderr, "vvp internal error: get_value: "
-		    "value type %d not implemented."
-		    " Signal is %s in scope %s\n",
-		    (int)vp->format, vpi_get_str(vpiName, ref),
-		    vpip_scope(rfp)->scope_name());
-	    assert(0);
+	  default: {
+	    char message[80];
+	    snprintf(message, sizeof message, "vpi_get_value: unsupported value format %d",
+		     (int)vp->format);
+	    vpip_set_error(vpiError, message);
+	    break;
+	  }
       }
 }
 
