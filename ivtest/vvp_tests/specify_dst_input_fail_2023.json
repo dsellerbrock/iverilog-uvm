@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "specify_dst_input_fail.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "specify_dst_input_fail"],
+  "gold": "specify_dst_input_fail"
+}
