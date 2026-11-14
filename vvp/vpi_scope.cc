@@ -337,10 +337,22 @@ static char* scope_get_str(int code, vpiHandle obj)
       return simple_set_rbuf_str(p);
 }
 
+static vpiHandle inst_array_of_(vpiHandle elem);
+
 static vpiHandle scope_get_handle(int code, vpiHandle obj)
 {
       __vpiScope*rfp = dynamic_cast<__vpiScope*>(obj);
       assert(rfp);
+
+	/* The instance array an element belongs to (37.10, 37.11). */
+      if (code == vpiInstanceArray || code == vpiModuleArray
+	  || code == 603 || code == 604) {
+	    vpiHandle arr = inst_array_of_(obj);
+	    if (arr && (code == vpiInstanceArray
+			|| arr->get_type_code() == code))
+		  return arr;
+	    return 0;
+      }
 
       switch (code) {
 	  case vpiStmt:
@@ -629,6 +641,140 @@ vpiHandle __vpiStmtNode::vpi_iterate(int code)
 void __vpiStmtNode::add_child(__vpiStmtNode*child)
 { children_.push_back(child); child->parent_ = this; }
 
+/* Annex K/M codes the public headers do not export. */
+static const int IEEE_vpiInterfaceArray = 603;
+static const int IEEE_vpiProgramArray = 604;
+static const int IEEE_vpiListOp = 37;
+
+/*
+ * An instance array (IEEE 1800-2023 37.11): the array object of the
+ * elements of `leaf inst[2:4] (...)`. The record gives its bounds, its
+ * elements in left-to-right order and, when all of them could be
+ * described, its connections. The handles are resolved in place.
+ */
+class __vpiInstArrayConns : public __vpiHandle {
+    public:
+      __vpiInstArrayConns(unsigned n, vpiHandle*ops) : n_(n), ops_(ops) { }
+      int get_type_code(void) const override { return vpiOperation; }
+      int vpi_get(int code) override
+      { return code == vpiOpType ? IEEE_vpiListOp : vpiUndefined; }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiOperand || n_ == 0) return 0;
+	    return vpip_make_iterator(n_, ops_, false);
+      }
+    private:
+      unsigned n_;
+      vpiHandle*ops_;
+};
+
+class __vpiInstArray : public __vpiHandle {
+    public:
+      __vpiInstArray(__vpiScope*scope, char*name, unsigned nconn,
+		     unsigned argc, vpiHandle*argv)
+      : scope_(scope), name_(name), nconn_(nconn), argc_(argc), argv_(argv),
+	conns_(0) { }
+
+      int get_type_code(void) const override
+      {
+	    switch (count_() ? element(0)->get_type_code() : vpiModule) {
+		case vpiInterface: return IEEE_vpiInterfaceArray;
+		case vpiProgram: return IEEE_vpiProgramArray;
+		default: return vpiModuleArray;
+	    }
+      }
+      int vpi_get(int code) override
+      {
+	    if (code == vpiSize) return (int)count_();
+	    return vpiUndefined;
+      }
+      char* vpi_get_str(int code) override
+      { return generic_get_str(code, scope_, name_, NULL); }
+      vpiHandle vpi_handle(int code) override
+      {
+	    switch (code) {
+		case vpiLeftRange: return argv_[0];
+		case vpiRightRange: return argv_[1];
+		case vpiScope:
+		case vpiParent:
+		case vpiModule:
+		  return scope_;
+		case vpiExpr:
+		    /* 37.11 detail 1: the connection list. */
+		  if (!nconn_) return 0;
+		  if (!conns_)
+			conns_ = new __vpiInstArrayConns(nconn_,
+							 argv_ + 2 + count_());
+		  return conns_;
+		default:
+		  return 0;
+	    }
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code == vpiRange)
+		  return vpip_make_iterator(1, new vpiHandle[1]{
+			vpip_make_range(left_(), right_()) }, true);
+	    if (code != vpiModule && code != vpiInterface && code != vpiProgram
+		&& code != vpiInstance)
+		  return 0;
+	    return vpip_make_iterator(count_(), argv_ + 2, false);
+      }
+      vpiHandle vpi_index(int idx) override
+      {
+	    long pos = left_() <= right_() ? (long)idx - left_()
+					   : left_() - (long)idx;
+	    if (pos < 0 || (unsigned long)pos >= count_()) return 0;
+	    return element((unsigned)pos);
+      }
+
+      unsigned count_(void) const { return argc_ - 2 - nconn_; }
+      vpiHandle element(unsigned idx) const { return argv_[2 + idx]; }
+
+    private:
+      long left_(void) const { return const_int_(argv_[0]); }
+      long right_(void) const { return const_int_(argv_[1]); }
+      static long const_int_(vpiHandle h)
+      {
+	    s_vpi_value val;
+	    val.format = vpiIntVal;
+	    h->vpi_get_value(&val);
+	    return val.value.integer;
+      }
+      __vpiScope*scope_;
+      char*name_;
+      unsigned nconn_, argc_;
+      vpiHandle*argv_;
+      vpiHandle conns_;
+};
+
+static std::vector<__vpiInstArray*> inst_arrays_;
+
+void compile_vpi_inst_array(char*name, unsigned long nconn, unsigned argc,
+			    vpiHandle*argv)
+{
+      if (argc < 3 + nconn) {
+	    free(name);
+	    free(argv);
+	    return;
+      }
+      __vpiInstArray*obj = new __vpiInstArray(vpip_peek_current_scope(), name,
+					      (unsigned)nconn, argc, argv);
+      inst_arrays_.push_back(obj);
+      vpip_attach_to_current_scope(obj);
+}
+
+/* The instance array an element scope belongs to, or nil. */
+static vpiHandle inst_array_of_(vpiHandle elem)
+{
+	/* ponytail: a linear scan over the instance arrays; map elements to
+	   their arrays if a design asks this of many elements. */
+      for (__vpiInstArray*arr : inst_arrays_)
+	    for (unsigned idx = 0; idx < arr->count_(); idx += 1)
+		  if (arr->element(idx) == elem) return arr;
+      return 0;
+}
+
 /* compares vpiType's considering object classes */
 static int compare_types(int code, int type, bool is_typedef = false)
 {
@@ -640,6 +786,12 @@ static int compare_types(int code, int type, bool is_typedef = false)
 
       if (code == vpiTypedef)
 	    return is_typedef;
+
+	/* 37.10: vpiInstanceArray iterates every kind of instance array. */
+      if (code == vpiInstanceArray
+	  && (type == vpiModuleArray || type == IEEE_vpiInterfaceArray
+	      || type == IEEE_vpiProgramArray))
+	    return 1;
 
       if ((code == VPI_IODECL_TYPE || code == VPI_IODECL_LEGACY)
 	  && (type == VPI_IODECL_TYPE || type == VPI_IODECL_LEGACY))

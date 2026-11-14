@@ -484,6 +484,8 @@ extern void compile_vpi_defparam(char*param, long file_idx, long lineno,
 extern void compile_vpi_contassign(char*label, long flags, long str0,
 				   long str1, long file_idx, long lineno,
 				   char*driver, unsigned argc, vpiHandle*argv);
+extern void compile_vpi_inst_array(char*name, unsigned long nconn,
+				   unsigned argc, vpiHandle*argv);
 
 /* A lazily evaluated VPI argument expression node (.vpi_expr). */
 extern void compile_vpi_expr(char*label, long type, long op_type, long width,

@@ -317,6 +317,11 @@ ivl_scope_modport_port_name
 ivl_scope_modport_port_dir
 ivl_scope_lineno
 ivl_scope_logs
+ivl_scope_inst_array_conn
+ivl_scope_inst_array_conns
+ivl_scope_inst_array_element
+ivl_scope_inst_array_name
+ivl_scope_inst_arrays
 ivl_scope_log
 ivl_scope_lpms
 ivl_scope_lpm

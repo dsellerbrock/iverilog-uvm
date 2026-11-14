@@ -1339,6 +1339,26 @@ void dll_target::make_scope_contassigns_(ivl_scope_t scope)
 	    }
 	    scope->ensure_aux_()->port_lowconns = list;
       }
+	/* Instance arrays declared here (37.11). */
+      if (net && !net->vpi_inst_arrays.empty()) {
+	    std::vector<ivl_inst_array_s>*list = new std::vector<ivl_inst_array_s>;
+	    for (const NetScope::vpi_inst_array_t&cur : net->vpi_inst_arrays) {
+		  ivl_inst_array_s arr;
+		  arr.name = cur.name.str();
+		  arr.left = cur.left;
+		  arr.right = cur.right;
+		  for (NetScope*elem : cur.elements)
+			arr.elements.push_back(find_scope(des_, elem));
+		  for (NetExpr*conn : cur.conns) {
+			assert(expr_ == 0);
+			conn->expr_scan(this);
+			arr.conns.push_back(expr_);
+			expr_ = 0;
+		  }
+		  list->push_back(arr);
+	    }
+	    scope->ensure_aux_()->inst_arrays = list;
+      }
 	/* Port actuals, for vpiHighConn (37.14). */
       if (net && !net->port_highconns.empty()) {
 	    std::vector<ivl_expr_t>*list = new std::vector<ivl_expr_t>(
