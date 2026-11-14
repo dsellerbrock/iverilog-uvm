@@ -1,0 +1,2 @@
+issue3205_empty_class_2017 CE,-g2017,-s,top ivltests gold=issue3205_empty_class_2017.gold
+issue3205_empty_class_2023 CE,-g2023,-s,top ivltests gold=issue3205_empty_class_2023.gold

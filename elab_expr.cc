@@ -23605,6 +23605,24 @@ NetExpr* PECastType::elaborate_expr(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
+	/* An empty instance contributes zero bits, not the one-bit VVP
+	 * handle representation. A packed destination cannot match it. */
+      if (source_class && target_type_ && target_type_->packed()) {
+	    bool has_instance_property = false;
+	    for (size_t idx = 0; idx < source_class->get_properties(); idx += 1)
+		  if (!source_class->get_prop_qual(idx).test_static()) {
+			has_instance_property = true;
+			break;
+		  }
+	    if (!has_instance_property) {
+		  cerr << get_fileline() << ": error: bit-stream cast between fixed-size types of different sizes."
+		       << endl;
+		  des->errors += 1;
+		  delete sub;
+		  return nullptr;
+	    }
+      }
+
 	/* IEEE 1800-2017/2023 6.24.3 forbids a size mismatch whenever either
 	 * side of a fixed-size bit-stream cast is unpacked. Unpacked structs do
 	 * not have a packed_width(), so check their member widths before the
