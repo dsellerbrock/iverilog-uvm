@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3094_coverage_noop.v",
+    "iverilog-args": ["-g2023", "-s", "issue3094_coverage_noop"],
+    "gold": "issue3094_coverage_noop"
+}
