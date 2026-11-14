@@ -26872,6 +26872,174 @@ static NetExpr*build_vif_validity_expr_(
       return vif_valid_const_(false);
 }
 
+/* A local procedural variable for a lowered statement. */
+static NetNet* make_local_var_(NetScope*scope, const LineInfo&loc,
+			       ivl_variable_type_t type, unsigned width,
+			       bool signed_flag)
+{
+      const netvector_t*vec = new netvector_t(type, (long)width - 1, 0,
+					      signed_flag);
+      NetNet*net = new NetNet(scope, scope->local_symbol(), NetNet::REG, vec);
+      net->set_line(loc);
+      net->local_flag(true);
+      return net;
+}
+
+static NetExpr* case_compare_(const LineInfo&loc, char op, NetNet*sig,
+			      NetExpr*value)
+{
+      NetESignal*lhs = new NetESignal(sig);
+      lhs->set_line(loc);
+      NetEBComp*cmp = new NetEBComp(op, lhs, value);
+      cmp->set_line(loc);
+      return cmp;
+}
+
+/*
+ * IEEE 1800-2017/2023 14.15: the expression of an event control "can denote
+ * clocking block input (input or inout) or a slice thereof. Slices can
+ * include dynamic indices, which are evaluated once when the @ expression
+ * executes." A synthesized select would follow the index for as long as
+ * the process waits, so the index is captured and the selected value is
+ * compared at each change of the sampled clocking variable:
+ *
+ *     base = <index>;
+ *     prev = smp[base];
+ *     do begin
+ *        @(smp);
+ *        hit = <the edge from prev to smp[base]>;
+ *        prev = smp[base];
+ *     end while (!hit);
+ *
+ * EXPR is the elaborated event expression. Returns nullptr unless it is a
+ * select with a variable index of a sampled clocking variable. The
+ * temporaries live in SCOPE: one waiter per activation of an automatic
+ * scope, and one per static scope.
+ */
+static NetProc* clocking_dynamic_select_wait_(Design*des, NetScope*scope,
+					      const LineInfo&loc,
+					      PEEvent::edge_t edge,
+					      const NetExpr*expr, NetProc*enet)
+{
+      const NetESelect*sel = dynamic_cast<const NetESelect*>(expr);
+      if (!sel || !sel->select()
+	  || dynamic_cast<const NetEConst*>(sel->select()))
+	    return nullptr;
+      const NetESignal*src = dynamic_cast<const NetESignal*>(sel->sub_expr());
+      if (!src || !src->sig()
+	  || strncmp(src->sig()->name().str(), "_ivl_smp$", 9) != 0
+	  || src->sig()->unpacked_dimensions() != 0)
+	    return nullptr;
+
+      NetNet*smp = const_cast<NetNet*>(src->sig());
+      const unsigned wid = sel->expr_width();
+      NetNet*base = make_local_var_(scope, loc, sel->select()->expr_type(),
+				    sel->select()->expr_width(),
+				    sel->select()->has_sign());
+      NetNet*prev = make_local_var_(scope, loc, IVL_VT_LOGIC, wid, false);
+      NetNet*hit = make_local_var_(scope, loc, IVL_VT_BOOL, 1, false);
+
+      auto read = [&](NetNet*sig) -> NetExpr* {
+	    NetESignal*res = new NetESignal(sig);
+	    res->set_line(loc);
+	    return res;
+      };
+	/* The select at the captured index, as a fresh expression. */
+      auto selected = [&]() -> NetExpr* {
+	    NetESelect*res = new NetESelect(read(smp), read(base), wid,
+					    sel->select_type());
+	    res->set_line(loc);
+	    return res;
+      };
+      auto store = [&](NetNet*dst, NetExpr*value) -> NetProc* {
+	    NetAssign*assign = new NetAssign(new NetAssign_(dst), value);
+	    assign->set_line(loc);
+	    return assign;
+      };
+
+      NetBlock*body = new NetBlock(NetBlock::SEQU, nullptr);
+      body->set_line(loc);
+
+	/* @(smp): any change of the sampled variable. */
+      NetEvent*change = new NetEvent(scope->local_symbol());
+      change->set_line(loc);
+      change->local_flag(true);
+      NetEvProbe*probe = new NetEvProbe(scope, scope->local_symbol(), change,
+					NetEvProbe::ANYEDGE, smp->pin_count());
+      for (unsigned pin = 0; pin < smp->pin_count(); pin += 1)
+	    connect(smp->pin(pin), probe->pin(pin));
+      des->add_node(probe);
+      scope->add_event(change);
+      NetEvWait*wait = new NetEvWait(nullptr);
+      wait->set_line(loc);
+      wait->add_event(change);
+      body->append(wait);
+
+      if (edge == PEEvent::ANYEDGE) {
+	      /* No edge keyword: any change of the selected value. */
+	    body->append(store(hit, case_compare_(loc, 'N', prev, selected())));
+      } else {
+	      /* An edge looks at bit 0 (9.4.2): a posedge is a change from 0
+		 to anything else or from x/z to 1, a negedge the mirror
+		 image. */
+	    NetNet*was = make_local_var_(scope, loc, IVL_VT_LOGIC, 1, false);
+	    NetNet*now = make_local_var_(scope, loc, IVL_VT_LOGIC, 1, false);
+	    auto lsb = [&](NetExpr*value) -> NetExpr* {
+		  if (wid == 1) return value;
+		  NetESelect*res = new NetESelect(value, make_const_val(0), 1);
+		  res->set_line(loc);
+		  return res;
+	    };
+	    auto is = [&](NetNet*sig, verinum::V bit) -> NetExpr* {
+		  NetEConst*value = new NetEConst(verinum(bit, 1));
+		  value->set_line(loc);
+		  return case_compare_(loc, 'E', sig, value);
+	    };
+	    auto both = [&](char op, NetExpr*l, NetExpr*r) -> NetExpr* {
+		  NetEBLogic*res = new NetEBLogic(op, l, r);
+		  res->set_line(loc);
+		  return res;
+	    };
+	    auto negate = [&](NetExpr*e) -> NetExpr* {
+		  NetEUReduce*res = new NetEUReduce('!', e);
+		  res->set_line(loc);
+		  return res;
+	    };
+	      /* From FROM to TO: was==FROM && now!=FROM, or was is x/z and
+		 now==TO. */
+	    auto moves = [&](verinum::V from, verinum::V to) -> NetExpr* {
+		  return both('o',
+			      both('a', is(was, from), negate(is(now, from))),
+			      both('a', both('a', negate(is(was, from)),
+					     negate(is(was, to))),
+				   is(now, to)));
+	    };
+	    body->append(store(was, lsb(read(prev))));
+	    body->append(store(now, lsb(selected())));
+	    NetExpr*match = edge == PEEvent::POSEDGE
+		  ? moves(verinum::V0, verinum::V1)
+		  : edge == PEEvent::NEGEDGE
+		  ? moves(verinum::V1, verinum::V0)
+		  : both('o', moves(verinum::V0, verinum::V1),
+			 moves(verinum::V1, verinum::V0));
+	    body->append(store(hit, match));
+      }
+      body->append(store(prev, selected()));
+
+      NetEUReduce*again = new NetEUReduce('!', read(hit));
+      again->set_line(loc);
+      NetDoWhile*loop = new NetDoWhile(again, body);
+      loop->set_line(loc);
+
+      NetBlock*block = new NetBlock(NetBlock::SEQU, nullptr);
+      block->set_line(loc);
+      block->append(store(base, sel->select()->dup_expr()));
+      block->append(store(prev, selected()));
+      block->append(loop);
+      if (enet) block->append(enet);
+      return block;
+}
+
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
@@ -27684,6 +27852,18 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			      continue;
 			}
 			delete source_set;
+		  }
+	    }
+
+	      /* 14.15: a dynamic index into a clocking input is read once. */
+	    if (tmp && expr_.size() == 1) {
+		  if (NetProc*captured = clocking_dynamic_select_wait_(
+			    des, scope, *this, expr_[idx]->type(), tmp, enet)) {
+			wa->set_statement(nullptr);
+			delete wa;
+			delete ev;
+			delete tmp;
+			return captured;
 		  }
 	    }
 

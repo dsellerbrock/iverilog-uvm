@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue3065_clocking_dynamic_index.v",
+  "iverilog-args": ["-g2017"]
+}
