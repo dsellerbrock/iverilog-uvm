@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3188_cond_x_array.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "issue3188_cond_x_array"
+}
