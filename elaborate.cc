@@ -52960,12 +52960,30 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							- (cov_count_t)range.first + 1;
 					    static const uint64_t open_array_bin_limit = 65536;
 					    if (unique_total > open_array_bin_limit) {
-						  cerr << "sorry: open covergroup bin array '"
-						       << bin.name << "' needs more than "
-						       << open_array_bin_limit
-						       << " value-keyed counters; the bin is dropped."
-						       << endl;
-						  des->errors += 1;
+						    // 19.5.1 sets no limit on the number of bins. A
+						    // larger array becomes a value-keyed family with a
+						    // counter only for each value hit, the same
+						    // records a constructor-dependent array produces.
+						  unsigned family = dyn_family++;
+						  auto endpoint = [&](uint64_t value) {
+							return "c:" + std::to_string(value) + ":"
+							      + std::to_string(cp_value_width)
+							      + (cp_value_signed ? ":s" : "");
+						  };
+						  for (auto&range : merged)
+							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
+							      kindval, family, 0, bin.name.str(),
+							      endpoint(range.first),
+							      endpoint(range.second),
+							      cp_value_width, cp_value_signed,
+							      bin_guard);
+						  xbin_desc_t d;
+						  d.name = bin.name;
+						  d.wildcard = false;
+						  d.dyn_family = (int)family;
+						  d.guard_idx = bin_guard;
+						  vbins.push_back(d);
+						  has_value_bins = true;
 						  continue;
 					    }
 					    for (auto&range : merged) {
