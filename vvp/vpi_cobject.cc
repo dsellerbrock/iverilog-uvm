@@ -165,7 +165,8 @@ static std::string format_cobject_property_(vvp_cobject* cobj,
    value fetches (see vpi_priv.h). Used by the static-array element path
    (array.cc), the dynamic-array/queue element path (the thread object stack
    handle in vpi_vthr_vector.cc), and any other object string fetch. */
-std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
+std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
+                                 bool element_signed)
 {
 	// A container value (queue/darray element that is itself a
 	// queue or dynamic array — e.g. `int qq[$][$]`): render its
@@ -199,12 +200,12 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth)
 		  } else if (is_obj) {
 			vvp_object_t sub;
 			da->get_word(i, sub);
-			out += vvp_format_cobject_p(sub, depth+1);
+			out += vvp_format_cobject_p(sub, depth+1, element_signed);
 		  } else {
 			vvp_vector4_t v;
 			da->get_word(i, v);
 			char b[256];
-			vpip_vec4_to_dec_str(v, b, sizeof b, 0);
+			vpip_vec4_to_dec_str(v, b, sizeof b, element_signed);
 			out += b;
 		  }
 	    }

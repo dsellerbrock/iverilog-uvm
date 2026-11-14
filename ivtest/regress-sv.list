@@ -6854,3 +6854,5 @@ issue3089_timing_condition_2017 normal,-g2017,-gspecify,-s,issue3089_timing_cond
 issue3089_timing_condition_2023 normal,-g2023,-gspecify,-s,issue3089_timing_condition ivltests gold=issue3089_timing_condition.gold
 issue3163_final_flush_2017 normal,-g2017,-s,issue3163_final_flush ivltests gold=issue3163_final_flush.gold
 issue3163_final_flush_2023 normal,-g2023,-s,issue3163_final_flush ivltests gold=issue3163_final_flush.gold
+issue3185_signed_queue_2017 normal,-g2017,-s,issue3185_signed_queue ivltests gold=issue3185_signed_queue-vvp-stdout.gold
+issue3185_signed_queue_2023 normal,-g2023,-s,issue3185_signed_queue ivltests gold=issue3185_signed_queue-vvp-stdout.gold
