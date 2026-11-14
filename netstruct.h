@@ -35,6 +35,9 @@ class netstruct_t : public LineInfo, public ivl_type_s {
 	    perm_string name;
 	    ivl_type_t net_type;
 	    perm_string interface_modport;
+	      // The typedef aliases the member was declared with, outermost
+	      // first, for VPI (IEEE 1800-2023 37.25 detail 1).
+	    std::vector<perm_string> typedef_aliases;
 	    property_qualifier_t qualifier = property_qualifier_t::make_none();
 	    inline ivl_variable_type_t data_type() const
 	    { return net_type->base_type(); };

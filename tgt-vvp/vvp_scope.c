@@ -775,6 +775,11 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
 		  if (idx) vartype_put_(buf, ",");
 		  vartype_put_(buf, name);
 		  vartype_put_(buf, "=");
+		  for (unsigned adx = 0
+			     ; adx < ivl_type_prop_typedef_aliases(type, idx)
+			     ; adx += 1)
+			vartype_put_name_(buf,
+			      ivl_type_prop_typedef_alias(type, idx, adx));
 		  member_width = vartype_spec_(buf, ivl_type_prop_type(type, idx));
 		  if (!member_width) return 0;
 		  if (!ivl_type_is_union(type)) width += member_width;

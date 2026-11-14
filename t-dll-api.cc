@@ -4949,6 +4949,28 @@ extern "C" const char* ivl_type_typedef_name(ivl_type_t net)
       return name->c_str() + (cut == std::string::npos ? 0 : cut + 1);
 }
 
+static const std::vector<perm_string>*prop_typedef_aliases_(ivl_type_t net,
+                                                             int idx)
+{
+      const netstruct_t*st = dynamic_cast<const netstruct_t*>(net);
+      if (!st || idx < 0 || (size_t)idx >= st->members().size()) return 0;
+      return &st->members()[idx].typedef_aliases;
+}
+
+extern "C" unsigned ivl_type_prop_typedef_aliases(ivl_type_t net, int idx)
+{
+      const std::vector<perm_string>*names = prop_typedef_aliases_(net, idx);
+      return names ? static_cast<unsigned>(names->size()) : 0;
+}
+
+extern "C" const char* ivl_type_prop_typedef_alias(ivl_type_t net, int idx,
+                                                   unsigned adx)
+{
+      const std::vector<perm_string>*names = prop_typedef_aliases_(net, idx);
+      if (!names || adx >= names->size()) return 0;
+      return (*names)[adx].str();
+}
+
 extern "C" ivl_type_t ivl_type_super(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);

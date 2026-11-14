@@ -499,6 +499,8 @@ ivl_type_packed_width
 ivl_type_prop_name
 ivl_type_prop_signal
 ivl_type_prop_type
+ivl_type_prop_typedef_alias
+ivl_type_prop_typedef_aliases
 ivl_type_properties
 ivl_type_prop_qual
 ivl_type_signed
