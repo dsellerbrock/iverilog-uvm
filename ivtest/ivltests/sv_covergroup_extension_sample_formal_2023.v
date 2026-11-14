@@ -18,5 +18,19 @@ module test;
     derived_item = new;
     item = derived_item;
     item.cg.sample(1'b1);
+    // IEEE 1800-2023 19.4.1: the derived group has its base's sample()
+    // argument, also when a base-class handle samples it.
+    if (derived_item.cg.extension_cp.get_inst_coverage() != 50.0) begin
+      $display("FAILED: extension_cp=%0.1f",
+               derived_item.cg.extension_cp.get_inst_coverage());
+      $finish;
+    end
+    item.cg.sample(1'b0);
+    if (derived_item.cg.extension_cp.get_inst_coverage() != 100.0) begin
+      $display("FAILED: extension_cp=%0.1f after both values",
+               derived_item.cg.extension_cp.get_inst_coverage());
+      $finish;
+    end
+    $display("PASSED");
   end
 endmodule

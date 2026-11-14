@@ -7978,6 +7978,11 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    /* A class-embedded group can be extended at runtime. Standalone
 	       covergroups keep the original stack-described VVP encoding. */
 	    ivl_type_t cgtype = obj_arg ? ivl_expr_net_type(obj_arg) : 0;
+	    /* The receiver of a group with constructor or mirrored sample
+	       formals is evaluated once into a temporary; a signal
+	       expression takes its type from the signal. */
+	    if (!cgtype && obj_arg && ivl_expr_type(obj_arg) == IVL_EX_SIGNAL)
+		  cgtype = ivl_signal_net_type(ivl_expr_signal(obj_arg));
 	    if (cgtype && ivl_type_base(cgtype) == IVL_VT_CLASS
 		&& ivl_type_covgrp_owner_prop(cgtype) >= 0) {
 		  ensure_class_type_emitted(cgtype);
