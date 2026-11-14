@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2755_nochange_offsets.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "issue2755_nochange_offsets"],
+  "gold": "issue2755_nochange_offsets"
+}
