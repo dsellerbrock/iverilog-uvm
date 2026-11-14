@@ -1,0 +1,3 @@
+q08 fail at 15
+q08 done n=3
+ivltests/issue2909_pkg_checker.v:15: $finish called at 22 (1s)

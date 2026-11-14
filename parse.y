@@ -18092,6 +18092,17 @@ module_item
         pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
       }
 
+  /* IEEE 1800 17.3: checker_instantiation names a ps_checker_identifier,
+     so a package checker is instantiated as p::c u(...). A non-type name
+     after the package scope reaches only this rule; the package-typed
+     declarations below take TYPE_IDENTIFIER. */
+  | attribute_list_opt package_scope IDENTIFIER gate_instance_list ';'
+      { lex_in_package_scope(0);
+	pform_make_pkg_checker_instance(@3, $2, lex_strings.make($3), $4);
+	delete $1;
+	delete[]$3;
+      }
+
   /* Package-qualified variable: "pkg::type_t arr;" or "pkg::type_t [N:0] arr;" in module scope.
      Uses package_scope to call lex_in_package_scope so the type name is looked up correctly. */
   | attribute_list_opt

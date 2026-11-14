@@ -3219,6 +3219,9 @@ static void checker_free_finish_(Module*m)
       checker_free_vars_.erase(it);
 }
 
+/* The checkers each package declares (IEEE 1800 17.3, #941). */
+static map<PPackage*, set<perm_string> > pform_package_checkers_;
+
 void pform_endmodule(const char*name, bool inside_celldefine,
                      Module::UCDriveType uc_drive_def)
 {
@@ -3358,6 +3361,43 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	// The current lexical scope should be this module by now.
       ivl_assert(*cur_module, lexical_scope == cur_module);
       pform_pop_scope();
+
+	/* Remember which package declared a checker, for p::c instances. */
+      if (cur_module->is_checker)
+	    if (PPackage*pkg = dynamic_cast<PPackage*>(lexical_scope))
+		  pform_package_checkers_[pkg].insert(mod_name);
+}
+
+bool pform_package_declares_checker(const struct vlltype&loc, PPackage*pkg,
+				    perm_string name)
+{
+      map<PPackage*, set<perm_string> >::const_iterator cur
+	    = pform_package_checkers_.find(pkg);
+      if (cur != pform_package_checkers_.end() && cur->second.count(name))
+	    return true;
+      cerr << loc << ": error: Package " << pkg->pscope_name()
+	   << " has no checker " << name << "; only a checker can be "
+	   << "instantiated through a package scope (IEEE 1800 17.3)." << endl;
+      error_count += 1;
+      return false;
+}
+
+void pform_make_pkg_checker_instance(const struct vlltype&loc, PPackage*pkg,
+				     perm_string name, std::vector<lgate>*gates)
+{
+      if (!dynamic_cast<Module*>(lexical_scope)
+	  && !dynamic_cast<PGenerate*>(lexical_scope)) {
+	    cerr << loc << ": sorry: A package-scoped checker instance is "
+		 << "only supported as a module or generate item." << endl;
+	    error_count += 1;
+	    delete gates;
+	    return;
+      }
+      if (!pform_package_declares_checker(loc, pkg, name)) {
+	    delete gates;
+	    return;
+      }
+      pform_make_modgates(loc, name, nullptr, gates, nullptr);
 }
 
 void pform_genvars(const struct vlltype&li, list<pform_ident_t>*names)
