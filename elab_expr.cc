@@ -9420,8 +9420,15 @@ NetExpr* PEStreaming::elaborate_expr(Design*des, NetScope*scope,
 		  pw = (unsigned)info.elem_type->packed_width() * info.elem_count;
 		  part = stream_uarray_concat_(ops[idx], info);
 		} else {
-		  pw = ops[idx]->test_width(des, scope, m);
-		  if (pw) part = ops[idx]->elaborate_expr(des, scope, pw, flags);
+		  NetNet*struct_net = nullptr;
+		  const netstruct_t*struct_type = nullptr;
+		  if (stream_whole_struct_operand_(des, scope, ops[idx],
+					   struct_net, struct_type, pw)) {
+		    part = stream_struct_concat_(ops[idx], struct_net, struct_type);
+		  } else {
+		    pw = ops[idx]->test_width(des, scope, m);
+		    if (pw) part = ops[idx]->elaborate_expr(des, scope, pw, flags);
+		  }
 		}
 		if (!part || pw == 0 || pw > UINT_MAX - w) {
 		  delete part;

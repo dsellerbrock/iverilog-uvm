@@ -223,6 +223,10 @@ ivl_variable_type_t netstruct_t::base_type() const
 	    return IVL_VT_NO_TYPE;
 
       for (size_t idx = 0 ;  idx < members_.size() ; idx += 1) {
+	    // A void tagged-union member has no payload and does not
+	    // determine the state type of the packed representation.
+	    if (union_ && tagged_ && members_[idx].data_type() == IVL_VT_VOID)
+		  continue;
 	    if (members_[idx].data_type() != IVL_VT_BOOL)
 		  return members_[idx].data_type();
       }

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3268_vpi_typespec_typedef_name.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3268_vpi_typespec_typedef_name_2017"],
+  "vpi-sources": ["vpi/issue3268_vpi_typespec_typedef_name.c"],
+  "output-contains": ["VPI TYPESPEC TYPEDEF NAME PASS"]
+}

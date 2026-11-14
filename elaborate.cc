@@ -16393,7 +16393,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
       NetBlock*top = new NetBlock(NetBlock::SEQU, 0);
       top->set_line(*this);
 
-	// Evaluate each weight once into an unsigned temp at the common sum width.
+	// Evaluate each weight at its own width before unsigned extension.
       vector<NetNet*> wsig (nitems);
       for (unsigned idx = 0 ; idx < nitems ; idx += 1) {
 	    PCase::Item*cur = (*items_)[idx];
@@ -16406,12 +16406,13 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 		  return 0;
 	    }
 
-	    NetExpr*we = elab_and_eval(des, scope, cur->expr.front(), weight_width,
-				       false, false, IVL_VT_BOOL, true);
+	    NetExpr*we = elab_and_eval(des, scope, cur->expr.front(), -1);
 	    if (we == 0) {
 		  delete top;
 		  return 0;
 	    }
+	    we->cast_signed(false);
+	    we = pad_to_width(we, weight_width, *this);
 
 	    wsig[idx] = new NetNet(scope, scope->local_symbol(),
 			   NetNet::REG, new netvector_t(IVL_VT_LOGIC, weight_width - 1, 0));
@@ -52532,6 +52533,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  source_cp = &candidate;
 						  break;
 					    }
+				      if (source_cp && source_cp != &cp) {
+					    cerr << "error: covergroup bin '" << bin.name
+						 << "' of coverpoint '" << cp.label
+						 << "' names coverpoint '" << bin.source_coverpoint
+						 << "': only the coverpoint containing the bin may "
+						    "be named (IEEE 1800-2017/2023 19.5.1.1)." << endl;
+					    des->errors += 1;
+					    continue;
+				      }
 				      unsigned source_width = 0;
 				      if (source_cp && source_cp->expr) {
 					      // A selected packed identifier carries its semantic

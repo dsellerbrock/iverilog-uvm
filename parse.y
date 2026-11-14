@@ -5844,6 +5844,33 @@ bins_item
 	delete[] $2;
 	$$ = b;
       }
+  /* Values of the containing coverpoint selected by a with(item)
+     predicate, as arrayed bins (IEEE 1800-2023 19.5.1.1). */
+  | bins_keyword bins_name '[' ']' '=' IDENTIFIER K_with '(' expression ')' bins_iff_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->source_coverpoint = lex_strings.make($6);
+	b->with_expr = $9;
+	b->iff_expr = $11;
+	delete[] $2;
+	delete[] $6;
+	$$ = b;
+      }
+  | bins_keyword bins_name '[' expression ']' '=' IDENTIFIER K_with '(' expression ')' bins_iff_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->array_size = $4;
+	b->source_coverpoint = lex_strings.make($7);
+	b->with_expr = $10;
+	b->iff_expr = $12;
+	delete[] $2;
+	delete[] $7;
+	$$ = b;
+      }
   /* Values of a named coverpoint selected by a with(item) predicate. */
   | bins_keyword bins_name '=' bins_name K_with '(' expression ')' bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
@@ -8884,6 +8911,39 @@ package_item /* IEEE1800-2005 A.1.10 */
   | package_function_declaration
   | package_task_declaration
   | data_declaration
+  /* Package nets cannot have declaration assignments (26.2). */
+  | attribute_list_opt net_type data_type_or_implicit delay3_opt net_variable_list ';'
+      { data_type_t*data_type = $3;
+        pform_check_net_data_type(@2, $2, $3);
+        if (!data_type) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+        }
+        pform_set_net_delay(@2, $4, $5);
+        pform_set_data_type(@2, data_type, $5, $2, $1);
+        delete $1;
+      }
+  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_variable_list ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
+        if (!data_type) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+        }
+        pform_set_net_delay(@2, $5, $6);
+        pform_set_data_type(@2, data_type, $6, $2, $1);
+        delete $1;
+      }
+  | attribute_list_opt NETTYPE_IDENTIFIER delay1_opt net_variable_list ';'
+      { pform_requires_sv(@2, "User-defined net declaration");
+        pform_set_nettype_referenced(@2, $2.text);
+        pform_set_nettype_wires(@2, $2.type, $4, $1);
+        if ($3) {
+	      yyerror(@3, "sorry: User-defined net delays are not supported.");
+	      delete $3;
+        }
+        delete[] $2.text;
+      }
   | class_declaration
   | package_import_export_declaration
   | package_constraint_declaration
@@ -18090,7 +18150,9 @@ module_item
   /* Always and initial items are behavioral processes. */
 
   | attribute_list_opt K_always statement_item
-      { /* IEEE 1800-2023 16.14.5: `always assert property' is static. */
+      { if (pform_module_is_checker())
+	    yyerror(@2, "error: plain always procedure is not allowed in a checker.");
+	/* IEEE 1800-2023 16.14.5: `always assert property' is static. */
 	Statement*init = pform_sva_static_always_assertion($3);
 	if (init) delete $3;
 	PProcess*tmp = pform_make_behavior(init ? IVL_PR_INITIAL : IVL_PR_ALWAYS,
@@ -18102,7 +18164,9 @@ module_item
      OpenTitan AST models' always (* xprop_off *) @( * ). Consume and
      ignore, as for the always_comb/always_ff spellings below. */
   | attribute_list_opt K_always attribute_instance_list statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $4, $1);
+      { if (pform_module_is_checker())
+	    yyerror(@2, "error: plain always procedure is not allowed in a checker.");
+	PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $4, $1);
 	FILE_NAME(tmp, @2);
 	if ($3) delete $3;
       }

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3198_package_net_init.sv",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue3198_package_net_init"
+}
