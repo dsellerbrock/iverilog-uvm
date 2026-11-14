@@ -3050,7 +3050,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <sva_property_formals> sva_property_formal_declaration
 %destructor { for (sva_property_formal_t&formal : *$$)
 		{ delete formal.default_expr; } delete $$; } <sva_property_formals>
-%type <sva_formals> sva_sequence_formal_list
+%type <sva_formals> sva_sequence_formal_list sva_sequence_formals
 %destructor { delete $$; } <sva_formals>
 %type <sva_items> sva_local_ident_list
 %destructor { sva_destroy_parser_match_items_($$); } sva_local_ident_list
@@ -8384,16 +8384,16 @@ sequence_declaration /* IEEE 1800-2017/2023 16.8 */
 	pform_sva_declare_sequence_spec(@2, $2, $5);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';' sva_seq_expr ';' K_endsequence
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
       { check_end_label(@11, "sequence", $2, $11);
 	pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';'
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';'
       { pform_sva_begin_local_declarations();
 	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
 	     it != $4->end(); ++it)
@@ -8402,7 +8402,7 @@ sequence_declaration /* IEEE 1800-2017/2023 16.8 */
       { pform_sva_declare_sequence_p(@2, $2, $4, $9);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';'
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';'
       { pform_sva_begin_local_declarations();
 	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
 	     it != $4->end(); ++it)
@@ -9550,8 +9550,11 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 sva_property_formal_declaration
   : '(' sva_property_formal_list ')' ';'
       { pform_sva_begin_local_declarations();
-	for (const sva_property_formal_t&formal : *$2)
+	pform_sva_clear_decl_formals();
+	for (const sva_property_formal_t&formal : *$2) {
+	  pform_sva_note_decl_formal(formal.name.str());
 	  if (formal.local_formal) pform_sva_add_local_formal(formal.name.str());
+	}
 	$$ = $2; }
   ;
 
@@ -9711,6 +9714,16 @@ sva_property_formal_list
 	      formal.formal_type = sva_property_formal_t::EVENT;
 	      formal.default_expr = $3;
 	      l->push_back(formal); delete[]$2; $$ = l; }
+  ;
+
+/* Record the formal names before the body is parsed: a cycle delay that
+   names one becomes constant only after substitution (16.8.1). */
+sva_sequence_formals
+  : sva_sequence_formal_list
+      { pform_sva_clear_decl_formals();
+	for (const sva_sequence_formal_t&formal : *$1)
+	  pform_sva_note_decl_formal(formal.name.str());
+	$$ = $1; }
   ;
 
 /* Named sequence formals include IEEE 1800-2017 16.8.2 local input

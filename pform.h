@@ -476,6 +476,9 @@ extern Statement* pform_make_expect(const struct vlltype&loc,
    type. The packed-logic helper consumes dimensions. */
 extern void pform_sva_begin_local_declarations(void);
 extern void pform_sva_add_local_formal(const char*name);
+/* Formal names of the property/sequence declaration being parsed. */
+extern void pform_sva_clear_decl_formals(void);
+extern void pform_sva_note_decl_formal(const char*name);
 extern bool pform_sva_match_lvalue_declared(const struct vlltype&loc,
 					    perm_string name);
 extern void pform_sva_declare_int_local(const struct vlltype&loc,
