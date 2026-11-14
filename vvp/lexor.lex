@@ -277,6 +277,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".port"         { return K_PORT; }
 ".port_info/evcd" { return K_PORT_INFO_EVCD; }
 ".port_info"    { return K_PORT_INFO; }
+".vpi_inst_array" { return K_VPI_INST_ARRAY; }
 ".vpi_expr"     { return K_VPI_EXPR; }
 ".vpi_contassign" { return K_VPI_CONTASSIGN; }
 ".vpi_param_expr" { return K_VPI_PARAM_EXPR; }

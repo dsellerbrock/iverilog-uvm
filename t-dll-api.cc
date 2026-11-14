@@ -3167,6 +3167,64 @@ extern "C" ivl_scope_t ivl_scope_mod_module_port_iface(ivl_scope_t net,
       return (*net->aux_->port_ifaces)[idx].first;
 }
 
+extern "C" ivl_expr_t ivl_scope_mod_module_port_lowconn(ivl_scope_t net,
+							unsigned idx)
+{
+      assert(net);
+      if (!net->aux_ || !net->aux_->port_lowconns
+	  || idx >= net->aux_->port_lowconns->size())
+	    return 0;
+      return (*net->aux_->port_lowconns)[idx];
+}
+
+static const ivl_inst_array_s* inst_array_(ivl_scope_t net, unsigned idx)
+{
+      assert(net);
+      if (!net->aux_ || !net->aux_->inst_arrays
+	  || idx >= net->aux_->inst_arrays->size())
+	    return 0;
+      return &(*net->aux_->inst_arrays)[idx];
+}
+
+extern "C" unsigned ivl_scope_inst_arrays(ivl_scope_t net)
+{
+      assert(net);
+      return net->aux_ && net->aux_->inst_arrays
+	    ? static_cast<unsigned>(net->aux_->inst_arrays->size()) : 0;
+}
+
+extern "C" const char* ivl_scope_inst_array_name(ivl_scope_t net,
+						  unsigned idx,
+						  long*left, long*right)
+{
+      const ivl_inst_array_s*arr = inst_array_(net, idx);
+      if (!arr) return 0;
+      if (left) *left = arr->left;
+      if (right) *right = arr->right;
+      return arr->name;
+}
+
+extern "C" ivl_scope_t ivl_scope_inst_array_element(ivl_scope_t net,
+						    unsigned idx,
+						    unsigned elem)
+{
+      const ivl_inst_array_s*arr = inst_array_(net, idx);
+      return arr && elem < arr->elements.size() ? arr->elements[elem] : 0;
+}
+
+extern "C" unsigned ivl_scope_inst_array_conns(ivl_scope_t net, unsigned idx)
+{
+      const ivl_inst_array_s*arr = inst_array_(net, idx);
+      return arr ? static_cast<unsigned>(arr->conns.size()) : 0;
+}
+
+extern "C" ivl_expr_t ivl_scope_inst_array_conn(ivl_scope_t net,
+						unsigned idx, unsigned conn)
+{
+      const ivl_inst_array_s*arr = inst_array_(net, idx);
+      return arr && conn < arr->conns.size() ? arr->conns[conn] : 0;
+}
+
 extern "C" const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx )
 {
       assert(net);

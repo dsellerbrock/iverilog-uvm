@@ -654,6 +654,47 @@ static unsigned static_thunk_count_ = 1u << 30;
    not simply its value, and a .vpi_defparam record for each defparam
    (37.28). Their expressions are .vpi_expr handles whose evaluation code
    no thread runs. */
+/* A signed 32-bit constant operand. */
+static void draw_sconst_(long value)
+{
+      unsigned bit;
+      fprintf(vvp_out, ", 32'sb");
+      for (bit = 32; bit > 0; bit -= 1)
+	    fputc(((unsigned long)value >> (bit - 1)) & 1 ? '1' : '0', vvp_out);
+}
+
+/* An instance array declared in SCOPE (37.11): its name, the number of
+   connections, its bounds, its elements in left-to-right order, then its
+   connections (none unless all of them can be described). */
+static void draw_inst_array_(ivl_scope_t scope, unsigned idx)
+{
+      long left, right;
+      const char*name = ivl_scope_inst_array_name(scope, idx, &left, &right);
+      unsigned nconn = ivl_scope_inst_array_conns(scope, idx);
+      unsigned count = (unsigned)(left <= right ? right - left : left - right) + 1;
+      char**conns = calloc(nconn + 1, sizeof(char*));
+      unsigned cdx;
+
+      for (cdx = 0; cdx < nconn; cdx += 1)
+	    if (!(conns[cdx] = draw_lazy_expr_(ivl_scope_inst_array_conn(scope, idx, cdx))))
+		  break;
+      if (cdx < nconn) {
+	    for (cdx = 0; cdx < nconn; cdx += 1) free(conns[cdx]);
+	    nconn = 0;
+      }
+      fprintf(vvp_out, " .vpi_inst_array \"%s\", %u", name, nconn);
+      draw_sconst_(left);
+      draw_sconst_(right);
+      for (cdx = 0; cdx < count; cdx += 1)
+	    fprintf(vvp_out, ", S_%p", ivl_scope_inst_array_element(scope, idx, cdx));
+      for (cdx = 0; cdx < nconn; cdx += 1) {
+	    fprintf(vvp_out, ", %s", conns[cdx]);
+	    free(conns[cdx]);
+      }
+      fprintf(vvp_out, ";\n");
+      free(conns);
+}
+
 void draw_vpi_objects_in_scope(ivl_scope_t scope)
 {
       unsigned idx, save_local = local_count, save_thread = thread_count;
@@ -676,10 +717,21 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 		  fprintf(vvp_out, " .vpi_port_conn %u, 2, S_%p;\n", idx, iface);
       }
       for (idx = 0; !any && idx < nports; idx += 1)
-	    any = ivl_scope_mod_module_port_highconn(scope, idx) != 0;
+	    any = ivl_scope_mod_module_port_highconn(scope, idx) != 0
+		  || ivl_scope_mod_module_port_lowconn(scope, idx) != 0;
+	/* An instance array with no connections needs no expression code. */
+      for (idx = 0; idx < ivl_scope_inst_arrays(scope); idx += 1) {
+	    if (ivl_scope_inst_array_conns(scope, idx) == 0)
+		  draw_inst_array_(scope, idx);
+	    else
+		  any = 1;
+      }
       if (!any) return;
       thread_count = static_thunk_count_++;
       local_count = 0;
+      for (idx = 0; idx < ivl_scope_inst_arrays(scope); idx += 1)
+	    if (ivl_scope_inst_array_conns(scope, idx) != 0)
+		  draw_inst_array_(scope, idx);
       for (idx = 0; idx < ivl_scope_params(scope); idx += 1) {
 	    ivl_parameter_t par = ivl_scope_param(scope, idx);
 	    ivl_expr_t def = ivl_parameter_default_expr(par);
@@ -695,6 +747,12 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 	    char*text = high ? draw_lazy_expr_(high) : 0;
 	    if (text)
 		  fprintf(vvp_out, " .vpi_port_conn %u, 1, %s;\n", idx, text);
+	    free(text);
+	      /* A port expression formal is its vpiLowConn (23.2.2.1). */
+	    ivl_expr_t low = ivl_scope_mod_module_port_lowconn(scope, idx);
+	    text = low ? draw_lazy_expr_(low) : 0;
+	    if (text)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 4, %s;\n", idx, text);
 	    free(text);
       }
       for (idx = 0; idx < ivl_scope_defparams(scope); idx += 1) {
