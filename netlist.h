@@ -1903,6 +1903,9 @@ class NetScope : public Definitions, public Attrib {
 	    perm_string driver;	// Name of the driving device, or nil
 	    ivl_drive_t drive0, drive1;
 	    bool net_decl;
+	      /* The delays as written, for vpiDelay; empty when there are
+		 none or one of them cannot be described. */
+	    std::vector<NetExpr*> delays;
       };
       std::vector<contassign_t> contassigns;
 

@@ -4733,6 +4733,21 @@ void PGAlias::elaborate(Design*des, NetScope*scope) const
       }
 }
 
+std::vector<NetExpr*> PGAssign::vpi_delays_(Design*des, NetScope*scope) const
+{
+      std::vector<NetExpr*> res;
+      for (unsigned idx = 0; idx < delay_count(); idx += 1) {
+	    PExpr*pe = delay_expr(idx);
+	    NetExpr*tmp = pe ? elaborate_for_vpi(des, scope, pe) : 0;
+	    if (!tmp) {
+		  for (NetExpr*done : res) delete done;
+		  return std::vector<NetExpr*>();
+	    }
+	    res.push_back(tmp);
+      }
+      return res;
+}
+
 void PGAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -5254,6 +5269,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       contassign.drive0 = drive0;
       contassign.drive1 = drive1;
       contassign.net_decl = net_decl_assign;
+      contassign.delays = vpi_delays_(des, scope);
       scope->contassigns.push_back(contassign);
 
       connect(lval->pin(0), rval->pin(0));
@@ -5482,6 +5498,7 @@ void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval
 	    contassign.drive0 = strength0();
 	    contassign.drive1 = strength1();
 	    contassign.net_decl = false;
+	    contassign.delays = vpi_delays_(des, scope);
 	    scope->contassigns.push_back(contassign);
       }
 }
@@ -13253,22 +13270,24 @@ static NetExpr* elaborate_direct_darray_slice_rval_(
       return result;
 }
 
-/* A fixed unpacked-array slice assigned to a queue contributes its selected
- * elements in declared left-to-right order (IEEE 1800-2017/2023 7.4.6,
- * 7.6). Build a queue-typed pattern so the ordinary container object path
- * materializes the complete RHS before the queue is replaced. Only a plain
+/* A fixed unpacked-array slice assigned to a dynamic array or queue contributes
+ * its elements in declared left-to-right order (IEEE 1800-2017 7.4.6 / 2023
+ * 7.4.5, and 7.6). Build a container-typed pattern so the ordinary container
+ * object path materializes the complete RHS before replacement. Only a plain
  * array signal or a property of one unindexed class-handle signal is accepted:
  * evaluating a more complex receiver once needs a separate value snapshot. */
-static NetExpr* elaborate_fixed_uarray_slice_queue_rval_(
+static NetExpr* elaborate_fixed_uarray_slice_container_rval_(
       Design*des, NetScope*scope, const LineInfo&loc, const PExpr*pexpr,
       ivl_type_t target_type, bool&handled, NetProc*&prelude)
 {
       handled = false;
       prelude = nullptr;
-      const netqueue_t*target_queue =
-	    dynamic_cast<const netqueue_t*>(target_type);
+      const netdarray_t*target_container =
+	    dynamic_cast<const netdarray_t*>(target_type);
+      const char*kind = dynamic_cast<const netqueue_t*>(target_type)
+	    ? "queue" : "dynamic array";
       const PEIdent*ident = dynamic_cast<const PEIdent*>(pexpr);
-      if (!target_queue || !ident || ident->path().name.empty())
+      if (!target_container || !ident || ident->path().name.empty())
 	return nullptr;
 
       const list<index_component_t>&indices =
@@ -13303,7 +13322,7 @@ static NetExpr* elaborate_fixed_uarray_slice_queue_rval_(
 	    if (sr.net->unpacked_dimensions() == 0
 		&& dynamic_cast<const netvector_t*>(sr.net->net_type())) {
 		cerr << loc.get_fileline() << ": error: packed part-select "
-		     << "cannot be assigned to a queue." << endl;
+		     << "cannot be assigned to a " << kind << "." << endl;
 		des->errors += 1;
 		handled = true;
 	    }
@@ -13325,7 +13344,7 @@ static NetExpr* elaborate_fixed_uarray_slice_queue_rval_(
 	    if (dynamic_cast<const netvector_t*>(
 		  class_type->get_prop_type(property_index))) {
 		cerr << loc.get_fileline() << ": error: packed part-select "
-		     << "cannot be assigned to a queue." << endl;
+		     << "cannot be assigned to a " << kind << "." << endl;
 		des->errors += 1;
 		handled = true;
 	    }
@@ -13336,7 +13355,7 @@ static NetExpr* elaborate_fixed_uarray_slice_queue_rval_(
 	     && !sr.path_head.back().index.empty())
 	    || class_type->get_prop_qual(property_index).test_static()) {
 	    cerr << loc.get_fileline() << ": sorry: fixed unpacked-array "
-		 << "slice queue assignment needs an unindexed instance "
+		 << "slice " << kind << " assignment needs an unindexed instance "
 		 << "property receiver." << endl;
 	    des->errors += 1;
 	    return nullptr;
@@ -13382,20 +13401,23 @@ static NetExpr* elaborate_fixed_uarray_slice_queue_rval_(
       netranges_t dimensions;
       dimensions.push_back(slice.selected_range);
       netuarray_t source_type(dimensions, slice.element_type);
-      if (!uarray_element_matches_container_(&source_type, target_queue)) {
+      bool compatible = dynamic_cast<const netqueue_t*>(target_type)
+	    ? uarray_element_matches_container_(&source_type, target_container)
+	    : uarray_element_equivalent_container_(&source_type, target_container);
+      if (!compatible) {
 	cerr << loc.get_fileline() << ": error: fixed unpacked-array "
 	     << "slice element type is not assignment compatible with "
-	     << "the queue element type." << endl;
+	     << "the " << kind << " element type." << endl;
 	des->errors += 1;
 	return nullptr;
       }
       ivl_variable_type_t source_base = slice.element_type->base_type();
       ivl_variable_type_t target_base =
-	    target_queue->element_type()->base_type();
+	    target_container->element_type()->base_type();
       if ((source_base != IVL_VT_BOOL && source_base != IVL_VT_LOGIC)
 	  || (target_base != IVL_VT_BOOL && target_base != IVL_VT_LOGIC)) {
 	cerr << loc.get_fileline() << ": sorry: fixed unpacked-array "
-	     << "slice queue assignment currently supports packed integral "
+	     << "slice " << kind << " assignment currently supports packed integral "
 	     << "elements only." << endl;
 	des->errors += 1;
 	return nullptr;
@@ -13405,7 +13427,7 @@ static NetExpr* elaborate_fixed_uarray_slice_queue_rval_(
 	  || static_cast<uint64_t>(slice.canonical_base)
 	       + slice.count - 1 > UINT_MAX) {
 	cerr << loc.get_fileline() << ": sorry: fixed unpacked-array "
-	     << "slice exceeds the 32-bit queue element-index limit."
+	     << "slice exceeds the 32-bit " << kind << " element-index limit."
 	     << endl;
 	des->errors += 1;
 	return nullptr;
@@ -14295,12 +14317,11 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		  des, scope, lv_net_type, specialized_handled);
 
 	    bool slice_handled = false;
-	    bool plain_queue_target = delay_ == 0 && event_ == 0
+	    bool plain_container_target = delay_ == 0 && event_ == 0
 	      && count_ == 0 && !lv->word() && !lv->nest()
-	      && lv->get_property_idx() < 0 && lv->sig()
-	      && dynamic_cast<const netqueue_t*>(target_darray);
-	    if (!specialized_handled && plain_queue_target) {
-		rv = elaborate_fixed_uarray_slice_queue_rval_(
+	      && lv->get_property_idx() < 0 && lv->sig();
+	    if (!specialized_handled && plain_container_target) {
+		rv = elaborate_fixed_uarray_slice_container_rval_(
 		    des, scope, *this, rval(), lv_net_type,
 		    slice_handled, indexed_slice_prelude);
 		specialized_handled = slice_handled;
@@ -47676,6 +47697,40 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 		  string range_ir;
 		  if (r.is_range) {
+			if (is_dist && !r.weight_is_divided
+			    && constraint_ir_design_ctx_ && scope) {
+			      function<bool(PExpr*)> is_real_bound = [&](PExpr*bound) {
+				    if (!bound) return false;
+				    if (const PETernary*ternary = dynamic_cast<const PETernary*>(bound))
+					  return is_real_bound(ternary->get_true())
+					      || is_real_bound(ternary->get_false());
+				    constraint_source_type_t type =
+					  constraint_source_expr_type_(bound, cls, value_slots, scope);
+				    if (type.type)
+					  return type.type->base_type() == IVL_VT_REAL;
+				    if (const PEBinary*binary = dynamic_cast<const PEBinary*>(bound)) {
+					  char op = binary->get_op();
+					  if (op == '+' || op == '-' || op == '*' || op == '/' || op == 'p')
+						return is_real_bound(binary->get_left())
+						    || is_real_bound(binary->get_right());
+				    }
+				    if (const PEUnary*unary = dynamic_cast<const PEUnary*>(bound))
+					  if (unary->get_op() == '+' || unary->get_op() == '-')
+						return is_real_bound(unary->get_expr());
+				    PExpr::width_mode_t mode = PExpr::SIZED;
+				    bound->test_width(constraint_ir_design_ctx_,
+					  const_cast<NetScope*>(scope), mode);
+				    return bound->expr_type() == IVL_VT_REAL;
+			      };
+			      if (is_real_bound(r.lo) || is_real_bound(r.hi)) {
+				    if (constraint_ir_design_ctx_->mark_constraint_dist_diagnostic(ins)) {
+					  cerr << ins->get_fileline() << ": error: a real dist range "
+					       << "requires an explicit :/ weight." << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+				    }
+				    return "";
+			      }
+			}
 			string lo = r.lo
 			      ? payload_ir(r.lo, true)
 			      : "*";

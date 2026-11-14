@@ -683,6 +683,12 @@ static int type_has_vartype_(ivl_type_t type)
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
 {
       ivl_type_t type = ivl_signal_net_type(sig);
+      if (ivl_signal_dimensions(sig) == 0 && type &&
+          (ivl_signal_data_type(sig) == IVL_VT_DARRAY ||
+           ivl_signal_data_type(sig) == IVL_VT_QUEUE)) {
+	    type = ivl_type_element(type);
+	    if (!type || !ivl_type_enum(type)) return;
+      }
       if (type && ivl_signal_dimensions(sig) == 0 &&
           ivl_signal_packed_dimensions(sig) > 1 &&
           ivl_type_typedef_vpi_type(type) == vpiArrayTypespec)
@@ -794,7 +800,10 @@ void emit_signal_vartypes(void)
 	    unsigned type_width = vartype_spec_(&buf, type);
 	    int packed_aggregate = ivl_type_enum(type) ||
 	                           ivl_type_properties(type) > 0;
-	    if (type_width == ivl_signal_width(sig) ||
+	    if ((ivl_signal_dimensions(sig) == 0 &&
+	         (ivl_signal_data_type(sig) == IVL_VT_DARRAY ||
+	          ivl_signal_data_type(sig) == IVL_VT_QUEUE) && type_width > 0) ||
+	        type_width == ivl_signal_width(sig) ||
 	        (packed_aggregate && ivl_signal_dimensions(sig) == 0 &&
 	         ivl_signal_packed_dimensions(sig) > 1 && type_width > 0 &&
 	         ivl_signal_width(sig) % type_width == 0))
@@ -1232,7 +1241,9 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 
       if (ivl_signal_dimensions(sig) == 0
 	  && (ivl_signal_data_type(sig) == IVL_VT_BOOL
-	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC))
+	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC
+	      || ivl_signal_data_type(sig) == IVL_VT_DARRAY
+	      || ivl_signal_data_type(sig) == IVL_VT_QUEUE))
 	    note_signal_vartype(sig, "_0");
 }
 

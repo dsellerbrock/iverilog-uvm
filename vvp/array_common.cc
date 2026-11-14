@@ -188,6 +188,8 @@ vpiHandle __vpiArrayWord::as_word_t::vpi_handle(int code)
 	  case vpiTypespec:
 	    if (__vpiArray*array = dynamic_cast<__vpiArray*>(my_parent))
 		  return array->typespec;
+	    if (__vpiDarrayVar*array = dynamic_cast<__vpiDarrayVar*>(my_parent))
+		  return array->element_typespec;
 	    return 0;
 
 	  case vpiScope:

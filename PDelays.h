@@ -45,6 +45,8 @@ class PDelays {
       void set_delays(const std::list<PExpr*>*del, bool delete_flag=true);
 
       unsigned delay_count() const;
+	/* The delay expression IDX as written (rise, fall, decay), or nil. */
+      PExpr* delay_expr(unsigned idx) const { return idx < 3 ? delay_[idx] : 0; }
 
       void eval_delays(Design*des, NetScope*scope,
 		       NetExpr*&rise_time,

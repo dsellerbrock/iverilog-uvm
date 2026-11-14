@@ -1,0 +1,6 @@
+./ivltests/issue3204_real_dist_bad.sv:2: error: property 'value' of class C is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+./ivltests/issue3204_real_dist_bad.sv:4: error: a real dist range requires an explicit :/ weight.
+./ivltests/issue3204_real_dist_bad.sv:5: error: a real dist range requires an explicit :/ weight.
+./ivltests/issue3204_real_dist_bad.sv:6: error: a real dist range requires an explicit :/ weight.
+./ivltests/issue3204_real_dist_bad.sv:10: error: a real dist range requires an explicit :/ weight.
+5 error(s) during elaboration.

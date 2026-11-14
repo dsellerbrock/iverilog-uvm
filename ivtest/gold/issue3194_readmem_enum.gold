@@ -1,0 +1,8 @@
+ERROR: ./ivltests/issue3194_readmem_enum.v:8: $readmemh(ivltests/issue3194_readmem_enum.hex): value is not a valid enumerated value; stopping read.
+ERROR: ./ivltests/issue3194_readmem_enum.v:13: $readmemh(ivltests/issue3194_readmem_enum.hex): value is not a valid enumerated value; stopping read.
+ERROR: ./ivltests/issue3194_readmem_enum.v:16: $readmemh(ivltests/issue3194_readmem_enum.hex): value is not a valid enumerated value; stopping read.
+ERROR: ./ivltests/issue3194_readmem_enum.v:20: $readmemh(ivltests/issue3194_readmem_enum.hex): value is not a valid enumerated value; stopping read.
+ERROR: ./ivltests/issue3194_readmem_enum.v:24: $readmemh(ivltests/issue3194_readmem_enum.hex): value is not a valid enumerated value; stopping read.
+ERROR: ./ivltests/issue3194_readmem_enum.v:28: $readmemb(ivltests/issue3194_readmem_enum.bin): value is not a valid enumerated value; stopping read.
+PASS
+./ivltests/issue3194_readmem_enum.v:39: $finish called at 0 (1s)
