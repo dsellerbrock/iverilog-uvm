@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_cover_vacuous_pass.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "sva_cover_vacuous_pass"
+}
