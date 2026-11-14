@@ -437,6 +437,7 @@ extern void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope,
 				     const std::vector<vvp_vector4_t>&saved);
 extern void vpip_cancel_proc_asserts(PLI_INT32 pid, __vpiScope*module_scope);
 /* IEEE 1800-2023 20.11: may a matured deferred report run its action? */
+extern PLI_INT32 vpip_violation_state(vpiHandle scope, int type, int what);
 extern bool vpip_deferred_action_enabled(unsigned long source_id,
 					 __vpiScope*scope, unsigned result);
 

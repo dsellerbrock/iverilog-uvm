@@ -1946,7 +1946,9 @@ class __vpiAssertion : public __vpiHandle {
       bool control_selected(int atype, int dtype, const char*selector,
 			    int levels) const
 	{
-	    if (!(atype & ctl_type_) || !(dtype & ctl_dir_)) return false;
+	      /* Table 20-7 directive selection applies only to assertions. */
+	    if (!(atype & ctl_type_)
+		|| (!(ctl_type_ & 224) && !(dtype & ctl_dir_))) return false;
 	    if (!selector) return true;
 	    if (!name_.empty() && scope_
 		&& std::string(scope_->vpi_get_str(vpiFullName)) + "." + name_
@@ -2926,6 +2928,15 @@ PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
 	   calling scope. */
       __vpiAssertion probe("", "", 0, sc, vpiUndefined);
       probe.make_control_probe(type_bit);
+      replay_assertion_control_(&probe);
+      return probe.control_state(what);
+}
+
+PLI_INT32 vpip_violation_state(vpiHandle scope, int type, int what)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      __vpiAssertion probe("", "", 0, sc, vpiUndefined);
+      probe.make_control_probe(type);
       replay_assertion_control_(&probe);
       return probe.control_state(what);
 }

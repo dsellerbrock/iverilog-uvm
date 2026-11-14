@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2873_violation_control.sv",
+  "iverilog-args": ["-g2023", "-s", "issue2873_violation_control"],
+  "gold": "issue2873_violation_control"
+}
