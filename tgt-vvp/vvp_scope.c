@@ -729,6 +729,23 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
 	  && ivl_type_base(type) != IVL_VT_BOOL)
 	    return 0;
 
+	/* N<name>: the typedef name (37.25 detail 1), when it is a plain
+	   identifier. */
+      {
+	    const char*tdname = ivl_type_typedef_name(type);
+	    size_t idx, len = tdname ? strlen(tdname) : 0;
+	    int plain = len > 0 && (isalpha((unsigned char)tdname[0])
+				    || tdname[0] == '_');
+	    for (idx = 1; plain && idx < len; idx += 1)
+		  plain = isalnum((unsigned char)tdname[idx])
+			|| tdname[idx] == '_' || tdname[idx] == '$';
+	    if (plain) {
+		  vartype_put_(buf, "N");
+		  vartype_put_(buf, tdname);
+		  vartype_put_(buf, ":");
+	    }
+      }
+
       if (enumtype) {
 	    if (!enumeration_is_drawn(enumtype)) return 0;
 	    snprintf(tmp, sizeof tmp, "E%u:enum%p", ivl_enum_width(enumtype),

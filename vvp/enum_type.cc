@@ -90,11 +90,15 @@ struct __vpiEnumTypespec : public __vpiHandle {
       __vpiEnumTypespec();
       int get_type_code(void) const override;
       int vpi_get(int code) override;
+      char* vpi_get_str(int code) override
+      { return code == vpiName ? const_cast<char*>(typedef_name) : 0; }
       vpiHandle vpi_iterate(int code) override;
 
       std::vector<enumconst_s> names;
       int base_type_code;
       bool is_signed;
+	/* The typedef name (37.25 detail 1), or nil. */
+      const char*typedef_name = 0;
 };
 
 
@@ -262,6 +266,8 @@ struct __vpiVectorTypespec : public __vpiHandle {
       __vpiVectorTypespec(int code, int left, int right, bool signed_flag)
       : code_(code), left_(left), right_(right), signed_(signed_flag) { }
       int get_type_code(void) const override { return code_; }
+      char* vpi_get_str(int code) override
+      { return code == vpiName ? const_cast<char*>(typedef_name) : 0; }
       vpiHandle vpi_handle(int code) override
       {
 	    switch (code) {
@@ -287,6 +293,7 @@ struct __vpiVectorTypespec : public __vpiHandle {
 		default: return 0;
 	    }
       }
+      const char*typedef_name = 0;
     private:
       int code_, left_, right_;
       bool signed_;
@@ -344,6 +351,8 @@ struct __vpiTypespecMember : public __vpiHandle {
 struct __vpiStructTypespec : public __vpiHandle {
       explicit __vpiStructTypespec(int code) : code_(code) { }
       int get_type_code(void) const override { return code_; }
+      char* vpi_get_str(int code) override
+      { return code == vpiName ? const_cast<char*>(typedef_name) : 0; }
       int vpi_get(int code) override
       {
 	    switch (code) {
@@ -364,6 +373,7 @@ struct __vpiStructTypespec : public __vpiHandle {
 
       unsigned width = 0;
       std::vector<__vpiTypespecMember*> members;
+      const char*typedef_name = 0;
     private:
       int code_;
 };
@@ -374,6 +384,23 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 {
       char*end;
       switch (*cp) {
+	  case 'N': {
+		/* N<name>:<type> -- the typedef name of the type (37.25
+		   detail 1). An enum keeps the first name it is given. */
+		size_t len = strcspn(cp + 1, ":");
+		if (len == 0 || cp[1 + len] != ':') return 0;
+		const char*name = vpip_name_string(std::string(cp + 1, len).c_str());
+		cp += len + 2;
+		vpiHandle type = parse_vartype(cp, width, missing);
+		if (__vpiStructTypespec*st = dynamic_cast<__vpiStructTypespec*>(type))
+		      st->typedef_name = name;
+		else if (__vpiVectorTypespec*vt = dynamic_cast<__vpiVectorTypespec*>(type))
+		      vt->typedef_name = name;
+		else if (__vpiEnumTypespec*et = dynamic_cast<__vpiEnumTypespec*>(type)) {
+		      if (!et->typedef_name) et->typedef_name = name;
+		}
+		return type;
+	  }
 	  case 'V':
 	  case 'B': {
 		int code = *cp == 'V' ? vpiLogicTypespec : vpiBitTypespec;
