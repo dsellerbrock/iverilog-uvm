@@ -1,0 +1,13 @@
+{
+    "type": "normal",
+    "source": "c33_libmap/cfg/top.v",
+    "iverilog-args": [
+        "-g2023",
+        "-LgateLib",
+        "-DADDER=\"gateLib\"",
+        "-DM=\"gateLib\"",
+        "--libmap=ivltests/c33_libmap/cfg/lib.map",
+        "-livltests/c33_libmap/cfg/adder.vg",
+        "-livltests/c33_libmap/cfg/adder.v"
+    ]
+}

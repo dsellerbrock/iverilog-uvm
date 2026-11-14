@@ -2765,7 +2765,42 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
       }
 
       perm_string lex_name = lex_strings.make(name);
+      perm_string cell_name = lex_name;
+      perm_string library = libmap_file_library(loc.text);
+
+	/* IEEE 1800 33.3: cells of different libraries may share a name. The
+	   cell of the library that is searched first keeps the plain name in
+	   pform_modules, so that every lookup by name binds as 33.6.1
+	   requires. The other cells are kept under a library-qualified key. */
+      map<perm_string,Module*>::iterator same_name = pform_cur_module.empty()
+	    ? pform_modules.find(lex_name) : pform_modules.end();
+      if (same_name != pform_modules.end()
+	  && same_name->second->library != library) {
+	    Module*other = same_name->second;
+	    perm_string other_key = libmap_cell_key(other->library, cell_name);
+	    if (!libmap_sources_parsed
+		&& libmap_before(library, other->library)
+		&& pform_modules.find(other_key) == pform_modules.end()) {
+		  pform_modules.erase(same_name);
+		  other->pscope_rename(other_key);
+		  pform_modules[other_key] = other;
+		    // The name is also a symbol of the compilation unit.
+		  map<perm_string,PNamedItem*>&symbols
+			= other->parent_scope()->local_symbols;
+		  map<perm_string,PNamedItem*>::iterator sym
+			= symbols.find(cell_name);
+		  if (sym != symbols.end() && sym->second == other) {
+			symbols.erase(sym);
+			symbols[other_key] = other;
+		  }
+	    } else {
+		  lex_name = libmap_cell_key(library, cell_name);
+	    }
+      }
+
       Module*cur_module = new Module(lexical_scope, lex_name);
+      cur_module->library = library;
+      cur_module->cell = cell_name;
       if (PPackage*unit = dynamic_cast<PPackage*>(lexical_scope))
 	    cur_module->unit_lets = unit->lets;
       cur_module->program_block = program_block;
@@ -3230,7 +3265,8 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	   must resolve before deferred assertions use it. */
       Module*cur_module = pform_cur_module.front();
       if (cur_module->is_checker) checker_free_finish_(cur_module);
-      perm_string mod_name = cur_module->mod_name();
+	// The name in the source: mod_name() may be library-qualified.
+      perm_string mod_name = cur_module->cell;
       map<Module*, vector<pair<perm_string, NetNet::PortType> > >::iterator
             deferred = pform_deferred_explicit_port_directions.find(cur_module);
       if (deferred != pform_deferred_explicit_port_directions.end()) {
@@ -3307,7 +3343,7 @@ void pform_endmodule(const char*name, bool inside_celldefine,
       if (strcmp(name, mod_name) != 0) {
 	    while (!pform_cur_module.empty()) {
 		  Module*tmp_module = pform_cur_module.front();
-		  perm_string tmp_name = tmp_module->mod_name();
+		  perm_string tmp_name = tmp_module->cell;
 		  pform_cur_module.pop_front();
 		  ostringstream msg;
 		  msg << "error: Module " << mod_name
@@ -3343,6 +3379,7 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	      ? pform_modules
 	      : pform_cur_module.front()->nested_modules;
 
+      mod_name = cur_module->mod_name();
       map<perm_string,Module*>::const_iterator test =
 	    use_module_map.find(mod_name);
 
@@ -39729,7 +39766,8 @@ int pform_parse(const char*path)
       vl_file = path;
       if (strcmp(path, "-") == 0) {
 	    vl_input = stdin;
-      } else if (ivlpp_string) {
+      } else if (ivlpp_string && !lexor_libmap_mode) {
+	      /* A library map file is not preprocessed (IEEE 1800 33.3.2). */
 	    char*cmdline = static_cast<char*>(malloc(strlen(ivlpp_string) +
 	                                             strlen(path) + 4));
 	    strcpy(cmdline, ivlpp_string);

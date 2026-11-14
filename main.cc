@@ -174,6 +174,8 @@ void add_vpi_module(const char*name)
 
 map<perm_string,unsigned> missing_modules;
 map<perm_string,bool> library_file_map;
+/* IEEE 1800 33.3.1 library map files, in command line order. */
+static vector<const char*> library_map_files;
 
 vector<perm_string> source_files;
 
@@ -801,6 +803,12 @@ static void read_iconfig_file(const char*ipath)
 		  perm_string path = filename_strings.make(cp);
 		  library_file_map[path] = true;
 
+	    } else if (strcmp(buf, "libmap") == 0) {
+		  library_map_files.push_back(strdup(cp));
+
+	    } else if (strcmp(buf, "liborder") == 0) {
+		  libmap_search(cp);
+
 	    } else if (strcmp(buf,"module") == 0) {
 		  add_vpi_module(cp);
 
@@ -1239,9 +1247,13 @@ int main(int argc, char*argv[])
 
 	/* Parse the input. Make the pform. */
       int rc = 0;
+	/* The library mapping is read before any source file (33.3.1). */
+      for (const char*path : library_map_files)
+	    rc += libmap_load(path);
       for (unsigned idx = 0; idx < source_files.size(); idx += 1) {
 	    rc += pform_parse(source_files[idx]);
       }
+      libmap_sources_parsed = true;
 
 	// Resolve deferred `export "DPI-C"' declarations now that every
 	// source file (hence every subroutine definition) has been parsed.
@@ -1316,7 +1328,7 @@ int main(int argc, char*argv[])
 
 		    /* Don't choose modules instantiated in other
 		       modules. */
-		  if (mentioned_p[(*mod).second->mod_name()])
+		  if (mentioned_p[(*mod).second->cell])
 			continue;
 
 		    /* IEEE 1800-2017/2023 23.3.3.4 requires every interface

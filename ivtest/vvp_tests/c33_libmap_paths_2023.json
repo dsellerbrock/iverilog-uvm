@@ -1,0 +1,15 @@
+{
+    "type": "normal",
+    "source": "c33_libmap/tb/tb.v",
+    "iverilog-args": [
+        "-g2023",
+        "-L",
+        "lib2",
+        "-DWHO=\"foo\"",
+        "--libmap=ivltests/c33_libmap/tb/lib.map",
+        "-livltests/c33_libmap/lib/barver.v",
+        "-livltests/c33_libmap/lib/bar.v",
+        "-livltests/c33_libmap/lib/foo.v",
+        "-livltests/c33_libmap/lib/foobar.v"
+    ]
+}
