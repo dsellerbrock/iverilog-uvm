@@ -6801,3 +6801,9 @@ issue2905_clocking_output_concat_2017 normal,-g2017,-s,issue2905_clocking_output
 issue2905_clocking_output_concat_2023 normal,-g2023,-s,issue2905_clocking_output_concat ivltests gold=issue2905_clocking_output_concat_2023.gold
 issue2616_queue_part_store normal,-g2017,-s,top ivltests gold=issue2616_queue_part_store.gold
 issue2616_queue_part_store_2023 normal,-g2023,-s,top ivltests gold=issue2616_queue_part_store.gold
+issue2907_clock_2017 normal,-g2017,-s,issue2907_clock ivltests gold=issue2907_clock.gold
+issue2907_clock_2023 normal,-g2023,-s,issue2907_clock ivltests gold=issue2907_clock.gold
+issue2907_no_clock_2017 CE,-g2017,-s,issue2907_no_clock ivltests gold=issue2907_no_clock.gold
+issue2907_no_clock_2023 CE,-g2023,-s,issue2907_no_clock ivltests gold=issue2907_no_clock.gold
+issue2907_bad_default_2017 CE,-g2017,-s,issue2907_bad_default ivltests gold=issue2907_bad_default.gold
+issue2907_bad_default_2023 CE,-g2023,-s,issue2907_bad_default ivltests gold=issue2907_bad_default.gold

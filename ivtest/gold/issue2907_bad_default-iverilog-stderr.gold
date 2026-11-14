@@ -1,0 +1,1 @@
+ivltests/issue2907_bad_default.sv:1: error: Checker event port default must be $inferred_clock (IEEE 1800-2017/2023 17.4).
