@@ -116,6 +116,7 @@ static bool stmt_callback_capable_(int type)
 	  case vpiAssignStmt:
 	  case vpiDeassign:
 	  case vpiDisable:
+	  case vpiReturnStmt:
 	  case vpiForce:
 	  case vpiRelease:
 	  case vpiEventStmt:
