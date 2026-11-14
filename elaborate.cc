@@ -47674,6 +47674,40 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 		  string range_ir;
 		  if (r.is_range) {
+			if (is_dist && !r.weight_is_divided
+			    && constraint_ir_design_ctx_ && scope) {
+			      function<bool(PExpr*)> is_real_bound = [&](PExpr*bound) {
+				    if (!bound) return false;
+				    if (const PETernary*ternary = dynamic_cast<const PETernary*>(bound))
+					  return is_real_bound(ternary->get_true())
+					      || is_real_bound(ternary->get_false());
+				    constraint_source_type_t type =
+					  constraint_source_expr_type_(bound, cls, value_slots, scope);
+				    if (type.type)
+					  return type.type->base_type() == IVL_VT_REAL;
+				    if (const PEBinary*binary = dynamic_cast<const PEBinary*>(bound)) {
+					  char op = binary->get_op();
+					  if (op == '+' || op == '-' || op == '*' || op == '/' || op == 'p')
+						return is_real_bound(binary->get_left())
+						    || is_real_bound(binary->get_right());
+				    }
+				    if (const PEUnary*unary = dynamic_cast<const PEUnary*>(bound))
+					  if (unary->get_op() == '+' || unary->get_op() == '-')
+						return is_real_bound(unary->get_expr());
+				    PExpr::width_mode_t mode = PExpr::SIZED;
+				    bound->test_width(constraint_ir_design_ctx_,
+					  const_cast<NetScope*>(scope), mode);
+				    return bound->expr_type() == IVL_VT_REAL;
+			      };
+			      if (is_real_bound(r.lo) || is_real_bound(r.hi)) {
+				    if (constraint_ir_design_ctx_->mark_constraint_dist_diagnostic(ins)) {
+					  cerr << ins->get_fileline() << ": error: a real dist range "
+					       << "requires an explicit :/ weight." << endl;
+					  constraint_ir_design_ctx_->errors += 1;
+				    }
+				    return "";
+			      }
+			}
 			string lo = r.lo
 			      ? payload_ir(r.lo, true)
 			      : "*";

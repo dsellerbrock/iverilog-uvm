@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3204_real_dist_good.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "top"
+  ],
+  "gold": "issue3204_real_dist_good_2017"
+}
