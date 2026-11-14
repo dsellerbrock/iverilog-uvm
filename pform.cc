@@ -13259,6 +13259,19 @@ static PExpr* sva_preserve_uarray_operand_(
       return copy;
 }
 
+/* IEEE 1800-2017/2023 16.5.1: const'(x) operands the assertion being
+   lowered read live. Set by sva_wrap_preponed_, read when the checker is
+   assembled (sva_captures_then_observed_). Each pform_make_assertion call,
+   including a nested one for a helper monitor or a composite leaf, counts
+   its own reads (sva_const_reads_scope_t). */
+static unsigned sva_const_live_reads_ = 0;
+struct sva_const_reads_scope_t {
+      unsigned saved;
+      sva_const_reads_scope_t() : saved(sva_const_live_reads_)
+	    { sva_const_live_reads_ = 0; }
+      ~sva_const_reads_scope_t() { sva_const_live_reads_ = saved; }
+};
+
 /*
  * M6B-4 — Preponed sampling for concurrent assertions.
  *
@@ -13323,8 +13336,10 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  && !strcmp(peek_tail_name(cf->path().name).str(),
 			     "$ivl_const_cast")
 		  && cf->get_parms().size() == 1
-		  && cf->get_parms()[0].parm)
+		  && cf->get_parms()[0].parm) {
+		    sva_const_live_reads_ += 1;
 		    return sva_clone_expr_(cf->get_parms()[0].parm);
+	      }
 	}
 
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
@@ -15462,6 +15477,36 @@ static Statement* sva_observed_wait_(const struct vlltype&loc)
 					      sva_active_proc_id_,
 					      SVA_STATE_TAKE_MATURED)));
       return sva_block_(loc, v);
+}
+
+/* Open a checker clock body: the operand captures `pre', and the wait for
+   Observed. Captures read Preponed shadows, so they normally run first, at
+   the clock wake. A const'(x) capture instead reads the current value of x
+   (16.5.1), which includes the NBA updates of this time step, so a checker
+   with one enters Observed before capturing. */
+static std::vector<Statement*> sva_captures_then_observed_(
+      const struct vlltype&loc, const std::vector<Statement*>&pre)
+{
+      std::vector<Statement*> full;
+      bool observed_first = sva_const_live_reads_ != 0;
+      if (observed_first) full.push_back(sva_observed_wait_(loc));
+      full.insert(full.end(), pre.begin(), pre.end());
+      if (!observed_first) full.push_back(sva_observed_wait_(loc));
+      return full;
+}
+
+/* The multiclock engines hand attempts between clock processes at fixed
+   points around their Observed waits, and their leading clock's captures
+   cannot move past them. Say so when a const'(x) is among those captures,
+   once per assertion, and keep the existing order. */
+static void sva_note_multiclock_const_(const struct vlltype&loc)
+{
+      if (!sva_const_live_reads_) return;
+      sva_const_live_reads_ = 0;
+      cerr << loc << ": sorry: in a multiclock assertion, a const'(x) "
+	   << "operand may read x before the NBA updates of its clock's time "
+	   << "step instead of its current value (IEEE 1800-2023 16.5.1)."
+	   << endl;
 }
 
 static PExpr* sva_deferred_enabled_expr_(const struct vlltype&loc,
@@ -21454,8 +21499,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	/* Assemble: pre-captures; enter Observed before consulting run-time
 	   assertion control; disable guard around the checker body; history
 	   updates remain clock state and continue outside the attempt guard. */
-      std::vector<Statement*> full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       full.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_temporal_state()));
       Statement*core = sva_block_(loc, body);
@@ -26378,8 +26422,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* Assemble: pre-captures; disable guard clears all slot state
 	   with no reports; history updates outside the guard. */
-      std::vector<Statement*> full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
 	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
@@ -29350,6 +29393,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	   coincident c1 NBA, while for ##0 the enclosing #0 has already made
 	   the coincident blocking request visible. The verdict itself is then
 	   computed in Observed, like every other concurrent assertion. */
+      sva_note_multiclock_const_(loc);
       body2.push_back(sva_observed_wait_(loc));
       body2.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill2,
@@ -30105,6 +30149,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    std::vector<Statement*>agg_loop;
 	    agg_loop.push_back(sva_if_(loc,
 		  sva_logic_(loc, 'a', life_idle, result_idle), await, nullptr));
+	    sva_note_multiclock_const_(loc);
 	    agg_loop.push_back(sva_observed_wait_(loc));
 	    std::vector<Statement*>reset_aggregate;
 	    reset_aggregate.push_back(sva_assoc_delete_(loc, par_pending, nullptr));
@@ -31141,6 +31186,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 					  sva_id_(loc, req_in[d])));
 	    bodyd.push_back(sva_assign_(loc, epoch_snapshot[d],
 					  sva_id_(loc, req_epoch[d])));
+	    sva_note_multiclock_const_(loc);
 	    bodyd.push_back(sva_observed_wait_(loc));
 	    bodyd.push_back(sva_kill_reset_stmt_(
 		  loc, inst, r_kill[d], clear_domaind()));
@@ -33373,8 +33419,7 @@ static bool sva_parameter_repeat_try_assertion_(
 	   process below clears live attempts on the exact-false-to-exact-true
 	   transition, including a pulse that falls again before that process
 	   executes. */
-      std::vector<Statement*> full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       full.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_state()));
       Statement*core = sva_block_(loc, body);
@@ -33871,8 +33916,7 @@ static bool sva_parameter_consequent_repeat_try_assertion_(
       FILE_NAME(next, loc);
       body.push_back(sva_assign_(loc, pipe, next));
 
-      std::vector<Statement*>full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       full.push_back(sva_kill_reset_stmt_(loc, inst, kill, clear()));
       Statement*core = sva_block_(loc, body);
       if (disable) {
@@ -34106,8 +34150,7 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
 					 pass_stmt, fail_action);
       body.push_back(sva_if_(loc, due, verdict, nullptr));
 
-      std::vector<Statement*> full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       Statement*core = sva_block_(loc, body);
       if (disable) {
 	    Statement*clear = sva_assign_(loc, pipe, sva_bit_(loc, 0));
@@ -35860,6 +35903,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 
 	/* The other clock domains: advance their operands, re-evaluate every
 	   node, decide. */
+      if (!m.domains.empty()) sva_note_multiclock_const_(loc);
       for (size_t d = 0 ; d < m.domains.size() ; d += 1) {
 	    sva_nfa_domain_t&dom = m.domains[d];
 	    std::vector<Statement*> dbody = dom.body;
@@ -35869,8 +35913,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 		  dbody.push_back(c);
 	    }
 	    decide(dbody, actions[d + 1], (unsigned)(d + 1));
-	    std::vector<Statement*> dfull = dom.pre;
-	    dfull.push_back(sva_observed_wait_(loc));
+	    std::vector<Statement*> dfull = sva_captures_then_observed_(loc, dom.pre);
 	    Statement*dcore = sva_block_(loc, dbody);
 	    PExpr*ddisable = disable ? sva_clone_expr_(disable) : nullptr;
 	    if (ddisable) {
@@ -35887,8 +35930,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
       for (Statement*st : m.recompute) delete st;
 
-      std::vector<Statement*> full = m.pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, m.pre);
       full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 			     sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
@@ -36654,6 +36696,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 {
       pform_generated_verification_scope_t verification_scope;
       sva_assertion_label_scope_t assertion_label_scope(label, kind, proc_id);
+      sva_const_reads_scope_t const_reads_scope;
       if (sva_assertion_label_depth_ == 1)
 	    sva_note_top_instance_(prop);
       sva_clocking_scope_guard_t clocking_scope(prop);
@@ -38899,8 +38942,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 
 	/* Assemble: pre-captures; disable guard around the token
 	   machinery; history updates. */
-      std::vector<Statement*> full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       if (track_failure_age || steps_ok)
 	    full.push_back(sva_clock_stmt_(loc, inst));
 	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
