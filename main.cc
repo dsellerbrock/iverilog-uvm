@@ -199,6 +199,7 @@ bool warn_ob_select = false;
 bool warn_sens_entire_vec = false;
 bool warn_sens_entire_arr = false;
 bool warn_anachronisms = false;
+bool warn_net_data_type = false;
 bool warn_floating_nets = false;
 
 /*
@@ -846,6 +847,9 @@ static void read_iconfig_file(const char*ipath)
 			break;
 		      case 'n':
 			warn_anachronisms = true;
+			break;
+		      case 'N':
+			warn_net_data_type = true;
 			break;
 		      default:
 			break;

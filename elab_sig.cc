@@ -753,6 +753,21 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
       if (sig->user_nettype())
 	    return;
 
+	/* IEEE 1800-2023 6.7.1: a net's data type shall be a 4-state
+	   integral type (or an unpacked aggregate of them). Icarus accepts
+	   2-state packed nets as an extension, and says so under
+	   -Wnet-data-type (part of -Wall). Variables, including "input var
+	   bit" and output ports with a data type, are not nets. */
+      if (warn_net_data_type && type->packed()
+	  && type->base_type() == IVL_VT_BOOL
+	  && sig->type() != NetNet::NONE && sig->type() != NetNet::REG
+	  && sig->type() != NetNet::IMPLICIT_REG) {
+	    cerr << wire->get_fileline() << ": warning: net `"
+		 << wire->basename() << "` has a 2-state data type; IEEE 1800 "
+		 << "6.7.1 requires a 4-state net type (-Wnet-data-type)."
+		 << endl;
+      }
+
       const bool valid_unpacked_net = sig->type() == NetNet::WIRE
 	    && valid_builtin_net_data_type_(type);
 
