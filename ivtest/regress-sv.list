@@ -6893,3 +6893,7 @@ issue3198_package_net_2017 normal,-g2017,-s,issue3198_package_net ivltests gold=
 issue3198_package_net_2023 normal,-g2023,-s,issue3198_package_net ivltests gold=issue3198_package_net.gold
 issue3198_package_net_init_2017 CE,-g2017 ivltests gold=issue3198_package_net_init.gold
 issue3198_package_net_init_2023 CE,-g2023 ivltests gold=issue3198_package_net_init.gold
+issue3359_pure_dpi_2017 CO,-g2017,-s,top ivltests
+issue3359_pure_dpi_2023 CO,-g2023,-s,top ivltests
+issue3359_impure_dpi_2017 CE,-g2017,-s,top ivltests gold=issue3359_impure_dpi.gold
+issue3359_impure_dpi_2023 CE,-g2023,-s,top ivltests gold=issue3359_impure_dpi.gold
