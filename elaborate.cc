@@ -47250,6 +47250,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  const netdarray_t*darray = dynamic_cast<const netdarray_t*>(type);
 		  if (array) type = array->element_type();
 		  else if (darray) type = darray->element_type();
+		  ivl_type_t leaf_type = type;
+		  while (true) {
+			const netuarray_t*ua = dynamic_cast<const netuarray_t*>(leaf_type);
+			const netdarray_t*da = dynamic_cast<const netdarray_t*>(leaf_type);
+			if (ua) leaf_type = ua->element_type();
+			else if (da) leaf_type = da->element_type();
+			else break;
+		  }
+		  if (generation_flag < GN_VER2023 && leaf_type->base_type() == IVL_VT_REAL) {
+			cerr << uq->get_fileline() << ": error: unique constraint members "
+			     << "must be integral in IEEE 1800-2017 (18.5.5)." << endl;
+			if (constraint_ir_design_ctx_)
+			      constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
 		  if (!member_type) member_type = type;
 		  else if (!member_type->type_equivalent(type)
 			   || !type->type_equivalent(member_type)) {
