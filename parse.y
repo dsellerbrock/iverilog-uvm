@@ -2493,15 +2493,26 @@ static Module::port_t *module_declare_event_port(
 	    yyerror(loc, "sorry: Unpacked event ports are not supported.");
 	    delete unpacked_dims;
       }
-      if (default_value) {
-	    yyerror(loc, "sorry: Default values on event ports are not supported.");
+      PECallFunction*inferred = dynamic_cast<PECallFunction*>(default_value);
+      bool checker_inferred_clock = pform_module_is_checker()
+	    && port_type == NetNet::PINPUT && inferred
+	    && !inferred->path().package && inferred->path().name.size() == 1
+	    && inferred->path().name.front().name == perm_string::literal("$inferred_clock")
+	    && inferred->get_parms().empty() && !inferred->receiver_expr();
+      if (default_value && !checker_inferred_clock) {
+	    if (pform_module_is_checker())
+		  yyerror(loc, "error: Checker event port default must be $inferred_clock (IEEE 1800-2017/2023 17.4).");
+	    else
+		  yyerror(loc, "sorry: Default values on event ports are not supported.");
 	    delete default_value;
+	    default_value = nullptr;
       }
 
       pform_make_event_port(loc, name);
       Module::port_t*port = pform_module_port_reference(loc, name.first);
       port->event_port = true;
       port->event_direction = port_type;
+      port->default_value = default_value;
 
       port_declaration_context.port_type = port_type;
       port_declaration_context.port_net_type = NetNet::IMPLICIT;
@@ -6633,6 +6644,7 @@ deferred_immediate_assertion_item /* IEEE1800-2012: A.6.10 */
 	   behavior in the current Module/PGenerate scope so generate items
 	   are elaborated once per generated instance. */
 	if (item) {
+	      pform_checker_note_static_deferred(@2);
 	      PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, item, 0);
 	      FILE_NAME(tmp, @2);
 	}
@@ -20482,6 +20494,26 @@ statement_item /* This is roughly statement_item in the LRM */
       { PCAssign*tmp = new PCAssign($2, $4);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
+      }
+  /* IEEE 1800-2023 17.3: a checker instantiated in procedural code is a
+     procedural checker instance. */
+  | IDENTIFIER IDENTIFIER '(' port_conn_expression_list_with_nuls ')' ';'
+      { lgate*gate = new lgate;
+	gate->name = $2;
+	gate->parms = $4;
+	FILE_NAME(gate, @2);
+	$$ = pform_procedural_checker_instance(@1, lex_strings.make($1), gate);
+	delete[]$1;
+	delete[]$2;
+      }
+  | IDENTIFIER IDENTIFIER '(' port_name_list ')' ';'
+      { lgate*gate = new lgate;
+	gate->name = $2;
+	gate->parms_by_name = $4;
+	FILE_NAME(gate, @2);
+	$$ = pform_procedural_checker_instance(@1, lex_strings.make($1), gate);
+	delete[]$1;
+	delete[]$2;
       }
   /* IEEE 1800-2017 9.3.1 permits a statement label before a sequential
      block (`name: begin ... end`). Treat it as the equivalent named block

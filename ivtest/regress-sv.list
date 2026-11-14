@@ -6723,6 +6723,8 @@ issue2618_assoc_fixed_array_copy_2017 normal,-g2017,-s,issue2618_assoc_fixed_arr
 issue2618_assoc_fixed_array_copy_2023 normal,-g2023,-s,issue2618_assoc_fixed_array_copy ivltests gold=issue2618_assoc_fixed_array_copy_2023-legacy.gold
 sva_proc_capture_2017 normal,-g2017,-s,sva_proc_capture ivltests gold=sva_proc_capture.gold
 sva_proc_capture_2023 normal,-g2023,-s,sva_proc_capture ivltests gold=sva_proc_capture.gold
+sva_proc_checker_2017 normal,-g2017,-s,top ivltests gold=sva_proc_checker.gold
+sva_proc_checker_2023 normal,-g2023,-s,top ivltests gold=sva_proc_checker.gold
 sva_same_tick_verdicts_2017 normal,-g2017,-s,sva_same_tick_verdicts ivltests gold=sva_same_tick_verdicts.gold
 sva_same_tick_verdicts_2023 normal,-g2023,-s,sva_same_tick_verdicts ivltests gold=sva_same_tick_verdicts.gold
 
@@ -6801,3 +6803,19 @@ issue2905_clocking_output_concat_2017 normal,-g2017,-s,issue2905_clocking_output
 issue2905_clocking_output_concat_2023 normal,-g2023,-s,issue2905_clocking_output_concat ivltests gold=issue2905_clocking_output_concat_2023.gold
 issue2616_queue_part_store normal,-g2017,-s,top ivltests gold=issue2616_queue_part_store.gold
 issue2616_queue_part_store_2023 normal,-g2023,-s,top ivltests gold=issue2616_queue_part_store.gold
+issue2907_clock_2017 normal,-g2017,-s,issue2907_clock ivltests gold=issue2907_clock.gold
+issue2907_clock_2023 normal,-g2023,-s,issue2907_clock ivltests gold=issue2907_clock.gold
+issue2907_no_clock_2017 CE,-g2017,-s,issue2907_no_clock ivltests gold=issue2907_no_clock.gold
+issue2907_no_clock_2023 CE,-g2023,-s,issue2907_no_clock ivltests gold=issue2907_no_clock.gold
+issue2907_bad_default_2017 CE,-g2017,-s,issue2907_bad_default ivltests gold=issue2907_bad_default.gold
+issue2907_bad_default_2023 CE,-g2023,-s,issue2907_bad_default ivltests gold=issue2907_bad_default.gold
+issue2970_foreach_oob_2017 normal,-g2017,-s,top ivltests gold=issue2970_foreach_oob.gold
+issue2970_foreach_oob_2023 normal,-g2023,-s,top ivltests gold=issue2970_foreach_oob.gold
+issue2873_violation_control_2017 normal,-g2017,-s,issue2873_violation_control ivltests gold=issue2873_violation_control.gold
+issue2873_violation_control_2023 normal,-g2023,-s,issue2873_violation_control ivltests gold=issue2873_violation_control.gold
+
+issue2981_local_type_cast_2017 normal,-g2017,-s,main ivltests gold=issue2981_local_type_cast.gold
+issue2981_local_type_cast_2023 normal,-g2023,-s,main ivltests gold=issue2981_local_type_cast.gold
+issue2966_unique_real_2017 CE,-g2017,-s,top ivltests gold=issue2966_unique_real_2017.gold
+issue2966_unique_real_2023 normal,-g2023,-s,top ivltests gold=issue2966_unique_real_2023.gold
+issue2966_unique_real_array_2017 CE,-g2017,-s,top ivltests gold=issue2966_unique_real_array_2017.gold

@@ -14534,6 +14534,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    // A symbolic state selection needs the final model to decide whether
 	    // its chosen index names an X/Z leaf or lies outside the declaration.
 	    if (!builder.state_checks.empty()) precheck = Z3_L_FALSE;
+	    // Absent element reads must be checked against their guards in the
+	    // final model before a current assignment can be accepted.
+	    if (!builder.absent_elems.empty()) precheck = Z3_L_FALSE;
 	    if (!uniform_joint_components.empty()) precheck = Z3_L_FALSE;
 
 	    if (precheck == Z3_L_TRUE && builder.dist_specs.empty()) {

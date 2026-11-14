@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2966_unique_real_array.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue2966_unique_real_array_2017"
+}

@@ -7694,6 +7694,11 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    for (unsigned idx = 0 ; idx < pins.size() ; idx += 1) {
 		  if (pins[idx] || rmod->get_port_default_value(idx))
 			continue;
+		    /* 17.3: in a procedural instance's module-scope copy, a
+		       formal bound to a const cast or automatic value is read
+		       only by the assertions placed at the instance. */
+		  if (strncmp(get_name().str(), "_ivl_pchk", 9) == 0)
+			continue;
 
 		  cerr << get_fileline() << ": error: checker port `"
 		       << rmod->get_port_name(idx) << "' of instance `"
@@ -7755,19 +7760,74 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
       for (unsigned idx = 0; idx < pins.size(); idx += 1) {
 	    if (!rmod->is_event_port(idx))
 		  continue;
-	    if (!pins[idx]) {
+	    NetEvWait*checker_event_lifetime_wait = nullptr;
+	    NetEvent*actual_event = nullptr;
+	    if (!pins[idx] && rmod->is_checker
+		&& rmod->get_port_default_value(idx)) {
+		  NetScope*module_scope = scope;
+		  while (module_scope && !module_scope->module_definition())
+			module_scope = module_scope->parent();
+		  const Module*owner = module_scope
+			? find_default_clocking_module_(module_scope->module_definition())
+			: nullptr;
+		  NetScope*clock_scope = module_scope;
+		  while (clock_scope && clock_scope->module_definition() != owner)
+			clock_scope = clock_scope->parent();
+		  const Module::PClocking*clocking = nullptr;
+		  if (owner) {
+			auto it = owner->clocking_blocks.find(owner->default_clocking);
+			if (it != owner->clocking_blocks.end()) clocking = it->second;
+		  }
+		  if (!clocking || !clock_scope || !clocking->event) {
+			cerr << get_fileline() << ": error: $inferred_clock has no current resolved event expression (IEEE 1800-2017/2023 16.14.7, 17.4)." << endl;
+			des->errors += 1;
+			continue;
+		  }
+		  const vector<PEEvent*>&events = clocking->event->event_expressions();
+		  if (events.size() == 1) {
+			actual_event = resolve_checker_event_port_actual_(des, clock_scope,
+			      events[0], &checker_event_lifetime_wait);
+		  } else {
+			bool conditional = false;
+			for (const PEEvent*event : events)
+			      if (event && event->condition()) conditional = true;
+			NetProc*proc = conditional ? nullptr
+			      : clocking->event->elaborate(des, clock_scope);
+			checker_event_lifetime_wait = dynamic_cast<NetEvWait*>(proc);
+			if (checker_event_lifetime_wait
+			    && checker_event_lifetime_wait->nevents() == 1) {
+			      actual_event = checker_event_lifetime_wait->event(0);
+			} else {
+			delete proc;
+			checker_event_lifetime_wait = nullptr;
+			      NetEvent*event = new NetEvent(clock_scope->local_symbol());
+			      event->set_line(*this);
+			      event->local_flag(true);
+			      NetEvTrig*trigger = new NetEvTrig(event);
+			      NetProc*body = clocking->event->elaborate_st(des, clock_scope, trigger);
+			      if (!body) {
+				    delete trigger;
+				    delete event;
+				    continue;
+			      }
+			      clock_scope->add_event(event);
+			      des->add_process(new NetProcTop(clock_scope, IVL_PR_ALWAYS, body));
+			      actual_event = event;
+			}
+		  }
+	    } else if (!pins[idx]) {
 		  cerr << get_fileline() << ": error: Event port `"
 		       << rmod->get_port_name(idx) << "' of module `"
 		       << rmod->mod_name()
 		       << "' requires a named-event actual." << endl;
 		  des->errors += 1;
 		  continue;
+	    } else {
+		  actual_event = rmod->is_checker
+			? resolve_checker_event_port_actual_(des, scope, pins[idx],
+						     &checker_event_lifetime_wait)
+			: resolve_event_port_actual_(des, scope, pins[idx]);
 	    }
-	    NetEvWait*checker_event_lifetime_wait = nullptr;
-	    NetEvent*actual_event = rmod->is_checker
-		  ? resolve_checker_event_port_actual_(des, scope, pins[idx],
-						       &checker_event_lifetime_wait)
-		  : resolve_event_port_actual_(des, scope, pins[idx]);
 	    if (!actual_event) {
 		  delete checker_event_lifetime_wait;
 		  continue;
@@ -34306,6 +34366,18 @@ static void elaborate_specparam_storage_(Design*des, NetScope*scope)
       }
 }
 
+/* IEEE 1800-2023 17.3: the module-scope copy of a procedural checker instance
+   holds the checker's contents without its static assertions, which are
+   placed where the instance is written (pform_procedural_checker_instance). */
+static bool procedural_checker_copy(const NetScope*scope)
+{
+      for (const NetScope*s = scope ; s ; s = s->parent())
+	    if (s->type() == NetScope::MODULE
+		&& strncmp(s->basename().str(), "_ivl_pchk", 9) == 0)
+		  return true;
+      return false;
+}
+
 bool Module::elaborate(Design*des, NetScope*scope) const
 {
       bool result_flag = true;
@@ -34354,7 +34426,11 @@ bool Module::elaborate(Design*des, NetScope*scope) const
 	      // complex.
 	    const list<PGate*>&gl = get_gates();
 
-	    for (const auto gt : gl) gt->elaborate(des, scope);
+	    for (const auto gt : gl) {
+		  if (pform_checker_static_gates.count(gt)
+		      && procedural_checker_copy(scope)) continue;
+		  gt->elaborate(des, scope);
+	    }
 
 	      // Elaborate the variable initialization statements, making a
 	      // single initial process out of them.
@@ -37558,9 +37634,26 @@ static constraint_source_type_t constraint_source_expr_type_(
 	    result.qualifier_relevant = base.qualifier_relevant;
 	    return result;
       }
-      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(cast->cast_size());
+	    if (id && value_slots && scope && constraint_ir_design_ctx_ && !id->path().package
+		&& id->path().name.size() == 1
+		&& id->path().name.front().local_scope
+		&& id->path().name.front().index.empty()) {
+		  NetScope*caller = const_cast<NetScope*>(scope);
+		  if (typedef_t*td = caller->find_typedef(
+			constraint_ir_design_ctx_, id->path().name.front().name)) {
+			constraint_source_type_t base = constraint_source_expr_type_(
+			      cast->cast_base(), cls, value_slots, scope);
+			result = constraint_source_type_from_raw_(
+			      td->elaborate_type(constraint_ir_design_ctx_, caller));
+			result.qualifier_relevant = base.qualifier_relevant;
+			return result;
+		  }
+	    }
 	    return constraint_source_expr_type_(
 		  cast->cast_base(), cls, value_slots, scope);
+      }
       if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
 	    return constraint_source_expr_type_(
 		  cast->cast_base(), cls, value_slots, scope);
@@ -43915,6 +44008,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
        * retain an explicit integral cast, including self-determined width and
        * signedness, rather than silently reusing the uncast operand. */
       auto cast_to_constraint_ir = [&](const PExpr*base) -> string {
+            Design*des = constraint_ir_design_ctx_;
+            NetScope*cast_scope = const_cast<NetScope*>(scope
+                  ? scope : cls ? cls->class_scope() : nullptr);
+            ivl_type_t local_cast_type = nullptr;
+            if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
+                  const PEIdent*id = dynamic_cast<const PEIdent*>(cast->cast_size());
+                  if (id && value_slots && des && cast_scope && !id->path().package
+                      && id->path().name.size() == 1
+                      && id->path().name.front().local_scope
+                      && id->path().name.front().index.empty()) {
+                        if (typedef_t*td = cast_scope->find_typedef(
+                              des, id->path().name.front().name))
+                              local_cast_type = td->elaborate_type(des, cast_scope);
+                  }
+            }
             const PENumber*fill_num = dynamic_cast<const PENumber*>(base);
             bool defer_fill = fill_num && fill_num->value().is_single()
                   && (dynamic_cast<const PECastType*>(expr)
@@ -43925,26 +44033,26 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                   ir = pexpr_to_constraint_ir(base, cls, value_slots,
                                               scope, loop_env);
                   if (ir.empty()) return ir;
-                  if (value_slots && ir.compare(0, 2, "v:") == 0
+                  if (!local_cast_type && value_slots && ir.compare(0, 2, "v:") == 0
                       && value_slots->size() == before + 1) {
                         value_slots->back() = expr;
                         return ir;
                   }
             }
-            Design*des = constraint_ir_design_ctx_;
-            NetScope*cast_scope = const_cast<NetScope*>(scope
-                  ? scope : cls ? cls->class_scope() : nullptr);
             if (!des || !cast_scope) return "";
             unsigned width = 0;
             unsigned sign = 2; // inherit for a size cast
             bool two_state_target = false;
-            if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
-                  ivl_type_t type = cast->resolve_target_type(des, cast_scope);
+            const PECastType*type_cast = dynamic_cast<const PECastType*>(expr);
+            if (type_cast || local_cast_type) {
+                  const PECastType*cast = type_cast;
+                  ivl_type_t type = cast ? cast->resolve_target_type(des, cast_scope)
+                                         : local_cast_type;
                   if (!type) return "";
                   if (type->base_type() == IVL_VT_REAL) {
-                        if (cast->tolerance_range())
+                        if (cast && cast->tolerance_range())
                               return "(tolerance-range-real " + ir + ")";
-                        if (cast->truncate_real_to_integral())
+                        if (cast && cast->truncate_real_to_integral())
                               return "(realcast " + ir + ")";
                   }
                   if (!type->packed() || !type_is_vectorable(type->base_type())) {
@@ -43957,10 +44065,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
                   width = type->packed_width();
                   sign = type->get_signed() ? 1 : 0;
                   two_state_target = type->base_type() == IVL_VT_BOOL;
-                  if (cast->tolerance_range())
+                  if (cast && cast->tolerance_range())
                         return "(tolerance-range c:" + to_string(width)
                               + " c:" + to_string(sign) + " " + ir + ")";
-                  if (cast->truncate_real_to_integral())
+                  if (cast && cast->truncate_real_to_integral())
                         return "(trunc-real c:" + to_string(width)
                               + " c:" + to_string(sign) + " " + ir + ")";
             } else if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
@@ -47142,6 +47250,21 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  const netdarray_t*darray = dynamic_cast<const netdarray_t*>(type);
 		  if (array) type = array->element_type();
 		  else if (darray) type = darray->element_type();
+		  ivl_type_t leaf_type = type;
+		  while (true) {
+			const netuarray_t*ua = dynamic_cast<const netuarray_t*>(leaf_type);
+			const netdarray_t*da = dynamic_cast<const netdarray_t*>(leaf_type);
+			if (ua) leaf_type = ua->element_type();
+			else if (da) leaf_type = da->element_type();
+			else break;
+		  }
+		  if (generation_flag < GN_VER2023 && leaf_type->base_type() == IVL_VT_REAL) {
+			cerr << uq->get_fileline() << ": error: unique constraint members "
+			     << "must be integral in IEEE 1800-2017 (18.5.5)." << endl;
+			if (constraint_ir_design_ctx_)
+			      constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
 		  if (!member_type) member_type = type;
 		  else if (!member_type->type_equivalent(type)
 			   || !type->type_equivalent(member_type)) {
@@ -55020,6 +55143,8 @@ bool PScope::elaborate_behaviors_(Design*des, NetScope*scope) const
 	// for each process.
       for (list<PProcess*>::const_iterator st = behaviors.begin()
 		 ; st != behaviors.end() ; ++ st ) {
+	    if (pform_checker_static_behaviors.count(*st)
+		&& procedural_checker_copy(scope)) continue;
 
 	    result_flag &= (*st)->elaborate(des, scope);
       }

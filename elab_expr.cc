@@ -28059,6 +28059,11 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	        bool checker_prefix = false;
 	        for (auto component = path_.name.begin();
 	             std::next(component) != path_.name.end(); ++component) {
+	              // The module-scope copy of a procedural checker instance
+	              // (17.3) is reached by the assertions placed at the
+	              // instance, not by a user hierarchical name.
+	              if (strncmp(component->name.str(), "_ivl_pchk", 9) == 0)
+	                    break;
 	              if (!component->index.empty()) break;
 	              prefix.push_back(hname_t(component->name));
 	              NetScope*target = des->find_scope(scope, prefix);
