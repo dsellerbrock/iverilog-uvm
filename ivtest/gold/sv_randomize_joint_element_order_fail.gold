@@ -1,2 +1,3 @@
+./ivltests/sv_randomize_joint_element_order_fail.v:9: warning: circular 'solve before' ordering between 'values[0]' and 'values[1]' in class joint_element_cycle (IEEE 1800 18.5.9); nonstandard compatibility behavior.
 ERROR: global constraint sampling failed: cyclic joint solve-before ordering.
 PASSED
