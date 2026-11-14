@@ -6821,3 +6821,7 @@ issue2966_unique_real_2023 normal,-g2023,-s,top ivltests gold=issue2966_unique_r
 issue2966_unique_real_array_2017 CE,-g2017,-s,top ivltests gold=issue2966_unique_real_array_2017.gold
 issue2985_randsequence_side_effects_2017 normal,-g2017,-s,issue2985_randsequence_side_effects ivltests gold=issue2985_randsequence_side_effects.gold
 issue2985_randsequence_side_effects_2023 normal,-g2023,-s,issue2985_randsequence_side_effects ivltests gold=issue2985_randsequence_side_effects.gold
+issue3016_missing_2017 CE,-g2017 ivltests gold=issue3016_missing.gold
+issue3016_valid_2017 normal,-g2017 ivltests gold=issue3016_valid.gold
+issue3016_missing_2023 CE,-g2023 ivltests gold=issue3016_missing.gold
+issue3016_valid_2023 normal,-g2023 ivltests gold=issue3016_valid.gold

@@ -2000,7 +2000,12 @@ static void validate_interface_class_relations_(Design*des,
 		  des->errors += 1;
 	    }
 
-	    if (!use_class->is_virtual()
+	    if (use_class->is_virtual() && !implementation) {
+		  cerr << pclass->get_fileline() << ": error: Virtual class `"
+		       << use_class->get_name() << "' does not declare or inherit interface method `"
+		       << cur.first << "'." << endl;
+		  des->errors += 1;
+	    } else if (!use_class->is_virtual()
 		&& (!implementation || !interface_method_has_body_(implementation))) {
 		  cerr << pclass->get_fileline() << ": error: Non-virtual class `"
 		       << use_class->get_name() << "' does not implement interface "
