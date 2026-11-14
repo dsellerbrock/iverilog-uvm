@@ -1,0 +1,2 @@
+issue3063_empty_coverpoint_2017 normal,-g2017,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold
+issue3063_empty_coverpoint_2023 normal,-g2023,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold
