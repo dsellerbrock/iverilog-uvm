@@ -8923,17 +8923,20 @@ package_cg_port_prefix
   ;
 
 package_covergroup_declaration
-  : K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup label_opt
+  : K_covergroup IDENTIFIER ';' covergroup_item_list_opt K_endgroup
       { /* M11-1: real package-scope covergroup type (19.3). */
         pform_standalone_covergroup(@1, $2, $4);
-        delete[] $2; if ($6) delete[] $6; }
-  | K_covergroup IDENTIFIER '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
+        delete[] $2; }
+    label_opt { if ($7) delete[] $7; }
+  | K_covergroup IDENTIFIER '@' '(' event_expression_list ')' ';' covergroup_item_list_opt K_endgroup
       { pform_standalone_covergroup(@1, $2, $8, $5);
-        delete[] $2; if ($10) delete[] $10; }
-  | K_covergroup IDENTIFIER '@' '@' '(' block_event_expression_list ')' ';' covergroup_item_list_opt K_endgroup label_opt
+        delete[] $2; }
+    label_opt { if ($11) delete[] $11; }
+  | K_covergroup IDENTIFIER '@' '@' '(' block_event_expression_list ')' ';' covergroup_item_list_opt K_endgroup
       { pform_standalone_covergroup(@1, $2, $9, $6);
-        delete[] $2; if ($11) delete[] $11; }
-  | package_cg_port_prefix ';' covergroup_item_list_opt K_endgroup label_opt
+        delete[] $2; }
+    label_opt { if ($12) delete[] $12; }
+  | package_cg_port_prefix ';' covergroup_item_list_opt K_endgroup
       {
         pform_pop_scope(); current_function = 0;
         pform_standalone_covergroup(@2, $1, $3, nullptr, nullptr, nullptr,
@@ -8945,11 +8948,12 @@ package_covergroup_declaration
 	pending_cg_ctor_types_ = nullptr;
 	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
-        delete[] $1; if ($5) delete[] $5; }
+        delete[] $1; }
+    label_opt { if ($6) delete[] $6; }
   | package_cg_port_prefix K_with K_function function_identifier
       { pform_pop_scope();
         current_function = pform_push_function_scope_unbound(@4, $4, LexicalScope::INHERITED, false); }
-    tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup label_opt
+    tf_port_list_parens_opt ';' covergroup_item_list_opt K_endgroup
       { /* M11-4: real with-function-sample covergroup (19.8.1).
            Constructor formals from the prefix were parsed but are
            not modeled (same as the plain ctor-args form above). */
@@ -8980,7 +8984,8 @@ package_covergroup_declaration
 	pending_cg_ctor_types_ = nullptr;
 	pending_cg_ctor_is_ref_ = nullptr;
 	pending_cg_ctor_defaults_ = nullptr;
-        delete[] $1; delete[] $4; if ($10) delete[] $10; }
+        delete[] $1; delete[] $4; }
+    label_opt { if ($11) delete[] $11; }
   | package_cg_port_prefix ';' error K_endgroup label_opt
       { pform_pop_scope(); current_function = 0; yyerrok;
 	delete pending_cg_ctor_names_;
@@ -9840,11 +9845,22 @@ sva_int_local_declarations
 	}
 	sva_destroy_parser_match_items_($2);
 	$$ = 0; }
+  | K_sva_bit_local dimensions sva_local_ident_list ';'
+      { pform_sva_begin_local_declarations();
+	for (std::vector<sva_match_item_t>::iterator it = $3->begin();
+	     it != $3->end(); ++it) {
+	      std::vector<sva_match_item_t>::iterator next = it; ++next;
+	      pform_sva_declare_bit_local(@1, it->lv_name.str(), $2,
+					   next == $3->end(), it->lv_rhs);
+	      it->lv_rhs = nullptr;
+	}
+	sva_destroy_parser_match_items_($3); $$ = 0; }
   | K_sva_bit_local sva_local_ident_list ';'
       { pform_sva_begin_local_declarations();
 	for (std::vector<sva_match_item_t>::iterator it = $2->begin();
 	     it != $2->end(); ++it) {
-	      pform_sva_declare_bit_local(@1, it->lv_name.str(), it->lv_rhs);
+	      pform_sva_declare_bit_local(@1, it->lv_name.str(), nullptr,
+					   true, it->lv_rhs);
 	      it->lv_rhs = nullptr;
 	}
 	sva_destroy_parser_match_items_($2); $$ = 0; }
@@ -9869,6 +9885,23 @@ sva_int_local_declarations
 	     it != $3->end(); ++it) {
 	      pform_sva_declare_logic_local(@2, it->lv_name.str(), nullptr,
 					     true, it->lv_rhs);
+	      it->lv_rhs = nullptr;
+	}
+	sva_destroy_parser_match_items_($3); $$ = 0; }
+  | sva_int_local_declarations K_sva_bit_local dimensions sva_local_ident_list ';'
+      { for (std::vector<sva_match_item_t>::iterator it = $4->begin();
+	     it != $4->end(); ++it) {
+	      std::vector<sva_match_item_t>::iterator next = it; ++next;
+	      pform_sva_declare_bit_local(@2, it->lv_name.str(), $3,
+					   next == $4->end(), it->lv_rhs);
+	      it->lv_rhs = nullptr;
+	}
+	sva_destroy_parser_match_items_($4); $$ = 0; }
+  | sva_int_local_declarations K_sva_bit_local sva_local_ident_list ';'
+      { for (std::vector<sva_match_item_t>::iterator it = $3->begin();
+	     it != $3->end(); ++it) {
+	      pform_sva_declare_bit_local(@2, it->lv_name.str(), nullptr,
+					   true, it->lv_rhs);
 	      it->lv_rhs = nullptr;
 	}
 	sva_destroy_parser_match_items_($3); $$ = 0; }
@@ -20984,6 +21017,26 @@ statement_item /* This is roughly statement_item in the LRM */
 	PAssign*tmp = new PAssign(lv, $5);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES IDENTIFIER '=' class_new ';'
+      { pform_name_t hident;
+        hident.push_back(name_component_t(lex_strings.make($3)));
+        PEIdent*lv = new PEIdent($1, hident, @1.lexical_pos);
+        FILE_NAME(lv, @1);
+        delete[] $3;
+        PAssign*tmp = new PAssign(lv, $5);
+        FILE_NAME(tmp, @1);
+        $$ = tmp;
+      }
+  | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '=' class_new ';'
+      { pform_name_t hident;
+        hident.push_back(name_component_t(lex_strings.make($3.text)));
+        PEIdent*lv = new PEIdent($1, hident, @1.lexical_pos);
+        FILE_NAME(lv, @1);
+        delete[] $3.text;
+        PAssign*tmp = new PAssign(lv, $5);
+        FILE_NAME(tmp, @1);
+        $$ = tmp;
       }
   | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER '=' expression ';'
       { pform_name_t hident;

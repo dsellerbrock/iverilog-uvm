@@ -1799,6 +1799,18 @@ static int eval_object_ternary(ivl_expr_t expr)
       int use_flag = draw_eval_condition(cond);
 
       fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n", thread_count, lab_false, use_flag);
+      if (ivl_expr_value(expr) == IVL_VT_CLASS) {
+	    unsigned lab_true = local_count++;
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n", thread_count, lab_true, use_flag);
+	    draw_eval_object(true_ex);
+	    fprintf(vvp_out, "    %%dup/obj/ref;\n");
+	    draw_eval_object(false_ex);
+	    fprintf(vvp_out, "    %%cmp/obj;\n");
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_out);
+	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n    %%null;\n");
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_true);
+      }
       draw_eval_object(true_ex);
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_false);

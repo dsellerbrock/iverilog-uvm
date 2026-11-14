@@ -7743,6 +7743,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	   instance keeps them. */
       if (instance.size() == 1)
 	    instance[0]->port_actuals.assign(pins.begin(), pins.end());
+      else if (!instance.empty())
+	    instance[0]->array_actuals.assign(pins.begin(), pins.end());
 
 	// Capture the formal declaration kind before interface formals are
 	// retagged with the effective modport of their actual connection.

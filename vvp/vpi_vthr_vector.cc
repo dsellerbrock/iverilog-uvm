@@ -44,7 +44,7 @@ using namespace std;
 
 namespace {
 
-static std::string describe_thread_object_(const vvp_object_t&obj)
+static std::string describe_thread_object_(const vvp_object_t&obj, bool element_signed)
 {
       if (obj.test_nil())
             return std::string("null");
@@ -61,7 +61,7 @@ static std::string describe_thread_object_(const vvp_object_t&obj)
 	// expression q[1:2] passed to %p): the shared renderer walks
 	// its elements too.
       if (obj.peek<vvp_darray>())
-            return vvp_format_cobject_p(obj);
+            return vvp_format_cobject_p(obj, 0, element_signed);
 
       return std::string("<object>");
 }
@@ -269,6 +269,7 @@ class __vpiVThrObjStack : public __vpiHandle {
     private:
       unsigned depth_;
       class_type*declared_type_;
+      bool element_signed_;
 };
 
 __vpiVThrStrStack::__vpiVThrStrStack(unsigned d)
@@ -277,9 +278,9 @@ __vpiVThrStrStack::__vpiVThrStrStack(unsigned d)
 }
 
 __vpiVThrObjStack::__vpiVThrObjStack(unsigned d, char*type)
-: depth_(d), declared_type_(0)
+: depth_(d), declared_type_(0), element_signed_(type && strcmp(type, "signed") == 0)
 {
-      if (type)
+      if (type && !element_signed_)
             compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&declared_type_), type);
 }
 
@@ -374,7 +375,7 @@ void __vpiVThrObjStack::vpi_get_value(p_vpi_value vp)
 	  case vpiOctStrVal:
 	  case vpiHexStrVal:
 	  case vpiStringVal: {
-		std::string desc = describe_thread_object_(val);
+		std::string desc = describe_thread_object_(val, element_signed_);
 		char*rbuf = static_cast<char *>(need_result_buf(desc.size()+1, RBUF_VAL));
 		strcpy(rbuf, desc.c_str());
 		vp->value.str = rbuf;

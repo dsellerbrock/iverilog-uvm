@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3207_packed_bit_local.v",
+    "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3207_packed_bit_local"],
+    "gold": "issue3207_packed_bit_local"
+}

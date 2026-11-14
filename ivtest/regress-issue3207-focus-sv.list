@@ -1,0 +1,2 @@
+issue3207_packed_bit_local_2017 normal,-g2017,-gassertions,-s,issue3207_packed_bit_local ivltests gold=issue3207_packed_bit_local.gold
+issue3207_packed_bit_local_2023 normal,-g2023,-gassertions,-s,issue3207_packed_bit_local ivltests gold=issue3207_packed_bit_local.gold

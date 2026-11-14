@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3185_signed_queue.v",
+    "iverilog-args": ["-g2017", "-s", "issue3185_signed_queue"],
+    "gold": "issue3185_signed_queue"
+}

@@ -497,14 +497,7 @@ static void draw_sfunc_string(ivl_expr_t expr)
     draw_vpi_sfunc_call(expr);
 }
 
-/* Phase 63a/A2: string-typed ternary
- *
- *    s = cond ? tru_str : fal_str
- *
- * Evaluate cond; jump-on-true to push tru, otherwise push fal.  No
- * blending for x/z — pick the false branch (matches the SV-2017
- * "indeterminate => either value" relaxation).
- */
+/* String conditional: compare both values for an ambiguous condition. */
 static void draw_ternary_string(ivl_expr_t expr)
 {
       ivl_expr_t cond = ivl_expr_oper1(expr);
@@ -512,6 +505,7 @@ static void draw_ternary_string(ivl_expr_t expr)
       ivl_expr_t false_ex = ivl_expr_oper3(expr);
 
       unsigned lab_true = local_count++;
+      unsigned lab_false = local_count++;
       unsigned lab_out = local_count++;
       int cond_flag = allocate_flag();
 
@@ -522,8 +516,19 @@ static void draw_ternary_string(ivl_expr_t expr)
 
       fprintf(vvp_out, "    %%jmp/1  T_%u.%u, %d;\n",
               thread_count, lab_true, cond_flag);
+      fprintf(vvp_out, "    %%jmp/0  T_%u.%u, %d;\n",
+              thread_count, lab_false, cond_flag);
+
+      draw_eval_string(true_ex);
+      fprintf(vvp_out, "    %%dup/str;\n");
+      draw_eval_string(false_ex);
+      fprintf(vvp_out, "    %%cmp/str;\n");
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_out);
+      fprintf(vvp_out, "    %%pop/str 1;\n    %%pushi/str \"\";\n");
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
 
       /* False branch */
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_false);
       draw_eval_string(false_ex);
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
 

@@ -1864,11 +1864,10 @@ void vvp_process::flush_deferred_asserts()
 {
       pending_deferred_assert_reports_ -= deferred_asserts_.size();
       deferred_asserts_.clear();
-      if (final_deferred_asserts_.empty())
-            deferred_assert_processes_.erase(this);
-      /* Leave the already-scheduled Observed pump armed. If this process
-         executes another deferred assertion before that pass, the same
-         pump will mature the new report. */
+      final_deferred_asserts_.clear();
+      final_deferred_order_.clear();
+      deferred_assert_processes_.erase(this);
+      /* Leave the scheduled maturity pumps armed for any new reports. */
 }
 
 template <typename Predicate>
@@ -7999,7 +7998,7 @@ static void wait_fork_child_done_(vthread_t child)
 
 static void flush_deferred_asserts_for_thread_(vthread_t thr)
 {
-      if (pending_deferred_assert_reports_ == 0)
+      if (deferred_assert_processes_.empty())
 	    return;
       vthread_t owner = logical_process_thread_(thr);
       if (!owner)
@@ -22409,7 +22408,13 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 		      /* A child inherits its parent's program/Reactive affinity.
 			 The front-push path is hard-wired to SEQ_ACTIVE, so use it
 			 only for an ordinary design thread. */
-		    schedule_vthread(child, 0, !vthread_is_reactive(child));
+		    /* Run the called task before another report overwrites its
+		       static input formals; stay in the Reactive region. */
+		    if (thr->is_observed_report_action && !child_is_process
+		        && cp->scope->get_type_code() == vpiTask)
+			  schedule_vthread_reactive_front(child);
+		    else
+			  schedule_vthread(child, 0, !vthread_is_reactive(child));
 	      }
 	    }
 	      return true;

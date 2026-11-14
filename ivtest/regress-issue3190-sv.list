@@ -1,0 +1,2 @@
+issue3190_conditional_2017 normal,-g2017,-s,issue3190_conditional ivltests gold=issue3190_conditional.gold
+issue3190_conditional_2023 normal,-g2023,-s,issue3190_conditional ivltests gold=issue3190_conditional.gold

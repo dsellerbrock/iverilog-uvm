@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3181_vpi_port_expr_lowconn.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3181_vpi_port_expr_lowconn_2017"],
+  "vpi-sources": ["vpi/issue3181_vpi_port_expr_lowconn.c"],
+  "output-contains": ["VPI PORT EXPR LOWCONN PASS"]
+}
