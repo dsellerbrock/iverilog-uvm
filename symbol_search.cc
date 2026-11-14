@@ -26,6 +26,7 @@
 # include  "Module.h"
 # include  "PPackage.h"
 # include  "PExpr.h"
+# include  "PClass.h"
 # include  "PTask.h"
 # include  "PWire.h"
 # include  "pform_types.h"
@@ -476,6 +477,48 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 				    ? parameter_type : inherited->net_type();
 			      res->path_head = path;
 			      return true;
+			}
+		  }
+
+		    // Interface classes inherit parameters along their extends graph,
+		    // not the ordinary class superclass chain. Implementing classes
+		    // do not inherit the interface's declarations (8.26.3).
+		  if (scope->type() == NetScope::CLASS) {
+			const netclass_t*cls = scope->class_def();
+			const PClass*pclass = scope->class_pform();
+			if (cls && cls->is_interface_class()
+			    && (!pclass || pclass->typedefs.find(path_tail.name)
+				== pclass->typedefs.end())) {
+			      vector<const netclass_t*> pending(cls->interface_types());
+			      set<const netclass_t*> seen;
+			      while (!pending.empty()) {
+				    const netclass_t*parent = pending.back();
+				    pending.pop_back();
+				    if (!parent || !seen.insert(parent).second)
+					  continue;
+				    NetScope*parent_scope = const_cast<NetScope*>(
+					  parent->class_scope());
+				    if (!parent_scope)
+					  continue;
+				    ivl_type_t parameter_type = nullptr;
+				    const NetExpr*inherited = parent_scope->get_parameter(
+					  des, path_tail.name, parameter_type);
+				    if (inherited) {
+					  path.push_back(path_tail);
+					  res->scope = parent_scope;
+					  res->par_val = inherited;
+					  res->type = parameter_type
+						? parameter_type : inherited->net_type();
+					  res->path_head = path;
+					  return true;
+				    }
+				    const PClass*parent_pclass = parent_scope->class_pform();
+				    if (parent_pclass && parent_pclass->typedefs.find(path_tail.name)
+					  != parent_pclass->typedefs.end())
+					  continue;
+				    pending.insert(pending.end(), parent->interface_types().begin(),
+						   parent->interface_types().end());
+			      }
 			}
 		  }
 

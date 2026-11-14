@@ -15862,7 +15862,24 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 			}
 		  }
 
-		  if (member_net) {
+		  if (cur_struct->packed()) {
+			NetExpr*offset = make_const_val(dummy_off);
+			ivl_type_t select_type = member_type;
+			bool cast_to_bit = cur_struct->base_type() == IVL_VT_LOGIC
+			      && member_type->base_type() == IVL_VT_BOOL;
+			if (cast_to_bit)
+			      select_type = new netvector_t(IVL_VT_LOGIC,
+				    member_type->packed_width() - 1, 0);
+			NetESelect*sel = new NetESelect(base_expr, offset,
+				member_type->packed_width(), select_type);
+			sel->set_line(*li);
+			base_expr = sel;
+			if (cast_to_bit) {
+			      base_expr = new NetECast('2', sel,
+				    member_type->packed_width(), false, member_type);
+			      base_expr->set_line(*li);
+			}
+		  } else if (member_net) {
 			NetExpr*member_expr = member_net->unpacked_dimensions()
 			      ? static_cast<NetExpr*>(new NetESignal(
 					member_net, static_cast<NetExpr*>(nullptr)))
@@ -16481,6 +16498,38 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 			   != owner_scope->parameters.end()) {
 			parameter_owner = owner_scope;
 			break;
+		  }
+	    }
+	    if (!parameter_owner && class_type->is_interface_class()) {
+		  vector<const netclass_t*> pending;
+		  const NetScope*local_scope = class_type->class_scope();
+		  const PClass*local_class = local_scope->class_pform();
+		  // A local type declaration hides an inherited parameter.
+		  if (!local_class || local_class->typedefs.find(comp_it->name)
+			== local_class->typedefs.end()) {
+			pending = class_type->interface_types();
+		  }
+		  set<const netclass_t*> seen;
+		  while (!pending.empty()) {
+			const netclass_t*parent = pending.back();
+			pending.pop_back();
+			if (!parent || !seen.insert(parent).second)
+			      continue;
+			NetScope*parent_scope = const_cast<NetScope*>(
+			      parent->class_scope());
+			if (!parent_scope)
+			      continue;
+			if (parent_scope->parameters.find(comp_it->name)
+			    != parent_scope->parameters.end()) {
+			      parameter_owner = parent_scope;
+			      break;
+			}
+			const PClass*parent_class = parent_scope->class_pform();
+			if (parent_class && parent_class->typedefs.find(comp_it->name)
+			    != parent_class->typedefs.end())
+			      continue;
+			pending.insert(pending.end(), parent->interface_types().begin(),
+				       parent->interface_types().end());
 		  }
 	    }
 	    if (parameter_owner) {

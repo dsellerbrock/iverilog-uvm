@@ -6837,3 +6837,13 @@ issue3022_union_dynamic_bad_2017 CE,-g2017,-s,issue3022_union_dynamic_bad ivltes
 issue3022_union_dynamic_good_2017 normal,-g2017,-s,issue3022_union_dynamic_good ivltests gold=issue3022_union_dynamic_good.gold
 issue3022_union_dynamic_bad_2023 CE,-g2023,-s,issue3022_union_dynamic_bad ivltests gold=issue3022_union_dynamic_bad.gold
 issue3022_union_dynamic_good_2023 normal,-g2023,-s,issue3022_union_dynamic_good ivltests gold=issue3022_union_dynamic_good.gold
+issue3019_interface_parameter_2017 normal,-g2017,-s,test ivltests gold=issue3019_interface_parameter.gold
+issue3019_interface_parameter_2023 normal,-g2023,-s,test ivltests gold=issue3019_interface_parameter.gold
+issue3021_interface_defaults_2017 normal,-g2017,-s,issue3021_interface_defaults ivltests gold=issue3021_interface_defaults.gold
+issue3021_interface_defaults_2023 normal,-g2023,-s,issue3021_interface_defaults ivltests gold=issue3021_interface_defaults.gold
+issue3031_tagged_field_2017 normal,-g2017,-s,issue3031_tagged_field ivltests gold=issue3031_tagged_field.gold
+issue3031_tagged_field_2023 normal,-g2023,-s,issue3031_tagged_field ivltests gold=issue3031_tagged_field.gold
+issue3083_path_delay_2017 normal,-g2017,-gspecify,-s,issue3083_path_delay ivltests gold=issue3083_path_delay.gold
+issue3083_path_delay_2023 normal,-g2023,-gspecify,-s,issue3083_path_delay ivltests gold=issue3083_path_delay.gold
+issue3063_empty_coverpoint_2017 normal,-g2017,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold
+issue3063_empty_coverpoint_2023 normal,-g2023,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold
