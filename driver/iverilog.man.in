@@ -266,6 +266,14 @@ choose modules that are not instantiated in any other modules, but
 sometimes that is not sufficient, or instantiates too many modules. If
 the user specifies one or more root modules with \fB\-s\fP flags, then
 they will be used as root modules instead.
+.sp
+A config declaration (IEEE 1800 33.4) in the source files, or in a library
+map file, selects the top level modules itself: the cells of its design
+statement are elaborated under its rules, and no other module is chosen
+(IEEE 1800 33.5.4). \fB-s\fP with the name of a config selects that config
+when the sources have several; \fB-s\fP with the name of a module
+elaborates the module without any config. A config that another config
+binds to an instance with \fBuse\fP is not selected by itself.
 .TP 8
 .B -T\fImin|typ|max\fP
 Use this switch to select min, typ or max times from min:typ:max

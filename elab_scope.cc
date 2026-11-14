@@ -49,6 +49,7 @@
 # include  "PEvent.h"
 # include  "PClass.h"
 # include  "PGate.h"
+# include  "PConfig.h"
 # include  "PGenerate.h"
 # include  "PModport.h"
 # include  "PPackage.h"
@@ -6536,6 +6537,10 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 		  }
 
 	    }
+
+	      // A config that binds this instance may override parameters
+	      // (IEEE 1800 33.4.3), also the ones the instantiation sets.
+	    config_instance_scope(des, this, sc, my_scope, replace);
 
 	      // This call actually arranges for the description of the
 	      // module type to process this instance and handle parameters

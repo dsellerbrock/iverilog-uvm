@@ -3780,7 +3780,9 @@ void dll_target::scope(const NetScope*net)
 		  // fallthrough
 		case NetScope::MODULE:
 		  scop->type_ = IVL_SCT_MODULE;
-		  scop->tname_ = net->module_name();
+		    // The definition name is the cell name; module_name() may
+		    // be qualified by a library (IEEE 1800 33.3).
+		  scop->tname_ = libmap_key_cell(net->module_name());
 		  if (unsigned ports = net->module_port_nets())
 			scop->ensure_proc_()->ports = ports;
 		  break;

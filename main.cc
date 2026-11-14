@@ -65,6 +65,7 @@ const char NOTICE[] =
 # include  "compiler.h"
 # include  "discipline.h"
 # include  "t-dll.h"
+# include  "PConfig.h"
 
 using namespace std;
 
@@ -1305,6 +1306,12 @@ int main(int argc, char*argv[])
 	    return pre_process_fail_count;
       }
 
+
+	/* IEEE 1800 33.5.4: the design statement of a selected config names
+	   the top-level cells. */
+      rc = config_select_roots(roots);
+      if (rc)
+	    return rc;
 
 	/* If the user did not give specific module(s) to start with,
 	   then look for modules that are not instantiated anywhere.  */

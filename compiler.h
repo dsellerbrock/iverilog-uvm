@@ -242,6 +242,8 @@ extern bool libmap_before(perm_string a, perm_string b);
 /* The pform_modules key of a cell that shares its name with a cell of
    another library that is searched first. */
 extern perm_string libmap_cell_key(perm_string library, perm_string cell);
+/* The cell name of a pform_modules key. */
+extern perm_string libmap_key_cell(perm_string key);
 
 /* This is an ordered list of library suffixes to search. */
 extern std::list<const char*>library_suff;

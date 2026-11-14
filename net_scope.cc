@@ -30,6 +30,7 @@
 # include  "netvector.h"
 # include  "PExpr.h"
 # include  "Module.h"
+# include  "PConfig.h"
 # include  <sstream>
 # include  "PPackage.h"
 # include  "PTask.h"
@@ -693,6 +694,11 @@ static bool defparam_targets_other_genblock_instance(const NetScope*src,
 void NetScope::replace_parameter(Design *des, perm_string key, PExpr*val,
 			         NetScope*scope, bool defparam)
 {
+	// IEEE 1800 33.4.3: a parameter override of a config takes
+	// precedence over a defparam for the same parameter.
+      if (defparam && config_param_locked(this, key))
+	    return;
+
       if (parameters.find(key) == parameters.end()) {
 	    cerr << val->get_fileline() << ": error: parameter `"
 	         << key << "` not found in `"
