@@ -4696,6 +4696,21 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    sig->lexical_pos(lexical_pos_);
       }
       sig->set_event_formal(is_event_formal_);
+	/* The typedef aliases of the declared type, outermost first: each
+	   typedef whose own type names another typedef (37.25 detail 1). */
+      {
+	    std::vector<perm_string> aliases;
+	    const data_type_t*dt = data_type();
+	    while (const typeref_t*ref = dynamic_cast<const typeref_t*>(dt)) {
+		  typedef_t*td = ref->typedef_ref();
+		  if (!td) break;
+		  const data_type_t*next = td->get_data_type();
+		  if (!dynamic_cast<const typeref_t*>(next)) break;
+		  aliases.push_back(td->name);
+		  dt = next;
+	    }
+	    if (!aliases.empty()) sig->set_typedef_aliases(aliases);
+      }
 
       if (user_type) {
             sig->set_user_nettype(user_type);
