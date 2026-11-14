@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3175_vpi_drivers_loads.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3175_vpi_drivers_loads_2023"],
+  "vpi-sources": ["vpi/issue3175_vpi_drivers_loads.c"],
+  "output-contains": ["VPI DRIVERS LOADS PASS"]
+}

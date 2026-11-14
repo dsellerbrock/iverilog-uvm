@@ -519,6 +519,14 @@ extern vpiHandle vpip_make_contassign(int flags, int str0, int str1,
 				      unsigned file_idx, unsigned lineno,
 				      unsigned argc, vpiHandle*argv);
 extern void vpip_contassign_set_driver(vpiHandle ref, vvp_net_t*net);
+/* vpiDriver, vpiLoad, vpiLocalDriver and vpiLocalLoad of a net, variable,
+   bit, array or array word (37.16, 37.21); nil for any other code. */
+extern vpiHandle vpip_conn_iterate(int code, vpiHandle ref);
+/* The array and canonical word a constant array word handle names. */
+extern bool vpip_array_word_of(vpiHandle ref, vpiHandle&array, unsigned&word);
+/* The operands of a lazily evaluated operation (.vpi_expr). */
+extern bool vpip_lazy_expr_operands(vpiHandle ref, unsigned&nops,
+				    vpiHandle*&ops);
 extern bool vpip_contassign_add_callback(vpiHandle ref,
 					 class value_callback*cb);
 extern vpiHandle vpip_make_param_assign(__vpiScope*scope,
