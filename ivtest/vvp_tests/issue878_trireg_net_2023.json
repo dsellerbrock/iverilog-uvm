@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue878_trireg_net.v",
+  "iverilog-args": ["-g2023"]
+}

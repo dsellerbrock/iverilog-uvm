@@ -694,9 +694,81 @@ void EOC_cleanup_drivers(void)
       adrivers = 0;
 }
 
+/*
+ * A trireg nexus has one IVL_LO_TRIREG device on it (see ivl_target.h).
+ * Draw the charge storage between the resolved drivers INPUT and the net,
+ * or the tran island port of the net when ISLAND_PORT is not nil:
+ *
+ *    L_<cap>  .delay <wid> (rise,fall,min) <input>;    with rise/fall delays
+ *    TR_<nex> .trireg <wid>, <charge>, <mode>, <decay>, <input>
+ *                     [, <decay net>] [, <island port>];
+ *
+ * The rise and fall delays apply to what the drivers put on the net. The
+ * delay to x, and for the drivers going off, is the smaller of the two,
+ * as for any net with two delays. The third declaration delay is not a
+ * turn-off delay but the charge decay time (IEEE 1800-2023 28.16.2).
+ */
+static char* draw_trireg(ivl_nexus_t nex, ivl_net_logic_t cap,
+			 const char*input, const char*island_port)
+{
+      unsigned wid = width_of_nexus(nex);
+      ivl_expr_t rise = ivl_logic_delay(cap, 0);
+      ivl_expr_t fall = ivl_logic_delay(cap, 1);
+      ivl_expr_t decay = ivl_logic_delay(cap, 2);
+      char dly_label[64];
+      char result[64];
+      unsigned mode = 0;
+      uint64_t decay_val = 0;
+      const char*decay_net = 0;
+
+      snprintf(dly_label, sizeof dly_label, "L_%p", cap);
+      if (rise && number_is_immediate(rise, 64, 0)
+	  && number_is_immediate(fall, 64, 0)) {
+	    uint64_t rise_val = get_number_immediate64(rise);
+	    uint64_t fall_val = get_number_immediate64(fall);
+	    if (rise_val != 0 || fall_val != 0) {
+		  fprintf(vvp_out, "%s .delay%s %u "
+			  "(%" PRIu64 ",%" PRIu64 ",%" PRIu64 ") %s;\n",
+			  dly_label, wid > 1 ? "/v" : "", wid,
+			  rise_val, fall_val,
+			  rise_val < fall_val ? rise_val : fall_val, input);
+		  input = dly_label;
+	    }
+      } else if (rise) {
+	      /* Without a decay expression draw_delay makes a two-delay
+		 .delay, which takes the smaller one at run time. */
+	    draw_delay(cap, wid, input, rise, fall, 0, wid > 1, 0);
+	    input = dly_label;
+      }
+
+      if (decay && number_is_immediate(decay, 64, 0)) {
+	    decay_val = get_number_immediate64(decay);
+	    mode |= 1;
+      } else if (decay) {
+	    ivl_signal_t sig = ivl_expr_signal(decay);
+	    assert(sig && ivl_signal_dimensions(sig) == 0);
+	    decay_net = draw_net_input(ivl_signal_nex(sig,0));
+	    mode |= 2;
+      }
+      if (island_port)
+	    mode |= 4;
+
+      fprintf(vvp_out, "TR_%p .trireg %u, %u, %u, %" PRIu64 ", %s",
+	      nex, wid, (unsigned)ivl_logic_drive0(cap), mode, decay_val, input);
+      if (decay_net)
+	    fprintf(vvp_out, ", %s", decay_net);
+      if (island_port)
+	    fprintf(vvp_out, ", %s", island_port);
+      fprintf(vvp_out, ";\n");
+
+      snprintf(result, sizeof result, "TR_%p", nex);
+      return strdup(result);
+}
+
 static void draw_net_input_x(ivl_nexus_t nex,
 			     struct vvp_nexus_data*nex_data)
 {
+      ivl_net_logic_t trireg = 0;
       ivl_island_t island = 0;
       int island_input_flag = -1;
       ivl_signal_type_t res;
@@ -763,6 +835,18 @@ static void draw_net_input_x(ivl_nexus_t nex,
 			assert(nex == ivl_switch_enable(sw));
 			island_input_flag = 1;
 		  }
+	    }
+
+	      /* The charge storage of a trireg net is not a driver. The
+		 first one found serves the nexus; port collapsing leaves
+		 one (IEEE 1800-2023 Table 23-1). Its output has charge
+		 strengths, so the net must be strength-aware. */
+	    if (ivl_nexus_ptr_log(nptr)
+		&& ivl_logic_type(ivl_nexus_ptr_log(nptr)) == IVL_LO_TRIREG) {
+		  if (trireg == 0)
+			trireg = ivl_nexus_ptr_log(nptr);
+		  nex_flags |= VVP_NEXUS_DATA_STR;
+		  continue;
 	    }
 
 	      /* Skip input only pins. */
@@ -860,6 +944,16 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	    }
 	    nex_private = realloc(nex_private, strlen(buf)+1);
 	    strcpy(nex_private, buf);
+
+	    if (trireg) {
+		  char port_label[64];
+		  char*tmp2;
+		  snprintf(port_label, sizeof port_label, "p%p", nex);
+		  tmp2 = draw_trireg(nex, trireg, nex_private,
+				     island && !island_input_flag ? port_label : 0);
+		  free(nex_private);
+		  nex_private = tmp2;
+	    }
 
 	    if (island) {
 		  char*tmp2 = draw_island_port(island, island_input_flag, nex, nex_data, nex_private);
@@ -1001,7 +1095,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	/* If the nexus has exactly one driver, then simply draw
 	   it. Note that this will *not* work if the nexus is not a
 	   TRI type nexus. */
-      if (ndrivers == 1 && res == IVL_SIT_TRI) {
+      if (ndrivers == 1 && res == IVL_SIT_TRI && !trireg) {
 	    ivl_signal_t path_sig = find_modpath(nex);
 	    if (path_sig) {
 		  char*nex_str = draw_net_input_drive(nex, drivers[0]);
@@ -1054,6 +1148,16 @@ static void draw_net_input_x(ivl_nexus_t nex,
       free(driver_labels);
 
       snprintf(result, sizeof result, "RS_%p", nex);
+
+      if (trireg) {
+	    char port_label[64];
+	    char*tmp;
+	    snprintf(port_label, sizeof port_label, "p%p", nex);
+	    tmp = draw_trireg(nex, trireg, result,
+			      island && !island_input_flag ? port_label : 0);
+	    snprintf(result, sizeof result, "%s", tmp);
+	    free(tmp);
+      }
 
       if (island)
 	    nex_private = draw_island_port(island, island_input_flag, nex, nex_data, result);

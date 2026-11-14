@@ -110,6 +110,11 @@ class PWire : public PNamedItem {
       { return virtual_interface_item_error_reported_; }
 
       bool set_net_delay(const std::shared_ptr<PDelays>&delay);
+
+	/* Charge size of a trireg net: IVL_DR_SMALL, _MEDIUM or _LARGE.
+	   The default is medium (IEEE 1800-2023 28.15.2). */
+      void set_charge_strength(ivl_drive_t s) { charge_strength_ = s; }
+      ivl_drive_t charge_strength() const { return charge_strength_; }
       const PDelays* net_delay() const { return net_delay_.get(); }
 
       void set_discipline(ivl_discipline_t);
@@ -182,6 +187,7 @@ class PWire : public PNamedItem {
        * PDelays owns them once; each elaborated net evaluates its own copy in
        * the declaration scope. */
       std::shared_ptr<PDelays> net_delay_;
+      ivl_drive_t charge_strength_ = IVL_DR_MEDIUM;
 
       ivl_discipline_t discipline_;
 

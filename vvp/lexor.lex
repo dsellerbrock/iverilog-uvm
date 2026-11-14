@@ -292,6 +292,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".reduce/xnor"  { return K_REDUCE_XNOR; }
 ".repeat"       { return K_REPEAT; }
 ".resolv"       { return K_RESOLV; }
+".trireg"       { return K_TRIREG; }
 ".rtran"        { return K_RTRAN; }
 ".rtranif0"     { return K_RTRANIF0; }
 ".rtranif1"     { return K_RTRANIF1; }

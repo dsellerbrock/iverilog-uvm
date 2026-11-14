@@ -1014,6 +1014,10 @@ extern void pform_set_port_type(const struct vlltype&li,
 				data_type_t*dt,
 				std::list<named_pexpr_t>*attr);
 
+/* The parser calls this for a charge_strength; the net declaration that
+   follows takes it (pform_set_data_type) and resets it to medium. */
+extern void pform_set_charge_strength(ivl_drive_t str);
+
 extern void pform_set_data_type(const struct vlltype&li,
 				data_type_t *data_type,
 				std::vector<PWire*> *wires,

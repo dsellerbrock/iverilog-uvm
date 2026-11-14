@@ -298,6 +298,7 @@ typedef enum ivl_logic_e {
       IVL_LO_RCMOS  = 23,
       IVL_LO_RNMOS  = 15,
       IVL_LO_RPMOS  = 16,
+      IVL_LO_TRIREG = 27, /* charge storage of a trireg net */
       IVL_LO_XNOR   = 18,
       IVL_LO_XOR    = 19,
       IVL_LO_UDP    = 21
@@ -1273,6 +1274,15 @@ extern unsigned ivl_logic_lineno(ivl_net_logic_t net);
  * the outputs have the same characteristics as other logic
  * devices. They are special only in that they have zero inputs, and
  * their drivers typically have strength other than strong.
+ *
+ * - IVL_LO_TRIREG
+ * The charge storage of a trireg net (IEEE 1800-2023 6.6.4). It has one
+ * pin, on the nexus of the net, and it is not a driver. The drive
+ * strength of that pin (ivl_nexus_ptr_drive0) is the charge size:
+ * IVL_DR_SMALL, IVL_DR_MEDIUM or IVL_DR_LARGE. ivl_logic_delay 0 and 1
+ * are the rise and fall delays of the net declaration, and 2 is the
+ * charge decay time (28.16.2), nil when the charge never decays. The
+ * signal itself is a plain IVL_SIT_TRI.
  *
  * - IVL_LO_UDP
  * User defined primitives (UDPs) are like any other logic devices, in
