@@ -1,0 +1,2 @@
+PASS: constructor covergroup names
+./ivltests/issue3222_covergroup_name.sv:30: $finish called at 0 (1s)
