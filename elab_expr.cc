@@ -17819,11 +17819,15 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_clocking_access(mapped_access);
+		  width_mode_t mode = SIZED;
+		  mapped_ident.test_width(des, scope, mode);
 		  return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
 	    }
 	    PEIdent mapped_ident(rewritten_path, lexical_pos_);
 	    mapped_ident.set_line(*this);
 	    mapped_ident.set_clocking_access(mapped_access);
+	    width_mode_t mode = SIZED;
+	    mapped_ident.test_width(des, scope, mode);
 	    return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
       }
 
@@ -29461,6 +29465,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				PEIdent mapped(rewritten, lexical_pos_);
 				mapped.set_line(*this);
 				mapped.set_clocking_access(mapped_access);
+				width_mode_t mode = SIZED;
+				mapped.test_width(des, scope, mode);
 				return mapped.elaborate_expr(des, scope, expr_wid, flags);
 			  }
 		    }
@@ -29631,6 +29637,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  PEIdent mapped(rewritten, lexical_pos_);
 		  mapped.set_line(*this);
 		  mapped.set_clocking_access(mapped_access);
+		  width_mode_t mode = SIZED;
+		  mapped.test_width(des, scope, mode);
 		  return mapped.elaborate_expr(des, scope, expr_wid, flags);
 	    }
       }
