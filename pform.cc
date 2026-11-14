@@ -3695,6 +3695,101 @@ PExpr* pform_select_mtm_expr(PExpr*min, PExpr*typ, PExpr*max)
       return res;
 }
 
+/* UDP table symbols as sets: a level is a mask over the values 0, 1, x
+   (bits 0-2); an edge is a mask over the transitions vw (bit 3*v+w). The
+   lexer folds every (vw) form into one of these letters. */
+static unsigned udp_level_set_(char c)
+{
+      switch (c) {
+	  case '0': return 1;
+	  case '1': return 2;
+	  case 'x': return 4;
+	  case 'b': return 3;
+	  case 'l': return 5;
+	  case 'h': return 6;
+	  case '?': return 7;
+	  default:  return 0;
+      }
+}
+
+static unsigned udp_edge_set_(char c)
+{
+#define T(v,w) (1u << ((v)*3+(w)))
+      switch (c) {
+	  case 'r': return T(0,1);
+	  case 'f': return T(1,0);
+	  case 'p': return T(0,1) | T(0,2) | T(2,1);
+	  case 'n': return T(1,0) | T(1,2) | T(2,0);
+	  case '*': return T(0,1) | T(0,2) | T(1,0) | T(1,2) | T(2,0) | T(2,1);
+	  case 'Q': return T(0,2);
+	  case 'M': return T(1,2);
+	  case 'F': return T(2,0);
+	  case 'R': return T(2,1);
+	  case '_': return T(1,0) | T(2,0);
+	  case '+': return T(0,1) | T(2,1);
+	  case '%': case 'q': return T(0,2) | T(1,2);
+	  case 'P': return T(0,1) | T(0,2);
+	  case 'N': return T(1,0) | T(1,2);
+	  case 'B': return T(2,0) | T(2,1);
+	  default:  return 0;
+      }
+#undef T
+}
+
+/* IEEE 1800-2023 29.3.4: "It shall be illegal to have the same
+   combination of inputs, including edges, specify different output
+   values." Two rows are the same combination only when both are level
+   rows or both have their edge on the same input (a level row and an
+   edge row are resolved by 29.9), and every field overlaps. A '-' output
+   is the current state, compared state by state. An error; a warning
+   under -gcommercial-unsafe. */
+static void udp_check_conflicting_rows_(const PUdp*udp,
+					const struct vlltype&loc)
+{
+      const std::vector<string>&in = udp->tinput;
+      for (size_t i = 0; i < in.size(); i += 1) {
+	    for (size_t j = i + 1; j < in.size(); j += 1) {
+		  if (in[i].size() != in[j].size()) continue;
+		  bool overlap = true;
+		  for (size_t k = 0; overlap && k < in[i].size(); k += 1) {
+			unsigned ei = udp_edge_set_(in[i][k]);
+			unsigned ej = udp_edge_set_(in[j][k]);
+			if ((ei != 0) != (ej != 0))
+			      overlap = false;
+			else if (ei)
+			      overlap = (ei & ej) != 0;
+			else
+			      overlap = (udp_level_set_(in[i][k])
+					 & udp_level_set_(in[j][k])) != 0;
+		  }
+		  if (!overlap) continue;
+		  unsigned states = udp->sequential
+			? udp_level_set_(udp->tcurrent[i])
+			  & udp_level_set_(udp->tcurrent[j])
+			: 1;
+		  bool conflict = false;
+		  for (unsigned v = 0; v < 3 && !conflict; v += 1) {
+			if (!(states & (1u << v))) continue;
+			char state = "01x"[v];
+			char oi = udp->toutput[i] == '-' ? state : udp->toutput[i];
+			char oj = udp->toutput[j] == '-' ? state : udp->toutput[j];
+			conflict = oi != oj;
+		  }
+		  if (!conflict) continue;
+		  cerr << loc << (gn_commercial_unsafe_flag ? ": warning: "
+				  : ": error: ")
+		       << "UDP table rows " << i + 1 << " and " << j + 1
+		       << " of primitive \"" << udp->name_ << "\" give the same "
+		       << "inputs different outputs (IEEE 1800 29.3.4)";
+		  if (gn_commercial_unsafe_flag)
+			cerr << "; nonstandard compatibility behavior";
+		  cerr << "." << endl;
+		  if (!gn_commercial_unsafe_flag)
+			error_count += 1;
+	    }
+      }
+}
+
 static void process_udp_table(PUdp*udp, list<string>*table,
 			      const struct vlltype&loc)
 {
@@ -3764,6 +3859,7 @@ static void process_udp_table(PUdp*udp, list<string>*table,
 	}
       }
 
+      udp_check_conflicting_rows_(udp, loc);
 }
 
 void pform_make_udp(const struct vlltype&loc, perm_string name,

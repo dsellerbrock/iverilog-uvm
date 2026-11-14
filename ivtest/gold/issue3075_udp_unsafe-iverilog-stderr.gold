@@ -1,0 +1,1 @@
+ivltests/issue3075_udp_unsafe.v:2: warning: UDP table rows 1 and 2 of primitive "issue3075_unsafe_p" give the same inputs different outputs (IEEE 1800 29.3.4); nonstandard compatibility behavior.
