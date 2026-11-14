@@ -1,0 +1,4 @@
+ivltests/issue3288_vector_tchk_neg.v:8: Timing violation: $setuphold(setup) check in issue3288_vector_tchk_neg.u at time 12
+ivltests/issue3288_vector_tchk_neg.v:8: Timing violation: $setuphold(setup) check in issue3288_vector_tchk_neg.u at time 34
+ntf=0
+ivltests/issue3288_vector_tchk_neg.v:19: $finish called at 44 (1ns)

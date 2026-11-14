@@ -149,8 +149,8 @@ class PSetupHold : public PTimingCheck {
       std::unique_ptr<pform_name_t> delayed_data_;
 };
 
-/* $width is elaborated after the event signal has a concrete packed shape,
-   so vector events can be expanded into independent per-bit checks. */
+/* $width on a declared scalar terminal, elaborated with the instance
+   scope. A vector terminal is synthesized at parse time as one check. */
 class PWidth : public PTimingCheck {
 
     public:
