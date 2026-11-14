@@ -1,0 +1,2 @@
+s_arg=3 s_plain=3 s_delay=2 p_arg=3
+ivltests/sva_proc_named_sequence_clock.v:24: $finish called at 32 (1s)
