@@ -252,6 +252,11 @@ typedef struct t_vpi_delay  {
 #define vpiTimeVal     11
 #define vpiObjTypeVal  12
 #define vpiSuppressVal 13
+#define vpiShortIntVal 14
+#define vpiLongIntVal  15
+#define vpiShortRealVal 16
+#define vpiRawTwoStateVal 17
+#define vpiRawFourStateVal 18
 
 
 /* SCALAR VALUES */
@@ -275,6 +280,7 @@ typedef struct t_vpi_delay  {
 
 /* OBJECT CODES */
 #define vpiAliasStmt    646 /* alias statement */
+#define vpiAlways        1 /* always procedure */
 #define vpiBegin          4 /* block statement */
 #define vpiDisable       12 /* named block disable statement */
 #define vpiEventControl  13 /* wait on event, e.g., @e */
@@ -284,19 +290,25 @@ typedef struct t_vpi_delay  {
 #define vpiContAssign   8
 #define vpiDeassign     9
 #define vpiConstant     7
+#define vpiIntConst     7
+#define vpiTimeConst    8
 #define vpiCase         5 /* case statement */
 #define vpiCaseItem     6 /* case statement item */
 #define vpiDelayControl 11 /* delay statement (e.g., #10) */
 #define vpiDoWhile    670 /* do-while statement */
 #define vpiFor         15
 #define vpiForever     17 /* forever statement */
+#define vpiFuncCall    19 /* function call */
 #define vpiFunction    20
+#define vpiGate        21 /* primitive gate */
 #define vpiFork        18 /* fork-join block */
 #define vpiIf          22 /* if statement */
 #define vpiIfElse      23 /* if-else statement */
+#define vpiInitial     24 /* initial procedure */
 #define vpiIntegerVar  25
 #define vpiInterModPath 26
 #define vpiIterator    27
+#define vpiIODecl      28 /* input/output declaration */
 #define vpiMemory      29
 #define vpiMemoryWord  30
 #define vpiModPath     31
@@ -323,11 +335,13 @@ typedef struct t_vpi_delay  {
 #define vpiOperation   39 /* behavioral operation */
 #define vpiNettypeDecl 523
 #define vpiParamAssign 40 /* parameter assignment */
+#define vpiDefParam    10 /* defparam */
 #define vpiParameter   41
 #define vpiPartSelect  42
 #define vpiIndexedPartSelect 130
 #define vpiBaseExpr  131
 #define vpiWidthExpr 132
+#define vpiAutomatics 136 /* automatic variables of a frame */
 #define vpiPathTerm    43
 #define vpiPort        44
 #define vpiPortBit     45
@@ -336,6 +350,9 @@ typedef struct t_vpi_delay  {
 #define vpiReg         48
 #define vpiRegBit      49
 #define vpiRepeatControl 52
+#define vpiSchedEvent  53 /* vpi_put_value() event */
+#define vpiSpecParam   54 /* specparam */
+#define vpiSwitch      55 /* transistor switch */
 #define vpiSysFuncCall 56
 #define vpiSysTaskCall 57
 #define vpiTableEntry  58 /* UDP state table entry */
@@ -343,7 +360,9 @@ typedef struct t_vpi_delay  {
 #define vpiTaskCall    60
 #define vpiTimeVar     63
 #define vpiTimeQueue   64
+#define vpiUdp         65 /* user-defined primitive */
 #define vpiRepeat      51 /* repeat statement */
+#define vpiVarSelect   68 /* variable array selection */
 #define vpiUdpDefn     66
 #define vpiPrimitive  103 /* primitive (gate, switch, UDP) */
 #define vpiUserSystf   67
@@ -355,6 +374,8 @@ typedef struct t_vpi_delay  {
 #define vpiIndex       78
 #define vpiLeftRange   79
 #define vpiLhs         77 /* left-hand side of assignment */
+#define vpiHighConn    76 /* higher connection to port */
+#define vpiLowConn     80 /* lower connection to port */
 #define vpiParent      81
 #define vpiRhs         82 /* right-hand side of assignment */
 #define vpiRightRange  83
@@ -364,14 +385,31 @@ typedef struct t_vpi_delay  {
 #define vpiTchkNotifier 87 /* timing check notifier */
 #define vpiTchkRefTerm  88 /* timing check reference term */
 #define vpiArgument    89
+#define vpiDriver      91 /* driver for a net */
 #define vpiBit         90
+#define vpiLoad        93 /* load on net or reg */
+#define vpiModDataPathIn 94 /* data terminal of a module path */
 #define vpiInternalScope 92
 #define vpiModPathIn     95
 #define vpiModPathOut    96
+#define vpiOperand       97 /* operand of expression */
+#define vpiPortInst      98 /* connected port instance */
+#define vpiProcess       99 /* process in module, program or interface */
 #define vpiVariables   100
+#define vpiUse         101 /* usage */
 #define vpiLoopVars    737 /* foreach loop index variables */
 #define vpiExpr        102
 #define vpiStmt        104 /* statement in process or task */
+
+/* IEEE 1800-2017 / 1800-2023 Annex K VPI relations. */
+#define vpiInTerm       120 /* drivers of a delay device */
+#define vpiInstanceArray 121 /* instance arrays */
+#define vpiLocalDriver  122 /* local drivers within a module */
+#define vpiLocalLoad    123 /* local loads within a module */
+#define vpiOutTerm      124 /* loads of a delay device */
+#define vpiPorts        125 /* module ports */
+#define vpiSimNet       126 /* simulated net after collapsing */
+#define vpiTaskFunc     127 /* task/function */
 
 /* IEEE 1800-2017/2023 Annex M pattern object types. */
 #define vpiAnyPattern     667
@@ -380,12 +418,24 @@ typedef struct t_vpi_delay  {
 
 /********************** object types added with 1364-2001 *********************/
 
+#define vpiAttribute  105 /* attribute of an object */
+#define vpiBitSelect  106 /* bit-select of parameter, var select */
 #define vpiCallback   107
+#define vpiDelayTerm  108 /* delay term which is a load or driver */
+#define vpiDelayDevice 109 /* delay object within a net */
+#define vpiFrame      110 /* reentrant task/function frame */
+#define vpiGateArray  111 /* gate instance array */
+#define vpiModuleArray 112 /* module instance array */
+#define vpiPrimitiveArray 113 /* primitive instance array */
 #define vpiRegArray   116
+#define vpiSwitchArray 117 /* switch instance array */
+#define vpiUdpArray   118 /* UDP instance array */
 
 /********************** object types added with 1364-2005 *********************/
-
+#define vpiContAssignBit 128 /* bit of a vector continuous assignment */
+#define vpiGenScopeArray 133 /* array of generated scopes */
 #define vpiGenScope   134
+#define vpiGenVar     135 /* object used to instantiate generate scopes */
 
 /* PROPERTIES */
 #define vpiUndefined   (-1)
@@ -395,11 +445,73 @@ typedef struct t_vpi_delay  {
 #define vpiPriorityQualifier  2
 #define vpiType           1
 #define vpiOpType         39 /* operation subtype */
+#define vpiMinusOp         1
+#define vpiPlusOp          2
+#define vpiNotOp           3
+#define vpiBitNegOp        4
+#define vpiUnaryAndOp      5
+#define vpiUnaryNandOp     6
+#define vpiUnaryOrOp       7
+#define vpiUnaryNorOp      8
+#define vpiUnaryXorOp      9
+#define vpiUnaryXNorOp    10
+#define vpiSubOp          11
+#define vpiDivOp          12
+#define vpiModOp          13
+#define vpiEqOp           14
+#define vpiNeqOp          15
+#define vpiCaseEqOp       16
+#define vpiCaseNeqOp      17
+#define vpiGtOp           18
+#define vpiGeOp           19
+#define vpiLtOp           20
+#define vpiLeOp           21
+#define vpiLShiftOp       22
+#define vpiRShiftOp       23
+#define vpiAddOp          24
+#define vpiMultOp         25
+#define vpiLogAndOp       26
+#define vpiLogOrOp        27
+#define vpiBitAndOp       28
+#define vpiBitOrOp        29
+#define vpiBitXorOp       30
+#define vpiBitXNorOp      31
+#define vpiBitXnorOp      vpiBitXNorOp
+#define vpiConditionOp    32
+#define vpiConcatOp       33
+#define vpiMultiConcatOp  34
+#define vpiEventOrOp      35
 #define vpiNullOp         36 /* null operation */
+#define vpiListOp         37
+#define vpiMinTypMaxOp    38
+#define vpiPosedgeOp      39
+#define vpiNegedgeOp      40
+#define vpiArithLShiftOp  41
+#define vpiArithRShiftOp  42
+#define vpiPowerOp        43
 #define vpiBlocking      41 /* blocking assignment (Boolean) */
 #define vpiCaseType      42 /* case statement subtype */
+#define vpiCaseExact      1 /* exact match */
 #define vpiCaseX          2 /* ignore X's */
 #define vpiCaseZ          3 /* ignore Z's */
+#define vpiNetDeclAssign 43 /* assign part of declaration (Boolean) */
+#define vpiScheduled     46 /* object still scheduled (Boolean) */
+#define vpiActive        49
+#define vpiCell          51
+#define vpiConfig        52
+#define vpiDecompile     54 /* decompile the object */
+#define vpiDelayType     56 /* delay subtype */
+#define vpiModPathDelay            1 /* module path delay */
+#define vpiInterModPathDelay       2 /* intermodule path delay */
+#define vpiMIPDelay                3 /* module input port delay */
+#define vpiLibrary       58 /* configuration library */
+#define vpiOffset        60 /* offset from LSB */
+#define vpiResolvedNetType 61 /* net subtype after resolution */
+#define vpiSaveRestartID 62 /* unique ID for save/restart data */
+#define vpiSaveRestartLocation 63 /* name of save/restart data file */
+#define vpiValid         64 /* validity of a reentrant task/function frame */
+#define vpiValidFalse     0
+#define vpiValidTrue      1
 #define vpiName           2
 #define vpiFullName       3
 #define vpiSize           4
@@ -413,11 +525,17 @@ typedef struct t_vpi_delay  {
 #define vpiIteratorType  57 /* object type of an iterator */
 #define vpiTimeUnit      11
 #define vpiTimePrecision 12
+#define vpiDefNetType    13 /* default net type */
+#define vpiUnconnDrive   14 /* unconnected port drive strength */
+#   define vpiHighZ        1
+#   define vpiPull1        2
+#   define vpiPull0        3
 #define vpiActiveTimeFormat 119
 #define vpiDefFile       15
 #define vpiDefLineNo     16
 #define vpiScalar        17
 #define vpiVector        18
+#define vpiExplicitName  19 /* port is explicitly named */
 #define vpiDelay         72 /* net or gate delay */
 
 #define vpiDirection 20 /* direction of port: */
@@ -426,6 +544,7 @@ typedef struct t_vpi_delay  {
 #   define vpiInout 3
 #   define vpiMixedIO 4 /* Not currently output */
 #   define vpiNoDirection 5
+#define vpiConnByName 21 /* connected by name (Boolean) */
 
 #define vpiTermIndex 30 /* index of a primitive terminal */
 #define vpiStrength0 31 /* 0-strength of net or gate */
@@ -478,6 +597,15 @@ typedef struct t_vpi_delay  {
 #   define vpiTriOr        9
 #   define vpiSupply1     10
 #   define vpiSupply0     11
+#   define vpiNone        12
+#   define vpiUwire       13
+#   define vpiNettypeNet  14
+#   define vpiNettypeNetSelect 15
+#   define vpiInterconnect 16
+#define vpiExplicitScalared 23 /* explicitly scalared (Boolean) */
+#define vpiExplicitVectored 24 /* explicitly vectored (Boolean) */
+#define vpiExpanded      25 /* vector expanded to bits (Boolean) */
+#define vpiChargeStrength 27 /* charge decay strength of a net */
 #define vpiArray         28
 #define vpiPortIndex     29
 #define vpiEdge          36
@@ -491,6 +619,14 @@ typedef struct t_vpi_delay  {
 #   define vpiPosedge      (vpiEdgex1|vpiEdge01|vpiEdge0x)
 #   define vpiNegedge      (vpiEdgex0|vpiEdge10|vpiEdge1x)
 #   define vpiAnyEdge      (vpiPosedge|vpiNegedge)
+#define vpiPolarity      34 /* polarity of a module path */
+#define vpiDataPolarity  35 /* data polarity of a module path */
+#   define vpiPositive     1
+#   define vpiNegative     2
+#   define vpiUnknown      3
+#define vpiPathType      37 /* full or parallel module path */
+#   define vpiPathFull     1
+#   define vpiPathParallel 2
 #define vpiTchkType      38 /* timing check subtypes (IEEE 1800 Annex K) */
 #   define vpiSetup        1 /* $setup */
 #   define vpiHold         2 /* $hold */
@@ -504,6 +640,14 @@ typedef struct t_vpi_delay  {
 #   define vpiRecrem      10 /* $recrem */
 #   define vpiRemoval     11 /* $removal */
 #   define vpiTimeskew    12 /* $timeskew */
+#define vpiDefDelayMode  47 /* default delay mode of a module */
+#   define vpiDelayModeNone    1
+#   define vpiDelayModePath    2
+#   define vpiDelayModeDistrib 3
+#   define vpiDelayModeUnit    4
+#   define vpiDelayModeZero    5
+#   define vpiDelayModeMTM     6
+#define vpiDefDecayTime  48 /* default decay time of a module */
 #define vpiConstType 40
 #define vpiAssignmentOp 82 /* Normal assignment */
 #define vpiIsModPort 669
@@ -552,6 +696,12 @@ typedef struct t_vpi_delay  {
 #define vpiSigned         65
 #define vpiLocalParam     70
 #define vpiCondition      71
+#define vpiModPathHasIfNone 71 /* mod path has an ifnone statement */
+#define vpiIndexedPartSelectType 72 /* indexed part-select type */
+#define vpiPosIndexed      1 /* +: */
+#define vpiNegIndexed      2 /* -: */
+#define vpiIsMemory       73 /* array is a memory (Boolean) */
+#define vpiIsProtected    74 /* object is protected (Boolean) */
 /* IVL private properties, also see vvp/vpi_priv.h for other properties */
 #define _vpiNexusId        0x1000000
 /* used in vvp/vpi_priv.h  0x1000001 */
@@ -575,9 +725,13 @@ typedef struct t_vpi_delay  {
 
 #define vpiForceFlag   5
 #define vpiReleaseFlag 6
+#define vpiCancelEvent 7
 #define vpiForce       16 /* force statement */
 #define vpiRelease     50 /* release statement */
 #define vpiReturnEvent 0x1000
+#define vpiUserAllocFlag 0x2000
+#define vpiOneValue    0x4000
+#define vpiPropagateOff 0x8000
 
 /* VPI FUNCTIONS */
 extern vpiHandle vpi_register_systf(const struct t_vpi_systf_data*ss);
@@ -660,12 +814,17 @@ typedef struct t_cb_data {
 #define cbExitInteractive   22
 #define cbInteractiveScopeChange 23
 #define cbUnresolvedSystf   24
+#define cbAssign            25
+#define cbDeassign          26
+#define cbDisable           27
+/* A run-time error in a PLI/VPI routine call (IEEE 1800-2023 38.36.3). */
+#define cbPLIError          28
+/* An operating-system signal occurred: cb_data.index names the signal
+   (IEEE 1800-2023 38.36.3). */
+#define cbSignal            29
 /* IEEE 1800-2017 clause 38 simulation-time callback: after every
    nonblocking update of the current time slot has been applied, and
-   before cbReadWriteSynch / cbAtEndOfSimTime.  (Reason codes 25-29 are
-   the other 1800 additions -- cbAssign, cbDeassign, cbDisable,
-   cbPLIError, cbSignal -- which this simulator does not implement and
-   therefore does not name.) */
+   before cbReadWriteSynch / cbAtEndOfSimTime. */
 #define cbNBASynch          30
 #define cbAtEndOfSimTime    31
 
@@ -816,6 +975,10 @@ typedef struct t_vpi_error_info {
 # define  vpiRun      3
 
 /* error_info levels */
+/* vpi_chk_error() states (IEEE 1800-2023 Annex K) */
+# define  vpiCompile   1
+# define  vpiPLI       2
+# define  vpiRun       3
 # define  vpiNotice    1
 # define  vpiWarning   2
 # define  vpiError     3
@@ -868,14 +1031,42 @@ extern int vpip_object_urandom(const PLI_INT32*seed, unsigned int*val);
 extern const char* vpip_get_stacktrace(const char*call_file, long call_line);
 extern void vpip_print_stacktrace(const char*call_file, long call_line);
 extern void vpip_print_finish_stats(void);
-/* Cancel pending deferred-immediate reports selected by hierarchy path. */
-extern void vpip_cancel_deferred_asserts(const char*selector,
-                                         PLI_INT32 levels);
-extern PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,
-                                                  vpiHandle scope);
-extern void vpip_set_deferred_assertions_enabled(const char*selector,
-                                                  PLI_INT32 levels,
-                                                  PLI_INT32 enabled);
+/* IEEE 1800-2023 20.11 assertion control: apply control_type ctl
+   (Table 20-5) to the assertions selected by assertion_type atype
+   (Table 20-6), directive_type dtype (Table 20-7), levels, and the nsel
+   hierarchical selectors (nsel 0 means the whole design). Returns 0 when
+   nothing was recorded. */
+extern PLI_INT32 vpip_assertion_control(PLI_INT32 ctl, PLI_INT32 atype,
+                                        PLI_INT32 dtype, PLI_INT32 levels,
+                                        const char*const*selectors,
+                                        PLI_INT32 nsel);
+/* Control state `what' (vpipAssertState*) of the assertion that the front
+   end numbered `id' in identity space `space' (vpipAssertSpace*), looked up
+   from the calling scope. */
+extern PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
+                                      PLI_INT32 id, PLI_INT32 what);
+#define vpipAssertSpaceConcurrent     0
+#define vpipAssertSpaceImmediate      1
+#define vpipAssertSpaceDeferred       2
+#define vpipAssertSpaceImmediateCover 3
+#define vpipAssertSpaceProcedural     4   /* id = procedural assertion id */
+#define vpipAssertStateEnabled        0
+#define vpipAssertStateKillGeneration 1
+#define vpipAssertStateFailAction     2
+#define vpipAssertStatePassAction     3
+#define vpipAssertStateVacuousAction  4
+#define vpipAssertStateTakeMatured    5   /* procedural: take matured count */
+/* IEEE 1800-2023 16.14.6: queue a pending instance of procedural concurrent
+   assertion pid on the process of the system task call callh, and tie pid
+   to the checker that the front end numbered idx in scope. The call's
+   arguments after pid are the values the instance saves (16.14.6.1);
+   vpip_proc_assert_cap(callh) is $ivl_sva_proc_cap(pid, idx, j, dest),
+   which writes saved value j of the idx-th instance the checker took at
+   its last clock into dest. */
+extern void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle callh);
+extern void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
+                                         PLI_INT32 each, vpiHandle scope);
+extern void vpip_proc_assert_cap(vpiHandle callh);
 /* True while a VPI string function call is executing with a result slot. */
 extern int vpip_systf_call_returns_string(void);
 /* True when the current VVP design was compiled as SystemVerilog. */
@@ -888,7 +1079,9 @@ extern void vpip_register_assertion(PLI_INT32 idx, const char*name,
                                     const char*file, PLI_INT32 line,
                                     vpiHandle scope, PLI_INT32 depth_arg,
                                     PLI_INT32 flags,
-                                    PLI_INT32 assertion_kind);
+                                    PLI_INT32 assertion_kind,
+                                    PLI_INT32 inst_kind,
+                                    const char*inst_name);
 /* M12B-cb: report a success/failure event for the assertion identified
    by (scope, idx); fires any matching registered callbacks. */
 extern void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason,
@@ -913,6 +1106,36 @@ extern void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
 /* M12B-cb: non-zero iff any assertion callback is registered (lets the
    synthesized checkers skip reporting when nothing is watching). */
 extern PLI_INT32 vpip_assertion_cb_active(void);
+/* IEEE 1800-2023 39.4.2: register step-table row `row' of (scope, idx):
+   its reason, from/to state ids and n expressions (source file, line and
+   text). Then report one step of one attempt by row; the attempt is named
+   by its clock age (age >= 0) or by the START serial the checker saved for
+   it (serial > 0). Dropped unless stepping is enabled for the attempt
+   (39.5.2). */
+extern void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope,
+                                    PLI_INT32 row, PLI_INT32 reason,
+                                    PLI_INT32 from, PLI_INT32 to,
+                                    PLI_INT32 n, const char*const*files,
+                                    const PLI_INT32*lines,
+                                    const char*const*texts);
+extern void vpip_assertion_step(PLI_INT32 idx, vpiHandle scope,
+                                PLI_INT32 row, PLI_INT32 age,
+                                PLI_INT32 serial);
+/* The automaton checker describes its automaton once (guards as source
+   file/line/text; edges as from, to, guard count, guard indices), then
+   reports each slot's tick as state and guard bit strings. */
+extern void vpip_assertion_nfa(PLI_INT32 idx, vpiHandle scope,
+                               PLI_INT32 nstates, PLI_INT32 start,
+                               PLI_INT32 accept, PLI_INT32 nguards,
+                               const char*const*files, const PLI_INT32*lines,
+                               const char*const*texts, PLI_INT32 nwords,
+                               const PLI_INT32*words);
+extern void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope,
+                                    PLI_INT32 serial, const char*pre,
+                                    const char*nx, const char*guards,
+                                    PLI_INT32 ob);
+/* The serial of the most recent cbAssertionStart of (scope, idx). */
+extern PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope);
 /* M12B-rest: report an event on EVERY registered assertion (global
    assertion control: cbAssertionDisable/Enable/Reset from
    $assertoff/$asserton/$assertkill). */
@@ -995,7 +1218,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 14;
+static const PLI_UINT32 vpip_routines_version = 19;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1045,7 +1268,7 @@ typedef struct {
     void        (*make_systf_system_defined)(vpiHandle);
     void        (*mcd_rawwrite)(PLI_UINT32, const char*, size_t);
     void        (*set_return_value)(int);
-    void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32);
+    void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32, PLI_INT32, const char*);
     void        (*assertion_report)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*assertion_clock)(PLI_INT32, vpiHandle);
     void        (*assertion_report_age)(PLI_INT32, PLI_INT32, vpiHandle, PLI_INT32);
@@ -1054,10 +1277,12 @@ typedef struct {
     void        (*assertion_report_all)(PLI_INT32);
     int         (*object_urandom)(const PLI_INT32*, unsigned int*);
     void        (*print_stacktrace)(const char*, long);
-    void        (*cancel_deferred_asserts)(const char*, PLI_INT32);
-    PLI_INT32   (*deferred_assertion_enabled)(unsigned long, vpiHandle);
-    void        (*set_deferred_assertions_enabled)(const char*, PLI_INT32,
-                                                   PLI_INT32);
+    PLI_INT32   (*assertion_control)(PLI_INT32, PLI_INT32, PLI_INT32,
+                                     PLI_INT32, const char*const*, PLI_INT32);
+    PLI_INT32   (*assertion_state)(vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32);
+    void        (*proc_assert_enqueue)(PLI_INT32, vpiHandle);
+    void        (*register_proc_assertion)(PLI_INT32, PLI_INT32, PLI_INT32,
+                                           vpiHandle);
     void        (*register_immediate_cover)(PLI_INT32, const char*,
                                              const char*, PLI_INT32,
                                              vpiHandle);
@@ -1065,6 +1290,21 @@ typedef struct {
     void        (*report_immediate_assertion)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*print_finish_stats)(void);
     int         (*covgrp_db)(int, const char*);
+    void        (*assertion_step_row)(PLI_INT32, vpiHandle, PLI_INT32,
+                                      PLI_INT32, PLI_INT32, PLI_INT32,
+                                      PLI_INT32, const char*const*,
+                                      const PLI_INT32*, const char*const*);
+    void        (*assertion_step)(PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32,
+                                  PLI_INT32);
+    void        (*assertion_nfa)(PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32,
+                                 PLI_INT32, PLI_INT32, const char*const*,
+                                 const PLI_INT32*, const char*const*,
+                                 PLI_INT32, const PLI_INT32*);
+    void        (*assertion_nfa_step)(PLI_INT32, vpiHandle, PLI_INT32,
+                                      const char*, const char*, const char*,
+                                      PLI_INT32);
+    PLI_INT32   (*assertion_serial)(PLI_INT32, vpiHandle);
+    void        (*proc_assert_cap)(vpiHandle);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

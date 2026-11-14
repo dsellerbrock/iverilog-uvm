@@ -623,6 +623,16 @@ void dll_target::expr_scope(const NetEScope*net)
       expr_->value_= net->net_type() ? net->expr_type() : IVL_VT_VOID;
       expr_->net_type= net->net_type();
       expr_->u_.scope_.scope = lookup_scope_(net->scope());
+      const auto&binds = net->vif_binds();
+      expr_->u_.scope_.nbinds = binds.size();
+      if (!binds.empty()) {
+	    expr_->u_.scope_.bind_pid = new unsigned[binds.size()];
+	    expr_->u_.scope_.bind_sig = new ivl_signal_t[binds.size()];
+	    for (size_t idx = 0 ; idx < binds.size() ; idx += 1) {
+		  expr_->u_.scope_.bind_pid[idx] = binds[idx].first;
+		  expr_->u_.scope_.bind_sig[idx] = find_signal(binds[idx].second);
+	    }
+      }
 }
 
 void dll_target::expr_scopy(const NetEShallowCopy*net)

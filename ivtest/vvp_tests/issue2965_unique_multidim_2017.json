@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2965_unique_multidim.sv",
+  "iverilog-args": ["-g2017", "-s", "issue2965_unique_multidim"],
+  "gold": "issue2965_unique_multidim"
+}

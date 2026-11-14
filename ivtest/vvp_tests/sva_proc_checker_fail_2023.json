@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sva_proc_checker_fail.sv",
+    "iverilog-args" : [ "-g2023", "-s", "top" ],
+    "gold"           : "sva_proc_checker_fail_2023"
+}

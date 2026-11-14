@@ -1,0 +1,27 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "top")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "clock")
+    (INSTANCE c)
+    (LABEL
+      (ABSOLUTE (dhigh 6))
+      (INCREMENT (dlow (1)))
+    )
+  )
+  (CELL
+    (CELLTYPE "d1")
+    (INSTANCE u1)
+    (LABEL
+      (ABSOLUTE (tr (4)) (tf (6)) (nosuch (1)))
+    )
+  )
+  (CELL
+    (CELLTYPE "d2")
+    (INSTANCE u2)
+    (LABEL
+      (ABSOLUTE (cap 5))
+    )
+  )
+)

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2945_vpi_struct_union_enum_type.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue2945_vpi_struct_union_enum_type_2023"],
+  "vpi-sources": ["vpi/issue2945_vpi_struct_union_enum_type.c"],
+  "output-contains": ["top.ps: type=618 packed=1", "top.pu: type=619 packed=1", "top.c: type=617 packed=0", "PASSED"]
+}

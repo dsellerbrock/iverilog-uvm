@@ -37,9 +37,11 @@
 #include  "vvp_cleanup.h"
 #endif
 # include  <cstdio>
+# include  <csignal>
 # include  <cassert>
 # include  <cstdlib>
 # include  <unordered_map>
+# include  <vector>
 
 using namespace std;
 
@@ -673,9 +675,24 @@ static value_callback* make_value_change(p_cb_data data)
 	if (target->get_type_code() == vpiMemory)
 	    return vpip_array_change_target(data, target);
 
-      value_callback*obj = new value_callback(data);
-
       assert(data->obj);
+	/* A continuous assignment reports its driver's output (37.47). */
+      if (target->get_type_code() == vpiContAssign) {
+	    extern value_callback* vpip_contassign_add_bit_callback(vpiHandle,
+									 p_cb_data);
+	    if (value_callback*bit_cb =
+		  vpip_contassign_add_bit_callback(target, data))
+		  return bit_cb;
+	    value_callback*obj = new value_callback(data);
+	    if (vpip_contassign_add_callback(target, obj))
+		  return obj;
+	    fprintf(stderr, "vpi error: the continuous assignment at %s:%d "
+		    "has no driver output to watch\n",
+		    vpi_get_str(vpiFile, target), vpi_get(vpiLineNo, target));
+	    delete obj;
+	    return 0;
+      }
+	value_callback*obj = new value_callback(data);
 	/* Scalar members of object-backed structs are variable views over the
 	 * owning object signal, not standalone __vpiSignal instances. Attach
 	 * their callbacks to that signal while retaining the member handle for
@@ -1020,6 +1037,110 @@ static simulator_callback*NextSimTime = 0;
 static simulator_callback*EndOfCompile = 0;
 static simulator_callback*StartOfSimulation = 0;
 static simulator_callback*EndOfSimulation = 0;
+/* cbError and cbPLIError (IEEE 1800-2023 38.36.3) stay registered: an
+   error can occur any number of times. */
+static simulator_callback*ErrorCallbacks = 0;
+static simulator_callback*PLIErrorCallbacks = 0;
+
+/*
+ * cbSignal (IEEE 1800-2023 38.36.3): "When this signal occurs, the
+ * simulator will trap the signal, proceed to a safe point (if possible),
+ * and then call the callback routine." The signal handler only marks the
+ * signal pending; the scheduler runs the callbacks between events.
+ */
+static simulator_callback*SignalCallbacks = 0;
+static bool signal_trapped_[NSIG];
+static volatile sig_atomic_t signal_pending_[NSIG];
+static volatile sig_atomic_t any_signal_pending_ = 0;
+
+bool vpip_signal_trapped(int signum)
+{
+      return signum > 0 && signum < NSIG && signal_trapped_[signum];
+}
+
+/* Called from the signal handler: async-signal-safe stores only. */
+void vpip_note_signal(int signum)
+{
+      signal_pending_[signum] = 1;
+      any_signal_pending_ = 1;
+}
+
+bool vpip_signal_pending(void)
+{
+      return any_signal_pending_ != 0;
+}
+
+void vpip_run_signal_callbacks(void)
+{
+      any_signal_pending_ = 0;
+      for (int signum = 1; signum < NSIG; signum += 1) {
+	    if (!signal_pending_[signum]) continue;
+	    signal_pending_[signum] = 0;
+	    for (simulator_callback*cur = SignalCallbacks ; cur
+		       ; cur = dynamic_cast<simulator_callback*>(cur->next))
+		  if (cur->cb_data.cb_rtn && cur->cb_data.index == signum)
+			(cur->cb_data.cb_rtn)(&cur->cb_data);
+      }
+}
+
+void vpip_run_error_callbacks(void)
+{
+	/* An error raised inside one of these callbacks does not recurse. */
+      static bool running = false;
+      if (running) return;
+      running = true;
+      for (simulator_callback*cur = PLIErrorCallbacks ; cur
+		 ; cur = dynamic_cast<simulator_callback*>(cur->next))
+	    if (cur->cb_data.cb_rtn) (cur->cb_data.cb_rtn)(&cur->cb_data);
+      for (simulator_callback*cur = ErrorCallbacks ; cur
+		 ; cur = dynamic_cast<simulator_callback*>(cur->next))
+	    if (cur->cb_data.cb_rtn) (cur->cb_data.cb_rtn)(&cur->cb_data);
+      running = false;
+}
+
+/* IEEE 1800-2023 39.4.1 assertion system callbacks. */
+static bool is_assertion_sys_reason_(PLI_INT32 reason)
+{
+      switch (reason) {
+	  case cbAssertionSysInitialized:
+	  case cbAssertionSysOn:
+	  case cbAssertionSysOff:
+	  case cbAssertionSysEnd:
+	  case cbAssertionSysReset:
+	  case cbAssertionSysKill:
+	  case cbAssertionSysEnablePassAction:
+	  case cbAssertionSysEnableFailAction:
+	  case cbAssertionSysDisablePassAction:
+	  case cbAssertionSysDisableFailAction:
+	  case cbAssertionSysEnableNonvacuousAction:
+	  case cbAssertionSysDisableVacuousAction:
+	  case cbAssertionSysLock:
+	  case cbAssertionSysUnlock:
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
+static std::vector<simulator_callback*> assertion_sys_callbacks;
+static bool assertion_sys_ended = false;
+
+/* Run every live callback registered for this assertion system event.
+   After cbAssertionSysEnd "no more assertion-related callbacks shall
+   occur". */
+void vpip_fire_assertion_sys_cb(PLI_INT32 reason)
+{
+      if (assertion_sys_ended) return;
+      if (reason == cbAssertionSysEnd) assertion_sys_ended = true;
+      for (size_t i = 0 ; i < assertion_sys_callbacks.size() ; i += 1) {
+	    simulator_callback*cur = assertion_sys_callbacks[i];
+	    if (cur->cb_data.reason != reason || !cur->cb_data.cb_rtn)
+		  continue;
+	    cur->cb_time.type = vpiSimTime;
+	    vpip_time_to_timestruct(&cur->cb_time, schedule_simtime());
+	    (cur->cb_data.cb_rtn)(&cur->cb_data);
+      }
+}
 
 #ifdef CHECK_WITH_VALGRIND
 /* This is really only needed if the simulator aborts before starting the
@@ -1092,6 +1213,12 @@ void vpiStartOfSim(void) {
 	    delete cur;
       }
 
+	/* 39.4.1: the assertion system initializes, then is "started" on
+	   simulation startup. Firing after cbStartOfSimulation lets those
+	   callbacks register for these events. */
+      vpip_fire_assertion_sys_cb(cbAssertionSysInitialized);
+      vpip_fire_assertion_sys_cb(cbAssertionSysOn);
+
       vpi_mode_flag = VPI_MODE_NONE;
 }
 
@@ -1113,6 +1240,10 @@ void vpiPostsim(void) {
 	    }
 	    delete cur;
       }
+
+	/* 39.4.1: cbAssertionSysEnd "typically occurs after the end of
+	   simulation" (unless vpiAssertionSysEnd already ended the system). */
+      vpip_fire_assertion_sys_cb(cbAssertionSysEnd);
 
       vpi_mode_flag = VPI_MODE_NONE;
 }
@@ -1143,10 +1274,48 @@ void vpiNextSimTime(void)
       vpi_mode_flag = VPI_MODE_NONE;
 }
 
+/*
+ * cbTchkViolation (IEEE 1800-2023 38.36.3) is an action callback: it
+ * stays registered until vpi_remove_cb, which clears cb_rtn, and runs on
+ * every timing-check violation with obj set to the violated timing
+ * check.
+ */
+static std::vector<simulator_callback*> tchk_violation_callbacks;
+
+static simulator_callback* make_tchk_violation(p_cb_data data)
+{
+      if (!data->cb_rtn) {
+	    fprintf(stderr, "VPI error: cbTchkViolation callback has no "
+		    "callback routine\n");
+	    return 0;
+      }
+      simulator_callback*obj = new simulator_callback(data);
+      if (data->time) obj->cb_time.type = data->time->type;
+      tchk_violation_callbacks.push_back(obj);
+      return obj;
+}
+
+void vpip_tchk_violation(vpiHandle tchk)
+{
+	/* A callback may register another; run the ones present now. */
+      std::vector<simulator_callback*> run = tchk_violation_callbacks;
+      for (simulator_callback*cur : run) {
+	    if (!cur->cb_data.cb_rtn) continue;
+	    cur->cb_data.obj = tchk;
+	    callback_execute(cur);
+      }
+}
+
 static simulator_callback* make_prepost(p_cb_data data)
 {
       if ((data->reason == cbNextSimTime) && !check_callback_time(data, true))
 	    return 0;
+      if (data->reason == cbSignal
+	  && (data->index <= 0 || data->index >= NSIG)) {
+	    fprintf(stderr, "vpi error: cbSignal index %d is not a signal "
+		    "number\n", (int)data->index);
+	    return 0;
+      }
 
       simulator_callback*obj = new simulator_callback(data);
 
@@ -1167,6 +1336,20 @@ static simulator_callback* make_prepost(p_cb_data data)
 	  case cbNextSimTime:
 	    obj->next = NextSimTime;
 	    NextSimTime = obj;
+	    break;
+	  case cbError:
+	    obj->next = ErrorCallbacks;
+	    ErrorCallbacks = obj;
+	    break;
+	  case cbPLIError:
+	    obj->next = PLIErrorCallbacks;
+	    PLIErrorCallbacks = obj;
+	    break;
+	  case cbSignal:
+	    obj->next = SignalCallbacks;
+	    SignalCallbacks = obj;
+	    signal_trapped_[data->index] = true;
+	    signal(data->index, &signals_handler);
 	    break;
       }
 
@@ -1323,10 +1506,23 @@ vpiHandle vpi_register_cb(p_cb_data data)
 	  case cbStartOfSimulation:
 	  case cbEndOfSimulation:
 	  case cbNextSimTime:
+	  case cbError:
+	  case cbPLIError:
+	  case cbSignal:
 	    obj = make_prepost(data);
 	    break;
 
+	  case cbTchkViolation:
+	    obj = make_tchk_violation(data);
+	    break;
+
 	  default:
+	    if (is_assertion_sys_reason_(data->reason)) {
+		  simulator_callback*cb = new simulator_callback(data);
+		  assertion_sys_callbacks.push_back(cb);
+		  obj = cb;
+		  break;
+	    }
 	    fprintf(stderr, "vpi error: vpi_register_cb invalid or "
 		    "unsupported callback reason: %d\n",
 		    (int)data->reason);
@@ -1346,6 +1542,13 @@ PLI_INT32 vpi_remove_cb(vpiHandle ref)
       struct __vpiCallback*obj = dynamic_cast<__vpiCallback*>(ref);
       assert(obj);
       return obj->remove();
+}
+
+void vpi_get_cb_info(vpiHandle ref, p_cb_data data)
+{
+      struct __vpiCallback*obj = dynamic_cast<__vpiCallback*>(ref);
+      assert(obj && data);
+      *data = obj->cb_data;
 }
 
 void callback_execute(struct __vpiCallback*cur)

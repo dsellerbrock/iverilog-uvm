@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sva_property_formal_tree.sv",
+    "iverilog-args" : [ "-g2023", "-s", "sva_property_formal_tree" ],
+    "gold"          : "sva_property_formal_tree"
+}

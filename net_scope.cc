@@ -29,6 +29,7 @@
 # include  "netqueue.h"
 # include  "netvector.h"
 # include  "PExpr.h"
+# include  <sstream>
 # include  "PPackage.h"
 # include  "PTask.h"
 # include  "PWire.h"
@@ -55,6 +56,7 @@ void Definitions::add_enumeration_set(const enum_type_t*key, netenum_t*enum_set)
       netenum_t*&tmp = enum_sets_[key];
       assert(tmp == 0);
       tmp = enum_set;
+      enum_sets_order_.push_back(enum_set);
 }
 
 bool Definitions::add_enumeration_name(const netenum_t*enum_set, perm_string name)
@@ -535,6 +537,7 @@ void NetScope::set_parameter(perm_string key, bool is_annotatable,
       ref.is_annotatable = is_annotatable;
       ref.val_expr = param.expr;
       ref.source_expr = param.expr;
+      ref.default_expr = param.expr;
       ref.val_type = param.data_type;
       ref.val_scope = this;
       ref.source_scope = this;
@@ -1558,4 +1561,101 @@ PLet* NetScope::find_let(const Design*des, perm_string name,
 	    cur = cur->parent();
 	    if (cur == 0) return 0;
       }
+}
+
+/*
+ * Elaborate PE in SCOPE as VPI's view of a source expression: its own
+ * width, no constant folding. The source compiled already in its own
+ * place, so any diagnostic this raises is swallowed and the expression
+ * dropped: keeping it can never change what a design compiles to.
+ */
+NetExpr* elaborate_for_vpi(Design*des, NetScope*scope, PExpr*pe)
+{
+      std::ostringstream sink;
+      std::streambuf*saved = cerr.rdbuf(sink.rdbuf());
+      unsigned errors = des->errors;
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      pe->test_width(des, scope, mode);
+      NetExpr*tmp = pe->elaborate_expr(des, scope, pe->expr_width(),
+				       PExpr::NO_FLAGS);
+      cerr.rdbuf(saved);
+      if (des->errors != errors) {
+	    des->errors = errors;
+	    delete tmp;
+	    return 0;
+      }
+      return tmp;
+}
+
+/* True when the default is the plain constant the parameter ended up
+   with, so vvp can describe it from the value alone. */
+static bool default_is_final_value_(const NetExpr*def, const NetExpr*val)
+{
+      const NetEConst*dc = dynamic_cast<const NetEConst*>(def);
+      const NetEConst*vc = dynamic_cast<const NetEConst*>(val);
+      if (dc && vc) {
+	    const verinum&d = dc->value();
+	    const verinum&v = vc->value();
+	    if (dc->expr_width() != vc->expr_width()
+		|| dc->has_sign() != vc->has_sign()
+		|| d.is_string() != v.is_string() || d.len() != v.len())
+		  return false;
+	    for (unsigned idx = 0; idx < d.len(); idx += 1)
+		  if (d.get(idx) != v.get(idx)) return false;
+	    return true;
+      }
+      const NetECReal*dr = dynamic_cast<const NetECReal*>(def);
+      const NetECReal*vr = dynamic_cast<const NetECReal*>(val);
+      return dr && vr && dr->value().as_double() == vr->value().as_double();
+}
+
+void NetScope::elaborate_vpi_parameter_exprs(Design*des)
+{
+      if (parent() && !port_actuals.empty()) {
+	    port_highconns.assign(port_actuals.size(), nullptr);
+	    for (size_t idx = 0; idx < port_actuals.size(); idx += 1)
+		  if (port_actuals[idx])
+			port_highconns[idx] = elaborate_for_vpi(des, parent(),
+							     port_actuals[idx]);
+      }
+	/* An interface port is a class-typed handle that elaboration has
+	   bound to one interface instance. */
+      if (type_ == MODULE && parent()) {
+	    const std::vector<PortInfo>&ports = module_port_info();
+	    for (size_t idx = 0; idx < ports.size(); idx += 1) {
+		  if (ports[idx].name.nil()) continue;
+		  NetNet*sig = find_signal(ports[idx].name);
+		  const netclass_t*cls = sig
+			? dynamic_cast<const netclass_t*>(sig->net_type()) : 0;
+		  if (!cls || !cls->is_interface()
+		      || sig->unpacked_dimensions() != 0)
+			continue;
+		  NetScope*inst = sig->resolve_interface_scope(0);
+		  if (!inst) continue;
+		  if (port_ifaces.empty())
+			port_ifaces.assign(ports.size(),
+					   std::make_pair((NetScope*)0, perm_string()));
+		  port_ifaces[idx] = std::make_pair(inst, cls->interface_modport());
+	    }
+      }
+      if (!class_def() && type_ != TASK && type_ != FUNC) {
+	    for (map<perm_string,param_expr_t>::iterator cur = parameters.begin()
+		       ; cur != parameters.end() ; ++cur) {
+		  param_expr_t&ref = cur->second;
+		  if (!ref.default_expr || ref.type_flag || ref.is_array_param
+		      || ref.is_assoc_param || ref.is_annotatable || !ref.val)
+			continue;
+		  NetExpr*tmp = elaborate_for_vpi(des, this, ref.default_expr);
+		  if (tmp && default_is_final_value_(tmp, ref.val)) {
+			delete tmp;
+			tmp = 0;
+		  }
+		  ref.default_net = tmp;
+	    }
+	    for (defparam_t&cur : defparams_kept)
+		  cur.rhs_net = elaborate_for_vpi(des, this, cur.rhs);
+      }
+      for (map<hname_t,NetScope*>::const_iterator cur = children_.begin()
+		 ; cur != children_.end() ; ++cur)
+	    cur->second->elaborate_vpi_parameter_exprs(des);
 }

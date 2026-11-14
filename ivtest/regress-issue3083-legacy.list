@@ -1,0 +1,2 @@
+issue3083_path_delay_2017 normal,-g2017,-gspecify,-s,issue3083_path_delay ivltests gold=issue3083_path_delay.gold
+issue3083_path_delay_2023 normal,-g2023,-gspecify,-s,issue3083_path_delay ivltests gold=issue3083_path_delay.gold

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3093_source_range.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3093_source_range_2017"],
+  "vpi-sources": ["vpi/issue3093_source_range.c"],
+  "gold": "issue3093_source_range"
+}

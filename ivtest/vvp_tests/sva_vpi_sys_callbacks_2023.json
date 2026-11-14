@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sva_vpi_sys_callbacks.sv",
+  "iverilog-args": ["-g2023", "-s", "sva_vpi_sys_callbacks"],
+  "vpi-modules": ["sva_vpi_sys_callbacks_2023"],
+  "vpi-sources": ["vpi/sva_sys_callbacks.c"],
+  "gold": "sva_vpi_sys_callbacks"
+}

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2981_local_type_cast.sv",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "issue2981_local_type_cast"
+}

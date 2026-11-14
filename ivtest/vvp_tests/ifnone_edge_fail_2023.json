@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "ifnone_edge_fail.v",
+  "iverilog-args": ["-g2023", "-gspecify"],
+  "gold": "ifnone_edge_fail"
+}

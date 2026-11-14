@@ -261,6 +261,8 @@ NetEScope* NetEScope::dup_expr() const
 {
       NetEScope*tmp = new NetEScope(const_cast<NetScope*>(scope()), net_type());
       tmp->set_line(*this);
+      for (const auto&bind : vif_binds_)
+	    tmp->add_vif_bind(bind.first, bind.second);
       return tmp;
 }
 

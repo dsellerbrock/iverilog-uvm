@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1310_vpi_contassign.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue1310_vpi_contassign_2017"],
+  "vpi-sources": ["vpi/issue1310_vpi_contassign.c"],
+  "output-contains": ["VPI CONTASSIGN PASS"]
+}

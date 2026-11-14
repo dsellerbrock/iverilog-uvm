@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3089_timing_condition.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "issue3089_timing_condition"],
+  "gold": "issue3089_timing_condition"
+}

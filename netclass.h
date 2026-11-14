@@ -412,7 +412,10 @@ class netclass_t : public ivl_type_s {
 	// Unimplemented pure constraints inherited by this exact class type.
 	// The source location is the original pure declaration, used by the
 	// concrete-class diagnostic.
-      std::map<perm_string,LineInfo> unimplemented_pure_constraints_;
+      struct pure_constraint_obligation_t : public LineInfo {
+            bool is_static = false;
+      };
+      std::map<perm_string,pure_constraint_obligation_t> unimplemented_pure_constraints_;
       bool constraint_declarations_configured_ = false;
 	// Constraint inheritance (IEEE 1800-2017 18.5.2): derived classes
 	// inherit base-class constraints unless overridden by a local

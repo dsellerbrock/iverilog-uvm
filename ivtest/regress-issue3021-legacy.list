@@ -1,0 +1,2 @@
+issue3021_interface_defaults_2017 normal,-g2017,-s,issue3021_interface_defaults ivltests gold=issue3021_interface_defaults.gold
+issue3021_interface_defaults_2023 normal,-g2023,-s,issue3021_interface_defaults ivltests gold=issue3021_interface_defaults.gold

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sva_step_attempt.sv",
+  "iverilog-args": ["-g2023", "-s", "sva_step_attempt"],
+  "vpi-modules": ["sva_step_attempt_2023"],
+  "vpi-sources": ["vpi/sva_step_attempt.c"],
+  "gold": "sva_step_attempt"
+}

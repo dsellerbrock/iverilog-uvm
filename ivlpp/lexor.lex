@@ -1403,6 +1403,7 @@ static void handle_line_directive(void)
 static void handle_pragma_directive(void)
 {
     char *cpr;
+    char *name;
       /* Skip any leading space. */
     char *cp = strchr(yytext, '`');
       /* Skip the `pragma directive. */
@@ -1429,20 +1430,61 @@ static void handle_pragma_directive(void)
 	error_count += 1;
 	return;
     }
+    name = cp;
     ++cp;
     while (isalnum((int)*cp) || *cp == '_' || *cp == '$') ++cp;
 
       /* Icarus does not support protected-envelope decryption. Reject a
        * begin_protected envelope before its opaque data is parsed as HDL.
        */
-    if ((size_t)(cp - yytext) >= 7 &&
-	strncmp(cp - 7, "protect", 7) == 0 &&
-	strstr(cp, "begin_protected") != 0) {
-	emit_pathline(istack);
-	fprintf(stderr, "error: protected envelope decryption is unsupported.\n");
-	error_count += 1;
-	BEGIN(PROTECTED);
-	return;
+    if (cp - name == 7 && strncmp(name, "protect", 7) == 0) {
+	char *p = cp;
+	int depth = 0, string = 0, expression_start = 1;
+	while (*p) {
+	    if (string) {
+		if (*p == '\\' && p[1]) ++p;
+		else if (*p == '"') string = 0;
+	    } else if (*p == '"') {
+		string = 1;
+		expression_start = 0;
+	    } else if (p[0] == '/' && p[1] == '/') {
+		break;
+	    } else if (p[0] == '/' && p[1] == '*') {
+		char *end = strstr(p + 2, "*/");
+		if (!end) break;
+		p = end + 1;
+	    } else if (*p == '(') {
+		++depth;
+		expression_start = 0;
+	    } else if (*p == ')' && depth) {
+		--depth;
+	    } else if (*p == ',' && !depth) {
+		expression_start = 1;
+	    } else if (expression_start && !isspace((unsigned char)*p)) {
+		char *end = p + strspn(p, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$");
+		if (end - p == 15 && strncmp(p, "begin_protected", 15) == 0) {
+		    char *next = end;
+		    for (;;) {
+			next += strspn(next, " \t");
+			if (next[0] != '/' || next[1] != '*') break;
+			next = strstr(next + 2, "*/");
+			if (!next) break;
+			next += 2;
+		    }
+		    if (!next) break;
+		    if (!*next || *next == ',' || *next == '\n' ||
+		        (next[0] == '/' && next[1] == '/')) {
+			emit_pathline(istack);
+			fprintf(stderr, "error: protected envelope decryption is unsupported.\n");
+			error_count += 1;
+			BEGIN(PROTECTED);
+			return;
+		    }
+		}
+		expression_start = 0;
+	    }
+	    ++p;
+	}
     }
 
       /* Verify that space, a comment or EOL is next. */

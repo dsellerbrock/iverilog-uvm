@@ -1675,6 +1675,21 @@ NetNet* PEIdent::elaborate_subport(Design*des, NetScope*scope) const
       if (! eval_part_select_(des, scope, sig, midx, lidx))
 	    return 0;
 
+      /* A selected input variable is driven by the port connection. Use the
+         ordinary continuous-lvalue path so that the variable is promoted and
+         the selected bits participate in driver conflict checks. */
+      if (sig->port_type() == NetNet::PINPUT && gn_var_can_be_uwire()
+          && (sig->type() == NetNet::REG || sig->coerced_to_uwire())
+          && !path_.name.back().index.empty()) {
+            PEIdent target(path_.name, UINT_MAX);
+            target.set_line(*this);
+            NetNet*port = target.elaborate_lnet(des, scope, true);
+            if (!port) return 0;
+            port->port_type(NetNet::PINPUT);
+            scope->add_module_port_net(port);
+            return port;
+      }
+
 	/* If this is a part select of the entire signal (or no part
 	   select at all) then we're done. */
       if ((lidx == 0) && (midx == (long)sig->vector_width()-1)) {

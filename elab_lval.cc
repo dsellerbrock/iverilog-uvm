@@ -22,6 +22,7 @@
 # include  <algorithm>
 # include  <cstdlib>
 # include  <sstream>
+# include  <cstring>
 
 # include  "PExpr.h"
 # include  "PPackage.h"
@@ -45,6 +46,10 @@
 # include  <iostream>
 # include  <climits>
 # include  "ivl_assert.h"
+
+// Clocking output targets may include both nets and variables. Nets need
+// the existing force-capable lvalue path; variables use ordinary lvalues.
+bool clocking_output_concat_lval = false;
 
 /* A bit or part select of a packed property. An enum or packed struct is
  * written as the flat vector of its bits, like a `logic [N-1:0]' property. */
@@ -906,6 +911,11 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 	        bool checker_prefix = false;
 	        for (auto component = path_.name.begin();
 	             std::next(component) != path_.name.end(); ++component) {
+	              // The module-scope copy of a procedural checker instance
+	              // (17.3) is reached by the assertions placed at the
+	              // instance, not by a user hierarchical name.
+	              if (strncmp(component->name.str(), "_ivl_pchk", 9) == 0)
+	                    break;
 	              if (!component->index.empty()) break;
 	              prefix.push_back(hname_t(component->name));
 	              NetScope*target = des->find_scope(scope, prefix);
@@ -1134,6 +1144,11 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       }
 
       ivl_assert(*this, reg);
+
+      if (clocking_output_concat_lval
+	  && (reg->type() == NetNet::REG || reg->type() == NetNet::IMPLICIT_REG
+	      || (reg->type() == NetNet::UNRESOLVED_WIRE && reg->coerced_to_uwire())))
+	    is_force = false;
 
 	/* Match the constant-function read-side rule for a string character
 	   l-value. A declaration in the function or one of its nested lexical
@@ -1863,11 +1878,10 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
           || use_sel == index_component_t::SEL_BIT_LAST) {
 	    if (reg->darray_type() || use_sel == index_component_t::SEL_BIT_LAST) {
 		  NetAssign_*lv = new NetAssign_(reg);
-                  if (!elaborate_lval_darray_bit_(des, scope, lv, is_force)) {
-                        delete lv;
-                        return nullptr;
-                  }
-		  return lv;
+		  NetAssign_*result = elaborate_lval_darray_bit_(
+			des, scope, lv, is_force);
+		  if (!result) delete lv;
+		  return result;
 	    } else {
 		  NetAssign_*lv = new NetAssign_(reg);
 		  elaborate_lval_net_bit_(des, scope, lv, need_const_idx, is_force);
@@ -2881,7 +2895,7 @@ static bool darray_elem_vector_range(const netdarray_t*da, long&msb, long&lsb)
       return true;
 }
 
-bool PEIdent::elaborate_lval_darray_bit_(Design*des,
+NetAssign_* PEIdent::elaborate_lval_darray_bit_(Design*des,
 					 NetScope*scope,
 					 NetAssign_*lv,
 					 bool is_force) const
@@ -2898,16 +2912,37 @@ bool PEIdent::elaborate_lval_darray_bit_(Design*des,
 	    ivl_assert(*this, lv->sig()->coerced_to_uwire());
 	    report_mixed_assignment_conflict_("darray word");
 	    des->errors += 1;
-	    return false;
+	    return nullptr;
       }
 
 	// First index always selects the darray word. Associative-array keys
 	// are assignment-context expressions of the declared index type.
       NetExpr*mux = elab_lval_container_index_(
             des, scope, *this, word_index, lv->sig());
-      if (!mux) return false;
+      if (!mux) return nullptr;
 
       lv->set_word(mux);
+
+	// A queue or dynamic-array element may itself be a fixed unpacked
+	// array. Preserve that second selection as a nested l-value word so the
+	// target can update the selected word in the stored array value, e.g.
+	// `q[0][3]++` for `bit [7:0] q[$][3:2]`.
+      if (name_tail.index.size() == 2) {
+	    const index_component_t&elem_index = name_tail.index.back();
+	    const netdarray_t*da = lv->sig()->darray_type();
+	    const netuarray_t*fixed = da
+		  ? dynamic_cast<const netuarray_t*>(da->element_type()) : nullptr;
+		  if (!is_force && fixed && fixed->static_dimensions().size() == 1
+		&& elem_index.sel == index_component_t::SEL_BIT) {
+		  list<index_component_t> fixed_indices(1, elem_index);
+		  NetExpr*fixed_word = make_checked_canonical_property_index(
+			des, scope, this, fixed_indices, fixed, false);
+		  if (!fixed_word) return nullptr;
+		  NetAssign_*entry_lv = new NetAssign_(lv);
+		  entry_lv->set_word(fixed_word);
+		  return entry_lv;
+	    }
+      }
 
 	// A trailing bit-select on the darray element, `d[i][bit] = v`.
 	// Lower it as an element part-select: keep the word select and add a
@@ -2928,14 +2963,14 @@ bool PEIdent::elaborate_lval_darray_bit_(Design*des,
 			NetExpr*off = normalize_variable_base(bexpr, emsb, elsb,
 							      1, true, 0);
 			lv->set_part(off, 1);
-			return true;
+			return lv;
 		  }
 		  delete bexpr;
 		  cerr << get_fileline() << ": sorry: assignment to a "
 		          "dynamic-array element bit-select requires a simple "
 		          "vector element." << endl;
 		  des->errors += 1;
-		  return false;
+		  return nullptr;
 	    }
       }
 
@@ -2943,10 +2978,10 @@ bool PEIdent::elaborate_lval_darray_bit_(Design*des,
 	    cerr << get_fileline() << ": sorry: Only single-dimension darray "
 	            "index selects are supported in this l-value form." << endl;
 	    des->errors += 1;
-	    return false;
+	    return nullptr;
       }
 
-      return true;
+	return lv;
 }
 
 /*

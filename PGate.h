@@ -190,6 +190,9 @@ class PGAssign  : public PGate {
       void dump(std::ostream&out, unsigned ind =4) const override;
       virtual void elaborate(Design*des, NetScope*scope) const override;
 
+	// True for a net declaration assignment (vpiNetDeclAssign, 37.47).
+      bool net_decl_assign = false;
+
     private:
       void elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval,
 				     NetExpr*rise_time = 0,
@@ -303,6 +306,7 @@ class PGModule  : public PGate {
 
       // Checker port lists use named_pexpr_t entries for named connections.
       bool has_duplicate_wildcard_port_connections() const;
+      void mark_no_port_list() { no_port_list_ = true; }
 
 	// When this instantiation was created by a bind directive that
 	// targets specific instances (bind top.u1 ... / bind mod : u1,
@@ -329,6 +333,7 @@ class PGModule  : public PGate {
       std::list<PExpr*>*overrides_;
       named_pexpr_t *pins_;
       unsigned npins_;
+      bool no_port_list_;
 
 	// These members support parameter override by name
       named_pexpr_t *parms_;

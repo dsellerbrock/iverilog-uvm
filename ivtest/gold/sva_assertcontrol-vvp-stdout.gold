@@ -1,0 +1,19 @@
+observed deferred fail at 5
+final deferred fail at 5
+observed deferred fail at 15
+final deferred fail at 15
+final deferred fail at 25
+final deferred fail at 35
+observed deferred fail at 65
+final deferred fail at 65
+observed deferred fail at 75
+final deferred fail at 75
+a1 fail actions: 5
+a2 fail actions: 4
+a3 fail actions: 8, ia fail actions: 2
+c4 cover actions: 3, a4 pass actions: 8
+a5 pass actions: 4
+in-flight: a6 pass actions: 0, a6b pass actions: 1
+ic9 cover actions: 3
+k1 fail actions: 3, k2 fail actions: 3
+ivltests/sva_assertcontrol.sv:110: $finish called at 80 (1s)

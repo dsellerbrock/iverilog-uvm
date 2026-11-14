@@ -26,6 +26,9 @@
 #ifndef vpiJoinType
 # define vpiJoinType 603
 #endif
+#ifndef vpiExpanded
+# define vpiExpanded 25
+#endif
 
 # include  <map>
 # include  <list>
@@ -34,9 +37,11 @@
 # include  <vector>
 
 /* Annex K/M object and relation values not yet exported by the public
-   Icarus VPI headers. Keep the task-I/O implementation standards-valued;
-   sv_vpi_user.h's older vpiIODecl extension value remains accepted below. */
-#define VPI_IODECL_TYPE 28
+   Icarus VPI headers. VPI_IODECL_LEGACY is the vpiIODecl value
+   sv_vpi_user.h used before it took the Annex K value; applications
+   built against it still iterate modport ports with it. */
+#define VPI_IODECL_TYPE vpiIODecl
+#define VPI_IODECL_LEGACY 604
 #define VPI_REF_OBJ_TYPE 608
 #define VPI_ACTUAL_RELATION 700
 #define VPI_REF_DIRECTION 6
@@ -181,8 +186,10 @@ class __vpiHandle {
 struct __vpiIterator : public __vpiHandle {
       __vpiIterator();
       int get_type_code(void) const override;
+      vpiHandle vpi_handle(int code) override;
       free_object_fun_t free_object_fun(void) override;
 
+      vpiHandle reference;
       vpiHandle *args;
       unsigned  nargs;
       unsigned  next;
@@ -225,6 +232,11 @@ class __vpiRange : public __vpiHandle {
 
 extern vpiHandle vpip_make_range(int left, int right);
 
+/* Build runtime handles for built-in scalar and packed vector typespecs. */
+extern vpiHandle vpip_make_builtin_typespec(int type_code);
+extern vpiHandle vpip_make_vector_typespec(int type_code, int left, int right,
+                                           bool signed_flag);
+
 /*
  * This represents callback handles. There are some private types that
  * are defined and used in vpi_callback.cc. The __vpiCallback are
@@ -259,6 +271,8 @@ class value_callback : public __vpiCallback {
 };
 
 extern void callback_execute(struct __vpiCallback*cur);
+/* Run the cbTchkViolation callbacks for a violation of tchk. */
+extern void vpip_tchk_violation(vpiHandle tchk);
 
 struct __vpiSystemTime : public __vpiHandle {
       __vpiSystemTime();
@@ -408,9 +422,26 @@ class __vpiStmtNode : public __vpiHandle {
 extern bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
 					       const char*selector,
 					       int levels);
-extern void vpip_report_deferred_assertion_reset_callbacks(
-					       const char*selector,
-					       int levels);
+/* IEEE 1800-2023 39.4.1: run the assertion system callbacks for reason. */
+extern void vpip_fire_assertion_sys_cb(PLI_INT32 reason);
+/* IEEE 1800-2023 39.5.1: vpi_control(vpiAssertionSys*, scope); a NULL
+   scope means every assertion. Returns 1 when the operation was applied. */
+extern PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation,
+					    vpiHandle scope);
+/* IEEE 1800-2023 16.14.6 procedural concurrent assertions: a pending
+   instance sits on the deferred assertion queue with this bit in its source
+   id; the rest is the front end's procedural assertion id. The bit sits
+   above every 32-bit deferred source id, so it must be a 64-bit constant:
+   `1UL << 40' is undefined where long is 32 bits (LLP64 Windows). */
+#define VPIP_PROC_ASSERT_SOURCE (UINT64_C(1) << 40)
+extern bool vpip_proc_assert_may_queue(PLI_INT32 pid, __vpiScope*scope);
+extern void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope,
+				     const std::vector<vvp_vector4_t>&saved);
+extern void vpip_cancel_proc_asserts(PLI_INT32 pid, __vpiScope*module_scope);
+/* IEEE 1800-2023 20.11: may a matured deferred report run its action? */
+extern PLI_INT32 vpip_violation_state(vpiHandle scope, int type, int what);
+extern bool vpip_deferred_action_enabled(unsigned long source_id,
+					 __vpiScope*scope, unsigned result);
 
 /* Function return values are carried on the function-call stack and do not
    have a regular signal object in the runtime hierarchy. This handle exposes
@@ -471,6 +502,33 @@ class vpiScopeFunction  : public __vpiScope {
 extern __vpiScope* vpip_peek_current_scope(void);
 extern void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj);
 extern void vpip_attach_to_current_scope(vpiHandle obj);
+/* The error state behind vpi_chk_error() (IEEE 1800-2023 38.2), and the
+   cbPLIError/cbError callbacks it runs (38.36.3). */
+extern void vpip_clear_error(void);
+extern void vpip_set_error(PLI_INT32 level, const char*message);
+extern void vpip_run_error_callbacks(void);
+/* cbSignal (IEEE 1800-2023 38.36.3): the trapped signals and the
+   callbacks run at the scheduler's next safe point. */
+extern bool vpip_signal_trapped(int signum);
+extern void vpip_note_signal(int signum);
+extern bool vpip_signal_pending(void);
+extern void vpip_run_signal_callbacks(void);
+extern "C" void signals_handler(int signum);
+/* Continuous assignment objects (IEEE 1800-2023 37.47). */
+extern vpiHandle vpip_make_contassign(int flags, int str0, int str1,
+				      unsigned file_idx, unsigned lineno,
+				      unsigned argc, vpiHandle*argv);
+extern void vpip_contassign_set_driver(vpiHandle ref, vvp_net_t*net);
+/* vpiDriver, vpiLoad, vpiLocalDriver and vpiLocalLoad of a net, variable,
+   bit, array or array word (37.16, 37.21); nil for any other code. */
+extern vpiHandle vpip_conn_iterate(int code, vpiHandle ref);
+/* The array and canonical word a constant array word handle names. */
+extern bool vpip_array_word_of(vpiHandle ref, vpiHandle&array, unsigned&word);
+/* The operands of a lazily evaluated operation (.vpi_expr). */
+extern bool vpip_lazy_expr_operands(vpiHandle ref, unsigned&nops,
+				    vpiHandle*&ops);
+extern bool vpip_contassign_add_callback(vpiHandle ref,
+					 class value_callback*cb);
 extern vpiHandle vpip_make_param_assign(__vpiScope*scope,
 					       vpiHandle lhs, vpiHandle rhs);
 extern __vpiScope* vpip_peek_context_scope(void);
@@ -481,6 +539,8 @@ extern vpiHandle vpip_make_root_iterator(int type_code);
 extern vpiHandle vpip_make_covergroup_iterator(void);
 /* M12B: iterator over all registered assertions (vpi_iterate(vpiAssertion, 0)). */
 extern vpiHandle vpip_make_assertion_iterator(void);
+/* 39.4.2: every top-level vpiPropertyInst or vpiSequenceInst. */
+extern vpiHandle vpip_make_assertion_inst_iterator(int type);
 /* Simple immediate-assertion identities registered while the VVP image is
    linked, before VPI start-of-simulation callbacks run. */
 extern void vpip_register_immediate_assertion(PLI_INT32 source_id,
@@ -494,13 +554,19 @@ extern void vpip_register_deferred_assertion(unsigned long source_id,
 					     unsigned assertion_kind,
 					     unsigned file_idx,
 					     unsigned line,
-					     vpiHandle scope);
+					     vpiHandle scope,
+					     bool is_final);
 extern void vpip_cancel_deferred_assertion(unsigned long source_id,
 					   vpiHandle scope);
 extern void vpip_deferred_assertion_report(unsigned long source_id,
 					   PLI_INT32 reason,
 					   vpiHandle scope);
 extern PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion);
+/* IEEE 1800-2023 39.5.2 vpiAssertionEnableStep/DisableStep for the attempt
+   of `assertion' that starts at *start. Returns 1 when the call applies. */
+extern PLI_INT32 vpip_assertion_step_control(vpiHandle assertion,
+					     const s_vpi_time*start,
+					     bool enable, PLI_INT32 mode);
 extern void vpip_make_root_iterator(class __vpiHandle**&table,
 				    unsigned&ntable);
 
@@ -685,7 +751,20 @@ class vpiPortInfo  : public __vpiHandle {
       std::vector<vpiPortBitInfo*> port_bits_;
       std::vector<vpiPortComponentInfo*> evcd_components_;
 
+	/* The actual connected to this port (vpiHighConn), resolved in
+	   place after construction; argc 0 when it is unconnected. */
+      unsigned high_argc_ = 0;
+      vpiHandle*high_argv_ = nullptr;
+	/* For an interface port: the interface instance it is bound to
+	   (resolved in place), then the selected modport's name as a
+	   string constant (if any), and its two vpiRefObj connections. */
+      unsigned iface_argc_ = 0;
+      vpiHandle*iface_argv_ = nullptr;
+      vpiHandle iface_refs_[2] = { nullptr, nullptr };
+      __vpiScope*parent_scope(void) const { return parent_; }
+
     private:
+      vpiHandle low_conn_(void);
       __vpiScope *parent_;
       unsigned  index_;
       int       direction_;
@@ -795,6 +874,8 @@ struct __vpiModPathSrc : public __vpiHandle {
 
 struct __vpiModPath {
       __vpiScope   *scope ;
+	/* The sources, in .modpath record order (for .pathexpr). */
+      std::vector<struct __vpiModPathSrc*> srcs;
 
       class vvp_fun_modpath*modpath;
 
@@ -807,6 +888,10 @@ struct __vpiModPath {
  * The Function is used to create the vpiHandle
  * for vpiModPath && vpiModPathIn objects
  */
+
+/* A specparam of scope changed at run time (SDF LABEL, IEEE 1800 32.4.3):
+   re-evaluate the path delays of that scope that use specparams. */
+extern void vpip_specparam_changed(__vpiScope*scope);
 
 extern struct __vpiModPathSrc* vpip_make_modpath_src(struct __vpiModPath*path,
                                                      vvp_net_t *net) ;
@@ -1003,6 +1088,7 @@ class __vpiStringVar : public __vpiBaseVar {
 
       int get_type_code(void) const override;
       int vpi_get(int code) override;
+      vpiHandle vpi_handle(int code) override;
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
 };
@@ -1020,6 +1106,8 @@ struct __vpiArrayBase {
       virtual __vpiScope*get_scope() const = 0;
 
       virtual int get_word_size() const = 0;
+      virtual int get_word_has_actual() { return 0; }
+      virtual vpiHandle get_word_prefix() { return 0; }
       virtual char*get_word_str(struct __vpiArrayWord*word, int code) = 0;
       virtual void get_word_value(struct __vpiArrayWord*word, p_vpi_value vp) = 0;
       virtual void put_word_value(struct __vpiArrayWord*word, p_vpi_value vp,
@@ -1442,6 +1530,12 @@ extern value_callback*vpip_array_change_target(p_cb_data data,
 extern vpiHandle vpip_make_cobject_property_string_var(char*label,
                                                        unsigned prop_cnt,
                                                        long*prop_idx);
+/* #2745: an element of a fixed-array, dynamic-array or queue string class
+   property; INDEX_LABEL names the handle that yields the element index. */
+extern vpiHandle vpip_make_cobject_property_string_elem(char*label,
+                                                         unsigned prop_cnt,
+                                                         long*prop_idx,
+                                                         char*index_label);
 /* L34: prop_idx is now a path of prop_cnt indices, same as the string
  * variant above (and for the same reason -- a nested integral class
  * property chain, e.g. obj.inner.n, needs the identical property-aware
@@ -1449,14 +1543,15 @@ extern vpiHandle vpip_make_cobject_property_string_var(char*label,
  * original direct-property case. */
 extern vpiHandle vpip_make_cobject_property_vec_var(char*label,
                                                     unsigned width,
-                                                    bool signed_flag,
+                                                    unsigned flags,
                                                     unsigned prop_cnt,
                                                     long*prop_idx);
-/* #2475: an element of a fixed-array class property; INDEX_LABEL names the
-   handle that yields the element index. */
+/* #2475, #2745: an element of a fixed-array, dynamic-array or queue class
+   property; INDEX_LABEL names the handle that yields the element index.
+   FLAGS: bit 0 signed, bit 1 two-state. */
 extern vpiHandle vpip_make_cobject_property_vec_elem(char*label,
                                                      unsigned width,
-                                                     bool signed_flag,
+                                                     unsigned flags,
                                                      unsigned prop_cnt,
                                                      long*prop_idx,
                                                      char*index_label);

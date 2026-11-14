@@ -20,6 +20,7 @@
 
 # include  "version_base.h"
 # include  "vpi_priv.h"
+# include  "vvp_island.h"
 # include  "schedule.h"
 # include  "logic.h"
 # include  "part.h"
@@ -323,6 +324,27 @@ const char* vpip_name_string(const char*text)
       return res;
 }
 
+/*
+ * vpi_chk_error() reports on the previous VPI routine call (IEEE 1800-2023
+ * 38.2). A routine that can fail clears the state on entry; a failure
+ * records it here and runs the cbPLIError/cbError callbacks (38.36.3).
+ */
+void vpip_clear_error(void)
+{
+      vpip_last_error.state = 0;
+      vpip_last_error.level = 0;
+}
+
+void vpip_set_error(PLI_INT32 level, const char*message)
+{
+      static std::string text;
+      text = message ? message : "";
+      vpip_last_error.state = vpiPLI;
+      vpip_last_error.level = level;
+      vpip_last_error.message = const_cast<char*>(text.c_str());
+      vpip_run_error_callbacks();
+}
+
 PLI_INT32 vpi_chk_error(p_vpi_error_info info)
 {
       if (vpip_last_error.state == 0)
@@ -381,6 +403,12 @@ void vpi_get_systf_info(vpiHandle ref, p_vpi_systf_data data)
  * fathom the vpi_handle(vpiSysTfCall,0) function.
  */
 struct __vpiSysTaskCall*vpip_cur_task = 0;
+static vpiHandle active_timeformat = 0;
+
+extern "C" void vpip_set_active_timeformat(vpiHandle call)
+{
+      active_timeformat = call;
+}
 
 PLI_INT32 vpi_free_object(vpiHandle ref)
 {
@@ -419,7 +447,6 @@ static int vpip_get_global(int property)
 
 	  default:
 	    fprintf(stderr, "vpi error: bad global property: %d\n", property);
-	    assert(0);
 	    return vpiUndefined;
       }
 }
@@ -601,6 +628,7 @@ const char* vpi_type_as_string(PLI_INT32 code)
 
 PLI_INT32 vpi_get(int property, vpiHandle ref)
 {
+      vpip_clear_error();
 	/* We don't care what the ref is there is only one delay selection. */
       if (property == _vpiDelaySelection) return vpip_delay_selection;
 
@@ -722,6 +750,8 @@ __vpiScope*vpip_timescale_scope_from_handle(vpiHandle obj)
 	    return task->scope;
 
 	  case vpiModule:
+	  case vpiInterface:
+	  case vpiProgram:
 	  case vpiPackage:
 	  case vpiTask:
 	  case vpiFunction:
@@ -1026,6 +1056,23 @@ void vpip_vec4_get_value(const vvp_vector4_t&word_val, unsigned width,
 		      vector4_to_value(word_val, val, signed_flag, false);
 
 		vp->value.integer = val;
+		break;
+	  }
+
+	  case vpiTimeVal: {
+		uint32_t low = 0;
+		uint32_t high = 0;
+		for (unsigned idx = 0; idx < width && idx < 64; idx += 1) {
+		      if (word_val.value(idx) != BIT4_1)
+			    continue;
+		      if (idx < 32)
+			    low |= uint32_t(1) << idx;
+		      else
+			    high |= uint32_t(1) << (idx - 32);
+		}
+		vp->value.time->type = vpiSimTime;
+		vp->value.time->high = high;
+		vp->value.time->low = low;
 		break;
 	  }
 
@@ -1555,6 +1602,8 @@ vpiHandle vpi_handle(PLI_INT32 type, vpiHandle ref)
 	      // A few types can apply to a nil handle. These are ways
 	      // that the current function can get started finding things.
 	    switch (type) {
+		case vpiActiveTimeFormat:
+		  return active_timeformat;
 
 		case vpiScope:
 		    // The IEEE1364-2005 doesn't seem to allow this,
@@ -1734,6 +1783,10 @@ static vpiHandle vpi_iterate_global(int type)
 	    // M12B: all concurrent assertions in the design.
 	    return vpip_make_assertion_iterator();
 
+	  case vpiPropertyInst:
+	  case vpiSequenceInst:
+	    return vpip_make_assertion_inst_iterator(type);
+
 	  case vpiUserSystf:
 	    return vpip_make_systf_iterator();
       }
@@ -1758,6 +1811,9 @@ vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle ref)
 	    rtn = vpi_iterate_global(type);
       else
 	    rtn = ref->vpi_iterate(type);
+
+      if (__vpiIterator*iter = dynamic_cast<__vpiIterator*>(rtn))
+	    iter->reference = ref;
 
       if (vpi_trace) {
 	    fprintf(vpi_trace, "vpi_iterate(%d, %p) ->%s\n",
@@ -2592,13 +2648,59 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    return nullptr;
       }
 
+	// An inout port isolated for SDF (-ginterconnect with $sdf_annotate)
+	// names the inner end of its tran branch (IEEE 1800 32.4.4).
+      vvp_island_port*island1 = dynamic_cast<vvp_island_port*>(net1->fun);
+      vvp_island_port*island2 = dynamic_cast<vvp_island_port*>(net2->fun);
+      if (island2) {
+	    if (port1_has_index || port2_has_index) {
+		  if (!quiet_intermodpath_lookup) fprintf(stderr, "sorry: INTERCONNECT "
+			  "to a bit of an inout port is not supported.\n");
+		  return nullptr;
+	    }
+	      // The source must drive the island that holds the load.
+	    bool same_island = island1 && island1->island() == island2->island();
+	    for (vvp_net_ptr_t cur = net1->out_ ; !same_island && cur.ptr()
+		       ; cur = cur.ptr()->port[cur.port()]) {
+		  vvp_island_port*tmp = dynamic_cast<vvp_island_port*>(cur.ptr()->fun);
+		  same_island = tmp && tmp->island() == island2->island();
+	    }
+	    vvp_net_t*path = 0;
+	    vvp_fun_intermodpath*fun = same_island
+		  ? island_tran_interconnect(net2, true, vpi_get(vpiSize, ref2), path)
+		  : 0;
+	    if (!fun) {
+		  if (!quiet_intermodpath_lookup) fprintf(stderr, "Error: Could not "
+			  "find the inout boundary of %s driven by %s.\n",
+			  port2_name.c_str(), port1_name.c_str());
+		  return nullptr;
+	    }
+	    __vpiInterModPath*intermodpath = vpip_make_intermodpath(path, port1, port2);
+	    intermodpath->intermodpath = fun;
+	    return intermodpath;
+      }
+	// An inout source feeding an input load: the load's own boundary
+	// still takes the delay; start the search from the outer end.
+      if (island1) {
+	    vvp_net_t*outer = 0;
+	    for (vvp_island_branch*cur = island1->island()->branches()
+		       ; cur ; cur = cur->next_branch)
+		  if (cur->b == net1) outer = cur->a;
+	    if (!outer) {
+		  if (!quiet_intermodpath_lookup) fprintf(stderr, "Error: Could not "
+			  "find the inout boundary of %s.\n", port1_name.c_str());
+		  return nullptr;
+	    }
+	    net1 = outer;
+      }
+
       // Port boundaries may use a transparent buffer, a Z-preserving buffer,
       // or a settled variable sampler; each has one physical input edge.
       auto is_port_boundary = [](vvp_net_fun_t* fun) {
 	return dynamic_cast<vvp_fun_bufz*>(fun) ||
 	       dynamic_cast<vvp_fun_sample*>(fun);
       };
-      if (!is_port_boundary(net1->fun)) {
+      if (!island1 && !is_port_boundary(net1->fun)) {
 	if (!quiet_intermodpath_lookup) fprintf(stderr, "Error: functor of net1 must be a port buffer or sampler\n");
 	return nullptr;
       }
@@ -2837,6 +2939,35 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
             diag_msg = va_arg(ap, PLI_INT32);
 	    schedule_stop(diag_msg);
 	    break;
+
+	  case vpiAssertionSysLock:
+	  case vpiAssertionSysUnlock:
+	  case vpiAssertionSysOn:
+	  case vpiAssertionSysOff:
+	  case vpiAssertionSysKill:
+	  case vpiAssertionSysReset:
+	  case vpiAssertionSysEnd:
+	  case vpiAssertionSysEnablePassAction:
+	  case vpiAssertionSysDisablePassAction:
+	  case vpiAssertionSysEnableFailAction:
+	  case vpiAssertionSysDisableFailAction:
+	  case vpiAssertionSysEnableNonvacuousAction:
+	  case vpiAssertionSysDisableVacuousAction:
+	    return vpip_assertion_sys_control(operation, va_arg(ap, vpiHandle));
+
+	  case vpiAssertionEnableStep: {
+	    vpiHandle obj = va_arg(ap, vpiHandle);
+	    p_vpi_time start = va_arg(ap, p_vpi_time);
+	    PLI_INT32 mode = va_arg(ap, PLI_INT32);
+	    return vpip_assertion_step_control(obj, start, true, mode);
+	  }
+
+	  case vpiAssertionDisableStep: {
+	    vpiHandle obj = va_arg(ap, vpiHandle);
+	    p_vpi_time start = va_arg(ap, p_vpi_time);
+	    return vpip_assertion_step_control(obj, start, false,
+					       vpiAssertionClockSteps);
+	  }
 
 	  case vpiAssertionReset:
 	    if (!vpip_reset_deferred_assertion(va_arg(ap, vpiHandle))) {
@@ -3096,13 +3227,20 @@ vpip_routines_s vpi_routines = {
     .assertion_report_all       = vpip_assertion_report_all,
     .object_urandom             = vpip_object_urandom,
     .print_stacktrace           = vpip_print_stacktrace,
-    .cancel_deferred_asserts    = vpip_cancel_deferred_asserts,
-    .deferred_assertion_enabled = vpip_deferred_assertion_enabled,
-    .set_deferred_assertions_enabled = vpip_set_deferred_assertions_enabled,
+    .assertion_control          = vpip_assertion_control,
+    .assertion_state            = vpip_assertion_state,
+    .proc_assert_enqueue        = vpip_proc_assert_enqueue,
+    .register_proc_assertion    = vpip_register_proc_assertion,
     .register_immediate_cover   = vpip_register_immediate_cover,
     .report_immediate_cover    = vpip_report_immediate_cover,
     .report_immediate_assertion = vpip_report_immediate_assertion,
     .print_finish_stats         = vpip_print_finish_stats,
     .covgrp_db                  = vpip_covgrp_db,
+    .assertion_step_row         = vpip_assertion_step_row,
+    .assertion_step             = vpip_assertion_step,
+    .assertion_nfa              = vpip_assertion_nfa,
+    .assertion_nfa_step         = vpip_assertion_nfa_step,
+    .assertion_serial           = vpip_assertion_serial,
+    .proc_assert_cap            = vpip_proc_assert_cap,
 };
 #endif

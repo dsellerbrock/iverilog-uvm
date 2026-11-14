@@ -1,0 +1,2 @@
+issue3090_sdf_pulse_2017 normal,-g2017,-gspecify,-s,issue3090_sdf_pulse ivltests gold=issue3090_sdf_pulse.gold
+issue3090_sdf_pulse_2023 normal,-g2023,-gspecify,-s,issue3090_sdf_pulse ivltests gold=issue3090_sdf_pulse.gold

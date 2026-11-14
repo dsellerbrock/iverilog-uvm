@@ -1,0 +1,4 @@
+x step rc=0 next=E0
+z step rc=0 next=E0
+2-state step rc=1 next=E5
+plain state read rc=0 value=0

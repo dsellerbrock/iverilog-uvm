@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3076_udp_width.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3076_udp_width"
+}

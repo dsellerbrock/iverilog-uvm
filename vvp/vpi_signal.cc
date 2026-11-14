@@ -585,10 +585,10 @@ static int signal_get(int code, vpiHandle ref)
 	    return 0;
 
 	  case vpiPacked:
-	    return rfp->get_vpi_type_code() == vpiPackedArrayVar ||
-	           rfp->get_vpi_type_code() == vpiStructVar ||
-	           rfp->get_vpi_type_code() == vpiUnionVar ||
-	           rfp->get_vpi_type_code() == vpiEnumVar;
+	    if (rfp->get_vpi_type_code() == vpiStructVar ||
+	        rfp->get_vpi_type_code() == vpiUnionVar)
+	      return vpi_get(vpiPacked, rfp->typespec);
+	    return rfp->get_vpi_type_code() == vpiPackedArrayVar;
 
 	  case vpiIndex: // This only works while we have a single index.
 	    if (rfp->is_netarray) {
@@ -608,6 +608,14 @@ static int signal_get(int code, vpiHandle ref)
 		  return vpiWire;
 	    else
 		  return vpiUndefined;
+
+	  case vpiExpanded:
+	    /* VVP exposes individual bits of vector nets, including nets
+	       declared vectored (the declaration keywords are advisory). */
+	    if (ref->get_type_code() == vpiNet ||
+	        ref->get_type_code() == vpiNetBit)
+		  return 1;
+	    return vpiUndefined;
 
 	  case vpiLeftRange:
             return rfp->msb.get_value();
@@ -648,10 +656,14 @@ static int signal_get(int code, vpiHandle ref)
             return _vpiNoThr;
 #endif
 
-	  default:
-	    fprintf(stderr, "VPI error: unknown signal_get property %d.\n",
-	            code);
+	  default: {
+	    char message[64];
+	    snprintf(message, sizeof message,
+		     "unknown signal_get property %d", code);
+	    fprintf(stderr, "VPI error: %s.\n", message);
+	    vpip_set_error(vpiError, message);
 	    return vpiUndefined;
+	  }
       }
 }
 
@@ -737,6 +749,18 @@ static vpiHandle signal_get_handle(int code, vpiHandle ref)
 	    return vpip_module(vpip_scope(rfp));
 
 	  case vpiTypespec:
+	    if (!rfp->typespec) {
+		  int type_code = rfp->get_type_code();
+		  if (type_code == vpiReg || type_code == vpiBitVar) {
+			int type = type_code == vpiReg ? vpiLogicTypespec
+			                               : vpiBitTypespec;
+			rfp->typespec = vpip_make_vector_typespec(
+			      type, rfp->msb.get_value(), rfp->lsb.get_value(),
+			      rfp->signed_flag != 0);
+		  } else if (type_code == vpiIntVar) {
+			rfp->typespec = vpip_make_builtin_typespec(vpiIntTypespec);
+		  }
+	    }
 	    return rfp->typespec;
       }
 
@@ -747,6 +771,8 @@ static vpiHandle signal_iterate(int code, vpiHandle ref)
 {
       struct __vpiSignal*rfp = dynamic_cast<__vpiSignal*>(ref);
       assert(rfp);
+
+      if (vpiHandle conn = vpip_conn_iterate(code, ref)) return conn;
 
       if (code == vpiElement) {
 	    if (rfp->get_vpi_type_code() != vpiPackedArrayVar ||
@@ -1077,6 +1103,14 @@ static void signal_get_value(vpiHandle ref, s_vpi_value*vp)
 	    format_vpiIntVal(vsig, base, wid, rfp->signed_flag, vp);
 	    break;
 
+	  case vpiTimeVal: {
+		  vvp_vector4_t vec4;
+		  vsig->vec4_value(vec4);
+		  vpip_vec4_get_value(vec4.subvalue(base, wid), wid,
+				      rfp->signed_flag, vp);
+		  break;
+	  }
+
 	  case vpiScalarVal:
 	    format_vpiScalarVal(vsig, base, vp);
 	    break;
@@ -1316,7 +1350,7 @@ void __vpiSignal::vpi_get_value(p_vpi_value val)
 
 int __vpiSignal::get_vpi_type_code(void) const
 {
-      if (!typespec || !packed_base_width) return get_type_code();
+      if (!typespec) return get_type_code();
       int type = typespec->get_type_code();
       int object_type;
       switch (type) {

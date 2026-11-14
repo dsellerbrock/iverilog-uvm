@@ -48,6 +48,36 @@ void island_send_value(vvp_net_t*net, const vvp_vector8_t&val)
       net->send_vec8(fun->outvalue);
 }
 
+vvp_vector8_t island_get_input(vvp_net_t*net, const void*exclude)
+{
+      vvp_vector8_t val = island_get_value(net);
+      const vvp_island_port*fun = dynamic_cast<vvp_island_port*>(net->fun);
+      for (const auto&inj : fun->injections) {
+	    if (inj.first == exclude || inj.second.size() == 0)
+		  continue;
+	    if (val.size() == 0)
+		  val = inj.second;
+	    else if (val.size() == inj.second.size())
+		  val = resolve(val, inj.second);
+      }
+      return val;
+}
+
+void vvp_island_port::set_injection(const void*from, const vvp_vector8_t&val)
+{
+      for (auto&inj : injections) {
+	    if (inj.first != from)
+		  continue;
+	    if (inj.second.eeq(val))
+		  return;
+	    inj.second = val;
+	    island_->flag_island();
+	    return;
+      }
+      injections.push_back(std::make_pair(from, val));
+      island_->flag_island();
+}
+
 /*
  * Implementations...
  */

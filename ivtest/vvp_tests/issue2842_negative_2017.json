@@ -1,0 +1,8 @@
+{
+  "type": "CE",
+  "source": "issue2842_negative.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "issue2842_negative_2017"
+}

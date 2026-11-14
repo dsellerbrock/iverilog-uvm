@@ -116,7 +116,6 @@ module main;
   range_cap_multi range_control = new;
   guarded_multi guarded = new;
   string root_state, child_state;
-  string cap_state, cap_child_state;
 
   initial begin
     item.srandom(32'h4241444d);
@@ -133,16 +132,13 @@ module main;
 
     cap.srandom(32'h43415052);
     cap.child.srandom(32'h43415043);
-    cap_state = cap.get_randstate();
-    cap_child_state = cap.child.get_randstate();
-    if (cap.randomize())
-      $fatal(1, "prefix-dependent over-cap projection admitted");
-    if (cap.a != 1 || cap.b != 1 || cap.gate != 0 || cap.data != 1
-        || cap.child.value != 1 || cap.posts != 0)
-      $fatal(1, "over-cap failure changed object state");
-    if (cap.get_randstate() != cap_state
-        || cap.child.get_randstate() != cap_child_state)
-      $fatal(1, "over-cap failure changed RNG state");
+    // The over-cap stage projection (gate=1 leaves 1024 data values, the
+    // whole set 1025) is now drawn from the BDD (#2916): 18.5.9, solve-before
+    // "cannot cause the solver to fail".
+    if (!cap.randomize() || cap.a != cap.b || cap.child.value != cap.b
+        || cap.data[0] != cap.a || (!cap.gate && cap.data != 0)
+        || cap.posts != 1)
+      $fatal(1, "prefix-dependent over-cap projection was not solved");
 
     xitem.srandom(32'h58575254);
     xitem.child.srandom(32'h58574348);

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sva_proc_checker_vpi.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["sva_proc_checker_vpi_2023"],
+  "vpi-sources": ["vpi/sva_proc_checker_vpi.c"],
+  "output-contains": ["assertion top.s.a1", "assertion top.a1", "assertions=3"]
+}

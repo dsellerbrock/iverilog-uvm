@@ -1164,6 +1164,19 @@ void vvp_cobject::get_vec4(size_t pid, vvp_vector4_t&val, size_t idx)
       if (!union_member_access_ok_(pid)) {
 	    unsigned width = defn_->property_vec4_width(pid);
 	    val = vvp_vector4_t(width ? width : 1, BIT4_X);
+	    // An inactive-member read still produces a value of the requested
+	    // member's type after reporting the run-time error. In particular,
+	    // 2-state integral members cannot carry the X bits used for the error
+	    // result; IEEE 1800 6.11.2 converts those bits to zero.
+	    const string&member_type = defn_->property_base_type(pid);
+	    size_t type_pos = !member_type.empty() && member_type[0] == 's'
+		  ? 1 : 0;
+	    if (type_pos < member_type.size()
+		&& member_type[type_pos] == 'b') {
+		  for (unsigned bit = 0; bit < val.size(); bit += 1)
+			if (bit4_is_xz(val.value(bit)))
+			      val.set_bit(bit, BIT4_0);
+	    }
 	    return;
       }
       std::map<size_t, vvp_object_t>::const_iterator ref = ref_props_.find(pid);

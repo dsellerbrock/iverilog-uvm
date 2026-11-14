@@ -641,6 +641,7 @@ void __vpiArray::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, int)
 
 vpiHandle __vpiArray::vpi_iterate(int code)
 {
+      if (vpiHandle conn = vpip_conn_iterate(code, this)) return conn;
       if (code == vpiRange) {
 	    unsigned count = unpacked_ranges.empty() ? 1 : unpacked_ranges.size();
 	    vpiHandle*args = new vpiHandle[count];
@@ -754,6 +755,8 @@ int __vpiArrayWord::as_word_t::vpi_get(int code)
       t_vpi_value val;
 
       switch (code) {
+	  case vpiHasActual:
+	    return my_parent->get_word_has_actual();
 	  case vpiArrayMember:
 	    return 1;
 	  case vpiLineNo:
@@ -786,6 +789,8 @@ int __vpiArrayWord::as_word_t::vpi_get(int code)
 	    return 0;
 
 	  case vpiAutomatic:
+	    if (vpiHandle prefix = my_parent->get_word_prefix())
+		  return prefix->vpi_get(vpiAutomatic);
 	    if (__vpiArray*fixed = dynamic_cast<__vpiArray*>(my_parent))
 		  return fixed->automatic_storage ? 1 : 0;
 	    if (__vpiDarrayVar*dynamic =
@@ -2956,6 +2961,34 @@ void compile_array_alias(char*label, char*name, char*src)
       free(label);
       free(name);
       free(src);
+}
+
+/* The array and canonical word a constant word handle names, for the
+   driver and load index (37.16, 37.21): an &A<label,addr> handle, a
+   variable array word or a word of a net array. */
+bool vpip_array_word_of(vpiHandle ref, vpiHandle&array, unsigned&word)
+{
+      if (__vpiArrayVthrA*obj = dynamic_cast<__vpiArrayVthrA*>(ref)) {
+	    if (obj->address_handle || !obj->array) return false;
+	    array = obj->array;
+	    word = obj->address;
+	    return true;
+      }
+      if (__vpiArrayWord*obj = array_var_word_from_handle(ref)) {
+	    array = dynamic_cast<__vpiHandle*>(obj->get_parent());
+	    word = obj->get_index();
+	    return array != 0;
+      }
+      __vpiSignal*sig = dynamic_cast<__vpiSignal*>(ref);
+      if (!sig || !sig->is_netarray) return false;
+      __vpiArray*arr = dynamic_cast<__vpiArray*>(sig->within.parent);
+      for (unsigned idx = 0; arr && arr->nets && idx < arr->get_size(); idx += 1)
+	    if (arr->nets[idx] == ref) {
+		  array = arr;
+		  word = idx;
+		  return true;
+	    }
+      return false;
 }
 
 /*

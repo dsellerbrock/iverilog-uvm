@@ -1,0 +1,6 @@
+(DELAYFILE (SDFVERSION "3.0") (DESIGN "issue2830_sdf_cond_unary") (TIMESCALE 1ns)
+  (CELL (CELLTYPE "issue2830_sdf_cond_not") (INSTANCE u_not)
+    (DELAY (ABSOLUTE (COND (s && !e) (IOPATH a y (5))))))
+  (CELL (CELLTYPE "issue2830_sdf_cond_bitnot") (INSTANCE u_bitnot)
+    (DELAY (ABSOLUTE (COND s && ~e (IOPATH a y (5))))))
+)

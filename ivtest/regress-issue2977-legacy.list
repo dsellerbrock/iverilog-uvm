@@ -1,0 +1,4 @@
+issue2977_pure_static_2017 normal,-g2017,-s,top ivltests gold=issue2977_pure_static.gold
+issue2977_pure_static_2023 normal,-g2023,-s,top ivltests gold=issue2977_pure_static.gold
+issue2977_pure_static_mismatch_2017 CE,-g2017,-s,top ivltests gold=issue2977_pure_static_mismatch.gold
+issue2977_pure_static_mismatch_2023 CE,-g2023,-s,top ivltests gold=issue2977_pure_static_mismatch.gold

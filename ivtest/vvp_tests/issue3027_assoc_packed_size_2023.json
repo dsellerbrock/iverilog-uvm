@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "issue3027_assoc_packed_size.v",
+  "iverilog-args": ["-g2023", "-s", "issue3027_assoc_packed_size"],
+  "gold": "issue3027_assoc_packed_size"
+}

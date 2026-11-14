@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue900_sdf_label.v",
+    "iverilog-args": ["-g2017", "-gspecify", "-s", "top"],
+    "output-contains": ["Unable to match LABEL nosuch in top.u1", "LABEL unscaled: k delay 4.0"]
+}

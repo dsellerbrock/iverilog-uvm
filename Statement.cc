@@ -181,6 +181,13 @@ void PBlock::set_join_type(PBlock::BL_TYPE type)
 void PBlock::set_statement(const vector<Statement*>&st)
 {
       list_ = st;
+      if (bl_type_ != BL_SEQ) {
+	    for (size_t idx = 0; idx < list_.size(); ++idx) {
+		  PBlock*branch = dynamic_cast<PBlock*>(list_[idx]);
+		  if (branch && !branch->pscope_name().nil())
+			branch->deferred_assertion_process_scope();
+	    }
+      }
 }
 
 void PBlock::push_statement_front(Statement*that)

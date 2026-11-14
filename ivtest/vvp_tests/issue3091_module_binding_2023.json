@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3091_module_binding.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3091_module_binding_2023"],
+  "vpi-sources": ["vpi/issue3091_module_binding.c"],
+  "output-contains": ["PASSED", "BINDING=work.leaf"]
+}

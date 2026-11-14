@@ -195,6 +195,33 @@ static void lazy_puts_(struct lazy_text_*t, const char*s)
       t->len += n;
 }
 
+/* The canonical word of an array word expression with a constant index
+   into a one-dimensional array; false for anything else. */
+static int lazy_array_word_(ivl_expr_t expr, long*word)
+{
+      ivl_expr_t idx = ivl_expr_oper1(expr);
+      if (!idx || ivl_signal_dimensions(ivl_expr_signal(expr)) != 1
+	  || !number_is_immediate(idx, IMM_WID, 0) || number_is_unknown(idx))
+	    return 0;
+      *word = get_number_immediate(idx);
+      return *word >= 0
+	    && *word < (long)ivl_signal_array_count(ivl_expr_signal(expr));
+}
+
+/* A signed constant operand handle, as narrow as its value allows. */
+static char* lazy_int_const_(long value)
+{
+      char buf[48];
+      unsigned bit, wid = 2;
+      while (wid < 32 && (value >= (1L << (wid - 1)) || value < -(1L << (wid - 1))))
+	    wid += 1;
+      char*dp = buf + snprintf(buf, sizeof buf, "%u'sb", wid);
+      for (bit = wid; bit > 0; bit -= 1)
+	    *dp++ = ((unsigned long)value >> (bit - 1)) & 1 ? '1' : '0';
+      *dp = 0;
+      return strdup(buf);
+}
+
 /* 37.59 detail 2: decompile with parentheses only where precedence needs
    them and a single space around each binary operator. Returns the
    precedence of EXPR's top operator, or 0 for a shape it cannot write. */
@@ -203,10 +230,19 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
       char buf[128];
       expr = lazy_strip_pad_(expr);
       switch (ivl_expr_type(expr)) {
-	  case IVL_EX_SIGNAL:
-	    if (ivl_expr_oper1(expr)) return 0;
-	    lazy_puts_(t, ivl_signal_basename(ivl_expr_signal(expr)));
+	  case IVL_EX_SIGNAL: {
+	    ivl_signal_t sig = ivl_expr_signal(expr);
+	    long word;
+	    lazy_puts_(t, ivl_signal_basename(sig));
+	    if (!ivl_expr_oper1(expr)) return 100;
+	      /* A constant word of a one-dimensional array, by its declared
+		 address. */
+	    if (!lazy_array_word_(expr, &word)) return 0;
+	    snprintf(buf, sizeof buf, "[%ld]",
+		     ivl_signal_array_base(sig) + word);
+	    lazy_puts_(t, buf);
 	    return 100;
+	  }
 	  case IVL_EX_NUMBER: {
 	    ivl_parameter_t par = ivl_expr_parameter(expr);
 	    unsigned wid = ivl_expr_width(expr), idx;
@@ -238,6 +274,42 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 			lazy_puts_(t, buf);
 		  }
 	    }
+	    return 100;
+	  }
+	  case IVL_EX_SELECT: {
+	      /* A constant bit- or part-select of a vector signal, written in
+		 the signal's declared range (the offset here is canonical:
+		 0 is the LSB). Anything else is left undescribed. */
+	    ivl_expr_t base = ivl_expr_oper1(expr);
+	    ivl_expr_t off = ivl_expr_oper2(expr);
+	    ivl_signal_t sig;
+	    long msb, lsb, lo, hi, first;
+	    unsigned wid = ivl_expr_width(expr);
+	    if (!base || ivl_expr_type(base) != IVL_EX_SIGNAL
+		|| ivl_expr_oper1(base) || !off || !wid
+		|| !number_is_immediate(off, 32, 0))
+		  return 0;
+	    sig = ivl_expr_signal(base);
+	    if (ivl_signal_packed_dimensions(sig) != 1) return 0;
+	    msb = ivl_signal_packed_msb(sig, 0);
+	    lsb = ivl_signal_packed_lsb(sig, 0);
+	    first = get_number_immediate(off);
+	    if (first + (long)wid > (long)ivl_signal_width(sig)) return 0;
+	    if (msb >= lsb) {
+		  lo = lsb + first;
+		  hi = lo + (long)wid - 1;
+	    } else {
+		  hi = lsb - first;
+		  lo = hi - (long)wid + 1;
+	    }
+	    lazy_puts_(t, ivl_signal_basename(sig));
+	    if (wid == 1)
+		  snprintf(buf, sizeof buf, "[%ld]", lo);
+	    else if (msb >= lsb)
+		  snprintf(buf, sizeof buf, "[%ld:%ld]", hi, lo);
+	    else
+		  snprintf(buf, sizeof buf, "[%ld:%ld]", lo, hi);
+	    lazy_puts_(t, buf);
 	    return 100;
 	  }
 	  case IVL_EX_REALNUM:
@@ -361,6 +433,13 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
 {
       ivl_expr_t node = lazy_strip_pad_(expr);
       struct lazy_text_ text = {0, 0, 0};
+	/* Whole unpacked-array operands are ordinary array handles, not values
+	   that need an expression thunk. Use the .array label directly. */
+	if (ivl_expr_type(node) == IVL_EX_ARRAY) {
+	      char buffer[64];
+	      snprintf(buffer, sizeof buffer, "v%p", ivl_expr_signal(node));
+	      return strdup(buffer);
+	}
       char kind = lazy_value_kind_(expr);
       char**ops = calloc(ivl_expr_type(node) == IVL_EX_CONCAT
 			 ? ivl_expr_parms(node) + 1 : 3, sizeof(char*));
@@ -378,6 +457,12 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
       if (ivl_expr_type(node) == IVL_EX_SIGNAL
 	  && ivl_signal_dimensions(ivl_expr_signal(node)) == 0)
 	    snprintf(buffer, sizeof buffer, "v%p_0", ivl_expr_signal(node));
+      if (ivl_expr_type(node) == IVL_EX_SIGNAL && ivl_expr_oper1(node)) {
+	    long word;
+	    if (lazy_array_word_(node, &word))
+		  snprintf(buffer, sizeof buffer, "&A<v%p, %ld>",
+			   ivl_expr_signal(node), word);
+      }
       if (ivl_expr_type(node) == IVL_EX_NUMBER && ivl_expr_parameter(node))
 	    snprintf(buffer, sizeof buffer, "P_%p", ivl_expr_parameter(node));
       if (ivl_expr_type(node) == IVL_EX_NUMBER && !ivl_expr_parameter(node)
@@ -441,11 +526,30 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
 	  case IVL_EX_SFUNC:
 	    type = LAZY_vpiSysFuncCall;
 	    break;
-	  case IVL_EX_SELECT:
-	    type = ivl_expr_width(node) == 1 ? LAZY_vpiBitSelect
-		 : number_is_immediate(ivl_expr_oper2(node), 64, 0)
-		 ? LAZY_vpiPartSelect : LAZY_vpiIndexedPartSelect;
+	  case IVL_EX_SELECT: {
+	      /* The decompiler only describes a constant select of a whole
+		 vector signal: its operands are the signal (vpiParent) and
+		 the declared index (vpiIndex) or bounds (vpiLeftRange,
+		 vpiRightRange), as written. */
+	    ivl_signal_t sig = ivl_expr_signal(ivl_expr_oper1(node));
+	    long msb = ivl_signal_packed_msb(sig, 0);
+	    long lsb = ivl_signal_packed_lsb(sig, 0);
+	    long first = get_number_immediate(ivl_expr_oper2(node));
+	    long wid = ivl_expr_width(node);
+	    long lo = msb >= lsb ? lsb + first : lsb - first;
+	    long far = msb >= lsb ? lo + wid - 1 : lo - wid + 1;
+	    type = wid == 1 ? LAZY_vpiBitSelect : LAZY_vpiPartSelect;
+	    snprintf(buffer, sizeof buffer, "v%p_0", sig);
+	    ops[nops++] = strdup(buffer);
+	    buffer[0] = 0;
+	    if (wid == 1) {
+		  ops[nops++] = lazy_int_const_(lo);
+	    } else {
+		  ops[nops++] = lazy_int_const_(far);
+		  ops[nops++] = lazy_int_const_(lo);
+	    }
 	    break;
+	  }
 	  default:
 	    break;
       }
@@ -494,6 +598,139 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, skip);
       snprintf(buffer, sizeof buffer, "XE_%u", label);
       return strdup(buffer);
+}
+
+/* The functor label whose output is the driver named NAME in SCOPE (a
+   logic device or LPM), or nil. An elided BUFZ is represented by its
+   input. The runtime resolves this label leniently: a driver that is not
+   drawn under it only loses its value-change callbacks. */
+static char* contassign_driver_label_(ivl_scope_t scope, const char*name)
+{
+      char buf[64];
+      unsigned idx, pdx;
+
+      if (!name) return 0;
+      for (idx = 0; idx < ivl_scope_logs(scope); idx += 1) {
+	    ivl_net_logic_t lptr = ivl_scope_log(scope, idx);
+	    ivl_nexus_t out;
+	    if (strcmp(ivl_logic_basename(lptr), name) != 0) continue;
+	    out = ivl_logic_pin(lptr, 0);
+	    if (ivl_logic_type(lptr) == IVL_LO_BUFZ)
+		  for (pdx = 0; pdx < ivl_nexus_ptrs(out); pdx += 1) {
+			ivl_nexus_ptr_t nptr = ivl_nexus_ptr(out, pdx);
+			const char*in;
+			if (ivl_nexus_ptr_log(nptr) != lptr
+			    || ivl_nexus_ptr_pin(nptr) != 0) continue;
+			if (!can_elide_bufz(lptr, nptr)) break;
+			if (bufz_input_is_var(lptr)) {
+			      snprintf(buf, sizeof buf, "S_%p", lptr);
+			      return strdup(buf);
+			}
+			in = draw_net_input(ivl_logic_pin(lptr, 1));
+			  /* A literal input never changes. */
+			return in[0] == 'C' && strchr(in, '<') ? 0 : strdup(in);
+		  }
+	    snprintf(buf, sizeof buf, "L_%p", lptr);
+	    return strdup(buf);
+      }
+      for (idx = 0; idx < ivl_scope_lpms(scope); idx += 1) {
+	    ivl_lpm_t lpm = ivl_scope_lpm(scope, idx);
+	    if (strcmp(ivl_lpm_basename(lpm), name) != 0) continue;
+	    snprintf(buf, sizeof buf, "L_%p", lpm);
+	    return strdup(buf);
+      }
+      return 0;
+}
+
+static unsigned contassign_count_ = 0;
+
+/* Pseudo-thread numbers for evaluation code that no thread runs. They
+   start far above any real thread, so the real threads keep their labels. */
+static unsigned static_thunk_count_ = 1u << 30;
+
+/* Emit the VPI objects of SCOPE that describe source expressions: a
+   .vpi_contassign record for each continuous assignment (IEEE 1800-2023
+   37.47), a .vpi_param_expr record for each parameter whose default is
+   not simply its value, and a .vpi_defparam record for each defparam
+   (37.28). Their expressions are .vpi_expr handles whose evaluation code
+   no thread runs. */
+void draw_vpi_objects_in_scope(ivl_scope_t scope)
+{
+      unsigned idx, save_local = local_count, save_thread = thread_count;
+      unsigned nports = ivl_scope_type(scope) == IVL_SCT_MODULE
+	    ? ivl_scope_mod_module_ports(scope) : 0;
+      int any = ivl_scope_contassigns(scope) || ivl_scope_defparams(scope);
+
+      for (idx = 0; !any && idx < ivl_scope_params(scope); idx += 1)
+	    any = ivl_parameter_default_expr(ivl_scope_param(scope, idx)) != 0;
+	/* An interface port: the instance it is bound to, and the modport
+	   it selects (37.14 detail 5, 37.15). These need no expression code. */
+      for (idx = 0; idx < nports; idx += 1) {
+	    const char*modport;
+	    ivl_scope_t iface = ivl_scope_mod_module_port_iface(scope, idx,
+								 &modport);
+	    if (iface && modport)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 2, S_%p, \"%s\";\n",
+			  idx, iface, modport);
+	    else if (iface)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 2, S_%p;\n", idx, iface);
+      }
+      for (idx = 0; !any && idx < nports; idx += 1)
+	    any = ivl_scope_mod_module_port_highconn(scope, idx) != 0;
+      if (!any) return;
+      thread_count = static_thunk_count_++;
+      local_count = 0;
+      for (idx = 0; idx < ivl_scope_params(scope); idx += 1) {
+	    ivl_parameter_t par = ivl_scope_param(scope, idx);
+	    ivl_expr_t def = ivl_parameter_default_expr(par);
+	    char*text = def ? draw_lazy_expr_(def) : 0;
+	    if (text)
+		  fprintf(vvp_out, " .vpi_param_expr P_%p, %s;\n", par, text);
+	    free(text);
+      }
+	/* The actual of each connected port (vpiHighConn, IEEE 1800-2023
+	   37.14). vvp finds the port's own signal, its vpiLowConn, by name. */
+      for (idx = 0; idx < nports; idx += 1) {
+	    ivl_expr_t high = ivl_scope_mod_module_port_highconn(scope, idx);
+	    char*text = high ? draw_lazy_expr_(high) : 0;
+	    if (text)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 1, %s;\n", idx, text);
+	    free(text);
+      }
+      for (idx = 0; idx < ivl_scope_defparams(scope); idx += 1) {
+	    ivl_defparam_t dp = ivl_scope_defparam(scope, idx);
+	    char*text = draw_lazy_expr_(ivl_defparam_rhs(dp));
+	    if (text)
+		  fprintf(vvp_out, " .vpi_defparam P_%p, %u, %u, %s;\n",
+			  ivl_defparam_parameter(dp),
+			  ivl_file_table_index(ivl_defparam_file(dp)),
+			  ivl_defparam_lineno(dp), text);
+	    free(text);
+      }
+      for (idx = 0; idx < ivl_scope_contassigns(scope); idx += 1) {
+	    ivl_contassign_t ca = ivl_scope_contassign(scope, idx);
+	    char*lhs = ivl_contassign_lval(ca)
+		  ? draw_lazy_expr_(ivl_contassign_lval(ca)) : 0;
+	    char*rhs = draw_lazy_expr_(ivl_contassign_rval(ca));
+	    char*drv = rhs ? contassign_driver_label_(scope,
+				ivl_contassign_driver(ca)) : 0;
+	    if (rhs) {
+		  fprintf(vvp_out, "CA_%u .vpi_contassign %d, %d, %d, %u, %u, "
+			  "\"%s\"", contassign_count_++,
+			  (ivl_contassign_net_decl(ca) ? 1 : 0) | (lhs ? 2 : 0),
+			  1 << ivl_contassign_drive0(ca),
+			  1 << ivl_contassign_drive1(ca),
+			  ivl_file_table_index(ivl_contassign_file(ca)),
+			  ivl_contassign_lineno(ca), drv ? drv : "");
+		  if (lhs) fprintf(vvp_out, ", %s", lhs);
+		  fprintf(vvp_out, ", %s;\n", rhs);
+	    }
+	    free(lhs);
+	    free(rhs);
+	    free(drv);
+      }
+      thread_count = save_thread;
+      local_count = save_local;
 }
 
 static int is_mutating_string_method_(const char*name)
@@ -740,6 +977,56 @@ static int collect_property_chain_(ivl_expr_t expr, ivl_signal_t*sig,
       return 1;
 }
 
+/* L33/L34: a writable &CPS (string) or &CPV (integral) handle on the class
+   property PROP (a chain collect_property_chain_() accepts), so a system
+   task's output updates the property rather than a discarded temporary.
+   #2475, #2745: with ELEM, the handle names that element of a fixed-array,
+   dynamic-array or queue property; the index is evaluated now, onto the
+   vec4 stack, and read when the handle is used, and the runtime handle
+   tells slots from container elements by the property's storage kind.
+   VALUE is the argument itself. For &CPV it gives the width and the flags:
+   bit 0 signed, bit 1 two-state (a missing element then reads 0, not X;
+   IEEE 1800-2023 7.4.6). A task that samples its arguments after the call
+   ($monitor, $strobe) cannot use an element handle, because the index it
+   reads is a vec4 stack entry popped when the call returns. */
+static int cpv_elem_live_sample_ = 0;
+static int draw_cpv_arg_(struct args_info*result, ivl_expr_t prop,
+                         ivl_expr_t elem, ivl_expr_t value)
+{
+      char buffer[4096];
+      ivl_signal_t root_sig = 0;
+      long chain[16];
+      unsigned chain_len = 0, idx;
+      int n;
+
+      if (elem && cpv_elem_live_sample_)
+            return 0;
+      if (!collect_property_chain_(prop, &root_sig, chain, &chain_len,
+                                   sizeof chain/sizeof chain[0], elem != 0))
+            return 0;
+
+      if (ivl_expr_value(value) == IVL_VT_STRING)
+            n = snprintf(buffer, sizeof buffer, "&CPS<v%p_0", (void*)root_sig);
+      else
+            n = snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %u",
+                         (void*)root_sig, ivl_expr_width(value),
+                         (ivl_expr_signed(value) ? 1 : 0)
+                         | (ivl_expr_value(value) == IVL_VT_BOOL ? 2 : 0));
+      for (idx = 0 ; idx < chain_len && n > 0 && (size_t)n < sizeof buffer
+           ; idx += 1)
+            n += snprintf(buffer+n, sizeof buffer-n, ", %ld", chain[idx]);
+      if (elem) {
+            draw_eval_vec4(elem);
+            result->cpv_index = 1;
+            result->cpv_index_sign = ivl_expr_signed(elem) ? 's' : 'u';
+            result->cpv_index_width = ivl_expr_width(elem);
+      } else {
+            snprintf(buffer+n, sizeof buffer-n, ">");
+      }
+      result->text = strdup(buffer);
+      return 1;
+}
+
 static int get_vpi_taskfunc_signal_arg(struct args_info *result,
                                        ivl_expr_t expr)
 {
@@ -763,27 +1050,17 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	         isn't handled here; collect_property_chain_() says so and
 	         this falls through to the ordinary signal-base logic below,
 	         which itself falls through to the rvalue-only fallback for
-	         a nested/array-indexed string property. */
+	         a nested/array-indexed string property. #2745: an element of
+	         a fixed-array, dynamic-array or queue string property is
+	         addressed like its integral sibling below. */
 	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
 		  && ivl_expr_value(expr) == IVL_VT_STRING) {
-		    ivl_signal_t root_sig = 0;
-		    long chain[16];
-		    unsigned chain_len = 0;
-		    if (collect_property_chain_(expr, &root_sig, chain,
-		                                &chain_len,
-		                                sizeof chain/sizeof chain[0], 0)) {
-			  unsigned idx2;
-			  int n = snprintf(buffer, sizeof buffer, "&CPS<v%p_0",
-			                   (void*)root_sig);
-			  for (idx2 = 0
-			       ; idx2 < chain_len && n > 0 && (size_t)n < sizeof buffer
-			       ; idx2 += 1)
-				n += snprintf(buffer+n, sizeof buffer-n, ", %ld",
-				             chain[idx2]);
-			  snprintf(buffer+n, sizeof buffer-n, ">");
-			  result->text = strdup(buffer);
+		    ivl_expr_t elem = (property_selects_fixed_uarray_slot_(expr)
+				       || property_is_indexed_darray_expr_(expr)
+				       || property_is_indexed_queue_expr_(expr))
+			  ? ivl_expr_oper1(expr) : 0;
+		    if (draw_cpv_arg_(result, expr, elem, expr))
 			  return 1;
-		    }
 	      }
 	      /* L34: integral class properties need the same property-aware
 	         VPI lvalue treatment as strings (L33), for the same reason --
@@ -799,38 +1076,15 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
 		  && (ivl_expr_value(expr) == IVL_VT_LOGIC
 		      || ivl_expr_value(expr) == IVL_VT_BOOL)) {
-		    ivl_signal_t root_sig = 0;
-		    long chain[16];
-		    unsigned chain_len = 0;
 		    /* #2475: an element of a fixed-array property (c.arr[i])
-		       is just as writable; its index is evaluated now, onto
-		       the vec4 stack, and read when the handle is used. */
-		    ivl_expr_t elem = property_selects_fixed_uarray_slot_(expr)
+		       is just as writable. #2745: so is an element of a
+		       dynamic-array or queue property (c.dq[i], c.q[i]). */
+		    ivl_expr_t elem = (property_selects_fixed_uarray_slot_(expr)
+				       || property_is_indexed_darray_expr_(expr)
+				       || property_is_indexed_queue_expr_(expr))
 			  ? ivl_expr_oper1(expr) : 0;
-		    if (collect_property_chain_(expr, &root_sig, chain,
-		                                &chain_len,
-		                                sizeof chain/sizeof chain[0],
-		                                elem != 0)) {
-			  unsigned idx2;
-			  int n = snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %u",
-			                   (void*)root_sig, ivl_expr_width(expr),
-			                   ivl_expr_signed(expr) ? 1 : 0);
-			  for (idx2 = 0
-			       ; idx2 < chain_len && n > 0 && (size_t)n < sizeof buffer
-			       ; idx2 += 1)
-				n += snprintf(buffer+n, sizeof buffer-n, ", %ld",
-				             chain[idx2]);
-			  if (elem) {
-				draw_eval_vec4(elem);
-				result->cpv_index = 1;
-				result->cpv_index_sign = ivl_expr_signed(elem) ? 's' : 'u';
-				result->cpv_index_width = ivl_expr_width(elem);
-			  } else {
-				snprintf(buffer+n, sizeof buffer-n, ">");
-			  }
-			  result->text = strdup(buffer);
+		    if (draw_cpv_arg_(result, expr, elem, expr))
 			  return 1;
-		    }
 	      }
 	      sig = expr_signal_base_(expr);
 	      if (!sig)
@@ -955,6 +1209,21 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
 	    ivl_expr_t bexpr;
 	    ivl_expr_t wexpr;
 	    int indexed = ivl_expr_sel_type(expr) != IVL_SEL_OTHER;
+
+	    /* #2745: an element of a dynamic-array or queue property reached
+	     * through a nested chain (c.in.q[i]) arrives as a select over the
+	     * unindexed container property, with the element index as its
+	     * operand. A keyed (associative) container is not one. */
+	    if (vexpr && ivl_expr_type(vexpr) == IVL_EX_PROPERTY
+		&& !ivl_expr_oper1(vexpr) && ivl_expr_oper2(expr)
+		&& (ivl_expr_value(expr) == IVL_VT_LOGIC
+		    || ivl_expr_value(expr) == IVL_VT_BOOL
+		    || ivl_expr_value(expr) == IVL_VT_STRING)
+		&& expr_is_dynarray_container_(vexpr)
+		&& !(receiver_container_type_(vexpr)
+		     && ivl_type_queue_assoc_compat(receiver_container_type_(vexpr)))
+		&& draw_cpv_arg_(result, vexpr, ivl_expr_oper2(expr), expr))
+		  return 1;
 
 	    /* An aggregate select is a value, not a signal handle with one
 	     * array index. Let the object evaluator preserve every select. */
@@ -1624,7 +1893,10 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 			    }
 		      }
 		}
-		if (get_vpi_taskfunc_signal_arg(&args[idx], expr)) {
+		cpv_elem_live_sample_ = live_sample;
+		int got = get_vpi_taskfunc_signal_arg(&args[idx], expr);
+		cpv_elem_live_sample_ = 0;
+		if (got) {
 			      if (args[idx].vec_flag || args[idx].cpv_index) {
 				    vec4_stack_need += 1;
 			      } else {

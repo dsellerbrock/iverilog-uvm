@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2618_assoc_fixed_array_copy_2023.v",
+    "iverilog-args": ["-g2023", "-s", "issue2618_assoc_fixed_array_copy"],
+    "gold": "issue2618_assoc_fixed_array_copy_2023"
+}

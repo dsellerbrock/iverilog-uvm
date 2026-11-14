@@ -811,6 +811,12 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 	    cur_par->basename = cur_pit->first;
 	    cur_par->value = 0;
 	    cur_par->assign_expr = 0;
+	      /* The default's tree is translated once every scope exists
+		 (make_scope_contassigns_); take it before the parameters
+		 are released. */
+	    cur_par->default_expr = 0;
+	    cur_par->default_net = cur_pit->second.default_net;
+	    const_cast<NetScope::param_expr_t&>(cur_pit->second).default_net = 0;
 	    cur_par->local = cur_pit->second.local_flag ||
 			     !cur_pit->second.overridable;
 	    cur_par->is_type = cur_pit->second.type_flag;
@@ -1257,8 +1263,106 @@ bool dll_target::order_processes(vector<target_process_ref_t>&processes)
       return true;
 }
 
+/* Translate the kept continuous assignments (37.47) once every signal
+   exists, and before any target code runs. */
+void dll_target::make_scope_contassigns_(ivl_scope_t scope)
+{
+      const NetScope*net = scope->net_;
+      if (net && !net->contassigns.empty()) {
+	    std::vector<ivl_contassign_s>*list = new std::vector<ivl_contassign_s>;
+	    list->reserve(net->contassigns.size());
+	    for (const NetScope::contassign_t&cur : net->contassigns) {
+		  ivl_contassign_s obj;
+		  obj.lval = 0;
+		  if (cur.lval) {
+			assert(expr_ == 0);
+			cur.lval->expr_scan(this);
+			obj.lval = expr_;
+			expr_ = 0;
+		  }
+		  assert(expr_ == 0);
+		  cur.rval->expr_scan(this);
+		  obj.rval = expr_;
+		  expr_ = 0;
+		  obj.driver = cur.driver;
+		  obj.file = cur.get_file();
+		  obj.lineno = cur.get_lineno();
+		  obj.drive0 = cur.drive0;
+		  obj.drive1 = cur.drive1;
+		  obj.net_decl = cur.net_decl;
+		  list->push_back(obj);
+	    }
+	    scope->ensure_aux_()->contassigns = list;
+      }
+	/* Parameter defaults and defparam r-values (37.28). */
+      if (scope->aux_ && scope->aux_->param)
+	    for (ivl_parameter_s&par : *scope->aux_->param) {
+		  if (!par.default_net) continue;
+		  assert(expr_ == 0);
+		  par.default_net->expr_scan(this);
+		  par.default_expr = expr_;
+		  expr_ = 0;
+		  par.default_net = 0;
+	    }
+      if (net && !net->defparams_kept.empty()) {
+	    std::vector<ivl_defparam_s>*list = new std::vector<ivl_defparam_s>;
+	    for (const NetScope::defparam_t&cur : net->defparams_kept) {
+		  ivl_scope_t target = find_scope(des_, cur.target);
+		  ivl_parameter_t par = target
+			? scope_find_param(target, cur.name.str()) : 0;
+		  if (!par || !cur.rhs_net) continue;
+		  ivl_defparam_s obj;
+		  assert(expr_ == 0);
+		  cur.rhs_net->expr_scan(this);
+		  obj.rhs = expr_;
+		  expr_ = 0;
+		  obj.param = par;
+		  obj.file = cur.get_file();
+		  obj.lineno = cur.get_lineno();
+		  list->push_back(obj);
+	    }
+	    if (list->empty())
+		  delete list;
+	    else
+		  scope->ensure_aux_()->defparams = list;
+      }
+	/* Port actuals, for vpiHighConn (37.14). */
+      if (net && !net->port_highconns.empty()) {
+	    std::vector<ivl_expr_t>*list = new std::vector<ivl_expr_t>(
+		  net->port_highconns.size(), (ivl_expr_t)0);
+	    for (size_t idx = 0; idx < net->port_highconns.size(); idx += 1) {
+		  if (!net->port_highconns[idx]) continue;
+		  assert(expr_ == 0);
+		  net->port_highconns[idx]->expr_scan(this);
+		  (*list)[idx] = expr_;
+		  expr_ = 0;
+	    }
+	    scope->ensure_aux_()->port_highconns = list;
+      }
+	/* Interface port bindings, for their vpiRefObj connections. */
+      if (net && !net->port_ifaces.empty()) {
+	    std::vector<std::pair<ivl_scope_t, const char*> >*list =
+		  new std::vector<std::pair<ivl_scope_t, const char*> >;
+	    for (size_t idx = 0; idx < net->port_ifaces.size(); idx += 1) {
+		  NetScope*inst = net->port_ifaces[idx].first;
+		  perm_string modport = net->port_ifaces[idx].second;
+		  list->push_back(std::make_pair(
+			inst ? find_scope(des_, inst) : (ivl_scope_t)0,
+			modport.nil() ? (const char*)0 : modport.str()));
+	    }
+	    scope->ensure_aux_()->port_ifaces = list;
+      }
+      for (unsigned idx = 0; idx < scope->child_count_; idx += 1)
+	    make_scope_contassigns_(scope->child[idx]);
+}
+
 bool dll_target::start_processes()
 {
+      for (ivl_scope_t scope : des_.packages)
+	    make_scope_contassigns_(scope);
+      for (ivl_scope_t scope : des_.roots)
+	    make_scope_contassigns_(scope);
+
       if (!stream_processes_)
 	    return true;
       assert(!stream_started_);
@@ -3987,8 +4091,20 @@ bool dll_target::signal_paths(const NetNet*net)
 		  aux->path[ptr].parallel = src->is_parallel();
 		  aux->path[ptr].posedge = src->is_posedge();
 		  aux->path[ptr].negedge = src->is_negedge();
+		  aux->path[ptr].dst_base = src->dst_base();
+		  aux->path[ptr].dst_width = src->dst_width();
+		  aux->path[ptr].src_base = src->src_base(pin);
+		  aux->path[ptr].src_width = src->src_width(pin);
+		  aux->path[ptr].has_pulse_limits = src->pulse_limits(pin,
+			      aux->path[ptr].pulse_reject, aux->path[ptr].pulse_error);
 		  for (unsigned pe = 0 ;  pe < 12 ;  pe += 1) {
 			aux->path[ptr].delay[pe] = src->get_delay(pe);
+		  }
+		  for (const auto&tokens : src->delay_exprs) {
+			aux->path[ptr].exprs.emplace_back();
+			for (const NetPathToken&tok : tokens)
+			      aux->path[ptr].exprs.back().push_back({tok.kind, tok.value,
+				    tok.sig ? find_signal(tok.sig) : 0});
 		  }
 
 		  ptr += 1;
@@ -4024,6 +4140,7 @@ bool dll_target::scope_tchks(const NetScope*scope)
 	    for (const NetNet*var : cur->limit_vars)
 		  tchk->limit_sigs.push_back(find_signal(var));
 	    tchk->limits = cur->limits;
+	    tchk->shifts = cur->shifts;
 	    tchk->notifier = cur->notifier ? find_signal(cur->notifier) : 0;
 	    aux->tchks->push_back(tchk);
       }

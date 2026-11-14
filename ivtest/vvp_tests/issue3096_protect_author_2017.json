@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3096_protect_author.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3096_protect_author"],
+  "gold": "issue3096_protect_author"
+}

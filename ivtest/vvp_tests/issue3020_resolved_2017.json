@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3020_resolved.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "issue3020_resolved"
+}

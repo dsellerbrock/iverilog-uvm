@@ -156,6 +156,15 @@ class Module : public PScopeExtra, public PNamedItem {
 	   are enforced by the parser. */
       std::map<perm_string,param_expr_t*>specparams;
 
+	/* PATHPULSE$ specparams (IEEE 1800 30.7.1). The key is the text
+	   after "PATHPULSE$": empty for the module-wide limits, or
+	   "<input>$<output>" for one path. A nil error is the reject. */
+      struct pathpulse_t {
+	    PExpr*reject;
+	    PExpr*error;
+      };
+      std::map<perm_string,pathpulse_t> pathpulses;
+
 	/* The module also has defparam assignments which don't create
 	   new parameters within the module, but may be used to set
 	   values within this module (when instantiated) or in other

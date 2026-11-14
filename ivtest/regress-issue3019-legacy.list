@@ -1,0 +1,2 @@
+issue3019_interface_parameter_2017 normal,-g2017,-s,test ivltests gold=issue3019_interface_parameter.gold
+issue3019_interface_parameter_2023 normal,-g2023,-s,test ivltests gold=issue3019_interface_parameter.gold

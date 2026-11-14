@@ -3725,6 +3725,7 @@ static std::string canonical_specialization_parm_key_(
 	 * those broader dependency graphs while constructing a cache key. */
       bool has_bare_dependent_default = false;
       bool all_bare_class_defaults = true;
+      bool all_integral_atom_defaults = true;
       std::set<perm_string> prior_formals;
       for (std::vector<perm_string>::const_iterator name_it = formals.begin()
 	   ; name_it != formals.end(); ++name_it) {
@@ -3746,6 +3747,9 @@ static std::string canonical_specialization_parm_key_(
 	    if (!default_type
 		|| !is_bare_class_reference_(default_type->get_type(), seen, false))
 		  all_bare_class_defaults = false;
+	    if (!default_type
+		|| !dynamic_cast<const atom_type_t*>(default_type->get_type()))
+		  all_integral_atom_defaults = false;
 	    prior_formals.insert(*name_it);
       }
       bool has_value_formal = false;
@@ -3758,7 +3762,7 @@ static std::string canonical_specialization_parm_key_(
 		  has_value_formal = true;
       }
       if (!has_value_formal && !has_bare_dependent_default
-	  && !all_bare_class_defaults)
+	  && !all_bare_class_defaults && !all_integral_atom_defaults)
 	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
       std::map<perm_string,const PExpr*> supplied;
@@ -3918,7 +3922,8 @@ static std::string canonical_specialization_parm_key_(
 	    std::map<perm_string,const PExpr*>::const_iterator actual =
 		  supplied.find(*name_it);
 	    if (actual == supplied.end()) {
-		  if (default_key.compare(0, 12, "<class-type:") != 0)
+		  if (default_key.compare(0, 12, "<class-type:") != 0
+		      && default_key.compare(0, 13, "<vector-type:") != 0)
 			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 		  effective[*name_it] = default_key;
 		  out << "|" << *name_it << "=" << default_key;
@@ -3933,7 +3938,8 @@ static std::string canonical_specialization_parm_key_(
 		|| actual_key.find("<forwarded-type-param@") != std::string::npos
 		|| actual_key.find("@scope=") != std::string::npos)
 		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
-	    if (actual_key.compare(0, 12, "<class-type:") != 0)
+	    if (actual_key.compare(0, 12, "<class-type:") != 0
+		&& actual_key.compare(0, 13, "<vector-type:") != 0)
 		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 	    effective[*name_it] = actual_key;
 	    out << "|" << *name_it << "=" << actual_key;
@@ -5663,6 +5669,19 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 	    // they have no formal ports.
 	    if (cur->second->is_checker || cur->second->port_count() > 0)
 		  continue;
+	      // A nested module with an explicit instance is not also implicitly
+	      // instantiated. Check the gates in this declaring module before
+	      // adding the default instance.
+	    bool explicitly_instantiated = false;
+	    for (PGate*gate : gates_) {
+		  PGModule*instance = dynamic_cast<PGModule*>(gate);
+		  if (instance && instance->get_type() == cur->first) {
+			explicitly_instantiated = true;
+			break;
+		  }
+	    }
+	    if (explicitly_instantiated)
+		  continue;
 
 	    PGModule*nested_gate = new PGModule(cur->second, cur->second->mod_name());
 	    nested_gate->set_line(*cur->second);
@@ -6382,9 +6401,8 @@ void PGModule::elaborate_scope_mod_(Design*des, Module*mod, NetScope*sc) const
  * This method is called to process a module instantiation after basic
  * sanity testing is already complete.
  */
-static bool checker_is_lexically_nested_(const Module*module)
+static bool module_is_lexically_nested_(const Module*module)
 {
-      if (!module->is_checker) return false;
       for (const LexicalScope*scope = module->parent_scope(); scope;
 	   scope = scope->parent_scope())
 	    if (dynamic_cast<const Module*>(scope)) return true;
@@ -6405,7 +6423,7 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
       unsigned attrib_list_n = 0;
       attrib_list = evaluate_attributes(attributes, attrib_list_n, des, sc);
 
-      bool nested_checker = checker_is_lexically_nested_(mod);
+      bool nested_module = module_is_lexically_nested_(mod);
 
 	// Run through the module instances, and make scopes out of
 	// them. Also do parameter overrides that are done on the
@@ -6434,7 +6452,7 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	      // that if this is a nested module, mark it thus so that
 	      // scope searches will continue into the parent scope.
 	    NetScope*my_scope = new NetScope(sc, use_name, NetScope::MODULE, 0,
-					     bound_type_ || nested_checker,
+					     bound_type_ || nested_module,
 					     mod->program_block,
 					     mod->is_interface);
 	    my_scope->set_module_definition(mod);

@@ -46,11 +46,11 @@ module test;
     check("stop-instance",
           $coverage_control(`SV_COV_STOP, `SV_COV_TOGGLE,
                             `SV_COV_MODULE, unit1),
-          `SV_COV_ERROR);
+          `SV_COV_OK);
     check("reset-rooted-instance",
           $coverage_control(`SV_COV_RESET, `SV_COV_TOGGLE,
                             `SV_COV_MODULE, $root.test.unit2),
-          `SV_COV_ERROR);
+          `SV_COV_OK);
     check("get-max",
           $coverage_get_max(`SV_COV_TOGGLE, `SV_COV_HIER, "DUT"),
           `SV_COV_NOCOV);

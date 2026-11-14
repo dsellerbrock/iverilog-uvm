@@ -25,6 +25,7 @@
 # include  "symbols.h"
 # include  "schedule.h"
 # include  <list>
+# include  <vector>
 # include  <cassert>
 
 /*
@@ -100,6 +101,9 @@ class vvp_island  : private vvp_gen_event_s {
 	// Call this method when linking is done.
       void compile_cleanup(void);
 
+	// The branch list, for SDF INTERCONNECT lookup at run time.
+      vvp_island_branch* branches() const { return branches_; }
+
     private:
       void run_run() override;
       bool flagged_;
@@ -149,6 +153,13 @@ class vvp_island_port  : public vvp_net_fun_t {
       vvp_vector8_t outvalue;
       vvp_vector8_t value;
 
+    public: // SDF INTERCONNECT on an isolated inout port (IEEE 1800
+	    // 32.4.4): delayed drivers from the other side of a branch,
+	    // keyed by that branch.
+      vvp_island* island() const { return island_; }
+      void set_injection(const void*from, const vvp_vector8_t&val);
+      std::vector<std::pair<const void*,vvp_vector8_t> > injections;
+
     private:
       vvp_island*island_;
 
@@ -193,6 +204,20 @@ inline vvp_vector8_t island_get_sent_value(vvp_net_t*net)
 }
 
 extern void island_send_value(vvp_net_t*net, const vvp_vector8_t&val);
+
+/* The port's input resolved with its injected drivers, leaving out the
+   ones injected by the branch EXCLUDE. */
+extern vvp_vector8_t island_get_input(vvp_net_t*net, const void*exclude = 0);
+
+class vvp_fun_intermodpath;
+/* Make the tran branch whose inner end is INNER_PORT carry delayed
+   values (SDF INTERCONNECT on an inout port). Returns the intermodpath
+   for outer->inner (INTO_INNER) or inner->outer, or nil if INNER_PORT is
+   not the inner end of a plain whole-width tran. */
+extern vvp_fun_intermodpath* island_tran_interconnect(vvp_net_t*inner_port,
+						      bool into_inner,
+						      unsigned width,
+						      vvp_net_t*&path_net);
 
 /*
 * Branches are connected together to form a mesh of branches. Each

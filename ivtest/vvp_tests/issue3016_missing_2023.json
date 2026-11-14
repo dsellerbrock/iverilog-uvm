@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3016_missing.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3016_missing"
+}

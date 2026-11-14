@@ -1,0 +1,22 @@
+{
+  "type": "normal",
+  "source": "issue2944_vpi_contassign_module.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "top"
+  ],
+  "vpi-modules": [
+    "issue2944_vpi_contassign_module_2023"
+  ],
+  "vpi-sources": [
+    "vpi/issue2944_vpi_contassign_module.c"
+  ],
+  "output-contains": [
+    "net module=top\n",
+    "contassign module=top\n",
+    "contassign scope=top.g\n",
+    "contassign parent=top.g\n",
+    "PASSED\n"
+  ]
+}

@@ -44,7 +44,23 @@ static ivl_signal_t find_path_source_port(ivl_delaypath_t path)
 	    return sig;
       }
 
-      return 0;
+	/* An interface member reached through a port handle (IEEE 1800
+	   25.6) is not a port of the path scope; the member itself is the
+	   input terminal. Never return 0: "%p" of a null pointer is "0x0"
+	   on macOS but "(nil)" on glibc, which vvp cannot parse. */
+      ivl_signal_t any = 0;
+      for (idx = 0 ;  idx < ivl_nexus_ptrs(nex) ;  idx += 1) {
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ivl_nexus_ptr(nex, idx));
+	    if (sig == 0)
+		  continue;
+	    if (!ivl_signal_local(sig))
+		  return sig;
+	    if (any == 0)
+		  any = sig;
+      }
+
+      assert(any);
+      return any;
 }
 
 static void draw_quoted_condition(const char*text)
@@ -145,9 +161,43 @@ static void draw_modpath_record(const char*label, const char*driver,
 
 	    src_sig = find_path_source_port(path);
 	    fprintf(vvp_out, " v%p_0", src_sig);
+	    if (ivl_path_dst_width(path) || ivl_path_src_width(path))
+		  fprintf(vvp_out, " [%u %u %u %u]", ivl_path_dst_base(path),
+			  ivl_path_dst_width(path), ivl_path_src_base(path),
+			  ivl_path_src_width(path));
+	    {
+		  uint64_t reject, error;
+		  if (ivl_path_pulse_limits(path, &reject, &error))
+			fprintf(vvp_out, " / %" PRIu64 " %" PRIu64, reject, error);
+	    }
       }
 
       fprintf(vvp_out, ";\n");
+
+	/* A delay that uses a specparam keeps its expressions for SDF
+	   LABEL re-evaluation (IEEE 1800 32.4.3). */
+      for (idx = 0 ;  idx < ivl_signal_npath(path_sig); idx += 1) {
+	    ivl_delaypath_t path = ivl_signal_path(path_sig, idx);
+	    unsigned expr, tok;
+	    if (ivl_path_delay_exprs(path) == 0) continue;
+	    fprintf(vvp_out, "    .pathexpr %s, %u, %u", label, idx,
+		    ivl_path_delay_exprs(path));
+	    for (expr = 0 ; expr < ivl_path_delay_exprs(path) ; expr += 1) {
+		  fprintf(vvp_out, " \"");
+		  for (tok = 0 ; tok < ivl_path_delay_expr_tokens(path, expr) ; tok += 1) {
+			double value;
+			ivl_signal_t sig;
+			int kind = ivl_path_delay_expr_token(path, expr, tok,
+							     &value, &sig);
+			if (tok) fputc(' ', vvp_out);
+			if (kind == 'c') fprintf(vvp_out, "%.17g", value);
+			else if (kind == 's') fprintf(vvp_out, "v%p_0", sig);
+			else fputc(kind, vvp_out);
+		  }
+		  fprintf(vvp_out, "\"");
+	    }
+	    fprintf(vvp_out, ";\n");
+      }
 
       free(src_drivers);
       free(con_drivers);
@@ -238,9 +288,15 @@ void draw_tchks(ivl_scope_t scope)
 	    fprintf(vvp_out, ", %u", ivl_tchk_limits(tchk));
 	    for (lim = 0; lim < ivl_tchk_limits(tchk); lim += 1) {
 		  char*value = draw_Cr_to_string(ivl_tchk_limit(tchk, lim));
+		  double shift = ivl_tchk_limit_shift(tchk, lim);
 		  fprintf(vvp_out, " v%p_0 %s", ivl_tchk_limit_sig(tchk, lim),
 			  value);
 		  free(value);
+		  if (shift != 0.0) {
+			value = draw_Cr_to_string(shift);
+			fprintf(vvp_out, " / %s", value);
+			free(value);
+		  }
 	    }
 	    if (notifier) fprintf(vvp_out, ", v%p_0;\n", notifier);
 	    else fprintf(vvp_out, ", 0;\n");

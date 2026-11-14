@@ -44,6 +44,16 @@
 
 using namespace std;
 
+/* Count reductions inside assertion actions, including those in nested
+   procedural statements. Immediate assertions do not change this count. */
+static unsigned sva_concurrent_count = 0;
+static void sva_check_action(const struct vlltype&loc, unsigned before, bool restricted)
+{
+      if (restricted && before != sva_concurrent_count)
+            yyerror(loc, "error: concurrent assertion in assertion action block.");
+      ++sva_concurrent_count;
+}
+
   /* Every package-qualified reference (pkg::name ...) is built as one of
      these three node types, in many grammar rules, and every rule names
      the node. Checking here covers them all: a name declared in an
@@ -242,6 +252,10 @@ static void sva_mark_first_match_(std::vector<sva_seq_step_t>&steps)
 	  for (size_t i = 0 ; i < steps.size() ; i += 1)
 		nested = nested || steps[i].fm;
 	  unsigned group = nested ? 0 : pform_sva_new_first_match_group_id();
+	  if (!steps.empty()) {
+		steps[0].fm_first_delay_lo = steps[0].delay_lo;
+		steps[0].fm_first_delay_hi = steps[0].delay_hi;
+	  }
 	  for (size_t i = 0 ; i < steps.size() ; i += 1) {
 		steps[i].fm = true;
 		steps[i].fm_group = group;
@@ -2479,15 +2493,26 @@ static Module::port_t *module_declare_event_port(
 	    yyerror(loc, "sorry: Unpacked event ports are not supported.");
 	    delete unpacked_dims;
       }
-      if (default_value) {
-	    yyerror(loc, "sorry: Default values on event ports are not supported.");
+      PECallFunction*inferred = dynamic_cast<PECallFunction*>(default_value);
+      bool checker_inferred_clock = pform_module_is_checker()
+	    && port_type == NetNet::PINPUT && inferred
+	    && !inferred->path().package && inferred->path().name.size() == 1
+	    && inferred->path().name.front().name == perm_string::literal("$inferred_clock")
+	    && inferred->get_parms().empty() && !inferred->receiver_expr();
+      if (default_value && !checker_inferred_clock) {
+	    if (pform_module_is_checker())
+		  yyerror(loc, "error: Checker event port default must be $inferred_clock (IEEE 1800-2017/2023 17.4).");
+	    else
+		  yyerror(loc, "sorry: Default values on event ports are not supported.");
 	    delete default_value;
+	    default_value = nullptr;
       }
 
       pform_make_event_port(loc, name);
       Module::port_t*port = pform_module_port_reference(loc, name.first);
       port->event_port = true;
       port->event_direction = port_type;
+      port->default_value = default_value;
 
       port_declaration_context.port_type = port_type;
       port_declaration_context.port_net_type = NetNet::IMPLICIT;
@@ -2593,24 +2618,49 @@ static Module::port_t *module_declare_port_continuation(
             default_value, attributes);
 }
 
+static bool collect_explicit_port_identifiers(
+                                    PExpr*expression,
+                                    std::vector<PEIdent*>&identifiers)
+{
+      PEIdent*ident = dynamic_cast<PEIdent*>(expression);
+      if (ident) {
+            identifiers.push_back(
+                  ident->clone_for_reference());
+            return true;
+      }
+
+      PEConcat*concat = dynamic_cast<PEConcat*>(expression);
+      if (!concat || concat->has_repeat()) return false;
+      for (PExpr*operand : concat->stream_parms()) {
+            if (!collect_explicit_port_identifiers(operand, identifiers))
+                  return false;
+      }
+      return true;
+}
+
 static Module::port_t *module_declare_explicit_port(
                                     const YYLTYPE&loc, char*port_id,
                                     PExpr*expression,
                                     NetNet::PortType port_type)
 {
-      PEIdent*ident = dynamic_cast<PEIdent*>(expression);
-      if (!ident) {
-            yyerror(loc, "error: Explicit ANSI port expressions must be identifiers.");
-            delete expression;
+      std::vector<PEIdent*>identifiers;
+      bool valid = collect_explicit_port_identifiers(expression, identifiers);
+      delete expression;
+      if (!valid || identifiers.empty()) {
+            for (PEIdent*ident : identifiers) delete ident;
+            yyerror(loc, "error: Explicit ANSI port expressions must be identifiers or concatenations of identifiers.");
             delete[] port_id;
             return nullptr;
       }
 
-      perm_string internal_name = peek_tail_name(ident->path().name);
-      pform_module_defer_port_direction(internal_name, port_type);
-      delete expression;
-      Module::port_t*port = pform_module_port_reference(loc, internal_name);
+      Module::port_t*port = new Module::port_t;
       port->name = lex_strings.make(port_id);
+      port->default_value = 0;
+      for (PEIdent*ident : identifiers) {
+            perm_string internal_name = peek_tail_name(ident->path().name);
+            pform_module_defer_port_direction(internal_name, port_type);
+            port->expr.push_back(ident);
+      }
       delete[] port_id;
       return port;
 }
@@ -2622,6 +2672,7 @@ static Module::port_t *module_declare_explicit_port(
 
       char letter;
       int  int_val;
+      unsigned sva_count;
 
       enum atom_type_t::type_code atom_type;
 
@@ -2851,7 +2902,7 @@ static Module::port_t *module_declare_explicit_port(
 %token K_PSTAR K_STARP K_DOTSTAR
 %token K_LOR K_LAND K_NAND K_NOR K_NXOR K_TRIGGER K_NB_TRIGGER K_LEQUIV
 %token K_PIPE_IMPL_OV K_PIPE_IMPL_NOV K_FOLLOWED_BY_OV K_FOLLOWED_BY_NOV
-%token K_LBSTAR K_LBGOTO K_LBEQ
+%token K_LBSTAR K_LBGOTO K_LBEQ K_LBPLUS K_LBSPACESTAR
 %token K_SCOPE_RES
 %token <text> K_edge_descriptor
 
@@ -3272,6 +3323,7 @@ static Module::port_t *module_declare_explicit_port(
 
 %type <letter> spec_polarity
 %type <specify_terminal> specify_path_terminal
+%type <letter> polarity_operator
 %type <specify_terminals> specify_path_identifiers
 %destructor { delete $$; } specify_path_terminal specify_path_identifiers
 
@@ -3279,6 +3331,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <specpath> specify_edge_path specify_edge_path_decl
 
 %type <real_type> non_integer_type
+%type <sva_count> sva_action_start
 %type <int_val> assert_or_assume
 %type <int_val> deferred_mode
 %type <int_val> sva_int_local_declarations
@@ -4913,38 +4966,23 @@ class_new /* IEEE1800-2005 A.2.4 */
 
 concurrent_assertion_item /* IEEE1800-2012 A.2.10 */
   : block_identifier_opt concurrent_assertion_statement
-      { pform_sva_clear_assertion_label();
+      { pform_sva_release_assertion(false);
+	pform_sva_clear_assertion_label();
 	delete[] $1;
 	delete $2;
       }
   ;
 
+sva_action_start
+  : %empty { $$ = sva_concurrent_count; }
+  ;
+
 concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
-  : assert_or_assume K_property '(' property_spec ')' statement_or_null %prec less_than_K_else
-      { /* M9: pass action only. */
+  : assert_or_assume K_property '(' property_spec ')' sva_action_start statement_or_null %prec less_than_K_else
+      { sva_check_action(@1, $6, $1 == 1);
+	  /* M9: pass action only. */
 	if (gn_supported_assertions_flag) {
-	      pform_make_assertion(@1, $4, 0, $6, ($1==4) ? 1 : 0);
-	} else {
-	      if (gn_unsupported_assertions_flag)
-		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
-			    " Try -gno-assertions or -gsupported-assertions"
-			    " to turn this message off.");
-	      pform_sva_destroy_property($4); delete $6;
-	}
-	$$ = 0;
-      }
-  | assert_or_assume K_property '(' property_spec ')' K_else statement_or_null
-      { /* M9: fail action only. */
-	if (gn_supported_assertions_flag) {
-	      /* Preserve an explicit null else action. A null pointer in the
-	         factory means that the else arm was omitted and therefore
-	         requests the standard default $error action. */
-	      Statement*fail = $7;
-	      if (!fail) {
-		    fail = new PNoop;
-		    FILE_NAME(fail, @6);
-	      }
-	      pform_make_assertion(@1, $4, fail, 0, ($1==4) ? 1 : 0);
+	      pform_sva_hold_assertion(@1, $4, 0, $7, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
@@ -4954,52 +4992,77 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 	}
 	$$ = 0;
       }
-  | assert_or_assume K_property '(' property_spec ')' statement_or_null K_else statement_or_null
-      { /* M9: pass and fail actions. */
+  | assert_or_assume K_property '(' property_spec ')' sva_action_start K_else statement_or_null
+      { sva_check_action(@1, $6, $1 == 1);
+	  /* M9: fail action only. */
 	if (gn_supported_assertions_flag) {
-	      /* As above, distinguish an explicit null else arm from a
-	         syntactically absent else arm. */
+	      /* Preserve an explicit null else action. A null pointer in the
+	         factory means that the else arm was omitted and therefore
+	         requests the standard default $error action. */
 	      Statement*fail = $8;
 	      if (!fail) {
 		    fail = new PNoop;
 		    FILE_NAME(fail, @7);
 	      }
-	      pform_make_assertion(@1, $4, fail, $6, ($1==4) ? 1 : 0);
+	      pform_sva_hold_assertion(@1, $4, fail, 0, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      pform_sva_destroy_property($4); delete $6; delete $8;
+	      pform_sva_destroy_property($4); delete $8;
 	}
 	$$ = 0;
       }
-  | K_cover K_property '(' property_spec ')' statement_or_null
-      { /* M9: cover property counts matches. */
+  | assert_or_assume K_property '(' property_spec ')' sva_action_start statement_or_null K_else statement_or_null
+      { sva_check_action(@1, $6, $1 == 1);
+	  /* M9: pass and fail actions. */
 	if (gn_supported_assertions_flag) {
-	      pform_make_assertion(@1, $4, 0, $6, 2);
+	      /* As above, distinguish an explicit null else arm from a
+	         syntactically absent else arm. */
+	      Statement*fail = $9;
+	      if (!fail) {
+		    fail = new PNoop;
+		    FILE_NAME(fail, @8);
+	      }
+	      pform_sva_hold_assertion(@1, $4, fail, $7, ($1==4) ? 1 : 0);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      pform_sva_destroy_property($4); delete $6;
+	      pform_sva_destroy_property($4); delete $7; delete $9;
+	}
+	$$ = 0;
+      }
+  | K_cover K_property '(' property_spec ')' sva_action_start statement_or_null
+      { sva_check_action(@1, $6, true);
+	  /* M9: cover property counts matches. */
+	if (gn_supported_assertions_flag) {
+	      pform_sva_hold_assertion(@1, $4, 0, $7, 2);
+	} else {
+	      if (gn_unsupported_assertions_flag)
+		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
+			    " Try -gno-assertions or -gsupported-assertions"
+			    " to turn this message off.");
+	      pform_sva_destroy_property($4); delete $7;
 	}
 	$$ = 0;
       }
       /* For now, cheat, and use property_spec for the sequence specification.
          They are syntactically identical. */
-  | K_cover K_sequence '(' property_spec ')' statement_or_null
-      { /* IEEE 1800-2017 16.14.3: count all sequence matches. */
+  | K_cover K_sequence '(' property_spec ')' sva_action_start statement_or_null
+      { sva_check_action(@1, $6, true);
+	  /* IEEE 1800-2017 16.14.3: count all sequence matches. */
 	if (gn_supported_assertions_flag) {
 	      $4->sequence_cover = true;
-	      pform_make_assertion(@1, $4, 0, $6, 2);
+	      pform_sva_hold_assertion(@1, $4, 0, $7, 2);
 	} else {
 	      if (gn_unsupported_assertions_flag)
 		    yyerror(@1, "sorry: concurrent_assertion_item not supported."
 			    " Try -gno-assertions or -gsupported-assertions"
 			    " to turn this message off.");
-	      pform_sva_destroy_property($4); delete $6;
+	      pform_sva_destroy_property($4); delete $7;
 	}
 	$$ = 0;
       }
@@ -5409,8 +5472,8 @@ constraint_prototype /* IEEE1800-2005: A.1.9 */
            (IEEE 1800-2017 18.5.1/18.5.14.1; 2023 18.5.1/18.5.13.1). */
         pform_class_constraint_prototype(@2, $1, $3, $4, false); delete[] $4;
       }
-  | K_pure K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
-      { pform_class_pure_constraint(@1, $3, $4); delete[] $4; }
+  | K_pure K_static_opt K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
+      { pform_class_pure_constraint(@1, $2, $4, $5); delete[] $5; }
   /* An explicit external prototype requires a matching out-of-body
      definition (IEEE 1800-2017 18.5.1). */
   | K_extern K_constraint constraint_override_specifiers_opt IDENTIFIER ';'
@@ -6581,6 +6644,7 @@ deferred_immediate_assertion_item /* IEEE1800-2012: A.6.10 */
 	   behavior in the current Module/PGenerate scope so generate items
 	   are elaborated once per generated instance. */
 	if (item) {
+	      pform_checker_note_static_deferred(@2);
 	      PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, item, 0);
 	      FILE_NAME(tmp, @2);
 	}
@@ -9330,8 +9394,12 @@ tf_port_direction_opt
 
 procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
   : block_identifier_opt concurrent_assertion_statement
-      { pform_sva_clear_assertion_label();
-	Statement*item = $2;
+      { /* IEEE 1800-2023 16.14.6: the statement queues a pending
+	   instance where the procedure reaches it. */
+	Statement*item = pform_sva_release_assertion(true);
+	pform_sva_clear_assertion_label();
+	delete $2;
+	bool queues = item != 0;
 	if (!item) {
 	      PBlock*empty = new PBlock(PBlock::BL_SEQ);
 	      empty->concurrent_assertion_only();
@@ -9340,6 +9408,9 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 	}
 	if ($1) {
 	      PBlock*scope = pform_push_block_scope(@1, $1, PBlock::BL_SEQ);
+	      /* 16.14.6.4: `disable label' clears the pending instances
+		 queued inside this scope, as for a deferred assertion. */
+	      if (queues) scope->deferred_assertion_label_scope();
 	      pform_pop_scope();
 	      std::vector<Statement*> body(1, item);
 	      scope->set_statement(body);
@@ -10005,10 +10076,10 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | sva_grouped_seq_comb K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail
       { $$ = pform_sva_multiclock_comb_antecedent(
 		@2, 1, $1, $3, $4, $5); }
-  /* IEEE 1800-2017 16.12.9: negation — the property holds iff the
+  /* IEEE 1800-2017/2023 16.12.3: negation — the property holds iff the
      sequence has NO match starting at any attempt point. */
-  | K_not '(' property_expr ')'
-      { $$ = pform_sva_prop_not(@1, $3); }
+  | K_not property_expr
+      { $$ = pform_sva_prop_not(@1, $2); }
   /* IEEE 1800-2017 16.12.2: sequence property strength. `strong(seq)'
      requires every attempt to complete — an attempt still pending at end
      of simulation is a failure. `weak(seq)' is the explicit form of the
@@ -10623,6 +10694,13 @@ sva_seq_atom
      the plain star form did not, so `a[*1:$]' was a syntax error. */
   | sva_seq_atom K_LBSTAR expression ':' '$' ']'
       { $$ = pform_sva_repeat(@2, $1, $3, nullptr, true); }
+  /* 16.9.2: [*] and [+] abbreviate [*0:$] and [*1:$]. */
+  | sva_seq_atom K_LBSTAR ']'
+      { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(0)), nullptr, true); }
+  | sva_seq_atom K_LBSPACESTAR '*' ']'
+      { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(0)), nullptr, true); }
+  | sva_seq_atom K_LBPLUS '+' ']'
+      { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(1)), nullptr, true); }
   /* M9-NFA stage C.1: goto `b[->n]'/`b[->m:n]' and nonconsecutive
      `b[=n]'/`b[=m:n]' repetition of a boolean (16.9.2). kind 1 = goto,
      2 = nonconsecutive; the trailing bool marks an unbounded `:$' upper.
@@ -10704,7 +10782,7 @@ sva_seq_expr
 	$1->insert($1->end(), $5->begin(), $5->end());
 	delete $5;
 	$$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY '[' '+' ']' sva_seq_atom
+  | sva_seq_expr K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_atom
       { sva_seq_step_t&f0 = (*$6)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -10757,7 +10835,7 @@ sva_seq_expr
 	$1->insert($1->end(), $5->begin(), $5->end());
 	delete $5;
 	$$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY '[' '+' ']' sva_seq_lead_delay
+  | sva_seq_expr K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_lead_delay
       { sva_seq_step_t&f0 = (*$6)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -10833,7 +10911,7 @@ sva_seq_lead_delay
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	$$ = $4; }
-  | K_CYCLE_DELAY '[' '+' ']' sva_seq_atom
+  | K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_atom
       { sva_seq_step_t&f0 = (*$5)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -10841,7 +10919,7 @@ sva_seq_lead_delay
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	$$ = $5; }
-  | K_CYCLE_DELAY '[' '+' ']' sva_seq_lead_delay
+  | K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_lead_delay
       { sva_seq_step_t&f0 = (*$5)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -11554,7 +11632,7 @@ variable_dimension /* IEEE1800-2005: A.2.5 */
 	tmp->push_back(index);
 	$$ = tmp;
       }
-  | '[' '*' ']'
+  | K_LBSPACESTAR '*' ']'
       { // Whitespace prevents the lexer from folding `[*' into K_LBSTAR.
 	// Preserve the identical IEEE 1800-2017 7.8.1 wildcard-index type
 	// for all four legal whitespace spellings: [*], [* ], [ *], [ * ].
@@ -16236,6 +16314,7 @@ gate_instance
 	tmp->name = $1;
 	tmp->parms = 0;
 	tmp->parms_by_name = 0;
+	tmp->no_port_list = true;
 	FILE_NAME(tmp, @1);
 	delete[]$1;
 	$$ = tmp;
@@ -16266,6 +16345,7 @@ gate_instance
 	tmp->name = $1;
 	tmp->parms = 0;
 	tmp->parms_by_name = 0;
+	tmp->no_port_list = true;
 	tmp->ranges = $2;
 	FILE_NAME(tmp, @1);
 	delete[]$1;
@@ -16395,6 +16475,7 @@ gate_instance
 	tmp->name = $1.text;
 	tmp->parms = 0;
 	tmp->parms_by_name = 0;
+	tmp->no_port_list = true;
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
@@ -16763,6 +16844,24 @@ list_of_port_declarations
       { std::vector<Module::port_t*>*tmp = new std::vector<Module::port_t*>(1);
 	(*tmp)[0] = $1;
 	$$ = tmp;
+      }
+  | port_direction_opt '.' IDENTIFIER '(' expression_opt ')'
+      { std::vector<Module::port_t*>*tmp = new std::vector<Module::port_t*>;
+        NetNet::PortType direction = $1 == NetNet::PIMPLICIT
+              ? port_declaration_context.port_type : $1;
+        Module::port_t* port = module_declare_explicit_port(
+              @3, $3, $5, direction);
+        if (port) tmp->push_back(port);
+        $$ = tmp;
+        // As for an explicitly named port following a comma, its direction
+        // is inherited by subsequent ports, but its expression does not
+        // establish port-kind or data-type defaults.
+        port_declaration_context.port_type = direction;
+        port_declaration_context.port_net_type = NetNet::IMPLICIT;
+        port_declaration_context.data_type = nullptr;
+        port_declaration_context.user_nettype = nullptr;
+        port_declaration_context.interconnect = false;
+        port_declaration_context.event_type = false;
       }
   | list_of_port_declarations ',' port_declaration
       { std::vector<Module::port_t*>*tmp = $1;
@@ -17467,6 +17566,13 @@ module_item
   : module
   | checker_declaration
 
+  /* IEEE 1800-2023 17.7 / Syntax 17-1: a checker variable may be a free
+     variable, `rand [const] data_declaration'. */
+  | attribute_list_opt K_rand K_const_opt data_type list_of_variable_decl_assignments ';'
+      { pform_checker_free_vars(@2, $5, $4, $3);
+	delete $1;
+      }
+
   | nettype_declaration
 
   /* SystemVerilog permits package imports as module items. */
@@ -17949,7 +18055,11 @@ module_item
   /* Always and initial items are behavioral processes. */
 
   | attribute_list_opt K_always statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $3, $1);
+      { /* IEEE 1800-2023 16.14.5: `always assert property' is static. */
+	Statement*init = pform_sva_static_always_assertion($3);
+	if (init) delete $3;
+	PProcess*tmp = pform_make_behavior(init ? IVL_PR_INITIAL : IVL_PR_ALWAYS,
+					   init ? init : $3, $1);
 	FILE_NAME(tmp, @2);
       }
   /* Attributes between always and the body (IEEE 1800-2017 A.6.4:
@@ -19256,7 +19366,7 @@ specify_item
 	pform_module_specify_path(tmp);
       }
   | K_ifnone specify_edge_path_decl ';'
-      { yywarn(@1, "sorry: ifnone with an edge-sensitive path is not supported.");
+      { yyerror(@1, "ifnone may only be used with a simple module path (IEEE 1800 30.4.4.4).");
 	yyerrok;
       }
   | K_Sfullskew '(' spec_reference_event ',' spec_reference_event
@@ -19497,9 +19607,9 @@ specify_edge_path
   ;
 
 polarity_operator
-  : K_PO_POS
-  | K_PO_NEG
-  | ':'
+  : K_PO_POS { $$ = '+'; }
+  | K_PO_NEG { $$ = '-'; }
+  | ':'      { $$ = ':'; }
   ;
 
 specify_simple_path_decl
@@ -19550,21 +19660,16 @@ specify_path_terminal
 	delete[]$1;
       }
   | IDENTIFIER '[' expr_primary ']'
-      { if (gn_specify_blocks_flag) {
-	      yywarn(@4, "warning: Bit selects are not currently supported "
-			 "in path declarations. The declaration "
-			 "will be applied to the whole vector.");
-	}
-	$$ = new pform_specify_terminal_t(lex_strings.make($1));
+      { $$ = new pform_specify_terminal_t(lex_strings.make($1));
+	$$->sel = 'b';
+	$$->msb = $3;
 	delete[]$1;
       }
   | IDENTIFIER '[' expr_primary polarity_operator expr_primary ']'
-      { if (gn_specify_blocks_flag) {
-	      yywarn(@4, "warning: Part selects are not currently supported "
-			 "in path declarations. The declaration "
-			 "will be applied to the whole vector.");
-	}
-	$$ = new pform_specify_terminal_t(lex_strings.make($1));
+      { $$ = new pform_specify_terminal_t(lex_strings.make($1));
+	$$->sel = $4;
+	$$->msb = $3;
+	$$->lsb = $5;
 	delete[]$1;
       }
   | IDENTIFIER '.' IDENTIFIER
@@ -19574,24 +19679,19 @@ specify_path_terminal
 	delete[]$3;
       }
   | IDENTIFIER '.' IDENTIFIER '[' expr_primary ']'
-      { if (gn_specify_blocks_flag) {
-	      yywarn(@4, "warning: Bit selects are not currently supported "
-			 "in path declarations. The declaration "
-			 "will be applied to the whole vector.");
-	}
-	$$ = new pform_specify_terminal_t(lex_strings.make($1),
+      { $$ = new pform_specify_terminal_t(lex_strings.make($1),
 					       lex_strings.make($3));
+	$$->sel = 'b';
+	$$->msb = $5;
 	delete[]$1;
 	delete[]$3;
       }
   | IDENTIFIER '.' IDENTIFIER '[' expr_primary polarity_operator expr_primary ']'
-      { if (gn_specify_blocks_flag) {
-	      yywarn(@4, "warning: Part selects are not currently supported "
-			 "in path declarations. The declaration "
-			 "will be applied to the whole vector.");
-	}
-	$$ = new pform_specify_terminal_t(lex_strings.make($1),
+      { $$ = new pform_specify_terminal_t(lex_strings.make($1),
 					       lex_strings.make($3));
+	$$->sel = $6;
+	$$->msb = $5;
+	$$->lsb = $7;
 	delete[]$1;
 	delete[]$3;
       }
@@ -19603,13 +19703,12 @@ specparam
 	delete[]$1;
       }
   | PATHPULSE_IDENTIFIER '=' expression
-      { delete[]$1;
-	delete $3;
+      { pform_set_pathpulse(@1, $1, $3, 0);
+	delete[]$1;
       }
   | PATHPULSE_IDENTIFIER '=' '(' expression ',' expression ')'
-      { delete[]$1;
-	delete $4;
-	delete $6;
+      { pform_set_pathpulse(@1, $1, $4, $6);
+	delete[]$1;
       }
   ;
 
@@ -20224,6 +20323,7 @@ subroutine_call
       }
   | SYSTEM_IDENTIFIER argument_list_parens_opt
 	{ if (strcmp($1, "$dumpports") == 0) gn_dumpports_flag = true;
+	if (strcmp($1, "$sdf_annotate") == 0) gn_sdf_annotate_flag = true;
 	PCallTask*tmp = new PCallTask(lex_strings.make($1), *$2);
 	FILE_NAME(tmp,@1);
 	delete[]$1;
@@ -20394,6 +20494,26 @@ statement_item /* This is roughly statement_item in the LRM */
       { PCAssign*tmp = new PCAssign($2, $4);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
+      }
+  /* IEEE 1800-2023 17.3: a checker instantiated in procedural code is a
+     procedural checker instance. */
+  | IDENTIFIER IDENTIFIER '(' port_conn_expression_list_with_nuls ')' ';'
+      { lgate*gate = new lgate;
+	gate->name = $2;
+	gate->parms = $4;
+	FILE_NAME(gate, @2);
+	$$ = pform_procedural_checker_instance(@1, lex_strings.make($1), gate);
+	delete[]$1;
+	delete[]$2;
+      }
+  | IDENTIFIER IDENTIFIER '(' port_name_list ')' ';'
+      { lgate*gate = new lgate;
+	gate->name = $2;
+	gate->parms_by_name = $4;
+	FILE_NAME(gate, @2);
+	$$ = pform_procedural_checker_instance(@1, lex_strings.make($1), gate);
+	delete[]$1;
+	delete[]$2;
       }
   /* IEEE 1800-2017 9.3.1 permits a statement label before a sequential
      block (`name: begin ... end`). Treat it as the equivalent named block
@@ -22495,7 +22615,11 @@ udp_sequ_entry
 
 udp_initial
   : K_initial IDENTIFIER '=' number ';'
-      { PExpr*etmp = new PENumber($4);
+      { if ($4->has_len() && $4->len() != 1) {
+	    cerr << @4 << ": error: UDP initial value must be a single-bit literal." << endl;
+	    error_count += 1;
+	}
+	PExpr*etmp = new PENumber($4);
 	PEIdent*itmp = new PEIdent(lex_strings.make($2), @2.lexical_pos);
 	PAssign*atmp = new PAssign(itmp, etmp);
 	FILE_NAME(atmp, @2);

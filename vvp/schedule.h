@@ -205,6 +205,7 @@ extern void schedule_at_end_of_simtime(vvp_gen_event_t obj, vvp_time64_t delay);
  * IEEE 1800-2017 4.4.2 foundation for the SVA and clocking engines. */
 extern void schedule_at_preponed(vvp_gen_event_t obj, vvp_time64_t delay);
 extern void schedule_at_observed(vvp_gen_event_t obj, vvp_time64_t delay);
+extern void schedule_at_observed_front(vvp_gen_event_t obj);
 
 /* Pre-NBA callback point (cbNBASynch, IEEE 1800-2017/2023 38.36.2):
  * immediately before the slot's nonblocking assignments are processed. */

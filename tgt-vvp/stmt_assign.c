@@ -1303,6 +1303,19 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	      || ivl_type_base(sub_type) == IVL_VT_DARRAY))
 	    return sub_type;
 
+	/* A nested word may select a fixed-array element from a queue or
+	 * dynamic-array receiver. Keep the selected array object on the stack
+	 * for the outer word store instead of treating its scalar leaf type as
+	 * an invalid class-property receiver. */
+      if (prop_idx < 0 && ivl_lval_idx(lval)
+	  && lval_nest && ivl_lval_sig(lval_nest)
+	  && (ivl_type_base(ivl_signal_net_type(
+		ivl_lval_sig(lval_nest))) == IVL_VT_QUEUE
+	      || ivl_type_base(ivl_signal_net_type(
+		ivl_lval_sig(lval_nest))) == IVL_VT_DARRAY)
+	  && type_is_fixed_uarray_property_(sub_type))
+	return sub_type;
+
       /* Keep a module associative array's fixed child alive for the
 	 fixed-slot store in its enclosing l-value. */
       if (prop_idx < 0 && ivl_lval_idx(lval) && sub_type
@@ -3290,7 +3303,7 @@ static void show_stmt_assign_sig_darray_queue_mux(ivl_statement_t net)
       }
 }
 
-/* A packed concatenation may select several dynamic-array elements. */
+/* A packed concatenation may select several dynamic-array or queue elements. */
 static int show_stmt_assign_concat_darray_(ivl_statement_t net)
 {
       unsigned lvals = ivl_stmt_lvals(net);
@@ -3299,7 +3312,8 @@ static int show_stmt_assign_concat_darray_(ivl_statement_t net)
             return -1;
       for (unsigned i = 0; i < lvals; i += 1) {
             ivl_signal_t sig = ivl_lval_sig(ivl_stmt_lval(net, i));
-            if (sig && ivl_signal_data_type(sig) == IVL_VT_DARRAY)
+            if (sig && (ivl_signal_data_type(sig) == IVL_VT_DARRAY
+                        || ivl_signal_data_type(sig) == IVL_VT_QUEUE))
                   has_darray = 1;
       }
       if (!has_darray)
@@ -3313,13 +3327,16 @@ static int show_stmt_assign_concat_darray_(ivl_statement_t net)
             ivl_type_t element = container ? ivl_type_element(container) : 0;
             ivl_variable_type_t kind = element ? ivl_type_base(element) : IVL_VT_NO_TYPE;
             if (ivl_stmt_opcode(net) != 0 || !sig
-                || ivl_signal_data_type(sig) != IVL_VT_DARRAY
+                || (ivl_signal_data_type(sig) != IVL_VT_DARRAY
+                    && ivl_signal_data_type(sig) != IVL_VT_QUEUE)
+                || (ivl_signal_data_type(sig) == IVL_VT_QUEUE
+                    && ivl_type_queue_assoc_compat(container))
                 || ivl_signal_dimensions(sig) != 0
                 || !ivl_lval_idx(lval) || ivl_lval_part_off(lval)
                 || ivl_lval_nest(lval) || ivl_lval_property_idx(lval) >= 0
                 || (kind != IVL_VT_BOOL && kind != IVL_VT_LOGIC)
                 || ivl_lval_width(lval) != ivl_type_packed_width(element)) {
-                  fprintf(stderr, "%s:%u: sorry: this dynamic-array "
+                  fprintf(stderr, "%s:%u: sorry: this dynamic-array or queue "
                           "concatenation destination is not yet supported.\n",
                           ivl_stmt_file(net), ivl_stmt_lineno(net));
                   return 1;
@@ -3333,8 +3350,20 @@ static int show_stmt_assign_concat_darray_(ivl_statement_t net)
             ivl_signal_t sig = ivl_lval_sig(lval);
             if (i + 1 < lvals)
                   fprintf(vvp_out, "    %%split/vec4 %u;\n", ivl_lval_width(lval));
+            ivl_type_t element = ivl_type_element(ivl_signal_net_type(sig));
+            if (ivl_type_base(element) == IVL_VT_BOOL)
+                  fprintf(vvp_out, "    %%cast2; two-state element\n");
             draw_eval_expr_into_integer(ivl_lval_idx(lval), 3);
-            fprintf(vvp_out, "    %%store/dar/vec4 v%p_0;\n", sig);
+            if (ivl_signal_data_type(sig) == IVL_VT_QUEUE) {
+                  int max = allocate_word();
+                  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", max,
+                          ivl_signal_array_count(sig));
+                  fprintf(vvp_out, "    %%store/qdar/v v%p_0, %d, %u;\n",
+                          sig, max, ivl_type_packed_width(element));
+                  clr_word(max);
+            } else {
+                  fprintf(vvp_out, "    %%store/dar/vec4 v%p_0;\n", sig);
+            }
       }
       return 0;
 }
@@ -4074,17 +4103,29 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 	    int mux_word = allocate_word();
 	    int off_word = allocate_word();
 	    int flag = allocate_flag();
+	    int off_flag = allocate_flag();
+	    unsigned done = local_count++;
 
 	    draw_eval_expr_into_integer(mux, 3);
 	    fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
 	    fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
 	    draw_eval_expr_into_integer(part, off_word);
+	    fprintf(vvp_out, "    %%flag_mov %d, 4;\n", off_flag);
 	    draw_eval_vec4(rval);
 	    resize_vec4_wid(rval, lwid);
+	    if (ivl_type_base(element_type) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
+		    thread_count, done, off_flag);
+	    fprintf(vvp_out, "    %%ix/load %d, 0, 2147483648; invalid part select\n",
+		    off_word);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
 	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
 	    fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
-	    fprintf(vvp_out, "    %%store/dar/vec4/off v%p_0, %d, %u;\n",
+	    fprintf(vvp_out, "    %%store/dar/vec4/off%s v%p_0, %d, %u;\n",
+		    ivl_type_base(element_type) == IVL_VT_BOOL ? "/2" : "",
 		    var, off_word, lwid);
+	    clr_flag(off_flag);
 	    clr_flag(flag);
 	    clr_word(off_word);
 	    clr_word(mux_word);
@@ -6588,6 +6629,14 @@ static int rval_is_whole_container_(ivl_expr_t rv)
 	    return 0;
 
       if (vvp_expr_is_fixed_uarray_value(rv))
+	    return 1;
+
+      /* An associative-array element whose value is a fixed unpacked array
+       * is represented by IVL_EX_SELECT rather than IVL_EX_ARRAY. Preserve
+       * its array value here so the whole-array assignment uses the container
+       * copy path instead of treating the packed leaf width as the l-value
+       * width. */
+      if (fixed_uarray_expr_type_(rv))
 	    return 1;
 
       if (ivl_expr_type(rv) == IVL_EX_SIGNAL && !ivl_expr_oper1(rv)) {

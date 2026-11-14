@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2846_aligned.v",
+  "iverilog-args": ["-g2017", "-s", "issue2846_aligned"],
+  "gold": "issue2846_aligned"
+}

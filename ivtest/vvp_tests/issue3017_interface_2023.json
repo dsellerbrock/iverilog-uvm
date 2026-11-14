@@ -1,0 +1,8 @@
+{
+  "type": "CE",
+  "source": "issue3017_interface.v",
+  "iverilog-args": [
+    "-g2023"
+  ],
+  "gold": "issue3017_interface"
+}

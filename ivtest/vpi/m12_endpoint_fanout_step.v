@@ -1,7 +1,7 @@
-// A nonoverlapped endpoint is itself a successful sequence step even though
-// its consequence record is allocated after consequence advancement. At t=25
-// that endpoint step coexists with failure of the older consequence; both
-// callback reasons must survive the once-per-checker/tick aggregates.
+// Step callbacks registered but never enabled deliver nothing (39.4.2: "By
+// default, step callbacks are not enabled on any assertions"; 39.5.2: "By
+// default, stepping is disabled for all assertions."). This endpoint fan-out
+// form also refuses vpiAssertionEnableStep for now; see sva_step_attempt.
 module m12_endpoint_fanout_step;
   logic clk = 0;
   logic start = 1, endpoint = 0, q = 0;

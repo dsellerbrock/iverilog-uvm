@@ -1,0 +1,1 @@
+ivltests/sva_checker_free.sv:37: sorry: assume-based randomization of free checker variables (IEEE 1800-2023 17.7.2) is not supported. These active free variables take an unconstrained random value at every time step, so this checker's assumptions may fail: `f'

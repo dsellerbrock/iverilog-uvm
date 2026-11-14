@@ -1,0 +1,14 @@
+a1 pass/edge 4 0 fail/edge 0 4
+a2 pass 1 1 0 1 fail 1 1 2 1
+a3 pass 2 2 0 0 fail 0 0 2 2
+a4 pass 2 2 0 0 fail 0 0 2 2
+a5 pass 2 2 0 0 fail 0 0 2 2
+a6 pass 2 2 0 0 fail 0 0 2 2
+a10 pass 2 2 0 2 fail 0 0 2 0
+a7 pass 1 0 fail 0 1
+a8 fail 1 1 2 1
+a9 pass 2 fail 0
+issue1192 pass 0 1 fail 1 0
+a11 order 0 0 2 (3)
+a12 15:0 15:1
+ivltests/sva_proc_capture.sv:150: $finish called at 40 (1s)

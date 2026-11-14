@@ -1,0 +1,2 @@
+ivltests/issue2966_unique_real_array.sv:4: error: unique constraint members must be integral in IEEE 1800-2017 (18.5.5).
+1 error(s) during elaboration.

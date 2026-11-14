@@ -1,0 +1,2 @@
+PASS
+ivltests/issue3010_program_assertion.sv:12: $finish called at 26 (1s)

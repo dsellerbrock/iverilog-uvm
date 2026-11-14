@@ -1,0 +1,4 @@
+issue3010_program_assertion_2017 normal,-g2017,-gassertions,-s,issue3010_program_assertion ivltests gold=issue3010_program_assertion.gold
+issue3010_program_assertion_2023 normal,-g2023,-gassertions,-s,issue3010_program_assertion ivltests gold=issue3010_program_assertion.gold
+issue3010_program_explicit_always_2017 CE,-g2017,-gassertions,-s,issue3010_program_explicit_always ivltests
+issue3010_program_explicit_always_2023 CE,-g2023,-gassertions,-s,issue3010_program_explicit_always ivltests

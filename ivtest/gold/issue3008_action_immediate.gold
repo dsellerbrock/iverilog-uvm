@@ -1,0 +1,2 @@
+PASS
+./ivltests/issue3008_action_immediate.sv:14: $finish called at 2 (1s)

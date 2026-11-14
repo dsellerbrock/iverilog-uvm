@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3136_clocking_select.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3136_clocking_select"],
+  "gold": "issue3136_clocking_select"
+}

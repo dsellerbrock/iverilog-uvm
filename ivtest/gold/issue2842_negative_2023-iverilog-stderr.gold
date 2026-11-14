@@ -1,0 +1,2 @@
+ivltests/issue2842_negative.v:5: error: expression-valued ## cycle delay must evaluate to a non-negative integer (IEEE 1800-2023 14.11).
+1 error(s) during elaboration.

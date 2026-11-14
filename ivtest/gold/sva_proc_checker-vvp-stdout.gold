@@ -1,0 +1,8 @@
+outside p0 4 2 p1 4 2 p2 3 3
+inside p0 4 2 p1 3 1 p2 3 1
+named p0 4 2 p1 4 2 p2 3 3
+loop p0 4 2
+loop v1=5 p1 4 2 p2 5 1
+loop v1=10 p1 4 2 p2 4 2
+loop v1=20 p1 4 2 p2 5 1
+ivltests/sva_proc_checker.sv:68: $finish called at 66 (1s)

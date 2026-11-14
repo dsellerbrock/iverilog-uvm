@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2828_sdf_whitespace_2017.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "issue2828_sdf_whitespace"],
+  "gold": "issue2828_sdf_whitespace_2017"
+}

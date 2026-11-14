@@ -1,0 +1,5 @@
+ivltests/issue2952_constraint_side_effect_2023.v:4: error: Operator '++' with side effects is not allowed in a constraint expression (IEEE 1800-2017/2023 18.5).
+ivltests/issue2952_constraint_side_effect_2023.v:5: error: Operator '--' with side effects is not allowed in a constraint expression (IEEE 1800-2017/2023 18.5).
+ivltests/issue2952_constraint_side_effect_2023.v:6: error: Operator '+=' with side effects is not allowed in a constraint expression (IEEE 1800-2017/2023 18.5).
+ivltests/issue2952_constraint_side_effect_2023.v:7: error: Operator '=' with side effects is not allowed in a constraint expression (IEEE 1800-2017/2023 18.5).
+4 error(s) during elaboration.

@@ -83,6 +83,12 @@ class PRecRem : public PTimingCheck {
 
       void dump(std::ostream&out, unsigned ind) const override;
 
+	// For the negative timing-check pass (IEEE 1800 31.9).
+      const event_t& reference_event() const { return *reference_event_; }
+      const event_t& data_event() const { return *data_event_; }
+      const pform_name_t* delayed_reference() const { return delayed_reference_.get(); }
+      const pform_name_t* delayed_data() const { return delayed_data_.get(); }
+
     private:
       std::unique_ptr<event_t> reference_event_;
       std::unique_ptr<event_t> data_event_;
@@ -121,6 +127,12 @@ class PSetupHold : public PTimingCheck {
 
       void dump(std::ostream&out, unsigned ind) const override;
 
+	// For the negative timing-check pass (IEEE 1800 31.9).
+      const event_t& reference_event() const { return *reference_event_; }
+      const event_t& data_event() const { return *data_event_; }
+      const pform_name_t* delayed_reference() const { return delayed_reference_.get(); }
+      const pform_name_t* delayed_data() const { return delayed_data_.get(); }
+
     private:
       std::unique_ptr<event_t> reference_event_;
       std::unique_ptr<event_t> data_event_;
@@ -144,7 +156,7 @@ class PWidth : public PTimingCheck {
     public:
       PWidth(const char*file, int line, unsigned lexical_pos,
              event_t* event, PExpr* limit, PExpr* threshold,
-             pform_name_t* notifier);
+             pform_name_t* notifier, perm_string record);
       ~PWidth() override;
       void elaborate(class Design*des, class NetScope*scope) const override;
       void dump(std::ostream&out, unsigned ind) const override;
@@ -156,6 +168,9 @@ class PWidth : public PTimingCheck {
       std::unique_ptr<pform_name_t> notifier_;
       std::string file_;
       unsigned lexical_pos_;
+	// The directive's PTchk record variable (see tc_record_), for
+	// the violation's cbTchkViolation report; empty when none.
+      perm_string record_;
 };
 
 /* The PTchk is the identity of one timing-check directive. The checker
@@ -179,6 +194,12 @@ class PTchk : public PTimingCheck {
 
       void elaborate(class Design*des, class NetScope*scope) const override;
       void dump(std::ostream&out, unsigned ind) const override;
+
+      int type() const { return type_; }
+      const event_t& ref() const { return *ref_; }
+      const event_t* data() const { return data_.get(); }
+      PExpr* limit(unsigned idx) const { return limits_[idx].get(); }
+      unsigned limit_count() const { return limits_.size(); }
 
     private:
       int type_;

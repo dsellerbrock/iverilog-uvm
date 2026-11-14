@@ -43,6 +43,10 @@
 # include  "ivl_alloc.h"
 # include  "array_common.h"
 
+#define IEEE_vpiFsmStateCoverage 761
+#define IEEE_vpiStatementCoverage 762
+#define IEEE_vpiToggleCoverage 763
+
 #ifndef vpiProcess
 # define vpiProcess 99
 #endif
@@ -143,6 +147,8 @@ static void delete_sub_scopes(__vpiScope *scope)
 		  break;
 		case VPI_IODECL_TYPE:
 		case vpiParamAssign:
+		case vpiContAssign:
+		case vpiDefParam:
 		  delete item;
 		  break;
 		case vpiClassVar:
@@ -300,6 +306,18 @@ static char* scope_get_str(int code, vpiHandle obj)
 	    break;
 
 	  case vpiDefName:
+	    p = ref->scope_def_name();
+	    break;
+
+	  case vpiLibrary:
+	    if (ref->get_type_code() != vpiModule) return NULL;
+	    // Library-based configuration binding is not supported; all
+	    // accepted module definitions belong to the default work library.
+	    p = "work";
+	    break;
+
+	  case vpiCell:
+	    if (ref->get_type_code() != vpiModule) return NULL;
 	    p = ref->scope_def_name();
 	    break;
 
@@ -623,8 +641,8 @@ static int compare_types(int code, int type, bool is_typedef = false)
       if (code == vpiTypedef)
 	    return is_typedef;
 
-      if ((code == VPI_IODECL_TYPE || code == vpiIODecl)
-	  && (type == VPI_IODECL_TYPE || type == vpiIODecl))
+      if ((code == VPI_IODECL_TYPE || code == VPI_IODECL_LEGACY)
+	  && (type == VPI_IODECL_TYPE || type == VPI_IODECL_LEGACY))
 	    return 1;
 
       if (code == type)
@@ -847,6 +865,56 @@ class __vpiParamAssign : public __vpiHandle {
       vpiHandle lhs_;
       vpiHandle rhs_;
 };
+
+/* A def param object (IEEE 1800-2023 37.28): the defparam statement of
+   this scope, with the parameter it assigns and its r-value. */
+class __vpiDefParam : public __vpiHandle {
+    public:
+      __vpiDefParam(__vpiScope*scope, unsigned file_idx, unsigned lineno,
+		    unsigned argc, vpiHandle*argv)
+      : scope_(scope), param_(0), file_idx_(file_idx), lineno_(lineno),
+	argc_(argc), argv_(argv) { }
+      int get_type_code(void) const override { return vpiDefParam; }
+      int vpi_get(int code) override
+      {
+	    return code == vpiLineNo ? (int)lineno_ : vpiUndefined;
+      }
+      char*vpi_get_str(int code) override
+      {
+	    if (code == vpiFile && file_idx_ < file_names.size())
+		  return simple_set_rbuf_str(file_names[file_idx_]);
+	    return 0;
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    switch (code) {
+		case vpiLhs: return param_;
+		case vpiRhs: return argc_ ? argv_[argc_-1] : 0;
+		case vpiParent:
+		case vpiScope:
+		case vpiModule: return scope_;
+		default: return 0;
+	    }
+      }
+
+      __vpiScope*scope_;
+	/* Resolved after construction, in place. */
+      vpiHandle param_;
+    private:
+      unsigned file_idx_, lineno_;
+      unsigned argc_;
+      vpiHandle*argv_;
+};
+
+void compile_vpi_defparam(char*param, long file_idx, long lineno,
+			  unsigned argc, vpiHandle*argv)
+{
+      __vpiDefParam*obj = new __vpiDefParam(vpip_peek_current_scope(),
+					    (unsigned)file_idx,
+					    (unsigned)lineno, argc, argv);
+      compile_vpi_lookup(&obj->param_, param);
+      vpip_attach_to_current_scope(obj);
+}
 
 vpiHandle vpip_make_param_assign(__vpiScope*scope, vpiHandle lhs,
 				 vpiHandle rhs)
@@ -1219,6 +1287,18 @@ class vpiScopeModule  : public __vpiScope {
       inline vpiScopeModule(const char*nam, const char*tnam)
       : __vpiScope(nam,tnam,false) { }
       int get_type_code(void) const override { return vpiModule; }
+      int vpi_get(int code) override
+      {
+            /* These coverage types are not instrumented. */
+            switch (code) {
+                case IEEE_vpiFsmStateCoverage:
+                case IEEE_vpiStatementCoverage:
+                case IEEE_vpiToggleCoverage:
+                  return 0;
+                default:
+                  return __vpiScope::vpi_get(code);
+            }
+      }
 };
 
 /* Program-block instance scope (IEEE 1800-2017 clause 24): threads
@@ -1439,7 +1519,7 @@ class __vpiModport : public __vpiHandle {
 
       vpiHandle vpi_iterate(int code) override
       {
-	    if (code != vpiIODecl || ports_.empty())
+	    if ((code != vpiIODecl && code != VPI_IODECL_LEGACY) || ports_.empty())
 		  return 0;
 	    vpiHandle*args = (vpiHandle*)malloc(ports_.size() * sizeof(vpiHandle));
 	    for (size_t idx = 0 ; idx < ports_.size() ; idx += 1)
@@ -1596,6 +1676,81 @@ class __vpiAssertionCallback : public __vpiCallback {
 
 struct assert_cb_t {
       __vpiAssertionCallback* callback;
+      vpiHandle report;            // handle the callback reports
+};
+
+/* IEEE 1800-2023 39.4.2: an expression matched (or failed) in a step,
+   with its source reference. The checkers keep only the boolean's source
+   text, so the handle answers vpiDecompile, vpiFile and vpiLineNo. */
+class __vpiAssertionStepExpr : public __vpiHandle {
+    public:
+      __vpiAssertionStepExpr(const std::string&file, int line,
+			     const std::string&text)
+      : file_(file), line_(line), text_(text) { }
+      int get_type_code(void) const override { return vpiOperation; }
+      int vpi_get(int code) override
+      {
+	    return code == vpiLineNo ? line_ : vpiUndefined;
+      }
+      char* vpi_get_str(int code) override
+      {
+	    const std::string*use = code == vpiFile ? &file_
+				  : code == 54 /* vpiDecompile */ ? &text_ : 0;
+	    if (!use) return 0;
+	    char*rbuf = (char*)need_result_buf(use->size()+1, RBUF_STR);
+	    strcpy(rbuf, use->c_str());
+	    return rbuf;
+      }
+    private:
+      std::string file_;
+      int line_;
+      std::string text_;
+};
+
+/* IEEE 1800-2023 39.4.2 per-assertion control callback reasons, with their
+   Annex M values; sv_vpi_user.h does not name them yet (#883). */
+enum {
+      cbAssertionEnablePassAction_ = 645, cbAssertionEnableFailAction_ = 646,
+      cbAssertionDisablePassAction_ = 647, cbAssertionDisableFailAction_ = 648,
+      cbAssertionEnableNonvacuousAction_ = 649,
+      cbAssertionDisableVacuousAction_ = 650,
+      cbAssertionLock_ = 661, cbAssertionUnlock_ = 662
+};
+
+class __vpiAssertion;
+
+/* IEEE 1800-2023 39.4.2 / 37.51, 37.54: the named property or sequence
+   instance that is the whole property of an assertion. It accepts the
+   cbAssertionStart, cbAssertionSuccess and cbAssertionFailure callbacks,
+   which then report this handle. */
+class __vpiAssertionInst : public __vpiHandle {
+    public:
+      __vpiAssertionInst(__vpiAssertion*owner, int type, const char*name,
+			 std::string full)
+      : owner_(owner), type_(type), name_(name ? name : ""),
+	full_(std::move(full)) { }
+
+      int get_type_code(void) const override { return type_; }
+      int vpi_get(int code) override
+      {
+	    return code == vpiType ? type_ : vpiUndefined;
+      }
+      char* vpi_get_str(int code) override
+      {
+	    const std::string*use = code == vpiName ? &name_
+		  : code == vpiFullName ? &full_ : 0;
+	    if (!use) return 0;
+	    char*rbuf = (char*)need_result_buf(use->size()+1, RBUF_STR);
+	    strcpy(rbuf, use->c_str());
+	    return rbuf;
+      }
+      __vpiAssertion*owner(void) const { return owner_; }
+
+    private:
+      __vpiAssertion*owner_;
+      int type_;
+      std::string name_;
+      std::string full_;
 };
 
 class __vpiAssertion : public __vpiHandle {
@@ -1615,19 +1770,35 @@ class __vpiAssertion : public __vpiHandle {
 	  // start is the failing tick itself.
 	fail_full_latency_((flags & 1) != 0),
 	assertion_type_(assertion_kind == 4 ? vpiAssume
-			: assertion_kind == 2 ? vpiCover : vpiAssert) { }
+			: assertion_kind == 2 ? vpiCover : vpiAssert),
+	ctl_dir_(assertion_kind == 4 || assertion_kind == 2 ? assertion_kind : 1)
+      {
+	      // 39.4.2: bit1 = the checker reports steps per attempt; bits 8+
+	      // carry the largest clock age a step report names.
+	    steps_ok_ = (flags & 2) != 0;
+	    step_depth_ = steps_ok_ ? (flags >> 8) : -1;
+      }
 
       __vpiAssertion(unsigned long source_id, __vpiScope*scope,
-		     int deferred_type, const char*file, int line)
+		     int deferred_type, const char*file, int line,
+		     bool is_final)
 	: idx_(-1), name_(""), file_(file ? file : ""), line_(line),
 	  scope_(scope), latency_(-1), fail_full_latency_(false),
-	  deferred_source_id_(source_id), deferred_type_(deferred_type) { }
+	  deferred_source_id_(source_id), deferred_type_(deferred_type),
+	  ctl_type_(is_final ? 8 : 4), ctl_dir_(immediate_dir_(deferred_type)) { }
 
       __vpiAssertion(const char*name, const char*file, int line,
 		     __vpiScope*scope, int immediate_type)
 	: idx_(-1), name_(name ? name : ""), file_(file ? file : ""),
 	  line_(line), scope_(scope), latency_(-1),
-	  fail_full_latency_(false), immediate_type_(immediate_type) { }
+	  fail_full_latency_(false), immediate_type_(immediate_type),
+	  ctl_type_(2), ctl_dir_(immediate_dir_(immediate_type)) { }
+
+      static int immediate_dir_(int type)
+	{
+	    return type == vpiImmediateCover ? 2
+		 : type == vpiImmediateAssume ? 4 : 1;
+	}
 
       int get_type_code(void) const override { return vpiAssertion; }
 
@@ -1656,8 +1827,10 @@ class __vpiAssertion : public __vpiHandle {
 			char*scope_name = scope_ ? scope_->vpi_get_str(vpiFullName) : 0;
 			full = scope_name ? scope_name : "";
 		  } else {
-			full = (scope_ ? std::string(scope_->scope_name()) + "." : "")
-			      + name_;
+			  /* The scope's full name, not its leaf name: an
+			     assertion in u of top is top.u.x, not u.x. */
+			full = (scope_ ? std::string(scope_->vpi_get_str(vpiFullName))
+					 + "." : "") + name_;
 		  }
 		  use = &full;
 	    } else if (code == vpiFile) {
@@ -1677,6 +1850,25 @@ class __vpiAssertion : public __vpiHandle {
 	    return 0;
       }
 
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (!inst_ || code != inst_->get_type_code()) return 0;
+	    vpiHandle*args = (vpiHandle*)malloc(sizeof(vpiHandle));
+	    args[0] = inst_;
+	    return vpip_make_iterator(1, args, true);
+      }
+
+	/* 39.4.2: the top-level property (1) or sequence (2) instance. */
+      void set_instance(int kind, const char*name)
+	{
+	    if (kind != 1 && kind != 2) return;
+	    std::string full = (scope_ ? std::string(scope_->vpi_get_str(vpiFullName))
+				+ "." : std::string()) + name_ + "." + name;
+	    inst_ = new __vpiAssertionInst(this, kind == 1 ? vpiPropertyInst
+					   : vpiSequenceInst, name, full);
+	}
+      __vpiAssertionInst*instance(void) const { return inst_; }
+
       bool reset_deferred(void)
 	{
 	    if (!deferred_source_id_) return false;
@@ -1688,16 +1880,206 @@ class __vpiAssertion : public __vpiHandle {
 	    return true;
 	}
 
-      PLI_INT32 deferred_enabled(void) const
+      bool is_deferred(void) const { return deferred_source_id_ != 0; }
+      bool is_concurrent(void) const { return idx_ >= 0; }
+
+	/* 39.5.1: a vpi_control action operation has "no effect on any
+	   existing attempts". The concurrent lowerings do not yet track
+	   when an attempt started, so the change also reaches attempts in
+	   progress; say so once per assertion. */
+      void note_vpi_action_control(int operation)
 	{
-	    return deferred_source_id_ ? deferred_enabled_ : -1;
+	    if (vpi_action_noted_) return;
+	    vpi_action_noted_ = true;
+	    vpi_printf("SVA note: vpi_control(%d) also changes the action "
+		       "control of attempts of %s that are already in "
+		       "progress; IEEE 1800-2023 39.5.1 exempts them, but this "
+		       "assertion's lowering does not track when an attempt "
+		       "started.\n", operation,
+		       std::string(scope_ ? scope_->vpi_get_str(vpiFullName)
+				   : "").append(".").append(name_).c_str());
 	}
 
-      void set_deferred_enabled(bool enabled)
+	/* IEEE 1800-2023 16.14.6: a procedural concurrent assertion starts
+	   an attempt only for an instance its procedure queued and the
+	   Observed region matured. */
+      void set_proc_id(int pid, bool each)
+	{ proc_id_ = pid; proc_each_ = each; }
+	/* 16.14.6.1: each instance keeps the values it saved when queued. */
+      void proc_matured(const std::vector<vvp_vector4_t>&saved)
+	{ proc_matured_ += 1; proc_saved_.push_back(saved); }
+	/* Saved value j of the idx-th instance taken at the last clock. */
+      const vvp_vector4_t* taken_value(PLI_INT32 idx, PLI_INT32 j) const
 	{
-	    if (!deferred_source_id_ || deferred_enabled_ == enabled) return;
-	    deferred_enabled_ = enabled;
-	    fire(enabled ? cbAssertionEnable : cbAssertionDisable);
+	    if (idx < 0 || (size_t)idx >= proc_taken_.size()) return 0;
+	    const std::vector<vvp_vector4_t>&v = proc_taken_[idx];
+	    if (j < 0 || (size_t)j >= v.size()) return 0;
+	    return &v[j];
+	}
+	/* The checker takes every matured instance at its leading clock.
+	   Under $assertoff they start no attempt and are discarded (default
+	   pending a ruling: 20.11 Off "No new attempts will be started"). */
+      PLI_INT32 take_matured(void)
+	{
+	    PLI_INT32 n = proc_matured_;
+	    proc_matured_ = 0;
+	    proc_taken_.swap(proc_saved_);
+	    proc_saved_.clear();
+	    if (!enabled_) { proc_taken_.clear(); return 0; }
+	    if (n > 1 && !proc_each_ && !proc_multi_noted_) {
+		  proc_multi_noted_ = true;
+		  vpi_printf("SVA note: %d pending instances of procedural "
+			     "assertion %s matured for one clock; this "
+			     "assertion's lowering starts one attempt for "
+			     "them.\n", (int)n,
+			     std::string(scope_ ? scope_->vpi_get_str(vpiFullName)
+					 : "").append(".").append(name_).c_str());
+	    }
+	    return n;
+	}
+
+	/* IEEE 1800-2023 20.11: a rule selects this assertion by its
+	   assertion_type (Table 20-6) and directive_type (Table 20-7)
+	   bits, then by the hierarchical selector. A selector names either
+	   the assertion itself or a scope; scope levels count module
+	   instances, as for $dumpvars (21.7.1.2). */
+      bool control_selected(int atype, int dtype, const char*selector,
+			    int levels) const
+	{
+	      /* Table 20-7 directive selection applies only to assertions. */
+	    if (!(atype & ctl_type_)
+		|| (!(ctl_type_ & 224) && !(dtype & ctl_dir_))) return false;
+	    if (!selector) return true;
+	    if (!name_.empty() && scope_
+		&& std::string(scope_->vpi_get_str(vpiFullName)) + "." + name_
+		   == selector)
+		  return true;
+	    return vpip_deferred_assert_scope_matches(scope_, selector, levels);
+	}
+
+	/* Apply one control_type (Table 20-5), or one of the 39.5.1 system
+	   controls vpiAssertionSysReset (12) and vpiAssertionSysEnd (13).
+	   Lock and Unlock always apply; every other control skips a locked
+	   assertion. Reset restores the initial state, lock included; after
+	   End nothing applies. Callbacks keep the
+	   reasons each assertion kind reported before 20.11 control existed:
+	   concurrent assertions report enable changes and kill/reset,
+	   deferred ones report enable changes and reset (fired by the
+	   caller once every selected report is flushed), immediate ones none.
+	   Returns true when a deferred assertion was killed. */
+      bool apply_control(int ctl, bool callbacks)
+	{
+	    if (ended_) return false;
+	    if (ctl == 12 || ctl == 13) {
+		  bool killed;
+		  locked_ = false;
+		  killed = apply_control(5, callbacks);
+		    /* 39.5.1: the initial state; "By default, stepping is
+		       disabled for all assertions" (39.5.2). */
+		  step_ctl_.clear();
+		  serial_start_.clear();
+		  if (ctl == 13) {
+			ended_ = true;
+			fail_action_ = pass_nonvacuous_ = pass_vacuous_ = false;
+			remove_callbacks(false);
+		  } else {
+			enabled_ = true;
+			fail_action_ = pass_nonvacuous_ = pass_vacuous_ = true;
+			remove_callbacks(true);
+		  }
+		  return killed;
+	    }
+	    bool notify = callbacks && (idx_ >= 0 || deferred_source_id_);
+	    if (ctl == 1 || ctl == 2) {
+		  bool was_locked = locked_;
+		  locked_ = ctl == 1;
+		  if (notify && was_locked != locked_)
+			fire(locked_ ? cbAssertionLock : cbAssertionUnlock);
+		  return false;
+	    }
+	    if (locked_) return false;
+	    bool was = enabled_;
+	    bool was_fail = fail_action_, was_pass = pass_nonvacuous_,
+		 was_vac = pass_vacuous_;
+	    switch (ctl) {
+		case 3:
+		case 4:
+		  enabled_ = ctl == 3;
+		  if (notify && was != enabled_)
+			fire(enabled_ ? cbAssertionEnable : cbAssertionDisable);
+		  return false;
+		case 5:
+		  enabled_ = false;
+		  kill_generation_ += 1;
+		    /* 20.11 Kill flushes the pending procedural instances;
+		       matured ones still waiting for their clock are
+		       discarded too (default pending a ruling). */
+		  if (proc_id_) {
+			proc_matured_ = 0;
+			proc_saved_.clear();
+			vpip_cancel_proc_asserts(proc_id_, scope_);
+		  }
+		  if (notify && was) fire(cbAssertionDisable);
+		  if (deferred_source_id_) {
+			vpip_cancel_deferred_assertion(deferred_source_id_, scope_);
+			return true;
+		  }
+		  if (notify) {
+			fire(cbAssertionKill);
+			fire(cbAssertionReset);
+		  }
+		  return false;
+		case 6:  pass_nonvacuous_ = pass_vacuous_ = true;  break;
+		case 7:  pass_nonvacuous_ = pass_vacuous_ = false; break;
+		case 8:  fail_action_ = true;  break;
+		case 9:  fail_action_ = false; break;
+		case 10: pass_nonvacuous_ = true; break;
+		case 11: pass_vacuous_ = false; break;
+		default: return false;
+	    }
+	      /* 39.4.2 per-assertion action callbacks, on a change. */
+	    if (notify && (was_fail != fail_action_ || was_pass != pass_nonvacuous_
+			   || was_vac != pass_vacuous_)) {
+		  static const int reason[] = {
+			cbAssertionEnablePassAction, cbAssertionDisablePassAction,
+			cbAssertionEnableFailAction, cbAssertionDisableFailAction,
+			cbAssertionEnableNonvacuousAction,
+			cbAssertionDisableVacuousAction };
+		  fire(reason[ctl - 6]);
+	    }
+	    return false;
+	}
+
+	/* 39.5.1: Reset removes the step callbacks, End removes them all. */
+      void remove_callbacks(bool steps_only)
+	{
+	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
+		  int reason = cbs_[i].callback->reason();
+		  if (!steps_only || reason == cbAssertionStepSuccess
+		      || reason == cbAssertionStepFailure)
+			cbs_[i].callback->remove();
+	    }
+	}
+
+      PLI_INT32 control_state(int what) const
+	{
+	    switch (what) {
+		case vpipAssertStateEnabled:        return enabled_;
+		case vpipAssertStateKillGeneration: return (PLI_INT32)kill_generation_;
+		case vpipAssertStateFailAction:     return fail_action_;
+		case vpipAssertStatePassAction:     return pass_nonvacuous_;
+		case vpipAssertStateVacuousAction:  return pass_vacuous_;
+		default: return -1;
+	    }
+	}
+
+	/* A probe that stands for an assertion whose registration has not
+	   run yet: it has the kind's assertion_type bit and matches every
+	   directive. */
+      void make_control_probe(int type_bit)
+	{
+	    ctl_type_ = type_bit;
+	    ctl_dir_ = 7;
 	}
 
       void report_control_reset(void)
@@ -1705,12 +2087,14 @@ class __vpiAssertion : public __vpiHandle {
 	    if (deferred_source_id_) fire(cbAssertionReset);
 	}
 
-      vpiHandle add_cb(int reason, vpi_assertion_cb_func cb, char*data)
+      vpiHandle add_cb(int reason, vpi_assertion_cb_func cb, char*data,
+		       vpiHandle report = 0)
       {
             __vpiAssertionCallback*callback =
                   new __vpiAssertionCallback(reason, cb, data);
             assert_cb_t c;
             c.callback = callback;
+	    c.report = report ? report : this;
 	    cbs_.push_back(c);
             return callback;
       }
@@ -1740,15 +2124,241 @@ class __vpiAssertion : public __vpiHandle {
 	   instead of assuming a fixed clock period or a gapless START ring. */
       void clock_tick()
       {
-	    if (latency_ < 0) return;
+	    int depth = latency_ > step_depth_ ? latency_ : step_depth_;
+	    if (depth < 0) return;
 	    clocks_.push_back(schedule_simtime());
-	    while ((int)clocks_.size() > latency_ + 1)
+	    while ((int)clocks_.size() > depth + 1)
 		  clocks_.erase(clocks_.begin());
+      }
+
+	/* IEEE 1800-2023 39.5.2 with the 2026-11-12 ruling (SVA Q7): an
+	   EnableStep/DisableStep names an attempt by its start time and
+	   applies when issued before that attempt starts, or during its own
+	   cbAssertionStart callback; later it has no effect. step_ctl_ maps
+	   start time -> whether that attempt has started. */
+      PLI_INT32 step_control(vvp_time64_t start, bool enable)
+      {
+	    if (!steps_ok_) {
+		  if (!steps_refused_)
+			vpi_printf("sorry: %s:%d: per-attempt step callbacks are "
+				   "not supported for this assertion form; "
+				   "vpiAssertionEnableStep has no effect.\n",
+				   file_.c_str(), line_);
+		  steps_refused_ = true;
+		  return 0;
+	    }
+	    vvp_time64_t now = schedule_simtime();
+	    bool open = start > now
+		  || (start == now && (in_start_ || start_now_ != now));
+	    if (!open) return 0;
+	    if (enable)
+		  step_ctl_[start] = (start == now && in_start_);
+	    else
+		  step_ctl_.erase(start);
+	    return 1;
+      }
+
+      int serial(void) const { return attempts_; }
+
+      void step_row(int row, int reason, int from, int to, int n,
+		    const char*const*files, const PLI_INT32*lines,
+		    const char*const*texts)
+      {
+	    if (row < 1) return;
+	    if ((size_t)row > step_rows_.size()) step_rows_.resize(row);
+	    step_row_t&r = step_rows_[row-1];
+	    r.reason = reason;
+	    r.from = from;
+	    r.to = to;
+	    for (int i = 0 ; i < n ; i += 1)
+		  r.exprs.push_back(expr_handle_(files[i], lines[i], texts[i]));
+      }
+
+      void step(int row, int age, int serial)
+      {
+	    if (step_ctl_.empty() || row < 1
+		|| (size_t)row > step_rows_.size()) return;
+	    step_row_t&r = step_rows_[row-1];
+	    vvp_time64_t start_raw;
+	    if (serial > 0) {
+		  std::map<int,vvp_time64_t>::const_iterator it =
+			serial_start_.find(serial);
+		  if (it == serial_start_.end()) return;
+		  start_raw = it->second;
+	    } else if (age >= 0 && (size_t)age < clocks_.size()) {
+		  start_raw = clocks_[clocks_.size() - 1 - age];
+	    } else {
+		  return;
+	    }
+	    std::map<vvp_time64_t,bool>::const_iterator on =
+		  step_ctl_.find(start_raw);
+	    if (on == step_ctl_.end() || !on->second) return;
+	    deliver_(r.reason, start_raw, r.from, r.to, r.exprs);
+      }
+
+	/* The automaton checker's description, for nfa_step(). */
+      void nfa(int nstates, int start, int accept, int nguards,
+	       const char*const*files, const PLI_INT32*lines,
+	       const char*const*texts, int nwords, const PLI_INT32*words)
+      {
+	    nfa_.nstates = nstates;
+	    nfa_.start = start;
+	    nfa_.accept = accept;
+	    nfa_.guards.clear();
+	    for (int g = 0 ; g < nguards ; g += 1)
+		  nfa_.guards.push_back(expr_handle_(files[g], lines[g], texts[g]));
+	    nfa_.edges.clear();
+	    for (int w = 0 ; w + 2 < nwords ; ) {
+		  nfa_edge_t e;
+		  e.from = words[w++];
+		  e.to = words[w++];
+		  int n = words[w++];
+		  for (int i = 0 ; i < n && w < nwords ; i += 1)
+			e.guards.push_back(words[w++]);
+		  nfa_.edges.push_back(e);
+	    }
+      }
+
+	/* IEEE 1800-2023 39.4.2, one tick of the automaton slot holding the
+	   attempt named by `serial': pre/nx are its state bits before and
+	   after the tick, gv the guard values (binary strings, bit 0 last),
+	   ob whether an implication's antecedent completed. A live attempt
+	   reports one taken edge: into accept first, else from the lowest
+	   state id. A dying one reports its lowest active state's first
+	   guarded edge, ending with the guard that failed; an implication
+	   whose antecedent died ends vacuously (a success into state 1).
+	   State ids: start 0, accept 1, state j otherwise j+2. */
+      void nfa_step(int serial, const char*pre, const char*nx,
+		    const char*gv, bool ob)
+      {
+	    if (step_ctl_.empty()) return;
+	    std::map<int,vvp_time64_t>::const_iterator it =
+		  serial_start_.find(serial);
+	    if (it == serial_start_.end()) return;
+	    std::map<vvp_time64_t,bool>::const_iterator on =
+		  step_ctl_.find(it->second);
+	    if (on == step_ctl_.end() || !on->second) return;
+	    auto bit = [](const char*v, int j) {
+		  int len = (int)strlen(v);
+		  return j < len && v[len-1-j] == '1';
+	    };
+	    auto id = [&](int j) {
+		  return j == nfa_.start ? 0 : j == nfa_.accept ? 1 : j + 2;
+	    };
+	    auto exprs = [&](const nfa_edge_t&e, size_t n) {
+		  std::vector<vpiHandle> r;
+		  for (size_t i = 0 ; i < n && i < e.guards.size() ; i += 1)
+			r.push_back(nfa_.guards[e.guards[i]]);
+		  return r;
+	    };
+	    bool alive = false;
+	    for (int j = 0 ; j < nfa_.nstates ; j += 1) alive |= bit(nx, j);
+	    if (alive) {
+		  const nfa_edge_t*best = 0;
+		  for (const nfa_edge_t&e : nfa_.edges) {
+			bool taken = bit(pre, e.from) && bit(nx, e.to);
+			for (int g : e.guards) taken = taken && bit(gv, g);
+			if (!taken) continue;
+			if (!best
+			    || (e.to == nfa_.accept && best->to != nfa_.accept)
+			    || ((e.to == nfa_.accept) == (best->to == nfa_.accept)
+				&& id(e.from) < id(best->from)))
+			      best = &e;
+		  }
+		  if (best)
+			deliver_(cbAssertionStepSuccess, it->second, id(best->from),
+				 id(best->to), exprs(*best, best->guards.size()));
+		  return;
+	    }
+	    int from = -1;
+	    for (int j = 0 ; j < nfa_.nstates ; j += 1)
+		  if (bit(pre, j) && (from < 0 || id(j) < id(from))) from = j;
+	    if (from < 0) return;
+	    const nfa_edge_t*first = 0;
+	    for (const nfa_edge_t&e : nfa_.edges)
+		  if (e.from == from
+		      && (!first || (first->guards.empty() && !e.guards.empty())))
+			first = &e;
+	    size_t n = 0;
+	    if (first) {
+		  n = first->guards.size();
+		  for (size_t i = 0 ; i < first->guards.size() ; i += 1)
+			if (!bit(gv, first->guards[i])) {
+			      n = i + 1;
+			      break;
+			}
+	    }
+	    deliver_(ob ? cbAssertionStepFailure : cbAssertionStepSuccess,
+		     it->second, id(from), !ob || !first ? 1 : id(first->to),
+		     first ? exprs(*first, n) : std::vector<vpiHandle>());
+      }
+
+    private:
+      void deliver_(int reason, vvp_time64_t start_raw, int from, int to,
+		    const std::vector<vpiHandle>&exprs)
+      {
+	    s_vpi_assertion_step_info stepinfo;
+	    stepinfo.matched_expression_count = (PLI_INT32)exprs.size();
+	    stepinfo.matched_exprs = exprs.empty() ? 0
+				   : const_cast<vpiHandle*>(&exprs[0]);
+	    stepinfo.stateFrom = from;
+	    stepinfo.stateTo = to;
+	    s_vpi_attempt_info info;
+	    info.detail.step = &stepinfo;
+	    info.attemptStartTime.type = vpiSimTime;
+	    vpip_time_to_timestruct(&info.attemptStartTime, start_raw);
+	    info.attemptStartTime.real = 0.0;
+	    s_vpi_time t;
+	    t.type = vpiSimTime;
+	    vpip_time_to_timestruct(&t, schedule_simtime());
+	    t.real = 0.0;
+	    for (size_t i = 0 ; i < cbs_.size() ; i += 1)
+		  if (cbs_[i].callback->reason() == reason
+		      && cbs_[i].callback->active())
+			cbs_[i].callback->call(&t, this, &info);
+      }
+
+      vpiHandle expr_handle_(const char*file_arg, int line, const char*text)
+      {
+	    std::string file = file_arg && file_arg[0] ? file_arg : file_;
+	    vpiHandle&h = step_exprs_[file + ":" + std::to_string(line)
+				      + ":" + text];
+	    if (!h) h = new __vpiAssertionStepExpr(file, line, text);
+	    return h;
+      }
+
+    public:
+
+	/* Bookkeeping around one attempt's cbAssertionStart dispatch: forget
+	   requests for start times that passed without a start, mark this
+	   start time's request as started, and name the attempt by serial
+	   for checkers that cannot recover its start from a clock age. */
+      void fire(int reason, int age = -1)
+      {
+	    if (reason == cbAssertionStepSuccess
+		|| reason == cbAssertionStepFailure)
+		  return;  // steps go through step() only, per attempt
+	    if (reason != cbAssertionStart) {
+		  fire_(reason, age);
+		  return;
+	    }
+	    vvp_time64_t now = schedule_simtime();
+	    for (std::map<vvp_time64_t,bool>::iterator it = step_ctl_.begin();
+		 it != step_ctl_.end() && it->first <= now ; ) {
+		  if (it->first == now) it->second = true;
+		  if (it->first < now && !it->second) step_ctl_.erase(it++);
+		  else ++it;
+	    }
+	    start_now_ = now;
+	    in_start_ = true;
+	    fire_(reason, age);
+	    in_start_ = false;
+	    if (step_ctl_.count(now)) serial_start_[attempts_] = now;
       }
 
 	/* Fire every registered callback whose reason matches. age < 0 keeps
 	   the established two-argument report behavior for other checkers. */
-      void fire(int reason, int age = -1)
+      void fire_(int reason, int age)
       {
 	      /* A passing deferred immediate cover is reported only after its
 	         result survives the assertion report queue. A failing cover's
@@ -1768,6 +2378,14 @@ class __vpiAssertion : public __vpiHandle {
 	      case cbAssertionEnable:
 	      case cbAssertionReset:
 	      case cbAssertionKill:
+	      case cbAssertionLock:
+	      case cbAssertionUnlock:
+	      case cbAssertionEnablePassAction:
+	      case cbAssertionEnableFailAction:
+	      case cbAssertionDisablePassAction:
+	      case cbAssertionDisableFailAction:
+	      case cbAssertionEnableNonvacuousAction:
+	      case cbAssertionDisableVacuousAction:
 		  no_attempt_info = true;
 		  break;
 	      default:
@@ -1818,26 +2436,12 @@ class __vpiAssertion : public __vpiHandle {
 	    st.real = 0.0;
 
 	    s_vpi_attempt_info info;
-	      /* M12-1: for a STEP reason the detail union carries the
-		 step info, not failExpr. The matched-expression list and
-		 state pair are not modeled (a per-tick step report covers
-		 every attempt that advanced), so they are zeroed rather
-		 than guessed. */
-	    s_vpi_assertion_step_info stepinfo;
-	    stepinfo.matched_expression_count = 0;
-	    stepinfo.matched_exprs = 0;
-	    stepinfo.stateFrom = 0;
-	    stepinfo.stateTo = 0;
-	    if (reason == cbAssertionStepSuccess
-		|| reason == cbAssertionStepFailure)
-		  info.detail.step = &stepinfo;
-	    else
-		  info.detail.failExpr = 0;
+	    info.detail.failExpr = 0;
 	    info.attemptStartTime = st;
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
 		  if (cbs_[i].callback->reason() == reason
 		      && cbs_[i].callback->active())
-		  cbs_[i].callback->call(&t, this,
+		  cbs_[i].callback->call(&t, cbs_[i].report,
 				 no_attempt_info ? 0 : &info);
 	    }
       }
@@ -1856,10 +2460,52 @@ class __vpiAssertion : public __vpiHandle {
       int assertion_type_ = vpiAssert;
       unsigned long deferred_source_id_ = 0;
       int deferred_type_ = vpiUndefined;
-      bool deferred_enabled_ = true;
       int immediate_type_ = vpiUndefined;
+	/* IEEE 1800-2023 20.11 control state. */
+      int ctl_type_ = 1;                 // Table 20-6 assertion_type bit
+      int ctl_dir_ = 1;                  // Table 20-7 directive_type bit
+      int proc_id_ = 0;
+      PLI_INT32 proc_matured_ = 0;
+      bool proc_each_ = false;
+      bool proc_multi_noted_ = false;
+      std::vector< std::vector<vvp_vector4_t> > proc_saved_;
+      std::vector< std::vector<vvp_vector4_t> > proc_taken_;
+      bool locked_ = false;
+      bool ended_ = false;
+      bool vpi_action_noted_ = false;
+      __vpiAssertionInst*inst_ = 0;
+      bool enabled_ = true;
+      unsigned kill_generation_ = 0;
+      bool fail_action_ = true;
+      bool pass_nonvacuous_ = true;
+      bool pass_vacuous_ = true;
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
       std::vector<vvp_time64_t> clocks_;  // Raw sampled times, including off gaps
+	/* 39.5.2 per-attempt stepping. ponytail: entries for started
+	   attempts are kept for the run; they are bounded by the number of
+	   EnableStep calls, not by simulation length. */
+      bool steps_ok_ = false;
+      bool steps_refused_ = false;
+      int step_depth_ = -1;
+      bool in_start_ = false;
+      vvp_time64_t start_now_ = ~(vvp_time64_t)0;
+      std::map<vvp_time64_t,bool> step_ctl_;
+      std::map<int,vvp_time64_t> serial_start_;
+      std::map<std::string,vpiHandle> step_exprs_;
+      struct step_row_t {
+	    int reason = 0, from = 0, to = 0;
+	    std::vector<vpiHandle> exprs;
+      };
+      std::vector<step_row_t> step_rows_;
+      struct nfa_edge_t {
+	    int from = 0, to = 0;
+	    std::vector<int> guards;
+      };
+      struct {
+	    int nstates = 0, start = 0, accept = 0;
+	    std::vector<vpiHandle> guards;
+	    std::vector<nfa_edge_t> edges;
+      } nfa_;
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
@@ -1918,28 +2564,21 @@ bool vpip_deferred_assert_scope_matches(__vpiScope*scope,
       return cur == selected_module && depth <= levels;
 }
 
-void vpip_report_deferred_assertion_reset_callbacks(const char*selector,
-						     int levels)
-{
-      for (std::map<std::pair<__vpiScope*,unsigned long>,
-			__vpiAssertion*>::const_iterator cur =
-		       deferred_assertion_by_key.begin();
-	   cur != deferred_assertion_by_key.end(); ++cur) {
-	    if (vpip_deferred_assert_scope_matches(cur->first.first,
-						 selector, levels))
-		  cur->second->report_control_reset();
-      }
-}
+static void replay_assertion_control_(__vpiAssertion*obj);
 
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg,
-			     PLI_INT32 flags, PLI_INT32 assertion_kind)
+			     PLI_INT32 flags, PLI_INT32 assertion_kind,
+			     PLI_INT32 inst_kind, const char*inst_name)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line,
 					      sc, (int)depth_arg, (int)flags,
 					      (int)assertion_kind);
+      if (inst_name && inst_name[0])
+	    obj->set_instance((int)inst_kind, inst_name);
       assertion_registry.push_back(obj);
+      replay_assertion_control_(obj);
       if (sc) {
 	    vpip_attach_to_scope(sc, obj);
 	    assertion_by_key[std::make_pair(sc, (int)idx)] = obj;
@@ -1950,7 +2589,8 @@ void vpip_register_deferred_assertion(unsigned long source_id,
 				     unsigned assertion_kind,
 				     unsigned file_idx,
 				     unsigned line,
-				     vpiHandle scope)
+				     vpiHandle scope,
+				     bool is_final)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       int deferred_type;
@@ -1969,8 +2609,9 @@ void vpip_register_deferred_assertion(unsigned long source_id,
 	    return;
       __vpiAssertion*obj = new __vpiAssertion(source_id, sc, deferred_type,
 						      file_names[file_idx],
-						      line);
+						      line, is_final);
       assertion_registry.push_back(obj);
+      replay_assertion_control_(obj);
       deferred_assertion_by_key[key] = obj;
       vpip_attach_to_scope(sc, obj);
 }
@@ -1987,6 +2628,7 @@ void vpip_register_immediate_cover(PLI_INT32 source_id, const char*name,
       __vpiAssertion*obj = new __vpiAssertion(name, file, line, sc,
 						      vpiImmediateCover);
       assertion_registry.push_back(obj);
+      replay_assertion_control_(obj);
       immediate_cover_by_key[key] = obj;
       vpip_attach_to_scope(sc, obj);
 }
@@ -2022,6 +2664,7 @@ void vpip_register_immediate_assertion(PLI_INT32 source_id, const char*name,
       __vpiAssertion*obj = new __vpiAssertion(name, file, line, sc,
 						     immediate_type);
       assertion_registry.push_back(obj);
+      replay_assertion_control_(obj);
       immediate_assertion_by_key[key] = obj;
       vpip_attach_to_scope(sc, obj);
 }
@@ -2043,30 +2686,272 @@ void vpip_report_immediate_assertion(PLI_INT32 source_id, PLI_INT32 success,
       }
 }
 
-PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,
-					  vpiHandle scope)
+/* IEEE 1800-2023 20.11 assertion control. Every request is kept as a
+   chronological rule, so an assertion that registers after a time-zero
+   control call (its registration runs in an initial process) still sees it. */
+struct assert_ctl_rule_t {
+      bool all;
+      std::string selector;
+      int levels;
+      int ctl;
+      int atype;
+      int dtype;
+};
+static std::vector<assert_ctl_rule_t> assert_ctl_rules;
+static const size_t assert_ctl_rule_limit = 4096;
+
+static void replay_assertion_control_(__vpiAssertion*obj)
 {
-      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
-      if (!source_id || !sc) return -1;
-      std::map<std::pair<__vpiScope*,unsigned long>,
-	       __vpiAssertion*>::const_iterator it = deferred_assertion_by_key.find(
-					    std::make_pair(sc, source_id));
-      return it == deferred_assertion_by_key.end()
-	    ? -1 : it->second->deferred_enabled();
+      for (size_t i = 0 ; i < assert_ctl_rules.size() ; i += 1) {
+	    const assert_ctl_rule_t&r = assert_ctl_rules[i];
+	    if (obj->control_selected(r.atype, r.dtype,
+				      r.all ? 0 : r.selector.c_str(), r.levels))
+		  obj->apply_control(r.ctl, false);
+      }
 }
 
-void vpip_set_deferred_assertions_enabled(const char*selector,
-					 PLI_INT32 levels,
-					 PLI_INT32 enabled)
+PLI_INT32 vpip_assertion_control(PLI_INT32 ctl, PLI_INT32 atype,
+				 PLI_INT32 dtype, PLI_INT32 levels,
+				 const char*const*selectors, PLI_INT32 nsel)
 {
-      for (std::map<std::pair<__vpiScope*,unsigned long>,
-			__vpiAssertion*>::iterator cur =
-	       deferred_assertion_by_key.begin();
-	   cur != deferred_assertion_by_key.end(); ++cur) {
-	    if (vpip_deferred_assert_scope_matches(cur->first.first,
-						  selector, levels))
-		  cur->second->set_deferred_enabled(enabled != 0);
+      size_t first = assert_ctl_rules.size();
+      if (ctl < 1 || ctl > 13) return 0;
+      for (PLI_INT32 i = 0 ; i < (nsel > 0 ? nsel : 1) ; i += 1) {
+	    if (assert_ctl_rules.size() >= assert_ctl_rule_limit) {
+		  vpi_printf("SVA runtime error: assertion-control history "
+			     "exceeded %zu entries; the control request was not "
+			     "applied.\n", assert_ctl_rule_limit);
+		  break;
+	    }
+	    assert_ctl_rule_t r;
+	    r.all = nsel <= 0;
+	    r.selector = r.all ? "" : selectors[i];
+	    r.levels = levels;
+	    r.ctl = ctl;
+	    r.atype = atype;
+	    r.dtype = dtype;
+	    assert_ctl_rules.push_back(r);
+
+	      /* Deferred assertions first, as before: every enable change,
+		 then every flush and its reset callback, in the order of
+		 deferred_assertion_by_key that their callbacks always used. */
+	    std::vector<__vpiAssertion*> killed;
+	    for (auto cur = deferred_assertion_by_key.begin() ;
+		 cur != deferred_assertion_by_key.end() ; ++cur) {
+		  __vpiAssertion*obj = cur->second;
+		  if (obj->control_selected(atype, dtype,
+					    r.all ? 0 : r.selector.c_str(),
+					    levels)
+		      && obj->apply_control(ctl, true))
+			killed.push_back(obj);
+	    }
+	    for (size_t j = 0 ; j < killed.size() ; j += 1)
+		  killed[j]->fire(cbAssertionReset);
       }
+      for (size_t i = first ; i < assert_ctl_rules.size() ; i += 1) {
+	    const assert_ctl_rule_t&r = assert_ctl_rules[i];
+	    for (size_t j = 0 ; j < assertion_registry.size() ; j += 1) {
+		  __vpiAssertion*obj = assertion_registry[j];
+		  if (!obj->is_deferred()
+		      && obj->control_selected(atype, dtype,
+					       r.all ? 0 : r.selector.c_str(),
+					       levels))
+			obj->apply_control(ctl, true);
+	    }
+      }
+      return assert_ctl_rules.size() > first;
+}
+
+PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation, vpiHandle scope)
+{
+      int ctl;
+      switch (operation) {
+	  case vpiAssertionSysLock:   ctl = 1;  break;
+	  case vpiAssertionSysUnlock: ctl = 2;  break;
+	  case vpiAssertionSysOn:     ctl = 3;  break;
+	  case vpiAssertionSysOff:    ctl = 4;  break;
+	  case vpiAssertionSysKill:   ctl = 5;  break;
+	  case vpiAssertionSysReset:  ctl = 12; break;
+	  case vpiAssertionSysEnd:    ctl = 13; break;
+	  case vpiAssertionSysEnablePassAction:       ctl = 6;  break;
+	  case vpiAssertionSysDisablePassAction:      ctl = 7;  break;
+	  case vpiAssertionSysEnableFailAction:       ctl = 8;  break;
+	  case vpiAssertionSysDisableFailAction:      ctl = 9;  break;
+	  case vpiAssertionSysEnableNonvacuousAction: ctl = 10; break;
+	  case vpiAssertionSysDisableVacuousAction:   ctl = 11; break;
+	  default: return 0;
+      }
+      if (scope && !dynamic_cast<__vpiScope*>(scope)) {
+	    vpi_printf("VPI error: vpi_control(%d) needs a scope handle or "
+		       "NULL.\n", (int)operation);
+	    return 0;
+      }
+      const char*selector = scope ? scope->vpi_get_str(vpiFullName) : 0;
+      std::string copy = selector ? selector : "";
+      const char*sel = copy.c_str();
+      if (ctl >= 6 && ctl <= 11) {
+	    for (size_t j = 0 ; j < assertion_registry.size() ; j += 1) {
+		  __vpiAssertion*obj = assertion_registry[j];
+		  if (obj->is_concurrent()
+		      && obj->control_selected(255, 7, selector ? sel : 0, 0))
+			obj->note_vpi_action_control(operation);
+	    }
+      }
+      PLI_INT32 rc = vpip_assertion_control(ctl, 255, 7, 0,
+					    selector ? &sel : 0,
+					    selector ? 1 : 0);
+	/* 39.4.1: the matching assertion system callback. */
+      static const struct { int op, reason; } sys_reasons[] = {
+	    { vpiAssertionSysLock, cbAssertionSysLock },   { vpiAssertionSysUnlock, cbAssertionSysUnlock },
+	    { vpiAssertionSysOn, cbAssertionSysOn },     { vpiAssertionSysOff, cbAssertionSysOff },
+	    { vpiAssertionSysKill, cbAssertionSysKill },   { vpiAssertionSysReset, cbAssertionSysReset },
+	    { vpiAssertionSysEnd, cbAssertionSysEnd },
+	    { vpiAssertionSysEnablePassAction, cbAssertionSysEnablePassAction },
+	    { vpiAssertionSysEnableFailAction, cbAssertionSysEnableFailAction },
+	    { vpiAssertionSysDisablePassAction, cbAssertionSysDisablePassAction },
+	    { vpiAssertionSysDisableFailAction, cbAssertionSysDisableFailAction },
+	    { vpiAssertionSysEnableNonvacuousAction, cbAssertionSysEnableNonvacuousAction },
+	    { vpiAssertionSysDisableVacuousAction, cbAssertionSysDisableVacuousAction },
+      };
+      for (size_t i = 0 ; i < sizeof sys_reasons / sizeof *sys_reasons ; i += 1)
+	    if (sys_reasons[i].op == operation)
+		  vpip_fire_assertion_sys_cb(sys_reasons[i].reason);
+      return rc;
+}
+
+template <class Key> static __vpiAssertion* find_assertion_up_(
+      const std::map<std::pair<__vpiScope*,Key>, __vpiAssertion*>&map,
+      __vpiScope*sc, Key id, bool walk_up)
+{
+      for ( ; sc ; sc = walk_up ? sc->scope : 0) {
+	    auto it = map.find(std::make_pair(sc, id));
+	    if (it != map.end()) return it->second;
+      }
+      return 0;
+}
+
+/* Procedural concurrent assertions by (checker scope, procedural id). */
+static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>
+      proc_assertion_by_key;
+
+void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
+				  PLI_INT32 each, vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc || pid <= 0) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it == assertion_by_key.end()) return;
+      it->second->set_proc_id((int)pid, each != 0);
+      proc_assertion_by_key[std::make_pair(sc, (int)pid)] = it->second;
+}
+
+bool vpip_proc_assert_may_queue(PLI_INT32 pid, __vpiScope*scope)
+{
+      __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
+					      (int)pid, true);
+      return !obj || obj->control_state(vpipAssertStateEnabled) != 0;
+}
+
+void vpip_proc_assert_matured(PLI_INT32 pid, __vpiScope*scope,
+			      const std::vector<vvp_vector4_t>&saved)
+{
+      __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
+					      (int)pid, true);
+      if (obj) obj->proc_matured(saved);
+}
+
+/* $ivl_sva_proc_cap(pid, idx, j, dest): the checker loads saved value j of
+   the idx-th instance it took into dest before starting its attempt. */
+void vpip_proc_assert_cap(vpiHandle callh)
+{
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      if (!argv) return;
+      PLI_INT32 n[3] = { 0, 0, 0 };
+      for (unsigned k = 0 ; k < 3 ; k += 1) {
+	    vpiHandle arg = vpi_scan(argv);
+	    if (!arg) return;
+	    s_vpi_value v;
+	    v.format = vpiIntVal;
+	    vpi_get_value(arg, &v);
+	    n[k] = v.value.integer;
+      }
+      vpiHandle dest = vpi_scan(argv);
+      if (!dest) return;
+      vpi_free_object(argv);
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(vpi_handle(vpiScope, callh));
+      __vpiAssertion*obj = find_assertion_up_(proc_assertion_by_key, scope,
+					      (int)n[0], true);
+      const vvp_vector4_t*val = obj ? obj->taken_value(n[1], n[2]) : 0;
+      if (!val) return;
+      unsigned wid = vpi_get(vpiSize, dest);
+      s_vpi_value out;
+      out.format = vpiVectorVal;
+      vpip_vec4_get_value(*val, wid, false, &out);
+      vpi_put_value(dest, &out, 0, vpiNoDelay);
+}
+
+PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
+			       PLI_INT32 id, PLI_INT32 what)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      __vpiAssertion*obj = 0;
+      int type_bit = 1;
+      if (space == vpipAssertSpaceProcedural) {
+	    obj = find_assertion_up_(proc_assertion_by_key, sc, (int)id, true);
+	    if (what == vpipAssertStateTakeMatured)
+		  return obj ? obj->take_matured() : 0;
+	    return obj ? obj->control_state(what) : 1;
+      }
+      switch (space) {
+	  case vpipAssertSpaceConcurrent:
+	    obj = find_assertion_up_(assertion_by_key, sc, (int)id, false);
+	    break;
+	  case vpipAssertSpaceImmediate:
+	    obj = find_assertion_up_(immediate_assertion_by_key, sc, (int)id, true);
+	    type_bit = 2;
+	    break;
+	  case vpipAssertSpaceDeferred:
+	    obj = find_assertion_up_(deferred_assertion_by_key, sc,
+				     (unsigned long)id, true);
+	    type_bit = 4 | 8;
+	    break;
+	  case vpipAssertSpaceImmediateCover:
+	    obj = find_assertion_up_(immediate_cover_by_key, sc, (int)id, true);
+	    type_bit = 2;
+	    break;
+	  default:
+	    return -1;
+      }
+      if (obj) return obj->control_state(what);
+
+	/* Not registered yet: fold the rule history over a probe in the
+	   calling scope. */
+      __vpiAssertion probe("", "", 0, sc, vpiUndefined);
+      probe.make_control_probe(type_bit);
+      replay_assertion_control_(&probe);
+      return probe.control_state(what);
+}
+
+PLI_INT32 vpip_violation_state(vpiHandle scope, int type, int what)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      __vpiAssertion probe("", "", 0, sc, vpiUndefined);
+      probe.make_control_probe(type);
+      replay_assertion_control_(&probe);
+      return probe.control_state(what);
+}
+
+/* A matured deferred report runs its pass or fail action only when the
+   assertion's action control allows it (20.11). The report itself and its
+   callbacks are statistics and stay unconditional. */
+bool vpip_deferred_action_enabled(unsigned long source_id, __vpiScope*scope,
+				  unsigned result)
+{
+      __vpiAssertion*obj = find_assertion_up_(deferred_assertion_by_key, scope,
+					      source_id, true);
+      if (!obj) return true;
+      return obj->control_state(result == 2 ? vpipAssertStateFailAction
+					    : vpipAssertStatePassAction) != 0;
 }
 
 PLI_INT32 vpip_reset_deferred_assertion(vpiHandle assertion)
@@ -2117,6 +3002,86 @@ void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
       if (it != assertion_by_key.end()) it->second->fire((int)reason, (int)age);
 }
 
+void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
+			     PLI_INT32 reason, PLI_INT32 from, PLI_INT32 to,
+			     PLI_INT32 n, const char*const*files,
+			     const PLI_INT32*lines, const char*const*texts)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end())
+	    it->second->step_row(row, reason, from, to, n, files, lines, texts);
+}
+
+void vpip_assertion_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
+			 PLI_INT32 age, PLI_INT32 serial)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end()) it->second->step(row, age, serial);
+}
+
+void vpip_assertion_nfa(PLI_INT32 idx, vpiHandle scope, PLI_INT32 nstates,
+			PLI_INT32 start, PLI_INT32 accept, PLI_INT32 nguards,
+			const char*const*files, const PLI_INT32*lines,
+			const char*const*texts, PLI_INT32 nwords,
+			const PLI_INT32*words)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end())
+	    it->second->nfa(nstates, start, accept, nguards, files, lines, texts,
+			    nwords, words);
+}
+
+void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
+			     const char*pre, const char*nx, const char*guards,
+			     PLI_INT32 ob)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end())
+	    it->second->nfa_step(serial, pre, nx, guards, ob != 0);
+}
+
+PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return 0;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      return it != assertion_by_key.end() ? it->second->serial() : 0;
+}
+
+PLI_INT32 vpip_assertion_step_control(vpiHandle assertion,
+				      const s_vpi_time*start, bool enable,
+				      PLI_INT32 mode)
+{
+      __vpiAssertion*obj = dynamic_cast<__vpiAssertion*>(assertion);
+      if (!obj || !start || mode != vpiAssertionClockSteps) {
+	    vpi_printf("ERROR: vpi_control(%s) needs a concurrent assertion "
+		       "handle, an attempt start time and "
+		       "vpiAssertionClockSteps.\n",
+		       enable ? "vpiAssertionEnableStep"
+			      : "vpiAssertionDisableStep");
+	    return 0;
+      }
+      vvp_time64_t t;
+      if (start->type == vpiSimTime) {
+	    t = vpip_timestruct_to_time(start);
+      } else {
+	    vpi_printf("ERROR: vpi_control(%s) takes a vpiSimTime attempt "
+		       "start time.\n",
+		       enable ? "vpiAssertionEnableStep"
+			      : "vpiAssertionDisableStep");
+	    return 0;
+      }
+      return obj->step_control(t, enable);
+}
+
 PLI_INT32 vpip_assertion_cb_active(void)
 {
       return assertion_cb_total > 0 ? 1 : 0;
@@ -2137,9 +3102,20 @@ vpiHandle vpi_register_assertion_cb(vpiHandle assertion, PLI_INT32 reason,
 				    PLI_BYTE8*user_data)
 {
       if (!assertion || !cb_rtn) return 0;
+      vpiHandle report = 0;
       __vpiAssertion*a = dynamic_cast<__vpiAssertion*>(assertion);
+      if (__vpiAssertionInst*inst = dynamic_cast<__vpiAssertionInst*>(assertion)) {
+	      /* 39.4.2: only these three reasons on a property or sequence
+		 instance. */
+	    if (reason != cbAssertionStart && reason != cbAssertionSuccess
+		&& reason != cbAssertionFailure)
+		  return 0;
+	    a = inst->owner();
+	    report = inst;
+      }
       if (!a) return 0;
-      vpiHandle callback = a->add_cb((int)reason, cb_rtn, (char*)user_data);
+      vpiHandle callback = a->add_cb((int)reason, cb_rtn, (char*)user_data,
+				     report);
       assertion_cb_total += 1;
       return callback;
 }
@@ -2147,6 +3123,22 @@ vpiHandle vpi_register_assertion_cb(vpiHandle assertion, PLI_INT32 reason,
 /* M12B: root iterator over all registered assertions
    (vpi_iterate(vpiAssertion, 0)). Scope-scoped iteration is served
    directly from the scope's intern list by module_iter. */
+/* 39.4.2: every top-level property (vpiPropertyInst) or sequence
+   (vpiSequenceInst) instance of an assertion in the design. */
+vpiHandle vpip_make_assertion_inst_iterator(int type)
+{
+      std::vector<vpiHandle> found;
+      for (size_t idx = 0 ; idx < assertion_registry.size() ; idx += 1) {
+	    __vpiAssertionInst*inst = assertion_registry[idx]->instance();
+	    if (inst && inst->get_type_code() == type) found.push_back(inst);
+      }
+      if (found.empty()) return 0;
+      vpiHandle*args = (vpiHandle*)malloc(found.size() * sizeof(vpiHandle));
+      for (size_t idx = 0 ; idx < found.size() ; idx += 1)
+	    args[idx] = found[idx];
+      return vpip_make_iterator(found.size(), args, true);
+}
+
 vpiHandle vpip_make_assertion_iterator(void)
 {
       if (assertion_registry.empty())
@@ -2664,10 +3656,145 @@ char *vpiPortInfo::vpi_get_str(int code)
 }
 
 
+/* vpiLowConn (IEEE 1800-2023 37.14 detail 4): the module's own signal
+   of an ordinary port's name. A null port has none (detail 10). An
+   interface or modport port needs a ref obj (detail 5), not built yet. */
+vpiHandle vpiPortInfo::low_conn_(void)
+{
+      if (!name_ || !*name_ || vpi_port_type_ != vpiPort)
+	    return 0;
+      for (vpiHandle item : parent_->intern) {
+	    switch (item->get_type_code()) {
+		case vpiNet:
+		case vpiReg:
+		case vpiIntegerVar:
+		case vpiBitVar:
+		case vpiByteVar:
+		case vpiShortIntVar:
+		case vpiIntVar:
+		case vpiLongIntVar:
+		case vpiRealVar:
+		case vpiStringVar:
+		case vpiStructVar:
+		case vpiEnumVar:
+		  {
+			const char*name = item->vpi_get_str(vpiName);
+			if (name && strcmp(name, name_) == 0)
+			      return item;
+		  }
+		  break;
+		default:
+		  break;
+	    }
+      }
+      return 0;
+}
+
+/*
+ * A vpiRefObj connection of an interface port (IEEE 1800-2023 37.14
+ * detail 5, 37.15): the high one stands for the actual in the
+ * instantiating module, the low one for the formal in the instance. Both
+ * have the interface instance, or its selected modport, as vpiActual.
+ */
+class __vpiPortRefObj : public __vpiHandle {
+    public:
+      __vpiPortRefObj(vpiPortInfo*port, bool high)
+      : port_(port), high_(high) { }
+      int get_type_code(void) const override { return VPI_REF_OBJ_TYPE; }
+      char* vpi_get_str(int code) override;
+      vpiHandle vpi_handle(int code) override;
+
+    private:
+      vpiHandle actual_(void);
+      __vpiScope*scope_(void) const;
+      vpiPortInfo*port_;
+      bool high_;
+};
+
+__vpiScope* __vpiPortRefObj::scope_(void) const
+{
+      __vpiScope*inst = port_->parent_scope();
+      return high_ ? inst->scope : inst;
+}
+
+vpiHandle __vpiPortRefObj::actual_(void)
+{
+      __vpiScope*inst = port_->iface_argc_
+	    ? dynamic_cast<__vpiScope*>(port_->iface_argv_[0]) : 0;
+      if (!inst || port_->iface_argc_ < 2) return inst;
+      s_vpi_value val;
+      val.format = vpiStringVal;
+      port_->iface_argv_[1]->vpi_get_value(&val);
+      for (vpiHandle item : inst->intern)
+	    if (item->get_type_code() == vpiModport) {
+		  const char*name = item->vpi_get_str(vpiName);
+		  if (name && strcmp(name, val.value.str) == 0) return item;
+	    }
+      return 0;
+}
+
+char* __vpiPortRefObj::vpi_get_str(int code)
+{
+      if (code != vpiName && code != vpiFullName) return 0;
+	/* The low one is named for the port. The high one is named for the
+	   actual as the instantiating module sees it: its own interface port
+	   bound to the same instance when it forwards one, otherwise the
+	   instance. */
+      const char*name = port_->vpi_get_str(vpiName);
+      std::string text = name ? name : "";
+      vpiHandle inst = port_->iface_argv_[0];
+      __vpiScope*outer = scope_();
+      if (high_ && inst) {
+	    text = inst->vpi_get_str(vpiName);
+	    for (size_t idx = 0; outer && idx < outer->intern.size(); idx += 1) {
+		  vpiPortInfo*fwd = dynamic_cast<vpiPortInfo*>(outer->intern[idx]);
+		  if (fwd && fwd->iface_argc_ && fwd->iface_argv_[0] == inst) {
+			text = fwd->vpi_get_str(vpiName);
+			break;
+		  }
+	    }
+      }
+      if (code == vpiFullName) {
+	    __vpiScope*scope = scope_();
+	    const char*base = scope ? scope->vpi_get_str(vpiFullName) : 0;
+	    if (base) text = std::string(base) + "." + text;
+      }
+      return simple_set_rbuf_str(text.c_str());
+}
+
+vpiHandle __vpiPortRefObj::vpi_handle(int code)
+{
+      switch (code) {
+	  case VPI_ACTUAL_RELATION:
+	    return actual_();
+	  case vpiPort:
+	    return port_;
+	  case vpiParent:
+	  case vpiScope:
+	  case vpiModule:
+	    return scope_();
+	  default:
+	    return 0;
+      }
+}
+
 vpiHandle vpiPortInfo::vpi_handle(int code)
 {
+	/* An interface or modport port connects through ref objects. */
+      if (iface_argc_ && (code == vpiHighConn || code == vpiLowConn)) {
+	    unsigned side = code == vpiHighConn ? 0 : 1;
+	    if (!iface_refs_[side])
+		  iface_refs_[side] = new __vpiPortRefObj(this, side == 0);
+	    return iface_refs_[side];
+      }
 
       switch (code) {
+
+	  case vpiHighConn:
+	    return high_argc_ ? high_argv_[high_argc_-1] : 0;
+
+	  case vpiLowConn:
+	    return low_conn_();
 
           case vpiParent:
           case vpiScope:
@@ -2753,6 +3880,28 @@ int vpiPortBitInfo::vpi_get(int code)
  * code-generators etc.  There are no actual nets corresponding to instances of module ports
  * as elaboration directly connects nets connected through module ports.
  */
+void compile_vpi_port_conn(long index, long flags, unsigned argc,
+			   vpiHandle*argv)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      for (vpiHandle item : scope->intern) {
+	    vpiPortInfo*port = dynamic_cast<vpiPortInfo*>(item);
+	    if (!port || port->get_index() != (unsigned)index) continue;
+	    if (flags & 1) {
+		  port->high_argc_ = argc;
+		  port->high_argv_ = argv;
+		  return;
+	    }
+	    if ((flags & 2) && argc >= 1) {
+		  port->iface_argc_ = argc;
+		  port->iface_argv_ = argv;
+		  return;
+	    }
+	    break;
+      }
+      free(argv);
+}
+
 void compile_port_info( unsigned index, int vpi_direction, int vpi_port_type, unsigned width, const char *name, char* buffer )
 {
       vpiPortInfo* obj = new vpiPortInfo( vpip_peek_current_scope(),

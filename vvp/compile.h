@@ -333,6 +333,16 @@ extern void compile_modpath_src(__vpiModPath*dst,
 				int condit_src, /* match with '0' */
 				const struct symb_s&path_term_in,
 				bool ifnone);
+  /* The last modpath source drives only the destination bits
+     [dbase, dbase+dwid) and is triggered only by the source bits
+     [sbase, sbase+swid) (IEEE 1800 30.4.2). A width of 0 is all. */
+  /* The PATHPULSE$ reject and error limits of the last modpath source
+     (IEEE 1800 30.7.1). */
+extern void compile_modpath_src_pulse(__vpiModPath*dst, uint64_t reject,
+				      uint64_t error);
+extern void compile_modpath_src_part(__vpiModPath*dst,
+				     unsigned dbase, unsigned dwid,
+				     unsigned sbase, unsigned swid);
 
 extern void compile_reduce_and(char*label, const struct symb_s&arg);
 extern void compile_reduce_or(char*label, const struct symb_s&arg);
@@ -373,13 +383,19 @@ extern void compile_vpi_lookup(vpiHandle *objref, char*label);
 /* The .tchk timing-check record (IEEE 1800-2023 37.40): the object, then
    its reference and data terms in that order, its limits, and its
    notifier. A null sig is the absent data term of a one-signal check. */
+extern void compile_param_storage(char*label, char*var);
+  /* .pathexpr: the delay expressions of source idx of a .modpath. */
+extern void compile_pathexpr(char*label, unsigned idx,
+			     std::vector<char*>&exprs);
+
 struct __vpiTchk;
 extern __vpiTchk* compile_tchk(char*label, int type, long file_idx,
 			       long lineno);
 extern void compile_tchk_term(__vpiTchk*tchk, char*sig, bool has_bit,
 			      long bit, unsigned edge, char*condit,
 			      char*text);
-extern void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value);
+extern void compile_tchk_limit(__vpiTchk*tchk, char*var, char*value,
+			       char*shift);
 extern void compile_tchk_notifier(__vpiTchk*tchk, char*notifier);
 
 extern void compile_param_string(char*label, const char*name, char*value,
@@ -459,6 +475,15 @@ extern void functor_ref_lookup(vvp_net_t**ref, char*lab);
  * cptr2 member of the code, instead of the cptr member.
  */
 extern void code_label_lookup(struct vvp_code_s *code, char *label, bool cptr2);
+extern void compile_vpi_param_expr(char*param, unsigned argc,
+				   vpiHandle*argv);
+extern void compile_vpi_port_conn(long index, long flags, unsigned argc,
+				  vpiHandle*argv);
+extern void compile_vpi_defparam(char*param, long file_idx, long lineno,
+				 unsigned argc, vpiHandle*argv);
+extern void compile_vpi_contassign(char*label, long flags, long str0,
+				   long str1, long file_idx, long lineno,
+				   char*driver, unsigned argc, vpiHandle*argv);
 
 /* A lazily evaluated VPI argument expression node (.vpi_expr). */
 extern void compile_vpi_expr(char*label, long type, long op_type, long width,
@@ -479,7 +504,8 @@ extern void compile_udp_def(int sequ, char*label, char *name,
 			    unsigned nin, unsigned init, char **table);
 
 extern void compile_udp_functor(char*label, char*type,
-				unsigned argc, struct symb_s*argv);
+			       unsigned argc, struct symb_s*argv,
+			       bool instance_delay = false);
 
 extern char **compile_udp_table(char **table, char *row);
 
@@ -598,7 +624,7 @@ extern void compile_vpi_call(char*label, char*name,
 			     unsigned real_stack,
 			     unsigned string_stack,
 			     unsigned object_stack,
-			     bool defer_observed = false);
+			     unsigned defer_observed = 0);
 
 /* Compile a function call. The vbit and vwid encode the return
    type. If the vwid >0, the return type is a vector. If the vwid is

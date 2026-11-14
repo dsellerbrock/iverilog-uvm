@@ -1410,6 +1410,8 @@ static PLI_INT32 evcd_dumpports_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
                   if (!evcd_append_scope(file, args[idx], callh, name)) goto fail;
       } else {
             vpiHandle scope = sys_func_module(callh);
+            while (scope && vpi_get(vpiType, scope) != vpiModule)
+                  scope = vpi_handle(vpiScope, scope);
             (void)explicit_null;
             if (!scope || vpi_get(vpiType, scope) != vpiModule) {
                   evcd_runtime_error(callh, name,

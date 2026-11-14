@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sva_vpi_instance_cb.sv",
+  "iverilog-args": ["-g2023", "-s", "sva_vpi_instance_cb"],
+  "vpi-modules": ["sva_vpi_instance_cb_2023"],
+  "vpi-sources": ["vpi/sva_instance_cb.c"],
+  "gold": "sva_vpi_instance_cb"
+}

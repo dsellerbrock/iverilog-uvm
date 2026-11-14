@@ -24,6 +24,7 @@
 # include  "PWire.h"
 # include  "PTask.h"
 # include  "Module.h"
+# include  "PGenerate.h"
 # include  "compiler.h"
 # include  "pform.h"
 # include  "parse_api.h"
@@ -48,6 +49,9 @@
 # include  "ivl_assert.h"
 
 using namespace std;
+
+extern Module* pform_find_visible_module_type_(const LexicalScope*scope,
+					       perm_string type);
 
 namespace {
 
@@ -1156,9 +1160,8 @@ const netclass_t* elaborate_interface_instance_type(Design*des,
 	  || !actual_interface_scope->is_interface())
 	    return 0;
 
-      map<perm_string,Module*>::const_iterator module_it =
-	    pform_modules.find(actual_interface_scope->module_name());
-      if (module_it == pform_modules.end() || !module_it->second->is_interface)
+      Module*mod = const_cast<Module*>(actual_interface_scope->module_definition());
+      if (!mod || !mod->is_interface)
 	    return 0;
 
       interface_instance_view_key_t instance_key = {
@@ -1170,7 +1173,6 @@ const netclass_t* elaborate_interface_instance_type(Design*des,
       if (found != interface_instance_type_cache_.end())
 	    return found->second;
 
-      Module*mod = module_it->second;
       interface_layout_record_t*layout = elaborate_interface_layout_(
 	    des, actual_interface_scope, mod, nullptr, actual_interface_scope);
       if (!layout || !interface_layout_view_(layout, modport))
@@ -2271,8 +2273,15 @@ ivl_type_t class_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 
 ivl_type_t interface_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 {
-      map<perm_string,Module*>::const_iterator cur = pform_modules.find(name);
-      if (cur == pform_modules.end() || !cur->second->is_interface) {
+      const LexicalScope*lexical_scope = nullptr;
+      for (const NetScope*cur = scope; cur && !lexical_scope; cur = cur->parent()) {
+	    if (cur->generate_definition())
+		  lexical_scope = cur->generate_definition();
+	    else if (cur->module_definition())
+		  lexical_scope = cur->module_definition();
+      }
+      Module*mod = pform_find_visible_module_type_(lexical_scope, name);
+      if (!mod || !mod->is_interface) {
 	    if (allow_unresolved) {
 		  if (!unresolved_type) {
 			unresolved_type = new netclass_t(name, 0);
@@ -2290,9 +2299,9 @@ ivl_type_t interface_type_t::elaborate_type_raw(Design*des, NetScope*scope) cons
       }
 
       netclass_t*result = elaborate_interface_type_(
-	    des, scope, cur->second, parameter_values_, modport);
+	    des, scope, mod, parameter_values_, modport);
       if (virtual_type) {
-	    cur->second->virtual_interface_declarations.push_back(this);
+	    mod->virtual_interface_declarations.push_back(this);
 	  }
       return result;
 }

@@ -1,0 +1,199 @@
+1 initial
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 1  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 1  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 1  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 1  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 1  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 1  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 1  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 1  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 1  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 1  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 1  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 1  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 1  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 1  Scope: issue2873_violation_control.b.reports
+2 assertoff
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 2  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 2  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 2  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 2  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 2  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 2  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 2  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 2  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 2  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 2  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 2  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 2  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 2  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 2  Scope: issue2873_violation_control.b.reports
+3 scoped off
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 3  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 3  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 3  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 3  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 3  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 3  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 3  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 3  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 3  Scope: issue2873_violation_control.b.reports
+4 locked a
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 4  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 4  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 4  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 4  Scope: issue2873_violation_control.a.reports
+5 actions unchanged
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 5  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 5  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 5  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 5  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 5  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 5  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 5  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 5  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 5  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 5  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 5  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 5  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 5  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 5  Scope: issue2873_violation_control.b.reports
+6 scoped kill queued
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 6  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 6  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 6  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 6  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 6  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 6  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 6  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 6  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 6  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 6  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 6  Scope: issue2873_violation_control.b.reports
+7 off keeps queued
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 7  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 7  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 7  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 7  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 7  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 7  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 7  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 7  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 7  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 7  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 7  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 7  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 7  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 7  Scope: issue2873_violation_control.b.reports
+8 off prevents queue
+9 kill flushes queued
+10 re-enabled
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 10  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 10  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 10  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 10  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 10  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 10  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 10  Scope: issue2873_violation_control.a.reports
+WARNING: ivltests/issue2873_violation_control.sv:3: value is unhandled for priority or unique case statement
+         Time: 10  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:4: multiple case items match for unique or unique0 case statement
+         Time: 10  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:5: no condition matches for priority or unique if statement
+         Time: 10  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:6: multiple conditions match for unique or unique0 if statement
+         Time: 10  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:7: multiple conditions match for unique or unique0 if statement
+         Time: 10  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:8: value is unhandled for priority or unique case statement
+         Time: 10  Scope: issue2873_violation_control.b.reports
+WARNING: ivltests/issue2873_violation_control.sv:9: no condition matches for priority or unique if statement
+         Time: 10  Scope: issue2873_violation_control.b.reports
+ivltests/issue2873_violation_control.sv:45: $finish called at 11 (1s)

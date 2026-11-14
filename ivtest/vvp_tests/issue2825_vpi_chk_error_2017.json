@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2825_vpi_chk_error.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2825_vpi_chk_error_2017"],
+  "vpi-sources": ["vpi/issue2825_vpi_chk_error.c"],
+  "output-contains": ["VPI CHK ERROR PASS"]
+}

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1344_vpi_cbsignal.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue1344_vpi_cbsignal_2023"],
+  "vpi-sources": ["vpi/issue1344_vpi_cbsignal.c"],
+  "output-contains": ["REGISTER SIGUSR1=ok", "REGISTER index0=null", "DONE", "VPI CBSIGNAL PASS"]
+}

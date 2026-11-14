@@ -278,10 +278,13 @@ void vvp_semaphore::cancel_waiter_cb_(void*owner, vthread_t thr)
 
 void vvp_semaphore::cancel_waiter_(vthread_t thr)
 {
+      bool removed_head = !waiters_.empty() && waiters_.front().thr == thr;
       for (size_t idx = waiters_.size() ; idx > 0 ; idx -= 1) {
 	    if (waiters_[idx-1].thr == thr)
 		  waiters_.erase(waiters_.begin() + (long)(idx-1));
       }
+      if (removed_head)
+	    resume_waiters_();
 }
 
 void vvp_semaphore::resume_waiters_()
@@ -291,25 +294,17 @@ void vvp_semaphore::resume_waiters_()
       vvp_object_t keep_self(this);
       vvp_object_t claimed;
 
-      bool progress = true;
-      while (progress) {
-	    progress = false;
-	    for (size_t idx = 0; idx < waiters_.size(); ++idx) {
-		  if (count_ < 0 || (uint64_t)count_ < waiters_[idx].n)
-			continue;
-		  waiter_t w = waiters_[idx];
-		  waiters_.erase(waiters_.begin() + (long)idx);
-		  /* Claim BEFORE taking the keys. A canceled waiter must
-		   * leave the key count untouched, so that a later try_get()
-		   * can still acquire it. */
-		  if (vthread_claim_resource_wait(w.thr, this, claimed)) {
-			count_ -= w.n;
-			schedule_vthread(w.thr, 0, true);
-		  }
-		  /* Restart the scan either way: the erase shifted every
-		   * following index. */
-		  progress = true;
+      while (!waiters_.empty()) {
+	    if (count_ < 0 || (uint64_t)count_ < waiters_.front().n)
 		  break;
+	    waiter_t w = waiters_.front();
+	    waiters_.erase(waiters_.begin());
+	    /* Claim BEFORE taking the keys. A canceled waiter must
+	     * leave the key count untouched, so that a later try_get()
+	     * can still acquire it. */
+	    if (vthread_claim_resource_wait(w.thr, this, claimed)) {
+		  count_ -= w.n;
+		  schedule_vthread(w.thr, 0, false);
 	    }
       }
 }

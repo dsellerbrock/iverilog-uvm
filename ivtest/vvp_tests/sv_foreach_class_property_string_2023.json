@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_foreach_class_property_string.v",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "sv_foreach_class_property_string"
+}

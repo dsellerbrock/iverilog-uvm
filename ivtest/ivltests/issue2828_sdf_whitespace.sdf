@@ -1,0 +1,2 @@
+(DELAYFILE (SDFVERSION "3.0") (DESIGN "issue2828_sdf_whitespace") (TIMESCALE 1ns)
+  (CELL (CELLTYPE "issue2828_leaf") (INSTANCE m.l) (DELAY (ABSOLUTE (IOPATH a y (5))))))

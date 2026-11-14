@@ -1,0 +1,4 @@
+ivltests/sva_proc_checker_sorry.sv:36: sorry: procedural instance `d1' of checker `with_deferred' is not supported: the checker has a static deferred assertion (ivltests/sva_proc_checker_sorry.sv:10).
+ivltests/sva_proc_checker_sorry.sv:37: sorry: procedural instance `n1' of checker `with_property' is not supported: the checker has a named property declaration (ivltests/sva_proc_checker_sorry.sv:14).
+ivltests/sva_proc_checker_sorry.sv:38: sorry: procedural instance `r1' of checker `reads_g' is not supported: `g', which the checker's assertion (ivltests/sva_proc_checker_sorry.sv:22) reads, is declared again nearer the instance.
+ivltests/sva_proc_checker_sorry.sv:39: sorry: procedural instance `l1' of checker `late_sequence' is not supported: the checker has a static assertion lowered after its declaration (a sequence or property declared after it) (ivltests/sva_proc_checker_sorry.sv:26).

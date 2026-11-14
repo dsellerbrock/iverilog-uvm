@@ -1,0 +1,4 @@
+ivltests/issue2977_pure_static_mismatch.sv:5: error: Non-static constraint `c' cannot implement inherited pure constraint `c'.
+ivltests/issue2977_pure_static_mismatch.sv:2:      : Pure constraint `c' is declared here.
+ivltests/issue2977_pure_static_mismatch.sv:8: error: Pure constraint `c' does not match the inherited pure constraint's static qualifier.
+2 error(s) during elaboration.

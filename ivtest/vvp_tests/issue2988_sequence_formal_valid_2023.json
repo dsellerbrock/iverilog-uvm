@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2988_sequence_formal_valid.v",
+  "iverilog-args": ["-g2023", "-gassertions"],
+  "gold": "issue2988_sequence_formal_valid"
+}

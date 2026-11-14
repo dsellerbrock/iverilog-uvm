@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_proc_checker.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "sva_proc_checker"
+}

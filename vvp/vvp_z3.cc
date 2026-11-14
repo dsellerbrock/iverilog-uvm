@@ -1095,6 +1095,7 @@ struct Z3Builder {
             string message;
       };
       vector<StateCheck> state_checks;
+      bool nonground_weight_state_checks = false;
       // C7 (Phase 62b): optional optimize handle for soft asserts.
       // When non-null, dist branches emit Z3_optimize_assert_soft per
       // branch with the user-specified weight, biasing the model toward
@@ -1218,6 +1219,8 @@ struct Z3Builder {
       bool collect_refs_only = false;
       bool allow_planner_value_slots = false;
       vvp_cobject*assoc_foreach_key = nullptr;
+	// Non-null while expanding a string-key associative foreach.
+      const string*assoc_foreach_string_key = nullptr;
 	// Current entry of an associative foreach over class or string keys.
       size_t assoc_foreach_pos = SIZE_MAX;
       unsigned assoc_foreach_prop = UINT_MAX;
@@ -1614,8 +1617,8 @@ static void leave_typed_context_(Z3Builder&b, unsigned width, int sign)
 }
 
 // Forward declaration
-static Z3_ast build_z3_expr(IRParser&, Z3Builder&, Z3_lbool* = nullptr);
-static Z3_ast build_z3_atom(IRParser&, Z3Builder&, Z3_lbool* = nullptr);
+static Z3_ast build_z3_expr(IRParser&, Z3Builder&, Z3_lbool* = nullptr, bool = false);
+static Z3_ast build_z3_atom(IRParser&, Z3Builder&, Z3_lbool* = nullptr, bool = false);
 static Z3_lbool state_guard_truth_(Z3Builder&, Z3_ast,
                                   const set<Z3Builder::VarRef>&);
 static bool rand_elem_active_(const Z3Builder&, const vector<bool>*,
@@ -2155,7 +2158,7 @@ static Z3_ast parse_size(Z3Builder& b, const string& tok,
 	      for (size_t pos = 0; owner && pos + 1 < property_path.size(); ++pos) {
 		    vvp_object_t handle;
 		    if (!constraint_object_property_(owner, property_path[pos],
-			  handle, path_error, 0, true)) {
+		    handle, path_error, 0, false)) {
 			  owner = nullptr;
 			  break;
 		    }
@@ -2420,7 +2423,8 @@ static Z3_ast parse_nested_elem(Z3Builder&b, const string&tok)
 	    } else if (dynamic_element) {
 		  const string&base_type =
 			owner->get_defn()->property_base_type(pid);
-		  if (base_type.empty() || base_type[0] != 'D') {
+		  if (base_type.empty()
+		      || (base_type[0] != 'D' && base_type[0] != 'Q')) {
 			error = "invalid nested dynamic-array constraint property";
 		  } else {
 			  idx = b.graph->intern(owner, pid);
@@ -2585,12 +2589,16 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
 
       unsigned width = 32;
       bool sflag = false;
+	/* :z reads the size of the dynamic array or queue at the path, as
+	   state (a non-rand link, 18.3). */
+      bool size_read = false;
       if (*p == ':') {
 	    char*end = nullptr;
 	    width = (unsigned)strtoul(p + 1, &end, 10);
 	    if (width == 0) width = 32;
 	    p = end;
 	    sflag = (*p == ':' && p[1] == 's');
+	    size_read = (*p == ':' && p[1] == 'z');
       }
 
       vvp_vector4_t state_value;
@@ -2652,6 +2660,11 @@ static Z3_ast parse_state_path(Z3Builder&b, const string&tok)
 	    if (!static_state_read
 		&& (!cur || path.back() >= cur->get_defn()->property_count()))
                   path_error = "null/invalid constraint object path";
+	    if (path_error.empty() && !static_state_read && size_read) {
+		  uint64_t size = cobj_darray_size(cur, path.back());
+		  return Z3_mk_unsigned_int64(b.ctx, size,
+			Z3_mk_bv_sort(b.ctx, width));
+	    }
 	    if (path_error.empty() && !static_state_read) {
 		  cur->get_vec4(path.back(), state_value);
 	    }
@@ -2754,16 +2767,15 @@ static string capture_balanced_form(IRParser& par)
 }
 
 /* IEEE 1800-2017 18.5.8.1 / 1800-2023 18.5.7.1: queue/darray
- * indices are signed int. Substitute `L` with "c:<i>:32:s" (token
- * boundaries only — L may not appear inside other tokens, but guard
- * anyway). */
+ * indices are signed int. Substitute `L` with "c:<i>:32:s" at atom or
+ * colon-delimited header boundaries, including struct-member element tokens. */
 static string subst_loop_token_text(const string& body, const string& text)
 {
       string out;
       const char* p = body.c_str();
       auto is_delim = [](char c) {
 	    return c == ' ' || c == '\t' || c == '\n' || c == '('
-		|| c == ')' || c == '[' || c == ']' || c == ',' || c == 0;
+		|| c == ')' || c == '[' || c == ']' || c == ',' || c == ':' || c == 0;
       };
       char prev = ' ';
       while (*p) {
@@ -2813,13 +2825,16 @@ static string subst_loop_token(const string& body, uint64_t i,
       const char* p = body.c_str();
       auto is_delim = [](char c) {
 	    return c == ' ' || c == '\t' || c == '\n' || c == '('
-		|| c == ')' || c == '[' || c == ']' || c == ',' || c == 0;
+		|| c == ')' || c == '[' || c == ']' || c == ',' || c == ':' || c == 0;
       };
       char prev = ' ';
       while (*p) {
 	    if (*p == token && is_delim(prev) && is_delim(p[1])) {
-		  out += "c:" + to_string(i) + ":" + to_string(width)
-		       + (sign ? ":s" : "");
+		  if (prev == ':' && p[1] == ':')
+			out += to_string(i);
+		  else
+			out += "c:" + to_string(i) + ":" + to_string(width)
+			     + (sign ? ":s" : "");
 		  prev = token;
 		  p++;
 		  continue;
@@ -3233,12 +3248,12 @@ static Z3_ast constraint_state_error_disjunction_(Z3Builder&b,
       return Z3_mk_or(b.ctx, (unsigned)errors.size(), errors.data());
 }
 
-static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
+static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool sift)
 {
       par.skip_ws();
       if (par.peek() == '(') {
 	    par.consume(); // '('
-	    return build_z3_expr(par, b, guard);
+	    return build_z3_expr(par, b, guard, sift);
       }
       string tok = par.read_token();
       if (tok.empty()) return b.mk_true();
@@ -3346,23 +3361,31 @@ static Z3_ast build_z3_atom_impl_(IRParser& par, Z3Builder& b, Z3_lbool*guard)
       return b.mk_true();
 }
 
-static Z3_ast build_z3_atom(IRParser&par, Z3Builder&b, Z3_lbool*guard)
+static Z3_ast build_z3_atom(IRParser&par, Z3Builder&b, Z3_lbool*guard, bool sift)
 {
-      if (!guard) return build_z3_atom_impl_(par, b, nullptr);
+      if (!guard) return build_z3_atom_impl_(par, b, nullptr, sift);
       if (b.collect_refs_only) {
             *guard = Z3_L_UNDEF;
-            return build_z3_atom_impl_(par, b, nullptr);
+            return build_z3_atom_impl_(par, b, nullptr, sift);
       }
       set<Z3Builder::VarRef> refs;
       auto*saved = b.collect_refs;
       b.collect_refs = &refs;
       size_t errors = b.state_errors.size();
+      size_t checks = b.state_checks.size();
       *guard = Z3_L_UNDEF;
-      Z3_ast value = build_z3_atom_impl_(par, b, guard);
+      Z3_ast value = build_z3_atom_impl_(par, b, guard, sift);
       b.collect_refs = saved;
       if (saved) saved->insert(refs.begin(), refs.end());
       if (b.state_errors.size() != errors) *guard = Z3_L_UNDEF;
       else if (*guard == Z3_L_UNDEF) *guard = state_guard_truth_(b, value, refs);
+      if (sift && checks < b.state_checks.size()) {
+            Z3_ast error = Z3_simplify(b.ctx, constraint_state_error_disjunction_(
+                  b, checks, b.state_checks.size()));
+            if (Z3_get_bool_value(b.ctx, error) != Z3_L_FALSE
+                && state_guard_truth_(b, error, refs) != Z3_L_FALSE)
+                  *guard = Z3_L_UNDEF;
+      }
       return value;
 }
 
@@ -3378,8 +3401,10 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
                                      bool*negative = nullptr,
                                      bool*state_value = nullptr,
                                      Z3_ast*symbolic_value = nullptr,
-                                     bool*has_refs = nullptr)
+                                     bool*has_refs = nullptr,
+                                     bool*has_state_checks = nullptr)
 {
+      if (has_state_checks) *has_state_checks = false;
       if (state_value) *state_value = false;
       if (symbolic_value) *symbolic_value = nullptr;
       if (has_refs) *has_refs = false;
@@ -3397,6 +3422,7 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 	    par.p = start;
 	    return false;
       }
+      if (has_state_checks) *has_state_checks = !value_builder.state_checks.empty();
 	/* A rejected weight must leave its owning constraint unchanged. Commit
 	 * four-state checks only when the private expression has a ground value;
 	 * enclosing implication/if guards can then sift an inactive weight. */
@@ -3422,9 +3448,8 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
 	// the value of its ordinary SystemVerilog expression, so truncate or
 	// extend to the self-determined semantic width before ground folding.
       value = value_builder.coerce(value, semantic_width);
-	/* An X/Z state check makes the weight invalid and the item weight zero.
-	 * Do not preserve the lowered AST as a dynamic weight: its encoding uses
-	 * zero for the unknown state and could accidentally make the item positive. */
+	/* An X/Z state check must accompany the lowered dynamic weight. The
+	 * caller rebuilds it in the owning solver if ground evaluation fails. */
       if (symbolic_value && state_value && !*state_value
 	  && value_builder.state_checks.empty()) {
 	    *symbolic_value = value;
@@ -3674,7 +3699,7 @@ static Z3_ast mk_free_bv(Z3Builder& b, unsigned wid)
 			 Z3_mk_bv_sort(b.ctx, wid));
 }
 
-static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
+static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool sift)
 {
       par.skip_ws();
       string op = par.read_token();
@@ -4039,6 +4064,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	 * bound to each index and conjoin the instances. */
       if (op == "dynforeach") {
 	    string hdr = par.read_token();
+	    bool struct_member = !hdr.empty() && hdr[0] == 'S';
 	      // `foreach (q[i]) foreach (q[j])' over one array: the inner template
 	      // appends @M so its iterator is the token M, not the outer L.
 	    char loop_token = 'L';
@@ -4055,8 +4081,52 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  hdr.erase(slash);
 	    }
 	    unsigned pidx = 0, ewid = 0, leaf = 0; bool esig = false;
+	    if (struct_member) {
+		  unsigned outer = 0, member = 0;
+		  const char*text = hdr.c_str() + 1;
+		  char*end = nullptr;
+		  errno = 0;
+		  unsigned long value = strtoul(text, &end, 10);
+		  bool valid = end != text && errno != ERANGE && *end == ':'
+			&& value <= UINT_MAX;
+		  if (valid) { outer = (unsigned)value; text = end + 1; }
+		  errno = 0;
+		  value = valid ? strtoul(text, &end, 10) : 0;
+		  valid = valid && end != text && errno != ERANGE && *end == ':'
+			&& value <= UINT_MAX;
+		  if (valid) { member = (unsigned)value; text = end + 1; }
+		  errno = 0;
+		  value = valid ? strtoul(text, &end, 10) : 0;
+		  valid = valid && end != text && errno != ERANGE
+			&& (*end == 0 || (*end == ':' && end[1] == 's' && end[2] == 0))
+			&& value > 0 && value <= UINT_MAX;
+		  if (valid) {
+			ewid = (unsigned)value;
+			esig = *end == ':';
+		  }
+		  if (!valid || !b.graph || !b.cobj) {
+			b.state_errors.push_back("malformed unpacked-struct member foreach header");
+			return b.mk_true();
+		  }
+		  vvp_object_t object;
+		  string error;
+		  if (!constraint_object_property_(b.cobj, outer, object, error, 0,
+						   false)) {
+			b.state_errors.push_back(error.empty()
+			      ? "invalid unpacked-struct foreach owner" : error);
+			return b.mk_true();
+		  }
+		  vvp_cobject*owner = object.peek<vvp_cobject>();
+		  if (!owner || member >= owner->get_defn()->property_count()) {
+			b.state_errors.push_back("invalid unpacked-struct foreach member");
+			return b.mk_true();
+		  }
+		  pidx = b.graph->intern(owner, member);
+	    }
 	    bool nested = hdr.find(":#") != string::npos;
-	    if (nested) {
+	    if (struct_member) {
+		  // pidx is already the member's canonical graph identity.
+	    } else if (nested) {
 		  if (!parse_nested_pws_header_(hdr, pidx, leaf, ewid, esig)) {
 			b.state_errors.push_back("malformed selected queue foreach header");
 			return b.mk_true();
@@ -4067,7 +4137,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
                         b.state_errors.push_back("unsupported selected queue foreach metadata");
                         return b.mk_true();
                   }
-            } else pidx = b.property_index(pidx);
+	    } else if (!struct_member) pidx = b.property_index(pidx);
 	    string body = capture_balanced_form(par);
             if (nested && body.empty()) {
                   b.state_errors.push_back("malformed selected queue foreach body");
@@ -4275,6 +4345,11 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    uint64_t count = 0;
 	    auto found = b.dyn_sizes->find(make_pair(pidx, (unsigned)leaf));
 	    if (found != b.dyn_sizes->end()) count = found->second;
+	      /* A one-dimensional array (leaf 0) whose size is not being
+		 solved keeps its current size (18.5.8.1). */
+	    else if (leaf == 0 && b.type(pidx)
+		     && !b.type(pidx)->property_is_dyn2(b.local_index(pidx)))
+		  count = cobj_darray_size(b.object(pidx), b.local_index(pidx));
 	    Z3_ast result = b.mk_true();
 	    for (uint64_t i = 0; i < count; ++i) {
 		  string instance = subst_loop_token(body, i);
@@ -4284,6 +4359,22 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  result = Z3_mk_and(b.ctx, 2, both);
 	    }
 	    return result;
+	  }
+	  /* (xdelem path W[:s] idx): an element of a one-dimensional dynamic
+	   * array or queue owned by a nested rand object, at an index known
+	   * once the enclosing (xdynforeach) has substituted its loop token. */
+	  if (op == "xdelem") {
+	    string path = par.read_token();
+	    string width = par.read_token();
+	    uint64_t elem = 0;
+	    if (!eval_const_ir(par, elem) || !par.expect(')')) {
+		  b.state_errors.push_back("nested dynamic-array foreach index is not constant");
+		  return b.mk_true();
+	    }
+	    bool sign = width.size() >= 2 && width.substr(width.size() - 2) == ":s";
+	    if (sign) width.erase(width.size() - 2);
+	    return parse_nested_elem(b, "x:" + path + ":" + width + ":d:"
+		  + to_string(elem) + (sign ? ":s" : ""));
 	  }
 	  if (op == "xelem") {
 	    string path = par.read_token();
@@ -4323,15 +4414,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    }
 	    Z3_ast conjunction = b.mk_true();
 	    vvp_cobject*saved_key = b.assoc_foreach_key;
+	    const string*saved_string_key = b.assoc_foreach_string_key;
 	    size_t saved_pos = b.assoc_foreach_pos;
 	    unsigned saved_prop = b.assoc_foreach_prop;
-	    auto instance_term = [&](vvp_cobject*key_object, size_t position) -> bool {
+	    auto instance_term = [&](vvp_cobject*key_object, const string*string_key, size_t position) -> bool {
 		  IRParser instance(body);
 		  b.assoc_foreach_key = key_object;
+		  b.assoc_foreach_string_key = string_key;
 		  b.assoc_foreach_pos = position;
 		  b.assoc_foreach_prop = pidx;
 		  Z3_ast term = bv_to_bool(b.ctx, build_z3_atom(instance, b));
 		  b.assoc_foreach_key = saved_key;
+		  b.assoc_foreach_string_key = saved_string_key;
 		  b.assoc_foreach_pos = saved_pos;
 		  b.assoc_foreach_prop = saved_prop;
 		  instance.skip_ws();
@@ -4355,14 +4449,31 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			      b.state_errors.push_back("associative foreach key is not a class object");
 			      return b.mk_true();
 			}
-			if (!instance_term(key_object, position++)) return b.mk_true();
+			if (!instance_term(key_object, nullptr, position++)) return b.mk_true();
 		  } while (assoc->next_key(key));
 	    } else if (assoc->first_key(string_key)) {
 		  do {
-			if (!instance_term(nullptr, position++)) return b.mk_true();
+			if (!instance_term(nullptr, &string_key, position++)) return b.mk_true();
 		  } while (assoc->next_key(string_key));
 	    }
 	    return conjunction;
+      }
+
+      if (op == "qkeycmp") {
+	    string comparison = par.read_token();
+	    string encoded = par.read_token();
+	    par.skip_ws(); par.expect(')');
+	    if (!b.assoc_foreach_string_key || (comparison != "e" && comparison != "n")
+		|| encoded.empty() || encoded[0] != 'x' || encoded.size() % 2 != 1
+		|| encoded.find_first_not_of("0123456789abcdef", 1) != string::npos) {
+		  b.state_errors.push_back("invalid string associative foreach comparison");
+		  return b.mk_false();
+	    }
+	    string literal;
+	    for (size_t i = 1; i + 1 < encoded.size(); i += 2)
+		  literal += (char)strtoul(encoded.substr(i, 2).c_str(), nullptr, 16);
+	    bool equal = *b.assoc_foreach_string_key == literal;
+	    return (comparison == "e" ? equal : !equal) ? b.mk_true() : b.mk_false();
       }
 
       if (op == "qkeymember") {
@@ -5584,12 +5695,12 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    b.integral_context_width = 0;
 	    b.integral_context_sign = -1;
 	    Z3_ast left  = constraint_value_to_bool_(
-		  b, build_z3_atom(par, b, &left_guard));
+		  b, build_z3_atom(par, b, &left_guard, sift));
 	    size_t after_left = b.state_errors.size();
 	    size_t side_after_left = b.side_constraints.size();
 	    size_t checks_after_left = b.state_checks.size();
 	    Z3_ast right = constraint_value_to_bool_(
-		  b, build_z3_atom(par, b, &right_guard));
+		  b, build_z3_atom(par, b, &right_guard, sift));
 	    b.integral_context_width = outer_context;
 	    b.integral_context_sign = outer_sign;
 	    size_t side_after_right = b.side_constraints.size();
@@ -5603,11 +5714,20 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    Z3_ast right_sift_args[2] = {
 		  Z3_mk_not(b.ctx, left_error), left_decides
 	    };
-	    // The left operand is always evaluated before the operator can decide
-	    // whether to short-circuit the right operand. A value in the right
-	    // operand therefore cannot suppress an error while evaluating left.
-	    constraint_guard_state_checks_(b, checks_after_left, checks_after_right,
-		  Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, right_sift_args)), false);
+	    if (sift) {
+		  // A guard's FALSE/TRUE state operand suppresses an error on
+		  // either side; a random or erroneous operand cannot decide it.
+		  Z3_lbool deciding = op == "and" ? Z3_L_FALSE : Z3_L_TRUE;
+		  if (right_guard == deciding)
+		        constraint_guard_state_checks_(b, checks_before,
+		              checks_after_left, Z3_mk_false(b.ctx));
+		  if (left_guard == deciding)
+		        constraint_guard_state_checks_(b, checks_after_left,
+		              checks_after_right, Z3_mk_false(b.ctx));
+	    } else {
+		  constraint_guard_state_checks_(b, checks_after_left, checks_after_right,
+		        Z3_mk_not(b.ctx, Z3_mk_and(b.ctx, 2, right_sift_args)), false);
+	    }
 	    Z3_ast left_valid = constraint_side_conjunction_(
 		  b, side_before, side_after_left);
 	    Z3_ast right_valid = constraint_side_conjunction_(
@@ -5653,7 +5773,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    b.integral_context_width = 0;
 	    b.integral_context_sign = -1;
 	    Z3_ast left  = constraint_value_to_bool_(
-		  b, build_z3_atom(par, b, &left_guard));
+		  b, build_z3_atom(par, b, &left_guard, op == "impl"));
 	    size_t after_left = b.state_errors.size();
 	    size_t side_after_left = b.side_constraints.size();
 	    size_t checks_after_left = b.state_checks.size();
@@ -6058,7 +6178,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 	    int outer_sign = b.integral_context_sign;
 	    b.integral_context_width = 0;
 	    b.integral_context_sign = -1;
-	    Z3_ast raw = build_z3_atom(par, b, guard ? &child_guard : nullptr);
+	    Z3_ast raw = build_z3_atom(par, b, guard ? &child_guard : nullptr, sift);
 	    b.integral_context_width = outer_context;
 	    b.integral_context_sign = outer_sign;
             if (guard && child_guard != Z3_L_UNDEF)
@@ -6854,11 +6974,19 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 		  bool weight_overflow = false;
                   bool state_weight = false;
                   bool weight_has_refs = false;
+                  bool weight_has_state_checks = false;
 		  Z3_ast weight_expression = nullptr;
 		  if (!eval_runtime_integral_ir(par, b, weight64,
 						 weight_overflow, nullptr, &state_weight,
-						 &weight_expression, &weight_has_refs)) {
+						 &weight_expression, &weight_has_refs,
+                                                 &weight_has_state_checks)) {
                         state_weight = false;
+                        if (weight_has_state_checks) {
+                              // Rebuild in the owning solver so checks and their
+                              // symbolic guards refer to its actual variables.
+                              weight_expression = build_z3_atom(par, b);
+                              b.nonground_weight_state_checks = true;
+                        } else {
 			static bool warned_weight = false;
 			if (!warned_weight) {
 			      fprintf(stderr, "Warning: dist weight expression could "
@@ -6875,6 +7003,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard)
 			(void) build_z3_atom(par, ignored);
 			if (par.p == before && !par.at_end()) par.consume();
 			weight64 = 0;
+                        }
                   }
                   dspec.state_weights = dspec.state_weights && state_weight;
                   dspec.weight_state_refs = dspec.weight_state_refs
@@ -8458,10 +8587,32 @@ class state_foreach_expander_t {
             }
             if (op == "dynforeach" || op == "delem" || op == "qmelem") {
                   const char*begin = parser.p;
+                  string header = parser.read_token();
                   unsigned property = 0, member = 0, width = 0; bool sign = false;
-                  if (!header_(parser.read_token(), "", property, member, width,
-                               sign, op == "qmelem")
-                      || property >= receiver_->get_defn()->property_count()) return false;
+                  if (op == "dynforeach" && !header.empty()
+                      && header[0] == 'S') {
+                        const char*text = header.c_str() + 1;
+                        char*end = nullptr;
+                        unsigned long outer = strtoul(text, &end, 10);
+                        if (end == text || *end != ':'
+                            || outer >= receiver_->get_defn()->property_count())
+                              return false;
+                        text = end + 1;
+                        unsigned long field = strtoul(text, &end, 10);
+                        if (end == text || *end != ':') return false;
+                        text = end + 1;
+                        unsigned long element_width = strtoul(text, &end, 10);
+                        if (end == text || element_width == 0
+                            || (*end != 0 && !(*end == ':' && end[1] == 's'
+                                               && end[2] == 0))) return false;
+                        property = (unsigned)outer;
+                        member = (unsigned)field;
+                        width = (unsigned)element_width;
+                        sign = *end == ':';
+                  } else if (!header_(header, "", property, member, width,
+                                     sign, op == "qmelem")
+                             || property >= receiver_->get_defn()->property_count())
+                        return false;
                   bool loop = op == "dynforeach";
                   if (loop && template_depth_) return false;
                   if (loop) ++template_depth_;
@@ -12513,11 +12664,20 @@ static bool z3_full_power_two_projection_(Z3_context ctx, Z3_solver base,
       Z3_app universal = Z3_to_app(ctx, var);
       Z3_ast projection = Z3_mk_forall_const(ctx, 0, 1, &universal, 0,
             nullptr, body);
-      Z3_solver proof = Z3_mk_solver(ctx);
-      Z3_solver_inc_ref(ctx, proof);
-      Z3_solver_assert(ctx, proof, projection);
-      Z3_lbool result = Z3_solver_check(ctx, proof);
-      Z3_solver_dec_ref(ctx, proof);
+      /* Prove with the quantified bit-vector (BV) logic strategy first:
+       * Z3 4.8.x's default solver (Ubuntu 22.04/24.04 packages) takes about
+       * 100 s on even an 8-bit projection here, while the BV strategy
+       * decides it at once on every version. The default solver remains
+       * the fallback for formulas that strategy cannot decide. */
+      Z3_lbool result = Z3_L_UNDEF;
+      for (int pass = 0; pass < 2 && result == Z3_L_UNDEF; ++pass) {
+            Z3_solver proof = pass ? Z3_mk_solver(ctx)
+                  : Z3_mk_solver_for_logic(ctx, Z3_mk_string_symbol(ctx, "BV"));
+            Z3_solver_inc_ref(ctx, proof);
+            Z3_solver_assert(ctx, proof, projection);
+            result = Z3_solver_check(ctx, proof);
+            Z3_solver_dec_ref(ctx, proof);
+      }
       if (result != Z3_L_TRUE) return false;
       bits = Z3_get_bv_sort_size(ctx, sort);
       return true;
@@ -13890,6 +14050,28 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             state_check_scope = true;
             Z3_solver_assert(ctx, base, no_state_error);
             Z3_optimize_assert(ctx, opt, no_state_error);
+            // Diagnose selected invalid reads before distribution sampling,
+            // which otherwise may fail while materializing a dynamic weight.
+            if (builder.nonground_weight_state_checks
+                && Z3_solver_check(ctx, base) == Z3_L_FALSE) {
+                  Z3_solver_pop(ctx, base, 1);
+                  Z3_solver_assert(ctx, base, any_state_error);
+                  if (Z3_solver_check(ctx, base) == Z3_L_TRUE) {
+                        Z3_model model = Z3_solver_get_model(ctx, base);
+                        Z3_model_inc_ref(ctx, model);
+                        for (const auto&check : builder.state_checks) {
+                              Z3_ast value = nullptr;
+                              if (Z3_model_eval(ctx, model, check.error, 1, &value)
+                                  && value && Z3_get_bool_value(ctx, Z3_simplify(ctx, value)) == Z3_L_TRUE) {
+                                    fprintf(stderr, "ERROR: constraint state read: %s.\n", check.message.c_str());
+                                    break;
+                              }
+                        }
+                        Z3_model_dec_ref(ctx, model);
+                  }
+                  Z3_optimize_dec_ref(ctx, opt);
+                  return Z3PASS_FAILED;
+            }
       }
 
       // Apply queued explicit soft assertions. Dist preferences are retained
@@ -14374,6 +14556,9 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    // A symbolic state selection needs the final model to decide whether
 	    // its chosen index names an X/Z leaf or lies outside the declaration.
 	    if (!builder.state_checks.empty()) precheck = Z3_L_FALSE;
+	    // Absent element reads must be checked against their guards in the
+	    // final model before a current assignment can be accepted.
+	    if (!builder.absent_elems.empty()) precheck = Z3_L_FALSE;
 	    if (!uniform_joint_components.empty()) precheck = Z3_L_FALSE;
 
 	    if (precheck == Z3_L_TRUE && builder.dist_specs.empty()) {
@@ -16252,6 +16437,26 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                               }
                               if (full_support) continue;
                         }
+                        /* Any other prefix past the enumeration cap: a BDD
+                         * over the hard constraints proves they have a
+                         * solution, and the draw takes each prefix stage from
+                         * the same BDD, so only prefixes with a completion are
+                         * drawn (18.5.9). Constant weights cannot make one of
+                         * those fibers fail (18.5.3). */
+                        bool constant_weights = !prefix_vars.empty();
+                        for (const auto&binding : bindings)
+                              if (binding.stage == stage
+                                  && !z3_constant_dist_weights_(*binding.spec))
+                                    constant_weights = false;
+                        if (!full_prefix && constant_weights) {
+                              uint64_t count = 0;
+                              Z3_lbool proved = z3_bdd_pin_stages_(ctx, base,
+                                    opt, vector<vector<Z3_ast> >(1, prefix_vars),
+                                    nullptr, &count);
+                              if (proved == Z3_L_FALSE) return fail_joint(nullptr);
+                              if (proved == Z3_L_TRUE && count > ENUM_DOMAIN_CAP)
+                                    continue;
+                        }
                         vector<vector<uint64_t> > prefixes;
                         const char*reason = nullptr;
                         if (z3_enumerate_joint_(ctx, base, prefix_vars,
@@ -16405,6 +16610,18 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     ctx, base, projection.front(),
                                     projection_bits);
                         if (full_projection) continue;
+                          /* Past the cap, a BDD proves the projection
+                           * nonempty; the draw takes it from the same BDD
+                           * (18.5.9). Its count is cheap; enumerating up to
+                           * the cap first would not be. */
+                        uint64_t projection_count = 0;
+                        Z3_lbool counted = z3_bdd_pin_stages_(ctx, base, opt,
+                              vector<vector<Z3_ast> >(1, projection), nullptr,
+                              &projection_count);
+                        if (counted == Z3_L_FALSE) return fail_joint(nullptr);
+                        if (counted == Z3_L_TRUE
+                            && projection_count > ENUM_DOMAIN_CAP)
+                              continue;
                         vector<vector<uint64_t> > values;
                         const char*reason = nullptr;
                         if (z3_enumerate_joint_(ctx, base, projection,
@@ -16911,6 +17128,28 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                                     pin_column(columns.front(), chosen);
                                     continue;
                               }
+                                /* Past the cap, the BDD draws the stage
+                                 * exactly uniformly over its projection given
+                                 * the earlier pins (18.5.9). */
+                              uint64_t projection_count = 0;
+                              Z3_lbool counted = z3_bdd_pin_stages_(ctx, base,
+                                    opt, vector<vector<Z3_ast> >(1, projection),
+                                    nullptr, &projection_count);
+                              if (counted == Z3_L_TRUE
+                                  && projection_count > ENUM_DOMAIN_CAP) {
+                                    if (z3_bdd_pin_stages_(ctx, base, opt,
+                                          vector<vector<Z3_ast> >(1, projection),
+                                          &root_rng) == Z3_L_TRUE)
+                                          continue;
+                                    return fail_joint("a coupled stage projection could not be drawn from its BDD");
+                              }
+                              /* ponytail: under the cap the projection is still
+                               * enumerated one Z3 model per solution, about
+                               * 0.1-0.45 s per randomize() near 1024. Drawing it
+                               * from the BDD above would be faster but would
+                               * change existing random streams that Eve compares
+                               * against (supervisor ruling 2026-11-12: keep them
+                               * stable); revisit only with Eve. */
                               vector<vector<uint64_t> > values;
                               const char*reason = nullptr;
                               if (z3_enumerate_joint_(ctx, base, projection,
@@ -18763,9 +19002,30 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                               goto fail;
                         }
                         unsigned local = 0, width = 0; bool is_signed = false;
-                        parse_pws_header(header, local, width, is_signed);
-                        unsigned canonical = graph.intern(
-                              objects[work[wi].item.object].object, local);
+                        unsigned canonical;
+                        if (!header.empty() && header[0] == 'S') {
+                              const char*text = header.c_str() + 1;
+                              char*end = nullptr;
+                              unsigned long outer = strtoul(text, &end, 10);
+                              if (end == text || *end != ':'
+                                  || outer >= objects[work[wi].item.object]
+                                        .object->get_defn()->property_count())
+                                    goto fail;
+                              text = end + 1;
+                              unsigned long member = strtoul(text, &end, 10);
+                              if (end == text || *end != ':') goto fail;
+                              vvp_cobject*record = cobj_struct_prop(
+                                    objects[work[wi].item.object].object,
+                                    (unsigned)outer);
+                              if (!record || member >= record->get_defn()
+                                        ->property_count()) goto fail;
+                              canonical = graph.intern(record,
+                                    (unsigned)member);
+                        } else {
+                              parse_pws_header(header, local, width, is_signed);
+                              canonical = graph.intern(
+                                    objects[work[wi].item.object].object, local);
+                        }
                         string body = capture_balanced_form(parser);
                         vector<Ref> exact;
                         for (const Ref&arg : all_args)

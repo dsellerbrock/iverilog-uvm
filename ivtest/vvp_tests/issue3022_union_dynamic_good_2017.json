@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3022_union_dynamic_good.sv",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue3022_union_dynamic_good"
+}

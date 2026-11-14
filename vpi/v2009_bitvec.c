@@ -118,29 +118,10 @@ static PLI_INT32 countbits_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       for (unsigned lp = 0; lp < 4 ; ++lp) search[lp] = 0;
       while ((arg = vpi_scan(argv))) {
 	    s_vpi_value val;
-	    val.format = vpiScalarVal;
+	    val.format = vpiVectorVal;
 	    vpi_get_value(arg, &val);
-	    switch (val.value.scalar) {
-	      case vpi0:
-		  search[0] = 1;
-		  break;
-	      case vpi1:
-		  search[1] = 1;
-		  break;
-	      case vpiZ:
-		  search[2] = 1;
-		  break;
-	      case vpiX:
-		  search[3] = 1;
-		  break;
-	      default:
-		  vpi_printf("WARNING: %s:%d: ", vpi_get_str(vpiFile, callh),
-		             (int)vpi_get(vpiLineNo, callh));
-		  vpi_printf("Unknown scalar control bit argument %d passed "
-		             "to $countbits() will be ignored.\n",
-		             val.value.scalar);
-		  break;
-	    }
+	    search[((val.value.vector[0].bval & 1) << 1) |
+	           (val.value.vector[0].aval & 1)] = 1;
       }
 
       put_integer_value(callh, count_bits_in_expr(expr_arg, search));

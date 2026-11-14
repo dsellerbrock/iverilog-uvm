@@ -1,0 +1,7 @@
+ERROR: constraint state read: X/Z value in constraint guard (IEEE 1800-2017/2023 18.3).
+ERROR: constraint state read: X/Z value in constraint guard (IEEE 1800-2017/2023 18.3).
+ERROR: constraint state read: X/Z value in constraint guard (IEEE 1800-2017/2023 18.3).
+x step rc=0 next=E0
+z step rc=0 next=E0
+2-state step rc=1 next=E5
+plain state read rc=0 value=0

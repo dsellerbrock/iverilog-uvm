@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "issue3088_period_invalid.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-gspecify",
+    "-s",
+    "top"
+  ],
+  "gold": "issue3088_period_invalid"
+}

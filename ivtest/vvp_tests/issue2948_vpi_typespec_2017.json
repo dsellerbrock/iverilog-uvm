@@ -1,0 +1,17 @@
+{
+  "type": "normal",
+  "source": "issue2948_vpi_typespec.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2948_vpi_typespec_2017"],
+  "vpi-sources": ["vpi/issue2948_vpi_typespec.c"],
+  "output-contains": [
+    "top.v: typespec=641 range=7:0 size=8 signed=0",
+    "top.bt: typespec=641 range=7:0 size=8 signed=0",
+    "top.sv: typespec=641 range=0:7 size=8 signed=1",
+    "top.i: typespec=629",
+    "top.r: typespec=637",
+    "top.s: typespec=631",
+    "top.us.a: typespec=629",
+    "PASSED"
+  ]
+}

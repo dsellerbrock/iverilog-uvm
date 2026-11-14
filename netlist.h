@@ -647,7 +647,18 @@ struct NetTchk : public LineInfo {
       term_t ref, data;
       std::vector<NetNet*> limit_vars;
       std::vector<double> limits;	// declared values, scope time units
+	// With -gneg-tchk, the checker uses limit + shift (clamped at 0).
+      std::vector<double> shifts;
       NetNet*notifier = nullptr;
+};
+
+/* One token of a path delay expression in reverse Polish order: 'c' a
+   constant, 's' a specparam storage variable, or an operator '+', '-',
+   '*', '/', or 'n' (negation). */
+struct NetPathToken {
+      char kind;
+      double value;
+      const NetNet*sig;
 };
 
 class NetDelaySrc  : public NetObj {
@@ -694,9 +705,47 @@ class NetDelaySrc  : public NetObj {
 
       bool is_parallel() const;
 
+	// A destination bit/part select (30.4.2): the canonical bits
+	// [dst_base, dst_base+dst_width) of the output. dst_width 0 means
+	// the whole vector.
+      void set_dst_part(unsigned base, unsigned wid)
+      { dst_base_ = base; dst_width_ = wid; }
+      unsigned dst_base() const { return dst_base_; }
+      unsigned dst_width() const { return dst_width_; }
+	// A source select: only the bits [base, base+wid) of source pin
+	// idx trigger the path. A width of 0 means the whole vector.
+      void set_src_part(unsigned idx, unsigned base, unsigned wid)
+      { src_parts_.resize(src_count());
+	src_parts_[idx] = std::make_pair(base, wid); }
+      unsigned src_base(unsigned idx) const
+      { return idx < src_parts_.size() ? src_parts_[idx].first : 0; }
+      unsigned src_width(unsigned idx) const
+      { return idx < src_parts_.size() ? src_parts_[idx].second : 0; }
+	// PATHPULSE$ limits (30.7.1) for the path from source pin idx.
+      void set_pulse_limits(unsigned idx, uint64_t reject, uint64_t error)
+      { pulse_limits_.resize(src_count());
+	pulse_limits_[idx].set = true;
+	pulse_limits_[idx].reject = reject;
+	pulse_limits_[idx].error = error; }
+      bool pulse_limits(unsigned idx, uint64_t&reject, uint64_t&error) const
+      { if (idx >= pulse_limits_.size() || !pulse_limits_[idx].set)
+		  return false;
+	reject = pulse_limits_[idx].reject;
+	error = pulse_limits_[idx].error;
+	return true; }
+	// The delay expressions that use annotatable specparams, one per
+	// declared delay, so SDF LABEL can re-evaluate them (IEEE 1800
+	// 32.4.3). Empty when the delays are plain constants.
+      std::vector<std::vector<NetPathToken>> delay_exprs;
+
       void dump(std::ostream&, unsigned ind) const;
 
     private:
+      unsigned dst_base_ = 0;
+      unsigned dst_width_ = 0;
+      std::vector<std::pair<unsigned,unsigned> > src_parts_;
+      struct pulse_limit_t { bool set = false; uint64_t reject = 0, error = 0; };
+      std::vector<pulse_limit_t> pulse_limits_;
       uint64_t transition_delays_[12];
       bool condit_flag_;
       bool conditional_;
@@ -1303,11 +1352,12 @@ class Definitions {
       virtual void class_definitions_changed_();
 
     protected:
-	// Enumerations. The enum_sets_ is a list of all the
-	// enumerations present in this scope. The enum_names_ is a
-	// map of all the enumeration names back to the sets that
-	// contain them.
+	// Enumerations. The enum_sets_ map looks up enumerations by
+	// their pform type, while enum_sets_order_ preserves the order
+	// in which they were added. The enum_names_ map looks up enum
+	// names and their values.
       std::map<const enum_type_t*,netenum_t*> enum_sets_;
+      std::vector<netenum_t*> enum_sets_order_;
       std::map<perm_string,NetEConstEnum*> enum_names_;
 
 	// This is a map of all the classes (by name) in this scope.
@@ -1408,6 +1458,14 @@ class NetScope : public Definitions, public Attrib {
       void add_event(NetEvent*);
 
       void add_tchk(NetTchk*tchk) { tchks_.push_back(tchk); }
+
+	/* The run-time value of an annotatable specparam (IEEE 1800
+	   32.4.3), present when the design calls $sdf_annotate. */
+      void specparam_storage(perm_string name, NetNet*net)
+	    { specparam_storage_[name] = net; }
+      NetNet* specparam_storage(perm_string name) const
+	    { auto cur = specparam_storage_.find(name);
+	      return cur == specparam_storage_.end() ? nullptr : cur->second; }
       const std::vector<NetTchk*>& tchks() const { return tchks_; }
       void rem_event(NetEvent*);
       NetEvent*find_event(perm_string name);
@@ -1788,6 +1846,10 @@ class NetScope : public Definitions, public Attrib {
 	    // declaration inside an interface from one outside it, including a
 	    // defparam that targets a parameter deeper in the interface hierarchy.
 	    std::set<const NetScope*> defparam_source_scopes;
+	    // The declaration's own default, never replaced by an override,
+	    // and its tree elaborated for VPI (IEEE 1800-2023 37.28 detail 3).
+	    PExpr*default_expr = nullptr;
+	    NetExpr*default_net = nullptr;
 	    // Is it a type parameter
 	    bool type_flag = false;
 	    // Is it an unpacked array parameter (elements stored as "name[i]")
@@ -1830,6 +1892,44 @@ class NetScope : public Definitions, public Attrib {
 	    ivl_type_t ivl_type;
       };
       std::map<perm_string,param_expr_t>parameters;
+
+	/* Continuous assignments of this scope, kept for VPI (IEEE 1800-2023
+	   37.47). The structural driver is identified by its device name,
+	   which survives optimization replacing the device (cprop keeps
+	   the name), and matched in the target. */
+      struct contassign_t : public LineInfo {
+	    NetExpr*lval;	// The l-value read as an expression, or nil
+	    NetExpr*rval;	// The r-value at the l-value width
+	    perm_string driver;	// Name of the driving device, or nil
+	    ivl_drive_t drive0, drive1;
+	    bool net_decl;
+      };
+      std::vector<contassign_t> contassigns;
+
+	/* Defparam statements of this scope once resolved, kept for VPI
+	   (37.28): the target parameter and the r-value elaborated here. */
+      struct defparam_t : public LineInfo {
+	    NetScope*target;
+	    perm_string name;
+	    PExpr*rhs;
+	    NetExpr*rhs_net;
+      };
+      std::vector<defparam_t> defparams_kept;
+
+	/* The actual of each port of this instance, in port order (nil when
+	   unconnected), and its tree elaborated in the parent for VPI's
+	   vpiHighConn (37.14). */
+      std::vector<PExpr*> port_actuals;
+      std::vector<NetExpr*> port_highconns;
+	/* For an interface port, the interface instance it is bound to and
+	   the modport it selects (nil for none), for its vpiRefObj
+	   connections (37.14 detail 5, 37.15). */
+      std::vector<std::pair<NetScope*, perm_string> > port_ifaces;
+
+	/* Elaborate the expressions VPI keeps for parameters, defparams and
+	   port connections in this scope and its children, once parameters
+	   are final. */
+      void elaborate_vpi_parameter_exprs(Design*des);
 
 	/* The DLL target copies every parameter value while materializing its
 	 * corresponding scope. Release the elaborated, owned value/range trees
@@ -1910,6 +2010,7 @@ class NetScope : public Definitions, public Attrib {
 
       NetEvent *events_;
       std::vector<NetTchk*> tchks_;
+      std::map<perm_string,NetNet*> specparam_storage_;
 
       std::map<perm_string,LineInfo*> genvars_;
 
@@ -3653,6 +3754,7 @@ class NetAssign_ {
       ivl_select_type_t select_type() const;
 
       void set_word(NetExpr*);
+      NetExpr* release_word() { NetExpr*w = word_; word_ = 0; return w; }
       void set_array_word_prefix(unsigned first, unsigned count)
       { array_word_prefix_ = true; array_word_first_ = first;
         array_word_count_ = count; }
@@ -5831,6 +5933,7 @@ class NetESelect  : public NetExpr {
 
       const NetExpr*sub_expr() const;
       const NetExpr*select() const;
+      void set_select(NetExpr*sel) { delete base_; base_ = sel; }
       ivl_select_type_t select_type() const;
 
 	// The type of a bit/part select is the base type of the
@@ -5968,6 +6071,7 @@ class NetEProperty : public NetExpr {
       inline const NetExpr* get_base() const { return expr_; }
       inline size_t property_idx() const { return pidx_; }
       inline const NetExpr*get_index() const { return index_; }
+      void set_index(NetExpr*idx) { delete index_; index_ = idx; }
 
       // Resolve a direct member of a statically bound interface port to the
       // concrete signal in the interface-instance scope. Ordinary class
@@ -6038,6 +6142,14 @@ class NetEScope  : public NetExpr {
 
       const NetScope* scope() const;
 
+	// An interface port binding whose member PID is a module path
+	// destination: the module's view of that member is the module-local
+	// shadow SIG (IEEE 1800 25.6).
+      void add_vif_bind(unsigned pid, NetNet*sig)
+      { vif_binds_.push_back(std::make_pair(pid, sig)); }
+      const std::vector<std::pair<unsigned,NetNet*> >& vif_binds() const
+      { return vif_binds_; }
+
       virtual void expr_scan(struct expr_scan_t*) const override;
       virtual NetEScope* dup_expr() const override;
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
@@ -6047,6 +6159,7 @@ class NetEScope  : public NetExpr {
 
     private:
       NetScope*scope_;
+      std::vector<std::pair<unsigned,NetNet*> > vif_binds_;
 };
 
 /*
@@ -6437,6 +6550,7 @@ class NetESignal  : public NetExpr {
 	// This is the expression for selecting an array word, if this
 	// signal refers to an array.
       const NetExpr* word_index() const;
+      void set_word_index(NetExpr*idx) { delete word_; word_ = idx; }
 
 	// This is the width of the vector that this signal refers to.
       unsigned vector_width() const;

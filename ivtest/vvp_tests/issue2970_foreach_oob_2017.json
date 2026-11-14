@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2970_foreach_oob.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue2970_foreach_oob"
+}

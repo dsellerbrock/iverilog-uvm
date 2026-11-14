@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue2999_named_property_not.sv:23: $finish called at 36 (1s)

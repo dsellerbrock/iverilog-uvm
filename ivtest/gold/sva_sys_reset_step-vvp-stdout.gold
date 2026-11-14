@@ -1,0 +1,5 @@
+EnableStep(sva_sys_reset_step.u.x, 25) = 1
+EnableStep(sva_sys_reset_step.y, 25) = 1
+SysReset(u) = 1
+25: sva_sys_reset_step.y step
+35: sva_sys_reset_step.y step

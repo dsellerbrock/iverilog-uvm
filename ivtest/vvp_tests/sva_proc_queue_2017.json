@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_proc_queue.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_proc_queue"],
+  "gold": "sva_proc_queue"
+}

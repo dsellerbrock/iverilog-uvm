@@ -1,0 +1,5 @@
+{
+    "type": "normal",
+    "source": "issue890_negative_tchk.v",
+    "iverilog-args": ["-g2023", "-gspecify", "-gneg-tchk", "-s", "top"]
+}

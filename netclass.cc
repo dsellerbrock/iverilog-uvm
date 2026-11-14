@@ -250,9 +250,10 @@ void netclass_t::configure_constraint_declarations(Design*des, const PClass*pcla
 	    auto decl = pclass->type->constraint_declarations.find(
 		  constraint.first);
 	    if (decl != pclass->type->constraint_declarations.end()
-		&& decl->second.is_static) {
+		&& decl->second.is_static != obligation->second.is_static) {
 		  cerr << decl->second.get_fileline()
-		       << ": error: Static constraint `" << constraint.first
+		       << ": error: " << (decl->second.is_static ? "Static" : "Non-static")
+		       << " constraint `" << constraint.first
 		       << "' cannot implement inherited pure constraint `"
 		       << constraint.first << "'." << endl;
 		  cerr << obligation->second.get_fileline()
@@ -263,8 +264,16 @@ void netclass_t::configure_constraint_declarations(Design*des, const PClass*pcla
 	    unimplemented_pure_constraints_.erase(obligation);
       }
       for (const auto&pure : pclass->type->pure_constraints) {
-	    LineInfo&source = unimplemented_pure_constraints_[pure.first];
+	    auto inherited = unimplemented_pure_constraints_.find(pure.first);
+	    if (inherited != unimplemented_pure_constraints_.end()
+		&& inherited->second.is_static != pure.second.is_static) {
+		  cerr << pure.second.get_fileline() << ": error: Pure constraint `"
+		       << pure.first << "' does not match the inherited pure constraint's static qualifier." << endl;
+		  des->errors += 1;
+	    }
+	    pure_constraint_obligation_t&source = unimplemented_pure_constraints_[pure.first];
 	    source.set_line(pure.second);
+	    source.is_static = pure.second.is_static;
       }
 
       if (is_virtual() || unimplemented_pure_constraints_.empty())

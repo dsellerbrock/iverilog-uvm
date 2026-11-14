@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "issue2626_tagged_union_2state_read.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue2626_tagged_union_2state_read"
+}

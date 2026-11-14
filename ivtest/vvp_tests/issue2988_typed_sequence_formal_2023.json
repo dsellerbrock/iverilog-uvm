@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2988_typed_sequence_formal.v",
+  "iverilog-args": ["-g2023", "-gassertions"],
+  "gold": "issue2988_typed_sequence_formal_2023"
+}

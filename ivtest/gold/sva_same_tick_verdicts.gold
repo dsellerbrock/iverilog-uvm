@@ -1,0 +1,4 @@
+a1 passes: 25 25
+a2 failures: 25 25 25 35 45
+a3 passes: 25 25
+./ivltests/sva_same_tick_verdicts.sv:31: $finish called at 50 (1s)

@@ -791,6 +791,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%store/dar/str", of_STORE_DAR_STR, 1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%store/dar/vec4",of_STORE_DAR_VEC4,1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%store/dar/vec4/off",of_STORE_DAR_VEC4_OFF,3,{OA_FUNC_PTR, OA_BIT1, OA_BIT2} },
+      { "%store/dar/vec4/off/2",of_STORE_DAR_VEC4_OFF_2,3,{OA_FUNC_PTR, OA_BIT1, OA_BIT2} },
       { "%store/obj",   of_STORE_OBJ,   1, {OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%store/obj/open",of_STORE_OBJ_OPEN,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%store/obja",  of_STORE_OBJA,  2, {OA_ARR_PTR, OA_BIT1, OA_NONE} },
@@ -860,6 +861,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%store/vec4",    of_STORE_VEC4,    3, {OA_FUNC_PTR,OA_BIT1, OA_BIT2} },
       { "%store/vec4/v",  of_STORE_VEC4_VALUE,2,{OA_FUNC_PTR,OA_BIT1,OA_NONE} },
       { "%store/vec4a",   of_STORE_VEC4A,   3, {OA_ARR_PTR, OA_BIT1, OA_BIT2} },
+      { "%stream/cast/size", of_STREAM_CAST_SIZE, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/end/l",  of_STREAM_END_L,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/end/r",  of_STREAM_END_R,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },
       { "%stream/flatten/assoc", of_STREAM_FLATTEN_ASSOC, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
@@ -897,6 +899,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%swap/obj",of_SWAP_OBJ,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%sxz/check", of_SXZ_CHECK, 2, {OA_BIT1, OA_NUMBER, OA_NONE} },
       { "%sxz/result", of_SXZ_RESULT, 2, {OA_NUMBER, OA_BIT1, OA_NONE} },
+      { "%tchk/violation", of_TCHK_VIOLATION, 1,{OA_VPI_PTR, OA_NONE, OA_NONE} },
       { "%test/class",   of_TEST_CLASS,   2,{OA_VPI_PTR, OA_VPI_PTR2, OA_NONE} },
       { "%test_nul",     of_TEST_NUL,     1,{OA_FUNC_PTR,OA_NONE,    OA_NONE} },
       { "%test_nul/a",   of_TEST_NUL_A,   2,{OA_ARR_PTR, OA_BIT1,    OA_NONE} },
@@ -910,6 +913,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%unbox/vec4", of_UNBOX_VEC4,1,{OA_NUMBER,  OA_NONE,    OA_NONE} },
       { "%union/gettag", of_UNION_GETTAG, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%union/tag", of_UNION_TAG, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
+      { "%vif/bind", of_VIF_BIND, 2,{OA_BIT1,     OA_VPI_PTR, OA_NONE} },
       { "%vif/fatal", of_VIF_FATAL, 0,{OA_NONE,     OA_NONE,    OA_NONE} },
       { "%vif/nullcheck", of_VIF_NULLCHECK, 0,{OA_NONE, OA_NONE, OA_NONE} },
       { "%vif/tickchg",of_VIF_TICKCHG,1,{OA_NUMBER, OA_NONE,    OA_NONE} },
@@ -1222,6 +1226,48 @@ void resolv_submit(resolv_list_s*cur)
       resolv_list = cur;
 }
 
+
+/*
+ * The driver of a continuous assignment object is a convenience for its
+ * value-change callbacks, never a connection: a label that names no
+ * functor or signal leaves the object without one instead of failing the
+ * load.
+ */
+struct contassign_driver_resolv_s : public resolv_list_s {
+      contassign_driver_resolv_s(char*l, vpiHandle obj)
+      : resolv_list_s(l), obj_(obj) { }
+      bool resolve(bool mes) override
+      {
+	    vvp_net_t*net = 0;
+	    symbol_value_t val = sym_get_value(sym_vpi, label());
+	    if (val.ptr) {
+		  if (__vpiSignal*sig = dynamic_cast<__vpiSignal*>(
+			    static_cast<vpiHandle>(val.ptr)))
+			net = sig->node;
+	    } else {
+		  net = lookup_functor_symbol(label());
+	    }
+	    if (net)
+		  vpip_contassign_set_driver(obj_, net);
+	    return net != 0 || mes;
+      }
+    private:
+      vpiHandle obj_;
+};
+
+void compile_vpi_contassign(char*label, long flags, long str0, long str1,
+			    long file_idx, long lineno, char*driver,
+			    unsigned argc, vpiHandle*argv)
+{
+      vpiHandle obj = vpip_make_contassign((int)flags, (int)str0, (int)str1,
+					   (unsigned)file_idx, (unsigned)lineno,
+					   argc, argv);
+      if (obj && driver[0])
+	    resolv_submit(new contassign_driver_resolv_s(driver, obj));
+      else
+	    free(driver);
+      free(label);
+}
 
 /*
  * Look up vvp_nets in the symbol table. The "source" is the label for
@@ -1965,12 +2011,21 @@ void compile_cleanup(void)
                   unsigned assertion_kind = 0;
                   unsigned file_idx = 0;
                   unsigned line = 0;
+                  unsigned is_final = 0;
                   int consumed = 0;
+                  /* The optional fifth field (0 = observed, 1 = final)
+                     selects the 20.11 assertion_type bit. */
+                  if (code->text
+                      && sscanf(code->text, "%u,%u,%u,%u,%u%n", &source_id,
+                                &assertion_kind, &file_idx, &line, &is_final,
+                                &consumed) != 5)
+                        consumed = 0;
                   if (!code->text
-		      || sscanf(code->text, "%u,%u,%u,%u%n", &source_id,
-				&assertion_kind, &file_idx, &line,
-				&consumed) != 4
-		      || code->text[consumed] != 0
+		      || (!consumed
+			  && sscanf(code->text, "%u,%u,%u,%u%n", &source_id,
+				    &assertion_kind, &file_idx, &line,
+				    &consumed) != 4)
+		      || code->text[consumed] != 0 || is_final > 1
 		      || !source_id || !line || file_idx >= file_names.size()
 		      || (assertion_kind != 1 && assertion_kind != 2
 			  && assertion_kind != 4)
@@ -1982,7 +2037,7 @@ void compile_cleanup(void)
                   }
                   vpip_register_deferred_assertion(
                         static_cast<unsigned long>(source_id),
-			assertion_kind, file_idx, line, scope);
+			assertion_kind, file_idx, line, scope, is_final != 0);
             }
       }
       deferred_assertion_registrations.clear();
@@ -2837,6 +2892,14 @@ void compile_reactive(char*label, struct symb_s arg)
       input_connect(ptr, 0, arg.text);
 }
 
+static std::map<std::string, __vpiModPath*> modpaths_by_label;
+
+__vpiModPath* compile_find_modpath(const char*label)
+{
+      auto cur = modpaths_by_label.find(label);
+      return cur == modpaths_by_label.end() ? 0 : cur->second;
+}
+
 struct __vpiModPath* compile_modpath(char*label, unsigned width,
 				     bool showcancelled,
                                      struct symb_s drv, struct symb_s dest)
@@ -2853,11 +2916,14 @@ struct __vpiModPath* compile_modpath(char*label, unsigned width,
 
       compile_vpi_lookup(&modpath->path_term_out.expr, dest.text);
 
+      modpaths_by_label[label] = modpath;
       free(label);
 
       modpath->modpath = obj;
       return modpath;
 }
+
+static vvp_fun_modpath_src*last_modpath_src_ = 0;
 
 static struct __vpiModPathSrc*make_modpath_src(struct __vpiModPath*path,
 					       char edge,
@@ -2911,10 +2977,12 @@ static struct __vpiModPathSrc*make_modpath_src(struct __vpiModPath*path,
 	    obj = new vvp_fun_modpath_edge(use_delay, posedge, negedge);
       }
 
+      last_modpath_src_ = obj;
       vvp_net_t*net = new vvp_net_t;
       struct __vpiModPathSrc* srcobj = vpip_make_modpath_src(path, net) ;
       srcobj->ifnone = ifnone;
       if (condition_text) srcobj->condition_text = condition_text;
+      path->srcs.push_back(srcobj);
       vpip_attach_to_current_scope(srcobj);
       net->fun = obj;
 
@@ -2961,6 +3029,29 @@ void compile_modpath_src(struct __vpiModPath*dst, char edge,
       struct __vpiModPathSrc*obj =
 	    make_modpath_src(dst, edge, src, vals, ifnone, 0);
       compile_vpi_lookup(&obj->path_term_in.expr, path_term_in.text);
+}
+
+void compile_modpath_src_pulse(struct __vpiModPath*, uint64_t reject,
+			       uint64_t error)
+{
+      assert(last_modpath_src_);
+      vvp_time64_t rej[12], err[12];
+      for (unsigned idx = 0 ; idx < 12 ; idx += 1) {
+	    rej[idx] = reject;
+	    err[idx] = error;
+      }
+      last_modpath_src_->put_pulse_limits12(rej, err);
+}
+
+void compile_modpath_src_part(struct __vpiModPath*dst,
+			      unsigned dbase, unsigned dwid,
+			      unsigned sbase, unsigned swid)
+{
+      assert(last_modpath_src_);
+      last_modpath_src_->set_dst_part(dbase, dwid);
+      last_modpath_src_->set_src_part(sbase, swid);
+      if (dwid)
+	    dst->modpath->set_has_dst_parts();
 }
 
 /*
@@ -3451,7 +3542,7 @@ void compile_vpi_call(char*label, char*name,
                       unsigned argc, vpiHandle*argv,
 		      unsigned vec4_stack, unsigned real_stack,
 		      unsigned string_stack, unsigned object_stack,
-		      bool defer_observed)
+		      unsigned defer_observed)
 {
       if (label)
 	    compile_codelabel(label);
@@ -3467,7 +3558,7 @@ void compile_vpi_call(char*label, char*name,
                                          argc, argv, vec4_stack, real_stack,
                                          string_stack, object_stack,
 					 file_idx, lineno);
-      code->bit_idx[0] = defer_observed ? 1 : 0;
+      code->bit_idx[0] = defer_observed;
       if (code->handle == 0)
 	    compile_errors += 1;
 

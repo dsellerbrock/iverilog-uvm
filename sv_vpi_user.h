@@ -47,12 +47,11 @@ EXTERN_C_START
 #define vpiInterface        601
 #define vpiProgram          602
 #define vpiModport          603
-/* M12-6: modport port declarations — vpi_iterate(vpiIODecl, modport)
+/* M12-6: modport port declarations: vpi_iterate(vpiIODecl, modport)
  * yields one handle per modport port; vpi_get(vpiDirection) gives
- * vpiInput/vpiOutput/vpiInout (vpiNoDirection for ref). (The IEEE
- * vpiIODecl code 25 collides with Icarus's vpiIntegerVar, so this
- * header assigns a free code.) */
-#define vpiIODecl           604
+ * vpiInput/vpiOutput/vpiInout (vpiNoDirection for ref). vpiIODecl is
+ * the Annex K code 28 from vpi_user.h; this header once used 604, which
+ * vvp still accepts as an iteration code. */
 #define vpiCovergroup       605
 #define vpiArrayType        606
 #define vpiArrayMember      607
@@ -91,6 +90,11 @@ EXTERN_C_START
 #define vpiCoverBin         662
 #define vpiCoverAtLeast     663
 #define vpiCoverWeight      664
+/* IEEE 1800-2023 Annex M object types. They share their values with the
+   coverpoint and cover-weight types above, which are not standard; the
+   object a vpi_iterate() call starts from tells them apart. */
+#define vpiPropertyInst     660
+#define vpiSequenceInst     664
 #define vpiCoverCount       665
 #define vpiCoverTypeCount   666
 #define vpiPackedArrayMember 655
@@ -156,6 +160,11 @@ EXTERN_C_START
    2023 40.5.2. */
 #define vpiAssertAttemptCovered 770
 #define vpiAssertSuccessCovered 771
+/* Assertion source-range properties (IEEE 1800 Annex M.2). */
+#define vpiStartLine        661
+#define vpiColumn           662
+#define vpiEndLine          663
+#define vpiEndColumn        664
 /* vpiType values for immediate assertion statements (IEEE 1800 Annex E).
  * VPI property codes are a separate value set; vpiImmediateAssert shares the
  * integer value of the Icarus vpiCoverCount property code. */
@@ -215,6 +224,30 @@ EXTERN_C_START
 #define cbAssertionKill         614
 #define cbAssertionVacuousSuccess 657
 #define cbAssertionDisabledEvaluation 658
+/* IEEE 1800-2023 39.4.2 per-assertion control reasons (Annex M values). */
+#define cbAssertionLock                   661
+#define cbAssertionUnlock                 662
+#define cbAssertionEnablePassAction       645
+#define cbAssertionEnableFailAction       646
+#define cbAssertionDisablePassAction      647
+#define cbAssertionDisableFailAction      648
+#define cbAssertionEnableNonvacuousAction 649
+#define cbAssertionDisableVacuousAction   650
+/* IEEE 1800-2023 39.4.1 assertion system callback reasons (Annex M). */
+#define cbAssertionSysInitialized            615
+#define cbAssertionSysOn                     616
+#define cbAssertionSysOff                    617
+#define cbAssertionSysKill                   631
+#define cbAssertionSysLock                   659
+#define cbAssertionSysUnlock                 660
+#define cbAssertionSysEnd                    618
+#define cbAssertionSysReset                  619
+#define cbAssertionSysEnablePassAction       651
+#define cbAssertionSysEnableFailAction       652
+#define cbAssertionSysDisablePassAction      653
+#define cbAssertionSysDisableFailAction      654
+#define cbAssertionSysEnableNonvacuousAction 655
+#define cbAssertionSysDisableVacuousAction   656
 
 /* Attempt information passed to an assertion callback.
 

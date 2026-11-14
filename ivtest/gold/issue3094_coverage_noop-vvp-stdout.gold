@@ -1,0 +1,4 @@
+WARNING: ivltests/issue3094_coverage_noop.v:10: $coverage_control returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: ivltests/issue3094_coverage_noop.v:11: $coverage_control received an invalid argument and returns SV_COV_ERROR.
+WARNING: ivltests/issue3094_coverage_noop.v:12: $coverage_control received an invalid argument and returns SV_COV_ERROR.
+PASS

@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2934_ansi_explicit_first.v",
+    "iverilog-args": ["-g2023", "-s", "top"],
+    "output-contains": ["PASSED"]
+}

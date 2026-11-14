@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3021_interface_defaults.v",
+    "iverilog-args": ["-g2023", "-s", "issue3021_interface_defaults"],
+    "gold": "issue3021_interface_defaults"
+}

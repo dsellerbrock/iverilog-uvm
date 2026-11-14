@@ -1726,10 +1726,12 @@ static bool interface_method_defaults_match_(const NetScope*prototype,
 	    // An implementation can omit a default supplied by the interface.
 	    if (!expected || !actual)
 		  continue;
-	    std::unique_ptr<NetExpr> expected_value(expected->dup_expr()->eval_tree());
-	    std::unique_ptr<NetExpr> actual_value(actual->dup_expr()->eval_tree());
-	    if (!expected_value || !actual_value)
-		  return false;
+	    NetExpr*expected_expr = expected->dup_expr();
+	    NetExpr*actual_expr = actual->dup_expr();
+	    eval_expr(expected_expr);
+	    eval_expr(actual_expr);
+	    std::unique_ptr<NetExpr> expected_value(expected_expr);
+	    std::unique_ptr<NetExpr> actual_value(actual_expr);
 	    const NetECReal*expected_real =
 		  dynamic_cast<const NetECReal*>(expected_value.get());
 	    const NetECReal*actual_real =
@@ -1824,6 +1826,40 @@ static void collect_interface_class_graph_(const netclass_t*type,
 	    collect_interface_class_graph_(parent, nodes, seen);
 }
 
+typedef map<perm_string,set<const PClass*> > interface_declarations_t;
+
+static interface_declarations_t interface_class_declarations_(
+      const netclass_t*type, map<const netclass_t*,interface_declarations_t>&cache,
+      set<const netclass_t*>&visiting)
+{
+      auto cached = cache.find(type);
+      if (cached != cache.end())
+	    return cached->second;
+      interface_declarations_t declarations;
+      if (!type || !visiting.insert(type).second)
+	    return declarations;
+      for (const netclass_t*parent : type->interface_types()) {
+	    interface_declarations_t inherited = interface_class_declarations_(parent, cache, visiting);
+	    for (const auto&cur : inherited)
+		  declarations[cur.first].insert(cur.second.begin(), cur.second.end());
+      }
+      const NetScope*scope = type->class_scope();
+      const PClass*pclass = scope ? scope->class_pform() : 0;
+      if (pclass) {
+	    for (const auto&cur : pclass->parameters) {
+		  declarations[cur.first].clear();
+		  declarations[cur.first].insert(pclass);
+	    }
+	    for (const auto&cur : pclass->typedefs) {
+		  declarations[cur.first].clear();
+		  declarations[cur.first].insert(pclass);
+	    }
+      }
+      visiting.erase(type);
+      cache[type] = declarations;
+      return declarations;
+}
+
 static NetScope*find_concrete_class_method_(const netclass_t*type,
 					     perm_string name)
 {
@@ -1852,7 +1888,6 @@ static void validate_interface_class_relations_(Design*des,
 		  collect_interface_class_graph_(relation, interfaces, seen);
 
       map<perm_string,vector<NetScope*> >requirements;
-      map<perm_string,set<const PClass*> >type_declarations;
       map<const PClass*,const netclass_t*>specializations;
       set<const PClass*>reported_specializations;
 
@@ -1896,20 +1931,24 @@ static void validate_interface_class_relations_(Design*des,
 			requirements[cur.first].push_back(method);
 	    }
 
-	    for (const auto&cur : interface_pclass->parameters)
-		  if (cur.second && cur.second->type_flag)
-			type_declarations[cur.first].insert(interface_pclass);
-	    for (const auto&cur : interface_pclass->typedefs)
-		  type_declarations[cur.first].insert(interface_pclass);
       }
 
       if (use_class->is_interface_class()) {
-	    for (const auto&cur : type_declarations) {
+	    interface_declarations_t inherited;
+	    map<const netclass_t*,interface_declarations_t> cache;
+	    set<const netclass_t*> visiting;
+	    for (const netclass_t*parent : use_class->interface_types()) {
+		  interface_declarations_t declarations = interface_class_declarations_(parent, cache, visiting);
+		  for (const auto&cur : declarations)
+			inherited[cur.first].insert(cur.second.begin(), cur.second.end());
+	    }
+	    for (const auto&cur : inherited) {
 		  if (cur.second.size() < 2
-		      || pclass->typedefs.find(cur.first) != pclass->typedefs.end())
+		      || pclass->typedefs.find(cur.first) != pclass->typedefs.end()
+		      || pclass->parameters.find(cur.first) != pclass->parameters.end())
 			continue;
 		  cerr << pclass->get_fileline() << ": error: Interface class `"
-		       << use_class->get_name() << "' inherits conflicting type `"
+		       << use_class->get_name() << "' inherits conflicting parameter or type `"
 		       << cur.first << "' from multiple interface classes and must "
 		       << "declare a local resolution." << endl;
 		  des->errors += 1;
@@ -1963,7 +2002,12 @@ static void validate_interface_class_relations_(Design*des,
 		  des->errors += 1;
 	    }
 
-	    if (!use_class->is_virtual()
+	    if (use_class->is_virtual() && !implementation) {
+		  cerr << pclass->get_fileline() << ": error: Virtual class `"
+		       << use_class->get_name() << "' does not declare or inherit interface method `"
+		       << cur.first << "'." << endl;
+		  des->errors += 1;
+	    } else if (!use_class->is_virtual()
 		&& (!implementation || !interface_method_has_body_(implementation))) {
 		  cerr << pclass->get_fileline() << ": error: Non-virtual class `"
 		       << use_class->get_name() << "' does not implement interface "
@@ -3842,6 +3886,9 @@ void PTask::elaborate_sig(Design*des, NetScope*scope) const
 	    statement_->elaborate_sig(des, scope);
 }
 
+/* See elab_expr.cc: the subroutine scope while its port defaults elaborate. */
+extern NetScope*elab_port_default_scope;
+
 void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				     vector<NetNet*> &ports,
 				     vector<NetExpr*> &pdefs,
@@ -3959,11 +4006,14 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				      bool old_need_const_func = scope->need_const_func();
 				      if (interface_method_default)
 					    scope->need_const_func(true);
+				      NetScope*saved_default_scope = elab_port_default_scope;
+				      elab_port_default_scope = scope;
 				      tmp_def = elaborate_rval_expr(
 					    des, scope, formal_type,
 					    ports_->at(idx).defe,
 					    scope->need_const_func()
 					    || interface_method_default);
+				      elab_port_default_scope = saved_default_scope;
 				      scope->need_const_func(old_need_const_func);
 				      if (tmp_def
 					  && pform_default_argument_requires_procedural_context)
@@ -3976,9 +4026,12 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 					    old_requires_procedural_context
 					    || default_requires_procedural_context;
 				} else {
+				      NetScope*saved_default_scope = elab_port_default_scope;
+				      elab_port_default_scope = scope;
 				      tmp_def = elab_and_eval(
 					    des, scope, ports_->at(idx).defe, -1,
 					    scope->need_const_func());
+				      elab_port_default_scope = saved_default_scope;
 				}
 			if (tmp_def == 0) {
 			      cerr << get_fileline()

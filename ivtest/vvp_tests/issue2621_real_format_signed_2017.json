@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2621_real_format_signed.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue2621_real_format_signed"
+}

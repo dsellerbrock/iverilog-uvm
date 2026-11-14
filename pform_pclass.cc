@@ -911,6 +911,7 @@ void pform_class_constraint_prototype(const struct vlltype&loc,
 }
 
 void pform_class_pure_constraint(const struct vlltype&loc,
+				  bool is_static,
 				  unsigned override_specifiers, const char*name)
 {
       if (!pform_cur_class || !name)
@@ -936,8 +937,9 @@ void pform_class_pure_constraint(const struct vlltype&loc,
       class_type_t::pure_constraint_info_t&info =
 	type->pure_constraints[pname];
       FILE_NAME(&info, loc);
-	  pform_check_constraint_override_specifiers_(&info, false, true,
+	  pform_check_constraint_override_specifiers_(&info, is_static, true,
 					      override_specifiers);
+	  info.is_static = is_static;
 	  info.override_specifiers = override_specifiers;
 }
 

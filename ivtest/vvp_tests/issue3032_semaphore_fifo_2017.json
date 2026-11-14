@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3032_semaphore_fifo.v",
+    "iverilog-args": ["-g2017", "-s", "issue3032_semaphore_fifo"],
+    "gold": "issue3032_semaphore_fifo"
+}

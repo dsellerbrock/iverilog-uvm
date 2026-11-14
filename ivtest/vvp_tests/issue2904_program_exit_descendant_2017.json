@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2904_program_exit_descendant.v",
+    "iverilog-args": ["-g2017", "-s", "issue2904_program_exit_descendant"],
+    "gold": "issue2904_program_exit_descendant"
+}

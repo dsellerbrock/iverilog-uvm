@@ -37,6 +37,7 @@
 # include  <string>
 # include  <list>
 # include  <map>
+# include  <set>
 # include  <memory>
 # include  <cstdio>
 
@@ -225,6 +226,10 @@ extern Module::port_t* pform_module_port_reference(const struct vlltype&loc,
 						   perm_string name);
 extern void pform_module_defer_port_direction(perm_string name,
 						     NetNet::PortType direction);
+/* IEEE 1800-2023 17.7: `rand [const]' free checker variables. */
+extern void pform_checker_free_vars(const struct vlltype&loc,
+				    std::list<decl_assignment_t*>*decls,
+				    data_type_t*type, bool is_const);
 extern void pform_endmodule(const char*, bool inside_celldefine,
                             Module::UCDriveType uc_drive_def);
 
@@ -269,6 +274,7 @@ extern void pform_class_constraint_prototype(const struct vlltype&loc,
                                               unsigned override_specifiers,
 					      const char*name, bool is_extern = true);
 extern void pform_class_pure_constraint(const struct vlltype&loc,
+					 bool is_static,
 					 unsigned override_specifiers,
 					 const char*name);
 
@@ -419,7 +425,26 @@ extern sva_property_t* pform_sva_prop_compose(const struct vlltype&loc,
 extern void pform_make_assertion(const struct vlltype&loc,
 				 sva_property_t*prop,
 				 Statement*fail_stmt, Statement*pass_stmt,
-				 int kind, perm_string label = perm_string());
+				 int kind, perm_string label = perm_string(),
+				 unsigned proc_id = 0);
+/* IEEE 1800-2023 16.14.6: concurrent_assertion_statement holds its
+   assertion until the enclosing rule says where it is. A module item
+   synthesizes a static assertion (release returns null); a procedural
+   statement gets the statement that queues a pending instance. */
+extern void pform_sva_hold_assertion(const struct vlltype&loc,
+				     sva_property_t*prop,
+				     Statement*fail_stmt, Statement*pass_stmt,
+				     int kind);
+extern Statement* pform_sva_release_assertion(bool procedural);
+/* IEEE 1800-2023 17.3: procedural checker instances. The behaviors and gates
+   a checker's static assertions lowered to; a procedural instance's
+   module-scope copy of the checker leaves them out. */
+extern Statement* pform_procedural_checker_instance(const struct vlltype&loc,
+						    perm_string type, lgate*gate);
+extern void pform_checker_note_static_deferred(const struct vlltype&loc);
+extern std::set<const PProcess*> pform_checker_static_behaviors;
+extern std::set<const PGate*> pform_checker_static_gates;
+extern Statement* pform_sva_static_always_assertion(Statement*body);
 /* M9-10: implicit clock inference for a concurrent assertion written
    inside procedural code (IEEE 1800-2017 16.14.6). An unclocked assertion
    with no default clocking is parked by pform_make_assertion; the first
@@ -1014,6 +1039,8 @@ extern void pform_set_parameter(const struct vlltype&loc,
                                 PExpr*expr, LexicalScope::range_t*value_range,
                                 type_parameter_restriction_t restriction =
                                       type_parameter_restriction_t::NONE);
+extern void pform_set_pathpulse(const struct vlltype&loc, const char*name,
+				PExpr*reject, PExpr*error);
 extern void pform_set_specparam(const struct vlltype&loc,
 				 perm_string name,
 				 std::list<pform_range_t>*range,

@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sva_checker_free_fail.sv",
+    "iverilog-args" : [ "-g2023", "-s", "sva_checker_free_fail" ],
+    "gold"          : "sva_checker_free_fail_2023"
+}

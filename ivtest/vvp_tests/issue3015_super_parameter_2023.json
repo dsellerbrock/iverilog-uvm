@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3015_super_parameter.sv",
+  "iverilog-args": ["-g2023", "-s", "issue3015_super_parameter"],
+  "gold": "issue3015_super_parameter"
+}

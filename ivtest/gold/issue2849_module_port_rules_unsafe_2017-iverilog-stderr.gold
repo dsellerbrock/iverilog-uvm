@@ -1,0 +1,2 @@
+ivltests/issue2849_module_instantiation.sv:5: warning: module instance u has no port list; IEEE 1800 23.3.2 requires parentheses
+ivltests/issue2849_module_instantiation.sv:6: warning: .* appears more than once in the port connections of v (IEEE 1800 23.3.2)

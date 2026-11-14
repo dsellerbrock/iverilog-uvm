@@ -1,0 +1,2 @@
+PASSED
+./ivltests/issue2410_class_array_vartype.v:19: $finish called at 0 (1s)

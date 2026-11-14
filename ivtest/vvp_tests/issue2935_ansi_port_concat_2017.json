@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2935_ansi_port_concat.v",
+  "iverilog-args": ["-g2017", "-s", "issue2935_ansi_port_concat_top"],
+  "gold": "issue2935_ansi_port_concat"
+}

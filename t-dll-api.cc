@@ -1049,6 +1049,23 @@ extern "C" ivl_scope_t ivl_expr_scope(ivl_expr_t net)
       return net->u_.scope_.scope;
 }
 
+extern "C" unsigned ivl_expr_vif_binds(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SCOPE);
+      return net->u_.scope_.nbinds;
+}
+
+extern "C" ivl_signal_t ivl_expr_vif_bind(ivl_expr_t net, unsigned idx,
+					  unsigned*pid)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_SCOPE);
+      assert(idx < net->u_.scope_.nbinds);
+      *pid = net->u_.scope_.bind_pid[idx];
+      return net->u_.scope_.bind_sig[idx];
+}
+
 extern "C" ivl_select_type_t ivl_expr_sel_type(ivl_expr_t net)
 {
       assert(net);
@@ -2470,6 +2487,12 @@ extern "C" ivl_expr_t ivl_parameter_assign_expr(ivl_parameter_t net)
       return net->assign_expr;
 }
 
+extern "C" ivl_expr_t ivl_parameter_default_expr(ivl_parameter_t net)
+{
+      assert(net);
+      return net->default_expr;
+}
+
 extern "C" const char* ivl_parameter_file(ivl_parameter_t net)
 {
       assert(net);
@@ -2510,6 +2533,41 @@ extern "C" int ivl_path_is_parallel(ivl_delaypath_t obj)
 {
       assert(obj);
       return obj->parallel ? 1 : 0;
+}
+
+extern "C" unsigned ivl_path_dst_base(ivl_delaypath_t obj)
+{
+      assert(obj);
+      return obj->dst_base;
+}
+
+extern "C" unsigned ivl_path_dst_width(ivl_delaypath_t obj)
+{
+      assert(obj);
+      return obj->dst_width;
+}
+
+extern "C" unsigned ivl_path_src_base(ivl_delaypath_t obj)
+{
+      assert(obj);
+      return obj->src_base;
+}
+
+extern "C" unsigned ivl_path_src_width(ivl_delaypath_t obj)
+{
+      assert(obj);
+      return obj->src_width;
+}
+
+extern "C" int ivl_path_pulse_limits(ivl_delaypath_t obj, uint64_t*reject,
+				     uint64_t*error)
+{
+      assert(obj);
+      if (!obj->has_pulse_limits)
+	    return 0;
+      *reject = obj->pulse_reject;
+      *error = obj->pulse_error;
+      return 1;
 }
 
 extern uint64_t ivl_path_delay(ivl_delaypath_t obj, ivl_path_edge_t edg)
@@ -3086,6 +3144,29 @@ extern "C" unsigned ivl_scope_mod_module_ports(ivl_scope_t net)
       return static_cast<unsigned>(net->net_->module_port_info().size());
 }
 
+extern "C" ivl_expr_t ivl_scope_mod_module_port_highconn(ivl_scope_t net,
+							 unsigned idx)
+{
+      assert(net);
+      if (!net->aux_ || !net->aux_->port_highconns
+	  || idx >= net->aux_->port_highconns->size())
+	    return 0;
+      return (*net->aux_->port_highconns)[idx];
+}
+
+extern "C" ivl_scope_t ivl_scope_mod_module_port_iface(ivl_scope_t net,
+						      unsigned idx,
+						      const char**modport)
+{
+      assert(net);
+      if (modport) *modport = 0;
+      if (!net->aux_ || !net->aux_->port_ifaces
+	  || idx >= net->aux_->port_ifaces->size())
+	    return 0;
+      if (modport) *modport = (*net->aux_->port_ifaces)[idx].second;
+      return (*net->aux_->port_ifaces)[idx].first;
+}
+
 extern "C" const char *ivl_scope_mod_module_port_name(ivl_scope_t net, unsigned idx )
 {
       assert(net);
@@ -3184,6 +3265,30 @@ extern "C" ivl_signal_t ivl_scope_sig(ivl_scope_t net, unsigned idx)
       return net->sigs_[idx];
 }
 
+extern "C" unsigned ivl_path_delay_exprs(ivl_delaypath_t net)
+{
+      assert(net);
+      return net->exprs.size();
+}
+
+extern "C" unsigned ivl_path_delay_expr_tokens(ivl_delaypath_t net,
+					       unsigned expr)
+{
+      assert(net && expr < net->exprs.size());
+      return net->exprs[expr].size();
+}
+
+extern "C" int ivl_path_delay_expr_token(ivl_delaypath_t net, unsigned expr,
+					 unsigned idx, double*value,
+					 ivl_signal_t*sig)
+{
+      assert(net && expr < net->exprs.size() && idx < net->exprs[expr].size());
+      const ivl_delaypath_s::token_s&tok = net->exprs[expr][idx];
+      if (value) *value = tok.value;
+      if (sig) *sig = tok.sig;
+      return tok.kind;
+}
+
 extern "C" unsigned ivl_scope_tchks(ivl_scope_t net)
 {
       assert(net);
@@ -3264,10 +3369,116 @@ extern "C" double ivl_tchk_limit(ivl_tchk_t net, unsigned idx)
       return net->limits[idx];
 }
 
+extern "C" double ivl_tchk_limit_shift(ivl_tchk_t net, unsigned idx)
+{
+      assert(net && idx < net->limits.size());
+      return idx < net->shifts.size() ? net->shifts[idx] : 0.0;
+}
+
 extern "C" ivl_signal_t ivl_tchk_notifier(ivl_tchk_t net)
 {
       assert(net);
       return net->notifier;
+}
+
+extern "C" unsigned ivl_scope_defparams(ivl_scope_t net)
+{
+      assert(net);
+      return net->aux_ && net->aux_->defparams
+	   ? net->aux_->defparams->size() : 0;
+}
+
+extern "C" ivl_defparam_t ivl_scope_defparam(ivl_scope_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < ivl_scope_defparams(net));
+      return &(*net->aux_->defparams)[idx];
+}
+
+extern "C" ivl_parameter_t ivl_defparam_parameter(ivl_defparam_t net)
+{
+      assert(net);
+      return net->param;
+}
+
+extern "C" ivl_expr_t ivl_defparam_rhs(ivl_defparam_t net)
+{
+      assert(net);
+      return net->rhs;
+}
+
+extern "C" const char* ivl_defparam_file(ivl_defparam_t net)
+{
+      assert(net);
+      return net->file.str();
+}
+
+extern "C" unsigned ivl_defparam_lineno(ivl_defparam_t net)
+{
+      assert(net);
+      return net->lineno;
+}
+
+extern "C" unsigned ivl_scope_contassigns(ivl_scope_t net)
+{
+      assert(net);
+      return net->aux_ && net->aux_->contassigns
+	   ? net->aux_->contassigns->size() : 0;
+}
+
+extern "C" ivl_contassign_t ivl_scope_contassign(ivl_scope_t net, unsigned idx)
+{
+      assert(net);
+      assert(idx < ivl_scope_contassigns(net));
+      return &(*net->aux_->contassigns)[idx];
+}
+
+extern "C" ivl_expr_t ivl_contassign_lval(ivl_contassign_t net)
+{
+      assert(net);
+      return net->lval;
+}
+
+extern "C" ivl_expr_t ivl_contassign_rval(ivl_contassign_t net)
+{
+      assert(net);
+      return net->rval;
+}
+
+extern "C" const char* ivl_contassign_driver(ivl_contassign_t net)
+{
+      assert(net);
+      return net->driver.nil() ? 0 : net->driver.str();
+}
+
+extern "C" ivl_drive_t ivl_contassign_drive0(ivl_contassign_t net)
+{
+      assert(net);
+      return net->drive0;
+}
+
+extern "C" ivl_drive_t ivl_contassign_drive1(ivl_contassign_t net)
+{
+      assert(net);
+      return net->drive1;
+}
+
+extern "C" int ivl_contassign_net_decl(ivl_contassign_t net)
+{
+      assert(net);
+      return net->net_decl;
+}
+
+extern "C" const char* ivl_contassign_file(ivl_contassign_t net)
+{
+      assert(net);
+      return net->file.str();
+}
+
+extern "C" unsigned ivl_contassign_lineno(ivl_contassign_t net)
+{
+      assert(net);
+      return net->lineno;
 }
 
 extern "C" unsigned ivl_scope_switches(ivl_scope_t net)

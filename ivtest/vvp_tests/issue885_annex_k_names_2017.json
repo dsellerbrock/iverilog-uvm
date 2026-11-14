@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue885_annex_k_names.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue885_annex_k_names_2017"],
+  "vpi-sources": ["vpi/issue885_annex_k_names.c"],
+  "output-contains": ["ANNEX K NAMES PASS: 455 names"]
+}

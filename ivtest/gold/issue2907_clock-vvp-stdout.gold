@@ -1,0 +1,11 @@
+event at 5
+event at 7
+guarded event at 7
+q04 fail at 15
+guarded event at 15
+event-or done
+override fail at 20
+q04 done
+override done
+guarded done
+ivltests/issue2907_clock.sv:54: $finish called at 23 (1s)

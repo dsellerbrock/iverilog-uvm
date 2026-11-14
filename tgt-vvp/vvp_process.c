@@ -2063,15 +2063,17 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
       fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",
 	      thread_count, lab_after_warn, multi_flag);
       if (quality_if)
-	    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+	    fprintf(vvp_out, "    %%vpi_call/observed %u %u %u \"$warning\", "
 		    "\"multiple conditions match for unique or unique0 if "
 		    "statement\" {0 0 0 0};\n",
+		    (qual == IVL_CASE_QUALITY_UNIQUE ? 32 : 64),
 		    ivl_file_table_index(ivl_stmt_file(net)),
 		    ivl_stmt_lineno(net));
       else
-	    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+	    fprintf(vvp_out, "    %%vpi_call/observed %u %u %u \"$warning\", "
 		    "\"multiple case items match for unique or unique0 case "
 		    "statement\" {0 0 0 0};\n",
+		    (qual == IVL_CASE_QUALITY_UNIQUE ? 32 : 64),
 		    ivl_file_table_index(ivl_stmt_file(net)),
 		    ivl_stmt_lineno(net));
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, lab_after_warn);
@@ -2109,13 +2111,13 @@ static int show_stmt_case_unique(ivl_statement_t net, ivl_scope_t sscope,
 	    rc += show_statement(cst, sscope);
       } else if (qual == IVL_CASE_QUALITY_UNIQUE) {
 	    if (quality_if)
-		  fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+		  fprintf(vvp_out, "    %%vpi_call/observed 32 %u %u \"$warning\", "
 			  "\"no condition matches for priority or unique if statement\""
 			  " {0 0 0 0};\n",
 			  ivl_file_table_index(ivl_stmt_file(net)),
 			  ivl_stmt_lineno(net));
 	    else
-	      fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+	      fprintf(vvp_out, "    %%vpi_call/observed 32 %u %u \"$warning\", "
 			  "\"value is unhandled for priority or unique case statement\""
 			  " {0 0 0 0};\n",
 			  ivl_file_table_index(ivl_stmt_file(net)),
@@ -2240,13 +2242,13 @@ static int show_stmt_case(ivl_statement_t net, ivl_scope_t sscope)
       else if (default_case == count) {
           if (qual == IVL_CASE_QUALITY_PRIORITY) {
               if (quality_if)
-		    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+		    fprintf(vvp_out, "    %%vpi_call/observed 128 %u %u \"$warning\", "
 			    "\"no condition matches for priority or unique if statement\""
 			    " {0 0 0 0};\n",
 			    ivl_file_table_index(ivl_stmt_file(net)),
 			    ivl_stmt_lineno(net));
 		  else
-		    fprintf(vvp_out, "    %%vpi_call/observed %u %u \"$warning\", "
+		    fprintf(vvp_out, "    %%vpi_call/observed 128 %u %u \"$warning\", "
 			    "\"value is unhandled for priority or unique case statement\""
 			    " {0 0 0 0};\n",
 			    ivl_file_table_index(ivl_stmt_file(net)),
@@ -5431,6 +5433,13 @@ static int show_push_frontback_method(ivl_statement_t net, bool is_front)
 		    clr_word(idx);
 		    return 0;
 	      }
+	      if (type_is_fixed_uarray_property_(element_type)) {
+		draw_queue_element_object_value_(parm1, element_type);
+		fprintf(vvp_out, "    %%store/%s/obj v%p_0, %d;\n",
+			type_code, var, idx);
+		clr_word(idx);
+		return 0;
+	      }
 	      switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
 	    draw_eval_real(parm1);
@@ -6446,10 +6455,10 @@ static int show_deferred_assert_enqueue_(ivl_statement_t net,
       }
 
       fprintf(vvp_out,
-	      "    %%defer/register \"%ld,%ld,%u,%u\", S_%p;\n",
+	      "    %%defer/register \"%ld,%ld,%u,%u,%ld\", S_%p;\n",
 	      source_id, assertion_kind,
 	      ivl_file_table_index(ivl_stmt_file(net)), ivl_stmt_lineno(net),
-	      sscope);
+	      mode, sscope);
 
       /* Action arguments must be evaluated by the source process and captured
        * before either pending report is queued. The shared VPI lowering emits
@@ -8030,6 +8039,27 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    }
       }
 
+      /* $ivl_tchk_violation(<limit variable>) -- a synthesized timing
+       * checker found a violation (IEEE 1800-2023 38.36.3). The
+       * variable is the first limit of exactly one timing check of its
+       * scope; %tchk/violation names that check's .tchk record. */
+      if (strcmp(stmt_name, "$ivl_tchk_violation") == 0) {
+	    ivl_expr_t arg = ivl_stmt_parm_count(net) == 1
+		  ? ivl_stmt_parm(net, 0) : 0;
+	    ivl_signal_t lim = arg ? ivl_expr_signal(arg) : 0;
+	    ivl_scope_t tscope = lim ? ivl_signal_scope(lim) : 0;
+	    unsigned idx;
+	    for (idx = 0; tscope && idx < ivl_scope_tchks(tscope); idx += 1) {
+		  ivl_tchk_t tchk = ivl_scope_tchk(tscope, idx);
+		  if (ivl_tchk_limits(tchk) > 0
+		      && ivl_tchk_limit_sig(tchk, 0) == lim) {
+			fprintf(vvp_out, "    %%tchk/violation TC_%p;\n", tchk);
+			break;
+		  }
+	    }
+	    return 0;
+      }
+
       /* $ivl_ref_bind(<formal>, <actual>) — point a `ref' formal at the
        * caller's variable (IEEE 1800-2017 13.5.2). The core emits this
        * where the copy-in used to be, which puts it between the
@@ -9104,7 +9134,8 @@ static unsigned vpi_statement_type_(ivl_statement_t stmt)
           case IVL_ST_CASEZ: return vpiCase;
           case IVL_ST_DELAY:
           case IVL_ST_DELAYX: return vpiDelayControl;
-          case IVL_ST_DISABLE: return vpiDisable;
+          case IVL_ST_DISABLE:
+            return ivl_stmt_call(stmt) ? vpiDisable : vpiDisableFork;
           case IVL_ST_FOREVER: return vpiForever;
           case IVL_ST_REPEAT: return vpiRepeat;
           case IVL_ST_WAIT: return vpiEventControl;

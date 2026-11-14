@@ -1,0 +1,18 @@
+{
+  "type": "normal",
+  "source": "issue2898_vpi_annex_k.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "top"
+  ],
+  "vpi-modules": [
+    "issue2898_vpi_annex_k_2017"
+  ],
+  "vpi-sources": [
+    "vpi/issue2898_vpi_annex_k.c"
+  ],
+  "output-contains": [
+    "MISSING_COUNT=0"
+  ]
+}

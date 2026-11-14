@@ -74,6 +74,9 @@ static int bit_get(int code, vpiHandle ref)
 	case vpiAutomatic:
 	    return vpi_get(vpiAutomatic, parent);
 
+	case vpiExpanded:
+	    return vpi_get(vpiExpanded, parent);
+
 	case vpiIndex:
 	    {
 		  s_vpi_value vp;
@@ -160,6 +163,7 @@ static vpiHandle bit_iterate(int code, vpiHandle ref)
 {
       struct __vpiBit*rfp = bit_from_handle(ref);
       assert(rfp);
+      if (vpiHandle conn = vpip_conn_iterate(code, ref)) return conn;
       if (code != vpiIndex) return 0;
 
       struct __vpiSignal*root = rfp->get_parent();

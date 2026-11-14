@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3022_union_dynamic_bad.sv",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3022_union_dynamic_bad"
+}

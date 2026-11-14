@@ -140,6 +140,8 @@ struct sva_seq_step_t {
       std::vector<sva_match_item_t> items; // endpoint actions in source order
       bool fm = false;      // step is inside a first_match(...) wrapper
       unsigned fm_group = 0; // identity of that first_match wrapper
+      long fm_first_delay_lo = 0; // intrinsic leading delay at wrapper creation
+      long fm_first_delay_hi = 0;
       // M9-NFA stage C.1: goto/nonconsecutive repetition of the boolean
       // `expr' (IEEE 1800-2017 16.9.2). rep_kind 0 = none; 1 = goto
       // `[->m:n]' (match ends ON the n-th occurrence); 2 = nonconsecutive

@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue2715_default_time_scope.sv",
+  "iverilog-args": ["-g2017"]
+}

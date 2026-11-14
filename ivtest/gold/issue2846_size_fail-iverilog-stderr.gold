@@ -1,0 +1,5 @@
+ivltests/issue2846_size_fail.v:10: error: bit-stream cast source of 20 bits is not a multiple of the 8-bit destination element size.
+ivltests/issue2846_size_fail.v:11: error: bit-stream cast source of 20 bits is not a multiple of the 8-bit destination element size.
+ivltests/issue2846_size_fail.v:12: error: bit-stream cast source of 4 bits is not a multiple of the 8-bit destination element size.
+ivltests/issue2846_size_fail.v:13: error: bit-stream cast source of 4 bits is not a multiple of the 8-bit destination element size.
+4 error(s) during elaboration.

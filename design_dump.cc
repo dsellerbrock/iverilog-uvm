@@ -1663,9 +1663,9 @@ void NetScope::dump(ostream&o) const
       o << "    enum sets {" << endl;
 
 	/* Dump the enumerations and enum names in this scope. */
-      for (map<const enum_type_t*,netenum_t*>::const_iterator cur = enum_sets_.begin()
-		 ; cur != enum_sets_.end() ; ++ cur) {
-	    o << "      " << cur->second << endl;
+      for (vector<netenum_t*>::const_iterator cur = enum_sets_order_.begin()
+		 ; cur != enum_sets_order_.end() ; ++cur) {
+	    o << "      " << *cur << endl;
       }
       o << "    }" << endl;
 

@@ -217,7 +217,15 @@ def build_dpi_library(options: dict, it_key: str) -> list:
         cmd.extend(["-undefined", "dynamic_lookup"])
     else:
         cmd.append("-Wl,--allow-shlib-undefined")
-    cmd.extend(["-I../local-install/include/iverilog", "-o", output])
+    # svdpi.h lives in the include directory of the iverilog under test,
+    # which iverilog-vpi (from PATH, like the VPI build above) reports.
+    try:
+        cflags = subprocess.run(["iverilog-vpi", "--cflags"], check=False,
+                                stdout=subprocess.PIPE, text=True).stdout
+    except OSError as error:
+        return [1, "Failed - DPI library build: " + str(error)]
+    cmd.extend(flag for flag in cflags.split() if flag.startswith("-I"))
+    cmd.extend(["-o", output])
     cmd.extend(options['dpi_sources'])
     if os.path.isfile(export_stub):
         cmd.append(export_stub)

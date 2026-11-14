@@ -1,0 +1,4 @@
+issue3088_period_invalid_2017 CE,-g2017,-gspecify,-s,top ivltests gold=issue3088_period_invalid.gold
+issue3088_period_valid_2017 normal,-g2017,-gspecify,-s,top ivltests gold=issue3088_period_valid.gold
+issue3088_period_invalid_2023 CE,-g2023,-gspecify,-s,top ivltests gold=issue3088_period_invalid.gold
+issue3088_period_valid_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue3088_period_valid.gold

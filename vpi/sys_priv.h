@@ -54,6 +54,7 @@ struct timeformat_info_s {
 };
 
 extern struct timeformat_info_s timeformat_info;
+extern void vpip_set_active_timeformat(vpiHandle call);
 
 extern unsigned is_constant_obj(vpiHandle obj);
 extern unsigned is_numeric_obj(vpiHandle obj);
@@ -66,6 +67,7 @@ extern unsigned get_fd_mcd_from_arg(PLI_UINT32 *fd_mcd, vpiHandle arg,
                                     vpiHandle callh, const char *name);
 
 extern vpiHandle sys_func_module(vpiHandle obj);
+extern int sys_is_design_element(vpiHandle obj);
 
 extern void sys_monitor_fclose(PLI_UINT32 fd_mcd);
 

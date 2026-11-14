@@ -1,0 +1,8 @@
+interface task: $time=3 it()=3
+Time scale of (tb.i) is 1us / 1ns
+interface from tb: it()=3 is()=3 ir()=2.5
+module function: mt()=3
+tb: $time=2500
+Time scale of (tb) is 1ns / 1ps
+program: $time=1 pt()=1
+Time scale of (tb.p) is 10us / 1ns

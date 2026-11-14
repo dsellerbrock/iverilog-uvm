@@ -372,11 +372,13 @@ void vpip_make_systf_system_defined(vpiHandle ref)
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
                              PLI_INT32 line, vpiHandle scope,
                              PLI_INT32 depth_arg, PLI_INT32 flags,
-                             PLI_INT32 assertion_kind)
+                             PLI_INT32 assertion_kind, PLI_INT32 inst_kind,
+                             const char*inst_name)
 {
       assert(vpip_routines);
       vpip_routines->register_assertion(idx, name, file, line, scope,
-                                        depth_arg, flags, assertion_kind);
+                                        depth_arg, flags, assertion_kind,
+                                        inst_kind, inst_name);
 }
 
 void vpip_assertion_report_all(PLI_INT32 reason)
@@ -402,6 +404,50 @@ void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
 {
       assert(vpip_routines);
       vpip_routines->assertion_report_age(idx, reason, scope, age);
+}
+
+void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
+                             PLI_INT32 reason, PLI_INT32 from, PLI_INT32 to,
+                             PLI_INT32 n, const char*const*files,
+                             const PLI_INT32*lines, const char*const*texts)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_step_row(idx, scope, row, reason, from, to, n,
+                                        files, lines, texts);
+}
+
+void vpip_assertion_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
+                         PLI_INT32 age, PLI_INT32 serial)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_step(idx, scope, row, age, serial);
+}
+
+void vpip_assertion_nfa(PLI_INT32 idx, vpiHandle scope, PLI_INT32 nstates,
+                        PLI_INT32 start, PLI_INT32 accept, PLI_INT32 nguards,
+                        const char*const*files, const PLI_INT32*lines,
+                        const char*const*texts, PLI_INT32 nwords,
+                        const PLI_INT32*words)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_nfa(idx, scope, nstates, start, accept,
+                                   nguards, files, lines, texts, nwords,
+                                   words);
+}
+
+void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
+                             const char*pre, const char*nx, const char*guards,
+                             PLI_INT32 ob)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_nfa_step(idx, scope, serial, pre, nx, guards,
+                                        ob);
+}
+
+PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope)
+{
+      assert(vpip_routines);
+      return vpip_routines->assertion_serial(idx, scope);
 }
 
 PLI_INT32 vpip_assertion_cb_active(void)
@@ -458,24 +504,35 @@ void vpip_report_immediate_assertion(PLI_INT32 source_id, PLI_INT32 success,
       assert(vpip_routines);
       vpip_routines->report_immediate_assertion(source_id, success, scope);
 }
-void vpip_cancel_deferred_asserts(const char*selector, PLI_INT32 levels)
+PLI_INT32 vpip_assertion_control(PLI_INT32 ctl, PLI_INT32 atype,
+                                 PLI_INT32 dtype, PLI_INT32 levels,
+                                 const char*const*selectors, PLI_INT32 nsel)
 {
       assert(vpip_routines);
-      vpip_routines->cancel_deferred_asserts(selector, levels);
+      return vpip_routines->assertion_control(ctl, atype, dtype, levels,
+                                              selectors, nsel);
 }
-PLI_INT32 vpip_deferred_assertion_enabled(unsigned long source_id,
-                                          vpiHandle scope)
+PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
+                               PLI_INT32 id, PLI_INT32 what)
 {
       assert(vpip_routines);
-      return vpip_routines->deferred_assertion_enabled(source_id, scope);
+      return vpip_routines->assertion_state(scope, space, id, what);
 }
-void vpip_set_deferred_assertions_enabled(const char*selector,
-                                          PLI_INT32 levels,
-                                          PLI_INT32 enabled)
+void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle callh)
 {
       assert(vpip_routines);
-      vpip_routines->set_deferred_assertions_enabled(selector, levels,
-                                                     enabled);
+      vpip_routines->proc_assert_enqueue(pid, callh);
+}
+void vpip_proc_assert_cap(vpiHandle callh)
+{
+      assert(vpip_routines);
+      vpip_routines->proc_assert_cap(callh);
+}
+void vpip_register_proc_assertion(PLI_INT32 idx, PLI_INT32 pid,
+                                  PLI_INT32 each, vpiHandle scope)
+{
+      assert(vpip_routines);
+      vpip_routines->register_proc_assertion(idx, pid, each, scope);
 }
 void vpip_set_return_value(int value)
 {

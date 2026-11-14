@@ -1,0 +1,2 @@
+PASS
+ivltests/issue3070_timescale_step.sv:11: $finish called at 1 (1ps)

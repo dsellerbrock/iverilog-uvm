@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3048_active_timeformat.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3048_active_timeformat_2023"],
+  "vpi-sources": ["vpi/issue3048_active_timeformat.c"],
+  "gold": "issue3048_active_timeformat"
+}

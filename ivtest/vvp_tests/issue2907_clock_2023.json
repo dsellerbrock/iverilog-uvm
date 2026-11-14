@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue2907_clock.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue2907_clock"
+  ],
+  "gold": "issue2907_clock"
+}

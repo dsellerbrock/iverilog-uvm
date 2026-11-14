@@ -104,6 +104,14 @@ simulation, and in fact can hurt performance of the
 simulation. However, disabling interconnection delays reduces accuracy of
 full-timing simulations.
 .TP 8
+.B -gneg-tchk\fI|\fP-gno-neg-tchk
+Enable or disable (default) negative timing check limits (IEEE 1800
+31.9). When enabled, \fB$setuphold\fP and \fB$recrem\fP accept negative
+limits: the timing checks of a module read delayed copies of their
+reference and data signals, explicit delayed signals carry those delays,
+and the limits are adjusted to match. When disabled, delayed signals are
+plain copies of their originals. Needs \fB\-gspecify\fP.
+.TP 8
 .B -gstd-include\fI|\fP-gno-std-include
 Enable (default) or disable the search of a standard installation
 include directory after all other explicit include directories. This

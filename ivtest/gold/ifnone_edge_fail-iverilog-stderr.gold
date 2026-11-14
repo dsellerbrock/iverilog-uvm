@@ -1,0 +1,1 @@
+ivltests/ifnone_edge_fail.v:3: ifnone may only be used with a simple module path (IEEE 1800 30.4.4.4).

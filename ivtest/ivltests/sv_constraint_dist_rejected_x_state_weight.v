@@ -1,5 +1,4 @@
-// A nonground dist weight is rejected and assigned zero weight. Its X/Z
-// state check must not escape the private evaluator into the owning solve.
+// An X/Z state operand in a nonground dist weight must fail randomization.
 class seq_cfg_t;
   logic [7:0] four[2][2];
 endclass
@@ -25,9 +24,9 @@ module top;
     c.cfg = new;
     c.cfg.seq_cfg = new;
     c.cfg.seq_cfg.four[0][1] = 'x;
-    if (!c.randomize()) $fatal(1, "rejected weight poisoned parent");
-    if (c.pick != 1 || c.q.size() != 1)
-      $fatal(1, "rejected weight retained a branch or wrong queue size");
+    if (c.randomize()) $fatal(1, "X weight accepted");
+    if (c.pick != 0 || c.q.size() != 0)
+      $fatal(1, "failed randomization changed values");
     $display("PASSED");
   end
 endmodule

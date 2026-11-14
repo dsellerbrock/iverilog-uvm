@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2846_size_fail.v",
+  "iverilog-args": ["-g2023", "-s", "issue2846_size_fail"],
+  "gold": "issue2846_size_fail"
+}

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1290_vpi_param_default.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue1290_vpi_param_default_2023"],
+  "vpi-sources": ["vpi/issue1290_vpi_param_default.c"],
+  "output-contains": ["VPI PARAM DEFAULT PASS"]
+}

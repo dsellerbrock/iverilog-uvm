@@ -148,6 +148,7 @@ char depmode = 'a';
 const char*generation = "2005";
 const char*gen_specify = "no-specify";
 const char*gen_interconnect = "no-interconnect";
+const char*gen_neg_tchk = "no-neg-tchk";
 // iverilog-uvm: this default was once "supported-assertions" so
 // unsupported concurrent assertions would parse as silent no-ops. The
 // M9 engine implements concurrent assertions, so the only constructs
@@ -815,6 +816,12 @@ static int process_generation(const char*name)
 
       else if (strcmp(name,"no-interconnect") == 0)
 	    gen_interconnect = "no-interconnect";
+
+      else if (strcmp(name,"neg-tchk") == 0)
+	    gen_neg_tchk = "neg-tchk";
+
+      else if (strcmp(name,"no-neg-tchk") == 0)
+	    gen_neg_tchk = "no-neg-tchk";
 
       else if (strcmp(name,"assertions") == 0)
 	    gen_assertions = "assertions";
@@ -1749,6 +1756,7 @@ int main(int argc, char **argv)
       fprintf(iconfig_file, "generation:%s\n", generation);
       fprintf(iconfig_file, "generation:%s\n", gen_specify);
       fprintf(iconfig_file, "generation:%s\n", gen_interconnect);
+      fprintf(iconfig_file, "generation:%s\n", gen_neg_tchk);
       fprintf(iconfig_file, "generation:%s\n", gen_assertions);
       fprintf(iconfig_file, "generation:%s\n", gen_xtypes);
       fprintf(iconfig_file, "generation:%s\n", gen_io_range_error);

@@ -176,8 +176,13 @@ struct deferred_assert_args_s {
 /* Filled by %defer/capture, consumed by the next user-task %defer opcode. */
 static deferred_assert_args_s deferred_task_capture_;
 
+/* A procedural assertion's flag must clear every 32-bit deferred source id
+   on every target, including LLP64 Windows where long is 32 bits. */
+static_assert(VPIP_PROC_ASSERT_SOURCE > UINT32_MAX,
+	      "VPIP_PROC_ASSERT_SOURCE must be a 64-bit flag");
+
 struct deferred_assert_report_s {
-      unsigned long source_id;
+      uint64_t source_id;
       unsigned result;
       vvp_code_t action_pc;
       __vpiScope*action_scope;
@@ -212,12 +217,15 @@ class vvp_process : public vvp_object {
                                    vvp_code_t action_pc,
                                    __vpiScope*action_scope,
                                    const deferred_assert_args_s&action_args);
+      void enqueue_proc_assert(uint64_t source_id, __vpiScope*scope,
+			       const std::vector<vvp_vector4_t>&saved);
       void flush_deferred_asserts();
       void cancel_all_deferred_asserts();
       void cancel_deferred_asserts(__vpiScope*scope);
       void cancel_deferred_assertion(unsigned long source_id,
 				     __vpiScope*scope);
-      void cancel_deferred_asserts(const char*selector, int levels);
+      void cancel_proc_asserts_in(uint64_t source_id,
+				  __vpiScope*module_scope);
       void mature_deferred_asserts();
       void pin_final_deferred_assert(unsigned long source_id,
                                      unsigned result,
@@ -241,6 +249,9 @@ class vvp_process : public vvp_object {
 	// std::deque still allocates.
       std::vector<deferred_assert_report_s> deferred_asserts_;
       bool deferred_assert_observed_armed_;
+	// A procedural concurrent assertion's maturity event runs at the
+	// front of the Observed region (see enqueue_proc_assert).
+      bool proc_assert_front_armed_ = false;
       std::map<unsigned long, deferred_assert_report_s>
             final_deferred_asserts_;
       std::vector<unsigned long> final_deferred_order_;
@@ -928,6 +939,10 @@ struct vthread_s {
 	   Counted at creation; when the last one completes, simulation
 	   implicitly finishes. */
       unsigned is_program_init :1;
+	/* Program instance whose initial procedure this thread descends from.
+	   This survives detach/reparent so $exit can still identify the owning
+	   program after the originating initial thread has ended. */
+	__vpiScope* program_scope;
 	// process::suspend()/resume() (IEEE 1800-2017 9.7.2). `suspended`
 	// marks the process as suspended; a suspended thread is skipped by
 	// vthread_run and reports PROCESS_STATE_SUSPENDED. `suspend_resched`
@@ -1814,6 +1829,37 @@ void vvp_process::enqueue_deferred_assert(unsigned long source_id,
       schedule_at_observed(new deferred_assert_mature_event_s(this), 0);
 }
 
+/* IEEE 1800-2023 16.14.6: reaching a procedural concurrent assertion puts a
+ * pending instance on this process's procedural assertion queue. It shares
+ * the deferred assertion queue, whose flush points (16.14.6.2 lists the
+ * same ones as 16.4.2), label disables (16.14.6.4) and kill flushes already
+ * follow the rules. Its maturity event goes to the FRONT of the Observed
+ * region, so it runs before any assertion checker that this time step's
+ * clock resumed there: an instance whose leading clock occurs in the same
+ * step then starts its attempt in that step, whatever the process order.
+ */
+void vvp_process::enqueue_proc_assert(uint64_t source_id,
+				      __vpiScope*scope,
+				      const std::vector<vvp_vector4_t>&saved)
+{
+      if (deferred_asserts_.empty())
+            deferred_assert_processes_.insert(this);
+
+      deferred_assert_report_s report;
+      report.source_id = source_id;
+      report.result = 0;
+      report.action_pc = 0;
+      report.action_scope = scope;
+      report.action_args.vec4 = saved;
+      deferred_asserts_.push_back(report);
+      pending_deferred_assert_reports_ += 1;
+
+      if (proc_assert_front_armed_)
+	    return;
+      proc_assert_front_armed_ = true;
+      schedule_at_observed_front(new deferred_assert_mature_event_s(this));
+}
+
 void vvp_process::flush_deferred_asserts()
 {
       pending_deferred_assert_reports_ -= deferred_asserts_.size();
@@ -1868,12 +1914,15 @@ void vvp_process::cancel_all_deferred_asserts()
       });
 }
 
-void vvp_process::cancel_deferred_asserts(const char*selector, int levels)
+void vvp_process::cancel_proc_asserts_in(uint64_t source_id,
+					 __vpiScope*module_scope)
 {
-      cancel_deferred_asserts_([selector, levels](
+      cancel_deferred_asserts_([source_id, module_scope](
             const deferred_assert_report_s&report) {
-            return vpip_deferred_assert_scope_matches(
-                  report.action_scope, selector, levels);
+            if (report.source_id != source_id) return false;
+            for (__vpiScope*cur = report.action_scope ; cur ; cur = cur->scope)
+                  if (cur == module_scope) return true;
+            return false;
       });
 }
 
@@ -1887,16 +1936,45 @@ void vvp_process::cancel_deferred_assertion(unsigned long source_id,
       });
 }
 
-extern "C" void vpip_cancel_deferred_asserts(const char*selector,
-                                               PLI_INT32 levels)
+/* The pending instances of procedural concurrent assertion pid, queued
+   anywhere inside module_scope (20.11 Kill). */
+void vpip_cancel_proc_asserts(PLI_INT32 pid, __vpiScope*module_scope)
 {
+      uint64_t source_id = VPIP_PROC_ASSERT_SOURCE | (uint64_t)pid;
       for (std::set<vvp_process*>::iterator cur =
-                 deferred_assert_processes_.begin();
-           cur != deferred_assert_processes_.end();) {
-            vvp_process*process = *cur++;
-            process->cancel_deferred_asserts(selector, levels);
+		 deferred_assert_processes_.begin();
+	   cur != deferred_assert_processes_.end();) {
+	    vvp_process*process = *cur++;
+	    process->cancel_proc_asserts_in(source_id, module_scope);
       }
-      vpip_report_deferred_assertion_reset_callbacks(selector, levels);
+}
+
+/* IEEE 1800-2023 16.14.6: queue a pending instance of procedural concurrent
+   assertion pid on the calling thread's process. */
+void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle callh)
+{
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(vpi_handle(vpiScope, callh));
+      vthread_t owner = vpip_current_vthread
+	    ? logical_process_thread_(vpip_current_vthread) : 0;
+      vvp_process*process = owner ? owner->process_obj_.peek<vvp_process>() : 0;
+      if (!process || !scope || pid <= 0) return;
+	/* 20.11 Off: "no new instances may be queued". */
+      if (!vpip_proc_assert_may_queue(pid, scope)) return;
+	/* 16.14.6.1: the instance saves its const expressions and automatic
+	   variables now, when it is queued. They follow pid. */
+      std::vector<vvp_vector4_t> saved;
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      if (argv && vpi_scan(argv)) {
+	    while (vpiHandle arg = vpi_scan(argv)) {
+		  unsigned wid = vpi_get(vpiSize, arg);
+		  s_vpi_value v;
+		  v.format = vpiVectorVal;
+		  vpi_get_value(arg, &v);
+		  saved.push_back(vec4_from_vpi_value(&v, wid));
+	    }
+      }
+      process->enqueue_proc_assert(VPIP_PROC_ASSERT_SOURCE
+				   | (uint64_t)pid, scope, saved);
 }
 
 void vpip_cancel_deferred_assertion(unsigned long source_id,
@@ -1915,6 +1993,7 @@ void vpip_cancel_deferred_assertion(unsigned long source_id,
 void vvp_process::mature_deferred_asserts()
 {
       deferred_assert_observed_armed_ = false;
+      proc_assert_front_armed_ = false;
       if (final_deferred_asserts_.empty())
             deferred_assert_processes_.erase(this);
 
@@ -1924,12 +2003,31 @@ void vvp_process::mature_deferred_asserts()
 
       for (size_t rdx = 0 ; rdx < reports.size() ; rdx += 1) {
 	    deferred_assert_report_s report = reports[rdx];
+	      /* Violation reports use result for the generation captured at
+	         enqueue; Off leaves it unchanged, while Kill advances it. */
+	    if (!report.source_id && report.action_pc
+		&& report.action_pc->bit_idx[0] > 1
+		&& report.result != (unsigned)vpip_violation_state(
+		      report.action_scope, report.action_pc->bit_idx[0],
+		      vpipAssertStateKillGeneration))
+		  continue;
+	    if (report.source_id & VPIP_PROC_ASSERT_SOURCE) {
+		  vpip_proc_assert_matured(
+			(PLI_INT32)(report.source_id & ~VPIP_PROC_ASSERT_SOURCE),
+			report.action_scope, report.action_args.vec4);
+		  continue;
+	    }
 	    if (report.source_id)
 		  vpip_deferred_assertion_report(report.source_id,
 			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
 			  report.action_scope);
 
 	    if (!report.action_pc || !report.action_scope)
+		  continue;
+	    if (report.source_id
+		&& !vpip_deferred_action_enabled(report.source_id,
+						 report.action_scope,
+						 report.result))
 		  continue;
 
 	    vthread_t action = vthread_new(report.action_pc,
@@ -2027,6 +2125,11 @@ void vvp_process::mature_final_deferred_asserts()
 			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,
 			  report.action_scope);
 	    if (!report.action_pc || !report.action_scope)
+		  continue;
+	    if (report.source_id
+		&& !vpip_deferred_action_enabled(report.source_id,
+						 report.action_scope,
+						 report.result))
 		  continue;
 
 	    /* The action fragment is passive and ends in %end. Rebuild the
@@ -2130,6 +2233,9 @@ static string filter_string(const char*text)
 }
 
 static bool do_disable(vthread_t thr, vthread_t match);
+static void program_thread_add_(vthread_t thr);
+static void program_thread_remove_(vthread_t thr);
+static void program_init_completed_(void);
 static void do_join(vthread_t thr, vthread_t child);
 
 /* Trampolined-call state (M6 item 5, increment 2).  Declared here so the
@@ -5568,7 +5674,8 @@ static bool randomize_struct_darray_(vvp_darray*array,
 	    return true;
       }
 
-	    if (array->vec4_word_width() == 0)
+	    if (array->vec4_word_width() == 0
+		  && !dynamic_cast<vvp_queue*>(array))
 	    return false;
       for (size_t pos = 0; pos < array->get_size(); ++pos) {
 	    if (member_root ? !cobj->rand_mode(pid, pos)
@@ -5655,9 +5762,13 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 
 	    // A rand dynamic-array member keeps its current size when no size
 	    // constraint changes it; randomize each enabled integral element.
-	    bool integral_darray = bt.compare(0, 2, "Dv") == 0
-		  || bt.compare(0, 3, "Dsv") == 0;
-	    if ((integral_darray || subdefn->property_is_dyn2(mpid))
+	    bool integral_array = bt.compare(0, 2, "Dv") == 0
+		  || bt.compare(0, 3, "Dsv") == 0
+		  || bt.compare(0, 2, "Qv") == 0
+		  || bt.compare(0, 3, "Qsv") == 0
+		  || bt.compare(0, 3, "Qsb") == 0
+		  || bt.compare(0, 2, "Qb") == 0;
+	    if ((integral_array || subdefn->property_is_dyn2(mpid))
 		&& subdefn->property_dimensions(mpid).empty()
 		&& !subdefn->property_is_randc(mpid)) {
 		  vvp_object_t propobj;
@@ -5678,9 +5789,9 @@ static bool randomize_struct_members_(randomize_graph_session_t&session,
 		  continue;
 	    }
 
-	    const char*unsupported_shape = bt == "o" ? "class-handle"
+    const char*unsupported_shape = bt == "o" ? "class-handle"
 		  : (!bt.empty() && bt[0] == 'D') ? "dynamic-array"
-		  : (!bt.empty() && bt[0] == 'Q') ? "queue"
+	          : (!bt.empty() && bt[0] == 'Q' && !integral_array) ? "queue"
 		  : (!bt.empty() && bt[0] == 'M') ? "associative-array"
 		  : (bt == "r") ? "real"
 		  : (bt == "S") ? "string" : nullptr;
@@ -5961,6 +6072,48 @@ static bool randomize_collect_graph_(randomize_graph_session_t&session,
 
 /* Struct values consume the containing RNG; class handles use their own RNG.
  * Both remain in the existing outer graph transaction. */
+/*
+ * IEEE 1800-2023 18.4: "Arrays can be declared rand or randc, in which case
+ * all of their member elements are treated as rand or randc." The words of
+ * a rand dynamic array of dynamic arrays are its rows, and each row's words
+ * are the leaves. Draw every existing integral leaf; a constraint solve may
+ * replace it afterwards. Object leaves are left to the object visit.
+ */
+static bool randomize_dyn2_leaves_(vvp_cobject*cobj, const class_type*defn,
+				   size_t pid, bool all_active,
+				   const std::function<unsigned()>&next_random)
+{
+      vvp_object_t object;
+      cobj->get_object(pid, object, 0);
+      vvp_darray*rows = object.peek<vvp_darray>();
+      if (!rows) return true;
+      for (size_t row = 0; row < rows->get_size(); row += 1) {
+	    if (!all_active && !cobj->rand_mode(pid, row)) continue;
+	    vvp_object_t child;
+	    rows->get_word((unsigned)row, child);
+	    vvp_darray*leaves = child.peek<vvp_darray>();
+	    if (!leaves) continue;
+	    for (size_t position = 0; position < leaves->get_size(); position += 1) {
+		  vvp_vector4_t value;
+		  leaves->get_word((unsigned)position, value);
+		  if (value.size() == 0) continue;
+		  if (defn->property_is_enum(pid)) {
+			if (!randomize_enum_member_(cobj, defn, pid, position,
+						    value, next_random))
+			      return false;
+		  } else {
+			for (unsigned bit = 0; bit < value.size(); bit += 1)
+			      value.set_bit(bit, (next_random() & 1)
+					    ? BIT4_1 : BIT4_0);
+		  }
+		  leaves->set_word((unsigned)position, value);
+	    }
+      }
+      if (defn->property_is_static(pid))
+	    defn->static_randomize_transaction_mark_dirty(pid, 0);
+      return true;
+}
+
 static bool randomize_object_value_(randomize_graph_session_t&session,
                                     const vvp_object_t&obj,
                                     const std::function<unsigned()>&next_random,
@@ -6109,6 +6262,13 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 		  continue;
 
             if (!session.prefill_property(defn, pid)) continue;
+
+            if (defn->property_is_dyn2(pid) && !defn->property_is_randc(pid)
+                && !randomize_dyn2_leaves_(cobj, defn, pid,
+                        sel && pid < sel->size() && (*sel)[pid], next_random)) {
+                  solve_ok = false;
+                  break;
+            }
 
             const std::string&bt = defn->property_base_type(pid);
             bool is_struct_prop = bt.compare(0, 3, "oc:") == 0;
@@ -12235,6 +12395,7 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
 	    }
       }
       thr->is_program_init = 0;
+	  thr->program_scope = 0;
       thr->suspended = 0;
       thr->suspend_resched = 0;
       thr->i_am_delaying = 0;
@@ -12453,6 +12614,7 @@ static void vthread_reap(vthread_t thr)
 
 	// Remove myself from the containing scope if needed.
       thr->parent_scope->threads.erase(thr);
+	  program_thread_remove_(thr);
 
       thr->pc = codespace_null();
 
@@ -12892,11 +13054,42 @@ void vthread_mark_clocking_sync(vthread_t thr)
  */
 static unsigned program_init_active = 0;
 static bool     program_init_seen   = false;
+static std::map<__vpiScope*, set<vthread_t> > program_threads;
+
+static __vpiScope* program_scope_for_(vthread_t thr)
+{
+      if (thr->program_scope) return thr->program_scope;
+      for (__vpiScope*scope = thr->parent_scope; scope; scope = scope->scope) {
+	    if (scope->get_type_code() == vpiProgram)
+		  return scope;
+      }
+      return 0;
+}
+
+static void program_thread_add_(vthread_t thr)
+{
+      if (!thr) return;
+      if (!thr->program_scope)
+	    thr->program_scope = program_scope_for_(thr);
+      if (thr->program_scope)
+	    program_threads[thr->program_scope].insert(thr);
+}
+
+static void program_thread_remove_(vthread_t thr)
+{
+      if (!thr || !thr->program_scope) return;
+      std::map<__vpiScope*, set<vthread_t> >::iterator cur =
+	    program_threads.find(thr->program_scope);
+      if (cur == program_threads.end()) return;
+      cur->second.erase(thr);
+      if (cur->second.empty()) program_threads.erase(cur);
+}
 
 void vthread_mark_program_init(vthread_t thr)
 {
       if (!thr) return;
       thr->is_program_init = 1;
+      program_thread_add_(thr);
       program_init_active += 1;
       program_init_seen = true;
 }
@@ -17072,6 +17265,35 @@ static bool randomize_invoke_state_call_(vthread_t thr,
 	    call.phase = randomize_call_context_s::READY;
 	    return true;
       };
+      /* Constraint helper calls are evaluated before their IR is handed to
+       * the solver.  A four-state value read by the helper would otherwise
+       * be converted by the helper's operation (for example enum next's
+       * atom2u32 argument) before the solver can apply the §18.3 check. */
+      for (const auto&dependency : desc.argument_dependencies) {
+	    if (dependency.kind != class_type::constraint_dependency_t::PROP
+		|| dependency.property >= cobj->get_defn()->property_count()
+		|| !cobj->get_defn()->property_dimensions(
+		      dependency.property).empty()) continue;
+	    const class_type*type = cobj->get_defn();
+	    if ((type->property_is_rand(dependency.property)
+		 || type->property_is_randc(dependency.property))
+		&& cobj->rand_mode(dependency.property)) continue;
+	    vvp_vector4_t value;
+	    cobj->get_vec4(dependency.property, value);
+	    bool unknown = false;
+	    for (unsigned bit = 0; bit < value.size(); ++bit)
+		  if (value.value(bit) == BIT4_X || value.value(bit) == BIT4_Z) {
+			unknown = true;
+			break;
+		  }
+	    if (unknown) {
+		  fprintf(stderr, "ERROR: constraint state read: X/Z value in constraint guard (IEEE 1800-2017/2023 18.3).\n");
+		  call.state_calls_ok = false;
+		  call.state_call_index = call.state_calls.size();
+		  call.phase = randomize_call_context_s::READY;
+		  return true;
+	    }
+      }
       string label;
       vvp_code_t target = nullptr;
       __vpiScope*scope = nullptr;
@@ -20346,6 +20568,10 @@ static bool do_disable(vthread_t thr, vthread_t match)
       thr->pc = codespace_null();
       thr->i_was_disabled = 1;
       thr->i_have_ended = 1;
+	  if (thr->is_program_init) {
+	    thr->is_program_init = 0;
+	    program_init_completed_();
+	  }
 
 	/* `disable fork' on a branch parked in mailbox.get()/semaphore.get()
 	   is the case this whole mechanism exists for. Unlink here rather
@@ -20612,6 +20838,36 @@ static void disable_fork_detached_descendants_(vthread_t thr, vthread_t match)
             disable_fork_detached_descendants_(child, match);
             bool res = do_disable(child, match);
             assert(! res);
+      }
+}
+
+/* Terminate every initial procedure and descendant belonging to one
+ * program instance. Detached children can outlive and lose the parent
+ * pointer to their initial procedure, so membership is tracked by the
+ * originating program scope. */
+static void program_exit_(vthread_t thr)
+{
+      __vpiScope*scope = thr ? thr->program_scope : 0;
+      if (!scope) return;
+      std::map<__vpiScope*, set<vthread_t> >::iterator entry =
+	    program_threads.find(scope);
+      if (entry == program_threads.end()) return;
+
+      std::vector<vthread_t> roots;
+      for (set<vthread_t>::const_iterator cur = entry->second.begin();
+	   cur != entry->second.end(); ++cur) {
+	    vthread_t parent = (*cur)->parent;
+	    if (!parent || !entry->second.count(parent)) roots.push_back(*cur);
+      }
+
+      for (std::vector<vthread_t>::const_iterator cur = roots.begin();
+	   cur != roots.end(); ++cur) {
+	    vthread_t root = *cur;
+	    entry = program_threads.find(scope);
+	    if (entry == program_threads.end() || !entry->second.count(root))
+		  continue;
+	    disable_fork_detached_descendants_(root, 0);
+	    do_disable(root, 0);
       }
 }
 
@@ -22047,6 +22303,11 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
+      if (thr->program_scope)
+	    child->program_scope = thr->program_scope;
+      else
+	    child->program_scope = program_scope_for_(thr);
+      program_thread_add_(child);
       child->is_reactive_process |= thr->is_reactive_process;
 	/* Task calls compiled as %fork...%join should share the parent's
 	   logical process for process::self(), matching SV semantics where
@@ -28519,6 +28780,22 @@ bool of_STREAM_FLATTEN_ASSOC(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_STREAM_CAST_SIZE(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t value = thr->pop_vec4();
+      unsigned width = cp->number;
+      if (width == 0 || value.size() != width) {
+	    cerr << thr->get_fileline() << "VVP error: bit-stream cast source size "
+		 << value.size() << " does not match destination width "
+		 << width << "." << endl;
+	    vpip_set_return_value(1);
+	    if (!schedule_finished()) schedule_finish(0);
+	    return false;
+      }
+      thr->push_vec4(value);
+      return true;
+}
+
 namespace {
 
 /* Keep every range-derived allocation below a process-independent cap.  The
@@ -30022,6 +30299,22 @@ bool of_NEW_VIF(vthread_t thr, vvp_code_t cp)
 
       vvp_object_t tmp (new vvp_vinterface(scope, defn));
       thr->push_object(tmp);
+      return true;
+}
+
+/*
+ * %vif/bind <pid>, <signal>
+ *
+ * The interface handle on top of the object stack, a module's interface
+ * port, reaches member <pid> through the module-local <signal> instead:
+ * that member is a module path destination and the path drives the
+ * interface member from <signal> (IEEE 1800 25.6).
+ */
+bool of_VIF_BIND(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vinterface*vif = thr->peek_object().peek<vvp_vinterface>();
+      if (vif)
+	    vif->bind_slot(cp->bit_idx[0], cp->handle);
       return true;
 }
 
@@ -35089,20 +35382,12 @@ bool of_STORE_DAR_VEC4(vthread_t thr, vvp_code_t cp)
  * integer register 3 (as for %store/dar/vec4); flag 4 marks an undefined
  * address. <wid> is the value width.
  */
-bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
+static bool store_dar_vec4_off(vthread_t thr, vvp_code_t cp, bool two_state)
 {
       int64_t adr = thr->words[3].w_int;
       int64_t soff = thr->words[cp->bit_idx[0]].w_int;
       unsigned wid = cp->bit_idx[1];
       vvp_vector4_t value = thr->pop_vec4();
-
-      if (soff < 0) {
-	    cerr << thr->get_fileline()
-	         << "Warning: negative bit offset into a darray element "
-	            "part-select is ignored." << endl;
-	    return true;
-      }
-      unsigned off = (unsigned) soff;
 
       vvp_net_t*net = cp->net;
       assert(net);
@@ -35124,6 +35409,36 @@ bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 	    /* Diagnosed no-op: never narrow ADR below. */
       }
       else if (darray) {
+	    vvp_queue*queue = dynamic_cast<vvp_queue*>(darray);
+	    if (queue) {
+		  if (soff >= static_cast<int64_t>(obj->size()) ||
+		      soff <= -static_cast<int64_t>(wid)) {
+			if (static_cast<size_t>(adr) > queue->get_size()) {
+			      vvp_vector4_t missing(obj->size(), two_state ? BIT4_0 : BIT4_X);
+			      queue->set_word_max(adr, missing, live_queue_max_count_(queue));
+			}
+			return true;
+		  }
+		  unsigned skip = soff < 0 ? static_cast<unsigned>(-soff) : 0;
+		  unsigned off = soff < 0 ? 0 : static_cast<unsigned>(soff);
+		  unsigned count = min(wid - skip, obj->size() - off);
+		  vvp_vector4_t elem;
+		  if (static_cast<size_t>(adr) >= queue->get_size())
+			elem = vvp_vector4_t(obj->size(), two_state ? BIT4_0 : BIT4_X);
+		  else
+			queue->get_word(adr, elem);
+		  elem.set_vec(off, value.subvalue(skip, count));
+		  queue->set_word_max(adr, elem, live_queue_max_count_(queue));
+		  notify_mutated_object_signal_(thr, net, "store-dar-off");
+		  return true;
+	    }
+	    if (soff < 0) {
+		  cerr << thr->get_fileline()
+		       << "Warning: negative bit offset into a darray element "
+		          "part-select is ignored." << endl;
+		  return true;
+	    }
+	    unsigned off = (unsigned) soff;
 	    vvp_vector4_t elem;
 	    darray->get_word(adr, elem);
 	      // Safety net: a never-written element may come back narrower
@@ -35145,6 +35460,16 @@ bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 	    notify_mutated_object_signal_(thr, net, "store-dar-off");
 
       return true;
+}
+
+bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
+{
+      return store_dar_vec4_off(thr, cp, false);
+}
+
+bool of_STORE_DAR_VEC4_OFF_2(vthread_t thr, vvp_code_t cp)
+{
+      return store_dar_vec4_off(thr, cp, true);
 }
 
 /*
@@ -37636,6 +37961,18 @@ bool of_TEST_NUL_A(vthread_t thr, vvp_code_t cp)
  * into the destination -- silently breaking the type system rather than
  * returning 0 and leaving the destination alone.
  */
+/*
+ * %tchk/violation <tchk>
+ *
+ * A synthesized timing checker found a violation of the timing check
+ * <tchk>; run the cbTchkViolation callbacks (IEEE 1800-2023 38.36.3).
+ */
+bool of_TCHK_VIOLATION(vthread_t, vvp_code_t cp)
+{
+      vpip_tchk_violation(cp->handle);
+      return true;
+}
+
 bool of_TEST_CLASS(vthread_t thr, vvp_code_t cp)
 {
       const class_type*want = dynamic_cast<const class_type*> (cp->handle);
@@ -37742,6 +38079,10 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
 	    vvp_process*process = owner
 		  ? owner->process_obj_.peek<vvp_process>() : 0;
 	    __vpiScope*scope = thr->parent_scope;
+	    unsigned type = cp->bit_idx[0];
+	    if (type > 1 && !vpip_violation_state(scope, type,
+						 vpipAssertStateEnabled))
+		  return true;
 	    deferred_assert_args_s args;
 	    if (!process || !scope
 		|| !capture_deferred_args_(thr, cp, args, "observed", true)) {
@@ -37749,7 +38090,9 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
 			  "vvp: unable to queue unique/priority case violation report.\n");
 		  return true;
 	    }
-	    process->enqueue_deferred_assert(0, 0, cp, scope, args);
+	    unsigned generation = type > 1 ? vpip_violation_state(
+		  scope, type, vpipAssertStateKillGeneration) : 0;
+	    process->enqueue_deferred_assert(0, generation, cp, scope, args);
 	    return true;
       }
 
@@ -37799,18 +38142,9 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
       const char*called_task = cp->handle
           ? vpi_get_str(vpiName, cp->handle) : nullptr;
       if (called_task && strcmp(called_task, "$exit") == 0
-          && thr && thr->is_program_init) {
-            vpiHandle scope = vpi_handle(vpiScope, cp->handle);
-            bool in_program = false;
-            while (scope) {
-                  if (vpi_get(vpiType, scope) == vpiProgram) {
-                        in_program = true;
-                        break;
-                  }
-                  scope = vpi_handle(vpiScope, scope);
-            }
-            if (in_program)
-                  return of_END(thr, nullptr);
+          && thr && thr->program_scope) {
+            program_exit_(thr);
+            return false;
       }
 
       if (trace) {

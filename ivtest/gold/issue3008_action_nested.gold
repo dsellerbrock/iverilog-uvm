@@ -1,0 +1,5 @@
+./ivltests/issue3008_action_nested.sv:3: error: concurrent assertion in assertion action block.
+./ivltests/issue3008_action_nested.sv:4: error: concurrent assertion in assertion action block.
+./ivltests/issue3008_action_nested.sv:5: error: concurrent assertion in assertion action block.
+./ivltests/issue3008_action_nested.sv:10: error: concurrent assertion in assertion action block.
+./ivltests/issue3008_action_nested.sv:13: error: concurrent assertion in assertion action block.

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3090_sdf_pulse.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "issue3090_sdf_pulse"],
+  "gold": "issue3090_sdf_pulse"
+}

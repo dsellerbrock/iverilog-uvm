@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sva_checker_free.sv",
+    "iverilog-args" : [ "-g2023", "-s", "sva_checker_free" ],
+    "gold"          : "sva_checker_free_2023"
+}

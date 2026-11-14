@@ -21,6 +21,7 @@
  */
 
 #include "udp.h"
+#include "delay.h"
 #include "schedule.h"
 #include "symbols.h"
 #include "compile.h"
@@ -922,11 +923,13 @@ vvp_bit4_t vvp_udp_seq_s::test_edges_(const udp_levels_table&cur,
       return BIT4_X;
 }
 
-vvp_udp_fun_core::vvp_udp_fun_core(vvp_net_t*net, vvp_udp_s*def)
+vvp_udp_fun_core::vvp_udp_fun_core(vvp_net_t*net, vvp_udp_s*def, bool instance_delay)
 : vvp_wide_fun_core(net, def->port_count())
 {
       def_ = def;
+      net_ = net;
       cur_out_ = def_->get_init();
+      initial_delay_pending_ = instance_delay && cur_out_ != BIT4_X;
 	// Assume initially that all the inputs are 1'bx
       current_.mask0 = 0;
       current_.mask1 = 0;
@@ -951,6 +954,22 @@ vvp_udp_fun_core::~vvp_udp_fun_core()
 void vvp_udp_fun_core::run_run()
 {
       vvp_vector4_t tmp (1);
+      if (initial_delay_pending_) {
+	      // The marked output feeds the instance delay directly. Seed that
+	      // delay with the UDP's declared initial state, even if an input
+	      // has already changed the state before this event executes.
+	    initial_delay_pending_ = false;
+	    tmp.set_bit(0, def_->get_init());
+	    for (vvp_net_ptr_t ptr = net_->out_; ptr.ptr();
+	         ptr = ptr.ptr()->port[ptr.port()]) {
+		  if (ptr.port() == 0) {
+		        vvp_fun_delay*delay = dynamic_cast<vvp_fun_delay*>(ptr.ptr()->fun);
+		        if (delay) delay->initialize_udp_output(tmp);
+		  }
+	    }
+	    propagate_vec4(tmp);
+	    return;
+      }
       tmp.set_bit(0, cur_out_);
       propagate_vec4(tmp);
 }
@@ -1000,14 +1019,14 @@ void vvp_udp_fun_core::recv_vec4_from_inputs(unsigned port)
  * netlist. The definition should be parsed already.
  */
 void compile_udp_functor(char*label, char*type,
-			 unsigned argc, struct symb_s*argv)
+			 unsigned argc, struct symb_s*argv, bool instance_delay)
 {
       struct vvp_udp_s *def = udp_find(type);
       assert(def);
       free(type);
 
       vvp_net_t*ptr = new vvp_net_t;
-      vvp_udp_fun_core*core = new vvp_udp_fun_core(ptr, def);
+      vvp_udp_fun_core*core = new vvp_udp_fun_core(ptr, def, instance_delay);
       ptr->fun = core;
 
       define_functor_symbol(label, ptr);

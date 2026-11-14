@@ -1,0 +1,11 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "issue2829_sdf_retain")
+  (TIMESCALE 1ns)
+  (CELL (CELLTYPE "issue2829_retain_leaf") (INSTANCE u)
+    (DELAY (ABSOLUTE (IOPATH a y (RETAIN (1)) (5)))))
+  (CELL (CELLTYPE "issue2829_retain_cond") (INSTANCE c)
+    (DELAY (ABSOLUTE (COND mode == 1'b1 (IOPATH a y (RETAIN (1)) (5))))))
+  (CELL (CELLTYPE "issue2829_retain_else") (INSTANCE e)
+    (DELAY (ABSOLUTE (CONDELSE (IOPATH a y (RETAIN (1)) (5))))))
+)

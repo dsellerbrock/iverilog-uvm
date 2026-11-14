@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2995_sva_repeat.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue2995_sva_repeat"],
+  "gold": "issue2995_sva_repeat"
+}

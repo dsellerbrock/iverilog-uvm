@@ -249,6 +249,8 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".latch"        { return K_LATCH; }
 ".modpath"      { return K_MODPATH; }
 ".tchk"         { return K_TCHK; }
+".pathexpr"     { return K_PATHEXPR; }
+".param/storage" { return K_PARAM_STORAGE; }
 ".net"          { return K_NET; }
 ".net/2s"       { return K_NET_2S; }
 ".net/2u"       { return K_NET_2U; }
@@ -276,6 +278,10 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".port_info/evcd" { return K_PORT_INFO_EVCD; }
 ".port_info"    { return K_PORT_INFO; }
 ".vpi_expr"     { return K_VPI_EXPR; }
+".vpi_contassign" { return K_VPI_CONTASSIGN; }
+".vpi_param_expr" { return K_VPI_PARAM_EXPR; }
+".vpi_defparam" { return K_VPI_DEFPARAM; }
+".vpi_port_conn" { return K_VPI_PORT_CONN; }
 ".reduce/and"   { return K_REDUCE_AND; }
 ".reduce/or"    { return K_REDUCE_OR; }
 ".reduce/xor"   { return K_REDUCE_XOR; }
@@ -328,6 +334,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".ref/str"      { return K_REF_STR; /* ... whose underlying type is string */ }
 ".ref/2s"       { return K_REF_2S; /* ... whose underlying type is 2-state */ }
 ".udp"          { return K_UDP; }
+".udp/d"        { return K_UDP_DELAY; }
 ".udp/c"(omb)?  { return K_UDP_C; }
 ".udp/s"(equ)?  { return K_UDP_S; }
 "-debug"        { return K_DEBUG; }

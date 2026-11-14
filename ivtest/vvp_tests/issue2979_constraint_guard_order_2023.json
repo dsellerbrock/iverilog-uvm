@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2979_constraint_guard_order.sv",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "issue2979_constraint_guard_order"
+}

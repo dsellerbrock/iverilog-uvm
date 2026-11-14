@@ -86,6 +86,8 @@ sub execute_regression {
     my %test_timeout = map { $_ => 300 } qw(
         sv_joint_concat_dist_owned_class
         sv_joint_concat_dist_owned_class_2023
+        sv_joint_ordered_guard_fiber
+        sv_joint_ordered_guard_fiber_2023
         sv_randomize_global_uniform
         sv_randomize_global_uniform_2023
     );

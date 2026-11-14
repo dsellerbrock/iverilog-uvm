@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3028_implication.v",
+    "iverilog-args": ["-g2017", "-s", "issue3028_implication"],
+    "gold": "issue3028_implication"
+}

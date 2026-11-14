@@ -324,6 +324,10 @@ TU [munpf]
      other context (no prefix `*` operator), so lexing it as one token
      lets the parser keep bit/part selects unambiguous. */
 "[*" { return K_LBSTAR; }
+  /* Distinguish shorthand repetitions from ordinary expression selects.
+     Trailing context leaves whitespace and comments for the normal lexer. */
+"["/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*"+"([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*"]" { return K_LBPLUS; }
+"["/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)+"*"([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*"]" { return K_LBSPACESTAR; }
   /* M9-NFA stage C.1: SVA goto `[->' and nonconsecutive `[=' repetition
      openers (16.9.2). Like `[*', these two-/three-character sequences do
      not begin any other construct (an empty `[' is never immediately

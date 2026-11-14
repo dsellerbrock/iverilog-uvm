@@ -1,0 +1,12 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "top")
+  (TIMESCALE 100ps)
+  (CELL
+    (CELLTYPE "d3")
+    (INSTANCE u3)
+    (LABEL
+      (ABSOLUTE (k 4))
+    )
+  )
+)

@@ -1,0 +1,30 @@
+SysInitialized at 0
+SysOn at 0
+SysOff at 10
+SysKill at 20
+SysOn at 30
+  a1 Lock at 40
+SysLock at 40
+  a1 Unlock at 50
+SysUnlock at 50
+SVA note: vpi_control(641) also changes the action control of attempts of sva_vpi_sys_callbacks.a1 that are already in progress; IEEE 1800-2023 39.5.1 exempts them, but this assertion's lowering does not track when an attempt started.
+  a1 DisablePassAction at 60
+SysDisablePassAction at 60
+  a1 EnablePassAction at 60
+SysEnablePassAction at 60
+  a1 DisableFailAction at 60
+SysDisableFailAction at 60
+  a1 EnableFailAction at 60
+SysEnableFailAction at 60
+  a1 DisableVacuousAction at 60
+SysDisableVacuousAction at 60
+SysEnableNonvacuousAction at 60
+SysReset at 70
+  a1 Lock at 75
+  a1 Unlock at 75
+  a1 DisablePassAction at 75
+  a1 DisableFailAction at 75
+  a1 EnableFailAction at 75
+  a1 EnablePassAction at 75
+ivltests/sva_vpi_sys_callbacks.sv:37: $finish called at 80 (1s)
+SysEnd at 80

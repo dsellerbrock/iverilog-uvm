@@ -1,0 +1,8 @@
+top prop=761 value=0 chk_error=0
+top prop=762 value=0 chk_error=0
+top prop=763 value=0 chk_error=0
+top.u prop=761 value=0 chk_error=0
+top.u prop=762 value=0 chk_error=0
+top.u prop=763 value=0 chk_error=0
+PASSED
+DONE

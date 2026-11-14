@@ -1,0 +1,2 @@
+issue3048_active_timeformat_2017 normal,-g2017 issue3048_active_timeformat.c issue3048_active_timeformat_2017.gold
+issue3048_active_timeformat_2023 normal,-g2023 issue3048_active_timeformat.c issue3048_active_timeformat_2023.gold

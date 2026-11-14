@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3162_deferred_fork.v",
+    "iverilog-args": ["-g2023", "-s", "issue3162_deferred_fork"],
+    "gold": "issue3162_deferred_fork"
+}

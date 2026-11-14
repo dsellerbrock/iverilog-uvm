@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2740_nopath_delay.v",
+    "iverilog-args": ["-g2023", "-gspecify", "-s", "issue2740_nopath_delay"],
+    "gold": "issue2740_nopath_delay"
+}

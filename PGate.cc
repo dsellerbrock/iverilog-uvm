@@ -289,6 +289,7 @@ const char* PGBuiltin::gate_name() const
 PGModule::PGModule(perm_string type, perm_string name, list<PExpr*>*pins)
 : PGate(name, pins), bound_type_(0), is_bind_instance_(false),
   bind_disabled_(false), type_(type), overrides_(0), pins_(0), npins_(0),
+  no_port_list_(false),
   parms_(0), nparms_(0)
 {
 }
@@ -297,14 +298,14 @@ PGModule::PGModule(perm_string type, perm_string name,
 		   named_pexpr_t *pins, unsigned npins)
 : PGate(name, 0), bound_type_(0), is_bind_instance_(false),
   bind_disabled_(false), type_(type), overrides_(0), pins_(pins),
-  npins_(npins), parms_(0), nparms_(0)
+  npins_(npins), no_port_list_(false), parms_(0), nparms_(0)
 {
 }
 
 PGModule::PGModule(Module*type, perm_string name)
 : PGate(name, 0), bound_type_(type), is_bind_instance_(false),
-  bind_disabled_(false), overrides_(0), pins_(0), npins_(0), parms_(0),
-  nparms_(0)
+  bind_disabled_(false), overrides_(0), pins_(0), npins_(0),
+  no_port_list_(false), parms_(0), nparms_(0)
 {
 }
 

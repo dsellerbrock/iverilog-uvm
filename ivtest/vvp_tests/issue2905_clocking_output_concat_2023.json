@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2905_clocking_output_concat.sv",
+  "iverilog-args": ["-g2023", "-s", "issue2905_clocking_output_concat"],
+  "gold": "issue2905_clocking_output_concat"
+}

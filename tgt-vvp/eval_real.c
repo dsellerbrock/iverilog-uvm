@@ -710,6 +710,45 @@ static void draw_ternary_real(ivl_expr_t expr)
 
 static void change_real(ivl_expr_t e, bool pre, bool incr)
 {
+	/* ++/-- on a real element of a local associative array (IEEE
+	   1800-2023 11.4.2): evaluate the key once, keep it for the store
+	   with %aa/loadk, and yield the old (postfix) or new (prefix) value.
+	   The value is on the real stack, apart from the key. */
+      if (ivl_expr_type(e) == IVL_EX_SELECT && ivl_expr_oper1(e)
+	  && ivl_expr_oper2(e)
+	  && ivl_expr_type(ivl_expr_oper1(e)) == IVL_EX_SIGNAL
+	  && !ivl_expr_oper1(ivl_expr_oper1(e))) {
+	    ivl_signal_t aa_sig = ivl_expr_signal(ivl_expr_oper1(e));
+	    ivl_type_t aa_type = ivl_signal_net_type(aa_sig);
+	    ivl_expr_t key = ivl_expr_oper2(e);
+	    if (aa_type && ivl_type_queue_assoc_compat(aa_type)) {
+		  if (expr_is_object_assoc_key_(key)) {
+			fprintf(stderr, "%s:%u: vvp.tgt sorry: ++/-- expression "
+				"on an associative-array element with a class or "
+				"aggregate index is not supported.\n",
+				ivl_expr_file(e), ivl_expr_lineno(e));
+			vvp_errors += 1;
+			fprintf(vvp_out, "    %%pushi/real 0, 0;\n");
+			return;
+		  }
+		  const char*kind = expr_is_string_assoc_key_(key) ? "str" : "v";
+		  if (kind[0] == 's')
+			draw_eval_string(key);
+		  else
+			draw_eval_vec4(key);
+		  fprintf(vvp_out, "    %%load/obj v%p_0; associative ++/-- receiver\n",
+			  aa_sig);
+		  fprintf(vvp_out, "    %%aa/loadk/r/%s;\n", kind);
+		  if (!pre) fprintf(vvp_out, "    %%dup/real;\n");
+		  fprintf(vvp_out, "    %%pushi/real 1, 0x1000;\n");
+		  fprintf(vvp_out, incr ? "    %%add/wr;\n" : "    %%sub/wr;\n");
+		  if ( pre) fprintf(vvp_out, "    %%dup/real;\n");
+		  fprintf(vvp_out, "    %%aa/store/r/%s;\n", kind);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		  return;
+	    }
+      }
+
       ivl_signal_t sig = ivl_expr_signal(e);
       bool is_property = ivl_expr_type(e) == IVL_EX_PROPERTY;
       unsigned pidx = is_property ? ivl_expr_property_idx(e) : 0;

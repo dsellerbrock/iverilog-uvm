@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2619_queue_fixed_array_increment.v",
+  "iverilog-args": ["-g2017", "-s", "issue2619_queue_fixed_array_increment"],
+  "gold": "issue2619_queue_fixed_array_increment"
+}

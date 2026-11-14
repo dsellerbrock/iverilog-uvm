@@ -20,7 +20,8 @@ static PLI_INT32 acb(PLI_INT32 reason, p_vpi_time t, vpiHandle a,
       if (reason == cbAssertionStepSuccess
 	  || reason == cbAssertionStepFailure) {
 	      /* the step detail union member must be usable */
-	    vpi_printf("%s t=%d step(cnt=%d from=%d to=%d)\n", w, (int)t->low,
+	    vpi_printf("%s t=%d start=%d step(cnt=%d from=%d to=%d)\n", w,
+		       (int)t->low, (int)info->attemptStartTime.low,
 		       (int)info->detail.step->matched_expression_count,
 		       (int)info->detail.step->stateFrom,
 		       (int)info->detail.step->stateTo);
@@ -31,12 +32,24 @@ static PLI_INT32 acb(PLI_INT32 reason, p_vpi_time t, vpiHandle a,
       return 0;
 }
 
+/* IEEE 1800-2023 39.5.2: stepping is off until enabled per attempt;
+   enable every attempt from its own cbAssertionStart (SVA Q7). */
+static PLI_INT32 start_cb(PLI_INT32 reason, p_vpi_time t, vpiHandle a,
+			  p_vpi_attempt_info info, PLI_BYTE8 *ud)
+{
+      (void)reason; (void)t; (void)ud;
+      vpi_control(vpiAssertionEnableStep, a, &info->attemptStartTime,
+		  vpiAssertionClockSteps);
+      return 0;
+}
+
 static PLI_INT32 setup(PLI_BYTE8*ud)
 {
       vpiHandle it, a;
       (void)ud;
       it = vpi_iterate(vpiAssertion, 0);
       while (it && (a = vpi_scan(it))) {
+	    vpi_register_assertion_cb(a, cbAssertionStart, start_cb, 0);
 	    vpi_register_assertion_cb(a, cbAssertionStepSuccess, acb, 0);
 	    vpi_register_assertion_cb(a, cbAssertionStepFailure, acb, 0);
 	    vpi_register_assertion_cb(a, cbAssertionFailure, acb, 0);

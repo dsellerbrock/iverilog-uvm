@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sva_sys_reset_step.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_sys_reset_step"],
+  "vpi-modules": ["sva_sys_reset_step_2017"],
+  "vpi-sources": ["vpi/sva_sys_reset_step.c"],
+  "gold": "sva_sys_reset_step"
+}

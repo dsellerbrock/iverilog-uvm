@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3155_nested_interface.v",
+    "iverilog-args": ["-g2017", "-s", "issue3155_nested_interface"],
+    "gold": "issue3155_nested_interface"
+}

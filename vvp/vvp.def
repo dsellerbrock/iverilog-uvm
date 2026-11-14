@@ -8,6 +8,7 @@ vpi_fopen
 vpi_free_object
 vpi_get
 vpi_get64
+vpi_get_cb_info
 vpi_get_data
 vpi_get_delays
 vpi_get_file
@@ -50,6 +51,7 @@ vpip_assoc_readmem_index_width
 vpip_assoc_readmem_in_range
 vpip_assoc_readmem_put
 vpip_assoc_writemem_key
+vpip_set_active_timeformat
 vpip_register_driver_activity_cb
 vpip_get_port_component
 vpip_get_stacktrace

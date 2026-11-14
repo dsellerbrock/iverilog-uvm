@@ -1,0 +1,8 @@
+./ivltests/issue3022_union_dynamic_bad.sv:5: error: dynamic type is not permitted in untagged union member 'data' (IEEE 1800-2017/2023 7.3.2).
+./ivltests/issue3022_union_dynamic_bad.sv:6: error: dynamic type is not permitted in untagged union member 'data' (IEEE 1800-2017/2023 7.3.2).
+./ivltests/issue3022_union_dynamic_bad.sv:7: error: dynamic type is not permitted in untagged union member 'data' (IEEE 1800-2017/2023 7.3.2).
+./ivltests/issue3022_union_dynamic_bad.sv:8: error: dynamic type is not permitted in untagged union member 'data' (IEEE 1800-2017/2023 7.3.2).
+./ivltests/issue3022_union_dynamic_bad.sv:9: error: dynamic type is not permitted in untagged union member 'obj' (IEEE 1800-2017/2023 7.3.2).
+./ivltests/issue3022_union_dynamic_bad.sv:10: error: dynamic type is not permitted in untagged union member 'text' (IEEE 1800-2017/2023 7.3.2).
+./ivltests/issue3022_union_dynamic_bad.sv:11: error: dynamic type is not permitted in untagged union member 'data' (IEEE 1800-2017/2023 7.3.2).
+7 error(s) during elaboration.

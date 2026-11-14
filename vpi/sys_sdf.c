@@ -51,9 +51,19 @@ static vpiHandle sdf_cur_cell;
 static vpiHandle* sdf_cells;
 static size_t sdf_cell_count;
 static char* sdf_fname = NULL;
+static FILE* sdf_log_fd;
 static int sdf_timescale_set;
 static int sdf_timescale_exponent;
 static double sdf_timescale_value;
+
+static void sdf_log_annotation(int lineno, const char*construct,
+                               const char*detail, vpiHandle instance)
+{
+      if (sdf_log_fd && instance)
+            fprintf(sdf_log_fd, "%s:%d: %s %s annotated in %s\n",
+                    sdf_fname, lineno, construct, detail,
+                    vpi_get_str(vpiFullName, instance));
+}
 
 void sdf_reset_timescale(void)
 {
@@ -332,11 +342,14 @@ static void sdf_put_interconnect_delays(vpiHandle path,
       vpi_get_delays(path, &delays);
       for (int idx = 0; idx < delval_list->count; idx += 1) {
             delay_vals[idx].type = vpiScaledRealTime;
-            if (delval_list->val[idx].defined) {
+            if (delval_list->val[idx].has_limits)
+                  vpi_printf("SDF WARNING: %s:%d: Pulse rejection limits ignored\n",
+                             sdf_fname, sdf_lineno);
+            if (delval_list->val[idx].delay.defined) {
                   if (sdf_flag_inform)
                         vpi_printf("SDF INFO: %s:%d: Putting delay: %f for index %d\n",
-                                   sdf_fname, sdf_lineno, delval_list->val[idx].value, idx);
-                  delay_vals[idx].real = delval_list->val[idx].value
+                                   sdf_fname, sdf_lineno, delval_list->val[idx].delay.value, idx);
+                  delay_vals[idx].real = delval_list->val[idx].delay.value
                         + (sdf_increment ? delay_vals[idx].real : 0.0);
             }
       }
@@ -466,6 +479,9 @@ static void sdf_interconnect_delays_one(struct interconnect_port_s port1, struct
 		  if (sdf_flag_inform) vpi_printf("SDF INFO: %s:%d: Created a vpiInterModPath\n", sdf_fname, sdf_lineno);
 
 		  sdf_put_interconnect_delays(intermodpath, delval_list, sdf_lineno);
+		  char detail[512];
+		  snprintf(detail, sizeof detail, "%s -> %s", port1.name, port2.name);
+		  sdf_log_annotation(sdf_lineno, "INTERCONNECT", detail, sdf_cur_cell);
 	    } else {
 		  vpi_printf("SDF ERROR: %s:%d: Could not find intermodpath!\n", sdf_fname, sdf_lineno);
 	    }
@@ -554,7 +570,7 @@ static void sdf_port_delays_one(struct interconnect_port_s port_spec,
       if (!matches) {
             vpi_printf("SDF ERROR: %s:%d: Could not find intermodpath for PORT %s.\n",
                        sdf_fname, sdf_lineno, port_spec.name);
-      }
+      } else sdf_log_annotation(sdf_lineno, "PORT", port_spec.name, sdf_cur_cell);
 }
 
 void sdf_port_delays(struct interconnect_port_s port_spec,
@@ -654,24 +670,64 @@ static void sdf_put_modpath_delays(vpiHandle path,
 {
       s_vpi_delay delays;
       struct t_vpi_time delay_vals[36];
-      int idx;
+      static const unsigned char maps[4][6] = {
+	    {0, 0, 0, 0, 0, 0}, {0, 1, 0, 0, 1, 1},
+	    {0, 1, 2, 0, 2, 1}, {0, 1, 2, 3, 4, 5}
+      };
+      int idx, part, count = delval_list->count;
+      int map_idx = count == 1 ? 0 : count == 2 ? 1 : count == 3 ? 2 : 3;
+      int changed[3][12] = {{0}};
+      double increment[3][6] = {{0}};
 
+      assert(count == 1 || count == 2 || count == 3 || count == 6 || count == 12);
       delays.da = delay_vals;
-      delays.no_of_delays = delval_list->count;
+      delays.no_of_delays = 12;
       delays.time_type = vpiScaledRealTime;
       delays.mtm_flag = 0;
       delays.append_flag = 0;
       delays.pulsere_flag = 1;
       vpi_get_delays(path, &delays);
 
-      /* Delay annotations default omitted pulse limits to 100% of delay. */
-      for (idx = 0 ; idx < delval_list->count ; idx += 1) {
-	    delay_vals[idx].type = vpiScaledRealTime;
-	    if (delval_list->val[idx].defined)
-		  delay_vals[idx].real = delval_list->val[idx].value
-			+ (sdf_increment ? delay_vals[idx].real : 0.0);
-	    delay_vals[delval_list->count + idx] = delay_vals[idx];
-	    delay_vals[2 * delval_list->count + idx] = delay_vals[idx];
+      /* Work on all twelve transitions so empty fields retain their own
+         previous values even when this annotation has fewer entries. */
+      for (idx = 0 ; idx < (count == 12 ? 12 : 6) ; idx += 1) {
+	    const struct sdf_delval_s*val = &delval_list->val[
+		  count == 12 ? idx : maps[map_idx][idx]];
+	    const struct sdf_delay_s*fields[3] = {
+		  &val->delay, val->has_limits ? &val->reject : &val->delay,
+		  val->has_limits ? &val->error : &val->delay
+	    };
+	    for (part = 0 ; part < 3 ; part += 1) {
+		  struct t_vpi_time*dst = &delay_vals[12 * part + idx];
+		  dst->type = vpiScaledRealTime;
+		  if (fields[part]->defined) {
+			if (idx < 6) increment[part][idx] = fields[part]->value;
+			dst->real = fields[part]->value
+			      + (sdf_increment ? dst->real : 0.0);
+			if (dst->real < 0.0) dst->real = 0.0;
+			changed[part][idx] = 1;
+		  }
+	    }
+      }
+
+      /* Derive X transitions using the same rules as module-path delays,
+         but retain an existing transition if neither input was annotated. */
+      if (count != 12) for (part = 0 ; part < 3 ; part += 1) {
+	    static const unsigned char a[6] = {2, 3, 4, 5, 4, 3};
+	    static const unsigned char b[6] = {0, 0, 1, 1, 2, 5};
+	    static const unsigned char use_max[6] = {0, 1, 0, 1, 1, 0};
+	    for (idx = 0 ; idx < 6 ; idx += 1) {
+		  int x = a[idx], y = b[idx];
+		  if (changed[part][x] || changed[part][y]) {
+			int add = sdf_increment && changed[part][x] && changed[part][y];
+			double vx = add ? increment[part][x] : delay_vals[12*part+x].real;
+			double vy = add ? increment[part][y] : delay_vals[12*part+y].real;
+			double value = (use_max[idx] ? vx > vy : vx < vy) ? vx : vy;
+			if (add) value += delay_vals[12*part+6+idx].real;
+			delay_vals[12*part+6+idx].real = value < 0.0 ? 0.0 : value;
+		  }
+		  delay_vals[12*part+6+idx].type = vpiScaledRealTime;
+	    }
       }
 
       vpi_put_delays(path, &delays);
@@ -736,6 +792,9 @@ static void sdf_iopath_delays_one(int vpi_edge, const char*src, const char*dst,
 	      /* Ah, this must be a match! */
 	    sdf_put_modpath_delays(path, delval_list);
 	    match_count += 1;
+	      char detail[512];
+	      snprintf(detail, sizeof detail, "%s -> %s", src, dst);
+	      sdf_log_annotation(sdf_lineno, "IOPATH", detail, sdf_cur_cell);
       }
 
       if (match_count == 0) {
@@ -827,7 +886,8 @@ static int sdf_timingcheck_one(enum sdf_tchk_kind_e kind,
 			       const struct sdf_tchk_port_s*first,
 			       const struct sdf_tchk_port_s*second,
 			       const struct sdf_delay_s*v1,
-			       const struct sdf_delay_s*v2)
+			       const struct sdf_delay_s*v2,
+			       int sdf_lineno)
 {
 	/* SETUP/HOLD/SETUPHOLD name the data port first (IEEE 1497); the
 	   other checks name the reference first. */
@@ -877,6 +937,10 @@ static int sdf_timingcheck_one(enum sdf_tchk_kind_e kind,
 			      + (sdf_increment ? times[lim].real : 0.0);
 	    }
 	    vpi_put_delays(tchk, &delays);
+	    char detail[512];
+	    snprintf(detail, sizeof detail, "%s: %s%s%s", sdf_tchk_name(kind), first->name,
+	             second ? " " : "", second ? second->name : "");
+	    sdf_log_annotation(sdf_lineno, "TIMINGCHECK", detail, sdf_cur_cell);
 	    if (type == vpiNoChange && (times[0].real != 0.0 || times[1].real != 0.0))
 		  vpi_printf("SDF WARNING: %s: $nochange offsets other than 0 "
 			     "are not modeled.\n", vpi_get_str(vpiFullName, sdf_cur_cell));
@@ -895,7 +959,7 @@ void sdf_timingcheck_delays(enum sdf_tchk_kind_e kind,
       size_t idx;
       for (idx = 0; idx < sdf_cell_count; idx += 1) {
 	    sdf_cur_cell = sdf_cells[idx];
-	    if (sdf_timingcheck_one(kind, first, second, v1, v2) == 0)
+	    if (sdf_timingcheck_one(kind, first, second, v1, v2, sdf_lineno) == 0)
 		  vpi_printf("SDF WARNING: %s:%d: Unable to match %s %s%s%s in %s\n",
 			     sdf_fname, sdf_lineno, sdf_tchk_name(kind),
 			     first->name, second ? " " : "",
@@ -907,6 +971,62 @@ void sdf_timingcheck_delays(enum sdf_tchk_kind_e kind,
       if (second) {
 	    free(second->name);
 	    free(second->condition);
+      }
+}
+
+/* IEEE 1800-2017/2023 32.4.3: "The SDF LABEL construct annotates to
+   specparams. Any expression containing one or more specparams is
+   reevaluated when annotated to from an SDF file." The value is written
+   through the specparam's vpiParameter handle; the run time re-evaluates
+   the dependent path delays and procedural delays. A label value is a
+   plain number, not a delay, so the SDF TIMESCALE does not scale it. */
+static void sdf_label_value_one(const char*name, double value,
+				int sdf_lineno)
+{
+      vpiHandle iter = vpi_iterate(vpiParameter, sdf_cur_cell), par;
+      int found = 0;
+
+      if (iter) while ((par = vpi_scan(iter))) {
+	    s_vpi_value val;
+	    const char*pname = vpi_get_str(vpiName, par);
+	    if (!pname || strcmp(pname, name) != 0) continue;
+	    found = 1;
+	    if (sdf_increment) {
+		  val.format = vpiRealVal;
+		  vpi_get_value(par, &val);
+		  value += val.value.real;
+	    }
+	    val.format = vpiRealVal;
+	    val.value.real = value;
+	    vpi_put_value(par, &val, 0, vpiNoDelay);
+	    sdf_log_annotation(sdf_lineno, "LABEL", name, sdf_cur_cell);
+	      /* Only a specparam with run-time storage takes the value
+	         (32.3: warn about what cannot be annotated). */
+	    vpi_get_value(par, &val);
+	    if (fabs(val.value.real - value) > 1e-9 * (1.0 + fabs(value)))
+		  vpi_printf("SDF WARNING: %s:%d: LABEL %s in %s cannot be "
+			     "annotated.\n", sdf_fname, sdf_lineno, name,
+			     vpi_get_str(vpiFullName, sdf_cur_cell));
+	    vpi_release_handle(iter);
+	    break;
+      }
+      if (!found)
+	    vpi_printf("SDF WARNING: %s:%d: Unable to match LABEL %s in %s\n",
+		       sdf_fname, sdf_lineno, name,
+		       vpi_get_str(vpiFullName, sdf_cur_cell));
+}
+
+void sdf_label_value(const char*name, const struct sdf_delay_s*value,
+		     const int sdf_lineno)
+{
+      size_t idx;
+      if (!value->defined) return;
+      for (idx = 0; idx < sdf_cell_count; idx += 1) {
+	    double scale;
+	    sdf_cur_cell = sdf_cells[idx];
+	    scale = sdf_time_scale();
+	    sdf_label_value_one(name, scale != 0.0 ? value->value / scale
+				: value->value, sdf_lineno);
       }
 }
 
@@ -930,6 +1050,7 @@ static void sdf_device_delays_one(const char*dst,
 		  continue;
 
 	    sdf_put_modpath_delays(path, delval_list);
+	    sdf_log_annotation(sdf_lineno, "DEVICE", dst ? dst : "*", sdf_cur_cell);
 	    match_count += 1;
       }
 
@@ -1012,6 +1133,9 @@ static void sdf_pathpulse_delays_one(int percent, const char*src, const char*dst
 		  }
 
 		  vpi_put_delays(path, &delays);
+		  char detail[256];
+		  snprintf(detail, sizeof detail, "%s", src ? src : dst);
+		  sdf_log_annotation(sdf_lineno, "PATHPULSE", detail, sdf_cur_cell);
 		  if (vpi_get(vpiSize, path_out) > 1) {
 			vpi_printf("SDF WARNING: %s:%d: PATHPULSE filtering for vector "
 			           "module-path outputs is not supported.\n",
@@ -1157,7 +1281,21 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	type_arg = argv_exhausted ? 0 : vpi_scan(argv);
 	if (!type_arg && !argv_exhausted) argv_exhausted = 1;
 	(void)config_arg;
-	(void)log_arg;
+	if (sdf_log_fd) {
+	      fclose(sdf_log_fd);
+	      sdf_log_fd = NULL;
+	}
+	if (log_arg && is_string_obj(log_arg)) {
+	      s_vpi_value value;
+	      value.format = vpiStringVal;
+	      vpi_get_value(log_arg, &value);
+	      if (value.value.str && !sdf_string_is_blank(value.value.str)) {
+	            sdf_log_fd = fopen(value.value.str, "w");
+	            if (!sdf_log_fd)
+	                  vpi_printf("SDF WARNING: Unable to open log file \"%s\".\n",
+	                             value.value.str);
+	      }
+	}
 	sdf_scope = scope_arg;
 	if (!sdf_scope || sdf_string_arg_is_blank(sdf_scope))
 	      sdf_scope = sdf_containing_module(vpi_handle(vpiScope, callh));
@@ -1226,6 +1364,10 @@ static PLI_INT32 sys_sdf_annotate_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       sdf_callh = 0;
 
       fclose(sdf_fd);
+      if (sdf_log_fd) {
+	    fclose(sdf_log_fd);
+	    sdf_log_fd = NULL;
+      }
       sdf_fname = NULL;
       free(fname);
       return 0;

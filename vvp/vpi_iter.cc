@@ -38,11 +38,17 @@ static int iterator_free_object(vpiHandle ref)
       return 1;
 }
 
-__vpiIterator::__vpiIterator()
+__vpiIterator::__vpiIterator() : reference(0)
 { }
 
 int __vpiIterator::get_type_code(void) const
 { return vpiIterator; }
+
+vpiHandle __vpiIterator::vpi_handle(int code)
+{
+      if (code == vpiUse) return reference;
+      return __vpiHandle::vpi_handle(code);
+}
 
 __vpiHandle::free_object_fun_t __vpiIterator::free_object_fun(void)
 { return &iterator_free_object; }

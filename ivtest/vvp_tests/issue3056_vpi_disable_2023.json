@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3056_vpi_disable.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3056_vpi_disable"],
+  "vpi-sources": ["vpi/issue3056_vpi_disable.c"],
+  "output-contains": ["issue3056 PASSED"]
+}

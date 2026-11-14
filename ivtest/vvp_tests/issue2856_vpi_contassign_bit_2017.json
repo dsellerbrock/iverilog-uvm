@@ -1,0 +1,16 @@
+{
+  "type": "normal",
+  "source": "issue2856_vpi_contassign_bit.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2856_vpi_contassign_bit_2017"],
+  "vpi-sources": ["vpi/issue2856_vpi_contassign_bit.c"],
+  "output-contains": [
+    "BIT type=128 offset=0 size=1 value=1",
+    "BIT type=128 offset=1 size=1 value=0",
+    "BIT type=128 offset=2 size=1 value=1",
+    "BIT type=128 offset=3 size=1 value=0",
+    "BITS=4",
+    "CHANGE t=2 offset=1 value=1",
+    "VPI CONTASSIGN BIT PASS"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "type": "normal",
+  "source": "issue2954_vpi_coverage.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "top"
+  ],
+  "vpi-modules": [
+    "issue2954_vpi_coverage_2023"
+  ],
+  "vpi-sources": [
+    "vpi/issue2954_vpi_coverage.c"
+  ],
+  "output-contains": [
+    "top prop=761 value=0 chk_error=0\n",
+    "top prop=762 value=0 chk_error=0\n",
+    "top prop=763 value=0 chk_error=0\n",
+    "top.u prop=761 value=0 chk_error=0\n",
+    "top.u prop=762 value=0 chk_error=0\n",
+    "top.u prop=763 value=0 chk_error=0\n",
+    "DONE\n"
+  ]
+}

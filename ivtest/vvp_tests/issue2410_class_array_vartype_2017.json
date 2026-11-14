@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2410_class_array_vartype.v",
+  "iverilog-args": ["-g2017", "-s", "issue2410_class_array_vartype"],
+  "output-contains": ["PASSED"]
+}

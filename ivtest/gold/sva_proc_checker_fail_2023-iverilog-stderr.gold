@@ -1,0 +1,3 @@
+ivltests/sva_proc_checker_fail.sv:11: error: It shall be illegal to instantiate a checker in a procedure of another checker (IEEE 1800-2023 17.3).
+ivltests/sva_proc_checker_fail.sv:21: error: It shall be illegal to instantiate checkers in fork-join, fork-join_any, or fork-join_none blocks (IEEE 1800-2023 17.3).
+ivltests/sva_proc_checker_fail.sv:24: error: `mod_t' is not a checker; only a checker may be instantiated in procedural code (IEEE 1800-2023 17.3).

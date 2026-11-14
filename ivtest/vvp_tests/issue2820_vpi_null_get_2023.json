@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2820_vpi_null_get.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue2820_vpi_null_get_2023"],
+  "vpi-sources": ["vpi/issue2820_vpi_null_get.c"],
+  "output-contains": ["SIZE=-1", "UNIT=0", "VPI NULL GET PASS", "PASSED", "DONE"]
+}

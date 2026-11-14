@@ -674,7 +674,10 @@ static unsigned nvartype_notes = 0;
 
 static int type_has_vartype_(ivl_type_t type)
 {
-      return type && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
+      /* Class properties are emitted in .class metadata; they are not a
+         struct/union typespec for an array of class handles. */
+      return type && ivl_type_base(type) != IVL_VT_CLASS
+          && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
 }
 
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
@@ -718,6 +721,13 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
       char tmp[64];
       ivl_enumtype_t enumtype = ivl_type_enum(type);
       int nmembers = ivl_type_properties(type);
+
+	/* Only a packed type has a type string. A class also has properties,
+	   and one can hold a handle of its own type: treating it as a struct
+	   would recurse without end. */
+      if (ivl_type_base(type) != IVL_VT_LOGIC
+	  && ivl_type_base(type) != IVL_VT_BOOL)
+	    return 0;
 
       if (enumtype) {
 	    if (!enumeration_is_drawn(enumtype)) return 0;
@@ -1618,7 +1628,8 @@ static void draw_udp_in_scope(ivl_net_logic_t lptr)
       }
 
 	/* Generate the UDP call. */
-      fprintf(vvp_out, "L_%p%s .udp UDP_%s", lptr, need_delay_flag ? "/d" : "",
+      fprintf(vvp_out, "L_%p%s .udp%s UDP_%s", lptr, need_delay_flag ? "/d" : "",
+                       need_delay_flag ? "/d" : "",
                        vvp_mangle_id(ivl_udp_name(udp)));
 
       for (pdx = 0 ;  pdx < ninp ;  pdx += 1) {
@@ -3317,6 +3328,21 @@ static ivl_switch_t evcd_port_component_switch(ivl_scope_t scope,
       return 0;
 }
 
+/* An inout port isolated for SDF INTERCONNECT (IEEE 1800 32.4.4) is one
+   whole-width tran: name its inner island port so VPI can find the
+   boundary. A concatenated or part-select port has no single boundary. */
+static ivl_switch_t sdf_inout_port_switch(ivl_scope_t scope, unsigned port_index,
+                                          unsigned width)
+{
+      ivl_switch_t sw = evcd_port_component_switch(scope, port_index, 0);
+      if (!sw || ivl_switch_type(sw) != IVL_SW_TRAN
+          || evcd_port_component_switch(scope, port_index, 1))
+            return 0;
+      if (ivl_switch_width(sw) != 0 && ivl_switch_width(sw) != width)
+            return 0;
+      return sw;
+}
+
 #define EVCD_METADATA_MAX_RECORDS 4096U
 #define EVCD_METADATA_MAX_BITS (4ULL * 1024ULL * 1024ULL)
 static unsigned evcd_metadata_records;
@@ -3782,6 +3808,10 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       if( ivl_scope_type(net) == IVL_SCT_MODULE ) {
 	    unsigned flat_port = 0;
+	    const char*sdf_inout_flag =
+		  ivl_design_flag(vvp_get_saved_design(), "SDF_INOUT");
+	    int sdf_inout = sdf_inout_flag && *sdf_inout_flag;
+	    ivl_switch_t inout_sw;
 
 	      // Port data for VPI: needed for vpiPorts property of vpiModule
 	    for( idx = 0; idx < ivl_scope_mod_module_ports(net); ++idx ) {
@@ -3796,6 +3826,9 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		           idx, vvp_port_info_type_str(ptype), width, vpi_type,
 		           vvp_mangle_name(name) );
 		  if (buffer) fprintf( vvp_out, " L_%p;\n", buffer);
+		  else if (sdf_inout && ptype == IVL_SIP_INOUT
+			   && (inout_sw = sdf_inout_port_switch(net, idx, width)))
+			fprintf( vvp_out, " p%p;\n", ivl_switch_b(inout_sw));
 		  else fprintf( vvp_out, ";\n");
 
 		  /* Preserve the flattened declaration components for EVCD.  A
@@ -3940,12 +3973,9 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	      ivl_type_t type = ivl_parameter_type(par);
 	      param_type_buf.len = 0;
 	      vartype_put_(&param_type_buf, "");
-	        // ponytail: packed types only; a class, string or unpacked
-	        // type parameter has no vartype string (vartype_spec_ would
-	        // recurse through a class's own handle properties).
-	      if (type && (ivl_type_base(type) == IVL_VT_LOGIC
-			   || ivl_type_base(type) == IVL_VT_BOOL)
-		  && vartype_spec_(&param_type_buf, type))
+	        // A class, string or unpacked type parameter has no vartype
+	        // string (vartype_spec_ describes packed types only).
+	      if (type && vartype_spec_(&param_type_buf, type))
 		fprintf(vvp_out, "P_%p .param/type \"%s\" %d %u %u, \"%s\";\n",
 			par, vvp_mangle_name(ivl_parameter_basename(par)),
 			ivl_parameter_local(par),
@@ -4069,6 +4099,23 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
+	/* A specparam annotatable by SDF LABEL (IEEE 1800 32.4.3) keeps its
+	   run-time value in a hidden local variable named _ivl_sp_<name>,
+	   present only when the design calls $sdf_annotate. */
+      for (idx = 0 ; idx < ivl_scope_params(net) ; idx += 1) {
+	    ivl_parameter_t par = ivl_scope_param(net, idx);
+	    unsigned sdx;
+	    for (sdx = 0 ; sdx < ivl_scope_sigs(net) ; sdx += 1) {
+		  ivl_signal_t sig = ivl_scope_sig(net, sdx);
+		  const char*name = ivl_signal_basename(sig);
+		  if (ivl_signal_local(sig) && strncmp(name, "_ivl_sp_", 8) == 0
+		      && strcmp(name + 8, ivl_parameter_basename(par)) == 0) {
+			fprintf(vvp_out, "P_%p .param/storage v%p_0;\n", par, sig);
+			break;
+		  }
+	    }
+      }
+
 	/* Task/function formal declarations are VPI objects in their own
 	   right (IEEE 1800-2017/2023 37.13). Emit them after their same-named
 	   signal handles so hierarchical name lookup continues to find the
@@ -4109,6 +4156,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    ivl_switch_t sw = ivl_scope_switch(net, idx);
 	    draw_switch_in_scope(sw);
       }
+
+      draw_vpi_objects_in_scope(net);
 
 	/* A system-task call records the current scope when vvp reads its
 	   instruction. Emit a task's nested scopes before its body so a .scope

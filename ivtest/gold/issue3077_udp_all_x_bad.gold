@@ -1,0 +1,4 @@
+./ivltests/issue3077_udp_all_x_bad.v:1: error: UDP table row with all inputs x must specify an x output.
+./ivltests/issue3077_udp_all_x_bad.v:7: error: UDP table row with all inputs x must specify an x output.
+./ivltests/issue3077_udp_all_x_bad.v:13: error: UDP table row with all inputs x must specify an x output.
+./ivltests/issue3077_udp_all_x_bad.v:13: error: UDP table row with all inputs x must specify an x output.

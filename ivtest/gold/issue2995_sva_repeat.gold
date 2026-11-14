@@ -1,0 +1,2 @@
+PASS
+./ivltests/issue2995_sva_repeat.sv:30: $finish called at 60 (1s)
