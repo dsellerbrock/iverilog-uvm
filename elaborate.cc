@@ -51603,14 +51603,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // sequence index.
 				      if (resolved_ignore_bins.count(&bin)) continue;
 				      if (base_kind == 1) continue;
-				      // shortcut: wildcard transition bins need literal patterns and
-				      // cannot be arrayed; add set indexing when a case needs it.
-				      if (bin.wildcard && bin.arrayed) {
-					    cerr << "sorry: wildcard arrayed transition bin '"
-						 << bin.name << "' is not supported; the bin is "
-						 << "dropped." << endl;
-					    continue;
-				      }
 				      if (bin.trans_seqs.size() > 255) {
 					    cerr << "sorry: covergroup transition bin '" << bin.name
 						 << "' has more than 255 alternative sequences; "
@@ -51683,8 +51675,27 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								    bad = true;
 								    break;
 							      }
-							      term.ranges.push_back(
-								    std::make_pair(value, mask));
+							      if (!bin.arrayed) {
+								    term.ranges.push_back(std::make_pair(value, mask));
+							      } else {
+								    uint64_t width_mask = cp_value_width == 64
+									  ? UINT64_MAX : (UINT64_C(1) << cp_value_width) - 1;
+								    if (value & mask & ~width_mask) continue;
+								    uint64_t free_bits = ~mask & width_mask;
+								    if (__builtin_popcountll(free_bits) > 16) {
+									  cerr << "sorry: arrayed transition term in bin '"
+									       << bin.name << "' has too many value alternatives; the bin is dropped." << endl;
+									  bad = true;
+									  break;
+								    }
+								    uint64_t subset = free_bits;
+								    do {
+									  uint64_t v = (value & mask & width_mask) | subset;
+									  term.ranges.push_back(std::make_pair(v, v));
+									  if (!subset) break;
+									  subset = (subset - 1) & free_bits;
+								    } while (true);
+							      }
 							}
 						  } else if (!eval_ranges(source_term.ranges, term.ranges,
 						     cp_value_width, cp_value_signed,
@@ -51719,10 +51730,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							break;
 						  }
 						  if (bad) break;
-						  // One wildcard bin is one transition alternative, regardless
-						  // of how many concrete values its pattern matches.
+						  // A scalar wildcard bin groups all matched values; an array
+						  // instead has one alternative per concrete value.
 						  unsigned __int128 alternatives = 1;
-						  if (!bin.wildcard) {
+						  if (!bin.wildcard || bin.arrayed) {
 							std::sort(term.ranges.begin(), term.ranges.end());
 							std::vector<std::pair<uint64_t,uint64_t>> merged;
 							for (auto&r : term.ranges) {
@@ -52039,13 +52050,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							cg_class->add_covgrp_bin(cp_idx, marker_prop,
 							      r.first, r.second,
 							      (base_kind == 2 ? 2u | 1024u : 4u)
-								    | (bin.wildcard ? 8u : 0u),
+								    | (bin.wildcard ? (bin.arrayed ? 8192u : 8u) : 0u),
 							      (sq << 8) | st, cp_idx,
 							      term.repeat, term.min, term.max,
 							      (unsigned)alt_base,
 							      (unsigned)term.alternatives,
 							      family, seq_bases[sq], bin_guard);
-							if (!bin.wildcard)
+							if (!bin.wildcard || bin.arrayed)
 							      alt_base += r.second - r.first + 1;
 						  }
 					    }

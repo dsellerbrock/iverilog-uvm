@@ -8513,8 +8513,11 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
       uint64_t key_prefix, const std::vector<const class_type::cov_bin_t*>&records,
       uint64_t value, const vvp_vector4_t*sample)
 {
-	  // shortcut: skip X/Z transition samples until transition terms encode four-state endpoints.
-	  if (sample && sample->has_xz()) return std::set<uint64_t>();
+	  // Expanded wildcard arrays treat an X/Z sample as a nonmatch, so it
+	  // also interrupts pending consecutive sequences.
+	  bool xz = sample && sample->has_xz();
+	  if (xz && (records.empty() || !(records[0]->kind & 8192)))
+		return std::set<uint64_t>();
       std::map<unsigned,std::map<unsigned,covgrp_trans_term_t>> programs;
       std::map<unsigned,uint64_t> seq_bases;
       for (const class_type::cov_bin_t*bin : records) {
@@ -8561,7 +8564,7 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
 		  if (state.term >= terms.size()) return;
 		  const covgrp_trans_term_t&term = terms[state.term];
 		  uint64_t ordinal = 0;
-		  bool matches = covgrp_trans_match_(term, value, ordinal);
+		  bool matches = !xz && covgrp_trans_match_(term, value, ordinal);
 		  if (state.waiting && !matches) {
 			uint64_t unused = 0;
 			if (state.forbid_term < terms.size()
@@ -8586,7 +8589,7 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
 	    for (const auto&state : old_states) consume(state, false);
 	    vvp_cobject::cov_trans_state_t fresh;
 	    uint64_t first = 0;
-	    if (covgrp_trans_match_(terms[0], value, first)) consume(fresh, false);
+	    if (!xz && covgrp_trans_match_(terms[0], value, first)) consume(fresh, false);
 	    auto&stored = cobj->cov_trans_states(key);
 	    stored.assign(next_states.begin(), next_states.end());
       }

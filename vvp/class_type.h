@@ -306,6 +306,7 @@ class class_type : public __vpiHandle {
 	    // kind & 128: exact 4-state value; lo packs 2-bit states, hi gives width/chunk.
 	    // kind & 512: wide automatic bin; lo is the prefix, hi packs width and prefix bits.
 	    // kind & 4096: wide inclusive range; lo indexes covgrp_wide_ranges_.
+	    // kind & 8192: expanded wildcard transition array (2-state only).
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
 	    unsigned item_idx = 0;
