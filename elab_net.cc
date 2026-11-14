@@ -541,7 +541,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       ivl_assert(*this, scope);
 
       symbol_search_results sr;
-      symbol_search(this, des, scope, path_.name, lexical_pos_, &sr);
+      symbol_search(this, des, scope, path_, lexical_pos_, &sr);
       if (path_.name.size() > 1)
 	    note_virtual_interface_outside_reference(scope, sr.scope);
 

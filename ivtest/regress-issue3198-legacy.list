@@ -1,0 +1,4 @@
+issue3198_package_net_2017 normal,-g2017,-s,issue3198_package_net ivltests gold=issue3198_package_net.gold
+issue3198_package_net_2023 normal,-g2023,-s,issue3198_package_net ivltests gold=issue3198_package_net.gold
+issue3198_package_net_init_2017 CE,-g2017 ivltests gold=issue3198_package_net_init.gold
+issue3198_package_net_init_2023 CE,-g2023 ivltests gold=issue3198_package_net_init.gold
