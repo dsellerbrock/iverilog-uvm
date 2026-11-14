@@ -1,0 +1,2 @@
+issue3301_string_constraint_2017 normal,-g2017,-s,issue3301_string_constraint ivltests gold=issue3301_string_constraint.gold
+issue3301_string_constraint_2023 normal,-g2023,-s,issue3301_string_constraint ivltests gold=issue3301_string_constraint.gold

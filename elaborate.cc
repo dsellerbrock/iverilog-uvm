@@ -40272,6 +40272,11 @@ static bool constraint_call_dependencies_(const NetExpr*expr,
 			return true;
 		  }
 		  if (property->get_index()) {
+			if (ptype && ptype->base_type() == IVL_VT_STRING) {
+			      add(dependency_t::PROP, pid);
+			      return constraint_call_dependencies_(property->get_index(),
+				    cls, receiver, dependencies);
+			}
 			unsigned leaf = 0;
 			if (!dynamic_cast<const netarray_t*>(ptype)
 			    || !constant_index(property->get_index(), leaf)) return false;
@@ -40507,7 +40512,7 @@ static string constraint_state_expression_slot_(
       const PExpr*site, PExpr*expression, ivl_type_t result_type,
       const netclass_t*cls, bool collect_dependencies,
       NetEUFunc**inline_capture = nullptr, NetScope*inline_scope = nullptr,
-      bool take_expression_ownership = true)
+      bool take_expression_ownership = true, bool require_state = false)
 {
       if (!site || !expression || !result_type || !cls
 	  || (!constraint_ir_state_calls_ctx_ && !inline_capture)
@@ -40582,9 +40587,16 @@ static string constraint_state_expression_slot_(
 	    return "inline";
       }
       set<netclass_t::constraint_dependency_t>dependencies;
-      if (collect_dependencies
+      if ((collect_dependencies || require_state)
 	  && !constraint_call_dependencies_(value, cls, receiver, dependencies))
 	    return "";
+      if (require_state) {
+	    for (const auto&dep : dependencies) {
+		  property_qualifier_t qual = cls->get_prop_qual(dep.property);
+		  if (qual.test_rand() || qual.test_randc()) return "";
+	    }
+	    dependencies.clear();
+      }
       netclass_t::constraint_state_call_t desc;
       desc.method = wrapper->basename();
       desc.method_scope = wrapper;
@@ -41565,6 +41577,40 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		constraint_ir_design_ctx_->errors += 1;
 	      return "";
 	}
+
+      /* Capture string state only when the selected character's index also
+       * contains no random variables. In particular, sampling a random index
+       * before solving would silently change a bidirectional constraint. */
+      if (cls && constraint_ir_state_calls_ctx_ && !loop_env
+	  && !dynforeach_emit_ctx_ && !stateforeach_emit_ctx_) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+	    const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr);
+	    const pform_name_t*path = id ? &id->path().name
+		  : call ? &call->path().name : nullptr;
+	    bool character = id && !id->path().package
+		  && !id->has_scoped_type_prefix() && path->size() == 1
+		  && path->front().index.size() == 1
+		  && path->front().index.front().sel == index_component_t::SEL_BIT
+		  && path->front().index.front().msb
+		  && !path->front().index.front().lsb;
+	    bool length = call && !call->receiver_expr() && !call->path().package
+		  && !call->has_scoped_type_prefix() && path->size() == 2
+		  && path->front().index.empty() && path->back().index.empty()
+		  && path->back().name == perm_string::literal("len")
+		  && call->get_parms().empty() && call->with_constraints().empty();
+	    if ((character || length) && !path->front().local_scope) {
+		  int pid = cls->property_idx_from_name(path->front().name);
+		  ivl_type_t type = pid >= 0 ? cls->get_prop_type(pid) : nullptr;
+		  if (type && type->base_type() == IVL_VT_STRING) {
+			string slot = constraint_state_expression_slot_(expr,
+			      const_cast<PExpr*>(expr), character
+			      ? static_cast<ivl_type_t>(&netvector_t::atom2s8)
+			      : static_cast<ivl_type_t>(&netvector_t::atom2s32),
+			      cls, false, nullptr, nullptr, false, true);
+			if (!slot.empty()) return slot;
+		  }
+	    }
+      }
 
 	/* A scalar member of an element selected from a random queue or
 	 * associative array of class handles is a solver leaf of that live
