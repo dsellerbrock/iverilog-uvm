@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2821_vpi_null_args.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2821_vpi_null_args_2017"],
+  "vpi-sources": ["vpi/issue2821_vpi_null_args.c"],
+  "output-contains": ["VPI NULL ARGS PASS", "DONE"]
+}
