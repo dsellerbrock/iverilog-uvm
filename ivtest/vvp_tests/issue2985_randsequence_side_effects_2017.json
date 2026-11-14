@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2985_randsequence_side_effects.sv",
+  "iverilog-args": ["-g2017", "-s", "issue2985_randsequence_side_effects"],
+  "gold": "issue2985_randsequence_side_effects"
+}
