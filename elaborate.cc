@@ -56618,17 +56618,20 @@ static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
 		  if (!stub_scope || stub_scope->type() != NetScope::TASK)
 			continue;
 		  const PTask*stub = stub_scope->task_pform();
-		  if (!stub || !stub->is_modport_provider_stub())
+		    /* An extern task is its own prototype (25.7.3). */
+		  const bool extern_task = stub && stub->is_extern_prototype();
+		  if (!stub || !(stub->is_modport_provider_stub() || extern_task))
 			continue;
 
-		  const PModport::tf_port_prototype_t*prototype =
-			find_interface_import_task_prototype_(
+		  const PModport::tf_port_prototype_t*prototype = extern_task
+			? nullptr
+			: find_interface_import_task_prototype_(
 			      interface_module, stub_scope->basename());
 		  NetTaskDef*stub_def = stub_scope->task_def();
 		  NetBlock*body = stub_def
 			? const_cast<NetBlock*>(dynamic_cast<const NetBlock*>(
 				  stub_def->proc())) : nullptr;
-		  if (!prototype || !stub_def || !body) {
+		  if ((!prototype && !extern_task) || !stub_def || !body) {
 			cerr << stub->get_fileline()
 			     << ": internal error: exported modport task stub `"
 			     << stub_scope->basename()
@@ -56642,7 +56645,9 @@ static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
 			find_extern_forkjoin_providers_(
 			      root, scope, stub_scope->basename(), providers);
 		  if (providers.size() != 1) {
-			cerr << stub->get_fileline() << ": error: Exported modport task `"
+			cerr << stub->get_fileline() << ": error: "
+			     << (extern_task ? "Extern task `"
+					     : "Exported modport task `")
 			     << stub_scope->basename() << "' requires exactly one connected "
 				"module provider for this interface instance; found "
 			     << providers.size() << " (IEEE 1800-2017/2023 25.7.3)."
@@ -56663,7 +56668,7 @@ static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
 			continue;
 		  }
 
-		  if (!interface_modport_prototype_matches_method_(
+		  if (prototype && !interface_modport_prototype_matches_method_(
 			*stub, des, prototype,
 			provider, provider_def, false, false, scope)) {
 			cerr << provider->get_fileline()

@@ -18352,6 +18352,24 @@ module_item
 	delete[] $4;
       }
 
+  /* IEEE 1800-2017/2023 25.7.3 (A.1.6 extern_tf_declaration): the interface
+     holds only the prototype; the one module that defines the task
+     through a connected interface port supplies the body. */
+  | K_extern K_task IDENTIFIER
+      { assert(current_task == 0);
+	pform_requires_sv(@1, "extern task declaration");
+	if (!pform_in_interface())
+	      yyerror(@1, "error: An extern task shall be declared in an interface (IEEE 1800-2017/2023 25.7.3).");
+	current_task = pform_push_task_scope(@2, $3, LexicalScope::INHERITED);
+	current_task->set_extern_prototype(true);
+      }
+    tf_port_list_parens_opt ';'
+      { current_task->set_ports($5);
+	pform_pop_scope();
+	current_task = 0;
+	delete[] $3;
+      }
+
     /* `static'/`automatic' as a prefix qualifier (rather than
        `lifetime_opt' following `task'/`function', IEEE 1800-2017/2023
        A.2.7's ordinary module-scope form) belongs only to a class-body
