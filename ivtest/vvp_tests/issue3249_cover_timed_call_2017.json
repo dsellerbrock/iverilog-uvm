@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3249_cover_timed_call.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3249_cover_timed_call"],
+  "gold": "issue3249_cover_timed_call"
+}
