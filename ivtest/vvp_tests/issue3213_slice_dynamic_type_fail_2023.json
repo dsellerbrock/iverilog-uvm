@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3213_slice_dynamic_type_fail.sv",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "issue3213_slice_dynamic_type_fail"
+}

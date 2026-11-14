@@ -6819,3 +6819,7 @@ issue2981_local_type_cast_2023 normal,-g2023,-s,main ivltests gold=issue2981_loc
 issue2966_unique_real_2017 CE,-g2017,-s,top ivltests gold=issue2966_unique_real_2017.gold
 issue2966_unique_real_2023 normal,-g2023,-s,top ivltests gold=issue2966_unique_real_2023.gold
 issue2966_unique_real_array_2017 CE,-g2017,-s,top ivltests gold=issue2966_unique_real_array_2017.gold
+issue3213_slice_dynamic_2017 normal,-g2017,-s,main ivltests gold=issue3213_slice_dynamic.gold
+issue3213_slice_dynamic_2023 normal,-g2023,-s,main ivltests gold=issue3213_slice_dynamic.gold
+issue3213_slice_dynamic_type_fail_2017 CE,-g2017,-s,main ivltests gold=issue3213_slice_dynamic_type_fail.gold
+issue3213_slice_dynamic_type_fail_2023 CE,-g2023,-s,main ivltests gold=issue3213_slice_dynamic_type_fail.gold
