@@ -1,0 +1,2 @@
+issue3015_super_parameter_2017 normal,-g2017,-s,issue3015_super_parameter ivltests gold=issue3015_super_parameter.gold
+issue3015_super_parameter_2023 normal,-g2023,-s,issue3015_super_parameter ivltests gold=issue3015_super_parameter.gold
