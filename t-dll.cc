@@ -1290,6 +1290,12 @@ void dll_target::make_scope_contassigns_(ivl_scope_t scope)
 		  obj.drive0 = cur.drive0;
 		  obj.drive1 = cur.drive1;
 		  obj.net_decl = cur.net_decl;
+		  for (NetExpr*delay : cur.delays) {
+			assert(expr_ == 0);
+			delay->expr_scan(this);
+			obj.delays.push_back(expr_);
+			expr_ = 0;
+		  }
 		  list->push_back(obj);
 	    }
 	    scope->ensure_aux_()->contassigns = list;

@@ -962,6 +962,7 @@ struct ivl_contassign_s {
       unsigned lineno;
       ivl_drive_t drive0, drive1;
       bool net_decl;
+      std::vector<ivl_expr_t> delays;
 };
 
 /* Scopes are kept in a tree. Children retain the exact target creation order.

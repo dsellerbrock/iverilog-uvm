@@ -2270,6 +2270,11 @@ extern const char*      ivl_contassign_driver(ivl_contassign_t net);
 extern ivl_drive_t      ivl_contassign_drive0(ivl_contassign_t net);
 extern ivl_drive_t      ivl_contassign_drive1(ivl_contassign_t net);
 extern int              ivl_contassign_net_decl(ivl_contassign_t net);
+  /* The delay expressions of the assignment as written (rise, fall,
+     decay), for vpiDelay (IEEE 1800-2023 37.47); none when there are no
+     delays or one of them cannot be described. */
+extern unsigned         ivl_contassign_delays(ivl_contassign_t net);
+extern ivl_expr_t       ivl_contassign_delay(ivl_contassign_t net, unsigned idx);
 extern const char*      ivl_contassign_file(ivl_contassign_t net);
 extern unsigned         ivl_contassign_lineno(ivl_contassign_t net);
 
