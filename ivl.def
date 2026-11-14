@@ -323,6 +323,7 @@ ivl_scope_lpm
 ivl_scope_mod_module_ports
 ivl_scope_mod_module_port_highconn
 ivl_scope_mod_module_port_iface
+ivl_scope_mod_module_port_lowconn
 ivl_scope_mod_module_port_name
 ivl_scope_mod_module_port_type
 ivl_scope_mod_module_port_vpi_type
