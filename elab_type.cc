@@ -2784,9 +2784,11 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 		  }
 
 		  if (namep->expr && !packed_flag && !union_flag
-		      && !reported_union_member && memb.net_type)
+		      && !reported_union_member && memb.net_type) {
 			elaborate_struct_member_default_(des, scope,
 							 memb.net_type, namep);
+			memb.has_default = true;
+		  }
 		  res->append_member(des, memb);
 	    }
       }

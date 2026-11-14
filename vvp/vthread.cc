@@ -31706,6 +31706,28 @@ bool of_QCOND_AMBIG(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* %ocond/ambig
+ *
+ * Pop the false and true operands of a conditional whose condition is
+ * ambiguous, and push its value (IEEE 1800-2023 11.4.11): the true operand
+ * when the two are logically equivalent, else the Table 7-1 value for their
+ * type. Used for unpacked structs; the default is built like a queue
+ * conditional's mismatched struct element. */
+bool of_OCOND_AMBIG(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t right_obj, left_obj;
+      thr->pop_object(right_obj);
+      thr->pop_object(left_obj);
+      vvp_bit4_t logical = BIT4_1, exact = BIT4_1;
+      if (qcond_object_elements_match_(left_obj, right_obj, logical, exact))
+	    thr->push_object(left_obj);
+      else
+	    thr->push_object(qcond_default_object_(left_obj, right_obj, 0,
+						   UINT32_MAX,
+						   vvp_container_layout_t()));
+      return true;
+}
+
 bool of_NOOP(vthread_t, vvp_code_t)
 {
       return true;
