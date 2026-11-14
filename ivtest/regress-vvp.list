@@ -7377,3 +7377,6 @@ issue3094_coverage_noop_2017 vvp_tests/issue3094_coverage_noop_2017.json
 issue3094_coverage_noop_2023 vvp_tests/issue3094_coverage_noop_2023.json
 issue3093_source_range_2017 vvp_tests/issue3093_source_range_2017.json
 issue3093_source_range_2023 vvp_tests/issue3093_source_range_2023.json
+# IEEE 1800-2017/2023 31.7 multibit timing-check condition
+issue3089_timing_condition_2017 vvp_tests/issue3089_timing_condition_2017.json
+issue3089_timing_condition_2023 vvp_tests/issue3089_timing_condition_2023.json

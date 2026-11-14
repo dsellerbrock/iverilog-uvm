@@ -1,0 +1,2 @@
+issue3089_timing_condition_2017 normal,-g2017,-gspecify,-s,issue3089_timing_condition ivltests gold=issue3089_timing_condition.gold
+issue3089_timing_condition_2023 normal,-g2023,-gspecify,-s,issue3089_timing_condition ivltests gold=issue3089_timing_condition.gold

@@ -6849,3 +6849,6 @@ issue3063_empty_coverpoint_2017 normal,-g2017,-s,issue3063_empty_coverpoint ivlt
 issue3063_empty_coverpoint_2023 normal,-g2023,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold
 issue3111_static_2017 normal,-g2017,-s,issue3111_static ivltests gold=issue3111_static.gold
 issue3111_static_2023 normal,-g2023,-s,issue3111_static ivltests gold=issue3111_static.gold
+# IEEE 1800-2017/2023 31.7 multibit timing-check condition
+issue3089_timing_condition_2017 normal,-g2017,-gspecify,-s,issue3089_timing_condition ivltests gold=issue3089_timing_condition.gold
+issue3089_timing_condition_2023 normal,-g2023,-gspecify,-s,issue3089_timing_condition ivltests gold=issue3089_timing_condition.gold
