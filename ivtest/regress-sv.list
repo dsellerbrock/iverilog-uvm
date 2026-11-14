@@ -6856,3 +6856,5 @@ issue3163_final_flush_2017 normal,-g2017,-s,issue3163_final_flush ivltests gold=
 issue3163_final_flush_2023 normal,-g2023,-s,issue3163_final_flush ivltests gold=issue3163_final_flush.gold
 issue3185_signed_queue_2017 normal,-g2017,-s,issue3185_signed_queue ivltests gold=issue3185_signed_queue-vvp-stdout.gold
 issue3185_signed_queue_2023 normal,-g2023,-s,issue3185_signed_queue ivltests gold=issue3185_signed_queue-vvp-stdout.gold
+issue3190_conditional_2017 normal,-g2017,-s,issue3190_conditional ivltests gold=issue3190_conditional.gold
+issue3190_conditional_2023 normal,-g2023,-s,issue3190_conditional ivltests gold=issue3190_conditional.gold
