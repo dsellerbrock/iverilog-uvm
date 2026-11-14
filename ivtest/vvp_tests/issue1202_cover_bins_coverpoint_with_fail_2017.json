@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "issue1202_cover_bins_coverpoint_with_fail.v",
+  "iverilog-args": ["-g2017", "-s", "top"]
+}
