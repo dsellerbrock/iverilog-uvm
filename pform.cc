@@ -16137,8 +16137,13 @@ static PExpr* tc_condition_(const struct vlltype&loc, PExpr*condition)
 {
       PEBComp*comparison = dynamic_cast<PEBComp*>(condition);
       if (comparison == nullptr
-          || (comparison->get_op() != 'e' && comparison->get_op() != 'n'))
-	    return condition;
+          || (comparison->get_op() != 'e' && comparison->get_op() != 'n')) {
+	    // A multibit timing-check condition uses its least significant bit.
+	    PECastSize*scalar = new PECastSize(
+		  new PENumber(new verinum(verinum::V1, 1)), condition);
+	    FILE_NAME(scalar, loc);
+	    return scalar;
+      }
 
       PExpr*known_true = new PEBComp('E', condition,
 	    new PENumber(new verinum(verinum::V1, 1)));
@@ -16359,6 +16364,7 @@ static void tc_always_at_conditioned_(const struct vlltype&loc,
 	    error_count += 1;
 	    return;
       }
+      condition = tc_condition_(loc, condition);
       PCondit*conditioned = new PCondit(condition, true_body, false_body);
       FILE_NAME(conditioned, loc);
 
