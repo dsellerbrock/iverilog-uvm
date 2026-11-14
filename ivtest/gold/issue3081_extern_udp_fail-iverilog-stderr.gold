@@ -1,0 +1,3 @@
+ivltests/issue3081_extern_udp_fail.v:5: error: Extern primitive issue3081_d was already declared here: ivltests/issue3081_extern_udp_fail.v:4
+ivltests/issue3081_extern_udp_fail.v:7: error: The port list of primitive issue3081_m does not match its extern declaration at ivltests/issue3081_extern_udp_fail.v:3 (IEEE 1800 29.3, 23.5).
+ivltests/issue3081_extern_udp_fail.v:11: error: A (.*) port list needs an extern primitive declaration of issue3081_n (IEEE 1800 29.3, 23.5).

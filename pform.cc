@@ -3766,10 +3766,78 @@ static void process_udp_table(PUdp*udp, list<string>*table,
 
 }
 
+struct pform_extern_udp_t {
+      std::string where;
+      list<pform_ident_t> ports;
+};
+static map<perm_string, pform_extern_udp_t> pform_extern_udps;
+
+void pform_extern_udp(const struct vlltype&loc, perm_string name,
+		      list<pform_ident_t>*ports)
+{
+      map<perm_string, pform_extern_udp_t>::iterator cur
+	    = pform_extern_udps.find(name);
+      if (cur != pform_extern_udps.end()) {
+	    cerr << loc << ": error: Extern primitive " << name
+		 << " was already declared here: " << cur->second.where << endl;
+	    error_count += 1;
+      } else {
+	    pform_extern_udp_t&ext = pform_extern_udps[name];
+	    ext.where = loc.get_fileline();
+	    ext.ports = *ports;
+      }
+      delete ports;
+}
+
+list<pform_ident_t>* pform_extern_udp_ports(const struct vlltype&loc,
+					    perm_string name)
+{
+      map<perm_string, pform_extern_udp_t>::iterator cur
+	    = pform_extern_udps.find(name);
+      if (cur == pform_extern_udps.end()) {
+	    cerr << loc << ": error: A (.*) port list needs an extern "
+		 << "primitive declaration of " << name
+		 << " (IEEE 1800 29.3, 23.5)." << endl;
+	    error_count += 1;
+	    return nullptr;
+      }
+      list<pform_ident_t>*ports = new list<pform_ident_t>(cur->second.ports);
+      pform_extern_udps.erase(cur);
+      return ports;
+}
+
+/* A definition after an extern primitive declaration must match its port
+   names and positions (IEEE 1800 23.5, applied to 29.3). */
+static void pform_check_extern_udp_(const struct vlltype&loc, perm_string name,
+				    const list<perm_string>&ports)
+{
+      map<perm_string, pform_extern_udp_t>::iterator cur
+	    = pform_extern_udps.find(name);
+      if (cur == pform_extern_udps.end())
+	    return;
+      bool match = cur->second.ports.size() == ports.size();
+      list<perm_string>::const_iterator dp = ports.begin();
+      for (list<pform_ident_t>::const_iterator ep = cur->second.ports.begin()
+		 ; match && ep != cur->second.ports.end() ; ++ep, ++dp)
+	    match = ep->first == *dp;
+      if (!match) {
+	    cerr << loc << ": error: The port list of primitive " << name
+		 << " does not match its extern declaration at "
+		 << cur->second.where << " (IEEE 1800 29.3, 23.5)." << endl;
+	    error_count += 1;
+      }
+      pform_extern_udps.erase(cur);
+}
+
 void pform_make_udp(const struct vlltype&loc, perm_string name,
 		    list<pform_ident_t>*parms, vector<PWire*>*decl,
 		    list<string>*table, Statement*init_expr)
 {
+      {
+	    list<perm_string> names;
+	    for (const pform_ident_t&port : *parms) names.push_back(port.first);
+	    pform_check_extern_udp_(loc, name, names);
+      }
       unsigned local_errors = 0;
       ivl_assert(loc, !parms->empty());
 
@@ -3964,6 +4032,12 @@ void pform_make_udp(const struct vlltype&loc, perm_string name,
 		    PExpr*init_expr, list<pform_ident_t>*parms,
 		    list<string>*table)
 {
+      {
+	    list<perm_string> names;
+	    names.push_back(out_name.first);
+	    for (const pform_ident_t&port : *parms) names.push_back(port.first);
+	    pform_check_extern_udp_(loc, name, names);
+      }
 
       std::vector<PWire*> pins(parms->size() + 1);
 
