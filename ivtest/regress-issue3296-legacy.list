@@ -1,0 +1,2 @@
+issue3296_unique_slice_2017 normal,-g2017,-s,issue3296_unique_slice ivltests gold=issue3296_unique_slice.gold
+issue3296_unique_slice_2023 normal,-g2023,-s,issue3296_unique_slice ivltests gold=issue3296_unique_slice.gold
