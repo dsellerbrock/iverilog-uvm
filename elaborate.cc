@@ -53376,6 +53376,38 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // an implementation guard on the number of counters,
 				        // not on the number of values represented by them.
 				      static const uint64_t array_bin_limit = 65536;
+				      if (nbins > array_bin_limit && bin.array_size
+					  && !bin.wildcard
+					  && !(bin.with_expr && cg_distribute_first)) {
+					      // 19.5.1 sets no limit on the number of
+					      // bins. A larger fixed-size array becomes a
+					      // value family of NBINS bins, distributed by
+					      // the runtime over the same ordered values
+					      // and carved there (19.5.5), with a counter
+					      // only for each bin hit.
+					    unsigned family = dyn_family++;
+					    auto endpoint = [&](uint64_t value) {
+						  return "c:" + std::to_string(value) + ":"
+							+ std::to_string(cp_value_width)
+							+ (cp_value_signed ? ":s" : "");
+					    };
+					    for (auto&range : rr)
+						  cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
+							kindval, family, (uint64_t)nbins,
+							bin.name.str(), endpoint(range.first),
+							endpoint(range.second), cp_value_width,
+							cp_value_signed, bin_guard);
+					    if ((kindval & 7) == 0) {
+						  xbin_desc_t d;
+						  d.name = bin.name;
+						  d.wildcard = false;
+						  d.dyn_family = (int)family;
+						  d.guard_idx = bin_guard;
+						  vbins.push_back(d);
+						  has_value_bins = true;
+					    }
+					    continue;
+				      }
 				      if (nbins > array_bin_limit) {
 					    cerr << "sorry: arrayed covergroup bin '"
 						 << bin.name << "' needs more than "

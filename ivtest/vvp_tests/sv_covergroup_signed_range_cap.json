@@ -1,10 +1,9 @@
 {
-    "type": "CE",
+    "type": "normal",
     "source": "sv_covergroup_signed_range_cap.v",
     "iverilog-args": [
         "-g2017",
         "-s",
         "test"
-    ],
-    "gold": "sv_covergroup_signed_range_cap"
+    ]
 }
