@@ -24761,6 +24761,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   ahead of the user's pass action; cover match calls run at their
 	   accepted sequence endpoints. */
       Statement*match_action = nullptr;
+	Statement*cover_pass_action = nullptr;
 	if (!match_calls.empty()) {
 	    std::vector<Statement*>actions;
 	    for (size_t c = 0 ; c < match_calls.size() ; c += 1) {
@@ -24801,16 +24802,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (!implication)
 		  pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
 	  } else if (cover && pass_stmt) {
-		/* Cover pass actions are dispatched with the accepted match, in
-		   Reactive, without delaying the automaton's checker process. */
+		/* A timed match-item task must not delay the pass action. */
 		if (match_action) {
-		      std::vector<Statement*>ordered;
-		      ordered.push_back(match_action);
-		      ordered.push_back(sva_action_guard_(loc,
-			    SVA_SPACE_CONCURRENT, inst, SVA_STATE_PASS_ACTION,
-			    pass_stmt));
-		      match_action = sva_block_(loc, ordered);
 		      sva_self_guarded_actions_.insert(match_action);
+		      cover_pass_action = pass_stmt;
 		      pass_stmt = nullptr;
 		} else {
 		      match_action = pass_stmt;
@@ -25904,6 +25899,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				       sva_cover_spawn_(loc, inst, match_action)));
 	    match_action = nullptr;
       }
+      if (cover_pass_action)
+	    body.push_back(sva_repeat_(loc, sva_id_(loc, r_match),
+				       sva_cover_spawn_(loc, inst, cover_pass_action)));
 
 	/* Release the borrowed guard templates and the consumed property. */
       auto release_property = [&]() {
