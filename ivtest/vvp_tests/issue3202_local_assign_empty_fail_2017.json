@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3202_local_assign_empty_fail.v",
+  "iverilog-args": ["-g2017", "-gassertions"],
+  "gold": "issue3202_local_assign_empty_fail"
+}

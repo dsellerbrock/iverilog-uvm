@@ -246,6 +246,41 @@ static void sva_destroy_parser_match_items_(
 	delete items;
 }
 
+/* IEEE 1800-2017/2023 16.10: "The subsequence to which a local variable
+ * assignment is attached shall not admit an empty match", as `b[*0:1]' does
+ * while `a ##1 b[*0:1]' does not. Only a lone boolean repeated from zero
+ * with no leading delay (rep_kind 1..3 hold the constant lower bound), or
+ * a whole group repeated from zero, is certain to admit one; a
+ * parameter-dependent bound (rep_kind 4) is left alone. */
+static void sva_check_local_assignment_subsequence_(
+	const struct vlltype&loc, const std::vector<sva_seq_step_t>&steps,
+	bool local_assignment)
+{
+	if (!local_assignment || steps.empty()) return;
+	const sva_seq_step_t&first = steps.front();
+	bool empty = false;
+	if (steps.size() == 1 && first.delay_lo == 0 && first.delay_hi == 0
+	    && !first.grouped_repeat)
+	      empty = first.rep_kind >= 1 && first.rep_kind <= 3
+		    && first.rep_lo == 0;
+	if (first.group_repeat_start && steps.back().group_repeat_end
+	    && first.group_repeat_lo == 0 && first.delay_lo == 0
+	    && first.delay_hi == 0)
+	      empty = true;
+	if (empty)
+	      yyerror(loc, "error: A local variable assignment cannot be "
+		      "attached to a subsequence that admits an empty match "
+		      "(IEEE 1800-2017/2023 16.10).");
+}
+
+static bool sva_items_assign_local_(const std::vector<sva_match_item_t>&items)
+{
+	for (size_t i = 0; i < items.size(); i += 1)
+	      if (items[i].kind == sva_match_item_t::LOCAL_ASSIGNMENT)
+		    return true;
+	return false;
+}
+
 static void sva_mark_first_match_(std::vector<sva_seq_step_t>&steps)
 {
 	  bool nested = false;
@@ -10598,7 +10633,8 @@ sva_seq_atom
      The assignment belongs to the endpoint, so retain the parsed chain and
      attach it to its final step. */
   | '(' sva_seq_expr ',' IDENTIFIER '=' expression ')'
-      { if (!$2->empty()) {
+      { sva_check_local_assignment_subsequence_(@2, *$2, true);
+	if (!$2->empty()) {
 	    sva_seq_step_t&st = $2->back();
 	    sva_match_item_t item;
 	    item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
@@ -10609,7 +10645,9 @@ sva_seq_atom
 	delete[] $4;
 	$$ = $2; }
   | '(' sva_seq_expr ',' sva_match_item_list ')'
-      { if (!$2->empty()) {
+      { sva_check_local_assignment_subsequence_(
+	      @2, *$2, sva_items_assign_local_(*$4));
+	if (!$2->empty()) {
 	    sva_seq_step_t&st = $2->back();
 	    st.items.insert(st.items.end(), $4->begin(), $4->end());
 	    $4->clear();
@@ -10634,7 +10672,8 @@ sva_seq_atom
 	steps->push_back(st);
 	$$ = steps; }
   | '(' sva_seq_expr ',' IDENTIFIER compressed_operator expression ')'
-      { if (!$2->empty()) {
+      { sva_check_local_assignment_subsequence_(@2, *$2, true);
+	if (!$2->empty()) {
 	    sva_seq_step_t&st = $2->back();
 	    sva_match_item_t item;
 	    item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
@@ -10766,7 +10805,9 @@ sva_seq_atom
      Keep them on the final step so the existing ordered match-item
      lowering executes them only when that endpoint is selected. */
   | K_first_match '(' sva_seq_expr ',' sva_match_item_list ')'
-	  { if (!$3->empty()) {
+	  { sva_check_local_assignment_subsequence_(
+		  @3, *$3, sva_items_assign_local_(*$5));
+	    if (!$3->empty()) {
 	    sva_seq_step_t&st = $3->back();
 	    st.items.insert(st.items.end(), $5->begin(), $5->end());
 	    $5->clear();

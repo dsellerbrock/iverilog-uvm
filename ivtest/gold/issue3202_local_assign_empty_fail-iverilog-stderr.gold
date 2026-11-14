@@ -1,0 +1,4 @@
+ivltests/issue3202_local_assign_empty_fail.v:7: error: A local variable assignment cannot be attached to a subsequence that admits an empty match (IEEE 1800-2017/2023 16.10).
+ivltests/issue3202_local_assign_empty_fail.v:11: error: A local variable assignment cannot be attached to a subsequence that admits an empty match (IEEE 1800-2017/2023 16.10).
+ivltests/issue3202_local_assign_empty_fail.v:15: error: A local variable assignment cannot be attached to a subsequence that admits an empty match (IEEE 1800-2017/2023 16.10).
+ivltests/issue3202_local_assign_empty_fail.v:19: error: A local variable assignment cannot be attached to a subsequence that admits an empty match (IEEE 1800-2017/2023 16.10).
