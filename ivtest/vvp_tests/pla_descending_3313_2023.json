@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "pla_descending_3313.sv",
+  "iverilog-args": ["-g2023", "-s", "pla_descending_3313"],
+  "gold": "pla_descending_3313"
+}
