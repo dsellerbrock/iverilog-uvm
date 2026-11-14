@@ -22401,7 +22401,13 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 		      /* A child inherits its parent's program/Reactive affinity.
 			 The front-push path is hard-wired to SEQ_ACTIVE, so use it
 			 only for an ordinary design thread. */
-		    schedule_vthread(child, 0, !vthread_is_reactive(child));
+		    /* Run the called task before another report overwrites its
+		       static input formals; stay in the Reactive region. */
+		    if (thr->is_observed_report_action && !child_is_process
+		        && cp->scope->get_type_code() == vpiTask)
+			  schedule_vthread_reactive_front(child);
+		    else
+			  schedule_vthread(child, 0, !vthread_is_reactive(child));
 	      }
 	    }
 	      return true;
