@@ -4733,6 +4733,21 @@ void PGAlias::elaborate(Design*des, NetScope*scope) const
       }
 }
 
+std::vector<NetExpr*> PGAssign::vpi_delays_(Design*des, NetScope*scope) const
+{
+      std::vector<NetExpr*> res;
+      for (unsigned idx = 0; idx < delay_count(); idx += 1) {
+	    PExpr*pe = delay_expr(idx);
+	    NetExpr*tmp = pe ? elaborate_for_vpi(des, scope, pe) : 0;
+	    if (!tmp) {
+		  for (NetExpr*done : res) delete done;
+		  return std::vector<NetExpr*>();
+	    }
+	    res.push_back(tmp);
+      }
+      return res;
+}
+
 void PGAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -5254,6 +5269,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       contassign.drive0 = drive0;
       contassign.drive1 = drive1;
       contassign.net_decl = net_decl_assign;
+      contassign.delays = vpi_delays_(des, scope);
       scope->contassigns.push_back(contassign);
 
       connect(lval->pin(0), rval->pin(0));
@@ -5482,6 +5498,7 @@ void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval
 	    contassign.drive0 = strength0();
 	    contassign.drive1 = strength1();
 	    contassign.net_decl = false;
+	    contassign.delays = vpi_delays_(des, scope);
 	    scope->contassigns.push_back(contassign);
       }
 }

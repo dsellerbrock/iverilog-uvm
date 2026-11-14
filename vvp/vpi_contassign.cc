@@ -150,10 +150,16 @@ class __vpiContAssign : public __vpiHandle {
       value_callback* add_bit_value_callback(unsigned offset, p_cb_data data);
       vpiHandle bit(unsigned offset);
 
-	/* The handles may be resolved after construction, in place. */
+	/* The handles may be resolved after construction, in place: the
+	   l-value (flag 2), the r-value, then the delays (flag 4). */
+      unsigned rhs_index() const { return (flags_ & 2) ? 1 : 0; }
       vpiHandle lhs() const
-      { return (flags_ & 2) && argc_ == 2 ? argv_[0] : 0; }
-      vpiHandle rhs() const { return argv_[argc_-1]; }
+      { return (flags_ & 2) && argc_ >= 2 ? argv_[0] : 0; }
+      vpiHandle rhs() const
+      { return rhs_index() < argc_ ? argv_[rhs_index()] : 0; }
+      unsigned delay_count() const
+      { return (flags_ & 4) ? argc_ - rhs_index() - 1 : 0; }
+      vpiHandle delay();
 
       __vpiScope*scope_;
       unsigned argc_;
@@ -163,7 +169,33 @@ class __vpiContAssign : public __vpiHandle {
       int flags_, str0_, str1_;
       unsigned file_idx_, lineno_;
       std::vector<vpiHandle> bits_;
+      vpiHandle delay_list_ = 0;
 };
+
+/* Several delays as one expression (37.1): a vpiOperation vpiListOp. */
+class __vpiDelayList : public __vpiHandle {
+    public:
+      __vpiDelayList(unsigned n, vpiHandle*ops) : n_(n), ops_(ops) { }
+      int get_type_code(void) const override { return vpiOperation; }
+      int vpi_get(int code) override
+      { return code == vpiOpType ? vpiListOp : vpiUndefined; }
+      vpiHandle vpi_iterate(int code) override
+      { return code == vpiOperand ? vpip_make_iterator(n_, ops_, false) : 0; }
+    private:
+      unsigned n_;
+      vpiHandle*ops_;
+};
+
+/* 37.47 vpiDelay, 37.1: one delay is its expression, several a list. */
+vpiHandle __vpiContAssign::delay()
+{
+      unsigned n = delay_count();
+      vpiHandle*ops = argv_ + rhs_index() + 1;
+      if (n == 0) return 0;
+      if (n == 1) return ops[0];
+      if (!delay_list_) delay_list_ = new __vpiDelayList(n, ops);
+      return delay_list_;
+}
 
 int __vpiContAssignBit::vpi_get(int code)
 {
@@ -299,6 +331,8 @@ vpiHandle __vpiContAssign::vpi_handle(int code)
 	    return lhs();
 	  case vpiRhs:
 	    return rhs();
+	  case vpiDelay:
+	    return delay();
 	  case vpiParent:
 	  case vpiScope:
 	    return scope_;

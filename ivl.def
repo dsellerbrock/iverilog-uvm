@@ -27,6 +27,8 @@ ivl_const_event_synchronous
 ivl_const_width
 
 ivl_contassign_driver
+ivl_contassign_delay
+ivl_contassign_delays
 ivl_contassign_drive0
 ivl_contassign_drive1
 ivl_contassign_file

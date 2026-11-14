@@ -127,6 +127,8 @@ class PGate : public PNamedItem {
 		       bool as_net_flag =false) const;
 
       unsigned delay_count() const;
+	/* The delay expression IDX as written, or nil. */
+      PExpr* delay_expr(unsigned idx) const { return delay_.delay_expr(idx); }
 
       unsigned pin_count() const { return pins_.size(); }
       PExpr*pin(unsigned idx) const { return pins_[idx]; }
@@ -194,6 +196,9 @@ class PGAssign  : public PGate {
       bool net_decl_assign = false;
 
     private:
+	// The delays as written, elaborated quietly for vpiDelay (37.47);
+	// empty unless every one of them can be.
+      std::vector<NetExpr*> vpi_delays_(Design*des, NetScope*scope) const;
       void elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval,
 				     NetExpr*rise_time = 0,
 				     NetExpr*fall_time = 0,
