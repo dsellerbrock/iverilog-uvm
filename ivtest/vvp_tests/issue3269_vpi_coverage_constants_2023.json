@@ -1,0 +1,18 @@
+{
+  "type": "normal",
+  "source": "issue3269_vpi_coverage_constants.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "top"
+  ],
+  "vpi-modules": [
+    "issue3269_vpi_coverage_constants_2023"
+  ],
+  "vpi-sources": [
+    "vpi/issue3269_vpi_coverage_constants.c"
+  ],
+  "output-contains": [
+    "VPI coverage constants PASSED"
+  ]
+}

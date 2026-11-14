@@ -1,0 +1,2 @@
+issue3269_vpi_coverage_constants_2017 normal,-g2017 issue3269_vpi_coverage_constants.c issue3269_vpi_coverage_constants_2017.gold
+issue3269_vpi_coverage_constants_2023 normal,-g2023 issue3269_vpi_coverage_constants.c issue3269_vpi_coverage_constants_2023.gold
