@@ -16,6 +16,7 @@ one owner. Documentation reviewed against `5c0f5588e` on 2026-09-14.
 | OpenTitan census setup and classification | [Matrix runner](conformance/opentitan_matrix.md) |
 | Pinned OpenTitan/Caliptra patches and run profiles | [Release overlays](conformance/release_overlays/README.md) |
 | Windows packaging | [MSYS2 recipe](../msys2/README.md) |
+| Compatibility options (`-gcommercial-unsafe`) | [Compatibility options](compatibility_options.md) |
 | Developer trace environment variables (`IVL_*_TRACE`) | [Diagnostic traces](debug_env.md) |
 | Personal IEEE reference files | [Standards references](standards/README.md) |
 | Upstream compiler/target/VPI documentation | [Documentation/](../Documentation) |
@@ -28,7 +29,7 @@ one owner. Documentation reviewed against `5c0f5588e` on 2026-09-14.
 | What workflow and toolchain should an agent use? | [AGENTS](../AGENTS.md) |
 | What are the program goals? | [Roadmap](conformance/ROADMAP.md) |
 | What semantics have evidence? | [2017 matrix](conformance/matrices/ieee1800_2017_clause_matrix.md), [2023 edition relationships](conformance/ieee1800_2023_delta.md), [IEEE status audit](conformance/matrices/ieee1800_status.md) |
-| What is the latest committed regression/application evidence? | [CURRENT_WORK](conformance/CURRENT_WORK.md) |
+| What is the latest committed regression/application evidence? | [CURRENT_WORK](conformance/CURRENT_WORK.md); OpenTitan runtime and census: [OpenTitan status](conformance/opentitan_status.md) |
 | What remains to be addressed? | [BLOCKERS](conformance/BLOCKERS.md) |
 | What is selected now, and how should it resume? | [ACTIVE_WORK](../.ai/ACTIVE_WORK.yaml), [CAMPAIGN](../.ai/CAMPAIGN.yaml) |
 | Where do untriaged observations go? | [DISCOVERED_DEBT](conformance/DISCOVERED_DEBT.md) |
