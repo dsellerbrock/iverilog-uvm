@@ -6831,3 +6831,5 @@ issue2998_negated_pass_2017 normal,-g2017,-gassertions,-s,issue2998_negated_pass
 issue2998_negated_pass_2023 normal,-g2023,-gassertions,-s,issue2998_negated_pass ivltests gold=issue2998_negated_pass.gold
 issue3015_super_parameter_2017 normal,-g2017,-s,issue3015_super_parameter ivltests gold=issue3015_super_parameter.gold
 issue3015_super_parameter_2023 normal,-g2023,-s,issue3015_super_parameter ivltests gold=issue3015_super_parameter.gold
+issue2986_join_priority_2017 normal,-g2017,-s,issue2986_join_priority ivltests gold=issue2986_join_priority.gold
+issue2986_join_priority_2023 normal,-g2023,-s,issue2986_join_priority ivltests gold=issue2986_join_priority.gold
