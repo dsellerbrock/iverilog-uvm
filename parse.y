@@ -9305,6 +9305,8 @@ scoped_task_declaration
 package_item_list
   : package_item_list package_item
   | package_item
+  | package_item_list ';'
+  | ';'
   | package_item_list nettype_declaration
   | nettype_declaration
   | package_item_list anonymous_program
