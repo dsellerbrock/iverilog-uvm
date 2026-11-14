@@ -141,6 +141,7 @@ EXTERN_C_START
 #define vpiTimeTypespec     636
 #define vpiRealTypespec     637
 #define vpiInterfaceTypespec 906
+#define vpiTypedefAlias     701
 #define vpiIsModPort        669
 
 /********* Many-to-One ***********/

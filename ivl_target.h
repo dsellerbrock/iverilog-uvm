@@ -2902,6 +2902,16 @@ extern int ivl_type_is_chandle(ivl_type_t net);
 extern int ivl_type_is_shortreal(ivl_type_t net);
 extern int ivl_type_signed(ivl_type_t net);
 extern const char* ivl_type_name(ivl_type_t net);
+/* The typedef name of a struct, union or enum type, without its scope
+ * (IEEE 1800-2023 37.25 detail 1), or NULL when it has none. ivl_type_name
+ * stays class-only. */
+extern const char* ivl_type_typedef_name(ivl_type_t net);
+/* The typedef aliases a variable was declared with, outermost first, when
+ * its typedef names another typedef (`typedef a b; b v;` gives "b"); the
+ * aliased typedef's own name is ivl_type_typedef_name() of its type
+ * (IEEE 1800-2023 37.25 detail 1). */
+extern unsigned ivl_signal_typedef_aliases(ivl_signal_t net);
+extern const char* ivl_signal_typedef_alias(ivl_signal_t net, unsigned idx);
 extern ivl_type_t ivl_type_super(ivl_type_t net);
 /* Interface-class relationships are separate from the single concrete
  * superclass chain (IEEE 1800-2017 8.26). */

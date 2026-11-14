@@ -4838,6 +4838,34 @@ extern "C" const char* ivl_type_name(ivl_type_t net)
       return 0;
 }
 
+extern "C" unsigned ivl_signal_typedef_aliases(ivl_signal_t net)
+{
+      assert(net);
+      return net->net_
+	    ? static_cast<unsigned>(net->net_->typedef_aliases().size()) : 0;
+}
+
+extern "C" const char* ivl_signal_typedef_alias(ivl_signal_t net, unsigned idx)
+{
+      assert(net);
+      if (!net->net_ || idx >= net->net_->typedef_aliases().size()) return 0;
+      return net->net_->typedef_aliases()[idx].str();
+}
+
+extern "C" const char* ivl_type_typedef_name(ivl_type_t net)
+{
+      const std::string*name = 0;
+      if (const netstruct_t*st = dynamic_cast<const netstruct_t*>(net))
+	    name = &st->typedef_type_name();
+      else if (const netenum_t*en = dynamic_cast<const netenum_t*>(net))
+	    name = &en->typedef_type_name();
+      if (!name || name->empty()) return 0;
+	/* The compiler keeps the scope-qualified spelling ($typename);
+	   the typedef name itself is the last component. */
+      size_t cut = name->find_last_of(".:");
+      return name->c_str() + (cut == std::string::npos ? 0 : cut + 1);
+}
+
 extern "C" ivl_type_t ivl_type_super(ivl_type_t net)
 {
       const netclass_t*class_type = dynamic_cast<const netclass_t*>(net);
