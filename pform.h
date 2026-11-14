@@ -258,6 +258,9 @@ extern void pform_bind_extern_func(PFunction*func);
 extern void pform_bind_extern_task(PTask*task);
 extern void pform_blend_class_constructors(PClass*pclass);
 extern PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name);
+extern typedef_t* pform_bind_visible_class_typedef(const struct vlltype&loc,
+                                                   perm_string name,
+                                                   PClass*class_scope);
 extern std::vector<pform_tf_port_t>* pform_class_constructor_default_ports(
 					const struct vlltype&loc, PFunction*constructor);
 extern std::vector<named_pexpr_t> pform_class_constructor_default_args(

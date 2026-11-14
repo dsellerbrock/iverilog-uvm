@@ -1273,4 +1273,7 @@ void pform_standalone_covergroup(const struct vlltype&loc,
 	    delete sample_formal_defaults;
       }
       pform_pop_scope();
+      // Package-qualified type lookup uses the package's typedef table.
+      if (dynamic_cast<PPackage*>(cls->parent_scope()))
+	    pform_bind_visible_class_typedef(loc, cg_name, cls);
 }
