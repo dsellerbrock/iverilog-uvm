@@ -1,0 +1,2 @@
+issue3218_stream_array_struct_2017 normal,-g2017,-s,top ivltests gold=issue3218_stream_array_struct.gold
+issue3218_stream_array_struct_2023 normal,-g2023,-s,top ivltests gold=issue3218_stream_array_struct.gold
