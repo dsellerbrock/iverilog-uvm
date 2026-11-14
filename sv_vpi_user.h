@@ -156,10 +156,31 @@ EXTERN_C_START
 #define vpiAssert           686
 #define vpiAssume            687
 #define vpiCover             688
-/* Assertion coverage status properties: 2017 40.5.2/40.5.3,
-   2023 40.5.2. */
+/* Coverage VPI constants (IEEE 1800-2017/2023 Annex M). */
+#define vpiCoverageStart        750
+#define vpiCoverageStop         751
+#define vpiCoverageReset        752
+#define vpiCoverageCheck        753
+#define vpiCoverageMerge        754
+#define vpiCoverageSave         755
+#define vpiFsm                  758
+#define vpiFsmHandle            759
+#define vpiAssertCoverage       760
+#define vpiFsmStateCoverage     761
+#define vpiStatementCoverage    762
+#define vpiToggleCoverage       763
+#define vpiCovered              765
+#define vpiCoverMax             766
+#define vpiCoveredMax           766
+#define vpiCoveredCount         767
 #define vpiAssertAttemptCovered 770
 #define vpiAssertSuccessCovered 771
+#define vpiAssertFailureCovered 772
+#define vpiAssertVacuousSuccessCovered 773
+#define vpiAssertDisableCovered 774
+#define vpiFsmStates            775
+#define vpiFsmStateExpression   776
+#define vpiAssertKillCovered    777
 /* vpiType values for immediate assertion statements (IEEE 1800 Annex E).
  * VPI property codes are a separate value set; vpiImmediateAssert shares the
  * integer value of the Icarus vpiCoverCount property code. */
