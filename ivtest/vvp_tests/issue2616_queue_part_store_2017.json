@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2616_queue_part_store.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue2616_queue_part_store"
+}

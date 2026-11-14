@@ -176,8 +176,13 @@ struct deferred_assert_args_s {
 /* Filled by %defer/capture, consumed by the next user-task %defer opcode. */
 static deferred_assert_args_s deferred_task_capture_;
 
+/* A procedural assertion's flag must clear every 32-bit deferred source id
+   on every target, including LLP64 Windows where long is 32 bits. */
+static_assert(VPIP_PROC_ASSERT_SOURCE > UINT32_MAX,
+	      "VPIP_PROC_ASSERT_SOURCE must be a 64-bit flag");
+
 struct deferred_assert_report_s {
-      unsigned long source_id;
+      uint64_t source_id;
       unsigned result;
       vvp_code_t action_pc;
       __vpiScope*action_scope;
@@ -212,14 +217,14 @@ class vvp_process : public vvp_object {
                                    vvp_code_t action_pc,
                                    __vpiScope*action_scope,
                                    const deferred_assert_args_s&action_args);
-      void enqueue_proc_assert(unsigned long source_id, __vpiScope*scope,
+      void enqueue_proc_assert(uint64_t source_id, __vpiScope*scope,
 			       const std::vector<vvp_vector4_t>&saved);
       void flush_deferred_asserts();
       void cancel_all_deferred_asserts();
       void cancel_deferred_asserts(__vpiScope*scope);
       void cancel_deferred_assertion(unsigned long source_id,
 				     __vpiScope*scope);
-      void cancel_proc_asserts_in(unsigned long source_id,
+      void cancel_proc_asserts_in(uint64_t source_id,
 				  __vpiScope*module_scope);
       void mature_deferred_asserts();
       void pin_final_deferred_assert(unsigned long source_id,
@@ -1833,7 +1838,7 @@ void vvp_process::enqueue_deferred_assert(unsigned long source_id,
  * clock resumed there: an instance whose leading clock occurs in the same
  * step then starts its attempt in that step, whatever the process order.
  */
-void vvp_process::enqueue_proc_assert(unsigned long source_id,
+void vvp_process::enqueue_proc_assert(uint64_t source_id,
 				      __vpiScope*scope,
 				      const std::vector<vvp_vector4_t>&saved)
 {
@@ -1909,7 +1914,7 @@ void vvp_process::cancel_all_deferred_asserts()
       });
 }
 
-void vvp_process::cancel_proc_asserts_in(unsigned long source_id,
+void vvp_process::cancel_proc_asserts_in(uint64_t source_id,
 					 __vpiScope*module_scope)
 {
       cancel_deferred_asserts_([source_id, module_scope](
@@ -1935,7 +1940,7 @@ void vvp_process::cancel_deferred_assertion(unsigned long source_id,
    anywhere inside module_scope (20.11 Kill). */
 void vpip_cancel_proc_asserts(PLI_INT32 pid, __vpiScope*module_scope)
 {
-      unsigned long source_id = VPIP_PROC_ASSERT_SOURCE | (unsigned long)pid;
+      uint64_t source_id = VPIP_PROC_ASSERT_SOURCE | (uint64_t)pid;
       for (std::set<vvp_process*>::iterator cur =
 		 deferred_assert_processes_.begin();
 	   cur != deferred_assert_processes_.end();) {
@@ -1969,7 +1974,7 @@ void vpip_proc_assert_enqueue(PLI_INT32 pid, vpiHandle callh)
 	    }
       }
       process->enqueue_proc_assert(VPIP_PROC_ASSERT_SOURCE
-				   | (unsigned long)pid, scope, saved);
+				   | (uint64_t)pid, scope, saved);
 }
 
 void vpip_cancel_deferred_assertion(unsigned long source_id,
@@ -35369,20 +35374,12 @@ bool of_STORE_DAR_VEC4(vthread_t thr, vvp_code_t cp)
  * integer register 3 (as for %store/dar/vec4); flag 4 marks an undefined
  * address. <wid> is the value width.
  */
-bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
+static bool store_dar_vec4_off(vthread_t thr, vvp_code_t cp, bool two_state)
 {
       int64_t adr = thr->words[3].w_int;
       int64_t soff = thr->words[cp->bit_idx[0]].w_int;
       unsigned wid = cp->bit_idx[1];
       vvp_vector4_t value = thr->pop_vec4();
-
-      if (soff < 0) {
-	    cerr << thr->get_fileline()
-	         << "Warning: negative bit offset into a darray element "
-	            "part-select is ignored." << endl;
-	    return true;
-      }
-      unsigned off = (unsigned) soff;
 
       vvp_net_t*net = cp->net;
       assert(net);
@@ -35404,6 +35401,36 @@ bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 	    /* Diagnosed no-op: never narrow ADR below. */
       }
       else if (darray) {
+	    vvp_queue*queue = dynamic_cast<vvp_queue*>(darray);
+	    if (queue) {
+		  if (soff >= static_cast<int64_t>(obj->size()) ||
+		      soff <= -static_cast<int64_t>(wid)) {
+			if (static_cast<size_t>(adr) > queue->get_size()) {
+			      vvp_vector4_t missing(obj->size(), two_state ? BIT4_0 : BIT4_X);
+			      queue->set_word_max(adr, missing, live_queue_max_count_(queue));
+			}
+			return true;
+		  }
+		  unsigned skip = soff < 0 ? static_cast<unsigned>(-soff) : 0;
+		  unsigned off = soff < 0 ? 0 : static_cast<unsigned>(soff);
+		  unsigned count = min(wid - skip, obj->size() - off);
+		  vvp_vector4_t elem;
+		  if (static_cast<size_t>(adr) >= queue->get_size())
+			elem = vvp_vector4_t(obj->size(), two_state ? BIT4_0 : BIT4_X);
+		  else
+			queue->get_word(adr, elem);
+		  elem.set_vec(off, value.subvalue(skip, count));
+		  queue->set_word_max(adr, elem, live_queue_max_count_(queue));
+		  notify_mutated_object_signal_(thr, net, "store-dar-off");
+		  return true;
+	    }
+	    if (soff < 0) {
+		  cerr << thr->get_fileline()
+		       << "Warning: negative bit offset into a darray element "
+		          "part-select is ignored." << endl;
+		  return true;
+	    }
+	    unsigned off = (unsigned) soff;
 	    vvp_vector4_t elem;
 	    darray->get_word(adr, elem);
 	      // Safety net: a never-written element may come back narrower
@@ -35425,6 +35452,16 @@ bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 	    notify_mutated_object_signal_(thr, net, "store-dar-off");
 
       return true;
+}
+
+bool of_STORE_DAR_VEC4_OFF(vthread_t thr, vvp_code_t cp)
+{
+      return store_dar_vec4_off(thr, cp, false);
+}
+
+bool of_STORE_DAR_VEC4_OFF_2(vthread_t thr, vvp_code_t cp)
+{
+      return store_dar_vec4_off(thr, cp, true);
 }
 
 /*

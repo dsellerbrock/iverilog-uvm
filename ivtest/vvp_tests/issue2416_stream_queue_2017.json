@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2416_stream_queue.v",
+  "iverilog-args": ["-g2017", "-s", "issue2416_stream_queue"],
+  "gold": "issue2416_stream_queue"
+}

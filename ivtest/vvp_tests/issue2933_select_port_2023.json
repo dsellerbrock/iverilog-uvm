@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2933_select_port.v",
+    "iverilog-args": ["-g2023", "-s", "issue2933_select_port"],
+    "gold": "issue2933_select_port"
+}

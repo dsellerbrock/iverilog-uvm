@@ -1,0 +1,2 @@
+issue2905 clocking output concatenations passed
+ivltests/issue2905_clocking_output_concat.sv:35: $finish called at 36 (1s)
