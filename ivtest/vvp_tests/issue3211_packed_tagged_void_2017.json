@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3211_packed_tagged_void.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3211_packed_tagged_void"],
+  "gold": "issue3211_packed_tagged_void"
+}
