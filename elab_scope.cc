@@ -3725,6 +3725,7 @@ static std::string canonical_specialization_parm_key_(
 	 * those broader dependency graphs while constructing a cache key. */
       bool has_bare_dependent_default = false;
       bool all_bare_class_defaults = true;
+      bool all_integral_atom_defaults = true;
       std::set<perm_string> prior_formals;
       for (std::vector<perm_string>::const_iterator name_it = formals.begin()
 	   ; name_it != formals.end(); ++name_it) {
@@ -3746,6 +3747,9 @@ static std::string canonical_specialization_parm_key_(
 	    if (!default_type
 		|| !is_bare_class_reference_(default_type->get_type(), seen, false))
 		  all_bare_class_defaults = false;
+	    if (!default_type
+		|| !dynamic_cast<const atom_type_t*>(default_type->get_type()))
+		  all_integral_atom_defaults = false;
 	    prior_formals.insert(*name_it);
       }
       bool has_value_formal = false;
@@ -3758,7 +3762,7 @@ static std::string canonical_specialization_parm_key_(
 		  has_value_formal = true;
       }
       if (!has_value_formal && !has_bare_dependent_default
-	  && !all_bare_class_defaults)
+	  && !all_bare_class_defaults && !all_integral_atom_defaults)
 	    return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 
       std::map<perm_string,const PExpr*> supplied;
@@ -3918,7 +3922,8 @@ static std::string canonical_specialization_parm_key_(
 	    std::map<perm_string,const PExpr*>::const_iterator actual =
 		  supplied.find(*name_it);
 	    if (actual == supplied.end()) {
-		  if (default_key.compare(0, 12, "<class-type:") != 0)
+		  if (default_key.compare(0, 12, "<class-type:") != 0
+		      && default_key.compare(0, 13, "<vector-type:") != 0)
 			return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 		  effective[*name_it] = default_key;
 		  out << "|" << *name_it << "=" << default_key;
@@ -3933,7 +3938,8 @@ static std::string canonical_specialization_parm_key_(
 		|| actual_key.find("<forwarded-type-param@") != std::string::npos
 		|| actual_key.find("@scope=") != std::string::npos)
 		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
-	    if (actual_key.compare(0, 12, "<class-type:") != 0)
+	    if (actual_key.compare(0, 12, "<class-type:") != 0
+		&& actual_key.compare(0, 13, "<vector-type:") != 0)
 		  return parmvalue_cache_key_(des, call_scope, overrides, pclass);
 	    effective[*name_it] = actual_key;
 	    out << "|" << *name_it << "=" << actual_key;

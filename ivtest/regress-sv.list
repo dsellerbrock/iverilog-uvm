@@ -6847,3 +6847,5 @@ issue3083_path_delay_2017 normal,-g2017,-gspecify,-s,issue3083_path_delay ivltes
 issue3083_path_delay_2023 normal,-g2023,-gspecify,-s,issue3083_path_delay ivltests gold=issue3083_path_delay.gold
 issue3063_empty_coverpoint_2017 normal,-g2017,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold
 issue3063_empty_coverpoint_2023 normal,-g2023,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold
+issue3111_static_2017 normal,-g2017,-s,issue3111_static ivltests gold=issue3111_static.gold
+issue3111_static_2023 normal,-g2023,-s,issue3111_static ivltests gold=issue3111_static.gold
