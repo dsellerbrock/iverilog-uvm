@@ -641,17 +641,29 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 	    char*rhs = draw_lazy_expr_(ivl_contassign_rval(ca));
 	    char*drv = rhs ? contassign_driver_label_(scope,
 				ivl_contassign_driver(ca)) : 0;
+	      /* The delays as written (vpiDelay), only if all are described. */
+	    unsigned ndel = ivl_contassign_delays(ca), ddx;
+	    char*dels[3] = { 0, 0, 0 };
+	    for (ddx = 0; rhs && ddx < ndel && ddx < 3; ddx += 1)
+		  if (!(dels[ddx] = draw_lazy_expr_(ivl_contassign_delay(ca, ddx))))
+			break;
+	    if (ddx < ndel) ndel = 0;
 	    if (rhs) {
 		  fprintf(vvp_out, "CA_%u .vpi_contassign %d, %d, %d, %u, %u, "
 			  "\"%s\"", contassign_count_++,
-			  (ivl_contassign_net_decl(ca) ? 1 : 0) | (lhs ? 2 : 0),
+			  (ivl_contassign_net_decl(ca) ? 1 : 0) | (lhs ? 2 : 0)
+			  | (ndel ? 4 : 0),
 			  1 << ivl_contassign_drive0(ca),
 			  1 << ivl_contassign_drive1(ca),
 			  ivl_file_table_index(ivl_contassign_file(ca)),
 			  ivl_contassign_lineno(ca), drv ? drv : "");
 		  if (lhs) fprintf(vvp_out, ", %s", lhs);
-		  fprintf(vvp_out, ", %s;\n", rhs);
+		  fprintf(vvp_out, ", %s", rhs);
+		  for (ddx = 0; ddx < ndel; ddx += 1)
+			fprintf(vvp_out, ", %s", dels[ddx]);
+		  fprintf(vvp_out, ";\n");
 	    }
+	    for (ddx = 0; ddx < 3; ddx += 1) free(dels[ddx]);
 	    free(lhs);
 	    free(rhs);
 	    free(drv);

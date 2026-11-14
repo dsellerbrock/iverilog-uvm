@@ -3450,6 +3450,18 @@ extern "C" ivl_drive_t ivl_contassign_drive1(ivl_contassign_t net)
       return net->drive1;
 }
 
+extern "C" unsigned ivl_contassign_delays(ivl_contassign_t net)
+{
+      assert(net);
+      return static_cast<unsigned>(net->delays.size());
+}
+
+extern "C" ivl_expr_t ivl_contassign_delay(ivl_contassign_t net, unsigned idx)
+{
+      assert(net);
+      return idx < net->delays.size() ? net->delays[idx] : 0;
+}
+
 extern "C" int ivl_contassign_net_decl(ivl_contassign_t net)
 {
       assert(net);
