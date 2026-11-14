@@ -5844,6 +5844,33 @@ bins_item
 	delete[] $2;
 	$$ = b;
       }
+  /* Values of the containing coverpoint selected by a with(item)
+     predicate, as arrayed bins (IEEE 1800-2023 19.5.1.1). */
+  | bins_keyword bins_name '[' ']' '=' IDENTIFIER K_with '(' expression ')' bins_iff_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->source_coverpoint = lex_strings.make($6);
+	b->with_expr = $9;
+	b->iff_expr = $11;
+	delete[] $2;
+	delete[] $6;
+	$$ = b;
+      }
+  | bins_keyword bins_name '[' expression ']' '=' IDENTIFIER K_with '(' expression ')' bins_iff_opt ';'
+      { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
+	b->name = lex_strings.make($2);
+	b->kind = (class_type_t::pform_cov_bins_t::kind_t)$1;
+	b->arrayed = true;
+	b->array_size = $4;
+	b->source_coverpoint = lex_strings.make($7);
+	b->with_expr = $10;
+	b->iff_expr = $12;
+	delete[] $2;
+	delete[] $7;
+	$$ = b;
+      }
   /* Values of a named coverpoint selected by a with(item) predicate. */
   | bins_keyword bins_name '=' bins_name K_with '(' expression ')' bins_iff_opt ';'
       { class_type_t::pform_cov_bins_t* b = new class_type_t::pform_cov_bins_t();
