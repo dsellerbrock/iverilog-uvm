@@ -17648,6 +17648,24 @@ static void report_unsupported_covergroup_item_option_(
       des->errors += 1;
 }
 
+// Resolve a parameter in the selected class and its bases, stopping at a
+// nearer property that hides it. Keep the declaring scope for array selects.
+static const NetExpr* class_field_parameter_(Design*des,
+		const netclass_t*type, perm_string name, ivl_type_t&par_type,
+		const NetScope*&owner_scope)
+{
+      for (const netclass_t*owner = type; owner; owner = owner->get_super()) {
+	    int property = owner->property_idx_from_name(name);
+	    if (property >= 0 && owner->get_prop_declaring_class(property) == owner)
+		  return nullptr;
+	    if (const NetExpr*value = owner->get_parameter(des, name, par_type)) {
+		  owner_scope = owner->class_scope();
+		  return value;
+	    }
+      }
+      return nullptr;
+}
+
 NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 					      const symbol_search_results &sr,
 					      unsigned expr_wid,
@@ -18426,10 +18444,12 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
       }
 
       ivl_type_t par_type;
-      const NetExpr *par_val = class_type->get_parameter(des, comp.name, par_type);
+      const NetScope*par_scope = nullptr;
+      const NetExpr *par_val = class_field_parameter_(des, class_type, comp.name,
+						     par_type, par_scope);
       if (par_val)
 	    return elaborate_expr_param_(des, scope, par_val,
-				         class_type->class_scope(), par_type,
+				         par_scope, par_type,
 				         expr_wid, flags);
 
       int pidx = ensure_class_property_idx_(des, class_type, comp.name);
@@ -25739,7 +25759,8 @@ ivl_type_t PEIdent::resolve_type_(Design *des, const symbol_search_results &sr,
 		  // If the type is an object, the next path member may be a
 		  // class property.
 		  ivl_type_t par_type;
-		  if (class_type->get_parameter(des, name, par_type)) {
+		  const NetScope*par_scope = nullptr;
+		  if (class_field_parameter_(des, class_type, name, par_type, par_scope)) {
 			type = par_type;
 		  } else {
 			int pidx = ensure_class_property_idx_(des, class_type, name);

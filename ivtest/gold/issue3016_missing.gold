@@ -1,0 +1,3 @@
+./ivltests/issue3016_missing.v:5: error: Virtual class `impl' does not declare or inherit interface method `f'.
+./ivltests/issue3016_missing.v:5: error: Virtual class `impl' does not declare or inherit interface method `t'.
+2 error(s) during elaboration.

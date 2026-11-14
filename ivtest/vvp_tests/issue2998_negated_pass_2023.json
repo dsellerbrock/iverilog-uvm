@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2998_negated_pass.sv",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue2998_negated_pass"],
+  "gold": "issue2998_negated_pass"
+}

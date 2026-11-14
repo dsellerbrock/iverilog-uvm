@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2986_join_priority.sv",
+  "iverilog-args": ["-g2017", "-s", "issue2986_join_priority"],
+  "gold": "issue2986_join_priority"
+}

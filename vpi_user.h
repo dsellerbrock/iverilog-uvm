@@ -252,6 +252,11 @@ typedef struct t_vpi_delay  {
 #define vpiTimeVal     11
 #define vpiObjTypeVal  12
 #define vpiSuppressVal 13
+#define vpiShortIntVal 14
+#define vpiLongIntVal  15
+#define vpiShortRealVal 16
+#define vpiRawTwoStateVal 17
+#define vpiRawFourStateVal 18
 
 
 /* SCALAR VALUES */
@@ -303,6 +308,7 @@ typedef struct t_vpi_delay  {
 #define vpiIntegerVar  25
 #define vpiInterModPath 26
 #define vpiIterator    27
+#define vpiIODecl      28 /* input/output declaration */
 #define vpiMemory      29
 #define vpiMemoryWord  30
 #define vpiModPath     31
@@ -470,6 +476,7 @@ typedef struct t_vpi_delay  {
 #define vpiBitOrOp        29
 #define vpiBitXorOp       30
 #define vpiBitXNorOp      31
+#define vpiBitXnorOp      vpiBitXNorOp
 #define vpiConditionOp    32
 #define vpiConcatOp       33
 #define vpiMultiConcatOp  34
@@ -518,11 +525,17 @@ typedef struct t_vpi_delay  {
 #define vpiIteratorType  57 /* object type of an iterator */
 #define vpiTimeUnit      11
 #define vpiTimePrecision 12
+#define vpiDefNetType    13 /* default net type */
+#define vpiUnconnDrive   14 /* unconnected port drive strength */
+#   define vpiHighZ        1
+#   define vpiPull1        2
+#   define vpiPull0        3
 #define vpiActiveTimeFormat 119
 #define vpiDefFile       15
 #define vpiDefLineNo     16
 #define vpiScalar        17
 #define vpiVector        18
+#define vpiExplicitName  19 /* port is explicitly named */
 #define vpiDelay         72 /* net or gate delay */
 
 #define vpiDirection 20 /* direction of port: */
@@ -531,6 +544,7 @@ typedef struct t_vpi_delay  {
 #   define vpiInout 3
 #   define vpiMixedIO 4 /* Not currently output */
 #   define vpiNoDirection 5
+#define vpiConnByName 21 /* connected by name (Boolean) */
 
 #define vpiTermIndex 30 /* index of a primitive terminal */
 #define vpiStrength0 31 /* 0-strength of net or gate */
@@ -583,6 +597,15 @@ typedef struct t_vpi_delay  {
 #   define vpiTriOr        9
 #   define vpiSupply1     10
 #   define vpiSupply0     11
+#   define vpiNone        12
+#   define vpiUwire       13
+#   define vpiNettypeNet  14
+#   define vpiNettypeNetSelect 15
+#   define vpiInterconnect 16
+#define vpiExplicitScalared 23 /* explicitly scalared (Boolean) */
+#define vpiExplicitVectored 24 /* explicitly vectored (Boolean) */
+#define vpiExpanded      25 /* vector expanded to bits (Boolean) */
+#define vpiChargeStrength 27 /* charge decay strength of a net */
 #define vpiArray         28
 #define vpiPortIndex     29
 #define vpiEdge          36
@@ -596,6 +619,14 @@ typedef struct t_vpi_delay  {
 #   define vpiPosedge      (vpiEdgex1|vpiEdge01|vpiEdge0x)
 #   define vpiNegedge      (vpiEdgex0|vpiEdge10|vpiEdge1x)
 #   define vpiAnyEdge      (vpiPosedge|vpiNegedge)
+#define vpiPolarity      34 /* polarity of a module path */
+#define vpiDataPolarity  35 /* data polarity of a module path */
+#   define vpiPositive     1
+#   define vpiNegative     2
+#   define vpiUnknown      3
+#define vpiPathType      37 /* full or parallel module path */
+#   define vpiPathFull     1
+#   define vpiPathParallel 2
 #define vpiTchkType      38 /* timing check subtypes (IEEE 1800 Annex K) */
 #   define vpiSetup        1 /* $setup */
 #   define vpiHold         2 /* $hold */
@@ -609,6 +640,14 @@ typedef struct t_vpi_delay  {
 #   define vpiRecrem      10 /* $recrem */
 #   define vpiRemoval     11 /* $removal */
 #   define vpiTimeskew    12 /* $timeskew */
+#define vpiDefDelayMode  47 /* default delay mode of a module */
+#   define vpiDelayModeNone    1
+#   define vpiDelayModePath    2
+#   define vpiDelayModeDistrib 3
+#   define vpiDelayModeUnit    4
+#   define vpiDelayModeZero    5
+#   define vpiDelayModeMTM     6
+#define vpiDefDecayTime  48 /* default decay time of a module */
 #define vpiConstType 40
 #define vpiAssignmentOp 82 /* Normal assignment */
 #define vpiIsModPort 669
@@ -661,6 +700,8 @@ typedef struct t_vpi_delay  {
 #define vpiIndexedPartSelectType 72 /* indexed part-select type */
 #define vpiPosIndexed      1 /* +: */
 #define vpiNegIndexed      2 /* -: */
+#define vpiIsMemory       73 /* array is a memory (Boolean) */
+#define vpiIsProtected    74 /* object is protected (Boolean) */
 /* IVL private properties, also see vvp/vpi_priv.h for other properties */
 #define _vpiNexusId        0x1000000
 /* used in vvp/vpi_priv.h  0x1000001 */
@@ -684,9 +725,13 @@ typedef struct t_vpi_delay  {
 
 #define vpiForceFlag   5
 #define vpiReleaseFlag 6
+#define vpiCancelEvent 7
 #define vpiForce       16 /* force statement */
 #define vpiRelease     50 /* release statement */
 #define vpiReturnEvent 0x1000
+#define vpiUserAllocFlag 0x2000
+#define vpiOneValue    0x4000
+#define vpiPropagateOff 0x8000
 
 /* VPI FUNCTIONS */
 extern vpiHandle vpi_register_systf(const struct t_vpi_systf_data*ss);
@@ -769,6 +814,9 @@ typedef struct t_cb_data {
 #define cbExitInteractive   22
 #define cbInteractiveScopeChange 23
 #define cbUnresolvedSystf   24
+#define cbAssign            25
+#define cbDeassign          26
+#define cbDisable           27
 /* A run-time error in a PLI/VPI routine call (IEEE 1800-2023 38.36.3). */
 #define cbPLIError          28
 /* An operating-system signal occurred: cb_data.index names the signal
@@ -776,9 +824,7 @@ typedef struct t_cb_data {
 #define cbSignal            29
 /* IEEE 1800-2017 clause 38 simulation-time callback: after every
    nonblocking update of the current time slot has been applied, and
-   before cbReadWriteSynch / cbAtEndOfSimTime.  (Reason codes 25-27 are
-   the other 1800 additions -- cbAssign, cbDeassign, cbDisable -- which
-   this simulator does not implement and therefore does not name.) */
+   before cbReadWriteSynch / cbAtEndOfSimTime. */
 #define cbNBASynch          30
 #define cbAtEndOfSimTime    31
 

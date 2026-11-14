@@ -641,8 +641,8 @@ static int compare_types(int code, int type, bool is_typedef = false)
       if (code == vpiTypedef)
 	    return is_typedef;
 
-      if ((code == VPI_IODECL_TYPE || code == vpiIODecl)
-	  && (type == VPI_IODECL_TYPE || type == vpiIODecl))
+      if ((code == VPI_IODECL_TYPE || code == VPI_IODECL_LEGACY)
+	  && (type == VPI_IODECL_TYPE || type == VPI_IODECL_LEGACY))
 	    return 1;
 
       if (code == type)
@@ -1519,7 +1519,7 @@ class __vpiModport : public __vpiHandle {
 
       vpiHandle vpi_iterate(int code) override
       {
-	    if (code != vpiIODecl || ports_.empty())
+	    if ((code != vpiIODecl && code != VPI_IODECL_LEGACY) || ports_.empty())
 		  return 0;
 	    vpiHandle*args = (vpiHandle*)malloc(ports_.size() * sizeof(vpiHandle));
 	    for (size_t idx = 0 ; idx < ports_.size() ; idx += 1)

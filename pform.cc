@@ -8465,7 +8465,7 @@ void pform_set_clocking_default_skews(const struct vlltype&loc,
    shared with concurrent assertions below; randsequence code blocks use it
    so an undeclared production-condition name cannot degrade to the generic
    compile-progress warning and silently select the else branch. */
-static void sva_mark_strict_(PExpr*e);
+static void sva_mark_strict_(PExpr*e, bool assertion = true);
 static PExpr* sva_clone_subst_(
       PExpr*e, const std::map<perm_string,PExpr*>*subst);
 static parmvalue_t* sva_clone_parmvalue_(
@@ -8476,13 +8476,13 @@ static void pform_rs_mark_conditions_strict_(Statement*stmt)
 {
       if (!stmt) return;
       if (PCondit*cond = dynamic_cast<PCondit*>(stmt)) {
-	    sva_mark_strict_(cond->cond_expr());
+	    sva_mark_strict_(cond->cond_expr(), false);
 	    pform_rs_mark_conditions_strict_(cond->if_clause());
 	    pform_rs_mark_conditions_strict_(cond->else_clause());
 	    return;
       }
       if (PRepeat*repeat = dynamic_cast<PRepeat*>(stmt)) {
-	    sva_mark_strict_(repeat->count_expr());
+	    sva_mark_strict_(repeat->count_expr(), false);
 	    pform_rs_mark_conditions_strict_(repeat->body());
 	    return;
       }
@@ -8747,7 +8747,7 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 				       return_target)
 		: nullptr;
 	    if (!expr) { delete yes; delete no; goto unsupported; }
-	    sva_mark_strict_(expr);
+	    sva_mark_strict_(expr, false);
 	    PCondit*copy = new PCondit(expr, yes, no);
 	    copy->parsed_if_statement(cond->is_parsed_if_statement());
 	    copy->immediate_assertion(cond->is_immediate_assertion());
@@ -8759,7 +8759,7 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 	    Statement*body = pform_rs_clone_stmt_(ctx, repeat->body(), subst,
 						   loop_depth + 1, return_target);
 	    if (!count || !body) { delete count; delete body; goto unsupported; }
-	    sva_mark_strict_(count);
+	    sva_mark_strict_(count, false);
 	    PRepeat*copy = new PRepeat(count, body);
 	    copy->set_line(*stmt);
 	    return copy;
@@ -8882,14 +8882,21 @@ struct pform_rs_join_schedule_t {
 static void pform_rs_join_schedules_(
       pform_rs_expand_ctx_t&ctx,
       const std::vector<pform_rs_join_lane_t>&lanes,
-      std::vector<size_t>&positions, long previous,
-      double stay_probability, double probability,
+      std::vector<size_t>&positions,
+      double length_priority, double probability,
       std::vector<size_t>&order,
       std::vector<pform_rs_join_schedule_t>&out)
 {
       size_t eligible = 0;
-      for (size_t lane = 0 ; lane < lanes.size() ; ++lane)
-	    if (positions[lane] < lanes[lane].rule->items->size()) ++eligible;
+      double total_length = 0.0, total_inverse = 0.0;
+      for (size_t lane = 0 ; lane < lanes.size() ; ++lane) {
+	    size_t remaining = lanes[lane].rule->items->size() - positions[lane];
+	    if (remaining) {
+		  ++eligible;
+		  total_length += remaining;
+		  total_inverse += 1.0 / remaining;
+	    }
+      }
       if (!eligible) {
 	    if (out.size() >= 256) {
 		  if (!ctx.bad) {
@@ -8907,19 +8914,20 @@ static void pform_rs_join_schedules_(
 	    return;
       }
 
-      bool previous_active = previous >= 0
-	    && positions[previous] < lanes[previous].rule->items->size();
       for (size_t lane = 0 ; lane < lanes.size() && !ctx.bad ; ++lane) {
-	    if (positions[lane] >= lanes[lane].rule->items->size()) continue;
-	    double choose = 1.0 / eligible;
-	    if (previous_active) {
-		  choose = (1.0 - stay_probability) / eligible;
-		  if ((long)lane == previous) choose += stay_probability;
-	    }
+	    size_t remaining = lanes[lane].rule->items->size() - positions[lane];
+	    if (!remaining) continue;
+	    // Interpolate between inverse-length, uniform, and length weights.
+	    double uniform = 1.0 / eligible;
+	    double choose = length_priority <= 0.5
+		  ? (1.0 - 2.0 * length_priority) / remaining / total_inverse
+		    + 2.0 * length_priority * uniform
+		  : (2.0 - 2.0 * length_priority) * uniform
+		    + (2.0 * length_priority - 1.0) * remaining / total_length;
 	    ++positions[lane];
 	    order.push_back(lane);
-	    pform_rs_join_schedules_(ctx, lanes, positions, lane,
-				      stay_probability,
+	    pform_rs_join_schedules_(ctx, lanes, positions,
+				      length_priority,
 				      probability * choose, order, out);
 	    order.pop_back();
 	    --positions[lane];
@@ -8955,9 +8963,9 @@ static Statement* pform_rs_expand_join_(
       pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
       const std::map<perm_string,PExpr*>*outer)
 {
-      double stay_probability;
+      double length_priority;
       if (!pform_rs_join_probability_(ctx, item.expr, outer,
-				      stay_probability)) return nullptr;
+				      length_priority)) return nullptr;
 
       if (!item.join_items || item.join_items->size() < 2) {
 	    cerr << ctx.loc << ": error: randsequence rand join requires at "
@@ -9022,8 +9030,8 @@ static Statement* pform_rs_expand_join_(
       std::vector<size_t> positions(lanes.size(), 0), order;
       std::vector<pform_rs_join_schedule_t> schedules;
       if (join_scope) ctx.lexical_parent = join_scope;
-      pform_rs_join_schedules_(ctx, lanes, positions, -1,
-				      stay_probability, 1.0, order, schedules);
+      pform_rs_join_schedules_(ctx, lanes, positions,
+				      length_priority, 1.0, order, schedules);
       if (ctx.bad) {
 	    ctx.lexical_parent = saved_parent;
 	    for (pform_rs_join_lane_t&lane : lanes)
@@ -9112,7 +9120,7 @@ static Statement* pform_rs_expand_item_(
 		  error_count += 1; ctx.bad = true; delete yes; delete no;
 		  return nullptr;
 	    }
-	    sva_mark_strict_(condition);
+	    sva_mark_strict_(condition, false);
 	    PCondit*result = new PCondit(condition, yes, no);
 	    result->parsed_if_statement();
 	    result->set_line(item);
@@ -9128,7 +9136,7 @@ static Statement* pform_rs_expand_item_(
 		  error_count += 1; ctx.bad = true; delete count; delete body;
 		  return nullptr;
 	    }
-	    sva_mark_strict_(count);
+	    sva_mark_strict_(count, false);
 	    PRepeat*result = new PRepeat(count, body);
 	    result->set_line(item);
 	    return result;
@@ -9140,7 +9148,7 @@ static Statement* pform_rs_expand_item_(
 		  cerr << item.get_fileline() << ": sorry: cannot clone this "
 		       << "randsequence case selector." << endl;
 		  error_count += 1; ctx.bad = true;
-	    } else sva_mark_strict_(selector);
+	    } else sva_mark_strict_(selector, false);
 	    if (item.cases) for (const rs_case_item_t&source : *item.cases) {
 		  PCase::Item*target = new PCase::Item;
 		  if (source.expressions)
@@ -18616,11 +18624,9 @@ static void pform_enable_procedural_sampled_history_(
    are all silently inert today. Package-qualified names are left alone;
    they resolve through a different path and already error.
 
-   Marking happens at the pform level, so it cannot reach non-assertion
-   code -- in particular uvm-core/src, which contains no concurrent
-   assertions at all and whose reliance on the generic warning is
-   therefore untouched. */
-static void sva_mark_strict_(PExpr*e)
+   Randsequence also uses strict binding but does not impose concurrent
+   assertion restrictions on function calls or increment operators. */
+static void sva_mark_strict_(PExpr*e, bool assertion)
 {
       if (!e) return;
 
@@ -18630,46 +18636,46 @@ static void sva_mark_strict_(PExpr*e)
 	    return;
       }
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
-	    cf->mark_concurrent_assertion_expr();
+	    if (assertion) cf->mark_concurrent_assertion_expr();
 	    const std::vector<named<PExpr*> >&parms = cf->get_parms();
 	    for (size_t i = 0 ; i < parms.size() ; i += 1)
-		  sva_mark_strict_(parms[i].parm);
+		  sva_mark_strict_(parms[i].parm, assertion);
 	    return;
       }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
-	    un->mark_concurrent_assertion_expr();
-	    sva_mark_strict_(un->get_expr());
+	    if (assertion) un->mark_concurrent_assertion_expr();
+	    sva_mark_strict_(un->get_expr(), assertion);
 	    return;
       }
       if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
-	    sva_mark_strict_(bin->get_left());
-	    sva_mark_strict_(bin->get_right());
+	    sva_mark_strict_(bin->get_left(), assertion);
+	    sva_mark_strict_(bin->get_right(), assertion);
 	    return;
       }
       if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
-	    sva_mark_strict_(ter->get_cond());
-	    sva_mark_strict_(ter->get_true());
-	    sva_mark_strict_(ter->get_false());
+	    sva_mark_strict_(ter->get_cond(), assertion);
+	    sva_mark_strict_(ter->get_true(), assertion);
+	    sva_mark_strict_(ter->get_false(), assertion);
 	    return;
       }
       if (PECastSize*cast = dynamic_cast<PECastSize*>(e)) {
-	    sva_mark_strict_(cast->cast_size());
-	    sva_mark_strict_(cast->cast_base());
+	    sva_mark_strict_(cast->cast_size(), assertion);
+	    sva_mark_strict_(cast->cast_base(), assertion);
 	    return;
       }
       if (PECastType*cast = dynamic_cast<PECastType*>(e)) {
-	    sva_mark_strict_(cast->cast_base());
+	    sva_mark_strict_(cast->cast_base(), assertion);
 	    return;
       }
       if (PECastSign*cast = dynamic_cast<PECastSign*>(e)) {
-	    sva_mark_strict_(cast->cast_base());
+	    sva_mark_strict_(cast->cast_base(), assertion);
 	    return;
       }
       if (PEConcat*cc = dynamic_cast<PEConcat*>(e)) {
 	    const std::vector<PExpr*>&parms = cc->stream_parms();
 	    for (size_t i = 0 ; i < parms.size() ; i += 1)
-		  sva_mark_strict_(parms[i]);
-	    sva_mark_strict_(cc->repeat_expr());
+		  sva_mark_strict_(parms[i], assertion);
+	    sva_mark_strict_(cc->repeat_expr(), assertion);
 	    return;
       }
 }
@@ -24776,11 +24782,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* M12B-cb SUCCESS fold (the NFA hook runs before the legacy
 	   fold, so replicate it): assertion matches report
-	   cbAssertionSuccess. Negated properties have no pass path; cover
+	   cbAssertionSuccess. Cover
 	   keeps a counter and dispatches attached calls separately. */
       if (sub) {
 	      /* no reporting: the parent dispatches */
-      } else if (!negated && !cover) {
+      } else if (!cover) {
 	    if (match_action) {
 		  std::vector<Statement*>ordered;
 		  ordered.push_back(match_action);
@@ -25095,7 +25101,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
       }
       perm_string r_p;
-      if (!negated && !cover && !sub) {
+      if (!cover && !sub) {
 	    r_p = sva_make_reg_(loc, inst, "p", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
@@ -25297,7 +25303,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (!cover) {
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
 	    }
-	    if (!negated && !cover)
+	    if (!cover && !sub)
 		  clr.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
 	    return sva_block_(loc, clr);
       };
@@ -25711,8 +25717,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
 					  nonvacuous, sva_block_(loc, vac)));
 		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
-	    } else if (!negated && !cover && !endpoint_fanout) {
-		  die_v.push_back(increment_verdict(r_f, k));
+	    } else if (!cover && !endpoint_fanout) {
+		  die_v.push_back(increment_verdict(negated ? r_p : r_f, k));
 	    }
 	    clear_slot(k, die_v);
 
@@ -25987,7 +25993,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       Statement*slot_pass = nullptr;
       Statement*slot_fail = nullptr;
       bool slot_pass_guarded = false;
-      if (!negated && !cover) {
+      if (!cover) {
 	    std::vector<Statement*> hit;
 	    if (implication && slot_dispatch) {
 		  PExpr*nonvacuous = new PEBinary('-', sva_id_(loc, r_p),
@@ -37973,7 +37979,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    user_pass = pass_stmt;
 	    pass_stmt = sva_assign_(loc, pass_req,
 		  new PEBinary('+', sva_id_(loc, pass_req), sva_num32_(loc, 1)));
-      } else if (kind != 2 && !negated) {
+      } else if (kind != 2) {
 	    pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
       }
 
@@ -38149,6 +38155,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       perm_string r_g = sva_make_reg_(loc, inst, "g", 0);
       init_zero.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
       perm_string r_f;
+      perm_string r_neg_pass;
       perm_string r_cnt;
       if (kind == 2) {
 	    r_cnt = sva_make_reg_(loc, inst, "cnt", 0, true);
@@ -38160,12 +38167,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	       attempts until the Reactive action dispatch. */
 	    r_f = sva_make_reg_(loc, inst, "f", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+	    if (negated) {
+		  r_neg_pass = sva_make_reg_(loc, inst, "np", 0, true);
+		  init_zero.push_back(sva_assign_(loc, r_neg_pass, sva_bit_(loc, 0)));
+	    }
       }
       auto increment_failure = [&]() -> Statement* {
 	    PEBinary*add = new PEBinary('+', sva_id_(loc, r_f),
 				       sva_bit_(loc, 1));
 	    FILE_NAME(add, loc);
 	    return sva_assign_(loc, r_f, add);
+      };
+      auto increment_neg_pass = [&]() -> Statement* {
+	    return sva_assign_(loc, r_neg_pass,
+		  new PEBinary('+', sva_id_(loc, r_neg_pass), sva_bit_(loc, 1)));
       };
       /* Only fixed, non-negated chains have one unique failure age for
 	 each pipeline token. Keep the existing two-argument report for
@@ -38203,6 +38218,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    clr.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
 	    if (kind != 2) {
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
+		  if (negated)
+			clr.push_back(sva_assign_(loc, r_neg_pass, sva_bit_(loc, 0)));
 		  for (size_t age = 0; age < failure_at_age.size(); ++age)
 			clr.push_back(sva_assign_(loc, failure_at_age[age],
 					      sva_bit_(loc, 0)));
@@ -38325,6 +38342,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    std::vector<Statement*> hit;
 	    if (kind != 2 && !negated)
 		  hit.push_back(increment_failure());
+	    else if (negated)
+		  hit.push_back(increment_neg_pass());
 	    if (track_failure_age)
 		  hit.push_back(sva_assign_(loc, failure_at_age[0],
 					    sva_bit_(loc, 1)));
@@ -38348,6 +38367,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    std::vector<Statement*> hit;
 	    if (kind != 2 && !negated)
 		  hit.push_back(increment_failure());
+	    else if (negated)
+		  hit.push_back(increment_neg_pass());
 	    if (track_failure_age)
 		  hit.push_back(sva_assign_(loc,
 			failure_at_age[(size_t)offs[j]], sva_bit_(loc, 1)));
@@ -38433,9 +38454,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			sat.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
 	    }
 	    std::vector<Statement*> miss;
-	    if (kind != 2 && !negated) {
+	    if (kind != 2) {
 		  std::vector<Statement*> mhit;
-		  mhit.push_back(increment_failure());
+		  mhit.push_back(negated ? increment_neg_pass() : increment_failure());
 		  mhit.push_back(sva_assign_(loc, w_regs[win_n], sva_bit_(loc, 0)));
 		  PCondit*mc = new PCondit(sva_id_(loc, w_regs[win_n]),
 					   sva_block_(loc, mhit), nullptr);
@@ -38595,6 +38616,15 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				       sva_id_(loc, t_regs[p-2])));
       if (P >= 1)
 	    body.push_back(sva_assign_(loc, t_regs[0], sva_id_(loc, r_g)));
+
+      if (negated) {
+	    std::vector<Statement*> hit;
+	    hit.push_back(sva_repeat_(loc, sva_id_(loc, r_neg_pass), pass_stmt));
+	    hit.push_back(sva_assign_(loc, r_neg_pass, sva_bit_(loc, 0)));
+	    body.push_back(sva_if_(loc, sva_id_(loc, r_neg_pass),
+				   sva_block_(loc, hit), nullptr));
+	    pass_stmt = nullptr;
+      }
 
 	/* Fail dispatch (assert/assume). */
       if (kind != 2) {
