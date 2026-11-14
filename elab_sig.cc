@@ -4700,10 +4700,11 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	   typedef whose own type names another typedef (37.25 detail 1). */
       {
 	    std::vector<perm_string> aliases;
+	    std::set<const typedef_t*> seen; // a circular chain is an error elsewhere
 	    const data_type_t*dt = data_type();
 	    while (const typeref_t*ref = dynamic_cast<const typeref_t*>(dt)) {
 		  typedef_t*td = ref->typedef_ref();
-		  if (!td) break;
+		  if (!td || !seen.insert(td).second) break;
 		  const data_type_t*next = td->get_data_type();
 		  if (!dynamic_cast<const typeref_t*>(next)) break;
 		  aliases.push_back(td->name);
