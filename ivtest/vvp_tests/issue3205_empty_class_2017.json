@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3205_empty_class.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue3205_empty_class_2017"
+}

@@ -1,0 +1,3 @@
+./ivltests/issue3205_empty_class.sv:13: error: bit-stream cast between fixed-size types of different sizes.
+./ivltests/issue3205_empty_class.sv:14: error: bit-stream cast between fixed-size types of different sizes.
+2 error(s) during elaboration.
