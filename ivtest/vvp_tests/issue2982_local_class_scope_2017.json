@@ -1,0 +1,5 @@
+{
+    "type": "normal",
+    "source": "issue2982_local_class_scope.v",
+    "iverilog-args": ["-g2017", "-s", "issue2982_local_class_scope"]
+}
