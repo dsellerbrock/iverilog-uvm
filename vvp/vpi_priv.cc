@@ -445,9 +445,12 @@ static int vpip_get_global(int property)
 	  case vpiTimePrecision:
 	    return vpip_get_time_precision();
 
-	  default:
-	    fprintf(stderr, "vpi error: bad global property: %d\n", property);
+	  default: {
+	    char message[80];
+	    snprintf(message, sizeof message, "vpi error: bad global property: %d", property);
+	    vpip_set_error(vpiError, message);
 	    return vpiUndefined;
+          }
       }
 }
 
@@ -1312,6 +1315,7 @@ void vpip_string_get_value(const string&val, s_vpi_value*vp)
 
 void vpi_get_value(vpiHandle expr, s_vpi_value*vp)
 {
+      vpip_clear_error();
       assert(expr);
       assert(vp);
 
@@ -1459,7 +1463,11 @@ static t_vpi_strengthval *strengthdup(const t_vpi_strengthval *val)
 vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 			s_vpi_time*when, PLI_INT32 flags)
 {
-      assert(obj);
+      vpip_clear_error();
+      if (!obj) {
+	    vpip_set_error(vpiError, "vpi_put_value: null handle");
+	    return 0;
+      }
 
       if (flags == VPI_CANCEL_EVENT) {
 	    vpip_put_value_event* event =
