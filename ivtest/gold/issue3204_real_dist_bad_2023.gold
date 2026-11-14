@@ -1,0 +1,6 @@
+./ivltests/issue3204_real_dist_bad.sv:4: error: a real dist range requires an explicit :/ weight.
+./ivltests/issue3204_real_dist_bad.sv:5: error: a real dist range requires an explicit :/ weight.
+./ivltests/issue3204_real_dist_bad.sv:6: error: a real dist range requires an explicit :/ weight.
+./ivltests/issue3204_real_dist_bad.sv:8: error: a real dist range requires an explicit :/ weight.
+./ivltests/issue3204_real_dist_bad.sv:10: error: a real dist range requires an explicit :/ weight.
+5 error(s) during elaboration.

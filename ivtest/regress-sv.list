@@ -6871,3 +6871,7 @@ issue3214_nexttime_named_2017 normal,-g2017,-gassertions,-s,main ivltests gold=i
 issue3214_nexttime_named_2023 normal,-g2023,-gassertions,-s,main ivltests gold=issue3214_nexttime_named.gold
 issue3197_package_empty_2017 normal,-g2017,-s,top ivltests gold=issue3197_package_empty.gold
 issue3197_package_empty_2023 normal,-g2023,-s,top ivltests gold=issue3197_package_empty.gold
+issue3204_real_dist_bad_2017 CE,-g2017,-s,top ivltests gold=issue3204_real_dist_bad_2017.gold
+issue3204_real_dist_bad_2023 CE,-g2023,-s,top,-DTEST_2023 ivltests gold=issue3204_real_dist_bad_2023.gold
+issue3204_real_dist_good_2017 normal,-g2017,-s,top ivltests gold=issue3204_real_dist_good_2017.gold
+issue3204_real_dist_good_2023 normal,-g2023,-s,top,-DTEST_2023 ivltests gold=issue3204_real_dist_good_2023.gold

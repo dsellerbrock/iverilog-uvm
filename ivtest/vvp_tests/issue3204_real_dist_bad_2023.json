@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "issue3204_real_dist_bad.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "top",
+    "-DTEST_2023"
+  ],
+  "gold": "issue3204_real_dist_bad_2023"
+}
