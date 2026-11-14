@@ -441,13 +441,20 @@ static void format_p_memory_dimension(vpiHandle item,
   int right = ranges[dimension].right;
   int step = left <= right ? 1 : -1;
   int low = left < right ? left : right;
-  size_t dimension_size = (size_t)(left <= right ? right - left : left - right) + 1;
+  size_t dimension_size = (size_t)((int64_t)(left <= right ? right : left) - low) + 1;
   for (int index = left;; index += step) {
     size_t coordinate = (size_t)((int64_t)index - low);
     size_t next = offset * dimension_size + coordinate;
     if (dimension + 1 < dimensions) {
+      int sub_first = 1;
+      *acc = realloc(*acc, *used + (*first ? 0 : 2) + 3);
+      if (!*first) { strcpy(*acc + *used, ", "); *used += 2; }
+      strcpy(*acc + *used, "'{"); *used += 2;
       format_p_memory_dimension(item, ranges, dimensions, dimension + 1,
-                                next, acc, used, first);
+                                next, acc, used, &sub_first);
+      *acc = realloc(*acc, *used + 2);
+      strcpy(*acc + *used, "}"); *used += 1;
+      *first = 0;
     } else {
       vpiHandle word = vpi_handle_by_index(item, (PLI_INT32)next);
       if (word) {
@@ -465,7 +472,7 @@ static void format_p_memory_dimension(vpiHandle item,
 }
 
 /*
- * SV %p (IEEE 1800-2017 21.2.1.6): pretty-print a value using assignment-
+ * SV %p (IEEE 1800-2017 21.2.1.7): pretty-print a value using assignment-
  * pattern notation. Returns a malloc'd NUL-terminated string; the caller
  * frees it. Recurses into arrays/queues/dynamic/associative arrays so
  * nested aggregates format element-by-element. Leaf values format by their
