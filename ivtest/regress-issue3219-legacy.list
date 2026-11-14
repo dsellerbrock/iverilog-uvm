@@ -1,0 +1,2 @@
+issue3219_randcase_precision_2017 normal,-g2017,-s,top ivltests gold=issue3219_randcase_precision.gold
+issue3219_randcase_precision_2023 normal,-g2023,-s,top ivltests gold=issue3219_randcase_precision.gold
