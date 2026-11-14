@@ -31,6 +31,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <vector>
+# include  <algorithm>
 # include  <map>
 
 /* vpi_user.h does not define these Annex K codes. */
@@ -655,10 +656,35 @@ static __vpiScope*conn_root_module_(vpiHandle root)
       return conn_module_(dynamic_cast<__vpiScope*>(::vpi_handle(vpiScope, root)));
 }
 
+/* vpiUse (37.58 details 1 and 2): every continuous assignment, port and
+   force or assign statement in which the object appears, read or written.
+   A use of the whole vector, or of a select containing the bit, is a use
+   of the bit; uses are not followed through ports. */
+static vpiHandle conn_uses_(const conn_ref_&query)
+{
+      conn_build_();
+      std::vector<vpiHandle> found;
+      for (const conn_item_&item : conn_index_) {
+	    if (!conn_touches_(item, query)) continue;
+	    if (std::find(found.begin(), found.end(), item.obj) == found.end())
+		  found.push_back(item.obj);
+      }
+      if (found.empty()) return 0;
+      vpiHandle*args = static_cast<vpiHandle*>(
+	    calloc(found.size(), sizeof(vpiHandle)));
+      for (size_t idx = 0; idx < found.size(); idx += 1)
+	    args[idx] = found[idx];
+      return vpip_make_iterator(found.size(), args, true);
+}
+
 vpiHandle vpip_conn_iterate(int code, vpiHandle ref)
 {
       bool local = code == vpiLocalDriver || code == vpiLocalLoad;
       bool drives = code == vpiDriver || code == vpiLocalDriver;
+      if (code == vpiUse) {
+	    conn_ref_ query;
+	    return conn_ref_of_(ref, query) ? conn_uses_(query) : 0;
+      }
       if (!local && code != vpiDriver && code != vpiLoad) return 0;
       conn_ref_ query;
       if (!conn_ref_of_(ref, query)) return 0;

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1315_vpi_use.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue1315_vpi_use_2017"],
+  "vpi-sources": ["vpi/issue1315_vpi_use.c"],
+  "output-contains": ["VPI USE PASS"]
+}
