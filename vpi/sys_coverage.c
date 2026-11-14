@@ -22,10 +22,8 @@
  *
  * Icarus implements functional coverage (Clause 19), but it does not
  * instrument statement, toggle, FSM, or assertion code coverage.  The
- * standard gives that state an exact observable result: SV_COV_NOCOV.
- * These routines therefore validate every argument and report the
- * unavailable coverage honestly instead of pretending an operation
- * succeeded or silently discarding it.
+ * standard specifies SV_COV_NOCOV for queries and starts, and successful
+ * no-ops for stops and resets. All arguments are still validated.
  */
 
 # include "sys_priv.h"
@@ -45,7 +43,8 @@ enum {
       SV_COV_STATEMENT = 22,
       SV_COV_TOGGLE = 23,
       SV_COV_ERROR = -1,
-      SV_COV_NOCOV = 0
+      SV_COV_NOCOV = 0,
+      SV_COV_OK = 1
 };
 
 enum coverage_call_kind {
@@ -317,9 +316,7 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
             coverage_runtime_warning(callh, (const char*)name,
                  "returns SV_COV_NOCOV because code coverage is not instrumented");
       } else {
-            result = SV_COV_ERROR;
-            coverage_runtime_warning(callh, (const char*)name,
-                 "returns SV_COV_ERROR because code-coverage collection is unavailable");
+            result = SV_COV_OK;
       }
 
       coverage_put_result(callh, result);

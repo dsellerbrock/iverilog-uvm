@@ -3690,8 +3690,103 @@ vpiHandle vpiPortInfo::low_conn_(void)
       return 0;
 }
 
+/*
+ * A vpiRefObj connection of an interface port (IEEE 1800-2023 37.14
+ * detail 5, 37.15): the high one stands for the actual in the
+ * instantiating module, the low one for the formal in the instance. Both
+ * have the interface instance, or its selected modport, as vpiActual.
+ */
+class __vpiPortRefObj : public __vpiHandle {
+    public:
+      __vpiPortRefObj(vpiPortInfo*port, bool high)
+      : port_(port), high_(high) { }
+      int get_type_code(void) const override { return VPI_REF_OBJ_TYPE; }
+      char* vpi_get_str(int code) override;
+      vpiHandle vpi_handle(int code) override;
+
+    private:
+      vpiHandle actual_(void);
+      __vpiScope*scope_(void) const;
+      vpiPortInfo*port_;
+      bool high_;
+};
+
+__vpiScope* __vpiPortRefObj::scope_(void) const
+{
+      __vpiScope*inst = port_->parent_scope();
+      return high_ ? inst->scope : inst;
+}
+
+vpiHandle __vpiPortRefObj::actual_(void)
+{
+      __vpiScope*inst = port_->iface_argc_
+	    ? dynamic_cast<__vpiScope*>(port_->iface_argv_[0]) : 0;
+      if (!inst || port_->iface_argc_ < 2) return inst;
+      s_vpi_value val;
+      val.format = vpiStringVal;
+      port_->iface_argv_[1]->vpi_get_value(&val);
+      for (vpiHandle item : inst->intern)
+	    if (item->get_type_code() == vpiModport) {
+		  const char*name = item->vpi_get_str(vpiName);
+		  if (name && strcmp(name, val.value.str) == 0) return item;
+	    }
+      return 0;
+}
+
+char* __vpiPortRefObj::vpi_get_str(int code)
+{
+      if (code != vpiName && code != vpiFullName) return 0;
+	/* The low one is named for the port. The high one is named for the
+	   actual as the instantiating module sees it: its own interface port
+	   bound to the same instance when it forwards one, otherwise the
+	   instance. */
+      const char*name = port_->vpi_get_str(vpiName);
+      std::string text = name ? name : "";
+      vpiHandle inst = port_->iface_argv_[0];
+      __vpiScope*outer = scope_();
+      if (high_ && inst) {
+	    text = inst->vpi_get_str(vpiName);
+	    for (size_t idx = 0; outer && idx < outer->intern.size(); idx += 1) {
+		  vpiPortInfo*fwd = dynamic_cast<vpiPortInfo*>(outer->intern[idx]);
+		  if (fwd && fwd->iface_argc_ && fwd->iface_argv_[0] == inst) {
+			text = fwd->vpi_get_str(vpiName);
+			break;
+		  }
+	    }
+      }
+      if (code == vpiFullName) {
+	    __vpiScope*scope = scope_();
+	    const char*base = scope ? scope->vpi_get_str(vpiFullName) : 0;
+	    if (base) text = std::string(base) + "." + text;
+      }
+      return simple_set_rbuf_str(text.c_str());
+}
+
+vpiHandle __vpiPortRefObj::vpi_handle(int code)
+{
+      switch (code) {
+	  case VPI_ACTUAL_RELATION:
+	    return actual_();
+	  case vpiPort:
+	    return port_;
+	  case vpiParent:
+	  case vpiScope:
+	  case vpiModule:
+	    return scope_();
+	  default:
+	    return 0;
+      }
+}
+
 vpiHandle vpiPortInfo::vpi_handle(int code)
 {
+	/* An interface or modport port connects through ref objects. */
+      if (iface_argc_ && (code == vpiHighConn || code == vpiLowConn)) {
+	    unsigned side = code == vpiHighConn ? 0 : 1;
+	    if (!iface_refs_[side])
+		  iface_refs_[side] = new __vpiPortRefObj(this, side == 0);
+	    return iface_refs_[side];
+      }
 
       switch (code) {
 
@@ -3795,6 +3890,11 @@ void compile_vpi_port_conn(long index, long flags, unsigned argc,
 	    if (flags & 1) {
 		  port->high_argc_ = argc;
 		  port->high_argv_ = argv;
+		  return;
+	    }
+	    if ((flags & 2) && argc >= 1) {
+		  port->iface_argc_ = argc;
+		  port->iface_argv_ = argv;
 		  return;
 	    }
 	    break;

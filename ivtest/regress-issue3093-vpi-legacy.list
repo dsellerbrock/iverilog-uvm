@@ -1,0 +1,2 @@
+issue3093_source_range_2017 normal,-g2017 issue3093_source_range.c issue3093_source_range_2017.gold
+issue3093_source_range_2023 normal,-g2023 issue3093_source_range.c issue3093_source_range_2023.gold

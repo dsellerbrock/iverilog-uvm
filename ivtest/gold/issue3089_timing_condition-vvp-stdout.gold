@@ -1,0 +1,5 @@
+ivltests/issue3089_timing_condition.v:4: Timing violation: $setup check in issue3089_timing_condition.dut at time 23
+ivltests/issue3089_timing_condition.v:4: Timing violation: $setup check in issue3089_timing_condition.dut at time 47
+ivltests/issue3089_timing_condition.v:10: Timing violation: $setup check in issue3089_timing_condition.expr_dut at time 71
+PASS
+ivltests/issue3089_timing_condition.v:48: $finish called at 84 (1ns)

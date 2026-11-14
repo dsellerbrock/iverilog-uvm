@@ -1339,6 +1339,19 @@ void dll_target::make_scope_contassigns_(ivl_scope_t scope)
 	    }
 	    scope->ensure_aux_()->port_highconns = list;
       }
+	/* Interface port bindings, for their vpiRefObj connections. */
+      if (net && !net->port_ifaces.empty()) {
+	    std::vector<std::pair<ivl_scope_t, const char*> >*list =
+		  new std::vector<std::pair<ivl_scope_t, const char*> >;
+	    for (size_t idx = 0; idx < net->port_ifaces.size(); idx += 1) {
+		  NetScope*inst = net->port_ifaces[idx].first;
+		  perm_string modport = net->port_ifaces[idx].second;
+		  list->push_back(std::make_pair(
+			inst ? find_scope(des_, inst) : (ivl_scope_t)0,
+			modport.nil() ? (const char*)0 : modport.str()));
+	    }
+	    scope->ensure_aux_()->port_ifaces = list;
+      }
       for (unsigned idx = 0; idx < scope->child_count_; idx += 1)
 	    make_scope_contassigns_(scope->child[idx]);
 }

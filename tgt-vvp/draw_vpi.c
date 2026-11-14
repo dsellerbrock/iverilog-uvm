@@ -195,6 +195,33 @@ static void lazy_puts_(struct lazy_text_*t, const char*s)
       t->len += n;
 }
 
+/* The canonical word of an array word expression with a constant index
+   into a one-dimensional array; false for anything else. */
+static int lazy_array_word_(ivl_expr_t expr, long*word)
+{
+      ivl_expr_t idx = ivl_expr_oper1(expr);
+      if (!idx || ivl_signal_dimensions(ivl_expr_signal(expr)) != 1
+	  || !number_is_immediate(idx, IMM_WID, 0) || number_is_unknown(idx))
+	    return 0;
+      *word = get_number_immediate(idx);
+      return *word >= 0
+	    && *word < (long)ivl_signal_array_count(ivl_expr_signal(expr));
+}
+
+/* A signed constant operand handle, as narrow as its value allows. */
+static char* lazy_int_const_(long value)
+{
+      char buf[48];
+      unsigned bit, wid = 2;
+      while (wid < 32 && (value >= (1L << (wid - 1)) || value < -(1L << (wid - 1))))
+	    wid += 1;
+      char*dp = buf + snprintf(buf, sizeof buf, "%u'sb", wid);
+      for (bit = wid; bit > 0; bit -= 1)
+	    *dp++ = ((unsigned long)value >> (bit - 1)) & 1 ? '1' : '0';
+      *dp = 0;
+      return strdup(buf);
+}
+
 /* 37.59 detail 2: decompile with parentheses only where precedence needs
    them and a single space around each binary operator. Returns the
    precedence of EXPR's top operator, or 0 for a shape it cannot write. */
@@ -203,10 +230,19 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
       char buf[128];
       expr = lazy_strip_pad_(expr);
       switch (ivl_expr_type(expr)) {
-	  case IVL_EX_SIGNAL:
-	    if (ivl_expr_oper1(expr)) return 0;
-	    lazy_puts_(t, ivl_signal_basename(ivl_expr_signal(expr)));
+	  case IVL_EX_SIGNAL: {
+	    ivl_signal_t sig = ivl_expr_signal(expr);
+	    long word;
+	    lazy_puts_(t, ivl_signal_basename(sig));
+	    if (!ivl_expr_oper1(expr)) return 100;
+	      /* A constant word of a one-dimensional array, by its declared
+		 address. */
+	    if (!lazy_array_word_(expr, &word)) return 0;
+	    snprintf(buf, sizeof buf, "[%ld]",
+		     ivl_signal_array_base(sig) + word);
+	    lazy_puts_(t, buf);
 	    return 100;
+	  }
 	  case IVL_EX_NUMBER: {
 	    ivl_parameter_t par = ivl_expr_parameter(expr);
 	    unsigned wid = ivl_expr_width(expr), idx;
@@ -421,6 +457,12 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
       if (ivl_expr_type(node) == IVL_EX_SIGNAL
 	  && ivl_signal_dimensions(ivl_expr_signal(node)) == 0)
 	    snprintf(buffer, sizeof buffer, "v%p_0", ivl_expr_signal(node));
+      if (ivl_expr_type(node) == IVL_EX_SIGNAL && ivl_expr_oper1(node)) {
+	    long word;
+	    if (lazy_array_word_(node, &word))
+		  snprintf(buffer, sizeof buffer, "&A<v%p, %ld>",
+			   ivl_expr_signal(node), word);
+      }
       if (ivl_expr_type(node) == IVL_EX_NUMBER && ivl_expr_parameter(node))
 	    snprintf(buffer, sizeof buffer, "P_%p", ivl_expr_parameter(node));
       if (ivl_expr_type(node) == IVL_EX_NUMBER && !ivl_expr_parameter(node)
@@ -484,11 +526,30 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
 	  case IVL_EX_SFUNC:
 	    type = LAZY_vpiSysFuncCall;
 	    break;
-	  case IVL_EX_SELECT:
-	    type = ivl_expr_width(node) == 1 ? LAZY_vpiBitSelect
-		 : number_is_immediate(ivl_expr_oper2(node), 64, 0)
-		 ? LAZY_vpiPartSelect : LAZY_vpiIndexedPartSelect;
+	  case IVL_EX_SELECT: {
+	      /* The decompiler only describes a constant select of a whole
+		 vector signal: its operands are the signal (vpiParent) and
+		 the declared index (vpiIndex) or bounds (vpiLeftRange,
+		 vpiRightRange), as written. */
+	    ivl_signal_t sig = ivl_expr_signal(ivl_expr_oper1(node));
+	    long msb = ivl_signal_packed_msb(sig, 0);
+	    long lsb = ivl_signal_packed_lsb(sig, 0);
+	    long first = get_number_immediate(ivl_expr_oper2(node));
+	    long wid = ivl_expr_width(node);
+	    long lo = msb >= lsb ? lsb + first : lsb - first;
+	    long far = msb >= lsb ? lo + wid - 1 : lo - wid + 1;
+	    type = wid == 1 ? LAZY_vpiBitSelect : LAZY_vpiPartSelect;
+	    snprintf(buffer, sizeof buffer, "v%p_0", sig);
+	    ops[nops++] = strdup(buffer);
+	    buffer[0] = 0;
+	    if (wid == 1) {
+		  ops[nops++] = lazy_int_const_(lo);
+	    } else {
+		  ops[nops++] = lazy_int_const_(far);
+		  ops[nops++] = lazy_int_const_(lo);
+	    }
 	    break;
+	  }
 	  default:
 	    break;
       }
@@ -602,6 +663,18 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 
       for (idx = 0; !any && idx < ivl_scope_params(scope); idx += 1)
 	    any = ivl_parameter_default_expr(ivl_scope_param(scope, idx)) != 0;
+	/* An interface port: the instance it is bound to, and the modport
+	   it selects (37.14 detail 5, 37.15). These need no expression code. */
+      for (idx = 0; idx < nports; idx += 1) {
+	    const char*modport;
+	    ivl_scope_t iface = ivl_scope_mod_module_port_iface(scope, idx,
+								 &modport);
+	    if (iface && modport)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 2, S_%p, \"%s\";\n",
+			  idx, iface, modport);
+	    else if (iface)
+		  fprintf(vvp_out, " .vpi_port_conn %u, 2, S_%p;\n", idx, iface);
+      }
       for (idx = 0; !any && idx < nports; idx += 1)
 	    any = ivl_scope_mod_module_port_highconn(scope, idx) != 0;
       if (!any) return;

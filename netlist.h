@@ -1921,6 +1921,10 @@ class NetScope : public Definitions, public Attrib {
 	   vpiHighConn (37.14). */
       std::vector<PExpr*> port_actuals;
       std::vector<NetExpr*> port_highconns;
+	/* For an interface port, the interface instance it is bound to and
+	   the modport it selects (nil for none), for its vpiRefObj
+	   connections (37.14 detail 5, 37.15). */
+      std::vector<std::pair<NetScope*, perm_string> > port_ifaces;
 
 	/* Elaborate the expressions VPI keeps for parameters, defparams and
 	   port connections in this scope and its children, once parameters

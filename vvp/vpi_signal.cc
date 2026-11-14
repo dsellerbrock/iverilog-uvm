@@ -772,6 +772,8 @@ static vpiHandle signal_iterate(int code, vpiHandle ref)
       struct __vpiSignal*rfp = dynamic_cast<__vpiSignal*>(ref);
       assert(rfp);
 
+      if (vpiHandle conn = vpip_conn_iterate(code, ref)) return conn;
+
       if (code == vpiElement) {
 	    if (rfp->get_vpi_type_code() != vpiPackedArrayVar ||
 	        rfp->packed_depth >= rfp->packed_ranges.size())
