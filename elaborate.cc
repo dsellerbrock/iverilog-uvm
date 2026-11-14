@@ -9671,24 +9671,21 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 	    }
 	  }
 
-	  NetConcat*output_concat = 0;
-	  if (output_sig && output_sig->vector_width() == inst_count
-	      && inst_count > 1) {
-	    output_concat = new NetConcat(scope, scope->local_symbol(),
-					  inst_count, inst_count);
-	    output_concat->set_line(*this);
-	    des->add_node(output_concat);
-	    connect(output_concat->pin(0), output_sig->pin(0));
-	  }
 	  for (unsigned inst = 0; inst < inst_count; inst += 1) {
+	    instances[inst]->pin(0).drive0(strength0());
+	    instances[inst]->pin(0).drive1(strength1());
 	    if (output_sig) {
-		  if (output_concat) {
+		  if (output_sig->vector_width() == inst_count && inst_count > 1) {
+			NetPartSelect*part = new NetPartSelect(output_sig, inst, 1,
+						       NetPartSelect::PV);
+			part->set_line(*this);
+			des->add_node(part);
 			const netvector_t*bit_type = new netvector_t(IVL_VT_LOGIC);
 			NetNet*bit = new NetNet(scope, scope->local_symbol(),
 						NetNet::WIRE, bit_type);
 			bit->set_line(*this);
 			bit->local_flag(true);
-			connect(output_concat->pin(inst+1), bit->pin(0));
+			connect(part->pin(0), bit->pin(0));
 			connect(bit->pin(0), instances[inst]->pin(0));
 		  } else {
 			connect(output_sig->pin(0), instances[inst]->pin(0));
@@ -10017,6 +10014,11 @@ void PGModule::elaborate(Design*des, NetScope*scope) const
 
       Module*mod = find_module_type_(type_, scope);
       if (mod) {
+	    if (drive_strength_specified_) {
+		  cerr << get_fileline() << ": error: Drive strength is not allowed on a module instance." << endl;
+		  des->errors += 1;
+		  return;
+	    }
 	    elaborate_mod_(des, mod, scope);
 	    return;
       }

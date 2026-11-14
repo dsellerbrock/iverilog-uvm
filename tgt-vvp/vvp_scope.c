@@ -1579,6 +1579,9 @@ static int udp_has_modpath_output(ivl_net_logic_t lptr)
 static void draw_udp_in_scope(ivl_net_logic_t lptr)
 {
       unsigned pdx;
+      ivl_drive_t str0 = ivl_logic_drive0(lptr);
+      ivl_drive_t str1 = ivl_logic_drive1(lptr);
+      int need_strength = str0 != IVL_DR_STRONG || str1 != IVL_DR_STRONG;
 
       ivl_udp_t udp = ivl_logic_udp(lptr);
 
@@ -1638,8 +1641,11 @@ static void draw_udp_in_scope(ivl_net_logic_t lptr)
 	            lptr, lptr);
       }
 
-	/* Generate the UDP call. */
-      fprintf(vvp_out, "L_%p%s .udp%s UDP_%s", lptr, need_delay_flag ? "/d" : "",
+	/* Generate the UDP call and apply its output drive strength. */
+      if (need_strength)
+	    fprintf(vvp_out, "v%p_s .net *\"_s%p\", 0 0, L_%p/s;\n", lptr, lptr, lptr);
+      fprintf(vvp_out, "L_%p%s .udp%s UDP_%s", lptr,
+                       need_strength ? "/s" : (need_delay_flag ? "/d" : ""),
                        need_delay_flag ? "/d" : "",
                        vvp_mangle_id(ivl_udp_name(udp)));
 
@@ -1649,6 +1655,10 @@ static void draw_udp_in_scope(ivl_net_logic_t lptr)
       free(input_strings);
 
       fprintf(vvp_out, ";\n");
+
+      if (need_strength)
+	    fprintf(vvp_out, "L_%p%s .functor BUFZ 1 [%d %d], L_%p/s;\n",
+	            lptr, need_delay_flag ? "/d" : "", str0, str1, lptr);
 
 	/* Generate a delay when needed. */
       if (need_delay_flag) draw_logic_delay(lptr);
