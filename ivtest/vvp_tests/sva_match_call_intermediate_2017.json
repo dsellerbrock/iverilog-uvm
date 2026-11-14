@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_match_call_intermediate.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_match_call_intermediate"],
+  "gold": "sva_match_call_intermediate"
+}
