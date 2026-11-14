@@ -161,6 +161,11 @@ EXTERN_C_START
    2023 40.5.2. */
 #define vpiAssertAttemptCovered 770
 #define vpiAssertSuccessCovered 771
+/* Assertion source-range properties (IEEE 1800 Annex M.2). */
+#define vpiStartLine        661
+#define vpiColumn           662
+#define vpiEndLine          663
+#define vpiEndColumn        664
 /* vpiType values for immediate assertion statements (IEEE 1800 Annex E).
  * VPI property codes are a separate value set; vpiImmediateAssert shares the
  * integer value of the Icarus vpiCoverCount property code. */
