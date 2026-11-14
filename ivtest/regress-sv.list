@@ -6841,3 +6841,5 @@ issue3019_interface_parameter_2017 normal,-g2017,-s,test ivltests gold=issue3019
 issue3019_interface_parameter_2023 normal,-g2023,-s,test ivltests gold=issue3019_interface_parameter.gold
 issue3021_interface_defaults_2017 normal,-g2017,-s,issue3021_interface_defaults ivltests gold=issue3021_interface_defaults.gold
 issue3021_interface_defaults_2023 normal,-g2023,-s,issue3021_interface_defaults ivltests gold=issue3021_interface_defaults.gold
+issue3031_tagged_field_2017 normal,-g2017,-s,issue3031_tagged_field ivltests gold=issue3031_tagged_field.gold
+issue3031_tagged_field_2023 normal,-g2023,-s,issue3031_tagged_field ivltests gold=issue3031_tagged_field.gold
