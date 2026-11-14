@@ -4378,8 +4378,29 @@ uint64_t class_type::dyn_type_register_auto_bin(unsigned family,
 uint64_t class_type::cross_type_register_bin(unsigned family,
       const std::vector<std::pair<unsigned,uint64_t>>&name) const
 {
+      cov_cross_type_t&universe = covgrp_cross_type_[family];
+      uint64_t id = cross_type_register_sparse_bin(family, name);
+      universe.dense.insert(id);
+      return id;
+}
+
+/* A hit bin of a sparse cross (#3303): named like a dense one, so equal
+ * names merge, but it does not enlarge the dense universe. */
+uint64_t class_type::cross_type_register_sparse_bin(unsigned family,
+      const std::vector<std::pair<unsigned,uint64_t>>&name) const
+{
       auto&bins = covgrp_cross_type_[family].bins;
       return bins.emplace(name, bins.size()).first->second;
+}
+
+/* ponytail: the type-level size of a sparse cross is the largest instance
+ * universe (as dyn_type_register_total does for bin families), not their
+ * union; exact when instance universes nest, which is the usual case. */
+void class_type::cross_type_register_sparse_total(unsigned family,
+      unsigned __int128 total) const
+{
+      unsigned __int128&slot = covgrp_cross_type_[family].sparse_total;
+      if (total > slot) slot = total;
 }
 
 uint64_t class_type::trans_type_register_bin(unsigned family,
@@ -4505,7 +4526,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
             auto&props = item_props[cross.item_idx];
             props.insert(universe.named_props.begin(), universe.named_props.end());
             unsigned at_least = covgrp_cumulative_at_least_(cross.item_idx);
-            unsigned __int128 total = universe.bins.size();
+            unsigned __int128 total = universe.dense.size();
+            if (universe.sparse_total > total) total = universe.sparse_total;
             item_dyn_total[cross.item_idx] += total;
             item_dyn_hits[cross.item_idx] += at_least == 0 ? total
                   : dyn_type_hits(cross.family, at_least);
