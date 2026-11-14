@@ -31,6 +31,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <vector>
+# include  <map>
 
 /* vpi_user.h does not define these Annex K codes. */
 static const int IEEE_vpiNetDeclAssign = 43;
@@ -415,13 +416,37 @@ struct conn_ref_ {
       long lo, hi;
 };
 
+struct force_conn_;
+
 struct conn_item_ {
       vpiHandle obj;
       __vpiScope*module;
       bool drives;
       bool joins;	/* a port connecting one whole net to another */
       std::vector<conn_ref_> refs;
+	/* A force or assign statement: counts only while it is active. */
+      force_conn_*stmt;
 };
+
+/* What a force, release, assign or deassign statement drives and reads
+   (.vpi_force_conn). Only an active force or assign is a driver or load
+   (37.16 details 14 and 15); forces and assigns are separate layers. */
+struct force_conn_ {
+      vpiHandle identity;	/* the %file_line statement identity */
+      vpiHandle node;		/* the statement tree node, or nil */
+      __vpiScope*scope;
+      int type;
+	/* The l-values, then the r-value (if any). The handles are resolved
+	   in place after the record is compiled, so the array is kept. */
+      unsigned nlval, argc;
+      vpiHandle*argv;
+      bool active;
+
+      vpiHandle lval(unsigned idx) const { return argv[idx]; }
+      vpiHandle rval() const { return argc > nlval ? argv[nlval] : 0; }
+};
+
+static std::vector<force_conn_*> force_conns_;
 
 /* ponytail: each query scans the whole index (and once more per joined
    net); key it by root object if iterating over many nets gets slow. */
@@ -481,6 +506,14 @@ static bool conn_ref_of_(vpiHandle ref, conn_ref_&res)
 	    res.root = sig;
 	    return true;
       }
+	/* A constant part of a signal (&PV<label, base, width>). */
+      if (__vpiPV*pv = dynamic_cast<__vpiPV*>(ref)) {
+	    if (pv->sbase || !conn_ref_of_(pv->parent, res)) return false;
+	    long base = res.lo < 0 ? 0 : res.lo;
+	    res.lo = base + pv->tbase;
+	    res.hi = res.lo + (long)pv->width - 1;
+	    return true;
+      }
 	/* A constant select of a whole vector (37.58, 37.59). */
       int type = ref->get_type_code();
       if (type == vpiBitSelect || type == vpiPartSelect) {
@@ -525,13 +558,14 @@ static void conn_refs_(vpiHandle ref, std::vector<conn_ref_>&out)
 }
 
 static void conn_add_(vpiHandle obj, __vpiScope*module, bool drives,
-		      bool joins, vpiHandle expr)
+		      bool joins, vpiHandle expr, force_conn_*stmt = 0)
 {
       conn_item_ item;
       item.obj = obj;
       item.module = module;
       item.drives = drives;
       item.joins = joins;
+      item.stmt = stmt;
       conn_refs_(expr, item.refs);
       if (!item.refs.empty()) conn_index_.push_back(item);
 }
@@ -586,6 +620,17 @@ static void conn_build_(void)
       for (unsigned idx = 0; idx < ntable; idx += 1)
 	    if (__vpiScope*scope = dynamic_cast<__vpiScope*>(table[idx]))
 		  conn_scan_scope_(scope);
+      for (force_conn_*rec : force_conns_) {
+	    if (!rec->type && rec->identity)
+		  rec->type = rec->identity->get_type_code();
+	    if (rec->type != vpiForce && rec->type != vpiAssignStmt) continue;
+	    vpiHandle obj = rec->node ? rec->node : rec->identity;
+	    __vpiScope*module = conn_module_(rec->scope);
+	    for (unsigned idx = 0; idx < rec->nlval; idx += 1)
+		  conn_add_(obj, module, true, false, rec->lval(idx), rec);
+	    if (rec->rval())
+		  conn_add_(obj, module, false, false, rec->rval(), rec);
+      }
 }
 
 static bool conn_overlap_(const conn_ref_&a, const conn_ref_&b)
@@ -649,6 +694,7 @@ vpiHandle vpip_conn_iterate(int code, vpiHandle ref)
       std::vector<vpiHandle> found;
       for (const conn_item_&item : conn_index_) {
 	    if (item.drives != drives) continue;
+	    if (item.stmt && !item.stmt->active) continue;
 	    if (local ? item.module != module : item.joins) continue;
 	    bool hit = false;
 	    for (const conn_ref_&cur : nets)
@@ -665,4 +711,86 @@ vpiHandle vpip_conn_iterate(int code, vpiHandle ref)
       for (size_t idx = 0; idx < found.size(); idx += 1)
 	    args[idx] = found[idx];
       return vpip_make_iterator(found.size(), args, true);
+}
+
+void compile_vpi_force_conn(char*label, uint64_t stmt_id, unsigned long nlval,
+			    unsigned argc, vpiHandle*argv)
+{
+      if (nlval == 0 || nlval > argc) {
+	    free(label);
+	    free(argv);
+	    return;
+      }
+      force_conn_*rec = new force_conn_;
+      rec->identity = 0;
+      rec->node = 0;
+      rec->scope = vpip_peek_current_scope();
+      rec->type = 0;
+      rec->nlval = nlval;
+      rec->argc = argc;
+      rec->argv = argv;
+      rec->active = false;
+      std::map<uint64_t, vpiHandle>::iterator node =
+	    rec->scope->statement_node_by_id.find(stmt_id);
+      if (stmt_id && node != rec->scope->statement_node_by_id.end())
+	    rec->node = node->second;
+      compile_vpi_lookup(&rec->identity, label);
+      force_conns_.push_back(rec);
+}
+
+static force_conn_*force_conn_of_(vpiHandle stmt)
+{
+      if (!stmt) return 0;
+	/* ponytail: linear scan over the force/assign statements; map them
+	   by identity if a design runs many of them often. */
+      for (force_conn_*rec : force_conns_)
+	    if (rec->identity == stmt || rec->node == stmt) return rec;
+      return 0;
+}
+
+static bool force_conn_overlap_(const force_conn_*a, const force_conn_*b)
+{
+      std::vector<conn_ref_> ra, rb;
+      for (unsigned idx = 0; idx < a->nlval; idx += 1)
+	    conn_refs_(a->lval(idx), ra);
+      for (unsigned idx = 0; idx < b->nlval; idx += 1)
+	    conn_refs_(b->lval(idx), rb);
+      for (const conn_ref_&x : ra)
+	    for (const conn_ref_&y : rb)
+		  if (conn_overlap_(x, y)) return true;
+      return false;
+}
+
+void vpip_force_statement_ran(vpiHandle statement)
+{
+      if (!statement || force_conns_.empty()) return;
+      force_conn_*rec = force_conn_of_(statement);
+      if (!rec) return;
+      if (!rec->type) rec->type = rec->identity->get_type_code();
+	/* A force or assign replaces, and a release or deassign ends, the
+	   active statement of its own layer on the bits it names. */
+      bool force_layer = rec->type == vpiForce || rec->type == vpiRelease;
+      int layer_type = force_layer ? vpiForce : vpiAssignStmt;
+      for (force_conn_*other : force_conns_) {
+	    if (other == rec || !other->active || other->type != layer_type)
+		  continue;
+	    if (force_conn_overlap_(rec, other)) other->active = false;
+      }
+      rec->active = rec->type == layer_type;
+}
+
+vpiHandle vpip_force_conn_relation(vpiHandle stmt, int code)
+{
+      if (code != vpiLhs && code != vpiRhs) return 0;
+      force_conn_*rec = force_conn_of_(stmt);
+      if (!rec) return 0;
+      if (code == vpiRhs) return rec->rval();
+      return rec->nlval == 1 ? rec->lval(0) : 0;
+}
+
+vpiHandle vpip_force_conn_identity(vpiHandle node)
+{
+      for (force_conn_*rec : force_conns_)
+	    if (rec->node == node) return rec->identity;
+      return 0;
 }

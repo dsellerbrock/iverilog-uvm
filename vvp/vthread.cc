@@ -17487,6 +17487,7 @@ static void cassign_unlink(vvp_net_t*dst)
  */
 bool of_CASSIGN_VEC4(vthread_t thr, vvp_code_t cp)
 {
+      vpip_force_statement_ran(vpip_force_statement_for(cp));
       vvp_net_t*net = cp->net;
       vvp_vector4_t value = thr->pop_vec4();
 
@@ -17505,6 +17506,7 @@ bool of_CASSIGN_VEC4(vthread_t thr, vvp_code_t cp)
  */
 bool of_CASSIGN_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 {
+      vpip_force_statement_ran(vpip_force_statement_for(cp));
       vvp_net_t*net = cp->net;
       unsigned base_idx = cp->bit_idx[0];
       int64_t base = thr->words[base_idx].w_int;
@@ -17530,6 +17532,7 @@ bool of_CASSIGN_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 
 bool of_CASSIGN_WR(vthread_t thr, vvp_code_t cp)
 {
+      vpip_force_statement_ran(vpip_force_statement_for(cp));
       vvp_net_t*net  = cp->net;
       double value = thr->pop_real();
 
@@ -18778,6 +18781,7 @@ bool of_CVT_VR(vthread_t thr, vvp_code_t cp)
  */
 bool of_DEASSIGN(vthread_t, vvp_code_t cp)
 {
+      vpip_force_statement_ran(vpip_force_statement_for(cp));
       vvp_net_t*net = cp->net;
       unsigned base  = cp->bit_idx[0];
       unsigned width = cp->bit_idx[1];
@@ -18817,6 +18821,7 @@ bool of_DEASSIGN(vthread_t, vvp_code_t cp)
 
 bool of_DEASSIGN_WR(vthread_t, vvp_code_t cp)
 {
+      vpip_force_statement_ran(vpip_force_statement_for(cp));
       vvp_net_t*net = cp->net;
 
       vvp_fun_signal_real*sig = vvp_fun_as_signal_real(net->fun);
@@ -33565,6 +33570,7 @@ bool of_QPOP_O_F_V(vthread_t thr, vvp_code_t cp)
 static bool do_release_vec(vthread_t thr, vvp_code_t cp, bool net_flag,
 			   int64_t base, unsigned width, bool offset_valid)
 {
+      vpip_force_statement_ran(vpip_force_statement_for(cp));
       force_pending_clear_(thr);
       vvp_force_statement_context stmt_context(
 	    vpip_force_statement_for(cp));

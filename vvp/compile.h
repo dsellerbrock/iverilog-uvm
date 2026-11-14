@@ -477,6 +477,9 @@ extern void functor_ref_lookup(vvp_net_t**ref, char*lab);
 extern void code_label_lookup(struct vvp_code_s *code, char *label, bool cptr2);
 extern void compile_vpi_param_expr(char*param, unsigned argc,
 				   vpiHandle*argv);
+extern void compile_vpi_force_conn(char*label, uint64_t stmt_id,
+				   unsigned long nlval, unsigned argc,
+				   vpiHandle*argv);
 extern void compile_vpi_port_conn(long index, long flags, unsigned argc,
 				  vpiHandle*argv);
 extern void compile_vpi_defparam(char*param, long file_idx, long lineno,

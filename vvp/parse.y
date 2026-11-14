@@ -64,7 +64,9 @@ static bool is_force_release_opcode(const char* name)
 	    "%force/vec4", "%force/vec4/a", "%force/vec4/off",
 	    "%force/vec4/off/d", "%force/wr", "%release/net",
 	    "%release/net/off", "%release/reg", "%release/reg/a",
-	    "%release/reg/off", "%release/wr", 0
+	    "%release/reg/off", "%release/wr", "%cassign/vec4",
+	    "%cassign/vec4/off", "%cassign/wr", "%deassign",
+	    "%deassign/wr", 0
       };
       for (unsigned idx = 0; names[idx]; idx += 1)
 	    if (strcmp(name, names[idx]) == 0) return true;
@@ -124,6 +126,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PARAM_ASSIGN_STR K_PARAM_ASSIGN_L K_PARAM_ASSIGN_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS K_VARTYPE
 %token K_VPI_EXPR K_VPI_CONTASSIGN K_VPI_PARAM_EXPR K_VPI_DEFPARAM K_VPI_PORT_CONN
+%token K_VPI_FORCE_CONN
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
@@ -864,6 +867,13 @@ statement
 	| K_VPI_PORT_CONN T_NUMBER ',' T_NUMBER argument_opt ';'
 		{ compile_vpi_port_conn($2, $4, $5.argc, $5.argv); }
 
+  /* What a force, release, assign or deassign statement drives and reads
+     (IEEE 1800-2023 37.16, 37.21): its identity label, its statement node
+     id (0 for none), the number of l-value handles, then those handles and
+     the r-value handle (none for release and deassign). */
+	| K_VPI_FORCE_CONN T_SYMBOL ',' T_NUMBER ',' T_NUMBER argument_opt ';'
+		{ compile_vpi_force_conn($2, $4, $6, $7.argc, $7.argv); }
+
 	| T_LABEL K_EVENT K_DEBUG T_SYMBOL ',' symbols ';'
                 { compile_event($1, $4, $6.cnt, $6.vect); }
 
@@ -910,14 +920,14 @@ statement
   /* %file_line statements are instructions that have unusual operand
      requirements so are handled by their own rules. */
 	| label_opt K_file_line T_NUMBER T_NUMBER T_STRING ';'
-		{ if (strcmp($5, "VPI force statement") == 0
-		      || strcmp($5, "VPI release statement") == 0) {
+		{ int stmt_type = vpip_force_statement_type($5);
+		  if (stmt_type) {
 			if (!$1) {
 			      yyerror("force/release statement identity requires a label");
 			      compile_errors += 1;
 			} else {
 			      force_release_statement = vpip_build_force_statement(
-				    strcmp($5, "VPI force statement") == 0, $3, $4);
+				    stmt_type, $3, $4);
 			      compile_vpi_symbol($1, force_release_statement);
 			      free($1);
 			}

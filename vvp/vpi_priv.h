@@ -83,8 +83,16 @@ extern bool code_is_instrumented;
 
 extern vpiHandle vpip_build_file_line(const char*description,
                                       long file_idx, long lineno);
-extern vpiHandle vpip_build_force_statement(bool force, long file_idx,
+/* The statement type a %file_line identity text names (vpiForce,
+   vpiRelease, vpiAssignStmt or vpiDeassign), or 0 for ordinary text. */
+extern int vpip_force_statement_type(const char*text);
+extern vpiHandle vpip_build_force_statement(int type, long file_idx,
                                              long lineno);
+/* vpiLhs and vpiRhs of a force, release, assign or deassign statement,
+   by its identity or its statement tree node; nil for anything else. */
+extern vpiHandle vpip_force_conn_relation(vpiHandle stmt, int code);
+/* The %file_line identity of a statement tree node that has one. */
+extern vpiHandle vpip_force_conn_identity(vpiHandle node);
 
 /*
  * vpi_type_values returns the text form of the vpi type. If the type name
@@ -404,6 +412,7 @@ class __vpiStmtNode : public __vpiHandle {
       __vpiStmtNode(int type, const char*name, __vpiScope*scope);
       int get_type_code(void) const override;
       char* vpi_get_str(int code) override;
+      int vpi_get(int code) override;
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_iterate(int code) override;
       void add_child(__vpiStmtNode*child);

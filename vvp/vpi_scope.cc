@@ -606,13 +606,26 @@ char* __vpiStmtNode::vpi_get_str(int code)
 {
       if (code == vpiName && name_ && *name_)
 	    return const_cast<char*>(name_);
+	/* A force or assign statement knows its source from its identity. */
+      if (code == vpiFile)
+	    if (vpiHandle id = vpip_force_conn_identity(this))
+		  return id->vpi_get_str(code);
       return __vpiHandle::vpi_get_str(code);
+}
+
+int __vpiStmtNode::vpi_get(int code)
+{
+      if (code == vpiLineNo)
+	    if (vpiHandle id = vpip_force_conn_identity(this))
+		  return id->vpi_get(code);
+      return __vpiHandle::vpi_get(code);
 }
 
 vpiHandle __vpiStmtNode::vpi_handle(int code)
 {
       if (code == vpiParent) return parent_;
       if (code == vpiScope) return scope_;
+      if (vpiHandle rel = vpip_force_conn_relation(this, code)) return rel;
       return __vpiHandle::vpi_handle(code);
 }
 
