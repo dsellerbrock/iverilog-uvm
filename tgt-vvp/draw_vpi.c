@@ -721,6 +721,21 @@ static char* vpi_class_arg_type_label_(ivl_expr_t expr)
       return strdup(buffer);
 }
 
+/* Object-backed aggregate expressions need their integral leaf signedness
+   when VPI formats the materialized value. */
+static char* vpi_container_arg_type_(ivl_expr_t expr)
+{
+      ivl_type_t type = property_expr_type_(expr);
+      if (!type) type = ivl_expr_net_type(expr);
+      if (!type || !ivl_type_element(type)) return 0;
+      while (ivl_type_element(type)) type = ivl_type_element(type);
+      if ((ivl_type_base(type) == IVL_VT_BOOL
+           || ivl_type_base(type) == IVL_VT_LOGIC)
+          && ivl_type_signed(type))
+            return strdup("signed");
+      return 0;
+}
+
 static int expr_is_class_like_(ivl_expr_t expr)
 {
       ivl_type_t net_type = ivl_expr_net_type(expr);
@@ -1880,7 +1895,9 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  args[idx].str_flag = 0;
 		  args[idx].real_flag = 0;
 		  args[idx].obj_flag = 1;
-		  args[idx].obj_type = vpi_class_arg_type_label_(expr);
+		  args[idx].obj_type = vpi_container_arg_type_(expr);
+		  if (!args[idx].obj_type)
+			args[idx].obj_type = vpi_class_arg_type_label_(expr);
 		  args[idx].stack = obj_stack_need;
 		  obj_stack_need += 1;
 		  buffer[0] = 0;
@@ -1930,7 +1947,7 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  args[idx].str_flag = 0;
 		  args[idx].real_flag = 0;
 		  args[idx].obj_flag = 1;
-		  args[idx].obj_type = 0;
+		  args[idx].obj_type = vpi_container_arg_type_(expr);
 		  args[idx].stack = obj_stack_need;
 		  obj_stack_need += 1;
 		  buffer[0] = 0;
