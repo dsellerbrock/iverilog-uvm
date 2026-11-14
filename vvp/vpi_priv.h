@@ -37,9 +37,11 @@
 # include  <vector>
 
 /* Annex K/M object and relation values not yet exported by the public
-   Icarus VPI headers. Keep the task-I/O implementation standards-valued;
-   sv_vpi_user.h's older vpiIODecl extension value remains accepted below. */
-#define VPI_IODECL_TYPE 28
+   Icarus VPI headers. VPI_IODECL_LEGACY is the vpiIODecl value
+   sv_vpi_user.h used before it took the Annex K value; applications
+   built against it still iterate modport ports with it. */
+#define VPI_IODECL_TYPE vpiIODecl
+#define VPI_IODECL_LEGACY 604
 #define VPI_REF_OBJ_TYPE 608
 #define VPI_ACTUAL_RELATION 700
 #define VPI_REF_DIRECTION 6
