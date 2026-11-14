@@ -1,0 +1,3 @@
+./ivltests/issue3213_slice_dynamic_type_fail.sv:6: error: fixed unpacked-array slice element type is not assignment compatible with the dynamic array element type.
+./ivltests/issue3213_slice_dynamic_type_fail.sv:7: error: fixed unpacked-array slice element type is not assignment compatible with the dynamic array element type.
+2 error(s) during elaboration.

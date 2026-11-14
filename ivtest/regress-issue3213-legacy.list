@@ -1,0 +1,4 @@
+issue3213_slice_dynamic_2017 normal,-g2017,-s,main ivltests gold=issue3213_slice_dynamic.gold
+issue3213_slice_dynamic_2023 normal,-g2023,-s,main ivltests gold=issue3213_slice_dynamic.gold
+issue3213_slice_dynamic_type_fail_2017 CE,-g2017,-s,main ivltests gold=issue3213_slice_dynamic_type_fail.gold
+issue3213_slice_dynamic_type_fail_2023 CE,-g2023,-s,main ivltests gold=issue3213_slice_dynamic_type_fail.gold
