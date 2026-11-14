@@ -37,6 +37,7 @@
 # include  <string>
 # include  <list>
 # include  <map>
+# include  <set>
 # include  <memory>
 # include  <cstdio>
 
@@ -435,6 +436,14 @@ extern void pform_sva_hold_assertion(const struct vlltype&loc,
 				     Statement*fail_stmt, Statement*pass_stmt,
 				     int kind);
 extern Statement* pform_sva_release_assertion(bool procedural);
+/* IEEE 1800-2023 17.3: procedural checker instances. The behaviors and gates
+   a checker's static assertions lowered to; a procedural instance's
+   module-scope copy of the checker leaves them out. */
+extern Statement* pform_procedural_checker_instance(const struct vlltype&loc,
+						    perm_string type, lgate*gate);
+extern void pform_checker_note_static_deferred(const struct vlltype&loc);
+extern std::set<const PProcess*> pform_checker_static_behaviors;
+extern std::set<const PGate*> pform_checker_static_gates;
 extern Statement* pform_sva_static_always_assertion(Statement*body);
 /* M9-10: implicit clock inference for a concurrent assertion written
    inside procedural code (IEEE 1800-2017 16.14.6). An unclocked assertion

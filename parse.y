@@ -6644,6 +6644,7 @@ deferred_immediate_assertion_item /* IEEE1800-2012: A.6.10 */
 	   behavior in the current Module/PGenerate scope so generate items
 	   are elaborated once per generated instance. */
 	if (item) {
+	      pform_checker_note_static_deferred(@2);
 	      PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, item, 0);
 	      FILE_NAME(tmp, @2);
 	}
@@ -20493,6 +20494,26 @@ statement_item /* This is roughly statement_item in the LRM */
       { PCAssign*tmp = new PCAssign($2, $4);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
+      }
+  /* IEEE 1800-2023 17.3: a checker instantiated in procedural code is a
+     procedural checker instance. */
+  | IDENTIFIER IDENTIFIER '(' port_conn_expression_list_with_nuls ')' ';'
+      { lgate*gate = new lgate;
+	gate->name = $2;
+	gate->parms = $4;
+	FILE_NAME(gate, @2);
+	$$ = pform_procedural_checker_instance(@1, lex_strings.make($1), gate);
+	delete[]$1;
+	delete[]$2;
+      }
+  | IDENTIFIER IDENTIFIER '(' port_name_list ')' ';'
+      { lgate*gate = new lgate;
+	gate->name = $2;
+	gate->parms_by_name = $4;
+	FILE_NAME(gate, @2);
+	$$ = pform_procedural_checker_instance(@1, lex_strings.make($1), gate);
+	delete[]$1;
+	delete[]$2;
       }
   /* IEEE 1800-2017 9.3.1 permits a statement label before a sequential
      block (`name: begin ... end`). Treat it as the equivalent named block
