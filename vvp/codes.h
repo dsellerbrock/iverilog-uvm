@@ -469,6 +469,7 @@ extern bool of_CONSTRAINT_MODE(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_GET_ALL(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_TYPE_GET_COVERAGE(vthread_t thr, vvp_code_t code);
+extern bool of_COVGRP_TYPE_GET_COVERAGE_REF(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_GET_COVERAGE_REF(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t code);
 extern bool of_COVGRP_GET_INST_COVERAGE_REF(vthread_t thr, vvp_code_t code);

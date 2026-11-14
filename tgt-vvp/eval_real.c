@@ -557,7 +557,8 @@ static void draw_sfunc_real(ivl_expr_t expr)
 			fprintf(vvp_out, "    %%pushi/real 0, 0;\n");
 			return;
 		  }
-		  fprintf(vvp_out, "    %%covgrp/type/get_coverage %.*s, %s;\n",
+		  fprintf(vvp_out, "    %%covgrp/type/get_coverage%s %.*s, %s;\n",
+			  draw_covgrp_count_refs(expr),
 			  (int)(item - type_label), type_label, item + 1);
 		  return;
 	    }

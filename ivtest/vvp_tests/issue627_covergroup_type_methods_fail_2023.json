@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue627_covergroup_type_methods_fail.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue627_covergroup_type_methods_fail"
+}
