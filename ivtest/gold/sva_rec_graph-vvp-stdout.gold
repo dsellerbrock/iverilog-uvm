@@ -1,0 +1,15 @@
+45 al fail
+45 wu fail
+45 l3 fail
+45 al fail
+45 wu fail
+45 l3 fail
+45 al fail
+45 l3 fail
+45 al fail
+45 l3 fail
+45 al fail
+45 l3 fail
+65 ph fail
+done
+ivltests/sva_rec_graph.sv:50: $finish called at 100 (1s)

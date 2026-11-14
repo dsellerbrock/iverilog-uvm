@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_rec_cross.sv",
+  "iverilog-args": ["-g2023", "-s", "sva_rec_cross"],
+  "gold": "sva_rec_cross"
+}

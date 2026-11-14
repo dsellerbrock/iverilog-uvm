@@ -11616,23 +11616,24 @@ struct sva_rec_occ_t {
       long weight;          // guaranteed ticks from the declaration start
       bool exact;           // false: weight is a lower bound only
       int neg_op;           // enclosing `not'/strong operator op_type, or 0
+      bool whole;           // the occurrence is a whole sequence step
 };
 
 static void sva_rec_expr_(const PExpr*e, long w, bool exact, int neg,
-			  std::vector<sva_rec_occ_t>&out)
+			  std::vector<sva_rec_occ_t>&out, bool whole = false)
 {
       if (!e) return;
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(e)) {
 	    const pform_name_t&path = id->path().name;
 	    if (!id->path().package && path.size() == 1
 		&& path.front().index.empty())
-		  out.push_back({e, path.front().name, w, exact, neg});
+		  out.push_back({e, path.front().name, w, exact, neg, whole});
 	    return;
       }
       if (const PECallFunction*c = dynamic_cast<const PECallFunction*>(e)) {
 	    const pform_name_t&path = c->path().name;
 	    if (!c->path().package && path.size() == 1)
-		  out.push_back({e, path.front().name, w, exact, neg});
+		  out.push_back({e, path.front().name, w, exact, neg, whole});
 	    for (const named_pexpr_t&a : c->get_parms())
 		  sva_rec_expr_(a.parm, w, exact, neg, out);
 	    return;
@@ -11670,7 +11671,7 @@ static long sva_rec_chain_(const std::vector<sva_seq_step_t>*steps, long base,
 	    else exact = false;
 	    if (st.grouped_repeat || st.rep_kind == 3 || st.rep_kind >= 4)
 		  exact = false;
-	    if (out) sva_rec_expr_(st.expr, off, exact, neg, *out);
+	    if (out) sva_rec_expr_(st.expr, off, exact, neg, *out, true);
 	      /* m goto/nonconsecutive occurrences take m distinct ticks. */
 	    if ((st.rep_kind == 1 || st.rep_kind == 2) && st.rep_lo > 1)
 		  off += st.rep_lo - 1;
@@ -11948,6 +11949,58 @@ static bool sva_rec_is_recursive_(perm_string nm)
 	  && sva_rec_recursive_.count(b->first) != 0;
 }
 
+/* 16.12.17: an assertion that instantiates a declared property whose body
+   names, as a whole step, something not declared yet (a property declared
+   later, as in forward-referenced mutual recursion) is lowered at the end of
+   the module, once that declaration is known. */
+static bool sva_rec_forward_ref_(const struct vlltype&loc,
+				 const sva_property_t*prop)
+{
+      struct item_t {
+	    const sva_property_t*body;
+	    const std::vector<sva_property_formal_t>*formals;
+      };
+      std::set<sva_scoped_name_t> seen;
+      std::vector<item_t> work;
+      work.push_back(item_t{prop, nullptr});
+      bool top = true;
+      while (!work.empty()) {
+	    item_t it = work.back();
+	    work.pop_back();
+	    std::vector<sva_rec_occ_t> occs;
+	    sva_rec_walk_(it.body, 0, true, 0, occs);
+	    for (const sva_rec_occ_t&o : occs) {
+		  sva_scoped_name_t k;
+		  std::map<sva_scoped_name_t, sva_property_t*>::iterator a =
+			sva_resolve_(sva_module_properties, o.name);
+		  std::map<sva_scoped_name_t, sva_param_prop_t>::iterator b =
+			sva_resolve_(sva_param_properties, o.name);
+		  if (a != sva_module_properties.end() && a->second) {
+			if (seen.insert(a->first).second)
+			      work.push_back(item_t{a->second, nullptr});
+			continue;
+		  }
+		  if (b != sva_param_properties.end() && b->second.body) {
+			if (seen.insert(b->first).second)
+			      work.push_back(item_t{b->second.body,
+						    &b->second.formals});
+			continue;
+		  }
+		  if (top || !o.whole || sva_rec_is_formal_(it.formals, o.name)
+		      || std::find(it.body->local_names.begin(),
+				   it.body->local_names.end(), o.name)
+			 != it.body->local_names.end()
+		      || pform_name_visible_in_enclosing_scope(loc, o.name)
+		      || sva_in_scope_(sva_module_sequences, o.name)
+		      || sva_in_scope_(sva_param_sequences, o.name))
+			continue;
+		  return true;
+	    }
+	    top = false;
+      }
+      return false;
+}
+
 static const char* sva_rec_op_name_(int op)
 {
       switch (op) {
@@ -12010,7 +12063,8 @@ static void sva_rec_note_decl_(const struct vlltype&loc, perm_string name,
 }
 
 /* End of a scope: check every declaration not checked yet, in declaration
-   order. A legal recursive declaration still has no engine (#1187). */
+   order. A legal recursive declaration is evaluated by the composite's
+   recursion pool. */
 static void sva_rec_check_scope_(void)
 {
       sva_rec_graph_t g;
@@ -12168,12 +12222,6 @@ static void sva_rec_check_scope_(void)
 			    "restriction 3).", true);
 		  bad = true;
 	    }
-	    if (!bad)
-		  for (const sva_scoped_name_t&k : comp)
-			add(k, "sorry: recursive property `"
-			    + std::string(k.name.str()) + "' (IEEE 1800-2023 "
-			    "16.12.17) is not supported yet; its instances are "
-			    "dropped.", true);
       }
       for (const auto&n : g) sva_rec_checked_.insert(n.first);
 
@@ -36325,6 +36373,7 @@ static sva_property_t* sva_leaf_to_named_ref_(sva_property_t*p)
       return p;
 }
 
+struct sva_rec_pool_t;
 struct sva_comp_ctx_t {
       const struct vlltype*loc;
       PEventStatement*clk;        // the composite's resolved clock (borrowed)
@@ -36334,6 +36383,10 @@ struct sva_comp_ctx_t {
 	// of each one's source type (sva_nfa_sub_t::imports).
       const std::vector<perm_string>*imports = nullptr;
       const std::map<perm_string, perm_string>*import_from = nullptr;
+	// 16.12.17: the assertion's recursion pool, for CALL operands, and
+	// whether this operand is part of a pool level (a one-slot monitor).
+      sva_rec_pool_t*pool = nullptr;
+      bool pool_body = false;
 };
 
 static void sva_comp_sorry_(const struct vlltype&loc, const char*what)
@@ -36392,6 +36445,14 @@ static bool sva_comp_plan_(const sva_comp_ctx_t&ctx, const sva_property_t*p,
 			   long&K, bool endpoints = false,
 			   PEventStatement*domain_clk = nullptr)
 {
+	/* A recursive instance is evaluated in the pool. A root attempt waits
+	   for its level, which is unbounded in ticks, like a cyclic pool;
+	   inside a level (one attempt) each request is one evaluation. */
+      if (p && p->op_type == 28) {
+	    long KR = sva_nfa_slots_env_() > 0 ? sva_nfa_slots_env_() : 16;
+	    if (!ctx.pool_body && KR > K) K = KR;
+	    return true;
+      }
 	/* An implication's parent attempt lives through its antecedent and
 	   the consequence evaluations it starts. */
       if (p && p->op_type == 27) {
@@ -37105,10 +37166,588 @@ static bool sva_comp_emit_switch_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 }
 
 /* Emit pass: build the monitor for p with K slots into m (consumes p). */
+/*
+ * IEEE 1800-2023 16.12.17 / F.7: the recursion engine (#1187).
+ *
+ * An instance of a recursive property is a CALL operand (op_type 28). It
+ * does not evaluate the property itself: it asks the assertion's
+ * recursion pool for a level, an evaluation of the instance body that
+ * starts in this tick, and reports that level's verdict. Levels that
+ * instantiate the property again ask the pool in turn, so the depth is
+ * bounded only by the pool, never by the code.
+ *
+ * Every pool slot is a one-slot sub-monitor of each instance body, so a
+ * level started in the middle of a tick (by another level's |=>, or by
+ * `a ##1 b |-> R') can still be advanced in that tick. Each tick runs a
+ * bounded fixpoint: serve requests, start the new levels, advance every
+ * live level once; until a round changes nothing. Verdicts then settle in
+ * a second bounded loop, since a level may hold a slot numbered below or
+ * above its caller's.
+ */
+static bool sva_comp_expand_refs_(const struct vlltype&loc, sva_property_t*p);
+
+struct sva_rec_pool_t {
+      struct inst_t {
+	    sva_scoped_name_t decl;
+	    std::vector<PExpr*> actuals;   // owned, in formal order
+	    std::string key;
+      };
+      struct site_t {
+	    unsigned tag;
+	    std::vector<perm_string> creq, lv, lnk;   // per slot of the site
+      };
+      long KR = 0;
+      std::vector<inst_t> insts;
+      std::vector<site_t> sites;
+      std::vector<perm_string> plive, pnew, padv, pinj, ptag, pvd;
+      perm_string settled, ovf;
+      ~sva_rec_pool_t()
+      {
+	    for (inst_t&i : insts)
+		  for (PExpr*e : i.actuals) delete e;
+      }
+};
+
+/* The recursive property a sequence step instantiates, if any. */
+static bool sva_rec_step_target_(const sva_seq_step_t&st, perm_string&nm,
+				 const std::vector<named_pexpr_t>**args)
+{
+      if (args) *args = nullptr;
+      if (st.delay_lo != 0 || st.delay_hi != 0 || st.rep_kind || st.rep_tail
+	  || !st.items.empty() || st.fm || st.grouped_repeat)
+	    return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr)) {
+	    if (id->path().package || id->path().name.size() != 1
+		|| !id->path().name.front().index.empty())
+		  return false;
+	    nm = id->path().name.front().name;
+      } else if (const PECallFunction*c =
+		       dynamic_cast<const PECallFunction*>(st.expr)) {
+	    if (c->path().package || c->path().name.size() != 1)
+		  return false;
+	    nm = c->path().name.front().name;
+	    if (args) *args = &c->get_parms();
+      } else {
+	    return false;
+      }
+      return sva_rec_is_recursive_(nm);
+}
+
+static bool sva_rec_single_call_(const std::vector<sva_seq_step_t>*steps)
+{
+      perm_string nm;
+      return steps && steps->size() == 1
+	  && sva_rec_step_target_((*steps)[0], nm, nullptr);
+}
+
+/* Mark every instance of a recursive property as a CALL operand. A plain
+   implication whose consequent is one becomes the composite implication,
+   so the consequent can be a pool level. True when the property now has a
+   CALL operand anywhere. */
+static bool sva_rec_mark_calls_(sva_property_t*p)
+{
+      if (!p) return false;
+      if (p->op_type == 28) return true;
+      if (p->pa) {
+	    bool a = sva_rec_mark_calls_(p->pa);
+	    bool b = sva_rec_mark_calls_(p->pb);
+	    return a || b;
+      }
+      if (p->mc_prefix || p->seq_clk_evt || p->mc_boundary != -1)
+	    return false;
+	/* The consequent as one step list: plain, or a one-leaf tree. */
+      std::vector<sva_seq_step_t>*cons = p->seq;
+      bool from_tree = false;
+      if (!cons && p->tree && p->tree->kind == sva_stree_t::LEAF) {
+	    cons = p->tree->chain;
+	    from_tree = true;
+      } else if (p->tree) {
+	    return false;
+      }
+      if (!sva_rec_single_call_(cons)) return false;
+      if (from_tree) {
+	    p->tree->chain = nullptr;
+	    sva_tree_delete_(p->tree, false);
+	    p->tree = nullptr;
+	    p->seq = cons;
+      }
+      if (p->op_type == 0 && !p->antecedent && !p->ante_tree) {
+	    p->op_type = 28;
+	    return true;
+      }
+      if ((p->op_type == 1 || p->op_type == 2)
+	  && (p->antecedent || p->ante_tree) && !p->forbidden_consequent) {
+	    sva_property_t*ante = new sva_property_t;
+	    ante->seq = p->antecedent;
+	    ante->tree = p->ante_tree;
+	    ante->local_names = p->local_names;
+	    sva_property_t*call = new sva_property_t;
+	    call->seq = p->seq;
+	    call->op_type = 28;
+	    call->local_names = p->local_names;
+	    p->antecedent = nullptr;
+	    p->ante_tree = nullptr;
+	    p->seq = nullptr;
+	    p->op_type = (p->op_type == 1) ? 23 : 24;
+	    p->pa = ante;
+	    p->pb = call;
+	    return true;
+      }
+      return false;
+}
+
+static bool sva_rec_has_call_(const sva_property_t*p)
+{
+      return p && (p->op_type == 28 || sva_rec_has_call_(p->pa)
+		   || sva_rec_has_call_(p->pb));
+}
+
+static unsigned sva_rec_tag_(sva_rec_pool_t&pool,
+			     const sva_scoped_name_t&decl,
+			     std::vector<PExpr*>&actuals)
+{
+      std::ostringstream key;
+      key << decl.name << "@" << (const void*)decl.gen << "/"
+	  << (const void*)decl.package << "/" << (const void*)decl.unit
+	  << "/" << (const void*)decl.clocking;
+      for (PExpr*e : actuals) {
+	    key << "|";
+	    if (e) key << *e;
+      }
+      for (size_t i = 0 ; i < pool.insts.size() ; i += 1)
+	    if (pool.insts[i].key == key.str()) {
+		  for (PExpr*e : actuals) delete e;
+		  actuals.clear();
+		  return (unsigned)i;
+	    }
+      sva_rec_pool_t::inst_t in;
+      in.decl = decl;
+      in.actuals.swap(actuals);
+      in.key = key.str();
+      pool.insts.push_back(in);
+      in.actuals.clear();
+      return (unsigned)(pool.insts.size() - 1);
+}
+
+static void sva_rec_pool_setup_(const struct vlltype&loc, sva_rec_pool_t&pool,
+				unsigned inst, std::vector<Statement*>&init)
+{
+      pool.KR = sva_nfa_slots_env_() > 0 ? sva_nfa_slots_env_() : 16;
+      for (long j = 0 ; j < pool.KR ; j += 1) {
+	    pool.plive.push_back(sva_make_reg_(loc, inst, "rpl", (unsigned)j));
+	    pool.pnew.push_back(sva_make_reg_(loc, inst, "rpn", (unsigned)j));
+	    pool.padv.push_back(sva_make_reg_(loc, inst, "rpa", (unsigned)j));
+	    pool.pinj.push_back(sva_make_reg_(loc, inst, "rpi", (unsigned)j));
+	    pool.ptag.push_back(sva_make_reg_(loc, inst, "rpt", (unsigned)j, true));
+	    pool.pvd.push_back(sva_make_reg_(loc, inst, "rpv", (unsigned)j, true));
+	    perm_string bits[] = { pool.plive[j], pool.pnew[j], pool.padv[j],
+				   pool.pinj[j] };
+	    for (perm_string r : bits)
+		  init.push_back(sva_assign_(loc, r, sva_bit_(loc, 0)));
+	    init.push_back(sva_assign_(loc, pool.ptag[j], sva_num32_(loc, 0)));
+	    init.push_back(sva_assign_(loc, pool.pvd[j], sva_num32_(loc, 0)));
+      }
+      pool.settled = sva_make_reg_(loc, inst, "rps", 0);
+      pool.ovf = sva_make_reg_(loc, inst, "rpo", 0);
+      init.push_back(sva_assign_(loc, pool.settled, sva_bit_(loc, 1)));
+      init.push_back(sva_assign_(loc, pool.ovf, sva_bit_(loc, 0)));
+}
+
+/* A CALL operand: per slot, a request for a level and the link to it. */
+static bool sva_comp_emit_call_(const sva_comp_ctx_t&ctx, sva_property_t*p,
+				long K, unsigned inst, unsigned&serial,
+				sva_nfa_sub_t&m)
+{
+      const struct vlltype&loc = *ctx.loc;
+      sva_rec_pool_t*pool = ctx.pool;
+      perm_string nm;
+      const std::vector<named_pexpr_t>*args = nullptr;
+      sva_scoped_name_t decl;
+      bool found = false;
+      if (pool && p->seq && p->seq->size() == 1
+	  && sva_rec_step_target_((*p->seq)[0], nm, &args)) {
+	    std::map<sva_scoped_name_t, sva_property_t*>::iterator a =
+		  sva_resolve_(sva_module_properties, nm);
+	    if (a != sva_module_properties.end() && a->second) {
+		  decl = a->first;
+		  found = true;
+	    } else {
+		  std::map<sva_scoped_name_t, sva_param_prop_t>::iterator b =
+			sva_resolve_(sva_param_properties, nm);
+		  if (b != sva_param_properties.end() && b->second.body) {
+			decl = b->first;
+			found = true;
+		  }
+	    }
+      }
+      if (!found) {
+	    sva_comp_sorry_(loc, "an instance of a recursive property could "
+			    "not be resolved (internal)");
+	    pform_sva_destroy_property(p);
+	    return false;
+      }
+      const std::vector<sva_property_formal_t>*formals;
+      const sva_property_t*body = sva_rec_body_(decl, &formals);
+      size_t nf = formals ? formals->size() : 0;
+      size_t na = args ? args->size() : 0;
+      std::vector<PExpr*> actuals;
+      bool ok = true;
+      if (na > nf) {
+	    cerr << loc << ": error: too many actual arguments for property `"
+		 << nm << "'." << endl;
+	    error_count += 1;
+	    ok = false;
+      }
+      if (ok && body && !body->local_names.empty()) {
+	    sva_comp_sorry_(loc, "a recursive property with local variables "
+			    "is not supported yet (IEEE 1800-2023 16.12.17)");
+	    ok = false;
+      }
+      for (size_t j = 0 ; ok && j < nf ; j += 1) {
+	    const sva_property_formal_t&f = (*formals)[j];
+	    if (f.local_formal) {
+		  sva_comp_sorry_(loc, "a recursive property with a local "
+				  "variable formal argument is not supported "
+				  "yet (IEEE 1800-2023 16.12.17)");
+		  ok = false;
+		  break;
+	    }
+	    PExpr*act = nullptr;
+	    for (size_t i = 0 ; i < na ; i += 1) {
+		  const named_pexpr_t&x = (*args)[i];
+		  if (x.name.nil() ? i == j : x.name == f.name) act = x.parm;
+	    }
+	    if (!act) act = f.default_expr;
+	    if (!act) {
+		  cerr << loc << ": error: missing actual argument for formal `"
+		       << f.name << "' of property `" << nm << "'." << endl;
+		  error_count += 1;
+		  ok = false;
+		  break;
+	    }
+	    PExpr*copy = sva_clone_expr_(act);
+	    if (!copy) {
+		  sva_comp_sorry_(loc, "an actual argument of a recursive "
+				  "property instance cannot be copied");
+		  ok = false;
+		  break;
+	    }
+	    actuals.push_back(copy);
+      }
+      if (!ok) {
+	    for (PExpr*e : actuals) delete e;
+	    pform_sva_destroy_property(p);
+	    return false;
+      }
+      unsigned tag = sva_rec_tag_(*pool, decl, actuals);
+      unsigned node = serial++;
+      sva_rec_pool_t::site_t site;
+      site.tag = tag;
+      m.vd.resize(K);
+      m.inject.resize(K);
+      m.kill.resize(K);
+      char what[32];
+      for (long k = 0 ; k < K ; k += 1) {
+	    snprintf(what, sizeof what, "k%uq", node);
+	    site.creq.push_back(sva_make_reg_(loc, inst, what, (unsigned)k));
+	    snprintf(what, sizeof what, "k%ul", node);
+	    site.lv.push_back(sva_make_reg_(loc, inst, what, (unsigned)k));
+	    snprintf(what, sizeof what, "k%un", node);
+	    site.lnk.push_back(sva_make_reg_(loc, inst, what, (unsigned)k, true));
+	    snprintf(what, sizeof what, "k%uvd", node);
+	    m.vd[k] = sva_make_reg_(loc, inst, what, (unsigned)k, true);
+	    m.init.push_back(sva_assign_(loc, site.creq[k], sva_bit_(loc, 0)));
+	    m.init.push_back(sva_assign_(loc, site.lv[k], sva_bit_(loc, 0)));
+	    m.init.push_back(sva_assign_(loc, site.lnk[k], sva_num32_(loc, 0)));
+	    m.init.push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+	    m.inject[k].push_back(sva_assign_(loc, site.creq[k], sva_bit_(loc, 1)));
+	    m.inject[k].push_back(sva_assign_(loc, site.lv[k], sva_bit_(loc, 0)));
+	    m.inject[k].push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+	    m.kill[k].push_back(sva_assign_(loc, site.creq[k], sva_bit_(loc, 0)));
+	    m.kill[k].push_back(sva_assign_(loc, site.lv[k], sva_bit_(loc, 0)));
+	    m.kill[k].push_back(sva_assign_(loc, m.vd[k], sva_num32_(loc, 0)));
+	      /* The verdict of the linked level, kept once it is decided:
+		 the level's slot is freed at the end of that tick. */
+	    Statement*pick = nullptr;
+	    for (long j = pool->KR - 1 ; j >= 0 ; j -= 1) {
+		  PEBComp*eq = new PEBComp('e', sva_id_(loc, site.lnk[k]),
+					   sva_num32_(loc, j));
+		  FILE_NAME(eq, loc);
+		  pick = sva_if_(loc, eq, sva_assign_(loc, m.vd[k],
+				 sva_id_(loc, pool->pvd[j])), pick);
+	    }
+	    PExpr*want = sva_logic_(loc, 'a', sva_id_(loc, site.lv[k]),
+				    sva_comp_eq_(loc, m.vd[k], 0));
+	    sva_comp_body_and_recompute_(m, sva_if_(loc, want, pick, nullptr));
+      }
+      pool->sites.push_back(site);
+      pform_sva_destroy_property(p);
+      m.K = K;
+      m.built = true;
+      return true;
+}
+
+/* The body of pool instance `in', with its formals bound. */
+static sva_property_t* sva_rec_instance_body_(const struct vlltype&loc,
+					      const sva_rec_pool_t::inst_t&in,
+					      const PEventStatement*clk)
+{
+      const std::vector<sva_property_formal_t>*formals;
+      const sva_property_t*body = sva_rec_body_(in.decl, &formals);
+      if (!body) return nullptr;
+      std::map<perm_string,PExpr*> subst;
+      if (formals)
+	    for (size_t j = 0 ; j < formals->size() && j < in.actuals.size() ; j += 1)
+		  subst[(*formals)[j].name] = in.actuals[j];
+      sva_property_t*b = sva_clone_property_(loc, body, &subst);
+      if (!b) return nullptr;
+      if (b->clk_evt) {
+	    if (!sva_event_controls_identical_(b->clk_evt, clk)) {
+		  sva_comp_sorry_(loc, "a recursive property clocked differently "
+				  "from its assertion is not supported yet "
+				  "(IEEE 1800-2023 16.13)");
+		  pform_sva_destroy_property(b);
+		  return nullptr;
+	    }
+	    delete b->clk_evt;
+	    b->clk_evt = nullptr;
+      }
+      sva_rec_mark_calls_(b);
+      if (!sva_comp_expand_refs_(loc, b)) {
+	    pform_sva_destroy_property(b);
+	    return nullptr;
+      }
+      sva_rec_mark_calls_(b);
+      return b;
+}
+
+/* The pool's statements for the assertion's clocked block. */
+struct sva_rec_code_t {
+      std::vector<Statement*> tick;    // after the root operands advanced
+      std::vector<Statement*> end;     // after the root decided
+      std::vector<Statement*> clear;   // template: disable / kill reset
+};
+
+static bool sva_rec_build_pool_(const sva_comp_ctx_t&root_ctx,
+				sva_rec_pool_t&pool, unsigned inst,
+				unsigned&serial, sva_nfa_sub_t&m,
+				sva_rec_code_t&code)
+{
+      const struct vlltype&loc = *root_ctx.loc;
+      const long KR = pool.KR;
+      sva_comp_ctx_t ctx = root_ctx;
+      ctx.rate = 1;
+      ctx.imports = nullptr;
+      ctx.import_from = nullptr;
+      ctx.pool = &pool;
+      ctx.pool_body = true;
+
+	/* mon[t][j]: instance t in pool slot j. Emitting a body can add
+	   instances, which get their monitors in turn. */
+      std::vector< std::vector<sva_nfa_sub_t> > mon;
+      for (size_t t = 0 ; t < pool.insts.size() ; t += 1) {
+	    mon.push_back(std::vector<sva_nfa_sub_t>(KR));
+	    for (long j = 0 ; j < KR ; j += 1) {
+		  sva_property_t*b = sva_rec_instance_body_(loc, pool.insts[t],
+							    ctx.clk);
+		  if (!b) {
+			if (error_count == 0)
+			      sva_comp_sorry_(loc, "the body of a recursive "
+					      "property cannot be instantiated");
+			return false;
+		  }
+		  sva_nfa_sub_t&sub = mon[t][j];
+		  if (!sva_comp_emit_(ctx, b, 1, inst, serial, sub))
+			return false;
+		  if (!sub.domains.empty()) {
+			sva_comp_sorry_(loc, "a recursive property with a clock "
+					"change in its body is not supported "
+					"yet (IEEE 1800-2023 16.13)");
+			return false;
+		  }
+		  sva_comp_append_(m.init, sub.init);
+		  sva_comp_append_(m.pre, sub.pre);
+		  sva_comp_append_(m.post, sub.post);
+	    }
+      }
+      const size_t T = pool.insts.size();
+
+      auto clone_all = [&](const std::vector<Statement*>&from,
+			   std::vector<Statement*>&to) {
+	    for (Statement*st : from) {
+		  Statement*c = sva_clone_stmt_(st);
+		  assert(c);
+		  to.push_back(c);
+	    }
+      };
+	/* Per slot, the statements of the instance the slot holds. */
+      auto tagged = [&](long j, std::function<void(size_t,
+				 std::vector<Statement*>&)> per) -> Statement* {
+	    Statement*chain = nullptr;
+	    for (size_t t = T ; t-- > 0 ; ) {
+		  std::vector<Statement*> v;
+		  per(t, v);
+		  PEBComp*eq = new PEBComp('e', sva_id_(loc, pool.ptag[j]),
+					   sva_num32_(loc, t));
+		  FILE_NAME(eq, loc);
+		  chain = sva_if_(loc, eq, sva_block_(loc, v), chain);
+	    }
+	    return chain;
+      };
+      auto set0 = [&](perm_string r) { return sva_assign_(loc, r, sva_bit_(loc, 0)); };
+      auto set1 = [&](perm_string r) { return sva_assign_(loc, r, sva_bit_(loc, 1)); };
+
+	/* Serve every request: a level of the same instance started in this
+	   tick is shared, else the first free slot starts one. */
+      std::vector<Statement*> serve;
+      {
+	    char msg[256];
+	    snprintf(msg, sizeof msg, "%s:%u: SVA: recursive property pool "
+		     "overflow (%ld slots) -- recursive evaluations are being "
+		     "dropped; raise IVL_SVA_NFA_SLOTS",
+		     loc.text ? loc.text : "?", (unsigned)loc.first_line, KR);
+	    for (const sva_rec_pool_t::site_t&site : pool.sites)
+	    for (size_t k = 0 ; k < site.creq.size() ; k += 1) {
+		  std::list<named_pexpr_t> dargs;
+		  named_pexpr_t darg;
+		  darg.parm = new PEString(strdup(msg));
+		  dargs.push_back(darg);
+		  PCallTask*warn = new PCallTask(lex_strings.make("$display"), dargs);
+		  FILE_NAME(warn, loc);
+		  std::vector<Statement*> once;
+		  once.push_back(set1(pool.ovf));
+		  once.push_back(warn);
+		  Statement*pick = sva_if_(loc, sva_not_(loc, sva_id_(loc, pool.ovf)),
+					   sva_block_(loc, once), nullptr);
+		  for (long j = KR - 1 ; j >= 0 ; j -= 1) {
+			std::vector<Statement*> take;
+			take.push_back(set1(pool.plive[j]));
+			take.push_back(set1(pool.pnew[j]));
+			take.push_back(set0(pool.padv[j]));
+			take.push_back(set1(pool.pinj[j]));
+			take.push_back(sva_assign_(loc, pool.pvd[j], sva_num32_(loc, 0)));
+			take.push_back(sva_assign_(loc, pool.ptag[j], sva_num32_(loc, site.tag)));
+			take.push_back(sva_assign_(loc, site.lnk[k], sva_num32_(loc, j)));
+			take.push_back(set1(site.lv[k]));
+			pick = sva_if_(loc, sva_not_(loc, sva_id_(loc, pool.plive[j])),
+				       sva_block_(loc, take), pick);
+		  }
+		  for (long j = KR - 1 ; j >= 0 ; j -= 1) {
+			PEBComp*same = new PEBComp('e', sva_id_(loc, pool.ptag[j]),
+						   sva_num32_(loc, site.tag));
+			FILE_NAME(same, loc);
+			PExpr*share = sva_logic_(loc, 'a', sva_logic_(loc, 'a',
+				sva_id_(loc, pool.plive[j]), sva_id_(loc, pool.pnew[j])),
+				same);
+			std::vector<Statement*> take;
+			take.push_back(sva_assign_(loc, site.lnk[k], sva_num32_(loc, j)));
+			take.push_back(set1(site.lv[k]));
+			pick = sva_if_(loc, share, sva_block_(loc, take), pick);
+		  }
+		  std::vector<Statement*> req;
+		  req.push_back(set0(site.creq[k]));
+		  req.push_back(set0(pool.settled));
+		  req.push_back(pick);
+		  serve.push_back(sva_if_(loc, sva_id_(loc, site.creq[k]),
+					  sva_block_(loc, req), nullptr));
+	    }
+      }
+	/* Start the levels served this round, then advance every live level
+	   that has not advanced in this tick. */
+      std::vector<Statement*> start, advance;
+      for (long j = 0 ; j < KR ; j += 1) {
+	    std::vector<Statement*> st;
+	    st.push_back(set0(pool.pinj[j]));
+	    st.push_back(tagged(j, [&](size_t t, std::vector<Statement*>&v) {
+		  sva_comp_append_(v, mon[t][j].inject[0]); }));
+	    start.push_back(sva_if_(loc, sva_id_(loc, pool.pinj[j]),
+				    sva_block_(loc, st), nullptr));
+	    std::vector<Statement*> adv;
+	    adv.push_back(set1(pool.padv[j]));
+	    adv.push_back(set0(pool.settled));
+	    adv.push_back(tagged(j, [&](size_t t, std::vector<Statement*>&v) {
+		  sva_comp_append_(v, mon[t][j].body); }));
+	    advance.push_back(sva_if_(loc, sva_logic_(loc, 'a',
+			sva_id_(loc, pool.plive[j]),
+			sva_not_(loc, sva_id_(loc, pool.padv[j]))),
+			sva_block_(loc, adv), nullptr));
+      }
+      for (long j = 0 ; j < KR ; j += 1) {
+	    code.tick.push_back(set0(pool.pnew[j]));
+	    code.tick.push_back(set0(pool.padv[j]));
+      }
+      code.tick.push_back(set0(pool.settled));
+      {
+	    std::vector<Statement*> round;
+	    round.push_back(set1(pool.settled));
+	    sva_comp_append_(round, serve);
+	    sva_comp_append_(round, start);
+	    sva_comp_append_(round, advance);
+	    code.tick.push_back(sva_repeat_(loc, sva_num32_(loc, KR + 2),
+			sva_if_(loc, sva_not_(loc, sva_id_(loc, pool.settled)),
+				sva_block_(loc, round), nullptr)));
+	    char msg[256];
+	    snprintf(msg, sizeof msg, "SVA: recursive property evaluation "
+		     "did not settle within %ld rounds; this tick's recursive "
+		     "verdicts are incomplete", KR + 2);
+	    std::list<named_pexpr_t> eargs;
+	    named_pexpr_t earg;
+	    earg.parm = new PEString(strdup(msg));
+	    eargs.push_back(earg);
+	    PCallTask*err = new PCallTask(lex_strings.make("$error"), eargs);
+	    FILE_NAME(err, loc);
+	    code.tick.push_back(sva_if_(loc, sva_not_(loc, sva_id_(loc, pool.settled)),
+					err, nullptr));
+      }
+	/* Verdicts: every level and the root re-evaluate from their operands
+	   until each link has carried its level's verdict. */
+      {
+	    std::vector<Statement*> round;
+	    for (long j = 0 ; j < KR ; j += 1) {
+		  std::vector<Statement*> re;
+		  re.push_back(tagged(j, [&](size_t t, std::vector<Statement*>&v) {
+			clone_all(mon[t][j].recompute, v);
+			v.push_back(sva_assign_(loc, pool.pvd[j],
+				    sva_id_(loc, mon[t][j].vd[0]))); }));
+		  round.push_back(sva_if_(loc, sva_id_(loc, pool.plive[j]),
+					  sva_block_(loc, re), nullptr));
+	    }
+	    clone_all(m.recompute, round);
+	    code.tick.push_back(sva_repeat_(loc, sva_num32_(loc, KR + 2),
+					    sva_block_(loc, round)));
+      }
+	/* A decided level's slot is free for the next tick; its callers
+	   kept the verdict. */
+      for (long j = 0 ; j < KR ; j += 1) {
+	    std::vector<Statement*> drop;
+	    drop.push_back(tagged(j, [&](size_t t, std::vector<Statement*>&v) {
+		  clone_all(mon[t][j].kill[0], v); }));
+	    drop.push_back(set0(pool.plive[j]));
+	    code.end.push_back(sva_if_(loc, sva_logic_(loc, 'a',
+			sva_id_(loc, pool.plive[j]),
+			sva_not_(loc, sva_comp_eq_(loc, pool.pvd[j], 0))),
+			sva_block_(loc, drop), nullptr));
+      }
+      for (size_t t = 0 ; t < T ; t += 1)
+	    for (long j = 0 ; j < KR ; j += 1) {
+		  clone_all(mon[t][j].sweep, code.end);
+		  clone_all(mon[t][j].kill[0], code.clear);
+	    }
+      for (long j = 0 ; j < KR ; j += 1) {
+	    perm_string bits[] = { pool.plive[j], pool.pnew[j], pool.padv[j],
+				   pool.pinj[j] };
+	    for (perm_string r : bits) code.clear.push_back(set0(r));
+	    code.clear.push_back(sva_assign_(loc, pool.pvd[j], sva_num32_(loc, 0)));
+      }
+      return true;
+}
+
 static bool sva_comp_emit_(const sva_comp_ctx_t&ctx, sva_property_t*p, long K,
 			   unsigned inst, unsigned&serial, sva_nfa_sub_t&m)
 {
       const struct vlltype&loc = *ctx.loc;
+      if (p->op_type == 28)
+	    return sva_comp_emit_call_(ctx, p, K, inst, serial, m);
       if (!sva_prop_is_composite_(p)) {
 	    m.K = K;
 	    return sva_comp_leaf_(ctx, p, m);
@@ -37413,10 +38052,13 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    return;
       }
       bool split_ok = true;
-      if (sva_comp_expand_refs_(loc, prop))
+      sva_rec_mark_calls_(prop);
+      if (sva_comp_expand_refs_(loc, prop)) {
+	    sva_rec_mark_calls_(prop);
 	    prop = sva_comp_split_multiclock_(loc, prop, split_ok);
-      else
+      } else {
 	    split_ok = false;
+      }
       if (split_ok)
 	    sva_comp_propagate_locals_(prop, prop->local_names);
       if (!split_ok) {
@@ -37482,9 +38124,32 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       unsigned inst = sva_gensym_counter++;
       unsigned serial = 0;
       sva_nfa_sub_t m;
+      sva_rec_pool_t pool;
+      std::vector<Statement*> pool_init;
+      bool recursive = sva_rec_has_call_(prop);
+      if (recursive) {
+	    sva_rec_pool_setup_(loc, pool, inst, pool_init);
+	    ctx.pool = &pool;
+      }
       if (!sva_comp_emit_(ctx, prop, K, inst, serial, m)) {
 	    delete clk; delete disable; delete fail_stmt; delete pass_stmt;
 	    return;
+      }
+      sva_rec_code_t rcode;
+      if (recursive) {
+	    if (!m.domains.empty()) {
+		  sva_comp_sorry_(loc, "a recursive property in a multiclocked "
+				  "assertion is not supported yet (IEEE "
+				  "1800-2023 16.13)");
+		  delete clk; delete disable; delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
+	    if (!sva_rec_build_pool_(ctx, pool, inst, serial, m, rcode)) {
+		  delete clk; delete disable; delete fail_stmt; delete pass_stmt;
+		  return;
+	    }
+	    m.init.insert(m.init.begin(), pool_init.begin(), pool_init.end());
+	    pool_init.clear();
       }
 
       std::vector<Statement*>&init = m.init;
@@ -37534,6 +38199,11 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 		  }
 		  clr.push_back(sva_assign_(loc, live[k], sva_bit_(loc, 0)));
 	    }
+	    for (Statement*st : rcode.clear) {
+		  Statement*c = sva_clone_stmt_(st);
+		  assert(c);
+		  clr.push_back(c);
+	    }
 	    sweep(clr);
 	    clr.push_back(sva_assign_(loc, r_p0, sva_num32_(loc, 0)));
 	    clr.push_back(sva_assign_(loc, r_vac0, sva_num32_(loc, 0)));
@@ -37576,6 +38246,8 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst), inj, nullptr));
       }
       sva_comp_append_(body, m.body);
+	/* 16.12.17: advance the recursion pool and settle its verdicts. */
+      sva_comp_append_(body, rcode.tick);
 
 	/* Fail actions: one copy per clock domain that can decide. */
       Statement*action = fail_stmt;
@@ -37671,6 +38343,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
       };
       decide(body, actions[0], 0);
+      sva_comp_append_(body, rcode.end);
 
 	/* Merge pass (only the main clock advances an antecedent state). */
       for (long k = 1 ; merge && k < K ; k += 1) {
@@ -38600,6 +39273,29 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   sva_hoist_out_of_block_t. */
       sva_hoist_out_of_block_t sva_scope_guard;
 
+	/* IEEE 1800-2023 16.12.17: wait for a property declared later. The
+	   end-of-module retry runs outside any generate block, so it cannot
+	   take an assertion from inside one. */
+      if (!sva_sub_request_ && !sva_named_prop_retry_active_ && prop
+	  && !pform_cur_generate && sva_rec_forward_ref_(loc, prop)) {
+	    sva_pending_named_property_t pend;
+	    pend.loc = loc;
+	    pend.prop = prop;
+	    pend.fail_stmt = fail_stmt;
+	    pend.pass_stmt = pass_stmt;
+	    pend.kind = kind;
+	    pend.label = label;
+	    pend.proc_id = sva_active_proc_id_;
+	    sva_pending_named_property_.push_back(pend);
+	    return;
+      }
+	/* IEEE 1800-2023 16.12.17: an instance of a recursive property is
+	   evaluated by the composite's recursion pool. */
+      if (!sva_sub_request_ && prop && sva_rec_mark_calls_(prop)) {
+	    pform_make_composite_assertion_(loc, prop, fail_stmt, pass_stmt,
+					    kind);
+	    return;
+      }
 	/* IEEE 1800-2023 16.12.4/16.12.5: property-level and/or. */
       if (sva_prop_is_composite_(prop)) {
 	    pform_make_composite_assertion_(loc, prop, fail_stmt, pass_stmt,
