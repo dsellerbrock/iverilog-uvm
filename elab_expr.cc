@@ -33374,7 +33374,7 @@ static bool covgrp_has_dynamic_goal_comment(const netclass_t*type)
 {
       if (!type || !type->is_covergroup()) return false;
       const auto&options = type->covgrp_options();
-      if (options.goal_expr || options.comment_expr || options.at_least_expr) return true;
+      if (options.goal_expr || options.comment_expr || options.name_expr || options.at_least_expr) return true;
       for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
             const auto&item = type->covgrp_item(idx);
             if (item.goal_expr || item.comment_expr) return true;
@@ -33391,7 +33391,7 @@ NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
       const auto&options = type->covgrp_options();
       bool has_dynamic_options = options.weight_expr
             || options.get_inst_coverage_expr || options.per_instance_expr
-            || options.goal_expr || options.comment_expr || options.at_least_expr;
+            || options.goal_expr || options.comment_expr || options.name_expr || options.at_least_expr;
       for (size_t idx = 0; !has_dynamic_options
             && idx < type->covgrp_item_count(); ++idx) {
             const auto&item = type->covgrp_item(idx);
@@ -33495,6 +33495,7 @@ NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
       assign_option(options.comment_prop, options.comment_expr,
             inherited && !options.comment_expr
                   ? new NetECString(options.comment) : nullptr);
+      assign_option(options.name_prop, options.name_expr, nullptr);
       for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
             const netclass_t::covgrp_item_t&item = type->covgrp_item(idx);
             assign_option(item.goal_prop, item.goal_expr,

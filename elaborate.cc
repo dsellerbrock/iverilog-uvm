@@ -50526,11 +50526,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
             if (per_instance_it != cgdef->options.end())
                   group_options.per_instance_expr = per_instance_it->second;
             group_options.name.clear();
+            group_options.name_expr = nullptr;
             auto name_it = cgdef->options.find(perm_string::literal("name"));
             if (name_it != cgdef->options.end()) {
-                  // A literal name can be carried in the covergroup type
-                  // metadata. Other expressions may refer to constructor
-                  // formals, so they must not be evaluated in class scope.
+                  group_options.name_expr = name_it->second;
                   if (PEString*literal = dynamic_cast<PEString*>(name_it->second))
 			group_options.name = literal->value();
             }

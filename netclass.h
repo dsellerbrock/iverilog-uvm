@@ -685,6 +685,7 @@ class netclass_t : public ivl_type_s {
             std::string type_comment;
             PExpr* goal_expr = nullptr;
             PExpr* comment_expr = nullptr;
+            PExpr* name_expr = nullptr;
             PExpr* at_least_expr = nullptr;
             NetScope* declaration_scope = nullptr;
             int weight_prop = -1, per_instance_prop = -1;
