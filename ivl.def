@@ -384,6 +384,8 @@ ivl_signal_resolution_function
 ivl_signal_scope
 ivl_signal_signed
 ivl_signal_type
+ivl_signal_typedef_alias
+ivl_signal_typedef_aliases
 ivl_signal_width
 ivl_signal_lifetime
 

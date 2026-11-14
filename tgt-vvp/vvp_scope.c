@@ -713,6 +713,20 @@ static void vartype_put_(struct vartype_buf_s*buf, const char*text)
       buf->len += add;
 }
 
+/* N<name>: a typedef name, written only when it is a plain identifier. */
+static void vartype_put_name_(struct vartype_buf_s*buf, const char*name)
+{
+      size_t idx, len = name ? strlen(name) : 0;
+      int plain = len > 0 && (isalpha((unsigned char)name[0]) || name[0] == '_');
+      for (idx = 1; plain && idx < len; idx += 1)
+	    plain = isalnum((unsigned char)name[idx])
+		  || name[idx] == '_' || name[idx] == '$';
+      if (!plain) return;
+      vartype_put_(buf, "N");
+      vartype_put_(buf, name);
+      vartype_put_(buf, ":");
+}
+
 /* Append the type string for TYPE and return its width. Return 0 for a
  * type it cannot describe: a tagged union (its tag has no member), a member
  * name that needs escaping, or an enumeration that was not drawn. */
@@ -729,22 +743,8 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
 	  && ivl_type_base(type) != IVL_VT_BOOL)
 	    return 0;
 
-	/* N<name>: the typedef name (37.25 detail 1), when it is a plain
-	   identifier. */
-      {
-	    const char*tdname = ivl_type_typedef_name(type);
-	    size_t idx, len = tdname ? strlen(tdname) : 0;
-	    int plain = len > 0 && (isalpha((unsigned char)tdname[0])
-				    || tdname[0] == '_');
-	    for (idx = 1; plain && idx < len; idx += 1)
-		  plain = isalnum((unsigned char)tdname[idx])
-			|| tdname[idx] == '_' || tdname[idx] == '$';
-	    if (plain) {
-		  vartype_put_(buf, "N");
-		  vartype_put_(buf, tdname);
-		  vartype_put_(buf, ":");
-	    }
-      }
+	/* N<name>: the typedef name (37.25 detail 1). */
+      vartype_put_name_(buf, ivl_type_typedef_name(type));
 
       if (enumtype) {
 	    if (!enumeration_is_drawn(enumtype)) return 0;
@@ -808,6 +808,10 @@ void emit_signal_vartypes(void)
 	    ivl_type_t type = vartype_notes[idx].type;
 	    buf.len = 0;
 	    vartype_put_(&buf, "");
+	      /* The typedef aliases the signal was declared with, outermost
+		 first: each N prefix on an already named type is an alias. */
+	    for (unsigned adx = 0; adx < ivl_signal_typedef_aliases(sig); adx += 1)
+		  vartype_put_name_(&buf, ivl_signal_typedef_alias(sig, adx));
 	    unsigned type_width = vartype_spec_(&buf, type);
 	    int packed_aggregate = ivl_type_enum(type) ||
 	                           ivl_type_properties(type) > 0;

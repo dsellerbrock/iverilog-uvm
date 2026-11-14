@@ -4838,6 +4838,20 @@ extern "C" const char* ivl_type_name(ivl_type_t net)
       return 0;
 }
 
+extern "C" unsigned ivl_signal_typedef_aliases(ivl_signal_t net)
+{
+      assert(net);
+      return net->net_
+	    ? static_cast<unsigned>(net->net_->typedef_aliases().size()) : 0;
+}
+
+extern "C" const char* ivl_signal_typedef_alias(ivl_signal_t net, unsigned idx)
+{
+      assert(net);
+      if (!net->net_ || idx >= net->net_->typedef_aliases().size()) return 0;
+      return net->net_->typedef_aliases()[idx].str();
+}
+
 extern "C" const char* ivl_type_typedef_name(ivl_type_t net)
 {
       const std::string*name = 0;

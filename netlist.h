@@ -935,6 +935,12 @@ class NetNet  : public NetObj, public PortType {
       bool get_ref_static() const { return is_ref_static_; }
       bool is_event_formal() const { return is_event_formal_; }
       void set_event_formal(bool value) { is_event_formal_ = value; }
+	/* The typedef aliases this variable was declared with, outermost
+	   first (`typedef a b; b v;` gives b), for VPI (37.25 detail 1). */
+      void set_typedef_aliases(const std::vector<perm_string>&names)
+      { typedef_aliases_ = names; }
+      const std::vector<perm_string>& typedef_aliases() const
+      { return typedef_aliases_; }
       void set_virtual_interface(bool value) { is_virtual_interface_ = value; }
       bool is_virtual_interface() const { return is_virtual_interface_; }
 
@@ -1179,6 +1185,7 @@ class NetNet  : public NetObj, public PortType {
       void dump_net(std::ostream&, unsigned) const;
 
     private:
+      std::vector<perm_string> typedef_aliases_;
       void initialize_dir_();
       void calculate_slice_dims_from_net_type_();
       static void apply_interconnect_type_(
