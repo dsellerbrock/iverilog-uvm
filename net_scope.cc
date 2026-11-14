@@ -1676,6 +1676,32 @@ void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 		  port_lowconns[idx] = elaborate_for_vpi(des, this, formal);
 	    }
       }
+	/* Instance arrays declared here: their elements carry the index in
+	   their names, and elaboration keeps them from the right bound to
+	   the left one. Their actuals are kept on that first element. */
+      for (const auto&cur : instance_arrays) {
+	    const scope_vec_t&elems = cur.second;
+	    if (elems.empty() || !elems.front()
+		|| !elems.front()->fullname().has_numbers())
+		  continue;
+	    vpi_inst_array_t arr;
+	    arr.name = cur.first;
+	    arr.left = elems.back()->fullname().peek_number(0);
+	    arr.right = elems.front()->fullname().peek_number(0);
+	    arr.elements.assign(elems.rbegin(), elems.rend());
+	    const std::vector<PExpr*>&actuals = elems.front()->array_actuals.empty()
+		  ? elems.front()->port_actuals : elems.front()->array_actuals;
+	    for (PExpr*actual : actuals) {
+		  NetExpr*tmp = actual ? elaborate_for_vpi(des, this, actual) : 0;
+		  if (!tmp) {
+			for (NetExpr*done : arr.conns) delete done;
+			arr.conns.clear();
+			break;
+		  }
+		  arr.conns.push_back(tmp);
+	    }
+	    vpi_inst_arrays.push_back(arr);
+      }
       if (!class_def() && type_ != TASK && type_ != FUNC) {
 	    for (map<perm_string,param_expr_t>::iterator cur = parameters.begin()
 		       ; cur != parameters.end() ; ++cur) {

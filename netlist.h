@@ -1928,6 +1928,20 @@ class NetScope : public Definitions, public Attrib {
 	/* The formal of a port that is a port expression rather than a
 	   plain name (23.2.2.1), elaborated in this scope for vpiLowConn. */
       std::vector<NetExpr*> port_lowconns;
+	/* For the first element of an instance array of more than one
+	   element: the array's actuals, unsplit (37.11 detail 1). */
+      std::vector<PExpr*> array_actuals;
+	/* The instance arrays declared in this scope, for VPI (37.11): the
+	   declared bounds, the elements in left-to-right order, and the
+	   array-level actuals elaborated here (empty unless all of them
+	   could be). */
+      struct vpi_inst_array_t {
+	    perm_string name;
+	    long left, right;
+	    std::vector<NetScope*> elements;
+	    std::vector<NetExpr*> conns;
+      };
+      std::vector<vpi_inst_array_t> vpi_inst_arrays;
 
 	/* Elaborate the expressions VPI keeps for parameters, defparams and
 	   port connections in this scope and its children, once parameters

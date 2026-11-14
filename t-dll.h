@@ -932,6 +932,14 @@ struct ivl_tchk_s {
       ivl_signal_t notifier;
 };
 
+/* An instance array declared in a scope (VPI, IEEE 1800-2023 37.11). */
+struct ivl_inst_array_s {
+      const char*name;
+      long left, right;
+      std::vector<ivl_scope_t> elements;
+      std::vector<ivl_expr_t> conns;
+};
+
 struct ivl_scope_aux_s {
       std::vector<ivl_type_t>*classes;
       std::vector<ivl_enumtype_t>*enumerations_;
@@ -943,6 +951,7 @@ struct ivl_scope_aux_s {
       std::vector<ivl_expr_t>*port_highconns;
       std::vector<std::pair<ivl_scope_t, const char*> >*port_ifaces;
       std::vector<ivl_expr_t>*port_lowconns;
+      std::vector<struct ivl_inst_array_s>*inst_arrays;
       std::vector<ivl_tchk_t>*tchks;
       ivl_scope_objects_s*objects_;
       ivl_scope_proc_s*proc_;
