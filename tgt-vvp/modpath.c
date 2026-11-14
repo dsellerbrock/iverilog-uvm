@@ -73,15 +73,19 @@ static void draw_quoted_condition(const char*text)
       fputc('"', vvp_out);
 }
 
-static int signal_has_showcancelled(ivl_signal_t sig)
+/* The pulse control flags of a module path output: bit 0 showcancelled
+   (IEEE 1800-2023 30.7.4.2), bit 1 pulsestyle_ondetect (30.7.4.1). */
+static int signal_pulse_flags(ivl_signal_t sig)
 {
       unsigned idx;
+      int flags = 0;
       for (idx = 0; idx < ivl_signal_attr_cnt(sig); idx += 1) {
 	    ivl_attribute_t attr = ivl_signal_attr_val(sig, idx);
-	    if (strcmp(attr->key, "_ivl_showcancelled") == 0)
-		  return attr->type == IVL_ATT_NUM && attr->val.num != 0;
+	    if (attr->type != IVL_ATT_NUM || attr->val.num == 0) continue;
+	    if (strcmp(attr->key, "_ivl_showcancelled") == 0) flags |= 1;
+	    if (strcmp(attr->key, "_ivl_pulsestyle_ondetect") == 0) flags |= 2;
       }
-      return 0;
+      return flags;
 }
 
 /*
@@ -121,7 +125,7 @@ static void draw_modpath_record(const char*label, const char*driver,
 
       fprintf(vvp_out, "  .scope S_%p;\n", ivl_path_scope(ivl_signal_path(path_sig,0)));
       fprintf(vvp_out, "%s .modpath %u %u %s v%p_0", label, width,
-	      signal_has_showcancelled(path_sig), driver, path_sig);
+	      signal_pulse_flags(path_sig), driver, path_sig);
 
       for (idx = 0 ;  idx < ivl_signal_npath(path_sig); idx += 1) {
 	    ivl_delaypath_t path = ivl_signal_path(path_sig, idx);

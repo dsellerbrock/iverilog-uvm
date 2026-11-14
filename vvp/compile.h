@@ -310,7 +310,7 @@ extern void compile_enum4_type(char*label, long width, bool signed_flag,
 struct __vpiModPath;
 extern __vpiModPath* compile_modpath(char*label,
                                      unsigned width,
-				     bool showcancelled,
+				     unsigned pulse_flags,
 				     struct symb_s drv,
 				     struct symb_s dest);
 extern void compile_modpath_src(__vpiModPath*dst,

@@ -240,6 +240,29 @@ class Module : public PScopeExtra, public PNamedItem {
       std::vector<std::pair<pform_specify_terminal_t, bool>>
 	    specify_pulse_styles;
 
+	/* pulsestyle_ondetect / pulsestyle_onevent declarations (IEEE
+	   1800-2017/2023 30.7.4.1): true selects on-detect. */
+      void set_specify_ondetect(const pform_specify_terminal_t&terminal,
+				bool enabled)
+      {
+	    for (auto&style : specify_ondetect_styles) {
+		  if (style.first == terminal) {
+			style.second = enabled;
+			return;
+		  }
+	    }
+	    specify_ondetect_styles.push_back(std::make_pair(terminal, enabled));
+      }
+      bool specify_ondetect(const pform_specify_terminal_t&terminal) const
+      {
+	    for (const auto&style : specify_ondetect_styles)
+		  if (style.first == terminal)
+			return style.second;
+	    return false;
+      }
+      std::vector<std::pair<pform_specify_terminal_t, bool>>
+	    specify_ondetect_styles;
+
       std::map<perm_string,PLet*> unit_lets;
 
 	// The mod_name() is the name of the module type.

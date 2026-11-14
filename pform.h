@@ -1094,6 +1094,8 @@ extern bool pform_specify_path_output_previously_declared(
 	const pform_specify_terminal_t&terminal);
 extern void pform_specify_path_showcancelled(
 	const pform_specify_terminal_t&terminal, bool enabled);
+extern void pform_specify_path_ondetect(
+	const pform_specify_terminal_t&terminal, bool enabled);
 
 /*
  * Functions related to timing checks.
