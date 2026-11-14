@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3222_covergroup_name.sv",
+    "iverilog-args": ["-g2023", "-s", "issue3222_covergroup_name"],
+    "gold": "issue3222_covergroup_name"
+}

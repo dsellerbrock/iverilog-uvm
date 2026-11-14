@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "sva_rec_graph.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "sva_rec_graph"
+  ],
+  "gold": "sva_rec_graph"
+}

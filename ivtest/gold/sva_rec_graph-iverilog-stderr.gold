@@ -1,0 +1,7 @@
+ivltests/sva_rec_graph.sv:10: sorry: recursive property `prop_always' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
+ivltests/sva_rec_graph.sv:16: sorry: recursive property `prop_weak_until' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
+ivltests/sva_rec_graph.sv:19: sorry: recursive property `check_phase1' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
+ivltests/sva_rec_graph.sv:23: sorry: recursive property `check_phase2' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
+ivltests/sva_rec_graph.sv:26: sorry: recursive property `fibonacci1' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
+ivltests/sva_rec_graph.sv:29: sorry: recursive property `f1' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
+ivltests/sva_rec_graph.sv:35: sorry: recursive property `f3' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.

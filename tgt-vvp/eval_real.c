@@ -279,7 +279,7 @@ static void draw_realnum_real(ivl_expr_t expr)
 	    return;
       }
 
-      if (value < 0) {
+      if (signbit(value)) {
 	    sign = 0x4000;
 	    value *= -1;
       }

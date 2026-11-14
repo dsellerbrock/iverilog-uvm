@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3295_signed_zero.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3295_signed_zero"],
+  "gold": "issue3295_signed_zero"
+}

@@ -17875,11 +17875,15 @@ NetExpr* PEIdent::elaborate_expr_class_field_(Design*des, NetScope*scope,
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_clocking_access(mapped_access);
+		  width_mode_t mode = SIZED;
+		  mapped_ident.test_width(des, scope, mode);
 		  return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
 	    }
 	    PEIdent mapped_ident(rewritten_path, lexical_pos_);
 	    mapped_ident.set_line(*this);
 	    mapped_ident.set_clocking_access(mapped_access);
+	    width_mode_t mode = SIZED;
+	    mapped_ident.test_width(des, scope, mode);
 	    return mapped_ident.elaborate_expr(des, scope, expr_wid, flags);
       }
 
@@ -29535,6 +29539,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 				PEIdent mapped(rewritten, lexical_pos_);
 				mapped.set_line(*this);
 				mapped.set_clocking_access(mapped_access);
+				width_mode_t mode = SIZED;
+				mapped.test_width(des, scope, mode);
 				return mapped.elaborate_expr(des, scope, expr_wid, flags);
 			  }
 		    }
@@ -29705,6 +29711,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  PEIdent mapped(rewritten, lexical_pos_);
 		  mapped.set_line(*this);
 		  mapped.set_clocking_access(mapped_access);
+		  width_mode_t mode = SIZED;
+		  mapped.test_width(des, scope, mode);
 		  return mapped.elaborate_expr(des, scope, expr_wid, flags);
 	    }
       }
@@ -33448,7 +33456,7 @@ static bool covgrp_has_dynamic_goal_comment(const netclass_t*type)
 {
       if (!type || !type->is_covergroup()) return false;
       const auto&options = type->covgrp_options();
-      if (options.goal_expr || options.comment_expr || options.at_least_expr) return true;
+      if (options.goal_expr || options.comment_expr || options.name_expr || options.at_least_expr) return true;
       for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
             const auto&item = type->covgrp_item(idx);
             if (item.goal_expr || item.comment_expr) return true;
@@ -33465,7 +33473,7 @@ NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
       const auto&options = type->covgrp_options();
       bool has_dynamic_options = options.weight_expr
             || options.get_inst_coverage_expr || options.per_instance_expr
-            || options.goal_expr || options.comment_expr || options.at_least_expr;
+            || options.goal_expr || options.comment_expr || options.name_expr || options.at_least_expr;
       for (size_t idx = 0; !has_dynamic_options
             && idx < type->covgrp_item_count(); ++idx) {
             const auto&item = type->covgrp_item(idx);
@@ -33569,6 +33577,7 @@ NetExpr* elaborate_covgrp_options(Design*des, NetScope*caller,
       assign_option(options.comment_prop, options.comment_expr,
             inherited && !options.comment_expr
                   ? new NetECString(options.comment) : nullptr);
+      assign_option(options.name_prop, options.name_expr, nullptr);
       for (size_t idx = 0; idx < type->covgrp_item_count(); ++idx) {
             const netclass_t::covgrp_item_t&item = type->covgrp_item(idx);
             assign_option(item.goal_prop, item.goal_expr,
