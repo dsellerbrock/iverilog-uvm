@@ -6847,3 +6847,7 @@ issue3083_path_delay_2017 normal,-g2017,-gspecify,-s,issue3083_path_delay ivltes
 issue3083_path_delay_2023 normal,-g2023,-gspecify,-s,issue3083_path_delay ivltests gold=issue3083_path_delay.gold
 issue3063_empty_coverpoint_2017 normal,-g2017,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold
 issue3063_empty_coverpoint_2023 normal,-g2023,-s,issue3063_empty_coverpoint ivltests gold=issue3063_empty_coverpoint.gold
+sva_rec_restrict_2017 CE,-g2017,-gassertions,-s,sva_rec_restrict ivltests gold=sva_rec_restrict.gold
+sva_rec_restrict_2023 CE,-g2023,-gassertions,-s,sva_rec_restrict ivltests gold=sva_rec_restrict.gold
+sva_rec_graph_2017 CE,-g2017,-gassertions,-s,sva_rec_graph ivltests gold=sva_rec_graph.gold
+sva_rec_graph_2023 CE,-g2023,-gassertions,-s,sva_rec_graph ivltests gold=sva_rec_graph.gold

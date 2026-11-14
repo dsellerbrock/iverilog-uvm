@@ -1,3 +1,4 @@
 ivltests/sva_property_recursive_sorry.sv:8: sorry: recursive property `prop_always' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
 ivltests/sva_property_recursive_sorry.sv:11: sorry: recursive property `prop_weak_until' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
+ivltests/sva_property_recursive_sorry.sv:14: sorry: recursive property `check_phase1' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
 ivltests/sva_property_recursive_sorry.sv:17: sorry: recursive property `check_phase2' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
