@@ -6879,3 +6879,7 @@ issue3204_real_dist_good_2017 normal,-g2017,-s,top ivltests gold=issue3204_real_
 issue3204_real_dist_good_2023 normal,-g2023,-s,top,-DTEST_2023 ivltests gold=issue3204_real_dist_good_2023.gold
 issue3205_empty_class_2017 CE,-g2017,-s,top ivltests gold=issue3205_empty_class_2017.gold
 issue3205_empty_class_2023 CE,-g2023,-s,top ivltests gold=issue3205_empty_class_2023.gold
+sva_rec_restrict_2017 CE,-g2017,-gassertions,-s,sva_rec_restrict ivltests gold=sva_rec_restrict.gold
+sva_rec_restrict_2023 CE,-g2023,-gassertions,-s,sva_rec_restrict ivltests gold=sva_rec_restrict.gold
+sva_rec_graph_2017 CE,-g2017,-gassertions,-s,sva_rec_graph ivltests gold=sva_rec_graph.gold
+sva_rec_graph_2023 CE,-g2023,-gassertions,-s,sva_rec_graph ivltests gold=sva_rec_graph.gold
