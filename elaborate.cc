@@ -50389,6 +50389,182 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			return 1;
 		      };
 
+		      // Apply a 'with' filter to the candidate ranges without
+		      // enumerating them (IEEE 1800-2023 19.5.1.1): comparisons of
+		      // `item` with a constant, `item inside {...}`, and their
+		      // combinations with !, && and ||. Each candidate range is
+		      // filtered on its own, so duplicates and the order of the
+		      // range list are kept. A comparison with a constant is
+		      // monotone on each half of the encoded domain, so its
+		      // boundary is found by binary search with the same evaluator
+		      // the enumeration uses. Returns 1 when applied, 0 for a form
+		      // it does not handle (the caller enumerates), -1 for an
+		      // inside list that is not constant.
+		    typedef std::vector<std::pair<uint64_t,uint64_t>> cov_ranges_t;
+		    unsigned rf_width = 0;
+		    bool rf_signed = false;
+		    std::function<int(PExpr*, uint64_t, uint64_t, cov_ranges_t&)>
+			  filter_range_;
+		    filter_range_ = [&](PExpr*expr, uint64_t lo, uint64_t hi,
+					cov_ranges_t&out) -> int {
+			out.clear();
+			if (PEUnary*un = dynamic_cast<PEUnary*>(expr)) {
+			      if (un->get_op() != '!') return 0;
+			      cov_ranges_t in;
+			      int rc = filter_range_(un->get_expr(), lo, hi, in);
+			      if (rc != 1) return rc;
+			      uint64_t next = lo;
+			      bool done = false;
+			      for (const auto&r : in) {
+				    if (r.first > next)
+					  out.push_back(std::make_pair(next, r.first - 1));
+				    if (r.second == hi) { done = true; break; }
+				    next = r.second + 1;
+			      }
+			      if (!done) out.push_back(std::make_pair(next, hi));
+			      return 1;
+			}
+			if (PEBLogic*lg = dynamic_cast<PEBLogic*>(expr)) {
+			      if (lg->get_op() != 'a' && lg->get_op() != 'o') return 0;
+			      cov_ranges_t a, b;
+			      int rc = filter_range_(lg->get_left(), lo, hi, a);
+			      if (rc != 1) return rc;
+			      rc = filter_range_(lg->get_right(), lo, hi, b);
+			      if (rc != 1) return rc;
+			      if (lg->get_op() == 'a') {
+				    size_t i = 0, j = 0;
+				    while (i < a.size() && j < b.size()) {
+					  uint64_t l = std::max(a[i].first, b[j].first);
+					  uint64_t h = std::min(a[i].second, b[j].second);
+					  if (l <= h) out.push_back(std::make_pair(l, h));
+					  if (a[i].second < b[j].second) i += 1; else j += 1;
+				    }
+			      } else {
+				    cov_ranges_t all(a);
+				    all.insert(all.end(), b.begin(), b.end());
+				    std::sort(all.begin(), all.end());
+				    for (const auto&r : all)
+					  if (!out.empty() && (out.back().second == UINT64_MAX
+						|| r.first <= out.back().second + 1))
+						out.back().second = std::max(out.back().second, r.second);
+					  else
+						out.push_back(r);
+			      }
+			      return 1;
+			}
+			if (dynamic_cast<PEInside*>(expr)) {
+			      cov_ranges_t one(1, std::make_pair(lo, hi));
+			      int rc = apply_inside_filter(expr, one);
+			      if (rc != 1) return rc;
+			      std::sort(one.begin(), one.end());
+			      for (const auto&r : one)
+				    if (!out.empty() && (out.back().second == UINT64_MAX
+					  || r.first <= out.back().second + 1))
+					  out.back().second = std::max(out.back().second, r.second);
+				    else
+					  out.push_back(r);
+			      return 1;
+			}
+			PEBComp*cmp = dynamic_cast<PEBComp*>(expr);
+			if (!cmp) return 0;
+			auto is_item = [](PExpr*pe) {
+			      PEIdent*id = dynamic_cast<PEIdent*>(pe);
+			      return id && id->path().size() == 1
+				    && id->path().back().index.empty()
+				    && peek_tail_name(id->path())
+					 == perm_string::literal("item");
+			};
+			PExpr*other = is_item(cmp->get_left()) ? cmp->get_right()
+				    : is_item(cmp->get_right()) ? cmp->get_left() : 0;
+			if (!other || is_item(other)) return 0;
+			std::map<perm_string,int64_t> no_names;
+			int64_t konst = 0;
+			if (cov_named_eval_(other, no_names, konst) < 0) return 0;
+			bool failed = false;
+			auto truth = [&](uint64_t v) -> bool {
+			      int64_t res = 0;
+			      if (cov_with_eval_(expr, cov_with_item_value_(v,
+					rf_width, rf_signed), res) < 0)
+				    failed = true;
+			      return res != 0;
+			};
+			char op = cmp->get_op();
+			if (op == 'e' || op == 'E' || op == 'n' || op == 'N') {
+			        // At most one value compares equal: the constant's
+			        // encoding in the coverpoint width.
+			      uint64_t mask = rf_width >= 64 ? UINT64_MAX
+				    : (UINT64_C(1) << rf_width) - 1;
+			      uint64_t e = (uint64_t)konst & mask;
+			      bool hit = e >= lo && e <= hi
+				    && cov_with_item_value_(e, rf_width,
+					rf_signed) == konst;
+			      bool equal = op == 'e' || op == 'E';
+			      if (equal) {
+				    if (hit) out.push_back(std::make_pair(e, e));
+			      } else {
+				    if (hit && e > lo) out.push_back(std::make_pair(lo, e - 1));
+				    if (!hit) out.push_back(std::make_pair(lo, hi));
+				    else if (e < hi) out.push_back(std::make_pair(e + 1, hi));
+			      }
+			      if (failed) return 0;
+			      return 1;
+			}
+			if (op != '<' && op != '>' && op != 'L' && op != 'G') return 0;
+			  // Split at the point where the evaluated item value wraps,
+			  // so each piece is monotone.
+			uint64_t wrap = rf_signed && rf_width > 0
+			      ? UINT64_C(1) << (rf_width - 1)
+			      : UINT64_C(1) << 63;
+			std::vector<std::pair<uint64_t,uint64_t>> pieces;
+			if (lo < wrap && hi >= wrap) {
+			      pieces.push_back(std::make_pair(lo, wrap - 1));
+			      pieces.push_back(std::make_pair(wrap, hi));
+			} else {
+			      pieces.push_back(std::make_pair(lo, hi));
+			}
+			for (const auto&pc : pieces) {
+			      bool ta = truth(pc.first), tb = truth(pc.second);
+			      if (ta && tb) {
+				    out.push_back(pc);
+			      } else if (ta) {
+				      // A true prefix: find its last value.
+				    uint64_t a = pc.first, b = pc.second;
+				    while (b - a > 1) {
+					  uint64_t m = a + (b - a) / 2;
+					  if (truth(m)) a = m; else b = m;
+				    }
+				    out.push_back(std::make_pair(pc.first, a));
+			      } else if (tb) {
+				      // A true suffix: find its first value.
+				    uint64_t a = pc.first, b = pc.second;
+				    while (b - a > 1) {
+					  uint64_t m = a + (b - a) / 2;
+					  if (truth(m)) b = m; else a = m;
+				    }
+				    out.push_back(std::make_pair(b, pc.second));
+			      }
+			}
+			if (failed) return 0;
+			  // On the higher piece of a signed domain the values are
+			  // the negative ones: order the result by value encoding.
+			std::sort(out.begin(), out.end());
+			return 1;
+		    };
+		    auto apply_range_filter = [&](PExpr*expr, cov_ranges_t&rr,
+						  unsigned width, bool is_signed) -> int {
+			rf_width = width;
+			rf_signed = is_signed;
+			cov_ranges_t result;
+			for (const auto&r : rr) {
+			      cov_ranges_t part;
+			      int rc = filter_range_(expr, r.first, r.second, part);
+			      if (rc != 1) return rc;
+			      result.insert(result.end(), part.begin(), part.end());
+			}
+			rr = std::move(result);
+			return 1;
+		    };
+
 		      // Wildcard patterns: read the verinum directly so
 		      // x/z/? bits become don't-cares (value, care-mask).
 			    auto eval_wildcard = [&](PExpr*pe, uint64_t&val, uint64_t&mask) -> bool {
@@ -52475,6 +52651,15 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						  source_cp = &candidate;
 						  break;
 					    }
+				      if (source_cp && source_cp != &cp) {
+					    cerr << "error: covergroup bin '" << bin.name
+						 << "' of coverpoint '" << cp.label
+						 << "' names coverpoint '" << bin.source_coverpoint
+						 << "': only the coverpoint containing the bin may "
+						    "be named (IEEE 1800-2017/2023 19.5.1.1)." << endl;
+					    des->errors += 1;
+					    continue;
+				      }
 				      unsigned source_width = 0;
 				      if (source_cp && source_cp->expr) {
 					      // A selected packed identifier carries its semantic
@@ -52603,7 +52788,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						} else {
 						      with_pieces.push_back(std::make_pair(0, with_domain_max));
 						}
-						with_ok = apply_inside_filter(bin.with_expr, with_pieces) > 0;
+						with_ok = apply_range_filter(bin.with_expr, with_pieces, cp_value_width, cp_value_signed) > 0;
 					  }
 					  if (!with_ok) {
 						cerr << "sorry: constructor-dependent covergroup bin '"
@@ -52741,7 +52926,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    continue;
 				      }
 				      int range_filter =
-					    apply_inside_filter(bin.with_expr, rr);
+					    apply_range_filter(bin.with_expr, rr, cp_value_width, cp_value_signed);
 				      if (range_filter < 0) {
 					    cerr << "sorry: covergroup bin '" << bin.name
 						 << "' 'with' inside ranges are not "
@@ -53076,7 +53261,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    bool distribute_filter_valid = true;
 					    if (bin.with_expr && cg_distribute_first) {
 						  int range_filter =
-							apply_inside_filter(bin.with_expr, chunk);
+							apply_range_filter(bin.with_expr, chunk, cp_value_width, cp_value_signed);
 						  if (range_filter < 0) {
 							cerr << "sorry: covergroup bin '" << bin.name
 							     << "' 'with' inside ranges are not "
