@@ -8884,6 +8884,39 @@ package_item /* IEEE1800-2005 A.1.10 */
   | package_function_declaration
   | package_task_declaration
   | data_declaration
+  /* Package nets cannot have declaration assignments (26.2). */
+  | attribute_list_opt net_type data_type_or_implicit delay3_opt net_variable_list ';'
+      { data_type_t*data_type = $3;
+        pform_check_net_data_type(@2, $2, $3);
+        if (!data_type) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+        }
+        pform_set_net_delay(@2, $4, $5);
+        pform_set_data_type(@2, data_type, $5, $2, $1);
+        delete $1;
+      }
+  | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_variable_list ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
+        if (!data_type) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+        }
+        pform_set_net_delay(@2, $5, $6);
+        pform_set_data_type(@2, data_type, $6, $2, $1);
+        delete $1;
+      }
+  | attribute_list_opt NETTYPE_IDENTIFIER delay1_opt net_variable_list ';'
+      { pform_requires_sv(@2, "User-defined net declaration");
+        pform_set_nettype_referenced(@2, $2.text);
+        pform_set_nettype_wires(@2, $2.type, $4, $1);
+        if ($3) {
+	      yyerror(@3, "sorry: User-defined net delays are not supported.");
+	      delete $3;
+        }
+        delete[] $2.text;
+      }
   | class_declaration
   | package_import_export_declaration
   | package_constraint_declaration

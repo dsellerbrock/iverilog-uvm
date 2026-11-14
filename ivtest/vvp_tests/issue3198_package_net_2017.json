@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3198_package_net.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3198_package_net"],
+  "gold": "issue3198_package_net"
+}
