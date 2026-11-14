@@ -20237,6 +20237,12 @@ pform_sva_intersect(const struct vlltype&loc,
       return out;
 }
 
+static bool sva_seq_names_property_(const sva_property_t*p);
+static sva_property_t* sva_clone_property_(const struct vlltype&loc,
+		const sva_property_t*src,
+		const std::map<perm_string,PExpr*>*subst = nullptr,
+		const std::map<perm_string,const PEventStatement*>*event_subst = nullptr);
+
 /* A one-step chain that is just a boolean: no delay, no consecutive,
    goto (`[->n]') or nonconsecutive (`[=n]') repetition, no repeated group
    and no first_match. Those are sequences (16.9.2), never a boolean. */
@@ -20288,6 +20294,59 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 		   : (op_type == 12) ? (strength ? "s_always" : "always")
 		   : "eventually";
       if (!sub) return nullptr;
+      if (op_type == 9 || op_type == 10) {
+	    /* Expand only bare references, retaining rejection of clocks,
+	       strength and sequence syntax that this lowering cannot handle. */
+	    std::set<sva_scoped_name_t> visited;
+	    while (sva_seq_names_property_(sub) && !sub->clk_evt
+		   && !sub->disable_iff_expr && !sub->strength
+		   && !sub->ante_tree && !sub->pb && !sub->abort_cond
+		   && sub->mc_boundary == -1
+		   && (!sub->mc_more || sub->mc_more->empty())
+		   && sub->local_names.empty()
+		   && sva_step_is_single_boolean_(sub->seq->front())) {
+		  const PEIdent*id = dynamic_cast<const PEIdent*>(sub->seq->front().expr);
+		  if (!id) {
+			cerr << loc << ": sorry: parameterized named property operands of `"
+			     << w << "' are not supported yet." << endl;
+			error_count += 1;
+			pform_sva_destroy_property(sub);
+			return nullptr;
+		  }
+		  auto it = sva_resolve_(sva_module_properties, id->path().name.front().name);
+		  if (it == sva_module_properties.end() || !it->second
+		      || !visited.insert(it->first).second) {
+			cerr << loc << ": error: recursive named property operand of `"
+			     << w << "'." << endl;
+			error_count += 1;
+			pform_sva_destroy_property(sub);
+			return nullptr;
+		  }
+		  if (it->second->disable_iff_expr) {
+			cerr << loc << ": error: a property instance with a `disable iff' "
+			     << "clause cannot be an operand of another property "
+			     << "(IEEE 1800-2017/2023 16.12.1)." << endl;
+			error_count += 1;
+			pform_sva_destroy_property(sub);
+			return nullptr;
+		  }
+		  sva_property_t*body = sva_clone_property_(loc, it->second);
+		  pform_sva_destroy_property(sub);
+		  if (!body) {
+			cerr << loc << ": sorry: a named property operand cannot be instantiated here." << endl;
+			error_count += 1;
+			return nullptr;
+		  }
+		  sub = body;
+		  if (!sub->local_names.empty() || sub->strength) {
+			cerr << loc << ": sorry: named property operands with local variables or explicit strength of `"
+			     << w << "' are not supported yet." << endl;
+			error_count += 1;
+			pform_sva_destroy_property(sub);
+			return nullptr;
+		  }
+	    }
+      }
       if (sva_property_has_match_calls_(sub)) {
 	    sva_match_item_sorry_(loc,
 		  "inside a unary property operator are not supported yet");
@@ -21817,10 +21876,6 @@ static bool sva_prop_is_plain_seq_(const sva_property_t*prop)
 static sva_stree_t* sva_prop_take_tree_(const struct vlltype&loc, sva_property_t*p);
 static bool sva_prop_is_property_shaped_(const sva_property_t*p);
 static bool sva_leaf_names_property_(const sva_property_t*p);
-static sva_property_t* sva_clone_property_(const struct vlltype&loc,
-		const sva_property_t*src,
-		const std::map<perm_string,PExpr*>*subst = nullptr,
-		const std::map<perm_string,const PEventStatement*>*event_subst = nullptr);
 
 /* A property operator over full properties (and/or, if-else, an abort)
    as an implication consequent (A.2.10): build the per-attempt
