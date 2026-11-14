@@ -1818,11 +1818,14 @@ extern unsigned vpip_vec4_to_dec_str(const vvp_vector4_t&vec4,
  * %p and object string-value fetches. Walks the class definition's properties
  * and reads each from the live instance (real -> %g, string -> quoted, nested
  * object -> recurse, queue/associative -> placeholder, integral -> decimal).
- * A nil handle (or one with no definition) renders as "null". The depth guard
+ * A nil handle (or one with no definition) renders as "null", except where
+ * NIL_IS_EMPTY says the slot is declared a queue/darray/associative array:
+ * an empty container is not a null handle and prints '{} (21.2.1.6). The depth guard
  * bounds recursion so a cyclic object graph cannot loop forever.
  */
 extern std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth = 0,
-                                        bool element_signed = false);
+                                        bool element_signed = false,
+                                        bool nil_is_empty = false);
 
 
 extern void vpip_vec4_to_hex_str(const vvp_vector4_t&bits, char*buf,

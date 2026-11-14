@@ -1,0 +1,2 @@
+issue3182_vpi_errors_2017 normal,-g2017 issue3182_vpi_errors.c issue3182_vpi_errors_2017.gold
+issue3182_vpi_errors_2023 normal,-g2023 issue3182_vpi_errors.c issue3182_vpi_errors_2023.gold

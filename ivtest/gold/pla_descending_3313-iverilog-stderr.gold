@@ -1,0 +1,7 @@
+ivltests/pla_descending_3313.sv:10: error: argument 1 of $async$or$array must have ascending ranges.
+ivltests/pla_descending_3313.sv:11: error: argument 1 of $sync$and$plane must have ascending ranges.
+ivltests/pla_descending_3313.sv:12: error: argument 2 of $sync$nor$array must have ascending ranges.
+ivltests/pla_descending_3313.sv:13: error: argument 3 of $async$nand$plane must have ascending ranges.
+ivltests/pla_descending_3313.sv:14: error: argument 2 of $sync$or$array must have ascending ranges.
+ivltests/pla_descending_3313.sv:15: error: argument 3 of $sync$or$array must have ascending ranges.
+6 error(s) during elaboration.
