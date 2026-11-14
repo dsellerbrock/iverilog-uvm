@@ -1,0 +1,11 @@
+./ivltests/sva_rec_restrict.sv:19: error: `s_eventually' is applied to a property expression that instantiates `prop_always', from which recursive property `prop_always' is reachable (IEEE 1800-2023 16.12.17, restriction 1).
+./ivltests/sva_rec_restrict.sv:22: error: `s_nexttime' is applied to a property expression that instantiates `uses_always', from which recursive property `prop_always' is reachable (IEEE 1800-2023 16.12.17, restriction 1).
+./ivltests/sva_rec_restrict.sv:24: error: `not' is applied to a property expression that instantiates `prop_always', from which recursive property `prop_always' is reachable (IEEE 1800-2023 16.12.17, restriction 1).
+./ivltests/sva_rec_restrict.sv:6: sorry: recursive property `prop_always' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
+./ivltests/sva_rec_restrict.sv:15: error: `not' is applied to a property expression that instantiates `illegal_recursion_2', from which recursive property `illegal_recursion_2' is reachable (IEEE 1800-2023 16.12.17, restriction 1).
+./ivltests/sva_rec_restrict.sv:27: error: recursive property `illegal_recursion_3' uses `disable iff' (IEEE 1800-2023 16.12.17, restriction 2).
+./ivltests/sva_rec_restrict.sv:35: error: recursive property `illegal_recursion_4' instantiates itself without a positive advance in time (illegal_recursion_4 -> illegal_recursion_4) (IEEE 1800-2023 16.12.17, restriction 3).
+./ivltests/sva_rec_restrict.sv:41: error: recursive property `q2' instantiates itself without a positive advance in time (q2 -> q1 -> q2) (IEEE 1800-2023 16.12.17, restriction 3).
+./ivltests/sva_rec_restrict.sv:44: sorry: recursive property `q3' (IEEE 1800-2023 16.12.17) is not supported yet; its instances are dropped.
+./ivltests/sva_rec_restrict.sv:48: error: recursive instance `fibonacci2' in property `fibonacci2' binds formal `y' to an expression over formal `x' that is not itself a formal; only a local variable formal may take one (IEEE 1800-2023 16.12.17, restriction 4).
+./ivltests/sva_rec_restrict.sv:48: error: recursive instance `fibonacci2' in property `fibonacci2' binds formal `n' to an expression over formal `n' that is not itself a formal; only a local variable formal may take one (IEEE 1800-2023 16.12.17, restriction 4).

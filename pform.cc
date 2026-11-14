@@ -11095,50 +11095,622 @@ static bool sva_steps_refs_(const std::vector<sva_seq_step_t>*steps,
       return false;
 }
 
-static bool sva_tree_refs_(const sva_stree_t*t, perm_string name)
+/*
+ * IEEE 1800-2023 16.12.17 and F.7: recursive properties.
+ *
+ * The dependency digraph has an edge (p, q) when the declaration of p
+ * instantiates q. A named property is recursive iff it lies in a
+ * nontrivial strongly connected component. The weight of an instance is
+ * the minimal number of clock ticks guaranteed from the beginning of the
+ * declaration to the instance; restriction 3 requires every cycle of the
+ * digraph to weigh more than zero.
+ *
+ * The analysis reads the stored, unexpanded declarations, in which an
+ * instance is a name in a sequence step (an identifier or a call). The
+ * graph is built over every declaration known when it is asked for, so a
+ * cycle closed by a later (forward-referenced) declaration is found once
+ * that declaration is reached. Restrictions are checked once per
+ * declaration at the end of its scope, in declaration order.
+ */
+struct sva_rec_decl_t {
+      struct vlltype loc;
+      unsigned order = 0;
+};
+static std::map<sva_scoped_name_t, sva_rec_decl_t> sva_rec_decls_;
+static unsigned sva_rec_order_ = 0;
+static std::set<sva_scoped_name_t> sva_rec_recursive_;
+static std::set<sva_scoped_name_t> sva_rec_checked_;
+static bool sva_rec_dirty_ = false;
+/* Names under a `not'/strong operator, recorded while the operator is
+   parsed: lowering may rewrite the operator away (`a |=> not s' becomes a
+   forbidden-sequence implication), and its target may be declared later.
+   The declaration that encloses them takes them over. */
+typedef std::vector< std::pair<perm_string,int> > sva_rec_negs_t;
+static sva_rec_negs_t sva_rec_pending_neg_;
+static std::map<sva_scoped_name_t, sva_rec_negs_t> sva_rec_neg_names_;
+
+/* One property-name occurrence in a declaration body. */
+struct sva_rec_occ_t {
+      const PExpr*expr;     // the PEIdent or PECallFunction naming it
+      perm_string name;
+      long weight;          // guaranteed ticks from the declaration start
+      bool exact;           // false: weight is a lower bound only
+      int neg_op;           // enclosing `not'/strong operator op_type, or 0
+};
+
+static void sva_rec_expr_(const PExpr*e, long w, bool exact, int neg,
+			  std::vector<sva_rec_occ_t>&out)
 {
-      if (!t) return false;
-      return sva_steps_refs_(t->chain, name)
-	  || sva_names_(t->gexpr, name)
-	  || sva_tree_refs_(t->a, name) || sva_tree_refs_(t->b, name);
+      if (!e) return;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(e)) {
+	    const pform_name_t&path = id->path().name;
+	    if (!id->path().package && path.size() == 1
+		&& path.front().index.empty())
+		  out.push_back({e, path.front().name, w, exact, neg});
+	    return;
+      }
+      if (const PECallFunction*c = dynamic_cast<const PECallFunction*>(e)) {
+	    const pform_name_t&path = c->path().name;
+	    if (!c->path().package && path.size() == 1)
+		  out.push_back({e, path.front().name, w, exact, neg});
+	    for (const named_pexpr_t&a : c->get_parms())
+		  sva_rec_expr_(a.parm, w, exact, neg, out);
+	    return;
+      }
+      if (const PEBinary*b = dynamic_cast<const PEBinary*>(e)) {
+	    sva_rec_expr_(b->get_left(), w, exact, neg, out);
+	    sva_rec_expr_(b->get_right(), w, exact, neg, out);
+	    return;
+      }
+      if (const PEUnary*u = dynamic_cast<const PEUnary*>(e)) {
+	    sva_rec_expr_(u->get_expr(), w, exact, neg, out);
+	    return;
+      }
+      if (const PETernary*t = dynamic_cast<const PETernary*>(e)) {
+	    sva_rec_expr_(t->get_cond(), w, exact, neg, out);
+	    sva_rec_expr_(t->get_true(), w, exact, neg, out);
+	    sva_rec_expr_(t->get_false(), w, exact, neg, out);
+	    return;
+      }
+      if (const PEConcat*c = dynamic_cast<const PEConcat*>(e))
+	    for (const PExpr*x : c->stream_parms())
+		  sva_rec_expr_(x, w, exact, neg, out);
 }
 
-static bool sva_property_refs_(const sva_property_t*p, perm_string name)
+/* Walk a step chain starting `base' ticks after the declaration start;
+   return the earliest tick its match can end. An unknown delay counts as
+   zero and clears `exact'. */
+static long sva_rec_chain_(const std::vector<sva_seq_step_t>*steps, long base,
+			   bool&exact, int neg, std::vector<sva_rec_occ_t>*out)
 {
-      if (!p) return false;
-      return sva_steps_refs_(p->seq, name) || sva_steps_refs_(p->antecedent, name)
-	  || sva_steps_refs_(p->mc_prefix, name)
-	  || sva_tree_refs_(p->tree, name) || sva_tree_refs_(p->ante_tree, name)
-	  || sva_names_(p->pcond, name) || sva_names_(p->abort_cond, name)
-	  || sva_property_refs_(p->pa, name) || sva_property_refs_(p->pb, name);
+      long off = base;
+      if (!steps) return off;
+      for (const sva_seq_step_t&st : *steps) {
+	    if (st.delay_lo >= 0) off += st.delay_lo;
+	    else exact = false;
+	    if (st.grouped_repeat || st.rep_kind == 3 || st.rep_kind >= 4)
+		  exact = false;
+	    if (out) sva_rec_expr_(st.expr, off, exact, neg, *out);
+	      /* m goto/nonconsecutive occurrences take m distinct ticks. */
+	    if ((st.rep_kind == 1 || st.rep_kind == 2) && st.rep_lo > 1)
+		  off += st.rep_lo - 1;
+      }
+      return off;
 }
 
-/* Recursive and mutually recursive properties (16.12.17) need an engine
-   that spawns shared property attempts at later ticks; none exists yet.
-   Refuse them loudly at declaration instead of failing later on an
-   unresolved name. A cycle closes when this declaration names itself, or
-   names an earlier property that (through others) names it. */
-static bool sva_property_recursion_(const struct vlltype&loc,
-				    perm_string name, const sva_property_t*body)
+static long sva_rec_tree_(const sva_stree_t*t, long base, bool&exact, int neg,
+			  std::vector<sva_rec_occ_t>*out)
 {
-      bool cycle = sva_property_refs_(body, name);
-      for (std::map<sva_scoped_name_t,sva_property_t*>::const_iterator it =
-		 sva_module_properties.begin() ; !cycle
-		 && it != sva_module_properties.end() ; ++it)
-	    if (sva_property_refs_(body, it->first.name)
-		&& sva_property_refs_(it->second, name))
-		  cycle = true;
-      if (!cycle) return false;
-      cerr << loc << ": sorry: recursive property `" << name << "' (IEEE "
-	   << "1800-2023 16.12.17) is not supported yet; its instances are "
-	   << "dropped." << endl;
-      error_count += 1;
-      return true;
+      if (!t) return base;
+      if (t->kind == sva_stree_t::LEAF)
+	    return sva_rec_chain_(t->chain, base, exact, neg, out);
+      if (t->kind == sva_stree_t::SEQ_THROUGHOUT && out)
+	    sva_rec_expr_(t->gexpr, base, exact, neg, *out);
+      bool ea = exact, eb = exact;
+      long a = sva_rec_tree_(t->a, base, ea, neg, out);
+      long b;
+      if (t->kind == sva_stree_t::SEQ_CONCAT) {
+	      /* The continuation delay lives in b; count none here. */
+	    eb = false;
+	    b = sva_rec_tree_(t->b, a, eb, neg, out);
+      } else {
+	    b = sva_rec_tree_(t->b, base, eb, neg, out);
+      }
+      exact = ea && eb;
+      switch (t->kind) {
+	  case sva_stree_t::SEQ_OR: return a < b ? a : b;
+	  case sva_stree_t::SEQ_AND:
+	  case sva_stree_t::SEQ_INTERSECT: return a > b ? a : b;
+	  case sva_stree_t::SEQ_THROUGHOUT: return a;
+	  default: return b;
+      }
+}
+
+/* The earliest end of a property used as an implication antecedent. */
+static long sva_rec_prop_end_(const sva_property_t*p, bool&exact)
+{
+      if (!p || p->pa || p->op_type != 0 || p->antecedent || p->mc_prefix) {
+	    exact = false;
+	    return 0;
+      }
+      if (p->tree) return sva_rec_tree_(p->tree, 0, exact, 0, nullptr);
+      return sva_rec_chain_(p->seq, 0, exact, 0, nullptr);
+}
+
+/* 16.12.17 restriction 1: `not' and the strong operators. */
+static bool sva_rec_negating_op_(const sva_property_t*p)
+{
+      int op = p->op_type;
+      return op == 3 || op == 6 || op == 7 || op == 10 || op == 11
+	  || ((op == 12 || op == 13) && p->strength);
+}
+
+static void sva_rec_walk_(const sva_property_t*p, long base, bool exact,
+			  int neg, std::vector<sva_rec_occ_t>&out)
+{
+      if (!p) return;
+      int op = p->op_type;
+      int pneg = (!neg && sva_rec_negating_op_(p)) ? op : neg;
+      sva_rec_expr_(p->pcond, base, exact, neg, out);
+      sva_rec_expr_(p->abort_cond, base, exact, neg, out);
+      sva_rec_expr_(p->disable_iff_expr, base, exact, neg, out);
+      if (p->mc_prefix || p->seq_clk_evt
+	  || (p->mc_more && !p->mc_more->empty()))
+	    exact = false;
+      if (p->pa) {
+	    bool e = exact;
+	    if (op == 23 || op == 24 || op == 25) {
+		  sva_rec_walk_(p->pa, base, exact, pneg, out);
+		  long end = sva_rec_prop_end_(p->pa, e);
+		  sva_rec_walk_(p->pb, base + end + (op == 24 ? 1 : 0), e,
+				pneg, out);
+		  return;
+	    }
+	    if (!(op == 20 || op == 21 || op == 22 || (op >= 14 && op <= 17)))
+		  e = false;
+	    sva_rec_walk_(p->pa, base, e, pneg, out);
+	    sva_rec_walk_(p->pb, base, e, pneg, out);
+	    return;
+      }
+      bool e = exact;
+      long cbase = base;
+      if (p->antecedent || p->ante_tree) {
+	    long end = p->ante_tree
+		  ? sva_rec_tree_(p->ante_tree, base, e, pneg, &out)
+		  : sva_rec_chain_(p->antecedent, base, e, pneg, &out);
+	    if (op == 1 || op == 18) cbase = end;
+	    else if (op == 2 || op == 19) cbase = end + 1;
+      }
+      if (op >= 9 && op <= 13)
+	    cbase = base + (p->win_lo >= 0 ? p->win_lo
+			    : (op == 9 || op == 10) ? 1 : 0);
+	/* 18/19: `s |-> s_eventually b' kept in its compact form. */
+      int cneg = (!pneg && (op == 18 || op == 19)) ? 11 : pneg;
+      if (p->tree) sva_rec_tree_(p->tree, cbase, e, cneg, &out);
+      sva_rec_chain_(p->seq, cbase, e, cneg, &out);
+}
+
+static const sva_property_t* sva_rec_body_(const sva_scoped_name_t&k,
+		const std::vector<sva_property_formal_t>**formals = nullptr)
+{
+      if (formals) *formals = nullptr;
+      std::map<sva_scoped_name_t, sva_property_t*>::const_iterator m =
+	    sva_module_properties.find(k);
+      if (m != sva_module_properties.end()) return m->second;
+      std::map<sva_scoped_name_t, sva_param_prop_t>::const_iterator pp =
+	    sva_param_properties.find(k);
+      if (pp == sva_param_properties.end()) return nullptr;
+      if (formals) *formals = &pp->second.formals;
+      return pp->second.body;
+}
+
+/* Resolve a name as written inside declaration `from'. */
+static bool sva_rec_resolve_(const sva_scoped_name_t&from, perm_string nm,
+			     sva_scoped_name_t&to)
+{
+      const Module::PClocking*save = sva_active_clocking_scope_;
+      sva_active_clocking_scope_ = from.clocking;
+      bool ok = false;
+      std::map<sva_scoped_name_t, sva_property_t*>::iterator a =
+	    sva_resolve_(sva_module_properties, nm, from.gen);
+      if (a != sva_module_properties.end() && a->second) {
+	    to = a->first;
+	    ok = true;
+      } else {
+	    std::map<sva_scoped_name_t, sva_param_prop_t>::iterator b =
+		  sva_resolve_(sva_param_properties, nm, from.gen);
+	    if (b != sva_param_properties.end() && b->second.body) {
+		  to = b->first;
+		  ok = true;
+	    }
+      }
+      sva_active_clocking_scope_ = save;
+      return ok;
+}
+
+static bool sva_rec_is_formal_(const std::vector<sva_property_formal_t>*f,
+			       perm_string nm)
+{
+      if (f) for (const sva_property_formal_t&x : *f)
+	    if (x.name == nm) return true;
+      return false;
+}
+
+struct sva_rec_edge_t {
+      long weight;
+      bool exact;
+};
+typedef std::map<sva_scoped_name_t,
+		 std::map<sva_scoped_name_t, sva_rec_edge_t> > sva_rec_graph_t;
+typedef std::map<sva_scoped_name_t, std::vector<sva_rec_occ_t> > sva_rec_occs_t;
+
+/* Occurrences of each declaration that name another declaration. */
+static void sva_rec_graph_(sva_rec_graph_t&g, sva_rec_occs_t&occs)
+{
+      std::vector<sva_scoped_name_t> nodes;
+      for (const auto&m : sva_module_properties)
+	    if (m.second) nodes.push_back(m.first);
+      for (const auto&m : sva_param_properties)
+	    if (m.second.body) nodes.push_back(m.first);
+      for (const sva_scoped_name_t&p : nodes) {
+	    const std::vector<sva_property_formal_t>*formals;
+	    const sva_property_t*body = sva_rec_body_(p, &formals);
+	    std::vector<sva_rec_occ_t> all;
+	    sva_rec_walk_(body, 0, true, 0, all);
+	    std::map<sva_scoped_name_t, sva_rec_edge_t>&out = g[p];
+	    std::vector<sva_rec_occ_t>&kept = occs[p];
+	    for (const sva_rec_occ_t&o : all) {
+		  sva_scoped_name_t q;
+		  if (sva_rec_is_formal_(formals, o.name)
+		      || !sva_rec_resolve_(p, o.name, q))
+			continue;
+		  kept.push_back(o);
+		  std::map<sva_scoped_name_t, sva_rec_edge_t>::iterator e =
+			out.find(q);
+		  if (e == out.end())
+			out[q] = sva_rec_edge_t{o.weight, o.exact};
+		  else if (o.weight < e->second.weight)
+			e->second = sva_rec_edge_t{o.weight, o.exact};
+		  else if (o.weight == e->second.weight && o.exact)
+			e->second.exact = true;
+	    }
+      }
+}
+
+/* Tarjan: the nontrivial strongly connected components. */
+static void sva_rec_sccs_(const sva_rec_graph_t&g,
+			  std::vector< std::vector<sva_scoped_name_t> >&out)
+{
+      std::map<sva_scoped_name_t, unsigned> index, low;
+      std::set<sva_scoped_name_t> on;
+      std::vector<sva_scoped_name_t> stack;
+      unsigned next = 0;
+      std::function<void(const sva_scoped_name_t&)> visit =
+	    [&](const sva_scoped_name_t&v) {
+	    index[v] = low[v] = next++;
+	    stack.push_back(v);
+	    on.insert(v);
+	    sva_rec_graph_t::const_iterator gv = g.find(v);
+	    if (gv != g.end()) for (const auto&e : gv->second) {
+		  const sva_scoped_name_t&w = e.first;
+		  if (!index.count(w)) {
+			visit(w);
+			if (low[w] < low[v]) low[v] = low[w];
+		  } else if (on.count(w) && index[w] < low[v]) {
+			low[v] = index[w];
+		  }
+	    }
+	    if (low[v] != index[v]) return;
+	    std::vector<sva_scoped_name_t> comp;
+	    sva_scoped_name_t w;
+	    do {
+		  w = stack.back();
+		  stack.pop_back();
+		  on.erase(w);
+		  comp.push_back(w);
+	    } while (!(!(w < v) && !(v < w)));
+	    bool self = gv != g.end() && gv->second.count(v);
+	    if (comp.size() > 1 || self) out.push_back(comp);
+      };
+      for (const auto&n : g)
+	    if (!index.count(n.first)) visit(n.first);
+}
+
+static void sva_rec_refresh_(void)
+{
+      if (!sva_rec_dirty_) return;
+      sva_rec_dirty_ = false;
+      sva_rec_graph_t g;
+      sva_rec_occs_t occs;
+      sva_rec_graph_(g, occs);
+      std::vector< std::vector<sva_scoped_name_t> > sccs;
+      sva_rec_sccs_(g, sccs);
+      sva_rec_recursive_.clear();
+      for (const auto&c : sccs)
+	    sva_rec_recursive_.insert(c.begin(), c.end());
+}
+
+/* A recursive declaration reachable from `from' (itself included). */
+static bool sva_rec_reaches_(const sva_rec_graph_t&g,
+			     const sva_scoped_name_t&from,
+			     sva_scoped_name_t&found)
+{
+      std::set<sva_scoped_name_t> seen;
+      std::vector<sva_scoped_name_t> work (1, from);
+      while (!work.empty()) {
+	    sva_scoped_name_t v = work.back();
+	    work.pop_back();
+	    if (!seen.insert(v).second) continue;
+	    if (sva_rec_recursive_.count(v)) {
+		  found = v;
+		  return true;
+	    }
+	    sva_rec_graph_t::const_iterator gv = g.find(v);
+	    if (gv != g.end())
+		  for (const auto&e : gv->second) work.push_back(e.first);
+      }
+      return false;
+}
+
+/* True when a declaration named here (in the current scope) is recursive.
+   Expansion sites use this so an instance is never inlined forever. */
+static bool sva_rec_is_recursive_(perm_string nm)
+{
+      sva_rec_refresh_();
+      if (sva_rec_recursive_.empty()) return false;
+      std::map<sva_scoped_name_t, sva_property_t*>::iterator a =
+	    sva_resolve_(sva_module_properties, nm);
+      if (a != sva_module_properties.end())
+	    return sva_rec_recursive_.count(a->first) != 0;
+      std::map<sva_scoped_name_t, sva_param_prop_t>::iterator b =
+	    sva_resolve_(sva_param_properties, nm);
+      return b != sva_param_properties.end()
+	  && sva_rec_recursive_.count(b->first) != 0;
+}
+
+static const char* sva_rec_op_name_(int op)
+{
+      switch (op) {
+	  case 3:  return "not";
+	  case 6:  return "s_until";
+	  case 7:  return "s_until_with";
+	  case 10: return "s_nexttime";
+	  case 12: return "s_always";
+	  default: return "s_eventually";
+      }
+}
+
+/* Restriction 1 at a `not'/strong operator applied while parsing: its
+   operand instantiates a declaration from which a recursive property is
+   reachable. Reports and returns true. */
+static bool sva_rec_negation_check_(const struct vlltype&loc, int op,
+				    const sva_property_t*operand)
+{
+      if (!operand) return false;
+      std::vector<sva_rec_occ_t> occs;
+      sva_rec_walk_(operand, 0, true, 0, occs);
+      for (const sva_rec_occ_t&o : occs)
+	    sva_rec_pending_neg_.push_back(std::make_pair(o.name, op));
+      sva_rec_refresh_();
+      if (occs.empty() || sva_rec_recursive_.empty()) return false;
+      sva_rec_graph_t g;
+      sva_rec_occs_t unused;
+      sva_rec_graph_(g, unused);
+      sva_scoped_name_t here;
+      here.name = perm_string();
+      here.gen = pform_cur_generate;
+      here.package = nullptr;
+      here.unit = nullptr;
+      here.clocking = pform_cur_clocking;
+      for (const sva_rec_occ_t&o : occs) {
+	    sva_scoped_name_t q, r;
+	    if (!sva_rec_resolve_(here, o.name, q)
+		|| !sva_rec_reaches_(g, q, r))
+		  continue;
+	    cerr << loc << ": error: `" << sva_rec_op_name_(op)
+		 << "' is applied to a property expression that instantiates `"
+		 << q.name << "', from which recursive property `" << r.name
+		 << "' is reachable (IEEE 1800-2023 16.12.17, restriction 1)."
+		 << endl;
+	    error_count += 1;
+	    return true;
+      }
+      return false;
+}
+
+static void sva_rec_note_decl_(const struct vlltype&loc, perm_string name,
+			       sva_rec_negs_t&negs)
+{
+      sva_scoped_name_t key = sva_decl_key_(name);
+      sva_rec_decl_t&d = sva_rec_decls_[key];
+      d.loc = loc;
+      d.order = sva_rec_order_++;
+      sva_rec_neg_names_[key].swap(negs);
+      sva_rec_dirty_ = true;
+}
+
+/* End of a scope: check every declaration not checked yet, in declaration
+   order. A legal recursive declaration still has no engine (#1187). */
+static void sva_rec_check_scope_(void)
+{
+      sva_rec_graph_t g;
+      sva_rec_occs_t occs;
+      sva_rec_graph_(g, occs);
+      std::vector< std::vector<sva_scoped_name_t> > sccs;
+      sva_rec_sccs_(g, sccs);
+      sva_rec_recursive_.clear();
+      for (const auto&c : sccs)
+	    sva_rec_recursive_.insert(c.begin(), c.end());
+      sva_rec_dirty_ = false;
+
+      struct diag_t {
+	    unsigned order;
+	    struct vlltype loc;
+	    std::string text;
+	    bool error;
+      };
+      std::vector<diag_t> diags;
+      std::set<sva_scoped_name_t> r1_bad;
+      auto add = [&](const sva_scoped_name_t&k, const std::string&text,
+		     bool error) {
+	    const sva_rec_decl_t&d = sva_rec_decls_[k];
+	    diags.push_back(diag_t{d.order, d.loc, text, error});
+      };
+
+	/* Restriction 1, for operators applied to forward references. */
+      for (const auto&n : occs) {
+	    if (sva_rec_checked_.count(n.first)) continue;
+	    std::set<std::string> said;
+	    sva_rec_negs_t negs = sva_rec_neg_names_[n.first];
+	    for (const sva_rec_occ_t&o : n.second)
+		  if (o.neg_op) negs.push_back(std::make_pair(o.name, o.neg_op));
+	    for (const std::pair<perm_string,int>&o : negs) {
+		  sva_scoped_name_t q, r;
+		  if (!sva_rec_resolve_(n.first, o.first, q)
+		      || !sva_rec_reaches_(g, q, r))
+			continue;
+		  std::ostringstream msg;
+		  msg << "error: `" << sva_rec_op_name_(o.second)
+		      << "' is applied to a property expression that "
+		      << "instantiates `" << q.name << "', from which recursive "
+		      << "property `" << r.name << "' is reachable (IEEE "
+		      << "1800-2023 16.12.17, restriction 1).";
+		  if (said.insert(msg.str()).second) add(n.first, msg.str(), true);
+		  r1_bad.insert(n.first);
+	    }
+      }
+
+      for (const std::vector<sva_scoped_name_t>&comp : sccs) {
+	    bool fresh = false;
+	    for (const sva_scoped_name_t&k : comp)
+		  if (!sva_rec_checked_.count(k)) fresh = true;
+	    if (!fresh) continue;
+	    std::set<sva_scoped_name_t> in (comp.begin(), comp.end());
+	    bool bad = false;
+	    for (const sva_scoped_name_t&k : comp)
+		  if (r1_bad.count(k)) bad = true;
+	    for (const sva_scoped_name_t&p : comp) {
+		  const std::vector<sva_property_formal_t>*pf;
+		  const sva_property_t*body = sva_rec_body_(p, &pf);
+		  if (body && body->disable_iff_expr) {
+			add(p, "error: recursive property `" + std::string(p.name.str())
+			    + "' uses `disable iff' (IEEE 1800-2023 16.12.17, "
+			    "restriction 2).", true);
+			bad = true;
+		  }
+		    /* Restriction 4, on each recursive instance's actuals. */
+		  for (const sva_rec_occ_t&o : occs[p]) {
+			sva_scoped_name_t q;
+			if (!sva_rec_resolve_(p, o.name, q) || !in.count(q))
+			      continue;
+			const PECallFunction*call =
+			      dynamic_cast<const PECallFunction*>(o.expr);
+			if (!call) continue;
+			const std::vector<sva_property_formal_t>*qf;
+			sva_rec_body_(q, &qf);
+			const std::vector<named_pexpr_t>&args = call->get_parms();
+			for (size_t i = 0 ; i < args.size() ; i += 1) {
+			      const PExpr*e = args[i].parm;
+			      if (!e) continue;
+			      const sva_property_formal_t*f = nullptr;
+			      if (qf) for (size_t j = 0 ; j < qf->size() ; j += 1)
+				    if (args[i].name.nil() ? j == i
+					: (*qf)[j].name == args[i].name)
+					  f = &(*qf)[j];
+			      if (f && f->local_formal) continue;
+			      const PEIdent*id = dynamic_cast<const PEIdent*>(e);
+			      if (id && id->path().name.size() == 1
+				  && sva_rec_is_formal_(pf,
+					id->path().name.front().name))
+				    continue;
+			      perm_string used;
+			      if (pf) for (const sva_property_formal_t&x : *pf)
+				    if (sva_names_(e, x.name)) { used = x.name; break; }
+			      if (used.nil()) continue;
+			      std::ostringstream msg;
+			      msg << "error: recursive instance `" << q.name
+				  << "' in property `" << p.name << "' binds ";
+			      if (f) msg << "formal `" << f->name << "'";
+			      else msg << "argument " << (i + 1);
+			      msg << " to an expression over formal `" << used
+				  << "' that is not itself a formal; only a local "
+				  << "variable formal may take one (IEEE 1800-2023 "
+				  << "16.12.17, restriction 4).";
+			      add(p, msg.str(), true);
+			      bad = true;
+			}
+		  }
+	    }
+	      /* Restriction 3: no cycle made only of zero-weight edges. */
+	    std::map<sva_scoped_name_t, int> mark;
+	    std::vector<sva_scoped_name_t> path;
+	    std::vector<sva_scoped_name_t> cycle;
+	    bool cycle_exact = true;
+	    std::function<bool(const sva_scoped_name_t&)> dfs =
+		  [&](const sva_scoped_name_t&v) -> bool {
+		  mark[v] = 1;
+		  path.push_back(v);
+		  for (const auto&e : g[v]) {
+			if (!in.count(e.first) || e.second.weight > 0) continue;
+			if (mark[e.first] == 1) {
+			      size_t s = 0;
+			      while (path[s] < e.first || e.first < path[s]) s += 1;
+			      cycle.assign(path.begin() + s, path.end());
+			      cycle.push_back(e.first);
+			      return true;
+			}
+			if (mark[e.first] == 0 && dfs(e.first)) return true;
+		  }
+		  path.pop_back();
+		  mark[v] = 2;
+		  return false;
+	    };
+	    for (const sva_scoped_name_t&k : comp)
+		  if (mark[k] == 0 && dfs(k)) break;
+	    if (!cycle.empty()) {
+		  for (size_t i = 0 ; i + 1 < cycle.size() ; i += 1)
+			if (!g[cycle[i]][cycle[i+1]].exact) cycle_exact = false;
+		  std::string names;
+		  for (size_t i = 0 ; i < cycle.size() ; i += 1)
+			names += (i ? " -> " : "") + std::string(cycle[i].name.str());
+		  if (cycle_exact)
+			add(cycle.front(), "error: recursive property `"
+			    + std::string(cycle.front().name.str()) + "' "
+			    "instantiates itself without a positive advance in "
+			    "time (" + names + ") (IEEE 1800-2023 16.12.17, "
+			    "restriction 3).", true);
+		  else
+			add(cycle.front(), "sorry: cannot show that recursive "
+			    "property `" + std::string(cycle.front().name.str())
+			    + "' advances time before instantiating itself ("
+			    + names + "); a delay on that path has a form this "
+			    "check does not measure (IEEE 1800-2023 16.12.17, "
+			    "restriction 3).", true);
+		  bad = true;
+	    }
+	    if (!bad)
+		  for (const sva_scoped_name_t&k : comp)
+			add(k, "sorry: recursive property `"
+			    + std::string(k.name.str()) + "' (IEEE 1800-2023 "
+			    "16.12.17) is not supported yet; its instances are "
+			    "dropped.", true);
+      }
+      for (const auto&n : g) sva_rec_checked_.insert(n.first);
+
+      std::stable_sort(diags.begin(), diags.end(),
+		       [](const diag_t&a, const diag_t&b) {
+			     return a.order < b.order; });
+      for (const diag_t&d : diags) {
+	    cerr << d.loc << ": " << d.text << endl;
+	    if (d.error) error_count += 1;
+      }
 }
 
 void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
+      sva_rec_negs_t negs;
+      negs.swap(sva_rec_pending_neg_);
       sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
 	  if (!prop || !sva_prepare_clocking_declaration_(loc, prop,
@@ -11147,10 +11719,6 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 		return;
 	  }
       perm_string use_name = lex_strings.make(name);
-      if (sva_property_recursion_(loc, use_name, prop)) {
-	    pform_sva_destroy_property(prop);
-	    return;
-      }
       sva_scoped_name_t key = sva_decl_key_(use_name);
       if (sva_module_properties.count(key)
 	  || sva_module_sequences.count(key)) {
@@ -11162,6 +11730,7 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
       }
       sva_decl_property_forget_sampled_(prop);
       sva_module_properties[key] = prop;
+      sva_rec_note_decl_(loc, use_name, negs);
 }
 
 void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
@@ -11294,14 +11863,11 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 				  std::list<sva_property_formal_t>*formals,
 				  sva_property_t*prop)
 {
+      sva_rec_negs_t negs;
+      negs.swap(sva_rec_pending_neg_);
       sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
-      if (prop && sva_property_recursion_(loc, use_name, prop)) {
-	    pform_sva_destroy_property(prop);
-	    delete formals;
-	    return;
-      }
 
       bool bad_local_direction = false;
       if (formals) {
@@ -11364,6 +11930,7 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
       sva_decl_property_forget_sampled_(prop);
       rec.body = prop;
       sva_param_properties[sva_decl_key_(use_name)] = rec;
+      sva_rec_note_decl_(loc, use_name, negs);
       delete formals;
 }
 
@@ -11422,6 +11989,8 @@ void pform_sva_module_done(void)
          ordinary declaration action runs. Do not leak its temporary type
          expressions or let them affect a later module. */
       pform_sva_end_local_declarations();
+	/* 16.12.17: every declaration of this scope is now known. */
+      sva_rec_check_scope_();
       Module*module = pform_cur_module.empty() ? nullptr
 						    : pform_cur_module.front();
       sva_retain_module_sequences_(module);
@@ -20273,7 +20842,11 @@ pform_sva_binprop(const struct vlltype&loc, int op_type,
       p->antecedent = sub;
       p->seq = obj;
       p->op_type = op_type;
-      (void)loc;
+      if ((op_type == 6 || op_type == 7)
+	  && sva_rec_negation_check_(loc, op_type, p)) {
+	    pform_sva_destroy_property(p);
+	    return nullptr;
+      }
       return p;
 }
 
@@ -20294,6 +20867,12 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 		   : (op_type == 12) ? (strength ? "s_always" : "always")
 		   : "eventually";
       if (!sub) return nullptr;
+      if ((op_type == 10 || op_type == 11
+	   || ((op_type == 12 || op_type == 13) && strength))
+	  && sva_rec_negation_check_(loc, op_type == 13 ? 11 : op_type, sub)) {
+	    pform_sva_destroy_property(sub);
+	    return nullptr;
+      }
       if (sva_property_has_match_calls_(sub)) {
 	    sva_match_item_sorry_(loc,
 		  "inside a unary property operator are not supported yet");
@@ -22712,6 +23291,10 @@ sva_property_t* pform_sva_prop_not(const struct vlltype&loc,
 				   sva_property_t*sub)
 {
       if (!sub) return nullptr;
+      if (sva_rec_negation_check_(loc, 3, sub)) {
+	    pform_sva_destroy_property(sub);
+	    return nullptr;
+      }
       std::set<sva_scoped_name_t> visited;
       while (sva_seq_names_property_(sub)) {
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(sub->seq->front().expr);
@@ -35296,6 +35879,9 @@ static bool sva_comp_expand_refs_(const struct vlltype&loc, sva_property_t*p)
 			nm = id->path().name.front().name;
 			pit = sva_resolve_(sva_module_properties, nm);
 			if (pit != sva_module_properties.end() && pit->second
+			    && sva_rec_is_recursive_(nm))
+			      return false;   /* 16.12.17, end of scope */
+			if (pit != sva_module_properties.end() && pit->second
 			    && !sva_property_shaped_sequences.count(pit->first)) {
 			      if (pit->second->disable_iff_expr) {
 				    cerr << loc << ": error: a property instance with a "
@@ -35760,6 +36346,7 @@ void pform_sva_hold_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      Statement*fail_stmt, Statement*pass_stmt,
 			      int kind)
 {
+      sva_rec_pending_neg_.clear();   /* not inside a declaration */
       assert(!sva_held_assertion_.held);
       sva_held_assertion_.held = true;
       sva_held_assertion_.loc = loc;
@@ -36432,6 +37019,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			  Statement*fail_stmt, Statement*pass_stmt, int kind,
 			  perm_string label, unsigned proc_id)
 {
+      sva_rec_pending_neg_.clear();   /* not inside a declaration */
       pform_generated_verification_scope_t verification_scope;
       sva_assertion_label_scope_t assertion_label_scope(label, kind, proc_id);
       if (sva_assertion_label_depth_ == 1)
@@ -36756,6 +37344,19 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  perm_string property_name;
 		  std::map<sva_scoped_name_t, sva_property_t*>::iterator pit;
 		  if (sva_named_property_ref_(id, property_name, pit)) {
+			sva_rec_refresh_();
+			if (pit != sva_module_properties.end() && pit->second
+			    && sva_rec_recursive_.count(pit->first)) {
+				/* 16.12.17: reported at the end of the scope;
+				   inlining would never terminate. */
+			      if (sva_sub_request_) sva_sub_request_->error = true;
+			      delete id;
+			      delete prop->seq;
+			      delete prop;
+			      delete fail_stmt;
+			      delete pass_stmt;
+			      return;
+			}
 			if (pit != sva_module_properties.end() && !pit->second) {
 			        /* The declaration existed but was consumed by a
 			           prior instantiation of a shape we cannot clone
@@ -37137,6 +37738,19 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    key.clocking = cb->second;
 				    pit = sva_param_properties.find(key);
 			      }
+			}
+			sva_rec_refresh_();
+			if (pit != sva_param_properties.end() && pit->second.body
+			    && sva_rec_recursive_.count(pit->first)) {
+				/* 16.12.17: reported at the end of the scope;
+				   inlining would never terminate. */
+			      if (sva_sub_request_) sva_sub_request_->error = true;
+			      delete (*prop->seq)[0].expr;
+			      delete prop->seq;
+			      delete prop;
+			      delete fail_stmt;
+			      delete pass_stmt;
+			      return;
 			}
 			if (pit != sva_param_properties.end() && pit->second.body) {
 			      sva_property_t*decl = pit->second.body;
@@ -38896,6 +39510,8 @@ int pform_parse(const char*path)
 	   pform_endmodule, so drain both park lists here too. */
       pform_sva_flush_pending_named_properties();
       pform_sva_flush_pending_procedural();
+	/* Package and compilation-unit declarations outlive modules. */
+      sva_rec_check_scope_();
 
       if (vl_input != stdin) {
 	    if (ivlpp_string)
