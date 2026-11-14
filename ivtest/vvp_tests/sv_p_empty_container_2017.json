@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_p_empty_container.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "sv_p_empty_container"
+}

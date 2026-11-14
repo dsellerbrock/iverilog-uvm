@@ -139,7 +139,7 @@ static std::string format_cobject_property_(vvp_cobject* cobj,
 	if (!bt.empty() && (bt[0] == 'o' || bt[0] == 'Q' || bt[0] == 'D')) {
 		vvp_object_t sub;
 		cobj->get_object(prop, sub, leaf);
-		return vvp_format_cobject_p(sub, depth+1);
+		return vvp_format_cobject_p(sub, depth+1, false, bt[0] != 'o');
 	}
 	vvp_vector4_t v;
 	cobj->get_vec4(prop, v, leaf);
@@ -166,8 +166,10 @@ static std::string format_cobject_property_(vvp_cobject* cobj,
    (array.cc), the dynamic-array/queue element path (the thread object stack
    handle in vpi_vthr_vector.cc), and any other object string fetch. */
 std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
-                                 bool element_signed)
+                                 bool element_signed, bool nil_is_empty)
 {
+      if (nil_is_empty && obj.test_nil())
+	    return std::string("'{}");
 	// A container value (queue/darray element that is itself a
 	// queue or dynamic array — e.g. `int qq[$][$]`): render its
 	// elements recursively. Reading such an element through the
@@ -200,7 +202,8 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
 		  } else if (is_obj) {
 			vvp_object_t sub;
 			da->get_word(i, sub);
-			out += vvp_format_cobject_p(sub, depth+1, element_signed);
+			out += vvp_format_cobject_p(sub, depth+1, element_signed,
+				   da->declared_element_container_layout() != nullptr);
 		  } else {
 			vvp_vector4_t v;
 			da->get_word(i, v);

@@ -32285,6 +32285,16 @@ static vvp_object_t fixed_prop_materialize_(
       }
 
       const string&type = defn->property_base_type(pid);
+	/* Record that the leaves are containers, so a nil leaf reads as an
+	   empty queue/darray/associative array ('{} for %p), not a null
+	   class handle. The bound stays unknown: this is a read copy. */
+      if (!type.empty() && (type[0] == 'Q' || type[0] == 'D' || type[0] == 'A'))
+	    array->set_declared_container_layout(vvp_make_container_layout(
+		  VVP_CONTAINER_DARRAY, false, 0, vvp_make_container_layout(
+			type[0] == 'Q' ? VVP_CONTAINER_QUEUE
+			: type[0] == 'A' ? VVP_CONTAINER_ASSOC
+			: VVP_CONTAINER_DARRAY, false, 0,
+			vvp_container_layout_t())));
       for (size_t idx = 0 ; idx < count ; idx += 1, flat += 1) {
 	    if (type == "r") {
 		  array->set_word((unsigned)idx, recv.get_real(pid, flat));

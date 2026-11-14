@@ -222,7 +222,8 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 			    if (defn)
 				  oval = vvp_object_t(new vvp_cobject(defn));
 		      }
-		      std::string s = vvp_format_cobject_p(oval);
+		      std::string s = vvp_format_cobject_p(oval, 0, false,
+				aobj->declared_element_container_layout() != nullptr);
 		      char*rbuf = (char*)need_result_buf(s.size()+1, RBUF_VAL);
 		      strcpy(rbuf, s.c_str());
 		      vp->value.str = rbuf;
