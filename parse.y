@@ -3190,7 +3190,7 @@ static Module::port_t *module_declare_explicit_port(
 
 %type <expr>  sva_cycle_delay_value
 %type <expr>  assignment_pattern expression expression_opt expr_mintypmax
-%type <expr>  sva_bool_atom
+%type <expr>  sva_bool_atom sva_dist_expr
 %type <for_var_decl> for_typed_variable_initializer
 %destructor { pform_destroy_for_variable_declaration($$); }
   for_typed_variable_initializer
@@ -10358,6 +10358,8 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      [*m:n]) builds a SEQ_THROUGHOUT tree for the automaton engine. */
   | expression K_throughout sva_seq_expr
       { $$ = pform_sva_seq_throughout(@2, $1, $3); }
+  | sva_dist_expr K_throughout sva_seq_expr
+      { $$ = pform_sva_seq_throughout(@2, $1, $3); }
   ;
 
   /* IEEE 1800-2017 16.12.8: `case' property branches. A matched branch is
@@ -10553,7 +10555,7 @@ sva_match_item_list
   ;
 
 sva_seq_atom
-    /* `sva_bool_atom' is a bare `expression'. See its definition for why
+    /* `sva_bool_atom' is an expression or distribution. See its definition for why
        the indirection is required (reduce/reduce tie-break on ')'). */
   : sva_bool_atom
       { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
@@ -13773,8 +13775,8 @@ expr_mintypmax
       }
   ;
 
-  /* The boolean leaf of a sequence (IEEE 1800-2017 16.7). This is a
-     bare `expression' and nothing more; it exists as its own
+  /* The boolean leaf of a sequence (IEEE 1800-2017 16.7). The bare
+     expression path exists as its own
      nonterminal ONLY so that it is DECLARED AFTER `expr_mintypmax'.
      Rule order is what bison uses to break a reduce/reduce tie, and
      inside a property or sequence a parenthesized boolean reaches
@@ -13798,6 +13800,29 @@ expr_mintypmax
 sva_bool_atom
   : expression
       { $$ = $1; }
+  | sva_dist_expr
+      { $$ = $1; }
+  ;
+
+sva_dist_expr
+  : expression K_dist '{' dist_list '}'
+      { bool seen_default = false;
+        for (auto& item : *$4) {
+            if (item.is_default) {
+                if (generation_flag < GN_VER2023)
+                    yyerror(@2, "error: Default distribution items require IEEE 1800-2023.");
+                if (seen_default)
+                    yyerror(@2, "error: Multiple default items in a distribution.");
+                seen_default = true;
+                /* The default range and the explicit ranges cover the
+                   entire domain; weights are ignored in assertions. */
+                item.is_range = true;
+            }
+        }
+        PEInside*tmp = new PEInside($1, $4, true);
+        FILE_NAME(tmp, @2);
+        $$ = tmp;
+      }
   ;
 
 for_variable_identifier

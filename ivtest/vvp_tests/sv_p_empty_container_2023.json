@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_p_empty_container.v",
+    "iverilog-args": ["-g2023"],
+    "gold": "sv_p_empty_container"
+}

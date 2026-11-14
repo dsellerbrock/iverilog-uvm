@@ -378,6 +378,32 @@ struct __vpiStructTypespec : public __vpiHandle {
       int code_;
 };
 
+/* A typedef alias (37.25 detail 1): its own name, vpiTypedefAlias to the
+   typespec of the typedef it aliases; everything else is that typespec's. */
+class __vpiTypespecAlias : public __vpiHandle {
+    public:
+      __vpiTypespecAlias(const char*name, vpiHandle aliased)
+      : name_(name), aliased_(aliased) { }
+      int get_type_code(void) const override
+      { return aliased_->get_type_code(); }
+      int vpi_get(int code) override { return aliased_->vpi_get(code); }
+      char* vpi_get_str(int code) override
+      {
+	    if (code == vpiName) return const_cast<char*>(name_);
+	    return aliased_->vpi_get_str(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiTypedefAlias) return aliased_;
+	    return aliased_->vpi_handle(code);
+      }
+      vpiHandle vpi_iterate(int code) override
+      { return aliased_->vpi_iterate(code); }
+    private:
+      const char*name_;
+      vpiHandle aliased_;
+};
+
 /* Parse one type of a .vartype string (see tgt-vvp emit_signal_vartypes).
  * Return 0 and set *missing when an enum label is not defined yet. */
 static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
@@ -386,12 +412,16 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
       switch (*cp) {
 	  case 'N': {
 		/* N<name>:<type> -- the typedef name of the type (37.25
-		   detail 1). An enum keeps the first name it is given. */
+		   detail 1). An enum keeps the first name it is given. On a
+		   type that already has a name it is a typedef alias. */
 		size_t len = strcspn(cp + 1, ":");
 		if (len == 0 || cp[1 + len] != ':') return 0;
 		const char*name = vpip_name_string(std::string(cp + 1, len).c_str());
 		cp += len + 2;
+		bool inner_named = *cp == 'N';
 		vpiHandle type = parse_vartype(cp, width, missing);
+		if (type && inner_named && type->vpi_get_str(vpiName))
+		      return new __vpiTypespecAlias(name, type);
 		if (__vpiStructTypespec*st = dynamic_cast<__vpiStructTypespec*>(type))
 		      st->typedef_name = name;
 		else if (__vpiVectorTypespec*vt = dynamic_cast<__vpiVectorTypespec*>(type))

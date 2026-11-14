@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3301_string_constraint.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3301_string_constraint"],
+  "gold": "issue3301_string_constraint"
+}

@@ -18005,6 +18005,34 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	|| name == "$sync$or$array" || name == "$sync$nor$array"
 	|| name == "$sync$and$plane" || name == "$sync$nand$plane"
 	|| name == "$sync$or$plane" || name == "$sync$nor$plane";
+      if (pla_task && parm_count == 3) {
+	  for (unsigned idx = 0; idx < 3; idx += 1) {
+		const NetExpr*expr = eparms[idx];
+		/* A bit select is a single term; a concatenation explicitly
+		   supplies the term order. A part select follows its declaration. */
+		if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr)) {
+		      if (select->expr_width() == 1) continue;
+		      expr = select->sub_expr();
+		}
+		const NetESignal*signal = dynamic_cast<const NetESignal*>(expr);
+		if (!signal) continue;
+		const NetNet*net = signal->sig();
+		bool descending = false;
+		for (const netrange_t&range : net->packed_dims())
+		      if (range.defined() && range.get_msb() > range.get_lsb())
+			    descending = true;
+		if (idx == 0 && !signal->word_index())
+		      for (const netrange_t&range : net->unpacked_dims())
+			    if (range.defined() && range.get_msb() > range.get_lsb())
+				  descending = true;
+		if (descending) {
+		      cerr << parms_[idx].get_fileline() << ": error: argument "
+		           << idx + 1 << " of " << name
+		           << " must have ascending ranges." << endl;
+		      des->errors += 1;
+		}
+	  }
+      }
       if (pla_task && parm_count == 3 && eparms[2]) {
 	  std::function<bool(const NetExpr*)> variable_lvalue =
 		[&variable_lvalue](const NetExpr*expr) -> bool {
@@ -32542,12 +32570,17 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 
 	    unsigned long dst_wid = dst_part[dst_idx].second;
 
+	      // A path into an input port is reported, and its sources are
+	      // still checked, but it is never attached: binding the
+	      // instance port would then trip over it (IEEE 1800 30.3).
+	    bool dst_ok = true;
 	    if (resolved_dst_terminal.direction != NetNet::POUTPUT
 		&& resolved_dst_terminal.direction != NetNet::PINOUT) {
 
 		  cerr << get_fileline() << ": error: Path destination "
 		       << terminal << " must be an output or inout port." << endl;
 		  des->errors += 1;
+		  dst_ok = false;
 	    }
 
 	    const Module*module = scope->module_definition();
@@ -32679,7 +32712,8 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 	    if (condit_sig)
 		  connect(condit_sig->pin(0), path->pin(idx));
 
-	    dst_sig->add_delay_path(path);
+	    if (dst_ok)
+		  dst_sig->add_delay_path(path);
       }
 }
 
@@ -40296,6 +40330,11 @@ static bool constraint_call_dependencies_(const NetExpr*expr,
 			return true;
 		  }
 		  if (property->get_index()) {
+			if (ptype && ptype->base_type() == IVL_VT_STRING) {
+			      add(dependency_t::PROP, pid);
+			      return constraint_call_dependencies_(property->get_index(),
+				    cls, receiver, dependencies);
+			}
 			unsigned leaf = 0;
 			if (!dynamic_cast<const netarray_t*>(ptype)
 			    || !constant_index(property->get_index(), leaf)) return false;
@@ -40531,7 +40570,7 @@ static string constraint_state_expression_slot_(
       const PExpr*site, PExpr*expression, ivl_type_t result_type,
       const netclass_t*cls, bool collect_dependencies,
       NetEUFunc**inline_capture = nullptr, NetScope*inline_scope = nullptr,
-      bool take_expression_ownership = true)
+      bool take_expression_ownership = true, bool require_state = false)
 {
       if (!site || !expression || !result_type || !cls
 	  || (!constraint_ir_state_calls_ctx_ && !inline_capture)
@@ -40606,9 +40645,16 @@ static string constraint_state_expression_slot_(
 	    return "inline";
       }
       set<netclass_t::constraint_dependency_t>dependencies;
-      if (collect_dependencies
+      if ((collect_dependencies || require_state)
 	  && !constraint_call_dependencies_(value, cls, receiver, dependencies))
 	    return "";
+      if (require_state) {
+	    for (const auto&dep : dependencies) {
+		  property_qualifier_t qual = cls->get_prop_qual(dep.property);
+		  if (qual.test_rand() || qual.test_randc()) return "";
+	    }
+	    dependencies.clear();
+      }
       netclass_t::constraint_state_call_t desc;
       desc.method = wrapper->basename();
       desc.method_scope = wrapper;
@@ -41589,6 +41635,40 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		constraint_ir_design_ctx_->errors += 1;
 	      return "";
 	}
+
+      /* Capture string state only when the selected character's index also
+       * contains no random variables. In particular, sampling a random index
+       * before solving would silently change a bidirectional constraint. */
+      if (cls && constraint_ir_state_calls_ctx_ && !loop_env
+	  && !dynforeach_emit_ctx_ && !stateforeach_emit_ctx_) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+	    const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr);
+	    const pform_name_t*path = id ? &id->path().name
+		  : call ? &call->path().name : nullptr;
+	    bool character = id && !id->path().package
+		  && !id->has_scoped_type_prefix() && path->size() == 1
+		  && path->front().index.size() == 1
+		  && path->front().index.front().sel == index_component_t::SEL_BIT
+		  && path->front().index.front().msb
+		  && !path->front().index.front().lsb;
+	    bool length = call && !call->receiver_expr() && !call->path().package
+		  && !call->has_scoped_type_prefix() && path->size() == 2
+		  && path->front().index.empty() && path->back().index.empty()
+		  && path->back().name == perm_string::literal("len")
+		  && call->get_parms().empty() && call->with_constraints().empty();
+	    if ((character || length) && !path->front().local_scope) {
+		  int pid = cls->property_idx_from_name(path->front().name);
+		  ivl_type_t type = pid >= 0 ? cls->get_prop_type(pid) : nullptr;
+		  if (type && type->base_type() == IVL_VT_STRING) {
+			string slot = constraint_state_expression_slot_(expr,
+			      const_cast<PExpr*>(expr), character
+			      ? static_cast<ivl_type_t>(&netvector_t::atom2s8)
+			      : static_cast<ivl_type_t>(&netvector_t::atom2s32),
+			      cls, false, nullptr, nullptr, false, true);
+			if (!slot.empty()) return slot;
+		  }
+	    }
+      }
 
 	/* A scalar member of an element selected from a random queue or
 	 * associative array of class handles is a solver leaf of that live
@@ -47362,7 +47442,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  dynamic_cast<const netuarray_t*>(ptype);
 				    if (slice_array && select.sel == index_component_t::SEL_PART
 					&& select.msb && select.lsb
-					&& cls->get_prop_qual((size_t)pidx).test_rand()) {
+					&& (cls->get_prop_qual((size_t)pidx).test_rand()
+					    || constraint_state_prop_ok_(ptype, true))) {
 					  const netranges_t&dims =
 						  slice_array->static_dimensions();
 					  ivl_type_t etype = slice_array->element_type();
@@ -53202,12 +53283,30 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							- (cov_count_t)range.first + 1;
 					    static const uint64_t open_array_bin_limit = 65536;
 					    if (unique_total > open_array_bin_limit) {
-						  cerr << "sorry: open covergroup bin array '"
-						       << bin.name << "' needs more than "
-						       << open_array_bin_limit
-						       << " value-keyed counters; the bin is dropped."
-						       << endl;
-						  des->errors += 1;
+						    // 19.5.1 sets no limit on the number of bins. A
+						    // larger array becomes a value-keyed family with a
+						    // counter only for each value hit, the same
+						    // records a constructor-dependent array produces.
+						  unsigned family = dyn_family++;
+						  auto endpoint = [&](uint64_t value) {
+							return "c:" + std::to_string(value) + ":"
+							      + std::to_string(cp_value_width)
+							      + (cp_value_signed ? ":s" : "");
+						  };
+						  for (auto&range : merged)
+							cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
+							      kindval, family, 0, bin.name.str(),
+							      endpoint(range.first),
+							      endpoint(range.second),
+							      cp_value_width, cp_value_signed,
+							      bin_guard);
+						  xbin_desc_t d;
+						  d.name = bin.name;
+						  d.wildcard = false;
+						  d.dyn_family = (int)family;
+						  d.guard_idx = bin_guard;
+						  vbins.push_back(d);
+						  has_value_bins = true;
 						  continue;
 					    }
 					    for (auto&range : merged) {

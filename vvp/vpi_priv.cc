@@ -445,9 +445,12 @@ static int vpip_get_global(int property)
 	  case vpiTimePrecision:
 	    return vpip_get_time_precision();
 
-	  default:
-	    fprintf(stderr, "vpi error: bad global property: %d\n", property);
+	  default: {
+	    char message[80];
+	    snprintf(message, sizeof message, "vpi error: bad global property: %d", property);
+	    vpip_set_error(vpiError, message);
 	    return vpiUndefined;
+          }
       }
 }
 
@@ -891,10 +894,16 @@ void vpi_get_time(vpiHandle obj, s_vpi_time*vp)
 	    vp->real = vpip_scaled_time_from_handle(time, obj);
 	    break;
 
-          default:
-            fprintf(stderr, "vpi_get_time: unknown type: %d\n", (int)vp->type);
-            assert(0);
+          default: {
+	      /* 38.13: only vpiScaledRealTime and vpiSimTime request a
+		 time. Any other type is an error; *vp is left unchanged. */
+            char message[64];
+            snprintf(message, sizeof message,
+		     "vpi_get_time: unknown type: %d", (int)vp->type);
+            fprintf(stderr, "%s\n", message);
+            vpip_set_error(vpiError, message);
 	    break;
+	  }
       }
 }
 
@@ -1312,6 +1321,7 @@ void vpip_string_get_value(const string&val, s_vpi_value*vp)
 
 void vpi_get_value(vpiHandle expr, s_vpi_value*vp)
 {
+      vpip_clear_error();
       assert(expr);
       assert(vp);
 
@@ -1459,7 +1469,11 @@ static t_vpi_strengthval *strengthdup(const t_vpi_strengthval *val)
 vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 			s_vpi_time*when, PLI_INT32 flags)
 {
-      assert(obj);
+      vpip_clear_error();
+      if (!obj) {
+	    vpip_set_error(vpiError, "vpi_put_value: null handle");
+	    return 0;
+      }
 
       if (flags == VPI_CANCEL_EVENT) {
 	    vpip_put_value_event* event =
@@ -1825,7 +1839,12 @@ vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle ref)
 
 vpiHandle vpi_handle_by_index(vpiHandle ref, PLI_INT32 idx)
 {
-      assert(ref);
+	/* 38.19: a selection that is not a legal index select returns a
+	   null handle; a null parent selects nothing. */
+      if (ref == 0) {
+	    vpip_set_error(vpiError, "vpi_handle_by_index: null parent handle");
+	    return 0;
+      }
       return ref->vpi_index(idx);
 }
 

@@ -1,0 +1,4 @@
+ivltests/specify_dst_input_fail.v:8: error: Path destination b must be an output or inout port.
+ivltests/specify_dst_input_fail.v:9: error: Path destination b must be an output or inout port.
+ivltests/specify_dst_input_fail.v:9: error: Path source z must be an input or inout port.
+3 error(s) during elaboration.
