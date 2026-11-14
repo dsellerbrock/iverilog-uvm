@@ -6725,6 +6725,8 @@ sva_proc_capture_2017 normal,-g2017,-s,sva_proc_capture ivltests gold=sva_proc_c
 sva_proc_capture_2023 normal,-g2023,-s,sva_proc_capture ivltests gold=sva_proc_capture.gold
 sva_proc_checker_2017 normal,-g2017,-s,top ivltests gold=sva_proc_checker.gold
 sva_proc_checker_2023 normal,-g2023,-s,top ivltests gold=sva_proc_checker.gold
+sva_match_call_intermediate_2017 normal,-g2017,-s,sva_match_call_intermediate ivltests gold=sva_match_call_intermediate.gold
+sva_match_call_intermediate_2023 normal,-g2023,-s,sva_match_call_intermediate ivltests gold=sva_match_call_intermediate.gold
 sva_same_tick_verdicts_2017 normal,-g2017,-s,sva_same_tick_verdicts ivltests gold=sva_same_tick_verdicts.gold
 sva_same_tick_verdicts_2023 normal,-g2023,-s,sva_same_tick_verdicts ivltests gold=sva_same_tick_verdicts.gold
 
