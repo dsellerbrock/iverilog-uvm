@@ -6911,3 +6911,6 @@ pla_descending_3313_2017 CE,-g2017,-s,pla_descending_3313 ivltests gold=pla_desc
 pla_descending_3313_2023 CE,-g2023,-s,pla_descending_3313 ivltests gold=pla_descending_3313-legacy.gold
 pla_ascending_3313_2017 normal,-g2017,-s,pla_ascending_3313 ivltests gold=pla_ascending_3313-vvp-stdout.gold
 pla_ascending_3313_2023 normal,-g2023,-s,pla_ascending_3313 ivltests gold=pla_ascending_3313-vvp-stdout.gold
+issue3309_dist_property_2017 normal,-g2017,-s,issue3309_dist_property ivltests gold=issue3309_dist_property.gold
+issue3309_dist_property_2023 normal,-g2023,-s,issue3309_dist_property ivltests gold=issue3309_dist_property.gold
+issue3309_dist_default_2017 CE,-g2017 ivltests gold=issue3309_dist_default_2017.gold

@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3309_dist_property.sv",
+    "iverilog-args": ["-g2017", "-s", "issue3309_dist_property"],
+    "gold": "issue3309_dist_property"
+}
