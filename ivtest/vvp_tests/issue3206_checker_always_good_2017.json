@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3206_checker_always_good.sv",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue3206_checker_always_good"
+}

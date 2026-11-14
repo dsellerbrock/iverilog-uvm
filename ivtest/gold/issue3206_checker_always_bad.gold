@@ -1,0 +1,3 @@
+./ivltests/issue3206_checker_always_bad.sv:2: error: plain always procedure is not allowed in a checker.
+./ivltests/issue3206_checker_always_bad.sv:3: error: plain always procedure is not allowed in a checker.
+./ivltests/issue3206_checker_always_bad.sv:5: error: plain always procedure is not allowed in a checker.

@@ -18055,7 +18055,9 @@ module_item
   /* Always and initial items are behavioral processes. */
 
   | attribute_list_opt K_always statement_item
-      { /* IEEE 1800-2023 16.14.5: `always assert property' is static. */
+      { if (pform_module_is_checker())
+	    yyerror(@2, "error: plain always procedure is not allowed in a checker.");
+	/* IEEE 1800-2023 16.14.5: `always assert property' is static. */
 	Statement*init = pform_sva_static_always_assertion($3);
 	if (init) delete $3;
 	PProcess*tmp = pform_make_behavior(init ? IVL_PR_INITIAL : IVL_PR_ALWAYS,
@@ -18067,7 +18069,9 @@ module_item
      OpenTitan AST models' always (* xprop_off *) @( * ). Consume and
      ignore, as for the always_comb/always_ff spellings below. */
   | attribute_list_opt K_always attribute_instance_list statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $4, $1);
+      { if (pform_module_is_checker())
+	    yyerror(@2, "error: plain always procedure is not allowed in a checker.");
+	PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $4, $1);
 	FILE_NAME(tmp, @2);
 	if ($3) delete $3;
       }
