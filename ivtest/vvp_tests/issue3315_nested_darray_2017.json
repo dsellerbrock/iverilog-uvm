@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3315_nested_darray.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue3315_nested_darray"
+}

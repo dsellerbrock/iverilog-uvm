@@ -215,14 +215,23 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 		case vpiStringVal: {
 		      vvp_object_t oval;
 		      aobj->get_word(index, oval);
-		      if (oval.test_nil()) {
+		      // A nil nested dynamic array or queue is empty, not a
+		      // null class handle. In a class property get_net() refers
+		      // to the enclosing object, not the element's declared type.
+		      vvp_container_layout_t element_layout =
+			    aobj->declared_element_container_layout();
+		      bool empty_container = oval.test_nil() && element_layout
+			    && (element_layout->kind == VVP_CONTAINER_DARRAY
+			        || element_layout->kind == VVP_CONTAINER_QUEUE);
+		      if (oval.test_nil() && !empty_container) {
 			    const vvp_fun_signal_object*fun =
 				  dynamic_cast<vvp_fun_signal_object*>(get_net()->fun);
 			    class_type*defn = fun ? fun->declared_type() : 0;
 			    if (defn)
 				  oval = vvp_object_t(new vvp_cobject(defn));
 		      }
-		      std::string s = vvp_format_cobject_p(oval);
+		      std::string s = empty_container ? "'{}"
+			    : vvp_format_cobject_p(oval);
 		      char*rbuf = (char*)need_result_buf(s.size()+1, RBUF_VAL);
 		      strcpy(rbuf, s.c_str());
 		      vp->value.str = rbuf;
