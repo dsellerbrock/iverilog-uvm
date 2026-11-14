@@ -2542,7 +2542,8 @@ void vpip_specparam_changed(__vpiScope*scope)
 	    delays.pulsere_flag = 0;
 	    for (size_t idx = 0; idx < entry.exprs.size(); idx += 1) {
 		  times[idx].type = vpiScaledRealTime;
-		  times[idx].real = eval_path_expr(entry.exprs[idx]);
+		  double value = eval_path_expr(entry.exprs[idx]);
+		  times[idx].real = value < 0.0 ? 0.0 : value;
 	    }
 	    entry.src->vpi_put_delays(&delays);
       }

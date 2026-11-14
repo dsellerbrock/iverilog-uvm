@@ -1,0 +1,10 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "issue3083_path_delay")
+  (TIMESCALE 1ns)
+  (CELL
+    (CELLTYPE "issue3083_dut")
+    (INSTANCE)
+    (LABEL (ABSOLUTE (annotated 2)))
+  )
+)
