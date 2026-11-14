@@ -6833,3 +6833,7 @@ issue3015_super_parameter_2017 normal,-g2017,-s,issue3015_super_parameter ivltes
 issue3015_super_parameter_2023 normal,-g2023,-s,issue3015_super_parameter ivltests gold=issue3015_super_parameter.gold
 issue2986_join_priority_2017 normal,-g2017,-s,issue2986_join_priority ivltests gold=issue2986_join_priority.gold
 issue2986_join_priority_2023 normal,-g2023,-s,issue2986_join_priority ivltests gold=issue2986_join_priority.gold
+issue3022_union_dynamic_bad_2017 CE,-g2017,-s,issue3022_union_dynamic_bad ivltests gold=issue3022_union_dynamic_bad.gold
+issue3022_union_dynamic_good_2017 normal,-g2017,-s,issue3022_union_dynamic_good ivltests gold=issue3022_union_dynamic_good.gold
+issue3022_union_dynamic_bad_2023 CE,-g2023,-s,issue3022_union_dynamic_bad ivltests gold=issue3022_union_dynamic_bad.gold
+issue3022_union_dynamic_good_2023 normal,-g2023,-s,issue3022_union_dynamic_good ivltests gold=issue3022_union_dynamic_good.gold
