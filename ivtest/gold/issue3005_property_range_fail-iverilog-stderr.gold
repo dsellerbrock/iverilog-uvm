@@ -1,0 +1,6 @@
+ivltests/issue3005_property_range_fail.v:6: error: `s_always' requires a bounded range; `$' is not allowed (IEEE 1800 16.12.11).
+ivltests/issue3005_property_range_fail.v:7: error: property range bounds must be non-negative (IEEE 1800 16.12.11, 16.12.13).
+ivltests/issue3005_property_range_fail.v:8: error: the minimum of a property range must not exceed its maximum (IEEE 1800 16.12.11, 16.12.13).
+ivltests/issue3005_property_range_fail.v:9: error: the minimum of a property range must not exceed its maximum (IEEE 1800 16.12.11, 16.12.13).
+ivltests/issue3005_property_range_fail.v:10: error: `eventually' requires a bounded range; `$' is not allowed (IEEE 1800 16.12.13).
+ivltests/issue3005_property_range_fail.v:11: error: the minimum of a property range cannot be `$' (IEEE 1800 16.12.11, 16.12.13).

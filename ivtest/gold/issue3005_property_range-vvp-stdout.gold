@@ -1,0 +1,4 @@
+a1 fail 45
+a2 fail 45
+done
+ivltests/issue3005_property_range.v:13: $finish called at 92 (1s)

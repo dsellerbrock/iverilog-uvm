@@ -2665,6 +2665,83 @@ static Module::port_t *module_declare_explicit_port(
       return port;
 }
 
+/* IEEE 1800 16.12.11, 16.12.13: the range of always/s_always/eventually/
+   s_eventually. Reads one bound: a literal (optionally negated) sets VALUE;
+   `$' sets UNBOUNDED; anything else (a parameter, say) is left to the
+   existing default and reports false. */
+static bool sva_range_bound_(const PExpr*expr, long&value, bool&unbounded)
+{
+      unbounded = false;
+      if (dynamic_cast<const PEUnbounded*>(expr)) {
+	    unbounded = true;
+	    return true;
+      }
+	/* In an expression `$' parses as a queue-last placeholder
+	   ($.size()-1); in a property range it is the unbounded maximum. */
+      for (size_t idx = 0 ; idx < queue_last_placeholders.size() ; idx += 1) {
+	    if (queue_last_placeholders[idx].last != expr)
+		  continue;
+	    queue_last_placeholders.erase(queue_last_placeholders.begin() + idx);
+	    unbounded = true;
+	    return true;
+      }
+      if (const PENumber*num = dynamic_cast<const PENumber*>(expr)) {
+	    value = num->value().as_long();
+	    return true;
+      }
+      const PEUnary*neg = dynamic_cast<const PEUnary*>(expr);
+      if (neg && neg->get_op() == '-')
+	    if (const PENumber*num = dynamic_cast<const PENumber*>(neg->get_expr())) {
+		  value = -num->value().as_long();
+		  return true;
+	    }
+      return false;
+}
+
+/* Check the [m:n] range of a ranged always/eventually property (STRONG
+   for s_always/s_eventually) and give the window to lower: hi is -1 for
+   an unbounded `$' maximum. Returns false after reporting an error. */
+static bool sva_check_property_range_(const YYLTYPE&loc, const char*op,
+				      bool always_op, bool strong,
+				      const PExpr*lo_expr, const PExpr*hi_expr,
+				      long&lo, long&hi)
+{
+      bool lo_dollar = false, hi_dollar = false;
+      bool lo_known = sva_range_bound_(lo_expr, lo, lo_dollar);
+      bool hi_known = sva_range_bound_(hi_expr, hi, hi_dollar);
+      if (!lo_known) lo = 0;
+      if (!hi_known) hi = lo;
+      if (lo_dollar) {
+	    yyerror(loc, "error: the minimum of a property range cannot be `$' "
+		    "(IEEE 1800 16.12.11, 16.12.13).");
+	    return false;
+      }
+      if ((lo_known && lo < 0) || (hi_known && !hi_dollar && hi < 0)) {
+	    yyerror(loc, "error: property range bounds must be non-negative "
+		    "(IEEE 1800 16.12.11, 16.12.13).");
+	    return false;
+      }
+      if (lo_known && hi_known && !hi_dollar && lo > hi) {
+	    yyerror(loc, "error: the minimum of a property range must not "
+		    "exceed its maximum (IEEE 1800 16.12.11, 16.12.13).");
+	    return false;
+      }
+      if (hi_dollar) {
+	      /* 16.12.11: s_always takes a bounded range; 16.12.13: so does
+		 the weak eventually. */
+	    if (always_op ? strong : !strong) {
+		  char buf[200];
+		  snprintf(buf, sizeof buf, "error: `%s' requires a bounded range; "
+			   "`$' is not allowed (IEEE 1800 %s).", op,
+			   always_op ? "16.12.11" : "16.12.13");
+		  yyerror(loc, buf);
+		  return false;
+	    }
+	    hi = -1;
+      }
+      return true;
+}
+
 %}
 
 %union {
@@ -10229,36 +10306,64 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | K_always property_expr
       { $$ = pform_sva_unprop(@1, 12, $2); }
   | K_always '[' expression ':' expression ']' property_expr
-      { PENumber*m = dynamic_cast<PENumber*>($3);
-	PENumber*n = dynamic_cast<PENumber*>($5);
-	long mm = m ? m->value().as_long() : 0;
-	long nn = n ? n->value().as_long() : mm;
+      { long mm = 0, nn = 0;
+	bool ok = sva_check_property_range_(@1, "always", true, false,
+					    $3, $5, mm, nn);
 	delete $3; delete $5;
-	$$ = pform_sva_unprop(@1, 12, $7, mm, nn, 0); }
+	if (ok)
+	      $$ = pform_sva_unprop(@1, 12, $7, mm, nn, 0);
+	else {
+	      pform_sva_destroy_property($7);
+	      $$ = 0;
+	}
+      }
   | K_s_always '[' expression ':' expression ']' property_expr
-      { PENumber*m = dynamic_cast<PENumber*>($3);
-	PENumber*n = dynamic_cast<PENumber*>($5);
-	long mm = m ? m->value().as_long() : 0;
-	long nn = n ? n->value().as_long() : mm;
+      { long mm = 0, nn = 0;
+	bool ok = sva_check_property_range_(@1, "s_always", true, true,
+					    $3, $5, mm, nn);
 	delete $3; delete $5;
-	$$ = pform_sva_unprop(@1, 12, $7, mm, nn, 1); }
+	if (ok)
+	      $$ = pform_sva_unprop(@1, 12, $7, mm, nn, 1);
+	else {
+	      pform_sva_destroy_property($7);
+	      $$ = 0;
+	}
+      }
   /* IEEE 1800-2017 16.12.6: bounded `eventually [m:n]' — p holds at some
      cycle in the window; strong `s_eventually [m:n]' adds the end-of-sim
      obligation. Unbounded `eventually' is illegal (must carry a range). */
   | K_eventually '[' expression ':' expression ']' property_expr
-      { PENumber*m = dynamic_cast<PENumber*>($3);
-	PENumber*n = dynamic_cast<PENumber*>($5);
-	long mm = m ? m->value().as_long() : 0;
-	long nn = n ? n->value().as_long() : mm;
+      { long mm = 0, nn = 0;
+	bool ok = sva_check_property_range_(@1, "eventually", false, false,
+					    $3, $5, mm, nn);
 	delete $3; delete $5;
-	$$ = pform_sva_unprop(@1, 13, $7, mm, nn, 0); }
+	if (ok)
+	      $$ = pform_sva_unprop(@1, 13, $7, mm, nn, 0);
+	else {
+	      pform_sva_destroy_property($7);
+	      $$ = 0;
+	}
+      }
   | K_s_eventually '[' expression ':' expression ']' property_expr
-      { PENumber*m = dynamic_cast<PENumber*>($3);
-	PENumber*n = dynamic_cast<PENumber*>($5);
-	long mm = m ? m->value().as_long() : 0;
-	long nn = n ? n->value().as_long() : mm;
+      { long mm = 0, nn = 0;
+	bool ok = sva_check_property_range_(@1, "s_eventually", false, true,
+					    $3, $5, mm, nn);
 	delete $3; delete $5;
-	$$ = pform_sva_unprop(@1, 13, $7, mm, nn, 1); }
+	if (ok && nn == -1 && mm == 0)
+	        /* s_eventually [0:$] p is s_eventually p (16.12.13). */
+	      $$ = pform_sva_unprop(@1, 11, $7);
+	else if (ok && nn == -1) {
+	      yyerror(@1, "sorry: `s_eventually [m:$]' with m > 0 is not "
+		      "supported yet; the assertion is dropped.");
+	      pform_sva_destroy_property($7);
+	      $$ = 0;
+	} else if (ok)
+	      $$ = pform_sva_unprop(@1, 13, $7, mm, nn, 1);
+	else {
+	      pform_sva_destroy_property($7);
+	      $$ = 0;
+	}
+      }
   | K_eventually property_expr
       { yyerror(@1, "error: unbounded `eventually' is not legal; use "
 		    "`s_eventually' (or a bounded `eventually [m:n]').");
