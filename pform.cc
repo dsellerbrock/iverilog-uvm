@@ -13671,6 +13671,10 @@ struct pform_procedural_sampling_context_t {
 
 static pform_procedural_sampling_context_t* pform_procedural_sampling_context_ = nullptr;
 
+/* The variables used in the event control of the checker always_ff
+   procedure being lowered (17.5): they are read live, not sampled. */
+static const std::set<perm_string>* checker_ff_event_names_ = nullptr;
+
 class pform_procedural_sampling_context_guard_t {
     public:
       explicit pform_procedural_sampling_context_guard_t(
@@ -14010,6 +14014,22 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		 corresponding slot register after the rest of the expression has
 		 been Preponed-wrapped. Sampling the local itself would read the
 		 register's value from before a same-tick sequence match assignment. */
+	      /* IEEE 1800-2017/2023 17.5: "Except for the variables used in
+		 the event control, all other expressions in always_ff
+		 procedures are sampled." A variable of the checker always_ff
+		 event control keeps its current value; its selects are
+		 ordinary operands. */
+	    if (checker_ff_event_names_ && !id->path().package
+		&& checker_ff_event_names_->count(id->path().name.front().name)) {
+		  pform_name_t path = id->path().name;
+		  if (!sva_wrap_name_indices_(id->path().name, path, sampled,
+					      live_operands, unsampled_locals))
+			return nullptr;
+		  PEIdent*cp = new PEIdent(path, id->lexical_pos());
+		  cp->reloc_lexical_pos_bind(false);
+		  cp->set_line(*e);
+		  return cp;
+	    }
 	    if (unsampled_locals && !id->path().package
 		&& id->path().name.size() == 1
 		&& id->path().name.front().index.empty()
@@ -19619,11 +19639,24 @@ static void pform_bind_checker_ff_sampled_(ivl_process_type_t type,
       PEventStatement*ev = dynamic_cast<PEventStatement*>(st);
       if (!ev || !ev->statement()) return;
 
+	/* The variables the event control uses keep their current values.
+	   refs_name answers true for an expression kind it cannot search,
+	   which only leaves more names live. */
+      std::set<perm_string> event_names;
+      const std::vector<PEEvent*>&events = ev->event_expressions();
+      for (const auto&wire : pform_cur_module.front()->wires)
+	    for (size_t idx = 0; idx < events.size(); idx += 1)
+		  if (events[idx] && events[idx]->expr()
+		      && events[idx]->expr()->refs_name(wire.first))
+			event_names.insert(wire.first);
+
       std::map<std::string,pform_name_t> sampled;
       std::vector<Statement*> init;
       unsigned live_operands = 0;
+      checker_ff_event_names_ = &event_names;
       bool ok = pform_sample_checker_ff_stmt_(ev->statement(), sampled,
 						      live_operands);
+      checker_ff_event_names_ = nullptr;
       if (!ok || live_operands != 0) {
 	    cerr << st->get_fileline() << ": error: checker always_ff "
 		 << "expression could not be lowered with IEEE 1800-2017 "
