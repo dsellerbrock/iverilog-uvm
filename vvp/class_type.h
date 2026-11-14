@@ -676,6 +676,9 @@ class class_type : public __vpiHandle {
             std::vector<unsigned> item_at_least;
             std::vector<unsigned> item_weight;
             std::vector<std::string> item_comments;
+              // Value-keyed bin families: hits (at the item's at_least)
+              // and logical size.
+            std::map<unsigned, std::pair<uint64_t, unsigned __int128>> families;
       };
       uint64_t covgrp_instance_id_(class vvp_cobject*obj) const;
       covgrp_instance_snapshot_t covgrp_snapshot_(class vvp_cobject*obj,

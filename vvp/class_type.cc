@@ -4080,6 +4080,17 @@ class_type::covgrp_instance_snapshot_t class_type::covgrp_snapshot_(
                   && (size_t)item.comment_prop < property_count()
                   ? obj->get_string(item.comment_prop) : string());
       }
+      for (const cov_dyn_bin_t&rec : covgrp_dyn_bins_) {
+            if ((rec.kind & 7) != 0 || snapshot.families.count(rec.family))
+                  continue;
+            unsigned at_least = rec.item_idx < covgrp_items_.size()
+                  ? covgrp_item_at_least(obj, rec.item_idx) : 1;
+            uint64_t hits = 0;
+            unsigned __int128 total = 0;
+            if (vvp_covgrp_dyn_family_count(obj, rec.family, at_least,
+                                            hits, total))
+                  snapshot.families[rec.family] = std::make_pair(hits, total);
+      }
       return snapshot;
 }
 
@@ -4564,6 +4575,16 @@ void class_type::covgrp_register(const class_type*ct)
       covgrp_registry_.push_back(ct);
 }
 
+static std::string covgrp_u128_text_(unsigned __int128 value)
+{
+      std::string text;
+      do {
+	    text.insert(text.begin(), (char)('0' + (unsigned)(value % 10)));
+	    value /= 10;
+      } while (value != 0);
+      return text;
+}
+
 static void covgrp_report_string_(FILE*fd, const std::string&value)
 {
       fputc('"', fd);
@@ -4648,6 +4669,20 @@ void class_type::covgrp_report(FILE*fd)
 				      ? (cnt >= at_least ? "hit" : "MISS")
 				      : "-");
 		  }
+		    /* A value-keyed bin family (a constructor-dependent bin
+		       set, or a bin array too large for one counter per bin)
+		       is summarized: how many of its bins were hit. */
+		  std::set<unsigned> families;
+		  for (const cov_dyn_bin_t&rec : ct->covgrp_dyn_bins_) {
+			if (rec.item_idx != ip.first || (rec.kind & 7) != 0
+			    || !families.insert(rec.family).second) continue;
+			unsigned __int128 total = ct->dyn_type_total(rec.family);
+			unsigned __int128 hits = at_least == 0 ? total
+			      : ct->dyn_type_hits(rec.family, at_least);
+			fprintf(fd, "    bins %s hit %s of %s\n", rec.name.c_str(),
+				covgrp_u128_text_(hits).c_str(),
+				covgrp_u128_text_(total).c_str());
+		  }
 	    }
 
 	    auto report_instance = [&](const covgrp_instance_snapshot_t&instance) {
@@ -4695,6 +4730,17 @@ void class_type::covgrp_report(FILE*fd)
 				      ct->property_name(prop).c_str(), count,
 				      (kind == 0 || kind == 4)
 					    ? (count >= at_least ? "hit" : "MISS") : "-");
+			}
+			std::set<unsigned> printed;
+			for (const cov_dyn_bin_t&rec : ct->covgrp_dyn_bins_) {
+			      if (rec.item_idx != idx
+				  || !printed.insert(rec.family).second) continue;
+			      auto family = instance.families.find(rec.family);
+			      if (family == instance.families.end()) continue;
+			      fprintf(fd, "      bins %s hit %s of %s\n",
+				      rec.name.c_str(),
+				      covgrp_u128_text_(family->second.first).c_str(),
+				      covgrp_u128_text_(family->second.second).c_str());
 			}
 		  }
 	    };
