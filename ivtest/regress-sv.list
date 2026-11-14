@@ -6899,3 +6899,5 @@ sva_rec_restrict_2017 CE,-g2017,-gassertions,-s,sva_rec_restrict ivltests gold=s
 sva_rec_restrict_2023 CE,-g2023,-gassertions,-s,sva_rec_restrict ivltests gold=sva_rec_restrict.gold
 sva_rec_graph_2017 CE,-g2017,-gassertions,-s,sva_rec_graph ivltests gold=sva_rec_graph.gold
 sva_rec_graph_2023 CE,-g2023,-gassertions,-s,sva_rec_graph ivltests gold=sva_rec_graph.gold
+issue3225_clocking_indexed_2017 normal,-g2017,-s,issue3225_clocking_indexed ivltests gold=issue3225_clocking_indexed.gold
+issue3225_clocking_indexed_2023 normal,-g2023,-s,issue3225_clocking_indexed ivltests gold=issue3225_clocking_indexed.gold
