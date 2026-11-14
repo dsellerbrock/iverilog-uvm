@@ -32520,12 +32520,17 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 
 	    unsigned long dst_wid = dst_part[dst_idx].second;
 
+	      // A path into an input port is reported, and its sources are
+	      // still checked, but it is never attached: binding the
+	      // instance port would then trip over it (IEEE 1800 30.3).
+	    bool dst_ok = true;
 	    if (resolved_dst_terminal.direction != NetNet::POUTPUT
 		&& resolved_dst_terminal.direction != NetNet::PINOUT) {
 
 		  cerr << get_fileline() << ": error: Path destination "
 		       << terminal << " must be an output or inout port." << endl;
 		  des->errors += 1;
+		  dst_ok = false;
 	    }
 
 	    const Module*module = scope->module_definition();
@@ -32657,7 +32662,8 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 	    if (condit_sig)
 		  connect(condit_sig->pin(0), path->pin(idx));
 
-	    dst_sig->add_delay_path(path);
+	    if (dst_ok)
+		  dst_sig->add_delay_path(path);
       }
 }
 
