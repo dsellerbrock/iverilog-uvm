@@ -894,10 +894,16 @@ void vpi_get_time(vpiHandle obj, s_vpi_time*vp)
 	    vp->real = vpip_scaled_time_from_handle(time, obj);
 	    break;
 
-          default:
-            fprintf(stderr, "vpi_get_time: unknown type: %d\n", (int)vp->type);
-            assert(0);
+          default: {
+	      /* 38.13: only vpiScaledRealTime and vpiSimTime request a
+		 time. Any other type is an error; *vp is left unchanged. */
+            char message[64];
+            snprintf(message, sizeof message,
+		     "vpi_get_time: unknown type: %d", (int)vp->type);
+            fprintf(stderr, "%s\n", message);
+            vpip_set_error(vpiError, message);
 	    break;
+	  }
       }
 }
 
@@ -1833,7 +1839,12 @@ vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle ref)
 
 vpiHandle vpi_handle_by_index(vpiHandle ref, PLI_INT32 idx)
 {
-      assert(ref);
+	/* 38.19: a selection that is not a legal index select returns a
+	   null handle; a null parent selects nothing. */
+      if (ref == 0) {
+	    vpip_set_error(vpiError, "vpi_handle_by_index: null parent handle");
+	    return 0;
+      }
       return ref->vpi_index(idx);
 }
 
