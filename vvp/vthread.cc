@@ -247,9 +247,7 @@ class vvp_process : public vvp_object {
 	// A procedural concurrent assertion's maturity event runs at the
 	// front of the Observed region (see enqueue_proc_assert).
       bool proc_assert_front_armed_ = false;
-      std::map<unsigned long, deferred_assert_report_s>
-            final_deferred_asserts_;
-      std::vector<unsigned long> final_deferred_order_;
+      std::vector<deferred_assert_report_s> final_deferred_asserts_;
       bool final_deferred_rosync_armed_;
 };
 
@@ -1374,7 +1372,7 @@ vvp_process::vvp_process(vthread_t owner)
 {
 }
 
-/* Reports queued in every process's deferred_asserts_. A wake-up flush
+/* Reports queued in every process's deferred assertion queues. A wake-up flush
    has nothing to discard while this is zero, so vthread_run skips the
    process lookup for it. */
 static size_t pending_deferred_assert_reports_ = 0;
@@ -1383,7 +1381,8 @@ static std::set<vvp_process*> deferred_assert_processes_;
 vvp_process::~vvp_process()
 {
       deferred_assert_processes_.erase(this);
-      pending_deferred_assert_reports_ -= deferred_asserts_.size();
+      pending_deferred_assert_reports_ -= deferred_asserts_.size()
+            + final_deferred_asserts_.size();
 }
 
 void vvp_process::shallow_copy(const vvp_object*that)
@@ -1857,10 +1856,11 @@ void vvp_process::enqueue_proc_assert(unsigned long source_id,
 
 void vvp_process::flush_deferred_asserts()
 {
-      pending_deferred_assert_reports_ -= deferred_asserts_.size();
+      pending_deferred_assert_reports_ -= deferred_asserts_.size()
+            + final_deferred_asserts_.size();
       deferred_asserts_.clear();
-      if (final_deferred_asserts_.empty())
-            deferred_assert_processes_.erase(this);
+      final_deferred_asserts_.clear();
+      deferred_assert_processes_.erase(this);
       /* Leave the already-scheduled Observed pump armed. If this process
          executes another deferred assertion before that pass, the same
          pump will mature the new report. */
@@ -1876,21 +1876,11 @@ void vvp_process::cancel_deferred_asserts_(Predicate predicate)
       deferred_asserts_.erase(end, deferred_asserts_.end());
       pending_deferred_assert_reports_ -= before - deferred_asserts_.size();
 
-      for (std::map<unsigned long, deferred_assert_report_s>::iterator cur =
-                 final_deferred_asserts_.begin();
-           cur != final_deferred_asserts_.end();) {
-            if (predicate(cur->second))
-                  cur = final_deferred_asserts_.erase(cur);
-            else
-                  ++cur;
-      }
-      final_deferred_order_.erase(
-            std::remove_if(final_deferred_order_.begin(),
-                           final_deferred_order_.end(),
-                  [this](unsigned long source_id) {
-                        return final_deferred_asserts_.find(source_id)
-                              == final_deferred_asserts_.end();
-                  }), final_deferred_order_.end());
+      before = final_deferred_asserts_.size();
+      end = std::remove_if(final_deferred_asserts_.begin(),
+                           final_deferred_asserts_.end(), predicate);
+      final_deferred_asserts_.erase(end, final_deferred_asserts_.end());
+      pending_deferred_assert_reports_ -= before - final_deferred_asserts_.size();
       if (deferred_asserts_.empty() && final_deferred_asserts_.empty())
             deferred_assert_processes_.erase(this);
 }
@@ -2062,17 +2052,8 @@ void vvp_process::pin_final_deferred_assert(unsigned long source_id,
       report.action_scope = action_scope;
       report.action_args = action_args;
 
-      std::map<unsigned long, deferred_assert_report_s>::iterator cur =
-	    final_deferred_asserts_.find(source_id);
-      if (cur == final_deferred_asserts_.end()) {
-	    final_deferred_order_.push_back(source_id);
-	    final_deferred_asserts_[source_id] = report;
-      } else {
-	    /* Re-execution replaces the selected arm but retains the source's
-	       first-pin position. IEEE does not order distinct final assertions;
-	       this stable position is the simulator's deterministic tie-break. */
-	    cur->second = report;
-      }
+      final_deferred_asserts_.push_back(report);
+      pending_deferred_assert_reports_ += 1;
       deferred_assert_processes_.insert(this);
 
       if (final_deferred_rosync_armed_)
@@ -2091,22 +2072,14 @@ void vvp_process::mature_final_deferred_asserts()
 {
       final_deferred_rosync_armed_ = false;
 
-      std::map<unsigned long, deferred_assert_report_s> reports;
-      std::vector<unsigned long> order;
+      std::vector<deferred_assert_report_s> reports;
       reports.swap(final_deferred_asserts_);
-      order.swap(final_deferred_order_);
+      pending_deferred_assert_reports_ -= reports.size();
       if (deferred_asserts_.empty())
             deferred_assert_processes_.erase(this);
 
-      for (size_t odx = 0 ; odx < order.size() ; odx += 1) {
-	    unsigned long source_id = order[odx];
-
-	    std::map<unsigned long, deferred_assert_report_s>::iterator cur =
-		  reports.find(source_id);
-	    if (cur == reports.end())
-		  continue;
-
-	    deferred_assert_report_s report = cur->second;
+      for (size_t rdx = 0; rdx < reports.size(); rdx += 1) {
+            deferred_assert_report_s report = reports[rdx];
 	    if (report.source_id)
 		  vpip_deferred_assertion_report(report.source_id,
 			  report.result == 1 ? cbAssertionSuccess : cbAssertionFailure,

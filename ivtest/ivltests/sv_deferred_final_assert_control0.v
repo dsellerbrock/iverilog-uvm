@@ -8,8 +8,8 @@ module t;
     controlled(0);
     $asserton;
     controlled(0);
-    // Disabling after a pin neither cancels it nor permits a disabled
-    // execution to overwrite it.
+    // Disabling after a report is queued does not cancel it, and
+    // a disabled execution does not queue another report.
     $assertoff;
     controlled(1);
 

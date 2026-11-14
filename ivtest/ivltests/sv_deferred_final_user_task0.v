@@ -12,7 +12,7 @@ module deferred_final_user_task;
     $display("AUTO %m VALUE=%0d", value);
   endtask
 
-  // Re-entering this source assertion first pins and then cancels its action.
+  // A later passing execution does not cancel the queued failure action.
   task arm_cancel;
     assert final (cancel) else report_static();
   endtask
