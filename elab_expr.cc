@@ -16483,6 +16483,38 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 			break;
 		  }
 	    }
+	    if (!parameter_owner && class_type->is_interface_class()) {
+		  vector<const netclass_t*> pending;
+		  const NetScope*local_scope = class_type->class_scope();
+		  const PClass*local_class = local_scope->class_pform();
+		  // A local type declaration hides an inherited parameter.
+		  if (!local_class || local_class->typedefs.find(comp_it->name)
+			== local_class->typedefs.end()) {
+			pending = class_type->interface_types();
+		  }
+		  set<const netclass_t*> seen;
+		  while (!pending.empty()) {
+			const netclass_t*parent = pending.back();
+			pending.pop_back();
+			if (!parent || !seen.insert(parent).second)
+			      continue;
+			NetScope*parent_scope = const_cast<NetScope*>(
+			      parent->class_scope());
+			if (!parent_scope)
+			      continue;
+			if (parent_scope->parameters.find(comp_it->name)
+			    != parent_scope->parameters.end()) {
+			      parameter_owner = parent_scope;
+			      break;
+			}
+			const PClass*parent_class = parent_scope->class_pform();
+			if (parent_class && parent_class->typedefs.find(comp_it->name)
+			    != parent_class->typedefs.end())
+			      continue;
+			pending.insert(pending.end(), parent->interface_types().begin(),
+				       parent->interface_types().end());
+		  }
+	    }
 	    if (parameter_owner) {
 		  ivl_type_t use_type = nullptr;
 		  const NetExpr*use_value =
