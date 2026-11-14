@@ -6825,3 +6825,5 @@ issue3016_missing_2017 CE,-g2017 ivltests gold=issue3016_missing.gold
 issue3016_valid_2017 normal,-g2017 ivltests gold=issue3016_valid.gold
 issue3016_missing_2023 CE,-g2023 ivltests gold=issue3016_missing.gold
 issue3016_valid_2023 normal,-g2023 ivltests gold=issue3016_valid.gold
+issue2969_string_key_2017 normal,-g2017,-s,top ivltests gold=issue2969_string_key.gold
+issue2969_string_key_2023 normal,-g2023,-s,top ivltests gold=issue2969_string_key.gold

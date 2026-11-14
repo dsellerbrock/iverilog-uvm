@@ -48026,6 +48026,33 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
+	    // String associative keys are runtime state. Compare the actual key
+	    // with a literal for each instance of the foreach template.
+	    if (dynforeach_emit_ctx_ && dynforeach_emit_ctx_->entry_key
+		&& !dynforeach_emit_ctx_->assoc_key_type
+		&& (bin->get_op() == 'e' || bin->get_op() == 'n')) {
+		  const PEIdent*key = dynamic_cast<const PEIdent*>(bin->get_left());
+		  const PEString*literal = dynamic_cast<const PEString*>(bin->get_right());
+		  if (!key || !literal) {
+			key = dynamic_cast<const PEIdent*>(bin->get_right());
+			literal = dynamic_cast<const PEString*>(bin->get_left());
+		  }
+		  if (key && literal && !key->path().package
+		      && key->path().name.size() == 1
+		      && !key->path().name.front().local_scope
+		      && key->path().name.front().index.empty()
+		      && key->path().name.front().name == dynforeach_emit_ctx_->loop_var) {
+			static const char hex[] = "0123456789abcdef";
+			string encoded = "x";
+			for (unsigned char ch : literal->parsed_value().as_raw_string()) {
+			      if (!ch) continue; // string conversion removes NUL bytes
+			      encoded += hex[ch >> 4];
+			      encoded += hex[ch & 15];
+			}
+			return string("(qkeycmp ") + (bin->get_op() == 'e' ? "e " : "n ")
+			      + encoded + ")";
+		  }
+	    }
 	    /* IEEE 1800-2023 18.3 permits a random-variable-free subexpression
 	     * to use non-integral operands when its result is integral or real.
 	     * String equality is the common case. Evaluate that state expression
