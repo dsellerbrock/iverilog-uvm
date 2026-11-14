@@ -47338,7 +47338,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  dynamic_cast<const netuarray_t*>(ptype);
 				    if (slice_array && select.sel == index_component_t::SEL_PART
 					&& select.msb && select.lsb
-					&& cls->get_prop_qual((size_t)pidx).test_rand()) {
+					&& (cls->get_prop_qual((size_t)pidx).test_rand()
+					    || constraint_state_prop_ok_(ptype, true))) {
 					  const netranges_t&dims =
 						  slice_array->static_dimensions();
 					  ivl_type_t etype = slice_array->element_type();
