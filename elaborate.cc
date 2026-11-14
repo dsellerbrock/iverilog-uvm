@@ -17983,6 +17983,34 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	|| name == "$sync$or$array" || name == "$sync$nor$array"
 	|| name == "$sync$and$plane" || name == "$sync$nand$plane"
 	|| name == "$sync$or$plane" || name == "$sync$nor$plane";
+      if (pla_task && parm_count == 3) {
+	  for (unsigned idx = 0; idx < 3; idx += 1) {
+		const NetExpr*expr = eparms[idx];
+		/* A bit select is a single term; a concatenation explicitly
+		   supplies the term order. A part select follows its declaration. */
+		if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr)) {
+		      if (select->expr_width() == 1) continue;
+		      expr = select->sub_expr();
+		}
+		const NetESignal*signal = dynamic_cast<const NetESignal*>(expr);
+		if (!signal) continue;
+		const NetNet*net = signal->sig();
+		bool descending = false;
+		for (const netrange_t&range : net->packed_dims())
+		      if (range.defined() && range.get_msb() > range.get_lsb())
+			    descending = true;
+		if (idx == 0 && !signal->word_index())
+		      for (const netrange_t&range : net->unpacked_dims())
+			    if (range.defined() && range.get_msb() > range.get_lsb())
+				  descending = true;
+		if (descending) {
+		      cerr << parms_[idx].get_fileline() << ": error: argument "
+		           << idx + 1 << " of " << name
+		           << " must have ascending ranges." << endl;
+		      des->errors += 1;
+		}
+	  }
+      }
       if (pla_task && parm_count == 3 && eparms[2]) {
 	  std::function<bool(const NetExpr*)> variable_lvalue =
 		[&variable_lvalue](const NetExpr*expr) -> bool {
