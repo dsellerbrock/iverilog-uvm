@@ -10946,11 +10946,13 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 	      // ever reaching this classifier; these entries only still
 	      // matter for the early width-computation pass.)
 	    if (class_name == perm_string::literal("mailbox")) {
-		  if (method_name == perm_string::literal("num"))
+		    // try_get/try_peek return a signed int that is negative
+		    // on a type mismatch (IEEE 1800 15.4.6, 15.4.8).
+		  if (method_name == perm_string::literal("num")
+		      || method_name == perm_string::literal("try_get")
+		      || method_name == perm_string::literal("try_peek"))
 			return CP_EXPR_METHOD_STUB_INT0;
-		  if (method_name == perm_string::literal("try_get")
-		      || method_name == perm_string::literal("try_peek")
-		      || method_name == perm_string::literal("try_put"))
+		  if (method_name == perm_string::literal("try_put"))
 			return CP_EXPR_METHOD_STUB_BOOL0;
 	    }
 	    if (class_name == perm_string::literal("semaphore")) {
@@ -10998,11 +11000,11 @@ classify_compile_progress_expr_method_stub_(const pform_name_t&use_path,
 
 	    if (target_name == perm_string::literal("m")
 		|| target_name == perm_string::literal("m_sequence_state_mutex")) {
-		  if (method_name == perm_string::literal("num"))
+		  if (method_name == perm_string::literal("num")
+		      || method_name == perm_string::literal("try_get")
+		      || method_name == perm_string::literal("try_peek"))
 			return CP_EXPR_METHOD_STUB_INT0;
-		  if (method_name == perm_string::literal("try_get")
-		      || method_name == perm_string::literal("try_peek")
-		      || method_name == perm_string::literal("try_put"))
+		  if (method_name == perm_string::literal("try_put"))
 			return CP_EXPR_METHOD_STUB_BOOL0;
 	    }
       }
