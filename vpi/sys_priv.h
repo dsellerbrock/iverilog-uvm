@@ -89,6 +89,33 @@ extern int vpip_assoc_writemem_key(vpiHandle array, unsigned position,
 				  char*buffer, unsigned buffer_size);
 
 /*
+ * Words of a fixed unpacked array by flat position. A multidimensional
+ * array (vpiRange gives two or more dimensions) is addressed row-major,
+ * each dimension from low to high address (IEEE 1800-2023 21.4.3), as
+ * positions 0..size-1, while VPI selects its words dimension by dimension
+ * (38.19, 38.20). A one-dimensional array keeps its declared indexes.
+ */
+struct sys_flat_array {
+      vpiHandle array;
+      unsigned ndims;       /* 0 for a one-dimensional array */
+      PLI_INT32*low;
+      PLI_INT32*size;
+      PLI_INT32*index;
+};
+extern void sys_flat_array_init(struct sys_flat_array*fa, vpiHandle array);
+extern void sys_flat_array_free(struct sys_flat_array*fa);
+	/* The word at ADDR (a flat position, or a declared index), or 0. */
+extern vpiHandle sys_flat_array_word(struct sys_flat_array*fa, PLI_INT32 addr);
+	/* The address range: 0..size-1, or the declared bounds. */
+extern void sys_flat_array_range(struct sys_flat_array*fa,
+				 PLI_INT32*left, PLI_INT32*right);
+	/* One-off forms of the two above. */
+extern vpiHandle sys_array_word(vpiHandle array, PLI_INT32 addr);
+extern void sys_array_range(vpiHandle array, PLI_INT32*left, PLI_INT32*right);
+	/* The constant select of array word WORD, by all of its indexes. */
+extern vpiHandle sys_array_constant_word(vpiHandle word);
+
+/*
  * The standard compiletf routines.
  */
 extern PLI_INT32 sys_no_arg_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name);

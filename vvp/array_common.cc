@@ -172,6 +172,15 @@ vpiHandle __vpiArrayWord::as_word_t::vpi_iterate(int code)
       if (code == vpiIndex) {
 	    struct __vpiArrayWord*obj = array_var_word_from_handle(this);
 	    assert(obj);
+	    __vpiArray*array = dynamic_cast<__vpiArray*>(obj->get_parent());
+	    if (array && array->is_multidim()) {
+		  std::vector<vpiHandle> handles;
+		  array->word_index_handles(obj->get_index(), handles);
+		  vpiHandle*args = (vpiHandle*)malloc(handles.size()
+						      * sizeof(vpiHandle));
+		  std::copy(handles.begin(), handles.end(), args);
+		  return vpip_make_iterator(handles.size(), args, true);
+	    }
 	    vpiHandle*args = (vpiHandle*)malloc(sizeof(vpiHandle));
 	    args[0] = &obj->as_index;
 	    return vpip_make_iterator(1, args, true);
@@ -226,7 +235,7 @@ void __vpiArrayWord::as_index_t::vpi_get_value(p_vpi_value vp)
       struct __vpiArrayBase*parent = obj->get_parent();
 
       assert(vp->format == vpiIntVal);
-      vp->value.integer = parent->get_word_declared_index(obj->get_index());
+      vp->value.integer = parent->get_word_vpi_index(obj->get_index());
 }
 
 struct __vpiArrayWord*array_var_word_from_handle(vpiHandle ref)

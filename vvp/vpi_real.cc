@@ -65,12 +65,12 @@ static char* real_var_get_str(int code, vpiHandle ref)
 
       char *nm;
       const char *ixs;
+      std::string index_text;
       if (rfp->is_netarray) {
 	    nm = strdup(vpi_get_str(vpiName, rfp->within.parent));
-	    s_vpi_value vp;
-	    vp.format = vpiDecStrVal;
-	    vpi_get_value(rfp->id.index, &vp);
-	    ixs = vp.value.str;  /* do I need to strdup() this? */
+	    vpip_net_word_index(rfp->within.parent, rfp->id.index, 0,
+				&index_text);
+	    ixs = index_text.c_str();
       } else {
 	    nm = strdup(rfp->id.name);
 	    ixs = NULL;
@@ -92,7 +92,9 @@ static vpiHandle real_var_get_handle(int code, vpiHandle ref)
 	    return rfp->is_netarray ? rfp->within.parent : NULL;
 
 	  case vpiIndex:
-	    return rfp->is_netarray ? rfp->id.index : NULL;
+	    return rfp->is_netarray
+		  ? vpip_net_word_index(rfp->within.parent, rfp->id.index)
+		  : NULL;
 
 	  case vpiScope:
 	    return vpip_scope(rfp);
@@ -113,7 +115,12 @@ static vpiHandle real_var_iterate(int code, vpiHandle ref)
       assert(rfp);
 
       if (code == vpiIndex) {
-	    return rfp->is_netarray ? rfp->id.index->vpi_iterate(code) : NULL;
+	    if (!rfp->is_netarray) return NULL;
+	    std::vector<vpiHandle> all;
+	    vpip_net_word_index(rfp->within.parent, rfp->id.index, &all);
+	    vpiHandle*args = (vpiHandle*)malloc(all.size() * sizeof(vpiHandle));
+	    std::copy(all.begin(), all.end(), args);
+	    return vpip_make_iterator(all.size(), args, true);
       }
 
       return 0;

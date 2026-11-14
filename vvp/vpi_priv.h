@@ -1122,6 +1122,11 @@ struct __vpiArrayBase {
 	// fixed arrays and fixed class-member views override it.
       virtual int get_word_declared_index(unsigned idx) const
 	{ return (int)idx; }
+	// The word's vpiIndex: its declared index, or for a word of a
+	// multidimensional array its rightmost index (IEEE 1800-2023 37.17
+	// details 5 and 18).
+      virtual int get_word_vpi_index(unsigned idx) const
+	{ return get_word_declared_index(idx); }
 
     // vpi_iterate is already defined by vpiHandle, so to avoid problems with
     // classes inheriting from vpiHandle and vpiArrayBase just share the common
@@ -1186,6 +1191,22 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       vpiHandle get_iter_index(struct __vpiArrayIterator*iter, int idx) override;
       int get_word_declared_index(unsigned idx) const override
 	{ return (int)idx + first_addr.get_value(); }
+      int get_word_vpi_index(unsigned idx) const override;
+
+	// A fixed array with two or more unpacked dimensions is stored flat,
+	// row-major, each dimension from its low bound (IEEE 1800-2023
+	// 21.4.3). VPI sees it by dimension (37.17, 38.19): these map a flat
+	// word to its declared indexes, leftmost first.
+      bool is_multidim() const { return unpacked_ranges.size() > 1; }
+      void word_indices(unsigned flat, std::vector<int>&indices) const;
+      std::string word_index_text(unsigned flat) const; // "1][5"
+	// The word handle at flat position FLAT, or nil.
+      vpiHandle word_handle(unsigned flat);
+	// The vpiIndex handles of word FLAT, rightmost first.
+      void word_index_handles(unsigned flat, std::vector<vpiHandle>&out);
+      vpiHandle index_const(int value);
+      std::map<int, vpiHandle> index_consts;
+      std::map<std::string, vpiHandle> subarrays;
 
       int vpi_get(int code) override;
       char* vpi_get_str(int code) override;
@@ -1349,6 +1370,7 @@ struct __vpiArrayPackedView : public __vpiHandle {
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       vpiHandle vpi_handle(int code) override;
+      vpiHandle vpi_iterate(int code) override;
       vpiHandle vpi_index(int idx) override;
 
       __vpiArray*array = nullptr;
@@ -1360,7 +1382,37 @@ struct __vpiArrayPackedView : public __vpiHandle {
       std::vector<int> indices;
 };
 
+/* A partial index select of a multidimensional unpacked array, such as
+ * vm[1] of `logic vm [1:0][5:4]`: an array of the remaining dimensions
+ * (IEEE 1800-2023 37.17 details 26 and 28, 38.19). */
+struct __vpiSubArray : public __vpiHandle {
+      int get_type_code(void) const override;
+      int vpi_get(int code) override;
+      char* vpi_get_str(int code) override;
+      vpiHandle vpi_handle(int code) override;
+      vpiHandle vpi_iterate(int code) override;
+      vpiHandle vpi_index(int idx) override;
+
+      __vpiArray*array = nullptr;
+      std::vector<int> indices;   // leftmost first
+      unsigned base = 0;          // first flat word
+      unsigned count = 0;         // words in the slice
+};
+
+	// Select index IDX of dimension INDICES.size() under the prefix
+	// INDICES: a subarray, or the word when it is the last dimension.
+extern vpiHandle vpip_array_dim_index(__vpiArray*array,
+				      const std::vector<int>&indices, int idx);
+
 extern vpiHandle vpip_array_word_packed_index(vpiHandle word, int idx);
+
+	// The vpiIndex handle of a net-array word whose id.index is ID_INDEX.
+	// A word of a multidimensional array gets its rightmost index; ALL,
+	// if given, receives every index rightmost first, and TEXT the name
+	// index text ("1][5").
+extern vpiHandle vpip_net_word_index(vpiHandle array, vpiHandle id_index,
+				     std::vector<vpiHandle>*all = 0,
+				     std::string*text = 0);
 extern void compile_packed_dims(char*label, char*layout);
 
 class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {

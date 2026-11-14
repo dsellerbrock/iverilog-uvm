@@ -213,6 +213,7 @@ vvp_array_t array_find(const char*label)
 struct __vpiArrayVthrA : public __vpiHandle {
       int get_type_code(void) const override { return vpiMemoryWord; }
       int vpi_get(int code) override;
+      vpiHandle vpi_iterate(int code) override;
       char* vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
@@ -271,6 +272,17 @@ vpiHandle __vpiArrayWord::as_word_t::vpi_index(int idx)
       return vpip_array_word_packed_index(this, idx);
 }
 
+/* A word's packed dimensions: its declared packed_ranges, or its single
+   range (#3394: a var bit of an array word, 37.17 details 12, 13). */
+static vector<__vpiSignal::packed_range_t> word_ranges_(__vpiArray*array)
+{
+      if (!array->packed_ranges.empty()) return array->packed_ranges;
+      __vpiSignal::packed_range_t range;
+      range.left = array->msb.get_value();
+      range.right = array->lsb.get_value();
+      return vector<__vpiSignal::packed_range_t>(1, range);
+}
+
 static bool packed_index_slice_(
       const vector<__vpiSignal::packed_range_t>&ranges, unsigned depth,
       int index, unsigned&ordinal, unsigned&remaining)
@@ -303,7 +315,7 @@ static vpiHandle array_packed_index_(__vpiArray*array, vpiHandle parent,
                                      const vector<int>&prefix, int idx)
 {
       unsigned ordinal = 0, remaining = 0;
-      if (!packed_index_slice_(array->packed_ranges, depth, idx,
+      if (!packed_index_slice_(word_ranges_(array), depth, idx,
                                ordinal, remaining)) return 0;
       vector<int>indices = prefix;
       indices.push_back(idx);
@@ -324,12 +336,222 @@ static vpiHandle array_packed_index_(__vpiArray*array, vpiHandle parent,
       return view;
 }
 
+static void unpacked_dim_(const __vpiSignal::packed_range_t&range,
+			  int&low, unsigned&size)
+{
+      low = std::min(range.left, range.right);
+      size = (unsigned)((int64_t)std::max(range.left, range.right) - low + 1);
+}
+
+void __vpiArray::word_indices(unsigned flat, vector<int>&indices) const
+{
+      indices.assign(unpacked_ranges.size(), 0);
+      for (size_t dim = unpacked_ranges.size(); dim-- > 0; ) {
+	    int low; unsigned size;
+	    unpacked_dim_(unpacked_ranges[dim], low, size);
+	    indices[dim] = low + (int)(flat % size);
+	    flat /= size;
+      }
+}
+
+string __vpiArray::word_index_text(unsigned flat) const
+{
+      vector<int> indices;
+      word_indices(flat, indices);
+      string text;
+      for (size_t dim = 0; dim < indices.size(); dim += 1) {
+	    if (dim) text += "][";
+	    text += to_string(indices[dim]);
+      }
+      return text;
+}
+
+int __vpiArray::get_word_vpi_index(unsigned idx) const
+{
+      if (!is_multidim()) return get_word_declared_index(idx);
+      vector<int> indices;
+      word_indices(idx, indices);
+      return indices.back();
+}
+
+vpiHandle __vpiArray::word_handle(unsigned flat)
+{
+      if (flat >= get_size()) return 0;
+      if (nets) return nets[flat];
+      if (vals_words == 0) make_vals_words();
+      return &(vals_words[flat].as_word);
+}
+
+vpiHandle __vpiArray::index_const(int value)
+{
+      auto found = index_consts.find(value);
+      if (found != index_consts.end()) return found->second;
+      vpiHandle handle = new __vpiDecConst(value);
+      index_consts[value] = handle;
+      return handle;
+}
+
+void __vpiArray::word_index_handles(unsigned flat, vector<vpiHandle>&out)
+{
+      vector<int> indices;
+      word_indices(flat, indices);
+      for (size_t dim = indices.size(); dim-- > 0; )
+	    out.push_back(index_const(indices[dim]));
+}
+
+vpiHandle vpip_array_dim_index(__vpiArray*array, const vector<int>&prefix,
+			       int idx)
+{
+      const vector<__vpiSignal::packed_range_t>&dims = array->unpacked_ranges;
+      size_t depth = prefix.size();
+      if (depth >= dims.size()) return 0;
+      int low; unsigned size;
+      unpacked_dim_(dims[depth], low, size);
+      if (idx < low || (int64_t)idx >= (int64_t)low + size) return 0;
+
+      vector<int> indices = prefix;
+      indices.push_back(idx);
+      unsigned base = 0;
+      for (size_t dim = 0; dim < indices.size(); dim += 1) {
+	    unpacked_dim_(dims[dim], low, size);
+	    base = base * size + (unsigned)(indices[dim] - low);
+      }
+      unsigned count = 1;
+      for (size_t dim = indices.size(); dim < dims.size(); dim += 1) {
+	    unpacked_dim_(dims[dim], low, size);
+	    count *= size;
+      }
+      base *= count;
+      if (indices.size() == dims.size()) return array->word_handle(base);
+
+      string key;
+      for (int item : indices) key += to_string(item) + ",";
+      auto found = array->subarrays.find(key);
+      if (found != array->subarrays.end()) return found->second;
+      __vpiSubArray*sub = new __vpiSubArray;
+      sub->array = array;
+      sub->indices = indices;
+      sub->base = base;
+      sub->count = count;
+      array->subarrays[key] = sub;
+      return sub;
+}
+
+int __vpiSubArray::get_type_code(void) const
+{
+      return array->nets ? vpiNetArray : array->get_type_code();
+}
+
+int __vpiSubArray::vpi_get(int code)
+{
+      switch (code) {
+	  case vpiSize: return (int)count;
+	  case vpiArrayMember: return 1;
+	  case vpiIndex: return indices.back();
+	  default: return array->vpi_get(code);
+      }
+}
+
+char* __vpiSubArray::vpi_get_str(int code)
+{
+      if (code != vpiName && code != vpiFullName)
+	    return array->vpi_get_str(code);
+      string name = array->vpi_get_str(code);
+      for (int index : indices) name += "[" + to_string(index) + "]";
+      return simple_set_rbuf_str(name.c_str());
+}
+
+vpiHandle __vpiSubArray::vpi_handle(int code)
+{
+      const __vpiSignal::packed_range_t&next =
+	    array->unpacked_ranges[indices.size()];
+      switch (code) {
+	    // 37.17 detail 26: the largest containing unpacked array.
+	  case vpiParent: return array;
+	  case vpiLeftRange: return array->index_const(next.left);
+	  case vpiRightRange: return array->index_const(next.right);
+	  case vpiIndex: return array->index_const(indices.back());
+	  case vpiScope: return array->get_scope();
+	  case vpiModule: return vpip_module(array->get_scope());
+	  default: return 0;
+      }
+}
+
+vpiHandle __vpiSubArray::vpi_iterate(int code)
+{
+      const vector<__vpiSignal::packed_range_t>&dims = array->unpacked_ranges;
+      vpiHandle*args = 0;
+      unsigned nargs = 0;
+      switch (code) {
+	  case vpiRange:
+	    nargs = dims.size() - indices.size();
+	    args = (vpiHandle*)malloc(nargs * sizeof(vpiHandle));
+	    for (unsigned idx = 0; idx < nargs; idx += 1)
+		  args[idx] = vpip_make_range(dims[indices.size() + idx].left,
+					      dims[indices.size() + idx].right);
+	    break;
+	  case vpiIndex:
+	    nargs = indices.size();
+	    args = (vpiHandle*)malloc(nargs * sizeof(vpiHandle));
+	    for (unsigned idx = 0; idx < nargs; idx += 1)
+		  args[idx] = array->index_const(indices[nargs - 1 - idx]);
+	    break;
+	  case vpiReg:
+	  case vpiNet:
+	  case vpiMemoryWord:
+	  case vpiMember:
+	    nargs = count;
+	    args = (vpiHandle*)malloc(nargs * sizeof(vpiHandle));
+	    for (unsigned idx = 0; idx < nargs; idx += 1)
+		  args[idx] = array->word_handle(base + idx);
+	    break;
+	  default:
+	    return 0;
+      }
+      if (nargs == 0) { free(args); return 0; }
+      return vpip_make_iterator(nargs, args, true);
+}
+
+vpiHandle __vpiSubArray::vpi_index(int idx)
+{
+      return vpip_array_dim_index(array, indices, idx);
+}
+
+vpiHandle vpip_net_word_index(vpiHandle array, vpiHandle id_index,
+			      vector<vpiHandle>*all, string*text)
+{
+      __vpiArray*arr = dynamic_cast<__vpiArray*>(array);
+      if (!arr || !arr->is_multidim()) {
+	    if (all) all->push_back(id_index);
+	    if (text) {
+		  s_vpi_value vp;
+		  vp.format = vpiDecStrVal;
+		  vpi_get_value(id_index, &vp);
+		  *text = vp.value.str;
+	    }
+	    return id_index;
+      }
+      s_vpi_value vp;
+      vp.format = vpiIntVal;
+      vpi_get_value(id_index, &vp);
+      unsigned flat = (unsigned)(vp.value.integer - arr->first_addr.get_value());
+      vector<vpiHandle> handles;
+      arr->word_index_handles(flat, handles);
+      if (all) all->insert(all->end(), handles.begin(), handles.end());
+      if (text) *text = arr->word_index_text(flat);
+      return handles.front();
+}
+
 vpiHandle vpip_array_word_packed_index(vpiHandle ref, int idx)
 {
       __vpiArrayWord*word = array_var_word_from_handle(ref);
       if (!word) return 0;
       __vpiArray*array = dynamic_cast<__vpiArray*>(word->get_parent());
-      if (!array || array->packed_ranges.empty() || array->nets) return 0;
+      if (!array || array->nets) return 0;
+      if (array->packed_ranges.empty() && !array->vals4
+	  && !(array->vals
+	       && array->value_kind == __vpiArray::ARRAY_VALUE_INTEGRAL))
+	    return 0;
       vector<int>prefix;
       return array_packed_index_(array, ref, word->get_index(), 0, 0,
                                  prefix, idx);
@@ -337,7 +559,7 @@ vpiHandle vpip_array_word_packed_index(vpiHandle ref, int idx)
 
 int __vpiArrayPackedView::get_type_code(void) const
 {
-      if (depth == array->packed_ranges.size()) return vpiRegBit;
+      if (depth == word_ranges_(array).size()) return vpiRegBit;
       return array->value_kind == __vpiArray::ARRAY_VALUE_INTEGRAL
             ? vpiBitVar : vpiReg;
 }
@@ -354,8 +576,8 @@ int __vpiArrayPackedView::vpi_get(int code)
           case vpiIndex: return indices.empty() ? vpiUndefined : indices.back();
           case vpiLeftRange:
           case vpiRightRange:
-            if (depth < array->packed_ranges.size()) {
-                  const auto&range = array->packed_ranges[depth];
+            if (depth < word_ranges_(array).size()) {
+                  const auto range = word_ranges_(array)[depth];
                   return code == vpiLeftRange ? range.left : range.right;
             }
             return indices.empty() ? vpiUndefined : indices.back();
@@ -404,6 +626,21 @@ vpiHandle __vpiArrayPackedView::vpi_handle(int code)
       }
 }
 
+/* Indexes from the bit outward: the packed ones, then the word's
+   (IEEE 1800-2023 37.17 detail 13). */
+vpiHandle __vpiArrayPackedView::vpi_iterate(int code)
+{
+      if (code != vpiIndex) return 0;
+      vector<vpiHandle> handles;
+      for (size_t idx = indices.size(); idx-- > 0; )
+	    handles.push_back(array->index_const(indices[idx]));
+      vpiHandle iter = packed_parent->vpi_iterate(vpiIndex), index;
+      while (iter && (index = vpi_scan(iter))) handles.push_back(index);
+      vpiHandle*args = (vpiHandle*)malloc(handles.size() * sizeof(vpiHandle));
+      std::copy(handles.begin(), handles.end(), args);
+      return vpip_make_iterator(handles.size(), args, true);
+}
+
 vpiHandle __vpiArrayPackedView::vpi_index(int idx)
 {
       return array_packed_index_(array, packed_parent, word, base, depth,
@@ -412,6 +649,8 @@ vpiHandle __vpiArrayPackedView::vpi_index(int idx)
 
 bool is_net_array(vpiHandle obj)
 {
+      if (__vpiSubArray*sub = dynamic_cast<__vpiSubArray*>(obj))
+	    obj = sub->array;
       struct __vpiArray*rfp = dynamic_cast<__vpiArray*> (obj);
       assert(rfp);
 
@@ -501,6 +740,9 @@ char*__vpiArray::get_word_str(struct __vpiArrayWord*word, int code)
 	    return simple_set_rbuf_str(file_names[0]);
       }
 
+      if (is_multidim())
+	    return generic_get_str(code, get_scope(), name,
+				   word_index_text(index).c_str());
       char sidx [64];
       snprintf(sidx, 63, "%d", (int)index + first_addr.get_value());
       return generic_get_str(code, get_scope(), name, sidx);
@@ -706,6 +948,9 @@ char* __vpiArray::vpi_get_str(int code)
 
 vpiHandle __vpiArray::vpi_handle(int code)
 {
+      if (is_multidim() && (code == vpiLeftRange || code == vpiRightRange))
+	    return index_const(code == vpiLeftRange ? unpacked_ranges[0].left
+						    : unpacked_ranges[0].right);
       switch (code) {
           case vpiLeftRange:
             if (swap_addr) return &last_addr;
@@ -731,6 +976,8 @@ vpiHandle __vpiArray::vpi_handle(int code)
 */
 vpiHandle __vpiArray::vpi_index(int index)
 {
+      if (is_multidim())
+	    return vpip_array_dim_index(this, std::vector<int>(), index);
       index -= first_addr.get_value();
       if (index >= (long) get_size())
 	    return 0;
@@ -778,7 +1025,7 @@ int __vpiArrayWord::as_word_t::vpi_get(int code)
             return val.value.integer;
 
 	  case vpiIndex:
-	    return my_parent->get_word_declared_index(obj->get_index());
+	    return my_parent->get_word_vpi_index(obj->get_index());
 
 	  case vpiSigned:
 	    if (__vpiArray*fixed = dynamic_cast<__vpiArray*>(my_parent))
@@ -830,6 +1077,8 @@ int __vpiArrayVthrA::vpi_get(int code)
 	    return array->lsb.get_value();
 
 	  case vpiIndex:
+	    if (array->is_multidim() && get_address() < array->get_size())
+		  return array->get_word_vpi_index(get_address());
 	    return (int)get_address() + array->first_addr.get_value();
 
 	  case vpiSigned:
@@ -859,6 +1108,9 @@ char* __vpiArrayVthrA::vpi_get_str(int code)
             return simple_set_rbuf_str(file_names[0]);
       }
 
+      if (array->is_multidim() && get_address() < array->get_size())
+	    return generic_get_str(code, array->get_scope(), array->name,
+				   array->word_index_text(get_address()).c_str());
       char sidx [64];
       snprintf(sidx, 63, "%d", (int)get_address() + array->first_addr.get_value());
       return generic_get_str(code, array->get_scope(), array->name, sidx);
@@ -946,6 +1198,19 @@ vpiHandle __vpiArrayVthrA::vpi_put_value(p_vpi_value vp, int)
       }
 
       return this;
+}
+
+/* The indexes of the word currently addressed, rightmost first (37.17
+   detail 5); only a multidimensional array has more than one. */
+vpiHandle __vpiArrayVthrA::vpi_iterate(int code)
+{
+      if (code != vpiIndex || !array->is_multidim()
+	  || get_address() >= array->get_size()) return 0;
+      std::vector<vpiHandle> handles;
+      array->word_index_handles(get_address(), handles);
+      vpiHandle*args = (vpiHandle*)malloc(handles.size() * sizeof(vpiHandle));
+      std::copy(handles.begin(), handles.end(), args);
+      return vpip_make_iterator(handles.size(), args, true);
 }
 
 vpiHandle __vpiArrayVthrA::vpi_handle(int code)
@@ -2570,8 +2835,7 @@ void __vpiArray::word_change_local_(unsigned long addr)
 			    && cur->cb_data.value->format != vpiSuppressVal) {
 			      __vpiArrayPackedView*view =
 			            dynamic_cast<__vpiArrayPackedView*>(cur->cb_data.obj);
-			      int declared = get_word_declared_index((unsigned)addr);
-			      vpiHandle changed_word = vpi_index(declared);
+			      vpiHandle changed_word = word_handle((unsigned)addr);
 			      if (view)
 			            view->vpi_get_value(cur->cb_data.value);
 			      else if (changed_word)

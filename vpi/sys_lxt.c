@@ -531,9 +531,8 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	    if (vpi_get(vpiConstantSelect, item) == 0) {
 		    /* Turn a non-constant array word select into a
 		     * constant word select. */
-		  vpiHandle array = vpi_handle(vpiParent, item);
-		  PLI_INT32 idx = vpi_get(vpiIndex, item);
-		  item = vpi_handle_by_index(array, idx);
+		  /* By all of its indexes (multidimensional arrays). */
+		  item = sys_array_constant_word(item);
 	    }
 	    // fallthrough
 	  case vpiIntegerVar:

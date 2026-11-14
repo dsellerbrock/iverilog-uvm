@@ -173,15 +173,18 @@ static vpiHandle bit_iterate(int code, vpiHandle ref)
 	    count += 1;
 	    root = cur->packed_view_parent;
       }
-      if (root->is_netarray) count += 1;
+      std::vector<vpiHandle> unpacked;
+      if (root->is_netarray)
+	    vpip_net_word_index(root->within.parent, root->id.index, &unpacked);
+      count += unpacked.size();
 
-      vpiHandle*args = new vpiHandle[count];
+      vpiHandle*args = (vpiHandle*)malloc(count * sizeof(vpiHandle));
       unsigned idx = 0;
       args[idx++] = rfp->index;
       for (__vpiSignal*cur = rfp->get_parent();
 	   cur && cur->has_packed_index; cur = cur->packed_view_parent)
 	    args[idx++] = &cur->packed_index;
-      if (root->is_netarray) args[idx] = root->id.index;
+      for (vpiHandle index : unpacked) args[idx++] = index;
       return vpip_make_iterator(count, args, true);
 }
 

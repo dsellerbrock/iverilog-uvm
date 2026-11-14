@@ -199,12 +199,10 @@ static PLI_INT32 pla_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
       task->input_width = vpi_get(vpiSize, arg[1]);
       task->output_width = vpi_get(vpiSize, arg[2]);
       {
-            s_vpi_value range_value;
-            range_value.format = vpiIntVal;
-            vpi_get_value(vpi_handle(vpiLeftRange, arg[0]), &range_value);
-            task->mem_left = range_value.value.integer;
-            vpi_get_value(vpi_handle(vpiRightRange, arg[0]), &range_value);
-            task->mem_right = range_value.value.integer;
+            PLI_INT32 left, right;
+            sys_array_range(arg[0], &left, &right);
+            task->mem_left = left;
+            task->mem_right = right;
       }
       step = task->mem_left <= task->mem_right ? 1 : -1;
       task->word_count = (unsigned)(task->mem_left <= task->mem_right ?
@@ -215,8 +213,13 @@ static PLI_INT32 pla_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
       task->is_plane = strstr(name, "$plane") != 0;
       task->is_and = strstr(name, "$and$") || strstr(name, "$nand$");
       task->invert = strstr(name, "$nand$") || strstr(name, "$nor$");
-      for (idx = 0, first = task->mem_left; idx < task->word_count; idx += 1, first += step)
-            task->words[idx] = vpi_handle_by_index(task->memory, first);
+      {
+            struct sys_flat_array flat;
+            sys_flat_array_init(&flat, task->memory);
+            for (idx = 0, first = task->mem_left; idx < task->word_count; idx += 1, first += step)
+                  task->words[idx] = sys_flat_array_word(&flat, first);
+            sys_flat_array_free(&flat);
+      }
       for (idx = 0; idx < task->word_count; idx += 1) {
             if (!task->words[idx]) {
                   vpi_printf("ERROR: %s:%d: %s could not access a personality word.\n",

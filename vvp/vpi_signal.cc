@@ -590,11 +590,12 @@ static int signal_get(int code, vpiHandle ref)
 	      return vpi_get(vpiPacked, rfp->typespec);
 	    return rfp->get_vpi_type_code() == vpiPackedArrayVar;
 
-	  case vpiIndex: // This only works while we have a single index.
+	  case vpiIndex: // The rightmost index of a multidimensional array.
 	    if (rfp->is_netarray) {
 		  s_vpi_value vp;
 		  vp.format = vpiIntVal;
-		  vpi_get_value(rfp->id.index, &vp);
+		  vpi_get_value(vpip_net_word_index(rfp->within.parent,
+						    rfp->id.index), &vp);
 		  return vp.value.integer;
 	    } else {
 		  return vpiUndefined;
@@ -705,12 +706,12 @@ static char* signal_get_str(int code, vpiHandle ref)
 
       char *nm;
       const char *ixs;
+      std::string index_text;
       if (rfp->is_netarray) {
 	    nm = strdup(vpi_get_str(vpiName, rfp->within.parent));
-	    s_vpi_value vp;
-	    vp.format = vpiDecStrVal;
-	    vpi_get_value(rfp->id.index, &vp);
-	    ixs = vp.value.str;  /* do I need to strdup() this? */
+	    vpip_net_word_index(rfp->within.parent, rfp->id.index, 0,
+				&index_text);
+	    ixs = index_text.c_str();
       } else {
 	    nm = strdup(rfp->id.name);
 	    ixs = NULL;
@@ -735,7 +736,9 @@ static vpiHandle signal_get_handle(int code, vpiHandle ref)
 
 	  case vpiIndex:
 	    if (rfp->has_packed_index) return &rfp->packed_index;
-	    return rfp->is_netarray? rfp->id.index : NULL;
+	    return rfp->is_netarray
+		  ? vpip_net_word_index(rfp->within.parent, rfp->id.index)
+		  : NULL;
 
 	  case vpiLeftRange:
 	    return &rfp->msb;
@@ -817,15 +820,19 @@ static vpiHandle signal_iterate(int code, vpiHandle ref)
 		  count += 1;
 		  root = cur->packed_view_parent;
 	    }
-	    if (root->is_netarray) count += 1;
+	    std::vector<vpiHandle> unpacked;
+	    if (root->is_netarray)
+		  vpip_net_word_index(root->within.parent, root->id.index,
+				      &unpacked);
+	    count += unpacked.size();
 	    if (count == 0) return NULL;
 
-	    vpiHandle*args = new vpiHandle[count];
+	    vpiHandle*args = (vpiHandle*)malloc(count * sizeof(vpiHandle));
 	    unsigned idx = 0;
 	    for (__vpiSignal*cur = rfp; cur && cur->has_packed_index;
 	         cur = cur->packed_view_parent)
 		  args[idx++] = &cur->packed_index;
-	    if (root->is_netarray) args[idx] = root->id.index;
+	    for (vpiHandle index : unpacked) args[idx++] = index;
 	    return vpip_make_iterator(count, args, true);
       }
 

@@ -449,7 +449,8 @@ static void format_p_memory_dimension(vpiHandle item,
       format_p_memory_dimension(item, ranges, dimensions, dimension + 1,
                                 next, acc, used, first);
     } else {
-      vpiHandle word = vpi_handle_by_index(item, (PLI_INT32)next);
+      /* NEXT is the row-major flat position (IEEE 1800-2023 21.4.3). */
+      vpiHandle word = sys_array_word(item, (PLI_INT32)next);
       if (word) {
         char *value = format_p_value(word);
         size_t value_length = strlen(value);
@@ -1112,6 +1113,13 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
           char *array_string = malloc(capacity);
           array_string[0] = '\0';
           int is_byte_array = left && right;
+          if (is_byte_array) {
+            /* A multidimensional array is never a byte string. */
+            struct sys_flat_array flat;
+            sys_flat_array_init(&flat, arg);
+            if (flat.ndims) is_byte_array = 0;
+            sys_flat_array_free(&flat);
+          }
           if (is_byte_array) {
             s_vpi_value bound;
             bound.format = vpiIntVal;

@@ -642,13 +642,9 @@ static PLI_INT32 sys_fread_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       if (is_mem) {
 	    PLI_INT32 left, right, max, min;
 
-	      /* Get the left and right memory address. */
-	    val.format = vpiIntVal;
-	    vpi_get_value(vpi_handle(vpiLeftRange, mem_reg), &val);
-	    left = val.value.integer;
-	    val.format = vpiIntVal;
-	    vpi_get_value(vpi_handle(vpiRightRange, mem_reg), &val);
-	    right = val.value.integer;
+	      /* The memory's address range; flat for a multidimensional
+	         array (IEEE 1800-2023 21.4.3). */
+	    sys_array_range(mem_reg, &left, &right);
 	    max = (left > right) ? left : right;
 	    min = (left < right) ? left : right;
 
@@ -696,7 +692,7 @@ static PLI_INT32 sys_fread_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  start = min;
 		  count = max - min + 1;
 	    }
-	    width = vpi_get(vpiSize, vpi_handle_by_index(mem_reg, start));
+	    width = vpi_get(vpiSize, sys_array_word(mem_reg, start));
       } else {
 	    start = 0;
 	    count = 1;
@@ -712,13 +708,16 @@ static PLI_INT32 sys_fread_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       assert(count >= 0);
       if (is_mem) {
 	    unsigned idx;
+	    struct sys_flat_array flat;
+	    sys_flat_array_init(&flat, mem_reg);
 	    rtn = 0;
 	    for (idx = 0; idx < (unsigned)count; idx += 1) {
 		  vpiHandle word;
-		  word = vpi_handle_by_index(mem_reg, start+(signed)idx);
+		  word = sys_flat_array_word(&flat, start+(signed)idx);
 		  rtn += fread_word(fp, word, words, bpe, vector);
 		  if (feof(fp)) break;
 	    }
+	    sys_flat_array_free(&flat);
       } else {
 	    rtn = fread_word(fp, mem_reg, words, bpe, vector);
       }

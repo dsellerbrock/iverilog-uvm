@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue3337_multidim_memfile.v",
+  "iverilog-args": ["-g2023", "-s", "top"]
+}

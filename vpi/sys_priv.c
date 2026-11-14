@@ -575,3 +575,113 @@ void put_scalar_value(vpiHandle callh, PLI_INT32 result)
       val.value.scalar = result;
       vpi_put_value(callh, &val, 0, vpiNoDelay);
 }
+
+void sys_flat_array_init(struct sys_flat_array*fa, vpiHandle array)
+{
+      vpiHandle iter = vpi_iterate(vpiRange, array), range;
+      unsigned count = 0;
+      fa->array = array;
+      fa->ndims = 0;
+      fa->low = fa->size = fa->index = 0;
+      while (iter && (range = vpi_scan(iter))) {
+	    s_vpi_value left, right;
+	    left.format = right.format = vpiIntVal;
+	    vpi_get_value(vpi_handle(vpiLeftRange, range), &left);
+	    vpi_get_value(vpi_handle(vpiRightRange, range), &right);
+	    fa->low = realloc(fa->low, (count + 1) * sizeof(PLI_INT32));
+	    fa->size = realloc(fa->size, (count + 1) * sizeof(PLI_INT32));
+	    fa->low[count] = left.value.integer < right.value.integer
+		  ? left.value.integer : right.value.integer;
+	    fa->size[count] = abs(left.value.integer - right.value.integer) + 1;
+	    count += 1;
+      }
+      if (count < 2) {
+	    free(fa->low);
+	    free(fa->size);
+	    fa->low = fa->size = 0;
+	    return;
+      }
+      fa->ndims = count;
+      fa->index = malloc(count * sizeof(PLI_INT32));
+}
+
+void sys_flat_array_free(struct sys_flat_array*fa)
+{
+      free(fa->low);
+      free(fa->size);
+      free(fa->index);
+      fa->low = fa->size = fa->index = 0;
+}
+
+vpiHandle sys_flat_array_word(struct sys_flat_array*fa, PLI_INT32 addr)
+{
+      unsigned dim;
+      if (fa->ndims == 0) return vpi_handle_by_index(fa->array, addr);
+      if (addr < 0) return 0;
+      for (dim = fa->ndims; dim-- > 0; ) {
+	    fa->index[dim] = fa->low[dim] + addr % fa->size[dim];
+	    addr /= fa->size[dim];
+      }
+      if (addr != 0) return 0;
+      return vpi_handle_by_multi_index(fa->array, (PLI_INT32)fa->ndims,
+				       fa->index);
+}
+
+void sys_flat_array_range(struct sys_flat_array*fa,
+			  PLI_INT32*left, PLI_INT32*right)
+{
+      s_vpi_value val;
+      if (fa->ndims) {
+	    *left = 0;
+	    *right = vpi_get(vpiSize, fa->array) - 1;
+	    return;
+      }
+      val.format = vpiIntVal;
+      vpi_get_value(vpi_handle(vpiLeftRange, fa->array), &val);
+      *left = val.value.integer;
+      val.format = vpiIntVal;
+      vpi_get_value(vpi_handle(vpiRightRange, fa->array), &val);
+      *right = val.value.integer;
+}
+
+vpiHandle sys_array_word(vpiHandle array, PLI_INT32 addr)
+{
+      struct sys_flat_array fa;
+      vpiHandle word;
+      sys_flat_array_init(&fa, array);
+      word = sys_flat_array_word(&fa, addr);
+      sys_flat_array_free(&fa);
+      return word;
+}
+
+void sys_array_range(vpiHandle array, PLI_INT32*left, PLI_INT32*right)
+{
+      struct sys_flat_array fa;
+      sys_flat_array_init(&fa, array);
+      sys_flat_array_range(&fa, left, right);
+      sys_flat_array_free(&fa);
+}
+
+vpiHandle sys_array_constant_word(vpiHandle word)
+{
+      vpiHandle array = vpi_handle(vpiParent, word);
+      vpiHandle iter = vpi_iterate(vpiIndex, word), index;
+      PLI_INT32 indexes[64];
+      unsigned count = 0, idx;
+      while (iter && (index = vpi_scan(iter))) {
+	    s_vpi_value val;
+	    val.format = vpiIntVal;
+	    vpi_get_value(index, &val);
+	    if (count < 64) indexes[count] = val.value.integer;
+	    count += 1;
+      }
+      if (count < 2 || count > 64)
+	    return vpi_handle_by_index(array, vpi_get(vpiIndex, word));
+	/* The iteration runs rightmost first; multi_index wants leftmost. */
+      for (idx = 0; idx < count / 2; idx += 1) {
+	    PLI_INT32 tmp = indexes[idx];
+	    indexes[idx] = indexes[count - 1 - idx];
+	    indexes[count - 1 - idx] = tmp;
+      }
+      return vpi_handle_by_multi_index(array, (PLI_INT32)count, indexes);
+}

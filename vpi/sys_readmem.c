@@ -141,15 +141,8 @@ static int process_params(vpiHandle mitem,
 	    return 0;
       }
 
-	/* Get left addr of memory */
-      val.format = vpiIntVal;
-      vpi_get_value(vpi_handle(vpiLeftRange, mitem), &val);
-      left_addr = val.value.integer;
-
-	/* Get right addr of memory */
-      val.format = vpiIntVal;
-      vpi_get_value(vpi_handle(vpiRightRange, mitem), &val);
-      right_addr = val.value.integer;
+	/* The memory's address range; flat for a multidimensional array. */
+      sys_array_range(mitem, &left_addr, &right_addr);
 
 	/* Get start_addr, stop_addr and addr_incr */
       if (! start_item) {
@@ -382,6 +375,7 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
       vpiHandle mitem = 0;
+      struct sys_flat_array flat;
       vpiHandle start_item = 0;
       vpiHandle stop_item = 0;
 
@@ -436,6 +430,7 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       }
 
       assoc_mem = is_assoc_memory(mitem);
+      sys_flat_array_init(&flat, mitem);
 
 	/* We need this many words from the file. */
       word_count = assoc_mem ? 0 : max_addr-min_addr+1;
@@ -447,7 +442,7 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    assoc_key_from_int(assoc_addr, key_width, start_addr);
       } else {
 	    wwid = min_addr > max_addr ? 32 :
-		  vpi_get(vpiSize, vpi_handle_by_index(mitem, min_addr));
+		  vpi_get(vpiSize, sys_flat_array_word(&flat, min_addr));
 	    key_width = 32;
       }
 
@@ -539,7 +534,7 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  assoc_key_increment(assoc_addr, key_width, addr_incr);
 	      } else if (addr >= min_addr && addr <= max_addr) {
 		  vpiHandle word_index;
-		  word_index = vpi_handle_by_index(mitem, addr);
+		  word_index = sys_flat_array_word(&flat, addr);
 		  assert(word_index);
 		  if (!readmem_enum_value_valid(vpi_handle(vpiTypespec, word_index),
 		                                &value, wwid)) {
@@ -588,6 +583,7 @@ static PLI_INT32 sys_readmem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       }
 
  bailout:
+      sys_flat_array_free(&flat);
       free(value.value.vector);
       free(assoc_addr);
       free(fname);
@@ -752,6 +748,7 @@ static PLI_INT32 sys_writemem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
       vpiHandle mitem = 0;
+      struct sys_flat_array flat;
       vpiHandle start_item = 0;
       vpiHandle stop_item = 0;
 
@@ -830,16 +827,18 @@ static PLI_INT32 sys_writemem_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       }
 
       cnt = 0;
+      sys_flat_array_init(&flat, mitem);
       for(addr=start_addr; addr!=stop_addr+addr_incr; addr+=addr_incr, ++cnt) {
 	  vpiHandle word_index;
 
 	  if (cnt%16 == 0) fprintf(file, "// 0x%08x\n", cnt);
 
-	  word_index = vpi_handle_by_index(mitem, addr);
+	  word_index = sys_flat_array_word(&flat, addr);
 	  assert(word_index);
 	  vpi_get_value(word_index, &value);
 	  fprintf(file, "%s\n", value.value.str);
       }
+      sys_flat_array_free(&flat);
 
       fclose(file);
       free(fname);
