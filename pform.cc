@@ -12514,20 +12514,12 @@ void pform_sva_declare_int_local(const struct vlltype&loc, const char*name,
 			     true, false, initializer);
 }
 
-void pform_sva_declare_bit_local(const struct vlltype&loc, const char*name,
-				 PExpr*initializer)
-{
-	  PENumber*width = new PENumber(new verinum((uint64_t)1, 32));
-	  FILE_NAME(width, loc);
-	  sva_local_decl_insert_(loc, name, width, false, 0, 0, true, true,
-			 initializer);
-}
-
 void pform_sva_declare_logic_local(const struct vlltype&loc,
 				    const char*name,
 				    std::list<pform_range_t>*dimensions,
 				    bool owns_dimensions,
-				    PExpr*initializer)
+				    PExpr*initializer,
+				    bool two_state)
 {
       PExpr*width = nullptr;
       bool failed = false;
@@ -12577,7 +12569,15 @@ void pform_sva_declare_logic_local(const struct vlltype&loc,
 	    return;
       }
       sva_local_decl_insert_(loc, name, width, false, packed_left,
-			     packed_right, packed_range_known, false, initializer);
+			     packed_right, packed_range_known, two_state, initializer);
+}
+
+void pform_sva_declare_bit_local(const struct vlltype&loc, const char*name,
+				 std::list<pform_range_t>*dimensions,
+				 bool owns_dimensions, PExpr*initializer)
+{
+      pform_sva_declare_logic_local(loc, name, dimensions, owns_dimensions,
+				    initializer, true);
 }
 
 PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
@@ -12606,11 +12606,20 @@ PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
       PECastSign*sign = new PECastSign(it->second.signed_flag, size);
       FILE_NAME(sign, loc);
 	  if (it->second.two_state) {
-		PENumber*one = new PENumber(new verinum((uint64_t)1, 1));
+		PExpr*cast_width = sva_clone_expr_(it->second.width);
+		PENumber*one = new PENumber(new verinum((uint64_t)1, 32));
+		PENumber*zero = new PENumber(new verinum((uint64_t)0, 32));
 		FILE_NAME(one, loc);
-		PEBComp*is_one = new PEBComp('E', sign, one);
-		FILE_NAME(is_one, loc);
-		return is_one;
+		FILE_NAME(zero, loc);
+		PEBinary*msb = new PEBinary('-', cast_width, one);
+		FILE_NAME(msb, loc);
+		std::list<pform_range_t>*dims = new std::list<pform_range_t>;
+		dims->push_back(pform_range_t(msb, zero));
+		vector_type_t*type = new vector_type_t(IVL_VT_BOOL, false, dims);
+		FILE_NAME(type, loc);
+		PECastType*cast = new PECastType(type, sign);
+		FILE_NAME(cast, loc);
+		return cast;
 	  }
       return sign;
 }

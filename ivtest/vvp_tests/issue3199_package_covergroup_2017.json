@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3199_package_covergroup.v",
+    "iverilog-args": ["-g2017", "-s", "issue3199_package_covergroup"],
+    "gold": "issue3199_package_covergroup"
+}
