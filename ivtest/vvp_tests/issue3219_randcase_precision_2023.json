@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue3219_randcase_precision.sv",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue3219_randcase_precision"
+}

@@ -16370,7 +16370,7 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
       NetBlock*top = new NetBlock(NetBlock::SEQU, 0);
       top->set_line(*this);
 
-	// Evaluate each weight once into an unsigned temp at the common sum width.
+	// Evaluate each weight at its own width before unsigned extension.
       vector<NetNet*> wsig (nitems);
       for (unsigned idx = 0 ; idx < nitems ; idx += 1) {
 	    PCase::Item*cur = (*items_)[idx];
@@ -16383,12 +16383,13 @@ NetProc* PRandCase::elaborate(Design*des, NetScope*scope) const
 		  return 0;
 	    }
 
-	    NetExpr*we = elab_and_eval(des, scope, cur->expr.front(), weight_width,
-				       false, false, IVL_VT_BOOL, true);
+	    NetExpr*we = elab_and_eval(des, scope, cur->expr.front(), -1);
 	    if (we == 0) {
 		  delete top;
 		  return 0;
 	    }
+	    we->cast_signed(false);
+	    we = pad_to_width(we, weight_width, *this);
 
 	    wsig[idx] = new NetNet(scope, scope->local_symbol(),
 			   NetNet::REG, new netvector_t(IVL_VT_LOGIC, weight_width - 1, 0));
