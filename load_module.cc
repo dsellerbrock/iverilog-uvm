@@ -21,6 +21,7 @@
 # include  "util.h"
 # include  "parse_api.h"
 # include  "compiler.h"
+# include  "parse_misc.h"
 # include  <iostream>
 # include  <map>
 # include  <cstdlib>
@@ -114,6 +115,12 @@ int build_library_index(const char*path, bool key_case_sensitive)
       if (verbose_flag) {
 	    cerr << "Indexing library: " << path << endl;
       }
+
+	/* A module from a library is parsed during elaboration, which is
+	   too late for a package to appear. Such a module may name a std
+	   class that is written in SystemVerilog (weak_reference), so with
+	   a library the class stays from the start (see pform.cc). */
+      pform_builtin_std_used();
 
       struct module_library*mlp = new struct module_library;
       mlp->dir = strdup(path);

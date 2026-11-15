@@ -50,6 +50,13 @@ static PPackage*pform_cur_package = 0;
 /* The user's source named the std package (std::..., package std). */
 static bool builtin_std_referenced_ = false;
 
+PPackage* pform_peek_builtin_std_package()
+{
+      map<perm_string,PPackage*>::const_iterator found =
+            packages_by_name.find(perm_string::literal("std"));
+      return found == packages_by_name.end() ? 0 : found->second;
+}
+
 void pform_drop_unused_builtin_std(bool classes_used)
 {
       const perm_string package_name = perm_string::literal("std");

@@ -1852,9 +1852,10 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
 
 /* Set when the user's source names a class of the std package that is
    written in SystemVerilog (see builtin_std_source_). Such a class is
-   parsed before the first source file, because the lexer has to know its
-   name is a type; pform_finish() takes it out again if nothing used it,
-   so a design that does not mention it is elaborated as before. */
+   parsed before each source file, because the lexer has to know its name
+   is a type; pform_parse() takes it out again after the file if nothing
+   has used it, so a design that does not mention it is elaborated as
+   before. */
 static bool builtin_std_used_ = false;
 
 void pform_builtin_std_used()
@@ -1971,11 +1972,13 @@ typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 	   import, after everything the user declared, so user code may
 	   reuse their names (IEEE 1800-2023 8.30.1, 26.7). */
       if (generation_flag >= GN_VER2023) {
-	    PPackage*std_pkg = pform_builtin_std_package(false);
-	    LexicalScope::typedef_map_t::iterator cur = std_pkg->typedefs.find(name);
-	    if (cur != std_pkg->typedefs.end()) {
-		  builtin_std_used_ = true;
-		  return cur->second;
+	    PPackage*std_pkg = pform_peek_builtin_std_package();
+	    if (std_pkg) {
+		  LexicalScope::typedef_map_t::iterator cur = std_pkg->typedefs.find(name);
+		  if (cur != std_pkg->typedefs.end()) {
+			builtin_std_used_ = true;
+			return cur->second;
+		  }
 	    }
       }
 
@@ -40037,17 +40040,26 @@ static const char builtin_std_source_[] =
 "   static function longint get_id(T obj); return $ivl_weak$id(obj, 0); endfunction\n"
 "endclass\n";
 
-/* Parse the classes above into the std package, once, before the first
-   source file. They exist from 1800-2023 on. */
+/* Parse the classes above into the std package before a source file,
+   unless they are still there from an earlier file. This is per file
+   because library files (-y) are parsed long after the others. The
+   classes exist from 1800-2023 on. */
 static void pform_parse_builtin_std_()
 {
-      static bool done = false;
-      if (done || generation_flag < GN_VER2023)
+      if (generation_flag < GN_VER2023)
 	    return;
-      done = true;
+      if (PPackage*std_pkg = pform_peek_builtin_std_package()) {
+	    if (!std_pkg->classes.empty())
+		  return;
+      }
 
       LexicalScope*save_scope = lexical_scope;
       std::string save_file = vl_file;
+	/* Closing the class scope ends the window in which a scope may
+	   declare its first timeunit/timeprecision. That window belongs
+	   to the user's compilation unit, which has not started. */
+      bool save_timeunit = allow_timeunit_decl;
+      bool save_timeprec = allow_timeprec_decl;
       lexical_scope = pform_builtin_std_package(false);
       vl_file = "<std>";
 
@@ -40065,6 +40077,8 @@ static void pform_parse_builtin_std_()
 
       vl_file = save_file;
       lexical_scope = save_scope;
+      allow_timeunit_decl = save_timeunit;
+      allow_timeprec_decl = save_timeprec;
 }
 
 int pform_parse(const char*path)
@@ -40139,6 +40153,10 @@ int pform_parse(const char*path)
       warn_count = 0;
       if (getenv("IVL_PARSE_TRACE")) VLdebug = 1;
       int rc = VLparse();
+
+	// The std classes written in SystemVerilog leave again when no
+	// source has named one so far.
+      pform_drop_unused_builtin_std(builtin_std_used_);
 
         /* Also release the incomplete declaration immediately: this covers
            a final input file and keeps ownership independent of whether a
@@ -40502,10 +40520,6 @@ int pform_finish()
 	// Any errors counted here were already reported by pform_parse
 	// for their own file; count only what the finish steps add.
       error_count = 0;
-
-	// The std classes written in SystemVerilog leave again when the
-	// source never named one.
-      pform_drop_unused_builtin_std(builtin_std_used_);
 
       // Wait until all parsing is done and all symbols in the unit scope are
       // known before importing possible imports.
