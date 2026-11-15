@@ -33183,8 +33183,7 @@ static bool sva_prop_is_named_ref_(const sva_property_t*prop)
 	    const pform_name_t&path = id->path().name;
 	    if (path.size() == 1 && path.front().index.empty()) {
 		  perm_string nm = path.front().name;
-		  return sva_in_scope_(sva_module_properties, nm)
-			|| sva_in_scope_(sva_module_sequences, nm);
+		  return sva_in_scope_(sva_module_properties, nm);
 	    }
 	    if (path.size() != 2 || !path.front().index.empty()
 		|| !path.back().index.empty() || pform_cur_module.empty())
@@ -33207,8 +33206,7 @@ static bool sva_prop_is_named_ref_(const sva_property_t*prop)
 	    const pform_name_t&path = cf->path().name;
 	    if (path.size() == 1) {
 		  perm_string nm = peek_tail_name(path);
-		  return sva_in_scope_(sva_param_properties, nm)
-			|| sva_in_scope_(sva_param_sequences, nm);
+		  return sva_in_scope_(sva_param_properties, nm);
 	    }
 	    if (path.size() != 2 || !path.front().index.empty()
 		|| !path.back().index.empty() || pform_cur_module.empty())
