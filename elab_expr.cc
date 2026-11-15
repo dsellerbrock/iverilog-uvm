@@ -4465,6 +4465,18 @@ static bool resolve_scoped_covergroup_coverage_(
       return true;
 }
 
+/* A statement call, cg::get_coverage(...) or void'(cg::cp::get_coverage()),
+ * reaches PCallTask first; it asks here whether the name is a covergroup
+ * type's static coverage method (19.8). */
+bool is_scoped_covergroup_coverage_call(Design*des, NetScope*scope,
+					PPackage*package,
+					const pform_name_t&path)
+{
+      scoped_covergroup_coverage_t coverage;
+      return resolve_scoped_covergroup_coverage_(
+	    des, scope, pform_scoped_name_t(package, path), coverage);
+}
+
 static std::string scoped_covergroup_coverage_name_(
 	const scoped_covergroup_coverage_t&coverage)
 {
@@ -13006,8 +13018,7 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 	    }
 
 	    scoped_covergroup_coverage_t coverage;
-	    if (parms_.empty()
-		&& resolve_scoped_covergroup_coverage_(
+	    if (resolve_scoped_covergroup_coverage_(
 		      des, scope, path_, coverage)) {
 	  expr_type_ = IVL_VT_REAL;
 	  expr_width_ = 1;
@@ -19814,13 +19825,18 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
       }
 
       scoped_covergroup_coverage_t scoped_coverage;
-      if (parms_.empty()
-	  && resolve_scoped_covergroup_coverage_(
+      if (resolve_scoped_covergroup_coverage_(
 		  des, scope, path_, scoped_coverage)) {
 	    string name = scoped_covergroup_coverage_name_(scoped_coverage);
 	    NetESFunc*sys = new NetESFunc(
 		  name.c_str(), &netreal_t::type_real, 0);
 	    sys->set_line(*this);
+	    if (!elaborate_covgrp_count_refs_(
+		      des, scope, this, parms_,
+		      perm_string::literal("get_coverage"), sys)) {
+		  delete sys;
+		  return 0;
+	    }
 	    return sys;
       }
 

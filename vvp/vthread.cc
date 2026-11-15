@@ -12143,9 +12143,17 @@ static void covgrp_store_counts_(const vvp_object_t&covered_ref_obj,
 
 /* %covgrp/type/get_coverage — TYPE coverage selected without a covergroup
  * instance receiver. Operand 1 is the covergroup class definition; operand
- * 2 is zero for the group or item index plus one for a coverpoint/cross. */
-bool of_COVGRP_TYPE_GET_COVERAGE(vthread_t thr, vvp_code_t code)
+ * 2 is zero for the group or item index plus one for a coverpoint/cross.
+ * The /ref form has the covered and total (ref int, ref int) references on
+ * the object stack. */
+static bool covgrp_type_query_(vthread_t thr, vvp_code_t code,
+			       bool has_output_refs)
 {
+      vvp_object_t total_ref_obj, covered_ref_obj;
+      if (has_output_refs) {
+	    thr->pop_object(total_ref_obj);
+	    thr->pop_object(covered_ref_obj);
+      }
       const class_type*type = dynamic_cast<const class_type*>(code->handle);
       if (!type || !type->is_covergroup()) {
 	    fprintf(stderr, "VVP error: %%covgrp/type/get_coverage requires a covergroup type\n");
@@ -12163,8 +12171,26 @@ bool of_COVGRP_TYPE_GET_COVERAGE(vthread_t thr, vvp_code_t code)
 	    selected_item = static_cast<int>(code->bit_idx[0] - 1);
       }
 
-      thr->push_real(type->type_coverage(nullptr, nullptr, selected_item));
+      long double covered = 0.0L, defined = 0.0L;
+      bool contributes = false;
+      double result = type->type_coverage(nullptr, &contributes, selected_item,
+					  &covered, &defined);
+      if (has_output_refs)
+	    covgrp_store_counts_(covered_ref_obj, total_ref_obj,
+				 selected_item >= 0 || contributes,
+				 covered, defined);
+      thr->push_real(result);
       return true;
+}
+
+bool of_COVGRP_TYPE_GET_COVERAGE(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_type_query_(thr, code, false);
+}
+
+bool of_COVGRP_TYPE_GET_COVERAGE_REF(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_type_query_(thr, code, true);
 }
 
 /* %covgrp/get_all — $get_coverage (19.9/19.7.1): eligible type

@@ -17833,6 +17833,12 @@ NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 	    else
 		  return elaborate_sys(des, scope);
       } else {
+	      // 19.8: get_coverage is a static method of a covergroup,
+	      // coverpoint or cross type. Called as a statement it still
+	      // assigns its ref int outputs.
+	    if (peek_tail_name(path_) == "get_coverage"
+		&& is_scoped_covergroup_coverage_call(des, scope, package_, path_))
+		  return elaborate_non_void_function_(des, scope, true);
 	    return elaborate_usr(des, scope);
       }
 }
