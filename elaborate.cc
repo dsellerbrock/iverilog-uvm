@@ -369,6 +369,53 @@ static bool checker_formal_used_in_code_(Module*checker,
       return false;
 }
 
+/* IEEE 1800-2017/2023 17.6: "it shall be an error if a formal argument
+ * referenced by a covergroup has a const actual argument." A covergroup
+ * formal of the same name shadows the checker formal. */
+static bool checker_formal_used_in_covergroup_(Module*checker,
+						perm_string formal)
+{
+      auto refs = [formal](const PExpr*expr) {
+	    return expr && expr->refs_name(formal);
+      };
+      for (const auto&entry : checker->classes) {
+	    const class_type_t*type = entry.second ? entry.second->type : nullptr;
+	    if (!type || !type->is_covergroup_standalone) continue;
+	    for (const class_type_t::pform_covergroup_t*cg : type->covergroups) {
+		  if (!cg) continue;
+		  if (std::find(cg->ctor_formals.begin(), cg->ctor_formals.end(),
+				formal) != cg->ctor_formals.end()
+		      || std::find(cg->sample_formals.begin(),
+				   cg->sample_formals.end(), formal)
+			 != cg->sample_formals.end())
+			continue;
+		  for (const PEEvent*event : cg->sample_events)
+			if (event && refs(event->expr())) return true;
+		  for (const auto&cp : cg->coverpoints) {
+			if (refs(cp.expr) || refs(cp.iff_expr)) return true;
+			for (const auto&bin : cp.bins) {
+			      if (refs(bin.with_expr) || refs(bin.iff_expr)
+				  || refs(bin.set_expr))
+				    return true;
+			      for (const auto&range : bin.ranges)
+				    if (refs(range.first) || refs(range.second))
+					  return true;
+			}
+		  }
+		  for (const auto&cross : cg->crosses) {
+			if (refs(cross.iff_expr)) return true;
+			for (const PExpr*expr : cross.cp_exprs)
+			      if (refs(expr)) return true;
+			for (const auto&bin : cross.bins)
+			      if (refs(bin.set_expr) || refs(bin.with_expr)
+				  || refs(bin.iff_expr))
+				    return true;
+		  }
+	    }
+      }
+      return false;
+}
+
 static bool lexical_scope_is_within_(const LexicalScope*scope,
 				     const LexicalScope*ancestor)
 {
@@ -7754,16 +7801,22 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			continue;
 		  perm_string formal = rmod->get_port_name(idx);
 		  PWire*wire = rmod->wires_find(formal);
-		  if (!wire || wire->get_port_type() != NetNet::PINPUT
-		      || !checker_formal_used_in_code_(rmod, formal))
+		  if (!wire || wire->get_port_type() != NetNet::PINPUT)
 			continue;
-
-		  cerr << pins[idx]->get_fileline() << ": error: checker input port `"
-		       << formal << "' has a const-cast actual but is used in procedural "
-			  "code or a continuous assignment (IEEE 1800-2017/2023 17.3)."
-		       << endl;
-		  des->errors += 1;
-		  invalid_const_cast_actual = true;
+		  if (checker_formal_used_in_code_(rmod, formal)) {
+			cerr << pins[idx]->get_fileline() << ": error: checker input port `"
+			     << formal << "' has a const-cast actual but is used in procedural "
+				"code or a continuous assignment (IEEE 1800-2017/2023 17.3)."
+			     << endl;
+			des->errors += 1;
+			invalid_const_cast_actual = true;
+		  } else if (checker_formal_used_in_covergroup_(rmod, formal)) {
+			cerr << pins[idx]->get_fileline() << ": error: checker input port `"
+			     << formal << "' has a const-cast actual but is referenced by a "
+				"covergroup (IEEE 1800-2017/2023 17.6)." << endl;
+			des->errors += 1;
+			invalid_const_cast_actual = true;
+		  }
 	    }
 	    if (invalid_const_cast_actual)
 		  return;

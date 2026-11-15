@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3066_checker_cg_const.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3066_checker_cg_const"
+}
