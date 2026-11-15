@@ -1,0 +1,3 @@
+fail at 15
+PASSED
+ivltests/issue3137_iface_cb_assert.v:18: $finish called at 38 (1s)

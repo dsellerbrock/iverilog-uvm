@@ -1,0 +1,2 @@
+ivltests/issue3137_iface_cb_assert_fail.v:11: error: clocking-block input `bus.cb.a' used in a concurrent assertion must be sampled with #1step (IEEE 1800-2017/2023 16.5.1).
+ivltests/issue3137_iface_cb_assert_fail.v:11: warning: this assertion has 1 operand(s) that are read live instead of sampled in the Preponed region (IEEE 1800-2017 16.5.1); a blocking write to one of them in the clock time slot can be visible to the assertion.
