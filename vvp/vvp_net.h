@@ -961,6 +961,7 @@ inline vvp_vector2_t vvp_vector2_t::subvalue(unsigned base, unsigned wid) const
 class vvp_scalar_t {
 
       friend vvp_scalar_t fully_featured_resolv_(vvp_scalar_t a, vvp_scalar_t b);
+      friend vvp_scalar_t resolve_wired(vvp_scalar_t a, vvp_scalar_t b, bool is_or);
 
     public:
 	// Make a HiZ value.
