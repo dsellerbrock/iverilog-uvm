@@ -29000,6 +29000,13 @@ bool of_NEW_COBJ_EMBEDDED(vthread_t thr, vvp_code_t cp)
  * %stream/flatten/obj: pop a container object, push its bit stream
  * (element 0 leftmost, per the 11.4.14.1 foreach traversal).
  */
+/* STREAMING selects the 11.4.14.1 streaming-concatenation rules over the
+   6.24.3 bit-stream cast ones: a null class handle, top-level or nested,
+   is skipped, and an untagged union streams its first-declared member. */
+static bool stream_cast_flatten_value_(const vvp_object_t&value,
+				      vvp_vector4_t&stream,
+				      unsigned depth, bool streaming = false);
+
 bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t)
 {
       static bool warned_bad_obj = false;
@@ -29008,6 +29015,19 @@ bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t)
       thr->pop_object(obj);
 
       vvp_darray*dar = obj.peek<vvp_darray>();
+      if (dar == 0 && obj.peek<vvp_cobject>()) {
+	      // 11.4.14.1: a non-null class handle streams the data members
+	      // of the referenced object, base-class members first.
+	    vvp_vector4_t stream(0, BIT4_0);
+	    if (!stream_cast_flatten_value_(obj, stream, 0, true)) {
+		  cerr << thr->get_fileline()
+		       << "VVP error: a class object member cannot be streamed "
+			  "(IEEE 1800 11.4.14.1); the object is skipped." << endl;
+		  stream = vvp_vector4_t(0, BIT4_0);
+	    }
+	    thr->push_vec4(stream);
+	    return true;
+      }
       if (dar == 0) {
 	    // Null handles are skipped (not streamed) per 11.4.14.1;
 	    // any other object kind is unsupported here.
@@ -29057,13 +29077,10 @@ static bool stream_cast_append_string_(vvp_vector4_t&stream,
       return stream_cast_append_(stream, bits);
 }
 
-static bool stream_cast_flatten_value_(const vvp_object_t&value,
-				      vvp_vector4_t&stream,
-				      unsigned depth);
 
 static bool stream_cast_flatten_array_(vvp_darray*array,
 				       vvp_vector4_t&stream,
-				       unsigned depth)
+				       unsigned depth, bool streaming = false)
 {
 	  if (!array || depth > 128 || array->get_size() > UINT_MAX)
 	    return false;
@@ -29085,7 +29102,7 @@ static bool stream_cast_flatten_array_(vvp_darray*array,
 	    for (size_t idx = 0; idx < array->get_size(); idx += 1) {
 		  vvp_object_t item;
 		  array->get_word(static_cast<unsigned>(idx), item);
-		  if (!stream_cast_flatten_value_(item, stream, depth+1))
+		  if (!stream_cast_flatten_value_(item, stream, depth+1, streaming))
 			return false;
 	    }
 	    return true;
@@ -29096,13 +29113,18 @@ static bool stream_cast_flatten_array_(vvp_darray*array,
 
 static bool stream_cast_flatten_cobject_(vvp_cobject*object,
 					vvp_vector4_t&stream,
-					unsigned depth)
+					unsigned depth, bool streaming = false)
 {
       if (!object || depth > 128) return false;
       const class_type*type = object->get_defn();
-      if (!type || type->is_union_type()) return false;
+      if (!type) return false;
+      size_t property_count = type->property_count();
+      if (type->is_union_type()) {
+	    if (!streaming || type->is_tagged_union_type()) return false;
+	    property_count = property_count ? 1 : 0;
+      }
 
-      for (size_t property = 0; property < type->property_count();
+      for (size_t property = 0; property < property_count;
 	   property += 1) {
 	    if (type->property_is_static(property)) continue;
 
@@ -29125,13 +29147,16 @@ static bool stream_cast_flatten_cobject_(vvp_cobject*object,
 			vvp_object_t member;
 			object->get_object(property, member, static_cast<size_t>(idx));
 			if (member.test_nil()) {
+			      if (streaming)
+				    continue;
 			      if (!property_type.empty()
 				  && (property_type[0] == 'D'
 				      || property_type[0] == 'Q'))
 				    continue;
 			      return false;
 			}
-			if (!stream_cast_flatten_value_(member, stream, depth+1))
+			if (!stream_cast_flatten_value_(member, stream, depth+1,
+							streaming))
 			      return false;
 		  }
 	    }
@@ -29142,13 +29167,14 @@ static bool stream_cast_flatten_cobject_(vvp_cobject*object,
 
 static bool stream_cast_flatten_value_(const vvp_object_t&value,
 				      vvp_vector4_t&stream,
-				      unsigned depth)
+				      unsigned depth, bool streaming)
 {
-      if (depth > 128 || value.test_nil()) return false;
+      if (depth > 128) return false;
+      if (value.test_nil()) return streaming;
       if (vvp_darray*array = value.peek<vvp_darray>())
-	    return stream_cast_flatten_array_(array, stream, depth+1);
+	    return stream_cast_flatten_array_(array, stream, depth+1, streaming);
       if (vvp_cobject*object = value.peek<vvp_cobject>())
-	    return stream_cast_flatten_cobject_(object, stream, depth+1);
+	    return stream_cast_flatten_cobject_(object, stream, depth+1, streaming);
       return false;
 }
 

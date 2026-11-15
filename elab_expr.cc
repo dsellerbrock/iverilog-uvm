@@ -9703,6 +9703,9 @@ static bool stream_operand_is_dynamic_(Design*des, NetScope*scope, PExpr*op)
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_STRING:
+	      // 11.4.14.1: a class handle streams its object's members, a
+	      // run-time width (and nothing when it is null).
+	  case IVL_VT_CLASS:
 	    return true;
 	  default:
 	    return false;
@@ -9920,6 +9923,10 @@ static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 		return 0;
 	  }
 	  case IVL_VT_STRING:
+	    return op->elaborate_expr(des, scope, w, PExpr::NO_FLAGS);
+	    /* 11.4.14.1: a class handle streams the members of the object it
+	       references (none when null); the runtime flattens it. */
+	  case IVL_VT_CLASS:
 	    return op->elaborate_expr(des, scope, w, PExpr::NO_FLAGS);
 	  case IVL_VT_LOGIC:
 	  case IVL_VT_BOOL:
