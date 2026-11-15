@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2843_size_relational_event.v",
+    "iverilog-args": ["-g2017", "-s", "issue2843_size_relational_event"],
+    "gold": "issue2843_size_relational_event"
+}
