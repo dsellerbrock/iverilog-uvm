@@ -11016,6 +11016,37 @@ static bool pform_sva_const_long_(PExpr*expr, long&value,
 	    visiting.erase(expr);
 	    return ok;
       }
+	/* A typed sequence/property formal substitutes `type'(actual)'
+	   (IEEE 1800-2017/2023 16.8.1). Fold integer atom casts. */
+      if (PECastType*cast = dynamic_cast<PECastType*>(expr)) {
+	    const atom_type_t*atom =
+		  dynamic_cast<const atom_type_t*>(cast->cast_target());
+	    unsigned width = 0;
+	    if (atom) switch (atom->type_code) {
+		case atom_type_t::BYTE:     width = 8;  break;
+		case atom_type_t::SHORTINT: width = 16; break;
+		case atom_type_t::INT:
+		case atom_type_t::INTEGER:  width = 32; break;
+		case atom_type_t::LONGINT:
+		case atom_type_t::TIME:     width = 64; break;
+		default: break;
+	    }
+	    long a = 0;
+	    bool ok = width && pform_sva_const_long_(cast->cast_base(), a,
+						      visiting, lookup_scope);
+	    if (ok) {
+		  uint64_t bits = (uint64_t)a;
+		  if (width < 64) {
+			uint64_t mask = (UINT64_C(1) << width) - 1;
+			bits &= mask;
+			if (atom->signed_flag && (bits >> (width-1)))
+			      bits |= ~mask;
+		  }
+		  value = (long)bits;
+	    }
+	    visiting.erase(expr);
+	    return ok;
+      }
       visiting.erase(expr);
       return false;
 }
@@ -13042,6 +13073,35 @@ static void sva_resolve_late_disable_slots_(const Module*closing)
       }
 }
 
+static std::set<perm_string> sva_decl_formal_names_;
+
+/* True when expr references a formal of the declaration being parsed. */
+static bool sva_names_decl_formal_(const PExpr*expr)
+{
+      if (!expr) return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr))
+	    return !id->path().package && !id->path().name.empty()
+		&& sva_decl_formal_names_.count(id->path().name.front().name);
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr))
+	    return sva_names_decl_formal_(un->get_expr());
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr))
+	    return sva_names_decl_formal_(bin->get_left())
+		|| sva_names_decl_formal_(bin->get_right());
+      if (const PETernary*ter = dynamic_cast<const PETernary*>(expr))
+	    return sva_names_decl_formal_(ter->get_cond())
+		|| sva_names_decl_formal_(ter->get_true())
+		|| sva_names_decl_formal_(ter->get_false());
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
+	    return sva_names_decl_formal_(cast->cast_base());
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+	    return sva_names_decl_formal_(cast->cast_size())
+		|| sva_names_decl_formal_(cast->cast_base());
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr))
+	    for (const named_pexpr_t&arg : call->get_parms())
+		  if (sva_names_decl_formal_(arg.parm)) return true;
+      return false;
+}
+
 /* Single cycle delays share the range path's instance-elaboration boundary.
    -6 identifies an exact symbolic delay, as distinct from a general window. */
 void pform_sva_single_delay(const struct vlltype&loc,
@@ -13101,6 +13161,20 @@ void pform_sva_single_delay(const struct vlltype&loc,
                  && step.delay_lo == 0 && step.delay_hi == 0) {
             step.delay_lo = step.delay_hi = -4;
             step.delay_genvar = genvar_name;
+      } else if (step.delay_lo == 0 && step.delay_hi == 0
+		 && sva_names_decl_formal_(delay)) {
+            /* A sequence or property formal (IEEE 1800-2017/2023 16.8.1)
+               is constant only after its actual is substituted. Keep the
+               delay as the window [d:d], like pform_sva_range_delay, so
+               instantiation can fold it. */
+            PExpr*copy = sva_clone_expr_(delay);
+            if (copy) {
+                  step.delay_lo = step.delay_hi = -5;
+                  step.delay_lo_expr = delay;
+                  step.delay_hi_expr = copy;
+                  return;
+            }
+            step.delay_lo = step.delay_hi = -2;
       } else if (step.delay_lo != -3) {
             step.delay_lo = step.delay_hi = -2;
       }
@@ -13201,6 +13275,7 @@ void pform_sva_end_local_declarations(void)
       sva_local_decl_types_.clear();
       sva_local_decl_order_.clear();
       sva_local_formal_names_.clear();
+      sva_decl_formal_names_.clear();
 }
 
 void pform_sva_begin_local_declarations(void)
@@ -13218,6 +13293,16 @@ void pform_sva_begin_local_declarations(void)
 void pform_sva_add_local_formal(const char*name)
 {
       sva_local_formal_names_.insert(lex_strings.make(name));
+}
+
+void pform_sva_clear_decl_formals(void)
+{
+      sva_decl_formal_names_.clear();
+}
+
+void pform_sva_note_decl_formal(const char*name)
+{
+      sva_decl_formal_names_.insert(lex_strings.make(name));
 }
 
 bool pform_sva_match_lvalue_declared(const struct vlltype&loc,
@@ -15225,8 +15310,12 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	       substituted reference is a delay upper bound. Resolve formal-backed
 	       range expressions here, where the actual (including PEUnbounded) is
 	       known. */
+	    /* An overridable parameter actual stays symbolic: folding it here
+	       would freeze the declaration default for every instance. */
 	    if (st.delay_lo_expr && st.delay_hi_expr
-		&& st.delay_lo == -5 && st.delay_hi == -5) {
+		&& st.delay_lo == -5 && st.delay_hi == -5
+		&& !pform_sva_overridable_bound(st.delay_lo_expr)
+		&& !pform_sva_overridable_bound(st.delay_hi_expr)) {
 	      long lo = 0, hi = 0;
 	      if (pform_sva_const_long(st.delay_lo_expr, lo)
 		  && lo >= 0 && dynamic_cast<PEUnbounded*>(st.delay_hi_expr)) {
@@ -15244,6 +15333,18 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		st.delay_lo_expr = st.delay_hi_expr = nullptr;
 		st.delay_lo = lo;
 		st.delay_hi = hi;
+		delay_range_resolved = true;
+	      } else if (pform_sva_const_long(st.delay_lo_expr, lo)
+			 && pform_sva_const_long(st.delay_hi_expr, hi)) {
+		cerr << loc << ": error: invalid SVA cycle-delay range ["
+		     << lo << ":" << hi << "]; bounds must be nonnegative and "
+		     << "the upper bound must be greater than or equal to the "
+		     << "lower bound (IEEE 1800-2017/2023 16.7)." << endl;
+		error_count += 1;
+		delete st.delay_lo_expr;
+		delete st.delay_hi_expr;
+		st.delay_lo_expr = st.delay_hi_expr = nullptr;
+		st.delay_lo = st.delay_hi = 0;
 		delay_range_resolved = true;
 	      }
 	    }
@@ -15303,8 +15404,12 @@ sva_clone_steps_subst_(const struct vlltype&loc,
 	    bool delay_range_resolved = false;
 	    /* IEEE 1800-2017/2023 16.12 permits `$' as an untyped property
 	       actual when its substituted reference is a delay upper bound. */
+	    /* An overridable parameter actual stays symbolic: folding it here
+	       would freeze the declaration default for every instance. */
 	    if (st.delay_lo_expr && st.delay_hi_expr
-		&& st.delay_lo == -5 && st.delay_hi == -5) {
+		&& st.delay_lo == -5 && st.delay_hi == -5
+		&& !pform_sva_overridable_bound(st.delay_lo_expr)
+		&& !pform_sva_overridable_bound(st.delay_hi_expr)) {
 	      long lo = 0, hi = 0;
 	      if (pform_sva_const_long(st.delay_lo_expr, lo)
 		  && lo >= 0 && dynamic_cast<PEUnbounded*>(st.delay_hi_expr)) {
@@ -15322,6 +15427,18 @@ sva_clone_steps_subst_(const struct vlltype&loc,
 		st.delay_lo_expr = st.delay_hi_expr = nullptr;
 		st.delay_lo = lo;
 		st.delay_hi = hi;
+		delay_range_resolved = true;
+	      } else if (pform_sva_const_long(st.delay_lo_expr, lo)
+			 && pform_sva_const_long(st.delay_hi_expr, hi)) {
+		cerr << loc << ": error: invalid SVA cycle-delay range ["
+		     << lo << ":" << hi << "]; bounds must be nonnegative and "
+		     << "the upper bound must be greater than or equal to the "
+		     << "lower bound (IEEE 1800-2017/2023 16.7)." << endl;
+		error_count += 1;
+		delete st.delay_lo_expr;
+		delete st.delay_hi_expr;
+		st.delay_lo_expr = st.delay_hi_expr = nullptr;
+		st.delay_lo = st.delay_hi = 0;
 		delay_range_resolved = true;
 	      }
 	    }

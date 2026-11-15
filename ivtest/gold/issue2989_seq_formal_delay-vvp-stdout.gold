@@ -1,0 +1,2 @@
+PASSED
+ivltests/issue2989_seq_formal_delay.v:33: $finish called at 27 (1s)
