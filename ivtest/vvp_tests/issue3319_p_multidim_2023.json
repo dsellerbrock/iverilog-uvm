@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue3319_p_multidim.v",
+  "iverilog-args": ["-g2023", "-s", "top"]
+}

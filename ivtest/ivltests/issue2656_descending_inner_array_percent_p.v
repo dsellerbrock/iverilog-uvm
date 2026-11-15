@@ -5,7 +5,8 @@ module issue2656_descending_inner_array_percent_p;
   initial begin
     foreach (m[q, r]) m[q][r] = q*10 + r;
     rendered = $sformatf("%p", m);
-    if (rendered != "'{2, 1, 0, 12, 11, 10}") begin
+    // 21.2.1.6: a legal assignment pattern (10.9); m's elements are subarrays.
+    if (rendered != "'{'{2, 1, 0}, '{12, 11, 10}}") begin
       $display("FAIL multidimensional descending %s", rendered);
       $finish;
     end

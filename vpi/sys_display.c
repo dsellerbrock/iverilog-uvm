@@ -431,34 +431,40 @@ struct p_array_range {
 
 static char* format_p_value(vpiHandle item);
 
+static void format_p_append_(char **acc, size_t *used, const char *text)
+{
+  size_t length = strlen(text);
+  *acc = realloc(*acc, *used + length + 2);
+  strcpy(*acc + *used, text);
+  *used += length;
+}
+
+/* The elements of a multidimensional unpacked array are its subarrays, so
+   each prints as a nested pattern (IEEE 1800-2023 21.2.1.6): ITEM is the
+   array or subarray for dimension DIMENSION, walked in declared order. */
 static void format_p_memory_dimension(vpiHandle item,
                                       const struct p_array_range *ranges,
                                       unsigned dimensions, unsigned dimension,
-                                      size_t offset, char **acc, size_t *used,
-                                      int *first)
+                                      char **acc, size_t *used)
 {
   int left = ranges[dimension].left;
   int right = ranges[dimension].right;
   int step = left <= right ? 1 : -1;
-  int low = left < right ? left : right;
-  size_t dimension_size = (size_t)(left <= right ? right - left : left - right) + 1;
+  int first = 1;
   for (int index = left;; index += step) {
-    size_t coordinate = (size_t)((int64_t)index - low);
-    size_t next = offset * dimension_size + coordinate;
-    if (dimension + 1 < dimensions) {
-      format_p_memory_dimension(item, ranges, dimensions, dimension + 1,
-                                next, acc, used, first);
-    } else {
-      /* NEXT is the row-major flat position (IEEE 1800-2023 21.4.3). */
-      vpiHandle word = sys_array_word(item, (PLI_INT32)next);
-      if (word) {
-        char *value = format_p_value(word);
-        size_t value_length = strlen(value);
-        *acc = realloc(*acc, *used + (*first ? 0 : 2) + value_length + 2);
-        if (!*first) { strcpy(*acc + *used, ", "); *used += 2; }
-        strcpy(*acc + *used, value); *used += value_length;
+    vpiHandle element = vpi_handle_by_index(item, index);
+    if (element) {
+      if (!first) format_p_append_(acc, used, ", ");
+      first = 0;
+      if (dimension + 1 < dimensions) {
+        format_p_append_(acc, used, "'{");
+        format_p_memory_dimension(element, ranges, dimensions, dimension + 1,
+                                  acc, used);
+        format_p_append_(acc, used, "}");
+      } else {
+        char *value = format_p_value(element);
+        format_p_append_(acc, used, value);
         free(value);
-        *first = 0;
       }
     }
     if (index == right) break;
@@ -498,7 +504,7 @@ static char* format_p_value(vpiHandle item)
     /* VPI memory iteration is in numeric index order. A fixed array's
        assignment-pattern order is instead its declared left-to-right
        order, which is descending for a range such as [2:0]. */
-    if (itype == vpiMemory && !is_assoc) {
+    if ((itype == vpiMemory || itype == vpiNetArray) && !is_assoc) {
       vpiHandle range_iter = vpi_iterate(vpiRange, item);
       struct p_array_range *ranges = 0;
       unsigned dimensions = 0;
@@ -517,16 +523,16 @@ static char* format_p_value(vpiHandle item)
         dimensions += 1;
       }
       if (dimensions > 1) {
-        format_p_memory_dimension(item, ranges, dimensions, 0, 0,
-                                  &acc, &used, &first);
+        format_p_memory_dimension(item, ranges, dimensions, 0,
+                                  &acc, &used);
         free(ranges);
         acc = realloc(acc, used + 2);
         strcpy(acc + used, "}");
         return acc;
       }
       free(ranges);
-      left = vpi_handle(vpiLeftRange, item);
-      right = vpi_handle(vpiRightRange, item);
+      left = itype == vpiMemory ? vpi_handle(vpiLeftRange, item) : 0;
+      right = itype == vpiMemory ? vpi_handle(vpiRightRange, item) : 0;
       if (left && right) {
         s_vpi_value bound;
         bound.format = vpiIntVal;
