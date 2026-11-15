@@ -8596,6 +8596,42 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
 static unsigned __int128 covgrp_dyn_logical_count_(
       const covgrp_dyn_state_t&state);
 
+/* The partition of a fixed-size family (or a single bin, size ~0) of
+ * TOTAL ordered occurrences into its bins (IEEE 1800-2023 19.5.1): each
+ * bin takes floor(total/N), at least one, and the last bin the rest.
+ * Sampling, carving and cross selection all use these. */
+static unsigned __int128 covgrp_dyn_fixed_bins_(const covgrp_dyn_state_t&state)
+{
+      if (state.array_size == ~(uint64_t)0) return 1;
+      return (unsigned __int128)state.array_size < state.total
+	    ? (unsigned __int128)state.array_size : state.total;
+}
+
+static unsigned __int128 covgrp_dyn_fixed_per_(const covgrp_dyn_state_t&state)
+{
+      if (state.array_size == ~(uint64_t)0) return state.total;
+      if ((unsigned __int128)state.array_size >= state.total) return 1;
+      return state.total / state.array_size;
+}
+
+	// The bin holding occurrence ORDINAL.
+static uint64_t covgrp_dyn_fixed_bin_(const covgrp_dyn_state_t&state,
+				      unsigned __int128 ordinal)
+{
+      unsigned __int128 bin = ordinal / covgrp_dyn_fixed_per_(state);
+      unsigned __int128 last = covgrp_dyn_fixed_bins_(state) - 1;
+      return (uint64_t)(bin < last ? bin : last);
+}
+
+	// The occurrences [FIRST, LAST] of bin BIN.
+static void covgrp_dyn_fixed_span_(const covgrp_dyn_state_t&state, uint64_t bin,
+				   unsigned __int128&first, unsigned __int128&last)
+{
+      first = (unsigned __int128)bin * covgrp_dyn_fixed_per_(state);
+      last = bin + 1 == covgrp_dyn_fixed_bins_(state)
+	    ? state.total - 1 : first + covgrp_dyn_fixed_per_(state) - 1;
+}
+
 /* The ignore_bins and illegal_bins values of coverpoint CP, static or
  * constructor-dependent, which are no bins of its arrays (19.5.5). */
 static std::vector<std::pair<uint64_t,uint64_t>> covgrp_dyn_carve_set_(
@@ -8630,11 +8666,8 @@ static void covgrp_dyn_fixed_carve_(covgrp_dyn_state_t&state,
 {
       typedef unsigned __int128 u128;
       const u128 total = state.total;
-      const uint64_t requested = state.array_size;
-      const u128 nbins = requested == ~(uint64_t)0 ? 1
-	    : ((u128)requested < total ? (u128)requested : total);
-      const u128 per = requested == ~(uint64_t)0 ? total
-	    : ((u128)requested >= total ? 1 : total / requested);
+      const u128 nbins = covgrp_dyn_fixed_bins_(state);
+      const u128 per = covgrp_dyn_fixed_per_(state);
 
       std::vector<std::pair<u128,u128>> dead;
       u128 ordinal = 0;
@@ -9499,13 +9532,7 @@ static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
       }
 
       auto logical_index = [&](unsigned __int128 ordinal) -> uint64_t {
-	    if (requested == ~(uint64_t)0) return 0;
-	    unsigned __int128 q = state.total / requested;
-	    if (q == 0) q = 1;
-	    unsigned __int128 before_last = q * (requested - 1);
-	    unsigned __int128 idx = ordinal < before_last
-		  ? ordinal / q : requested - 1;
-	    return (uint64_t)idx;
+	    return covgrp_dyn_fixed_bin_(state, ordinal);
       };
 
       std::set<uint64_t> matched;
@@ -9693,10 +9720,8 @@ static bool covgrp_cross_dyn_member_overlap_(const covgrp_dyn_state_t&state,
 	      if (requested == 0)
 		    return covgrp_cross_ranges_overlap_(logical, logical, select_ranges);
 		// Bin indexes keep their places when carving removes bins.
-	      unsigned __int128 count = requested == ~(uint64_t)0 ? 1
-		    : ((unsigned __int128)requested < state.total
-		       ? (unsigned __int128)requested : state.total);
-	      if ((unsigned __int128)logical >= count) return false;
+	      if ((unsigned __int128)logical >= covgrp_dyn_fixed_bins_(state))
+		    return false;
 	      if (requested == ~(uint64_t)0) {
 		    for (auto&range : state.ranges)
 			  if (covgrp_cross_ranges_overlap_(range.first, range.second,
@@ -9705,14 +9730,7 @@ static bool covgrp_cross_dyn_member_overlap_(const covgrp_dyn_state_t&state,
 	      }
 
 	      unsigned __int128 first = 0, last = 0;
-      if ((unsigned __int128)requested >= state.total) {
-	    first = last = logical;
-      } else {
-	    unsigned __int128 per_bin = state.total / requested;
-	    first = (unsigned __int128)logical * per_bin;
-	    last = logical + 1 == requested
-		  ? state.total - 1 : first + per_bin - 1;
-      }
+      covgrp_dyn_fixed_span_(state, logical, first, last);
       unsigned __int128 ordinal = 0;
       for (auto&range : state.ranges) {
 	    unsigned __int128 length = (unsigned __int128)range.second
@@ -10101,17 +10119,39 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 			continue;
 		  }
 		  auto found = dyn_states.find(choice.source_id);
-		  if (found != dyn_states.end() && found->second.array_size == 0
-		      && !found->second.is_auto_bins) {
-			  // Value-keyed: membership in every selector range is
-			  // constant between the ranges' endpoints.
+		  bool by_value = found != dyn_states.end()
+			&& found->second.array_size == 0 && !found->second.is_auto_bins;
+		  bool by_index = found != dyn_states.end()
+			&& found->second.array_size != 0 && !found->second.is_auto_bins;
+		  if (by_value || by_index) {
+			  // Membership in every selector range is constant between
+			  // cut points: the ranges' endpoints for a value-keyed
+			  // array, and for a fixed-size one the first and past-last
+			  // bins each range overlaps (#3363).
 			std::set<uint64_t> cuts;
+			auto cut = [&](uint64_t first, uint64_t last) {
+			      cuts.insert(first);
+			      if (last != UINT64_MAX) cuts.insert(last + 1);
+			};
 			for (const covgrp_cross_select_op_t*op : ops) {
 			      if (op->term != choice.term_idx) continue;
 			      for (const auto&range : op->ranges) {
-				    cuts.insert(range.first);
-				    if (range.second != UINT64_MAX)
-					  cuts.insert(range.second + 1);
+				    if (by_value) {
+					  cut(range.first, range.second);
+					  continue;
+				    }
+				    unsigned __int128 ordinal = 0;
+				    for (const auto&part : found->second.ranges) {
+					  uint64_t lo = std::max(part.first, range.first);
+					  uint64_t hi = std::min(part.second, range.second);
+					  if (lo <= hi)
+						cut(covgrp_dyn_fixed_bin_(found->second,
+							ordinal + (lo - part.first)),
+						    covgrp_dyn_fixed_bin_(found->second,
+							ordinal + (hi - part.first)));
+					  ordinal += (unsigned __int128)part.second
+						- part.first + 1;
+				    }
 			      }
 			}
 			for (const auto&span : choice.spans) {
