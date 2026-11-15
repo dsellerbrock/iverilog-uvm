@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2817_cover_within.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue2817_cover_within"
+}
