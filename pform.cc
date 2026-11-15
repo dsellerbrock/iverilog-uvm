@@ -42,6 +42,7 @@
 # include  "pform_sva_nfa.h"
 # include  "discipline.h"
 # include  "util.h"
+# include  "PConfig.h"
 # include  <list>
 # include  <functional>
 # include  <map>
@@ -3393,6 +3394,8 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	    VLerror(msg.str().c_str());
       } else {
 	    use_module_map[mod_name] = cur_module;
+	    if (&use_module_map == &pform_modules)
+		  config_add_cell(cur_module);
       }
 
 	// The current lexical scope should be this module by now.
@@ -7390,6 +7393,10 @@ void pform_set_parameter(const struct vlltype&loc,
 			 PExpr*expr, LexicalScope::range_t*value_range,
 			 type_parameter_restriction_t restriction)
 {
+	// A localparam ahead of a design statement belongs to the config.
+      if (pform_config_localparam(loc, name, expr))
+	    return;
+
       LexicalScope*scope = lexical_scope;
       // Class items are local parameters; parameter port declarations are not.
       if (dynamic_cast<PClass*>(scope) && !pform_in_parameter_port_list)

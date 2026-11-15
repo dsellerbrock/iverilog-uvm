@@ -371,8 +371,18 @@ perm_string libmap_file_library(const char*file)
       return library;
 }
 
+static map<perm_string,perm_string> key_cells;
+
 perm_string libmap_cell_key(perm_string library, perm_string cell)
 {
       string key = string(library.str()) + "." + cell.str();
-      return lex_strings.make(key.c_str());
+      perm_string res = lex_strings.make(key.c_str());
+      key_cells[res] = cell;
+      return res;
+}
+
+perm_string libmap_key_cell(perm_string key)
+{
+      map<perm_string,perm_string>::const_iterator cur = key_cells.find(key);
+      return cur == key_cells.end()? key : cur->second;
 }

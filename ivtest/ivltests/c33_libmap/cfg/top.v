@@ -1,20 +1,27 @@
 // IEEE 1800-2023 33.6.1: with no configuration, an instance binds to the
 // cell of the first library in the search order that has one. ADDER and M
 // name the libraries the test expects (default: the map's declaration order).
+// A test of a config (33.6.2 to 33.6.5) gives the library of each instance
+// in EXP: a1, a1.f1, a1.f2, a2, a2.f1, a2.f2.
 `ifndef ADDER
  `define ADDER "aLib"
  `define M "rtlLib"
 `endif
+`ifndef EXP
+ `define EXP $sformatf("%0s/%0s/%0s/%0s/%0s/%0s", `ADDER, `M, `M, `ADDER, `M, `M)
+`endif
 module top;
    integer cells = 0;
+   string  bound, expected;
    adder a1();
    adder a2();
    initial begin
       #1;
-      if (a1.lib !== `ADDER || a2.lib !== `ADDER)
-	$display("FAILED: adder bound to %0s", a1.lib);
-      else if (a1.f1.lib !== `M || a2.f2.lib !== `M)
-	$display("FAILED: m bound to %0s", a1.f1.lib);
+      bound = $sformatf("%0s/%0s/%0s/%0s/%0s/%0s", a1.lib, a1.f1.lib, a1.f2.lib,
+			a2.lib, a2.f1.lib, a2.f2.lib);
+      expected = `EXP;
+      if (bound != expected)
+	$display("FAILED: bound %s, expected %s", bound, expected);
       // Only top is a root: the unbound same-named cells are not elaborated.
       else if (cells !== 6)
 	$display("FAILED: %0d cells elaborated, expected 6", cells);

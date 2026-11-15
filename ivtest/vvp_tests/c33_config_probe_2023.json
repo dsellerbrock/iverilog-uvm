@@ -1,0 +1,7 @@
+{
+    "type": "normal",
+    "source": "c33_config_probe.v",
+    "iverilog-args": [
+        "-g2023"
+    ]
+}

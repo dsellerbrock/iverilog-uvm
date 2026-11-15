@@ -28,6 +28,7 @@
 # include  "parse_api.h"
 # include  "compiler.h"
 # include  "pform.h"
+# include  "PConfig.h"
 # include  "PClass.h"
 # include  "Statement.h"
 # include  "PSpec.h"
@@ -3159,6 +3160,9 @@ static Module::port_t *module_declare_explicit_port(
 %type <named_pexpr> named_expression named_expression_opt
 %type <named_pexpr> parameter_value_byname_item port_name
 %type <named_pexprs> port_name_list parameter_value_byname_list
+%type <named_pexprs> config_params
+%type <perm_strings> lib_cell_id list_of_libraries
+%type <flag> opt_config
 %type <int_val> stream_operator
 %type <expr> stream_expression
 %type <exprs> stream_expression_list alias_net_list
@@ -13197,26 +13201,33 @@ nature_item
 
 config_declaration
   : K_config IDENTIFIER ';'
+      { pform_config_start(@1, $2); }
+    config_localparams
     K_design lib_cell_identifiers ';'
     list_of_config_rule_statements
-    K_endconfig
-      { /* M13B disposition: a config alters which cells elaborate
-	   (design/instance/cell use clauses), so skipping one changes
-	   the meaning of the design. Library-based cell binding is not
-	   implemented, so this is a hard error rather than a skip. */
-	cerr << @1 << ": sorry: config declarations (library-based cell "
-	        "binding) are not supported; remove the config block or "
-	        "select the implementation with plain module names."
-	     << endl;
-	error_count += 1;
+    K_endconfig label_opt
+      { pform_config_end(@1, $2);
+	check_end_label(@11, "config", $2, $11);
 	delete[] $2;
+      }
+  | K_config error K_endconfig
+      { yyerror(@1, "error: Invalid config declaration.");
+	pform_config_end(@1, 0);
+	yyerrok;
       }
   ;
 
+  /* IEEE 1800 33.4.3: a config may declare localparams ahead of its design
+     statement. pform_set_parameter() hands them to the config. */
+config_localparams
+  : /* empty */
+  | config_localparams localparam param_type parameter_assign_list ';'
+  ;
+
 lib_cell_identifiers
-  : /* The BNF implies this can be blank, but I'm not sure exactly what
-     * this means. */
+  : /* The design statement is checked when the config is complete. */
   | lib_cell_identifiers lib_cell_id
+      { pform_config_design(@2, $2); }
   ;
 
 list_of_config_rule_statements
@@ -13226,30 +13237,75 @@ list_of_config_rule_statements
 
 config_rule_statement
   : K_default K_liblist list_of_libraries ';'
+      { pform_config_rule(@1, PConfig::rule_t::DEFAULT, 0, 0, $3); }
+  | K_default K_use config_use ';'
+      { yyerror(@1, "error: The default clause of a config cannot have a "
+		    "use clause (IEEE 1800 33.4.1.2).");
+      }
   | K_instance hierarchy_identifier K_liblist list_of_libraries ';'
-      { delete $2; }
-  | K_instance hierarchy_identifier K_use lib_cell_id opt_config ';'
-      { delete $2; }
+      { pform_config_rule(@1, PConfig::rule_t::INSTANCE, $2, 0, $4); }
+  | K_instance hierarchy_identifier K_use config_use ';'
+      { pform_config_rule(@1, PConfig::rule_t::INSTANCE, $2, 0, 0); }
   | K_cell lib_cell_id K_liblist list_of_libraries ';'
-  | K_cell lib_cell_id K_use lib_cell_id opt_config ';'
+      { pform_config_rule(@1, PConfig::rule_t::CELL, 0, $2, $4); }
+  | K_cell lib_cell_id K_use config_use ';'
+      { pform_config_rule(@1, PConfig::rule_t::CELL, 0, $2, 0); }
+  ;
+
+  /* The use clause is kept for the pform_config_rule() call that follows. */
+config_use
+  : lib_cell_id opt_config
+      { pform_config_use($1, false, 0, $2); }
+  | config_params opt_config
+      { pform_config_use(0, true, $1, $2); }
+  | lib_cell_id config_params opt_config
+      { pform_config_use($1, true, $2, $3); }
+  ;
+
+  /* #() sets every parameter back to its default (33.4.3). */
+config_params
+  : '#' '(' ')'
+      { $$ = new std::list<named_pexpr_t>; }
+  | '#' '(' parameter_value_byname_list ')'
+      { $$ = $3; }
+  | '#' '(' expression_list_proper ')'
+      { yyerror(@1, "error: A config cannot use positional parameter "
+		    "notation (IEEE 1800 33.4.3).");
+	delete $3;
+	$$ = new std::list<named_pexpr_t>;
+      }
   ;
 
 opt_config
   : /* The use clause takes an optional :config. */
+      { $$ = false; }
   | ':' K_config
+      { $$ = true; }
   ;
 
 lib_cell_id
   : IDENTIFIER
-      { delete[] $1; }
+      { $$ = new std::list<perm_string>;
+	$$->push_back(lex_strings.make($1));
+	delete[] $1;
+      }
   | IDENTIFIER '.' IDENTIFIER
-      { delete[] $1; delete[] $3; }
+      { $$ = new std::list<perm_string>;
+	$$->push_back(lex_strings.make($1));
+	$$->push_back(lex_strings.make($3));
+	delete[] $1;
+	delete[] $3;
+      }
   ;
 
 list_of_libraries
-  : /* A NULL library means use the parents cell library. */
+  : /* An empty list stands for the library of the parent cell. */
+      { $$ = new std::list<perm_string>; }
   | list_of_libraries IDENTIFIER
-      { delete[] $2; }
+      { $$ = $1;
+	$$->push_back(lex_strings.make($2));
+	delete[] $2;
+      }
   ;
 
 drive_strength
@@ -14678,9 +14734,14 @@ expr_primary
      indexed arrays and part selects */
 
   | hierarchy_identifier
-      { PEIdent*tmp = pform_new_ident(@1, *$1);
-	FILE_NAME(tmp, @1);
-	$$ = pform_sva_sequence_triggered(@1, tmp);
+      { if (PExpr*literal = pform_config_localparam_value(*$1)) {
+		/* A localparam of the config being parsed (33.4.3). */
+	      $$ = literal;
+	} else {
+	      PEIdent*tmp = pform_new_ident(@1, *$1);
+	      FILE_NAME(tmp, @1);
+	      $$ = pform_sva_sequence_triggered(@1, tmp);
+	}
 	delete $1;
       }
   /* Temporary parse support for using type identifiers as actuals in

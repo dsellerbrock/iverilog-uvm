@@ -99,7 +99,9 @@ false.
 
 ## Loud gaps (correct behaviour today, kept for the record)
 
-`m13_3_config` and `m13_4_trireg` are unimplemented and say so with a sorry.
+`m13_4_trireg` is unimplemented and says so with a sorry. (`m13_3_config`
+was one too until config declarations were implemented, #881; it now prints
+`PASS`.)
 `m4c10_event_lifetime`, `m9_7_midseq_clock` and `m9_7_crossclock_overlap`
 are a parse error and a sorry respectively. `m13_7_pulsestyle` is accepted
 with a warning naming the directive and what is not modelled. `m6b2b_syncregions` shows the
