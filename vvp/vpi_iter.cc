@@ -41,9 +41,6 @@ static int iterator_free_object(vpiHandle ref)
 __vpiIterator::__vpiIterator() : reference(0)
 { }
 
-int __vpiIterator::get_type_code(void) const
-{ return vpiIterator; }
-
 vpiHandle __vpiIterator::vpi_handle(int code)
 {
       if (code == vpiUse) return reference;
