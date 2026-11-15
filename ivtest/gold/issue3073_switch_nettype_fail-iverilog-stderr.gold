@@ -1,0 +1,5 @@
+ivltests/issue3073_switch_nettype_fail.v:14: error: A TRAN switch cannot connect a net of a user-defined net type to a net of a built-in net type (IEEE 1800-2023 28.8).
+ivltests/issue3073_switch_nettype_fail.v:15: error: A TRAN switch cannot connect nets of two different user-defined net types (IEEE 1800-2023 28.8).
+ivltests/issue3073_switch_nettype_fail.v:16: error: A TRANIF1 switch cannot connect a net of a user-defined net type to a net of a built-in net type (IEEE 1800-2023 28.8).
+ivltests/issue3073_switch_nettype_fail.v:17: error: An RTRAN switch cannot connect nets of a user-defined net type; only tran, tranif1 and tranif0 can (IEEE 1800-2023 28.8).
+4 error(s) during elaboration.
