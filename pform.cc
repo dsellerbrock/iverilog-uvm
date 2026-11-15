@@ -3862,10 +3862,78 @@ static void process_udp_table(PUdp*udp, list<string>*table,
       udp_check_conflicting_rows_(udp, loc);
 }
 
+struct pform_extern_udp_t {
+      std::string where;
+      list<pform_ident_t> ports;
+};
+static map<perm_string, pform_extern_udp_t> pform_extern_udps;
+
+void pform_extern_udp(const struct vlltype&loc, perm_string name,
+		      list<pform_ident_t>*ports)
+{
+      map<perm_string, pform_extern_udp_t>::iterator cur
+	    = pform_extern_udps.find(name);
+      if (cur != pform_extern_udps.end()) {
+	    cerr << loc << ": error: Extern primitive " << name
+		 << " was already declared here: " << cur->second.where << endl;
+	    error_count += 1;
+      } else {
+	    pform_extern_udp_t&ext = pform_extern_udps[name];
+	    ext.where = loc.get_fileline();
+	    ext.ports = *ports;
+      }
+      delete ports;
+}
+
+list<pform_ident_t>* pform_extern_udp_ports(const struct vlltype&loc,
+					    perm_string name)
+{
+      map<perm_string, pform_extern_udp_t>::iterator cur
+	    = pform_extern_udps.find(name);
+      if (cur == pform_extern_udps.end()) {
+	    cerr << loc << ": error: A (.*) port list needs an extern "
+		 << "primitive declaration of " << name
+		 << " (IEEE 1800 29.3, 23.5)." << endl;
+	    error_count += 1;
+	    return nullptr;
+      }
+      list<pform_ident_t>*ports = new list<pform_ident_t>(cur->second.ports);
+      pform_extern_udps.erase(cur);
+      return ports;
+}
+
+/* A definition after an extern primitive declaration must match its port
+   names and positions (IEEE 1800 23.5, applied to 29.3). */
+static void pform_check_extern_udp_(const struct vlltype&loc, perm_string name,
+				    const list<perm_string>&ports)
+{
+      map<perm_string, pform_extern_udp_t>::iterator cur
+	    = pform_extern_udps.find(name);
+      if (cur == pform_extern_udps.end())
+	    return;
+      bool match = cur->second.ports.size() == ports.size();
+      list<perm_string>::const_iterator dp = ports.begin();
+      for (list<pform_ident_t>::const_iterator ep = cur->second.ports.begin()
+		 ; match && ep != cur->second.ports.end() ; ++ep, ++dp)
+	    match = ep->first == *dp;
+      if (!match) {
+	    cerr << loc << ": error: The port list of primitive " << name
+		 << " does not match its extern declaration at "
+		 << cur->second.where << " (IEEE 1800 29.3, 23.5)." << endl;
+	    error_count += 1;
+      }
+      pform_extern_udps.erase(cur);
+}
+
 void pform_make_udp(const struct vlltype&loc, perm_string name,
 		    list<pform_ident_t>*parms, vector<PWire*>*decl,
 		    list<string>*table, Statement*init_expr)
 {
+      {
+	    list<perm_string> names;
+	    for (const pform_ident_t&port : *parms) names.push_back(port.first);
+	    pform_check_extern_udp_(loc, name, names);
+      }
       unsigned local_errors = 0;
       ivl_assert(loc, !parms->empty());
 
@@ -4060,6 +4128,12 @@ void pform_make_udp(const struct vlltype&loc, perm_string name,
 		    PExpr*init_expr, list<pform_ident_t>*parms,
 		    list<string>*table)
 {
+      {
+	    list<perm_string> names;
+	    names.push_back(out_name.first);
+	    for (const pform_ident_t&port : *parms) names.push_back(port.first);
+	    pform_check_extern_udp_(loc, name, names);
+      }
 
       std::vector<PWire*> pins(parms->size() + 1);
 
@@ -4370,7 +4444,8 @@ static void pform_make_modgate(perm_string type,
 			       list<pform_range_t>*ranges,
 			       const LineInfo&li,
 			       std::list<named_pexpr_t>*attr,
-			       bool no_port_list)
+			       bool no_port_list,
+			       const struct str_pair_t*strength = 0)
 {
       for (list<PExpr*>::iterator idx = wires->begin()
 		 ; idx != wires->end() ; ++idx) {
@@ -4378,6 +4453,11 @@ static void pform_make_modgate(perm_string type,
       }
 
       PGModule*cur = new PGModule(type, name, wires);
+      if (strength) {
+	    cur->strength0(strength->str0);
+	    cur->strength1(strength->str1);
+	    cur->mark_drive_strength();
+      }
       if (no_port_list) cur->mark_no_port_list();
       cur->set_line(li);
       cur->set_ranges(ranges);
@@ -4412,7 +4492,8 @@ static void pform_make_modgate(perm_string type,
 			       list<pform_range_t>*ranges,
 			       const LineInfo&li,
 			       std::list<named_pexpr_t>*attr,
-			       bool no_port_list)
+			       bool no_port_list,
+			       const struct str_pair_t*strength = 0)
 {
       unsigned npins = bind->size();
       named_pexpr_t *pins = new named_pexpr_t[npins];
@@ -4422,6 +4503,11 @@ static void pform_make_modgate(perm_string type,
       std::copy(bind->begin(), bind->end(), pins);
 
       PGModule*cur = new PGModule(type, name, pins, npins);
+      if (strength) {
+	    cur->strength0(strength->str0);
+	    cur->strength1(strength->str1);
+	    cur->mark_drive_strength();
+      }
       if (no_port_list) cur->mark_no_port_list();
       cur->set_line(li);
       cur->set_ranges(ranges);
@@ -4484,7 +4570,8 @@ void pform_make_modgates(const struct vlltype&loc,
 			 perm_string type,
 			 struct parmvalue_t*overrides,
 			 std::vector<lgate>*gates,
-			 std::list<named_pexpr_t>*attr)
+			 std::list<named_pexpr_t>*attr,
+			 const struct str_pair_t*strength)
 {
 	// SystemVerilog user-type declarations at module scope (e.g. `foo_t x;`)
 	// parse through the same no-port shape as degenerate module instances.
@@ -4500,7 +4587,7 @@ void pform_make_modgates(const struct vlltype&loc,
 	    // the type is a known built-in class.
 	    // If the name resolves to a type (class, typedef, built-in), treat
 	    // it as a variable declaration regardless of parameter overrides.
-	    if (decl_type) {
+	    if (decl_type && !strength) {
 		  bool declaration_like = true;
 		  std::list<decl_assignment_t*>*decls =
 			new std::list<decl_assignment_t*>;
@@ -4613,7 +4700,7 @@ void pform_make_modgates(const struct vlltype&loc,
 	    if (cur.parms_by_name) {
 		  pform_make_modgate(type, cur_name, overrides,
 				     cur.parms_by_name, cur.ranges,
-				     cur, attr, cur.no_port_list);
+				     cur, attr, cur.no_port_list, strength);
 
 	    } else if (cur.parms) {
 
@@ -4626,13 +4713,13 @@ void pform_make_modgates(const struct vlltype&loc,
 		  }
 		  pform_make_modgate(type, cur_name, overrides,
 				     cur.parms, cur.ranges,
-				     cur, attr, cur.no_port_list);
+				     cur, attr, cur.no_port_list, strength);
 
 	    } else {
 		  list<PExpr*>*wires = new list<PExpr*>;
 		  pform_make_modgate(type, cur_name, overrides,
 				     wires, cur.ranges,
-				     cur, attr, cur.no_port_list);
+				     cur, attr, cur.no_port_list, strength);
 	    }
       }
 

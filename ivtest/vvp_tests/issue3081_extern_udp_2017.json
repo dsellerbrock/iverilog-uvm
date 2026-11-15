@@ -1,0 +1,5 @@
+{
+    "type": "normal",
+    "source": "issue3081_extern_udp.v",
+    "iverilog-args": ["-g2017", "-s", "issue3081_extern_udp"]
+}

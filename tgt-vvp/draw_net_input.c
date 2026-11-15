@@ -208,6 +208,11 @@ static struct vvp_nexus_data*new_nexus_data(void)
 static int nexus_drive_is_strength_aware(ivl_nexus_ptr_t nptr)
 {
       ivl_net_logic_t logic;
+      ivl_lpm_t lpm = ivl_nexus_ptr_lpm(nptr);
+
+      /* Part-to-vector devices pass through the strength of their input. */
+      if (lpm && ivl_lpm_type(lpm) == IVL_LPM_PART_PV)
+	    return 1;
 
       if (ivl_nexus_ptr_drive0(nptr) != IVL_DR_STRONG)
 	    return 1;

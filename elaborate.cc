@@ -9671,24 +9671,21 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 	    }
 	  }
 
-	  NetConcat*output_concat = 0;
-	  if (output_sig && output_sig->vector_width() == inst_count
-	      && inst_count > 1) {
-	    output_concat = new NetConcat(scope, scope->local_symbol(),
-					  inst_count, inst_count);
-	    output_concat->set_line(*this);
-	    des->add_node(output_concat);
-	    connect(output_concat->pin(0), output_sig->pin(0));
-	  }
 	  for (unsigned inst = 0; inst < inst_count; inst += 1) {
+	    instances[inst]->pin(0).drive0(strength0());
+	    instances[inst]->pin(0).drive1(strength1());
 	    if (output_sig) {
-		  if (output_concat) {
+		  if (output_sig->vector_width() == inst_count && inst_count > 1) {
+			NetPartSelect*part = new NetPartSelect(output_sig, inst, 1,
+						       NetPartSelect::PV);
+			part->set_line(*this);
+			des->add_node(part);
 			const netvector_t*bit_type = new netvector_t(IVL_VT_LOGIC);
 			NetNet*bit = new NetNet(scope, scope->local_symbol(),
 						NetNet::WIRE, bit_type);
 			bit->set_line(*this);
 			bit->local_flag(true);
-			connect(output_concat->pin(inst+1), bit->pin(0));
+			connect(part->pin(0), bit->pin(0));
 			connect(bit->pin(0), instances[inst]->pin(0));
 		  } else {
 			connect(output_sig->pin(0), instances[inst]->pin(0));
@@ -10017,6 +10014,11 @@ void PGModule::elaborate(Design*des, NetScope*scope) const
 
       Module*mod = find_module_type_(type_, scope);
       if (mod) {
+	    if (drive_strength_specified_) {
+		  cerr << get_fileline() << ": error: Drive strength is not allowed on a module instance." << endl;
+		  des->errors += 1;
+		  return;
+	    }
 	    elaborate_mod_(des, mod, scope);
 	    return;
       }
@@ -36540,16 +36542,62 @@ static bool constraint_solve_before_aggregate_is_orderable_(const netuarray_t*ar
 	  || dynamic_cast<const netenum_t*>(element_type);
 }
 
-static void constraint_order_nonrandom_error_(const PExpr*site)
+/* IEEE 1800-2023 18.5.9: "Only random variables are allowed, that is,
+   they shall be rand." An error; under -gcommercial-unsafe a warning, and
+   the caller omits the operand (true is returned). */
+static bool constraint_order_nonrandom_error_(const PExpr*site)
 {
       if (!site || !constraint_ir_design_ctx_
 	  || !constraint_ir_design_ctx_->mark_constraint_order_diagnostic(site))
-	    return;
+	    return gn_commercial_unsafe_flag;
 
+      if (gn_commercial_unsafe_flag) {
+	    cerr << site->get_fileline() << ": warning: target of 'solve "
+		 << "before' constraint must be a random variable (IEEE 1800 "
+		 << "18.5.9); the operand is omitted from the ordering; "
+		 << "nonstandard compatibility behavior." << endl;
+	    return true;
+      }
       cerr << site->get_fileline()
 	   << ": error: target of 'solve before' constraint must be a random variable."
 	   << endl;
       constraint_ir_design_ctx_->errors += 1;
+      return false;
+}
+
+/* The before -> after edges of every 'solve before' in the class whose
+   constraints are being elaborated (18.5.9 forbids a circular ordering). */
+struct constraint_order_edge_t {
+      std::string from, to, from_name, to_name, where;
+      perm_string constraint;
+};
+static std::vector<constraint_order_edge_t>*constraint_order_edges_ctx_ = nullptr;
+
+/* The source spelling of an ordering operand for a diagnostic: constant
+   indices print as decimals ("values[1]", not "values['sd1]"). */
+static string constraint_order_operand_name_(const PExpr*item)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+      if (!id) {
+	    ostringstream text;
+	    item->dump(text);
+	    return text.str();
+      }
+      string out;
+      for (const name_component_t&component : id->path().name) {
+	    if (!out.empty()) out += ".";
+	    out += component.name.str();
+	    for (const index_component_t&index : component.index) {
+		  ostringstream text;
+		  const PENumber*num = dynamic_cast<const PENumber*>(index.msb);
+		  if (num && !index.lsb && num->value().is_defined())
+			text << num->value().as_long();
+		  else if (index.msb)
+			index.msb->dump(text);
+		  out += "[" + text.str() + "]";
+	    }
+      }
+      return out;
 }
 
 /* Some legal source paths are not yet representable in the constraint IR
@@ -46038,10 +46086,35 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 	    };
 	    bool omitted_operand = false;
+	    bool omit_item = false;
+	    auto nonrandom = [&](const PExpr*site) {
+		  if (constraint_order_nonrandom_error_(site))
+			omit_item = true;
+	    };
+	    std::vector<std::pair<string,string> > bef_ops, aft_ops;
+	    std::vector<std::pair<string,string> >*ops = nullptr;
 	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
 		  string acc;
 		  for (const PExpr*item : items) {
 			if (!item) continue;
+			omit_item = false;
+			const PEIdent*plain = dynamic_cast<const PEIdent*>(item);
+			if (cls && plain && !plain->path().package
+			    && !plain->has_scoped_type_prefix()
+			    && plain->path().name.size() == 1
+			    && !plain->path().name.front().local_scope
+			    && plain->path().name.front().index.empty()) {
+			      int prop = cls->property_idx_from_name(
+				    plain->path().name.front().name);
+			      property_qualifier_t qual = prop < 0
+				    ? property_qualifier_t::make_none()
+				    : cls->get_prop_qual((size_t)prop);
+			      if (prop >= 0 && !qual.test_rand() && !qual.test_randc()) {
+				    nonrandom(item);
+				    if (omit_item) omitted_operand = true;
+				    continue;
+			      }
+			}
 			vector<string> packed_refs;
 			bool packed_order = gn_commercial_unsafe_flag
 			      && constraint_packed_solve_before_refs_(
@@ -46090,7 +46163,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      property_qualifier_t qual =
 				    cls->get_prop_qual((size_t)prop);
 			      if (!qual.test_rand() && !qual.test_randc())
-				    constraint_order_nonrandom_error_(item);
+				    nonrandom(item);
 			      const index_component_t&select = component.index.front();
 			      string index_ir = select.msb && !select.lsb
 				    && select.sel == index_component_t::SEL_BIT
@@ -46151,7 +46224,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				  || !stype || member >= stype->members().size()
 				  || (!stype->members()[member].qualifier.test_rand()
 				      && !stype->members()[member].qualifier.test_randc()))
-				    constraint_order_nonrandom_error_(item);
+				    nonrandom(item);
 			}
 			if (s.compare(0, 2, "e:") == 0 && cls) {
 			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
@@ -46162,7 +46235,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    property_qualifier_t qual =
 					  cls->get_prop_qual((size_t)prop);
 				    if (!qual.test_rand() && !qual.test_randc())
-					  constraint_order_nonrandom_error_(item);
+					  nonrandom(item);
 			      }
 			}
 			if (s.compare(0, 2, "a:") == 0 && cls) {
@@ -46182,7 +46255,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				  || member >= stype->members().size()
 				  || (!stype->members()[member].qualifier.test_rand()
 				      && !stype->members()[member].qualifier.test_randc()))
-				    constraint_order_nonrandom_error_(item);
+				    nonrandom(item);
 			}
 			if (s.compare(0, 2, "s:") == 0 && cls) {
 			      char*end = nullptr;
@@ -46193,17 +46266,24 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    property_qualifier_t qual =
 					  cls->get_prop_qual((size_t)idx);
 				    if (!qual.test_rand() && !qual.test_randc())
-					  constraint_order_nonrandom_error_(item);
+					  nonrandom(item);
 			      }
 			}
 			if (s.compare(0, 2, "x:") == 0 && cls
 			    && !constraint_nested_element_is_random_(
 				  s.c_str() + 2, cls))
-			      constraint_order_nonrandom_error_(item);
+			      nonrandom(item);
 			if (s.compare(0, 2, "r:") == 0 && cls
 			    && !constraint_nested_element_is_random_(
 				  s.c_str() + 2, cls))
-			      constraint_order_nonrandom_error_(item);
+			      nonrandom(item);
+			if (omit_item) {
+			      omitted_operand = true;
+			      continue;
+			}
+			if (ops)
+			      ops->push_back(std::make_pair(s,
+				    constraint_order_operand_name_(item)));
 			acc += acc.empty() ? s : (" " + s);
 		  }
 		  return acc;
@@ -46259,8 +46339,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      continue;
 			}
 			if (!random) {
-			      constraint_order_nonrandom_error_(item);
-			      expand_ok = false;
+			      if (constraint_order_nonrandom_error_(item))
+				    omitted_operand = true;
+			      else
+				    expand_ok = false;
 			      continue;
 			}
 			if (gn_commercial_unsafe_flag
@@ -46321,11 +46403,25 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    std::list<PExpr*> before_items = expand_fixed_arrays(co->before_items());
 	    std::list<PExpr*> after_items = expand_fixed_arrays(co->after_items());
 	    if (!expand_ok) return "";
+	    ops = &bef_ops;
 	    string bef = vars_to_ir(before_items);
+	    ops = &aft_ops;
 	    string aft = vars_to_ir(after_items);
+	    ops = nullptr;
 	    if (bef.empty() || aft.empty())
 		  return omitted_operand ? "c:1:1" : "";
 	    string result = "(order (vars " + bef + ") (vars " + aft + "))";
+	    if (constraint_order_edges_ctx_)
+		  for (const auto&b : bef_ops)
+			for (const auto&a : aft_ops) {
+			      constraint_order_edge_t edge;
+			      edge.from = b.first;
+			      edge.to = a.first;
+			      edge.from_name = b.second;
+			      edge.to_name = a.second;
+			      edge.where = co->get_fileline();
+			      constraint_order_edges_ctx_->push_back(edge);
+			}
 	    if (constraint_ir_references_randc_(result, cls))
 		  constraint_randc_reference_error_(co, "solve before");
 	    return result;
@@ -48598,6 +48694,100 @@ static int64_t cov_with_item_value_(uint64_t value, unsigned width,
       return (int64_t)value;
 }
 
+/* Every 'solve before' edge of each class, inherited ones included, and
+   whether that graph has a cycle (reported once, in the class that closes
+   it). IEEE 1800-2023 18.5.9: "There shall be no circular dependencies in
+   the ordering". The ordering is declared, so a cycle through a block that
+   is later disabled with constraint_mode(0) is still one. */
+static std::map<const netclass_t*, std::vector<constraint_order_edge_t> >
+      class_order_edges_;
+static std::set<const netclass_t*> class_order_cycle_;
+
+static bool constraint_order_find_cycle_(
+      const std::vector<constraint_order_edge_t>&edges,
+      std::vector<const constraint_order_edge_t*>&cycle)
+{
+      std::map<string, std::vector<const constraint_order_edge_t*> > out;
+      for (const constraint_order_edge_t&edge : edges)
+	    out[edge.from].push_back(&edge);
+      std::map<string, int> color; // 0 new, 1 on the path, 2 done
+      std::vector<const constraint_order_edge_t*> path;
+      std::function<bool(const string&)> visit = [&](const string&node) {
+	    color[node] = 1;
+	    for (const constraint_order_edge_t*edge : out[node]) {
+		  path.push_back(edge);
+		  if (color[edge->to] == 1) {
+			size_t first = path.size() - 1;
+			while (path[first]->from != edge->to) first -= 1;
+			cycle.assign(path.begin() + first, path.end());
+			return true;
+		  }
+		  if (color[edge->to] == 0 && visit(edge->to))
+			return true;
+		  path.pop_back();
+	    }
+	    color[node] = 2;
+	    return false;
+      };
+      for (const constraint_order_edge_t&edge : edges)
+	    if (color[edge.from] == 0 && visit(edge.from))
+		  return true;
+      return false;
+}
+
+static void constraint_order_check_cycles_(Design*des, const netclass_t*cls,
+					   const netclass_t*super,
+					   const PClass*pclass,
+					   std::vector<constraint_order_edge_t>&own)
+{
+      std::vector<constraint_order_edge_t>&edges = class_order_edges_[cls];
+      edges = own;
+      if (super) {
+	    for (const constraint_order_edge_t&edge : class_order_edges_[super])
+		  if (pclass->type->constraints.find(edge.constraint)
+		      == pclass->type->constraints.end())
+			edges.push_back(edge);
+      }
+      std::vector<const constraint_order_edge_t*> cycle;
+      if (!constraint_order_find_cycle_(edges, cycle))
+	    return;
+      class_order_cycle_.insert(cls);
+      if (super && class_order_cycle_.count(super))
+	    return;
+
+      std::vector<string> names;
+      for (const constraint_order_edge_t*edge : cycle)
+	    names.push_back(edge->from_name);
+      string between;
+      if (names.size() == 1) {
+	    between = "'" + names[0] + "' and itself";
+      } else {
+	    for (size_t idx = 0; idx < names.size(); idx += 1) {
+		  if (idx) between += idx + 1 == names.size() ? " and " : ", ";
+		  between += "'" + names[idx] + "'";
+	    }
+      }
+      static std::set<string> reported;
+	// Point at an edge this class declares: it closes the cycle.
+      const constraint_order_edge_t*site = cycle.back();
+      for (const constraint_order_edge_t*edge : cycle)
+	    if (edge < edges.data() + own.size()) {
+		  site = edge;
+		  break;
+	    }
+      const string&where = site->where;
+      if (!reported.insert(where + between).second)
+	    return;
+      cerr << where << (gn_commercial_unsafe_flag ? ": warning: " : ": error: ")
+	   << "circular 'solve before' ordering between " << between
+	   << " in class " << cls->get_name() << " (IEEE 1800 18.5.9)";
+      if (gn_commercial_unsafe_flag)
+	    cerr << "; nonstandard compatibility behavior";
+      cerr << "." << endl;
+      if (!gn_commercial_unsafe_flag)
+	    des->errors += 1;
+}
+
 void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 {
       if (constraints_elaborated_ || constraints_elaborating_ || !pclass)
@@ -48617,10 +48807,15 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 
       /* Convert every source constraint block to solver IR after property
 	 types and specialization parameters are final. */
+      std::vector<constraint_order_edge_t> order_edges;
+      std::vector<constraint_order_edge_t>*save_order_edges =
+	    constraint_order_edges_ctx_;
       for (perm_string name : pclass->type->constraint_order) {
             auto found = pclass->type->constraints.find(name);
             if (found == pclass->type->constraints.end()) continue;
 	    const auto&cit = *found;
+	    size_t edges_before = order_edges.size();
+	    constraint_order_edges_ctx_ = &order_edges;
 	    string ir;
 	    vector<constraint_state_call_t> state_calls;
 	    vector<constraint_state_call_t>*save_state_calls =
@@ -48666,6 +48861,8 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  }
 	    }
 	    constraint_ir_state_calls_ctx_ = save_state_calls;
+	    for (size_t idx = edges_before; idx < order_edges.size(); idx += 1)
+		  order_edges[idx].constraint = cit.first;
 	    if (!ir.empty()) {
 		  const auto decl = pclass->type->constraint_declarations.find(cit.first);
 		  const bool is_static = decl != pclass->type->constraint_declarations.end()
@@ -48673,6 +48870,8 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  add_constraint_ir(string(cit.first), ir, state_calls, is_static);
 	    }
       }
+      constraint_order_edges_ctx_ = save_order_edges;
+      constraint_order_check_cycles_(des, this, super_, pclass, order_edges);
 
       constraints_elaborating_ = false;
       constraints_elaborated_ = true;
@@ -51859,14 +52058,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // sequence index.
 				      if (resolved_ignore_bins.count(&bin)) continue;
 				      if (base_kind == 1) continue;
-				      // shortcut: wildcard transition bins need literal patterns and
-				      // cannot be arrayed; add set indexing when a case needs it.
-				      if (bin.wildcard && bin.arrayed) {
-					    cerr << "sorry: wildcard arrayed transition bin '"
-						 << bin.name << "' is not supported; the bin is "
-						 << "dropped." << endl;
-					    continue;
-				      }
 				      if (bin.trans_seqs.size() > 255) {
 					    cerr << "sorry: covergroup transition bin '" << bin.name
 						 << "' has more than 255 alternative sequences; "
@@ -51939,8 +52130,27 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								    bad = true;
 								    break;
 							      }
-							      term.ranges.push_back(
-								    std::make_pair(value, mask));
+							      if (!bin.arrayed) {
+								    term.ranges.push_back(std::make_pair(value, mask));
+							      } else {
+								    uint64_t width_mask = cp_value_width == 64
+									  ? UINT64_MAX : (UINT64_C(1) << cp_value_width) - 1;
+								    if (value & mask & ~width_mask) continue;
+								    uint64_t free_bits = ~mask & width_mask;
+								    if (__builtin_popcountll(free_bits) > 16) {
+									  cerr << "sorry: arrayed transition term in bin '"
+									       << bin.name << "' has too many value alternatives; the bin is dropped." << endl;
+									  bad = true;
+									  break;
+								    }
+								    uint64_t subset = free_bits;
+								    do {
+									  uint64_t v = (value & mask & width_mask) | subset;
+									  term.ranges.push_back(std::make_pair(v, v));
+									  if (!subset) break;
+									  subset = (subset - 1) & free_bits;
+								    } while (true);
+							      }
 							}
 						  } else if (!eval_ranges(source_term.ranges, term.ranges,
 						     cp_value_width, cp_value_signed,
@@ -51975,10 +52185,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							break;
 						  }
 						  if (bad) break;
-						  // One wildcard bin is one transition alternative, regardless
-						  // of how many concrete values its pattern matches.
+						  // A scalar wildcard bin groups all matched values; an array
+						  // instead has one alternative per concrete value.
 						  unsigned __int128 alternatives = 1;
-						  if (!bin.wildcard) {
+						  if (!bin.wildcard || bin.arrayed) {
 							std::sort(term.ranges.begin(), term.ranges.end());
 							std::vector<std::pair<uint64_t,uint64_t>> merged;
 							for (auto&r : term.ranges) {
@@ -52295,13 +52505,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							cg_class->add_covgrp_bin(cp_idx, marker_prop,
 							      r.first, r.second,
 							      (base_kind == 2 ? 2u | 1024u : 4u)
-								    | (bin.wildcard ? 8u : 0u),
+								    | (bin.wildcard ? (bin.arrayed ? 8192u : 8u) : 0u),
 							      (sq << 8) | st, cp_idx,
 							      term.repeat, term.min, term.max,
 							      (unsigned)alt_base,
 							      (unsigned)term.alternatives,
 							      family, seq_bases[sq], bin_guard);
-							if (!bin.wildcard)
+							if (!bin.wildcard || bin.arrayed)
 							      alt_base += r.second - r.first + 1;
 						  }
 					    }

@@ -480,7 +480,7 @@ static void format_p_memory_dimension(vpiHandle item,
 static char* format_p_value(vpiHandle item)
 {
   s_vpi_value value;
-  PLI_INT32 itype = vpi_get(vpiType, item);
+  PLI_INT32 itype = sys_object_vpi_type(item);
 
   /* vpiArrayVar (queues, dynamic and associative arrays) is an alias of
      vpiRegArray, so this one test covers packed-reg fixed arrays (vpiMemory)

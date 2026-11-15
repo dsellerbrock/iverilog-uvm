@@ -573,6 +573,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%nor",    of_NOR,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%nor/r",  of_NORR,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%null",   of_NULL,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
+      { "%ocond/ambig", of_OCOND_AMBIG, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%or",     of_OR,     0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%or/r",   of_ORR,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%pad/s",  of_PAD_S,  1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },
@@ -1153,6 +1154,11 @@ vvp_net_t* vvp_net_lookup(const char*label)
 		      const __vpiBaseVar*sig = dynamic_cast<__vpiBaseVar*>(vpi);
 		      return sig->get_net();
 		}
+		case vpiStructVar:
+		case vpiUnionVar:
+		      if (const __vpiBaseVar*var = dynamic_cast<__vpiBaseVar*>(vpi))
+		            return var->get_net();
+		      return dynamic_cast<__vpiSignal*>(vpi)->node;
 
 		case vpiNamedEvent: {
 		      const __vpiNamedEvent*tmp = dynamic_cast<__vpiNamedEvent*>(vpi);

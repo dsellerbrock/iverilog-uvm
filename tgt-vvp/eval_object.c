@@ -1707,6 +1707,22 @@ static unsigned queue_ternary_nested_spec_(ivl_type_t element_type)
       return kind;
 }
 
+/* True when a conditional in object context has an unpacked struct (or
+   unpacked union) value: an ivl type with members but no packed base. */
+static int ternary_unpacked_struct_(ivl_expr_t expr)
+{
+      ivl_expr_t arms[3] = { expr, ivl_expr_oper2(expr), ivl_expr_oper3(expr) };
+      for (unsigned idx = 0 ; idx < 3 ; idx += 1) {
+	    ivl_type_t type = ivl_expr_net_type(arms[idx]);
+	    if (!type && ivl_expr_type(arms[idx]) == IVL_EX_SIGNAL)
+		  type = ivl_signal_net_type(ivl_expr_signal(arms[idx]));
+	    if (type && ivl_type_base(type) == IVL_VT_NO_TYPE
+		&& ivl_type_properties(type) > 0)
+		  return 1;
+      }
+      return 0;
+}
+
 static int eval_object_ternary(ivl_expr_t expr)
 {
       ivl_expr_t cond     = ivl_expr_oper1(expr);
@@ -1808,6 +1824,17 @@ static int eval_object_ternary(ivl_expr_t expr)
 	    fprintf(vvp_out, "    %%cmp/obj;\n");
 	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, lab_out);
 	    fprintf(vvp_out, "    %%pop/obj 1, 0;\n    %%null;\n");
+	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_true);
+      } else if (ternary_unpacked_struct_(expr)) {
+	      /* IEEE 1800-2023 11.4.11: an ambiguous condition gives the
+		 true operand when the two are logically equivalent, else the
+		 Table 7-1 value of the struct type. */
+	    unsigned lab_true = local_count++;
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, %d;\n", thread_count, lab_true, use_flag);
+	    draw_eval_object(true_ex);
+	    draw_eval_object(false_ex);
+	    fprintf(vvp_out, "    %%ocond/ambig;\n");
 	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_true);
       }

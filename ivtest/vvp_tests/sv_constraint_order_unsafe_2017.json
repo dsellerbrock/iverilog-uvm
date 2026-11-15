@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "sv_constraint_order_unsafe.v",
+    "iverilog-args": ["-g2017", "-gcommercial-unsafe", "-s", "sv_constraint_order_unsafe"],
+    "gold": "sv_constraint_order_unsafe"
+}

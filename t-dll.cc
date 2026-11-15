@@ -2712,7 +2712,11 @@ void dll_target::udp(const NetUDP*net)
 	    const Nexus*nex = net->pin(idx).nexus();
 	    ivl_assert(*net, nex && nex->t_cookie());
 	    obj->pins_[idx] = nex->t_cookie();
-	    nexus_log_add(obj->pins_[idx], obj, idx);
+	    ivl_nexus_ptr_t ptr = nexus_log_add(obj->pins_[idx], obj, idx);
+	    if (idx == 0) {
+		  ptr->drive0 = net->pin(0).drive0();
+		  ptr->drive1 = net->pin(0).drive1();
+	    }
       }
 
       assert(net->scope());

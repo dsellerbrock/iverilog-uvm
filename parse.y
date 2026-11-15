@@ -3165,7 +3165,7 @@ static Module::port_t *module_declare_explicit_port(
 } match_pattern_list
 
 %type <gate>  gate_instance
-%type <gates> gate_instance_list
+%type <gates> gate_instance_list anonymous_gate_instance_list
 %type <let_port_lst> let_port_list_opt let_port_list
 %type <let_port_itm> let_port_item
 
@@ -16640,6 +16640,23 @@ gate_instance_list
       }
   ;
 
+/* Factor the leading parenthesis so it can be distinguished from a
+   UDP drive strength without hiding the anonymous-instance form. */
+anonymous_gate_instance_list
+  : '(' port_conn_expression_list_with_nuls ')'
+      { lgate tmp;
+	tmp.name = "";
+	tmp.parms = $2;
+	FILE_NAME(&tmp, @1);
+	$$ = new std::vector<lgate>(1, tmp);
+      }
+  | anonymous_gate_instance_list ',' gate_instance
+      { $1->push_back(*$3);
+	delete $3;
+	$$ = $1;
+      }
+  ;
+
 gatetype
   : K_and    { $$ = PGBuiltin::AND; }
   | K_nand   { $$ = PGBuiltin::NAND; }
@@ -17998,9 +18015,19 @@ module_item
   | K_pulldown '(' dr_strength0 ',' dr_strength1 ')' gate_instance_list ';'
       { pform_makegates(@1, PGBuiltin::PULLDOWN, $3, 0, $7, 0); }
 
-  /* This rule handles instantiations of modules and user defined
-     primitives. These devices to not have delay lists or strengths,
-     but then can have parameter lists. */
+  /* Modules and UDPs share the instantiation path. For UDPs, parameter
+     values are interpreted as delays during elaboration. */
+
+  | attribute_list_opt IDENTIFIER drive_strength parameter_value_opt gate_instance_list ';'
+      { perm_string name = lex_strings.make($2);
+	pform_make_modgates(@2, name, $4, $5, $1, &$3);
+	delete[] $2;
+      }
+  | attribute_list_opt IDENTIFIER anonymous_gate_instance_list ';'
+      { perm_string name = lex_strings.make($2);
+	pform_make_modgates(@2, name, 0, $3, $1);
+	delete[] $2;
+      }
 
   | attribute_list_opt
 	  IDENTIFIER parameter_value_opt gate_instance_list ';'
@@ -22934,6 +22961,37 @@ udp_primitive
 	check_end_label(@14, "primitive", $2, $14);
 	delete[]$2;
 	delete[]$6;
+      }
+
+        /* IEEE 1800 29.3: a (.*) definition takes the port list of an
+	   earlier extern primitive declaration. */
+  | K_primitive IDENTIFIER '(' K_DOTSTAR ')' ';'
+    udp_port_decls
+    udp_init_opt
+    udp_body
+    K_endprimitive label_opt
+      { perm_string tmp2 = lex_strings.make($2);
+	std::list<pform_ident_t>*ports = pform_extern_udp_ports(@2, tmp2);
+	if (ports)
+	      pform_make_udp(@2, tmp2, ports, $7, $9, $8);
+	check_end_label(@11, "primitive", $2, $11);
+	delete[]$2;
+      }
+
+        /* IEEE 1800 29.3: extern UDP declarations, in both port styles. */
+  | K_extern K_primitive IDENTIFIER '(' udp_port_list ')' ';'
+      { pform_extern_udp(@3, lex_strings.make($3), $5);
+	delete[]$3;
+      }
+  | K_extern K_primitive IDENTIFIER
+    '(' K_output udp_reg_opt IDENTIFIER initializer_opt ','
+    udp_input_declaration_list ')' ';'
+      { std::list<pform_ident_t>*ports = $10;
+	ports->push_front(pform_ident_t{ lex_strings.make($7), @7.lexical_pos });
+	pform_extern_udp(@3, lex_strings.make($3), ports);
+	delete $8;
+	delete[]$3;
+	delete[]$7;
       }
   ;
 
