@@ -558,7 +558,7 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
 	// out-of-range index reads the type default and drops writes.
 	// bind_word: a word of a fixed (static) unpacked array.
       void bind_prop(vvp_net_t*formal, const vvp_object_t&obj, unsigned pid,
-                     int64_t index = 0);
+                     int64_t index = 0, vvp_net_t*root = 0);
       void bind_elem(vvp_net_t*formal, const vvp_object_t&container,
                      int64_t index);
       void bind_assoc_elem(vvp_net_t*formal, vvp_assoc_base*container,
@@ -626,8 +626,9 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
             int64_t index;
             bool two_state;
             struct __vpiArray*arr;
+            vvp_net_t*prop_root;
             binding_t() : kind(0), target(0), caller_ctx(0), prop_id(0),
-                          index(0), two_state(false), arr(0) { }
+                          index(0), two_state(false), arr(0), prop_root(0) { }
       };
       bool read_binding(binding_t&out) const;
       vvp_object_t capture_binding() const;

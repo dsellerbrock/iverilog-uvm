@@ -20533,7 +20533,7 @@ bool of_DELETE_OBJ(vthread_t thr, vvp_code_t cp)
  */
 bool of_DELETE_O_OBJ(vthread_t thr, vvp_code_t)
 {
-	      vvp_object_t recv = thr->peek_object();
+	      vvp_object_t recv = thr->peek_object(0);
 	      vvp_object_t root_obj = thr->peek_object_root(0);
             vvp_net_t*root_net = thr->peek_object_source_net(0);
 	      thr->pop_object(recv);
@@ -25320,7 +25320,7 @@ static bool aa_store_str(vthread_t thr, unsigned wid=0)
       container_value_copy_(value);
 
       string key = thr->pop_str();
-      vvp_object_t recv = thr->peek_object();
+      vvp_object_t recv = thr->peek_object(0);
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && apply_declared_child_container_layout_(assoc, value)) {
 	    assoc->set(key, value);
@@ -25343,7 +25343,7 @@ static bool aa_store_obj(vthread_t thr, unsigned wid=0)
       vvp_object_t key;
       thr->pop_object(key);
 
-      vvp_object_t recv = thr->peek_object();
+      vvp_object_t recv = thr->peek_object(0);
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && apply_declared_child_container_layout_(assoc, value)) {
 	    assoc->set(key, value);
@@ -25375,7 +25375,7 @@ static bool aa_store_vec(vthread_t thr, unsigned wid=0)
       container_value_copy_(value);
 
       vvp_vector4_t key = thr->pop_vec4();
-      vvp_object_t recv = thr->peek_object();
+      vvp_object_t recv = thr->peek_object(0);
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
 	  if (aa_invalid_write_(thr, assoc, key)) return true;
       if (assoc && apply_declared_child_container_layout_(assoc, value)) {
@@ -25464,7 +25464,7 @@ template <class ASSOC>
 static bool aa_delete_str(vthread_t thr)
 {
       string key = thr->pop_str();
-      vvp_object_t recv = thr->peek_object();
+      vvp_object_t recv = thr->peek_object(0);
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && assoc->exists_key(key)) {
 	    vvp_net_t*root_net = thr->peek_object_source_net(0);
@@ -25486,7 +25486,7 @@ static bool aa_delete_obj(vthread_t thr)
 {
       vvp_object_t key;
       thr->pop_object(key);
-      vvp_object_t recv = thr->peek_object();
+      vvp_object_t recv = thr->peek_object(0);
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && assoc->exists_key(key)) {
 	    vvp_net_t*root_net = thr->peek_object_source_net(0);
@@ -25507,7 +25507,7 @@ template <class ASSOC>
 static bool aa_delete_vec(vthread_t thr)
 {
       vvp_vector4_t key = thr->pop_vec4();
-      vvp_object_t recv = thr->peek_object();
+      vvp_object_t recv = thr->peek_object(0);
       ASSOC*assoc = peek_assoc_receiver_<ASSOC>(thr);
       if (assoc && assoc->exists_key(key)) {
 	    vvp_net_t*root_net = thr->peek_object_source_net(0);
@@ -26130,7 +26130,7 @@ bool of_DAR_ELEM_PROTO(vthread_t thr, vvp_code_t)
       thr->pop_object(proto);
 
       vvp_cobject*cobj = proto.peek<vvp_cobject>();
-      vvp_object_t recv = thr->peek_object();
+      vvp_object_t recv = thr->peek_object(0);
       if (vvp_darray*arr = recv.peek<vvp_darray>())
 	    if (cobj) arr->set_elem_class(cobj->get_defn());
 
@@ -26397,7 +26397,7 @@ bool of_AA_DELETE_V(vthread_t thr, vvp_code_t)
  */
 bool of_AA_DELETE_ALL(vthread_t thr, vvp_code_t)
 {
-      vvp_object_t recv = thr->peek_object();
+      vvp_object_t recv = thr->peek_object(0);
       vvp_assoc_base*assoc = peek_assoc_receiver_<vvp_assoc_base>(thr);
       if (assoc && assoc->size() > 0) {
 	    vvp_net_t*root_net = thr->peek_object_source_net(0);
@@ -26687,7 +26687,7 @@ static bool aa_loadlv_o_queue(vthread_t thr, const char*enc)
 
       vvp_net_t*root_net = thr->peek_object_source_net(0);
       vvp_object_t root_obj = thr->peek_object_root(0);
-      vvp_object_t recv = thr->peek_object();
+      vvp_object_t recv = thr->peek_object(0);
       vvp_object_t value;
       vvp_assoc_object*assoc = peek_assoc_receiver_<vvp_assoc_object>(thr);
 	  bool invalid_index = aa_invalid_write_(thr, assoc, key);
@@ -31259,7 +31259,7 @@ bool of_NEW_DARRAY(vthread_t thr, vvp_code_t cp)
  */
 bool of_DAR_FILL_NEW(vthread_t thr, vvp_code_t cp)
 {
-      vvp_object_t recv = thr->peek_object();
+      vvp_object_t recv = thr->peek_object(0);
       vvp_darray*arr = recv.peek<vvp_darray>();
       if (!arr)
 	    return true;
@@ -33712,9 +33712,27 @@ bool of_REF_BIND_F(vthread_t, vvp_code_t cp)
  * so a later reassignment of the caller's handle variable does not
  * retarget the reference).
  */
+/* The storage of an unpacked-struct member belongs to the struct
+ * VARIABLE (IEEE 1800-2023 13.5.2); a whole assignment to it installs a
+ * new object. When the receiver came straight from such a variable,
+ * return that variable's net so the binding can follow it. Class
+ * receivers stay bound to the object. */
+static vvp_net_t* ref_bind_struct_root_(vthread_t thr, const vvp_object_t&recv)
+{
+      vvp_cobject*cobj = recv.peek<vvp_cobject>();
+      if (!cobj || !cobj->get_defn()->is_struct_type())
+            return 0;
+      vvp_net_t*root = thr->peek_object_source_net(0);
+      vvp_fun_signal_object*fun = signal_object_fun_(root);
+      if (!fun || fun->get_object() != recv)
+            return 0;
+      return root;
+}
+
 bool of_REF_BIND_PR(vthread_t thr, vvp_code_t cp)
 {
-      vvp_object_t recv;
+      vvp_object_t recv = thr->peek_object(0);
+      vvp_net_t*root = ref_bind_struct_root_(thr, recv);
       thr->pop_object(recv);
       vvp_ref_signal_aa*formal =
 	    dynamic_cast<vvp_ref_signal_aa*> (cp->net->fil);
@@ -33723,7 +33741,7 @@ bool of_REF_BIND_PR(vthread_t thr, vvp_code_t cp)
 	    assert(formal);
 	    return true;
       }
-      formal->bind_prop(cp->net, recv, cp->bit_idx[0]);
+      formal->bind_prop(cp->net, recv, cp->bit_idx[0], 0, root);
       return true;
 }
 
@@ -33734,7 +33752,8 @@ bool of_REF_BIND_PR_W(vthread_t thr, vvp_code_t cp)
       vvp_vector4_t idxv = thr->pop_vec4();
       int64_t index = -1;
       bool defined = vector4_to_value(idxv, index, true, false);
-      vvp_object_t recv;
+      vvp_object_t recv = thr->peek_object(0);
+      vvp_net_t*root = ref_bind_struct_root_(thr, recv);
       thr->pop_object(recv);
       vvp_ref_signal_aa*formal =
 	    dynamic_cast<vvp_ref_signal_aa*>(cp->net->fil);
@@ -33743,7 +33762,8 @@ bool of_REF_BIND_PR_W(vthread_t thr, vvp_code_t cp)
 	    assert(formal);
 	    return true;
       }
-      formal->bind_prop(cp->net, recv, cp->bit_idx[0], defined ? index : -1);
+      formal->bind_prop(cp->net, recv, cp->bit_idx[0], defined ? index : -1,
+                        root);
       return true;
 }
 

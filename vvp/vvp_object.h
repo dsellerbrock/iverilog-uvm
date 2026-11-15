@@ -176,6 +176,8 @@ class vvp_object {
                                unsigned bit = UINT_MAX,
                                bool active = true);
       static bool cancel_mutation_waiter(vthread_t thread);
+      void add_touch_relay(vvp_net_t*net);
+      void remove_touch_relay(vvp_net_t*net);
       void register_signal_alias(vvp_net_t*net, void*context);
       void unregister_signal_alias(vvp_net_t*net, void*context);
       void notify_signal_aliases() const;
