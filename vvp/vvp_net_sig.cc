@@ -913,15 +913,23 @@ struct ref_aa_slot {
       int64_t index;           // REF_ELEM / REF_WORD
       bool two_state;
       struct __vpiArray*arr;   // REF_WORD
+	/* REF_PROP of an unpacked struct held by a variable: the variable's
+	   net. The member's storage belongs to the variable, and a whole
+	   struct assignment installs a new object, so the receiver is
+	   re-read from this net (in caller_ctx) on every access. */
+      vvp_net_t*prop_root;
       vvp_net_t*relay_source;
       vvp_net_t*relay;
 
       ref_aa_slot() : magic(MAGIC), kind(REF_NET), target(0), caller_ctx(0),
-                      prop_id(0), index(0), two_state(false), arr(0), relay_source(0),
-                      relay(0) { }
+                      prop_id(0), index(0), two_state(false), arr(0), prop_root(0),
+                      relay_source(0), relay(0) { }
       ~ref_aa_slot() { clear(); }
       void clear()
       {
+            if (relay && !relay_source)
+                  if (vvp_object*watched = obj.peek<vvp_object>())
+                        watched->remove_touch_relay(relay);
             detach_ref_event_relay_(relay_source, relay);
             kind = REF_NET;
             target = 0;
@@ -931,6 +939,7 @@ struct ref_aa_slot {
             index = 0;
             two_state = false;
             arr = 0;
+            prop_root = 0;
       }
 };
 
@@ -1027,6 +1036,11 @@ static void attach_ref_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
             formal->send_vec4(initial, frame);
 }
 
+namespace {
+void attach_ref_prop_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
+                                  vvp_context_t frame);
+}
+
 vvp_ref_signal_aa::vvp_ref_signal_aa(unsigned wid, bool two_state)
 : vvp_fun_signal_object(wid), static_slot_(0), two_state_(two_state)
 {
@@ -1111,6 +1125,7 @@ void vvp_ref_signal_aa::bind(vvp_net_t*formal, vvp_net_t*net, bool in_frame)
                   source.index = outer->index;
                   source.two_state = outer->two_state;
                   source.arr = outer->arr;
+                  source.prop_root = outer->prop_root;
                   write_binding(formal, frame, source);
                   return;
             }
@@ -1124,7 +1139,7 @@ void vvp_ref_signal_aa::bind(vvp_net_t*formal, vvp_net_t*net, bool in_frame)
 
 void vvp_ref_signal_aa::bind_prop(vvp_net_t*formal,
                                   const vvp_object_t&obj, unsigned pid,
-                                  int64_t index)
+                                  int64_t index, vvp_net_t*root)
 {
       vvp_context_t frame = vthread_get_wt_context();
       if (!frame) return;
@@ -1140,7 +1155,11 @@ void vvp_ref_signal_aa::bind_prop(vvp_net_t*formal,
       slot->obj = obj;
       slot->prop_id = pid;
       slot->index = index;
-      unsupported_ref_event_binding_(formal, "a class property");
+      if (root) {
+            slot->prop_root = root;
+            slot->caller_ctx = vthread_get_rd_context();
+      }
+      attach_ref_prop_event_relay_(slot, formal, frame);
 }
 
 void vvp_ref_signal_aa::bind_elem(vvp_net_t*formal,
@@ -1271,9 +1290,33 @@ class ref_delegate_ {
      drops writes. */
 namespace {
 
+static vvp_fun_signal_object* ref_prop_root_fun_(const ref_aa_slot*slot)
+{
+      if (!slot->prop_root) return 0;
+      vvp_fun_signal_object*fun = vvp_fun_as_signal_object(slot->prop_root->fun);
+      return fun ? fun : vvp_fil_as_signal_object(slot->prop_root->fil);
+}
+
 static vvp_cobject* ref_prop_receiver_(const ref_aa_slot*slot)
 {
+      if (vvp_fun_signal_object*fun = ref_prop_root_fun_(slot)) {
+            ref_delegate_ hold(slot);
+            return fun->get_object().peek<vvp_cobject>();
+      }
       return slot->obj.peek<vvp_cobject>();
+}
+
+  /* A write through the ref changed a member of the struct variable:
+     deliver that variable's (same) object through its net so ordinary
+     waiters on the variable see the mutation, as a direct member store
+     does. */
+static void ref_prop_notify_root_(const ref_aa_slot*slot)
+{
+      vvp_fun_signal_object*fun = ref_prop_root_fun_(slot);
+      if (!fun) return;
+      ref_delegate_ hold(slot);
+      vvp_send_object(vvp_net_ptr_t(slot->prop_root, 0), fun->get_object(),
+                      vthread_get_wt_context());
 }
 
   /* The current container held by the bound variable, fetched per
@@ -1375,6 +1418,7 @@ static bool ref_inside_write_vec4_(ref_aa_slot*slot,
           case ref_aa_slot::REF_PROP:
             if (vvp_cobject*c = ref_prop_receiver_(slot))
                   c->set_vec4(slot->prop_id, bit, (size_t)slot->index);
+            ref_prop_notify_root_(slot);
             return true;
           case ref_aa_slot::REF_ELEM: {
             ref_elem_write_(slot, bit, notify_element);
@@ -1396,6 +1440,7 @@ static bool ref_inside_write_real_(ref_aa_slot*slot, double bit,
           case ref_aa_slot::REF_PROP:
             if (vvp_cobject*c = ref_prop_receiver_(slot))
                   c->set_real(slot->prop_id, bit, (size_t)slot->index);
+            ref_prop_notify_root_(slot);
             return true;
           case ref_aa_slot::REF_ELEM: {
             ref_elem_write_(slot, bit, notify_element);
@@ -1418,6 +1463,7 @@ static bool ref_inside_write_string_(ref_aa_slot*slot,
           case ref_aa_slot::REF_PROP:
             if (vvp_cobject*c = ref_prop_receiver_(slot))
                   c->set_string(slot->prop_id, bit, (size_t)slot->index);
+            ref_prop_notify_root_(slot);
             return true;
           case ref_aa_slot::REF_ELEM: {
             ref_elem_write_(slot, bit, notify_element);
@@ -1440,6 +1486,7 @@ static bool ref_inside_write_object_(ref_aa_slot*slot,
           case ref_aa_slot::REF_PROP:
             if (vvp_cobject*c = ref_prop_receiver_(slot))
                   c->set_object(slot->prop_id, bit, (size_t)slot->index);
+            ref_prop_notify_root_(slot);
             return true;
           case ref_aa_slot::REF_ELEM: {
             ref_elem_write_(slot, bit, notify_element);
@@ -1548,6 +1595,123 @@ static bool ref_inside_read_object_(const ref_aa_slot*slot, vvp_object_t&val)
       }
 }
 
+/* A ref formal bound to a class property or unpacked-struct member
+   (IEEE 1800-2023 13.5.2: an event control on the formal waits on that
+   member). The member has no net, so the relay subscribes to touch() of
+   the bound object, re-reads the member, and forwards only a change. */
+class ref_prop_event_relay_s : public vvp_net_fun_t {
+    public:
+      enum kind_t { VEC4, REAL, STRING, OBJECT };
+
+      ref_prop_event_relay_s(vvp_net_t*formal, vvp_context_t frame,
+                             const ref_aa_slot*slot, kind_t kind,
+                             unsigned wid)
+      : formal_(formal), frame_(frame),
+        generation_(vthread_context_generation(frame)), slot_(slot),
+        kind_(kind), wid_(wid), real_(0.0)
+      {
+            read_(vec4_, real_, string_, object_);
+      }
+
+      static void* operator new(std::size_t size) { return ::operator new(size); }
+      static void operator delete(void*ptr) { ::operator delete(ptr); }
+
+      void send_current()
+      {
+            switch (kind_) {
+                case VEC4:   formal_->send_vec4(vec4_, frame_); break;
+                case REAL:   formal_->send_real(real_, frame_); break;
+                case STRING: formal_->send_string(string_, frame_); break;
+                case OBJECT: formal_->send_object(object_, frame_); break;
+            }
+      }
+
+      void recv_object(vvp_net_ptr_t, vvp_object_t, vvp_context_t) override
+      {
+            if (!generation_
+                || vthread_context_generation(frame_) != generation_)
+                  return;
+            vvp_vector4_t vec4;
+            double real = 0.0;
+            std::string str;
+            vvp_object_t obj;
+            read_(vec4, real, str, obj);
+            switch (kind_) {
+                case VEC4:   if (vec4.eeq(vec4_)) return; vec4_ = vec4; break;
+                case REAL:   if (real == real_) return; real_ = real; break;
+                case STRING: if (str == string_) return; string_ = str; break;
+                case OBJECT: if (obj == object_) return; object_ = obj; break;
+            }
+            send_current();
+      }
+
+    private:
+      void read_(vvp_vector4_t&vec4, double&real, std::string&str,
+                 vvp_object_t&obj) const
+      {
+            switch (kind_) {
+                case VEC4:   ref_inside_read_vec4_(slot_, wid_, vec4); break;
+                case REAL:   ref_inside_read_real_(slot_, real); break;
+                case STRING: ref_inside_read_string_(slot_, str); break;
+                case OBJECT: ref_inside_read_object_(slot_, obj); break;
+            }
+      }
+
+      vvp_net_t*formal_;
+      vvp_context_t frame_;
+      uint64_t generation_;
+      const ref_aa_slot*slot_;
+      kind_t kind_;
+      unsigned wid_;
+      vvp_vector4_t vec4_;
+      double real_;
+      std::string string_;
+      vvp_object_t object_;
+};
+
+void attach_ref_prop_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
+                                  vvp_context_t frame)
+{
+      if (!slot || slot->kind != ref_aa_slot::REF_PROP
+          || !formal || formal->out_.nil())
+            return;
+      vvp_cobject*cobj = ref_prop_receiver_(slot);
+      if (!cobj)
+            return;
+
+      const class_type*defn = cobj->get_defn();
+      if (defn->is_struct_type() && !slot->prop_root) {
+	    /* e.g. h.s.b: a whole assignment to h.s installs a new object
+	       that this binding cannot follow. */
+            unsupported_ref_event_binding_(formal,
+                  "a member of a struct that is not a whole variable");
+            return;
+      }
+      const std::string&type = defn->property_base_type(slot->prop_id);
+      unsigned wid = defn->property_vec4_width(slot->prop_id);
+      ref_prop_event_relay_s::kind_t kind = wid
+            ? ref_prop_event_relay_s::VEC4
+            : type == "r" ? ref_prop_event_relay_s::REAL
+            : type == "S" ? ref_prop_event_relay_s::STRING
+            : ref_prop_event_relay_s::OBJECT;
+
+      void*storage = ::operator new(sizeof(vvp_net_t));
+      vvp_net_t*relay = ::new (storage) vvp_net_t;
+      ref_prop_event_relay_s*fun =
+            new ref_prop_event_relay_s(formal, frame, slot, kind, wid);
+      relay->fun = fun;
+      if (slot->prop_root) {
+	    /* Member stores, whole struct assignments and writes through
+	       this ref all deliver the variable's object on its net. */
+            slot->prop_root->link(vvp_net_ptr_t(relay, 0));
+            slot->relay_source = slot->prop_root;
+      } else {
+            cobj->add_touch_relay(relay);
+      }
+      slot->relay = relay;
+      fun->send_current();
+}
+
 }
 
 const std::string&vvp_ref_signal_aa::get_string() const
@@ -1592,6 +1756,7 @@ bool vvp_ref_signal_aa::read_binding(binding_t&out) const
       out.index = slot->index;
       out.two_state = slot->two_state;
       out.arr = slot->arr;
+      out.prop_root = slot->prop_root;
       return true;
 }
 
@@ -1628,8 +1793,11 @@ void vvp_ref_signal_aa::write_binding(vvp_net_t*formal, vvp_context_t frame,
       slot->index = in.index;
       slot->two_state = in.two_state;
       slot->arr = in.arr;
+      slot->prop_root = in.prop_root;
       if (slot->kind == ref_aa_slot::REF_NET)
             attach_ref_event_relay_(slot, formal, frame);
+      else if (slot->kind == ref_aa_slot::REF_PROP)
+            attach_ref_prop_event_relay_(slot, formal, frame);
       else
             unsupported_ref_event_binding_(formal, "an indirect actual");
 }

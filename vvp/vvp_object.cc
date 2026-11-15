@@ -33,6 +33,7 @@
 # include  <cstring>
 # include  <cerrno>
 # include  <climits>
+# include  <algorithm>
 
 using namespace std;
 
@@ -449,9 +450,42 @@ bool vvp_object::cancel_mutation_waiter(vthread_t thread)
       return thread && remove_mutation_waiter_(thread);
 }
 
+/* Nets that observe every touch() of an object. A ref formal bound to a
+   class property or unpacked-struct member (IEEE 1800-2023 13.5.2) has no
+   net of its own to follow; its relay re-reads the bound member on each
+   touch and forwards only a real change to the formal's event probes. */
+static std::map<const vvp_object*, std::vector<vvp_net_t*> > object_touch_relays_;
+
+void vvp_object::add_touch_relay(vvp_net_t*net)
+{
+      if (net)
+            object_touch_relays_[this].push_back(net);
+}
+
+void vvp_object::remove_touch_relay(vvp_net_t*net)
+{
+      auto it = object_touch_relays_.find(this);
+      if (it == object_touch_relays_.end())
+            return;
+      std::vector<vvp_net_t*>&nets = it->second;
+      nets.erase(std::remove(nets.begin(), nets.end(), net), nets.end());
+      if (nets.empty())
+            object_touch_relays_.erase(it);
+}
+
 void vvp_object::touch(unsigned property, unsigned word, unsigned bit)
 {
       mutation_epoch_ += 1;
+
+      if (!object_touch_relays_.empty()) {
+            auto it = object_touch_relays_.find(this);
+            if (it != object_touch_relays_.end()) {
+                  std::vector<vvp_net_t*> relays(it->second);
+                  vvp_object_t self(this);
+                  for (vvp_net_t*net : relays)
+                        vvp_send_object(vvp_net_ptr_t(net, 0), self, 0);
+            }
+      }
 
       // A wait expression may depend on a property of an object reached
       // through another class property (for example `wait(!cfg.in_reset)`).
@@ -509,6 +543,7 @@ void vvp_object::touch(unsigned property, unsigned word, unsigned bit)
 vvp_object::~vvp_object()
 {
       object_signal_aliases_.erase(this);
+      object_touch_relays_.erase(this);
       unregister_live_ptr_(this);
       total_active_cnt_ -= 1;
 }

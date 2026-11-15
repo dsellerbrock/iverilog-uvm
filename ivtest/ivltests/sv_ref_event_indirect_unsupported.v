@@ -4,7 +4,9 @@ class ref_event_property_c;
   logic ready;
 endclass
 
-module sv_ref_event_property_unsupported;
+// IEEE 1800-2023 13.5.2: a class property may be passed by reference and
+// an event control on the formal sees the caller's change (#2993).
+module sv_ref_event_property;
   ref_event_property_c item;
 
   task automatic await_ready(const ref logic ready);
@@ -13,7 +15,7 @@ module sv_ref_event_property_unsupported;
 
   initial begin
     item = new;
-    fork await_ready(item.ready); join_none
+    fork begin await_ready(item.ready); $display("PASSED"); $finish; end join_none
     #1 item.ready = 1;
     #1 $fatal(1, "event-sensitive property ref silently stalled");
   end
