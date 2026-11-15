@@ -2470,7 +2470,7 @@ static PLI_INT32 sys_sformat_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 
   callh = vpi_handle(vpiSysTfCall, 0);
   argv = vpi_iterate(vpiArgument, callh);
-  reg = vpi_scan(argv);
+  reg = strcmp(name, "$sformat") == 0 ? vpi_scan(argv) : 0;
   val.format = vpiStringVal;
   vpi_get_value(vpi_scan(argv), &val);
   fmt = strdup(val.value.str);
@@ -2496,8 +2496,13 @@ static PLI_INT32 sys_sformat_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
   }
 
   val.value.str = result;
-  put_string_output(reg, result, size);
-  if (size != strlen(val.value.str)) {
+  if (reg)
+    put_string_output(reg, result, size);
+  else {
+    val.format = vpiStringVal;
+    vpi_put_value(callh, &val, 0, vpiNoDelay);
+  }
+  if (reg && size != strlen(val.value.str)) {
     vpi_printf("WARNING: %s:%d: %s returned a value with an embedded NULL "
                "(see %%u/%%z).\n", info.filename, info.lineno, name);
   }
@@ -2536,9 +2541,9 @@ static PLI_INT32 sys_sformatf_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
     return 0;
   }
   type = vpi_get(vpiType, arg);
-  if (((type != vpiConstant && type != vpiParameter) ||
-      vpi_get(vpiConstType, arg) != vpiStringConst) &&
-      type != vpiReg && type != vpiStringVar) {
+  if (!is_string_obj(arg) &&
+      !((type == vpiConstant || type == vpiParameter) &&
+        vpi_get(vpiConstType, arg) != vpiRealConst)) {
     vpi_printf("ERROR:%s:%d: ", vpi_get_str(vpiFile, callh),
                (int)vpi_get(vpiLineNo, callh));
     vpi_printf("%s's first argument must be a string or a register.\n", name);
@@ -3340,7 +3345,7 @@ void sys_display_register(void)
       tf_data.type      = vpiSysFunc;
       tf_data.sysfunctype = vpiStringFunc;
       tf_data.tfname    = "$sformatf";
-      tf_data.calltf    = sys_display_calltf;
+      tf_data.calltf    = sys_sformat_calltf;
       tf_data.compiletf = sys_sformatf_compiletf;
       tf_data.sizetf    = 0;
       tf_data.user_data = "$sformatf";
@@ -3353,7 +3358,7 @@ void sys_display_register(void)
       tf_data.type      = vpiSysFunc;
       tf_data.sysfunctype = vpiStringFunc;
       tf_data.tfname    = "$psprintf";
-      tf_data.calltf    = sys_display_calltf;
+      tf_data.calltf    = sys_sformat_calltf;
       tf_data.compiletf = sys_sformatf_compiletf;
       tf_data.sizetf    = 0;
       tf_data.user_data = "$psprintf";

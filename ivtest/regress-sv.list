@@ -6934,3 +6934,5 @@ issue3078_udp_legal_2017 normal,-g2017,-s,top ivltests gold=issue3078_udp_legal.
 issue3078_udp_legal_2023 normal,-g2023,-s,top ivltests gold=issue3078_udp_legal.gold
 issue3381_package_covergroup_2017 normal,-g2017,-s,issue3381_package_covergroup ivltests gold=issue3381_package_covergroup.gold
 issue3381_package_covergroup_2023 normal,-g2023,-s,issue3381_package_covergroup ivltests gold=issue3381_package_covergroup.gold
+issue3469_sformatf_integral_2017 normal,-g2017,-s,issue3469_sformatf_integral ivltests gold=issue3469_sformatf_integral.gold
+issue3469_sformatf_integral_2023 normal,-g2023,-s,issue3469_sformatf_integral ivltests gold=issue3469_sformatf_integral.gold
