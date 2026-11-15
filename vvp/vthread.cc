@@ -8690,6 +8690,8 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 {
 	if (cobj->cov_dyn_resolved()) return cobj->cov_dyn_states();
       std::map<unsigned,covgrp_dyn_state_t> out;
+	// COV_DYN_KEEP records resolve like ordinary ones, into keep_out.
+      std::map<unsigned,covgrp_dyn_state_t> keep_out;
 	std::map<unsigned,covgrp_dyn_trans_state_t> trans_out;
 	bool deferred = false;
       for (size_t ri = 0; ri < defn->covgrp_dyn_bin_count(); ri += 1) {
@@ -8749,7 +8751,8 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 		  } else append(encoded(ln), encoded(hn));
 		  continue;
 	    }
-	    covgrp_dyn_state_t&state = out[rec.family];
+	    covgrp_dyn_state_t&state = (rec.kind & class_type::COV_DYN_KEEP)
+		  ? keep_out[rec.family] : out[rec.family];
 	    if (state.meta
 		&& (state.meta->cp_idx != rec.cp_idx
 		    || state.meta->item_idx != rec.item_idx
@@ -9211,6 +9214,12 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 	      }
 	}
 	cobj->cov_dyn_trans_resolve(trans_out);
+      for (auto&entry : keep_out) {
+	    auto found = out.find(entry.first);
+	    if (found == out.end()) continue;
+	    found->second.has_keep = true;
+	    if (entry.second.valid) found->second.keep = entry.second.ranges;
+      }
 	// Integral open bin arrays are value-keyed (19.5.1): overlapping ranges
 	// and duplicate set elements create one logical bin for that resolved
 	// value. Fixed [N] arrays deliberately retain occurrence order for their
@@ -9478,6 +9487,16 @@ static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
 	      }
 	      uint64_t requested = state.array_size;
       logical_count = covgrp_dyn_logical_count_(state);
+	// A distribute-first `with` filter: a value it rejects hits no bin.
+      if (state.has_keep) {
+	    bool kept = false;
+	    for (const auto&range : state.keep)
+		  if (value >= range.first && value <= range.second) {
+			kept = true;
+			break;
+		  }
+	    if (!kept) return false;
+      }
 
       auto logical_index = [&](unsigned __int128 ordinal) -> uint64_t {
 	    if (requested == ~(uint64_t)0) return 0;

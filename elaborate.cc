@@ -53376,9 +53376,19 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // an implementation guard on the number of counters,
 				        // not on the number of values represented by them.
 				      static const uint64_t array_bin_limit = 65536;
+					// A distribute-first `with` filter is applied
+					// after distribution: its kept values become
+					// KEEP ranges of the family (#3378).
+				      bool keep_filter = bin.with_expr && cg_distribute_first;
+				      std::vector<std::pair<uint64_t,uint64_t>> keep;
+				      bool keep_ok = !keep_filter;
+				      if (keep_filter && nbins > array_bin_limit) {
+					    keep = rr;
+					    keep_ok = apply_range_filter(bin.with_expr, keep,
+						  cp_value_width, cp_value_signed) == 1;
+				      }
 				      if (nbins > array_bin_limit && bin.array_size
-					  && !bin.wildcard
-					  && !(bin.with_expr && cg_distribute_first)) {
+					  && !bin.wildcard && keep_ok) {
 					      // 19.5.1 sets no limit on the number of
 					      // bins. A larger fixed-size array becomes a
 					      // value family of NBINS bins, distributed by
@@ -53394,6 +53404,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    for (auto&range : rr)
 						  cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
 							kindval, family, (uint64_t)nbins,
+							bin.name.str(), endpoint(range.first),
+							endpoint(range.second), cp_value_width,
+							cp_value_signed, bin_guard);
+					    for (auto&range : keep)
+						  cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
+							kindval | 8192u, family, (uint64_t)nbins,
 							bin.name.str(), endpoint(range.first),
 							endpoint(range.second), cp_value_width,
 							cp_value_signed, bin_guard);

@@ -55,6 +55,10 @@ struct covgrp_dyn_state_t {
 	// spans. The others are no bins; every bin keeps its index.
       bool carved = false;
       std::vector<std::pair<uint64_t,uint64_t>> live;
+	// The values a distribute-first `with` filter keeps (COV_DYN_KEEP);
+	// only these count in their bins.
+      bool has_keep = false;
+      std::vector<std::pair<uint64_t,uint64_t>> keep;
       bool is_auto_bins = false;
       bool is_wide_auto_bins = false;
       bool valid = true;

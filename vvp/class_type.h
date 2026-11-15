@@ -323,6 +323,10 @@ class class_type : public __vpiHandle {
 	// Dynamic-bin kind flag: array_size encodes the per-instance
 	// auto_bin_max property index plus one.
 	static const unsigned COV_DYN_AUTO_BINS = 2048;
+	  // A KEEP range of a fixed-size family (type_option.distribute_first
+	  // with a `with` filter, #3378): values outside the family's keep
+	  // ranges hit no bin, while every bin stays a bin.
+	static const unsigned COV_DYN_KEEP = 8192;
 	struct cov_wide_range_t {
 	    unsigned width = 0;
 	    std::vector<uint64_t> low;
