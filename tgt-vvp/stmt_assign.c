@@ -3368,6 +3368,28 @@ static int show_stmt_assign_concat_darray_(ivl_statement_t net)
       return 0;
 }
 
+/* The r-value of a part-select store into element [mux_word] of the
+   dynamic array or queue VAR: the plain r-value, or for a compound
+   assignment (++, +=, ...) the old part OP r-value (IEEE 1800 11.4.1,
+   11.4.2): load the element, select the part, apply the operation. */
+static void draw_dar_elem_part_rval_(ivl_statement_t net, ivl_signal_t var,
+				     int mux_word, int flag, ivl_expr_t part,
+				     unsigned lwid)
+{
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      if (ivl_stmt_opcode(net) == 0) {
+	    draw_eval_vec4(rval);
+	    resize_vec4_wid(rval, lwid);
+	    return;
+      }
+      fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
+      fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
+      fprintf(vvp_out, "    %%load/dar/vec4 v%p_0;\n", var);
+      draw_eval_vec4(part);
+      fprintf(vvp_out, "    %%part/u %u;\n", lwid);
+      draw_stmt_assign_vector_rhs(net, lwid);
+}
+
 static int show_stmt_assign_sig_darray(ivl_statement_t net)
 {
       int errors = 0;
@@ -3417,7 +3439,7 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 	   is evaluated into an integer register, so a run-time-variable bit
 	   index works. Non-vector elements or compound assignments fall to
 	   the loud sorry below. */
-      if (part != 0 && ivl_lval_idx(lval) && ivl_stmt_opcode(net) == 0
+      if (part != 0 && ivl_lval_idx(lval)
 	  && (ivl_type_base(element_type) == IVL_VT_BOOL
 	      || ivl_type_base(element_type) == IVL_VT_LOGIC)) {
 	    ivl_expr_t mux = ivl_lval_idx(lval);
@@ -3433,8 +3455,7 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%ix/mov %d, 3;\n", mux_word);
 	    fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
 	    draw_eval_expr_into_integer(part, off_word);
-	    draw_eval_vec4(rval);
-	    resize_vec4_wid(rval, lwid);
+	    draw_dar_elem_part_rval_(net, var, mux_word, flag, part, lwid);
 	    fprintf(vvp_out, "    %%flag_mov 4, %d;\n", flag);
 	    fprintf(vvp_out, "    %%ix/mov 3, %d;\n", mux_word);
 	    fprintf(vvp_out, "    %%store/dar/vec4/off v%p_0, %d, %u;\n",
@@ -4095,7 +4116,7 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 	   vector: q[i][off +: wid] = rhs. Same read-modify-write lowering as
 	   for dynamic arrays (%store/dar/vec4/off operates on the shared
 	   vvp_darray base, which queues subclass). */
-      if (part != 0 && ivl_lval_idx(lval) && ivl_stmt_opcode(net) == 0
+      if (part != 0 && ivl_lval_idx(lval)
 	  && (ivl_type_base(element_type) == IVL_VT_BOOL
 	      || ivl_type_base(element_type) == IVL_VT_LOGIC)) {
 	    ivl_expr_t mux = ivl_lval_idx(lval);
@@ -4111,8 +4132,7 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 	    fprintf(vvp_out, "    %%flag_mov %d, 4;\n", flag);
 	    draw_eval_expr_into_integer(part, off_word);
 	    fprintf(vvp_out, "    %%flag_mov %d, 4;\n", off_flag);
-	    draw_eval_vec4(rval);
-	    resize_vec4_wid(rval, lwid);
+	    draw_dar_elem_part_rval_(net, var, mux_word, flag, part, lwid);
 	    if (ivl_type_base(element_type) == IVL_VT_BOOL)
 		  fprintf(vvp_out, "    %%cast2;\n");
 	    fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d;\n",

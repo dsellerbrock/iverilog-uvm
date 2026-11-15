@@ -88,6 +88,9 @@ class PWire : public PNamedItem {
       bool get_ref_static() const { return is_ref_static_; };
       void set_event_formal(bool value) { is_event_formal_ = value; };
       bool is_event_formal() const { return is_event_formal_; };
+	// True when the declaration seen so far is a plain 1-bit net or
+	// variable: no packed or unpacked range, no integer/atom/user type.
+      bool is_scalar_decl() const;
 
       void set_signed(bool flag);
       bool get_signed() const;

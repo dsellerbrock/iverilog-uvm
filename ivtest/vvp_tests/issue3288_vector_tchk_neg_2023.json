@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3288_vector_tchk_neg.v",
+    "iverilog-args": ["-g2023", "-gspecify", "-gneg-tchk", "-s", "issue3288_vector_tchk_neg"],
+    "gold": "issue3288_vector_tchk_neg"
+}

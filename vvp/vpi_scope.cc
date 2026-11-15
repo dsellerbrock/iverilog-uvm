@@ -618,13 +618,26 @@ char* __vpiStmtNode::vpi_get_str(int code)
 {
       if (code == vpiName && name_ && *name_)
 	    return const_cast<char*>(name_);
+	/* A force or assign statement knows its source from its identity. */
+      if (code == vpiFile)
+	    if (vpiHandle id = vpip_force_conn_identity(this))
+		  return id->vpi_get_str(code);
       return __vpiHandle::vpi_get_str(code);
+}
+
+int __vpiStmtNode::vpi_get(int code)
+{
+      if (code == vpiLineNo)
+	    if (vpiHandle id = vpip_force_conn_identity(this))
+		  return id->vpi_get(code);
+      return __vpiHandle::vpi_get(code);
 }
 
 vpiHandle __vpiStmtNode::vpi_handle(int code)
 {
       if (code == vpiParent) return parent_;
       if (code == vpiScope) return scope_;
+      if (vpiHandle rel = vpip_force_conn_relation(this, code)) return rel;
       return __vpiHandle::vpi_handle(code);
 }
 
@@ -1540,9 +1553,17 @@ class vpiScopeLoop : public __vpiScope {
 };
 
 struct vpiScopeGenerate  : public __vpiScope {
-      inline vpiScopeGenerate(const char*nam, const char*tnam)
-      : __vpiScope(nam,tnam) { }
+      inline vpiScopeGenerate(const char*nam, const char*tnam, bool array_member)
+      : __vpiScope(nam,tnam), array_member_(array_member) { }
       int get_type_code(void) const override { return vpiGenScope; }
+      vpiHandle vpi_handle(int code) override
+      {
+            if (code == vpiIndex && array_member_ && has_module_array_index_)
+                  return &module_array_index_;
+            return __vpiScope::vpi_handle(code);
+      }
+    private:
+      bool array_member_;
 };
 
 struct vpiScopeFork  : public __vpiScope {
@@ -3557,8 +3578,8 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	          scope->set_owns_automatic_context();
       } else if (strcmp(type,"autoforeach.shared") == 0) {
 	    scope = new vpiScopeLoop(name, tname, true, true, vpiForeachStmt);
-      } else if (strcmp(type,"generate") == 0) {
-	    scope = new vpiScopeGenerate(name, tname);
+      } else if (strcmp(type,"generate") == 0 || strcmp(type,"generate.array") == 0) {
+	    scope = new vpiScopeGenerate(name, tname, strcmp(type,"generate.array") == 0);
       } else if (strcmp(type,"package") == 0) {
 	    scope = new vpiScopePackage(name, tname);
       } else if (strcmp(type,"class") == 0) {

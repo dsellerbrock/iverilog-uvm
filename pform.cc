@@ -3695,6 +3695,101 @@ PExpr* pform_select_mtm_expr(PExpr*min, PExpr*typ, PExpr*max)
       return res;
 }
 
+/* UDP table symbols as sets: a level is a mask over the values 0, 1, x
+   (bits 0-2); an edge is a mask over the transitions vw (bit 3*v+w). The
+   lexer folds every (vw) form into one of these letters. */
+static unsigned udp_level_set_(char c)
+{
+      switch (c) {
+	  case '0': return 1;
+	  case '1': return 2;
+	  case 'x': return 4;
+	  case 'b': return 3;
+	  case 'l': return 5;
+	  case 'h': return 6;
+	  case '?': return 7;
+	  default:  return 0;
+      }
+}
+
+static unsigned udp_edge_set_(char c)
+{
+#define T(v,w) (1u << ((v)*3+(w)))
+      switch (c) {
+	  case 'r': return T(0,1);
+	  case 'f': return T(1,0);
+	  case 'p': return T(0,1) | T(0,2) | T(2,1);
+	  case 'n': return T(1,0) | T(1,2) | T(2,0);
+	  case '*': return T(0,1) | T(0,2) | T(1,0) | T(1,2) | T(2,0) | T(2,1);
+	  case 'Q': return T(0,2);
+	  case 'M': return T(1,2);
+	  case 'F': return T(2,0);
+	  case 'R': return T(2,1);
+	  case '_': return T(1,0) | T(2,0);
+	  case '+': return T(0,1) | T(2,1);
+	  case '%': case 'q': return T(0,2) | T(1,2);
+	  case 'P': return T(0,1) | T(0,2);
+	  case 'N': return T(1,0) | T(1,2);
+	  case 'B': return T(2,0) | T(2,1);
+	  default:  return 0;
+      }
+#undef T
+}
+
+/* IEEE 1800-2023 29.3.4: "It shall be illegal to have the same
+   combination of inputs, including edges, specify different output
+   values." Two rows are the same combination only when both are level
+   rows or both have their edge on the same input (a level row and an
+   edge row are resolved by 29.9), and every field overlaps. A '-' output
+   is the current state, compared state by state. An error; a warning
+   under -gcommercial-unsafe. */
+static void udp_check_conflicting_rows_(const PUdp*udp,
+					const struct vlltype&loc)
+{
+      const std::vector<string>&in = udp->tinput;
+      for (size_t i = 0; i < in.size(); i += 1) {
+	    for (size_t j = i + 1; j < in.size(); j += 1) {
+		  if (in[i].size() != in[j].size()) continue;
+		  bool overlap = true;
+		  for (size_t k = 0; overlap && k < in[i].size(); k += 1) {
+			unsigned ei = udp_edge_set_(in[i][k]);
+			unsigned ej = udp_edge_set_(in[j][k]);
+			if ((ei != 0) != (ej != 0))
+			      overlap = false;
+			else if (ei)
+			      overlap = (ei & ej) != 0;
+			else
+			      overlap = (udp_level_set_(in[i][k])
+					 & udp_level_set_(in[j][k])) != 0;
+		  }
+		  if (!overlap) continue;
+		  unsigned states = udp->sequential
+			? udp_level_set_(udp->tcurrent[i])
+			  & udp_level_set_(udp->tcurrent[j])
+			: 1;
+		  bool conflict = false;
+		  for (unsigned v = 0; v < 3 && !conflict; v += 1) {
+			if (!(states & (1u << v))) continue;
+			char state = "01x"[v];
+			char oi = udp->toutput[i] == '-' ? state : udp->toutput[i];
+			char oj = udp->toutput[j] == '-' ? state : udp->toutput[j];
+			conflict = oi != oj;
+		  }
+		  if (!conflict) continue;
+		  cerr << loc << (gn_commercial_unsafe_flag ? ": warning: "
+				  : ": error: ")
+		       << "UDP table rows " << i + 1 << " and " << j + 1
+		       << " of primitive \"" << udp->name_ << "\" give the same "
+		       << "inputs different outputs (IEEE 1800 29.3.4)";
+		  if (gn_commercial_unsafe_flag)
+			cerr << "; nonstandard compatibility behavior";
+		  cerr << "." << endl;
+		  if (!gn_commercial_unsafe_flag)
+			error_count += 1;
+	    }
+      }
+}
+
 static void process_udp_table(PUdp*udp, list<string>*table,
 			      const struct vlltype&loc)
 {
@@ -3764,6 +3859,7 @@ static void process_udp_table(PUdp*udp, list<string>*table,
 	}
       }
 
+      udp_check_conflicting_rows_(udp, loc);
 }
 
 void pform_make_udp(const struct vlltype&loc, perm_string name,
@@ -13828,6 +13924,19 @@ static PExpr* sva_preserve_uarray_operand_(
       return copy;
 }
 
+/* IEEE 1800-2017/2023 16.5.1: const'(x) operands the assertion being
+   lowered read live. Set by sva_wrap_preponed_, read when the checker is
+   assembled (sva_captures_then_observed_). Each pform_make_assertion call,
+   including a nested one for a helper monitor or a composite leaf, counts
+   its own reads (sva_const_reads_scope_t). */
+static unsigned sva_const_live_reads_ = 0;
+struct sva_const_reads_scope_t {
+      unsigned saved;
+      sva_const_reads_scope_t() : saved(sva_const_live_reads_)
+	    { sva_const_live_reads_ = 0; }
+      ~sva_const_reads_scope_t() { sva_const_live_reads_ = saved; }
+};
+
 /*
  * M6B-4 — Preponed sampling for concurrent assertions.
  *
@@ -13892,8 +14001,10 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  && !strcmp(peek_tail_name(cf->path().name).str(),
 			     "$ivl_const_cast")
 		  && cf->get_parms().size() == 1
-		  && cf->get_parms()[0].parm)
+		  && cf->get_parms()[0].parm) {
+		    sva_const_live_reads_ += 1;
 		    return sva_clone_expr_(cf->get_parms()[0].parm);
+	      }
 	}
 
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
@@ -16033,6 +16144,36 @@ static Statement* sva_observed_wait_(const struct vlltype&loc)
       return sva_block_(loc, v);
 }
 
+/* Open a checker clock body: the operand captures `pre', and the wait for
+   Observed. Captures read Preponed shadows, so they normally run first, at
+   the clock wake. A const'(x) capture instead reads the current value of x
+   (16.5.1), which includes the NBA updates of this time step, so a checker
+   with one enters Observed before capturing. */
+static std::vector<Statement*> sva_captures_then_observed_(
+      const struct vlltype&loc, const std::vector<Statement*>&pre)
+{
+      std::vector<Statement*> full;
+      bool observed_first = sva_const_live_reads_ != 0;
+      if (observed_first) full.push_back(sva_observed_wait_(loc));
+      full.insert(full.end(), pre.begin(), pre.end());
+      if (!observed_first) full.push_back(sva_observed_wait_(loc));
+      return full;
+}
+
+/* The multiclock engines hand attempts between clock processes at fixed
+   points around their Observed waits, and their leading clock's captures
+   cannot move past them. Say so when a const'(x) is among those captures,
+   once per assertion, and keep the existing order. */
+static void sva_note_multiclock_const_(const struct vlltype&loc)
+{
+      if (!sva_const_live_reads_) return;
+      sva_const_live_reads_ = 0;
+      cerr << loc << ": sorry: in a multiclock assertion, a const'(x) "
+	   << "operand may read x before the NBA updates of its clock's time "
+	   << "step instead of its current value (IEEE 1800-2023 16.5.1)."
+	   << endl;
+}
+
 static PExpr* sva_deferred_enabled_expr_(const struct vlltype&loc,
 					 unsigned source_id)
 {
@@ -16879,6 +17020,150 @@ void pform_sva_range_delay(const struct vlltype&loc, sva_seq_step_t&step,
       delete hi_expr;
 }
 
+/* IEEE 1800-2023 31.8: a vector terminal is ONE timing check, and "the
+   transition of one or more bits of a vector is considered a single
+   transition of that vector". A plain @(posedge vec) sees only the LSB
+   (9.4.2), so an edge-qualified event on a terminal that is not a declared
+   scalar wakes on any change and tests every bit at once. The previous and
+   current values are kept as 2-state known-1 / known-0 masks, $bits wide so
+   parameter overrides apply; x and z read as neither.
+   Provisional reading (31.8 does not say): a vector transition is a posedge
+   when any bit makes a posedge transition and a negedge when any bit makes
+   a negedge transition, so it can be both. Declared scalars keep the plain
+   edge-event processes below. */
+struct tc_vec_arm_t {
+      bool posedge = false;
+      bool negedge = false;
+      std::vector<PTimingCheck::EdgeType> edges;
+      Statement*body = nullptr;
+};
+
+/* A -gneg-tchk delayed view (tc_view_) is made at elaboration with the
+   width of the signal it delays; size and classify it by that signal. */
+static pform_name_t tc_width_source_(const pform_name_t&name)
+{
+      static const char prefix[] = "_ivl_tcv_";
+      pform_name_t src = name;
+      const char*text = src.front().name.str();
+      if (strncmp(text, prefix, sizeof prefix - 1) == 0)
+	    src.front().name = lex_strings.make(text + sizeof prefix - 1);
+      return src;
+}
+
+static bool tc_needs_vector_edges_(const PTimingCheck::event_t&ev)
+{
+      if (!ev.posedge && !ev.negedge && ev.edges.empty())
+	    return false;
+      if (ev.name.size() != 1 || !ev.name.back().index.empty())
+	    return true;
+      PWire*wire = pform_get_wire_in_scope(
+	    tc_width_source_(ev.name).back().name);
+      return !(wire && wire->is_scalar_decl());
+}
+
+static perm_string tc_make_mask_(const struct vlltype&loc, unsigned inst,
+				 const char*what, const pform_name_t&sig)
+{
+      char buf[64];
+      snprintf(buf, sizeof buf, "_ivl_tc%u_%s", inst, what);
+      perm_string name = lex_strings.make(buf);
+      PWire*wire = pform_makewire(loc, pform_ident_t(name, loc.lexical_pos),
+				  NetNet::REG, nullptr);
+      std::list<named_pexpr_t> args(1);
+      args.front().parm = tc_name_id_(loc, tc_width_source_(sig));
+      PECallFunction*bits = new PECallFunction(lex_strings.make("$bits"), args);
+      FILE_NAME(bits, loc);
+      pform_range_t range;
+      range.first = new PEBinary('-', bits,
+				 new PENumber(new verinum((uint64_t)1, 32)));
+      FILE_NAME(range.first, loc);
+      range.second = new PENumber(new verinum((uint64_t)0, 32));
+      wire->set_range(std::list<pform_range_t>(1, range), SR_NET, false);
+      wire->set_data_type(new vector_type_t(IVL_VT_BOOL, false, nullptr));
+      return name;
+}
+
+/* The bits whose value is V (0, 1, or 2 = x/z) in the ONE/ZERO masks. */
+static PExpr* tc_mask_state_(const struct vlltype&loc, perm_string one,
+			     perm_string zero, int v)
+{
+      if (v == 0) return sva_id_(loc, zero);
+      if (v == 1) return sva_id_(loc, one);
+      PExpr*r = new PEBinary('&', new PEUnary('~', sva_id_(loc, one)),
+			     new PEUnary('~', sva_id_(loc, zero)));
+      FILE_NAME(r, loc);
+      return r;
+}
+
+static void tc_vector_always_(const struct vlltype&loc,
+			      const pform_name_t&sig, PExpr*condition,
+			      const std::vector<tc_vec_arm_t>&arms)
+{
+      unsigned inst = tc_gensym_counter++;
+      perm_string p1 = tc_make_mask_(loc, inst, "p1", sig);
+      perm_string p0 = tc_make_mask_(loc, inst, "p0", sig);
+      perm_string c1 = tc_make_mask_(loc, inst, "c1", sig);
+      perm_string c0 = tc_make_mask_(loc, inst, "c0", sig);
+
+      std::vector<Statement*> stmts;
+      stmts.push_back(new PAssign(sva_id_(loc, c1), tc_name_id_(loc, sig)));
+      stmts.push_back(new PAssign(sva_id_(loc, c0),
+				  new PEUnary('~', tc_name_id_(loc, sig))));
+      for (const tc_vec_arm_t&arm : arms) {
+	    std::vector<std::pair<int,int> > pairs;
+	    if (arm.posedge)
+		  pairs.insert(pairs.end(), {{0,1}, {0,2}, {2,1}});
+	    if (arm.negedge)
+		  pairs.insert(pairs.end(), {{1,0}, {1,2}, {2,0}});
+	    for (PTimingCheck::EdgeType e : arm.edges) {
+		  double a = 0.0, b = 0.0;
+		  tc_edge_vals_(e, a, b);
+		  pairs.push_back({int(a), int(b)});
+	    }
+	    PExpr*mask = nullptr;
+	    for (const auto&pr : pairs) {
+		  PExpr*term = new PEBinary('&',
+			tc_mask_state_(loc, p1, p0, pr.first),
+			tc_mask_state_(loc, c1, c0, pr.second));
+		  FILE_NAME(term, loc);
+		  mask = mask ? new PEBinary('|', mask, term) : term;
+	    }
+	    PExpr*hit = new PEUnary('|', mask);
+	    FILE_NAME(hit, loc);
+	    if (condition) {
+		  PExpr*cond = sva_clone_expr_(condition);
+		  if (cond == 0) {
+			cerr << loc.get_fileline() << ": sorry: this timing "
+			     << "check &&& condition shape is not supported; "
+			     << "the check is dropped." << endl;
+			error_count += 1;
+			return;
+		  }
+		  hit = new PEBLogic('a', hit, tc_condition_(loc, cond));
+	    }
+	    PCondit*gated = new PCondit(hit, arm.body, nullptr);
+	    FILE_NAME(gated, loc);
+	    stmts.push_back(gated);
+      }
+      stmts.push_back(new PAssign(sva_id_(loc, p1), sva_id_(loc, c1)));
+      stmts.push_back(new PAssign(sva_id_(loc, p0), sva_id_(loc, c0)));
+      for (Statement*st : stmts) FILE_NAME(st, loc);
+
+	/* Prime the previous value at time 0, as tc_always_at_ does. */
+      std::vector<Statement*> prime;
+      prime.push_back(new PAssign(sva_id_(loc, p1), tc_name_id_(loc, sig)));
+      prime.push_back(new PAssign(sva_id_(loc, p0),
+				  new PEUnary('~', tc_name_id_(loc, sig))));
+      for (Statement*st : prime) FILE_NAME(st, loc);
+      pform_make_behavior(IVL_PR_INITIAL, sva_block_(loc, prime), nullptr);
+
+      PEEvent*pe = new PEEvent(PEEvent::ANYEDGE, tc_name_id_(loc, sig));
+      PEventStatement*es = new PEventStatement(pe);
+      FILE_NAME(es, loc);
+      es->set_statement(sva_block_(loc, stmts));
+      pform_make_behavior(IVL_PR_ALWAYS, es, nullptr);
+}
+
 /* Build "@(edge sig) if (cond) <body>" as an always process. For an
    edge-descriptor event list (edge [01, 10] sig) the process triggers
    on ANY change of the signal, remembers the previous 3-value-encoded
@@ -16891,6 +17176,16 @@ static void tc_always_at_(const struct vlltype&loc,
 			  const PTimingCheck::event_t&ev,
 			  Statement*body)
 {
+      if (tc_needs_vector_edges_(ev)) {
+	    std::vector<tc_vec_arm_t> arms(1);
+	    arms[0].posedge = ev.posedge;
+	    arms[0].negedge = ev.negedge;
+	    arms[0].edges = ev.edges;
+	    arms[0].body = body;
+	    tc_vector_always_(loc, ev.name, ev.condition.get(), arms);
+	    return;
+      }
+
       if (!ev.edges.empty()) {
 	    unsigned inst = tc_gensym_counter++;
 	    perm_string prev_var = tc_make_real_(loc, inst, "prev", 2.0);
@@ -17774,6 +18069,35 @@ void pform_timing_check_width(const struct vlltype&loc,
       tc_take_limit_refs_(tc_record_(loc, vpiWidth, ev, nullptr,
 				     width_limits, notifier),
 			  {&limit, &threshold});
+      if (tc_needs_vector_edges_(*event)) {
+	      /* One check for the whole vector (31.8), in one process: a
+		 transition that is both edges ends the current pulse (the
+		 check) before it starts the next one (the stamp). */
+	    perm_string last = tc_make_real_(loc, tc_gensym_counter++, "last");
+	    PExpr*cond = new PEBLogic('a',
+		  new PEBComp('G', sva_id_(loc, last), tc_real_(loc, 0.0)),
+		  new PEBComp('<', new PEBinary('-', tc_realtime_(loc),
+						sva_id_(loc, last)), limit));
+	    if (threshold)
+		  cond = new PEBLogic('a', cond,
+			new PEBComp('>', new PEBinary('-', tc_realtime_(loc),
+						      sva_id_(loc, last)),
+				    threshold));
+	    std::vector<tc_vec_arm_t> arms(2);
+	    arms[0].posedge = event->negedge;
+	    arms[0].negedge = event->posedge;
+	    arms[0].body = new PCondit(cond,
+				       tc_violation_(loc, "$width", notifier),
+				       nullptr);
+	    arms[1].posedge = event->posedge;
+	    arms[1].negedge = event->negedge;
+	    arms[1].body = new PAssign(sva_id_(loc, last), tc_realtime_(loc));
+	    FILE_NAME(arms[0].body, loc);
+	    FILE_NAME(arms[1].body, loc);
+	    tc_vector_always_(loc, event->name, event->condition.get(), arms);
+	    delete event;
+	    return;
+      }
       PWidth*check = new PWidth(loc.text, loc.first_line, loc.lexical_pos,
 				 event, limit, threshold,
 				 notifier ? new pform_name_t(*notifier) : nullptr,
@@ -17854,8 +18178,8 @@ static void tc_width_process_at_(const struct vlltype&loc, Design*des,
 void PWidth::elaborate(Design*des, NetScope*scope) const
 {
 	struct vlltype loc = tc_width_location_(*this, file_, lexical_pos_);
-      /* Resolve the packed shape here, after parameter and instance
-	 overrides are known. Each bit gets its own edge event and timestamp. */
+	/* Only a declared scalar reaches here; pform_timing_check_width
+	   synthesizes a vector terminal as one masked check (31.8). */
       PEIdent*signal_id = tc_name_id_(loc, event_->name);
       symbol_search_results signal_search;
       symbol_search(signal_id, des, scope, signal_id->path(),
@@ -17869,95 +18193,48 @@ void PWidth::elaborate(Design*des, NetScope*scope) const
       delete signal_id;
       if (signal == nullptr) return;
 
-      const unsigned width = signal->vector_width();
-      const netranges_t&dims = signal->packed_dims();
-      const bool expand_bits = width > 1 && event_->name.back().index.empty();
-      const unsigned checks = expand_bits ? width : 1;
-      std::vector<std::unique_ptr<PExpr>> limits;
-      std::vector<std::unique_ptr<PExpr>> thresholds;
-      std::vector<std::unique_ptr<PExpr>> conditions;
-      std::vector<std::unique_ptr<PExpr>> opposite_conditions;
-      for (unsigned bit = 0; bit < checks; ++bit) {
-	    std::unique_ptr<PExpr> limit(sva_clone_expr_(limit_.get()));
-	    std::unique_ptr<PExpr> threshold(threshold_
-		  ? sva_clone_expr_(threshold_.get()) : nullptr);
-	    std::unique_ptr<PExpr> condition(event_->condition.get()
-		  ? sva_clone_expr_(event_->condition.get()) : nullptr);
-	    std::unique_ptr<PExpr> opposite_condition(event_->condition.get()
-		  ? sva_clone_expr_(event_->condition.get()) : nullptr);
-	    if (!limit || (threshold_ && !threshold)
-		|| (event_->condition.get() && (!condition || !opposite_condition))) {
-		  cerr << get_fileline() << ": sorry: $width timing-check expression "
-		       << "shape cannot be duplicated for per-bit checks; the check "
-		       << "is dropped." << endl;
-		  des->errors += 1;
-		  return;
-	    }
-	    limits.push_back(std::move(limit));
-	    thresholds.push_back(std::move(threshold));
-	    conditions.push_back(std::move(condition));
-	    opposite_conditions.push_back(std::move(opposite_condition));
+      PExpr*limit = sva_clone_expr_(limit_.get());
+      PExpr*threshold = threshold_ ? sva_clone_expr_(threshold_.get()) : nullptr;
+      PExpr*condition = event_->condition.get()
+	    ? sva_clone_expr_(event_->condition.get()) : nullptr;
+      PExpr*opposite_condition = event_->condition.get()
+	    ? sva_clone_expr_(event_->condition.get()) : nullptr;
+      if (!limit || (threshold_ && !threshold)
+	  || (event_->condition.get() && (!condition || !opposite_condition))) {
+	    cerr << get_fileline() << ": sorry: $width timing-check expression "
+		 << "shape cannot be elaborated; the check is dropped." << endl;
+	    des->errors += 1;
+	    return;
       }
 
-      for (unsigned bit = 0; bit < checks; ++bit) {
-	    pform_name_t bit_name = event_->name;
-	    if (expand_bits) {
-		  unsigned offset = bit;
-		  for (size_t rev = dims.size(); rev > 0; --rev) {
-			const netrange_t&range = dims[rev-1];
-			unsigned dim_offset = offset % range.width();
-			offset /= range.width();
-			long index = range.get_lsb()
-			      + (range.get_msb() < range.get_lsb()
-				 ? -long(dim_offset) : long(dim_offset));
-			index_component_t select;
-			select.sel = index_component_t::SEL_BIT;
-			select.msb = new PENumber(new verinum(static_cast<uint64_t>(index), 32));
-			bit_name.back().index.push_back(select);
-		  }
-	    }
+      NetNet*stamp = tc_width_state_net_(loc, scope, true);
+      NetNet*valid = tc_width_state_net_(loc, scope, false);
+      std::vector<Statement*> record;
+      record.push_back(new PAssign(tc_width_state_id_(loc, stamp),
+				   tc_realtime_(loc)));
+      record.push_back(new PAssign(tc_width_state_id_(loc, valid),
+				   new PENumber(new verinum(verinum::V1, 1))));
+      tc_width_process_at_(loc, des, scope, event_->name, event_->posedge,
+			    condition, sva_block_(loc, record));
 
-	    NetNet*stamp = tc_width_state_net_(loc, scope, true);
-	    NetNet*valid = tc_width_state_net_(loc, scope, false);
-	    PExpr*stamp_id = tc_width_state_id_(loc, stamp);
-	    PExpr*valid_id = tc_width_state_id_(loc, valid);
-	    std::vector<Statement*> record;
-	    record.push_back(new PAssign(stamp_id, tc_realtime_(loc)));
-	    record.push_back(new PAssign(valid_id,
-					 new PENumber(new verinum(verinum::V1, 1))));
-	    tc_width_process_at_(loc, des, scope, bit_name, event_->posedge,
-				  conditions[bit]
-				  ? conditions[bit].release() : nullptr,
-				  sva_block_(loc, record));
-
-	    PTimingCheck::event_t opp;
-	    opp.name = bit_name;
-	    opp.posedge = event_->negedge;
-	    opp.negedge = event_->posedge;
-	    PExpr*valid_check = new PEBComp('E', tc_width_state_id_(loc, valid),
-					    new PENumber(new verinum(verinum::V1, 1)));
-	    PExpr*delta = new PEBinary('-', tc_realtime_(loc),
-				       tc_width_state_id_(loc, stamp));
-	    PExpr*cond = new PEBLogic('a', valid_check,
-				      new PEBComp('<', delta,
-					  limits[bit].release()));
-	    if (thresholds[bit]) {
-		  PExpr*delta2 = new PEBinary('-', tc_realtime_(loc),
-					      tc_width_state_id_(loc, stamp));
-		  cond = new PEBLogic('a', cond,
-				      new PEBComp('>', delta2,
-					  thresholds[bit].release()));
-	    }
-	    PCondit*check = new PCondit(cond,
-					tc_violation_(loc, "$width", notifier_.get(),
-						      record_),
-					nullptr);
-	    FILE_NAME(check, loc);
-	    tc_width_process_at_(loc, des, scope, bit_name, event_->negedge,
-				  opposite_conditions[bit]
-				  ? opposite_conditions[bit].release() : nullptr,
-				  check);
+      PExpr*valid_check = new PEBComp('E', tc_width_state_id_(loc, valid),
+				      new PENumber(new verinum(verinum::V1, 1)));
+      PExpr*delta = new PEBinary('-', tc_realtime_(loc),
+				 tc_width_state_id_(loc, stamp));
+      PExpr*cond = new PEBLogic('a', valid_check,
+				new PEBComp('<', delta, limit));
+      if (threshold) {
+	    PExpr*delta2 = new PEBinary('-', tc_realtime_(loc),
+					tc_width_state_id_(loc, stamp));
+	    cond = new PEBLogic('a', cond, new PEBComp('>', delta2, threshold));
       }
+      PCondit*check = new PCondit(cond,
+				  tc_violation_(loc, "$width", notifier_.get(),
+						record_),
+				  nullptr);
+      FILE_NAME(check, loc);
+      tc_width_process_at_(loc, des, scope, event_->name, event_->negedge,
+			    opposite_condition, check);
 }
 
 void pform_timing_check_timeskew(const struct vlltype&loc,
@@ -22106,8 +22383,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	/* Assemble: pre-captures; enter Observed before consulting run-time
 	   assertion control; disable guard around the checker body; history
 	   updates remain clock state and continue outside the attempt guard. */
-      std::vector<Statement*> full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       full.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_temporal_state()));
       Statement*core = sva_block_(loc, body);
@@ -27032,8 +27308,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	/* Assemble: pre-captures; disable guard clears all slot state
 	   with no reports; history updates outside the guard. */
-      std::vector<Statement*> full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
 	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
@@ -30004,6 +30279,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	   coincident c1 NBA, while for ##0 the enclosing #0 has already made
 	   the coincident blocking request visible. The verdict itself is then
 	   computed in Observed, like every other concurrent assertion. */
+      sva_note_multiclock_const_(loc);
       body2.push_back(sva_observed_wait_(loc));
       body2.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill2,
@@ -30759,6 +31035,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    std::vector<Statement*>agg_loop;
 	    agg_loop.push_back(sva_if_(loc,
 		  sva_logic_(loc, 'a', life_idle, result_idle), await, nullptr));
+	    sva_note_multiclock_const_(loc);
 	    agg_loop.push_back(sva_observed_wait_(loc));
 	    std::vector<Statement*>reset_aggregate;
 	    reset_aggregate.push_back(sva_assoc_delete_(loc, par_pending, nullptr));
@@ -31795,6 +32072,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 					  sva_id_(loc, req_in[d])));
 	    bodyd.push_back(sva_assign_(loc, epoch_snapshot[d],
 					  sva_id_(loc, req_epoch[d])));
+	    sva_note_multiclock_const_(loc);
 	    bodyd.push_back(sva_observed_wait_(loc));
 	    bodyd.push_back(sva_kill_reset_stmt_(
 		  loc, inst, r_kill[d], clear_domaind()));
@@ -34027,8 +34305,7 @@ static bool sva_parameter_repeat_try_assertion_(
 	   process below clears live attempts on the exact-false-to-exact-true
 	   transition, including a pulse that falls again before that process
 	   executes. */
-      std::vector<Statement*> full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       full.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_state()));
       Statement*core = sva_block_(loc, body);
@@ -34525,8 +34802,7 @@ static bool sva_parameter_consequent_repeat_try_assertion_(
       FILE_NAME(next, loc);
       body.push_back(sva_assign_(loc, pipe, next));
 
-      std::vector<Statement*>full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       full.push_back(sva_kill_reset_stmt_(loc, inst, kill, clear()));
       Statement*core = sva_block_(loc, body);
       if (disable) {
@@ -34760,8 +35036,7 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
 					 pass_stmt, fail_action);
       body.push_back(sva_if_(loc, due, verdict, nullptr));
 
-      std::vector<Statement*> full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       Statement*core = sva_block_(loc, body);
       if (disable) {
 	    Statement*clear = sva_assign_(loc, pipe, sva_bit_(loc, 0));
@@ -36517,6 +36792,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 
 	/* The other clock domains: advance their operands, re-evaluate every
 	   node, decide. */
+      if (!m.domains.empty()) sva_note_multiclock_const_(loc);
       for (size_t d = 0 ; d < m.domains.size() ; d += 1) {
 	    sva_nfa_domain_t&dom = m.domains[d];
 	    std::vector<Statement*> dbody = dom.body;
@@ -36526,8 +36802,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 		  dbody.push_back(c);
 	    }
 	    decide(dbody, actions[d + 1], (unsigned)(d + 1));
-	    std::vector<Statement*> dfull = dom.pre;
-	    dfull.push_back(sva_observed_wait_(loc));
+	    std::vector<Statement*> dfull = sva_captures_then_observed_(loc, dom.pre);
 	    Statement*dcore = sva_block_(loc, dbody);
 	    PExpr*ddisable = disable ? sva_clone_expr_(disable) : nullptr;
 	    if (ddisable) {
@@ -36544,8 +36819,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
       for (Statement*st : m.recompute) delete st;
 
-      std::vector<Statement*> full = m.pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, m.pre);
       full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 			     sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
@@ -37313,6 +37587,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       sva_rec_pending_neg_.clear();   /* not inside a declaration */
       pform_generated_verification_scope_t verification_scope;
       sva_assertion_label_scope_t assertion_label_scope(label, kind, proc_id);
+      sva_const_reads_scope_t const_reads_scope;
       if (sva_assertion_label_depth_ == 1)
 	    sva_note_top_instance_(prop);
       sva_clocking_scope_guard_t clocking_scope(prop);
@@ -39584,8 +39859,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 
 	/* Assemble: pre-captures; disable guard around the token
 	   machinery; history updates. */
-      std::vector<Statement*> full = pre;
-      full.push_back(sva_observed_wait_(loc));
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       if (track_failure_age || steps_ok)
 	    full.push_back(sva_clock_stmt_(loc, inst));
 	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),

@@ -660,6 +660,7 @@ ivl_scope_dpi_context
 ivl_scope_dpi_cstr
 ivl_scope_is_dpi_export
 ivl_scope_dpi_export_c_name
+ivl_scope_generate_array_member
 ivl_scope_is_virtual_method
 
 ivl_udp_init

@@ -397,8 +397,8 @@ after a \fB\-Wall\fP argument to suppress isolated warning types.
 .TP 8
 .B all
 This enables the anachronisms, implicit, macro-replacement, portbind,
-select\-range, timescale, and sensitivity\-entire\-array warning
-categories.
+select\-range, timescale, sensitivity\-entire\-array, and
+net\-data\-type warning categories.
 
 .TP 8
 .B anachronisms
@@ -468,6 +468,14 @@ statement results in the entire array being added to the implicit
 sensitivity list. Although this behaviour is prescribed by the IEEE
 standard, it is not what might be expected and can have performance
 implications if the array is large.
+
+.TP 8
+.B net-data-type
+This enables warnings for a net, including an input port that defaults
+to a net, declared with a 2-state data type such as \fBbit\fP or
+\fBint\fP. IEEE 1800 6.7.1 requires a 4-state net type; Icarus accepts
+2-state nets as an extension. Variables (for example \fBinput var bit\fP)
+are not nets and are not reported.
 
 .SH "VPI MODULES"
 If the source file name has a \fB.vpi\fP or \fB.vpl\fP suffix, then it
