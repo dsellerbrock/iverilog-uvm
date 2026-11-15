@@ -33,6 +33,7 @@
 # include  <cstring>
 # include  <cerrno>
 # include  <climits>
+# include  <algorithm>
 
 using namespace std;
 
@@ -385,6 +386,79 @@ static bool remove_mutation_waiter_(vthread_t thread)
 }
 
 /*
+ * The identification values of objects, for weak references. Neither map
+ * holds a reference: the destructor takes the object out.
+ */
+struct weak_entry_t {
+      uint64_t id;
+      bool weak;
+};
+static std::map<const vvp_object*, weak_entry_t> weak_ids_;
+static std::map<uint64_t, vvp_object*> weak_objects_;
+static uint64_t weak_next_id_ = 0;
+bool vvp_object::weak_in_use_ = false;
+
+uint64_t vvp_object::weak_id(vvp_object*obj, bool weak)
+{
+      if (obj == 0)
+	    return 0;
+      std::map<const vvp_object*, weak_entry_t>::iterator cur = weak_ids_.find(obj);
+      if (cur == weak_ids_.end()) {
+	    weak_entry_t ent = { ++weak_next_id_, false };
+	    cur = weak_ids_.insert(std::make_pair(obj, ent)).first;
+	    weak_objects_[ent.id] = obj;
+      }
+      if (weak)
+	    cur->second.weak = true;
+      return cur->second.id;
+}
+
+vvp_object* vvp_object::weak_deref(uint64_t id)
+{
+      std::map<uint64_t, vvp_object*>::const_iterator cur = weak_objects_.find(id);
+      return cur == weak_objects_.end() ? 0 : cur->second;
+}
+
+/*
+ * An object is being destroyed: forget its identification value, which
+ * clears every weak reference to it at once. If it was weakly referenced,
+ * a thread may be in wait (w.get() == null), so wake the object waits.
+ */
+static void weak_object_died_(const vvp_object*obj)
+{
+      std::map<const vvp_object*, weak_entry_t>::iterator cur = weak_ids_.find(obj);
+      if (cur == weak_ids_.end())
+	    return;
+      bool weak = cur->second.weak;
+      weak_objects_.erase(cur->second.id);
+      weak_ids_.erase(cur);
+      if (!weak || thread_mutation_objects_.empty())
+	    return;
+
+	// ponytail: wakes every thread in an object wait, which re-evaluates
+	// its condition; keep waiter lists per weak reference if this ever
+	// shows in a profile.
+      std::set<vthread_t> waiters;
+      for (std::map<vthread_t,
+		    std::map<object_mutation_key_t, vvp_object_t> >::const_iterator
+		 item = thread_mutation_objects_.begin();
+	   item != thread_mutation_objects_.end(); ++item)
+	    waiters.insert(item->first);
+      for (std::set<vthread_t>::const_iterator item = waiters.begin();
+	   item != waiters.end(); ++item)
+	    vthread_pin(*item);
+      std::vector<vthread_t> ordered = vthread_in_wait_order(waiters);
+      for (std::vector<vthread_t>::const_iterator item = ordered.begin();
+	   item != ordered.end(); ++item) {
+	    if (remove_mutation_waiter_(*item))
+		  vthread_schedule_mutation_waiter(*item);
+      }
+      for (std::set<vthread_t>::const_iterator item = waiters.begin();
+	   item != waiters.end(); ++item)
+	    vthread_unpin(*item);
+}
+
+/*
  * Handle copies check liveness constantly, so keep a direct-mapped cache
  * in front of live_vvp_objects_. A slot holds a pointer only while that
  * pointer is registered: it is filled on registration or a successful
@@ -449,9 +523,42 @@ bool vvp_object::cancel_mutation_waiter(vthread_t thread)
       return thread && remove_mutation_waiter_(thread);
 }
 
+/* Nets that observe every touch() of an object. A ref formal bound to a
+   class property or unpacked-struct member (IEEE 1800-2023 13.5.2) has no
+   net of its own to follow; its relay re-reads the bound member on each
+   touch and forwards only a real change to the formal's event probes. */
+static std::map<const vvp_object*, std::vector<vvp_net_t*> > object_touch_relays_;
+
+void vvp_object::add_touch_relay(vvp_net_t*net)
+{
+      if (net)
+            object_touch_relays_[this].push_back(net);
+}
+
+void vvp_object::remove_touch_relay(vvp_net_t*net)
+{
+      auto it = object_touch_relays_.find(this);
+      if (it == object_touch_relays_.end())
+            return;
+      std::vector<vvp_net_t*>&nets = it->second;
+      nets.erase(std::remove(nets.begin(), nets.end(), net), nets.end());
+      if (nets.empty())
+            object_touch_relays_.erase(it);
+}
+
 void vvp_object::touch(unsigned property, unsigned word, unsigned bit)
 {
       mutation_epoch_ += 1;
+
+      if (!object_touch_relays_.empty()) {
+            auto it = object_touch_relays_.find(this);
+            if (it != object_touch_relays_.end()) {
+                  std::vector<vvp_net_t*> relays(it->second);
+                  vvp_object_t self(this);
+                  for (vvp_net_t*net : relays)
+                        vvp_send_object(vvp_net_ptr_t(net, 0), self, 0);
+            }
+      }
 
       // A wait expression may depend on a property of an object reached
       // through another class property (for example `wait(!cfg.in_reset)`).
@@ -508,7 +615,10 @@ void vvp_object::touch(unsigned property, unsigned word, unsigned bit)
 
 vvp_object::~vvp_object()
 {
+      if (!weak_ids_.empty())
+	    weak_object_died_(this);
       object_signal_aliases_.erase(this);
+      object_touch_relays_.erase(this);
       unregister_live_ptr_(this);
       total_active_cnt_ -= 1;
 }

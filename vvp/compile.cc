@@ -947,6 +947,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%wait/vif/negedge/i",of_WAIT_VIF_NEGEDGE_I,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
       { "%wait/vif/posedge",of_WAIT_VIF_POSEDGE,1,{OA_NUMBER,OA_NONE, OA_NONE} },
       { "%wait/vif/posedge/i",of_WAIT_VIF_POSEDGE_I,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
+      { "%weak/deref",of_WEAK_DEREF,0,{OA_NONE,  OA_NONE,     OA_NONE} },
+      { "%weak/id", of_WEAK_ID, 1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },
       { "%xnor",   of_XNOR,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%xnor/r", of_XNORR,  0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%xor",    of_XOR,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
@@ -3259,6 +3261,10 @@ void compile_code(char*label, char*mnem, comp_operands_t opa)
       }
 
       assert(op);
+
+	/* The program has weak references (see vvp_object::weak_in_use). */
+      if (op->opcode == &of_WEAK_ID)
+	    vvp_object::weak_enable();
 
 	/* Build up the code from the information about the opcode and
 	   the information from the compiler. */

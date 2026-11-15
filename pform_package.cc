@@ -47,8 +47,49 @@ static PPackage*pform_cur_package = 0;
 /* The standard built-in package is not parsed from source, but its class
  * types need a package scope so std::type references remain distinct from
  * names shadowed in the user's lexical scope. */
-PPackage* pform_builtin_std_package()
+/* The user's source named the std package (std::..., package std). */
+static bool builtin_std_referenced_ = false;
+
+PPackage* pform_peek_builtin_std_package()
 {
+      map<perm_string,PPackage*>::const_iterator found =
+            packages_by_name.find(perm_string::literal("std"));
+      return found == packages_by_name.end() ? 0 : found->second;
+}
+
+void pform_drop_unused_builtin_std(bool classes_used)
+{
+      const perm_string package_name = perm_string::literal("std");
+      map<perm_string,PPackage*>::iterator found =
+            packages_by_name.find(package_name);
+      if (classes_used || found == packages_by_name.end())
+            return;
+
+      PPackage*std_pkg = found->second;
+      for (map<perm_string,PClass*>::iterator cur = std_pkg->classes.begin()
+                 ; cur != std_pkg->classes.end() ; ++ cur) {
+            std_pkg->typedefs.erase(cur->first);
+            std_pkg->local_symbols.erase(cur->first);
+      }
+      std_pkg->classes.clear();
+      std_pkg->classes_lexical.clear();
+
+      if (builtin_std_referenced_)
+            return;
+      packages_by_name.erase(found);
+      for (vector<PPackage*>::iterator cur = pform_packages.begin()
+                 ; cur != pform_packages.end() ; ++ cur) {
+            if (*cur == std_pkg) {
+                  pform_packages.erase(cur);
+                  break;
+            }
+      }
+}
+
+PPackage* pform_builtin_std_package(bool reference)
+{
+      if (reference)
+            builtin_std_referenced_ = true;
       const perm_string package_name = perm_string::literal("std");
       map<perm_string,PPackage*>::const_iterator found =
             packages_by_name.find(package_name);
@@ -328,8 +369,13 @@ typedef_t* pform_test_type_identifier(PPackage*pkg, const char*txt)
       LexicalScope::typedef_map_t::const_iterator cur;
 
       cur = pkg->typedefs.find(use_name);
-      if (cur != pkg->typedefs.end())
+      if (cur != pkg->typedefs.end()) {
+	      /* A std:: name that is a class written in SystemVerilog. */
+	    if (pkg->classes.find(use_name) != pkg->classes.end()
+		&& pkg->pscope_name() == perm_string::literal("std"))
+		  pform_builtin_std_used();
 	    return cur->second;
+      }
 
       return 0;
 }

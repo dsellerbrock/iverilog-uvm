@@ -445,7 +445,18 @@ extern typedef_t* pform_test_type_identifier(PPackage*pkg, const char*txt);
  * the lexor here because the parser detects packages and saves them.
  */
 extern PPackage* pform_test_package_identifier(const char*txt);
-extern PPackage* pform_builtin_std_package();
+/* REFERENCE is false when the compiler itself needs the package (to hold
+   the std classes written in SystemVerilog), not the user's source. */
+extern PPackage* pform_builtin_std_package(bool reference = true);
+/* The std package if it exists now, else nil. Never creates it. */
+extern PPackage* pform_peek_builtin_std_package();
+/* The source named a std class that is written in SystemVerilog. */
+extern void pform_builtin_std_used();
+/* After parsing a file: take the std classes out again when no source has
+   named one so far (CLASSES_USED false), and the package itself when no
+   source named it either, so such a design elaborates as it did without
+   them. pform_parse() puts them back before the next file. */
+extern void pform_drop_unused_builtin_std(bool classes_used);
 extern PPackage* pform_test_active_package_identifier(const char*txt);
 
 /*

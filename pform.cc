@@ -1851,6 +1851,19 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
       return found_type;
 }
 
+/* Set when the user's source names a class of the std package that is
+   written in SystemVerilog (see builtin_std_source_). Such a class is
+   parsed before each source file, because the lexer has to know its name
+   is a type; pform_parse() takes it out again after the file if nothing
+   has used it, so a design that does not mention it is elaborated as
+   before. */
+static bool builtin_std_used_ = false;
+
+void pform_builtin_std_used()
+{
+      builtin_std_used_ = true;
+}
+
 typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 {
       static const bool trace_types = getenv("IVL_TRACE_TYPES") != 0;
@@ -1955,6 +1968,20 @@ typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 
       if (typedef_t*td = pform_find_interface_typedef(name))
 	    return td;
+
+	/* The classes of the std package are visible everywhere without an
+	   import, after everything the user declared, so user code may
+	   reuse their names (IEEE 1800-2023 8.30.1, 26.7). */
+      if (generation_flag >= GN_VER2023) {
+	    PPackage*std_pkg = pform_peek_builtin_std_package();
+	    if (std_pkg) {
+		  LexicalScope::typedef_map_t::iterator cur = std_pkg->typedefs.find(name);
+		  if (cur != std_pkg->typedefs.end()) {
+			builtin_std_used_ = true;
+			return cur->second;
+		  }
+	    }
+      }
 
       return 0;
 }
@@ -14042,6 +14069,10 @@ struct pform_procedural_sampling_context_t {
 
 static pform_procedural_sampling_context_t* pform_procedural_sampling_context_ = nullptr;
 
+/* The variables used in the event control of the checker always_ff
+   procedure being lowered (17.5): they are read live, not sampled. */
+static const std::set<perm_string>* checker_ff_event_names_ = nullptr;
+
 class pform_procedural_sampling_context_guard_t {
     public:
       explicit pform_procedural_sampling_context_guard_t(
@@ -14287,6 +14318,54 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		as a concurrent-assertion operand must itself have #1step
 		sampling. Numeric input skews (including #0) cannot be
 		reinterpreted as the assertion's Preponed sample. */
+	      /* The same rule for `inst.cb.sig', a clocking block of an
+		 interface instance named hierarchically: sample the raw
+		 `inst.sig' with the #1step Preponed mechanism. */
+	    if (!id->path().package && id->path().name.size() >= 3
+		&& !pform_cur_module.empty() && !pform_procedural_sampling_context_) {
+		  const pform_name_t&path = id->path().name;
+		  pform_name_t::const_iterator cb_name = path.begin(); ++cb_name;
+		  pform_name_t::const_iterator signal = cb_name; ++signal;
+		  const Module*iface = nullptr;
+		  if (path.front().index.empty() && cb_name->index.empty())
+			for (const PGate*gate : pform_cur_module.front()->get_gates()) {
+			      const PGModule*inst = dynamic_cast<const PGModule*>(gate);
+			      if (!inst || inst->get_name() != path.front().name)
+				    continue;
+			      auto def = pform_modules.find(inst->get_type());
+			      if (def != pform_modules.end() && def->second->is_interface)
+				    iface = def->second;
+			      break;
+			}
+		  auto cb_it = iface ? iface->clocking_blocks.find(cb_name->name)
+				     : std::map<perm_string,Module::PClocking*>::const_iterator();
+		  const Module::PClocking*cb = iface
+			&& cb_it != iface->clocking_blocks.end() ? cb_it->second : nullptr;
+		  PExpr*skew_delay = nullptr;
+		  if (cb && std::find(cb->signals.begin(), cb->signals.end(),
+				      signal->name) != cb->signals.end()
+		      && (cb->signal_direction(signal->name) == NetNet::PINPUT
+			  || cb->signal_direction(signal->name) == NetNet::PINOUT)
+		      && !cb->decl_assigns.count(signal->name)) {
+			if (cb->input_skew(signal->name, skew_delay)
+			    == Module::PClocking::SKEW_DELAY) {
+			      cerr << id->get_fileline() << ": error: clocking-block input `"
+				   << path.front().name << "." << cb->name << "."
+				   << signal->name << "' used in a concurrent assertion "
+				   << "must be sampled with #1step (IEEE 1800-2017/2023 "
+				   << "16.5.1)." << endl;
+			      error_count += 1;
+			      return nullptr;
+			}
+			pform_name_t raw_path;
+			raw_path.push_back(path.front());
+			raw_path.insert(raw_path.end(), signal, path.end());
+			PEIdent raw_id(raw_path, id->lexical_pos());
+			raw_id.set_line(*id);
+			return sva_wrap_preponed_(&raw_id, sampled,
+						  live_operands, unsampled_locals);
+		  }
+	    }
 	    if (!id->path().package && id->path().name.size() >= 2
 		&& !pform_cur_module.empty()) {
 		  const pform_name_t&path = id->path().name;
@@ -14396,6 +14475,22 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		 corresponding slot register after the rest of the expression has
 		 been Preponed-wrapped. Sampling the local itself would read the
 		 register's value from before a same-tick sequence match assignment. */
+	      /* IEEE 1800-2017/2023 17.5: "Except for the variables used in
+		 the event control, all other expressions in always_ff
+		 procedures are sampled." A variable of the checker always_ff
+		 event control keeps its current value; its selects are
+		 ordinary operands. */
+	    if (checker_ff_event_names_ && !id->path().package
+		&& checker_ff_event_names_->count(id->path().name.front().name)) {
+		  pform_name_t path = id->path().name;
+		  if (!sva_wrap_name_indices_(id->path().name, path, sampled,
+					      live_operands, unsampled_locals))
+			return nullptr;
+		  PEIdent*cp = new PEIdent(path, id->lexical_pos());
+		  cp->reloc_lexical_pos_bind(false);
+		  cp->set_line(*e);
+		  return cp;
+	    }
 	    if (unsampled_locals && !id->path().package
 		&& id->path().name.size() == 1
 		&& id->path().name.front().index.empty()
@@ -20223,11 +20318,24 @@ static void pform_bind_checker_ff_sampled_(ivl_process_type_t type,
       PEventStatement*ev = dynamic_cast<PEventStatement*>(st);
       if (!ev || !ev->statement()) return;
 
+	/* The variables the event control uses keep their current values.
+	   refs_name answers true for an expression kind it cannot search,
+	   which only leaves more names live. */
+      std::set<perm_string> event_names;
+      const std::vector<PEEvent*>&events = ev->event_expressions();
+      for (const auto&wire : pform_cur_module.front()->wires)
+	    for (size_t idx = 0; idx < events.size(); idx += 1)
+		  if (events[idx] && events[idx]->expr()
+		      && events[idx]->expr()->refs_name(wire.first))
+			event_names.insert(wire.first);
+
       std::map<std::string,pform_name_t> sampled;
       std::vector<Statement*> init;
       unsigned live_operands = 0;
+      checker_ff_event_names_ = &event_names;
       bool ok = pform_sample_checker_ff_stmt_(ev->statement(), sampled,
 						      live_operands);
+      checker_ff_event_names_ = nullptr;
       if (!ok || live_operands != 0) {
 	    cerr << st->get_fileline() << ": error: checker always_ff "
 		 << "expression could not be lowered with IEEE 1800-2017 "
@@ -40373,6 +40481,66 @@ void pform_check_net_data_type(const struct vlltype&loc, NetNet::Type net_type,
 
 FILE*vl_input = 0;
 extern void reset_lexor();
+extern void lexor_scan_builtin(const char*text);
+
+/*
+ * Classes of the built-in std package that are plain SystemVerilog.
+ *
+ * weak_reference (IEEE 1800-2023 8.30) keeps the identification value of
+ * its referent, not a handle, so it does not keep the referent alive.
+ * $ivl_weak$id gives the identification value of an object (and, with a
+ * second argument of 1, marks the object as weakly referenced);
+ * $ivl_weak$deref gives the object back, or null once it was reclaimed.
+ */
+static const char builtin_std_source_[] =
+"class weak_reference #(type T);\n"
+"   local longint id_;\n"
+"   function new(T referent); id_ = $ivl_weak$id(referent, 1); endfunction\n"
+"   function T get(); return $ivl_weak$deref(id_); endfunction\n"
+"   function void clear(); id_ = 0; endfunction\n"
+"   static function longint get_id(T obj); return $ivl_weak$id(obj, 0); endfunction\n"
+"endclass\n";
+
+/* Parse the classes above into the std package before a source file,
+   unless they are still there from an earlier file. This is per file
+   because library files (-y) are parsed long after the others. The
+   classes exist from 1800-2023 on. */
+static void pform_parse_builtin_std_()
+{
+      if (generation_flag < GN_VER2023)
+	    return;
+      if (PPackage*std_pkg = pform_peek_builtin_std_package()) {
+	    if (!std_pkg->classes.empty())
+		  return;
+      }
+
+      LexicalScope*save_scope = lexical_scope;
+      std::string save_file = vl_file;
+	/* Closing the class scope ends the window in which a scope may
+	   declare its first timeunit/timeprecision. That window belongs
+	   to the user's compilation unit, which has not started. */
+      bool save_timeunit = allow_timeunit_decl;
+      bool save_timeprec = allow_timeprec_decl;
+      lexical_scope = pform_builtin_std_package(false);
+      vl_file = "<std>";
+
+      reset_parser_file_state();
+      error_count = 0;
+      lexor_scan_builtin(builtin_std_source_);
+      int rc = VLparse();
+      lexor_scan_builtin(0);
+      destroy_lexor();
+      if (rc != 0 || error_count != 0) {
+	    cerr << "internal error: the built-in std package does not parse."
+		 << endl;
+	    exit(1);
+      }
+
+      vl_file = save_file;
+      lexical_scope = save_scope;
+      allow_timeunit_decl = save_timeunit;
+      allow_timeprec_decl = save_timeprec;
+}
 
 int pform_parse(const char*path)
 {
@@ -40439,12 +40607,18 @@ int pform_parse(const char*path)
 
 	    lexical_scope = unit;
       }
+      pform_parse_builtin_std_();
+
       reset_parser_file_state();
       reset_lexor();
       error_count = 0;
       warn_count = 0;
       if (getenv("IVL_PARSE_TRACE")) VLdebug = 1;
       int rc = VLparse();
+
+	// The std classes written in SystemVerilog leave again when no
+	// source has named one so far.
+      pform_drop_unused_builtin_std(builtin_std_used_);
 
         /* Also release the incomplete declaration immediately: this covers
            a final input file and keeps ownership independent of whether a

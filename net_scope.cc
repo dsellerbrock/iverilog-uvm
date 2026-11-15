@@ -1407,6 +1407,16 @@ netclass_t*NetScope::find_class(const Design*des, perm_string name)
 	    return res;
       }
 
+	// The classes of the std package are visible everywhere without an
+	// import, after everything else (IEEE 1800-2023 8.30.1, 26.7).
+      if (NetScope*std_scope = des->find_package(perm_string::literal("std"))) {
+	    if (std_scope != this) {
+		  netclass_t*res = std_scope->find_class(des, name);
+		  class_search_cache_[name] = res;
+		  return res;
+	    }
+      }
+
 	// Nowhere left to try...
       class_search_cache_[name] = 0;
       return 0;

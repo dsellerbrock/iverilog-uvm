@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2993_ref_member_event.v",
+  "iverilog-args": ["-g2023", "-s", "issue2993_ref_member_event"],
+  "output-contains": ["PASSED"]
+}
