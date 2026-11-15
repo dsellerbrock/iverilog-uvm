@@ -1764,7 +1764,7 @@ static typedef_t* pform_find_interface_typedef(perm_string name)
       return td;
 }
 
-static typedef_t* pform_bind_visible_class_typedef(const struct vlltype&loc,
+typedef_t* pform_bind_visible_class_typedef(const struct vlltype&loc,
                                                    perm_string name,
                                                    PClass*class_scope)
 {
