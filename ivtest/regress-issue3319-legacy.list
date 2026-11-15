@@ -1,0 +1,2 @@
+issue3319_array_pattern_2017 normal,-g2017,-s,top ivltests gold=issue3319_array_pattern.gold
+issue3319_array_pattern_2023 normal,-g2023,-s,top ivltests gold=issue3319_array_pattern.gold
