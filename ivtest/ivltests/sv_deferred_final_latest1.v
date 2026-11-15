@@ -22,12 +22,14 @@ module t;
   endtask
 
   initial begin
-    // One pending result per source and logical process: the latest arm wins.
+    // IEEE 1800-2023 16.4.1: every execution queues its own report; no flush
+    // point (16.4.2) occurs between these calls, so all of them mature.
     latest(0);
     latest(1);
     latest(0);
 
-    // A later omitted/null action cancels an earlier reporting arm.
+    // A later execution with an omitted/null action does not cancel an
+    // earlier report.
     cancel_fail(0);
     cancel_fail(1);
     cancel_pass(1);
@@ -38,7 +40,7 @@ module t;
     latest(1);
 
     #1;
-    // Replacing FIRST retains its first-pin position ahead of SECOND.
+    // Reports mature in execution order: FIRST, SECOND, FIRST.
     first_source(1);
     second_source();
     first_source(0);
