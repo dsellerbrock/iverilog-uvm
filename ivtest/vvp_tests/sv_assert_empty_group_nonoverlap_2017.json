@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sv_assert_empty_group_nonoverlap_2017.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_assert_empty_group_nonoverlap_2017"
+}

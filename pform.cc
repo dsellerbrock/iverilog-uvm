@@ -38017,6 +38017,32 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					       pass_stmt, kind))
 	    return;
 
+	/* A grouped antecedent can have only an empty match even though its
+	   retained source steps look like a fixed linear chain. Prove that
+	   there are no consuming paths before reducing the implication to its
+	   consequent, which starts on this tick (16.12.7). */
+      if (prop && prop->op_type == 2 && !prop->tree && !prop->ante_tree
+	  && !prop->seq_clk_evt && !prop->mc_prefix
+	  && (!prop->mc_more || prop->mc_more->empty())
+	  && prop->mc_boundary == -1 && !prop->abort_cond
+	  && !prop->forbidden_consequent && prop->strength == 0
+	  && prop->win_lo == -1 && prop->win_hi == -1 && prop->antecedent
+	  && prop->seq && !prop->seq->empty()) {
+	    bool grouped = false, actions = false;
+	    for (const sva_seq_step_t&step : *prop->antecedent) {
+		  grouped |= step.grouped_repeat;
+		  actions |= sva_step_has_assignment_(step) || sva_step_has_call_(step);
+	    }
+	    sva_nfa_t ante;
+	    if (grouped && !actions
+		&& pform_sva_nfa_build_from_chain(ante, *prop->antecedent)
+		&& ante.accepts_empty && ante.edges.empty()) {
+		  pform_sva_destroy_sequence(prop->antecedent);
+		  prop->antecedent = nullptr;
+		  prop->op_type = 0;
+	    }
+      }
+
 	/* IEEE 1800-2017/2023 16.12.22(c) permits an antecedent that
 	   admits only empty matches for |=>. Its sole match contributes no
 	   sampled tick, so this implication is exactly the consequent delayed
