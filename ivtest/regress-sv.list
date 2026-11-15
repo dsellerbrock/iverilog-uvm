@@ -6920,3 +6920,5 @@ issue3321_vector_bit_strength_2017 normal,-g2017,-s,top ivltests gold=issue3321_
 issue3321_vector_bit_strength_2023 normal,-g2023,-s,top ivltests gold=issue3321_vector_bit_strength.gold
 issue3330_udp_strength_2017 normal,-g2017,-s,top ivltests gold=issue3330_udp_strength.gold
 issue3330_udp_strength_2023 normal,-g2023,-s,top ivltests gold=issue3330_udp_strength.gold
+issue3358_static_return_2017 normal,-g2017,-s,test ivltests gold=issue3358_static_return.gold
+issue3358_static_return_2023 normal,-g2023,-s,test ivltests gold=issue3358_static_return.gold

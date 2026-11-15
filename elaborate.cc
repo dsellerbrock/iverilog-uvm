@@ -39908,10 +39908,10 @@ static bool constraint_pure_expr_(const NetExpr*,
 
 /* A nonautomatic function is legal in a constraint only when it preserves no
  * state information. Keep the initial proof deliberately narrow: accept the
- * ordinary lowering of one unconditional assignment to the return variable,
- * optionally followed by its internal return-disable. More complex definite-
- * assignment control flow can be added without ever accepting a fallthrough
- * that reuses the return variable's value from an earlier invocation. */
+ * ordinary lowering of an unconditional assignment to the return variable,
+ * optionally followed by its internal return-disable, and conditionals whose
+ * two branches both meet that requirement. Never accept a fallthrough that
+ * reuses the return variable's value from an earlier invocation. */
 static bool constraint_static_return_definite_(const NetProc*proc,
 					       const NetNet*result)
 {
@@ -39927,6 +39927,9 @@ static bool constraint_static_return_definite_(const NetProc*proc,
 		&& lval->stream_range() == IVL_STREAM_RANGE_NONE
 		&& lval->lwidth() == result->vector_width();
       }
+      if (const NetCondit*cond = dynamic_cast<const NetCondit*>(proc))
+	    return constraint_static_return_definite_(cond->if_clause(), result)
+		&& constraint_static_return_definite_(cond->else_clause(), result);
       const NetBlock*block = dynamic_cast<const NetBlock*>(proc);
       if (!block || block->type() != NetBlock::SEQU) return false;
       bool assigned = false;
