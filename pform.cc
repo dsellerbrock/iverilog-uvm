@@ -4370,7 +4370,8 @@ static void pform_make_modgate(perm_string type,
 			       list<pform_range_t>*ranges,
 			       const LineInfo&li,
 			       std::list<named_pexpr_t>*attr,
-			       bool no_port_list)
+			       bool no_port_list,
+			       const struct str_pair_t*strength = 0)
 {
       for (list<PExpr*>::iterator idx = wires->begin()
 		 ; idx != wires->end() ; ++idx) {
@@ -4378,6 +4379,11 @@ static void pform_make_modgate(perm_string type,
       }
 
       PGModule*cur = new PGModule(type, name, wires);
+      if (strength) {
+	    cur->strength0(strength->str0);
+	    cur->strength1(strength->str1);
+	    cur->mark_drive_strength();
+      }
       if (no_port_list) cur->mark_no_port_list();
       cur->set_line(li);
       cur->set_ranges(ranges);
@@ -4412,7 +4418,8 @@ static void pform_make_modgate(perm_string type,
 			       list<pform_range_t>*ranges,
 			       const LineInfo&li,
 			       std::list<named_pexpr_t>*attr,
-			       bool no_port_list)
+			       bool no_port_list,
+			       const struct str_pair_t*strength = 0)
 {
       unsigned npins = bind->size();
       named_pexpr_t *pins = new named_pexpr_t[npins];
@@ -4422,6 +4429,11 @@ static void pform_make_modgate(perm_string type,
       std::copy(bind->begin(), bind->end(), pins);
 
       PGModule*cur = new PGModule(type, name, pins, npins);
+      if (strength) {
+	    cur->strength0(strength->str0);
+	    cur->strength1(strength->str1);
+	    cur->mark_drive_strength();
+      }
       if (no_port_list) cur->mark_no_port_list();
       cur->set_line(li);
       cur->set_ranges(ranges);
@@ -4484,7 +4496,8 @@ void pform_make_modgates(const struct vlltype&loc,
 			 perm_string type,
 			 struct parmvalue_t*overrides,
 			 std::vector<lgate>*gates,
-			 std::list<named_pexpr_t>*attr)
+			 std::list<named_pexpr_t>*attr,
+			 const struct str_pair_t*strength)
 {
 	// SystemVerilog user-type declarations at module scope (e.g. `foo_t x;`)
 	// parse through the same no-port shape as degenerate module instances.
@@ -4500,7 +4513,7 @@ void pform_make_modgates(const struct vlltype&loc,
 	    // the type is a known built-in class.
 	    // If the name resolves to a type (class, typedef, built-in), treat
 	    // it as a variable declaration regardless of parameter overrides.
-	    if (decl_type) {
+	    if (decl_type && !strength) {
 		  bool declaration_like = true;
 		  std::list<decl_assignment_t*>*decls =
 			new std::list<decl_assignment_t*>;
@@ -4613,7 +4626,7 @@ void pform_make_modgates(const struct vlltype&loc,
 	    if (cur.parms_by_name) {
 		  pform_make_modgate(type, cur_name, overrides,
 				     cur.parms_by_name, cur.ranges,
-				     cur, attr, cur.no_port_list);
+				     cur, attr, cur.no_port_list, strength);
 
 	    } else if (cur.parms) {
 
@@ -4626,13 +4639,13 @@ void pform_make_modgates(const struct vlltype&loc,
 		  }
 		  pform_make_modgate(type, cur_name, overrides,
 				     cur.parms, cur.ranges,
-				     cur, attr, cur.no_port_list);
+				     cur, attr, cur.no_port_list, strength);
 
 	    } else {
 		  list<PExpr*>*wires = new list<PExpr*>;
 		  pform_make_modgate(type, cur_name, overrides,
 				     wires, cur.ranges,
-				     cur, attr, cur.no_port_list);
+				     cur, attr, cur.no_port_list, strength);
 	    }
       }
 

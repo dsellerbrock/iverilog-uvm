@@ -1316,7 +1316,8 @@ extern void pform_make_modgates(const struct vlltype&loc,
 				perm_string type,
 				struct parmvalue_t*overrides,
 				std::vector<lgate>*gates,
-				std::list<named_pexpr_t>*attr);
+				std::list<named_pexpr_t>*attr,
+				const struct str_pair_t*strength = 0);
 
 /* SystemVerilog bind directive (IEEE 1800-2017 23.11): record a bind
    of a module instantiation into a named target module/interface.

@@ -3165,7 +3165,7 @@ static Module::port_t *module_declare_explicit_port(
 } match_pattern_list
 
 %type <gate>  gate_instance
-%type <gates> gate_instance_list
+%type <gates> gate_instance_list anonymous_gate_instance_list
 %type <let_port_lst> let_port_list_opt let_port_list
 %type <let_port_itm> let_port_item
 
@@ -16640,6 +16640,23 @@ gate_instance_list
       }
   ;
 
+/* Factor the leading parenthesis so it can be distinguished from a
+   UDP drive strength without hiding the anonymous-instance form. */
+anonymous_gate_instance_list
+  : '(' port_conn_expression_list_with_nuls ')'
+      { lgate tmp;
+	tmp.name = "";
+	tmp.parms = $2;
+	FILE_NAME(&tmp, @1);
+	$$ = new std::vector<lgate>(1, tmp);
+      }
+  | anonymous_gate_instance_list ',' gate_instance
+      { $1->push_back(*$3);
+	delete $3;
+	$$ = $1;
+      }
+  ;
+
 gatetype
   : K_and    { $$ = PGBuiltin::AND; }
   | K_nand   { $$ = PGBuiltin::NAND; }
@@ -17998,9 +18015,19 @@ module_item
   | K_pulldown '(' dr_strength0 ',' dr_strength1 ')' gate_instance_list ';'
       { pform_makegates(@1, PGBuiltin::PULLDOWN, $3, 0, $7, 0); }
 
-  /* This rule handles instantiations of modules and user defined
-     primitives. These devices to not have delay lists or strengths,
-     but then can have parameter lists. */
+  /* Modules and UDPs share the instantiation path. For UDPs, parameter
+     values are interpreted as delays during elaboration. */
+
+  | attribute_list_opt IDENTIFIER drive_strength parameter_value_opt gate_instance_list ';'
+      { perm_string name = lex_strings.make($2);
+	pform_make_modgates(@2, name, $4, $5, $1, &$3);
+	delete[] $2;
+      }
+  | attribute_list_opt IDENTIFIER anonymous_gate_instance_list ';'
+      { perm_string name = lex_strings.make($2);
+	pform_make_modgates(@2, name, 0, $3, $1);
+	delete[] $2;
+      }
 
   | attribute_list_opt
 	  IDENTIFIER parameter_value_opt gate_instance_list ';'
