@@ -11889,6 +11889,203 @@ static void sva_rec_check_scope_(void)
       }
 }
 
+/* IEEE 1800-2017/2023 16.10: "The sequence or property shall assign a value
+   to the local variable prior to the point at which the reference is made."
+   Flow follows F.5.4: each operand of or/and/intersect/within starts from
+   the incoming set. The out-sets are generous (whatever an operand may
+   assign counts as assigned, except a variable assigned in both operands
+   of and/intersect/within, which does not flow out), so a reference is
+   diagnosed only when no path can have assigned it. */
+typedef std::set<perm_string> sva_lv_set_t;
+
+/* Locals read by e. A local passed to a non-system call (a sequence instance
+   may assign an output local formal) is collected in passed instead. */
+static void sva_lv_reads_(PExpr*e, const sva_lv_set_t&locals,
+			  sva_lv_set_t&reads, sva_lv_set_t&passed)
+{
+      if (!e) return;
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    const pform_name_t&name = id->path().name;
+	    if (!id->path().package && name.size() == 1
+		&& locals.count(name.front().name))
+		  reads.insert(name.front().name);
+	    for (const name_component_t&comp : name)
+		  for (const index_component_t&idx : comp.index) {
+			sva_lv_reads_(idx.msb, locals, reads, passed);
+			if (idx.lsb != idx.msb)
+			      sva_lv_reads_(idx.lsb, locals, reads, passed);
+		  }
+	    return;
+      }
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    bool system = !cf->path().name.empty()
+		  && peek_tail_name(cf->path().name).str()[0] == '$';
+	    for (const named_pexpr_t&arg : cf->get_parms())
+		  sva_lv_reads_(arg.parm, locals, system ? reads : passed, passed);
+	    return;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e))
+	    return sva_lv_reads_(un->get_expr(), locals, reads, passed);
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    sva_lv_reads_(bin->get_left(), locals, reads, passed);
+	    return sva_lv_reads_(bin->get_right(), locals, reads, passed);
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
+	    sva_lv_reads_(ter->get_cond(), locals, reads, passed);
+	    sva_lv_reads_(ter->get_true(), locals, reads, passed);
+	    return sva_lv_reads_(ter->get_false(), locals, reads, passed);
+      }
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e))
+	    return sva_lv_reads_(cast->cast_base(), locals, reads, passed);
+      if (PECastType*cast = dynamic_cast<PECastType*>(e))
+	    return sva_lv_reads_(cast->cast_base(), locals, reads, passed);
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e))
+	    return sva_lv_reads_(cast->cast_base(), locals, reads, passed);
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(e))
+	    for (PExpr*part : cat->stream_parms())
+		  sva_lv_reads_(part, locals, reads, passed);
+}
+
+static bool sva_lv_check_read_(const struct vlltype&loc, PExpr*e,
+			       const sva_lv_set_t&locals, sva_lv_set_t&assigned)
+{
+      sva_lv_set_t reads, passed;
+      sva_lv_reads_(e, locals, reads, passed);
+      for (perm_string name : reads) {
+	    if (assigned.count(name)) continue;
+	    cerr << loc << ": error: local variable `" << name << "' is "
+		 << "referenced where it is unassigned; it shall be assigned "
+		 << "before the reference (IEEE 1800-2017/2023 16.10, F.5.4)."
+		 << endl;
+	    error_count += 1;
+	    return false;
+      }
+      assigned.insert(passed.begin(), passed.end());
+      return true;
+}
+
+static bool sva_lv_flow_chain_(const struct vlltype&loc,
+			       const std::vector<sva_seq_step_t>*chain,
+			       const sva_lv_set_t&locals,
+			       sva_lv_set_t&assigned, sva_lv_set_t&written)
+{
+      if (!chain) return true;
+      for (const sva_seq_step_t&st : *chain) {
+	    if (!sva_lv_check_read_(loc, st.expr, locals, assigned))
+		  return false;
+	    for (const sva_match_item_t&item : st.items) {
+		  if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT) {
+			if (!sva_lv_check_read_(loc, item.lv_rhs, locals, assigned))
+			      return false;
+			assigned.insert(item.lv_name);
+			written.insert(item.lv_name);
+		  } else if (item.call) {
+			for (const named_pexpr_t&arg : item.call->parms())
+			      if (!sva_lv_check_read_(loc, arg.parm, locals, assigned))
+				    return false;
+		  }
+	    }
+      }
+      return true;
+}
+
+static bool sva_lv_flow_tree_(const struct vlltype&loc, const sva_stree_t*t,
+			      const sva_lv_set_t&locals,
+			      sva_lv_set_t&assigned, sva_lv_set_t&written)
+{
+      if (!t) return true;
+      switch (t->kind) {
+	  case sva_stree_t::LEAF:
+	    return sva_lv_flow_chain_(loc, t->chain, locals, assigned, written);
+	  case sva_stree_t::SEQ_CONCAT:
+	    return sva_lv_flow_tree_(loc, t->a, locals, assigned, written)
+		&& sva_lv_flow_tree_(loc, t->b, locals, assigned, written);
+	  case sva_stree_t::SEQ_THROUGHOUT:
+	    return sva_lv_check_read_(loc, t->gexpr, locals, assigned)
+		&& sva_lv_flow_tree_(loc, t->a, locals, assigned, written);
+	  default: {
+	    sva_lv_set_t in_a = assigned, in_b = assigned, wa, wb;
+	    if (!sva_lv_flow_tree_(loc, t->a, locals, in_a, wa)
+		|| !sva_lv_flow_tree_(loc, t->b, locals, in_b, wb))
+		  return false;
+	    assigned.insert(in_a.begin(), in_a.end());
+	    assigned.insert(in_b.begin(), in_b.end());
+	    if (t->kind != sva_stree_t::SEQ_OR)
+		  for (perm_string name : wa)
+			if (wb.count(name)) assigned.erase(name);
+	    written.insert(wa.begin(), wa.end());
+	    written.insert(wb.begin(), wb.end());
+	    return true;
+	  }
+      }
+}
+
+static void sva_lv_initialized_(const std::vector<sva_seq_step_t>*chain,
+				sva_lv_set_t&init)
+{
+      if (!chain) return;
+      for (const sva_seq_step_t&st : *chain)
+	    for (const sva_match_item_t&item : st.items)
+		  if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT
+		      && item.lv_initialization)
+			init.insert(item.lv_name);
+}
+
+static void sva_lv_initialized_(const sva_stree_t*t, sva_lv_set_t&init)
+{
+      if (!t) return;
+      sva_lv_initialized_(t->chain, init);
+      sva_lv_initialized_(t->a, init);
+      sva_lv_initialized_(t->b, init);
+}
+
+/* Check a named sequence/property body that contains a sequence tree.
+   Property operators over nested properties and two-operand property
+   forms are left alone. */
+static bool sva_check_local_flow_(const struct vlltype&loc,
+				  const sva_property_t*prop,
+				  const std::vector<sva_seq_step_t>*steps,
+				  const std::vector<perm_string>&local_names)
+{
+	/* A purely linear chain is checked where it is lowered
+	   (sva_lower_local_vars_); this covers the tree operators. */
+      if (local_names.empty() || steps || !prop
+	  || (!prop->tree && !prop->ante_tree))
+	    return true;
+      sva_lv_set_t locals(local_names.begin(), local_names.end());
+      sva_lv_set_t assigned, written;
+      if (prop->pa || prop->pb || prop->op_type > 2)
+	    return true;
+      sva_lv_initialized_(prop->mc_prefix, assigned);
+      sva_lv_initialized_(prop->antecedent, assigned);
+      sva_lv_initialized_(prop->seq, assigned);
+      sva_lv_initialized_(prop->ante_tree, assigned);
+      sva_lv_initialized_(prop->tree, assigned);
+      if (prop->mc_more)
+	    for (const sva_mc_seg_t&seg : *prop->mc_more)
+		  sva_lv_initialized_(seg.chain, assigned);
+      if (!sva_lv_flow_chain_(loc, prop->mc_prefix, locals, assigned, written))
+	    return false;
+      if (prop->ante_tree) {
+	    if (!sva_lv_flow_tree_(loc, prop->ante_tree, locals, assigned, written))
+		  return false;
+      } else if (!sva_lv_flow_chain_(loc, prop->antecedent, locals,
+				     assigned, written)) {
+	    return false;
+      }
+      if (prop->tree) {
+	    if (!sva_lv_flow_tree_(loc, prop->tree, locals, assigned, written))
+		  return false;
+      } else if (!sva_lv_flow_chain_(loc, prop->seq, locals, assigned, written)) {
+	    return false;
+      }
+      if (prop->mc_more)
+	    for (const sva_mc_seg_t&seg : *prop->mc_more)
+		  if (!sva_lv_flow_chain_(loc, seg.chain, locals, assigned, written))
+			return false;
+      return true;
+}
+
 void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
@@ -11896,6 +12093,10 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
       negs.swap(sva_rec_pending_neg_);
       sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
+      if (prop && !sva_check_local_flow_(loc, prop, nullptr, prop->local_names)) {
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
 	  if (!prop || !sva_prepare_clocking_declaration_(loc, prop,
 							"property", name)) {
 		if (prop) pform_sva_destroy_property(prop);
@@ -11933,6 +12134,10 @@ void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 	  for (perm_string local : declared_locals)
 		caller_locals[local] = 0;
       pform_sva_end_local_declarations();
+      if (!sva_check_local_flow_(loc, nullptr, steps, declared_locals)) {
+	    pform_sva_destroy_sequence(steps);
+	    return;
+      }
       perm_string use_name = lex_strings.make(name);
       sva_scoped_name_t key = sva_decl_key_(use_name);
       if (sva_module_sequences.count(key)
@@ -11985,6 +12190,10 @@ void pform_sva_declare_sequence_spec(const struct vlltype&loc,
       sva_scoped_name_t key = sva_decl_key_(use_name);
 
       if (!body) return;
+      if (!sva_check_local_flow_(loc, body, nullptr, body->local_names)) {
+	    pform_sva_destroy_property(body);
+	    return;
+      }
 
       if (body->seq) {
 	    std::map<perm_string,unsigned> caller_locals;
@@ -12050,6 +12259,8 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
       negs.swap(sva_rec_pending_neg_);
       sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
+	/* Local formals are not in local_names yet: they start assigned. */
+      if (prop) sva_check_local_flow_(loc, prop, nullptr, prop->local_names);
       perm_string use_name = lex_strings.make(name);
 
       bool bad_local_direction = false;
@@ -12129,6 +12340,8 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 		local_initializers.clear();
 	  }
 	  sva_destroy_local_init_steps_(local_initializers);
+      sva_check_local_flow_(loc, nullptr, steps,
+			    sva_current_local_decl_names_());
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
       if (sva_param_sequences.count(sva_decl_key_(use_name))

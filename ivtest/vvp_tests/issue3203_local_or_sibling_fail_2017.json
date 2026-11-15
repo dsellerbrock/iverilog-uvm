@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3203_local_or_sibling_fail.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue3203_local_or_sibling_fail"
+}

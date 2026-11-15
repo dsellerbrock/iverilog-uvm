@@ -1,0 +1,1 @@
+ivltests/issue3203_local_or_sibling_fail.v:6: error: local variable `x' is referenced where it is unassigned; it shall be assigned before the reference (IEEE 1800-2017/2023 16.10, F.5.4).
