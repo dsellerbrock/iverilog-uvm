@@ -5212,6 +5212,17 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       if (whole_vector_delay)
 	    need_driver_flag = true;
 
+      /* A select can carry the strength of a net into a switch. A
+         continuous assignment instead drives with its own strength. */
+      for (const Link*cur = rval->pin(0).nexus()->first_nlink(); cur;
+           cur = cur->next_nlink()) {
+            if (cur->get_dir() == Link::OUTPUT
+                && dynamic_cast<const NetPartSelect*>(cur->get_obj())) {
+                  need_driver_flag = true;
+                  break;
+            }
+      }
+
 	/* A continuous assignment's strength belongs to its output driver,
 	 * not the device synthesized for its r-value. Some devices (such as
 	 * reductions) cannot carry a non-default output strength directly. */

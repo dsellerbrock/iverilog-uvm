@@ -6932,3 +6932,5 @@ issue3078_udp_edges_2017 CE,-g2017,-s,top ivltests gold=issue3078_udp_edges.gold
 issue3078_udp_edges_2023 CE,-g2023,-s,top ivltests gold=issue3078_udp_edges.gold
 issue3078_udp_legal_2017 normal,-g2017,-s,top ivltests gold=issue3078_udp_legal.gold
 issue3078_udp_legal_2023 normal,-g2023,-s,top ivltests gold=issue3078_udp_legal.gold
+issue3465_mos_vector_strength_2017 normal,-g2017,-s,top ivltests gold=issue3465_mos_vector_strength.gold
+issue3465_mos_vector_strength_2023 normal,-g2023,-s,top ivltests gold=issue3465_mos_vector_strength.gold

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3465_mos_vector_strength.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue3465_mos_vector_strength"
+}

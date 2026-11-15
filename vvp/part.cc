@@ -47,7 +47,7 @@ vvp_fun_part::~vvp_fun_part()
 
 vvp_fun_part_sa::vvp_fun_part_sa(unsigned base, unsigned wid,
                                  bool event_synchronous)
-: vvp_fun_part(base, wid), event_synchronous_(event_synchronous)
+: vvp_fun_part(base, wid), event_synchronous_(event_synchronous), strength_(false)
 {
       net_ = 0;
 }
@@ -67,20 +67,64 @@ void vvp_fun_part_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       assert(port.port() == 0);
 
       vvp_vector4_t tmp (bit, base_, wid_);
-      if (val_ .eeq( tmp ))
+      if (!strength_ && val_ .eeq( tmp ))
 	    return;
 
       val_ = tmp;
+      strength_ = false;
 
       if (event_synchronous_) {
             vvp_net_t*out = port.ptr();
             vvp_event_enqueue_comb(this, 0, [this, out]() {
-                  out->send_vec4(val_, 0);
+                  if (strength_) out->send_vec8(val8_);
+                  else out->send_vec4(val_, 0);
             });
       } else if (net_ == 0) {
 	    net_ = port.ptr();
 	    schedule_functor(this);
       }
+}
+
+void vvp_fun_part_sa::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
+{
+      if (event_synchronous_
+          && vvp_event_defer_callback_cone([this, port, bit]() {
+                recv_vec8(port, bit);
+          }))
+            return;
+      assert(port.port() == 0);
+      vvp_vector8_t tmp(wid_);
+      for (unsigned idx = 0; idx < wid_; ++idx) {
+            if (base_ < bit.size() && idx < bit.size() - base_)
+                  tmp.set_bit(idx, bit.value(base_ + idx));
+            else
+                  tmp.set_bit(idx, vvp_scalar_t(BIT4_X, 6, 6));
+      }
+      if (strength_ && val8_.eeq(tmp)) return;
+      val8_ = tmp;
+      strength_ = true;
+      if (event_synchronous_) {
+            vvp_net_t*out = port.ptr();
+            vvp_event_enqueue_comb(this, 0, [this, out]() {
+                  if (strength_) out->send_vec8(val8_);
+                  else out->send_vec4(val_, 0);
+            });
+      } else if (net_ == 0) {
+            net_ = port.ptr();
+            schedule_functor(this);
+      }
+}
+
+void vvp_fun_part_sa::recv_vec8_pv(vvp_net_ptr_t port, const vvp_vector8_t&bit,
+                                   unsigned base, unsigned vwid)
+{
+      vvp_vector8_t tmp(vwid);
+      vvp_vector8_t previous = strength_ ? val8_ : vvp_vector8_t(val_, 6, 6);
+      for (unsigned idx = 0; idx < previous.size() && base_ < vwid
+                             && idx < vwid - base_; ++idx)
+            tmp.set_bit(base_ + idx, previous.value(idx));
+      tmp.set_vec(base, bit);
+      recv_vec8(port, tmp);
 }
 
 /*
@@ -92,6 +136,15 @@ void vvp_fun_part_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 void vvp_fun_part_sa::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 				   unsigned base, unsigned vwid, vvp_context_t)
 {
+      if (strength_) {
+            vvp_vector8_t tmp(vwid);
+            for (unsigned idx = 0; idx < val8_.size() && base_ < vwid
+                                   && idx < vwid - base_; ++idx)
+                  tmp.set_bit(base_ + idx, val8_.value(idx));
+            tmp.set_vec(base, vvp_vector8_t(bit, 6, 6));
+            recv_vec8(port, tmp);
+            return;
+      }
       vvp_vector4_t tmp (vwid, BIT4_Z);
       tmp.set_vec(base_, val_);
       tmp.set_vec(base, bit);
@@ -102,7 +155,8 @@ void vvp_fun_part_sa::run_run()
 {
       vvp_net_t*ptr = net_;
       net_ = 0;
-      ptr->send_vec4(val_, 0);
+      if (strength_) ptr->send_vec8(val8_);
+      else ptr->send_vec4(val_, 0);
 }
 
 vvp_fun_part_aa::vvp_fun_part_aa(unsigned base, unsigned wid,
@@ -357,21 +411,66 @@ vvp_fun_part_var_sa::~vvp_fun_part_var_sa()
 void vvp_fun_part_var_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                                     vvp_context_t)
 {
-      if (recv_vec4_(port, bit, base_, source_, ref_)) {
-	    port.ptr()->send_vec4(ref_, 0);
+      if (port.port() == 0) {
+            source_ = vvp_vector8_t(bit, 6, 6);
+      } else {
+            assert(port.port() == 1);
+            int32_t tmp;
+            if (!vector4_to_value(bit, tmp, is_signed_) || (!is_signed_ && tmp < 0))
+                  tmp = INT32_MIN;
+            if (tmp == base_) return;
+            base_ = tmp;
+      }
+      update_output(port);
+}
+
+void vvp_fun_part_var_sa::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
+{
+      if (port.port() != 0) {
+            recv_vec4(port, reduce4(bit), 0);
+            return;
+      }
+      source_ = bit;
+      update_output(port);
+}
+
+void vvp_fun_part_var_sa::update_output(vvp_net_ptr_t port)
+{
+      vvp_vector8_t res(wid_);
+      for (unsigned idx = 0; idx < wid_; ++idx) {
+            int64_t adr = static_cast<int64_t>(base_) + idx;
+            if (adr >= 0 && static_cast<uint64_t>(adr) < source_.size())
+                  res.set_bit(idx, source_.value(static_cast<unsigned>(adr)));
+            else
+                  res.set_bit(idx, vvp_scalar_t(BIT4_X, 6, 6));
+      }
+      if (!ref_.eeq(res)) {
+            ref_ = res;
+            port.ptr()->send_vec8(ref_);
       }
 }
 
 void vvp_fun_part_var_sa::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 				       unsigned base, unsigned vwid, vvp_context_t)
 {
-      vvp_vector4_t tmp = source_;
+      vvp_vector8_t tmp = source_;
       if (tmp.size() == 0)
-	    tmp = vvp_vector4_t(vwid);
+	    tmp = vvp_vector8_t(vvp_vector4_t(vwid), 6, 6);
 
       assert(tmp.size() == vwid);
+      tmp.set_vec(base, vvp_vector8_t(bit, 6, 6));
+      recv_vec8(port, tmp);
+}
+
+void vvp_fun_part_var_sa::recv_vec8_pv(vvp_net_ptr_t port, const vvp_vector8_t&bit,
+                                       unsigned base, unsigned vwid)
+{
+      vvp_vector8_t tmp = source_;
+      if (tmp.size() == 0)
+            tmp = vvp_vector8_t(vvp_vector4_t(vwid), 6, 6);
+      assert(tmp.size() == vwid);
       tmp.set_vec(base, bit);
-      recv_vec4(port, tmp, 0);
+      recv_vec8(port, tmp);
 }
 
 struct vvp_fun_part_var_state_s {
