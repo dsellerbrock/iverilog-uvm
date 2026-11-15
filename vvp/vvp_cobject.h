@@ -129,13 +129,12 @@ struct covgrp_cross_state_t {
       bool enabled = false;
 	// A cross over 65536 logical tuples (IEEE 1800-2023 19.6 sets no
 	// limit, #3303) keeps no routes: hit tuples are routed per sample and
-	// counted under a mixed-radix key. sparse_offset[dim][choice] is the
-	// choice's first flat index in its dimension, sparse_size[dim] the
-	// dimension's flat size.
+	// counted under their IEEE 19.11.3 name's type-level id, so neither
+	// the number of tuples nor of hits per sample is bounded (#3363).
+	// sparse_total is the number of automatic bins (it can pass 2^64).
       bool sparse = false;
       std::vector<covgrp_cross_sparse_bin_t> sparse_bins;
-      std::vector<std::vector<uint64_t>> sparse_offset;
-      std::vector<uint64_t> sparse_size;
+      long double sparse_total = 0;
 };
 
 class vvp_cobject : public vvp_object {

@@ -4397,9 +4397,9 @@ uint64_t class_type::cross_type_register_sparse_bin(unsigned family,
  * universe (as dyn_type_register_total does for bin families), not their
  * union; exact when instance universes nest, which is the usual case. */
 void class_type::cross_type_register_sparse_total(unsigned family,
-      unsigned __int128 total) const
+      long double total) const
 {
-      unsigned __int128&slot = covgrp_cross_type_[family].sparse_total;
+      long double&slot = covgrp_cross_type_[family].sparse_total;
       if (total > slot) slot = total;
 }
 
@@ -4498,8 +4498,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 	// contribute neither a hit nor a denominator, so a covergroup whose
 	// only bins were runtime-valued reported 0.00 type coverage while
 	// reading 100.00 per instance.
-	std::map<unsigned,unsigned __int128> item_dyn_total;
-	std::map<unsigned,unsigned __int128> item_dyn_hits;
+	std::map<unsigned,long double> item_dyn_total;
+	std::map<unsigned,long double> item_dyn_hits;
 	std::set<unsigned> seen_dyn_families;
       for (size_t bi = 0 ; bi < covgrp_dyn_bins_.size() ; bi += 1) {
 	    const cov_dyn_bin_t&rec = covgrp_dyn_bins_[bi];
@@ -4526,7 +4526,7 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
             auto&props = item_props[cross.item_idx];
             props.insert(universe.named_props.begin(), universe.named_props.end());
             unsigned at_least = covgrp_cumulative_at_least_(cross.item_idx);
-            unsigned __int128 total = universe.dense.size();
+            long double total = universe.dense.size();
             if (universe.sparse_total > total) total = universe.sparse_total;
             item_dyn_total[cross.item_idx] += total;
             item_dyn_hits[cross.item_idx] += at_least == 0 ? total
@@ -4546,8 +4546,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 		  at_least = covgrp_cumulative_at_least_(item_idx);
 		  weight = covgrp_item_type_weight(item_idx);
 	    }
-	    unsigned __int128 total = item_trans_total[item_idx];
-	    unsigned __int128 hits = 0;
+	    long double total = item_trans_total[item_idx];
+	    long double hits = 0;
 	    for (unsigned prop : item_props[item_idx]) {
 		  total += 1;
 		  if (type_count(prop) >= at_least)

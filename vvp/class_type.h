@@ -588,7 +588,7 @@ class class_type : public __vpiHandle {
       uint64_t cross_type_register_sparse_bin(unsigned family,
             const std::vector<std::pair<unsigned,uint64_t>>&name) const;
       void cross_type_register_sparse_total(unsigned family,
-            unsigned __int128 total) const;
+            long double total) const;
       uint64_t trans_type_register_bin(unsigned family,
             const std::vector<uint64_t>&name) const;
       void cross_type_register_named(unsigned family,
@@ -721,7 +721,7 @@ class class_type : public __vpiHandle {
       struct cov_cross_type_t {
             std::map<std::vector<std::pair<unsigned,uint64_t>>,uint64_t> bins;
             std::set<uint64_t> dense; // bins registered by a dense instance
-            unsigned __int128 sparse_total = 0;
+            long double sparse_total = 0;
             std::set<unsigned> named_props;
       };
       mutable std::map<unsigned,cov_cross_type_t> covgrp_cross_type_;

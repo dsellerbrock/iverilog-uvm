@@ -10056,22 +10056,12 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 {
       static const uint64_t work_limit = 16777216;
       const unsigned ndims = state.dimensions.size();
-      state.sparse_offset.assign(ndims, std::vector<uint64_t>());
-      state.sparse_size.assign(ndims, 0);
-      unsigned __int128 product = 1;
+      long double product = 1;
       for (unsigned dim = 0; dim < ndims; dim += 1) {
-	    unsigned __int128 size = 0;
-	    for (const covgrp_cross_choice_t&choice : state.dimensions[dim]) {
-		  state.sparse_offset[dim].push_back((uint64_t)size);
+	    long double size = 0;
+	    for (const covgrp_cross_choice_t&choice : state.dimensions[dim])
 		  size += choice.spans.empty()
-			? 1 : covgrp_cross_span_count_(choice.spans);
-		  if (size > UINT64_MAX) break;
-	    }
-	    if (size > UINT64_MAX || (size && product > UINT64_MAX / size)) {
-		  failure = "cross has more than 2^64 logical bins";
-		  return;
-	    }
-	    state.sparse_size[dim] = (uint64_t)size;
+			? 1 : (long double)covgrp_cross_span_count_(choice.spans);
 	    product *= size;
       }
       for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins) {
@@ -10084,11 +10074,11 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 			}
       }
       if (state.sparse_bins.empty()) {
-	    state.auto_total = (uint64_t)product;
+	    state.sparse_total = product;
 	    return;
       }
 
-      struct class_t { unsigned choice; uint64_t rep; uint64_t weight; };
+      struct class_t { unsigned choice; uint64_t rep; long double weight; };
       std::vector<std::vector<class_t>> classes(ndims);
       uint64_t work = 0;
       for (unsigned dim = 0; dim < ndims; dim += 1) {
@@ -10107,7 +10097,7 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 			if (op->term == choice.term_idx) referenced = true;
 		  if (!referenced) {
 			classes[dim].push_back({ci, choice.spans[0].first,
-			      (uint64_t)covgrp_cross_span_count_(choice.spans)});
+			      (long double)covgrp_cross_span_count_(choice.spans)});
 			continue;
 		  }
 		  auto found = dyn_states.find(choice.source_id);
@@ -10132,7 +10122,7 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 					  && *cut <= span.second
 					  ? *cut - 1 : span.second;
 				    classes[dim].push_back({ci, first,
-					  last - first + 1});
+					  (long double)(last - first) + 1});
 				    if (last == span.second) break;
 				    first = last + 1;
 				    ++cut;
@@ -10158,8 +10148,8 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 						dyn_states, op->ranges));
 			      if (!classes[dim].empty() && mask == prev_mask
 				  && classes[dim].back().choice == ci
-				  && classes[dim].back().rep
-					+ classes[dim].back().weight == id)
+				  && (long double)classes[dim].back().rep
+					+ classes[dim].back().weight == (long double)id)
 				    classes[dim].back().weight += 1;
 			      else
 				    classes[dim].push_back({ci, id, 1});
@@ -10187,9 +10177,9 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
       covgrp_cross_state_t view;
       view.dimensions.resize(ndims);
       std::vector<unsigned> at(ndims, 0);
-      uint64_t automatic = 0;
+      long double automatic = 0;
       for (uint64_t tn = 0; tn < tuples; tn += 1) {
-	    uint64_t weight = 1;
+	    long double weight = 1;
 	    for (unsigned dim = 0; dim < ndims; dim += 1) {
 		  const class_t&cls = classes[dim][at[dim]];
 		  view.dimensions[dim].assign(1, state.dimensions[dim][cls.choice]);
@@ -10207,25 +10197,23 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 		  at[dim] = 0;
 	    }
       }
-      state.auto_total = automatic;
+      state.sparse_total = automatic;
 }
 
 /* Route each logical tuple of a sparse cross hit by this sample: the
  * product of the matched ordinary choices and the hit identities of the
- * symbolic ones. VISIT gets the route, the tuple's mixed-radix key and its
- * IEEE 19.11.3 name. */
+ * symbolic ones. VISIT gets the route and the tuple's IEEE 19.11.3 name.
+ * Every hit tuple counts, however many one sample hits (#3363). */
 template <class VISIT>
 static void covgrp_cross_sparse_each_(const covgrp_cross_state_t&state,
 	 const std::vector<std::set<unsigned>>&matched,
 	 const std::map<std::pair<unsigned,unsigned>,std::set<uint64_t>>&hits,
-	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
-	 vvp_cobject*cobj, VISIT visit)
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states, VISIT visit)
 {
-      static const uint64_t per_sample_limit = 65536;
       const unsigned ndims = state.dimensions.size();
+      if (matched.size() < ndims) return;
       std::vector<std::vector<std::pair<unsigned,uint64_t>>> picks(ndims);
-      uint64_t tuples = 1;
-      for (unsigned dim = 0; dim < ndims && dim < matched.size(); dim += 1) {
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
 	    for (unsigned ci : matched[dim]) {
 		  const covgrp_cross_choice_t&choice = state.dimensions[dim][ci];
 		  if (choice.spans.empty()) {
@@ -10239,23 +10227,10 @@ static void covgrp_cross_sparse_each_(const covgrp_cross_state_t&state,
 	    }
 	    if (picks[dim].empty()) return;
       }
-      if (matched.size() < ndims) return;
-      for (unsigned dim = 0; dim < ndims; dim += 1) {
-	    if (tuples > per_sample_limit / picks[dim].size()) {
-		  if (cobj->cov_cross_warn_once(state.meta->family))
-			cerr << "WARNING: dynamic cross family " << state.meta->family
-			     << ": a sample hit more than 65536 cross bins;"
-			     << " the rest are not counted." << endl;
-		  tuples = per_sample_limit;
-		  break;
-	    }
-	    tuples *= picks[dim].size();
-      }
       covgrp_cross_state_t view;
       view.dimensions.resize(ndims);
       std::vector<unsigned> at(ndims, 0);
-      for (uint64_t tn = 0; tn < tuples; tn += 1) {
-	    uint64_t key = 0, stride = 1;
+      while (true) {
 	    std::vector<std::pair<unsigned,uint64_t>> name;
 	    for (unsigned dim = 0; dim < ndims; dim += 1) {
 		  const std::pair<unsigned,uint64_t>&pick = picks[dim][at[dim]];
@@ -10263,16 +10238,6 @@ static void covgrp_cross_sparse_each_(const covgrp_cross_state_t&state,
 			state.dimensions[dim][pick.first];
 		  view.dimensions[dim].assign(1, choice);
 		  view.dimensions[dim][0].logical_idx = pick.second;
-		  uint64_t flat = state.sparse_offset[dim][pick.first];
-		  for (const auto&span : choice.spans) {
-			if (pick.second >= span.first && pick.second <= span.second) {
-			      flat += pick.second - span.first;
-			      break;
-			}
-			flat += span.second - span.first + 1;
-		  }
-		  key += flat * stride;
-		  stride *= state.sparse_size[dim];
 		  uint64_t identity = pick.second;
 		  if (choice.kind == 1) {
 			auto source = dyn_states.find(choice.source_id);
@@ -10282,12 +10247,14 @@ static void covgrp_cross_sparse_each_(const covgrp_cross_state_t&state,
 		  }
 		  name.emplace_back(choice.term_idx, identity);
 	    }
-	    visit(covgrp_cross_sparse_route_(state, view, dyn_states), key, name);
-	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    visit(covgrp_cross_sparse_route_(state, view, dyn_states), name);
+	    unsigned dim = 0;
+	    for (; dim < ndims; dim += 1) {
 		  at[dim] += 1;
 		  if (at[dim] < picks[dim].size()) break;
 		  at[dim] = 0;
 	    }
+	    if (dim == ndims) break;
       }
 }
 
@@ -10430,7 +10397,15 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 				logical_product = logical_product > u128_max / count
 				      ? u128_max : logical_product * count;
 			  }
-			  sparse = logical_product > cross_bin_limit;
+			    // IVL_COVGRP_SPARSE_CROSS_MIN lowers the threshold so
+			    // the cross tests can check the sparse path against
+			    // the dense one (a debugging knob, like IVL_*_TRACE).
+			  static const uint64_t sparse_min = [] {
+				const char*env = getenv("IVL_COVGRP_SPARSE_CROSS_MIN");
+				uint64_t value = env ? strtoull(env, 0, 10) : 0;
+				return value ? value : (uint64_t)cross_bin_limit;
+			  }();
+			  sparse = logical_product > sparse_min;
 		    }
 		    state.sparse = sparse;
 		    uint64_t total_choices = 0;
@@ -10877,7 +10852,7 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
             // Publish only after the complete plan has passed validation.
             if (!sparse) state.type_bins.resize(state.auto_total);
             else defn->cross_type_register_sparse_total(meta.family,
-                                                        state.auto_total);
+                                                        state.sparse_total);
             for (const covgrp_cross_route_t&route : state.routes) {
                   if (route.auto_bin == UINT64_MAX) continue;
                   std::vector<std::pair<unsigned,uint64_t>> name;
@@ -11580,8 +11555,8 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    std::set<unsigned> illegal_hits;
 	    if (state.sparse)
 		  covgrp_cross_sparse_each_(state, matched, sparse_hits, dyn_states,
-			cobj, [&](const covgrp_cross_sparse_route_t&route, uint64_t,
-				  const std::vector<std::pair<unsigned,uint64_t>>&) {
+			[&](const covgrp_cross_sparse_route_t&route,
+			    const std::vector<std::pair<unsigned,uint64_t>>&) {
 			      for (unsigned prop : route.illegal)
 				    if (covgrp_cross_target_guard_enabled_(defn,
 					  entry.first, prop, bin_guards))
@@ -11809,22 +11784,23 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    std::set<unsigned> named_hits;
 	    std::set<uint64_t> auto_hits;
 	    if (state.sparse) {
-		  std::map<uint64_t,uint64_t> sparse_auto;
+		  std::set<uint64_t> sparse_auto;
 		  covgrp_cross_sparse_each_(state, matched, sparse_hits, dyn_states,
-			cobj, [&](const covgrp_cross_sparse_route_t&route, uint64_t key,
-				  const std::vector<std::pair<unsigned,uint64_t>>&name) {
+			[&](const covgrp_cross_sparse_route_t&route,
+			    const std::vector<std::pair<unsigned,uint64_t>>&name) {
 			      if (!route.illegal.empty() || route.ignored) return;
 			      for (unsigned prop : route.normal)
 				    if (covgrp_cross_target_guard_enabled_(defn,
 					  entry.first, prop, bin_guards))
 					  named_hits.insert(prop);
-			      if (route.is_auto && !sparse_auto.count(key))
-				    sparse_auto[key] = defn->cross_type_register_sparse_bin(
-					  entry.first, name);
+				// A tuple's local key is its name's type-level id.
+			      if (route.is_auto)
+				    sparse_auto.insert(defn->cross_type_register_sparse_bin(
+					  entry.first, name));
 			});
 		  for (unsigned prop : named_hits) covgrp_bump_count_(cobj, prop);
-		  for (auto&hit : sparse_auto)
-			cobj->cov_dyn_bump(entry.first, hit.first, hit.second);
+		  for (uint64_t id : sparse_auto)
+			cobj->cov_dyn_bump(entry.first, id, id);
 		  if (!named_hits.empty() || !sparse_auto.empty())
 			item_matched[state.meta->item_idx] = true;
 		  continue;
@@ -12283,11 +12259,12 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
 		  unsigned item = state.meta->item_idx;
 		  for (unsigned prop : state.named_props)
 			item_props[item].insert(prop);
-		  item_dyn_total[item] += (long double)state.auto_total;
+		  long double automatic = state.sparse ? state.sparse_total
+			: (long double)state.auto_total;
+		  item_dyn_total[item] += automatic;
 		  unsigned at_least = item < defn->covgrp_item_count()
 			? defn->covgrp_item_at_least(cobj, item) : 1;
-		  item_dyn_hits[item] += at_least == 0
-			? (long double)state.auto_total
+		  item_dyn_hits[item] += at_least == 0 ? automatic
 			: (long double)cobj->cov_dyn_hits(entry.first, at_least);
 	    }
 	    std::set<unsigned> items;
