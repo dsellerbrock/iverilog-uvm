@@ -27685,35 +27685,23 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			  tmp->set_line(*this);
 			  return tmp;
 		    }
-		    
-		    // Compile-progress fallback for parameterized derived classes
-		    // (e.g. uvm_event_callback#(T) extends uvm_callback)
-		    if (gn_system_verilog()
-			&& ivl_type_base(ntype) == IVL_VT_CLASS
-			&& have_type
+
+		      /* Two virtual-interface handles of one interface differ
+			 in parameters or modport. The assignment's own check
+			 names that rule (25.9); pass the reference on to it. */
+		    if (ivl_type_base(ntype) == IVL_VT_CLASS && have_type
 			&& ivl_type_base(have_type) == IVL_VT_CLASS) {
-			  const netclass_t*want_class = dynamic_cast<const netclass_t*>(ntype);
-			  const netclass_t*have_class = dynamic_cast<const netclass_t*>(have_type);
-			  /* Mailbox specializations share the class name but are distinct
-			   * parameterized types (IEEE 1800-2017/2023 8.25). Their message
-			   * type cannot be inferred from an ancestor name, so do not use
-			   * this compatibility fallback for mailbox handles. */
-			  const bool mailbox_type =
-				(want_class && want_class->get_name()
-				 == perm_string::literal("mailbox"))
-				|| (have_class && have_class->get_name()
-				    == perm_string::literal("mailbox"));
-			  if (want_class && have_class && !mailbox_type) {
-				// Check if have_class derives from want_class
-				const netclass_t*check = have_class;
-				while (check) {
-				      if (check->get_name() == want_class->get_name()) {
-					    NetESignal*tmp = new NetESignal(net);
-					    tmp->set_line(*this);
-					    return tmp;
-				      }
-				      check = check->get_super();
-				}
+			  const netclass_t*want_class =
+				dynamic_cast<const netclass_t*>(ntype);
+			  const netclass_t*have_class =
+				dynamic_cast<const netclass_t*>(have_type);
+			  if (want_class && have_class
+			      && want_class->is_interface()
+			      && have_class->is_interface()
+			      && want_class->get_name() == have_class->get_name()) {
+				NetESignal*tmp = new NetESignal(net);
+				tmp->set_line(*this);
+				return tmp;
 			  }
 		    }
 

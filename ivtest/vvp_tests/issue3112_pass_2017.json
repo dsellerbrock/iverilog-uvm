@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3112_pass.v",
+  "iverilog-args": ["-g2017", "-s", "issue3112_pass"],
+  "gold": "issue3112_pass"
+}
