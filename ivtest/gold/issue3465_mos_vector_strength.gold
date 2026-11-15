@@ -9,3 +9,7 @@ HiZ_WeX HiZ HiZ HiZ HiZ HiZ HiZ HiZ HiZ HiZ HiZ HiZ
 HiZ_WeX HiZ HiZ HiZ HiZ HiZ HiZ HiZ StX PuX HiZ StX
 HiZ_WeX HiZ HiZ HiZ HiZ HiZ HiZ HiZ StX PuX HiZ StX
 supply: Su1_HiZ St1 Pu1
+two-state: 1 0 1
+two-state: 1 1 0
+two-state: 0 0 1
+two-state arrays: 0z 00 0z 00

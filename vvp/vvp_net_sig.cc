@@ -3480,6 +3480,22 @@ vvp_net_fil_t::prop_t vvp_wire_vec8::filter_vec8(const vvp_vector8_t&bit, vvp_ve
             vpip_set_return_value(1);
             return STOP;
       }
+      if (two_state_) {
+            vvp_vector8_t clean(bit);
+            bool changed = false;
+            for (unsigned idx = 0; idx < clean.size(); ++idx) {
+                  vvp_bit4_t value = clean.value(idx).value();
+                  if (value == BIT4_X || value == BIT4_Z) {
+                        clean.set_bit(idx, vvp_scalar_t(BIT4_0, 6, 6));
+                        changed = true;
+                  }
+            }
+            if (changed) {
+                  prop_t result = filter_vec8(clean, rep, base, vwid);
+                  if (result == PROP) { rep = clean; return REPL; }
+                  return result;
+            }
+      }
 	// Keep track of the value being driven from this net, even if
 	// it is not ultimately what survives the force filter.
       hist_snapshot_();

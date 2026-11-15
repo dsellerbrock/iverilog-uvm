@@ -6,6 +6,16 @@ module top;
   wire scalar, n, p, c, rn, rp, rc, reference, dynamic_n, dynamic_rn;
   wire assigned_bit, assigned_dynamic;
   wire supply_n, supply_rn;
+  logic [1:0] input_bits;
+  logic other;
+  bit two_state;
+  bit signed [1:0] signed_array [0:1];
+  bit [1:0] unsigned_array [0:1];
+  logic [1:0] other_signed, other_unsigned;
+  wire inverted = ~two_state;
+  assign {other, two_state} = input_bits;
+  assign {other_signed, signed_array[0]} = {input_bits, input_bits};
+  assign {other_unsigned, unsigned_array[0]} = {input_bits, input_bits};
   assign (weak0, weak1) v[1] = data;
   assign (pull0, pull1) v[1] = enable_pull ? data : 1'bz;
   assign (weak0, weak1) v[0] = ~data;
@@ -39,5 +49,9 @@ module top;
     index = 2; #1 show;
     index = 2'bx; #1 show;
     $display("supply: %v %v %v", supply_bits, supply_n, supply_rn);
+    input_bits = 2'b1x; #1 $display("two-state: %b %b %b", other, two_state, inverted);
+    input_bits = 2'b11; #1 $display("two-state: %b %b %b", other, two_state, inverted);
+    input_bits = 2'b0z; #1 $display("two-state: %b %b %b", other, two_state, inverted);
+    $display("two-state arrays: %b %b %b %b", other_signed, signed_array[0], other_unsigned, unsigned_array[0]);
   end
 endmodule

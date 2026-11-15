@@ -1285,7 +1285,7 @@ statement
 
   | T_LABEL K_NET8_2U local_flag T_STRING ',' signed_t_number signed_t_number
     ',' symbols_net ';'
-      { compile_net($1, $4, $6, $7, -vpiLogicVar, false, $3, $9.cnt, $9.vect); }
+      { compile_net($1, $4, $6, $7, -vpiIntVar, false, $3, $9.cnt, $9.vect); }
 
   | T_LABEL K_NET8_S local_flag T_STRING ',' signed_t_number signed_t_number
     ',' symbols_net ';'
@@ -1293,7 +1293,7 @@ statement
 
   | T_LABEL K_NET8_2S local_flag T_STRING ',' signed_t_number signed_t_number
     ',' symbols_net ';'
-      { compile_net($1, $4, $6, $7, -vpiLogicVar, true, $3, $9.cnt, $9.vect); }
+      { compile_net($1, $4, $6, $7, -vpiIntVar, true, $3, $9.cnt, $9.vect); }
 
   | T_LABEL K_NET_R local_flag T_STRING ',' signed_t_number signed_t_number
     ',' symbols_net ';'
@@ -1324,6 +1324,14 @@ statement
   | T_LABEL K_NET8_S T_SYMBOL T_NUMBER ',' signed_t_number signed_t_number ','
     symbols_net ';'
       { compile_netw($1, $3, $4, $6, $7, -vpiLogicVar, true, $9.cnt, $9.vect); }
+
+  | T_LABEL K_NET8_2U T_SYMBOL T_NUMBER ',' signed_t_number signed_t_number ','
+    symbols_net ';'
+      { compile_netw($1, $3, $4, $6, $7, -vpiIntVar, false, $9.cnt, $9.vect); }
+
+  | T_LABEL K_NET8_2S T_SYMBOL T_NUMBER ',' signed_t_number signed_t_number ','
+    symbols_net ';'
+      { compile_netw($1, $3, $4, $6, $7, -vpiIntVar, true, $9.cnt, $9.vect); }
 
   | T_LABEL K_NET_R T_SYMBOL T_NUMBER ',' signed_t_number signed_t_number ','
     symbols_net ';'
