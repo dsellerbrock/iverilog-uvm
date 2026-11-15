@@ -14318,6 +14318,54 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		as a concurrent-assertion operand must itself have #1step
 		sampling. Numeric input skews (including #0) cannot be
 		reinterpreted as the assertion's Preponed sample. */
+	      /* The same rule for `inst.cb.sig', a clocking block of an
+		 interface instance named hierarchically: sample the raw
+		 `inst.sig' with the #1step Preponed mechanism. */
+	    if (!id->path().package && id->path().name.size() >= 3
+		&& !pform_cur_module.empty() && !pform_procedural_sampling_context_) {
+		  const pform_name_t&path = id->path().name;
+		  pform_name_t::const_iterator cb_name = path.begin(); ++cb_name;
+		  pform_name_t::const_iterator signal = cb_name; ++signal;
+		  const Module*iface = nullptr;
+		  if (path.front().index.empty() && cb_name->index.empty())
+			for (const PGate*gate : pform_cur_module.front()->get_gates()) {
+			      const PGModule*inst = dynamic_cast<const PGModule*>(gate);
+			      if (!inst || inst->get_name() != path.front().name)
+				    continue;
+			      auto def = pform_modules.find(inst->get_type());
+			      if (def != pform_modules.end() && def->second->is_interface)
+				    iface = def->second;
+			      break;
+			}
+		  auto cb_it = iface ? iface->clocking_blocks.find(cb_name->name)
+				     : std::map<perm_string,Module::PClocking*>::const_iterator();
+		  const Module::PClocking*cb = iface
+			&& cb_it != iface->clocking_blocks.end() ? cb_it->second : nullptr;
+		  PExpr*skew_delay = nullptr;
+		  if (cb && std::find(cb->signals.begin(), cb->signals.end(),
+				      signal->name) != cb->signals.end()
+		      && (cb->signal_direction(signal->name) == NetNet::PINPUT
+			  || cb->signal_direction(signal->name) == NetNet::PINOUT)
+		      && !cb->decl_assigns.count(signal->name)) {
+			if (cb->input_skew(signal->name, skew_delay)
+			    == Module::PClocking::SKEW_DELAY) {
+			      cerr << id->get_fileline() << ": error: clocking-block input `"
+				   << path.front().name << "." << cb->name << "."
+				   << signal->name << "' used in a concurrent assertion "
+				   << "must be sampled with #1step (IEEE 1800-2017/2023 "
+				   << "16.5.1)." << endl;
+			      error_count += 1;
+			      return nullptr;
+			}
+			pform_name_t raw_path;
+			raw_path.push_back(path.front());
+			raw_path.insert(raw_path.end(), signal, path.end());
+			PEIdent raw_id(raw_path, id->lexical_pos());
+			raw_id.set_line(*id);
+			return sva_wrap_preponed_(&raw_id, sampled,
+						  live_operands, unsampled_locals);
+		  }
+	    }
 	    if (!id->path().package && id->path().name.size() >= 2
 		&& !pform_cur_module.empty()) {
 		  const pform_name_t&path = id->path().name;

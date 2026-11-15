@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3137_iface_cb_assert.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3137_iface_cb_assert"
+}

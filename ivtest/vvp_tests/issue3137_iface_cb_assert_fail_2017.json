@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3137_iface_cb_assert_fail.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue3137_iface_cb_assert_fail"
+}
