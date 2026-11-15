@@ -24,7 +24,7 @@ ruled). A provisional reading an agent built on before a ruling is marked "provi
 | 2026-11-10 | (non-IEEE `$psprintf`) | #670 | A trailing empty `$psprintf` argument | Accepted only under `-gcommercial-unsafe`. | owner |
 | 2026-11-10 | 6.19.5 | #740 | Chained paren-less enum methods (`e.next.name`) | Accepted. | owner |
 | 2026-11-10 | 23.3.2, 26.2 | #811, #817 | Repeated `.*` and missing module-instance parentheses (#811); a package item that refers to a compilation-unit item (#817): both accepted today | Strict error; a warning under `-gcommercial-unsafe`. | owner |
-| 2026-11-10 | 6.7.1 | #819 | A 2-state type on a net or input port | Warning. | owner |
+| 2026-11-10 | 6.7.1 | #819 | A 2-state type on a net or input port | Warning, in a warning class that is off by default and on under -Wall (amended 2026-11-14, #2851: an always-on warning would change 606 tests' stderr golds and print on every UVM/OpenTitan/Caliptra compile using `input bit`). Never an error. | owner |
 | 2026-11-10 | 22.2 (2023) | #953 | Compiler directives split across lines are accepted without a diagnostic | Left as is. | owner |
 | 2026-11-10 | 20.6.1 | #791 | Does `$typename` carry the enclosing scope's prefix? | Yes, per 20.6.1: package, `$unit`, instance and class scope (`A::Cl::ct`); the `sv_typename1` gold is updated. | owner |
 | 2026-11-10 | 37 VPI | #1310 | Emit `.vpi_contassign` records always or on demand? | Always (+0.7% VVP bytes on the sample, no run-time cost, existing lines unchanged). | supervisor |
