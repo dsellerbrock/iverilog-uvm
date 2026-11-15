@@ -100,10 +100,17 @@ struct covgrp_cross_choice_t {
       std::vector<std::pair<uint64_t,uint64_t>> spans;
 };
 
-// A named bin of a sparse cross, evaluated per hit tuple.
+// A CrossQueueType set of a sparse cross: how many of the set's tuples
+// select each (choice, identity) tuple.
+typedef std::map<std::vector<std::pair<unsigned,uint64_t>>,uint64_t>
+      covgrp_cross_sparse_set_t;
+
+// A named bin of a sparse cross, evaluated per hit tuple. SETS holds its
+// CrossQueueType sets by property (#3363).
 struct covgrp_cross_sparse_bin_t {
       const class_type::cov_cross_bin_t*meta = 0;
       std::vector<covgrp_cross_select_op_t> select;
+      std::map<unsigned,covgrp_cross_sparse_set_t> sets;
 };
 
 // A routed logical cross tuple. Normal named bins may overlap, so one route

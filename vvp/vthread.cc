@@ -10043,15 +10043,54 @@ struct covgrp_cross_sparse_route_t {
       bool is_auto = false;
 };
 
+typedef std::vector<std::pair<unsigned,uint64_t>> covgrp_cross_sparse_key_t;
+
+/* A CrossQueueType selection (op Q) of the tuple KEY, as the dense
+ * covgrp_cross_eval_select_ decides it; false without a KEY. */
+static bool covgrp_cross_sparse_q_(const covgrp_cross_sparse_bin_t&bin,
+	 const covgrp_cross_select_op_t&op, const covgrp_cross_state_t&view,
+	 const covgrp_cross_sparse_key_t*key,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states)
+{
+      if (!key) return false;
+      auto set = bin.sets.find(op.prop);
+      if (set == bin.sets.end()) return false;
+      auto count = set->second.find(*key);
+      uint64_t found = count == set->second.end() ? 0 : count->second;
+      if (!op.matches_all) return found >= op.required;
+      if (found == 0 || op.value_widths.size() != view.dimensions.size())
+	    return false;
+      uint64_t expected = 1;
+      for (unsigned dim = 0; dim < view.dimensions.size(); dim += 1) {
+	    uint64_t values = covgrp_cross_choice_value_count_(
+		  view.dimensions[dim][0], dyn_states, op.value_widths[dim], 65536);
+	    if (values == 0 || values > 65536 || expected > 65536 / values)
+		  return false;
+	    expected *= values;
+      }
+      return found == expected;
+}
+
 static covgrp_cross_sparse_route_t covgrp_cross_sparse_route_(
 	 const covgrp_cross_state_t&state, const covgrp_cross_state_t&view,
-	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states)
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
+	 const covgrp_cross_sparse_key_t*key)
 {
       static const covgrp_cross_set_values_t no_sets;
       const std::vector<unsigned> tuple(view.dimensions.size(), 0);
       covgrp_cross_sparse_route_t route;
       for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins) {
-	    if (!covgrp_cross_eval_select_(bin.select, view, tuple,
+	    const std::vector<covgrp_cross_select_op_t>*select = &bin.select;
+	    std::vector<covgrp_cross_select_op_t> decided;
+	    if (!bin.sets.empty()) {
+		  decided = bin.select;
+		  for (covgrp_cross_select_op_t&op : decided)
+			if (op.op == 'Q')
+			      op.op = covgrp_cross_sparse_q_(bin, op, view, key,
+							     dyn_states) ? 'T' : 'F';
+		  select = &decided;
+	    }
+	    if (!covgrp_cross_eval_select_(*select, view, tuple,
 					  dyn_states, no_sets)) continue;
 	    if (bin.meta->kind == 2) route.illegal.insert(bin.meta->target);
 	    else if (bin.meta->kind == 1) route.ignored = true;
@@ -10096,7 +10135,10 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 	    return;
       }
 
-      struct class_t { unsigned choice; uint64_t rep; long double weight; };
+	// A class is a run of identities [rep, rep+weight) of one choice, or
+	// (whole) every identity of a choice no selector looks at.
+      struct class_t { unsigned choice; uint64_t rep; long double weight;
+		       bool whole; };
       std::vector<std::vector<class_t>> classes(ndims);
       uint64_t work = 0;
       for (unsigned dim = 0; dim < ndims; dim += 1) {
@@ -10107,7 +10149,7 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 	    for (unsigned ci = 0; ci < state.dimensions[dim].size(); ci += 1) {
 		  const covgrp_cross_choice_t&choice = state.dimensions[dim][ci];
 		  if (choice.spans.empty()) {
-			classes[dim].push_back({ci, choice.logical_idx, 1});
+			classes[dim].push_back({ci, choice.logical_idx, 1, false});
 			continue;
 		  }
 		  bool referenced = false;
@@ -10115,7 +10157,8 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 			if (op->term == choice.term_idx) referenced = true;
 		  if (!referenced) {
 			classes[dim].push_back({ci, choice.spans[0].first,
-			      (long double)covgrp_cross_span_count_(choice.spans)});
+			      (long double)covgrp_cross_span_count_(choice.spans),
+			      true});
 			continue;
 		  }
 		  auto found = dyn_states.find(choice.source_id);
@@ -10162,7 +10205,7 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 					  && *cut <= span.second
 					  ? *cut - 1 : span.second;
 				    classes[dim].push_back({ci, first,
-					  (long double)(last - first) + 1});
+					  (long double)(last - first) + 1, false});
 				    if (last == span.second) break;
 				    first = last + 1;
 				    ++cut;
@@ -10192,7 +10235,7 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 					+ classes[dim].back().weight == (long double)id)
 				    classes[dim].back().weight += 1;
 			      else
-				    classes[dim].push_back({ci, id, 1});
+				    classes[dim].push_back({ci, id, 1, false});
 			      prev_mask = mask;
 			      if (id == span.second) break;
 			}
@@ -10216,8 +10259,43 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
       }
       covgrp_cross_state_t view;
       view.dimensions.resize(ndims);
-      std::vector<unsigned> at(ndims, 0);
       long double automatic = 0;
+
+	// CrossQueueType sets select only their explicit tuples. Route those
+	// exactly, and take each out of the class it falls in; the classes
+	// are then routed with every set selection false.
+      std::set<covgrp_cross_sparse_key_t> explicit_tuples;
+      for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins)
+	    for (const auto&set : bin.sets)
+		  for (const auto&entry : set.second)
+			explicit_tuples.insert(entry.first);
+      std::map<std::vector<unsigned>,long double> explicit_in_class;
+      for (const covgrp_cross_sparse_key_t&key : explicit_tuples) {
+	    std::vector<unsigned> where(ndims, 0);
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  unsigned ci = key[dim].first;
+		  uint64_t id = key[dim].second;
+		  unsigned cls = 0;
+		  for (; cls < classes[dim].size(); cls += 1) {
+			const class_t&c = classes[dim][cls];
+			if (c.choice != ci) continue;
+			if (c.whole || state.dimensions[dim][ci].spans.empty()) break;
+			if (id >= c.rep && (long double)(id - c.rep) < c.weight) break;
+		  }
+		  assert(cls < classes[dim].size());
+		  where[dim] = cls;
+		  view.dimensions[dim].assign(1, state.dimensions[dim][ci]);
+		  view.dimensions[dim][0].logical_idx = id;
+	    }
+	    explicit_in_class[where] += 1;
+	    covgrp_cross_sparse_route_t route =
+		  covgrp_cross_sparse_route_(state, view, dyn_states, &key);
+	    if (route.illegal.empty() && !route.ignored)
+		  active_named.insert(route.normal.begin(), route.normal.end());
+	    if (route.is_auto) automatic += 1;
+      }
+
+      std::vector<unsigned> at(ndims, 0);
       for (uint64_t tn = 0; tn < tuples; tn += 1) {
 	    long double weight = 1;
 	    for (unsigned dim = 0; dim < ndims; dim += 1) {
@@ -10226,11 +10304,13 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 		  view.dimensions[dim][0].logical_idx = cls.rep;
 		  weight *= cls.weight;
 	    }
+	    auto taken = explicit_in_class.find(at);
+	    if (taken != explicit_in_class.end()) weight -= taken->second;
 	    covgrp_cross_sparse_route_t route =
-		  covgrp_cross_sparse_route_(state, view, dyn_states);
-	    if (route.illegal.empty() && !route.ignored)
+		  covgrp_cross_sparse_route_(state, view, dyn_states, nullptr);
+	    if (weight > 0 && route.illegal.empty() && !route.ignored)
 		  active_named.insert(route.normal.begin(), route.normal.end());
-	    if (route.is_auto) automatic += weight;
+	    if (weight > 0 && route.is_auto) automatic += weight;
 	    for (unsigned dim = 0; dim < ndims; dim += 1) {
 		  at[dim] += 1;
 		  if (at[dim] < classes[dim].size()) break;
@@ -10272,8 +10352,10 @@ static void covgrp_cross_sparse_each_(const covgrp_cross_state_t&state,
       std::vector<unsigned> at(ndims, 0);
       while (true) {
 	    std::vector<std::pair<unsigned,uint64_t>> name;
+	    covgrp_cross_sparse_key_t key;
 	    for (unsigned dim = 0; dim < ndims; dim += 1) {
 		  const std::pair<unsigned,uint64_t>&pick = picks[dim][at[dim]];
+		  key.push_back(pick);
 		  const covgrp_cross_choice_t&choice =
 			state.dimensions[dim][pick.first];
 		  view.dimensions[dim].assign(1, choice);
@@ -10287,7 +10369,7 @@ static void covgrp_cross_sparse_each_(const covgrp_cross_state_t&state,
 		  }
 		  name.emplace_back(choice.term_idx, identity);
 	    }
-	    visit(covgrp_cross_sparse_route_(state, view, dyn_states), name);
+	    visit(covgrp_cross_sparse_route_(state, view, dyn_states, &key), name);
 	    unsigned dim = 0;
 	    for (; dim < ndims; dim += 1) {
 		  at[dim] += 1;
@@ -10587,6 +10669,7 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 		  const class_type::cov_cross_bin_t*meta = 0;
 		  std::vector<covgrp_cross_select_op_t> select;
 		  covgrp_cross_set_values_t set_values;
+		  std::map<unsigned,covgrp_cross_sparse_set_t> sparse_sets;
 		    };
 		    std::vector<named_bin_t> named_bins;
 	    bool cross_set_runtime_error = false;
@@ -10630,7 +10713,8 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 		vvp_cobject*tuple = tuple_obj.peek<vvp_cobject>();
 		if (!tuple || tuple->get_defn()->property_count() != meta.n_dims)
 		      return runtime_error("contains a tuple with the wrong number of fields");
-		std::vector<std::vector<unsigned>> choices(meta.n_dims);
+		std::vector<std::vector<std::pair<unsigned,uint64_t>>> choices(
+		      meta.n_dims);
 		bool tuple_matches = true;
 		for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
 		      unsigned field_width =
@@ -10674,10 +10758,28 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 			   ci < state.dimensions[dim].size(); ci += 1) {
 			    const covgrp_cross_choice_t&choice =
 				  state.dimensions[dim][ci];
-			    if (choice.cp_idx == cp_idx
-				&& covgrp_cross_choice_overlap_(choice, dyn_states,
-							      singleton))
-				  choices[dim].push_back(ci);
+			    if (choice.cp_idx != cp_idx) continue;
+			    if (choice.spans.empty()) {
+				  if (covgrp_cross_choice_overlap_(choice, dyn_states,
+								   singleton))
+					choices[dim].push_back(std::make_pair(ci,
+					      choice.logical_idx));
+				  continue;
+			    }
+				// A sparse choice: the identities the value hits.
+			    auto source = dyn_states.find(choice.source_id);
+			    if (source == dyn_states.end()) continue;
+			    std::vector<uint64_t> ids;
+			    unsigned __int128 count = 0;
+			    if (!covgrp_dyn_match_(source->second, value, nullptr,
+						   ids, count)) continue;
+			    for (uint64_t id : ids)
+				  for (const auto&span : choice.spans)
+					if (id >= span.first && id <= span.second) {
+					      choices[dim].push_back(
+						    std::make_pair(ci, id));
+					      break;
+					}
 		      }
 		      if (choices[dim].empty()) {
 			    tuple_matches = false;
@@ -10686,7 +10788,7 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 		}
 		if (!tuple_matches) continue;
 		uint64_t combinations = 1;
-		for (const std::vector<unsigned>&dim : choices) {
+		for (const auto&dim : choices) {
 		      if (dim.empty() || combinations > cross_bin_limit / dim.size())
 			    return runtime_error("selects too many logical cross tuples");
 		      combinations *= dim.size();
@@ -10697,10 +10799,21 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 		std::vector<unsigned> selected(meta.n_dims, 0);
 		for (uint64_t ci = 0; ci < combinations; ci += 1) {
 		      std::vector<unsigned>key(meta.n_dims, 0);
-		      for (unsigned dim = 0; dim < meta.n_dims; dim += 1)
-			    key[dim] = choices[dim][selected[dim]];
-		      counts[key] += 1;
-		      if (counts.size() > cross_bin_limit)
+		      std::vector<std::pair<unsigned,uint64_t>> sparse_key;
+		      for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
+			    key[dim] = choices[dim][selected[dim]].first;
+			    sparse_key.push_back(choices[dim][selected[dim]]);
+		      }
+		      size_t distinct;
+		      if (sparse) {
+			    covgrp_cross_sparse_set_t&set = bin.sparse_sets[op.prop];
+			    set[sparse_key] += 1;
+			    distinct = set.size();
+		      } else {
+			    counts[key] += 1;
+			    distinct = counts.size();
+		      }
+		      if (distinct > cross_bin_limit)
 			    return runtime_error("selects more than 65536 logical cross tuples");
 		      for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
 			    selected[dim] += 1;
@@ -10749,10 +10862,6 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 					    break;
 				      }
 				} else if (op.op == 'Q') {
-				      if (sparse) {
-					    failure = "cross set bins on a cross over 65536 bins are not supported";
-					    break;
-				      }
 				      if (!prepare_cross_set(op, parsed)) break;
 				}
 			  }
@@ -10872,6 +10981,7 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 			covgrp_cross_sparse_bin_t bin;
 			bin.meta = named.meta;
 			bin.select = named.select;
+			bin.sets = named.sparse_sets;
 			state.sparse_bins.push_back(bin);
 		  }
 		  covgrp_cross_sparse_plan_(state, dyn_states, active_named, failure);
