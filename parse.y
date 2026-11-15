@@ -10285,9 +10285,9 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | sva_seq_expr K_iff sva_seq_expr
       { $$ = pform_sva_prop_iff(@2, $1, $3); }
   | K_if '(' expression_or_dist ')' property_expr %prec less_than_K_else
-      { $$ = pform_sva_prop_if(@1, $3, $5, nullptr); }
+      { $$ = pform_sva_prop_if(@1, pform_sva_prop_condition(@1, $3), $5, nullptr); }
   | K_if '(' expression_or_dist ')' property_expr K_else property_expr
-      { $$ = pform_sva_prop_if(@1, $3, $5, $7); }
+      { $$ = pform_sva_prop_if(@1, pform_sva_prop_condition(@1, $3), $5, $7); }
   | K_case '(' expression ')' property_case_items K_endcase
       { $$ = pform_sva_case(@1, $3, $5); }
   /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
