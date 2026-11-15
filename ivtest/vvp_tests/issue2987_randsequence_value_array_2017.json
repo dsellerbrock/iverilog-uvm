@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2987_randsequence_value_array.v",
+  "iverilog-args": ["-g2017", "-s", "issue2987_randsequence_value_array"],
+  "output-contains": ["PASSED"]
+}

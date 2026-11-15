@@ -8752,6 +8752,10 @@ void pform_set_clocking_default_skews(const struct vlltype&loc,
    so an undeclared production-condition name cannot degrade to the generic
    compile-progress warning and silently select the else branch. */
 static void sva_mark_strict_(PExpr*e, bool assertion = true);
+/* The implicit randsequence return-value arrays (18.17.7). A select of a
+   name substituted by one of these is an array select, not a post-select
+   of an expression value. */
+static std::set<perm_string> pform_rs_value_arrays_;
 static PExpr* sva_clone_subst_(
       PExpr*e, const std::map<perm_string,PExpr*>*subst);
 static parmvalue_t* sva_clone_parmvalue_(
@@ -8790,6 +8794,10 @@ struct pform_rs_expand_ctx_t {
       std::map<perm_string,rs_production_t*>&pmap;
       LexicalScope* lexical_parent;
       std::set<perm_string> active;
+	/* IEEE 1800-2023 18.17.7: a value-returning production that appears
+	   more than once in a rule is an implicit array [1:N]. Each such
+	   CALL item maps to that array and its 1-based syntactic position. */
+      std::map<const rs_item_t*, std::pair<perm_string,unsigned> > occurrence;
       size_t nodes = 0;
       unsigned scope_id = 0;
       bool bad = false;
@@ -8862,6 +8870,66 @@ static perm_string pform_rs_return_var_(pform_rs_expand_ctx_t&ctx,
 	  FILE_NAME(wire, ctx.loc);
       pform_put_wire_in_scope(prod.return_var, wire);
       return prod.return_var;
+}
+
+static void pform_rs_collect_calls_(const rs_item_t&item,
+				    std::vector<const rs_item_t*>&calls)
+{
+      if (item.kind == rs_item_t::CALL) {
+	    calls.push_back(&item);
+	    return;
+      }
+      if (item.first) pform_rs_collect_calls_(*item.first, calls);
+      if (item.second) pform_rs_collect_calls_(*item.second, calls);
+      if (item.cases) for (const rs_case_item_t&case_item : *item.cases)
+	    if (case_item.item) pform_rs_collect_calls_(*case_item.item, calls);
+	// rand join productions are void, so they return nothing here.
+}
+
+static unsigned pform_rs_values_var_id_ = 0;
+
+/* IEEE 1800-2023 18.17.7: "If a production appears multiple times, the
+   type is an array where the element type is the return type of the
+   production. The array is indexed from 1 to the number of times the
+   production appears within the rule", assigned in syntactic order. */
+static void pform_rs_number_occurrences_(pform_rs_expand_ctx_t&ctx,
+					 const rs_rule_t&rule,
+					 std::map<perm_string,PExpr*>&subst)
+{
+      if (!rule.items) return;
+      std::vector<const rs_item_t*> calls;
+      for (const rs_item_t&item : *rule.items)
+	    pform_rs_collect_calls_(item, calls);
+      std::map<perm_string, std::vector<const rs_item_t*> > by_name;
+      for (const rs_item_t*call : calls) {
+	    std::map<perm_string,rs_production_t*>::const_iterator found =
+		  ctx.pmap.find(call->name);
+	    if (found != ctx.pmap.end() && found->second->return_type)
+		  by_name[call->name].push_back(call);
+      }
+      for (const auto&entry : by_name) {
+	    if (entry.second.size() < 2) continue;
+	    std::ostringstream text;
+	    text << "$ivl_randsequence_values_" << pform_rs_values_var_id_++;
+	    perm_string name = lex_strings.make(text.str().c_str());
+	    PWire*wire = new PWire(name, UINT_MAX, NetNet::REG,
+				   NetNet::NOT_A_PORT);
+	    wire->set_data_type(ctx.pmap[entry.first]->return_type);
+	    std::list<pform_range_t> dims;
+	    dims.push_back(pform_range_t(
+		  new PENumber(new verinum((uint64_t)1, 32)),
+		  new PENumber(new verinum((uint64_t)entry.second.size(), 32))));
+	    wire->set_unpacked_idx(dims);
+	    FILE_NAME(wire, ctx.loc);
+	    pform_put_wire_in_scope(name, wire);
+	    pform_rs_value_arrays_.insert(name);
+	    for (size_t idx = 0 ; idx < entry.second.size() ; ++idx)
+		  ctx.occurrence[entry.second[idx]] =
+			std::make_pair(name, (unsigned)idx + 1);
+	    std::map<perm_string,PExpr*>::iterator old = subst.find(entry.first);
+	    if (old != subst.end()) delete old->second;
+	    subst[entry.first] = new PEIdent(name, UINT_MAX);
+      }
 }
 
 static void pform_rs_delete_subst_(std::map<perm_string,PExpr*>&subst)
@@ -9304,6 +9372,7 @@ static Statement* pform_rs_expand_join_(
 	    if (!pform_rs_bind_actuals_(ctx, *prod, call.actuals, outer,
 					  lane.subst, join_scope, initializers,
 					  lex_strings.make(prefix))) break;
+	    pform_rs_number_occurrences_(ctx, rule, lane.subst);
 	    lanes.push_back(lane);
       }
       ctx.lexical_parent = saved_parent;
@@ -9382,6 +9451,33 @@ static Statement* pform_rs_expand_item_(
 		  ctx.pmap.find(item.name);
 	    if (found != ctx.pmap.end() && found->second->return_type) {
 		  perm_string name = pform_rs_return_var_(ctx, *found->second);
+		  std::map<const rs_item_t*, std::pair<perm_string,unsigned> >
+			::const_iterator occ = ctx.occurrence.find(&item);
+		  if (occ != ctx.occurrence.end() && expanded) {
+			/* Copy this instance's value into its element at once,
+			   before another instance (or join lane) reuses the
+			   production's return variable. */
+			pform_name_t element;
+			element.push_back(name_component_t(occ->second.first));
+			index_component_t select;
+			select.sel = index_component_t::SEL_BIT;
+			select.msb = new PENumber(new verinum(
+			      (uint64_t)occ->second.second, 32));
+			element.back().index.push_back(select);
+			PEIdent*lval = new PEIdent(element, UINT_MAX);
+			lval->set_line(item);
+			PEIdent*rval = new PEIdent(name, UINT_MAX);
+			rval->set_line(item);
+			PAssign*copy = new PAssign(lval, rval);
+			copy->set_line(item);
+			std::vector<Statement*> both;
+			both.push_back(expanded);
+			both.push_back(copy);
+			std::map<perm_string,PExpr*>::iterator old = subst->find(item.name);
+			if (old != subst->end()) delete old->second;
+			(*subst)[item.name] = new PEIdent(occ->second.first, UINT_MAX);
+			return pform_rs_block_(item, both);
+		  }
 		  std::map<perm_string,PExpr*>::iterator old = subst->find(item.name);
 		  if (old != subst->end()) delete old->second;
 		  (*subst)[item.name] = new PEIdent(name, UINT_MAX);
@@ -9467,6 +9563,7 @@ static Statement* pform_rs_expand_rule_(
       std::map<perm_string,PExpr*> local_subst;
       if (subst) for (const auto&entry : *subst)
 	    local_subst[entry.first] = sva_clone_subst_(entry.second, nullptr);
+      pform_rs_number_occurrences_(ctx, rule, local_subst);
       std::vector<Statement*> statements;
       if (rule.items) for (const rs_item_t&item : *rule.items) {
 	    Statement*expanded = pform_rs_expand_item_(ctx, item, &local_subst,
@@ -12717,6 +12814,27 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 			      can_postselect = false;
 			      break;
 			}
+		  const PEIdent*array = it != subst->end()
+			? dynamic_cast<const PEIdent*>(it->second) : nullptr;
+		  if (array && !component.index.empty()
+		      && array->path().name.size() == 1 && !array->path().package
+		      && pform_rs_value_arrays_.count(array->path().name.front().name)) {
+			pform_name_t path;
+			path.push_back(name_component_t(array->path().name.front().name));
+			for (const index_component_t&source : component.index) {
+			      index_component_t index;
+			      index.sel = source.sel;
+			      index.msb = source.msb
+				    ? sva_clone_subst_(source.msb, subst) : nullptr;
+			      index.lsb = source.lsb
+				    ? sva_clone_subst_(source.lsb, subst) : nullptr;
+			      path.back().index.push_back(index);
+			}
+			// Generated after the source text: no declaration-order check.
+			PEIdent*select = new PEIdent(path, UINT_MAX);
+			select->set_line(*e);
+			return select;
+		  }
 		  if (it != subst->end() && can_postselect) {
 			PExpr*value = sva_clone_actual_argument_(it->second, nullptr);
 			if (!value) return nullptr;
