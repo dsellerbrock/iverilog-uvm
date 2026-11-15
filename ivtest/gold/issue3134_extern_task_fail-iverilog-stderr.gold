@@ -1,0 +1,2 @@
+ivltests/issue3134_extern_task_fail.v:4: error: Extern task `inc' requires exactly one connected module provider for this interface instance; found 0 (IEEE 1800-2017/2023 25.7.3).
+1 error(s) during elaboration.
