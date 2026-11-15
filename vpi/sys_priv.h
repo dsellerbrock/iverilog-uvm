@@ -103,4 +103,12 @@ extern PLI_INT32 sys_one_string_arg_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name);
 extern void put_integer_value(vpiHandle callh, PLI_INT32 result);
 extern void put_scalar_value(vpiHandle callh, PLI_INT32 result);
 
+/*
+ * The vpiType of ITEM, with an unpacked struct or union variable
+ * (vpiStructVar/vpiUnionVar with vpiPacked 0, IEEE 1800 37.26) reported as
+ * vpiClassVar: the system tasks walk those object-backed aggregates through
+ * their class-variable path (vpiIsStruct, vpiMember).
+ */
+extern PLI_INT32 sys_object_vpi_type(vpiHandle item);
+
 #endif /* IVL_sys_priv_H */

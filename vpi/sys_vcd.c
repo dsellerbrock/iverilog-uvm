@@ -521,7 +521,7 @@ static void scan_item(unsigned depth, vpiHandle item, int skip)
 	/* Get the displayed type for the various $var and $scope types. */
 	/* Not all of these are supported now, but they should be in a
 	 * future development version. */
-      item_type = vpi_get(vpiType, item);
+      item_type = sys_object_vpi_type(item);
       switch (item_type) {
 	  case vpiClassVar:
 	    if (vpi_get(vpiIsStruct, item)) type = "fork";
@@ -857,7 +857,7 @@ static PLI_INT32 sys_dumpvars_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    const char *fullname;
 	    int add_var = 0;
 	    int dep;
-	    PLI_INT32 item_type = vpi_get(vpiType, item);
+	    PLI_INT32 item_type = sys_object_vpi_type(item);
 
 	      /* If this is a signal make sure it has not already
 	       * been included. */
