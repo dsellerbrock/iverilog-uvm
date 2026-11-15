@@ -236,7 +236,8 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       };
 
     public:
-      vvp_fun_modpath(vvp_net_t*net, unsigned width, bool showcancelled);
+      vvp_fun_modpath(vvp_net_t*net, unsigned width, bool showcancelled,
+		      bool ondetect);
       ~vvp_fun_modpath() override;
 
       void add_modpath_src(vvp_fun_modpath_src*that, bool ifnone);
@@ -285,6 +286,8 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       bool seen_change_;
       vvp_time64_t last_change_time_;
       bool showcancelled_;
+	// pulsestyle_ondetect: a pulse filtered to X goes to X at once.
+      bool ondetect_;
       std::list<vvp_vector4_t> pending_bits_;
 
     private: // not implemented

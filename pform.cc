@@ -7728,6 +7728,14 @@ extern void pform_specify_path_showcancelled(
       pform_cur_module.front()->set_specify_showcancelled(terminal, enabled);
 }
 
+extern void pform_specify_path_ondetect(
+	const pform_specify_terminal_t&terminal, bool enabled)
+{
+      if (pform_cur_module.empty())
+	    return;
+      pform_cur_module.front()->set_specify_ondetect(terminal, enabled);
+}
+
 /*
  * Timing checks.
  */

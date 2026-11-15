@@ -32840,6 +32840,17 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 			     << "module path outputs is not supported." << endl;
 		  }
 	    }
+	      /* 30.7.4.1: the pulse style of the path output. Pulse
+		 filtering to X exists for scalar outputs only. */
+	    if (module && module->specify_ondetect(terminal)) {
+		  if (dst_sig->vector_width() == 1) {
+			dst_sig->attribute(perm_string::literal("_ivl_pulsestyle_ondetect"),
+					   verinum(1));
+		  } else {
+			cerr << get_fileline() << ": sorry: pulsestyle_ondetect on "
+			     << "vector module path outputs is not supported." << endl;
+		  }
+	    }
 
 	    ostringstream condition_text;
 	    if (condition)
