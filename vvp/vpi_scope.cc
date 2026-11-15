@@ -29,6 +29,7 @@
 # include  "vthread.h"
 # include  "vvp_net_sig.h"
 # include  "config.h"
+# include  <algorithm>
 # include  <map>
 # include  <utility>
 #ifdef CHECK_WITH_VALGRIND
@@ -941,6 +942,8 @@ vpiHandle vpip_make_process_handle(vthread_t thread)
  * things that are contained in the scope object, by generating an
  * iterator for the requested set of items.
  */
+static vpiHandle module_port_iodecls_(__vpiScope*mod);
+
 static vpiHandle module_iter(int code, vpiHandle obj)
 {
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
@@ -1012,6 +1015,10 @@ static vpiHandle module_iter(int code, vpiHandle obj)
 
             return vpip_make_iterator(idx, args, true);
       }
+
+      if ((code == VPI_IODECL_TYPE || code == VPI_IODECL_LEGACY)
+	  && ref->get_type_code() == vpiModule)
+	    return module_port_iodecls_(ref);
 
       return make_subset_iterator_(code, ref->intern);
 }
@@ -1293,6 +1300,44 @@ class __vpiIODecl : public __vpiHandle {
       const char*name_;
       vpiHandle expr_;
 };
+
+/* IEEE 1800-2023 37.5, 37.13: a module's I/O declarations. VVP records
+   none for a module, so each plain port (vpiPortType vpiPort) with a
+   direction yields one, in port order, whose vpiExpr is the port's
+   internal net or variable (its vpiLowConn). Made once per module. */
+static vpiHandle module_port_iodecls_(__vpiScope*mod)
+{
+      static map<__vpiScope*, vector<vpiHandle> > made;
+      auto found = made.find(mod);
+      if (found == made.end()) {
+	    vector<vpiPortInfo*> ports;
+	    for (vpiHandle item : mod->intern)
+		  if (vpiPortInfo*port = dynamic_cast<vpiPortInfo*>(item))
+			ports.push_back(port);
+	    sort(ports.begin(), ports.end(), [](vpiPortInfo*a, vpiPortInfo*b)
+		 { return a->get_index() < b->get_index(); });
+	    vector<vpiHandle>&decls = made[mod];
+	    for (vpiPortInfo*port : ports) {
+		  int dir = port->get_direction();
+		  if (port->vpi_get(611 /* vpiPortType */) != vpiPort
+		      || (dir != vpiInput && dir != vpiOutput && dir != vpiInout))
+			continue;
+		  const char*name = port->vpi_get_str(vpiName);
+		  if (!name || !*name) continue;
+		  __vpiIODecl*decl = new __vpiIODecl(mod, dir, name);
+		  decl->expression_slot() = port->vpi_handle(vpiLowConn);
+		  decls.push_back(decl);
+	    }
+	    found = made.find(mod);
+      }
+      const vector<vpiHandle>&decls = found->second;
+      if (decls.empty()) return 0;
+      vpiHandle*args = static_cast<vpiHandle*>(
+	    calloc(decls.size(), sizeof(vpiHandle)));
+      for (unsigned idx = 0; idx < decls.size(); idx += 1)
+	    args[idx] = decls[idx];
+      return vpip_make_iterator(decls.size(), args, true);
+}
 
 void compile_io_decl(long direction, char*name, char*formal)
 {

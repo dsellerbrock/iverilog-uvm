@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3040_vpi_module_iodecl.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3040_vpi_module_iodecl_2017"],
+  "vpi-sources": ["vpi/issue3040_vpi_module_iodecl.c"],
+  "output-contains": ["IODECL a dir=1 size=1 expr=top.u.a", "IODECL b dir=2 size=1 expr=top.u.b", "IODECL c dir=3 size=4 expr=top.u.c", "PORTS=3 TASK_IO=1 TOP_IO=none"]
+}
