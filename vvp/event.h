@@ -605,6 +605,7 @@ class vvp_named_event_sa : public vvp_named_event {
       void deliver_(vvp_net_ptr_t port, const vvp_vector4_t&bit);
       vthread_t add_local_waiter_(vthread_t thread);
       static vvp_named_event_sa* queue_owner_(vvp_net_t*net);
+      static class vvp_named_event_dyn* element_owner_(vvp_net_t*net);
 
       vthread_t threads_;
       vthread_t triggered_change_threads_;

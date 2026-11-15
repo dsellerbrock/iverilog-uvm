@@ -71,6 +71,7 @@
 # include  "util.h"
 # include  "parse_api.h"
 # include  "compiler.h"
+# include  "PConfig.h"
 # include  "ivl_assert.h"
 # include "map_named_args.h"
 
@@ -388,7 +389,8 @@ static const Module* find_default_clocking_module_(const Module*module)
       return nullptr;
 }
 
-static Module* find_module_type_(perm_string type, const NetScope*scope)
+static Module* find_module_type_(Design*des, const PGModule*inst,
+				 perm_string type, const NetScope*scope)
 {
       for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
 	    const PGenerate*selected_generate = nullptr;
@@ -419,6 +421,11 @@ static Module* find_module_type_(perm_string type, const NetScope*scope)
 		&& (!nested->second->is_checker || generation_flag >= GN_VER2017))
 		  return nested->second;
       }
+
+	// A config binds the instance to a library cell (IEEE 1800 33.4).
+      Module*bound = 0;
+      if (config_bind(des, inst, scope, type, bound))
+	    return bound;
 
       std::map<perm_string,Module*>::const_iterator module
 	    = pform_modules.find(type);
@@ -1843,6 +1850,17 @@ static NetEvent* elaborate_event_array_target_(Design*des, NetScope*scope,
       if (!idx) {
 	    des->errors += 1;
 	    return nullptr;
+      }
+
+	/* The run-time finds an element by its offset from the low bound of
+	   the declared range (NetEvent::array_index_to_word), so `ev[4]' of
+	   `event ev[4:5]' is offset 0, not 4. */
+      long low = sr.eve->array_msb() >= sr.eve->array_lsb()
+	    ? sr.eve->array_lsb() : sr.eve->array_msb();
+      if (low != 0) {
+	    idx = new NetEBAdd('-', pad_to_width(idx, 32, loc),
+			       make_const_val_s(low), 32, true);
+	    idx->set_line(loc);
       }
 
       idx_out = idx;
@@ -9985,7 +10003,7 @@ bool PGModule::elaborate_sig(Design*des, NetScope*scope) const
       }
 
 	// Look for the module type
-	    Module*mod = find_module_type_(type_, scope);
+	    Module*mod = find_module_type_(des, this, type_, scope);
       if (mod)
 	    return elaborate_sig_mod_(des, scope, mod);
 
@@ -10015,7 +10033,7 @@ void PGModule::elaborate(Design*des, NetScope*scope) const
 
 	// Look for the module type
 
-      Module*mod = find_module_type_(type_, scope);
+      Module*mod = find_module_type_(des, this, type_, scope);
       if (mod) {
 	    if (drive_strength_specified_) {
 		  cerr << get_fileline() << ": error: Drive strength is not allowed on a module instance." << endl;
@@ -10171,7 +10189,7 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
 
 	// Look for the module type
 
-      Module*mod = find_module_type_(type_, sc);
+      Module*mod = find_module_type_(des, this, type_, sc);
       if (mod) {
 	    elaborate_scope_mod_(des, mod, sc);
 	    return;
@@ -10189,7 +10207,7 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
       if (load_module(type_, parser_errors)) {
 
 	      // Try again to find the module type
-	    mod = find_module_type_(type_, sc);
+	    mod = find_module_type_(des, this, type_, sc);
 	    if (mod) {
 		  elaborate_scope_mod_(des, mod, sc);
 		  return;
@@ -10210,6 +10228,7 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
 	// any means, so give up.
       if (!ignore_missing_modules) {
         cerr << get_fileline() << ": error: Unknown module type: " << type_ << endl;
+        config_explain_unbound(this, sc);
         missing_modules[type_] += 1;
         des->errors += 1;
       }
@@ -13672,6 +13691,29 @@ static NetProc* elaborate_event_assign_(Design*des, NetScope*scope,
       handled = true;
       NetEvent*src = find_named_event_(des, scope, assign.rval());
       bool null_src = dynamic_cast<const PENull*>(assign.rval()) != nullptr;
+	/* 7.4.5: an element of an event array is an event. The destination
+	   shares that element's queue; an invalid index reads as null. */
+      if (!src && !null_src) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(assign.rval());
+	    NetExpr*index = nullptr;
+	    NetEvent*array = id && !id->path().package
+		  ? elaborate_event_array_target_(des, scope, assign,
+						  id->path().name,
+						  id->lexical_pos(), index)
+		  : nullptr;
+	    if (array) {
+		  vector<NetExpr*>argv(4);
+		  argv[0] = new NetEEvent(dst);
+		  argv[0]->set_line(assign);
+		  argv[1] = make_const_val(array->array_base_slot());
+		  argv[2] = make_const_val(array->array_count());
+		  argv[3] = index;
+		  NetSTask*task = new NetSTask("$ivl_event_assign_arr",
+					       IVL_SFUNC_AS_TASK_IGNORE, argv);
+		  task->set_line(assign);
+		  return task;
+	    }
+      }
       if (!src && !null_src) {
 	    cerr << assign.get_fileline() << ": error: an event variable can "
 		 << "only be assigned another event or null (IEEE 1800-2017/"
@@ -17833,6 +17875,12 @@ NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 	    else
 		  return elaborate_sys(des, scope);
       } else {
+	      // 19.8: get_coverage is a static method of a covergroup,
+	      // coverpoint or cross type. Called as a statement it still
+	      // assigns its ref int outputs.
+	    if (peek_tail_name(path_) == "get_coverage"
+		&& is_scoped_covergroup_coverage_call(des, scope, package_, path_))
+		  return elaborate_non_void_function_(des, scope, true);
 	    return elaborate_usr(des, scope);
       }
 }
@@ -56005,6 +56053,9 @@ class elaborate_root_scope_t : public elaborator_work_item_t {
 		  root_repl[peek_head_name(tmp_name)] = cur->second;
 	    }
 
+	      // A config may configure this root, and override its parameters.
+	    config_root_scope(des, scope_, rmod_, root_repl);
+
 	    /* Module::elaborate_scope reports failure when any design error is
 	     * already present, including a diagnostic emitted earlier while
 	     * elaborating the compilation unit. Do not turn that global status
@@ -57325,7 +57376,9 @@ Design* elaborate(list<perm_string>roots)
 
 	      // Make the root scope. This makes a NetScope object and
 	      // pushes it into the list of root scopes in the Design.
-	    NetScope*scope = des->make_root_scope(*root, unit_scope,
+	      // The scope has the name of the cell: the key of a cell
+	      // that a config selects may be library-qualified.
+	    NetScope*scope = des->make_root_scope(rmod->cell, unit_scope,
 						  rmod->program_block,
 						  rmod->is_interface);
 	    scope->set_module_definition(rmod);

@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue3202_local_assign_nonempty.v",
+  "iverilog-args": ["-g2023", "-gassertions"]
+}

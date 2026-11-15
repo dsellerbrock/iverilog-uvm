@@ -6794,6 +6794,26 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+	/* The source is an element of an event array: its slot is found at
+	 * run time from the array's base slot and element count, as for
+	 * %evt/arr. An invalid index gives the null event (7.4.5). */
+      if (strcmp(stmt_name, "$ivl_event_assign_arr") == 0) {
+	    ivl_event_t dst = ivl_expr_event(ivl_stmt_parm(net, 0));
+	    unsigned long base = get_number_immediate(ivl_stmt_parm(net, 1));
+	    unsigned long count = get_number_immediate(ivl_stmt_parm(net, 2));
+	    int use_idx = allocate_word();
+	    int use_arr = allocate_word();
+	    show_stmt_file_line(net, "Event variable assignment.");
+	    draw_expr_into_idx(ivl_stmt_parm(net, 3), use_idx);
+	    fprintf(vvp_out, "    %%ix/load %d, %lu, %lu;\n", use_arr, count,
+		    base);
+	    fprintf(vvp_out, "    %%event/assign/arr E_%p, %d, %d;\n", dst,
+		    use_idx, use_arr);
+	    clr_word(use_arr);
+	    clr_word(use_idx);
+	    return 0;
+      }
+
       if (strcmp(stmt_name, "$ivl_deferred_enqueue") == 0
           || strcmp(stmt_name, "$ivl_deferred_final_enqueue") == 0)
             return show_deferred_assert_enqueue_(net, sscope);
