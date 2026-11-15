@@ -10353,9 +10353,9 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | sva_seq_expr K_iff sva_seq_expr
       { $$ = pform_sva_prop_iff(@2, $1, $3); }
   | K_if '(' expression_or_dist ')' property_expr %prec less_than_K_else
-      { $$ = pform_sva_prop_if(@1, $3, $5, nullptr); }
+      { $$ = pform_sva_prop_if(@1, pform_sva_prop_condition(@1, $3), $5, nullptr); }
   | K_if '(' expression_or_dist ')' property_expr K_else property_expr
-      { $$ = pform_sva_prop_if(@1, $3, $5, $7); }
+      { $$ = pform_sva_prop_if(@1, pform_sva_prop_condition(@1, $3), $5, $7); }
   | K_case '(' expression ')' property_case_items K_endcase
       { $$ = pform_sva_case(@1, $3, $5); }
   /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
@@ -19829,14 +19829,7 @@ specify_item
 	for (const pform_specify_terminal_t&terminal : *$2) {
 	      if (pform_specify_path_output_previously_declared(terminal))
 		    yyerror(@3, "error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).");
-	}
-	/* Pulse-filtering control, not a timing check -- the old
-	   message named the wrong construct. It is accepted and
-	   ignored, so say which one is being ignored. */
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: `pulsestyle_onevent' is accepted but has no "
-			 "effect; pulse filtering is not modelled, so "
-			 "cancelled and short pulses propagate as usual.");
+	      pform_specify_path_ondetect(terminal, false);
 	}
 	delete $2; // specify_path_identifiers
       }
@@ -19845,14 +19838,7 @@ specify_item
 	for (const pform_specify_terminal_t&terminal : *$2) {
 	      if (pform_specify_path_output_previously_declared(terminal))
 		    yyerror(@3, "error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).");
-	}
-	/* Pulse-filtering control, not a timing check -- the old
-	   message named the wrong construct. It is accepted and
-	   ignored, so say which one is being ignored. */
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: `pulsestyle_ondetect' is accepted but has no "
-			 "effect; pulse filtering is not modelled, so "
-			 "cancelled and short pulses propagate as usual.");
+	      pform_specify_path_ondetect(terminal, true);
 	}
 	delete $2; // specify_path_identifiers
       }

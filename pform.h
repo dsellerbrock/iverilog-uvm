@@ -742,6 +742,8 @@ extern sva_property_t*
 pform_sva_paren_conseq(const struct vlltype&loc, int op_type,
 		       std::vector<sva_seq_step_t>*ante,
 		       sva_property_t*conseq);
+extern PExpr*
+pform_sva_prop_condition(const struct vlltype&loc, PExpr*cond);
 extern sva_property_t*
 pform_sva_prop_if(const struct vlltype&loc, PExpr*cond, sva_property_t*then_p,
 		  sva_property_t*else_p);
@@ -1111,6 +1113,8 @@ extern void pform_module_specify_path(PSpecPath*obj);
 extern bool pform_specify_path_output_previously_declared(
 	const pform_specify_terminal_t&terminal);
 extern void pform_specify_path_showcancelled(
+	const pform_specify_terminal_t&terminal, bool enabled);
+extern void pform_specify_path_ondetect(
 	const pform_specify_terminal_t&terminal, bool enabled);
 
 /*

@@ -5,7 +5,7 @@ module issue2656_descending_inner_array_percent_p;
   initial begin
     foreach (m[q, r]) m[q][r] = q*10 + r;
     rendered = $sformatf("%p", m);
-    if (rendered != "'{2, 1, 0, 12, 11, 10}") begin
+    if (rendered != "'{'{2, 1, 0}, '{12, 11, 10}}") begin
       $display("FAIL multidimensional descending %s", rendered);
       $finish;
     end

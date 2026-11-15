@@ -1,0 +1,4 @@
+ivltests/issue3418_overlap.sv:6: error: Cannot perform procedural assignment to array word 'm['sd1]['sd0]' because it is also continuously assigned.
+ivltests/issue3418_overlap.sv:7: error: Cannot perform procedural assignment to array word 'm['sd1][idx]' because it is also continuously assigned.
+ivltests/issue3418_overlap.sv:8: error: Cannot perform procedural assignment to array word 'm[idx]['sd1]' because it is also continuously assigned.
+3 error(s) during elaboration.
