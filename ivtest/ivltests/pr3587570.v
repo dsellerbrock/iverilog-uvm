@@ -5,7 +5,8 @@ primitive passthrough (o, i);
   // i : o
      1 : 1;
      0 : 0;
-     ? : 0;
+  // A "? : 0" row here gave 1 a second output, which IEEE 1800 29.3.4
+  // forbids; x inputs take the default x output.
   endtable
 endprimitive
 

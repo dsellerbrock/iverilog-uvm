@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3075_udp_unsafe.v",
+    "iverilog-args": ["-g2017", "-gcommercial-unsafe"],
+    "gold": "issue3075_udp_unsafe"
+}

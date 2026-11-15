@@ -1,0 +1,3 @@
+ivltests/issue3075_udp_conflict.v:3: error: UDP table rows 1 and 2 of primitive "issue3075_duplicate" give the same inputs different outputs (IEEE 1800 29.3.4).
+ivltests/issue3075_udp_conflict.v:11: error: UDP table rows 1 and 2 of primitive "issue3075_overlap" give the same inputs different outputs (IEEE 1800 29.3.4).
+ivltests/issue3075_udp_conflict.v:20: error: UDP table rows 1 and 2 of primitive "issue3075_edge_overlap" give the same inputs different outputs (IEEE 1800 29.3.4).
