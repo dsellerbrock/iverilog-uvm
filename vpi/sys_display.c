@@ -1901,7 +1901,20 @@ static PLI_INT32 sys_display_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 
 	/* Because %u and %z may put embedded NULL characters into the
 	 * returned string strlen() may not match the real size! */
-      result = get_display(&size, &info);
+      if (fd_mcd == 0) {
+	    unsigned int idx = 0;
+	    char *fmt;
+	    val.format = vpiStringVal;
+	    vpi_get_value(info.items[0], &val);
+	    fmt = strdup(val.value.str);
+	    size = get_format(&result, fmt, &info, &idx);
+	    free(fmt);
+	    if (idx + 1 < info.nitems)
+		  fprintf(stderr, "WARNING: %s:%d: %s has %u extra argument(s).\n",
+		          info.filename, info.lineno, name, info.nitems - idx - 1);
+      } else {
+	    result = get_display(&size, &info);
+      }
 
       if (fd_mcd > 0) {
 	     my_mcd_rawwrite(fd_mcd, result, size);

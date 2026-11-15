@@ -807,7 +807,7 @@ sf_countones		normal,-g2009		ivltests
 sf_isunknown		normal,-g2005-sv	ivltests
 sf_onehot		normal,-g2005-sv	ivltests
 sf_onehot0		normal,-g2005-sv	ivltests
-sformatf		normal,-g2009		ivltests
+sformatf		normal,-g2009		ivltests gold=sformatf.gold
 simple_byte		normal,-g2005-sv	ivltests
 simple_int		normal,-g2005-sv	ivltests
 simple_longint		normal,-g2005-sv	ivltests
@@ -6934,3 +6934,5 @@ issue3078_udp_legal_2017 normal,-g2017,-s,top ivltests gold=issue3078_udp_legal.
 issue3078_udp_legal_2023 normal,-g2023,-s,top ivltests gold=issue3078_udp_legal.gold
 issue3381_package_covergroup_2017 normal,-g2017,-s,issue3381_package_covergroup ivltests gold=issue3381_package_covergroup.gold
 issue3381_package_covergroup_2023 normal,-g2023,-s,issue3381_package_covergroup ivltests gold=issue3381_package_covergroup.gold
+issue3470_sformatf_extra_2017 normal,-g2017,-s,issue3470_sformatf_extra ivltests gold=issue3470_sformatf_extra.gold
+issue3470_sformatf_extra_2023 normal,-g2023,-s,issue3470_sformatf_extra ivltests gold=issue3470_sformatf_extra.gold
