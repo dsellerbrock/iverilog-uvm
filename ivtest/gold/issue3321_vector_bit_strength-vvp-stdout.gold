@@ -1,0 +1,4 @@
+one:  HiZ_Pu1 Pu0_HiZ HiZ_We1 We1_HiZ St1_HiZ
+zero: HiZ_Pu1 Pu0_HiZ HiZ_We0 We0_HiZ St0_HiZ
+z:    HiZ_Pu1 Pu0_HiZ HiZ_WeX HiZ_HiZ HiZ_HiZ
+x:    HiZ_Pu1 Pu0_HiZ HiZ_WeX WeX_HiZ StX_HiZ

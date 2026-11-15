@@ -6916,3 +6916,5 @@ issue3309_dist_property_2023 normal,-g2023,-s,issue3309_dist_property ivltests g
 issue3309_dist_default_2017 CE,-g2017 ivltests gold=issue3309_dist_default_2017.gold
 issue3318_wired_strength_2017 normal,-g2017,-s,top ivltests gold=issue3318_wired_strength_2017.gold
 issue3318_wired_strength_2023 normal,-g2023,-s,top ivltests gold=issue3318_wired_strength_2023.gold
+issue3321_vector_bit_strength_2017 normal,-g2017,-s,top ivltests gold=issue3321_vector_bit_strength.gold
+issue3321_vector_bit_strength_2023 normal,-g2023,-s,top ivltests gold=issue3321_vector_bit_strength.gold
