@@ -2209,6 +2209,9 @@ void dll_target::logic(const NetLogic*net)
 	  case NetLogic::PULLUP:
 	    obj->type_ = IVL_LO_PULLUP;
 	    break;
+	  case NetLogic::TRIREG:
+	    obj->type_ = IVL_LO_TRIREG;
+	    break;
 	  case NetLogic::RCMOS:
 	    obj->type_ = IVL_LO_RCMOS;
 	    break;
@@ -3982,6 +3985,7 @@ void dll_target::signal(const NetNet*net)
 	  case NetNet::TRI:
 	  case NetNet::WIRE:
 	  case NetNet::IMPLICIT:
+	  case NetNet::TRIREG: /* the charge device carries the behaviour */
 	    obj->type_ = IVL_SIT_TRI;
 	    break;
 

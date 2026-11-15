@@ -91,6 +91,9 @@ ostream& operator<< (ostream&o, NetNet::Type t)
 	  case NetNet::TRI1:
 	    o << "tri1";
 	    break;
+	  case NetNet::TRIREG:
+	    o << "trireg";
+	    break;
 	  case NetNet::TRIAND:
 	    o << "triand";
 	    break;

@@ -8934,6 +8934,22 @@ package_item /* IEEE1800-2005 A.1.10 */
         pform_set_data_type(@2, data_type, $6, $2, $1);
         delete $1;
       }
+  | attribute_list_opt net_type charge_strength data_type_or_implicit delay3_opt net_variable_list ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
+        if ($2 != NetNet::TRIREG) {
+	      yyerror(@3, "error: A charge strength shall only be used with "
+		      "a trireg net (IEEE 1800-2023 6.3.2.1).");
+	      pform_set_charge_strength(IVL_DR_MEDIUM);
+	}
+        if (!data_type) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+        }
+        pform_set_net_delay(@2, $5, $6);
+        pform_set_data_type(@2, data_type, $6, $2, $1);
+        delete $1;
+      }
   | attribute_list_opt NETTYPE_IDENTIFIER delay1_opt net_variable_list ';'
       { pform_requires_sv(@2, "User-defined net declaration");
         pform_set_nettype_referenced(@2, $2.text);
@@ -12889,14 +12905,9 @@ pattern_if_prefix
   ;
 
 charge_strength
-  : '(' K_small ')'
-  | '(' K_medium ')'
-  | '(' K_large ')'
-  ;
-
-charge_strength_opt
-  : charge_strength
-  |
+  : '(' K_small ')'  { pform_set_charge_strength(IVL_DR_SMALL); }
+  | '(' K_medium ')' { pform_set_charge_strength(IVL_DR_MEDIUM); }
+  | '(' K_large ')'  { pform_set_charge_strength(IVL_DR_LARGE); }
   ;
 
 defparam_assign
@@ -17858,10 +17869,24 @@ module_item
 	delete $1;
       }
 
-  | K_trireg charge_strength_opt dimensions_opt delay3_opt list_of_identifiers ';'
-      { yyerror(@1, "sorry: trireg nets not supported.");
-	delete $3;
-	delete $4;
+  /* A trireg net may give a charge strength where other nets give a drive
+     strength (IEEE 1800-2023 Syntax 6-2, 6.3.2.1). The net type is parsed
+     as net_type so that the '(' needs no early decision. */
+
+  | attribute_list_opt net_type charge_strength data_type_or_implicit delay3_opt net_decl_assigns_mixed ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
+        if ($2 != NetNet::TRIREG) {
+	      yyerror(@3, "error: A charge strength shall only be used with "
+		      "a trireg net (IEEE 1800-2023 6.3.2.1).");
+	      pform_set_charge_strength(IVL_DR_MEDIUM);
+	}
+	if (data_type == 0) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+	}
+	pform_makewire(@2, $5, str_strength, $6, $2, data_type, $1);
+	delete $1;
       }
 
 
@@ -18859,6 +18884,7 @@ net_type
 		        "instead." << endl;
 	      }
   | K_uwire   { $$ = NetNet::UNRESOLVED_WIRE; }
+  | K_trireg  { $$ = NetNet::TRIREG; }
   ;
 
 net_type_opt

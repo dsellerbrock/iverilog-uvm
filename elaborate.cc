@@ -6466,6 +6466,7 @@ enum port_net_class_t {
       PORT_NET_UWIRE,
       PORT_NET_SUPPLY0,
       PORT_NET_SUPPLY1,
+      PORT_NET_TRIREG,
       PORT_NET_CLASS_COUNT,
       PORT_NET_CLASS_UNSUPPORTED
 };
@@ -6485,29 +6486,31 @@ static port_net_class_t port_net_class(NetNet::Type type)
 	  case NetNet::UNRESOLVED_WIRE: return PORT_NET_UWIRE;
 	  case NetNet::SUPPLY0: return PORT_NET_SUPPLY0;
 	  case NetNet::SUPPLY1: return PORT_NET_SUPPLY1;
+	  case NetNet::TRIREG: return PORT_NET_TRIREG;
 	  default: return PORT_NET_CLASS_UNSUPPORTED;
       }
 }
 
 /* IEEE 1800-2023 Table 23-1, with rows=internal and columns=external.
  * Each entry encodes external/internal dominance and the table's warn cell.
- * The frontend diagnoses trireg declarations before NetNet construction, so
- * there is no NetNet::TRIREG row/column to represent here. */
+ * The trireg row and column come last here; in the standard's table they
+ * sit between wor/trior and tri0. */
 static port_net_dominance_result_t port_net_dominance(NetNet::Type internal,
 						       NetNet::Type external)
 {
       enum table_cell_t { E, EW, I, IW };
       static const table_cell_t table[PORT_NET_CLASS_COUNT]
 					   [PORT_NET_CLASS_COUNT] = {
-	/* external: wire wand wor  tri0 tri1 uwire supply0 supply1 */
-	/* wire */   { E,   E,   E,   E,   E,   E,    E,      E  },
-	/* wand */   { I,   E,   EW,  EW,  EW,  EW,   E,      E  },
-	/* wor */    { I,   EW,  E,   EW,  EW,  EW,   E,      E  },
-	/* tri0 */   { I,   EW,  EW,  E,   EW,  EW,   E,      E  },
-	/* tri1 */   { I,   EW,  EW,  EW,  E,   EW,   E,      E  },
-	/* uwire */  { I,   IW,  IW,  IW,  IW,  E,    E,      E  },
-	/* supply0 */{ I,   I,   I,   I,   I,   I,    E,      EW },
-	/* supply1 */{ I,   I,   I,   I,   I,   I,    EW,     E  }
+	/* external: wire wand wor  tri0 tri1 uwire supply0 supply1 trireg */
+	/* wire */   { E,   E,   E,   E,   E,   E,    E,      E,      E  },
+	/* wand */   { I,   E,   EW,  EW,  EW,  EW,   E,      E,      EW },
+	/* wor */    { I,   EW,  E,   EW,  EW,  EW,   E,      E,      EW },
+	/* tri0 */   { I,   EW,  EW,  E,   EW,  EW,   E,      E,      I  },
+	/* tri1 */   { I,   EW,  EW,  EW,  E,   EW,   E,      E,      I  },
+	/* uwire */  { I,   IW,  IW,  IW,  IW,  E,    E,      E,      IW },
+	/* supply0 */{ I,   I,   I,   I,   I,   I,    E,      EW,     I  },
+	/* supply1 */{ I,   I,   I,   I,   I,   I,    EW,     E,      I  },
+	/* trireg */ { I,   EW,  EW,  E,   E,   EW,   E,      E,      E  }
       };
 
       port_net_class_t row = port_net_class(internal);

@@ -130,7 +130,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_VPI_FORCE_CONN
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
-%token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1
+%token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
 %token K_IODECL
 %token K_SUBSTITUTE K_SUBSTITUTE_V
@@ -397,6 +397,19 @@ statement
 	| T_LABEL K_RESOLV T_SYMBOL ',' symbols ';'
 		{ struct symbv_s obj = $5;
 		  compile_resolver($1, $3, obj.cnt, obj.vect);
+		}
+
+  /* The charge storage of a trireg net:
+       <label> .trireg <width>, <charge>, <mode>, <decay>, <symbols> ;
+     <charge> is the strength (1 small, 2 medium, 4 large). <mode> bit 0:
+     <decay> is the charge decay time; bit 1: the decay time comes from
+     a net, the symbol after the input; bit 2: the last symbol is the
+     tran island port of the net. The first symbol is the resolved
+     drivers of the net. */
+
+	| T_LABEL K_TRIREG T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' symbols ';'
+		{ struct symbv_s obj = $11;
+		  compile_trireg($1, $3, $5, $7, $9, obj.cnt, obj.vect);
 		}
 
   /* Part select statements take a single netlist input, and numbers

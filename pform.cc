@@ -7832,10 +7832,20 @@ void pform_set_port_type(const struct vlltype&li,
  * This function detects the derived class for the given type and
  * dispatches the type to the proper subtype function.
  */
+static ivl_drive_t pform_charge_strength = IVL_DR_MEDIUM;
+
+void pform_set_charge_strength(ivl_drive_t str)
+{
+      pform_charge_strength = str;
+}
+
 void pform_set_data_type(const struct vlltype&li, data_type_t*data_type,
 			 std::vector<PWire*> *wires, NetNet::Type net_type,
 			 list<named_pexpr_t>*attr, bool is_const)
 {
+      ivl_drive_t charge = pform_charge_strength;
+      pform_charge_strength = IVL_DR_MEDIUM;
+
       if (data_type == 0) {
 	    VLerror(li, "internal error: data_type==0.");
 	    ivl_assert(li, 0);
@@ -7868,6 +7878,7 @@ void pform_set_data_type(const struct vlltype&li, data_type_t*data_type,
 
 	    wire->set_data_type(data_type);
 	    wire->set_const(is_const);
+	    wire->set_charge_strength(charge);
 
 	    pform_bind_attributes(wire->attributes, attr, true);
       }
