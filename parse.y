@@ -22962,6 +22962,37 @@ udp_primitive
 	delete[]$2;
 	delete[]$6;
       }
+
+        /* IEEE 1800 29.3: a (.*) definition takes the port list of an
+	   earlier extern primitive declaration. */
+  | K_primitive IDENTIFIER '(' K_DOTSTAR ')' ';'
+    udp_port_decls
+    udp_init_opt
+    udp_body
+    K_endprimitive label_opt
+      { perm_string tmp2 = lex_strings.make($2);
+	std::list<pform_ident_t>*ports = pform_extern_udp_ports(@2, tmp2);
+	if (ports)
+	      pform_make_udp(@2, tmp2, ports, $7, $9, $8);
+	check_end_label(@11, "primitive", $2, $11);
+	delete[]$2;
+      }
+
+        /* IEEE 1800 29.3: extern UDP declarations, in both port styles. */
+  | K_extern K_primitive IDENTIFIER '(' udp_port_list ')' ';'
+      { pform_extern_udp(@3, lex_strings.make($3), $5);
+	delete[]$3;
+      }
+  | K_extern K_primitive IDENTIFIER
+    '(' K_output udp_reg_opt IDENTIFIER initializer_opt ','
+    udp_input_declaration_list ')' ';'
+      { std::list<pform_ident_t>*ports = $10;
+	ports->push_front(pform_ident_t{ lex_strings.make($7), @7.lexical_pos });
+	pform_extern_udp(@3, lex_strings.make($3), ports);
+	delete $8;
+	delete[]$3;
+	delete[]$7;
+      }
   ;
 
 unique_priority

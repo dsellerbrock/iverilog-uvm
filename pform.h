@@ -311,6 +311,14 @@ extern void pform_standalone_covergroup(const struct vlltype&loc,
 				    std::vector<PExpr*>*ctor_defaults = nullptr,
 				    std::vector<PExpr*>*sample_formal_defaults = nullptr);
 
+/* IEEE 1800 29.3 extern UDPs (read like 23.5 extern modules): record the
+   declared port names; a later definition must match them, and a (.*)
+   definition takes them. */
+extern void pform_extern_udp(const struct vlltype&loc, perm_string name,
+			     std::list<pform_ident_t>*ports);
+extern std::list<pform_ident_t>* pform_extern_udp_ports(const struct vlltype&loc,
+							 perm_string name);
+
 extern void pform_make_udp(const struct vlltype&loc, perm_string name,
 			   std::list<pform_ident_t>*parms,
 			   std::vector<PWire*>*decl, std::list<std::string>*table,
