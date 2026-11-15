@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3006_nexttime_negative_ce.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3006_nexttime_negative_ce"],
+  "gold": "issue3006_nexttime_negative_ce"
+}

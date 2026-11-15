@@ -10735,6 +10735,36 @@ bool pform_sva_overridable_bound(PExpr*expr)
       return pform_sva_overridable_bound_(expr, lexical_scope, visiting);
 }
 
+/* IEEE 1800-2017/2023 16.12.10: "The number of clock ticks given by
+   constant_expression shall be a non-negative integer constant
+   expression." The index is lowered at parse time, so a bound that an
+   instance parameter override could change is refused instead of being
+   folded to the declaration default. Takes ownership of EXPR; after an
+   error the unindexed (one tick) form is lowered. */
+long pform_sva_nexttime_index(const struct vlltype&loc, PExpr*expr,
+			      const char*op)
+{
+      long value = 1;
+      if (pform_sva_overridable_bound(expr)) {
+	    cerr << loc << ": sorry: " << op << " index that depends on an "
+		 << "overridable parameter is not supported." << endl;
+	    error_count += 1;
+      } else if (!pform_sva_const_long(expr, value)) {
+	    cerr << loc << ": error: " << op << " index must be an integer "
+		 << "constant expression (IEEE 1800-2017/2023 16.12.10)." << endl;
+	    error_count += 1;
+	    value = 1;
+      } else if (value < 0) {
+	    cerr << loc << ": error: " << op << " index " << value
+		 << " is negative; it shall be a non-negative integer constant "
+		 << "expression (IEEE 1800-2017/2023 16.12.10)." << endl;
+	    error_count += 1;
+	    value = 1;
+      }
+      delete expr;
+      return value;
+}
+
 /* Resolve an enum literal directly from the parse form. Assertion delay and
    sampled-value bounds are lowered before normal elaboration has built the
    netlist enum table, so the SVA constant evaluator must understand the
