@@ -4062,6 +4062,33 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 	 * variables elsewhere in the IR still participate). Element
 	 * pass: expand the body once per element with the loop token
 	 * bound to each index and conjoin the instances. */
+      /* (strforeach P body): IEEE 1800-2023 18.5.7.1 treats a string as
+       * a dynamic array of bytes indexed 0..N-1. The string is state, so
+       * expand over its current characters: L is the index (int) and C the
+       * character (byte, signed 8 bits). */
+      if (op == "strforeach") {
+	    unsigned pidx = (unsigned)strtoul(par.read_token().c_str(), nullptr, 10);
+	    string body = capture_balanced_form(par);
+	    pidx = b.property_index(pidx);
+	    vvp_cobject*owner = b.object(pidx);
+	    if (!owner) {
+		  b.state_errors.push_back("string foreach property has no owner");
+		  return b.mk_true();
+	    }
+	    string text = owner->get_string(b.local_index(pidx), 0);
+	    Z3_ast conj = b.mk_true();
+	    for (size_t i = 0 ; i < text.size() ; i += 1) {
+		  string inst_text = subst_loop_token(
+			subst_loop_token(body, i), (unsigned char)text[i],
+			8, true, 'C');
+		  IRParser sub(inst_text);
+		  Z3_ast inst = bv_to_bool(b.ctx, build_z3_atom(sub, b));
+		  Z3_ast args[2] = { conj, inst };
+		  conj = Z3_mk_and(b.ctx, 2, args);
+	    }
+	    return conj;
+      }
+
       if (op == "dynforeach") {
 	    string hdr = par.read_token();
 	    bool struct_member = !hdr.empty() && hdr[0] == 'S';
@@ -8492,7 +8519,8 @@ class state_foreach_expander_t {
             if (parser.peek() != '(') {
                   out.text = parser.read_token();
                   if (out.text.empty()) return false;
-                  if (out.text == "L") return template_depth_ != 0;
+                  if (out.text == "L" || out.text == "C")
+                        return template_depth_ != 0;
                   if (out.text.compare(0, 2, "v:") == 0) {
                         unsigned slot = 0, member = 0, width = 0; bool sign = false;
                         if (!header_(out.text, "v:", slot, member, width, sign, false)
@@ -8559,6 +8587,22 @@ class state_foreach_expander_t {
             // size/element solver passes (2017 18.5.8.1 / 2023 18.5.7.1).
             // Check their structure, then retain the original template: its
             // L is not an index into this state collection.
+            if (op == "strforeach") {
+                  unsigned property = 0;
+                  if (template_depth_
+                      || !unsigned_token_(parser.read_token(), property)
+                      || property >= receiver_->get_defn()->property_count())
+                        return false;
+                  const char*begin = parser.p;
+                  state_foreach_value_t ignored;
+                  ++template_depth_;
+                  bool valid = expression(parser, ignored);
+                  --template_depth_;
+                  if (!valid || !parser.expect(')')) return false;
+                  out.text = "(strforeach " + to_string(property)
+                        + string(begin, parser.p - begin);
+                  return true;
+            }
             if (op == "assocforeach") {
                   unsigned property = 0;
                   if (template_depth_

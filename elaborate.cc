@@ -34567,6 +34567,10 @@ struct dynforeach_emit_ctx_t {
 	// Class- or string-key associative array: the runtime iterates its
 	// entries, and the loop variable may only index this array.
       bool entry_key = false;
+	// A string property (IEEE 1800-2023 18.5.7.1: a dynamic array of
+	// bytes indexed 0..N-1). Its characters are state: `s[i]' is the
+	// token C, which the runtime replaces with the character's byte.
+      bool string_chars = false;
 };
 static const dynforeach_emit_ctx_t*dynforeach_emit_ctx_ = nullptr;
 
@@ -42052,6 +42056,15 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return constraint_const_bits_ir_(v, bits, v.has_sign());
       }
 
+	/* IEEE 1800-2023 5.9: a string literal used as an integral value is
+	   an unsigned packed constant of 8 bits per character (an empty
+	   literal is one zero byte), e.g. `ch != "a"'. */
+      if (const PEString*literal = dynamic_cast<const PEString*>(expr)) {
+	    const verinum&v = literal->parsed_value();
+	    unsigned bits = v.len() ? v.len() : 8;
+	    return constraint_const_bits_ir_(v, bits, false);
+      }
+
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
             /* Resolve the full state path before scalar capture can bind
              * the loop index to an unrelated caller declaration. */
@@ -43730,6 +43743,29 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		    // The pin needs a real value, so a state variable
 		    // whose type has no bitvector image is still dropped
 		    // by the representability check below.
+		    // `s[i]' of the string a (strforeach) iterates: the
+		    // character is state, the runtime token C.
+		  if (dynforeach_emit_ctx_ && dynforeach_emit_ctx_->string_chars
+		      && idx == dynforeach_emit_ctx_->prop_idx
+		      && id->path().size() == 1
+		      && id->path().back().index.size() == 1) {
+			const index_component_t&sel = id->path().back().index.front();
+			const PEIdent*index_id = sel.sel == index_component_t::SEL_BIT
+			      && !sel.lsb ? dynamic_cast<const PEIdent*>(sel.msb) : nullptr;
+			if (!index_id || index_id->path().size() != 1
+			    || index_id->path().package
+			    || !index_id->path().name.front().index.empty()
+			    || index_id->path().name.front().name
+			       != dynforeach_emit_ctx_->loop_var) {
+			      cerr << id->get_fileline() << ": sorry: a string "
+				   << "character in a constraint foreach must be "
+				   << "selected by the loop variable itself." << endl;
+			      if (constraint_ir_design_ctx_)
+				    constraint_ir_design_ctx_->errors += 1;
+			      return "";
+			}
+			return "C";
+		  }
 		  if (!q.test_rand() && !packed_select && !packed_multi_select
 		      && !constraint_state_prop_ok_(ptype,
 						    !id->path().back().index.empty()))
@@ -46367,6 +46403,11 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  foreach_source.type);
 	    if (!foreach_dimensions && packed_foreach && !packed_foreach->get_isint())
 		  foreach_dimensions += packed_foreach->packed_dims().size();
+	      /* IEEE 1800-2023 18.5.7.1: a string variable is treated as a
+	         dynamic array of bytes indexed from 0 to N-1. */
+	    if (!foreach_dimensions && foreach_source.type
+		&& foreach_source.type->base_type() == IVL_VT_STRING)
+		  foreach_dimensions = 1;
 	    if (foreach_source.type
 		&& cfe->loop_vars().size() > foreach_dimensions) {
 		  cerr << cfe->get_fileline() << ": error: Constraint foreach has "
@@ -47015,6 +47056,37 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    const netuarray_t*ua =
 		  dynamic_cast<const netuarray_t*>(foreach_type);
 	    property_qualifier_t qual = cls->get_prop_qual((size_t)idx);
+	      /* IEEE 1800-2023 18.5.7.1: a string property iterates its
+	         current characters, indexes 0..len()-1. A string is never
+	         random, so its length and characters are state values the
+	         runtime reads when randomize() is called. */
+	    if (foreach_type && foreach_type->base_type() == IVL_VT_STRING) {
+		  if (cfe->loop_vars().size() != 1 || cfe->loop_vars()[0].nil()
+		      || !cfe->prefix_names().empty() || !cfe->member_name().nil()
+		      || dynforeach_emit_ctx_)
+			return "";
+		  dynforeach_emit_ctx_t dctx;
+		  dctx.loop_var = cfe->loop_vars()[0];
+		  dctx.prop_idx = idx;
+		  dctx.elem_wid = 8;
+		  dctx.elem_signed = true;
+		  dctx.string_chars = true;
+		  dynforeach_emit_ctx_ = &dctx;
+		  string body;
+		  for (const PExpr*item : cfe->items()) {
+			if (!item) continue;
+			string part = pexpr_to_constraint_ir(item, cls,
+					value_slots, scope, loop_env);
+			if (part.empty()) {
+			      dynforeach_emit_ctx_ = nullptr;
+			      return "";
+			}
+			body = body.empty() ? part : "(and " + body + " " + part + ")";
+		  }
+		  dynforeach_emit_ctx_ = nullptr;
+		  if (body.empty()) return "c:1:1";
+		  return "(strforeach " + to_string(idx) + " " + body + ")";
+	    }
 	    const netqueue_t*state_queue = ua
 		  ? dynamic_cast<const netqueue_t*>(ua->element_type()) : nullptr;
 	      // The fixed foreach domain is known even when its queue leaves
