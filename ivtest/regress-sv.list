@@ -6940,3 +6940,7 @@ issue3112_fail_2017 CE,-g2017,-s,issue3112_fail ivltests gold=issue3112_fail.gol
 issue3112_pass_2017 normal,-g2017,-s,issue3112_pass ivltests gold=issue3112_pass.gold
 issue3112_fail_2023 CE,-g2023,-s,issue3112_fail ivltests gold=issue3112_fail.gold
 issue3112_pass_2023 normal,-g2023,-s,issue3112_pass ivltests gold=issue3112_pass.gold
+issue3418_array_bit_2017 normal,-g2017,-s,issue3418_array_bit ivltests gold=issue3418_array_bit-vvp-stdout.gold
+issue3418_overlap_2017 CE,-g2017,-s,issue3418_overlap ivltests gold=issue3418_overlap-legacy.gold
+issue3418_array_bit_2023 normal,-g2023,-s,issue3418_array_bit ivltests gold=issue3418_array_bit-vvp-stdout.gold
+issue3418_overlap_2023 CE,-g2023,-s,issue3418_overlap ivltests gold=issue3418_overlap-legacy.gold
