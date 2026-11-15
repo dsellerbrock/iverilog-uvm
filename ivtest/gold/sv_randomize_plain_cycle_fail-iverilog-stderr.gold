@@ -1,0 +1,2 @@
+ivltests/sv_randomize_plain_cycle_fail.v:4: error: circular 'solve before' ordering between 'a' and 'b' in class cyclic_plain (IEEE 1800 18.5.9).
+1 error(s) during elaboration.

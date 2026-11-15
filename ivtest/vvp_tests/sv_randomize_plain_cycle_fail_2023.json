@@ -1,6 +1,6 @@
 {
-    "type": "normal",
-    "source": "sv_randomize_plain_cycle_fail_2023.v",
+    "type": "CE",
+    "source": "sv_randomize_plain_cycle_fail.v",
     "iverilog-args": [
         "-g2023",
         "-s",
