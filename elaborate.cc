@@ -22344,8 +22344,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				// exactly once before reading any constructor-formal
 				// properties and before passing the object to the
 				// runtime sampler.
-			      if (nctor) {
-				    NetNet*recv = new NetNet(scope, scope->local_symbol(),
+			      bool mirrors_formals = false;
+			      for (unsigned k = 0; k < nformals; k += 1)
+				    if (cgtype->covgrp_sample_formal_prop((size_t)k) >= 0)
+					  mirrors_formals = true;
+			      NetNet*recv = nullptr;
+			      if (nctor || mirrors_formals) {
+				    recv = new NetNet(scope, scope->local_symbol(),
 						      NetNet::REG, obj_type);
 				    recv->set_line(*this);
 				    recv->local_flag(true);
@@ -22556,6 +22561,25 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						cp_scope->set_signal_alias(
 						      cgtype->covgrp_sample_formal(k),
 						      formal_nets[k]);
+					    // 19.4.1: the instance may be a derived
+					    // covergroup whose own coverpoints read
+					    // this argument at run time.
+					  int mirror = cgtype->covgrp_sample_formal_prop(
+						(size_t)k);
+					  if (mirror >= 0 && recv) {
+						NetAssign_*mirror_lval = new NetAssign_(recv);
+						mirror_lval->set_property(
+						      lex_strings.make(cgtype->get_prop_name(
+							    (size_t)mirror)),
+						      (unsigned)mirror);
+						NetESignal*mirror_value =
+						      new NetESignal(formal_nets[k]);
+						mirror_value->set_line(*this);
+						NetAssign*mirror_copy = new NetAssign(
+						      mirror_lval, mirror_value);
+						mirror_copy->set_line(*this);
+						sample_block->append(mirror_copy);
+					  }
 				    }
 			      }
 			      {
@@ -43814,6 +43838,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    }
 
 	    int idx = cls ? cls->property_idx_from_name(name) : -1;
+	      // A covergroup sample source names a sample() argument by its
+	      // formal; the value is in the group's mirror property (19.4.1).
+	    if (idx < 0 && cls && constraint_covergroup_sample_source_)
+		  idx = cls->covgrp_sample_formal_prop(name);
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
@@ -49136,6 +49164,55 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    && cgdef->ctor_formal_is_ref[ci]);
 		    }
 
+		      // IEEE 1800-2023 19.4.1: keep the sample() arguments of an
+		      // extended (or extending) embedded covergroup in properties
+		      // of the covergroup object. A base-class handle samples a
+		      // derived group without knowing its added coverpoints; the
+		      // run time evaluates those from these properties. They
+		      // follow the constructor formals, which a derived group
+		      // copies from its base, so both give them the same slots.
+		    if (!cg_standalone
+			&& (cgdef->is_extension || cgdef->has_extension)) {
+			  const netclass_t*base_cg = nullptr;
+			  int inherited_idx = cgdef->is_extension && get_super()
+				? get_super()->property_idx_from_name(cgdef->name) : -1;
+			  if (inherited_idx >= 0)
+				base_cg = dynamic_cast<const netclass_t*>(
+				      get_super()->get_prop_type(
+					    static_cast<size_t>(inherited_idx)));
+			  for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1) {
+				ivl_type_t formal_type = &netvector_t::atom2s32;
+				if (fi < cgdef->sample_formal_types.size()
+				    && cgdef->sample_formal_types[fi]) {
+				      ivl_type_t declared = cgdef->sample_formal_types[fi]
+					    ->elaborate_sig_type(des, class_scope_);
+				      if (declared) formal_type = declared;
+				}
+				long width = formal_type->packed()
+				      ? formal_type->packed_width() : 0;
+				if (formal_type->base_type() != IVL_VT_BOOL
+				    || width <= 0 || width > 64)
+				      continue;
+				string mirror_name = "__covgrp_sample_"
+				      + string(cgdef->sample_formals[fi].str());
+				perm_string mirror = lex_strings.make(mirror_name.c_str());
+				cg_class->set_property(mirror,
+				      property_qualifier_t::make_none(), formal_type);
+				int mirror_prop = cg_class->property_idx_from_name(mirror);
+				if (base_cg
+				    && base_cg->covgrp_sample_formal_prop(fi) != mirror_prop) {
+				      cerr << pclass->get_fileline() << ": internal error: "
+					   << "covergroup '" << cgdef->name
+					   << "' extension keeps sample() argument '"
+					   << cgdef->sample_formals[fi]
+					   << "' in a different slot than its base." << endl;
+				      des->errors += 1;
+				      continue;
+				}
+				cg_class->set_covgrp_sample_formal_prop(fi, mirror_prop);
+			  }
+		    }
+
 		      // Reserve leading scalar slots before any option or bin-counter
 		      // properties. The constructor initializer evaluates these after
 		      // its ordinary arguments and before VVP resolves dynamic bins.
@@ -51739,9 +51816,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  PExpr*cp_sample_expr = cp.type && cp.expr
 				? new PECastType(cp.type, cp.expr) : cp.expr;
 			  if (!cg_standalone && cp.expr && parent_prop < 0) {
+				  // A sample() argument is readable at run time only
+				  // through its mirror property.
 				bool uses_sample_formal = false;
-				for (perm_string formal : cgdef->sample_formals)
-				      if (cp_sample_expr->refs_name(formal)) {
+				for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1)
+				      if (cp_sample_expr->refs_name(cgdef->sample_formals[fi])
+					  && cg_class->covgrp_sample_formal_prop(fi) < 0) {
 					    uses_sample_formal = true;
 					    break;
 				      }

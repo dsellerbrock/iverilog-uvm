@@ -867,6 +867,10 @@ struct class_type_t : public data_type_t {
       struct pform_covergroup_t {
 	    perm_string name;   // covergroup instance name (e.g., "cg")
 	    bool is_extension = false;
+	      // A derived class extends this embedded covergroup (IEEE
+	      // 1800-2023 19.4.1), so a handle of this class may sample an
+	      // instance of the derived covergroup.
+	    bool has_extension = false;
 	    int option_slot_count = 0;
 	      // Per-instance constructor formals (19.3), distinct from
 	      // `with function sample` formals.

@@ -1,5 +1,6 @@
 {
-  "type": "CE",
+  "type": "normal",
   "source": "sv_covergroup_extension_sample_formal_2023.v",
-  "iverilog-args": ["-g2023", "-s", "test"]
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "output-contains": ["PASSED"]
 }

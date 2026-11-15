@@ -1971,7 +1971,7 @@ sv_covergroup_class_inheritance_2017 CE,-g2017 ivltests gold=sv_covergroup_class
 sv_covergroup_class_inheritance_2023 normal,-g2023 ivltests gold=sv_covergroup_class_inheritance.gold
 sv_covergroup_class_inheritance_expr_2023 normal,-g2023 ivltests
 sv_covergroup_class_inheritance_missing_base_2023 CE,-g2023 ivltests gold=sv_covergroup_class_inheritance_missing_base_2023.gold
-sv_covergroup_extension_sample_formal_2023 CE,-g2023 ivltests
+sv_covergroup_extension_sample_formal_2023 normal,-g2023 ivltests
 sv_covergroup_extension_4state_source_2023 CE,-g2023 ivltests
 sv_covergroup_extension_iff_guards_2023 CE,-g2023 ivltests
 sv_covergroup_class_inheritance_cross_guard_2017 CE,-g2017 ivltests

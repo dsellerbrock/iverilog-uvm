@@ -1104,6 +1104,8 @@ void pform_class_covergroup(const struct vlltype&loc,
 		  return;
 	    }
 
+	    base_cg->has_extension = true;
+
 	    vector<class_type_t::pform_coverpoint_t> added_coverpoints =
 		  std::move(cg->coverpoints);
 	    vector<class_type_t::pform_cross_t> added_crosses =
