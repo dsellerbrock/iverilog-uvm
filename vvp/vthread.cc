@@ -40533,6 +40533,42 @@ bool of_MBX_NUM(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/*
+ * %weak/id <weak>
+ *
+ * Pop an object and push its 64-bit identification value, 0 for null
+ * (IEEE 1800-2023 8.30.5). <weak> = 1 also marks the object as weakly
+ * referenced, so that its death wakes threads in an object wait.
+ */
+bool of_WEAK_ID(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      uint64_t id = vvp_object::weak_id(obj.peek<vvp_object>(), cp->number != 0);
+      vvp_vector4_t res (64);
+      for (unsigned idx = 0 ; idx < 64 ; idx += 1)
+	    res.set_bit(idx, (id >> idx) & 1 ? BIT4_1 : BIT4_0);
+      thr->push_vec4(res);
+      return true;
+}
+
+/*
+ * %weak/deref
+ *
+ * Pop a 64-bit identification value and push the object that has it, or
+ * null when there is none any more (IEEE 1800-2023 8.30.3).
+ */
+bool of_WEAK_DEREF(vthread_t thr, vvp_code_t)
+{
+      vvp_vector4_t val = thr->pop_vec4();
+      uint64_t id = 0;
+      vvp_object_t res;
+      if (vector4_to_value(val, id))
+	    res = vvp_object_t(vvp_object::weak_deref(id));
+      thr->push_object(res);
+      return true;
+}
+
 /* ================================================================
  * Semaphore opcodes
  * ================================================================ */

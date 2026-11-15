@@ -471,8 +471,7 @@ class vvp_fun_signal_object_aa : public vvp_fun_signal_object, public automatic_
       void set_root_provenance(vvp_net_t*root_net, const vvp_object_t&root_obj,
                                vvp_context_t context) override;
       void clear_current_alias(vvp_context_t context);
-      void release_instance(vvp_context_t context) override
-	    { clear_current_alias(context); }
+      void release_instance(vvp_context_t context) override;
 
       class_type* init_defn_;
 

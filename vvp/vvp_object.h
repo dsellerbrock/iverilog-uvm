@@ -167,6 +167,19 @@ class vvp_object {
 
       static void cleanup(void);
       static bool pointer_is_live(const vvp_object*ptr);
+
+	/* Weak references (IEEE 1800-2023 8.30). weak_id gives the
+	   identification value of an object, 0 for nil: a serial number kept
+	   in a side table that holds no reference to the object. WEAK also
+	   marks the object as weakly referenced. weak_deref gives the object
+	   with that value, or nil once it was destroyed. */
+      static uint64_t weak_id(vvp_object*obj, bool weak);
+      static vvp_object* weak_deref(uint64_t id);
+	/* True when the loaded program has weak references. Only then can
+	   anything tell whether an object is still alive, so only then do
+	   dead automatic frames give up their object handles at once. */
+      static void weak_enable() { weak_in_use_ = true; }
+      static bool weak_in_use() { return weak_in_use_; }
       inline uint64_t mutation_epoch() const { return mutation_epoch_; }
       void touch(unsigned property = UINT_MAX, unsigned word = UINT_MAX,
                  unsigned bit = UINT_MAX);
@@ -188,6 +201,7 @@ class vvp_object {
       static void unregister_live_ptr_(const vvp_object*ptr);
 
       friend class vvp_object_t;
+      static bool weak_in_use_;
       int ref_cnt_;
       uint64_t mutation_epoch_;
       vvp_container_layout_t declared_container_layout_;

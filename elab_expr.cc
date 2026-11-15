@@ -10454,6 +10454,22 @@ unsigned PECallFunction::test_width_sfunc_(Design*des, NetScope*scope,
 {
       perm_string name = peek_tail_name(path_);
 
+	/* The functions behind std::weak_reference (see pform.cc). */
+      if (name == "$ivl_weak$id") {
+	    expr_type_   = IVL_VT_BOOL;
+	    expr_width_  = 64;
+	    min_width_   = 64;
+	    signed_flag_ = true;
+	    return expr_width_;
+      }
+      if (name == "$ivl_weak$deref") {
+	    expr_type_   = IVL_VT_CLASS;
+	    expr_width_  = 1;
+	    min_width_   = 1;
+	    signed_flag_ = false;
+	    return expr_width_;
+      }
+
       if (name == "$timeunit" || name == "$timeprecision") {
 	    expr_type_   = IVL_VT_LOGIC;
 	    expr_width_  = integer_width;
@@ -13900,6 +13916,40 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
                                           unsigned flags) const
 {
       perm_string name = peek_tail_name(path_);
+
+	/* $ivl_weak$id(object, weak): the identification value of a class
+	   object, for std::weak_reference. An argument that is not a class
+	   handle means weak_reference#(T) was given a T that is not a class. */
+      if (name == "$ivl_weak$id" && parms_.size() == 2
+	  && parms_[0].parm && parms_[1].parm) {
+	    NetExpr*obj = elab_sys_task_arg(des, scope, name, 0, parms_[0].parm);
+	    if (obj == 0)
+		  return nullptr;
+	    if (obj->expr_type() != IVL_VT_CLASS) {
+		  cerr << get_fileline() << ": error: The type parameter of "
+		 << "weak_reference#(T) shall be a class type "
+		 << "(IEEE 1800-2023 8.30.1)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    NetExpr*weak = elab_and_eval(des, scope, parms_[1].parm, 1, true);
+	    if (weak == 0)
+		  return nullptr;
+	    NetESFunc*fun = new NetESFunc(name, &netvector_t::atom2s64, 2);
+	    fun->set_line(*this);
+	    fun->parm(0, obj);
+	    fun->parm(1, weak);
+	    return pad_to_width(fun, expr_wid, true, *this);
+      }
+	/* $ivl_weak$deref only has a value where a class handle is wanted;
+	   that is the typed elaborate_expr below. */
+      if (name == "$ivl_weak$deref") {
+	    cerr << get_fileline() << ": error: The type parameter of "
+		 << "weak_reference#(T) shall be a class type "
+		 << "(IEEE 1800-2023 8.30.1)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
 
       if (elab_port_default_scope && parms_.empty()
 	  && (name == "$time" || name == "$stime" || name == "$realtime"))
@@ -20335,6 +20385,26 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 {
       if (unbound_queue_last_(receiver_, path_))
 	    return report_unbound_queue_last_(this, des);
+
+	/* $ivl_weak$deref(id): the object with that identification value,
+	   typed by its context, or null. For std::weak_reference. */
+      if (!receiver_ && peek_tail_name(path_) == "$ivl_weak$deref"
+	  && parms_.size() == 1 && parms_[0].parm) {
+	    if (dynamic_cast<const netclass_t*>(type) == 0) {
+		  cerr << get_fileline() << ": error: The type parameter of "
+		 << "weak_reference#(T) shall be a class type "
+		 << "(IEEE 1800-2023 8.30.1)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    NetExpr*id = elab_and_eval(des, scope, parms_[0].parm, 64, false);
+	    if (id == 0)
+		  return nullptr;
+	    NetESFunc*fun = new NetESFunc("$ivl_weak$deref", type, 1);
+	    fun->set_line(*this);
+	    fun->parm(0, id);
+	    return fun;
+      }
       const netdarray_t*darray = dynamic_cast<const netdarray_t*>(type);
       unsigned int width = 1;
 	/* String system functions use a zero packed width to mean a value on the

@@ -2529,6 +2529,14 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	    return;
       }
 
+      /* $ivl_weak$id(object, weak) -> the 64-bit identification value */
+      if (strcmp(ivl_expr_name(expr), "$ivl_weak$id") == 0) {
+	    draw_eval_object(ivl_expr_parm(expr, 0));
+	    fprintf(vvp_out, "    %%weak/id %d;\n",
+		    get_number_immediate(ivl_expr_parm(expr, 1)) ? 1 : 0);
+	    return;
+      }
+
       /* Mailbox num: $ivl_mailbox$num(mbx) -> int on vec4 */
       if (strcmp(ivl_expr_name(expr), "$ivl_mailbox$num") == 0) {
 	    ivl_expr_t mbx_e = (parm_count > 0) ? ivl_expr_parm(expr, 0) : 0;
