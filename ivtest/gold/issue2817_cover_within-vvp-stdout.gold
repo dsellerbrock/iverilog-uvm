@@ -1,0 +1,12 @@
+cover match 45
+cover seq 45
+pass 45
+cover match 55
+cover seq 55
+pass 55
+cover match 65
+cover seq 65
+pass 65
+fail 75
+fail 85
+ivltests/issue2817_cover_within.v:10: $finish called at 90 (1s)

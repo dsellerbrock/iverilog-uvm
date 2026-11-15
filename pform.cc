@@ -22589,10 +22589,15 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					      sva_id_(loc, r_c));
 		  FILE_NAME(add, loc);
 		  body.push_back(sva_assign_(loc, r_cnt, add));
+		    /* 16.14.3: the pass statement runs for each matching
+		       window, as for the other cover operators here. */
+		  if (pass_stmt) {
+			body.push_back(sva_if_(loc, sva_id_(loc, r_c),
+				       sva_cover_spawn_(loc, inst, pass_stmt), nullptr));
+			pass_stmt = nullptr;
+		  }
 		  delete fail_stmt;
 		  delete wmatch_pass;
-		  delete pass_stmt;
-		  pass_stmt = nullptr;
 	    } else {
 		    /* assert/assume: every mature window must match. A
 		       `$past(1, L2)` guard is 0 until L2 cycles elapse, so
