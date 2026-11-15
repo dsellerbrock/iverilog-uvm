@@ -94,8 +94,12 @@ vvp_time64_t vpip_scaled_real_to_time64(double val, const __vpiScope*scope)
       return delay;
 }
 
+/* PAD: IEEE 1800-2023 21.2.1.3, "In other radices, leading zeros are
+   always displayed": $time (64 bits) and $stime (32 bits) print their
+   radix strings at full width, like a time variable. The $simtime
+   extension keeps its historical unpadded strings. */
 static void timevar_get_value(vpiHandle ref, s_vpi_value*vp, bool is_int_func,
-                              bool is_stime)
+                              bool is_stime, bool pad = true)
 {
 	/* Keep a persistent structure for passing time values back to
 	   the caller. */
@@ -151,7 +155,7 @@ static void timevar_get_value(vpiHandle ref, s_vpi_value*vp, bool is_int_func,
 
 	  case vpiBinStrVal:
 	    x = simtime;
-	    num_bits = 8 * sizeof(vvp_time64_t);
+	    num_bits = pad && is_stime ? 32 : 8 * sizeof(vvp_time64_t);
 
 	    rbuf[num_bits] = 0;
 	    for (unsigned i = 1; i <= num_bits; i++) {
@@ -168,12 +172,14 @@ static void timevar_get_value(vpiHandle ref, s_vpi_value*vp, bool is_int_func,
 	    break;
 
 	  case vpiOctStrVal:
-	    snprintf(rbuf, RBUF_USE_SIZE, "%" TIME_FMT_O, simtime);
+	    snprintf(rbuf, RBUF_USE_SIZE, "%0*" TIME_FMT_O,
+		     pad ? (is_stime ? 11 : 22) : 0, simtime);
 	    vp->value.str = rbuf;
 	    break;
 
 	  case vpiHexStrVal:
-	    snprintf(rbuf, RBUF_USE_SIZE, "%" TIME_FMT_X, simtime);
+	    snprintf(rbuf, RBUF_USE_SIZE, "%0*" TIME_FMT_X,
+		     pad ? (is_stime ? 8 : 16) : 0, simtime);
 	    vp->value.str = rbuf;
 	    break;
 
@@ -294,7 +300,7 @@ char* __vpiSystemTime::vpi_get_str(int code)
 
 
 void __vpiSystemTime::vpi_get_value(p_vpi_value val)
-{ timevar_get_ivalue(this, val); }
+{ timevar_get_value(this, val, true, false, false); }
 
 vpiHandle __vpiSystemTime::vpi_handle(int code)
 {
