@@ -1,0 +1,2 @@
+ivltests/issue3396_default_uwire_fail.sv:4: error: Unresolved wire 'w' cannot have multiple drivers.
+1 error(s) during elaboration.

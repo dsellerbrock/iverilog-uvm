@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3396_default_uwire_fail.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3396_default_uwire_fail"],
+  "gold": "issue3396_default_uwire_fail"
+}

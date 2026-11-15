@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3396_default_uwire.sv",
+  "iverilog-args": ["-g2023", "-s", "issue3396_default_uwire"],
+  "gold": "issue3396_default_uwire"
+}

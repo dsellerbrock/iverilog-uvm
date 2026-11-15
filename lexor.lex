@@ -1194,6 +1194,9 @@ TU [munpf]
       } else if (strcmp(yytext,"trior") == 0) {
 	    net_type = NetNet::TRIOR;
 
+      } else if (strcmp(yytext,"uwire") == 0) {
+	    net_type = NetNet::UNRESOLVED_WIRE;
+
       } else if (strcmp(yytext,"none") == 0) {
 	    net_type = NetNet::NONE;
 
