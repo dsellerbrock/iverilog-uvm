@@ -39627,11 +39627,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    init_zero.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
       }
       perm_string r_pend;
+	/* An assertion counts its pending obligations: every one is an
+	   attempt of its own (16.14.1). So does a cover with a pass
+	   statement, which runs once per attempt or match (16.14.3); a
+	   cover without one keeps its flag. */
+      const bool count_pend = (kind != 2 && !negated)
+			    || (kind == 2 && pass_stmt);
       if (unbounded) {
-	      /* An assertion counts its pending obligations: every one is an
-		 attempt of its own (16.14.1). Cover keeps its flag. */
-	    r_pend = sva_make_reg_(loc, inst, "pend", 0,
-				   kind != 2 && !negated);
+	    r_pend = sva_make_reg_(loc, inst, "pend", 0, count_pend);
 	    init_zero.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
       }
       perm_string r_g = sva_make_reg_(loc, inst, "g", 0);
@@ -39891,10 +39894,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  FILE_NAME(nm, loc);
 		  sat.push_back(nm);
 		  anyw = nullptr;
-	    } else if (pass_stmt && kind != 2) {
+	    } else if (pass_stmt) {
 		    /* 16.14.1: one pass action for each attempt satisfied
-		       now. The sum is balanced, and the 32-bit term keeps
-		       the one-bit window registers from summing in 1 bit. */
+		       now. 16.14.3: a cover property runs its pass statement
+		       once per successful attempt (its window slot is cleared
+		       below), a cover sequence once per match (slots stay).
+		       The sum is balanced, and the 32-bit term keeps the
+		       one-bit window registers from summing in 1 bit. */
 		  std::vector<PExpr*> sat_terms;
 		  for (long q = win_m ; q <= win_n ; q += 1)
 			sat_terms.push_back(sva_id_(loc, w_regs[q]));
@@ -39909,11 +39915,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  PExpr*satisfied = new PEBinary('+', sva_num32_(loc, 0),
 						 sat_terms.front());
 		  FILE_NAME(satisfied, loc);
+		  Statement*action = kind == 2
+			? sva_cover_spawn_(loc, inst, pass_stmt)
+			: sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+					    SVA_STATE_PASS_ACTION, pass_stmt);
 		  PCondit*pm = new PCondit(anyw,
-			sva_repeat_(loc, satisfied,
-			      sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
-						SVA_STATE_PASS_ACTION, pass_stmt)),
-			nullptr);
+			sva_repeat_(loc, satisfied, action), nullptr);
 		  FILE_NAME(pm, loc);
 		  sat.push_back(pm);
 		  pass_stmt = nullptr;
@@ -39995,6 +40002,22 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					       nullptr);
 		  FILE_NAME(report, loc);
 		  sat.push_back(report);
+		  if (pass_stmt) {
+			  /* 16.14.3: every pending attempt matches now; a
+			     cover property's attempt then ends, a cover
+			     sequence's stays for later matches. */
+			PExpr*matches = new PEBinary('+', sva_num32_(loc, 0),
+			      new PEBinary('+', sva_id_(loc, r_pend),
+					   sva_id_(loc, r_mat)));
+			FILE_NAME(matches, loc);
+			PCondit*pm = new PCondit(sva_clone_expr_(elig),
+			      sva_repeat_(loc, matches,
+					  sva_cover_spawn_(loc, inst, pass_stmt)),
+			      nullptr);
+			FILE_NAME(pm, loc);
+			sat.push_back(pm);
+			pass_stmt = nullptr;
+		  }
 	    } else if (pass_stmt) {
 		    /* 16.14.1: one pass action for every obligation the
 		       awaited boolean satisfies now. */
@@ -40011,11 +40034,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  sat.push_back(pm);
 		  pass_stmt = nullptr;
 	    }
-	    sat.push_back(sva_assign_(loc, r_pend,
-		  sequence_cover ? (PExpr*)elig
-				 : (PExpr*)sva_bit_(loc, 0)));
+	    PExpr*alive = !sequence_cover ? (PExpr*)sva_bit_(loc, 0)
+		  : count_pend ? (PExpr*)new PEBinary('+', sva_id_(loc, r_pend),
+						     sva_id_(loc, r_mat))
+		  : (PExpr*)elig;
+	    sat.push_back(sva_assign_(loc, r_pend, alive));
 	    std::vector<Statement*> miss;
-	    PExpr*acc = (kind != 2 && !negated)
+	    PExpr*acc = count_pend
 		  ? (PExpr*)new PEBinary('+', sva_id_(loc, r_pend),
 					 sva_id_(loc, r_mat))
 		  : (PExpr*)new PEBLogic('o', sva_id_(loc, r_pend),
