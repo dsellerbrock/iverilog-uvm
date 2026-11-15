@@ -1749,11 +1749,42 @@ static int eval_object_ternary(ivl_expr_t expr)
 	    }
       }
 
-      if (result_type && ivl_type_base(result_type) == IVL_VT_QUEUE
-	  && !ivl_type_queue_assoc_compat(result_type)) {
+	/* A dynamic array of scalar elements takes the same 11.4.11
+	   element-wise merge; the merged queue becomes the darray result. */
+      int to_darray = 0;
+      if (!result_type || ivl_type_base(result_type) != IVL_VT_QUEUE) {
+	    ivl_expr_t arms[3] = { expr, true_ex, false_ex };
+	    for (unsigned idx = 0; idx < 3 && !to_darray; idx += 1) {
+		  ivl_type_t type = ivl_expr_net_type(arms[idx]);
+		  if ((!type || ivl_type_base(type) != IVL_VT_DARRAY)
+		      && ivl_expr_type(arms[idx]) == IVL_EX_SIGNAL
+		      && ivl_signal_data_type(ivl_expr_signal(arms[idx]))
+			 == IVL_VT_DARRAY)
+			type = ivl_signal_net_type(ivl_expr_signal(arms[idx]));
+		  if (!type || ivl_type_base(type) != IVL_VT_DARRAY)
+			continue;
+		  ivl_type_t element = ivl_type_element(type);
+		  switch (element ? ivl_type_base(element) : IVL_VT_NO_TYPE) {
+		      case IVL_VT_BOOL:
+		      case IVL_VT_LOGIC:
+		      case IVL_VT_REAL:
+		      case IVL_VT_STRING:
+			result_type = type;
+			to_darray = 1;
+			break;
+		      default:
+			break;
+		  }
+	    }
+      }
+
+      if (result_type && (to_darray
+	  || (ivl_type_base(result_type) == IVL_VT_QUEUE
+	      && !ivl_type_queue_assoc_compat(result_type)))) {
 	    ivl_type_t element_type = ivl_type_element(result_type);
 	    char element_text[32];
-	    const uint64_t max_size = ivl_type_queue_max_size(result_type);
+	    const uint64_t max_size = to_darray
+		  ? 0 : ivl_type_queue_max_size(result_type);
 	    const unsigned nested_spec = queue_ternary_nested_spec_(element_type);
 	    unsigned lab_false = local_count++;
 	    unsigned lab_true = local_count++;
@@ -1794,8 +1825,12 @@ static int eval_object_ternary(ivl_expr_t expr)
 			  "    %%qcond/ambig \"%s\", %u;\n",
 			  element_text, nested_spec);
 	    }
-	    fprintf(vvp_out, "    %%queue/trim/o %" PRIu64 "; queue conditional result type\n",
-		    max_size);
+	    if (to_darray)
+		  fprintf(vvp_out, "    %%queue/to/darray \"%s\"; darray conditional result type\n",
+			  element_text);
+	    else
+		  fprintf(vvp_out, "    %%queue/trim/o %" PRIu64 "; queue conditional result type\n",
+			  max_size);
 	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
 
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_false);

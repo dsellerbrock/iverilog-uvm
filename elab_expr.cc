@@ -34942,6 +34942,17 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	  }
 	  if (same_shape) {
 		list<long>indices;
+		  /* IEEE 1800-2023 11.4.11: under an ambiguous condition the
+		     arrays "shall be combined element by element. If the
+		     elements match, the element shall be returned. If they do
+		     not match, then the value specified in Table 7-1 for that
+		     element's type shall be returned." Applied down to each
+		     integral leaf (as Eve does): a mismatched leaf is 0 for a
+		     2-state type and all x for a 4-state type, never a bit merge. */
+		ivl_type_t leaf_type = array_type->element_type();
+		const bool integral_leaf = leaf_type && leaf_type->packed()
+		      && (leaf_type->base_type() == IVL_VT_BOOL
+			  || leaf_type->base_type() == IVL_VT_LOGIC);
 		function<NetExpr*(size_t)>build_array = [&](size_t dimension) -> NetExpr* {
 		      vector<NetExpr*>items;
 		      const netrange_t&range = dims[dimension];
@@ -34961,13 +34972,33 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 					NetExpr*false_value = new NetESignal(
 					      const_cast<NetNet*>(false_array->sig()),
 					      false_index);
+					const unsigned wid = true_value->expr_width();
+					const bool sgn = true_value->has_sign()
+					      && false_value->has_sign();
 					NetETernary*ternary = new NetETernary(
 					      con->dup_expr(), true_value, false_value,
-					      true_value->expr_width(),
-					      true_value->has_sign()
-						&& false_value->has_sign());
+					      wid, sgn);
 					ternary->set_line(*this);
 					item = ternary;
+					if (integral_leaf) {
+					      NetEConst*dflt =
+						    leaf_type->base_type() == IVL_VT_BOOL
+						    ? make_const_0(wid) : make_const_x(wid);
+					      dflt->cast_signed(sgn);
+					      NetExpr*ambiguous = new NetEBComp('E',
+						    new NetEBComp('n', con->dup_expr(),
+							  make_const_0(con->expr_width())),
+						    make_const_x(1));
+					      NetExpr*match = new NetEBComp('E',
+						    true_value->dup_expr(),
+						    false_value->dup_expr());
+					      item = new NetETernary(ambiguous,
+						    new NetETernary(match,
+							  true_value->dup_expr(), dflt,
+							  wid, sgn),
+						    ternary, wid, sgn);
+					      item->set_line(*this);
+					}
 				  } else {
 					delete true_index;
 					delete false_index;
