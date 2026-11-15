@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue3306_cover_large_fixed_array.v",
+  "iverilog-args": ["-g2023", "-s", "top"]
+}
