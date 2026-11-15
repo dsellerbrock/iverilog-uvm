@@ -20,6 +20,7 @@
 
 # include "config.h"
 bool pform_procedural_expr_context = false;
+bool pform_checker_assign_rval_context = false;
 bool pform_default_argument_context = false;
 bool pform_default_argument_requires_procedural_context = false;
 bool pform_type_operator_context = false;
@@ -20423,6 +20424,14 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 	  }
 	  if (bad_direction && pform_default_argument_context) {
 		pform_default_argument_requires_procedural_context = true;
+	  } else if (bad_direction && pform_checker_assign_rval_context) {
+		  cerr << get_fileline() << ": error: Function `"
+		       << dscope->basename()
+		       << "' with output, inout, or ref arguments cannot be called"
+			  " in the right-hand side of a checker variable assignment"
+			  " (IEEE 1800-2017/2023 17.8)." << endl;
+		  des->errors += 1;
+		  return 0;
 	  } else if (bad_direction && !pform_procedural_expr_context) {
 		  cerr << get_fileline() << ": error: Function `"
 		       << dscope->basename()
