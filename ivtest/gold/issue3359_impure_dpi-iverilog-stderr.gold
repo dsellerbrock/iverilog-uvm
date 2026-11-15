@@ -1,0 +1,2 @@
+ivltests/issue3359_impure_dpi.sv:6: error: Function 'issue3359_impure_pkg::issue3359_impure' used in a constraint is not pure: is nonautomatic and does not unconditionally assign its return value.
+1 error(s) during elaboration.

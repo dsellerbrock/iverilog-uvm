@@ -39966,6 +39966,12 @@ class constraint_function_purity_t : public target_t {
 	    }
 	    status_[scope] = 1;
 	    const PFunction*pfunc = scope->func_pform();
+	    /* A pure DPI import promises no side effects or persistent state.
+	     * Its generated wrapper is not an SV body to prove by inspection. */
+	    if (pfunc && pfunc->is_dpi_import() && pfunc->dpi_pure()) {
+		  status_[scope] = 2;
+		  return true;
+	    }
 	    if (pfunc && (!scope->func_def() || !scope->func_def()->proc()))
 		  elaborate_function_outside_caller_fork_(des_, pfunc,
 			const_cast<NetScope*>(scope));
