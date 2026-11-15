@@ -1,0 +1,2 @@
+ivltests/issue3066_checker_cg_const_fail.v:11: error: checker input port `x' has a const-cast actual but is referenced by a covergroup (IEEE 1800-2017/2023 17.6).
+1 error(s) during elaboration.
