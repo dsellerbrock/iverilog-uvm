@@ -21406,6 +21406,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    while (!sr.path_tail.empty()) {
 		  const netclass_t*class_type = dynamic_cast<const netclass_t*>(obj_type);
 		  const name_component_t&comp = sr.path_tail.front();
+	      // get_coverage()/get_inst_coverage() on a named coverpoint or
+	      // cross, called as a statement: the expression elaborator owns
+	      // the item lookup and the ref int outputs (19.8).
+	      if (class_type && class_type->is_covergroup()
+		  && sr.path_tail.size() == 1
+		  && (method_name == "get_coverage"
+		      || method_name == "get_inst_coverage")) {
+		    delete obj_expr;
+		    return elaborate_non_void_function_(des, scope, true);
+	      }
 	      // A named coverpoint or cross is not a class property. Lower its
 	      // start()/stop() task using the item's stable covergroup index.
 	      if (class_type && class_type->is_covergroup()
@@ -22740,12 +22750,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  }
 
 		  // Covergroup get_inst_coverage()/get_coverage(): handled in
-		  // elab_expr.cc. For task context, emit noop.
+		  // elab_expr.cc. A statement call still assigns its two
+		  // ref int outputs (19.8); without them it has no effect.
 		  if (method_name == perm_string::literal("get_inst_coverage")
 		      || method_name == perm_string::literal("get_coverage")) {
 			const netclass_t*cgtype = dynamic_cast<const netclass_t*>(obj_type);
 			if (cgtype && cgtype->is_covergroup()) {
 			      delete obj_expr;
+			      if (!parms_.empty())
+				    return elaborate_non_void_function_(
+					  des, scope, true);
 			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			      noop->set_line(*this);
 			      return noop;
@@ -23081,7 +23095,8 @@ bool validate_program_subroutine_call(Design*des, const LineInfo&loc,
       return false;
 }
 
-NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) const
+NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope,
+						 bool builtin) const
 {
 	// Generate a function call version of this task call.
       PECallFunction*call = new PECallFunction(package_, path_, parms_);
@@ -23093,11 +23108,27 @@ NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) c
       PExpr*rval = call;
       rval->set_file(get_file());
       rval->set_lineno(get_lineno());
+      if (builtin) {
+	      // A predefined coverage query (19.8) returns real. Its type is
+	      // not visible to test_width, so assign it to a real temporary
+	      // here; evaluating the call stores its ref int outputs.
+	    NetExpr*value = elaborate_rval_expr(
+		  des, scope, &netreal_t::type_real, rval, false, false);
+	    call->set_leading_type_args(nullptr);
+	    if (!value) return 0;
+	    NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				    &netreal_t::type_real);
+	    tmp->set_line(*this);
+	    tmp->local_flag(true);
+	    NetAssign*assign = new NetAssign(new NetAssign_(tmp), value);
+	    assign->set_line(*this);
+	    return assign;
+      }
 	// Generate an assign to nothing.
       PAssign*tmp = new PAssign(0, rval);
       tmp->set_file(get_file());
       tmp->set_lineno(get_lineno());
-      if (!void_cast_) {
+      if (!void_cast_ && !builtin) {
 	    cerr << get_fileline() << ": warning: User function '"
 		 << peek_tail_name(path_) << "' is being called as a task." << endl;
       }

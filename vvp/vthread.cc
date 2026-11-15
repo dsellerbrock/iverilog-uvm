@@ -12121,18 +12121,24 @@ bool of_COVGRP_OPTIONS_INIT(vthread_t thr, vvp_code_t)
       return true;
 }
 
-/* %covgrp/get_coverage — TYPE coverage: the per-item weighted model
- * computed over the counters merged across all instances of this
- * covergroup type. */
-bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
+/* Store the covered and defined bin counts of a (ref int, ref int) query.
+ * A zero denominator assigns zero to both (19.11 d). */
+static void covgrp_store_counts_(const vvp_object_t&covered_ref_obj,
+				 const vvp_object_t&total_ref_obj,
+				 bool counted, long double covered,
+				 long double defined)
 {
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      double result = 0.0;
-      if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
-	    result = cobj->get_defn()->type_coverage(cobj);
-      thr->push_real(result);
-      return true;
+      if (!counted || defined == 0.0L) covered = defined = 0.0L;
+      auto store_count = [](vvp_lvalue_ref*ref, long double count) {
+	    if (!ref) return;
+	    uint32_t value = static_cast<uint32_t>(count);
+	    vvp_vector4_t data(ref->value_width(), BIT4_0);
+	    for (unsigned bit = 0; bit < data.size() && bit < 32; ++bit)
+		  if (value & (1u << bit)) data.set_bit(bit, BIT4_1);
+	    ref->store_vec4(data);
+      };
+      store_count(covered_ref_obj.peek<vvp_lvalue_ref>(), covered);
+      store_count(total_ref_obj.peek<vvp_lvalue_ref>(), defined);
 }
 
 /* %covgrp/type/get_coverage — TYPE coverage selected without a covergroup
@@ -12325,79 +12331,87 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
       return result;
 }
 
-static bool of_COVGRP_GET_INST_COVERAGE_(vthread_t thr, bool has_output_refs)
+/* The coverage queries of 19.8 Table 19-5 on an instance receiver:
+ * %covgrp/get_coverage (TYPE coverage, all instances of the receiver's
+ * covergroup type), %covgrp/get_inst_coverage, and their %covgrp/item/...
+ * forms for the coverpoint or cross numbered by the operand. The object is
+ * on the object stack; a /ref form has the covered and total (ref int,
+ * ref int) references above it. get_inst_coverage reads the type score
+ * when the instance does not track its own (option get_inst_coverage,
+ * 19.7). */
+static bool covgrp_query_(vthread_t thr, vvp_code_t code, bool inst,
+			  bool item_form, bool has_output_refs)
 {
-	  vvp_object_t total_ref_obj, covered_ref_obj;
-	  if (has_output_refs) {
-		thr->pop_object(total_ref_obj);
-		thr->pop_object(covered_ref_obj);
-	  }
+      vvp_object_t total_ref_obj, covered_ref_obj;
+      if (has_output_refs) {
+	    thr->pop_object(total_ref_obj);
+	    thr->pop_object(covered_ref_obj);
+      }
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      long double covered = 0.0L, defined = 0.0L;
-	  bool contributes = false;
-      double result = cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
-	    ? cobj->get_defn()->type_coverage(cobj)
-	    : vvp_covgrp_instance_coverage(cobj, &contributes, -1,
-						 &covered, &defined);
-      if (has_output_refs) {
-	    vvp_lvalue_ref*covered_ref = covered_ref_obj.peek<vvp_lvalue_ref>();
-	    vvp_lvalue_ref*total_ref = total_ref_obj.peek<vvp_lvalue_ref>();
-	    auto store_count = [](vvp_lvalue_ref*ref, long double count) {
-		  if (!ref) return;
-		  uint32_t value = static_cast<uint32_t>(count);
-		  vvp_vector4_t data(ref->value_width(), BIT4_0);
-		  for (unsigned bit = 0; bit < data.size() && bit < 32; ++bit)
-			if (value & (1u << bit)) data.set_bit(bit, BIT4_1);
-		  ref->store_vec4(data);
-	    };
-	    store_count(covered_ref, contributes ? covered : 0.0L);
-	    store_count(total_ref, contributes ? defined : 0.0L);
+      const class_type*defn = cobj ? cobj->get_defn() : 0;
+      int item = -1;
+      if (item_form && defn) {
+	    if (code->number < defn->covgrp_item_count())
+		  item = static_cast<int>(code->number);
+	    else
+		  defn = 0;
       }
+      long double covered = 0.0L, defined = 0.0L;
+      bool contributes = false;
+      double result = 0.0;
+      if (defn)
+	    result = inst && defn->covgrp_get_inst_coverage(cobj)
+		  ? vvp_covgrp_instance_coverage(cobj, &contributes, item,
+						 &covered, &defined)
+		  : defn->type_coverage(cobj, &contributes, item,
+					&covered, &defined);
+      if (has_output_refs)
+	    covgrp_store_counts_(covered_ref_obj, total_ref_obj,
+				 item >= 0 || contributes, covered, defined);
       thr->push_real(result);
       return true;
 }
 
-bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t code)
 {
-      return of_COVGRP_GET_INST_COVERAGE_(thr, false);
+      return covgrp_query_(thr, code, false, false, false);
 }
 
-bool of_COVGRP_GET_INST_COVERAGE_REF(vthread_t thr, vvp_code_t)
+bool of_COVGRP_GET_COVERAGE_REF(vthread_t thr, vvp_code_t code)
 {
-      return of_COVGRP_GET_INST_COVERAGE_(thr, true);
+      return covgrp_query_(thr, code, false, false, true);
+}
+
+bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_query_(thr, code, true, false, false);
+}
+
+bool of_COVGRP_GET_INST_COVERAGE_REF(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_query_(thr, code, true, false, true);
 }
 
 bool of_COVGRP_ITEM_GET_COVERAGE(vthread_t thr, vvp_code_t code)
 {
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      double result = 0.0;
-      if (cobj && code->number <= INT_MAX
-	  && code->number < cobj->get_defn()->covgrp_item_count())
-	    result = cobj->get_defn()->type_coverage(
-		  cobj, nullptr, static_cast<int>(code->number));
-      thr->push_real(result);
-      return true;
+      return covgrp_query_(thr, code, false, true, false);
+}
+
+bool of_COVGRP_ITEM_GET_COVERAGE_REF(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_query_(thr, code, false, true, true);
 }
 
 bool of_COVGRP_ITEM_GET_INST_COVERAGE(vthread_t thr, vvp_code_t code)
 {
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      double result = 0.0;
-      if (cobj && code->number <= INT_MAX
-	  && code->number < cobj->get_defn()->covgrp_item_count()) {
-	    int item = static_cast<int>(code->number);
-	    result = cobj->get_defn()->covgrp_get_inst_coverage(cobj)
-		  ? vvp_covgrp_instance_coverage(cobj, nullptr, item)
-		  : cobj->get_defn()->type_coverage(cobj, nullptr, item);
-      }
-      thr->push_real(result);
-      return true;
+      return covgrp_query_(thr, code, true, true, false);
+}
+
+bool of_COVGRP_ITEM_GET_INST_COVERAGE_REF(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_query_(thr, code, true, true, true);
 }
 
 
