@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2973_item_iterator_shadow.v",
+  "iverilog-args": ["-g2023", "-s", "issue2973_item_iterator_shadow"],
+  "output-contains": ["PASSED"]
+}
