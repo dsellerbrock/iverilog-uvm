@@ -50,6 +50,11 @@ struct covgrp_dyn_state_t {
       std::vector<uint64_t> type_bins;
       unsigned __int128 total = 0;
       uint64_t array_size = 0;
+	// A fixed-size array whose ignore/illegal values empty some bins
+	// entirely (IEEE 1800-2023 19.5.5): the indexes of the bins left, as
+	// spans. The others are no bins; every bin keeps its index.
+      bool carved = false;
+      std::vector<std::pair<uint64_t,uint64_t>> live;
       bool is_auto_bins = false;
       bool is_wide_auto_bins = false;
       bool valid = true;

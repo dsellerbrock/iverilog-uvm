@@ -3050,7 +3050,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <sva_property_formals> sva_property_formal_declaration
 %destructor { for (sva_property_formal_t&formal : *$$)
 		{ delete formal.default_expr; } delete $$; } <sva_property_formals>
-%type <sva_formals> sva_sequence_formal_list
+%type <sva_formals> sva_sequence_formal_list sva_sequence_formals
 %destructor { delete $$; } <sva_formals>
 %type <sva_items> sva_local_ident_list
 %destructor { sva_destroy_parser_match_items_($$); } sva_local_ident_list
@@ -8384,16 +8384,16 @@ sequence_declaration /* IEEE 1800-2017/2023 16.8 */
 	pform_sva_declare_sequence_spec(@2, $2, $5);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';' sva_seq_expr ';' K_endsequence
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
       { check_end_label(@11, "sequence", $2, $11);
 	pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';'
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';'
       { pform_sva_begin_local_declarations();
 	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
 	     it != $4->end(); ++it)
@@ -8402,7 +8402,7 @@ sequence_declaration /* IEEE 1800-2017/2023 16.8 */
       { pform_sva_declare_sequence_p(@2, $2, $4, $9);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';'
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';'
       { pform_sva_begin_local_declarations();
 	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
 	     it != $4->end(); ++it)
@@ -8926,6 +8926,22 @@ package_item /* IEEE1800-2005 A.1.10 */
   | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_variable_list ';'
       { data_type_t*data_type = $4;
         pform_check_net_data_type(@2, $2, $4);
+        if (!data_type) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+        }
+        pform_set_net_delay(@2, $5, $6);
+        pform_set_data_type(@2, data_type, $6, $2, $1);
+        delete $1;
+      }
+  | attribute_list_opt net_type charge_strength data_type_or_implicit delay3_opt net_variable_list ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
+        if ($2 != NetNet::TRIREG) {
+	      yyerror(@3, "error: A charge strength shall only be used with "
+		      "a trireg net (IEEE 1800-2023 6.3.2.1).");
+	      pform_set_charge_strength(IVL_DR_MEDIUM);
+	}
         if (!data_type) {
 	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
 	      FILE_NAME(data_type, @2);
@@ -9550,8 +9566,11 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 sva_property_formal_declaration
   : '(' sva_property_formal_list ')' ';'
       { pform_sva_begin_local_declarations();
-	for (const sva_property_formal_t&formal : *$2)
+	pform_sva_clear_decl_formals();
+	for (const sva_property_formal_t&formal : *$2) {
+	  pform_sva_note_decl_formal(formal.name.str());
 	  if (formal.local_formal) pform_sva_add_local_formal(formal.name.str());
+	}
 	$$ = $2; }
   ;
 
@@ -9711,6 +9730,16 @@ sva_property_formal_list
 	      formal.formal_type = sva_property_formal_t::EVENT;
 	      formal.default_expr = $3;
 	      l->push_back(formal); delete[]$2; $$ = l; }
+  ;
+
+/* Record the formal names before the body is parsed: a cycle delay that
+   names one becomes constant only after substitution (16.8.1). */
+sva_sequence_formals
+  : sva_sequence_formal_list
+      { pform_sva_clear_decl_formals();
+	for (const sva_sequence_formal_t&formal : *$1)
+	  pform_sva_note_decl_formal(formal.name.str());
+	$$ = $1; }
   ;
 
 /* Named sequence formals include IEEE 1800-2017 16.8.2 local input
@@ -12876,14 +12905,9 @@ pattern_if_prefix
   ;
 
 charge_strength
-  : '(' K_small ')'
-  | '(' K_medium ')'
-  | '(' K_large ')'
-  ;
-
-charge_strength_opt
-  : charge_strength
-  |
+  : '(' K_small ')'  { pform_set_charge_strength(IVL_DR_SMALL); }
+  | '(' K_medium ')' { pform_set_charge_strength(IVL_DR_MEDIUM); }
+  | '(' K_large ')'  { pform_set_charge_strength(IVL_DR_LARGE); }
   ;
 
 defparam_assign
@@ -17845,10 +17869,24 @@ module_item
 	delete $1;
       }
 
-  | K_trireg charge_strength_opt dimensions_opt delay3_opt list_of_identifiers ';'
-      { yyerror(@1, "sorry: trireg nets not supported.");
-	delete $3;
-	delete $4;
+  /* A trireg net may give a charge strength where other nets give a drive
+     strength (IEEE 1800-2023 Syntax 6-2, 6.3.2.1). The net type is parsed
+     as net_type so that the '(' needs no early decision. */
+
+  | attribute_list_opt net_type charge_strength data_type_or_implicit delay3_opt net_decl_assigns_mixed ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
+        if ($2 != NetNet::TRIREG) {
+	      yyerror(@3, "error: A charge strength shall only be used with "
+		      "a trireg net (IEEE 1800-2023 6.3.2.1).");
+	      pform_set_charge_strength(IVL_DR_MEDIUM);
+	}
+	if (data_type == 0) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+	}
+	pform_makewire(@2, $5, str_strength, $6, $2, data_type, $1);
+	delete $1;
       }
 
 
@@ -18846,6 +18884,7 @@ net_type
 		        "instead." << endl;
 	      }
   | K_uwire   { $$ = NetNet::UNRESOLVED_WIRE; }
+  | K_trireg  { $$ = NetNet::TRIREG; }
   ;
 
 net_type_opt

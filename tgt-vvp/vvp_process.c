@@ -8059,6 +8059,11 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    /* A class-embedded group can be extended at runtime. Standalone
 	       covergroups keep the original stack-described VVP encoding. */
 	    ivl_type_t cgtype = obj_arg ? ivl_expr_net_type(obj_arg) : 0;
+	    /* The receiver of a group with constructor or mirrored sample
+	       formals is evaluated once into a temporary; a signal
+	       expression takes its type from the signal. */
+	    if (!cgtype && obj_arg && ivl_expr_type(obj_arg) == IVL_EX_SIGNAL)
+		  cgtype = ivl_signal_net_type(ivl_expr_signal(obj_arg));
 	    if (cgtype && ivl_type_base(cgtype) == IVL_VT_CLASS
 		&& ivl_type_covgrp_owner_prop(cgtype) >= 0) {
 		  ensure_class_type_emitted(cgtype);
@@ -9187,6 +9192,32 @@ int draw_process(ivl_process_t net, void*x)
 
 static void draw_dpi_func_body(ivl_scope_t scope, int is_task);
 
+/* `return expr;` reaches the target lowered to an unnamed sequential block
+ * that assigns the function's result variable and then leaves the function
+ * with a flow-control disable (PReturn::elaborate). No source statement has
+ * that shape: beside an assignment to the result variable, a bare `return;`
+ * is an error in a function that returns a value. The block is the one
+ * return statement of IEEE 1800-2023 37.78. */
+static int vpi_value_return_block_(ivl_statement_t stmt)
+{
+      ivl_statement_t assign, leave;
+      ivl_signal_t sig;
+      ivl_scope_t func;
+      if (ivl_statement_type(stmt) != IVL_ST_BLOCK
+	  || ivl_stmt_block_scope(stmt) || ivl_stmt_block_count(stmt) != 2)
+	    return 0;
+      assign = ivl_stmt_block_stmt(stmt, 0);
+      leave = ivl_stmt_block_stmt(stmt, 1);
+      if (ivl_statement_type(assign) != IVL_ST_ASSIGN
+	  || ivl_statement_type(leave) != IVL_ST_DISABLE
+	  || !ivl_stmt_flow_control(leave) || ivl_stmt_lvals(assign) != 1)
+	    return 0;
+      func = ivl_stmt_call(leave);
+      sig = ivl_lval_sig(ivl_stmt_lval(assign, 0));
+      return func && sig && ivl_signal_scope(sig) == func
+	    && strcmp(ivl_signal_basename(sig), ivl_scope_basename(func)) == 0;
+}
+
 /* VPI exposes the elaborated statement tree. The execution-bytecode
  * addresses associated with these nodes are separate side metadata. */
 static unsigned vpi_statement_type_(ivl_statement_t stmt)
@@ -9194,6 +9225,7 @@ static unsigned vpi_statement_type_(ivl_statement_t stmt)
       switch (ivl_statement_type(stmt)) {
           case IVL_ST_NOOP: return vpiNullStmt;
           case IVL_ST_BLOCK:
+	    if (vpi_value_return_block_(stmt)) return vpiReturnStmt;
 	    return ivl_stmt_block_scope(stmt) ? vpiNamedBegin : vpiBegin;
           case IVL_ST_FORK:
           case IVL_ST_FORK_JOIN_ANY:
@@ -9216,6 +9248,8 @@ static unsigned vpi_statement_type_(ivl_statement_t stmt)
           case IVL_ST_DELAY:
           case IVL_ST_DELAYX: return vpiDelayControl;
           case IVL_ST_DISABLE:
+	      /* Only `return` is lowered to a flow-control disable. */
+	    if (ivl_stmt_flow_control(stmt)) return vpiReturnStmt;
             return ivl_stmt_call(stmt) ? vpiDisable : vpiDisableFork;
           case IVL_ST_FOREVER: return vpiForever;
           case IVL_ST_REPEAT: return vpiRepeat;
@@ -9310,6 +9344,8 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
       unsigned idx, count = 0;
       if (!vpi_statement_visible_(stmt)) return;
       id = emit_vpi_stmt_node_(stmt, parent);
+	/* A return statement has no statements below it. */
+      if (vpi_value_return_block_(stmt)) return;
       switch (ivl_statement_type(stmt)) {
           case IVL_ST_BLOCK:
           case IVL_ST_FORK:

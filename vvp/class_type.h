@@ -620,7 +620,9 @@ class class_type : public __vpiHandle {
       bool covgrp_per_instance(vvp_cobject*obj) const;
       double type_coverage(class vvp_cobject*context = 0,
                            bool*contributes = nullptr,
-                           int selected_item = -1) const;
+                           int selected_item = -1,
+                           long double*covered_bins = nullptr,
+                           long double*defined_bins = nullptr) const;
 
 	// M11: registry of covergroup types for $get_coverage and the
 	// end-of-simulation report.
@@ -672,6 +674,11 @@ class class_type : public __vpiHandle {
             std::vector<bool> item_has_bins;
             std::vector<unsigned> item_at_least;
             bool has_options = false;
+	    // Covered and defined bin counts (19.8 get_coverage(ref int,
+	    // ref int)). Kept in memory only: a population read back from
+	    // a coverage database has none.
+            long double covered = 0, defined = 0;
+            std::vector<long double> item_covered, item_defined;
       };
       struct covgrp_instance_snapshot_t {
             uint64_t id = 0;

@@ -210,4 +210,66 @@ class resolv_trior : public resolv_wired_logic {
       bool wired_or_() const override { return true; }
 };
 
+/*
+ * The charge storage of a trireg net (IEEE 1800-2023 6.6.4, 28.15.2,
+ * 28.16.2). It sits between the resolved drivers of the net and the net
+ * itself (or the tran island port of the net).
+ *
+ *   port 0  the resolved value of the drivers of the net
+ *   port 1  the final value of the net when it is in a tran island
+ *           (the output of its island port); unused otherwise
+ *   port 2  the charge decay time when it is not a constant
+ *   port 3  the time-zero kick that sends the initial value
+ *
+ * Each bit is on its own. A driver bit that is not z is passed on with
+ * its strength (driven state). When the driver bit is z the output is the
+ * stored bit at the charge strength (capacitive state); z never gets
+ * through. The stored bit starts as x (6.7.1) and follows the value of
+ * the net: the last driven value, or, in a tran island, what the island
+ * resolves, so that charge moves from a larger trireg to a smaller one
+ * and two of equal size with different values both go to x (6.6.4.1).
+ *
+ * With a decay time, a stored 0 or 1 becomes x that long after the bit
+ * started to hold its own charge, unless the bit was driven again in
+ * between (28.16.2.1). A bit holds its own charge when it has no driver
+ * and, in an island, the island gives it back exactly what it put in.
+ */
+class vvp_fun_trireg : public vvp_net_fun_t {
+
+    public:
+      vvp_fun_trireg(vvp_net_t*net, unsigned wid, unsigned charge,
+		     bool has_decay, vvp_time64_t decay, bool has_feedback);
+      ~vvp_fun_trireg() override;
+
+      void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
+		     vvp_context_t context) override;
+      void recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit) override;
+      void recv_real(vvp_net_ptr_t port, double bit,
+		     vvp_context_t context) override;
+
+	// Called by the decay event: BITS are (bit, generation) pairs.
+      void decay(const std::vector<std::pair<unsigned,unsigned> >&bits);
+
+    private:
+      void update_();
+
+      vvp_net_t*net_;
+      unsigned wid_;
+      unsigned charge_;
+      bool has_decay_;
+      vvp_time64_t decay_;
+      bool has_feedback_;
+	// Scale factors for a decay time that arrives on port 2.
+      vvp_time64_t round_, scale_;
+
+      vvp_vector8_t drv_;	// port 0
+      vvp_vector8_t fb_;	// port 1
+      vvp_vector8_t out_;	// last value sent
+      vvp_vector4_t store_;	// the stored charge
+	// Per bit: whether it holds its own charge, and a counter that
+	// changes whenever that stops, so a pending decay can tell.
+      std::vector<bool> hold_;
+      std::vector<unsigned> gen_;
+};
+
 #endif /* IVL_resolv_H */

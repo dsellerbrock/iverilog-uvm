@@ -1,0 +1,6 @@
+ivltests/issue622_covergroup_count_refs_fail.v:12: error: Covergroup method get_coverage expects either zero arguments or two ref int arguments (IEEE 1800-2017/2023 19.8).
+ivltests/issue622_covergroup_count_refs_fail.v:13: error: Covergroup method get_coverage expects either zero arguments or two ref int arguments (IEEE 1800-2017/2023 19.8).
+ivltests/issue622_covergroup_count_refs_fail.v:14: error: get_inst_coverage output argument must name one writable int variable (IEEE 1800-2017/2023 19.8).
+ivltests/issue622_covergroup_count_refs_fail.v:15: error: Constant values not allowed in l-value expressions.
+ivltests/issue622_covergroup_count_refs_fail.v:16: error: Covergroup method get_coverage expects either zero arguments or two ref int arguments (IEEE 1800-2017/2023 19.8).
+5 error(s) during elaboration.

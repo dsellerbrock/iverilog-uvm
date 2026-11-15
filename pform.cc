@@ -1764,7 +1764,7 @@ static typedef_t* pform_find_interface_typedef(perm_string name)
       return td;
 }
 
-static typedef_t* pform_bind_visible_class_typedef(const struct vlltype&loc,
+typedef_t* pform_bind_visible_class_typedef(const struct vlltype&loc,
                                                    perm_string name,
                                                    PClass*class_scope)
 {
@@ -2765,7 +2765,42 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
       }
 
       perm_string lex_name = lex_strings.make(name);
+      perm_string cell_name = lex_name;
+      perm_string library = libmap_file_library(loc.text);
+
+	/* IEEE 1800 33.3: cells of different libraries may share a name. The
+	   cell of the library that is searched first keeps the plain name in
+	   pform_modules, so that every lookup by name binds as 33.6.1
+	   requires. The other cells are kept under a library-qualified key. */
+      map<perm_string,Module*>::iterator same_name = pform_cur_module.empty()
+	    ? pform_modules.find(lex_name) : pform_modules.end();
+      if (same_name != pform_modules.end()
+	  && same_name->second->library != library) {
+	    Module*other = same_name->second;
+	    perm_string other_key = libmap_cell_key(other->library, cell_name);
+	    if (!libmap_sources_parsed
+		&& libmap_before(library, other->library)
+		&& pform_modules.find(other_key) == pform_modules.end()) {
+		  pform_modules.erase(same_name);
+		  other->pscope_rename(other_key);
+		  pform_modules[other_key] = other;
+		    // The name is also a symbol of the compilation unit.
+		  map<perm_string,PNamedItem*>&symbols
+			= other->parent_scope()->local_symbols;
+		  map<perm_string,PNamedItem*>::iterator sym
+			= symbols.find(cell_name);
+		  if (sym != symbols.end() && sym->second == other) {
+			symbols.erase(sym);
+			symbols[other_key] = other;
+		  }
+	    } else {
+		  lex_name = libmap_cell_key(library, cell_name);
+	    }
+      }
+
       Module*cur_module = new Module(lexical_scope, lex_name);
+      cur_module->library = library;
+      cur_module->cell = cell_name;
       if (PPackage*unit = dynamic_cast<PPackage*>(lexical_scope))
 	    cur_module->unit_lets = unit->lets;
       cur_module->program_block = program_block;
@@ -3233,7 +3268,8 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	   must resolve before deferred assertions use it. */
       Module*cur_module = pform_cur_module.front();
       if (cur_module->is_checker) checker_free_finish_(cur_module);
-      perm_string mod_name = cur_module->mod_name();
+	// The name in the source: mod_name() may be library-qualified.
+      perm_string mod_name = cur_module->cell;
       map<Module*, vector<pair<perm_string, NetNet::PortType> > >::iterator
             deferred = pform_deferred_explicit_port_directions.find(cur_module);
       if (deferred != pform_deferred_explicit_port_directions.end()) {
@@ -3310,7 +3346,7 @@ void pform_endmodule(const char*name, bool inside_celldefine,
       if (strcmp(name, mod_name) != 0) {
 	    while (!pform_cur_module.empty()) {
 		  Module*tmp_module = pform_cur_module.front();
-		  perm_string tmp_name = tmp_module->mod_name();
+		  perm_string tmp_name = tmp_module->cell;
 		  pform_cur_module.pop_front();
 		  ostringstream msg;
 		  msg << "error: Module " << mod_name
@@ -3346,6 +3382,7 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	      ? pform_modules
 	      : pform_cur_module.front()->nested_modules;
 
+      mod_name = cur_module->mod_name();
       map<perm_string,Module*>::const_iterator test =
 	    use_module_map.find(mod_name);
 
@@ -7795,10 +7832,20 @@ void pform_set_port_type(const struct vlltype&li,
  * This function detects the derived class for the given type and
  * dispatches the type to the proper subtype function.
  */
+static ivl_drive_t pform_charge_strength = IVL_DR_MEDIUM;
+
+void pform_set_charge_strength(ivl_drive_t str)
+{
+      pform_charge_strength = str;
+}
+
 void pform_set_data_type(const struct vlltype&li, data_type_t*data_type,
 			 std::vector<PWire*> *wires, NetNet::Type net_type,
 			 list<named_pexpr_t>*attr, bool is_const)
 {
+      ivl_drive_t charge = pform_charge_strength;
+      pform_charge_strength = IVL_DR_MEDIUM;
+
       if (data_type == 0) {
 	    VLerror(li, "internal error: data_type==0.");
 	    ivl_assert(li, 0);
@@ -7831,6 +7878,7 @@ void pform_set_data_type(const struct vlltype&li, data_type_t*data_type,
 
 	    wire->set_data_type(data_type);
 	    wire->set_const(is_const);
+	    wire->set_charge_strength(charge);
 
 	    pform_bind_attributes(wire->attributes, attr, true);
       }
@@ -11016,6 +11064,37 @@ static bool pform_sva_const_long_(PExpr*expr, long&value,
 	    visiting.erase(expr);
 	    return ok;
       }
+	/* A typed sequence/property formal substitutes `type'(actual)'
+	   (IEEE 1800-2017/2023 16.8.1). Fold integer atom casts. */
+      if (PECastType*cast = dynamic_cast<PECastType*>(expr)) {
+	    const atom_type_t*atom =
+		  dynamic_cast<const atom_type_t*>(cast->cast_target());
+	    unsigned width = 0;
+	    if (atom) switch (atom->type_code) {
+		case atom_type_t::BYTE:     width = 8;  break;
+		case atom_type_t::SHORTINT: width = 16; break;
+		case atom_type_t::INT:
+		case atom_type_t::INTEGER:  width = 32; break;
+		case atom_type_t::LONGINT:
+		case atom_type_t::TIME:     width = 64; break;
+		default: break;
+	    }
+	    long a = 0;
+	    bool ok = width && pform_sva_const_long_(cast->cast_base(), a,
+						      visiting, lookup_scope);
+	    if (ok) {
+		  uint64_t bits = (uint64_t)a;
+		  if (width < 64) {
+			uint64_t mask = (UINT64_C(1) << width) - 1;
+			bits &= mask;
+			if (atom->signed_flag && (bits >> (width-1)))
+			      bits |= ~mask;
+		  }
+		  value = (long)bits;
+	    }
+	    visiting.erase(expr);
+	    return ok;
+      }
       visiting.erase(expr);
       return false;
 }
@@ -13042,6 +13121,35 @@ static void sva_resolve_late_disable_slots_(const Module*closing)
       }
 }
 
+static std::set<perm_string> sva_decl_formal_names_;
+
+/* True when expr references a formal of the declaration being parsed. */
+static bool sva_names_decl_formal_(const PExpr*expr)
+{
+      if (!expr) return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr))
+	    return !id->path().package && !id->path().name.empty()
+		&& sva_decl_formal_names_.count(id->path().name.front().name);
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr))
+	    return sva_names_decl_formal_(un->get_expr());
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr))
+	    return sva_names_decl_formal_(bin->get_left())
+		|| sva_names_decl_formal_(bin->get_right());
+      if (const PETernary*ter = dynamic_cast<const PETernary*>(expr))
+	    return sva_names_decl_formal_(ter->get_cond())
+		|| sva_names_decl_formal_(ter->get_true())
+		|| sva_names_decl_formal_(ter->get_false());
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
+	    return sva_names_decl_formal_(cast->cast_base());
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+	    return sva_names_decl_formal_(cast->cast_size())
+		|| sva_names_decl_formal_(cast->cast_base());
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr))
+	    for (const named_pexpr_t&arg : call->get_parms())
+		  if (sva_names_decl_formal_(arg.parm)) return true;
+      return false;
+}
+
 /* Single cycle delays share the range path's instance-elaboration boundary.
    -6 identifies an exact symbolic delay, as distinct from a general window. */
 void pform_sva_single_delay(const struct vlltype&loc,
@@ -13101,6 +13209,20 @@ void pform_sva_single_delay(const struct vlltype&loc,
                  && step.delay_lo == 0 && step.delay_hi == 0) {
             step.delay_lo = step.delay_hi = -4;
             step.delay_genvar = genvar_name;
+      } else if (step.delay_lo == 0 && step.delay_hi == 0
+		 && sva_names_decl_formal_(delay)) {
+            /* A sequence or property formal (IEEE 1800-2017/2023 16.8.1)
+               is constant only after its actual is substituted. Keep the
+               delay as the window [d:d], like pform_sva_range_delay, so
+               instantiation can fold it. */
+            PExpr*copy = sva_clone_expr_(delay);
+            if (copy) {
+                  step.delay_lo = step.delay_hi = -5;
+                  step.delay_lo_expr = delay;
+                  step.delay_hi_expr = copy;
+                  return;
+            }
+            step.delay_lo = step.delay_hi = -2;
       } else if (step.delay_lo != -3) {
             step.delay_lo = step.delay_hi = -2;
       }
@@ -13201,6 +13323,7 @@ void pform_sva_end_local_declarations(void)
       sva_local_decl_types_.clear();
       sva_local_decl_order_.clear();
       sva_local_formal_names_.clear();
+      sva_decl_formal_names_.clear();
 }
 
 void pform_sva_begin_local_declarations(void)
@@ -13218,6 +13341,16 @@ void pform_sva_begin_local_declarations(void)
 void pform_sva_add_local_formal(const char*name)
 {
       sva_local_formal_names_.insert(lex_strings.make(name));
+}
+
+void pform_sva_clear_decl_formals(void)
+{
+      sva_decl_formal_names_.clear();
+}
+
+void pform_sva_note_decl_formal(const char*name)
+{
+      sva_decl_formal_names_.insert(lex_strings.make(name));
 }
 
 bool pform_sva_match_lvalue_declared(const struct vlltype&loc,
@@ -15225,8 +15358,12 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	       substituted reference is a delay upper bound. Resolve formal-backed
 	       range expressions here, where the actual (including PEUnbounded) is
 	       known. */
+	    /* An overridable parameter actual stays symbolic: folding it here
+	       would freeze the declaration default for every instance. */
 	    if (st.delay_lo_expr && st.delay_hi_expr
-		&& st.delay_lo == -5 && st.delay_hi == -5) {
+		&& st.delay_lo == -5 && st.delay_hi == -5
+		&& !pform_sva_overridable_bound(st.delay_lo_expr)
+		&& !pform_sva_overridable_bound(st.delay_hi_expr)) {
 	      long lo = 0, hi = 0;
 	      if (pform_sva_const_long(st.delay_lo_expr, lo)
 		  && lo >= 0 && dynamic_cast<PEUnbounded*>(st.delay_hi_expr)) {
@@ -15244,6 +15381,18 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		st.delay_lo_expr = st.delay_hi_expr = nullptr;
 		st.delay_lo = lo;
 		st.delay_hi = hi;
+		delay_range_resolved = true;
+	      } else if (pform_sva_const_long(st.delay_lo_expr, lo)
+			 && pform_sva_const_long(st.delay_hi_expr, hi)) {
+		cerr << loc << ": error: invalid SVA cycle-delay range ["
+		     << lo << ":" << hi << "]; bounds must be nonnegative and "
+		     << "the upper bound must be greater than or equal to the "
+		     << "lower bound (IEEE 1800-2017/2023 16.7)." << endl;
+		error_count += 1;
+		delete st.delay_lo_expr;
+		delete st.delay_hi_expr;
+		st.delay_lo_expr = st.delay_hi_expr = nullptr;
+		st.delay_lo = st.delay_hi = 0;
 		delay_range_resolved = true;
 	      }
 	    }
@@ -15303,8 +15452,12 @@ sva_clone_steps_subst_(const struct vlltype&loc,
 	    bool delay_range_resolved = false;
 	    /* IEEE 1800-2017/2023 16.12 permits `$' as an untyped property
 	       actual when its substituted reference is a delay upper bound. */
+	    /* An overridable parameter actual stays symbolic: folding it here
+	       would freeze the declaration default for every instance. */
 	    if (st.delay_lo_expr && st.delay_hi_expr
-		&& st.delay_lo == -5 && st.delay_hi == -5) {
+		&& st.delay_lo == -5 && st.delay_hi == -5
+		&& !pform_sva_overridable_bound(st.delay_lo_expr)
+		&& !pform_sva_overridable_bound(st.delay_hi_expr)) {
 	      long lo = 0, hi = 0;
 	      if (pform_sva_const_long(st.delay_lo_expr, lo)
 		  && lo >= 0 && dynamic_cast<PEUnbounded*>(st.delay_hi_expr)) {
@@ -15322,6 +15475,18 @@ sva_clone_steps_subst_(const struct vlltype&loc,
 		st.delay_lo_expr = st.delay_hi_expr = nullptr;
 		st.delay_lo = lo;
 		st.delay_hi = hi;
+		delay_range_resolved = true;
+	      } else if (pform_sva_const_long(st.delay_lo_expr, lo)
+			 && pform_sva_const_long(st.delay_hi_expr, hi)) {
+		cerr << loc << ": error: invalid SVA cycle-delay range ["
+		     << lo << ":" << hi << "]; bounds must be nonnegative and "
+		     << "the upper bound must be greater than or equal to the "
+		     << "lower bound (IEEE 1800-2017/2023 16.7)." << endl;
+		error_count += 1;
+		delete st.delay_lo_expr;
+		delete st.delay_hi_expr;
+		st.delay_lo_expr = st.delay_hi_expr = nullptr;
+		st.delay_lo = st.delay_hi = 0;
 		delay_range_resolved = true;
 	      }
 	    }
@@ -40135,7 +40300,8 @@ int pform_parse(const char*path)
       vl_file = path;
       if (strcmp(path, "-") == 0) {
 	    vl_input = stdin;
-      } else if (ivlpp_string) {
+      } else if (ivlpp_string && !lexor_libmap_mode) {
+	      /* A library map file is not preprocessed (IEEE 1800 33.3.2). */
 	    char*cmdline = static_cast<char*>(malloc(strlen(ivlpp_string) +
 	                                             strlen(path) + 4));
 	    strcpy(cmdline, ivlpp_string);

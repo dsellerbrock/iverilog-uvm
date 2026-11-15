@@ -4477,6 +4477,50 @@ static std::string scoped_covergroup_coverage_name_(
 }
 
 /*
+ * IEEE 1800-2017/2023 19.8: get_coverage and get_inst_coverage take either
+ * no arguments or two ref int arguments that receive the covered and the
+ * total bin counts. Attach the two outputs to the call.
+ */
+static bool elaborate_covgrp_count_refs_(
+	Design*des, NetScope*scope, const LineInfo*call,
+	const vector<named_pexpr_t>&parms, perm_string method, NetESFunc*sys)
+{
+      if (parms.empty())
+	    return true;
+      if (parms.size() != 2) {
+	    cerr << call->get_fileline() << ": error: Covergroup method "
+		 << method << " expects either zero arguments or two ref int "
+		    "arguments (IEEE 1800-2017/2023 19.8)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+      NetAssign_*outputs[2] = { 0, 0 };
+      for (unsigned idx = 0; idx < 2; idx += 1) {
+	    unsigned errors_before = des->errors;
+	    outputs[idx] = parms[idx].parm
+		  ? parms[idx].parm->elaborate_lval(des, scope, false, false)
+		  : 0;
+	    if (outputs[idx] && !outputs[idx]->more
+		&& outputs[idx]->lwidth() == 32)
+		  continue;
+	    if (des->errors == errors_before) {
+		  cerr << (parms[idx].parm ? parms[idx].parm->get_fileline()
+					   : call->get_fileline())
+		       << ": error: " << method << " output argument must "
+			  "name one writable int variable (IEEE 1800-2017/2023 "
+			  "19.8)." << endl;
+		  des->errors += 1;
+	    }
+	    delete outputs[0];
+	    delete outputs[1];
+	    return false;
+      }
+      sys->set_ref_output(outputs[0]);
+      sys->set_ref_output2(outputs[1]);
+      return true;
+}
+
+/*
  * Look at the signal to see if there is already a branch that
  * connects the sig to the gnd. If there is, then return it. If not,
  * return 0.
@@ -21631,15 +21675,6 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 			      class_type->covgrp_item(item);
 			if (meta.name != prop_comp.name)
 			      continue;
-			if (!parms_.empty()) {
-			      cerr << get_fileline() << ": sorry: named coverage item "
-				   << method_path.back().name
-				   << "() with ref arguments is not supported."
-				   << endl;
-			      des->errors += 1;
-			      delete sub_expr;
-			      return 0;
-			}
 			string name = "$ivl_class_method$covgrp_item_";
 			name += method_path.back().name.str();
 			name += "|" + to_string(item);
@@ -21647,6 +21682,12 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 						  &netreal_t::type_real, 1);
 			sys->set_line(*this);
 			sys->parm(0, sub_expr);
+			if (!elaborate_covgrp_count_refs_(
+				  des, scope, this, parms_,
+				  method_path.back().name, sys)) {
+			      delete sys;
+			      return 0;
+			}
 			return sys;
 		      }
 		      if (class_type->property_idx_from_name(prop_comp.name) < 0) {
@@ -22319,76 +22360,24 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			}
 		    }
 
-		    // Covergroup get_inst_coverage(): returns real.
-		    if (method_name == perm_string::literal("get_inst_coverage")) {
-			  if (class_type && class_type->is_covergroup()) {
-				if (!parms_.empty() && parms_.size() != 2) {
-				      cerr << get_fileline() << ": error: Covergroup method "
-					   "get_inst_coverage expects either zero arguments or "
-					   "two ref int arguments (IEEE 1800-2017/2023 19.8)."
-					   << endl;
-				      des->errors += 1;
-				      delete sub_expr;
-				      return 0;
-				}
-				// The optional ref arguments receive covered and total bins.
-				NetESFunc*sys = new NetESFunc(
-					"$ivl_class_method$covgrp_get_inst_coverage",
-					&netreal_t::type_real, 1);
-				sys->set_line(*this);
-				sys->parm(0, sub_expr);
-				if (parms_.size() == 2) {
-				      NetAssign_*outputs[2] = { 0, 0 };
-				      for (unsigned idx = 0; idx < 2; idx += 1) {
-					    unsigned errors_before = des->errors;
-					    outputs[idx] = parms_[idx].parm
-						  ? parms_[idx].parm->elaborate_lval(
-							des, scope, false, false) : 0;
-					    if (!outputs[idx]) {
-						  if (des->errors == errors_before) {
-							cerr << get_fileline()
-							     << ": error: get_inst_coverage output "
-								"argument must be a writable int "
-								"variable (IEEE 1800-2017/2023 19.8)."
-							     << endl;
-							des->errors += 1;
-						  }
-						  delete outputs[0];
-						  delete outputs[1];
-						  delete sys;
-						  return 0;
-					    }
-					    if (outputs[idx]->more
-						      || outputs[idx]->lwidth() != 32) {
-						  cerr << parms_[idx].parm->get_fileline()
-						       << ": error: get_inst_coverage output argument "
-							  "must name one int variable (IEEE "
-							  "1800-2017/2023 19.8)." << endl;
-						  des->errors += 1;
-						  delete outputs[0];
-						  delete outputs[1];
-						  delete sys;
-						  return 0;
-					    }
-				      }
-				      sys->set_ref_output(outputs[0]);
-				      sys->set_ref_output2(outputs[1]);
-				}
-				return sys;
+		    // Covergroup get_inst_coverage() and get_coverage(), the TYPE
+		    // coverage merged across all instances (19.8/19.11): both
+		    // return real and take two optional ref int outputs.
+		    if ((method_name == perm_string::literal("get_inst_coverage")
+			 || method_name == perm_string::literal("get_coverage"))
+			&& class_type && class_type->is_covergroup()) {
+			  string name = "$ivl_class_method$covgrp_";
+			  name += method_name.str();
+			  NetESFunc*sys = new NetESFunc(
+				name.c_str(), &netreal_t::type_real, 1);
+			  sys->set_line(*this);
+			  sys->parm(0, sub_expr);
+			  if (!elaborate_covgrp_count_refs_(
+				    des, scope, this, parms_, method_name, sys)) {
+				delete sys;
+				return 0;
 			  }
-		    }
-
-		    // M11: covergroup get_coverage(): TYPE coverage — the
-		    // cumulative merge across all instances (19.8/19.11).
-		    if (method_name == perm_string::literal("get_coverage")) {
-			  if (class_type && class_type->is_covergroup()) {
-				NetESFunc*sys = new NetESFunc(
-					"$ivl_class_method$covgrp_get_coverage",
-					&netreal_t::type_real, 1);
-				sys->set_line(*this);
-				sys->parm(0, sub_expr);
-				return sys;
-			  }
+			  return sys;
 		    }
 
 		    if (class_type->is_interface()) {

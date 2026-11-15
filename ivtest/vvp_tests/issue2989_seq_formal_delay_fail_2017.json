@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2989_seq_formal_delay_fail.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue2989_seq_formal_delay_fail"
+}

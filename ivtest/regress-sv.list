@@ -1971,7 +1971,7 @@ sv_covergroup_class_inheritance_2017 CE,-g2017 ivltests gold=sv_covergroup_class
 sv_covergroup_class_inheritance_2023 normal,-g2023 ivltests gold=sv_covergroup_class_inheritance.gold
 sv_covergroup_class_inheritance_expr_2023 normal,-g2023 ivltests
 sv_covergroup_class_inheritance_missing_base_2023 CE,-g2023 ivltests gold=sv_covergroup_class_inheritance_missing_base_2023.gold
-sv_covergroup_extension_sample_formal_2023 CE,-g2023 ivltests
+sv_covergroup_extension_sample_formal_2023 normal,-g2023 ivltests
 sv_covergroup_extension_4state_source_2023 CE,-g2023 ivltests
 sv_covergroup_extension_iff_guards_2023 CE,-g2023 ivltests
 sv_covergroup_class_inheritance_cross_guard_2017 CE,-g2017 ivltests
@@ -5168,8 +5168,8 @@ sv_covergroup_signed_cross normal,-g2017,-s,test ivltests gold=sv_covergroup_sig
 sv_covergroup_signed_cross_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_signed_cross.gold
 sv_covergroup_inside_unsigned_comparison normal,-g2017,-s,test ivltests gold=sv_covergroup_inside_unsigned_comparison.gold
 sv_covergroup_inside_unsigned_comparison_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_inside_unsigned_comparison.gold
-sv_covergroup_signed_range_cap CE,-g2017,-s,test ivltests gold=sv_covergroup_signed_range_cap.gold
-sv_covergroup_signed_range_cap_2023 CE,-g2023,-s,test ivltests gold=sv_covergroup_signed_range_cap.gold
+sv_covergroup_signed_range_cap normal,-g2017,-s,test ivltests
+sv_covergroup_signed_range_cap_2023 normal,-g2023,-s,test ivltests
 sv_constraint_divmod_zero normal,-g2017 ivltests gold=sv_constraint_divmod_zero.gold
 sv_constraint_divmod_zero_2023 normal,-g2023 ivltests gold=sv_constraint_divmod_zero.gold
 
@@ -6932,3 +6932,5 @@ issue3078_udp_edges_2017 CE,-g2017,-s,top ivltests gold=issue3078_udp_edges.gold
 issue3078_udp_edges_2023 CE,-g2023,-s,top ivltests gold=issue3078_udp_edges.gold
 issue3078_udp_legal_2017 normal,-g2017,-s,top ivltests gold=issue3078_udp_legal.gold
 issue3078_udp_legal_2023 normal,-g2023,-s,top ivltests gold=issue3078_udp_legal.gold
+issue3381_package_covergroup_2017 normal,-g2017,-s,issue3381_package_covergroup ivltests gold=issue3381_package_covergroup.gold
+issue3381_package_covergroup_2023 normal,-g2023,-s,issue3381_package_covergroup ivltests gold=issue3381_package_covergroup.gold

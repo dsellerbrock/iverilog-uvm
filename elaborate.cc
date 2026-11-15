@@ -6466,6 +6466,7 @@ enum port_net_class_t {
       PORT_NET_UWIRE,
       PORT_NET_SUPPLY0,
       PORT_NET_SUPPLY1,
+      PORT_NET_TRIREG,
       PORT_NET_CLASS_COUNT,
       PORT_NET_CLASS_UNSUPPORTED
 };
@@ -6485,29 +6486,31 @@ static port_net_class_t port_net_class(NetNet::Type type)
 	  case NetNet::UNRESOLVED_WIRE: return PORT_NET_UWIRE;
 	  case NetNet::SUPPLY0: return PORT_NET_SUPPLY0;
 	  case NetNet::SUPPLY1: return PORT_NET_SUPPLY1;
+	  case NetNet::TRIREG: return PORT_NET_TRIREG;
 	  default: return PORT_NET_CLASS_UNSUPPORTED;
       }
 }
 
 /* IEEE 1800-2023 Table 23-1, with rows=internal and columns=external.
  * Each entry encodes external/internal dominance and the table's warn cell.
- * The frontend diagnoses trireg declarations before NetNet construction, so
- * there is no NetNet::TRIREG row/column to represent here. */
+ * The trireg row and column come last here; in the standard's table they
+ * sit between wor/trior and tri0. */
 static port_net_dominance_result_t port_net_dominance(NetNet::Type internal,
 						       NetNet::Type external)
 {
       enum table_cell_t { E, EW, I, IW };
       static const table_cell_t table[PORT_NET_CLASS_COUNT]
 					   [PORT_NET_CLASS_COUNT] = {
-	/* external: wire wand wor  tri0 tri1 uwire supply0 supply1 */
-	/* wire */   { E,   E,   E,   E,   E,   E,    E,      E  },
-	/* wand */   { I,   E,   EW,  EW,  EW,  EW,   E,      E  },
-	/* wor */    { I,   EW,  E,   EW,  EW,  EW,   E,      E  },
-	/* tri0 */   { I,   EW,  EW,  E,   EW,  EW,   E,      E  },
-	/* tri1 */   { I,   EW,  EW,  EW,  E,   EW,   E,      E  },
-	/* uwire */  { I,   IW,  IW,  IW,  IW,  E,    E,      E  },
-	/* supply0 */{ I,   I,   I,   I,   I,   I,    E,      EW },
-	/* supply1 */{ I,   I,   I,   I,   I,   I,    EW,     E  }
+	/* external: wire wand wor  tri0 tri1 uwire supply0 supply1 trireg */
+	/* wire */   { E,   E,   E,   E,   E,   E,    E,      E,      E  },
+	/* wand */   { I,   E,   EW,  EW,  EW,  EW,   E,      E,      EW },
+	/* wor */    { I,   EW,  E,   EW,  EW,  EW,   E,      E,      EW },
+	/* tri0 */   { I,   EW,  EW,  E,   EW,  EW,   E,      E,      I  },
+	/* tri1 */   { I,   EW,  EW,  EW,  E,   EW,   E,      E,      I  },
+	/* uwire */  { I,   IW,  IW,  IW,  IW,  E,    E,      E,      IW },
+	/* supply0 */{ I,   I,   I,   I,   I,   I,    E,      EW,     I  },
+	/* supply1 */{ I,   I,   I,   I,   I,   I,    EW,     E,      I  },
+	/* trireg */ { I,   EW,  EW,  E,   E,   EW,   E,      E,      E  }
       };
 
       port_net_class_t row = port_net_class(internal);
@@ -21406,6 +21409,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    while (!sr.path_tail.empty()) {
 		  const netclass_t*class_type = dynamic_cast<const netclass_t*>(obj_type);
 		  const name_component_t&comp = sr.path_tail.front();
+	      // get_coverage()/get_inst_coverage() on a named coverpoint or
+	      // cross, called as a statement: the expression elaborator owns
+	      // the item lookup and the ref int outputs (19.8).
+	      if (class_type && class_type->is_covergroup()
+		  && sr.path_tail.size() == 1
+		  && (method_name == "get_coverage"
+		      || method_name == "get_inst_coverage")) {
+		    delete obj_expr;
+		    return elaborate_non_void_function_(des, scope, true);
+	      }
 	      // A named coverpoint or cross is not a class property. Lower its
 	      // start()/stop() task using the item's stable covergroup index.
 	      if (class_type && class_type->is_covergroup()
@@ -22331,8 +22344,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				// exactly once before reading any constructor-formal
 				// properties and before passing the object to the
 				// runtime sampler.
-			      if (nctor) {
-				    NetNet*recv = new NetNet(scope, scope->local_symbol(),
+			      bool mirrors_formals = false;
+			      for (unsigned k = 0; k < nformals; k += 1)
+				    if (cgtype->covgrp_sample_formal_prop((size_t)k) >= 0)
+					  mirrors_formals = true;
+			      NetNet*recv = nullptr;
+			      if (nctor || mirrors_formals) {
+				    recv = new NetNet(scope, scope->local_symbol(),
 						      NetNet::REG, obj_type);
 				    recv->set_line(*this);
 				    recv->local_flag(true);
@@ -22543,6 +22561,25 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						cp_scope->set_signal_alias(
 						      cgtype->covgrp_sample_formal(k),
 						      formal_nets[k]);
+					    // 19.4.1: the instance may be a derived
+					    // covergroup whose own coverpoints read
+					    // this argument at run time.
+					  int mirror = cgtype->covgrp_sample_formal_prop(
+						(size_t)k);
+					  if (mirror >= 0 && recv) {
+						NetAssign_*mirror_lval = new NetAssign_(recv);
+						mirror_lval->set_property(
+						      lex_strings.make(cgtype->get_prop_name(
+							    (size_t)mirror)),
+						      (unsigned)mirror);
+						NetESignal*mirror_value =
+						      new NetESignal(formal_nets[k]);
+						mirror_value->set_line(*this);
+						NetAssign*mirror_copy = new NetAssign(
+						      mirror_lval, mirror_value);
+						mirror_copy->set_line(*this);
+						sample_block->append(mirror_copy);
+					  }
 				    }
 			      }
 			      {
@@ -22740,12 +22777,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  }
 
 		  // Covergroup get_inst_coverage()/get_coverage(): handled in
-		  // elab_expr.cc. For task context, emit noop.
+		  // elab_expr.cc. A statement call still assigns its two
+		  // ref int outputs (19.8); without them it has no effect.
 		  if (method_name == perm_string::literal("get_inst_coverage")
 		      || method_name == perm_string::literal("get_coverage")) {
 			const netclass_t*cgtype = dynamic_cast<const netclass_t*>(obj_type);
 			if (cgtype && cgtype->is_covergroup()) {
 			      delete obj_expr;
+			      if (!parms_.empty())
+				    return elaborate_non_void_function_(
+					  des, scope, true);
 			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			      noop->set_line(*this);
 			      return noop;
@@ -23081,7 +23122,8 @@ bool validate_program_subroutine_call(Design*des, const LineInfo&loc,
       return false;
 }
 
-NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) const
+NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope,
+						 bool builtin) const
 {
 	// Generate a function call version of this task call.
       PECallFunction*call = new PECallFunction(package_, path_, parms_);
@@ -23093,11 +23135,27 @@ NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) c
       PExpr*rval = call;
       rval->set_file(get_file());
       rval->set_lineno(get_lineno());
+      if (builtin) {
+	      // A predefined coverage query (19.8) returns real. Its type is
+	      // not visible to test_width, so assign it to a real temporary
+	      // here; evaluating the call stores its ref int outputs.
+	    NetExpr*value = elaborate_rval_expr(
+		  des, scope, &netreal_t::type_real, rval, false, false);
+	    call->set_leading_type_args(nullptr);
+	    if (!value) return 0;
+	    NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				    &netreal_t::type_real);
+	    tmp->set_line(*this);
+	    tmp->local_flag(true);
+	    NetAssign*assign = new NetAssign(new NetAssign_(tmp), value);
+	    assign->set_line(*this);
+	    return assign;
+      }
 	// Generate an assign to nothing.
       PAssign*tmp = new PAssign(0, rval);
       tmp->set_file(get_file());
       tmp->set_lineno(get_lineno());
-      if (!void_cast_) {
+      if (!void_cast_ && !builtin) {
 	    cerr << get_fileline() << ": warning: User function '"
 		 << peek_tail_name(path_) << "' is being called as a task." << endl;
       }
@@ -43780,6 +43838,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    }
 
 	    int idx = cls ? cls->property_idx_from_name(name) : -1;
+	      // A covergroup sample source names a sample() argument by its
+	      // formal; the value is in the group's mirror property (19.4.1).
+	    if (idx < 0 && cls && constraint_covergroup_sample_source_)
+		  idx = cls->covgrp_sample_formal_prop(name);
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
@@ -49102,6 +49164,55 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					    && cgdef->ctor_formal_is_ref[ci]);
 		    }
 
+		      // IEEE 1800-2023 19.4.1: keep the sample() arguments of an
+		      // extended (or extending) embedded covergroup in properties
+		      // of the covergroup object. A base-class handle samples a
+		      // derived group without knowing its added coverpoints; the
+		      // run time evaluates those from these properties. They
+		      // follow the constructor formals, which a derived group
+		      // copies from its base, so both give them the same slots.
+		    if (!cg_standalone
+			&& (cgdef->is_extension || cgdef->has_extension)) {
+			  const netclass_t*base_cg = nullptr;
+			  int inherited_idx = cgdef->is_extension && get_super()
+				? get_super()->property_idx_from_name(cgdef->name) : -1;
+			  if (inherited_idx >= 0)
+				base_cg = dynamic_cast<const netclass_t*>(
+				      get_super()->get_prop_type(
+					    static_cast<size_t>(inherited_idx)));
+			  for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1) {
+				ivl_type_t formal_type = &netvector_t::atom2s32;
+				if (fi < cgdef->sample_formal_types.size()
+				    && cgdef->sample_formal_types[fi]) {
+				      ivl_type_t declared = cgdef->sample_formal_types[fi]
+					    ->elaborate_sig_type(des, class_scope_);
+				      if (declared) formal_type = declared;
+				}
+				long width = formal_type->packed()
+				      ? formal_type->packed_width() : 0;
+				if (formal_type->base_type() != IVL_VT_BOOL
+				    || width <= 0 || width > 64)
+				      continue;
+				string mirror_name = "__covgrp_sample_"
+				      + string(cgdef->sample_formals[fi].str());
+				perm_string mirror = lex_strings.make(mirror_name.c_str());
+				cg_class->set_property(mirror,
+				      property_qualifier_t::make_none(), formal_type);
+				int mirror_prop = cg_class->property_idx_from_name(mirror);
+				if (base_cg
+				    && base_cg->covgrp_sample_formal_prop(fi) != mirror_prop) {
+				      cerr << pclass->get_fileline() << ": internal error: "
+					   << "covergroup '" << cgdef->name
+					   << "' extension keeps sample() argument '"
+					   << cgdef->sample_formals[fi]
+					   << "' in a different slot than its base." << endl;
+				      des->errors += 1;
+				      continue;
+				}
+				cg_class->set_covgrp_sample_formal_prop(fi, mirror_prop);
+			  }
+		    }
+
 		      // Reserve leading scalar slots before any option or bin-counter
 		      // properties. The constructor initializer evaluates these after
 		      // its ordinary arguments and before VVP resolves dynamic bins.
@@ -51705,9 +51816,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  PExpr*cp_sample_expr = cp.type && cp.expr
 				? new PECastType(cp.type, cp.expr) : cp.expr;
 			  if (!cg_standalone && cp.expr && parent_prop < 0) {
+				  // A sample() argument is readable at run time only
+				  // through its mirror property.
 				bool uses_sample_formal = false;
-				for (perm_string formal : cgdef->sample_formals)
-				      if (cp_sample_expr->refs_name(formal)) {
+				for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1)
+				      if (cp_sample_expr->refs_name(cgdef->sample_formals[fi])
+					  && cg_class->covgrp_sample_formal_prop(fi) < 0) {
 					    uses_sample_formal = true;
 					    break;
 				      }
@@ -53624,6 +53738,38 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // an implementation guard on the number of counters,
 				        // not on the number of values represented by them.
 				      static const uint64_t array_bin_limit = 65536;
+				      if (nbins > array_bin_limit && bin.array_size
+					  && !bin.wildcard
+					  && !(bin.with_expr && cg_distribute_first)) {
+					      // 19.5.1 sets no limit on the number of
+					      // bins. A larger fixed-size array becomes a
+					      // value family of NBINS bins, distributed by
+					      // the runtime over the same ordered values
+					      // and carved there (19.5.5), with a counter
+					      // only for each bin hit.
+					    unsigned family = dyn_family++;
+					    auto endpoint = [&](uint64_t value) {
+						  return "c:" + std::to_string(value) + ":"
+							+ std::to_string(cp_value_width)
+							+ (cp_value_signed ? ":s" : "");
+					    };
+					    for (auto&range : rr)
+						  cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
+							kindval, family, (uint64_t)nbins,
+							bin.name.str(), endpoint(range.first),
+							endpoint(range.second), cp_value_width,
+							cp_value_signed, bin_guard);
+					    if ((kindval & 7) == 0) {
+						  xbin_desc_t d;
+						  d.name = bin.name;
+						  d.wildcard = false;
+						  d.dyn_family = (int)family;
+						  d.guard_idx = bin_guard;
+						  vbins.push_back(d);
+						  has_value_bins = true;
+					    }
+					    continue;
+				      }
 				      if (nbins > array_bin_limit) {
 					    cerr << "sorry: arrayed covergroup bin '"
 						 << bin.name << "' needs more than "

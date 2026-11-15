@@ -933,6 +933,25 @@ class netclass_t : public ivl_type_s {
 	{ covgrp_sample_formals_.push_back(n);
 	  covgrp_sample_formal_types_.push_back(t);
 	  covgrp_sample_formal_defaults_.push_back(d); }
+	// IEEE 1800-2023 19.4.1: a derived covergroup has its base's
+	// sample() arguments, and a base-class handle samples it without
+	// knowing its added coverpoints. An extended (or extending) group
+	// therefore keeps the last sample() arguments in properties of the
+	// covergroup object, where the run time can read them. -1: no such
+	// property (the group is not extended, or the formal is not a
+	// 2-state vector of at most 64 bits).
+	void set_covgrp_sample_formal_prop(size_t i, int prop)
+	{ if (covgrp_sample_formal_props_.size() <= i)
+		covgrp_sample_formal_props_.resize(i + 1, -1);
+	  covgrp_sample_formal_props_[i] = prop; }
+	int covgrp_sample_formal_prop(size_t i) const
+	{ return i < covgrp_sample_formal_props_.size()
+		? covgrp_sample_formal_props_[i] : -1; }
+	int covgrp_sample_formal_prop(perm_string n) const
+	{ for (size_t i = 0; i < covgrp_sample_formals_.size(); i += 1)
+		if (covgrp_sample_formals_[i] == n)
+		      return covgrp_sample_formal_prop(i);
+	  return -1; }
 	size_t covgrp_sample_formal_count() const { return covgrp_sample_formals_.size(); }
 	perm_string covgrp_sample_formal(size_t i) const { return covgrp_sample_formals_[i]; }
 	ivl_type_t covgrp_sample_formal_type(size_t i) const {
@@ -988,6 +1007,7 @@ class netclass_t : public ivl_type_s {
       std::vector<PExpr*> covgrp_cp_exprs_;
       std::vector<perm_string> covgrp_sample_formals_;
       std::vector<ivl_type_t> covgrp_sample_formal_types_;
+      std::vector<int> covgrp_sample_formal_props_;
       std::vector<PExpr*> covgrp_sample_formal_defaults_;
 	std::vector<perm_string> covgrp_ctor_names_;
 	std::vector<unsigned> covgrp_ctor_props_;

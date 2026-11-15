@@ -46,7 +46,7 @@ const char HELP[] =
 "                [-s topmodule] [-t target] [-T min|typ|max]\n"
 "                [-W class] [-y dir] [-Y suf] [-l file] source_file(s)\n"
 "                [-uvm] [--uvm-home=dir] [--uvm-no-dpi] [--uvm-version]\n"
-"                [--uvm=version] [--uvm-list]\n"
+"                [--uvm=version] [--uvm-list] [--libmap=file]\n"
 "\n"
 "  -uvm            Enable the supported UVM environment: add the installed\n"
 "                  UVM sources and DPI runtime automatically.\n"
@@ -55,6 +55,8 @@ const char HELP[] =
 "  --uvm-home=dir  Use the UVM library at dir instead of the bundled one.\n"
 "  --uvm-no-dpi    Compile UVM's pure-SystemVerilog fallbacks (no DPI).\n"
 "  --uvm-version   Print the bundled UVM version and exit.\n"
+"  --libmap=file   Read a library map file (IEEE 1800 33.3.1); -L name then\n"
+"                  puts a library of the map first in the search order.\n"
 "\n"
 "See the man page for details.";
 
@@ -1218,6 +1220,9 @@ static int valid_uvm_release(const char*name)
             strspn(name, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz._-") == strlen(name);
 }
 
+static const char**libmap_list = 0;
+static unsigned libmap_count = 0;
+
 static void preparse_uvm_args(int*argc, char**argv)
 {
       int rd, wr = 1;               /* argv[0] stays in place */
@@ -1242,6 +1247,11 @@ static void preparse_uvm_args(int*argc, char**argv)
 		  uvm_flag = 1;
 		  uvm_home = argv[rd + 1];
 		  rd += 1;              /* also consume the path argument */
+	    } else if (strncmp(a, "--libmap=", 9) == 0) {
+		    /* IEEE 1800 33.3.1: library map files, read in order. */
+		  libmap_list = realloc(libmap_list,
+					(libmap_count+1)*sizeof(char*));
+		  libmap_list[libmap_count++] = a + 9;
 	    } else {
 		  if (is_uvm_pkg_name(a))
 			uvm_pkg_user_supplied = 1;
@@ -1583,6 +1593,9 @@ int main(int argc, char **argv)
 
 		case 'L':
 		  add_vpi_module_path(optarg);
+		    /* IEEE 1800 33.8.1: -L also names a library to search
+		       first, if a library map file declares it. */
+		  fprintf(iconfig_file, "liborder:%s\n", optarg);
 		  break;
 
 		case 'l':
@@ -1733,6 +1746,10 @@ int main(int argc, char **argv)
 
 	/* Write values to the iconfig file. */
       fprintf(iconfig_file, "basedir:%s\n", base);
+      { unsigned idx;
+	for (idx = 0 ; idx < libmap_count ; idx += 1)
+	      fprintf(iconfig_file, "libmap:%s\n", libmap_list[idx]);
+      }
 
 	/* Tell the core where to find the system VPI modules. */
       fprintf(iconfig_file, "module:%s%csystem.vpi\n", vpi_dir, sep);

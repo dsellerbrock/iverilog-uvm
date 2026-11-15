@@ -366,10 +366,13 @@ static const struct opcode_table_s opcode_table[] = {
       { "%copyout/leave",of_COPYOUT_LEAVE,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_all", of_COVGRP_GET_ALL, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_coverage", of_COVGRP_GET_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%covgrp/get_coverage/ref", of_COVGRP_GET_COVERAGE_REF, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_inst_coverage", of_COVGRP_GET_INST_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_inst_coverage/ref", of_COVGRP_GET_INST_COVERAGE_REF, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/item/get_coverage", of_COVGRP_ITEM_GET_COVERAGE, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%covgrp/item/get_coverage/ref", of_COVGRP_ITEM_GET_COVERAGE_REF, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/item/get_inst_coverage", of_COVGRP_ITEM_GET_INST_COVERAGE, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%covgrp/item/get_inst_coverage/ref", of_COVGRP_ITEM_GET_INST_COVERAGE_REF, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/item/start", of_COVGRP_ITEM_START, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/item/stop", of_COVGRP_ITEM_STOP, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/options/init", of_COVGRP_OPTIONS_INIT, 0,{OA_NONE,OA_NONE,OA_NONE} },
@@ -3080,6 +3083,35 @@ void compile_shiftr(char*label, long wid, bool signed_flag,
 
       vvp_arith_ *arith = new vvp_shiftr(wid, signed_flag);
       make_arith(arith, label, argc, argv);
+}
+
+void compile_trireg(char*label, unsigned wid, unsigned charge, unsigned mode,
+		    vvp_time64_t decay, unsigned argc, struct symb_s*argv)
+{
+      unsigned need = 1 + ((mode & 2) ? 1 : 0) + ((mode & 4) ? 1 : 0);
+      if (argc != need || wid == 0 || mode > 7 || (mode & 3) == 3
+	  || (charge != 1 && charge != 2 && charge != 4)) {
+	    fprintf(stderr, "invalid .trireg statement: %s\n", label);
+	    compile_errors += 1;
+	    free(label);
+	    free(argv);
+	    return;
+      }
+
+      vvp_net_t*net = new vvp_net_t;
+      net->fun = new vvp_fun_trireg(net, wid, charge, (mode & 3) != 0, decay,
+				    (mode & 4) != 0);
+      define_functor_symbol(label, net);
+
+      unsigned arg = 0;
+      input_connect(net, 0, argv[arg++].text);
+      if (mode & 2)
+	    input_connect(net, 2, argv[arg++].text);
+      if (mode & 4)
+	    input_connect(net, 1, argv[arg++].text);
+
+      free(label);
+      free(argv);
 }
 
 void compile_resolver(char*label, char*type, unsigned argc, struct symb_s*argv)

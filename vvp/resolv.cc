@@ -22,6 +22,7 @@
 # include  "schedule.h"
 # include  "compile.h"
 # include  "statistics.h"
+# include  "vpi_priv.h"
 # include  <iostream>
 # include  <algorithm>
 # include  <cassert>
@@ -374,4 +375,138 @@ resolv_trior::resolv_trior(unsigned nports, vvp_net_t*net)
 
 resolv_trior::~resolv_trior()
 {
+}
+
+/*
+ * The trireg charge storage. See resolv.h for the model.
+ */
+vvp_fun_trireg::vvp_fun_trireg(vvp_net_t*net, unsigned wid, unsigned charge,
+			       bool has_decay, vvp_time64_t decay,
+			       bool has_feedback)
+: net_(net), wid_(wid), charge_(charge), has_decay_(has_decay), decay_(decay),
+  has_feedback_(has_feedback), store_(wid, BIT4_X), hold_(wid, false),
+  gen_(wid, 0)
+{
+	// A decay time from a net is in the time units of the scope, as
+	// for a .delay with net inputs.
+      const __vpiScope*scope = vpip_peek_current_scope();
+      round_ = 1;
+      for (int lp = scope->time_units - scope->time_precision; lp > 0; lp -= 1)
+	    round_ *= 10;
+      scale_ = 1;
+      for (int lp = scope->time_precision - vpip_get_time_precision(); lp > 0; lp -= 1)
+	    scale_ *= 10;
+
+	// The net starts as x at the charge strength, whether or not a
+	// driver ever sends anything.
+      schedule_init_vector(vvp_net_ptr_t(net, 3), vvp_vector4_t(1, BIT4_X));
+}
+
+vvp_fun_trireg::~vvp_fun_trireg()
+{
+}
+
+namespace {
+struct trireg_decay_event : public vvp_gen_event_s {
+      vvp_fun_trireg*fun;
+      std::vector<std::pair<unsigned,unsigned> > bits;
+      void run_run() override { fun->decay(bits); }
+};
+}
+
+void vvp_fun_trireg::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
+			       vvp_context_t)
+{
+      switch (port.port()) {
+	  case 2: {
+		vvp_time64_t val = 0;
+		vector4_to_value(bit, val);
+		decay_ = val * round_ * scale_;
+		return;
+	  }
+	  case 3:
+	    update_();
+	    return;
+	  default:
+	    recv_vec8(port, vvp_vector8_t(bit, 6,6 /* STRONG */));
+	    return;
+      }
+}
+
+void vvp_fun_trireg::recv_real(vvp_net_ptr_t port, double bit, vvp_context_t)
+{
+      if (port.port() != 2 || bit < 0)
+	    return;
+      decay_ = (vvp_time64_t) (bit * round_ + 0.5) * scale_;
+}
+
+void vvp_fun_trireg::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
+{
+      if (port.port() > 1)
+	    return;
+      assert(bit.size() == wid_);
+
+      (port.port() == 0 ? drv_ : fb_) = bit;
+
+	// The store follows the value of the net: what a driver puts on
+	// it, and in an island what the island makes of it.
+      for (unsigned idx = 0 ; idx < wid_ ; idx += 1) {
+	    if (! bit.value(idx).is_hiz())
+		  store_.set_bit(idx, bit.value(idx).value());
+      }
+      update_();
+}
+
+void vvp_fun_trireg::decay(const std::vector<std::pair<unsigned,unsigned> >&bits)
+{
+      bool changed = false;
+      for (size_t idx = 0 ; idx < bits.size() ; idx += 1) {
+	    unsigned bit = bits[idx].first;
+	    if (!hold_[bit] || gen_[bit] != bits[idx].second)
+		  continue;
+	    if (store_.value(bit) == BIT4_0 || store_.value(bit) == BIT4_1) {
+		  store_.set_bit(bit, BIT4_X);
+		  changed = true;
+	    }
+      }
+      if (changed)
+	    update_();
+}
+
+void vvp_fun_trireg::update_()
+{
+      vvp_vector8_t out (wid_);
+      trireg_decay_event*ev = 0;
+
+      for (unsigned idx = 0 ; idx < wid_ ; idx += 1) {
+	    vvp_scalar_t drv = drv_.size() ? drv_.value(idx) : vvp_scalar_t();
+	    vvp_scalar_t bit = drv.is_hiz()
+		  ? vvp_scalar_t(store_.value(idx), charge_, charge_)
+		  : drv;
+	    out.set_bit(idx, bit);
+
+	    bool hold = drv.is_hiz()
+		  && (!has_feedback_
+		      || (fb_.size() && fb_.value(idx).eeq(bit)));
+	    if (hold == hold_[idx])
+		  continue;
+	    hold_[idx] = hold;
+	    gen_[idx] += 1;
+	    if (hold && has_decay_
+		&& (store_.value(idx) == BIT4_0 || store_.value(idx) == BIT4_1)) {
+		  if (ev == 0) {
+			ev = new trireg_decay_event;
+			ev->fun = this;
+		  }
+		  ev->bits.push_back(std::make_pair(idx, gen_[idx]));
+	    }
+      }
+
+      if (ev)
+	    schedule_generic(ev, decay_, false, true, true);
+
+      if (out.eeq(out_))
+	    return;
+      out_ = out;
+      net_->send_vec8(out_);
 }

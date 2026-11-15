@@ -37,6 +37,7 @@
 # include  <cstring>
 # include  "lexor_keyword.h"
 # include  "discipline.h"
+# include  <string>
 # include  <list>
 
 using namespace std;
@@ -138,6 +139,13 @@ static void line_directive();
 static bool line_directive2();
 static void reset_all();
 
+/* A `library' or `include' statement of a library map file (IEEE 1800
+   33.3.1) is collected whole: a file path such as ./*.vg is not made of
+   Verilog tokens. */
+static std::string libmap_text;
+static bool libmap_is_include = false;
+static YYLTYPE libmap_loc;
+
 static bool pending_source_location = false;
 static const char*pending_source_file = nullptr;
 static unsigned pending_source_line = 0;
@@ -215,6 +223,7 @@ void lex_in_package_scope(PPackage*pkg)
 %x CCOMMENT
 %x PCOMMENT
 %x LCOMMENT
+%x LIBMAP
 %x CSTRING
 %x TRIPLESTRING
 %s UDPTABLE
@@ -261,6 +270,17 @@ TU [munpf]
 "//" { comment_enter = YY_START; BEGIN(LCOMMENT); }
 <LCOMMENT>.    { yymore(); }
 <LCOMMENT>\n   { yylloc.first_line += 1; BEGIN(comment_enter); }
+
+<LIBMAP>\"[^\"\n]*\" { libmap_text += yytext; }
+<LIBMAP>"//".*  { ; }
+<LIBMAP>\n      { yylloc.first_line += 1; libmap_text += ' '; }
+<LIBMAP>";"     { BEGIN(0);
+		  libmap_statement(libmap_loc, libmap_is_include, libmap_text); }
+<LIBMAP>.       { libmap_text += yytext; }
+<LIBMAP><<EOF>> { VLerror(libmap_loc, "error: library map statement is "
+			  "missing its `;'.");
+		  BEGIN(0);
+		  yyterminate(); }
 
 
   /* The contents of C-style comments are ignored, like white space. */
@@ -510,6 +530,13 @@ TU [munpf]
 
 [a-zA-Z_][a-zA-Z0-9$_]* {
       int rc = lexor_keyword_code(yytext, yyleng);
+      if (lexor_libmap_mode && (rc == K_library || rc == K_include)) {
+	    libmap_is_include = rc == K_include;
+	    libmap_text.clear();
+	    libmap_loc = yylloc;
+	    BEGIN(LIBMAP);
+	    break;
+      }
       PPackage*active_package = active_package_prefix;
       active_package_prefix = 0;
 
@@ -1193,6 +1220,9 @@ TU [munpf]
 
       } else if (strcmp(yytext,"trior") == 0) {
 	    net_type = NetNet::TRIOR;
+
+      } else if (strcmp(yytext,"trireg") == 0) {
+	    net_type = NetNet::TRIREG;
 
       } else if (strcmp(yytext,"none") == 0) {
 	    net_type = NetNet::NONE;

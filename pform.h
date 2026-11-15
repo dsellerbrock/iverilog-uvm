@@ -258,6 +258,9 @@ extern void pform_bind_extern_func(PFunction*func);
 extern void pform_bind_extern_task(PTask*task);
 extern void pform_blend_class_constructors(PClass*pclass);
 extern PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name);
+extern typedef_t* pform_bind_visible_class_typedef(const struct vlltype&loc,
+                                                   perm_string name,
+                                                   PClass*class_scope);
 extern std::vector<pform_tf_port_t>* pform_class_constructor_default_ports(
 					const struct vlltype&loc, PFunction*constructor);
 extern std::vector<named_pexpr_t> pform_class_constructor_default_args(
@@ -484,6 +487,9 @@ extern Statement* pform_make_expect(const struct vlltype&loc,
    type. The packed-logic helper consumes dimensions. */
 extern void pform_sva_begin_local_declarations(void);
 extern void pform_sva_add_local_formal(const char*name);
+/* Formal names of the property/sequence declaration being parsed. */
+extern void pform_sva_clear_decl_formals(void);
+extern void pform_sva_note_decl_formal(const char*name);
 extern bool pform_sva_match_lvalue_declared(const struct vlltype&loc,
 					    perm_string name);
 extern void pform_sva_declare_int_local(const struct vlltype&loc,
@@ -1013,6 +1019,10 @@ extern void pform_set_port_type(const struct vlltype&li,
 				NetNet::PortType,
 				data_type_t*dt,
 				std::list<named_pexpr_t>*attr);
+
+/* The parser calls this for a charge_strength; the net declaration that
+   follows takes it (pform_set_data_type) and resets it to medium. */
+extern void pform_set_charge_strength(ivl_drive_t str);
 
 extern void pform_set_data_type(const struct vlltype&li,
 				data_type_t *data_type,

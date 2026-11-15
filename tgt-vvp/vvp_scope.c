@@ -1786,6 +1786,11 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 		break;
 	  }
 
+	  case IVL_LO_TRIREG:
+	      /* The charge storage of a trireg net is drawn with the
+		 nexus it sits on (draw_net_input.c). */
+	    return;
+
 	  case IVL_LO_PULLDOWN:
 	  case IVL_LO_PULLUP:
 	      /* Skip pullup and pulldown objects. Things that have
