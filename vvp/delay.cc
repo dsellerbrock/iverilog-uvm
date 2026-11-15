@@ -1040,9 +1040,9 @@ bool vvp_fun_modpath::path_input_changed_() const
       if (!seen_change_)
 	    return true;
       for (vvp_fun_modpath_src*cur = src_list_ ; cur ; cur = cur->next_)
-	    if (cur->wake_time_ > last_change_time_) return true;
+	    if (cur->edge_active_ && cur->wake_time_ > last_change_time_) return true;
       for (vvp_fun_modpath_src*cur = ifnone_list_ ; cur ; cur = cur->next_)
-	    if (cur->wake_time_ > last_change_time_) return true;
+	    if (cur->edge_active_ && cur->wake_time_ > last_change_time_) return true;
       return false;
 }
 
@@ -1064,6 +1064,8 @@ bool vvp_fun_modpath::select_delays_(int index, bool from_now,
 	      /* Skip paths that are disabled by conditions. */
 	    if (cur->condition_flag_ == false)
 		  continue;
+	    if (!cur->edge_active_)
+		  continue;
 	    if (!cur->covers_(index))
 		  continue;
 
@@ -1084,6 +1086,8 @@ bool vvp_fun_modpath::select_delays_(int index, bool from_now,
 	 * if there are no normal delays. */
       vvp_time64_t ifnone_wake_time = candidate_wake_time;
       for (vvp_fun_modpath_src*cur = ifnone_list_ ;  cur ;  cur=cur->next_) {
+	    if (!cur->edge_active_)
+		  continue;
 	    if (!cur->covers_(index))
 		  continue;
 	    if (candidate_list.empty()) {
@@ -1220,7 +1224,7 @@ void vvp_fun_modpath::run_run()
       net_->send_vec4(cur_vec4_, 0);
 }
 
-vvp_fun_modpath_src::vvp_fun_modpath_src(vvp_time64_t const del[12])
+vvp_fun_modpath_src::vvp_fun_modpath_src(vvp_time64_t const del[12], bool active)
 {
       for (unsigned idx = 0 ;  idx < 12 ;  idx += 1)
 	    delay_[idx] = del[idx];
@@ -1229,6 +1233,7 @@ vvp_fun_modpath_src::vvp_fun_modpath_src(vvp_time64_t const del[12])
       next_ = 0;
       wake_time_ = 0;
       condition_flag_ = true;
+      edge_active_ = active;
 }
 
 vvp_fun_modpath_src::~vvp_fun_modpath_src()
@@ -1277,11 +1282,13 @@ void vvp_fun_modpath_src::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 		  if (src_sel_.size() == sel.size() && src_sel_.eeq(sel))
 			return;
 		  src_sel_ = sel;
-		  if (test_vec4(sel))
+		  edge_active_ = test_vec4(sel);
+		  if (edge_active_)
 			wake_time_ = schedule_simtime();
 		  return;
 	    }
-	    if (test_vec4(bit))
+	    edge_active_ = test_vec4(bit);
+	    if (edge_active_)
 		  wake_time_ = schedule_simtime();
 
       } else if (port.port() == 1) {
@@ -1297,7 +1304,7 @@ bool vvp_fun_modpath_src::test_vec4(const vvp_vector4_t&)
 
 vvp_fun_modpath_edge::vvp_fun_modpath_edge(vvp_time64_t del[12],
 					   bool pos, bool neg)
-: vvp_fun_modpath_src(del)
+: vvp_fun_modpath_src(del, false)
 {
       old_value_ = BIT4_X;
       posedge_ = pos;

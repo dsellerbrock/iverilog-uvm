@@ -1,0 +1,2 @@
+PASS
+./ivltests/issue3435_edge_path.v:65: $finish called at 90 (1ns)

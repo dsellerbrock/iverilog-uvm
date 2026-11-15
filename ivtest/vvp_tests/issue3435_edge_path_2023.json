@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3435_edge_path.v",
+    "iverilog-args": ["-g2023", "-gspecify", "-s", "issue3435_edge_path"],
+    "gold": "issue3435_edge_path"
+}

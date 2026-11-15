@@ -300,7 +300,7 @@ class vvp_fun_modpath_src  : public vvp_net_fun_t {
       friend class vvp_fun_modpath;
 
     public:
-      explicit vvp_fun_modpath_src(vvp_time64_t const del[12]);
+      explicit vvp_fun_modpath_src(vvp_time64_t const del[12], bool active = true);
     protected:
       ~vvp_fun_modpath_src() override;
 
@@ -343,6 +343,9 @@ class vvp_fun_modpath_src  : public vvp_net_fun_t {
 
       vvp_time64_t wake_time_;
       bool condition_flag_;
+	// An edge-sensitive path is active only after its latest input change
+	// matches the specified edge.
+      bool edge_active_;
 
     private:
       vvp_fun_modpath_src(const vvp_fun_modpath_src&);
