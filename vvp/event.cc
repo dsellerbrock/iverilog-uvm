@@ -2283,8 +2283,17 @@ void vvp_named_event_sa::assign(vvp_net_t*dst, vvp_net_t*src)
             return;
       vvp_named_event_sa*sfun = queue_owner_(src);
       vvp_net_t*queue = sfun ? sfun->queue(src) : nullptr;
+	// An element of an event array owns its queue and is never an alias.
+      if (!sfun && element_owner_(src))
+	    queue = src;
       dfun->detached_ = queue == nullptr;
       dfun->alias_ = queue == dst ? nullptr : queue;
+}
+
+/* The array-element event whose queue NET is, if it is one. */
+vvp_named_event_dyn* vvp_named_event_sa::element_owner_(vvp_net_t*net)
+{
+      return net ? dynamic_cast<vvp_named_event_dyn*>(net->fun) : nullptr;
 }
 
 vthread_t vvp_named_event_sa::add_local_waiter_(vthread_t thread)
@@ -2297,6 +2306,8 @@ vthread_t vvp_named_event_sa::add_waiting_thread(vthread_t thread)
 {
       if (vvp_named_event_sa*owner = queue_owner_(alias_))
             return owner->add_local_waiter_(thread);
+      if (vvp_named_event_dyn*element = element_owner_(alias_))
+            return element->add_waiting_thread(thread);
       return add_local_waiter_(thread);
 }
 
@@ -2306,6 +2317,8 @@ bool vvp_named_event_sa::triggered_now(void) const
             return false;
       if (vvp_named_event_sa*owner = queue_owner_(alias_))
             return owner->vvp_named_event::triggered_now();
+      if (vvp_named_event_dyn*element = element_owner_(alias_))
+            return element->triggered_now();
       return vvp_named_event::triggered_now();
 }
 
@@ -2373,6 +2386,10 @@ void vvp_named_event_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
             return;
       if (vvp_named_event_sa*owner = queue_owner_(alias_)) {
             owner->deliver_(vvp_net_ptr_t(alias_, 0), bit);
+            return;
+      }
+      if (vvp_named_event_dyn*element = element_owner_(alias_)) {
+            element->recv_vec4(vvp_net_ptr_t(alias_, 0), bit, 0);
             return;
       }
       deliver_(port, bit);

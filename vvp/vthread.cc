@@ -22035,6 +22035,27 @@ bool of_EVENT_ASSIGN_NULL(vthread_t, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %event/assign/arr <dst>, <idx-reg>, <arr-reg>
+ * The source is an element of a named-event array: arr-reg holds the
+ * array's base slot (high word) and element count (low word), idx-reg
+ * the element offset. An invalid index reads as the null event (IEEE
+ * 1800-2017/2023 7.4.5).
+ */
+bool of_EVENT_ASSIGN_ARR(vthread_t thr, vvp_code_t cp)
+{
+      int64_t index = thr->words[cp->bit_idx[0]].w_int;
+      uint64_t packed = thr->words[cp->bit_idx[1]].w_uint;
+      uint32_t base = static_cast<uint32_t>(packed >> 32);
+      uint32_t count = static_cast<uint32_t>(packed);
+      bool valid = thr->flags[4] != BIT4_1 && index >= 0
+	    && static_cast<uint64_t>(index) < count;
+      vvp_named_event_sa::assign(cp->net, valid
+	    ? event_array_slot_net(base + static_cast<uint32_t>(index))
+	    : nullptr);
+      return true;
+}
+
 static vvp_net_t* event_queue_(vvp_net_t*net)
 {
       vvp_named_event_sa*fun = dynamic_cast<vvp_named_event_sa*>(net->fun);
