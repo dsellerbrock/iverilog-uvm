@@ -24,10 +24,7 @@
 
 #include "vpi_priv.h"
 
-struct __vpiArrayIterator : public __vpiHandle {
-      int get_type_code(void) const override
-      { return vpiIterator; }
-
+struct __vpiArrayIterator : public __vpiIteratorBase {
       vpiHandle vpi_index(int idx) override;
       free_object_fun_t free_object_fun(void) override;
 
@@ -35,10 +32,7 @@ struct __vpiArrayIterator : public __vpiHandle {
       unsigned next;
 };
 
-struct __vpiArrayIndex : public __vpiHandle {
-      int get_type_code(void) const override
-      { return vpiIterator; }
-
+struct __vpiArrayIndex : public __vpiIteratorBase {
       vpiHandle vpi_iterate(int code) override;
       vpiHandle vpi_index(int idx) override;
       free_object_fun_t free_object_fun(void) override;
@@ -77,8 +71,7 @@ struct __vpiArrayWord {
 	    vpiHandle vpi_put_value(p_vpi_value vp, int flags) override;
 	    vpiHandle vpi_handle(int code) override;
 	    vpiHandle vpi_index(int idx) override;
-	    vpiHandle vpi_iterate(int code) override
-	    { return vpip_conn_iterate(code, this); }
+	    vpiHandle vpi_iterate(int code) override;
       } as_word;
 
       struct as_index_t : public __vpiHandle {

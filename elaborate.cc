@@ -71,6 +71,7 @@
 # include  "util.h"
 # include  "parse_api.h"
 # include  "compiler.h"
+# include  "PConfig.h"
 # include  "ivl_assert.h"
 # include "map_named_args.h"
 
@@ -368,6 +369,53 @@ static bool checker_formal_used_in_code_(Module*checker,
       return false;
 }
 
+/* IEEE 1800-2017/2023 17.6: "it shall be an error if a formal argument
+ * referenced by a covergroup has a const actual argument." A covergroup
+ * formal of the same name shadows the checker formal. */
+static bool checker_formal_used_in_covergroup_(Module*checker,
+						perm_string formal)
+{
+      auto refs = [formal](const PExpr*expr) {
+	    return expr && expr->refs_name(formal);
+      };
+      for (const auto&entry : checker->classes) {
+	    const class_type_t*type = entry.second ? entry.second->type : nullptr;
+	    if (!type || !type->is_covergroup_standalone) continue;
+	    for (const class_type_t::pform_covergroup_t*cg : type->covergroups) {
+		  if (!cg) continue;
+		  if (std::find(cg->ctor_formals.begin(), cg->ctor_formals.end(),
+				formal) != cg->ctor_formals.end()
+		      || std::find(cg->sample_formals.begin(),
+				   cg->sample_formals.end(), formal)
+			 != cg->sample_formals.end())
+			continue;
+		  for (const PEEvent*event : cg->sample_events)
+			if (event && refs(event->expr())) return true;
+		  for (const auto&cp : cg->coverpoints) {
+			if (refs(cp.expr) || refs(cp.iff_expr)) return true;
+			for (const auto&bin : cp.bins) {
+			      if (refs(bin.with_expr) || refs(bin.iff_expr)
+				  || refs(bin.set_expr))
+				    return true;
+			      for (const auto&range : bin.ranges)
+				    if (refs(range.first) || refs(range.second))
+					  return true;
+			}
+		  }
+		  for (const auto&cross : cg->crosses) {
+			if (refs(cross.iff_expr)) return true;
+			for (const PExpr*expr : cross.cp_exprs)
+			      if (refs(expr)) return true;
+			for (const auto&bin : cross.bins)
+			      if (refs(bin.set_expr) || refs(bin.with_expr)
+				  || refs(bin.iff_expr))
+				    return true;
+		  }
+	    }
+      }
+      return false;
+}
+
 static bool lexical_scope_is_within_(const LexicalScope*scope,
 				     const LexicalScope*ancestor)
 {
@@ -388,7 +436,8 @@ static const Module* find_default_clocking_module_(const Module*module)
       return nullptr;
 }
 
-static Module* find_module_type_(perm_string type, const NetScope*scope)
+static Module* find_module_type_(Design*des, const PGModule*inst,
+				 perm_string type, const NetScope*scope)
 {
       for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
 	    const PGenerate*selected_generate = nullptr;
@@ -419,6 +468,11 @@ static Module* find_module_type_(perm_string type, const NetScope*scope)
 		&& (!nested->second->is_checker || generation_flag >= GN_VER2017))
 		  return nested->second;
       }
+
+	// A config binds the instance to a library cell (IEEE 1800 33.4).
+      Module*bound = 0;
+      if (config_bind(des, inst, scope, type, bound))
+	    return bound;
 
       std::map<perm_string,Module*>::const_iterator module
 	    = pform_modules.find(type);
@@ -1843,6 +1897,17 @@ static NetEvent* elaborate_event_array_target_(Design*des, NetScope*scope,
       if (!idx) {
 	    des->errors += 1;
 	    return nullptr;
+      }
+
+	/* The run-time finds an element by its offset from the low bound of
+	   the declared range (NetEvent::array_index_to_word), so `ev[4]' of
+	   `event ev[4:5]' is offset 0, not 4. */
+      long low = sr.eve->array_msb() >= sr.eve->array_lsb()
+	    ? sr.eve->array_lsb() : sr.eve->array_msb();
+      if (low != 0) {
+	    idx = new NetEBAdd('-', pad_to_width(idx, 32, loc),
+			       make_const_val_s(low), 32, true);
+	    idx->set_line(loc);
       }
 
       idx_out = idx;
@@ -6010,6 +6075,41 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 	    ivl_assert(*this, idx == 0 || lval_sigs[idx]->vector_width() == lval_sigs[0]->vector_width());
       }
 
+	/* IEEE 1800-2023 28.8: "A bidirectional switch may not connect nets
+	   of two different user-defined net types or a user-defined net type
+	   and a built-in net type", and only tran, tranif1 and tranif0 may
+	   connect user-defined net types at all. 1800-2017 28.8 has no such
+	   text, so the rule applies from -g2023 on; earlier generations
+	   keep accepting these connections (owner ruling 2026-11-14). */
+      const bool switch_nettype_rule = generation_flag >= GN_VER2023;
+      if (pass_switch && switch_nettype_rule && lval_count >= 2) {
+	    const NetNetType*type0 = lval_sigs[0]->user_nettype();
+	    const NetNetType*type1 = lval_sigs[1]->user_nettype();
+	    if (type0) type0 = type0->canonical_type();
+	    if (type1) type1 = type1->canonical_type();
+	    const bool resistive = type() == RTRAN || type() == RTRANIF0
+		  || type() == RTRANIF1;
+	    if (type0 != type1) {
+		  cerr << get_fileline() << ": error: A " << gate_name()
+		       << " switch cannot connect "
+		       << (type0 && type1
+			   ? "nets of two different user-defined net types"
+			   : "a net of a user-defined net type to a net of a "
+			     "built-in net type")
+		       << " (IEEE 1800-2023 28.8)." << endl;
+		  des->errors += 1;
+		  return;
+	    }
+	    if (type0 && resistive) {
+		  cerr << get_fileline() << ": error: An " << gate_name()
+		       << " switch cannot connect nets of a user-defined net "
+			  "type; only tran, tranif1 and tranif0 can (IEEE "
+			  "1800-2023 28.8)." << endl;
+		  des->errors += 1;
+		  return;
+	    }
+      }
+
 	/* Detect the special case that the l-value width exactly
 	   matches the gate count. In this case, we will make a single
 	   gate that has the desired vector width.
@@ -6466,6 +6566,7 @@ enum port_net_class_t {
       PORT_NET_UWIRE,
       PORT_NET_SUPPLY0,
       PORT_NET_SUPPLY1,
+      PORT_NET_TRIREG,
       PORT_NET_CLASS_COUNT,
       PORT_NET_CLASS_UNSUPPORTED
 };
@@ -6485,29 +6586,31 @@ static port_net_class_t port_net_class(NetNet::Type type)
 	  case NetNet::UNRESOLVED_WIRE: return PORT_NET_UWIRE;
 	  case NetNet::SUPPLY0: return PORT_NET_SUPPLY0;
 	  case NetNet::SUPPLY1: return PORT_NET_SUPPLY1;
+	  case NetNet::TRIREG: return PORT_NET_TRIREG;
 	  default: return PORT_NET_CLASS_UNSUPPORTED;
       }
 }
 
 /* IEEE 1800-2023 Table 23-1, with rows=internal and columns=external.
  * Each entry encodes external/internal dominance and the table's warn cell.
- * The frontend diagnoses trireg declarations before NetNet construction, so
- * there is no NetNet::TRIREG row/column to represent here. */
+ * The trireg row and column come last here; in the standard's table they
+ * sit between wor/trior and tri0. */
 static port_net_dominance_result_t port_net_dominance(NetNet::Type internal,
 						       NetNet::Type external)
 {
       enum table_cell_t { E, EW, I, IW };
       static const table_cell_t table[PORT_NET_CLASS_COUNT]
 					   [PORT_NET_CLASS_COUNT] = {
-	/* external: wire wand wor  tri0 tri1 uwire supply0 supply1 */
-	/* wire */   { E,   E,   E,   E,   E,   E,    E,      E  },
-	/* wand */   { I,   E,   EW,  EW,  EW,  EW,   E,      E  },
-	/* wor */    { I,   EW,  E,   EW,  EW,  EW,   E,      E  },
-	/* tri0 */   { I,   EW,  EW,  E,   EW,  EW,   E,      E  },
-	/* tri1 */   { I,   EW,  EW,  EW,  E,   EW,   E,      E  },
-	/* uwire */  { I,   IW,  IW,  IW,  IW,  E,    E,      E  },
-	/* supply0 */{ I,   I,   I,   I,   I,   I,    E,      EW },
-	/* supply1 */{ I,   I,   I,   I,   I,   I,    EW,     E  }
+	/* external: wire wand wor  tri0 tri1 uwire supply0 supply1 trireg */
+	/* wire */   { E,   E,   E,   E,   E,   E,    E,      E,      E  },
+	/* wand */   { I,   E,   EW,  EW,  EW,  EW,   E,      E,      EW },
+	/* wor */    { I,   EW,  E,   EW,  EW,  EW,   E,      E,      EW },
+	/* tri0 */   { I,   EW,  EW,  E,   EW,  EW,   E,      E,      I  },
+	/* tri1 */   { I,   EW,  EW,  EW,  E,   EW,   E,      E,      I  },
+	/* uwire */  { I,   IW,  IW,  IW,  IW,  E,    E,      E,      IW },
+	/* supply0 */{ I,   I,   I,   I,   I,   I,    E,      EW,     I  },
+	/* supply1 */{ I,   I,   I,   I,   I,   I,    EW,     E,      I  },
+	/* trireg */ { I,   EW,  EW,  E,   E,   EW,   E,      E,      E  }
       };
 
       port_net_class_t row = port_net_class(internal);
@@ -7733,16 +7836,22 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			continue;
 		  perm_string formal = rmod->get_port_name(idx);
 		  PWire*wire = rmod->wires_find(formal);
-		  if (!wire || wire->get_port_type() != NetNet::PINPUT
-		      || !checker_formal_used_in_code_(rmod, formal))
+		  if (!wire || wire->get_port_type() != NetNet::PINPUT)
 			continue;
-
-		  cerr << pins[idx]->get_fileline() << ": error: checker input port `"
-		       << formal << "' has a const-cast actual but is used in procedural "
-			  "code or a continuous assignment (IEEE 1800-2017/2023 17.3)."
-		       << endl;
-		  des->errors += 1;
-		  invalid_const_cast_actual = true;
+		  if (checker_formal_used_in_code_(rmod, formal)) {
+			cerr << pins[idx]->get_fileline() << ": error: checker input port `"
+			     << formal << "' has a const-cast actual but is used in procedural "
+				"code or a continuous assignment (IEEE 1800-2017/2023 17.3)."
+			     << endl;
+			des->errors += 1;
+			invalid_const_cast_actual = true;
+		  } else if (checker_formal_used_in_covergroup_(rmod, formal)) {
+			cerr << pins[idx]->get_fileline() << ": error: checker input port `"
+			     << formal << "' has a const-cast actual but is referenced by a "
+				"covergroup (IEEE 1800-2017/2023 17.6)." << endl;
+			des->errors += 1;
+			invalid_const_cast_actual = true;
+		  }
 	    }
 	    if (invalid_const_cast_actual)
 		  return;
@@ -9671,24 +9780,21 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 	    }
 	  }
 
-	  NetConcat*output_concat = 0;
-	  if (output_sig && output_sig->vector_width() == inst_count
-	      && inst_count > 1) {
-	    output_concat = new NetConcat(scope, scope->local_symbol(),
-					  inst_count, inst_count);
-	    output_concat->set_line(*this);
-	    des->add_node(output_concat);
-	    connect(output_concat->pin(0), output_sig->pin(0));
-	  }
 	  for (unsigned inst = 0; inst < inst_count; inst += 1) {
+	    instances[inst]->pin(0).drive0(strength0());
+	    instances[inst]->pin(0).drive1(strength1());
 	    if (output_sig) {
-		  if (output_concat) {
+		  if (output_sig->vector_width() == inst_count && inst_count > 1) {
+			NetPartSelect*part = new NetPartSelect(output_sig, inst, 1,
+						       NetPartSelect::PV);
+			part->set_line(*this);
+			des->add_node(part);
 			const netvector_t*bit_type = new netvector_t(IVL_VT_LOGIC);
 			NetNet*bit = new NetNet(scope, scope->local_symbol(),
 						NetNet::WIRE, bit_type);
 			bit->set_line(*this);
 			bit->local_flag(true);
-			connect(output_concat->pin(inst+1), bit->pin(0));
+			connect(part->pin(0), bit->pin(0));
 			connect(bit->pin(0), instances[inst]->pin(0));
 		  } else {
 			connect(output_sig->pin(0), instances[inst]->pin(0));
@@ -9985,7 +10091,7 @@ bool PGModule::elaborate_sig(Design*des, NetScope*scope) const
       }
 
 	// Look for the module type
-	    Module*mod = find_module_type_(type_, scope);
+	    Module*mod = find_module_type_(des, this, type_, scope);
       if (mod)
 	    return elaborate_sig_mod_(des, scope, mod);
 
@@ -10015,8 +10121,13 @@ void PGModule::elaborate(Design*des, NetScope*scope) const
 
 	// Look for the module type
 
-      Module*mod = find_module_type_(type_, scope);
+      Module*mod = find_module_type_(des, this, type_, scope);
       if (mod) {
+	    if (drive_strength_specified_) {
+		  cerr << get_fileline() << ": error: Drive strength is not allowed on a module instance." << endl;
+		  des->errors += 1;
+		  return;
+	    }
 	    elaborate_mod_(des, mod, scope);
 	    return;
       }
@@ -10166,7 +10277,7 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
 
 	// Look for the module type
 
-      Module*mod = find_module_type_(type_, sc);
+      Module*mod = find_module_type_(des, this, type_, sc);
       if (mod) {
 	    elaborate_scope_mod_(des, mod, sc);
 	    return;
@@ -10184,7 +10295,7 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
       if (load_module(type_, parser_errors)) {
 
 	      // Try again to find the module type
-	    mod = find_module_type_(type_, sc);
+	    mod = find_module_type_(des, this, type_, sc);
 	    if (mod) {
 		  elaborate_scope_mod_(des, mod, sc);
 		  return;
@@ -10205,6 +10316,7 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
 	// any means, so give up.
       if (!ignore_missing_modules) {
         cerr << get_fileline() << ": error: Unknown module type: " << type_ << endl;
+        config_explain_unbound(this, sc);
         missing_modules[type_] += 1;
         des->errors += 1;
       }
@@ -10223,6 +10335,7 @@ NetProc* Statement::elaborate(Design*des, NetScope*) const
 
 NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope) const
 {
+      PExprCheckerAssignRvalGuard checker_rval_context(false);
 	// A function called as a task does not have an L-value.
       if (! lval_) {
 	      // The R-value must be a simple function call.
@@ -13667,6 +13780,29 @@ static NetProc* elaborate_event_assign_(Design*des, NetScope*scope,
       handled = true;
       NetEvent*src = find_named_event_(des, scope, assign.rval());
       bool null_src = dynamic_cast<const PENull*>(assign.rval()) != nullptr;
+	/* 7.4.5: an element of an event array is an event. The destination
+	   shares that element's queue; an invalid index reads as null. */
+      if (!src && !null_src) {
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(assign.rval());
+	    NetExpr*index = nullptr;
+	    NetEvent*array = id && !id->path().package
+		  ? elaborate_event_array_target_(des, scope, assign,
+						  id->path().name,
+						  id->lexical_pos(), index)
+		  : nullptr;
+	    if (array) {
+		  vector<NetExpr*>argv(4);
+		  argv[0] = new NetEEvent(dst);
+		  argv[0]->set_line(assign);
+		  argv[1] = make_const_val(array->array_base_slot());
+		  argv[2] = make_const_val(array->array_count());
+		  argv[3] = index;
+		  NetSTask*task = new NetSTask("$ivl_event_assign_arr",
+					       IVL_SFUNC_AS_TASK_IGNORE, argv);
+		  task->set_line(assign);
+		  return task;
+	    }
+      }
       if (!src && !null_src) {
 	    cerr << assign.get_fileline() << ": error: an event variable can "
 		 << "only be assigned another event or null (IEEE 1800-2017/"
@@ -13889,6 +14025,20 @@ static NetProc* elaborate_member_subarray_copy_(Design*des, NetScope*scope,
       return block;
 }
 
+/* Is a statement in SCOPE a statement of a checker's own procedure, as
+   opposed to one in the body of a function or task the checker declares? */
+static bool checker_procedure_scope_(NetScope*scope)
+{
+      for (NetScope*owner = scope; owner; owner = owner->parent()) {
+	    if (owner->type() == NetScope::FUNC
+		|| owner->type() == NetScope::TASK)
+		  return false;
+	    if (const Module*module = owner->module_definition())
+		  return module->is_checker;
+      }
+      return false;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
 	bool in_checker = false;
@@ -13899,6 +14049,10 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		    break;
 	      }
 	}
+	/* 17.8 restricts the right-hand side of a checker variable
+	   assignment; elaborate_lval switches the context off again. */
+	PExprCheckerAssignRvalGuard checker_rval_context(
+	      lval() && checker_procedure_scope_(scope));
 	if (current_procedural_process_type == IVL_PR_ALWAYS_FF && in_checker) {
 	cerr << get_fileline() << ": error: blocking assignment is not allowed "
 	        "in a checker always_ff procedure." << endl;
@@ -15491,6 +15645,9 @@ static NetProc*guard_function_background_event_(NetScope*scope,
 NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+
+      PExprCheckerAssignRvalGuard checker_rval_context(
+	    lval() && checker_procedure_scope_(scope));
 
       NetScope*function_scope = scope;
       while (function_scope
@@ -17828,6 +17985,12 @@ NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 	    else
 		  return elaborate_sys(des, scope);
       } else {
+	      // 19.8: get_coverage is a static method of a covergroup,
+	      // coverpoint or cross type. Called as a statement it still
+	      // assigns its ref int outputs.
+	    if (peek_tail_name(path_) == "get_coverage"
+		&& is_scoped_covergroup_coverage_call(des, scope, package_, path_))
+		  return elaborate_non_void_function_(des, scope, true);
 	    return elaborate_usr(des, scope);
       }
 }
@@ -21404,6 +21567,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	    while (!sr.path_tail.empty()) {
 		  const netclass_t*class_type = dynamic_cast<const netclass_t*>(obj_type);
 		  const name_component_t&comp = sr.path_tail.front();
+	      // get_coverage()/get_inst_coverage() on a named coverpoint or
+	      // cross, called as a statement: the expression elaborator owns
+	      // the item lookup and the ref int outputs (19.8).
+	      if (class_type && class_type->is_covergroup()
+		  && sr.path_tail.size() == 1
+		  && (method_name == "get_coverage"
+		      || method_name == "get_inst_coverage")) {
+		    delete obj_expr;
+		    return elaborate_non_void_function_(des, scope, true);
+	      }
 	      // A named coverpoint or cross is not a class property. Lower its
 	      // start()/stop() task using the item's stable covergroup index.
 	      if (class_type && class_type->is_covergroup()
@@ -22329,8 +22502,13 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				// exactly once before reading any constructor-formal
 				// properties and before passing the object to the
 				// runtime sampler.
-			      if (nctor) {
-				    NetNet*recv = new NetNet(scope, scope->local_symbol(),
+			      bool mirrors_formals = false;
+			      for (unsigned k = 0; k < nformals; k += 1)
+				    if (cgtype->covgrp_sample_formal_prop((size_t)k) >= 0)
+					  mirrors_formals = true;
+			      NetNet*recv = nullptr;
+			      if (nctor || mirrors_formals) {
+				    recv = new NetNet(scope, scope->local_symbol(),
 						      NetNet::REG, obj_type);
 				    recv->set_line(*this);
 				    recv->local_flag(true);
@@ -22541,6 +22719,25 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 						cp_scope->set_signal_alias(
 						      cgtype->covgrp_sample_formal(k),
 						      formal_nets[k]);
+					    // 19.4.1: the instance may be a derived
+					    // covergroup whose own coverpoints read
+					    // this argument at run time.
+					  int mirror = cgtype->covgrp_sample_formal_prop(
+						(size_t)k);
+					  if (mirror >= 0 && recv) {
+						NetAssign_*mirror_lval = new NetAssign_(recv);
+						mirror_lval->set_property(
+						      lex_strings.make(cgtype->get_prop_name(
+							    (size_t)mirror)),
+						      (unsigned)mirror);
+						NetESignal*mirror_value =
+						      new NetESignal(formal_nets[k]);
+						mirror_value->set_line(*this);
+						NetAssign*mirror_copy = new NetAssign(
+						      mirror_lval, mirror_value);
+						mirror_copy->set_line(*this);
+						sample_block->append(mirror_copy);
+					  }
 				    }
 			      }
 			      {
@@ -22738,12 +22935,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  }
 
 		  // Covergroup get_inst_coverage()/get_coverage(): handled in
-		  // elab_expr.cc. For task context, emit noop.
+		  // elab_expr.cc. A statement call still assigns its two
+		  // ref int outputs (19.8); without them it has no effect.
 		  if (method_name == perm_string::literal("get_inst_coverage")
 		      || method_name == perm_string::literal("get_coverage")) {
 			const netclass_t*cgtype = dynamic_cast<const netclass_t*>(obj_type);
 			if (cgtype && cgtype->is_covergroup()) {
 			      delete obj_expr;
+			      if (!parms_.empty())
+				    return elaborate_non_void_function_(
+					  des, scope, true);
 			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			      noop->set_line(*this);
 			      return noop;
@@ -23079,7 +23280,8 @@ bool validate_program_subroutine_call(Design*des, const LineInfo&loc,
       return false;
 }
 
-NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) const
+NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope,
+						 bool builtin) const
 {
 	// Generate a function call version of this task call.
       PECallFunction*call = new PECallFunction(package_, path_, parms_);
@@ -23091,11 +23293,27 @@ NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope) c
       PExpr*rval = call;
       rval->set_file(get_file());
       rval->set_lineno(get_lineno());
+      if (builtin) {
+	      // A predefined coverage query (19.8) returns real. Its type is
+	      // not visible to test_width, so assign it to a real temporary
+	      // here; evaluating the call stores its ref int outputs.
+	    NetExpr*value = elaborate_rval_expr(
+		  des, scope, &netreal_t::type_real, rval, false, false);
+	    call->set_leading_type_args(nullptr);
+	    if (!value) return 0;
+	    NetNet*tmp = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				    &netreal_t::type_real);
+	    tmp->set_line(*this);
+	    tmp->local_flag(true);
+	    NetAssign*assign = new NetAssign(new NetAssign_(tmp), value);
+	    assign->set_line(*this);
+	    return assign;
+      }
 	// Generate an assign to nothing.
       PAssign*tmp = new PAssign(0, rval);
       tmp->set_file(get_file());
       tmp->set_lineno(get_lineno());
-      if (!void_cast_) {
+      if (!void_cast_ && !builtin) {
 	    cerr << get_fileline() << ": warning: User function '"
 		 << peek_tail_name(path_) << "' is being called as a task." << endl;
       }
@@ -26900,6 +27118,37 @@ static NetExpr*build_vif_validity_expr_(
       return vif_valid_const_(false);
 }
 
+/* True when EXPR is, or contains, a dynamic-array or queue size() call:
+   an internal system-function node that cannot be synthesized, so an
+   event control on it uses a value observer instead. */
+static bool event_expr_has_darray_size_(const NetExpr*expr)
+{
+      if (!expr) return false;
+      if (const NetESFunc*call = dynamic_cast<const NetESFunc*>(expr)) {
+	    if (strcmp(call->name(), "$ivl_queue_method$size") == 0
+		&& call->nparms() == 1 && call->parm(0)
+		&& dynamic_cast<const netdarray_t*>(call->parm(0)->net_type()))
+		  return true;
+	    for (unsigned idx = 0; idx < call->nparms(); idx += 1)
+		  if (event_expr_has_darray_size_(call->parm(idx)))
+			return true;
+	    return false;
+      }
+      if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(expr))
+	    return event_expr_has_darray_size_(bin->left())
+		|| event_expr_has_darray_size_(bin->right());
+      if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(expr))
+	    return event_expr_has_darray_size_(un->expr());
+      if (const NetETernary*ter = dynamic_cast<const NetETernary*>(expr))
+	    return event_expr_has_darray_size_(ter->cond_expr())
+		|| event_expr_has_darray_size_(ter->true_expr())
+		|| event_expr_has_darray_size_(ter->false_expr());
+      if (const NetESelect*sel = dynamic_cast<const NetESelect*>(expr))
+	    return event_expr_has_darray_size_(sel->sub_expr())
+		|| event_expr_has_darray_size_(sel->select());
+      return false;
+}
+
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
@@ -27690,13 +27939,11 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	     * to elements or same-sized assignments do not create false events. */
 	    if (gn_system_verilog()
 		&& expr_[idx]->type() == PEEvent::ANYEDGE) {
-		  const NetESFunc*size_call = dynamic_cast<const NetESFunc*>(tmp);
-		  if (size_call
-		      && strcmp(size_call->name(), "$ivl_queue_method$size") == 0
-		      && size_call->nparms() == 1
-		      && size_call->parm(0)
-		      && dynamic_cast<const netdarray_t*>(
-			    size_call->parm(0)->net_type())) {
+		    /* IEEE 1800-2023 9.4.2: an expression that uses a size()
+		       call (da.size() > 0) is reevaluated the same way. */
+		  if (event_expr_has_darray_size_(tmp)
+		      && (tmp->expr_type() == IVL_VT_BOOL
+			  || tmp->expr_type() == IVL_VT_LOGIC)) {
 			NexusSet*source_set = tmp->nex_input();
 			if (source_set && source_set->size() > 0) {
 			      NetEvProbe*probe = new NetEvProbe(
@@ -32593,6 +32840,17 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 			     << "module path outputs is not supported." << endl;
 		  }
 	    }
+	      /* 30.7.4.1: the pulse style of the path output. Pulse
+		 filtering to X exists for scalar outputs only. */
+	    if (module && module->specify_ondetect(terminal)) {
+		  if (dst_sig->vector_width() == 1) {
+			dst_sig->attribute(perm_string::literal("_ivl_pulsestyle_ondetect"),
+					   verinum(1));
+		  } else {
+			cerr << get_fileline() << ": sorry: pulsestyle_ondetect on "
+			     << "vector module path outputs is not supported." << endl;
+		  }
+	    }
 
 	    ostringstream condition_text;
 	    if (condition)
@@ -36540,16 +36798,62 @@ static bool constraint_solve_before_aggregate_is_orderable_(const netuarray_t*ar
 	  || dynamic_cast<const netenum_t*>(element_type);
 }
 
-static void constraint_order_nonrandom_error_(const PExpr*site)
+/* IEEE 1800-2023 18.5.9: "Only random variables are allowed, that is,
+   they shall be rand." An error; under -gcommercial-unsafe a warning, and
+   the caller omits the operand (true is returned). */
+static bool constraint_order_nonrandom_error_(const PExpr*site)
 {
       if (!site || !constraint_ir_design_ctx_
 	  || !constraint_ir_design_ctx_->mark_constraint_order_diagnostic(site))
-	    return;
+	    return gn_commercial_unsafe_flag;
 
+      if (gn_commercial_unsafe_flag) {
+	    cerr << site->get_fileline() << ": warning: target of 'solve "
+		 << "before' constraint must be a random variable (IEEE 1800 "
+		 << "18.5.9); the operand is omitted from the ordering; "
+		 << "nonstandard compatibility behavior." << endl;
+	    return true;
+      }
       cerr << site->get_fileline()
 	   << ": error: target of 'solve before' constraint must be a random variable."
 	   << endl;
       constraint_ir_design_ctx_->errors += 1;
+      return false;
+}
+
+/* The before -> after edges of every 'solve before' in the class whose
+   constraints are being elaborated (18.5.9 forbids a circular ordering). */
+struct constraint_order_edge_t {
+      std::string from, to, from_name, to_name, where;
+      perm_string constraint;
+};
+static std::vector<constraint_order_edge_t>*constraint_order_edges_ctx_ = nullptr;
+
+/* The source spelling of an ordering operand for a diagnostic: constant
+   indices print as decimals ("values[1]", not "values['sd1]"). */
+static string constraint_order_operand_name_(const PExpr*item)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
+      if (!id) {
+	    ostringstream text;
+	    item->dump(text);
+	    return text.str();
+      }
+      string out;
+      for (const name_component_t&component : id->path().name) {
+	    if (!out.empty()) out += ".";
+	    out += component.name.str();
+	    for (const index_component_t&index : component.index) {
+		  ostringstream text;
+		  const PENumber*num = dynamic_cast<const PENumber*>(index.msb);
+		  if (num && !index.lsb && num->value().is_defined())
+			text << num->value().as_long();
+		  else if (index.msb)
+			index.msb->dump(text);
+		  out += "[" + text.str() + "]";
+	    }
+      }
+      return out;
 }
 
 /* Some legal source paths are not yet representable in the constraint IR
@@ -39860,10 +40164,10 @@ static bool constraint_pure_expr_(const NetExpr*,
 
 /* A nonautomatic function is legal in a constraint only when it preserves no
  * state information. Keep the initial proof deliberately narrow: accept the
- * ordinary lowering of one unconditional assignment to the return variable,
- * optionally followed by its internal return-disable. More complex definite-
- * assignment control flow can be added without ever accepting a fallthrough
- * that reuses the return variable's value from an earlier invocation. */
+ * ordinary lowering of an unconditional assignment to the return variable,
+ * optionally followed by its internal return-disable, and conditionals whose
+ * two branches both meet that requirement. Never accept a fallthrough that
+ * reuses the return variable's value from an earlier invocation. */
 static bool constraint_static_return_definite_(const NetProc*proc,
 					       const NetNet*result)
 {
@@ -39879,6 +40183,9 @@ static bool constraint_static_return_definite_(const NetProc*proc,
 		&& lval->stream_range() == IVL_STREAM_RANGE_NONE
 		&& lval->lwidth() == result->vector_width();
       }
+      if (const NetCondit*cond = dynamic_cast<const NetCondit*>(proc))
+	    return constraint_static_return_definite_(cond->if_clause(), result)
+		&& constraint_static_return_definite_(cond->else_clause(), result);
       const NetBlock*block = dynamic_cast<const NetBlock*>(proc);
       if (!block || block->type() != NetBlock::SEQU) return false;
       bool assigned = false;
@@ -39915,6 +40222,12 @@ class constraint_function_purity_t : public target_t {
 	    }
 	    status_[scope] = 1;
 	    const PFunction*pfunc = scope->func_pform();
+	    /* A pure DPI import promises no side effects or persistent state.
+	     * Its generated wrapper is not an SV body to prove by inspection. */
+	    if (pfunc && pfunc->is_dpi_import() && pfunc->dpi_pure()) {
+		  status_[scope] = 2;
+		  return true;
+	    }
 	    if (pfunc && (!scope->func_def() || !scope->func_def()->proc()))
 		  elaborate_function_outside_caller_fork_(des_, pfunc,
 			const_cast<NetScope*>(scope));
@@ -43694,6 +44007,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    }
 
 	    int idx = cls ? cls->property_idx_from_name(name) : -1;
+	      // A covergroup sample source names a sample() argument by its
+	      // formal; the value is in the group's mirror property (19.4.1).
+	    if (idx < 0 && cls && constraint_covergroup_sample_source_)
+		  idx = cls->covgrp_sample_formal_prop(name);
 	    if (idx >= 0) {
 		  property_qualifier_t q = cls->get_prop_qual((size_t)idx);
 		  ivl_type_t ptype = cls->get_prop_type((size_t)idx);
@@ -46038,10 +46355,35 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 	    };
 	    bool omitted_operand = false;
+	    bool omit_item = false;
+	    auto nonrandom = [&](const PExpr*site) {
+		  if (constraint_order_nonrandom_error_(site))
+			omit_item = true;
+	    };
+	    std::vector<std::pair<string,string> > bef_ops, aft_ops;
+	    std::vector<std::pair<string,string> >*ops = nullptr;
 	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
 		  string acc;
 		  for (const PExpr*item : items) {
 			if (!item) continue;
+			omit_item = false;
+			const PEIdent*plain = dynamic_cast<const PEIdent*>(item);
+			if (cls && plain && !plain->path().package
+			    && !plain->has_scoped_type_prefix()
+			    && plain->path().name.size() == 1
+			    && !plain->path().name.front().local_scope
+			    && plain->path().name.front().index.empty()) {
+			      int prop = cls->property_idx_from_name(
+				    plain->path().name.front().name);
+			      property_qualifier_t qual = prop < 0
+				    ? property_qualifier_t::make_none()
+				    : cls->get_prop_qual((size_t)prop);
+			      if (prop >= 0 && !qual.test_rand() && !qual.test_randc()) {
+				    nonrandom(item);
+				    if (omit_item) omitted_operand = true;
+				    continue;
+			      }
+			}
 			vector<string> packed_refs;
 			bool packed_order = gn_commercial_unsafe_flag
 			      && constraint_packed_solve_before_refs_(
@@ -46090,7 +46432,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      property_qualifier_t qual =
 				    cls->get_prop_qual((size_t)prop);
 			      if (!qual.test_rand() && !qual.test_randc())
-				    constraint_order_nonrandom_error_(item);
+				    nonrandom(item);
 			      const index_component_t&select = component.index.front();
 			      string index_ir = select.msb && !select.lsb
 				    && select.sel == index_component_t::SEL_BIT
@@ -46151,7 +46493,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				  || !stype || member >= stype->members().size()
 				  || (!stype->members()[member].qualifier.test_rand()
 				      && !stype->members()[member].qualifier.test_randc()))
-				    constraint_order_nonrandom_error_(item);
+				    nonrandom(item);
 			}
 			if (s.compare(0, 2, "e:") == 0 && cls) {
 			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
@@ -46162,7 +46504,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    property_qualifier_t qual =
 					  cls->get_prop_qual((size_t)prop);
 				    if (!qual.test_rand() && !qual.test_randc())
-					  constraint_order_nonrandom_error_(item);
+					  nonrandom(item);
 			      }
 			}
 			if (s.compare(0, 2, "a:") == 0 && cls) {
@@ -46182,7 +46524,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				  || member >= stype->members().size()
 				  || (!stype->members()[member].qualifier.test_rand()
 				      && !stype->members()[member].qualifier.test_randc()))
-				    constraint_order_nonrandom_error_(item);
+				    nonrandom(item);
 			}
 			if (s.compare(0, 2, "s:") == 0 && cls) {
 			      char*end = nullptr;
@@ -46193,17 +46535,24 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    property_qualifier_t qual =
 					  cls->get_prop_qual((size_t)idx);
 				    if (!qual.test_rand() && !qual.test_randc())
-					  constraint_order_nonrandom_error_(item);
+					  nonrandom(item);
 			      }
 			}
 			if (s.compare(0, 2, "x:") == 0 && cls
 			    && !constraint_nested_element_is_random_(
 				  s.c_str() + 2, cls))
-			      constraint_order_nonrandom_error_(item);
+			      nonrandom(item);
 			if (s.compare(0, 2, "r:") == 0 && cls
 			    && !constraint_nested_element_is_random_(
 				  s.c_str() + 2, cls))
-			      constraint_order_nonrandom_error_(item);
+			      nonrandom(item);
+			if (omit_item) {
+			      omitted_operand = true;
+			      continue;
+			}
+			if (ops)
+			      ops->push_back(std::make_pair(s,
+				    constraint_order_operand_name_(item)));
 			acc += acc.empty() ? s : (" " + s);
 		  }
 		  return acc;
@@ -46259,8 +46608,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      continue;
 			}
 			if (!random) {
-			      constraint_order_nonrandom_error_(item);
-			      expand_ok = false;
+			      if (constraint_order_nonrandom_error_(item))
+				    omitted_operand = true;
+			      else
+				    expand_ok = false;
 			      continue;
 			}
 			if (gn_commercial_unsafe_flag
@@ -46321,11 +46672,25 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    std::list<PExpr*> before_items = expand_fixed_arrays(co->before_items());
 	    std::list<PExpr*> after_items = expand_fixed_arrays(co->after_items());
 	    if (!expand_ok) return "";
+	    ops = &bef_ops;
 	    string bef = vars_to_ir(before_items);
+	    ops = &aft_ops;
 	    string aft = vars_to_ir(after_items);
+	    ops = nullptr;
 	    if (bef.empty() || aft.empty())
 		  return omitted_operand ? "c:1:1" : "";
 	    string result = "(order (vars " + bef + ") (vars " + aft + "))";
+	    if (constraint_order_edges_ctx_)
+		  for (const auto&b : bef_ops)
+			for (const auto&a : aft_ops) {
+			      constraint_order_edge_t edge;
+			      edge.from = b.first;
+			      edge.to = a.first;
+			      edge.from_name = b.second;
+			      edge.to_name = a.second;
+			      edge.where = co->get_fileline();
+			      constraint_order_edges_ctx_->push_back(edge);
+			}
 	    if (constraint_ir_references_randc_(result, cls))
 		  constraint_randc_reference_error_(co, "solve before");
 	    return result;
@@ -48598,6 +48963,100 @@ static int64_t cov_with_item_value_(uint64_t value, unsigned width,
       return (int64_t)value;
 }
 
+/* Every 'solve before' edge of each class, inherited ones included, and
+   whether that graph has a cycle (reported once, in the class that closes
+   it). IEEE 1800-2023 18.5.9: "There shall be no circular dependencies in
+   the ordering". The ordering is declared, so a cycle through a block that
+   is later disabled with constraint_mode(0) is still one. */
+static std::map<const netclass_t*, std::vector<constraint_order_edge_t> >
+      class_order_edges_;
+static std::set<const netclass_t*> class_order_cycle_;
+
+static bool constraint_order_find_cycle_(
+      const std::vector<constraint_order_edge_t>&edges,
+      std::vector<const constraint_order_edge_t*>&cycle)
+{
+      std::map<string, std::vector<const constraint_order_edge_t*> > out;
+      for (const constraint_order_edge_t&edge : edges)
+	    out[edge.from].push_back(&edge);
+      std::map<string, int> color; // 0 new, 1 on the path, 2 done
+      std::vector<const constraint_order_edge_t*> path;
+      std::function<bool(const string&)> visit = [&](const string&node) {
+	    color[node] = 1;
+	    for (const constraint_order_edge_t*edge : out[node]) {
+		  path.push_back(edge);
+		  if (color[edge->to] == 1) {
+			size_t first = path.size() - 1;
+			while (path[first]->from != edge->to) first -= 1;
+			cycle.assign(path.begin() + first, path.end());
+			return true;
+		  }
+		  if (color[edge->to] == 0 && visit(edge->to))
+			return true;
+		  path.pop_back();
+	    }
+	    color[node] = 2;
+	    return false;
+      };
+      for (const constraint_order_edge_t&edge : edges)
+	    if (color[edge.from] == 0 && visit(edge.from))
+		  return true;
+      return false;
+}
+
+static void constraint_order_check_cycles_(Design*des, const netclass_t*cls,
+					   const netclass_t*super,
+					   const PClass*pclass,
+					   std::vector<constraint_order_edge_t>&own)
+{
+      std::vector<constraint_order_edge_t>&edges = class_order_edges_[cls];
+      edges = own;
+      if (super) {
+	    for (const constraint_order_edge_t&edge : class_order_edges_[super])
+		  if (pclass->type->constraints.find(edge.constraint)
+		      == pclass->type->constraints.end())
+			edges.push_back(edge);
+      }
+      std::vector<const constraint_order_edge_t*> cycle;
+      if (!constraint_order_find_cycle_(edges, cycle))
+	    return;
+      class_order_cycle_.insert(cls);
+      if (super && class_order_cycle_.count(super))
+	    return;
+
+      std::vector<string> names;
+      for (const constraint_order_edge_t*edge : cycle)
+	    names.push_back(edge->from_name);
+      string between;
+      if (names.size() == 1) {
+	    between = "'" + names[0] + "' and itself";
+      } else {
+	    for (size_t idx = 0; idx < names.size(); idx += 1) {
+		  if (idx) between += idx + 1 == names.size() ? " and " : ", ";
+		  between += "'" + names[idx] + "'";
+	    }
+      }
+      static std::set<string> reported;
+	// Point at an edge this class declares: it closes the cycle.
+      const constraint_order_edge_t*site = cycle.back();
+      for (const constraint_order_edge_t*edge : cycle)
+	    if (edge < edges.data() + own.size()) {
+		  site = edge;
+		  break;
+	    }
+      const string&where = site->where;
+      if (!reported.insert(where + between).second)
+	    return;
+      cerr << where << (gn_commercial_unsafe_flag ? ": warning: " : ": error: ")
+	   << "circular 'solve before' ordering between " << between
+	   << " in class " << cls->get_name() << " (IEEE 1800 18.5.9)";
+      if (gn_commercial_unsafe_flag)
+	    cerr << "; nonstandard compatibility behavior";
+      cerr << "." << endl;
+      if (!gn_commercial_unsafe_flag)
+	    des->errors += 1;
+}
+
 void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 {
       if (constraints_elaborated_ || constraints_elaborating_ || !pclass)
@@ -48617,10 +49076,15 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 
       /* Convert every source constraint block to solver IR after property
 	 types and specialization parameters are final. */
+      std::vector<constraint_order_edge_t> order_edges;
+      std::vector<constraint_order_edge_t>*save_order_edges =
+	    constraint_order_edges_ctx_;
       for (perm_string name : pclass->type->constraint_order) {
             auto found = pclass->type->constraints.find(name);
             if (found == pclass->type->constraints.end()) continue;
 	    const auto&cit = *found;
+	    size_t edges_before = order_edges.size();
+	    constraint_order_edges_ctx_ = &order_edges;
 	    string ir;
 	    vector<constraint_state_call_t> state_calls;
 	    vector<constraint_state_call_t>*save_state_calls =
@@ -48666,6 +49130,8 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  }
 	    }
 	    constraint_ir_state_calls_ctx_ = save_state_calls;
+	    for (size_t idx = edges_before; idx < order_edges.size(); idx += 1)
+		  order_edges[idx].constraint = cit.first;
 	    if (!ir.empty()) {
 		  const auto decl = pclass->type->constraint_declarations.find(cit.first);
 		  const bool is_static = decl != pclass->type->constraint_declarations.end()
@@ -48673,6 +49139,8 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  add_constraint_ir(string(cit.first), ir, state_calls, is_static);
 	    }
       }
+      constraint_order_edges_ctx_ = save_order_edges;
+      constraint_order_check_cycles_(des, this, super_, pclass, order_edges);
 
       constraints_elaborating_ = false;
       constraints_elaborated_ = true;
@@ -48863,6 +49331,55 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      ctor_type, ctor_default,
 				      ci < cgdef->ctor_formal_is_ref.size()
 					    && cgdef->ctor_formal_is_ref[ci]);
+		    }
+
+		      // IEEE 1800-2023 19.4.1: keep the sample() arguments of an
+		      // extended (or extending) embedded covergroup in properties
+		      // of the covergroup object. A base-class handle samples a
+		      // derived group without knowing its added coverpoints; the
+		      // run time evaluates those from these properties. They
+		      // follow the constructor formals, which a derived group
+		      // copies from its base, so both give them the same slots.
+		    if (!cg_standalone
+			&& (cgdef->is_extension || cgdef->has_extension)) {
+			  const netclass_t*base_cg = nullptr;
+			  int inherited_idx = cgdef->is_extension && get_super()
+				? get_super()->property_idx_from_name(cgdef->name) : -1;
+			  if (inherited_idx >= 0)
+				base_cg = dynamic_cast<const netclass_t*>(
+				      get_super()->get_prop_type(
+					    static_cast<size_t>(inherited_idx)));
+			  for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1) {
+				ivl_type_t formal_type = &netvector_t::atom2s32;
+				if (fi < cgdef->sample_formal_types.size()
+				    && cgdef->sample_formal_types[fi]) {
+				      ivl_type_t declared = cgdef->sample_formal_types[fi]
+					    ->elaborate_sig_type(des, class_scope_);
+				      if (declared) formal_type = declared;
+				}
+				long width = formal_type->packed()
+				      ? formal_type->packed_width() : 0;
+				if (formal_type->base_type() != IVL_VT_BOOL
+				    || width <= 0 || width > 64)
+				      continue;
+				string mirror_name = "__covgrp_sample_"
+				      + string(cgdef->sample_formals[fi].str());
+				perm_string mirror = lex_strings.make(mirror_name.c_str());
+				cg_class->set_property(mirror,
+				      property_qualifier_t::make_none(), formal_type);
+				int mirror_prop = cg_class->property_idx_from_name(mirror);
+				if (base_cg
+				    && base_cg->covgrp_sample_formal_prop(fi) != mirror_prop) {
+				      cerr << pclass->get_fileline() << ": internal error: "
+					   << "covergroup '" << cgdef->name
+					   << "' extension keeps sample() argument '"
+					   << cgdef->sample_formals[fi]
+					   << "' in a different slot than its base." << endl;
+				      des->errors += 1;
+				      continue;
+				}
+				cg_class->set_covgrp_sample_formal_prop(fi, mirror_prop);
+			  }
 		    }
 
 		      // Reserve leading scalar slots before any option or bin-counter
@@ -51468,9 +51985,12 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  PExpr*cp_sample_expr = cp.type && cp.expr
 				? new PECastType(cp.type, cp.expr) : cp.expr;
 			  if (!cg_standalone && cp.expr && parent_prop < 0) {
+				  // A sample() argument is readable at run time only
+				  // through its mirror property.
 				bool uses_sample_formal = false;
-				for (perm_string formal : cgdef->sample_formals)
-				      if (cp_sample_expr->refs_name(formal)) {
+				for (size_t fi = 0; fi < cgdef->sample_formals.size(); fi += 1)
+				      if (cp_sample_expr->refs_name(cgdef->sample_formals[fi])
+					  && cg_class->covgrp_sample_formal_prop(fi) < 0) {
 					    uses_sample_formal = true;
 					    break;
 				      }
@@ -51859,14 +52379,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // sequence index.
 				      if (resolved_ignore_bins.count(&bin)) continue;
 				      if (base_kind == 1) continue;
-				      // shortcut: wildcard transition bins need literal patterns and
-				      // cannot be arrayed; add set indexing when a case needs it.
-				      if (bin.wildcard && bin.arrayed) {
-					    cerr << "sorry: wildcard arrayed transition bin '"
-						 << bin.name << "' is not supported; the bin is "
-						 << "dropped." << endl;
-					    continue;
-				      }
 				      if (bin.trans_seqs.size() > 255) {
 					    cerr << "sorry: covergroup transition bin '" << bin.name
 						 << "' has more than 255 alternative sequences; "
@@ -51939,8 +52451,27 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 								    bad = true;
 								    break;
 							      }
-							      term.ranges.push_back(
-								    std::make_pair(value, mask));
+							      if (!bin.arrayed) {
+								    term.ranges.push_back(std::make_pair(value, mask));
+							      } else {
+								    uint64_t width_mask = cp_value_width == 64
+									  ? UINT64_MAX : (UINT64_C(1) << cp_value_width) - 1;
+								    if (value & mask & ~width_mask) continue;
+								    uint64_t free_bits = ~mask & width_mask;
+								    if (__builtin_popcountll(free_bits) > 16) {
+									  cerr << "sorry: arrayed transition term in bin '"
+									       << bin.name << "' has too many value alternatives; the bin is dropped." << endl;
+									  bad = true;
+									  break;
+								    }
+								    uint64_t subset = free_bits;
+								    do {
+									  uint64_t v = (value & mask & width_mask) | subset;
+									  term.ranges.push_back(std::make_pair(v, v));
+									  if (!subset) break;
+									  subset = (subset - 1) & free_bits;
+								    } while (true);
+							      }
 							}
 						  } else if (!eval_ranges(source_term.ranges, term.ranges,
 						     cp_value_width, cp_value_signed,
@@ -51975,10 +52506,10 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							break;
 						  }
 						  if (bad) break;
-						  // One wildcard bin is one transition alternative, regardless
-						  // of how many concrete values its pattern matches.
+						  // A scalar wildcard bin groups all matched values; an array
+						  // instead has one alternative per concrete value.
 						  unsigned __int128 alternatives = 1;
-						  if (!bin.wildcard) {
+						  if (!bin.wildcard || bin.arrayed) {
 							std::sort(term.ranges.begin(), term.ranges.end());
 							std::vector<std::pair<uint64_t,uint64_t>> merged;
 							for (auto&r : term.ranges) {
@@ -52295,13 +52826,13 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 							cg_class->add_covgrp_bin(cp_idx, marker_prop,
 							      r.first, r.second,
 							      (base_kind == 2 ? 2u | 1024u : 4u)
-								    | (bin.wildcard ? 8u : 0u),
+								    | (bin.wildcard ? (bin.arrayed ? 8192u : 8u) : 0u),
 							      (sq << 8) | st, cp_idx,
 							      term.repeat, term.min, term.max,
 							      (unsigned)alt_base,
 							      (unsigned)term.alternatives,
 							      family, seq_bases[sq], bin_guard);
-							if (!bin.wildcard)
+							if (!bin.wildcard || bin.arrayed)
 							      alt_base += r.second - r.first + 1;
 						  }
 					    }
@@ -53376,6 +53907,38 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				        // an implementation guard on the number of counters,
 				        // not on the number of values represented by them.
 				      static const uint64_t array_bin_limit = 65536;
+				      if (nbins > array_bin_limit && bin.array_size
+					  && !bin.wildcard
+					  && !(bin.with_expr && cg_distribute_first)) {
+					      // 19.5.1 sets no limit on the number of
+					      // bins. A larger fixed-size array becomes a
+					      // value family of NBINS bins, distributed by
+					      // the runtime over the same ordered values
+					      // and carved there (19.5.5), with a counter
+					      // only for each bin hit.
+					    unsigned family = dyn_family++;
+					    auto endpoint = [&](uint64_t value) {
+						  return "c:" + std::to_string(value) + ":"
+							+ std::to_string(cp_value_width)
+							+ (cp_value_signed ? ":s" : "");
+					    };
+					    for (auto&range : rr)
+						  cg_class->add_covgrp_dyn_bin(cp_idx, cp_idx,
+							kindval, family, (uint64_t)nbins,
+							bin.name.str(), endpoint(range.first),
+							endpoint(range.second), cp_value_width,
+							cp_value_signed, bin_guard);
+					    if ((kindval & 7) == 0) {
+						  xbin_desc_t d;
+						  d.name = bin.name;
+						  d.wildcard = false;
+						  d.dyn_family = (int)family;
+						  d.guard_idx = bin_guard;
+						  vbins.push_back(d);
+						  has_value_bins = true;
+					    }
+					    continue;
+				      }
 				      if (nbins > array_bin_limit) {
 					    cerr << "sorry: arrayed covergroup bin '"
 						 << bin.name << "' needs more than "
@@ -55611,6 +56174,9 @@ class elaborate_root_scope_t : public elaborator_work_item_t {
 		  root_repl[peek_head_name(tmp_name)] = cur->second;
 	    }
 
+	      // A config may configure this root, and override its parameters.
+	    config_root_scope(des, scope_, rmod_, root_repl);
+
 	    /* Module::elaborate_scope reports failure when any design error is
 	     * already present, including a diagnostic emitted earlier while
 	     * elaborating the compilation unit. Do not turn that global status
@@ -56931,7 +57497,9 @@ Design* elaborate(list<perm_string>roots)
 
 	      // Make the root scope. This makes a NetScope object and
 	      // pushes it into the list of root scopes in the Design.
-	    NetScope*scope = des->make_root_scope(*root, unit_scope,
+	      // The scope has the name of the cell: the key of a cell
+	      // that a config selects may be library-qualified.
+	    NetScope*scope = des->make_root_scope(rmod->cell, unit_scope,
 						  rmod->program_block,
 						  rmod->is_interface);
 	    scope->set_module_definition(rmod);

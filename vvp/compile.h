@@ -169,6 +169,15 @@ extern void compile_functor(char*label, char*type, unsigned width,
 extern void compile_resolver(char*label, char*type,
 			     unsigned argc, struct symb_s*argv);
 
+/*
+ * The charge storage of a trireg net (vvp_fun_trireg in resolv.h). The
+ * symbols are the resolved drivers, then the decay-time net if mode bit 1
+ * is set, then the tran island port if mode bit 2 is set.
+ */
+extern void compile_trireg(char*label, unsigned wid, unsigned charge,
+			   unsigned mode, vvp_time64_t decay,
+			   unsigned argc, struct symb_s*argv);
+
 extern void compile_concat(char*label, unsigned w0, unsigned w1,
 			   unsigned w2, unsigned w3,
 			   unsigned argc, struct symb_s*argv);
@@ -310,7 +319,7 @@ extern void compile_enum4_type(char*label, long width, bool signed_flag,
 struct __vpiModPath;
 extern __vpiModPath* compile_modpath(char*label,
                                      unsigned width,
-				     bool showcancelled,
+				     unsigned pulse_flags,
 				     struct symb_s drv,
 				     struct symb_s dest);
 extern void compile_modpath_src(__vpiModPath*dst,

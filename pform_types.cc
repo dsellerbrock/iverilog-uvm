@@ -521,3 +521,18 @@ std::ostream& operator<< (std::ostream&out, enum typedef_t::basic_type bt)
 
 	return out;
 }
+
+std::vector<perm_string> typedef_alias_names(const data_type_t*dt)
+{
+      std::vector<perm_string> aliases;
+      std::set<const typedef_t*> seen; // a circular chain is an error elsewhere
+      while (const typeref_t*ref = dynamic_cast<const typeref_t*>(dt)) {
+	    typedef_t*td = ref->typedef_ref();
+	    if (!td || !seen.insert(td).second) break;
+	    const data_type_t*next = td->get_data_type();
+	    if (!dynamic_cast<const typeref_t*>(next)) break;
+	    aliases.push_back(td->name);
+	    dt = next;
+      }
+      return aliases;
+}

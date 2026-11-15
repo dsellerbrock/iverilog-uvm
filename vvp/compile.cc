@@ -366,10 +366,13 @@ static const struct opcode_table_s opcode_table[] = {
       { "%copyout/leave",of_COPYOUT_LEAVE,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_all", of_COVGRP_GET_ALL, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_coverage", of_COVGRP_GET_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%covgrp/get_coverage/ref", of_COVGRP_GET_COVERAGE_REF, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_inst_coverage", of_COVGRP_GET_INST_COVERAGE, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/get_inst_coverage/ref", of_COVGRP_GET_INST_COVERAGE_REF, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/item/get_coverage", of_COVGRP_ITEM_GET_COVERAGE, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%covgrp/item/get_coverage/ref", of_COVGRP_ITEM_GET_COVERAGE_REF, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/item/get_inst_coverage", of_COVGRP_ITEM_GET_INST_COVERAGE, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%covgrp/item/get_inst_coverage/ref", of_COVGRP_ITEM_GET_INST_COVERAGE_REF, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/item/start", of_COVGRP_ITEM_START, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/item/stop", of_COVGRP_ITEM_STOP, 1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%covgrp/options/init", of_COVGRP_OPTIONS_INIT, 0,{OA_NONE,OA_NONE,OA_NONE} },
@@ -380,6 +383,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%covgrp/stop",    of_COVGRP_STOP,     0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/strobe/wait", of_COVGRP_STROBE_WAIT, 0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%covgrp/type/get_coverage", of_COVGRP_TYPE_GET_COVERAGE, 2,{OA_VPI_PTR,OA_BIT1,OA_NONE} },
+      { "%covgrp/type/get_coverage/ref", of_COVGRP_TYPE_GET_COVERAGE_REF, 2,{OA_VPI_PTR,OA_BIT1,OA_NONE} },
       { "%cvt/rv",   of_CVT_RV,  0, {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%cvt/rv/s", of_CVT_RV_S,0, {OA_NONE,   OA_NONE,     OA_NONE} },
       { "%cvt/sr", of_CVT_SR, 1,  {OA_BIT1,     OA_NONE,     OA_NONE} },
@@ -445,6 +449,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%evctl/vif/posedge/s",of_EVCTLVIF_POSEDGE_S,3,{OA_NUMBER,OA_BIT1,OA_BIT2} },
       { "%event",    of_EVENT,    1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%event/assign",of_EVENT_ASSIGN,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%event/assign/arr",of_EVENT_ASSIGN_ARR,3,{OA_FUNC_PTR,OA_BIT1,OA_BIT2} },
       { "%event/assign/null",of_EVENT_ASSIGN_NULL,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%event/cmp",of_EVENT_CMP,2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
       { "%event/expr/load/o",of_EVENT_EXPR_LOAD_OBJECT,1,{OA_NUMBER,OA_NONE,OA_NONE} },
@@ -573,6 +578,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%nor",    of_NOR,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%nor/r",  of_NORR,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%null",   of_NULL,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
+      { "%ocond/ambig", of_OCOND_AMBIG, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%or",     of_OR,     0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%or/r",   of_ORR,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%pad/s",  of_PAD_S,  1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },
@@ -1153,6 +1159,11 @@ vvp_net_t* vvp_net_lookup(const char*label)
 		      const __vpiBaseVar*sig = dynamic_cast<__vpiBaseVar*>(vpi);
 		      return sig->get_net();
 		}
+		case vpiStructVar:
+		case vpiUnionVar:
+		      if (const __vpiBaseVar*var = dynamic_cast<__vpiBaseVar*>(vpi))
+		            return var->get_net();
+		      return dynamic_cast<__vpiSignal*>(vpi)->node;
 
 		case vpiNamedEvent: {
 		      const __vpiNamedEvent*tmp = dynamic_cast<__vpiNamedEvent*>(vpi);
@@ -2901,11 +2912,13 @@ __vpiModPath* compile_find_modpath(const char*label)
 }
 
 struct __vpiModPath* compile_modpath(char*label, unsigned width,
-				     bool showcancelled,
+				     unsigned pulse_flags,
                                      struct symb_s drv, struct symb_s dest)
 {
       vvp_net_t*net = new vvp_net_t;
-      vvp_fun_modpath*obj = new vvp_fun_modpath(net, width, showcancelled);
+	/* Bit 0: showcancelled; bit 1: pulsestyle_ondetect. */
+      vvp_fun_modpath*obj = new vvp_fun_modpath(net, width, pulse_flags & 1,
+						pulse_flags & 2);
       net->fun = obj;
 
       input_connect(net, 0, drv.text);
@@ -3074,6 +3087,35 @@ void compile_shiftr(char*label, long wid, bool signed_flag,
 
       vvp_arith_ *arith = new vvp_shiftr(wid, signed_flag);
       make_arith(arith, label, argc, argv);
+}
+
+void compile_trireg(char*label, unsigned wid, unsigned charge, unsigned mode,
+		    vvp_time64_t decay, unsigned argc, struct symb_s*argv)
+{
+      unsigned need = 1 + ((mode & 2) ? 1 : 0) + ((mode & 4) ? 1 : 0);
+      if (argc != need || wid == 0 || mode > 7 || (mode & 3) == 3
+	  || (charge != 1 && charge != 2 && charge != 4)) {
+	    fprintf(stderr, "invalid .trireg statement: %s\n", label);
+	    compile_errors += 1;
+	    free(label);
+	    free(argv);
+	    return;
+      }
+
+      vvp_net_t*net = new vvp_net_t;
+      net->fun = new vvp_fun_trireg(net, wid, charge, (mode & 3) != 0, decay,
+				    (mode & 4) != 0);
+      define_functor_symbol(label, net);
+
+      unsigned arg = 0;
+      input_connect(net, 0, argv[arg++].text);
+      if (mode & 2)
+	    input_connect(net, 2, argv[arg++].text);
+      if (mode & 4)
+	    input_connect(net, 1, argv[arg++].text);
+
+      free(label);
+      free(argv);
 }
 
 void compile_resolver(char*label, char*type, unsigned argc, struct symb_s*argv)

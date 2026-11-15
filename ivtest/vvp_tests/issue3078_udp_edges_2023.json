@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "issue3078_udp_edges.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "top"
+  ],
+  "gold": "issue3078_udp_edges"
+}

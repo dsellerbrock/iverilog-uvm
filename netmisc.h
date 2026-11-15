@@ -1083,4 +1083,12 @@ extern void check_for_inconsistent_delays(const NetScope*scope);
  */
 extern void note_resolved_struct_net(NetNet*sig);
 
+/*
+ * True if the scoped name is the static get_coverage method of a covergroup
+ * type or of one of its coverpoints or crosses (IEEE 1800 19.8).
+ */
+extern bool is_scoped_covergroup_coverage_call(Design*des, NetScope*scope,
+					       PPackage*package,
+					       const pform_name_t&path);
+
 #endif /* IVL_netmisc_H */

@@ -306,6 +306,7 @@ class class_type : public __vpiHandle {
 	    // kind & 128: exact 4-state value; lo packs 2-bit states, hi gives width/chunk.
 	    // kind & 512: wide automatic bin; lo is the prefix, hi packs width and prefix bits.
 	    // kind & 4096: wide inclusive range; lo indexes covgrp_wide_ranges_.
+	    // kind & 8192: expanded wildcard transition array (2-state only).
 	    unsigned kind = 0;
 	    unsigned tuple = 0;
 	    unsigned item_idx = 0;
@@ -581,6 +582,10 @@ class class_type : public __vpiHandle {
             const std::vector<uint64_t>&high) const;
       uint64_t cross_type_register_bin(unsigned family,
             const std::vector<std::pair<unsigned,uint64_t>>&name) const;
+      uint64_t cross_type_register_sparse_bin(unsigned family,
+            const std::vector<std::pair<unsigned,uint64_t>>&name) const;
+      void cross_type_register_sparse_total(unsigned family,
+            unsigned __int128 total) const;
       uint64_t trans_type_register_bin(unsigned family,
             const std::vector<uint64_t>&name) const;
       void cross_type_register_named(unsigned family,
@@ -615,7 +620,9 @@ class class_type : public __vpiHandle {
       bool covgrp_per_instance(vvp_cobject*obj) const;
       double type_coverage(class vvp_cobject*context = 0,
                            bool*contributes = nullptr,
-                           int selected_item = -1) const;
+                           int selected_item = -1,
+                           long double*covered_bins = nullptr,
+                           long double*defined_bins = nullptr) const;
 
 	// M11: registry of covergroup types for $get_coverage and the
 	// end-of-simulation report.
@@ -667,6 +674,11 @@ class class_type : public __vpiHandle {
             std::vector<bool> item_has_bins;
             std::vector<unsigned> item_at_least;
             bool has_options = false;
+	    // Covered and defined bin counts (19.8 get_coverage(ref int,
+	    // ref int)). Kept in memory only: a population read back from
+	    // a coverage database has none.
+            long double covered = 0, defined = 0;
+            std::vector<long double> item_covered, item_defined;
       };
       struct covgrp_instance_snapshot_t {
             uint64_t id = 0;
@@ -712,6 +724,8 @@ class class_type : public __vpiHandle {
             covgrp_trans_type_bins_;
       struct cov_cross_type_t {
             std::map<std::vector<std::pair<unsigned,uint64_t>>,uint64_t> bins;
+            std::set<uint64_t> dense; // bins registered by a dense instance
+            unsigned __int128 sparse_total = 0;
             std::set<unsigned> named_props;
       };
       mutable std::map<unsigned,cov_cross_type_t> covgrp_cross_type_;

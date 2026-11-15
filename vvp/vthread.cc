@@ -8513,8 +8513,11 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
       uint64_t key_prefix, const std::vector<const class_type::cov_bin_t*>&records,
       uint64_t value, const vvp_vector4_t*sample)
 {
-	  // shortcut: skip X/Z transition samples until transition terms encode four-state endpoints.
-	  if (sample && sample->has_xz()) return std::set<uint64_t>();
+	  // Expanded wildcard arrays treat an X/Z sample as a nonmatch, so it
+	  // also interrupts pending consecutive sequences.
+	  bool xz = sample && sample->has_xz();
+	  if (xz && (records.empty() || !(records[0]->kind & 8192)))
+		return std::set<uint64_t>();
       std::map<unsigned,std::map<unsigned,covgrp_trans_term_t>> programs;
       std::map<unsigned,uint64_t> seq_bases;
       for (const class_type::cov_bin_t*bin : records) {
@@ -8561,7 +8564,7 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
 		  if (state.term >= terms.size()) return;
 		  const covgrp_trans_term_t&term = terms[state.term];
 		  uint64_t ordinal = 0;
-		  bool matches = covgrp_trans_match_(term, value, ordinal);
+		  bool matches = !xz && covgrp_trans_match_(term, value, ordinal);
 		  if (state.waiting && !matches) {
 			uint64_t unused = 0;
 			if (state.forbid_term < terms.size()
@@ -8586,7 +8589,7 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
 	    for (const auto&state : old_states) consume(state, false);
 	    vvp_cobject::cov_trans_state_t fresh;
 	    uint64_t first = 0;
-	    if (covgrp_trans_match_(terms[0], value, first)) consume(fresh, false);
+	    if (!xz && covgrp_trans_match_(terms[0], value, first)) consume(fresh, false);
 	    auto&stored = cobj->cov_trans_states(key);
 	    stored.assign(next_states.begin(), next_states.end());
       }
@@ -8595,6 +8598,95 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
 
 static unsigned __int128 covgrp_dyn_logical_count_(
       const covgrp_dyn_state_t&state);
+
+/* The ignore_bins and illegal_bins values of coverpoint CP, static or
+ * constructor-dependent, which are no bins of its arrays (19.5.5). */
+static std::vector<std::pair<uint64_t,uint64_t>> covgrp_dyn_carve_set_(
+      const class_type*defn, const std::map<unsigned,covgrp_dyn_state_t>&out,
+      unsigned cp)
+{
+      std::vector<std::pair<uint64_t,uint64_t>> carved;
+      for (size_t bi = 0; bi < defn->covgrp_bin_count(); bi += 1) {
+	    const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
+	    unsigned k = bin.kind & 7;
+	    if ((k != 1 && k != 2) || bin.cp_idx != cp
+		|| (bin.kind & (8u | 128u | 1024u | 4096u))) continue;
+	    carved.push_back(std::make_pair(bin.lo, bin.hi));
+      }
+      for (auto&other : out) {
+	    const covgrp_dyn_state_t&cut = other.second;
+	    unsigned k = cut.meta ? (cut.meta->kind & 7) : 0;
+	    if (!cut.valid || (k != 1 && k != 2) || cut.meta->cp_idx != cp)
+		  continue;
+	    carved.insert(carved.end(), cut.ranges.begin(), cut.ranges.end());
+      }
+      return carved;
+}
+
+/* The bins of a fixed-size array (or a single bin, size ~0) that CARVED
+ * leaves with a value. Values were distributed in order before carving,
+ * so map the carved values to occurrence ordinals, then mark each bin
+ * whose ordinal span lies inside them: interval arithmetic, never a walk
+ * over the bins. */
+static void covgrp_dyn_fixed_carve_(covgrp_dyn_state_t&state,
+      const std::vector<std::pair<uint64_t,uint64_t>>&carved)
+{
+      typedef unsigned __int128 u128;
+      const u128 total = state.total;
+      const uint64_t requested = state.array_size;
+      const u128 nbins = requested == ~(uint64_t)0 ? 1
+	    : ((u128)requested < total ? (u128)requested : total);
+      const u128 per = requested == ~(uint64_t)0 ? total
+	    : ((u128)requested >= total ? 1 : total / requested);
+
+      std::vector<std::pair<u128,u128>> dead;
+      u128 ordinal = 0;
+      for (const auto&range : state.ranges) {
+	    for (const auto&cut : carved) {
+		  uint64_t lo = std::max(range.first, cut.first);
+		  uint64_t hi = std::min(range.second, cut.second);
+		  if (lo <= hi)
+			dead.push_back(std::make_pair(ordinal + (lo - range.first),
+						      ordinal + (hi - range.first)));
+	    }
+	    ordinal += (u128)range.second - range.first + 1;
+      }
+      if (dead.empty()) return;
+      std::sort(dead.begin(), dead.end());
+      std::vector<std::pair<u128,u128>> merged;
+      for (const auto&span : dead) {
+	    if (!merged.empty() && span.first <= merged.back().second + 1) {
+		  if (span.second > merged.back().second)
+			merged.back().second = span.second;
+	    } else {
+		  merged.push_back(span);
+	    }
+      }
+	// Bin i holds ordinals [i*per, i*per+per-1]; the last bin runs to
+	// total-1. Find the bins inside each dead ordinal span.
+      std::vector<std::pair<u128,u128>> dead_bins;
+      for (const auto&span : merged) {
+	    u128 first = (span.first + per - 1) / per;
+	    u128 last;
+	    if (span.second >= total - 1) last = nbins - 1;
+	    else if ((span.second + 1) / per == 0) continue;
+	    else last = std::min((span.second + 1) / per - 1, nbins - 2);
+	    if (first <= last && first < nbins) dead_bins.push_back(
+		  std::make_pair(first, last));
+      }
+      if (dead_bins.empty()) return;
+      state.carved = true;
+      u128 next = 0;
+      for (const auto&span : dead_bins) {
+	    if (span.first > next)
+		  state.live.push_back(std::make_pair((uint64_t)next,
+						      (uint64_t)(span.first - 1)));
+	    if (span.second + 1 > next) next = span.second + 1;
+      }
+      if (next < nbins)
+	    state.live.push_back(std::make_pair((uint64_t)next,
+						(uint64_t)(nbins - 1)));
+}
 
 static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
       const class_type*defn, vvp_cobject*cobj)
@@ -9146,22 +9238,8 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 	      // carve this coverpoint's ignore_bins and illegal_bins ranges,
 	      // fixed or constructor-dependent, out of the merged value set.
 	    if ((state.meta->kind & 7) == 0) {
-		  std::vector<std::pair<uint64_t,uint64_t>> carved;
-		  for (size_t bi = 0; bi < defn->covgrp_bin_count(); bi += 1) {
-			const class_type::cov_bin_t&bin = defn->covgrp_bin(bi);
-			unsigned k = bin.kind & 7;
-			if ((k != 1 && k != 2) || bin.cp_idx != state.meta->cp_idx
-			    || (bin.kind & (8u | 128u | 1024u | 4096u))) continue;
-			carved.push_back(std::make_pair(bin.lo, bin.hi));
-		  }
-		  for (auto&other : out) {
-			const covgrp_dyn_state_t&cut = other.second;
-			unsigned k = cut.meta ? (cut.meta->kind & 7) : 0;
-			if (!cut.valid || (k != 1 && k != 2)
-			    || cut.meta->cp_idx != state.meta->cp_idx) continue;
-			carved.insert(carved.end(), cut.ranges.begin(), cut.ranges.end());
-		  }
-		  for (const auto&cut : carved) {
+		  for (const auto&cut : covgrp_dyn_carve_set_(defn, out,
+							     state.meta->cp_idx)) {
 			std::vector<std::pair<uint64_t,uint64_t>> kept;
 			for (const auto&range : state.ranges) {
 			      if (cut.second < range.first || cut.first > range.second) {
@@ -9180,6 +9258,16 @@ static const std::map<unsigned,covgrp_dyn_state_t>& covgrp_dyn_states_(
 	    for (auto&range : state.ranges)
 		  state.total += (unsigned __int128)range.second
 			- (unsigned __int128)range.first + 1;
+      }
+	// A fixed-size array keeps its distribution (19.5.1) and loses only
+	// the bins that its ignore/illegal values empty entirely (19.5.5).
+      for (auto&entry : out) {
+	    covgrp_dyn_state_t&state = entry.second;
+	    if (!state.valid || !state.meta || state.meta->array_size == 0
+		|| state.is_auto_bins || (state.meta->kind & 7) != 0
+		|| state.total == 0) continue;
+	    covgrp_dyn_fixed_carve_(state, covgrp_dyn_carve_set_(defn, out,
+							       state.meta->cp_idx));
       }
 
 	// Constructor-dependent auto bins partition the complete source domain
@@ -9349,6 +9437,12 @@ static unsigned __int128 covgrp_dyn_logical_count_(
 	      if (!state.valid || !state.meta || state.total == 0) return 0;
 	      if (state.is_auto_bins) return state.auto_bins.size();
 	      uint64_t requested = state.array_size;
+      if (state.carved) {
+	    unsigned __int128 count = 0;
+	    for (const auto&span : state.live)
+		  count += (unsigned __int128)span.second - span.first + 1;
+	    return count;
+      }
       if (requested == ~(uint64_t)0) return 1;
       if (requested == 0) return state.total;
       unsigned __int128 bins = requested;
@@ -9416,17 +9510,6 @@ static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
       bin_indexes.assign(matched.begin(), matched.end());
       return !bin_indexes.empty();
 }
-
-struct covgrp_cross_select_op_t {
-      char op = 0;
-      unsigned dim = 0;
-      unsigned term = 0;
-      unsigned prop = 0;
-      uint64_t required = 1;
-      bool matches_all = false;
-      std::vector<unsigned> value_widths;
-      std::vector<std::pair<uint64_t,uint64_t>> ranges;
-};
 
 static bool covgrp_cross_parse_u64_(const std::string&text, uint64_t&value)
 {
@@ -9593,7 +9676,10 @@ static bool covgrp_cross_dyn_member_overlap_(const covgrp_dyn_state_t&state,
 		// than the number of bins (for example bins each[] = {[100:101]}).
 	      if (requested == 0)
 		    return covgrp_cross_ranges_overlap_(logical, logical, select_ranges);
-	      unsigned __int128 count = covgrp_dyn_logical_count_(state);
+		// Bin indexes keep their places when carving removes bins.
+	      unsigned __int128 count = requested == ~(uint64_t)0 ? 1
+		    : ((unsigned __int128)requested < state.total
+		       ? (unsigned __int128)requested : state.total);
 	      if ((unsigned __int128)logical >= count) return false;
 	      if (requested == ~(uint64_t)0) {
 		    for (auto&range : state.ranges)
@@ -9903,6 +9989,292 @@ static bool covgrp_cross_source_records_(const class_type*defn,
 	      return term.kind != 0 || !choice.records.empty();
 }
 
+/* Sparse crosses (#3303). */
+static unsigned __int128 covgrp_cross_span_count_(
+	 const std::vector<std::pair<uint64_t,uint64_t>>&spans)
+{
+      unsigned __int128 count = 0;
+      for (const auto&span : spans)
+	    count += (unsigned __int128)span.second - span.first + 1;
+      return count;
+}
+
+/* The routing of one logical tuple through the named bins of a sparse
+ * cross. VIEW holds one choice per dimension, its logical_idx the tuple's
+ * identity; illegal > ignore > normal, as for a dense route. */
+struct covgrp_cross_sparse_route_t {
+      std::set<unsigned> normal;
+      std::set<unsigned> illegal;
+      bool ignored = false;
+      bool is_auto = false;
+};
+
+static covgrp_cross_sparse_route_t covgrp_cross_sparse_route_(
+	 const covgrp_cross_state_t&state, const covgrp_cross_state_t&view,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states)
+{
+      static const covgrp_cross_set_values_t no_sets;
+      const std::vector<unsigned> tuple(view.dimensions.size(), 0);
+      covgrp_cross_sparse_route_t route;
+      for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins) {
+	    if (!covgrp_cross_eval_select_(bin.select, view, tuple,
+					  dyn_states, no_sets)) continue;
+	    if (bin.meta->kind == 2) route.illegal.insert(bin.meta->target);
+	    else if (bin.meta->kind == 1) route.ignored = true;
+	    else route.normal.insert(bin.meta->target);
+      }
+      route.is_auto = route.illegal.empty() && !route.ignored
+	    && route.normal.empty()
+	    && (state.meta->retain_auto || state.sparse_bins.empty());
+      return route;
+}
+
+/* Size the dimensions of a sparse cross and count its automatic bins
+ * exactly: the logical product less the tuples an illegal, ignore or
+ * named bin claims (IEEE 1800-2023 19.6, 19.6.1). A dimension is split
+ * into classes of identities that every selector treats alike, so only
+ * the product of the classes is routed. */
+static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
+	 std::set<unsigned>&active_named, std::string&failure)
+{
+      static const uint64_t work_limit = 16777216;
+      const unsigned ndims = state.dimensions.size();
+      state.sparse_offset.assign(ndims, std::vector<uint64_t>());
+      state.sparse_size.assign(ndims, 0);
+      unsigned __int128 product = 1;
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    unsigned __int128 size = 0;
+	    for (const covgrp_cross_choice_t&choice : state.dimensions[dim]) {
+		  state.sparse_offset[dim].push_back((uint64_t)size);
+		  size += choice.spans.empty()
+			? 1 : covgrp_cross_span_count_(choice.spans);
+		  if (size > UINT64_MAX) break;
+	    }
+	    if (size > UINT64_MAX || (size && product > UINT64_MAX / size)) {
+		  failure = "cross has more than 2^64 logical bins";
+		  return;
+	    }
+	    state.sparse_size[dim] = (uint64_t)size;
+	    product *= size;
+      }
+      for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins) {
+	    if (bin.meta->kind != 2) continue;
+	    for (unsigned dim = 0; dim < ndims; dim += 1)
+		  for (const covgrp_cross_choice_t&choice : state.dimensions[dim])
+			if (choice.kind == 2 || choice.kind == 3) {
+			      failure = "illegal cross bins over transition terms are unsupported";
+			      return;
+			}
+      }
+      if (state.sparse_bins.empty()) {
+	    state.auto_total = (uint64_t)product;
+	    return;
+      }
+
+      struct class_t { unsigned choice; uint64_t rep; uint64_t weight; };
+      std::vector<std::vector<class_t>> classes(ndims);
+      uint64_t work = 0;
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    std::vector<const covgrp_cross_select_op_t*> ops;
+	    for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins)
+		  for (const covgrp_cross_select_op_t&op : bin.select)
+			if (op.op == 'L' && op.dim == dim) ops.push_back(&op);
+	    for (unsigned ci = 0; ci < state.dimensions[dim].size(); ci += 1) {
+		  const covgrp_cross_choice_t&choice = state.dimensions[dim][ci];
+		  if (choice.spans.empty()) {
+			classes[dim].push_back({ci, choice.logical_idx, 1});
+			continue;
+		  }
+		  bool referenced = false;
+		  for (const covgrp_cross_select_op_t*op : ops)
+			if (op->term == choice.term_idx) referenced = true;
+		  if (!referenced) {
+			classes[dim].push_back({ci, choice.spans[0].first,
+			      (uint64_t)covgrp_cross_span_count_(choice.spans)});
+			continue;
+		  }
+		  auto found = dyn_states.find(choice.source_id);
+		  if (found != dyn_states.end() && found->second.array_size == 0
+		      && !found->second.is_auto_bins) {
+			  // Value-keyed: membership in every selector range is
+			  // constant between the ranges' endpoints.
+			std::set<uint64_t> cuts;
+			for (const covgrp_cross_select_op_t*op : ops) {
+			      if (op->term != choice.term_idx) continue;
+			      for (const auto&range : op->ranges) {
+				    cuts.insert(range.first);
+				    if (range.second != UINT64_MAX)
+					  cuts.insert(range.second + 1);
+			      }
+			}
+			for (const auto&span : choice.spans) {
+			      uint64_t first = span.first;
+			      auto cut = cuts.upper_bound(first);
+			      while (true) {
+				    uint64_t last = cut != cuts.end()
+					  && *cut <= span.second
+					  ? *cut - 1 : span.second;
+				    classes[dim].push_back({ci, first,
+					  last - first + 1});
+				    if (last == span.second) break;
+				    first = last + 1;
+				    ++cut;
+			      }
+			}
+			continue;
+		  }
+			// Otherwise classify each identity, grouping equal runs.
+		  covgrp_cross_choice_t probe = choice;
+		  std::vector<bool> prev_mask;
+		  for (const auto&span : choice.spans) {
+			for (uint64_t id = span.first; ; id += 1) {
+			      work += ops.size();
+			      if (work > work_limit) {
+				    failure = "cross selector evaluation exceeds 16777216 operations";
+				    return;
+			      }
+			      probe.logical_idx = id;
+			      std::vector<bool> mask;
+			      for (const covgrp_cross_select_op_t*op : ops)
+				    mask.push_back(op->term == choice.term_idx
+					  && covgrp_cross_choice_overlap_(probe,
+						dyn_states, op->ranges));
+			      if (!classes[dim].empty() && mask == prev_mask
+				  && classes[dim].back().choice == ci
+				  && classes[dim].back().rep
+					+ classes[dim].back().weight == id)
+				    classes[dim].back().weight += 1;
+			      else
+				    classes[dim].push_back({ci, id, 1});
+			      prev_mask = mask;
+			      if (id == span.second) break;
+			}
+		  }
+	    }
+      }
+
+      uint64_t tuples = 1;
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    uint64_t count = classes[dim].size();
+	    if (count == 0) { tuples = 0; break; }
+	    if (tuples > work_limit / count) {
+		  failure = "cross selector evaluation exceeds 16777216 operations";
+		  return;
+	    }
+	    tuples *= count;
+      }
+      if (tuples && state.sparse_bins.size() > (work_limit - work) / tuples) {
+	    failure = "cross selector evaluation exceeds 16777216 operations";
+	    return;
+      }
+      covgrp_cross_state_t view;
+      view.dimensions.resize(ndims);
+      std::vector<unsigned> at(ndims, 0);
+      uint64_t automatic = 0;
+      for (uint64_t tn = 0; tn < tuples; tn += 1) {
+	    uint64_t weight = 1;
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  const class_t&cls = classes[dim][at[dim]];
+		  view.dimensions[dim].assign(1, state.dimensions[dim][cls.choice]);
+		  view.dimensions[dim][0].logical_idx = cls.rep;
+		  weight *= cls.weight;
+	    }
+	    covgrp_cross_sparse_route_t route =
+		  covgrp_cross_sparse_route_(state, view, dyn_states);
+	    if (route.illegal.empty() && !route.ignored)
+		  active_named.insert(route.normal.begin(), route.normal.end());
+	    if (route.is_auto) automatic += weight;
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  at[dim] += 1;
+		  if (at[dim] < classes[dim].size()) break;
+		  at[dim] = 0;
+	    }
+      }
+      state.auto_total = automatic;
+}
+
+/* Route each logical tuple of a sparse cross hit by this sample: the
+ * product of the matched ordinary choices and the hit identities of the
+ * symbolic ones. VISIT gets the route, the tuple's mixed-radix key and its
+ * IEEE 19.11.3 name. */
+template <class VISIT>
+static void covgrp_cross_sparse_each_(const covgrp_cross_state_t&state,
+	 const std::vector<std::set<unsigned>>&matched,
+	 const std::map<std::pair<unsigned,unsigned>,std::set<uint64_t>>&hits,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
+	 vvp_cobject*cobj, VISIT visit)
+{
+      static const uint64_t per_sample_limit = 65536;
+      const unsigned ndims = state.dimensions.size();
+      std::vector<std::vector<std::pair<unsigned,uint64_t>>> picks(ndims);
+      uint64_t tuples = 1;
+      for (unsigned dim = 0; dim < ndims && dim < matched.size(); dim += 1) {
+	    for (unsigned ci : matched[dim]) {
+		  const covgrp_cross_choice_t&choice = state.dimensions[dim][ci];
+		  if (choice.spans.empty()) {
+			picks[dim].push_back(std::make_pair(ci, choice.logical_idx));
+			continue;
+		  }
+		  auto hit = hits.find(std::make_pair(dim, ci));
+		  if (hit == hits.end()) continue;
+		  for (uint64_t id : hit->second)
+			picks[dim].push_back(std::make_pair(ci, id));
+	    }
+	    if (picks[dim].empty()) return;
+      }
+      if (matched.size() < ndims) return;
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    if (tuples > per_sample_limit / picks[dim].size()) {
+		  if (cobj->cov_cross_warn_once(state.meta->family))
+			cerr << "WARNING: dynamic cross family " << state.meta->family
+			     << ": a sample hit more than 65536 cross bins;"
+			     << " the rest are not counted." << endl;
+		  tuples = per_sample_limit;
+		  break;
+	    }
+	    tuples *= picks[dim].size();
+      }
+      covgrp_cross_state_t view;
+      view.dimensions.resize(ndims);
+      std::vector<unsigned> at(ndims, 0);
+      for (uint64_t tn = 0; tn < tuples; tn += 1) {
+	    uint64_t key = 0, stride = 1;
+	    std::vector<std::pair<unsigned,uint64_t>> name;
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  const std::pair<unsigned,uint64_t>&pick = picks[dim][at[dim]];
+		  const covgrp_cross_choice_t&choice =
+			state.dimensions[dim][pick.first];
+		  view.dimensions[dim].assign(1, choice);
+		  view.dimensions[dim][0].logical_idx = pick.second;
+		  uint64_t flat = state.sparse_offset[dim][pick.first];
+		  for (const auto&span : choice.spans) {
+			if (pick.second >= span.first && pick.second <= span.second) {
+			      flat += pick.second - span.first;
+			      break;
+			}
+			flat += span.second - span.first + 1;
+		  }
+		  key += flat * stride;
+		  stride *= state.sparse_size[dim];
+		  uint64_t identity = pick.second;
+		  if (choice.kind == 1) {
+			auto source = dyn_states.find(choice.source_id);
+			if (source != dyn_states.end() && source->second.is_auto_bins
+			    && identity < source->second.type_bins.size())
+			      identity = source->second.type_bins[identity];
+		  }
+		  name.emplace_back(choice.term_idx, identity);
+	    }
+	    visit(covgrp_cross_sparse_route_(state, view, dyn_states), key, name);
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  at[dim] += 1;
+		  if (at[dim] < picks[dim].size()) break;
+		  at[dim] = 0;
+	    }
+      }
+}
+
 static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
       const class_type*defn, vvp_cobject*cobj)
 {
@@ -10020,6 +10392,31 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 			  terms[term->dim].push_back(term);
 		    }
 
+		    // IEEE 1800-2023 19.6 sets no limit on the number of cross
+		    // bins (#3303). Over cross_bin_limit logical tuples the cross
+		    // is sparse: a dynamic-family dimension stays one symbolic
+		    // choice and only hit tuples are counted.
+		    bool sparse = false;
+		    if (failure.empty()) {
+			  const unsigned __int128 u128_max = ~(unsigned __int128)0;
+			  unsigned __int128 logical_product = 1;
+			  for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
+				unsigned __int128 count = 0;
+				for (const class_type::cov_cross_term_t*term : terms[dim]) {
+				      auto found = term->kind == 1
+					    ? dyn_states.find(term->source_id)
+					    : dyn_states.end();
+				      count += found != dyn_states.end()
+					    && found->second.valid
+					    ? covgrp_dyn_logical_count_(found->second) : 1;
+				}
+				if (count == 0) { logical_product = 0; break; }
+				logical_product = logical_product > u128_max / count
+				      ? u128_max : logical_product * count;
+			  }
+			  sparse = logical_product > cross_bin_limit;
+		    }
+		    state.sparse = sparse;
 		    uint64_t total_choices = 0;
 		    uint64_t source_record_refs = 0;
 		    for (unsigned dim = 0; failure.empty() && dim < meta.n_dims; dim += 1) {
@@ -10052,6 +10449,26 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 			      }
 			      unsigned __int128 logical =
 				    covgrp_dyn_logical_count_(found->second);
+			      if (sparse) {
+				    choice.cp_idx = found->second.meta->cp_idx;
+				    if (logical == 0) {
+				    } else if (found->second.array_size == 0) {
+					  choice.spans = found->second.ranges;
+				    } else if (found->second.carved) {
+					  choice.spans = found->second.live;
+				    } else if (logical - 1 > UINT64_MAX) {
+					  failure = "cross dimension has more than 2^64 bins";
+					  break;
+				    } else {
+					  choice.spans.assign(1, std::make_pair(
+						UINT64_C(0), (uint64_t)(logical - 1)));
+				    }
+				    if (!choice.spans.empty()) {
+					  choice.logical_idx = choice.spans[0].first;
+					  state.dimensions[dim].push_back(choice);
+					  total_choices += 1;
+				    }
+			      } else {
 				      if (logical > cross_bin_limit
 					  || total_choices > cross_bin_limit - (uint64_t)logical
 					  || state.dimensions[dim].size()
@@ -10073,6 +10490,13 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 						value += 1;
 					  }
 				    }
+			      } else if (found->second.carved) {
+				    for (const auto&span : found->second.live)
+					  for (uint64_t idx = span.first; ; idx += 1) {
+						choice.logical_idx = idx;
+						state.dimensions[dim].push_back(choice);
+						if (idx == span.second) break;
+					  }
 			      } else {
 				    for (uint64_t logical_idx = 0;
 					 logical_idx < (uint64_t)logical;
@@ -10082,6 +10506,7 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 				    }
 					  }
 				      total_choices += (uint64_t)logical;
+			      }
 				} else {
 				      if (term->kind > 3
 					  || !covgrp_cross_source_records_(
@@ -10112,8 +10537,9 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 			  }
 		    }
 
-	    uint64_t product = 1;
-	    for (unsigned dim = 0; failure.empty() && dim < meta.n_dims; dim += 1) {
+	    uint64_t product = sparse ? 0 : 1;
+	    for (unsigned dim = 0; !sparse && failure.empty()
+		     && dim < meta.n_dims; dim += 1) {
 		  uint64_t count = state.dimensions[dim].size();
 		  if (count == 0) { product = 0; break; }
 		  if (product > cross_bin_limit / count) {
@@ -10292,6 +10718,10 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 					    break;
 				      }
 				} else if (op.op == 'Q') {
+				      if (sparse) {
+					    failure = "cross set bins on a cross over 65536 bins are not supported";
+					    break;
+				      }
 				      if (!prepare_cross_set(op, parsed)) break;
 				}
 			  }
@@ -10406,6 +10836,15 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 		  }
 	    }
 
+	    if (sparse && failure.empty()) {
+		  for (const named_bin_t&named : named_bins) {
+			covgrp_cross_sparse_bin_t bin;
+			bin.meta = named.meta;
+			bin.select = named.select;
+			state.sparse_bins.push_back(bin);
+		  }
+		  covgrp_cross_sparse_plan_(state, dyn_states, active_named, failure);
+	    }
 	    if (!failure.empty()) {
 		  state.routes.clear();
 		  state.named_props.clear();
@@ -10420,7 +10859,9 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
             // bin names. Terms are fixed metadata identities; logical_idx
             // is a value for unsized arrays and an index for fixed arrays.
             // Publish only after the complete plan has passed validation.
-            state.type_bins.resize(state.auto_total);
+            if (!sparse) state.type_bins.resize(state.auto_total);
+            else defn->cross_type_register_sparse_total(meta.family,
+                                                        state.auto_total);
             for (const covgrp_cross_route_t&route : state.routes) {
                   if (route.auto_bin == UINT64_MAX) continue;
                   std::vector<std::pair<unsigned,uint64_t>> name;
@@ -10479,7 +10920,8 @@ static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
       const vector<uint64_t>&bin_guards,
       const std::set<unsigned>&transition_hits,
       const std::set<std::pair<unsigned,uint64_t>>&transition_family_hits,
-      bool include_transitions, bool honor_suppression)
+      bool include_transitions, bool honor_suppression,
+      std::map<std::pair<unsigned,unsigned>,std::set<uint64_t>>*sparse_hits = 0)
 {
       std::vector<std::set<unsigned>> matched(state.dimensions.size());
       std::set<unsigned> dyn_computed;
@@ -10520,7 +10962,16 @@ static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
 						logical.begin(), logical.end());
 			      }
 			}
-			hit = dyn_hits[choice.source_id].count(choice.logical_idx) != 0;
+			const std::set<uint64_t>&family_hits = dyn_hits[choice.source_id];
+			if (choice.spans.empty()) {
+			      hit = family_hits.count(choice.logical_idx) != 0;
+			} else {
+				// A sparse choice is hit by every identity its family hit.
+			      hit = !family_hits.empty();
+			      if (hit && sparse_hits)
+				    (*sparse_hits)[std::make_pair(dim, choice_idx)]
+					  = family_hits;
+			}
 		  } else if (include_transitions && choice.kind == 2) {
 			hit = transition_hits.count(choice.source_id) != 0;
 		  } else if (include_transitions && choice.kind == 3) {
@@ -11099,14 +11550,27 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    bool has_illegal = false;
 	    for (const covgrp_cross_route_t&route : state.routes)
 		  if (!route.illegal_targets.empty()) { has_illegal = true; break; }
+	    for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins)
+		  if (bin.meta->kind == 2) has_illegal = true;
 	    if (!has_illegal) continue;
 	    const std::set<unsigned> no_transition_props;
 	    const std::set<std::pair<unsigned,uint64_t>> no_transition_families;
+	    std::map<std::pair<unsigned,unsigned>,std::set<uint64_t>> sparse_hits;
 	    std::vector<std::set<unsigned>> matched =
 		  covgrp_cross_matched_choices_(state, defn, dyn_states, ncp, cp_vals,
 			wide_vals, cp_sampled, cp_suppressed, bin_guards,
-			no_transition_props, no_transition_families, false, false);
+			no_transition_props, no_transition_families, false, false,
+			&sparse_hits);
 	    std::set<unsigned> illegal_hits;
+	    if (state.sparse)
+		  covgrp_cross_sparse_each_(state, matched, sparse_hits, dyn_states,
+			cobj, [&](const covgrp_cross_sparse_route_t&route, uint64_t,
+				  const std::vector<std::pair<unsigned,uint64_t>>&) {
+			      for (unsigned prop : route.illegal)
+				    if (covgrp_cross_target_guard_enabled_(defn,
+					  entry.first, prop, bin_guards))
+					  illegal_hits.insert(prop);
+			});
 	    for (const covgrp_cross_route_t&route : state.routes) {
 		  if (route.illegal_targets.empty()
 		      || !covgrp_cross_route_matches_(route, matched)) continue;
@@ -11320,12 +11784,35 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    const covgrp_cross_state_t&state = entry.second;
 	    if (!state.enabled || !state.meta
 		|| !item_enabled(state.meta->item_idx)) continue;
+	    std::map<std::pair<unsigned,unsigned>,std::set<uint64_t>> sparse_hits;
 	    std::vector<std::set<unsigned>> matched =
 		  covgrp_cross_matched_choices_(state, defn, dyn_states, ncp, cp_vals,
 			wide_vals, cp_sampled, cp_suppressed, bin_guards,
-			transition_hits, transition_family_hits, true, true);
+			transition_hits, transition_family_hits, true, true,
+			&sparse_hits);
 	    std::set<unsigned> named_hits;
 	    std::set<uint64_t> auto_hits;
+	    if (state.sparse) {
+		  std::map<uint64_t,uint64_t> sparse_auto;
+		  covgrp_cross_sparse_each_(state, matched, sparse_hits, dyn_states,
+			cobj, [&](const covgrp_cross_sparse_route_t&route, uint64_t key,
+				  const std::vector<std::pair<unsigned,uint64_t>>&name) {
+			      if (!route.illegal.empty() || route.ignored) return;
+			      for (unsigned prop : route.normal)
+				    if (covgrp_cross_target_guard_enabled_(defn,
+					  entry.first, prop, bin_guards))
+					  named_hits.insert(prop);
+			      if (route.is_auto && !sparse_auto.count(key))
+				    sparse_auto[key] = defn->cross_type_register_sparse_bin(
+					  entry.first, name);
+			});
+		  for (unsigned prop : named_hits) covgrp_bump_count_(cobj, prop);
+		  for (auto&hit : sparse_auto)
+			cobj->cov_dyn_bump(entry.first, hit.first, hit.second);
+		  if (!named_hits.empty() || !sparse_auto.empty())
+			item_matched[state.meta->item_idx] = true;
+		  continue;
+	    }
 	    for (const covgrp_cross_route_t&route : state.routes) {
 		  if (!route.illegal_targets.empty()
 		      || !covgrp_cross_route_matches_(route, matched)) continue;
@@ -11634,25 +12121,39 @@ bool of_COVGRP_OPTIONS_INIT(vthread_t thr, vvp_code_t)
       return true;
 }
 
-/* %covgrp/get_coverage — TYPE coverage: the per-item weighted model
- * computed over the counters merged across all instances of this
- * covergroup type. */
-bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t)
+/* Store the covered and defined bin counts of a (ref int, ref int) query.
+ * A zero denominator assigns zero to both (19.11 d). */
+static void covgrp_store_counts_(const vvp_object_t&covered_ref_obj,
+				 const vvp_object_t&total_ref_obj,
+				 bool counted, long double covered,
+				 long double defined)
 {
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      double result = 0.0;
-      if (vvp_cobject*cobj = obj.peek<vvp_cobject>())
-	    result = cobj->get_defn()->type_coverage(cobj);
-      thr->push_real(result);
-      return true;
+      if (!counted || defined == 0.0L) covered = defined = 0.0L;
+      auto store_count = [](vvp_lvalue_ref*ref, long double count) {
+	    if (!ref) return;
+	    uint32_t value = static_cast<uint32_t>(count);
+	    vvp_vector4_t data(ref->value_width(), BIT4_0);
+	    for (unsigned bit = 0; bit < data.size() && bit < 32; ++bit)
+		  if (value & (1u << bit)) data.set_bit(bit, BIT4_1);
+	    ref->store_vec4(data);
+      };
+      store_count(covered_ref_obj.peek<vvp_lvalue_ref>(), covered);
+      store_count(total_ref_obj.peek<vvp_lvalue_ref>(), defined);
 }
 
 /* %covgrp/type/get_coverage — TYPE coverage selected without a covergroup
  * instance receiver. Operand 1 is the covergroup class definition; operand
- * 2 is zero for the group or item index plus one for a coverpoint/cross. */
-bool of_COVGRP_TYPE_GET_COVERAGE(vthread_t thr, vvp_code_t code)
+ * 2 is zero for the group or item index plus one for a coverpoint/cross.
+ * The /ref form has the covered and total (ref int, ref int) references on
+ * the object stack. */
+static bool covgrp_type_query_(vthread_t thr, vvp_code_t code,
+			       bool has_output_refs)
 {
+      vvp_object_t total_ref_obj, covered_ref_obj;
+      if (has_output_refs) {
+	    thr->pop_object(total_ref_obj);
+	    thr->pop_object(covered_ref_obj);
+      }
       const class_type*type = dynamic_cast<const class_type*>(code->handle);
       if (!type || !type->is_covergroup()) {
 	    fprintf(stderr, "VVP error: %%covgrp/type/get_coverage requires a covergroup type\n");
@@ -11670,8 +12171,26 @@ bool of_COVGRP_TYPE_GET_COVERAGE(vthread_t thr, vvp_code_t code)
 	    selected_item = static_cast<int>(code->bit_idx[0] - 1);
       }
 
-      thr->push_real(type->type_coverage(nullptr, nullptr, selected_item));
+      long double covered = 0.0L, defined = 0.0L;
+      bool contributes = false;
+      double result = type->type_coverage(nullptr, &contributes, selected_item,
+					  &covered, &defined);
+      if (has_output_refs)
+	    covgrp_store_counts_(covered_ref_obj, total_ref_obj,
+				 selected_item >= 0 || contributes,
+				 covered, defined);
+      thr->push_real(result);
       return true;
+}
+
+bool of_COVGRP_TYPE_GET_COVERAGE(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_type_query_(thr, code, false);
+}
+
+bool of_COVGRP_TYPE_GET_COVERAGE_REF(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_type_query_(thr, code, true);
 }
 
 /* %covgrp/get_all — $get_coverage (19.9/19.7.1): eligible type
@@ -11838,79 +12357,87 @@ double vvp_covgrp_instance_coverage(vvp_cobject*cobj, bool*contributes,
       return result;
 }
 
-static bool of_COVGRP_GET_INST_COVERAGE_(vthread_t thr, bool has_output_refs)
+/* The coverage queries of 19.8 Table 19-5 on an instance receiver:
+ * %covgrp/get_coverage (TYPE coverage, all instances of the receiver's
+ * covergroup type), %covgrp/get_inst_coverage, and their %covgrp/item/...
+ * forms for the coverpoint or cross numbered by the operand. The object is
+ * on the object stack; a /ref form has the covered and total (ref int,
+ * ref int) references above it. get_inst_coverage reads the type score
+ * when the instance does not track its own (option get_inst_coverage,
+ * 19.7). */
+static bool covgrp_query_(vthread_t thr, vvp_code_t code, bool inst,
+			  bool item_form, bool has_output_refs)
 {
-	  vvp_object_t total_ref_obj, covered_ref_obj;
-	  if (has_output_refs) {
-		thr->pop_object(total_ref_obj);
-		thr->pop_object(covered_ref_obj);
-	  }
+      vvp_object_t total_ref_obj, covered_ref_obj;
+      if (has_output_refs) {
+	    thr->pop_object(total_ref_obj);
+	    thr->pop_object(covered_ref_obj);
+      }
       vvp_object_t obj;
       thr->pop_object(obj);
       vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      long double covered = 0.0L, defined = 0.0L;
-	  bool contributes = false;
-      double result = cobj && !cobj->get_defn()->covgrp_get_inst_coverage(cobj)
-	    ? cobj->get_defn()->type_coverage(cobj)
-	    : vvp_covgrp_instance_coverage(cobj, &contributes, -1,
-						 &covered, &defined);
-      if (has_output_refs) {
-	    vvp_lvalue_ref*covered_ref = covered_ref_obj.peek<vvp_lvalue_ref>();
-	    vvp_lvalue_ref*total_ref = total_ref_obj.peek<vvp_lvalue_ref>();
-	    auto store_count = [](vvp_lvalue_ref*ref, long double count) {
-		  if (!ref) return;
-		  uint32_t value = static_cast<uint32_t>(count);
-		  vvp_vector4_t data(ref->value_width(), BIT4_0);
-		  for (unsigned bit = 0; bit < data.size() && bit < 32; ++bit)
-			if (value & (1u << bit)) data.set_bit(bit, BIT4_1);
-		  ref->store_vec4(data);
-	    };
-	    store_count(covered_ref, contributes ? covered : 0.0L);
-	    store_count(total_ref, contributes ? defined : 0.0L);
+      const class_type*defn = cobj ? cobj->get_defn() : 0;
+      int item = -1;
+      if (item_form && defn) {
+	    if (code->number < defn->covgrp_item_count())
+		  item = static_cast<int>(code->number);
+	    else
+		  defn = 0;
       }
+      long double covered = 0.0L, defined = 0.0L;
+      bool contributes = false;
+      double result = 0.0;
+      if (defn)
+	    result = inst && defn->covgrp_get_inst_coverage(cobj)
+		  ? vvp_covgrp_instance_coverage(cobj, &contributes, item,
+						 &covered, &defined)
+		  : defn->type_coverage(cobj, &contributes, item,
+					&covered, &defined);
+      if (has_output_refs)
+	    covgrp_store_counts_(covered_ref_obj, total_ref_obj,
+				 item >= 0 || contributes, covered, defined);
       thr->push_real(result);
       return true;
 }
 
-bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t)
+bool of_COVGRP_GET_COVERAGE(vthread_t thr, vvp_code_t code)
 {
-      return of_COVGRP_GET_INST_COVERAGE_(thr, false);
+      return covgrp_query_(thr, code, false, false, false);
 }
 
-bool of_COVGRP_GET_INST_COVERAGE_REF(vthread_t thr, vvp_code_t)
+bool of_COVGRP_GET_COVERAGE_REF(vthread_t thr, vvp_code_t code)
 {
-      return of_COVGRP_GET_INST_COVERAGE_(thr, true);
+      return covgrp_query_(thr, code, false, false, true);
+}
+
+bool of_COVGRP_GET_INST_COVERAGE(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_query_(thr, code, true, false, false);
+}
+
+bool of_COVGRP_GET_INST_COVERAGE_REF(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_query_(thr, code, true, false, true);
 }
 
 bool of_COVGRP_ITEM_GET_COVERAGE(vthread_t thr, vvp_code_t code)
 {
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      double result = 0.0;
-      if (cobj && code->number <= INT_MAX
-	  && code->number < cobj->get_defn()->covgrp_item_count())
-	    result = cobj->get_defn()->type_coverage(
-		  cobj, nullptr, static_cast<int>(code->number));
-      thr->push_real(result);
-      return true;
+      return covgrp_query_(thr, code, false, true, false);
+}
+
+bool of_COVGRP_ITEM_GET_COVERAGE_REF(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_query_(thr, code, false, true, true);
 }
 
 bool of_COVGRP_ITEM_GET_INST_COVERAGE(vthread_t thr, vvp_code_t code)
 {
-      vvp_object_t obj;
-      thr->pop_object(obj);
-      vvp_cobject*cobj = obj.peek<vvp_cobject>();
-      double result = 0.0;
-      if (cobj && code->number <= INT_MAX
-	  && code->number < cobj->get_defn()->covgrp_item_count()) {
-	    int item = static_cast<int>(code->number);
-	    result = cobj->get_defn()->covgrp_get_inst_coverage(cobj)
-		  ? vvp_covgrp_instance_coverage(cobj, nullptr, item)
-		  : cobj->get_defn()->type_coverage(cobj, nullptr, item);
-      }
-      thr->push_real(result);
-      return true;
+      return covgrp_query_(thr, code, true, true, false);
+}
+
+bool of_COVGRP_ITEM_GET_INST_COVERAGE_REF(vthread_t thr, vvp_code_t code)
+{
+      return covgrp_query_(thr, code, true, true, true);
 }
 
 
@@ -21508,6 +22035,27 @@ bool of_EVENT_ASSIGN_NULL(vthread_t, vvp_code_t cp)
       return true;
 }
 
+/*
+ * %event/assign/arr <dst>, <idx-reg>, <arr-reg>
+ * The source is an element of a named-event array: arr-reg holds the
+ * array's base slot (high word) and element count (low word), idx-reg
+ * the element offset. An invalid index reads as the null event (IEEE
+ * 1800-2017/2023 7.4.5).
+ */
+bool of_EVENT_ASSIGN_ARR(vthread_t thr, vvp_code_t cp)
+{
+      int64_t index = thr->words[cp->bit_idx[0]].w_int;
+      uint64_t packed = thr->words[cp->bit_idx[1]].w_uint;
+      uint32_t base = static_cast<uint32_t>(packed >> 32);
+      uint32_t count = static_cast<uint32_t>(packed);
+      bool valid = thr->flags[4] != BIT4_1 && index >= 0
+	    && static_cast<uint64_t>(index) < count;
+      vvp_named_event_sa::assign(cp->net, valid
+	    ? event_array_slot_net(base + static_cast<uint32_t>(index))
+	    : nullptr);
+      return true;
+}
+
 static vvp_net_t* event_queue_(vvp_net_t*net)
 {
       vvp_named_event_sa*fun = dynamic_cast<vvp_named_event_sa*>(net->fun);
@@ -28616,6 +29164,13 @@ bool of_NEW_COBJ_EMBEDDED(vthread_t thr, vvp_code_t cp)
  * %stream/flatten/obj: pop a container object, push its bit stream
  * (element 0 leftmost, per the 11.4.14.1 foreach traversal).
  */
+/* STREAMING selects the 11.4.14.1 streaming-concatenation rules over the
+   6.24.3 bit-stream cast ones: a null class handle, top-level or nested,
+   is skipped, and an untagged union streams its first-declared member. */
+static bool stream_cast_flatten_value_(const vvp_object_t&value,
+				      vvp_vector4_t&stream,
+				      unsigned depth, bool streaming = false);
+
 bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t)
 {
       static bool warned_bad_obj = false;
@@ -28624,6 +29179,19 @@ bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t)
       thr->pop_object(obj);
 
       vvp_darray*dar = obj.peek<vvp_darray>();
+      if (dar == 0 && obj.peek<vvp_cobject>()) {
+	      // 11.4.14.1: a non-null class handle streams the data members
+	      // of the referenced object, base-class members first.
+	    vvp_vector4_t stream(0, BIT4_0);
+	    if (!stream_cast_flatten_value_(obj, stream, 0, true)) {
+		  cerr << thr->get_fileline()
+		       << "VVP error: a class object member cannot be streamed "
+			  "(IEEE 1800 11.4.14.1); the object is skipped." << endl;
+		  stream = vvp_vector4_t(0, BIT4_0);
+	    }
+	    thr->push_vec4(stream);
+	    return true;
+      }
       if (dar == 0) {
 	    // Null handles are skipped (not streamed) per 11.4.14.1;
 	    // any other object kind is unsupported here.
@@ -28673,13 +29241,10 @@ static bool stream_cast_append_string_(vvp_vector4_t&stream,
       return stream_cast_append_(stream, bits);
 }
 
-static bool stream_cast_flatten_value_(const vvp_object_t&value,
-				      vvp_vector4_t&stream,
-				      unsigned depth);
 
 static bool stream_cast_flatten_array_(vvp_darray*array,
 				       vvp_vector4_t&stream,
-				       unsigned depth)
+				       unsigned depth, bool streaming = false)
 {
 	  if (!array || depth > 128 || array->get_size() > UINT_MAX)
 	    return false;
@@ -28701,7 +29266,7 @@ static bool stream_cast_flatten_array_(vvp_darray*array,
 	    for (size_t idx = 0; idx < array->get_size(); idx += 1) {
 		  vvp_object_t item;
 		  array->get_word(static_cast<unsigned>(idx), item);
-		  if (!stream_cast_flatten_value_(item, stream, depth+1))
+		  if (!stream_cast_flatten_value_(item, stream, depth+1, streaming))
 			return false;
 	    }
 	    return true;
@@ -28712,13 +29277,18 @@ static bool stream_cast_flatten_array_(vvp_darray*array,
 
 static bool stream_cast_flatten_cobject_(vvp_cobject*object,
 					vvp_vector4_t&stream,
-					unsigned depth)
+					unsigned depth, bool streaming = false)
 {
       if (!object || depth > 128) return false;
       const class_type*type = object->get_defn();
-      if (!type || type->is_union_type()) return false;
+      if (!type) return false;
+      size_t property_count = type->property_count();
+      if (type->is_union_type()) {
+	    if (!streaming || type->is_tagged_union_type()) return false;
+	    property_count = property_count ? 1 : 0;
+      }
 
-      for (size_t property = 0; property < type->property_count();
+      for (size_t property = 0; property < property_count;
 	   property += 1) {
 	    if (type->property_is_static(property)) continue;
 
@@ -28741,13 +29311,16 @@ static bool stream_cast_flatten_cobject_(vvp_cobject*object,
 			vvp_object_t member;
 			object->get_object(property, member, static_cast<size_t>(idx));
 			if (member.test_nil()) {
+			      if (streaming)
+				    continue;
 			      if (!property_type.empty()
 				  && (property_type[0] == 'D'
 				      || property_type[0] == 'Q'))
 				    continue;
 			      return false;
 			}
-			if (!stream_cast_flatten_value_(member, stream, depth+1))
+			if (!stream_cast_flatten_value_(member, stream, depth+1,
+							streaming))
 			      return false;
 		  }
 	    }
@@ -28758,13 +29331,14 @@ static bool stream_cast_flatten_cobject_(vvp_cobject*object,
 
 static bool stream_cast_flatten_value_(const vvp_object_t&value,
 				      vvp_vector4_t&stream,
-				      unsigned depth)
+				      unsigned depth, bool streaming)
 {
-      if (depth > 128 || value.test_nil()) return false;
+      if (depth > 128) return false;
+      if (value.test_nil()) return streaming;
       if (vvp_darray*array = value.peek<vvp_darray>())
-	    return stream_cast_flatten_array_(array, stream, depth+1);
+	    return stream_cast_flatten_array_(array, stream, depth+1, streaming);
       if (vvp_cobject*object = value.peek<vvp_cobject>())
-	    return stream_cast_flatten_cobject_(object, stream, depth+1);
+	    return stream_cast_flatten_cobject_(object, stream, depth+1, streaming);
       return false;
 }
 
@@ -31742,6 +32316,28 @@ bool of_QCOND_AMBIG(vthread_t thr, vvp_code_t cp)
       }
 
       thr->push_object(result_obj);
+      return true;
+}
+
+/* %ocond/ambig
+ *
+ * Pop the false and true operands of a conditional whose condition is
+ * ambiguous, and push its value (IEEE 1800-2023 11.4.11): the true operand
+ * when the two are logically equivalent, else the Table 7-1 value for their
+ * type. Used for unpacked structs; the default is built like a queue
+ * conditional's mismatched struct element. */
+bool of_OCOND_AMBIG(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t right_obj, left_obj;
+      thr->pop_object(right_obj);
+      thr->pop_object(left_obj);
+      vvp_bit4_t logical = BIT4_1, exact = BIT4_1;
+      if (qcond_object_elements_match_(left_obj, right_obj, logical, exact))
+	    thr->push_object(left_obj);
+      else
+	    thr->push_object(qcond_default_object_(left_obj, right_obj, 0,
+						   UINT32_MAX,
+						   vvp_container_layout_t()));
       return true;
 }
 

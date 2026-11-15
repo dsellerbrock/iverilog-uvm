@@ -303,8 +303,17 @@ void cprop_functor::lpm_part_select(Design*des, NetPartSelect*obj)
       set<const Nexus*> driver_inputs;
       for (const NetPartSelect*part : obj_set) {
 	    const Nexus*input_nex = part->pin(0).nexus();
-	    if (input_nex)
+	    if (input_nex) {
+		  // A concat output is treated as a strong driver. Keep partial
+		  // drivers separate when an input has an explicit weaker drive.
+		  for (const Link*link = input_nex->first_nlink(); link;
+		       link = link->next_nlink())
+			if (link->get_dir() == Link::OUTPUT &&
+			    (link->drive0() != IVL_DR_STRONG ||
+			     link->drive1() != IVL_DR_STRONG))
+			      return;
 		  driver_inputs.insert(input_nex);
+	    }
       }
       vector<const Nexus*> pending(1, nex);
       set<const Nexus*> seen;

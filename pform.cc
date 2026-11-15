@@ -42,6 +42,7 @@
 # include  "pform_sva_nfa.h"
 # include  "discipline.h"
 # include  "util.h"
+# include  "PConfig.h"
 # include  <list>
 # include  <functional>
 # include  <map>
@@ -1764,7 +1765,7 @@ static typedef_t* pform_find_interface_typedef(perm_string name)
       return td;
 }
 
-static typedef_t* pform_bind_visible_class_typedef(const struct vlltype&loc,
+typedef_t* pform_bind_visible_class_typedef(const struct vlltype&loc,
                                                    perm_string name,
                                                    PClass*class_scope)
 {
@@ -2765,7 +2766,42 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
       }
 
       perm_string lex_name = lex_strings.make(name);
+      perm_string cell_name = lex_name;
+      perm_string library = libmap_file_library(loc.text);
+
+	/* IEEE 1800 33.3: cells of different libraries may share a name. The
+	   cell of the library that is searched first keeps the plain name in
+	   pform_modules, so that every lookup by name binds as 33.6.1
+	   requires. The other cells are kept under a library-qualified key. */
+      map<perm_string,Module*>::iterator same_name = pform_cur_module.empty()
+	    ? pform_modules.find(lex_name) : pform_modules.end();
+      if (same_name != pform_modules.end()
+	  && same_name->second->library != library) {
+	    Module*other = same_name->second;
+	    perm_string other_key = libmap_cell_key(other->library, cell_name);
+	    if (!libmap_sources_parsed
+		&& libmap_before(library, other->library)
+		&& pform_modules.find(other_key) == pform_modules.end()) {
+		  pform_modules.erase(same_name);
+		  other->pscope_rename(other_key);
+		  pform_modules[other_key] = other;
+		    // The name is also a symbol of the compilation unit.
+		  map<perm_string,PNamedItem*>&symbols
+			= other->parent_scope()->local_symbols;
+		  map<perm_string,PNamedItem*>::iterator sym
+			= symbols.find(cell_name);
+		  if (sym != symbols.end() && sym->second == other) {
+			symbols.erase(sym);
+			symbols[other_key] = other;
+		  }
+	    } else {
+		  lex_name = libmap_cell_key(library, cell_name);
+	    }
+      }
+
       Module*cur_module = new Module(lexical_scope, lex_name);
+      cur_module->library = library;
+      cur_module->cell = cell_name;
       if (PPackage*unit = dynamic_cast<PPackage*>(lexical_scope))
 	    cur_module->unit_lets = unit->lets;
       cur_module->program_block = program_block;
@@ -3219,6 +3255,9 @@ static void checker_free_finish_(Module*m)
       checker_free_vars_.erase(it);
 }
 
+/* The checkers each package declares (IEEE 1800 17.3, #941). */
+static map<PPackage*, set<perm_string> > pform_package_checkers_;
+
 void pform_endmodule(const char*name, bool inside_celldefine,
                      Module::UCDriveType uc_drive_def)
 {
@@ -3230,7 +3269,8 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	   must resolve before deferred assertions use it. */
       Module*cur_module = pform_cur_module.front();
       if (cur_module->is_checker) checker_free_finish_(cur_module);
-      perm_string mod_name = cur_module->mod_name();
+	// The name in the source: mod_name() may be library-qualified.
+      perm_string mod_name = cur_module->cell;
       map<Module*, vector<pair<perm_string, NetNet::PortType> > >::iterator
             deferred = pform_deferred_explicit_port_directions.find(cur_module);
       if (deferred != pform_deferred_explicit_port_directions.end()) {
@@ -3307,7 +3347,7 @@ void pform_endmodule(const char*name, bool inside_celldefine,
       if (strcmp(name, mod_name) != 0) {
 	    while (!pform_cur_module.empty()) {
 		  Module*tmp_module = pform_cur_module.front();
-		  perm_string tmp_name = tmp_module->mod_name();
+		  perm_string tmp_name = tmp_module->cell;
 		  pform_cur_module.pop_front();
 		  ostringstream msg;
 		  msg << "error: Module " << mod_name
@@ -3343,6 +3383,7 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	      ? pform_modules
 	      : pform_cur_module.front()->nested_modules;
 
+      mod_name = cur_module->mod_name();
       map<perm_string,Module*>::const_iterator test =
 	    use_module_map.find(mod_name);
 
@@ -3353,11 +3394,50 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	    VLerror(msg.str().c_str());
       } else {
 	    use_module_map[mod_name] = cur_module;
+	    if (&use_module_map == &pform_modules)
+		  config_add_cell(cur_module);
       }
 
 	// The current lexical scope should be this module by now.
       ivl_assert(*cur_module, lexical_scope == cur_module);
       pform_pop_scope();
+
+	/* Remember which package declared a checker, for p::c instances. */
+      if (cur_module->is_checker)
+	    if (PPackage*pkg = dynamic_cast<PPackage*>(lexical_scope))
+		  pform_package_checkers_[pkg].insert(mod_name);
+}
+
+bool pform_package_declares_checker(const struct vlltype&loc, PPackage*pkg,
+				    perm_string name)
+{
+      map<PPackage*, set<perm_string> >::const_iterator cur
+	    = pform_package_checkers_.find(pkg);
+      if (cur != pform_package_checkers_.end() && cur->second.count(name))
+	    return true;
+      cerr << loc << ": error: Package " << pkg->pscope_name()
+	   << " has no checker " << name << "; only a checker can be "
+	   << "instantiated through a package scope (IEEE 1800 17.3)." << endl;
+      error_count += 1;
+      return false;
+}
+
+void pform_make_pkg_checker_instance(const struct vlltype&loc, PPackage*pkg,
+				     perm_string name, std::vector<lgate>*gates)
+{
+      if (!dynamic_cast<Module*>(lexical_scope)
+	  && !dynamic_cast<PGenerate*>(lexical_scope)) {
+	    cerr << loc << ": sorry: A package-scoped checker instance is "
+		 << "only supported as a module or generate item." << endl;
+	    error_count += 1;
+	    delete gates;
+	    return;
+      }
+      if (!pform_package_declares_checker(loc, pkg, name)) {
+	    delete gates;
+	    return;
+      }
+      pform_make_modgates(loc, name, nullptr, gates, nullptr);
 }
 
 void pform_genvars(const struct vlltype&li, list<pform_ident_t>*names)
@@ -3862,10 +3942,78 @@ static void process_udp_table(PUdp*udp, list<string>*table,
       udp_check_conflicting_rows_(udp, loc);
 }
 
+struct pform_extern_udp_t {
+      std::string where;
+      list<pform_ident_t> ports;
+};
+static map<perm_string, pform_extern_udp_t> pform_extern_udps;
+
+void pform_extern_udp(const struct vlltype&loc, perm_string name,
+		      list<pform_ident_t>*ports)
+{
+      map<perm_string, pform_extern_udp_t>::iterator cur
+	    = pform_extern_udps.find(name);
+      if (cur != pform_extern_udps.end()) {
+	    cerr << loc << ": error: Extern primitive " << name
+		 << " was already declared here: " << cur->second.where << endl;
+	    error_count += 1;
+      } else {
+	    pform_extern_udp_t&ext = pform_extern_udps[name];
+	    ext.where = loc.get_fileline();
+	    ext.ports = *ports;
+      }
+      delete ports;
+}
+
+list<pform_ident_t>* pform_extern_udp_ports(const struct vlltype&loc,
+					    perm_string name)
+{
+      map<perm_string, pform_extern_udp_t>::iterator cur
+	    = pform_extern_udps.find(name);
+      if (cur == pform_extern_udps.end()) {
+	    cerr << loc << ": error: A (.*) port list needs an extern "
+		 << "primitive declaration of " << name
+		 << " (IEEE 1800 29.3, 23.5)." << endl;
+	    error_count += 1;
+	    return nullptr;
+      }
+      list<pform_ident_t>*ports = new list<pform_ident_t>(cur->second.ports);
+      pform_extern_udps.erase(cur);
+      return ports;
+}
+
+/* A definition after an extern primitive declaration must match its port
+   names and positions (IEEE 1800 23.5, applied to 29.3). */
+static void pform_check_extern_udp_(const struct vlltype&loc, perm_string name,
+				    const list<perm_string>&ports)
+{
+      map<perm_string, pform_extern_udp_t>::iterator cur
+	    = pform_extern_udps.find(name);
+      if (cur == pform_extern_udps.end())
+	    return;
+      bool match = cur->second.ports.size() == ports.size();
+      list<perm_string>::const_iterator dp = ports.begin();
+      for (list<pform_ident_t>::const_iterator ep = cur->second.ports.begin()
+		 ; match && ep != cur->second.ports.end() ; ++ep, ++dp)
+	    match = ep->first == *dp;
+      if (!match) {
+	    cerr << loc << ": error: The port list of primitive " << name
+		 << " does not match its extern declaration at "
+		 << cur->second.where << " (IEEE 1800 29.3, 23.5)." << endl;
+	    error_count += 1;
+      }
+      pform_extern_udps.erase(cur);
+}
+
 void pform_make_udp(const struct vlltype&loc, perm_string name,
 		    list<pform_ident_t>*parms, vector<PWire*>*decl,
 		    list<string>*table, Statement*init_expr)
 {
+      {
+	    list<perm_string> names;
+	    for (const pform_ident_t&port : *parms) names.push_back(port.first);
+	    pform_check_extern_udp_(loc, name, names);
+      }
       unsigned local_errors = 0;
       ivl_assert(loc, !parms->empty());
 
@@ -4060,6 +4208,12 @@ void pform_make_udp(const struct vlltype&loc, perm_string name,
 		    PExpr*init_expr, list<pform_ident_t>*parms,
 		    list<string>*table)
 {
+      {
+	    list<perm_string> names;
+	    names.push_back(out_name.first);
+	    for (const pform_ident_t&port : *parms) names.push_back(port.first);
+	    pform_check_extern_udp_(loc, name, names);
+      }
 
       std::vector<PWire*> pins(parms->size() + 1);
 
@@ -4370,7 +4524,8 @@ static void pform_make_modgate(perm_string type,
 			       list<pform_range_t>*ranges,
 			       const LineInfo&li,
 			       std::list<named_pexpr_t>*attr,
-			       bool no_port_list)
+			       bool no_port_list,
+			       const struct str_pair_t*strength = 0)
 {
       for (list<PExpr*>::iterator idx = wires->begin()
 		 ; idx != wires->end() ; ++idx) {
@@ -4378,6 +4533,11 @@ static void pform_make_modgate(perm_string type,
       }
 
       PGModule*cur = new PGModule(type, name, wires);
+      if (strength) {
+	    cur->strength0(strength->str0);
+	    cur->strength1(strength->str1);
+	    cur->mark_drive_strength();
+      }
       if (no_port_list) cur->mark_no_port_list();
       cur->set_line(li);
       cur->set_ranges(ranges);
@@ -4412,7 +4572,8 @@ static void pform_make_modgate(perm_string type,
 			       list<pform_range_t>*ranges,
 			       const LineInfo&li,
 			       std::list<named_pexpr_t>*attr,
-			       bool no_port_list)
+			       bool no_port_list,
+			       const struct str_pair_t*strength = 0)
 {
       unsigned npins = bind->size();
       named_pexpr_t *pins = new named_pexpr_t[npins];
@@ -4422,6 +4583,11 @@ static void pform_make_modgate(perm_string type,
       std::copy(bind->begin(), bind->end(), pins);
 
       PGModule*cur = new PGModule(type, name, pins, npins);
+      if (strength) {
+	    cur->strength0(strength->str0);
+	    cur->strength1(strength->str1);
+	    cur->mark_drive_strength();
+      }
       if (no_port_list) cur->mark_no_port_list();
       cur->set_line(li);
       cur->set_ranges(ranges);
@@ -4484,7 +4650,8 @@ void pform_make_modgates(const struct vlltype&loc,
 			 perm_string type,
 			 struct parmvalue_t*overrides,
 			 std::vector<lgate>*gates,
-			 std::list<named_pexpr_t>*attr)
+			 std::list<named_pexpr_t>*attr,
+			 const struct str_pair_t*strength)
 {
 	// SystemVerilog user-type declarations at module scope (e.g. `foo_t x;`)
 	// parse through the same no-port shape as degenerate module instances.
@@ -4500,7 +4667,7 @@ void pform_make_modgates(const struct vlltype&loc,
 	    // the type is a known built-in class.
 	    // If the name resolves to a type (class, typedef, built-in), treat
 	    // it as a variable declaration regardless of parameter overrides.
-	    if (decl_type) {
+	    if (decl_type && !strength) {
 		  bool declaration_like = true;
 		  std::list<decl_assignment_t*>*decls =
 			new std::list<decl_assignment_t*>;
@@ -4613,7 +4780,7 @@ void pform_make_modgates(const struct vlltype&loc,
 	    if (cur.parms_by_name) {
 		  pform_make_modgate(type, cur_name, overrides,
 				     cur.parms_by_name, cur.ranges,
-				     cur, attr, cur.no_port_list);
+				     cur, attr, cur.no_port_list, strength);
 
 	    } else if (cur.parms) {
 
@@ -4626,13 +4793,13 @@ void pform_make_modgates(const struct vlltype&loc,
 		  }
 		  pform_make_modgate(type, cur_name, overrides,
 				     cur.parms, cur.ranges,
-				     cur, attr, cur.no_port_list);
+				     cur, attr, cur.no_port_list, strength);
 
 	    } else {
 		  list<PExpr*>*wires = new list<PExpr*>;
 		  pform_make_modgate(type, cur_name, overrides,
 				     wires, cur.ranges,
-				     cur, attr, cur.no_port_list);
+				     cur, attr, cur.no_port_list, strength);
 	    }
       }
 
@@ -7226,6 +7393,10 @@ void pform_set_parameter(const struct vlltype&loc,
 			 PExpr*expr, LexicalScope::range_t*value_range,
 			 type_parameter_restriction_t restriction)
 {
+	// A localparam ahead of a design statement belongs to the config.
+      if (pform_config_localparam(loc, name, expr))
+	    return;
+
       LexicalScope*scope = lexical_scope;
       // Class items are local parameters; parameter port declarations are not.
       if (dynamic_cast<PClass*>(scope) && !pform_in_parameter_port_list)
@@ -7557,6 +7728,14 @@ extern void pform_specify_path_showcancelled(
       pform_cur_module.front()->set_specify_showcancelled(terminal, enabled);
 }
 
+extern void pform_specify_path_ondetect(
+	const pform_specify_terminal_t&terminal, bool enabled)
+{
+      if (pform_cur_module.empty())
+	    return;
+      pform_cur_module.front()->set_specify_ondetect(terminal, enabled);
+}
+
 /*
  * Timing checks.
  */
@@ -7668,10 +7847,20 @@ void pform_set_port_type(const struct vlltype&li,
  * This function detects the derived class for the given type and
  * dispatches the type to the proper subtype function.
  */
+static ivl_drive_t pform_charge_strength = IVL_DR_MEDIUM;
+
+void pform_set_charge_strength(ivl_drive_t str)
+{
+      pform_charge_strength = str;
+}
+
 void pform_set_data_type(const struct vlltype&li, data_type_t*data_type,
 			 std::vector<PWire*> *wires, NetNet::Type net_type,
 			 list<named_pexpr_t>*attr, bool is_const)
 {
+      ivl_drive_t charge = pform_charge_strength;
+      pform_charge_strength = IVL_DR_MEDIUM;
+
       if (data_type == 0) {
 	    VLerror(li, "internal error: data_type==0.");
 	    ivl_assert(li, 0);
@@ -7704,6 +7893,7 @@ void pform_set_data_type(const struct vlltype&li, data_type_t*data_type,
 
 	    wire->set_data_type(data_type);
 	    wire->set_const(is_const);
+	    wire->set_charge_strength(charge);
 
 	    pform_bind_attributes(wire->attributes, attr, true);
       }
@@ -10889,6 +11079,37 @@ static bool pform_sva_const_long_(PExpr*expr, long&value,
 	    visiting.erase(expr);
 	    return ok;
       }
+	/* A typed sequence/property formal substitutes `type'(actual)'
+	   (IEEE 1800-2017/2023 16.8.1). Fold integer atom casts. */
+      if (PECastType*cast = dynamic_cast<PECastType*>(expr)) {
+	    const atom_type_t*atom =
+		  dynamic_cast<const atom_type_t*>(cast->cast_target());
+	    unsigned width = 0;
+	    if (atom) switch (atom->type_code) {
+		case atom_type_t::BYTE:     width = 8;  break;
+		case atom_type_t::SHORTINT: width = 16; break;
+		case atom_type_t::INT:
+		case atom_type_t::INTEGER:  width = 32; break;
+		case atom_type_t::LONGINT:
+		case atom_type_t::TIME:     width = 64; break;
+		default: break;
+	    }
+	    long a = 0;
+	    bool ok = width && pform_sva_const_long_(cast->cast_base(), a,
+						      visiting, lookup_scope);
+	    if (ok) {
+		  uint64_t bits = (uint64_t)a;
+		  if (width < 64) {
+			uint64_t mask = (UINT64_C(1) << width) - 1;
+			bits &= mask;
+			if (atom->signed_flag && (bits >> (width-1)))
+			      bits |= ~mask;
+		  }
+		  value = (long)bits;
+	    }
+	    visiting.erase(expr);
+	    return ok;
+      }
       visiting.erase(expr);
       return false;
 }
@@ -12915,6 +13136,35 @@ static void sva_resolve_late_disable_slots_(const Module*closing)
       }
 }
 
+static std::set<perm_string> sva_decl_formal_names_;
+
+/* True when expr references a formal of the declaration being parsed. */
+static bool sva_names_decl_formal_(const PExpr*expr)
+{
+      if (!expr) return false;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr))
+	    return !id->path().package && !id->path().name.empty()
+		&& sva_decl_formal_names_.count(id->path().name.front().name);
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr))
+	    return sva_names_decl_formal_(un->get_expr());
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr))
+	    return sva_names_decl_formal_(bin->get_left())
+		|| sva_names_decl_formal_(bin->get_right());
+      if (const PETernary*ter = dynamic_cast<const PETernary*>(expr))
+	    return sva_names_decl_formal_(ter->get_cond())
+		|| sva_names_decl_formal_(ter->get_true())
+		|| sva_names_decl_formal_(ter->get_false());
+      if (const PECastType*cast = dynamic_cast<const PECastType*>(expr))
+	    return sva_names_decl_formal_(cast->cast_base());
+      if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr))
+	    return sva_names_decl_formal_(cast->cast_size())
+		|| sva_names_decl_formal_(cast->cast_base());
+      if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(expr))
+	    for (const named_pexpr_t&arg : call->get_parms())
+		  if (sva_names_decl_formal_(arg.parm)) return true;
+      return false;
+}
+
 /* Single cycle delays share the range path's instance-elaboration boundary.
    -6 identifies an exact symbolic delay, as distinct from a general window. */
 void pform_sva_single_delay(const struct vlltype&loc,
@@ -12974,6 +13224,20 @@ void pform_sva_single_delay(const struct vlltype&loc,
                  && step.delay_lo == 0 && step.delay_hi == 0) {
             step.delay_lo = step.delay_hi = -4;
             step.delay_genvar = genvar_name;
+      } else if (step.delay_lo == 0 && step.delay_hi == 0
+		 && sva_names_decl_formal_(delay)) {
+            /* A sequence or property formal (IEEE 1800-2017/2023 16.8.1)
+               is constant only after its actual is substituted. Keep the
+               delay as the window [d:d], like pform_sva_range_delay, so
+               instantiation can fold it. */
+            PExpr*copy = sva_clone_expr_(delay);
+            if (copy) {
+                  step.delay_lo = step.delay_hi = -5;
+                  step.delay_lo_expr = delay;
+                  step.delay_hi_expr = copy;
+                  return;
+            }
+            step.delay_lo = step.delay_hi = -2;
       } else if (step.delay_lo != -3) {
             step.delay_lo = step.delay_hi = -2;
       }
@@ -13074,6 +13338,7 @@ void pform_sva_end_local_declarations(void)
       sva_local_decl_types_.clear();
       sva_local_decl_order_.clear();
       sva_local_formal_names_.clear();
+      sva_decl_formal_names_.clear();
 }
 
 void pform_sva_begin_local_declarations(void)
@@ -13091,6 +13356,16 @@ void pform_sva_begin_local_declarations(void)
 void pform_sva_add_local_formal(const char*name)
 {
       sva_local_formal_names_.insert(lex_strings.make(name));
+}
+
+void pform_sva_clear_decl_formals(void)
+{
+      sva_decl_formal_names_.clear();
+}
+
+void pform_sva_note_decl_formal(const char*name)
+{
+      sva_decl_formal_names_.insert(lex_strings.make(name));
 }
 
 bool pform_sva_match_lvalue_declared(const struct vlltype&loc,
@@ -15098,8 +15373,12 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	       substituted reference is a delay upper bound. Resolve formal-backed
 	       range expressions here, where the actual (including PEUnbounded) is
 	       known. */
+	    /* An overridable parameter actual stays symbolic: folding it here
+	       would freeze the declaration default for every instance. */
 	    if (st.delay_lo_expr && st.delay_hi_expr
-		&& st.delay_lo == -5 && st.delay_hi == -5) {
+		&& st.delay_lo == -5 && st.delay_hi == -5
+		&& !pform_sva_overridable_bound(st.delay_lo_expr)
+		&& !pform_sva_overridable_bound(st.delay_hi_expr)) {
 	      long lo = 0, hi = 0;
 	      if (pform_sva_const_long(st.delay_lo_expr, lo)
 		  && lo >= 0 && dynamic_cast<PEUnbounded*>(st.delay_hi_expr)) {
@@ -15117,6 +15396,18 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		st.delay_lo_expr = st.delay_hi_expr = nullptr;
 		st.delay_lo = lo;
 		st.delay_hi = hi;
+		delay_range_resolved = true;
+	      } else if (pform_sva_const_long(st.delay_lo_expr, lo)
+			 && pform_sva_const_long(st.delay_hi_expr, hi)) {
+		cerr << loc << ": error: invalid SVA cycle-delay range ["
+		     << lo << ":" << hi << "]; bounds must be nonnegative and "
+		     << "the upper bound must be greater than or equal to the "
+		     << "lower bound (IEEE 1800-2017/2023 16.7)." << endl;
+		error_count += 1;
+		delete st.delay_lo_expr;
+		delete st.delay_hi_expr;
+		st.delay_lo_expr = st.delay_hi_expr = nullptr;
+		st.delay_lo = st.delay_hi = 0;
 		delay_range_resolved = true;
 	      }
 	    }
@@ -15176,8 +15467,12 @@ sva_clone_steps_subst_(const struct vlltype&loc,
 	    bool delay_range_resolved = false;
 	    /* IEEE 1800-2017/2023 16.12 permits `$' as an untyped property
 	       actual when its substituted reference is a delay upper bound. */
+	    /* An overridable parameter actual stays symbolic: folding it here
+	       would freeze the declaration default for every instance. */
 	    if (st.delay_lo_expr && st.delay_hi_expr
-		&& st.delay_lo == -5 && st.delay_hi == -5) {
+		&& st.delay_lo == -5 && st.delay_hi == -5
+		&& !pform_sva_overridable_bound(st.delay_lo_expr)
+		&& !pform_sva_overridable_bound(st.delay_hi_expr)) {
 	      long lo = 0, hi = 0;
 	      if (pform_sva_const_long(st.delay_lo_expr, lo)
 		  && lo >= 0 && dynamic_cast<PEUnbounded*>(st.delay_hi_expr)) {
@@ -15195,6 +15490,18 @@ sva_clone_steps_subst_(const struct vlltype&loc,
 		st.delay_lo_expr = st.delay_hi_expr = nullptr;
 		st.delay_lo = lo;
 		st.delay_hi = hi;
+		delay_range_resolved = true;
+	      } else if (pform_sva_const_long(st.delay_lo_expr, lo)
+			 && pform_sva_const_long(st.delay_hi_expr, hi)) {
+		cerr << loc << ": error: invalid SVA cycle-delay range ["
+		     << lo << ":" << hi << "]; bounds must be nonnegative and "
+		     << "the upper bound must be greater than or equal to the "
+		     << "lower bound (IEEE 1800-2017/2023 16.7)." << endl;
+		error_count += 1;
+		delete st.delay_lo_expr;
+		delete st.delay_hi_expr;
+		st.delay_lo_expr = st.delay_hi_expr = nullptr;
+		st.delay_lo = st.delay_hi = 0;
 		delay_range_resolved = true;
 	      }
 	    }
@@ -15787,6 +16094,19 @@ static PExpr* sva_booleanize_(const struct vlltype&loc, PExpr*e)
       return sva_not_(loc, sva_not_(loc, e));
 }
 
+/* IEEE 1800-2023 16.6: an assertion Boolean that is x or z is false, so a
+   property if (16.12.6) with such a condition takes its else branch (or is
+   vacuous without one). A dist condition keeps its own form. */
+PExpr* pform_sva_prop_condition(const struct vlltype&loc, PExpr*cond)
+{
+      if (!cond) return cond;
+      if (PEInside*in = dynamic_cast<PEInside*>(cond))
+	    if (in->is_dist()) return cond;
+      PExpr*b = new PEBComp('E', sva_booleanize_(loc, cond), sva_bit_(loc, 1));
+      FILE_NAME(b, loc);
+      return b;
+}
+
 static PExpr* sva_logic_(const struct vlltype&loc, char op,
 			 PExpr*l, PExpr*r)
 {
@@ -16048,7 +16368,7 @@ static PExpr* sva_rewrite_symbolic_uarray_operand_(
    concurrent checker index and a deferred source id cannot collide. */
 enum { SVA_SPACE_CONCURRENT = 0, SVA_SPACE_IMMEDIATE = 1,
        SVA_SPACE_DEFERRED = 2, SVA_SPACE_IMMEDIATE_COVER = 3,
-       SVA_SPACE_PROCEDURAL = 4 };
+       SVA_SPACE_PROCEDURAL = 4, SVA_SPACE_EXPECT = 5 };
 enum { SVA_STATE_ENABLED = 0, SVA_STATE_KILL_GENERATION = 1,
        SVA_STATE_FAIL_ACTION = 2, SVA_STATE_PASS_ACTION = 3,
        SVA_STATE_VACUOUS_ACTION = 4, SVA_STATE_TAKE_MATURED = 5 };
@@ -16290,7 +16610,8 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
 				     long edges = -1,
 				     bool fail_full_latency = false,
 				     PExpr*edges_expr = nullptr,
-				     long step_depth = -1)
+				     long step_depth = -1,
+				     unsigned ctl_type = 1)
 {
       char nbuf[64];
       if (sva_active_assertion_label_.nil())
@@ -16326,15 +16647,21 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
       a6.parm = new PENumber(new verinum(
 	    (uint64_t)sva_active_assertion_kind_, 32));
       args.push_back(a6);
-      if (sva_active_instance_kind_) {
-	    named_pexpr_t a7;
-	    a7.parm = new PENumber(new verinum(
-		  (uint64_t)sva_active_instance_kind_, 32));
-	    args.push_back(a7);
-	    named_pexpr_t a8;
-	    a8.parm = new PEString(strdup(sva_active_instance_name_.str()));
-	    args.push_back(a8);
-      }
+	/* 39.4.2: optional top-level property (1) or sequence (2) instance
+	   and its name (0 and "" when there is none), then the Table 20-6
+	   assertion type of the control rules that select it (16 for
+	   expect). */
+      named_pexpr_t a7;
+      a7.parm = new PENumber(new verinum(
+	    (uint64_t)sva_active_instance_kind_, 32));
+      args.push_back(a7);
+      named_pexpr_t a8;
+      a8.parm = new PEString(strdup(sva_active_instance_kind_
+				    ? sva_active_instance_name_.str() : ""));
+      args.push_back(a8);
+      named_pexpr_t a9;
+      a9.parm = new PENumber(new verinum((uint64_t)ctl_type, 32));
+      args.push_back(a9);
       PCallTask*t = new PCallTask(
 	    lex_strings.make("$ivl_register_assertion"), args);
       FILE_NAME(t, loc);
@@ -21487,8 +21814,10 @@ pform_sva_prop_implies(const struct vlltype&loc,
       ae = new PEBComp('E', sva_booleanize_(loc, ae), sva_bit_(loc, 1));
       be = new PEBComp('E', sva_booleanize_(loc, be), sva_bit_(loc, 1));
 	FILE_NAME(ae, loc); FILE_NAME(be, loc);
-	/* a implies b  ==  !a | b */
-      return sva_wrap_bool_(sva_logic_(loc, 'o', sva_not_(loc, ae), be));
+	/* A false antecedent is a vacuous success (16.14.8): keep it visible
+	   as a property if rather than folding !a | b into a nonvacuous
+	   boolean sequence. */
+      return pform_sva_prop_if(loc, ae, sva_wrap_bool_(be), nullptr);
 }
 
 sva_property_t*
@@ -21513,17 +21842,9 @@ sva_property_t*
 pform_sva_prop_if(const struct vlltype&loc, PExpr*cond,
 		  sva_property_t*then_p, sva_property_t*else_p)
 {
-	/* IEEE 1800-2023 16.12.6: the branches are full properties. Only an
-	   all-boolean if-else folds into one boolean; anything else is a
-	   property operator evaluated per attempt. */
-      auto boolean = [](const sva_property_t*b) -> bool {
-	    return b && b->op_type == 0 && !b->antecedent && !b->tree && !b->pa
-		&& b->seq && b->seq->size() == 1
-		&& sva_step_is_single_boolean_((*b->seq)[0])
-		&& !b->clk_evt && !b->seq_clk_evt && !b->mc_prefix
-		&& b->mc_boundary == -1 && !b->disable_iff_expr;
-      };
-      if (cond && then_p && (!boolean(then_p) || (else_p && !boolean(else_p)))
+	/* Branch selection must remain visible to the per-attempt monitor:
+	   a missing else is a vacuous success, even for Boolean branches. */
+      if (cond && then_p
 	  && !sva_property_has_match_calls_(then_p)
 	  && !(else_p && sva_property_has_match_calls_(else_p))) {
 	    sva_property_t*p = new sva_property_t;
@@ -21607,10 +21928,9 @@ pform_sva_case(const struct vlltype&loc, PExpr*sel,
 	    return nullptr;
       }
 
-	/* No default -> an unmatched case evaluates to true (16.12.8). Fold
-	   right-to-left so the first listed branch is checked outermost:
-	     match_k ? p_k : rest   ==  (match_k & p_k) | (!match_k & rest) */
-      PExpr*result = defexpr ? defexpr : sva_bit_(loc, 1);
+	/* Preserve branch selection and the vacuous unmatched case by using
+	   property if nodes, with the first listed branch outermost. */
+      sva_property_t*result = defexpr ? sva_wrap_bool_(defexpr) : nullptr;
       for (size_t i = branches.size() ; i-- > 0 ; ) {
 	    std::list<PExpr*>*vals = branches[i].first;
 	    PExpr*matchcond = nullptr;
@@ -21623,13 +21943,11 @@ pform_sva_case(const struct vlltype&loc, PExpr*sel,
 	    }
 	    delete vals;   /* list shell; the value exprs are now owned by cmp */
 	    if (!matchcond) matchcond = sva_bit_(loc, 0);
-	    PExpr*pe = branches[i].second;
-	    PExpr*t = sva_logic_(loc, 'a', sva_clone_expr_(matchcond), pe);
-	    PExpr*f = sva_logic_(loc, 'a', sva_not_(loc, matchcond), result);
-	    result = sva_logic_(loc, 'o', t, f);
+	    result = pform_sva_prop_if(loc, matchcond,
+				       sva_wrap_bool_(branches[i].second), result);
       }
       delete sel;
-      return sva_wrap_bool_(result);
+      return result;
 }
 
 /*
@@ -22306,10 +22624,15 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					      sva_id_(loc, r_c));
 		  FILE_NAME(add, loc);
 		  body.push_back(sva_assign_(loc, r_cnt, add));
+		    /* 16.14.3: the pass statement runs for each matching
+		       window, as for the other cover operators here. */
+		  if (pass_stmt) {
+			body.push_back(sva_if_(loc, sva_id_(loc, r_c),
+				       sva_cover_spawn_(loc, inst, pass_stmt), nullptr));
+			pass_stmt = nullptr;
+		  }
 		  delete fail_stmt;
 		  delete wmatch_pass;
-		  delete pass_stmt;
-		  pass_stmt = nullptr;
 	    } else {
 		    /* assert/assume: every mature window must match. A
 		       `$past(1, L2)` guard is 0 until L2 cycles elapse, so
@@ -32464,6 +32787,16 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 
       PEventStatement*clk = prop->clk_evt;
       unsigned inst = sva_gensym_counter++;
+	/* Register expect independently of the statement's execution so
+	   assertion-control rules can select it before the process reaches it. */
+      PProcess*reg = pform_make_behavior(IVL_PR_INITIAL,
+						 sva_register_stmt_(loc, inst, -1,
+								    false, nullptr,
+								    -1, 16),
+						 nullptr);
+      struct vlltype initloc = loc;
+      initloc.first_line = 0;
+      FILE_NAME(reg, initloc);
 
       if (fast) {
 	    std::vector<sva_seq_step_t>&s = *prop->seq;
@@ -32500,7 +32833,11 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 	    }
 
 	      /* Terminal dispatch: pass on a match, else on a failure. */
-	    body.push_back(sva_if_(loc, sva_id_(loc, m), pass_stmt, else_stmt));
+	      body.push_back(sva_if_(loc, sva_id_(loc, m),
+			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_PASS_ACTION,
+					   pass_stmt),
+			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_FAIL_ACTION,
+					   else_stmt)));
 
 	      /* The clock was cloned per wait; the original is now free. */
 	    delete prop->clk_evt;
@@ -32596,7 +32933,11 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 			       sva_block_(loc, tick));
       FILE_NAME(loop, loc);
       body.push_back(loop);
-      body.push_back(sva_if_(loc, sva_id_(loc, ok_r), pass_stmt, else_stmt));
+	      body.push_back(sva_if_(loc, sva_id_(loc, ok_r),
+			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_PASS_ACTION,
+					   pass_stmt),
+			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_FAIL_ACTION,
+					   else_stmt)));
 
 	/* Null the stolen guard expressions at their sources so the
 	   deletes below cannot double-free them. */
@@ -33056,8 +33397,7 @@ static bool sva_prop_is_named_ref_(const sva_property_t*prop)
 	    const pform_name_t&path = id->path().name;
 	    if (path.size() == 1 && path.front().index.empty()) {
 		  perm_string nm = path.front().name;
-		  return sva_in_scope_(sva_module_properties, nm)
-			|| sva_in_scope_(sva_module_sequences, nm);
+		  return sva_in_scope_(sva_module_properties, nm);
 	    }
 	    if (path.size() != 2 || !path.front().index.empty()
 		|| !path.back().index.empty() || pform_cur_module.empty())
@@ -33080,8 +33420,7 @@ static bool sva_prop_is_named_ref_(const sva_property_t*prop)
 	    const pform_name_t&path = cf->path().name;
 	    if (path.size() == 1) {
 		  perm_string nm = peek_tail_name(path);
-		  return sva_in_scope_(sva_param_properties, nm)
-			|| sva_in_scope_(sva_param_sequences, nm);
+		  return sva_in_scope_(sva_param_properties, nm);
 	    }
 	    if (path.size() != 2 || !path.front().index.empty()
 		|| !path.back().index.empty() || pform_cur_module.empty())
@@ -39021,7 +39360,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   every cycle. */
       bool negated = (prop->op_type == 3);
       bool sequence_cover = kind == 2 && prop->sequence_cover;
-      bool track_vacuity = kind != 2 && (prop->op_type == 1 || prop->op_type == 2);
+	/* 16.14.3 + 20.11: a cover's pass statement also runs for a vacuous
+	   success of an implication, so covers track vacuity too. */
+      bool track_vacuity = prop->op_type == 1 || prop->op_type == 2;
       if (kind == 2 && negated) {
 	    cerr << loc << ": sorry: `cover property (not ...)` is not "
 		 << "supported; the cover is dropped." << endl;
@@ -39156,6 +39497,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
 	    init_zero.push_back(sva_assign_(loc, pass_req, sva_num32_(loc, 0)));
 	    init_zero.push_back(sva_assign_(loc, vac_req, sva_num32_(loc, 0)));
+      }
+      if (track_vacuity && kind == 2) {
+	      /* A cover keeps its match sites for real matches; the
+		 dispatcher runs a copy of the pass statement for each
+		 vacuous success (pass_req stays zero). */
+	    if (pass_stmt) {
+		  user_pass = sva_clone_stmt_(pass_stmt);
+		  if (!user_pass)
+			cerr << loc << ": sorry: this cover's pass statement "
+			     << "cannot be copied, so it does not run for a "
+			     << "vacuous success (IEEE 1800-2023 16.14.3)."
+			     << endl;
+	    }
+      } else if (track_vacuity) {
 	    user_pass = pass_stmt;
 	    pass_stmt = sva_assign_(loc, pass_req,
 		  new PEBinary('+', sva_id_(loc, pass_req), sva_num32_(loc, 1)));
@@ -39325,11 +39680,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    init_zero.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
       }
       perm_string r_pend;
+	/* An assertion counts its pending obligations: every one is an
+	   attempt of its own (16.14.1). So does a cover with a pass
+	   statement, which runs once per attempt or match (16.14.3); a
+	   cover without one keeps its flag. */
+      const bool count_pend = (kind != 2 && !negated)
+			    || (kind == 2 && pass_stmt);
       if (unbounded) {
-	      /* An assertion counts its pending obligations: every one is an
-		 attempt of its own (16.14.1). Cover keeps its flag. */
-	    r_pend = sva_make_reg_(loc, inst, "pend", 0,
-				   kind != 2 && !negated);
+	    r_pend = sva_make_reg_(loc, inst, "pend", 0, count_pend);
 	    init_zero.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
       }
       perm_string r_g = sva_make_reg_(loc, inst, "g", 0);
@@ -39589,10 +39947,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  FILE_NAME(nm, loc);
 		  sat.push_back(nm);
 		  anyw = nullptr;
-	    } else if (pass_stmt && kind != 2) {
+	    } else if (pass_stmt) {
 		    /* 16.14.1: one pass action for each attempt satisfied
-		       now. The sum is balanced, and the 32-bit term keeps
-		       the one-bit window registers from summing in 1 bit. */
+		       now. 16.14.3: a cover property runs its pass statement
+		       once per successful attempt (its window slot is cleared
+		       below), a cover sequence once per match (slots stay).
+		       The sum is balanced, and the 32-bit term keeps the
+		       one-bit window registers from summing in 1 bit. */
 		  std::vector<PExpr*> sat_terms;
 		  for (long q = win_m ; q <= win_n ; q += 1)
 			sat_terms.push_back(sva_id_(loc, w_regs[q]));
@@ -39607,11 +39968,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  PExpr*satisfied = new PEBinary('+', sva_num32_(loc, 0),
 						 sat_terms.front());
 		  FILE_NAME(satisfied, loc);
+		  Statement*action = kind == 2
+			? sva_cover_spawn_(loc, inst, pass_stmt)
+			: sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+					    SVA_STATE_PASS_ACTION, pass_stmt);
 		  PCondit*pm = new PCondit(anyw,
-			sva_repeat_(loc, satisfied,
-			      sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
-						SVA_STATE_PASS_ACTION, pass_stmt)),
-			nullptr);
+			sva_repeat_(loc, satisfied, action), nullptr);
 		  FILE_NAME(pm, loc);
 		  sat.push_back(pm);
 		  pass_stmt = nullptr;
@@ -39693,6 +40055,22 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					       nullptr);
 		  FILE_NAME(report, loc);
 		  sat.push_back(report);
+		  if (pass_stmt) {
+			  /* 16.14.3: every pending attempt matches now; a
+			     cover property's attempt then ends, a cover
+			     sequence's stays for later matches. */
+			PExpr*matches = new PEBinary('+', sva_num32_(loc, 0),
+			      new PEBinary('+', sva_id_(loc, r_pend),
+					   sva_id_(loc, r_mat)));
+			FILE_NAME(matches, loc);
+			PCondit*pm = new PCondit(sva_clone_expr_(elig),
+			      sva_repeat_(loc, matches,
+					  sva_cover_spawn_(loc, inst, pass_stmt)),
+			      nullptr);
+			FILE_NAME(pm, loc);
+			sat.push_back(pm);
+			pass_stmt = nullptr;
+		  }
 	    } else if (pass_stmt) {
 		    /* 16.14.1: one pass action for every obligation the
 		       awaited boolean satisfies now. */
@@ -39709,11 +40087,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  sat.push_back(pm);
 		  pass_stmt = nullptr;
 	    }
-	    sat.push_back(sva_assign_(loc, r_pend,
-		  sequence_cover ? (PExpr*)elig
-				 : (PExpr*)sva_bit_(loc, 0)));
+	    PExpr*alive = !sequence_cover ? (PExpr*)sva_bit_(loc, 0)
+		  : count_pend ? (PExpr*)new PEBinary('+', sva_id_(loc, r_pend),
+						     sva_id_(loc, r_mat))
+		  : (PExpr*)elig;
+	    sat.push_back(sva_assign_(loc, r_pend, alive));
 	    std::vector<Statement*> miss;
-	    PExpr*acc = (kind != 2 && !negated)
+	    PExpr*acc = count_pend
 		  ? (PExpr*)new PEBinary('+', sva_id_(loc, r_pend),
 					 sva_id_(loc, r_mat))
 		  : (PExpr*)new PEBLogic('o', sva_id_(loc, r_pend),
@@ -40003,7 +40383,8 @@ int pform_parse(const char*path)
       vl_file = path;
       if (strcmp(path, "-") == 0) {
 	    vl_input = stdin;
-      } else if (ivlpp_string) {
+      } else if (ivlpp_string && !lexor_libmap_mode) {
+	      /* A library map file is not preprocessed (IEEE 1800 33.3.2). */
 	    char*cmdline = static_cast<char*>(malloc(strlen(ivlpp_string) +
 	                                             strlen(path) + 4));
 	    strcpy(cmdline, ivlpp_string);

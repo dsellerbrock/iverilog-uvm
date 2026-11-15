@@ -1971,7 +1971,7 @@ sv_covergroup_class_inheritance_2017 CE,-g2017 ivltests gold=sv_covergroup_class
 sv_covergroup_class_inheritance_2023 normal,-g2023 ivltests gold=sv_covergroup_class_inheritance.gold
 sv_covergroup_class_inheritance_expr_2023 normal,-g2023 ivltests
 sv_covergroup_class_inheritance_missing_base_2023 CE,-g2023 ivltests gold=sv_covergroup_class_inheritance_missing_base_2023.gold
-sv_covergroup_extension_sample_formal_2023 CE,-g2023 ivltests
+sv_covergroup_extension_sample_formal_2023 normal,-g2023 ivltests
 sv_covergroup_extension_4state_source_2023 CE,-g2023 ivltests
 sv_covergroup_extension_iff_guards_2023 CE,-g2023 ivltests
 sv_covergroup_class_inheritance_cross_guard_2017 CE,-g2017 ivltests
@@ -3572,10 +3572,10 @@ sv_fork_singleton_control normal,-g2017 ivltests gold=sv_fork_singleton_control.
 sv_fork_singleton_control_2023 normal,-g2023 ivltests gold=sv_fork_singleton_control.gold
 sv_randomize_global_ordered normal,-g2017,-s,main ivltests gold=sv_randomize_global_ordered.gold
 sv_randomize_global_ordered_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_ordered.gold
-sv_randomize_global_ordered_fail normal,-g2017,-s,main ivltests gold=sv_randomize_global_ordered_fail.gold
-sv_randomize_global_ordered_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_ordered_fail.gold
-sv_randomize_plain_cycle_fail normal,-g2017,-s,main ivltests gold=sv_randomize_plain_cycle_fail.gold
-sv_randomize_plain_cycle_fail_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_plain_cycle_fail.gold
+sv_randomize_global_ordered_fail normal,-g2017,-gcommercial-unsafe,-s,main ivltests gold=sv_randomize_global_ordered_fail.gold
+sv_randomize_global_ordered_fail_2023 normal,-g2023,-gcommercial-unsafe,-s,main ivltests gold=sv_randomize_global_ordered_fail.gold
+sv_randomize_plain_cycle_fail CE,-g2017,-s,main ivltests gold=sv_randomize_plain_cycle_fail.gold
+sv_randomize_plain_cycle_fail_2023 CE,-g2023,-s,main ivltests gold=sv_randomize_plain_cycle_fail.gold
 sv_randomize_global_ordered_limit normal,-g2017,-s,main ivltests gold=sv_randomize_global_ordered_limit.gold
 sv_randomize_global_ordered_limit_2023 normal,-g2023,-s,main ivltests gold=sv_randomize_global_ordered_limit.gold
 sv_constraint_inline_reject CE,-g2017,-s,main ivltests gold=sv_constraint_inline_reject.gold
@@ -4497,8 +4497,8 @@ sv_randomize_joint_element_order_mixed normal,-g2017 ivltests gold=sv_randomize_
 sv_randomize_joint_element_order_mixed_2023 normal,-g2023 ivltests gold=sv_randomize_joint_element_order_mixed.gold
 sv_randomize_joint_element_order_dist normal,-g2017 ivltests gold=sv_randomize_joint_element_order_dist.gold
 sv_randomize_joint_element_order_dist_2023 normal,-g2023 ivltests gold=sv_randomize_joint_element_order_dist.gold
-sv_randomize_joint_element_order_fail normal,-g2017 ivltests gold=sv_randomize_joint_element_order_fail.gold
-sv_randomize_joint_element_order_fail_2023 normal,-g2023 ivltests gold=sv_randomize_joint_element_order_fail.gold
+sv_randomize_joint_element_order_fail normal,-g2017,-gcommercial-unsafe ivltests gold=sv_randomize_joint_element_order_fail.gold
+sv_randomize_joint_element_order_fail_2023 normal,-g2023,-gcommercial-unsafe ivltests gold=sv_randomize_joint_element_order_fail.gold
 sv_randomize_joint_element_order_oob_fail CE,-g2017 ivltests gold=sv_randomize_joint_element_order_oob_fail.gold
 sv_randomize_joint_element_order_oob_fail_2023 CE,-g2023 ivltests gold=sv_randomize_joint_element_order_oob_fail.gold
 
@@ -4654,6 +4654,8 @@ sv_assert_multiclock_fixed_control_pending_failure normal,-g2017 ivltests
 sv_assert_multiclock_fixed_control_pending_failure_2023 normal,-g2023 ivltests
 sv_assert_multiclock_fixed_control_no_vacuity normal,-g2017 ivltests
 sv_assert_multiclock_fixed_control_no_vacuity_2023 normal,-g2023 ivltests
+issue3011_vacuity_2017 normal,-g2017,-s,issue3011_vacuity ivltests gold=issue3011_vacuity.gold
+issue3011_vacuity_2023 normal,-g2023,-s,issue3011_vacuity ivltests gold=issue3011_vacuity.gold
 sv_assert_multiclock_fixed_control_prefix_pending normal,-g2017 ivltests
 sv_assert_multiclock_fixed_control_prefix_pending_2023 normal,-g2023 ivltests
 sv_assert_multiclock_fixed_control_selected normal,-g2017 ivltests
@@ -5166,8 +5168,8 @@ sv_covergroup_signed_cross normal,-g2017,-s,test ivltests gold=sv_covergroup_sig
 sv_covergroup_signed_cross_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_signed_cross.gold
 sv_covergroup_inside_unsigned_comparison normal,-g2017,-s,test ivltests gold=sv_covergroup_inside_unsigned_comparison.gold
 sv_covergroup_inside_unsigned_comparison_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_inside_unsigned_comparison.gold
-sv_covergroup_signed_range_cap CE,-g2017,-s,test ivltests gold=sv_covergroup_signed_range_cap.gold
-sv_covergroup_signed_range_cap_2023 CE,-g2023,-s,test ivltests gold=sv_covergroup_signed_range_cap.gold
+sv_covergroup_signed_range_cap normal,-g2017,-s,test ivltests
+sv_covergroup_signed_range_cap_2023 normal,-g2023,-s,test ivltests
 sv_constraint_divmod_zero normal,-g2017 ivltests gold=sv_constraint_divmod_zero.gold
 sv_constraint_divmod_zero_2023 normal,-g2023 ivltests gold=sv_constraint_divmod_zero.gold
 
@@ -6916,3 +6918,29 @@ issue3309_dist_property_2023 normal,-g2023,-s,issue3309_dist_property ivltests g
 issue3309_dist_default_2017 CE,-g2017 ivltests gold=issue3309_dist_default_2017.gold
 issue3318_wired_strength_2017 normal,-g2017,-s,top ivltests gold=issue3318_wired_strength_2017.gold
 issue3318_wired_strength_2023 normal,-g2023,-s,top ivltests gold=issue3318_wired_strength_2023.gold
+issue3321_vector_bit_strength_2017 normal,-g2017,-s,top ivltests gold=issue3321_vector_bit_strength.gold
+issue3321_vector_bit_strength_2023 normal,-g2023,-s,top ivltests gold=issue3321_vector_bit_strength.gold
+issue3330_udp_strength_2017 normal,-g2017,-s,top ivltests gold=issue3330_udp_strength.gold
+issue3330_udp_strength_2023 normal,-g2023,-s,top ivltests gold=issue3330_udp_strength.gold
+issue3358_static_return_2017 normal,-g2017,-s,test ivltests gold=issue3358_static_return.gold
+issue3358_static_return_2023 normal,-g2023,-s,test ivltests gold=issue3358_static_return.gold
+issue3359_pure_dpi_2017 CO,-g2017,-s,top ivltests
+issue3359_pure_dpi_2023 CO,-g2023,-s,top ivltests
+issue3359_impure_dpi_2017 CE,-g2017,-s,top ivltests gold=issue3359_impure_dpi.gold
+issue3359_impure_dpi_2023 CE,-g2023,-s,top ivltests gold=issue3359_impure_dpi.gold
+issue3078_udp_edges_2017 CE,-g2017,-s,top ivltests gold=issue3078_udp_edges.gold
+issue3078_udp_edges_2023 CE,-g2023,-s,top ivltests gold=issue3078_udp_edges.gold
+issue3078_udp_legal_2017 normal,-g2017,-s,top ivltests gold=issue3078_udp_legal.gold
+issue3078_udp_legal_2023 normal,-g2023,-s,top ivltests gold=issue3078_udp_legal.gold
+issue3381_package_covergroup_2017 normal,-g2017,-s,issue3381_package_covergroup ivltests gold=issue3381_package_covergroup.gold
+issue3381_package_covergroup_2023 normal,-g2023,-s,issue3381_package_covergroup ivltests gold=issue3381_package_covergroup.gold
+issue3319_array_pattern_2017 normal,-g2017,-s,top ivltests gold=issue3319_array_pattern.gold
+issue3319_array_pattern_2023 normal,-g2023,-s,top ivltests gold=issue3319_array_pattern.gold
+issue3112_fail_2017 CE,-g2017,-s,issue3112_fail ivltests gold=issue3112_fail.gold
+issue3112_pass_2017 normal,-g2017,-s,issue3112_pass ivltests gold=issue3112_pass.gold
+issue3112_fail_2023 CE,-g2023,-s,issue3112_fail ivltests gold=issue3112_fail.gold
+issue3112_pass_2023 normal,-g2023,-s,issue3112_pass ivltests gold=issue3112_pass.gold
+issue3418_array_bit_2017 normal,-g2017,-s,issue3418_array_bit ivltests gold=issue3418_array_bit-vvp-stdout.gold
+issue3418_overlap_2017 CE,-g2017,-s,issue3418_overlap ivltests gold=issue3418_overlap-legacy.gold
+issue3418_array_bit_2023 normal,-g2023,-s,issue3418_array_bit ivltests gold=issue3418_array_bit-vvp-stdout.gold
+issue3418_overlap_2023 CE,-g2023,-s,issue3418_overlap ivltests gold=issue3418_overlap-legacy.gold

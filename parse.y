@@ -28,6 +28,7 @@
 # include  "parse_api.h"
 # include  "compiler.h"
 # include  "pform.h"
+# include  "PConfig.h"
 # include  "PClass.h"
 # include  "Statement.h"
 # include  "PSpec.h"
@@ -244,6 +245,41 @@ static void sva_destroy_parser_match_items_(
 	      delete (*items)[i].call;
 	}
 	delete items;
+}
+
+/* IEEE 1800-2017/2023 16.10: "The subsequence to which a local variable
+ * assignment is attached shall not admit an empty match", as `b[*0:1]' does
+ * while `a ##1 b[*0:1]' does not. Only a lone boolean repeated from zero
+ * with no leading delay (rep_kind 1..3 hold the constant lower bound), or
+ * a whole group repeated from zero, is certain to admit one; a
+ * parameter-dependent bound (rep_kind 4) is left alone. */
+static void sva_check_local_assignment_subsequence_(
+	const struct vlltype&loc, const std::vector<sva_seq_step_t>&steps,
+	bool local_assignment)
+{
+	if (!local_assignment || steps.empty()) return;
+	const sva_seq_step_t&first = steps.front();
+	bool empty = false;
+	if (steps.size() == 1 && first.delay_lo == 0 && first.delay_hi == 0
+	    && !first.grouped_repeat)
+	      empty = first.rep_kind >= 1 && first.rep_kind <= 3
+		    && first.rep_lo == 0;
+	if (first.group_repeat_start && steps.back().group_repeat_end
+	    && first.group_repeat_lo == 0 && first.delay_lo == 0
+	    && first.delay_hi == 0)
+	      empty = true;
+	if (empty)
+	      yyerror(loc, "error: A local variable assignment cannot be "
+		      "attached to a subsequence that admits an empty match "
+		      "(IEEE 1800-2017/2023 16.10).");
+}
+
+static bool sva_items_assign_local_(const std::vector<sva_match_item_t>&items)
+{
+	for (size_t i = 0; i < items.size(); i += 1)
+	      if (items[i].kind == sva_match_item_t::LOCAL_ASSIGNMENT)
+		    return true;
+	return false;
 }
 
 static void sva_mark_first_match_(std::vector<sva_seq_step_t>&steps)
@@ -3050,7 +3086,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <sva_property_formals> sva_property_formal_declaration
 %destructor { for (sva_property_formal_t&formal : *$$)
 		{ delete formal.default_expr; } delete $$; } <sva_property_formals>
-%type <sva_formals> sva_sequence_formal_list
+%type <sva_formals> sva_sequence_formal_list sva_sequence_formals
 %destructor { delete $$; } <sva_formals>
 %type <sva_items> sva_local_ident_list
 %destructor { sva_destroy_parser_match_items_($$); } sva_local_ident_list
@@ -3124,6 +3160,9 @@ static Module::port_t *module_declare_explicit_port(
 %type <named_pexpr> named_expression named_expression_opt
 %type <named_pexpr> parameter_value_byname_item port_name
 %type <named_pexprs> port_name_list parameter_value_byname_list
+%type <named_pexprs> config_params
+%type <perm_strings> lib_cell_id list_of_libraries
+%type <flag> opt_config
 %type <int_val> stream_operator
 %type <expr> stream_expression
 %type <exprs> stream_expression_list alias_net_list
@@ -3165,7 +3204,7 @@ static Module::port_t *module_declare_explicit_port(
 } match_pattern_list
 
 %type <gate>  gate_instance
-%type <gates> gate_instance_list
+%type <gates> gate_instance_list anonymous_gate_instance_list
 %type <let_port_lst> let_port_list_opt let_port_list
 %type <let_port_itm> let_port_item
 
@@ -8384,16 +8423,16 @@ sequence_declaration /* IEEE 1800-2017/2023 16.8 */
 	pform_sva_declare_sequence_spec(@2, $2, $5);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';' sva_seq_expr ';' K_endsequence
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';' sva_seq_expr ';' K_endsequence
       { pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
       { check_end_label(@11, "sequence", $2, $11);
 	pform_sva_declare_sequence_p(@2, $2, $4, $7);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';'
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';'
       { pform_sva_begin_local_declarations();
 	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
 	     it != $4->end(); ++it)
@@ -8402,7 +8441,7 @@ sequence_declaration /* IEEE 1800-2017/2023 16.8 */
       { pform_sva_declare_sequence_p(@2, $2, $4, $9);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formal_list ')' ';'
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';'
       { pform_sva_begin_local_declarations();
 	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
 	     it != $4->end(); ++it)
@@ -8926,6 +8965,22 @@ package_item /* IEEE1800-2005 A.1.10 */
   | attribute_list_opt net_type drive_strength data_type_or_implicit delay3_opt net_variable_list ';'
       { data_type_t*data_type = $4;
         pform_check_net_data_type(@2, $2, $4);
+        if (!data_type) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+        }
+        pform_set_net_delay(@2, $5, $6);
+        pform_set_data_type(@2, data_type, $6, $2, $1);
+        delete $1;
+      }
+  | attribute_list_opt net_type charge_strength data_type_or_implicit delay3_opt net_variable_list ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
+        if ($2 != NetNet::TRIREG) {
+	      yyerror(@3, "error: A charge strength shall only be used with "
+		      "a trireg net (IEEE 1800-2023 6.3.2.1).");
+	      pform_set_charge_strength(IVL_DR_MEDIUM);
+	}
         if (!data_type) {
 	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
 	      FILE_NAME(data_type, @2);
@@ -9550,8 +9605,11 @@ procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
 sva_property_formal_declaration
   : '(' sva_property_formal_list ')' ';'
       { pform_sva_begin_local_declarations();
-	for (const sva_property_formal_t&formal : *$2)
+	pform_sva_clear_decl_formals();
+	for (const sva_property_formal_t&formal : *$2) {
+	  pform_sva_note_decl_formal(formal.name.str());
 	  if (formal.local_formal) pform_sva_add_local_formal(formal.name.str());
+	}
 	$$ = $2; }
   ;
 
@@ -9711,6 +9769,16 @@ sva_property_formal_list
 	      formal.formal_type = sva_property_formal_t::EVENT;
 	      formal.default_expr = $3;
 	      l->push_back(formal); delete[]$2; $$ = l; }
+  ;
+
+/* Record the formal names before the body is parsed: a cycle delay that
+   names one becomes constant only after substitution (16.8.1). */
+sva_sequence_formals
+  : sva_sequence_formal_list
+      { pform_sva_clear_decl_formals();
+	for (const sva_sequence_formal_t&formal : *$1)
+	  pform_sva_note_decl_formal(formal.name.str());
+	$$ = $1; }
   ;
 
 /* Named sequence formals include IEEE 1800-2017 16.8.2 local input
@@ -10285,9 +10353,9 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | sva_seq_expr K_iff sva_seq_expr
       { $$ = pform_sva_prop_iff(@2, $1, $3); }
   | K_if '(' expression_or_dist ')' property_expr %prec less_than_K_else
-      { $$ = pform_sva_prop_if(@1, $3, $5, nullptr); }
+      { $$ = pform_sva_prop_if(@1, pform_sva_prop_condition(@1, $3), $5, nullptr); }
   | K_if '(' expression_or_dist ')' property_expr K_else property_expr
-      { $$ = pform_sva_prop_if(@1, $3, $5, $7); }
+      { $$ = pform_sva_prop_if(@1, pform_sva_prop_condition(@1, $3), $5, $7); }
   | K_case '(' expression ')' property_case_items K_endcase
       { $$ = pform_sva_case(@1, $3, $5); }
   /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
@@ -10600,7 +10668,8 @@ sva_seq_atom
      The assignment belongs to the endpoint, so retain the parsed chain and
      attach it to its final step. */
   | '(' sva_seq_expr ',' IDENTIFIER '=' expression ')'
-      { if (!$2->empty()) {
+      { sva_check_local_assignment_subsequence_(@2, *$2, true);
+	if (!$2->empty()) {
 	    sva_seq_step_t&st = $2->back();
 	    sva_match_item_t item;
 	    item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
@@ -10611,7 +10680,9 @@ sva_seq_atom
 	delete[] $4;
 	$$ = $2; }
   | '(' sva_seq_expr ',' sva_match_item_list ')'
-      { if (!$2->empty()) {
+      { sva_check_local_assignment_subsequence_(
+	      @2, *$2, sva_items_assign_local_(*$4));
+	if (!$2->empty()) {
 	    sva_seq_step_t&st = $2->back();
 	    st.items.insert(st.items.end(), $4->begin(), $4->end());
 	    $4->clear();
@@ -10636,7 +10707,8 @@ sva_seq_atom
 	steps->push_back(st);
 	$$ = steps; }
   | '(' sva_seq_expr ',' IDENTIFIER compressed_operator expression ')'
-      { if (!$2->empty()) {
+      { sva_check_local_assignment_subsequence_(@2, *$2, true);
+	if (!$2->empty()) {
 	    sva_seq_step_t&st = $2->back();
 	    sva_match_item_t item;
 	    item.kind = sva_match_item_t::LOCAL_ASSIGNMENT;
@@ -10768,7 +10840,9 @@ sva_seq_atom
      Keep them on the final step so the existing ordered match-item
      lowering executes them only when that endpoint is selected. */
   | K_first_match '(' sva_seq_expr ',' sva_match_item_list ')'
-	  { if (!$3->empty()) {
+	  { sva_check_local_assignment_subsequence_(
+		  @3, *$3, sva_items_assign_local_(*$5));
+	    if (!$3->empty()) {
 	    sva_seq_step_t&st = $3->back();
 	    st.items.insert(st.items.end(), $5->begin(), $5->end());
 	    $5->clear();
@@ -12876,14 +12950,9 @@ pattern_if_prefix
   ;
 
 charge_strength
-  : '(' K_small ')'
-  | '(' K_medium ')'
-  | '(' K_large ')'
-  ;
-
-charge_strength_opt
-  : charge_strength
-  |
+  : '(' K_small ')'  { pform_set_charge_strength(IVL_DR_SMALL); }
+  | '(' K_medium ')' { pform_set_charge_strength(IVL_DR_MEDIUM); }
+  | '(' K_large ')'  { pform_set_charge_strength(IVL_DR_LARGE); }
   ;
 
 defparam_assign
@@ -13132,26 +13201,33 @@ nature_item
 
 config_declaration
   : K_config IDENTIFIER ';'
+      { pform_config_start(@1, $2); }
+    config_localparams
     K_design lib_cell_identifiers ';'
     list_of_config_rule_statements
-    K_endconfig
-      { /* M13B disposition: a config alters which cells elaborate
-	   (design/instance/cell use clauses), so skipping one changes
-	   the meaning of the design. Library-based cell binding is not
-	   implemented, so this is a hard error rather than a skip. */
-	cerr << @1 << ": sorry: config declarations (library-based cell "
-	        "binding) are not supported; remove the config block or "
-	        "select the implementation with plain module names."
-	     << endl;
-	error_count += 1;
+    K_endconfig label_opt
+      { pform_config_end(@1, $2);
+	check_end_label(@11, "config", $2, $11);
 	delete[] $2;
+      }
+  | K_config error K_endconfig
+      { yyerror(@1, "error: Invalid config declaration.");
+	pform_config_end(@1, 0);
+	yyerrok;
       }
   ;
 
+  /* IEEE 1800 33.4.3: a config may declare localparams ahead of its design
+     statement. pform_set_parameter() hands them to the config. */
+config_localparams
+  : /* empty */
+  | config_localparams localparam param_type parameter_assign_list ';'
+  ;
+
 lib_cell_identifiers
-  : /* The BNF implies this can be blank, but I'm not sure exactly what
-     * this means. */
+  : /* The design statement is checked when the config is complete. */
   | lib_cell_identifiers lib_cell_id
+      { pform_config_design(@2, $2); }
   ;
 
 list_of_config_rule_statements
@@ -13161,30 +13237,75 @@ list_of_config_rule_statements
 
 config_rule_statement
   : K_default K_liblist list_of_libraries ';'
+      { pform_config_rule(@1, PConfig::rule_t::DEFAULT, 0, 0, $3); }
+  | K_default K_use config_use ';'
+      { yyerror(@1, "error: The default clause of a config cannot have a "
+		    "use clause (IEEE 1800 33.4.1.2).");
+      }
   | K_instance hierarchy_identifier K_liblist list_of_libraries ';'
-      { delete $2; }
-  | K_instance hierarchy_identifier K_use lib_cell_id opt_config ';'
-      { delete $2; }
+      { pform_config_rule(@1, PConfig::rule_t::INSTANCE, $2, 0, $4); }
+  | K_instance hierarchy_identifier K_use config_use ';'
+      { pform_config_rule(@1, PConfig::rule_t::INSTANCE, $2, 0, 0); }
   | K_cell lib_cell_id K_liblist list_of_libraries ';'
-  | K_cell lib_cell_id K_use lib_cell_id opt_config ';'
+      { pform_config_rule(@1, PConfig::rule_t::CELL, 0, $2, $4); }
+  | K_cell lib_cell_id K_use config_use ';'
+      { pform_config_rule(@1, PConfig::rule_t::CELL, 0, $2, 0); }
+  ;
+
+  /* The use clause is kept for the pform_config_rule() call that follows. */
+config_use
+  : lib_cell_id opt_config
+      { pform_config_use($1, false, 0, $2); }
+  | config_params opt_config
+      { pform_config_use(0, true, $1, $2); }
+  | lib_cell_id config_params opt_config
+      { pform_config_use($1, true, $2, $3); }
+  ;
+
+  /* #() sets every parameter back to its default (33.4.3). */
+config_params
+  : '#' '(' ')'
+      { $$ = new std::list<named_pexpr_t>; }
+  | '#' '(' parameter_value_byname_list ')'
+      { $$ = $3; }
+  | '#' '(' expression_list_proper ')'
+      { yyerror(@1, "error: A config cannot use positional parameter "
+		    "notation (IEEE 1800 33.4.3).");
+	delete $3;
+	$$ = new std::list<named_pexpr_t>;
+      }
   ;
 
 opt_config
   : /* The use clause takes an optional :config. */
+      { $$ = false; }
   | ':' K_config
+      { $$ = true; }
   ;
 
 lib_cell_id
   : IDENTIFIER
-      { delete[] $1; }
+      { $$ = new std::list<perm_string>;
+	$$->push_back(lex_strings.make($1));
+	delete[] $1;
+      }
   | IDENTIFIER '.' IDENTIFIER
-      { delete[] $1; delete[] $3; }
+      { $$ = new std::list<perm_string>;
+	$$->push_back(lex_strings.make($1));
+	$$->push_back(lex_strings.make($3));
+	delete[] $1;
+	delete[] $3;
+      }
   ;
 
 list_of_libraries
-  : /* A NULL library means use the parents cell library. */
+  : /* An empty list stands for the library of the parent cell. */
+      { $$ = new std::list<perm_string>; }
   | list_of_libraries IDENTIFIER
-      { delete[] $2; }
+      { $$ = $1;
+	$$->push_back(lex_strings.make($2));
+	delete[] $2;
+      }
   ;
 
 drive_strength
@@ -14360,6 +14481,21 @@ parameterized_scoped_identifier
 	delete[]$3;
 	$$ = tmp;
       }
+	/* IEEE 1800 18.7.1: local:: may qualify a class scope in an inline
+	   constraint (x == local::Config::value). The class scope keeps the
+	   local:: binding on its first component, as local::name does. */
+  | K_local K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.back().local_scope = true;
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@3, hident);
+	FILE_NAME(tmp, @3);
+	tmp->set_scoped_type_prefix();
+	delete[]$3.text;
+	delete[]$5;
+	$$ = tmp;
+      }
   | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
@@ -14598,9 +14734,14 @@ expr_primary
      indexed arrays and part selects */
 
   | hierarchy_identifier
-      { PEIdent*tmp = pform_new_ident(@1, *$1);
-	FILE_NAME(tmp, @1);
-	$$ = pform_sva_sequence_triggered(@1, tmp);
+      { if (PExpr*literal = pform_config_localparam_value(*$1)) {
+		/* A localparam of the config being parsed (33.4.3). */
+	      $$ = literal;
+	} else {
+	      PEIdent*tmp = pform_new_ident(@1, *$1);
+	      FILE_NAME(tmp, @1);
+	      $$ = pform_sva_sequence_triggered(@1, tmp);
+	}
 	delete $1;
       }
   /* Temporary parse support for using type identifiers as actuals in
@@ -16640,6 +16781,23 @@ gate_instance_list
       }
   ;
 
+/* Factor the leading parenthesis so it can be distinguished from a
+   UDP drive strength without hiding the anonymous-instance form. */
+anonymous_gate_instance_list
+  : '(' port_conn_expression_list_with_nuls ')'
+      { lgate tmp;
+	tmp.name = "";
+	tmp.parms = $2;
+	FILE_NAME(&tmp, @1);
+	$$ = new std::vector<lgate>(1, tmp);
+      }
+  | anonymous_gate_instance_list ',' gate_instance
+      { $1->push_back(*$3);
+	delete $3;
+	$$ = $1;
+      }
+  ;
+
 gatetype
   : K_and    { $$ = PGBuiltin::AND; }
   | K_nand   { $$ = PGBuiltin::NAND; }
@@ -17813,10 +17971,24 @@ module_item
 	delete $1;
       }
 
-  | K_trireg charge_strength_opt dimensions_opt delay3_opt list_of_identifiers ';'
-      { yyerror(@1, "sorry: trireg nets not supported.");
-	delete $3;
-	delete $4;
+  /* A trireg net may give a charge strength where other nets give a drive
+     strength (IEEE 1800-2023 Syntax 6-2, 6.3.2.1). The net type is parsed
+     as net_type so that the '(' needs no early decision. */
+
+  | attribute_list_opt net_type charge_strength data_type_or_implicit delay3_opt net_decl_assigns_mixed ';'
+      { data_type_t*data_type = $4;
+        pform_check_net_data_type(@2, $2, $4);
+        if ($2 != NetNet::TRIREG) {
+	      yyerror(@3, "error: A charge strength shall only be used with "
+		      "a trireg net (IEEE 1800-2023 6.3.2.1).");
+	      pform_set_charge_strength(IVL_DR_MEDIUM);
+	}
+	if (data_type == 0) {
+	      data_type = new vector_type_t(IVL_VT_LOGIC, false, 0);
+	      FILE_NAME(data_type, @2);
+	}
+	pform_makewire(@2, $5, str_strength, $6, $2, data_type, $1);
+	delete $1;
       }
 
 
@@ -17998,9 +18170,19 @@ module_item
   | K_pulldown '(' dr_strength0 ',' dr_strength1 ')' gate_instance_list ';'
       { pform_makegates(@1, PGBuiltin::PULLDOWN, $3, 0, $7, 0); }
 
-  /* This rule handles instantiations of modules and user defined
-     primitives. These devices to not have delay lists or strengths,
-     but then can have parameter lists. */
+  /* Modules and UDPs share the instantiation path. For UDPs, parameter
+     values are interpreted as delays during elaboration. */
+
+  | attribute_list_opt IDENTIFIER drive_strength parameter_value_opt gate_instance_list ';'
+      { perm_string name = lex_strings.make($2);
+	pform_make_modgates(@2, name, $4, $5, $1, &$3);
+	delete[] $2;
+      }
+  | attribute_list_opt IDENTIFIER anonymous_gate_instance_list ';'
+      { perm_string name = lex_strings.make($2);
+	pform_make_modgates(@2, name, 0, $3, $1);
+	delete[] $2;
+      }
 
   | attribute_list_opt
 	  IDENTIFIER parameter_value_opt gate_instance_list ';'
@@ -18115,6 +18297,17 @@ module_item
         }
         var_lifetime = LexicalScope::INHERITED;
         pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+      }
+
+  /* IEEE 1800 17.3: checker_instantiation names a ps_checker_identifier,
+     so a package checker is instantiated as p::c u(...). A non-type name
+     after the package scope reaches only this rule; the package-typed
+     declarations below take TYPE_IDENTIFIER. */
+  | attribute_list_opt package_scope IDENTIFIER gate_instance_list ';'
+      { lex_in_package_scope(0);
+	pform_make_pkg_checker_instance(@3, $2, lex_strings.make($3), $4);
+	delete $1;
+	delete[]$3;
       }
 
   /* Package-qualified variable: "pkg::type_t arr;" or "pkg::type_t [N:0] arr;" in module scope.
@@ -18793,6 +18986,7 @@ net_type
 		        "instead." << endl;
 	      }
   | K_uwire   { $$ = NetNet::UNRESOLVED_WIRE; }
+  | K_trireg  { $$ = NetNet::TRIREG; }
   ;
 
 net_type_opt
@@ -19635,14 +19829,7 @@ specify_item
 	for (const pform_specify_terminal_t&terminal : *$2) {
 	      if (pform_specify_path_output_previously_declared(terminal))
 		    yyerror(@3, "error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).");
-	}
-	/* Pulse-filtering control, not a timing check -- the old
-	   message named the wrong construct. It is accepted and
-	   ignored, so say which one is being ignored. */
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: `pulsestyle_onevent' is accepted but has no "
-			 "effect; pulse filtering is not modelled, so "
-			 "cancelled and short pulses propagate as usual.");
+	      pform_specify_path_ondetect(terminal, false);
 	}
 	delete $2; // specify_path_identifiers
       }
@@ -19651,14 +19838,7 @@ specify_item
 	for (const pform_specify_terminal_t&terminal : *$2) {
 	      if (pform_specify_path_output_previously_declared(terminal))
 		    yyerror(@3, "error: A module path output cannot appear in a pulse style declaration after it has appeared in a module path declaration (IEEE 1800-2017/2023 30.7.4.1).");
-	}
-	/* Pulse-filtering control, not a timing check -- the old
-	   message named the wrong construct. It is accepted and
-	   ignored, so say which one is being ignored. */
-	if (gn_specify_blocks_flag) {
-	      yywarn(@3, "warning: `pulsestyle_ondetect' is accepted but has no "
-			 "effect; pulse filtering is not modelled, so "
-			 "cancelled and short pulses propagate as usual.");
+	      pform_specify_path_ondetect(terminal, true);
 	}
 	delete $2; // specify_path_identifiers
       }
@@ -22745,7 +22925,12 @@ udp_sequ_entry_list
 
 udp_sequ_entry
   : udp_input_list ':' udp_input_sym ':' udp_output_sym ';'
-      { char*tmp = new char[strlen($1)+5];
+      { unsigned transitions = 0;
+	for (const char*cp = $1; *cp; ++cp)
+	      if (!strchr("01x?blh", *cp)) transitions += 1;
+	if (transitions > 1)
+	      yyerror(@1, "error: A sequential UDP table row may have at most one input transition (IEEE 1800 29.3.4, 29.6).");
+	char*tmp = new char[strlen($1)+5];
 	strcpy(tmp, $1);
 	char*tp = tmp+strlen(tmp);
 	*tp++ = ':';
@@ -22753,6 +22938,7 @@ udp_sequ_entry
 	*tp++ = ':';
 	*tp++ = $5;
 	*tp++ = 0;
+	delete[]$1;
 	$$ = tmp;
       }
   ;
@@ -22934,6 +23120,37 @@ udp_primitive
 	check_end_label(@14, "primitive", $2, $14);
 	delete[]$2;
 	delete[]$6;
+      }
+
+        /* IEEE 1800 29.3: a (.*) definition takes the port list of an
+	   earlier extern primitive declaration. */
+  | K_primitive IDENTIFIER '(' K_DOTSTAR ')' ';'
+    udp_port_decls
+    udp_init_opt
+    udp_body
+    K_endprimitive label_opt
+      { perm_string tmp2 = lex_strings.make($2);
+	std::list<pform_ident_t>*ports = pform_extern_udp_ports(@2, tmp2);
+	if (ports)
+	      pform_make_udp(@2, tmp2, ports, $7, $9, $8);
+	check_end_label(@11, "primitive", $2, $11);
+	delete[]$2;
+      }
+
+        /* IEEE 1800 29.3: extern UDP declarations, in both port styles. */
+  | K_extern K_primitive IDENTIFIER '(' udp_port_list ')' ';'
+      { pform_extern_udp(@3, lex_strings.make($3), $5);
+	delete[]$3;
+      }
+  | K_extern K_primitive IDENTIFIER
+    '(' K_output udp_reg_opt IDENTIFIER initializer_opt ','
+    udp_input_declaration_list ')' ';'
+      { std::list<pform_ident_t>*ports = $10;
+	ports->push_front(pform_ident_t{ lex_strings.make($7), @7.lexical_pos });
+	pform_extern_udp(@3, lex_strings.make($3), ports);
+	delete $8;
+	delete[]$3;
+	delete[]$7;
       }
   ;
 

@@ -775,6 +775,11 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
 		  if (idx) vartype_put_(buf, ",");
 		  vartype_put_(buf, name);
 		  vartype_put_(buf, "=");
+		  for (unsigned adx = 0
+			     ; adx < ivl_type_prop_typedef_aliases(type, idx)
+			     ; adx += 1)
+			vartype_put_name_(buf,
+			      ivl_type_prop_typedef_alias(type, idx, adx));
 		  member_width = vartype_spec_(buf, ivl_type_prop_type(type, idx));
 		  if (!member_width) return 0;
 		  if (!ivl_type_is_union(type)) width += member_width;
@@ -1600,6 +1605,9 @@ static int udp_has_modpath_output(ivl_net_logic_t lptr)
 static void draw_udp_in_scope(ivl_net_logic_t lptr)
 {
       unsigned pdx;
+      ivl_drive_t str0 = ivl_logic_drive0(lptr);
+      ivl_drive_t str1 = ivl_logic_drive1(lptr);
+      int need_strength = str0 != IVL_DR_STRONG || str1 != IVL_DR_STRONG;
 
       ivl_udp_t udp = ivl_logic_udp(lptr);
 
@@ -1659,8 +1667,11 @@ static void draw_udp_in_scope(ivl_net_logic_t lptr)
 	            lptr, lptr);
       }
 
-	/* Generate the UDP call. */
-      fprintf(vvp_out, "L_%p%s .udp%s UDP_%s", lptr, need_delay_flag ? "/d" : "",
+	/* Generate the UDP call and apply its output drive strength. */
+      if (need_strength)
+	    fprintf(vvp_out, "v%p_s .net *\"_s%p\", 0 0, L_%p/s;\n", lptr, lptr, lptr);
+      fprintf(vvp_out, "L_%p%s .udp%s UDP_%s", lptr,
+                       need_strength ? "/s" : (need_delay_flag ? "/d" : ""),
                        need_delay_flag ? "/d" : "",
                        vvp_mangle_id(ivl_udp_name(udp)));
 
@@ -1670,6 +1681,10 @@ static void draw_udp_in_scope(ivl_net_logic_t lptr)
       free(input_strings);
 
       fprintf(vvp_out, ";\n");
+
+      if (need_strength)
+	    fprintf(vvp_out, "L_%p%s .functor BUFZ 1 [%d %d], L_%p/s;\n",
+	            lptr, need_delay_flag ? "/d" : "", str0, str1, lptr);
 
 	/* Generate a delay when needed. */
       if (need_delay_flag) draw_logic_delay(lptr);
@@ -1770,6 +1785,11 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 
 		break;
 	  }
+
+	  case IVL_LO_TRIREG:
+	      /* The charge storage of a trireg net is drawn with the
+		 nexus it sits on (draw_net_input.c). */
+	    return;
 
 	  case IVL_LO_PULLDOWN:
 	  case IVL_LO_PULLUP:

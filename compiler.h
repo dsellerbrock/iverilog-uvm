@@ -210,6 +210,46 @@ extern unsigned long array_size_limit;
 /* Path to a directory useful for finding subcomponents. */
 extern const char*basedir;
 
+/*
+ * IEEE 1800 Clause 33 libraries: library map files (33.3.1), the mapping of
+ * source files to libraries (33.3.3), and the library search order (33.8.1).
+ */
+
+struct vlltype;
+
+/* While true, the lexor hands `library ...;' and `include ...;' statements
+   to libmap_statement() instead of the parser. Set only by libmap_load(). */
+extern bool lexor_libmap_mode;
+
+/* Set once the command line sources are parsed. A cell that is loaded later
+   (-y search during elaboration) never displaces a cell already bound. */
+extern bool libmap_sources_parsed;
+
+/* Read a library map file and the map files it includes. Returns the
+   number of errors. */
+extern int libmap_load(const char*path);
+
+/* One statement of a map file, without its keyword and its `;'. */
+extern void libmap_statement(const struct vlltype&loc, bool is_include,
+			     const std::string&text);
+
+/* -L NAME: put a library at the front of the search order, in the order
+   given. A NAME that is not a library is left to its other meaning (a VPI
+   module directory). */
+extern void libmap_search(const char*name);
+
+/* The library that the cells of a source file are compiled into. */
+extern perm_string libmap_file_library(const char*file);
+
+/* True if library A is searched before library B. */
+extern bool libmap_before(perm_string a, perm_string b);
+
+/* The pform_modules key of a cell that shares its name with a cell of
+   another library that is searched first. */
+extern perm_string libmap_cell_key(perm_string library, perm_string cell);
+/* The cell name of a pform_modules key. */
+extern perm_string libmap_key_cell(perm_string key);
+
 /* This is an ordered list of library suffixes to search. */
 extern std::list<const char*>library_suff;
 extern int build_library_index(const char*path, bool key_case_sensitive);

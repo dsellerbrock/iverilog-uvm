@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3418_overlap.sv",
+  "iverilog-args": ["-g2023", "-s", "issue3418_overlap"],
+  "gold": "issue3418_overlap"
+}

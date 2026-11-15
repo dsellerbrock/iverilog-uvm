@@ -575,3 +575,12 @@ void put_scalar_value(vpiHandle callh, PLI_INT32 result)
       val.value.scalar = result;
       vpi_put_value(callh, &val, 0, vpiNoDelay);
 }
+
+PLI_INT32 sys_object_vpi_type(vpiHandle item)
+{
+      PLI_INT32 type = vpi_get(vpiType, item);
+      if ((type == vpiStructVar || type == vpiUnionVar)
+	  && vpi_get(vpiPacked, item) == 0)
+	    return vpiClassVar;
+      return type;
+}

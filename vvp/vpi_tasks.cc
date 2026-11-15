@@ -620,10 +620,9 @@ void def_table_delete(void)
 }
 #endif
 
-class __vpiSystfIterator : public __vpiHandle {
+class __vpiSystfIterator : public __vpiIteratorBase {
     public:
       explicit __vpiSystfIterator(unsigned idx);
-      int get_type_code(void) const override;
       vpiHandle vpi_index(int idx) override;
       free_object_fun_t free_object_fun(void) override;
 
@@ -661,9 +660,6 @@ static int systf_iterator_free_object(vpiHandle ref)
 
 inline __vpiSystfIterator::__vpiSystfIterator(unsigned idx)
 { next = idx; }
-
-int __vpiSystfIterator::get_type_code(void) const
-{ return vpiIterator; }
 
 vpiHandle __vpiSystfIterator::vpi_index(int idx)
 { return systf_iterator_scan(this, idx); }

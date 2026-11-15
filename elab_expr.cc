@@ -20,6 +20,7 @@
 
 # include "config.h"
 bool pform_procedural_expr_context = false;
+bool pform_checker_assign_rval_context = false;
 bool pform_default_argument_context = false;
 bool pform_default_argument_requires_procedural_context = false;
 bool pform_type_operator_context = false;
@@ -4465,6 +4466,18 @@ static bool resolve_scoped_covergroup_coverage_(
       return true;
 }
 
+/* A statement call, cg::get_coverage(...) or void'(cg::cp::get_coverage()),
+ * reaches PCallTask first; it asks here whether the name is a covergroup
+ * type's static coverage method (19.8). */
+bool is_scoped_covergroup_coverage_call(Design*des, NetScope*scope,
+					PPackage*package,
+					const pform_name_t&path)
+{
+      scoped_covergroup_coverage_t coverage;
+      return resolve_scoped_covergroup_coverage_(
+	    des, scope, pform_scoped_name_t(package, path), coverage);
+}
+
 static std::string scoped_covergroup_coverage_name_(
 	const scoped_covergroup_coverage_t&coverage)
 {
@@ -4474,6 +4487,50 @@ static std::string scoped_covergroup_coverage_name_(
       name += type_label.str();
       name += "|" + std::to_string(coverage.item + 1);
       return name;
+}
+
+/*
+ * IEEE 1800-2017/2023 19.8: get_coverage and get_inst_coverage take either
+ * no arguments or two ref int arguments that receive the covered and the
+ * total bin counts. Attach the two outputs to the call.
+ */
+static bool elaborate_covgrp_count_refs_(
+	Design*des, NetScope*scope, const LineInfo*call,
+	const vector<named_pexpr_t>&parms, perm_string method, NetESFunc*sys)
+{
+      if (parms.empty())
+	    return true;
+      if (parms.size() != 2) {
+	    cerr << call->get_fileline() << ": error: Covergroup method "
+		 << method << " expects either zero arguments or two ref int "
+		    "arguments (IEEE 1800-2017/2023 19.8)." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+      NetAssign_*outputs[2] = { 0, 0 };
+      for (unsigned idx = 0; idx < 2; idx += 1) {
+	    unsigned errors_before = des->errors;
+	    outputs[idx] = parms[idx].parm
+		  ? parms[idx].parm->elaborate_lval(des, scope, false, false)
+		  : 0;
+	    if (outputs[idx] && !outputs[idx]->more
+		&& outputs[idx]->lwidth() == 32)
+		  continue;
+	    if (des->errors == errors_before) {
+		  cerr << (parms[idx].parm ? parms[idx].parm->get_fileline()
+					   : call->get_fileline())
+		       << ": error: " << method << " output argument must "
+			  "name one writable int variable (IEEE 1800-2017/2023 "
+			  "19.8)." << endl;
+		  des->errors += 1;
+	    }
+	    delete outputs[0];
+	    delete outputs[1];
+	    return false;
+      }
+      sys->set_ref_output(outputs[0]);
+      sys->set_ref_output2(outputs[1]);
+      return true;
 }
 
 /*
@@ -9703,6 +9760,9 @@ static bool stream_operand_is_dynamic_(Design*des, NetScope*scope, PExpr*op)
 	  case IVL_VT_DARRAY:
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_STRING:
+	      // 11.4.14.1: a class handle streams its object's members, a
+	      // run-time width (and nothing when it is null).
+	  case IVL_VT_CLASS:
 	    return true;
 	  default:
 	    return false;
@@ -9920,6 +9980,10 @@ static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 		return 0;
 	  }
 	  case IVL_VT_STRING:
+	    return op->elaborate_expr(des, scope, w, PExpr::NO_FLAGS);
+	    /* 11.4.14.1: a class handle streams the members of the object it
+	       references (none when null); the runtime flattens it. */
+	  case IVL_VT_CLASS:
 	    return op->elaborate_expr(des, scope, w, PExpr::NO_FLAGS);
 	  case IVL_VT_LOGIC:
 	  case IVL_VT_BOOL:
@@ -12955,8 +13019,7 @@ unsigned PECallFunction::test_width(Design*des, NetScope*scope,
 	    }
 
 	    scoped_covergroup_coverage_t coverage;
-	    if (parms_.empty()
-		&& resolve_scoped_covergroup_coverage_(
+	    if (resolve_scoped_covergroup_coverage_(
 		      des, scope, path_, coverage)) {
 	  expr_type_ = IVL_VT_REAL;
 	  expr_width_ = 1;
@@ -19763,13 +19826,18 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
       }
 
       scoped_covergroup_coverage_t scoped_coverage;
-      if (parms_.empty()
-	  && resolve_scoped_covergroup_coverage_(
+      if (resolve_scoped_covergroup_coverage_(
 		  des, scope, path_, scoped_coverage)) {
 	    string name = scoped_covergroup_coverage_name_(scoped_coverage);
 	    NetESFunc*sys = new NetESFunc(
 		  name.c_str(), &netreal_t::type_real, 0);
 	    sys->set_line(*this);
+	    if (!elaborate_covgrp_count_refs_(
+		      des, scope, this, parms_,
+		      perm_string::literal("get_coverage"), sys)) {
+		  delete sys;
+		  return 0;
+	    }
 	    return sys;
       }
 
@@ -20356,6 +20424,14 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 	  }
 	  if (bad_direction && pform_default_argument_context) {
 		pform_default_argument_requires_procedural_context = true;
+	  } else if (bad_direction && pform_checker_assign_rval_context) {
+		  cerr << get_fileline() << ": error: Function `"
+		       << dscope->basename()
+		       << "' with output, inout, or ref arguments cannot be called"
+			  " in the right-hand side of a checker variable assignment"
+			  " (IEEE 1800-2017/2023 17.8)." << endl;
+		  des->errors += 1;
+		  return 0;
 	  } else if (bad_direction && !pform_procedural_expr_context) {
 		  cerr << get_fileline() << ": error: Function `"
 		       << dscope->basename()
@@ -21624,15 +21700,6 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 			      class_type->covgrp_item(item);
 			if (meta.name != prop_comp.name)
 			      continue;
-			if (!parms_.empty()) {
-			      cerr << get_fileline() << ": sorry: named coverage item "
-				   << method_path.back().name
-				   << "() with ref arguments is not supported."
-				   << endl;
-			      des->errors += 1;
-			      delete sub_expr;
-			      return 0;
-			}
 			string name = "$ivl_class_method$covgrp_item_";
 			name += method_path.back().name.str();
 			name += "|" + to_string(item);
@@ -21640,6 +21707,12 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 						  &netreal_t::type_real, 1);
 			sys->set_line(*this);
 			sys->parm(0, sub_expr);
+			if (!elaborate_covgrp_count_refs_(
+				  des, scope, this, parms_,
+				  method_path.back().name, sys)) {
+			      delete sys;
+			      return 0;
+			}
 			return sys;
 		      }
 		      if (class_type->property_idx_from_name(prop_comp.name) < 0) {
@@ -22312,76 +22385,24 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 			}
 		    }
 
-		    // Covergroup get_inst_coverage(): returns real.
-		    if (method_name == perm_string::literal("get_inst_coverage")) {
-			  if (class_type && class_type->is_covergroup()) {
-				if (!parms_.empty() && parms_.size() != 2) {
-				      cerr << get_fileline() << ": error: Covergroup method "
-					   "get_inst_coverage expects either zero arguments or "
-					   "two ref int arguments (IEEE 1800-2017/2023 19.8)."
-					   << endl;
-				      des->errors += 1;
-				      delete sub_expr;
-				      return 0;
-				}
-				// The optional ref arguments receive covered and total bins.
-				NetESFunc*sys = new NetESFunc(
-					"$ivl_class_method$covgrp_get_inst_coverage",
-					&netreal_t::type_real, 1);
-				sys->set_line(*this);
-				sys->parm(0, sub_expr);
-				if (parms_.size() == 2) {
-				      NetAssign_*outputs[2] = { 0, 0 };
-				      for (unsigned idx = 0; idx < 2; idx += 1) {
-					    unsigned errors_before = des->errors;
-					    outputs[idx] = parms_[idx].parm
-						  ? parms_[idx].parm->elaborate_lval(
-							des, scope, false, false) : 0;
-					    if (!outputs[idx]) {
-						  if (des->errors == errors_before) {
-							cerr << get_fileline()
-							     << ": error: get_inst_coverage output "
-								"argument must be a writable int "
-								"variable (IEEE 1800-2017/2023 19.8)."
-							     << endl;
-							des->errors += 1;
-						  }
-						  delete outputs[0];
-						  delete outputs[1];
-						  delete sys;
-						  return 0;
-					    }
-					    if (outputs[idx]->more
-						      || outputs[idx]->lwidth() != 32) {
-						  cerr << parms_[idx].parm->get_fileline()
-						       << ": error: get_inst_coverage output argument "
-							  "must name one int variable (IEEE "
-							  "1800-2017/2023 19.8)." << endl;
-						  des->errors += 1;
-						  delete outputs[0];
-						  delete outputs[1];
-						  delete sys;
-						  return 0;
-					    }
-				      }
-				      sys->set_ref_output(outputs[0]);
-				      sys->set_ref_output2(outputs[1]);
-				}
-				return sys;
+		    // Covergroup get_inst_coverage() and get_coverage(), the TYPE
+		    // coverage merged across all instances (19.8/19.11): both
+		    // return real and take two optional ref int outputs.
+		    if ((method_name == perm_string::literal("get_inst_coverage")
+			 || method_name == perm_string::literal("get_coverage"))
+			&& class_type && class_type->is_covergroup()) {
+			  string name = "$ivl_class_method$covgrp_";
+			  name += method_name.str();
+			  NetESFunc*sys = new NetESFunc(
+				name.c_str(), &netreal_t::type_real, 1);
+			  sys->set_line(*this);
+			  sys->parm(0, sub_expr);
+			  if (!elaborate_covgrp_count_refs_(
+				    des, scope, this, parms_, method_name, sys)) {
+				delete sys;
+				return 0;
 			  }
-		    }
-
-		    // M11: covergroup get_coverage(): TYPE coverage — the
-		    // cumulative merge across all instances (19.8/19.11).
-		    if (method_name == perm_string::literal("get_coverage")) {
-			  if (class_type && class_type->is_covergroup()) {
-				NetESFunc*sys = new NetESFunc(
-					"$ivl_class_method$covgrp_get_coverage",
-					&netreal_t::type_real, 1);
-				sys->set_line(*this);
-				sys->parm(0, sub_expr);
-				return sys;
-			  }
+			  return sys;
 		    }
 
 		    if (class_type->is_interface()) {
@@ -27664,35 +27685,23 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			  tmp->set_line(*this);
 			  return tmp;
 		    }
-		    
-		    // Compile-progress fallback for parameterized derived classes
-		    // (e.g. uvm_event_callback#(T) extends uvm_callback)
-		    if (gn_system_verilog()
-			&& ivl_type_base(ntype) == IVL_VT_CLASS
-			&& have_type
+
+		      /* Two virtual-interface handles of one interface differ
+			 in parameters or modport. The assignment's own check
+			 names that rule (25.9); pass the reference on to it. */
+		    if (ivl_type_base(ntype) == IVL_VT_CLASS && have_type
 			&& ivl_type_base(have_type) == IVL_VT_CLASS) {
-			  const netclass_t*want_class = dynamic_cast<const netclass_t*>(ntype);
-			  const netclass_t*have_class = dynamic_cast<const netclass_t*>(have_type);
-			  /* Mailbox specializations share the class name but are distinct
-			   * parameterized types (IEEE 1800-2017/2023 8.25). Their message
-			   * type cannot be inferred from an ancestor name, so do not use
-			   * this compatibility fallback for mailbox handles. */
-			  const bool mailbox_type =
-				(want_class && want_class->get_name()
-				 == perm_string::literal("mailbox"))
-				|| (have_class && have_class->get_name()
-				    == perm_string::literal("mailbox"));
-			  if (want_class && have_class && !mailbox_type) {
-				// Check if have_class derives from want_class
-				const netclass_t*check = have_class;
-				while (check) {
-				      if (check->get_name() == want_class->get_name()) {
-					    NetESignal*tmp = new NetESignal(net);
-					    tmp->set_line(*this);
-					    return tmp;
-				      }
-				      check = check->get_super();
-				}
+			  const netclass_t*want_class =
+				dynamic_cast<const netclass_t*>(ntype);
+			  const netclass_t*have_class =
+				dynamic_cast<const netclass_t*>(have_type);
+			  if (want_class && have_class
+			      && want_class->is_interface()
+			      && have_class->is_interface()
+			      && want_class->get_name() == have_class->get_name()) {
+				NetESignal*tmp = new NetESignal(net);
+				tmp->set_line(*this);
+				return tmp;
 			  }
 		    }
 
@@ -34946,6 +34955,17 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	  }
 	  if (same_shape) {
 		list<long>indices;
+		  /* IEEE 1800-2023 11.4.11: under an ambiguous condition the
+		     arrays "shall be combined element by element. If the
+		     elements match, the element shall be returned. If they do
+		     not match, then the value specified in Table 7-1 for that
+		     element's type shall be returned." Applied down to each
+		     integral leaf (as Eve does): a mismatched leaf is 0 for a
+		     2-state type and all x for a 4-state type, never a bit merge. */
+		ivl_type_t leaf_type = array_type->element_type();
+		const bool integral_leaf = leaf_type && leaf_type->packed()
+		      && (leaf_type->base_type() == IVL_VT_BOOL
+			  || leaf_type->base_type() == IVL_VT_LOGIC);
 		function<NetExpr*(size_t)>build_array = [&](size_t dimension) -> NetExpr* {
 		      vector<NetExpr*>items;
 		      const netrange_t&range = dims[dimension];
@@ -34965,13 +34985,33 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 					NetExpr*false_value = new NetESignal(
 					      const_cast<NetNet*>(false_array->sig()),
 					      false_index);
+					const unsigned wid = true_value->expr_width();
+					const bool sgn = true_value->has_sign()
+					      && false_value->has_sign();
 					NetETernary*ternary = new NetETernary(
 					      con->dup_expr(), true_value, false_value,
-					      true_value->expr_width(),
-					      true_value->has_sign()
-						&& false_value->has_sign());
+					      wid, sgn);
 					ternary->set_line(*this);
 					item = ternary;
+					if (integral_leaf) {
+					      NetEConst*dflt =
+						    leaf_type->base_type() == IVL_VT_BOOL
+						    ? make_const_0(wid) : make_const_x(wid);
+					      dflt->cast_signed(sgn);
+					      NetExpr*ambiguous = new NetEBComp('E',
+						    new NetEBComp('n', con->dup_expr(),
+							  make_const_0(con->expr_width())),
+						    make_const_x(1));
+					      NetExpr*match = new NetEBComp('E',
+						    true_value->dup_expr(),
+						    false_value->dup_expr());
+					      item = new NetETernary(ambiguous,
+						    new NetETernary(match,
+							  true_value->dup_expr(), dflt,
+							  wid, sgn),
+						    ternary, wid, sgn);
+					      item->set_line(*this);
+					}
 				  } else {
 					delete true_index;
 					delete false_index;
@@ -35029,6 +35069,19 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 			? tru->expr_width() : fal->expr_width();
       if (wid == 0)
 	    wid = 1;
+
+	/* 11.4.11 + Table 7-1: an ambiguous condition over two different
+	   unpacked structs gives each member's declared initial value where it
+	   has one. The run-time struct default does not carry those values. */
+      const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(type);
+      const NetEConst*con_const = dynamic_cast<const NetEConst*>(con);
+      if (struct_type && !struct_type->packed()
+	  && struct_type->has_member_defaults()
+	  && !(con_const && con_const->value().is_defined()))
+	    cerr << get_fileline() << ": sorry: if this condition is x or z "
+		 << "and the operands differ, members of the struct that have "
+		 << "an initial assignment take their type's Table 7-1 default "
+		 << "instead (IEEE 1800-2023 11.4.11)." << endl;
 
       NetETernary*res = new NetETernary(con, tru, fal, wid,
 					tru->has_sign() && fal->has_sign());

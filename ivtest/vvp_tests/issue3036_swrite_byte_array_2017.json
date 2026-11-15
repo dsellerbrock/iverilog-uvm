@@ -1,0 +1,5 @@
+{
+    "type"          : "normal",
+    "source"        : "issue3036_swrite_byte_array.v",
+    "iverilog-args" : [ "-g2017" ]
+}

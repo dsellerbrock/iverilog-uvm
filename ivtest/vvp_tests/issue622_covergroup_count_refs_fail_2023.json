@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue622_covergroup_count_refs_fail.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue622_covergroup_count_refs_fail"
+}

@@ -4100,7 +4100,11 @@ void class_type::covgrp_accumulate_instance_(covgrp_population_t&population,
       if (!obj || obj->get_defn() != this) return;
 
       bool contributes = false;
-      double score = vvp_covgrp_instance_coverage(obj, &contributes);
+      long double covered = 0, defined = 0;
+      double score = vvp_covgrp_instance_coverage(obj, &contributes, -1,
+						  &covered, &defined);
+      population.covered += covered;
+      population.defined += defined;
       if (contributes) {
 	    unsigned weight = covgrp_weight(obj);
 	    population.weight += weight;
@@ -4111,10 +4115,17 @@ void class_type::covgrp_accumulate_instance_(covgrp_population_t&population,
 	    population.item_weighted.resize(covgrp_items_.size(), 0);
 	    population.item_has_bins.resize(covgrp_items_.size(), false);
       }
+      if (population.item_covered.size() < covgrp_items_.size()) {
+	    population.item_covered.resize(covgrp_items_.size(), 0);
+	    population.item_defined.resize(covgrp_items_.size(), 0);
+      }
       for (size_t item = 0; item < covgrp_items_.size(); item += 1) {
 	    bool item_contributes = false;
 	    double item_score = vvp_covgrp_instance_coverage(
-		  obj, &item_contributes, static_cast<int>(item));
+		  obj, &item_contributes, static_cast<int>(item),
+		  &covered, &defined);
+	    population.item_covered[item] += covered;
+	    population.item_defined[item] += defined;
 	    population.item_has_bins[item] =
 		  population.item_has_bins[item] || item_contributes;
 	    unsigned item_weight = covgrp_item_weight(obj, item);
@@ -4378,8 +4389,29 @@ uint64_t class_type::dyn_type_register_auto_bin(unsigned family,
 uint64_t class_type::cross_type_register_bin(unsigned family,
       const std::vector<std::pair<unsigned,uint64_t>>&name) const
 {
+      cov_cross_type_t&universe = covgrp_cross_type_[family];
+      uint64_t id = cross_type_register_sparse_bin(family, name);
+      universe.dense.insert(id);
+      return id;
+}
+
+/* A hit bin of a sparse cross (#3303): named like a dense one, so equal
+ * names merge, but it does not enlarge the dense universe. */
+uint64_t class_type::cross_type_register_sparse_bin(unsigned family,
+      const std::vector<std::pair<unsigned,uint64_t>>&name) const
+{
       auto&bins = covgrp_cross_type_[family].bins;
       return bins.emplace(name, bins.size()).first->second;
+}
+
+/* ponytail: the type-level size of a sparse cross is the largest instance
+ * universe (as dyn_type_register_total does for bin families), not their
+ * union; exact when instance universes nest, which is the usual case. */
+void class_type::cross_type_register_sparse_total(unsigned family,
+      unsigned __int128 total) const
+{
+      unsigned __int128&slot = covgrp_cross_type_[family].sparse_total;
+      if (total > slot) slot = total;
 }
 
 uint64_t class_type::trans_type_register_bin(unsigned family,
@@ -4401,10 +4433,21 @@ void class_type::cross_type_register_named(unsigned family,
       names.insert(props.begin(), props.end());
 }
 
+/* The optional counts are the covered and defined bins of 19.8
+ * get_coverage(ref int, ref int): summed over every instance when the
+ * instances are averaged (the 19.8 example: 2+4 and 2+3+4+7 bins), and
+ * those of the merged union under type_option.merge_instances. */
 double class_type::type_coverage(vvp_cobject*, bool*contributes,
-				int selected_item) const
+				int selected_item,
+				long double*covered_bins,
+				long double*defined_bins) const
 {
       if (contributes) *contributes = false;
+      long double unused_covered, unused_defined;
+      long double&covered = covered_bins ? *covered_bins : unused_covered;
+      long double&defined = defined_bins ? *defined_bins : unused_defined;
+      covered = 0;
+      defined = 0;
 	if (selected_item >= 0
 	    && static_cast<size_t>(selected_item) >= covgrp_items_.size())
 	    return 0.0;
@@ -4426,11 +4469,22 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 	    bool item_has_bins = selected_item >= 0
 		  && item < retired.item_has_bins.size()
 		  && retired.item_has_bins[item];
+	    if (selected_item < 0) {
+		  covered = retired.covered;
+		  defined = retired.defined;
+	    } else if (item < retired.item_covered.size()) {
+		  covered = retired.item_covered[item];
+		  defined = retired.item_defined[item];
+	    }
             if (!covgrp_db_live_suppressed_)
             for (vvp_cobject*obj : covgrp_live_) {
                   bool instance_contributes = false;
+		  long double instance_covered = 0, instance_defined = 0;
                   double score = vvp_covgrp_instance_coverage(
-			obj, &instance_contributes, selected_item);
+			obj, &instance_contributes, selected_item,
+			&instance_covered, &instance_defined);
+		  covered += instance_covered;
+		  defined += instance_defined;
 		  if (selected_item >= 0 && instance_contributes)
 		    item_has_bins = true;
 		  if (!instance_contributes && selected_item < 0) continue;
@@ -4505,7 +4559,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
             auto&props = item_props[cross.item_idx];
             props.insert(universe.named_props.begin(), universe.named_props.end());
             unsigned at_least = covgrp_cumulative_at_least_(cross.item_idx);
-            unsigned __int128 total = universe.bins.size();
+            unsigned __int128 total = universe.dense.size();
+            if (universe.sparse_total > total) total = universe.sparse_total;
             item_dyn_total[cross.item_idx] += total;
             item_dyn_hits[cross.item_idx] += at_least == 0 ? total
                   : dyn_type_hits(cross.family, at_least);
@@ -4535,6 +4590,8 @@ double class_type::type_coverage(vvp_cobject*, bool*contributes,
 	    total += item_dyn_total[item_idx];
 	    hits += item_dyn_hits[item_idx];
 	    if (total == 0) continue;
+	    covered += (long double)hits;
+	    defined += (long double)total;
 	    if (selected_item >= 0) {
 		  if (contributes) *contributes = true;
 		  return 100.0 * (double)hits / (double)total;

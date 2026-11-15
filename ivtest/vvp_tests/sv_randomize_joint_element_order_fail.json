@@ -3,6 +3,7 @@
     "source": "sv_randomize_joint_element_order_fail.v",
     "iverilog-args": [
         "-g2017",
+        "-gcommercial-unsafe",
         "-s",
         "sv_randomize_joint_element_order_fail"
     ],

@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2909_pkg_checker.v",
+    "iverilog-args": ["-g2023", "-s", "issue2909_pkg_checker"],
+    "gold": "issue2909_pkg_checker"
+}

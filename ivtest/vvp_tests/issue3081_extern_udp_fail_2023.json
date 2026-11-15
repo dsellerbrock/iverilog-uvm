@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue3081_extern_udp_fail.v",
+    "iverilog-args": ["-g2023", "-s", "issue3081_extern_udp_fail"],
+    "gold": "issue3081_extern_udp_fail"
+}

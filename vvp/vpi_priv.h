@@ -191,9 +191,20 @@ class __vpiHandle {
  * The free_args_flag member is true if when this iterator object is
  * released it must also free the args array.
  */
-struct __vpiIterator : public __vpiHandle {
+/*
+ * The part every iterator object shares (IEEE 1800-2023 37.84):
+ * vpi_iterate records the type of object the iterator was asked to scan,
+ * which is its vpiIteratorType.
+ */
+struct __vpiIteratorBase : public __vpiHandle {
+      int get_type_code(void) const override { return vpiIterator; }
+      int vpi_get(int code) override
+      { return code == vpiIteratorType ? iterator_type : vpiUndefined; }
+      int iterator_type = vpiUndefined;
+};
+
+struct __vpiIterator : public __vpiIteratorBase {
       __vpiIterator();
-      int get_type_code(void) const override;
       vpiHandle vpi_handle(int code) override;
       free_object_fun_t free_object_fun(void) override;
 

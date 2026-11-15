@@ -889,7 +889,7 @@ class NetNet  : public NetObj, public PortType {
     public:
       enum Type ENUM_UNSIGNED_INT { NONE, IMPLICIT, IMPLICIT_REG, WIRE, TRI, TRI1,
 		  SUPPLY0, SUPPLY1, WAND, TRIAND, TRI0, WOR, TRIOR, REG,
-		  UNRESOLVED_WIRE };
+		  UNRESOLVED_WIRE, TRIREG };
 
       typedef PortType::Enum PortType;
 
@@ -3416,7 +3416,11 @@ class NetLogic  : public NetNode {
     public:
       enum TYPE { AND, BUF, BUFIF0, BUFIF1, CMOS, EQUIV, IMPL, NAND, NMOS,
 		  NOR, NOT, NOTIF0, NOTIF1, OR, PULLDOWN, PULLUP, RCMOS,
-		  RNMOS, RPMOS, PMOS, XNOR, XOR };
+		  RNMOS, RPMOS, PMOS, XNOR, XOR,
+		    /* The charge storage of a trireg net (IEEE 1800-2023 6.6.4):
+		       one pin on the net; the pin strength is the charge size
+		       and the delays are (rise, fall, charge decay). */
+		  TRIREG };
 
       explicit NetLogic(NetScope*s, perm_string n, unsigned pins,
 			TYPE t, unsigned wid, bool is_cassign__=false);

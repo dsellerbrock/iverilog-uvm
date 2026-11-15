@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue3212_event_array_assign.v",
+  "iverilog-args": ["-g2023"]
+}

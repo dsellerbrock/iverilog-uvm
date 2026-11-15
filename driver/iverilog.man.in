@@ -11,6 +11,7 @@ iverilog - Icarus Verilog compiler
 [\-ooutputfilename] [\-stopmodule] [\-ttype] [\-Tmin/typ/max] [\-Wclass]
 [\-ypath] [\-lfile]
 [\-uvm] [\-\-uvm-home=dir] [\-\-uvm-no-dpi] [\-\-uvm-version]
+[\-\-libmap=file]
 sourcefile
 
 .SH DESCRIPTION
@@ -196,6 +197,11 @@ This flag adds a directory to the path list used to locate VPI
 modules. The default path includes only the install directory for the
 system.vpi module, but this flag can add other directories. Multiple
 paths are allowed, and the paths will be searched in order.
+.sp
+When a library map file is in use (see \fB--libmap\fP) and \fIpath\fP is
+the name of a library, the flag also puts that library at the front of the
+library search order (IEEE 1800 33.8.1). Several \fB-L\fP flags are
+searched in the order given, before the remaining libraries.
 .TP 8
 .B -l\fIfile\fP
 Add the specified file to the list of source files to be compiled,
@@ -260,6 +266,14 @@ choose modules that are not instantiated in any other modules, but
 sometimes that is not sufficient, or instantiates too many modules. If
 the user specifies one or more root modules with \fB\-s\fP flags, then
 they will be used as root modules instead.
+.sp
+A config declaration (IEEE 1800 33.4) in the source files, or in a library
+map file, selects the top level modules itself: the cells of its design
+statement are elaborated under its rules, and no other module is chosen
+(IEEE 1800 33.5.4). \fB-s\fP with the name of a config selects that config
+when the sources have several; \fB-s\fP with the name of a module
+elaborates the module without any config. A config that another config
+binds to an instance with \fBuse\fP is not selected by itself.
 .TP 8
 .B -T\fImin|typ|max\fP
 Use this switch to select min, typ or max times from min:typ:max
@@ -310,6 +324,19 @@ the UVM DPI runtime (defines \fBUVM_NO_DPI\fP).
 .TP 8
 .B --uvm-version
 Print the version of the bundled UVM library and exit.
+.TP 8
+.B --libmap=\fIfile\fP
+Read \fIfile\fP as a library map file (IEEE 1800 33.3.1) before the source
+files. The \fBlibrary\fP declarations of the map assign each source file,
+by its path, to a library; a file that matches no declaration goes to the
+library \fBwork\fP. A map file can \fBinclude\fP other map files. Paths
+are relative to the map file and may use the wildcards \fB?\fP, \fB*\fP
+and \fB...\fP. The flag can be repeated; the files are read in order.
+.sp
+Cells of different libraries may have the same name. An instance binds to
+the cell of the first library in the search order that has one: \fBwork\fP
+(unless the map declares it), then the libraries in the order the map files
+declare them. \fB-L\fP changes the order.
 .TP 8
 .B -v
 Turn on verbose messages. This will print the command lines that are

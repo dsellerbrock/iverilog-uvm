@@ -285,6 +285,11 @@ public:
 
 struct parmvalue_t;
 
+/* The typedef aliases named by DT, outermost first: each typedef whose own
+ * type names another typedef (`typedef a b;` makes b an alias of a), for VPI
+ * vpiTypedefAlias (IEEE 1800-2023 37.25 detail 1). */
+extern std::vector<perm_string> typedef_alias_names(const data_type_t*dt);
+
 struct typeref_t : public data_type_t {
       explicit typeref_t(typedef_t *t, PScope *s = 0, parmvalue_t*o = 0)
       : scope(s), type(t), overrides(o) {}
@@ -862,6 +867,10 @@ struct class_type_t : public data_type_t {
       struct pform_covergroup_t {
 	    perm_string name;   // covergroup instance name (e.g., "cg")
 	    bool is_extension = false;
+	      // A derived class extends this embedded covergroup (IEEE
+	      // 1800-2023 19.4.1), so a handle of this class may sample an
+	      // instance of the derived covergroup.
+	    bool has_extension = false;
 	    int option_slot_count = 0;
 	      // Per-instance constructor formals (19.3), distinct from
 	      // `with function sample` formals.

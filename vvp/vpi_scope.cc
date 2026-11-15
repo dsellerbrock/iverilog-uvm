@@ -29,6 +29,7 @@
 # include  "vthread.h"
 # include  "vvp_net_sig.h"
 # include  "config.h"
+# include  <algorithm>
 # include  <map>
 # include  <utility>
 #ifdef CHECK_WITH_VALGRIND
@@ -154,6 +155,13 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case vpiClassVar:
 		case vpiVirtualInterfaceVar:
 		  class_delete(item);
+		  break;
+		case vpiStructVar:
+		case vpiUnionVar:
+		  if (dynamic_cast<__vpiCobjectVar*>(item))
+		        class_delete(item);
+		  else
+		        signal_delete(item);
 		  break;
 		case vpiArrayVar:
 		  array_delete(item);
@@ -934,6 +942,8 @@ vpiHandle vpip_make_process_handle(vthread_t thread)
  * things that are contained in the scope object, by generating an
  * iterator for the requested set of items.
  */
+static vpiHandle module_port_iodecls_(__vpiScope*mod);
+
 static vpiHandle module_iter(int code, vpiHandle obj)
 {
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
@@ -1005,6 +1015,10 @@ static vpiHandle module_iter(int code, vpiHandle obj)
 
             return vpip_make_iterator(idx, args, true);
       }
+
+      if ((code == VPI_IODECL_TYPE || code == VPI_IODECL_LEGACY)
+	  && ref->get_type_code() == vpiModule)
+	    return module_port_iodecls_(ref);
 
       return make_subset_iterator_(code, ref->intern);
 }
@@ -1286,6 +1300,44 @@ class __vpiIODecl : public __vpiHandle {
       const char*name_;
       vpiHandle expr_;
 };
+
+/* IEEE 1800-2023 37.5, 37.13: a module's I/O declarations. VVP records
+   none for a module, so each plain port (vpiPortType vpiPort) with a
+   direction yields one, in port order, whose vpiExpr is the port's
+   internal net or variable (its vpiLowConn). Made once per module. */
+static vpiHandle module_port_iodecls_(__vpiScope*mod)
+{
+      static map<__vpiScope*, vector<vpiHandle> > made;
+      auto found = made.find(mod);
+      if (found == made.end()) {
+	    vector<vpiPortInfo*> ports;
+	    for (vpiHandle item : mod->intern)
+		  if (vpiPortInfo*port = dynamic_cast<vpiPortInfo*>(item))
+			ports.push_back(port);
+	    sort(ports.begin(), ports.end(), [](vpiPortInfo*a, vpiPortInfo*b)
+		 { return a->get_index() < b->get_index(); });
+	    vector<vpiHandle>&decls = made[mod];
+	    for (vpiPortInfo*port : ports) {
+		  int dir = port->get_direction();
+		  if (port->vpi_get(611 /* vpiPortType */) != vpiPort
+		      || (dir != vpiInput && dir != vpiOutput && dir != vpiInout))
+			continue;
+		  const char*name = port->vpi_get_str(vpiName);
+		  if (!name || !*name) continue;
+		  __vpiIODecl*decl = new __vpiIODecl(mod, dir, name);
+		  decl->expression_slot() = port->vpi_handle(vpiLowConn);
+		  decls.push_back(decl);
+	    }
+	    found = made.find(mod);
+      }
+      const vector<vpiHandle>&decls = found->second;
+      if (decls.empty()) return 0;
+      vpiHandle*args = static_cast<vpiHandle*>(
+	    calloc(decls.size(), sizeof(vpiHandle)));
+      for (unsigned idx = 0; idx < decls.size(); idx += 1)
+	    args[idx] = decls[idx];
+      return vpip_make_iterator(decls.size(), args, true);
+}
 
 void compile_io_decl(long direction, char*name, char*formal)
 {
@@ -1930,7 +1982,7 @@ class __vpiAssertion : public __vpiHandle {
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
 		     __vpiScope*scope, int depth_arg, int flags,
-		     int assertion_kind)
+			     int assertion_kind)
       : idx_(idx), name_(nam?nam:""), file_(file?file:""), line_(line),
 	scope_(scope),
 	  // M12-2: depth_arg is the fixed start->accept edge count (>=1)
@@ -1951,6 +2003,8 @@ class __vpiAssertion : public __vpiHandle {
 	    steps_ok_ = (flags & 2) != 0;
 	    step_depth_ = steps_ok_ ? (flags >> 8) : -1;
       }
+
+      void set_control_type(int type) { ctl_type_ = type; }
 
       __vpiAssertion(unsigned long source_id, __vpiScope*scope,
 		     int deferred_type, const char*file, int line,
@@ -2171,6 +2225,10 @@ class __vpiAssertion : public __vpiHandle {
 		  return false;
 	    }
 	    if (locked_) return false;
+	    /* IEEE 1800-2017 20.12 / 1800-2023 20.11: On, Off, and Kill
+	       do not affect expect statements. Action controls still do. */
+	    if ((ctl_type_ & 16) && (ctl == 3 || ctl == 4 || ctl == 5))
+		  return false;
 	    bool was = enabled_;
 	    bool was_fail = fail_action_, was_pass = pass_nonvacuous_,
 		 was_vac = pass_vacuous_;
@@ -2742,7 +2800,8 @@ static void replay_assertion_control_(__vpiAssertion*obj);
 void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 line, vpiHandle scope, PLI_INT32 depth_arg,
 			     PLI_INT32 flags, PLI_INT32 assertion_kind,
-			     PLI_INT32 inst_kind, const char*inst_name)
+			     PLI_INT32 inst_kind, const char*inst_name,
+			     PLI_INT32 control_type)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line,
@@ -2750,6 +2809,7 @@ void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 					      (int)assertion_kind);
       if (inst_name && inst_name[0])
 	    obj->set_instance((int)inst_kind, inst_name);
+      obj->set_control_type(control_type);
       assertion_registry.push_back(obj);
       replay_assertion_control_(obj);
       if (sc) {
@@ -3091,6 +3151,10 @@ PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
 	  case vpipAssertSpaceImmediateCover:
 	    obj = find_assertion_up_(immediate_cover_by_key, sc, (int)id, true);
 	    type_bit = 2;
+	    break;
+	  case vpipAssertSpaceExpect:
+	    obj = find_assertion_up_(assertion_by_key, sc, (int)id, false);
+	    type_bit = 16;
 	    break;
 	  default:
 	    return -1;

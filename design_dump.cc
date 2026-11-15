@@ -813,6 +813,9 @@ void NetLogic::dump_node(ostream&o, unsigned ind) const
 	  case PULLUP:
 	    o << "pullup";
 	    break;
+	  case TRIREG:
+	    o << "trireg charge";
+	    break;
 	  case RCMOS:
 	    o << "rcmos";
 	    break;

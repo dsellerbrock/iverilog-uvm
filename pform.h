@@ -258,6 +258,9 @@ extern void pform_bind_extern_func(PFunction*func);
 extern void pform_bind_extern_task(PTask*task);
 extern void pform_blend_class_constructors(PClass*pclass);
 extern PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name);
+extern typedef_t* pform_bind_visible_class_typedef(const struct vlltype&loc,
+                                                   perm_string name,
+                                                   PClass*class_scope);
 extern std::vector<pform_tf_port_t>* pform_class_constructor_default_ports(
 					const struct vlltype&loc, PFunction*constructor);
 extern std::vector<named_pexpr_t> pform_class_constructor_default_args(
@@ -310,6 +313,14 @@ extern void pform_standalone_covergroup(const struct vlltype&loc,
 				    std::vector<bool>*ctor_formal_is_ref = nullptr,
 				    std::vector<PExpr*>*ctor_defaults = nullptr,
 				    std::vector<PExpr*>*sample_formal_defaults = nullptr);
+
+/* IEEE 1800 29.3 extern UDPs (read like 23.5 extern modules): record the
+   declared port names; a later definition must match them, and a (.*)
+   definition takes them. */
+extern void pform_extern_udp(const struct vlltype&loc, perm_string name,
+			     std::list<pform_ident_t>*ports);
+extern std::list<pform_ident_t>* pform_extern_udp_ports(const struct vlltype&loc,
+							 perm_string name);
 
 extern void pform_make_udp(const struct vlltype&loc, perm_string name,
 			   std::list<pform_ident_t>*parms,
@@ -476,6 +487,9 @@ extern Statement* pform_make_expect(const struct vlltype&loc,
    type. The packed-logic helper consumes dimensions. */
 extern void pform_sva_begin_local_declarations(void);
 extern void pform_sva_add_local_formal(const char*name);
+/* Formal names of the property/sequence declaration being parsed. */
+extern void pform_sva_clear_decl_formals(void);
+extern void pform_sva_note_decl_formal(const char*name);
 extern bool pform_sva_match_lvalue_declared(const struct vlltype&loc,
 					    perm_string name);
 extern void pform_sva_declare_int_local(const struct vlltype&loc,
@@ -728,6 +742,8 @@ extern sva_property_t*
 pform_sva_paren_conseq(const struct vlltype&loc, int op_type,
 		       std::vector<sva_seq_step_t>*ante,
 		       sva_property_t*conseq);
+extern PExpr*
+pform_sva_prop_condition(const struct vlltype&loc, PExpr*cond);
 extern sva_property_t*
 pform_sva_prop_if(const struct vlltype&loc, PExpr*cond, sva_property_t*then_p,
 		  sva_property_t*else_p);
@@ -1006,6 +1022,10 @@ extern void pform_set_port_type(const struct vlltype&li,
 				data_type_t*dt,
 				std::list<named_pexpr_t>*attr);
 
+/* The parser calls this for a charge_strength; the net declaration that
+   follows takes it (pform_set_data_type) and resets it to medium. */
+extern void pform_set_charge_strength(ivl_drive_t str);
+
 extern void pform_set_data_type(const struct vlltype&li,
 				data_type_t *data_type,
 				std::vector<PWire*> *wires,
@@ -1093,6 +1113,8 @@ extern void pform_module_specify_path(PSpecPath*obj);
 extern bool pform_specify_path_output_previously_declared(
 	const pform_specify_terminal_t&terminal);
 extern void pform_specify_path_showcancelled(
+	const pform_specify_terminal_t&terminal, bool enabled);
+extern void pform_specify_path_ondetect(
 	const pform_specify_terminal_t&terminal, bool enabled);
 
 /*
@@ -1312,11 +1334,23 @@ extern void pform_makegates(const struct vlltype&loc,
 			    std::vector<lgate>*gates,
 			    std::list<named_pexpr_t>*attr);
 
+/* IEEE 1800 17.3 ps_checker_identifier: true when package PKG declares a
+   checker named NAME; otherwise reports an error at LOC. */
+extern bool pform_package_declares_checker(const struct vlltype&loc,
+					   PPackage*pkg, perm_string name);
+
+/* Instantiate checker NAME of package PKG (p::c u(...);) as a module or
+   generate item. Takes GATES. */
+extern void pform_make_pkg_checker_instance(const struct vlltype&loc,
+					    PPackage*pkg, perm_string name,
+					    std::vector<lgate>*gates);
+
 extern void pform_make_modgates(const struct vlltype&loc,
 				perm_string type,
 				struct parmvalue_t*overrides,
 				std::vector<lgate>*gates,
-				std::list<named_pexpr_t>*attr);
+				std::list<named_pexpr_t>*attr,
+				const struct str_pair_t*strength = 0);
 
 /* SystemVerilog bind directive (IEEE 1800-2017 23.11): record a bind
    of a module instantiation into a named target module/interface.

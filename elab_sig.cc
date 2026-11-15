@@ -4711,22 +4711,8 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    sig->lexical_pos(lexical_pos_);
       }
       sig->set_event_formal(is_event_formal_);
-	/* The typedef aliases of the declared type, outermost first: each
-	   typedef whose own type names another typedef (37.25 detail 1). */
-      {
-	    std::vector<perm_string> aliases;
-	    std::set<const typedef_t*> seen; // a circular chain is an error elsewhere
-	    const data_type_t*dt = data_type();
-	    while (const typeref_t*ref = dynamic_cast<const typeref_t*>(dt)) {
-		  typedef_t*td = ref->typedef_ref();
-		  if (!td || !seen.insert(td).second) break;
-		  const data_type_t*next = td->get_data_type();
-		  if (!dynamic_cast<const typeref_t*>(next)) break;
-		  aliases.push_back(td->name);
-		  dt = next;
-	    }
-	    if (!aliases.empty()) sig->set_typedef_aliases(aliases);
-      }
+	/* The typedef aliases of the declared type (37.25 detail 1). */
+      sig->set_typedef_aliases(typedef_alias_names(data_type()));
 
       if (user_type) {
             sig->set_user_nettype(user_type);
@@ -4775,8 +4761,50 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 		  sig->net_delay_pull(pull);
       }
 
+      if (wtype == NetNet::TRIREG) {
+	    /* IEEE 1800-2023 6.6.4: a trireg is a tri nexus plus one charge
+	     * storage device. The device pin carries the charge size as its
+	     * strength, and the device carries the declaration delays: rise,
+	     * fall and, only when a third delay is written, the charge decay
+	     * time (28.16.2). The code generator places the storage element in
+	     * front of the net, inside any tran island, so that stored charge
+	     * is shared between trireg nets (6.6.4.1). This is why a trireg
+	     * does not use the hidden raw net of other delayed nets below:
+	     * switches attach to that raw net, ahead of the storage. */
+	    NetExpr*rise_expr = 0;
+	    NetExpr*fall_expr = 0;
+	    NetExpr*decay_expr = 0;
+	    if (const PDelays*dly = this->net_delay()) {
+		  dly->eval_delays(des, scope, rise_expr, fall_expr,
+				   decay_expr, true);
+		  if (dly->delay_count() < 3)
+			decay_expr = 0;
+	    }
+	    for (unsigned idx = 0; idx < sig->pin_count(); idx += 1) {
+		  NetLogic*cap = new NetLogic(scope, scope->local_symbol(), 1,
+					      NetLogic::TRIREG,
+					      sig->vector_width());
+		  cap->set_line(*this);
+		  /* The device is not a driver: the stored charge only shows
+		     when every driver is off. */
+		  cap->pin(0).set_dir(Link::PASSIVE);
+		  cap->pin(0).drive0(charge_strength_);
+		  cap->pin(0).drive1(charge_strength_);
+		  cap->rise_time(rise_expr);
+		  cap->fall_time(fall_expr);
+		  cap->decay_time(decay_expr);
+		  des->add_node(cap);
+		  connect(sig->pin(idx), cap->pin(0));
+		  /* Port collapsing (Table 23-1) keeps or deletes the device
+		     with the net type, as it does for an explicit pull. */
+		  if (sig->pin_count() == 1)
+			sig->net_delay_pull(cap);
+	    }
+      }
+
       NetNet*delay_driver = sig;
-      if (const PDelays*net_delay = this->net_delay()) {
+      if (const PDelays*net_delay = wtype == NetNet::TRIREG
+				    ? 0 : this->net_delay()) {
 	    NetExpr*rise_expr = 0;
 	    NetExpr*fall_expr = 0;
 	    NetExpr*decay_expr = 0;

@@ -14,5 +14,6 @@ module test;
     c = new;
     fixed_instance = new;
     $display("CAP_CONTROL");
+    $display("PASSED");
   end
 endmodule

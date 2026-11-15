@@ -441,13 +441,20 @@ static void format_p_memory_dimension(vpiHandle item,
   int right = ranges[dimension].right;
   int step = left <= right ? 1 : -1;
   int low = left < right ? left : right;
-  size_t dimension_size = (size_t)(left <= right ? right - left : left - right) + 1;
+  size_t dimension_size = (size_t)((int64_t)(left <= right ? right : left) - low) + 1;
   for (int index = left;; index += step) {
     size_t coordinate = (size_t)((int64_t)index - low);
     size_t next = offset * dimension_size + coordinate;
     if (dimension + 1 < dimensions) {
+      int sub_first = 1;
+      *acc = realloc(*acc, *used + (*first ? 0 : 2) + 3);
+      if (!*first) { strcpy(*acc + *used, ", "); *used += 2; }
+      strcpy(*acc + *used, "'{"); *used += 2;
       format_p_memory_dimension(item, ranges, dimensions, dimension + 1,
-                                next, acc, used, first);
+                                next, acc, used, &sub_first);
+      *acc = realloc(*acc, *used + 2);
+      strcpy(*acc + *used, "}"); *used += 1;
+      *first = 0;
     } else {
       vpiHandle word = vpi_handle_by_index(item, (PLI_INT32)next);
       if (word) {
@@ -465,7 +472,7 @@ static void format_p_memory_dimension(vpiHandle item,
 }
 
 /*
- * SV %p (IEEE 1800-2017 21.2.1.6): pretty-print a value using assignment-
+ * SV %p (IEEE 1800-2017 21.2.1.7): pretty-print a value using assignment-
  * pattern notation. Returns a malloc'd NUL-terminated string; the caller
  * frees it. Recurses into arrays/queues/dynamic/associative arrays so
  * nested aggregates format element-by-element. Leaf values format by their
@@ -480,7 +487,7 @@ static void format_p_memory_dimension(vpiHandle item,
 static char* format_p_value(vpiHandle item)
 {
   s_vpi_value value;
-  PLI_INT32 itype = vpi_get(vpiType, item);
+  PLI_INT32 itype = sys_object_vpi_type(item);
 
   /* vpiArrayVar (queues, dynamic and associative arrays) is an alias of
      vpiRegArray, so this one test covers packed-reg fixed arrays (vpiMemory)
@@ -2260,12 +2267,78 @@ void sys_monitor_fclose(PLI_UINT32 fd_mcd)
       }
 }
 
+/*
+ * IEEE 1800-2023 21.3.3: the output variable of $swrite/$sformat may be an
+ * unpacked array of byte. A string is laid into it by the string literal
+ * rules of 5.9, as the compiler does for `arr = "..."`: from the left bound
+ * to the right bound, zero filled, cut at the right bound. Only a
+ * one-dimensional fixed array is accepted: the compiler has no string
+ * literal assignment to a dynamic array or queue to follow.
+ * Returns the element count, or 0 if ARG is not such an array.
+ */
+static int byte_array_words(vpiHandle arg, PLI_INT32 *left, PLI_INT32 *step)
+{
+  s_vpi_value val;
+  vpiHandle lh, rh, word;
+  PLI_INT32 right, count;
+
+  if (vpi_get(vpiType, arg) != vpiMemory
+      || vpi_get(vpiArrayType, arg) != vpiStaticArray) return 0;
+  lh = vpi_handle(vpiLeftRange, arg);
+  rh = vpi_handle(vpiRightRange, arg);
+  if (lh == 0 || rh == 0) return 0;
+  val.format = vpiIntVal;
+  vpi_get_value(lh, &val);
+  *left = val.value.integer;
+  val.format = vpiIntVal;
+  vpi_get_value(rh, &val);
+  right = val.value.integer;
+  *step = *left <= right ? 1 : -1;
+  count = (right - *left) * *step + 1;
+  /* More words than the first dimension holds: a multi-dimensional array. */
+  if (vpi_get(vpiSize, arg) != count) return 0;
+  word = vpi_handle_by_index(arg, *left);
+  if (word == 0 || vpi_get(vpiSize, word) != 8 || !vpi_get(vpiSigned, word))
+    return 0;
+  return count;
+}
+
+/* Is ARG a legal $swrite/$sformat output variable? */
+static int is_string_output_var(vpiHandle arg)
+{
+  PLI_INT32 type = vpi_get(vpiType, arg), left, step;
+  /* vpiConstant is a function return value stack reference
+   * (e.g. $swrite(func_name, ...) inside a function body). These are
+   * semantically writable even though VPI sees them as constants. */
+  return type == vpiReg || type == vpiStringVar || type == vpiConstant
+         || byte_array_words(arg, &left, &step) != 0;
+}
+
+/* Assign the SIZE characters of STR to the output variable REG. */
+static void put_string_output(vpiHandle reg, char *str, unsigned int size)
+{
+  s_vpi_value val;
+  PLI_INT32 left, step, count = byte_array_words(reg, &left, &step), idx;
+
+  if (count == 0) {
+    val.format = vpiStringVal;
+    val.value.str = str;
+    vpi_put_value(reg, &val, 0, vpiNoDelay);
+    return;
+  }
+  val.format = vpiIntVal;
+  for (idx = 0; idx < count; idx += 1) {
+    val.value.integer = (unsigned)idx < size ? (signed char)str[idx] : 0;
+    vpi_put_value(vpi_handle_by_index(reg, left + idx*step), &val, 0,
+                  vpiNoDelay);
+  }
+}
+
 static PLI_INT32 sys_swrite_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 {
   vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
   vpiHandle argv = vpi_iterate(vpiArgument, callh);
   vpiHandle arg;
-  PLI_INT32 type;
 
   /* Check that there are arguments. */
   if (argv == 0) {
@@ -2277,16 +2350,14 @@ static PLI_INT32 sys_swrite_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
     return 0;
   }
 
-  /* The first argument must be a register or a SV string.
-   * Also accept vpiConstant for function return value stack references
-   * (e.g. $swrite(func_name, ...) inside a function body). These are
-   * semantically writable even though VPI sees them as constants. */
+  /* The first argument must be a register, a SV string or an unpacked
+   * array of byte. */
   arg = vpi_scan(argv);  /* This should never be zero. */
-  type = vpi_get(vpiType, arg);
-  if (type != vpiReg && type != vpiStringVar && type != vpiConstant) {
+  if (!is_string_output_var(arg)) {
     vpi_printf("ERROR:%s:%d: ", vpi_get_str(vpiFile, callh),
                (int)vpi_get(vpiLineNo, callh));
-    vpi_printf("%s's first argument must be a register or SV string.\n", name);
+    vpi_printf("%s's first argument must be a register, SV string or "
+               "unpacked array of byte.\n", name);
     vpi_control(vpiFinish, 1);
     return 0;
   }
@@ -2324,8 +2395,7 @@ static PLI_INT32 sys_swrite_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
   /* Because %u and %z may put embedded NULL characters into the returned
    * string strlen() may not match the real size! */
   val.value.str = get_display(&size, &info);
-  val.format = vpiStringVal;
-  vpi_put_value(reg, &val, 0, vpiNoDelay);
+  put_string_output(reg, val.value.str, size);
   if (size != strlen(val.value.str)) {
     vpi_printf("WARNING: %s:%d: %s returned a value with an embedded NULL "
                "(see %%u/%%z).\n", info.filename, info.lineno, name);
@@ -2354,15 +2424,14 @@ static PLI_INT32 sys_sformat_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
     return 0;
   }
 
-  /* The first argument must be a register or a SV string.
-   * Also accept vpiConstant for function return value stack references
-   * (e.g. $sformat(func_name, ...) inside a function body). */
+  /* The first argument must be a register, a SV string or an unpacked
+   * array of byte. */
   arg = vpi_scan(argv);  /* This should never be zero. */
-  type = vpi_get(vpiType, arg);
-  if (type != vpiReg && type != vpiStringVar && type != vpiConstant) {
+  if (!is_string_output_var(arg)) {
     vpi_printf("ERROR:%s:%d: ", vpi_get_str(vpiFile, callh),
                (int)vpi_get(vpiLineNo, callh));
-    vpi_printf("%s's first argument must be a register or SV string.\n", name);
+    vpi_printf("%s's first argument must be a register, SV string or "
+               "unpacked array of byte.\n", name);
     vpip_set_return_value(1);
     vpi_control(vpiFinish, 1);
     return 0;
@@ -2434,8 +2503,7 @@ static PLI_INT32 sys_sformat_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
   }
 
   val.value.str = result;
-  val.format = vpiStringVal;
-  vpi_put_value(reg, &val, 0, vpiNoDelay);
+  put_string_output(reg, result, size);
   if (size != strlen(val.value.str)) {
     vpi_printf("WARNING: %s:%d: %s returned a value with an embedded NULL "
                "(see %%u/%%z).\n", info.filename, info.lineno, name);

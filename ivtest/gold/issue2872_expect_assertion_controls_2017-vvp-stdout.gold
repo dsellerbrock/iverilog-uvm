@@ -1,0 +1,4 @@
+5 e1 fail
+35 e4 fail
+55 e6 pass
+ivltests/issue2872_expect_assertion_controls.v:20: $finish called at 55 (1s)

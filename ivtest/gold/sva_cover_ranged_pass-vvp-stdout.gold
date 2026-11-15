@@ -1,0 +1,10 @@
+cp match 15
+cs match 15
+cs match 25
+up match 35
+up match 35
+us match 35
+us match 35
+us match 45
+us match 45
+ivltests/sva_cover_ranged_pass.v:16: $finish called at 60 (1s)

@@ -298,6 +298,7 @@ typedef enum ivl_logic_e {
       IVL_LO_RCMOS  = 23,
       IVL_LO_RNMOS  = 15,
       IVL_LO_RPMOS  = 16,
+      IVL_LO_TRIREG = 27, /* charge storage of a trireg net */
       IVL_LO_XNOR   = 18,
       IVL_LO_XOR    = 19,
       IVL_LO_UDP    = 21
@@ -1273,6 +1274,15 @@ extern unsigned ivl_logic_lineno(ivl_net_logic_t net);
  * the outputs have the same characteristics as other logic
  * devices. They are special only in that they have zero inputs, and
  * their drivers typically have strength other than strong.
+ *
+ * - IVL_LO_TRIREG
+ * The charge storage of a trireg net (IEEE 1800-2023 6.6.4). It has one
+ * pin, on the nexus of the net, and it is not a driver. The drive
+ * strength of that pin (ivl_nexus_ptr_drive0) is the charge size:
+ * IVL_DR_SMALL, IVL_DR_MEDIUM or IVL_DR_LARGE. ivl_logic_delay 0 and 1
+ * are the rise and fall delays of the net declaration, and 2 is the
+ * charge decay time (28.16.2), nil when the charge never decays. The
+ * signal itself is a plain IVL_SIT_TRI.
  *
  * - IVL_LO_UDP
  * User defined primitives (UDPs) are like any other logic devices, in
@@ -2941,6 +2951,11 @@ extern const char* ivl_type_typedef_name(ivl_type_t net);
  * (IEEE 1800-2023 37.25 detail 1). */
 extern unsigned ivl_signal_typedef_aliases(ivl_signal_t net);
 extern const char* ivl_signal_typedef_alias(ivl_signal_t net, unsigned idx);
+/* The typedef aliases struct or union member IDX was declared with, the
+ * same way as ivl_signal_typedef_aliases (IEEE 1800-2023 37.25 detail 1). */
+extern unsigned ivl_type_prop_typedef_aliases(ivl_type_t net, int idx);
+extern const char* ivl_type_prop_typedef_alias(ivl_type_t net, int idx,
+                                               unsigned adx);
 extern ivl_type_t ivl_type_super(ivl_type_t net);
 /* Interface-class relationships are separate from the single concrete
  * superclass chain (IEEE 1800-2017 8.26). */

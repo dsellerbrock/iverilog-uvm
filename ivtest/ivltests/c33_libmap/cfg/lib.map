@@ -1,0 +1,7 @@
+// IEEE 1800-2023 33.6: the library map of the configuration examples,
+// written with the wildcards of 33.3.1. adder.vg matches aLib's adder.*
+// and gateLib's explicit name; the explicit name wins (33.3.1.1).
+library rtlLib .../top.v;   // ... also matches no directory at all
+library aLib adder.*, adder.?;
+library gateLib
+      ./adder.vg;

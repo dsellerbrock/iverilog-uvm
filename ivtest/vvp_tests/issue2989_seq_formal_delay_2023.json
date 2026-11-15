@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2989_seq_formal_delay.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue2989_seq_formal_delay"
+}

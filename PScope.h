@@ -230,6 +230,9 @@ class PScope : public LexicalScope {
       virtual ~PScope() override;
 
       perm_string pscope_name() const { return name_; }
+	// A cell that loses its plain name to a same-named cell of a library
+	// searched first (IEEE 1800 33.3) is renamed before elaboration.
+      void pscope_rename(perm_string name) { name_ = name; }
 
 	/* These are the timescale for this scope. The value is
 	   set by the `timescale directive or, in SystemVerilog,

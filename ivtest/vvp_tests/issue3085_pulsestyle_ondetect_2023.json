@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue3085_pulsestyle_ondetect.v",
+  "iverilog-args": ["-g2023", "-gspecify"]
+}

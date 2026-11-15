@@ -35,7 +35,12 @@ class netstruct_t : public LineInfo, public ivl_type_s {
 	    perm_string name;
 	    ivl_type_t net_type;
 	    perm_string interface_modport;
+	      // The typedef aliases the member was declared with, outermost
+	      // first, for VPI (IEEE 1800-2023 37.25 detail 1).
+	    std::vector<perm_string> typedef_aliases;
 	    property_qualifier_t qualifier = property_qualifier_t::make_none();
+	      // The member's declaration has an initial assignment (7.2.2).
+	    bool has_default = false;
 	    inline ivl_variable_type_t data_type() const
 	    { return net_type->base_type(); };
 	    bool get_signed() const
@@ -97,6 +102,9 @@ class netstruct_t : public LineInfo, public ivl_type_s {
 	// the packed value where the member begins.
       const struct member_t* packed_member(perm_string name, unsigned long&off) const;
       const std::vector<member_t>& members() const { return members_; }
+	// True when a member, or a member of a nested unpacked struct,
+	// has an initial assignment in its declaration (7.2.2).
+      bool has_member_defaults() const;
 
 	// Return the width (in bits) of the packed record, or -1 if
 	// the record is not packed.

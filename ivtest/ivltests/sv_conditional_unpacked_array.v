@@ -28,15 +28,17 @@ module sv_conditional_unpacked_array;
       $fatal(1, "ambiguous-condition array merge failed");
     $display("qx int D[0]=%0d D[1]=%0d", d[0], d[1]);
 
+    // IEEE 1800-2023 11.4.11: an unpacked array is not integral, so its
+    // elements are combined element by element; "If they do not match, then
+    // the value specified in Table 7-1 for that element's type shall be
+    // returned" (all x for integer, 0 for int), not a bitwise merge.
     xd = condition ? xa : xb;
-    if (xd[0] !== 1 || xd[1][0] !== 1'b1 || xd[1][1] !== 1'bx
-        || xd[1][2] !== 1'b1 || xd[1][31:3] !== 0)
+    if (xd[0] !== 1 || xd[1] !== 32'bx)
       $fatal(1, "ambiguous-condition 4-state array merge failed");
     $display("qx integer D[1]=%b", xd[1]);
 
     md = condition ? ma : mb;
-    if (md[0][0] !== 1 || md[0][1][1] !== 1'bx
-        || md[1][0][2:0] !== 3'bxxx || md[1][0][31:3] !== 0
+    if (md[0][0] !== 1 || md[0][1] !== 32'bx || md[1][0] !== 32'bx
         || md[1][1] !== 9)
       $fatal(1, "multidimensional ambiguous-condition merge failed");
     $display("qx integer MD[0][1]=%b", md[0][1]);

@@ -2209,6 +2209,9 @@ void dll_target::logic(const NetLogic*net)
 	  case NetLogic::PULLUP:
 	    obj->type_ = IVL_LO_PULLUP;
 	    break;
+	  case NetLogic::TRIREG:
+	    obj->type_ = IVL_LO_TRIREG;
+	    break;
 	  case NetLogic::RCMOS:
 	    obj->type_ = IVL_LO_RCMOS;
 	    break;
@@ -2712,7 +2715,11 @@ void dll_target::udp(const NetUDP*net)
 	    const Nexus*nex = net->pin(idx).nexus();
 	    ivl_assert(*net, nex && nex->t_cookie());
 	    obj->pins_[idx] = nex->t_cookie();
-	    nexus_log_add(obj->pins_[idx], obj, idx);
+	    ivl_nexus_ptr_t ptr = nexus_log_add(obj->pins_[idx], obj, idx);
+	    if (idx == 0) {
+		  ptr->drive0 = net->pin(0).drive0();
+		  ptr->drive1 = net->pin(0).drive1();
+	    }
       }
 
       assert(net->scope());
@@ -3780,7 +3787,9 @@ void dll_target::scope(const NetScope*net)
 		  // fallthrough
 		case NetScope::MODULE:
 		  scop->type_ = IVL_SCT_MODULE;
-		  scop->tname_ = net->module_name();
+		    // The definition name is the cell name; module_name() may
+		    // be qualified by a library (IEEE 1800 33.3).
+		  scop->tname_ = libmap_key_cell(net->module_name());
 		  if (unsigned ports = net->module_port_nets())
 			scop->ensure_proc_()->ports = ports;
 		  break;
@@ -3978,6 +3987,7 @@ void dll_target::signal(const NetNet*net)
 	  case NetNet::TRI:
 	  case NetNet::WIRE:
 	  case NetNet::IMPLICIT:
+	  case NetNet::TRIREG: /* the charge device carries the behaviour */
 	    obj->type_ = IVL_SIT_TRI;
 	    break;
 
