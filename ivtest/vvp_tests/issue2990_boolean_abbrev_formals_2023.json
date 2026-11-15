@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2990_boolean_abbrev_formals.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue2990_boolean_abbrev_formals"],
+  "output-contains": ["PASSED"]
+}
