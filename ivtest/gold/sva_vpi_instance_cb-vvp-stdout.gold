@@ -23,9 +23,9 @@ SequenceInst from sva_vpi_instance_cb.a3: 0
   start sva_vpi_instance_cb.ap.p at 15
   start sva_vpi_instance_cb.as.s at 15
   start sva_vpi_instance_cb.ap2.pa at 15
-  success sva_vpi_instance_cb.as.s at 15
   success sva_vpi_instance_cb.ap.p at 15
   success sva_vpi_instance_cb.ap2.pa at 15
+  success sva_vpi_instance_cb.as.s at 15
   start sva_vpi_instance_cb.ap.p at 25
   start sva_vpi_instance_cb.ap2.pa at 25
   start sva_vpi_instance_cb.as.s at 25
@@ -35,7 +35,7 @@ SequenceInst from sva_vpi_instance_cb.a3: 0
   start sva_vpi_instance_cb.ap.p at 35
   start sva_vpi_instance_cb.ap2.pa at 35
   start sva_vpi_instance_cb.as.s at 35
-  success sva_vpi_instance_cb.as.s at 35
   success sva_vpi_instance_cb.ap.p at 35
   success sva_vpi_instance_cb.ap2.pa at 35
+  success sva_vpi_instance_cb.as.s at 35
 ivltests/sva_vpi_instance_cb.sv:21: $finish called at 40 (1s)
