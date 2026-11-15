@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3291_vpi_member_typedef_alias.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3291_vpi_member_typedef_alias_2023"],
+  "vpi-sources": ["vpi/issue3291_vpi_member_typedef_alias.c"],
+  "output-contains": ["VPI MEMBER TYPEDEF ALIAS PASS"]
+}
