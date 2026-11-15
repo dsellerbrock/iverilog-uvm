@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3321_vector_bit_strength.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue3321_vector_bit_strength"
+}

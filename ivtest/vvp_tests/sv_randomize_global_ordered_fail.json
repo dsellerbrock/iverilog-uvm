@@ -3,6 +3,7 @@
     "source": "sv_randomize_global_ordered_fail.v",
     "iverilog-args": [
         "-g2017",
+        "-gcommercial-unsafe",
         "-s",
         "main"
     ],

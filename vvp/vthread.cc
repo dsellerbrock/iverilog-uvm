@@ -8513,8 +8513,11 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
       uint64_t key_prefix, const std::vector<const class_type::cov_bin_t*>&records,
       uint64_t value, const vvp_vector4_t*sample)
 {
-	  // shortcut: skip X/Z transition samples until transition terms encode four-state endpoints.
-	  if (sample && sample->has_xz()) return std::set<uint64_t>();
+	  // Expanded wildcard arrays treat an X/Z sample as a nonmatch, so it
+	  // also interrupts pending consecutive sequences.
+	  bool xz = sample && sample->has_xz();
+	  if (xz && (records.empty() || !(records[0]->kind & 8192)))
+		return std::set<uint64_t>();
       std::map<unsigned,std::map<unsigned,covgrp_trans_term_t>> programs;
       std::map<unsigned,uint64_t> seq_bases;
       for (const class_type::cov_bin_t*bin : records) {
@@ -8561,7 +8564,7 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
 		  if (state.term >= terms.size()) return;
 		  const covgrp_trans_term_t&term = terms[state.term];
 		  uint64_t ordinal = 0;
-		  bool matches = covgrp_trans_match_(term, value, ordinal);
+		  bool matches = !xz && covgrp_trans_match_(term, value, ordinal);
 		  if (state.waiting && !matches) {
 			uint64_t unused = 0;
 			if (state.forbid_term < terms.size()
@@ -8586,7 +8589,7 @@ static std::set<uint64_t> covgrp_trans_advance_(vvp_cobject*cobj,
 	    for (const auto&state : old_states) consume(state, false);
 	    vvp_cobject::cov_trans_state_t fresh;
 	    uint64_t first = 0;
-	    if (covgrp_trans_match_(terms[0], value, first)) consume(fresh, false);
+	    if (!xz && covgrp_trans_match_(terms[0], value, first)) consume(fresh, false);
 	    auto&stored = cobj->cov_trans_states(key);
 	    stored.assign(next_states.begin(), next_states.end());
       }
@@ -31742,6 +31745,28 @@ bool of_QCOND_AMBIG(vthread_t thr, vvp_code_t cp)
       }
 
       thr->push_object(result_obj);
+      return true;
+}
+
+/* %ocond/ambig
+ *
+ * Pop the false and true operands of a conditional whose condition is
+ * ambiguous, and push its value (IEEE 1800-2023 11.4.11): the true operand
+ * when the two are logically equivalent, else the Table 7-1 value for their
+ * type. Used for unpacked structs; the default is built like a queue
+ * conditional's mismatched struct element. */
+bool of_OCOND_AMBIG(vthread_t thr, vvp_code_t)
+{
+      vvp_object_t right_obj, left_obj;
+      thr->pop_object(right_obj);
+      thr->pop_object(left_obj);
+      vvp_bit4_t logical = BIT4_1, exact = BIT4_1;
+      if (qcond_object_elements_match_(left_obj, right_obj, logical, exact))
+	    thr->push_object(left_obj);
+      else
+	    thr->push_object(qcond_default_object_(left_obj, right_obj, 0,
+						   UINT32_MAX,
+						   vvp_container_layout_t()));
       return true;
 }
 

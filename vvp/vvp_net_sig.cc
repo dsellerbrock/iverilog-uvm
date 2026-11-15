@@ -3449,8 +3449,7 @@ vvp_net_fil_t::prop_t vvp_wire_vec8::filter_vec4(const vvp_vector4_t&bit,
                                                  unsigned base,
                                                  unsigned vwid)
 {
-	// For now there is no support for a non-zero base.
-      if (base != 0 || bits8_.size() != vwid || bit.size() != vwid) {
+      if (vwid != bits8_.size() || base > vwid || bit.size() > vwid-base) {
             if (!width_error_reported_) {
                   fprintf(stderr, "vvp error: strength net declaration width does not match source signal.\n");
                   width_error_reported_ = true;
@@ -3462,7 +3461,7 @@ vvp_net_fil_t::prop_t vvp_wire_vec8::filter_vec4(const vvp_vector4_t&bit,
 	// is a vec8 node? In fact, it is really possible for a vec4
 	// value to get through to a vec8 filter?
       vvp_vector8_t rep8;
-      prop_t rc = filter_vec8(vvp_vector8_t(bit,6,6), rep8, 0, vwid);
+      prop_t rc = filter_vec8(vvp_vector8_t(bit,6,6), rep8, base, vwid);
       if (rc == REPL)
 	    rep = reduce4(rep8);
 

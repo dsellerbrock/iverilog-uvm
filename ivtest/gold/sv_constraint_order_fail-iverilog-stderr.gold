@@ -1,0 +1,4 @@
+ivltests/sv_constraint_order_fail.v:7: error: target of 'solve before' constraint must be a random variable.
+ivltests/sv_constraint_order_fail.v:12: error: circular 'solve before' ordering between 'a' and 'b' in class sv_constraint_order_fail_cycle (IEEE 1800 18.5.9).
+ivltests/sv_constraint_order_fail.v:23: error: circular 'solve before' ordering between 'c', 'a' and 'b' in class sv_constraint_order_fail_derived (IEEE 1800 18.5.9).
+3 error(s) during elaboration.

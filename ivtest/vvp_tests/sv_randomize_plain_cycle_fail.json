@@ -1,5 +1,5 @@
 {
-    "type": "normal",
+    "type": "CE",
     "source": "sv_randomize_plain_cycle_fail.v",
     "iverilog-args": [
         "-g2017",

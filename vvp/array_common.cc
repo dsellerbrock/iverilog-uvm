@@ -162,6 +162,23 @@ vpiHandle __vpiArrayWord::as_word_t::vpi_put_value(p_vpi_value vp, int flags)
       return this;
 }
 
+/*
+ * IEEE 1800-2023 37.17 details 5 and 18: vpi_iterate(vpiIndex) on a var
+ * select returns the indices that select it, starting with its own. A
+ * word of this (one-dimensional) array has exactly one: its vpiIndex.
+ */
+vpiHandle __vpiArrayWord::as_word_t::vpi_iterate(int code)
+{
+      if (code == vpiIndex) {
+	    struct __vpiArrayWord*obj = array_var_word_from_handle(this);
+	    assert(obj);
+	    vpiHandle*args = (vpiHandle*)malloc(sizeof(vpiHandle));
+	    args[0] = &obj->as_index;
+	    return vpip_make_iterator(1, args, true);
+      }
+      return vpip_conn_iterate(code, this);
+}
+
 vpiHandle __vpiArrayWord::as_word_t::vpi_handle(int code)
 {
       struct __vpiArrayWord*obj = array_var_word_from_handle(this);

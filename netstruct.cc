@@ -120,6 +120,16 @@ void netstruct_t::packed(bool flag)
       packed_ = flag;
 }
 
+bool netstruct_t::has_member_defaults() const
+{
+      for (const member_t&memb : members_) {
+	    if (memb.has_default) return true;
+	    const netstruct_t*sub = dynamic_cast<const netstruct_t*>(memb.net_type);
+	    if (sub && !sub->packed() && sub->has_member_defaults()) return true;
+      }
+      return false;
+}
+
 void netstruct_t::append_member(Design*des, const netstruct_t::member_t&val)
 {
       ivl_assert(*this, val.net_type);

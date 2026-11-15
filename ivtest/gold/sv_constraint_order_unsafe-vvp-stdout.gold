@@ -1,0 +1,3 @@
+nonrand rc=1 b_ok=1
+circular rc=0
+legal rc=1
