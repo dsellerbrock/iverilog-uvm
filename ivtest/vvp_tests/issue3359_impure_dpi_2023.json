@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3359_impure_dpi.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue3359_impure_dpi"
+}

@@ -285,6 +285,11 @@ public:
 
 struct parmvalue_t;
 
+/* The typedef aliases named by DT, outermost first: each typedef whose own
+ * type names another typedef (`typedef a b;` makes b an alias of a), for VPI
+ * vpiTypedefAlias (IEEE 1800-2023 37.25 detail 1). */
+extern std::vector<perm_string> typedef_alias_names(const data_type_t*dt);
+
 struct typeref_t : public data_type_t {
       explicit typeref_t(typedef_t *t, PScope *s = 0, parmvalue_t*o = 0)
       : scope(s), type(t), overrides(o) {}

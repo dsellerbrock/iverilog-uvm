@@ -2738,6 +2738,7 @@ ivl_type_t struct_type_t::elaborate_type_raw(Design*des, NetScope*scope) const
 		  memb.qualifier = curp->qualifier;
 		  memb.interface_modport =
 			pform_interface_modport(des, scope, curp->type.get());
+		  memb.typedef_aliases = typedef_alias_names(curp->type.get());
 		  memb.net_type = elaborate_array_type(des, scope, *this,
 							       mem_vec, namep->index);
 

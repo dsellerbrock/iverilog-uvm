@@ -2941,6 +2941,11 @@ extern const char* ivl_type_typedef_name(ivl_type_t net);
  * (IEEE 1800-2023 37.25 detail 1). */
 extern unsigned ivl_signal_typedef_aliases(ivl_signal_t net);
 extern const char* ivl_signal_typedef_alias(ivl_signal_t net, unsigned idx);
+/* The typedef aliases struct or union member IDX was declared with, the
+ * same way as ivl_signal_typedef_aliases (IEEE 1800-2023 37.25 detail 1). */
+extern unsigned ivl_type_prop_typedef_aliases(ivl_type_t net, int idx);
+extern const char* ivl_type_prop_typedef_alias(ivl_type_t net, int idx,
+                                               unsigned adx);
 extern ivl_type_t ivl_type_super(ivl_type_t net);
 /* Interface-class relationships are separate from the single concrete
  * superclass chain (IEEE 1800-2017 8.26). */

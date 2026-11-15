@@ -62,6 +62,18 @@ struct covgrp_dyn_trans_state_t {
       bool valid = true;
 };
 
+// One postfix operation of a named cross bin's selector.
+struct covgrp_cross_select_op_t {
+      char op = 0;
+      unsigned dim = 0;
+      unsigned term = 0;
+      unsigned prop = 0;
+      uint64_t required = 1;
+      bool matches_all = false;
+      std::vector<unsigned> value_widths;
+      std::vector<std::pair<uint64_t,uint64_t>> ranges;
+};
+
 // One per-instance logical choice for a dimension of a dynamic cross. Fixed
 // and transition terms contribute one choice; a constructor-dependent family
 // contributes one choice for each logical bin resolved for this object.
@@ -73,6 +85,16 @@ struct covgrp_cross_choice_t {
       unsigned cp_idx = 0;
       uint64_t logical_idx = 0;
       std::vector<const class_type::cov_bin_t*> records;
+	// In a sparse cross, one choice stands for every logical bin of its
+	// dynamic family: these are their logical identities (values for an
+	// unsized array, indexes otherwise). Empty for an ordinary choice.
+      std::vector<std::pair<uint64_t,uint64_t>> spans;
+};
+
+// A named bin of a sparse cross, evaluated per hit tuple.
+struct covgrp_cross_sparse_bin_t {
+      const class_type::cov_cross_bin_t*meta = 0;
+      std::vector<covgrp_cross_select_op_t> select;
 };
 
 // A routed logical cross tuple. Normal named bins may overlap, so one route
@@ -96,6 +118,15 @@ struct covgrp_cross_state_t {
       uint64_t auto_total = 0;
       std::vector<uint64_t> type_bins; // local automatic index -> type identity
       bool enabled = false;
+	// A cross over 65536 logical tuples (IEEE 1800-2023 19.6 sets no
+	// limit, #3303) keeps no routes: hit tuples are routed per sample and
+	// counted under a mixed-radix key. sparse_offset[dim][choice] is the
+	// choice's first flat index in its dimension, sparse_size[dim] the
+	// dimension's flat size.
+      bool sparse = false;
+      std::vector<covgrp_cross_sparse_bin_t> sparse_bins;
+      std::vector<std::vector<uint64_t>> sparse_offset;
+      std::vector<uint64_t> sparse_size;
 };
 
 class vvp_cobject : public vvp_object {

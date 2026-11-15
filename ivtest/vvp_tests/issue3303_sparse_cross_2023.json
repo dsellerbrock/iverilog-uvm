@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue3303_sparse_cross.v",
+  "iverilog-args": ["-g2023", "-s", "top"]
+}

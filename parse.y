@@ -14360,6 +14360,21 @@ parameterized_scoped_identifier
 	delete[]$3;
 	$$ = tmp;
       }
+	/* IEEE 1800 18.7.1: local:: may qualify a class scope in an inline
+	   constraint (x == local::Config::value). The class scope keeps the
+	   local:: binding on its first component, as local::name does. */
+  | K_local K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.back().local_scope = true;
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@3, hident);
+	FILE_NAME(tmp, @3);
+	tmp->set_scoped_type_prefix();
+	delete[]$3.text;
+	delete[]$5;
+	$$ = tmp;
+      }
   | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
@@ -18142,6 +18157,17 @@ module_item
         }
         var_lifetime = LexicalScope::INHERITED;
         pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
+      }
+
+  /* IEEE 1800 17.3: checker_instantiation names a ps_checker_identifier,
+     so a package checker is instantiated as p::c u(...). A non-type name
+     after the package scope reaches only this rule; the package-typed
+     declarations below take TYPE_IDENTIFIER. */
+  | attribute_list_opt package_scope IDENTIFIER gate_instance_list ';'
+      { lex_in_package_scope(0);
+	pform_make_pkg_checker_instance(@3, $2, lex_strings.make($3), $4);
+	delete $1;
+	delete[]$3;
       }
 
   /* Package-qualified variable: "pkg::type_t arr;" or "pkg::type_t [N:0] arr;" in module scope.
@@ -22772,7 +22798,12 @@ udp_sequ_entry_list
 
 udp_sequ_entry
   : udp_input_list ':' udp_input_sym ':' udp_output_sym ';'
-      { char*tmp = new char[strlen($1)+5];
+      { unsigned transitions = 0;
+	for (const char*cp = $1; *cp; ++cp)
+	      if (!strchr("01x?blh", *cp)) transitions += 1;
+	if (transitions > 1)
+	      yyerror(@1, "error: A sequential UDP table row may have at most one input transition (IEEE 1800 29.3.4, 29.6).");
+	char*tmp = new char[strlen($1)+5];
 	strcpy(tmp, $1);
 	char*tp = tmp+strlen(tmp);
 	*tp++ = ':';
@@ -22780,6 +22811,7 @@ udp_sequ_entry
 	*tp++ = ':';
 	*tp++ = $5;
 	*tp++ = 0;
+	delete[]$1;
 	$$ = tmp;
       }
   ;

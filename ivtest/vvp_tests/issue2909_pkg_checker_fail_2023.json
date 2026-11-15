@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue2909_pkg_checker_fail.v",
+    "iverilog-args": ["-g2023", "-s", "issue2909_pkg_checker_fail"],
+    "gold": "issue2909_pkg_checker_fail"
+}

@@ -3219,6 +3219,9 @@ static void checker_free_finish_(Module*m)
       checker_free_vars_.erase(it);
 }
 
+/* The checkers each package declares (IEEE 1800 17.3, #941). */
+static map<PPackage*, set<perm_string> > pform_package_checkers_;
+
 void pform_endmodule(const char*name, bool inside_celldefine,
                      Module::UCDriveType uc_drive_def)
 {
@@ -3358,6 +3361,43 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	// The current lexical scope should be this module by now.
       ivl_assert(*cur_module, lexical_scope == cur_module);
       pform_pop_scope();
+
+	/* Remember which package declared a checker, for p::c instances. */
+      if (cur_module->is_checker)
+	    if (PPackage*pkg = dynamic_cast<PPackage*>(lexical_scope))
+		  pform_package_checkers_[pkg].insert(mod_name);
+}
+
+bool pform_package_declares_checker(const struct vlltype&loc, PPackage*pkg,
+				    perm_string name)
+{
+      map<PPackage*, set<perm_string> >::const_iterator cur
+	    = pform_package_checkers_.find(pkg);
+      if (cur != pform_package_checkers_.end() && cur->second.count(name))
+	    return true;
+      cerr << loc << ": error: Package " << pkg->pscope_name()
+	   << " has no checker " << name << "; only a checker can be "
+	   << "instantiated through a package scope (IEEE 1800 17.3)." << endl;
+      error_count += 1;
+      return false;
+}
+
+void pform_make_pkg_checker_instance(const struct vlltype&loc, PPackage*pkg,
+				     perm_string name, std::vector<lgate>*gates)
+{
+      if (!dynamic_cast<Module*>(lexical_scope)
+	  && !dynamic_cast<PGenerate*>(lexical_scope)) {
+	    cerr << loc << ": sorry: A package-scoped checker instance is "
+		 << "only supported as a module or generate item." << endl;
+	    error_count += 1;
+	    delete gates;
+	    return;
+      }
+      if (!pform_package_declares_checker(loc, pkg, name)) {
+	    delete gates;
+	    return;
+      }
+      pform_make_modgates(loc, name, nullptr, gates, nullptr);
 }
 
 void pform_genvars(const struct vlltype&li, list<pform_ident_t>*names)
@@ -21574,8 +21614,10 @@ pform_sva_prop_implies(const struct vlltype&loc,
       ae = new PEBComp('E', sva_booleanize_(loc, ae), sva_bit_(loc, 1));
       be = new PEBComp('E', sva_booleanize_(loc, be), sva_bit_(loc, 1));
 	FILE_NAME(ae, loc); FILE_NAME(be, loc);
-	/* a implies b  ==  !a | b */
-      return sva_wrap_bool_(sva_logic_(loc, 'o', sva_not_(loc, ae), be));
+	/* A false antecedent is a vacuous success (16.14.8): keep it visible
+	   as a property if rather than folding !a | b into a nonvacuous
+	   boolean sequence. */
+      return pform_sva_prop_if(loc, ae, sva_wrap_bool_(be), nullptr);
 }
 
 sva_property_t*
@@ -21600,17 +21642,9 @@ sva_property_t*
 pform_sva_prop_if(const struct vlltype&loc, PExpr*cond,
 		  sva_property_t*then_p, sva_property_t*else_p)
 {
-	/* IEEE 1800-2023 16.12.6: the branches are full properties. Only an
-	   all-boolean if-else folds into one boolean; anything else is a
-	   property operator evaluated per attempt. */
-      auto boolean = [](const sva_property_t*b) -> bool {
-	    return b && b->op_type == 0 && !b->antecedent && !b->tree && !b->pa
-		&& b->seq && b->seq->size() == 1
-		&& sva_step_is_single_boolean_((*b->seq)[0])
-		&& !b->clk_evt && !b->seq_clk_evt && !b->mc_prefix
-		&& b->mc_boundary == -1 && !b->disable_iff_expr;
-      };
-      if (cond && then_p && (!boolean(then_p) || (else_p && !boolean(else_p)))
+	/* Branch selection must remain visible to the per-attempt monitor:
+	   a missing else is a vacuous success, even for Boolean branches. */
+      if (cond && then_p
 	  && !sva_property_has_match_calls_(then_p)
 	  && !(else_p && sva_property_has_match_calls_(else_p))) {
 	    sva_property_t*p = new sva_property_t;
@@ -21694,10 +21728,9 @@ pform_sva_case(const struct vlltype&loc, PExpr*sel,
 	    return nullptr;
       }
 
-	/* No default -> an unmatched case evaluates to true (16.12.8). Fold
-	   right-to-left so the first listed branch is checked outermost:
-	     match_k ? p_k : rest   ==  (match_k & p_k) | (!match_k & rest) */
-      PExpr*result = defexpr ? defexpr : sva_bit_(loc, 1);
+	/* Preserve branch selection and the vacuous unmatched case by using
+	   property if nodes, with the first listed branch outermost. */
+      sva_property_t*result = defexpr ? sva_wrap_bool_(defexpr) : nullptr;
       for (size_t i = branches.size() ; i-- > 0 ; ) {
 	    std::list<PExpr*>*vals = branches[i].first;
 	    PExpr*matchcond = nullptr;
@@ -21710,13 +21743,11 @@ pform_sva_case(const struct vlltype&loc, PExpr*sel,
 	    }
 	    delete vals;   /* list shell; the value exprs are now owned by cmp */
 	    if (!matchcond) matchcond = sva_bit_(loc, 0);
-	    PExpr*pe = branches[i].second;
-	    PExpr*t = sva_logic_(loc, 'a', sva_clone_expr_(matchcond), pe);
-	    PExpr*f = sva_logic_(loc, 'a', sva_not_(loc, matchcond), result);
-	    result = sva_logic_(loc, 'o', t, f);
+	    result = pform_sva_prop_if(loc, matchcond,
+				       sva_wrap_bool_(branches[i].second), result);
       }
       delete sel;
-      return sva_wrap_bool_(result);
+      return result;
 }
 
 /*
@@ -33143,8 +33174,7 @@ static bool sva_prop_is_named_ref_(const sva_property_t*prop)
 	    const pform_name_t&path = id->path().name;
 	    if (path.size() == 1 && path.front().index.empty()) {
 		  perm_string nm = path.front().name;
-		  return sva_in_scope_(sva_module_properties, nm)
-			|| sva_in_scope_(sva_module_sequences, nm);
+		  return sva_in_scope_(sva_module_properties, nm);
 	    }
 	    if (path.size() != 2 || !path.front().index.empty()
 		|| !path.back().index.empty() || pform_cur_module.empty())
@@ -33167,8 +33197,7 @@ static bool sva_prop_is_named_ref_(const sva_property_t*prop)
 	    const pform_name_t&path = cf->path().name;
 	    if (path.size() == 1) {
 		  perm_string nm = peek_tail_name(path);
-		  return sva_in_scope_(sva_param_properties, nm)
-			|| sva_in_scope_(sva_param_sequences, nm);
+		  return sva_in_scope_(sva_param_properties, nm);
 	    }
 	    if (path.size() != 2 || !path.front().index.empty()
 		|| !path.back().index.empty() || pform_cur_module.empty())
@@ -39108,7 +39137,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   every cycle. */
       bool negated = (prop->op_type == 3);
       bool sequence_cover = kind == 2 && prop->sequence_cover;
-      bool track_vacuity = kind != 2 && (prop->op_type == 1 || prop->op_type == 2);
+	/* 16.14.3 + 20.11: a cover's pass statement also runs for a vacuous
+	   success of an implication, so covers track vacuity too. */
+      bool track_vacuity = prop->op_type == 1 || prop->op_type == 2;
       if (kind == 2 && negated) {
 	    cerr << loc << ": sorry: `cover property (not ...)` is not "
 		 << "supported; the cover is dropped." << endl;
@@ -39243,6 +39274,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
 	    init_zero.push_back(sva_assign_(loc, pass_req, sva_num32_(loc, 0)));
 	    init_zero.push_back(sva_assign_(loc, vac_req, sva_num32_(loc, 0)));
+      }
+      if (track_vacuity && kind == 2) {
+	      /* A cover keeps its match sites for real matches; the
+		 dispatcher runs a copy of the pass statement for each
+		 vacuous success (pass_req stays zero). */
+	    if (pass_stmt) {
+		  user_pass = sva_clone_stmt_(pass_stmt);
+		  if (!user_pass)
+			cerr << loc << ": sorry: this cover's pass statement "
+			     << "cannot be copied, so it does not run for a "
+			     << "vacuous success (IEEE 1800-2023 16.14.3)."
+			     << endl;
+	    }
+      } else if (track_vacuity) {
 	    user_pass = pass_stmt;
 	    pass_stmt = sva_assign_(loc, pass_req,
 		  new PEBinary('+', sva_id_(loc, pass_req), sva_num32_(loc, 1)));

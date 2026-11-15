@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue3358_static_return.sv",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue3358_static_return"
+}

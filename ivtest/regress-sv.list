@@ -4654,6 +4654,8 @@ sv_assert_multiclock_fixed_control_pending_failure normal,-g2017 ivltests
 sv_assert_multiclock_fixed_control_pending_failure_2023 normal,-g2023 ivltests
 sv_assert_multiclock_fixed_control_no_vacuity normal,-g2017 ivltests
 sv_assert_multiclock_fixed_control_no_vacuity_2023 normal,-g2023 ivltests
+issue3011_vacuity_2017 normal,-g2017,-s,issue3011_vacuity ivltests gold=issue3011_vacuity.gold
+issue3011_vacuity_2023 normal,-g2023,-s,issue3011_vacuity ivltests gold=issue3011_vacuity.gold
 sv_assert_multiclock_fixed_control_prefix_pending normal,-g2017 ivltests
 sv_assert_multiclock_fixed_control_prefix_pending_2023 normal,-g2023 ivltests
 sv_assert_multiclock_fixed_control_selected normal,-g2017 ivltests
@@ -6920,3 +6922,13 @@ issue3321_vector_bit_strength_2017 normal,-g2017,-s,top ivltests gold=issue3321_
 issue3321_vector_bit_strength_2023 normal,-g2023,-s,top ivltests gold=issue3321_vector_bit_strength.gold
 issue3330_udp_strength_2017 normal,-g2017,-s,top ivltests gold=issue3330_udp_strength.gold
 issue3330_udp_strength_2023 normal,-g2023,-s,top ivltests gold=issue3330_udp_strength.gold
+issue3358_static_return_2017 normal,-g2017,-s,test ivltests gold=issue3358_static_return.gold
+issue3358_static_return_2023 normal,-g2023,-s,test ivltests gold=issue3358_static_return.gold
+issue3359_pure_dpi_2017 CO,-g2017,-s,top ivltests
+issue3359_pure_dpi_2023 CO,-g2023,-s,top ivltests
+issue3359_impure_dpi_2017 CE,-g2017,-s,top ivltests gold=issue3359_impure_dpi.gold
+issue3359_impure_dpi_2023 CE,-g2023,-s,top ivltests gold=issue3359_impure_dpi.gold
+issue3078_udp_edges_2017 CE,-g2017,-s,top ivltests gold=issue3078_udp_edges.gold
+issue3078_udp_edges_2023 CE,-g2023,-s,top ivltests gold=issue3078_udp_edges.gold
+issue3078_udp_legal_2017 normal,-g2017,-s,top ivltests gold=issue3078_udp_legal.gold
+issue3078_udp_legal_2023 normal,-g2023,-s,top ivltests gold=issue3078_udp_legal.gold

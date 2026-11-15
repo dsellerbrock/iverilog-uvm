@@ -544,6 +544,7 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 	    } else switch (ivl_expr_value(parm)) {
 		case IVL_VT_DARRAY:
 		case IVL_VT_QUEUE:
+		case IVL_VT_CLASS:
 		  draw_eval_object(parm);
 		  fprintf(vvp_out, "    %%stream/flatten/obj;\n");
 		  break;

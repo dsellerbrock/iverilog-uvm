@@ -26902,6 +26902,37 @@ static NetExpr*build_vif_validity_expr_(
       return vif_valid_const_(false);
 }
 
+/* True when EXPR is, or contains, a dynamic-array or queue size() call:
+   an internal system-function node that cannot be synthesized, so an
+   event control on it uses a value observer instead. */
+static bool event_expr_has_darray_size_(const NetExpr*expr)
+{
+      if (!expr) return false;
+      if (const NetESFunc*call = dynamic_cast<const NetESFunc*>(expr)) {
+	    if (strcmp(call->name(), "$ivl_queue_method$size") == 0
+		&& call->nparms() == 1 && call->parm(0)
+		&& dynamic_cast<const netdarray_t*>(call->parm(0)->net_type()))
+		  return true;
+	    for (unsigned idx = 0; idx < call->nparms(); idx += 1)
+		  if (event_expr_has_darray_size_(call->parm(idx)))
+			return true;
+	    return false;
+      }
+      if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(expr))
+	    return event_expr_has_darray_size_(bin->left())
+		|| event_expr_has_darray_size_(bin->right());
+      if (const NetEUnary*un = dynamic_cast<const NetEUnary*>(expr))
+	    return event_expr_has_darray_size_(un->expr());
+      if (const NetETernary*ter = dynamic_cast<const NetETernary*>(expr))
+	    return event_expr_has_darray_size_(ter->cond_expr())
+		|| event_expr_has_darray_size_(ter->true_expr())
+		|| event_expr_has_darray_size_(ter->false_expr());
+      if (const NetESelect*sel = dynamic_cast<const NetESelect*>(expr))
+	    return event_expr_has_darray_size_(sel->sub_expr())
+		|| event_expr_has_darray_size_(sel->select());
+      return false;
+}
+
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
@@ -27692,13 +27723,11 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	     * to elements or same-sized assignments do not create false events. */
 	    if (gn_system_verilog()
 		&& expr_[idx]->type() == PEEvent::ANYEDGE) {
-		  const NetESFunc*size_call = dynamic_cast<const NetESFunc*>(tmp);
-		  if (size_call
-		      && strcmp(size_call->name(), "$ivl_queue_method$size") == 0
-		      && size_call->nparms() == 1
-		      && size_call->parm(0)
-		      && dynamic_cast<const netdarray_t*>(
-			    size_call->parm(0)->net_type())) {
+		    /* IEEE 1800-2023 9.4.2: an expression that uses a size()
+		       call (da.size() > 0) is reevaluated the same way. */
+		  if (event_expr_has_darray_size_(tmp)
+		      && (tmp->expr_type() == IVL_VT_BOOL
+			  || tmp->expr_type() == IVL_VT_LOGIC)) {
 			NexusSet*source_set = tmp->nex_input();
 			if (source_set && source_set->size() > 0) {
 			      NetEvProbe*probe = new NetEvProbe(
@@ -39908,10 +39937,10 @@ static bool constraint_pure_expr_(const NetExpr*,
 
 /* A nonautomatic function is legal in a constraint only when it preserves no
  * state information. Keep the initial proof deliberately narrow: accept the
- * ordinary lowering of one unconditional assignment to the return variable,
- * optionally followed by its internal return-disable. More complex definite-
- * assignment control flow can be added without ever accepting a fallthrough
- * that reuses the return variable's value from an earlier invocation. */
+ * ordinary lowering of an unconditional assignment to the return variable,
+ * optionally followed by its internal return-disable, and conditionals whose
+ * two branches both meet that requirement. Never accept a fallthrough that
+ * reuses the return variable's value from an earlier invocation. */
 static bool constraint_static_return_definite_(const NetProc*proc,
 					       const NetNet*result)
 {
@@ -39927,6 +39956,9 @@ static bool constraint_static_return_definite_(const NetProc*proc,
 		&& lval->stream_range() == IVL_STREAM_RANGE_NONE
 		&& lval->lwidth() == result->vector_width();
       }
+      if (const NetCondit*cond = dynamic_cast<const NetCondit*>(proc))
+	    return constraint_static_return_definite_(cond->if_clause(), result)
+		&& constraint_static_return_definite_(cond->else_clause(), result);
       const NetBlock*block = dynamic_cast<const NetBlock*>(proc);
       if (!block || block->type() != NetBlock::SEQU) return false;
       bool assigned = false;
@@ -39963,6 +39995,12 @@ class constraint_function_purity_t : public target_t {
 	    }
 	    status_[scope] = 1;
 	    const PFunction*pfunc = scope->func_pform();
+	    /* A pure DPI import promises no side effects or persistent state.
+	     * Its generated wrapper is not an SV body to prove by inspection. */
+	    if (pfunc && pfunc->is_dpi_import() && pfunc->dpi_pure()) {
+		  status_[scope] = 2;
+		  return true;
+	    }
 	    if (pfunc && (!scope->func_def() || !scope->func_def()->proc()))
 		  elaborate_function_outside_caller_fork_(des_, pfunc,
 			const_cast<NetScope*>(scope));
