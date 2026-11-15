@@ -16086,6 +16086,19 @@ static PExpr* sva_booleanize_(const struct vlltype&loc, PExpr*e)
       return sva_not_(loc, sva_not_(loc, e));
 }
 
+/* IEEE 1800-2023 16.6: an assertion Boolean that is x or z is false, so a
+   property if (16.12.6) with such a condition takes its else branch (or is
+   vacuous without one). A dist condition keeps its own form. */
+PExpr* pform_sva_prop_condition(const struct vlltype&loc, PExpr*cond)
+{
+      if (!cond) return cond;
+      if (PEInside*in = dynamic_cast<PEInside*>(cond))
+	    if (in->is_dist()) return cond;
+      PExpr*b = new PEBComp('E', sva_booleanize_(loc, cond), sva_bit_(loc, 1));
+      FILE_NAME(b, loc);
+      return b;
+}
+
 static PExpr* sva_logic_(const struct vlltype&loc, char op,
 			 PExpr*l, PExpr*r)
 {

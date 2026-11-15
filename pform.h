@@ -742,6 +742,8 @@ extern sva_property_t*
 pform_sva_paren_conseq(const struct vlltype&loc, int op_type,
 		       std::vector<sva_seq_step_t>*ante,
 		       sva_property_t*conseq);
+extern PExpr*
+pform_sva_prop_condition(const struct vlltype&loc, PExpr*cond);
 extern sva_property_t*
 pform_sva_prop_if(const struct vlltype&loc, PExpr*cond, sva_property_t*then_p,
 		  sva_property_t*else_p);
