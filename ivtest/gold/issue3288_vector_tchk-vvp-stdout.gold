@@ -1,0 +1,7 @@
+ivltests/issue3288_vector_tchk.v:9: Timing violation: $width check in issue3288_vector_tchk.u at time 12
+ivltests/issue3288_vector_tchk.v:10: Timing violation: $setup check in issue3288_vector_tchk.u at time 21
+notifier 1
+ivltests/issue3288_vector_tchk.v:11: Timing violation: $hold check in issue3288_vector_tchk.u at time 31
+ivltests/issue3288_vector_tchk.v:12: Timing violation: $width check in issue3288_vector_tchk.u at time 42
+ivltests/issue3288_vector_tchk.v:13: Timing violation: $width check in issue3288_vector_tchk.u at time 52
+ivltests/issue3288_vector_tchk.v:29: $finish called at 62 (1ns)

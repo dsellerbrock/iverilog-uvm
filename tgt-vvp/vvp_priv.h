@@ -182,6 +182,9 @@ extern int draw_vpi_deferred_call(ivl_statement_t net, unsigned parm_base,
 				  unsigned result);
 
 extern void draw_vpi_func_call(ivl_expr_t expr);
+/* A VPI argument handle for EXPR (a label, a constant or a lazily
+   evaluated .vpi_expr record), or nil when it cannot be described. */
+extern char* draw_vpi_lazy_expr(ivl_expr_t expr);
 extern void draw_vpi_rfunc_call(ivl_expr_t expr);
 extern void draw_vpi_sfunc_call(ivl_expr_t expr);
 

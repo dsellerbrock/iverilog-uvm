@@ -2199,10 +2199,12 @@ static PLI_INT32 sys_monitor_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		case vpiIntVar:
 		case vpiLongIntVar:
 		case vpiRealVar:
+		case vpiStringVar:
 		case vpiPartSelect:
 		case vpiIndexedPartSelect:
 		    /* Monitoring reg and net values involves setting
-		       a callback for value changes. */
+		       a callback for value changes. A string variable
+		       changes value too (IEEE 1800 21.2.3). */
 		  cb.obj = monitor->strobe.items[idx];
 		  monitor->callbacks[idx] = vpi_register_cb(&cb);
 		  break;

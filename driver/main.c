@@ -580,6 +580,7 @@ static void process_warning_switch(const char*name)
 	    process_warning_switch("select-range");
 	    process_warning_switch("timescale");
 	    process_warning_switch("sensitivity-entire-array");
+	    process_warning_switch("net-data-type");
       } else if (strcmp(name,"anachronisms") == 0) {
 	    if (! strchr(warning_flags, 'n'))
 		  strcat(warning_flags, "n");
@@ -618,6 +619,9 @@ static void process_warning_switch(const char*name)
       } else if (strcmp(name,"sensitivity-entire-array") == 0) {
 	    if (! strchr(warning_flags, 'a'))
 		  strcat(warning_flags, "a");
+      } else if (strcmp(name,"net-data-type") == 0) {
+	    if (! strchr(warning_flags, 'N'))
+		  strcat(warning_flags, "N");
       } else if (strcmp(name,"no-anachronisms") == 0) {
 	    char*cp = strchr(warning_flags, 'n');
 	    if (cp) while (*cp) {
@@ -679,6 +683,12 @@ static void process_warning_switch(const char*name)
 	    }
       } else if (strcmp(name,"no-sensitivity-entire-array") == 0) {
 	    char*cp = strchr(warning_flags, 'a');
+	    if (cp) while (*cp) {
+		  cp[0] = cp[1];
+		  cp += 1;
+	    }
+      } else if (strcmp(name,"no-net-data-type") == 0) {
+	    char*cp = strchr(warning_flags, 'N');
 	    if (cp) while (*cp) {
 		  cp[0] = cp[1];
 		  cp += 1;

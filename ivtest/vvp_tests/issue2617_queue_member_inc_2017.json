@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2617_queue_member_inc.v",
+    "iverilog-args": ["-g2017"],
+    "gold": "issue2617_queue_member_inc"
+}

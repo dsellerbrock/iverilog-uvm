@@ -47,10 +47,12 @@ using namespace std;
 
 class __vpiForceReleaseStmt : public __vpiHandle {
     public:
-      __vpiForceReleaseStmt(bool force_, long file_idx_, long lineno_)
-          : force(force_), file_idx(file_idx_), lineno(lineno_) { }
+      __vpiForceReleaseStmt(int type_, long file_idx_, long lineno_)
+          : type(type_), file_idx(file_idx_), lineno(lineno_) { }
       int get_type_code(void) const override
-          { return force ? vpiForce : vpiRelease; }
+          { return type; }
+      vpiHandle vpi_handle(int code) override
+          { return vpip_force_conn_relation(this, code); }
       int vpi_get(int code) override
           { return code == vpiLineNo ? lineno : __vpiHandle::vpi_get(code); }
       char* vpi_get_str(int code) override
@@ -59,7 +61,7 @@ class __vpiForceReleaseStmt : public __vpiHandle {
                  ? simple_set_rbuf_str(file_names[file_idx])
                  : __vpiHandle::vpi_get_str(code); }
     private:
-      bool force;
+      int type;
       long file_idx;
       long lineno;
 };
@@ -184,9 +186,18 @@ vpiHandle vpip_set_force_statement(vpiHandle statement)
       return previous;
 }
 
-vpiHandle vpip_build_force_statement(bool force, long file_idx, long lineno)
+int vpip_force_statement_type(const char*text)
 {
-      return new __vpiForceReleaseStmt(force, file_idx, lineno);
+      if (strcmp(text, "VPI force statement") == 0) return vpiForce;
+      if (strcmp(text, "VPI release statement") == 0) return vpiRelease;
+      if (strcmp(text, "VPI assign statement") == 0) return vpiAssignStmt;
+      if (strcmp(text, "VPI deassign statement") == 0) return vpiDeassign;
+      return 0;
+}
+
+vpiHandle vpip_build_force_statement(int type, long file_idx, long lineno)
+{
+      return new __vpiForceReleaseStmt(type, file_idx, lineno);
 }
 
 static const char*cb_reason_name(PLI_INT32 reason)

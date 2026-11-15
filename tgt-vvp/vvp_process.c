@@ -1357,11 +1357,78 @@ void show_stmt_file_line(ivl_statement_t net, const char* desc)
       }
 }
 
-static void emit_force_release_identity(ivl_statement_t stmt, int force)
+/* The l-value of a force, release or procedural (de)assign as an ordinary
+   argument handle: a whole signal, a constant part (&PV) or a constant
+   word of a one-dimensional array (&A); nil for anything else. */
+static char* force_lval_handle_(ivl_lval_t lval)
+{
+      char buf[96];
+      ivl_signal_t sig = ivl_lval_sig(lval);
+      ivl_expr_t word = ivl_lval_idx(lval);
+      ivl_expr_t off = ivl_lval_part_off(lval);
+      unsigned wid = ivl_lval_width(lval);
+      unsigned long base = 0;
+
+      if (!sig || ivl_lval_nest(lval)) return 0;
+      if (word) {
+	    if (ivl_signal_dimensions(sig) != 1 || off
+		|| wid != ivl_signal_width(sig)
+		|| !number_is_immediate(word, IMM_WID, 0)
+		|| number_is_unknown(word))
+		  return 0;
+	    snprintf(buf, sizeof buf, "&A<v%p, %lu>", sig,
+		     get_number_immediate(word));
+	    return strdup(buf);
+      }
+      if (ivl_signal_dimensions(sig) != 0) return 0;
+      if (off) {
+	    if (!number_is_immediate(off, 64, 0) || number_is_unknown(off))
+		  return 0;
+	    base = get_number_immediate(off);
+      }
+      if (base == 0 && wid == ivl_signal_width(sig))
+	    snprintf(buf, sizeof buf, "v%p_0", sig);
+      else
+	    snprintf(buf, sizeof buf, "&PV<v%p_0, %lu, %u>", sig, base, wid);
+      return strdup(buf);
+}
+
+/* What a force, release, assign or deassign statement drives and reads,
+   for vpiDriver and vpiLoad (IEEE 1800-2023 37.16, 37.21): its statement
+   tree node, then its l-value handles and its r-value. A statement with an
+   l-value that cannot be described gets no record. */
+static void emit_force_conn_(ivl_statement_t stmt)
+{
+      unsigned idx, nlval = ivl_stmt_lvals(stmt);
+      int has_rval = ivl_statement_type(stmt) == IVL_ST_FORCE
+	    || ivl_statement_type(stmt) == IVL_ST_CASSIGN;
+      char**lvals = calloc(nlval, sizeof(char*));
+      char*rval = 0;
+      int ok = nlval > 0;
+
+      for (idx = 0; ok && idx < nlval; idx += 1)
+	    ok = (lvals[idx] = force_lval_handle_(ivl_stmt_lval(stmt, idx))) != 0;
+      if (ok && has_rval)
+	    ok = (rval = draw_vpi_lazy_expr(ivl_stmt_rval(stmt))) != 0;
+      if (ok) {
+	    fprintf(vvp_out, "    .vpi_force_conn FR_%p, %" PRIu64 ", %u",
+		    stmt, vpi_stmt_id_(stmt), nlval);
+	    for (idx = 0; idx < nlval; idx += 1)
+		  fprintf(vvp_out, ", %s", lvals[idx]);
+	    if (rval) fprintf(vvp_out, ", %s", rval);
+	    fprintf(vvp_out, ";\n");
+      }
+      for (idx = 0; idx < nlval; idx += 1) free(lvals[idx]);
+      free(lvals);
+      free(rval);
+}
+
+static void emit_force_release_identity(ivl_statement_t stmt, const char*kind)
 {
       fprintf(vvp_out, "FR_%p %%file_line %u %u \"VPI %s statement\";\n",
               stmt, ivl_file_table_index(ivl_stmt_file(stmt)),
-              ivl_stmt_lineno(stmt), force ? "force" : "release");
+              ivl_stmt_lineno(stmt), kind);
+      emit_force_conn_(stmt);
 }
 
 static void emit_force_release_identity_end(void)
@@ -2864,7 +2931,9 @@ static int show_stmt_cassign(ivl_statement_t net)
       if (sig && ivl_signal_data_type(sig) == IVL_VT_REAL) {
 
 	    draw_eval_real(ivl_stmt_rval(net));
+	    emit_force_release_identity(net, "assign");
 	    force_real_to_lval(net);
+	    emit_force_release_identity_end();
 
       } else {
 	    unsigned force_width = 0;
@@ -2881,7 +2950,9 @@ static int show_stmt_cassign(ivl_statement_t net)
 
 	      /* Write out initial continuous assign instructions to assign
 	         the expression value to the l-value. */
+	    emit_force_release_identity(net, "assign");
 	    force_vector_to_lval(net);
+	    emit_force_release_identity_end();
       }
 
       force_link_rval(net, ivl_stmt_cassign_link_rval(net));
@@ -2894,12 +2965,22 @@ static int show_stmt_cassign(ivl_statement_t net)
  * vectors without bit or part selects. Simply call %deassign for all
  * the values.
  */
+static int show_stmt_deassign_body_(ivl_statement_t net);
+
 static int show_stmt_deassign(ivl_statement_t net)
+{
+      int rc;
+      show_stmt_file_line(net, "Deassign statement.");
+      emit_force_release_identity(net, "deassign");
+      rc = show_stmt_deassign_body_(net);
+      emit_force_release_identity_end();
+      return rc;
+}
+
+static int show_stmt_deassign_body_(ivl_statement_t net)
 {
       ivl_signal_t sig = ivl_lval_sig(ivl_stmt_lval(net, 0));
       unsigned lidx;
-
-      show_stmt_file_line(net, "Deassign statement.");
 
       if (sig && ivl_signal_data_type(sig) == IVL_VT_REAL) {
 	    ivl_lval_t lval;
@@ -3145,7 +3226,7 @@ static int show_stmt_force(ivl_statement_t net)
       if (sig && ivl_signal_data_type(sig) == IVL_VT_REAL) {
 
             draw_eval_real(ivl_stmt_rval(net));
-            emit_force_release_identity(net, 1);
+            emit_force_release_identity(net, "force");
             force_real_to_lval(net);
             emit_force_release_identity_end();
 
@@ -3160,7 +3241,7 @@ static int show_stmt_force(ivl_statement_t net)
 
               /* Write out initial continuous assign instructions to assign
                  the expression value to the l-value. */
-            emit_force_release_identity(net, 1);
+            emit_force_release_identity(net, "force");
             force_vector_to_lval(net);
             emit_force_release_identity_end();
       }
@@ -3375,7 +3456,7 @@ static int show_stmt_release(ivl_statement_t net)
       unsigned lidx;
 
       show_stmt_file_line(net, "Release statement.");
-      emit_force_release_identity(net, 0);
+      emit_force_release_identity(net, "release");
 
       if (sig && ivl_signal_data_type(sig) == IVL_VT_REAL) {
 	    unsigned type = 0;

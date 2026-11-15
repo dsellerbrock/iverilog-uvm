@@ -159,13 +159,11 @@ class resolv_tri : public resolv_core {
 };
 
 /*
- * This functor type resolves its inputs using the wired_logic_math_
- * method implemented by each derived class, and outputs that resolved
- * value.
+ * This functor resolves inputs with the wired AND or OR logic selected
+ * by each derived class.
  *
- * This node takes in vvp_vector4_t values, and emits a vvp_vector4_t
- * value. It also takes in vvp_vector8_t values, which it reduces to
- * 4-state values for the sake of resolution.
+ * This node retains strengths on its inputs and output. Four-state
+ * inputs are treated as strong (or high impedance).
  */
 class resolv_wired_logic : public resolv_core {
 
@@ -177,7 +175,7 @@ class resolv_wired_logic : public resolv_core {
       void replay_input(unsigned port, vvp_net_ptr_t dest) const override;
 
     protected:
-      virtual vvp_vector4_t wired_logic_math_(vvp_vector4_t&a, vvp_vector4_t&b) =0;
+      virtual bool wired_or_() const =0;
 
     private:
       void recv_vec4_(unsigned port, const vvp_vector4_t&bit) override;
@@ -185,7 +183,7 @@ class resolv_wired_logic : public resolv_core {
 
     private:
         // The array of input values.
-      vvp_vector4_t*val_;
+      vvp_vector8_t*val_;
 };
 
 class resolv_triand : public resolv_wired_logic {
@@ -197,7 +195,7 @@ class resolv_triand : public resolv_wired_logic {
             { return new resolv_triand(nports_, net); }
 
     private:
-      virtual vvp_vector4_t wired_logic_math_(vvp_vector4_t&a, vvp_vector4_t&b) override;
+      bool wired_or_() const override { return false; }
 };
 
 class resolv_trior : public resolv_wired_logic {
@@ -209,7 +207,7 @@ class resolv_trior : public resolv_wired_logic {
             { return new resolv_trior(nports_, net); }
 
     private:
-      virtual vvp_vector4_t wired_logic_math_(vvp_vector4_t&a, vvp_vector4_t&b) override;
+      bool wired_or_() const override { return true; }
 };
 
 #endif /* IVL_resolv_H */

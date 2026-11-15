@@ -236,6 +236,31 @@ void resolv_tri::count_drivers(unsigned bit_idx, unsigned counts[3])
 }
 
 
+// Each scalar encodes the endpoints of a contiguous range on the
+// signed strength scale (-7 is supply0, +7 is supply1). Resolve every
+// pair of possible strengths and retain the resulting range.
+vvp_scalar_t resolve_wired(vvp_scalar_t a, vvp_scalar_t b, bool is_or)
+{
+      int alo = (a.value_ & 8) ? (a.value_ & 7) : -(a.value_ & 7);
+      int ahi = (a.value_ & 128) ? ((a.value_ >> 4) & 7) : -((a.value_ >> 4) & 7);
+      int blo = (b.value_ & 8) ? (b.value_ & 7) : -(b.value_ & 7);
+      int bhi = (b.value_ & 128) ? ((b.value_ >> 4) & 7) : -((b.value_ >> 4) & 7);
+      int lo = 7, hi = -7;
+      for (int x = alo; x <= ahi; x += 1) {
+            for (int y = blo; y <= bhi; y += 1) {
+                  int ax = x < 0 ? -x : x;
+                  int ay = y < 0 ? -y : y;
+                  int result = ax > ay ? x : ay > ax ? y :
+                               is_or ? (x > y ? x : y) : (x < y ? x : y);
+                  if (result < lo) lo = result;
+                  if (result > hi) hi = result;
+            }
+      }
+      unsigned low = lo < 0 ? -lo : (lo ? lo | 8 : 0);
+      unsigned high = hi < 0 ? -hi : (hi || lo < 0 ? hi | 8 : 0);
+      return vvp_scalar_t(static_cast<unsigned char>(low | (high << 4)));
+}
+
 resolv_wired_logic::resolv_wired_logic(unsigned nports, vvp_net_t*net)
 : resolv_core(nports, net)
 {
@@ -252,7 +277,7 @@ resolv_wired_logic::resolv_wired_logic(unsigned nports, vvp_net_t*net)
       if (nnodes > 1)
             nnodes += 1;
 
-      val_ = new vvp_vector4_t [nnodes];
+      val_ = new vvp_vector8_t [nnodes];
 }
 
 resolv_wired_logic::~resolv_wired_logic()
@@ -263,10 +288,15 @@ resolv_wired_logic::~resolv_wired_logic()
 void resolv_wired_logic::replay_input(unsigned port, vvp_net_ptr_t dest) const
 {
       if (val_[port].size() > 0)
-	    dest.ptr()->fun->recv_vec4(dest, val_[port], 0);
+	    dest.ptr()->fun->recv_vec8(dest, val_[port]);
 }
 
 void resolv_wired_logic::recv_vec4_(unsigned port, const vvp_vector4_t&bit)
+{
+      recv_vec8_(port, vvp_vector8_t(bit, 6, 6));
+}
+
+void resolv_wired_logic::recv_vec8_(unsigned port, const vvp_vector8_t&bit)
 {
       assert(port < nports_);
 
@@ -290,14 +320,18 @@ void resolv_wired_logic::recv_vec4_(unsigned port, const vvp_vector4_t&bit)
             unsigned op = next_base + (port / 4);
             unsigned ll = min(ip + 4, next_base);
 
-            vvp_vector4_t out = val_[ip];
+            vvp_vector8_t out = val_[ip];
             for (ip = ip + 1; ip < ll; ip += 1) {
                   if (val_[ip].size() == 0)
                         continue;
                   if (out.size() == 0)
                         out = val_[ip];
-                  else
-                        out = wired_logic_math_(out, val_[ip]);
+                  else {
+                        assert(out.size() == val_[ip].size());
+                        for (unsigned idx = 0; idx < out.size(); idx += 1)
+                              out.set_bit(idx, resolve_wired(out.value(idx),
+                                                           val_[ip].value(idx), wired_or_()));
+                  }
             }
             if (val_[op].eeq(out)) {
                   notify_driver_activity();
@@ -310,12 +344,7 @@ void resolv_wired_logic::recv_vec4_(unsigned port, const vvp_vector4_t&bit)
             port = port / 4;
       }
 
-      net_->send_vec4(val_[base], 0);
-}
-
-void resolv_wired_logic::recv_vec8_(unsigned port, const vvp_vector8_t&bit)
-{
-      recv_vec4_(port, reduce4(bit));
+      net_->send_vec8(val_[base]);
 }
 
 void resolv_wired_logic::count_drivers(unsigned bit_idx, unsigned counts[3])
@@ -324,7 +353,7 @@ void resolv_wired_logic::count_drivers(unsigned bit_idx, unsigned counts[3])
 	    if (val_[idx].size() == 0)
 	          continue;
 
-            update_driver_counts(val_[idx].value(bit_idx), counts);
+            update_driver_counts(val_[idx].value(bit_idx).value(), counts);
       }
 }
 
@@ -338,32 +367,6 @@ resolv_triand::~resolv_triand()
 {
 }
 
-vvp_vector4_t resolv_triand::wired_logic_math_(vvp_vector4_t&a, vvp_vector4_t&b)
-{
-      assert(a.size() == b.size());
-
-      vvp_vector4_t out (a.size());
-
-      for (unsigned idx = 0 ; idx < out.size() ; idx += 1) {
-	    vvp_bit4_t abit = a.value(idx);
-	    vvp_bit4_t bbit = b.value(idx);
-	    if (abit == BIT4_Z) {
-		  out.set_bit(idx, bbit);
-	    } else if (bbit == BIT4_Z) {
-		  out.set_bit(idx, abit);
-	    } else if (abit == BIT4_0 || bbit == BIT4_0) {
-		  out.set_bit(idx, BIT4_0);
-	    } else if (abit == BIT4_X || bbit == BIT4_X) {
-		  out.set_bit(idx, BIT4_X);
-	    } else {
-		  out.set_bit(idx, BIT4_1);
-	    }
-      }
-
-      return out;
-}
-
-
 resolv_trior::resolv_trior(unsigned nports, vvp_net_t*net)
 : resolv_wired_logic(nports, net)
 {
@@ -371,29 +374,4 @@ resolv_trior::resolv_trior(unsigned nports, vvp_net_t*net)
 
 resolv_trior::~resolv_trior()
 {
-}
-
-vvp_vector4_t resolv_trior::wired_logic_math_(vvp_vector4_t&a, vvp_vector4_t&b)
-{
-      assert(a.size() == b.size());
-
-      vvp_vector4_t out (a.size());
-
-      for (unsigned idx = 0 ; idx < out.size() ; idx += 1) {
-	    vvp_bit4_t abit = a.value(idx);
-	    vvp_bit4_t bbit = b.value(idx);
-	    if (abit == BIT4_Z) {
-		  out.set_bit(idx, bbit);
-	    } else if (bbit == BIT4_Z) {
-		  out.set_bit(idx, abit);
-	    } else if (abit == BIT4_1 || bbit == BIT4_1) {
-		  out.set_bit(idx, BIT4_1);
-	    } else if (abit == BIT4_X || bbit == BIT4_X) {
-		  out.set_bit(idx, BIT4_X);
-	    } else {
-		  out.set_bit(idx, BIT4_0);
-	    }
-      }
-
-      return out;
 }

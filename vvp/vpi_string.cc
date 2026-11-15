@@ -77,6 +77,11 @@ int __vpiStringVar::vpi_get(int code)
 	    return 0;
 	  case vpiRightRange:
             return str.size() - 1;
+#ifdef BR916_STOPGAP_FIX
+	    // A plain string variable, like any other signal.
+	  case _vpiFromThr:
+	    return _vpiNoThr;
+#endif
 	  default:
 	    fprintf(stderr, "vpi sorry: string property %d is not "
 		    "implemented.\n", code);

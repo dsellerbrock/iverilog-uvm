@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1277_vpi_force_drivers.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue1277_vpi_force_drivers_2017"],
+  "vpi-sources": ["vpi/issue1277_vpi_force_drivers.c"],
+  "output-contains": ["VPI FORCE DRIVERS PASS"]
+}

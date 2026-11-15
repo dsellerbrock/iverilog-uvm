@@ -1,0 +1,3 @@
+ivltests/issue2851_net_2state.v:4: warning: net `a` has a 2-state data type; IEEE 1800 6.7.1 requires a 4-state net type (-Wnet-data-type).
+ivltests/issue2851_net_2state.v:5: warning: net `i` has a 2-state data type; IEEE 1800 6.7.1 requires a 4-state net type (-Wnet-data-type).
+ivltests/issue2851_net_2state.v:6: warning: net `w` has a 2-state data type; IEEE 1800 6.7.1 requires a 4-state net type (-Wnet-data-type).

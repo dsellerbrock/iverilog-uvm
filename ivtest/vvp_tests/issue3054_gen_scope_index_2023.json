@@ -1,0 +1,16 @@
+{
+  "type": "normal",
+  "source": "issue3054_gen_scope_index.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "top"
+  ],
+  "vpi-modules": [
+    "issue3054_gen_scope_index"
+  ],
+  "vpi-sources": [
+    "vpi/issue3054_gen_scope_index.c"
+  ],
+  "gold": "issue3054_gen_scope_index"
+}

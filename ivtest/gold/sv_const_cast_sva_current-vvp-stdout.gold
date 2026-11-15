@@ -1,0 +1,5 @@
+a1 fail t=5 cnt=2
+a2 fail t=15 cnt=3
+a3 fail t=25 cnt=4
+done
+ivltests/sv_const_cast_sva_current.v:34: $finish called at 46 (1s)
