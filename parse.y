@@ -14360,6 +14360,21 @@ parameterized_scoped_identifier
 	delete[]$3;
 	$$ = tmp;
       }
+	/* IEEE 1800 18.7.1: local:: may qualify a class scope in an inline
+	   constraint (x == local::Config::value). The class scope keeps the
+	   local:: binding on its first component, as local::name does. */
+  | K_local K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
+      { pform_name_t hident;
+	hident.push_back(name_component_t(lex_strings.make($3.text)));
+	hident.back().local_scope = true;
+	hident.push_back(name_component_t(lex_strings.make($5)));
+	PEIdent*tmp = pform_new_ident(@3, hident);
+	FILE_NAME(tmp, @3);
+	tmp->set_scoped_type_prefix();
+	delete[]$3.text;
+	delete[]$5;
+	$$ = tmp;
+      }
   | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1.text)));
