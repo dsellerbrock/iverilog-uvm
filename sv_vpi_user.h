@@ -98,6 +98,7 @@ EXTERN_C_START
 #define vpiCoverCount       665
 #define vpiCoverTypeCount   666
 #define vpiPackedArrayMember 655
+#define vpiStructUnionMember 615
 /* Icarus extension: true when a vpiClassVar or member has a declared
  * unpacked struct type. */
 #define vpiIsStruct         667
