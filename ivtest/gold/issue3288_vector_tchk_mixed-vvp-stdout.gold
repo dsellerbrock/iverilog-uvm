@@ -1,0 +1,4 @@
+ivltests/issue3288_vector_tchk_mixed.v:8: Timing violation: $width check in issue3288_vector_tchk_mixed.u at time 19
+ivltests/issue3288_vector_tchk_mixed.v:9: Timing violation: $setup check in issue3288_vector_tchk_mixed.u at time 41
+ivltests/issue3288_vector_tchk_mixed.v:9: Timing violation: $setup check in issue3288_vector_tchk_mixed.u at time 51
+ivltests/issue3288_vector_tchk_mixed.v:24: $finish called at 71 (1ns)

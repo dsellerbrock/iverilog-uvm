@@ -186,6 +186,17 @@ void PWire::set_net(NetNet::Type t)
       }
 }
 
+bool PWire::is_scalar_decl() const
+{
+      if (!port_.empty() || !net_.empty() || !unpacked_.empty())
+	    return false;
+      const data_type_t*type = set_data_type_.get();
+      if (type == nullptr)
+	    return true;
+      const vector_type_t*vec = dynamic_cast<const vector_type_t*>(type);
+      return vec && !vec->integer_flag && (!vec->pdims || vec->pdims->empty());
+}
+
 void PWire::set_range(const list<pform_range_t>&rlist, PWSRType type,
 		      bool reject_unknown)
 {

@@ -16879,6 +16879,150 @@ void pform_sva_range_delay(const struct vlltype&loc, sva_seq_step_t&step,
       delete hi_expr;
 }
 
+/* IEEE 1800-2023 31.8: a vector terminal is ONE timing check, and "the
+   transition of one or more bits of a vector is considered a single
+   transition of that vector". A plain @(posedge vec) sees only the LSB
+   (9.4.2), so an edge-qualified event on a terminal that is not a declared
+   scalar wakes on any change and tests every bit at once. The previous and
+   current values are kept as 2-state known-1 / known-0 masks, $bits wide so
+   parameter overrides apply; x and z read as neither.
+   Provisional reading (31.8 does not say): a vector transition is a posedge
+   when any bit makes a posedge transition and a negedge when any bit makes
+   a negedge transition, so it can be both. Declared scalars keep the plain
+   edge-event processes below. */
+struct tc_vec_arm_t {
+      bool posedge = false;
+      bool negedge = false;
+      std::vector<PTimingCheck::EdgeType> edges;
+      Statement*body = nullptr;
+};
+
+/* A -gneg-tchk delayed view (tc_view_) is made at elaboration with the
+   width of the signal it delays; size and classify it by that signal. */
+static pform_name_t tc_width_source_(const pform_name_t&name)
+{
+      static const char prefix[] = "_ivl_tcv_";
+      pform_name_t src = name;
+      const char*text = src.front().name.str();
+      if (strncmp(text, prefix, sizeof prefix - 1) == 0)
+	    src.front().name = lex_strings.make(text + sizeof prefix - 1);
+      return src;
+}
+
+static bool tc_needs_vector_edges_(const PTimingCheck::event_t&ev)
+{
+      if (!ev.posedge && !ev.negedge && ev.edges.empty())
+	    return false;
+      if (ev.name.size() != 1 || !ev.name.back().index.empty())
+	    return true;
+      PWire*wire = pform_get_wire_in_scope(
+	    tc_width_source_(ev.name).back().name);
+      return !(wire && wire->is_scalar_decl());
+}
+
+static perm_string tc_make_mask_(const struct vlltype&loc, unsigned inst,
+				 const char*what, const pform_name_t&sig)
+{
+      char buf[64];
+      snprintf(buf, sizeof buf, "_ivl_tc%u_%s", inst, what);
+      perm_string name = lex_strings.make(buf);
+      PWire*wire = pform_makewire(loc, pform_ident_t(name, loc.lexical_pos),
+				  NetNet::REG, nullptr);
+      std::list<named_pexpr_t> args(1);
+      args.front().parm = tc_name_id_(loc, tc_width_source_(sig));
+      PECallFunction*bits = new PECallFunction(lex_strings.make("$bits"), args);
+      FILE_NAME(bits, loc);
+      pform_range_t range;
+      range.first = new PEBinary('-', bits,
+				 new PENumber(new verinum((uint64_t)1, 32)));
+      FILE_NAME(range.first, loc);
+      range.second = new PENumber(new verinum((uint64_t)0, 32));
+      wire->set_range(std::list<pform_range_t>(1, range), SR_NET, false);
+      wire->set_data_type(new vector_type_t(IVL_VT_BOOL, false, nullptr));
+      return name;
+}
+
+/* The bits whose value is V (0, 1, or 2 = x/z) in the ONE/ZERO masks. */
+static PExpr* tc_mask_state_(const struct vlltype&loc, perm_string one,
+			     perm_string zero, int v)
+{
+      if (v == 0) return sva_id_(loc, zero);
+      if (v == 1) return sva_id_(loc, one);
+      PExpr*r = new PEBinary('&', new PEUnary('~', sva_id_(loc, one)),
+			     new PEUnary('~', sva_id_(loc, zero)));
+      FILE_NAME(r, loc);
+      return r;
+}
+
+static void tc_vector_always_(const struct vlltype&loc,
+			      const pform_name_t&sig, PExpr*condition,
+			      const std::vector<tc_vec_arm_t>&arms)
+{
+      unsigned inst = tc_gensym_counter++;
+      perm_string p1 = tc_make_mask_(loc, inst, "p1", sig);
+      perm_string p0 = tc_make_mask_(loc, inst, "p0", sig);
+      perm_string c1 = tc_make_mask_(loc, inst, "c1", sig);
+      perm_string c0 = tc_make_mask_(loc, inst, "c0", sig);
+
+      std::vector<Statement*> stmts;
+      stmts.push_back(new PAssign(sva_id_(loc, c1), tc_name_id_(loc, sig)));
+      stmts.push_back(new PAssign(sva_id_(loc, c0),
+				  new PEUnary('~', tc_name_id_(loc, sig))));
+      for (const tc_vec_arm_t&arm : arms) {
+	    std::vector<std::pair<int,int> > pairs;
+	    if (arm.posedge)
+		  pairs.insert(pairs.end(), {{0,1}, {0,2}, {2,1}});
+	    if (arm.negedge)
+		  pairs.insert(pairs.end(), {{1,0}, {1,2}, {2,0}});
+	    for (PTimingCheck::EdgeType e : arm.edges) {
+		  double a = 0.0, b = 0.0;
+		  tc_edge_vals_(e, a, b);
+		  pairs.push_back({int(a), int(b)});
+	    }
+	    PExpr*mask = nullptr;
+	    for (const auto&pr : pairs) {
+		  PExpr*term = new PEBinary('&',
+			tc_mask_state_(loc, p1, p0, pr.first),
+			tc_mask_state_(loc, c1, c0, pr.second));
+		  FILE_NAME(term, loc);
+		  mask = mask ? new PEBinary('|', mask, term) : term;
+	    }
+	    PExpr*hit = new PEUnary('|', mask);
+	    FILE_NAME(hit, loc);
+	    if (condition) {
+		  PExpr*cond = sva_clone_expr_(condition);
+		  if (cond == 0) {
+			cerr << loc.get_fileline() << ": sorry: this timing "
+			     << "check &&& condition shape is not supported; "
+			     << "the check is dropped." << endl;
+			error_count += 1;
+			return;
+		  }
+		  hit = new PEBLogic('a', hit, tc_condition_(loc, cond));
+	    }
+	    PCondit*gated = new PCondit(hit, arm.body, nullptr);
+	    FILE_NAME(gated, loc);
+	    stmts.push_back(gated);
+      }
+      stmts.push_back(new PAssign(sva_id_(loc, p1), sva_id_(loc, c1)));
+      stmts.push_back(new PAssign(sva_id_(loc, p0), sva_id_(loc, c0)));
+      for (Statement*st : stmts) FILE_NAME(st, loc);
+
+	/* Prime the previous value at time 0, as tc_always_at_ does. */
+      std::vector<Statement*> prime;
+      prime.push_back(new PAssign(sva_id_(loc, p1), tc_name_id_(loc, sig)));
+      prime.push_back(new PAssign(sva_id_(loc, p0),
+				  new PEUnary('~', tc_name_id_(loc, sig))));
+      for (Statement*st : prime) FILE_NAME(st, loc);
+      pform_make_behavior(IVL_PR_INITIAL, sva_block_(loc, prime), nullptr);
+
+      PEEvent*pe = new PEEvent(PEEvent::ANYEDGE, tc_name_id_(loc, sig));
+      PEventStatement*es = new PEventStatement(pe);
+      FILE_NAME(es, loc);
+      es->set_statement(sva_block_(loc, stmts));
+      pform_make_behavior(IVL_PR_ALWAYS, es, nullptr);
+}
+
 /* Build "@(edge sig) if (cond) <body>" as an always process. For an
    edge-descriptor event list (edge [01, 10] sig) the process triggers
    on ANY change of the signal, remembers the previous 3-value-encoded
@@ -16891,6 +17035,16 @@ static void tc_always_at_(const struct vlltype&loc,
 			  const PTimingCheck::event_t&ev,
 			  Statement*body)
 {
+      if (tc_needs_vector_edges_(ev)) {
+	    std::vector<tc_vec_arm_t> arms(1);
+	    arms[0].posedge = ev.posedge;
+	    arms[0].negedge = ev.negedge;
+	    arms[0].edges = ev.edges;
+	    arms[0].body = body;
+	    tc_vector_always_(loc, ev.name, ev.condition.get(), arms);
+	    return;
+      }
+
       if (!ev.edges.empty()) {
 	    unsigned inst = tc_gensym_counter++;
 	    perm_string prev_var = tc_make_real_(loc, inst, "prev", 2.0);
@@ -17774,6 +17928,35 @@ void pform_timing_check_width(const struct vlltype&loc,
       tc_take_limit_refs_(tc_record_(loc, vpiWidth, ev, nullptr,
 				     width_limits, notifier),
 			  {&limit, &threshold});
+      if (tc_needs_vector_edges_(*event)) {
+	      /* One check for the whole vector (31.8), in one process: a
+		 transition that is both edges ends the current pulse (the
+		 check) before it starts the next one (the stamp). */
+	    perm_string last = tc_make_real_(loc, tc_gensym_counter++, "last");
+	    PExpr*cond = new PEBLogic('a',
+		  new PEBComp('G', sva_id_(loc, last), tc_real_(loc, 0.0)),
+		  new PEBComp('<', new PEBinary('-', tc_realtime_(loc),
+						sva_id_(loc, last)), limit));
+	    if (threshold)
+		  cond = new PEBLogic('a', cond,
+			new PEBComp('>', new PEBinary('-', tc_realtime_(loc),
+						      sva_id_(loc, last)),
+				    threshold));
+	    std::vector<tc_vec_arm_t> arms(2);
+	    arms[0].posedge = event->negedge;
+	    arms[0].negedge = event->posedge;
+	    arms[0].body = new PCondit(cond,
+				       tc_violation_(loc, "$width", notifier),
+				       nullptr);
+	    arms[1].posedge = event->posedge;
+	    arms[1].negedge = event->negedge;
+	    arms[1].body = new PAssign(sva_id_(loc, last), tc_realtime_(loc));
+	    FILE_NAME(arms[0].body, loc);
+	    FILE_NAME(arms[1].body, loc);
+	    tc_vector_always_(loc, event->name, event->condition.get(), arms);
+	    delete event;
+	    return;
+      }
       PWidth*check = new PWidth(loc.text, loc.first_line, loc.lexical_pos,
 				 event, limit, threshold,
 				 notifier ? new pform_name_t(*notifier) : nullptr,
@@ -17854,8 +18037,8 @@ static void tc_width_process_at_(const struct vlltype&loc, Design*des,
 void PWidth::elaborate(Design*des, NetScope*scope) const
 {
 	struct vlltype loc = tc_width_location_(*this, file_, lexical_pos_);
-      /* Resolve the packed shape here, after parameter and instance
-	 overrides are known. Each bit gets its own edge event and timestamp. */
+	/* Only a declared scalar reaches here; pform_timing_check_width
+	   synthesizes a vector terminal as one masked check (31.8). */
       PEIdent*signal_id = tc_name_id_(loc, event_->name);
       symbol_search_results signal_search;
       symbol_search(signal_id, des, scope, signal_id->path(),
@@ -17869,95 +18052,48 @@ void PWidth::elaborate(Design*des, NetScope*scope) const
       delete signal_id;
       if (signal == nullptr) return;
 
-      const unsigned width = signal->vector_width();
-      const netranges_t&dims = signal->packed_dims();
-      const bool expand_bits = width > 1 && event_->name.back().index.empty();
-      const unsigned checks = expand_bits ? width : 1;
-      std::vector<std::unique_ptr<PExpr>> limits;
-      std::vector<std::unique_ptr<PExpr>> thresholds;
-      std::vector<std::unique_ptr<PExpr>> conditions;
-      std::vector<std::unique_ptr<PExpr>> opposite_conditions;
-      for (unsigned bit = 0; bit < checks; ++bit) {
-	    std::unique_ptr<PExpr> limit(sva_clone_expr_(limit_.get()));
-	    std::unique_ptr<PExpr> threshold(threshold_
-		  ? sva_clone_expr_(threshold_.get()) : nullptr);
-	    std::unique_ptr<PExpr> condition(event_->condition.get()
-		  ? sva_clone_expr_(event_->condition.get()) : nullptr);
-	    std::unique_ptr<PExpr> opposite_condition(event_->condition.get()
-		  ? sva_clone_expr_(event_->condition.get()) : nullptr);
-	    if (!limit || (threshold_ && !threshold)
-		|| (event_->condition.get() && (!condition || !opposite_condition))) {
-		  cerr << get_fileline() << ": sorry: $width timing-check expression "
-		       << "shape cannot be duplicated for per-bit checks; the check "
-		       << "is dropped." << endl;
-		  des->errors += 1;
-		  return;
-	    }
-	    limits.push_back(std::move(limit));
-	    thresholds.push_back(std::move(threshold));
-	    conditions.push_back(std::move(condition));
-	    opposite_conditions.push_back(std::move(opposite_condition));
+      PExpr*limit = sva_clone_expr_(limit_.get());
+      PExpr*threshold = threshold_ ? sva_clone_expr_(threshold_.get()) : nullptr;
+      PExpr*condition = event_->condition.get()
+	    ? sva_clone_expr_(event_->condition.get()) : nullptr;
+      PExpr*opposite_condition = event_->condition.get()
+	    ? sva_clone_expr_(event_->condition.get()) : nullptr;
+      if (!limit || (threshold_ && !threshold)
+	  || (event_->condition.get() && (!condition || !opposite_condition))) {
+	    cerr << get_fileline() << ": sorry: $width timing-check expression "
+		 << "shape cannot be elaborated; the check is dropped." << endl;
+	    des->errors += 1;
+	    return;
       }
 
-      for (unsigned bit = 0; bit < checks; ++bit) {
-	    pform_name_t bit_name = event_->name;
-	    if (expand_bits) {
-		  unsigned offset = bit;
-		  for (size_t rev = dims.size(); rev > 0; --rev) {
-			const netrange_t&range = dims[rev-1];
-			unsigned dim_offset = offset % range.width();
-			offset /= range.width();
-			long index = range.get_lsb()
-			      + (range.get_msb() < range.get_lsb()
-				 ? -long(dim_offset) : long(dim_offset));
-			index_component_t select;
-			select.sel = index_component_t::SEL_BIT;
-			select.msb = new PENumber(new verinum(static_cast<uint64_t>(index), 32));
-			bit_name.back().index.push_back(select);
-		  }
-	    }
+      NetNet*stamp = tc_width_state_net_(loc, scope, true);
+      NetNet*valid = tc_width_state_net_(loc, scope, false);
+      std::vector<Statement*> record;
+      record.push_back(new PAssign(tc_width_state_id_(loc, stamp),
+				   tc_realtime_(loc)));
+      record.push_back(new PAssign(tc_width_state_id_(loc, valid),
+				   new PENumber(new verinum(verinum::V1, 1))));
+      tc_width_process_at_(loc, des, scope, event_->name, event_->posedge,
+			    condition, sva_block_(loc, record));
 
-	    NetNet*stamp = tc_width_state_net_(loc, scope, true);
-	    NetNet*valid = tc_width_state_net_(loc, scope, false);
-	    PExpr*stamp_id = tc_width_state_id_(loc, stamp);
-	    PExpr*valid_id = tc_width_state_id_(loc, valid);
-	    std::vector<Statement*> record;
-	    record.push_back(new PAssign(stamp_id, tc_realtime_(loc)));
-	    record.push_back(new PAssign(valid_id,
-					 new PENumber(new verinum(verinum::V1, 1))));
-	    tc_width_process_at_(loc, des, scope, bit_name, event_->posedge,
-				  conditions[bit]
-				  ? conditions[bit].release() : nullptr,
-				  sva_block_(loc, record));
-
-	    PTimingCheck::event_t opp;
-	    opp.name = bit_name;
-	    opp.posedge = event_->negedge;
-	    opp.negedge = event_->posedge;
-	    PExpr*valid_check = new PEBComp('E', tc_width_state_id_(loc, valid),
-					    new PENumber(new verinum(verinum::V1, 1)));
-	    PExpr*delta = new PEBinary('-', tc_realtime_(loc),
-				       tc_width_state_id_(loc, stamp));
-	    PExpr*cond = new PEBLogic('a', valid_check,
-				      new PEBComp('<', delta,
-					  limits[bit].release()));
-	    if (thresholds[bit]) {
-		  PExpr*delta2 = new PEBinary('-', tc_realtime_(loc),
-					      tc_width_state_id_(loc, stamp));
-		  cond = new PEBLogic('a', cond,
-				      new PEBComp('>', delta2,
-					  thresholds[bit].release()));
-	    }
-	    PCondit*check = new PCondit(cond,
-					tc_violation_(loc, "$width", notifier_.get(),
-						      record_),
-					nullptr);
-	    FILE_NAME(check, loc);
-	    tc_width_process_at_(loc, des, scope, bit_name, event_->negedge,
-				  opposite_conditions[bit]
-				  ? opposite_conditions[bit].release() : nullptr,
-				  check);
+      PExpr*valid_check = new PEBComp('E', tc_width_state_id_(loc, valid),
+				      new PENumber(new verinum(verinum::V1, 1)));
+      PExpr*delta = new PEBinary('-', tc_realtime_(loc),
+				 tc_width_state_id_(loc, stamp));
+      PExpr*cond = new PEBLogic('a', valid_check,
+				new PEBComp('<', delta, limit));
+      if (threshold) {
+	    PExpr*delta2 = new PEBinary('-', tc_realtime_(loc),
+					tc_width_state_id_(loc, stamp));
+	    cond = new PEBLogic('a', cond, new PEBComp('>', delta2, threshold));
       }
+      PCondit*check = new PCondit(cond,
+				  tc_violation_(loc, "$width", notifier_.get(),
+						record_),
+				  nullptr);
+      FILE_NAME(check, loc);
+      tc_width_process_at_(loc, des, scope, event_->name, event_->negedge,
+			    opposite_condition, check);
 }
 
 void pform_timing_check_timeskew(const struct vlltype&loc,
