@@ -115,6 +115,11 @@ extern bool warn_sens_entire_arr;
 /* Warn about level-appropriate anachronisms. */
 extern bool warn_anachronisms;
 
+/* Warn about a net (including an input port that defaults to a net) of a
+   2-state data type, which IEEE 1800 6.7.1 does not allow. -Wnet-data-type,
+   part of -Wall; a warning, never an error (IEEE_RULINGS #819, #2851). */
+extern bool warn_net_data_type;
+
 /* Warn about nets that are references but not driven. */
 extern bool warn_floating_nets;
 
