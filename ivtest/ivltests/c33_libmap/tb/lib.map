@@ -1,0 +1,5 @@
+// IEEE 1800-2023 33.8.3: resolving multiple path specifications. The
+// included map declares lib2 and lib3 between lib1 and lib4 (33.3.2).
+library lib1 "../lib/foo*.v";
+include ../lib/lib.map;
+library lib4 ../lib/*ver.v;

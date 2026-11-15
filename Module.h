@@ -126,6 +126,12 @@ class Module : public PScopeExtra, public PNamedItem {
 	   other effect. */
       bool library_flag;
 
+	/* IEEE 1800 33.3: the library this cell is compiled into, and its
+	   name in the source. mod_name() differs from the cell name when a
+	   cell of another library, searched first, has the same name. */
+      perm_string library;
+      perm_string cell;
+
       bool is_cell;
 
 	/* This is true if the module represents a program block
