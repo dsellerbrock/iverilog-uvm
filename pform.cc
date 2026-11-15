@@ -39148,7 +39148,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   every cycle. */
       bool negated = (prop->op_type == 3);
       bool sequence_cover = kind == 2 && prop->sequence_cover;
-      bool track_vacuity = kind != 2 && (prop->op_type == 1 || prop->op_type == 2);
+	/* 16.14.3 + 20.11: a cover's pass statement also runs for a vacuous
+	   success of an implication, so covers track vacuity too. */
+      bool track_vacuity = prop->op_type == 1 || prop->op_type == 2;
       if (kind == 2 && negated) {
 	    cerr << loc << ": sorry: `cover property (not ...)` is not "
 		 << "supported; the cover is dropped." << endl;
@@ -39283,6 +39285,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
 	    init_zero.push_back(sva_assign_(loc, pass_req, sva_num32_(loc, 0)));
 	    init_zero.push_back(sva_assign_(loc, vac_req, sva_num32_(loc, 0)));
+      }
+      if (track_vacuity && kind == 2) {
+	      /* A cover keeps its match sites for real matches; the
+		 dispatcher runs a copy of the pass statement for each
+		 vacuous success (pass_req stays zero). */
+	    if (pass_stmt) {
+		  user_pass = sva_clone_stmt_(pass_stmt);
+		  if (!user_pass)
+			cerr << loc << ": sorry: this cover's pass statement "
+			     << "cannot be copied, so it does not run for a "
+			     << "vacuous success (IEEE 1800-2023 16.14.3)."
+			     << endl;
+	    }
+      } else if (track_vacuity) {
 	    user_pass = pass_stmt;
 	    pass_stmt = sva_assign_(loc, pass_req,
 		  new PEBinary('+', sva_id_(loc, pass_req), sva_num32_(loc, 1)));
