@@ -9420,17 +9420,6 @@ static bool covgrp_dyn_match_(const covgrp_dyn_state_t&state, uint64_t value,
       return !bin_indexes.empty();
 }
 
-struct covgrp_cross_select_op_t {
-      char op = 0;
-      unsigned dim = 0;
-      unsigned term = 0;
-      unsigned prop = 0;
-      uint64_t required = 1;
-      bool matches_all = false;
-      std::vector<unsigned> value_widths;
-      std::vector<std::pair<uint64_t,uint64_t>> ranges;
-};
-
 static bool covgrp_cross_parse_u64_(const std::string&text, uint64_t&value)
 {
       if (text.empty() || text[0] == '-' || text[0] == '+') return false;
@@ -9906,6 +9895,292 @@ static bool covgrp_cross_source_records_(const class_type*defn,
 	      return term.kind != 0 || !choice.records.empty();
 }
 
+/* Sparse crosses (#3303). */
+static unsigned __int128 covgrp_cross_span_count_(
+	 const std::vector<std::pair<uint64_t,uint64_t>>&spans)
+{
+      unsigned __int128 count = 0;
+      for (const auto&span : spans)
+	    count += (unsigned __int128)span.second - span.first + 1;
+      return count;
+}
+
+/* The routing of one logical tuple through the named bins of a sparse
+ * cross. VIEW holds one choice per dimension, its logical_idx the tuple's
+ * identity; illegal > ignore > normal, as for a dense route. */
+struct covgrp_cross_sparse_route_t {
+      std::set<unsigned> normal;
+      std::set<unsigned> illegal;
+      bool ignored = false;
+      bool is_auto = false;
+};
+
+static covgrp_cross_sparse_route_t covgrp_cross_sparse_route_(
+	 const covgrp_cross_state_t&state, const covgrp_cross_state_t&view,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states)
+{
+      static const covgrp_cross_set_values_t no_sets;
+      const std::vector<unsigned> tuple(view.dimensions.size(), 0);
+      covgrp_cross_sparse_route_t route;
+      for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins) {
+	    if (!covgrp_cross_eval_select_(bin.select, view, tuple,
+					  dyn_states, no_sets)) continue;
+	    if (bin.meta->kind == 2) route.illegal.insert(bin.meta->target);
+	    else if (bin.meta->kind == 1) route.ignored = true;
+	    else route.normal.insert(bin.meta->target);
+      }
+      route.is_auto = route.illegal.empty() && !route.ignored
+	    && route.normal.empty()
+	    && (state.meta->retain_auto || state.sparse_bins.empty());
+      return route;
+}
+
+/* Size the dimensions of a sparse cross and count its automatic bins
+ * exactly: the logical product less the tuples an illegal, ignore or
+ * named bin claims (IEEE 1800-2023 19.6, 19.6.1). A dimension is split
+ * into classes of identities that every selector treats alike, so only
+ * the product of the classes is routed. */
+static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
+	 std::set<unsigned>&active_named, std::string&failure)
+{
+      static const uint64_t work_limit = 16777216;
+      const unsigned ndims = state.dimensions.size();
+      state.sparse_offset.assign(ndims, std::vector<uint64_t>());
+      state.sparse_size.assign(ndims, 0);
+      unsigned __int128 product = 1;
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    unsigned __int128 size = 0;
+	    for (const covgrp_cross_choice_t&choice : state.dimensions[dim]) {
+		  state.sparse_offset[dim].push_back((uint64_t)size);
+		  size += choice.spans.empty()
+			? 1 : covgrp_cross_span_count_(choice.spans);
+		  if (size > UINT64_MAX) break;
+	    }
+	    if (size > UINT64_MAX || (size && product > UINT64_MAX / size)) {
+		  failure = "cross has more than 2^64 logical bins";
+		  return;
+	    }
+	    state.sparse_size[dim] = (uint64_t)size;
+	    product *= size;
+      }
+      for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins) {
+	    if (bin.meta->kind != 2) continue;
+	    for (unsigned dim = 0; dim < ndims; dim += 1)
+		  for (const covgrp_cross_choice_t&choice : state.dimensions[dim])
+			if (choice.kind == 2 || choice.kind == 3) {
+			      failure = "illegal cross bins over transition terms are unsupported";
+			      return;
+			}
+      }
+      if (state.sparse_bins.empty()) {
+	    state.auto_total = (uint64_t)product;
+	    return;
+      }
+
+      struct class_t { unsigned choice; uint64_t rep; uint64_t weight; };
+      std::vector<std::vector<class_t>> classes(ndims);
+      uint64_t work = 0;
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    std::vector<const covgrp_cross_select_op_t*> ops;
+	    for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins)
+		  for (const covgrp_cross_select_op_t&op : bin.select)
+			if (op.op == 'L' && op.dim == dim) ops.push_back(&op);
+	    for (unsigned ci = 0; ci < state.dimensions[dim].size(); ci += 1) {
+		  const covgrp_cross_choice_t&choice = state.dimensions[dim][ci];
+		  if (choice.spans.empty()) {
+			classes[dim].push_back({ci, choice.logical_idx, 1});
+			continue;
+		  }
+		  bool referenced = false;
+		  for (const covgrp_cross_select_op_t*op : ops)
+			if (op->term == choice.term_idx) referenced = true;
+		  if (!referenced) {
+			classes[dim].push_back({ci, choice.spans[0].first,
+			      (uint64_t)covgrp_cross_span_count_(choice.spans)});
+			continue;
+		  }
+		  auto found = dyn_states.find(choice.source_id);
+		  if (found != dyn_states.end() && found->second.array_size == 0
+		      && !found->second.is_auto_bins) {
+			  // Value-keyed: membership in every selector range is
+			  // constant between the ranges' endpoints.
+			std::set<uint64_t> cuts;
+			for (const covgrp_cross_select_op_t*op : ops) {
+			      if (op->term != choice.term_idx) continue;
+			      for (const auto&range : op->ranges) {
+				    cuts.insert(range.first);
+				    if (range.second != UINT64_MAX)
+					  cuts.insert(range.second + 1);
+			      }
+			}
+			for (const auto&span : choice.spans) {
+			      uint64_t first = span.first;
+			      auto cut = cuts.upper_bound(first);
+			      while (true) {
+				    uint64_t last = cut != cuts.end()
+					  && *cut <= span.second
+					  ? *cut - 1 : span.second;
+				    classes[dim].push_back({ci, first,
+					  last - first + 1});
+				    if (last == span.second) break;
+				    first = last + 1;
+				    ++cut;
+			      }
+			}
+			continue;
+		  }
+			// Otherwise classify each identity, grouping equal runs.
+		  covgrp_cross_choice_t probe = choice;
+		  std::vector<bool> prev_mask;
+		  for (const auto&span : choice.spans) {
+			for (uint64_t id = span.first; ; id += 1) {
+			      work += ops.size();
+			      if (work > work_limit) {
+				    failure = "cross selector evaluation exceeds 16777216 operations";
+				    return;
+			      }
+			      probe.logical_idx = id;
+			      std::vector<bool> mask;
+			      for (const covgrp_cross_select_op_t*op : ops)
+				    mask.push_back(op->term == choice.term_idx
+					  && covgrp_cross_choice_overlap_(probe,
+						dyn_states, op->ranges));
+			      if (!classes[dim].empty() && mask == prev_mask
+				  && classes[dim].back().choice == ci
+				  && classes[dim].back().rep
+					+ classes[dim].back().weight == id)
+				    classes[dim].back().weight += 1;
+			      else
+				    classes[dim].push_back({ci, id, 1});
+			      prev_mask = mask;
+			      if (id == span.second) break;
+			}
+		  }
+	    }
+      }
+
+      uint64_t tuples = 1;
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    uint64_t count = classes[dim].size();
+	    if (count == 0) { tuples = 0; break; }
+	    if (tuples > work_limit / count) {
+		  failure = "cross selector evaluation exceeds 16777216 operations";
+		  return;
+	    }
+	    tuples *= count;
+      }
+      if (tuples && state.sparse_bins.size() > (work_limit - work) / tuples) {
+	    failure = "cross selector evaluation exceeds 16777216 operations";
+	    return;
+      }
+      covgrp_cross_state_t view;
+      view.dimensions.resize(ndims);
+      std::vector<unsigned> at(ndims, 0);
+      uint64_t automatic = 0;
+      for (uint64_t tn = 0; tn < tuples; tn += 1) {
+	    uint64_t weight = 1;
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  const class_t&cls = classes[dim][at[dim]];
+		  view.dimensions[dim].assign(1, state.dimensions[dim][cls.choice]);
+		  view.dimensions[dim][0].logical_idx = cls.rep;
+		  weight *= cls.weight;
+	    }
+	    covgrp_cross_sparse_route_t route =
+		  covgrp_cross_sparse_route_(state, view, dyn_states);
+	    if (route.illegal.empty() && !route.ignored)
+		  active_named.insert(route.normal.begin(), route.normal.end());
+	    if (route.is_auto) automatic += weight;
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  at[dim] += 1;
+		  if (at[dim] < classes[dim].size()) break;
+		  at[dim] = 0;
+	    }
+      }
+      state.auto_total = automatic;
+}
+
+/* Route each logical tuple of a sparse cross hit by this sample: the
+ * product of the matched ordinary choices and the hit identities of the
+ * symbolic ones. VISIT gets the route, the tuple's mixed-radix key and its
+ * IEEE 19.11.3 name. */
+template <class VISIT>
+static void covgrp_cross_sparse_each_(const covgrp_cross_state_t&state,
+	 const std::vector<std::set<unsigned>>&matched,
+	 const std::map<std::pair<unsigned,unsigned>,std::set<uint64_t>>&hits,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
+	 vvp_cobject*cobj, VISIT visit)
+{
+      static const uint64_t per_sample_limit = 65536;
+      const unsigned ndims = state.dimensions.size();
+      std::vector<std::vector<std::pair<unsigned,uint64_t>>> picks(ndims);
+      uint64_t tuples = 1;
+      for (unsigned dim = 0; dim < ndims && dim < matched.size(); dim += 1) {
+	    for (unsigned ci : matched[dim]) {
+		  const covgrp_cross_choice_t&choice = state.dimensions[dim][ci];
+		  if (choice.spans.empty()) {
+			picks[dim].push_back(std::make_pair(ci, choice.logical_idx));
+			continue;
+		  }
+		  auto hit = hits.find(std::make_pair(dim, ci));
+		  if (hit == hits.end()) continue;
+		  for (uint64_t id : hit->second)
+			picks[dim].push_back(std::make_pair(ci, id));
+	    }
+	    if (picks[dim].empty()) return;
+      }
+      if (matched.size() < ndims) return;
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    if (tuples > per_sample_limit / picks[dim].size()) {
+		  if (cobj->cov_cross_warn_once(state.meta->family))
+			cerr << "WARNING: dynamic cross family " << state.meta->family
+			     << ": a sample hit more than 65536 cross bins;"
+			     << " the rest are not counted." << endl;
+		  tuples = per_sample_limit;
+		  break;
+	    }
+	    tuples *= picks[dim].size();
+      }
+      covgrp_cross_state_t view;
+      view.dimensions.resize(ndims);
+      std::vector<unsigned> at(ndims, 0);
+      for (uint64_t tn = 0; tn < tuples; tn += 1) {
+	    uint64_t key = 0, stride = 1;
+	    std::vector<std::pair<unsigned,uint64_t>> name;
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  const std::pair<unsigned,uint64_t>&pick = picks[dim][at[dim]];
+		  const covgrp_cross_choice_t&choice =
+			state.dimensions[dim][pick.first];
+		  view.dimensions[dim].assign(1, choice);
+		  view.dimensions[dim][0].logical_idx = pick.second;
+		  uint64_t flat = state.sparse_offset[dim][pick.first];
+		  for (const auto&span : choice.spans) {
+			if (pick.second >= span.first && pick.second <= span.second) {
+			      flat += pick.second - span.first;
+			      break;
+			}
+			flat += span.second - span.first + 1;
+		  }
+		  key += flat * stride;
+		  stride *= state.sparse_size[dim];
+		  uint64_t identity = pick.second;
+		  if (choice.kind == 1) {
+			auto source = dyn_states.find(choice.source_id);
+			if (source != dyn_states.end() && source->second.is_auto_bins
+			    && identity < source->second.type_bins.size())
+			      identity = source->second.type_bins[identity];
+		  }
+		  name.emplace_back(choice.term_idx, identity);
+	    }
+	    visit(covgrp_cross_sparse_route_(state, view, dyn_states), key, name);
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  at[dim] += 1;
+		  if (at[dim] < picks[dim].size()) break;
+		  at[dim] = 0;
+	    }
+      }
+}
+
 static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
       const class_type*defn, vvp_cobject*cobj)
 {
@@ -10023,6 +10298,31 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 			  terms[term->dim].push_back(term);
 		    }
 
+		    // IEEE 1800-2023 19.6 sets no limit on the number of cross
+		    // bins (#3303). Over cross_bin_limit logical tuples the cross
+		    // is sparse: a dynamic-family dimension stays one symbolic
+		    // choice and only hit tuples are counted.
+		    bool sparse = false;
+		    if (failure.empty()) {
+			  const unsigned __int128 u128_max = ~(unsigned __int128)0;
+			  unsigned __int128 logical_product = 1;
+			  for (unsigned dim = 0; dim < meta.n_dims; dim += 1) {
+				unsigned __int128 count = 0;
+				for (const class_type::cov_cross_term_t*term : terms[dim]) {
+				      auto found = term->kind == 1
+					    ? dyn_states.find(term->source_id)
+					    : dyn_states.end();
+				      count += found != dyn_states.end()
+					    && found->second.valid
+					    ? covgrp_dyn_logical_count_(found->second) : 1;
+				}
+				if (count == 0) { logical_product = 0; break; }
+				logical_product = logical_product > u128_max / count
+				      ? u128_max : logical_product * count;
+			  }
+			  sparse = logical_product > cross_bin_limit;
+		    }
+		    state.sparse = sparse;
 		    uint64_t total_choices = 0;
 		    uint64_t source_record_refs = 0;
 		    for (unsigned dim = 0; failure.empty() && dim < meta.n_dims; dim += 1) {
@@ -10055,6 +10355,24 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 			      }
 			      unsigned __int128 logical =
 				    covgrp_dyn_logical_count_(found->second);
+			      if (sparse) {
+				    choice.cp_idx = found->second.meta->cp_idx;
+				    if (logical == 0) {
+				    } else if (found->second.array_size == 0) {
+					  choice.spans = found->second.ranges;
+				    } else if (logical - 1 > UINT64_MAX) {
+					  failure = "cross dimension has more than 2^64 bins";
+					  break;
+				    } else {
+					  choice.spans.assign(1, std::make_pair(
+						UINT64_C(0), (uint64_t)(logical - 1)));
+				    }
+				    if (!choice.spans.empty()) {
+					  choice.logical_idx = choice.spans[0].first;
+					  state.dimensions[dim].push_back(choice);
+					  total_choices += 1;
+				    }
+			      } else {
 				      if (logical > cross_bin_limit
 					  || total_choices > cross_bin_limit - (uint64_t)logical
 					  || state.dimensions[dim].size()
@@ -10085,6 +10403,7 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 				    }
 					  }
 				      total_choices += (uint64_t)logical;
+			      }
 				} else {
 				      if (term->kind > 3
 					  || !covgrp_cross_source_records_(
@@ -10115,8 +10434,9 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 			  }
 		    }
 
-	    uint64_t product = 1;
-	    for (unsigned dim = 0; failure.empty() && dim < meta.n_dims; dim += 1) {
+	    uint64_t product = sparse ? 0 : 1;
+	    for (unsigned dim = 0; !sparse && failure.empty()
+		     && dim < meta.n_dims; dim += 1) {
 		  uint64_t count = state.dimensions[dim].size();
 		  if (count == 0) { product = 0; break; }
 		  if (product > cross_bin_limit / count) {
@@ -10295,6 +10615,10 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 					    break;
 				      }
 				} else if (op.op == 'Q') {
+				      if (sparse) {
+					    failure = "cross set bins on a cross over 65536 bins are not supported";
+					    break;
+				      }
 				      if (!prepare_cross_set(op, parsed)) break;
 				}
 			  }
@@ -10409,6 +10733,15 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
 		  }
 	    }
 
+	    if (sparse && failure.empty()) {
+		  for (const named_bin_t&named : named_bins) {
+			covgrp_cross_sparse_bin_t bin;
+			bin.meta = named.meta;
+			bin.select = named.select;
+			state.sparse_bins.push_back(bin);
+		  }
+		  covgrp_cross_sparse_plan_(state, dyn_states, active_named, failure);
+	    }
 	    if (!failure.empty()) {
 		  state.routes.clear();
 		  state.named_props.clear();
@@ -10423,7 +10756,9 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
             // bin names. Terms are fixed metadata identities; logical_idx
             // is a value for unsized arrays and an index for fixed arrays.
             // Publish only after the complete plan has passed validation.
-            state.type_bins.resize(state.auto_total);
+            if (!sparse) state.type_bins.resize(state.auto_total);
+            else defn->cross_type_register_sparse_total(meta.family,
+                                                        state.auto_total);
             for (const covgrp_cross_route_t&route : state.routes) {
                   if (route.auto_bin == UINT64_MAX) continue;
                   std::vector<std::pair<unsigned,uint64_t>> name;
@@ -10482,7 +10817,8 @@ static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
       const vector<uint64_t>&bin_guards,
       const std::set<unsigned>&transition_hits,
       const std::set<std::pair<unsigned,uint64_t>>&transition_family_hits,
-      bool include_transitions, bool honor_suppression)
+      bool include_transitions, bool honor_suppression,
+      std::map<std::pair<unsigned,unsigned>,std::set<uint64_t>>*sparse_hits = 0)
 {
       std::vector<std::set<unsigned>> matched(state.dimensions.size());
       std::set<unsigned> dyn_computed;
@@ -10523,7 +10859,16 @@ static std::vector<std::set<unsigned>> covgrp_cross_matched_choices_(
 						logical.begin(), logical.end());
 			      }
 			}
-			hit = dyn_hits[choice.source_id].count(choice.logical_idx) != 0;
+			const std::set<uint64_t>&family_hits = dyn_hits[choice.source_id];
+			if (choice.spans.empty()) {
+			      hit = family_hits.count(choice.logical_idx) != 0;
+			} else {
+				// A sparse choice is hit by every identity its family hit.
+			      hit = !family_hits.empty();
+			      if (hit && sparse_hits)
+				    (*sparse_hits)[std::make_pair(dim, choice_idx)]
+					  = family_hits;
+			}
 		  } else if (include_transitions && choice.kind == 2) {
 			hit = transition_hits.count(choice.source_id) != 0;
 		  } else if (include_transitions && choice.kind == 3) {
@@ -11102,14 +11447,27 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    bool has_illegal = false;
 	    for (const covgrp_cross_route_t&route : state.routes)
 		  if (!route.illegal_targets.empty()) { has_illegal = true; break; }
+	    for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins)
+		  if (bin.meta->kind == 2) has_illegal = true;
 	    if (!has_illegal) continue;
 	    const std::set<unsigned> no_transition_props;
 	    const std::set<std::pair<unsigned,uint64_t>> no_transition_families;
+	    std::map<std::pair<unsigned,unsigned>,std::set<uint64_t>> sparse_hits;
 	    std::vector<std::set<unsigned>> matched =
 		  covgrp_cross_matched_choices_(state, defn, dyn_states, ncp, cp_vals,
 			wide_vals, cp_sampled, cp_suppressed, bin_guards,
-			no_transition_props, no_transition_families, false, false);
+			no_transition_props, no_transition_families, false, false,
+			&sparse_hits);
 	    std::set<unsigned> illegal_hits;
+	    if (state.sparse)
+		  covgrp_cross_sparse_each_(state, matched, sparse_hits, dyn_states,
+			cobj, [&](const covgrp_cross_sparse_route_t&route, uint64_t,
+				  const std::vector<std::pair<unsigned,uint64_t>>&) {
+			      for (unsigned prop : route.illegal)
+				    if (covgrp_cross_target_guard_enabled_(defn,
+					  entry.first, prop, bin_guards))
+					  illegal_hits.insert(prop);
+			});
 	    for (const covgrp_cross_route_t&route : state.routes) {
 		  if (route.illegal_targets.empty()
 		      || !covgrp_cross_route_matches_(route, matched)) continue;
@@ -11323,12 +11681,35 @@ static void covgrp_sample_core_(vvp_cobject*cobj, unsigned ncp,
 	    const covgrp_cross_state_t&state = entry.second;
 	    if (!state.enabled || !state.meta
 		|| !item_enabled(state.meta->item_idx)) continue;
+	    std::map<std::pair<unsigned,unsigned>,std::set<uint64_t>> sparse_hits;
 	    std::vector<std::set<unsigned>> matched =
 		  covgrp_cross_matched_choices_(state, defn, dyn_states, ncp, cp_vals,
 			wide_vals, cp_sampled, cp_suppressed, bin_guards,
-			transition_hits, transition_family_hits, true, true);
+			transition_hits, transition_family_hits, true, true,
+			&sparse_hits);
 	    std::set<unsigned> named_hits;
 	    std::set<uint64_t> auto_hits;
+	    if (state.sparse) {
+		  std::map<uint64_t,uint64_t> sparse_auto;
+		  covgrp_cross_sparse_each_(state, matched, sparse_hits, dyn_states,
+			cobj, [&](const covgrp_cross_sparse_route_t&route, uint64_t key,
+				  const std::vector<std::pair<unsigned,uint64_t>>&name) {
+			      if (!route.illegal.empty() || route.ignored) return;
+			      for (unsigned prop : route.normal)
+				    if (covgrp_cross_target_guard_enabled_(defn,
+					  entry.first, prop, bin_guards))
+					  named_hits.insert(prop);
+			      if (route.is_auto && !sparse_auto.count(key))
+				    sparse_auto[key] = defn->cross_type_register_sparse_bin(
+					  entry.first, name);
+			});
+		  for (unsigned prop : named_hits) covgrp_bump_count_(cobj, prop);
+		  for (auto&hit : sparse_auto)
+			cobj->cov_dyn_bump(entry.first, hit.first, hit.second);
+		  if (!named_hits.empty() || !sparse_auto.empty())
+			item_matched[state.meta->item_idx] = true;
+		  continue;
+	    }
 	    for (const covgrp_cross_route_t&route : state.routes) {
 		  if (!route.illegal_targets.empty()
 		      || !covgrp_cross_route_matches_(route, matched)) continue;
