@@ -10102,45 +10102,25 @@ static covgrp_cross_sparse_route_t covgrp_cross_sparse_route_(
       return route;
 }
 
-/* Size the dimensions of a sparse cross and count its automatic bins
- * exactly: the logical product less the tuples an illegal, ignore or
- * named bin claims (IEEE 1800-2023 19.6, 19.6.1). A dimension is split
- * into classes of identities that every selector treats alike, so only
- * the product of the classes is routed. */
-static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
+/* A class of a sparse cross dimension is a run of identities [rep,
+ * rep+weight) of one choice, or (whole) every identity of a choice no
+ * selector looks at: every selector treats its identities alike. */
+struct covgrp_cross_class_t {
+      unsigned choice;
+      uint64_t rep;
+      long double weight;
+      bool whole;
+};
+
+static bool covgrp_cross_sparse_classes_(const covgrp_cross_state_t&state,
 	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
-	 std::set<unsigned>&active_named, std::string&failure)
+	 std::vector<std::vector<covgrp_cross_class_t>>&classes,
+	 uint64_t&work, std::string&failure)
 {
       static const uint64_t work_limit = 16777216;
+      typedef covgrp_cross_class_t class_t;
       const unsigned ndims = state.dimensions.size();
-      long double product = 1;
-      for (unsigned dim = 0; dim < ndims; dim += 1) {
-	    long double size = 0;
-	    for (const covgrp_cross_choice_t&choice : state.dimensions[dim])
-		  size += choice.spans.empty()
-			? 1 : (long double)covgrp_cross_span_count_(choice.spans);
-	    product *= size;
-      }
-      for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins) {
-	    if (bin.meta->kind != 2) continue;
-	    for (unsigned dim = 0; dim < ndims; dim += 1)
-		  for (const covgrp_cross_choice_t&choice : state.dimensions[dim])
-			if (choice.kind == 2 || choice.kind == 3) {
-			      failure = "illegal cross bins over transition terms are unsupported";
-			      return;
-			}
-      }
-      if (state.sparse_bins.empty()) {
-	    state.sparse_total = product;
-	    return;
-      }
-
-	// A class is a run of identities [rep, rep+weight) of one choice, or
-	// (whole) every identity of a choice no selector looks at.
-      struct class_t { unsigned choice; uint64_t rep; long double weight;
-		       bool whole; };
-      std::vector<std::vector<class_t>> classes(ndims);
-      uint64_t work = 0;
+      classes.assign(ndims, std::vector<class_t>());
       for (unsigned dim = 0; dim < ndims; dim += 1) {
 	    std::vector<const covgrp_cross_select_op_t*> ops;
 	    for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins)
@@ -10221,7 +10201,7 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 			      work += ops.size();
 			      if (work > work_limit) {
 				    failure = "cross selector evaluation exceeds 16777216 operations";
-				    return;
+				    return false;
 			      }
 			      probe.logical_idx = id;
 			      std::vector<bool> mask;
@@ -10243,6 +10223,47 @@ static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
 	    }
       }
 
+      return true;
+}
+
+/* Size the dimensions of a sparse cross and count its automatic bins
+ * exactly: the logical product less the tuples an illegal, ignore or
+ * named bin claims (IEEE 1800-2023 19.6, 19.6.1). A dimension is split
+ * into classes of identities that every selector treats alike, so only
+ * the product of the classes is routed. */
+static void covgrp_cross_sparse_plan_(covgrp_cross_state_t&state,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states,
+	 std::set<unsigned>&active_named, std::string&failure)
+{
+      static const uint64_t work_limit = 16777216;
+      const unsigned ndims = state.dimensions.size();
+      long double product = 1;
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    long double size = 0;
+	    for (const covgrp_cross_choice_t&choice : state.dimensions[dim])
+		  size += choice.spans.empty()
+			? 1 : (long double)covgrp_cross_span_count_(choice.spans);
+	    product *= size;
+      }
+      for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins) {
+	    if (bin.meta->kind != 2) continue;
+	    for (unsigned dim = 0; dim < ndims; dim += 1)
+		  for (const covgrp_cross_choice_t&choice : state.dimensions[dim])
+			if (choice.kind == 2 || choice.kind == 3) {
+			      failure = "illegal cross bins over transition terms are unsupported";
+			      return;
+			}
+      }
+      if (state.sparse_bins.empty()) {
+	    state.sparse_total = product;
+	    return;
+      }
+
+      typedef covgrp_cross_class_t class_t;
+      std::vector<std::vector<class_t>> classes;
+      uint64_t work = 0;
+      if (!covgrp_cross_sparse_classes_(state, dyn_states, classes, work, failure))
+	    return;
       uint64_t tuples = 1;
       for (unsigned dim = 0; dim < ndims; dim += 1) {
 	    uint64_t count = classes[dim].size();
@@ -10378,6 +10399,317 @@ static void covgrp_cross_sparse_each_(const covgrp_cross_state_t&state,
 	    }
 	    if (dim == ndims) break;
       }
+}
+
+/* Type-level size of a sparse cross (#3363). With merge_instances, type
+ * coverage merges the instances' bins by name (IEEE 1800-2023 19.11.3), so
+ * a cross family's type-level automatic bins are the union of its
+ * instances' automatic bins. Each sparse instance's universe -- what
+ * decides whether a name tuple is one of its automatic bins -- is kept
+ * once per distinct signature; dense instances record their names. */
+struct covgrp_cross_universe_t {
+      covgrp_cross_state_t state;
+      std::map<unsigned,covgrp_dyn_state_t> dyn;
+};
+
+struct covgrp_cross_type_universe_t {
+      std::map<std::string,covgrp_cross_universe_t> sparse;
+      std::set<covgrp_cross_sparse_key_t> dense;
+      bool cached = false;
+      bool have = false;
+      long double total = 0;
+};
+
+static std::map<std::pair<const class_type*,unsigned>,
+		covgrp_cross_type_universe_t> covgrp_cross_type_universes_;
+
+	// The IEEE 19.11.3 name identity of identity ID of a choice.
+static uint64_t covgrp_cross_name_identity_(const covgrp_cross_choice_t&choice,
+	 uint64_t id, const std::map<unsigned,covgrp_dyn_state_t>&dyn)
+{
+      if (choice.kind != 1) return id;
+      auto source = dyn.find(choice.source_id);
+      if (source != dyn.end() && source->second.is_auto_bins
+	  && id < source->second.type_bins.size())
+	    return source->second.type_bins[id];
+      return id;
+}
+
+static void covgrp_cross_register_universe_(const class_type*defn,
+	 unsigned family, const covgrp_cross_state_t&state,
+	 const std::map<unsigned,covgrp_dyn_state_t>&dyn_states)
+{
+      covgrp_cross_universe_t universe;
+      universe.state = state;
+      std::ostringstream sig;
+      for (const auto&dim : state.dimensions) {
+	    sig << "D";
+	    for (const covgrp_cross_choice_t&choice : dim) {
+		  sig << "|" << choice.term_idx << "," << choice.kind << ","
+		      << choice.source_id << "," << choice.logical_idx;
+		  for (const auto&span : choice.spans)
+			sig << ":" << span.first << "-" << span.second;
+		  if (choice.kind != 1) continue;
+		  auto found = dyn_states.find(choice.source_id);
+		  if (found == dyn_states.end()) continue;
+		  const covgrp_dyn_state_t&d = found->second;
+		  universe.dyn[choice.source_id] = d;
+		  sig << "#" << d.array_size << "," << (uint64_t)d.total << ","
+		      << d.is_auto_bins << "," << d.carved << "," << d.has_keep;
+		  for (const auto&r : d.ranges) sig << "r" << r.first << "-" << r.second;
+		  for (const auto&r : d.live) sig << "l" << r.first << "-" << r.second;
+		  for (const auto&r : d.keep) sig << "k" << r.first << "-" << r.second;
+		  for (const auto&b : d.auto_bins) {
+			sig << "a";
+			for (const auto&v : b.values) sig << v.first << "-" << v.second << ";";
+		  }
+		  for (uint64_t t : d.type_bins) sig << "t" << t;
+	    }
+      }
+      for (const covgrp_cross_sparse_bin_t&bin : state.sparse_bins)
+	    for (const auto&set : bin.sets) {
+		  sig << "S" << set.first;
+		  for (const auto&entry : set.second) {
+			sig << "(";
+			for (const auto&part : entry.first)
+			      sig << part.first << ":" << part.second << ",";
+			sig << ")" << entry.second;
+		  }
+	    }
+      covgrp_cross_type_universe_t&tu =
+	    covgrp_cross_type_universes_[std::make_pair(defn, family)];
+      if (tu.sparse.emplace(sig.str(), universe).second) tu.cached = false;
+}
+
+static void covgrp_cross_register_dense_name_(const class_type*defn,
+	 unsigned family, const covgrp_cross_sparse_key_t&name)
+{
+      covgrp_cross_type_universe_t&tu =
+	    covgrp_cross_type_universes_[std::make_pair(defn, family)];
+      if (tu.dense.insert(name).second) tu.cached = false;
+}
+
+	// Count the name tuples that are automatic bins of the dense names or
+	// of any sparse universe. Returns false past the work bound.
+static bool covgrp_cross_union_total_(const covgrp_cross_type_universe_t&tu,
+				      long double&total)
+{
+      static const uint64_t work_limit = 16777216;
+      typedef unsigned __int128 u128;
+      std::vector<const covgrp_cross_universe_t*> uni;
+      for (const auto&entry : tu.sparse) uni.push_back(&entry.second);
+      const unsigned nu = uni.size();
+      const unsigned ndims = uni[0]->state.dimensions.size();
+      for (const covgrp_cross_universe_t*u : uni)
+	    if (u->state.dimensions.size() != ndims) return false;
+
+	// Each universe's classes as name segments [lo, hi] of a term.
+      struct seg_t { unsigned term; uint64_t lo, hi; unsigned ci; bool point;
+		     uint64_t local; };
+      std::vector<std::vector<std::vector<seg_t>>> segs(nu,
+	    std::vector<std::vector<seg_t>>(ndims));
+      for (unsigned ui = 0; ui < nu; ui += 1) {
+	    std::vector<std::vector<covgrp_cross_class_t>> classes;
+	    uint64_t work = 0;
+	    std::string failure;
+	    if (!covgrp_cross_sparse_classes_(uni[ui]->state, uni[ui]->dyn,
+					     classes, work, failure))
+		  return false;
+	    for (unsigned dim = 0; dim < ndims; dim += 1)
+		  for (const covgrp_cross_class_t&c : classes[dim]) {
+			const covgrp_cross_choice_t&choice =
+			      uni[ui]->state.dimensions[dim][c.choice];
+			bool auto_bins = false;
+			if (choice.kind == 1) {
+			      auto found = uni[ui]->dyn.find(choice.source_id);
+			      auto_bins = found != uni[ui]->dyn.end()
+				    && found->second.is_auto_bins;
+			}
+			if (choice.spans.empty() || auto_bins) {
+				// A point; an auto bin's name is its type id.
+			      for (uint64_t id = c.rep; ; id += 1) {
+				    uint64_t name = covgrp_cross_name_identity_(choice,
+					  choice.spans.empty() ? choice.logical_idx : id,
+					  uni[ui]->dyn);
+				    segs[ui][dim].push_back({choice.term_idx, name, name,
+					  c.choice, true,
+					  choice.spans.empty() ? choice.logical_idx : id});
+				    if ((long double)(id - c.rep) + 1 >= c.weight) break;
+			      }
+			} else if (c.whole) {
+			      for (const auto&span : choice.spans)
+				    segs[ui][dim].push_back({choice.term_idx, span.first,
+					  span.second, c.choice, false, 0});
+			} else {
+			      uint64_t hi = c.rep + (uint64_t)(c.weight - 1);
+			      segs[ui][dim].push_back({choice.term_idx, c.rep, hi,
+				    c.choice, false, 0});
+			}
+		  }
+      }
+
+	// Elementary name intervals: refine every universe's segments.
+      struct elem_t { unsigned term; uint64_t lo, hi; std::vector<int> seg; };
+      std::vector<std::vector<elem_t>> elems(ndims);
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    std::map<unsigned,std::set<u128>> bounds;
+	    for (unsigned ui = 0; ui < nu; ui += 1)
+		  for (const seg_t&s : segs[ui][dim]) {
+			bounds[s.term].insert(s.lo);
+			bounds[s.term].insert((u128)s.hi + 1);
+		  }
+	    for (const auto&term : bounds) {
+		  const std::set<u128>&b = term.second;
+		  for (auto it = b.begin(); it != b.end(); ++it) {
+			auto next = std::next(it);
+			if (next == b.end()) break;
+			elem_t e;
+			e.term = term.first;
+			e.lo = (uint64_t)*it;
+			e.hi = (uint64_t)(*next - 1);
+			e.seg.assign(nu, -1);
+			bool any = false;
+			for (unsigned ui = 0; ui < nu; ui += 1)
+			      for (unsigned si = 0; si < segs[ui][dim].size(); si += 1) {
+				    const seg_t&s = segs[ui][dim][si];
+				    if (s.term == e.term && s.lo <= e.lo && e.lo <= s.hi) {
+					  e.seg[ui] = (int)si;
+					  any = true;
+					  break;
+				    }
+			      }
+			if (any) elems[dim].push_back(e);
+		  }
+	    }
+      }
+
+	// Where a name tuple falls, per dimension; -1 when in no class.
+      auto locate = [&](const covgrp_cross_sparse_key_t&name,
+			std::vector<int>&where) {
+	    where.assign(ndims, -1);
+	    for (unsigned dim = 0; dim < ndims; dim += 1)
+		  for (unsigned ei = 0; ei < elems[dim].size(); ei += 1) {
+			const elem_t&e = elems[dim][ei];
+			if (e.term == name[dim].first && e.lo <= name[dim].second
+			    && name[dim].second <= e.hi) {
+			      where[dim] = (int)ei;
+			      break;
+			}
+		  }
+      };
+	// Is the name tuple, at elementary classes WHERE (and, for an exact
+	// tuple, NAME), an automatic bin of universe UI?
+      auto is_auto = [&](unsigned ui, const std::vector<int>&where,
+			 const covgrp_cross_sparse_key_t*name) -> bool {
+	    const covgrp_cross_universe_t&u = *uni[ui];
+	    covgrp_cross_state_t view;
+	    view.dimensions.resize(ndims);
+	    covgrp_cross_sparse_key_t key;
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  if (where[dim] < 0) return false;
+		  int si = elems[dim][where[dim]].seg[ui];
+		  if (si < 0) return false;
+		  const seg_t&s = segs[ui][dim][si];
+		  uint64_t local = s.point ? s.local
+			: name ? (*name)[dim].second : elems[dim][where[dim]].lo;
+		  view.dimensions[dim].assign(1, u.state.dimensions[dim][s.ci]);
+		  view.dimensions[dim][0].logical_idx = local;
+		  key.push_back(std::make_pair(s.ci, local));
+	    }
+	    return covgrp_cross_sparse_route_(u.state, view, u.dyn,
+					      name ? &key : nullptr).is_auto;
+      };
+
+	// Exact tuples: the dense names and every set tuple, as names.
+      std::set<covgrp_cross_sparse_key_t> exact = tu.dense;
+      for (const covgrp_cross_universe_t*u : uni)
+	    for (const covgrp_cross_sparse_bin_t&bin : u->state.sparse_bins)
+		  for (const auto&set : bin.sets)
+			for (const auto&entry : set.second) {
+			      covgrp_cross_sparse_key_t name;
+			      for (unsigned dim = 0; dim < ndims; dim += 1) {
+				    const covgrp_cross_choice_t&choice =
+					  u->state.dimensions[dim][entry.first[dim].first];
+				    name.push_back(std::make_pair(choice.term_idx,
+					  covgrp_cross_name_identity_(choice,
+						entry.first[dim].second, u->dyn)));
+			      }
+			      exact.insert(name);
+			}
+      total = 0;
+      std::map<std::vector<int>,long double> exact_in;
+      for (const covgrp_cross_sparse_key_t&name : exact) {
+	    std::vector<int> where;
+	    locate(name, where);
+	    bool in = tu.dense.count(name) != 0;
+	    for (unsigned ui = 0; !in && ui < nu; ui += 1)
+		  in = is_auto(ui, where, &name);
+	    if (in) total += 1;
+	    bool located = true;
+	    for (int w : where) if (w < 0) located = false;
+	    if (located) exact_in[where] += 1;
+      }
+
+      uint64_t tuples = 1;
+      for (unsigned dim = 0; dim < ndims; dim += 1) {
+	    uint64_t count = elems[dim].size();
+	    if (count == 0) return true;
+	    if (tuples > work_limit / count) return false;
+	    tuples *= count;
+      }
+      if (tuples > work_limit / nu) return false;
+      std::vector<int> at(ndims, 0);
+      for (uint64_t tn = 0; tn < tuples; tn += 1) {
+	    long double weight = 1;
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  const elem_t&e = elems[dim][at[dim]];
+		  weight *= (long double)(e.hi - e.lo) + 1;
+	    }
+	    auto taken = exact_in.find(at);
+	    if (taken != exact_in.end()) weight -= taken->second;
+	    if (weight > 0)
+		  for (unsigned ui = 0; ui < nu; ui += 1)
+			if (is_auto(ui, at, nullptr)) {
+			      total += weight;
+			      break;
+			}
+	    for (unsigned dim = 0; dim < ndims; dim += 1) {
+		  at[dim] += 1;
+		  if (at[dim] < (int)elems[dim].size()) break;
+		  at[dim] = 0;
+	    }
+      }
+      return true;
+}
+
+/* The type-level automatic-bin count of cross FAMILY, when it has a sparse
+   instance (HAVE false otherwise: the dense name count stands). */
+long double vvp_covgrp_cross_type_total(const class_type*defn, unsigned family,
+					bool&have)
+{
+      auto found = covgrp_cross_type_universes_.find(std::make_pair(defn, family));
+      have = found != covgrp_cross_type_universes_.end()
+	    && !found->second.sparse.empty();
+      if (!have) return 0;
+      covgrp_cross_type_universe_t&tu = found->second;
+      if (!tu.cached) {
+	    long double total = 0;
+	    if (!covgrp_cross_union_total_(tu, total)) {
+		  // ponytail: past the work bound, the largest universe (#3363's
+		  // residue, tracked); exact whenever instance universes nest.
+		  total = tu.dense.size();
+		  for (const auto&entry : tu.sparse)
+			if (entry.second.state.sparse_total > total)
+			      total = entry.second.state.sparse_total;
+		  std::cerr << "WARNING: cross family " << family << ": the type-level "
+			       "union of its instances' bins exceeds the "
+			       "16777216-operation bound; the largest instance's "
+			       "size is used." << std::endl;
+	    }
+	    tu.total = total;
+	    tu.cached = true;
+      }
+      return tu.total;
 }
 
 static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
@@ -11001,8 +11333,8 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
             // is a value for unsized arrays and an index for fixed arrays.
             // Publish only after the complete plan has passed validation.
             if (!sparse) state.type_bins.resize(state.auto_total);
-            else defn->cross_type_register_sparse_total(meta.family,
-                                                        state.sparse_total);
+            else covgrp_cross_register_universe_(defn, meta.family, state,
+                                                 dyn_states);
             for (const covgrp_cross_route_t&route : state.routes) {
                   if (route.auto_bin == UINT64_MAX) continue;
                   std::vector<std::pair<unsigned,uint64_t>> name;
@@ -11022,6 +11354,7 @@ static const std::map<unsigned,covgrp_cross_state_t>& covgrp_cross_states_(
                   }
                   state.type_bins[route.auto_bin] =
                         defn->cross_type_register_bin(meta.family, name);
+                  covgrp_cross_register_dense_name_(defn, meta.family, name);
             }
 	    state.named_props.assign(active_named.begin(), active_named.end());
             defn->cross_type_register_named(meta.family, state.named_props);

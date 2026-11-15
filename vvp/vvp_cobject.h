@@ -480,6 +480,10 @@ class vvp_cobject : public vvp_object {
 bool vvp_covgrp_dyn_family_count(vvp_cobject*cobj, unsigned family,
 				 unsigned at_least, uint64_t&hits,
 				 unsigned __int128&total);
+/* The type-level automatic-bin count of a cross family with a sparse
+   instance: the union of its instances' bins by name (#3363). */
+long double vvp_covgrp_cross_type_total(const class_type*defn,
+					unsigned family, bool&have);
 double vvp_covgrp_instance_coverage(vvp_cobject*obj,
 		bool*contributes = nullptr, int selected_item = -1,
 		long double*covered_bins = nullptr,
