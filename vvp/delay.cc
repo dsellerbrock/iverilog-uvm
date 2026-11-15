@@ -788,11 +788,11 @@ void vvp_fun_delay::run_run_real_(const struct vvp_fun_delay::event_*cur)
 }
 
 vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width,
-				 bool showcancelled)
+				 bool showcancelled, bool ondetect)
 : net_(net), src_list_(0), ifnone_list_(0), pending_pulse_(0),
   has_conditional_paths_(false), has_dst_parts_(false),
   seen_change_(false), last_change_time_(0),
-  showcancelled_(showcancelled)
+  showcancelled_(showcancelled), ondetect_(ondetect)
 {
       cur_vec4_ = vvp_vector4_t(width, BIT4_X);
       out_vec4_ = cur_vec4_;
@@ -886,14 +886,22 @@ void vvp_fun_modpath::schedule_pulse_transition_(vvp_time64_t delay,
       cur_vec4_ = bit;
       vvp_time64_t due = schedule_simtime() + delay;
 
+	/* IEEE 1800-2017/2023 30.7.4.1: with the on-detect pulse style, the
+	   transition to X of a pulse that is filtered to X is made
+	   "immediately upon detection of the pulse", that is now, instead of
+	   at the time already scheduled for it (on-event). The transition
+	   from X keeps its time. */
       if (pending_pulse_) {
 	    if (showcancelled_ && due < pending_pulse_->sim_time) {
 		  vvp_time64_t leading_time = pending_pulse_->sim_time;
 		  vvp_vector4_t pulse_from = pending_pulse_->from;
 		  vvp_vector4_t unknown(bit.size(), BIT4_X);
-		  reschedule_pulse_event_(pending_pulse_, due, pulse_from, unknown);
+		  reschedule_pulse_event_(pending_pulse_,
+					  ondetect_ ? schedule_simtime() : due,
+					  pulse_from, unknown);
 		  pending_pulse_ = enqueue_pulse_event_(leading_time, unknown, bit);
-		  schedule_generic(new pulse_wakeup_(this), delay, false, true, true);
+		  schedule_generic(new pulse_wakeup_(this),
+				   ondetect_ ? 0 : delay, false, true, true);
 		  return;
 	    }
 	    if (due < pending_pulse_->sim_time) {
@@ -910,7 +918,16 @@ void vvp_fun_modpath::schedule_pulse_transition_(vvp_time64_t delay,
 		  if (bit.eeq(from))
 			return;
 	    } else if (width < error) {
-		  pending_pulse_->to = vvp_vector4_t(bit.size(), BIT4_X);
+		  vvp_vector4_t unknown(bit.size(), BIT4_X);
+		  if (ondetect_) {
+			reschedule_pulse_event_(pending_pulse_,
+						schedule_simtime(),
+						pending_pulse_->from, unknown);
+			schedule_generic(new pulse_wakeup_(this), 0,
+					 false, true, true);
+		  } else {
+			pending_pulse_->to = unknown;
+		  }
 	    }
       }
 

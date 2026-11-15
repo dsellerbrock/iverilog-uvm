@@ -2300,8 +2300,35 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
       if ((reg->type()==NetNet::UNRESOLVED_WIRE) && !is_force) {
 	    ivl_assert(*this, reg->coerced_to_uwire());
 	    const NetEConst*canon_const = dynamic_cast<NetEConst*>(canon_index);
-	    if (!canon_const || reg->test_part_driven(reg->vector_width() - 1, 0,
-						      canon_const->value().as_long())) {
+	    bool overlap = !canon_const;
+	    if (canon_const) {
+		  unsigned hi = reg->vector_width() - 1, lo = 0;
+		  bool empty = false;
+		  if (reg->packed_dims().size() == 1
+		      && name_tail.index.size() == reg->unpacked_dimensions()+1
+		      && name_tail.index.back().sel == index_component_t::SEL_BIT) {
+			NetExpr*bit = elab_and_eval(des, scope,
+						   name_tail.index.back().msb, -1);
+			const NetEConst*bit_const = dynamic_cast<NetEConst*>(bit);
+			if (bit_const && bit_const->value().is_defined()) {
+			      list<long> prefix;
+			      bit = normalize_variable_bit_base(prefix, bit, reg);
+			      eval_expr(bit, -1);
+			      const NetEConst*constant = dynamic_cast<NetEConst*>(bit);
+			      if (constant) {
+				    verinum_part_select_t selected =
+					  verinum_part_select_overlap(constant->value(), 1,
+								      reg->vector_width());
+				    empty = selected.width == 0;
+				    if (!empty) hi = lo = selected.destination_base;
+			      }
+			}
+			delete bit;
+		  }
+		  overlap = !empty && reg->test_part_driven(hi, lo,
+						    canon_const->value().as_long());
+	    }
+	    if (overlap) {
 		  report_mixed_assignment_conflict_("array word");
 		  des->errors += 1;
 		  return 0;
@@ -2787,6 +2814,8 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 		  if (exact_constant_mux) {
 			const NetEConst*canonical =
 			      dynamic_cast<const NetEConst*>(mux);
+			const NetEConst*word =
+			      dynamic_cast<const NetEConst*>(lv->word());
 			ivl_assert(*this, canonical);
 			verinum_part_select_t overlap =
 			      verinum_part_select_overlap(
@@ -2796,7 +2825,8 @@ bool PEIdent::elaborate_lval_net_bit_(Design*des,
 				  static_cast<unsigned>(
 					overlap.destination_base),
 				  static_cast<unsigned>(
-					overlap.destination_base))) {
+					overlap.destination_base),
+				  word ? word->value().as_long() : 0)) {
 			      report_mixed_assignment_conflict_("bit select");
 			      des->errors += 1;
 			      delete mux;

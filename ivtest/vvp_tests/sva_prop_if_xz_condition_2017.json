@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_prop_if_xz_condition.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "sva_prop_if_xz_condition"
+}

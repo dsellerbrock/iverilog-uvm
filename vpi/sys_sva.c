@@ -276,6 +276,7 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       const char*fl = "";
       PLI_INT32 idx = 0, ln = 0, depth = 0, flags = 0, assertion_kind = 1;
       PLI_INT32 inst_kind = 0;
+      PLI_INT32 control_type = 1;
       ibuf[0] = 0;
       (void)name;
       nbuf[0] = 0; fbuf[0] = 0;
@@ -328,7 +329,8 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 			vpi_get_value(a, &v);
 			assertion_kind = v.value.integer;
 			  /* 39.4.2: optional top-level property (1) or
-			     sequence (2) instance and its name. */
+			     sequence (2) instance and its name, then the
+			     Table 20-6 assertion type bit. */
 			if ((a = vpi_scan(argv))) {
 			      v.format = vpiIntVal;
 			      vpi_get_value(a, &v);
@@ -341,6 +343,11 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 						  sizeof ibuf - 1);
 					  ibuf[sizeof ibuf - 1] = 0;
 				    }
+				    if ((a = vpi_scan(argv))) {
+					  v.format = vpiIntVal;
+					  vpi_get_value(a, &v);
+					  control_type = v.value.integer;
+				    }
 			      }
 			}
 		  }
@@ -348,7 +355,8 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    }
       }
       vpip_register_assertion(idx, nm, fl, ln, vpi_handle(vpiScope, callh),
-			      depth, flags, assertion_kind, inst_kind, ibuf);
+			      depth, flags, assertion_kind, inst_kind, ibuf,
+			      control_type);
       return 0;
 }
 

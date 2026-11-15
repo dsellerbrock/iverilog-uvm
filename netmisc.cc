@@ -2406,6 +2406,21 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
       ivl_variable_type_t cast_type = ivl_type_base(lv_net_type);
       ivl_variable_type_t expr_type = tmp->expr_type();
 
+      /* Class category equality does not imply assignment compatibility:
+       * distinct specializations are distinct types (8.25), and only the
+       * same class or a derived class can be assigned to a handle (8.16). */
+      const netclass_t*class_target = dynamic_cast<const netclass_t*>(lv_net_type);
+      const netclass_t*class_source = dynamic_cast<const netclass_t*>(tmp->net_type());
+      if (class_target && class_source && !class_target->is_interface()
+	  && !dynamic_cast<const PENewClass*>(pe)
+	  && !class_target->type_compatible(class_source)) {
+	    cerr << tmp->get_fileline() << ": error: class value is not "
+		 << "assignment-compatible with the context type." << endl;
+	    des->errors += 1;
+	    delete tmp;
+	    return 0;
+      }
+
       bool compatible;
 	/* Associative arrays share IVL_VT_QUEUE with ordinary queues, so base
 	 * category equality is not enough. Validate the complete element/key/

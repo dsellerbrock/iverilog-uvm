@@ -369,6 +369,53 @@ static bool checker_formal_used_in_code_(Module*checker,
       return false;
 }
 
+/* IEEE 1800-2017/2023 17.6: "it shall be an error if a formal argument
+ * referenced by a covergroup has a const actual argument." A covergroup
+ * formal of the same name shadows the checker formal. */
+static bool checker_formal_used_in_covergroup_(Module*checker,
+						perm_string formal)
+{
+      auto refs = [formal](const PExpr*expr) {
+	    return expr && expr->refs_name(formal);
+      };
+      for (const auto&entry : checker->classes) {
+	    const class_type_t*type = entry.second ? entry.second->type : nullptr;
+	    if (!type || !type->is_covergroup_standalone) continue;
+	    for (const class_type_t::pform_covergroup_t*cg : type->covergroups) {
+		  if (!cg) continue;
+		  if (std::find(cg->ctor_formals.begin(), cg->ctor_formals.end(),
+				formal) != cg->ctor_formals.end()
+		      || std::find(cg->sample_formals.begin(),
+				   cg->sample_formals.end(), formal)
+			 != cg->sample_formals.end())
+			continue;
+		  for (const PEEvent*event : cg->sample_events)
+			if (event && refs(event->expr())) return true;
+		  for (const auto&cp : cg->coverpoints) {
+			if (refs(cp.expr) || refs(cp.iff_expr)) return true;
+			for (const auto&bin : cp.bins) {
+			      if (refs(bin.with_expr) || refs(bin.iff_expr)
+				  || refs(bin.set_expr))
+				    return true;
+			      for (const auto&range : bin.ranges)
+				    if (refs(range.first) || refs(range.second))
+					  return true;
+			}
+		  }
+		  for (const auto&cross : cg->crosses) {
+			if (refs(cross.iff_expr)) return true;
+			for (const PExpr*expr : cross.cp_exprs)
+			      if (refs(expr)) return true;
+			for (const auto&bin : cross.bins)
+			      if (refs(bin.set_expr) || refs(bin.with_expr)
+				  || refs(bin.iff_expr))
+				    return true;
+		  }
+	    }
+      }
+      return false;
+}
+
 static bool lexical_scope_is_within_(const LexicalScope*scope,
 				     const LexicalScope*ancestor)
 {
@@ -6028,6 +6075,41 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 	    ivl_assert(*this, idx == 0 || lval_sigs[idx]->vector_width() == lval_sigs[0]->vector_width());
       }
 
+	/* IEEE 1800-2023 28.8: "A bidirectional switch may not connect nets
+	   of two different user-defined net types or a user-defined net type
+	   and a built-in net type", and only tran, tranif1 and tranif0 may
+	   connect user-defined net types at all. 1800-2017 28.8 has no such
+	   text, so the rule applies from -g2023 on; earlier generations
+	   keep accepting these connections (owner ruling 2026-11-14). */
+      const bool switch_nettype_rule = generation_flag >= GN_VER2023;
+      if (pass_switch && switch_nettype_rule && lval_count >= 2) {
+	    const NetNetType*type0 = lval_sigs[0]->user_nettype();
+	    const NetNetType*type1 = lval_sigs[1]->user_nettype();
+	    if (type0) type0 = type0->canonical_type();
+	    if (type1) type1 = type1->canonical_type();
+	    const bool resistive = type() == RTRAN || type() == RTRANIF0
+		  || type() == RTRANIF1;
+	    if (type0 != type1) {
+		  cerr << get_fileline() << ": error: A " << gate_name()
+		       << " switch cannot connect "
+		       << (type0 && type1
+			   ? "nets of two different user-defined net types"
+			   : "a net of a user-defined net type to a net of a "
+			     "built-in net type")
+		       << " (IEEE 1800-2023 28.8)." << endl;
+		  des->errors += 1;
+		  return;
+	    }
+	    if (type0 && resistive) {
+		  cerr << get_fileline() << ": error: An " << gate_name()
+		       << " switch cannot connect nets of a user-defined net "
+			  "type; only tran, tranif1 and tranif0 can (IEEE "
+			  "1800-2023 28.8)." << endl;
+		  des->errors += 1;
+		  return;
+	    }
+      }
+
 	/* Detect the special case that the l-value width exactly
 	   matches the gate count. In this case, we will make a single
 	   gate that has the desired vector width.
@@ -7754,16 +7836,22 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			continue;
 		  perm_string formal = rmod->get_port_name(idx);
 		  PWire*wire = rmod->wires_find(formal);
-		  if (!wire || wire->get_port_type() != NetNet::PINPUT
-		      || !checker_formal_used_in_code_(rmod, formal))
+		  if (!wire || wire->get_port_type() != NetNet::PINPUT)
 			continue;
-
-		  cerr << pins[idx]->get_fileline() << ": error: checker input port `"
-		       << formal << "' has a const-cast actual but is used in procedural "
-			  "code or a continuous assignment (IEEE 1800-2017/2023 17.3)."
-		       << endl;
-		  des->errors += 1;
-		  invalid_const_cast_actual = true;
+		  if (checker_formal_used_in_code_(rmod, formal)) {
+			cerr << pins[idx]->get_fileline() << ": error: checker input port `"
+			     << formal << "' has a const-cast actual but is used in procedural "
+				"code or a continuous assignment (IEEE 1800-2017/2023 17.3)."
+			     << endl;
+			des->errors += 1;
+			invalid_const_cast_actual = true;
+		  } else if (checker_formal_used_in_covergroup_(rmod, formal)) {
+			cerr << pins[idx]->get_fileline() << ": error: checker input port `"
+			     << formal << "' has a const-cast actual but is referenced by a "
+				"covergroup (IEEE 1800-2017/2023 17.6)." << endl;
+			des->errors += 1;
+			invalid_const_cast_actual = true;
+		  }
 	    }
 	    if (invalid_const_cast_actual)
 		  return;
@@ -10247,6 +10335,7 @@ NetProc* Statement::elaborate(Design*des, NetScope*) const
 
 NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope) const
 {
+      PExprCheckerAssignRvalGuard checker_rval_context(false);
 	// A function called as a task does not have an L-value.
       if (! lval_) {
 	      // The R-value must be a simple function call.
@@ -13936,6 +14025,20 @@ static NetProc* elaborate_member_subarray_copy_(Design*des, NetScope*scope,
       return block;
 }
 
+/* Is a statement in SCOPE a statement of a checker's own procedure, as
+   opposed to one in the body of a function or task the checker declares? */
+static bool checker_procedure_scope_(NetScope*scope)
+{
+      for (NetScope*owner = scope; owner; owner = owner->parent()) {
+	    if (owner->type() == NetScope::FUNC
+		|| owner->type() == NetScope::TASK)
+		  return false;
+	    if (const Module*module = owner->module_definition())
+		  return module->is_checker;
+      }
+      return false;
+}
+
 NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 {
 	bool in_checker = false;
@@ -13946,6 +14049,10 @@ NetProc* PAssign::elaborate(Design*des, NetScope*scope) const
 		    break;
 	      }
 	}
+	/* 17.8 restricts the right-hand side of a checker variable
+	   assignment; elaborate_lval switches the context off again. */
+	PExprCheckerAssignRvalGuard checker_rval_context(
+	      lval() && checker_procedure_scope_(scope));
 	if (current_procedural_process_type == IVL_PR_ALWAYS_FF && in_checker) {
 	cerr << get_fileline() << ": error: blocking assignment is not allowed "
 	        "in a checker always_ff procedure." << endl;
@@ -15538,6 +15645,9 @@ static NetProc*guard_function_background_event_(NetScope*scope,
 NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+
+      PExprCheckerAssignRvalGuard checker_rval_context(
+	    lval() && checker_procedure_scope_(scope));
 
       NetScope*function_scope = scope;
       while (function_scope
@@ -32728,6 +32838,17 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  } else {
 			cerr << get_fileline() << ": sorry: showcancelled on vector "
 			     << "module path outputs is not supported." << endl;
+		  }
+	    }
+	      /* 30.7.4.1: the pulse style of the path output. Pulse
+		 filtering to X exists for scalar outputs only. */
+	    if (module && module->specify_ondetect(terminal)) {
+		  if (dst_sig->vector_width() == 1) {
+			dst_sig->attribute(perm_string::literal("_ivl_pulsestyle_ondetect"),
+					   verinum(1));
+		  } else {
+			cerr << get_fileline() << ": sorry: pulsestyle_ondetect on "
+			     << "vector module path outputs is not supported." << endl;
 		  }
 	    }
 

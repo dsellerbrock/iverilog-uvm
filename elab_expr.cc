@@ -20,6 +20,7 @@
 
 # include "config.h"
 bool pform_procedural_expr_context = false;
+bool pform_checker_assign_rval_context = false;
 bool pform_default_argument_context = false;
 bool pform_default_argument_requires_procedural_context = false;
 bool pform_type_operator_context = false;
@@ -20423,6 +20424,14 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 	  }
 	  if (bad_direction && pform_default_argument_context) {
 		pform_default_argument_requires_procedural_context = true;
+	  } else if (bad_direction && pform_checker_assign_rval_context) {
+		  cerr << get_fileline() << ": error: Function `"
+		       << dscope->basename()
+		       << "' with output, inout, or ref arguments cannot be called"
+			  " in the right-hand side of a checker variable assignment"
+			  " (IEEE 1800-2017/2023 17.8)." << endl;
+		  des->errors += 1;
+		  return 0;
 	  } else if (bad_direction && !pform_procedural_expr_context) {
 		  cerr << get_fileline() << ": error: Function `"
 		       << dscope->basename()
@@ -27676,35 +27685,23 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 			  tmp->set_line(*this);
 			  return tmp;
 		    }
-		    
-		    // Compile-progress fallback for parameterized derived classes
-		    // (e.g. uvm_event_callback#(T) extends uvm_callback)
-		    if (gn_system_verilog()
-			&& ivl_type_base(ntype) == IVL_VT_CLASS
-			&& have_type
+
+		      /* Two virtual-interface handles of one interface differ
+			 in parameters or modport. The assignment's own check
+			 names that rule (25.9); pass the reference on to it. */
+		    if (ivl_type_base(ntype) == IVL_VT_CLASS && have_type
 			&& ivl_type_base(have_type) == IVL_VT_CLASS) {
-			  const netclass_t*want_class = dynamic_cast<const netclass_t*>(ntype);
-			  const netclass_t*have_class = dynamic_cast<const netclass_t*>(have_type);
-			  /* Mailbox specializations share the class name but are distinct
-			   * parameterized types (IEEE 1800-2017/2023 8.25). Their message
-			   * type cannot be inferred from an ancestor name, so do not use
-			   * this compatibility fallback for mailbox handles. */
-			  const bool mailbox_type =
-				(want_class && want_class->get_name()
-				 == perm_string::literal("mailbox"))
-				|| (have_class && have_class->get_name()
-				    == perm_string::literal("mailbox"));
-			  if (want_class && have_class && !mailbox_type) {
-				// Check if have_class derives from want_class
-				const netclass_t*check = have_class;
-				while (check) {
-				      if (check->get_name() == want_class->get_name()) {
-					    NetESignal*tmp = new NetESignal(net);
-					    tmp->set_line(*this);
-					    return tmp;
-				      }
-				      check = check->get_super();
-				}
+			  const netclass_t*want_class =
+				dynamic_cast<const netclass_t*>(ntype);
+			  const netclass_t*have_class =
+				dynamic_cast<const netclass_t*>(have_type);
+			  if (want_class && have_class
+			      && want_class->is_interface()
+			      && have_class->is_interface()
+			      && want_class->get_name() == have_class->get_name()) {
+				NetESignal*tmp = new NetESignal(net);
+				tmp->set_line(*this);
+				return tmp;
 			  }
 		    }
 

@@ -1,0 +1,11 @@
+./ivltests/issue3112_fail.v:10: error: the type of the variable 'b' doesn't match the context type.
+./ivltests/issue3112_fail.v:10:      : variable type=class C{}
+./ivltests/issue3112_fail.v:10:      : context type=class C{}
+./ivltests/issue3112_fail.v:11: error: the type of the variable 'y' doesn't match the context type.
+./ivltests/issue3112_fail.v:11:      : variable type=class T{}
+./ivltests/issue3112_fail.v:11:      : context type=class T{}
+./ivltests/issue3112_fail.v:12: error: class value is not assignment-compatible with the context type.
+./ivltests/issue3112_fail.v:13: error: the type of the variable 'b' doesn't match the context type.
+./ivltests/issue3112_fail.v:13:      : variable type=class C{}
+./ivltests/issue3112_fail.v:13:      : context type=class C{}
+4 error(s) during elaboration.
