@@ -573,6 +573,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%nor",    of_NOR,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%nor/r",  of_NORR,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%null",   of_NULL,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
+      { "%ocond/ambig", of_OCOND_AMBIG, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%or",     of_OR,     0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%or/r",   of_ORR,    0,  {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%pad/s",  of_PAD_S,  1,  {OA_NUMBER,   OA_NONE,     OA_NONE} },

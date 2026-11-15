@@ -35030,6 +35030,19 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
       if (wid == 0)
 	    wid = 1;
 
+	/* 11.4.11 + Table 7-1: an ambiguous condition over two different
+	   unpacked structs gives each member's declared initial value where it
+	   has one. The run-time struct default does not carry those values. */
+      const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(type);
+      const NetEConst*con_const = dynamic_cast<const NetEConst*>(con);
+      if (struct_type && !struct_type->packed()
+	  && struct_type->has_member_defaults()
+	  && !(con_const && con_const->value().is_defined()))
+	    cerr << get_fileline() << ": sorry: if this condition is x or z "
+		 << "and the operands differ, members of the struct that have "
+		 << "an initial assignment take their type's Table 7-1 default "
+		 << "instead (IEEE 1800-2023 11.4.11)." << endl;
+
       NetETernary*res = new NetETernary(con, tru, fal, wid,
 					tru->has_sign() && fal->has_sign());
       res->set_line(*this);
