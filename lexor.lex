@@ -2009,9 +2009,21 @@ static void reset_all()
 }
 
 extern FILE*vl_input;
+
+/* Built-in source text for the lexer to scan instead of vl_input, or nil.
+   pform.cc uses this to parse the std package classes. */
+static const char*builtin_source = 0;
+void lexor_scan_builtin(const char*text)
+{
+      builtin_source = text;
+}
+
 void reset_lexor()
 {
-      yyrestart(vl_input);
+      if (builtin_source)
+	    yy_scan_string(builtin_source);
+      else
+	    yyrestart(vl_input);
       BEGIN(0);
       yylloc.first_line = 1;
 

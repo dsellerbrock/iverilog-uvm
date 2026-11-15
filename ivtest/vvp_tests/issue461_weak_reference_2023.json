@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue461_weak_reference.v",
+  "iverilog-args": ["-g2023"]
+}

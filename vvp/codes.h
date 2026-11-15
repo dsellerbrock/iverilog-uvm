@@ -533,6 +533,9 @@ extern bool of_MBX_TRY_PUT(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_TRY_GET(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_TRY_PEEK(vthread_t thr, vvp_code_t code);
 extern bool of_MBX_NUM(vthread_t thr, vvp_code_t code);
+/* Weak references (std::weak_reference) */
+extern bool of_WEAK_DEREF(vthread_t thr, vvp_code_t code);
+extern bool of_WEAK_ID(vthread_t thr, vvp_code_t code);
 /* Boxing/unboxing opcodes for non-class mailbox items */
 extern bool of_BOX_REAL(vthread_t thr, vvp_code_t code);
 extern bool of_BOX_STR(vthread_t thr, vvp_code_t code);

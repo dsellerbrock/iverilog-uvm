@@ -1850,6 +1850,18 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
       return found_type;
 }
 
+/* Set when the user's source names a class of the std package that is
+   written in SystemVerilog (see builtin_std_source_). Such a class is
+   parsed before the first source file, because the lexer has to know its
+   name is a type; pform_finish() takes it out again if nothing used it,
+   so a design that does not mention it is elaborated as before. */
+static bool builtin_std_used_ = false;
+
+void pform_builtin_std_used()
+{
+      builtin_std_used_ = true;
+}
+
 typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 {
       static const bool trace_types = getenv("IVL_TRACE_TYPES") != 0;
@@ -1954,6 +1966,18 @@ typedef_t* pform_test_type_identifier(const struct vlltype&loc, const char*txt)
 
       if (typedef_t*td = pform_find_interface_typedef(name))
 	    return td;
+
+	/* The classes of the std package are visible everywhere without an
+	   import, after everything the user declared, so user code may
+	   reuse their names (IEEE 1800-2023 8.30.1, 26.7). */
+      if (generation_flag >= GN_VER2023) {
+	    PPackage*std_pkg = pform_builtin_std_package(false);
+	    LexicalScope::typedef_map_t::iterator cur = std_pkg->typedefs.find(name);
+	    if (cur != std_pkg->typedefs.end()) {
+		  builtin_std_used_ = true;
+		  return cur->second;
+	    }
+      }
 
       return 0;
 }
@@ -39993,6 +40017,55 @@ void pform_check_net_data_type(const struct vlltype&loc, NetNet::Type net_type,
 
 FILE*vl_input = 0;
 extern void reset_lexor();
+extern void lexor_scan_builtin(const char*text);
+
+/*
+ * Classes of the built-in std package that are plain SystemVerilog.
+ *
+ * weak_reference (IEEE 1800-2023 8.30) keeps the identification value of
+ * its referent, not a handle, so it does not keep the referent alive.
+ * $ivl_weak$id gives the identification value of an object (and, with a
+ * second argument of 1, marks the object as weakly referenced);
+ * $ivl_weak$deref gives the object back, or null once it was reclaimed.
+ */
+static const char builtin_std_source_[] =
+"class weak_reference #(type T);\n"
+"   local longint id_;\n"
+"   function new(T referent); id_ = $ivl_weak$id(referent, 1); endfunction\n"
+"   function T get(); return $ivl_weak$deref(id_); endfunction\n"
+"   function void clear(); id_ = 0; endfunction\n"
+"   static function longint get_id(T obj); return $ivl_weak$id(obj, 0); endfunction\n"
+"endclass\n";
+
+/* Parse the classes above into the std package, once, before the first
+   source file. They exist from 1800-2023 on. */
+static void pform_parse_builtin_std_()
+{
+      static bool done = false;
+      if (done || generation_flag < GN_VER2023)
+	    return;
+      done = true;
+
+      LexicalScope*save_scope = lexical_scope;
+      std::string save_file = vl_file;
+      lexical_scope = pform_builtin_std_package(false);
+      vl_file = "<std>";
+
+      reset_parser_file_state();
+      error_count = 0;
+      lexor_scan_builtin(builtin_std_source_);
+      int rc = VLparse();
+      lexor_scan_builtin(0);
+      destroy_lexor();
+      if (rc != 0 || error_count != 0) {
+	    cerr << "internal error: the built-in std package does not parse."
+		 << endl;
+	    exit(1);
+      }
+
+      vl_file = save_file;
+      lexical_scope = save_scope;
+}
 
 int pform_parse(const char*path)
 {
@@ -40058,6 +40131,8 @@ int pform_parse(const char*path)
 
 	    lexical_scope = unit;
       }
+      pform_parse_builtin_std_();
+
       reset_parser_file_state();
       reset_lexor();
       error_count = 0;
@@ -40427,6 +40502,10 @@ int pform_finish()
 	// Any errors counted here were already reported by pform_parse
 	// for their own file; count only what the finish steps add.
       error_count = 0;
+
+	// The std classes written in SystemVerilog leave again when the
+	// source never named one.
+      pform_drop_unused_builtin_std(builtin_std_used_);
 
       // Wait until all parsing is done and all symbols in the unit scope are
       // known before importing possible imports.

@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "issue461_weak_reference_err.v",
+  "iverilog-args": ["-g2023"]
+}

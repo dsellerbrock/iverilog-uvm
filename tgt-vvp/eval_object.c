@@ -3172,6 +3172,13 @@ static int eval_object_sfunc(ivl_expr_t expr)
       static int warned_pop_back_non_signal = 0;
       static int warned_pop_front_non_signal = 0;
 
+      /* $ivl_weak$deref(id): the object with that identification value. */
+      if (strcmp(name, "$ivl_weak$deref") == 0) {
+	    draw_eval_vec4(ivl_expr_parm(expr, 0));
+	    fprintf(vvp_out, "    %%weak/deref;\n");
+	    return 0;
+      }
+
       if (strcmp(name, "$ivl_process$self") == 0) {
 	    if (parm_count != 0) {
 		  fprintf(stderr, "Warning: %s expects no arguments; ignoring extras\n", name);

@@ -2986,6 +2986,29 @@ void vvp_fun_signal_object_aa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 			       : "recv-obj-aa.notify-unheld");
 }
 
+/*
+ * The activation goes back to the free list of its scope. Its object
+ * handle would stay in the dead frame until the scope reuses the frame,
+ * keeping the object alive for no reason. A weak reference can observe
+ * that (IEEE 1800-2023 8.29, 8.30.1), so drop the handle now.
+ * ponytail: only when the program has weak references, to leave every
+ * other design's call path as it was; make it unconditional once that is
+ * shown to be safe and free.
+ */
+void vvp_fun_signal_object_aa::release_instance(vvp_context_t context)
+{
+      clear_current_alias(context);
+      if (!vvp_object::weak_in_use())
+	    return;
+      signal_object_aa_slot*slot =
+            signal_object_aa_slot_from_raw(vvp_get_context_item(context, context_idx_));
+      if (!slot)
+	    return;
+      slot->value.reset();
+      slot->root_net = 0;
+      slot->root_obj.reset();
+}
+
 void vvp_fun_signal_object_aa::clear_current_alias(vvp_context_t context)
 {
       signal_object_aa_slot*slot =

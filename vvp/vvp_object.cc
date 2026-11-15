@@ -385,6 +385,79 @@ static bool remove_mutation_waiter_(vthread_t thread)
 }
 
 /*
+ * The identification values of objects, for weak references. Neither map
+ * holds a reference: the destructor takes the object out.
+ */
+struct weak_entry_t {
+      uint64_t id;
+      bool weak;
+};
+static std::map<const vvp_object*, weak_entry_t> weak_ids_;
+static std::map<uint64_t, vvp_object*> weak_objects_;
+static uint64_t weak_next_id_ = 0;
+bool vvp_object::weak_in_use_ = false;
+
+uint64_t vvp_object::weak_id(vvp_object*obj, bool weak)
+{
+      if (obj == 0)
+	    return 0;
+      std::map<const vvp_object*, weak_entry_t>::iterator cur = weak_ids_.find(obj);
+      if (cur == weak_ids_.end()) {
+	    weak_entry_t ent = { ++weak_next_id_, false };
+	    cur = weak_ids_.insert(std::make_pair(obj, ent)).first;
+	    weak_objects_[ent.id] = obj;
+      }
+      if (weak)
+	    cur->second.weak = true;
+      return cur->second.id;
+}
+
+vvp_object* vvp_object::weak_deref(uint64_t id)
+{
+      std::map<uint64_t, vvp_object*>::const_iterator cur = weak_objects_.find(id);
+      return cur == weak_objects_.end() ? 0 : cur->second;
+}
+
+/*
+ * An object is being destroyed: forget its identification value, which
+ * clears every weak reference to it at once. If it was weakly referenced,
+ * a thread may be in wait (w.get() == null), so wake the object waits.
+ */
+static void weak_object_died_(const vvp_object*obj)
+{
+      std::map<const vvp_object*, weak_entry_t>::iterator cur = weak_ids_.find(obj);
+      if (cur == weak_ids_.end())
+	    return;
+      bool weak = cur->second.weak;
+      weak_objects_.erase(cur->second.id);
+      weak_ids_.erase(cur);
+      if (!weak || thread_mutation_objects_.empty())
+	    return;
+
+	// ponytail: wakes every thread in an object wait, which re-evaluates
+	// its condition; keep waiter lists per weak reference if this ever
+	// shows in a profile.
+      std::set<vthread_t> waiters;
+      for (std::map<vthread_t,
+		    std::map<object_mutation_key_t, vvp_object_t> >::const_iterator
+		 item = thread_mutation_objects_.begin();
+	   item != thread_mutation_objects_.end(); ++item)
+	    waiters.insert(item->first);
+      for (std::set<vthread_t>::const_iterator item = waiters.begin();
+	   item != waiters.end(); ++item)
+	    vthread_pin(*item);
+      std::vector<vthread_t> ordered = vthread_in_wait_order(waiters);
+      for (std::vector<vthread_t>::const_iterator item = ordered.begin();
+	   item != ordered.end(); ++item) {
+	    if (remove_mutation_waiter_(*item))
+		  vthread_schedule_mutation_waiter(*item);
+      }
+      for (std::set<vthread_t>::const_iterator item = waiters.begin();
+	   item != waiters.end(); ++item)
+	    vthread_unpin(*item);
+}
+
+/*
  * Handle copies check liveness constantly, so keep a direct-mapped cache
  * in front of live_vvp_objects_. A slot holds a pointer only while that
  * pointer is registered: it is filled on registration or a successful
@@ -508,6 +581,8 @@ void vvp_object::touch(unsigned property, unsigned word, unsigned bit)
 
 vvp_object::~vvp_object()
 {
+      if (!weak_ids_.empty())
+	    weak_object_died_(this);
       object_signal_aliases_.erase(this);
       unregister_live_ptr_(this);
       total_active_cnt_ -= 1;
