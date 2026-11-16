@@ -2831,6 +2831,8 @@ void vvp_fun_signal_object_aa::free_instance(vvp_context_t context)
 }
 #endif
 
+extern void vvp_prop_force_reapply(vvp_net_t*net);
+
 void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 					   vvp_context_t)
 {
@@ -2854,6 +2856,10 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
             if (handle_changed && attached_net_ && !value_.test_nil())
                   value_.register_signal_alias(attached_net_, 0);
 	    needs_init_ = false;
+	      // A forced member of an unpacked struct variable belongs to
+	      // the variable: carry it onto the newly stored object.
+	    if (handle_changed && attached_net_)
+		  vvp_prop_force_reapply(attached_net_);
 
 	    ptr.ptr()->send_object(bit, 0);
 	    { event_callback_boundary_s callback_boundary; run_sv_vpi_callbacks(); }

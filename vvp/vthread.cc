@@ -22525,6 +22525,173 @@ bool of_FLAG_SET_VEC4(vthread_t thr, vvp_code_t cp)
  * unlinked without specifically knowing the source that this
  * instruction used.
  */
+/*
+ * IEEE 1800-2023 10.6.2, ruling on #2769: force/release of a singular
+ * member of an unpacked struct variable. An unpacked struct is an object,
+ * and a member store mutates that object in place, so the forced member
+ * is frozen on the variable's current object (ordinary stores are
+ * ignored) and the force machinery writes it with vvp_cobject::force_bypass
+ * raised. The force belongs to the variable, not the object: a whole
+ * struct store to the variable re-applies it to the new object
+ * (vvp_prop_force_reapply). Release unfreezes the member, which keeps its
+ * value until the next assignment, as for any forced variable.
+ */
+class prop_force_relay;
+struct prop_force_entry_s {
+      bool is_real = false;
+      vvp_vector4_t vec;
+      double real = 0.0;
+      vvp_object_t frozen;		// the object the member is frozen on
+      prop_force_relay*relay = nullptr;	// continuous RHS, if any
+};
+static std::map<vvp_net_t*, std::map<size_t, prop_force_entry_s> > prop_forces_;
+	// %force/prop/v or /r records its target for an immediately
+	// following %force/link/prop (no other instruction runs in between).
+static vvp_net_t*prop_force_pending_net_ = nullptr;
+static size_t prop_force_pending_pid_ = 0;
+
+static vvp_cobject* prop_force_object_(vvp_net_t*net, vvp_object_t&ref)
+{
+      vvp_fun_signal_object*sig = dynamic_cast<vvp_fun_signal_object*>(net->fun);
+      if (!sig) return nullptr;
+      ref = sig->get_object();
+      return ref.peek<vvp_cobject>();
+}
+
+static void prop_force_apply_(vvp_net_t*net, size_t pid, prop_force_entry_s&ent)
+{
+      vvp_object_t ref;
+      vvp_cobject*cobj = prop_force_object_(net, ref);
+      if (!cobj) return;
+      if (ent.frozen != ref) {
+	    if (vvp_cobject*old = ent.frozen.peek<vvp_cobject>())
+		  old->freeze_prop(pid, false);
+	    ent.frozen = ref;
+      }
+      vvp_cobject::force_bypass += 1;
+      if (ent.is_real) cobj->set_real(pid, ent.real);
+      else cobj->set_vec4(pid, ent.vec);
+      vvp_cobject::force_bypass -= 1;
+      cobj->freeze_prop(pid, true);
+}
+
+class prop_force_relay : public vvp_net_fun_t {
+    public:
+      prop_force_relay(vvp_net_t*target, size_t pid, unsigned wid)
+      : target_(target), pid_(pid), wid_(wid) { }
+      void recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit, vvp_context_t) override
+      {
+	    prop_force_entry_s*ent = entry_();
+	    if (!ent || ent->is_real) return;
+	    vvp_vector4_t val = bit;
+	    if (wid_ && val.size() != wid_) val.resize(wid_);
+	    ent->vec = val;
+	    prop_force_apply_(target_, pid_, *ent);
+      }
+      void recv_real(vvp_net_ptr_t, double bit, vvp_context_t) override
+      {
+	    prop_force_entry_s*ent = entry_();
+	    if (!ent || !ent->is_real) return;
+	    ent->real = bit;
+	    prop_force_apply_(target_, pid_, *ent);
+      }
+      bool active = true;
+    private:
+      prop_force_entry_s* entry_()
+      {
+	    if (!active) return nullptr;
+	    auto net = prop_forces_.find(target_);
+	    if (net == prop_forces_.end()) return nullptr;
+	    auto ent = net->second.find(pid_);
+	    if (ent == net->second.end() || ent->second.relay != this) return nullptr;
+	    return &ent->second;
+      }
+      vvp_net_t*target_;
+      size_t pid_;
+      unsigned wid_;
+};
+
+static prop_force_entry_s& prop_force_begin_(vvp_net_t*net, size_t pid)
+{
+      prop_force_entry_s&ent = prop_forces_[net][pid];
+      if (ent.relay) { ent.relay->active = false; ent.relay = nullptr; }
+      prop_force_pending_net_ = net;
+      prop_force_pending_pid_ = pid;
+      return ent;
+}
+
+void vvp_prop_force_reapply(vvp_net_t*net)
+{
+      if (prop_forces_.empty()) return;
+      auto found = prop_forces_.find(net);
+      if (found == prop_forces_.end()) return;
+      for (auto&cur : found->second)
+	    prop_force_apply_(net, cur.first, cur.second);
+}
+
+/* %force/prop/v <var>, <pid>, <wid>: pop a vec4 and force it into
+   property <pid> of the unpacked struct variable <var>. */
+bool of_FORCE_PROP_V(vthread_t thr, vvp_code_t cp)
+{
+      vvp_vector4_t val = thr->pop_vec4();
+      unsigned wid = cp->bit_idx[1];
+      if (wid && val.size() != wid) val.resize(wid);
+      prop_force_entry_s&ent = prop_force_begin_(cp->net, cp->bit_idx[0]);
+      ent.is_real = false;
+      ent.vec = val;
+      prop_force_apply_(cp->net, cp->bit_idx[0], ent);
+      return true;
+}
+
+/* %force/prop/r <var>, <pid>: pop a real and force it into property <pid>. */
+bool of_FORCE_PROP_R(vthread_t thr, vvp_code_t cp)
+{
+      double val = thr->pop_real();
+      prop_force_entry_s&ent = prop_force_begin_(cp->net, cp->bit_idx[0]);
+      ent.is_real = true;
+      ent.real = val;
+      prop_force_apply_(cp->net, cp->bit_idx[0], ent);
+      return true;
+}
+
+/* %force/link/prop <var>, <source>: make the member force that the
+   preceding %force/prop/v or /r installed follow <source> continuously. */
+bool of_FORCE_LINK_PROP(vthread_t, vvp_code_t cp)
+{
+      vvp_net_t*net = prop_force_pending_net_;
+      size_t pid = prop_force_pending_pid_;
+      prop_force_pending_net_ = nullptr;
+      if (net != cp->net || !cp->net2) return true;
+      auto found = prop_forces_.find(net);
+      if (found == prop_forces_.end()) return true;
+      auto ent = found->second.find(pid);
+      if (ent == found->second.end()) return true;
+      unsigned wid = ent->second.is_real ? 0 : ent->second.vec.size();
+      vvp_net_t*node = new vvp_net_t;
+      prop_force_relay*relay = new prop_force_relay(net, pid, wid);
+      node->fun = relay;
+      ent->second.relay = relay;
+      cp->net2->link(vvp_net_ptr_t(node, 0));
+      return true;
+}
+
+/* %release/prop <var>, <pid>: release a forced struct member. It keeps
+   its value until the next assignment (IEEE 1800-2023 10.6.2). */
+bool of_RELEASE_PROP(vthread_t, vvp_code_t cp)
+{
+      auto found = prop_forces_.find(cp->net);
+      if (found == prop_forces_.end()) return true;
+      size_t pid = cp->bit_idx[0];
+      auto ent = found->second.find(pid);
+      if (ent == found->second.end()) return true;
+      if (ent->second.relay) ent->second.relay->active = false;
+      if (vvp_cobject*cobj = ent->second.frozen.peek<vvp_cobject>())
+	    cobj->freeze_prop(pid, false);
+      found->second.erase(ent);
+      if (found->second.empty()) prop_forces_.erase(found);
+      return true;
+}
+
 bool of_FORCE_LINK(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*dst = cp->net;

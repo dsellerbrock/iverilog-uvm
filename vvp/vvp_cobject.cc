@@ -1041,6 +1041,7 @@ void vvp_cobject::randc_container_unmark(size_t pid, size_t position,
 
 vvp_cobject::~vvp_cobject()
 {
+      delete frozen_props_;
 	if (defn_->is_covergroup())
 	    defn_->covgrp_live_remove(this);
 
@@ -1097,8 +1098,23 @@ vvp_net_t* vvp_cobject::get_inst_event(uint32_t slot)
       return net;
 }
 
+int vvp_cobject::force_bypass = 0;
+
+void vvp_cobject::freeze_prop(size_t pid, bool frozen)
+{
+      if (frozen) {
+	    if (!frozen_props_) frozen_props_ = new std::set<size_t>;
+	    frozen_props_->insert(pid);
+      } else if (frozen_props_) {
+	    frozen_props_->erase(pid);
+	    if (frozen_props_->empty()) { delete frozen_props_; frozen_props_ = nullptr; }
+      }
+}
+
 void vvp_cobject::set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx)
 {
+      if (prop_store_blocked_(pid))
+	    return;
       if (!union_member_access_ok_(pid))
 	    return;
       if (defn_->is_union_type() && union_vec4_ && idx == 0
@@ -1227,6 +1243,8 @@ bool vvp_cobject::get_ref_binding(size_t pid, vvp_object_t&binding) const
 
 void vvp_cobject::set_real(size_t pid, double val, size_t idx)
 {
+      if (prop_store_blocked_(pid))
+	    return;
       if (!union_member_access_ok_(pid))
 	    return;
       double old = defn_->get_real(properties_, pid, idx);

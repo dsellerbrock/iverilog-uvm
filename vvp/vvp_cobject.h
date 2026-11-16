@@ -22,6 +22,7 @@
 # include  <string>
 # include  <stdint.h>
 # include  <map>
+# include  <set>
 # include  <vector>
 # include  <utility>
 # include  "vvp_object.h"
@@ -167,6 +168,12 @@ class vvp_cobject : public vvp_object {
 
       void set_vec4(size_t pid, const vvp_vector4_t&val, size_t idx = 0);
       void get_vec4(size_t pid, vvp_vector4_t&val, size_t idx = 0);
+
+	// IEEE 1800-2023 10.6.2: a forced member of an unpacked struct
+	// variable ignores ordinary stores until it is released. Only the
+	// force machinery writes it, raising force_bypass around the store.
+      void freeze_prop(size_t pid, bool frozen);
+      static int force_bypass;
 
 	// A covergroup ref constructor formal keeps the binding captured by
 	// its generated constructor wrapper instead of a construction-time value.
@@ -395,6 +402,9 @@ class vvp_cobject : public vvp_object {
       class_type::inst_t properties_;
       std::map<size_t, vvp_object_t> ref_props_;
       int union_active_member_;
+      std::set<size_t>*frozen_props_ = nullptr;
+      bool prop_store_blocked_(size_t pid) const
+      { return frozen_props_ && !force_bypass && frozen_props_->count(pid); }
       vvp_vector4_t*union_vec4_;
       std::vector<bool> instance_constant_initialized_;
       std::vector<bool> instance_constant_reassignment_reported_;

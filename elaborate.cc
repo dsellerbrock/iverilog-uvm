@@ -29911,31 +29911,36 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
 	    return 0;
       }
 
-	/* An unpacked struct is object-backed and the runtime force
-	   mechanism only handles vector and real values. */
+	/* IEEE 1800-2023 10.6.2: the left-hand side of a force "can be a
+	   reference to a singular variable, a net, ..."; 6.4: an unpacked
+	   structure is not singular. Ruling on #2769: a whole unpacked struct
+	   variable is an error; a singular member of one is legal, and a
+	   vector or real member is supported; a net of a struct nettype is
+	   legal but not supported yet. */
       if (const NetNet*sig = lval->sig()) {
 	    const netstruct_t*st = sig->struct_type();
 	    if (st && !st->packed()) {
-		    /* IEEE 1800-2023 10.6.2: the left-hand side "can be a
-		       reference to a singular variable, a net, ..."; 6.4: an
-		       unpacked structure is not singular. A whole unpacked
-		       struct variable is therefore no force target at all
-		       (ruling on #2769). Its members and nets of a struct
-		       nettype are legal targets that are not supported yet. */
-		  if (sig->type() == NetNet::REG && !sig->declared_user_nettype()
-		      && !sig->user_nettype() && lval->get_property_idx() < 0) {
-			cerr << get_fileline() << ": error: the unpacked struct "
-			     << "variable `" << sig->name() << "' is not singular "
-			     << "and cannot be the target of a force (IEEE "
-			     << "1800-2017/2023 10.6.2, 6.4)." << endl;
-		  } else {
-			cerr << get_fileline() << ": sorry: force of the unpacked "
-			     << "struct `" << sig->name() << "' is not supported."
-			     << endl;
+		  bool variable = sig->type() == NetNet::REG
+			&& !sig->declared_user_nettype() && !sig->user_nettype();
+		  ivl_variable_type_t mtype = lval->expr_type();
+		  bool member_ok = variable && lval->get_property_idx() >= 0
+			&& !lval->word()
+			&& (mtype == IVL_VT_LOGIC || mtype == IVL_VT_BOOL
+			    || mtype == IVL_VT_REAL);
+		  if (!member_ok) {
+			if (variable && lval->get_property_idx() < 0)
+			      cerr << get_fileline() << ": error: the unpacked "
+				   << "struct variable `" << sig->name() << "' is "
+				   << "not singular and cannot be the target of a "
+				   << "force (IEEE 1800-2017/2023 10.6.2, 6.4)." << endl;
+			else
+			      cerr << get_fileline() << ": sorry: force of the "
+				   << "unpacked struct `" << sig->name()
+				   << "' is not supported." << endl;
+			des->errors += 1;
+			delete lval;
+			return 0;
 		  }
-		  des->errors += 1;
-		  delete lval;
-		  return 0;
 	    }
       }
 

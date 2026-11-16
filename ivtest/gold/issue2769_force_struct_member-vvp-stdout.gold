@@ -1,0 +1,8 @@
+1 a=10 b=2 r=1.50
+2 a=11 r=2.50 (tracks source)
+3 a=11 b=7 (store to a ignored, b written)
+4 a=11 b=9 r=2.50 (whole store keeps forced members)
+5 a=11 (released: keeps value, no longer tracks)
+6 a=7 (writable again)
+7 b=c (constant force)
+8 b=3 r=3.25
