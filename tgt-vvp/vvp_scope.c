@@ -1543,9 +1543,16 @@ static void draw_logic_delay(ivl_net_logic_t lptr)
 	    delay_wid = 0;
       }
 
-      draw_delay(lptr, delay_wid, 0, rise_exp, fall_exp, decay_exp,
-		 ivl_logic_delay_is_per_bit(lptr),
-		 ivl_logic_delay_is_whole_vector(lptr));
+      ivl_drive_t str0 = ivl_logic_drive0(lptr);
+      ivl_drive_t str1 = ivl_logic_drive1(lptr);
+      int strength = str0 != IVL_DR_STRONG || str1 != IVL_DR_STRONG;
+      draw_delay_with_suffix(lptr, delay_wid, 0, rise_exp, fall_exp, decay_exp,
+                             ivl_logic_delay_is_per_bit(lptr),
+                             ivl_logic_delay_is_whole_vector(lptr),
+                             strength ? "/delay" : "");
+      if (strength)
+            fprintf(vvp_out, "L_%p .functor DRIVE_INIT %u [%d %d], L_%p/delay;\n",
+                    lptr, delay_wid, str0, str1, lptr);
 }
 
 static void draw_udp_def(ivl_udp_t udp)
