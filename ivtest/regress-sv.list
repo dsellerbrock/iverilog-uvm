@@ -6988,3 +6988,5 @@ issue3396_default_nettype_uwire_2023 normal,-g2023,-s,top ivltests gold=issue339
 issue3396_default_nettype_uwire_multi_2023 CE,-g2023,-s,top ivltests gold=issue3396_default_nettype_uwire_multi_2023.gold
 issue3485_switch_vector_2017 normal,-g2017,-s,top ivltests gold=issue3485_switch_vector.gold
 issue3485_switch_vector_2023 normal,-g2023,-s,top ivltests gold=issue3485_switch_vector.gold
+issue3469_sformatf_integral_2017 normal,-g2017,-s,issue3469_sformatf_integral ivltests gold=issue3469_sformatf_integral.gold
+issue3469_sformatf_integral_2023 normal,-g2023,-s,issue3469_sformatf_integral ivltests gold=issue3469_sformatf_integral.gold
