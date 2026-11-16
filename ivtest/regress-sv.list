@@ -6948,3 +6948,5 @@ issue3435_edge_path_2017 normal,-g2017,-gspecify,-s,issue3435_edge_path ivltests
 issue3435_edge_path_2023 normal,-g2023,-gspecify,-s,issue3435_edge_path ivltests gold=issue3435_edge_path.gold
 issue3464_notif_strength_2017 normal,-g2017,-s,issue3464_notif_strength ivltests gold=issue3464_notif_strength.gold
 issue3464_notif_strength_2023 normal,-g2023,-s,issue3464_notif_strength ivltests gold=issue3464_notif_strength.gold
+issue3465_mos_vector_strength_2017 normal,-g2017,-s,top ivltests gold=issue3465_mos_vector_strength.gold
+issue3465_mos_vector_strength_2023 normal,-g2023,-s,top ivltests gold=issue3465_mos_vector_strength.gold

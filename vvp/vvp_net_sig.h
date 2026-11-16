@@ -871,12 +871,14 @@ class vvp_wire_vec8 : public vvp_wire_base {
 	// discards strengths only when the sampled expression consumes it.
       void enable_sample_hist() { hist_enabled_ = true; }
       void vec4_preponed_value(vvp_vector4_t&val) const;
+      void set_two_state() { two_state_ = true; }
 
     private:
       vvp_scalar_t filtered_value_(unsigned idx) const;
       void hist_snapshot_();
 
     private:
+      bool two_state_ = false;
       bool needs_init_;
       bool width_error_reported_;
       vvp_vector8_t bits8_;

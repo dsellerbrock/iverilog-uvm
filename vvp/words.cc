@@ -854,6 +854,7 @@ static void do_compile_net(vvp_net_t*node, vvp_array_t array,
 		  vsig = new vvp_wire_vec4(wid,BIT4_Z);
 		  break;
 		case -vpiLogicVar:
+		case -vpiIntVar:
 		  vsig = new vvp_wire_vec8(wid);
 		  break;
 	    }
@@ -863,6 +864,9 @@ static void do_compile_net(vvp_net_t*node, vvp_array_t array,
       if (vpi_type_code == vpiIntVar)
 	    if (vvp_wire_vec4*wire4 = dynamic_cast<vvp_wire_vec4*>(vsig))
 		  wire4->set_two_state();
+      if (vpi_type_code == -vpiIntVar)
+            if (vvp_wire_vec8*wire8 = dynamic_cast<vvp_wire_vec8*>(vsig))
+                  wire8->set_two_state();
 
       vpiHandle obj = 0;
       if (! local_flag) {

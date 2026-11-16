@@ -401,6 +401,12 @@ int can_elide_bufz(ivl_net_logic_t net, ivl_nexus_ptr_t nptr)
 	    if (ivl_nexus_ptr_log(in_np) == net)
 		  continue;
 
+            /* A select may carry input strength; the BUFZ establishes
+               the continuous assignment's own drive strength. */
+            ivl_lpm_t lpm = ivl_nexus_ptr_lpm(in_np);
+            if (lpm && ivl_lpm_type(lpm) == IVL_LPM_PART_VP)
+                  return 0;
+
 	      /* If the driver for the source does not match the
 		 expected drive, then we need to keep the bufz. This
 		 test also catches the case that the input device is
