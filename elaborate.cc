@@ -57705,6 +57705,24 @@ Design* elaborate(list<perm_string>roots)
       }
       } while (pform_activate_deferred_binds(des));
 
+      // IEEE 1800-2017/2023 25.5 applies to every interface declaration,
+      // including nested and uninstantiated interfaces. Library loading may
+      // have added declarations while elaborating the scope work list.
+      for (const Module*interface : pform_interfaces) {
+	    for (const auto&mp : interface->modports) {
+		  if (!mp.second) continue;
+		  for (const auto&sp : mp.second->simple_ports) {
+			if (sp.second.second == nullptr &&
+			    interface->wires.count(sp.first) == 0) {
+			      cerr << interface->get_fileline() << ": error: Modport port '"
+			           << sp.first << "' is not declared in interface '"
+			           << interface->mod_name() << "'." << endl;
+			      des->errors += 1;
+			}
+		  }
+	    }
+      }
+
       // Library loading during scope elaboration can parse more directives.
       if (gn_system_verilog())
 	    des->set_precision(pform_get_min_timescale_precision());
