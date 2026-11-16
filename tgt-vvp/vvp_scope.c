@@ -1106,6 +1106,14 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    fprintf(vvp_out, ";\n");
 	    emit_unpacked_dims_(sig);
 	    note_signal_vartype(sig, "");
+	    if (virtual_interface) {
+		  const char*defname = ivl_type_interface_defname(arr_elem_type);
+		  const char*modport = ivl_signal_attr(sig, "ivl_modport");
+		  if (!defname) defname = ivl_type_name(arr_elem_type);
+		  fprintf(vvp_out, " .vartype v%p, \"I%zu:%s", sig,
+		          strlen(defname), vvp_mangle_name(defname));
+		  fprintf(vvp_out, "%s\";\n", modport ? vvp_mangle_name(modport) : "");
+	    }
 
       } else if (ivl_signal_dimensions(sig) > 0) {
 	    unsigned word_count = ivl_signal_array_count(sig);
@@ -1252,6 +1260,14 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 			  storage_flag,
 			  vvp_mangle_name(ivl_signal_basename(sig)),
 			  ivl_signal_local(sig)? " Local signal" : "");
+	    }
+	    if (ivl_type_is_interface(var_type)) {
+		  const char*defname = ivl_type_interface_defname(var_type);
+		  const char*modport = ivl_signal_attr(sig, "ivl_modport");
+		  if (!defname) defname = ivl_type_name(var_type);
+		  fprintf(vvp_out, " .vartype v%p_0, \"I%zu:%s", sig,
+		          strlen(defname), vvp_mangle_name(defname));
+		  fprintf(vvp_out, "%s\";\n", modport ? vvp_mangle_name(modport) : "");
 	    }
 
       } else {
