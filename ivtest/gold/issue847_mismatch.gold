@@ -1,0 +1,2 @@
+./ivltests/issue847_mismatch.sv:7: error: Formal type `T' resolves to a different declaration than in the extern prototype (IEEE 1800-2017/2023 8.24).
+./ivltests/issue847_mismatch.sv:8: error: Formal type `T' resolves to a different declaration than in the extern prototype (IEEE 1800-2017/2023 8.24).

@@ -6976,3 +6976,7 @@ issue3531_scope_randomize_method_2017 normal,-g2017,-s,tb ivltests gold=issue353
 issue3531_scope_randomize_method_2023 normal,-g2023,-s,tb ivltests gold=issue3531_scope_randomize_method.gold
 issue3315_nested_darray_2017 normal,-g2017,-s,top ivltests gold=issue3315_nested_darray.gold
 issue3315_nested_darray_2023 normal,-g2023,-s,top ivltests gold=issue3315_nested_darray.gold
+issue847_mismatch_2017 CE,-g2017,-s,main ivltests gold=issue847_mismatch.gold
+issue847_match_2017 normal,-g2017,-s,main ivltests gold=issue847_match.gold
+issue847_mismatch_2023 CE,-g2023,-s,main ivltests gold=issue847_mismatch.gold
+issue847_match_2023 normal,-g2023,-s,main ivltests gold=issue847_match.gold

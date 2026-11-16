@@ -1,0 +1,1 @@
+{"type":"CE","source":"issue847_mismatch.sv","iverilog-args":["-g2017","-s","main"],"gold":"issue847_mismatch"}
