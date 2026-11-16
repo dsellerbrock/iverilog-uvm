@@ -59,6 +59,18 @@ ruled). A provisional reading an agent built on before a ruling is marked "provi
 | 2026-11-14 | 33.4.1.2 to 33.4.1.6 | #881 | Precedence of the selection clauses (the text only says that default is the least specific) | instance, then cell with a library, then cell, then default. The liblist and the use binding are each taken from the most specific clause that has one. The same selection with the same kind of clause twice is an error. | owner (user ruling 2026-11-14) |
 | 2026-11-14 | 33.4.1.5, 33.6.2 | #881 | A cell that none of the libraries in the liblist has | Unbound, an error: libraries outside the liblist are not searched ("shall not be used"). A `-y` directory is still searched, and its cell binds only if it lands in a library of the liblist. | explicit text |
 | 2026-11-14 | 33.4.3 | #881 | A hierarchical name such as `top.WIDTH` in a config override, where a constant expression otherwise allows none | Accepted when it is a parameter: the override is elaborated in the parent scope of the instance with the identifiers legal in a bind statement. A localparam of the config stands for its literal wherever the config names it. | explicit text |
+| 2026-11-16 | 16.9.3 | #709 | What a procedural `$sampled(x)` returns | The Preponed (sampled) value, not the live value. | owner |
+| 2026-11-16 | 18.5.9 (2023), 18.5.10 (2017) | #832 | Amends the 2026-11-12 row: does `-gcommercial-unsafe` relax both cases? | A non-rand `solve ... before` target is always an error. A circular ordering is an error in strict modes and a warning under `-gcommercial-unsafe`. | owner |
+| 2026-11-16 | 18.5 | #1446 | Amends the 2026-11-12 row: `++`/`--` in a constraint under `-gcommercial-unsafe` | A compile error in strict modes; a warning under `-gcommercial-unsafe`. | owner |
+| 2026-11-16 | 18.3 | #2726 | An x/z value read by a constraint (for example an x/z enum `next()`/`prev()` step) | `randomize()` fails; the value is not read as 0. | owner |
+| 2026-11-16 | 37.39 | #1299 | A specify block in an interface | Illegal; keep rejecting it. | owner |
+| 2026-11-16 | 28.8 | #3472 | A `tranif` whose control is a net it connects oscillates in zero time | The settle loop hits an iteration cap and stops with a named run-time error instead of hanging. | owner |
+| 2026-11-16 | 6.23 | A8 class-B Q1 (issue to be filed) | `type(this)` declarations: the text requires `var`, its own example omits it | Accept both: `var type(this) x;` must compile (main rejecting it is a bug); the example's form without `var` stays accepted for compatibility. | owner |
+| 2026-11-16 | 7.5.2, 7.10.2.1 | A8 class-B Q2 (issue to be filed) | `.size()` on a fixed-size array parameter | An error in strict modes, as on a fixed-size array variable: `size()` is defined only for dynamic arrays, queues and associative arrays. | owner |
+| 2026-11-16 | 18.5.6 (2017) | A8 class-B Q3 | A non-random `real` in a constraint implication predicate under `-g2017` | Accepted, with a warning under `-g2017`; 1800-2023 explicitly allows `real`. | owner |
+| 2026-11-16 | 8.23 | A8 class-B Q4 | `C::f()` calling a non-static method from outside the class | An error: there is no object, and `::` reaches only static members. | owner |
+| 2026-11-16 | 11.3, Table 11-1 | A8 class-B Q5 | Bitwise operators on a `real` operand | An error; Table 11-1 does not list them for `real`. | owner |
+| 2026-11-16 | 22.5.1 | A8 class-B Q6 (issue to be filed) | The `` `` `` paste operator outside a macro definition | An error in strict modes; a warning under `-gcommercial-unsafe` (the 2026-11-10 pattern). | owner |
 
 ## Process rulings
 
