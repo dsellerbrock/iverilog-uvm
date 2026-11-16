@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2947_vpi_packed_struct_member.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2947_vpi_packed_struct_member_2017"],
+  "vpi-sources": ["vpi/issue2947_vpi_packed_struct_member.c"],
+  "output-contains": ["VPI PACKED MEMBER PASS", "ps=365"]
+}
