@@ -1,0 +1,15 @@
+We1_We0 We1 We1 We1 Me1 Me1 Me1 We1 We1 Me1 St1 St1
+Pu1_We0 Pu1 Pu1 Pu1 We1 We1 We1 We1 Pu1 We1 St1 St1
+Pu1_We0 Pu1 Pu1 Pu1 We1 We1 We1 We1 We0 Me0 St1 St0
+Pu1_We0 Pu1 Pu1 Pu1 We1 We1 We1 We1 Pu1 We1 St1 St1
+Pu0_We1 Pu0 Pu0 Pu0 We0 We0 We0 We0 Pu0 We0 St0 St0
+We0_We1 We0 We0 We0 Me0 Me0 Me0 We0 We0 Me0 St0 St0
+WeX_WeX WeX WeX WeX MeX MeX MeX WeX WeX MeX StX StX
+HiZ_WeX HiZ HiZ HiZ HiZ HiZ HiZ HiZ HiZ HiZ HiZ HiZ
+HiZ_WeX HiZ HiZ HiZ HiZ HiZ HiZ HiZ StX PuX HiZ StX
+HiZ_WeX HiZ HiZ HiZ HiZ HiZ HiZ HiZ StX PuX HiZ StX
+supply: Su1_HiZ St1 Pu1
+two-state: 1 0 1
+two-state: 1 1 0
+two-state: 0 0 1
+two-state arrays: 0z 00 0z 00

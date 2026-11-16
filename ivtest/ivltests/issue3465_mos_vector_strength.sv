@@ -1,0 +1,57 @@
+module top;
+  reg data, enable_pull;
+  reg [1:0] index;
+  wire [1:0] v;
+  wire [1:0] supply_bits;
+  wire scalar, n, p, c, rn, rp, rc, reference, dynamic_n, dynamic_rn;
+  wire assigned_bit, assigned_dynamic;
+  wire supply_n, supply_rn;
+  logic [1:0] input_bits;
+  logic other;
+  bit two_state;
+  bit signed [1:0] signed_array [0:1];
+  bit [1:0] unsigned_array [0:1];
+  logic [1:0] other_signed, other_unsigned;
+  wire inverted = ~two_state;
+  assign {other, two_state} = input_bits;
+  assign {other_signed, signed_array[0]} = {input_bits, input_bits};
+  assign {other_unsigned, unsigned_array[0]} = {input_bits, input_bits};
+  assign (weak0, weak1) v[1] = data;
+  assign (pull0, pull1) v[1] = enable_pull ? data : 1'bz;
+  assign (weak0, weak1) v[0] = ~data;
+  assign (weak0, weak1) scalar = data;
+  assign assigned_bit = v[1];
+  assign assigned_dynamic = v[index];
+  assign (supply0, supply1) supply_bits[1] = 1'b1;
+  nmos (n, v[1], 1'b1);
+  pmos (p, v[1], 1'b0);
+  cmos (c, v[1], 1'b1, 1'b0);
+  rnmos (rn, v[1], 1'b1);
+  rpmos (rp, v[1], 1'b0);
+  rcmos (rc, v[1], 1'b1, 1'b0);
+  nmos (reference, scalar, 1'b1);
+  nmos (dynamic_n, v[index], 1'b1);
+  rnmos (dynamic_rn, v[index], 1'b1);
+  nmos (supply_n, supply_bits[1], 1'b1);
+  rnmos (supply_rn, supply_bits[1], 1'b1);
+  task show;
+    $display("%v %v %v %v %v %v %v %v %v %v %v %v", v, n, p, c, rn, rp, rc, reference, dynamic_n, dynamic_rn, assigned_bit, assigned_dynamic);
+  endtask
+  initial begin
+    data = 1; enable_pull = 0; index = 1; #1 show;
+    enable_pull = 1; #1 show;
+    index = 0; #1 show;
+    index = 1; #1 show;
+    data = 0; #1 show;
+    enable_pull = 0; #1 show;
+    data = 1'bx; #1 show;
+    data = 1'bz; #1 show;
+    index = 2; #1 show;
+    index = 2'bx; #1 show;
+    $display("supply: %v %v %v", supply_bits, supply_n, supply_rn);
+    input_bits = 2'b1x; #1 $display("two-state: %b %b %b", other, two_state, inverted);
+    input_bits = 2'b11; #1 $display("two-state: %b %b %b", other, two_state, inverted);
+    input_bits = 2'b0z; #1 $display("two-state: %b %b %b", other, two_state, inverted);
+    $display("two-state arrays: %b %b %b %b", other_signed, signed_array[0], other_unsigned, unsigned_array[0]);
+  end
+endmodule

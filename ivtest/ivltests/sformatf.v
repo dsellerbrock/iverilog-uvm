@@ -34,7 +34,7 @@ initial begin
     // Test constant values
     // Integers
     f = $sformatf("sformatf test 1: %b %d %o %x", 8'd120, -12, 331, 120, 97);
-    if(f != "sformatf test 1: 01111000         -12 00000000513 00000078         97") begin
+    if(f != "sformatf test 1: 01111000         -12 00000000513 00000078") begin
         $display(f);
         $display("FAILED 1");
         $finish();

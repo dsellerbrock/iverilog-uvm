@@ -8779,6 +8779,10 @@ void pform_set_clocking_default_skews(const struct vlltype&loc,
    so an undeclared production-condition name cannot degrade to the generic
    compile-progress warning and silently select the else branch. */
 static void sva_mark_strict_(PExpr*e, bool assertion = true);
+/* The implicit randsequence return-value arrays (18.17.7). A select of a
+   name substituted by one of these is an array select, not a post-select
+   of an expression value. */
+static std::set<perm_string> pform_rs_value_arrays_;
 static PExpr* sva_clone_subst_(
       PExpr*e, const std::map<perm_string,PExpr*>*subst);
 static parmvalue_t* sva_clone_parmvalue_(
@@ -8817,6 +8821,10 @@ struct pform_rs_expand_ctx_t {
       std::map<perm_string,rs_production_t*>&pmap;
       LexicalScope* lexical_parent;
       std::set<perm_string> active;
+	/* IEEE 1800-2023 18.17.7: a value-returning production that appears
+	   more than once in a rule is an implicit array [1:N]. Each such
+	   CALL item maps to that array and its 1-based syntactic position. */
+      std::map<const rs_item_t*, std::pair<perm_string,unsigned> > occurrence;
       size_t nodes = 0;
       unsigned scope_id = 0;
       bool bad = false;
@@ -8889,6 +8897,66 @@ static perm_string pform_rs_return_var_(pform_rs_expand_ctx_t&ctx,
 	  FILE_NAME(wire, ctx.loc);
       pform_put_wire_in_scope(prod.return_var, wire);
       return prod.return_var;
+}
+
+static void pform_rs_collect_calls_(const rs_item_t&item,
+				    std::vector<const rs_item_t*>&calls)
+{
+      if (item.kind == rs_item_t::CALL) {
+	    calls.push_back(&item);
+	    return;
+      }
+      if (item.first) pform_rs_collect_calls_(*item.first, calls);
+      if (item.second) pform_rs_collect_calls_(*item.second, calls);
+      if (item.cases) for (const rs_case_item_t&case_item : *item.cases)
+	    if (case_item.item) pform_rs_collect_calls_(*case_item.item, calls);
+	// rand join productions are void, so they return nothing here.
+}
+
+static unsigned pform_rs_values_var_id_ = 0;
+
+/* IEEE 1800-2023 18.17.7: "If a production appears multiple times, the
+   type is an array where the element type is the return type of the
+   production. The array is indexed from 1 to the number of times the
+   production appears within the rule", assigned in syntactic order. */
+static void pform_rs_number_occurrences_(pform_rs_expand_ctx_t&ctx,
+					 const rs_rule_t&rule,
+					 std::map<perm_string,PExpr*>&subst)
+{
+      if (!rule.items) return;
+      std::vector<const rs_item_t*> calls;
+      for (const rs_item_t&item : *rule.items)
+	    pform_rs_collect_calls_(item, calls);
+      std::map<perm_string, std::vector<const rs_item_t*> > by_name;
+      for (const rs_item_t*call : calls) {
+	    std::map<perm_string,rs_production_t*>::const_iterator found =
+		  ctx.pmap.find(call->name);
+	    if (found != ctx.pmap.end() && found->second->return_type)
+		  by_name[call->name].push_back(call);
+      }
+      for (const auto&entry : by_name) {
+	    if (entry.second.size() < 2) continue;
+	    std::ostringstream text;
+	    text << "$ivl_randsequence_values_" << pform_rs_values_var_id_++;
+	    perm_string name = lex_strings.make(text.str().c_str());
+	    PWire*wire = new PWire(name, UINT_MAX, NetNet::REG,
+				   NetNet::NOT_A_PORT);
+	    wire->set_data_type(ctx.pmap[entry.first]->return_type);
+	    std::list<pform_range_t> dims;
+	    dims.push_back(pform_range_t(
+		  new PENumber(new verinum((uint64_t)1, 32)),
+		  new PENumber(new verinum((uint64_t)entry.second.size(), 32))));
+	    wire->set_unpacked_idx(dims);
+	    FILE_NAME(wire, ctx.loc);
+	    pform_put_wire_in_scope(name, wire);
+	    pform_rs_value_arrays_.insert(name);
+	    for (size_t idx = 0 ; idx < entry.second.size() ; ++idx)
+		  ctx.occurrence[entry.second[idx]] =
+			std::make_pair(name, (unsigned)idx + 1);
+	    std::map<perm_string,PExpr*>::iterator old = subst.find(entry.first);
+	    if (old != subst.end()) delete old->second;
+	    subst[entry.first] = new PEIdent(name, UINT_MAX);
+      }
 }
 
 static void pform_rs_delete_subst_(std::map<perm_string,PExpr*>&subst)
@@ -9331,6 +9399,7 @@ static Statement* pform_rs_expand_join_(
 	    if (!pform_rs_bind_actuals_(ctx, *prod, call.actuals, outer,
 					  lane.subst, join_scope, initializers,
 					  lex_strings.make(prefix))) break;
+	    pform_rs_number_occurrences_(ctx, rule, lane.subst);
 	    lanes.push_back(lane);
       }
       ctx.lexical_parent = saved_parent;
@@ -9409,6 +9478,33 @@ static Statement* pform_rs_expand_item_(
 		  ctx.pmap.find(item.name);
 	    if (found != ctx.pmap.end() && found->second->return_type) {
 		  perm_string name = pform_rs_return_var_(ctx, *found->second);
+		  std::map<const rs_item_t*, std::pair<perm_string,unsigned> >
+			::const_iterator occ = ctx.occurrence.find(&item);
+		  if (occ != ctx.occurrence.end() && expanded) {
+			/* Copy this instance's value into its element at once,
+			   before another instance (or join lane) reuses the
+			   production's return variable. */
+			pform_name_t element;
+			element.push_back(name_component_t(occ->second.first));
+			index_component_t select;
+			select.sel = index_component_t::SEL_BIT;
+			select.msb = new PENumber(new verinum(
+			      (uint64_t)occ->second.second, 32));
+			element.back().index.push_back(select);
+			PEIdent*lval = new PEIdent(element, UINT_MAX);
+			lval->set_line(item);
+			PEIdent*rval = new PEIdent(name, UINT_MAX);
+			rval->set_line(item);
+			PAssign*copy = new PAssign(lval, rval);
+			copy->set_line(item);
+			std::vector<Statement*> both;
+			both.push_back(expanded);
+			both.push_back(copy);
+			std::map<perm_string,PExpr*>::iterator old = subst->find(item.name);
+			if (old != subst->end()) delete old->second;
+			(*subst)[item.name] = new PEIdent(occ->second.first, UINT_MAX);
+			return pform_rs_block_(item, both);
+		  }
 		  std::map<perm_string,PExpr*>::iterator old = subst->find(item.name);
 		  if (old != subst->end()) delete old->second;
 		  (*subst)[item.name] = new PEIdent(name, UINT_MAX);
@@ -9494,6 +9590,7 @@ static Statement* pform_rs_expand_rule_(
       std::map<perm_string,PExpr*> local_subst;
       if (subst) for (const auto&entry : *subst)
 	    local_subst[entry.first] = sva_clone_subst_(entry.second, nullptr);
+      pform_rs_number_occurrences_(ctx, rule, local_subst);
       std::vector<Statement*> statements;
       if (rule.items) for (const rs_item_t&item : *rule.items) {
 	    Statement*expanded = pform_rs_expand_item_(ctx, item, &local_subst,
@@ -12050,6 +12147,203 @@ static void sva_rec_check_scope_(void)
       }
 }
 
+/* IEEE 1800-2017/2023 16.10: "The sequence or property shall assign a value
+   to the local variable prior to the point at which the reference is made."
+   Flow follows F.5.4: each operand of or/and/intersect/within starts from
+   the incoming set. The out-sets are generous (whatever an operand may
+   assign counts as assigned, except a variable assigned in both operands
+   of and/intersect/within, which does not flow out), so a reference is
+   diagnosed only when no path can have assigned it. */
+typedef std::set<perm_string> sva_lv_set_t;
+
+/* Locals read by e. A local passed to a non-system call (a sequence instance
+   may assign an output local formal) is collected in passed instead. */
+static void sva_lv_reads_(PExpr*e, const sva_lv_set_t&locals,
+			  sva_lv_set_t&reads, sva_lv_set_t&passed)
+{
+      if (!e) return;
+      if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    const pform_name_t&name = id->path().name;
+	    if (!id->path().package && name.size() == 1
+		&& locals.count(name.front().name))
+		  reads.insert(name.front().name);
+	    for (const name_component_t&comp : name)
+		  for (const index_component_t&idx : comp.index) {
+			sva_lv_reads_(idx.msb, locals, reads, passed);
+			if (idx.lsb != idx.msb)
+			      sva_lv_reads_(idx.lsb, locals, reads, passed);
+		  }
+	    return;
+      }
+      if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
+	    bool system = !cf->path().name.empty()
+		  && peek_tail_name(cf->path().name).str()[0] == '$';
+	    for (const named_pexpr_t&arg : cf->get_parms())
+		  sva_lv_reads_(arg.parm, locals, system ? reads : passed, passed);
+	    return;
+      }
+      if (PEUnary*un = dynamic_cast<PEUnary*>(e))
+	    return sva_lv_reads_(un->get_expr(), locals, reads, passed);
+      if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
+	    sva_lv_reads_(bin->get_left(), locals, reads, passed);
+	    return sva_lv_reads_(bin->get_right(), locals, reads, passed);
+      }
+      if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
+	    sva_lv_reads_(ter->get_cond(), locals, reads, passed);
+	    sva_lv_reads_(ter->get_true(), locals, reads, passed);
+	    return sva_lv_reads_(ter->get_false(), locals, reads, passed);
+      }
+      if (PECastSize*cast = dynamic_cast<PECastSize*>(e))
+	    return sva_lv_reads_(cast->cast_base(), locals, reads, passed);
+      if (PECastType*cast = dynamic_cast<PECastType*>(e))
+	    return sva_lv_reads_(cast->cast_base(), locals, reads, passed);
+      if (PECastSign*cast = dynamic_cast<PECastSign*>(e))
+	    return sva_lv_reads_(cast->cast_base(), locals, reads, passed);
+      if (PEConcat*cat = dynamic_cast<PEConcat*>(e))
+	    for (PExpr*part : cat->stream_parms())
+		  sva_lv_reads_(part, locals, reads, passed);
+}
+
+static bool sva_lv_check_read_(const struct vlltype&loc, PExpr*e,
+			       const sva_lv_set_t&locals, sva_lv_set_t&assigned)
+{
+      sva_lv_set_t reads, passed;
+      sva_lv_reads_(e, locals, reads, passed);
+      for (perm_string name : reads) {
+	    if (assigned.count(name)) continue;
+	    cerr << loc << ": error: local variable `" << name << "' is "
+		 << "referenced where it is unassigned; it shall be assigned "
+		 << "before the reference (IEEE 1800-2017/2023 16.10, F.5.4)."
+		 << endl;
+	    error_count += 1;
+	    return false;
+      }
+      assigned.insert(passed.begin(), passed.end());
+      return true;
+}
+
+static bool sva_lv_flow_chain_(const struct vlltype&loc,
+			       const std::vector<sva_seq_step_t>*chain,
+			       const sva_lv_set_t&locals,
+			       sva_lv_set_t&assigned, sva_lv_set_t&written)
+{
+      if (!chain) return true;
+      for (const sva_seq_step_t&st : *chain) {
+	    if (!sva_lv_check_read_(loc, st.expr, locals, assigned))
+		  return false;
+	    for (const sva_match_item_t&item : st.items) {
+		  if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT) {
+			if (!sva_lv_check_read_(loc, item.lv_rhs, locals, assigned))
+			      return false;
+			assigned.insert(item.lv_name);
+			written.insert(item.lv_name);
+		  } else if (item.call) {
+			for (const named_pexpr_t&arg : item.call->parms())
+			      if (!sva_lv_check_read_(loc, arg.parm, locals, assigned))
+				    return false;
+		  }
+	    }
+      }
+      return true;
+}
+
+static bool sva_lv_flow_tree_(const struct vlltype&loc, const sva_stree_t*t,
+			      const sva_lv_set_t&locals,
+			      sva_lv_set_t&assigned, sva_lv_set_t&written)
+{
+      if (!t) return true;
+      switch (t->kind) {
+	  case sva_stree_t::LEAF:
+	    return sva_lv_flow_chain_(loc, t->chain, locals, assigned, written);
+	  case sva_stree_t::SEQ_CONCAT:
+	    return sva_lv_flow_tree_(loc, t->a, locals, assigned, written)
+		&& sva_lv_flow_tree_(loc, t->b, locals, assigned, written);
+	  case sva_stree_t::SEQ_THROUGHOUT:
+	    return sva_lv_check_read_(loc, t->gexpr, locals, assigned)
+		&& sva_lv_flow_tree_(loc, t->a, locals, assigned, written);
+	  default: {
+	    sva_lv_set_t in_a = assigned, in_b = assigned, wa, wb;
+	    if (!sva_lv_flow_tree_(loc, t->a, locals, in_a, wa)
+		|| !sva_lv_flow_tree_(loc, t->b, locals, in_b, wb))
+		  return false;
+	    assigned.insert(in_a.begin(), in_a.end());
+	    assigned.insert(in_b.begin(), in_b.end());
+	    if (t->kind != sva_stree_t::SEQ_OR)
+		  for (perm_string name : wa)
+			if (wb.count(name)) assigned.erase(name);
+	    written.insert(wa.begin(), wa.end());
+	    written.insert(wb.begin(), wb.end());
+	    return true;
+	  }
+      }
+}
+
+static void sva_lv_initialized_(const std::vector<sva_seq_step_t>*chain,
+				sva_lv_set_t&init)
+{
+      if (!chain) return;
+      for (const sva_seq_step_t&st : *chain)
+	    for (const sva_match_item_t&item : st.items)
+		  if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT
+		      && item.lv_initialization)
+			init.insert(item.lv_name);
+}
+
+static void sva_lv_initialized_(const sva_stree_t*t, sva_lv_set_t&init)
+{
+      if (!t) return;
+      sva_lv_initialized_(t->chain, init);
+      sva_lv_initialized_(t->a, init);
+      sva_lv_initialized_(t->b, init);
+}
+
+/* Check a named sequence/property body that contains a sequence tree.
+   Property operators over nested properties and two-operand property
+   forms are left alone. */
+static bool sva_check_local_flow_(const struct vlltype&loc,
+				  const sva_property_t*prop,
+				  const std::vector<sva_seq_step_t>*steps,
+				  const std::vector<perm_string>&local_names)
+{
+	/* A purely linear chain is checked where it is lowered
+	   (sva_lower_local_vars_); this covers the tree operators. */
+      if (local_names.empty() || steps || !prop
+	  || (!prop->tree && !prop->ante_tree))
+	    return true;
+      sva_lv_set_t locals(local_names.begin(), local_names.end());
+      sva_lv_set_t assigned, written;
+      if (prop->pa || prop->pb || prop->op_type > 2)
+	    return true;
+      sva_lv_initialized_(prop->mc_prefix, assigned);
+      sva_lv_initialized_(prop->antecedent, assigned);
+      sva_lv_initialized_(prop->seq, assigned);
+      sva_lv_initialized_(prop->ante_tree, assigned);
+      sva_lv_initialized_(prop->tree, assigned);
+      if (prop->mc_more)
+	    for (const sva_mc_seg_t&seg : *prop->mc_more)
+		  sva_lv_initialized_(seg.chain, assigned);
+      if (!sva_lv_flow_chain_(loc, prop->mc_prefix, locals, assigned, written))
+	    return false;
+      if (prop->ante_tree) {
+	    if (!sva_lv_flow_tree_(loc, prop->ante_tree, locals, assigned, written))
+		  return false;
+      } else if (!sva_lv_flow_chain_(loc, prop->antecedent, locals,
+				     assigned, written)) {
+	    return false;
+      }
+      if (prop->tree) {
+	    if (!sva_lv_flow_tree_(loc, prop->tree, locals, assigned, written))
+		  return false;
+      } else if (!sva_lv_flow_chain_(loc, prop->seq, locals, assigned, written)) {
+	    return false;
+      }
+      if (prop->mc_more)
+	    for (const sva_mc_seg_t&seg : *prop->mc_more)
+		  if (!sva_lv_flow_chain_(loc, seg.chain, locals, assigned, written))
+			return false;
+      return true;
+}
+
 void pform_sva_declare_property(const struct vlltype&loc, const char*name,
 				sva_property_t*prop)
 {
@@ -12057,6 +12351,10 @@ void pform_sva_declare_property(const struct vlltype&loc, const char*name,
       negs.swap(sva_rec_pending_neg_);
       sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
+      if (prop && !sva_check_local_flow_(loc, prop, nullptr, prop->local_names)) {
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
 	  if (!prop || !sva_prepare_clocking_declaration_(loc, prop,
 							"property", name)) {
 		if (prop) pform_sva_destroy_property(prop);
@@ -12094,6 +12392,10 @@ void pform_sva_declare_sequence(const struct vlltype&loc, const char*name,
 	  for (perm_string local : declared_locals)
 		caller_locals[local] = 0;
       pform_sva_end_local_declarations();
+      if (!sva_check_local_flow_(loc, nullptr, steps, declared_locals)) {
+	    pform_sva_destroy_sequence(steps);
+	    return;
+      }
       perm_string use_name = lex_strings.make(name);
       sva_scoped_name_t key = sva_decl_key_(use_name);
       if (sva_module_sequences.count(key)
@@ -12146,6 +12448,10 @@ void pform_sva_declare_sequence_spec(const struct vlltype&loc,
       sva_scoped_name_t key = sva_decl_key_(use_name);
 
       if (!body) return;
+      if (!sva_check_local_flow_(loc, body, nullptr, body->local_names)) {
+	    pform_sva_destroy_property(body);
+	    return;
+      }
 
       if (body->seq) {
 	    std::map<perm_string,unsigned> caller_locals;
@@ -12211,6 +12517,8 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
       negs.swap(sva_rec_pending_neg_);
       sva_attach_local_declarations_(loc, prop);
       pform_sva_end_local_declarations();
+	/* Local formals are not in local_names yet: they start assigned. */
+      if (prop) sva_check_local_flow_(loc, prop, nullptr, prop->local_names);
       perm_string use_name = lex_strings.make(name);
 
       bool bad_local_direction = false;
@@ -12290,6 +12598,8 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 		local_initializers.clear();
 	  }
 	  sva_destroy_local_init_steps_(local_initializers);
+      sva_check_local_flow_(loc, nullptr, steps,
+			    sva_current_local_decl_names_());
       pform_sva_end_local_declarations();
       perm_string use_name = lex_strings.make(name);
       if (sva_param_sequences.count(sva_decl_key_(use_name))
@@ -12744,6 +13054,27 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 			      can_postselect = false;
 			      break;
 			}
+		  const PEIdent*array = it != subst->end()
+			? dynamic_cast<const PEIdent*>(it->second) : nullptr;
+		  if (array && !component.index.empty()
+		      && array->path().name.size() == 1 && !array->path().package
+		      && pform_rs_value_arrays_.count(array->path().name.front().name)) {
+			pform_name_t path;
+			path.push_back(name_component_t(array->path().name.front().name));
+			for (const index_component_t&source : component.index) {
+			      index_component_t index;
+			      index.sel = source.sel;
+			      index.msb = source.msb
+				    ? sva_clone_subst_(source.msb, subst) : nullptr;
+			      index.lsb = source.lsb
+				    ? sva_clone_subst_(source.lsb, subst) : nullptr;
+			      path.back().index.push_back(index);
+			}
+			// Generated after the source text: no declaration-order check.
+			PEIdent*select = new PEIdent(path, UINT_MAX);
+			select->set_line(*e);
+			return select;
+		  }
 		  if (it != subst->end() && can_postselect) {
 			PExpr*value = sva_clone_actual_argument_(it->second, nullptr);
 			if (!value) return nullptr;
@@ -38170,6 +38501,32 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (!sva_sub_request_ && sva_parameter_repeat_try_assertion_(loc, prop, fail_stmt,
 					       pass_stmt, kind))
 	    return;
+
+	/* A grouped antecedent can have only an empty match even though its
+	   retained source steps look like a fixed linear chain. Prove that
+	   there are no consuming paths before reducing the implication to its
+	   consequent, which starts on this tick (16.12.7). */
+      if (prop && prop->op_type == 2 && !prop->tree && !prop->ante_tree
+	  && !prop->seq_clk_evt && !prop->mc_prefix
+	  && (!prop->mc_more || prop->mc_more->empty())
+	  && prop->mc_boundary == -1 && !prop->abort_cond
+	  && !prop->forbidden_consequent && prop->strength == 0
+	  && prop->win_lo == -1 && prop->win_hi == -1 && prop->antecedent
+	  && prop->seq && !prop->seq->empty()) {
+	    bool grouped = false, actions = false;
+	    for (const sva_seq_step_t&step : *prop->antecedent) {
+		  grouped |= step.grouped_repeat;
+		  actions |= sva_step_has_assignment_(step) || sva_step_has_call_(step);
+	    }
+	    sva_nfa_t ante;
+	    if (grouped && !actions
+		&& pform_sva_nfa_build_from_chain(ante, *prop->antecedent)
+		&& ante.accepts_empty && ante.edges.empty()) {
+		  pform_sva_destroy_sequence(prop->antecedent);
+		  prop->antecedent = nullptr;
+		  prop->op_type = 0;
+	    }
+      }
 
 	/* IEEE 1800-2017/2023 16.12.22(c) permits an antecedent that
 	   admits only empty matches for |=>. Its sole match contributes no

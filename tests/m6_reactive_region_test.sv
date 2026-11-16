@@ -9,9 +9,13 @@
 //      program's own nonblocking updates (Re-NBA).
 //  (c) A program's nonblocking update is observable within the same
 //      time slot after the Re-NBA region runs.
-//  (d) A design process triggered by a program's blocking write runs
-//      in the Active region (iterative loopback) before the program's
-//      next #0 continuation.
+//  (d) A design process triggered by a program's blocking write is an
+//      active region set event. IEEE 1800-2023 4.5: "once the Reactive,
+//      Re-Inactive, Pre-Re-NBA, Re-NBA, or Post-Re-NBA regions are
+//      processed, iteration over the other regions does not resume until
+//      these five regions are empty", so the program's #0 (Re-Inactive,
+//      4.4.2.7) continuation runs first; the design reaction follows in
+//      the same time slot.
 module m6_reactive_region_test;
   logic clk = 0;
   logic [7:0] count = 0;
@@ -66,14 +70,25 @@ program m6_reactive_tb;
       errors++;
     end
 
-    // (d) program blocking write -> design Active loopback -> program
-    //     #0 continuation sees the design's reaction
-    m6_reactive_region_test.pv = 1;
-    #0;
-    if (m6_reactive_region_test.seen !== 1) begin
-      $display("FAIL d: seen=%0d (design loopback must run before program #0)",
-               m6_reactive_region_test.seen);
-      errors++;
+    // (d) program blocking write -> program #0 (Re-Inactive) runs before
+    //     the woken design process (Active) -> the design reaction then
+    //     arrives in the same time slot
+    begin
+      time t0;
+      t0 = $time;
+      m6_reactive_region_test.pv = 1;
+      #0;
+      if (m6_reactive_region_test.seen !== 0) begin
+        $display("FAIL d: seen=%0d at program #0 (4.5: the reactive region set empties before Active resumes)",
+                 m6_reactive_region_test.seen);
+        errors++;
+      end
+      wait (m6_reactive_region_test.seen == 1);
+      if ($time != t0) begin
+        $display("FAIL d2: design reaction at %0t, expected same slot %0t",
+                 $time, t0);
+        errors++;
+      end
     end
 
     if (errors == 0) $display("PASS");

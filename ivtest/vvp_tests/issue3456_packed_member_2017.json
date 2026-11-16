@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3456_packed_member.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue3456_packed_member_2017"],
+  "vpi-sources": ["vpi/issue3456_packed_member.c"],
+  "output-contains": ["ISSUE3456 PASS"]
+}

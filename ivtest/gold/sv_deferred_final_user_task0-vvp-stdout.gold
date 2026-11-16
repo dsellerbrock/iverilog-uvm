@@ -1,2 +1,3 @@
 STATIC deferred_final_user_task.report_static VALUE=42
 AUTO deferred_final_user_task.report_auto VALUE=42
+STATIC deferred_final_user_task.report_static VALUE=42

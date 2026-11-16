@@ -58,13 +58,19 @@ class vvp_fun_part_sa  : public vvp_fun_part, public vvp_gen_event_s {
       void recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 			unsigned base, unsigned vwid, vvp_context_t) override;
 
+      void recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit) override;
+      void recv_vec8_pv(vvp_net_ptr_t port, const vvp_vector8_t&bit,
+                        unsigned base, unsigned vwid) override;
+
     private:
       void run_run() override;
 
     private:
       vvp_vector4_t val_;
+      vvp_vector8_t val8_;
       vvp_net_t*net_;
       bool event_synchronous_;
+      bool strength_;
 };
 
 /*
@@ -162,11 +168,16 @@ class vvp_fun_part_var_sa  : public vvp_fun_part_var {
       void recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 			unsigned base, unsigned vwid, vvp_context_t) override;
 
+      void recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit) override;
+      void recv_vec8_pv(vvp_net_ptr_t port, const vvp_vector8_t&bit,
+                        unsigned base, unsigned vwid) override;
+
     private:
+      void update_output(vvp_net_ptr_t port);
       int base_;
-      vvp_vector4_t source_;
+      vvp_vector8_t source_;
 	// Save the last output, for detecting change.
-      vvp_vector4_t ref_;
+      vvp_vector8_t ref_;
 };
 
 /*

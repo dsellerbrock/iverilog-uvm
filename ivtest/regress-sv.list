@@ -807,7 +807,7 @@ sf_countones		normal,-g2009		ivltests
 sf_isunknown		normal,-g2005-sv	ivltests
 sf_onehot		normal,-g2005-sv	ivltests
 sf_onehot0		normal,-g2005-sv	ivltests
-sformatf		normal,-g2009		ivltests
+sformatf		normal,-g2009		ivltests gold=sformatf.gold
 simple_byte		normal,-g2005-sv	ivltests
 simple_int		normal,-g2005-sv	ivltests
 simple_longint		normal,-g2005-sv	ivltests
@@ -6946,3 +6946,11 @@ issue3418_array_bit_2023 normal,-g2023,-s,issue3418_array_bit ivltests gold=issu
 issue3418_overlap_2023 CE,-g2023,-s,issue3418_overlap ivltests gold=issue3418_overlap-legacy.gold
 issue3435_edge_path_2017 normal,-g2017,-gspecify,-s,issue3435_edge_path ivltests gold=issue3435_edge_path.gold
 issue3435_edge_path_2023 normal,-g2023,-gspecify,-s,issue3435_edge_path ivltests gold=issue3435_edge_path.gold
+issue3464_notif_strength_2017 normal,-g2017,-s,issue3464_notif_strength ivltests gold=issue3464_notif_strength.gold
+issue3464_notif_strength_2023 normal,-g2023,-s,issue3464_notif_strength ivltests gold=issue3464_notif_strength.gold
+issue3465_mos_vector_strength_2017 normal,-g2017,-s,top ivltests gold=issue3465_mos_vector_strength.gold
+issue3465_mos_vector_strength_2023 normal,-g2023,-s,top ivltests gold=issue3465_mos_vector_strength.gold
+issue3470_sformatf_extra_2017 normal,-g2017,-s,issue3470_sformatf_extra ivltests gold=issue3470_sformatf_extra.gold
+issue3470_sformatf_extra_2023 normal,-g2023,-s,issue3470_sformatf_extra ivltests gold=issue3470_sformatf_extra.gold
+sv_assert_empty_group_nonoverlap_2017 normal,-g2017 ivltests
+sv_assert_empty_group_nonoverlap_2023 normal,-g2023 ivltests

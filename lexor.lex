@@ -198,6 +198,14 @@ static bool ordinary_function_header_name = false;
  * conflict-neutral strategy used above for an untyped function header; all
  * ordinary `logic' declarations and casts retain K_logic. */
 static unsigned sva_named_decl_header = 0;
+/* IEEE 1800-2023 7.12 (array methods) and 19.5.1.1 (covergroup bins):
+   `item' is the default iterator inside a `with (...)' clause, local to
+   that expression, so it hides a visible type of the same name (a class
+   named `item' is common in testbenches). Count the clause's parens;
+   `item::' and `item #(' still name the type. */
+static bool with_clause_pending = false;
+static unsigned with_clause_depth = 0;
+static bool item_names_type_here = false;
 bool in_celldefine = false;
 UCDriveType uc_drive = UCD_NONE;
 static int ts_state = 0;
@@ -390,6 +398,13 @@ TU [munpf]
 
 <EDGES>"]" { BEGIN(0); return yytext[0]; }
 [}{;:\[\],()#=.@&!?<>%|^~+*/-] {
+      if (yytext[0] == '(') {
+	    if (with_clause_depth) with_clause_depth += 1;
+	    else if (with_clause_pending) with_clause_depth = 1;
+      } else if (yytext[0] == ')' && with_clause_depth) {
+	    with_clause_depth -= 1;
+      }
+      with_clause_pending = false;
       if (yytext[0] == ';' && sva_named_decl_header == 2)
 	    sva_named_decl_header = 3;
       else if (yytext[0] == ';' && sva_named_decl_header == 4)
@@ -504,6 +519,12 @@ TU [munpf]
       return IDENTIFIER;
 }
 
+  /* `item::' / `item #(' inside a with-clause still name the type. */
+"item"/([ \t\b\f\r\n]|[/][*]([^*]|[*]+[^*/])*[*]+[/]|[/][/][^\n]*\n)*("::"|"#") {
+      item_names_type_here = true;
+      REJECT;
+}
+
   /* Preserve an unresolved class name in `function C::new' as an ordinary
      IDENTIFIER. The same first identifier in an untyped ordinary function is
      returned as FUNCTION_IDENTIFIER by the general rule below, avoiding the
@@ -530,6 +551,10 @@ TU [munpf]
 
 [a-zA-Z_][a-zA-Z0-9$_]* {
       int rc = lexor_keyword_code(yytext, yyleng);
+      with_clause_pending = rc == K_with;
+      const bool with_iterator_item = with_clause_depth && rc == IDENTIFIER
+	    && !item_names_type_here && strcmp(yytext, "item") == 0;
+      item_names_type_here = false;
       if (lexor_libmap_mode && (rc == K_library || rc == K_include)) {
 	    libmap_is_include = rc == K_include;
 	    libmap_text.clear();
@@ -716,7 +741,7 @@ TU [munpf]
 	    }
 	}
 
-      if (rc == IDENTIFIER && gn_system_verilog()) {
+      if (rc == IDENTIFIER && gn_system_verilog() && !with_iterator_item) {
 	    if (typedef_t*type = pform_test_type_identifier(yylloc, yylval.text)) {
 		  yylval.type_identifier.text = yylval.text;
 		  yylval.type_identifier.type = type;
@@ -2035,6 +2060,9 @@ static void reset_all()
       pform_set_default_nettype(NetNet::WIRE, yylloc.text, yylloc.first_line);
       in_celldefine = false;
       uc_drive = UCD_NONE;
+      with_clause_pending = false;
+      with_clause_depth = 0;
+      item_names_type_here = false;
       pform_set_timescale(def_ts_units, def_ts_prec, 0, 0);
 }
 
