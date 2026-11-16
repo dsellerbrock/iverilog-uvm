@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3485_switch_vector.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue3485_switch_vector"
+}
