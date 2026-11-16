@@ -1244,6 +1244,35 @@ void vpip_real_get_value(double real, s_vpi_value*vp)
       }
 }
 
+/*
+ * IEEE 1800-2023 38.34: vpiStringVal and vpiStrengthVal are illegal
+ * formats for putting a value to a real object. Report an illegal put as
+ * an error (stderr and vpi_chk_error) so the caller can leave the object
+ * unchanged, instead of aborting in real_from_vpi_value().
+ */
+bool vpip_real_put_format_ok(const s_vpi_value*vp)
+{
+      switch (vp->format) {
+	  case vpiRealVal:
+	  case vpiIntVal:
+	  case vpiScalarVal:
+	  case vpiVectorVal:
+	  case vpiBinStrVal:
+	  case vpiOctStrVal:
+	  case vpiDecStrVal:
+	  case vpiHexStrVal:
+	    return true;
+	  default:
+	    break;
+      }
+      char msg[128];
+      snprintf(msg, sizeof msg, "vpi_put_value: format %d cannot be put "
+	       "to a real object (IEEE 1800-2023 38.34)", (int)vp->format);
+      fprintf(stderr, "VPI error: %s\n", msg);
+      vpip_set_error(vpiError, msg);
+      return false;
+}
+
 double real_from_vpi_value(s_vpi_value*vp)
 {
       vvp_vector4_t vec4(1024);

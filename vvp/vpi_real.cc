@@ -149,6 +149,7 @@ static vpiHandle real_var_put_value(vpiHandle ref, p_vpi_value vp, int flags)
 	    return ref;
       }
 
+      if (!vpip_real_put_format_ok(vp)) return 0;
       double result = real_from_vpi_value(vp);
 
       if (flags == vpiForceFlag) {
