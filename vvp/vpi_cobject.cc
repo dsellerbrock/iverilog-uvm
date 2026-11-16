@@ -453,6 +453,13 @@ vpiHandle __vpiCobjectVar::vpi_handle(int code)
 		vvp_vinterface*vif = obj.peek<vvp_vinterface>();
 		return vif ? vif->vif_scope() : 0;
 	  }
+          case vpiTypespec:
+            if (virtual_interface_)
+                  return __vpiBaseVar::vpi_handle(code);
+            // Class variables use their declared type, even when null or
+            // holding an instance of a derived class.
+            return get_declared_class_typespec_(fun);
+
           case vpiClassTypespec:
             return get_declared_class_typespec_(fun);
 
