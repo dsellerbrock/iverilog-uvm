@@ -1,0 +1,17 @@
+{
+  "type": "normal",
+  "source": "issue1179_immediate_cover_api.sv",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "vpi-modules": [
+    "issue1179_immediate_cover_api"
+  ],
+  "vpi-sources": [
+    "vpi/issue1179_immediate_cover_api.c"
+  ],
+  "output-contains": [
+    "COVER_API covers=3 attempts=3 successes=2",
+    "PASS immediate cover API"
+  ]
+}
