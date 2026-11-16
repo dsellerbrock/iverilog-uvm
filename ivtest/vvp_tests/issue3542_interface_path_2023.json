@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3542_interface_path.sv",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "top"],
+  "gold": "issue3542_interface_path"
+}

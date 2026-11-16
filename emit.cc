@@ -501,9 +501,20 @@ static vector<NetNet*> deferred_path_signals_;
 
 static bool has_foreign_path_(const NetNet*net, const NetScope*scope)
 {
-      for (unsigned idx = 0 ; idx < net->delay_paths() ; idx += 1)
-	    if (net->delay_path(idx)->scope() != scope)
+      for (unsigned idx = 0 ; idx < net->delay_paths() ; idx += 1) {
+	    const NetDelaySrc*path = net->delay_path(idx);
+	    if (path->scope() != scope)
 		  return true;
+	    for (unsigned pin = 0 ; pin < path->src_count() + path->has_condit() ; pin += 1) {
+		  const Nexus*nex = pin < path->src_count()
+			? path->src_pin(pin).nexus() : path->condit_pin().nexus();
+		  for (const Link*link = nex->first_nlink() ; link ; link = link->next_nlink()) {
+			const NetNet*sig = dynamic_cast<const NetNet*>(link->get_obj());
+			if (sig && sig->scope() != scope)
+			      return true;
+		  }
+	    }
+      }
       return false;
 }
 
@@ -542,7 +553,7 @@ void NetScope::emit_scope(struct target_t*tgt) const
 	// delay paths. This is done as a second pass because
 	// the paths reference other signals that may be later
 	// in the list. A path whose destination is an interface
-	// member (IEEE 1800 25.6) belongs to a module scope that
+	// member (IEEE 1800 25.6) can refer to a different scope that
 	// may not be emitted yet, so defer it to Design::emit.
       for (signals_map_iter_t cur = signals_map_.begin()
 		 ; cur != signals_map_.end() ; ++ cur) {
