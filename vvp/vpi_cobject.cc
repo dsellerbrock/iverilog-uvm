@@ -1283,7 +1283,7 @@ vpiHandle vpip_class_member_by_name(vpiHandle base, const char*name)
 	    return cv->member_by_name(name);
       if (__vpiClassMember*cm = dynamic_cast<__vpiClassMember*>(base))
 	    return cm->member_by_name(name);
-      return 0;
+      return vpip_packed_member_by_name(base, name);
 }
 
 /* M12-7: covergroup drill-down handles. The root is the class

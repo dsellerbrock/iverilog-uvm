@@ -300,15 +300,42 @@ void NetAssignBase::nex_output(NexusSet&out)
       }
 }
 
+/* Argument copies are represented by assignments to and from formal ports.
+   Automatic task ports belong to individual invocations, not the enclosing
+   process; keep actuals (including lvalue indices) in its dependency sets. */
+void NetBlock::add_call_external(NexusSet&out, const NexusSet&in) const
+{
+      const NetTaskDef*def = automatic_task_call_ ? automatic_task_call_->task_def() : nullptr;
+      for (unsigned i = 0; i < in.size(); ++i) {
+	    NexusSet::elem_t&item = const_cast<NexusSet&>(in).at(i);
+	    Nexus*nex = item.lnk.nexus();
+	    bool formal = false;
+	    if (def) for (unsigned p = 0; p < def->port_count() && !formal; ++p) {
+		  NetNet*port = def->port(p);
+		  for (unsigned pin = 0; pin < port->pin_count(); ++pin)
+			if (port->pin(pin).nexus() == nex) { formal = true; break; }
+	    }
+	    if (!formal) out.add(nex, item.base, item.wid);
+      }
+}
+
 void NetBlock::nex_output(NexusSet&out)
 {
       if (last_ == 0) return;
 
+      NexusSet local_out, local_exact;
+      NexusSet*saved_sink = nex_output_exact_sink;
+      if (automatic_task_call_ && saved_sink) nex_output_exact_sink = &local_exact;
       NetProc*cur = last_;
       do {
 	    cur = cur->next_;
-	    cur->nex_output(out);
+	    cur->nex_output(automatic_task_call_ ? local_out : out);
       } while (cur != last_);
+      if (automatic_task_call_) {
+	    add_call_external(out, local_out);
+	    nex_output_exact_sink = saved_sink;
+	    if (saved_sink) add_call_external(*saved_sink, local_exact);
+      }
 }
 
 void NetBreak::nex_output(NexusSet&)

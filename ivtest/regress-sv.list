@@ -6970,3 +6970,5 @@ issue3518_tagged_call_2017 normal,-g2017 ivltests gold=issue3518_tagged_call.gol
 issue3518_tagged_call_2023 normal,-g2023 ivltests gold=issue3518_tagged_call.gold
 issue3524_cycle_delay_2017 normal,-g2017,-s,issue3524_cycle_delay ivltests gold=issue3524_cycle_delay.gold
 issue3524_cycle_delay_2023 normal,-g2023,-s,issue3524_cycle_delay ivltests gold=issue3524_cycle_delay.gold
+issue3525_auto_task_2017 normal,-g2017,-s,issue3525_auto_task ivltests gold=issue3525_auto_task.gold
+issue3525_auto_task_2023 normal,-g2023,-s,issue3525_auto_task ivltests gold=issue3525_auto_task.gold

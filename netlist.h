@@ -4086,6 +4086,8 @@ class NetBlock  : public NetProc {
 
       Type type() const    { return type_; }
       NetScope* subscope() const { return subscope_; }
+      void automatic_task_call(const NetScope*scope) { automatic_task_call_ = scope; }
+      void add_call_external(NexusSet&out, const NexusSet&in) const;
       void randsequence_block(ivl_randsequence_block_t kind)
       { randsequence_block_ = kind; }
       ivl_randsequence_block_t randsequence_block() const
@@ -4132,6 +4134,7 @@ class NetBlock  : public NetProc {
     private:
       const Type type_;
       NetScope*subscope_;
+      const NetScope*automatic_task_call_ = nullptr;
       ivl_randsequence_block_t randsequence_block_;
 
       NetProc*last_;
