@@ -936,6 +936,14 @@ static int expr_is_class_like_(ivl_expr_t expr)
             sig = expr_signal_base_(expr);
             if (sig)
                   net_type = ivl_signal_net_type(sig);
+            /* Function calls do not carry net_type in the target expression.
+             * Recover the declared return type for object-backed aggregates. */
+            else if (ivl_expr_type(expr) == IVL_EX_UFUNC) {
+                  ivl_scope_t def = ivl_expr_def(expr);
+                  sig = def ? ivl_scope_port(def, 0) : 0;
+                  if (sig)
+                        net_type = ivl_signal_net_type(sig);
+            }
       }
 
       if (net_type

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue3518_tagged_call.v",
+    "iverilog-args" : [ "-g2023", "-s", "top" ],
+    "gold"          : "issue3518_tagged_call"
+}
