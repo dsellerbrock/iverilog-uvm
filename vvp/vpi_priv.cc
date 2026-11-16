@@ -2593,6 +2593,65 @@ extern "C" vpiHandle vpip_interconnect_net_to_load(vpiHandle net,
       return vpip_interconnect_ports_connected(nullptr, load);
 }
 
+/*
+ * IEEE 1800-2023 32.4.4: a PORT delay "shall represent the delay from all
+ * sources on the net to that port", and an INTERCONNECT whose source is
+ * not on the load's net is "annotated anyway". When no module port drives
+ * the load (a testbench reg, say), put that delay at the load itself:
+ * splice one intermodpath into the single edge that feeds the load's port
+ * boundary, found by walking downstream from the port's actual
+ * (vpiHighConn). Whole input ports only; bits and inout islands are left
+ * to the source-port search.
+ */
+static vpiHandle load_side_intermodpath(vpiHandle ref)
+{
+      vpiPortInfo*load = dynamic_cast<vpiPortInfo*>(ref);
+      if (!load || load->get_direction() != vpiInput) return nullptr;
+      vvp_net_t*boundary = load->get_port();
+      if (!boundary || dynamic_cast<vvp_island_port*>(boundary->fun))
+	    return nullptr;
+      __vpiSignal*actual = dynamic_cast<__vpiSignal*>(vpi_handle(vpiHighConn, ref));
+      if (!actual || !actual->node) return nullptr;
+
+      const vvp_net_ptr_t target(boundary, 0);
+      std::vector<vvp_net_t*> todo(1, actual->node);
+      std::set<vvp_net_t*> seen;
+      while (!todo.empty()) {
+	    vvp_net_t*from = todo.back();
+	    todo.pop_back();
+	    if (!seen.insert(from).second) continue;
+	    vvp_net_ptr_t prev(nullptr, 0);
+	    for (vvp_net_ptr_t cur = from->out_; cur.ptr();
+		 prev = cur, cur = cur.ptr()->port[cur.port()]) {
+		  if (!(cur == target)) {
+			todo.push_back(cur.ptr());
+			continue;
+		  }
+		    // An earlier annotation already delays this load: reuse
+		    // that delay, so ABSOLUTE overwrites and INCREMENT adds
+		    // instead of a second delay in series.
+		  if (auto*prior = dynamic_cast<vvp_fun_intermodpath*>(from->fun)) {
+			__vpiInterModPath*path = vpip_make_intermodpath(from, load, load);
+			path->intermodpath = prior;
+			return path;
+		  }
+		  vvp_net_t*node = new vvp_net_t;
+		  vvp_fun_intermodpath*fun = new vvp_fun_intermodpath(
+			node, vpi_get(vpiSize, ref));
+		  node->fun = fun;
+		  if (prev.ptr()) prev.ptr()->port[prev.port()] = vvp_net_ptr_t(node, 0);
+		  else from->out_ = vvp_net_ptr_t(node, 0);
+		  node->port[0] = boundary->port[0];
+		  boundary->port[0] = vvp_net_ptr_t(nullptr, 0);
+		  node->out_ = target;
+		  __vpiInterModPath*path = vpip_make_intermodpath(node, load, load);
+		  path->intermodpath = fun;
+		  return path;
+	    }
+      }
+      return nullptr;
+}
+
 // Used to get intermodpath for two ports
 vpiHandle vpi_handle_multi(PLI_INT32 type,
                            vpiHandle ref1,
@@ -2607,6 +2666,7 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    vpiHandle path = scope ? find_intermodpath_from_scope(scope, ref2) : nullptr;
 	    any_source_lookup = false;
 	    quiet_intermodpath_lookup = false;
+	    if (!path) path = load_side_intermodpath(ref2);
 	    return path;
       }
 
