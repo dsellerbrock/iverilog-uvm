@@ -75,6 +75,13 @@ unsigned PDelays::delay_count() const
 
 static NetExpr*calculate_val(Design*des, NetScope*scope, PExpr*expr)
 {
+      const PEFNumber*real_expr = dynamic_cast<const PEFNumber*>(expr);
+      if (real_expr && real_expr->is_one_step()) {
+	    NetEConst*delay = new NetEConst(verinum(uint64_t(1), 64));
+	    delay->set_line(*expr);
+	    return delay;
+      }
+
       NetExpr*dex = elab_and_eval(des, scope, expr, -1);
 
       check_for_inconsistent_delays(scope);
