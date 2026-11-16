@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2850_package_unit_ref.sv",
+  "iverilog-args": ["-g2023", "-gcommercial-unsafe"],
+  "gold": "issue2850_package_unit_ref_unsafe"
+}

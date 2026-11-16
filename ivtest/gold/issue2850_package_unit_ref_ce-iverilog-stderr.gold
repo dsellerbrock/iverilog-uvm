@@ -1,0 +1,2 @@
+ivltests/issue2850_package_unit_ref.sv:7: error: package p refers to compilation-unit item cu; a package shall not refer to items defined in the compilation-unit scope (IEEE 1800-2017/2023 26.2).
+1 error(s) during elaboration.

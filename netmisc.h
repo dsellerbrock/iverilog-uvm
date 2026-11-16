@@ -161,6 +161,15 @@ extern bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 			  struct symbol_search_results*res,
 			  NetScope*start_scope = nullptr, bool prefix_scope = false);
 
+/*
+ * IEEE 1800-2017/2023 26.2: report a reference from REF_SCOPE to the
+ * compilation-unit item NAME when REF_SCOPE is inside a package (an error,
+ * or a warning under -gcommercial-unsafe).
+ */
+extern void check_package_unit_reference(const LineInfo*li, Design*des,
+					 const NetScope*ref_scope,
+					 perm_string name);
+
 extern bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 			  const pform_scoped_name_t &path, unsigned lexical_pos,
 			  struct symbol_search_results*res);

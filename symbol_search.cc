@@ -31,6 +31,8 @@
 # include  "PWire.h"
 # include  "pform_types.h"
 # include  "ivl_assert.h"
+# include  <set>
+# include  <string>
 
 using namespace std;
 
@@ -906,6 +908,57 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
       return false;
 }
 
+// IEEE 1800-2017/2023 26.2: "A package shall not refer to items defined in
+// the compilation-unit scope." Report a reference to the compilation-unit
+// item NAME made from REF_SCOPE when REF_SCOPE is inside a package: an error
+// in strict modes, a warning under -gcommercial-unsafe, where the reference
+// still binds. Each source location reports a name once.
+void check_package_unit_reference(const LineInfo*li, Design*des,
+				  const NetScope*ref_scope, perm_string name)
+{
+      const NetScope*pkg = ref_scope;
+      while (pkg && !(pkg->type() == NetScope::PACKAGE && !pkg->is_unit()))
+	    pkg = pkg->parent();
+      if (!pkg)
+	    return;
+
+      static std::set<std::string> reported;
+      if (!reported.insert(li->get_fileline() + ":" + name.str()).second)
+	    return;
+
+      cerr << li->get_fileline() << ": "
+	   << (gn_commercial_unsafe_flag ? "warning" : "error")
+	   << ": package " << pkg->basename()
+	   << " refers to compilation-unit item " << name
+	   << "; a package shall not refer to items defined in the"
+	   << " compilation-unit scope (IEEE 1800-2017/2023 26.2)." << endl;
+      if (!gn_commercial_unsafe_flag)
+	    des->errors += 1;
+}
+
+// A bare name looked up from inside a package falls back to the compilation
+// unit (the last-chance step of the search). Names the package declares or
+// imports resolve before that fallback and stay legal.
+static void check_package_unit_symbol_(const LineInfo*li, Design*des,
+				       NetScope*scope,
+				       const pform_scoped_name_t&path,
+				       const symbol_search_results*res)
+{
+      if (!res->scope || path.name.empty())
+	    return;
+      perm_string name = path.name.front().name;
+	// The hit is a compilation-unit item when it lives in the unit scope
+	// itself (a variable, parameter or event), or when the first name of
+	// the path is a scope the unit declares (a function, task or class:
+	// cu_f(), cu_c::f()). An inherited member of a unit class, reached
+	// through a package class that extends it, names neither.
+      const NetScope*hit = res->scope;
+      while (hit->parent() && !hit->parent()->is_unit())
+	    hit = hit->parent();
+      if (hit->is_unit() || (hit->parent() && hit->basename() == name))
+	    check_package_unit_reference(li, des, scope, name);
+}
+
 bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 		   const pform_scoped_name_t &path, unsigned lexical_pos,
 		   struct symbol_search_results *res)
@@ -947,6 +1000,8 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 		  symbol_search_cache_.find(cache_key);
 	    if (cached != symbol_search_cache_.end()) {
 		  *res = cached->second;
+		  if (res->is_found())
+			check_package_unit_symbol_(li, des, scope, path, res);
 		  return res->is_found();
 	    }
       }
@@ -1003,5 +1058,7 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 
       if (use_cache && found)
 	    symbol_search_cache_[cache_key] = *res;
+      if (found)
+	    check_package_unit_symbol_(li, des, scope, path, res);
       return found;
 }

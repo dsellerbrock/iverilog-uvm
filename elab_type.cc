@@ -3090,6 +3090,17 @@ ivl_type_t typeref_t::elaborate_type_raw(Design*des, NetScope*s) const
       if (const netclass_t*self_class = resolve_current_class_typeref_(s, this))
 	    return const_cast<netclass_t*>(self_class);
 
+	// IEEE 1800-2017/2023 26.2: a package shall not name a type that the
+	// compilation unit declares. Type names bind at parse time, so value
+	// lookup never sees them; check where the typedef was declared.
+      if (type) {
+	    NetScope*ref_scope = s_type_elaborate_caller_scope_
+		  ? s_type_elaborate_caller_scope_ : s;
+	    NetScope*decl_scope = s->find_typedef_scope(des, type);
+	    if (decl_scope && decl_scope->is_unit())
+		  check_package_unit_reference(this, des, ref_scope, type->name);
+      }
+
       ivl_type_t use_type = type->elaborate_type(des, s);
 	/* A bare parameterized class name is its default specialization
 	 * (IEEE 1800-2017/2023 8.25), not the generic master:

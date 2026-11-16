@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2850_package_unit_ref.sv",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue2850_package_unit_ref_ce"
+}
