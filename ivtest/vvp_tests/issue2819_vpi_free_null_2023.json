@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2819_vpi_free_null.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue2819_vpi_free_null_2023"],
+  "vpi-sources": ["vpi/issue2819_vpi_free_null.c"],
+  "output-contains": ["VPI FREE NULL PASS", "FREE=0 RELEASE=0", "DONE"]
+}
