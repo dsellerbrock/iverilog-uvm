@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3524_cycle_delay.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3524_cycle_delay"],
+  "gold": "issue3524_cycle_delay"
+}
