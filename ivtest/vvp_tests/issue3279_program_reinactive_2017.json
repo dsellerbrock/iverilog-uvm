@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3279_program_reinactive.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue3279_program_reinactive"
+}

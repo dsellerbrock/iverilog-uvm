@@ -118,6 +118,7 @@ struct event_time_s {
 	    reactive = 0;
 	    re_inactive = 0;
 	    re_nbassign = 0;
+	    held_active = 0;
 	    rwsync = 0;
 	    rosync = 0;
 	    del_thr = 0;
@@ -136,6 +137,9 @@ struct event_time_s {
       struct event_s*reactive;
       struct event_s*re_inactive;
       struct event_s*re_nbassign;
+	/* Active-region work scheduled while the reactive region set runs
+	   waits until that set is empty (IEEE 1800-2023 4.5). */
+      struct event_s*held_active;
       struct event_s*rwsync;
       struct event_s*rosync;
       struct event_s*del_thr;
@@ -840,6 +844,10 @@ static int region_assert_enabled_(void)
  * LRM forbids (4.4.2.10).
  */
 static event_queue_t sched_current_region = SEQ_START;
+/* True while the events being drained came from the Reactive, Re-Inactive
+   or Re-NBA region. IEEE 1800-2023 4.5 runs that inner loop to completion
+   before control returns to the Active region set. */
+static bool sched_reactive_set_ = false;
 static bool sched_in_start_of_simtime = false;
 
 bool schedule_in_start_of_simtime(void)
@@ -983,7 +991,8 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 	    break;
 
 	  case SEQ_ACTIVE:
-	    q = &ctim->active;
+	    q = (delay == 0 && sched_reactive_set_)
+		  ? &ctim->held_active : &ctim->active;
 	    break;
 
 	  case SEQ_ACTIVE_SYNC:
@@ -1048,7 +1057,11 @@ static void schedule_event_push_(struct event_s*cur)
 {
       cur->region = SEQ_ACTIVE;
 
-      if ((sched_list == 0) || (sched_list->delay > 0)) {
+	/* While the reactive set drains, a wakeup is held with the other
+	   Active work in arrival order: before 4.5 ordering it would have run
+	   at once, so FIFO keeps the wake order. */
+      if ((sched_list == 0) || (sched_list->delay > 0)
+	  || sched_reactive_set_) {
 	    schedule_event_(cur, 0, SEQ_ACTIVE);
 	    return;
       }
@@ -1672,7 +1685,8 @@ void schedule_get_time_queue(vector<vvp_time64_t>& times)
             bool before_rosync = ctim->start || ctim->preponed || ctim->active
                   || ctim->active_sync || ctim->inactive || ctim->nbassign
                   || ctim->nbasync || ctim->observed || ctim->reactive
-                  || ctim->re_inactive || ctim->re_nbassign || ctim->rwsync;
+                  || ctim->re_inactive || ctim->re_nbassign
+                  || ctim->held_active || ctim->rwsync;
             bool any_event = before_rosync || ctim->rosync || ctim->del_thr;
 
             if (any_event && (ctim->delay > 0 || before_rosync))
@@ -1733,7 +1747,7 @@ static void run_rosync(struct event_time_s*ctim)
           || ctim->inactive || ctim->nbassign
 	  || ctim->nbasync
 	  || ctim->observed || ctim->reactive || ctim->re_inactive
-	  || ctim->re_nbassign || ctim->rwsync) {
+	  || ctim->re_nbassign || ctim->held_active || ctim->rwsync) {
 	    cerr << "SCHEDULER ERROR: read-only sync events "
 		 << "created RW events!" << endl;
       }
@@ -1981,6 +1995,22 @@ void schedule_simulate(void)
 	      /* If there are no more active events, advance the event
 		 queues. If there are not events at all, then release
 		 the event_time object. */
+	    if (ctim->active == 0 && sched_reactive_set_) {
+		  struct event_s**next_set[] = { &ctim->reactive,
+			&ctim->re_inactive, &ctim->re_nbassign };
+		  for (struct event_s**q : next_set) {
+			if (*q) {
+			      ctim->active = *q;
+			      *q = 0;
+			      break;
+			}
+		  }
+		  if (ctim->active == 0) {
+			sched_reactive_set_ = false;
+			ctim->active = ctim->held_active;
+			ctim->held_active = 0;
+		  }
+	    }
 	    if (ctim->active == 0) {
 		  ctim->active = ctim->active_sync;
 		  ctim->active_sync = 0;
@@ -2015,16 +2045,16 @@ void schedule_simulate(void)
 			     nonblocking updates run after the design
 			     regions have settled. */
 			if (ctim->active == 0) {
-			      ctim->active = ctim->reactive;
-			      ctim->reactive = 0;
-			}
-			if (ctim->active == 0) {
-			      ctim->active = ctim->re_inactive;
-			      ctim->re_inactive = 0;
-			}
-			if (ctim->active == 0) {
-			      ctim->active = ctim->re_nbassign;
-			      ctim->re_nbassign = 0;
+			      struct event_s**set[] = { &ctim->reactive,
+				    &ctim->re_inactive, &ctim->re_nbassign };
+			      for (struct event_s**q : set) {
+				    if (*q) {
+					  ctim->active = *q;
+					  *q = 0;
+					  sched_reactive_set_ = true;
+					  break;
+				    }
+			      }
 			}
 
 			if (ctim->active == 0) {
@@ -2067,6 +2097,8 @@ void schedule_simulate(void)
 	    delete (cur);
       }
       sched_current_region = SEQ_START;
+	/* $finish/$stop can leave the loop inside the reactive set. */
+      sched_reactive_set_ = false;
 
       if (schedule_runnable && !sched_list)
             vthread_dump_live_threads("scheduler-quiesce");
