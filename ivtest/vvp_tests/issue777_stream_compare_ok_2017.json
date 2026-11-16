@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue777_stream_compare_ok.sv",
+  "iverilog-args": ["-g2017", "-s", "issue777_stream_compare_ok"],
+  "gold": "issue777_stream_compare_ok"
+}
