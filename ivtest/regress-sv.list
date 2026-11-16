@@ -6994,3 +6994,5 @@ issue813_unused_modports_2017 CE,-g2017,-s,issue813_top ivltests gold=issue813_u
 issue813_unused_modports_2023 CE,-g2023,-s,issue813_top ivltests gold=issue813_unused_modports_2023.gold
 issue1395_empty_timing_2017 normal,-g2017,-s,issue1395_empty_timing ivltests gold=issue1395_empty_timing.gold
 issue1395_empty_timing_2023 normal,-g2023,-s,issue1395_empty_timing ivltests gold=issue1395_empty_timing.gold
+issue1573_initial_pulses_2017 normal,-g2017,-gspecify,-ginterconnect,-s,issue1573_initial_pulses ivltests gold=issue1573_initial_pulses-legacy.gold
+issue1573_initial_pulses_2023 normal,-g2023,-gspecify,-ginterconnect,-s,issue1573_initial_pulses ivltests gold=issue1573_initial_pulses-legacy.gold

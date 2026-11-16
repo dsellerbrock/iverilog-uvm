@@ -1780,16 +1780,20 @@ void vvp_fun_intermodpath::schedule_pulse_transition_(vvp_time64_t delay,
       cur_vec4_ = bit;
       vvp_time64_t due = schedule_simtime() + delay;
 
-      if (pending_pulse_ && bit.eeq(pending_pulse_->from)) {
+      if (pending_pulse_) {
 	    vvp_time64_t width = due > pending_pulse_->sim_time ?
 		  due - pending_pulse_->sim_time : 0;
 	    vvp_time64_t reject = delay;
 	    vvp_time64_t error = delay;
 	    if (width < reject) {
+		  // An X-to-known leading edge can be followed by the other
+		  // known value. Reject the edge, but retain that final value.
+		  from = pending_pulse_->from;
 		  cancel_pulse_event_(pending_pulse_);
-		  return;
+		  if (bit.eeq(from))
+			return;
 	    }
-	    if (width < error)
+	    else if (width < error)
 		  pending_pulse_->to = vvp_vector4_t(bit.size(), BIT4_X);
       }
 
