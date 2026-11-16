@@ -1,0 +1,9 @@
+{
+  "type": "CE",
+  "source": "issue670_psprintf_reject.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "issue670_psprintf_reject"
+  ]
+}

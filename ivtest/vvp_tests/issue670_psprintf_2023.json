@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "issue670_psprintf.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-gcommercial-unsafe",
+    "-s",
+    "issue670_psprintf"
+  ],
+  "gold": "issue670_psprintf"
+}
