@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2968_foreach_string.v",
+  "iverilog-args": ["-g2023", "-s", "issue2968_foreach_string"],
+  "output-contains": ["PASSED"]
+}

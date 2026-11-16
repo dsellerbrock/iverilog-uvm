@@ -975,6 +975,8 @@ queue_fail			vvp_tests/queue_fail.json
 readmem-invalid			vvp_tests/readmem-invalid.json
 issue804_readmem_enum_2017 vvp_tests/issue804_readmem_enum_2017.json
 issue804_readmem_enum_2023 vvp_tests/issue804_readmem_enum_2023.json
+issue2968_foreach_string_2017 vvp_tests/issue2968_foreach_string_2017.json
+issue2968_foreach_string_2023 vvp_tests/issue2968_foreach_string_2023.json
 scaled_real			vvp_tests/scaled_real.json
 scan-invalid			vvp_tests/scan-invalid.json
 sdf_interconnect1		vvp_tests/sdf_interconnect1.json
