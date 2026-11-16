@@ -67,9 +67,9 @@ ruled). A provisional reading an agent built on before a ruling is marked "provi
 | 2026-11-16 | 28.8 | #3472 | A `tranif` whose control is a net it connects oscillates in zero time | The settle loop hits an iteration cap and stops with a named run-time error instead of hanging. | owner |
 | 2026-11-16 | 6.23 | A8 class-B Q1 (issue to be filed) | `type(this)` declarations: the text requires `var`, its own example omits it | Accept both: `var type(this) x;` must compile (main rejecting it is a bug); the example's form without `var` stays accepted for compatibility. | owner |
 | 2026-11-16 | 7.5.2, 7.10.2.1 | A8 class-B Q2 (issue to be filed) | `.size()` on a fixed-size array parameter | An error in strict modes, as on a fixed-size array variable: `size()` is defined only for dynamic arrays, queues and associative arrays. | owner |
-| 2026-11-16 | 18.5.7 (2017) | A8 class-B Q3 | A non-random `real` in a constraint implication predicate under `-g2017` | Accepted, with a warning under `-g2017`; 1800-2023 explicitly allows `real`. | owner |
+| 2026-11-16 | 18.5.6 (2017) | A8 class-B Q3 | A non-random `real` in a constraint implication predicate under `-g2017` | Accepted, with a warning under `-g2017`; 1800-2023 explicitly allows `real`. | owner |
 | 2026-11-16 | 8.23 | A8 class-B Q4 | `C::f()` calling a non-static method from outside the class | An error: there is no object, and `::` reaches only static members. | owner |
-| 2026-11-16 | 11.3.1, Table 11-1 | A8 class-B Q5 | Bitwise operators on a `real` operand | An error; Table 11-1 does not list them for `real`. | owner |
+| 2026-11-16 | 11.3, Table 11-1 | A8 class-B Q5 | Bitwise operators on a `real` operand | An error; Table 11-1 does not list them for `real`. | owner |
 | 2026-11-16 | 22.5.1 | A8 class-B Q6 (issue to be filed) | The `` `` `` paste operator outside a macro definition | An error in strict modes; a warning under `-gcommercial-unsafe` (the 2026-11-10 pattern). | owner |
 
 ## Process rulings
