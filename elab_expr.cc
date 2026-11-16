@@ -7743,6 +7743,18 @@ NetExpr* PEBComp::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, left_);
       ivl_assert(*this, right_);
 
+      const PExpr*stream = dynamic_cast<const PEStreaming*>(left_);
+      if (!stream)
+	    stream = dynamic_cast<const PEStreaming*>(right_);
+      if (stream) {
+	    cerr << stream->get_fileline() << ": error: streaming "
+		  "concatenation used as an expression operand must first "
+		  "be cast to a bit-stream type (IEEE 1800-2017 11.4.14)."
+	         << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
       perm_string left_instance_modport;
       perm_string right_instance_modport;
       NetScope*left_instance = comparison_interface_instance_scope_(
