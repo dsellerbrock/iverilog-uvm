@@ -17,7 +17,7 @@ module t;
 
     for (int idx = 0; idx < 2; idx += 1)
       cover final (idx == 0)
-        $display("BAD_CANCELLED VALUE=%0d", next_value());
+        $display("QUEUED_IDX0 VALUE=%0d", next_value());
 
     cover final (1) $display("COVER_FINAL VALUE=%0d", final_value);
     final_value = 99;
