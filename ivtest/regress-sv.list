@@ -6954,3 +6954,5 @@ issue3470_sformatf_extra_2017 normal,-g2017,-s,issue3470_sformatf_extra ivltests
 issue3470_sformatf_extra_2023 normal,-g2023,-s,issue3470_sformatf_extra ivltests gold=issue3470_sformatf_extra.gold
 sv_assert_empty_group_nonoverlap_2017 normal,-g2017 ivltests
 sv_assert_empty_group_nonoverlap_2023 normal,-g2023 ivltests
+issue3498_array_delay_2017 normal,-g2017,-s,tb ivltests gold=issue3498_array_delay.gold
+issue3498_array_delay_2023 normal,-g2023,-s,tb ivltests gold=issue3498_array_delay.gold
