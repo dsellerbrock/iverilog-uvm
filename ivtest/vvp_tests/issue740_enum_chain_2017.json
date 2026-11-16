@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue740_enum_chain.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue740_enum_chain"
+}

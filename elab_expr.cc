@@ -21698,6 +21698,34 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 	      }
 	}
 
+	/* `c.name.len()`, `c.next.name()`: paren-less enum methods chained
+	 * before the final call (owner ruling 2026-11-10, #740). Apply each
+	 * leading method to the result of the one before it, then dispatch the
+	 * last component on the final result. */
+      if (search_results.net && search_results.net->enumeration()
+	  && !target_indexed && method_path.size() > 1) {
+	    const netenum_t*chain_enum = dynamic_cast<const netenum_t*>(target_type);
+	    while (method_path.size() > 1) {
+		  const name_component_t comp = method_path.front();
+		  if (!chain_enum || !comp.index.empty()) {
+			cerr << get_fileline() << ": sorry: method `" << comp.name
+			     << "' cannot be chained here." << endl;
+			des->errors += 1;
+			delete sub_expr;
+			return 0;
+		  }
+		  sub_expr = check_for_enum_methods(this, des, scope, chain_enum,
+				pform_scoped_name_t(search_results.path_head),
+				comp.name, sub_expr, {});
+		  if (!sub_expr)
+			return 0;
+		  target_type = sub_expr->net_type();
+		  chain_enum = dynamic_cast<const netenum_t*>(target_type);
+		  method_path.pop_front();
+	    }
+	    orig_method_path = method_path;
+      }
+
 	      while (method_path.size() > 1) {
 		    if (!sub_expr) {
 			  return 0;
@@ -21881,6 +21909,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 
       ivl_assert(*this, sub_expr);
       ivl_assert(*this, !method_path.empty());
+
       perm_string method_name = method_path.back().name;
 	if (const netclass_t*interface_type =
 	      dynamic_cast<const netclass_t*>(target_type)) {
@@ -29111,19 +29140,56 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  NetESignal*expr = new NetESignal(sr.net);
 		  expr->set_line(*this);
 		  if (sr.path_tail.size() != 1) {
-			if (gn_system_verilog()) {
-			      cerr << get_fileline() << ": warning: "
-			              "Method name nesting on enum not fully supported"
-			              " (compile-progress fallback)."
-			           << endl;
-			      return expr;
+			if (!gn_system_verilog()) {
+			      cerr << get_fileline() << ": sorry: "
+				      "Method name nesting on enum is not supported yet."
+				   << endl;
+			      des->errors += 1;
+			      delete expr;
+			      return 0;
 			}
-			cerr << get_fileline() << ": sorry: "
-			        "Method name nesting on enum is not supported yet."
-			     << endl;
-			des->errors += 1;
-			delete expr;
-			return 0;
+			/* Chained paren-less enum methods (`c.next.name`,
+			   `c.name.len`): owner ruling 2026-11-10, #740. Apply
+			   each method to the result of the one before it. */
+			NetExpr*chain = expr;
+			for (const name_component_t&comp : sr.path_tail) {
+			      ivl_type_t chain_type = chain->net_type();
+			      const netenum_t*chain_enum =
+				    dynamic_cast<const netenum_t*>(chain_type);
+			      if (!comp.index.empty()) {
+				    cerr << get_fileline() << ": error: enum "
+					    "method `" << comp.name
+					 << "' takes no index." << endl;
+				    des->errors += 1;
+				    delete chain;
+				    return 0;
+			      }
+			      if (chain_enum) {
+				    chain = check_for_enum_methods(this, des, scope,
+						chain_enum,
+						pform_scoped_name_t(sr.path_head),
+						comp.name, chain, {});
+			      } else if (chain->expr_type() == IVL_VT_STRING
+					 && comp.name == perm_string::literal("len")) {
+				    NetESFunc*fun = new NetESFunc(
+					  "$ivl_string_method$len",
+					  &netvector_t::atom2u32, 1);
+				    fun->set_line(*this);
+				    fun->parm(0, chain);
+				    chain = fun;
+			      } else {
+				    cerr << get_fileline() << ": sorry: method `"
+					 << comp.name << "' cannot be applied "
+					    "to the result of an enum method "
+					    "without parentheses." << endl;
+				    des->errors += 1;
+				    delete chain;
+				    return 0;
+			      }
+			      if (!chain)
+				    return 0;
+			}
+			return chain;
 		  }
 		  const name_component_t member_comp = sr.path_tail.front();
 		  ivl_assert(*this, member_comp.index.empty());
