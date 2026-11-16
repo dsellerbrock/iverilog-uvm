@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3494_array_input_force.v",
+  "iverilog-args": ["-g2017", "-s", "issue3494_array_input_force"],
+  "gold": "issue3494_array_input_force"
+}

@@ -8806,6 +8806,9 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  member_port_bridge = true;
 	    }
 
+	    // A broadcast variable input needs a separate driver for each formal.
+	    bool replicated_variable_input = false;
+
 	    /* IEEE 1800-2017/2023 23.3.3.5: a scalar port on an instance array
 	       can be connected to an unpacked array whose leading dimension has
 	       one element per instance. Map each left-to-right actual element to
@@ -9052,8 +9055,15 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		      instance.size() == 1 && sig->type() == NetNet::REG &&
 		      (sig->data_type() == IVL_VT_BOOL ||
 		       sig->data_type() == IVL_VT_LOGIC);
-		  if (need_bufz_for_input_port(prts) || gn_interconnect_flag == true ||
-		      variable_input_source) {
+		  replicated_variable_input =
+		      ptype == NetNet::PINPUT && instance.size() > 1 &&
+		      prts.size() == instance.size() && sig->type() == NetNet::REG &&
+		      (sig->data_type() == IVL_VT_BOOL ||
+		       sig->data_type() == IVL_VT_LOGIC) &&
+		      sig->vector_width() == prts_vector_width / instance.size();
+		  if (!replicated_variable_input &&
+		      (need_bufz_for_input_port(prts) || gn_interconnect_flag == true ||
+		       variable_input_source)) {
 			  // FIXME improve this for multiple module instances
 			NetScope* inner_scope = scope->instance_arrays[get_name()][0];
 
@@ -9490,7 +9500,19 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // single instance of the port. In this case,
 		    // connect the sig to all the ports identically.
 		  for (unsigned ldx = 0 ;  ldx < prts.size() ;	ldx += 1) {
-			if ((ptype == NetNet::POUTPUT
+			if (replicated_variable_input) {
+			      NetNet*formal = prts[ldx];
+			      if (formal->net_delay_driver())
+				    formal = delay_driver_net(formal);
+			      NetScope*inner_scope = formal->scope();
+			      NetBUFZ*buffer = new NetBUFZ(inner_scope,
+				    inner_scope->local_symbol(), sig->vector_width(),
+				    false, idx);
+			      buffer->set_line(*this);
+			      des->add_node(buffer);
+			      connect(buffer->pin(1), sig->pin(0));
+			      connect(buffer->pin(0), formal->pin(0));
+			} else if ((ptype == NetNet::POUTPUT
 			     && is_variable_output_port_(prts[ldx]))
 			    || prts[ldx]->delay_paths() > 0) {
 			      isolate_and_connect(des, scope, this, prts[ldx], sig, ptype,
