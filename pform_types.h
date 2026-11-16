@@ -245,6 +245,7 @@ struct typedef_t : public PNamedItem {
       ~typedef_t() override { data_type.release(); }
 
       ivl_type_t elaborate_type(Design*des, NetScope*scope);
+      void record_typename(NetScope*scope, ivl_type_t type) const;
 
       enum basic_type {
 	    ANY,
