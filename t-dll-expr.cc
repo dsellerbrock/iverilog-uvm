@@ -22,6 +22,7 @@
 # include  <iostream>
 
 # include  <cstring>
+# include  <string>
 # include  "t-dll.h"
 # include  "netlist.h"
 # include  "netclass.h"
@@ -327,8 +328,20 @@ void dll_target::expr_const(const NetEConst*net)
       if (net->value().is_string()) {
 	    expr_->type_ = IVL_EX_STRING;
 	    expr_->width_= net->expr_width();
-	    expr_->u_.string_.value_ =
-		  dll_procedure_strdup(net->value().as_string().c_str());
+	    std::string text = net->value().as_string();
+	      /* IEEE 1800-2023 6.16: a string literal converted to the string
+		 type drops every "\0" character, and "" is the empty string.
+		 A string-typed constant (a string parameter, say) still holds
+		 the 8'h00 the literal "" has as a vector, which as_string()
+		 escapes as \000 (a real backslash is \134, so the sequence is
+		 unambiguous). Vector string literals keep their NUL bytes. */
+	    if (net->expr_type() == IVL_VT_STRING) {
+		  for (size_t pos ; (pos = text.find("\\000")) != std::string::npos ; ) {
+			text.erase(pos, 4);
+			if (expr_->width_ >= 8) expr_->width_ -= 8;
+		  }
+	    }
+	    expr_->u_.string_.value_ = dll_procedure_strdup(text.c_str());
 
       } else {
 	    verinum val = net->value();
