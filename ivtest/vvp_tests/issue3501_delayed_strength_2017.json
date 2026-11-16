@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3501_delayed_strength.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3501_delayed_strength"],
+  "gold": "issue3501_delayed_strength"
+}
