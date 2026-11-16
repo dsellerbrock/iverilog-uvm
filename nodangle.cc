@@ -223,10 +223,13 @@ void nodangle_f::signal(Design*, NetNet*sig)
       if (sig->get_refs() > 0)
 	    return;
 
-	/* A declared net or variable is a VPI object (IEEE 1800 37.16–37.17) and must stay
-	   reachable through vpi_iterate() and vpi_handle_by_name() even when
-	   nothing reads or writes it. */
-      if (!sig->local_flag())
+	/* Built-in unpacked-struct nets use this signal only as a type anchor;
+	   their actual net storage is in the separately elaborated members. */
+      bool struct_anchor = sig->resolve_builtin_net_struct_member(0) != 0;
+
+	/* Preserve declared nets and variables for VPI, except the aggregate
+	   anchor which is not itself an emit-ready net. */
+      if (!sig->local_flag() && !struct_anchor)
 	    return;
 
 	/* Cannot delete the ports of tasks, functions or modules. There
