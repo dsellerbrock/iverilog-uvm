@@ -2556,9 +2556,12 @@ static PLI_INT32 sys_sformatf_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
     return 0;
   }
   type = vpi_get(vpiType, arg);
-  if (((type != vpiConstant && type != vpiParameter) ||
-      vpi_get(vpiConstType, arg) != vpiStringConst) &&
-      type != vpiReg && type != vpiStringVar) {
+  /* 21.3.3: the format may be any integral or string expression, whose
+   * content is the format string. A real constant or variable is not. */
+  if (!is_string_obj(arg) &&
+      !((type == vpiConstant || type == vpiParameter) &&
+        vpi_get(vpiConstType, arg) != vpiRealConst) &&
+      !(type == vpiOperation && vpi_get(vpiOpType, arg) == vpiConcatOp)) {
     vpi_printf("ERROR:%s:%d: ", vpi_get_str(vpiFile, callh),
                (int)vpi_get(vpiLineNo, callh));
     vpi_printf("%s's first argument must be a string or a register.\n", name);

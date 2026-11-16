@@ -1865,6 +1865,8 @@ extern vvp_vector4_t vec4_from_vpi_value(s_vpi_value*vp, unsigned wid);
 extern bool vpip_vec4_to_int64_saturated(const vvp_vector4_t&vec,
                                              bool is_signed, int64_t&value);
 extern double real_from_vpi_value(s_vpi_value*vp);
+/* False (after reporting the error) when VP cannot be put to a real. */
+extern bool vpip_real_put_format_ok(const s_vpi_value*vp);
 
 extern void vpip_vec4_get_value(const vvp_vector4_t&word_val, unsigned width,
 				bool signed_flag, s_vpi_value*vp);

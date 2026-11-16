@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2823_vpi_put_real_illegal.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2823_vpi_put_real_illegal_2017"],
+  "vpi-sources": ["vpi/issue2823_vpi_put_real_illegal.c"],
+  "output-contains": ["VPI PUT REAL ILLEGAL PASS", "R=1.5", "r=1.5 ra0=2.5 DONE"]
+}

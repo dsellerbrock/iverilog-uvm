@@ -215,6 +215,9 @@ static int nexus_drive_is_strength_aware(ivl_nexus_ptr_t nptr)
 	    return 1;
       if (lpm && ivl_lpm_type(lpm) == IVL_LPM_PART_VP)
             return 1;
+	/* A concatenation of strength-aware drivers keeps their strengths. */
+      if (lpm && ivl_lpm_type(lpm) == IVL_LPM_CONCATZ)
+	    return 1;
 
       if (ivl_nexus_ptr_drive0(nptr) != IVL_DR_STRONG)
 	    return 1;

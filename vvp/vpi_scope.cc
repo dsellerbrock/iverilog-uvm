@@ -2871,10 +2871,15 @@ void vpip_report_immediate_cover(PLI_INT32 source_id, PLI_INT32 success,
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       if (!sc) return;
-      std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>::iterator it =
-	    immediate_cover_by_key.find(std::make_pair(sc, (int)source_id));
-      if (it != immediate_cover_by_key.end())
-	    it->second->report_immediate_cover(success != 0);
+      while (sc) {
+	    std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>::iterator it =
+		  immediate_cover_by_key.find(std::make_pair(sc, (int)source_id));
+	    if (it != immediate_cover_by_key.end()) {
+		  it->second->report_immediate_cover(success != 0);
+		  return;
+	    }
+	    sc = sc->scope;
+      }
 }
 
 void vpip_register_immediate_assertion(PLI_INT32 source_id, const char*name,

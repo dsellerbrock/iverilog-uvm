@@ -604,7 +604,8 @@ void __vpiArray::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, int)
 {
       unsigned index = word->get_index();
 	if (vpi_array_is_real(this)) {
-	      set_word(index, real_from_vpi_value(vp));
+	      if (vpip_real_put_format_ok(vp))
+		    set_word(index, real_from_vpi_value(vp));
 	      return;
 	}
 	if (vpi_array_is_string(this)) {
@@ -936,6 +937,7 @@ vpiHandle __vpiArrayVthrA::vpi_put_value(p_vpi_value vp, int)
       if (index >= array->get_size()) return this;
 
       if (vpi_array_is_real(array)) {
+	    if (!vpip_real_put_format_ok(vp)) return 0;
 	    double val = real_from_vpi_value(vp);
 	    array->set_word(index, val);
 	} else if (vpi_array_is_string(array)) {

@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3531_scope_randomize_method.v",
+    "iverilog-args": ["-g2023", "-s", "tb"],
+    "gold": "issue3531_scope_randomize_method"
+}

@@ -2351,6 +2351,17 @@ static string nominal_type_owner_key_(const NetScope*scope)
       return out.str();
 }
 
+static void typename_scope_path_(ostream&out, const NetScope*scope)
+{
+      if (const NetScope*parent = scope->parent()) {
+	    typename_scope_path_(out, parent);
+	    out << ((scope->type() == NetScope::CLASS
+		     && (parent->type() == NetScope::PACKAGE
+			 || parent->type() == NetScope::CLASS)) ? "::" : ".");
+      }
+      out << scope->fullname();
+}
+
 static string typename_qualified_type_name_(const NetScope*scope,
 						    const string&name)
 {
@@ -2358,7 +2369,7 @@ static string typename_qualified_type_name_(const NetScope*scope,
 	    return name;
 
       ostringstream scope_name;
-      scope_name << scope_path(scope);
+      typename_scope_path_(scope_name, scope);
       string result = scope_name.str();
       if (scope->type() == NetScope::PACKAGE
 	  || scope->type() == NetScope::CLASS)
@@ -3323,6 +3334,19 @@ NetScope* class_scoped_typeref_t::find_scope(Design*des, NetScope*s) const
       return typeref_t::find_scope(des, s);
 }
 
+void typedef_t::record_typename(NetScope*scope, ivl_type_t type) const
+{
+      string type_name = typename_qualified_type_name_(scope, name.str());
+      if (const netenum_t*enum_type = dynamic_cast<const netenum_t*>(type)) {
+	    if (enum_type->nominal_definition() == data_type.get())
+		  enum_type->set_typedef_type_name(type_name);
+      }
+      if (const netstruct_t*struct_type = dynamic_cast<const netstruct_t*>(type)) {
+	    if (struct_type->nominal_definition() == data_type.get())
+		  struct_type->set_typedef_type_name(type_name);
+      }
+}
+
 ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 {
       if (name == "process" || name == "semaphore" || name == "mailbox") {
@@ -3439,19 +3463,8 @@ ivl_type_t typedef_t::elaborate_type(Design *des, NetScope *scope)
 	  // Preserve the defining name for user-defined aggregate types. Only
 	  // attach a name when this typedef owns the aggregate declaration;
 	  // typedefs that merely alias an existing type must leave its name intact.
-	  if (type_ok) {
-	    string type_name = typename_qualified_type_name_(scope, name.str());
-	    if (const netenum_t*enum_type =
-		  dynamic_cast<const netenum_t*>(elab_type)) {
-		  if (enum_type->nominal_definition() == data_type.get())
-			enum_type->set_typedef_type_name(type_name);
-	    }
-	    if (const netstruct_t*struct_type =
-		  dynamic_cast<const netstruct_t*>(elab_type)) {
-		  if (struct_type->nominal_definition() == data_type.get())
-			struct_type->set_typedef_type_name(type_name);
-	    }
-	  }
+	  if (type_ok)
+	    record_typename(scope, elab_type);
 	  if (basic_type != ANY)
 		mark_basic_type_checked();
 
