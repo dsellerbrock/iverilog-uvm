@@ -1,0 +1,5 @@
+(DELAYFILE (SDFVERSION "3.0") (DESIGN "issue1573_initial_pulses")
+ (DIVIDER .) (TIMESCALE 1ns)
+ (CELL (CELLTYPE "issue1573_initial_pulses") (INSTANCE)
+  (DELAY (ABSOLUTE (INTERCONNECT s.y d.a (10))
+                   (INTERCONNECT s_b.y d_b.a (10))))))
