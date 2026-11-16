@@ -6972,3 +6972,11 @@ issue3524_cycle_delay_2017 normal,-g2017,-s,issue3524_cycle_delay ivltests gold=
 issue3524_cycle_delay_2023 normal,-g2023,-s,issue3524_cycle_delay ivltests gold=issue3524_cycle_delay.gold
 issue3525_auto_task_2017 normal,-g2017,-s,issue3525_auto_task ivltests gold=issue3525_auto_task.gold
 issue3525_auto_task_2023 normal,-g2023,-s,issue3525_auto_task ivltests gold=issue3525_auto_task.gold
+issue670_psprintf_2017 normal,-g2017,-gcommercial-unsafe,-s,issue670_psprintf ivltests gold=issue670_psprintf.gold
+issue670_psprintf_2023 normal,-g2023,-gcommercial-unsafe,-s,issue670_psprintf ivltests gold=issue670_psprintf.gold
+issue670_strict_2017 CE,-g2017,-s,issue670_psprintf_reject ivltests
+issue670_strict_2023 CE,-g2023,-s,issue670_psprintf_reject ivltests
+issue670_interior_2017 CE,-g2017,-gcommercial-unsafe,-DINTERIOR,-s,issue670_psprintf_reject ivltests
+issue670_interior_2023 CE,-g2023,-gcommercial-unsafe,-DINTERIOR,-s,issue670_psprintf_reject ivltests
+issue670_sformatf_2017 CE,-g2017,-gcommercial-unsafe,-DSFORMATF,-s,issue670_psprintf_reject ivltests
+issue670_sformatf_2023 CE,-g2023,-gcommercial-unsafe,-DSFORMATF,-s,issue670_psprintf_reject ivltests

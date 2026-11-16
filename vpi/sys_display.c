@@ -1887,7 +1887,8 @@ static PLI_INT32 sys_display_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 		  return 0;
 	    }
       } else if (strncmp(name, "$sformatf", 9) == 0
-		 || strncmp(name, "$psprintf", 9) == 0) {
+		 || strncmp(name, "$psprintf", 9) == 0
+		 || strcmp(name, "$ivl_psprintf_trailing_empty") == 0) {
 	      /* return as a string */
 	    fd_mcd = 0;
       } else {
@@ -1916,7 +1917,17 @@ static PLI_INT32 sys_display_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 	    fmt = strdup(val.value.str);
 	    size = get_format(&result, fmt, &info, &idx);
 	    free(fmt);
-	    if (idx + 1 < info.nitems)
+	    if (strcmp(name, "$ivl_psprintf_trailing_empty") == 0
+	        && idx + 1 < info.nitems) {
+		  /* The final argument is the empty slot, represented by the
+		   * runtime as a space. Preserve it after unused real arguments. */
+		  if (idx + 2 < info.nitems)
+		        fprintf(stderr, "WARNING: %s:%d: $psprintf has %u extra argument(s).\n",
+		                info.filename, info.lineno, info.nitems - idx - 2);
+		  result = realloc(result, size + 2);
+		  result[size++] = ' ';
+		  result[size] = '\0';
+	    } else if (idx + 1 < info.nitems)
 		  fprintf(stderr, "WARNING: %s:%d: %s has %u extra argument(s).\n",
 		          info.filename, info.lineno, name, info.nitems - idx - 1);
       } else {
@@ -3377,6 +3388,11 @@ void sys_display_register(void)
       tf_data.compiletf = sys_sformatf_compiletf;
       tf_data.sizetf    = 0;
       tf_data.user_data = "$psprintf";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.tfname    = "$ivl_psprintf_trailing_empty";
+      tf_data.user_data = "$ivl_psprintf_trailing_empty";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 
