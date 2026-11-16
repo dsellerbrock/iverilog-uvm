@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3203_local_or_sibling.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3203_local_or_sibling"
+}
