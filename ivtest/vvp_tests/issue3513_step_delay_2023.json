@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3513_step_delay.sv",
+  "iverilog-args": ["-g2023", "-s", "issue3513_step_delay"],
+  "gold": "issue3513_step_delay"
+}
