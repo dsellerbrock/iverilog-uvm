@@ -19853,8 +19853,11 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 
       /* Explicit `std::randomize(...)` cannot collide with a user subroutine,
 	 so it can be recognized before ordinary task/function lookup. */
-      if (gn_system_verilog() && path_.size() == 2
-	  && path_.front().name == perm_string::literal("std")
+      if (gn_system_verilog()
+	  && ((path_.size() == 2 && !package_
+	       && path_.front().name == perm_string::literal("std"))
+	      || (path_.size() == 1 && package_
+		  && package_->pscope_name() == perm_string::literal("std")))
 	  && path_.back().name == perm_string::literal("randomize"))
 	    return elaborate_scope_randomize_task_(this, des, scope);
 
