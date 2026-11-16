@@ -114,6 +114,11 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
 
       void initialize_udp_output(const vvp_vector4_t&bit);
 
+	// The rise, fall or decay delay this functor applies (37.47
+	// vpi_get_delays() on a continuous assignment).
+      vvp_time64_t get_delay(vvp_bit4_t from, vvp_bit4_t to) const
+      { return delay_.get_delay(from, to); }
+
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
       void recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit) override;
