@@ -228,6 +228,10 @@ static int nexus_drive_is_strength_aware(ivl_nexus_ptr_t nptr)
 		  return 1;
 	    if (ivl_logic_type(logic) == IVL_LO_BUFIF1)
 		  return 1;
+	    if (ivl_logic_type(logic) == IVL_LO_NOTIF0)
+		  return 1;
+	    if (ivl_logic_type(logic) == IVL_LO_NOTIF1)
+		  return 1;
 	    if (ivl_logic_type(logic) == IVL_LO_PMOS)
 		  return 1;
 	    if (ivl_logic_type(logic) == IVL_LO_NMOS)
