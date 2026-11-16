@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue777_stream_compare_fail.sv",
+  "iverilog-args": ["-g2017", "-s", "issue777_stream_compare_fail"],
+  "gold": "issue777_stream_compare_fail_2017"
+}
