@@ -24213,6 +24213,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
       NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
       block->set_line(*this);
 
+      if (task->type() == NetScope::TASK && task->is_auto())
+	    block->automatic_task_call(task);
+
       if (!use_this && scope_method_uses_implicit_this(des, task)) {
 	    if (path_.size() == 1) {
 		  // Implicit local class method call used as a statement

@@ -714,6 +714,12 @@ NexusSet* NetBlock::nex_input(bool rem_out, bool always_sens, bool nested_func) 
       }
       delete prev;
 
+      if (automatic_task_call_) {
+	    NexusSet*external = new NexusSet;
+	    add_call_external(*external, *result);
+	    delete result;
+	    result = external;
+      }
       return result;
 }
 
