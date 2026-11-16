@@ -884,10 +884,29 @@ static char* vpi_container_arg_type_(ivl_expr_t expr)
       return 0;
 }
 
+static int expr_is_tagged_union_(ivl_expr_t expr)
+{
+      ivl_type_t type = ivl_expr_net_type(expr);
+      if (!type && ivl_expr_type(expr) == IVL_EX_SIGNAL)
+	    type = ivl_signal_net_type(ivl_expr_signal(expr));
+      if (type)
+	    return ivl_type_is_tagged_union(type);
+      if (ivl_expr_type(expr) == IVL_EX_TERNARY)
+	    return expr_is_tagged_union_(ivl_expr_oper2(expr))
+		  && expr_is_tagged_union_(ivl_expr_oper3(expr));
+      return 0;
+}
+
 static int expr_is_class_like_(ivl_expr_t expr)
 {
       ivl_type_t net_type = ivl_expr_net_type(expr);
       ivl_signal_t sig;
+
+      /* Conditional tagged unions can lack their own net type even though
+         both operands retain their object-backed aggregate types. */
+      if (!net_type && ivl_expr_type(expr) == IVL_EX_TERNARY
+	  && ivl_expr_value(expr) == IVL_VT_NO_TYPE)
+	    return expr_is_tagged_union_(expr);
 
 	/* A selected unpacked aggregate is an object-backed r-value even when
 	 * nested associative dimensions hide its leaf type from the root signal. */
@@ -917,6 +936,14 @@ static int expr_is_class_like_(ivl_expr_t expr)
             sig = expr_signal_base_(expr);
             if (sig)
                   net_type = ivl_signal_net_type(sig);
+            /* Function calls do not carry net_type in the target expression.
+             * Recover the declared return type for object-backed aggregates. */
+            else if (ivl_expr_type(expr) == IVL_EX_UFUNC) {
+                  ivl_scope_t def = ivl_expr_def(expr);
+                  sig = def ? ivl_scope_port(def, 0) : 0;
+                  if (sig)
+                        net_type = ivl_signal_net_type(sig);
+            }
       }
 
       if (net_type

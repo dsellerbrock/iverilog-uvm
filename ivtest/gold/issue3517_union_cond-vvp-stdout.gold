@@ -1,0 +1,6 @@
+selected '{Number:7} '{Empty}
+reversed '{Empty} '{Number:7}
+unknown '{Number:7} '{Number:0} '{Empty}
+highz '{Number:0}
+nested '{Number:7}
+nested unknown '{Number:0}

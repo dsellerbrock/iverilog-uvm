@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3517_union_cond.sv",
+    "iverilog-args": ["-g2017"],
+    "gold": "issue3517_union_cond"
+}

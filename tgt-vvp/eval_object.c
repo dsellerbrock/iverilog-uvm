@@ -1720,6 +1720,9 @@ static int ternary_unpacked_struct_(ivl_expr_t expr)
 	    if (type && ivl_type_base(type) == IVL_VT_NO_TYPE
 		&& ivl_type_properties(type) > 0)
 		  return 1;
+	    if (idx && ivl_expr_type(arms[idx]) == IVL_EX_TERNARY
+		&& ternary_unpacked_struct_(arms[idx]))
+		  return 1;
       }
       return 0;
 }
