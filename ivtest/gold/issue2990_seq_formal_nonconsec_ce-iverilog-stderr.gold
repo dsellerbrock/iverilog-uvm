@@ -1,0 +1,1 @@
+ivltests/issue2990_seq_formal_nonconsec_ce.v:5: error: sequence-typed formal `arg' cannot be the operand of nonconsecutive [=] repetition, which takes a Boolean expression (IEEE 1800-2017/2023 16.8.1, 16.9.2).

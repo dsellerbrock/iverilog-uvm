@@ -12509,6 +12509,44 @@ void pform_sva_declare_sequence_spec(const struct vlltype&loc,
 }
 
 /* M9D: parameterized named property/sequence declarations. */
+/* IEEE 1800-2017/2023 16.8.1: "A formal argument of type sequence may not
+   be referenced as the expression_or_dist operand of a goto_repetition (see
+   16.9.2), regardless of the corresponding actual argument, because a
+   sequence_expr may not be written in that position." Nonconsecutive
+   repetition takes the same expression_or_dist operand (16.9.2). */
+static void sva_check_sequence_formal_abbrev_(
+      const struct vlltype&loc, const std::set<perm_string>&formals,
+      const std::vector<sva_seq_step_t>*steps)
+{
+      if (!steps || formals.empty()) return;
+      for (const sva_seq_step_t&step : *steps) {
+	    if (step.rep_kind != 1 && step.rep_kind != 2) continue;
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(step.expr);
+	    if (!id || id->path().package || id->path().name.size() != 1
+		|| !id->path().name.front().index.empty()
+		|| !formals.count(id->path().name.front().name))
+		  continue;
+	    cerr << loc << ": error: sequence-typed formal `"
+		 << id->path().name.front().name << "' cannot be the operand of "
+		 << (step.rep_kind == 1 ? "goto [->]" : "nonconsecutive [=]")
+		 << " repetition, which takes a Boolean expression "
+		 << "(IEEE 1800-2017/2023 16.8.1, 16.9.2)." << endl;
+	    error_count += 1;
+      }
+}
+
+static void sva_check_sequence_formal_abbrev_(
+      const struct vlltype&loc, const std::set<perm_string>&formals,
+      const sva_property_t*prop)
+{
+      if (!prop || formals.empty()) return;
+      sva_check_sequence_formal_abbrev_(loc, formals, prop->mc_prefix);
+      sva_check_sequence_formal_abbrev_(loc, formals, prop->antecedent);
+      sva_check_sequence_formal_abbrev_(loc, formals, prop->seq);
+      sva_check_sequence_formal_abbrev_(loc, formals, prop->pa);
+      sva_check_sequence_formal_abbrev_(loc, formals, prop->pb);
+}
+
 void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 				  std::list<sva_property_formal_t>*formals,
 				  sva_property_t*prop)
@@ -12520,6 +12558,14 @@ void pform_sva_declare_property_p(const struct vlltype&loc, const char*name,
 	/* Local formals are not in local_names yet: they start assigned. */
       if (prop) sva_check_local_flow_(loc, prop, nullptr, prop->local_names);
       perm_string use_name = lex_strings.make(name);
+
+      if (formals) {
+	    std::set<perm_string> sequence_formals;
+	    for (const sva_property_formal_t&formal : *formals)
+		  if (formal.formal_type == sva_property_formal_t::SEQUENCE)
+			sequence_formals.insert(formal.name);
+	    sva_check_sequence_formal_abbrev_(loc, sequence_formals, prop);
+      }
 
       bool bad_local_direction = false;
       if (formals) {
@@ -12612,6 +12658,12 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
 	    return;
       }
       sva_param_seq_t rec;
+      if (formals) {
+	    std::set<perm_string> sequence_formals;
+	    for (const sva_sequence_formal_t&f : *formals)
+		  if (f.sequence_type) sequence_formals.insert(f.name);
+	    sva_check_sequence_formal_abbrev_(loc, sequence_formals, steps);
+      }
       if (formals) {
 	    for (sva_sequence_formal_t f : *formals) {
 	      rec.formals.push_back(f);
