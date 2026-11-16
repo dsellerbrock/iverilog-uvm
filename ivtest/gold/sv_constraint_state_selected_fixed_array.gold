@@ -1,3 +1,5 @@
+ERROR: constraint state read: invalid fixed-array index in constraint.
+ERROR: constraint state read: invalid fixed-array index in constraint.
 ERROR: constraint state read: X/Z fixed-array state element in constraint.
 ERROR: constraint state read: X/Z fixed-array state element in constraint.
 ERROR: constraint state read: invalid 4-state fixed-array index in constraint.

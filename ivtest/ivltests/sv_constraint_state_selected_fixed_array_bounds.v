@@ -72,8 +72,8 @@ module test;
     unsigned_oob.selector = 64'hffffffffffffffff;
     if (unsigned_oob.values[unsigned_oob.selector] !== 8'h00)
       $fatal(1, "ordinary dynamic unsigned MAX aliased signed -1");
-    if (!unsigned_oob.randomize() || unsigned_oob.witness != 1)
-      $fatal(1, "unsigned max aliased signed -1 instead of using OOB zero");
+    if (unsigned_oob.randomize())
+      $fatal(1, "unsigned max must fail as an invalid constraint index");
 
     unsigned_constant_oob = new;
     unsigned_constant_oob.values[-1] = 8'h7e;
@@ -81,9 +81,8 @@ module test;
     if (unsigned_constant_oob.values[-1] != 8'h7e
         || unsigned_constant_oob.values[-2] != 8'he7)
       $fatal(1, "ordinary constant-OOB source array read failed");
-    if (!unsigned_constant_oob.randomize()
-        || unsigned_constant_oob.witness != 1)
-      $fatal(1, "constant unsigned MAX aliased signed -1");
+    if (unsigned_constant_oob.randomize())
+      $fatal(1, "constant unsigned MAX must fail as an invalid constraint index");
 
     $display("PASSED");
   end
