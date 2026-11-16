@@ -137,6 +137,13 @@ issue747_fixed_unpacked_bitstream_size_fail_2017 CE,-g2017,-s,issue747_fixed_unp
 issue747_fixed_unpacked_bitstream_size_fail_2023 CE,-g2023,-s,issue747_fixed_unpacked_bitstream_size_fail ivltests gold=issue747_fixed_unpacked_bitstream_size_fail_2023.gold
 issue747_fixed_unpacked_bitstream_runtime_size_fail_2017 RE,-g2017,-s,issue747_fixed_unpacked_bitstream_runtime_size_fail ivltests gold=issue747_fixed_unpacked_bitstream_runtime_size_fail.gold
 issue747_fixed_unpacked_bitstream_runtime_size_fail_2023 RE,-g2023,-s,issue747_fixed_unpacked_bitstream_runtime_size_fail ivltests gold=issue747_fixed_unpacked_bitstream_runtime_size_fail.gold
+issue2365_unsized_width_2017 normal,-g2017,-s,top ivltests gold=issue2365_unsized_width.gold
+issue2365_unsized_width_lossless_2017 normal,-g2017,-gno-strict-expr-width,-s,top ivltests gold=issue2365_unsized_width_lossless.gold
+issue2365_unsized_width_2023 normal,-g2023,-s,top ivltests gold=issue2365_unsized_width.gold
+issue2365_unsized_width_lossless_2023 normal,-g2023,-gno-strict-expr-width,-s,top ivltests gold=issue2365_unsized_width_lossless.gold
+issue2365_unsized_width_2012 normal,-g2012,-s,top ivltests gold=issue2365_unsized_width_lossless.gold
+issue2365_wide_literal_2017 normal,-g2017,-s,top ivltests gold=issue2365_wide_literal.gold
+issue2365_wide_literal_2023 normal,-g2023,-s,top ivltests gold=issue2365_wide_literal.gold
 issue2498_struct_to_fixed_array_2017 normal,-g2017,-s,issue2498_struct_to_fixed_array ivltests gold=issue2498_struct_to_fixed_array.gold
 issue2498_struct_to_fixed_array_2023 normal,-g2023,-s,issue2498_struct_to_fixed_array ivltests gold=issue2498_struct_to_fixed_array.gold
 

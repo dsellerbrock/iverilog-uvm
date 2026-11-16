@@ -165,6 +165,9 @@ const char*gen_icarus = "icarus-misc";
 const char*gen_io_range_error = "io-range-error";
 const char*gen_strict_ca_eval = "no-strict-ca-eval";
 const char*gen_strict_expr_width = "no-strict-expr-width";
+/* Set once -g(no-)strict-expr-width is given, so the 1800-2017/2023 default
+   (IEEE 1800 5.7.1, Table 11-21; #2365) does not override an explicit choice. */
+static int gen_strict_expr_width_explicit = 0;
 const char*gen_shared_loop_index = "shared-loop-index";
 const char*gen_commercial_unsafe = "no-commercial-unsafe";
 const char*gen_verilog_ams = "no-verilog-ams";
@@ -868,11 +871,14 @@ static int process_generation(const char*name)
       else if (strcmp(name,"no-strict-ca-eval") == 0)
 	    gen_strict_ca_eval = "no-strict-ca-eval";
 
-      else if (strcmp(name,"strict-expr-width") == 0)
+      else if (strcmp(name,"strict-expr-width") == 0) {
 	    gen_strict_expr_width = "strict-expr-width";
+	    gen_strict_expr_width_explicit = 1;
 
-      else if (strcmp(name,"no-strict-expr-width") == 0)
+      } else if (strcmp(name,"no-strict-expr-width") == 0) {
 	    gen_strict_expr_width = "no-strict-expr-width";
+	    gen_strict_expr_width_explicit = 1;
+      }
 
       else if (strcmp(name,"shared-loop-index") == 0)
 	    gen_shared_loop_index = "shared-loop-index";
@@ -1788,6 +1794,13 @@ int main(int argc, char **argv)
       fprintf(iconfig_file, "generation:%s\n", gen_xtypes);
       fprintf(iconfig_file, "generation:%s\n", gen_io_range_error);
       fprintf(iconfig_file, "generation:%s\n", gen_strict_ca_eval);
+	/* IEEE 1800 5.7.1: an unsized decimal number is 32 bits wide, so
+	   2147483647 + 1 wraps. That is the default for -g2017 and -g2023
+	   (owner ruling 2026-11-10, #2365); older generations keep the
+	   lossless width unless -gstrict-expr-width asks for it. */
+      if (!gen_strict_expr_width_explicit
+	  && (strcmp(generation, "2017") == 0 || strcmp(generation, "2023") == 0))
+	    gen_strict_expr_width = "strict-expr-width";
       fprintf(iconfig_file, "generation:%s\n", gen_strict_expr_width);
       fprintf(iconfig_file, "generation:%s\n", gen_shared_loop_index);
       fprintf(iconfig_file, "generation:%s\n", gen_commercial_unsafe);
