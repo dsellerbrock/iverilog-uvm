@@ -25481,8 +25481,8 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    return 0;
       }
       bool zero_count = count_const && count_value == 0;
-      delete count_expr;
-      if (zero_count) {
+      bool dynamic_count = count_expr && !count_const;
+      if (zero_count || dynamic_count) {
 	    string trig_name_str = string("_ivl_cbtrig$") + cb_name.str();
 	    perm_string trig_name = lex_strings.make(trig_name_str.c_str());
 	    pform_name_t trig_path;
@@ -25493,6 +25493,37 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    PCondit*wait_if_needed = new PCondit(trig_id, nullptr, wait_stmt);
 	    wait_if_needed->set_line(*this);
 	    NetProc*proc = wait_if_needed->elaborate(des, scope);
+	    if (dynamic_count && proc) {
+		  if (count_expr->expr_type() == IVL_VT_REAL)
+			count_expr = cast_to_int4(count_expr, 64);
+		  const netvector_t*type = new netvector_t(
+			IVL_VT_LOGIC, count_expr->expr_width()-1, 0,
+			count_expr->has_sign());
+		  NetNet*saved = new NetNet(scope, scope->local_symbol(),
+					  NetNet::REG, type);
+		  saved->local_flag(true);
+		  if (scope->is_auto())
+			saved->lifetime_override(IVL_VLT_AUTOMATIC);
+		  NetAssign*save = new NetAssign(new NetAssign_(saved), count_expr);
+		  save->set_line(*this);
+		  NetProc*event_wait = wait_stmt->elaborate(des, scope);
+		  if (!event_wait) {
+			delete proc;
+			delete save;
+			return 0;
+		  }
+		  NetRepeat*repeat = new NetRepeat(new NetESignal(saved), event_wait);
+		  repeat->set_line(*this);
+		  NetCondit*choice = new NetCondit(new NetESignal(saved), repeat, proc);
+		  choice->set_line(*this);
+		  NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+		  block->set_line(*this);
+		  block->append(save);
+		  block->append(choice);
+		  proc = block;
+	    } else {
+		  delete count_expr;
+	    }
 	    if (proc && statement_) {
 		  NetProc*sub = statement_->elaborate(des, scope);
 		  if (sub == 0) {
@@ -25507,6 +25538,7 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    }
             return proc;
       }
+      delete count_expr;
       PRepeat*rep_stmt = new PRepeat(count_, wait_stmt);
       rep_stmt->set_line(*this);
 
