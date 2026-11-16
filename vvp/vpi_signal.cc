@@ -563,6 +563,12 @@ static int signal_get(int code, vpiHandle ref)
 	  case vpiArrayMember:
 	    return rfp->is_netarray != 0;
 
+	  case vpiStructUnionMember:
+	    if (rfp->get_type_code() == vpiNetBit) return vpiUndefined;
+	    return rfp->packed_parent &&
+	           (rfp->packed_parent->get_vpi_type_code() == vpiStructVar ||
+	            rfp->packed_parent->get_vpi_type_code() == vpiUnionVar);
+
 	  case vpiPackedArrayMember:
 	    if (rfp->packed_parent &&
 	        rfp->packed_parent->get_vpi_type_code() == vpiPackedArrayVar &&
