@@ -419,7 +419,10 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 		const char*name = vpip_name_string(std::string(cp + 1, len).c_str());
 		cp += len + 2;
 		bool inner_named = *cp == 'N';
+		bool inner_time = *cp == 'T';
 		vpiHandle type = parse_vartype(cp, width, missing);
+		if (type && inner_time)
+		      return new __vpiTypespecAlias(name, type);
 		if (type && inner_named && type->vpi_get_str(vpiName))
 		      return new __vpiTypespecAlias(name, type);
 		if (__vpiStructTypespec*st = dynamic_cast<__vpiStructTypespec*>(type))
@@ -430,6 +433,13 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 		      if (!et->typedef_name) et->typedef_name = name;
 		}
 		return type;
+	  }
+	  case 'T': {
+		++cp;
+		bool signed_flag = *cp == 's';
+		if (signed_flag) ++cp;
+		width = 64;
+		return new __vpiVectorTypespec(vpiTimeTypespec, 63, 0, signed_flag);
 	  }
 	  case 'V':
 	  case 'B': {

@@ -683,7 +683,8 @@ static int type_has_vartype_(ivl_type_t type)
       /* Class properties are emitted in .class metadata; they are not a
          struct/union typespec for an array of class handles. */
       return type && ivl_type_base(type) != IVL_VT_CLASS
-          && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
+          && (ivl_type_enum(type) || ivl_type_properties(type) > 0 ||
+              ivl_type_typedef_vpi_type(type) == vpiTimeTypespec);
 }
 
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
@@ -757,6 +758,11 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
 
 	/* N<name>: the typedef name (37.25 detail 1). */
       vartype_put_name_(buf, ivl_type_typedef_name(type));
+
+      if (ivl_type_typedef_vpi_type(type) == vpiTimeTypespec) {
+	    vartype_put_(buf, ivl_type_signed(type) ? "Ts" : "T");
+	    return 64;
+      }
 
       if (enumtype) {
 	    if (!enumeration_is_drawn(enumtype)) return 0;
