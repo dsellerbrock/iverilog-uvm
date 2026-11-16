@@ -356,10 +356,11 @@ void cprop_functor::lpm_part_select(Design*des, NetPartSelect*obj)
       if (off < sig_width)
 	    part_count += 1;
 
-      // A complete set of selected drivers retains each source's strength.
+      // Four-state selected drivers retain their strengths, including when
+      // undriven gaps are filled with high impedance.
       NetConcat*cncat = new NetConcat(scope, scope->local_symbol(),
 				       sig_width, part_count,
-				       part_count == obj_set.size() &&
+				       (part_count == obj_set.size() || !output_2_state) &&
 				       !disable_concatz_generation);
       cncat->set_line(*obj);
       des->add_node(cncat);
