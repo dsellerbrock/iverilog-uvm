@@ -501,6 +501,25 @@ class vartype_resolv_t : public resolv_list_s {
 
       bool resolve(bool message_flag) override
       {
+	    __vpiCobjectVar*cobject = dynamic_cast<__vpiCobjectVar*>(vvp_lookup_handle(label()));
+	    __vpiArray*vif_array = dynamic_cast<__vpiArray*>(vvp_lookup_handle(label()));
+	    if ((cobject || vif_array) && text_[0] == 'I') {
+		  char*sep;
+		  unsigned long len = strtoul(text_ + 1, &sep, 10);
+		  if (sep == text_ + 1 || *sep != ':' || len == 0 ||
+		      len > strlen(sep + 1) ||
+		      !(cobject ? cobject->get_type_code() == vpiVirtualInterfaceVar
+		                 : vif_array->is_virtual_interface_array())) {
+			  yyerror("invalid .vartype metadata");
+			  compile_errors += 1;
+		  } else {
+			  std::string defname(sep + 1, len);
+			  vpiHandle type = vpip_make_interface_typespec(defname.c_str(), sep + 1 + len);
+			  if (cobject) cobject->set_interface_typespec(type);
+			  else vif_array->typespec = type;
+		  }
+		  return true;
+	    }
 	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(label()));
 	    __vpiArray*array = dynamic_cast<__vpiArray*>(vvp_lookup_handle(label()));
 	    __vpiDarrayVar*darray = dynamic_cast<__vpiDarrayVar*>(vvp_lookup_handle(label()));

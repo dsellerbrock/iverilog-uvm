@@ -446,6 +446,9 @@ vpiHandle __vpiCobjectVar::vpi_handle(int code)
       vvp_fun_signal_object*fun = get_object_fun_(this);
 
       switch (code) {
+	  case vpiTypespec:
+	    if (virtual_interface_) return interface_typespec_;
+	    return __vpiBaseVar::vpi_handle(code);
 	  case vpiExpr: {
 		if (!virtual_interface_ || !fun)
 		      return 0;

@@ -1509,10 +1509,12 @@ class __vpiCobjectVar : public __vpiBaseVar {
       { return has_source_location_ ? source_lineno_ : 0; }
       unsigned get_source_file_idx() const { return source_file_idx_; }
       bool has_source_loc() const { return has_source_location_; }
+      void set_interface_typespec(vpiHandle type) { interface_typespec_ = type; }
 
     private:
       bool virtual_interface_;
       bool virtual_interface_modport_;
+      vpiHandle interface_typespec_ = nullptr;
       unsigned source_file_idx_ = 0;
       unsigned source_lineno_ = 0;
       bool has_source_location_ = false;
@@ -1525,6 +1527,7 @@ extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
                                        bool automatic_storage,
                                        bool virtual_interface = false,
                                        bool virtual_interface_modport = false);
+extern vpiHandle vpip_make_interface_typespec(const char*defname, const char*modport);
 
 /* M12-5: resolve one member name on a class VARIABLE handle or a
    nested class MEMBER handle (returns nil for anything else). */
