@@ -35443,6 +35443,26 @@ static bool sva_parameter_window_try_assertion_(
 	  || cons.rep_kind != 0 || cons.fm
 	  || sva_step_has_assignment_(cons))
 	    return false;
+      /* Preserve the empty endpoint of a literal [*0]. The fixed-endpoint
+         matcher below describes consuming endpoints, whereas the repeat
+         checker already handles the empty match at the current tick. */
+      if (!tree_form && prop->op_type == 2 && prop->antecedent
+          && prop->antecedent->size() == 1) {
+            sva_seq_step_t&ante = prop->antecedent->front();
+            if (ante.delay_lo == 0 && ante.delay_hi == 0
+                && ante.rep_kind == 3 && ante.rep_lo == 0 && ante.rep_hi == 0
+                && ante.rep_tail == 0 && !ante.rep_lo_expr && !ante.rep_hi_expr
+                && !sva_step_has_assignment_(ante) && !sva_step_has_call_(ante)) {
+                  ante.rep_kind = 4;
+                  ante.rep_lo_expr = sva_num32_(loc, 0);
+                  if (sva_parameter_repeat_try_assertion_(loc, prop, fail_stmt,
+                                                         pass_stmt, kind))
+                        return true;
+                  delete ante.rep_lo_expr;
+                  ante.rep_lo_expr = nullptr;
+                  ante.rep_kind = 3;
+            }
+      }
       long span = 0;
       PExpr*match = tree_form
 	    ? sva_fixed_endpoint_match_(loc, prop->ante_tree, span)
@@ -38644,8 +38664,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 
 	/* IEEE 1800-2017/2023 16.12.22(c) permits an antecedent that
 	   admits only empty matches for |=>. Its sole match contributes no
-	   sampled tick, so this implication is exactly the consequent delayed
-	   by one clock. Normalize the direct exact-zero-repeat shape before the
+	   sampled tick, so its consequent starts on the current clock. Normalize
+	   the direct exact-zero-repeat shape before the
 	   generic variable-antecedent promotion can turn it into a tree that
 	   cannot represent the epsilon match. */
       if (prop && prop->op_type == 2 && !prop->tree && !prop->ante_tree
@@ -38665,9 +38685,6 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  pform_sva_destroy_sequence(prop->antecedent);
 		  prop->antecedent = nullptr;
 		  prop->op_type = 0;
-		  prop->seq->front().delay_lo += 1;
-		  if (prop->seq->front().delay_hi >= 0)
-			prop->seq->front().delay_hi += 1;
 	    }
       }
 
