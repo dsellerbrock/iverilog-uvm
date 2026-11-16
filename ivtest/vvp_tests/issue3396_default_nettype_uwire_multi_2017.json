@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3396_default_nettype_uwire_multi.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue3396_default_nettype_uwire_multi_2017"
+}

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3396_default_nettype_uwire.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue3396_default_nettype_uwire"
+}
