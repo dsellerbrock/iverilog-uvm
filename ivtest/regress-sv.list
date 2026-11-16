@@ -6980,3 +6980,5 @@ issue847_mismatch_2017 CE,-g2017,-s,main ivltests gold=issue847_mismatch.gold
 issue847_match_2017 normal,-g2017,-s,main ivltests gold=issue847_match.gold
 issue847_mismatch_2023 CE,-g2023,-s,main ivltests gold=issue847_mismatch.gold
 issue847_match_2023 normal,-g2023,-s,main ivltests gold=issue847_match.gold
+issue766_specialized_return_2017 normal,-g2017,-s,issue766_specialized_return ivltests gold=issue766_specialized_return.gold
+issue766_specialized_return_2023 normal,-g2023,-s,issue766_specialized_return ivltests gold=issue766_specialized_return.gold
