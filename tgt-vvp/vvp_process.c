@@ -3212,6 +3212,16 @@ static int show_stmt_disable(ivl_statement_t net, ivl_scope_t sscope)
       return rc;
 }
 
+/* An unpacked struct signal is an object (.var/cobj): no data type of its
+   own, and a net type that has properties. */
+static int signal_is_struct_object_(ivl_signal_t sig)
+{
+      ivl_type_t type = ivl_signal_net_type(sig);
+      return ivl_signal_data_type(sig) == IVL_VT_NO_TYPE && type
+	    && ivl_type_base(type) == IVL_VT_NO_TYPE
+	    && ivl_type_properties(type) > 0;
+}
+
 /*
  * IEEE 1800-2023 10.6.2, ruling on #2769: force of a singular member of an
  * unpacked struct variable. The value goes to the member with
@@ -3268,6 +3278,24 @@ static int show_stmt_force(ivl_statement_t net)
 	  && ivl_lval_property_idx(ivl_stmt_lval(net, 0)) >= 0
 	  && ivl_lval_sig(ivl_stmt_lval(net, 0)))
 	    return show_stmt_force_prop_(net, ivl_stmt_lval(net, 0), rval);
+
+	/* A whole net of an unpacked struct nettype (IEEE 1800-2023 6.6.7,
+	   ruling on #2769): force a value copy of the object RHS, and follow
+	   a signal RHS. */
+      if (ivl_stmt_lvals(net) == 1
+	  && ivl_lval_property_idx(ivl_stmt_lval(net, 0)) < 0
+	  && ivl_lval_sig(ivl_stmt_lval(net, 0))
+	  && signal_is_struct_object_(ivl_lval_sig(ivl_stmt_lval(net, 0)))) {
+	    ivl_signal_t lsig = ivl_lval_sig(ivl_stmt_lval(net, 0));
+	    ivl_expr_t link = ivl_stmt_force_link_rval(net);
+	    draw_eval_object(rval);
+	    fprintf(vvp_out, "    %%force/obj v%p_0;\n", lsig);
+	    if (link && ivl_expr_type(link) == IVL_EX_SIGNAL
+		&& ivl_signal_array_count(ivl_expr_signal(link)) == 1)
+		  fprintf(vvp_out, "    %%force/link/obj v%p_0, v%p_0;\n",
+			  lsig, ivl_expr_signal(link));
+	    return 0;
+      }
 
       sig = ivl_lval_sig(ivl_stmt_lval(net, 0));
       if (sig && ivl_signal_data_type(sig) == IVL_VT_REAL) {
@@ -3510,6 +3538,12 @@ static int show_stmt_release(ivl_statement_t net)
 	  && ivl_lval_property_idx(ivl_stmt_lval(net, 0)) >= 0 && sig) {
 	    fprintf(vvp_out, "    %%release/prop v%p_0, %d;\n", sig,
 		    ivl_lval_property_idx(ivl_stmt_lval(net, 0)));
+	    return 0;
+      }
+      if (ivl_stmt_lvals(net) == 1 && sig
+	  && ivl_lval_property_idx(ivl_stmt_lval(net, 0)) < 0
+	  && signal_is_struct_object_(sig)) {
+	    fprintf(vvp_out, "    %%release/obj v%p_0;\n", sig);
 	    return 0;
       }
 

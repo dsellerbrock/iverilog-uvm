@@ -29915,8 +29915,8 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
 	   reference to a singular variable, a net, ..."; 6.4: an unpacked
 	   structure is not singular. Ruling on #2769: a whole unpacked struct
 	   variable is an error; a singular member of one is legal, and a
-	   vector or real member is supported; a net of a struct nettype is
-	   legal but not supported yet. */
+	   vector or real member is supported, and so is a whole net of a
+	   struct nettype (6.6.7). */
       if (const NetNet*sig = lval->sig()) {
 	    const netstruct_t*st = sig->struct_type();
 	    if (st && !st->packed()) {
@@ -29927,7 +29927,9 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
 			&& !lval->word()
 			&& (mtype == IVL_VT_LOGIC || mtype == IVL_VT_BOOL
 			    || mtype == IVL_VT_REAL);
-		  if (!member_ok) {
+		  bool net_ok = !variable && lval->get_property_idx() < 0
+			&& !lval->word();
+		  if (!member_ok && !net_ok) {
 			if (variable && lval->get_property_idx() < 0)
 			      cerr << get_fileline() << ": error: the unpacked "
 				   << "struct variable `" << sig->name() << "' is "

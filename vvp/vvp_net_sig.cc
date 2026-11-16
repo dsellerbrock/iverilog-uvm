@@ -2833,10 +2833,33 @@ void vvp_fun_signal_object_aa::free_instance(vvp_context_t context)
 
 extern void vvp_prop_force_reapply(vvp_net_t*net);
 
+void vvp_fun_signal_object_sa::force_object(vvp_net_t*net,
+					    const vvp_object_t&val)
+{
+      if (!forced_) driven_ = value_;
+      forced_ = true;
+      force_store_ = true;
+      recv_object(vvp_net_ptr_t(net, 0), val, 0);
+      force_store_ = false;
+}
+
+void vvp_fun_signal_object_sa::release_object(vvp_net_t*net)
+{
+      if (!forced_) return;
+      forced_ = false;
+      vvp_object_t driven = driven_;
+      driven_ = vvp_object_t();
+      recv_object(vvp_net_ptr_t(net, 0), driven, 0);
+}
+
 void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 					   vvp_context_t)
 {
       assert(ptr.port() == 0);
+      if (forced_ && !force_store_) {
+	    driven_ = bit;
+	    return;
+      }
       attached_net_ = ptr.ptr();
       vvp_object_t no_root;
       if (vthread_vif_overlay_put_object(

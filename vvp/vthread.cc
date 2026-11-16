@@ -22692,6 +22692,107 @@ bool of_RELEASE_PROP(vthread_t, vvp_code_t cp)
       return true;
 }
 
+/*
+ * IEEE 1800-2023 6.6.7 ("A force statement can override the value of a net
+ * of a user-defined nettype. When released, the net returns to the resolved
+ * value.") and the ruling on #2769: force/release of a net of an unpacked
+ * struct nettype. The net holds a value copy of the RHS; a signal RHS is
+ * followed through a relay that hears both whole stores to the source
+ * (its net fanout) and member stores (the source object's touch relays).
+ */
+static vvp_fun_signal_object_sa* obj_force_target_(vvp_net_t*net)
+{
+      return dynamic_cast<vvp_fun_signal_object_sa*>(net->fun);
+}
+
+static vvp_object_t obj_force_copy_(const vvp_object_t&src)
+{
+      const vvp_cobject*cobj = src.peek<vvp_cobject>();
+      if (!cobj) return src;
+      vvp_object_t dst;
+      dst = new vvp_cobject(cobj->get_defn());
+      dst.shallow_copy(src);
+      return dst;
+}
+
+class obj_force_relay : public vvp_net_fun_t {
+    public:
+      obj_force_relay(vvp_net_t*target) : target_(target) { }
+      void recv_object(vvp_net_ptr_t port, vvp_object_t obj, vvp_context_t) override
+      {
+	    if (!active) return;
+	    watch(port.ptr(), obj);
+	    if (vvp_fun_signal_object_sa*sig = obj_force_target_(target_))
+		  sig->force_object(target_, obj_force_copy_(obj));
+      }
+      void watch(vvp_net_t*self, const vvp_object_t&obj)
+      {
+	    if (obj == watched_) return;
+	    if (vvp_object*o = watched_.peek<vvp_object>()) o->remove_touch_relay(self);
+	    watched_ = obj;
+	    if (vvp_object*o = watched_.peek<vvp_object>()) o->add_touch_relay(self);
+      }
+      void stop(vvp_net_t*self)
+      {
+	    active = false;
+	    if (vvp_object*o = watched_.peek<vvp_object>()) o->remove_touch_relay(self);
+	    watched_ = vvp_object_t();
+      }
+      bool active = true;
+    private:
+      vvp_net_t*target_;
+      vvp_object_t watched_;
+};
+static std::map<vvp_net_t*, vvp_net_t*> obj_force_relays_;	// target -> relay net
+
+static void obj_force_stop_relay_(vvp_net_t*target)
+{
+      auto found = obj_force_relays_.find(target);
+      if (found == obj_force_relays_.end()) return;
+      if (auto*relay = dynamic_cast<obj_force_relay*>(found->second->fun))
+	    relay->stop(found->second);
+      obj_force_relays_.erase(found);
+}
+
+/* %force/obj <net>: pop an object and force a value copy of it onto the
+   struct-nettype net <net>. */
+bool of_FORCE_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      vvp_object_t val;
+      thr->pop_object(val);
+      obj_force_stop_relay_(cp->net);
+      if (vvp_fun_signal_object_sa*sig = obj_force_target_(cp->net))
+	    sig->force_object(cp->net, obj_force_copy_(val));
+      return true;
+}
+
+/* %force/link/obj <net>, <source>: keep the force that the preceding
+   %force/obj installed following the object signal <source>. */
+bool of_FORCE_LINK_OBJ(vthread_t, vvp_code_t cp)
+{
+      vvp_net_t*src = cp->net2;
+      vvp_fun_signal_object*src_sig = src
+	    ? dynamic_cast<vvp_fun_signal_object*>(src->fun) : nullptr;
+      if (!src_sig) return true;
+      vvp_net_t*node = new vvp_net_t;
+      obj_force_relay*relay = new obj_force_relay(cp->net);
+      node->fun = relay;
+      relay->watch(node, src_sig->get_object());
+      src->link(vvp_net_ptr_t(node, 0));
+      obj_force_relays_[cp->net] = node;
+      return true;
+}
+
+/* %release/obj <net>: release a forced struct-nettype net; it returns to
+   the value its drivers give. */
+bool of_RELEASE_OBJ(vthread_t, vvp_code_t cp)
+{
+      obj_force_stop_relay_(cp->net);
+      if (vvp_fun_signal_object_sa*sig = obj_force_target_(cp->net))
+	    sig->release_object(cp->net);
+      return true;
+}
+
 bool of_FORCE_LINK(vthread_t thr, vvp_code_t cp)
 {
       vvp_net_t*dst = cp->net;
