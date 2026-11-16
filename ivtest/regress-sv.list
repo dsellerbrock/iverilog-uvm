@@ -6962,3 +6962,5 @@ issue3501_delayed_strength_2017 normal,-g2017,-s,issue3501_delayed_strength ivlt
 issue3501_delayed_strength_2023 normal,-g2023,-s,issue3501_delayed_strength ivltests gold=issue3501_delayed_strength.gold
 issue3509_clocking_sequence_2017 normal,-g2017 ivltests
 issue3509_clocking_sequence_2023 normal,-g2023 ivltests
+issue3513_step_delay_2017 normal,-g2017,-s,issue3513_step_delay ivltests gold=issue3513_step_delay.gold
+issue3513_step_delay_2023 normal,-g2023,-s,issue3513_step_delay ivltests gold=issue3513_step_delay.gold
