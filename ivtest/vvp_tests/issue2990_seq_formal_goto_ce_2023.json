@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2990_seq_formal_goto_ce.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue2990_seq_formal_goto_ce"],
+  "gold": "issue2990_seq_formal_goto_ce"
+}

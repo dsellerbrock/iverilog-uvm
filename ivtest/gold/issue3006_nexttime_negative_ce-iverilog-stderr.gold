@@ -1,0 +1,2 @@
+ivltests/issue3006_nexttime_negative_ce.v:5: error: nexttime index -1 is negative; it shall be a non-negative integer constant expression (IEEE 1800-2017/2023 16.12.10).
+ivltests/issue3006_nexttime_negative_ce.v:6: error: s_nexttime index -1 is negative; it shall be a non-negative integer constant expression (IEEE 1800-2017/2023 16.12.10).

@@ -1,0 +1,2 @@
+ivltests/issue3006_nexttime_nonconstant_ce.v:7: error: s_nexttime index must be an integer constant expression (IEEE 1800-2017/2023 16.12.10).
+ivltests/issue3006_nexttime_nonconstant_ce.v:8: sorry: nexttime index that depends on an overridable parameter is not supported.

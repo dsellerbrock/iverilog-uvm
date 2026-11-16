@@ -1,0 +1,1 @@
+ivltests/issue2990_prop_formal_goto_ce.v:4: error: sequence-typed formal `q' cannot be the operand of goto [->] repetition, which takes a Boolean expression (IEEE 1800-2017/2023 16.8.1, 16.9.2).

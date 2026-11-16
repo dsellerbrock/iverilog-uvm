@@ -1,0 +1,2 @@
+PASS
+ivltests/issue3494_array_input_force.v:45: $finish called at 4 (1s)

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3006_nexttime_constant_index.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue3006_nexttime_constant_index"],
+  "output-contains": ["PASSED"]
+}
