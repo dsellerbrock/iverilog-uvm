@@ -6946,3 +6946,5 @@ issue3418_array_bit_2023 normal,-g2023,-s,issue3418_array_bit ivltests gold=issu
 issue3418_overlap_2023 CE,-g2023,-s,issue3418_overlap ivltests gold=issue3418_overlap-legacy.gold
 issue3435_edge_path_2017 normal,-g2017,-gspecify,-s,issue3435_edge_path ivltests gold=issue3435_edge_path.gold
 issue3435_edge_path_2023 normal,-g2023,-gspecify,-s,issue3435_edge_path ivltests gold=issue3435_edge_path.gold
+issue3494_array_input_force_2017 normal,-g2017,-s,issue3494_array_input_force ivltests gold=issue3494_array_input_force.gold
+issue3494_array_input_force_2023 normal,-g2023,-s,issue3494_array_input_force ivltests gold=issue3494_array_input_force.gold
