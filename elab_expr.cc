@@ -13707,6 +13707,21 @@ static bool fixed_bitstream_width_(ivl_type_t type, uint64_t& width)
       return false;
 }
 
+/* 6.24.3 lists no unpacked union among the bit-stream types, so 20.6.2
+ * rejects $bits of one, or of an unpacked struct/array that holds one. */
+static bool type_has_unpacked_union_(ivl_type_t type)
+{
+      if (!type || type->packed()) return false;
+      if (const netuarray_t*array = dynamic_cast<const netuarray_t*>(type))
+	    return type_has_unpacked_union_(array->element_type());
+      if (const netstruct_t*record = dynamic_cast<const netstruct_t*>(type)) {
+	    if (record->union_flag()) return true;
+	    for (const netstruct_t::member_t&member : record->members())
+		  if (type_has_unpacked_union_(member.net_type)) return true;
+      }
+      return false;
+}
+
 /* IEEE 1800-2017/2023 11.2.1 lists $sformatf among the constant system
  * functions when its arguments are constant expressions. Fold the
  * conversions whose text depends only on the argument values, following the
@@ -14500,6 +14515,7 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		    /* 20.6.2: the number of data bits of a fixed-size type,
 		       including unpacked structs and arrays of them. */
 		  if (dynamic_cast<const netclass_t*>(data_type)
+		      || type_has_unpacked_union_(data_type)
 		      || !fixed_bitstream_width_(data_type, use_width)) {
 			use_width = 0;
 			cerr << get_fileline() << ": error: "
@@ -14522,6 +14538,27 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			      use_width = expr->expr_width();
 		  } else {
 			use_width = expr->expr_width();
+			  /* ponytail: only a plain identifier or member path is
+			     checked, and not in a constant context: there the
+			     argument can sit in a declaration that is still being
+			     elaborated, and resolving it here would elaborate the
+			     signals it names early (a circular declaration would
+			     then be reported twice, see early_sig_elab3). Upgrade:
+			     resolve the name with a lookup that has no
+			     early-elaboration effect. */
+			const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
+			if (id && !(flags & NEED_CONST)) {
+			      bool bad = type_has_unpacked_union_(
+				    unpacked_aggregate_operand_type_(des, scope, id));
+			      if (bad) {
+				    cerr << get_fileline() << ": error: $bits of an "
+					 << "unpacked union is not allowed: it is not a "
+					 << "bit-stream type. (IEEE 1800-2023 20.6.2, 6.24.3)"
+					 << endl;
+				    des->errors += 1;
+				    return nullptr;
+			      }
+			}
 		  }
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_sfunc_: "
