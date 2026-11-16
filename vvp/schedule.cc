@@ -1682,6 +1682,7 @@ void schedule_get_time_queue(vector<vvp_time64_t>& times)
       vvp_time64_t time = schedule_time;
 
       for (struct event_time_s* ctim = sched_list; ctim; ctim = ctim->next) {
+            time += ctim->delay;
             bool before_rosync = ctim->start || ctim->preponed || ctim->active
                   || ctim->active_sync || ctim->inactive || ctim->nbassign
                   || ctim->nbasync || ctim->observed || ctim->reactive
@@ -1689,10 +1690,8 @@ void schedule_get_time_queue(vector<vvp_time64_t>& times)
                   || ctim->held_active || ctim->rwsync;
             bool any_event = before_rosync || ctim->rosync || ctim->del_thr;
 
-            if (any_event && (ctim->delay > 0 || before_rosync))
+            if (any_event && (time != schedule_time || before_rosync))
                   times.push_back(time);
-
-            time += ctim->delay;
       }
 }
 
