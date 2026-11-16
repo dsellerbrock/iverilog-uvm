@@ -14961,7 +14961,12 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
       const bool cast_status_arg = cast_call && cast_dest_type
 		&& !dynamic_cast<const netclass_t*>(cast_dest_type);
 
-      NetESFunc*fun = new NetESFunc(name, expr_type_, expr_width_,
+      const bool psprintf_trailing_empty = gn_commercial_unsafe_flag
+		&& name == "$psprintf" && nparms > 1
+		&& parms_[0].parm && !parms_[nparms-1].parm;
+      NetESFunc*fun = new NetESFunc(psprintf_trailing_empty
+				    ? lex_strings.make("$ivl_psprintf_trailing_empty")
+				    : name, expr_type_, expr_width_,
 				    nparms + (cast_enum_type ? 1 : 0)
 				    + (cast_status_arg ? 1 : 0),
 				    is_overridden_);
@@ -15088,6 +15093,8 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
                         parm_errors += 1;
                         fun->parm(idx, 0);
                   }
+	    } else if (psprintf_trailing_empty && idx == nparms-1) {
+		  fun->parm(idx, 0);
 	    } else {
 		  missing_parms += 1;
 		  fun->parm(idx, 0);
