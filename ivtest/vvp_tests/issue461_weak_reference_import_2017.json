@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "issue461_weak_reference_import.sv",
+  "iverilog-args": ["-g2017", "-s", "top"]
+}

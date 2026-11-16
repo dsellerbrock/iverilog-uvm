@@ -1847,6 +1847,12 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
       if (found_type && !ambiguous) {
 	    scope->explicit_imports[name] = found_decl_pkg;
 	    scope->explicit_imports_from[name].insert(found_decl_pkg);
+	      // A std class reached through `import std::*' is used the same
+	      // as one found by the built-in fallback in
+	      // pform_test_type_identifier: keep the package, or the type's
+	      // definition scope is gone after the file (#461).
+	    if (found_decl_pkg->pscope_name() == perm_string::literal("std"))
+		  pform_builtin_std_used();
       }
 
       return found_type;
