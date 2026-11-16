@@ -71,6 +71,7 @@ ruled). A provisional reading an agent built on before a ruling is marked "provi
 | 2026-11-16 | 8.23 | A8 class-B Q4 | `C::f()` calling a non-static method from outside the class | An error: there is no object, and `::` reaches only static members. | owner |
 | 2026-11-16 | 11.3, Table 11-1 | A8 class-B Q5 | Bitwise operators on a `real` operand | An error; Table 11-1 does not list them for `real`. | owner |
 | 2026-11-16 | 22.5.1 | A8 class-B Q6 (issue to be filed) | The `` `` `` paste operator outside a macro definition | An error in strict modes; a warning under `-gcommercial-unsafe` (the 2026-11-10 pattern). | owner |
+| 2026-11-16 | 10.6.2, 6.4, 6.6.7 | #2769 | `force`/`release` on an unpacked struct: the whole variable, a member, a struct-nettype net | A whole unpacked struct variable is not singular, so it is an error as a force target (not a sorry). A singular member of an unpacked struct variable (`force v.a = 7`) is legal. A net of a struct nettype is legal (6.6.7). | owner |
 
 ## Process rulings
 
