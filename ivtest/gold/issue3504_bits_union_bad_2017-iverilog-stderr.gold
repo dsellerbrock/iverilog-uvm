@@ -1,0 +1,6 @@
+ivltests/issue3504_bits_union_bad.sv:9: error: $bits of an unpacked union is not allowed: it is not a bit-stream type. (IEEE 1800-2023 20.6.2, 6.24.3)
+ivltests/issue3504_bits_union_bad.sv:10: error: Invalid data type for $bits().
+ivltests/issue3504_bits_union_bad.sv:11: error: $bits of an unpacked union is not allowed: it is not a bit-stream type. (IEEE 1800-2023 20.6.2, 6.24.3)
+ivltests/issue3504_bits_union_bad.sv:12: error: $bits of an unpacked union is not allowed: it is not a bit-stream type. (IEEE 1800-2023 20.6.2, 6.24.3)
+ivltests/issue3504_bits_union_bad.sv:13: error: $bits of an unpacked union is not allowed: it is not a bit-stream type. (IEEE 1800-2023 20.6.2, 6.24.3)
+5 error(s) during elaboration.

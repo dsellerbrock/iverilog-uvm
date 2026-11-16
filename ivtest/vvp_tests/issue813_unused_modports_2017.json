@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue813_unused_modports.sv",
+    "iverilog-args": [ "-g2017", "-s", "issue813_top" ],
+    "gold": "issue813_unused_modports_2017"
+}

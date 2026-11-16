@@ -35,7 +35,7 @@ module main;
     // pack back
     back = { >> byte {arr}};
     check("rshift pack", back == 32'hAABBCCDD);
-    check("lshift pack", { << byte {arr}} == 32'hDDCCBBAA);
+    check("lshift pack", int'({ << byte {arr}}) == 32'hDDCCBBAA);
 
     // << unpack: byte-reversed
     { << byte {arr}} = word;

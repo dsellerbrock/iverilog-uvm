@@ -6990,3 +6990,21 @@ issue3485_switch_vector_2017 normal,-g2017,-s,top ivltests gold=issue3485_switch
 issue3485_switch_vector_2023 normal,-g2023,-s,top ivltests gold=issue3485_switch_vector.gold
 issue3469_sformatf_integral_2017 normal,-g2017,-s,issue3469_sformatf_integral ivltests gold=issue3469_sformatf_integral.gold
 issue3469_sformatf_integral_2023 normal,-g2023,-s,issue3469_sformatf_integral ivltests gold=issue3469_sformatf_integral.gold
+issue813_unused_modports_2017 CE,-g2017,-s,issue813_top ivltests gold=issue813_unused_modports_2017.gold
+issue813_unused_modports_2023 CE,-g2023,-s,issue813_top ivltests gold=issue813_unused_modports_2023.gold
+issue1395_empty_timing_2017 normal,-g2017,-s,issue1395_empty_timing ivltests gold=issue1395_empty_timing.gold
+issue1395_empty_timing_2023 normal,-g2023,-s,issue1395_empty_timing ivltests gold=issue1395_empty_timing.gold
+issue1573_initial_pulses_2017 normal,-g2017,-gspecify,-ginterconnect,-s,issue1573_initial_pulses ivltests gold=issue1573_initial_pulses-legacy.gold
+issue1573_initial_pulses_2023 normal,-g2023,-gspecify,-ginterconnect,-s,issue1573_initial_pulses ivltests gold=issue1573_initial_pulses-legacy.gold
+issue670_psprintf_2017 normal,-g2017,-gcommercial-unsafe,-s,issue670_psprintf ivltests gold=issue670_psprintf.gold
+issue670_psprintf_2023 normal,-g2023,-gcommercial-unsafe,-s,issue670_psprintf ivltests gold=issue670_psprintf.gold
+issue670_strict_2017 CE,-g2017,-s,issue670_psprintf_reject ivltests
+issue670_strict_2023 CE,-g2023,-s,issue670_psprintf_reject ivltests
+issue670_interior_2017 CE,-g2017,-gcommercial-unsafe,-DINTERIOR,-s,issue670_psprintf_reject ivltests
+issue670_interior_2023 CE,-g2023,-gcommercial-unsafe,-DINTERIOR,-s,issue670_psprintf_reject ivltests
+issue670_sformatf_2017 CE,-g2017,-gcommercial-unsafe,-DSFORMATF,-s,issue670_psprintf_reject ivltests
+issue670_sformatf_2023 CE,-g2023,-gcommercial-unsafe,-DSFORMATF,-s,issue670_psprintf_reject ivltests
+issue3504_bits_union_bad_2017 CE,-g2017,-s,top ivltests gold=issue3504_bits_union_bad_2017.gold
+issue3504_bits_union_ok_2017 normal,-g2017,-s,top ivltests gold=issue3504_bits_union_ok.gold
+issue3504_bits_union_bad_2023 CE,-g2023,-s,top ivltests gold=issue3504_bits_union_bad_2023.gold
+issue3504_bits_union_ok_2023 normal,-g2023,-s,top ivltests gold=issue3504_bits_union_ok.gold

@@ -4628,9 +4628,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 
       /* Fixed unpacked-array selection. The compiler supplies each declared
        * dimension as LOW:WIDTH followed by its index expressions. Build the
-       * selection from the existing e: leaves. Table 7-1 makes an invalid
-       * 2-state read zero. A ground invalid 4-state state read is an 18.3
-       * evaluation error; retain symbolic validity for a random selector. */
+       * selection from the existing e: leaves. An invalid index in a
+       * constraint is an evaluation error regardless of element type;
+       * retain symbolic validity for a random selector. */
       if (op == "fsel") {
 	    string hdr = par.read_token();
 	    unsigned pidx, width; bool sflag;
@@ -4729,18 +4729,20 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 		  Z3_ast either[2] = {valid, match};
 		  valid = Z3_mk_or(b.ctx, 2, either);
 	    }
-	    if (!two_state) {
+	    {
 		  Z3_lbool validity = b.collect_refs_only
 			? Z3_L_UNDEF : state_guard_truth_(b, valid, index_refs);
 		  if (validity == Z3_L_UNDEF) {
 		    if (!b.collect_refs_only && b.collect_preferences) {
 			Z3Builder::StateCheck check = {
 			      Z3_mk_not(b.ctx, valid),
-			      "invalid 4-state fixed-array index in constraint"
+			      two_state ? "invalid fixed-array index in constraint"
+			                : "invalid 4-state fixed-array index in constraint"
 			};
 			b.state_checks.push_back(check);
 			vector<Z3_ast> unknown_matches;
 			for (unsigned long word = 0; word < words; ++word) {
+			      if (two_state) break;
 			      if (rand_elem_active_(b, b.prop_active, pidx,
 			                            (unsigned)word)) continue;
 			      vvp_vector4_t value;
@@ -4764,8 +4766,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 		  }
 		  else if (validity == Z3_L_FALSE)
 			b.state_errors.push_back(
-			      "invalid 4-state fixed-array index in constraint");
+			      two_state ? "invalid fixed-array index in constraint"
+			                : "invalid 4-state fixed-array index in constraint");
 		  else for (unsigned long word = 0; word < words; ++word) {
+			if (two_state) break;
 			if (state_guard_truth_(b, matches[word], index_refs)
 			    != Z3_L_TRUE) continue;
 			if (!rand_elem_active_(b, b.prop_active, pidx, (unsigned)word)) {

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3504_bits_union_bad.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue3504_bits_union_bad_2023"
+}
