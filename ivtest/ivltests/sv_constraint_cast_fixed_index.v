@@ -18,9 +18,14 @@ module test;
  initial begin
    if (!c.randomize()) $fatal(1, "typed fixed index rejected");
    if (int'(c.values[(c.a+c.b)/8'd2]) != 77) $fatal(1, "ordinary index differs");
+   old_a=c.a; old_b=c.b; state_before=c.get_randstate();
    c.invalid = 1;
-   if (!c.randomize()) $fatal(1, "two-state invalid read rejected");
+   if (c.randomize()) $fatal(1, "invalid constraint index accepted");
+   if (c.a!==old_a || c.b!==old_b || c.get_randstate()!=state_before)
+     $fatal(1, "invalid index changed values or RNG");
+   c.b=18;
    if (c.values[(c.a+c.b)/8'd2] !== 0) $fatal(1, "invalid read mismatch");
+   c.b=old_b; c.invalid=0;
    old_a=c.a; old_b=c.b; state_before=c.get_randstate();
    c.impossible=1;
    if (c.randomize()) $fatal(1, "contradiction accepted");

@@ -4,5 +4,5 @@
   "iverilog-args": ["-g2023"],
   "vpi-modules": ["issue1337_vpi_time_queue_2023"],
   "vpi-sources": ["vpi/issue1337_vpi_time_queue.c"],
-  "output-contains": ["TIMEQUEUE_AT0[1]=5", "TIMEQUEUE_AT5[0]=5", "TIMEQUEUE_AT5[1]=10", "PASSED"]
+  "output-contains": ["TIMEQUEUE_AT0[0]=5", "TIMEQUEUE_AT0[1]=20", "TIMEQUEUE_AT5[0]=10", "TIMEQUEUE_AT5[1]=20", "PASSED"]
 }

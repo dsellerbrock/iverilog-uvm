@@ -17,7 +17,7 @@ class state_selected_fixed_array_oob;
   bit guard;
   rand bit [7:0] values[2:3];
 
-  // 7.4.6 Table 7-1: an invalid read of a 2-state integral element is '0.
+  // An invalid index in a constraint is an evaluation error.
   constraint default_read { values[selector] == 8'h00; }
   // The invalid read remains inside an inactive implication branch.
   constraint guarded_read { guard -> values[selector] == 8'hff; }
@@ -28,8 +28,7 @@ class state_selected_fixed_array_state_int_oob;
   int values[2:3];
   rand bit witness;
 
-  // A non-rand int array remains a declared two-state array; its invalid
-  // state-selected read is zero independently of solver variable encoding.
+  // A non-rand array's invalid index is also an evaluation error.
   constraint default_read { values[selector] == 0; witness == 1; }
 endclass
 
@@ -155,13 +154,13 @@ module test;
     oob = new;
     oob.selector = 99;
     oob.guard = 0;
-    if (!oob.randomize())
-      $fatal(1, "2-state invalid selected read should use its zero default");
+    if (oob.randomize())
+      $fatal(1, "2-state invalid selected read should fail");
 
     state_int_oob = new;
     state_int_oob.selector = 99;
-    if (!state_int_oob.randomize() || state_int_oob.witness != 1)
-      $fatal(1, "non-rand int invalid selected read should use zero");
+    if (state_int_oob.randomize())
+      $fatal(1, "non-rand int invalid selected read should fail");
 
     state_integer = new;
     state_integer.values[2] = 7;

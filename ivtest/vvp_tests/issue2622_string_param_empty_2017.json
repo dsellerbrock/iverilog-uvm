@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2622_string_param_empty.sv",
+  "iverilog-args": ["-g2017", "-s", "tb"],
+  "gold": "issue2622_string_param_empty"
+}

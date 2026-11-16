@@ -1,0 +1,19 @@
+{
+  "type": "normal",
+  "source": "issue1337_time_queue_remaining.sv",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "vpi-modules": [
+    "issue1337_time_queue_remaining_2017"
+  ],
+  "vpi-sources": [
+    "vpi/issue1337_time_queue_remaining.c"
+  ],
+  "output-contains": [
+    "PASS stage 0",
+    "PASS stage 1",
+    "PASS stage 2",
+    "PASS stage 3"
+  ]
+}

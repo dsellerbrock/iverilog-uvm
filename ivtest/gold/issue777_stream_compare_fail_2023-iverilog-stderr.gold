@@ -1,0 +1,9 @@
+ivltests/issue777_stream_compare_fail.sv:4: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+ivltests/issue777_stream_compare_fail.sv:5: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+ivltests/issue777_stream_compare_fail.sv:6: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+ivltests/issue777_stream_compare_fail.sv:7: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+ivltests/issue777_stream_compare_fail.sv:8: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+ivltests/issue777_stream_compare_fail.sv:9: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+ivltests/issue777_stream_compare_fail.sv:10: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+ivltests/issue777_stream_compare_fail.sv:11: error: streaming concatenation used as an expression operand must first be cast to a bit-stream type (IEEE 1800-2017 11.4.14).
+8 error(s) during elaboration.

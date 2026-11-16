@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2033_fixed_array_oob.v",
+    "iverilog-args": [ "-g2017", "-s", "issue2033_fixed" ],
+    "gold": "issue2033_fixed_array_oob"
+}
