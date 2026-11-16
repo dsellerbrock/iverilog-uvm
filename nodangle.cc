@@ -229,6 +229,13 @@ void nodangle_f::signal(Design*, NetNet*sig)
       if (sig->type() == NetNet::REG && !sig->local_flag())
 	    return;
 
+	/* So is a declared net (IEEE 1800 37.16): a wire nothing drives or
+	   reads is still an object of its module. */
+      if (sig->type() != NetNet::REG && sig->type() != NetNet::NONE
+	  && sig->type() != NetNet::IMPLICIT
+	  && sig->type() != NetNet::IMPLICIT_REG && !sig->local_flag())
+	    return;
+
 	/* Cannot delete the ports of tasks, functions or modules. There
 	   are too many places where they are referenced. */
       if ((sig->port_type() != NetNet::NOT_A_PORT) &&

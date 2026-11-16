@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue2826_vpi_undriven_nets.v",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue2826_vpi_undriven_nets_2017"],
+  "vpi-sources": ["vpi/issue2826_vpi_undriven_nets.c"],
+  "output-contains": ["VPI UNDRIVEN NETS PASS", "top.wa found nettype=2", "top.uw found nettype=13", "DONE"]
+}

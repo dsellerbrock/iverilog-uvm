@@ -125,7 +125,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_VPI_INST_ARRAY
-%token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PARAM_ASSIGN_STR K_PARAM_ASSIGN_L K_PARAM_ASSIGN_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS K_VARTYPE
+%token K_PARAM_STR K_PARAM_L K_PARAM_REAL K_PARAM_ASSIGN_STR K_PARAM_ASSIGN_L K_PARAM_ASSIGN_REAL K_PART K_PART_EVENT K_PART_PV K_PACKED_DIMS K_VARTYPE K_NETTYPE
 %token K_VPI_EXPR K_VPI_CONTASSIGN K_VPI_PARAM_EXPR K_VPI_DEFPARAM K_VPI_PORT_CONN
 %token K_VPI_FORCE_CONN
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
@@ -256,6 +256,11 @@ statement
 	   (vpiTypespec). Operands: signal label and type string. */
 	| K_VARTYPE T_SYMBOL ',' T_STRING ';'
 		{ compile_vartype($2, $4); }
+
+	/* The declared net type of a non-wire net, for VPI (vpiNetType,
+	   IEEE 1800-2023 37.16). Operands: net label and vpiNetType code. */
+	| K_NETTYPE T_SYMBOL ',' T_NUMBER ';'
+		{ compile_nettype($2, $4); }
 
 	| K_export_dpi T_STRING T_STRING T_STRING T_STRING T_STRING T_STRING ';'
 		{ compile_export_dpi($2, $3, $4, $5, $6, $7); }

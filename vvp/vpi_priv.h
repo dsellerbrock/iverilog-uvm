@@ -676,6 +676,8 @@ struct __vpiSignal : public __vpiHandle {
       static void operator delete[](void*);
 };
 extern void vpip_trim_packed_base_dimension(__vpiSignal*sig);
+/* IEEE 1800-2023 37.16: the vpiNetType of a net (vpiWire unless recorded). */
+extern int vpip_signal_net_type(const __vpiSignal*sig);
 extern unsigned vpip_size(__vpiSignal *sig);
 extern __vpiScope* vpip_scope(__vpiSignal*sig);
 extern vpiHandle vpip_wrap_refobj(vpiHandle formal);

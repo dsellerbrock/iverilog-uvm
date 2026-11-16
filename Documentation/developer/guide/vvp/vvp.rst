@@ -401,6 +401,18 @@ The .alias statements do not create new nodes, but instead create net
 names that are aliases of an existing node. This handles special cases
 where a net has different names, possibly in different scopes.
 
+A net that is not a plain wire carries its declared net type for VPI
+(vpiNetType, IEEE 1800-2023 37.16) in a separate record::
+
+	.nettype <net-label>, <code>;
+
+The <code> is the vpiNetType value from vpi_user.h: 2 (vpiWand), 3
+(vpiWor), 5 (vpiTri0), 6 (vpiTri1) or 13 (vpiUwire). The compiler emits
+the record only for those net types, after the .net statement it
+names. A net without a .nettype record is a vpiWire, so files written
+before the record existed load unchanged. The compiler does not keep
+wand/triand or wor/trior apart; they are written as vpiWand and vpiWor.
+
 Cast Statements
 ---------------
 

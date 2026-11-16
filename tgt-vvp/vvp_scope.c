@@ -634,6 +634,27 @@ static void emit_packed_dims_(ivl_signal_t sig, const char*suffix)
       fprintf(vvp_out, "\";\n");
 }
 
+/*
+ * IEEE 1800-2023 37.16 vpiNetType: emit ".nettype <net>, <code>;" for a
+ * net that is not a plain wire. vvp treats a net without the record as a
+ * vpiWire, so .vvp files written before the record still load. The IVL
+ * signal type does not keep wand/triand or wor/trior apart; they report
+ * vpiWand and vpiWor.
+ */
+static void emit_net_type_(ivl_signal_t sig, const char*suffix)
+{
+      int code;
+      switch (ivl_signal_type(sig)) {
+	  case IVL_SIT_TRI0:   code = 5;  break; /* vpiTri0 */
+	  case IVL_SIT_TRI1:   code = 6;  break; /* vpiTri1 */
+	  case IVL_SIT_TRIAND: code = 2;  break; /* vpiWand */
+	  case IVL_SIT_TRIOR:  code = 3;  break; /* vpiWor */
+	  case IVL_SIT_UWIRE:  code = 13; break; /* vpiUwire */
+	  default: return;
+      }
+      fprintf(vvp_out, " .nettype v%p%s, %d;\n", sig, suffix, code);
+}
+
 static void emit_declared_packed_dims_(ivl_signal_t sig, const char*suffix)
 {
       unsigned dims = ivl_signal_packed_dimensions(sig);
@@ -1463,6 +1484,8 @@ static void draw_net_in_scope(ivl_signal_t sig)
                 char suffix[32];
                 snprintf(suffix, sizeof suffix, "_%u", iword);
                 emit_declared_packed_dims_(sig, suffix);
+                if (dimensions == 0)
+                      emit_net_type_(sig, suffix);
                 if (dimensions > 0 && iword == 0)
                       emit_packed_dims_(sig, "");
           }

@@ -38,6 +38,7 @@
 # include  <cstdlib>
 # include  <climits>
 # include  <cstring>
+# include  <map>
 # include  <cassert>
 #ifdef CHECK_WITH_VALGRIND
 # include  <valgrind/memcheck.h>
@@ -611,7 +612,7 @@ static int signal_get(int code, vpiHandle ref)
 
 	  case vpiNetType:
 	    if (ref->get_type_code()==vpiNet)
-		  return vpiWire;
+		  return vpip_signal_net_type(rfp);
 	    else
 		  return vpiUndefined;
 
@@ -726,6 +727,44 @@ static char* signal_get_str(int code, vpiHandle ref)
       char *rbuf = generic_get_str(code, vpip_scope(rfp), nm, ixs);
       free(nm);
       return rbuf;
+}
+
+/*
+ * IEEE 1800-2023 37.16 vpiNetType. tgt-vvp emits a .nettype record only
+ * for a net that is not a plain wire, so the map stays sparse and every
+ * __vpiSignal keeps its size; a net with no record is a vpiWire.
+ */
+static std::map<const __vpiSignal*, int> signal_net_types;
+
+int vpip_signal_net_type(const __vpiSignal*sig)
+{
+      auto found = signal_net_types.find(sig);
+      return found == signal_net_types.end() ? vpiWire : found->second;
+}
+
+class nettype_resolv_t : public resolv_list_s {
+    public:
+      nettype_resolv_t(char*label, int code)
+      : resolv_list_s(label), code_(code) { }
+      bool resolve(bool message_flag) override
+      {
+	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(label()));
+	    if (!sig && !message_flag) return false;
+	    if (!sig) {
+		  yyerror("invalid .nettype target");
+		  compile_errors += 1;
+		  return true;
+	    }
+	    signal_net_types[sig] = code_;
+	    return true;
+      }
+    private:
+      int code_;
+};
+
+void compile_nettype(char*label, long code)
+{
+      resolv_submit(new nettype_resolv_t(label, static_cast<int>(code)));
 }
 
 static vpiHandle signal_get_handle(int code, vpiHandle ref)
