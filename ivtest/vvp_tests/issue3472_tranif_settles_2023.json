@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3472_tranif_settles.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue3472_tranif_settles"
+}

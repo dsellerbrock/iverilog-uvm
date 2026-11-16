@@ -22,6 +22,7 @@
 # include  "symbols.h"
 # include  "schedule.h"
 # include  "config.h"
+# include  "vpi_priv.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
@@ -84,6 +85,9 @@ void vvp_island_port::set_injection(const void*from, const vvp_vector8_t&val)
 vvp_island::vvp_island()
 {
       flagged_ = false;
+      settle_time_ = 0;
+      settle_runs_ = 0;
+      settle_reported_ = false;
       branches_ = 0;
       ports_ = 0;
       anodes_ = 0;
@@ -118,9 +122,73 @@ void vvp_island::flag_island()
 * housecleaning and calls the run_island() method implemented by the
 * derived class.
 */
+/*
+ * IEEE 1800-2023 28.8 does not forbid a switch whose control is a net it
+ * connects, and such a network can have no fixed point (the stronger side
+ * drives the control off, the weaker driver turns it back on). The island
+ * then re-runs forever in zero time. Count consecutive runs at one
+ * simulation time and stop with a named error past a limit (user ruling
+ * 2026-11-16, #3472). Default 10000; +vvp-settle-limit=N sets it. A network
+ * that settles in fewer runs is unaffected.
+ */
+static unsigned long island_settle_limit_(void)
+{
+      static unsigned long limit = 0;
+      if (limit != 0)
+	    return limit;
+      limit = 10000;
+      s_vpi_vlog_info info;
+      if (!vpi_get_vlog_info(&info))
+	    return limit;
+      static const char prefix[] = "+vvp-settle-limit=";
+      for (int idx = 0 ; idx < info.argc ; idx += 1) {
+	    const char*arg = info.argv[idx];
+	    if (!arg || strncmp(arg, prefix, sizeof prefix - 1) != 0)
+		  continue;
+	    char*end = 0;
+	    unsigned long val = strtoul(arg + sizeof prefix - 1, &end, 10);
+	    if (end && *end == 0 && end != arg + sizeof prefix - 1 && val > 0)
+		  limit = val;
+	    else
+		  cerr << "warning: ignoring " << arg
+		       << ": the settle limit must be a positive integer." << endl;
+      }
+      return limit;
+}
+
+bool vvp_island::settle_exceeded(unsigned long iterations)
+{
+      unsigned long limit = island_settle_limit_();
+      if (iterations <= limit)
+	    return false;
+      if (!settle_reported_) {
+	    settle_reported_ = true;
+	    cerr << "runtime error: tran island oscillates at time "
+		 << schedule_simtime() << ": no fixed point after " << limit
+		 << " zero-time iterations (limit set by +vvp-settle-limit=N)."
+		 << " Switches:" << endl;
+	    for (vvp_island_branch*br = branches_ ; br ; br = br->next_branch)
+		  if (br->desc)
+			cerr << "  " << br->desc << endl;
+	    vpip_set_return_value(1);
+	    if (!schedule_finished())
+		  schedule_finish(0);
+      }
+      return true;
+}
+
 void vvp_island::run_run()
 {
       flagged_ = false;
+
+      vvp_time64_t now = schedule_simtime();
+      if (now != settle_time_) {
+	    settle_time_ = now;
+	    settle_runs_ = 0;
+      }
+      settle_runs_ += 1;
+      if (settle_exceeded(settle_runs_))
+	    return;
       run_island();
 }
 
@@ -262,6 +330,7 @@ void vvp_island_port::force_flag(bool run_now)
 
 vvp_island_branch::~vvp_island_branch()
 {
+      free(desc);
 }
 
 void island_collect_node(list<vvp_branch_ptr_t>&conn, vvp_branch_ptr_t cur)
