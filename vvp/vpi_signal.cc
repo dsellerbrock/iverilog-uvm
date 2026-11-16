@@ -38,6 +38,7 @@
 # include  <cstdlib>
 # include  <climits>
 # include  <cstring>
+# include  <string>
 # include  <cassert>
 #ifdef CHECK_WITH_VALGRIND
 # include  <valgrind/memcheck.h>
@@ -140,6 +141,7 @@ char *generic_get_str(int code, vpiHandle ref, const char *name, const char *ind
 static vpiHandle fill_in_net4(struct __vpiSignal*obj, __vpiScope*scope,
                               const char*name, int msb, int lsb,
                               bool signed_flag, vvp_net_t*node);
+static bool packed_struct_members_(__vpiSignal*rfp);
 static __vpiSignal*make_packed_signal_view_(__vpiSignal*parent, int index,
                                             unsigned base, unsigned width);
 
@@ -796,6 +798,15 @@ static vpiHandle signal_iterate(int code, vpiHandle ref)
 	    for (uint64_t idx = 0; idx < count; idx += 1)
 		  args[idx] = rfp->get_index(static_cast<int>(left + step * idx));
 	    return vpip_make_iterator(static_cast<unsigned>(count), args, true);
+      }
+
+      if (code == vpiMember) {
+	    if (!packed_struct_members_(rfp)) return 0;
+	    size_t count = rfp->packed_children.size();
+	    vpiHandle*args = new vpiHandle[count];
+	    for (size_t idx = 0; idx < count; idx += 1)
+		  args[idx] = rfp->packed_children[idx];
+	    return vpip_make_iterator(count, args, true);
       }
 
       if (code == vpiRange) {
@@ -1555,6 +1566,96 @@ static __vpiSignal*make_packed_signal_view_(__vpiSignal*parent, int index,
       return obj;
 }
 
+
+/*
+ * IEEE 1800-2023 37.26: a packed struct/union variable has a vpiMember
+ * iteration to its member variables. A member is a view of the parent's
+ * bits (value_base/value_width), so value read, write and the parent's
+ * typespec machinery work unchanged. Its vpiName is the member name and
+ * its vpiFullName continues the parent's ("top.ps.hi").
+ */
+template <int CODE> struct signal_packed_member : public __vpiSignal {
+      int get_type_code(void) const override { return CODE; }
+      char* vpi_get_str(int str_code) override
+      {
+	    if (str_code != vpiFullName)
+		  return __vpiSignal::vpi_get_str(str_code);
+	    std::string full = ::vpi_get_str(vpiFullName, packed_view_parent);
+	    full += ".";
+	    full += id.name;
+	    return simple_set_rbuf_str(full.c_str());
+      }
+};
+
+static bool packed_struct_members_(__vpiSignal*rfp)
+{
+      int type = rfp->get_vpi_type_code();
+      if (type != vpiStructVar && type != vpiUnionVar) return false;
+      if (!rfp->packed_children.empty()) return true;
+
+      vpiHandle it = vpi_iterate(vpiTypespecMember, rfp->typespec);
+      std::vector<vpiHandle> members;
+      while (vpiHandle m = it ? vpi_scan(it) : 0)
+	    members.push_back(m);
+      if (members.empty()) return false;
+
+      bool is_union = type == vpiUnionVar;
+	// Only lay members out over a value whose width the typespec covers.
+      unsigned total = 0;
+      for (vpiHandle m : members) {
+	    unsigned wid = vpi_get(vpiSize, m);
+	    total = is_union ? (wid > total ? wid : total) : total + wid;
+      }
+      if (total != rfp->width()) return false;
+      bool net = rfp->get_type_code() == vpiNet
+	    || rfp->get_type_code() == vpiNetBit;
+	// Struct members are laid out MSB first; every union member starts
+	// at the least significant bit (IEEE 1800-2023 7.2.1, 7.3.1).
+      unsigned offset = rfp->width();
+      for (vpiHandle m : members) {
+	    unsigned wid = vpi_get(vpiSize, m);
+	    vpiHandle mtype = vpi_handle(vpiTypespec, m);
+	    if (!is_union) offset -= wid;
+	    int mcode = mtype ? mtype->get_type_code() : 0;
+	      // Objects share one allocator size (vpiSignal_plug), so the
+	      // type code is a template argument, not a field.
+	    __vpiSignal*obj;
+	    if (net) obj = new signal_packed_member<vpiNet>;
+	    else if (mcode == vpiBitTypespec) obj = new signal_packed_member<vpiBitVar>;
+	    else obj = new signal_packed_member<vpiReg>;
+	    int left = wid - 1, right = 0;
+	    bool signed_flag = false;
+	    if (mcode == vpiLogicTypespec || mcode == vpiBitTypespec) {
+		  left = vpi_get(vpiLeftRange, mtype);
+		  right = vpi_get(vpiRightRange, mtype);
+		  signed_flag = vpi_get(vpiSigned, mtype) != 0;
+	    }
+	    fill_in_net4(obj, vpip_scope(rfp), vpi_get_str(vpiName, m),
+			 left, right, signed_flag, rfp->node);
+	    obj->automatic_storage = rfp->automatic_storage;
+	    obj->value_base = rfp->value_base + (is_union ? 0 : offset);
+	    obj->value_width = wid;
+	    obj->packed_view_parent = rfp;
+	    obj->packed_parent = rfp;
+	    if (mcode == vpiStructTypespec || mcode == vpiUnionTypespec
+		|| mcode == vpiEnumTypespec) {
+		  obj->typespec = mtype;
+		  obj->packed_base_width = wid;
+	    }
+	    rfp->packed_children.push_back(obj);
+      }
+      return true;
+}
+
+vpiHandle vpip_packed_member_by_name(vpiHandle base, const char*name)
+{
+      __vpiSignal*rfp = dynamic_cast<__vpiSignal*>(base);
+      if (!rfp || !packed_struct_members_(rfp)) return 0;
+      for (vpiHandle m : rfp->packed_children)
+	    if (strcmp(vpi_get_str(vpiName, m), name) == 0)
+		  return m;
+      return 0;
+}
 
 /*
  * Construct a vpiIntegerVar object. Indicate the type using a flag

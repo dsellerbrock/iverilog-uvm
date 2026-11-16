@@ -1529,6 +1529,8 @@ extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
 /* M12-5: resolve one member name on a class VARIABLE handle or a
    nested class MEMBER handle (returns nil for anything else). */
 extern vpiHandle vpip_class_member_by_name(vpiHandle base, const char*name);
+/* IEEE 1800-2023 37.26: a member of a packed struct/union variable. */
+extern vpiHandle vpip_packed_member_by_name(vpiHandle base, const char*name);
 
 /* Return the canonical declaring-scope storage handle for a static class
  * member (or its fixed-array word proxy). Non-static/non-member handles
