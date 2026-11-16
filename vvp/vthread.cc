@@ -18554,7 +18554,18 @@ static void struct_equality_(vvp_cobject*left, vvp_cobject*right,
 	    return;
       }
       const class_type*defn = left->get_defn();
+      int active = -1;
+      if (defn->is_tagged_union_type()) {
+	    active = left->union_active_member();
+	    if (active != right->union_active_member()) {
+		  logical = exact = BIT4_0;
+		  return;
+	    }
+      }
       for (size_t pid = 0 ; pid < defn->property_count() ; pid += 1) {
+	    if (defn->is_tagged_union_type()
+		&& (active != (int)pid || defn->property_is_void(pid)))
+		  continue;
 	    const std::string&type = defn->property_base_type(pid);
 	    size_t count = (size_t)defn->property_array_size(pid);
 	    if (count == 0) count = 1;
@@ -32156,7 +32167,8 @@ static bool qcond_object_elements_match_(
       if (left_struct && right_struct
 	  && left_struct->get_defn() == right_struct->get_defn()
 	  && left_struct->get_defn()->is_struct_type()
-	  && !left_struct->get_defn()->is_union_type()) {
+	  && (!left_struct->get_defn()->is_union_type()
+	      || left_struct->get_defn()->is_tagged_union_type())) {
 	    struct_equality_(left_struct, right_struct, logical, exact);
 	    return logical == BIT4_1;
       }
