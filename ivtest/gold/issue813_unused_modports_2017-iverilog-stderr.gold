@@ -1,0 +1,3 @@
+ivltests/issue813_unused_modports.sv:3: error: Modport port 'x' is not declared in interface 'inner'.
+ivltests/issue813_unused_modports.sv:8: error: Modport port 'b' is not declared in interface 'unused'.
+2 error(s) during elaboration.

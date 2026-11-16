@@ -141,6 +141,7 @@ void pform_mc_translate_on(bool flag) { pform_mc_translate_flag = flag; }
  * pform_primitives is similar, but for UDP primitives.
  */
 map<perm_string,Module*> pform_modules;
+vector<Module*> pform_interfaces;
 /* Extern module headers (IEEE 1800 23.5) waiting for their definition. */
 static map<perm_string,Module*> pform_extern_modules;
 map<perm_string,PUdp*> pform_primitives;
@@ -3421,6 +3422,8 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	    VLerror(msg.str().c_str());
       } else {
 	    use_module_map[mod_name] = cur_module;
+	    if (cur_module->is_interface)
+		  pform_interfaces.push_back(cur_module);
 	    if (&use_module_map == &pform_modules)
 		  config_add_cell(cur_module);
       }

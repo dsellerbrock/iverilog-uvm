@@ -41,6 +41,7 @@ struct enum_type_t;
  * to these maps as it compiles modules in the Verilog source.
  */
 extern std::map<perm_string,Module*> pform_modules;
+extern std::vector<Module*>          pform_interfaces;
 extern std::map<perm_string,PUdp*>   pform_primitives;
 extern std::vector<PPackage*>        pform_units;
 extern std::vector<PPackage*>        pform_packages;
