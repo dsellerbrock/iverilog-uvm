@@ -1,0 +1,4 @@
+WARNING: ./ivltests/issue3470_sformatf_extra.sv:6: $sformatf has 1 extra argument(s).
+WARNING: ./ivltests/issue3470_sformatf_extra.sv:8: $sformatf has 2 extra argument(s).
+WARNING: ./ivltests/issue3470_sformatf_extra.sv:11: $sformatf has 1 extra argument(s).
+PASS

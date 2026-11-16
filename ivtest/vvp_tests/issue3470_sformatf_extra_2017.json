@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3470_sformatf_extra.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3470_sformatf_extra"],
+  "gold": "issue3470_sformatf_extra"
+}
