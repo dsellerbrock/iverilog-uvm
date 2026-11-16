@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "issue3472_tranif_oscillate.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue3472_tranif_oscillate_2023"
+}

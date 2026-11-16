@@ -104,9 +104,21 @@ class vvp_island  : private vvp_gen_event_s {
 	// The branch list, for SDF INTERCONNECT lookup at run time.
       vvp_island_branch* branches() const { return branches_; }
 
+    protected:
+	// True once ITERATIONS zero-time settle passes at one simulation
+	// time exceed the limit: the island then reports the oscillation
+	// once (naming its switches), finishes the simulation, and the
+	// caller must stop iterating. See #3472.
+      bool settle_exceeded(unsigned long iterations);
+
     private:
       void run_run() override;
       bool flagged_;
+      bool settle_reported_;
+	// Zero-time settle cap (#3472): consecutive island runs at one
+	// simulation time, and the time they were counted at.
+      vvp_time64_t settle_time_;
+      unsigned long settle_runs_;
 
     private:
 	// During link, the vvp_island keeps these symbol tables for
@@ -239,6 +251,9 @@ struct vvp_island_branch {
 	// Port connections
       vvp_net_t*a;
       vvp_net_t*b;
+	// Source description of the branch (switch kind, file:line, nets)
+	// for run-time diagnostics; null when the compiler gave none.
+      char*desc = nullptr;
 };
 
 static inline vvp_branch_ptr_t next(vvp_branch_ptr_t cur)

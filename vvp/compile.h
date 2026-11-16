@@ -781,7 +781,8 @@ extern void compile_island_cleanup(void);
 
 extern void compile_island_tran(char*label);
 extern void compile_island_tranif(int sense, char*island,
-				  char*ba, char*bb, char*src, bool resistive);
+				  char*ba, char*bb, char*src, bool resistive,
+				  char*desc);
 extern void compile_island_tranvp(char*island, char*ba, char*bb,
 				  unsigned width, unsigned part, unsigned off);
 
