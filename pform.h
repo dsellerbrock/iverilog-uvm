@@ -550,6 +550,8 @@ extern void pform_sva_sorry(const struct vlltype&loc, const char*what);
 /* Evaluate the integral constant-expression subset used by SVA
    repetition and cycle-delay bounds while the module is being parsed. */
 extern bool pform_sva_const_long(PExpr*expr, long&value);
+extern long pform_sva_nexttime_index(const struct vlltype&loc, PExpr*expr,
+				     const char*op);
 extern bool pform_sva_overridable_bound(PExpr*expr);
 extern void pform_sva_single_delay(const struct vlltype&loc, sva_seq_step_t&step, PExpr*delay);
 extern void pform_sva_range_delay(const struct vlltype&loc, sva_seq_step_t&step, PExpr*lo, PExpr*hi);

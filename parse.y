@@ -10280,17 +10280,13 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_unprop(@1, 10, $2); }
   | K_s_eventually property_expr
       { $$ = pform_sva_unprop(@1, 11, $2); }
-  /* Bounded `nexttime[n]' / `s_nexttime[n]' (16.12.2): p must hold n
-     cycles from the attempt. n must be a literal constant. */
+  /* Bounded `nexttime[n]' / `s_nexttime[n]' (16.12.10): p must hold n
+     cycles from the attempt; n is a non-negative constant expression. */
   | K_nexttime '[' expression ']' property_expr
-      { PENumber*n = dynamic_cast<PENumber*>($3);
-	long nn = n ? n->value().as_long() : 1;
-	delete $3;
+      { long nn = pform_sva_nexttime_index(@3, $3, "nexttime");
 	$$ = pform_sva_unprop(@1, 9, $5, nn, nn); }
   | K_s_nexttime '[' expression ']' property_expr
-      { PENumber*n = dynamic_cast<PENumber*>($3);
-	long nn = n ? n->value().as_long() : 1;
-	delete $3;
+      { long nn = pform_sva_nexttime_index(@3, $3, "s_nexttime");
 	$$ = pform_sva_unprop(@1, 10, $5, nn, nn); }
   /* IEEE 1800-2017 16.12.7: `always' — p holds at every current and future
      cycle (safety). Unbounded and bounded `always [m:n]' / `s_always [m:n]'. */
