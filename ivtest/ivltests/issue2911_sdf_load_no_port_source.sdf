@@ -1,0 +1,7 @@
+(DELAYFILE (SDFVERSION "4.0") (DESIGN "issue2911_sdf_load_no_port_source") (TIMESCALE 1ns)
+ (CELL (CELLTYPE "leaf") (INSTANCE u1) (DELAY (ABSOLUTE (PORT a (5)))))
+ (CELL (CELLTYPE "leaf") (INSTANCE u2) (DELAY (ABSOLUTE (NETDELAY a (5)))))
+ (CELL (CELLTYPE "issue2911_sdf_load_no_port_source") (INSTANCE)
+   (DELAY (ABSOLUTE (INTERCONNECT x.o u3.a (5)))))
+ (CELL (CELLTYPE "leaf") (INSTANCE u4) (DELAY (ABSOLUTE (PORT a (5)))))
+)

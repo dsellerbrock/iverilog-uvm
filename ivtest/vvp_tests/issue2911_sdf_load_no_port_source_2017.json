@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2911_sdf_load_no_port_source.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-ginterconnect", "-s", "issue2911_sdf_load_no_port_source"],
+  "output-contains": ["rise u1=16 u2=16 u3=16 u4=16", "again u1=46 u2=46 u3=46 u4=46"]
+}
