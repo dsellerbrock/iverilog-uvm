@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3509_clocking_sequence_2017.v",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue3509_clocking_sequence_2017"
+}

@@ -21289,29 +21289,58 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			continue;
 		  }
 	    }
-	    if (seq_it == seq_declarations->end() || !seq_it->second) {
+	    sva_scoped_name_t seq_key;
+	    std::vector<sva_seq_step_t>*seq_body = nullptr;
+	    if (!retained_declaration && !id->path().package
+		&& id->path().name.size() == 1 && sva_active_clocking_scope_) {
+		  auto shaped = sva_resolve_(sva_property_shaped_sequences,
+			id->path().name.front().name, expr_scope);
+		  if (shaped != sva_property_shaped_sequences.end()
+		      && shaped->clocking == sva_active_clocking_scope_) {
+			auto declaration = sva_module_properties.find(*shaped);
+			const sva_property_t*body = declaration == sva_module_properties.end()
+			      ? nullptr : declaration->second;
+			if (!body || !body->seq || body->tree || body->seq_clk_evt
+			    || body->mc_prefix || body->mc_boundary != -1
+			    || (body->mc_more && !body->mc_more->empty())
+			    || !body->local_names.empty()) {
+			      cerr << loc << ": sorry: this clocking-block sequence "
+				   << "cannot be spliced into a sequence expression yet."
+				   << endl;
+			      error_count += 1;
+			      break;
+			}
+			seq_key = *shaped;
+			seq_body = body->seq;
+		  }
+	    }
+	    if (!seq_body && seq_it != seq_declarations->end()) {
+		  seq_key = seq_it->first;
+		  seq_body = seq_it->second;
+	    }
+	    if (!seq_body) {
 		  i += 1;
 		  continue;
 	    }
-            if (!enter(seq_it->first)) { --splice_depth; return; }
+            if (!enter(seq_key)) { --splice_depth; return; }
 	    std::set<perm_string>local_names;
-	    for (const sva_seq_step_t&step : *seq_it->second)
+	    for (const sva_seq_step_t&step : *seq_body)
 		  for (const sva_match_item_t&item : step.items)
 			if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT
 			    && !item.lv_name.nil())
 			      local_names.insert(item.lv_name);
 	    pform_name_t declaration_qualifier = sva_qualifier_for_scope_(
-		  decl_prefix, decl_module, seq_it->first.gen);
+		  decl_prefix, decl_module, seq_key.gen);
 	    sva_clone_scope_t declaration_context;
 	    declaration_context.module = decl_module;
-	    declaration_context.generate = seq_it->first.gen;
+	    declaration_context.generate = seq_key.gen;
 	    declaration_context.prefix = declaration_qualifier.empty()
 		  ? nullptr : &declaration_qualifier;
 	    declaration_context.local_names = &local_names;
 	    sva_clone_scope_guard_t body_clone_scope(declaration_context);
 	    std::vector<sva_seq_step_t> body;
-	    for (size_t k = 0 ; k < seq_it->second->size() ; k += 1) {
-		  sva_seq_step_t st = (*seq_it->second)[k];
+	    for (size_t k = 0 ; k < seq_body->size() ; k += 1) {
+		  sva_seq_step_t st = (*seq_body)[k];
 		  st.items.clear();
 		  PExpr*cp = sva_clone_expr_(st.expr);
 		  PExpr*dlo_cp = st.delay_lo_expr
@@ -21323,8 +21352,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  PExpr*rhi_cp = st.rep_hi_expr
 			? sva_clone_expr_(st.rep_hi_expr) : nullptr;
 		  bool items_ok = sva_clone_match_items_(
-			(*seq_it->second)[k].items, st.items);
-		  bool had_items = !(*seq_it->second)[k].items.empty();
+			(*seq_body)[k].items, st.items);
+		  bool had_items = !(*seq_body)[k].items.empty();
 		  bool clone_failed = !cp || (had_items && !items_ok)
 			      || (st.delay_lo_expr && !dlo_cp)
 			      || (st.delay_hi_expr && !dhi_cp)
@@ -21332,7 +21361,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			      || (st.rep_hi_expr && !rhi_cp) || !items_ok;
 		  if (clone_failed && declaration_context.prefix) {
 			cerr << loc << ": error: hierarchical sequence `"
-			     << seq_it->first.name
+			     << seq_key.name
 			     << "' has a body expression that cannot be copied into "
 			     << "the referencing scope." << endl;
 			error_count += 1;
@@ -21355,16 +21384,16 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			delete rhi_cp;
 			sva_destroy_match_items_(st.items);
 			cp = st.expr;
-			(*seq_it->second)[k].expr = nullptr;
+			(*seq_body)[k].expr = nullptr;
 			dlo_cp = st.delay_lo_expr;
-			(*seq_it->second)[k].delay_lo_expr = nullptr;
+			(*seq_body)[k].delay_lo_expr = nullptr;
 			dhi_cp = st.delay_hi_expr;
-			(*seq_it->second)[k].delay_hi_expr = nullptr;
+			(*seq_body)[k].delay_hi_expr = nullptr;
 			rlo_cp = st.rep_lo_expr;
-			(*seq_it->second)[k].rep_lo_expr = nullptr;
+			(*seq_body)[k].rep_lo_expr = nullptr;
 			rhi_cp = st.rep_hi_expr;
-			(*seq_it->second)[k].rep_hi_expr = nullptr;
-			st.items.swap((*seq_it->second)[k].items);
+			(*seq_body)[k].rep_hi_expr = nullptr;
+			st.items.swap((*seq_body)[k].items);
 			items_ok = true;
 		  }
 		  if (!cp || (had_items && !items_ok)
@@ -21373,7 +21402,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		      || (st.rep_lo_expr && !rlo_cp)
 			  || (st.rep_hi_expr && !rhi_cp) || !items_ok) {
 			cerr << loc << ": error: sequence `"
-			     << seq_it->first.name << "' was already "
+			     << seq_key.name << "' was already "
 			     << "instantiated and its body cannot be "
 			     << "copied; declare it separately for each "
 			     << "use." << endl;
@@ -21410,7 +21439,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    std::vector<perm_string> nested_locals = caller_locals
 		  ? *caller_locals : std::vector<perm_string>();
 	    std::map<sva_scoped_name_t, std::vector<perm_string> >::const_iterator
-		  declared = sva_module_sequence_locals.find(seq_it->first);
+		  declared = sva_module_sequence_locals.find(seq_key);
 	    if (declared != sva_module_sequence_locals.end())
 		  for (perm_string local : declared->second)
 			if (std::find(nested_locals.begin(), nested_locals.end(), local)
@@ -21418,10 +21447,10 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			      nested_locals.push_back(local);
 	    // This body has no substituted actuals: nested sequence names belong
 	    // to the declaration's module and generate scope.
-	    sva_splice_sequences_(loc, body, seq_it->first.gen,
+	    sva_splice_sequences_(loc, body, seq_key.gen,
 			  decl_module, decl_prefix, retained_declaration,
 			  &nested_locals);
-            active.erase(seq_it->first);
+            active.erase(seq_key);
 	    delete steps[i].expr;
 	    steps.erase(steps.begin() + i);
 	    steps.insert(steps.begin() + i, body.begin(), body.end());
