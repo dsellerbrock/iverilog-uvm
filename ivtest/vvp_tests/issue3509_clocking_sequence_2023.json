@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3509_clocking_sequence_2023.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3509_clocking_sequence_2023"
+}
