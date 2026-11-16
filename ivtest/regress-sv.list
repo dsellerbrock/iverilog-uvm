@@ -6952,3 +6952,5 @@ issue3465_mos_vector_strength_2017 normal,-g2017,-s,top ivltests gold=issue3465_
 issue3465_mos_vector_strength_2023 normal,-g2023,-s,top ivltests gold=issue3465_mos_vector_strength.gold
 issue3470_sformatf_extra_2017 normal,-g2017,-s,issue3470_sformatf_extra ivltests gold=issue3470_sformatf_extra.gold
 issue3470_sformatf_extra_2023 normal,-g2023,-s,issue3470_sformatf_extra ivltests gold=issue3470_sformatf_extra.gold
+sv_assert_empty_group_nonoverlap_2017 normal,-g2017 ivltests
+sv_assert_empty_group_nonoverlap_2023 normal,-g2023 ivltests
