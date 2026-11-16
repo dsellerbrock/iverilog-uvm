@@ -18749,10 +18749,7 @@ module_item
   /* specify blocks are parsed but ignored. */
 
   | K_specify
-      { if (pform_in_interface())
-	      yyerror(@1, "error: specify blocks are not allowed "
-			  "in interfaces.");
-        pform_error_in_generate(@1, "specify block");
+      { pform_error_in_generate(@1, "specify block");
       }
 
     specify_item_list_opt K_endspecify
