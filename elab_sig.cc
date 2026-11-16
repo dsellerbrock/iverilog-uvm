@@ -328,6 +328,7 @@ static ivl_type_t elaborate_class_property_type_(Design*des, NetScope*class_scop
 			validate_typedef_kinds)) {
 			if (validate_typedef_kinds)
 			      validate_class_property_typedef_kind_(des, td, alias_type);
+			td->record_typename(type_scope, alias_type);
 			return alias_type;
 		  }
 	    }
