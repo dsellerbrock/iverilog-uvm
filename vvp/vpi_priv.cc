@@ -419,7 +419,14 @@ PLI_INT32 vpi_free_object(vpiHandle ref)
 	    fflush(vpi_trace);
       }
 
-      assert(ref);
+	// IEEE 1800-2023 38.38: vpi_release_handle() returns 0 on failure.
+	// A NULL handle is a failed call, not a reason to abort.
+      if (!ref) {
+	    vpip_set_error(vpiError, "vpi_free_object: null handle");
+	    if (vpi_trace)
+		  fprintf(vpi_trace, " --> 0\n");
+	    return 0;
+      }
       __vpiHandle::free_object_fun_t fun = ref->free_object_fun();
       rtn = fun (ref);
 
