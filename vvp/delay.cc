@@ -1372,12 +1372,15 @@ static vpiHandle modpath_src_get_handle(int code, vpiHandle ref)
 	case vpiScope:
 	  return rfp->dest->scope;
 
+	case vpiInstance:
+	  return rfp->dest->scope;
+
 	  case vpiModule:
 	      { __vpiScope*scope = rfp->dest->scope;
-		while (scope && scope->get_type_code() != vpiModule)
+		while (scope && scope->get_type_code() != vpiModule
+		       && scope->get_type_code() != vpiInterface)
 		      scope = scope->scope;
-		assert(scope);
-		return scope;
+		return scope && scope->get_type_code() == vpiModule ? scope : 0;
 	      }
 
 	    // Handles to path term objects should really be obtained via
