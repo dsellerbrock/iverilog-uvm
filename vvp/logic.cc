@@ -31,6 +31,18 @@
 # include  <cassert>
 # include  <cstdlib>
 
+// Apply the driver's strengths to the delay's initial four-state X, while
+// preserving strength-aware events subsequently produced by the gate.
+class vvp_fun_drive_init : public vvp_fun_drive {
+ public:
+      vvp_fun_drive_init(unsigned str0, unsigned str1) : vvp_fun_drive(str0, str1) { }
+      void recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit) override
+      {
+            assert(port.port() == 0);
+            port.ptr()->send_vec8(bit);
+      }
+};
+
 struct vvp_boolean_state {
       vvp_vector4_t input[4];
       uint64_t stamp[4];
@@ -804,7 +816,11 @@ void compile_functor(char*label, char*type, unsigned width,
             event_synchronous = true;
       }
 
-      if (strcmp(type, "OR") == 0) {
+      if (strcmp(type, "DRIVE_INIT") == 0) {
+            obj = new vvp_fun_drive_init(ostr0, ostr1);
+            strength_aware = true;
+
+      } else if (strcmp(type, "OR") == 0) {
 	    obj = new vvp_fun_or(width, false);
 
       } else if (strcmp(type, "AND") == 0) {

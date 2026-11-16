@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3498_array_delay.v",
+  "iverilog-args": ["-g2017", "-s", "tb"],
+  "gold": "issue3498_array_delay"
+}
