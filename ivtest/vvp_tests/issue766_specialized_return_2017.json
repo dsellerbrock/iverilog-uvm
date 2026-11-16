@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue766_specialized_return.sv",
+  "iverilog-args": ["-g2017", "-s", "issue766_specialized_return"],
+  "gold": "issue766_specialized_return"
+}

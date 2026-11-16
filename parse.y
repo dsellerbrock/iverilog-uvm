@@ -6682,6 +6682,27 @@ data_type_or_void
 data_type_or_implicit_or_void
   : data_type_or_implicit
       { $$ = $1; }
+  | TYPE_IDENTIFIER type_parameter_value dimensions_opt
+      { pform_set_type_referenced(@1, $1.text);
+	typeref_t*type = new typeref_t($1.type);
+	FILE_NAME(type, @1);
+	type->set_parameter_values($2);
+	delete[] $1.text;
+	if ($3) {
+	      $$ = new parray_type_t(type, $3);
+	      FILE_NAME($$, @1);
+	} else {
+	      $$ = type;
+	}
+      }
+  | parameterized_class_scoped_type_identifier dimensions_opt
+      { if ($2) {
+	      $$ = new parray_type_t($1, $2);
+	      FILE_NAME($$, @1);
+	} else {
+	      $$ = $1;
+	}
+      }
   | K_void
       { void_type_t*tmp = new void_type_t;
 	FILE_NAME(tmp, @1);
@@ -17201,9 +17222,8 @@ class_scoped_type_identifier
       }
   ;
 
-/* A specialized class-scoped typedef is also a complete type in a module
-   variable declaration. Keep this grammar at that declaration frontier so
-   the specialized form does not add ambiguity to unrelated type contexts. */
+/* A specialized class-scoped typedef is a complete type in module variable
+   declarations and function return types. */
 parameterized_class_scoped_type_identifier
   : TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER
       { pform_set_type_referenced(@1, $1.text);
@@ -17214,6 +17234,16 @@ parameterized_class_scoped_type_identifier
   | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
       { pform_set_type_referenced(@1, $1.text);
 	$$ = make_class_scoped_typeref(@1, @4, $1.text, $4.text, nullptr, $2);
+	delete[] $1.text;
+	delete[] $4.text;
+      }
+  | package_type_identifier_base type_parameter_value K_SCOPE_RES IDENTIFIER
+      { $$ = make_class_scoped_typeref(@1, @4, $1.text, $4, $1.package, $2);
+	delete[] $1.text;
+	delete[] $4;
+      }
+  | package_type_identifier_base type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
+      { $$ = make_class_scoped_typeref(@1, @4, $1.text, $4.text, $1.package, $2);
 	delete[] $1.text;
 	delete[] $4.text;
       }
