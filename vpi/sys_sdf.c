@@ -543,6 +543,25 @@ static int sdf_apply_sources_to_load(vpiHandle scope, vpiHandle load,
       return matches;
 }
 
+/*
+ * IEEE 1800-2023 32.4.4: a PORT/NETDELAY delay is "the delay from all
+ * sources on the net to that port". Annotate each module-port source that
+ * reaches the load; when none does (the load is driven by a reg or other
+ * non-port source), annotate the load itself.
+ */
+static int sdf_apply_load_delay(vpiHandle load,
+                                const struct sdf_delval_list_s*delval_list,
+                                const int sdf_lineno)
+{
+      int matches = sdf_apply_sources_to_load(sdf_scope, load, delval_list,
+                                              sdf_lineno);
+      if (matches) return matches;
+      vpiHandle path = vpip_interconnect_ports_connected(NULL, load);
+      if (!path) return 0;
+      sdf_put_interconnect_delays(path, delval_list, sdf_lineno);
+      return 1;
+}
+
 static void sdf_port_delays_one(struct interconnect_port_s port_spec,
                                 const struct sdf_delval_list_s*delval_list,
                                 const int sdf_lineno)
@@ -565,8 +584,7 @@ static void sdf_port_delays_one(struct interconnect_port_s port_spec,
       }
       load = get_port_bit(load, port_spec, sdf_lineno);
       if (!load) return;
-      int matches = sdf_apply_sources_to_load(sdf_scope, load, delval_list,
-                                              sdf_lineno);
+      int matches = sdf_apply_load_delay(load, delval_list, sdf_lineno);
       if (!matches) {
             vpi_printf("SDF ERROR: %s:%d: Could not find intermodpath for PORT %s.\n",
                        sdf_fname, sdf_lineno, port_spec.name);
@@ -595,8 +613,8 @@ static int sdf_apply_netdelay_to_loads(vpiHandle scope, vpiHandle net,
             int direction = vpi_get(vpiDirection, port);
             if (direction != vpiInput && direction != vpiInout) continue;
             if (vpip_interconnect_through_net(net, port)) {
-                  matches += sdf_apply_sources_to_load(sdf_scope, port,
-                                                       delval_list, sdf_lineno);
+                  matches += sdf_apply_load_delay(port, delval_list,
+                                                  sdf_lineno);
             }
       }
       vpiHandle modules = vpi_iterate(vpiModule, scope);
@@ -625,8 +643,8 @@ static void sdf_netdelay_delays_one(struct interconnect_port_s target,
             }
             port = get_port_bit(port, target, sdf_lineno);
             if (!port) return;
-            int matches = sdf_apply_sources_to_load(sdf_scope, port,
-                                                    delval_list, sdf_lineno);
+            int matches = sdf_apply_load_delay(port, delval_list,
+                                               sdf_lineno);
             if (!matches)
                   vpi_printf("SDF ERROR: %s:%d: Could not find intermodpath for NETDELAY %s.\n",
                              sdf_fname, sdf_lineno, target.name);
