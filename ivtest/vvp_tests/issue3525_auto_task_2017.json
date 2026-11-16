@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3525_auto_task.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3525_auto_task"],
+  "gold": "issue3525_auto_task"
+}
