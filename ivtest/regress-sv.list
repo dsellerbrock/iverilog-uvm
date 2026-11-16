@@ -6964,3 +6964,5 @@ issue3509_clocking_sequence_2017 normal,-g2017 ivltests
 issue3509_clocking_sequence_2023 normal,-g2023 ivltests
 issue3513_step_delay_2017 normal,-g2017,-s,issue3513_step_delay ivltests gold=issue3513_step_delay.gold
 issue3513_step_delay_2023 normal,-g2023,-s,issue3513_step_delay ivltests gold=issue3513_step_delay.gold
+issue3518_tagged_call_2017 normal,-g2017 ivltests gold=issue3518_tagged_call.gold
+issue3518_tagged_call_2023 normal,-g2023 ivltests gold=issue3518_tagged_call.gold
