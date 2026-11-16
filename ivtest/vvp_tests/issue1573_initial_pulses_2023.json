@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1573_initial_pulses.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-ginterconnect", "-s", "issue1573_initial_pulses"],
+  "gold": "issue1573_initial_pulses"
+}
