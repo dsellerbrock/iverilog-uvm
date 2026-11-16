@@ -112,8 +112,8 @@ static NetExpr* make_delay_nets(Design*des, NetScope*scope, NetExpr*expr)
       if (expr == 0)
             return 0;
 
-      if (dynamic_cast<NetESignal*> (expr))
-	    return expr;
+      if (NetESignal*sig = dynamic_cast<NetESignal*> (expr))
+	    if (!sig->word_index()) return expr;
 
       if (dynamic_cast<NetEConst*> (expr))
 	    return expr;
