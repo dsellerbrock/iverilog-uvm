@@ -1,0 +1,4 @@
+45 nb fail
+55 nb fail
+done
+ivltests/sva_prop_nested_inst.sv:29: $finish called at 80 (1s)

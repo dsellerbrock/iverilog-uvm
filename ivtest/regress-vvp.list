@@ -7907,3 +7907,5 @@ sva_rec_cross_2017 vvp_tests/sva_rec_cross_2017.json
 sva_rec_cross_2023 vvp_tests/sva_rec_cross_2023.json
 sva_rec_overflow_2017 vvp_tests/sva_rec_overflow_2017.json
 sva_rec_overflow_2023 vvp_tests/sva_rec_overflow_2023.json
+sva_prop_nested_inst_2017 vvp_tests/sva_prop_nested_inst_2017.json
+sva_prop_nested_inst_2023 vvp_tests/sva_prop_nested_inst_2023.json
