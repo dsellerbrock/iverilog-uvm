@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3605_queue_legal.sv",
+    "iverilog-args": [ "-g2017", "-s", "issue3605_queue_legal" ],
+    "gold": "issue3605_queue_legal"
+}

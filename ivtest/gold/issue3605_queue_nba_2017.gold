@@ -1,0 +1,4 @@
+./ivltests/issue3605_queue_nba.sv:5: error: elements of dynamically sized arrays may not be assigned values using non-blocking assignments (IEEE 1800 6.21).
+./ivltests/issue3605_queue_nba.sv:6: error: elements of dynamically sized arrays may not be assigned values using non-blocking assignments (IEEE 1800 6.21).
+./ivltests/issue3605_queue_nba.sv:7: error: elements of dynamically sized arrays may not be assigned values using non-blocking assignments (IEEE 1800 6.21).
+3 error(s) during elaboration.
