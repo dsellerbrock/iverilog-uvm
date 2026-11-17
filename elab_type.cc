@@ -3292,8 +3292,44 @@ NetScope *typeref_t::find_scope(Design *des, NetScope *s) const
       return s;
 }
 
+void class_scoped_typeref_t::validate_class_scope(Design*des, NetScope*s) const
+{
+      const typeref_t*ref = dynamic_cast<const typeref_t*>(qualifier());
+      const typedef_t*td = ref ? ref->typedef_ref() : nullptr;
+      const class_type_t*direct = td
+            ? dynamic_cast<const class_type_t*>(td->get_data_type()) : nullptr;
+      const PClass*pclass = dynamic_cast<const PClass*>(scope_ref());
+      if (!pclass && direct && s) {
+            NetScope*lookup = s;
+            if (ref->scope_ref()) {
+                  NetScope*pkg = des->find_package(ref->scope_ref()->pscope_name());
+                  if (pkg) lookup = pkg;
+            }
+            const netclass_t*cls = lookup->find_class(des, td->name);
+            if (cls && cls->class_scope())
+                  pclass = cls->class_scope()->class_pform();
+      }
+      bool inside = false;
+      for (const NetScope*cur = s; cur; cur = cur->parent()) {
+            if (cur->class_pform() == pclass && pclass) {
+                  inside = true;
+                  break;
+            }
+      }
+      if (direct && ref && !ref->parameter_values() && pclass
+          && pclass->has_parameter_port_list && !inside
+          && !bare_scope_reported_) {
+            bare_scope_reported_ = true;
+            cerr << get_fileline() << ": error: Parameterized class `"
+                 << td->name << "' requires an explicit #(...) specialization before ::."
+                 << endl;
+            des->errors += 1;
+      }
+}
+
 NetScope* class_scoped_typeref_t::find_scope(Design*des, NetScope*s) const
 {
+      validate_class_scope(des, s);
       ivl_type_t qualifier_type = resolve_class_type_reference(
             des, s, qualifier());
       const netclass_t*class_type =

@@ -976,6 +976,9 @@ static void elaborate_sig_required_typedefs_(
 	    typedef_t*td = entry.second;
 	    if (!td)
 		  continue;
+	    if (const class_scoped_typeref_t*ref =
+		      dynamic_cast<const class_scoped_typeref_t*>(td->get_data_type()))
+		  ref->validate_class_scope(des, scope);
 	    if (td->get_data_type()
 		&& !pform_type_needs_declaration_validation_(
 		      td->get_data_type(), memo))

@@ -327,9 +327,11 @@ struct class_scoped_typeref_t : public typeref_t {
                              data_type_t*qualifier,
                              perm_string deferred_member = perm_string())
       : typeref_t(member, fallback_scope), qualifier_(qualifier),
-        deferred_member_(deferred_member), deferred_reported_(false) { }
+        deferred_member_(deferred_member), deferred_reported_(false),
+        bare_scope_reported_(false) { }
 
       NetScope* find_scope(Design*des, NetScope*scope) const override;
+      void validate_class_scope(Design*des, NetScope*scope) const;
       std::ostream& debug_dump(std::ostream&out) const override;
 
       const data_type_t* qualifier() const { return qualifier_.get(); }
@@ -338,6 +340,7 @@ private:
       std::unique_ptr<data_type_t> qualifier_;
       perm_string deferred_member_;
       mutable bool deferred_reported_;
+      mutable bool bare_scope_reported_;
 };
 
 /*
