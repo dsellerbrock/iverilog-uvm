@@ -7492,6 +7492,8 @@ dynamic_override_specifiers
 	      yyerror(@3, "error: Duplicate ':initial' method override specifier.");
 	if ($1 & METHOD_OVERRIDE_EXTENDS)
 	      yyerror(@3, "error: ':initial' and ':extends' are mutually exclusive method override specifiers.");
+	if ($1 & METHOD_OVERRIDE_FINAL)
+	      yyerror(@3, "error: ':initial' must precede ':final' in method override specifiers.");
 	$$ = $1 | METHOD_OVERRIDE_INITIAL;
       }
   | dynamic_override_specifiers ':' K_extends
@@ -7499,6 +7501,8 @@ dynamic_override_specifiers
 	      yyerror(@3, "error: Duplicate ':extends' method override specifier.");
 	if ($1 & METHOD_OVERRIDE_INITIAL)
 	      yyerror(@3, "error: ':initial' and ':extends' are mutually exclusive method override specifiers.");
+	if ($1 & METHOD_OVERRIDE_FINAL)
+	      yyerror(@3, "error: ':extends' must precede ':final' in method override specifiers.");
 	$$ = $1 | METHOD_OVERRIDE_EXTENDS;
       }
   | dynamic_override_specifiers ':' K_final
