@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1119_nonoverlap_empty_match.sv",
+  "iverilog-args": ["-g2023"],
+  "output-contains": ["single fails=3 at '{5, 25, 55} nested fails=1"]
+}
