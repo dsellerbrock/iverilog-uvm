@@ -17389,6 +17389,35 @@ static NetExpr* elaborate_root_indexed_class_base_expr_(const LineInfo*li,
 		    return base_expr;
 
 	      const netdarray_t*darray = net->darray_type();
+              // A fixed unpacked prefix selects a dynamic-array word before
+              // the remaining brackets select elements within that word.
+              if (darray && net->unpacked_dimensions() > 0
+                  && base_index.size() > net->unpacked_dimensions()) {
+                    auto split = base_index.begin();
+                    for (unsigned dim = 0; dim < net->unpacked_dimensions(); ++dim)
+                          ++split;
+                    list<index_component_t> prefix(base_index.begin(), split);
+                    list<index_component_t> suffix(split, base_index.end());
+                    list<NetExpr*> idx_exprs;
+                    list<long> idx_consts;
+                    indices_flags flags;
+                    indices_to_expressions(des, scope, li, prefix,
+                                           net->unpacked_dimensions(),
+                                           false, flags, idx_exprs, idx_consts);
+                    NetExpr*canon = nullptr;
+                    if (!flags.invalid && !flags.undefined)
+                          canon = flags.variable
+                                ? normalize_variable_unpacked(net, idx_exprs)
+                                : normalize_variable_unpacked(net, idx_consts);
+                    if (!canon)
+                          canon = new NetEConst(verinum(verinum::Vx));
+                    canon->set_line(*li);
+                    NetESignal*word = new NetESignal(net, canon);
+                    word->set_line(*li);
+                    delete base_expr;
+                    return apply_trailing_container_indices_(
+                          *li, des, scope, word, net->net_type(), suffix, out_type);
+              }
 	      if (!darray) {
 		      // Static unpacked array of class handles (`c arr[N];
 		      // arr[i].prop`). The dynamic-array-only handling below
