@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3652_module_specify.sv",
+  "iverilog-args": ["-g2017", "-gspecify"],
+  "output-contains": ["y=1 at 8"]
+}
