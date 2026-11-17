@@ -1,0 +1,1 @@
+{"type":"CE", "source":"issue3616_unknown_selector.sv", "iverilog-args":["-g2017", "-s", "top"], "gold":"issue3616_unknown_selector"}
