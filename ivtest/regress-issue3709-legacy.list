@@ -1,0 +1,2 @@
+issue3709_bits_real_2017 normal,-g2017,-s,main ivltests gold=issue3709_bits_real.gold
+issue3709_bits_real_2023 normal,-g2023,-s,main ivltests gold=issue3709_bits_real.gold

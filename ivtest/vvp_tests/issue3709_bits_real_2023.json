@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3709_bits_real.sv",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "issue3709_bits_real"
+}

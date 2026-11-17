@@ -7047,3 +7047,5 @@ issue3614_cross_negation_control_2017 normal,-g2017,-s,tb,-I./ivltests ivltests 
 issue3614_cross_negation_control_2023 normal,-g2023,-s,tb,-I./ivltests ivltests gold=issue3614_cross_negation_control.gold
 issue3619_2017 normal,-g2017,-s,main ivltests gold=issue3619.gold
 issue3619_2023 normal,-g2023,-s,main ivltests gold=issue3619.gold
+issue3709_bits_real_2017 normal,-g2017,-s,main ivltests gold=issue3709_bits_real.gold
+issue3709_bits_real_2023 normal,-g2023,-s,main ivltests gold=issue3709_bits_real.gold

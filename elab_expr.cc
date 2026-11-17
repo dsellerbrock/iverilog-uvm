@@ -14514,7 +14514,9 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  ivl_assert(*this, data_type);
 		    /* 20.6.2: the number of data bits of a fixed-size type,
 		       including unpacked structs and arrays of them. */
-		  if (dynamic_cast<const netclass_t*>(data_type)
+		  if (const netreal_t*real_type = dynamic_cast<const netreal_t*>(data_type)) {
+			use_width = real_type == &netreal_t::type_shortreal ? 32 : 64;
+		  } else if (dynamic_cast<const netclass_t*>(data_type)
 		      || type_has_unpacked_union_(data_type)
 		      || !fixed_bitstream_width_(data_type, use_width)) {
 			use_width = 0;
@@ -14534,10 +14536,25 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  if (cast_expr) {
 			ivl_type_t cast_type =
 			      cast_expr->resolve_target_type(des, scope);
-			if (!fixed_bitstream_width_(cast_type, use_width))
+			if (const netreal_t*real_type = dynamic_cast<const netreal_t*>(cast_type))
+			      use_width = real_type == &netreal_t::type_shortreal ? 32 : 64;
+			else if (!fixed_bitstream_width_(cast_type, use_width))
 			      use_width = expr->expr_width();
 		  } else {
 			use_width = expr->expr_width();
+			if (expr->expr_type() == IVL_VT_REAL) {
+			      const PEIdent*real_id = dynamic_cast<const PEIdent*>(expr);
+			      ivl_type_t real_type = real_id
+				    ? real_id->test_type_of_ident(des, scope) : nullptr;
+			      if (dynamic_cast<const PECallFunction*>(expr)) {
+				    NetExpr*call = expr->elaborate_expr(des, scope, 0u, 0u);
+				    if (!call) return nullptr;
+				    real_type = call->net_type();
+				    delete call;
+			      }
+			      if (!real_id || dynamic_cast<const netreal_t*>(real_type))
+				    use_width = real_type == &netreal_t::type_shortreal ? 32 : 64;
+			}
 			  /* ponytail: only a plain identifier or member path is
 			     checked, and not in a constant context: there the
 			     argument can sit in a declaration that is still being
