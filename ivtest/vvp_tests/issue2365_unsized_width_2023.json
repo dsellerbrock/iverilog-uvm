@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2365_unsized_width.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue2365_unsized_width"
+}

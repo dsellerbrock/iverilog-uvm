@@ -14,8 +14,9 @@ package scoped_registry_pkg;
 endpackage
 module test;
   import scoped_registry_pkg::*;
-  typedef Holder::type_id alias_t;
-  typedef Holder::type_id second_alias_t;
+  typedef Holder holder_t;
+  typedef holder_t::type_id alias_t;
+  typedef holder_t::type_id second_alias_t;
   initial begin
     #1;
     if (calls[1] != 1 || calls[0] != 0 || calls[2] != 1)

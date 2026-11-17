@@ -34557,7 +34557,11 @@ unsigned PENumber::test_width(Design*, NetScope*, width_mode_t&mode)
 
       if (!value_->has_len() && !value_->is_single()) {
             if (gn_strict_expr_width_flag) {
-                  expr_width_ = integer_width;
+		    /* IEEE 1800-2023 5.7.1: "at least 32" bits. A literal
+		       that needs more keeps the width it needs instead of
+		       being truncated to another value (#2365). */
+                  if (expr_width_ < integer_width)
+                        expr_width_ = integer_width;
                   mode = UNSIZED;
             } else if (mode < LOSSLESS) {
 		  if (expr_width_ < integer_width) {

@@ -1,8 +1,8 @@
 {
-    "type": "normal",
+    "type": "CE",
     "source": "sv_queue_last_lvalue_nba.v",
     "iverilog-args": [
         "-g2017"
     ],
-    "gold": "sv_queue_last_lvalue_nba"
+    "gold": "issue3605_existing_queue_nba"
 }

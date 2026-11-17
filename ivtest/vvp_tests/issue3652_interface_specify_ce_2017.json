@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3652_interface_specify_ce.sv",
+  "iverilog-args": ["-g2017", "-gspecify"],
+  "gold": "issue3652_interface_specify_ce"
+}

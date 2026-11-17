@@ -18749,7 +18749,13 @@ module_item
   /* specify blocks are parsed but ignored. */
 
   | K_specify
-      { pform_error_in_generate(@1, "specify block");
+      { /* IEEE 1800-2017/2023 30.3: a specify block "shall appear inside
+	   a module declaration". Owner ruling on #1299 (2026-11-16): one
+	   inside an interface is illegal; keep rejecting it (#3652). */
+	if (pform_in_interface())
+	      yyerror(@1, "error: specify blocks are not allowed "
+			  "in interfaces (IEEE 1800-2017/2023 30.3).");
+        pform_error_in_generate(@1, "specify block");
       }
 
     specify_item_list_opt K_endspecify
