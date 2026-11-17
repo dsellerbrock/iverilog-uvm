@@ -102,6 +102,8 @@ FILE *depend_file = NULL;
 int warn_redef = 0;
 int warn_redef_all = 0;
 int sv_2023_enabled = 0;
+int sv_enabled = 0;
+int commercial_unsafe = 0;
 
 static int flist_read_flags(const char*path)
 {
@@ -302,8 +304,13 @@ int main(int argc, char*argv[])
 	    break;
 
 	  case 'g':
-	    if (strcmp(optarg, "2023") == 0)
+	    if (strcmp(optarg, "2023") == 0) {
 		  sv_2023_enabled = 1;
+		  sv_enabled = 1;
+	    } else if (strcmp(optarg, "2017") == 0)
+		  sv_enabled = 1;
+	    else if (strcmp(optarg, "commercial-unsafe") == 0)
+		  commercial_unsafe = 1;
 	    else {
 		  fprintf(stderr, "%s: unsupported generation: %s\n", argv[0], optarg);
 		  flag_errors += 1;

@@ -62,6 +62,7 @@ static int load_next_input(void);
 struct include_stack_t;
 static struct include_stack_t* istack;
 static void emit_pathline(struct include_stack_t* isp);
+static void outside_paste_diagnostic(void);
 
 enum ifdef_expr_kind {
     IFDEF_EXPR_IFDEF,
@@ -1162,6 +1163,7 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
      When expanding macro text, the SV usage of `` takes precedence. */
 ``[a-zA-Z_][a-zA-Z0-9_$]* {
     if (istack->file) {
+	if (sv_enabled) outside_paste_diagnostic();
 	assert(do_expand_stringify_flag == 0);
 	do_expand_stringify_flag = 1;
 	fputc('"', yyout);
@@ -1177,7 +1179,7 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
   /* If we are expanding a macro, remove the SV `` delimiter, otherwise
    * leave it to be handled by the normal rules.
    */
-`` { if (istack->file) REJECT; }
+`` { if (istack->file) { if (sv_enabled) outside_paste_diagnostic(); REJECT; } }
 
   /* If we are expanding a macro, handle the SV `" override. This avoids
    * entering CSTRING state, thus allowing nested macro expansions.
@@ -1189,6 +1191,8 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 `\\`\" { if (!istack->file) fputs("\\\"", yyout); else REJECT; }
 
 <MA_START>\(  { BEGIN(MA_ADD); macro_start_args(); }
+
+<MA_START>`` { if (istack->file && sv_enabled) outside_paste_diagnostic(); }
 
 <MA_START>{W} {}
 
@@ -1263,6 +1267,7 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
     fputc('\n', yyout);
 }
 
+<MA_ADD>`` { if (istack->file && sv_enabled) outside_paste_diagnostic(); macro_add_to_arg(0); }
 <MA_ADD>. { macro_add_to_arg(0); }
 
 <MA_START,MA_ADD>"//"[^\r\n]* { ECHO; }
@@ -1290,6 +1295,14 @@ keywords (line|include|define|undef|ifdef|ifndef|else|elsif|endif)
 <<EOF>> { if (!load_next_input()) yyterminate(); }
 
 %%
+static void outside_paste_diagnostic(void)
+{
+    emit_pathline(istack);
+    fprintf(stderr, "%s: token paste outside a macro definition.\n",
+            commercial_unsafe ? "warning" : "error");
+    if (!commercial_unsafe) error_count += 1;
+}
+
 /*
  * Parse a `line directive and set the current file name and line
  * number accordingly. This ensures we restore the correct name
