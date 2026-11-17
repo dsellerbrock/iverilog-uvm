@@ -38121,6 +38121,38 @@ static constraint_source_type_t constraint_source_expr_type_(
       return result;
 }
 
+static bool constraint_real_predicate_(const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope)
+{
+      if (dynamic_cast<const PEFNumber*>(expr)) return true;
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr))
+            return (un->get_op() == '+' || un->get_op() == '-')
+                  && constraint_real_predicate_(un->get_expr(), cls, value_slots, scope);
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
+            char op = bin->get_op();
+            if (op != '+' && op != '-' && op != '*' && op != '/' && op != 'p')
+                  return false;
+            return constraint_real_predicate_(bin->get_left(), cls, value_slots, scope)
+                  || (op != 'p' && constraint_real_predicate_(
+                        bin->get_right(), cls, value_slots, scope));
+      }
+      if (const PETernary*ter = dynamic_cast<const PETernary*>(expr))
+            return constraint_real_predicate_(ter->get_true(), cls, value_slots, scope)
+                  || constraint_real_predicate_(ter->get_false(), cls, value_slots, scope);
+      constraint_source_type_t type = constraint_source_expr_type_(expr, cls, value_slots, scope);
+      return type.type && !type.unpacked_dimensions && type.type->base_type() == IVL_VT_REAL;
+}
+
+static void constraint_warn_real_implication_(const PExpr*site, const PExpr*predicate,
+      const netclass_t*cls, vector<const PExpr*>*value_slots, const NetScope*scope)
+{
+      if (generation_flag < GN_VER2023 && constraint_ir_design_ctx_
+          && constraint_real_predicate_(predicate, cls, value_slots, scope)
+          && constraint_ir_design_ctx_->mark_constraint_real_implication_warning(site))
+            cerr << site->get_fileline() << ": warning: real implication predicate "
+                 << "is not integral (IEEE 1800-2017 18.5.6)." << endl;
+}
+
 /* Resolve the collection named by a constraint foreach without elaborating
  * a value expression. The hierarchical parser form has already separated
  * the declared prefix selectors from the fresh loop variables, so consume
@@ -44714,6 +44746,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	// and "cond -> { ... }" implication sets (18.5.6). Lower to
 	// (impl C then) [and (impl (not C) else)].
       if (const PEConstraintIf*cif = dynamic_cast<const PEConstraintIf*>(expr)) {
+            if (cif->is_constraint_implication())
+                  constraint_warn_real_implication_(cif, cif->get_cond(), cls, value_slots, scope);
 	    string cond = pexpr_to_constraint_ir(cif->get_cond(), cls,
 						 value_slots, scope, loop_env);
 	    if (cond.empty()) return "";
@@ -48696,6 +48730,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
+            if (bin->is_constraint_implication())
+                  constraint_warn_real_implication_(bin, bin->get_left(), cls, value_slots, scope);
 	    // String associative keys are runtime state. Compare the actual key
 	    // with a literal for each instance of the foreach template.
 	    if (dynforeach_emit_ctx_ && dynforeach_emit_ctx_->entry_key
