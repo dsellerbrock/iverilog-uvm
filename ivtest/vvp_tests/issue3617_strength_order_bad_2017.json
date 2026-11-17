@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3617_strength_order_bad.sv",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue3617_strength_order_bad"
+}

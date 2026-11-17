@@ -17986,6 +17986,11 @@ module_item
      when the data type is omitted. */
   | attribute_list_opt net_type data_type_or_implicit_no_opt drive_strength delay3_opt net_decl_assigns_mixed ';'
       { data_type_t*data_type = $3;
+        if (!gn_commercial_unsafe_flag)
+	      yyerror(@4, "error: Drive strength must precede the net data type.");
+	else
+	      cerr << @4 << ": warning: Drive strength after the net data type "
+		      "is a nonstandard extension." << endl;
         pform_check_net_data_type(@2, $2, $3);
 	pform_makewire(@2, $5, $4, $6, $2, data_type, $1);
 	delete $1;

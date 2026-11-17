@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3617_strength_order_bad.sv",
+  "iverilog-args": ["-g2023", "-gcommercial-unsafe"],
+  "gold": "issue3617_strength_order_unsafe"
+}

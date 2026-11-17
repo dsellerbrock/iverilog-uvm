@@ -1,0 +1,2 @@
+./ivltests/issue3617_strength_order_bad.sv:3: warning: Drive strength after the net data type is a nonstandard extension.
+PASS
