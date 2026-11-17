@@ -1,8 +1,22 @@
 // IEEE 1800-2017/2023 6.20.2 with 7.11 and 20.7.
 //
-// Runtime access to a string ARRAY parameter. A variable index used to
-// require integral elements. The variable-index path packed the whole array
-// into one wide vector and bit-selected it, which needs integral
+// Runtime access to a string ARRAY parameter. OpenTitan's
+// rstmgr_leaf_rst_cnsty_vseq.sv:49-50 writes exactly this:
+//
+//   for (int i = 0; i < LIST_OF_LEAFS.size(); ++i)
+//     string leaf_path = {"tb.dut.", LIST_OF_LEAFS[i], ".gen_rst_chk.u_rst_chk"};
+//
+// Both halves used to fail, for the SAME underlying reason: an array
+// parameter's declared type is its ELEMENT type, so the array's own
+// operations were dispatched against an element.
+//
+//   LEAFS.size()  -> sorry: the `size' method needs a value that is a
+//                    constant string at elaboration
+//   LEAFS[i]      -> sorry: Variable index into array parameter `LEAFS'
+//                    requires integral elements
+//
+// The second is a genuine lowering gap: the variable-index path packs the
+// whole array into one wide vector and bit-selects it, which needs integral
 // equal-width elements. A CONSTANT index always worked, through a different
 // path -- which is why `LEAFS[1]' compared fine while `LEAFS[i]' did not.
 //
@@ -32,16 +46,16 @@ module main;
   endtask
 
   initial begin
-    // $size on the array itself, for string AND integral elements, and for
-    // a sized declaration as well as an inferred one.
-    chk("LEAFS.size", $size(LEAFS), 3);
-    chk("ONE.size",   $size(ONE),   1);
-    chk("NUMS.size",  $size(NUMS),  4);
+    // Dynamic array size() for string and integral elements, and $size for
+    // the fixed-size declaration.
+    chk("LEAFS.size", LEAFS.size(), 3);
+    chk("ONE.size",   ONE.size(),   1);
+    chk("NUMS.size",  NUMS.size(),  4);
     chk("DESC.size",  $size(DESC),  2);
 
     // The OpenTitan shape: a variable index inside a concatenation, bounded
-    // by $size. Values are checked, not merely compilation.
-    for (int i = 0; i < $size(LEAFS); ++i) begin
+    // by .size(). Values are checked, not merely compilation.
+    for (int i = 0; i < LEAFS.size(); ++i) begin
       automatic string path = {"tb.dut.", LEAFS[i], ".chk"};
       case (i)
         0: if (path != "tb.dut.u_daon_lc.chk")
@@ -54,11 +68,11 @@ module main;
     end
 
     // A single-element array exercises the degenerate chain.
-    for (int i = 0; i < $size(ONE); ++i)
+    for (int i = 0; i < ONE.size(); ++i)
       if (ONE[i] != "solo") begin $display("FAILED: ONE[%0d]", i); errors += 1; end
 
     // Integral arrays must still take the original packed-table lowering.
-    for (int i = 0; i < $size(NUMS); ++i)
+    for (int i = 0; i < NUMS.size(); ++i)
       chk("NUMS elem", NUMS[i], 5 + i);
 
     // A constant index is a different path and must be unchanged.

@@ -1,5 +1,5 @@
 package issue3626_pkg;
-  parameter int nums[] = {1, 2, 3};
+  parameter int nums[3] = {1, 2, 3};
 endpackage
 module issue3626_fixed_param_size;
   parameter string words[2] = {"a", "b"};
