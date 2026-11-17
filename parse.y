@@ -3342,6 +3342,8 @@ static Module::port_t *module_declare_explicit_port(
 %type <event_exprs> block_event_expression_list
 %type <event_expr> event_expression block_event_expression
 %type <event_expr> checker_event_expression
+%type <event_expr> event_actual
+%type <expr> event_initializer_opt
 %type <event_statement> event_control
 %type <statement> statement statement_item statement_or_null
 %type <statement> compressed_statement
@@ -9777,13 +9779,13 @@ sva_property_formal_list
 	      formal.formal_type = sva_property_formal_t::SEQUENCE;
 	      formal.default_expr = $3;
 	      l->push_back(formal); delete[]$2; $$ = l; }
-	| sva_property_formal_list ',' K_event IDENTIFIER initializer_opt
+	| sva_property_formal_list ',' K_event IDENTIFIER event_initializer_opt
 	    { sva_property_formal_t formal;
 	      formal.name = lex_strings.make($4);
 	      formal.formal_type = sva_property_formal_t::EVENT;
 	      formal.default_expr = $5;
 	      $1->push_back(formal); delete[]$4; $$ = $1; }
-	| K_event IDENTIFIER initializer_opt
+	| K_event IDENTIFIER event_initializer_opt
 	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	      sva_property_formal_t formal;
 	      formal.name = lex_strings.make($2);
@@ -14215,6 +14217,32 @@ expression_list_with_nuls
       }
   ;
 
+  /* IEEE 1800-2017/2023 16.12.18 (16.8.1 Syntax 16-3): the actual or default
+     of an `event' formal of a property is an event_expression. Only the
+     edge forms (with an optional iff) are taken here; a bare expression is
+     already an ordinary argument. The PEEvent is bound to the formal's event
+     substitution, and anywhere else it is an error. */
+event_actual
+  : K_posedge expression
+      { $$ = new PEEvent(PEEvent::POSEDGE, $2); FILE_NAME($$, @1); }
+  | K_negedge expression
+      { $$ = new PEEvent(PEEvent::NEGEDGE, $2); FILE_NAME($$, @1); }
+  | K_edge expression
+      { $$ = new PEEvent(PEEvent::EDGE, $2); FILE_NAME($$, @1); }
+  | K_posedge expression K_iff expression
+      { $$ = new PEEvent(PEEvent::POSEDGE, $2, $4); FILE_NAME($$, @1); }
+  | K_negedge expression K_iff expression
+      { $$ = new PEEvent(PEEvent::NEGEDGE, $2, $4); FILE_NAME($$, @1); }
+  | K_edge expression K_iff expression
+      { $$ = new PEEvent(PEEvent::EDGE, $2, $4); FILE_NAME($$, @1); }
+  ;
+
+event_initializer_opt
+  : '=' expression { $$ = $2; }
+  | '=' event_actual { $$ = $2; }
+  | { $$ = nullptr; }
+  ;
+
 argument
   : expression
       { named_pexpr_t *tmp = new named_pexpr_t;
@@ -14235,6 +14263,13 @@ argument
       }
   | named_expression_opt
       { $$ = $1;
+      }
+  | event_actual
+      { named_pexpr_t *tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = perm_string();
+	tmp->parm = $1;
+	$$ = tmp;
       }
   |
       { named_pexpr_t *tmp = new named_pexpr_t;

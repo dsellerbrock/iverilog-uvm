@@ -15492,6 +15492,40 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
       for (size_t k = 0; k < formals.size(); ++k) {
 	    const sva_property_formal_t&formal = formals[k];
 	    PExpr*value = nullptr;
+	      /* IEEE 1800-2017/2023 16.12.18: an `event' formal takes an
+		 event_expression actual (or default) such as `posedge clk'.
+		 Bind it as the formal's event control, as $inferred_clock is
+		 bound below. */
+	    PEEvent*event_actual = actuals[k]
+		  ? dynamic_cast<PEEvent*>(actuals[k]->parm) : nullptr;
+	    if (!actuals[k] && formal.default_expr)
+		  event_actual = dynamic_cast<PEEvent*>(formal.default_expr);
+	    if (event_actual) {
+		  if (formal.formal_type != sva_property_formal_t::EVENT
+		      && formal.formal_type != sva_property_formal_t::UNTYPED) {
+			cerr << loc << ": error: property `" << nm << "' formal `"
+			     << formal.name << "' is not an event formal and cannot "
+			     << "take the event expression actual (IEEE 1800-2017/2023 "
+			     << "16.12.18)." << endl;
+			error_count += 1;
+			return false;
+		  }
+		  PExpr*expr = sva_clone_subst_(event_actual->expr(), nullptr);
+		  PExpr*cond = event_actual->condition()
+			? sva_clone_subst_(event_actual->condition(), nullptr)
+			: nullptr;
+		  if (!expr || (event_actual->condition() && !cond))
+			return false;
+		  PEEvent*copy = new PEEvent(event_actual->type(), expr, cond);
+		  FILE_NAME(copy, loc);
+		  std::vector<PEEvent*> evs(1, copy);
+		    // ponytail: the control lives as long as the parsed design,
+		    // like the other pform statements it is cloned into.
+		  PEventStatement*control = new PEventStatement(evs);
+		  FILE_NAME(control, loc);
+		  event_subst[formal.name] = control;
+		  continue;
+	    }
 	    if (actuals[k] && actuals[k]->parm) {
 		  if (formal.type) {
 			value = sva_clone_subst_(actuals[k]->parm, nullptr);

@@ -36039,3 +36039,37 @@ NetNet* Design::find_discipline_reference(ivl_discipline_t dis, NetScope*scope)
 
       return gnd;
 }
+
+/*
+ * IEEE 1800-2017/2023 16.12.18: an event expression such as `posedge clk'
+ * is an actual (or default) only of an `event' formal of a property. The
+ * parser accepts it as a call argument so property instances can take it;
+ * anywhere it reaches expression elaboration it is an error.
+ */
+static void pe_event_not_a_value_(const PEEvent*ev, Design*des)
+{
+      cerr << ev->get_fileline() << ": error: the event expression `" << *ev
+	   << "' is only allowed as the actual or default of an event formal "
+	   << "of a property (IEEE 1800-2017/2023 16.12.18)." << endl;
+      des->errors += 1;
+}
+
+unsigned PEEvent::test_width(Design*, NetScope*, width_mode_t&)
+{
+      expr_width_ = 1;
+      min_width_ = 1;
+      expr_type_ = IVL_VT_LOGIC;
+      return 1;
+}
+
+NetExpr* PEEvent::elaborate_expr(Design*des, NetScope*, ivl_type_t, unsigned) const
+{
+      pe_event_not_a_value_(this, des);
+      return 0;
+}
+
+NetExpr* PEEvent::elaborate_expr(Design*des, NetScope*, unsigned, unsigned) const
+{
+      pe_event_not_a_value_(this, des);
+      return 0;
+}
