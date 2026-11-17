@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2769_force_struct_nettype.sv",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue2769_force_struct_nettype"
+}

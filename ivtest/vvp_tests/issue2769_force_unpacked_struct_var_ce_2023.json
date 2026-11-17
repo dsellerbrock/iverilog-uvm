@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2769_force_unpacked_struct_var_ce.sv",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue2769_force_unpacked_struct_var_ce"
+}

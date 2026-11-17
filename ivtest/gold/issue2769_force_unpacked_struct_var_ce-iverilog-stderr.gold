@@ -1,0 +1,3 @@
+ivltests/issue2769_force_unpacked_struct_var_ce.sv:9: error: the unpacked struct variable `v' is not singular and cannot be the target of a force (IEEE 1800-2017/2023 10.6.2, 6.4).
+ivltests/issue2769_force_unpacked_struct_var_ce.sv:10: error: the unpacked struct variable `arr' is not singular and cannot be the target of a force (IEEE 1800-2017/2023 10.6.2, 6.4).
+2 error(s) during elaboration.

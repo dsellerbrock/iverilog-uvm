@@ -1,0 +1,6 @@
+SDF WARNING: ivltests/issue1568_default_warning.sdf:11: INTERCONNECT source port unrelated and load port mismatch are not on the same net; annotating load port anyway.
+SDF WARNING: ivltests/issue1568_default_warning.sdf:12: INTERCONNECT source port absent not found; annotating load port anyway.
+tb.mismatch at 13000
+tb.missing at 13000
+tb.valid at 13000
+ivltests/issue1568_default_warning.sv:23: $finish called at 20000 (1ps)

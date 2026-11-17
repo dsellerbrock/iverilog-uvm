@@ -72,6 +72,8 @@ ruled). A provisional reading an agent built on before a ruling is marked "provi
 | 2026-11-16 | 11.3, Table 11-1 | A8 class-B Q5 | Bitwise operators on a `real` operand | An error; Table 11-1 does not list them for `real`. | owner |
 | 2026-11-16 | 22.5.1 | A8 class-B Q6 (issue to be filed) | The `` `` `` paste operator outside a macro definition | An error in strict modes; a warning under `-gcommercial-unsafe` (the 2026-11-10 pattern). | owner |
 | 2026-11-16 | 10.6.2, 6.4, 6.6.7 | #2769 | `force`/`release` on an unpacked struct: the whole variable, a member, a struct-nettype net | A whole unpacked struct variable is not singular, so it is an error as a force target (not a sorry). A singular member of an unpacked struct variable (`force v.a = 7`) is legal. A net of a struct nettype is legal (6.6.7). | owner |
+| 2026-11-16 | 5.7.1 | #2365 | Amends the 2026-11-10 row: an unsized decimal literal whose value needs more than 32 bits under the strict expression-width default | It keeps the width its value needs (5.7.1); strict 32 bits applies only to literals that fit. | owner |
+| 2026-11-16 | 32.4.4 | #1564, #1568 | SDF warnings for a missing or mismatched INTERCONNECT/PORT source: opt-in, or on by default? | On by default; `-sdf-warn` is not required to see them. | owner |
 
 ## Process rulings
 

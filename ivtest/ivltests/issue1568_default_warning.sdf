@@ -1,0 +1,17 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "tb")
+  (DIVIDER .)
+  (TIMESCALE 1 ns)
+  (CELL
+    (CELLTYPE "tb")
+    (INSTANCE)
+    (DELAY
+      (ABSOLUTE
+        (INTERCONNECT unrelated.y mismatch.a (3.0) (3.0))
+        (INTERCONNECT absent.y missing.a (3.0) (3.0))
+        (INTERCONNECT source.y valid.a (3.0) (3.0))
+      )
+    )
+  )
+)

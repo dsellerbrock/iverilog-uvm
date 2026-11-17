@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue461_weak_reference_import.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue461_weak_reference_import"
+}
