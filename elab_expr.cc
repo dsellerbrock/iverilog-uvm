@@ -28108,7 +28108,13 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
       } else if (idx_flags.variable) {
 	    ivl_assert(*this, unpacked_indices.size() == net->unpacked_dimensions());
-	    canon_index = normalize_variable_unpacked(net, unpacked_indices);
+	    const netsarray_t*fixed_type =
+		  dynamic_cast<const netsarray_t*>(net->array_type());
+	    if (fixed_type && net->unpacked_dimensions() > 1)
+		  canon_index = make_checked_canonical_property_index(
+			des, this, unpacked_indices, idx_flags, fixed_type);
+	    else
+		  canon_index = normalize_variable_unpacked(net, unpacked_indices);
 
       } else {
 	    ivl_assert(*this, unpacked_indices_const.size() == net->unpacked_dimensions());
@@ -32065,7 +32071,13 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 
       } else if (idx_flags.variable) {
 	    ivl_assert(*this, unpacked_indices.size() == net->unpacked_dimensions());
-	    canon_index = normalize_variable_unpacked(net, unpacked_indices);
+	    const netsarray_t*fixed_type =
+		  dynamic_cast<const netsarray_t*>(net->array_type());
+	    if (fixed_type && net->unpacked_dimensions() > 1)
+		  canon_index = make_checked_canonical_property_index(
+			des, this, unpacked_indices, idx_flags, fixed_type);
+	    else
+		  canon_index = normalize_variable_unpacked(net, unpacked_indices);
 
       } else {
 	    ivl_assert(*this, unpacked_indices_const.size() == net->unpacked_dimensions());

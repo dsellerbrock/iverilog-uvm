@@ -2250,7 +2250,13 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 		  }
 		  ivl_assert(*this, unpacked_indices.size()
 			     == reg->unpacked_dimensions());
-		  canon_index = normalize_variable_unpacked(reg, unpacked_indices);
+		  const netsarray_t*fixed_type =
+			dynamic_cast<const netsarray_t*>(reg->array_type());
+		  if (fixed_type && reg->unpacked_dimensions() > 1)
+			canon_index = make_checked_canonical_property_index(
+			      des, this, unpacked_indices, flags, fixed_type);
+		  else
+			canon_index = normalize_variable_unpacked(reg, unpacked_indices);
 	    } else {
 		  ivl_assert(*this, unpacked_indices_const.size()
 			     == reg->unpacked_dimensions());
