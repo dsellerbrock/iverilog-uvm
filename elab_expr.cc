@@ -17299,6 +17299,20 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       }
 
       const index_component_t&idx_comp = comp.index.front();
+      if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
+	    const netqueue_t*queue = dynamic_cast<const netqueue_t*>(prop_type);
+	    if (queue && !queue->assoc_compat()) {
+		  NetExpr*cur = make_last_queue_element_expr_(*li, prop_expr, queue);
+		  if (!cur)
+			return nullptr;
+		  list<index_component_t>::const_iterator idx_it = comp.index.begin();
+		  ++idx_it;
+		  list<index_component_t>trailing_indices(idx_it, comp.index.cend());
+		  return apply_trailing_container_indices_(
+			*li, des, scope, cur, queue->element_type(), trailing_indices,
+			out_type);
+	    }
+      }
       NetExpr*idx_expr = nullptr;
       if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
             idx_expr = make_last_array_index_expr_(*li, prop_expr->dup_expr(), prop_type);
