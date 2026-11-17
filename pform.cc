@@ -37612,11 +37612,18 @@ static bool sva_rec_build_pool_(const sva_comp_ctx_t&root_ctx,
 		  named_pexpr_t darg;
 		  darg.parm = new PEString(strdup(msg));
 		  dargs.push_back(darg);
-		  PCallTask*warn = new PCallTask(lex_strings.make("$display"), dargs);
+		  PCallTask*warn = new PCallTask(lex_strings.make("$error"), dargs);
 		  FILE_NAME(warn, loc);
 		  std::vector<Statement*> once;
 		  once.push_back(set1(pool.ovf));
 		  once.push_back(warn);
+		  std::list<named_pexpr_t> finish_args;
+		  named_pexpr_t finish_arg;
+		  finish_arg.parm = sva_num32_(loc, 1);
+		  finish_args.push_back(finish_arg);
+		  PCallTask*finish = new PCallTask(lex_strings.make("$finish_and_return"), finish_args);
+		  FILE_NAME(finish, loc);
+		  once.push_back(finish);
 		  Statement*pick = sva_if_(loc, sva_not_(loc, sva_id_(loc, pool.ovf)),
 					   sva_block_(loc, once), nullptr);
 		  for (long j = KR - 1 ; j >= 0 ; j -= 1) {
@@ -37696,8 +37703,17 @@ static bool sva_rec_build_pool_(const sva_comp_ctx_t&root_ctx,
 	    eargs.push_back(earg);
 	    PCallTask*err = new PCallTask(lex_strings.make("$error"), eargs);
 	    FILE_NAME(err, loc);
+	    std::list<named_pexpr_t> finish_args;
+	    named_pexpr_t finish_arg;
+	    finish_arg.parm = sva_num32_(loc, 1);
+	    finish_args.push_back(finish_arg);
+	    PCallTask*finish = new PCallTask(lex_strings.make("$finish_and_return"), finish_args);
+	    FILE_NAME(finish, loc);
+	    std::vector<Statement*> failure;
+	    failure.push_back(err);
+	    failure.push_back(finish);
 	    code.tick.push_back(sva_if_(loc, sva_not_(loc, sva_id_(loc, pool.settled)),
-					err, nullptr));
+					sva_block_(loc, failure), nullptr));
       }
 	/* Verdicts: every level and the root re-evaluate from their operands
 	   until each link has carried its level's verdict. */
