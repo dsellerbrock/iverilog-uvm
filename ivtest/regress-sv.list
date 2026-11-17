@@ -7053,3 +7053,7 @@ issue3612_order_bad_2017 CE,-g2017 ivltests
 issue3612_order_bad_2023 CE,-g2023 ivltests
 issue3612_order_good_2017 CE,-g2017 ivltests
 issue3612_order_good_2023 normal,-g2023 ivltests gold=issue3612_order_good.gold
+issue3616_unknown_selector_2017 CE,-g2017,-s,top ivltests gold=issue3616_unknown_selector.gold
+issue3616_unknown_selector_2023 CE,-g2023,-s,top ivltests gold=issue3616_unknown_selector.gold
+issue3616_valid_selector_2017 normal,-g2017,-s,top ivltests gold=issue3616_valid_selector.gold
+issue3616_valid_selector_2023 normal,-g2023,-s,top ivltests gold=issue3616_valid_selector.gold

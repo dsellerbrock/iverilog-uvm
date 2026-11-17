@@ -17854,6 +17854,7 @@ static string assertion_control_selector_source_(Design*des, NetScope*scope,
 static bool assertion_control_indices_defined_(Design*des, NetScope*scope,
 						const pform_name_t&path)
 {
+      bool all_defined = true;
       for (pform_name_t::const_iterator comp = path.begin();
 	   comp != path.end(); ++comp) {
 	    for (list<index_component_t>::const_iterator idx =
@@ -17867,11 +17868,17 @@ static bool assertion_control_indices_defined_(Design*des, NetScope*scope,
 		  opt_const_func = saved_opt_const_func;
 		  NetEConst*constant = dynamic_cast<NetEConst*>(value);
 		  bool defined = constant && constant->value().is_defined();
+		  if (constant && !defined && generation_flag >= GN_VER2017) {
+			cerr << idx->msb->get_fileline() << ": error: "
+			     << "Assertion control hierarchical instance select "
+			     << "contains X or Z." << endl;
+			des->errors += 1;
+		  }
 		  delete value;
-		  if (!defined) return false;
+		  if (!defined) all_defined = false;
 	    }
       }
-      return true;
+      return all_defined;
 }
 
 /* The assertion registry uses rooted per-instance names.  An assertion
