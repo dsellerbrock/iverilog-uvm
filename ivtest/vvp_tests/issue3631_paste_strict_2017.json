@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "issue3631_paste.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "tb"
+  ],
+  "gold": "issue3631_paste_strict"
+}

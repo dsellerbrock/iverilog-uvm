@@ -1,0 +1,4 @@
+issue3631_paste_strict_2017 CE,-g2017,-s,tb ivltests gold=issue3631_paste_strict.gold
+issue3631_paste_strict_2023 CE,-g2023,-s,tb ivltests gold=issue3631_paste_strict.gold
+issue3631_paste_unsafe_2017 normal,-g2017,-gcommercial-unsafe,-s,tb ivltests gold=issue3631_paste_unsafe.gold
+issue3631_paste_unsafe_2023 normal,-g2023,-gcommercial-unsafe,-s,tb ivltests gold=issue3631_paste_unsafe.gold

@@ -1,0 +1,2 @@
+ivltests/issue3631_paste.sv:7: error: token paste outside a macro definition.
+Preprocessor failed with 1 errors.
