@@ -1,0 +1,2 @@
+./ivltests/issue3628_nonstatic_call.sv:5: error: Non-static method `f' requires an object receiver.
+1 error(s) during elaboration.

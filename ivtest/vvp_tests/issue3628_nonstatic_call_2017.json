@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3628_nonstatic_call.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3628_nonstatic_call"],
+  "gold": "issue3628_nonstatic_call"
+}

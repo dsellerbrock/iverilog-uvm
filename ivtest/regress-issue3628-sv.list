@@ -1,0 +1,4 @@
+issue3628_nonstatic_call_2017 CE,-g2017,-s,issue3628_nonstatic_call ivltests gold=issue3628_nonstatic_call.gold
+issue3628_static_control_2017 normal,-g2017,-s,issue3628_static_control ivltests gold=issue3628_static_control.gold
+issue3628_nonstatic_call_2023 CE,-g2023,-s,issue3628_nonstatic_call ivltests gold=issue3628_nonstatic_call.gold
+issue3628_static_control_2023 normal,-g2023,-s,issue3628_static_control ivltests gold=issue3628_static_control.gold
