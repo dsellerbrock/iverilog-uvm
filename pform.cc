@@ -25317,13 +25317,50 @@ sva_property_t* pform_sva_followed_by(const struct vlltype&loc, int op_type,
 		  && p->local_names.empty() && p->local_input_actual_names.empty();
       };
 
+	/* IEEE 1800-2017/2023 16.12.9: "sequence_expr #-# property_expr is
+	   equivalent to ... not (sequence_expr |-> not property_expr)", and
+	   #=# to "not (sequence_expr |=> not property_expr)". When the
+	   antecedent is a fixed-length sequence it has exactly one end point
+	   per attempt, so "some end point at which the property holds" is
+	   "the sequence matches, and the property holds at its end point":
+	   ante and (ante |-> conseq), or |=> for #=#. Both pieces are forms
+	   the property monitor already evaluates. A variable-length antecedent
+	   (several end points, where the existential reading differs) keeps
+	   the diagnostic below. */
+	/* A plain sequence operand is a leaf tree holding one step chain
+	   (pform_sva_leaf_prop), or a bare chain. */
+      const std::vector<sva_seq_step_t>*ante_chain = nullptr;
+      if (ante && ante->seq && !ante->tree)
+	    ante_chain = ante->seq;
+      else if (ante && ante->tree && ante->tree->kind == sva_stree_t::LEAF
+	       && ante->tree->chain)
+	    ante_chain = ante->tree->chain;
+      if (is_sequence(ante) && conseq && !is_sequence(conseq)
+	  && (op_type == 1 || op_type == 2) && ante_chain) {
+	    long len = 0;
+	    std::map<perm_string,PExpr*> no_subst;
+	    std::vector<sva_seq_step_t>*copy =
+		  sva_chain_fixed_len_(*ante_chain, len)
+		  ? sva_clone_steps_subst_(loc, ante_chain, no_subst) : nullptr;
+	    if (copy) {
+		  sva_property_t*impl = pform_sva_paren_conseq(loc, op_type,
+								copy, conseq);
+		  if (!impl) {
+			pform_sva_destroy_property(ante);
+			return nullptr;
+		  }
+		  return pform_sva_tree_comb(loc, 'a', ante, impl);
+	    }
+      }
+
       if (!is_sequence(ante) || !is_sequence(conseq)
 	  || (op_type != 1 && op_type != 2)) {
 	    const char*edition = generation_flag >= GN_VER2023
 		  ? "IEEE 1800-2023" : "IEEE 1800-2017";
 	    if (!is_sequence(conseq))
 		  cerr << loc << ": sorry: followed-by with a temporal-property "
-		       << "consequent is not supported yet (" << edition
+		       << "consequent and a variable-length sequence operand "
+		       << "is not supported yet (" << edition
 		       << " 16.12.9 makes it legal); the assertion is dropped."
 		       << endl;
 	    else
