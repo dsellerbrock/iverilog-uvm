@@ -1,0 +1,7 @@
+ivltests/sv_vif_instance_runtime_index_extension.v:17: warning: interface instance array index must be a constant expression (accepted by -gcommercial-unsafe).
+ivltests/sv_vif_instance_runtime_index_extension.v:20: warning: interface instance array index must be a constant expression (accepted by -gcommercial-unsafe).
+ivltests/sv_vif_instance_runtime_index_extension.v:25: warning: interface instance array index must be a constant expression (accepted by -gcommercial-unsafe).
+ivltests/sv_vif_instance_runtime_index_extension.v:32: warning: interface instance array index must be a constant expression (accepted by -gcommercial-unsafe).
+ivltests/sv_vif_instance_runtime_index_extension.v:37: warning: interface instance array index must be a constant expression (accepted by -gcommercial-unsafe).
+ivltests/sv_vif_instance_runtime_index_extension.v:41: warning: interface instance array index must be a constant expression (accepted by -gcommercial-unsafe).
+ivltests/sv_vif_instance_runtime_index_extension.v:44: warning: interface instance array index must be a constant expression (accepted by -gcommercial-unsafe).

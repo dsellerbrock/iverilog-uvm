@@ -26990,7 +26990,30 @@ static NetExpr* elaborate_vif_instance_array_dispatch_(const LineInfo*loc,
       NetExpr*idx = elab_and_eval(des, scope, ic.msb, -1, false);
       if (!idx)
 	    return 0;
-      if (dynamic_cast<NetEConst*>(idx)) { delete idx; return 0; }
+	// Folding a runtime expression (for example, index*0) can produce a
+	// constant value without making the source a constant expression. Probe
+	// in constant context before deciding whether this is an instance select.
+      std::ostringstream diagnostics;
+      std::streambuf*saved = cerr.rdbuf(diagnostics.rdbuf());
+      unsigned errors = des->errors;
+      NetExpr*constant_idx = elab_and_eval(des, scope, ic.msb, -1, true);
+      cerr.rdbuf(saved);
+      bool is_constant = des->errors == errors
+	    && dynamic_cast<NetEConst*>(constant_idx);
+      des->errors = errors;
+      delete constant_idx;
+      if (is_constant) { delete idx; return 0; }
+
+      cerr << loc->get_fileline() << (gn_commercial_unsafe_flag
+	    ? ": warning: " : ": error: ")
+	   << "interface instance array index must be a constant expression"
+	   << (gn_commercial_unsafe_flag ? " (accepted by -gcommercial-unsafe)" : "")
+	   << "." << endl;
+      if (!gn_commercial_unsafe_flag) {
+	    delete idx;
+	    des->errors += 1;
+	    return 0;
+      }
 
       unsigned wid = ntype->packed_width();
       if (wid == 0) wid = 32;

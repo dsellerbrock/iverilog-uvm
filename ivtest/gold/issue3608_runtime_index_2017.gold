@@ -1,0 +1,5 @@
+./ivltests/issue3608_runtime_index.v:9: error: interface instance array index must be a constant expression.
+./ivltests/issue3608_runtime_index.v:10: error: interface instance array index must be a constant expression.
+./ivltests/issue3608_runtime_index.v:11: error: interface instance array index must be a constant expression.
+./ivltests/issue3608_runtime_index.v:12: error: interface instance array index must be a constant expression.
+4 error(s) during elaboration.

@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "issue3608_runtime_index_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue3608_runtime_index"
+  ],
+  "gold": "issue3608_runtime_index_2023"
+}
