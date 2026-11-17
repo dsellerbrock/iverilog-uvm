@@ -1,0 +1,53 @@
+1364v1995
+  vpiVariables : i=vpiIntegerVar ia=vpiIntegerVar[] t=vpiTimeVar ta=vpiTimeVar[] x=vpiRealVar xa=vpiRegArray
+  vpiReg       : r=vpiReg v=vpiReg
+  vpiRegArray  :
+  vpiMemory    : la=vpiMemory mem=vpiMemory
+  vpiIntegerVar: i=vpiIntegerVar ia=vpiIntegerVar[]
+  vpiTimeVar   : t=vpiTimeVar ta=vpiTimeVar[]
+  vpiRealVar   : x=vpiRealVar
+  mem: vpiMemory, word vpiMemoryWord, vpiReg 4, vpiMemoryWord 4, vpiVarSelect 0
+  la: vpiMemory, word vpiMemoryWord, vpiReg 2, vpiMemoryWord 2, vpiVarSelect 0
+  ia: vpiIntegerVar, word vpiVarSelect, vpiReg 0, vpiMemoryWord 0, vpiVarSelect 2
+  ta: vpiTimeVar, word vpiVarSelect, vpiReg 0, vpiMemoryWord 0, vpiVarSelect 2
+  xa: vpiRegArray, word vpiRealVar, vpiReg 0, vpiMemoryWord 0, vpiVarSelect 0
+1364v2001
+  vpiVariables : i=vpiIntegerVar ia=vpiIntegerVar[] t=vpiTimeVar ta=vpiTimeVar[] x=vpiRealVar xa=vpiRealVar[]
+  vpiReg       : r=vpiReg v=vpiReg
+  vpiRegArray  : la=vpiRegArray mem=vpiRegArray
+  vpiMemory    : la=vpiRegArray mem=vpiRegArray
+  vpiIntegerVar: i=vpiIntegerVar ia=vpiIntegerVar[]
+  vpiTimeVar   : t=vpiTimeVar ta=vpiTimeVar[]
+  vpiRealVar   : x=vpiRealVar xa=vpiRealVar[]
+  mem: vpiRegArray, word vpiReg, vpiReg 4, vpiMemoryWord 4, vpiVarSelect 0
+  la: vpiRegArray, word vpiReg, vpiReg 2, vpiMemoryWord 2, vpiVarSelect 0
+  ia: vpiIntegerVar, word vpiVarSelect, vpiReg 0, vpiMemoryWord 0, vpiVarSelect 2
+  ta: vpiTimeVar, word vpiVarSelect, vpiReg 0, vpiMemoryWord 0, vpiVarSelect 2
+  xa: vpiRealVar, word vpiVarSelect, vpiReg 0, vpiMemoryWord 0, vpiVarSelect 2
+1364v2005
+  vpiVariables : i=vpiIntegerVar ia=vpiIntegerVar[] t=vpiTimeVar ta=vpiTimeVar[] x=vpiRealVar xa=vpiRealVar[]
+  vpiReg       : r=vpiReg v=vpiReg
+  vpiRegArray  : la=vpiRegArray mem=vpiRegArray
+  vpiMemory    : la=vpiRegArray mem=vpiRegArray
+  vpiIntegerVar: i=vpiIntegerVar ia=vpiIntegerVar[]
+  vpiTimeVar   : t=vpiTimeVar ta=vpiTimeVar[]
+  vpiRealVar   : x=vpiRealVar xa=vpiRealVar[]
+  mem: vpiRegArray, word vpiReg, vpiReg 4, vpiMemoryWord 4, vpiVarSelect 0
+  la: vpiRegArray, word vpiReg, vpiReg 2, vpiMemoryWord 2, vpiVarSelect 0
+  ia: vpiIntegerVar, word vpiVarSelect, vpiReg 0, vpiMemoryWord 0, vpiVarSelect 2
+  ta: vpiTimeVar, word vpiVarSelect, vpiReg 0, vpiMemoryWord 0, vpiVarSelect 2
+  xa: vpiRealVar, word vpiVarSelect, vpiReg 0, vpiMemoryWord 0, vpiVarSelect 2
+1800v2023
+  vpiVariables : i=vpiIntegerVar ia=vpiRegArray la=vpiRegArray mem=vpiRegArray r=vpiReg t=vpiTimeVar ta=vpiRegArray v=vpiReg x=vpiRealVar xa=vpiRegArray
+  vpiReg       : r=vpiReg v=vpiReg
+  vpiRegArray  : ia=vpiRegArray la=vpiRegArray mem=vpiRegArray ta=vpiRegArray xa=vpiRegArray
+  vpiMemory    : ia=vpiRegArray la=vpiRegArray mem=vpiRegArray ta=vpiRegArray xa=vpiRegArray
+  vpiIntegerVar: i=vpiIntegerVar
+  vpiTimeVar   : t=vpiTimeVar
+  vpiRealVar   : x=vpiRealVar
+  mem: vpiRegArray, word vpiReg, vpiReg 4, vpiMemoryWord 4, vpiVarSelect 0
+  la: vpiRegArray, word vpiReg, vpiReg 2, vpiMemoryWord 2, vpiVarSelect 0
+  ia: vpiRegArray, word vpiIntegerVar, vpiReg 2, vpiMemoryWord 2, vpiVarSelect 0
+  ta: vpiRegArray, word vpiTimeVar, vpiReg 2, vpiMemoryWord 2, vpiVarSelect 0
+  xa: vpiRegArray, word vpiRealVar, vpiReg 2, vpiMemoryWord 2, vpiVarSelect 0
+PASSED
