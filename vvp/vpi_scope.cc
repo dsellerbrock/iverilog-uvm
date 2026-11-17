@@ -3303,6 +3303,17 @@ PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope)
       return it != assertion_by_key.end() ? it->second->serial() : 0;
 }
 
+PLI_INT32 vpip_assertion_enable_control(vpiHandle assertion, bool enable)
+{
+      __vpiAssertion*obj = dynamic_cast<__vpiAssertion*>(assertion);
+      if (!obj || !obj->is_concurrent()) {
+	    vpi_printf("ERROR: vpi_control requires a concurrent assertion handle.\n");
+	    return 0;
+      }
+      obj->apply_control(enable ? 3 : 4, true);
+      return 1;
+}
+
 PLI_INT32 vpip_assertion_step_control(vpiHandle assertion,
 				      const s_vpi_time*start, bool enable,
 				      PLI_INT32 mode)
