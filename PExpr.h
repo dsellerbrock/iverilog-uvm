@@ -1362,6 +1362,10 @@ class PEBinary : public PExpr {
                                      unsigned flags) const override;
 
       inline char   get_op()    const { return op_; }
+      void mark_constraint_implication() { constraint_implication_ = true; }
+      bool is_constraint_implication() const { return constraint_implication_; }
+      void mark_parenthesized() { parenthesized_ = true; }
+      bool is_parenthesized() const { return parenthesized_; }
       inline PExpr* get_left()  const { return left_; }
       inline PExpr* get_right() const { return right_; }
 
@@ -1369,6 +1373,8 @@ class PEBinary : public PExpr {
       char op_;
       PExpr*left_;
       PExpr*right_;
+      bool constraint_implication_ = false;
+      bool parenthesized_ = false;
 
       NetExpr*elaborate_expr_base_(Design*, NetExpr*lp, NetExpr*rp,
 				   unsigned expr_wid) const;
@@ -2104,6 +2110,8 @@ class PEConstraintIf : public PExpr {
 		     std::list<PExpr*>*else_items);
       ~PEConstraintIf() override;
 
+      void mark_constraint_implication() { constraint_implication_ = true; }
+      bool is_constraint_implication() const { return constraint_implication_; }
       PExpr* get_cond() const { return cond_; }
       const std::list<PExpr*>& then_items() const { return then_items_; }
       const std::list<PExpr*>& else_items() const { return else_items_; }
@@ -2116,6 +2124,7 @@ class PEConstraintIf : public PExpr {
 
     private:
       PExpr*cond_;
+      bool constraint_implication_ = false;
       std::list<PExpr*> then_items_;
       std::list<PExpr*> else_items_;
 };

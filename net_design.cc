@@ -388,6 +388,11 @@ bool Design::mark_constraint_randc_diagnostic(const PExpr*expr)
       return expr && constraint_randc_diagnostic_sites_.insert(expr).second;
 }
 
+bool Design::mark_constraint_real_implication_warning(const PExpr*expr)
+{
+      return expr && constraint_real_implication_warning_sites_.insert(expr).second;
+}
+
 bool Design::mark_randc_cycle_cap_warning(
       const class_type_t::prop_info_t*prop, long width)
 {

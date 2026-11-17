@@ -7022,3 +7022,5 @@ issue1564_default_source_warning_2017 normal,-g2017,-gspecify,-ginterconnect,-s,
 issue1564_default_source_warning_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1564_default_source_warning.gold
 issue1568_default_warning_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1568_default_warning.gold
 issue1568_default_warning_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1568_default_warning.gold
+issue3627_real_implication_2017 normal,-g2017,-Iivltests,-s,tb ivltests gold=issue3627_real_implication_2017.gold
+issue3627_real_implication_2023 normal,-g2023,-Iivltests,-s,tb ivltests gold=issue3627_real_implication_2023.gold

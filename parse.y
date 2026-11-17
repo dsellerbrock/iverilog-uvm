@@ -5238,7 +5238,11 @@ constraint_foreach_path
 
 constraint_expression /* IEEE1800-2005 A.1.9 */
   : expression ';'
-      { $$ = $1; }
+      { for (PEBinary*bin = dynamic_cast<PEBinary*>($1);
+             bin && bin->get_op() == 'q' && !bin->is_parenthesized();
+             bin = dynamic_cast<PEBinary*>(bin->get_right()))
+              bin->mark_constraint_implication();
+        $$ = $1; }
   | K_unique '{' expression_list_proper '}' ';'
       { /* unique {...} (IEEE 1800-2017 18.5.5): pairwise-distinct
 	   values. Lowered in the constraint-IR emitter. */
@@ -5263,6 +5267,7 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
       { /* Implication onto a constraint set
 	   (IEEE 1800-2017 18.5.6 / 2023 18.5.5). */
 	PEConstraintIf*tmp = new PEConstraintIf($1, $3, nullptr);
+	tmp->mark_constraint_implication();
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
@@ -5415,6 +5420,7 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
             std::list<PExpr*>*items = new std::list<PExpr*>();
             items->push_back($4);
             PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
+            tmp->mark_constraint_implication();
             FILE_NAME(tmp, @2);
             $$ = tmp;
         } else {
@@ -5457,6 +5463,7 @@ constraint_dist_consequent
             std::list<PExpr*>*items = new std::list<PExpr*>();
             items->push_back($4);
             PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
+            tmp->mark_constraint_implication();
             FILE_NAME(tmp, @2);
             $$ = tmp;
         } else {
@@ -16290,7 +16297,9 @@ expr_primary
   /* Parenthesized expressions are primaries. */
 
   | '(' expr_mintypmax ')'
-      { $$ = $2; }
+      { if (PEBinary*bin = dynamic_cast<PEBinary*>($2))
+              bin->mark_parenthesized();
+        $$ = $2; }
 
   /* A blocking assignment may be used as an expression only when it is
      enclosed in parentheses (IEEE 1800-2017 11.3.6). Keep this in the
