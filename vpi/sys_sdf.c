@@ -366,7 +366,7 @@ static void sdf_interconnect_delays_one(struct interconnect_port_s port1, struct
       vpiHandle port1_handle = get_port_handle(port1.name, sdf_lineno);
       vpiHandle port2_handle = get_port_handle(port2.name, sdf_lineno);
 
-      if (!port1_handle && sdf_flag_warning)
+      if (!port1_handle)
 	    vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s not found; annotating load port anyway.\n",
 	               sdf_fname, sdf_lineno, port1.name);
 
@@ -469,9 +469,8 @@ static void sdf_interconnect_delays_one(struct interconnect_port_s port1, struct
 	          (load_direction == vpiInput || load_direction == vpiInout);
 	    if (!intermodpath && port1_handle && !port1.has_index &&
 	        !port2.has_index && !part_select_endpoint && valid_endpoint_directions) {
-		  if (sdf_flag_warning)
-			vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s and load port %s are not on the same net; annotating load port anyway.\n",
-			           sdf_fname, sdf_lineno, port1.name, port2.name);
+		  vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s and load port %s are not on the same net; annotating load port anyway.\n",
+		             sdf_fname, sdf_lineno, port1.name, port2.name);
 		  intermodpath = vpip_interconnect_ports_connected(NULL, port2_handle);
 	    }
 

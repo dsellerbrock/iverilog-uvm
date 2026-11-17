@@ -1,0 +1,7 @@
+1 f=1 2 (driven)
+2 f=7 8 (forced to v2)
+3 f=8 (tracks v2 member store)
+4 f=8 (driver change ignored)
+5 f=3 2 (tracks whole store to v2)
+6 f=3 2 (released: driven value)
+7 f=4 (driven again)

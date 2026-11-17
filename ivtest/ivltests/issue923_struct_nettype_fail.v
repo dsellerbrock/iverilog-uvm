@@ -1,7 +1,7 @@
 // IEEE 1800-2017/2023 6.6.7: a net of a nettype without a resolution
 // function shall not have multiple drivers, and a net is never a
-// procedural assignment target. Forcing an unpacked struct (net or
-// variable) is not supported yet and is reported instead of crashing.
+// procedural assignment target. Forcing the struct nettype net f and
+// the member v1.a is legal and supported (#2769).
 module top;
   typedef struct { int a; } st_t;
   nettype st_t ns;
