@@ -130,6 +130,7 @@ static vthread_t logical_process_thread_(vthread_t thr);
 static vthread_t event_expr_recipe_frame_(vthread_t thr);
 static bool event_expr_runtime_error_(vthread_t thr, const char*message);
 static bool do_disable(vthread_t thr, vthread_t match);
+static bool disable_fork_detached_descendants_(vthread_t thr, vthread_t match);
 static set<vthread_t> live_threads_registry_;
 
 static bool sched_dump_threads_enabled_(const char*reason)
@@ -21198,6 +21199,8 @@ bool of_DISABLE(vthread_t thr, vvp_code_t cp)
 	    vthread_t cur = *std::min_element(scope->threads.begin(), scope->threads.end(),
 		  [](vthread_t a, vthread_t b) { return a->serial < b->serial; });
 
+	    if (disable_fork_detached_descendants_(cur, thr))
+		  disabled_myself_flag = true;
 	    if (do_disable(cur, thr))
 		  disabled_myself_flag = true;
       }
@@ -21369,21 +21372,25 @@ bool of_JMP_FLOWCONT(vthread_t thr, vvp_code_t cp)
  * alive. do_disable() unwinds joined children, but it reparents detached
  * children when their parent is reaped. Walking those children first keeps
  * the disable-fork traversal inside the original descendant tree. */
-static void disable_fork_detached_descendants_(vthread_t thr, vthread_t match)
+static bool disable_fork_detached_descendants_(vthread_t thr, vthread_t match)
 {
-      if (!thr) return;
+      if (!thr) return false;
+      bool matched = false;
 
       for (set<vthread_t>::iterator cur = thr->children.begin()
                  ; cur != thr->children.end() ; ++cur)
-            disable_fork_detached_descendants_(*cur, match);
+            if (disable_fork_detached_descendants_(*cur, match))
+                  matched = true;
 
       while (!thr->detached_children.empty()) {
             vthread_t child = *(thr->detached_children.begin());
             assert(child);
-            disable_fork_detached_descendants_(child, match);
-            bool res = do_disable(child, match);
-            assert(! res);
+            if (disable_fork_detached_descendants_(child, match))
+                  matched = true;
+            if (do_disable(child, match))
+                  matched = true;
       }
+      return matched;
 }
 
 /* Terminate every initial procedure and descendant belonging to one
