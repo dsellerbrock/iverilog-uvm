@@ -24,8 +24,8 @@ module sv_covergroup_cross_recursive_with;
                    (binsof(cb) with (cb == 1)));
       // This counter would be hit by <1,*> unless the complement ignores it.
       bins hi = binsof(ca) with (ca == 1);
-      // Complement is applied after its child's with selection: <1,*>.
-      ignore_bins not_lo = !(binsof(ca) with (ca == 0));
+      // Select the complement of the singleton zero bin: <1,*>.
+      ignore_bins not_lo = !binsof(ca) intersect {0};
     }
   endgroup
 

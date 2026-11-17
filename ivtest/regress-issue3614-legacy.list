@@ -1,0 +1,4 @@
+issue3614_cross_negation_bad_2017 CE,-g2017,-s,tb,-I./ivltests ivltests gold=issue3614_cross_negation_bad.gold
+issue3614_cross_negation_bad_2023 CE,-g2023,-s,tb,-I./ivltests ivltests gold=issue3614_cross_negation_bad.gold
+issue3614_cross_negation_control_2017 normal,-g2017,-s,tb,-I./ivltests ivltests gold=issue3614_cross_negation_control.gold
+issue3614_cross_negation_control_2023 normal,-g2023,-s,tb,-I./ivltests ivltests gold=issue3614_cross_negation_control.gold

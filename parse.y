@@ -3272,7 +3272,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <cov_trans_seq> transition_list
 %type <cov_seqs>    transition_seq_list
 %type <cross_sel>   cross_bins_expr cross_bins_or cross_bins_and cross_bins_with
-%type <cross_sel>   cross_bins_unary cross_bins_primary
+%type <cross_sel>   cross_bins_unary cross_bins_primary cross_bins_condition
 %type <cross_matches> cross_matches_clause cross_matches_opt
 %destructor { if ($$) { delete $$->expr; delete $$; } } <cross_matches>
 
@@ -6218,7 +6218,7 @@ cross_bins_with
   ;
 
 cross_bins_unary
-  : '!' cross_bins_unary %prec UNARY_PREC
+  : '!' cross_bins_condition %prec UNARY_PREC
       { auto*s = new class_type_t::pform_cross_t::select_t();
 	s->op = class_type_t::pform_cross_t::select_t::SEL_NOT;
 	s->a = $2; $$ = s; }
@@ -6234,7 +6234,13 @@ cross_bins_primary
 	pform_discard_call_attributes($2);
 	delete $3;
 	$$ = s; }
-  | K_binsof '(' IDENTIFIER ')'
+  | cross_bins_condition { $$ = $1; }
+  | '(' cross_bins_expr ')'
+      { $$ = $2; }
+  ;
+
+cross_bins_condition
+  : K_binsof '(' IDENTIFIER ')'
       { auto*s = new class_type_t::pform_cross_t::select_t();
 	s->op = class_type_t::pform_cross_t::select_t::SEL_BINSOF;
 	s->cp_name = lex_strings.make($3);
@@ -6282,8 +6288,6 @@ cross_bins_primary
 	}
 	delete[] $3; delete[] $5;
 	$$ = s; }
-  | '(' cross_bins_expr ')'
-      { $$ = $2; }
   ;
 
 
