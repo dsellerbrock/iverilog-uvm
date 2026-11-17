@@ -1,0 +1,3 @@
+./ivltests/issue3610_empty_pattern.sv:5: error: An assignment pattern must contain an expression (IEEE 1800-2017/2023 10.9).
+./ivltests/issue3610_empty_pattern.sv:6: error: An assignment pattern must contain an expression (IEEE 1800-2017/2023 10.9).
+./ivltests/issue3610_empty_pattern.sv:7: error: An assignment pattern must contain an expression (IEEE 1800-2017/2023 10.9).

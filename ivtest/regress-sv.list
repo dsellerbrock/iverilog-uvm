@@ -7016,3 +7016,7 @@ issue3504_bits_union_bad_2023 CE,-g2023,-s,top ivltests gold=issue3504_bits_unio
 issue3504_bits_union_ok_2023 normal,-g2023,-s,top ivltests gold=issue3504_bits_union_ok.gold
 issue3542_interface_path_2017 normal,-g2017,-gspecify,-s,top ivltests gold=issue3542_interface_path.gold
 issue3542_interface_path_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue3542_interface_path.gold
+issue3610_empty_pattern_2017 CE,-g2017,-s,tb ivltests gold=issue3610_empty_pattern_2017.gold
+issue3610_empty_pattern_2023 CE,-g2023,-s,tb ivltests gold=issue3610_empty_pattern_2023.gold
+issue3610_pattern_control_2017 normal,-g2017,-s,tb ivltests gold=issue3610_pattern_control.gold
+issue3610_pattern_control_2023 normal,-g2023,-s,tb ivltests gold=issue3610_pattern_control.gold

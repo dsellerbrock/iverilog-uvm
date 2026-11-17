@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "issue3610_empty_pattern_2017.v",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "tb"
+  ],
+  "gold": "issue3610_empty_pattern_2017"
+}

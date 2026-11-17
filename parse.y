@@ -3504,7 +3504,9 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
 	$$ = tmp;
       }
   | K_LP '}'
-      { PEAssignPattern*tmp = new PEAssignPattern;
+      { if (generation_flag >= GN_VER2017)
+	      yyerror(@1, "error: An assignment pattern must contain an expression (IEEE 1800-2017/2023 10.9).");
+	PEAssignPattern*tmp = new PEAssignPattern;
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
@@ -3516,7 +3518,9 @@ assignment_pattern /* IEEE1800-2005: A.6.7.1 */
 	$$ = tmp;
       }
   | K_LP expression '{' '}' '}'
-      { std::list<PExpr*> empty;
+      { if (generation_flag >= GN_VER2017)
+	      yyerror(@1, "error: An assignment pattern must contain an expression (IEEE 1800-2017/2023 10.9).");
+	std::list<PExpr*> empty;
 	PEAssignPattern*tmp = new PEAssignPattern($2, empty);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
