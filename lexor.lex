@@ -1782,9 +1782,10 @@ verinum*make_unsized_dec(const char*ptr)
            number represents we do not check for extra bits. */
 //      if (based_size > 0) { }
 
-      if (gn_strict_expr_width_flag && (based_size == 0))
-	    size = truncate_to_integer_width(bits, size);
-
+	/* IEEE 1800-2023 5.7.1: an unsized number is "at least 32" bits
+	   wide. Strict width makes it exactly 32 unless its value needs
+	   more; such a literal keeps the width it needs instead of being
+	   truncated to a different value (user ruling 2026-11-16, #2365). */
       verinum*res = new verinum(bits, size, false);
       res->has_sign(signed_flag);
 

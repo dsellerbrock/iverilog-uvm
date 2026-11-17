@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2365_unsized_width.sv",
+  "iverilog-args": ["-g2017", "-gno-strict-expr-width", "-s", "top"],
+  "gold": "issue2365_unsized_width_lossless"
+}

@@ -14,10 +14,10 @@ scope module top
   var shortint 16 si [15:0]
   var string 0 str
   scope generate gen[0]
-    var parameter 2 g
+    var parameter 32 g
     var reg 2 gv [1:0]
   scope generate gen[1]
-    var parameter 2 g
+    var parameter 32 g
     var reg 2 gv [1:0]
   scope interface bus
     var wire 1 clk
@@ -31,9 +31,9 @@ scope module top
   top.bus.data [7:0] = 10101010
   top.bus.clk = 0
   top.gen[1].gv [1:0] = 01
-  top.gen[1].g = 01
+  top.gen[1].g = 00000000000000000000000000000001
   top.gen[0].gv [1:0] = 00
-  top.gen[0].g = 00
+  top.gen[0].g = 00000000000000000000000000000000
   top.str = "hi"
   top.si [15:0] = 0000000100101100
   top.r = 1.5

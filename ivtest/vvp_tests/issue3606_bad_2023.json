@@ -1,0 +1,1 @@
+{"type":"CE","source":"issue3606_bad.v","iverilog-args":["-g2023","-s","top"],"gold":"issue3606_bad"}
