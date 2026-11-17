@@ -3005,6 +3005,21 @@ PLI_INT32 vpip_assertion_control(PLI_INT32 ctl, PLI_INT32 atype,
       return assert_ctl_rules.size() > first;
 }
 
+PLI_INT32 vpip_assertion_handle_control(PLI_INT32 operation, vpiHandle assertion)
+{
+      __vpiAssertion*obj = dynamic_cast<__vpiAssertion*>(assertion);
+      if (!obj) {
+	    vpi_printf("VPI error: vpi_control(%d) needs an assertion handle.\n",
+		       (int)operation);
+	    return 0;
+      }
+      int ctl = operation == vpiAssertionLock ? 1
+	      : operation == vpiAssertionUnlock ? 2
+	      : operation == vpiAssertionEnable ? 3 : 4;
+      obj->apply_control(ctl, true);
+      return 1;
+}
+
 PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation, vpiHandle scope)
 {
       int ctl;

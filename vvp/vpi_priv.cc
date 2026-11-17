@@ -3072,6 +3072,12 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
 	  case vpiAssertionSysDisableVacuousAction:
 	    return vpip_assertion_sys_control(operation, va_arg(ap, vpiHandle));
 
+	  case vpiAssertionLock:
+	  case vpiAssertionUnlock:
+	  case vpiAssertionEnable:
+	  case vpiAssertionDisable:
+	    return vpip_assertion_handle_control(operation, va_arg(ap, vpiHandle));
+
 	  case vpiAssertionEnableStep: {
 	    vpiHandle obj = va_arg(ap, vpiHandle);
 	    p_vpi_time start = va_arg(ap, p_vpi_time);

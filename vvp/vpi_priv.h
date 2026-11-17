@@ -448,6 +448,8 @@ extern void vpip_fire_assertion_sys_cb(PLI_INT32 reason);
    scope means every assertion. Returns 1 when the operation was applied. */
 extern PLI_INT32 vpip_assertion_sys_control(PLI_INT32 operation,
 					    vpiHandle scope);
+extern PLI_INT32 vpip_assertion_handle_control(PLI_INT32 operation,
+					       vpiHandle assertion);
 /* IEEE 1800-2023 16.14.6 procedural concurrent assertions: a pending
    instance sits on the deferred assertion queue with this bit in its source
    id; the rest is the front end's procedural assertion id. The bit sits

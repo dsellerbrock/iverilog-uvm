@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3593_lock.sv",
+  "iverilog-args": ["-g2017", "-gassertions"],
+  "vpi-modules": ["issue3593_lock_2017"],
+  "vpi-sources": ["vpi/issue3593_lock.c"],
+  "output-contains": ["PASSED", "controls passed"]
+}
