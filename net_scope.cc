@@ -436,6 +436,11 @@ NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
       };
 
       NetScope *cur_scope = this;
+	/* A scope whose wildcard import resolves the name back to a scope
+	   already searched (std::weak_reference when the package itself
+	   holds no typedef for it) would otherwise be followed forever:
+	   follow each import only once, then fall back to the parent. */
+      std::set<const NetScope*> followed_imports;
       while (cur_scope) {
 	    auto it = cur_scope->typedefs_.find(type->name);
 	    if (it != cur_scope->typedefs_.end() && it->second == type)
@@ -445,7 +450,7 @@ NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
 	    if (NetScope*interface_scope = find_in_interface_graph(cur_scope))
 		  return interface_scope;
 	    NetScope*import_scope = cur_scope->find_import(des, type->name);
-	    if (import_scope)
+	    if (import_scope && followed_imports.insert(import_scope).second)
 		  cur_scope = import_scope;
 	    else if (cur_scope == unit_)
 		  break;
@@ -472,6 +477,7 @@ NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
       // Some SV paths synthesize equivalent typedef_t wrappers (not pointer
       // identical to the scope entry). Fall back to the nearest visible name.
       cur_scope = this;
+      followed_imports.clear();
       while (cur_scope) {
 	    auto it = cur_scope->typedefs_.find(type->name);
 	    if (it != cur_scope->typedefs_.end())
@@ -510,7 +516,7 @@ NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
 		  }
 	    }
 	    NetScope*import_scope = cur_scope->find_import(des, type->name);
-	    if (import_scope)
+	    if (import_scope && followed_imports.insert(import_scope).second)
 		  cur_scope = import_scope;
 	    else if (cur_scope == unit_)
 		  return 0;
