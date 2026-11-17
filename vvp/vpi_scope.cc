@@ -1170,6 +1170,11 @@ class __vpiTypedefTypespec : public __vpiHandle {
       bool parent_;
 };
 
+vpiHandle vpip_make_interface_typespec(const char*defname, const char*modport)
+{
+      return new __vpiTypedefTypespec(vpiInterfaceTypespec, 0, defname, modport);
+}
+
 void compile_typedef(char*name, long type, char*defname, char*modport)
 {
       __vpiScope*scope = vpip_peek_current_scope();

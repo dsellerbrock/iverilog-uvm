@@ -155,7 +155,13 @@ void vvp_island_tran::run_island()
 	    tmp->run_test_enabled();
       }
 
+      unsigned long passes = 0;
 rerun:
+	// A network with no fixed point (a switch whose control it drives
+	// off) would loop here forever; stop past the settle limit (#3472).
+      if (settle_exceeded(++passes))
+	    return;
+
 	// Now resolve all the branches in the island.
       for (vvp_island_branch*cur = branches_ ; cur ; cur = cur->next_branch) {
 	    vvp_island_branch_tran*tmp = dynamic_cast<vvp_island_branch_tran*>(cur);
@@ -509,7 +515,7 @@ void compile_island_tran(char*label)
 }
 
 void compile_island_tranif(int sense, char*island, char*pa, char*pb, char*pe,
-                           bool resistive)
+                           bool resistive, char*desc)
 {
       vvp_island*use_island = compile_find_island(island);
       assert(use_island);
@@ -528,6 +534,7 @@ void compile_island_tranif(int sense, char*island, char*pa, char*pb, char*pe,
                                                                      false,
                                                              0, 0, 0, resistive);
 
+      br->desc = desc;
       use_island->add_branch(br, pa, pb);
 
       free(pa);

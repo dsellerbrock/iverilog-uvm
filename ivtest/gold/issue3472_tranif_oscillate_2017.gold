@@ -1,0 +1,2 @@
+runtime error: tran island oscillates at time 0: no fixed point after 10000 zero-time iterations (limit set by +vvp-settle-limit=N). Switches:
+  tranif1 top.g<0.0> (./ivltests/issue3472_tranif_oscillate.sv:10) between nets top.a and top.b, enabled by net top.b

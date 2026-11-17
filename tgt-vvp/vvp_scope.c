@@ -683,7 +683,8 @@ static int type_has_vartype_(ivl_type_t type)
       /* Class properties are emitted in .class metadata; they are not a
          struct/union typespec for an array of class handles. */
       return type && ivl_type_base(type) != IVL_VT_CLASS
-          && (ivl_type_enum(type) || ivl_type_properties(type) > 0);
+          && (ivl_type_enum(type) || ivl_type_properties(type) > 0 ||
+              ivl_type_typedef_vpi_type(type) == vpiTimeTypespec);
 }
 
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
@@ -757,6 +758,11 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
 
 	/* N<name>: the typedef name (37.25 detail 1). */
       vartype_put_name_(buf, ivl_type_typedef_name(type));
+
+      if (ivl_type_typedef_vpi_type(type) == vpiTimeTypespec) {
+	    vartype_put_(buf, ivl_type_signed(type) ? "Ts" : "T");
+	    return 64;
+      }
 
       if (enumtype) {
 	    if (!enumeration_is_drawn(enumtype)) return 0;
@@ -1100,6 +1106,14 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    fprintf(vvp_out, ";\n");
 	    emit_unpacked_dims_(sig);
 	    note_signal_vartype(sig, "");
+	    if (virtual_interface) {
+		  const char*defname = ivl_type_interface_defname(arr_elem_type);
+		  const char*modport = ivl_signal_attr(sig, "ivl_modport");
+		  if (!defname) defname = ivl_type_name(arr_elem_type);
+		  fprintf(vvp_out, " .vartype v%p, \"I%zu:%s", sig,
+		          strlen(defname), vvp_mangle_name(defname));
+		  fprintf(vvp_out, "%s\";\n", modport ? vvp_mangle_name(modport) : "");
+	    }
 
       } else if (ivl_signal_dimensions(sig) > 0) {
 	    unsigned word_count = ivl_signal_array_count(sig);
@@ -1246,6 +1260,14 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 			  storage_flag,
 			  vvp_mangle_name(ivl_signal_basename(sig)),
 			  ivl_signal_local(sig)? " Local signal" : "");
+	    }
+	    if (ivl_type_is_interface(var_type)) {
+		  const char*defname = ivl_type_interface_defname(var_type);
+		  const char*modport = ivl_signal_attr(sig, "ivl_modport");
+		  if (!defname) defname = ivl_type_name(var_type);
+		  fprintf(vvp_out, " .vartype v%p_0, \"I%zu:%s", sig,
+		          strlen(defname), vvp_mangle_name(defname));
+		  fprintf(vvp_out, "%s\";\n", modport ? vvp_mangle_name(modport) : "");
 	    }
 
       } else {

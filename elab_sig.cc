@@ -4713,7 +4713,8 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       }
       sig->set_event_formal(is_event_formal_);
 	/* The typedef aliases of the declared type (37.25 detail 1). */
-      sig->set_typedef_aliases(typedef_alias_names(data_type()));
+      sig->set_typedef_aliases(typedef_alias_names(data_type(),
+            type == &netvector_t::time_signed || type == &netvector_t::time_unsigned));
 
       if (user_type) {
             sig->set_user_nettype(user_type);

@@ -1,0 +1,2 @@
+issue3568_vpi_time_typespec_2017 normal,-g2017 issue3568_vpi_time_typespec.c issue3568_vpi_time_typespec_2017.gold
+issue3568_vpi_time_typespec_2023 normal,-g2023 issue3568_vpi_time_typespec.c issue3568_vpi_time_typespec_2023.gold

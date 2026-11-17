@@ -172,6 +172,7 @@ static bool is_force_release_opcode(const char* name)
 %type <symbv> symbols symbols_net
 %type <numbv> numbers
 %type <text> label_opt
+%type <text> tran_desc_opt
 %type <text> modpath_condition_text_opt
 %type <opa>  operand operands operands_opt
 %type <table> udp_table
@@ -1394,23 +1395,23 @@ statement
   | T_LABEL K_EXPORT T_SYMBOL ';'
       { compile_island_export($1, $3); }
 
-  | K_RTRAN T_SYMBOL ',' T_SYMBOL T_SYMBOL ';'
-      { compile_island_tranif(0, $2, $4, $5, 0, 1); }
+  | K_RTRAN T_SYMBOL ',' T_SYMBOL T_SYMBOL tran_desc_opt ';'
+      { compile_island_tranif(0, $2, $4, $5, 0, 1, $6); }
 
-  | K_RTRANIF0 T_SYMBOL ',' T_SYMBOL T_SYMBOL ',' T_SYMBOL ';'
-      { compile_island_tranif(0, $2, $4, $5, $7, 1); }
+  | K_RTRANIF0 T_SYMBOL ',' T_SYMBOL T_SYMBOL ',' T_SYMBOL tran_desc_opt ';'
+      { compile_island_tranif(0, $2, $4, $5, $7, 1, $8); }
 
-  | K_RTRANIF1 T_SYMBOL ',' T_SYMBOL T_SYMBOL ',' T_SYMBOL ';'
-      { compile_island_tranif(1, $2, $4, $5, $7, 1); }
+  | K_RTRANIF1 T_SYMBOL ',' T_SYMBOL T_SYMBOL ',' T_SYMBOL tran_desc_opt ';'
+      { compile_island_tranif(1, $2, $4, $5, $7, 1, $8); }
 
-  | K_TRAN T_SYMBOL ',' T_SYMBOL T_SYMBOL ';'
-      { compile_island_tranif(0, $2, $4, $5, 0, 0); }
+  | K_TRAN T_SYMBOL ',' T_SYMBOL T_SYMBOL tran_desc_opt ';'
+      { compile_island_tranif(0, $2, $4, $5, 0, 0, $6); }
 
-  | K_TRANIF0 T_SYMBOL ',' T_SYMBOL T_SYMBOL ',' T_SYMBOL ';'
-      { compile_island_tranif(0, $2, $4, $5, $7, 0); }
+  | K_TRANIF0 T_SYMBOL ',' T_SYMBOL T_SYMBOL ',' T_SYMBOL tran_desc_opt ';'
+      { compile_island_tranif(0, $2, $4, $5, $7, 0, $8); }
 
-  | K_TRANIF1 T_SYMBOL ',' T_SYMBOL T_SYMBOL ',' T_SYMBOL ';'
-      { compile_island_tranif(1, $2, $4, $5, $7, 0); }
+  | K_TRANIF1 T_SYMBOL ',' T_SYMBOL T_SYMBOL ',' T_SYMBOL tran_desc_opt ';'
+      { compile_island_tranif(1, $2, $4, $5, $7, 0, $8); }
 
   | K_TRANVP T_NUMBER T_NUMBER T_NUMBER ',' T_SYMBOL ',' T_SYMBOL T_SYMBOL ';'
       { compile_island_tranvp($6, $8, $9, $2, $3, $4); }
@@ -1688,6 +1689,14 @@ signed_opt
 label_opt
 	: T_LABEL { $$ = $1; }
 	|         { $$ = 0; }
+	;
+
+  /* The optional source description of a .tran/.tranif switch, used in
+     run-time diagnostics (a network that never settles, #3472). */
+
+tran_desc_opt
+	: ',' T_STRING { $$ = $2; }
+	|              { $$ = 0; }
 	;
 
 operands_opt

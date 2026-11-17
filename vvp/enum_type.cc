@@ -419,7 +419,10 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 		const char*name = vpip_name_string(std::string(cp + 1, len).c_str());
 		cp += len + 2;
 		bool inner_named = *cp == 'N';
+		bool inner_time = *cp == 'T';
 		vpiHandle type = parse_vartype(cp, width, missing);
+		if (type && inner_time)
+		      return new __vpiTypespecAlias(name, type);
 		if (type && inner_named && type->vpi_get_str(vpiName))
 		      return new __vpiTypespecAlias(name, type);
 		if (__vpiStructTypespec*st = dynamic_cast<__vpiStructTypespec*>(type))
@@ -430,6 +433,13 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 		      if (!et->typedef_name) et->typedef_name = name;
 		}
 		return type;
+	  }
+	  case 'T': {
+		++cp;
+		bool signed_flag = *cp == 's';
+		if (signed_flag) ++cp;
+		width = 64;
+		return new __vpiVectorTypespec(vpiTimeTypespec, 63, 0, signed_flag);
 	  }
 	  case 'V':
 	  case 'B': {
@@ -501,6 +511,25 @@ class vartype_resolv_t : public resolv_list_s {
 
       bool resolve(bool message_flag) override
       {
+	    __vpiCobjectVar*cobject = dynamic_cast<__vpiCobjectVar*>(vvp_lookup_handle(label()));
+	    __vpiArray*vif_array = dynamic_cast<__vpiArray*>(vvp_lookup_handle(label()));
+	    if ((cobject || vif_array) && text_[0] == 'I') {
+		  char*sep;
+		  unsigned long len = strtoul(text_ + 1, &sep, 10);
+		  if (sep == text_ + 1 || *sep != ':' || len == 0 ||
+		      len > strlen(sep + 1) ||
+		      !(cobject ? cobject->get_type_code() == vpiVirtualInterfaceVar
+		                 : vif_array->is_virtual_interface_array())) {
+			  yyerror("invalid .vartype metadata");
+			  compile_errors += 1;
+		  } else {
+			  std::string defname(sep + 1, len);
+			  vpiHandle type = vpip_make_interface_typespec(defname.c_str(), sep + 1 + len);
+			  if (cobject) cobject->set_interface_typespec(type);
+			  else vif_array->typespec = type;
+		  }
+		  return true;
+	    }
 	    __vpiSignal*sig = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(label()));
 	    __vpiArray*array = dynamic_cast<__vpiArray*>(vvp_lookup_handle(label()));
 	    __vpiDarrayVar*darray = dynamic_cast<__vpiDarrayVar*>(vvp_lookup_handle(label()));
