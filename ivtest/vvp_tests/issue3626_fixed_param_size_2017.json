@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "issue3626_fixed_param_size.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "issue3626_fixed_param_size"
+  ],
+  "gold": "issue3626_fixed_param_size"
+}

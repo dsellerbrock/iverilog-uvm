@@ -7022,3 +7022,7 @@ issue1564_default_source_warning_2017 normal,-g2017,-gspecify,-ginterconnect,-s,
 issue1564_default_source_warning_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1564_default_source_warning.gold
 issue1568_default_warning_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1568_default_warning.gold
 issue1568_default_warning_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1568_default_warning.gold
+issue3626_fixed_param_size_2017 CE,-g2017,-I./ivltests,-s,issue3626_fixed_param_size ivltests gold=issue3626_fixed_param_size.gold
+issue3626_fixed_param_size_2023 CE,-g2023,-I./ivltests,-s,issue3626_fixed_param_size ivltests gold=issue3626_fixed_param_size.gold
+issue3626_size_controls_2017 normal,-g2017,-I./ivltests,-s,issue3626_size_controls ivltests gold=issue3626_size_controls.gold
+issue3626_size_controls_2023 normal,-g2023,-I./ivltests,-s,issue3626_size_controls ivltests gold=issue3626_size_controls.gold

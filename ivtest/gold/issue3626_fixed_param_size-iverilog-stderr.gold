@@ -1,0 +1,3 @@
+ivltests/issue3626_fixed_param_size.sv:7: error: Fixed-size array parameter `words' has no method size().
+ivltests/issue3626_fixed_param_size.sv:8: error: Fixed-size array parameter `nums' has no method size().
+2 error(s) during elaboration.
