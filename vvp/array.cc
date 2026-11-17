@@ -1957,6 +1957,7 @@ void compile_var_array(char*label, char*name, int last, int first,
 
       arr->automatic_storage = fixed_array_is_automatic_(storage_flag);
       arr->value_kind = __vpiArray::ARRAY_VALUE_VEC4;
+      arr->integer_array = signed_flag == 2;
 
 	/* Make the words. */
       arr->vals_width = labs(msb-lsb) + 1;
@@ -2941,6 +2942,7 @@ void compile_array_alias(char*label, char*name, char*src)
       obj->vals_width = mem->vals_width;
       obj->vals_words = mem->vals_words;
       obj->value_kind = mem->value_kind;
+      obj->integer_array = mem->integer_array;
       obj->automatic_storage = mem->automatic_storage;
       obj->packed_ranges = mem->packed_ranges;
 	/* The canonical owner applies this metadata to shared word storage, but

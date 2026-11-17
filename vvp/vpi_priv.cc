@@ -628,6 +628,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiTask";
 	  case vpiTimeVar:
 	    return "vpiTimeVar";
+	  case vpiVarSelect:
+	    return "vpiVarSelect";
 	  case vpiUserSystf:
 	    return "vpiUserSystf";
 	  default:
@@ -3123,49 +3125,6 @@ extern "C" PLI_INT32 vpi_control(PLI_INT32 operation, ...)
       return r;
 }
 
-/* Annex L compatibility entry points for the 2017 and 2023 header modes.
- * Those modes both select the IEEE 1800-2012 API. */
-extern "C" PLI_INT32 vpi_compare_objects_1800v2012(vpiHandle obj1,
-                                                     vpiHandle obj2)
-{
-      return vpi_compare_objects(obj1, obj2);
-}
-
-extern "C" PLI_INT32 vpi_control_1800v2012(PLI_INT32 operation, ...)
-{
-      va_list ap;
-      va_start(ap, operation);
-      int r = vpi_sim_vcontrol(operation, ap);
-      va_end(ap);
-      return r;
-}
-
-extern "C" PLI_INT32 vpi_get_1800v2012(PLI_INT32 property, vpiHandle ref)
-{
-      return vpi_get(property, ref);
-}
-
-extern "C" char* vpi_get_str_1800v2012(PLI_INT32 property, vpiHandle ref)
-{
-      return vpi_get_str(property, ref);
-}
-
-extern "C" void vpi_get_value_1800v2012(vpiHandle expr, p_vpi_value value)
-{
-      vpi_get_value(expr, value);
-}
-
-extern "C" vpiHandle vpi_handle_1800v2012(PLI_INT32 type, vpiHandle ref)
-{
-      return vpi_handle(type, ref);
-}
-
-extern "C" vpiHandle vpi_handle_by_index_1800v2012(vpiHandle ref,
-                                                     PLI_INT32 idx)
-{
-      return vpi_handle_by_index(ref, idx);
-}
-
 extern "C" vpiHandle vpi_handle_by_multi_index(vpiHandle ref,
                                                  PLI_INT32 num_index,
                                                  PLI_INT32 *index_array)
@@ -3178,47 +3137,223 @@ extern "C" vpiHandle vpi_handle_by_multi_index(vpiHandle ref,
       return ref;
 }
 
-extern "C" vpiHandle vpi_handle_by_multi_index_1800v2012(
-      vpiHandle ref, PLI_INT32 num_index, PLI_INT32 *index_array)
+/*
+ * VPI compatibility modes (IEEE 1800-2023 36.12). An application compiled
+ * with a VPI_COMPATIBILITY_VERSION_* symbol calls the Annex L entry points
+ * below. Table 36-10 is the complete list of how the modes differ, and every
+ * row is about which objects an iteration yields or which type an object
+ * reports, so only vpi_get, vpi_get_str and vpi_iterate are mode-specific;
+ * the other functions behave the same in every mode. Rows 8 and 9 (class
+ * definition vpiInterfaceDecl iterations) have no counterpart here because
+ * vvp does not iterate class definitions at all.
+ */
+namespace {
+enum compat_elem_t { ELEM_NONE, ELEM_REG, ELEM_INTEGER, ELEM_TIME, ELEM_REAL };
+
+bool compat_1364_(int mode) { return mode <= VPIP_COMPAT_1364v2005; }
+
+/* The Table 36-10 element kind of a variable array, or ELEM_NONE for
+   anything else (net arrays and SystemVerilog-only element types keep
+   their native behavior, see 36.12.3). */
+compat_elem_t compat_array_elem_(vpiHandle ref)
 {
-      return vpi_handle_by_multi_index(ref, num_index, index_array);
+      __vpiArray*arr = dynamic_cast<__vpiArray*>(ref);
+      if (!arr || arr->nets || arr->is_virtual_interface_array())
+            return ELEM_NONE;
+      if (arr->value_kind == __vpiArray::ARRAY_VALUE_REAL) return ELEM_REAL;
+      if (arr->value_kind != __vpiArray::ARRAY_VALUE_VEC4) return ELEM_NONE;
+      if (arr->integer_array) return ELEM_INTEGER;
+      if (arr->typespec)
+            return arr->typespec->get_type_code() == vpiTimeTypespec
+                  ? ELEM_TIME : ELEM_NONE;
+      return ELEM_REG;
 }
 
-extern "C" vpiHandle vpi_handle_by_name_1800v2012(const char* name,
-                                                    vpiHandle scope)
+/* Rows 3 and 4: an IEEE 1364 integer, time or (after 1995) real array is
+   a vpiIntegerVar, vpiTimeVar or vpiRealVar with vpiArray TRUE. */
+int compat_scalar_array_type_(int mode, compat_elem_t elem)
 {
-      return vpi_handle_by_name(name, scope);
+      if (!compat_1364_(mode)) return 0;
+      switch (elem) {
+	  case ELEM_INTEGER: return vpiIntegerVar;
+	  case ELEM_TIME:    return vpiTimeVar;
+	  case ELEM_REAL:
+	    return mode == VPIP_COMPAT_1364v1995 ? 0 : vpiRealVar;
+	  default:           return 0;
+      }
 }
 
-extern "C" vpiHandle vpi_handle_multi_1800v2012(PLI_INT32 type,
-                                                 vpiHandle ref1,
-                                                 vpiHandle ref2)
+int compat_type_(int mode, vpiHandle ref)
 {
-      return vpi_handle_multi(type, ref1, ref2);
+      int type = vpi_get(vpiType, ref);
+      if (type == vpiMemory) {
+	    compat_elem_t elem = compat_array_elem_(ref);
+	    if (elem == ELEM_NONE) return type;
+	    if (int scalar = compat_scalar_array_type_(mode, elem)) return scalar;
+	      // Row 1: only IEEE 1364-1995 has vpiMemory objects.
+	    if (elem == ELEM_REG && mode == VPIP_COMPAT_1364v1995)
+		  return vpiMemory;
+	    return vpiRegArray;
+      }
+      if (type == vpiMemoryWord) {
+	    compat_elem_t elem = compat_array_elem_(vpi_handle(vpiParent, ref));
+	    if (compat_scalar_array_type_(mode, elem)) return vpiVarSelect;
+	    switch (elem) {
+		  // Row 2: only IEEE 1364-1995 has vpiMemoryWord objects.
+		case ELEM_REG:
+		  return mode == VPIP_COMPAT_1364v1995 ? vpiMemoryWord : vpiReg;
+		case ELEM_INTEGER: return vpiIntegerVar;
+		case ELEM_TIME:    return vpiTimeVar;
+		case ELEM_REAL:    return vpiRealVar;
+		default:           return type;
+	    }
+      }
+      return type;
 }
 
-extern "C" vpiHandle vpi_iterate_1800v2012(PLI_INT32 type, vpiHandle ref)
+/* Scan a native iteration into out, keeping what keep() accepts. */
+template <class KEEP> void compat_collect_(vpiHandle iter,
+                                           std::vector<vpiHandle>&out,
+                                           KEEP keep)
 {
-      return vpi_iterate(type, ref);
+      if (!iter) return;
+      while (vpiHandle item = vpi_scan(iter))
+	    if (keep(item)) out.push_back(item);
 }
 
-extern "C" vpiHandle vpi_put_value_1800v2012(vpiHandle obj,
-                                               p_vpi_value value,
-                                               p_vpi_time when,
-                                               PLI_INT32 flags)
+vpiHandle compat_make_iterator_(const std::vector<vpiHandle>&items)
 {
-      return vpi_put_value(obj, value, when, flags);
+      if (items.empty()) return 0;
+      vpiHandle*args = static_cast<vpiHandle*>(
+            malloc(items.size() * sizeof(vpiHandle)));
+      std::copy(items.begin(), items.end(), args);
+      return vpip_make_iterator(items.size(), args, true);
+}
 }
 
-extern "C" vpiHandle vpi_register_cb_1800v2012(p_cb_data data)
+PLI_INT32 vpip_compat_get(int mode, PLI_INT32 property, vpiHandle ref)
 {
-      return vpi_register_cb(data);
+      if (!ref || mode < 0 || mode > VPIP_COMPAT_1800v2012)
+	    return vpi_get(property, ref);
+      if (property == vpiType) return compat_type_(mode, ref);
+      if (property == vpiArray && vpi_get(vpiType, ref) == vpiMemory
+          && compat_scalar_array_type_(mode, compat_array_elem_(ref)))
+	    return 1;
+      return vpi_get(property, ref);
 }
 
-extern "C" vpiHandle vpi_scan_1800v2012(vpiHandle iter)
+char* vpip_compat_get_str(int mode, PLI_INT32 property, vpiHandle ref)
 {
-      return vpi_scan(iter);
+      if (ref && property == vpiType)
+	    return const_cast<char*>(vpi_type_as_string(
+                  vpip_compat_get(mode, vpiType, ref)));
+      return vpi_get_str(property, ref);
 }
+
+vpiHandle vpip_compat_iterate(int mode, PLI_INT32 type, vpiHandle ref)
+{
+	// Rows 5-7 describe the IEEE 1800 iterations, which are native.
+      if (!compat_1364_(mode)) return vpi_iterate(type, ref);
+
+      compat_elem_t ref_elem = ref ? compat_array_elem_(ref) : ELEM_NONE;
+      if (ref_elem != ELEM_NONE) {
+	      // Row 6: elements of a non-reg array are var selects.
+	    bool scalar = compat_scalar_array_type_(mode, ref_elem) != 0;
+	    if (type == vpiVarSelect)
+		  return scalar ? vpi_iterate(vpiMemoryWord, ref) : 0;
+	    if ((type == vpiReg || type == vpiMemoryWord) && ref_elem != ELEM_REG)
+		  return 0;
+	    return vpi_iterate(type, ref);
+      }
+
+      std::vector<vpiHandle> items;
+      auto is_reg_array = [](vpiHandle h) {
+	    return compat_array_elem_(h) == ELEM_REG;
+      };
+      switch (type) {
+	  case vpiVariables:
+	      // Row 5: reg variables and reg arrays are not variables.
+	    compat_collect_(vpi_iterate(type, ref), items, [&](vpiHandle h) {
+		  return vpi_get(vpiType, h) != vpiReg && !is_reg_array(h);
+	    });
+	    return compat_make_iterator_(items);
+	  case vpiRegArray:
+	      // Row 1: IEEE 1364-1995 has vpiMemory instead.
+	    if (mode == VPIP_COMPAT_1364v1995) return 0;
+	    // fallthrough
+	  case vpiMemory:
+	      // Rows 3, 4 and 7: only arrays of reg are reg arrays.
+	    compat_collect_(vpi_iterate(type, ref), items, is_reg_array);
+	    return compat_make_iterator_(items);
+	  case vpiIntegerVar:
+	  case vpiTimeVar:
+	  case vpiRealVar:
+	      // Rows 3 and 4: the arrays of this type are part of the iteration.
+	    compat_collect_(vpi_iterate(type, ref), items,
+	                    [](vpiHandle) { return true; });
+	    compat_collect_(vpi_iterate(vpiMemory, ref), items, [&](vpiHandle h) {
+		  return compat_scalar_array_type_(mode, compat_array_elem_(h))
+		        == type;
+	    });
+	    return compat_make_iterator_(items);
+	  default:
+	    return vpi_iterate(type, ref);
+      }
+}
+
+/* The Annex L entry points of every compatibility mode. The IEEE 1800-2017
+   and 1800-2023 modes use the 1800v2012 set. */
+#define VPIP_COMPAT_ENTRY_POINTS(SUFFIX, MODE)                                \
+extern "C" PLI_INT32 vpi_compare_objects_##SUFFIX(vpiHandle obj1,            \
+                                                  vpiHandle obj2)            \
+{ return vpi_compare_objects(obj1, obj2); }                                   \
+extern "C" PLI_INT32 vpi_control_##SUFFIX(PLI_INT32 operation, ...)          \
+{                                                                             \
+      va_list ap;                                                             \
+      va_start(ap, operation);                                                \
+      int r = vpi_sim_vcontrol(operation, ap);                                \
+      va_end(ap);                                                             \
+      return r;                                                               \
+}                                                                             \
+extern "C" PLI_INT32 vpi_get_##SUFFIX(PLI_INT32 property, vpiHandle ref)     \
+{ return vpip_compat_get(MODE, property, ref); }                              \
+extern "C" char* vpi_get_str_##SUFFIX(PLI_INT32 property, vpiHandle ref)     \
+{ return vpip_compat_get_str(MODE, property, ref); }                          \
+extern "C" void vpi_get_value_##SUFFIX(vpiHandle expr, p_vpi_value value)    \
+{ vpi_get_value(expr, value); }                                               \
+extern "C" vpiHandle vpi_handle_##SUFFIX(PLI_INT32 type, vpiHandle ref)      \
+{ return vpi_handle(type, ref); }                                             \
+extern "C" vpiHandle vpi_handle_by_index_##SUFFIX(vpiHandle ref,             \
+                                                  PLI_INT32 idx)             \
+{ return vpi_handle_by_index(ref, idx); }                                     \
+extern "C" vpiHandle vpi_handle_by_multi_index_##SUFFIX(                     \
+      vpiHandle ref, PLI_INT32 num_index, PLI_INT32 *index_array)             \
+{ return vpi_handle_by_multi_index(ref, num_index, index_array); }            \
+extern "C" vpiHandle vpi_handle_by_name_##SUFFIX(const char* name,           \
+                                                 vpiHandle scope)            \
+{ return vpi_handle_by_name(name, scope); }                                   \
+extern "C" vpiHandle vpi_handle_multi_##SUFFIX(PLI_INT32 type,               \
+                                               vpiHandle ref1,               \
+                                               vpiHandle ref2)               \
+{ return vpi_handle_multi(type, ref1, ref2); }                                \
+extern "C" vpiHandle vpi_iterate_##SUFFIX(PLI_INT32 type, vpiHandle ref)     \
+{ return vpip_compat_iterate(MODE, type, ref); }                              \
+extern "C" vpiHandle vpi_put_value_##SUFFIX(vpiHandle obj,                   \
+                                            p_vpi_value value,               \
+                                            p_vpi_time when,                 \
+                                            PLI_INT32 flags)                 \
+{ return vpi_put_value(obj, value, when, flags); }                            \
+extern "C" vpiHandle vpi_register_cb_##SUFFIX(p_cb_data data)                \
+{ return vpi_register_cb(data); }                                             \
+extern "C" vpiHandle vpi_scan_##SUFFIX(vpiHandle iter)                       \
+{ return vpi_scan(iter); }
+
+VPIP_COMPAT_ENTRY_POINTS(1364v1995, VPIP_COMPAT_1364v1995)
+VPIP_COMPAT_ENTRY_POINTS(1364v2001, VPIP_COMPAT_1364v2001)
+VPIP_COMPAT_ENTRY_POINTS(1364v2005, VPIP_COMPAT_1364v2005)
+VPIP_COMPAT_ENTRY_POINTS(1800v2005, VPIP_COMPAT_1800v2005)
+VPIP_COMPAT_ENTRY_POINTS(1800v2009, VPIP_COMPAT_1800v2009)
+VPIP_COMPAT_ENTRY_POINTS(1800v2012, VPIP_COMPAT_1800v2012)
 
 /*
  * This routine calculated the return value for $clog2.
@@ -3364,5 +3499,8 @@ vpip_routines_s vpi_routines = {
     .assertion_nfa_step         = vpip_assertion_nfa_step,
     .assertion_serial           = vpip_assertion_serial,
     .proc_assert_cap            = vpip_proc_assert_cap,
+    .compat_get                 = vpip_compat_get,
+    .compat_get_str             = vpip_compat_get_str,
+    .compat_iterate             = vpip_compat_iterate,
 };
 #endif

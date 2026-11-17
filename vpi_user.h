@@ -828,14 +828,98 @@ typedef struct t_cb_data {
 #define cbNBASynch          30
 #define cbAtEndOfSimTime    31
 
-/* IEEE 1800-2017 and 1800-2023 compile-based compatibility modes use the
- * IEEE 1800-2012 VPI entry points (IEEE 1800-2023 Annex L). */
-#if defined(VPI_COMPATIBILITY_VERSION_1800v2017) && \
-    defined(VPI_COMPATIBILITY_VERSION_1800v2023)
+/* Compile-based binding to a VPI compatibility mode (IEEE 1800-2023
+ * 36.12.2.1 and Annex L): defining one VPI_COMPATIBILITY_VERSION_* symbol
+ * before this header retargets these calls to that mode's entry points.
+ * The IEEE 1800-2017 and 1800-2023 modes use the 1800v2012 entry points. */
+#if (defined(VPI_COMPATIBILITY_VERSION_1364v1995) + \
+     defined(VPI_COMPATIBILITY_VERSION_1364v2001) + \
+     defined(VPI_COMPATIBILITY_VERSION_1364v2005) + \
+     defined(VPI_COMPATIBILITY_VERSION_1800v2005) + \
+     defined(VPI_COMPATIBILITY_VERSION_1800v2009) + \
+     defined(VPI_COMPATIBILITY_VERSION_1800v2012) + \
+     defined(VPI_COMPATIBILITY_VERSION_1800v2017) + \
+     defined(VPI_COMPATIBILITY_VERSION_1800v2023)) > 1
 #error "Only one VPI_COMPATIBILITY_VERSION symbol definition is allowed."
 #endif
-#if defined(VPI_COMPATIBILITY_VERSION_1800v2017) || \
-    defined(VPI_COMPATIBILITY_VERSION_1800v2023)
+#if defined(VPI_COMPATIBILITY_VERSION_1364v1995)
+#define vpi_compare_objects vpi_compare_objects_1364v1995
+#define vpi_control vpi_control_1364v1995
+#define vpi_get vpi_get_1364v1995
+#define vpi_get_str vpi_get_str_1364v1995
+#define vpi_get_value vpi_get_value_1364v1995
+#define vpi_handle vpi_handle_1364v1995
+#define vpi_handle_by_index vpi_handle_by_index_1364v1995
+#define vpi_handle_by_multi_index vpi_handle_by_multi_index_1364v1995
+#define vpi_handle_by_name vpi_handle_by_name_1364v1995
+#define vpi_handle_multi vpi_handle_multi_1364v1995
+#define vpi_iterate vpi_iterate_1364v1995
+#define vpi_put_value vpi_put_value_1364v1995
+#define vpi_register_cb vpi_register_cb_1364v1995
+#define vpi_scan vpi_scan_1364v1995
+#elif defined(VPI_COMPATIBILITY_VERSION_1364v2001)
+#define vpi_compare_objects vpi_compare_objects_1364v2001
+#define vpi_control vpi_control_1364v2001
+#define vpi_get vpi_get_1364v2001
+#define vpi_get_str vpi_get_str_1364v2001
+#define vpi_get_value vpi_get_value_1364v2001
+#define vpi_handle vpi_handle_1364v2001
+#define vpi_handle_by_index vpi_handle_by_index_1364v2001
+#define vpi_handle_by_multi_index vpi_handle_by_multi_index_1364v2001
+#define vpi_handle_by_name vpi_handle_by_name_1364v2001
+#define vpi_handle_multi vpi_handle_multi_1364v2001
+#define vpi_iterate vpi_iterate_1364v2001
+#define vpi_put_value vpi_put_value_1364v2001
+#define vpi_register_cb vpi_register_cb_1364v2001
+#define vpi_scan vpi_scan_1364v2001
+#elif defined(VPI_COMPATIBILITY_VERSION_1364v2005)
+#define vpi_compare_objects vpi_compare_objects_1364v2005
+#define vpi_control vpi_control_1364v2005
+#define vpi_get vpi_get_1364v2005
+#define vpi_get_str vpi_get_str_1364v2005
+#define vpi_get_value vpi_get_value_1364v2005
+#define vpi_handle vpi_handle_1364v2005
+#define vpi_handle_by_index vpi_handle_by_index_1364v2005
+#define vpi_handle_by_multi_index vpi_handle_by_multi_index_1364v2005
+#define vpi_handle_by_name vpi_handle_by_name_1364v2005
+#define vpi_handle_multi vpi_handle_multi_1364v2005
+#define vpi_iterate vpi_iterate_1364v2005
+#define vpi_put_value vpi_put_value_1364v2005
+#define vpi_register_cb vpi_register_cb_1364v2005
+#define vpi_scan vpi_scan_1364v2005
+#elif defined(VPI_COMPATIBILITY_VERSION_1800v2005)
+#define vpi_compare_objects vpi_compare_objects_1800v2005
+#define vpi_control vpi_control_1800v2005
+#define vpi_get vpi_get_1800v2005
+#define vpi_get_str vpi_get_str_1800v2005
+#define vpi_get_value vpi_get_value_1800v2005
+#define vpi_handle vpi_handle_1800v2005
+#define vpi_handle_by_index vpi_handle_by_index_1800v2005
+#define vpi_handle_by_multi_index vpi_handle_by_multi_index_1800v2005
+#define vpi_handle_by_name vpi_handle_by_name_1800v2005
+#define vpi_handle_multi vpi_handle_multi_1800v2005
+#define vpi_iterate vpi_iterate_1800v2005
+#define vpi_put_value vpi_put_value_1800v2005
+#define vpi_register_cb vpi_register_cb_1800v2005
+#define vpi_scan vpi_scan_1800v2005
+#elif defined(VPI_COMPATIBILITY_VERSION_1800v2009)
+#define vpi_compare_objects vpi_compare_objects_1800v2009
+#define vpi_control vpi_control_1800v2009
+#define vpi_get vpi_get_1800v2009
+#define vpi_get_str vpi_get_str_1800v2009
+#define vpi_get_value vpi_get_value_1800v2009
+#define vpi_handle vpi_handle_1800v2009
+#define vpi_handle_by_index vpi_handle_by_index_1800v2009
+#define vpi_handle_by_multi_index vpi_handle_by_multi_index_1800v2009
+#define vpi_handle_by_name vpi_handle_by_name_1800v2009
+#define vpi_handle_multi vpi_handle_multi_1800v2009
+#define vpi_iterate vpi_iterate_1800v2009
+#define vpi_put_value vpi_put_value_1800v2009
+#define vpi_register_cb vpi_register_cb_1800v2009
+#define vpi_scan vpi_scan_1800v2009
+#elif defined(VPI_COMPATIBILITY_VERSION_1800v2012) || \
+      defined(VPI_COMPATIBILITY_VERSION_1800v2017) || \
+      defined(VPI_COMPATIBILITY_VERSION_1800v2023)
 #define vpi_compare_objects vpi_compare_objects_1800v2012
 #define vpi_control vpi_control_1800v2012
 #define vpi_get vpi_get_1800v2012
@@ -1220,7 +1304,7 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 19;
+static const PLI_UINT32 vpip_routines_version = 20;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1307,6 +1391,9 @@ typedef struct {
                                       PLI_INT32);
     PLI_INT32   (*assertion_serial)(PLI_INT32, vpiHandle);
     void        (*proc_assert_cap)(vpiHandle);
+    PLI_INT32   (*compat_get)(int, PLI_INT32, vpiHandle);
+    char*       (*compat_get_str)(int, PLI_INT32, vpiHandle);
+    vpiHandle   (*compat_iterate)(int, PLI_INT32, vpiHandle);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

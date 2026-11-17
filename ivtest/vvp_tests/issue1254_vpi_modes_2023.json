@@ -1,0 +1,12 @@
+{
+  "type": "normal",
+  "source": "issue1254_vpi_modes.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue1254_vpi_modes_2023"],
+  "vpi-sources": ["vpi/issue1254_vpi_modes.c",
+                  "vpi/issue1254_vpi_mode_1364v1995.c",
+                  "vpi/issue1254_vpi_mode_1364v2001.c",
+                  "vpi/issue1254_vpi_mode_1364v2005.c",
+                  "vpi/issue1254_vpi_mode_1800v2023.c"],
+  "gold": "issue1254_vpi_modes"
+}
