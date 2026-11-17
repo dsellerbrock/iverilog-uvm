@@ -1,0 +1,3 @@
+./ivltests/issue3615_blocking_delay.sv:4: error: this sampled value function has no clocking event; a blocking timing control prevents procedural clock inference (IEEE 1800-2017/2023 16.9.3, 16.14.6).
+./ivltests/issue3615_blocking_delay.sv:8: error: this sampled value function has no clocking event; a blocking timing control prevents procedural clock inference (IEEE 1800-2017/2023 16.9.3, 16.14.6).
+./ivltests/issue3615_blocking_delay.sv:14: error: this sampled value function has no clocking event; a blocking timing control prevents procedural clock inference (IEEE 1800-2017/2023 16.9.3, 16.14.6).

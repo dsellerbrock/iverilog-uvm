@@ -26,7 +26,7 @@
 //   * $past of a REAL rounded the fraction away (its history register
 //     was integral).
 //
-// A sampled call written inside an edge-triggered always block is now
+// A sampled call written inside an eligible edge-triggered always block is
 // bound to that block's own clock (16.14.6 clock inference), and one
 // with no enclosing event control binds to the module's `default
 // clocking'. The history lives in its OWN sampler process, shifted
@@ -113,7 +113,8 @@ module main;
     end
   end
 
-  // A block that WAITS inside its body skips clock ticks. The history
+  // A block that WAITS inside its body skips clock ticks. The explicit
+  // clock is required because the blocking delay prevents inference. The history
   // belongs to the clock, not to the block's execution, so $past must
   // still mean "one tick ago" -- which is why the sampler is its own
   // process rather than statements spliced around the body. (#12 with a
@@ -122,15 +123,15 @@ module main;
   int slow_tick = 0;
   always @(posedge clk) begin
     slow_tick++;
-    if (slow_tick == 2 && $past(d) !== 1) begin
+    if (slow_tick == 2 && $past(d, 1, , @(posedge clk)) !== 1) begin
       fails++;
       $display("FAILED -- tick-skipping block: $past(d)=%0d at its 2nd run (want 1)",
-               $past(d));
+               $past(d, 1, , @(posedge clk)));
     end
-    if (slow_tick == 3 && $past(d) !== 3) begin
+    if (slow_tick == 3 && $past(d, 1, , @(posedge clk)) !== 3) begin
       fails++;
       $display("FAILED -- tick-skipping block: $past(d)=%0d at its 3rd run (want 3)",
-               $past(d));
+               $past(d, 1, , @(posedge clk)));
     end
     #12;
   end
