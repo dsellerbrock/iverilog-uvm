@@ -1,0 +1,19 @@
+{
+  "type": "normal",
+  "source": "issue3590_assertion_enable.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-gassertions"
+  ],
+  "vpi-modules": [
+    "issue3590_assertion_enable_2017"
+  ],
+  "vpi-sources": [
+    "vpi/issue3590_assertion_enable.c"
+  ],
+  "output-contains": [
+    "VPI control counts OK",
+    "Action counts OK"
+  ],
+  "gold": "issue3590_assertion_enable"
+}

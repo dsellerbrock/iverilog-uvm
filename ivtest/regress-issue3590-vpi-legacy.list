@@ -1,0 +1,2 @@
+issue3590_assertion_enable_2017 normal,-g2017,-gassertions issue3590_assertion_enable.c issue3590_assertion_enable_2017.log
+issue3590_assertion_enable_2023 normal,-g2023,-gassertions issue3590_assertion_enable.c issue3590_assertion_enable_2023.log
