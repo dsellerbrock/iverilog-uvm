@@ -19294,6 +19294,10 @@ parameter_value_byname_item
       }
   | '.' IDENTIFIER
       { pform_requires_sv(@2, "Implicit named parameter assignments");
+	if (gn_commercial_unsafe_flag)
+	      cerr << @2 << ": warning: Named parameter shorthand is a nonstandard extension." << endl;
+	else
+	      yyerror(@2, "error: Named parameter assignment requires parentheses.");
 	named_pexpr_t*tmp = new named_pexpr_t;
 	FILE_NAME(tmp, @$);
 	tmp->name = lex_strings.make($2);
@@ -19305,6 +19309,10 @@ parameter_value_byname_item
   /* Allow TYPE_IDENTIFIER as an implicit named parameter key. */
   | '.' TYPE_IDENTIFIER
       { pform_requires_sv(@2, "Implicit named parameter assignments");
+	if (gn_commercial_unsafe_flag)
+	      cerr << @2 << ": warning: Named parameter shorthand is a nonstandard extension." << endl;
+	else
+	      yyerror(@2, "error: Named parameter assignment requires parentheses.");
 	named_pexpr_t*tmp = new named_pexpr_t;
 	FILE_NAME(tmp, @$);
 	tmp->name = lex_strings.make($2.text);

@@ -1,0 +1,2 @@
+./ivltests/issue3607_named_param_unsafe.sv:7: warning: Named parameter shorthand is a nonstandard extension.
+PASS

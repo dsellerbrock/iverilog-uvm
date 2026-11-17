@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3607_named_param_unsafe.sv",
+  "iverilog-args": ["-g2017", "-gcommercial-unsafe", "-s", "top"],
+  "gold": "issue3607_named_param_unsafe"
+}
