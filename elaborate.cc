@@ -15768,7 +15768,9 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
                           target_class->get_prop_type(
                                 (size_t)lv->get_property_idx()));
         }
-      if (lv->word() && target_darray && !lv->sig()->queue_type()) {
+      const netqueue_t*target_queue = lv->sig() ? lv->sig()->queue_type() : nullptr;
+      if (lv->word() && target_darray &&
+          !(target_queue && target_queue->assoc_compat())) {
             cerr << get_fileline() << ": error: elements of dynamically sized "
                  "arrays may not be assigned values using non-blocking "
                  "assignments (IEEE 1800 6.21)." << endl;
