@@ -7893,3 +7893,5 @@ issue3661_bad_2017 vvp_tests/issue3661_bad_2017.json
 issue3661_legal_2017 vvp_tests/issue3661_legal_2017.json
 issue3661_bad_2023 vvp_tests/issue3661_bad_2023.json
 issue3661_legal_2023 vvp_tests/issue3661_legal_2023.json
+issue3683_2017 vvp_tests/issue3683_2017.json
+issue3683_2023 vvp_tests/issue3683_2023.json

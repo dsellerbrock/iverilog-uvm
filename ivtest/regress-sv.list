@@ -7073,3 +7073,5 @@ issue3679_stream_twostate_2017 normal,-g2017,-s,test ivltests gold=issue3679_str
 issue3679_stream_twostate_2023 normal,-g2023,-s,test ivltests gold=issue3679_stream_twostate.gold
 issue2733_queue_receiver_2017 normal,-g2017,-s,issue2733_regression ivltests gold=issue2733_queue_receiver.gold
 issue2733_queue_receiver_2023 normal,-g2023,-s,issue2733_regression ivltests gold=issue2733_queue_receiver.gold
+issue3683_2017 normal,-g2017,-s,issue3683 ivltests gold=issue3683.gold
+issue3683_2023 normal,-g2023,-s,issue3683 ivltests gold=issue3683.gold

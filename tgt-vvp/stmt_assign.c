@@ -7097,9 +7097,10 @@ static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
 				    fixed_after += ivl_lval_width(later);
 			}
 			fprintf(vvp_out,
-				"    %%stream/take/left/with \"%s:%s:%llu\", %d, %d;\n",
+				"    %%stream/take/left/with \"%s:%s:%llu:%d\", %d, %d;\n",
 				stream_range_name_(kind), elem_text,
 				(unsigned long long)(greedy_seen ? fixed_after : 0),
+				!stream_lval_is_dynamic_(lval),
 				first_reg, second_reg);
 			unsigned lab_null = 0, lab_out = 0;
 			if (prop_idx >= 0) {

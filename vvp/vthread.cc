@@ -30076,7 +30076,7 @@ bool of_STREAM_TAKE_LEFT_WITH(vthread_t thr, vvp_code_t cp)
 	    thr->stream_plan_second_reg = cp->bit_idx[1];
 	    return take_stream_left_(thr, 0);
 	  }
-	  if (!make_stream_with_plan_(thr, cp, desc, plan, false,
+	  if (!make_stream_with_plan_(thr, cp, desc, plan, desc.aux2 != 0,
 				       STREAM_PLAN_TARGET_FIRST))
 	    return take_stream_left_(thr, 0);
 
