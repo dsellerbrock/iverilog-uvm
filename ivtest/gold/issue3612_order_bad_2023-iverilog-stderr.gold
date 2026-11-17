@@ -1,0 +1,2 @@
+ivltests/issue3612_order_bad.sv:5: error: ':initial' must precede ':final' in method override specifiers.
+ivltests/issue3612_order_bad.sv:6: error: ':extends' must precede ':final' in method override specifiers.

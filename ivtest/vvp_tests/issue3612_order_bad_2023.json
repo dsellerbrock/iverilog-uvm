@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3612_order_bad.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue3612_order_bad_2023"
+}

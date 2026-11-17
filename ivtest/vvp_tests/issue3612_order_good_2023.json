@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3612_order_good.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue3612_order_good"
+}

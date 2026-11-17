@@ -1,0 +1,4 @@
+issue3612_order_bad_2017 CE,-g2017 ivltests
+issue3612_order_bad_2023 CE,-g2023 ivltests
+issue3612_order_good_2017 CE,-g2017 ivltests
+issue3612_order_good_2023 normal,-g2023 ivltests gold=issue3612_order_good.gold
