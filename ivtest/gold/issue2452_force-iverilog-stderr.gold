@@ -1,0 +1,2 @@
+ivltests/issue2452_force.v:4: vvp.tgt sorry: force to a nested l-value is not yet supported.
+error: Code generation had 1 error(s).

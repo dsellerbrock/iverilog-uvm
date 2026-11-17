@@ -1,0 +1,4 @@
+35 fail
+55 fail
+done
+ivltests/sva_rec_cross.sv:24: $finish called at 80 (1s)

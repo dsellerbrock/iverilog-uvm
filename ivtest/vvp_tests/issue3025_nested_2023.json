@@ -1,0 +1,10 @@
+{
+    "type": "normal",
+    "source": "issue3025_nested.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "issue3025_nested"
+    ],
+    "gold": "issue3025_nested"
+}

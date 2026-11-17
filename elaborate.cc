@@ -36,6 +36,7 @@
 # include  <climits>
 # include  <cstdlib>
 # include  <cstring>
+# include  <string>
 # include  <limits>
 # include  <ctime>
 # include  <iostream>
@@ -39174,7 +39175,7 @@ static string packed_typed_select_ir_(
       const string&base, ivl_type_t type, const index_component_t&ic,
       const netclass_t*cls, vector<const PExpr*>*value_slots,
       const NetScope*scope, const map<perm_string,uint64_t>*loop_env,
-      bool allow_symbolic_element = false)
+      bool allow_symbolic_element = false, bool diagnose_reverse = true)
 {
       const netenum_t*en = dynamic_cast<const netenum_t*>(type);
       ivl_type_t packed_type = en ? en->base_type_obj() : type;
@@ -39388,6 +39389,26 @@ static string packed_typed_select_ir_(
 		  + " c:" + to_string(lo) + ")";
       }
       if (ic.sel == index_component_t::SEL_PART && ic.msb && ic.lsb) {
+	    if (diagnose_reverse && constraint_ir_design_ctx_ && scope) {
+		  auto bound = [&](const PExpr*expr, long&result) -> bool {
+			unique_ptr<NetExpr> folded(elab_and_eval(
+			      constraint_ir_design_ctx_, const_cast<NetScope*>(scope),
+			      const_cast<PExpr*>(expr), -1, false, false));
+			const NetEConst*constant = dynamic_cast<const NetEConst*>(folded.get());
+			if (!constant || !constant->value().is_defined()) return false;
+			result = constant->value().as_long();
+			return true;
+		  };
+		  long msb, lsb;
+		  if (bound(ic.msb, msb) && bound(ic.lsb, lsb)
+		      && ((msb > lsb && outer.get_msb() < outer.get_lsb())
+			  || (msb < lsb && outer.get_msb() >= outer.get_lsb()))) {
+			cerr << ic.msb->get_fileline() << ": error: Part select ["
+			     << msb << ":" << lsb << "] is out of order." << endl;
+			constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+	    }
 	    uint64_t high = 0, low = 0;
 	    if (!offset_of(ic.msb, high, nullptr)
 		|| !offset_of(ic.lsb, low, nullptr)
@@ -42704,11 +42725,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      id->path().name.front().index;
 			if (indices.empty())
 			      return ctx->value_ir;
+			// The reduction's caller already diagnoses an unsupported
+			// with expression as an error, including reversed selects.
 			if (indices.size() == 1)
 			      return packed_typed_select_ir_(
 				    ctx->value_ir, ctx->value_type,
 				    indices.front(), cls, value_slots,
-				    scope, loop_env);
+				    scope, loop_env, false, false);
 			return "";
 		  }
 		  if (id->path().size() == 2
@@ -49355,6 +49378,108 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
       constraints_elaborated_ = true;
 }
 
+/*
+ * IEEE 1800-2017/2023 8.20: "Virtual method overrides in subclasses shall
+ * have matching argument types ... The return type of a virtual function
+ * shall be either: a matching type (see 6.22.1) [or] a derived class type
+ * of the return type of the virtual function in the superclass." Checked
+ * on a concrete class only, once its methods' signatures are elaborated:
+ * in a generic parameterized class the formal types are still symbolic
+ * (names, directions and defaults are checked earlier, in elab_sig.cc).
+ */
+static void check_override_types_(Design*des, NetScope*class_scope,
+				  const netclass_t*super)
+{
+      auto user_ports = [](const NetBaseDef*def) {
+	    std::vector<const NetNet*> res;
+	    for (unsigned idx = 0; def && idx < def->port_count(); idx += 1) {
+		  const NetNet*port = def->port(idx);
+		  if (port && port->name() != perm_string::literal(THIS_TOKEN))
+			res.push_back(port);
+	    }
+	    return res;
+      };
+      auto report = [&](const NetScope*method, const std::string&what) {
+	    cerr << method->get_fileline() << ": "
+		 << (gn_commercial_unsafe_flag ? "warning" : "error")
+		 << ": override of virtual method `" << method->basename()
+		 << "' " << what << " (IEEE 1800-2017/2023 8.20)." << endl;
+	    if (!gn_commercial_unsafe_flag)
+		  des->errors += 1;
+      };
+
+      for (auto&kv : class_scope->children()) {
+	    NetScope*method = kv.second;
+	    if (!method || (method->type() != NetScope::FUNC
+			    && method->type() != NetScope::TASK))
+		  continue;
+	    const NetScope*base = super->method_from_name(kv.first.peek_name());
+	    if (!base || base->type() != method->type()
+		|| !base->is_virtual_method())
+		  continue;
+	      /* Compare only against a prototype whose class is in this
+		 class's super chain. */
+	    const netclass_t*owner = base->parent()
+		  ? base->parent()->class_def() : nullptr;
+	    bool in_chain = false;
+	    for (const netclass_t*cur = super; cur && !in_chain;
+		 cur = cur->get_super())
+		  in_chain = cur == owner;
+	    if (!in_chain)
+		  continue;
+	      /* A prototype in a parameterized class is no evidence: the class
+		 reached through the super chain can carry another
+		 specialization's elaborated formal types (for UVM's
+		 uvm_printer_element_proxy, the uvm_structure_proxy prototype
+		 showed uvm_component, from uvm_component_proxy). Compare types
+		 only against a class declared without parameters. */
+	    const NetScope*owner_scope = owner->class_scope();
+	    const PClass*owner_pclass = owner_scope
+		  ? owner_scope->class_pform() : nullptr;
+	    if (!owner_pclass || owner_pclass->has_parameter_port_list
+		|| owner->specialized_instance())
+		  continue;
+	    bool func = method->type() == NetScope::FUNC;
+	    const NetBaseDef*def = func
+		  ? static_cast<const NetBaseDef*>(method->func_def())
+		  : static_cast<const NetBaseDef*>(method->task_def());
+	    const NetBaseDef*base_def = func
+		  ? static_cast<const NetBaseDef*>(base->func_def())
+		  : static_cast<const NetBaseDef*>(base->task_def());
+	    if (!def || !base_def)
+		  continue;
+	    std::vector<const NetNet*> ports = user_ports(def);
+	    std::vector<const NetNet*> base_ports = user_ports(base_def);
+	    if (ports.size() == base_ports.size()) {
+		  for (size_t idx = 0; idx < ports.size(); idx += 1) {
+			ivl_type_t t = ports[idx]->net_type();
+			ivl_type_t bt = base_ports[idx]->net_type();
+			if (t && bt && !t->type_equivalent(bt))
+			      report(method, "argument `" + std::string(
+					   ports[idx]->name().str()) + "' does not have "
+				     "a matching type");
+		  }
+	    }
+	    if (!func)
+		  continue;
+	    const NetNet*ret = method->func_def()->return_sig();
+	    const NetNet*base_ret = base->func_def()->return_sig();
+	    if (!ret || !base_ret)
+		  continue;
+	    ivl_type_t rt = ret->net_type();
+	    ivl_type_t brt = base_ret->net_type();
+	    if (!rt || !brt)
+		  continue;
+	    const netclass_t*rc = dynamic_cast<const netclass_t*>(rt);
+	    const netclass_t*brc = dynamic_cast<const netclass_t*>(brt);
+	    bool ok = (rc && brc) ? rc->is_same_or_derived_from(brc)
+		  : rt->type_equivalent(brt);
+	    if (!ok)
+		  report(method, "returns a type that is neither a matching type "
+			 "nor a class derived from the prototype's return type");
+      }
+}
+
 void netclass_t::elaborate(Design*des, PClass*pclass)
 {
       if (body_elaborated_ || body_elaborating_)
@@ -49372,6 +49497,9 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 		  break;
 	    }
       }
+      if (super_ && class_scope_ && !defer_parameterized_body
+	  && !pclass->has_parameter_port_list && !specialized_instance())
+	    check_override_types_(des, class_scope_, super_);
 
 	      if (! pclass->type->initialize_static.empty()) {
 		    const std::vector<Statement*>&stmt_list = pclass->type->initialize_static;

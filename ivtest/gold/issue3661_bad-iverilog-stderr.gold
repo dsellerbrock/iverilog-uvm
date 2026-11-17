@@ -1,0 +1,7 @@
+ivltests/issue3661_bad.v:4: error: Part select [0:3] is out of order.
+ivltests/issue3661_bad.v:5: error: Part select [3:0] is out of order.
+ivltests/issue3661_bad.v:6: error: Part select [-1:4] is out of order.
+ivltests/issue3661_bad.v:20: error: Part select [2:3] is out of order.
+ivltests/issue3661_bad.v:21: error: Part select [3:2] is out of order.
+ivltests/issue3661_bad.v:22: error: Part select [0:1] is out of order.
+6 error(s) during elaboration.

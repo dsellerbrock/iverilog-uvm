@@ -22,6 +22,7 @@
 
 # include  <typeinfo>
 # include  <cstdlib>
+# include  <string>
 # include  <cstring>
 # include  <iostream>
 # include  <sstream>
@@ -2789,6 +2790,75 @@ static void collect_interface_methods_(const netclass_t*base,
 	    collect_interface_methods_(parent, name, methods, seen);
 }
 
+/*
+ * IEEE 1800-2017/2023 8.20: "Virtual method overrides in subclasses shall
+ * have matching argument types, identical argument names, identical
+ * qualifiers, and identical directions to the prototype. ... It is not
+ * necessary to have matching default expressions, but the presence of a
+ * default shall match." Check what the declarations alone settle: the
+ * number of arguments, their names, directions and default presence.
+ * None of these depends on a type parameter, so they can be checked even
+ * on a generic parameterized class. The argument and return types are
+ * checked once the class body is elaborated (check_override_types_ in
+ * elaborate.cc). An error in strict modes, a warning under
+ * -gcommercial-unsafe.
+ */
+static void check_override_signature_(Design*des, const NetScope*method,
+				      perm_string name, const PTaskFunc*decl,
+				      const PTaskFunc*base_decl)
+{
+	// The implicit `this' port of a class method is not an argument.
+      auto user_ports = [](const PTaskFunc*tf) {
+	    std::vector<const pform_tf_port_t*> res;
+	    if (const std::vector<pform_tf_port_t>*all = tf->peek_ports())
+		  for (const pform_tf_port_t&cur : *all)
+			if (!cur.port || cur.port->basename()
+			    != perm_string::literal(THIS_TOKEN))
+			      res.push_back(&cur);
+	    return res;
+      };
+      std::vector<const pform_tf_port_t*> ports = user_ports(decl);
+      std::vector<const pform_tf_port_t*> base_ports = user_ports(base_decl);
+      size_t count = ports.size();
+      size_t base_count = base_ports.size();
+
+      auto report = [&](const std::string&what) {
+	    cerr << method->get_fileline() << ": "
+		 << (gn_commercial_unsafe_flag ? "warning" : "error")
+		 << ": override of virtual method `" << name << "' " << what
+		 << " (IEEE 1800-2017/2023 8.20)." << endl;
+	    if (!gn_commercial_unsafe_flag)
+		  des->errors += 1;
+      };
+
+      if (count != base_count) {
+	    report("has " + std::to_string(count) + " argument(s), but the "
+		   "prototype has " + std::to_string(base_count));
+	    return;
+      }
+      for (size_t idx = 0; idx < count; idx += 1) {
+	    const pform_tf_port_t&cur = *ports[idx];
+	    const pform_tf_port_t&base = *base_ports[idx];
+	    if (!cur.port || !base.port)
+		  continue;
+	    std::string arg = "argument " + std::to_string(idx + 1);
+	    if (cur.port->basename() != base.port->basename()) {
+		  report(arg + " is named `" + std::string(cur.port->basename().str())
+			 + "', but the prototype names it `"
+			 + std::string(base.port->basename().str()) + "'");
+		  continue;
+	    }
+	    if (cur.port->get_port_type() != base.port->get_port_type())
+		  report(arg + " `" + std::string(cur.port->basename().str())
+			 + "' has a different direction than the prototype");
+	    if ((cur.defe != nullptr) != (base.defe != nullptr))
+		  report(arg + " `" + std::string(cur.port->basename().str())
+			 + "' " + (cur.defe ? "has a default, but the prototype's "
+				   "does not" : "has no default, but the "
+				   "prototype's does"));
+      }
+}
+
 void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 {
       if (sig_elaborated_ || sig_elaborating_)
@@ -2883,6 +2953,9 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 				    extends_target = true;
 			      }
 		  }
+		  if (inherited_virtual && decl && base_decl)
+			check_override_signature_(des, method, kv.first.peek_name(),
+						  decl, base_decl);
 		  if (base_decl
 		      && (base_decl->method_override_specifiers()
 			  & METHOD_OVERRIDE_FINAL)) {
