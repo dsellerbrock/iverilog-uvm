@@ -1,0 +1,2 @@
+issue1564_default_source_warning_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1564_default_source_warning.gold
+issue1564_default_source_warning_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1564_default_source_warning.gold
