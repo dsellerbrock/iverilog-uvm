@@ -7163,6 +7163,8 @@ static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
 		  } else {
 			fprintf(vvp_out, "    %%stream/take/left %u;\n",
 				ivl_lval_width(lval));
+			if (ivl_type_base(ivl_lval_net_type(lval)) == IVL_VT_BOOL)
+			      fprintf(vvp_out, "    %%cast2; two-state streaming destination\n");
 			store_vec4_to_one_lval(lval);
 		  }
 	    }
@@ -7196,6 +7198,8 @@ static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
 	    if (idx + 1 < lvals)
 		  fprintf(vvp_out, "    %%split/vec4 %u;\n",
 			  ivl_lval_width(lval));
+	    if (ivl_type_base(ivl_lval_net_type(lval)) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2; two-state streaming destination\n");
 	    store_vec4_to_one_lval(lval);
       }
 
