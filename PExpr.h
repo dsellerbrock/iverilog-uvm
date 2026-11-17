@@ -587,6 +587,15 @@ class PEEvent : public PExpr {
 
       virtual bool has_aa_term(Design*des, NetScope*scope) const override;
 
+	// An event expression is no value: one that reaches expression
+	// elaboration (an argument of a function call, say) is an error.
+      virtual unsigned test_width(Design*des, NetScope*scope,
+				  width_mode_t&mode) override;
+      virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
+				     ivl_type_t type, unsigned flags) const override;
+      virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
+				     unsigned expr_wid, unsigned flags) const override;
+
     private:
       edge_t type_;
       PExpr *expr_;

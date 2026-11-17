@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue725_property_event_formal_ce.sv",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue725_property_event_formal_ce"
+}

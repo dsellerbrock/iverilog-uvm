@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue722_followed_by_property.sv",
+  "iverilog-args": ["-g2023"],
+  "output-contains": ["ov=2/4 nov=3/3 seq=2/4 ex=2/4"]
+}

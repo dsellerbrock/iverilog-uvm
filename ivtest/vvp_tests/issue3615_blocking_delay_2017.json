@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3615_blocking_delay.sv",
+  "iverilog-args": ["-g2017", "-s", "main"],
+  "gold": "issue3615_blocking_delay"
+}

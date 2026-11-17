@@ -4357,7 +4357,7 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
       if (!method_scope || method_scope->type() != NetScope::FUNC)
 	    return nullptr;
 
-      if (illegal_nonstatic && path.package) {
+      if (illegal_nonstatic) {
 	    const PTaskFunc*definition = method_scope->func_pform();
 	    if (definition && !definition->method_qualifiers().test_static()) {
 		  const netclass_t*caller = scope->get_class_scope()
@@ -28108,7 +28108,13 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 
       } else if (idx_flags.variable) {
 	    ivl_assert(*this, unpacked_indices.size() == net->unpacked_dimensions());
-	    canon_index = normalize_variable_unpacked(net, unpacked_indices);
+	    const netsarray_t*fixed_type =
+		  dynamic_cast<const netsarray_t*>(net->array_type());
+	    if (fixed_type && net->unpacked_dimensions() > 1)
+		  canon_index = make_checked_canonical_property_index(
+			des, this, unpacked_indices, idx_flags, fixed_type);
+	    else
+		  canon_index = normalize_variable_unpacked(net, unpacked_indices);
 
       } else {
 	    ivl_assert(*this, unpacked_indices_const.size() == net->unpacked_dimensions());
@@ -32065,7 +32071,13 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 
       } else if (idx_flags.variable) {
 	    ivl_assert(*this, unpacked_indices.size() == net->unpacked_dimensions());
-	    canon_index = normalize_variable_unpacked(net, unpacked_indices);
+	    const netsarray_t*fixed_type =
+		  dynamic_cast<const netsarray_t*>(net->array_type());
+	    if (fixed_type && net->unpacked_dimensions() > 1)
+		  canon_index = make_checked_canonical_property_index(
+			des, this, unpacked_indices, idx_flags, fixed_type);
+	    else
+		  canon_index = normalize_variable_unpacked(net, unpacked_indices);
 
       } else {
 	    ivl_assert(*this, unpacked_indices_const.size() == net->unpacked_dimensions());
@@ -36042,4 +36054,38 @@ NetNet* Design::find_discipline_reference(ivl_discipline_t dis, NetScope*scope)
 		 << " in scope=" << scope_path(scope) << endl;
 
       return gnd;
+}
+
+/*
+ * IEEE 1800-2017/2023 16.12.18: an event expression such as `posedge clk'
+ * is an actual (or default) only of an `event' formal of a property. The
+ * parser accepts it as a call argument so property instances can take it;
+ * anywhere it reaches expression elaboration it is an error.
+ */
+static void pe_event_not_a_value_(const PEEvent*ev, Design*des)
+{
+      cerr << ev->get_fileline() << ": error: the event expression `" << *ev
+	   << "' is only allowed as the actual or default of an event formal "
+	   << "of a property (IEEE 1800-2017/2023 16.12.18)." << endl;
+      des->errors += 1;
+}
+
+unsigned PEEvent::test_width(Design*, NetScope*, width_mode_t&)
+{
+      expr_width_ = 1;
+      min_width_ = 1;
+      expr_type_ = IVL_VT_LOGIC;
+      return 1;
+}
+
+NetExpr* PEEvent::elaborate_expr(Design*des, NetScope*, ivl_type_t, unsigned) const
+{
+      pe_event_not_a_value_(this, des);
+      return 0;
+}
+
+NetExpr* PEEvent::elaborate_expr(Design*des, NetScope*, unsigned, unsigned) const
+{
+      pe_event_not_a_value_(this, des);
+      return 0;
 }

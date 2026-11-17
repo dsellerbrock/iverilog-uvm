@@ -1,0 +1,1 @@
+ivltests/issue725_property_event_formal_ce.sv:6: error: property `r' formal `x' is not an event formal and cannot take the event expression actual (IEEE 1800-2017/2023 16.12.18).

@@ -15498,6 +15498,40 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
       for (size_t k = 0; k < formals.size(); ++k) {
 	    const sva_property_formal_t&formal = formals[k];
 	    PExpr*value = nullptr;
+	      /* IEEE 1800-2017/2023 16.12.18: an `event' formal takes an
+		 event_expression actual (or default) such as `posedge clk'.
+		 Bind it as the formal's event control, as $inferred_clock is
+		 bound below. */
+	    PEEvent*event_actual = actuals[k]
+		  ? dynamic_cast<PEEvent*>(actuals[k]->parm) : nullptr;
+	    if (!actuals[k] && formal.default_expr)
+		  event_actual = dynamic_cast<PEEvent*>(formal.default_expr);
+	    if (event_actual) {
+		  if (formal.formal_type != sva_property_formal_t::EVENT
+		      && formal.formal_type != sva_property_formal_t::UNTYPED) {
+			cerr << loc << ": error: property `" << nm << "' formal `"
+			     << formal.name << "' is not an event formal and cannot "
+			     << "take the event expression actual (IEEE 1800-2017/2023 "
+			     << "16.12.18)." << endl;
+			error_count += 1;
+			return false;
+		  }
+		  PExpr*expr = sva_clone_subst_(event_actual->expr(), nullptr);
+		  PExpr*cond = event_actual->condition()
+			? sva_clone_subst_(event_actual->condition(), nullptr)
+			: nullptr;
+		  if (!expr || (event_actual->condition() && !cond))
+			return false;
+		  PEEvent*copy = new PEEvent(event_actual->type(), expr, cond);
+		  FILE_NAME(copy, loc);
+		  std::vector<PEEvent*> evs(1, copy);
+		    // ponytail: the control lives as long as the parsed design,
+		    // like the other pform statements it is cloned into.
+		  PEventStatement*control = new PEventStatement(evs);
+		  FILE_NAME(control, loc);
+		  event_subst[formal.name] = control;
+		  continue;
+	    }
 	    if (actuals[k] && actuals[k]->parm) {
 		  if (formal.type) {
 			value = sva_clone_subst_(actuals[k]->parm, nullptr);
@@ -20056,6 +20090,7 @@ struct sampled_pending_t {
       struct vlltype loc;
       bool automatic_operand;
       bool automatic_bit_select;
+      bool blocking_delay = false;
 };
 static std::vector<sampled_pending_t> sampled_pending_;
 
@@ -20530,6 +20565,60 @@ static void sva_expr_forget_sampled_(PExpr*e)
       }
 }
 
+/* A blocking delay anywhere in the procedure disqualifies its event
+   control as an inferred sampled-value clock (16.14.6). */
+static bool sampled_has_blocking_delay_(const Statement*st)
+{
+      if (!st) return false;
+      if (dynamic_cast<const PDelayStatement*>(st)
+	  || dynamic_cast<const PCycleDelay*>(st)) return true;
+      if (const PAssign*as = dynamic_cast<const PAssign*>(st))
+	    return as->has_timing_control();
+      if (const PEventStatement*ev = dynamic_cast<const PEventStatement*>(st))
+	    return sampled_has_blocking_delay_(ev->statement());
+      if (const PBlock*block = dynamic_cast<const PBlock*>(st)) {
+	    for (const Statement*item : block->statements())
+		  if (sampled_has_blocking_delay_(item)) return true;
+	    return false;
+      }
+      if (const PCondit*cond = dynamic_cast<const PCondit*>(st))
+	    return sampled_has_blocking_delay_(cond->if_clause())
+		  || sampled_has_blocking_delay_(cond->else_clause());
+      if (const PCase*cs = dynamic_cast<const PCase*>(st)) {
+	    if (cs->mutable_items())
+		  for (const PCase::Item*item : *cs->mutable_items())
+			if (sampled_has_blocking_delay_(item->stat)) return true;
+	    return false;
+      }
+      if (const PRandCase*cs = dynamic_cast<const PRandCase*>(st)) {
+	    if (cs->mutable_items())
+		  for (const PCase::Item*item : *cs->mutable_items())
+			if (sampled_has_blocking_delay_(item->stat)) return true;
+	    return false;
+      }
+      if (const PCaseMatches*cs = dynamic_cast<const PCaseMatches*>(st)) {
+	    if (cs->mutable_items())
+		  for (const PCaseMatches::Item*item : *cs->mutable_items())
+			if (sampled_has_blocking_delay_(item->stat)) return true;
+	    return false;
+      }
+      if (const PForStatement*loop = dynamic_cast<const PForStatement*>(st))
+	    return sampled_has_blocking_delay_(loop->initialization())
+		  || sampled_has_blocking_delay_(loop->step_stmt())
+		  || sampled_has_blocking_delay_(loop->body());
+      if (const PForeach*loop = dynamic_cast<const PForeach*>(st))
+	    return sampled_has_blocking_delay_(loop->body());
+      if (const PForever*loop = dynamic_cast<const PForever*>(st))
+	    return sampled_has_blocking_delay_(loop->body());
+      if (const PRepeat*loop = dynamic_cast<const PRepeat*>(st))
+	    return sampled_has_blocking_delay_(loop->body());
+      if (const PWhile*loop = dynamic_cast<const PWhile*>(st))
+	    return sampled_has_blocking_delay_(loop->body());
+      if (const PDoWhile*loop = dynamic_cast<const PDoWhile*>(st))
+	    return sampled_has_blocking_delay_(loop->body());
+      return false;
+}
+
 /* Is this behavior clocked by a single edge, and if so which event
    statement carries it? Only an edge qualifies: 16.14.6 infers the
    clock from an edge-sensitive event control, and a level-sensitive
@@ -20541,6 +20630,7 @@ static PEventStatement* sampled_clock_event_(ivl_process_type_t type,
 	    return nullptr;
       PEventStatement*ev = dynamic_cast<PEventStatement*>(st);
       if (!ev) return nullptr;
+      if (sampled_has_blocking_delay_(ev->statement())) return nullptr;
       const std::vector<PEEvent*>&evs = ev->event_expressions();
       if (evs.empty()) return nullptr;
       for (size_t i = 0 ; i < evs.size() ; i += 1) {
@@ -20781,8 +20871,17 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
 	    return;
 
       PEventStatement*ev = sampled_clock_event_(type, st);
-      if (!ev)
+      if (!ev) {
+	    PEventStatement*outer = dynamic_cast<PEventStatement*>(st);
+	    if (outer && sampled_has_blocking_delay_(outer->statement())) {
+		  const char*file = outer->get_file() ? outer->get_file().str() : nullptr;
+		  for (sampled_pending_t&pending : sampled_pending_)
+			if (file && pending.loc.text && !strcmp(file, pending.loc.text)
+			    && pending.loc.first_line >= (int)outer->get_lineno())
+			      pending.blocking_delay = true;
+	    }
 	    return;
+      }
 
 	/* Only calls written INSIDE this block: the pending list can
 	   still hold calls from an earlier construct in the same module
@@ -20799,7 +20898,7 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
 	    const sampled_pending_t&p = sampled_pending_[i];
 	    const char*pfile = p.call->get_file() ? p.call->get_file().str()
 					          : nullptr;
-	    bool inside = evfile && pfile && !strcmp(evfile, pfile)
+	    bool inside = !p.blocking_delay && evfile && pfile && !strcmp(evfile, pfile)
 			  && p.call->get_lineno() >= evline;
 	    if (inside) mine.push_back(p);
 	    else rest.push_back(p);
@@ -20976,6 +21075,14 @@ void pform_flush_pending_sampled_calls()
 		    // small as `$rose(a) |-> b and c'. The location was
 		    // captured by value when the call was noted precisely
 		    // so this does not have to touch the node.
+		  if (p.blocking_delay) {
+			cerr << p.loc.get_fileline() << ": error: this sampled "
+			     << "value function has no clocking event; a blocking "
+			     << "timing control prevents procedural clock inference "
+			     << "(IEEE 1800-2017/2023 16.9.3, 16.14.6)." << endl;
+			error_count += 1;
+			continue;
+		  }
 		  cerr << p.loc.get_fileline() << ": error: this sampled "
 		       << "value function has no clocking event to sample on "
 		       << "(IEEE 1800 16.9.3): it is not inside a "
@@ -25317,13 +25424,50 @@ sva_property_t* pform_sva_followed_by(const struct vlltype&loc, int op_type,
 		  && p->local_names.empty() && p->local_input_actual_names.empty();
       };
 
+	/* IEEE 1800-2017/2023 16.12.9: "sequence_expr #-# property_expr is
+	   equivalent to ... not (sequence_expr |-> not property_expr)", and
+	   #=# to "not (sequence_expr |=> not property_expr)". When the
+	   antecedent is a fixed-length sequence it has exactly one end point
+	   per attempt, so "some end point at which the property holds" is
+	   "the sequence matches, and the property holds at its end point":
+	   ante and (ante |-> conseq), or |=> for #=#. Both pieces are forms
+	   the property monitor already evaluates. A variable-length antecedent
+	   (several end points, where the existential reading differs) keeps
+	   the diagnostic below. */
+	/* A plain sequence operand is a leaf tree holding one step chain
+	   (pform_sva_leaf_prop), or a bare chain. */
+      const std::vector<sva_seq_step_t>*ante_chain = nullptr;
+      if (ante && ante->seq && !ante->tree)
+	    ante_chain = ante->seq;
+      else if (ante && ante->tree && ante->tree->kind == sva_stree_t::LEAF
+	       && ante->tree->chain)
+	    ante_chain = ante->tree->chain;
+      if (is_sequence(ante) && conseq && !is_sequence(conseq)
+	  && (op_type == 1 || op_type == 2) && ante_chain) {
+	    long len = 0;
+	    std::map<perm_string,PExpr*> no_subst;
+	    std::vector<sva_seq_step_t>*copy =
+		  sva_chain_fixed_len_(*ante_chain, len)
+		  ? sva_clone_steps_subst_(loc, ante_chain, no_subst) : nullptr;
+	    if (copy) {
+		  sva_property_t*impl = pform_sva_paren_conseq(loc, op_type,
+								copy, conseq);
+		  if (!impl) {
+			pform_sva_destroy_property(ante);
+			return nullptr;
+		  }
+		  return pform_sva_tree_comb(loc, 'a', ante, impl);
+	    }
+      }
+
       if (!is_sequence(ante) || !is_sequence(conseq)
 	  || (op_type != 1 && op_type != 2)) {
 	    const char*edition = generation_flag >= GN_VER2023
 		  ? "IEEE 1800-2023" : "IEEE 1800-2017";
 	    if (!is_sequence(conseq))
 		  cerr << loc << ": sorry: followed-by with a temporal-property "
-		       << "consequent is not supported yet (" << edition
+		       << "consequent and a variable-length sequence operand "
+		       << "is not supported yet (" << edition
 		       << " 16.12.9 makes it legal); the assertion is dropped."
 		       << endl;
 	    else

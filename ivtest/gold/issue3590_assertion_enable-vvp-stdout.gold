@@ -1,0 +1,3 @@
+VPI control counts OK
+Action counts OK
+ivltests/issue3590_assertion_enable.sv:18: $finish called at 37 (1s)
