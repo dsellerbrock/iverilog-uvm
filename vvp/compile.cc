@@ -305,6 +305,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%assign/wr",  of_ASSIGN_WR, 2,{OA_VPI_PTR, OA_BIT1, OA_NONE} },
       { "%assign/wr/d",of_ASSIGN_WRD,2,{OA_VPI_PTR, OA_BIT1, OA_NONE} },
       { "%assign/wr/e",of_ASSIGN_WRE,1,{OA_VPI_PTR, OA_NONE, OA_NONE} },
+      { "%assoc/check/size", of_ASSOC_CHECK_SIZE, 2,{OA_NUMBER,OA_BIT1,OA_NONE} },
       { "%blend",    of_BLEND,   0,  {OA_NONE,  OA_NONE,     OA_NONE} },
       { "%blend/wr", of_BLEND_WR,0,  {OA_NONE,  OA_NONE,     OA_NONE} },
       { "%box/real", of_BOX_REAL,0,  {OA_NONE,  OA_NONE,     OA_NONE} },

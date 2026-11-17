@@ -3438,6 +3438,25 @@ bool of_QSIZE(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_ASSOC_CHECK_SIZE(vthread_t thr, vvp_code_t cp)
+{
+      unsigned expected = cp->number;
+      unsigned flag = cp->bit_idx[0];
+      if (flag >= vthread_s::FLAGS_COUNT || thr->object_stack_size() == 0) {
+            cerr << "vvp: malformed %assoc/check/size operands" << endl;
+            return true;
+      }
+      vvp_darray*array = thr->peek_object().peek<vvp_darray>();
+      size_t count = array ? array->get_size() : 0;
+      if (!array || count != expected) {
+            cerr << "RUN-TIME ERROR: cannot copy a container of size " << count
+                 << " into an unpacked array of size " << expected
+                 << " (IEEE 1800-2017/2023 7.6 requires equal element counts); the array is unchanged." << endl;
+            thr->flags[flag] = BIT4_1;
+      }
+      return true;
+}
+
 bool of_QSIZE_O(vthread_t thr, vvp_code_t)
 {
       vvp_object_t recv;

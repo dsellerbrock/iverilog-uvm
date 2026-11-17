@@ -3644,16 +3644,20 @@ static int expr_is_assoc_default_(ivl_expr_t expr)
  * Keep this legal 7.6 form as an explicit unsupported compile boundary until
  * pattern installation can be validated transactionally. Ordinary keyed
  * dynamic/queue-to-fixed assignments are checked at run time. */
-static int reject_variable_fixed_assoc_pattern_value_(ivl_expr_t marker,
-						 ivl_expr_t value)
+static int variable_fixed_assoc_pattern_value_(ivl_expr_t value)
 {
       ivl_type_t source = receiver_container_type_(value);
       ivl_variable_type_t base = source ? ivl_type_base(source)
-	    : IVL_VT_NO_TYPE;
-      if (base != IVL_VT_DARRAY
-	  && (base != IVL_VT_QUEUE
-	      || ivl_type_queue_assoc_compat(source)))
-	    return 0;
+            : IVL_VT_NO_TYPE;
+      return base == IVL_VT_DARRAY || (base == IVL_VT_QUEUE
+            && !ivl_type_queue_assoc_compat(source));
+}
+
+static int reject_variable_fixed_assoc_pattern_value_(ivl_expr_t marker,
+                                                       ivl_expr_t value)
+{
+      if (!variable_fixed_assoc_pattern_value_(value))
+            return 0;
       fprintf(stderr, "%s:%u: error: a dynamic-array or queue value in "
 	      "an associative fixed-array pattern is not yet supported\n",
 	      ivl_expr_file(marker), ivl_expr_lineno(marker));
@@ -3665,15 +3669,17 @@ static int reject_variable_fixed_assoc_pattern_value_(ivl_expr_t marker,
  * The fresh object is left on the object stack for an ordinary signal/property
  * store. This ordering is essential when RHS side effects replace the same
  * array: no destination container is captured until the RHS is complete. */
-int draw_eval_assoc_default(ivl_expr_t marker, ivl_type_t element_type)
+static int draw_eval_assoc_default_checked_(ivl_expr_t marker, ivl_type_t element_type, int flag, unsigned size)
 {
       int errors = 0;
       ivl_expr_t value = ivl_expr_parm(marker, 0);
 
       if (type_is_fixed_uarray_property_(element_type)) {
-            if (reject_variable_fixed_assoc_pattern_value_(marker, value))
-		  return 1;
+            if (flag < 0 && reject_variable_fixed_assoc_pattern_value_(marker, value))
+                  return 1;
             errors += draw_eval_object_value_copy(value, element_type);
+            if (flag >= 0 && variable_fixed_assoc_pattern_value_(value))
+                  fprintf(vvp_out, "    %%assoc/check/size %u, %d;\n", size, flag);
             fprintf(vvp_out, "    %%aa/new/default/obj;\n");
             return errors;
       }
@@ -3727,6 +3733,11 @@ int draw_eval_assoc_default(ivl_expr_t marker, ivl_type_t element_type)
       }
 
       return errors;
+}
+
+int draw_eval_assoc_default(ivl_expr_t marker, ivl_type_t element_type)
+{
+      return draw_eval_assoc_default_checked_(marker, element_type, -1, 0);
 }
 
 /* Read one frontend-generated associative-pattern item tag without executing
@@ -3789,15 +3800,18 @@ static int assoc_pattern_object_value_(ivl_expr_t value,
  * entries that appeared earlier in source order. */
 static int draw_assoc_pattern_value_(ivl_expr_t marker, ivl_expr_t value,
 				     ivl_type_t element_type,
-				     const char*key_kind, int is_default)
+				     const char*key_kind, int is_default,
+                                         int flag, unsigned size)
 {
       int errors = 0;
       const char*operation = is_default ? "set/default" : "store";
 
       if (type_is_fixed_uarray_property_(element_type)) {
-	    if (reject_variable_fixed_assoc_pattern_value_(marker, value))
+	    if (flag < 0 && reject_variable_fixed_assoc_pattern_value_(marker, value))
 		  return 1;
 	    errors += assoc_pattern_object_value_(value, element_type);
+            if (flag >= 0 && variable_fixed_assoc_pattern_value_(value))
+                  fprintf(vvp_out, "    %%assoc/check/size %u, %d;\n", size, flag);
 	    if (is_default)
 		  fprintf(vvp_out, "    %%aa/%s/obj;\n", operation);
 	    else
@@ -3872,7 +3886,7 @@ static int draw_assoc_pattern_value_(ivl_expr_t marker, ivl_expr_t value,
  * Parameters are source-ordered (kind,key,value) triplets: kind 0 denotes an
  * explicit entry and kind 1 denotes default. Default's key is a dummy carrier
  * and is deliberately not evaluated. */
-int draw_eval_assoc_pattern(ivl_expr_t marker, ivl_type_t element_type)
+static int draw_eval_assoc_pattern_checked_(ivl_expr_t marker, ivl_type_t element_type, int flag, unsigned size)
 {
       ivl_type_t assoc_type = ivl_expr_net_type(marker);
       unsigned default_count = 0;
@@ -3926,11 +3940,11 @@ int draw_eval_assoc_pattern(ivl_expr_t marker, ivl_type_t element_type)
 
 	    if (kind == 1) {
 		  errors += draw_assoc_pattern_value_(marker, value_expr,
-					       element_type, 0, 1);
+					       element_type, 0, 1, flag, size);
 	    } else {
 		  const char*key_kind = draw_eval_assoc_key_(key_expr, &errors);
 		  errors += draw_assoc_pattern_value_(marker, value_expr,
-					       element_type, key_kind, 0);
+					       element_type, key_kind, 0, flag, size);
 	    }
       }
 
@@ -3942,6 +3956,11 @@ malformed:
 	      ivl_expr_file(marker), ivl_expr_lineno(marker));
       fprintf(vvp_out, "    %%null; ; malformed associative pattern marker\n");
       return 1;
+}
+
+int draw_eval_assoc_pattern(ivl_expr_t marker, ivl_type_t element_type)
+{
+      return draw_eval_assoc_pattern_checked_(marker, element_type, -1, 0);
 }
 
 /* Store into the existing suffix selected by q[lo:$].  The l-value API bit
@@ -4167,6 +4186,38 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
       assert(idx >= 0);
         /* Save the queue maximum index value to an integer register. */
       fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", idx, ivl_signal_array_count(var));
+
+      /* Only direct module-signal stores have the commit boundary needed
+       * for a variable-source fixed-array pattern. Other contexts keep the
+       * existing explicit unsupported diagnostic. */
+      if (ivl_type_queue_assoc_compat(var_type) && !ivl_lval_idx(lval)
+          && ivl_scope_type(ivl_signal_scope(var)) == IVL_SCT_MODULE
+          && type_is_fixed_uarray_property_(element_type)
+          && ivl_type_packed_dimensions(element_type) == 1
+          && ivl_expr_type(rval) == IVL_EX_SFUNC && ivl_expr_name(rval)
+          && (expr_is_assoc_default_(rval)
+              || strcmp(ivl_expr_name(rval), "$ivl_assoc_pattern") == 0)) {
+            int flag = allocate_flag();
+            unsigned done = local_count++;
+            unsigned commit = local_count++;
+            int64_t left = ivl_type_packed_msb(element_type, 0);
+            int64_t right = ivl_type_packed_lsb(element_type, 0);
+            unsigned size = (unsigned)(left >= right ? left - right + 1 : right - left + 1);
+            fprintf(vvp_out, "    %%flag_set/imm %d, 0; pattern transaction\n", flag);
+            if (expr_is_assoc_default_(rval))
+                  errors += draw_eval_assoc_default_checked_(rval, element_type, flag, size);
+            else
+                  errors += draw_eval_assoc_pattern_checked_(rval, element_type, flag, size);
+            fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d; valid pattern\n", thread_count, commit, flag);
+            fprintf(vvp_out, "    %%pop/obj 1, 0; discard invalid pattern\n");
+            fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
+            fprintf(vvp_out, "T_%u.%u;\n", thread_count, commit);
+            fprintf(vvp_out, "    %%store/obj v%p_0; commit pattern\n", var);
+            fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
+            clr_flag(flag);
+            clr_word(idx);
+            return errors;
+      }
 
       if (ivl_type_queue_assoc_compat(var_type)
 	  && !ivl_lval_idx(lval)
