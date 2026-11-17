@@ -1,0 +1,4 @@
+issue3661_bad_2017 CE,-g2017,-s,top ivltests gold=issue3661_bad.gold
+issue3661_legal_2017 normal,-g2017,-s,top ivltests gold=issue3661_legal.gold
+issue3661_bad_2023 CE,-g2023,-s,top ivltests gold=issue3661_bad.gold
+issue3661_legal_2023 normal,-g2023,-s,top ivltests gold=issue3661_legal.gold

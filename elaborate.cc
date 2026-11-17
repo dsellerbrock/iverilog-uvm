@@ -39174,7 +39174,7 @@ static string packed_typed_select_ir_(
       const string&base, ivl_type_t type, const index_component_t&ic,
       const netclass_t*cls, vector<const PExpr*>*value_slots,
       const NetScope*scope, const map<perm_string,uint64_t>*loop_env,
-      bool allow_symbolic_element = false)
+      bool allow_symbolic_element = false, bool diagnose_reverse = true)
 {
       const netenum_t*en = dynamic_cast<const netenum_t*>(type);
       ivl_type_t packed_type = en ? en->base_type_obj() : type;
@@ -39388,6 +39388,26 @@ static string packed_typed_select_ir_(
 		  + " c:" + to_string(lo) + ")";
       }
       if (ic.sel == index_component_t::SEL_PART && ic.msb && ic.lsb) {
+	    if (diagnose_reverse && constraint_ir_design_ctx_ && scope) {
+		  auto bound = [&](const PExpr*expr, long&result) -> bool {
+			unique_ptr<NetExpr> folded(elab_and_eval(
+			      constraint_ir_design_ctx_, const_cast<NetScope*>(scope),
+			      const_cast<PExpr*>(expr), -1, false, false));
+			const NetEConst*constant = dynamic_cast<const NetEConst*>(folded.get());
+			if (!constant || !constant->value().is_defined()) return false;
+			result = constant->value().as_long();
+			return true;
+		  };
+		  long msb, lsb;
+		  if (bound(ic.msb, msb) && bound(ic.lsb, lsb)
+		      && ((msb > lsb && outer.get_msb() < outer.get_lsb())
+			  || (msb < lsb && outer.get_msb() >= outer.get_lsb()))) {
+			cerr << ic.msb->get_fileline() << ": error: Part select ["
+			     << msb << ":" << lsb << "] is out of order." << endl;
+			constraint_ir_design_ctx_->errors += 1;
+			return "";
+		  }
+	    }
 	    uint64_t high = 0, low = 0;
 	    if (!offset_of(ic.msb, high, nullptr)
 		|| !offset_of(ic.lsb, low, nullptr)
@@ -42704,11 +42724,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      id->path().name.front().index;
 			if (indices.empty())
 			      return ctx->value_ir;
+			// The reduction's caller already diagnoses an unsupported
+			// with expression as an error, including reversed selects.
 			if (indices.size() == 1)
 			      return packed_typed_select_ir_(
 				    ctx->value_ir, ctx->value_type,
 				    indices.front(), cls, value_slots,
-				    scope, loop_env);
+				    scope, loop_env, false, false);
 			return "";
 		  }
 		  if (id->path().size() == 2
