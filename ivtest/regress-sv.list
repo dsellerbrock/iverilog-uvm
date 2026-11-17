@@ -7033,3 +7033,5 @@ issue3605_queue_nba_2017 CE,-g2017,-s,issue3605_queue_nba ivltests gold=issue360
 issue3605_queue_nba_2023 CE,-g2023,-s,issue3605_queue_nba ivltests gold=issue3605_queue_nba_2023.gold
 issue3605_queue_legal_2017 normal,-g2017,-s,issue3605_queue_legal ivltests gold=issue3605_queue_legal.gold
 issue3605_queue_legal_2023 normal,-g2023,-s,issue3605_queue_legal ivltests gold=issue3605_queue_legal.gold
+issue3625_2017 CE,-g2017,-s,issue3625 ivltests gold=issue3625_2017.gold
+issue3625_2023 normal,-g2023,-DTEST_2023,-s,issue3625 ivltests gold=issue3625.gold
