@@ -218,6 +218,20 @@ struct __vpiIterator : public __vpiIteratorBase {
 extern vpiHandle vpip_make_iterator(unsigned nargs, vpiHandle*args,
 				    bool free_args_flag);
 
+/* VPI compatibility modes (IEEE 1800-2023 36.12, Annex L). vpi/libvpi.c
+   passes these numbers through vpip_routines_s, so keep their values. */
+enum {
+      VPIP_COMPAT_1364v1995 = 0,
+      VPIP_COMPAT_1364v2001 = 1,
+      VPIP_COMPAT_1364v2005 = 2,
+      VPIP_COMPAT_1800v2005 = 3,
+      VPIP_COMPAT_1800v2009 = 4,
+      VPIP_COMPAT_1800v2012 = 5
+};
+extern PLI_INT32 vpip_compat_get(int mode, PLI_INT32 property, vpiHandle ref);
+extern char* vpip_compat_get_str(int mode, PLI_INT32 property, vpiHandle ref);
+extern vpiHandle vpip_compat_iterate(int mode, PLI_INT32 type, vpiHandle ref);
+
 class __vpiDecConst : public __vpiHandle {
     public:
       explicit __vpiDecConst(int val =0);
@@ -1334,6 +1348,9 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       value_kind_t value_kind;
       bool automatic_storage;
       bool virtual_interface_array_ = false;
+	// Declared `integer` (.array/i), distinct from a 32-bit signed reg
+	// array only for the IEEE 1364 VPI compatibility modes (36.12.1).
+      bool integer_array = false;
 	// For a static unpacked array whose element is an object-backed
 	// unpacked struct, this is the element's class definition. Elements
 	// start nil; get_word_obj() lazily constructs (and caches) a default

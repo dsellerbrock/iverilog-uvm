@@ -1957,6 +1957,7 @@ void compile_var_array(char*label, char*name, int last, int first,
 
       arr->automatic_storage = fixed_array_is_automatic_(storage_flag);
       arr->value_kind = __vpiArray::ARRAY_VALUE_VEC4;
+      arr->integer_array = signed_flag == 2;
 
 	/* Make the words. */
       arr->vals_width = labs(msb-lsb) + 1;

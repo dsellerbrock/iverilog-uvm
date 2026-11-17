@@ -266,28 +266,6 @@ PLI_INT32 vpi_sim_control(PLI_INT32 operation, ...)
       return r;
 }
 
-/* Annex L compatibility entry points for the 2017 and 2023 header modes. */
-PLI_INT32 vpi_compare_objects_1800v2012(vpiHandle obj1, vpiHandle obj2)
-{ return vpi_compare_objects(obj1, obj2); }
-PLI_INT32 vpi_control_1800v2012(PLI_INT32 operation, ...)
-{
-      va_list ap;
-      va_start(ap, operation);
-      assert(vpip_routines);
-      PLI_INT32 r = vpip_routines->vcontrol(operation, ap);
-      va_end(ap);
-      return r;
-}
-PLI_INT32 vpi_get_1800v2012(PLI_INT32 property, vpiHandle ref)
-{ return vpi_get(property, ref); }
-char* vpi_get_str_1800v2012(PLI_INT32 property, vpiHandle ref)
-{ return vpi_get_str(property, ref); }
-void vpi_get_value_1800v2012(vpiHandle expr, p_vpi_value value)
-{ vpi_get_value(expr, value); }
-vpiHandle vpi_handle_1800v2012(PLI_INT32 type, vpiHandle ref)
-{ return vpi_handle(type, ref); }
-vpiHandle vpi_handle_by_index_1800v2012(vpiHandle ref, PLI_INT32 idx)
-{ return vpi_handle_by_index(ref, idx); }
 vpiHandle vpi_handle_by_multi_index(vpiHandle ref, PLI_INT32 num_index,
                                     PLI_INT32 *index_array)
 {
@@ -298,24 +276,66 @@ vpiHandle vpi_handle_by_multi_index(vpiHandle ref, PLI_INT32 num_index,
       }
       return ref;
 }
-vpiHandle vpi_handle_by_multi_index_1800v2012(vpiHandle ref,
-                                              PLI_INT32 num_index,
-                                              PLI_INT32 *index_array)
-{ return vpi_handle_by_multi_index(ref, num_index, index_array); }
-vpiHandle vpi_handle_by_name_1800v2012(const char* name, vpiHandle scope)
-{ return vpi_handle_by_name(name, scope); }
-vpiHandle vpi_handle_multi_1800v2012(PLI_INT32 type, vpiHandle ref1,
-                                     vpiHandle ref2)
-{ return vpi_handle_multi(type, ref1, ref2); }
-vpiHandle vpi_iterate_1800v2012(PLI_INT32 type, vpiHandle ref)
-{ return vpi_iterate(type, ref); }
-vpiHandle vpi_put_value_1800v2012(vpiHandle obj, p_vpi_value value,
-                                  p_vpi_time when, PLI_INT32 flags)
-{ return vpi_put_value(obj, value, when, flags); }
-vpiHandle vpi_register_cb_1800v2012(p_cb_data data)
-{ return vpi_register_cb(data); }
-vpiHandle vpi_scan_1800v2012(vpiHandle iter)
+
+/* The Annex L compatibility entry points (IEEE 1800-2023 36.12.2.1). MODE
+   is the VPIP_COMPAT_* number of vvp/vpi_priv.h. Only vpi_get, vpi_get_str
+   and vpi_iterate depend on the mode. */
+#define VPIP_COMPAT_ENTRY_POINTS(SUFFIX, MODE)                                \
+PLI_INT32 vpi_compare_objects_##SUFFIX(vpiHandle obj1, vpiHandle obj2)       \
+{ return vpi_compare_objects(obj1, obj2); }                                   \
+PLI_INT32 vpi_control_##SUFFIX(PLI_INT32 operation, ...)                     \
+{                                                                             \
+      va_list ap;                                                             \
+      va_start(ap, operation);                                                \
+      assert(vpip_routines);                                                  \
+      PLI_INT32 r = vpip_routines->vcontrol(operation, ap);                   \
+      va_end(ap);                                                             \
+      return r;                                                               \
+}                                                                             \
+PLI_INT32 vpi_get_##SUFFIX(PLI_INT32 property, vpiHandle ref)                \
+{                                                                             \
+      assert(vpip_routines);                                                  \
+      return vpip_routines->compat_get(MODE, property, ref);                  \
+}                                                                             \
+char* vpi_get_str_##SUFFIX(PLI_INT32 property, vpiHandle ref)                \
+{                                                                             \
+      assert(vpip_routines);                                                  \
+      return vpip_routines->compat_get_str(MODE, property, ref);              \
+}                                                                             \
+void vpi_get_value_##SUFFIX(vpiHandle expr, p_vpi_value value)               \
+{ vpi_get_value(expr, value); }                                               \
+vpiHandle vpi_handle_##SUFFIX(PLI_INT32 type, vpiHandle ref)                 \
+{ return vpi_handle(type, ref); }                                             \
+vpiHandle vpi_handle_by_index_##SUFFIX(vpiHandle ref, PLI_INT32 idx)         \
+{ return vpi_handle_by_index(ref, idx); }                                     \
+vpiHandle vpi_handle_by_multi_index_##SUFFIX(vpiHandle ref,                  \
+                                             PLI_INT32 num_index,            \
+                                             PLI_INT32 *index_array)         \
+{ return vpi_handle_by_multi_index(ref, num_index, index_array); }            \
+vpiHandle vpi_handle_by_name_##SUFFIX(const char* name, vpiHandle scope)     \
+{ return vpi_handle_by_name(name, scope); }                                   \
+vpiHandle vpi_handle_multi_##SUFFIX(PLI_INT32 type, vpiHandle ref1,          \
+                                    vpiHandle ref2)                          \
+{ return vpi_handle_multi(type, ref1, ref2); }                                \
+vpiHandle vpi_iterate_##SUFFIX(PLI_INT32 type, vpiHandle ref)                \
+{                                                                             \
+      assert(vpip_routines);                                                  \
+      return vpip_routines->compat_iterate(MODE, type, ref);                  \
+}                                                                             \
+vpiHandle vpi_put_value_##SUFFIX(vpiHandle obj, p_vpi_value value,           \
+                                 p_vpi_time when, PLI_INT32 flags)           \
+{ return vpi_put_value(obj, value, when, flags); }                            \
+vpiHandle vpi_register_cb_##SUFFIX(p_cb_data data)                           \
+{ return vpi_register_cb(data); }                                             \
+vpiHandle vpi_scan_##SUFFIX(vpiHandle iter)                                  \
 { return vpi_scan(iter); }
+
+VPIP_COMPAT_ENTRY_POINTS(1364v1995, 0)
+VPIP_COMPAT_ENTRY_POINTS(1364v2001, 1)
+VPIP_COMPAT_ENTRY_POINTS(1364v2005, 2)
+VPIP_COMPAT_ENTRY_POINTS(1800v2005, 3)
+VPIP_COMPAT_ENTRY_POINTS(1800v2009, 4)
+VPIP_COMPAT_ENTRY_POINTS(1800v2012, 5)
 
 // proposed standard extensions
 
