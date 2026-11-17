@@ -68,20 +68,22 @@ class evctl_real : public evctl {
 
     public:
       explicit evctl_real(class __vpiHandle*handle, double value,
-                          unsigned long ecount);
+                          unsigned long ecount, bool reactive);
       virtual ~evctl_real() override {}
       void run_run() override;
 
     private:
       class __vpiHandle*handle_;
       double value_;
+      bool reactive_;
 };
 
 class evctl_vector : public evctl {
 
     public:
       explicit evctl_vector(vvp_net_ptr_t ptr, const vvp_vector4_t&value,
-                            unsigned off, unsigned wid, unsigned long ecount);
+                            unsigned off, unsigned wid, unsigned long ecount,
+                            bool reactive);
       virtual ~evctl_vector() override {}
       void run_run() override;
 
@@ -90,6 +92,7 @@ class evctl_vector : public evctl {
       vvp_vector4_t value_;
       unsigned off_;
       unsigned wid_;
+      bool reactive_;
 };
 
 class evctl_array : public evctl {
@@ -97,7 +100,7 @@ class evctl_array : public evctl {
     public:
       explicit evctl_array(vvp_array_t memory, unsigned index,
                            const vvp_vector4_t&value, unsigned off,
-                           unsigned long ecount);
+                           unsigned long ecount, bool reactive);
       virtual ~evctl_array() override {}
       virtual void run_run() override;
 
@@ -106,13 +109,14 @@ class evctl_array : public evctl {
       unsigned idx_;
       vvp_vector4_t value_;
       unsigned off_;
+      bool reactive_;
 };
 
 class evctl_array_r : public evctl {
 
     public:
       explicit evctl_array_r(vvp_array_t memory, unsigned index,
-                           double value, unsigned long ecount);
+                           double value, unsigned long ecount, bool reactive);
       virtual ~evctl_array_r() override {}
       virtual void run_run() override;
 
@@ -120,22 +124,23 @@ class evctl_array_r : public evctl {
       vvp_array_t mem_;
       unsigned idx_;
       double value_;
+      bool reactive_;
 };
 
 extern void schedule_evctl(class __vpiHandle*handle, double value,
-                           vvp_net_t*event, unsigned long ecount);
+                           vvp_net_t*event, unsigned long ecount, bool reactive);
 
 extern void schedule_evctl(vvp_net_ptr_t ptr, const vvp_vector4_t&value,
                            unsigned offset, unsigned wid,
-                           vvp_net_t*event, unsigned long ecount);
+                           vvp_net_t*event, unsigned long ecount, bool reactive);
 
 extern void schedule_evctl(vvp_array_t memory, unsigned index,
                            const vvp_vector4_t&value, unsigned offset,
-                           vvp_net_t*event, unsigned long ecount);
+                           vvp_net_t*event, unsigned long ecount, bool reactive);
 
 extern void schedule_evctl(vvp_array_t memory, unsigned index,
                            double value,
-                           vvp_net_t*event, unsigned long ecount);
+                           vvp_net_t*event, unsigned long ecount, bool reactive);
 
 extern void schedule_evctl_prop_vec4(const vvp_object_t&obj, unsigned pid,
                                      const vvp_vector4_t&value,

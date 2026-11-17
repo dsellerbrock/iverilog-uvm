@@ -15722,7 +15722,7 @@ bool of_ASSIGN_ARE(vthread_t thr, vvp_code_t cp)
 					     thr->is_reactive_process);
 	    } else {
 		  schedule_evctl(array, adr, value, thr->event,
-		                 thr->ecount);
+		                 thr->ecount, thr->is_reactive_process);
 	    }
       }
 
@@ -15858,7 +15858,7 @@ bool of_ASSIGN_VEC4_A_E(vthread_t thr, vvp_code_t cp)
 				       schedule_assign_is_reactive_(thr));
       } else {
 	    schedule_evctl(array, (unsigned)adr, val, off,
-			   thr->event, thr->ecount);
+			   thr->event, thr->ecount, schedule_assign_is_reactive_(thr));
       }
 
       return true;
@@ -15917,7 +15917,8 @@ bool of_ASSIGN_VEC4_OFF_E(vthread_t thr, vvp_code_t cp)
 	    schedule_assign_vector(ptr, off, sig->value_size(), val, 0,
 				   schedule_assign_is_reactive_(thr));
       } else {
-	    schedule_evctl(ptr, val, off, sig->value_size(), thr->event, thr->ecount);
+	    schedule_evctl(ptr, val, off, sig->value_size(), thr->event, thr->ecount,
+			   schedule_assign_is_reactive_(thr));
       }
 
       return true;
@@ -15958,7 +15959,8 @@ bool of_ASSIGN_VEC4E(vthread_t thr, vvp_code_t cp)
 	    schedule_assign_vector(ptr, 0, sig->value_size(), value, 0,
 				   schedule_assign_is_reactive_(thr));
       } else {
-	    schedule_evctl(ptr, value, 0, sig->value_size(), thr->event, thr->ecount);
+	    schedule_evctl(ptr, value, 0, sig->value_size(), thr->event, thr->ecount,
+			   schedule_assign_is_reactive_(thr));
       }
 
       return true;
@@ -15967,25 +15969,14 @@ bool of_ASSIGN_VEC4E(vthread_t thr, vvp_code_t cp)
 /*
  * This is %assign/wr <vpi-label>, <delay>
  *
- * This assigns (after a delay) a value to a real variable. Use the
- * vpi_put_value function to do the assign, with the delay written
- * into the vpiInertialDelay carrying the desired delay.
+ * This schedules an NBA update (after a delay) to a real variable.
  */
 bool of_ASSIGN_WR(vthread_t thr, vvp_code_t cp)
 {
       unsigned delay = cp->bit_idx[0];
       double value = thr->pop_real();
-      s_vpi_time del;
-
-      del.type = vpiSimTime;
-      vpip_time_to_timestruct(&del, delay);
-
-      __vpiHandle*tmp = cp->handle;
-
-      t_vpi_value val;
-      val.format = vpiRealVal;
-      val.value.real = value;
-      vpi_put_value(tmp, &val, &del, vpiTransportDelay);
+      schedule_assign_real_handle(cp->handle, value, delay,
+                                  thr->is_reactive_process);
 
       return true;
 }
@@ -15994,17 +15985,8 @@ bool of_ASSIGN_WRD(vthread_t thr, vvp_code_t cp)
 {
       vvp_time64_t delay = thr->words[cp->bit_idx[0]].w_uint;
       double value = thr->pop_real();
-      s_vpi_time del;
-
-      del.type = vpiSimTime;
-      vpip_time_to_timestruct(&del, delay);
-
-      __vpiHandle*tmp = cp->handle;
-
-      t_vpi_value val;
-      val.format = vpiRealVal;
-      val.value.real = value;
-      vpi_put_value(tmp, &val, &del, vpiTransportDelay);
+      schedule_assign_real_handle(cp->handle, value, delay,
+                                  thr->is_reactive_process);
 
       return true;
 }
@@ -16017,13 +15999,10 @@ bool of_ASSIGN_WRE(vthread_t thr, vvp_code_t cp)
 
 	// If the count is zero then just put the value.
       if (thr->ecount == 0) {
-	    t_vpi_value val;
-
-	    val.format = vpiRealVal;
-	    val.value.real = value;
-	    vpi_put_value(tmp, &val, 0, vpiNoDelay);
+	    schedule_assign_real_handle(tmp, value, 0, thr->is_reactive_process);
       } else {
-	    schedule_evctl(tmp, value, thr->event, thr->ecount);
+	    schedule_evctl(tmp, value, thr->event, thr->ecount,
+	                   thr->is_reactive_process);
       }
 
       thr->event = 0;

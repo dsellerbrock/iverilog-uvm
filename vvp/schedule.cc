@@ -1326,6 +1326,28 @@ void schedule_assign_vector(vvp_net_ptr_t ptr,
 					   : SEQ_NBASSIGN);
 }
 
+struct assign_real_handle_event_s : public event_s {
+      __vpiHandle*handle;
+      double val;
+      void run_run() override
+      {
+	    count_assign_events += 1;
+	    t_vpi_value value;
+	    value.format = vpiRealVal;
+	    value.value.real = val;
+	    vpi_put_value(handle, &value, 0, vpiNoDelay);
+      }
+};
+
+void schedule_assign_real_handle(__vpiHandle*handle, double val,
+                                 vvp_time64_t delay, bool reactive)
+{
+      assign_real_handle_event_s*cur = new assign_real_handle_event_s;
+      cur->handle = handle;
+      cur->val = val;
+      schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN : SEQ_NBASSIGN);
+}
+
 void schedule_force_vector(vvp_net_t*net,
 			    unsigned base, unsigned vwid,
 			    const vvp_vector4_t&bit,

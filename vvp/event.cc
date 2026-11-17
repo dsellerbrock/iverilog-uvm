@@ -589,36 +589,34 @@ bool evctl::dec_and_run()
 }
 
 evctl_real::evctl_real(__vpiHandle*handle, double value,
-                       unsigned long ecount)
+                       unsigned long ecount, bool reactive)
 :evctl(ecount)
 {
       handle_ = handle;
       value_ = value;
+      reactive_ = reactive;
 }
 
 void evctl_real::run_run()
 {
-      t_vpi_value val;
-
-      val.format = vpiRealVal;
-      val.value.real = value_;
-      vpi_put_value(handle_, &val, 0, vpiNoDelay);
+      schedule_assign_real_handle(handle_, value_, 0, reactive_);
 }
 
 void schedule_evctl(__vpiHandle*handle, double value,
-                    vvp_net_t*event, unsigned long ecount)
+                    vvp_net_t*event, unsigned long ecount, bool reactive)
 {
 	// Get the functor we are going to wait on.
       waitable_hooks_s*ep = (event->fun ? event->fun->as_waitable() : 0);
       assert(ep);
 	// Now add this call to the end of the event list.
-      *(ep->last) = new evctl_real(handle, value, ecount);
+      *(ep->last) = new evctl_real(handle, value, ecount, reactive);
       ep->last = &((*(ep->last))->next);
 }
 
 evctl_vector::evctl_vector(vvp_net_ptr_t ptr, const vvp_vector4_t&value,
-                           unsigned off, unsigned wid, unsigned long ecount)
-:evctl(ecount), ptr_(ptr), value_(value)
+                           unsigned off, unsigned wid, unsigned long ecount,
+                           bool reactive)
+:evctl(ecount), ptr_(ptr), value_(value), reactive_(reactive)
 {
       off_ = off;
       wid_ = wid;
@@ -626,29 +624,25 @@ evctl_vector::evctl_vector(vvp_net_ptr_t ptr, const vvp_vector4_t&value,
 
 void evctl_vector::run_run()
 {
-      if (wid_ != 0) {
-	    vvp_send_vec4_pv(ptr_, value_, off_, wid_, 0);
-      } else {
-	    vvp_send_vec4(ptr_, value_, 0);
-      }
+      schedule_assign_vector(ptr_, off_, wid_, value_, 0, reactive_);
 }
 
 void schedule_evctl(vvp_net_ptr_t ptr, const vvp_vector4_t&value,
                     unsigned offset, unsigned wid,
-                    vvp_net_t*event, unsigned long ecount)
+                    vvp_net_t*event, unsigned long ecount, bool reactive)
 {
 	// Get the functor we are going to wait on.
       waitable_hooks_s*ep = (event->fun ? event->fun->as_waitable() : 0);
       assert(ep);
 	// Now add this call to the end of the event list.
-      *(ep->last) = new evctl_vector(ptr, value, offset, wid, ecount);
+      *(ep->last) = new evctl_vector(ptr, value, offset, wid, ecount, reactive);
       ep->last = &((*(ep->last))->next);
 }
 
 evctl_array::evctl_array(vvp_array_t memory, unsigned index,
                          const vvp_vector4_t&value, unsigned off,
-                         unsigned long ecount)
-:evctl(ecount), value_(value)
+                         unsigned long ecount, bool reactive)
+:evctl(ecount), value_(value), reactive_(reactive)
 {
       mem_ = memory;
       idx_ = index;
@@ -657,44 +651,45 @@ evctl_array::evctl_array(vvp_array_t memory, unsigned index,
 
 void evctl_array::run_run()
 {
-      mem_->set_word(idx_, off_, value_);
+      schedule_assign_array_word(mem_, idx_, off_, value_, 0, reactive_);
 }
 
 void schedule_evctl(vvp_array_t memory, unsigned index,
                     const vvp_vector4_t&value, unsigned offset,
-                    vvp_net_t*event, unsigned long ecount)
+                    vvp_net_t*event, unsigned long ecount, bool reactive)
 {
 	// Get the functor we are going to wait on.
       waitable_hooks_s*ep = (event->fun ? event->fun->as_waitable() : 0);
       assert(ep);
 	// Now add this call to the end of the event list.
-      *(ep->last) = new evctl_array(memory, index, value, offset, ecount);
+      *(ep->last) = new evctl_array(memory, index, value, offset, ecount, reactive);
       ep->last = &((*(ep->last))->next);
 }
 
 evctl_array_r::evctl_array_r(vvp_array_t memory, unsigned index,
-                             double value, unsigned long ecount)
+                             double value, unsigned long ecount, bool reactive)
 :evctl(ecount)
 {
       mem_ = memory;
       idx_ = index;
       value_ = value;
+      reactive_ = reactive;
 }
 
 void evctl_array_r::run_run()
 {
-      mem_->set_word(idx_, value_);
+      schedule_assign_array_word(mem_, idx_, value_, 0, reactive_);
 }
 
 void schedule_evctl(vvp_array_t memory, unsigned index,
                     double value,
-                    vvp_net_t*event, unsigned long ecount)
+                    vvp_net_t*event, unsigned long ecount, bool reactive)
 {
 	// Get the functor we are going to wait on.
       waitable_hooks_s*ep = (event->fun ? event->fun->as_waitable() : 0);
       assert(ep);
 	// Now add this call to the end of the event list.
-      *(ep->last) = new evctl_array_r(memory, index, value, ecount);
+      *(ep->last) = new evctl_array_r(memory, index, value, ecount, reactive);
       ep->last = &((*(ep->last))->next);
 }
 

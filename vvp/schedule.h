@@ -75,6 +75,9 @@ extern void schedule_assign_vector(vvp_net_ptr_t ptr,
 				   vvp_time64_t  delay,
 				   bool reactive =false);
 
+extern void schedule_assign_real_handle(class __vpiHandle*handle, double val,
+                                        vvp_time64_t delay, bool reactive);
+
 extern void schedule_assign_array_word(vvp_array_t mem,
 				       unsigned word_address,
 				       unsigned off,
