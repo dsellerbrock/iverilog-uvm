@@ -16,6 +16,7 @@ module test;
 
   event e;
 
+  // Each #1 lets the event-controlled NBA update before it is checked.
   initial begin
     // Immediate index
 
@@ -23,36 +24,42 @@ module test;
     x = 'h0;
     x[2:1] <= @e 2'b10;
     -> e;
+    #1;
     `check(x, 4'b0100)
 
     // Partially oob at high and low side
     x = 'h0;
     x[4:-1] <= @e 6'b101010;
     -> e;
+    #1;
     `check(x, 4'b0101)
 
     // Partially oob at low side
     x = 'h0;
     x[0:-1] <= @e 2'b10;
     -> e;
+    #1;
     `check(x, 4'b0001)
 
     // Partially oob at high side
     x = 'h0;
     x[4:3] <= @e 2'b01;
     -> e;
+    #1;
     `check(x, 4'b1000)
 
     // Fully oob at low side
     x = 'h0;
     x[-1:-2] <= @e 2'b11;
     -> e;
+    #1;
     `check(x, 4'b0000)
 
     // Fully oob at high side
     x = 'h0;
     x[6:5] <= @e 2'b11;
     -> e;
+    #1;
     `check(x, 4'b0000)
 
     // Variable index
@@ -62,6 +69,7 @@ module test;
     x = 'h0;
     x[i+:2] <= @e 2'b10;
     -> e;
+    #1;
     `check(x, 4'b0100)
 
     // Partially oob at high and low side
@@ -69,6 +77,7 @@ module test;
     x = 'h0;
     x[i+:6] <= @e 6'b101010;
     -> e;
+    #1;
     `check(x, 4'b0101)
 
     // Partially oob at low side
@@ -76,6 +85,7 @@ module test;
     x = 'h0;
     x[i+:2] <= @e 2'b10;
     -> e;
+    #1;
     `check(x, 4'b0001)
 
     // Partially oob at high side
@@ -83,6 +93,7 @@ module test;
     x = 'h0;
     x[i+:2] <= @e 2'b01;
     -> e;
+    #1;
     `check(x, 4'b1000)
 
     // Fully oob at low side
@@ -90,6 +101,7 @@ module test;
     x = 'h0;
     x[i+:2] <= @e 2'b11;
     -> e;
+    #1;
     `check(x, 4'b0000)
 
     // Fully oob at high side
@@ -97,6 +109,7 @@ module test;
     x = 'h0;
     x[i+:2] <= @e 2'b11;
     -> e;
+    #1;
     `check(x, 4'b0000)
 
     // Undefined index
@@ -104,6 +117,7 @@ module test;
     x = 'h0;
     x[i+:2] <= @e 2'b11;
     -> e;
+    #1;
     `check(x, 4'b0000)
 
     if (!failed) begin
