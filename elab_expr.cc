@@ -4357,7 +4357,7 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
       if (!method_scope || method_scope->type() != NetScope::FUNC)
 	    return nullptr;
 
-      if (illegal_nonstatic && path.package) {
+      if (illegal_nonstatic) {
 	    const PTaskFunc*definition = method_scope->func_pform();
 	    if (definition && !definition->method_qualifiers().test_static()) {
 		  const netclass_t*caller = scope->get_class_scope()
