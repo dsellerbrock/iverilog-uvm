@@ -13685,26 +13685,30 @@ expression
 	$$ = tmp;
       }
   | expression K_NAND attribute_list_opt expression
-      { if (gn_icarus_misc_flag) {
+      { if (gn_icarus_misc_flag && (!gn_system_verilog() || gn_commercial_unsafe_flag)) {
+	      if (gn_system_verilog())
+		    cerr << @2 << ": warning: binary NAND is an Icarus Verilog extension." << endl;
 	      PEBinary*tmp = new PEBinary('A', $1, $4);
 	      FILE_NAME(tmp, @2);
 	      $$ = tmp;
 	} else {
 	      yyerror(@2, "error: The binary NAND operator "
 			  "is an Icarus Verilog extension. "
-			  "Use -gicarus-misc to enable it.");
+			  "Use -gicarus-misc and, in SystemVerilog, -gcommercial-unsafe to enable it.");
 	      $$ = 0;
 	}
       }
   | expression K_NOR attribute_list_opt expression
-      { if (gn_icarus_misc_flag) {
+      { if (gn_icarus_misc_flag && (!gn_system_verilog() || gn_commercial_unsafe_flag)) {
+	      if (gn_system_verilog())
+		    cerr << @2 << ": warning: binary NOR is an Icarus Verilog extension." << endl;
 	      PEBinary*tmp = new PEBinary('O', $1, $4);
 	      FILE_NAME(tmp, @2);
 	      $$ = tmp;
 	} else {
 	      yyerror(@2, "error: The binary NOR operator "
 			  "is an Icarus Verilog extension. "
-			  "Use -gicarus-misc to enable it.");
+			  "Use -gicarus-misc and, in SystemVerilog, -gcommercial-unsafe to enable it.");
 	      $$ = 0;
 	}
       }

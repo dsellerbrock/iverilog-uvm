@@ -1,0 +1,3 @@
+./ivltests/issue3611_unsafe.sv:5: warning: binary NAND is an Icarus Verilog extension.
+./ivltests/issue3611_unsafe.sv:6: warning: binary NOR is an Icarus Verilog extension.
+PASS

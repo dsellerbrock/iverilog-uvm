@@ -1,0 +1,3 @@
+issue3611_binary CE,-g2023 ivltests
+issue3611_unary normal,-g2023 ivltests gold=issue3611_unary-vvp-stdout.gold
+issue3611_unsafe normal,-g2023,-gcommercial-unsafe ivltests gold=issue3611_unsafe-legacy.gold

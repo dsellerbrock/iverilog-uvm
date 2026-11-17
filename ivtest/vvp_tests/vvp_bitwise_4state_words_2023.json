@@ -1,5 +1,5 @@
 {
     "type"   : "normal",
     "source" : "vvp_bitwise_4state_words.v",
-    "iverilog-args" : [ "-g2023" ]
+    "iverilog-args" : [ "-g2023", "-gcommercial-unsafe" ]
 }

@@ -1,0 +1,1 @@
+{"type":"CE", "source":"issue3611_binary.sv", "iverilog-args":["-g2023"], "gold":"issue3611_binary"}

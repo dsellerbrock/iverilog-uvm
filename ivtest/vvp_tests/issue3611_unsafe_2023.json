@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "issue3611_unsafe.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-gcommercial-unsafe"
+  ],
+  "gold": "issue3611_unsafe"
+}
