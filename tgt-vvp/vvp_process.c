@@ -3271,6 +3271,18 @@ static int show_stmt_force(ivl_statement_t net)
 
       show_stmt_file_line(net, "Force statement.");
 
+      /* Nested lvalues have no direct signal. The force backend cannot yet
+       * retain and update their container element through force/release. */
+      for (unsigned idx = 0; idx < ivl_stmt_lvals(net); idx += 1) {
+            if (!ivl_lval_sig(ivl_stmt_lval(net, idx))) {
+                  fprintf(stderr, "%s:%u: vvp.tgt sorry: force to a nested "
+                          "l-value is not yet supported.\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net));
+                  vvp_errors += 1;
+                  return 0;
+            }
+      }
+
       rval = ivl_stmt_rval(net);
       assert(rval);
 
@@ -3531,6 +3543,16 @@ static int show_stmt_release(ivl_statement_t net)
       unsigned lidx;
 
       show_stmt_file_line(net, "Release statement.");
+
+      for (lidx = 0; lidx < ivl_stmt_lvals(net); lidx += 1) {
+            if (!ivl_lval_sig(ivl_stmt_lval(net, lidx))) {
+                  fprintf(stderr, "%s:%u: vvp.tgt sorry: release of a nested "
+                          "l-value is not yet supported.\n",
+                          ivl_stmt_file(net), ivl_stmt_lineno(net));
+                  vvp_errors += 1;
+                  return 0;
+            }
+      }
 
 	/* A forced member of an unpacked struct variable (IEEE 1800-2023
 	   10.6.2, ruling on #2769). */

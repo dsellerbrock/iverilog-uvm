@@ -7077,3 +7077,7 @@ issue3683_2017 normal,-g2017,-s,issue3683 ivltests gold=issue3683.gold
 issue3683_2023 normal,-g2023,-s,issue3683 ivltests gold=issue3683.gold
 issue3025_nested_2017 normal,-g2017,-s,issue3025_nested ivltests gold=issue3025_nested.gold
 issue3025_nested_2023 normal,-g2023,-s,issue3025_nested ivltests gold=issue3025_nested.gold
+issue2452_force_2017 CE,-g2017,-s,issue2452_force ivltests gold=issue2452_force.gold
+issue2452_force_2023 CE,-g2023,-s,issue2452_force ivltests gold=issue2452_force.gold
+issue2452_release_2017 CE,-g2017,-s,issue2452_release ivltests gold=issue2452_release.gold
+issue2452_release_2023 CE,-g2023,-s,issue2452_release ivltests gold=issue2452_release.gold
