@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2733_queue_receiver.sv",
+    "iverilog-args": [ "-g2023", "-s", "issue2733_regression" ],
+    "gold": "issue2733_queue_receiver"
+}
