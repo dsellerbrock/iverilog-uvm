@@ -1,0 +1,1 @@
+{"type":"normal","source":"issue3679_stream_twostate.v","iverilog-args":["-g2023","-s","test"],"gold":"issue3679_stream_twostate"}
