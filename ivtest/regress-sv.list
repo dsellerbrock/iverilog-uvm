@@ -5843,7 +5843,7 @@ sv_covergroup_packed_bitwise_shape_boundary normal,-g2017,-s,test ivltests gold=
 sv_covergroup_packed_bitwise_shape_boundary_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_packed_bitwise_shape_boundary.gold
 sv_covergroup_packed_bitwise_shape_wide_unsupported normal,-g2017,-s,test ivltests gold=sv_covergroup_packed_bitwise_shape_wide_unsupported.gold
 sv_covergroup_packed_bitwise_shape_wide_unsupported_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_packed_bitwise_shape_wide_unsupported.gold
-sv_covergroup_bitwise_real_operand_unsupported_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_bitwise_real_operand_unsupported.gold
+sv_covergroup_bitwise_real_operand_unsupported_2023 CE,-g2023,-s,test ivltests gold=sv_covergroup_bitwise_real_operand_unsupported.gold
 sv_const_ref_forward normal,-g2017,-s,sv_const_ref_forward ivltests gold=sv_const_ref_forward.gold
 sv_const_ref_forward_writable_fail CE,-g2017,-s,sv_const_ref_forward_writable_fail ivltests gold=sv_const_ref_forward_writable_fail.gold
 sv_const_ref_forward_write_fail CE,-g2017,-s,sv_const_ref_forward_write_fail ivltests gold=sv_const_ref_forward_write_fail.gold
@@ -7022,3 +7022,5 @@ issue1564_default_source_warning_2017 normal,-g2017,-gspecify,-ginterconnect,-s,
 issue1564_default_source_warning_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1564_default_source_warning.gold
 issue1568_default_warning_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1568_default_warning.gold
 issue1568_default_warning_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1568_default_warning.gold
+issue3629_real_bitwise_2017 CE,-g2017,-s,test ivltests gold=issue3629_real_bitwise_2017.gold
+issue3629_real_bitwise_2023 CE,-g2023,-s,test ivltests gold=issue3629_real_bitwise_2023.gold

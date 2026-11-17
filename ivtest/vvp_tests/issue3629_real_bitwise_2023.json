@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3629_real_bitwise_2023.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "issue3629_real_bitwise_2023"
+}
