@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "issue2452_release.v",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "issue2452_release"
+    ],
+    "gold": "issue2452_release"
+}

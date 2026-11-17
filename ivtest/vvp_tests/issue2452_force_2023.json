@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "issue2452_force.v",
+    "iverilog-args": [
+        "-g2023",
+        "-s",
+        "issue2452_force"
+    ],
+    "gold": "issue2452_force"
+}
