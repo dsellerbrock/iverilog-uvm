@@ -1,0 +1,2 @@
+issue3629_real_bitwise_2017 CE,-g2017,-s,test ivltests gold=issue3629_real_bitwise_2017.gold
+issue3629_real_bitwise_2023 CE,-g2023,-s,test ivltests gold=issue3629_real_bitwise_2023.gold

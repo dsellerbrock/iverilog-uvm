@@ -51990,6 +51990,35 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  bool cp_value_signed = false;
 			  bool cp_value_supported = coverpoint_effective_shape(
 				cp.expr, cp_value_width, cp_value_signed);
+			  // The shape probe does not elaborate the expression, so it must
+			  // also enforce the ordinary bitwise operand restriction.
+			  std::function<void(const PExpr*)> check_bitwise_real;
+			  check_bitwise_real = [&](const PExpr*expr) {
+				const PEBinary*binary = dynamic_cast<const PEBinary*>(expr);
+				const PEUnary*unary = dynamic_cast<const PEUnary*>(expr);
+				auto is_real = [&](const PExpr*operand) {
+				      ivl_type_t type = coverpoint_expr_type(operand);
+				      return (type ? type->base_type() : operand->expr_type())
+					    == IVL_VT_REAL;
+				};
+				if (binary) {
+				      char op = binary->get_op();
+				      if (strchr("&|^AOX", op)
+					  && (is_real(binary->get_left()) || is_real(binary->get_right()))) {
+					    cerr << expr->get_fileline() << ": error: bitwise operator may not have REAL operands." << endl;
+					    des->errors += 1;
+				      }
+				      check_bitwise_real(binary->get_left());
+				      check_bitwise_real(binary->get_right());
+				} else if (unary) {
+				      if (unary->get_op() == '~' && is_real(unary->get_expr())) {
+					    cerr << expr->get_fileline() << ": error: bitwise operator may not have REAL operands." << endl;
+					    des->errors += 1;
+				      }
+				      check_bitwise_real(unary->get_expr());
+				}
+			  };
+			  if (cp.expr) check_bitwise_real(cp.expr);
 			  ivl_type_t cp_type = coverpoint_expr_type(cp.expr);
 			  ivl_type_t declared_cp_type = cp.type
 				? cp.type->elaborate_type(des, class_scope_) : nullptr;
