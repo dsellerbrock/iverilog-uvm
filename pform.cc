@@ -20090,6 +20090,7 @@ struct sampled_pending_t {
       struct vlltype loc;
       bool automatic_operand;
       bool automatic_bit_select;
+      bool blocking_delay = false;
 };
 static std::vector<sampled_pending_t> sampled_pending_;
 
@@ -20564,6 +20565,60 @@ static void sva_expr_forget_sampled_(PExpr*e)
       }
 }
 
+/* A blocking delay anywhere in the procedure disqualifies its event
+   control as an inferred sampled-value clock (16.14.6). */
+static bool sampled_has_blocking_delay_(const Statement*st)
+{
+      if (!st) return false;
+      if (dynamic_cast<const PDelayStatement*>(st)
+	  || dynamic_cast<const PCycleDelay*>(st)) return true;
+      if (const PAssign*as = dynamic_cast<const PAssign*>(st))
+	    return as->has_timing_control();
+      if (const PEventStatement*ev = dynamic_cast<const PEventStatement*>(st))
+	    return sampled_has_blocking_delay_(ev->statement());
+      if (const PBlock*block = dynamic_cast<const PBlock*>(st)) {
+	    for (const Statement*item : block->statements())
+		  if (sampled_has_blocking_delay_(item)) return true;
+	    return false;
+      }
+      if (const PCondit*cond = dynamic_cast<const PCondit*>(st))
+	    return sampled_has_blocking_delay_(cond->if_clause())
+		  || sampled_has_blocking_delay_(cond->else_clause());
+      if (const PCase*cs = dynamic_cast<const PCase*>(st)) {
+	    if (cs->mutable_items())
+		  for (const PCase::Item*item : *cs->mutable_items())
+			if (sampled_has_blocking_delay_(item->stat)) return true;
+	    return false;
+      }
+      if (const PRandCase*cs = dynamic_cast<const PRandCase*>(st)) {
+	    if (cs->mutable_items())
+		  for (const PCase::Item*item : *cs->mutable_items())
+			if (sampled_has_blocking_delay_(item->stat)) return true;
+	    return false;
+      }
+      if (const PCaseMatches*cs = dynamic_cast<const PCaseMatches*>(st)) {
+	    if (cs->mutable_items())
+		  for (const PCaseMatches::Item*item : *cs->mutable_items())
+			if (sampled_has_blocking_delay_(item->stat)) return true;
+	    return false;
+      }
+      if (const PForStatement*loop = dynamic_cast<const PForStatement*>(st))
+	    return sampled_has_blocking_delay_(loop->initialization())
+		  || sampled_has_blocking_delay_(loop->step_stmt())
+		  || sampled_has_blocking_delay_(loop->body());
+      if (const PForeach*loop = dynamic_cast<const PForeach*>(st))
+	    return sampled_has_blocking_delay_(loop->body());
+      if (const PForever*loop = dynamic_cast<const PForever*>(st))
+	    return sampled_has_blocking_delay_(loop->body());
+      if (const PRepeat*loop = dynamic_cast<const PRepeat*>(st))
+	    return sampled_has_blocking_delay_(loop->body());
+      if (const PWhile*loop = dynamic_cast<const PWhile*>(st))
+	    return sampled_has_blocking_delay_(loop->body());
+      if (const PDoWhile*loop = dynamic_cast<const PDoWhile*>(st))
+	    return sampled_has_blocking_delay_(loop->body());
+      return false;
+}
+
 /* Is this behavior clocked by a single edge, and if so which event
    statement carries it? Only an edge qualifies: 16.14.6 infers the
    clock from an edge-sensitive event control, and a level-sensitive
@@ -20575,6 +20630,7 @@ static PEventStatement* sampled_clock_event_(ivl_process_type_t type,
 	    return nullptr;
       PEventStatement*ev = dynamic_cast<PEventStatement*>(st);
       if (!ev) return nullptr;
+      if (sampled_has_blocking_delay_(ev->statement())) return nullptr;
       const std::vector<PEEvent*>&evs = ev->event_expressions();
       if (evs.empty()) return nullptr;
       for (size_t i = 0 ; i < evs.size() ; i += 1) {
@@ -20815,8 +20871,17 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
 	    return;
 
       PEventStatement*ev = sampled_clock_event_(type, st);
-      if (!ev)
+      if (!ev) {
+	    PEventStatement*outer = dynamic_cast<PEventStatement*>(st);
+	    if (outer && sampled_has_blocking_delay_(outer->statement())) {
+		  const char*file = outer->get_file() ? outer->get_file().str() : nullptr;
+		  for (sampled_pending_t&pending : sampled_pending_)
+			if (file && pending.loc.text && !strcmp(file, pending.loc.text)
+			    && pending.loc.first_line >= (int)outer->get_lineno())
+			      pending.blocking_delay = true;
+	    }
 	    return;
+      }
 
 	/* Only calls written INSIDE this block: the pending list can
 	   still hold calls from an earlier construct in the same module
@@ -20833,7 +20898,7 @@ static void pform_bind_procedural_sampled_(ivl_process_type_t type,
 	    const sampled_pending_t&p = sampled_pending_[i];
 	    const char*pfile = p.call->get_file() ? p.call->get_file().str()
 					          : nullptr;
-	    bool inside = evfile && pfile && !strcmp(evfile, pfile)
+	    bool inside = !p.blocking_delay && evfile && pfile && !strcmp(evfile, pfile)
 			  && p.call->get_lineno() >= evline;
 	    if (inside) mine.push_back(p);
 	    else rest.push_back(p);
@@ -21010,6 +21075,14 @@ void pform_flush_pending_sampled_calls()
 		    // small as `$rose(a) |-> b and c'. The location was
 		    // captured by value when the call was noted precisely
 		    // so this does not have to touch the node.
+		  if (p.blocking_delay) {
+			cerr << p.loc.get_fileline() << ": error: this sampled "
+			     << "value function has no clocking event; a blocking "
+			     << "timing control prevents procedural clock inference "
+			     << "(IEEE 1800-2017/2023 16.9.3, 16.14.6)." << endl;
+			error_count += 1;
+			continue;
+		  }
 		  cerr << p.loc.get_fileline() << ": error: this sampled "
 		       << "value function has no clocking event to sample on "
 		       << "(IEEE 1800 16.9.3): it is not inside a "
