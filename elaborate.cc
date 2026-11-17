@@ -17854,6 +17854,7 @@ static string assertion_control_selector_source_(Design*des, NetScope*scope,
 static bool assertion_control_indices_defined_(Design*des, NetScope*scope,
 						const pform_name_t&path)
 {
+      bool all_defined = true;
       for (pform_name_t::const_iterator comp = path.begin();
 	   comp != path.end(); ++comp) {
 	    for (list<index_component_t>::const_iterator idx =
@@ -17867,11 +17868,17 @@ static bool assertion_control_indices_defined_(Design*des, NetScope*scope,
 		  opt_const_func = saved_opt_const_func;
 		  NetEConst*constant = dynamic_cast<NetEConst*>(value);
 		  bool defined = constant && constant->value().is_defined();
+		  if (constant && !defined && generation_flag >= GN_VER2017) {
+			cerr << idx->msb->get_fileline() << ": error: "
+			     << "Assertion control hierarchical instance select "
+			     << "contains X or Z." << endl;
+			des->errors += 1;
+		  }
 		  delete value;
-		  if (!defined) return false;
+		  if (!defined) all_defined = false;
 	    }
       }
-      return true;
+      return all_defined;
 }
 
 /* The assertion registry uses rooted per-instance names.  An assertion
@@ -38121,6 +38128,38 @@ static constraint_source_type_t constraint_source_expr_type_(
       return result;
 }
 
+static bool constraint_real_predicate_(const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope)
+{
+      if (dynamic_cast<const PEFNumber*>(expr)) return true;
+      if (const PEUnary*un = dynamic_cast<const PEUnary*>(expr))
+            return (un->get_op() == '+' || un->get_op() == '-')
+                  && constraint_real_predicate_(un->get_expr(), cls, value_slots, scope);
+      if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
+            char op = bin->get_op();
+            if (op != '+' && op != '-' && op != '*' && op != '/' && op != 'p')
+                  return false;
+            return constraint_real_predicate_(bin->get_left(), cls, value_slots, scope)
+                  || (op != 'p' && constraint_real_predicate_(
+                        bin->get_right(), cls, value_slots, scope));
+      }
+      if (const PETernary*ter = dynamic_cast<const PETernary*>(expr))
+            return constraint_real_predicate_(ter->get_true(), cls, value_slots, scope)
+                  || constraint_real_predicate_(ter->get_false(), cls, value_slots, scope);
+      constraint_source_type_t type = constraint_source_expr_type_(expr, cls, value_slots, scope);
+      return type.type && !type.unpacked_dimensions && type.type->base_type() == IVL_VT_REAL;
+}
+
+static void constraint_warn_real_implication_(const PExpr*site, const PExpr*predicate,
+      const netclass_t*cls, vector<const PExpr*>*value_slots, const NetScope*scope)
+{
+      if (generation_flag < GN_VER2023 && constraint_ir_design_ctx_
+          && constraint_real_predicate_(predicate, cls, value_slots, scope)
+          && constraint_ir_design_ctx_->mark_constraint_real_implication_warning(site))
+            cerr << site->get_fileline() << ": warning: real implication predicate "
+                 << "is not integral (IEEE 1800-2017 18.5.6)." << endl;
+}
+
 /* Resolve the collection named by a constraint foreach without elaborating
  * a value expression. The hierarchical parser form has already separated
  * the declared prefix selectors from the fresh loop variables, so consume
@@ -44714,6 +44753,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	// and "cond -> { ... }" implication sets (18.5.6). Lower to
 	// (impl C then) [and (impl (not C) else)].
       if (const PEConstraintIf*cif = dynamic_cast<const PEConstraintIf*>(expr)) {
+            if (cif->is_constraint_implication())
+                  constraint_warn_real_implication_(cif, cif->get_cond(), cls, value_slots, scope);
 	    string cond = pexpr_to_constraint_ir(cif->get_cond(), cls,
 						 value_slots, scope, loop_env);
 	    if (cond.empty()) return "";
@@ -48696,6 +48737,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(expr)) {
+            if (bin->is_constraint_implication())
+                  constraint_warn_real_implication_(bin, bin->get_left(), cls, value_slots, scope);
 	    // String associative keys are runtime state. Compare the actual key
 	    // with a literal for each instance of the foreach template.
 	    if (dynforeach_emit_ctx_ && dynforeach_emit_ctx_->entry_key
@@ -51947,6 +51990,35 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  bool cp_value_signed = false;
 			  bool cp_value_supported = coverpoint_effective_shape(
 				cp.expr, cp_value_width, cp_value_signed);
+			  // The shape probe does not elaborate the expression, so it must
+			  // also enforce the ordinary bitwise operand restriction.
+			  std::function<void(const PExpr*)> check_bitwise_real;
+			  check_bitwise_real = [&](const PExpr*expr) {
+				const PEBinary*binary = dynamic_cast<const PEBinary*>(expr);
+				const PEUnary*unary = dynamic_cast<const PEUnary*>(expr);
+				auto is_real = [&](const PExpr*operand) {
+				      ivl_type_t type = coverpoint_expr_type(operand);
+				      return (type ? type->base_type() : operand->expr_type())
+					    == IVL_VT_REAL;
+				};
+				if (binary) {
+				      char op = binary->get_op();
+				      if (strchr("&|^AOX", op)
+					  && (is_real(binary->get_left()) || is_real(binary->get_right()))) {
+					    cerr << expr->get_fileline() << ": error: bitwise operator may not have REAL operands." << endl;
+					    des->errors += 1;
+				      }
+				      check_bitwise_real(binary->get_left());
+				      check_bitwise_real(binary->get_right());
+				} else if (unary) {
+				      if (unary->get_op() == '~' && is_real(unary->get_expr())) {
+					    cerr << expr->get_fileline() << ": error: bitwise operator may not have REAL operands." << endl;
+					    des->errors += 1;
+				      }
+				      check_bitwise_real(unary->get_expr());
+				}
+			  };
+			  if (cp.expr) check_bitwise_real(cp.expr);
 			  ivl_type_t cp_type = coverpoint_expr_type(cp.expr);
 			  ivl_type_t declared_cp_type = cp.type
 				? cp.type->elaborate_type(des, class_scope_) : nullptr;

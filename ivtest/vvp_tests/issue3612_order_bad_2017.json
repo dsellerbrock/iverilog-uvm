@@ -1,0 +1,5 @@
+{
+  "type": "CE",
+  "source": "issue3612_order_bad.sv",
+  "iverilog-args": ["-g2017", "-s", "top"]
+}

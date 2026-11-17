@@ -4104,6 +4104,13 @@ class_item /* IEEE1800-2005: A.1.8 */
 
   | property_qualifier_opt data_type list_of_variable_decl_assignments ';'
       { pform_class_property(@2, $1, $2, $3); }
+  | property_qualifier_opt K_var K_type '(' K_this ')' list_of_variable_decl_assignments ';'
+      { PEIdent*ident = new PEIdent(perm_string::literal(THIS_TOKEN), UINT_MAX);
+	FILE_NAME(ident, @5);
+	type_reference_t*type = new type_reference_t(ident);
+	FILE_NAME(type, @3);
+	pform_class_property(@3, $1, type, $7);
+      }
   | property_qualifier_opt IDENTIFIER list_of_variable_decl_assignments ';'
       { typedef_t*type = pform_test_type_identifier(@2, $2);
 	if (type) {
@@ -5240,7 +5247,11 @@ constraint_foreach_path
 
 constraint_expression /* IEEE1800-2005 A.1.9 */
   : expression ';'
-      { $$ = $1; }
+      { for (PEBinary*bin = dynamic_cast<PEBinary*>($1);
+             bin && bin->get_op() == 'q' && !bin->is_parenthesized();
+             bin = dynamic_cast<PEBinary*>(bin->get_right()))
+              bin->mark_constraint_implication();
+        $$ = $1; }
   | K_unique '{' expression_list_proper '}' ';'
       { /* unique {...} (IEEE 1800-2017 18.5.5): pairwise-distinct
 	   values. Lowered in the constraint-IR emitter. */
@@ -5265,6 +5276,7 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
       { /* Implication onto a constraint set
 	   (IEEE 1800-2017 18.5.6 / 2023 18.5.5). */
 	PEConstraintIf*tmp = new PEConstraintIf($1, $3, nullptr);
+	tmp->mark_constraint_implication();
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
@@ -5417,6 +5429,7 @@ constraint_expression /* IEEE1800-2005 A.1.9 */
             std::list<PExpr*>*items = new std::list<PExpr*>();
             items->push_back($4);
             PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
+            tmp->mark_constraint_implication();
             FILE_NAME(tmp, @2);
             $$ = tmp;
         } else {
@@ -5459,6 +5472,7 @@ constraint_dist_consequent
             std::list<PExpr*>*items = new std::list<PExpr*>();
             items->push_back($4);
             PEConstraintIf*tmp = new PEConstraintIf($1, items, nullptr);
+            tmp->mark_constraint_implication();
             FILE_NAME(tmp, @2);
             $$ = tmp;
         } else {
@@ -7485,6 +7499,8 @@ dynamic_override_specifiers
 	      yyerror(@3, "error: Duplicate ':initial' method override specifier.");
 	if ($1 & METHOD_OVERRIDE_EXTENDS)
 	      yyerror(@3, "error: ':initial' and ':extends' are mutually exclusive method override specifiers.");
+	if ($1 & METHOD_OVERRIDE_FINAL)
+	      yyerror(@3, "error: ':initial' must precede ':final' in method override specifiers.");
 	$$ = $1 | METHOD_OVERRIDE_INITIAL;
       }
   | dynamic_override_specifiers ':' K_extends
@@ -7492,6 +7508,8 @@ dynamic_override_specifiers
 	      yyerror(@3, "error: Duplicate ':extends' method override specifier.");
 	if ($1 & METHOD_OVERRIDE_INITIAL)
 	      yyerror(@3, "error: ':initial' and ':extends' are mutually exclusive method override specifiers.");
+	if ($1 & METHOD_OVERRIDE_FINAL)
+	      yyerror(@3, "error: ':extends' must precede ':final' in method override specifiers.");
 	$$ = $1 | METHOD_OVERRIDE_EXTENDS;
       }
   | dynamic_override_specifiers ':' K_final
@@ -16329,7 +16347,9 @@ expr_primary
   /* Parenthesized expressions are primaries. */
 
   | '(' expr_mintypmax ')'
-      { $$ = $2; }
+      { if (PEBinary*bin = dynamic_cast<PEBinary*>($2))
+              bin->mark_parenthesized();
+        $$ = $2; }
 
   /* A blocking assignment may be used as an expression only when it is
      enclosed in parentheses (IEEE 1800-2017 11.3.6). Keep this in the

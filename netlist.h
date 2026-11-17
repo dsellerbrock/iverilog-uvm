@@ -6819,6 +6819,7 @@ class Design {
 	 * a process-static AST-pointer cache can suppress errors in a later
 	 * Design after the first parse/elaboration has finished. */
       bool mark_constraint_randc_diagnostic(const PExpr*expr);
+      bool mark_constraint_real_implication_warning(const PExpr*expr);
       bool mark_randc_cycle_cap_warning(const class_type_t::prop_info_t*prop,
                                         long width);
       bool mark_constraint_order_diagnostic(const PExpr*expr);
@@ -6879,6 +6880,7 @@ class Design {
       std::map<std::pair<const PExpr*,const NetScope*>,bool>
 	    struct_member_default_validations_;
       std::set<const PExpr*> constraint_randc_diagnostic_sites_;
+      std::set<const PExpr*> constraint_real_implication_warning_sites_;
       std::map<const class_type_t::prop_info_t*,std::set<long> >
             randc_cycle_cap_warning_sites_;
       std::set<const PExpr*> constraint_order_diagnostic_sites_;

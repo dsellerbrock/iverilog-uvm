@@ -29,11 +29,11 @@ class method_override_derived extends method_override_base;
     return value + 3;
   endfunction
 
-  function :final :initial int final_initial_value(input int value);
+  function :initial :final int final_initial_value(input int value);
     return value + 6;
   endfunction
 
-  function :final :extends int sealed_value(input int value);
+  function :extends :final int sealed_value(input int value);
     return value + 4;
   endfunction
 

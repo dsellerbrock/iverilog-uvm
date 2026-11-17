@@ -1,0 +1,9 @@
+./ivltests/issue3629_real_bitwise.sv:3: error: bitwise operator may not have REAL operands.
+sorry: covergroup bin 'z' has a runtime range expression that cannot be represented; the bin is dropped.
+./ivltests/issue3629_real_bitwise.sv:4: error: bitwise operator may not have REAL operands.
+sorry: covergroup bin 'z' has a runtime range expression that cannot be represented; the bin is dropped.
+./ivltests/issue3629_real_bitwise.sv:5: error: bitwise operator may not have REAL operands.
+sorry: covergroup bin 'z' has a runtime range expression that cannot be represented; the bin is dropped.
+./ivltests/issue3629_real_bitwise.sv:6: error: bitwise operator may not have REAL operands.
+./ivltests/issue3629_real_bitwise.sv:7: error: bitwise operator may not have REAL operands.
+5 error(s) during elaboration.

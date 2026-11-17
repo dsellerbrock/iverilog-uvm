@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "issue3631_paste.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-gcommercial-unsafe",
+    "-s",
+    "tb"
+  ],
+  "gold": "issue3631_paste_unsafe"
+}

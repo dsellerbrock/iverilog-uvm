@@ -24375,6 +24375,29 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    pform_sva_destroy_property(conseq);
 	    return nullptr;
       }
+	/* IEEE 1800-2017/2023 16.12.7: for |=>, "If triggered by an empty
+	   match, the start point of the evaluation of the consequent
+	   property_expr is its nearest clock tick, starting from the tick when
+	   evaluation of the sequence_expr begins", and "sequence_expr |=>
+	   property_expr is equivalent to ... sequence_expr ##1 `true |->
+	   property_expr". The |=> lowering starts every consequent one tick
+	   after the antecedent ends, which loses the obligation of an empty
+	   match. When the antecedent can match both empty and nonempty, use the
+	   equivalent |-> form, whose concatenation already gives an empty
+	   match its current-tick start. (An antecedent with only an empty
+	   match keeps its existing normalization.) */
+      if (op_type == 2 && !sva_chain_has_match_calls_(ante)) {
+	    sva_nfa_t nfa;
+	    if (pform_sva_nfa_build_from_chain(nfa, *ante)
+		&& nfa.accepts_empty && !nfa.edges.empty()) {
+		  sva_seq_step_t tail;
+		  tail.expr = sva_bit_(loc, 1);
+		  tail.delay_lo = 1;
+		  tail.delay_hi = 1;
+		  ante->push_back(tail);
+		  op_type = 1;
+	    }
+      }
       if (sva_chain_has_match_calls_(ante)
 	  || sva_property_has_match_calls_(conseq)) {
 	    sva_match_item_sorry_(loc,

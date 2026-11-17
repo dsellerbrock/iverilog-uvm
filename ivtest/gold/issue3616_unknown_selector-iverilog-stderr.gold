@@ -1,0 +1,3 @@
+ivltests/issue3616_unknown_selector.sv:8: error: Assertion control hierarchical instance select contains X or Z.
+ivltests/issue3616_unknown_selector.sv:9: error: Assertion control hierarchical instance select contains X or Z.
+2 error(s) during elaboration.

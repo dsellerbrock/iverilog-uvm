@@ -5850,7 +5850,7 @@ sv_covergroup_packed_bitwise_shape_boundary normal,-g2017,-s,test ivltests gold=
 sv_covergroup_packed_bitwise_shape_boundary_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_packed_bitwise_shape_boundary.gold
 sv_covergroup_packed_bitwise_shape_wide_unsupported normal,-g2017,-s,test ivltests gold=sv_covergroup_packed_bitwise_shape_wide_unsupported.gold
 sv_covergroup_packed_bitwise_shape_wide_unsupported_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_packed_bitwise_shape_wide_unsupported.gold
-sv_covergroup_bitwise_real_operand_unsupported_2023 normal,-g2023,-s,test ivltests gold=sv_covergroup_bitwise_real_operand_unsupported.gold
+sv_covergroup_bitwise_real_operand_unsupported_2023 CE,-g2023,-s,test ivltests gold=sv_covergroup_bitwise_real_operand_unsupported.gold
 sv_const_ref_forward normal,-g2017,-s,sv_const_ref_forward ivltests gold=sv_const_ref_forward.gold
 sv_const_ref_forward_writable_fail CE,-g2017,-s,sv_const_ref_forward_writable_fail ivltests gold=sv_const_ref_forward_writable_fail.gold
 sv_const_ref_forward_write_fail CE,-g2017,-s,sv_const_ref_forward_write_fail ivltests gold=sv_const_ref_forward_write_fail.gold
@@ -7047,3 +7047,29 @@ issue3614_cross_negation_control_2017 normal,-g2017,-s,tb,-I./ivltests ivltests 
 issue3614_cross_negation_control_2023 normal,-g2023,-s,tb,-I./ivltests ivltests gold=issue3614_cross_negation_control.gold
 issue3619_2017 normal,-g2017,-s,main ivltests gold=issue3619.gold
 issue3619_2023 normal,-g2023,-s,main ivltests gold=issue3619.gold
+issue3627_real_implication_2017 normal,-g2017,-Iivltests,-s,tb ivltests gold=issue3627_real_implication_2017.gold
+issue3627_real_implication_2023 normal,-g2023,-Iivltests,-s,tb ivltests gold=issue3627_real_implication_2023.gold
+issue3612_order_bad_2017 CE,-g2017 ivltests
+issue3612_order_bad_2023 CE,-g2023 ivltests
+issue3612_order_good_2017 CE,-g2017 ivltests
+issue3612_order_good_2023 normal,-g2023 ivltests gold=issue3612_order_good.gold
+issue3616_unknown_selector_2017 CE,-g2017,-s,top ivltests gold=issue3616_unknown_selector.gold
+issue3616_unknown_selector_2023 CE,-g2023,-s,top ivltests gold=issue3616_unknown_selector.gold
+issue3616_valid_selector_2017 normal,-g2017,-s,top ivltests gold=issue3616_valid_selector.gold
+issue3616_valid_selector_2023 normal,-g2023,-s,top ivltests gold=issue3616_valid_selector.gold
+issue3629_real_bitwise_2017 CE,-g2017,-s,test ivltests gold=issue3629_real_bitwise_2017.gold
+issue3629_real_bitwise_2023 CE,-g2023,-s,test ivltests gold=issue3629_real_bitwise_2023.gold
+issue3631_paste_strict_2017 CE,-g2017,-s,tb ivltests gold=issue3631_paste_strict.gold
+issue3631_paste_strict_2023 CE,-g2023,-s,tb ivltests gold=issue3631_paste_strict.gold
+issue3631_paste_unsafe_2017 normal,-g2017,-gcommercial-unsafe,-s,tb ivltests gold=issue3631_paste_unsafe.gold
+issue3631_paste_unsafe_2023 normal,-g2023,-gcommercial-unsafe,-s,tb ivltests gold=issue3631_paste_unsafe.gold
+issue3626_fixed_param_size_2017 CE,-g2017,-I./ivltests,-s,issue3626_fixed_param_size ivltests gold=issue3626_fixed_param_size.gold
+issue3626_fixed_param_size_2023 CE,-g2023,-I./ivltests,-s,issue3626_fixed_param_size ivltests gold=issue3626_fixed_param_size.gold
+issue3626_size_controls_2017 normal,-g2017,-I./ivltests,-s,issue3626_size_controls ivltests gold=issue3626_size_controls.gold
+issue3626_size_controls_2023 normal,-g2023,-I./ivltests,-s,issue3626_size_controls ivltests gold=issue3626_size_controls.gold
+issue3625_2017 CE,-g2017,-s,issue3625 ivltests gold=issue3625_2017.gold
+issue3625_2023 normal,-g2023,-DTEST_2023,-s,issue3625 ivltests gold=issue3625.gold
+issue3679_stream_twostate_2017 normal,-g2017,-s,test ivltests gold=issue3679_stream_twostate.gold
+issue3679_stream_twostate_2023 normal,-g2023,-s,test ivltests gold=issue3679_stream_twostate.gold
+issue2733_queue_receiver_2017 normal,-g2017,-s,issue2733_regression ivltests gold=issue2733_queue_receiver.gold
+issue2733_queue_receiver_2023 normal,-g2023,-s,issue2733_regression ivltests gold=issue2733_queue_receiver.gold
