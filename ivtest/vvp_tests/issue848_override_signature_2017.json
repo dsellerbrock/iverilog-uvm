@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue848_override_signature.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "output-contains": ["scale=30 same=5"]
+}
