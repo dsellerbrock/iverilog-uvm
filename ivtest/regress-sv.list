@@ -6914,8 +6914,6 @@ issue3249_cover_timed_call_2017 normal,-g2017,-gassertions,-s,issue3249_cover_ti
 issue3249_cover_timed_call_2023 normal,-g2023,-gassertions,-s,issue3249_cover_timed_call ivltests gold=issue3249_cover_timed_call.gold
 sva_rec_restrict_2017 CE,-g2017,-gassertions,-s,sva_rec_restrict ivltests gold=sva_rec_restrict.gold
 sva_rec_restrict_2023 CE,-g2023,-gassertions,-s,sva_rec_restrict ivltests gold=sva_rec_restrict.gold
-sva_rec_graph_2017 CE,-g2017,-gassertions,-s,sva_rec_graph ivltests gold=sva_rec_graph.gold
-sva_rec_graph_2023 CE,-g2023,-gassertions,-s,sva_rec_graph ivltests gold=sva_rec_graph.gold
 issue3225_clocking_indexed_2017 normal,-g2017,-s,issue3225_clocking_indexed ivltests gold=issue3225_clocking_indexed.gold
 issue3225_clocking_indexed_2023 normal,-g2023,-s,issue3225_clocking_indexed ivltests gold=issue3225_clocking_indexed.gold
 issue3295_signed_zero_2017 normal,-g2017,-s,issue3295_signed_zero ivltests gold=issue3295_signed_zero.gold
@@ -7081,3 +7079,7 @@ issue2452_force_2017 CE,-g2017,-s,issue2452_force ivltests gold=issue2452_force.
 issue2452_force_2023 CE,-g2023,-s,issue2452_force ivltests gold=issue2452_force.gold
 issue2452_release_2017 CE,-g2017,-s,issue2452_release ivltests gold=issue2452_release.gold
 issue2452_release_2023 CE,-g2023,-s,issue2452_release ivltests gold=issue2452_release.gold
+sva_rec_graph_2017 normal,-g2017,-s,sva_rec_graph ivltests gold=sva_rec_graph.gold
+sva_rec_graph_2023 normal,-g2023,-s,sva_rec_graph ivltests gold=sva_rec_graph.gold
+sva_rec_cross_2017 normal,-g2017,-s,sva_rec_cross ivltests gold=sva_rec_cross.gold
+sva_rec_cross_2023 normal,-g2023,-s,sva_rec_cross ivltests gold=sva_rec_cross.gold

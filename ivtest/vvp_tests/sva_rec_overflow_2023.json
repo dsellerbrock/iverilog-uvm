@@ -1,0 +1,10 @@
+{
+  "type": "RE",
+  "source": "sva_rec_overflow.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "sva_rec_overflow"
+  ],
+  "gold": "sva_rec_overflow"
+}

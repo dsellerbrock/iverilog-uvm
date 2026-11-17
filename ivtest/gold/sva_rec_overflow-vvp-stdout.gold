@@ -1,0 +1,2 @@
+ERROR: ivltests/sva_rec_overflow.sv:8: ivltests/sva_rec_overflow.sv:8: SVA: recursive property pool overflow (16 slots) -- recursive evaluations are being dropped; raise IVL_SVA_NFA_SLOTS
+       Time: 165  Scope: sva_rec_overflow
