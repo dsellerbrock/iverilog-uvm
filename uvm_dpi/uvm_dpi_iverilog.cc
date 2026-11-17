@@ -262,6 +262,12 @@ static vpiHandle uvm_ivl_hdl_lookup_sel(const char* path, uvm_ivl_hdl_sel* sel)
       r = uvm_ivl_hdl_lookup(base.c_str());
       if (r == 0)
 	    return 0;
+      // An unresolved unpacked index is not a packed select on the array.
+      int type = vpi_get(vpiType, r);
+      if (type == vpiMemory || type == vpiNetArray || type == vpiRegArray) {
+	    vpi_release_handle(r);
+	    return 0;
+      }
       sel->present = true;
       sel->msb = a;
       sel->lsb = b;

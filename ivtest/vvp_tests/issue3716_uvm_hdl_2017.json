@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3716_uvm_hdl.sv",
+  "iverilog-args": ["-g2017", "-m", "uvm_dpi"],
+  "output-contains": ["PASSED"]
+}

@@ -40,6 +40,7 @@
 # include  <cmath>
 # include  <iostream>
 # include  <climits>
+# include  <cerrno>
 
 #ifndef vpiCoverageMerge
 # define vpiCoverageMerge 754
@@ -1926,7 +1927,8 @@ static vpiHandle find_name(const char *name, vpiHandle handle)
       return rtn;
 }
 
-static vpiHandle find_indexed_name_(const string&leaf, vpiHandle scope)
+static vpiHandle find_indexed_name_(const string&leaf, vpiHandle scope,
+                                    bool&array_handled)
 {
       string base;
       const char*suffix = 0;
@@ -1944,6 +1946,30 @@ static vpiHandle find_indexed_name_(const string&leaf, vpiHandle scope)
       if (!suffix || *suffix != '[' || base.empty()) return 0;
       vpiHandle obj = find_name(base.c_str(), scope);
       if (!obj) return 0;
+      __vpiArray*array = dynamic_cast<__vpiArray*>(obj);
+      if (array && array->unpacked_ranges.size() > 1) {
+            // Multidimensional storage is flattened in canonical numeric-low
+            // order. Consume every unpacked index before selecting a word.
+            array_handled = true;
+            uint64_t offset = 0;
+            for (const auto&range : array->unpacked_ranges) {
+                  if (*suffix++ != '[') return 0;
+                  char*end = 0;
+                  errno = 0;
+                  long index = strtol(suffix, &end, 10);
+                  if (errno == ERANGE || end == suffix || *end != ']' ||
+                      index < INT_MIN || index > INT_MAX) return 0;
+                  int64_t low = std::min(range.left, range.right);
+                  int64_t high = std::max(range.left, range.right);
+                  if (index < low || index > high) return 0;
+                  offset = offset * (high - low + 1) + (index - low);
+                  if (offset >= array->get_size()) return 0;
+                  suffix = end + 1;
+            }
+            if (offset > INT_MAX) return 0;
+            obj = array->get_iter_index(0, static_cast<int>(offset));
+            if (!obj) return 0;
+      }
       while (*suffix) {
             if (*suffix++ != '[') return 0;
             char*end = 0;
@@ -2234,8 +2260,9 @@ vpiHandle vpi_handle_by_name(const char *name, vpiHandle scope)
 	    && indexed_leaf[escaped_end + 1] == '[';
       // Resolve array words by their parent and index first. A literal-name
       // search walks every word of the memory before reaching mem[index].
-      vpiHandle out = find_indexed_name_(indexed_leaf, hand);
-	if (out == 0 && !escaped_indexed)
+      bool array_handled = false;
+      vpiHandle out = find_indexed_name_(indexed_leaf, hand, array_handled);
+	if (out == 0 && !escaped_indexed && !array_handled)
 	    out = find_name(nm_base, hand);
 
 	/* A label on an assertion has both its procedural named-block scope
