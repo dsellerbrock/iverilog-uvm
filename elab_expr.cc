@@ -22935,18 +22935,9 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
       ivl_type_t par_type = search_results.type;
       perm_string method_name = search_results.path_tail.back().name;
 
-	/* An array parameter's declared `type' is its ELEMENT type: see
-	 * PEIdent::elaborate_expr_param_array_, which reads the unpacked
-	 * bounds out of the scope precisely because the type does not carry
-	 * them. A query method on the ARRAY therefore arrives here typed as
-	 * the element, so `parameter string LEAFS[]' sends LEAFS.size() into
-	 * the string-method branch below and is rejected for not being a
-	 * constant string -- dispatching the array's own method against one
-	 * of its elements. Answer it from the recorded bounds instead; the
-	 * element count is known at elaboration.
-	 *
-	 * Only an UNINDEXED receiver is the array. `LEAFS[1].len()' keeps its
-	 * existing element-method behaviour. */
+	/* Array parameters carry the element type and evaluated bounds here.
+	 * An unsized declared dimension is dynamic even after its initial size
+	 * has been inferred; fixed unpacked arrays have no size() method. */
       if (search_results.scope
 	  && !search_results.path_head.empty()
 	  && search_results.path_head.back().index.empty()
@@ -22955,15 +22946,21 @@ NetExpr* PECallFunction::elaborate_expr_method_par_(Design*des, NetScope*scope,
 	    std::map<perm_string,NetScope::param_expr_t>::const_iterator pit =
 		  search_results.scope->parameters.find(par_name);
 	    if (pit != search_results.scope->parameters.end()
-		&& pit->second.array_bounds_known) {
-		  if (!check_string_method_arity_(des, method_name))
-			return 0;
-		  uint64_t count = 1;
-		  for (size_t k = 0 ; k < pit->second.array_dims.size() ; k += 1)
-			count *= pit->second.array_dims[k].width();
-		  NetEConst*res = new NetEConst(verinum(count, 32));
-		  res->set_line(*this);
-		  return res;
+		&& pit->second.array_bounds_known
+		&& !pit->second.is_assoc_param) {
+		  if (pit->second.udims && pit->second.udims->size() == 1
+		      && !pit->second.udims->front().first) {
+			if (!check_string_method_arity_(des, method_name))
+			      return 0;
+			NetEConst*res = new NetEConst(verinum(
+			      uint64_t(pit->second.array_dims[0].width()), 32));
+			res->set_line(*this);
+			return res;
+		  }
+		  cerr << get_fileline() << ": error: Fixed-size array parameter `"
+		       << par_name << "' has no method size()." << endl;
+		  des->errors += 1;
+		  return 0;
 	    }
       }
 

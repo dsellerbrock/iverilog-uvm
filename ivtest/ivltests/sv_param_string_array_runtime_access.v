@@ -46,12 +46,12 @@ module main;
   endtask
 
   initial begin
-    // .size() on the array itself, for string AND integral elements, and for
-    // a sized declaration as well as an inferred one.
+    // Dynamic array size() for string and integral elements, and $size for
+    // the fixed-size declaration.
     chk("LEAFS.size", LEAFS.size(), 3);
     chk("ONE.size",   ONE.size(),   1);
     chk("NUMS.size",  NUMS.size(),  4);
-    chk("DESC.size",  DESC.size(),  2);
+    chk("DESC.size",  $size(DESC),  2);
 
     // The OpenTitan shape: a variable index inside a concatenation, bounded
     // by .size(). Values are checked, not merely compilation.

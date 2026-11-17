@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3626_size_controls.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue3626_size_controls"
+  ],
+  "gold": "issue3626_size_controls"
+}
