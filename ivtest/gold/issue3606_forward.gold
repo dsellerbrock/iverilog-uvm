@@ -1,0 +1,2 @@
+ivltests/issue3606_forward.sv:2: error: Parameterized class `C' requires an explicit #(...) specialization before ::.
+1 error(s) during elaboration.
