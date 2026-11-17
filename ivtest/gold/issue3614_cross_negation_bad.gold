@@ -1,0 +1,2 @@
+./ivltests/issue3614_cross_negation_bad.sv:7: syntax error
+./ivltests/issue3614_cross_negation_bad.sv:7: sorry: unsupported cross body item was ignored.

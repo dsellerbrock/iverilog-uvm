@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "issue3614_cross_negation_bad.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "tb"
+  ],
+  "gold": "issue3614_cross_negation_bad"
+}
