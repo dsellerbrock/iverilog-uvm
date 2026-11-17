@@ -1,2 +1,0 @@
-ivltests/issue3606_unused.sv:5: error: Parameterized class `C' requires an explicit #(...) specialization before ::.
-1 error(s) during elaboration.

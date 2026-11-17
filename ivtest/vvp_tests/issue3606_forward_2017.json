@@ -1,1 +1,0 @@
-{"type":"CE","source":"issue3606_forward.sv","iverilog-args":["-g2017","-s","top"],"gold":"issue3606_forward"}

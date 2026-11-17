@@ -1,2 +1,4 @@
-ivltests/issue3606_bad.sv:5: error: Parameterized class `C' requires an explicit #(...) specialization before ::.
-1 error(s) during elaboration.
+./ivltests/issue3606_bad.v:2: error: Parameterized class `Forward' requires an explicit #(...) specialization before ::.
+./ivltests/issue3606_bad.v:10: error: Parameterized class `C' requires an explicit #(...) specialization before ::.
+./ivltests/issue3606_bad.v:11: error: Parameterized class `C' requires an explicit #(...) specialization before ::.
+3 error(s) during elaboration.
