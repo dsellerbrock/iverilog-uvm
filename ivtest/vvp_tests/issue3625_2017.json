@@ -1,0 +1,1 @@
+{"type":"CE","source":"issue3625.sv","iverilog-args":["-g2017","-s","issue3625"],"gold":"issue3625_2017"}

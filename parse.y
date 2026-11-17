@@ -4104,6 +4104,13 @@ class_item /* IEEE1800-2005: A.1.8 */
 
   | property_qualifier_opt data_type list_of_variable_decl_assignments ';'
       { pform_class_property(@2, $1, $2, $3); }
+  | property_qualifier_opt K_var K_type '(' K_this ')' list_of_variable_decl_assignments ';'
+      { PEIdent*ident = new PEIdent(perm_string::literal(THIS_TOKEN), UINT_MAX);
+	FILE_NAME(ident, @5);
+	type_reference_t*type = new type_reference_t(ident);
+	FILE_NAME(type, @3);
+	pform_class_property(@3, $1, type, $7);
+      }
   | property_qualifier_opt IDENTIFIER list_of_variable_decl_assignments ';'
       { typedef_t*type = pform_test_type_identifier(@2, $2);
 	if (type) {
