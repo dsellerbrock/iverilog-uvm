@@ -104,6 +104,7 @@ static PExpr* make_queue_last_placeholder_(const struct vlltype&loc)
       name.push_back(name_component_t(lex_strings.make("size")));
       std::vector<named_pexpr_t> no_args;
       PECallFunction*size_call = new PECallFunction(name, no_args);
+      size_call->mark_queue_dollar();
       FILE_NAME(static_cast<LineInfo*>(size_call), loc);
       PENumber*one = new PENumber(new verinum((uint64_t)1, integer_width));
       FILE_NAME(one, loc);

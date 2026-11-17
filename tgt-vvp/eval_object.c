@@ -3132,10 +3132,13 @@ static int eval_object_sfunc(ivl_expr_t expr)
       if (strcmp(name, "$ivl_container_cast") == 0)
 	    return draw_eval_explicit_container_cast(expr);
 
-      /* The frontend lowers a queue `$' object-element read to this
-       * one-argument marker. Evaluate the receiver once, retain an alias for
-       * the eventual element load while %qsize/o consumes its duplicate, then
-       * load element size-1 through the ordinary object-container opcode. */
+      if (strcmp(name, "$ivl_queue$captured_select") == 0) {
+	    draw_captured_queue_index_(expr);
+	    fprintf(vvp_out, "    %%load/qo/obj;\n");
+	    return 0;
+      }
+      /* The one-argument queue-last marker retains the receiver once while
+       * computing its last index and loading the selected object. */
       if (strcmp(name, "$ivl_queue$last") == 0) {
 	    assert(parm_count == 1);
 	    draw_eval_object(ivl_expr_parm(expr, 0));
@@ -4980,7 +4983,8 @@ int draw_eval_object_value_copy(ivl_expr_t ex, ivl_type_t element_type)
        * selected through q[$], while leaving class-handle elements shared. */
       if (rvt == IVL_EX_SFUNC) {
 	    const char*name = ivl_expr_name(ex);
-	    if (name && strcmp(name, "$ivl_queue$last") == 0)
+	    if (name && (strcmp(name, "$ivl_queue$last") == 0
+			 || strcmp(name, "$ivl_queue$captured_select") == 0))
 		  rval_aliases = 1;
       }
 

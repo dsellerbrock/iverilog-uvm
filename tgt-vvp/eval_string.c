@@ -568,6 +568,10 @@ void draw_eval_string(ivl_expr_t expr)
 	  case IVL_EX_SFUNC:
 	    if (strcmp(ivl_expr_name(expr), "$ivl_string_method$substr") == 0)
 		  string_ex_substr(expr);
+	    else if (strcmp(ivl_expr_name(expr), "$ivl_queue$captured_select") == 0) {
+		  draw_captured_queue_index_(expr);
+		  fprintf(vvp_out, "    %%load/qo/str;\n");
+	    }
 	    else if (strcmp(ivl_expr_name(expr), "$ivl_queue$last") == 0) {
 		  assert(ivl_expr_parms(expr) == 1);
 		  draw_eval_object(ivl_expr_parm(expr, 0));

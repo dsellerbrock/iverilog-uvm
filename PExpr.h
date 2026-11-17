@@ -1581,6 +1581,9 @@ class PECallFunction : public PExpr {
             { receiver_ = receiver;
               path_.name.clear();
               path_.name.push_back(name_component_t(method)); }
+      void mark_queue_dollar() { queue_dollar_ = true; }
+      bool is_queue_dollar() const { return queue_dollar_; }
+      void capture_queue_dollar(bool flag) { capture_queue_dollar_ = flag; }
       unsigned lexical_pos() const { return lexical_pos_; }
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }
@@ -1652,6 +1655,8 @@ class PECallFunction : public PExpr {
       bool sampled_explicit_clock() const { return sampled_explicit_clock_; }
 
     private:
+      bool queue_dollar_ = false;
+      bool capture_queue_dollar_ = false;
       PExpr*sampled_subst_ = nullptr;
       bool concurrent_assertion_expr_ = false;
       bool sampled_default_clock_ = false;

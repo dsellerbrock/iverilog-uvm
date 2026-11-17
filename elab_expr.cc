@@ -17299,6 +17299,44 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
       }
 
       const index_component_t&idx_comp = comp.index.front();
+      /* The parser marks its synthesized size() for `$'. Only capture the
+       * exact `$ - expression' shape here; other expressions keep their
+       * existing elaboration path. */
+      if (idx_comp.sel == index_component_t::SEL_BIT) {
+	    const netqueue_t*queue = dynamic_cast<const netqueue_t*>(prop_type);
+	    PEBinary*subtract = dynamic_cast<PEBinary*>(idx_comp.msb);
+	    PEBinary*last = subtract && subtract->get_op() == '-'
+		  ? dynamic_cast<PEBinary*>(subtract->get_left()) : nullptr;
+	    PECallFunction*size = last && last->get_op() == '-'
+		  ? dynamic_cast<PECallFunction*>(last->get_left()) : nullptr;
+	    if (queue && !queue->assoc_compat() && size && size->is_queue_dollar()) {
+		  if (!queue->element_type()) {
+			cerr << li->get_fileline() << ": error: queue element type is unavailable." << endl;
+			des->errors += 1;
+			delete prop_expr;
+			return nullptr;
+		  }
+		  size->capture_queue_dollar(true);
+		  NetExpr*index = elab_assoc_index(des, scope, idx_comp.msb,
+						    prop_type, false);
+		  size->capture_queue_dollar(false);
+		  if (!index) {
+			delete prop_expr;
+			return nullptr;
+		  }
+		  NetESFunc*cur = new NetESFunc("$ivl_queue$captured_select",
+						 queue->element_type(), 2);
+		  cur->set_line(*li);
+		  cur->parm(0, prop_expr);
+		  cur->parm(1, index);
+		  list<index_component_t>::const_iterator idx_it = comp.index.begin();
+		  ++idx_it;
+		  list<index_component_t>trailing_indices(idx_it, comp.index.cend());
+		  return apply_trailing_container_indices_(
+			*li, des, scope, cur, queue->element_type(), trailing_indices,
+			out_type);
+	    }
+      }
       NetExpr*idx_expr = nullptr;
       if (idx_comp.sel == index_component_t::SEL_BIT_LAST) {
             idx_expr = make_last_array_index_expr_(*li, prop_expr->dup_expr(), prop_type);
@@ -19197,6 +19235,12 @@ static bool constant_function_declaration_is_legal_(
 NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 					unsigned expr_wid, unsigned flags) const
 {
+      if (capture_queue_dollar_) {
+	    NetESFunc*size = new NetESFunc("$ivl_queue$captured_size",
+					 &netvector_t::atom2s32, 0);
+	    size->set_line(*this);
+	    return pad_to_width(size, expr_wid, signed_flag_, *this);
+      }
       if (unbound_queue_last_(receiver_, path_))
 	    return report_unbound_queue_last_(this, des);
       if (!receiver_ && peek_tail_name(path_) == "$ivl_const_cast"

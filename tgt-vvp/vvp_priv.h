@@ -22,6 +22,7 @@
 # include  "vvp_config.h"
 # include  "ivl_target.h"
 # include  <inttypes.h>
+# include  <assert.h>
 # include  <limits.h>
 # include  <stdio.h>
 # include  <string.h>
@@ -1083,6 +1084,15 @@ static inline void emit_object_queue_store_(char mode, const char*kind,
       } else {
             fprintf(vvp_out, "    %%store/qo/%c/%s;\n", mode, kind);
       }
+}
+
+/* Retain the selected queue while evaluating its index. A captured-size
+ * leaf in the index consumes only a duplicate of this object reference. */
+static inline void draw_captured_queue_index_(ivl_expr_t expr)
+{
+      assert(ivl_expr_parms(expr) == 2);
+      draw_eval_object(ivl_expr_parm(expr, 0));
+      draw_eval_expr_into_integer(ivl_expr_parm(expr, 1), 3);
 }
 
 static inline int property_is_object_expr_(ivl_expr_t expr)

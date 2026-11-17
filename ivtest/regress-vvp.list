@@ -7839,3 +7839,5 @@ issue3606_bad_2017 vvp_tests/issue3606_bad_2017.json
 issue3606_legal_2017 vvp_tests/issue3606_legal_2017.json
 issue3606_bad_2023 vvp_tests/issue3606_bad_2023.json
 issue3606_legal_2023 vvp_tests/issue3606_legal_2023.json
+issue2733_offset_2017	vvp_tests/issue2733_offset_2017.json
+issue2733_offset_2023	vvp_tests/issue2733_offset_2023.json

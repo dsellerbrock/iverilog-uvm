@@ -1934,6 +1934,14 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
             return;
       }
 
+	/* This internal zero-argument leaf reads the captured object stack. */
+      if (strcmp(ivl_expr_name(expr), "$ivl_queue$captured_size") == 0) {
+	    assert(parm_count == 0);
+	    fprintf(vvp_out, "    %%dup/obj/ref; captured queue size\n");
+	    fprintf(vvp_out, "    %%qsize/o;\n");
+	    return;
+      }
+
 	/* Special case: If there are no arguments to print, then the
 	   %vpi_call statement is easy to draw. */
       if (parm_count == 0) {
@@ -1953,6 +1961,13 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
       }
       if (strcmp(ivl_expr_name(expr),"$ivl_queue_method$pop_front")==0) {
 	    draw_darray_pop(expr);
+	    return;
+      }
+      if (strcmp(ivl_expr_name(expr), "$ivl_queue$captured_select") == 0) {
+	    draw_captured_queue_index_(expr);
+	    fprintf(vvp_out, "    %%load/qo/v %u;\n", ivl_expr_width(expr));
+	    if (ivl_expr_value(expr) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
 	    return;
       }
       if (strcmp(ivl_expr_name(expr), "$ivl_queue$last") == 0) {

@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2733_offset.sv",
+    "iverilog-args": [ "-g2023", "-s", "issue2733_offset_all" ],
+    "gold": "issue2733_offset"
+}
