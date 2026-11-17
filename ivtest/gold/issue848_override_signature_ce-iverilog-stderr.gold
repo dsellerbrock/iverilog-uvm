@@ -1,0 +1,6 @@
+ivltests/issue848_override_signature_ce.sv:17: error: override of virtual method `f_dflt' argument 1 `a' has no default, but the prototype's does (IEEE 1800-2017/2023 8.20).
+ivltests/issue848_override_signature_ce.sv:16: error: override of virtual method `f_dir' argument 1 `a' has a different direction than the prototype (IEEE 1800-2017/2023 8.20).
+ivltests/issue848_override_signature_ce.sv:15: error: override of virtual method `f_name' argument 1 is named `b', but the prototype names it `a' (IEEE 1800-2017/2023 8.20).
+ivltests/issue848_override_signature_ce.sv:19: error: override of virtual method `f_ret' returns a type that is neither a matching type nor a class derived from the prototype's return type (IEEE 1800-2017/2023 8.20).
+ivltests/issue848_override_signature_ce.sv:18: error: override of virtual method `f_type' argument `a' does not have a matching type (IEEE 1800-2017/2023 8.20).
+5 error(s) during elaboration.

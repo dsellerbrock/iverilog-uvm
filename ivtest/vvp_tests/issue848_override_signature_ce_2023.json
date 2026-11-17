@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue848_override_signature_ce.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue848_override_signature_ce"
+}
