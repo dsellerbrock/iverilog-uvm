@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1568_default_warning.sv",
+  "iverilog-args": ["-g2023", "-gspecify", "-ginterconnect", "-s", "tb"],
+  "gold": "issue1568_default_warning"
+}
