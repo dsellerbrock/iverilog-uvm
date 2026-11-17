@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3613_slice_queue_fail.sv",
+  "iverilog-args": ["-g2023", "-s", "main"],
+  "gold": "issue3613_slice_queue_fail"
+}

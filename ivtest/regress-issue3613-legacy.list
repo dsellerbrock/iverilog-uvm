@@ -1,0 +1,4 @@
+issue3613_slice_queue_2017 normal,-g2017,-s,main ivltests gold=issue3613_slice_queue.gold
+issue3613_slice_queue_2023 normal,-g2023,-s,main ivltests gold=issue3613_slice_queue.gold
+issue3613_slice_queue_fail_2017 CE,-g2017,-s,main ivltests gold=issue3613_slice_queue_fail.gold
+issue3613_slice_queue_fail_2023 CE,-g2023,-s,main ivltests gold=issue3613_slice_queue_fail.gold
