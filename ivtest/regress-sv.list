@@ -7020,3 +7020,5 @@ issue3542_interface_path_2017 normal,-g2017,-gspecify,-s,top ivltests gold=issue
 issue3542_interface_path_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue3542_interface_path.gold
 issue1564_default_source_warning_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1564_default_source_warning.gold
 issue1564_default_source_warning_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1564_default_source_warning.gold
+issue1568_default_warning_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1568_default_warning.gold
+issue1568_default_warning_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1568_default_warning.gold
