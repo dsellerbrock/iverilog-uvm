@@ -37375,9 +37375,9 @@ struct sva_rec_pool_t {
       }
 };
 
-/* The recursive property a sequence step instantiates, if any. */
-static bool sva_rec_step_target_(const sva_seq_step_t&st, perm_string&nm,
-				 const std::vector<named_pexpr_t>**args)
+/* The property a whole sequence step names, if the step has that shape. */
+static bool sva_inst_step_name_(const sva_seq_step_t&st, perm_string&nm,
+				const std::vector<named_pexpr_t>**args)
 {
       if (args) *args = nullptr;
       if (st.delay_lo != 0 || st.delay_hi != 0 || st.rep_kind || st.rep_tail
@@ -37388,16 +37388,23 @@ static bool sva_rec_step_target_(const sva_seq_step_t&st, perm_string&nm,
 		|| !id->path().name.front().index.empty())
 		  return false;
 	    nm = id->path().name.front().name;
-      } else if (const PECallFunction*c =
-		       dynamic_cast<const PECallFunction*>(st.expr)) {
+	    return true;
+      }
+      if (const PECallFunction*c = dynamic_cast<const PECallFunction*>(st.expr)) {
 	    if (c->path().package || c->path().name.size() != 1)
 		  return false;
 	    nm = c->path().name.front().name;
 	    if (args) *args = &c->get_parms();
-      } else {
-	    return false;
+	    return true;
       }
-      return sva_rec_is_recursive_(nm);
+      return false;
+}
+
+/* The recursive property a sequence step instantiates, if any. */
+static bool sva_rec_step_target_(const sva_seq_step_t&st, perm_string&nm,
+				 const std::vector<named_pexpr_t>**args)
+{
+      return sva_inst_step_name_(st, nm, args) && sva_rec_is_recursive_(nm);
 }
 
 static bool sva_rec_single_call_(const std::vector<sva_seq_step_t>*steps)
@@ -37407,17 +37414,64 @@ static bool sva_rec_single_call_(const std::vector<sva_seq_step_t>*steps)
 	  && sva_rec_step_target_((*steps)[0], nm, nullptr);
 }
 
-/* Mark every instance of a recursive property as a CALL operand. A plain
-   implication whose consequent is one becomes the composite implication,
-   so the consequent can be a pool level. True when the property now has a
-   CALL operand anywhere. */
-static bool sva_rec_mark_calls_(sva_property_t*p)
+/* IEEE 1800-2023 16.12: an instance of a non-recursive property whose body
+   is itself a property operator, as an operand of another property
+   operator: the body with its actuals bound. nullptr when the step is not
+   such an instance, or the body needs a path of its own (disable iff,
+   its own clock, local variables). */
+static sva_property_t* sva_inst_expand_(const struct vlltype&loc,
+					const sva_seq_step_t&st)
+{
+      perm_string nm;
+      const std::vector<named_pexpr_t>*args;
+      if (!sva_inst_step_name_(st, nm, &args) || sva_rec_is_recursive_(nm))
+	    return nullptr;
+      sva_scoped_name_t key;
+      std::map<sva_scoped_name_t, sva_property_t*>::iterator a =
+	    sva_resolve_(sva_module_properties, nm);
+      std::map<sva_scoped_name_t, sva_param_prop_t>::iterator b =
+	    sva_resolve_(sva_param_properties, nm);
+      if (a != sva_module_properties.end() && a->second) key = a->first;
+      else if (b != sva_param_properties.end() && b->second.body) key = b->first;
+      else return nullptr;
+      const std::vector<sva_property_formal_t>*formals;
+      const sva_property_t*body = sva_rec_body_(key, &formals);
+      if (!body || !body->pa || body->disable_iff_expr || body->clk_evt
+	  || body->seq_clk_evt || !body->local_names.empty())
+	    return nullptr;
+      size_t nf = formals ? formals->size() : 0;
+      size_t na = args ? args->size() : 0;
+      if (na > nf) return nullptr;
+      std::map<perm_string,PExpr*> subst;
+      for (size_t j = 0 ; j < nf ; j += 1) {
+	    const sva_property_formal_t&f = (*formals)[j];
+	    if (f.local_formal) return nullptr;
+	    PExpr*act = nullptr;
+	    for (size_t i = 0 ; i < na ; i += 1) {
+		  const named_pexpr_t&x = (*args)[i];
+		  if (x.name.nil() ? i == j : x.name == f.name) act = x.parm;
+	    }
+	    if (!act) act = f.default_expr;
+	    if (!act) return nullptr;
+	    subst[f.name] = act;
+      }
+      return sva_clone_property_(loc, body, &subst);
+}
+
+/* Mark every instance of a recursive property as a CALL operand, and
+   expand every operand that instantiates a property whose body is a
+   property operator. A plain implication whose consequent is either
+   becomes the composite implication. A whole-assertion instance (root)
+   is left to the assertion's own expansion. True when the property
+   changed shape (it now needs the composite engine). */
+static bool sva_rec_mark_calls_(const struct vlltype&loc, sva_property_t*&p,
+				bool root)
 {
       if (!p) return false;
       if (p->op_type == 28) return true;
       if (p->pa) {
-	    bool a = sva_rec_mark_calls_(p->pa);
-	    bool b = sva_rec_mark_calls_(p->pb);
+	    bool a = sva_rec_mark_calls_(loc, p->pa, false);
+	    bool b = sva_rec_mark_calls_(loc, p->pb, false);
 	    return a || b;
       }
       if (p->mc_prefix || p->seq_clk_evt || p->mc_boundary != -1)
@@ -37431,36 +37485,58 @@ static bool sva_rec_mark_calls_(sva_property_t*p)
       } else if (p->tree) {
 	    return false;
       }
-      if (!sva_rec_single_call_(cons)) return false;
+      if (!cons || cons->size() != 1) return false;
+      bool leaf = p->op_type == 0 && !p->antecedent && !p->ante_tree;
+      bool impl = (p->op_type == 1 || p->op_type == 2)
+		&& (p->antecedent || p->ante_tree) && !p->forbidden_consequent;
+      if (!leaf && !impl) return false;
+      bool call = sva_rec_single_call_(cons);
+      sva_property_t*expanded = nullptr;
+      if (!call && !(leaf && root)) {
+	    expanded = sva_inst_expand_(loc, (*cons)[0]);
+	    if (!expanded) return false;
+      } else if (!call) {
+	    return false;
+      }
       if (from_tree) {
 	    p->tree->chain = nullptr;
 	    sva_tree_delete_(p->tree, false);
 	    p->tree = nullptr;
 	    p->seq = cons;
       }
-      if (p->op_type == 0 && !p->antecedent && !p->ante_tree) {
-	    p->op_type = 28;
+      if (leaf) {
+	    if (call) {
+		  p->op_type = 28;
+		  return true;
+	    }
+	    expanded->local_names = p->local_names;
+	    pform_sva_destroy_property(p);
+	    p = expanded;
+	    sva_rec_mark_calls_(loc, p, false);
 	    return true;
       }
-      if ((p->op_type == 1 || p->op_type == 2)
-	  && (p->antecedent || p->ante_tree) && !p->forbidden_consequent) {
-	    sva_property_t*ante = new sva_property_t;
-	    ante->seq = p->antecedent;
-	    ante->tree = p->ante_tree;
-	    ante->local_names = p->local_names;
-	    sva_property_t*call = new sva_property_t;
-	    call->seq = p->seq;
-	    call->op_type = 28;
-	    call->local_names = p->local_names;
-	    p->antecedent = nullptr;
-	    p->ante_tree = nullptr;
-	    p->seq = nullptr;
-	    p->op_type = (p->op_type == 1) ? 23 : 24;
-	    p->pa = ante;
-	    p->pb = call;
-	    return true;
+      sva_property_t*ante = new sva_property_t;
+      ante->seq = p->antecedent;
+      ante->tree = p->ante_tree;
+      ante->local_names = p->local_names;
+      sva_property_t*conseq;
+      if (call) {
+	    conseq = new sva_property_t;
+	    conseq->seq = p->seq;
+	    conseq->op_type = 28;
+      } else {
+	    pform_sva_destroy_sequence(p->seq);
+	    conseq = expanded;
+	    sva_rec_mark_calls_(loc, conseq, false);
       }
-      return false;
+      conseq->local_names = p->local_names;
+      p->antecedent = nullptr;
+      p->ante_tree = nullptr;
+      p->seq = nullptr;
+      p->op_type = (p->op_type == 1) ? 23 : 24;
+      p->pa = ante;
+      p->pb = conseq;
+      return true;
 }
 
 static bool sva_rec_has_call_(const sva_property_t*p)
@@ -37679,12 +37755,12 @@ static sva_property_t* sva_rec_instance_body_(const struct vlltype&loc,
 	    delete b->clk_evt;
 	    b->clk_evt = nullptr;
       }
-      sva_rec_mark_calls_(b);
+      sva_rec_mark_calls_(loc, b, false);
       if (!sva_comp_expand_refs_(loc, b)) {
 	    pform_sva_destroy_property(b);
 	    return nullptr;
       }
-      sva_rec_mark_calls_(b);
+      sva_rec_mark_calls_(loc, b, false);
       return b;
 }
 
@@ -38235,9 +38311,9 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    return;
       }
       bool split_ok = true;
-      sva_rec_mark_calls_(prop);
+      sva_rec_mark_calls_(loc, prop, true);
       if (sva_comp_expand_refs_(loc, prop)) {
-	    sva_rec_mark_calls_(prop);
+	    sva_rec_mark_calls_(loc, prop, true);
 	    prop = sva_comp_split_multiclock_(loc, prop, split_ok);
       } else {
 	    split_ok = false;
@@ -39474,7 +39550,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       }
 	/* IEEE 1800-2023 16.12.17: an instance of a recursive property is
 	   evaluated by the composite's recursion pool. */
-      if (!sva_sub_request_ && prop && sva_rec_mark_calls_(prop)) {
+      if (!sva_sub_request_ && prop && sva_rec_mark_calls_(loc, prop, true)) {
 	    pform_make_composite_assertion_(loc, prop, fail_stmt, pass_stmt,
 					    kind);
 	    return;

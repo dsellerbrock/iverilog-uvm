@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sva_prop_nested_inst.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_prop_nested_inst"],
+  "gold": "sva_prop_nested_inst"
+}
