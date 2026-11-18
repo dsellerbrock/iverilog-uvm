@@ -497,6 +497,10 @@ static void draw_sfunc_real(ivl_expr_t expr)
        * value of the raw signal (IEEE 1800-2017 16.5.1). The vec4 form of
        * this lives in eval_vec4.c; a real operand needs the real-valued
        * load, because there is no bit width to push. */
+      if (strcmp(ivl_expr_name(expr), "$ivl_sampled_read") == 0) {
+	    draw_sampled_load(ivl_expr_parm(expr, 0));
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr), "$ivl_clocking_sample") == 0) {
 	    ivl_expr_t arg = (ivl_expr_parms(expr) > 0)
 			      ? ivl_expr_parm(expr, 0) : 0;

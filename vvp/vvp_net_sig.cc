@@ -3401,7 +3401,7 @@ void vvp_wire_vec4::hist_snapshot_()
       if (!hist_enabled_) return;
       vvp_time64_t now = schedule_simtime();
       if (hist_valid_ && hist_time_ == now) return;
-      hist_prev_ = bits4_;
+      vec4_value(hist_prev_);
       hist_time_ = now;
       hist_valid_ = true;
 }
@@ -3510,6 +3510,7 @@ unsigned vvp_wire_vec4::filter_size() const
 
 void vvp_wire_vec4::force_fil_vec4(const vvp_vector4_t&val, const vvp_vector2_t&mask)
 {
+      hist_snapshot_();
       force_mask(mask);
 
       if (force4_.size() == 0) {
@@ -3537,6 +3538,7 @@ void vvp_wire_vec4::force_fil_real(double, const vvp_vector2_t&)
 
 void vvp_wire_vec4::release(vvp_net_ptr_t ptr, bool net_flag)
 {
+      hist_snapshot_();
       vvp_vector2_t mask (vvp_vector2_t::FILL1, bits4_.size());
       if (net_flag) {
 	      // Wires revert to their unforced value after release.
@@ -3558,6 +3560,7 @@ void vvp_wire_vec4::release_pv(vvp_net_ptr_t ptr, unsigned base, unsigned wid, b
 {
       assert(bits4_.size() >= base + wid);
 
+      hist_snapshot_();
       vvp_vector2_t mask (vvp_vector2_t::FILL0, bits4_.size());
       for (unsigned idx = 0 ; idx < wid ; idx += 1)
 	    mask.set_bit(base+idx, 1);
@@ -3640,16 +3643,13 @@ vvp_wire_vec8::vvp_wire_vec8(unsigned wid)
 {
 }
 
-/* Preserve strength as well as logic while recording the driven value at
-   the start of the current time step. Force state is intentionally excluded,
-   matching vvp_wire_vec4: Preponed sampling observes the underlying driven
-   value, not a transient force overlay. */
+/* Record the visible value (including forces) at the start of the slot. */
 void vvp_wire_vec8::hist_snapshot_()
 {
       if (!hist_enabled_) return;
       vvp_time64_t now = schedule_simtime();
       if (hist_valid_ && hist_time_ == now) return;
-      hist_prev_ = bits8_;
+      hist_prev_ = vec8_value();
       hist_time_ = now;
       hist_valid_ = true;
 }
@@ -3747,6 +3747,7 @@ void vvp_wire_vec8::force_fil_vec4(const vvp_vector4_t&val, const vvp_vector2_t&
 
 void vvp_wire_vec8::force_fil_vec8(const vvp_vector8_t&val, const vvp_vector2_t&mask)
 {
+      hist_snapshot_();
       force_mask(mask);
 
       if (force8_.size() == 0) {
@@ -3769,6 +3770,7 @@ void vvp_wire_vec8::force_fil_real(double, const vvp_vector2_t&)
 
 void vvp_wire_vec8::release(vvp_net_ptr_t ptr, bool net_flag)
 {
+      hist_snapshot_();
 	// Wires revert to their unforced value after release.
       vvp_vector2_t mask (vvp_vector2_t::FILL1, bits8_.size());
       release_mask(mask);
@@ -3788,6 +3790,7 @@ void vvp_wire_vec8::release_pv(vvp_net_ptr_t ptr, unsigned base, unsigned wid, b
 {
       assert(bits8_.size() >= base + wid);
 
+      hist_snapshot_();
       vvp_vector2_t mask (vvp_vector2_t::FILL0, bits8_.size());
       for (unsigned idx = 0 ; idx < wid ; idx += 1)
 	    mask.set_bit(base+idx, 1);
@@ -3869,7 +3872,7 @@ void vvp_wire_real::hist_snapshot_()
       if (!hist_enabled_) return;
       vvp_time64_t now = schedule_simtime();
       if (hist_valid_ && hist_time_ == now) return;
-      hist_prev_ = bit_;
+      hist_prev_ = real_value();
       hist_time_ = now;
       hist_valid_ = true;
 }
@@ -3908,6 +3911,7 @@ void vvp_wire_real::force_fil_vec8(const vvp_vector8_t&, const vvp_vector2_t&)
 
 void vvp_wire_real::force_fil_real(double val, const vvp_vector2_t&mask)
 {
+      hist_snapshot_();
       force_mask(mask);
       if (mask.value(0))
 	    force_ = val;
@@ -3917,6 +3921,7 @@ void vvp_wire_real::force_fil_real(double val, const vvp_vector2_t&mask)
 
 void vvp_wire_real::release(vvp_net_ptr_t ptr, bool net_flag)
 {
+      hist_snapshot_();
       vvp_vector2_t mask (vvp_vector2_t::FILL1, 1);
       if (net_flag) {
 	      // Wires revert to their unforced value after release.

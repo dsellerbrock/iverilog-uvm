@@ -215,6 +215,9 @@ struct dll_target  : public target_t, public expr_scan_t {
       void task_def(const NetScope*) override;
 
       struct ivl_expr_s*expr_;
+      bool sampled_operand_ = false;
+      void sample_signal_read_(const NetNet*, const LineInfo&);
+      void unsupported_sampled_storage_(const LineInfo&);
       void expr_access_func(const NetEAccess*) override;
       void expr_array_pattern(const NetEArrayPattern*) override;
       void expr_array_slice(const NetEArraySlice*) override;

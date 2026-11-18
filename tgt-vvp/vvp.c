@@ -978,6 +978,106 @@ static int begin_design_output(ivl_design_t des)
       return 0;
 }
 
+static ivl_signal_t*sampled_signals;
+static size_t sampled_count, sampled_capacity;
+
+static int compare_sampled_signals(const void*left, const void*right)
+{
+      uintptr_t a = (uintptr_t)*(const ivl_signal_t*)left;
+      uintptr_t b = (uintptr_t)*(const ivl_signal_t*)right;
+      return (a > b) - (a < b);
+}
+
+void draw_sampled_load(ivl_expr_t operand)
+{
+      ivl_signal_t sig = ivl_expr_signal(operand);
+      int is_real = ivl_expr_value(operand) == IVL_VT_REAL;
+      unsigned width = ivl_signal_width(sig);
+
+      if (signal_is_return_value(sig)) {
+	    fprintf(stderr, "%s:%u: sorry: $sampled cannot read a function return slot in the Preponed region.\n",
+		    ivl_expr_file(operand), ivl_expr_lineno(operand));
+	    ++vvp_errors;
+	    return;
+      }
+
+      if (sampled_count == sampled_capacity) {
+	    sampled_capacity = sampled_capacity ? 2 * sampled_capacity : 32;
+	    sampled_signals = realloc(sampled_signals,
+				      sampled_capacity * sizeof(*sampled_signals));
+	    assert(sampled_signals);
+      }
+      sampled_signals[sampled_count++] = sig;
+
+      if (ivl_expr_oper1(operand)) {
+	    int addr = allocate_word();
+	    draw_eval_expr_into_integer(ivl_expr_oper1(operand), addr);
+	    note_array_signal_use(sig);
+	    fprintf(vvp_out, "    %%load/preponed/av v%p, %d;\n", sig, addr);
+	    if (ivl_signal_data_type(sig) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2;\n");
+	    clr_word(addr);
+      } else {
+	    fprintf(vvp_out, is_real ? "    %%load/preponed/real v%p_0;\n"
+				    : "    %%load/preponed v%p_0;\n", sig);
+      }
+
+      /* At time zero a net has its type default, even if initialization
+	 traffic has already reached the underlying filter. Test unscaled
+	 simulation time so a finer nonzero slot cannot look like time zero. */
+      if (ivl_signal_type(sig) != IVL_SIT_REG) {
+	    unsigned done = local_count++;
+	    fprintf(vvp_out, "    %%vpi_func %u %u \"$simtime\" 64 {0 0 0 0};\n",
+		    ivl_file_table_index(ivl_expr_file(operand)),
+		    ivl_expr_lineno(operand));
+	    fprintf(vvp_out, "    %%cmpi/e 0, 0, 64;\n"
+			     "    %%jmp/0xz T_%u.%u, 4;\n", thread_count, done);
+	    if (is_real) {
+		  fprintf(vvp_out, "    %%pop/real 1;\n"
+				   "    %%pushi/real 0, 0;\n");
+	    } else {
+		  fputs("    %pop/vec4 1;\n", vvp_out);
+		  if (ivl_signal_data_type(sig) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", width);
+		  else
+			fprintf(vvp_out, "    %%pushi/vec4 1, 1, 1;\n"
+					 "    %%pad/s %u;\n", width);
+	    }
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
+      }
+      if (!is_real && width != ivl_expr_width(operand))
+	    fprintf(vvp_out, ivl_expr_signed(operand) ? "    %%pad/s %u;\n"
+						     : "    %%pad/u %u;\n",
+		    ivl_expr_width(operand));
+}
+
+static void emit_sampled_history(ivl_design_t des)
+{
+      if (!sampled_count)
+	    return;
+
+      ivl_scope_t*roots;
+      unsigned nroots;
+      ivl_design_roots(des, &roots, &nroots);
+      assert(nroots);
+      fprintf(vvp_out, "    .scope S_%p;\nT_sampled_history;\n", roots[0]);
+
+      qsort(sampled_signals, sampled_count, sizeof(*sampled_signals),
+	    compare_sampled_signals);
+      for (size_t idx = 0; idx < sampled_count; ++idx) {
+	    ivl_signal_t sig = sampled_signals[idx];
+	    if (idx && sig == sampled_signals[idx - 1])
+		  continue;
+	    fprintf(vvp_out, ivl_signal_dimensions(sig) ? "    %%hist/on/av v%p;\n"
+							: "    %%hist/on v%p_0;\n",
+		    sig);
+      }
+      fputs("    %end;\n    .thread T_sampled_history, $init;\n", vvp_out);
+      free(sampled_signals);
+      sampled_signals = NULL;
+      sampled_count = sampled_capacity = 0;
+}
+
 static int finish_design_output(ivl_design_t des, int rc)
 {
       unsigned size;
@@ -990,6 +1090,10 @@ static int finish_design_output(ivl_design_t des, int rc)
         /* Emit no-op TD stubs for referenced labels that were not
            materialized as function/task definitions. */
       emit_td_stub_definitions();
+
+        /* Run after declaration initializer threads and before user code.
+           The first write in slot zero then snapshots the declared default. */
+      emit_sampled_history(des);
 
         /* DPI export (35.5): emit the runtime :export_dpi directives now
            that every TD_ label and port net has been drawn, and write the

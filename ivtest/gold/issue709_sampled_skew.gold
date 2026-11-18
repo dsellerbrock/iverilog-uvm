@@ -1,0 +1,2 @@
+./ivltests/issue709_sampled.sv:20: error: Clocking-block input in $sampled must use #1step input skew (IEEE 1800-2017/2023 16.5.1).
+error: Code generation had 1 error(s).

@@ -1231,6 +1231,7 @@ void __vpiArray::force_word(unsigned address, unsigned off,
       assert(vals4 || vals);
 
       vvp_vector4_t old_visible = get_word(address);
+      hist_snapshot_word_(address);
       unlink_force_range_(address, off, value.size());
 
       std::pair<std::map<unsigned, force_word_state_t>::iterator, bool> ins =
@@ -1322,6 +1323,7 @@ void __vpiArray::update_force_link_(unsigned address, unsigned base,
 
       force_word_state_t&state = pos->second;
       vvp_vector4_t old_visible = get_word(address);
+      hist_snapshot_word_(address);
       vvp_vector4_t source = coerce_to_width(value, wid);
       for (unsigned idx = 0; idx < wid; idx += 1) {
             unsigned bit = base + idx;
@@ -1437,7 +1439,7 @@ void __vpiArray::hist_snapshot_word_(unsigned address)
 	    hist_valid_ = true;
       }
       if (hist_prev_.find(address) != hist_prev_.end()) return;
-      hist_prev_[address] = get_word_raw_(address);
+      hist_prev_[address] = get_word(address);
 }
 
 /* The Preponed-region value of one word: if it changed during the current
@@ -1489,13 +1491,6 @@ vvp_vector4_t __vpiArray::get_word_preponed(unsigned address)
 		  else
 			return get_word(address);
 
-		  // Preserve a force held across this slot: its visible bits
-		  // override the history of the underlying driver.
-		  // ponytail: a force that changes within this slot needs
-		  // force-state history; extend the wire history if needed.
-		  for (unsigned bit = 0; bit < val.size(); bit += 1)
-			if (wire->is_forced(bit))
-			      val.set_bit(bit, wire->value(bit));
 		  return val;
 	    }
       }
