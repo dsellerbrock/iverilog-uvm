@@ -24,6 +24,7 @@
 # include  "netmisc.h"
 # include  "compiler.h"
 # include  "Module.h"
+# include  "PGenerate.h"
 # include  "PPackage.h"
 # include  "PExpr.h"
 # include  "PClass.h"
@@ -927,6 +928,20 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 	      // lexical parent, so let its lookup use the ordinary lexical-position
 	      // checks below while retaining prefix-scope behavior for packages.
 	    prefix_scope = path.package->parent_scope() != nullptr;
+      } else if (!path.name.empty() && path.name.front().sva_binding_scope) {
+	    const LexicalScope*binding = path.name.front().sva_binding_scope;
+	    if (const PPackage*package = dynamic_cast<const PPackage*>(binding)) {
+		  search_scope = des->find_package(package->pscope_name());
+	    } else {
+		  const Module*module = dynamic_cast<const Module*>(binding);
+		  const PGenerate*generate = dynamic_cast<const PGenerate*>(binding);
+		  while (search_scope
+			 && !(module && search_scope->module_definition() == module)
+			 && !(generate && (search_scope->generate_definition() == generate
+					  || search_scope->has_active_generate(generate))))
+			search_scope = search_scope->parent();
+	    }
+	    if (!search_scope) return false;
       }
 
       for (list<name_component_t>::const_iterator cur = path.name.begin()

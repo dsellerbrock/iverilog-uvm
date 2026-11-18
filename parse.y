@@ -3107,7 +3107,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <expr> expression_or_dist
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
-%type <sva_prop> property_expr property_spec sva_multiclock_seq
+%type <sva_prop> property_expr property_spec sva_multiclock_seq sva_parameterized_sequence_body
 %type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
@@ -8468,34 +8468,30 @@ sequence_declaration /* IEEE 1800-2017/2023 16.8 */
 	pform_sva_declare_sequence_spec(@2, $2, $5);
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';' sva_seq_expr ';' K_endsequence
-      { pform_sva_declare_sequence_p(@2, $2, $4, $7);
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';'
+      sva_parameterized_sequence_body ';' K_endsequence label_opt
+      { check_end_label(@10, "sequence", $2, $10);
+	pform_sva_declare_sequence_p(@2, $2, $4, $7->clk_evt, $7->seq);
+	delete $7;
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';' sva_seq_expr ';' K_endsequence ':' IDENTIFIER
+  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';'
+      sva_int_local_declarations sva_parameterized_sequence_body ';' K_endsequence label_opt
       { check_end_label(@11, "sequence", $2, $11);
-	pform_sva_declare_sequence_p(@2, $2, $4, $7);
+	pform_sva_declare_sequence_p(@2, $2, $4, $8->clk_evt, $8->seq);
+	delete $8;
 	delete[] $2;
       }
-  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';'
-      { pform_sva_begin_local_declarations();
-	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
-	     it != $4->end(); ++it)
-	  pform_sva_add_local_formal(it->name.str()); }
-      sva_int_local_declarations sva_seq_expr ';' K_endsequence
-      { pform_sva_declare_sequence_p(@2, $2, $4, $9);
-	delete[] $2;
-      }
-  | K_sequence IDENTIFIER '(' sva_sequence_formals ')' ';'
-      { pform_sva_begin_local_declarations();
-	for (std::list<sva_sequence_formal_t>::iterator it = $4->begin();
-	     it != $4->end(); ++it)
-	  pform_sva_add_local_formal(it->name.str()); }
-      sva_int_local_declarations sva_seq_expr ';' K_endsequence ':' IDENTIFIER
-      { check_end_label(@13, "sequence", $2, $13);
-	pform_sva_declare_sequence_p(@2, $2, $4, $9);
-	delete[] $2;
-      }
+  ;
+
+sva_parameterized_sequence_body
+  : sva_seq_expr
+      { $$ = new sva_property_t;
+	$$->seq = $1; }
+  | event_control sva_seq_expr
+      { $$ = new sva_property_t;
+	$$->clk_evt = $1;
+	$$->seq = $2; }
   ;
 
 property_declaration
@@ -9820,9 +9816,12 @@ sva_property_formal_list
    names one becomes constant only after substitution (16.8.1). */
 sva_sequence_formals
   : sva_sequence_formal_list
-      { pform_sva_clear_decl_formals();
-	for (const sva_sequence_formal_t&formal : *$1)
+      { pform_sva_begin_local_declarations();
+	pform_sva_clear_decl_formals();
+	for (const sva_sequence_formal_t&formal : *$1) {
 	  pform_sva_note_decl_formal(formal.name.str());
+	  pform_sva_add_local_formal(formal.name.str());
+	}
 	$$ = $1; }
   ;
 
@@ -9831,7 +9830,7 @@ sva_sequence_formals
 sva_sequence_formal_list
   /* IEEE 1800-2017/2023 16.8: "A type shall apply to all formal arguments
      whose identifiers both follow the type and precede the next type". */
-  : sva_sequence_formal_list ',' IDENTIFIER initializer_opt
+  : sva_sequence_formal_list ',' IDENTIFIER event_initializer_opt
       { sva_sequence_formal_t formal;
 	formal.name = lex_strings.make($3);
 	if (!$1->empty()) {
@@ -9905,7 +9904,7 @@ sva_sequence_formal_list
 	l->push_back(formal);
 	delete[]$2;
 	$$ = l; }
-  | sva_sequence_formal_list ',' K_event IDENTIFIER initializer_opt
+  | sva_sequence_formal_list ',' K_event IDENTIFIER event_initializer_opt
       { sva_sequence_formal_t formal;
 	formal.name = lex_strings.make($4);
 	formal.event_type = true;
@@ -9913,7 +9912,7 @@ sva_sequence_formal_list
 	$1->push_back(formal);
 	delete[]$4;
 	$$ = $1; }
-  | K_event IDENTIFIER initializer_opt
+  | K_event IDENTIFIER event_initializer_opt
       { std::list<sva_sequence_formal_t>*l =
 	      new std::list<sva_sequence_formal_t>;
 	sva_sequence_formal_t formal;
@@ -14240,10 +14239,9 @@ expression_list_with_nuls
   ;
 
   /* IEEE 1800-2017/2023 16.12.18 (16.8.1 Syntax 16-3): the actual or default
-     of an `event' formal of a property is an event_expression. Only the
-     edge forms (with an optional iff) are taken here; a bare expression is
-     already an ordinary argument. The PEEvent is bound to the formal's event
-     substitution, and anywhere else it is an error. */
+     of an `event' formal is an event_expression. Handle the forms with an
+     explicit edge or an iff here; a bare expression is already an ordinary
+     argument. */
 event_actual
   : K_posedge expression
       { $$ = new PEEvent(PEEvent::POSEDGE, $2); FILE_NAME($$, @1); }
@@ -14257,6 +14255,8 @@ event_actual
       { $$ = new PEEvent(PEEvent::NEGEDGE, $2, $4); FILE_NAME($$, @1); }
   | K_edge expression K_iff expression
       { $$ = new PEEvent(PEEvent::EDGE, $2, $4); FILE_NAME($$, @1); }
+  | expression K_iff expression
+      { $$ = new PEEvent(PEEvent::ANYEDGE, $1, $3); FILE_NAME($$, @1); }
   ;
 
 event_initializer_opt
@@ -14285,6 +14285,22 @@ argument
       }
   | named_expression_opt
       { $$ = $1;
+      }
+  | '.' IDENTIFIER '(' event_actual ')'
+      { named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($2);
+	tmp->parm = $4;
+	delete[] $2;
+	$$ = tmp;
+      }
+  | '.' TYPE_IDENTIFIER '(' event_actual ')'
+      { named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($2.text);
+	tmp->parm = $4;
+	delete[] $2.text;
+	$$ = tmp;
       }
   | event_actual
       { named_pexpr_t *tmp = new named_pexpr_t;

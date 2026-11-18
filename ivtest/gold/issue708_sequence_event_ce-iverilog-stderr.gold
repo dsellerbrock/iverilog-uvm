@@ -1,0 +1,6 @@
+ivltests/issue708_sequence_event_ce.sv:6: error: sequence event formal `ev' may only be used as an event expression (IEEE 1800-2017/2023 16.8.1).
+ivltests/issue708_sequence_event_ce.sv:22: error: event formal `ev' cannot be used with an edge qualifier or an iff guard.
+ivltests/issue708_sequence_event_ce.sv:23: error: sequence `data_clock' formal `sig' cannot take an event expression actual (IEEE 1800-2017/2023 16.8.1).
+ivltests/issue708_sequence_event_ce.sv:24: sorry: clocked parameterized sequence `with_clock' is unsupported in a nested sequence or endpoint expression.
+ivltests/issue708_sequence_event_ce.sv:25: sorry: clocked parameterized sequence `with_clock' is unsupported in a nested sequence or endpoint expression.
+ivltests/issue708_sequence_event_ce.sv:26: error: sequence `data_clock' formal `sig' cannot take an event expression actual (IEEE 1800-2017/2023 16.8.1).

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue708_sequence_event.sv",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue708_sequence_event"],
+  "gold": "issue708_sequence_event"
+}

@@ -543,6 +543,7 @@ extern void pform_sva_declare_property_p(const struct vlltype&loc,
 extern void pform_sva_declare_sequence_p(const struct vlltype&loc,
 					 const char*name,
 					 std::list<sva_sequence_formal_t>*formals,
+					 PEventStatement*clock,
 					 std::vector<sva_seq_step_t>*steps);
 extern void pform_sva_set_default_disable(const struct vlltype&loc,
                                           PExpr*expr);
