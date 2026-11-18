@@ -2242,6 +2242,10 @@ sv_deferred_observed_error_args0	normal,-g2012	ivltests gold=sv_deferred_observe
 sv_deferred_cover_actions0	normal,-g2012		ivltests gold=sv_deferred_cover_actions0.gold
 sv_deferred_cover_disabled0	normal,-g2012,-gno-assertions	ivltests gold=sv_deferred_cover_disabled0.gold
 sv_deferred_void_cast_action_fail	CE,-g2012		ivltests
+issue442_deferred_virtual_2017 normal,-g2017,-s,issue442_deferred_virtual ivltests gold=issue442_deferred_virtual.gold
+issue442_deferred_virtual_2023 normal,-g2023,-s,issue442_deferred_virtual ivltests gold=issue442_deferred_virtual.gold
+issue442_deferred_virtual_ref_fail_2017 CE,-g2017,-s,issue442_deferred_virtual_ref_fail ivltests gold=issue442_deferred_virtual_ref_fail.gold
+issue442_deferred_virtual_ref_fail_2023 CE,-g2023,-s,issue442_deferred_virtual_ref_fail ivltests gold=issue442_deferred_virtual_ref_fail.gold
 sv_typename1 normal,-g2012 ivltests
 sv_type_operator1 normal,-g2012 ivltests
 sv_type_operator_case normal,-g2012 ivltests gold=sv_type_operator_case.gold
