@@ -81,21 +81,6 @@ static class_type* get_declared_class_type_(vvp_fun_signal_object*fun)
       return fun ? fun->declared_type() : 0;
 }
 
-static vpiHandle get_declared_class_typespec_(vvp_fun_signal_object*fun)
-{
-      class_type*defn = get_declared_class_type_(fun);
-      if (!defn)
-            return 0;
-
-      std::string full_name = defn->scope_path();
-      if (!full_name.empty())
-            full_name += ".";
-      full_name += defn->class_name();
-      return vpi_handle_by_name(
-            reinterpret_cast<PLI_BYTE8*>(const_cast<char*>(full_name.c_str())),
-            0);
-}
-
 static void report_vinterface_property_write_()
 {
       fprintf(stderr, "vvp error: writing a virtual-interface property "
@@ -427,8 +412,13 @@ class __vpiClassObject : public __vpiHandle {
       vpiHandle vpi_handle(int code) override
       {
 	    if (code == vpiClassTypespec
-		&& vvp_object::pointer_is_live(object_))
-		  return const_cast<class_type*>(object_->get_defn());
+		&& vvp_object::pointer_is_live(object_)) {
+		  const class_type*type = object_->get_defn();
+		  if (type)
+			if (vpiHandle typespec = type->class_typespec())
+			      return typespec;
+		  return const_cast<class_type*>(type);
+	    }
 	    return __vpiHandle::vpi_handle(code);
       }
 
@@ -457,7 +447,7 @@ vpiHandle __vpiCobjectVar::vpi_handle(int code)
 		return vif ? vif->vif_scope() : 0;
 	  }
           case vpiClassTypespec:
-            return get_declared_class_typespec_(fun);
+            return vpip_declared_class_typespec(get_declared_class_type_(fun));
 
           case vpiClassDefn:
             if (fun) {

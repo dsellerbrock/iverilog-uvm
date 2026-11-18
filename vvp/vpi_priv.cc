@@ -1827,6 +1827,9 @@ static vpiHandle vpi_iterate_global(int type)
 	  case vpiUdpDefn:
 	    return vpip_make_udp_iterator();
 
+	  case vpiClassDefn:
+	    return vpip_make_class_defn_iterator();
+
 	  case vpiCovergroup:
 	    // M12: all covergroup types in the design.
 	    return vpip_make_covergroup_iterator();

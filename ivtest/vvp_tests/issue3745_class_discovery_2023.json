@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3745_class_discovery.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3745_class_discovery_2023"],
+  "vpi-sources": ["vpi/issue3745_class_discovery.c"],
+  "gold": "issue3745_class_discovery"
+}

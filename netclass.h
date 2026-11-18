@@ -63,6 +63,12 @@ class netclass_t : public ivl_type_s {
 
       inline const NetScope* class_scope(void) const { return class_scope_; }
 
+      // The lexical class scope, shared by all specializations.
+      const NetScope* class_declaration_scope() const
+      { return class_declaration_scope_ ? class_declaration_scope_ : class_scope_; }
+      void set_class_declaration_scope(const NetScope*scope)
+      { class_declaration_scope_ = scope; }
+
 	// Set the scope for the class definition. This is the scope
 	// where the class definition was encountered, and may be used
 	// to locate symbols that the class definition may inherit
@@ -293,6 +299,7 @@ class netclass_t : public ivl_type_s {
       bool scope_ready() const { return scope_ready_; }
       void set_specialized_instance(bool flag) { specialized_instance_ = flag; }
       bool specialized_instance() const { return specialized_instance_; }
+      bool is_symbolic_class() const;
 
 	/* True when this specialization was materialised WHILE ELABORATING a
 	   template seed, from that seed's own default type parameters -- e.g.
@@ -368,6 +375,7 @@ class netclass_t : public ivl_type_s {
 
 	// This holds task/function definitions for methods.
       NetScope*class_scope_;
+      const NetScope*class_declaration_scope_ = nullptr;
 
 	// This holds the context for the class type definition.
       NetScope*definition_scope_;

@@ -70,6 +70,8 @@ class class_type : public __vpiHandle {
 	    { is_struct_type_ = true; is_union_type_ = true;
 	      is_tagged_union_type_ = tagged; }
       inline const std::string&scope_path(void) const { return scope_path_; }
+      vpiHandle class_typespec() const { return class_typespec_; }
+      void set_class_typespec(vpiHandle typespec) { class_typespec_ = typespec; }
       void set_covgrp_decl_scope(__vpiScope*scope)
       { covgrp_decl_scope_ = scope; }
       inline __vpiScope*covgrp_decl_scope(void) const
@@ -233,6 +235,7 @@ class class_type : public __vpiHandle {
       bool is_union_type_ = false;
       bool is_tagged_union_type_ = false;
       std::string scope_path_;
+      vpiHandle class_typespec_ = nullptr;
       // The elaborated declaration scope is instance-specific for classes
       // synthesized inside module instances. Covergroup set expressions use
       // it to capture module-scope arrays when each object is constructed.
