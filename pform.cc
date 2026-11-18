@@ -11723,7 +11723,8 @@ static long sva_rec_tree_(const sva_stree_t*t, long base, bool&exact, int neg,
 	  case sva_stree_t::SEQ_OR: return a < b ? a : b;
 	  case sva_stree_t::SEQ_AND:
 	  case sva_stree_t::SEQ_INTERSECT: return a > b ? a : b;
-	  case sva_stree_t::SEQ_THROUGHOUT: return a;
+	  case sva_stree_t::SEQ_THROUGHOUT:
+	  case sva_stree_t::SEQ_FIRST_MATCH: return a;
 	  default: return b;
       }
 }
@@ -23656,6 +23657,19 @@ static bool sva_tree_only_or_(const sva_stree_t*t)
 	     && sva_tree_only_or_(t->a) && sva_tree_only_or_(t->b);
 }
 
+static bool sva_tree_has_first_match_(const sva_stree_t*t)
+{
+      return t && (t->kind == sva_stree_t::SEQ_FIRST_MATCH
+		   || sva_tree_has_first_match_(t->a)
+		   || sva_tree_has_first_match_(t->b));
+}
+
+static bool sva_property_has_tree_first_match_(const sva_property_t*p)
+{
+      return sva_tree_has_first_match_(p->ante_tree)
+	  || sva_tree_has_first_match_(p->tree);
+}
+
 static bool sva_chain_has_match_calls_(
       const std::vector<sva_seq_step_t>*steps)
 {
@@ -23824,6 +23838,7 @@ static bool sva_tree_proves_empty_(const sva_stree_t*t)
 	      return sva_tree_proves_empty_(t->a)
 		    || sva_tree_proves_empty_(t->b);
 	case sva_stree_t::SEQ_THROUGHOUT:
+	case sva_stree_t::SEQ_FIRST_MATCH:
 	      return sva_tree_proves_empty_(t->a);
 	case sva_stree_t::LEAF:
 	      return false;
@@ -23952,9 +23967,8 @@ static sva_stree_t* sva_chain_take_tree_(std::vector<sva_seq_step_t>*chain)
       return t;
 }
 
-/* Non-consuming clone of a sequence-expression tree. Named sequence bodies
-   are declarations and may be referenced more than once; transferring the
-   declaration tree made the second assertion silently unresolved. */
+/* Non-consuming clone of a sequence-expression tree, including unary
+   first_match nodes. Named sequence and property bodies may be reused. */
 static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
 				    const sva_stree_t*src,
 				    const std::map<perm_string,PExpr*>*subst = nullptr)
@@ -25283,6 +25297,26 @@ static bool sva_prop_is_leaf_chain_(sva_property_t*p)
 {
       return p && p->tree && p->tree->kind == sva_stree_t::LEAF
 	     && p->tree->chain && !p->seq;
+}
+
+sva_property_t* pform_sva_tree_first_match(const struct vlltype&loc,
+					   sva_property_t*operand)
+{
+      if (!operand) return nullptr;
+      if (sva_prop_is_property_shaped_(operand) || sva_leaf_names_property_(operand)) {
+	    cerr << loc << ": error: first_match requires a sequence operand "
+		 << "(IEEE 1800-2017/2023 16.9.8)." << endl;
+	    error_count += 1;
+	    pform_sva_destroy_property(operand);
+	    return nullptr;
+      }
+      sva_stree_t*wrapper = new sva_stree_t;
+      wrapper->kind = sva_stree_t::SEQ_FIRST_MATCH;
+      wrapper->a = operand->tree ? operand->tree
+				 : sva_chain_take_tree_(operand->seq);
+      operand->tree = wrapper;
+      operand->seq = nullptr;
+      return operand;
 }
 
 sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
@@ -26719,13 +26753,38 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  }
 	    return seen[machine.accept];
       };
+      const bool tick_match = accept_reachable(nfa);
+      const bool first_match_antecedent = endpoint_fanout
+	    && sva_tree_has_first_match_(ante_tree);
+      const bool empty_endpoint = first_match_antecedent
+	    && prop->op_type == 2 && nfa.accepts_empty;
+      const bool empty_property = sva_tree_has_first_match_(
+	    endpoint_fanout ? consequence_tree : prop->tree)
+	    && (endpoint_fanout ? consequence_nfa.accepts_empty : nfa.accepts_empty);
+      if ((first_match_antecedent && prop->op_type == 1 && nfa.accepts_empty
+	   && !tick_match) || (empty_property && !sequence_cover)) {
+	    if (empty_property && !sequence_cover)
+		  cerr << loc << ": error: a sequence used as a property shall "
+		       << "not admit an empty match (IEEE 1800-2017/2023 16.12.22(a))."
+		       << endl;
+	    else
+		  cerr << loc << ": error: an overlapping implication antecedent "
+		       << "shall admit a nonempty match (IEEE 1800-2017/2023 "
+		       << "16.12.22(b))." << endl;
+	    error_count += 1;
+	    if (sub) { sub->error = true; return false; }
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return true;
+      }
 	bool nfa_empty_proven = endpoint_fanout
 	      ? (!linear_wait_implication && sva_tree_proves_empty_(ante_tree))
 	      : (have_tree && sva_tree_proves_empty_(prop->tree));
 	bool consequence_empty_proven = endpoint_fanout
 	      && !linear_wait_implication
 	      && sva_tree_proves_empty_(consequence_tree);
-      if ((!accept_reachable(nfa) && !nfa_empty_proven)
+      if ((!tick_match && !nfa_empty_proven && !empty_endpoint)
 	  || (endpoint_fanout && !accept_reachable(consequence_nfa)
 	      && !consequence_empty_proven))
 	    return false;
@@ -26845,13 +26904,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    ON = consequence_nfa.nstates;
 	    long lifetime = consequence_depth > 0 ? consequence_depth : 1;
 	    if (consequence_cyclic && lifetime < 8) lifetime = 8;
-	    /* An antecedent slot can emit at most one endpoint per tick.
-		 For an acyclic consequence, antecedent_capacity*lifetime slots
-		 are therefore an exact capacity bound. A cyclic consequence is necessarily
+	    /* An antecedent slot can emit at most one tick-ending endpoint
+	       per tick. A nullable nonoverlapped antecedent can also emit on
+	       injection. A cyclic consequence is necessarily
 		 finite-pool execution; retain the established loud-overflow
 		 contract and cap the generated checker size. */
-	    if (antecedent_capacity > LONG_MAX / lifetime) return false;
-	    OK = antecedent_capacity * lifetime;
+	    const long endpoints = empty_endpoint && tick_match ? 2 : 1;
+	    if (antecedent_capacity > LONG_MAX / lifetime / endpoints) return false;
+	    OK = antecedent_capacity * lifetime * endpoints;
 	    if (consequence_cyclic && OK > 256) OK = 256;
 	    if (OK < k) OK = k;
 	    return ON != 0
@@ -27613,7 +27673,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			delete it->second;
 		  if (endpoint_fanout) {
 			 take.push_back(sva_assign_(loc, parent_live[k], sva_bit_(loc, 1)));
-			 take.push_back(sva_assign_(loc, matched[k], sva_bit_(loc, 0)));
+			 take.push_back(sva_assign_(loc, matched[k],
+						    sva_bit_(loc, empty_endpoint)));
+			 if (empty_endpoint)
+			       take.push_back(sva_assign_(loc, spawn[k], sva_bit_(loc, 1)));
 		  }
 		  if (sub) {
 			sub->inject[k] = take;
@@ -27737,6 +27800,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 						  sva_bit_(loc, 0)));
 	    }
 
+	/* An empty |=> endpoint triggers at the attempt's own start tick
+	   (16.12.7). Allocate after injection and before any tick-ending
+	   endpoint can use the slot's spawn bit. */
+      if (empty_endpoint)
+	    for (long k = 0 ; k < K ; k += 1)
+		  body.push_back(spawn_obligation_stmt(k));
+
 	/* Per-slot advance. */
       for (long k = 0 ; k < K ; k += 1) {
 	      /* Obligation: set the sticky bit the tick the antecedent
@@ -27783,6 +27853,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    std::map<perm_string,PExpr*> lvmap;
 	    for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
 		  lvmap[lv_list[li]] = sva_id_(loc, vk[k][li]);
+	      /* Compute the cut from this antecedent slot's pre-advance
+		 state and sampled endpoint guards, before any consequent runs. */
 	    std::map<unsigned,PExpr*> exit_hits = first_match_hit(nfa, s[k], lvmap);
 	    for (unsigned j = 0 ; j < N ; j += 1) {
 		  body.push_back(sva_assign_(loc, nx[j],
@@ -39761,7 +39833,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			   : "requires the automaton engine (unset "
 			     "IVL_SVA_LEGACY)")
 		       << "; the assertion is dropped." << endl;
-	    else if (prop->tree_sorry == 4)
+	    else if (prop->tree_sorry == 4 || sva_property_has_tree_first_match_(prop))
 		  cerr << loc << ": sorry: this `first_match' shape is not "
 		       << "supported by the automaton engine yet; the "
 		       << "assertion is dropped." << endl;
@@ -39997,14 +40069,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			           reference -- silently dead on the automaton
 			           engine, constantly-true on the legacy one.
 			           Mirrors the parameterized-property path with
-			           an empty substitution. Shapes without a clone
-			           recipe (combinator trees, multiclock chains)
-			           keep transfer semantics; their re-use is the
-			           loud refusal above instead of silence. */
+			           an empty substitution. Trees carrying first_match
+			           use the same clone as composite properties so
+			           each instantiation retains its own wrapper. */
 			      sva_property_t*inst = nullptr;
 			      if (named->tree || named->pa
 				  || (named->mc_more && !named->mc_more->empty())) {
-				    inst = named->pa
+				    inst = named->pa || sva_property_has_tree_first_match_(named)
 					  ? sva_clone_property_(loc, named) : nullptr;
 				    if (!inst) {
 					  inst = named;
@@ -40379,6 +40450,14 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  inst->mc_prefix = sva_clone_steps_subst_(
 						loc, decl->mc_prefix, subst);
 					  if (!inst->mc_prefix) ok = false;
+				    }
+				    if (ok && sva_property_has_tree_first_match_(decl)) {
+					  inst->tree_sorry = decl->tree_sorry;
+					  inst->ante_tree = sva_tree_clone_(loc, decl->ante_tree, &subst);
+					  inst->tree = sva_tree_clone_(loc, decl->tree, &subst);
+					  if ((decl->ante_tree && !inst->ante_tree)
+					      || (decl->tree && !inst->tree))
+						ok = false;
 				    }
 				    if (ok && decl->pa) {
 					  inst->pa = sva_clone_property_(loc, decl->pa,
