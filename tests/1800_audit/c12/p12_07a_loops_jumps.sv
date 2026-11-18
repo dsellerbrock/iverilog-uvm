@@ -18,7 +18,7 @@ cnt=0; foreach (words[j]) cnt+=words[j].len(); ck("foreach1",cnt==10);
 foreach (prod[k,m]) prod[k][m]=k*m; ck("foreach2",prod[8][3]==24&&prod[1][1]==1);
 cnt=0; foreach (A[i,j,k]) cnt++; ck("foreach3",cnt==24);
 cnt=0; foreach (B[q,r,,]) cnt++; ck("foreach_skip",cnt==5*4);
-cnt=0; foreach (A[i,,k]) cnt+=i; ck("foreach_omit",cnt==3*4);
+cnt=0; foreach (A[i,,k]) cnt+=i; ck("foreach_omit",cnt==4);
 cnt=0; foreach (q[i]) cnt+=q[i]*i; ck("foreach_queue",cnt==14);
 aa["x"]=1; aa["y"]=2; cnt=0; foreach (aa[kz]) cnt+=aa[kz]; ck("foreach_assoc",cnt==3);
 cnt=0; tmp=data; while (tmp) begin if (tmp[0]) cnt++; tmp>>=1; end ck("while",cnt==5);
