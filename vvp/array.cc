@@ -483,7 +483,7 @@ int __vpiArray::get_word_size() const
 	    assert(vals4 == 0 && vals == 0);
 	    struct __vpiSignal*vsig = dynamic_cast<__vpiSignal*>(nets[0]);
 	    assert(vsig);
-	    width = vpip_size(vsig);
+	    width = vsig->width();
 	/* For a variable array we can get the width from vals_width. */
       } else {
 	    assert(vals4 || vals);
@@ -1549,7 +1549,7 @@ void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4
       struct __vpiSignal*vsig = dynamic_cast<__vpiSignal*>(word);
       assert(vsig);
 
-      vsig->node->send_vec4_pv(val, part_off, vpip_size(vsig), 0);
+      vsig->node->send_vec4_pv(val, part_off, vsig->width(), 0);
       word_change(address);
 }
 
