@@ -2870,17 +2870,22 @@ static bool draw_assoc_elem_inc_dec_(ivl_expr_t sub, bool incr, bool pre)
 static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 {
       ivl_variable_type_t destination_type = ivl_expr_value(sub);
+      bool preserve_part_x = false;
 
-      /* A two-state selected l-value may carry a width-preserving bool cast
-       * around the writable expression. The increment still targets the
-       * underlying selection; draw_unary_expr applies the yielded-value
-       * context after this routine returns. */
+      /* A four-state part-select of a two-state vector is wrapped in a
+       * cast for the destination type. Keep X bits in the arithmetic
+       * input (11.5.1), then convert the stored and yielded values. */
       if (ivl_expr_type(sub) == IVL_EX_UNARY
 	  && ivl_expr_opcode(sub) == '2'
 	  && destination_type == IVL_VT_BOOL
 	  && ivl_expr_oper1(sub)
 	  && ivl_expr_width(ivl_expr_oper1(sub)) == ivl_expr_width(sub))
+	{
 	    sub = ivl_expr_oper1(sub);
+	    preserve_part_x = ivl_expr_type(sub) == IVL_EX_SELECT
+	        && ivl_expr_value(sub) == IVL_VT_LOGIC
+	        && ivl_expr_value(ivl_expr_oper1(sub)) == IVL_VT_BOOL;
+	}
 
       if (draw_assoc_elem_inc_dec_(sub, incr, pre))
 	    return;
@@ -3376,7 +3381,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 
       const char*cmd = incr? "%add" : "%sub";
 
-      if (destination_type == IVL_VT_BOOL)
+      if (destination_type == IVL_VT_BOOL && !preserve_part_x)
 	    fprintf(vvp_out, "    %%cast2; increment destination\n");
 
       if (pre) {
@@ -3694,6 +3699,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    clr_word(select_index);
 	    clr_flag(select_flag);
       }
+
+      if (!pre && preserve_part_x)
+	    fprintf(vvp_out, "    %%cast2; postfix result\n");
 }
 
 static void draw_unary_vec4(ivl_expr_t expr)

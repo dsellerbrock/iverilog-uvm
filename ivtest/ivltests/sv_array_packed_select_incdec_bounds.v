@@ -45,7 +45,7 @@ module sv_array_packed_select_incdec_bounds;
         word_calls!=1) $fatal(1,"two-state unknown packed bit");
     two_state='{8'haa,8'h5a}; word_calls=0;
     two_part_result=two_state[word_side(0)][6+:4]++;
-    if (two_state[0]!=8'hea || two_state[1]!=8'h5a || two_part_result!=4'h2 ||
+    if (two_state[0]!=8'h2a || two_state[1]!=8'h5a || two_part_result!=4'h2 ||
         word_calls!=1) $fatal(1,"two-state partial OOB part");
     $display("PASSED");
   end

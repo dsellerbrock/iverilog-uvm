@@ -32226,7 +32226,7 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
  * performs any required conversion. A bit-select from a two-state source is
  * itself two-state, so its invalid-index X value must instead be converted
  * back to zero before it reaches the surrounding expression. */
-static NetESelect* make_four_state_packed_select_(const PEIdent&ident,
+static NetESelect* make_four_state_packed_select_(const LineInfo&loc,
 						  NetExpr*source,
 						  NetExpr*base,
 						  unsigned long width,
@@ -32238,7 +32238,7 @@ static NetESelect* make_four_state_packed_select_(const PEIdent&ident,
       NetESelect*res = use_type
 	    ? new NetESelect(source, base, width, use_type, sel_type)
 	    : new NetESelect(source, base, width, sel_type);
-      res->set_line(ident);
+      res->set_line(loc);
       return res;
 }
 
@@ -35815,7 +35815,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	  case 'i':
 	  case 'I':
 	  case 'D':
-	  case 'd':
+	  case 'd': {
 		/* Keep a statically invalid array word as a writable signal
 		 * expression. Its read supplies the element type's default and
 		 * its store is suppressed at run time. */
@@ -35855,11 +35855,33 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		      ip->set_line(*this);
 		      ip->cast_signed(signed_flag_);
 		}
-		/* A part-select read can be four-state to preserve X for an
-		 * out-of-range read, while ++/-- still yields the l-value's type. */
-		if (inc_lval->sig()
-		    && inc_lval->sig()->data_type() == IVL_VT_BOOL
-		    && ip->expr_type() == IVL_VT_LOGIC) {
+		/* Keep the read four-state even when the l-value that receives
+		 * the arithmetic result is two-state. A reconstructed select or
+		 * a packed property select can still have the carrier's type. */
+		bool two_state_destination = inc_lval->sig()
+		    && inc_lval->sig()->data_type() == IVL_VT_BOOL;
+		if (inc_lval->expr_type() == IVL_VT_BOOL) {
+		      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr_);
+		      const NetESelect*sel = dynamic_cast<const NetESelect*>(ip);
+		      if (ident && sel && sel->select()
+		          && sel->sub_expr()->expr_type() == IVL_VT_BOOL
+		          && !ip->enumeration() && !ident->path().back().index.empty()) {
+			    auto kind = ident->path().back().index.back().sel;
+			    if (kind == index_component_t::SEL_PART
+			        || kind == index_component_t::SEL_IDX_UP
+			        || kind == index_component_t::SEL_IDX_DO) {
+				  two_state_destination = true;
+				  if (sel->expr_type() == IVL_VT_BOOL) {
+					ip = make_four_state_packed_select_(*sel,
+					      sel->sub_expr()->dup_expr(), sel->select()->dup_expr(),
+					      sel->expr_width(), sel->select_type());
+					ip->cast_signed(sel->has_sign());
+					delete sel;
+				  }
+			    }
+		      }
+		}
+		if (two_state_destination && ip->expr_type() == IVL_VT_LOGIC) {
 		      NetExpr*cast = cast_to_int2(ip, ip->expr_width());
 		      cast->set_line(*this);
 		      ip = cast;
@@ -35914,6 +35936,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 			return 0;
 		}
 		break;
+	  }
 
 	  default:
 	    tmp = new NetEUnary(op_, ip, expr_wid, signed_flag_);
