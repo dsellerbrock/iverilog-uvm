@@ -1856,6 +1856,9 @@ extern unsigned vpip_vec4_to_dec_str(const vvp_vector4_t&vec4,
 				     char *buf, unsigned int nbuf,
 				     int signed_flag);
 
+extern std::string vpip_format_packed_value(vpiHandle typespec,
+                                           vvp_vector4_t value);
+
 /*
  * Render an object-backed struct/class instance as `'{name:value, ...}` for
  * %p and object string-value fetches. Walks the class definition's properties

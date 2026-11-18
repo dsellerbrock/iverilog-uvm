@@ -154,6 +154,10 @@ class class_type : public __vpiHandle {
 	// back array-typed rand properties.
       const std::string& property_base_type(size_t idx) const;
       unsigned property_vec4_width(size_t idx) const;
+      vpiHandle property_typespec(size_t idx) const
+      { return idx < properties_.size() ? properties_[idx].typespec : nullptr; }
+      void set_property_typespec(size_t idx, vpiHandle spec)
+      { properties_.at(idx).typespec = spec; }
       unsigned union_vec4_width(void) const;
       bool union_is_four_state(void) const;
       bool property_is_void(size_t idx) const;
@@ -252,6 +256,7 @@ class class_type : public __vpiHandle {
 	    std::vector<vvp_vector4_t> enum_values;
 	    std::vector<std::string> enum_names;
 	    vpiHandle declared_class_type = 0;
+	    vpiHandle typespec = 0;
 	    uint64_t array_size = 1;
 	    vvp_container_layout_t container_layout;
 	    std::vector<std::pair<int,int> > dimensions;

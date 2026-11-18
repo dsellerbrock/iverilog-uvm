@@ -149,6 +149,7 @@ static void emit_struct_cobject_definition_(ivl_type_t struct_type)
 		     (unsigned)qual, rand_prefix);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(struct_type, idx));
 	    show_prop_type(ptype, qualifier_prefix);
+	    note_property_vartype(struct_type, idx);
 	    if (is_unpacked_array_property_type(ptype)) {
 		  unsigned dim;
 		  for (dim = 0 ; dim < ivl_type_packed_dimensions(ptype) ; dim += 1) {
@@ -509,6 +510,7 @@ void draw_class_in_scope(ivl_type_t classtype)
 		     (unsigned)qual, rand_prefix);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(classtype,idx));
 	    show_prop_type(ptype, qualifier_prefix);
+	    note_property_vartype(classtype, idx);
 	    /* Keep the complete source qualifier in the runtime class
 	       definition. The q<hex>: prefix wraps the historical type string,
 	       whose rand/randc prefix remains for backwards compatibility. This

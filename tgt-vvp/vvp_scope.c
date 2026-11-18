@@ -664,7 +664,9 @@ static void emit_unpacked_dims_(ivl_signal_t sig)
 
 /*
  * .vartype <signal>, "<type>"; gives VPI (vpiTypespec) the enum or packed
- * struct/union type of a signal, for waveform dumpers. The type string is
+ * struct/union type of a signal. .vartype <class>, <index>, "<type>";
+ * describes a packed-struct property (the element type for a fixed array).
+ * The type string is
  *    type   ::= E<width>:<enum label> | S{member,...} | U{member,...}
  *             | V<msb>:<lsb> | B<msb>:<lsb>       (4-state / 2-state vector)
  *    member ::= <name>=<type>
@@ -677,6 +679,29 @@ struct vartype_note_s {
 };
 static struct vartype_note_s*vartype_notes = 0;
 static unsigned nvartype_notes = 0;
+
+struct property_vartype_note_s {
+      ivl_type_t classtype;
+      ivl_type_t type;
+      unsigned idx;
+};
+static struct property_vartype_note_s*property_vartype_notes = 0;
+static unsigned nproperty_vartype_notes = 0;
+
+void note_property_vartype(ivl_type_t classtype, unsigned idx)
+{
+      ivl_type_t type = ivl_type_prop_type(classtype, idx);
+      if (type_is_fixed_uarray_property_(type))
+	    type = ivl_type_element(type);
+      if (ivl_type_base(type) != IVL_VT_LOGIC && ivl_type_base(type) != IVL_VT_BOOL)
+	    return;
+      if (ivl_type_properties(type) == 0 || ivl_type_is_union(type))
+	    return;
+      property_vartype_notes = realloc(property_vartype_notes,
+            (nproperty_vartype_notes + 1) * sizeof(*property_vartype_notes));
+      property_vartype_notes[nproperty_vartype_notes++] =
+            (struct property_vartype_note_s){classtype, type, idx};
+}
 
 static int type_has_vartype_(ivl_type_t type)
 {
@@ -821,7 +846,7 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
       return ivl_type_packed_width(type);
 }
 
-void emit_signal_vartypes(void)
+void emit_vartypes(void)
 {
       unsigned idx;
       struct vartype_buf_s buf = { 0, 0, 0 };
@@ -848,10 +873,26 @@ void emit_signal_vartypes(void)
 		  fprintf(vvp_out, " .vartype v%p%s, \"%s\";\n", sig,
 		          vartype_notes[idx].suffix, buf.text);
       }
+      for (idx = 0 ; idx < nproperty_vartype_notes ; idx += 1) {
+	    const struct property_vartype_note_s*note = &property_vartype_notes[idx];
+	    buf.len = 0;
+	    for (unsigned adx = 0
+	         ; adx < ivl_type_prop_typedef_aliases(note->classtype, note->idx)
+	         ; adx += 1)
+		  vartype_put_name_(&buf,
+		        ivl_type_prop_typedef_alias(note->classtype, note->idx, adx));
+	    unsigned width = vartype_spec_(&buf, note->type);
+	    if (width && width == ivl_type_packed_width(note->type))
+		  fprintf(vvp_out, " .vartype C%p, %u, \"%s\";\n",
+		          note->classtype, note->idx, buf.text);
+      }
       free(buf.text);
       free(vartype_notes);
       vartype_notes = 0;
       nvartype_notes = 0;
+      free(property_vartype_notes);
+      property_vartype_notes = 0;
+      nproperty_vartype_notes = 0;
 }
 
 static void emit_signal_source_location_(ivl_signal_t sig, const char*suffix)
