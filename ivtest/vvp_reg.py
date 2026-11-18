@@ -93,6 +93,10 @@ def process_test(item: list, cfg: list) -> str:
         except json.decoder.JSONDecodeError as exception:
             raise InvalidJSON(it_key, test_path, exception) from exception
 
+    # Let a target-specific test request the vlog95 round trip in a regular run.
+    if it_dict.get('translate-to-vlog95', False):
+        cfg = dict(cfg, vlog95=True)
+
     # Wrap all of this into an options dictionary for ease of handling.
     it_opts = {
         'key'               : it_key,

@@ -204,6 +204,53 @@ static void save_net_constants(const ivl_scope_t scope, ivl_signal_t sig)
       }
 }
 
+static ivl_net_logic_t find_trireg(ivl_nexus_t nex, ivl_scope_t scope)
+{
+      if (!nex) return 0;
+      unsigned idx, count = ivl_nexus_ptrs(nex);
+      for (idx = 0; idx < count; idx += 1) {
+	    ivl_net_logic_t logic = ivl_nexus_ptr_log(ivl_nexus_ptr(nex, idx));
+	    /* A collapsed port can share the nexus with the declaration
+	     * that owns the charge strength and delays in another scope. */
+	    if (logic && ivl_logic_type(logic) == IVL_LO_TRIREG &&
+	        (!scope || ivl_logic_scope(logic) == scope)) return logic;
+      }
+      return 0;
+}
+
+static void emit_trireg_type(ivl_net_logic_t charge)
+{
+      const char *size;
+      switch (ivl_logic_drive0(charge)) {
+	case IVL_DR_SMALL:  size = "small";  break;
+	case IVL_DR_MEDIUM: size = "medium"; break;
+	case IVL_DR_LARGE:  size = "large";  break;
+	default:
+	    assert(0);
+	    return;
+      }
+      fprintf(vlog_out, "trireg (%s) ", size);
+}
+
+static void emit_trireg_delays(ivl_scope_t scope, ivl_net_logic_t charge)
+{
+      ivl_expr_t rise = ivl_logic_delay(charge, 0);
+      ivl_expr_t fall = ivl_logic_delay(charge, 1);
+      ivl_expr_t decay = ivl_logic_delay(charge, 2);
+      if (!rise) return;
+
+      fprintf(vlog_out, "#(");
+      emit_scaled_delayx(scope, rise, 0);
+      fprintf(vlog_out, ", ");
+      emit_scaled_delayx(scope, fall, 0);
+      /* Only a third delay specifies charge decay (28.16.2.2). */
+      if (decay) {
+	    fprintf(vlog_out, ", ");
+	    emit_scaled_delayx(scope, decay, 0);
+      }
+      fprintf(vlog_out, ") ");
+}
+
 static void emit_net_def(ivl_scope_t scope, ivl_signal_t sig)
 {
       int msb, lsb;
@@ -226,8 +273,13 @@ static void emit_net_def(ivl_scope_t scope, ivl_signal_t sig)
 	                    ivl_signal_lineno(sig), ivl_signal_basename(sig));
 	    vlog_errors += 1;
       } else {
+	    ivl_net_logic_t charge = 0;
 	    switch (ivl_signal_type(sig)) {
 	      case IVL_SIT_TRI:
+		  charge = find_trireg(ivl_signal_nex(sig, 0), scope);
+		  if (charge) emit_trireg_type(charge);
+		  else fprintf(vlog_out, "wire ");
+		  break;
 	      case IVL_SIT_UWIRE:
 // HERE: Need to add support for supply nets. Probably supply strength
 //       with a constant 0/1 driver for all the bits.
@@ -266,6 +318,7 @@ static void emit_net_def(ivl_scope_t scope, ivl_signal_t sig)
 		  }
 	    }
 	    if (msb != 0 || lsb != 0) fprintf(vlog_out, "[%d:%d] ", msb, lsb);
+	    if (charge) emit_trireg_delays(scope, charge);
 	    emit_sig_id(sig);
 	      /* A constant driving a net does not create an lpm or logic
 	       * element in the design so save them from the definition. */
@@ -282,6 +335,18 @@ static bool scope_is_unique(ivl_scope_t scope)
 	    if (!ivl_parameter_local(par)) {
 		  return false;
 	    }
+      }
+
+      /* Port collapse can leave different charge storage declarations
+       * in instances of the same module. Each affected instance needs
+       * its own emitted module definition. */
+      count = ivl_scope_sigs(scope);
+      for (unsigned int idx = 0; idx < count; idx++) {
+	    ivl_signal_t sig = ivl_scope_sig(scope, idx);
+	    if (ivl_signal_port(sig) == IVL_SIP_NONE ||
+	        ivl_signal_type(sig) != IVL_SIT_TRI ||
+	        ivl_signal_dimensions(sig) != 0) continue;
+	    if (find_trireg(ivl_signal_nex(sig, 0), 0)) return false;
       }
 
       return true;
@@ -1321,18 +1386,16 @@ int emit_scope(ivl_scope_t scope, const ivl_scope_t parent)
 		  fprintf(vlog_out, "`endcelldefine\n");
 	    }
 	      /* If this is a root scope then emit any saved instance scopes.
-	       * Save any scope that does not have parameters/a mangled name
-	       * to a list so we don't print duplicate module definitions. */
+	       * Track unmangled scopes to avoid duplicate module definitions. */
 	    if (!emitting_scopes) {
 		  emitting_scopes = 1;
 		  for (idx =0; idx < num_scopes_to_emit; idx += 1) {
 			ivl_scope_t scope_to_emit = scopes_to_emit[idx];
-			if (scope_has_been_emitted(scope_to_emit)) continue;
+			bool reuse_def = scope_is_unique(scope_to_emit);
+			if (reuse_def && scope_has_been_emitted(scope_to_emit))
+			      continue;
 			(void) emit_scope(scope_to_emit, 0);
-			  /* If we used a mangled name then the instance is
-			   * unique so don't add it to the list. */
-			if (!scope_is_unique(scope_to_emit)) continue;
-			add_scope_to_list(scope_to_emit);
+			if (reuse_def) add_scope_to_list(scope_to_emit);
 		  }
 		  free(scopes_to_emit);
 		  scopes_to_emit = 0;
