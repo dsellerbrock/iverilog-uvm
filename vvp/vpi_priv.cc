@@ -3042,6 +3042,35 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
       long diag_msg;
 
       switch (operation) {
+	  case vpiCoverageStart:
+	  case vpiCoverageStop:
+	  case vpiCoverageReset:
+	  case vpiCoverageCheck: {
+	    enum { SV_COV_ERROR = -1, SV_COV_NOCOV = 0, SV_COV_OK = 1 };
+	    PLI_INT32 type = va_arg(ap, PLI_INT32);
+	    vpiHandle instance = va_arg(ap, vpiHandle);
+
+	    vpip_clear_error();
+	    if (type < vpiAssertCoverage || type > vpiToggleCoverage) {
+		  vpip_set_error(vpiError, "vpi_control: invalid coverage type");
+		  return SV_COV_ERROR;
+	    }
+
+	    switch (instance ? instance->get_type_code() : vpiUndefined) {
+		case vpiModule:
+		case vpiInterface:
+		case vpiProgram:
+		case vpiPackage:
+		  /* No instance-level coverage is collected. Table 40-1
+		     defines Stop and Reset as successful no-ops here. */
+		  return (operation == vpiCoverageStop || operation == vpiCoverageReset)
+		       ? SV_COV_OK : SV_COV_NOCOV;
+		default:
+		  vpip_set_error(vpiError, "vpi_control: unsupported coverage target");
+		  return SV_COV_ERROR;
+	    }
+	  }
+
 	  case vpiCoverageMerge:
 	    /* Code coverage has no database backend, so match the result of
 	       $coverage_merge() for this unavailable operation. */
