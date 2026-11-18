@@ -57943,6 +57943,21 @@ Design* elaborate(list<perm_string>roots)
 			      des->errors += 1;
 			}
 		  }
+		  // IEEE 1800-2017/2023 25.5.5 requires an interface-local
+		  // clocking declaration, even when the modport is unused.
+		  for (perm_string name : mp.second->clocking_ports) {
+			auto cb = interface->clocking_blocks.find(name);
+			if (cb != interface->clocking_blocks.end() &&
+			    cb->second->has_local_name)
+			      continue;
+
+			cerr << mp.second->get_fileline()
+			     << ": error: Modport '" << mp.first
+			     << "' references clocking block '" << name
+			     << "' which is not declared in interface '"
+			     << interface->mod_name() << "'." << endl;
+			des->errors += 1;
+		  }
 	    }
       }
 

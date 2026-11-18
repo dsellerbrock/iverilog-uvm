@@ -94,6 +94,7 @@ class Module : public PScopeExtra, public PNamedItem {
 
 	    perm_string name;
 	    PEventStatement*event;
+	    bool has_local_name = false;
 	    std::vector<perm_string>signals;
 	    std::map<perm_string,NetNet::PortType>directions;
 	    std::map<perm_string,pform_clocking_skew_t>in_skews;
@@ -210,8 +211,7 @@ class Module : public PScopeExtra, public PNamedItem {
 	/* IEEE 1800-2017 14.12: at most one default clocking block per
 	   module, interface, or program. Nil when no default is declared.
 	   Anonymous default clocking blocks are registered in
-	   clocking_blocks under an internal name that no source
-	   identifier can collide with. */
+	   clocking_blocks under an internal key. */
       perm_string default_clocking;
 
 	/* IEEE 1800-2017 14.14: at most one global clocking block per

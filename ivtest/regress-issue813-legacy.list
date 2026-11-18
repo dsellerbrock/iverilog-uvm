@@ -1,0 +1,4 @@
+sv_modport_clocking_scope_fail_2017 CE,-g2017,-s,sv_modport_clocking_scope_fail ivltests gold=sv_modport_clocking_scope_fail.gold
+sv_modport_clocking_scope_fail_2023 CE,-g2023,-s,sv_modport_clocking_scope_fail ivltests gold=sv_modport_clocking_scope_fail.gold
+sv_modport_clocking_forward_2017 normal,-g2017,-s,sv_modport_clocking_forward ivltests gold=sv_modport_clocking_forward.gold
+sv_modport_clocking_forward_2023 normal,-g2023,-s,sv_modport_clocking_forward ivltests gold=sv_modport_clocking_forward.gold

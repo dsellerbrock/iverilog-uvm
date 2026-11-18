@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_modport_clocking_scope_fail.sv",
+    "iverilog-args" : ["-g2017", "-s", "sv_modport_clocking_scope_fail"],
+    "gold"          : "sv_modport_clocking_scope_fail"
+}

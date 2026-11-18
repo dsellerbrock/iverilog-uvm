@@ -1,0 +1,7 @@
+./ivltests/sv_modport_clocking_scope_fail.sv:2: error: Modport 'outside_clock' references clocking block 'cbx' which is not declared in interface 'used_if'.
+./ivltests/sv_modport_clocking_scope_fail.sv:7: error: Modport 'invalid_clocks' references clocking block 'missing' which is not declared in interface 'unused_if'.
+./ivltests/sv_modport_clocking_scope_fail.sv:7: error: Modport 'invalid_clocks' references clocking block 'signal_only' which is not declared in interface 'unused_if'.
+./ivltests/sv_modport_clocking_scope_fail.sv:14: error: Modport 'nested_view' references clocking block 'outer_cb' which is not declared in interface 'nested_if'.
+./ivltests/sv_modport_clocking_scope_fail.sv:23: error: Modport 'generate_view' references clocking block 'generated_cb' which is not declared in interface 'generate_if'.
+./ivltests/sv_modport_clocking_scope_fail.sv:30: error: Modport 'anonymous_view' references clocking block '$default_clocking' which is not declared in interface 'anonymous_if'.
+6 error(s) during elaboration.

@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "sv_modport_clocking_forward.sv",
+    "iverilog-args" : ["-g2023", "-s", "sv_modport_clocking_forward"],
+    "gold"          : "sv_modport_clocking_forward"
+}
