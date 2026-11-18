@@ -1,0 +1,8 @@
+rise pending: xx
+driven: St1 11 St1 St1
+fall pending: 11
+fallen: 00
+released: Sm1 LaX La1 Sm1 Pu0
+port decayed: LaX
+before decay: Sm1
+after decay: SmX Me1

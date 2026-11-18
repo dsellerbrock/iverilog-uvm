@@ -34,6 +34,15 @@ static ivl_signal_t nexus_is_signal(ivl_scope_t scope, ivl_nexus_t nex,
                                     int*msb, int*lsb, unsigned*array_word,
 				    ivl_net_const_t*accept_const);
 
+static bool is_nexus_driver(ivl_nexus_ptr_t ptr)
+{
+      ivl_net_logic_t logic = ivl_nexus_ptr_log(ptr);
+      /* The trireg pin carries charge strength, not a drive strength. */
+      if (logic && ivl_logic_type(logic) == IVL_LO_TRIREG) return false;
+      return ivl_nexus_ptr_drive0(ptr) != IVL_DR_HiZ ||
+             ivl_nexus_ptr_drive1(ptr) != IVL_DR_HiZ;
+}
+
 /*
  * Look to see if the nexus driver is signed.
  */
@@ -49,10 +58,7 @@ static int nexus_driver_is_signed(ivl_scope_t scope, ivl_nexus_t nex)
 	    ivl_net_const_t t_net_const = ivl_nexus_ptr_con(nex_ptr);
 	    ivl_net_logic_t t_nlogic = ivl_nexus_ptr_log(nex_ptr);
 	    ivl_signal_t t_sig = ivl_nexus_ptr_sig(nex_ptr);
-	    ivl_drive_t cur_drive1 = ivl_nexus_ptr_drive1(nex_ptr);
-	    ivl_drive_t cur_drive0 = ivl_nexus_ptr_drive0(nex_ptr);
-	    if ((cur_drive1 == IVL_DR_HiZ) &&
-	        (cur_drive0 == IVL_DR_HiZ)) continue;
+	    if (!is_nexus_driver(nex_ptr)) continue;
 	      /* Only one driver can set the sign information. */
 	    assert( ! sign_set);
 	    if (t_lpm) {
@@ -231,13 +237,10 @@ static void get_unique_lpm_drive(ivl_lpm_t lpm, ivl_drive_t *drive1,
 
       for (idx = 0; idx < count; idx += 1) {
 	    ivl_nexus_ptr_t nex_ptr = ivl_nexus_ptr(nex, idx);
-	    ivl_drive_t cur_drive1 = ivl_nexus_ptr_drive1(nex_ptr);
-	    ivl_drive_t cur_drive0 = ivl_nexus_ptr_drive0(nex_ptr);
-	    if ((cur_drive1 == IVL_DR_HiZ) &&
-	        (cur_drive0 == IVL_DR_HiZ)) continue;
+	    if (!is_nexus_driver(nex_ptr)) continue;
 	    assert(! have_driver);
-	    *drive1 = cur_drive1;
-	    *drive0 = cur_drive0;
+	    *drive1 = ivl_nexus_ptr_drive1(nex_ptr);
+	    *drive0 = ivl_nexus_ptr_drive0(nex_ptr);
 	    have_driver = 1;
       }
 
@@ -319,10 +322,7 @@ static void emit_driver_delay(ivl_scope_t scope, ivl_nexus_t nex)
 	    ivl_lpm_t t_lpm = ivl_nexus_ptr_lpm(nex_ptr);
 	    ivl_net_const_t t_net_const = ivl_nexus_ptr_con(nex_ptr);
 	    ivl_net_logic_t t_nlogic = ivl_nexus_ptr_log(nex_ptr);
-	    ivl_drive_t cur_drive1 = ivl_nexus_ptr_drive1(nex_ptr);
-	    ivl_drive_t cur_drive0 = ivl_nexus_ptr_drive0(nex_ptr);
-	    if ((cur_drive1 == IVL_DR_HiZ) &&
-	        (cur_drive0 == IVL_DR_HiZ)) continue;
+	    if (!is_nexus_driver(nex_ptr)) continue;
 	      /* Only one driver can set the delay. */
 	    assert( ! rise);
 	    if (t_lpm) {
@@ -456,8 +456,7 @@ static void emit_nexus_port_signal(ivl_scope_t scope, ivl_nexus_t nex)
       for (idx = 0; idx < count; idx += 1) {
 	    ivl_nexus_ptr_t nex_ptr = ivl_nexus_ptr(nex, idx);
 	    ivl_signal_t t_sig = ivl_nexus_ptr_sig(nex_ptr);
-	    if ((ivl_nexus_ptr_drive1(nex_ptr) != IVL_DR_HiZ) ||
-	        (ivl_nexus_ptr_drive0(nex_ptr) != IVL_DR_HiZ)) assert(0);
+	    assert(!is_nexus_driver(nex_ptr));
 	    if (t_sig) {
 		  if (scope != ivl_signal_scope(t_sig)) continue;
 		  assert(! sig);
@@ -507,8 +506,7 @@ void emit_nexus_port_driver_as_ca(ivl_scope_t scope, ivl_nexus_t nex)
 	    ivl_net_const_t t_net_const = ivl_nexus_ptr_con(nex_ptr);
 	    ivl_net_logic_t t_nlogic = ivl_nexus_ptr_log(nex_ptr);
 	    ivl_signal_t t_sig = ivl_nexus_ptr_sig(nex_ptr);
-	    if ((ivl_nexus_ptr_drive1(nex_ptr) == IVL_DR_HiZ) &&
-	        (ivl_nexus_ptr_drive0(nex_ptr) == IVL_DR_HiZ)) continue;
+	    if (!is_nexus_driver(nex_ptr)) continue;
 	    if (t_lpm) {
 		  assert(! lpm);
 		  lpm = t_lpm;
@@ -586,8 +584,7 @@ void emit_nexus_as_ca(ivl_scope_t scope, ivl_nexus_t nex, unsigned allow_UD,
 		  ivl_net_const_t t_net_const = ivl_nexus_ptr_con(nex_ptr);
 		  ivl_net_logic_t t_nlogic = ivl_nexus_ptr_log(nex_ptr);
 		  ivl_signal_t t_sig = ivl_nexus_ptr_sig(nex_ptr);
-		  if ((ivl_nexus_ptr_drive1(nex_ptr) == IVL_DR_HiZ) &&
-		      (ivl_nexus_ptr_drive0(nex_ptr) == IVL_DR_HiZ)) {
+		  if (!is_nexus_driver(nex_ptr)) {
 			  /* If we only have a single input then we want
 			   * the nexus this signal is driven by. */
 			if (count == 1) {
@@ -867,8 +864,7 @@ static ivl_signal_t nexus_is_signal(ivl_scope_t scope, ivl_nexus_t nex,
 	    ivl_net_const_t t_net_const = ivl_nexus_ptr_con(nex_ptr);
 	    ivl_net_logic_t t_nlogic = ivl_nexus_ptr_log(nex_ptr);
 	    ivl_signal_t t_sig = ivl_nexus_ptr_sig(nex_ptr);
-	    if ((ivl_nexus_ptr_drive1(nex_ptr) == IVL_DR_HiZ) &&
-	        (ivl_nexus_ptr_drive0(nex_ptr) == IVL_DR_HiZ)) continue;
+	    if (!is_nexus_driver(nex_ptr)) continue;
 	    if (t_lpm) {
 		  assert(! lpm);
 		    /* The real signal could be hidden behind a select. */
@@ -2195,6 +2191,8 @@ void emit_logic(ivl_scope_t scope, ivl_net_logic_t nlogic)
       unsigned idx, count, dly_count, strength_type = 2;
       unsigned outputs = 1;
       const char *name;
+	/* Charge storage is emitted as part of the net declaration. */
+      if (ivl_logic_type(nlogic) == IVL_LO_TRIREG) return;
 	/* Skip gates that have a local nexus as the output since they are
 	 * part of a continuous assignment. */
       if (is_local_nexus(scope, ivl_logic_pin(nlogic, 0))) return;
