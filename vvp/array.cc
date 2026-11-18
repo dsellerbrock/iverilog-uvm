@@ -686,6 +686,9 @@ int __vpiArray::vpi_get(int code)
 	  case vpiArrayType:
 	    return vpiStaticArray;
 
+	  case vpiChargeStrength:
+	    return charge_strength;
+
 	  case vpiAutomatic:
 	    return automatic_storage ? 1 : 0;
 

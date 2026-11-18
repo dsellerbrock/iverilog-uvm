@@ -377,6 +377,7 @@ ivl_signal_is_time
 ivl_signal_lineno
 ivl_signal_local
 ivl_signal_comb_driven
+ivl_signal_charge_strength
 ivl_signal_lsb
 ivl_signal_msb
 ivl_signal_name

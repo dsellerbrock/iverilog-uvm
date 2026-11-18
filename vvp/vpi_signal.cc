@@ -617,6 +617,13 @@ static int signal_get(int code, vpiHandle ref)
 	    else
 		  return vpiUndefined;
 
+	  case vpiChargeStrength:
+	    if (rfp->packed_view_parent)
+		  return vpi_get(code, rfp->packed_view_parent);
+	    if (rfp->is_netarray)
+		  return vpi_get(code, rfp->within.parent);
+	    return rfp->charge_strength;
+
 	  case vpiExpanded:
 	    /* VVP exposes individual bits of vector nets, including nets
 	       declared vectored (the declaration keywords are advisory). */

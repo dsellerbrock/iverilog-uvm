@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3403_vpi_charge_strength.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3403_vpi_charge_strength_2017"],
+  "vpi-sources": ["vpi/issue3403_vpi_charge_strength.c"],
+  "gold": "issue3403_vpi_charge_strength"
+}

@@ -151,6 +151,36 @@ class source_location_resolv_t : public resolv_list_s {
       unsigned lineno_;
 };
 
+class charge_strength_resolv_t : public resolv_list_s {
+    public:
+      charge_strength_resolv_t(char*label, int strength)
+      : resolv_list_s(label), strength_(strength) { }
+
+      bool resolve(bool message_flag) override
+      {
+            vpiHandle obj = vvp_lookup_handle(label());
+            if (!obj && !message_flag) return false;
+
+            if (auto*sig = dynamic_cast<__vpiSignal*>(obj)) {
+                  if (sig->get_type_code() == vpiNet && !sig->is_netarray) {
+                        sig->charge_strength = strength_;
+                        return true;
+                  }
+            } else if (auto*array = dynamic_cast<__vpiArray*>(obj)) {
+                  if (array->nets) {
+                        array->charge_strength = strength_;
+                        return true;
+                  }
+            }
+            yyerror("VPI charge strength target is not a net declaration");
+            compile_errors += 1;
+            return true;
+      }
+
+    private:
+      int strength_;
+};
+
 void compile_packed_dims(char*label, char*layout)
 {
       vector<__vpiSignal::packed_range_t> ranges;
@@ -626,6 +656,18 @@ void compile_vpi_source_location(char*label, uint64_t file_idx,
 		  static_cast<unsigned>(lineno)));
 	    return;
       }
+      free(label);
+}
+
+void compile_vpi_charge_strength(char*label, uint64_t strength)
+{
+      if (strength == vpiSmallCharge || strength == vpiMediumCharge ||
+          strength == vpiLargeCharge) {
+            resolv_submit(new charge_strength_resolv_t(label, strength));
+            return;
+      }
+      yyerror("invalid VPI charge strength");
+      compile_errors += 1;
       free(label);
 }
 

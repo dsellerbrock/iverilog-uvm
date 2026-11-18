@@ -4840,6 +4840,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       }
 
       if (wtype == NetNet::TRIREG) {
+	    sig->declared_charge_strength(charge_strength_);
 	    /* IEEE 1800-2023 6.6.4: a trireg is a tri nexus plus one charge
 	     * storage device. The device pin carries the charge size as its
 	     * strength, and the device carries the declaration delays: rise,
