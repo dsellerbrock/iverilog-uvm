@@ -6602,17 +6602,19 @@ void PFunction::elaborate_scope(Design*des, NetScope*scope) const
       // function body with the same name is still a duplicate object (IEEE
       // 1800-2017/2023 13.4.1). Diagnose it before the implicit return signal
       // is added to the scope and replaces the declaration during elaboration.
+      const perm_string result_name = interface_port_method().nil()
+	    ? scope->basename() : interface_port_method();
       const PNamedItem*return_name = nullptr;
-      map<perm_string,PWire*>::const_iterator wire = wires.find(scope->basename());
+      map<perm_string,PWire*>::const_iterator wire = wires.find(result_name);
       if (wire != wires.end()) return_name = wire->second;
       map<perm_string,param_expr_t*>::const_iterator param =
-	    parameters.find(scope->basename());
+	    parameters.find(result_name);
       if (!return_name && param != parameters.end()) return_name = param->second;
-      map<perm_string,PEvent*>::const_iterator event = events.find(scope->basename());
+      map<perm_string,PEvent*>::const_iterator event = events.find(result_name);
       if (!return_name && event != events.end()) return_name = event->second;
       if (return_name) {
 	    cerr << return_name->get_fileline() << ": error: Object `"
-		 << scope->basename() << "' has the same name as the function."
+		 << result_name << "' has the same name as the function."
 		 << endl;
 	    des->errors += 1;
       }
@@ -6623,7 +6625,7 @@ void PFunction::elaborate_scope(Design*des, NetScope*scope) const
 
         // Assume the function is a constant function until we
         // find otherwise.
-      scope->is_const_func(true);
+      scope->is_const_func(!is_extern_prototype() && interface_port_method().nil());
 
       scope->add_typedefs(&typedefs);
       scope->add_nettypes(des, &nettypes);

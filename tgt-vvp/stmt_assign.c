@@ -2782,13 +2782,7 @@ void draw_store_real_lval(ivl_lval_t lval)
       var = ivl_lval_sig(lval);
       assert(var != 0);
 
-	/* Special Case: If the l-value signal is named after its scope,
-	   and the scope is a function, then this is an assign to a return
-	   value and should be handled differently. */
-      ivl_scope_t sig_scope = ivl_signal_scope(var);
-      if ((ivl_scope_type(sig_scope) == IVL_SCT_FUNCTION)
-	  && (strcmp(ivl_signal_basename(var), ivl_scope_basename(sig_scope)) == 0)
-	  && ivl_signal_dimensions(var) == 0) {
+      if (signal_is_return_value(var) && ivl_signal_dimensions(var) == 0) {
 	    fprintf(vvp_out, "    %%ret/real 0; Assign to %s\n",
 		    ivl_signal_basename(var));
 	    return;

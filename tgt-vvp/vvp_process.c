@@ -9348,7 +9348,7 @@ static int vpi_value_return_block_(ivl_statement_t stmt)
       func = ivl_stmt_call(leave);
       sig = ivl_lval_sig(ivl_stmt_lval(assign, 0));
       return func && sig && ivl_signal_scope(sig) == func
-	    && strcmp(ivl_signal_basename(sig), ivl_scope_basename(func)) == 0;
+	    && signal_is_function_result(sig);
 }
 
 /* VPI exposes the elaborated statement tree. The execution-bytecode

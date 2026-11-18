@@ -199,6 +199,7 @@ struct decl_assignment_t {
 struct pform_tf_port_t {
       PWire*port;
       PExpr*defe;
+      bool unnamed = false;
 
       inline pform_tf_port_t() : port(0), defe(0) { }
       inline explicit pform_tf_port_t(PWire*p) : port(p), defe(0) { }

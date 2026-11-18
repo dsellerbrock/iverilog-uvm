@@ -602,8 +602,26 @@ static bool interface_port_connection_compatible_(
 	    || formal->interface_modport() == actual->interface_modport();
 }
 
+static bool has_interface_port_function_(const NetScope*scope,
+					 perm_string port, perm_string method)
+{
+      for (const auto&entry : scope->children()) {
+	    const NetScope*child = entry.second;
+	    if (const PFunction*func = child->func_pform()) {
+		  if (func->interface_port_name() == port
+		      && func->interface_port_method() == method)
+			return true;
+	    } else if (child->type() == NetScope::GENBLOCK
+		       && has_interface_port_function_(child, port, method)) {
+		  return true;
+	    }
+      }
+      return false;
+}
+
 static bool validate_interface_port_modport_exports_(
 		const LineInfo&loc, Design*des, const Module*provider,
+		const vector<NetScope*>&instances,
 		perm_string port_name, const netclass_t*interface_type,
 		perm_string modport_name)
 {
@@ -628,6 +646,12 @@ static bool validate_interface_port_modport_exports_(
 	    const char*kind = prototype
 		  ? (prototype->is_function ? "function" : "task")
 		  : "task/function";
+	    if ((!prototype || prototype->is_function)
+		&& std::all_of(instances.begin(), instances.end(),
+		      [&](const NetScope*instance) {
+			    return has_interface_port_function_(instance, port_name, method);
+		      }))
+		  continue;
 	    bool interface_port_task = false;
 	    if (!prototype || !prototype->is_function) {
 		  for (const auto&task : provider->tasks) {
@@ -8160,7 +8184,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	       * view as well: a generic or unqualified formal must not erase the
 	       * provider obligation selected at the connection. */
 	    if (actual_ifc && !validate_interface_port_modport_exports_(
-		  *pins[idx], des, rmod, port_name, actual_ifc,
+		  *pins[idx], des, rmod, instance, port_name, actual_ifc,
 		  effective_modport)) {
 		  interface_type_error[idx] = true;
 		  continue;
@@ -18987,6 +19011,9 @@ static bool interface_modport_prototype_matches_method_(
 
       const bool method_is_function = method_scope
 	    && method_scope->type() == NetScope::FUNC;
+      const PFunction*func = method_is_function ? method_scope->func_pform() : nullptr;
+      const auto*extern_ports = func && func->is_extern_prototype()
+	    ? func->peek_ports() : nullptr;
 
       NetScope*declaration_scope = method_scope
 	    ? const_cast<NetScope*>(method_scope->parent()) : nullptr;
@@ -19028,6 +19055,7 @@ static bool interface_modport_prototype_matches_method_(
 		|| prototype_port.port->get_port_type()
 		   != implementation_port->port_type()
 		|| (require_matching_names
+		    && (!extern_ports || !extern_ports->at(idx).unnamed)
 		    && prototype_port.port->basename()
 		       != implementation_port->name())) {
 		  matches = false;
@@ -19072,6 +19100,18 @@ static void validate_interface_modport_import_prototypes_(
 	    const PModport*view = view_entry.second;
 	    if (!view)
 		  continue;
+	    for (perm_string name : view->import_ports) {
+		  auto func = interface_module->funcs.find(name);
+		  if (func != interface_module->funcs.end()
+		      && func->second->is_extern_prototype()
+		      && !view->find_tf_port_prototype(true, name)) {
+			cerr << view->get_fileline()
+			     << ": error: A full modport prototype is required to import "
+				"extern function `" << name
+			     << "' (IEEE 1800-2017/2023 25.7)." << endl;
+			des->errors += 1;
+		  }
+	    }
 	    for (const auto&prototype_entry : view->import_prototypes) {
 		  perm_string method_name = prototype_entry.first;
 		  const PModport::tf_port_prototype_t*prototype =
@@ -25167,15 +25207,12 @@ static string format_elab_message(const string&fmt,
       return result.str();
 }
 
-/* Lower a task whose scope has already been resolved by a deferred pass.
- * This keeps exported-provider calls on the ordinary task-call path, including
- * automatic frames, ref binding, aggregate copying, and output copy-back. */
-NetProc* PCallTask::elaborate_bound_task_call_(Design*des, NetScope*scope,
-					      NetScope*task) const
+/* Keep calls to bound exported providers on the ordinary statement-call
+ * path, including automatic frames, ref binding, and output copy-back. */
+NetProc* PCallTask::elaborate_bound_subroutine_call_(
+		Design*des, NetScope*scope, NetScope*subroutine) const
 {
-      if (!task || task->type() != NetScope::TASK)
-	    return nullptr;
-      return elaborate_build_call_(des, scope, task, nullptr);
+      return elaborate_build_call_(des, scope, subroutine, nullptr);
 }
 
 /* Elaborate an elaboration task. */
@@ -27230,6 +27267,14 @@ static bool event_expr_has_darray_size_(const NetExpr*expr)
       return false;
 }
 
+struct deferred_extern_sensitivity_t {
+      NetScope*scope;
+      NetProcTop*process = nullptr;
+};
+
+static map<NetEvWait*, deferred_extern_sensitivity_t> deferred_extern_sensitivity_;
+static bool extern_functions_bound_ = false;
+
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet) const
 {
@@ -27742,9 +27787,20 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	    std::vector<const NetEProperty*> implicit_vif_props;
 	    if (gn_system_verilog() && !synthesis)
 		  NetEProperty::set_nex_input_vif_collector(&implicit_vif_props);
+	    bool extern_pending = false;
+	    if (always_sens_ && !extern_functions_bound_)
+		  NetFuncDef::set_extern_sensitivity_collector(&extern_pending);
 	    NexusSet*nset = enet->nex_input(rem_out, always_sens_);
+	    if (always_sens_ && !extern_functions_bound_)
+		  NetFuncDef::set_extern_sensitivity_collector(nullptr);
 	    if (gn_system_verilog() && !synthesis)
 		  NetEProperty::set_nex_input_vif_collector(nullptr);
+	    if (extern_pending) {
+		  delete nset;
+		  delete ev;
+		  deferred_extern_sensitivity_[wa].scope = scope;
+		  return wa;
+	    }
 	    for (const NetEProperty*prop : implicit_vif_props) {
 		  vif_member_path_t path;
 		  if (decode_vif_member_path_(prop, path))
@@ -31795,7 +31851,7 @@ NetProc* PReturn::elaborate(Design*des, NetScope*scope) const
 	    return 0;
       }
 
-      NetNet*res = target->find_signal(target->basename());
+      NetNet*res = const_cast<NetNet*>(target->func_def()->return_sig());
       ivl_assert(*this, res);
       NetAssign_*lv = new NetAssign_(res);
 
@@ -32242,6 +32298,27 @@ NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
       return loop;
 }
 
+/* Start combinational waits before ordinary time-zero Active work. */
+static void set_combinational_schedule_push_(NetProcTop*top)
+{
+      if (top->type() != IVL_PR_ALWAYS && top->type() != IVL_PR_ALWAYS_COMB
+	  && top->type() != IVL_PR_ALWAYS_FF && top->type() != IVL_PR_ALWAYS_LATCH)
+	    return;
+
+      const NetEvWait*wait = dynamic_cast<const NetEvWait*>(top->statement());
+      if (!wait || wait->nevents() != 1)
+	    return;
+
+      const NetEvent*event = wait->event(0);
+      if (event->nprobe() == 0)
+	    return;
+      for (unsigned idx = 0; idx < event->nprobe(); ++idx)
+	    if (event->probe(idx)->edge() != NetEvProbe::ANYEDGE)
+		  return;
+
+      top->attribute(perm_string::literal("_ivl_schedule_push"), verinum(1));
+}
+
 bool PProcess::elaborate(Design*des, NetScope*scope) const
 {
 	  if (const PBlock*block = dynamic_cast<const PBlock*>(statement_))
@@ -32303,44 +32380,12 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       top->set_line(*this);
       des->add_process(top);
 
-	/* Detect the special case that this is a combinational
-	always block. We want to attach an _ivl_schedule_push
-	attribute to this process so that it starts up and
-	gets into its wait statement before non-combinational
-	code is executed. */
-      do {
-	    if ((top->type() != IVL_PR_ALWAYS) &&
-	        (top->type() != IVL_PR_ALWAYS_COMB) &&
-	        (top->type() != IVL_PR_ALWAYS_FF) &&
-	        (top->type() != IVL_PR_ALWAYS_LATCH))
-		  break;
-
-	    NetEvWait*st = dynamic_cast<NetEvWait*>(top->statement());
-	    if (st == 0)
-		  break;
-
-	    if (st->nevents() != 1)
-		  break;
-
-	    NetEvent*ev = st->event(0);
-
-	    if (ev->nprobe() == 0)
-		  break;
-
-	    bool anyedge_test = true;
-	    for (unsigned idx = 0 ;  anyedge_test && (idx<ev->nprobe())
-		       ; idx += 1) {
-		  const NetEvProbe*pr = ev->probe(idx);
-		  if (pr->edge() != NetEvProbe::ANYEDGE)
-			anyedge_test = false;
-	    }
-
-	    if (! anyedge_test)
-		  break;
-
-	    top->attribute(perm_string::literal("_ivl_schedule_push"),
-			   verinum(1));
-      } while (0);
+      if (auto*wait = dynamic_cast<NetEvWait*>(cur)) {
+	    const auto pending = deferred_extern_sensitivity_.find(wait);
+	    if (pending != deferred_extern_sensitivity_.end())
+		  pending->second.process = top;
+      }
+      set_combinational_schedule_push_(top);
 
       return true;
 }
@@ -57737,7 +57782,7 @@ static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
 		  }
 		  PCallTask provider_call(provider->basename(), actuals);
 		  provider_call.set_line(*stub);
-		  NetProc*call = provider_call.elaborate_bound_task_call_(
+		  NetProc*call = provider_call.elaborate_bound_subroutine_call_(
 			des, stub_scope, provider);
 		  if (!call)
 			continue;
@@ -57747,6 +57792,209 @@ static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
 
       for (const auto&child : scope->children())
 	    elaborate_modport_export_tasks_(des, child.second);
+}
+
+using extern_function_providers_t = map<NetScope*, vector<NetScope*>>;
+
+static void collect_extern_functions_(Design*des, NetScope*scope,
+		vector<NetScope*>&prototypes, extern_function_providers_t&providers)
+{
+      if (const PFunction*func = scope->func_pform()) {
+	    if (func->is_extern_prototype())
+		  prototypes.push_back(scope);
+
+	    if (!func->interface_port_name().nil()) {
+		  NetScope*module = scope->parent();
+		  while (module && module->type() != NetScope::MODULE)
+			module = module->parent();
+		  NetNet*port = module
+			? module->find_signal(func->interface_port_name()) : nullptr;
+		  NetScope*iface = port && port->unpacked_dimensions() == 0
+			? port->resolve_interface_scope(0) : nullptr;
+		  if (!iface) {
+			cerr << func->get_fileline() << ": error: Function `"
+			     << func->interface_port_method()
+			     << "' requires a connected interface port `"
+			     << func->interface_port_name()
+			     << "' (IEEE 1800-2017/2023 25.7)." << endl;
+			des->errors += 1;
+			return;
+		  }
+
+		  perm_string name = func->interface_port_method();
+		  const netclass_t*type =
+			dynamic_cast<const netclass_t*>(port->net_type());
+		  const PModport*view = find_interface_modport_view_(type);
+		  NetScope*prototype = iface->child(hname_t(name));
+		  const PFunction*declaration = prototype
+			? prototype->func_pform() : nullptr;
+		  if (!declaration || !declaration->is_extern_prototype()) {
+			if (view && view->export_ports.count(name)) {
+			      cerr << func->get_fileline()
+				   << ": sorry: Exporting function `" << name
+				   << "' through a modport alone is not yet supported."
+				   << endl;
+			} else {
+			      cerr << func->get_fileline() << ": error: Function `"
+				   << name << "' requires an extern declaration or "
+				      "modport export in interface `" << scope_path(iface)
+				   << "' (IEEE 1800-2017/2023 25.7)." << endl;
+			}
+			des->errors += 1;
+			return;
+		  }
+
+		  const PModport::tf_port_prototype_t*exported = view
+			? view->find_tf_port_prototype(false, name) : nullptr;
+		  if (exported && !interface_modport_prototype_matches_method_(
+			*func, des, exported, scope, scope->func_def(),
+			true, true, iface))
+			return;
+
+		  providers[prototype].push_back(scope);
+	    }
+      }
+
+      for (const auto&child : scope->children())
+	    collect_extern_functions_(des, child.second, prototypes, providers);
+}
+
+static bool extern_function_signature_matches_(const NetFuncDef*prototype,
+					      const NetFuncDef*provider)
+{
+      if (!prototype || !provider || prototype->is_void() != provider->is_void()
+	  || prototype->port_count() != provider->port_count())
+	    return false;
+      if (!prototype->is_void() && !interface_modport_prototype_type_matches_(
+	    interface_method_formal_type_(prototype->return_sig()),
+	    interface_method_formal_type_(provider->return_sig())))
+	    return false;
+
+      const auto*ports = prototype->scope()->func_pform()->peek_ports();
+      for (unsigned idx = 0; idx < prototype->port_count(); ++idx) {
+	    const NetNet*formal = prototype->port(idx);
+	    const NetNet*implementation = provider->port(idx);
+	    if (!formal || !implementation
+		|| (!ports->at(idx).unnamed
+		    && formal->name() != implementation->name())
+		|| formal->port_type() != implementation->port_type()
+		|| formal->get_const() != implementation->get_const()
+		|| formal->get_ref_static() != implementation->get_ref_static()
+		|| !interface_modport_prototype_type_matches_(
+		      interface_method_formal_type_(formal),
+		      interface_method_formal_type_(implementation)))
+		  return false;
+      }
+      return true;
+}
+
+/* Physical interface-port bindings are complete after module elaboration.
+ * Keep the prototype's signature and defaults on the callable interface
+ * scope, and forward its actuals to the provider's own function frame. */
+static void elaborate_extern_functions_(Design*des)
+{
+      vector<NetScope*>prototypes;
+      extern_function_providers_t providers;
+      for (NetScope*root : des->find_root_scopes())
+	    collect_extern_functions_(des, root, prototypes, providers);
+
+      for (NetScope*scope : prototypes) {
+	    const PFunction*prototype = scope->func_pform();
+	    vector<NetScope*>&matches = providers[scope];
+	    if (matches.size() != 1) {
+		  cerr << scope->get_fileline() << ": error: Extern function `"
+		       << scope->basename() << "' requires exactly one connected "
+			  "module provider for this interface instance; found "
+		       << matches.size() << " (IEEE 1800-2017/2023 25.7)." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	    NetScope*provider = matches.front();
+	    NetFuncDef*signature = scope->func_def();
+	    const NetFuncDef*definition = provider->func_def();
+	    if (!extern_function_signature_matches_(signature, definition)) {
+		  cerr << provider->get_fileline()
+		       << ": error: Provider for extern function `"
+		       << scope->basename() << "' does not match its prototype "
+			  "(IEEE 1800-2017/2023 25.7)." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	    // An import can name a formal left unnamed in the extern declaration.
+	    // Match those names against the implementation once it is known.
+	    const NetScope*iface = scope->parent();
+	    bool imports_match = true;
+	    for (const auto&entry : iface->module_definition()->modports) {
+		  const PModport*view = entry.second;
+		  const auto*imported = view->find_tf_port_prototype(
+			true, scope->basename());
+		  if (imported)
+			imports_match &= interface_modport_prototype_matches_method_(
+			      *view, des, imported, provider, definition, true, true, iface);
+	    }
+	    if (!imports_match)
+		  continue;
+
+	    NetProc*call = nullptr;
+	    if (signature->is_void()) {
+		  list<named_pexpr_t>actuals;
+		  for (unsigned idx = 0; idx < signature->port_count(); ++idx) {
+			named_pexpr_t actual;
+			actual.parm = new PEIdent(signature->port(idx)->name(),
+						  UINT_MAX, true);
+			actual.parm->set_line(*prototype);
+			actual.set_line(*prototype);
+			actuals.push_back(actual);
+		  }
+		  PCallTask forward(provider->basename(), actuals);
+		  forward.set_line(*prototype);
+		  call = forward.elaborate_bound_subroutine_call_(des, scope, provider);
+	    } else {
+		  vector<NetExpr*>actuals;
+		  for (unsigned idx = 0; idx < signature->port_count(); ++idx) {
+			NetESignal*arg = new NetESignal(signature->port(idx));
+			arg->set_line(*prototype);
+			actuals.push_back(arg);
+		  }
+		  NetESignal*result = new NetESignal(
+			const_cast<NetNet*>(definition->return_sig()));
+		  result->set_line(*prototype);
+		  NetEUFunc*forward = new NetEUFunc(scope, provider, result, actuals, false);
+		  forward->set_line(*prototype);
+		  call = new NetAssign(new NetAssign_(
+			const_cast<NetNet*>(signature->return_sig())), forward);
+	    }
+	    if (call) {
+		  call->set_line(*prototype);
+		  signature->release_proc();
+		  signature->set_proc(call);
+	    }
+      }
+}
+
+static void resolve_extern_function_sensitivity_(Design*des)
+{
+      extern_functions_bound_ = true;
+      for (const auto&entry : deferred_extern_sensitivity_) {
+	    NetEvWait*wait = entry.first;
+	    PEventStatement event(true);
+	    event.set_line(*wait);
+	    NetProc*body = wait->statement();
+	    NetProc*resolved = event.elaborate_st(des, entry.second.scope, body);
+	    if (resolved == body)
+		  continue;
+	    auto*complete = dynamic_cast<NetEvWait*>(resolved);
+	    ivl_assert(*wait, complete);
+	    complete->set_statement(nullptr);
+	    for (unsigned idx = 0; idx < complete->nevents(); ++idx)
+		  wait->add_event(complete->event(idx));
+	    delete complete;
+	    if (entry.second.process)
+		  set_combinational_schedule_push_(entry.second.process);
+      }
+      deferred_extern_sensitivity_.clear();
 }
 
 Design* elaborate(list<perm_string>roots)
@@ -57769,6 +58017,8 @@ Design* elaborate(list<perm_string>roots)
       pending_interface_specify_paths_.clear();
       pending_interface_variable_continuous_drivers_.clear();
       interface_port_scope_bindings_.clear();
+      deferred_extern_sensitivity_.clear();
+      extern_functions_bound_ = false;
       pending_variable_continuous_drivers_.clear();
       pending_variable_array_continuous_drivers_.clear();
       pending_unsafe_interface_drivers_.clear();
@@ -58133,6 +58383,11 @@ Design* elaborate(list<perm_string>roots)
 	      elaborate_extern_forkjoin_tasks_(des, root);
 	for (NetScope*root : des->find_root_scopes())
 	      elaborate_modport_export_tasks_(des, root);
+	elaborate_extern_functions_(des);
+	if (rc && des->errors == 0)
+	      resolve_extern_function_sensitivity_(des);
+	else
+	      deferred_extern_sensitivity_.clear();
 
 	/* A typedef-only explicit class specialization is a concrete use. */
 	bool reached_typedef = false;
