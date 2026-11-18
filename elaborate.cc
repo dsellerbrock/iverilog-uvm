@@ -32966,13 +32966,9 @@ void PSpecPath::elaborate_bound_(Design*des, NetScope*scope) const
 		  path->set_dst_part(dst_part[dst_idx].first, dst_wid);
 	    path->delay_exprs = delay_exprs;
 
-	      // The presence of the data_source_expression indicates
-	      // that this is an edge sensitive path. If so, then set
-	      // the edges. Note that edge==0 is BOTH edges.
-	    if (data_source_expression) {
-		  if (edge >= 0) path->set_posedge();
-		  if (edge <= 0) path->set_negedge();
-	    }
+	      // Without an edge qualifier the path is active on any transition.
+	    if (edge == '+' || edge == '*') path->set_posedge();
+	    if (edge == '-' || edge == '*') path->set_negedge();
 
 	    switch (ndelays) {
 		case 12:

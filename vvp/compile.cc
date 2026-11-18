@@ -2984,12 +2984,11 @@ static struct __vpiModPathSrc*make_modpath_src(struct __vpiModPath*path,
 		  posedge = false;
 		  negedge = true;
 		  break;
-#if 0
 		case '*':
+		  vpi_edge = vpiAnyEdge;
 		  posedge = true;
 		  negedge = true;
 		  break;
-#endif
 		default:
 		  posedge = false;
 		  negedge = false;
