@@ -3434,6 +3434,8 @@ class NetLogic  : public NetNode {
       unsigned width() const;
       bool is_cassign() const;
       bool event_synchronous() const;
+      unsigned signed_xz_mask() const { return signed_xz_mask_; }
+      void signed_xz_mask(unsigned mask) { signed_xz_mask_ = mask; }
 
       virtual void dump_node(std::ostream&, unsigned ind) const override;
       virtual bool emit_node(struct target_t*) const override;
@@ -3444,6 +3446,7 @@ class NetLogic  : public NetNode {
       unsigned width_;
       bool is_cassign_;
       bool event_synchronous_;
+      unsigned signed_xz_mask_ = 0;
 };
 
 /* Mark combinational nodes built while synthesizing a procedural event

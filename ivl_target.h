@@ -1308,6 +1308,8 @@ extern ivl_drive_t ivl_logic_drive0(ivl_net_logic_t net);
 extern ivl_drive_t ivl_logic_drive1(ivl_net_logic_t net);
 extern unsigned    ivl_logic_width(ivl_net_logic_t net);
 extern unsigned    ivl_logic_event_synchronous(ivl_net_logic_t net);
+/* Bit i marks a signed four-state operand on input pin i+1. */
+extern unsigned    ivl_logic_signed_xz_mask(ivl_net_logic_t net);
 extern unsigned    ivl_logic_is_cassign(ivl_net_logic_t net);
 extern unsigned    ivl_logic_port_buffer(ivl_net_logic_t net);
 extern unsigned    ivl_logic_reactive_output(ivl_net_logic_t net);

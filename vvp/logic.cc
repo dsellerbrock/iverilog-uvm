@@ -46,6 +46,7 @@ class vvp_fun_drive_init : public vvp_fun_drive {
 struct vvp_boolean_state {
       vvp_vector4_t input[4];
       uint64_t stamp[4];
+      unsigned received;
       bool dirty;
 };
 
@@ -90,12 +91,13 @@ void vvp_fun_boolean_::reset_instance(vvp_context_t context)
             value->input[port] = input_[port];
             value->stamp[port] = history_->static_stamp(port);
       }
+      value->received = 0;
       value->dirty = false;
 }
 
 void vvp_fun_boolean_::initialize_instance(vvp_context_t context)
 {
-      output_->send_vec4(calculate(state(context)->input), context);
+      output_->send_vec4(evaluate(state(context)->input), context);
 }
 
 #ifdef CHECK_WITH_VALGRIND
@@ -105,27 +107,48 @@ void vvp_fun_boolean_::free_instance(vvp_context_t context)
 }
 #endif
 
+vvp_vector4_t vvp_fun_boolean_::evaluate(const vvp_vector4_t input[4]) const
+{
+      if (((signed_xz_mask_ & 1) && input[0].has_xz())
+          || ((signed_xz_mask_ & 2) && input[1].has_xz()))
+            return vvp_vector4_t(input[0].size(), BIT4_X);
+
+      return calculate(input);
+}
+
+bool vvp_fun_boolean_::update_input(vvp_vector4_t&input, unsigned&received,
+      unsigned port, const vvp_vector4_t&bit, unsigned base, bool partial)
+{
+      bool changed;
+      if (partial) changed = input.set_vec(base, bit);
+      else {
+            changed = !input.eeq(bit);
+            input = bit;
+      }
+
+      // A first all-Z delivery matches the cache but must still produce X.
+      unsigned pending = signed_xz_mask_ & (1U << port) & ~received;
+      received |= pending;
+      return changed || pending;
+}
+
 void vvp_fun_boolean_::update(vvp_context_t context, unsigned port,
       const vvp_vector4_t&bit, uint64_t stamp, unsigned base, bool partial)
 {
       auto*value = state(context);
       value->stamp[port] = stamp;
-      bool changed;
-      if (partial) changed = value->input[port].set_vec(base, bit);
-      else {
-            changed = !value->input[port].eeq(bit);
-            value->input[port] = bit;
-      }
-      if (!changed) return;
+      if (!update_input(value->input[port], value->received, port,
+                        bit, base, partial))
+            return;
       if (event_synchronous_) {
             vvp_event_enqueue_comb(this, context, [this, context]() {
                   if (context && scope_
                       && !vthread_context_live_matches_scope(context, scope_))
                         return;
-                  output_->send_vec4(calculate(state(context)->input), context);
+                  output_->send_vec4(evaluate(state(context)->input), context);
             });
       } else if (vthread_context_is_initializing(context)) {
-            output_->send_vec4(calculate(value->input), context);
+            output_->send_vec4(evaluate(value->input), context);
       } else {
             value->dirty = true;
             if (!net_) {
@@ -176,18 +199,14 @@ void vvp_fun_boolean_::receive(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
             history_->remember(source, port, stamp, sample);
             return;
       }
-      bool changed;
-      if (partial) changed = input_[port].set_vec(base, bit);
-      else {
-            changed = !input_[port].eeq(bit);
-            input_[port] = bit;
-      }
-      if (changed && event_synchronous_) {
+      if (!update_input(input_[port], received_, port, bit, base, partial))
+            return;
+      if (event_synchronous_) {
             vvp_net_t*out = ptr.ptr();
             vvp_event_enqueue_comb(this, source, [this, out, source]() {
-                  out->send_vec4(calculate(input_), source);
+                  out->send_vec4(evaluate(input_), source);
             });
-      } else if (changed && !net_) {
+      } else if (!net_) {
             net_ = ptr.ptr();
             schedule_functor(this);
       }
@@ -211,7 +230,7 @@ void vvp_fun_boolean_::run_run()
       vvp_net_t*ptr = net_;
       net_ = nullptr;
       if (!scope_) {
-            ptr->send_vec4(calculate(input_), 0);
+            ptr->send_vec4(evaluate(input_), 0);
             return;
       }
       // Queued work belongs to live frame slots, never saved context pointers.
@@ -219,7 +238,7 @@ void vvp_fun_boolean_::run_run()
             auto*value = state(context);
             if (!value->dirty) continue;
             value->dirty = false;
-            output_->send_vec4(calculate(value->input), context);
+            output_->send_vec4(evaluate(value->input), context);
       }
 }
 
@@ -712,6 +731,25 @@ void vvp_fun_not::run_run()
       ptr->send_vec4(result, 0);
 }
 
+// Signed unary + and ~ both need the full cached operand, even for a
+// partial delivery. The boolean input path also supplies event contexts.
+class vvp_fun_signed_unary final : public vvp_fun_boolean_ {
+    public:
+      vvp_fun_signed_unary(unsigned width, bool invert)
+      : vvp_fun_boolean_(width), invert_(invert)
+      {
+	    count_functors_logic += 1;
+      }
+
+    private:
+      vvp_vector4_t calculate(const vvp_vector4_t input[4]) const override
+      {
+	    return vvp_vector4_t(input[0], invert_);
+      }
+
+      bool invert_;
+};
+
 vvp_fun_or::vvp_fun_or(unsigned wid, bool invert)
 : vvp_fun_boolean_(wid), invert_(invert)
 {
@@ -794,6 +832,17 @@ vvp_vector4_t vvp_fun_xor::calculate(const vvp_vector4_t input[4]) const
       return result;
 }
 
+static unsigned signed_xz_arity(const char*type)
+{
+      if (strcmp(type, "BUF") == 0 || strcmp(type, "NOT") == 0)
+	    return 1;
+      if (strcmp(type, "AND") == 0 || strcmp(type, "NAND") == 0
+          || strcmp(type, "OR") == 0 || strcmp(type, "NOR") == 0
+          || strcmp(type, "XOR") == 0 || strcmp(type, "XNOR") == 0)
+	    return 2;
+      return 0;
+}
+
 /*
  * The parser calls this function to create a logic functor. I allocate a
  * functor, and map the name to the vvp_ipoint_t address for the
@@ -816,6 +865,25 @@ void compile_functor(char*label, char*type, unsigned width,
             event_synchronous = true;
       }
 
+      unsigned signed_xz_mask = 0;
+      if (char*suffix = strstr(type, "/sxz")) {
+	    const char*mask = suffix + 4;
+	    if (mask[0] >= '1' && mask[0] <= '3' && mask[1] == '\0')
+		  signed_xz_mask = mask[0] - '0';
+	    *suffix = '\0';
+	    unsigned arity = signed_xz_arity(type);
+	    if (!signed_xz_mask || signed_xz_mask >= (1U << arity)
+		|| argc < arity || argc > (arity == 1 ? 1U : 4U)) {
+		  yyerror("invalid signed X/Z functor mask or type.");
+		  for (unsigned idx = 0; idx < argc; ++idx)
+			free(argv[idx].text);
+		  free(argv);
+		  free(type);
+		  free(label);
+		  return;
+	    }
+      }
+
       if (strcmp(type, "DRIVE_INIT") == 0) {
             obj = new vvp_fun_drive_init(ostr0, ostr1);
             strength_aware = true;
@@ -827,7 +895,10 @@ void compile_functor(char*label, char*type, unsigned width,
 	    obj = new vvp_fun_and(width, false);
 
       } else if (strcmp(type, "BUF") == 0) {
-	    obj = new vvp_fun_buf(width);
+	    if (signed_xz_mask)
+		  obj = new vvp_fun_signed_unary(width, false);
+	    else
+		  obj = new vvp_fun_buf(width);
 
       } else if (strcmp(type, "BUFIF0") == 0) {
 	    obj = new vvp_fun_bufif(true,false, ostr0, ostr1);
@@ -888,7 +959,10 @@ void compile_functor(char*label, char*type, unsigned width,
 	    obj = new vvp_fun_rpmos(false);
 
       } else if (strcmp(type, "NOT") == 0) {
-	    obj = new vvp_fun_not(width);
+	    if (signed_xz_mask)
+		  obj = new vvp_fun_signed_unary(width, true);
+	    else
+		  obj = new vvp_fun_not(width);
 
       } else if (strcmp(type, "XNOR") == 0) {
 	    obj = new vvp_fun_xor(width, true);
@@ -912,6 +986,7 @@ void compile_functor(char*label, char*type, unsigned width,
       if (auto*boolean = dynamic_cast<vvp_fun_boolean_*>(obj)) {
             boolean->bind_net(net);
             boolean->event_synchronous(event_synchronous);
+            boolean->signed_xz_mask(signed_xz_mask);
       }
       if (auto*mux = dynamic_cast<vvp_fun_muxz*>(obj))
             mux->event_synchronous(event_synchronous);

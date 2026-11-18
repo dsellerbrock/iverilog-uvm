@@ -45,6 +45,7 @@ class vvp_fun_boolean_ : public vvp_net_fun_t, protected vvp_gen_event_s,
 
       void bind_net(vvp_net_t*net) { output_ = net; }
       void event_synchronous(bool flag) { event_synchronous_ = flag; }
+      void signed_xz_mask(unsigned mask) { signed_xz_mask_ = mask; }
       void alloc_instance(vvp_context_t) override;
       void reset_instance(vvp_context_t) override;
       void initialize_instance(vvp_context_t) override;
@@ -57,6 +58,9 @@ class vvp_fun_boolean_ : public vvp_net_fun_t, protected vvp_gen_event_s,
 
     private:
       void run_run() override;
+      vvp_vector4_t evaluate(const vvp_vector4_t input[4]) const;
+      bool update_input(vvp_vector4_t&, unsigned&received, unsigned port,
+                        const vvp_vector4_t&, unsigned base, bool partial);
       vvp_boolean_state* state(vvp_context_t);
       void update(vvp_context_t, unsigned, const vvp_vector4_t&, uint64_t,
                   unsigned base, bool partial);
@@ -69,6 +73,8 @@ class vvp_fun_boolean_ : public vvp_net_fun_t, protected vvp_gen_event_s,
       unsigned context_idx_ = 0;
       scalar_event_history*history_ = nullptr;
       bool event_synchronous_ = false;
+      unsigned signed_xz_mask_ = 0;
+      unsigned received_ = 0;
 };
 
 class vvp_fun_and  : public vvp_fun_boolean_ {

@@ -1398,6 +1398,12 @@ extern "C" unsigned ivl_logic_event_synchronous(ivl_net_logic_t net)
       return net->event_synchronous;
 }
 
+extern "C" unsigned ivl_logic_signed_xz_mask(ivl_net_logic_t net)
+{
+      assert(net);
+      return net->signed_xz_mask;
+}
+
 extern "C" unsigned ivl_logic_port_buffer(ivl_net_logic_t net)
 {
       assert(net);

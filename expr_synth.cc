@@ -329,6 +329,13 @@ NetNet* NetEBAdd::synthesize(Design*des, NetScope*scope, NetExpr*root)
       return osig;
 }
 
+// IEEE 1800 11.8.2 and 11.8.4 apply to the operands after type propagation.
+static bool signed_xz_operand(const NetExpr*expr)
+{
+      extern bool synthesis;
+      return !synthesis && expr->has_sign() && expr->expr_type() == IVL_VT_LOGIC;
+}
+
 /*
  * The bitwise logic operators are turned into discrete gates pretty
  * easily. Synthesize the left and right sub-expressions to get
@@ -391,6 +398,8 @@ NetNet* NetEBBits::synthesize(Design*des, NetScope*scope, NetExpr*root)
 	    ivl_assert(*this, 0);
       }
 
+      gate->signed_xz_mask((signed_xz_operand(left_) ? 1 : 0)
+			 | (signed_xz_operand(right_) ? 2 : 0));
       connect(osig->pin(0), gate->pin(0));
       connect(lsig->pin(0), gate->pin(1));
       connect(rsig->pin(0), gate->pin(2));
@@ -1189,6 +1198,7 @@ NetNet* NetEUBits::synthesize(Design*des, NetScope*scope, NetExpr*root)
 	    ivl_assert(*this, 0);
       }
 
+      gate->signed_xz_mask(signed_xz_operand(expr_) ? 1 : 0);
       connect(osig->pin(0), gate->pin(0));
       connect(isig->pin(0), gate->pin(1));
 
@@ -1199,8 +1209,28 @@ NetNet* NetEUBits::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
 NetNet* NetEUnary::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
-      if (op_ == '+')
-	    return expr_->synthesize(des, scope, root);
+      if (op_ == '+') {
+	    NetNet*isig = expr_->synthesize(des, scope, root);
+	    if (!isig || !signed_xz_operand(expr_))
+		  return isig;
+
+	    unsigned width = isig->vector_width();
+	    netvector_t*osig_vec = new netvector_t(expr_type(), width-1, 0);
+	    osig_vec->set_signed(has_sign());
+	    NetNet*osig = new NetNet(scope, scope->local_symbol(),
+				     NetNet::IMPLICIT, osig_vec);
+	    osig->set_line(*this);
+	    osig->local_flag(true);
+
+	    NetLogic*gate = new NetLogic(scope, scope->local_symbol(),
+					 2, NetLogic::BUF, width, true);
+	    gate->signed_xz_mask(1);
+	    gate->set_line(*this);
+	    des->add_node(gate);
+	    connect(gate->pin(0), osig->pin(0));
+	    connect(gate->pin(1), isig->pin(0));
+	    return osig;
+      }
 
       if (op_ == '-') {
 	    NetNet*sig = expr_->synthesize(des, scope, root);
