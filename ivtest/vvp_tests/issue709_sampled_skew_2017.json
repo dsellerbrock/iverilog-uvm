@@ -1,0 +1,1 @@
+{"type": "CE", "source": "issue709_sampled.sv", "iverilog-args": ["-g2017", "-DISSUE709_BAD_SKEW"], "gold": "issue709_sampled_skew"}

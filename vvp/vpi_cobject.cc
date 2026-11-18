@@ -33,6 +33,7 @@
 # include  "vvp_cleanup.h"
 #endif
 # include  "vthread.h"
+# include  <algorithm>
 # include  <cstring>
 # include  <string>
 # include  <cstdlib>
@@ -79,21 +80,6 @@ static vvp_cobject* get_class_object_(const vvp_object_t&obj)
 static class_type* get_declared_class_type_(vvp_fun_signal_object*fun)
 {
       return fun ? fun->declared_type() : 0;
-}
-
-static vpiHandle get_declared_class_typespec_(vvp_fun_signal_object*fun)
-{
-      class_type*defn = get_declared_class_type_(fun);
-      if (!defn)
-            return 0;
-
-      std::string full_name = defn->scope_path();
-      if (!full_name.empty())
-            full_name += ".";
-      full_name += defn->class_name();
-      return vpi_handle_by_name(
-            reinterpret_cast<PLI_BYTE8*>(const_cast<char*>(full_name.c_str())),
-            0);
 }
 
 static void report_vinterface_property_write_()
@@ -143,6 +129,8 @@ static std::string format_cobject_property_(vvp_cobject* cobj,
 	}
 	vvp_vector4_t v;
 	cobj->get_vec4(prop, v, leaf);
+	if (vpiHandle typespec = defn->property_typespec(prop))
+		return vpip_format_packed_value(typespec, std::move(v));
 	if (defn->property_is_enum(prop)) {
 		const std::vector<vvp_vector4_t>& values = defn->property_enum_values(prop);
 		const std::vector<std::string>& names = defn->property_enum_names(prop);
@@ -159,6 +147,33 @@ static std::string format_cobject_property_(vvp_cobject* cobj,
 	char b[256];
 	vpip_vec4_to_dec_str(v, b, sizeof b, is_signed);
 	return b;
+}
+
+static void format_packed_property_(std::string&out, vvp_cobject*cobj,
+				    const class_type*defn, size_t prop,
+				    size_t dimension = 0, uint64_t leaf = 0)
+{
+      const auto&dims = defn->property_dimensions(prop);
+      if (dimension == dims.size()) {
+	    out += format_cobject_property_(cobj, defn, prop, leaf, 0);
+	    return;
+      }
+
+      int64_t left = dims[dimension].first;
+      int64_t right = dims[dimension].second;
+      int64_t low = std::min(left, right);
+      uint64_t count = std::max(left, right) - low + 1;
+      int step = left <= right ? 1 : -1;
+      out += "'{";
+      // The rightmost dimension varies fastest and storage offsets start
+      // at the numeric low bound, irrespective of declared direction.
+      for (int64_t idx = left;; idx += step) {
+	    if (idx != left) out += ", ";
+	    format_packed_property_(out, cobj, defn, prop, dimension + 1,
+				    leaf * count + (idx - low));
+	    if (idx == right) break;
+      }
+      out += '}';
 }
 
 /* Shared object -> `'{name:value, ...}` renderer for %p and object string
@@ -249,6 +264,10 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
 	    if (!defn->property_base_type(i).empty()
 		&& defn->property_base_type(i)[0] == 'M') {
 		  out += "<container>";
+		  continue;
+	    }
+	    if (defn->property_typespec(i)) {
+		  format_packed_property_(out, cobj, defn, i);
 		  continue;
 	    }
 	    uint64_t count = defn->property_array_size(i);
@@ -427,8 +446,13 @@ class __vpiClassObject : public __vpiHandle {
       vpiHandle vpi_handle(int code) override
       {
 	    if (code == vpiClassTypespec
-		&& vvp_object::pointer_is_live(object_))
-		  return const_cast<class_type*>(object_->get_defn());
+		&& vvp_object::pointer_is_live(object_)) {
+		  const class_type*type = object_->get_defn();
+		  if (type)
+			if (vpiHandle typespec = type->class_typespec())
+			      return typespec;
+		  return const_cast<class_type*>(type);
+	    }
 	    return __vpiHandle::vpi_handle(code);
       }
 
@@ -457,7 +481,7 @@ vpiHandle __vpiCobjectVar::vpi_handle(int code)
 		return vif ? vif->vif_scope() : 0;
 	  }
           case vpiClassTypespec:
-            return get_declared_class_typespec_(fun);
+            return vpip_declared_class_typespec(get_declared_class_type_(fun));
 
           case vpiClassDefn:
             if (fun) {
@@ -581,6 +605,16 @@ class __vpiClassMember : public __vpiDarrayVar {
       {
 	    return (is_fixed_array_() || is_container_())
 		 ? vpiArrayVar : type_code_;
+      }
+
+      std::string format_packed_p()
+      {
+	    if (!defn_->property_typespec(idx_)) return {};
+	    vvp_cobject*cobj = live_object_();
+	    if (!cobj) return {};
+	    std::string result;
+	    format_packed_property_(result, cobj, defn_, idx_);
+	    return result;
       }
 
       int vpi_get(int code) override
@@ -1878,6 +1912,28 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
 
       char* vpi_get_str(int) override { return nullptr; }
 
+      std::string format_packed_p()
+      {
+            vvp_object_t obj = resolve_container_();
+            vvp_cobject*cobj = obj.peek<vvp_cobject>();
+            if (!cobj) return {};
+            const class_type*defn = cobj->get_defn();
+            size_t prop = prop_path_.back();
+            vpiHandle spec = defn->property_typespec(prop);
+            if (!spec) return {};
+            if (!index_) {
+                  std::string result;
+                  format_packed_property_(result, cobj, defn, prop);
+                  return result;
+            }
+            size_t leaf;
+            vvp_darray*dar = nullptr;
+            if (cobject_property_element_(cobj, prop, index_, leaf, dar))
+                  return format_cobject_property_(cobj, defn, prop, leaf, 0);
+            return vpip_format_packed_value(spec,
+                        vvp_vector4_t(width_, two_state_ ? BIT4_0 : BIT4_X));
+      }
+
       void vpi_get_value(p_vpi_value val) override
       {
             vvp_object_t obj = resolve_container_();
@@ -2019,6 +2075,35 @@ vpiHandle vpip_make_cobject_property_vec_elem(char*label, unsigned width,
                                                prop_cnt, prop_idx));
       compile_vpi_lookup(&obj->index_, index_label);
       return obj;
+}
+
+/* Private system module bridge. The caller copies the returned VPI buffer
+   before its next VPI call. */
+extern "C" const char*vpip_format_packed_p(vpiHandle item)
+{
+      std::string result;
+      if (auto*member = dynamic_cast<__vpiClassMember*>(item)) {
+	    result = member->format_packed_p();
+      } else if (auto*prop = dynamic_cast<__vpiClassPropertyVecVar*>(item)) {
+	    result = prop->format_packed_p();
+      } else {
+	    if (dynamic_cast<__vpiArrayBase*>(item)) return nullptr;
+	    vpiHandle spec = vpi_handle(vpiTypespec, item);
+	    if (!spec || (spec->get_type_code() != vpiStructTypespec
+	                  && spec->get_type_code() != vpiEnumTypespec))
+		  return nullptr;
+	    int width = vpi_get(vpiSize, item);
+	    if (width <= 0) return nullptr;
+	    s_vpi_value value = {};
+	    value.format = vpiVectorVal;
+	    vpi_get_value(item, &value);
+	    if (value.format != vpiVectorVal || !value.value.vector)
+		  return nullptr;
+	    // Own the bits before any other VPI call can reuse the value buffer.
+	    vvp_vector4_t bits = vec4_from_vpi_value(&value, width);
+	    result = vpip_format_packed_value(spec, std::move(bits));
+      }
+      return result.empty() ? nullptr : simple_set_rbuf_str(result.c_str());
 }
 
 #ifdef CHECK_WITH_VALGRIND

@@ -1308,6 +1308,8 @@ extern ivl_drive_t ivl_logic_drive0(ivl_net_logic_t net);
 extern ivl_drive_t ivl_logic_drive1(ivl_net_logic_t net);
 extern unsigned    ivl_logic_width(ivl_net_logic_t net);
 extern unsigned    ivl_logic_event_synchronous(ivl_net_logic_t net);
+/* Bit i marks a signed four-state operand on input pin i+1. */
+extern unsigned    ivl_logic_signed_xz_mask(ivl_net_logic_t net);
 extern unsigned    ivl_logic_is_cassign(ivl_net_logic_t net);
 extern unsigned    ivl_logic_port_buffer(ivl_net_logic_t net);
 extern unsigned    ivl_logic_reactive_output(ivl_net_logic_t net);
@@ -2142,6 +2144,12 @@ extern size_t      ivl_scope_childs(ivl_scope_t net);
 extern ivl_scope_t ivl_scope_child(ivl_scope_t net, size_t idx);
 extern unsigned   ivl_scope_classes(ivl_scope_t net);
 extern ivl_type_t ivl_scope_class(ivl_scope_t net, unsigned idx);
+/* The lexical declaration of a class scope and its declared virtual flag.
+   Class typespec scopes are the concrete types that can have a runtime
+   class record. A generic declaration has a definition scope only. */
+extern ivl_scope_t ivl_scope_class_declaration(ivl_scope_t net, int*concrete);
+extern int ivl_scope_class_virtual(ivl_scope_t net);
+extern ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net);
 extern unsigned       ivl_scope_enumerates(ivl_scope_t net);
 extern ivl_enumtype_t ivl_scope_enumerate(ivl_scope_t net, unsigned idx);
 /* Explicit user typedef declarations owned by this lexical scope. */
@@ -2510,6 +2518,8 @@ extern int         ivl_signal_is_time(ivl_signal_t net);
 extern int         ivl_signal_local(ivl_signal_t net);
 /* True when an always_comb or always_latch process assigns this variable. */
 extern int         ivl_signal_comb_driven(ivl_signal_t net);
+/* Declared trireg charge strength, or IVL_DR_HiZ for other signals. */
+extern ivl_drive_t ivl_signal_charge_strength(ivl_signal_t net);
 extern ivl_lifetime_t ivl_signal_lifetime(ivl_signal_t net);
 extern unsigned    ivl_signal_forced_net(ivl_signal_t net);
 extern unsigned    ivl_signal_npath(ivl_signal_t net);

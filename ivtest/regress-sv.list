@@ -909,6 +909,10 @@ sv_array_cassign_fail11	CE,-g2005-sv		ivltests
 sv_class_fixed_array_reduction normal,-g2012	ivltests gold=sv_class_fixed_array_reduction.gold
 sv_modport_undeclared_signal_2017 CE,-g2017	ivltests gold=sv_modport_undeclared_signal_2017.gold
 sv_modport_undeclared_signal_2023 CE,-g2023	ivltests gold=sv_modport_undeclared_signal_2023.gold
+sv_modport_clocking_scope_fail_2017 CE,-g2017,-s,sv_modport_clocking_scope_fail ivltests gold=sv_modport_clocking_scope_fail.gold
+sv_modport_clocking_scope_fail_2023 CE,-g2023,-s,sv_modport_clocking_scope_fail ivltests gold=sv_modport_clocking_scope_fail.gold
+sv_modport_clocking_forward_2017 normal,-g2017,-s,sv_modport_clocking_forward ivltests gold=sv_modport_clocking_forward.gold
+sv_modport_clocking_forward_2023 normal,-g2023,-s,sv_modport_clocking_forward ivltests gold=sv_modport_clocking_forward.gold
 sv_constraint_fixed_array_reduction normal,-g2012	ivltests gold=sv_constraint_fixed_array_reduction.gold
 sv_class_fixed_array_reduction_fail CE,-g2012	ivltests gold=sv_class_fixed_array_reduction_fail.gold
 sv_array_find_last	normal,-g2012		ivltests gold=sv_array_find_last.gold
@@ -2170,6 +2174,10 @@ sv_assert_clocking_input_skew_delay_2017 CE,-g2017,-gassertions ivltests
 sv_assert_clocking_input_skew_delay_2023 CE,-g2023,-gassertions ivltests
 sv_assert_clocking_input_skew_zero_2017 CE,-g2017,-gassertions ivltests
 sv_assert_clocking_input_skew_zero_2023 CE,-g2023,-gassertions ivltests
+issue709_sampled_2017 normal,-g2017,-gassertions,-s,issue709_sampled ivltests gold=issue709_sampled.gold
+issue709_sampled_2023 normal,-g2023,-gassertions,-s,issue709_sampled ivltests gold=issue709_sampled.gold
+issue709_sampled_skew_2017 CE,-g2017,-DISSUE709_BAD_SKEW ivltests gold=issue709_sampled_skew.gold
+issue709_sampled_skew_2023 CE,-g2023,-DISSUE709_BAD_SKEW ivltests gold=issue709_sampled_skew.gold
 sv_sampled_value_preponed_writer_first normal,-g2017 ivltests
 sv_assert_tree_implication_both_sides normal,-g2012 ivltests gold=sv_assert_tree_implication_both_sides.gold
 sv_assert_intersect_unequal_lengths CE,-g2017 ivltests
@@ -2242,6 +2250,10 @@ sv_deferred_observed_error_args0	normal,-g2012	ivltests gold=sv_deferred_observe
 sv_deferred_cover_actions0	normal,-g2012		ivltests gold=sv_deferred_cover_actions0.gold
 sv_deferred_cover_disabled0	normal,-g2012,-gno-assertions	ivltests gold=sv_deferred_cover_disabled0.gold
 sv_deferred_void_cast_action_fail	CE,-g2012		ivltests
+issue442_deferred_virtual_2017 normal,-g2017,-s,issue442_deferred_virtual ivltests gold=issue442_deferred_virtual.gold
+issue442_deferred_virtual_2023 normal,-g2023,-s,issue442_deferred_virtual ivltests gold=issue442_deferred_virtual.gold
+issue442_deferred_virtual_ref_fail_2017 CE,-g2017,-s,issue442_deferred_virtual_ref_fail ivltests gold=issue442_deferred_virtual_ref_fail.gold
+issue442_deferred_virtual_ref_fail_2023 CE,-g2023,-s,issue442_deferred_virtual_ref_fail ivltests gold=issue442_deferred_virtual_ref_fail.gold
 sv_typename1 normal,-g2012 ivltests
 sv_type_operator1 normal,-g2012 ivltests
 sv_type_operator_case normal,-g2012 ivltests gold=sv_type_operator_case.gold
@@ -7096,6 +7108,8 @@ issue3718_assoc_pattern_2017 normal,-g2017 ivltests gold=issue3718_assoc_pattern
 issue3718_assoc_pattern_2023 normal,-g2023 ivltests gold=issue3718_assoc_pattern.gold
 sva_prop_nested_inst_2017 normal,-g2017,-s,sva_prop_nested_inst ivltests gold=sva_prop_nested_inst.gold
 sva_prop_nested_inst_2023 normal,-g2023,-s,sva_prop_nested_inst ivltests gold=sva_prop_nested_inst.gold
+issue3658_property_event_or_2017 normal,-g2017,-s,issue3658_property_event_or ivltests gold=issue3658_property_event_or.gold
+issue3658_property_event_or_2023 normal,-g2023,-s,issue3658_property_event_or ivltests gold=issue3658_property_event_or.gold
 issue3735_2017 normal,-g2017,-s,issue3735 ivltests gold=issue3735.gold
 issue3735_2023 normal,-g2023,-s,issue3735 ivltests gold=issue3735.gold
 issue3738_2017 normal,-g2017,-s,issue3738 ivltests gold=issue3738.gold
@@ -7108,3 +7122,7 @@ issue3386_2017 normal,-g2017,-s,issue3386 ivltests gold=issue3386.gold
 issue3386_2023 normal,-g2023,-s,issue3386 ivltests gold=issue3386.gold
 issue3648_2017 normal,-g2017,-s,issue3648 ivltests gold=issue3648.gold
 issue3648_2023 normal,-g2023,-s,issue3648 ivltests gold=issue3648.gold
+issue3751_2017 normal,-g2017,-s,issue3751 ivltests gold=issue3751.gold
+issue3751_2023 normal,-g2023,-s,issue3751 ivltests gold=issue3751.gold
+issue3782_2017 normal,-g2017,-s,issue3782 ivltests gold=issue3782.gold
+issue3782_2023 normal,-g2023,-s,issue3782 ivltests gold=issue3782.gold

@@ -807,12 +807,10 @@ class vvp_wire_vec4 : public vvp_wire_base {
       bool is_forced(unsigned idx) const override;
 
 	// Clocking-block input sampling (IEEE 1800-2017 14.13): a
-	// 1-deep driven-value history so `%load/preponed` can return
+	// 1-deep visible-value history so `%load/preponed` can return
 	// the value the signal held when the current time step
 	// started (the Preponed-region value, i.e. the default #1step
-	// sample). Off unless a `%hist/on` enables it, so unrelated
-	// signals pay nothing. Note: tracks the DRIVEN value; a signal
-	// under an active force samples its driven (pre-force) value.
+	// sample). Off unless a `%hist/on` enables it.
       void enable_sample_hist() { hist_enabled_ = true; }
       void vec4_preponed_value(vvp_vector4_t&val) const;
 
@@ -833,8 +831,7 @@ class vvp_wire_vec4 : public vvp_wire_base {
       bool hist_enabled_;
       bool hist_valid_;
       vvp_time64_t hist_time_;
-      vvp_vector4_t hist_prev_; // bits4_ as of the end of the time
-				// step BEFORE hist_time_
+      vvp_vector4_t hist_prev_; // visible value before hist_time_
 };
 
 class vvp_wire_vec8 : public vvp_wire_base {
@@ -875,7 +872,7 @@ class vvp_wire_vec8 : public vvp_wire_base {
       vvp_bit4_t driven_value(unsigned idx) const override;
       bool is_forced(unsigned idx) const override;
 
-	// Strength-resolved twin of vvp_wire_vec4's one-step driven-value
+	// Strength-resolved twin of vvp_wire_vec4's one-step visible-value
 	// history. Preserve the full vec8 value internally; the vec4 load
 	// discards strengths only when the sampled expression consumes it.
       void enable_sample_hist() { hist_enabled_ = true; }
@@ -896,7 +893,7 @@ class vvp_wire_vec8 : public vvp_wire_base {
       bool hist_enabled_;
       bool hist_valid_;
       vvp_time64_t hist_time_;
-      vvp_vector8_t hist_prev_; // driven bits8_ before this time step
+      vvp_vector8_t hist_prev_; // visible value before hist_time_
 };
 
 class vvp_wire_real : public vvp_wire_base {
@@ -926,7 +923,7 @@ class vvp_wire_real : public vvp_wire_base {
 
       void get_signal_value(struct t_vpi_value*vp) override;
 
-	// R11: 1-deep driven-value history, the real-valued twin of the
+	// R11: 1-deep visible-value history, the real-valued twin of the
 	// vec4 one. Preponed reads of a real assertion operand need it for
 	// the same reason vectors do -- see vvp_wire_vec4::hist_snapshot_.
       void enable_sample_hist() { hist_enabled_ = true; }

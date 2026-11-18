@@ -18,6 +18,7 @@
  */
 
 # include  "compile.h"
+# include  "class_type.h"
 # include  "enum_type.h"
 # include  "vpi_priv.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -25,6 +26,7 @@
 #endif
 # include  <iostream>
 # include  <cassert>
+# include  <climits>
 # include  <cstdlib>
 # include  <cstring>
 
@@ -95,6 +97,7 @@ struct __vpiEnumTypespec : public __vpiHandle {
       vpiHandle vpi_iterate(int code) override;
 
       std::vector<enumconst_s> names;
+      unsigned width;
       int base_type_code;
       bool is_signed;
 	/* The typedef name (37.25 detail 1), or nil. */
@@ -194,6 +197,7 @@ void compile_enum2_type(char*label, long width, bool signed_flag,
 {
       struct __vpiEnumTypespec*spec = new struct __vpiEnumTypespec;
       spec->names = std::vector<enumconst_s> (names->size());
+      spec->width = width;
       spec->is_signed = signed_flag;
       spec->base_type_code = vpiBitVar;
 
@@ -222,6 +226,7 @@ void compile_enum4_type(char*label, long width, bool signed_flag,
 {
       struct __vpiEnumTypespec*spec = new struct __vpiEnumTypespec;
       spec->names = std::vector<enumconst_s> (names->size());
+      spec->width = width;
       spec->is_signed = signed_flag;
       spec->base_type_code = vpiReg;
 
@@ -404,7 +409,50 @@ class __vpiTypespecAlias : public __vpiHandle {
       vpiHandle aliased_;
 };
 
-/* Parse one type of a .vartype string (see tgt-vvp emit_signal_vartypes).
+/* Render the declared type of a packed value for %p. Struct members are
+   laid out MSB first. */
+std::string vpip_format_packed_value(vpiHandle spec, vvp_vector4_t value)
+{
+      while (auto*alias = dynamic_cast<__vpiTypespecAlias*>(spec))
+	    spec = alias->vpi_handle(vpiTypedefAlias);
+
+      if (spec->get_type_code() == vpiStructTypespec) {
+	    auto*aggregate = static_cast<__vpiStructTypespec*>(spec);
+	    if (value.size() != aggregate->width) return {};
+	    std::string result = "'{";
+	    unsigned remaining = value.size();
+	    for (const auto*member : aggregate->members) {
+		  remaining -= member->width;
+		  if (member != aggregate->members.front()) result += ", ";
+		  result += member->name;
+		  result += ':';
+		  result += vpip_format_packed_value(member->typespec,
+		        value.subvalue(remaining, member->width));
+	    }
+	    result += '}';
+	    return result;
+      }
+
+      if (auto*enumeration = dynamic_cast<__vpiEnumTypespec*>(spec)) {
+	    if (value.size() != enumeration->width) return {};
+	    if (enumeration->base_type_code == vpiBitVar) value.cast2();
+	    for (const auto&literal : enumeration->names) {
+		  if (literal.val4.size() ? value.eeq(literal.val4)
+		      : value.eeq(vector2_to_vector4(literal.val2, literal.val2.size())))
+			return literal.name;
+	    }
+      } else if (spec->get_type_code() == vpiBitTypespec) {
+	    value.cast2();
+      }
+
+      // log10(2) < 0.30103. Leave space for the sign and the terminator.
+      unsigned cap = value.size() * 30103ULL / 100000 + 3;
+      std::vector<char> decimal(cap);
+      vpip_vec4_to_dec_str(value, decimal.data(), cap, spec->vpi_get(vpiSigned));
+      return decimal.data();
+}
+
+/* Parse one type of a .vartype string (see tgt-vvp emit_vartypes).
  * Return 0 and set *missing when an enum label is not defined yet. */
 static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 {
@@ -447,24 +495,33 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 		++cp;
 		bool signed_flag = *cp == 's';
 		if (signed_flag) ++cp;
-		long left = strtol(cp, &end, 10);
-		if (end == cp || *end != ':') return 0;
+		long long left = strtoll(cp, &end, 10);
+		if (end == cp || *end != ':' || left < INT_MIN || left > INT_MAX)
+		      return 0;
 		cp = end + 1;
-		long right = strtol(cp, &end, 10);
-		if (end == cp) return 0;
+		long long right = strtoll(cp, &end, 10);
+		if (end == cp || right < INT_MIN || right > INT_MAX)
+		      return 0;
+		long long size = llabs(left - right) + 1;
+		if (size > INT_MAX) return 0;
 		cp = end;
-		width = labs(left - right) + 1;
+		width = size;
 		return new __vpiVectorTypespec(code, left, right, signed_flag);
 	  }
 	  case 'E': {
-		width = strtoul(cp+1, &end, 10);
-		if (end == cp+1 || *end != ':') return 0;
+		unsigned long size = strtoul(cp+1, &end, 10);
+		if (end == cp+1 || *end != ':' || size == 0 || size > INT_MAX)
+		      return 0;
 		cp = end + 1;
 		size_t len = strcspn(cp, ",}");
+		if (len == 0) return 0;
 		std::string label(cp, len);
 		cp += len;
-		vpiHandle enum_type = vvp_lookup_handle(label.c_str());
-		if (!enum_type) missing = true;
+		vpiHandle handle = vvp_lookup_handle(label.c_str());
+		if (!handle) missing = true;
+		auto*enum_type = dynamic_cast<__vpiEnumTypespec*>(handle);
+		if (!enum_type || enum_type->width != size) return 0;
+		width = size;
 		return enum_type;
 	  }
 	  case 'S':
@@ -476,8 +533,9 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 		      is_union ? vpiUnionTypespec : vpiStructTypespec);
 		while (*cp && *cp != '}') {
 		      __vpiTypespecMember*member = new __vpiTypespecMember;
-		      size_t len = strcspn(cp, "=");
-		      if (cp[len] != '=') return 0;
+		      size_t len = strspn(cp,
+		            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_$");
+		      if (len == 0 || cp[len] != '=') return 0;
 		      member->name = static_cast<char*>(malloc(len + 1));
 		      memcpy(member->name, cp, len);
 		      member->name[len] = 0;
@@ -489,9 +547,12 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 			    if (member->width > spec->width)
 				  spec->width = member->width;
 		      } else {
+			    if (member->width > INT_MAX - spec->width) return 0;
 			    spec->width += member->width;
 		      }
-		      if (*cp == ',') cp += 1;
+		      if (*cp == '}') break;
+		      if (*cp != ',' || cp[1] == '}') return 0;
+		      cp += 1;
 		}
 		if (*cp != '}' || spec->members.empty()) return 0;
 		cp += 1;
@@ -584,6 +645,45 @@ class vartype_resolv_t : public resolv_list_s {
 void compile_vartype(char*label, char*text)
 {
       resolv_submit(new vartype_resolv_t(label, text));
+}
+
+class property_vartype_resolv_t : public resolv_list_s {
+    public:
+      property_vartype_resolv_t(char*label, uint64_t idx, char*text)
+      : resolv_list_s(label), idx_(idx), text_(text) { }
+      ~property_vartype_resolv_t() override { delete[] text_; }
+
+      bool resolve(bool message_flag) override
+      {
+	    vpiHandle handle = vvp_lookup_handle(label());
+	    if (!handle && !message_flag) return false;
+	    auto*defn = dynamic_cast<class_type*>(handle);
+	    if (defn && idx_ < defn->property_count()) {
+		  const char*cp = text_;
+		  unsigned width = 0;
+		  bool missing = false;
+		  vpiHandle spec = parse_vartype(cp, width, missing);
+		  if (missing && !message_flag) return false;
+		  if (spec && !*cp && spec->get_type_code() == vpiStructTypespec
+		      && width == defn->property_vec4_width(idx_)
+		      && !defn->property_typespec(idx_)) {
+			defn->set_property_typespec(idx_, spec);
+			return true;
+		  }
+	    }
+	    yyerror("invalid .vartype property metadata");
+	    compile_errors += 1;
+	    return true;
+      }
+
+    private:
+      uint64_t idx_;
+      char*text_;
+};
+
+void compile_property_vartype(char*label, uint64_t idx, char*text)
+{
+      resolv_submit(new property_vartype_resolv_t(label, idx, text));
 }
 
 class typeparam_resolv_t : public resolv_list_s {

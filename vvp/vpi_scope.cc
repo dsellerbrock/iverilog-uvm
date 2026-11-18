@@ -31,6 +31,7 @@
 # include  "config.h"
 # include  <algorithm>
 # include  <map>
+# include  <memory>
 # include  <utility>
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
@@ -55,12 +56,19 @@
 using namespace std;
 
 static vector<vpiHandle> vpip_root_table;
+static vector<vpiHandle> class_definitions;
 
 static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&table);
+static vpiHandle class_definition_iter(__vpiScope*scope);
 
 vpiHandle vpip_make_root_iterator(int type_code)
 {
       return make_subset_iterator_(type_code, vpip_root_table);
+}
+
+vpiHandle vpip_make_class_defn_iterator()
+{
+      return make_subset_iterator_(vpiClassDefn, class_definitions);
 }
 
 void vpip_make_root_iterator(__vpiHandle**&table, unsigned&ntable)
@@ -228,6 +236,7 @@ static void delete_sub_scopes(__vpiScope *scope)
 
 void root_table_delete(void)
 {
+      class_definitions.clear();
       for (unsigned idx = 0; idx < vpip_root_table.size(); idx += 1) {
 	    __vpiScope *scope = static_cast<__vpiScope *>
 	          (vpip_root_table[idx]);
@@ -949,6 +958,9 @@ static vpiHandle module_iter(int code, vpiHandle obj)
       __vpiScope*ref = dynamic_cast<__vpiScope*>(obj);
       assert(ref);
 
+      if (code == vpiClassDefn)
+	    return class_definition_iter(ref);
+
       if (code == vpiImport) {
             vector<vpiHandle> items;
             for (const auto&import : ref->imports) {
@@ -1636,21 +1648,222 @@ class vpiScopeForkAuto  : public __vpiScope {
       int get_type_code(void) const override { return vpiNamedFork; }
 };
 
-struct vpiScopeClass  : public __vpiScope {
-      inline vpiScopeClass(const char*nam, const char*tnam)
-      : __vpiScope(nam,tnam) { }
+class vpiClassDefinition : public __vpiHandle {
+    public:
+      vpiClassDefinition(__vpiScope*decl, bool is_virtual)
+      : decl_(decl), is_virtual_(is_virtual) { }
+
+      int get_type_code() const override { return vpiClassDefn; }
+      int vpi_get(int code) override
+      {
+	    if (code == vpiVirtual)
+		  return is_virtual_;
+	    if (code == vpiAutomatic)
+		  return 1; // The default lifetime of class method variables (8.6).
+	    return __vpiHandle::vpi_get(code);
+      }
+      char* vpi_get_str(int code) override
+      {
+	    if (code == vpiName)
+		  return decl_->vpi_get_str(code);
+	    return __vpiHandle::vpi_get_str(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiScope)
+		  return decl_->scope;
+	    return __vpiHandle::vpi_handle(code);
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code == vpiClassTypespec)
+		  return specializations_.empty() ? nullptr
+			: vpip_make_iterator(specializations_.size(),
+					     specializations_.data(), false);
+	    if (code == vpiClassDefn)
+		  return class_definition_iter(decl_);
+	    return __vpiHandle::vpi_iterate(code);
+      }
+      void add_specialization(vpiHandle spec)
+      { specializations_.push_back(spec); }
+
+    private:
+      __vpiScope*const decl_;
+      const bool is_virtual_;
+      vector<vpiHandle> specializations_;
+};
+
+class vpiScopeClass : public __vpiScope {
+    public:
+      vpiScopeClass(const char*nam, const char*tnam, bool linked)
+      : __vpiScope(nam,tnam), linked_(linked) { }
       int get_type_code(void) const override { return vpiClassTypespec; }
       vpiHandle vpi_handle(int code) override
       {
-	    if (code == vpiClassDefn && scope) {
-		  std::map<std::string,class_type*>::const_iterator defn =
-			scope->classes.find(scope_name());
-		  if (defn != scope->classes.end())
-			return defn->second;
+	    if (code == vpiClassDefn) {
+		  if (linked_)
+			return definition_;
+		  if (scope) {
+			auto defn = scope->classes.find(scope_name());
+			if (defn != scope->classes.end())
+			      return defn->second;
+		  }
 	    }
 	    return __vpiScope::vpi_handle(code);
       }
+      char* vpi_get_str(int code) override
+      {
+	    if (code == vpiName)
+		  return const_cast<char*>(scope_name());
+	    // $cast uses the runtime key to distinguish specializations.
+	    if (code == vpiDefName && runtime_)
+		  return runtime_->vpi_get_str(code);
+	    return __vpiScope::vpi_get_str(code);
+      }
+
+      bool linked() const { return linked_; }
+      vpiClassDefinition* lexical_definition() const
+      { return lexical_definition_.get(); }
+      vpiClassDefinition* create_definition(bool is_virtual)
+      {
+	    lexical_definition_.reset(new vpiClassDefinition(this, is_virtual));
+	    return lexical_definition_.get();
+      }
+      bool set_concrete(bool concrete)
+      {
+	    if (concrete_ != -1)
+		  return false;
+	    concrete_ = concrete;
+	    return true;
+      }
+      bool bind_definition(vpiClassDefinition*definition)
+      {
+	    if (definition_ || (lexical_definition_ && definition != lexical_definition_.get()))
+		  return false;
+	    definition_ = definition;
+	    if (concrete_ == 1)
+		  definition_->add_specialization(this);
+	    return true;
+      }
+      bool bind_runtime(class_type*runtime)
+      {
+	    if (!linked_ || concrete_ != 1 || runtime_ || runtime->class_typespec())
+		  return false;
+	    runtime_ = runtime;
+	    runtime_->set_class_typespec(this);
+	    return true;
+      }
+
+    private:
+      const bool linked_;
+      int concrete_ = -1; // No .class/typespec record read yet.
+      unique_ptr<vpiClassDefinition> lexical_definition_;
+      vpiClassDefinition*definition_ = nullptr;
+      class_type*runtime_ = nullptr;
 };
+
+static vpiHandle class_definition_iter(__vpiScope*scope)
+{
+      vector<vpiHandle> definitions;
+      for (vpiHandle item : scope->intern)
+	    if (auto*cls = dynamic_cast<vpiScopeClass*>(item))
+		  if (auto*defn = cls->lexical_definition())
+			definitions.push_back(defn);
+      return make_subset_iterator_(vpiClassDefn, definitions);
+}
+
+vpiHandle vpip_declared_class_typespec(const class_type*type)
+{
+      if (!type)
+	    return nullptr;
+      if (vpiHandle typespec = type->class_typespec())
+	    return typespec;
+
+      // VVP images without explicit links used the record's scope and name.
+      string name = type->scope_path();
+      if (!name.empty())
+	    name += ".";
+      name += type->class_name();
+      auto*scope = dynamic_cast<vpiScopeClass*>(vpi_handle_by_name(name.c_str(), nullptr));
+      return scope && !scope->linked() ? scope : nullptr;
+}
+
+void compile_vpi_class_defn(char*label, uint64_t is_virtual)
+{
+      auto*scope = dynamic_cast<vpiScopeClass*>(vpip_peek_current_scope());
+      if (!scope || !scope->linked() || scope->lexical_definition()
+	  || is_virtual > 1 || vvp_lookup_handle(label)) {
+	    yyerror("invalid .class/defn record");
+      } else {
+	    vpiHandle defn = scope->create_definition(is_virtual);
+	    compile_vpi_symbol(label, defn);
+	    class_definitions.push_back(defn);
+      }
+      free(label);
+}
+
+class class_definition_link : public resolv_list_s {
+    public:
+      class_definition_link(char*label, vpiScopeClass*scope)
+      : resolv_list_s(label), scope_(scope) { }
+      bool resolve(bool last) override
+      {
+	    vpiHandle target = vvp_lookup_handle(label());
+	    if (!target && !last)
+		  return false;
+	    auto*defn = dynamic_cast<vpiClassDefinition*>(target);
+	    if (!defn || !scope_->bind_definition(defn)) {
+		  fprintf(stderr, "vvp: invalid .class/typespec definition '%s'\n", label());
+		  compile_errors += 1;
+	    }
+	    return true;
+      }
+    private:
+      vpiScopeClass*scope_;
+};
+
+void compile_vpi_class_typespec(char*label, uint64_t concrete)
+{
+      auto*scope = dynamic_cast<vpiScopeClass*>(vpip_peek_current_scope());
+      if (!scope || !scope->linked() || concrete > 1 || !scope->set_concrete(concrete)) {
+	    yyerror("invalid .class/typespec record");
+	    free(label);
+	    return;
+      }
+      resolv_submit(new class_definition_link(label, scope));
+}
+
+class class_runtime_link : public resolv_list_s {
+    public:
+      class_runtime_link(char*label, class_type*runtime)
+      : resolv_list_s(label), runtime_(runtime) { }
+      bool resolve(bool last) override
+      {
+	    vpiHandle target = vvp_lookup_handle(label());
+	    if (!target && !last)
+		  return false;
+	    auto*scope = dynamic_cast<vpiScopeClass*>(target);
+	    if (!scope || !scope->bind_runtime(runtime_)) {
+		  fprintf(stderr, "vvp: invalid .class/runtime scope '%s'\n", label());
+		  compile_errors += 1;
+	    }
+	    return true;
+      }
+    private:
+      class_type*runtime_;
+};
+
+void compile_vpi_class_runtime(char*label, char*scope)
+{
+      auto*runtime = dynamic_cast<class_type*>(vvp_lookup_handle(label));
+      if (!runtime || runtime->is_struct_type() || runtime->is_covergroup()) {
+	    yyerror("invalid .class/runtime record");
+	    free(scope);
+      } else {
+	    resolv_submit(new class_runtime_link(scope, runtime));
+      }
+      free(label);
+}
 
 /* M12: interface instance scope (IEEE 1800-2017 clause 25). */
 struct vpiScopeInterface  : public __vpiScope {
@@ -3668,8 +3881,8 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    scope = new vpiScopeGenerate(name, tname, strcmp(type,"generate.array") == 0);
       } else if (strcmp(type,"package") == 0) {
 	    scope = new vpiScopePackage(name, tname);
-      } else if (strcmp(type,"class") == 0) {
-	    scope = new vpiScopeClass(name, tname);
+      } else if (strcmp(type,"class") == 0 || strcmp(type,"class.linked") == 0) {
+	    scope = new vpiScopeClass(name, tname, strcmp(type,"class.linked") == 0);
       } else if (strcmp(type,"program") == 0) {
 	    scope = new vpiScopeProgram(name, tname);
       } else if (strcmp(type,"interface") == 0) {

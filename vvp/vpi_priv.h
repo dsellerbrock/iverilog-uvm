@@ -570,6 +570,8 @@ extern __vpiScope* vpip_peek_context_scope(void);
 extern unsigned vpip_add_item_to_context(automatic_hooks_s*item,
                                          __vpiScope*scope);
 extern vpiHandle vpip_make_root_iterator(int type_code);
+extern vpiHandle vpip_make_class_defn_iterator();
+extern vpiHandle vpip_declared_class_typespec(const class_type*type);
 /* M12: iterator over all covergroup types (vpi_iterate(vpiCovergroup, 0)). */
 extern vpiHandle vpip_make_covergroup_iterator(void);
 /* M12B: iterator over all registered assertions (vpi_iterate(vpiAssertion, 0)). */
@@ -678,6 +680,7 @@ struct __vpiSignal : public __vpiHandle {
       unsigned source_file_idx = 0;
       unsigned source_lineno = 0;
       bool has_source_location = false;
+      signed char charge_strength = vpiUndefined;
 	/* The represented value is here. */
       vvp_net_t*node;
 
@@ -1348,6 +1351,7 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       value_kind_t value_kind;
       bool automatic_storage;
       bool virtual_interface_array_ = false;
+      signed char charge_strength = vpiUndefined;
 	// Declared `integer` (.array/i), distinct from a 32-bit signed reg
 	// array only for the IEEE 1364 VPI compatibility modes (36.12.1).
       bool integer_array = false;
@@ -1855,6 +1859,9 @@ extern vpiHandle vpip_get_udp_handle(vvp_udp_s*defn);
 extern unsigned vpip_vec4_to_dec_str(const vvp_vector4_t&vec4,
 				     char *buf, unsigned int nbuf,
 				     int signed_flag);
+
+extern std::string vpip_format_packed_value(vpiHandle typespec,
+                                           vvp_vector4_t value);
 
 /*
  * Render an object-backed struct/class instance as `'{name:value, ...}` for

@@ -77,6 +77,9 @@ static int bit_get(int code, vpiHandle ref)
 	case vpiExpanded:
 	    return vpi_get(vpiExpanded, parent);
 
+	case vpiChargeStrength:
+	    return vpi_get(code, parent);
+
 	case vpiIndex:
 	    {
 		  s_vpi_value vp;

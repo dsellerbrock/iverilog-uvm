@@ -162,12 +162,16 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".cast/real"    { return K_CAST_REAL; }
 ".cast/real.s"  { return K_CAST_REAL_S; }
 ".class"        { return K_CLASS; }
+".class/defn"   { return K_CLASS_DEFN; }
+".class/typespec" { return K_CLASS_TYPESPEC; }
+".class/runtime"  { return K_CLASS_RUNTIME; }
 ".class/union/tagged" { return K_CLASS_UNION_TAGGED; }
 ".class/union" { return K_CLASS_UNION; }
 ".class/struct" { return K_CLASS_STRUCT; }
 ".implements"   { return K_IMPLEMENTS; }
 ".static_prop"  { return K_STATIC_PROP; }
 ".vpi_source_location" { return K_vpi_source_location; }
+".vpi_charge_strength" { return K_vpi_charge_strength; }
 ".vpi_primitive" { return K_vpi_primitive; }
 ".vpi_primterm" { return K_vpi_primterm; }
 ".constraint"   { return K_CONSTRAINT_DEF; }

@@ -666,7 +666,9 @@ static void emit_unpacked_dims_(ivl_signal_t sig)
 
 /*
  * .vartype <signal>, "<type>"; gives VPI (vpiTypespec) the enum or packed
- * struct/union type of a signal, for waveform dumpers. The type string is
+ * struct/union type of a signal. .vartype <class>, <index>, "<type>";
+ * describes a packed-struct property (the element type for a fixed array).
+ * The type string is
  *    type   ::= E<width>:<enum label> | S{member,...} | U{member,...}
  *             | V<msb>:<lsb> | B<msb>:<lsb>       (4-state / 2-state vector)
  *    member ::= <name>=<type>
@@ -679,6 +681,29 @@ struct vartype_note_s {
 };
 static struct vartype_note_s*vartype_notes = 0;
 static unsigned nvartype_notes = 0;
+
+struct property_vartype_note_s {
+      ivl_type_t classtype;
+      ivl_type_t type;
+      unsigned idx;
+};
+static struct property_vartype_note_s*property_vartype_notes = 0;
+static unsigned nproperty_vartype_notes = 0;
+
+void note_property_vartype(ivl_type_t classtype, unsigned idx)
+{
+      ivl_type_t type = ivl_type_prop_type(classtype, idx);
+      if (type_is_fixed_uarray_property_(type))
+	    type = ivl_type_element(type);
+      if (ivl_type_base(type) != IVL_VT_LOGIC && ivl_type_base(type) != IVL_VT_BOOL)
+	    return;
+      if (ivl_type_properties(type) == 0 || ivl_type_is_union(type))
+	    return;
+      property_vartype_notes = realloc(property_vartype_notes,
+            (nproperty_vartype_notes + 1) * sizeof(*property_vartype_notes));
+      property_vartype_notes[nproperty_vartype_notes++] =
+            (struct property_vartype_note_s){classtype, type, idx};
+}
 
 static int type_has_vartype_(ivl_type_t type)
 {
@@ -823,7 +848,7 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
       return ivl_type_packed_width(type);
 }
 
-void emit_signal_vartypes(void)
+void emit_vartypes(void)
 {
       unsigned idx;
       struct vartype_buf_s buf = { 0, 0, 0 };
@@ -850,10 +875,26 @@ void emit_signal_vartypes(void)
 		  fprintf(vvp_out, " .vartype v%p%s, \"%s\";\n", sig,
 		          vartype_notes[idx].suffix, buf.text);
       }
+      for (idx = 0 ; idx < nproperty_vartype_notes ; idx += 1) {
+	    const struct property_vartype_note_s*note = &property_vartype_notes[idx];
+	    buf.len = 0;
+	    for (unsigned adx = 0
+	         ; adx < ivl_type_prop_typedef_aliases(note->classtype, note->idx)
+	         ; adx += 1)
+		  vartype_put_name_(&buf,
+		        ivl_type_prop_typedef_alias(note->classtype, note->idx, adx));
+	    unsigned width = vartype_spec_(&buf, note->type);
+	    if (width && width == ivl_type_packed_width(note->type))
+		  fprintf(vvp_out, " .vartype C%p, %u, \"%s\";\n",
+		          note->classtype, note->idx, buf.text);
+      }
       free(buf.text);
       free(vartype_notes);
       vartype_notes = 0;
       nvartype_notes = 0;
+      free(property_vartype_notes);
+      property_vartype_notes = 0;
+      nproperty_vartype_notes = 0;
 }
 
 static void emit_signal_source_location_(ivl_signal_t sig, const char*suffix)
@@ -1329,6 +1370,7 @@ static void draw_net_in_scope(ivl_signal_t sig)
 
       const char*datatype_flag = ivl_signal_signed(sig)? "/s" : "";
       const char *local_flag = local_flag_str(sig);
+      ivl_drive_t charge = ivl_signal_charge_strength(sig);
 
       unsigned iword;
 
@@ -1423,10 +1465,11 @@ static void draw_net_in_scope(ivl_signal_t sig)
 		       signal array. this typically is an instance of
 		       port collapsing that the elaborator combined to
 		       discover that the entire array can be collapsed,
-		       so the word count for the signal and the alias
-		       *must* match. */
+	       so the word counts must match. Shared VPI word
+	       handles also require the same declared charge strength. */
 		  if (iword == 0 && ivl_signal_dimensions(nex_data->net) > 0 &&
-                      word_count == ivl_signal_array_count(nex_data->net)) {
+                      word_count == ivl_signal_array_count(nex_data->net) &&
+                      charge == ivl_signal_charge_strength(nex_data->net)) {
 
 			fprintf(vvp_out, "v%p .array \"%s\", v%p; Alias to %s \n",
 			        sig, vvp_mangle_name(ivl_signal_basename(sig)),
@@ -1495,6 +1538,19 @@ static void draw_net_in_scope(ivl_signal_t sig)
                 snprintf(suffix, sizeof suffix, "_%u", iword);
                 note_signal_vartype(sig, suffix);
           }
+      }
+
+      if (charge != IVL_DR_HiZ &&
+          (ivl_signal_dimensions(sig) > 0 || !ivl_signal_local(sig))) {
+            int strength;
+            switch (charge) {
+                case IVL_DR_SMALL:  strength = vpiSmallCharge; break;
+                case IVL_DR_MEDIUM: strength = vpiMediumCharge; break;
+                case IVL_DR_LARGE:  strength = vpiLargeCharge; break;
+                default: assert(0); return;
+            }
+            fprintf(vvp_out, "v%p%s .vpi_charge_strength %d;\n", sig,
+                    ivl_signal_dimensions(sig) > 0 ? "" : "_0", strength);
       }
 
       if (ivl_signal_dimensions(sig) == 0 && !ivl_signal_local(sig)
@@ -1926,12 +1982,19 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 
       if (!lcasc)
 	lcasc = ltype;
-      char event_type[32], event_cascade[32];
-      if (ivl_logic_event_synchronous(lptr)) {
-            snprintf(event_type, sizeof event_type, "%s/event", ltype);
-            snprintf(event_cascade, sizeof event_cascade, "%s/event", lcasc);
-            ltype = event_type;
-            lcasc = event_cascade;
+      char functor_type[32], event_cascade[32];
+      unsigned event_synchronous = ivl_logic_event_synchronous(lptr);
+      unsigned signed_xz_mask = ivl_logic_signed_xz_mask(lptr);
+      if (signed_xz_mask) {
+	    assert(ivl_logic_pins(lptr) <= 3);
+	    snprintf(functor_type, sizeof functor_type, "%s/sxz%u%s",
+		     ltype, signed_xz_mask, event_synchronous ? "/event" : "");
+	    ltype = functor_type;
+      } else if (event_synchronous) {
+	    snprintf(functor_type, sizeof functor_type, "%s/event", ltype);
+	    snprintf(event_cascade, sizeof event_cascade, "%s/event", lcasc);
+	    ltype = functor_type;
+	    lcasc = event_cascade;
       }
 
 
@@ -1939,6 +2002,7 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 	   the functor that I create later. */
       assert(ivl_logic_pins(lptr) > 0);
       ninp = ivl_logic_pins(lptr) - 1;
+      unsigned padded_inputs = signed_xz_mask && ninp == 1 ? 1 : 4;
       input_strings = calloc(ninp, sizeof(char*));
       for (pdx = 0 ;  pdx < (unsigned)ninp ;  pdx += 1)
 	    input_strings[pdx] = draw_net_input(ivl_logic_pin(lptr, pdx+1));
@@ -1967,7 +2031,7 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 			      fprintf(vvp_out, ", %s", input_strings[pdx]);
 			}
 		  }
-		  for ( ;  pdx < inst+4 ;  pdx += 1) {
+		  for ( ;  pdx < inst+padded_inputs ;  pdx += 1) {
 			unsigned wdx;
 			fprintf(vvp_out, ", C4<");
 			for (wdx = 0 ; wdx < vector_width ;  wdx += 1)
@@ -3753,7 +3817,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
         type = ivl_scope_generate_array_member(net) ? "generate.array" : "generate";
         break;
       case IVL_SCT_PACKAGE:  type = "package";  break;
-      case IVL_SCT_CLASS:    type = "class";    break;
+      case IVL_SCT_CLASS:    type = "class.linked"; break;
       default:               type = "?";        assert(0);
       }
 
@@ -3844,6 +3908,16 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
+
+      if (ivl_scope_type(net) == IVL_SCT_CLASS) {
+	    int concrete;
+	    ivl_scope_t decl = ivl_scope_class_declaration(net, &concrete);
+	    if (decl == net)
+		  fprintf(vvp_out, "D_%p .class/defn %d;\n", decl,
+			  ivl_scope_class_virtual(net));
+	    if (decl)
+		  fprintf(vvp_out, " .class/typespec D_%p %d;\n", decl, concrete);
+      }
 
 	/* Nettype declarations are scope-owned VPI objects (IEEE 1800-2023
 	   37.23). Keep aliases and resolution-function names for runtime queries. */

@@ -132,6 +132,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
+%token K_CLASS_DEFN K_CLASS_TYPESPEC K_CLASS_RUNTIME
 %token K_IODECL
 %token K_SUBSTITUTE K_SUBSTITUTE_V
 %token K_THREAD K_TIMESCALE K_TRAN K_TRANIF0 K_TRANIF1 K_TRANVP
@@ -149,6 +150,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_TYPEDEF
 %token K_VPI_IMPORT
 %token K_vpi_source_location
+%token K_vpi_charge_strength
 %token K_vpi_primitive K_vpi_primterm
 %token K_export_dpi
 %token K_PORT_INPUT K_PORT_OUTPUT K_PORT_INOUT K_PORT_MIXED K_PORT_NODIR
@@ -257,6 +259,8 @@ statement
 	   (vpiTypespec). Operands: signal label and type string. */
 	| K_VARTYPE T_SYMBOL ',' T_STRING ';'
 		{ compile_vartype($2, $4); }
+	| K_VARTYPE T_SYMBOL ',' T_NUMBER ',' T_STRING ';'
+		{ compile_property_vartype($2, $4, $6); }
 
 	| K_export_dpi T_STRING T_STRING T_STRING T_STRING T_STRING T_STRING ';'
 		{ compile_export_dpi($2, $3, $4, $5, $6, $7); }
@@ -930,6 +934,9 @@ statement
 	| T_LABEL K_vpi_source_location T_NUMBER T_NUMBER ';'
 		{ compile_vpi_source_location($1, $3, $4); }
 
+	| T_LABEL K_vpi_charge_strength T_NUMBER ';'
+		{ compile_vpi_charge_strength($1, $3); }
+
 	| T_LABEL K_vpi_primitive T_STRING ',' T_NUMBER ',' T_NUMBER ','
 	  T_NUMBER ',' T_NUMBER ',' T_STRING ';'
 		{ compile_vpi_primitive($1, $3, $5, $7, $9, $11, $13); }
@@ -1046,6 +1053,15 @@ statement
 
 	|         K_SCOPE T_SYMBOL ';'
 		{ compile_scope_recall($2); }
+
+	| T_LABEL K_CLASS_DEFN T_NUMBER ';'
+		{ compile_vpi_class_defn($1, $3); }
+
+	| K_CLASS_TYPESPEC T_SYMBOL T_NUMBER ';'
+		{ compile_vpi_class_typespec($2, $3); }
+
+	| T_LABEL K_CLASS_RUNTIME T_SYMBOL ';'
+		{ compile_vpi_class_runtime($1, $3); }
 
 	|         K_IODECL T_NUMBER T_STRING T_SYMBOL ';'
 		{ compile_io_decl($2, $3, $4); }

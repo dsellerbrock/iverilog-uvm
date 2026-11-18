@@ -149,6 +149,7 @@ static void emit_struct_cobject_definition_(ivl_type_t struct_type)
 		     (unsigned)qual, rand_prefix);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(struct_type, idx));
 	    show_prop_type(ptype, qualifier_prefix);
+	    note_property_vartype(struct_type, idx);
 	    if (is_unpacked_array_property_type(ptype)) {
 		  unsigned dim;
 		  for (dim = 0 ; dim < ivl_type_packed_dimensions(ptype) ; dim += 1) {
@@ -509,6 +510,7 @@ void draw_class_in_scope(ivl_type_t classtype)
 		     (unsigned)qual, rand_prefix);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(classtype,idx));
 	    show_prop_type(ptype, qualifier_prefix);
+	    note_property_vartype(classtype, idx);
 	    /* Keep the complete source qualifier in the runtime class
 	       definition. The q<hex>: prefix wraps the historical type string,
 	       whose rand/randc prefix remains for backwards compatibility. This
@@ -783,6 +785,13 @@ void draw_class_in_scope(ivl_type_t classtype)
       }
 
       fprintf(vvp_out, " ;\n");
-      if (emitted_class)
+      if (emitted_class) {
 	    emitted_class->state = CLASS_EMITTED;
+	    /* Some specializations have only a typespec scope. Link the
+	       runtime record only when that record is actually emitted. */
+	    ivl_scope_t typespec = ivl_type_class_typespec_scope(classtype);
+	    if (typespec)
+		  fprintf(vvp_out, "C%p .class/runtime S_%p;\n",
+			  classtype, typespec);
+      }
 }

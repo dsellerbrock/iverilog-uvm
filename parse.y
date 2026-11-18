@@ -3341,9 +3341,13 @@ static Module::port_t *module_declare_explicit_port(
 %type <event_exprs> event_expression_list wait_order_event_list
 %type <event_exprs> block_event_expression_list
 %type <event_expr> event_expression block_event_expression
+%type <event_expr> explicit_event_expression
 %type <event_expr> checker_event_expression
-%type <event_expr> event_actual
-%type <expr> event_initializer_opt
+%type <expr> event_actual event_initializer_opt
+%type <event_exprs> event_actual_list event_actual_term event_actual_group
+%destructor { delete $$; } event_actual event_initializer_opt
+%destructor { PEEventList events(std::move(*$$)); delete $$; }
+  event_actual_list event_actual_term event_actual_group
 %type <event_statement> event_control
 %type <statement> statement statement_item statement_or_null
 %type <statement> compressed_statement
@@ -13515,6 +13519,15 @@ wait_order_event_list
   ;
 
 event_expression
+  : explicit_event_expression
+  | expression
+      { PEEvent*tmp = new PEEvent(PEEvent::ANYEDGE, $1);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
+  ;
+
+explicit_event_expression
   : K_posedge expression K_iff expression
       { PEEvent*tmp = new PEEvent(PEEvent::POSEDGE, $2, $4);
 	FILE_NAME(tmp, @1);
@@ -13555,11 +13568,6 @@ event_expression
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
 	pform_requires_sv(@1, "Edge event");
-      }
-  | expression
-      { PEEvent*tmp = new PEEvent(PEEvent::ANYEDGE, $1);
-	FILE_NAME(tmp, @1);
-	$$ = tmp;
       }
   ;
 
@@ -14272,24 +14280,43 @@ expression_list_with_nuls
       }
   ;
 
-  /* IEEE 1800-2017/2023 16.12.18 (16.8.1 Syntax 16-3): the actual or default
-     of an `event' formal of a property is an event_expression. Only the
-     edge forms (with an optional iff) are taken here; a bare expression is
-     already an ordinary argument. The PEEvent is bound to the formal's event
-     substitution, and anywhere else it is an error. */
+  /* IEEE 1800-2017/2023 16.12.18: an event formal takes an event expression.
+     A bare expression already parses as an ordinary argument. An "or"
+     list is one actual; a comma at this level separates arguments. */
 event_actual
-  : K_posedge expression
-      { $$ = new PEEvent(PEEvent::POSEDGE, $2); FILE_NAME($$, @1); }
-  | K_negedge expression
-      { $$ = new PEEvent(PEEvent::NEGEDGE, $2); FILE_NAME($$, @1); }
-  | K_edge expression
-      { $$ = new PEEvent(PEEvent::EDGE, $2); FILE_NAME($$, @1); }
-  | K_posedge expression K_iff expression
-      { $$ = new PEEvent(PEEvent::POSEDGE, $2, $4); FILE_NAME($$, @1); }
-  | K_negedge expression K_iff expression
-      { $$ = new PEEvent(PEEvent::NEGEDGE, $2, $4); FILE_NAME($$, @1); }
-  | K_edge expression K_iff expression
-      { $$ = new PEEvent(PEEvent::EDGE, $2, $4); FILE_NAME($$, @1); }
+  : explicit_event_expression
+      { $$ = $1; }
+  | event_actual_list
+      { $$ = new PEEventList(std::move(*$1));
+	FILE_NAME($$, @1);
+	delete $1;
+      }
+  ;
+
+event_actual_list
+  : event_expression K_or event_actual_term
+      { $3->insert($3->begin(), $1);
+	$$ = $3;
+      }
+  | event_actual_list K_or event_actual_term
+      { $1->insert($1->end(), $3->begin(), $3->end());
+	delete $3;
+	$$ = $1;
+      }
+  | event_actual_group
+  ;
+
+event_actual_term
+  : event_expression
+      { $$ = new std::vector<PEEvent*>(1, $1); }
+  | event_actual_group
+  ;
+
+event_actual_group
+  : '(' event_actual_list ')'
+      { $$ = $2; }
+  | '(' explicit_event_expression ')'
+      { $$ = new std::vector<PEEvent*>(1, $2); }
   ;
 
 event_initializer_opt
@@ -14318,6 +14345,22 @@ argument
       }
   | named_expression_opt
       { $$ = $1;
+      }
+  | '.' IDENTIFIER '(' event_actual ')'
+      { named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($2);
+	tmp->parm = $4;
+	delete[] $2;
+	$$ = tmp;
+      }
+  | '.' TYPE_IDENTIFIER '(' event_actual ')'
+      { named_pexpr_t*tmp = new named_pexpr_t;
+	FILE_NAME(tmp, @$);
+	tmp->name = lex_strings.make($2.text);
+	tmp->parm = $4;
+	delete[] $2.text;
+	$$ = tmp;
       }
   | event_actual
       { named_pexpr_t *tmp = new named_pexpr_t;

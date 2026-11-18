@@ -1398,6 +1398,12 @@ extern "C" unsigned ivl_logic_event_synchronous(ivl_net_logic_t net)
       return net->event_synchronous;
 }
 
+extern "C" unsigned ivl_logic_signed_xz_mask(ivl_net_logic_t net)
+{
+      assert(net);
+      return net->signed_xz_mask;
+}
+
 extern "C" unsigned ivl_logic_port_buffer(ivl_net_logic_t net)
 {
       assert(net);
@@ -2732,6 +2738,37 @@ extern "C" unsigned ivl_scope_classes(ivl_scope_t net)
 	   ? net->aux_->classes->size() : 0;
 }
 
+extern "C" ivl_scope_t ivl_scope_class_declaration(ivl_scope_t net, int*concrete)
+{
+      const netclass_t*type = net->net_->class_def();
+      if (!type || type->is_covergroup() || !net->net_->class_pform())
+	    return 0;
+
+      bool is_concrete = !type->generic_body_only() && !type->is_symbolic_class();
+      if (type->specialized_instance() && !is_concrete)
+	    return 0;
+
+      *concrete = is_concrete;
+      const NetScope*decl = type->class_declaration_scope();
+      return decl->target_scope();
+}
+
+extern "C" int ivl_scope_class_virtual(ivl_scope_t net)
+{
+      return net->net_->class_def()->is_virtual();
+}
+
+extern "C" ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      if (!type || !type->class_scope())
+	    return 0;
+
+      ivl_scope_t scope = type->class_scope()->target_scope();
+      int concrete;
+      return scope && ivl_scope_class_declaration(scope, &concrete) && concrete
+	    ? scope : 0;
+}
 
 extern "C" ivl_statement_t ivl_scope_def(ivl_scope_t net)
 {
@@ -3841,6 +3878,13 @@ extern "C" int ivl_signal_comb_driven(ivl_signal_t net)
 {
       assert(net);
       return net->net_ && net->net_->comb_written()? 1 : 0;
+}
+
+extern "C" ivl_drive_t ivl_signal_charge_strength(ivl_signal_t net)
+{
+      assert(net);
+      assert(net->net_);
+      return net->net_->declared_charge_strength();
 }
 
 extern "C" ivl_lifetime_t ivl_signal_lifetime(ivl_signal_t net)

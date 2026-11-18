@@ -215,6 +215,9 @@ struct dll_target  : public target_t, public expr_scan_t {
       void task_def(const NetScope*) override;
 
       struct ivl_expr_s*expr_;
+      bool sampled_operand_ = false;
+      void sample_signal_read_(const NetNet*, const LineInfo&);
+      void unsupported_sampled_storage_(const LineInfo&);
       void expr_access_func(const NetEAccess*) override;
       void expr_array_pattern(const NetEArrayPattern*) override;
       void expr_array_slice(const NetEArraySlice*) override;
@@ -743,6 +746,7 @@ struct ivl_net_logic_s {
       unsigned is_port_buffer;
       unsigned is_reactive_output;
       unsigned event_synchronous;
+      unsigned signed_xz_mask;
       unsigned delay_is_per_bit = 0;
       unsigned delay_is_whole_vector = 0;
       ivl_udp_t udp;

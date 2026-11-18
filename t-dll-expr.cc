@@ -258,6 +258,7 @@ void dll_target::expr_array_slice(const NetEArraySlice*net)
       expr_->u_.array_slice_.count = net->count();
       expr_->u_.array_slice_.left = net->selected_left();
       expr_->u_.array_slice_.right = net->selected_right();
+      sample_signal_read_(net->signal(), *net);
 }
 
 void dll_target::expr_binary(const NetEBinary*net)
@@ -512,6 +513,66 @@ void dll_target::expr_null(const NetENull*net)
       expr_->net_type= 0;
 }
 
+void dll_target::unsupported_sampled_storage_(const LineInfo&loc)
+{
+      cerr << loc.get_fileline()
+	   << ": sorry: $sampled does not support Preponed reads of this operand storage."
+	   << endl;
+      ++errors;
+}
+
+void dll_target::sample_signal_read_(const NetNet*signal, const LineInfo&loc)
+{
+      if (!sampled_operand_)
+	    return;
+
+      const verinum&clockvar = signal->attribute(
+	    perm_string::literal("_ivl_clockvar_input"));
+      if (clockvar.is_string()) {
+	    if (clockvar.as_string() != "1step") {
+		  cerr << loc.get_fileline() << ": error: Clocking-block input in "
+		       << "$sampled must use #1step input skew (IEEE 1800-2017/2023 "
+		       << "16.5.1)." << endl;
+		  ++errors;
+	    }
+	    return;
+      }
+
+      ivl_lifetime_t lifetime = signal->lifetime_override();
+      if (signal->port_type() == NetNet::PREF) {
+	    unsupported_sampled_storage_(loc);
+	    return;
+      }
+      if (lifetime == IVL_VLT_AUTOMATIC
+	  || (lifetime == IVL_VLT_INHERITED && signal->scope()->is_auto())
+	  || signal->attribute(perm_string::literal("_ivl_active_free_checker_var"))
+	     != verinum())
+	    return;
+
+      if (expr_->type_ != IVL_EX_SIGNAL
+	  || (expr_->value_ != IVL_VT_LOGIC && expr_->value_ != IVL_VT_BOOL
+	      && (expr_->value_ != IVL_VT_REAL || signal->unpacked_dimensions()))) {
+	    unsupported_sampled_storage_(loc);
+	    return;
+      }
+
+      /* Keep sampled reads out of ordinary signal fast paths in the target,
+	 including direct VPI argument handles and select/index opcodes. */
+      ivl_expr_t operand = expr_;
+      expr_ = new struct ivl_expr_s();
+      expr_->type_ = IVL_EX_SFUNC;
+      expr_->value_ = operand->value_;
+      expr_->net_type = signal->net_type();
+      expr_->width_ = operand->width_;
+      expr_->signed_ = operand->signed_;
+      expr_->sized_ = operand->sized_;
+      FILE_NAME(expr_, &loc);
+      expr_->u_.sfunc_.name_ = "$ivl_sampled_read";
+      expr_->u_.sfunc_.parms = 1;
+      expr_->u_.sfunc_.parm = dll_procedure_new_array<ivl_expr_t>(1);
+      expr_->u_.sfunc_.parm[0] = operand;
+}
+
 void dll_target::expr_property(const NetEProperty*net)
 {
 	/* A statically bound interface/modport member is represented as a
@@ -521,10 +582,17 @@ void dll_target::expr_property(const NetEProperty*net)
 	   lets all signal-only backends, including %hist/on and
 	   %load/preponed, use the exact interface-instance storage. Runtime
 	   selections and ordinary class properties remain IVL_EX_PROPERTY. */
-      if (!net->get_index()) {
-	    if (NetNet*member = net->resolve_interface_member_signal()) {
+      const NetExpr*word_index = net->get_index();
+      if (!word_index || sampled_operand_) {
+	    NetNet*member = net->resolve_interface_member_signal();
+	    if (member && (!word_index || member->unpacked_dimensions())) {
 		  ivl_signal_t sig = find_signal(member);
 		  assert(expr_ == 0);
+		  ivl_expr_t word = nullptr;
+		  if (word_index) {
+			word_index->expr_scan(this);
+			word = expr_;
+		  }
 		  expr_ = new struct ivl_expr_s();
 		  expr_->type_ = IVL_EX_SIGNAL;
 		  expr_->value_ = net->expr_type();
@@ -533,15 +601,19 @@ void dll_target::expr_property(const NetEProperty*net)
 		  expr_->signed_ = net->has_sign() ? 1 : 0;
 		  expr_->sized_ = 1;
 		  FILE_NAME(expr_, net);
-		  expr_->u_.signal_.word = 0;
+		  expr_->u_.signal_.word = word;
 		  expr_->u_.signal_.sig = sig;
-		  if (sig->net_->unpacked_dimensions() > 0) {
+		  if (!word && sig->net_->unpacked_dimensions() > 0) {
 			expr_->type_ = IVL_EX_ARRAY;
 			expr_->width_ = 0;
 		  }
+		  sample_signal_read_(member, *net);
 		  return;
 	    }
       }
+
+      if (sampled_operand_)
+	    unsupported_sampled_storage_(*net);
 
       ivl_expr_t base_expr = 0;
       ivl_expr_t index = 0;
@@ -715,6 +787,20 @@ void dll_target::expr_sfunc(const NetESFunc*net)
 {
       assert(expr_ == 0);
 
+      const char*name = net->name();
+      const bool sample = strcmp(name, "$ivl_sampled") == 0;
+      const bool current = strcmp(name, "$ivl_sampled_current") == 0;
+      const bool outer_sample = sampled_operand_;
+      if (sample || current) {
+	    sampled_operand_ = sample;
+	    net->parm(0)->expr_scan(this);
+	    sampled_operand_ = outer_sample;
+	    expr_->signed_ = net->has_sign();
+	    if (net->net_type())
+		  expr_->net_type = net->net_type();
+	    return;
+      }
+
       ivl_expr_t expr = new struct ivl_expr_s();
 
       expr->type_ = IVL_EX_SFUNC;
@@ -758,12 +844,17 @@ void dll_target::expr_sfunc(const NetESFunc*net)
       }
 
       /* make up the parameter expressions. */
+      if (strcmp(name, "$ivl_clocking_sample") == 0
+	  || strncmp(name, "$ivl_event_method$triggered", 27) == 0
+	  || strcmp(name, "$ivl_class_event_method$triggered") == 0)
+	    sampled_operand_ = false;
       for (unsigned idx = 0 ;  idx < cnt ;  idx += 1) {
 	    if (net->parm(idx))
 		  net->parm(idx)->expr_scan(this);
 	    expr->u_.sfunc_.parm[idx] = expr_;
 	    expr_ = 0;
       }
+      sampled_operand_ = outer_sample;
 
       if (net->ref_output()) {
 	    unsigned count = 0;
@@ -861,6 +952,7 @@ void dll_target::expr_signal(const NetESignal*net)
 	    expr_->type_ = IVL_EX_ARRAY;
 	    expr_->width_ = 0; // Doesn't make much sense for arrays.
       }
+      sample_signal_read_(net->sig(), *net);
 }
 
 
@@ -895,14 +987,29 @@ void dll_target::expr_ufunc(const NetEUFunc*net)
       expr->u_.ufunc_.parms = cnt;
       expr->u_.ufunc_.parm = dll_procedure_new_array<ivl_expr_t>(cnt);
 
-      /* make up the parameter expressions. */
+      /* A writable alias or inout argument needs both a sampled value
+	 and an l-value for writeback. This lowering only supports input
+	 sampling, so diagnose calls requiring both. */
+      const bool outer_sample = sampled_operand_;
+      const NetFuncDef*def = net->func()->func_def();
       for (unsigned idx = 0 ;  idx < cnt ;  idx += 1) {
 	    const NetExpr*parm = net->parm(idx);
 	    if (parm == 0) {
 		  expr->u_.ufunc_.parm[idx] = expr_from_value_(verinum(uint64_t(0), 1));
 		  continue;
 	    }
+	    if (outer_sample && def && idx < def->port_count()) {
+		  const NetNet*formal = def->port(idx);
+		  if (formal->port_type() == NetNet::PINOUT
+		      || (formal->port_type() == NetNet::PREF && !formal->get_const())) {
+			unsupported_sampled_storage_(*parm);
+			sampled_operand_ = false;
+		  } else if (formal->port_type() == NetNet::POUTPUT) {
+			sampled_operand_ = false;
+		  }
+	    }
 	    parm->expr_scan(this);
+	    sampled_operand_ = outer_sample;
 	    assert(expr_);
 	    expr->u_.ufunc_.parm[idx] = expr_;
 	    expr_ = 0;

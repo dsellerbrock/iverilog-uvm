@@ -10461,6 +10461,10 @@ NetExpr*PEBShift::elaborate_expr_leaf(Design*des, NetExpr*lp, NetExpr*rp,
       return tmp;
 }
 
+/* Operand elaboration helpers can create their own flags. Keep the
+   sampled context across those calls, including argument sizing. */
+static thread_local bool elaborating_sampled_operand = false;
+
 unsigned PECallFunction::test_width_sfunc_(Design*des, NetScope*scope,
                                            width_mode_t&mode)
 {
@@ -10523,6 +10527,28 @@ unsigned PECallFunction::test_width_sfunc_(Design*des, NetScope*scope,
 	    expr_width_ = value;
 	    min_width_  = value;
 	    signed_flag_= false;
+	    return expr_width_;
+      }
+
+      if (name=="$sampled") {
+	    if (parms_.size() != 1 || !parms_[0].parm || !parms_[0].name.nil()) {
+		  if (expr_type_ != IVL_VT_VOID) {
+			cerr << get_fileline()
+			     << ": error: $sampled requires exactly one expression argument."
+			     << endl;
+			des->errors += 1;
+		  }
+		  expr_type_ = IVL_VT_VOID;
+		  return 0;
+	    }
+	    PExpr*arg = parms_[0].parm;
+	    width_mode_t arg_mode = SIZED;
+	    const bool outer_sample = elaborating_sampled_operand;
+	    elaborating_sampled_operand = true;
+	    expr_width_ = min_width_ = arg->test_width(des, scope, arg_mode);
+	    elaborating_sampled_operand = outer_sample;
+	    expr_type_ = arg->expr_type();
+	    signed_flag_ = arg->has_sign();
 	    return expr_width_;
       }
 
@@ -13938,11 +13964,45 @@ static NetExpr* scoped_time_function_(Design*des, NetScope*decl,
       return scaled;
 }
 
+static NetESFunc* sampled_context_(const char*name, NetExpr*operand,
+				  const LineInfo&loc)
+{
+      NetESFunc*marker = operand->net_type()
+	    ? new NetESFunc(name, operand->net_type(), 1, operand->expr_type())
+	    : new NetESFunc(name, operand->expr_type(), operand->expr_width(), 1);
+      marker->cast_signed(operand->has_sign());
+      marker->set_line(loc);
+      marker->parm(0, operand);
+      return marker;
+}
+
 NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
                                           unsigned expr_wid,
                                           unsigned flags) const
 {
       perm_string name = peek_tail_name(path_);
+
+      if (name == "$sampled") {
+	    if (parms_.size() != 1 || !parms_[0].parm || !parms_[0].name.nil()) {
+		  width_mode_t mode = SIZED;
+		  const_cast<PECallFunction*>(this)->test_width_sfunc_(
+			des, scope, mode);
+		  return nullptr;
+	    }
+	    PExpr*arg = parms_[0].parm;
+	    const bool outer_sample = elaborating_sampled_operand;
+	    elaborating_sampled_operand = true;
+	    NetExpr*sub = arg->elaborate_expr(des, scope, arg->expr_width(),
+					     flags & ~SYS_TASK_ARG);
+	    elaborating_sampled_operand = outer_sample;
+	    if (!sub)
+		  return nullptr;
+	    NetExpr*sample = sampled_context_("$ivl_sampled", sub, *this);
+	    if (type_is_vectorable(sample->expr_type())
+		&& expr_wid != sample->expr_width())
+		  return cast_to_width_(sample, expr_wid);
+	    return sample;
+      }
 
 	/* $ivl_weak$id(object, weak): the identification value of a class
 	   object, for std::weak_reference. An argument that is not a class
@@ -19243,8 +19303,14 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
       if (unbound_queue_last_(receiver_, path_))
 	    return report_unbound_queue_last_(this, des);
       if (!receiver_ && peek_tail_name(path_) == "$ivl_const_cast"
-	  && parms_.size() == 1 && parms_[0].parm)
-	    return parms_[0].parm->elaborate_expr(des, scope, expr_wid, flags);
+	  && parms_.size() == 1 && parms_[0].parm) {
+	    NetExpr*arg = parms_[0].parm->elaborate_expr(des, scope, expr_wid,
+						      flags);
+	    if (arg && elaborating_sampled_operand && !(flags & NEED_CONST)
+		&& !dynamic_cast<NetEConst*>(arg) && !dynamic_cast<NetECReal*>(arg))
+		  return sampled_context_("$ivl_sampled_current", arg, *this);
+	    return arg;
+      }
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 		 << "path_: " << path_ << endl;
@@ -20484,6 +20550,13 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 {
       if (unbound_queue_last_(receiver_, path_))
 	    return report_unbound_queue_last_(this, des);
+
+      if (!receiver_ && peek_tail_name(path_) == "$sampled") {
+	    width_mode_t mode = SIZED;
+	    unsigned width = const_cast<PECallFunction*>(this)->test_width(
+		  des, scope, mode);
+	    return elaborate_sfunc_(des, scope, width, flags);
+      }
 
 	/* $ivl_weak$deref(id): the object with that identification value,
 	   typed by its context, or null. For std::weak_reference. */
@@ -26505,6 +26578,37 @@ unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 
       symbol_search_results sr;
       bool found_symbol = symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+
+      if (elaborating_sampled_operand && path_.size() >= 2) {
+	    if (sr.eve && sr.path_tail.size() == 1
+		&& peek_head_name(sr.path_tail) == perm_string::literal("triggered")
+		&& sr.path_tail.front().index.empty()) {
+		  expr_type_ = IVL_VT_BOOL;
+		  expr_width_ = min_width_ = 1;
+		  signed_flag_ = false;
+		  return expr_width_;
+	    }
+	    pform_name_t rewritten;
+	    perm_string access = clocking_access();
+	    if (rewrite_class_clocking_member_path(this, sr, rewritten, false,
+						    nullptr, &access)
+		|| rewrite_nested_class_clocking_member_path(this, des, scope,
+					      sr, rewritten, &access, nullptr)
+		|| rewrite_clocking_member_path_via_scope(this, sr, rewritten,
+						   false, nullptr, &access)
+		|| (!sr.net && rewrite_enclosing_scope_clocking_member_path(
+				      this, scope, rewritten, false, nullptr, &access))) {
+		  PEIdent mapped(path_.package, rewritten, lexical_pos_);
+		  mapped.set_line(*this);
+		  mapped.set_clocking_access(access);
+		  unsigned width = mapped.test_width(des, scope, mode);
+		  expr_type_ = mapped.expr_type();
+		  expr_width_ = mapped.expr_width();
+		  min_width_ = mapped.min_width();
+		  signed_flag_ = mapped.has_sign();
+		  return width;
+	    }
+      }
 
 	  if (!modport_expression_access() && sr.net
 	      && sr.path_tail.size() == 1 && sr.type) {
@@ -36057,7 +36161,13 @@ NetExpr* PEUnary::elaborate_expr_bits_(NetExpr*operand, unsigned expr_wid) const
 	      // The only operand that I know can get here is the
 	      // unary not (~).
 	    ivl_assert(*this, op_ == '~');
-	    value = ~value;
+	    if (ctmp->has_sign() && ctmp->expr_type() == IVL_VT_LOGIC
+		&& !value.is_defined()) {
+		  value = verinum(verinum::Vx, expr_wid);
+		  value.has_sign(signed_flag_);
+	    } else {
+		  value = ~value;
+	    }
 
 	    ctmp = new NetEConst(value);
 	    ctmp->set_line(*this);
@@ -36102,7 +36212,7 @@ NetNet* Design::find_discipline_reference(ivl_discipline_t dis, NetScope*scope)
  * parser accepts it as a call argument so property instances can take it;
  * anywhere it reaches expression elaboration it is an error.
  */
-static void pe_event_not_a_value_(const PEEvent*ev, Design*des)
+static void pe_event_not_a_value_(const PExpr*ev, Design*des)
 {
       cerr << ev->get_fileline() << ": error: the event expression `" << *ev
 	   << "' is only allowed as the actual or default of an event formal "
@@ -36128,4 +36238,18 @@ NetExpr* PEEvent::elaborate_expr(Design*des, NetScope*, unsigned, unsigned) cons
 {
       pe_event_not_a_value_(this, des);
       return 0;
+}
+
+unsigned PEEventList::test_width(Design*, NetScope*, width_mode_t&)
+{
+      expr_width_ = 1;
+      min_width_ = 1;
+      expr_type_ = IVL_VT_LOGIC;
+      return 1;
+}
+
+NetExpr* PEEventList::elaborate_expr(Design*des, NetScope*, unsigned, unsigned) const
+{
+      pe_event_not_a_value_(this, des);
+      return nullptr;
 }

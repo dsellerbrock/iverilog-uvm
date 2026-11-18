@@ -1,0 +1,10 @@
+TOP='{n:3, valid:1}
+NESTED='{p:'{n:3, valid:1}}
+FIELDS='{inner:'{n:3, valid:1}, delta:-7, state:NEG, wide:79228162514264337593543950339, unknown:x, high_z:z, two_state:4}
+ARRAYS='{record:'{item:'{inner:'{n:3, valid:1}, delta:-7, state:UNKNOWN, wide:79228162514264337593543950339, unknown:x, high_z:z, two_state:4}}, descending:'{'{'{n:1, valid:0}, '{n:2, valid:1}}, '{'{n:3, valid:0}, '{n:4, valid:1}}}, singleton:'{'{n:7, valid:1}}}
+RECORD='{item:'{inner:'{n:3, valid:1}, delta:-7, state:UNKNOWN, wide:79228162514264337593543950339, unknown:x, high_z:z, two_state:4}}
+ARRAY_PROPERTY='{'{'{n:1, valid:0}, '{n:2, valid:1}}, '{'{n:3, valid:0}, '{n:4, valid:1}}}
+PROPERTY='{n:3, valid:1} ELEMENT='{n:4, valid:1}
+ENUM_Z='{inner:'{n:3, valid:1}, delta:-7, state:HIGH_Z, wide:79228162514264337593543950339, unknown:x, high_z:z, two_state:4}
+ENUM_INVALID_X='{inner:'{n:3, valid:1}, delta:-7, state:X, wide:79228162514264337593543950339, unknown:x, high_z:z, two_state:4}
+ENUM_INVALID_SIGNED='{inner:'{n:3, valid:1}, delta:-7, state:-1, wide:79228162514264337593543950339, unknown:x, high_z:z, two_state:4}

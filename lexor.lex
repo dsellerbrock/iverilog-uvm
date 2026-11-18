@@ -1086,8 +1086,12 @@ TU [munpf]
 ^{W}?`pragma{W}?.*                  {  }
 
   /* From 1364-2005 Annex D. */
-^{W}?`default_decay_time{W}?.*      {  }
-^{W}?`default_trireg_strength{W}?.* {  }
+^{W}?`default_decay_time{W}?.* {
+      VLwarn(yylloc, "warning: `default_decay_time is unsupported and ignored.");
+}
+^{W}?`default_trireg_strength{W}?.* {
+      VLwarn(yylloc, "warning: `default_trireg_strength is unsupported and ignored.");
+}
 ^{W}?`delay_mode_distributed{W}?.*  {  }
 ^{W}?`delay_mode_path{W}?.*         {  }
 ^{W}?`delay_mode_unit{W}?.*         {  }

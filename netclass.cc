@@ -1142,13 +1142,13 @@ const NetExpr* netclass_t::get_parameter(Design *des, perm_string name,
  * cache (elab_scope.cc), so a type check between two members of the same
  * class family inside a generic body cannot be decided there; it is decided
  * again in each concrete specialization. */
-static bool symbolic_class_(const netclass_t*cls)
+bool netclass_t::is_symbolic_class() const
 {
-      const NetScope*scope = cls ? cls->class_scope() : 0;
+      const NetScope*scope = class_scope();
       const PClass*pclass = scope ? scope->class_pform() : 0;
       if (!pclass)
 	    return false;
-      if (pclass->has_parameter_port_list && !cls->specialized_instance())
+      if (pclass->has_parameter_port_list && !specialized_instance())
 	    return true;
       const std::string&key = scope->type_owner_identity();
       return key.find("<forwarded-type-param@") != std::string::npos
@@ -1161,7 +1161,7 @@ static bool same_symbolic_family_(const netclass_t*a, const netclass_t*b)
       if (!a || !b || !a->class_scope() || !b->class_scope())
 	    return false;
       return a->class_scope()->class_pform() == b->class_scope()->class_pform()
-	  && (symbolic_class_(a) || symbolic_class_(b));
+	  && (a->is_symbolic_class() || b->is_symbolic_class());
 }
 
 bool netclass_t::test_compatibility(ivl_type_t that) const

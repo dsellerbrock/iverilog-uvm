@@ -2157,6 +2157,7 @@ void dll_target::logic(const NetLogic*net)
       obj->width_ = net->width();
       obj->is_port_buffer = 0;
       obj->event_synchronous = net->event_synchronous();
+      obj->signed_xz_mask = net->signed_xz_mask();
 
       FILE_NAME(obj, net);
 

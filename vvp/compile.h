@@ -81,6 +81,7 @@ extern vpiHandle vvp_lookup_handle(const char*label);
 extern vvp_net_t* create_constant_node(const char*value);
 extern void compile_vpi_source_location(char*label, uint64_t file_idx,
                                         uint64_t lineno);
+extern void compile_vpi_charge_strength(char*label, uint64_t strength);
 extern bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
                                       __vpiScope**scope, bool exact = false);
 
@@ -559,6 +560,7 @@ extern void compile_array_port(char*label, char*name, long addr);
 extern void compile_array_cleanup(void);
 extern void compile_packed_dims(char*label, char*layout);
 extern void compile_vartype(char*label, char*text);
+extern void compile_property_vartype(char*label, uint64_t idx, char*text);
 extern void compile_type_param(char*label, const char*name, char*type,
                                bool local_flag, long file_idx, long lineno);
 
@@ -666,6 +668,9 @@ extern void compile_scope_decl(char*typ, char*lab, char*nam, char*tnam,
                                long is_cell);
 extern void compile_io_decl(long direction, char*name, char*formal);
 extern void compile_scope_recall(char*sym);
+extern void compile_vpi_class_defn(char*label, uint64_t is_virtual);
+extern void compile_vpi_class_typespec(char*label, uint64_t concrete);
+extern void compile_vpi_class_runtime(char*label, char*scope);
 extern void compile_vpi_import(char*package, char*name);
 extern void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type,
                               char*name);

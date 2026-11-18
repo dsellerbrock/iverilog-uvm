@@ -70,6 +70,8 @@ class class_type : public __vpiHandle {
 	    { is_struct_type_ = true; is_union_type_ = true;
 	      is_tagged_union_type_ = tagged; }
       inline const std::string&scope_path(void) const { return scope_path_; }
+      vpiHandle class_typespec() const { return class_typespec_; }
+      void set_class_typespec(vpiHandle typespec) { class_typespec_ = typespec; }
       void set_covgrp_decl_scope(__vpiScope*scope)
       { covgrp_decl_scope_ = scope; }
       inline __vpiScope*covgrp_decl_scope(void) const
@@ -154,6 +156,10 @@ class class_type : public __vpiHandle {
 	// back array-typed rand properties.
       const std::string& property_base_type(size_t idx) const;
       unsigned property_vec4_width(size_t idx) const;
+      vpiHandle property_typespec(size_t idx) const
+      { return idx < properties_.size() ? properties_[idx].typespec : nullptr; }
+      void set_property_typespec(size_t idx, vpiHandle spec)
+      { properties_.at(idx).typespec = spec; }
       unsigned union_vec4_width(void) const;
       bool union_is_four_state(void) const;
       bool property_is_void(size_t idx) const;
@@ -233,6 +239,7 @@ class class_type : public __vpiHandle {
       bool is_union_type_ = false;
       bool is_tagged_union_type_ = false;
       std::string scope_path_;
+      vpiHandle class_typespec_ = nullptr;
       // The elaborated declaration scope is instance-specific for classes
       // synthesized inside module instances. Covergroup set expressions use
       // it to capture module-scope arrays when each object is constructed.
@@ -252,6 +259,7 @@ class class_type : public __vpiHandle {
 	    std::vector<vvp_vector4_t> enum_values;
 	    std::vector<std::string> enum_names;
 	    vpiHandle declared_class_type = 0;
+	    vpiHandle typespec = 0;
 	    uint64_t array_size = 1;
 	    vvp_container_layout_t container_layout;
 	    std::vector<std::pair<int,int> > dimensions;

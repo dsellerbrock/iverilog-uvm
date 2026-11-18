@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue442_deferred_virtual_ref_fail.sv",
+    "iverilog-args": ["-g2017", "-s", "issue442_deferred_virtual_ref_fail"],
+    "gold": "issue442_deferred_virtual_ref_fail"
+}

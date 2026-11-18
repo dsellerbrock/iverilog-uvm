@@ -71,6 +71,9 @@ extern int sys_is_design_element(vpiHandle obj);
 
 extern void sys_monitor_fclose(PLI_UINT32 fd_mcd);
 
+/* %p rendering for typed packed values. The result is a VPI string buffer. */
+extern const char*vpip_format_packed_p(vpiHandle item);
+
 /* Private runtime support for associative-array $readmem/$writemem. */
 extern int vpip_assoc_readmem_legal(vpiHandle array);
 extern unsigned vpip_assoc_readmem_width(vpiHandle array);
