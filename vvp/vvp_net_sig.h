@@ -428,16 +428,15 @@ class vvp_fun_signal_object_sa : public vvp_fun_signal_object {
 
       class_type* init_defn_;
 
-	// IEEE 1800-2023 6.6.7, 10.6.2: force and release of a net of an
-	// unpacked struct nettype. While forced, stores from the net's
-	// drivers are remembered but not applied; release applies the last
-	// driven value ("the net returns to the resolved value").
+	// IEEE 1800 10.6.2: a class variable retains its forced handle
+	// on release. An unpacked struct net restores its driven value.
+      bool is_class_handle() const;
       void force_object(vvp_net_t*net, const vvp_object_t&val);
       void release_object(vvp_net_t*net);
 
     private:
+      void store_object(vvp_net_t*net, vvp_object_t val);
       bool forced_ = false;
-      bool force_store_ = false;
       vvp_object_t driven_;
       mutable vvp_object_t value_;
       mutable uint64_t value_epoch_;
