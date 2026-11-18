@@ -7093,3 +7093,7 @@ issue3735_2017 normal,-g2017,-s,issue3735 ivltests gold=issue3735.gold
 issue3735_2023 normal,-g2023,-s,issue3735 ivltests gold=issue3735.gold
 issue3738_2017 normal,-g2017,-s,issue3738 ivltests gold=issue3738.gold
 issue3738_2023 normal,-g2023,-s,issue3738 ivltests gold=issue3738.gold
+issue2978_constraint_mode_purity_2017 CE,-g2017,-s,test ivltests gold=issue2978_constraint_mode_purity.gold
+issue2978_constraint_mode_purity_2023 CE,-g2023,-s,test ivltests gold=issue2978_constraint_mode_purity.gold
+issue2978_constraint_mode_all_2017 normal,-g2017,-s,test ivltests gold=issue2978_constraint_mode_all.gold
+issue2978_constraint_mode_all_2023 normal,-g2023,-s,test ivltests gold=issue2978_constraint_mode_all.gold

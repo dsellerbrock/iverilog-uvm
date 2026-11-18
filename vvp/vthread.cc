@@ -7308,6 +7308,32 @@ bool of_CONSTRAINT_MODE(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %constraint_mode/all
+ *
+ * Pop the mode and receiver once, then set every constraint on the
+ * actual object, including constraints declared in derived classes.
+ */
+bool of_CONSTRAINT_MODE_ALL(vthread_t thr, vvp_code_t)
+{
+      const vvp_vector4_t*mode_vec = thr->safe_peek_vec4(0);
+      if (!mode_vec || !mode_vec->size() || !thr->object_stack_size()) {
+	    fprintf(stderr, "vvp: malformed %%constraint_mode/all stack operands.\n");
+	    return true;
+      }
+      bool mode = (mode_vec->value(0) == BIT4_1);
+      thr->pop_vec4();
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+	    size_t count = cobj->get_defn()->constraint_count();
+	    for (size_t cid = 0; cid < count; ++cid)
+		  cobj->set_constraint_mode(cid, mode);
+      }
+      return true;
+}
+
+/*
  * %constraint_mode/get N
  *
  * Read constraint_mode for constraint index N of the cobject on the

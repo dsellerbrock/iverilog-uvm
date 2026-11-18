@@ -20942,6 +20942,9 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 			 || method_name == perm_string::literal("try_put")))
 		  argv[idx + 1] = elab_typed_mailbox_input(
 			des, scope, method_name, args[idx], class_type);
+	    else if (method_name == perm_string::literal("constraint_mode"))
+		  argv[idx + 1] = elaborate_rval_expr(des, scope,
+						     &netvector_t::scalar_bool, args[idx]);
 	    else
 		  argv[idx + 1] = elab_sys_task_arg(des, scope, method_name,
 							idx, args[idx]);
@@ -22354,40 +22357,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			noop->set_line(*this);
 			return noop;
 		  }
-		  // obj.constraint_mode(en): enable/disable all constraints on the object.
-		  // Emit a separate %constraint_mode N for each N in the class.
+		  // Preserve the setter even while the class constraints are
+		  // being elaborated, so the purity checker can see it.
 		  if (method_name == perm_string::literal("constraint_mode")
 		      && parms_.size() == 1) {
-			const netclass_t*ctype = dynamic_cast<const netclass_t*>(obj_type);
-			if (ctype && ctype->constraint_ir_count() > 0) {
-			      NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
-			      blk->set_line(*this);
-			      NetExpr*mode_expr = elab_sys_task_arg(des, scope,
-						method_name, 0, parms_[0].parm);
-			      for (size_t ci = 0; ci < ctype->constraint_ir_count(); ++ci) {
-				    NetExpr*obj_copy = obj_expr->dup_expr();
-				    NetExpr*mode_copy = mode_expr->dup_expr();
-				    NetExpr*cid_expr = new NetEConst(
-					  verinum((uint64_t)ci, 32));
-				    cid_expr->set_line(*this);
-				    vector<NetExpr*> argv(3);
-				    argv[0] = obj_copy;
-				    argv[1] = mode_copy;
-				    argv[2] = cid_expr;
-				    NetSTask*sys = new NetSTask(
-					  "$ivl_class_method$constraint_mode",
-					  IVL_SFUNC_AS_TASK_IGNORE, argv);
-				    sys->set_line(*this);
-				    blk->append(sys);
-			      }
-			      delete obj_expr;
-			      delete mode_expr;
-			      return blk;
-			}
-			delete obj_expr;
-			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-			noop->set_line(*this);
-			return noop;
+			static const std::vector<perm_string> parm_names = {
+			      perm_string::literal("on_off")
+			};
+			return elaborate_sys_task_method_(
+			      des, scope, obj_expr, obj_type, method_name,
+			      "$ivl_class_method$constraint_mode_all", parm_names);
 		  }
 		  if (method_name == perm_string::literal("constraint_mode")) {
 			delete obj_expr;
