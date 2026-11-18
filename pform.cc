@@ -8709,9 +8709,8 @@ void pform_start_clocking_block(const struct vlltype&loc,
       }
 
 	/* An anonymous `default clocking @(event); ... endclocking`
-	   (14.12) is registered under an internal name that no source
-	   identifier can collide with. Same for an anonymous global
-	   clocking (14.14). */
+	   (14.12) or anonymous global clocking (14.14) uses an internal
+	   key for storage. */
       perm_string use_name = name
 	    ? lex_strings.make(name)
 	    : (is_global ? perm_string::literal("$global_clocking")
@@ -8726,6 +8725,8 @@ void pform_start_clocking_block(const struct vlltype&loc,
       }
 
       pform_cur_clocking = new Module::PClocking(use_name, event);
+      // The module's clocking map also stores anonymous and generate blocks.
+      pform_cur_clocking->has_local_name = name && lexical_scope == scope;
       pform_cur_clocking_is_global = is_global;
       FILE_NAME(pform_cur_clocking, loc);
       scope->clocking_blocks[use_name] = pform_cur_clocking;
