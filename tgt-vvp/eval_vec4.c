@@ -2396,6 +2396,10 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
 	/* Clocking input sample read (14.13): the Preponed-region value
 	 * of the raw signal. Requires a $ivl_clocking_hist_on prologue;
 	 * degrades to the current value without one. */
+      if (strcmp(ivl_expr_name(expr), "$ivl_sampled_read") == 0) {
+	    draw_sampled_load(ivl_expr_parm(expr, 0));
+	    return;
+      }
       if (strcmp(ivl_expr_name(expr), "$ivl_clocking_sample")==0) {
 	    ivl_expr_t arg = (ivl_expr_parms(expr) > 0) ? ivl_expr_parm(expr, 0) : 0;
 	    if (arg && ivl_expr_type(arg) == IVL_EX_SIGNAL && ivl_expr_signal(arg)) {

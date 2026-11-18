@@ -1,0 +1,1 @@
+{"type": "normal", "source": "issue709_sampled.sv", "iverilog-args": ["-g2023", "-gassertions", "-s", "issue709_sampled"], "gold": "issue709_sampled"}

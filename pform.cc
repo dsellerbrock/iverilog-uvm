@@ -3274,6 +3274,17 @@ static void checker_free_finish_(Module*m)
 	    }
 	    bool active = !v.is_const && !nb.count(v.name)
 			  && !blocking.count(v.name) && !continuous.count(v.name);
+	    if (active) {
+		  auto wire = m->wires.find(v.name);
+		  if (wire != m->wires.end()) {
+			PExpr*marker = new PENumber(new verinum(verinum::V1));
+			FILE_NAME(marker, v.loc);
+			if (!wire->second->attributes.emplace(
+				    perm_string::literal("_ivl_active_free_checker_var"),
+				    marker).second)
+			      delete marker;
+		  }
+	    }
 	    if (active && checker_first_assume_.count(m))
 		  unconstrained += std::string(unconstrained.empty() ? "" : ", ")
 				 + "`" + v.name.str() + "'";

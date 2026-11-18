@@ -1311,14 +1311,11 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 
 		    /* Input edge-qualified skews are still unsupported. Output
 		       edge qualifiers are handled by the output apply process. */
-		  {
+		  if (is_in) {
 			const pform_clocking_skew_t*esk = nullptr;
-			std::map<perm_string,pform_clocking_skew_t>::const_iterator eit;
-			if (is_in) {
-			      eit = cb->in_skews.find(*sig_it);
-			      if (eit != cb->in_skews.end()) esk = &eit->second;
-			      else if (cb->default_in_set) esk = &cb->default_in;
-			}
+			auto eit = cb->in_skews.find(*sig_it);
+			if (eit != cb->in_skews.end()) esk = &eit->second;
+			else if (cb->default_in_set) esk = &cb->default_in;
 			if (esk && esk->edge) {
 			      cerr << cb->get_fileline() << ": sorry: the "
 				   << "edge qualifier on the skew of clocking "
@@ -1327,9 +1324,10 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 				   << "delay part is honored (IEEE 1800-2017 "
 				   << "14.4)." << endl;
 			}
-		  }
 
-		  if (is_in) {
+			PExpr*skew_delay = nullptr;
+			bool numeric_skew = cb->input_skew(*sig_it, skew_delay)
+			      == Module::PClocking::SKEW_DELAY;
 			string sname = string("_ivl_smp$") + cb->name.str()
 			      + "$" + sig_it->str();
 			perm_string smp_name = lex_strings.make(sname.c_str());
@@ -1347,6 +1345,9 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 				    smp = new NetNet(scope, smp_name, NetNet::REG, vec);
 			      }
 			      smp->set_line(*cb);
+			      smp->attribute(perm_string::literal("_ivl_clockvar_input"),
+				    verinum(numeric_skew || (esk && esk->edge)
+					    ? "skewed" : "1step"));
 			}
 
 			  /* Numeric input skew (14.4, M8-2d): the sample
@@ -1354,9 +1355,7 @@ static void elaborate_sig_clocking_samples_(Design*des, NetScope*scope, const Mo
 			     signal, read after the NBA region of the
 			     event step (so #0 sees this step's NBA
 			     updates -- the Observed value). */
-			PExpr*skew_delay = nullptr;
-			if (cb->input_skew(*sig_it, skew_delay)
-			    == Module::PClocking::SKEW_DELAY) {
+			if (numeric_skew) {
 			      string wname = string("_ivl_sshw$") + cb->name.str()
 				    + "$" + sig_it->str();
 			      perm_string shw_name = lex_strings.make(wname.c_str());

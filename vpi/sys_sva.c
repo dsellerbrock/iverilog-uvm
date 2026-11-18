@@ -62,28 +62,6 @@ static PLI_INT32 sva_past_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
-/*
- * $sampled outside a property/sequence expression (e.g. in an action
- * block or plain procedural code). In assertion contexts the front end
- * rewrites $sampled to the Preponed capture register; when the call
- * survives to this VPI fallback there is no capture, so we return the
- * live value — which per 16.9.3 is what $sampled means in procedural
- * code sampled in the Observed region, but our read happens at call
- * time rather than Observed. Warn once so the approximation is loud.
- */
-static PLI_INT32 sva_sampled_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
-{
-      static int warned = 0;
-      if (!warned) {
-	    warned = 1;
-	    vpi_printf("SVA warning: $sampled outside a property expression "
-		       "returns the live value at call time, not the "
-		       "Observed-region sample (compile-progress "
-		       "approximation).\n");
-      }
-      return sva_past_calltf(name);
-}
-
 static PLI_INT32 sva_sizetf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 {
       (void)name;
@@ -841,7 +819,6 @@ void sys_sva_register(void)
       register_one_("$fell",   sva_const_calltf);
       register_one_("$stable", sva_const_calltf);
       register_one_("$past",   sva_past_calltf);
-      register_one_("$sampled", sva_sampled_calltf);
 	/* The 16.9.4 global clocking past functions are rewritten by the
 	   parser to the functions above sampled on @$global_clock. */
 
