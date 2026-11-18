@@ -7091,3 +7091,5 @@ sva_prop_nested_inst_2017 normal,-g2017,-s,sva_prop_nested_inst ivltests gold=sv
 sva_prop_nested_inst_2023 normal,-g2023,-s,sva_prop_nested_inst ivltests gold=sva_prop_nested_inst.gold
 issue3735_2017 normal,-g2017,-s,issue3735 ivltests gold=issue3735.gold
 issue3735_2023 normal,-g2023,-s,issue3735 ivltests gold=issue3735.gold
+issue3738_2017 normal,-g2017,-s,issue3738 ivltests gold=issue3738.gold
+issue3738_2023 normal,-g2023,-s,issue3738 ivltests gold=issue3738.gold
