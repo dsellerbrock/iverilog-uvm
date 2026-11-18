@@ -23830,15 +23830,15 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  }
 	    }
 
-	      /* A word of a static unpacked array: arr[i]. Automatic
-		 arrays live per-frame and have no run-time array object
-		 to address, so they keep the copy pair. */
+	      /* A word of a static unpacked array: arr[i]. This includes
+		 explicitly static arrays declared in automatic scopes. */
 	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
 		&& lv->word() != 0 && lv->get_base() == 0
 		&& lv->get_property_idx() < 0 && !lv->is_array_slice()
 		&& lv->sig()->darray_type() == 0
 		&& lv->sig()->unpacked_dimensions() > 0
-		&& !lv->sig()->scope()->is_auto()) {
+		&& (!lv->sig()->scope()->is_auto()
+		    || lv->sig()->lifetime_override() == IVL_VLT_STATIC)) {
 		  NetESignal*formal_e = new NetESignal(port);
 		  formal_e->set_line(*this);
 		  NetESignal*arr_e = new NetESignal(lv->sig());
