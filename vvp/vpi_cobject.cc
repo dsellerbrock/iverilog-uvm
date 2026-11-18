@@ -1608,12 +1608,36 @@ vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
       return obj;
 }
 
+static const vvp_vector4_t* property_element_index_bits_(vpiHandle index)
+{
+      vpip_vthr_stack_kind_t kind;
+      unsigned depth;
+      if (!vpip_get_vthr_stack_ref(index, &kind, &depth)
+          || kind != VPIP_VTHR_STACK_VEC4 || !vpip_current_vthread)
+            return nullptr;
+      return &vthread_get_vec4_stack(vpip_current_vthread, depth);
+}
+
+/* The compiler supplies a flattened word index. Read its full width without
+   disturbing the VPI result buffer, which can hold a live %s argument. */
+static bool vinterface_property_element_index_(vpiHandle index, size_t&elem)
+{
+      const vvp_vector4_t*bits = property_element_index_bits_(index);
+      vvp_time64_t word;
+      bool overflow;
+      if (!bits || !vector4_to_value(*bits, overflow, word)
+          || overflow || word > SIZE_MAX)
+            return false;
+      elem = static_cast<size_t>(word);
+      return true;
+}
+
 /* #2475, #2745: resolve the element of class property PID that the index
    handle INDEX currently selects. A fixed-array property stores its
    elements in property slots (DAR is left nil); a dynamic-array or queue
    property stores one container object, returned in DAR, whose current
    size bounds the index. An X/Z or out-of-range index selects nothing, as
-   for a variable array (IEEE 1800-2023 7.4.6): reads then give the element
+   for a variable array (IEEE 1800-2023 7.4.5): reads then give the element
    type's default and writes are dropped. */
 static bool cobject_property_element_(vvp_cobject*cobj, size_t pid,
                                       vpiHandle index, size_t&elem,
@@ -1631,14 +1655,8 @@ static bool cobject_property_element_(vvp_cobject*cobj, size_t pid,
       } else {
             size = cobj->get_defn()->property_array_size(pid);
       }
-	/* Read the index without the shared VPI result buffer: a caller
-	   may still hold a string this handle returned (sys_display asks
-	   a string handle for vpiSize after reading its value). */
-      vpip_vthr_stack_kind_t skind;
-      unsigned depth;
-      if (!vpip_get_vthr_stack_ref(index, &skind, &depth)
-          || skind != VPIP_VTHR_STACK_VEC4 || !vpip_current_vthread
-          || vthread_get_vec4_stack(vpip_current_vthread, depth).has_xz())
+      const vvp_vector4_t*bits = property_element_index_bits_(index);
+      if (!bits || bits->has_xz())
             return false;
       s_vpi_value iv;
       iv.format = vpiIntVal;
@@ -1749,8 +1767,13 @@ class __vpiClassPropertyStringVar : public __vpiHandle {
       {
             vvp_object_t obj = resolve_container_();
             if (index_) {
-                  vvp_cobject*cobj = obj.peek<vvp_cobject>();
                   size_t elem;
+                  if (vvp_vinterface*vif = obj.peek<vvp_vinterface>()) {
+                        if (vinterface_property_element_index_(index_, elem))
+                              return vif->get_string(prop_path_.back(), elem);
+                        return std::string();
+                  }
+                  vvp_cobject*cobj = obj.peek<vvp_cobject>();
                   vvp_darray*dar = nullptr;
                   std::string value;
                   if (cobj && cobject_property_element_(cobj,
@@ -1869,6 +1892,11 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
                               dar->get_word(elem, current);
                         else
                               cobj->get_vec4(prop_path_.back(), current, elem);
+                  } else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>()) {
+                        const size_t pid = prop_path_.back();
+                        if (vinterface_property_element_index_(index_, elem)
+                            && vif->has_array_word(pid, elem))
+                              vif->get_vec4(pid, current, elem);
                   }
                   vpip_vec4_get_value(current, width_, signed_flag_, val);
                   return;
