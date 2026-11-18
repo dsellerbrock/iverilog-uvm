@@ -27262,8 +27262,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    init_zero.push_back(sva_assign_(loc, owner[o], sva_num32_(loc, 0)));
 	    init_zero.push_back(sva_assign_(loc, failed[o], sva_bit_(loc, 0)));
       }
+	/* IEEE 1800-2017/2023 39.4.2: a slot is one attempt. Save its
+	   START serial and report one tick of the underlying sequence at
+	   a time, including under property negation. Sub-monitors and
+	   endpoint fan-out lack a single top-level slot per attempt.
+	   Sequence coverage can have multiple matches per attempt. */
+      bool steps_ok = !sub && !endpoint_fanout && !sequence_cover;
       std::vector<perm_string> ob;
-      bool track_ob = implication && !cover && !endpoint_fanout;
+      bool track_ob = implication && !endpoint_fanout && !sequence_cover;
       if (track_ob) {
 	    ob.resize(K);
 	    for (long k = 0 ; k < K ; k += 1) {
@@ -27284,11 +27290,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    r_p = sva_make_reg_(loc, inst, "p", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
-	/* IEEE 1800-2023 39.4.2: a slot is one attempt; it saves the START
-	   serial that names it, and reports one step per tick. Endpoint
-	   fan-out splits an attempt into several obligation records, so it
-	   (with cover, `not' and sub-properties) refuses step control. */
-      bool steps_ok = !cover && !sub && !negated && !endpoint_fanout;
       std::vector<perm_string> ser;
       perm_string r_watch;  // a callback is registered, read once per tick
       std::vector<PExpr*> step_guards;  // distinct edge guards, in order
@@ -27901,12 +27902,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    if (track_ob && sub) {
 		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
 			set_verdict(k, forbidden ? 1 : 3), set_verdict(k, 2)));
-		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
 	    } else if (sub) {
 		  /* Endpoint mode reports `nothing left' after the advance. */
 		  if (!sub->endpoints && !endpoint_fanout)
 			die_v.push_back(set_verdict(k, negated ? 1 : 3));
-	    } else if (track_ob) {
+	    } else if (track_ob && !cover) {
 		  std::vector<Statement*> vac;
 		  vac.push_back(increment_verdict(r_p, k));
 		  vac.push_back(increment_verdict(vacuous, k));
@@ -27914,10 +27914,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			: increment_verdict(r_f, k);
 		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
 					  nonvacuous, sva_block_(loc, vac)));
-		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
 	    } else if (!cover && !endpoint_fanout) {
 		  die_v.push_back(increment_verdict(negated ? r_p : r_f, k));
 	    }
+	    if (track_ob)
+		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
 	    clear_slot(k, die_v);
 
 	    for (unsigned j = 0 ; j < N ; j += 1)
@@ -28432,7 +28433,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       init_zero.push_back(sva_register_stmt_(loc, inst,
 					     endpoint_fanout ? -1
 					       : pform_sva_nfa_fixed_latency(nfa),
-					     track_ob, nullptr,
+					     track_ob && !cover, nullptr,
 					     steps_ok ? 0 : -1));
 	/* 39.4.2: describe the automaton once for the runtime step picker:
 	   $ivl_assert_nfa(idx, states, start, accept, guards, edges
@@ -41325,7 +41326,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* The per-clock checker body. */
       std::vector<Statement*> body = ante_body;
 
-	/* IEEE 1800-2023 39.4.2: one step per live attempt per clock tick
+	/* IEEE 1800-2017/2023 39.4.2: one step per live attempt per clock tick
 	   (SVA Q7), read from the pre-tick tokens before anything below
 	   advances them. An attempt of age a is the antecedent token for
 	   a <= ante_span, then the consequent token of age a - ante_span.
@@ -41333,11 +41334,12 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   Each step lists the booleans checked on its tick; a failing step
 	   ends with the one that failed. An antecedent that does not match
 	   ends the attempt vacuously, reported as a successful step into
-	   the accepting state. A merged ##[m:$] wait has no per-attempt
-	   token, so it (and `not', cover) refuses step control instead. */
+	   the accepting state. Under property negation the steps describe
+	   the inner sequence. A merged ##[m:$] wait has no per-attempt
+	   token, and sequence coverage can match multiple times per attempt. */
       long step_last = ante_span + P + (has_window ? win_n : 0);
 	/* ponytail: one report block per age; very long windows refuse. */
-      bool steps_ok = kind != 2 && !negated && !unbounded && step_last <= 255;
+      bool steps_ok = !sequence_cover && !unbounded && step_last <= 255;
       sva_step_table_t step_tab (loc, inst);
       perm_string r_step;   // the step-table row being reported
       if (steps_ok) {
