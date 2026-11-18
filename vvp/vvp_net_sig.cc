@@ -2833,34 +2833,52 @@ void vvp_fun_signal_object_aa::free_instance(vvp_context_t context)
 
 extern void vvp_prop_force_reapply(vvp_net_t*net);
 
+bool vvp_fun_signal_object_sa::is_class_handle() const
+{
+      return declared_type() && !declared_type()->is_struct_type();
+}
+
 void vvp_fun_signal_object_sa::force_object(vvp_net_t*net,
 					    const vvp_object_t&val)
 {
-      if (!forced_) driven_ = value_;
+      if (is_class_handle()) {
+	    root_net_ = net;
+	    root_obj_ = val;
+      } else if (!forced_) {
+	    driven_ = value_;
+      }
       forced_ = true;
-      force_store_ = true;
-      recv_object(vvp_net_ptr_t(net, 0), val, 0);
-      force_store_ = false;
+      store_object(net, val);
 }
 
 void vvp_fun_signal_object_sa::release_object(vvp_net_t*net)
 {
       if (!forced_) return;
       forced_ = false;
+      if (is_class_handle()) return;
       vvp_object_t driven = driven_;
       driven_ = vvp_object_t();
-      recv_object(vvp_net_ptr_t(net, 0), driven, 0);
+      store_object(net, driven);
 }
 
 void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 					   vvp_context_t)
 {
       assert(ptr.port() == 0);
-      if (forced_ && !force_store_) {
-	    driven_ = bit;
-	    return;
+      if (forced_) {
+	    if (!is_class_handle()) {
+		  driven_ = bit;
+		  return;
+	    }
+	      // Allow mutation notifications for the object the variable holds.
+	    if (bit != value_) return;
       }
-      attached_net_ = ptr.ptr();
+      store_object(ptr.ptr(), bit);
+}
+
+void vvp_fun_signal_object_sa::store_object(vvp_net_t*net, vvp_object_t bit)
+{
+      attached_net_ = net;
       vvp_object_t no_root;
       if (vthread_vif_overlay_put_object(
             attached_net_, bit, attached_net_, no_root))
@@ -2884,7 +2902,7 @@ void vvp_fun_signal_object_sa::recv_object(vvp_net_ptr_t ptr, vvp_object_t bit,
 	    if (handle_changed && attached_net_)
 		  vvp_prop_force_reapply(attached_net_);
 
-	    ptr.ptr()->send_object(bit, 0);
+	    net->send_object(bit, 0);
 	    { event_callback_boundary_s callback_boundary; run_sv_vpi_callbacks(); }
       }
 }
@@ -2956,6 +2974,7 @@ void vvp_fun_signal_object_sa::set_root_provenance(vvp_net_t*root_net,
                                                    const vvp_object_t&root_obj,
                                                    vvp_context_t)
 {
+      if (forced_ && is_class_handle()) return;
       if (attached_net_ && vthread_vif_overlay_put_object_root(
             attached_net_, root_net, root_obj))
 	    return;
