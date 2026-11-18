@@ -127,6 +127,12 @@ static PLI_INT32 sys_value_plusargs_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	  case vpiParameter:  /* parameter — calltf skips the write */
 	    break;
 
+	  case vpiStructVar:
+	    /* Typed nets can also report vpiStructVar. */
+	    if (vpi_get(vpiPacked, arg) == 1 &&
+	        vpi_get(vpiNetType, arg) == vpiUndefined)
+		  break;
+	    /* Fall through. */
 	  default:
 	    vpi_printf("ERROR: %s:%d: ", vpi_get_str(vpiFile, callh),
 	               (int)vpi_get(vpiLineNo, callh));
