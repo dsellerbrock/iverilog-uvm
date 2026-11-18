@@ -1,0 +1,7 @@
+{
+    "type": "normal",
+    "source": "issue3404_trireg.v",
+    "iverilog-args": ["-g2017"],
+    "translate-to-vlog95": true,
+    "gold": "issue3404"
+}
