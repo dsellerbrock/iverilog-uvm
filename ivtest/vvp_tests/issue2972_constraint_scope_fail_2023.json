@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2972_constraint_scope_fail.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue2972_constraint_scope_fail"
+}

@@ -1,0 +1,5 @@
+ivltests/issue2972_constraint_scope_fail.sv:10: error: Undeclared name `i' in class constraint.
+ivltests/issue2972_constraint_scope_fail.sv:12: error: Undeclared name `item' in class constraint.
+ivltests/issue2972_constraint_scope_fail.sv:15: error: Undeclared name `missing_index' in class constraint.
+ivltests/issue2972_constraint_scope_fail.sv:21: error: Undeclared name `missing_array' in class constraint.
+4 error(s) during elaboration.

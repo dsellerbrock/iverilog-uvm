@@ -1,0 +1,4 @@
+issue2972_constraint_scope_fail_2017 CE,-g2017,-s,top ivltests gold=issue2972_constraint_scope_fail.gold
+issue2972_constraint_scope_fail_2023 CE,-g2023,-s,top ivltests gold=issue2972_constraint_scope_fail.gold
+issue2972_constraint_scope_2017 normal,-g2017,-s,top ivltests gold=issue2972_constraint_scope.gold
+issue2972_constraint_scope_2023 normal,-g2023,-s,top ivltests gold=issue2972_constraint_scope.gold

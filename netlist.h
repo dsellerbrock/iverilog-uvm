@@ -1581,7 +1581,7 @@ class NetScope : public Definitions, public Attrib {
 	// find_let walks up lexically through the compilation-unit boundary.
       void add_let(perm_string nm, PLet*let) { lets_[nm] = let; }
       PLet* find_let(const Design*des, perm_string nm,
-                     unsigned lexical_pos = UINT_MAX) const;
+		     unsigned lexical_pos, const NetScope**owner) const;
       inline TYPE type() const { return type_; }
       void print_type(std::ostream&) const;
 

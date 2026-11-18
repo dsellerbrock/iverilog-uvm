@@ -719,6 +719,11 @@ class PEIdent : public PExpr {
 
       unsigned lexical_pos() const { return lexical_pos_; }
 
+      // Non-null for a free name copied from a let body or default argument.
+      // Substituted actual arguments keep their original lookup context.
+      const NetScope*let_body_scope() const { return let_body_scope_; }
+      void set_let_body_scope(const NetScope*scope) { let_body_scope_ = scope; }
+
 	// Compiler-generated accesses to hidden properties that implement
 	// a modport clocking declaration carry the declared clocking-block
 	// name here. Source identifiers leave this nil.
@@ -785,6 +790,7 @@ class PEIdent : public PExpr {
     private:
       pform_scoped_name_t path_;
       unsigned lexical_pos_;
+      const NetScope*let_body_scope_ = nullptr;
 
 	// M13: cached let-expansion for a bare let reference.
       mutable PExpr*let_subst_ = nullptr;
@@ -1597,6 +1603,8 @@ class PECallFunction : public PExpr {
               path_.name.clear();
               path_.name.push_back(name_component_t(method)); }
       unsigned lexical_pos() const { return lexical_pos_; }
+      const NetScope*let_body_scope() const { return let_body_scope_; }
+      void set_let_body_scope(const NetScope*scope) { let_body_scope_ = scope; }
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }
       void set_borrowed_leading_type_args(
@@ -1683,6 +1691,7 @@ class PECallFunction : public PExpr {
       mutable PExpr*let_subst_ = nullptr;
       mutable bool let_subst_tried_ = false;
       unsigned lexical_pos_ = UINT_MAX;
+      const NetScope*let_body_scope_ = nullptr;
       PExpr* let_substitution_(Design*des, NetScope*scope) const;
       struct parmvalue_t*leading_type_args_ = 0;
       bool owns_leading_type_args_ = true;
@@ -2173,6 +2182,8 @@ class PEConstraintForeach : public PExpr {
 			  std::list<PExpr*>*items);
       ~PEConstraintForeach() override;
 
+      void set_lexical_pos(unsigned pos) { lexical_pos_ = pos; }
+      unsigned lexical_pos() const { return lexical_pos_; }
       perm_string array_name() const { return array_name_; }
       const std::vector<perm_string>& source_path() const { return source_path_; }
       bool has_hierarchical_target() const
@@ -2189,6 +2200,7 @@ class PEConstraintForeach : public PExpr {
 			      unsigned w, unsigned flags) const override;
 
     private:
+      unsigned lexical_pos_ = 0;
       perm_string array_name_;
       std::vector<perm_string> source_path_;
       std::vector<perm_string> prefix_names_;

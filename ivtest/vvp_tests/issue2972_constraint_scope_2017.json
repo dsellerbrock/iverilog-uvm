@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2972_constraint_scope.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue2972_constraint_scope"
+}
