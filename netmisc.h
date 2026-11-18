@@ -43,8 +43,9 @@ extern int64_t string_method_parse_integer(const std::string&text,
 // A referenced integral function-name variable needs addressable storage.
 inline void materialize_ref_return(NetNet*sig)
 {
-      if (sig && sig->scope()->type() == NetScope::FUNC
-          && sig->name() == sig->scope()->basename()
+      const NetFuncDef*def = sig && sig->scope()->type() == NetScope::FUNC
+	    ? sig->scope()->func_def() : nullptr;
+      if (def && def->return_sig() == sig
           && sig->unpacked_dimensions() == 0
           && (sig->data_type() == IVL_VT_BOOL || sig->data_type() == IVL_VT_LOGIC))
             sig->attribute(perm_string::literal("_ivl_materialize_return"), verinum("1"));

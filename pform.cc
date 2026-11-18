@@ -1476,6 +1476,27 @@ static bool pform_at_module_level()
              (lexical_scope == pform_cur_generate);
 }
 
+PFunction* pform_push_interface_function_scope(
+	const struct vlltype&loc, const char*port, const char*method,
+	LexicalScope::lifetime_t lifetime)
+{
+      const Module*module = pform_cur_module.empty()
+	    ? nullptr : pform_cur_module.front();
+      if (!module || module->is_interface || module->program_block
+	  || module->is_checker || !pform_at_module_level()) {
+	    cerr << loc << ": error: An interface-port-qualified function shall "
+		 "be defined in a module (IEEE 1800-2017/2023 25.7)." << endl;
+	    error_count += 1;
+      }
+
+      string name = string("$ivl_ifport$") + to_string(strlen(port)) + "$"
+	    + port + method;
+      PFunction*func = pform_push_function_scope(loc, name.c_str(), lifetime);
+      func->set_interface_port_method(lex_strings.make(port),
+				      lex_strings.make(method));
+      return func;
+}
+
 PWire*pform_get_wire_in_scope(perm_string name)
 {
       return lexical_scope->wires_find(name);

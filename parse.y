@@ -7214,6 +7214,15 @@ function_declaration_header
 	$$ = $4;
 	@$ = @4;
       }
+  | K_function lifetime_opt data_type_or_implicit_or_void function_identifier '.' function_identifier
+      { recover_stale_function_scope(@1);
+	pform_requires_sv(@1, "Interface-port-qualified function definition");
+	current_function = pform_push_interface_function_scope(@1, $4, $6, $2);
+	current_function->set_return($3);
+	$$ = $6;
+	@$ = @6;
+	delete[] $4;
+      }
   | method_function_keyword lifetime_opt data_type_or_implicit_or_void function_identifier
       { recover_stale_function_scope(@1);
 	LexicalScope::lifetime_t lifetime = $2;
@@ -11526,8 +11535,8 @@ task_declaration_header
 	internal_name += '_';
 	internal_name += $5;
 	current_task = pform_push_task_scope(@1, internal_name.c_str(), $2);
-	current_task->set_interface_port_task(lex_strings.make($3),
-	                                     lex_strings.make($5));
+	current_task->set_interface_port_method(lex_strings.make($3),
+	                                       lex_strings.make($5));
 	$$ = new char[strlen($5) + 1];
 	strcpy($$, $5);
 	@$ = @5;
@@ -11616,6 +11625,30 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	      assert(tmp->size()==1);
 	      tmp->front().defe = $6;
 	}
+      }
+
+  | tf_port_direction_opt K_var_opt data_type_or_implicit_no_opt
+      { if (!current_function || !current_function->is_extern_prototype())
+	      yyerror(@3, "error: Missing task/function port name.");
+	NetNet::PortType direction = $1.direction == NetNet::PIMPLICIT
+	      ? port_declaration_context.port_type : $1.direction;
+	if (direction == NetNet::PIMPLICIT)
+	      direction = NetNet::PINPUT;
+	bool is_const = $1.direction == NetNet::PIMPLICIT
+	      ? port_declaration_context.is_const : $1.is_const;
+	bool is_ref_static = $1.direction == NetNet::PIMPLICIT
+	      ? port_declaration_context.is_ref_static : $1.is_ref_static;
+	port_declaration_context.port_type = direction;
+	port_declaration_context.data_type = $3;
+	port_declaration_context.is_const = is_const;
+	port_declaration_context.is_ref_static = is_ref_static;
+	std::string name = "$ivl_extern_arg$" + std::to_string(@3.lexical_pos);
+	auto*ports = new std::list<pform_port_t>;
+	ports->emplace_back(pform_ident_t{lex_strings.make(name.c_str()),
+	                                 @3.lexical_pos}, nullptr, nullptr);
+	$$ = pform_make_task_ports(@3, direction, $3, ports, false,
+				   is_const, is_ref_static);
+	$$->front().unnamed = true;
       }
 
   | tf_port_direction_opt K_event IDENTIFIER
@@ -18671,6 +18704,24 @@ module_item
 	pform_pop_scope();
 	current_task = 0;
 	delete[] $3;
+      }
+
+  | K_extern K_function data_type_or_void function_identifier
+      { recover_stale_function_scope(@2);
+	pform_requires_sv(@1, "extern function declaration");
+	if (!pform_in_interface())
+	      yyerror(@1, "error: An extern interface function shall be declared in an interface (IEEE 1800-2017/2023 25.7).");
+	/* The prototype has no storage lifetime of its own. Its forwarding
+	   body uses a separate frame for every call to the provider. */
+	current_function = pform_push_function_scope(@2, $4, LexicalScope::AUTOMATIC);
+	current_function->set_return($3);
+	current_function->set_extern_prototype(true);
+      }
+    tf_port_list_parens_opt ';'
+      { current_function->set_ports($6);
+	pform_pop_scope();
+	current_function = 0;
+	delete[] $4;
       }
 
     /* `static'/`automatic' as a prefix qualifier (rather than

@@ -811,6 +811,9 @@ extern PTask*pform_push_task_scope_unbound(const struct vlltype&loc, const char*
 extern PFunction*pform_push_function_scope(const struct vlltype&loc, const char*name,
 					   LexicalScope::lifetime_t lifetime,
 					   bool scope_local_symbol = false);
+extern PFunction*pform_push_interface_function_scope(
+	const struct vlltype&loc, const char*port, const char*method,
+	LexicalScope::lifetime_t lifetime);
 extern PFunction*pform_push_function_scope_unbound(const struct vlltype&loc, const char*name,
 					     LexicalScope::lifetime_t lifetime,
 					     bool procedural_body = true);
