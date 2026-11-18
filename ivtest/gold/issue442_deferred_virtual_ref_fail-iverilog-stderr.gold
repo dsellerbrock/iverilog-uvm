@@ -1,0 +1,2 @@
+ivltests/issue442_deferred_virtual_ref_fail.sv:13: error: an automatic or dynamic variable cannot be passed to a ref or const ref formal of a deferred assertion action (IEEE 1800-2017/2023 16.4).
+error: Code generation had 1 error(s).

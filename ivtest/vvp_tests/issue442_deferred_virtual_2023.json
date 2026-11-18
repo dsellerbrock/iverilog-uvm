@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue442_deferred_virtual.sv",
+    "iverilog-args": ["-g2023", "-s", "issue442_deferred_virtual"],
+    "gold": "issue442_deferred_virtual"
+}

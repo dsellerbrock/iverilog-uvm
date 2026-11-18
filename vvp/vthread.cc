@@ -16541,6 +16541,7 @@ struct method_port_copy_s {
       std::string name;
       vpiHandle src_item;
       vpiHandle dst_item;
+      bool fixed_array_input;
 };
 
 static void build_method_port_copies_(__vpiScope*src_scope,
@@ -16550,7 +16551,8 @@ static void build_method_port_copies_(__vpiScope*src_scope,
 {
       std::set<std::string> seen_names;
 
-      auto copy_named_item = [&](const std::string&name, vpiHandle src_item) {
+      auto copy_named_item = [&](const std::string&name, vpiHandle src_item,
+                                 bool fixed_array_input) {
             if (name.empty() || !src_item)
                   return;
             if ((name != "@") && name[0] == '$')
@@ -16562,8 +16564,22 @@ static void build_method_port_copies_(__vpiScope*src_scope,
             if (!dst_item)
                   return;
 
-            copies.push_back(method_port_copy_s{name, src_item, dst_item});
+            copies.push_back({name, src_item, dst_item, fixed_array_input});
       };
+
+      /* Fixed-array formals have an I/O declaration and a memory
+         handle, but no backing signal net to copy between frames. */
+      if (!copy_outputs && src_scope != dst_scope) {
+            for (vpiHandle item : src_scope->intern) {
+                  if (!item || item->get_type_code() != VPI_IODECL_TYPE
+                      || item->vpi_get(vpiDirection) != vpiInput)
+                        continue;
+                  const std::string name = item->vpi_get_str(vpiName);
+                  if (auto*array = dynamic_cast<__vpiArray*>(
+                            lookup_scope_item_(src_scope, name.c_str())))
+                        copy_named_item(name, array, true);
+            }
+      }
 
       for (unsigned idx = 0; idx < src_scope->intern.size(); idx += 1) {
             vpiPortInfo*port = dynamic_cast<vpiPortInfo*>(src_scope->intern[idx]);
@@ -16590,7 +16606,7 @@ static void build_method_port_copies_(__vpiScope*src_scope,
 
             if (!src_item)
                   continue;
-            copy_named_item(stable_name, src_item);
+            copy_named_item(stable_name, src_item, false);
       }
 
       /* Some virtual override scopes do not surface the output formal as a
@@ -16615,7 +16631,7 @@ static void build_method_port_copies_(__vpiScope*src_scope,
                   if (!src_item)
                         continue;
 
-                  copy_named_item(name, src_item);
+                  copy_named_item(name, src_item, false);
             }
 
             if (src_scope != dst_scope) {
@@ -16634,7 +16650,7 @@ static void build_method_port_copies_(__vpiScope*src_scope,
                         if (vpi_get(vpiType, src_item) != vpi_get(vpiType, dst_item))
                               continue;
 
-                        copy_named_item(stable_name, src_item);
+                        copy_named_item(stable_name, src_item, false);
                   }
             }
       }
@@ -16651,8 +16667,60 @@ static void build_method_port_copies_(__vpiScope*src_scope,
       for (unsigned idx = 0; idx < src_items.size(); idx += 1) {
             vpiHandle src_item = src_items[idx];
             const char*name = vpi_get_str(vpiName, src_item);
-            copy_named_item(name ? std::string(name) : std::string(), src_item);
+            copy_named_item(name ? std::string(name) : std::string(), src_item,
+                            false);
       }
+}
+
+static bool copy_method_array_input_(const method_port_copy_s&copy,
+                                     vthread_t src_thr, vvp_context_t dst_context)
+{
+      auto*src = dynamic_cast<__vpiArray*>(copy.src_item);
+      auto*dst = dynamic_cast<__vpiArray*>(copy.dst_item);
+      if (!src || !dst || src->get_size() != dst->get_size()
+          || src->value_kind != dst->value_kind
+          || src->value_kind == __vpiArray::ARRAY_VALUE_NONE
+          || src->vals_width != dst->vals_width)
+            return false;
+
+      // Read the staged base frame and write the new override frame.
+      // Matching formal types have identical bounds (6.22.1, 8.20).
+      vvp_context_t src_context = first_live_context_for_scope(
+            src_thr->wt_context, resolve_context_scope(src->get_scope()));
+      if (!src_context)
+            return false;
+      vthread_t saved_thread = running_thread;
+      vvp_context_t saved_read = src_thr->rd_context;
+      vvp_context_t saved_write = src_thr->wt_context;
+      running_thread = src_thr;
+      src_thr->rd_context = src_context;
+      src_thr->wt_context = dst_context;
+      for (unsigned idx = 0; idx < src->get_size(); ++idx) {
+            switch (src->value_kind) {
+                case __vpiArray::ARRAY_VALUE_VEC4:
+                case __vpiArray::ARRAY_VALUE_INTEGRAL:
+                  dst->set_word(idx, 0, src->get_word(idx));
+                  break;
+                case __vpiArray::ARRAY_VALUE_REAL:
+                  dst->set_word(idx, src->get_word_r(idx));
+                  break;
+                case __vpiArray::ARRAY_VALUE_STRING:
+                  dst->set_word(idx, src->get_word_str(idx));
+                  break;
+                case __vpiArray::ARRAY_VALUE_OBJECT: {
+                  vvp_object_t value;
+                  src->get_word_obj(idx, value);
+                  dst->set_word(idx, value.value_copy_element());
+                  break;
+                }
+                case __vpiArray::ARRAY_VALUE_NONE:
+                  break;
+            }
+      }
+      src_thr->wt_context = saved_write;
+      src_thr->rd_context = saved_read;
+      running_thread = saved_thread;
+      return true;
 }
 
 static bool copy_method_ports_to_context_(__vpiScope*src_scope, vthread_t src_thr,
@@ -16682,8 +16750,10 @@ static bool copy_method_ports_to_context_(__vpiScope*src_scope, vthread_t src_th
 
       bool copied_any = false;
       for (const method_port_copy_s&copy : plan.copies) {
-            bool copied = copy_handle_value_to_context_(copy.src_item, src_thr,
-                                                        copy.dst_item, dst_context);
+            bool copied = copy.fixed_array_input
+                  ? copy_method_array_input_(copy, src_thr, dst_context)
+                  : copy_handle_value_to_context_(copy.src_item, src_thr,
+                                                  copy.dst_item, dst_context);
             if (virtual_dispatch_trace_enabled_()) {
                   fprintf(stderr,
                           "vdispatch: copy-port scope=%s -> %s name=%s copied=%d outputs=%d\n",
@@ -20604,7 +20674,10 @@ bool of_DPI_CALL_TASK_ACK(vthread_t thr, vvp_code_t cp)
  * blocking task calls and named sequential blocks deliberately share that
  * process, while explicit fork branches retain their own queue.
  */
-static bool validate_final_deferred_task_thunk_(vvp_code_t action);
+enum class deferred_task_region { observed, final };
+
+static bool validate_deferred_task_thunk_(vvp_code_t action,
+                                           deferred_task_region region);
 
 bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
 {
@@ -20636,10 +20709,11 @@ bool of_DEFER_ENQUEUE(vthread_t thr, vvp_code_t cp)
             action_args.real.swap(deferred_task_capture_.real);
             action_args.str.swap(deferred_task_capture_.str);
             action_args.obj.swap(deferred_task_capture_.obj);
-            if (!validate_final_deferred_task_thunk_(action_pc)) {
+            if (!validate_deferred_task_thunk_(action_pc,
+                                               deferred_task_region::observed)) {
                   fprintf(stderr,
                           "vvp: malformed observed-deferred user-task thunk; "
-                          "expected a complete zero-formal task call and "
+                          "expected a complete task or void function call and "
                           "dropped the report.\n");
                   return true;
             }
@@ -20718,17 +20792,6 @@ bool of_DEFER_CANCEL_PROCESS(vthread_t, vvp_code_t cp)
  * tag before reading its numeric payload, then pin execution after the key so
  * metadata is never part of the action.
  */
-/* A task-key is intentionally not a generic escape hatch into arbitrary VVP
- * code. The target emits one of exactly two zero-formal call shapes:
- *
- *     %fork task; %join; %end
- *     %alloc task; %fork task; %join; %free task; %end
- *
- * Validate that complete outer thunk before pinning it. The target separately
- * proves the referenced SystemVerilog body contains only passive display/error
- * statements, while marking the execution thread final keeps the fork/join
- * synchronous in Postponed.
- */
 /* IEEE 1800-2017/2023 16.4.1: a pending report carries "the current
  * values of its input arguments". %defer/capture runs immediately before
  * the %defer/enqueue or %defer/final of a user-subroutine action and moves
@@ -20759,10 +20822,7 @@ bool of_DEFER_CAPTURE(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-/* A user-subroutine thunk is [%alloc] {copy-in store | ref bind}
- * (%fork task; %join | %callf/void function) [%free] %end. The copy-in
- * stores consume the replayed report values; nothing in it may branch,
- * wait, or call anything else. */
+/* The copy-in stores consume the replayed report values. */
 static bool deferred_thunk_copy_in_op_(vvp_code_t action)
 {
       return action->opcode == of_STORE_VEC4 || action->opcode == of_STORE_STR
@@ -20778,7 +20838,13 @@ static bool deferred_thunk_copy_in_op_(vvp_code_t action)
           || action->opcode == of_STORE_ARR_DAR_MD;
 }
 
-static bool validate_final_deferred_task_thunk_(vvp_code_t action)
+/* Validate the complete outer thunk: [%alloc] {copy-in store | ref bind}
+ * (%fork task; %join | %callf/void function) [%free] %end. Observed
+ * reports also permit the virtual forms of those calls. For final reports
+ * the target checks the callee body for passive calls, and fork/join runs
+ * synchronously in Postponed. */
+static bool validate_deferred_task_thunk_(vvp_code_t action,
+                                           deferred_task_region region)
 {
       if (!action)
             return false;
@@ -20795,11 +20861,20 @@ static bool validate_final_deferred_task_thunk_(vvp_code_t action)
       while (action && deferred_thunk_copy_in_op_(action))
             action = deferred_action_next_code_(action);
 
-      bool is_function = action && action->opcode == of_CALLF_VOID;
-      if (!action || (action->opcode != of_FORK && !is_function)
-          || !action->cptr2 || !action->scope
+      if (!action || !action->cptr2 || !action->scope)
+            return false;
+      const bool is_virtual = action->opcode == of_FORK_V
+                           || action->opcode == of_CALLF_VOID_V;
+      if (is_virtual && (region != deferred_task_region::observed
+          || !alloc_scope || !action->scope->scope
+          || action->scope->scope->get_type_code() != vpiClassTypespec))
+            return false;
+      const bool is_function = action->opcode == of_CALLF_VOID
+                            || action->opcode == of_CALLF_VOID_V;
+      if ((!is_function && action->opcode != of_FORK
+                        && action->opcode != of_FORK_V)
           || action->scope->get_type_code() != (is_function ? vpiFunction
-                                                             : vpiTask))
+                                                            : vpiTask))
             return false;
       if (alloc_scope) {
             if (action->scope != alloc_scope)
@@ -20867,11 +20942,12 @@ bool of_DEFER_FINAL(vthread_t thr, vvp_code_t cp)
             action_args.real.swap(deferred_task_capture_.real);
             action_args.str.swap(deferred_task_capture_.str);
             action_args.obj.swap(deferred_task_capture_.obj);
-            if (!validate_final_deferred_task_thunk_(action_pc)) {
+            if (!validate_deferred_task_thunk_(action_pc,
+                                               deferred_task_region::final)) {
                   fprintf(stderr,
                           "vvp: malformed final-deferred user-task thunk; "
-                          "expected a complete synchronous zero-formal "
-                          "task call and dropped the report.\n");
+                          "expected a complete synchronous task or void "
+                          "function call and dropped the report.\n");
                   return true;
             }
       } else if (!capture_deferred_args_(thr, action_pc, action_args,
@@ -23352,7 +23428,10 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 		      /* Keep a program/Reactive continuation in the Reactive
 			 region from its first instruction (not merely after its
 			 first timing control). */
-		    schedule_vthread(child, 0, !vthread_is_reactive(child));
+		    if (thr->is_observed_report_action)
+			  schedule_vthread_reactive_front(child);
+		    else
+			  schedule_vthread(child, 0, !vthread_is_reactive(child));
 	      }
 	    }
 	      return true;
