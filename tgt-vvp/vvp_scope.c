@@ -1329,6 +1329,7 @@ static void draw_net_in_scope(ivl_signal_t sig)
 
       const char*datatype_flag = ivl_signal_signed(sig)? "/s" : "";
       const char *local_flag = local_flag_str(sig);
+      ivl_drive_t charge = ivl_signal_charge_strength(sig);
 
       unsigned iword;
 
@@ -1423,10 +1424,11 @@ static void draw_net_in_scope(ivl_signal_t sig)
 		       signal array. this typically is an instance of
 		       port collapsing that the elaborator combined to
 		       discover that the entire array can be collapsed,
-		       so the word count for the signal and the alias
-		       *must* match. */
+	       so the word counts must match. Shared VPI word
+	       handles also require the same declared charge strength. */
 		  if (iword == 0 && ivl_signal_dimensions(nex_data->net) > 0 &&
-                      word_count == ivl_signal_array_count(nex_data->net)) {
+                      word_count == ivl_signal_array_count(nex_data->net) &&
+                      charge == ivl_signal_charge_strength(nex_data->net)) {
 
 			fprintf(vvp_out, "v%p .array \"%s\", v%p; Alias to %s \n",
 			        sig, vvp_mangle_name(ivl_signal_basename(sig)),
@@ -1495,6 +1497,19 @@ static void draw_net_in_scope(ivl_signal_t sig)
                 snprintf(suffix, sizeof suffix, "_%u", iword);
                 note_signal_vartype(sig, suffix);
           }
+      }
+
+      if (charge != IVL_DR_HiZ &&
+          (ivl_signal_dimensions(sig) > 0 || !ivl_signal_local(sig))) {
+            int strength;
+            switch (charge) {
+                case IVL_DR_SMALL:  strength = vpiSmallCharge; break;
+                case IVL_DR_MEDIUM: strength = vpiMediumCharge; break;
+                case IVL_DR_LARGE:  strength = vpiLargeCharge; break;
+                default: assert(0); return;
+            }
+            fprintf(vvp_out, "v%p%s .vpi_charge_strength %d;\n", sig,
+                    ivl_signal_dimensions(sig) > 0 ? "" : "_0", strength);
       }
 
       if (ivl_signal_dimensions(sig) == 0 && !ivl_signal_local(sig)

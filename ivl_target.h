@@ -2510,6 +2510,8 @@ extern int         ivl_signal_is_time(ivl_signal_t net);
 extern int         ivl_signal_local(ivl_signal_t net);
 /* True when an always_comb or always_latch process assigns this variable. */
 extern int         ivl_signal_comb_driven(ivl_signal_t net);
+/* Declared trireg charge strength, or IVL_DR_HiZ for other signals. */
+extern ivl_drive_t ivl_signal_charge_strength(ivl_signal_t net);
 extern ivl_lifetime_t ivl_signal_lifetime(ivl_signal_t net);
 extern unsigned    ivl_signal_forced_net(ivl_signal_t net);
 extern unsigned    ivl_signal_npath(ivl_signal_t net);

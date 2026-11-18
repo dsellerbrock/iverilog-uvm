@@ -81,6 +81,7 @@ extern vpiHandle vvp_lookup_handle(const char*label);
 extern vvp_net_t* create_constant_node(const char*value);
 extern void compile_vpi_source_location(char*label, uint64_t file_idx,
                                         uint64_t lineno);
+extern void compile_vpi_charge_strength(char*label, uint64_t strength);
 extern bool compile_lookup_code_scope(const char*label, vvp_code_t*code,
                                       __vpiScope**scope, bool exact = false);
 

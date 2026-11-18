@@ -1176,6 +1176,10 @@ class NetNet  : public NetObj, public PortType {
 		   ? type_ : net_delay_declared_type_; }
       void net_delay_pull(class NetLogic*net) { net_delay_pull_ = net; }
       class NetLogic* net_delay_pull() const { return net_delay_pull_; }
+      void declared_charge_strength(ivl_drive_t strength)
+      { declared_charge_strength_ = strength; }
+      ivl_drive_t declared_charge_strength() const
+      { return declared_charge_strength_; }
 
 	/* Delay-path and declaration-delay indexes are consumed by the signal
 	 * callbacks. Release their storage after that second signal pass while
@@ -1244,6 +1248,7 @@ class NetNet  : public NetObj, public PortType {
       NetNet*net_delay_driver_ = 0;
       NetNet*net_delay_public_ = 0;
       Type net_delay_declared_type_ = NONE;
+      ivl_drive_t declared_charge_strength_ = IVL_DR_HiZ;
       class NetLogic*net_delay_pull_ = 0;
       int       port_index_ = -1;
 

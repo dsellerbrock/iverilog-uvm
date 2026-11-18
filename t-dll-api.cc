@@ -3843,6 +3843,13 @@ extern "C" int ivl_signal_comb_driven(ivl_signal_t net)
       return net->net_ && net->net_->comb_written()? 1 : 0;
 }
 
+extern "C" ivl_drive_t ivl_signal_charge_strength(ivl_signal_t net)
+{
+      assert(net);
+      assert(net->net_);
+      return net->net_->declared_charge_strength();
+}
+
 extern "C" ivl_lifetime_t ivl_signal_lifetime(ivl_signal_t net)
 {
       assert(net);
