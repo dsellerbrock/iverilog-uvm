@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "issue3718_assoc_pattern_2023.v",
+    "iverilog-args": [
+        "-g2023"
+    ],
+    "gold": "issue3718_assoc_pattern"
+}

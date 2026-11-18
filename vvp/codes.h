@@ -465,6 +465,7 @@ extern bool of_QPOP_O_F_STR(vthread_t thr, vvp_code_t code);
 extern bool of_QPOP_O_F_V(vthread_t thr, vvp_code_t code);
 extern bool of_QSIZE(vthread_t thr, vvp_code_t code);
 extern bool of_QSIZE_O(vthread_t thr, vvp_code_t code);
+extern bool of_ASSOC_CHECK_SIZE(vthread_t thr, vvp_code_t code);
 extern bool of_QUEUE_TRIM_O(vthread_t thr, vvp_code_t code);
 extern bool of_QUEUE_TO_DARRAY(vthread_t thr, vvp_code_t code);
 extern bool of_QRANGE_O(vthread_t thr, vvp_code_t code);

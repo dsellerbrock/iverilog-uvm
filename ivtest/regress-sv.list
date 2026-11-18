@@ -7085,3 +7085,5 @@ sva_rec_cross_2017 normal,-g2017,-s,sva_rec_cross ivltests gold=sva_rec_cross.go
 sva_rec_cross_2023 normal,-g2023,-s,sva_rec_cross ivltests gold=sva_rec_cross.gold
 issue3715_2017 normal,-g2017,-s,issue3715 ivltests gold=issue3715.gold
 issue3715_2023 normal,-g2023,-s,issue3715 ivltests gold=issue3715.gold
+issue3718_assoc_pattern_2017 normal,-g2017 ivltests gold=issue3718_assoc_pattern.gold
+issue3718_assoc_pattern_2023 normal,-g2023 ivltests gold=issue3718_assoc_pattern.gold
