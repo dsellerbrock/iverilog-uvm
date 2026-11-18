@@ -7456,8 +7456,8 @@ class interconnect_port_use_guard_t {
  * canonical, zero-based word used by NetNet.  Canonical words always advance
  * from the numerically lower index, independently in every dimension, whereas
  * an array port connection is defined in declaration (left-to-right) order. */
-static unsigned long interface_array_ltr_word_(const netranges_t&dims,
-					       unsigned long ordinal)
+static unsigned long unpacked_array_ltr_word_(const netranges_t&dims,
+					      unsigned long ordinal)
 {
       unsigned long word = 0;
       unsigned long stride = 1;
@@ -7487,6 +7487,158 @@ static bool unpacked_array_shapes_match_(const netranges_t&formal,
       for (size_t dim = 0; dim < formal.size(); dim += 1) {
 	    if (formal[dim].width() != actual[dim].width())
 		  return false;
+      }
+      return true;
+}
+
+/* Find a whole fixed array without diagnosing ordinary packed actuals,
+ * which still go through the regular port expression path. Only the last
+ * component must be unselected: a scope in the prefix can be indexed. */
+static NetNet* whole_fixed_array_actual_(Design*des, NetScope*scope,
+					const PExpr*expr)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident || ident->path().name.empty()
+	  || !ident->path().back().index.empty())
+	    return nullptr;
+
+      symbol_search_results result;
+      if (symbol_search(ident, des, scope, ident->path(), ident->lexical_pos(),
+			&result)
+	  && result.net && result.path_tail.empty()
+	  && result.net->unpacked_dimensions() > 0)
+	    return result.net;
+      return nullptr;
+}
+
+/* IEEE 1800-2017/2023 23.3.3.5: a whole unpacked input can have the
+ * shape of a single formal, or an extra leading dimension indexing the
+ * instances in declaration order. Validate every destination before
+ * adding any port drivers. */
+static bool elaborate_instance_array_input_(
+      Design*des, NetScope*scope, const vector<NetNet*>&formals, PExpr*expr,
+      perm_string port_name, bool implicit)
+{
+      const auto&first_dims = formals.front()->unpacked_dims();
+      NetNet*actual = whole_fixed_array_actual_(des, scope, expr);
+      if (!actual) {
+	    if (first_dims.empty())
+		  return false;
+	    // Patterns and other context-dependent array expressions use
+	    // the single formal's type and are broadcast.
+	    unsigned errors_before = des->errors;
+	    actual = elaborate_unpacked_array(des, scope, *expr,
+					     formals.front(), expr);
+	    if (!actual) {
+		  if (errors_before == des->errors) {
+			cerr << expr->get_fileline() << ": error: Failed to "
+			     << "elaborate arrayed input port '" << port_name
+			     << "'." << endl;
+			des->errors += 1;
+		  }
+		  return true;
+	    }
+      }
+
+      const auto&actual_dims = actual->unpacked_dims();
+      const bool split = actual_dims.size() == first_dims.size() + 1;
+      const size_t leading = split ? 1 : 0;
+      const netranges_t element_dims(actual_dims.begin() + leading,
+				     actual_dims.end());
+      const auto report_error = [&](const char*reason) {
+	    cerr << expr->get_fileline() << ": error: Arrayed input port '"
+		 << port_name << "' has " << reason << "." << endl;
+	    des->errors += 1;
+	    return true;
+      };
+
+      if (split && actual_dims.front().width() != formals.size())
+	    return report_error("incompatible unpacked-array dimensions");
+
+      ivl_type_t src_type = actual->net_type();
+      for (const NetNet*formal : formals) {
+	    if (!formal || formal->port_type() != NetNet::PINPUT
+		|| !unpacked_array_shapes_match_(formal->unpacked_dims(),
+						 element_dims))
+		  return report_error("incompatible unpacked-array dimensions");
+
+	    ivl_type_t dst_type = formal->net_type();
+	    // As in 7.6, unpacked array elements must have equivalent types.
+	    // When the formal is scalar, the selected source is itself a
+	    // scalar and ordinary input assignment conversions apply.
+	    bool equivalent = dst_type->type_equivalent(src_type)
+		  && src_type->type_equivalent(dst_type);
+	    bool scalar_conversion = !implicit && first_dims.empty()
+		  && !formal->enumeration()
+		  && (type_is_vectorable(formal->data_type())
+		      || formal->data_type() == IVL_VT_REAL)
+		  && (type_is_vectorable(actual->data_type())
+		      || actual->data_type() == IVL_VT_REAL);
+	    if ((!equivalent && !scalar_conversion)
+		|| ivl_type_contains_chandle_(src_type)
+		|| ivl_type_contains_chandle_(dst_type))
+		  return report_error("an incompatible unpacked-array element type");
+
+	    // Object-backed elements have no structural word driver. In
+	    // particular their packed width cannot be used to build a BUFZ.
+	    if (!type_is_vectorable(formal->data_type())
+		&& formal->data_type() != IVL_VT_REAL) {
+		  cerr << expr->get_fileline() << ": sorry: Object-backed "
+		       << "elements in arrayed input port '" << port_name
+		       << "' are not supported." << endl;
+		  des->errors += 1;
+		  return true;
+	    }
+      }
+
+      unsigned long instance_base = 0;
+      for (NetNet*formal : formals) {
+	    if (formal->type() == NetNet::REG)
+		  formal->type(NetNet::UNRESOLVED_WIRE);
+	    if (formal->net_delay_driver())
+		  formal = delay_driver_net(formal);
+
+	    for (unsigned long ordinal = 0; ordinal < formal->pin_count();
+		 ordinal += 1) {
+		  unsigned long dst = unpacked_array_ltr_word_(
+			formal->unpacked_dims(), ordinal);
+		  unsigned long src = unpacked_array_ltr_word_(
+			actual_dims, instance_base + ordinal);
+		  Link*source = &actual->pin(src);
+		  if (actual->data_type() != formal->data_type()
+		      || actual->vector_width() != formal->vector_width()) {
+			// Give the existing scalar conversion nodes a view
+			// of just this word, including its declared signedness.
+			NetNet*word = new NetNet(scope, scope->local_symbol(),
+						NetNet::IMPLICIT, actual->net_type());
+			word->local_flag(true);
+			word->set_line(*expr);
+			connect(word->pin(0), *source);
+			const unsigned width = formal->vector_width();
+			if (formal->data_type() == IVL_VT_REAL) {
+			      word = cast_to_real(des, scope, word);
+			} else {
+			      word = cast_to_int4(des, scope, word, width);
+			      word = word->get_signed()
+				    ? pad_to_width_signed(des, word, width, *expr)
+				    : pad_to_width(des, word, width, *expr);
+			      word = crop_to_width(des, word, width);
+			      if (formal->data_type() == IVL_VT_BOOL)
+				    word = cast_to_int2(des, scope, word, width);
+			}
+			source = &word->pin(0);
+		  }
+
+		  NetScope*inner = formal->scope();
+		  NetBUFZ*driver = new NetBUFZ(inner, inner->local_symbol(),
+					       formal->vector_width(), false);
+		  driver->set_line(*expr);
+		  des->add_node(driver);
+		  connect(driver->pin(0), formal->pin(dst));
+		  connect(driver->pin(1), *source);
+	    }
+	    if (split)
+		  instance_base += formal->pin_count();
       }
       return true;
 }
@@ -8543,10 +8695,10 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						     ordinal < prts[0]->pin_count();
 						     ordinal += 1) {
 						      unsigned long formal_word =
-							    interface_array_ltr_word_(
+							    unpacked_array_ltr_word_(
 								  formal_dims, ordinal);
 						      unsigned long actual_word =
-							    interface_array_ltr_word_(
+							    unpacked_array_ltr_word_(
 								  actual_dims, ordinal);
 						      prts[0]->bind_interface_signal(
 							    formal_word, actual_signal,
@@ -8834,13 +8986,26 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    // A broadcast variable input needs a separate driver for each formal.
 	    bool replicated_variable_input = false;
 
-	    /* IEEE 1800-2017/2023 23.3.3.5: a scalar port on an instance array
-	       can be connected to an unpacked array whose leading dimension has
-	       one element per instance. Map each left-to-right actual element to
-	       the corresponding instance instead of elaborating the aggregate in
-	       the scalar formal's type context. */
+	    // Defaults must be elaborated in each instance's own scope.
+	    if (using_default && instance.size() > 1) {
+		  cerr << get_fileline() << ": sorry: An input port "
+		       << "default value is not currently supported "
+		       << "for a module instance array." << endl;
+		  des->errors += 1;
+		  continue;
+	    }
+
+	    if (ptype == NetNet::PINPUT && is_array() && mport.size() == 1
+		&& elaborate_instance_array_input_(des, elab_scope_inst[0], prts,
+						    pins[idx], port_name,
+						    pins_implicit[idx]))
+		  continue;
+
+	    /* Retain the scalar output and inout mapping for whole unpacked
+	       actuals. Input array connections are handled above. */
 	    bool instance_array_actual = false;
-	    if (instance.size() > 1 && mport.size() == 1
+	    if ((ptype == NetNet::POUTPUT || ptype == NetNet::PINOUT)
+	        && instance.size() > 1 && mport.size() == 1
 	        && prts.size() == instance.size() && !prts.empty()
 	        && prts[0] && prts[0]->unpacked_dimensions() == 0) {
 	      const PEIdent*aid = dynamic_cast<const PEIdent*>(pins[idx]);
@@ -8875,28 +9040,20 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	                              continue;
 	                        for (unsigned inst = 0; inst < instance.size();
 	                             inst += 1) {
-	                              unsigned word = interface_array_ltr_word_(
+	                              unsigned word = unpacked_array_ltr_word_(
 	                                    actual->unpacked_dims(), inst);
 	                              NetNet*formal = prts[inst];
-	                              if (ptype == NetNet::PINPUT
-	                                  || ptype == NetNet::POUTPUT) {
+	                              if (ptype == NetNet::POUTPUT) {
 	                                    NetBUFZ*buffer = new NetBUFZ(
 	                                          scope, scope->local_symbol(),
 	                                          formal->vector_width(), false);
 	                                    buffer->set_line(*this);
 	                                    des->add_node(buffer);
-	                                    if (ptype == NetNet::PINPUT) {
-	                                          connect(formal->pin(0),
-	                                                  buffer->pin(0));
-	                                          connect(buffer->pin(1),
-	                                                  actual->pin(word));
-	                                    } else {
-	                                          connect(actual->pin(word),
-	                                                  buffer->pin(0));
-	                                          connect(buffer->pin(1),
-	                                                  formal->pin(0));
-	                                    }
-	                              } else if (ptype == NetNet::PINOUT) {
+	                                    connect(actual->pin(word),
+	                                            buffer->pin(0));
+	                                    connect(buffer->pin(1),
+	                                            formal->pin(0));
+	                              } else {
 	                                    NetTran*tran = new NetTran(
 	                                          scope, scope->local_symbol(),
 	                                          actual->vector_width(),
@@ -8907,8 +9064,6 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	                                            actual->pin(word));
 	                                    connect(tran->pin(1),
 	                                            formal->pin(0));
-	                              } else {
-	                                    connect(formal->pin(0), actual->pin(word));
 	                              }
 	                        }
 	                        instance_array_actual = true;
@@ -9000,27 +9155,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			      context_width = prts_vector_width;
 			}
 		  }
-		    // FIXME: The default value is getting the wrong value for
-		    //        an array instance since only one scope is used
-		    //        and the value can be different for each scope.
-		    //        Need to rework the code to support this.
-		  NetScope* elab_scope = scope;
-		  if (using_default) {
-//if (instance.size() > 1) {
-//      for (unsigned inst = 0 ;  inst < instance.size() ;  inst += 1) {
-//	    cerr << get_fileline() << ": FIXME: Instance " << inst
-//	         << " has scope: " << elab_scope_inst[inst]->fullname() << endl;
-//      }
-//}
-			if (instance.size() > 1) {
-			      cerr << get_fileline() << ": sorry: An input port "
-			           << "default value is not currently supported "
-			           << "for a module instance array." << endl;
-			      des->errors += 1;
-			      continue;
-			}
-			elab_scope = elab_scope_inst[0];
-		  }
+		  NetScope*elab_scope = elab_scope_inst[0];
 		  NetExpr*tmp_expr;
 		  if (!prts.empty()
 		      && dynamic_cast<PEAssignPattern*>(pins[idx]))

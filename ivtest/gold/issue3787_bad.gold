@@ -1,0 +1,3 @@
+./ivltests/issue3787_bad.sv:8: error: Arrayed input port 'd' has incompatible unpacked-array dimensions.
+./ivltests/issue3787_bad.sv:10: error: Arrayed input port 'd' has an incompatible unpacked-array element type.
+2 error(s) during elaboration.
