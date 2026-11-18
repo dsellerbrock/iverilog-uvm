@@ -1,0 +1,12 @@
+unknown prefix ++ 1234 0000
+out of range ++ 5a 0000 1
+out of range -- 5a 0000
+constant range ++ 5a 0000
+unknown postfix ++ 1234 0000
+high impedance postfix -- 5a 0000
+one-bit part-select ++ 5a 0
+bit-select ++ 5a 1
+four-state ++ 5a xxxx
+valid prefix ++ 5b 1011
+valid postfix -- 5a 1011
+partial postfix ++ 1a 0001
