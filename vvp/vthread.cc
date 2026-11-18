@@ -16306,7 +16306,10 @@ static void resume_joining_parent_(vthread_t parent, vthread_t child)
             vthread_run(parent);
             running_thread = child;
       } else if (!parent->i_have_ended) {
-            schedule_vthread(parent, 0, true);
+	    if (parent->is_reactive_process && !parent->program_scope)
+		  schedule_vthread_reactive_front(parent);
+	    else
+		  schedule_vthread(parent, 0, true);
       }
 }
 
@@ -23269,10 +23272,11 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 		      /* A child inherits its parent's program/Reactive affinity.
 			 The front-push path is hard-wired to SEQ_ACTIVE, so use it
 			 only for an ordinary design thread. */
-		    /* Run the called task before another report overwrites its
-		       static input formals; stay in the Reactive region. */
-		    if (thr->is_observed_report_action && !child_is_process
-		        && cp->scope->get_type_code() == vpiTask)
+		    /* Calls and sequential blocks belong to this action. Run
+		       them ahead of later assertion actions in the same region. */
+		    if (child->is_fork_v_child
+			&& (thr->is_observed_report_action
+			    || (thr->is_reactive_process && !thr->program_scope)))
 			  schedule_vthread_reactive_front(child);
 		    else
 			  schedule_vthread(child, 0, !vthread_is_reactive(child));

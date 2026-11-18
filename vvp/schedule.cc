@@ -1103,14 +1103,18 @@ void schedule_vthread(vthread_t thr, vvp_time64_t delay, bool push_flag)
 
 void schedule_vthread_reactive_front(vthread_t thr)
 {
+      if (!sched_list || sched_list->delay > 0
+	  || (sched_current_region != SEQ_REACTIVE
+	      && sched_current_region != SEQ_RE_INACTIVE)) {
+	    schedule_vthread(thr, 0, false);
+	    return;
+      }
       struct vthread_event_s*cur = new vthread_event_s;
       cur->thr = thr;
       vthread_mark_scheduled(thr);
-      cur->region = SEQ_REACTIVE;
-      /* The scheduler drains the current region through active after moving
-         the Reactive queue there. Insert ahead of that region's remainder. */
-      assert(sched_list && sched_list->delay == 0
-             && sched_current_region == SEQ_REACTIVE);
+      cur->region = sched_current_region;
+      /* The scheduler drains the current region through active. Keep a
+         task call or return in its caller's region, ahead of other reports. */
       struct event_s**q = &sched_list->active;
       if (!*q) {
             cur->next = cur;

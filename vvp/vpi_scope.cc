@@ -247,12 +247,25 @@ void root_table_delete(void)
 }
 #endif
 
+/* A procedural composite action's fork provides an activation frame, but
+   it is not a source scope. See sva_comp_proc_dispatch_ in pform.cc. */
+static __vpiScope* sva_action_parent_(__vpiScope*scope)
+{
+      static const char prefix[] = "$ivl_sva_action ";
+      while (scope && scope->get_type_code() == vpiNamedFork
+	     && strncmp(scope->scope_name(), prefix, sizeof prefix - 1) == 0)
+	    scope = scope->scope;
+      return scope;
+}
+
 static void construct_scope_fullname(__vpiScope*ref, char*buf)
 {
-      if (ref->scope) {
-	    construct_scope_fullname(ref->scope, buf);
+      ref = sva_action_parent_(ref);
+      if (!ref) return;
+      if (__vpiScope*parent = sva_action_parent_(ref->scope)) {
+	    construct_scope_fullname(parent, buf);
 	      // Add a "." separator, unless this is for a package
-	    if (ref->scope->get_type_code() != vpiPackage) {
+	    if (parent->get_type_code() != vpiPackage) {
 		  strcat(buf, ".");
 	    }
       }
@@ -2139,7 +2152,13 @@ class __vpiAssertion : public __vpiHandle {
 	{ proc_id_ = pid; proc_each_ = each; }
 	/* 16.14.6.1: each instance keeps the values it saved when queued. */
       void proc_matured(const std::vector<vvp_vector4_t>&saved)
-	{ proc_matured_ += 1; proc_saved_.push_back(saved); }
+	{
+	    /* A pending instance can mature after Off. It cannot start an
+	       attempt even if the assertion is reenabled before its clock. */
+	    if (!enabled_) return;
+	    proc_matured_ += 1;
+	    proc_saved_.push_back(saved);
+	}
 	/* Saved value j of the idx-th instance taken at the last clock. */
       const vvp_vector4_t* taken_value(PLI_INT32 idx, PLI_INT32 j) const
 	{
@@ -2148,9 +2167,7 @@ class __vpiAssertion : public __vpiHandle {
 	    if (j < 0 || (size_t)j >= v.size()) return 0;
 	    return &v[j];
 	}
-	/* The checker takes every matured instance at its leading clock.
-	   Under $assertoff they start no attempt and are discarded (default
-	   pending a ruling: 20.11 Off "No new attempts will be started"). */
+	/* The checker takes every matured instance at its leading clock. */
       PLI_INT32 take_matured(void)
 	{
 	    PLI_INT32 n = proc_matured_;
@@ -2241,6 +2258,10 @@ class __vpiAssertion : public __vpiHandle {
 		case 3:
 		case 4:
 		  enabled_ = ctl == 3;
+		  if (!enabled_ && proc_id_) {
+			proc_matured_ = 0;
+			proc_saved_.clear();
+		  }
 		  if (notify && was != enabled_)
 			fire(enabled_ ? cbAssertionEnable : cbAssertionDisable);
 		  return false;
@@ -3147,7 +3168,8 @@ PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
       }
       switch (space) {
 	  case vpipAssertSpaceConcurrent:
-	    obj = find_assertion_up_(assertion_by_key, sc, (int)id, false);
+	    obj = find_assertion_up_(assertion_by_key, sva_action_parent_(sc),
+				     (int)id, false);
 	    break;
 	  case vpipAssertSpaceImmediate:
 	    obj = find_assertion_up_(immediate_assertion_by_key, sc, (int)id, true);
@@ -3225,11 +3247,9 @@ void vpip_deferred_assertion_report(unsigned long source_id,
 void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
-      if (!sc) return;
-      std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>::iterator it =
-	    assertion_by_key.find(std::make_pair(sc, (int)idx));
-      if (it != assertion_by_key.end())
-	    it->second->fire((int)reason);
+      if (__vpiAssertion*obj = find_assertion_up_(assertion_by_key,
+				    sva_action_parent_(sc), (int)idx, false))
+	    obj->fire((int)reason);
 }
 
 void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope)
