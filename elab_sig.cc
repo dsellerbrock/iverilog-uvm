@@ -3652,7 +3652,8 @@ void PFunction::elaborate_sig(Design*des, NetScope*scope) const
       if (scope->elab_stage() < 2)
             scope->set_elab_stage(2);
 
-      perm_string fname = scope->basename();
+      perm_string fname = interface_port_method().nil()
+	    ? scope->basename() : interface_port_method();
       ivl_assert(*this, scope->type() == NetScope::FUNC);
 
       const char*uvm_cb_trace = getenv("IVL_UVM_CB_SIG_TRACE");

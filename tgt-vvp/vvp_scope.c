@@ -342,12 +342,21 @@ static unsigned is_netlist_signal(const ivl_net_logic_t net, ivl_nexus_t nex)
       return rtn;
 }
 
-int signal_is_materialized_return(ivl_signal_t sig)
+int signal_is_function_result(ivl_signal_t sig)
 {
       if (!sig) return 0;
       ivl_scope_t scope = ivl_signal_scope(sig);
+
+      /* A constructor returns its receiver, which is an input port. */
       return ivl_scope_type(scope) == IVL_SCT_FUNCTION
-	  && strcmp(ivl_signal_basename(sig), ivl_scope_basename(scope)) == 0
+	  && ivl_scope_ports(scope) > 0
+	  && ivl_scope_port(scope, 0) == sig
+	  && ivl_signal_port(sig) != IVL_SIP_INPUT;
+}
+
+int signal_is_materialized_return(ivl_signal_t sig)
+{
+      return signal_is_function_result(sig)
 	  && ivl_signal_dimensions(sig) == 0
 	  && (ivl_signal_data_type(sig) == IVL_VT_BOOL
 	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC)
@@ -357,14 +366,7 @@ int signal_is_materialized_return(ivl_signal_t sig)
 /* Return variables backed by the call stack can omit ordinary signal storage. */
 int signal_is_return_value(ivl_signal_t sig)
 {
-      if (signal_is_materialized_return(sig))
-	    return 0;
-      ivl_scope_t sig_scope = ivl_signal_scope(sig);
-      if (ivl_scope_type(sig_scope) != IVL_SCT_FUNCTION)
-	    return 0;
-      if (strcmp(ivl_signal_basename(sig), ivl_scope_basename(sig_scope)) == 0)
-	    return 1;
-      return 0;
+      return signal_is_function_result(sig) && !signal_is_materialized_return(sig);
 }
 
 /*

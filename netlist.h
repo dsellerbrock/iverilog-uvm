@@ -5175,6 +5175,10 @@ class NetFuncDef : public NetBaseDef {
 	// Non-void functions have a return value as a signal.
       const NetNet*return_sig() const;
 
+	// Report an extern function whose definition is needed for implicit
+	// sensitivity before physical interface-port binding is complete.
+      static void set_extern_sensitivity_collector(bool*pending);
+
 	// When we want to evaluate the function during compile time,
 	// use this method to pass in the argument and get out a
 	// result. The result should be a constant. If the function

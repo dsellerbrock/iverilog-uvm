@@ -27,6 +27,7 @@
 # include  "ivl_assert.h"
 # include  "netlist.h"
 # include  "netmisc.h"
+# include  "PTask.h"
 # include  <cstring>
 
 using namespace std;
@@ -168,11 +169,11 @@ NexusSet* NetENull::nex_input(bool, bool, bool) const
 
 NexusSet* NetEProperty::nex_input(bool, bool, bool) const
 {
-      if (nex_input_vif_collector)
+      NetNet*static_member = resolve_interface_member_signal();
+      if (nex_input_vif_collector && !static_member)
             nex_input_vif_collector->push_back(this);
 
       NexusSet*result = new NexusSet;
-      NetNet*static_member = resolve_interface_member_signal();
       if (static_member) {
             for (unsigned pin = 0; pin < static_member->pin_count(); pin += 1) {
                   Nexus*nx = static_member->pin(pin).nexus();
@@ -495,10 +496,26 @@ NexusSet* NetETernary::nex_input(bool rem_out, bool always_sens, bool nested_fun
       return result;
 }
 
-// Get the contribution of a function call in a always_comb block
+static bool*extern_sensitivity_pending = nullptr;
+
+void NetFuncDef::set_extern_sensitivity_collector(bool*pending)
+{
+      assert(!pending || !extern_sensitivity_pending);
+      extern_sensitivity_pending = pending;
+}
+
+// Get the contribution of a function call in an always_comb block.
 static void func_always_sens(const NetFuncDef*func, NexusSet*result,
 			     bool rem_out, bool nested_func)
 {
+	if (extern_sensitivity_pending) {
+	      const PFunction*pform = func->scope()->func_pform();
+	      if (pform && pform->is_extern_prototype()) {
+		    *extern_sensitivity_pending = true;
+		    return;
+	      }
+	}
+
 	  // Avoid recursive function calls.
 	static set<const NetFuncDef*> func_set;
 	if (!nested_func)
