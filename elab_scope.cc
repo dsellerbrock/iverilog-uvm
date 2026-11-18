@@ -5153,6 +5153,11 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 	 * fixes (DD-041). */
       use_class->set_scope_ready(true);
       classes_being_scope_elaborated_.erase(pclass);
+
+      // Nested declarations can be discovered after the design-wide
+      // parameter pass while elaborating the enclosing class's members.
+      if (scope->type() == NetScope::CLASS)
+	    class_scope->evaluate_parameters(des);
 }
 
 static void elaborate_scope_classes(Design*des, NetScope*scope,
