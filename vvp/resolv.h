@@ -152,10 +152,12 @@ class resolv_tri : public resolv_core {
       void recv_vec8_(unsigned port, const vvp_vector8_t&bit) override;
 
     private:
-        // The puller value to be used when a bit is not driven.
+      struct strength_summary;
+        // The implicit pull driver for tri0/tri1, or HiZ for a plain net.
       vvp_scalar_t hiz_value_;
-        // The array of input values.
       vvp_vector8_t*val_;
+      std::vector<strength_summary>*branches_;
+      vvp_vector8_t out_;
 };
 
 /*
