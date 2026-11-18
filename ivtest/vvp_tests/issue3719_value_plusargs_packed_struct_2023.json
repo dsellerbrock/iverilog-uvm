@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue3719_value_plusargs_packed_struct.sv",
+  "iverilog-args": ["-g2023", "-s", "issue3719_value_plusargs_packed_struct"],
+  "vvp-args-extended": ["+v=123456789abcdef0123", "+p=00112233445566778899aabbccddeeff", "+four=12xz", "+two=12xz"],
+  "gold": "issue3719_value_plusargs_packed_struct"
+}

@@ -1237,8 +1237,8 @@ static vpiHandle signal_put_value(vpiHandle ref, s_vpi_value*vp, int flags)
       struct __vpiSignal*rfp = dynamic_cast<__vpiSignal*>(ref);
       assert(rfp);
       vvp_net_ptr_t dest(rfp->node, 0);
-      bool net_flag = ref->get_type_code()==vpiNet ||
-                      ref->get_type_code()==vpiNetBit;
+      int storage_type = ref->get_type_code();
+      bool net_flag = storage_type == vpiNet || storage_type == vpiNetBit;
       unsigned wid = rfp->width();
       unsigned base = rfp->value_base;
       vvp_signal_value*sig = vvp_fil_signal_value(rfp->node->fil);
@@ -1267,6 +1267,13 @@ static vpiHandle signal_put_value(vpiHandle ref, s_vpi_value*vp, int flags)
 	   that we are going to poke. This will get populated
 	   differently depending on the format. */
       vvp_vector4_t val = vec4_from_vpi_value(vp, wid);
+
+      /* The struct handle masks the underlying two-state variable type. */
+      if ((storage_type == vpiBitVar || storage_type == vpiByteVar ||
+           storage_type == vpiShortIntVar || storage_type == vpiIntVar ||
+           storage_type == vpiLongIntVar) &&
+          rfp->get_vpi_type_code() == vpiStructVar)
+            val.cast2();
 
       if (flags == vpiForceFlag) {
 	    if (full_sig) {
