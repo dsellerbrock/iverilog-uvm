@@ -5624,6 +5624,12 @@ sv_constraint_external_handle_state normal,-g2017,-s,top ivltests gold=sv_constr
 sv_constraint_external_handle_state_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_external_handle_state.gold
 sv_constraint_external_handle_order_fail CE,-g2017,-s,top ivltests gold=sv_constraint_external_handle_order_fail.gold
 sv_constraint_external_handle_order_fail_2023 CE,-g2023,-s,top ivltests gold=sv_constraint_external_handle_order_fail.gold
+issue3830_state_2017 CE,-g2017,-s,top ivltests gold=issue3830_state_2017.gold
+issue3830_state_unsafe_2017 CE,-g2017,-gcommercial-unsafe,-s,top ivltests gold=issue3830_state_2017.gold
+issue3830_qualified_2017 normal,-g2017,-s,top ivltests gold=issue3830_qualified.gold
+issue3830_state_2023 CE,-g2023,-DISSUE3830_SIZE,-s,top ivltests gold=issue3830_state_2023.gold
+issue3830_state_unsafe_2023 CE,-g2023,-gcommercial-unsafe,-DISSUE3830_SIZE,-s,top ivltests gold=issue3830_state_2023.gold
+issue3830_qualified_2023 normal,-g2023,-s,top ivltests gold=issue3830_qualified.gold
 
 # X/Z caller state in constraints (18.3).
 sv_constraint_state_xz normal,-g2017,-s,top ivltests gold=sv_constraint_state_xz.gold

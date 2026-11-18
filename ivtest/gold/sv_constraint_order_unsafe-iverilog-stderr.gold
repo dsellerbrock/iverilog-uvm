@@ -1,2 +1,1 @@
-ivltests/sv_constraint_order_unsafe.v:7: warning: target of 'solve before' constraint must be a random variable (IEEE 1800 18.5.9); the operand is omitted from the ordering; nonstandard compatibility behavior.
-ivltests/sv_constraint_order_unsafe.v:12: warning: circular 'solve before' ordering between 'a' and 'b' in class sv_constraint_order_unsafe_cycle (IEEE 1800 18.5.9); nonstandard compatibility behavior.
+ivltests/sv_constraint_order_unsafe.v:5: warning: circular 'solve before' ordering between 'a' and 'b' in class sv_constraint_order_unsafe_cycle (IEEE 1800 18.5.9); nonstandard compatibility behavior.

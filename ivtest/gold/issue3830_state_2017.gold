@@ -1,0 +1,9 @@
+./ivltests/issue3830_state.sv:17: error: target of 'solve before' constraint must be a random variable.
+./ivltests/issue3830_state.sv:17: error: target of 'solve before' constraint must be a random variable.
+./ivltests/issue3830_state.sv:17: error: target of 'solve before' constraint must be a random variable.
+./ivltests/issue3830_state.sv:17: error: target of 'solve before' constraint must be a random variable.
+./ivltests/issue3830_state.sv:18: error: target of 'solve before' constraint must be a random variable.
+./ivltests/issue3830_state.sv:19: error: target of 'solve before' constraint must be a random variable.
+./ivltests/issue3830_state.sv:21: error: target of 'solve before' constraint must be a random variable.
+./ivltests/issue3830_state.sv:22: error: target of 'solve before' constraint must be a random variable.
+8 error(s) during elaboration.
