@@ -602,6 +602,26 @@ class PEEvent : public PExpr {
       PExpr *condition_;
 };
 
+/* An event-expression list carried in an assertion argument slot. */
+class PEEventList final : public PExpr {
+
+    public:
+      explicit PEEventList(std::vector<PEEvent*> events = {});
+      ~PEEventList() override;
+
+      const std::vector<PEEvent*>& events() const { return events_; }
+      void append(PEEvent*event) { events_.push_back(event); }
+
+      bool refs_name(perm_string name) const override;
+      bool has_aa_term(Design*des, NetScope*scope) const override;
+      void dump(std::ostream&) const override;
+      unsigned test_width(Design*, NetScope*, width_mode_t&) override;
+      NetExpr*elaborate_expr(Design*, NetScope*, unsigned, unsigned) const override;
+
+    private:
+      std::vector<PEEvent*> events_;
+};
+
 /*
  * This holds a floating point constant in the source.
  */

@@ -610,6 +610,27 @@ PExpr* PEEvent::condition() const
       return condition_;
 }
 
+PEEventList::PEEventList(std::vector<PEEvent*> events)
+: events_(std::move(events))
+{
+}
+
+PEEventList::~PEEventList()
+{
+      for (PEEvent*event : events_) {
+	    delete event->expr();
+	    delete event->condition();
+	    delete event;
+      }
+}
+
+bool PEEventList::has_aa_term(Design*des, NetScope*scope) const
+{
+      for (const PEEvent*event : events_)
+	    if (event->has_aa_term(des, scope)) return true;
+      return false;
+}
+
 PENull::PENull(void)
 {
 }
@@ -1324,4 +1345,11 @@ bool PEEvent::refs_name(perm_string name) const
 {
       return (expr_ && expr_->refs_name(name))
 	  || (condition_ && condition_->refs_name(name));
+}
+
+bool PEEventList::refs_name(perm_string name) const
+{
+      for (const PEEvent*event : events_)
+	    if (event->refs_name(name)) return true;
+      return false;
 }

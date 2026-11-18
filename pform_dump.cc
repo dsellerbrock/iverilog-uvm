@@ -523,6 +523,15 @@ void PEEvent::dump(ostream&out) const
 
 }
 
+void PEEventList::dump(ostream&out) const
+{
+      const char*separator = "";
+      for (const PEEvent*event : events_) {
+	    out << separator << *event;
+	    separator = " or ";
+      }
+}
+
 void PEFNumber::dump(ostream &out) const
 {
       out << value();

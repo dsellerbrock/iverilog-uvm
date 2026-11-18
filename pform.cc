@@ -13157,6 +13157,19 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 		copy->set_line(*e);
 		return copy;
 	  }
+      if (PEEventList*events = dynamic_cast<PEEventList*>(e)) {
+	    std::unique_ptr<PEEventList> copy(new PEEventList);
+	    for (const PEEvent*event : events->events()) {
+		  std::unique_ptr<PExpr> expr(sva_clone_subst_(event->expr(), subst));
+		  std::unique_ptr<PExpr> condition(sva_clone_subst_(event->condition(), subst));
+		  if (!expr || (event->condition() && !condition)) return nullptr;
+		  PEEvent*term = new PEEvent(event->type(), expr.release(), condition.release());
+		  term->set_line(*event);
+		  copy->append(term);
+	    }
+	    copy->set_line(*e);
+	    return copy.release();
+      }
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
 	    /* A dotted formal reference such as `x.triggered' is represented as
 	       one PEIdent path, not as PEMemberAccess. Substitute the formal base
@@ -15501,6 +15514,7 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 				      PExpr*inferred_disable,
 				      std::map<perm_string,PExpr*>&subst,
 				      std::map<perm_string,const PEventStatement*>&event_subst,
+				      std::list<PEventStatement>&event_controls,
 				      std::vector<PExpr*>&owned,
 				      std::vector<sva_seq_step_t>&initializers,
 				      std::map<perm_string,perm_string>&local_carriers,
@@ -15546,15 +15560,13 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
       for (size_t k = 0; k < formals.size(); ++k) {
 	    const sva_property_formal_t&formal = formals[k];
 	    PExpr*value = nullptr;
-	      /* IEEE 1800-2017/2023 16.12.18: an `event' formal takes an
-		 event_expression actual (or default) such as `posedge clk'.
-		 Bind it as the formal's event control, as $inferred_clock is
-		 bound below. */
-	    PEEvent*event_actual = actuals[k]
-		  ? dynamic_cast<PEEvent*>(actuals[k]->parm) : nullptr;
-	    if (!actuals[k] && formal.default_expr)
-		  event_actual = dynamic_cast<PEEvent*>(formal.default_expr);
-	    if (event_actual) {
+	    /* IEEE 1800-2017/2023 16.12.18: bind an event expression actual or
+	       default as the formal's event control. */
+	    PExpr*actual = actuals[k] && actuals[k]->parm
+		  ? actuals[k]->parm : formal.default_expr;
+	    PEEvent*event = dynamic_cast<PEEvent*>(actual);
+	    PEEventList*events = dynamic_cast<PEEventList*>(actual);
+	    if (event || events) {
 		  if (formal.formal_type != sva_property_formal_t::EVENT
 		      && formal.formal_type != sva_property_formal_t::UNTYPED) {
 			cerr << loc << ": error: property `" << nm << "' formal `"
@@ -15564,20 +15576,14 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 			error_count += 1;
 			return false;
 		  }
-		  PExpr*expr = sva_clone_subst_(event_actual->expr(), nullptr);
-		  PExpr*cond = event_actual->condition()
-			? sva_clone_subst_(event_actual->condition(), nullptr)
-			: nullptr;
-		  if (!expr || (event_actual->condition() && !cond))
-			return false;
-		  PEEvent*copy = new PEEvent(event_actual->type(), expr, cond);
-		  FILE_NAME(copy, loc);
-		  std::vector<PEEvent*> evs(1, copy);
-		    // ponytail: the control lives as long as the parsed design,
-		    // like the other pform statements it is cloned into.
-		  PEventStatement*control = new PEventStatement(evs);
-		  FILE_NAME(control, loc);
-		  event_subst[formal.name] = control;
+		  // The control borrows its terms until the property body is cloned.
+		  if (events)
+			event_controls.emplace_back(events->events());
+		  else
+			event_controls.emplace_back(event);
+		  PEventStatement&control = event_controls.back();
+		  control.set_line(*actual);
+		  event_subst[formal.name] = &control;
 		  continue;
 	    }
 	    if (actuals[k] && actuals[k]->parm) {
@@ -40240,6 +40246,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      std::vector<perm_string> actual_local_reads =
 				    prop->local_input_actual_names;
 			      std::map<perm_string,const PEventStatement*> event_subst;
+			      std::list<PEventStatement> event_controls;
 			      PEventStatement*inferred_clock = prop->clk_evt;
 			      bool owns_inferred_clock = false;
 			      if (!inferred_clock) {
@@ -40261,7 +40268,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      if (!fatal && !sva_build_property_subst_(loc, nm,
 				    pit->second.formals, cf->get_parms(), inferred_clock,
 				    sva_default_disable_for_scope_(lexical_scope), subst,
-				    event_subst,
+				    event_subst, event_controls,
 				    owned_subst, *formal_initializers, local_carriers,
 				    caller_locals, actual_local_reads))
 				    fatal = true;

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3658_property_event_or.sv",
+  "iverilog-args": ["-g2023", "-s", "issue3658_property_event_or"],
+  "gold": "issue3658_property_event_or"
+}
