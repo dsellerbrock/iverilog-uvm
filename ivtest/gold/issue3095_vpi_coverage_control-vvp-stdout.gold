@@ -1,0 +1,8 @@
+type=760 start=0 stop=1 reset=1 check=0
+type=761 start=0 stop=1 reset=1 check=0
+type=762 start=0 stop=1 reset=1 check=0
+type=763 start=0 stop=1 reset=1 check=0
+bad_type=-1 error=3
+null_handle=-1 error=3
+signal_handle=-1 error=3
+valid_check=0 error=0
