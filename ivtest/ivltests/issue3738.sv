@@ -35,6 +35,7 @@ module issue3738;
     check(string'(short_fn()), "A");
     check(string'(fn(48'h410042000043)), "ABC");
     check(str_fn(), "str");
+    check("\200", "\200");
     if (calls != 5) begin
       $display("FAIL: calls=%0d", calls);
       $finish(1);

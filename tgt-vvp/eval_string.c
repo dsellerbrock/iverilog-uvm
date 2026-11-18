@@ -544,10 +544,12 @@ void draw_eval_string(ivl_expr_t expr)
 {
       if (deferred_preload_take(expr, 's', 0)) return;
 
-      /* An integral expression in a string cast must first produce a
-       * vector, regardless of its expression kind. */
-      if (ivl_expr_value(expr) == IVL_VT_BOOL
-	  || ivl_expr_value(expr) == IVL_VT_LOGIC) {
+      /* String literals can have integral value types but already have a
+       * dedicated string representation. Other integral expressions must
+       * first produce a vector before conversion. */
+      if (ivl_expr_type(expr) != IVL_EX_STRING
+	  && (ivl_expr_value(expr) == IVL_VT_BOOL
+	      || ivl_expr_value(expr) == IVL_VT_LOGIC)) {
 	    fallback_eval(expr);
 	    return;
       }
