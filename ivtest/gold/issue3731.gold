@@ -1,0 +1,10 @@
+data 00000f0f 00000f0f
+flags 09 07
+wide 123456789abcdef01234567xz 89
+label <first>
+data 12345678 12345678
+flags 19 17
+wide fedcba9876543210123456789 87
+label <second>
+invalid xxxxxxxx 00 <>
+invalid xxxxxxxx 00 <>
