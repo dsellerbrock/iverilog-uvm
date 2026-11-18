@@ -36102,7 +36102,7 @@ NetNet* Design::find_discipline_reference(ivl_discipline_t dis, NetScope*scope)
  * parser accepts it as a call argument so property instances can take it;
  * anywhere it reaches expression elaboration it is an error.
  */
-static void pe_event_not_a_value_(const PEEvent*ev, Design*des)
+static void pe_event_not_a_value_(const PExpr*ev, Design*des)
 {
       cerr << ev->get_fileline() << ": error: the event expression `" << *ev
 	   << "' is only allowed as the actual or default of an event formal "
@@ -36128,4 +36128,18 @@ NetExpr* PEEvent::elaborate_expr(Design*des, NetScope*, unsigned, unsigned) cons
 {
       pe_event_not_a_value_(this, des);
       return 0;
+}
+
+unsigned PEEventList::test_width(Design*, NetScope*, width_mode_t&)
+{
+      expr_width_ = 1;
+      min_width_ = 1;
+      expr_type_ = IVL_VT_LOGIC;
+      return 1;
+}
+
+NetExpr* PEEventList::elaborate_expr(Design*des, NetScope*, unsigned, unsigned) const
+{
+      pe_event_not_a_value_(this, des);
+      return nullptr;
 }
