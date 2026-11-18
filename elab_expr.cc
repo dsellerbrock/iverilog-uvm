@@ -36057,7 +36057,13 @@ NetExpr* PEUnary::elaborate_expr_bits_(NetExpr*operand, unsigned expr_wid) const
 	      // The only operand that I know can get here is the
 	      // unary not (~).
 	    ivl_assert(*this, op_ == '~');
-	    value = ~value;
+	    if (ctmp->has_sign() && ctmp->expr_type() == IVL_VT_LOGIC
+		&& !value.is_defined()) {
+		  value = verinum(verinum::Vx, expr_wid);
+		  value.has_sign(signed_flag_);
+	    } else {
+		  value = ~value;
+	    }
 
 	    ctmp = new NetEConst(value);
 	    ctmp->set_line(*this);

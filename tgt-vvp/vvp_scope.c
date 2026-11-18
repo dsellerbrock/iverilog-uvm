@@ -1924,12 +1924,19 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 
       if (!lcasc)
 	lcasc = ltype;
-      char event_type[32], event_cascade[32];
-      if (ivl_logic_event_synchronous(lptr)) {
-            snprintf(event_type, sizeof event_type, "%s/event", ltype);
-            snprintf(event_cascade, sizeof event_cascade, "%s/event", lcasc);
-            ltype = event_type;
-            lcasc = event_cascade;
+      char functor_type[32], event_cascade[32];
+      unsigned event_synchronous = ivl_logic_event_synchronous(lptr);
+      unsigned signed_xz_mask = ivl_logic_signed_xz_mask(lptr);
+      if (signed_xz_mask) {
+	    assert(ivl_logic_pins(lptr) <= 3);
+	    snprintf(functor_type, sizeof functor_type, "%s/sxz%u%s",
+		     ltype, signed_xz_mask, event_synchronous ? "/event" : "");
+	    ltype = functor_type;
+      } else if (event_synchronous) {
+	    snprintf(functor_type, sizeof functor_type, "%s/event", ltype);
+	    snprintf(event_cascade, sizeof event_cascade, "%s/event", lcasc);
+	    ltype = functor_type;
+	    lcasc = event_cascade;
       }
 
 
@@ -1937,6 +1944,7 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 	   the functor that I create later. */
       assert(ivl_logic_pins(lptr) > 0);
       ninp = ivl_logic_pins(lptr) - 1;
+      unsigned padded_inputs = signed_xz_mask && ninp == 1 ? 1 : 4;
       input_strings = calloc(ninp, sizeof(char*));
       for (pdx = 0 ;  pdx < (unsigned)ninp ;  pdx += 1)
 	    input_strings[pdx] = draw_net_input(ivl_logic_pin(lptr, pdx+1));
@@ -1965,7 +1973,7 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 			      fprintf(vvp_out, ", %s", input_strings[pdx]);
 			}
 		  }
-		  for ( ;  pdx < inst+4 ;  pdx += 1) {
+		  for ( ;  pdx < inst+padded_inputs ;  pdx += 1) {
 			unsigned wdx;
 			fprintf(vvp_out, ", C4<");
 			for (wdx = 0 ; wdx < vector_width ;  wdx += 1)

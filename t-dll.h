@@ -743,6 +743,7 @@ struct ivl_net_logic_s {
       unsigned is_port_buffer;
       unsigned is_reactive_output;
       unsigned event_synchronous;
+      unsigned signed_xz_mask;
       unsigned delay_is_per_bit = 0;
       unsigned delay_is_whole_vector = 0;
       ivl_udp_t udp;
