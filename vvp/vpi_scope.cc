@@ -2455,13 +2455,14 @@ class __vpiAssertion : public __vpiHandle {
 	    }
       }
 
-	/* IEEE 1800-2023 39.4.2, one tick of the automaton slot holding the
+	/* IEEE 1800-2017/2023 39.4.2, one tick of the slot holding the
 	   attempt named by `serial': pre/nx are its state bits before and
-	   after the tick, gv the guard values (binary strings, bit 0 last),
-	   ob whether an implication's antecedent completed. A live attempt
-	   reports one taken edge: into accept first, else from the lowest
-	   state id. A dying one reports its lowest active state's first
-	   guarded edge, ending with the guard that failed; an implication
+	   after the tick, gv the guard values (binary strings, bit 0 last).
+	   ob is true for a sequence or a completed implication antecedent.
+	   Step reasons describe sequence progress for cover and negation too.
+	   A live attempt reports one taken edge: into accept first, else from
+	   the lowest state id. A dying one reports its lowest active state's
+	   first guarded edge, ending with the guard that failed. An implication
 	   whose antecedent died ends vacuously (a success into state 1).
 	   State ids: start 0, accept 1, state j otherwise j+2. */
       void nfa_step(int serial, const char*pre, const char*nx,
