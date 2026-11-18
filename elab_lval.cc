@@ -1143,6 +1143,7 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 	    return 0;
       }
 
+      check_package_unit_value(des, *this, scope, sr);
       ivl_assert(*this, reg);
 
       if (clocking_output_concat_lval

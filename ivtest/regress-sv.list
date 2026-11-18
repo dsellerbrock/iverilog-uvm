@@ -7093,3 +7093,11 @@ issue3735_2017 normal,-g2017,-s,issue3735 ivltests gold=issue3735.gold
 issue3735_2023 normal,-g2023,-s,issue3735 ivltests gold=issue3735.gold
 issue3738_2017 normal,-g2017,-s,issue3738 ivltests gold=issue3738.gold
 issue3738_2023 normal,-g2023,-s,issue3738 ivltests gold=issue3738.gold
+
+# IEEE 1800-2017/2023 26.2: package references to compilation-unit values.
+issue3768_ce_2017 CE,-g2017,-Iivltests,-s,test ivltests gold=issue3768_ce-iverilog-stderr.gold
+issue3768_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3768_unsafe.gold
+issue3768_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
+issue3768_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3768_ce-iverilog-stderr.gold
+issue3768_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3768_unsafe.gold
+issue3768_legal_2023 normal,-g2023,-Iivltests,-s,test ivltests

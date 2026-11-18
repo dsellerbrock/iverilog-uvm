@@ -74,6 +74,61 @@ void symbol_search_cache_clear()
       symbol_search_cache_.clear();
 }
 
+static perm_string enclosing_package_name_(const NetScope*scope)
+{
+      for (; scope; scope = scope->parent()) {
+	    if (scope->type() == NetScope::PACKAGE)
+		  return scope->is_unit() ? perm_string() : scope->basename();
+
+	    if (scope->type() == NetScope::MODULE) {
+		  // Checker instances have a hierarchical parent, but their
+		  // source uses the definition's lexical scope.
+		  const Module*def = scope->module_definition();
+		  if (def && def->is_checker) {
+			for (const LexicalScope*parent = def->parent_scope();
+			     parent; parent = parent->parent_scope()) {
+			      if (const PPackage*pkg = dynamic_cast<const PPackage*>(parent))
+				    return pkg->parent_scope() ? pkg->pscope_name() : perm_string();
+			}
+		  }
+		  break;
+	    }
+      }
+      return perm_string();
+}
+
+void check_package_unit_value(Design*des, const LineInfo&loc,
+			      const NetScope*use_scope,
+			      const symbol_search_results&binding)
+{
+      if (binding.path_head.empty()
+	  || (!binding.net && !binding.par_val && !binding.eve))
+	    return;
+      check_package_unit_value(des, loc, use_scope, binding.scope,
+			       binding.path_head.back().name);
+}
+
+void check_package_unit_value(Design*des, const LineInfo&loc,
+			      const NetScope*use_scope,
+			      const NetScope*def_scope, perm_string name)
+{
+      if (!def_scope || !def_scope->is_unit())
+	    return;
+
+      perm_string package = enclosing_package_name_(use_scope);
+      if (package.nil())
+	    return;
+
+      // IEEE 1800-2017/2023 26.2. The binding survives in both modes so
+      // callers can continue elaborating with the actual value.
+      cerr << loc.get_fileline()
+	   << (gn_commercial_unsafe_flag ? ": warning: " : ": error: ")
+	   << "Package `" << package << "' refers to compilation-unit value `"
+	   << name << "' (IEEE 1800-2017/2023 26.2)." << endl;
+      if (!gn_commercial_unsafe_flag)
+	    des->errors += 1;
+}
+
 /* find_typedef() and find_class() intentionally search out through lexical
  * parents.  That is useful for a type-name query, but it is too broad for the
  * per-scope fallback below: while resolving the first component of `a.m', a

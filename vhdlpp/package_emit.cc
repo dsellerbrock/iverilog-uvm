@@ -65,6 +65,7 @@ int Package::emit_package(ostream&fd) const
       //}
 
       fd << "package \\" << name() << " ;" << endl;
+      fd << "import __ivl_vhdl_std::*;" << endl;
       for (map<perm_string,SubHeaderList>::const_iterator cur = cur_subprograms_.begin()
 		 ; cur != cur_subprograms_.end() ; ++ cur) {
 	    const SubHeaderList& subp_list = cur->second;

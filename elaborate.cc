@@ -1759,16 +1759,17 @@ static NetEvent* resolve_named_event_member_from_search_(const symbol_search_res
  */
 static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 					      const LineInfo&loc,
-					      const pform_name_t&full_path,
+					      const pform_scoped_name_t&full_path,
 					      unsigned lexical_pos,
-					      unsigned&slot_out)
+					      unsigned&slot_out,
+					      bool check_binding = true)
 {
-      if (full_path.empty())
+      if (full_path.name.empty())
 	    return nullptr;
 
-      pform_name_t prefix = full_path;
-      name_component_t last = prefix.back();
-      prefix.pop_back();
+      pform_scoped_name_t prefix = full_path;
+      name_component_t last = prefix.name.back();
+      prefix.name.pop_back();
 
 	// The event component itself carries no index.
       if (!last.index.empty())
@@ -1776,8 +1777,11 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 
       NetExpr*obj = nullptr;
       const netclass_t*cls = nullptr;
+      symbol_search_results binding;
 
-      if (prefix.empty()) {
+      if (prefix.name.empty()) {
+	    if (prefix.package)
+		  return nullptr;
 	      // A bare member reference (`->ev` / `@ev` inside a method)
 	      // denotes this.ev. Resolve against the enclosing class and
 	      // use the implicit `this` handle as the object.
@@ -1798,17 +1802,15 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 	      // handle, or an array/assoc element of class handles) is a
 	      // candidate for a per-instance class event; everything else
 	      // falls through to the normal (scope/hierarchical) event path.
-	    symbol_search_results psr;
-	    if (!symbol_search(&loc, des, scope,
-			       pform_scoped_name_t(prefix), lexical_pos, &psr))
-		  return nullptr;
-	    if (!psr.net)
+	    if (!symbol_search(&loc, des, scope, prefix, lexical_pos, &binding)
+		|| !binding.net)
 		  return nullptr;
 
-	    PEIdent*pfx = new PEIdent(prefix, lexical_pos);
-	    pfx->set_line(loc);
-	    obj = elab_and_eval(des, scope, pfx, -1);
-	    delete pfx;
+	    PEIdent pfx(prefix.package, prefix.name, lexical_pos);
+	    pfx.set_line(loc);
+	    // This receiver only contributes a use if the event resolves.
+	    pfx.set_quiet_bind();
+	    obj = elab_and_eval(des, scope, &pfx, -1);
 	    if (!obj)
 		  return nullptr;
 	    cls = dynamic_cast<const netclass_t*>(obj->net_type());
@@ -1828,6 +1830,8 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
+      if (check_binding)
+	    check_package_unit_value(des, loc, scope, binding);
       slot_out = eve->obj_slot();
       return obj;
 }
@@ -1837,8 +1841,9 @@ NetExpr* elaborate_class_event_target(Design*des, NetScope*scope,
 				     const pform_name_t&full_path,
 				     unsigned&slot_out)
 {
-	      return elaborate_class_event_target_(des, scope, *id, full_path,
-					   id->lexical_pos(), slot_out);
+      return elaborate_class_event_target_(des, scope, *id,
+	    pform_scoped_name_t(id->path().package, full_path),
+	    id->lexical_pos(), slot_out, false);
 }
 
 /*
@@ -1858,7 +1863,7 @@ NetExpr* elaborate_class_event_target(Design*des, NetScope*scope,
  */
 static NetEvent* elaborate_event_array_target_(Design*des, NetScope*scope,
 					       const LineInfo&loc,
-					       const pform_name_t&full_path,
+					       const pform_scoped_name_t&full_path,
 					       unsigned lexical_pos,
 					       NetExpr*&idx_out)
 {
@@ -1900,6 +1905,7 @@ static NetEvent* elaborate_event_array_target_(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
+      check_package_unit_value(des, loc, scope, sr);
 	/* The run-time finds an element by its offset from the low bound of
 	   the declared range (NetEvent::array_index_to_word), so `ev[4]' of
 	   `event ev[4:5]' is offset 0, not 4. */
@@ -13819,9 +13825,9 @@ static NetProc* elaborate_event_assign_(Design*des, NetScope*scope,
       if (!src && !null_src) {
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(assign.rval());
 	    NetExpr*index = nullptr;
-	    NetEvent*array = id && !id->path().package
+	    NetEvent*array = id
 		  ? elaborate_event_array_target_(des, scope, assign,
-						  id->path().name,
+						  id->path(),
 						  id->lexical_pos(), index)
 		  : nullptr;
 	    if (array) {
@@ -14317,6 +14323,7 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 							  val_wid, rval());
 			if (val) {
 			      vector<NetExpr*> argv;
+			      check_package_unit_value(des, *id_lval, scope, sr);
 			      argv.push_back(outer_e);
 			      for (size_t ki = 0 ; ki < keys.size() ; ki += 1)
 				    argv.push_back(keys[ki]);
@@ -21439,6 +21446,18 @@ static const data_type_t* task_method_property_declared_type_(
 NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				      bool add_this_flag) const
 {
+      symbol_search_results receiver;
+      NetProc*proc = elaborate_named_receiver_method_(des, scope,
+						     add_this_flag, receiver);
+      if (proc && receiver.net)
+	    check_package_unit_value(des, *this, scope, receiver);
+      return proc;
+}
+
+NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
+						    bool add_this_flag,
+						    symbol_search_results&sr) const
+{
       static int trace_class_method = -1;
       auto scope_text = [](const NetScope*use_scope) -> std::string {
             if (!use_scope)
@@ -21485,7 +21504,6 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	// resolve to a class object. Note that the "this" symbol
 	// (internally represented as "@") is handled by there being a
 	// "this" object in the instance scope.
-      symbol_search_results sr;
       symbol_search(this, des, search_scope, use_path, UINT_MAX, &sr);
 
       if (!package_ && sr.net == 0 && use_path.size() >= 2) {
@@ -21621,6 +21639,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  && (method_name == "get_coverage"
 		      || method_name == "get_inst_coverage")) {
 		    delete obj_expr;
+		    sr.net = nullptr; // The expression elaborator checks this use.
 		    return elaborate_non_void_function_(des, scope, true);
 	      }
 	      // A named coverpoint or cross is not a class property. Lower its
@@ -21797,6 +21816,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       if ((obj_darray || obj_uarray)
 	  && (method_name == "unique" || method_name == "unique_index")) {
 	    delete obj_expr;
+	    sr.net = nullptr; // The expression elaborator checks this use.
 	    PECallFunction*call = package_
 		  ? new PECallFunction(package_, path_, parms_)
 		  : new PECallFunction(path_, parms_);
@@ -22988,9 +23008,11 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			const netclass_t*cgtype = dynamic_cast<const netclass_t*>(obj_type);
 			if (cgtype && cgtype->is_covergroup()) {
 			      delete obj_expr;
-			      if (!parms_.empty())
+			      if (!parms_.empty()) {
+				    sr.net = nullptr; // Checked by the expression elaborator.
 				    return elaborate_non_void_function_(
 					  des, scope, true);
+			      }
 			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			      noop->set_line(*this);
 			      return noop;
@@ -24480,6 +24502,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 					  rv = new NetEEvent(actual_symbol.eve);
 					  rv->set_line(*event_actual);
 				    }
+				    if (rv)
+					  check_package_unit_value(
+						des, *event_actual, actual_scope, actual_symbol);
 			      }
 			}
 			if (!rv) {
@@ -24553,6 +24578,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 						delete lv;
 						continue;
 					  }
+					  check_package_unit_value(des, *rid, actual_scope, asr);
 					  block->append(make_fixed_uarray_signal_copy_(
 						des, scope, *this, lv, asr.net));
 					  continue;
@@ -26704,7 +26730,7 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 		  unsigned errors_before = des->errors;
 		  unsigned slot = 0;
 		  if (NetExpr*obj = elaborate_class_event_target_(
-			    des, scope, loc, id->path().name,
+			    des, scope, loc, id->path(),
 			    id->lexical_pos(), slot)) {
 			res.class_event_obj.reset(obj);
 			res.class_event_slot = slot;
@@ -26751,7 +26777,12 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 		  return;
 	    }
 
-	    if (!res.named_event && gn_system_verilog()
+	    if (res.named_event) {
+		  check_package_unit_value(des, *id, scope, sr);
+		  return;
+	    }
+
+	    if (gn_system_verilog()
 		&& id->path().size() == 1
 		&& id->path().back().index.empty()
 		&& id->path().back().name == perm_string::literal("on")) {
@@ -26766,9 +26797,11 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 		  }
 		  res.named_event =
 			resolve_named_event_member_from_search_(mapped_sr);
+		  if (res.named_event) {
+			check_package_unit_value(des, *id, scope, mapped_sr);
+			return;
+		  }
 	    }
-	    if (res.named_event)
-		  return;
       }
 
       if (const PECallFunction*call =
@@ -27880,6 +27913,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			  symbol_search(this, des, scope, id->path(), id->lexical_pos(), &sr);
 
 		  if (NetEvent*named_eve = resolve_named_event_member_from_search_(sr)) {
+			check_package_unit_value(des, *id, scope, sr);
 			wa->add_event(named_eve);
 			  /* You can not look for the posedge or negedge of
 			   * an event. */
@@ -27912,6 +27946,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				symbol_search_results mapped_sr;
 				symbol_search(this, des, scope, mapped_path, id->lexical_pos(), &mapped_sr);
 				if (NetEvent*mapped_eve = resolve_named_event_member_from_search_(mapped_sr)) {
+				      check_package_unit_value(des, *id, scope, mapped_sr);
 				      wa->add_event(mapped_eve);
 				      if (expr_[idx]->type() != PEEvent::ANYEDGE) {
 					    cerr << get_fileline() << ": error: ";
@@ -29652,7 +29687,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 		  unsigned slot = 0;
 		  const unsigned errors_before_class_event = des->errors;
 		  if (NetExpr*obj = elaborate_class_event_target_(des, scope,
-				*this, id->path().name, id->lexical_pos(), slot)) {
+					*this, id->path(), id->lexical_pos(), slot)) {
 			NetProc*body = 0;
 			if (statement_) {
 			      body = statement_->elaborate(des, scope);
@@ -29678,7 +29713,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
 		  NetExpr*idx = 0;
 		  if (NetEvent*ev = elaborate_event_array_target_(des, scope,
-				*this, id->path().name, id->lexical_pos(), idx)) {
+					*this, id->path(), id->lexical_pos(), idx)) {
 			NetProc*body = 0;
 			if (statement_) {
 			      body = statement_->elaborate(des, scope);
@@ -32050,7 +32085,7 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
       {
 	    unsigned slot = 0;
 	    if (NetExpr*obj = elaborate_class_event_target_(des, scope,
-					*this, event_.name, lexical_pos_, slot)) {
+					*this, event_, lexical_pos_, slot)) {
 		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, false, 0);
 		  trig->set_line(*this);
 		  return trig;
@@ -32063,7 +32098,7 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
       {
 	    NetExpr*idx = 0;
 	    if (NetEvent*ev = elaborate_event_array_target_(des, scope,
-					*this, event_.name, lexical_pos_, idx)) {
+					*this, event_, lexical_pos_, idx)) {
 		  NetEvTrigArr*trig = new NetEvTrigArr(ev, idx, false, 0);
 		  trig->set_line(*this);
 		  return trig;
@@ -32086,6 +32121,7 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 	/* A task event formal is a run-time event handle rather than a
 	 * compile-time NetEvent. Resolve it when the task executes. */
 	if (sr.net && sr.net->is_event_formal() && sr.path_tail.empty()) {
+	      check_package_unit_value(des, *this, scope, sr);
 	      NetESignal*handle = new NetESignal(sr.net);
 	      handle->set_line(*this);
 	      NetEvTrigObj*trig = new NetEvTrigObj(handle, 0, false, 0, true);
@@ -32123,6 +32159,7 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
       }
 
       NetEvTrig*trig = new NetEvTrig(eve);
+      check_package_unit_value(des, *this, scope, sr);
       trig->set_line(*this);
       return trig;
 }
@@ -32135,7 +32172,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
       {
 	    unsigned slot = 0;
 	    if (NetExpr*obj = elaborate_class_event_target_(des, scope,
-					*this, event_, lexical_pos_, slot)) {
+					*this, pform_scoped_name_t(event_), lexical_pos_, slot)) {
 		  NetExpr*dly = 0;
 		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
 		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, true, dly);
@@ -32148,7 +32185,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
       {
 	    NetExpr*idx = 0;
 	    if (NetEvent*ev = elaborate_event_array_target_(des, scope,
-					*this, event_, lexical_pos_, idx)) {
+					*this, pform_scoped_name_t(event_), lexical_pos_, idx)) {
 		  NetExpr*dly = 0;
 		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
 		  NetEvTrigArr*trig = new NetEvTrigArr(ev, idx, true, dly);
@@ -32207,6 +32244,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 
       NetExpr*dly = 0;
       if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
+      check_package_unit_value(des, *this, scope, sr);
       NetEvNBTrig*trig = new NetEvNBTrig(eve, dly);
       trig->set_line(*this);
       return guard_function_background_event_(scope, *this, trig);
@@ -36294,6 +36332,7 @@ static string constraint_parameter_member_select_ir_(
                         slice, (unsigned)member_width, false);
             }
       }
+      check_package_unit_value(des, *id, scope, found);
       return result + ")";
 }
 
@@ -36348,7 +36387,9 @@ static string constraint_constant_ir_(const PEIdent*id,
       Design*des = constraint_ir_design_ctx_;
       if (!des || !scope || !id || id->path().name.empty()) return "";
 
-      auto const_ir = [&](const NetExpr*expr) -> string {
+      const pform_scoped_name_t&path = id->path();
+      perm_string name = path.name.back().name;
+      auto const_ir = [&](const NetExpr*expr, const NetScope*def_scope) -> string {
 	    const NetEConst*val = dynamic_cast<const NetEConst*>(expr);
 	    if (!val) return "";
 	    const verinum&v = val->value();
@@ -36363,6 +36404,7 @@ static string constraint_constant_ir_(const PEIdent*id,
 		  if (val->expr_type() == IVL_VT_STRING) return "";
 		  *full_value = v;
 	    }
+	    check_package_unit_value(des, *id, scope, def_scope, name);
 	    return constraint_const_bits_ir_(v, v.len(), v.has_sign());
       };
       auto selected_array_parameter = [&](NetScope*sc, perm_string name) {
@@ -36381,20 +36423,18 @@ static string constraint_constant_ir_(const PEIdent*id,
 		  declared = true;
 		  // A selected unpacked parameter array is lowered by its typed table.
 		  if (selected_array_parameter(sc, name)) return "";
-		  return const_ir(value);
+		  return const_ir(value, sc);
 	    }
 	    NetScope*imported = sc->find_import(des, name);
 	    if (imported) {
 		  declared = true;
 		  if (selected_array_parameter(imported, name)) return "";
 		  value = imported->get_parameter(des, name, type);
-		  return const_ir(value);
+		  return const_ir(value, imported);
 	    }
 	    return "";
       };
 
-      const pform_scoped_name_t&path = id->path();
-      perm_string name = path.name.back().name;
       if (id->leading_type_args()) return "";
 
       if (path.name.size() != 1 || id->has_scoped_type_prefix()) {
@@ -36404,7 +36444,8 @@ static string constraint_constant_ir_(const PEIdent*id,
 	    symbol_search_results found;
 	    if (symbol_search(id, des, const_cast<NetScope*>(scope), path,
 			      id->lexical_pos(), &found)) {
-		  if (found.path_tail.empty()) return const_ir(found.par_val);
+		  if (found.path_tail.empty())
+			return const_ir(found.par_val, found.scope);
 		  if (!found.par_val) return "";
 		  // A selected parameter member can be folded by ordinary expression
 		  // elaboration, but only after constraint lookup proves every index
@@ -36431,7 +36472,7 @@ static string constraint_constant_ir_(const PEIdent*id,
 			return "";
 		      }
 		  }
-		  return const_ir(member.get());
+		  return const_ir(member.get(), nullptr);
 	    }
 	    return "";
       }
@@ -57807,10 +57848,7 @@ Design* elaborate(list<perm_string>roots)
       }
 
 	// Elaborate the packages. Package elaboration is simpler
-	// because there are fewer sub-scopes involved. Note that
-	// in SystemVerilog, packages are not allowed to refer to
-	// the compilation unit scope, but the VHDL preprocessor
-	// assumes they can.
+	// because there are fewer sub-scopes involved.
 	// Packages are added to the work list BEFORE compilation units
 	// so that UVM/library packages are fully elaborated before user
 	// classes at the compilation-unit scope try to extend them.
