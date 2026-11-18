@@ -23576,6 +23576,9 @@ bool of_IX_GETV(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+static uint64_t vec4_to_index(vthread_t thr, const vvp_vector4_t&val,
+                              bool signed_flag);
+
 bool of_IX_GETV_S(vthread_t thr, vvp_code_t cp)
 {
       unsigned index = cp->bit_idx[0];
@@ -23594,6 +23597,12 @@ bool of_IX_GETV_S(vthread_t thr, vvp_code_t cp)
 
       vvp_vector4_t vec;
       sig->vec4_value(vec);
+	/* Check that the discarded bits are sign extension before narrowing. */
+      if (vec.size() > 8*sizeof(int64_t)) {
+	    thr->words[index].w_uint = vec4_to_index(thr, vec, true);
+	    return true;
+      }
+
       int64_t val;
       bool known_flag = vector4_to_value(vec, val, true, true);
 
@@ -23608,14 +23617,11 @@ bool of_IX_GETV_S(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
-static uint64_t vec4_to_index(vthread_t thr, bool signed_flag)
+static uint64_t vec4_to_index(vthread_t thr, const vvp_vector4_t&val,
+                              bool signed_flag)
 {
-	// Get all the information we need about the vec4 vector, then
-	// pop it away. We only need the bool bits and the length.
-      const vvp_vector4_t&val = thr->peek_vec4();
       unsigned val_size = val.size();
       unsigned long*bits = val.subarray(0, val_size, false);
-      thr->pop_vec4(1);
 
 	// If there are X/Z bits, then the subarray will give us a nil
 	// pointer. Set a flag to indicate the error, and give up.
@@ -23677,7 +23683,8 @@ static uint64_t vec4_to_index(vthread_t thr, bool signed_flag)
 bool of_IX_VEC4(vthread_t thr, vvp_code_t cp)
 {
       unsigned use_idx = cp->number;
-      thr->words[use_idx].w_uint = vec4_to_index(thr, false);
+      thr->words[use_idx].w_uint = vec4_to_index(thr, thr->peek_vec4(), false);
+      thr->pop_vec4(1);
       return true;
 }
 
@@ -23687,7 +23694,8 @@ bool of_IX_VEC4(vthread_t thr, vvp_code_t cp)
 bool of_IX_VEC4_S(vthread_t thr, vvp_code_t cp)
 {
       unsigned use_idx = cp->number;
-      thr->words[use_idx].w_uint = vec4_to_index(thr, true);
+      thr->words[use_idx].w_uint = vec4_to_index(thr, thr->peek_vec4(), true);
+      thr->pop_vec4(1);
       return true;
 }
 
