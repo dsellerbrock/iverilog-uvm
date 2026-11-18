@@ -2142,6 +2142,12 @@ extern size_t      ivl_scope_childs(ivl_scope_t net);
 extern ivl_scope_t ivl_scope_child(ivl_scope_t net, size_t idx);
 extern unsigned   ivl_scope_classes(ivl_scope_t net);
 extern ivl_type_t ivl_scope_class(ivl_scope_t net, unsigned idx);
+/* The lexical declaration of a class scope and its declared virtual flag.
+   Class typespec scopes are the concrete types that can have a runtime
+   class record. A generic declaration has a definition scope only. */
+extern ivl_scope_t ivl_scope_class_declaration(ivl_scope_t net, int*concrete);
+extern int ivl_scope_class_virtual(ivl_scope_t net);
+extern ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net);
 extern unsigned       ivl_scope_enumerates(ivl_scope_t net);
 extern ivl_enumtype_t ivl_scope_enumerate(ivl_scope_t net, unsigned idx);
 /* Explicit user typedef declarations owned by this lexical scope. */

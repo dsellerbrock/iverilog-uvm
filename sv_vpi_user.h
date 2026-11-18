@@ -121,6 +121,7 @@ EXTERN_C_START
 
 #define vpiClassDefn        652
 #define vpiClassObj         621
+#define vpiVirtual          635
 
 /* IEEE 1800-2017/2023 class object identity property. */
 #define vpiObjId            660

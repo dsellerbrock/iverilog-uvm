@@ -282,6 +282,8 @@ ivl_scope_child
 ivl_scope_childs
 ivl_scope_class
 ivl_scope_classes
+ivl_scope_class_declaration
+ivl_scope_class_virtual
 ivl_scope_def
 ivl_scope_def_file
 ivl_scope_def_lineno
@@ -513,6 +515,7 @@ ivl_type_typedef_vpi_type
 ivl_type_interface_modport
 ivl_type_interface_defname
 ivl_type_method_prefix
+ivl_type_class_typespec_scope
 ivl_type_queue_assoc_compat
 ivl_type_queue_max_size
 ivl_type_constraints

@@ -2732,6 +2732,37 @@ extern "C" unsigned ivl_scope_classes(ivl_scope_t net)
 	   ? net->aux_->classes->size() : 0;
 }
 
+extern "C" ivl_scope_t ivl_scope_class_declaration(ivl_scope_t net, int*concrete)
+{
+      const netclass_t*type = net->net_->class_def();
+      if (!type || type->is_covergroup() || !net->net_->class_pform())
+	    return 0;
+
+      bool is_concrete = !type->generic_body_only() && !type->is_symbolic_class();
+      if (type->specialized_instance() && !is_concrete)
+	    return 0;
+
+      *concrete = is_concrete;
+      const NetScope*decl = type->class_declaration_scope();
+      return decl->target_scope();
+}
+
+extern "C" int ivl_scope_class_virtual(ivl_scope_t net)
+{
+      return net->net_->class_def()->is_virtual();
+}
+
+extern "C" ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net)
+{
+      const netclass_t*type = dynamic_cast<const netclass_t*>(net);
+      if (!type || !type->class_scope())
+	    return 0;
+
+      ivl_scope_t scope = type->class_scope()->target_scope();
+      int concrete;
+      return scope && ivl_scope_class_declaration(scope, &concrete) && concrete
+	    ? scope : 0;
+}
 
 extern "C" ivl_statement_t ivl_scope_def(ivl_scope_t net)
 {

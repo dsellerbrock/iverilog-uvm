@@ -3751,7 +3751,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
         type = ivl_scope_generate_array_member(net) ? "generate.array" : "generate";
         break;
       case IVL_SCT_PACKAGE:  type = "package";  break;
-      case IVL_SCT_CLASS:    type = "class";    break;
+      case IVL_SCT_CLASS:    type = "class.linked"; break;
       default:               type = "?";        assert(0);
       }
 
@@ -3842,6 +3842,16 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
+
+      if (ivl_scope_type(net) == IVL_SCT_CLASS) {
+	    int concrete;
+	    ivl_scope_t decl = ivl_scope_class_declaration(net, &concrete);
+	    if (decl == net)
+		  fprintf(vvp_out, "D_%p .class/defn %d;\n", decl,
+			  ivl_scope_class_virtual(net));
+	    if (decl)
+		  fprintf(vvp_out, " .class/typespec D_%p %d;\n", decl, concrete);
+      }
 
 	/* Nettype declarations are scope-owned VPI objects (IEEE 1800-2023
 	   37.23). Keep aliases and resolution-function names for runtime queries. */

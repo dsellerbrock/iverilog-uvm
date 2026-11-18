@@ -4658,6 +4658,7 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
       class_scope->type_owner_identity(
 	    has_semantic_key ? semantic_key_str : source_key_str);
       use_class->set_class_scope(class_scope);
+      use_class->set_class_declaration_scope(base_class->class_declaration_scope());
       use_class->set_definition_scope(definition_scope);
       use_class->set_virtual(use_type->virtual_class);
       use_class->set_interface_class(use_type->interface_class);

@@ -783,6 +783,13 @@ void draw_class_in_scope(ivl_type_t classtype)
       }
 
       fprintf(vvp_out, " ;\n");
-      if (emitted_class)
+      if (emitted_class) {
 	    emitted_class->state = CLASS_EMITTED;
+	    /* Some specializations have only a typespec scope. Link the
+	       runtime record only when that record is actually emitted. */
+	    ivl_scope_t typespec = ivl_type_class_typespec_scope(classtype);
+	    if (typespec)
+		  fprintf(vvp_out, "C%p .class/runtime S_%p;\n",
+			  classtype, typespec);
+      }
 }
