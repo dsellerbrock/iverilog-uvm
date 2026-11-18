@@ -1104,7 +1104,7 @@ extern PSpecPath*pform_make_specify_path(const struct vlltype&li,
 					 bool full_flag,
 					 std::list<pform_specify_terminal_t>*dst);
 extern PSpecPath*pform_make_specify_edge_path(const struct vlltype&li,
-					 int edge_flag, /*posedge==true */
+					 char edge_flag,
 					 std::list<pform_specify_terminal_t>*src, char pol,
 					 bool full_flag,
 					 std::list<pform_specify_terminal_t>*dst,

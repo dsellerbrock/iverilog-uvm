@@ -2016,6 +2016,11 @@ modpath_src
   | symbol '-' '(' numbers '?' symbol modpath_condition_text_opt ')' symbol
       { compile_modpath_src(modpath_dst, '-', $1, $4, $6, $9, $7);
 	if ($7) free($7); }
+  | symbol '*' '(' numbers ')' symbol
+      { compile_modpath_src(modpath_dst, '*', $1, $4, 0, $6, false); }
+  | symbol '*' '(' numbers '?' symbol modpath_condition_text_opt ')' symbol
+      { compile_modpath_src(modpath_dst, '*', $1, $4, $6, $9, $7);
+	if ($7) free($7); }
   ;
 
 udp_table

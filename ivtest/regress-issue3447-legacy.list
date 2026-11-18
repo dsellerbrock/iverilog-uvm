@@ -1,0 +1,2 @@
+issue3447_2017 normal,-g2017,-gspecify,-s,issue3447 ivltests gold=issue3447.gold
+issue3447_2023 normal,-g2023,-gspecify,-s,issue3447 ivltests gold=issue3447.gold

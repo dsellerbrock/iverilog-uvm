@@ -1538,12 +1538,12 @@ void PSpecPath::dump(std::ostream&out, unsigned ind) const
 	    out << "if (" << *condition << ") ";
 
       out << "(";
-      if (edge) {
-	    if (edge > 0)
-		  out << "posedge ";
-	    else
-		  out << "negedge ";
-      }
+      if (edge == '+')
+	    out << "posedge ";
+      else if (edge == '-')
+	    out << "negedge ";
+      else if (edge == '*')
+	    out << "edge ";
 
       for (unsigned idx = 0 ;  idx < src.size() ;  idx += 1) {
 	    if (idx > 0) out << ", ";

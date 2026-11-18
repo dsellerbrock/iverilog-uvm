@@ -74,8 +74,8 @@ inline std::ostream& operator<<(std::ostream&out,
 * is the condition expression. If the condition expression is nil,
 * then this is an ifnone conditional path.
 *
-* If data_source_expression != nil, then the path is edge sensitive
-* and the edge might not be 0.
+* An edge-sensitive path can have a data source expression with or
+* without an explicit edge qualifier.
 *
 * The full flag is used to verify that only vectors of the same size
 * are used in a parallel connection. Icarus always creates a full
@@ -100,8 +100,8 @@ class PSpecPath  : public LineInfo {
 	// Condition expression, if present.
       bool conditional;
       class PExpr* condition;
-	// Edge specification (-1==negedge, 0 = no edge, 1==posedge)
-      int edge;
+	// Edge qualifier: '+', '-', '*' (both edges), or 0 (omitted).
+      char edge;
 	// Is this a full connection.
       bool full_flag_;
 	// What is the polarity of the connection.
