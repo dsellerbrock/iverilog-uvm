@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3391_covdb.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3391_covdb"],
+  "gold": "issue3391_covdb"
+}
