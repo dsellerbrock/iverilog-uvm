@@ -7108,3 +7108,5 @@ issue3386_2017 normal,-g2017,-s,issue3386 ivltests gold=issue3386.gold
 issue3386_2023 normal,-g2023,-s,issue3386 ivltests gold=issue3386.gold
 issue3648_2017 normal,-g2017,-s,issue3648 ivltests gold=issue3648.gold
 issue3648_2023 normal,-g2023,-s,issue3648 ivltests gold=issue3648.gold
+issue819_net_2state_2017 normal,-g2017,-gno-xtypes,-s,issue2851_net_2state ivltests gold=issue2851_net_2state-vvp-stdout.gold
+issue819_net_2state_2023 normal,-g2023,-gno-xtypes,-s,issue2851_net_2state ivltests gold=issue2851_net_2state-vvp-stdout.gold

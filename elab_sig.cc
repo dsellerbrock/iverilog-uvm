@@ -755,13 +755,15 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
       if (sig->user_nettype())
 	    return;
 
+      const bool packed_two_state = type->packed()
+	    && type->base_type() == IVL_VT_BOOL;
+
 	/* IEEE 1800-2023 6.7.1: a net's data type shall be a 4-state
 	   integral type (or an unpacked aggregate of them). Icarus accepts
 	   2-state packed nets as an extension, and says so under
 	   -Wnet-data-type (part of -Wall). Variables, including "input var
 	   bit" and output ports with a data type, are not nets. */
-      if (warn_net_data_type && type->packed()
-	  && type->base_type() == IVL_VT_BOOL
+      if (warn_net_data_type && packed_two_state
 	  && sig->type() != NetNet::NONE && sig->type() != NetNet::REG
 	  && sig->type() != NetNet::IMPLICIT_REG) {
 	    cerr << wire->get_fileline() << ": warning: net `"
@@ -776,7 +778,8 @@ static void sig_check_data_type(Design*des, const NetScope*scope,
       if ((sig->type() == NetNet::WIRE)
 	  && (sig->data_type() != IVL_VT_LOGIC)
 	  && !valid_unpacked_net) {
-	    if (gn_cadence_types_flag) {
+	    if (gn_cadence_types_flag
+		|| (gn_system_verilog() && packed_two_state)) {
 		  sig->type(NetNet::UNRESOLVED_WIRE);
 	    } else {
 		  cerr << wire->get_fileline() << ": error: Net `"

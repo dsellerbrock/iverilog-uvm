@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue2851_net_2state.v",
+    "iverilog-args": ["-g2023", "-gno-xtypes", "-Wall", "-s", "issue2851_net_2state"],
+    "gold": "issue2851_net_2state_wall"
+}

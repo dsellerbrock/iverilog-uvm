@@ -1,0 +1,2 @@
+issue819_net_2state_2017 normal,-g2017,-gno-xtypes,-s,issue2851_net_2state ivltests gold=issue2851_net_2state-vvp-stdout.gold
+issue819_net_2state_2023 normal,-g2023,-gno-xtypes,-s,issue2851_net_2state ivltests gold=issue2851_net_2state-vvp-stdout.gold
