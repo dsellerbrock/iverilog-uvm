@@ -675,8 +675,7 @@ class class_type : public __vpiHandle {
             std::vector<unsigned> item_at_least;
             bool has_options = false;
 	    // Covered and defined bin counts (19.8 get_coverage(ref int,
-	    // ref int)). Kept in memory only: a population read back from
-	    // a coverage database has none.
+	    // ref int)). Older database records omit these counts.
             long double covered = 0, defined = 0;
             std::vector<long double> item_covered, item_defined;
       };

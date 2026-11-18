@@ -1,0 +1,9 @@
+IVL_COVDB 2
+type issue3391_covdb.cg fp 3f00dea4f93baf25 merge_instances 0
+pop 1 6.66666666666666714e+01 3 1 1 5.00000000000000000e+01 1 1 1 1.00000000000000000e+02 1 1 1 5.00000000000000000e+01 1 1 counts 5 8 1 2 2 2 2 4
+prop __bin_ca_zero 2
+prop __bin_cb_zero 1
+prop __bin_cb_one 1
+prop __covgrp_cross_2_auto_0 1
+prop __covgrp_cross_2_auto_2 1
+END 8 4eaceba8e5147ec0
