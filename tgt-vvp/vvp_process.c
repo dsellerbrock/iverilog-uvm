@@ -3222,6 +3222,19 @@ static int signal_is_struct_object_(ivl_signal_t sig)
 	    && ivl_type_properties(type) > 0;
 }
 
+static int signal_is_class_handle_(ivl_signal_t sig)
+{
+      return ivl_signal_data_type(sig) == IVL_VT_CLASS
+	    && !ivl_type_is_interface(ivl_signal_net_type(sig));
+}
+
+static int force_class_handle_is_scalar_(ivl_signal_t sig)
+{
+      return ivl_signal_type(sig) == IVL_SIT_REG
+	    && ivl_signal_dimensions(sig) == 0
+	    && !force_array_is_automatic_(sig);
+}
+
 /*
  * IEEE 1800-2023 10.6.2, ruling on #2769: force of a singular member of an
  * unpacked struct variable. The value goes to the member with
@@ -3285,6 +3298,33 @@ static int show_stmt_force(ivl_statement_t net)
 
       rval = ivl_stmt_rval(net);
       assert(rval);
+
+      ivl_lval_t lval = ivl_stmt_lval(net, 0);
+      sig = ivl_lval_sig(lval);
+      if (ivl_lval_property_idx(lval) < 0 && signal_is_class_handle_(sig)) {
+	    ivl_signal_t source = 0;
+	    if (ivl_expr_type(rval) == IVL_EX_SIGNAL)
+		  source = ivl_expr_signal(rval);
+
+	    if (ivl_stmt_lvals(net) != 1 || !force_class_handle_is_scalar_(sig)
+		|| (ivl_expr_type(rval) != IVL_EX_NULL
+		    && (!source || !force_class_handle_is_scalar_(source)))) {
+		  fprintf(stderr, "%s:%u: vvp.tgt sorry: class handle force "
+			  "requires a scalar static variable target and a scalar "
+			  "static variable or null source.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+
+	    draw_eval_object(rval);
+	    emit_force_release_identity(net, "force");
+	    fprintf(vvp_out, "    %%force/obj v%p_0;\n", sig);
+	    emit_force_release_identity_end();
+	    if (source && source != sig)
+		  fprintf(vvp_out, "    %%force/link/obj v%p_0, v%p_0;\n",
+			  sig, source);
+	    return 0;
+      }
 
       if (ivl_stmt_lvals(net) == 1
 	  && ivl_lval_property_idx(ivl_stmt_lval(net, 0)) >= 0
@@ -3566,6 +3606,20 @@ static int show_stmt_release(ivl_statement_t net)
 	  && ivl_lval_property_idx(ivl_stmt_lval(net, 0)) < 0
 	  && signal_is_struct_object_(sig)) {
 	    fprintf(vvp_out, "    %%release/obj v%p_0;\n", sig);
+	    return 0;
+      }
+
+      if (ivl_lval_property_idx(ivl_stmt_lval(net, 0)) < 0
+	  && signal_is_class_handle_(sig)) {
+	    if (ivl_stmt_lvals(net) != 1 || !force_class_handle_is_scalar_(sig)) {
+		  fprintf(stderr, "%s:%u: vvp.tgt sorry: class handle release "
+			  "requires a scalar static variable target.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+	    emit_force_release_identity(net, "release");
+	    fprintf(vvp_out, "    %%release/obj v%p_0;\n", sig);
+	    emit_force_release_identity_end();
 	    return 0;
       }
 
