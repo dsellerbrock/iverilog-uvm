@@ -7915,3 +7915,5 @@ issue3718_assoc_pattern_2017 vvp_tests/issue3718_assoc_pattern_2017.json
 issue3718_assoc_pattern_2023 vvp_tests/issue3718_assoc_pattern_2023.json
 sva_prop_nested_inst_2017 vvp_tests/sva_prop_nested_inst_2017.json
 sva_prop_nested_inst_2023 vvp_tests/sva_prop_nested_inst_2023.json
+issue3735_2017 vvp_tests/issue3735_2017.json
+issue3735_2023 vvp_tests/issue3735_2023.json
