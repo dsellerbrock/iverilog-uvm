@@ -402,6 +402,8 @@ void compile_ufunc_real(char*label, char*code, unsigned wid,
 
         /* If this function has a trigger event, connect the functor to
            that event. */
+      if (argc == 0 && trigger_label && strcmp(trigger_label, "E_0x0") != 0)
+            schedule_t0_trigger(vvp_net_ptr_t(ptr, 0));
       if (trigger_label)
             input_connect(ptr, 0, trigger_label);
 
@@ -473,6 +475,8 @@ void compile_ufunc_vec4(char*label, char*code, unsigned wid,
 
         /* If this function has a trigger event, connect the functor to
            that event. */
+      if (argc == 0 && trigger_label && strcmp(trigger_label, "E_0x0") != 0)
+            schedule_t0_trigger(vvp_net_ptr_t(ptr, 0));
       if (trigger_label)
             input_connect(ptr, 0, trigger_label);
 

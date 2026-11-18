@@ -7919,3 +7919,6 @@ issue3735_2017 vvp_tests/issue3735_2017.json
 issue3735_2023 vvp_tests/issue3735_2023.json
 issue3738_2017 vvp_tests/issue3738_2017.json
 issue3738_2023 vvp_tests/issue3738_2023.json
+
+sv_contassign_function_reads_2017 vvp_tests/sv_contassign_function_reads_2017.json
+sv_contassign_function_reads_2023 vvp_tests/sv_contassign_function_reads_2023.json
