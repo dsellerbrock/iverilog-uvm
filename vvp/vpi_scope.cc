@@ -28,6 +28,7 @@
 # include  "schedule.h"
 # include  "vthread.h"
 # include  "vvp_net_sig.h"
+# include  "vvp_island.h"
 # include  "config.h"
 # include  <algorithm>
 # include  <map>
@@ -4202,6 +4203,17 @@ static bool parse_evcd_range(const char *text, int&value)
 static unsigned evcd_metadata_records;
 static unsigned long long evcd_metadata_bits;
 
+static vpiPortInfo* find_evcd_port(__vpiScope*scope, uint64_t index)
+{
+      if (!scope) return nullptr;
+      for (auto*obj : scope->intern) {
+	    auto*port = dynamic_cast<vpiPortInfo*>(obj);
+	    if (port && port->get_index() == index)
+		  return port;
+      }
+      return nullptr;
+}
+
 void vpip_reset_port_info_evcd_budget(void)
 {
       evcd_metadata_records = 0;
@@ -4221,7 +4233,7 @@ void compile_port_info_evcd(unsigned port_index,
                             char *dut)
 {
       __vpiScope *scope = vpip_peek_current_scope();
-      vpiPortInfo *port = 0;
+      vpiPortInfo *port = find_evcd_port(scope, port_index);
       vpiPortComponentInfo *component = 0;
       int left = 0, right = 0;
       bool ranges_valid = parse_evcd_range(left_text, left) &&
@@ -4230,15 +4242,6 @@ void compile_port_info_evcd(unsigned port_index,
             ? (unsigned long long)(left >= right
                   ? (long long)left-right : (long long)right-left) + 1
             : 0;
-
-      for (std::vector<__vpiHandle*>::iterator cur = scope->intern.begin();
-           cur != scope->intern.end(); ++cur) {
-            vpiPortInfo *candidate = dynamic_cast<vpiPortInfo*>(*cur);
-            if (candidate && candidate->get_index() == port_index) {
-                  port = candidate;
-                  break;
-            }
-      }
 
       if (!port || !width || width > 1024U*1024U ||
           fixture_width > 1024U*1024U || dut_width > 1024U*1024U ||
@@ -4296,6 +4299,85 @@ void compile_port_info_evcd(unsigned port_index,
       evcd_metadata_bits += width;
       delete[] left_text;
       delete[] right_text;
+}
+
+struct evcd_component_record {
+      vpiPortInfo*port;
+      vpiPortComponentInfo*component;
+      std::string signal;
+};
+static std::vector<evcd_component_record> evcd_component_links;
+
+void compile_evcd_component(uint64_t index, uint64_t component, char*signal)
+{
+      auto*port = find_evcd_port(vpip_peek_current_scope(), index);
+      if (!port || port->get_direction() != vpiInout ||
+	  component >= port->evcd_components_.size() ||
+	  evcd_component_links.size() >= EVCD_METADATA_MAX_RECORDS) {
+	    yyerror("invalid .evcd/port component or aggregate link budget");
+	    compile_errors += 1;
+      } else {
+	    evcd_component_links.push_back({port, port->evcd_components_[component],
+					    signal});
+      }
+      free(signal);
+}
+
+void link_evcd_components()
+{
+      for (const auto&rec : evcd_component_links) {
+	    auto&comp = *rec.component;
+	    auto*signal = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(rec.signal.c_str()));
+	    auto*endpoint = signal && signal->node
+		  ? dynamic_cast<vvp_island_port*>(signal->node->fun) : nullptr;
+	    if (endpoint && endpoint->evcd && signal->get_type_code() == vpiNet &&
+		!signal->is_netarray && signal->within.scope == rec.port->parent_scope() &&
+		strcmp(signal->id.name, comp.name) == 0 &&
+		!comp.evcd_endpoint && !comp.fixture_width) {
+		  int left = signal->vpi_get(vpiLeftRange);
+		  int right = signal->vpi_get(vpiRightRange);
+		  int64_t base = left >= right
+			? (int64_t)comp.right - right : (int64_t)right - comp.right;
+		  bool order = comp.width == 1 || (left >= right) == (comp.left >= comp.right);
+		  if (order && base >= 0 && (uint64_t)base < endpoint->evcd->width &&
+		      comp.width <= endpoint->evcd->width - base) {
+			comp.evcd_endpoint = endpoint;
+			comp.evcd_base = base;
+			continue;
+		  }
+	    }
+	    fprintf(stderr, "vvp: invalid .evcd/port endpoint or component range\n");
+	    compile_errors += 1;
+      }
+      evcd_component_links.clear();
+}
+
+extern "C" int vpip_sample_evcd_inout(vpiHandle ref, unsigned idx, unsigned bit,
+				     s_vpi_strengthval strengths[2],
+				     unsigned active[2], unsigned present[2])
+{
+      auto*port = dynamic_cast<vpiPortInfo*>(ref);
+      if (!port || idx >= port->evcd_components_.size()) return 0;
+      const auto&comp = *port->evcd_components_[idx];
+      if (!comp.evcd_endpoint || bit >= comp.width) return 0;
+      evcd_island_side sides[2];
+      comp.evcd_endpoint->island()->evcd_drivers(*comp.evcd_endpoint->evcd,
+						port->parent_scope(),
+						comp.evcd_base + bit, sides);
+      const int logic[] = {vpi0, vpi1, vpiZ, vpiX};
+      for (unsigned side = 0; side < 2; side += 1) {
+	    const auto&value = sides[side].value;
+	    strengths[side].logic = logic[value.value()];
+	    strengths[side].s0 = 1 << value.strength0();
+	    strengths[side].s1 = 1 << value.strength1();
+	    if (value.value() == BIT4_0)
+		  strengths[side].s0 |= strengths[side].s1;
+	    if (value.value() == BIT4_1)
+		  strengths[side].s1 |= strengths[side].s0;
+	    active[side] = sides[side].active;
+	    present[side] = sides[side].present;
+      }
+      return 1;
 }
 
 extern "C" int vpip_get_port_component(vpiHandle ref, unsigned idx,

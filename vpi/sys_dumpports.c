@@ -43,6 +43,8 @@ struct evcd_port_s {
       struct evcd_port_s *next;
       struct evcd_port_s *scope_next;
       struct evcd_file_s *owner;
+      vpiHandle port_handle;
+      unsigned component_index;
       vpiHandle signal;
       vpiHandle callbacks[6];
       unsigned callback_count;
@@ -536,6 +538,8 @@ bad_value_range:
 
       port->owner = file;
       port->signal = signal;
+      if (has_component) port->port_handle = port_handle;
+      port->component_index = component_index;
       port->fixture = fixture;
       port->dut = dut;
       port->signal_base = signal_base;
@@ -897,10 +901,16 @@ static int evcd_sample_port(struct evcd_port_s *port, int force_x)
                   port->strength0[out] = '6';
                   port->strength1[out] = '6';
             } else {
-                  unsigned active = evcd_active_drivers(port->signal,
-                                                        signal_bit);
-                  if (port->direction == vpiInout && fixture_values &&
-                      dut_values) {
+                  s_vpi_strengthval sides[2];
+                  unsigned active[2], present[2];
+                  if (port->direction == vpiInout && port->port_handle &&
+                      vpip_sample_evcd_inout(port->port_handle,
+                            port->component_index, bit, sides, active, present)) {
+                        port->states[out] = evcd_inout_state(
+                              sides[0].logic, sides[1].logic, &sides[0], &sides[1],
+                              active[0], active[1], present[0], present[1]);
+                  } else if (port->direction == vpiInout && fixture_values &&
+                             dut_values) {
                         const s_vpi_strengthval *fixture_strength =
                               fixture_values + port->fixture_base + bit;
                         const s_vpi_strengthval *dut_strength =
@@ -916,7 +926,8 @@ static int evcd_sample_port(struct evcd_port_s *port, int force_x)
                               port->fixture_drivers, port->dut_drivers);
                   } else {
                         port->states[out] = evcd_state_char(
-                              port, strength->logic, active);
+                              port, strength->logic,
+                              evcd_active_drivers(port->signal, signal_bit));
                   }
                   port->strength0[out] =
                         (char)('0' + evcd_strength_digit(strength->s0));

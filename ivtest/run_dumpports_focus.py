@@ -173,6 +173,7 @@ def check_corpus_and_no_use(runner: FocusRunner) -> None:
     runner.simulate(no_use, contains="PASSED")
     no_use_text = no_use.read_text(encoding="ascii")
     require(".port_info/evcd" not in no_use_text and
+            ".port/evcd" not in no_use_text and ".evcd/" not in no_use_text and
             '"$ivl_evcd_fixture"' not in no_use_text,
             "an ordinary inout design acquired EVCD-only VVP metadata")
 
@@ -217,8 +218,19 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 
 def check_raw_metadata(runner: FocusRunner) -> None:
-    seed_image = runner.compile("sv_dumpports_metadata_base")
+    ordinary = runner.compile("sv_dumpports_metadata_base").read_text(encoding="ascii")
+    # Keep testing the original probe records on an explicit pass-switch
+    # island, where they are still used.
+    legacy = runner.work / "dumpports_metadata_explicit.v"
+    seed_image = legacy.with_suffix(".vvp")
+    source = (SOURCES / "sv_dumpports_metadata_base.v").read_text(encoding="ascii")
+    legacy.write_text(replace_once(
+        source, "  assign io = 4'bzzzz;",
+        "  assign io = 4'bzzzz;\n  wire unused;\n  tran (io[0], unused);",
+        "leaf assignment"), encoding="ascii")
+    runner.run([runner.iverilog, "-g2012", "-o", str(seed_image), str(legacy)])
     seed = seed_image.read_text(encoding="ascii")
+    runner.simulate(seed_image, contains="PASSED")
     output = IVTEST / "work" / "sv_dumpports_metadata_base.evcd"
     cases: list[tuple[str, str, str]] = []
 
@@ -247,8 +259,8 @@ def check_raw_metadata(runner: FocusRunner) -> None:
         seed, '.scope module, "dut"', '.scope module, "bad scope"',
         "scope-name"), "cannot be represented as an EVCD scope_identifier"))
 
-    cap_seed = replace_once(seed, '.port_info 0 /INOUT 4 "io";',
-                            '.port_info 0 /INOUT 4097 "io";',
+    cap_seed = replace_once(seed, '.port_info 0 /INOUT 4 44 "io";',
+                            '.port_info 0 /INOUT 4097 44 "io";',
                             "port-width")
     original_component = re.compile(r'^    \.port_info/evcd 0 0 4 .*;$',
                                     re.MULTILINE)
@@ -260,6 +272,37 @@ def check_raw_metadata(runner: FocusRunner) -> None:
     require(changed == 1, "raw-VVP seed has no component metadata record")
     cases.append(("component_cap", cap_seed,
                   ".port_info/evcd metadata exceeds the safe aggregate record/width budget"))
+
+    source_line = re.search(r"^ \.evcd/source (\S+), (\d+), (\S+), 0, 4;$",
+                            ordinary, re.MULTILINE)
+    require(source_line is not None, "raw-VVP seed has no local source metadata")
+    line = source_line[0]
+    endpoint, slot, scope = source_line.groups()
+    for label, replacement in [
+        ("endpoint", f" .evcd/source {scope}, {slot}, {scope}, 0, 4;"),
+        ("owner", f" .evcd/source {endpoint}, {slot}, S_missing, 0, 4;"),
+        ("slot", f" .evcd/source {endpoint}, 100, {scope}, 0, 4;"),
+        ("coverage", f" .evcd/source {endpoint}, {slot}, {scope}, 1, 4;"),
+        ("duplicate", f"{line}\n{line}"),
+        ("missing", ""),
+    ]:
+        cases.append((f"source_{label}", replace_once(ordinary, line, replacement, label),
+                      "invalid .evcd/source metadata"))
+    large = f" .evcd/source {endpoint}, {slot}, {scope}, 0, 1048576;"
+    cases.append(("source_budget", replace_once(ordinary, line, "\n".join([large] * 5),
+                                                "source budget"),
+                  "aggregate source budget exceeded"))
+    endpoint_line = re.search(r"^\S+ \.port/evcd I\S+, \S+, 4, 1, 0;$",
+                              ordinary, re.MULTILINE)
+    require(endpoint_line is not None, "raw-VVP seed has no one-source endpoint")
+    cases.append(("endpoint_width", replace_once(
+        ordinary, endpoint_line[0], endpoint_line[0].replace(", 4, 1, 0;", ", 5, 1, 0;"),
+        "endpoint width"), "invalid .port/evcd metadata"))
+    component_link = re.search(r"^    \.evcd/port 0, 0, \S+;$", ordinary, re.MULTILINE)
+    require(component_link is not None, "raw-VVP seed has no component island link")
+    cases.append(("island_component", replace_once(
+        ordinary, component_link[0], "    .evcd/port 0, 0, v_missing;", "component link"),
+        "invalid .evcd/port endpoint or component range"))
 
     for name, payload, fragment in cases:
         mutated = runner.work / f"dumpports_bad_{name}.vvp"

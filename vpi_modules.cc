@@ -131,6 +131,9 @@ int         vpip_get_port_component(vpiHandle, unsigned, const char**,
                                     unsigned*, int*, int*, vpiHandle*,
                                     unsigned*, int*, vpiHandle*, int*)
 { return 0; }
+int         vpip_sample_evcd_inout(vpiHandle, unsigned, unsigned,
+                                   s_vpi_strengthval*, unsigned*, unsigned*)
+{ return 0; }
 void        vpip_format_strength(char*, s_vpi_value*, unsigned) { }
 void        vpip_make_systf_system_defined(vpiHandle) { }
 void        vpip_mcd_rawwrite(PLI_UINT32, const char*, size_t) { }
@@ -242,6 +245,7 @@ vpip_routines_s vpi_routines = {
     .make_systf_system_defined  = vpip_make_systf_system_defined,
     .mcd_rawwrite               = vpip_mcd_rawwrite,
     .set_return_value           = vpip_set_return_value,
+    .sample_evcd_inout          = vpip_sample_evcd_inout,
 };
 
 typedef PLI_UINT32 (*vpip_set_callback_t)(vpip_routines_s*, PLI_UINT32);

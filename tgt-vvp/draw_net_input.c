@@ -126,6 +126,47 @@ static int unresolved_user_nettype_of_nexus(ivl_nexus_t nex)
       return 0;
 }
 
+/* Island flag 0 is used for emission. Flag 1 keeps explicit pass devices
+ * and non-built-in resolution on the original EVCD sampling path. */
+int evcd_island_sources(ivl_island_t island)
+{
+      ivl_design_t design = vvp_get_saved_design();
+      const char*flag = ivl_design_flag(design, "DUMPPORTS");
+      if (!flag || !*flag || (island && ivl_island_flag_test(island, 1)))
+	    return 0;
+      /* An SDF interconnect annotation can replace an instantaneous link. */
+      flag = ivl_design_flag(design, "SDF_INOUT");
+      return !flag || !*flag;
+}
+
+static int evcd_builtin_nexus(ivl_nexus_t nex)
+{
+      for (unsigned idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ivl_nexus_ptr(nex, idx));
+	    if (sig && (ivl_signal_resolution_function(sig)
+			|| ivl_signal_attr(sig, "_ivl_udnt_unresolved")
+			|| ivl_signal_data_type(sig) == IVL_VT_REAL))
+		  return 0;
+      }
+      return 1;
+}
+
+void classify_evcd_islands(ivl_scope_t scope)
+{
+      for (unsigned idx = 0; idx < ivl_scope_switches(scope); idx += 1) {
+	    ivl_switch_t sw = ivl_scope_switch(scope, idx);
+	    ivl_island_t island = ivl_switch_island(sw);
+	    if (ivl_island_flag_test(island, 1)) continue;
+	    if ((ivl_switch_type(sw) != IVL_SW_TRAN_VP
+		 && ivl_switch_port_index(sw) < 0)
+		|| !evcd_builtin_nexus(ivl_switch_a(sw))
+		|| !evcd_builtin_nexus(ivl_switch_b(sw)))
+		  ivl_island_flag_set(island, 1, 1);
+      }
+      for (size_t idx = 0; idx < ivl_scope_childs(scope); idx += 1)
+	    classify_evcd_islands(ivl_scope_child(scope, idx));
+}
+
 static char* draw_C4_to_string(ivl_net_const_t cptr)
 {
       const char*bits = ivl_const_bits(cptr);
@@ -566,7 +607,7 @@ static char* draw_net_input_drive(const ivl_nexus_t nex, ivl_nexus_ptr_t nptr)
 
 static char* draw_island_port(ivl_island_t island, int island_input_flag,
 			      ivl_nexus_t nex, struct vvp_nexus_data*nex_data,
-			      const char*src)
+			      const char*src, const char*resolver)
 {
       char result[64];
       if (ivl_island_flag_test(island,0) == 0) {
@@ -586,7 +627,17 @@ static char* draw_island_port(ivl_island_t island, int island_input_flag,
 	    fprintf(vvp_out, "p%p .import I%p, %s;\n", nex, island, src);
 	    return strdup(src);
       } else {
-	    fprintf(vvp_out, "p%p .port I%p, %s;\n", nex, island, src);
+	    if (evcd_island_sources(island)) {
+		  ivl_signal_type_t type = signal_type_of_nexus(nex);
+		  unsigned pull = type == IVL_SIT_TRI0 ? 1 : type == IVL_SIT_TRI1 ? 2 : 0;
+		  fprintf(vvp_out, "p%p .port/evcd I%p, %s, %u, %u, %u",
+			  nex, island, src, width_of_nexus(nex),
+			  nex_data->drivers_count, pull);
+		  if (resolver) fprintf(vvp_out, ", %s", resolver);
+		  fprintf(vvp_out, ";\n");
+	    } else {
+		  fprintf(vvp_out, "p%p .port I%p, %s;\n", nex, island, src);
+	    }
 	    return strdup(nex_data->island_input);
       }
 }
@@ -695,6 +746,70 @@ static int part_drivers_are_disjoint_(ivl_nexus_ptr_t*list, unsigned count)
 }
 
 static unsigned adrivers = 0;
+
+static ivl_scope_t evcd_driver_scope(ivl_nexus_ptr_t ptr)
+{
+      ivl_net_logic_t log = ivl_nexus_ptr_log(ptr);
+      if (log) return ivl_logic_scope(log);
+      ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ptr);
+      if (lpm) return ivl_lpm_scope(lpm);
+      ivl_net_const_t con = ivl_nexus_ptr_con(ptr);
+      if (con) return ivl_const_scope(con);
+      ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+      return sig ? ivl_signal_scope(sig) : 0;
+}
+
+static ivl_nexus_ptr_t evcd_part_driver(ivl_lpm_t part)
+{
+      ivl_nexus_t input = ivl_lpm_data(part, 0);
+      ivl_nexus_ptr_t driver = 0;
+      for (unsigned idx = 0; idx < ivl_nexus_ptrs(input); idx += 1) {
+	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(input, idx);
+	    if (ivl_nexus_ptr_drive0(ptr) == IVL_DR_HiZ &&
+		ivl_nexus_ptr_drive1(ptr) == IVL_DR_HiZ)
+		  continue;
+	    if (driver) return 0;
+	    driver = ptr;
+      }
+      return driver;
+}
+
+/* Slot order matches the built-in resolver inputs. Record the owner from
+ * the driving pin, since driver emission can elide its assignment buffer. */
+static void draw_evcd_sources(ivl_nexus_t nex, unsigned count,
+			      ivl_signal_type_t type)
+{
+      unsigned width = width_of_nexus(nex);
+      for (unsigned idx = 0; idx < count; idx += 1) {
+	    ivl_nexus_ptr_t ptr = drivers[idx];
+	    ivl_scope_t scope = evcd_driver_scope(ptr);
+	    ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ptr);
+	    unsigned base = 0, part = width;
+	    if (lpm && ivl_lpm_type(lpm) == IVL_LPM_PART_PV) {
+		  // A selected lvalue places its adapter in the destination
+		  // scope, even when the assignment is in another instance.
+		  ivl_nexus_ptr_t driver = evcd_part_driver(lpm);
+		  if (driver) scope = evcd_driver_scope(driver);
+		  base = ivl_lpm_base(lpm);
+		  part = ivl_lpm_width(lpm);
+		  if (base < width && part > width - base)
+			part = width - base;
+	    }
+	    assert(scope);
+	    fprintf(vvp_out, " .evcd/source p%p, %u, S_%p, %u, %u;\n",
+		    nex, idx, scope, base, part);
+      }
+      if (type == IVL_SIT_TRI0 || type == IVL_SIT_TRI1) {
+	    /* The implicit pull is the last slot, owned by its declaration. */
+	    for (unsigned idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+		  ivl_signal_t sig = ivl_nexus_ptr_sig(ivl_nexus_ptr(nex, idx));
+		  if (!sig || ivl_signal_type(sig) != type) continue;
+		  fprintf(vvp_out, " .evcd/source p%p, %u, S_%p, 0, %u;\n",
+			  nex, count, ivl_signal_scope(sig), width);
+		  break;
+	    }
+      }
+}
 
 void EOC_cleanup_drivers(void)
 {
@@ -886,6 +1001,10 @@ static void draw_net_input_x(ivl_nexus_t nex,
       nex_data->drivers_count = ndrivers;
       nex_data->flags |= nex_flags;
 
+      int evcd_sources = island && !island_input_flag && evcd_island_sources(island);
+      if (evcd_sources)
+	    draw_evcd_sources(nex, ndrivers, res);
+
 	/* If the nexus has no drivers, then send a constant HiZ or
 	   0.0 into the net. Use a lower case 'c' prefix for the
 	   constant to inform vvp that this is an undriven value. */
@@ -965,7 +1084,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	    }
 
 	    if (island) {
-		  char*tmp2 = draw_island_port(island, island_input_flag, nex, nex_data, nex_private);
+		  char*tmp2 = draw_island_port(island, island_input_flag, nex, nex_data, nex_private, 0);
 		  free(nex_private);
 		  nex_private = tmp2;
 	    }
@@ -1068,7 +1187,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
 		  snprintf(result, sizeof result, "RS_%p", nex);
 		  if (island)
 			nex_private = draw_island_port(island, island_input_flag,
-					       nex, nex_data, result);
+					       nex, nex_data, result, 0);
 		  else
 			nex_private = strdup(result);
 
@@ -1118,7 +1237,7 @@ static void draw_net_input_x(ivl_nexus_t nex,
 		  nex_private = draw_net_input_drive(nex, drivers[0]);
 	    }
 	    if (island) {
-		  char*tmp = draw_island_port(island, island_input_flag, nex, nex_data, nex_private);
+		  char*tmp = draw_island_port(island, island_input_flag, nex, nex_data, nex_private, 0);
 		  free(nex_private);
 		  nex_private = tmp;
 	    }
@@ -1133,10 +1252,18 @@ static void draw_net_input_x(ivl_nexus_t nex,
       }
 
       driver_labels = malloc(ndrivers * sizeof(char*));
+      /* Eliding an assignment buffer can recursively draw its input nexus.
+       * Keep the resolver inputs in the order recorded by .evcd/source. */
+      ivl_nexus_ptr_t*local_drivers = 0;
+      if (evcd_sources && ndrivers > 1) {
+	    local_drivers = malloc(ndrivers * sizeof(*local_drivers));
+	    memcpy(local_drivers, drivers, ndrivers * sizeof(*local_drivers));
+      }
       ivl_signal_t path_sig = find_modpath(nex);
       if (path_sig) {
 	    for (idx = 0; idx < ndrivers; idx += 1) {
-		  char*nex_str = draw_net_input_drive(nex, drivers[idx]);
+		  ivl_nexus_ptr_t driver = local_drivers ? local_drivers[idx] : drivers[idx];
+		  char*nex_str = draw_net_input_drive(nex, driver);
 		  char modpath_label[64];
 		  snprintf(modpath_label, sizeof modpath_label,
 			   "V_%p_%u/m", path_sig, idx);
@@ -1145,9 +1272,11 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	    }
       } else {
 	    for (idx = 0; idx < ndrivers; idx += 1) {
-		  driver_labels[idx] = draw_net_input_drive(nex, drivers[idx]);
+		  ivl_nexus_ptr_t driver = local_drivers ? local_drivers[idx] : drivers[idx];
+		  driver_labels[idx] = draw_net_input_drive(nex, driver);
 	    }
       }
+      free(local_drivers);
       fprintf(vvp_out, "RS_%p .resolv %s", nex, resolv_type);
       for (idx = 0; idx < ndrivers; idx += 1) {
             fprintf(vvp_out, ", %s", driver_labels[idx]);
@@ -1168,8 +1297,11 @@ static void draw_net_input_x(ivl_nexus_t nex,
 	    free(tmp);
       }
 
-      if (island)
-	    nex_private = draw_island_port(island, island_input_flag, nex, nex_data, result);
+      if (island) {
+	    char resolver[64];
+	    snprintf(resolver, sizeof resolver, "RS_%p", nex);
+	    nex_private = draw_island_port(island, island_input_flag, nex, nex_data, result, resolver);
+      }
       else
 	    nex_private = strdup(result);
 

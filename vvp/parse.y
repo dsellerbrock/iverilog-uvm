@@ -25,11 +25,13 @@
 # include  "vpi_priv.h"
 # include  "vvp_vpi_callback.h"
 # include  "delay.h"
+# include  "vvp_island.h"
 # include  <list>
 # include  <vector>
 # include  <cstdio>
 # include  <cstdlib>
 # include  <cassert>
+# include  <climits>
 # include  "ivl_alloc.h"
 # include  "version_base.h"
 # include  <cstring>
@@ -129,6 +131,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_VPI_EXPR K_VPI_CONTASSIGN K_VPI_PARAM_EXPR K_VPI_DEFPARAM K_VPI_PORT_CONN
 %token K_VPI_FORCE_CONN
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
+%token K_ISLAND_PORT_EVCD K_EVCD_SOURCE K_EVCD_PORT
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
@@ -1389,6 +1392,18 @@ statement
   | T_LABEL K_PORT T_SYMBOL ',' T_SYMBOL ';'
       { compile_island_port($1, $3, $5); }
 
+  | T_LABEL K_ISLAND_PORT_EVCD T_SYMBOL ',' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ';'
+      { compile_island_port_evcd($1, $3, $5, $7, $9, $11, nullptr); }
+
+  | T_LABEL K_ISLAND_PORT_EVCD T_SYMBOL ',' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_SYMBOL ';'
+      { compile_island_port_evcd($1, $3, $5, $7, $9, $11, $13); }
+
+  | K_EVCD_SOURCE T_SYMBOL ',' T_NUMBER ',' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ';'
+      { compile_evcd_source($2, $4, $6, $8, $10); }
+
+  | K_EVCD_PORT T_NUMBER ',' T_NUMBER ',' T_SYMBOL ';'
+      { compile_evcd_component($2, $4, $6); }
+
   | T_LABEL K_IMPORT T_SYMBOL ',' T_SYMBOL ';'
       { compile_island_import($1, $3, $5); }
 
@@ -1414,7 +1429,17 @@ statement
       { compile_island_tranif(1, $2, $4, $5, $7, 0, $8); }
 
   | K_TRANVP T_NUMBER T_NUMBER T_NUMBER ',' T_SYMBOL ',' T_SYMBOL T_SYMBOL ';'
-      { compile_island_tranvp($6, $8, $9, $2, $3, $4); }
+      {
+	    if ($2 > UINT_MAX || $3 > UINT_MAX || $4 > UINT_MAX) {
+		  yyerror("invalid tranvp island, endpoint or range");
+		  compile_errors += 1;
+		  free($6);
+		  free($8);
+		  free($9);
+	    } else {
+		  compile_island_tranvp($6, $8, $9, $2, $3, $4);
+	    }
+      }
 
   /* Other statements */
 

@@ -1275,6 +1275,12 @@ extern int vpip_get_port_component(vpiHandle ref, unsigned idx,
                                    vpiHandle *dut,
                                    int *dut_connected);
 
+/* Private EVCD samples for one component bit, ordered fixture then DUT.
+   Return zero when the component uses the original inout path. */
+extern int vpip_sample_evcd_inout(vpiHandle ref, unsigned component,
+                                  unsigned bit, s_vpi_strengthval strengths[2],
+                                  unsigned active[2], unsigned present[2]);
+
 /*
  * Stopgap fix for br916. We need to reject any attempt to pass a thread
  * variable to $strobe or $monitor. To do this, we use some private VPI
@@ -1394,6 +1400,8 @@ typedef struct {
     PLI_INT32   (*compat_get)(int, PLI_INT32, vpiHandle);
     char*       (*compat_get_str)(int, PLI_INT32, vpiHandle);
     vpiHandle   (*compat_iterate)(int, PLI_INT32, vpiHandle);
+    int         (*sample_evcd_inout)(vpiHandle, unsigned, unsigned,
+                                     s_vpi_strengthval*, unsigned*, unsigned*);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

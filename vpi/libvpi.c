@@ -378,6 +378,14 @@ int vpip_get_port_component(vpiHandle ref, unsigned idx, const char **name,
             ref, idx, name, width, left, right, fixture, fixture_base,
             fixture_connected, dut, dut_connected);
 }
+int vpip_sample_evcd_inout(vpiHandle ref, unsigned component, unsigned bit,
+                          s_vpi_strengthval strengths[2],
+                          unsigned active[2], unsigned present[2])
+{
+      assert(vpip_routines);
+      return vpip_routines->sample_evcd_inout(ref, component, bit, strengths,
+                                             active, present);
+}
 void vpip_format_strength(char*str, s_vpi_value*value, unsigned bit)
 {
       assert(vpip_routines);

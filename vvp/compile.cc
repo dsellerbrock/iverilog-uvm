@@ -22,6 +22,7 @@
 # include  "delay.h"
 # include  "arith.h"
 # include  "compile.h"
+# include  "vvp_island.h"
 # include  "logic.h"
 # include  "resolv.h"
 # include  "udp.h"
@@ -1126,6 +1127,15 @@ static vvp_net_t*lookup_functor_symbol(const char*label)
       return val.net;
 }
 
+vvp_net_t* lookup_evcd_net(const char*label)
+{
+      if (vpiHandle handle = vvp_lookup_handle(label)) {
+	    auto*signal = dynamic_cast<__vpiSignal*>(handle);
+	    return signal ? signal->node : nullptr;
+      }
+      return lookup_functor_symbol(label);
+}
+
 vpiHandle vvp_lookup_handle(const char*label)
 {
       symbol_value_t val = sym_get_value(sym_vpi, label);
@@ -1301,12 +1311,13 @@ struct vvp_net_resolv_list_s: public resolv_list_s {
       explicit vvp_net_resolv_list_s(char*l) : resolv_list_s(l) { }
 	// port to be driven by the located node.
       vvp_net_ptr_t port;
+      bool checked_evcd = false;
       virtual bool resolve(bool mes) override;
 };
 
 bool vvp_net_resolv_list_s::resolve(bool mes)
 {
-      vvp_net_t*tmp = vvp_net_lookup(label());
+      vvp_net_t*tmp = checked_evcd ? lookup_evcd_net(label()) : vvp_net_lookup(label());
 
       if (tmp) {
 	      // Link the input port to the located output.
@@ -1319,6 +1330,11 @@ bool vvp_net_resolv_list_s::resolve(bool mes)
       }
 
       if (mes) {
+	    if (checked_evcd) {
+		  fprintf(stderr, "vvp: invalid .port/evcd input: %s\n", label());
+		  compile_errors += 1;
+		  return true;
+	    }
 	    fprintf(stderr, "unresolved vvp_net reference: %s\n", label());
 	    return true;
       }
@@ -2022,6 +2038,9 @@ void compile_cleanup(void)
 
       compile_errors += nerrs;
 
+      link_evcd_endpoints();
+      link_evcd_components();
+
       if (!nerrs) {
             for (size_t idx = 0; idx < deferred_assertion_registrations.size();
                  idx += 1) {
@@ -2356,6 +2375,18 @@ void input_connect(vvp_net_t*fdx, unsigned port, char*label)
 	   a linker list, and linked when the symbol table is
 	   complete. */
       postpone_functor_input(ifdx, label);
+}
+
+void input_connect_evcd(vvp_net_t*dest, char*label)
+{
+      if (c4string_test(label) || c8string_test(label)) {
+	    input_connect(dest, 0, label);
+      } else {
+	    auto*ref = new vvp_net_resolv_list_s(label);
+	    ref->port = vvp_net_ptr_t(dest, 0);
+	    ref->checked_evcd = true;
+	    resolv_submit(ref);
+      }
 }
 
 void inputs_connect(vvp_net_t*fdx, unsigned argc, struct symb_s*argv)

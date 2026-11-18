@@ -23,14 +23,18 @@
 # include  "schedule.h"
 # include  "config.h"
 # include  "vpi_priv.h"
+# include  "part.h"
+# include  "resolv.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
 # include  <iostream>
+# include  <algorithm>
 # include  <list>
 # include  <cassert>
 # include  <cstdlib>
 # include  <cstring>
+# include  <set>
 # include "ivl_alloc.h"
 
 using namespace std;
@@ -190,6 +194,20 @@ void vvp_island::run_run()
       if (settle_exceeded(settle_runs_))
 	    return;
       run_island();
+      notify_evcd();
+}
+
+void vvp_island::watch_evcd(vvp_net_t*net)
+{
+      if (std::find(evcd_watches_.begin(), evcd_watches_.end(), net) ==
+	  evcd_watches_.end())
+	    evcd_watches_.push_back(net);
+}
+
+void vvp_island::notify_evcd()
+{
+      for (vvp_net_t*net : evcd_watches_)
+	    net->fil->notify_driver_activity();
 }
 
 
@@ -272,6 +290,7 @@ vvp_island_port::vvp_island_port(vvp_island*ip)
 
 vvp_island_port::~vvp_island_port()
 {
+      delete evcd;
 }
 
 void vvp_island_port::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
@@ -381,10 +400,7 @@ void compile_island_base(char*label, vvp_island*use_island)
 
 vvp_island* compile_find_island(const char*island)
 {
-      assert(island_table);
-      vvp_island*use_island = island_table->sym_get_value(island);
-      assert(use_island);
-      return use_island;
+      return island_table ? island_table->sym_get_value(island) : nullptr;
 }
 
 /*
@@ -422,6 +438,161 @@ void compile_island_port(char*label, char*island, char*src)
       use_island->add_port(label, net);
 
       free(label);
+}
+
+namespace {
+const unsigned evcd_max_width = 1024U * 1024U;
+const unsigned evcd_max_bits = 4U * evcd_max_width;
+const unsigned evcd_max_records = 65536;
+
+struct evcd_endpoint_record {
+      vvp_net_t*net;
+      std::string input;
+      std::string resolver;
+};
+
+struct evcd_source_record {
+      std::string endpoint, scope;
+      unsigned index, base, width;
+};
+
+std::vector<evcd_endpoint_record> evcd_endpoints;
+std::vector<evcd_source_record> evcd_sources;
+unsigned evcd_endpoint_bits = 0, evcd_source_bits = 0;
+unsigned evcd_declared_slots = 0;
+
+void evcd_link_error(const char*record, const char*reason)
+{
+      fprintf(stderr, "vvp: invalid %s metadata: %s\n", record, reason);
+      compile_errors += 1;
+}
+}
+
+void compile_island_port_evcd(char*label, char*island, char*src,
+			     uint64_t width, uint64_t count, uint64_t pull,
+			     char*resolver)
+{
+      vvp_island*owner = compile_find_island(island);
+      if (!owner || owner->find_port(label) || lookup_evcd_net(label) ||
+	  !width || width > evcd_max_width || pull > 2 ||
+	  count > evcd_max_records || (!resolver && count > 1) ||
+	  (resolver && !count)) {
+	    evcd_link_error(".port/evcd", "invalid endpoint, width or driver count");
+      } else if (evcd_endpoints.size() >= evcd_max_records ||
+		 count + (pull != 0) > evcd_max_records - evcd_declared_slots ||
+		 width > evcd_max_bits - evcd_endpoint_bits) {
+	    evcd_link_error(".port/evcd", "aggregate endpoint/slot budget exceeded");
+      } else {
+	    auto*net = new vvp_net_t;
+	    auto*port = new vvp_island_port(owner);
+	    net->fun = port;
+	    port->evcd = new evcd_island_endpoint;
+	    port->evcd->width = width;
+	    port->evcd->driver_count = count;
+	    port->evcd->pull = pull;
+	    port->evcd->sources.resize(count + (pull != 0));
+	    evcd_endpoint_bits += width;
+	    evcd_declared_slots += port->evcd->sources.size();
+	    evcd_endpoints.push_back({net, src, resolver ? resolver : ""});
+	    input_connect_evcd(net, src);
+	    src = nullptr;
+	    define_functor_symbol(label, net);
+	    owner->add_port(label, net);
+      }
+      free(label);
+      free(island);
+      free(src);
+      free(resolver);
+}
+
+void compile_evcd_source(char*port, uint64_t slot, char*scope,
+			 uint64_t base, uint64_t width)
+{
+      if (slot >= evcd_max_records || !width || base >= evcd_max_width ||
+	  width > evcd_max_width - base) {
+	    evcd_link_error(".evcd/source", "invalid slot or bit range");
+      } else if (evcd_sources.size() >= evcd_max_records ||
+		 width > evcd_max_bits - evcd_source_bits) {
+	    evcd_link_error(".evcd/source", "aggregate source budget exceeded");
+      } else {
+	    evcd_sources.push_back({port, scope, (unsigned)slot,
+				    (unsigned)base, (unsigned)width});
+	    evcd_source_bits += width;
+      }
+      free(port);
+      free(scope);
+}
+
+void link_evcd_endpoints()
+{
+      for (const auto&rec : evcd_sources) {
+	    vvp_net_t*net = lookup_evcd_net(rec.endpoint.c_str());
+	    auto*port = net ? dynamic_cast<vvp_island_port*>(net->fun) : nullptr;
+	    auto*scope = dynamic_cast<__vpiScope*>(vvp_lookup_handle(rec.scope.c_str()));
+	    auto*data = port ? port->evcd : nullptr;
+	    if (!scope || !data || rec.index >= data->sources.size() ||
+		rec.base >= data->width || rec.width > data->width - rec.base ||
+		data->sources[rec.index].scope) {
+		  evcd_link_error(".evcd/source", "invalid endpoint, owner, slot or bit range");
+		  continue;
+	    }
+	    auto&slot = data->sources[rec.index];
+	    slot.scope = scope;
+	    slot.base = rec.base;
+	    slot.width = rec.width;
+      }
+      evcd_sources.clear();
+
+      std::set<vvp_island*> islands;
+      for (const auto&rec : evcd_endpoints) {
+	    auto*port = static_cast<vvp_island_port*>(rec.net->fun);
+	    auto&data = *port->evcd;
+	    islands.insert(port->island());
+	    auto*filter = vvp_fil_signal_value(rec.net->fil);
+	    if (filter && filter->value_size() != data.width)
+		  evcd_link_error(".port/evcd", "width disagrees with endpoint net");
+
+	    vvp_net_t*input = lookup_evcd_net(rec.input.c_str());
+	    if (!rec.resolver.empty()) {
+		  vvp_net_t*net = lookup_evcd_net(rec.resolver.c_str());
+		  auto*resolver = net ? dynamic_cast<resolv_core*>(net->fun) : nullptr;
+		  auto*tri = dynamic_cast<resolv_tri*>(resolver);
+		  vvp_scalar_t pull = tri ? tri->implicit_pull() : vvp_scalar_t();
+		  unsigned pull_code = pull.is_hiz() ? 0 : pull.value() == BIT4_0 ? 1 : 2;
+		  if (!resolver || resolver->port_count() != data.driver_count ||
+		      pull_code != data.pull ||
+		      (input != net && (!input ||
+			!dynamic_cast<vvp_fun_trireg*>(input->fun)))) {
+			evcd_link_error(".port/evcd", "resolver does not match local driver slots");
+			continue;
+		  }
+		  data.resolver = resolver;
+		  resolver->watch_evcd(port->island());
+	    } else if (data.pull && data.driver_count) {
+		  evcd_link_error(".port/evcd", "missing resolver for drivers with an implicit pull");
+	    }
+
+	    for (unsigned idx = 0; idx < data.sources.size(); idx += 1) {
+		  const auto&slot = data.sources[idx];
+		  vvp_net_t*driver = data.resolver && idx < data.driver_count
+			? data.resolver->input_source(idx) : input;
+		  auto*part = driver ? dynamic_cast<vvp_fun_part_pv*>(driver->fun) : nullptr;
+		  if (!slot.scope ||
+		      (part && (slot.base != part->get_base() ||
+				slot.width != std::min(part->get_wid(), data.width - slot.base))) ||
+		      (idx == data.driver_count && (slot.base || slot.width != data.width)))
+			evcd_link_error(".evcd/source", "missing slot or coverage disagrees with driver");
+	    }
+      }
+      for (vvp_island*island : islands)
+	    if (!island->link_evcd_branches())
+		  evcd_link_error(".port/evcd", "invalid transparent island branch or bit range");
+      for (const auto&rec : evcd_endpoints) {
+	    auto*port = static_cast<vvp_island_port*>(rec.net->fun);
+	    if (!port->evcd->anchor.ptr())
+		  evcd_link_error(".port/evcd", "endpoint has no island branch");
+      }
+      evcd_endpoints.clear();
 }
 
 void compile_island_export(char*label, char*island)
