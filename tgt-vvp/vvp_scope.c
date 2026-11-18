@@ -2997,8 +2997,8 @@ static void draw_lpm_ufunc(ivl_lpm_t net)
       }
 
       if (ivl_lpm_trigger(net)) {
-	    assert(ninp > 0);
-	    fprintf(vvp_out, "L_%p%s .ufunc/e TD_%s, %u, E_%p", net, dly,
+	    fprintf(vvp_out, "L_%p%s .ufunc%s/e TD_%s, %u, E_%p", net, dly,
+	            dt == IVL_VT_REAL ? "/real" : "",
 	            mangled,
 	            ivl_lpm_width(net), ivl_lpm_trigger(net));
       } else

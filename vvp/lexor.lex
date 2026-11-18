@@ -316,6 +316,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".ufunc/real"   { return K_UFUNC_REAL; }
 ".ufunc/vec4"   { return K_UFUNC_VEC4; }
 ".ufunc/e"      { return K_UFUNC_E; }
+".ufunc/real/e" { return K_UFUNC_REAL_E; }
 ".ufunc/resolv/real" { return K_UFUNC_RESOLV_REAL; }
 ".ufunc/resolv/vec2" { return K_UFUNC_RESOLV_VEC2; }
 ".ufunc/resolv/vec4" { return K_UFUNC_RESOLV_VEC4; }

@@ -1739,11 +1739,12 @@ NetNet* NetESignal::synthesize(Design*des, NetScope*scope, NetExpr*root)
       return tmp;
 }
 
-static NetEvWait* make_func_trigger(Design*des, NetScope*scope, const NetExpr*root)
+static NetEvWait* make_func_trigger(Design*des, NetScope*scope, const NetExpr*root,
+                                    bool function_reads = false)
 {
       NetEvWait*trigger = 0;
 
-      NexusSet*nset = root->nex_input(false);
+      NexusSet*nset = root->nex_input(function_reads, function_reads);
       if (nset && (nset->size() > 0)) {
             NetEvent*ev = new NetEvent(scope->local_symbol());
             ev->set_line(*root);
@@ -1949,15 +1950,15 @@ NetNet* NetEUFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
                   break;
             }
       }
-      if (gn_strict_ca_eval_flag || has_open_array_arg) {
-              /* Ideally we would only do this for functions that have hidden
-                 dependencies or side effects. Once constant functions are
-                 implemented, we may be able to reuse some code to achieve
-                 this. Open-array DPI formals also need a whole-expression
+      if (gn_strict_ca_eval_flag || has_open_array_arg || gn_system_verilog()) {
+              /* SystemVerilog calls also depend on variables read by their
+                 bodies. Open-array DPI formals need a whole-expression
                  trigger: their array value is represented by a runtime
                  handle, while the ordinary function pins expose only the
                  first element as a scalar input. */
-            trigger = make_func_trigger(des, scope, root);
+            trigger = make_func_trigger(des, scope,
+                  (gn_strict_ca_eval_flag || has_open_array_arg) ? root : this,
+                  gn_system_verilog());
       }
 
       NetUserFunc*net = new NetUserFunc(scope_, scope_->local_symbol(), func_,
