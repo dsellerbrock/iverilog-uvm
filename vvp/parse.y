@@ -259,6 +259,8 @@ statement
 	   (vpiTypespec). Operands: signal label and type string. */
 	| K_VARTYPE T_SYMBOL ',' T_STRING ';'
 		{ compile_vartype($2, $4); }
+	| K_VARTYPE T_SYMBOL ',' T_NUMBER ',' T_STRING ';'
+		{ compile_property_vartype($2, $4, $6); }
 
 	| K_export_dpi T_STRING T_STRING T_STRING T_STRING T_STRING T_STRING ';'
 		{ compile_export_dpi($2, $3, $4, $5, $6, $7); }
