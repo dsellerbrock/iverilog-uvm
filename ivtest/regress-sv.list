@@ -1,6 +1,9 @@
 # This test list contains tests that should work using any simulator that
 # supports SystemVerilog (1800-2012).
 
+issue3719_value_plusargs_packed_struct_2017 normal,-g2017,-s,issue3719_value_plusargs_packed_struct,+v=123456789abcdef0123,+p=00112233445566778899aabbccddeeff,+four=12xz,+two=12xz ivltests gold=issue3719_value_plusargs_packed_struct.gold
+issue3719_value_plusargs_packed_struct_2023 normal,-g2023,-s,issue3719_value_plusargs_packed_struct,+v=123456789abcdef0123,+p=00112233445566778899aabbccddeeff,+four=12xz,+two=12xz ivltests gold=issue3719_value_plusargs_packed_struct.gold
+
 issue2935_ansi_port_concat_2017 normal,-g2017,-s,issue2935_ansi_port_concat_top ivltests gold=issue2935_ansi_port_concat-vvp-stdout.gold
 issue2935_ansi_port_concat_2023 normal,-g2023,-s,issue2935_ansi_port_concat_top ivltests gold=issue2935_ansi_port_concat-vvp-stdout.gold
 
@@ -66,6 +69,8 @@ issue1569_down_hierarchy_interconnect_2017 normal,-g2017,-gspecify,-ginterconnec
 issue1569_down_hierarchy_interconnect_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1569_down_hierarchy_interconnect-legacy.gold
 issue625_covergroup_block_event_2017 normal,-g2017,-s,issue625_covergroup_block_event ivltests
 issue625_covergroup_block_event_2023 normal,-g2023,-s,issue625_covergroup_block_event ivltests
+issue3391_covdb_2017 normal,-g2017,-s,issue3391_covdb ivltests gold=issue3391_covdb.gold
+issue3391_covdb_2023 normal,-g2023,-s,issue3391_covdb ivltests gold=issue3391_covdb.gold
 
 issue1568_mismatched_interconnect_source_2017 normal,-g2017,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1568_mismatched_interconnect_source-legacy.gold
 issue1568_mismatched_interconnect_source_2023 normal,-g2023,-gspecify,-ginterconnect,-s,tb ivltests gold=issue1568_mismatched_interconnect_source-legacy.gold
@@ -6959,6 +6964,8 @@ issue3418_array_bit_2023 normal,-g2023,-s,issue3418_array_bit ivltests gold=issu
 issue3418_overlap_2023 CE,-g2023,-s,issue3418_overlap ivltests gold=issue3418_overlap-legacy.gold
 issue3435_edge_path_2017 normal,-g2017,-gspecify,-s,issue3435_edge_path ivltests gold=issue3435_edge_path.gold
 issue3435_edge_path_2023 normal,-g2023,-gspecify,-s,issue3435_edge_path ivltests gold=issue3435_edge_path.gold
+issue3447_2017 normal,-g2017,-gspecify,-s,issue3447 ivltests gold=issue3447.gold
+issue3447_2023 normal,-g2023,-gspecify,-s,issue3447 ivltests gold=issue3447.gold
 issue3464_notif_strength_2017 normal,-g2017,-s,issue3464_notif_strength ivltests gold=issue3464_notif_strength.gold
 issue3464_notif_strength_2023 normal,-g2023,-s,issue3464_notif_strength ivltests gold=issue3464_notif_strength.gold
 issue3465_mos_vector_strength_2017 normal,-g2017,-s,top ivltests gold=issue3465_mos_vector_strength.gold
@@ -7093,3 +7100,11 @@ issue3735_2017 normal,-g2017,-s,issue3735 ivltests gold=issue3735.gold
 issue3735_2023 normal,-g2023,-s,issue3735 ivltests gold=issue3735.gold
 issue3738_2017 normal,-g2017,-s,issue3738 ivltests gold=issue3738.gold
 issue3738_2023 normal,-g2023,-s,issue3738 ivltests gold=issue3738.gold
+issue3739_2017 normal,-g2017,-s,issue3739 ivltests gold=issue3739.gold
+issue3739_2023 normal,-g2023,-s,issue3739 ivltests gold=issue3739.gold
+issue3731_2017 normal,-g2017,-s,issue3731 ivltests gold=issue3731.gold
+issue3731_2023 normal,-g2023,-s,issue3731 ivltests gold=issue3731.gold
+issue3386_2017 normal,-g2017,-s,issue3386 ivltests gold=issue3386.gold
+issue3386_2023 normal,-g2023,-s,issue3386 ivltests gold=issue3386.gold
+issue3648_2017 normal,-g2017,-s,issue3648 ivltests gold=issue3648.gold
+issue3648_2023 normal,-g2023,-s,issue3648 ivltests gold=issue3648.gold

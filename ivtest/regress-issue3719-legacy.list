@@ -1,0 +1,2 @@
+issue3719_value_plusargs_packed_struct_2017 normal,-g2017,-s,issue3719_value_plusargs_packed_struct,+v=123456789abcdef0123,+p=00112233445566778899aabbccddeeff,+four=12xz,+two=12xz ivltests gold=issue3719_value_plusargs_packed_struct.gold
+issue3719_value_plusargs_packed_struct_2023 normal,-g2023,-s,issue3719_value_plusargs_packed_struct,+v=123456789abcdef0123,+p=00112233445566778899aabbccddeeff,+four=12xz,+two=12xz ivltests gold=issue3719_value_plusargs_packed_struct.gold

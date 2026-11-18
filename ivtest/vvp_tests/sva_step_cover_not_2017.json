@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sva_step_cover_not.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_step_cover_not"],
+  "vpi-modules": ["sva_step_cover_not_2017"],
+  "vpi-sources": ["vpi/sva_step_cover_not.c"],
+  "gold": "sva_step_cover_not"
+}

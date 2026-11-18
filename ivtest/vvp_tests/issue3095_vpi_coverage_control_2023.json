@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3095_vpi_coverage_control.v",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3095_vpi_coverage_control"],
+  "vpi-sources": ["vpi/issue3095_vpi_coverage_control.c"],
+  "gold": "issue3095_vpi_coverage_control"
+}

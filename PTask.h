@@ -104,14 +104,13 @@ class PTaskFunc : public PScope, public PNamedItem {
       bool is_modport_provider_stub() const {
 	    return modport_provider_stub_;
       }
-	/* An `extern task name(...);` prototype in an interface (IEEE
-	   1800-2023 25.7.3): one connected module defines the task. */
+	/* An interface extern prototype supplied by one connected module. */
       bool is_extern_prototype() const { return extern_prototype_; }
       void set_extern_prototype(bool value) { extern_prototype_ = value; }
       void set_modport_provider_stub(bool value) {
 	    modport_provider_stub_ = value;
       }
-      void set_interface_port_task(perm_string port, perm_string method) {
+      void set_interface_port_method(perm_string port, perm_string method) {
 	    interface_port_name_ = port;
 	    interface_port_method_ = method;
       }

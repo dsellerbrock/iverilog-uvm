@@ -166,6 +166,17 @@ static bool covgrp_db_parse_long_double_(const string&text, long double&value)
 	    && std::isfinite(value);
 }
 
+static bool covgrp_db_parse_bin_counts_(istream&record, long double&covered,
+      long double&defined)
+{
+      string covered_text, defined_text;
+      return (record >> covered_text >> defined_text)
+	    && covgrp_db_parse_long_double_(covered_text, covered)
+	    && covgrp_db_parse_long_double_(defined_text, defined)
+	    && covered >= 0 && covered <= defined
+	    && floor(covered) == covered && floor(defined) == defined;
+}
+
 static bool covgrp_db_weighted_valid_(long double weighted,
       unsigned __int128 weight)
 {
@@ -385,6 +396,14 @@ bool class_type::covgrp_db_save(const string&path, string&err)
 			<< population.item_weighted[idx] << ' '
 			<< (population.item_has_bins[idx] ? 1 : 0) << ' '
 			<< population.item_at_least[idx];
+	    }
+	    // The optional suffix preserves the population layout of older files.
+	    if (population.defined != 0) {
+		  population_record << " counts " << fixed << setprecision(0)
+			<< population.covered << ' ' << population.defined;
+		  for (size_t idx = 0; idx < ct->covgrp_items_.size(); idx += 1)
+			population_record << ' ' << population.item_covered[idx]
+			      << ' ' << population.item_defined[idx];
 	    }
 	    add_line(population_record.str());
 
@@ -771,16 +790,37 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 		population.item_has_bins[idx] = has_bins != 0;
 		population.item_at_least[idx] = static_cast<unsigned>(at_least);
 	  }
+	  population.item_covered.resize(static_cast<size_t>(item_count), 0);
+	  population.item_defined.resize(static_cast<size_t>(item_count), 0);
 	  if (record >> extra) {
-		err = "line " + to_string(line_number) + ": trailing population data";
-		return false;
+		if (extra != "counts") {
+		      err = "line " + to_string(line_number) + ": trailing population data";
+		      return false;
+		}
+		if (!covgrp_db_parse_bin_counts_(record, population.covered, population.defined)) {
+		      err = "line " + to_string(line_number) + ": invalid population bin counts";
+		      return false;
+		}
+		for (size_t idx = 0; idx < item_count; idx += 1) {
+		      if (!covgrp_db_parse_bin_counts_(record, population.item_covered[idx],
+						      population.item_defined[idx])) {
+			    err = "line " + to_string(line_number) + ": invalid item population bin counts";
+			    return false;
+		      }
+		}
+		if (record >> extra) {
+		      err = "line " + to_string(line_number) + ": trailing population data";
+		      return false;
+		}
 	  }
-	  bool has_values = population.weight != 0 || population.weighted != 0;
+	  bool has_values = population.weight != 0 || population.weighted != 0
+		|| population.defined != 0;
 	  for (size_t idx = 0; idx < item_count; idx += 1)
 		has_values = has_values || population.item_weight[idx] != 0
 		      || population.item_weighted[idx] != 0
 		      || population.item_has_bins[idx]
-		      || population.item_at_least[idx] != 0;
+		      || population.item_at_least[idx] != 0
+		      || population.item_defined[idx] != 0;
 	  if (!population.has_options && has_values) {
 		err = "line " + to_string(line_number)
 		      + ": population values lack coverage options";
@@ -1131,7 +1171,8 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 			ct->covgrp_retired_population_;
 		  const unsigned __int128 maximum = ~(unsigned __int128)0;
 		  if (current.weight > maximum - saved.weight
-		      || !std::isfinite(current.weighted + saved.weighted)) {
+		      || !std::isfinite(current.weighted + saved.weighted)
+		      || !std::isfinite(current.defined + saved.defined)) {
 			err = "database population exceeds the cumulative coverage range";
 			return false;
 		  }
@@ -1140,8 +1181,11 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 			      ? current.item_weight[idx] : 0;
 			long double weighted = idx < current.item_weighted.size()
 			      ? current.item_weighted[idx] : 0;
+			long double defined = idx < current.item_defined.size()
+			      ? current.item_defined[idx] : 0;
 			if (weight > maximum - saved.item_weight[idx]
-			    || !std::isfinite(weighted + saved.item_weighted[idx])) {
+			    || !std::isfinite(weighted + saved.item_weighted[idx])
+			    || !std::isfinite(defined + saved.item_defined[idx])) {
 			      err = "database item population exceeds the cumulative coverage range";
 			      return false;
 			}
@@ -1246,15 +1290,21 @@ bool class_type::covgrp_db_load(const string&path, string&err, bool&missing)
 			ct->covgrp_retired_population_;
 		  population.weight += entry.population.weight;
 		  population.weighted += entry.population.weighted;
+		  population.covered += entry.population.covered;
+		  population.defined += entry.population.defined;
 		  if (population.item_weight.size() < entry.population.item_weight.size()) {
 			population.item_weight.resize(entry.population.item_weight.size(), 0);
 			population.item_weighted.resize(entry.population.item_weight.size(), 0);
 			population.item_has_bins.resize(entry.population.item_weight.size(), false);
 			population.item_at_least.resize(entry.population.item_weight.size(), 0);
 		  }
+		  population.item_covered.resize(entry.population.item_covered.size(), 0);
+		  population.item_defined.resize(entry.population.item_defined.size(), 0);
 		  for (size_t idx = 0; idx < entry.population.item_weight.size(); idx += 1) {
 			population.item_weight[idx] += entry.population.item_weight[idx];
 			population.item_weighted[idx] += entry.population.item_weighted[idx];
+			population.item_covered[idx] += entry.population.item_covered[idx];
+			population.item_defined[idx] += entry.population.item_defined[idx];
 			population.item_has_bins[idx] = population.item_has_bins[idx]
 			      || entry.population.item_has_bins[idx];
 			population.item_at_least[idx] = std::max(

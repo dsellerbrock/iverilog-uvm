@@ -158,6 +158,17 @@ EXTERN_C_START
 #define vpiAssert           686
 #define vpiAssume            687
 #define vpiCover             688
+
+/* Coverage control operations and types (IEEE 1800-2017/2023 Annex M). */
+#define vpiCoverageStart     750
+#define vpiCoverageStop      751
+#define vpiCoverageReset     752
+#define vpiCoverageCheck     753
+#define vpiAssertCoverage    760
+#define vpiFsmStateCoverage  761
+#define vpiStatementCoverage 762
+#define vpiToggleCoverage    763
+
 /* Assertion coverage status properties: 2017 40.5.2/40.5.3,
    2023 40.5.2. */
 #define vpiAssertAttemptCovered 770
