@@ -17518,7 +17518,8 @@ static const int SVA_CB_DISABLED_EVAL = 658; /* cbAssertionDisabledEvaluation */
 /* Attempt/success reports update coverage even when there are no callback
    subscribers. Other callback reasons stay gated. */
 static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
-				   int reason, PExpr*age = nullptr)
+				   int reason, PExpr*age = nullptr,
+				   PExpr*row = nullptr)
 {
       std::list<named_pexpr_t> args;
       named_pexpr_t a0;
@@ -17531,6 +17532,11 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
 	    named_pexpr_t a2;
 	    a2.parm = age;
 	    args.push_back(a2);
+      }
+      if (row) {
+	    named_pexpr_t a3;
+	    a3.parm = row;
+	    args.push_back(a3);
       }
       PCallTask*rep = new PCallTask(
 	    lex_strings.make("$ivl_assert_report"), args);
@@ -17682,8 +17688,8 @@ static Statement* sva_clock_stmt_(const struct vlltype&loc, unsigned inst)
       return clock;
 }
 
-/* M12B/M12B-cb: the effect of an assertion failure — the (enable-gated)
-   user/default fail action, plus a cbAssertionFailure report. */
+/* Run the enabled fail action in Reactive and report the failure unless
+   the checker already queued its per-attempt callback. */
 /* R2: an assertion ACTION block runs in the Reactive region (IEEE
  * 1800-2017 4.4.2.5), one region after the Observed region the verdict
  * was computed in.  The deferral is emitted here, inside the per-tick
@@ -17698,13 +17704,13 @@ static Statement* sva_clock_stmt_(const struct vlltype&loc, unsigned inst)
  * more (final blocks, Postponed, post-simulation).  See vvp/vthread.cc
  * of_WAIT_REACTIVE and schedule_regions_live(). */
 static Statement* sva_fail_action_(const struct vlltype&loc, unsigned inst,
-				   Statement*action)
+				   Statement*action, bool report = true)
 {
       std::vector<Statement*> v;
       v.push_back(sva_reactive_wait_(loc));
       v.push_back(sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
 				    SVA_STATE_FAIL_ACTION, action));
-      v.push_back(sva_report_stmt_(loc, inst, SVA_CB_FAILURE));
+      if (report) v.push_back(sva_report_stmt_(loc, inst, SVA_CB_FAILURE));
       return sva_block_(loc, v);
 }
 
@@ -27284,12 +27290,15 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    r_p = sva_make_reg_(loc, inst, "p", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
-	/* IEEE 1800-2023 39.4.2: a slot is one attempt; it saves the START
-	   serial that names it, and reports one step per tick. Endpoint
+	/* IEEE 1800-2023 39.4.2: a slot is one attempt; it saves its start
+	   time or serial and reports one step per tick. Endpoint
 	   fan-out splits an attempt into several obligation records, so it
 	   (with cover, `not' and sub-properties) refuses step control. */
       bool steps_ok = !cover && !sub && !negated && !endpoint_fanout;
-      std::vector<perm_string> ser;
+	/* This verdict is a failed transition. A forbidden consequent fails
+	   on a match instead and uses the existing verdict dispatch. */
+      const bool report_failed_slot = steps_ok && !forbidden;
+      std::vector<perm_string> attempt;
       perm_string r_watch;  // a callback is registered, read once per tick
       std::vector<PExpr*> step_guards;  // distinct edge guards, in order
       if (steps_ok) {
@@ -27303,8 +27312,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
       if (steps_ok)
 	    for (long k = 0 ; k < K ; k += 1) {
-		  ser.push_back(sva_make_reg_(loc, inst, "ser", k, true));
-		  init_zero.push_back(sva_assign_(loc, ser[k], sva_num32_(loc, 0)));
+		  attempt.push_back(sva_make_reg_(loc, inst,
+			report_failed_slot ? "start" : "ser", k, true));
+		  init_zero.push_back(sva_assign_(loc, attempt[k], sva_num32_(loc, 0)));
 	    }
       perm_string r_cnt;
       if (cover) {
@@ -27563,15 +27573,22 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  take.push_back(sva_assign_(loc, s[k][nfa.start], sva_bit_(loc, 1)));
 		  if (steps_ok) {
 			std::list<named_pexpr_t> sargs;
-			named_pexpr_t sa;
-			sa.parm = sva_num32_(loc, inst);
-			sargs.push_back(sa);
-			PECallFunction*serial = new PECallFunction(
-			      lex_strings.make("$ivl_assert_serial"), sargs);
-			FILE_NAME(serial, loc);
-			take.push_back(sva_assign_(loc, ser[k],
-			      new PETernary(sva_id_(loc, r_watch), serial,
-					    sva_num32_(loc, 0))));
+		if (report_failed_slot) {
+		      PECallFunction*start = new PECallFunction(
+			    lex_strings.make("$simtime"), sargs);
+		      FILE_NAME(start, loc);
+		      take.push_back(sva_assign_(loc, attempt[k], start));
+		} else {
+		      named_pexpr_t sa;
+		      sa.parm = sva_num32_(loc, inst);
+		      sargs.push_back(sa);
+		      PECallFunction*serial = new PECallFunction(
+			    lex_strings.make("$ivl_assert_serial"), sargs);
+		      FILE_NAME(serial, loc);
+		      take.push_back(sva_assign_(loc, attempt[k],
+			    new PETernary(sva_id_(loc, r_watch), serial,
+					  sva_num32_(loc, 0))));
+		}
 		  }
 		  if (slot_dispatch)
 			take.push_back(sva_assign_(loc, sseq[k], sva_id_(loc, sqn)));
@@ -27654,8 +27671,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (long k = 0 ; k < K ; k += 1)
 		  body.push_back(set_verdict(k, 0));
 
-	/* An attempt injected while no callback is registered has no serial
-	   and cannot step: it started before any EnableStep could reach it. */
+	/* Callback reports are only needed on ticks with a subscriber. */
       if (steps_ok) {
 	    std::list<named_pexpr_t> no_parms;
 	    PECallFunction*active = new PECallFunction(
@@ -27782,6 +27798,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			pre_bits.push_back(sva_id_(loc, s[k][j]));
 			nxt.push_back(sva_id_(loc, nx[j]));
 		  }
+		  /* In a slot that reports failures, the upper 64 bits of
+		     `pre' carry the raw start time. The low bits are still
+		     pre-advance states, indexed from bit zero. */
+		  if (report_failed_slot) pre_bits.push_back(sva_id_(loc, attempt[k]));
 		  for (size_t g = 0 ; g < step_guards.size() ; g += 1) {
 			PExpr*gk = step_guards[g];
 			if (has_lv && sva_expr_reads_lv_(gk, lv_index))
@@ -27794,7 +27814,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  std::list<named_pexpr_t> args;
 		  named_pexpr_t a;
 		  a.parm = sva_num32_(loc, inst); args.push_back(a);
-		  a.parm = sva_id_(loc, ser[k]); args.push_back(a);
+		  a.parm = report_failed_slot ? sva_num32_(loc, 0)
+					      : sva_id_(loc, attempt[k]);
+		  args.push_back(a);
 		  a.parm = bits(pre_bits); args.push_back(a);
 		  a.parm = bits(nxt); args.push_back(a);
 		  a.parm = bits(gv); args.push_back(a);
@@ -28301,7 +28323,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  action = err;
 	    }
 	    std::vector<Statement*> hit;
-	    Statement*fail_action = sva_fail_action_(loc, inst, action);
+	    Statement*fail_action = sva_fail_action_(loc, inst, action,
+						   !report_failed_slot);
 	    if (slot_dispatch)
 		  slot_fail = fail_action;
 	    else
@@ -41285,11 +41308,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       std::vector<perm_string> failure_at_age;
       if (track_failure_age) {
 	    failure_at_age.resize((size_t)P + 1);
-	    for (long age = 0; age <= P; ++age) {
-		  failure_at_age[(size_t)age] = sva_make_reg_(
-			loc, inst, "fage", (unsigned)age);
-		  init_zero.push_back(sva_assign_(loc,
-			failure_at_age[(size_t)age], sva_bit_(loc, 0)));
+	    for (size_t j = 0; j < nfixed; ++j) {
+		  perm_string&row = failure_at_age[(size_t)offs[j]];
+		  if (!row.nil()) continue;
+		  row = sva_make_reg_(loc, inst, "fage", (unsigned)offs[j], true);
+		  init_zero.push_back(sva_assign_(loc, row, sva_bit_(loc, 0)));
 	    }
       }
       perm_string r_kill = sva_kill_seen_reg_(loc, inst, 0, init_zero);
@@ -41315,9 +41338,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
 		  if (negated)
 			clr.push_back(sva_assign_(loc, r_neg_pass, sva_bit_(loc, 0)));
-		  for (size_t age = 0; age < failure_at_age.size(); ++age)
-			clr.push_back(sva_assign_(loc, failure_at_age[age],
-					      sva_bit_(loc, 0)));
+		  for (perm_string row : failure_at_age)
+			if (!row.nil()) clr.push_back(sva_assign_(loc, row, sva_bit_(loc, 0)));
 	    }
 	    return sva_block_(loc, clr);
       };
@@ -41440,8 +41462,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    else if (negated)
 		  hit.push_back(increment_neg_pass());
 	    if (track_failure_age)
-		  hit.push_back(sva_assign_(loc, failure_at_age[0],
-					    sva_bit_(loc, 1)));
+		  hit.push_back(step_tab.pick(failure_at_age[0],
+				      SVA_CB_FAILURE, 0, 0, {seq_text[j]}));
 	    hit.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
 	    PCondit*c = new PCondit(cond, sva_block_(loc, hit), nullptr);
 	    FILE_NAME(c, loc);
@@ -41465,8 +41487,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    else if (negated)
 		  hit.push_back(increment_neg_pass());
 	    if (track_failure_age)
-		  hit.push_back(sva_assign_(loc,
-			failure_at_age[(size_t)offs[j]], sva_bit_(loc, 1)));
+		  hit.push_back(step_tab.pick(failure_at_age[(size_t)offs[j]],
+				      SVA_CB_FAILURE, 0, 0, {seq_text[j]}));
 	    hit.push_back(sva_assign_(loc, treg, sva_bit_(loc, 0)));
 	    PCondit*c = new PCondit(cond, sva_block_(loc, hit), nullptr);
 	    FILE_NAME(c, loc);
@@ -41757,17 +41779,18 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (track_failure_age) {
 		  /* Emit each callback before executing a possibly timed user
 		     action. Its raw clock-history age is still available, and
-		     one bit corresponds to one distinct failed pipeline token. */
+		     each nonzero row names the boolean that killed that token. */
 		  hit.push_back(sva_reactive_wait_(loc));
 		  for (long age = 0; age <= P; ++age) {
+			perm_string row = failure_at_age[(size_t)age];
+			if (row.nil()) continue;
 			std::vector<Statement*> report;
 			report.push_back(sva_report_stmt_(loc, inst,
 				SVA_CB_FAILURE,
-				sva_num32_(loc, (uint64_t)(ante_span + age))));
-			report.push_back(sva_assign_(loc,
-				failure_at_age[(size_t)age], sva_bit_(loc, 0)));
-			hit.push_back(sva_if_(loc,
-				sva_id_(loc, failure_at_age[(size_t)age]),
+				sva_num32_(loc, (uint64_t)(ante_span + age)),
+				sva_id_(loc, row)));
+			report.push_back(sva_assign_(loc, row, sva_bit_(loc, 0)));
+			hit.push_back(sva_if_(loc, sva_id_(loc, row),
 				sva_block_(loc, report), nullptr));
 		  }
 		  hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f),

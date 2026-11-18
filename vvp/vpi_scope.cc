@@ -2412,9 +2412,13 @@ class __vpiAssertion : public __vpiHandle {
 
       void step(int row, int age, int serial)
       {
-	    if (step_ctl_.empty() || row < 1
-		|| (size_t)row > step_rows_.size()) return;
-	    step_row_t&r = step_rows_[row-1];
+	    if (row < 1 || (size_t)row > step_rows_.size()) return;
+	    const step_row_t&r = step_rows_[row-1];
+	    if (r.reason == cbAssertionFailure) {
+		  fire_(r.reason, age, r.exprs.empty() ? nullptr : r.exprs.back());
+		  return;
+	    }
+	    if (step_ctl_.empty()) return;
 	    vvp_time64_t start_raw;
 	    if (serial > 0) {
 		  std::map<int,vvp_time64_t>::const_iterator it =
@@ -2455,9 +2459,11 @@ class __vpiAssertion : public __vpiHandle {
 	    }
       }
 
-	/* IEEE 1800-2023 39.4.2, one tick of the automaton slot holding the
-	   attempt named by `serial': pre/nx are its state bits before and
-	   after the tick, gv the guard values (binary strings, bit 0 last),
+	/* IEEE 1800-2023 39.4.2, one tick of an automaton slot: pre/nx are its
+	   state bits before and after the tick, gv the guard values (binary
+	   strings, bit 0 last). If pre also carries the raw start time above
+	   the state bits, the slot reports failures as well as steps. Older
+	   checkers name step attempts by `serial'.
 	   ob whether an implication's antecedent completed. A live attempt
 	   reports one taken edge: into accept first, else from the lowest
 	   state id. A dying one reports its lowest active state's first
@@ -2467,13 +2473,20 @@ class __vpiAssertion : public __vpiHandle {
       void nfa_step(int serial, const char*pre, const char*nx,
 		    const char*gv, bool ob)
       {
-	    if (step_ctl_.empty()) return;
-	    std::map<int,vvp_time64_t>::const_iterator it =
-		  serial_start_.find(serial);
-	    if (it == serial_start_.end()) return;
-	    std::map<vvp_time64_t,bool>::const_iterator on =
-		  step_ctl_.find(it->second);
-	    if (on == step_ctl_.end() || !on->second) return;
+	    const bool report_failure = strlen(pre) == (size_t)nfa_.nstates + 64;
+	    vvp_time64_t start = 0;
+	    if (report_failure) {
+		  for (unsigned i = 0; i < 64; ++i)
+			start = (start << 1) | (pre[i] == '1');
+	    } else {
+		  if (step_ctl_.empty()) return;
+		  auto it = serial_start_.find(serial);
+		  if (it == serial_start_.end()) return;
+		  start = it->second;
+	    }
+	    auto on = step_ctl_.find(start);
+	    const bool stepping = on != step_ctl_.end() && on->second;
+	    if (!stepping && !(report_failure && ob)) return;
 	    auto bit = [](const char*v, int j) {
 		  int len = (int)strlen(v);
 		  return j < len && v[len-1-j] == '1';
@@ -2490,6 +2503,7 @@ class __vpiAssertion : public __vpiHandle {
 	    bool alive = false;
 	    for (int j = 0 ; j < nfa_.nstates ; j += 1) alive |= bit(nx, j);
 	    if (alive) {
+		  if (!stepping) return;
 		  const nfa_edge_t*best = 0;
 		  for (const nfa_edge_t&e : nfa_.edges) {
 			bool taken = bit(pre, e.from) && bit(nx, e.to);
@@ -2502,7 +2516,7 @@ class __vpiAssertion : public __vpiHandle {
 			      best = &e;
 		  }
 		  if (best)
-			deliver_(cbAssertionStepSuccess, it->second, id(best->from),
+			deliver_(cbAssertionStepSuccess, start, id(best->from),
 				 id(best->to), exprs(*best, best->guards.size()));
 		  return;
 	    }
@@ -2516,20 +2530,47 @@ class __vpiAssertion : public __vpiHandle {
 		      && (!first || (first->guards.empty() && !e.guards.empty())))
 			first = &e;
 	    size_t n = 0;
+	    vpiHandle fail_expr = nullptr;
 	    if (first) {
 		  n = first->guards.size();
 		  for (size_t i = 0 ; i < first->guards.size() ; i += 1)
 			if (!bit(gv, first->guards[i])) {
 			      n = i + 1;
+			      fail_expr = nfa_.guards[first->guards[i]];
 			      break;
 			}
 	    }
-	    deliver_(ob ? cbAssertionStepFailure : cbAssertionStepSuccess,
-		     it->second, id(from), !ob || !first ? 1 : id(first->to),
-		     first ? exprs(*first, n) : std::vector<vpiHandle>());
+	    if (stepping)
+		  deliver_(ob ? cbAssertionStepFailure : cbAssertionStepSuccess,
+			   start, id(from), !ob || !first ? 1 : id(first->to),
+			   first ? exprs(*first, n) : std::vector<vpiHandle>());
+	    if (report_failure && ob && std::any_of(cbs_.begin(), cbs_.end(),
+		[](const assert_cb_t&cb) {
+		      return cb.callback->reason() == cbAssertionFailure
+			  && cb.callback->active();
+		}))
+		  schedule_at_reactive(new failure_event_t(this, start, fail_expr), 0);
       }
 
     private:
+      struct failure_event_t : public vvp_gen_event_s {
+	    failure_event_t(__vpiAssertion*owner, vvp_time64_t start, vpiHandle expr)
+	    : owner_(owner), start_(start), expr_(expr) { }
+
+	    void run_run() override
+	    {
+		  const vpi_mode_t saved_mode = vpi_mode_flag;
+		  vpi_mode_flag = VPI_MODE_RWSYNC;
+		  owner_->fire_(cbAssertionFailure, -1, expr_, &start_);
+		  vpi_mode_flag = saved_mode;
+		  delete this;
+	    }
+
+	    __vpiAssertion*owner_;
+	    vvp_time64_t start_;
+	    vpiHandle expr_;
+      };
+
       void deliver_(int reason, vvp_time64_t start_raw, int from, int to,
 		    const std::vector<vpiHandle>&exprs)
       {
@@ -2594,7 +2635,8 @@ class __vpiAssertion : public __vpiHandle {
 
 	/* Fire every registered callback whose reason matches. age < 0 keeps
 	   the established two-argument report behavior for other checkers. */
-      void fire_(int reason, int age)
+      void fire_(int reason, int age, vpiHandle fail_expr = nullptr,
+		 const vvp_time64_t*attempt_start = nullptr)
       {
 	      /* A passing deferred immediate cover is reported only after its
 	         result survives the assertion report queue. A failing cover's
@@ -2642,7 +2684,9 @@ class __vpiAssertion : public __vpiHandle {
 		 (latency_ < 0) reports now, which is exact for same-tick
 		 assertions. */
 	    vvp_time64_t start_raw = now_raw;
-	    if (age >= 0) {
+	    if (attempt_start) {
+		  start_raw = *attempt_start;
+	    } else if (age >= 0) {
 		  if ((size_t)age < clocks_.size())
 			start_raw = clocks_[clocks_.size() - 1 - age];
 		  else {
@@ -2672,7 +2716,7 @@ class __vpiAssertion : public __vpiHandle {
 	    st.real = 0.0;
 
 	    s_vpi_attempt_info info;
-	    info.detail.failExpr = 0;
+	    info.detail.failExpr = reason == cbAssertionFailure ? fail_expr : nullptr;
 	    info.attemptStartTime = st;
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
 		  if (cbs_[i].callback->reason() == reason

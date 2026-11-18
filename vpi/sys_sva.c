@@ -458,42 +458,6 @@ static PLI_INT32 sva_immediate_assertion_report_calltf(
       return 0;
 }
 
-/* M12B-cb: $ivl_assert_report(idx, reason) — a synthesized checker fires
-   a success/failure event for the (scope, idx) assertion. */
-static PLI_INT32 sva_report_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
-{
-      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
-      vpiHandle argv  = vpi_iterate(vpiArgument, callh);
-      PLI_INT32 idx = 0, reason = 0, age = -1;
-      (void)name;
-      if (argv) {
-	    vpiHandle a;
-	    s_vpi_value v;
-	    if ((a = vpi_scan(argv))) {
-		  v.format = vpiIntVal;
-		  vpi_get_value(a, &v);
-		  idx = v.value.integer;
-	    }
-	    if ((a = vpi_scan(argv))) {
-		  v.format = vpiIntVal;
-		  vpi_get_value(a, &v);
-		  reason = v.value.integer;
-	    }
-	    if ((a = vpi_scan(argv))) {
-		  v.format = vpiIntVal;
-		  vpi_get_value(a, &v);
-		  age = v.value.integer;
-		  vpi_free_object(argv);
-	    }
-      }
-      if (age >= 0)
-	    vpip_assertion_report_age(idx, reason,
-				      vpi_handle(vpiScope, callh), age);
-      else
-	    vpip_assertion_report(idx, reason, vpi_handle(vpiScope, callh));
-      return 0;
-}
-
 static PLI_INT32 sva_step_int_(vpiHandle argv, vpiHandle*a, PLI_INT32 dflt)
 {
       s_vpi_value v;
@@ -501,6 +465,29 @@ static PLI_INT32 sva_step_int_(vpiHandle argv, vpiHandle*a, PLI_INT32 dflt)
       v.format = vpiIntVal;
       vpi_get_value(*a, &v);
       return v.value.integer;
+}
+
+/* $ivl_assert_report(idx, reason [, age [, row]]) reports an assertion
+   event. A failure row identifies the boolean that failed. */
+static PLI_INT32 sva_report_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv  = vpi_iterate(vpiArgument, callh);
+      vpiHandle a = argv;
+      PLI_INT32 idx, reason, age, row;
+      (void)name;
+      idx = sva_step_int_(argv, &a, 0);
+      reason = sva_step_int_(argv, &a, 0);
+      age = sva_step_int_(argv, &a, -1);
+      row = sva_step_int_(argv, &a, 0);
+      if (a) vpi_free_object(argv);
+      if (reason == cbAssertionFailure && row > 0)
+	    vpip_assertion_step(idx, vpi_handle(vpiScope, callh), row, age, 0);
+      else if (age >= 0)
+	    vpip_assertion_report_age(idx, reason, vpi_handle(vpiScope, callh), age);
+      else
+	    vpip_assertion_report(idx, reason, vpi_handle(vpiScope, callh));
+      return 0;
 }
 
 static char* sva_step_str_(vpiHandle argv, vpiHandle*a)
@@ -615,7 +602,8 @@ static PLI_INT32 sva_nfa_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 }
 
 /* $ivl_assert_nfa_step(idx, serial, pre, nx, guards, ob) — one tick of
-   one automaton slot; the bit vectors are read as binary strings. */
+   one automaton slot. The pre vector may include the raw start time in
+   its upper 64 bits, so the runtime reads it as a binary string. */
 static PLI_INT32 sva_nfa_step_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
