@@ -3470,6 +3470,35 @@ bool of_QSIZE_O(vthread_t thr, vvp_code_t)
       return true;
 }
 
+/* %qsize/stack <word>, <read>
+ * Record an object stack slot or query its live size. The saved word is a
+ * stack position and never keeps an object alive after the bind. */
+bool of_QSIZE_STACK(vthread_t thr, vvp_code_t cp)
+{
+      uint64_t word = cp->number;
+      unsigned read = cp->bit_idx[0];
+      size_t depth = thr->object_stack_size();
+      if (word >= vthread_s::WORDS_COUNT || read > 1 || depth == 0) {
+	    cerr << "vvp: malformed %qsize/stack operands" << endl;
+	    return false;
+      }
+
+      if (read == 0) {
+	    thr->words[word].w_uint = depth;
+	    return true;
+      }
+      uint64_t slot = thr->words[word].w_uint;
+      if (slot == 0 || slot > depth) {
+	    cerr << "vvp: invalid %qsize/stack slot" << endl;
+	    return false;
+      }
+      vvp_vector4_t size;
+      const auto&receiver = thr->peek_object(static_cast<unsigned>(depth - slot));
+      size_to_vec4_(dynamic_collection_size_(receiver), size);
+      thr->push_vec4(size);
+      return true;
+}
+
 /*
  * %qrange/o <query>
  *
@@ -26929,7 +26958,8 @@ bool of_LOAD_QO_OBJ(vthread_t thr, vvp_code_t)
       adr = darray_canonical_index_(arr, adr);
 
       vvp_object_t word;
-      if (arr && (adr >= 0) && (thr->flags[4] == BIT4_0)
+      if (arr && container_index_fits_runtime_api_(adr)
+	  && (thr->flags[4] == BIT4_0)
 	  && (static_cast<size_t>(adr) < arr->get_size())) {
 	    arr->get_word(adr, word);
 	    if (word.test_nil() && arr->elem_class()) {
@@ -34792,9 +34822,7 @@ bool of_REF_BIND_AA_V(vthread_t thr, vvp_code_t cp)
  * already on the object stack. */
 bool of_REF_BIND_EL_O(vthread_t thr, vvp_code_t cp)
 {
-      vvp_vector4_t idxv = thr->pop_vec4();
-      int64_t use_index = -1;
-      vector4_to_value(idxv, use_index, true, false);
+      int64_t use_index = vec4_to_index(thr, true);
       vvp_object_t container;
       thr->pop_object(container);
       vvp_ref_signal_aa*formal =
@@ -34805,6 +34833,11 @@ bool of_REF_BIND_EL_O(vthread_t thr, vvp_code_t cp)
 	    assert(formal);
 	    return true;
       }
+      vvp_darray*array = container.peek<vvp_darray>();
+      if (!array || thr->flags[4] != BIT4_0
+	  || !container_index_fits_runtime_api_(use_index)
+	  || static_cast<uint64_t>(use_index) >= array->get_size())
+	    use_index = -1;
       formal->bind_elem(cp->net, container, use_index);
       return true;
 }

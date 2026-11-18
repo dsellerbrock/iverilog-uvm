@@ -695,6 +695,8 @@ class PEIdent : public PExpr {
 					 bool is_force,
 					 bool is_init = false,
 					 bool read_only_ref = false) const override;
+      NetAssign_* elaborate_task_ref_lval(Design*, NetScope*,
+					 bool read_only_ref) const;
 
       virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
 				     ivl_type_t type, unsigned flags) const override;
@@ -844,6 +846,9 @@ class PEIdent : public PExpr {
 
       void report_mixed_assignment_conflict_(const char*category) const;
 
+      NetAssign_* elaborate_lval_(Design*, NetScope*, bool is_cassign,
+				  bool is_force, bool is_init,
+				  bool read_only_ref, bool task_ref) const;
       NetAssign_ *elaborate_lval_array_(Design *des, NetScope *scope,
 				        bool is_force, NetNet *reg) const;
       NetAssign_ *elaborate_lval_var_(Design *des, NetScope *scope,
@@ -851,7 +856,8 @@ class PEIdent : public PExpr {
 				      NetNet *reg, ivl_type_t data_type,
 				      pform_name_t tail_path,
 				      const std::list<index_component_t>&base_index,
-				      bool is_init, bool read_only_ref) const;
+				      bool is_init, bool read_only_ref,
+				      bool task_ref) const;
       NetAssign_*elaborate_lval_net_word_(Design*, NetScope*, NetNet*,
 					  bool need_const_idx, bool is_force) const;
       bool elaborate_lval_net_bit_(Design*, NetScope*, NetAssign_*,
@@ -868,12 +874,14 @@ class PEIdent : public PExpr {
 						   const std::list<index_component_t>&base_index,
 						   bool need_const_idx,
 						   bool is_init,
-						   bool read_only_ref) const;
+						   bool read_only_ref,
+						   bool task_ref) const;
       bool elaborate_lval_net_packed_member_(Design*, NetScope*,
 					     NetAssign_*,
 					     pform_name_t member_path, bool is_force) const;
       NetAssign_* elaborate_lval_darray_bit_(Design*, NetScope*,
-				     NetAssign_*, bool is_force) const;
+				     NetAssign_*, bool is_force,
+				     bool task_ref = false) const;
       bool elaborate_lval_darray_part_(Design*, NetScope*,
 				       NetAssign_*, bool is_force) const;
 
@@ -1596,6 +1604,8 @@ class PECallFunction : public PExpr {
             { receiver_ = receiver;
               path_.name.clear();
               path_.name.push_back(name_component_t(method)); }
+      void set_queue_last_selector(const PExpr*selector)
+            { queue_last_selector_ = selector; }
       unsigned lexical_pos() const { return lexical_pos_; }
       const struct parmvalue_t* leading_type_args() const
             { return leading_type_args_; }
@@ -1667,6 +1677,8 @@ class PECallFunction : public PExpr {
       bool sampled_explicit_clock() const { return sampled_explicit_clock_; }
 
     private:
+      const PExpr*queue_last_selector_ = nullptr;
+      bool use_positional_ref_queue_receiver_() const;
       PExpr*sampled_subst_ = nullptr;
       bool concurrent_assertion_expr_ = false;
       bool sampled_default_clock_ = false;

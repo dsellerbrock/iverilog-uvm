@@ -1,0 +1,2 @@
+ivltests/sv_ref_positional_path_static_fail_2023.v:2: error: A ref static actual cannot be an element of a dynamic array or queue (IEEE 1800-2023 13.5.2).
+1 error(s) during elaboration.

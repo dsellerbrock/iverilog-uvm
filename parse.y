@@ -198,7 +198,8 @@ static void qualify_queue_last_placeholders_(PPackage*pkg,
 static void bind_queue_last_placeholders_(const pform_name_t*base,
 					  PEIdent*receiver,
 					  const struct vlltype&open,
-					  const struct vlltype&close)
+					  const struct vlltype&close,
+					  const PExpr*selector = nullptr)
 {
       size_t idx = 0;
       while (idx < queue_last_placeholders.size()) {
@@ -219,6 +220,7 @@ static void bind_queue_last_placeholders_(const pform_name_t*base,
 			receiver->clone_for_reference(),
 			lex_strings.make("size"));
 	    }
+	    cur.size_call->set_queue_last_selector(selector);
 	    queue_last_placeholders.erase(queue_last_placeholders.begin() + idx);
       }
 }
@@ -14638,7 +14640,7 @@ parameterized_scoped_identifier
       }
   | parameterized_scoped_identifier '[' expression ']'
       { PEIdent*tmp = dynamic_cast<PEIdent*>($1);
-	bind_queue_last_placeholders_(nullptr, dynamic_cast<PEIdent*>($1), @2, @4);
+	bind_queue_last_placeholders_(nullptr, tmp, @2, @4, $3);
 	assert(tmp);
 	index_component_t idx;
 	idx.sel = index_component_t::SEL_BIT;
@@ -14661,6 +14663,7 @@ parameterized_scoped_identifier
 	FILE_NAME(one, @3);
 	PEBinary*last_idx = new PEBinary('-', size_call, one);
 	FILE_NAME(last_idx, @3);
+	size_call->set_queue_last_selector(last_idx);
 	index_component_t idx;
 	idx.sel = index_component_t::SEL_BIT;
 	idx.msb = last_idx;
@@ -16981,7 +16984,7 @@ hierarchy_identifier
       }
   | hierarchy_identifier '[' expression ']'
       { pform_name_t * tmp = $1;
-	bind_queue_last_placeholders_($1, nullptr, @2, @4);
+	bind_queue_last_placeholders_($1, nullptr, @2, @4, $3);
 	name_component_t&tail = tmp->back();
 	index_component_t itmp;
 	itmp.sel = index_component_t::SEL_BIT;

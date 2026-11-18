@@ -28,6 +28,20 @@
 # include  <stdbool.h>
 # include  <inttypes.h>
 
+static int ref_queue_stack_word_ = -1;
+
+/* Record the selected receiver's slot while drawing the index expression.
+ * Other object-valued subexpressions can push onto the stack above it. */
+void draw_eval_ref_queue_index(ivl_expr_t expr)
+{
+      int saved_word = ref_queue_stack_word_;
+      ref_queue_stack_word_ = allocate_word();
+      fprintf(vvp_out, "    %%qsize/stack %d, 0;\n", ref_queue_stack_word_);
+      draw_eval_vec4(expr);
+      clr_word(ref_queue_stack_word_);
+      ref_queue_stack_word_ = saved_word;
+}
+
 static int number_trace_enabled_(void)
 {
       static int enabled = -1;
@@ -1932,6 +1946,12 @@ static void draw_sfunc_vec4(ivl_expr_t expr)
             }
             fprintf(vvp_out, "\";\n");
             return;
+      }
+
+      if (strcmp(ivl_expr_name(expr), "$ivl_ref_queue_size") == 0) {
+	    assert(ref_queue_stack_word_ >= 0);
+	    fprintf(vvp_out, "    %%qsize/stack %d, 1;\n", ref_queue_stack_word_);
+	    return;
       }
 
 	/* Special case: If there are no arguments to print, then the

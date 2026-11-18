@@ -12892,7 +12892,8 @@ static NetExpr* report_unbound_queue_last_(const LineInfo*li, Design*des)
 unsigned PECallFunction::test_width(Design*des, NetScope*scope,
                                     width_mode_t&mode)
 {
-      if (unbound_queue_last_(receiver_, path_)) {
+      if (use_positional_ref_queue_receiver_()
+	  || unbound_queue_last_(receiver_, path_)) {
 	    expr_type_ = IVL_VT_BOOL;
 	    expr_width_ = min_width_ = 32;
 	    signed_flag_ = true;
@@ -19240,6 +19241,12 @@ static bool constant_function_declaration_is_legal_(
 NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 					unsigned expr_wid, unsigned flags) const
 {
+      if (use_positional_ref_queue_receiver_()) {
+	    NetESFunc*size = new NetESFunc("$ivl_ref_queue_size",
+					  &netvector_t::atom2s32, 0);
+	    size->set_line(*this);
+	    return pad_to_width(size, expr_wid, signed_flag_, *this);
+      }
       if (unbound_queue_last_(receiver_, path_))
 	    return report_unbound_queue_last_(this, des);
       if (!receiver_ && peek_tail_name(path_) == "$ivl_const_cast"

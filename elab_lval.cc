@@ -168,6 +168,114 @@ static NetExpr* elab_lval_container_index_(Design*des, NetScope*scope,
       return elab_assoc_index(des, scope, index.msb, sig->queue_type());
 }
 
+static const netdarray_t* positional_array_type_(ivl_type_t type)
+{
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(type);
+      return queue && queue->assoc_compat()
+	    ? nullptr : dynamic_cast<const netdarray_t*>(type);
+}
+
+static bool positional_ref_indices_(ivl_type_t type,
+				    const list<index_component_t>&indices,
+				    bool permit_packed_suffix = false)
+{
+      if (indices.empty() || !positional_array_type_(type))
+	    return false;
+      for (const auto&index : indices) {
+	    const netdarray_t*array = positional_array_type_(type);
+	    if (!array)
+		  return permit_packed_suffix && type && type->packed();
+	    if (index.sel != index_component_t::SEL_BIT
+		&& (index.sel != index_component_t::SEL_BIT_LAST
+		    || !dynamic_cast<const netqueue_t*>(type)))
+		  return false;
+	    type = array->element_type();
+      }
+      return true;
+}
+
+/* The parser implements a computed '$' as a size() call. Only calls bound
+ * to this selector use the captured receiver. A '$' in an inner select
+ * of the index expression still belongs to that inner select. */
+struct positional_ref_index_context_ {
+      static positional_ref_index_context_*current;
+      explicit positional_ref_index_context_(const PExpr*expr)
+      : selector(expr), previous(current) { current = this; }
+      ~positional_ref_index_context_() { current = previous; }
+
+      const PExpr*selector;
+      positional_ref_index_context_*previous;
+      bool uses_size = false;
+};
+
+positional_ref_index_context_*positional_ref_index_context_::current = nullptr;
+
+bool PECallFunction::use_positional_ref_queue_receiver_() const
+{
+      auto*context = positional_ref_index_context_::current;
+      if (!queue_last_selector_ || !context
+	  || context->selector != queue_last_selector_)
+	    return false;
+      context->uses_size = true;
+      return true;
+}
+
+/* Keep each unpacked selector on its own typed l-value node, as for
+ * nested member l-values. A task ref can address whole unpacked elements. */
+static NetAssign_* elaborate_positional_ref_words_(Design*des, NetScope*scope,
+		  const LineInfo&loc, NetAssign_*lv,
+		  const list<index_component_t>&indices)
+{
+      ivl_type_t type = lv->net_type();
+      for (const auto&index : indices) {
+	    const netdarray_t*array = positional_array_type_(type);
+	    if (!array) {
+		  cerr << loc.get_fileline() << ": error: A ref actual cannot "
+		       << "select a packed part of an unpacked element "
+		       << "(IEEE 1800-2017/2023 13.5.2)." << endl;
+		  des->errors += 1;
+		  delete lv;
+		  return nullptr;
+	    }
+	    NetExpr*word;
+	    if (index.sel == index_component_t::SEL_BIT_LAST) {
+		  // The target gets the last index from the selected receiver.
+		  word = new NetESFunc("$ivl_ref_queue_last", &netvector_t::atom2u32, 0);
+		  word->set_line(loc);
+	    } else {
+		  positional_ref_index_context_ context(
+			dynamic_cast<const netqueue_t*>(type) ? index.msb : nullptr);
+		  word = elab_and_eval(des, scope, index.msb, -1);
+		  if (word && context.uses_size) {
+			NetESFunc*selector = new NetESFunc("$ivl_ref_queue_index",
+			      word->expr_type(), word->expr_width(), 1, false);
+			selector->cast_signed(word->has_sign());
+			selector->set_line(loc);
+			selector->parm(0, word);
+			word = selector;
+		  }
+	    }
+	    if (!word) {
+		  delete lv;
+		  return nullptr;
+	    }
+	    if (word->expr_type() != IVL_VT_LOGIC
+		&& word->expr_type() != IVL_VT_BOOL) {
+		  cerr << word->get_fileline()
+		       << ": error: A positional array index must be integral." << endl;
+		  des->errors += 1;
+		  delete word;
+		  delete lv;
+		  return nullptr;
+	    }
+	    if (lv->word())
+		  lv = new NetAssign_(lv);
+	    lv->set_word(word);
+	    type = array->element_type();
+      }
+      return lv;
+}
+
 static string stream_int128_text_(__int128 value)
 {
       if (value == 0) return "0";
@@ -868,6 +976,20 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 				    bool is_init,
 				    bool read_only_ref) const
 {
+      return elaborate_lval_(des, scope, is_cassign, is_force, is_init,
+			      read_only_ref, false);
+}
+
+NetAssign_* PEIdent::elaborate_task_ref_lval(Design*des, NetScope*scope,
+					    bool read_only_ref) const
+{
+      return elaborate_lval_(des, scope, false, false, false, read_only_ref, true);
+}
+
+NetAssign_* PEIdent::elaborate_lval_(Design*des, NetScope*scope,
+				     bool is_cassign, bool is_force, bool is_init,
+				     bool read_only_ref, bool task_ref) const
+{
 	  if (const pform_name_t*root = modport_expression_context()) {
 	    if (!modport_expression_access() && !path_.package
 		&& !path_.name.empty()) {
@@ -877,9 +999,9 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 		  PEIdent mapped_ident(mapped_path, modport_expression_context_lexical_pos());
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_modport_expression_access();
-		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
+		  return mapped_ident.elaborate_lval_(des, scope, is_cassign,
 						      is_force, is_init,
-						      read_only_ref);
+						      read_only_ref, task_ref);
 	    }
 	  }
 
@@ -977,9 +1099,9 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 			  PEIdent mapped_ident(mapped_path, lexical_pos_);
 			  mapped_ident.set_line(*this);
 			  mapped_ident.set_modport_expression_access();
-			  return mapped_ident.elaborate_lval(des, scope, is_cassign,
+			  return mapped_ident.elaborate_lval_(des, scope, is_cassign,
 						      is_force, is_init,
-						      read_only_ref);
+						      read_only_ref, task_ref);
 			}
 			pform_name_t receiver;
 			const size_t prefix = path_.name.size() - sr.path_tail.size();
@@ -1100,16 +1222,16 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 		  PEIdent mapped_ident(path_.package, rewritten_path, lexical_pos_);
 		  mapped_ident.set_line(*this);
 		  mapped_ident.set_clocking_access(mapped_access);
-		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
+		  return mapped_ident.elaborate_lval_(des, scope, is_cassign,
 						      is_force, is_init,
-						      read_only_ref);
+						      read_only_ref, task_ref);
 	    }
 	    PEIdent mapped_ident(rewritten_path, lexical_pos_);
 	    mapped_ident.set_line(*this);
 	    mapped_ident.set_clocking_access(mapped_access);
-	    return mapped_ident.elaborate_lval(des, scope, is_cassign,
+	    return mapped_ident.elaborate_lval_(des, scope, is_cassign,
 						is_force, is_init,
-						read_only_ref);
+						read_only_ref, task_ref);
       }
 
 	/* The l-value must be a variable. If not, then give up and
@@ -1247,12 +1369,15 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       if (addressable_const_ref && !sr.path_head.empty()) {
 	const auto&indices = sr.path_head.back().index;
 	unsigned unpacked_dims = reg->unpacked_dimensions();
-	if (reg->darray_type()) unpacked_dims += 1;
-	if (indices.size() > unpacked_dims)
-	  addressable_const_ref = false;
-	for (const index_component_t&index : indices)
-	  if (index.sel != index_component_t::SEL_BIT)
+	if (!(task_ref && unpacked_dims == 0
+	      && positional_ref_indices_(reg->net_type(), indices))) {
+	  if (reg->darray_type()) unpacked_dims += 1;
+	  if (indices.size() > unpacked_dims)
 	    addressable_const_ref = false;
+	  for (const index_component_t&index : indices)
+	    if (index.sel != index_component_t::SEL_BIT)
+	      addressable_const_ref = false;
+	}
       }
 	if (read_only_ref && !addressable_const_ref
 	    && !class_member_write) {
@@ -1307,7 +1432,7 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       NetAssign_*res = elaborate_lval_var_(des, scope, is_force, is_cassign,
 					 reg, sr.type, member_path,
 					 sr.path_head.back().index, is_init,
-					 read_only_ref);
+					 read_only_ref, task_ref);
       if (is_force && res)
 	    res->mark_force_lval();
       return res;
@@ -1318,7 +1443,8 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 					NetNet *reg, ivl_type_t data_type,
 					const pform_name_t tail_path,
 					const list<index_component_t>&base_index,
-					bool is_init, bool read_only_ref) const
+					bool is_init, bool read_only_ref,
+					bool task_ref) const
 {
 	// We are processing the tail of a string of names. For
 	// example, the Verilog may be "a.b.c", so we are processing
@@ -1580,7 +1706,8 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 		  return elaborate_lval_net_class_member_(des, scope, member_root_type,
 							  reg, tail_path, base_index,
 							  is_cassign || is_force,
-							  is_init, read_only_ref);
+							  is_init, read_only_ref,
+							  task_ref);
       }
 
 
@@ -1611,6 +1738,11 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 
       if (reg->unpacked_dimensions() > 0)
 	    return elaborate_lval_net_word_(des, scope, reg, need_const_idx, is_force);
+
+      if (task_ref && positional_ref_indices_(reg->net_type(), name_tail.index,
+					      /*permit_packed_suffix=*/true))
+	    return elaborate_lval_darray_bit_(des, scope, new NetAssign_(reg),
+					     is_force, true);
 
 	// IEEE 1800-2017 7.10.1: q[lo:$] on the left-hand side denotes
 	// the existing suffix of the queue, not one queue element and not a
@@ -2934,7 +3066,8 @@ static bool darray_elem_vector_range(const netdarray_t*da, long&msb, long&lsb)
 NetAssign_* PEIdent::elaborate_lval_darray_bit_(Design*des,
 					 NetScope*scope,
 					 NetAssign_*lv,
-					 bool is_force) const
+					 bool is_force,
+					 bool task_ref) const
 {
       const name_component_t&name_tail = path_.back();
       ivl_assert(*this, !name_tail.index.empty());
@@ -2948,8 +3081,13 @@ NetAssign_* PEIdent::elaborate_lval_darray_bit_(Design*des,
 	    ivl_assert(*this, lv->sig()->coerced_to_uwire());
 	    report_mixed_assignment_conflict_("darray word");
 	    des->errors += 1;
+	    if (task_ref) delete lv;
 	    return nullptr;
       }
+
+      if (task_ref)
+	    return elaborate_positional_ref_words_(des, scope, *this, lv,
+						   name_tail.index);
 
 	// First index always selects the darray word. Associative-array keys
 	// are assignment-context expressions of the declared index type.
@@ -3616,13 +3754,16 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    pform_name_t member_path,
 				    const list<index_component_t>&base_index,
 				    bool need_const_idx, bool is_init,
-				    bool read_only_ref) const
+				    bool read_only_ref, bool task_ref) const
 {
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PEIdent::elaborate_lval_net_class_member_: "
 		 << "l-value is property " << member_path
 		 << " of " << sig->name() << "." << endl;
       }
+
+      // An indexed class receiver belongs to a different l-value path.
+      task_ref = task_ref && base_index.empty();
 
 	      ivl_assert(*this, root_type);
 
@@ -4009,6 +4150,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 	    int pidx = -1;
 	    ivl_type_t ptype = nullptr;
 	    perm_string next_modport;
+	    task_ref = task_ref && owner_class && !owner_class->is_interface();
 	    if (owner_class) {
 		  pidx = const_cast<netclass_t*>(owner_class)->ensure_property_decl(des, method_name);
 		  if (pidx < 0) {
@@ -4040,8 +4182,11 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 		  } else if (qual.test_static()) {
 			  if (qual.test_const()
-			      && !(read_only_ref && member_cur.index.empty()
-				   && member_path.empty())) {
+			      && !(read_only_ref && member_path.empty()
+				   && (member_cur.index.empty()
+				       || (task_ref && positional_ref_indices_(
+					     owner_class->get_prop_type(pidx),
+					     member_cur.index))))) {
 				cerr << get_fileline() << ": error: Assignment to const class property `"
 				     << owner_class->get_prop_name(pidx)
 				     << "' is not allowed." << endl;
@@ -4089,7 +4234,7 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 					  des, scope, psig->net_type(), psig,
 					  member_path, member_cur.index,
 					  need_const_idx, is_init,
-					  read_only_ref);
+					  read_only_ref, false);
 			      }
 			      cerr << get_fileline() << ": sorry: member"
 				   << " access into an indexed static-property"
@@ -4152,6 +4297,13 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 				    return lv;
 			      }
 			}
+			if (task_ref
+			    && positional_ref_indices_(psig->net_type(), member_cur.index,
+						       /*permit_packed_suffix=*/true)) {
+			      delete lv;
+			      return elaborate_positional_ref_words_(
+				    des, scope, *this, new NetAssign_(psig), member_cur.index);
+			}
 			if ((psig->darray_type() || psig->queue_type())
 			    && member_cur.index.size() == 1
 			    && member_cur.index.front().sel == index_component_t::SEL_BIT) {
@@ -4171,8 +4323,11 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 			return 0;
 
 		  } else if (qual.test_const()
-			     && !(read_only_ref && member_cur.index.empty()
-				  && member_path.empty())) {
+			     && !(read_only_ref && member_path.empty()
+				  && (member_cur.index.empty()
+				      || (task_ref && positional_ref_indices_(
+					    owner_class->get_prop_type(pidx),
+					    member_cur.index))))) {
 			// Instance-constant writes are authorized per assignment site by
 			// the unlowered constructor control-flow audit. A single mutable
 			// bit cannot decide this: assignments in mutually exclusive arms
@@ -4312,6 +4467,14 @@ NetAssign_* PEIdent::elaborate_lval_net_class_member_(Design*des, NetScope*scope
 
 	    lv = lv? new NetAssign_(lv) : new NetAssign_(sig);
 	    lv->set_property(method_name, pidx);
+
+	    if (task_ref && member_path.empty()
+		&& positional_ref_indices_(ptype, member_cur.index,
+					   /*permit_packed_suffix=*/true))
+		  return elaborate_positional_ref_words_(des, scope, *this, lv,
+							 member_cur.index);
+	    if (!member_cur.index.empty())
+		  task_ref = false;
 
 	    NetExpr *word_index = nullptr;
 	    bool applied_multi_dyn_word_index = false;

@@ -6842,6 +6842,59 @@ static void draw_mailbox_untyped_store_(ivl_statement_t net, int is_peek)
 	      is_peek, sgn, two_state);
 }
 
+extern void draw_eval_ref_queue_index(ivl_expr_t);
+
+/* Load each receiver on the way to the leaf. Object loads keep the live
+ * container, and the next load or bind consumes it. */
+static void draw_positional_ref_path_(ivl_lval_t lval, ivl_signal_t formal)
+{
+      ivl_lval_t parent = ivl_lval_nest(lval);
+      if (parent)
+	    draw_positional_ref_path_(parent, 0);
+
+      int pid = ivl_lval_property_idx(lval);
+      if (pid >= 0) {
+	    fprintf(vvp_out, "    %%prop/obj %d, 0;\n", pid);
+	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+      }
+
+      ivl_expr_t index = ivl_lval_idx(lval);
+      if (!index) {
+	    assert(!formal);
+	    return;
+      }
+
+      int is_signed = ivl_expr_signed(index);
+      unsigned width = ivl_expr_width(index);
+      const char*index_func = ivl_expr_type(index) == IVL_EX_SFUNC
+	    ? ivl_expr_name(index) : "";
+      if (strcmp(index_func, "$ivl_ref_queue_last") == 0) {
+	    fprintf(vvp_out, "    %%dup/obj/ref;\n");
+	    fprintf(vvp_out, "    %%qsize/o;\n");
+	    fprintf(vvp_out, "    %%pad/u 64;\n");
+	    fprintf(vvp_out, "    %%subi 1, 0, 64;\n");
+	    is_signed = 1;
+	    width = 64;
+      } else if (strcmp(index_func, "$ivl_ref_queue_index") == 0) {
+	    draw_eval_ref_queue_index(ivl_expr_parm(index, 0));
+      } else {
+	    draw_eval_vec4(index);
+      }
+
+      if (formal) {
+	    // %ref/bind/el/o consumes a signed index, so extend an
+	    // unsigned narrow index before it can be interpreted as negative.
+	    if (width < 64)
+		  fprintf(vvp_out, "    %%pad/%c 64;\n", is_signed ? 's' : 'u');
+	    fprintf(vvp_out, "    %%ref/bind/el/o v%p_0;\n", formal);
+      } else {
+	    ivl_variable_type_t type = ivl_type_base(ivl_lval_net_type(lval));
+	    assert(type == IVL_VT_QUEUE || type == IVL_VT_DARRAY);
+	    fprintf(vvp_out, "    %%ix/vec4%s 3;\n", is_signed ? "/s" : "");
+	    fprintf(vvp_out, "    %%load/qo/obj;\n");
+      }
+}
+
 static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 {
       const char*stmt_name = ivl_stmt_name(net);
@@ -8315,19 +8368,10 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
-      /* $ivl_ref_bind_elem(<formal>, <container>, <index>) -- bind a
-       * ref formal to an element of a dynamic array or queue. */
-      if (strcmp(stmt_name, "$ivl_ref_bind_elem") == 0) {
-	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
-	    ivl_expr_t cont = ivl_stmt_parm(net, 1);
-	    ivl_expr_t idx = ivl_stmt_parm(net, 2);
-	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
-	    ivl_signal_t csig = cont ? ivl_expr_signal(cont) : 0;
-	    if (fsig && csig && idx) {
-		  draw_eval_vec4(idx);
-		  fprintf(vvp_out, "    %%ref/bind/el v%p_0, v%p_0;\n",
-			  fsig, csig);
-	    }
+      if (strcmp(stmt_name, "$ivl_ref_bind_positional_elem") == 0) {
+	    draw_eval_object(ivl_stmt_parm(net, 1));
+	    draw_positional_ref_path_(ivl_stmt_ref_lval(net),
+				      ivl_expr_signal(ivl_stmt_parm(net, 0)));
 	    return 0;
       }
 
@@ -8371,50 +8415,6 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	      }
 	      fprintf(vvp_out, "    %%ref/bind/aa/%s v%p_0, v%p_0;\n",
 		      key_kind, fsig, csig);
-	    }
-	    return 0;
-      }
-
-      /* $ivl_ref_bind_prop_elem(<formal>, <receiver>, <pid>, <index>) --
-       * bind to an element of a dynamic container stored in a class
-       * property, preserving the element identity across deletion. */
-      if (strcmp(stmt_name, "$ivl_ref_bind_prop_elem") == 0) {
-	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
-	    ivl_expr_t obj = ivl_stmt_parm(net, 1);
-	    ivl_expr_t pid = ivl_stmt_parm(net, 2);
-	    ivl_expr_t idx = ivl_stmt_parm(net, 3);
-	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
-	    if (fsig && obj && pid && idx
-		&& ivl_expr_type(pid) == IVL_EX_NUMBER) {
-		  draw_eval_vec4(idx);
-		  draw_eval_object(obj);
-		  fprintf(vvp_out, "    %%prop/obj %lu, 0;\n",
-			  (unsigned long)get_number_immediate(pid));
-		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
-		  fprintf(vvp_out, "    %%ref/bind/el/o v%p_0;\n", fsig);
-	    }
-	    return 0;
-      }
-
-      /* $ivl_ref_bind_prop_nested_elem(<formal>, <receiver>, <pid>,
-       * <outer-index>, <inner-index>) -- bind through one container element
-       * to an element in the nested dynamic container. */
-      if (strcmp(stmt_name, "$ivl_ref_bind_prop_nested_elem") == 0) {
-	    ivl_expr_t formal = ivl_stmt_parm(net, 0);
-	    ivl_expr_t obj = ivl_stmt_parm(net, 1);
-	    ivl_expr_t pid = ivl_stmt_parm(net, 2);
-	    ivl_expr_t outer = ivl_stmt_parm(net, 3);
-	    ivl_expr_t inner = ivl_stmt_parm(net, 4);
-	    ivl_signal_t fsig = formal ? ivl_expr_signal(formal) : 0;
-	    if (fsig && obj && pid && outer && inner
-		&& ivl_expr_type(pid) == IVL_EX_NUMBER) {
-		  draw_eval_vec4(outer);
-		  draw_eval_vec4(inner);
-		  draw_eval_object(obj);
-		  fprintf(vvp_out, "    %%prop/obj %lu, 0;\n",
-			  (unsigned long)get_number_immediate(pid));
-		  fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
-		  fprintf(vvp_out, "    %%ref/bind/el/el/o v%p_0;\n", fsig);
 	    }
 	    return 0;
       }

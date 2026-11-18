@@ -88,6 +88,7 @@ extern bool of_QSLICE_IDX_Q_DOWN(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_IDX_Q_UP(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_LAST_F(vthread_t thr, vvp_code_t code);
 extern bool of_QSLICE_OFF_F(vthread_t thr, vvp_code_t code);
+extern bool of_QSIZE_STACK(vthread_t thr, vvp_code_t code);
 
 /*
  * The opcode table lists all the code mnemonics, along with their
@@ -669,6 +670,7 @@ static const struct opcode_table_s opcode_table[] = {
 	{ "%qshuffle/o", of_QSHUFFLE_O,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qsize",      of_QSIZE,   1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%qsize/o",    of_QSIZE_O, 0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%qsize/stack",of_QSIZE_STACK,2,{OA_NUMBER,OA_BIT1,OA_NONE} },
       { "%qslice",       of_QSLICE,       0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%qslice/f",     of_QSLICE_F,     2,{OA_BIT1,OA_BIT2,OA_NONE} },
       { "%qslice/idx/q/down",of_QSLICE_IDX_Q_DOWN,3,{OA_STRING,OA_BIT1,OA_BIT2} },

@@ -4770,10 +4770,13 @@ bool ref_static_actual_is_static_lifetime(const NetAssign_*actual,
       else if (actual->get_property_idx() >= 0 && sig
 	       && dynamic_cast<const netclass_t*>(sig->net_type()))
 	    reason = "cannot be a non-static class property";
+      else if (actual->word()
+	       && (sig ? sig->darray_type() != nullptr
+		       : actual->get_property_idx() < 0
+			 && dynamic_cast<const netdarray_t*>(actual->nest()->net_type())))
+	    reason = "cannot be an element of a dynamic array or queue";
       else if (!sig)
 	    reason = "must denote a static-lifetime variable";
-      else if (sig->darray_type() && actual->word())
-	    reason = "cannot be an element of a dynamic array or queue";
 
       if (reason) {
 	    if (emit_diagnostic)
