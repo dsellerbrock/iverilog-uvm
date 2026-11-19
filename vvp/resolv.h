@@ -71,6 +71,10 @@ class resolv_core : public vvp_net_fun_t {
       void enable_driver_activity_notifications()
             { notify_driver_activity_ = true; }
 
+      virtual void watch_evcd(class vvp_island*island) { evcd_island_ = island; }
+      virtual vvp_scalar_t evcd_driver(unsigned slot, unsigned bit) const = 0;
+      virtual vvp_scalar_t evcd_resolve(vvp_scalar_t a, vvp_scalar_t b) const;
+
     private:
       friend class resolv_extend;
       virtual void recv_vec4_(unsigned port, const vvp_vector4_t&bit) =0;
@@ -86,6 +90,7 @@ class resolv_core : public vvp_net_fun_t {
       unsigned nports_;
       vvp_net_t*net_;
       bool notify_driver_activity_;
+      class vvp_island*evcd_island_ = nullptr;
       std::vector<vvp_net_t*> input_sources_;
 };
 
@@ -146,6 +151,9 @@ class resolv_tri : public resolv_core {
       resolv_core* clone_empty(vvp_net_t*net) const override
             { return new resolv_tri(nports_, net, hiz_value_); }
       void replay_input(unsigned port, vvp_net_ptr_t dest) const override;
+      void watch_evcd(vvp_island*island) override;
+      vvp_scalar_t evcd_driver(unsigned slot, unsigned bit) const override;
+      vvp_scalar_t implicit_pull() const { return hiz_value_; }
 
     private:
       void recv_vec4_(unsigned port, const vvp_vector4_t&bit) override;
@@ -175,6 +183,8 @@ class resolv_wired_logic : public resolv_core {
 
       void count_drivers(unsigned bit_idx, unsigned counts[3]) override;
       void replay_input(unsigned port, vvp_net_ptr_t dest) const override;
+      vvp_scalar_t evcd_driver(unsigned slot, unsigned bit) const override;
+      vvp_scalar_t evcd_resolve(vvp_scalar_t a, vvp_scalar_t b) const override;
 
     protected:
       virtual bool wired_or_() const =0;

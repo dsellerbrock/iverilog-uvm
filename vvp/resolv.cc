@@ -23,6 +23,7 @@
 # include  "compile.h"
 # include  "statistics.h"
 # include  "vpi_priv.h"
+# include  "vvp_island.h"
 # include  <iostream>
 # include  <algorithm>
 # include  <cassert>
@@ -86,6 +87,11 @@ void resolv_core::notify_driver_activity()
 {
       if (notify_driver_activity_ && net_->fil)
             net_->fil->notify_driver_activity();
+}
+
+vvp_scalar_t resolv_core::evcd_resolve(vvp_scalar_t a, vvp_scalar_t b) const
+{
+      return resolve(a, b);
 }
 
 void resolv_core::recv_vec4_pv_(unsigned port, const vvp_vector4_t&bit,
@@ -226,6 +232,24 @@ void resolv_tri::replay_input(unsigned port, vvp_net_ptr_t dest) const
 	    dest.ptr()->fun->recv_vec8(dest, val_[port]);
 }
 
+void resolv_tri::watch_evcd(vvp_island*island)
+{
+      if (!evcd_island_ && nports_ == 1 && !hiz_value_.is_hiz()) {
+	    // The one-input tree normally blends the pull into its only leaf.
+	    // Keep the raw leaf separately for EVCD before simulation starts.
+	    assert(val_[0].size() == 0);
+	    delete[] val_;
+	    val_ = new vvp_vector8_t[2];
+      }
+      resolv_core::watch_evcd(island);
+}
+
+vvp_scalar_t resolv_tri::evcd_driver(unsigned slot, unsigned bit) const
+{
+      const auto&leaf = val_[nports_ == 1 && !hiz_value_.is_hiz() ? 1 : slot];
+      return bit < leaf.size() ? leaf.value(bit) : vvp_scalar_t();
+}
+
 void resolv_tri::recv_vec4_(unsigned port, const vvp_vector4_t&bit)
 {
       recv_vec8_(port, vvp_vector8_t(bit, 6,6 /* STRONG */));
@@ -235,10 +259,18 @@ void resolv_tri::recv_vec8_(unsigned port, const vvp_vector8_t&bit)
 {
       assert(port < nports_);
 
+      if (evcd_island_ && nports_ == 1 && !hiz_value_.is_hiz()) {
+	    if (!val_[1].eeq(bit)) {
+		  val_[1] = bit;
+		  evcd_island_->notify_evcd();
+	    }
+      }
       if (val_[port].eeq(bit))
 	    return;
 
       val_[port] = bit;
+      if (evcd_island_ && (nports_ != 1 || hiz_value_.is_hiz()))
+	    evcd_island_->notify_evcd();
 
         // Rebuild the group of up to four nodes containing the changed
         // port. Then propagate its summary toward the root.
@@ -378,6 +410,16 @@ void resolv_wired_logic::replay_input(unsigned port, vvp_net_ptr_t dest) const
 	    dest.ptr()->fun->recv_vec8(dest, val_[port]);
 }
 
+vvp_scalar_t resolv_wired_logic::evcd_driver(unsigned slot, unsigned bit) const
+{
+      return bit < val_[slot].size() ? val_[slot].value(bit) : vvp_scalar_t();
+}
+
+vvp_scalar_t resolv_wired_logic::evcd_resolve(vvp_scalar_t a, vvp_scalar_t b) const
+{
+      return resolve_wired(a, b, wired_or_());
+}
+
 void resolv_wired_logic::recv_vec4_(unsigned port, const vvp_vector4_t&bit)
 {
       recv_vec8_(port, vvp_vector8_t(bit, 6, 6));
@@ -391,6 +433,8 @@ void resolv_wired_logic::recv_vec8_(unsigned port, const vvp_vector8_t&bit)
 	    return;
 
       val_[port] = bit;
+      if (evcd_island_)
+	    evcd_island_->notify_evcd();
 
         // Starting at the leaf level, work down the tree, resolving
         // the changed values. base is the first node in the current

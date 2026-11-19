@@ -200,6 +200,12 @@ static bool compare_base(const NetPartSelect*a, const NetPartSelect*b)
       return a->base() < b->base();
 }
 
+static bool evcd_tran_end(const Link*link)
+{
+      return gn_dumpports_flag && link->get_pin() < 2 &&
+	     dynamic_cast<const NetTran*>(link->get_obj());
+}
+
 /*
  * This optimization searches for Nexa that are driven only by
  * NetPartSelect(PV) outputs. These might turn from Verilog input that
@@ -225,6 +231,11 @@ void cprop_functor::lpm_part_select(Design*des, NetPartSelect*obj)
       for (Link*cur = nex->first_nlink() ; cur ; cur = cur->next_nlink()) {
 
 	    NetPins*tmp_obj = cur->get_obj();
+
+	      // EVCD uses the original driver scopes and selected ranges at
+	      // island endpoints. A concat would erase them and pad gaps with Z.
+	    if (evcd_tran_end(cur))
+		  return;
 
 	      // Record if we are driving a 2-state net.
 	    const NetNet*net_obj = dynamic_cast<NetNet*> (tmp_obj);
@@ -429,6 +440,14 @@ void cprop_dc_functor::lpm_const(Design*, NetConst*obj)
 	}
 
 	if (tmp == obj->width()) {
+	      // A permanently three-stated assignment still occupies a slot.
+	      if (gn_dumpports_flag) {
+		    const Nexus*nex = obj->pin(0).nexus();
+		    for (const Link*link = nex ? nex->first_nlink() : nullptr;
+			 link; link = link->next_nlink())
+			  if (evcd_tran_end(link))
+				return;
+	      }
 	      delete obj;
 	      return;
 	}

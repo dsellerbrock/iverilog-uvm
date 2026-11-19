@@ -759,6 +759,8 @@ struct vpiPortComponentInfo {
       unsigned dut_drivers;
       vvp_net_t *dut_ref;
       vpiHandle dut_handle;
+      class vvp_island_port*evcd_endpoint = nullptr;
+      unsigned evcd_base = 0;
 };
 
 class vpiPortInfo  : public __vpiHandle {

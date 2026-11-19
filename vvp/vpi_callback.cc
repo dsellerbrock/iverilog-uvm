@@ -30,6 +30,7 @@
 # include  "schedule.h"
 # include  "event.h"
 # include  "resolv.h"
+# include  "vvp_island.h"
 # include  "vvp_net_sig.h"
 # include  "compile.h"
 # include  "config.h"
@@ -1766,11 +1767,15 @@ extern "C" vpiHandle vpip_register_driver_activity_cb(p_cb_data data)
       if (!sig || !sig->node) return 0;
       filter = dynamic_cast<vvp_net_fil_t*>(sig->node->fil);
       resolver = dynamic_cast<resolv_core*>(sig->node->fun);
-      if (!filter || !resolver) return 0;
+      auto*endpoint = dynamic_cast<vvp_island_port*>(sig->node->fun);
+      if (!filter || (!resolver && (!endpoint || !endpoint->evcd))) return 0;
 
       obj = new value_callback(data);
       filter->add_driver_activity_callback(obj);
-      resolver->enable_driver_activity_notifications();
+      if (resolver)
+	    resolver->enable_driver_activity_notifications();
+      else
+	    endpoint->island()->watch_evcd(sig->node);
       return obj;
 }
 
