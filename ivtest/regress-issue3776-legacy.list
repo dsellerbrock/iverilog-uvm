@@ -1,0 +1,4 @@
+sv_assert_first_match_tied_locals normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_tied_locals.gold
+sv_assert_first_match_tied_locals_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_tied_locals.gold
+sv_assert_first_match_local_flow_fail CE,-g2017,-gassertions ivltests gold=sv_assert_first_match_local_flow_fail.gold
+sv_assert_first_match_local_flow_fail_2023 CE,-g2023,-gassertions ivltests gold=sv_assert_first_match_local_flow_fail.gold
