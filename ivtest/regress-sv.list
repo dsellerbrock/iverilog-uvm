@@ -7183,3 +7183,11 @@ issue3787_bad_2017 CE,-g2017,-s,issue3787_bad ivltests gold=issue3787_bad.gold
 issue3787_bad_2023 CE,-g2023,-s,issue3787_bad ivltests gold=issue3787_bad.gold
 issue1166_program_completion_2017 normal,-g2017,-s,issue1166_program_completion ivltests gold=issue1166_program_completion.gold
 issue1166_program_completion_2023 normal,-g2023,-s,issue1166_program_completion ivltests gold=issue1166_program_completion.gold
+
+# IEEE 1800-2017/2023 26.2: package calls to compilation-unit subroutines.
+issue3769_ce_2017 CE,-g2017,-Iivltests,-s,test ivltests gold=issue3769_ce-iverilog-stderr.gold
+issue3769_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3769_unsafe.gold
+issue3769_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests gold=issue3769_legal-vvp-stdout.gold
+issue3769_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3769_ce-iverilog-stderr.gold
+issue3769_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3769_unsafe.gold
+issue3769_legal_2023 normal,-g2023,-Iivltests,-s,test ivltests gold=issue3769_legal-vvp-stdout.gold

@@ -1,0 +1,1 @@
+{"type":"normal","source":"issue3769_legal_2017.v","iverilog-args":["-g2017","-Iivltests","-s","test"],"gold":"issue3769_legal"}

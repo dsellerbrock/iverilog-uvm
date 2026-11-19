@@ -175,6 +175,11 @@ extern void check_package_unit_value(Design*des, const LineInfo&loc,
 				     const NetScope*use_scope,
 				     const NetScope*def_scope, perm_string name);
 
+extern void check_package_unit_subroutine_call(Design*des, const LineInfo&loc,
+					       const NetScope*caller,
+					       const NetScope*callee,
+					       bool&reported);
+
 /*
  * Canonical description of a whole one-dimensional fixed unpacked array or
  * a slice of one. Array storage is flattened in increasing numeric
