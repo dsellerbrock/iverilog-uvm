@@ -1,0 +1,4 @@
+issue3815_until_first_2017 normal,-g2017,-gassertions,-s,issue3815_until_first ivltests gold=issue3815_until-vvp-stdout.gold
+issue3815_until_first_2023 normal,-g2023,-gassertions,-s,issue3815_until_first ivltests gold=issue3815_until-vvp-stdout.gold
+issue3815_until_cohort_2017 normal,-g2017,-gassertions,-s,issue3815_until_cohort ivltests gold=issue3815_until-vvp-stdout.gold
+issue3815_until_cohort_2023 normal,-g2023,-gassertions,-s,issue3815_until_cohort ivltests gold=issue3815_until-vvp-stdout.gold

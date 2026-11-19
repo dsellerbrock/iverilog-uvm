@@ -31,6 +31,7 @@
 # include  "vvp_island.h"
 # include  "config.h"
 # include  <algorithm>
+# include  <list>
 # include  <map>
 # include  <memory>
 # include  <set>
@@ -2820,6 +2821,7 @@ class __vpiAssertion : public __vpiHandle {
 		  enabled_ = false;
 		  kill_generation_ += 1;
 		  if (step_wait_) clear_wait_steps_();
+		  if (until_cohort_) until_cohort_->live.clear();
 		    /* 20.11 Kill flushes the pending procedural instances;
 		       matured ones still waiting for their clock are
 		       discarded too (default pending a ruling). */
@@ -3197,9 +3199,42 @@ class __vpiAssertion : public __vpiHandle {
 	    if (!step_wait_ && step_ctl_.count(now)) serial_start_[attempts_] = now;
       }
 
+	/* All live Boolean-until attempts see the same verdict. Transfer their
+	   start times as a group, then consume them one at a time in Reactive. */
+      PLI_UINT64 until_cohort(int op, int reason)
+      {
+	    if (op == vpipAssertCohortStart) {
+		  if (!until_cohort_) until_cohort_.reset(new until_cohort_t);
+		  until_cohort_->live.push_back(schedule_simtime());
+		  fire(cbAssertionStart);
+		  return 0;
+	    }
+	    if (!until_cohort_) return 0;
+	    if (op == vpipAssertCohortClear) {
+		  until_cohort_->live.clear();
+		  return 0;
+	    }
+	    if (reason != cbAssertionSuccess && reason != cbAssertionFailure)
+		  return 0;
+	    auto&due = reason == cbAssertionSuccess ? until_cohort_->passed
+						  : until_cohort_->failed;
+	    if (op == vpipAssertCohortPublish) {
+		  auto&live = until_cohort_->live;
+		  const auto count = live.size();
+		  due.splice(due.end(), live);
+		  return count;
+	    }
+	    if (op == vpipAssertCohortReport && !due.empty()) {
+		  const vvp_time64_t start = due.front();
+		  due.pop_front();
+		  fire_(reason, -1, &start);
+	    }
+	    return 0;
+      }
+
 	/* Fire every registered callback whose reason matches. age < 0 keeps
 	   the established two-argument report behavior for other checkers. */
-      void fire_(int reason, int age)
+      void fire_(int reason, int age, const vvp_time64_t*start = nullptr)
       {
 	      /* A passing deferred immediate cover is reported only after its
 	         result survives the assertion report queue. A failing cover's
@@ -3247,7 +3282,9 @@ class __vpiAssertion : public __vpiHandle {
 		 (latency_ < 0) reports now, which is exact for same-tick
 		 assertions. */
 	    vvp_time64_t start_raw = now_raw;
-	    if (age >= 0) {
+	    if (start) {
+		  start_raw = *start;
+	    } else if (age >= 0) {
 		  if ((size_t)age < clocks_.size())
 			start_raw = clocks_[clocks_.size() - 1 - age];
 		  else {
@@ -3322,6 +3359,10 @@ class __vpiAssertion : public __vpiHandle {
       bool pass_vacuous_ = true;
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
       std::vector<vvp_time64_t> clocks_;  // Raw sampled times, including off gaps
+      struct until_cohort_t {
+	    std::list<vvp_time64_t> live, passed, failed;
+      };
+      std::unique_ptr<until_cohort_t> until_cohort_;
 	/* 39.5.2 per-attempt stepping. Linear final waits retire requests
 	   at handoff or when the clock history ages out. Serial callers
 	   retain the existing start records for the run. */
@@ -3836,6 +3877,16 @@ void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope)
       if (__vpiAssertion*obj = find_assertion_up_(assertion_by_key,
 				    sva_action_parent_(sc), (int)idx, false))
 	    obj->fire((int)reason);
+}
+
+PLI_UINT64 vpip_assertion_cohort(PLI_INT32 idx, vpiHandle scope,
+                                PLI_INT32 op, PLI_INT32 reason)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (__vpiAssertion*obj = find_assertion_up_(assertion_by_key,
+				    sva_action_parent_(sc), (int)idx, false))
+	    return obj->until_cohort(op, reason);
+      return 0;
 }
 
 void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope)

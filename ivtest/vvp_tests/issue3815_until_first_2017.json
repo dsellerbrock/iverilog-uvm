@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3815_until_first_2017.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3815_until_first"],
+  "gold": "issue3815_until"
+}

@@ -481,6 +481,42 @@ static PLI_INT32 sva_step_int_(vpiHandle argv, vpiHandle*a, PLI_INT32 dflt)
       return v.value.integer;
 }
 
+/* $ivl_assert_cohort(idx, op, reason [, request]). Publication moves the
+   cohort's identities before waking the Reactive dispatcher. */
+static PLI_INT32 sva_cohort_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle arg = argv;
+      PLI_INT32 idx = sva_step_int_(argv, &arg, -1);
+      PLI_INT32 op = sva_step_int_(argv, &arg, -1);
+      PLI_INT32 reason = sva_step_int_(argv, &arg, 0);
+      vpiHandle request = arg ? vpi_scan(argv) : 0;
+      PLI_UINT64 count;
+      (void)name;
+      if (request) vpi_free_object(argv);
+      if (op == vpipAssertCohortPublish
+	  && (!request || vpi_get(vpiType, request) != vpiReg
+	       || vpi_get(vpiSize, request) != 64))
+	    return 0;
+      count = vpip_assertion_cohort(idx, vpi_handle(vpiScope, callh), op, reason);
+      if (request && count) {
+	    s_vpi_vecval words[2] = {{0, 0}, {0, 0}};
+	    s_vpi_value v;
+	    PLI_UINT64 total;
+	    v.format = vpiVectorVal;
+	    vpi_get_value(request, &v);
+	    total = (PLI_UINT32)v.value.vector[0].aval
+		  | ((PLI_UINT64)(PLI_UINT32)v.value.vector[1].aval << 32);
+	    total += count;
+	    words[0].aval = (PLI_UINT32)total;
+	    words[1].aval = (PLI_UINT32)(total >> 32);
+	    v.value.vector = words;
+	    vpi_put_value(request, &v, 0, vpiNoDelay);
+      }
+      return 0;
+}
+
 static char* sva_step_str_(vpiHandle argv, vpiHandle*a)
 {
       s_vpi_value v;
@@ -846,6 +882,7 @@ void sys_sva_register(void)
       register_task_("$ivl_report_immediate_assertion",
 		     sva_immediate_assertion_report_calltf);
       register_task_("$ivl_assert_report", sva_report_calltf);
+      register_task_("$ivl_assert_cohort", sva_cohort_calltf);
       register_task_("$ivl_assert_clock", sva_clock_calltf);
       register_task_("$ivl_assert_step_row", sva_step_row_calltf);
       register_task_("$ivl_assert_step", sva_step_calltf);

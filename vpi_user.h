@@ -1195,6 +1195,16 @@ extern void vpip_report_immediate_assertion(PLI_INT32 source_id,
 extern void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope);
 extern void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
                                       vpiHandle scope, PLI_INT32 age);
+/* Internal Boolean-until attempt cohort. Publish returns the number of
+   attempts transferred to the verdict dispatcher for reason. */
+enum {
+      vpipAssertCohortStart,
+      vpipAssertCohortClear,
+      vpipAssertCohortPublish,
+      vpipAssertCohortReport
+};
+extern PLI_UINT64 vpip_assertion_cohort(PLI_INT32 idx, vpiHandle scope,
+                                      PLI_INT32 op, PLI_INT32 reason);
 /* M12B-cb: non-zero iff any assertion callback is registered (lets the
    synthesized checkers skip reporting when nothing is watching). */
 extern PLI_INT32 vpip_assertion_cb_active(void);
@@ -1409,6 +1419,7 @@ typedef struct {
     vpiHandle   (*compat_iterate)(int, PLI_INT32, vpiHandle);
     int         (*sample_evcd_inout)(vpiHandle, unsigned, unsigned,
                                      s_vpi_strengthval*, unsigned*, unsigned*);
+    PLI_UINT64  (*assertion_cohort)(PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

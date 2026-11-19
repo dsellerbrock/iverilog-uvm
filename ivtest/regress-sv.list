@@ -7312,3 +7312,9 @@ issue3800_triggered_delays_2017 normal,-g2017,-gassertions,-s,issue3800_triggere
 issue3800_triggered_delays_2023 normal,-g2023,-gassertions,-s,issue3800_triggered_delays ivltests gold=issue3800_triggered_delays.gold
 issue3800_triggered_clock_error_2017 CE,-g2017,-gassertions,-s,issue3800_triggered_clock_error ivltests gold=issue3800_triggered_clock_error.gold
 issue3800_triggered_clock_error_2023 CE,-g2023,-gassertions,-s,issue3800_triggered_clock_error ivltests gold=issue3800_triggered_clock_error.gold
+
+# IEEE 1800-2017/2023 16.12.12: individual Boolean-until verdicts.
+issue3815_until_first_2017 normal,-g2017,-gassertions,-s,issue3815_until_first ivltests gold=issue3815_until-vvp-stdout.gold
+issue3815_until_first_2023 normal,-g2023,-gassertions,-s,issue3815_until_first ivltests gold=issue3815_until-vvp-stdout.gold
+issue3815_until_cohort_2017 normal,-g2017,-gassertions,-s,issue3815_until_cohort ivltests gold=issue3815_until-vvp-stdout.gold
+issue3815_until_cohort_2023 normal,-g2023,-gassertions,-s,issue3815_until_cohort ivltests gold=issue3815_until-vvp-stdout.gold

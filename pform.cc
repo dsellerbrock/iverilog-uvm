@@ -18024,7 +18024,38 @@ static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
 				 Statement*action);
 static void sva_verdict_dispatcher_(const struct vlltype&loc, unsigned inst,
 				    perm_string req, perm_string vac_req,
-				    Statement*action);
+				    Statement*action, bool until_cohort = false);
+
+static Statement* sva_cohort_stmt_(const struct vlltype&loc, unsigned inst,
+				    int op, int reason = 0,
+				    perm_string request = perm_string())
+{
+      std::list<named_pexpr_t> args;
+      named_pexpr_t arg;
+      for (unsigned value : {inst, (unsigned)op, (unsigned)reason}) {
+	    arg.parm = sva_num32_(loc, value);
+	    args.push_back(arg);
+      }
+      if (!request.nil()) {
+	    arg.parm = sva_id_(loc, request);
+	    args.push_back(arg);
+      }
+      PCallTask*call = new PCallTask(
+	    perm_string::literal("$ivl_assert_cohort"), args);
+      FILE_NAME(call, loc);
+      return call;
+}
+
+static void sva_finish_publisher_(const struct vlltype&loc, unsigned inst,
+				  perm_string kill, Statement*publish)
+{
+      Statement*guarded = sva_if_(loc,
+	    sva_kill_generation_current_(loc, inst, kill), publish, nullptr);
+      PProcess*fp = pform_make_behavior(IVL_PR_FINAL, guarded, nullptr);
+      FILE_NAME(fp, loc);
+      fp->attributes[perm_string::literal("_ivl_sva_finish")]
+	    = new PENumber(new verinum((uint64_t)1, 1));
+}
 
 
 /* $past(e, d) as a sampled-value function call the SVA rewrite pass
@@ -23218,17 +23249,12 @@ pform_sva_case(const struct vlltype&loc, PExpr*sel,
  * M9C: lower the temporal/sequence property operators that do not fit
  * the linear token pipeline.
  *
- *   until family (booleans; op 4/5/6/7): `p until q` holds iff, at every
- *   attempt, p holds at each cycle before q first holds (until_with:
- *   through the q cycle too). Under the overlapping-attempt semantics a
- *   fresh attempt starts every clock, and the aggregate obligation
- *   collapses to a per-cycle boolean check:
- *       until       — fail at any cycle with !p && !q
- *       until_with  — fail at any cycle with !p
- *   The strong forms (s_until/s_until_with) add a liveness obligation:
- *   q must eventually hold. A `pend` flag tracks an outstanding attempt
- *   still waiting for q; if it survives to end-of-simulation, that is a
- *   strong-until failure.
+ *   until family (booleans; op 4/5/6/7): p holds at each tick before q
+ *   first holds (until_with: through the q tick too). Every enabled
+ *   tick contributes a start to the live cohort. All live attempts see
+ *   the same verdict on a terminating tick, but dispatch independently.
+ *   At finish the remaining attempts pass for weak forms and fail for
+ *   strong forms.
  *
  *   within (fixed-length sequences; op 8): `s1 within s2` matches over
  *   s2's interval iff s2 matches and s1 matches at some embedded offset.
@@ -23247,6 +23273,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					   Statement*pass_stmt, int kind)
 {
       int op = prop->op_type;
+      bool is_until    = (op >= 4 && op <= 7);
       bool is_within   = (op == 8);
       bool is_nexttime = (op == 9 || op == 10);
       bool is_liveness = (op >= 9 && op <= 13);
@@ -23259,8 +23286,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       bool strong = (op == 6 || op == 7);
 
 	/* 16.14.1: The pass statement runs on a definite success.
-	   Within and nexttime supply success verdicts in this lowering. */
-      bool pass_supported = is_within || is_nexttime;
+	   Until, within and nexttime supply success verdicts in this lowering. */
+      bool pass_supported = is_until || is_within || is_nexttime;
       if (pass_stmt && !pass_supported) {
 	    cerr << loc << ": sorry: a pass action on this property "
 		 << "operator is not supported (IEEE 1800-2017 16.14.6). "
@@ -23307,12 +23334,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init_zero, body;
 
-	/* The fail flag / dispatch is shared by both forms. */
-      perm_string r_f = sva_make_reg_(loc, inst, "f", 0);
-      init_zero.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
       perm_string r_kill = sva_kill_seen_reg_(loc, inst, 0, init_zero);
       std::vector<perm_string> attempt_state;
-      attempt_state.push_back(r_f);
       std::vector<perm_string> attempt_pipe;
 
 	/* A delayed temporal verdict is owned by the attempt that started
@@ -23450,7 +23473,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 	    FILE_NAME(fp, loc);
 
-      } else if (!is_within && !is_liveness && !is_abort) {
+      } else if (is_until) {
 	      /* ---- until family (boolean operands only). ---- */
 	    if (kind == 2) {
 		  cerr << loc << ": sorry: `cover property' of an `until' "
@@ -23470,51 +23493,59 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  error_count += 1;
 		  bad = true;
 	    }
-	    if (bad) { delete fail_stmt; delete clk; delete disable; return; }
-
-	    PExpr*pe = sva_rewrite_sampled_(loc, Pp[0].expr, inst, hist_idx,
-					   pre, post, init_zero);
-	    PExpr*qe = sva_rewrite_sampled_(loc, Qq[0].expr, inst, hist_idx,
-					   pre, post, init_zero);
-	    perm_string r_p = sva_make_reg_(loc, inst, "p", 0);
-	    perm_string r_q = sva_make_reg_(loc, inst, "q", 0);
-	    pre.push_back(sva_assign_(loc, r_p, pe));
-	    pre.push_back(sva_assign_(loc, r_q, qe));
-
-	    perm_string r_pend = sva_make_reg_(loc, inst, "pend", 0);
-	    init_zero.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
-	    attempt_state.push_back(r_pend);
-	    PExpr*active = sva_logic_(loc, 'o', sva_id_(loc, r_pend),
-				      sva_enabled_expr_(loc, inst));
-
-	      /* Per-cycle weak check. */
-	    PExpr*fcond;
-	    if (with) {
-		  fcond = sva_logic_(loc, 'a', sva_clone_expr_(active),
-				 sva_not_(loc, sva_id_(loc, r_p)));
-	    } else {
-		  PExpr*bad_value = sva_logic_(
-			loc, 'a', sva_not_(loc, sva_id_(loc, r_q)),
-			sva_not_(loc, sva_id_(loc, r_p)));
-		  fcond = sva_logic_(loc, 'a', sva_clone_expr_(active),
-				 bad_value);
+	    if (bad) {
+		  delete fail_stmt; delete pass_stmt; delete clk; delete disable;
+		  return;
 	    }
-	    body.push_back(sva_if_(loc, fcond,
-				   sva_assign_(loc, r_f, sva_bit_(loc, 1)),
-				   nullptr));
 
-	      /* q releases every pending attempt. A valid p keeps the collapsed
-		 live set open; a failed cycle kills those attempts after their
-		 failure is recorded. This state is needed for `$assertoff' even on
-		 weak until: old attempts continue, but off starts no new one. */
-	    Statement*open = sva_if_(loc,
-		  sva_logic_(loc, 'a', active, sva_id_(loc, r_p)),
-		  sva_assign_(loc, r_pend, sva_bit_(loc, 1)),
-		  sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
-	    body.push_back(sva_if_(loc, sva_id_(loc, r_q),
-		  sva_assign_(loc, r_pend, sva_bit_(loc, 0)), open));
+	    std::map<std::string, pform_name_t> sampled;
+	    unsigned live_operands = 0;
+	    auto capture = [&](PExpr*expr, const char*name) {
+		  PExpr*prep = sva_wrap_preponed_(expr, sampled, live_operands);
+		  if (!prep) live_operands += 1;
+		  PExpr*value = sva_rewrite_sampled_(loc, prep ? prep : expr,
+			inst, hist_idx, pre, post, init_zero);
+		  perm_string reg = sva_make_reg_(loc, inst, name, 0);
+		  PEBComp*truth = new PEBComp('E', sva_not_(loc, value),
+					      sva_bit_(loc, 0));
+		  FILE_NAME(truth, loc);
+		  pre.push_back(sva_assign_(loc, reg, truth));
+		  return reg;
+	    };
+	    perm_string r_p = capture(Pp[0].expr, "p");
+	    perm_string r_q = capture(Qq[0].expr, "q");
+	    for (const auto&entry : sampled)
+		  init_zero.push_back(sva_hist_on_stmt_(loc, entry.second));
+	    if (live_operands)
+		  cerr << loc << ": warning: this assertion has " << live_operands
+		       << " operand(s) read live instead of sampled in the "
+		       << "Preponed region (IEEE 1800-2017 16.5.1)." << endl;
 
-	      /* Fail dispatch (assert/assume). */
+	    perm_string pass_req = sva_make_reg_(loc, inst, "passreq", 0, true);
+	    perm_string vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
+	    perm_string fail_req = sva_make_reg_(loc, inst, "failreq", 0, true);
+	    for (perm_string req : {pass_req, vac_req, fail_req})
+		  init_zero.push_back(sva_assign_(loc, req, sva_num32_(loc, 0)));
+	    auto publish = [&](int reason, perm_string req) {
+		  return sva_cohort_stmt_(loc, inst, vpipAssertCohortPublish,
+					  reason, req);
+	    };
+
+	      /* The enabled start is already in the cohort. A non-overlapping
+		 until tests q before testing p on this tick (16.12.12). */
+	    PExpr*success = sva_id_(loc, r_q);
+	    if (with)
+		  success = sva_logic_(loc, 'a', sva_id_(loc, r_p), success);
+	    body.push_back(sva_if_(loc, success, publish(SVA_CB_SUCCESS, pass_req),
+		  sva_if_(loc, sva_not_(loc, sva_id_(loc, r_p)),
+			  publish(SVA_CB_FAILURE, fail_req), nullptr)));
+
+	      /* A surviving Boolean weak-until attempt already evaluated p
+		 nonvacuously. Exhausting the trace succeeds (16.12.15, 16.14.8). */
+	    sva_finish_publisher_(loc, inst, r_kill, strong
+		  ? publish(SVA_CB_FAILURE, fail_req)
+		  : publish(SVA_CB_SUCCESS, pass_req));
+
 	    Statement*action = fail_stmt;
 	    if (!action) {
 		  std::list<named_pexpr_t> no_args;
@@ -23522,30 +23553,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  FILE_NAME(err, loc);
 		  action = err;
 	    }
-	    std::vector<Statement*> hit;
-	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
-	    hit.push_back(sva_fail_action_(loc, inst, action));
-	    body.push_back(sva_if_(loc, sva_id_(loc, r_f),
-				   sva_block_(loc, hit), nullptr));
-
-	      /* End-of-simulation strong check. */
-	    if (strong) {
-		  std::list<named_pexpr_t> dargs;
-		  named_pexpr_t darg;
-		  darg.parm = new PEString(strdup(
-			"SVA: strong until obligation not met — the awaited "
-			"condition never asserted"));
-		  dargs.push_back(darg);
-		  PCallTask*warn = new PCallTask(lex_strings.make("$error"), dargs);
-		  FILE_NAME(warn, loc);
-		  PExpr*pending = sva_logic_(
-			loc, 'a', sva_id_(loc, r_pend),
-			sva_kill_generation_current_(loc, inst, r_kill));
-		  Statement*fc = sva_if_(loc, pending,
-					 sva_fail_action_(loc, inst, warn), nullptr);
-		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
-		  FILE_NAME(fp, loc);
-	    }
+	    sva_verdict_dispatcher_(loc, inst, pass_req, vac_req, pass_stmt, true);
+	    sva_verdict_dispatcher_(loc, inst, fail_req, perm_string(), action, true);
       } else if (is_liveness) {
 	      /* ---- liveness/safety: nexttime / s_nexttime / s_eventually /
 		 always / bounded eventually. The boolean operand p is in
@@ -23708,13 +23717,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 			      pending = new PEBinary('+', pending, sva_id_(loc, token));
 			      FILE_NAME(pending, loc);
 			}
-			Statement*fc = sva_if_(loc,
-			      sva_kill_generation_current_(loc, inst, r_kill),
-			      publish(op == 9 ? vac_req : fail_req, pending), nullptr);
-			PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
-			FILE_NAME(fp, loc);
-			fp->attributes[perm_string::literal("_ivl_sva_finish")]
-			      = new PENumber(new verinum((uint64_t)1, 1));
+			sva_finish_publisher_(loc, inst, r_kill,
+			      publish(op == 9 ? vac_req : fail_req, pending));
 		  }
 		  sva_pass_dispatcher_(loc, inst, pass_req, vac_req, pass_stmt);
 		  sva_verdict_dispatcher_(loc, inst, fail_req, perm_string(), action);
@@ -23946,10 +23950,13 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 
       body.insert(body.begin(), sva_if_(loc,
 	    sva_enabled_expr_(loc, inst),
-	    sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
+	    is_until ? sva_cohort_stmt_(loc, inst, vpipAssertCohortStart)
+		     : sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
 
       auto clear_temporal_state = [&]() -> Statement* {
 	    std::vector<Statement*> clear;
+	    if (is_until)
+		  clear.push_back(sva_cohort_stmt_(loc, inst, vpipAssertCohortClear));
 	    for (size_t k = 0 ; k < attempt_state.size() ; k += 1)
 		  clear.push_back(sva_assign_(
 			loc, attempt_state[k], sva_bit_(loc, 0)));
@@ -23964,7 +23971,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    loc, inst, r_kill, clear_temporal_state()));
       Statement*core = sva_block_(loc, body);
       if (disable) {
-	    if (is_nexttime)
+	    if (is_nexttime || is_until)
 		  sva_disable_abort_(loc, inst, disable, clear_temporal_state());
 	    core = sva_if_(loc, disable, clear_temporal_state(), core);
       }
@@ -30656,7 +30663,7 @@ static Statement* sva_repeat_(const struct vlltype&loc, PExpr*count,
    so detached Reactive actions can suspend independently of the checker. */
 static void sva_verdict_dispatcher_(const struct vlltype&loc, unsigned inst,
 				    perm_string req, perm_string vac_req,
-				    Statement*action)
+				    Statement*action, bool until_cohort)
 {
       bool pass = !vac_req.nil();
       perm_string ack = sva_make_reg_(loc, inst, pass ? "passack" : "failack",
@@ -30687,8 +30694,11 @@ static void sva_verdict_dispatcher_(const struct vlltype&loc, unsigned inst,
 	    loop.push_back(sva_assign_(loc, vac_ack, sva_id_(loc, vac_req)));
       }
       loop.push_back(sva_reactive_wait_(loc));
-      loop.push_back(sva_repeat_(loc, sva_id_(loc, due),
-	    sva_report_stmt_(loc, inst, pass ? SVA_CB_SUCCESS : SVA_CB_FAILURE)));
+      int reason = pass ? SVA_CB_SUCCESS : SVA_CB_FAILURE;
+      Statement*report = until_cohort
+	    ? sva_cohort_stmt_(loc, inst, vpipAssertCohortReport, reason)
+	    : sva_report_stmt_(loc, inst, reason);
+      loop.push_back(sva_repeat_(loc, sva_id_(loc, due), report));
       if (pass)
 	    loop.push_back(sva_repeat_(loc, sva_id_(loc, vac_due),
 		  sva_report_stmt_(loc, inst, SVA_CB_VACUOUS_SUCCESS)));

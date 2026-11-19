@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3815_until_cohort_2023.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue3815_until_cohort", "-DCHECK_UNTIL_CALLBACKS"],
+  "vpi-modules": ["issue3815_until_cohort_2023"],
+  "vpi-sources": ["vpi/issue3815_until_cohort.c"],
+  "gold": "issue3815_until"
+}
