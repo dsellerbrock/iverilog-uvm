@@ -12,6 +12,7 @@ module packed_api;
     memory[5] = 6'b01_101_0;
     memory[4] = 6'b11_000_1;
     \escaped[unit]  = 6'b11_010_1;
+    #0; // Let the continuous assignments to the net-array words run.
     $packed_api_setup;
     #1 descending[1] = 3'b001; // selected callback
     #1 descending[0] = 3'b111; // sibling must not retrigger [1]

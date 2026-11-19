@@ -124,9 +124,12 @@ static PLI_INT32 done_calltf(PLI_BYTE8*ud)
 {
       static const char want[] =
 	    "out t=0 0\nsum t=0 0011\nout t=1 1\nsum t=2 0101\n";
+      static const char sum_first[] =
+	    "sum t=0 0011\nout t=0 0\nout t=1 1\nsum t=2 0101\n";
       (void)ud;
       vpi_printf("%s", log_buf);
-      expect(!strcmp(log_buf, want), "callback log");
+      /* Independent time-zero Active updates can run in either order. */
+      expect(!strcmp(log_buf, want) || !strcmp(log_buf, sum_first), "callback log");
       if (assign_out && assign_sum) {
 	    vpi_printf("VALUES out=%s", value_of(assign_out));
 	    vpi_printf(" sum=%s\n", value_of(assign_sum));

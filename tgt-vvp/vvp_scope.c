@@ -369,6 +369,16 @@ int signal_is_return_value(ivl_signal_t sig)
       return signal_is_function_result(sig) && !signal_is_materialized_return(sig);
 }
 
+static int bufz_active_start(ivl_net_logic_t net)
+{
+      for (unsigned idx = 0; idx < ivl_logic_attr_cnt(net); ++idx) {
+	    ivl_attribute_t attr = ivl_logic_attr_val(net, idx);
+	    if (strcmp(attr->key, "_ivl_active_start") == 0)
+		  return attr->type == IVL_ATT_NUM && attr->val.num == 1;
+      }
+      return 0;
+}
+
 /*
  * This tests a bufz device against an output receiver, and determines
  * if the device can be skipped. If this function returns false, then a
@@ -379,6 +389,7 @@ int can_elide_bufz(ivl_net_logic_t net, ivl_nexus_ptr_t nptr)
 {
 	// If bufz is a module input/output buffer do not elide
       if (ivl_logic_port_buffer(net)) return 0;
+      if (bufz_active_start(net)) return 0;
 
       ivl_nexus_t in_n, out_n;
       unsigned idx;
@@ -1906,6 +1917,7 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
       const char*ltype = "?";
       const char*lcasc = 0;
       char identity_val = '0';
+      int active_start = 0;
 
 	/* Do we need a delay? */
       unsigned need_delay_flag = need_delay(lptr);
@@ -1931,7 +1943,8 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 		     draw_nex_input will take care of it for me. */
 		ivl_nexus_ptr_t nptr = ivl_logic_pin_ptr(lptr,0);
 
-		ltype = "BUFZ";
+		active_start = bufz_active_start(lptr);
+		ltype = active_start ? "BUFZ_START" : "BUFZ";
 
 		if (can_elide_bufz(lptr, nptr))
 		      return;
@@ -2093,7 +2106,7 @@ static void draw_logic_in_scope(ivl_net_logic_t lptr)
 	   the functor that I create later. */
       assert(ivl_logic_pins(lptr) > 0);
       ninp = ivl_logic_pins(lptr) - 1;
-      unsigned padded_inputs = signed_xz_mask && ninp == 1 ? 1 : 4;
+      unsigned padded_inputs = ninp == 1 && (signed_xz_mask || active_start) ? 1 : 4;
       input_strings = calloc(ninp, sizeof(char*));
       for (pdx = 0 ;  pdx < (unsigned)ninp ;  pdx += 1)
 	    input_strings[pdx] = draw_net_input(ivl_logic_pin(lptr, pdx+1));

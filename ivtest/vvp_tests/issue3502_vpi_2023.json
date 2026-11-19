@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3502.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3502_vpi_2023"],
+  "vpi-sources": ["vpi/issue3502_vpi.c"],
+  "gold": "issue3502"
+}

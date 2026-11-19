@@ -7326,3 +7326,5 @@ issue3791_2017 normal,-g2017,-s,issue3791 ivltests gold=issue3791.gold
 issue3791_2023 normal,-g2023,-s,issue3791 ivltests gold=issue3791.gold
 issue3791_bad_2017 CE,-g2017,-s,issue3791_bad ivltests gold=issue3791_bad.gold
 issue3791_bad_2023 CE,-g2023,-s,issue3791_bad ivltests gold=issue3791_bad.gold
+issue3502_2017 normal,-g2017,-s,issue3502 ivltests gold=issue3502.gold
+issue3502_2023 normal,-g2023,-s,issue3502 ivltests gold=issue3502.gold

@@ -27,6 +27,7 @@
 
 # include  "compile.h"
 # include  "delay.h"
+# include  "logic.h"
 # include  "vpi_priv.h"
 # include  "vvp_net.h"
 # include  <cstdlib>
@@ -340,12 +341,19 @@ char* __vpiContAssign::vpi_get_str(int code)
 
 void __vpiContAssign::vpi_get_value(p_vpi_value vp)
 {
-	/* The driver's last output; before the first change after the
-	   tap went in, the r-value read now. */
-      if (tap_ && tap_->have_value())
-	    tap_->get_value(vp);
-      else
-	    ::vpi_get_value(rhs(), vp);
+      // A startup buffer knows its driven value even before a tap exists.
+      if (tap_ && tap_->have_value()) {
+            tap_->get_value(vp);
+            return;
+      }
+      if (driver_) {
+            if (auto*buf = dynamic_cast<vvp_fun_bufz_start*>(driver_->fun)) {
+                  const vvp_vector4_t value = buf->driven_value();
+                  vpip_vec4_get_value(value, value.size(), false, vp);
+                  return;
+            }
+      }
+      ::vpi_get_value(rhs(), vp);
 }
 
 vpiHandle __vpiContAssign::vpi_handle(int code)
@@ -401,12 +409,16 @@ bool __vpiContAssign::add_value_callback(value_callback*cb)
       }
       if (!driver_->fil) {
 	    tap_ = new contassign_tap_fil;
-	    s_vpi_value val;
-	    val.format = vpiObjTypeVal;
-	    ::vpi_get_value(rhs(), &val);
-	    int wid = ::vpi_get(vpiSize, rhs());
-	    if (val.format == vpiVectorVal && wid > 0)
-		  tap_->seed(vec4_from_vpi_value(&val, wid));
+	    if (auto*buf = dynamic_cast<vvp_fun_bufz_start*>(driver_->fun)) {
+		  tap_->seed(buf->driven_value());
+	    } else {
+		  s_vpi_value val;
+		  val.format = vpiObjTypeVal;
+		  ::vpi_get_value(rhs(), &val);
+		  int wid = ::vpi_get(vpiSize, rhs());
+		  if (val.format == vpiVectorVal && wid > 0)
+			tap_->seed(vec4_from_vpi_value(&val, wid));
+	    }
 	    driver_->fil = tap_;
       }
       tap_->add_vpi_callback(cb);

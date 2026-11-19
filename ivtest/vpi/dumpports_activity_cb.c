@@ -3,11 +3,23 @@
 
 static unsigned dumped_changes;
 static unsigned control_changes;
+static unsigned unexpected_changes;
 
 static PLI_INT32 value_change_cb(p_cb_data cb)
 {
+      static const unsigned ticks[] = {0, 3, 3};
+      static const char values[] = "0x1";
       unsigned *count = (unsigned *)cb->user_data;
-      *count += 1;
+      unsigned idx = (*count)++;
+      unsigned tick = cb->time->low;
+      const char *value = cb->value->value.str;
+      if (idx >= sizeof ticks / sizeof ticks[0] || cb->time->high
+          || tick != ticks[idx] || !value || value[0] != values[idx]) {
+            const char *name = count == &dumped_changes ? "dumped" : "control";
+            vpi_printf("FAIL: %s ordinary callback %u at %u gave %s\n",
+                       name, idx, tick, value ? value : "<null>");
+            unexpected_changes++;
+      }
       return 0;
 }
 
@@ -24,6 +36,7 @@ static PLI_INT32 start_cb(p_cb_data cb)
       for (idx = 0; idx < 2; idx += 1) {
             s_cb_data data;
             s_vpi_time time;
+            s_vpi_value value = {vpiBinStrVal, {0}};
             vpiHandle signal = vpi_handle_by_name(names[idx], 0);
             if (!signal) {
                   vpi_printf("FAIL: cannot find %s\n", names[idx]);
@@ -32,11 +45,12 @@ static PLI_INT32 start_cb(p_cb_data cb)
             }
             memset(&data, 0, sizeof data);
             memset(&time, 0, sizeof time);
-            time.type = vpiSuppressTime;
+            time.type = vpiSimTime;
             data.reason = cbValueChange;
             data.cb_rtn = value_change_cb;
             data.obj = signal;
             data.time = &time;
+            data.value = &value;
             data.user_data = (PLI_BYTE8 *)counts[idx];
             if (!vpi_register_cb(&data)) {
                   vpi_printf("FAIL: cannot register callback for %s\n",
@@ -51,8 +65,8 @@ static PLI_INT32 start_cb(p_cb_data cb)
 static PLI_INT32 check_calltf(PLI_BYTE8 *user_data)
 {
       (void)user_data;
-      if (dumped_changes == control_changes && dumped_changes != 0)
-            vpi_printf("PASS: ordinary callbacks unchanged (%u/%u)\n",
+      if (!unexpected_changes && dumped_changes == 3 && control_changes == 3)
+            vpi_printf("PASS: ordinary callbacks at time 0 and 3 (%u/%u)\n",
                        dumped_changes, control_changes);
       else {
             vpi_printf("FAIL: ordinary callbacks differ (%u/%u)\n",

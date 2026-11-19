@@ -5404,8 +5404,18 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	// expression. In this case, we will need to create a driver
 	// (later) to carry strengths.
       bool need_driver_flag = false;
-      if (dynamic_cast<NetESignal*>(rval_expr) ||!rval->is_linked())
+      const NetESignal*rhs_signal = dynamic_cast<NetESignal*>(rval_expr);
+      if (rhs_signal || !rval->is_linked())
 	    need_driver_flag = true;
+
+      // A direct variable read can reach this driver during static
+      // initialization. Its first continuous-assignment update is Active.
+      bool active_start = gn_system_verilog() && !net_decl_assign
+	    && !rise_time && !fall_time && !decay_time
+	    && rhs_signal && !rhs_signal->word_index()
+	    && rhs_signal->sig()->type() == NetNet::REG
+	    && (rval->data_type() == IVL_VT_LOGIC
+		|| rval->data_type() == IVL_VT_BOOL);
 
       /* A delayed continuous assignment to a complete vector selects one
 	 * rise/fall/turn-off delay from the complete RHS value (1800-2023
@@ -5473,6 +5483,9 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 					 rval->vector_width(), false);
 	    driver->set_line(*this);
 	    driver->whole_vector_delay(whole_vector_delay);
+	    if (active_start)
+		  driver->attribute(perm_string::literal("_ivl_active_start"),
+				    verinum(1));
 	    des->add_node(driver);
 
 	    connect(rval->pin(0), driver->pin(1));

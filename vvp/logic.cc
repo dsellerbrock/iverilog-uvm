@@ -457,6 +457,67 @@ void vvp_fun_bufz::recv_real(vvp_net_ptr_t ptr, double bit,
       ptr.ptr()->send_real(bit, 0);
 }
 
+vvp_fun_bufz_start::vvp_fun_bufz_start(unsigned width, unsigned str0, unsigned str1)
+: value_(width, BIT4_Z), str0_(str0), str1_(str1)
+{
+}
+
+void vvp_fun_bufz_start::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
+                                  vvp_context_t)
+{
+      assert(ptr.port() == 0 && bit.size() == value_.size());
+      value_ = bit;
+      update(ptr.ptr());
+}
+
+void vvp_fun_bufz_start::recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
+                                     unsigned base, unsigned vwid, vvp_context_t)
+{
+      assert(ptr.port() == 0 && vwid == value_.size());
+      value_.set_vec(base, bit);
+      update(ptr.ptr());
+}
+
+void vvp_fun_bufz_start::update(vvp_net_t*net)
+{
+      if (delivered_) {
+            send(net);
+      } else if (!pending_) {
+            // Both the default and the declaration initializer may arrive
+            // during preload. Drive the latest value when Active runs.
+            pending_ = net;
+            schedule_generic(this, 0, false);
+      }
+}
+
+void vvp_fun_bufz_start::run_run()
+{
+      vvp_net_t*net = pending_;
+      pending_ = nullptr;
+      delivered_ = true;
+      send(net);
+}
+
+void vvp_fun_bufz_start::send(vvp_net_t*net) const
+{
+      // Fanout can reenter this driver, so keep the outgoing value stable.
+      if (strong()) {
+            const vvp_vector4_t value = value_;
+            net->send_vec4(value, 0);
+      } else {
+            net->send_vec8(vvp_vector8_t(value_, str0_, str1_));
+      }
+}
+
+vvp_vector4_t vvp_fun_bufz_start::driven_value() const
+{
+      if (!delivered_)
+            return vvp_vector4_t(value_.size(), BIT4_Z);
+      if (strong())
+            return value_;
+      return reduce4(vvp_vector8_t(value_, str0_, str1_));
+}
+
 void vvp_fun_buft::recv_vec8(vvp_net_ptr_t ptr, const vvp_vector8_t&bit)
 {
       if (ptr.port() != 0)
@@ -933,6 +994,20 @@ void compile_functor(char*label, char*type, unsigned width,
 
       } else if (strcmp(type, "BUFZ") == 0) {
 	    obj = new vvp_fun_bufz();
+
+      } else if (strcmp(type, "BUFZ_START") == 0) {
+            if (!width || argc != 1 || ostr0 > 7 || ostr1 > 7
+                || event_synchronous) {
+                  yyerror("invalid BUFZ_START functor.");
+                  for (unsigned idx = 0; idx < argc; ++idx)
+                        free(argv[idx].text);
+                  free(argv);
+                  free(type);
+                  free(label);
+                  return;
+            }
+            obj = new vvp_fun_bufz_start(width, ostr0, ostr1);
+            strength_aware = true;
 
       } else if (strcmp(type, "MUXR") == 0) {
 	    obj = new vvp_fun_muxr;

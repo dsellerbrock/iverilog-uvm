@@ -166,6 +166,28 @@ class vvp_fun_bufz: public vvp_net_fun_t {
     private:
 };
 
+// A continuous-assignment driver whose first delivery belongs in Active.
+class vvp_fun_bufz_start : public vvp_fun_bufz, private vvp_gen_event_s {
+    public:
+      vvp_fun_bufz_start(unsigned width, unsigned str0, unsigned str1);
+      void recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
+                     vvp_context_t) override;
+      void recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
+                        unsigned base, unsigned vwid, vvp_context_t) override;
+      vvp_vector4_t driven_value() const;
+
+    private:
+      void update(vvp_net_t*net);
+      void send(vvp_net_t*net) const;
+      void run_run() override;
+
+      vvp_vector4_t value_;
+      const unsigned str0_, str1_;
+      vvp_net_t*pending_ = nullptr;
+      bool delivered_ = false;
+      bool strong() const { return str0_ == 6 && str1_ == 6; }
+};
+
 /*
  * The vp_fun_buft is like the vvp_fun_bufz, but is completely
  * transparent to strengths.
