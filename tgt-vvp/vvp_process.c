@@ -71,6 +71,12 @@ static int vpi_statement_visible_(ivl_statement_t stmt);
 static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
 			       ivl_scope_t owner, ivl_scope_t scope);
 
+static ivl_statement_t folded_if_arm_(ivl_statement_t stmt)
+{
+      ivl_statement_t arm = ivl_stmt_cond_true(stmt);
+      return arm ? arm : ivl_stmt_cond_false(stmt);
+}
+
 static int pure_comb_expr_(ivl_expr_t expr)
 {
       unsigned idx;
@@ -506,6 +512,9 @@ static int pure_comb_stmt_definite_(
 	    struct pure_comb_signal_set_s false_defs = { 0, 0, 0 };
 	    int safe;
 
+	    if (ivl_stmt_if_is_folded(stmt))
+		  return pure_comb_stmt_definite_(folded_if_arm_(stmt),
+						 writes, defined);
 	    if (!pure_comb_expr_definite_(
 		  ivl_stmt_cond_expr(stmt), writes, defined))
 		  return 0;
@@ -3049,6 +3058,11 @@ static int show_stmt_deassign_body_(ivl_statement_t net)
 
 static int show_stmt_condit(ivl_statement_t net, ivl_scope_t sscope)
 {
+      if (ivl_stmt_if_is_folded(net)) {
+	    ivl_statement_t arm = folded_if_arm_(net);
+	    return arm ? show_statement(arm, sscope) : 0;
+      }
+
       int rc = 0;
       unsigned lab_false, lab_out;
       ivl_expr_t expr = ivl_stmt_cond_expr(net);
@@ -9448,7 +9462,12 @@ static unsigned vpi_statement_type_(ivl_statement_t stmt)
           case IVL_ST_STASK: return vpiSysTaskCall;
           case IVL_ST_UTASK: return vpiTaskCall;
           case IVL_ST_CONDIT:
-            return ivl_stmt_cond_false(stmt) ? vpiIfElse : vpiIf;
+            switch (ivl_stmt_if_kind(stmt)) {
+                case IVL_IF_PLAIN: return vpiIf;
+                case IVL_IF_ELSE: return vpiIfElse;
+                case IVL_IF_NONE: return vpiNullStmt;
+            }
+            return vpiNullStmt;
           case IVL_ST_CASE:
           case IVL_ST_CASER:
           case IVL_ST_CASEX:
@@ -9546,15 +9565,16 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       return id;
 }
 
-static void emit_vpi_while_condition_(ivl_statement_t stmt, uint64_t id,
-				    ivl_scope_t owner, ivl_scope_t scope)
+static void emit_vpi_stmt_condition_(ivl_expr_t expr, uint64_t id,
+				     ivl_scope_t owner, ivl_scope_t scope)
 {
       char*text;
+      if (!expr) return;
 	/* Statement nodes belong to the task or process. The expression
-	   thunk uses the while's own lexical scope. */
+	   thunk uses the condition's own lexical scope. */
       if (scope != owner)
 	    fprintf(vvp_out, "    .scope S_%p;\n", scope);
-      text = draw_vpi_stmt_condition(ivl_stmt_cond_expr(stmt));
+      text = draw_vpi_stmt_condition(expr);
       if (text) {
 	    fprintf(vvp_out, "    .vpi_3041_condition %" PRIu64 ", %s;\n", id, text);
 	    free(text);
@@ -9584,6 +9604,9 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
                   emit_vpi_stmt_tree_(ivl_stmt_block_stmt(stmt, idx), id, owner, scope);
             break;
           case IVL_ST_CONDIT:
+            if (vpi_stmt_conditions_flag)
+                  emit_vpi_stmt_condition_(ivl_stmt_if_source_expr(stmt), id,
+                                           owner, scope);
             emit_vpi_stmt_tree_(ivl_stmt_cond_true(stmt), id, owner, scope);
             emit_vpi_stmt_tree_(ivl_stmt_cond_false(stmt), id, owner, scope);
             break;
@@ -9597,7 +9620,8 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
             break;
           case IVL_ST_WHILE:
             if (vpi_stmt_conditions_flag)
-                  emit_vpi_while_condition_(stmt, id, owner, scope);
+                  emit_vpi_stmt_condition_(ivl_stmt_cond_expr(stmt), id,
+                                           owner, scope);
             emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id, owner, scope);
             break;
           case IVL_ST_DELAY:

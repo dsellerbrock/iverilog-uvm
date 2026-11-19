@@ -2818,6 +2818,15 @@ extern unsigned        ivl_stmt_is_clocking_drive(ivl_statement_t net);
 extern ivl_statement_t ivl_stmt_cond_false(ivl_statement_t net);
   /* IVL_ST_CONDIT */
 extern ivl_statement_t ivl_stmt_cond_true(ivl_statement_t net);
+  /* Source syntax for IVL_ST_CONDIT, independent of the lowered arms. */
+typedef enum ivl_if_kind_e {
+      IVL_IF_NONE = 0, IVL_IF_PLAIN, IVL_IF_ELSE
+} ivl_if_kind_t;
+extern ivl_if_kind_t ivl_stmt_if_kind(ivl_statement_t net);
+  /* Typed expression before truth reduction, when retained for VPI. */
+extern ivl_expr_t ivl_stmt_if_source_expr(ivl_statement_t net);
+  /* Only the selected arm of this IVL_ST_CONDIT was elaborated. */
+extern unsigned ivl_stmt_if_is_folded(ivl_statement_t net);
   /* True when IVL_ST_CONDIT is the lowering of an immediate assertion. */
 extern unsigned ivl_stmt_is_immediate_assertion(ivl_statement_t net);
   /* IVL_ST_ASSIGN IVL_ST_ASSIGN_NB IVL_ST_DELAYX */

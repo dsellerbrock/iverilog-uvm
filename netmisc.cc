@@ -1964,7 +1964,7 @@ NetNet* make_const_z(Design*des, NetScope*scope, unsigned long wid)
       return make_const_net(des, scope, verinum(verinum::Vz, wid));
 }
 
-NetExpr* condition_reduce(NetExpr*expr)
+NetExpr* condition_reduce(NetExpr*expr, std::unique_ptr<NetExpr>*replaced)
 {
       if (expr->expr_type() == IVL_VT_REAL) {
 	    if (const NetECReal *tmp = dynamic_cast<NetECReal*>(expr)) {
@@ -1974,7 +1974,10 @@ NetExpr* condition_reduce(NetExpr*expr)
 		  verinum vres (res, 1, true);
 		  NetExpr *rtn = new NetEConst(vres);
 		  rtn->set_line(*expr);
-		  delete expr;
+		  if (replaced)
+			replaced->reset(expr);
+		  else
+			delete expr;
 		  return rtn;
 	    }
 

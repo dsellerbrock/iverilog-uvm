@@ -18616,6 +18616,13 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    return stmt->elaborate(des, scope);
       };
 
+      ivl_if_kind_t source_if = IVL_IF_NONE;
+      if (is_parsed_if_statement() && !is_immediate_assertion())
+	    source_if = else_ ? IVL_IF_ELSE : IVL_IF_PLAIN;
+      extern bool synthesis;
+      const bool keep_source = source_if != IVL_IF_NONE && !synthesis
+	    && strcmp(des->get_flag("ivl-user-vpi"), "1") == 0;
+
       if (const PEMatches*match = dynamic_cast<const PEMatches*>(expr_)) {
             NetProc*capture = nullptr;
             NetExpr*test = elaborate_statement_match_(match, if_, des, scope,
@@ -18628,6 +18635,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
             NetProc*i = elaborate_clause(if_);
             NetProc*e = elaborate_clause(else_);
             NetCondit*branch = new NetCondit(test, i, e);
+            branch->set_source_if(source_if);
             branch->set_line(*this);
             NetBlock*sequence = new NetBlock(NetBlock::SEQU, nullptr);
             sequence->set_line(*this);
@@ -18708,19 +18716,26 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    for (unsigned idx = 0 ;  idx < val.len() ;  idx += 1)
 		  reduced = reduced | val[idx];
 
+	    const bool take_if = reduced == verinum::V1;
+	    if (keep_source) {
+		  NetProc*arm = elaborate_clause(take_if ? if_ : else_);
+		  NetExpr*truth = new NetEConst(verinum(
+			take_if ? verinum::V1 : verinum::V0, 1));
+		  truth->set_line(*expr);
+		  NetCondit*res = new NetCondit(truth, take_if ? arm : nullptr,
+					       take_if ? nullptr : arm, true);
+		  res->set_source_if(source_if, expr, std::unique_ptr<NetExpr>(expr));
+		  res->set_line(*this);
+		  return res;
+	    }
+
 	    delete expr;
-	    if (reduced == verinum::V1)
-		  if (if_) {
-			return elaborate_clause(if_);
-		  } else {
-			NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
-			tmp->set_line(*this);
-			return tmp;
-		  }
-	    else if (else_)
-		  return elaborate_clause(else_);
-	    else
-		  return new NetBlock(NetBlock::SEQU, 0);
+	    if (Statement*selected = take_if ? if_ : else_)
+		  return elaborate_clause(selected);
+	    NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
+	    if (take_if)
+		  tmp->set_line(*this);
+	    return tmp;
       }
       }
 
@@ -18730,6 +18745,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 
 	// IEEE 1800-2017/2023 15.5.5.3: an event's Boolean value "shall be 0
 	// if the event is null and 1 otherwise".
+      const NetExpr*source_expr = keep_source ? expr : nullptr;
       if (NetEEvent*event = dynamic_cast<NetEEvent*>(expr)) {
 	    NetENull*null = new NetENull(nullptr);
 	    null->set_line(*this);
@@ -18744,6 +18760,8 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    if (gn_system_verilog() && expr->expr_type() == IVL_VT_CLASS) {
 		  delete expr;
 		  expr = make_const_val(1);
+		  source_if = IVL_IF_NONE;
+		  source_expr = nullptr;
 	    } else {
 		  cerr << get_fileline() << ": internal error: "
 			"incomprehensible expression width (0) in scope "
@@ -18755,7 +18773,8 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
       }
 
 	// Make sure the condition expression evaluates to a condition.
-      expr = condition_reduce(expr);
+      std::unique_ptr<NetExpr> replaced;
+      expr = condition_reduce(expr, source_expr ? &replaced : nullptr);
 
 	// Well, I actually need to generate code to handle the
 	// conditional, so elaborate.
@@ -18780,6 +18799,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
       }
 
       NetCondit*res = new NetCondit(expr, i, e);
+      res->set_source_if(source_if, source_expr, std::move(replaced));
       res->immediate_assertion(is_immediate_assertion());
       res->set_line(*this);
       return res;
@@ -59522,7 +59542,7 @@ static void resolve_extern_function_sensitivity_(Design*des)
       deferred_extern_sensitivity_.clear();
 }
 
-Design* elaborate(list<perm_string>roots)
+Design* elaborate(list<perm_string>roots, const map<string,const char*>&flags)
 {
       unsigned npackages = pform_packages.size();
       if (gn_system_verilog())
@@ -59537,6 +59557,7 @@ Design* elaborate(list<perm_string>roots)
       // This is the output design. I fill it in as I scan the root
       // module and elaborate what I find.
       Design*des = new Design;
+      des->set_flags(flags);
       seed_design_precision_(des);
       pending_interface_continuous_drivers_.clear();
       pending_interface_specify_paths_.clear();
