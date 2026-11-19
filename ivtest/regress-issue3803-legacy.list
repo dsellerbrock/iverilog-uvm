@@ -1,0 +1,4 @@
+issue3803_2017 normal,-g2017,-gassertions,-s,issue3803 ivltests gold=issue3803.gold
+issue3803_2023 normal,-g2023,-gassertions,-s,issue3803 ivltests gold=issue3803.gold
+issue3803_unsupported_2017 CE,-g2017,-gassertions,-s,issue3803_unsupported ivltests gold=issue3803_unsupported.gold
+issue3803_unsupported_2023 CE,-g2023,-gassertions,-s,issue3803_unsupported ivltests gold=issue3803_unsupported.gold

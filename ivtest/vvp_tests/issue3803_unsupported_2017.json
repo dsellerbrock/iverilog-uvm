@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3803_unsupported.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3803_unsupported"],
+  "gold": "issue3803_unsupported"
+}

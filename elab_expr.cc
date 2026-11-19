@@ -3165,6 +3165,10 @@ static NetScope* find_lazy_function_scope_(Design*des, NetScope*scope,
 	    }
       }
 
+      if (path.name.front().sva_scope) {
+	    scope = sva_lexical_scope(scope, path.name.front().sva_scope);
+	    if (!scope) return nullptr;
+      }
       (void) des->find_function(scope, path.name);
 
       list<hname_t> eval_path = eval_scope_path(des, scope, path.name);
@@ -12912,6 +12916,8 @@ PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
       const NetScope*lookup = let_body_scope_ ? let_body_scope_ : scope;
       if (path_.package)
 	    lookup = des->find_package(path_.package->pscope_name());
+      else if (comp.sva_scope && !let_body_scope_)
+	    lookup = sva_lexical_scope(scope, comp.sva_scope);
       const NetScope*owner = nullptr;
       PLet*let = lookup ? lookup->find_let(des, comp.name, lexical_pos_, &owner) : nullptr;
       if (let == 0) return 0;
@@ -12931,6 +12937,8 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
       const NetScope*lookup = let_body_scope_ ? let_body_scope_ : scope;
       if (path_.package)
 	    lookup = des->find_package(path_.package->pscope_name());
+      else if (comp.sva_scope && !let_body_scope_)
+	    lookup = sva_lexical_scope(scope, comp.sva_scope);
       const NetScope*owner = nullptr;
       PLet*let = lookup ? lookup->find_let(des, comp.name, lexical_pos(), &owner) : nullptr;
       if (let == 0) return 0;

@@ -45,6 +45,7 @@ class PEEvent;
 class Design;
 class NetScope;
 class Definitions;
+class LexicalScope;
 class PExpr;
 class PEEvent;
 class PClass;
@@ -188,6 +189,9 @@ struct name_component_t {
       // being randomized. Preserve the qualifier through parsing so the
       // constraint IR can distinguish otherwise-identical names.
       bool local_scope;
+
+      // Cloned SVA names can start lookup in an enclosing declaration scope.
+      const LexicalScope*sva_scope = nullptr;
 };
 
 struct decl_assignment_t {

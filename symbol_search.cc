@@ -1048,6 +1048,9 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 	      // lexical parent, so let its lookup use the ordinary lexical-position
 	      // checks below while retaining prefix-scope behavior for packages.
 	    prefix_scope = path.package->parent_scope() != nullptr;
+      } else if (!path.name.empty() && path.name.front().sva_scope) {
+	    search_scope = sva_lexical_scope(scope, path.name.front().sva_scope);
+	    if (!search_scope) return false;
       }
 
       for (list<name_component_t>::const_iterator cur = path.name.begin()

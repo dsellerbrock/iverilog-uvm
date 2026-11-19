@@ -10507,6 +10507,7 @@ struct sva_clone_scope_t {
       const pform_name_t*prefix = nullptr;
       const std::set<perm_string>*local_names = nullptr;
       bool qualify_sequence_refs = false;
+      const LexicalScope*binding_scope = nullptr;
 	/* 17.3: the $unit a checker is declared in. A name its assertion
 	   reads from there must keep that binding where the assertion is
 	   placed at a procedural instance. */
@@ -10516,6 +10517,47 @@ struct sva_clone_scope_t {
 
 static sva_clone_scope_t sva_clone_scope_;
 static sva_clone_scope_t sva_clone_actual_scope_;
+
+// Pick the elaborated occurrence enclosing this assertion, including the
+// appropriate iteration of a generate loop.
+NetScope* sva_lexical_scope(NetScope*scope, const LexicalScope*declaration)
+{
+      if (const PPackage*unit = dynamic_cast<const PPackage*>(declaration))
+	    return unit->parent_scope() ? nullptr : scope->unit();
+      const Module*module = dynamic_cast<const Module*>(declaration);
+      const PGenerate*gen = dynamic_cast<const PGenerate*>(declaration);
+      for (; scope; scope = scope->parent()) {
+	    if (module && scope->module_definition() == module)
+		  return scope;
+	    if (gen && (scope->generate_definition() == gen
+			|| scope->has_active_generate(gen)))
+		  return scope;
+      }
+      return nullptr;
+}
+
+static const LexicalScope* sva_binding_scope_(const sva_scoped_name_t&key,
+					      const Module*module)
+{
+      if (key.gen) return key.gen;
+      if (key.unit) return key.unit;
+      return module;
+}
+
+template <class MAP>
+static typename MAP::iterator sva_resolve_from_(MAP&m, perm_string name,
+						const LexicalScope*scope)
+{
+      if (const PPackage*unit = dynamic_cast<const PPackage*>(scope)) {
+	    sva_scoped_name_t key;
+	    key.name = name;
+	    key.gen = nullptr;
+	    key.package = nullptr;
+	    key.unit = unit;
+	    return m.find(key);
+      }
+      return sva_resolve_(m, name, dynamic_cast<const PGenerate*>(scope));
+}
 
 static bool sva_scope_declares_name_(const LexicalScope*sc, perm_string name)
 {
@@ -10862,7 +10904,7 @@ void pform_sva_sorry(const struct vlltype&loc, const char*what)
 
 static bool pform_sva_const_long_(PExpr*expr, long&value,
 				  std::set<const PExpr*>&visiting,
-				  LexicalScope*lookup_scope);
+				  const LexicalScope*lookup_scope);
 
 /* A repetition bound that reaches an overridable module parameter cannot be
    structurally expanded while the module is parsed: the value in the parse
@@ -10871,7 +10913,7 @@ static bool pform_sva_const_long_(PExpr*expr, long&value,
    overridden.  This is deliberately a dependency query, not a numeric
    evaluator; ordinary elaboration remains the authority for the value. */
 static bool pform_sva_overridable_bound_(
-		PExpr*expr, LexicalScope*lookup_scope,
+		PExpr*expr, const LexicalScope*lookup_scope,
 		std::set<const LexicalScope::param_expr_t*>&visiting)
 {
       if (!expr) return false;
@@ -10884,7 +10926,7 @@ static bool pform_sva_overridable_bound_(
 		  if (!component->index.empty()) return false;
 	    perm_string name = id->path().name.front().name;
 	    LexicalScope::param_expr_t*parm = nullptr;
-	    LexicalScope*parm_scope = nullptr;
+	    const LexicalScope*parm_scope = nullptr;
 	    if (id->path().package) {
 		  PPackage*pkg = id->path().package;
 		  std::map<perm_string,LexicalScope::param_expr_t*>::iterator it =
@@ -10894,16 +10936,18 @@ static bool pform_sva_overridable_bound_(
 			parm_scope = pkg;
 		  }
 	    } else {
-		  for (LexicalScope*scope = lookup_scope ; scope && !parm
+		  if (id->path().name.front().sva_scope)
+			lookup_scope = id->path().name.front().sva_scope;
+		  for (const LexicalScope*scope = lookup_scope ; scope && !parm
 		       ; scope = scope->parent_scope()) {
-			std::map<perm_string,LexicalScope::param_expr_t*>::iterator it =
+			auto it =
 			      scope->parameters.find(name);
 			if (it != scope->parameters.end()) {
 			      parm = it->second;
 			      parm_scope = scope;
 			      break;
 			}
-			std::map<perm_string,PPackage*>::iterator imp =
+			auto imp =
 			      scope->explicit_imports.find(name);
 			if (imp != scope->explicit_imports.end()) {
 			      PPackage*pkg = imp->second;
@@ -11017,7 +11061,7 @@ long pform_sva_nexttime_index(const struct vlltype&loc, PExpr*expr,
    sampled-value bounds are lowered before normal elaboration has built the
    netlist enum table, so the SVA constant evaluator must understand the
    declaration's implicit numbering itself. */
-static bool pform_sva_enum_long_(LexicalScope*scope, perm_string name,
+static bool pform_sva_enum_long_(const LexicalScope*scope, perm_string name,
 				 long&value,
 				 std::set<const PExpr*>&visiting)
 {
@@ -11048,7 +11092,7 @@ static bool pform_sva_enum_long_(LexicalScope*scope, perm_string name,
    than long or uses an expression shape this early SVA evaluator does not
    fold (for example $clog2 or a concatenated sparse-FSM enum value). Such a
    name must not be sampled or reported as a live design operand. */
-static bool pform_sva_enum_has_(LexicalScope*scope, perm_string name)
+static bool pform_sva_enum_has_(const LexicalScope*scope, perm_string name)
 {
       if (!scope) return false;
       for (std::vector<enum_type_t*>::const_iterator et =
@@ -11079,7 +11123,7 @@ static bool pform_sva_named_pattern_long_(
 		PExpr*expr, const std::vector<perm_string>&members,
 		size_t member_idx, long&value,
 		std::set<const PExpr*>&visiting,
-		LexicalScope*lookup_scope)
+		const LexicalScope*lookup_scope)
 {
       if (member_idx == members.size())
 	    return pform_sva_const_long_(expr, value, visiting, lookup_scope);
@@ -11119,12 +11163,14 @@ static bool pform_sva_ident_base_is_constant_(const PEIdent*id)
 		    && !pit->second->type_flag)
 		  || pform_sva_enum_has_(pkg, name);
       }
-      for (LexicalScope*scope = lexical_scope ; scope
-	   ; scope = scope->parent_scope()) {
+      const LexicalScope*binding_scope = id->path().name.front().sva_scope;
+      for (const LexicalScope*scope = binding_scope ? binding_scope : lexical_scope;
+	   scope; scope = scope->parent_scope()) {
 	    std::map<perm_string,LexicalScope::param_expr_t*>::const_iterator pit =
 		  scope->parameters.find(name);
 	    if (pit != scope->parameters.end())
 		  return pit->second && !pit->second->type_flag;
+	    if (binding_scope && scope->wires.count(name)) return false;
 	    if (pform_sva_enum_has_(scope, name)) return true;
 	    std::map<perm_string,PPackage*>::const_iterator imp =
 		  scope->explicit_imports.find(name);
@@ -11151,7 +11197,7 @@ static bool pform_sva_ident_base_is_constant_(const PEIdent*id)
 
 static bool pform_sva_const_long_(PExpr*expr, long&value,
 				  std::set<const PExpr*>&visiting,
-				  LexicalScope*lookup_scope)
+				  const LexicalScope*lookup_scope)
 {
       if (!expr || visiting.count(expr)) return false;
       visiting.insert(expr);
@@ -11176,7 +11222,7 @@ static bool pform_sva_const_long_(PExpr*expr, long&value,
 			members.push_back(component->name);
 		  }
 		  auto eval_parameter = [&](LexicalScope::param_expr_t*parm,
-					    LexicalScope*parm_scope) -> bool {
+					    const LexicalScope*parm_scope) -> bool {
 			if (!parm || parm->type_flag || !parm->expr) return false;
 			if (members.empty())
 			      return pform_sva_const_long_(parm->expr, value,
@@ -11204,9 +11250,11 @@ static bool pform_sva_const_long_(PExpr*expr, long&value,
 			visiting.erase(expr);
 			return ok;
 		  }
-		  for (LexicalScope*scope = lookup_scope ; scope
+		  if (id->path().name.front().sva_scope)
+			lookup_scope = id->path().name.front().sva_scope;
+		  for (const LexicalScope*scope = lookup_scope ; scope
 		       ; scope = scope->parent_scope()) {
-			std::map<perm_string,LexicalScope::param_expr_t*>::iterator it =
+			auto it =
 			      scope->parameters.find(name);
 			if (it != scope->parameters.end()) {
 			      bool ok = eval_parameter(it->second, scope);
@@ -11218,7 +11266,7 @@ static bool pform_sva_const_long_(PExpr*expr, long&value,
 			      visiting.erase(expr);
 			      return true;
 			}
-			std::map<perm_string,PPackage*>::iterator imp =
+			auto imp =
 			      scope->explicit_imports.find(name);
 			if (imp != scope->explicit_imports.end()) {
 			      PPackage*pkg = imp->second;
@@ -13070,6 +13118,7 @@ static bool sva_clone_name_component_(
 {
       copy.name = source.name;
       copy.local_scope = source.local_scope;
+      copy.sva_scope = source.sva_scope;
       sva_clone_scope_t no_context;
       std::unique_ptr<sva_clone_scope_guard_t>guard;
       if (caller_context) guard.reset(new sva_clone_scope_guard_t(no_context));
@@ -13461,6 +13510,8 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 		  }
 		  path.push_back(copy);
 	    }
+	    if (!id->path().package && !qualify && !path.front().sva_scope)
+		  path.front().sva_scope = sva_clone_scope_.binding_scope;
 	    if (!id->path().package && !qualify)
 		  sva_check_free_name_(id->path().name.front().name);
 	    PEIdent*cp = id->path().package
@@ -13685,6 +13736,9 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 		  }
 		  call_path.push_back(copy);
 	    }
+	    if (!cf->path().package && !qualify_call
+		&& !call_path.front().sva_scope && call_path.front().name[0] != '$')
+		  call_path.front().sva_scope = sva_clone_scope_.binding_scope;
 	    const std::vector<named_pexpr_t>&parms = cf->get_parms();
 	    std::list<named_pexpr_t> np;
 	    for (size_t k = 0 ; k < parms.size() ; k += 1) {
@@ -13723,6 +13777,7 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 		  cp->set_randomize_with_identifiers(
 			cf->randomize_with_identifiers());
 	    cp->set_scoped_type_prefix(cf->has_scoped_type_prefix());
+	    if (call_path.front().sva_scope) cp->set_lexical_pos(cf->lexical_pos());
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -15254,6 +15309,11 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  pform_name_t::iterator after = indexed_base;
 		  ++after;
 		  base.erase(after, base.end());
+	    }
+	    if (base.front().sva_scope) {
+		  std::ostringstream scoped_key;
+		  scoped_key << base.front().sva_scope << ':' << key;
+		  key = scoped_key.str();
 	    }
 
 	    std::list<named_pexpr_t> parms;
@@ -20481,13 +20541,18 @@ static PExpr* sva_expand_sampled_let_(PECallFunction*call, bool&found)
 	    return nullptr;
       perm_string name = call->path().name.front().name;
       PLet*let = nullptr;
-      for (LexicalScope*scope = lexical_scope; scope && !let;
+      const LexicalScope*binding_scope = call->path().name.front().sva_scope;
+      const LexicalScope*let_scope = nullptr;
+      for (const LexicalScope*scope = binding_scope ? binding_scope : lexical_scope;
+	   scope && !let;
 	   scope = scope->parent_scope()) {
 	    std::map<perm_string,PLet*>::const_iterator it =
 		  scope->lets.find(name);
 	    if (it != scope->lets.end()
-		&& it->second->lexical_pos() < call->lexical_pos())
+		&& it->second->lexical_pos() < call->lexical_pos()) {
 		  let = it->second;
+		  let_scope = scope;
+	    }
       }
       if (!let) return nullptr;
       found = true;
@@ -20527,6 +20592,9 @@ static PExpr* sva_expand_sampled_let_(PECallFunction*call, bool&found)
 		  binding[formals[formal_idx]->name_] = value;
 	    }
       }
+      sva_clone_scope_t context = sva_clone_scope_;
+      if (binding_scope) context.binding_scope = let_scope;
+      sva_clone_scope_guard_t guard(context, sva_clone_actual_scope_);
       for (size_t idx = 0; idx < formals.size(); ++idx) {
 	    if (binding.count(formals[idx]->name_)) continue;
 	    if (!formals[idx]->def_) return nullptr;
@@ -21459,7 +21527,8 @@ static void sva_retag_first_match_groups_(std::vector<sva_seq_step_t>&steps)
 static const LexicalScope* sva_clock_ident_scope_(const PEIdent*id)
 {
       perm_string name = id->path().name.front().name;
-      for (const LexicalScope*scope = lexical_scope; scope;
+      const LexicalScope*binding_scope = id->path().name.front().sva_scope;
+      for (const LexicalScope*scope = binding_scope ? binding_scope : lexical_scope; scope;
 	   scope = scope->parent_scope()) {
 	    auto wire = scope->wires.find(name);
 	    if (wire != scope->wires.end()) {
@@ -21589,6 +21658,14 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  expr_retained_scope =
 			sva_retained_sequences_for_(expr_module) != nullptr;
 	    }
+	    const pform_name_t*path = nullptr;
+	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(steps[i].expr))
+		  path = &id->path().name;
+	    else if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(steps[i].expr))
+		  path = &call->path().name;
+	    const LexicalScope*binding_scope = path && !path->empty()
+		  ? path->front().sva_scope : nullptr;
+	    if (binding_scope) expr_scope = dynamic_cast<const PGenerate*>(binding_scope);
 	      /* M9D: parameterized sequence instantiation `name(args)`. */
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>(steps[i].expr)) {
 		  if (!cf->path().package && !cf->path().name.empty()) {
@@ -21624,7 +21701,9 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			      /* A clocking-block qualifier names a declaration in the current
 				 module, not a hierarchical module instance. */
 			} else if (!hierarchical_call) {
-			      pit = sva_resolve_(sva_param_sequences, nm, expr_scope);
+			      pit = binding_scope
+				    ? sva_resolve_from_(sva_param_sequences, nm, binding_scope)
+				    : sva_resolve_(sva_param_sequences, nm, expr_scope);
 			} else if (call_path.size() == 1) {
 			      retained = sva_retained_sequences_for_(decl_module);
 			      pit = retained
@@ -21652,7 +21731,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			      if (!enter(pit->first)) { --splice_depth; return; }
 			      std::vector<sva_seq_step_t>*inst = nullptr;
 			      PEventStatement*clock = nullptr;
-			      if (hierarchical_call) {
+			      if (hierarchical_call || binding_scope) {
 				    std::set<perm_string>local_names;
 				    for (const sva_seq_step_t&step : *pit->second.body)
 					  for (const sva_match_item_t&item : step.items)
@@ -21666,9 +21745,10 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			    pform_name_t empty_caller_prefix;
 				  const pform_name_t*caller_prefix = expr_hier_prefix
 					  ? expr_hier_prefix : &empty_caller_prefix;
-			    pform_name_t caller_qualifier =
-					  sva_qualifier_for_scope_(caller_prefix,
-								  expr_module, expr_scope);
+			    pform_name_t caller_qualifier = hierarchical_call
+					  ? sva_qualifier_for_scope_(caller_prefix,
+								    expr_module, expr_scope)
+					  : pform_name_t();
 				    sva_clone_scope_t declaration_context;
 				    declaration_context.module = decl_module;
 				    declaration_context.generate = pit->first.gen;
@@ -21676,12 +21756,16 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 					  declaration_qualifier.empty()
 					  ? nullptr : &declaration_qualifier;
 				    declaration_context.local_names = &local_names;
+				    if (binding_scope)
+					  declaration_context.binding_scope =
+						sva_binding_scope_(pit->first, decl_module);
 				    sva_clone_scope_t call_context;
 				    call_context.module = expr_module;
 				    call_context.generate = expr_scope;
 				    call_context.prefix = caller_qualifier.empty()
 					  ? nullptr : &caller_qualifier;
 				    call_context.qualify_sequence_refs = true;
+				    call_context.binding_scope = binding_scope;
 				    inst = sva_instantiate_seq_(
 					  loc, nm, pit->second, cf->get_parms(), clock,
 					  &declaration_context, &call_context,
@@ -21803,8 +21887,10 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			      *seq_declarations,
 			      id->path().name.front().name, expr_scope);
 		  } else {
-			seq_it = sva_resolve_(sva_module_sequences,
-			      id->path().name.front().name, expr_scope);
+			perm_string name = id->path().name.front().name;
+			seq_it = binding_scope
+			      ? sva_resolve_from_(sva_module_sequences, name, binding_scope)
+			      : sva_resolve_(sva_module_sequences, name, expr_scope);
 		  }
 	    } else {
 		  if (id->path().name.back().index.empty()
@@ -21878,6 +21964,9 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    declaration_context.prefix = declaration_qualifier.empty()
 		  ? nullptr : &declaration_qualifier;
 	    declaration_context.local_names = &local_names;
+	    if (binding_scope)
+		  declaration_context.binding_scope =
+			sva_binding_scope_(seq_key, decl_module);
 	    sva_clone_scope_guard_t body_clone_scope(declaration_context);
 	    std::vector<sva_seq_step_t> body;
 	    for (size_t k = 0 ; k < seq_body->size() ; k += 1) {
@@ -33730,6 +33819,16 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    initv.push_back(sva_assign_(loc, ack[d], sva_num32_(loc, 0)));
 	    initv.push_back(sva_assign_(loc, req_epoch[d],
 				      sva_num32_(loc, 0)));
+	    if (in_boundary[d] == 1) {
+		  initv.push_back(sva_hist_on_stmt_(loc, {name_component_t(req_in[d])}));
+		  initv.push_back(sva_hist_on_stmt_(loc, {name_component_t(req_epoch[d])}));
+	    }
+      }
+      perm_string disable_generation;
+      if (disable) {
+	    disable_generation = sva_make_reg_(loc, inst, "mcdis", 0, true);
+	    initv.push_back(sva_assign_(loc, disable_generation, sva_num32_(loc, 0)));
+	    initv.push_back(sva_hist_on_stmt_(loc, {name_component_t(disable_generation)}));
       }
       if (!cover) {
 	    initv.push_back(sva_assign_(loc, pv_req, sva_num32_(loc, 0)));
@@ -34153,11 +34252,19 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			sva_assign_(loc, miss_req[d], add), nullptr));
 	    }
 
-	    /* Snapshot the handoff before Observed to retain the ##0/##1
-	       boundary. Process it after the lazy domain reset only when its
-	       epoch is current; an intermediate domain also reset its outgoing
-	       epoch above, so downstream clocks cannot confuse old and new
-	       attempts. */
+	    /* Snapshot strict handoffs from the start of the time slot. An
+	       edge driven in Reactive can wake here after the source has
+	       already forwarded at this same time. Overlapping handoffs
+	       still see the request at the point of the event. */
+	    auto read_request = [&](perm_string name) -> PExpr* {
+		  if (overlap_in) return sva_id_(loc, name);
+		  std::list<named_pexpr_t> args(1);
+		  args.front().parm = sva_id_(loc, name);
+		  PECallFunction*sample = new PECallFunction(
+			lex_strings.make("$ivl_clocking_sample"), args);
+		  FILE_NAME(sample, loc);
+		  return sample;
+	    };
 	    std::vector<Statement*> epoch_body;
 	    PEBinary*duex = new PEBinary(
 		  '-', sva_id_(loc, req_snapshot[d]), sva_id_(loc, ack[d]));
@@ -34171,9 +34278,9 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    epoch_body.insert(epoch_body.end(), bodyd.begin(), bodyd.end());
 	    bodyd.clear();
 	    bodyd.push_back(sva_assign_(loc, req_snapshot[d],
-					  sva_id_(loc, req_in[d])));
+					  read_request(req_in[d])));
 	    bodyd.push_back(sva_assign_(loc, epoch_snapshot[d],
-					  sva_id_(loc, req_epoch[d])));
+					  read_request(req_epoch[d])));
 	    sva_note_multiclock_const_(loc);
 	    bodyd.push_back(sva_observed_wait_(loc, sva_clock_role_t::leading,
 					      endpoint && last));
@@ -34186,6 +34293,15 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			sva_kill_generation_expr_(loc, inst));
 		  FILE_NAME(epoch_current, loc);
 		  advance = sva_if_(loc, epoch_current, advance, nullptr);
+	    }
+	    if (!overlap_in && disable) {
+		    /* A disable pulse may have cleared the sampled requests
+		       earlier in this same slot. Discard that stale snapshot. */
+		  PEBComp*generation_current = new PEBComp(
+			'E', read_request(disable_generation),
+			sva_id_(loc, disable_generation));
+		  FILE_NAME(generation_current, loc);
+		  advance = sva_if_(loc, generation_current, advance, nullptr);
 	    }
 	    if (disable_domain[d]) {
 		  advance = sva_if_(loc, disable_domain[d],
@@ -34215,6 +34331,10 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	   are intentionally retained. */
       if (disable) {
 	    std::vector<Statement*> clear;
+	    PEBinary*next_generation = new PEBinary(
+		  '+', sva_id_(loc, disable_generation), sva_num32_(loc, 1));
+	    FILE_NAME(next_generation, loc);
+	    clear.push_back(sva_assign_(loc, disable_generation, next_generation));
 	    for (size_t b = 0 ; b < pa.size() ; b += 1)
 	  for (size_t k = 1 ; k < pa[b].size() ; k += 1)
 		clear.push_back(sva_assign_(loc, pa[b][k], sva_bit_(loc, 0)));
@@ -37424,16 +37544,18 @@ static bool sva_defer_hierarchical_assertion_(
       return true;
 }
 
-static bool sva_named_property_ref_(const PEIdent*id,
+static bool sva_named_property_ref_(const pform_scoped_name_t&ref,
 				    perm_string&name,
 				    std::map<sva_scoped_name_t,
-				    sva_property_t*>::iterator&found)
+				    sva_property_t*>::iterator&found,
+				    const LexicalScope*scope = nullptr)
 {
-      if (!id || id->path().package) return false;
-      const pform_name_t&path = id->path().name;
+      if (ref.package) return false;
+      const pform_name_t&path = ref.name;
       if (path.size() == 1 && path.front().index.empty()) {
 	    name = path.front().name;
-	    found = sva_resolve_(sva_module_properties, name);
+	    found = scope ? sva_resolve_from_(sva_module_properties, name, scope)
+			  : sva_resolve_(sva_module_properties, name);
 	    return true;
       }
       if (path.size() != 2 || !path.front().index.empty()
@@ -37577,6 +37699,158 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
 	    return nullptr;
       }
       return p;
+}
+
+static const sva_scoped_name_t* sva_named_multiclock_operand_(
+	const std::vector<sva_seq_step_t>*chain, const LexicalScope*scope,
+	const Module*module, const sva_property_t*&body)
+{
+      if (!chain || chain->size() != 1) return nullptr;
+      const sva_seq_step_t&step = chain->front();
+      if (step.delay_lo || step.delay_hi || step.rep_tail || step.rep_kind
+	  || step.grouped_repeat || step.fm || !step.items.empty())
+	    return nullptr;
+
+      const pform_scoped_name_t*ref = nullptr;
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(step.expr))
+	    ref = &id->path();
+      else if (const PECallFunction*call = dynamic_cast<const PECallFunction*>(step.expr)) {
+	    const auto&args = call->get_parms();
+	    if (!call->receiver_expr() && !call->leading_type_args()
+		&& call->with_constraints().empty()
+		&& (args.empty() || (args.size() == 1 && !args.front().parm
+				     && args.front().name.nil())))
+		  ref = &call->path();
+      }
+      perm_string name;
+      auto found = sva_module_properties.end();
+      if (!ref || !sva_named_property_ref_(*ref, name, found, scope)
+	  || found == sva_module_properties.end()
+	  || !sva_property_shaped_sequences.count(found->first)
+	  || !found->second || !found->second->seq_clk_evt)
+	    return nullptr;
+
+      if (ref->name.size() == 1) {
+	    const LexicalScope*decl_scope = sva_binding_scope_(found->first, module);
+	    auto plain = sva_resolve_from_(sva_module_sequences, name, scope);
+	    auto param = sva_resolve_from_(sva_param_sequences, name, scope);
+	    for (; scope && scope != decl_scope; scope = scope->parent_scope())
+		  if (sva_scope_declares_name_(scope, name)
+		      || (plain != sva_module_sequences.end()
+			  && sva_binding_scope_(plain->first, module) == scope)
+		      || (param != sva_param_sequences.end()
+			  && sva_binding_scope_(param->first, module) == scope))
+			return nullptr;
+      }
+      body = found->second;
+      return &found->first;
+}
+
+static bool sva_named_multiclock_linear_(const sva_property_t*body)
+{
+      if (!body->clk_evt || !body->mc_prefix || body->mc_prefix->empty()
+	  || !body->seq || body->seq->empty() || body->tree
+	  || !body->local_names.empty() || body->mc_boundary != 1)
+	    return false;
+      if (body->mc_more)
+	    for (const auto&seg : *body->mc_more)
+		  if (seg.boundary != 1 || seg.inherit_property_clock
+		      || !seg.clk_evt || !seg.chain || seg.chain->empty())
+			return false;
+      return true;
+}
+
+/* IEEE 1800-2017/2023 16.13.4(e): a named sequence keeps its clock flow
+   inside the instance. Start the implication on the antecedent's leading
+   event, then start the consequent on its own first strictly future tick. */
+static sva_property_t* sva_named_multiclock_implication_(
+	const struct vlltype&loc, sva_property_t*inst,
+	const sva_scoped_name_t&property, bool declared_disable)
+{
+      if (inst->op_type != 2 || inst->tree || inst->ante_tree || inst->pa
+	  || inst->seq_clk_evt || inst->mc_prefix || inst->mc_more
+	  || inst->strength || inst->abort_cond || inst->forbidden_consequent
+	  || pform_cur_module.empty())
+	    return inst;
+
+      const Module*module = pform_cur_module.front();
+      const LexicalScope*scope = sva_binding_scope_(property, module);
+      const sva_property_t*lhs_body = nullptr;
+      const sva_property_t*rhs_body = nullptr;
+      const auto*lhs_key = sva_named_multiclock_operand_(inst->antecedent, scope,
+							module, lhs_body);
+      const auto*rhs_key = sva_named_multiclock_operand_(inst->seq, scope,
+							module, rhs_body);
+      if (!lhs_key || !rhs_key) return inst;
+
+      auto refuse = [&](const char*reason) -> sva_property_t* {
+	    cerr << loc << ": sorry: " << reason << " for a nonoverlapping"
+		 << " implication of named multiclocked sequences"
+		 << " (IEEE 1800-2017/2023 16.13.4(e))." << endl;
+	    error_count += 1;
+	    pform_sva_destroy_property(inst);
+	    return nullptr;
+      };
+      if (sva_active_proc_id_)
+	    return refuse("procedural assertion queuing is not supported");
+      if (inst->clocking_scope)
+	    return refuse("a clocking block requires a singly clocked assertion");
+      if (!inst->local_names.empty())
+	    return refuse("property-local state is not supported");
+      if (!sva_named_multiclock_linear_(lhs_body)
+	  || !sva_named_multiclock_linear_(rhs_body))
+	    return refuse("the operands must be fixed linear sequences with "
+			  "explicit leading clocks and strict internal ##1 boundaries");
+
+      using owned_property = std::unique_ptr<sva_property_t,
+					     decltype(&pform_sva_destroy_property)>;
+      auto clone_body = [&](const sva_property_t*body, const sva_scoped_name_t&key) {
+	    sva_clone_scope_t context;
+	    context.binding_scope = sva_binding_scope_(key, module);
+	    sva_clone_scope_guard_t guard(context);
+	    return owned_property(sva_clone_property_(loc, body), pform_sva_destroy_property);
+      };
+      auto lhs = clone_body(lhs_body, *lhs_key);
+      auto rhs = clone_body(rhs_body, *rhs_key);
+      if (!lhs || !rhs) return refuse("cannot clone a sequence operand");
+
+      if (declared_disable) {
+	    sva_clone_scope_t context;
+	    context.binding_scope = scope;
+	    sva_clone_scope_guard_t guard(context);
+	    PExpr*disable = sva_clone_expr_(inst->disable_iff_expr);
+	    if (!disable) return refuse("cannot clone the declared disable condition");
+	    delete inst->disable_iff_expr;
+	    inst->disable_iff_expr = disable;
+      }
+      if (!inst->disable_iff_expr) {
+	    if (PExpr*disable = sva_default_disable_for_scope_(lexical_scope)) {
+		  inst->disable_iff_expr = sva_clone_expr_(disable);
+		  if (!inst->disable_iff_expr)
+			return refuse("cannot clone the default disable condition");
+	    }
+      }
+      lhs->disable_iff_expr = inst->disable_iff_expr;
+      inst->disable_iff_expr = nullptr;
+      lhs->endpoint_event = inst->endpoint_event;
+      lhs->sequence_cover = inst->sequence_cover;
+
+      if (!rhs->mc_more) rhs->mc_more = new std::vector<sva_mc_seg_t>;
+      auto first = rhs->mc_more->emplace(rhs->mc_more->begin());
+      first->boundary = rhs->mc_boundary;
+      first->clk_evt = rhs->seq_clk_evt;
+      first->chain = rhs->seq;
+      rhs->seq_clk_evt = nullptr;
+      rhs->seq = nullptr;
+      auto*rhs_clock = rhs->clk_evt;
+      auto*rhs_prefix = rhs->mc_prefix;
+      auto*rhs_tail = rhs->mc_more;
+      rhs->clk_evt = nullptr;
+      rhs->mc_prefix = nullptr;
+      rhs->mc_more = nullptr;
+      pform_sva_destroy_property(inst);
+      return pform_sva_multiclock_sequence_implication(loc, 2, lhs.release(),
+						    rhs_clock, rhs_prefix, rhs_tail);
 }
 
 /* `( @(c) s |-> p )': an implication with its own leading clock. */
@@ -41378,7 +41652,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (PEIdent*id = dynamic_cast<PEIdent*>((*prop->seq)[0].expr)) {
 		  perm_string property_name;
 		  std::map<sva_scoped_name_t, sva_property_t*>::iterator pit;
-		  if (sva_named_property_ref_(id, property_name, pit)) {
+		  if (sva_named_property_ref_(id->path(), property_name, pit)) {
 			sva_rec_refresh_();
 			if (pit != sva_module_properties.end() && pit->second
 			    && sva_rec_recursive_.count(pit->first)) {
@@ -41714,6 +41988,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      if (inst && !inst->clocking_scope)
 				    inst->clocking_scope = outer_clocking_scope;
 			      if (inst && endpoint) inst->endpoint_event = endpoint_event;
+			      if (inst && inst != named)
+				    inst = sva_named_multiclock_implication_(
+					  loc, inst, pit->first, named->disable_iff_expr != nullptr);
 			      delete id;
 			      delete prop->seq;
 			      delete prop;

@@ -7287,6 +7287,12 @@ issue3799_sequence_clock_unsupported_2023 CE,-g2023,-gassertions,-s,issue3799_se
 issue3801_2017 normal,-g2017,-gassertions,-s,issue3801 ivltests gold=issue3801.gold
 issue3801_2023 normal,-g2023,-gassertions,-s,issue3801 ivltests gold=issue3801.gold
 
+# IEEE 1800-2017/2023 16.13.4(e): named multiclock implication operands.
+issue3803_2017 normal,-g2017,-gassertions,-s,issue3803 ivltests gold=issue3803.gold
+issue3803_2023 normal,-g2023,-gassertions,-s,issue3803 ivltests gold=issue3803.gold
+issue3803_unsupported_2017 CE,-g2017,-gassertions,-s,issue3803_unsupported ivltests gold=issue3803_unsupported.gold
+issue3803_unsupported_2023 CE,-g2023,-gassertions,-s,issue3803_unsupported ivltests gold=issue3803_unsupported.gold
+
 # IEEE 1800-2017/2023 10.10: self-determined integral queue operands.
 issue1158_signed_queue_sort_2017 normal,-g2017 ivltests gold=issue1158_signed_queue_sort.gold
 issue1158_signed_queue_sort_2023 normal,-g2023 ivltests gold=issue1158_signed_queue_sort.gold

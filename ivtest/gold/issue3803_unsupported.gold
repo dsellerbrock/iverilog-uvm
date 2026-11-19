@@ -1,0 +1,3 @@
+./ivltests/issue3803_unsupported.sv:25: sorry: the operands must be fixed linear sequences with explicit leading clocks and strict internal ##1 boundaries for a nonoverlapping implication of named multiclocked sequences (IEEE 1800-2017/2023 16.13.4(e)).
+./ivltests/issue3803_unsupported.sv:26: sorry: a multiclocked sequence whose clock-flow segment is not a fixed-length boolean chain (constant ##N delays only) is not supported (IEEE 1800-2017 16.13); the assertion is dropped.
+./ivltests/issue3803_unsupported.sv:27: sorry: procedural assertion queuing is not supported for a nonoverlapping implication of named multiclocked sequences (IEEE 1800-2017/2023 16.13.4(e)).

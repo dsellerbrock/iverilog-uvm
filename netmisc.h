@@ -176,6 +176,8 @@ extern bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 			  const pform_scoped_name_t &path, unsigned lexical_pos,
 			  struct symbol_search_results*res);
 
+extern NetScope* sva_lexical_scope(NetScope*scope, const LexicalScope*declaration);
+
 // Call when consuming a value binding. Keep the original use scope even
 // when a qualifier changes the lookup scope.
 extern void check_package_unit_value(Design*des, const LineInfo&loc,
