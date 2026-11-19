@@ -1233,7 +1233,8 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       vpiHandle vpi_iterate(int code) override;
       vpiHandle vpi_index(int idx) override;
 
-      void set_word(unsigned idx, unsigned off, const vvp_vector4_t&val);
+      void set_word(unsigned idx, unsigned off, const vvp_vector4_t&val,
+		    const vvp_vector2_t*mask = nullptr);
       void set_word(unsigned idx, double val);
       void set_word(unsigned idx, const std::string&val);
       void set_word(unsigned idx, const vvp_object_t&val);

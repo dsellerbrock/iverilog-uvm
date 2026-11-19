@@ -1567,8 +1567,78 @@ static int draw_evctl_vif_object_(ivl_statement_t net, ivl_event_t ev)
       return 0;
 }
 
+/* Generated clocking outputs append all selected leaves to one drive.
+ * The commit instruction's address identifies the clockvar word. */
+static void show_clocking_output_drive(ivl_statement_t net, ivl_expr_t mask)
+{
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      ivl_expr_t dly = ivl_stmt_delay_expr(net);
+      assert(!dly || ivl_expr_type(dly) == IVL_EX_DELAY);
+      uint64_t delay = dly ? ivl_expr_delay_val(dly) : 0;
+      unsigned commit = transient_id++;
+      unsigned offset = 0;
+      unsigned lvals = ivl_stmt_lvals(net);
+
+      for (unsigned idx = 0; idx < lvals; ++idx) {
+	    ivl_lval_t lv = ivl_stmt_lval(net, idx);
+	    ivl_signal_t sig = ivl_lval_sig(lv);
+	    unsigned width = ivl_lval_width(lv);
+	    ivl_expr_t word = ivl_lval_idx(lv);
+	    ivl_expr_t base = ivl_lval_part_off(lv);
+	    assert(sig);
+
+	    draw_eval_vec4(rval);
+	    if (lvals > 1)
+		  fprintf(vvp_out, "    %%parti/u %u, %u, 32;\n", width, offset);
+	    draw_eval_vec4(mask);
+	    if (lvals > 1)
+		  fprintf(vvp_out, "    %%parti/u %u, %u, 32;\n", width, offset);
+	    offset += width;
+
+	    int word_flag = -1;
+	    int word_index = -1;
+	    if (word) {
+		  word_index = allocate_word();
+		  draw_eval_expr_into_integer(word, word_index);
+		  word_flag = allocate_flag();
+		  fprintf(vvp_out, "    %%flag_mov %d, 4;\n", word_flag);
+	    }
+	    if (base) {
+		  draw_eval_expr_into_integer(base, 1);
+	    } else {
+		  fprintf(vvp_out, "    %%ix/load 1, 0, 0;\n");
+		  fprintf(vvp_out, "    %%flag_set/imm 4, 0;\n");
+	    }
+	    if (word_flag >= 0) {
+		  fprintf(vvp_out, "    %%flag_or 4, %d;\n", word_flag);
+		  fprintf(vvp_out, "    %%ix/mov 3, %d;\n", word_index);
+		  clr_flag(word_flag);
+		  clr_word(word_index);
+	    }
+
+	    fprintf(vvp_out, "    %%ix/load 0, %" PRIu32 ", %" PRIu32 ";\n",
+		    (uint32_t)delay, (uint32_t)(delay >> 32));
+	    if (word) {
+		  note_array_signal_use(sig);
+		  fprintf(vvp_out, "    %%clocking/drive/a v%p, t_%u;\n", sig, commit);
+	    } else {
+		  const char*force = ivl_signal_type(sig) == IVL_SIT_UWIRE ? "/force" : "";
+		  fprintf(vvp_out, "    %%clocking/drive%s v%p_0, t_%u;\n", force, sig, commit);
+	    }
+      }
+      assert(offset == ivl_expr_width(mask) && offset == ivl_expr_width(rval));
+      fprintf(vvp_out, "t_%u %%clocking/commit;\n", commit);
+}
+
 static int show_stmt_assign_nb(ivl_statement_t net)
 {
+      ivl_expr_t mask = ivl_stmt_clocking_output_mask(net);
+      if (mask) {
+	    show_stmt_file_line(net, "Clocking output drive.");
+	    show_clocking_output_drive(net, mask);
+	    return 0;
+      }
+
       ivl_lval_t lval;
       ivl_expr_t rval = ivl_stmt_rval(net);
       ivl_expr_t del  = ivl_stmt_delay_expr(net);
@@ -4411,6 +4481,9 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
       }
 
       show_stmt_file_line(net, "Event wait (@) statement.");
+
+      if (ivl_stmt_wake_in_renba(net))
+	    fprintf(vvp_out, "    %%event/renba;\n");
 
       if (ivl_stmt_nevent(net) == 0) {
 	    assert(ivl_stmt_needs_t0_trigger(net) == 1);

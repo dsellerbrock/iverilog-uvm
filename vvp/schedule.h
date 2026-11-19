@@ -36,7 +36,24 @@
 extern void schedule_vthread(vthread_t thr, vvp_time64_t delay,
 			     bool push_flag =false);
 extern void schedule_vthread_reactive_front(vthread_t thr);
+extern void schedule_vthread_renba(vthread_t thr);
 extern void schedule_vthread_at_end_of_simtime(vthread_t thr);
+
+struct clocking_drive_target {
+      vvp_net_t*net;
+      vvp_array_t array;
+      unsigned word;
+      bool force;
+};
+
+extern void schedule_clocking_drive(vvp_code_t commit,
+				   const clocking_drive_target&target,
+				   unsigned width, int64_t offset,
+				   const vvp_vector4_t&value,
+				   const vvp_vector4_t&mask,
+				   vvp_time64_t delay);
+extern void commit_clocking_drive(vvp_code_t commit);
+extern bool schedule_in_renba();
 
 extern void schedule_inactive(vthread_t thr);
 

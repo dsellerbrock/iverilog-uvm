@@ -4373,6 +4373,12 @@ extern "C" unsigned ivl_stmt_is_clocking_drive(ivl_statement_t net)
 	    && net->u_.assign_.aux_->clocking_drive;
 }
 
+extern "C" ivl_expr_t ivl_stmt_clocking_output_mask(ivl_statement_t net)
+{
+      assert(net->type_ == IVL_ST_ASSIGN_NB);
+      return net->u_.assign_.aux_ ? net->u_.assign_.aux_->clocking_output_mask : 0;
+}
+
 extern "C" ivl_statement_t ivl_stmt_cond_false(ivl_statement_t net)
 {
       assert(net);
@@ -4537,6 +4543,12 @@ extern "C" unsigned ivl_stmt_needs_t0_trigger(ivl_statement_t net)
       } else {
 	    return 0;
       }
+}
+
+extern "C" int ivl_stmt_wake_in_renba(ivl_statement_t net)
+{
+      assert(net->type_ == IVL_ST_WAIT);
+      return net->u_.wait_.wake_in_renba;
 }
 
 extern "C" unsigned ivl_stmt_nevent(ivl_statement_t net)

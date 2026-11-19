@@ -1089,6 +1089,7 @@ struct ivl_signal_s {
 struct ivl_statement_assign_aux_s {
       ivl_expr_t delay;
       ivl_expr_t count;
+      ivl_expr_t clocking_output_mask;
       bool clocking_drive;
       union {
 	    ivl_event_t event;
@@ -1200,6 +1201,7 @@ struct ivl_statement_s {
 
 	    struct { /* IVL_ST_TRIGGER IVL_ST_NB_TRIGGER IVL_ST_WAIT, IVL_ST_WAIT_ORDER */
 		  unsigned needs_t0_trigger;
+		  bool wake_in_renba;
 		  unsigned nevent;
 		  union {
 			ivl_event_t event;

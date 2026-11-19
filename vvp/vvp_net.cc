@@ -2796,6 +2796,14 @@ bool vvp_vector2_t::is_NaN() const
       return wid_ == 0;
 }
 
+void vvp_vector4_t::set_masked(const vvp_vector4_t&val, const vvp_vector2_t&mask)
+{
+      assert(size() == val.size() && size() == mask.size());
+      for (unsigned idx = 0; idx < size(); ++idx)
+	    if (mask.value(idx))
+		  set_bit(idx, val.value(idx));
+}
+
 bool vvp_vector2_t::is_zero() const
 {
       const unsigned words = (wid_ + BITS_PER_WORD-1) / BITS_PER_WORD;

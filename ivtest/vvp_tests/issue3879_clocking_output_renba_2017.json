@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3879_clocking_output_renba.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3879_clocking_output_renba"],
+  "gold": "issue3879_clocking_output_renba"
+}

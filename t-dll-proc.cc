@@ -344,6 +344,12 @@ void dll_target::proc_assign_nb(const NetAssignNB*net)
       stmt_cur_->u_.assign_.rval_ = expr_;
       expr_ = 0;
 
+      if (const NetExpr*mask = net->clocking_output_mask()) {
+	    mask->expr_scan(this);
+	    ensure_assign_aux_(stmt_cur_)->clocking_output_mask = expr_;
+	    expr_ = 0;
+      }
+
 	/* Process a delay if it exists. */
       if (const NetEConst*delay_num = dynamic_cast<const NetEConst*>(delay_exp)) {
 	    verinum val = delay_num->value();
@@ -1191,6 +1197,7 @@ bool dll_target::proc_wait(const NetEvWait*net)
 	    stmt_cur_->u_.wait_.failure_stmt_ = new struct ivl_statement_s();
 
       stmt_cur_->u_.wait_.nevent = net->nevents();
+      stmt_cur_->u_.wait_.wake_in_renba = net->wake_in_renba();
 
 	/* This is a wait fork statement. */
       if ((net->nevents() == 1) && (net->event(0) == 0)) {

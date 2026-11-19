@@ -932,6 +932,8 @@ struct vthread_s {
 	   in the Reactive region set.  Set at creation from the scope
 	   chain and inherited by spawned children. */
       unsigned is_reactive_process :1;
+      // The next event wake belongs to a generated clocking output apply.
+      unsigned event_wake_in_renba :1;
 	/* R2 end-of-simulation drain: this thread was resumed by an
 	   explicit region deferral (%wait/observed or %wait/reactive) and
 	   is completing work that belongs to a time slot already under
@@ -12964,6 +12966,7 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->is_trampoline_child = 0;
       thr->is_pure_comb_process = 0;
       thr->is_reactive_process = 0;
+      thr->event_wake_in_renba = 0;
       thr->in_region_drain = 0;
       for (__vpiScope*sc = scope ; sc ; sc = sc->scope) {
 	    if (sc->get_type_code() == vpiProgram) {
@@ -14252,13 +14255,12 @@ void vthread_schedule_list(vthread_t thr)
             cur->post_finish_wait = 0;
       }
 
-	/* A single event functor can wake both design processes and
-	   program-block processes.  Those belong in different regions
-	   (IEEE 1800-2017 4.4.2: Active vs. Reactive), so partition
-	   the wake chain by region, preserving relative order within
-	   each partition, and schedule the partitions separately. */
+	/* Partition the wake chain by region, preserving the order within
+	   each partition. Clocking applies must bypass Active even if a
+	   program triggered the event during the reactive region set. */
       vthread_t design_head = 0, design_tail = 0;
       vthread_t reactive_head = 0, reactive_tail = 0;
+      vthread_t renba_head = 0, renba_tail = 0;
       std::vector<bool>wake(claimed.size(), true);
       for (size_t idx = 0; idx < claimed.size(); ++idx)
             if (claimed[idx]->event_expr_observer)
@@ -14275,7 +14277,12 @@ void vthread_schedule_list(vthread_t thr)
             if (!wake[claimed_idx++] || cur->i_was_disabled || cur->i_have_ended)
                   continue;
             cur->deferred_assert_flush_on_run = 1;
-	    if (cur->is_reactive_process) {
+	    if (cur->event_wake_in_renba) {
+		  cur->event_wake_in_renba = 0;
+		  if (renba_tail) renba_tail->wait_next = cur;
+		  else renba_head = cur;
+		  renba_tail = cur;
+	    } else if (cur->is_reactive_process) {
 		  if (reactive_tail) reactive_tail->wait_next = cur;
 		  else reactive_head = cur;
 		  reactive_tail = cur;
@@ -14290,6 +14297,8 @@ void vthread_schedule_list(vthread_t thr)
 	    schedule_vthread(design_head, 0);
       if (reactive_head)
 	    schedule_vthread(reactive_head, 0);
+      if (renba_head)
+	    schedule_vthread_renba(renba_head);
 
       for (std::vector<vthread_t>::iterator item = claimed.begin();
            item != claimed.end(); ++item)
@@ -15856,6 +15865,87 @@ static bool resize_rval_vec(vvp_vector4_t &val, int64_t &off,
 
       val = val.subvalue(base, wid);
 
+      return true;
+}
+
+static bool clocking_drive_error_()
+{
+      fprintf(stderr, "vvp: malformed clocking output drive bytecode.\n");
+      vpip_set_return_value(1);
+      schedule_finish(0);
+      return false;
+}
+
+/* A drive captures the value and mask at the apply wake. Word registers
+   0, 1 and 3 carry the skew, packed offset and (for arrays) word index. */
+static bool clocking_drive_(vthread_t thr, vvp_code_t cp, bool array, bool force)
+{
+      const vvp_vector4_t*mask = thr->safe_peek_vec4(0);
+      const vvp_vector4_t*value = thr->safe_peek_vec4(1);
+      if (!schedule_in_renba() || !cp->cptr2 || cp->cptr2->opcode != of_CLOCKING_COMMIT
+	  || !mask || !value || value->size() != mask->size())
+	    return clocking_drive_error_();
+
+      vvp_vector4_t mask_bits = thr->pop_vec4();
+      vvp_vector4_t value_bits = thr->pop_vec4();
+      if (thr->flags[4] != BIT4_0)
+	    return true;
+
+      clocking_drive_target target = {nullptr, nullptr, 0, force};
+      unsigned width;
+      if (array) {
+	    target.array = resolve_runtime_array_(cp, "%clocking/drive/a");
+	    if (!target.array || target.array->automatic_storage
+		|| (!target.array->nets && !target.array->is_forceable_vec4_array()))
+		  return clocking_drive_error_();
+	    uint64_t word = thr->words[3].w_uint;
+	    if (word >= target.array->get_size())
+		  return true;
+	    target.word = word;
+	    width = target.array->get_word_size();
+      } else {
+	    target.net = cp->net;
+	    if (!target.net)
+		  return clocking_drive_error_();
+	    if (force) {
+		  if (!target.net->fun
+		      || (!dynamic_cast<vvp_wire_vec4*>(target.net->fil)
+			  && !dynamic_cast<vvp_wire_vec8*>(target.net->fil)))
+			return clocking_drive_error_();
+		  width = target.net->fil->filter_size();
+	    } else {
+		  auto*signal = dynamic_cast<vvp_fun_signal4_sa*>(target.net->fun);
+		  if (!signal)
+			return clocking_drive_error_();
+		  width = signal->vec4_unfiltered_value().size();
+	    }
+      }
+      schedule_clocking_drive(cp->cptr2, target, width, thr->words[1].w_int,
+			      value_bits, mask_bits, thr->words[0].w_uint);
+      return true;
+}
+
+bool of_CLOCKING_DRIVE(vthread_t thr, vvp_code_t cp)
+{
+      return clocking_drive_(thr, cp, false, false);
+}
+
+bool of_CLOCKING_DRIVE_A(vthread_t thr, vvp_code_t cp)
+{
+      return clocking_drive_(thr, cp, true, false);
+}
+
+bool of_CLOCKING_DRIVE_FORCE(vthread_t thr, vvp_code_t cp)
+{
+      return clocking_drive_(thr, cp, false, true);
+}
+
+bool of_CLOCKING_COMMIT(vthread_t thr, vvp_code_t cp)
+{
+      if (!schedule_in_renba())
+	    return clocking_drive_error_();
+      if (thr->words[0].w_uint == 0)
+	    commit_clocking_drive(cp);
       return true;
 }
 
@@ -39287,6 +39377,12 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
 	    return true;
 
       return schedule_finished()? false : true;
+}
+
+bool of_EVENT_RE_NBA(vthread_t thr, vvp_code_t)
+{
+      thr->event_wake_in_renba = 1;
+      return true;
 }
 
 /* %wait <label>;

@@ -1516,11 +1516,12 @@ __vpiScope*__vpiArray::word_context_scope() const
       return static_cast<const vvp_fixed_darray_aa*>(owner->vals)->context_scope();
 }
 
-void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4_t&val)
+void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4_t&val,
+			  const vvp_vector2_t*mask)
 {
       __vpiArray*owner = canonical_value_owner_();
       if (owner != this) {
-            owner->set_word(address, part_off, val);
+            owner->set_word(address, part_off, val, mask);
             return;
       }
 
@@ -1540,7 +1541,11 @@ void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4
 	    }
 	    vvp_vector4_t old_visible = get_word(address);
 	    hist_snapshot_word_(address);
-	    if (part_off != 0 || val.size() != vals_width) {
+    if (mask) {
+	  vvp_vector4_t tmp = get_word_raw_(address);
+	  tmp.set_masked(val, *mask);
+	  set_word_raw_(address, tmp);
+    } else if (part_off != 0 || val.size() != vals_width) {
 		  vvp_vector4_t tmp = get_word_raw_(address);
 		  if ((part_off + val.size()) > tmp.size()) {
 			cerr << "part_off=" << part_off
@@ -1568,7 +1573,23 @@ void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4
       struct __vpiSignal*vsig = dynamic_cast<__vpiSignal*>(word);
       assert(vsig);
 
-      vsig->node->send_vec4_pv(val, part_off, vsig->width(), 0);
+      if (mask) {
+	    if (auto*filter = dynamic_cast<vvp_wire_vec8*>(vsig->node->fil)) {
+		  vvp_vector8_t merged = filter->vec8_unfiltered_value();
+		  for (unsigned idx = 0; idx < mask->size(); ++idx)
+			if (mask->value(idx))
+			      merged.set_bit(idx, vvp_scalar_t(val.value(idx), 6, 6));
+		  vsig->node->send_vec8(merged);
+	    } else {
+		  auto*filter4 = dynamic_cast<vvp_wire_vec4*>(vsig->node->fil);
+		  assert(filter4);
+		  vvp_vector4_t merged = filter4->vec4_unfiltered_value();
+		  merged.set_masked(val, *mask);
+		  vsig->node->send_vec4(merged, 0);
+	    }
+      } else {
+	    vsig->node->send_vec4_pv(val, part_off, vsig->width(), 0);
+      }
       word_change(address);
 }
 

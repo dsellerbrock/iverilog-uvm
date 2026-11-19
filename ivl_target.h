@@ -2794,6 +2794,8 @@ extern unsigned ivl_stmt_case_group(ivl_statement_t net, unsigned i);
 extern ivl_expr_t      ivl_stmt_cond_expr(ivl_statement_t net);
 /* True for a parsed synchronous clocking drive with cycle delay. */
 extern unsigned        ivl_stmt_is_clocking_drive(ivl_statement_t net);
+/* IVL_ST_ASSIGN_NB only: selected-bit mask for a generated Re-NBA drive. */
+extern ivl_expr_t       ivl_stmt_clocking_output_mask(ivl_statement_t net);
   /* IVL_ST_CONDIT */
 extern ivl_statement_t ivl_stmt_cond_false(ivl_statement_t net);
   /* IVL_ST_CONDIT */
@@ -2806,6 +2808,8 @@ extern ivl_expr_t ivl_stmt_delay_expr(ivl_statement_t net);
 extern uint64_t ivl_stmt_delay_val(ivl_statement_t net);
   /* IVL_ST_WAIT IVL_ST_TRIGGER */
 extern unsigned    ivl_stmt_needs_t0_trigger(ivl_statement_t net);
+/* IVL_ST_WAIT only: resume the generated apply process in Re-NBA. */
+extern int         ivl_stmt_wake_in_renba(ivl_statement_t net);
 extern unsigned    ivl_stmt_nevent(ivl_statement_t net);
 extern ivl_event_t ivl_stmt_events(ivl_statement_t net, unsigned idx);
   /* IVL_ST_TRIGGER_OBJ IVL_ST_NB_TRIGGER_OBJ IVL_ST_WAIT_OBJ:

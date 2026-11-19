@@ -4069,6 +4069,8 @@ class NetAssignNB  : public NetAssignBase {
       { clocking_drive_ = flag; }
       bool is_clocking_drive() const { return clocking_drive_; }
 
+      void set_clocking_output_mask(NetExpr*mask) { clocking_output_mask_.reset(mask); }
+      const NetExpr* clocking_output_mask() const { return clocking_output_mask_.get(); }
 
       bool synth_async(Design*des, NetScope*scope,
                        NexusSet&nex_map, NetBus&nex_out,
@@ -4086,6 +4088,7 @@ class NetAssignNB  : public NetAssignBase {
       NetEvWait*event_;
       NetExpr*count_;
       bool clocking_drive_ = false;
+      std::unique_ptr<NetExpr> clocking_output_mask_;
 };
 
 /*
@@ -4850,6 +4853,8 @@ class NetEvWait  : public NetProc {
       inline bool has_t0_trigger() const { return has_t0_trigger_; };
       inline bool is_wait_order() const { return wait_order_; }
       inline void set_wait_order() { wait_order_ = true; }
+      void set_wake_in_renba() { wake_in_renba_ = true; }
+      bool wake_in_renba() const { return wake_in_renba_; }
 
       NetProc*statement();
       const NetProc*statement() const;
@@ -4902,6 +4907,7 @@ class NetEvWait  : public NetProc {
       std::vector<NetEvent*>events_;
       bool has_t0_trigger_;
       bool wait_order_ = false;
+      bool wake_in_renba_ = false;
 };
 
 std::ostream& operator << (std::ostream&out, const NetEvWait&obj);

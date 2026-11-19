@@ -26,6 +26,7 @@
 # include  "slab.h"
 # include  "vvp_perf_stats.h"
 # include  "compile.h"
+# include  <algorithm>
 # include  <new>
 # include  <typeinfo>
 # include  <csignal>
@@ -33,6 +34,8 @@
 # include  <cstring>
 # include  <cassert>
 # include  <iostream>
+# include  <map>
+# include  <utility>
 # include  "vvp_cobject.h"
 # include  "vvp_vinterface.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -1123,6 +1126,116 @@ void schedule_vthread_reactive_front(vthread_t thr)
             cur->next = (*q)->next;
             (*q)->next = cur;
       }
+}
+
+void schedule_vthread_renba(vthread_t thr)
+{
+      struct vthread_event_s*cur = new vthread_event_s;
+      cur->thr = thr;
+      vthread_mark_scheduled(thr);
+      schedule_event_(cur, 0, SEQ_RE_NBASSIGN);
+}
+
+/* One clockvar word may resolve to several l-values. Accumulate the
+   selected bits for each destination, and publish a single value per
+   destination, preserving even disjoint writes made to the raw storage
+   between capture and delivery. */
+struct clocking_drive_update {
+      clocking_drive_target target;
+      vvp_vector4_t value;
+      vvp_vector2_t mask;
+
+      void publish() const
+      {
+	    count_assign_events += 1;
+	    if (target.array) {
+		  target.array->set_word(target.word, 0, value, &mask);
+	    } else if (target.force) {
+		  // Preserve the established store to a coerced unresolved net.
+		  vvp_vector4_t merged;
+		  vvp_fil_signal_value(target.net->fil)->vec4_value(merged);
+		  merged.set_masked(value, mask);
+		  target.net->force_vec4(merged, mask);
+	    } else {
+		  auto*signal = static_cast<vvp_fun_signal4_sa*>(target.net->fun);
+		  vvp_vector4_t merged = signal->vec4_unfiltered_value();
+		  merged.set_masked(value, mask);
+		  signal->recv_vec4(vvp_net_ptr_t(target.net, 0), merged, 0);
+	    }
+      }
+};
+
+/* Key by clockvar word (its commit instruction) and delivery time.
+   Several apply passes may contribute to one future Re-NBA event. */
+using clocking_drive_key = std::pair<uintptr_t, vvp_time64_t>;
+static std::map<clocking_drive_key, std::vector<clocking_drive_update>> clocking_drives;
+
+static void publish_clocking_drive(const clocking_drive_key&key)
+{
+      auto entry = clocking_drives.find(key);
+      if (entry == clocking_drives.end())
+	    return;
+      auto updates = std::move(entry->second);
+      clocking_drives.erase(entry);
+      for (const auto&update : updates)
+	    update.publish();
+}
+
+struct clocking_drive_event_s : public event_s {
+      explicit clocking_drive_event_s(clocking_drive_key key) : key(key) {}
+      void run_run() override { publish_clocking_drive(key); }
+      void single_step_display() override { cerr << "clocking output drive" << endl; }
+      clocking_drive_key key;
+};
+
+void schedule_clocking_drive(vvp_code_t commit,
+			     const clocking_drive_target&target,
+			     unsigned width, int64_t offset,
+			     const vvp_vector4_t&value, const vvp_vector4_t&mask,
+			     vvp_time64_t delay)
+{
+      if (offset >= static_cast<int64_t>(width) || offset <= -static_cast<int64_t>(mask.size())
+	  || delay > UINT64_MAX - schedule_time)
+	    return;
+      unsigned first = offset < 0 ? -offset : 0;
+      unsigned base = offset < 0 ? 0 : offset;
+      unsigned count = std::min(mask.size() - first, width - base);
+      clocking_drive_key key(reinterpret_cast<uintptr_t>(commit), schedule_time + delay);
+      clocking_drive_update*update = nullptr;
+      for (unsigned idx = 0; idx < count; ++idx) {
+	    if (mask.value(first + idx) != BIT4_1)
+		  continue;
+	    if (!update) {
+		  auto inserted = clocking_drives.emplace(key, std::vector<clocking_drive_update>());
+		  if (inserted.second && delay)
+			schedule_event_(new clocking_drive_event_s(key), delay, SEQ_RE_NBASSIGN);
+		  auto&updates = inserted.first->second;
+		  for (auto&entry : updates) {
+			if (entry.target.net == target.net && entry.target.array == target.array
+			    && entry.target.word == target.word && entry.target.force == target.force) {
+			      update = &entry;
+			      break;
+			}
+		  }
+		  if (!update) {
+			updates.push_back({target, vvp_vector4_t(width, BIT4_X),
+					   vvp_vector2_t(vvp_vector2_t::FILL0, width)});
+			update = &updates.back();
+		  }
+	    }
+	    update->value.set_bit(base + idx, value.value(first + idx));
+	    update->mask.set_bit(base + idx, 1);
+      }
+}
+
+void commit_clocking_drive(vvp_code_t commit)
+{
+      publish_clocking_drive({reinterpret_cast<uintptr_t>(commit), schedule_time});
+}
+
+bool schedule_in_renba()
+{
+      return sched_current_region == SEQ_RE_NBASSIGN;
 }
 
 void schedule_vthread_at_end_of_simtime(vthread_t thr)

@@ -35240,17 +35240,9 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 				 verinum(1));
 	    des->add_process(top);
 
-	      /* M8-2b: the drive-apply process (14.16). Buffered output
-		 drives land at each clocking event. The trig event fires
-		 from the NBA region, so the apply runs after the Active
-		 region of the edge step (Re-NBA-like timing) and catches
-		 both between-edge drives and same-step drives that raced
-		 the edge:
-		     initial forever @(trig)
-			   for each pending bit raw[bit] <= obuf[bit]
-		 A selected NBA is retained through execution so other fields
-		 updated in the same time slot are merged, not overwritten by
-		 a whole-value snapshot. */
+	      /* The final wait wakes directly in Re-NBA, so the pending
+		 masks include drives from both Active and Reactive. The apply
+		 snapshots only selected bits, including for delayed delivery. */
 	    if (!out_targets.empty()) {
 		  NetEvent*kick_event = nullptr;
 		  if (kick) {
@@ -35275,79 +35267,37 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			  : new NetESignal(out_pends[idx]);
 			pend_rd->set_line(*cb);
 
-			NetNet*bit_idx = new NetNet(scope, scope->local_symbol(),
-						   NetNet::REG, &netvector_t::atom2s32);
-			bit_idx->local_flag(true);
-			bit_idx->set_line(*cb);
-			NetEConst*init_expr = make_const_val_s(0);
-			init_expr->set_line(*cb);
-			NetESignal*cond_idx = new NetESignal(bit_idx);
-			cond_idx->set_line(*cb);
-			NetEConst*width_expr = make_const_val_s(out_bufs[idx]->vector_width());
-			width_expr->set_line(*cb);
-			NetEBComp*loop_cond = new NetEBComp('<', cond_idx, width_expr);
-			loop_cond->set_line(*cb);
+			NetESignal*buf_rd = out_words[idx] >= 0
+			  ? new NetESignal(out_bufs[idx], make_const_val_s(out_words[idx]))
+			  : new NetESignal(out_bufs[idx]);
+			buf_rd->set_line(*cb);
 
-			NetAssign_*step_lv = new NetAssign_(bit_idx);
-			NetEConst*step_val = make_const_val_s(1);
-			step_val->set_line(*cb);
-			NetAssign*step = new NetAssign(step_lv, '+', step_val);
-			step->set_line(*cb);
-
-			NetESignal*pend_vec = out_words[idx] >= 0
-			  ? new NetESignal(out_pends[idx],
-					    make_const_val_s(out_words[idx]))
-			  : new NetESignal(out_pends[idx]);
-			pend_vec->set_line(*cb);
-			NetESignal*pend_bit_idx = new NetESignal(bit_idx);
-			pend_bit_idx->set_line(*cb);
-			NetESelect*pend_bit = new NetESelect(pend_vec, pend_bit_idx, 1);
-			pend_bit->set_line(*cb);
-
+			/* Flatten the resolved l-value in clockvar bit order. */
 			std::vector<const NetAssign_*> leaves;
 			clocking_collect_lval_leaves_(out_targets[idx].get(), leaves);
-			std::vector<unsigned> offsets;
-			unsigned offset = 0;
-			for (const NetAssign_*leaf : leaves) {
-			      offsets.push_back(offset);
-			      offset += leaf->lwidth();
+			NetAssign_*target = nullptr;
+			for (auto leaf = leaves.rbegin(); leaf != leaves.rend(); ++leaf) {
+			      NetAssign_*item = clone_clocking_selected_lval_((*leaf)->sig(), *leaf);
+			      item->more = target;
+			      target = item;
 			}
-			NetProc*selected_drive = nullptr;
-			for (size_t n = leaves.size(); n > 0; --n) {
-			      const NetAssign_*leaf = leaves[n-1];
-			      NetAssign_*raw_bit = new NetAssign_(leaf->sig());
-			      if (const NetExpr*word = leaf->word())
-				    raw_bit->set_word(word->dup_expr());
-			      NetExpr*position = new NetESignal(bit_idx);
-			      if (offsets[n-1])
-				    position = new NetEBAdd('-', position,
-					  make_const_val_s(offsets[n-1]), 32, true);
-			      if (const NetExpr*base = leaf->get_base())
-				    position = new NetEBAdd('+', base->dup_expr(),
-					  position, 32, true);
-			      raw_bit->set_part(position, 1);
-			      NetESignal*buf_vec = out_words[idx] >= 0
-				    ? new NetESignal(out_bufs[idx], make_const_val_s(out_words[idx]))
-				    : new NetESignal(out_bufs[idx]);
-			      NetESelect*buf_bit = new NetESelect(buf_vec, new NetESignal(bit_idx), 1);
-			      NetAssignNB*drv = new NetAssignNB(raw_bit, buf_bit, 0, 0);
-			      drv->set_line(*cb);
-			      if (PExpr*od = cb->output_skew_delay(out_names[idx])) {
-				    if (NetExpr*dly = elaborate_clocking_skew_expr(od, des, scope))
-					  drv->set_delay(dly);
-			      }
-			      if (leaves.size() == 1) selected_drive = drv;
-			      else {
-				    NetEBComp*in_leaf = new NetEBComp('<', new NetESignal(bit_idx),
-					  make_const_val_s(offsets[n-1] + leaf->lwidth()));
-				    selected_drive = new NetCondit(in_leaf, drv, selected_drive);
-			      }
+			ivl_assert(*cb, target);
+			NetAssignNB*drive = new NetAssignNB(target, buf_rd, nullptr, nullptr);
+			drive->set_line(*cb);
+			const netvector_t*mask_type = new netvector_t(
+			      IVL_VT_LOGIC, out_pends[idx]->vector_width() - 1, 0);
+			NetNet*mask = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+						 mask_type);
+			mask->set_line(*cb);
+			mask->local_flag(true);
+			NetAssign*save = new NetAssign(new NetAssign_(mask),
+						     pend_rd->dup_expr());
+			save->set_line(*cb);
+			drive->set_clocking_output_mask(new NetESignal(mask));
+			if (PExpr*od = cb->output_skew_delay(out_names[idx])) {
+			      if (NetExpr*dly = elaborate_clocking_skew_expr(od, des, scope))
+				    drive->set_delay(dly);
 			}
-			NetCondit*drive_bit = new NetCondit(pend_bit, selected_drive, 0);
-			drive_bit->set_line(*cb);
-			NetForLoop*drive_bits = new NetForLoop(bit_idx, init_expr,
-							loop_cond, drive_bit, step);
-			drive_bits->set_line(*cb);
 
 			verinum zero_v (verinum::V0, out_pends[idx]->vector_width());
 			NetEConst*zero = new NetEConst(zero_v);
@@ -35359,8 +35309,9 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 			clr->set_line(*cb);
 			NetBlock*hit = new NetBlock(NetBlock::SEQU, 0);
 			hit->set_line(*cb);
-			hit->append(drive_bits);
+			hit->append(save);
 			hit->append(clr);
+			hit->append(drive);
 			NetCondit*cond = new NetCondit(pend_rd, hit, 0);
 			cond->set_line(*cb);
 
@@ -35426,7 +35377,10 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 				    delete cond;
 				    continue;
 			      }
-			      cycle->append(edge_wait);
+			      NetEvWait*delivery_wait = dynamic_cast<NetEvWait*>(edge_wait);
+			      ivl_assert(*cb, delivery_wait);
+			      delivery_wait->set_wake_in_renba();
+			      cycle->append(delivery_wait);
 			      NetForever*edge_loop = new NetForever(cycle);
 			      edge_loop->set_line(*cb);
 			      NetProcTop*edge_top = new NetProcTop(scope, IVL_PR_INITIAL,
@@ -35445,6 +35399,7 @@ static void elaborate_clocking_samplers_(Design*des, NetScope*scope,
 		  if (plain_outputs) {
 			NetEvWait*await = new NetEvWait(apply_blk);
 			await->set_line(*cb);
+			await->set_wake_in_renba();
 			await->add_event(trig);
 			if (kick_event)
 			      await->add_event(kick_event);

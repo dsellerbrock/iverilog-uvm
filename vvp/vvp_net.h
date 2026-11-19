@@ -357,6 +357,7 @@ class vvp_vector4_t {
 	// Set a 4-value bit or subvector into the vector. Return true
 	// if any bits of the vector change as a result of this operation.
       void set_bit(unsigned idx, vvp_bit4_t val);
+      void set_masked(const vvp_vector4_t&val, const vvp_vector2_t&mask);
       bool set_vec(unsigned idx, const vvp_vector4_t&that);
 
         // Get the bits from another vector, but keep my size.

@@ -820,6 +820,7 @@ class vvp_wire_vec4 : public vvp_wire_base {
 	// A net of a 2-state type (`bit', `int', ...) driven by a continuous
 	// assignment holds X/Z as 0 (IEEE 1800-2017/2023 6.8, 10.10).
       void set_two_state() { two_state_ = true; }
+      const vvp_vector4_t& vec4_unfiltered_value() const { return bits4_; }
 
     private:
       vvp_bit4_t filtered_value_(unsigned idx) const;
@@ -881,6 +882,7 @@ class vvp_wire_vec8 : public vvp_wire_base {
       void enable_sample_hist() { hist_enabled_ = true; }
       void vec4_preponed_value(vvp_vector4_t&val) const;
       void set_two_state() { two_state_ = true; }
+      const vvp_vector8_t& vec8_unfiltered_value() const { return bits8_; }
 
     private:
       vvp_scalar_t filtered_value_(unsigned idx) const;
