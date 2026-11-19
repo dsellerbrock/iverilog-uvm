@@ -10045,7 +10045,8 @@ static NetExpr* elaborate_stream_operand_(Design*des, NetScope*scope,
 
 NetExpr* PEStreaming::elaborate_stream_sfunc(Design*des, NetScope*scope,
 					     ivl_type_t rtype,
-					     unsigned expr_wid) const
+					     unsigned expr_wid,
+					     ivl_type_t access_class) const
 {
       if (!inner_) return 0;
 
@@ -10061,13 +10062,21 @@ NetExpr* PEStreaming::elaborate_stream_sfunc(Design*des, NetScope*scope,
 	       lval_context_ ? "unpack" : "pack",
 	       (dir_ == DIR_LSHIFT) ? 'l' : 'r', slice);
 
+      unsigned first_operand = access_class ? 1 : 0;
+      unsigned nargs = (unsigned)ops.size() + first_operand;
       NetESFunc*fun;
       if (rtype)
-	    fun = new NetESFunc(name, rtype, (unsigned)ops.size());
+	    fun = new NetESFunc(name, rtype, nargs);
       else
-	    fun = new NetESFunc(name, IVL_VT_LOGIC, expr_wid,
-				(unsigned)ops.size());
+	    fun = new NetESFunc(name, IVL_VT_LOGIC, expr_wid, nargs);
       fun->set_line(*this);
+      if (access_class) {
+	    // Keep the lexical class even when an extern method or an inlined
+	    // block executes in a different scope. This is metadata, not data.
+	    NetEScope*access = new NetEScope(scope, access_class);
+	    access->set_line(*this);
+	    fun->parm(0, access);
+      }
 
       for (size_t idx = 0 ; idx < ops.size() ; idx += 1) {
 	    NetExpr*parm = elaborate_stream_operand_(des, scope, ops[idx], this);
@@ -10075,7 +10084,7 @@ NetExpr* PEStreaming::elaborate_stream_sfunc(Design*des, NetScope*scope,
 		  delete fun;
 		  return 0;
 	    }
-	    fun->parm((unsigned)idx, parm);
+	    fun->parm(first_operand + (unsigned)idx, parm);
       }
 
       return fun;

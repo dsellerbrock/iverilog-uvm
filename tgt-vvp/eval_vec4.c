@@ -3059,6 +3059,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		    wid = ivl_expr_width(sub);
 		    is_nested_fixed_property_select = true;
 		    lab_null = local_count++;
+		    lab_out = local_count++;
 		    lab_invalid = local_count++;
 		    lab_value = local_count++;
 		    lab_skip_store = local_count++;

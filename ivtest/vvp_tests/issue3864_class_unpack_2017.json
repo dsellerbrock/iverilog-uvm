@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3864_class_unpack.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "issue3864_class_unpack"
+  ],
+  "gold": "issue3864_class_unpack"
+}

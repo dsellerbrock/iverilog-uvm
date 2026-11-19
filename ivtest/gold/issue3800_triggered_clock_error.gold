@@ -1,0 +1,6 @@
+./ivltests/issue3800_triggered_clock_error.v:7: error: the ending clock of sequence `falling' used with .triggered shall be the same as the consuming clock (IEEE 1800-2017/2023 16.13.5).
+./ivltests/issue3800_triggered_clock_error.v:12: error: the ending clock of sequence `gated' used with .triggered shall be the same as the consuming clock (IEEE 1800-2017/2023 16.13.5).
+./ivltests/issue3800_triggered_clock_error.v:19: error: the ending clock of sequence `rising' used with .triggered shall be the same as the consuming clock (IEEE 1800-2017/2023 16.13.5).
+./ivltests/issue3800_triggered_clock_error.v:28: sorry: .triggered cannot lower the clock flow or endpoint of sequence `multiclock_source'.
+./ivltests/issue3800_triggered_clock_error.v:39: error: sequence `gated' argument 2 is empty.
+./ivltests/issue3800_triggered_clock_error.v:35: error: the ending clock of sequence `local_clock' used with .triggered shall be the same as the consuming clock (IEEE 1800-2017/2023 16.13.5).

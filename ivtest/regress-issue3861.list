@@ -1,0 +1,6 @@
+issue3861_checker_input_2017 normal,-g2017,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_input-vvp-stdout.gold
+issue3861_checker_input_2023 normal,-g2023,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_input-vvp-stdout.gold
+issue3861_checker_inherited_output_2017 CE,-g2017,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_inherited_output-iverilog-stderr.gold
+issue3861_checker_inherited_output_2023 CE,-g2023,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_inherited_output-iverilog-stderr.gold
+issue3861_checker_explicit_output_2017 CE,-g2017,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_explicit_output-iverilog-stderr.gold
+issue3861_checker_explicit_output_2023 CE,-g2023,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_explicit_output-iverilog-stderr.gold

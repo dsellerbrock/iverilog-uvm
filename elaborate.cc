@@ -539,6 +539,21 @@ static NetNet* make_covergroup_formal_signal_(NetScope*scope, ivl_type_t type)
 			unpacked, type);
 }
 
+static NetNet* make_covergroup_class_context_(NetScope*declaration,
+					      const netclass_t*owner,
+					      const LineInfo&loc)
+{
+      NetScope*scope = new NetScope(declaration,
+	    hname_t(declaration->local_symbol()), NetScope::FUNC);
+      scope->is_auto(true);
+      scope->set_line(&loc);
+      scope->set_elab_stage(3);
+      NetNet*receiver = new NetNet(scope, perm_string::literal(THIS_TOKEN),
+				  NetNet::REG, owner);
+      receiver->set_line(loc);
+      return receiver;
+}
+
 static const netuarray_t* covergroup_sample_array_type_(const NetExpr*expr)
 {
       if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
@@ -11310,11 +11325,20 @@ static uint64_t streaming_lval_fixed_width_(const NetAssign_*lv)
 	    ivl_type_t type = cur->lval_type();
 	    if (dynamic_cast<const netdarray_t*>(type)
 		|| dynamic_cast<const netstring_t*>(type)
+		|| dynamic_cast<const netclass_t*>(type)
 		|| cur->stream_range() != IVL_STREAM_RANGE_NONE)
 		  continue;
 	    width += cur->lwidth();
       }
       return width;
+}
+
+static bool streaming_lval_has_class_(const NetAssign_*lv)
+{
+      for (const NetAssign_*cur = lv ; cur ; cur = cur->more)
+	    if (dynamic_cast<const netclass_t*>(cur->lval_type()))
+		  return true;
+      return false;
 }
 
 NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
@@ -15116,9 +15140,10 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 
       const PEStreaming*stream_rval =
 	    dynamic_cast<const PEStreaming*>(rval());
-      const bool dynamic_stream_target = stream_rval
-	    && stream_rval->is_lval_context()
-	    && streaming_lval_needs_runtime_(lv);
+      const bool unpack = stream_rval && stream_rval->is_lval_context();
+      const bool class_stream_target = unpack && streaming_lval_has_class_(lv);
+      const bool dynamic_stream_target = unpack
+	    && (class_stream_target || streaming_lval_needs_runtime_(lv));
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PAssign::elaborate: ";
@@ -15149,7 +15174,8 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		  delete delay;
 		  return 0;
 	    }
-	    if (!stream_rval->stream_is_dynamic(des, rval_scope)) {
+	    if (!class_stream_target
+		&& !stream_rval->stream_is_dynamic(des, rval_scope)) {
 		  PExpr::width_mode_t mode = PExpr::SIZED;
 		  unsigned source_width = stream_rval->get_inner()->test_width(
 			des, rval_scope, mode);
@@ -15166,7 +15192,10 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 			return 0;
 		  }
 	    }
-	    rv = stream_rval->elaborate_stream_sfunc(des, rval_scope, 0, 0);
+	    ivl_type_t access_class = class_stream_target
+		  ? find_method_containing_class(des, *this, scope) : nullptr;
+	    rv = stream_rval->elaborate_stream_sfunc(des, rval_scope, 0, 0,
+						   access_class);
 
 	/* If the l-value is a compound type of some sort, then use
 	   the newer net_type form of the elaborate_rval_ method to
@@ -16561,7 +16590,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       if (const PEStreaming*stream =
 	    dynamic_cast<const PEStreaming*>(rval())) {
 	    if (stream->is_lval_context()
-		&& streaming_lval_needs_runtime_(lv)) {
+		&& (streaming_lval_needs_runtime_(lv)
+		    || streaming_lval_has_class_(lv))) {
 		  cerr << get_fileline() << ": sorry: non-blocking streaming "
 		       << "assignment to a run-time-sized target needs a "
 		       << "snapshot of its receiver, range expressions, and source "
@@ -23283,6 +23313,14 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 			      else if (this_net)
 				    parent_cls = dynamic_cast<const netclass_t*>
 					  (this_net->net_type());
+			      NetScope*declaration = cgtype->covgrp_options().declaration_scope;
+			      const netclass_t*declaring_class =
+				    declaration && declaration->type() == NetScope::CLASS
+				    ? declaration->class_def() : nullptr;
+			      bool class_sample = cg_prop && parent_cls && declaring_class
+				    && !parent_cls->is_interface()
+				    && declaring_class->covgrp_extension_class(lex_strings.make(
+					  parent_cls->get_prop_name(cg_prop->property_idx()))) != cgtype;
 			      NetNet*interface_receiver = nullptr;
 			      auto make_parent_expr = [&]() -> NetExpr* {
 				    if (interface_receiver) {
@@ -23308,7 +23346,7 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 
 				// Constructor formals are stored as leading
 				// properties on the covergroup object. Bind hidden
-				// caller-scope temporaries to those properties while
+				// sampling temporaries to those properties while
 				// elaborating coverpoint/guard expressions, just as
 				// with-function sample formals are bound below. This
 				// keeps each standalone covergroup's formal names out
@@ -23349,10 +23387,56 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 					  }
 				    }
 			      }
-			      NetBlock*sample_block = (nctor || nformals
+			      NetBlock*sample_block = (class_sample || nctor || nformals
 						      || !interface_properties.empty())
 				    ? new NetBlock(NetBlock::SEQU, 0) : nullptr;
 			      if (sample_block) sample_block->set_line(*this);
+			      NetScope*sample_scope = scope;
+			      NetBlock*call_block = sample_block;
+			      vector<NetNet*> sample_ports;
+			      NetNet*recv = nullptr;
+			      auto copy_to_sample_port = [&](NetNet*port, NetExpr*value) {
+				    port->port_type(NetNet::PINPUT);
+				    sample_ports.push_back(port);
+				    NetAssign*copy = new NetAssign(new NetAssign_(port), value);
+				    copy->set_line(*this);
+				    call_block->append(copy);
+			      };
+			      if (class_sample) {
+				      // IEEE 1800 19.4: evaluate coverage expressions as
+				      // a method of the declaring class on this instance.
+				    NetNet*sample_this = make_covergroup_class_context_(
+					  declaration, declaring_class, *this);
+				    sample_scope = sample_this->scope();
+				    call_block = new NetBlock(NetBlock::SEQU, nullptr);
+				    call_block->set_line(*this);
+				      // Capture the parent once even when it is indexed.
+				    NetNet*parent = make_covergroup_formal_signal_(scope, parent_cls);
+				    parent->set_line(*this);
+				    parent->local_flag(true);
+				    NetAssign*save_parent = new NetAssign(new NetAssign_(parent),
+					  make_parent_expr());
+				    save_parent->set_line(*this);
+				    call_block->append(save_parent);
+				    NetAlloc*alloc = new NetAlloc(sample_scope);
+				    alloc->set_line(*this);
+				    call_block->append(alloc);
+
+				    copy_to_sample_port(sample_this, new NetESignal(parent));
+				    recv = make_covergroup_formal_signal_(sample_scope, cgtype);
+				    recv->set_line(*this);
+				    NetEProperty*receiver = new NetEProperty(new NetESignal(parent),
+					  cg_prop->property_idx(), nullptr);
+				    receiver->set_line(*this);
+				    copy_to_sample_port(recv, receiver);
+				    NetAssign*clear_parent = new NetAssign(new NetAssign_(parent),
+					  new NetENull(parent_cls));
+				    clear_parent->set_line(*this);
+				    call_block->append(clear_parent);
+				    delete obj_expr;
+				    obj_expr = new NetESignal(recv);
+				    obj_expr->set_line(*this);
+			      }
 			      if (!interface_properties.empty()) {
 				    NetExpr*parent = make_parent_expr();
 				    if (parent) {
@@ -23389,8 +23473,7 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 			      for (unsigned k = 0; k < nformals; k += 1)
 				    if (cgtype->covgrp_sample_formal_prop((size_t)k) >= 0)
 					  mirrors_formals = true;
-			      NetNet*recv = nullptr;
-			      if (nctor || mirrors_formals) {
+			      if (!recv && (nctor || mirrors_formals)) {
 				    recv = new NetNet(scope, scope->local_symbol(),
 						      NetNet::REG, obj_type);
 				    recv->set_line(*this);
@@ -23410,9 +23493,8 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 			         subroutines of the scope that declares the covergroup
 			         (IEEE 1800-2017 19.3), not of the sample() caller: a
 			         covergroup in an interface sampled as u.cg.sample(x)
-			         still resolves the interface's own functions. Class-
-			         embedded covergroups keep the caller (method) scope. */
-			      NetScope*cp_scope = scope;
+			         still resolves the interface's own functions. */
+			      NetScope*cp_scope = sample_scope;
 			      if (!parent_cls) {
 				    NetScope*def_scope = const_cast<netclass_t*>(
 					  cgtype)->definition_scope();
@@ -23444,7 +23526,7 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 				    ivl_type_t slot_type =
 					  cgtype->covgrp_ctor_formal_type(k);
 				    if (!slot_type) slot_type = &netvector_t::atom2s32;
-				    NetNet*slot = new NetNet(scope, scope->local_symbol(),
+				    NetNet*slot = new NetNet(sample_scope, sample_scope->local_symbol(),
 						      NetNet::REG, slot_type);
 				    if (cgtype->covgrp_ctor_formal_is_ref(k))
 					  slot->set_const(true);
@@ -23520,7 +23602,7 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 							    actual->has_sign());
 					  }
 					  NetNet*slot = make_covergroup_formal_signal_(
-						 scope, slot_type);
+						 sample_scope, slot_type);
 					  slot->set_line(*this);
 					  slot->local_flag(true);
 					  formal_nets[fj] = slot;
@@ -23536,10 +23618,13 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 						delete actual;
 						continue;
 					  }
-					  NetAssign*copy = new NetAssign(
-						new NetAssign_(slot), actual);
-					  copy->set_line(*this);
-					  sample_block->append(copy);
+					  if (class_sample) {
+						copy_to_sample_port(slot, actual);
+					  } else {
+						NetAssign*copy = new NetAssign(new NetAssign_(slot), actual);
+						copy->set_line(*this);
+						sample_block->append(copy);
+					  }
 				    }
 				    for (unsigned k = 0; k < nformals; k += 1) {
 					  if (!formal_nets[k]) {
@@ -23548,7 +23633,7 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 						if (!slot_type)
 						      slot_type = &netvector_t::atom2s32;
 						NetNet*slot = make_covergroup_formal_signal_(
-						      scope, slot_type);
+						      sample_scope, slot_type);
 						slot->set_line(*this);
 						slot->local_flag(true);
 						formal_nets[k] = slot;
@@ -23623,6 +23708,29 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 					  }
 				    }
 			      }
+			      bool class_expression_error = false;
+			      auto elaborate_class_expression = [&](PExpr*expr, const char*kind,
+								     size_t idx, bool guard) -> NetExpr* {
+				    NetExpr*value = expr
+					  ? elab_and_eval(des, sample_scope, expr, -1, false, false)
+					  : nullptr;
+				    if (guard && value) {
+					  ivl_variable_type_t type = value->expr_type();
+					  if (type == IVL_VT_BOOL || type == IVL_VT_LOGIC
+					      || type == IVL_VT_REAL)
+						return condition_reduce(value);
+					  delete value;
+					  value = nullptr;
+				    }
+				    if (!value) {
+					  cerr << (expr ? expr->get_fileline() : get_fileline())
+					       << ": error: cannot elaborate " << kind << " " << idx + 1
+					       << " of covergroup '" << cgtype->get_name() << "'." << endl;
+					  des->errors += 1;
+					  class_expression_error = true;
+				    }
+				    return value;
+			      };
 			      {
 					auto parent_property_guard = [&](PExpr*expr) -> NetExpr* {
 					      const PEIdent*id =
@@ -23652,17 +23760,13 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 				      value->set_line(*expr);
 				      return value;
 				};
-				    // Coverpoint VALUES. Prefer the parent-
-				    // class property read (class-embedded
-				    // covergroups); otherwise elaborate the
-				    // recorded SOURCE expression in the
-				    // CALLER's scope — this is how
-				    // standalone (module/package-scope)
-				    // covergroups sample scope signals, and
-				    // it also serves in-class expression
-				    // coverpoints sampled where the names
-				    // are visible.
+				    // Coverpoint values in payload order.
 				    for (unsigned cpi = 0; cpi < ncp; ++cpi) {
+					  if (class_sample) {
+						argv.push_back(elaborate_class_expression(
+						      cgtype->covgrp_cp_expr(cpi), "coverpoint", cpi, false));
+						continue;
+					  }
 					  int pp = cgtype->covgrp_cp_parent_prop(cpi);
 					  if (pp >= 0 && parent_cls) {
 					      NetEProperty* prop = new NetEProperty(
@@ -23697,6 +23801,11 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 				    // sample() argument).
 				    for (unsigned cpi = 0; cpi < ncp; ++cpi) {
 					  PExpr*gexpr = cgtype->covgrp_cp_guard(cpi);
+					  if (class_sample && gexpr) {
+						argv.push_back(elaborate_class_expression(gexpr,
+						      "coverpoint iff guard", cpi, true));
+						continue;
+					  }
 					  NetExpr*gval = nullptr;
 					  if (gexpr) {
 						gval = parent_property_guard(gexpr);
@@ -23728,6 +23837,11 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 				    for (size_t item = ncp;
 					 item < cgtype->covgrp_item_count(); ++item) {
 					  PExpr*gexpr = cgtype->covgrp_item_guard(item);
+					  if (class_sample && gexpr) {
+						argv.push_back(elaborate_class_expression(gexpr,
+						      "cross iff guard", item - ncp, true));
+						continue;
+					  }
 					  NetExpr*gval = nullptr;
 					  if (gexpr) {
 						gval = parent_property_guard(gexpr);
@@ -23756,6 +23870,11 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 					  cgtype->covgrp_bin_guard_count());
 				    for (unsigned gi = 0; gi < nbinguards; gi++) {
 					  PExpr*gexpr = cgtype->covgrp_bin_guard(gi);
+					  if (class_sample && gexpr) {
+						argv.push_back(elaborate_class_expression(gexpr,
+						      "bin iff guard", gi, true));
+						continue;
+					  }
 					  NetExpr*gval = gexpr
 						? parent_property_guard(gexpr) : nullptr;
 					  if (!gval && gexpr)
@@ -23805,15 +23924,29 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 				    cp_scope->restore_signal_alias(
 					  interface_property_names[k - 1],
 					  previous_interface_bindings[k - 1]);
-			      NetSTask* sys = new NetSTask(
-				    "$ivl_class_method$covgrp_sample",
-				    IVL_SFUNC_AS_TASK_IGNORE, argv);
-			      sys->set_line(*this);
-			      if (sample_block) {
+			      if (class_expression_error) {
+				    for (NetExpr*expr : argv) delete expr;
+			      } else {
+				    NetSTask*sys = new NetSTask("$ivl_class_method$covgrp_sample",
+					  IVL_SFUNC_AS_TASK_IGNORE, argv);
+				    sys->set_line(*this);
+				    if (!sample_block) return sys;
 				    sample_block->append(sys);
-				    return sample_block;
 			      }
-			      return sys;
+			      if (class_sample) {
+				    vector<NetExpr*> defaults(sample_ports.size(), nullptr);
+				    NetFuncDef*def = new NetFuncDef(sample_scope, nullptr,
+					  sample_ports, defaults);
+				    sample_scope->set_func_def(def);
+				    def->set_proc(sample_block);
+				    NetUTask*call = new NetUTask(sample_scope);
+				    call->set_line(*this);
+				    call_block->append(call);
+				    NetFree*free = new NetFree(sample_scope);
+				    free->set_line(*this);
+				    call_block->append(free);
+			      }
+			      return call_block;
 			}
 		  }
 
@@ -50638,6 +50771,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 	      // (multi-range bins).  item_idx groups properties into
 	      // coverage items (coverpoints, then crosses) for per-item
 	      // weighted coverage.
+	      NetScope*coverpoint_shape_scope = nullptr;
 	      for (auto* cgdef : pclass->type->covergroups) {
 		    if (!cgdef) continue;
 
@@ -53122,6 +53256,18 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			  }
 			  return nullptr;
 		    };
+		    auto coverpoint_expression_scope = [&]() -> NetScope* {
+			  if (cg_standalone || cgdef->is_extension || is_interface())
+				return class_scope_;
+			  // Sizing needs the same implicit class receiver as sampling.
+			  if (!coverpoint_shape_scope) {
+				NetNet*receiver = make_covergroup_class_context_(
+				      class_scope_, this, *pclass);
+				receiver->local_flag(true);
+				coverpoint_shape_scope = receiver->scope();
+			  }
+			  return coverpoint_shape_scope;
+		    };
 		    std::function<bool(PExpr*, unsigned&, bool&)>
 			coverpoint_effective_shape;
 		    coverpoint_effective_shape = [&](PExpr*expr,
@@ -53140,7 +53286,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				is_signed = type->get_signed();
 			  } else {
 				PExpr::width_mode_t mode = PExpr::SIZED;
-				width = expr->test_width(des, class_scope_, mode);
+				width = expr->test_width(des, coverpoint_expression_scope(), mode);
 				is_signed = expr->has_sign();
 			  }
 			  // A coverpoint is self-determined. test_width() may not
@@ -53471,11 +53617,7 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				des->errors += 1;
 			  }
 			  cg_class->add_covgrp_cp_sample_ir(sample_ir);
-			    // Keep the SOURCE expression: sample() sites
-			    // elaborate it in the caller's scope when it
-			    // is not a parent-class property (standalone
-			    // covergroups, in-class expression
-			    // coverpoints).
+			    // Keep the source expression for explicit sample() calls.
 			  cg_class->add_covgrp_cp_expr(cp_sample_expr);
 
 			  opt_check(cp.options, "coverpoint");
@@ -55745,7 +55887,11 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 					// chain).
 				      if (!src_enum && src_w == 0) {
 					    PExpr::width_mode_t wm = PExpr::SIZED;
-					    src_w = cp.expr->test_width(des, class_scope_, wm);
+					    // Explicit bins have already been sized above.
+					    // Preserve their recovery path when none could be emitted.
+					    NetScope*width_scope = has_explicit_bins
+						  ? class_scope_ : coverpoint_expression_scope();
+					    src_w = cp.expr->test_width(des, width_scope, wm);
 				      }
 				      if (src_w > 0) w = src_w;
 				}

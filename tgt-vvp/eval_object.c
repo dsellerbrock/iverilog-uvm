@@ -342,7 +342,8 @@ static int parse_fixed_array_cast_suffix_(const char*text)
  * the fixed-target alignment when tw is nonzero.  The stream is left
  * on the vec4 stack.
  */
-int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
+static int draw_stream_pack_pieces_(ivl_expr_t expr, unsigned tw,
+				    unsigned*unpack_slice, ivl_type_t*access_class)
 {
       const char*name = ivl_expr_name(expr);
       if (strncmp(name, "$ivl_stream$", 12) != 0)
@@ -456,10 +457,33 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 	    slice = 1;
 
       unsigned parms = ivl_expr_parms(expr);
-      assert(parms > 0);
+      unsigned first = 0;
+      if (unpack_slice) {
+	    char*end = 0;
+	    if (!unpack || (dir != 'l' && dir != 'r') || tail[1] != '$'
+		|| tail[2] < '0' || tail[2] > '9')
+		  return -1;
+	    slice = strtoul(tail + 2, &end, 10);
+	    if (*end || slice == 0 || slice > UINT_MAX)
+		  return -1;
+	    *unpack_slice = dir == 'l' ? (unsigned)slice : 0;
+	    if (parms && ivl_expr_type(ivl_expr_parm(expr, 0)) == IVL_EX_SCOPE) {
+		  *access_class = ivl_expr_net_type(ivl_expr_parm(expr, 0));
+		  if (!*access_class || ivl_type_base(*access_class) != IVL_VT_CLASS)
+			return -1;
+		  first = 1;
+	    }
+      }
+      if (first >= parms)
+	    return -1;
 
-      for (unsigned idx = 0 ; idx < parms ; idx += 1) {
+      for (unsigned idx = first ; idx < parms ; idx += 1) {
 	    ivl_expr_t parm = ivl_expr_parm(expr, idx);
+	    if (unpack_slice && ivl_type_is_chandle(ivl_expr_net_type(parm))) {
+		  fprintf(stderr, "%s:%u: error: chandle is not a bit-stream source.\n",
+			  ivl_expr_file(parm), ivl_expr_lineno(parm));
+		  return 1;
+	    }
 	    const char*parm_name = ivl_expr_type(parm) == IVL_EX_SFUNC
 		  ? ivl_expr_name(parm) : 0;
 	    if (parm_name
@@ -564,11 +588,11 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
 		  break;
 	    }
 	    }
-	    if (idx > 0)
+	    if (idx > first)
 		  fprintf(vvp_out, "    %%concat/vec4;\n");
       }
 
-      if (fixed_array_cast)
+      if (fixed_array_cast || unpack_slice)
 	    return 0;
 
       if (unpack) {
@@ -585,6 +609,17 @@ int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
       }
 
       return 0;
+}
+
+int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw)
+{
+      return draw_stream_pack_pieces_(expr, tw, 0, 0);
+}
+
+int draw_stream_unpack_source(ivl_expr_t expr, unsigned*slice, ivl_type_t*access_class)
+{
+      *access_class = 0;
+      return draw_stream_pack_pieces_(expr, 0, slice, access_class);
 }
 
 static int eval_darray_new(ivl_expr_t ex)

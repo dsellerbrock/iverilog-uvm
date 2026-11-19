@@ -870,7 +870,7 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
       }
 }
 
-void dll_target::make_scope_param_expr(ivl_parameter_t cur_par, NetExpr*etmp,
+void dll_target::make_scope_param_expr(ivl_parameter_t cur_par, const NetExpr*etmp,
 				      ivl_expr_t*out)
 {
       if (const NetEConst*e = dynamic_cast<const NetEConst*>(etmp)) {
@@ -4055,6 +4055,22 @@ void dll_target::signal(const NetNet*net)
 
       if (net->attr_cnt())
 	    signal_aux_(obj)->attr = fill_in_attributes(net);
+
+      const auto&decl_attrs = net->decl_attributes();
+      if (obj->type_ == IVL_SIT_REG && !decl_attrs.empty()) {
+	    ivl_signal_aux_s*aux = signal_aux_(obj);
+	    aux->decl_attr_count = decl_attrs.size();
+	    aux->decl_attrs = dll_procedure_new_array<ivl_decl_attr_s>(decl_attrs.size());
+	    for (unsigned idx = 0; idx < decl_attrs.size(); ++idx) {
+		  const auto&src = decl_attrs[idx];
+		  auto&dst = aux->decl_attrs[idx];
+		  dst.name = src.name.str();
+		  dst.file = src.get_file().str();
+		  dst.lineno = src.get_lineno();
+		  dst.integral_kind = src.integral_kind;
+		  make_scope_param_expr(nullptr, src.value.get(), &dst.value);
+	    }
+      }
 
 	// A scalar queue can drive an event source through its object. Fixed
 	// arrays of queues get each word's driver from the loop below.

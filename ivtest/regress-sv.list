@@ -199,6 +199,12 @@ issue1467_covergroup_item_start_stop normal,-g2017,-s,top ivltests gold=issue146
 issue1467_covergroup_item_start_stop_2023 normal,-g2023,-s,top ivltests gold=issue1467_covergroup_item_start_stop.gold
 issue1541_checker_sva_formals_2017 normal,-g2017,-s,issue1541_checker_sva_formals_2017 ivltests gold=issue1541_checker_sva_formals.gold
 issue1541_checker_sva_formals_2023 normal,-g2023,-s,issue1541_checker_sva_formals_2023 ivltests gold=issue1541_checker_sva_formals.gold
+issue3861_checker_input_2017 normal,-g2017,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_input-vvp-stdout.gold
+issue3861_checker_input_2023 normal,-g2023,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_input-vvp-stdout.gold
+issue3861_checker_inherited_output_2017 CE,-g2017,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_inherited_output-iverilog-stderr.gold
+issue3861_checker_inherited_output_2023 CE,-g2023,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_inherited_output-iverilog-stderr.gold
+issue3861_checker_explicit_output_2017 CE,-g2017,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_explicit_output-iverilog-stderr.gold
+issue3861_checker_explicit_output_2023 CE,-g2023,-Iivltests,-s,issue3861_top ivltests gold=issue3861_checker_explicit_output-iverilog-stderr.gold
 issue1555_checker_initial_delay_fail_2017 CE,-g2017 ivltests gold=issue1555_checker_initial_delay_fail_2017.gold
 issue1555_checker_initial_delay_fail_2023 CE,-g2023 ivltests gold=issue1555_checker_initial_delay_fail_2023.gold
 
@@ -7290,3 +7296,19 @@ issue3801_2023 normal,-g2023,-gassertions,-s,issue3801 ivltests gold=issue3801.g
 # IEEE 1800-2017/2023 10.10: self-determined integral queue operands.
 issue1158_signed_queue_sort_2017 normal,-g2017 ivltests gold=issue1158_signed_queue_sort.gold
 issue1158_signed_queue_sort_2023 normal,-g2023 ivltests gold=issue1158_signed_queue_sort.gold
+issue3380_covergroup_class_sample_2017 normal,-g2017 ivltests gold=issue3380_covergroup_class_sample.gold
+issue3380_covergroup_class_sample_2023 normal,-g2023 ivltests gold=issue3380_covergroup_class_sample.gold
+
+# IEEE 1800-2017/2023 11.4.14.1–11.4.14.3: blocking class unpack.
+issue3864_class_unpack_2017 normal,-g2017,-s,issue3864_class_unpack ivltests gold=issue3864_class_unpack-vvp-stdout.gold
+issue3864_class_unpack_short_2017 RE,-g2017,-s,issue3864_class_unpack_short ivltests gold=issue3864_class_unpack_short-vvp-stderr.gold
+issue3864_class_unpack_2023 normal,-g2023,-s,issue3864_class_unpack ivltests gold=issue3864_class_unpack-vvp-stdout.gold
+issue3864_class_unpack_short_2023 RE,-g2023,-s,issue3864_class_unpack_short ivltests gold=issue3864_class_unpack_short-vvp-stderr.gold
+
+# Clocked sequence instances with actuals and .triggered (issue #3800)
+issue3800_clocked_triggered_2017 normal,-g2017,-gassertions,-s,issue3800_clocked_triggered ivltests gold=issue3800_clocked_triggered.gold
+issue3800_clocked_triggered_2023 normal,-g2023,-gassertions,-s,issue3800_clocked_triggered ivltests gold=issue3800_clocked_triggered.gold
+issue3800_triggered_delays_2017 normal,-g2017,-gassertions,-s,issue3800_triggered_delays ivltests gold=issue3800_triggered_delays.gold
+issue3800_triggered_delays_2023 normal,-g2023,-gassertions,-s,issue3800_triggered_delays ivltests gold=issue3800_triggered_delays.gold
+issue3800_triggered_clock_error_2017 CE,-g2017,-gassertions,-s,issue3800_triggered_clock_error ivltests gold=issue3800_triggered_clock_error.gold
+issue3800_triggered_clock_error_2023 CE,-g2023,-gassertions,-s,issue3800_triggered_clock_error ivltests gold=issue3800_triggered_clock_error.gold

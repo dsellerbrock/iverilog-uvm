@@ -1021,13 +1021,14 @@ static void discard_nested_container_index_(ivl_expr_t index,
       }
 }
 
-static ivl_type_t draw_lval_expr(ivl_lval_t lval)
+static ivl_type_t draw_lval_object_member_(ivl_lval_t outer, ivl_lval_t member,
+					  ivl_type_t owner, int capture);
+
+static ivl_type_t draw_lval_expr_(ivl_lval_t lval, int capture)
 {
-      static int warned_invalid_prop_index = 0;
       ivl_lval_t lval_nest = ivl_lval_nest(lval);
       ivl_signal_t lval_sig = ivl_lval_sig(lval);
-      unsigned lab_null = local_count++;
-      unsigned lab_out = local_count++;
+      const char*array_load = capture ? "%load/obja/peek" : "%load/obja";
 
       if (lval_sig) {
 	    ivl_expr_t word_ex = ivl_lval_idx(lval);
@@ -1047,8 +1048,8 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		  draw_eval_expr_into_integer(word_ex, slot_word);
 		  note_array_signal_use(lval_sig);
 		  fprintf(vvp_out,
-			  "    %%load/obja v%p, %d; fixed-array container slot\n",
-			  lval_sig, slot_word);
+			  "    %s v%p, %d; fixed-array container slot\n",
+			  array_load, lval_sig, slot_word);
 
 		    /* Queue and associative-array variables default to an empty
 		       container. Compact fixed object-array storage starts each
@@ -1058,7 +1059,8 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		       may still evaluate its inner key and RHS, but the runtime
 		       setter must skip the write-back. Dynamic arrays deliberately
 		       remain nil until explicitly allocated. */
-		  if (ivl_type_base(sig_type) == IVL_VT_QUEUE) {
+		  if (!capture && ivl_type_base(sig_type) == IVL_VT_QUEUE) {
+			unsigned lab_out = local_count++;
 			int slot_flag = allocate_flag();
 			fprintf(vvp_out, "    %%flag_mov %d, 4; fixed-slot validity\n",
 				slot_flag);
@@ -1093,7 +1095,8 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		&& ivl_type_base(sig_type) == IVL_VT_CLASS
 		&& ivl_signal_dimensions(lval_sig) > 0) {
 		  draw_eval_expr_into_integer(word_ex, 3);
-		  fprintf(vvp_out, "    %%load/obja v%p, 3;\n", lval_sig);
+		  if (capture) note_array_signal_use(lval_sig);
+		  fprintf(vvp_out, "    %s v%p, 3;\n", array_load, lval_sig);
 		  return sig_type;
 	    }
 
@@ -1111,7 +1114,8 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		&& ivl_type_properties(sig_type) > 0
 		&& ivl_signal_dimensions(lval_sig) > 0) {
 		  draw_eval_expr_into_integer(word_ex, 3);
-		  fprintf(vvp_out, "    %%load/obja v%p, 3;\n", lval_sig);
+		  if (capture) note_array_signal_use(lval_sig);
+		  fprintf(vvp_out, "    %s v%p, 3;\n", array_load, lval_sig);
 		  return sig_type;
 	    }
 
@@ -1119,7 +1123,7 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		  ivl_type_t element_type = ivl_type_element(sig_type);
 		    /* IEEE 1800-2017/2023 §7.8.7 allocates a missing key used as
 		       a nested fixed-array assignment target. */
-		  if (ivl_type_base(sig_type) == IVL_VT_QUEUE
+		  if (!capture && ivl_type_base(sig_type) == IVL_VT_QUEUE
 		      && ivl_type_queue_assoc_compat(sig_type)
 		      && type_is_fixed_uarray_property_(element_type)) {
 			const char*key_kind = draw_eval_assoc_key_(word_ex, 0);
@@ -1140,7 +1144,9 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 			(ivl_type_base(element_type) == IVL_VT_CLASS
 			 || (ivl_type_base(element_type) == IVL_VT_NO_TYPE
 			     && ivl_type_properties(element_type) > 0));
-		  if (elem_is_object) {
+		  if (elem_is_object || (capture && element_type
+		      && (ivl_type_base(element_type) == IVL_VT_DARRAY
+			  || ivl_type_base(element_type) == IVL_VT_QUEUE))) {
 			  /* An associative array keyed by a class handle (or any
 			     assoc key) is an IVL_VT_QUEUE with assoc-compat. Its
 			     element is fetched with %aa/load using the real key —
@@ -1156,18 +1162,24 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 				 member write into a not-yet-present assoc entry
 				 (`a[key].field = ...`) is inserted and persists,
 				 instead of storing through a discarded default. */
-			      fprintf(vvp_out, "    %%aa/loadlv/sig/obj/%s v%p_0;\n",
-				      key_kind, lval_sig);
+			      fprintf(vvp_out, "    %%aa/load%s/sig/obj/%s v%p_0;\n",
+				      capture ? "" : "lv", key_kind, lval_sig);
 			      return element_type;
 			}
 			draw_eval_expr_into_integer(word_ex, 3);
 			if (ivl_type_base(sig_type) == IVL_VT_DARRAY ||
 			    ivl_type_base(sig_type) == IVL_VT_QUEUE) {
-			      fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", lval_sig);
+			      if (capture) {
+				    fprintf(vvp_out, "    %%load/obj v%p_0;\n", lval_sig);
+				    fprintf(vvp_out, "    %%load/qo/obj/peek;\n");
+			      } else {
+				    fprintf(vvp_out, "    %%load/dar/obj v%p_0;\n", lval_sig);
+			      }
 			      return element_type;
 			}
 			if (ivl_signal_dimensions(lval_sig) > 0) {
-			      fprintf(vvp_out, "    %%load/obja v%p, 3;\n", lval_sig);
+			      if (capture) note_array_signal_use(lval_sig);
+			      fprintf(vvp_out, "    %s v%p, 3;\n", array_load, lval_sig);
 			      return element_type;
 			}
 		  }
@@ -1178,7 +1190,21 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
       }
 
       assert (lval_nest);
-      ivl_type_t sub_type = draw_lval_expr(lval_nest);
+      ivl_type_t owner = draw_lval_expr_(lval_nest, capture);
+      return draw_lval_object_member_(lval, lval_nest, owner, capture);
+}
+
+/* Select one object-valued member from a receiver already on the stack.
+ * Ordinary stores use this for intermediate receivers. Streaming unpack
+ * also selects the final member and only reads existing storage. */
+static ivl_type_t draw_lval_object_member_(ivl_lval_t lval, ivl_lval_t lval_nest,
+					  ivl_type_t sub_type, int capture)
+{
+      static int warned_invalid_prop_index = 0;
+      unsigned lab_null = local_count++;
+      unsigned lab_out = local_count++;
+      const char*prop_load = capture ? "%prop/obj/peek" : "%prop/obj";
+      const char*elem_load = capture ? "%load/qo/obj/peek" : "%load/qo/obj";
       ivl_type_t prop_type;
       ivl_type_t element_type;
       ivl_expr_t nested_idx_expr;
@@ -1208,7 +1234,7 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		    thread_count, lab_null);
 	    if (ivl_type_base(sub_type) == IVL_VT_QUEUE
 		&& ivl_type_queue_assoc_compat(sub_type)) {
-		  if (selected_type
+		  if (!capture && selected_type
 		      && ivl_type_base(selected_type) == IVL_VT_NO_TYPE
 		      && ivl_type_properties(selected_type) > 0) {
 			/* A member write through an associative array of unpacked
@@ -1255,7 +1281,7 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 			      fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
 			      fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_ready);
 			}
-		  } else if (selected_type
+		  } else if (!capture && selected_type
 			     && (type_is_fixed_uarray_property_(selected_type)
 				 || ivl_type_base(selected_type) == IVL_VT_QUEUE
 				 || ivl_type_base(selected_type) == IVL_VT_DARRAY)) {
@@ -1276,12 +1302,12 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		  }
 	    } else {
 		  draw_eval_expr_into_integer(container_idx, 3);
-		  if (selected_type
+		  if (!capture && selected_type
 		      && ivl_type_base(selected_type) == IVL_VT_QUEUE)
 			fprintf(vvp_out, "    %%qdar/loadlv/o \"@%u\";\n",
 				nested_queue_spec_(selected_type));
 		  else
-			fprintf(vvp_out, "    %%load/qo/obj;\n");
+			fprintf(vvp_out, "    %s;\n", elem_load);
 	    }
 	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
@@ -1295,7 +1321,7 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
       /* A pure-index wrapper immediately outside a fixed-array signal node
        * carries the inner queue/map index.  Its dedicated store helper owns
        * that index, so keep the selected container and its type intact. */
-      if (prop_idx < 0 && ivl_lval_idx(lval)
+      if (lval && prop_idx < 0 && ivl_lval_idx(lval)
 	  && ivl_lval_sig(lval_nest)
 	  && ivl_signal_dimensions(ivl_lval_sig(lval_nest)) > 0
 	  && sub_type
@@ -1307,7 +1333,7 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	 * dynamic-array receiver. Keep the selected array object on the stack
 	 * for the outer word store instead of treating its scalar leaf type as
 	 * an invalid class-property receiver. */
-      if (prop_idx < 0 && ivl_lval_idx(lval)
+      if (lval && prop_idx < 0 && ivl_lval_idx(lval)
 	  && lval_nest && ivl_lval_sig(lval_nest)
 	  && (ivl_type_base(ivl_signal_net_type(
 		ivl_lval_sig(lval_nest))) == IVL_VT_QUEUE
@@ -1318,7 +1344,7 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 
       /* Keep a module associative array's fixed child alive for the
 	 fixed-slot store in its enclosing l-value. */
-      if (prop_idx < 0 && ivl_lval_idx(lval) && sub_type
+      if (lval && prop_idx < 0 && ivl_lval_idx(lval) && sub_type
 	  && type_is_fixed_uarray_property_(sub_type)) {
 	    ivl_signal_t assoc_sig = ivl_lval_sig(lval_nest);
 	    ivl_type_t assoc_type = assoc_sig
@@ -1327,6 +1353,9 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		&& ivl_type_queue_assoc_compat(assoc_type))
 		  return sub_type;
       }
+
+      if (capture && prop_idx < 0)
+	    return sub_type;
 
       if ((sub_type == 0) || (ivl_type_properties(sub_type) <= 0)) {
 	    /* Compile-progress fallback: nested receiver is not class-typed,
@@ -1401,18 +1430,18 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		  fprintf(vvp_out, "    %%jmp/0xz T_%u.%u, %d; fixed property slot is OOB\n",
 			  thread_count, lab_bad_slot, fixed_slot_in_range_flag);
       }
-      if (queue_indexed) {
+	  if (queue_indexed) {
 	    draw_eval_expr_into_integer(nested_idx_expr, 3);
-	    fprintf(vvp_out, "    %%prop/obj %d, 0; Load queue property %s\n",
-	            prop_idx, ivl_type_prop_name(sub_type, prop_idx));
-	    fprintf(vvp_out, "    %%load/qo/obj;\n");
+	    fprintf(vvp_out, "    %s %d, 0; Load queue property %s\n",
+		    prop_load, prop_idx, ivl_type_prop_name(sub_type, prop_idx));
+	    fprintf(vvp_out, "    %s;\n", elem_load);
 	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
       } else if (assoc_indexed) {
             const char*key_kind;
-	    fprintf(vvp_out, "    %%prop/obj %d, 0; Load assoc property %s\n",
-	            prop_idx, ivl_type_prop_name(sub_type, prop_idx));
+	    fprintf(vvp_out, "    %s %d, 0; Load assoc property %s\n",
+		    prop_load, prop_idx, ivl_type_prop_name(sub_type, prop_idx));
             key_kind = draw_eval_assoc_key_(nested_idx_expr, 0);
-	    if (type_is_fixed_uarray_property_(element_type)) {
+	    if (!capture && type_is_fixed_uarray_property_(element_type)) {
 		  unsigned spec = AA_VIV_FIXED;
 		  if (strcmp(key_kind, "obj") == 0)
 			  spec += 8;
@@ -1424,18 +1453,19 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 		  fprintf(vvp_out, "    %%pop/obj 2, 1;\n");
 	    }
       } else if (idx_word) {
-	    fprintf(vvp_out, "    %%prop/obj %d, %d; Load property %s\n", prop_idx,
-	            idx_word, ivl_type_prop_name(sub_type, prop_idx));
+	    fprintf(vvp_out, "    %s %d, %d; Load property %s\n", prop_load,
+		    prop_idx, idx_word, ivl_type_prop_name(sub_type, prop_idx));
 	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
       } else {
-	    fprintf(vvp_out, "    %%prop/obj %d, 0; Load property %s\n", prop_idx,
-	            ivl_type_prop_name(sub_type, prop_idx));
+	    fprintf(vvp_out, "    %s %d, 0; Load property %s\n", prop_load,
+		    prop_idx, ivl_type_prop_name(sub_type, prop_idx));
 	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
       }
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
       if (fixed_slot_index) {
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_bad_slot);
-	    fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
+	    if (!capture)
+		  fprintf(vvp_out, "    %%vpi_call/w %u %u \"$warning\", "
 		    "\"fixed unpacked-array property index is undefined or out of range; "
 		    "write was ignored\" {0 0 0 0};\n",
 		    ivl_file_table_index(ivl_expr_file(nested_idx_expr)),
@@ -1445,6 +1475,8 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
       }
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
+      if (capture && (queue_indexed || assoc_indexed))
+	    discard_nested_container_index_(nested_idx_expr, prop_type);
       fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
       fprintf(vvp_out, "    %%null;\n");
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
@@ -1457,6 +1489,11 @@ static ivl_type_t draw_lval_expr(ivl_lval_t lval)
 	    return element_type;
 
       return prop_type;
+}
+
+static ivl_type_t draw_lval_expr(ivl_lval_t lval)
+{
+      return draw_lval_expr_(lval, 0);
 }
 
 /* Value-kind tags shared with vvp_lvalue_ref::value_kind_t. Keep the text
@@ -1510,7 +1547,7 @@ static ivl_signal_t mailbox_ref_base_signal_(ivl_lval_t lval)
  * reached it, so a blocking get/peek cannot be retargeted by later changes to
  * a receiver handle or index expression.
  */
-int draw_capture_lval_ref(ivl_lval_t lval)
+static int draw_capture_lval_ref_(ivl_lval_t lval, int read_only_receiver)
 {
       ivl_signal_t sig = ivl_lval_sig(lval);
       ivl_expr_t index = ivl_lval_idx(lval);
@@ -1611,7 +1648,7 @@ int draw_capture_lval_ref(ivl_lval_t lval)
          * for one that names its owner directly through a signal, so this
          * path serves both spellings. */
       if (property >= 0) {
-            ivl_type_t owner_type = draw_lval_expr(lval);
+            ivl_type_t owner_type = draw_lval_expr_(lval, read_only_receiver);
             if (!owner_type || property >= ivl_type_properties(owner_type)) {
                   fprintf(stderr, "vvp.tgt error: cannot resolve mailbox "
                           "ref-output property %d.\n", property);
@@ -1718,6 +1755,11 @@ int draw_capture_lval_ref(ivl_lval_t lval)
       vvp_errors += 1;
       fprintf(vvp_out, "    %%null; malformed mailbox ref-output\n");
       return 1;
+}
+
+int draw_capture_lval_ref(ivl_lval_t lval)
+{
+      return draw_capture_lval_ref_(lval, 0);
 }
 
 /*
@@ -6980,6 +7022,134 @@ static int store_dynamic_stream_lval_with_(ivl_lval_t lval,
  * member (the greatest dynamic l-value index) receives the run-time remainder
  * after all fixed widths are reserved; every later dynamic member receives an
  * empty value. This is the greedy rule in IEEE 1800-2017 11.4.14.4. */
+static int stream_lval_is_class_(ivl_lval_t lval)
+{
+      ivl_type_t type = ivl_lval_net_type(lval);
+      return type && ivl_type_base(type) == IVL_VT_CLASS
+	    && !ivl_type_element(type);
+}
+
+static int stream_lval_fixed_property_peer_(ivl_lval_t lval)
+{
+      int property = ivl_lval_property_idx(lval);
+      ivl_lval_t nest = ivl_lval_nest(lval);
+      ivl_signal_t sig = ivl_lval_sig(lval);
+      ivl_type_t owner = nest ? ivl_lval_net_type(nest)
+	    : sig ? ivl_signal_net_type(sig) : 0;
+      if (!owner || ivl_type_is_interface(owner) || ivl_type_is_union(owner)
+	  || property < 0 || property >= ivl_type_properties(owner)
+	  || ivl_lval_part_carrier_width(lval) || ivl_lval_dynamic_part_carrier(lval))
+	    return 0;
+      ivl_type_t type = ivl_type_prop_type(owner, property);
+      if (ivl_lval_idx(lval))
+	    return type_is_fixed_uarray_property_(type) && !ivl_lval_part_off(lval);
+      return !type_is_fixed_uarray_property_(type);
+}
+
+static int show_stmt_assign_class_stream_(ivl_statement_t net, ivl_expr_t rval)
+{
+      unsigned lvals = ivl_stmt_lvals(net);
+      for (unsigned idx = 0; idx < lvals; idx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
+	    if (ivl_lval_stream_range(lval) != IVL_STREAM_RANGE_NONE
+		|| stream_lval_is_dynamic_(lval)) {
+		  fprintf(stderr, "%s:%u: sorry: ranged or greedy targets cannot "
+			  "be combined with class streaming unpack.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+	    ivl_type_t type = ivl_lval_net_type(lval);
+	    if (stream_lval_is_class_(lval) && !ivl_type_is_interface(type))
+		  continue;
+	    int property = ivl_lval_property_idx(lval);
+	    ivl_signal_t sig = ivl_lval_sig(lval);
+	    if (!type || (ivl_type_base(type) != IVL_VT_BOOL
+			  && ivl_type_base(type) != IVL_VT_LOGIC)
+		|| ivl_type_is_chandle(type)
+		|| ivl_lval_is_array_slice(lval)
+		|| !ivl_lval_width(lval)
+		|| (ivl_type_element(type) && !ivl_type_is_packed_vector(type))) {
+		  fprintf(stderr, "%s:%u: sorry: unsupported peer in class "
+			  "streaming unpack (requires a fixed vector).\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+	    if (property >= 0 ? !stream_lval_fixed_property_peer_(lval)
+		: (!sig || ivl_lval_nest(lval)
+		   || (ivl_signal_dimensions(sig) && !ivl_lval_idx(lval)))) {
+		  fprintf(stderr, "%s:%u: sorry: unsupported fixed vector peer "
+			  "selection in class streaming unpack.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+      }
+
+      unsigned slice;
+      ivl_type_t access_class;
+      int errors = draw_stream_unpack_source(rval, &slice, &access_class);
+      if (errors < 0) {
+	    fprintf(stderr, "%s:%u: internal error: malformed class streaming "
+		    "unpack carrier.\n", ivl_stmt_file(net), ivl_stmt_lineno(net));
+	    return 1;
+      }
+      if (errors)
+	    return errors;
+
+      if (access_class)
+	    ensure_class_type_emitted(access_class);
+
+      // The l-value table is rightmost first. Capture in source order.
+      for (unsigned pos = lvals; pos > 0; pos -= 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, pos - 1);
+	    if (!stream_lval_is_class_(lval)) {
+		  if (ivl_lval_property_idx(lval) >= 0
+		      && draw_capture_lval_ref_(lval, 1))
+			return 1;
+		  continue;
+	    }
+	    ivl_type_t type = draw_lval_expr_(lval, 1);
+	    if (ivl_lval_property_idx(lval) >= 0
+		|| (ivl_lval_nest(lval) && ivl_lval_idx(lval)))
+		  type = draw_lval_object_member_(0, lval, type, 1);
+	    if (type != ivl_lval_net_type(lval)) {
+		  fprintf(stderr, "%s:%u: sorry: cannot capture selected "
+			  "class handle for streaming unpack.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net));
+		  return 1;
+	    }
+	    if (access_class)
+		  fprintf(vvp_out, "    %%stream/class/capture/in C%p;\n", access_class);
+	    else
+		  fprintf(vvp_out, "    %%stream/class/capture;\n");
+      }
+
+      fprintf(vvp_out, "    %%stream/class/prepare \"%u:", slice);
+      for (unsigned pos = lvals; pos > 0; pos -= 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, pos - 1);
+	    int is_class = stream_lval_is_class_(lval);
+	    const char*prefix = "";
+	    if (!is_class && ivl_lval_property_idx(lval) >= 0)
+		  prefix = ivl_type_base(ivl_lval_net_type(lval)) == IVL_VT_BOOL
+			? "b" : "p";
+	    fprintf(vvp_out, "%s%s%u", pos == lvals ? "" : ",",
+		    prefix, is_class ? 0 : ivl_lval_width(lval));
+      }
+      fprintf(vvp_out, "\";\n");
+
+      for (unsigned pos = lvals; pos > 0; pos -= 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, pos - 1);
+	    int is_class = stream_lval_is_class_(lval);
+	    fprintf(vvp_out, "    %%stream/class/next %u;\n",
+		    is_class ? 0 : ivl_lval_width(lval));
+	    if (!is_class && ivl_lval_property_idx(lval) < 0) {
+		  if (ivl_type_base(ivl_lval_net_type(lval)) == IVL_VT_BOOL)
+			fprintf(vvp_out, "    %%cast2; two-state streaming destination\n");
+		  store_vec4_to_one_lval(lval);
+	    }
+      }
+      return 0;
+}
+
 static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
 {
       ivl_expr_t rval = ivl_stmt_rval(net);
@@ -6992,6 +7162,10 @@ static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
 	    return -1;
 
       unsigned lvals = ivl_stmt_lvals(net);
+      for (unsigned idx = 0; idx < lvals; idx += 1)
+	    if (stream_lval_is_class_(ivl_stmt_lval(net, idx)))
+		  return show_stmt_assign_class_stream_(net, rval);
+
       unsigned greedy = 0;
       unsigned dynamic_count = 0;
       uint64_t fixed_width = 0;

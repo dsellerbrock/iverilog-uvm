@@ -148,6 +148,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".arith/sum"    { return K_ARITH_SUM; }
 ".arith/sum.r"  { return K_ARITH_SUM_R; }
 ".array"        { return K_ARRAY; }
+".attribute"    { return K_ATTRIBUTE; }
 ".array/2s"     { return K_ARRAY_2S; }
 ".array/2u"     { return K_ARRAY_2U; }
 ".array/i"      { return K_ARRAY_I; }
