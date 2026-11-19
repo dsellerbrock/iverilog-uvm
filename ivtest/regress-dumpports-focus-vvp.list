@@ -2,6 +2,8 @@
 sv_dumpports_runtime vvp_tests/sv_dumpports_runtime.json
 issue3820_2017 vvp_tests/issue3820_2017.json
 issue3820_2023 vvp_tests/issue3820_2023.json
+issue3821_2017 vvp_tests/issue3821_2017.json
+issue3821_2023 vvp_tests/issue3821_2023.json
 sv_dumpports_multifile vvp_tests/sv_dumpports_multifile.json
 sv_dumpports_limit_prestart vvp_tests/sv_dumpports_limit_prestart.json
 sv_dumpports_finish_pending vvp_tests/sv_dumpports_finish_pending.json

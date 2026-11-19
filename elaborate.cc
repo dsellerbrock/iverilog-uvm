@@ -5930,6 +5930,8 @@ NetNode* PGBuiltin::create_gate_for_output_(Design*des, NetScope*scope,
 	    break;
       }
 
+      if (auto*sw = dynamic_cast<NetTran*>(gate))
+	    sw->set_primitive();
       return gate;
 }
 

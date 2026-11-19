@@ -139,7 +139,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_CLASS_EXTENDS K_CLASS_BASE K_CLASS_CTOR K_CLASS_PARAM
 %token K_IODECL
 %token K_SUBSTITUTE K_SUBSTITUTE_V
-%token K_THREAD K_TIMESCALE K_TRAN K_TRANIF0 K_TRANIF1 K_TRANVP
+%token K_THREAD K_TIMESCALE K_TRAN K_TRAN_PHYSICAL K_TRANIF0 K_TRANIF1 K_TRANVP
 %token K_UFUNC_REAL K_UFUNC_VEC4 K_UFUNC_E
 %token K_UFUNC_RESOLV_REAL K_UFUNC_RESOLV_VEC2 K_UFUNC_RESOLV_VEC4
 %token K_UDP K_UDP_C K_UDP_S K_UDP_DELAY
@@ -1457,6 +1457,9 @@ statement
 
   | K_TRAN T_SYMBOL ',' T_SYMBOL T_SYMBOL tran_desc_opt ';'
       { compile_island_tranif(0, $2, $4, $5, 0, 0, $6); }
+
+  | K_TRAN_PHYSICAL T_SYMBOL ',' T_SYMBOL T_SYMBOL tran_desc_opt ';'
+      { compile_island_tranif(0, $2, $4, $5, 0, 0, $6, true); }
 
   | K_TRANIF0 T_SYMBOL ',' T_SYMBOL T_SYMBOL ',' T_SYMBOL tran_desc_opt ';'
       { compile_island_tranif(0, $2, $4, $5, $7, 0, $8); }

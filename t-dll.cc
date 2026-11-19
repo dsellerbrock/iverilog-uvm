@@ -2304,6 +2304,7 @@ bool dll_target::tran(const NetTran*net)
 {
       struct ivl_switch_s*obj = new struct ivl_switch_s;
       obj->type = net->type();
+      obj->is_primitive = net->is_primitive();
       obj->width = net->vector_width();
       obj->part = 0;
       obj->offset = 0;

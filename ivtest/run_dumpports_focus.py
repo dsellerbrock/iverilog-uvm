@@ -219,16 +219,11 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 def check_raw_metadata(runner: FocusRunner) -> None:
     ordinary = runner.compile("sv_dumpports_metadata_base").read_text(encoding="ascii")
-    # Keep testing the original probe records on an explicit pass-switch
-    # island, where they are still used.
-    legacy = runner.work / "dumpports_metadata_explicit.v"
-    seed_image = legacy.with_suffix(".vvp")
-    source = (SOURCES / "sv_dumpports_metadata_base.v").read_text(encoding="ascii")
-    legacy.write_text(replace_once(
-        source, "  assign io = 4'bzzzz;",
-        "  assign io = 4'bzzzz;\n  wire unused;\n  tran (io[0], unused);",
-        "leaf assignment"), encoding="ascii")
-    runner.run([runner.iverilog, "-g2012", "-o", str(seed_image), str(legacy)])
+    # SDF inout interconnect uses the legacy probes. Select that target
+    # mode to keep exercising their bytecode validation.
+    seed_image = runner.work / "dumpports_metadata_probes.vvp"
+    runner.run([runner.iverilog, "-g2012", "-pSDF_INOUT=1", "-o", str(seed_image),
+                str(SOURCES / "sv_dumpports_metadata_base.v")])
     seed = seed_image.read_text(encoding="ascii")
     runner.simulate(seed_image, contains="PASSED")
     output = IVTEST / "work" / "sv_dumpports_metadata_base.evcd"
@@ -259,8 +254,8 @@ def check_raw_metadata(runner: FocusRunner) -> None:
         seed, '.scope module, "dut"', '.scope module, "bad scope"',
         "scope-name"), "cannot be represented as an EVCD scope_identifier"))
 
-    cap_seed = replace_once(seed, '.port_info 0 /INOUT 4 44 "io";',
-                            '.port_info 0 /INOUT 4097 44 "io";',
+    cap_seed = replace_once(seed, '.port_info 0 /INOUT 4 44 "io"',
+                            '.port_info 0 /INOUT 4097 44 "io"',
                             "port-width")
     original_component = re.compile(r'^    \.port_info/evcd 0 0 4 .*;$',
                                     re.MULTILINE)
