@@ -666,7 +666,8 @@ static void emit_unpacked_dims_(ivl_signal_t sig)
 
 /*
  * .vartype <signal>, "<type>"; gives VPI (vpiTypespec) the enum or packed
- * struct/union type of a signal. .vartype <class>, <index>, "<type>";
+ * struct/union type of a signal or the element type of an array.
+ * .vartype <class>, <index>, "<type>";
  * describes a packed-struct property (the element type for a fixed array).
  * The type string is
  *    type   ::= E<width>:<enum label> | S{member,...} | U{member,...}
@@ -721,7 +722,13 @@ void note_signal_vartype(ivl_signal_t sig, const char*suffix)
           (ivl_signal_data_type(sig) == IVL_VT_DARRAY ||
            ivl_signal_data_type(sig) == IVL_VT_QUEUE)) {
 	    type = ivl_type_element(type);
-	    if (!type || !ivl_type_enum(type)) return;
+	    if (!type) return;
+	    if (!ivl_type_enum(type)) {
+		  ivl_variable_type_t base = ivl_type_base(type);
+		  if ((base != IVL_VT_LOGIC && base != IVL_VT_BOOL) ||
+		      ivl_type_properties(type) == 0 || ivl_type_is_union(type))
+			return;
+	    }
       }
       if (type && ivl_signal_dimensions(sig) == 0 &&
           ivl_signal_packed_dimensions(sig) > 1 &&
