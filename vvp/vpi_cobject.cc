@@ -179,10 +179,10 @@ static void format_packed_property_(std::string&out, vvp_cobject*cobj,
       out += '}';
 }
 
-static void append_string_key_(std::string&out, const std::string&key)
+static void append_quoted_string_(std::string&out, const std::string&value)
 {
       out += '"';
-      for (unsigned char ch : key) {
+      for (unsigned char ch : value) {
 	    if (ch == '"' || ch == '\\') out += '\\';
 	    if (ch >= 32 && ch <= 126) {
 		  out += static_cast<char>(ch);
@@ -210,10 +210,121 @@ static std::string format_packed_assoc_(const vvp_assoc_base&assoc,
 				  kind, signed_index, &string_key))
 		  break;
 	    if (pos) out += ", ";
-	    if (string_key) append_string_key_(out, key);
+	    if (string_key) append_quoted_string_(out, key);
 	    else out += key;
 	    out += ':';
 	    out += vpip_format_packed_value(leaf, std::move(value));
+      }
+      out += '}';
+      return out;
+}
+
+std::string vpip_format_integral_literal(const vvp_vector4_t&value,
+					 bool is_signed)
+{
+      if (value.has_xz()) {
+	    // Decimal display collapses X/Z to a single letter. A based
+	    // literal preserves each bit and is legal in an assignment pattern.
+	    std::string out = std::to_string(value.size());
+	    out += is_signed ? "'sb" : "'b";
+	    for (unsigned bit = value.size(); bit > 0; --bit)
+		  out += vvp_bit4_to_ascii(value.value(bit - 1));
+	    return out;
+      }
+      char buf[128];
+      const unsigned cap = value.size() * 30103ULL / 100000 + 3;
+      std::vector<char> wide;
+      if (cap > sizeof buf) wide.resize(cap);
+      char*text = wide.empty() ? buf : wide.data();
+      vpip_vec4_to_dec_str(value, text, cap, is_signed);
+      return text;
+}
+
+static void append_assoc_value_(std::string&out, const vvp_assoc_value&value,
+				const vvp_container_layout_s&layout,
+				vpiHandle packed_leaf, int depth)
+{
+      switch (value.kind) {
+	  case vvp_assoc_value::VECTOR:
+	    if (packed_leaf && layout.packed_leaf_width)
+		  out += vpip_format_packed_value(packed_leaf, value.vec, true);
+	    else
+		  out += vpip_format_integral_literal(value.vec, layout.assoc.value_signed);
+	    break;
+	  case vvp_assoc_value::REAL: {
+	    char buf[64];
+	    snprintf(buf, sizeof buf, "%g", value.real);
+	    out += buf;
+	    break;
+	  }
+	  case vvp_assoc_value::STRING:
+	    append_quoted_string_(out, value.str);
+	    break;
+	  case vvp_assoc_value::OBJECT:
+	    out += vvp_format_cobject_p(value.object, depth + 1,
+				       layout.assoc.value_signed, layout.element.get(),
+				       packed_leaf, false, true);
+	    break;
+      }
+}
+
+static std::string format_assoc_(const vvp_assoc_base*assoc,
+				 const vvp_container_layout_s&layout,
+				 vpiHandle packed_leaf, int depth)
+{
+      std::string out = "'{";
+      const size_t count = assoc ? assoc->size() : 0;
+      for (size_t pos = 0; pos < count; ++pos) {
+	    vvp_assoc_key key;
+	    vvp_assoc_value value;
+	    if (!assoc->peek_ordered_entry(pos, layout.assoc.key_signed,
+					   key, value))
+		  break;
+	    if (pos) out += ", ";
+	    switch (key.kind) {
+		case vvp_assoc_key::STRING:
+		  append_quoted_string_(out, key.str);
+		  break;
+		case vvp_assoc_key::OBJECT:
+		  out += vvp_format_cobject_p(
+			vvp_object_t(const_cast<vvp_object*>(key.object)),
+			depth + 1);
+		  break;
+		case vvp_assoc_key::VECTOR:
+		  out += vpip_format_integral_literal(key.vec, layout.assoc.key_signed);
+		  break;
+	    }
+	    out += ':';
+	    append_assoc_value_(out, value, layout, packed_leaf, depth);
+      }
+
+      vvp_assoc_value fallback;
+      if (assoc && assoc->peek_default(fallback)) {
+	    if (count) out += ", ";
+	    out += "default:";
+	    append_assoc_value_(out, fallback, layout, packed_leaf, depth);
+      } else if (count == 0) {
+	    // A default-only pattern represents an empty associative array.
+	    // Use the declared missing-entry value from IEEE 1800 Table 7-1.
+	    out += "default:";
+	    if (packed_leaf && layout.packed_leaf_width
+		&& packed_leaf->get_type_code() == vpiEnumTypespec) {
+		  const bool two_state = layout.assoc.value_kind == vvp_assoc_layout_t::BOOL;
+		  out += vpip_format_packed_value(packed_leaf,
+			vvp_vector4_t(layout.packed_leaf_width,
+				      two_state ? BIT4_0 : BIT4_X), true);
+	    } else switch (layout.assoc.value_kind) {
+		case vvp_assoc_layout_t::BOOL:   out += "'0"; break;
+		case vvp_assoc_layout_t::LOGIC:  out += "'x"; break;
+		case vvp_assoc_layout_t::REAL:   out += "0.0"; break;
+		case vvp_assoc_layout_t::STRING: out += "\"\""; break;
+		case vvp_assoc_layout_t::OBJECT:
+		  out += vvp_format_cobject_p(vvp_object_t(), depth + 1,
+			layout.assoc.value_signed, layout.element.get(),
+			packed_leaf, false, true);
+		  break;
+		case vvp_assoc_layout_t::UNKNOWN: break;
+	    }
       }
       out += '}';
       return out;
@@ -226,10 +337,31 @@ static std::string format_packed_assoc_(const vvp_assoc_base&assoc,
 std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
                                  bool element_signed,
                                  const vvp_container_layout_s*layout,
-                                 vpiHandle packed_leaf, bool assoc_index_signed)
+                                 vpiHandle packed_leaf, bool assoc_index_signed,
+                                 bool assoc_payload)
 {
-      if (layout && obj.test_nil())
+      if (layout && layout->kind == VVP_CONTAINER_ASSOC
+	  && layout->assoc.value_kind != vvp_assoc_layout_t::UNKNOWN) {
+	    const auto*assoc = obj.peek<vvp_assoc_base>();
+	    if (assoc || obj.test_nil()) {
+		  if (depth > 32)
+			return std::string("...");
+		  return format_assoc_(assoc, *layout, packed_leaf, depth);
+	    }
+      }
+      if (layout && obj.test_nil()) {
+	    if (assoc_payload) {
+		  if (layout->kind == VVP_CONTAINER_FIXED) {
+			switch (layout->fixed_leaf) {
+			    case VVP_FIXED_BOOL:   return "'{default:'0}";
+			    case VVP_FIXED_LOGIC:  return "'{default:'x}";
+			    case VVP_FIXED_OBJECT: return "'{default:null}";
+			}
+		  }
+		  return "{}";
+	    }
 	    return std::string("'{}");
+      }
       if (layout && layout->kind == VVP_CONTAINER_ASSOC && packed_leaf) {
 	    if (const auto*assoc = obj.peek<vvp_assoc_vec4>())
 		  return format_packed_assoc_(*assoc, packed_leaf, assoc_index_signed);
@@ -253,30 +385,43 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
 		  ? layout->element.get() : da->declared_element_container_layout().get();
 	    std::string out = "'{";
 	    size_t sz = da->get_size();
+	    if (assoc_payload && sz == 0)
+		  return "{}";
+	    const bool descending_fixed = assoc_payload && layout
+		  && layout->kind == VVP_CONTAINER_FIXED
+		  && layout->fixed_left > layout->fixed_right;
 	    for (size_t i = 0 ; i < sz ; i += 1) {
 		  if (i) out += ", ";
+		  const size_t slot = descending_fixed ? sz - 1 - i : i;
 		  if (is_real) {
 			double d = 0.0;
-			da->get_word(i, d);
+			da->get_word(slot, d);
 			char b[64];
 			snprintf(b, sizeof b, "%g", d);
 			out += b;
 		  } else if (is_str) {
 			std::string s;
-			da->get_word(i, s);
-			out += "\"";
-			out += s;
-			out += "\"";
+			da->get_word(slot, s);
+			if (assoc_payload)
+			      append_quoted_string_(out, s);
+			else {
+			      out += "\"";
+			      out += s;
+			      out += "\"";
+			}
 		  } else if (is_obj) {
 			vvp_object_t sub;
-			da->get_word(i, sub);
+			da->get_word(slot, sub);
 			out += vvp_format_cobject_p(sub, depth+1, element_signed,
-				   element_layout, packed_leaf);
+				   element_layout, packed_leaf, false, assoc_payload);
 		  } else {
 			vvp_vector4_t v;
-			da->get_word(i, v);
+			da->get_word(slot, v);
 			if (packed_leaf && layout && layout->packed_leaf_width) {
-			      out += vpip_format_packed_value(packed_leaf, std::move(v));
+			      out += vpip_format_packed_value(packed_leaf, std::move(v),
+							     assoc_payload);
+			} else if (assoc_payload) {
+			      out += vpip_format_integral_literal(v, element_signed);
 			} else {
 			      char b[256];
 			      vpip_vec4_to_dec_str(v, b, sizeof b, element_signed);

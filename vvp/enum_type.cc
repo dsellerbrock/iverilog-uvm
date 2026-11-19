@@ -411,23 +411,27 @@ class __vpiTypespecAlias : public __vpiHandle {
 
 /* Render the declared type of a packed value for %p. Struct members are
    laid out MSB first. */
-std::string vpip_format_packed_value(vpiHandle spec, vvp_vector4_t value)
+std::string vpip_format_packed_value(vpiHandle spec, vvp_vector4_t value,
+				    bool legal_literal)
 {
       while (auto*alias = dynamic_cast<__vpiTypespecAlias*>(spec))
 	    spec = alias->vpi_handle(vpiTypedefAlias);
 
-      if (spec->get_type_code() == vpiStructTypespec) {
+      bool is_union = spec->get_type_code() == vpiUnionTypespec;
+      if (spec->get_type_code() == vpiStructTypespec
+	  || (is_union && legal_literal)) {
 	    auto*aggregate = static_cast<__vpiStructTypespec*>(spec);
 	    if (value.size() != aggregate->width) return {};
 	    std::string result = "'{";
 	    unsigned remaining = value.size();
 	    for (const auto*member : aggregate->members) {
-		  remaining -= member->width;
+		  remaining = is_union ? 0 : remaining - member->width;
 		  if (member != aggregate->members.front()) result += ", ";
 		  result += member->name;
 		  result += ':';
 		  result += vpip_format_packed_value(member->typespec,
-		        value.subvalue(remaining, member->width));
+		        value.subvalue(remaining, member->width), legal_literal);
+		  if (is_union) break;
 	    }
 	    result += '}';
 	    return result;
@@ -441,9 +445,21 @@ std::string vpip_format_packed_value(vpiHandle spec, vvp_vector4_t value)
 		      : value.eeq(vector2_to_vector4(literal.val2, literal.val2.size())))
 			return literal.name;
 	    }
+	    if (legal_literal && !enumeration->names.empty()) {
+		  // A nonmember is printed using its base type. In an aggregate
+		  // pattern it also needs an explicit cast to the enum type.
+		  std::string type = enumeration->typedef_name
+			? enumeration->typedef_name
+			: std::string("type(") + enumeration->names.front().name + ')';
+		  return type + "'(" +
+			vpip_format_integral_literal(value, spec->vpi_get(vpiSigned)) + ')';
+	    }
       } else if (spec->get_type_code() == vpiBitTypespec) {
 	    value.cast2();
       }
+
+      if (legal_literal)
+	    return vpip_format_integral_literal(value, spec->vpi_get(vpiSigned));
 
       // log10(2) < 0.30103. Leave space for the sign and the terminator.
       unsigned cap = value.size() * 30103ULL / 100000 + 3;
@@ -627,11 +643,16 @@ class vartype_resolv_t : public resolv_list_s {
 		    : width == darray->declared_element_width &&
 		      (spec->get_type_code() == vpiEnumTypespec ||
 		       spec->get_type_code() == vpiStructTypespec));
+	    bool fixed_container_leaf = array && array->element_container_layout_;
+	    bool array_type_matches = array && (fixed_container_leaf
+		  ? aggregate_type && width != 0 &&
+		    width == vvp_packed_container_leaf_width(
+			      array->element_container_layout_.get())
+		  : width == static_cast<unsigned>(array->get_word_size()));
 	    if (((!sig && !array && !darray) || missing) && !message_flag) return false;
 	    if ((!sig && !array && !darray) || !spec || *cp ||
 	        !(signal_width_matches || packed_aggregate_width_matches ||
-	          (array && width == static_cast<unsigned>(array->get_word_size())) ||
-	          darray_type_matches)) {
+	          array_type_matches || darray_type_matches)) {
 		  yyerror("invalid .vartype metadata");
 		  compile_errors += 1;
 		  return true;
@@ -642,7 +663,8 @@ class vartype_resolv_t : public resolv_list_s {
 			sig->packed_base_width = width;
 			vpip_trim_packed_base_dimension(sig);
 		  }
-	    } else if (array) array->typespec = spec;
+	    } else if (fixed_container_leaf) array->packed_container_leaf_typespec_ = spec;
+	    else if (array) array->typespec = spec;
 	    else if (nested_container) darray->packed_leaf_typespec = spec;
 	    else darray->element_typespec = spec;
 	    return true;

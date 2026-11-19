@@ -283,7 +283,7 @@ static void show_queue_type_(const char*rand_prefix,
       fputs(code, vvp_out);
       if (code[0] == 'M' && packed_struct_container_leaf_(type))
 	    emit_assoc_index_type_(type);
-      emit_container_layout_suffix_(type);
+      emit_container_layout_suffix_(type, 0);
       fputc('"', vvp_out);
 }
 
@@ -376,7 +376,7 @@ static void show_prop_type_darray(ivl_type_t ptype, const char*rand_prefix)
 	    return;
       }
       fprintf(vvp_out, "\"%s%s", rp, code);
-      emit_container_layout_suffix_(ptype);
+      emit_container_layout_suffix_(ptype, 0);
       fputc('"', vvp_out);
 }
 

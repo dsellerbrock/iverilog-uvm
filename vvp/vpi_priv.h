@@ -1383,6 +1383,9 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 	// the complete immutable word layout here so every slot assignment and
 	// lazy reload rebinds nested queue bounds to the destination declaration.
       vvp_container_layout_t element_container_layout_;
+      vpiHandle packed_container_leaf_typespec_ = nullptr;
+      vpiHandle packed_container_leaf_typespec() const
+      { return canonical_value_owner_()->packed_container_leaf_typespec_; }
 
       std::vector<__vpiSignal::packed_range_t> packed_ranges;
       std::vector<__vpiSignal::packed_range_t> unpacked_ranges;
@@ -1888,8 +1891,11 @@ extern unsigned vpip_vec4_to_dec_str(const vvp_vector4_t&vec4,
 				     char *buf, unsigned int nbuf,
 				     int signed_flag);
 
+extern std::string vpip_format_integral_literal(const vvp_vector4_t&value,
+                                               bool is_signed);
 extern std::string vpip_format_packed_value(vpiHandle typespec,
-                                           vvp_vector4_t value);
+                                           vvp_vector4_t value,
+                                           bool legal_literal = false);
 
 /*
  * Render an object-backed struct/class instance as `'{name:value, ...}` for
@@ -1897,14 +1903,15 @@ extern std::string vpip_format_packed_value(vpiHandle typespec,
  * and reads each from the live instance (real -> %g, string -> quoted, nested
  * object -> recurse, packed leaf -> named assignment pattern).
  * The declaration layout follows the recursion to the packed leaf and
- * distinguishes a nil container slot ('{}) from a null class handle.
+ * distinguishes a nil container slot from a null class handle.
  * The depth guard bounds recursion through cyclic object graphs.
  */
 extern std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth = 0,
                                         bool element_signed = false,
                                         const vvp_container_layout_s*layout = nullptr,
                                         vpiHandle packed_leaf = nullptr,
-                                        bool assoc_index_signed = false);
+                                        bool assoc_index_signed = false,
+                                        bool assoc_payload = false);
 
 
 extern void vpip_vec4_to_hex_str(const vvp_vector4_t&bits, char*buf,

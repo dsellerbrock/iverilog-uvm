@@ -721,12 +721,15 @@ static int type_has_vartype_(ivl_type_t type)
 void note_signal_vartype(ivl_signal_t sig, const char*suffix)
 {
       ivl_type_t type = ivl_signal_net_type(sig);
-      if (ivl_signal_dimensions(sig) == 0 && type &&
-          (ivl_signal_data_type(sig) == IVL_VT_DARRAY ||
-           ivl_signal_data_type(sig) == IVL_VT_QUEUE)) {
-	    ivl_type_t element = ivl_type_element(type);
-	    type = element && ivl_type_enum(element)
-		  ? element : packed_struct_container_leaf_(type);
+      if (type && (ivl_signal_data_type(sig) == IVL_VT_DARRAY
+                   || ivl_signal_data_type(sig) == IVL_VT_QUEUE)) {
+	    if (ivl_signal_dimensions(sig) > 0) {
+		  type = assoc_container_packed_leaf_(type);
+	    } else {
+		  ivl_type_t element = ivl_type_element(type);
+		  type = element && ivl_type_enum(element)
+			? element : packed_struct_container_leaf_(type);
+	    }
 	    if (!type) return;
       }
       if (type && ivl_signal_dimensions(sig) == 0 &&
@@ -871,8 +874,7 @@ void emit_vartypes(void)
 	    unsigned type_width = vartype_spec_(&buf, type);
 	    int packed_aggregate = ivl_type_enum(type) ||
 	                           ivl_type_properties(type) > 0;
-	    if ((ivl_signal_dimensions(sig) == 0 &&
-	         (ivl_signal_data_type(sig) == IVL_VT_DARRAY ||
+	    if (((ivl_signal_data_type(sig) == IVL_VT_DARRAY ||
 	          ivl_signal_data_type(sig) == IVL_VT_QUEUE) && type_width > 0) ||
 	        type_width == ivl_signal_width(sig) ||
 	        (packed_aggregate && ivl_signal_dimensions(sig) == 0 &&
@@ -1193,7 +1195,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 			fputc('A', vvp_out);
 		  else
 			fputc('Q', vvp_out);
-		  emit_container_layout_suffix_(arr_elem_type);
+		  emit_container_layout_suffix_(arr_elem_type, 1);
 		  fputc('"', vvp_out);
 	    }
 	    fprintf(vvp_out, ";\n");
@@ -1247,7 +1249,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		         vpiDecStrVal render negatives correctly. */
 		    (element_type && ivl_type_signed(element_type)) ? "+" : "");
 	    fprintf(vvp_out, ", \"D");
-	    emit_container_layout_suffix_(var_type);
+	    emit_container_layout_suffix_(var_type, 0);
 	    fputc('"', vvp_out);
 	    if (struct_obj_elem)
 		  fprintf(vvp_out, ", C%p", element_type);
@@ -1312,7 +1314,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		    (element_type && ivl_type_signed(element_type)) ? "+" : "",
 		    queue_kind);
 	    emit_assoc_index_type_(var_type);
-	    emit_container_layout_suffix_(var_type);
+	    emit_container_layout_suffix_(var_type, 0);
 	    fprintf(vvp_out, "\"");
 	    if (struct_obj_elem)
 		  fprintf(vvp_out, ", C%p", element_type);

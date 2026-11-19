@@ -507,10 +507,19 @@ char*__vpiArray::get_word_str(struct __vpiArrayWord*word, int code)
       return generic_get_str(code, get_scope(), name, sidx);
 }
 
-/* Object-backed struct/class element rendering for %p is provided by the
-   shared vvp_format_cobject_p() (see vpi_priv.h), so the static-array element
-   path here and the dynamic-array/queue element path (thread object stack)
-   render identically. */
+static std::string format_array_object_word_(__vpiArray*array, unsigned index)
+{
+      const auto*layout = array->element_container_layout_.get();
+      vvp_object_t value;
+      // The declaration suffices to format even a never-written map.
+      // A display read need not materialize or rebind that word.
+      if (layout && layout->kind == VVP_CONTAINER_ASSOC)
+	    array->peek_word_obj(index, value);
+      else
+	    array->get_word_obj(index, value);
+      return vvp_format_cobject_p(value, 0, false, layout,
+				 array->packed_container_leaf_typespec());
+}
 
 void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 {
@@ -535,10 +544,7 @@ void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 		case vpiDecStrVal:
 		case vpiHexStrVal:
 		case vpiStringVal: {
-		      vvp_object_t oval;
-		      get_word_obj(index, oval);
-		      std::string s = vvp_format_cobject_p(oval, 0, false,
-					element_container_layout_.get());
+		      std::string s = format_array_object_word_(this, index);
 		      char*rbuf = (char*) need_result_buf(s.size()+1, RBUF_VAL);
 		      strcpy(rbuf, s.c_str());
 		      vp->value.str = rbuf;
@@ -902,10 +908,7 @@ void __vpiArrayVthrA::vpi_get_value(p_vpi_value vp)
 		case vpiDecStrVal:
 		case vpiHexStrVal:
 		case vpiStringVal: {
-		      vvp_object_t oval;
-		      array->get_word_obj(index, oval);
-		      std::string s = vvp_format_cobject_p(oval, 0, false,
-					array->element_container_layout_.get());
+		      std::string s = format_array_object_word_(array, index);
 		      char*rbuf = (char*) need_result_buf(s.size()+1, RBUF_VAL);
 		      strcpy(rbuf, s.c_str());
 		      vp->value.str = rbuf;
