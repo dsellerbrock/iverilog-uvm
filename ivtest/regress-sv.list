@@ -2133,6 +2133,8 @@ sv_cover_parameter_exact_unknown_fail CE,-g2012 ivltests
 sv_cover_parameter_repeat_range_equal normal,-g2012 ivltests
 sv_cover_parameter_window_lower_override normal,-g2012 ivltests
 sv_assert_multiclock_chain3 normal,-g2012 ivltests
+issue3802_multiclock_vacuity normal,-g2017 ivltests gold=issue3802_multiclock_vacuity.gold
+issue3802_multiclock_vacuity_2023 normal,-g2023 ivltests gold=issue3802_multiclock_vacuity.gold
 sv_process_self_named_block normal,-g2012 ivltests
 sv_assert_observed_region normal,-g2012 ivltests
 sv_assert_reactive_action normal,-g2012 ivltests

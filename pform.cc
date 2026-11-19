@@ -32899,9 +32899,12 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
       }
 
       bool have_pass_action = pass_stmt != nullptr;
+      const size_t ante_domains = prop->mc_antecedent_domains;
       perm_string pv_req, pn_req, pv_ack, pn_ack, pv_due, pn_due;
       perm_string fp_req, fp_ack, fp_due;   /* domain 0's own prefix channel */
-      std::vector<perm_string> ffreq(M + 1), ffack(M + 1), ffdue(M + 1);
+      /* Each later domain owns its mismatch channel. An antecedent
+	 mismatch is a vacuous success; a consequent mismatch is a failure. */
+      std::vector<perm_string> miss_req(M + 1), miss_ack(M + 1), miss_due(M + 1);
       if (!cover) {
 	    pv_req = sva_make_reg_(loc, inst, "mcpvrq", 0, true);
 	    pn_req = sva_make_reg_(loc, inst, "mcpnrq", 0, true);
@@ -32915,9 +32918,9 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  fp_due = sva_make_reg_(loc, inst, "mcfpdu", 0, true);
 	    }
 	    for (size_t d = 1 ; d <= M ; d += 1) {
-		  ffreq[d] = dreg("mcffrq", d, 0);
-		  ffack[d] = dreg("mcffak", d, 0);
-		  ffdue[d] = dreg("mcffdu", d, 0);
+		  miss_req[d] = dreg("mcmrq", d, 0);
+		  miss_ack[d] = dreg("mcmak", d, 0);
+		  miss_due[d] = dreg("mcmdu", d, 0);
 	    }
       }
 
@@ -32949,7 +32952,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
       }
 
       size_t Tp = p_slots.size();
-      std::vector<perm_string> domain_fail(M + 1);
+      std::vector<perm_string> domain_misses(M + 1);
 
       std::map<std::string, pform_name_t> prep_sampled;
       unsigned prep_live_operands = 0;
@@ -33034,9 +33037,9 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  initv.push_back(sva_assign_(loc, fp_due, sva_num32_(loc, 0)));
 	    }
 	    for (size_t d = 1 ; d <= M ; d += 1) {
-		  initv.push_back(sva_assign_(loc, ffreq[d], sva_num32_(loc, 0)));
-		  initv.push_back(sva_assign_(loc, ffack[d], sva_num32_(loc, 0)));
-		  initv.push_back(sva_assign_(loc, ffdue[d], sva_num32_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, miss_req[d], sva_num32_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, miss_ack[d], sva_num32_(loc, 0)));
+		  initv.push_back(sva_assign_(loc, miss_due[d], sva_num32_(loc, 0)));
 	    }
       }
       for (size_t b = 0 ; b < pa.size() ; b += 1)
@@ -33274,23 +33277,22 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	/* ---- domains 1..M: each a counting pipeline over its own local
 	   chain, gated by its own incoming due[d]. Every domain but the
 	   last forwards its match count to req_in[d+1] (using THAT
-	   boundary's ##0/##1 discipline) and its own fail count to
-	   ffreq[d]; the LAST domain (M) computes the real verdict exactly
-	   like the 2-domain lowering's consequent. ---- */
+	   boundary's ##0/##1 discipline). Every domain publishes its
+	   mismatch count, and the last publishes nonvacuous successes. ---- */
       for (size_t d = 1 ; d <= M ; d += 1) {
 	    bool last = (d == M);
 	    bool overlap_in = (in_boundary[d] == 0);
 	    std::vector<Statement*> bodyd;
 
-	    perm_string ffail = dreg("mcbf", d, 0);
-	    domain_fail[d] = ffail;
+	    perm_string misses = dreg("mcbm", d, 0);
+	    domain_misses[d] = misses;
 	    auto clear_domaind = [&]() -> Statement* {
 		  std::vector<Statement*> clear;
 		  clear.push_back(sva_assign_(loc, ack[d],
 						sva_num32_(loc, 0)));
 		  clear.push_back(sva_assign_(loc, due[d],
 						sva_num32_(loc, 0)));
-		  clear.push_back(sva_assign_(loc, ffail,
+		  clear.push_back(sva_assign_(loc, misses,
 						sva_num32_(loc, 0)));
 		  for (size_t k = 1 ; k < Tw[d] ; k += 1)
 			clear.push_back(sva_assign_(loc, tb[d][k],
@@ -33309,14 +33311,14 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			if (k == 0) return sva_id_(loc, due[d]);
 			return sva_id_(loc, tb[d][k]);
 		  };
-		  auto raise_fail = [&](PExpr*count) -> Statement* {
+		  auto count_miss = [&](PExpr*count) -> Statement* {
 			if (cover) {
 			      delete count;
-			      return sva_assign_(loc, ffail, sva_id_(loc, ffail));
+			      return nullptr;
 			}
-			PEBinary*add = new PEBinary('+', sva_id_(loc, ffail), count);
+			PEBinary*add = new PEBinary('+', sva_id_(loc, misses), count);
 			FILE_NAME(add, loc);
-			return sva_assign_(loc, ffail, add);
+			return sva_assign_(loc, misses, add);
 		  };
 		  for (size_t k = 0 ; k + 1 < Tb[d] ; k += 1) {
 			PExpr*fb = slots[d][k];
@@ -33333,12 +33335,11 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			      nullptr));
 			bodyd.push_back(sva_assign_nb_(loc, tb[d][k+1],
 						       sva_id_(loc, adv)));
-			PEBinary*dead = new PEBinary('-', gate(k), sva_id_(loc, adv));
-			FILE_NAME(dead, loc);
-			if (d > prop->mc_antecedent_domains)
-			      bodyd.push_back(raise_fail(dead));
-			else
-			      delete dead;
+			if (!cover) {
+			      PEBinary*dead = new PEBinary('-', gate(k), sva_id_(loc, adv));
+			      FILE_NAME(dead, loc);
+			      bodyd.push_back(count_miss(dead));
+			}
 		  }
 
 		  PExpr*fb = slots[d][Tb[d] - 1];
@@ -33376,8 +33377,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			}
 			bodyd.push_back(sva_if_(loc, gate(Tb[d] - 1),
 				sva_if_(loc, fb, hit,
-					d > prop->mc_antecedent_domains
-					? raise_fail(gate(Tb[d] - 1)) : nullptr),
+					count_miss(gate(Tb[d] - 1))),
 				nullptr));
 		  } else {
 			perm_string fbv = dreg("mcbv", d, 0, false);
@@ -33425,18 +33425,18 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 				    sva_assign_(loc, pn_req, add), nullptr));
 			}
 
-			if (d > prop->mc_antecedent_domains)
+			if (!cover && d > ante_domains)
 			      bodyd.push_back(sva_if_(loc,
 				    sva_not_(loc, sva_id_(loc, fbv)),
-				    raise_fail(gate(lastage)), nullptr));
+				    count_miss(gate(lastage)), nullptr));
 		  }
 	    }
 	    if (!cover) {
 		  PEBinary*add = new PEBinary(
-			'+', sva_id_(loc, ffreq[d]), sva_id_(loc, ffail));
+			'+', sva_id_(loc, miss_req[d]), sva_id_(loc, misses));
 		  FILE_NAME(add, loc);
-		  bodyd.push_back(sva_if_(loc, sva_id_(loc, ffail),
-			sva_assign_(loc, ffreq[d], add), nullptr));
+		  bodyd.push_back(sva_if_(loc, sva_id_(loc, misses),
+			sva_assign_(loc, miss_req[d], add), nullptr));
 	    }
 
 	    /* Snapshot the handoff before Observed to retain the ##0/##1
@@ -33449,7 +33449,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  '-', sva_id_(loc, req_snapshot[d]), sva_id_(loc, ack[d]));
 	    FILE_NAME(duex, loc);
 	    epoch_body.push_back(sva_assign_(loc, due[d], duex));
-	    epoch_body.push_back(sva_assign_(loc, ffail,
+	    epoch_body.push_back(sva_assign_(loc, misses,
 					   sva_num32_(loc, 0)));
 	    epoch_body.push_back(sva_if_(loc, sva_id_(loc, due[d]),
 		  sva_assign_nb_(loc, ack[d], sva_id_(loc, req_snapshot[d])),
@@ -33515,7 +33515,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 					 sva_num32_(loc, 0)));
 		  clear.push_back(sva_assign_(loc, epoch_snapshot[d],
 					 sva_kill_generation_expr_(loc, inst)));
-		  clear.push_back(sva_assign_(loc, domain_fail[d],
+		  clear.push_back(sva_assign_(loc, domain_misses[d],
 					 sva_num32_(loc, 0)));
 		  for (size_t k = 1 ; k < Tw[d] ; k += 1)
 			clear.push_back(sva_assign_(loc, tb[d][k],
@@ -33535,9 +33535,9 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			clear.push_back(sva_assign_(loc, fp_due, sva_num32_(loc, 0)));
 		  }
 		  for (size_t d = 1 ; d <= M ; d += 1) {
-			clear.push_back(sva_assign_(loc, ffreq[d], sva_num32_(loc, 0)));
-			clear.push_back(sva_assign_(loc, ffack[d], sva_num32_(loc, 0)));
-			clear.push_back(sva_assign_(loc, ffdue[d], sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, miss_req[d], sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, miss_ack[d], sva_num32_(loc, 0)));
+			clear.push_back(sva_assign_(loc, miss_due[d], sva_num32_(loc, 0)));
 		  }
 	    }
 	    sva_disable_abort_(loc, inst, disable, sva_block_(loc, clear));
@@ -33548,14 +33548,16 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
       for (size_t i = 0 ; i < prop->mc_more->size() ; i += 1)
 	    (*prop->mc_more)[i].clk_evt = nullptr;
 
-	/* ---- shared dispatchers: pass (fed only by domain M) and fail
-	   (fed by domain 0's optional prefix channel plus every domain
-	   1..M's own channel). Same single-owner Reactive-region shape as
-	   the 2-domain lowering, generalized to loop over channels. ---- */
+	/* ---- shared Reactive dispatchers: the pass dispatcher takes
+	   domain 0's vacuous actions, later antecedent mismatches and
+	   the final domain's nonvacuous successes. The fail dispatcher
+	   takes only consequent mismatches. ---- */
       if (!cover) {
 	    std::vector<PEEvent*> pev;
 	    pev.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, pv_req)));
 	    pev.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, pn_req)));
+	    for (size_t d = 1 ; d <= ante_domains ; d += 1)
+		  pev.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, miss_req[d])));
 	    PEventStatement*pwait = new PEventStatement(pev);
 	    FILE_NAME(pwait, loc);
 
@@ -33563,8 +33565,13 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    FILE_NAME(pveq, loc);
 	    PEBComp*pneq = new PEBComp('e', sva_id_(loc, pn_req), sva_id_(loc, pn_ack));
 	    FILE_NAME(pneq, loc);
-	    PEBLogic*pidle = new PEBLogic('a', pveq, pneq);
-	    FILE_NAME(pidle, loc);
+	    PExpr*pidle = sva_logic_(loc, 'a', pveq, pneq);
+	    for (size_t d = 1 ; d <= ante_domains ; d += 1) {
+		  PEBComp*eq = new PEBComp('e', sva_id_(loc, miss_req[d]),
+						   sva_id_(loc, miss_ack[d]));
+		  FILE_NAME(eq, loc);
+		  pidle = sva_logic_(loc, 'a', pidle, eq);
+	    }
 
 	    std::vector<Statement*> ploop;
 	    ploop.push_back(sva_if_(loc, pidle, pwait, nullptr));
@@ -33576,11 +33583,27 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    ploop.push_back(sva_assign_(loc, pn_due, pnd));
 	    ploop.push_back(sva_assign_(loc, pv_ack, sva_id_(loc, pv_req)));
 	    ploop.push_back(sva_assign_(loc, pn_ack, sva_id_(loc, pn_req)));
+	    PExpr*stage_vac = nullptr;
+	    for (size_t d = 1 ; d <= ante_domains ; d += 1) {
+		  PEBinary*delta = new PEBinary('-', sva_id_(loc, miss_req[d]),
+						   sva_id_(loc, miss_ack[d]));
+		  FILE_NAME(delta, loc);
+		  ploop.push_back(sva_assign_(loc, miss_due[d], delta));
+		  ploop.push_back(sva_assign_(loc, miss_ack[d], sva_id_(loc, miss_req[d])));
+		  PEIdent*dv = sva_id_(loc, miss_due[d]);
+		  if (!stage_vac) { stage_vac = dv; continue; }
+		  PEBinary*sum = new PEBinary('+', stage_vac, dv);
+		  FILE_NAME(sum, loc);
+		  stage_vac = sum;
+	    }
 	    ploop.push_back(sva_reactive_wait_(loc));
 
 	    ploop.push_back(sva_repeat_(
 		  loc, sva_id_(loc, pn_due),
 		  sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
+	    if (stage_vac)
+		  ploop.push_back(sva_repeat_(loc, stage_vac,
+			sva_report_stmt_(loc, inst, SVA_CB_VACUOUS_SUCCESS)));
 
 	    if (have_pass_action) {
 		  PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
@@ -33589,12 +33612,18 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  one.push_back(pass_stmt);
 		  spawn->set_statement(one);
 		  pass_stmt = nullptr;
+		  PExpr*vac_actions = sva_id_(loc, pv_due);
+		  if (stage_vac) {
+			vac_actions = new PEBinary('+', vac_actions,
+						   sva_clone_expr_(stage_vac));
+			FILE_NAME(vac_actions, loc);
+		  }
 		    /* 20.11 action control, read at dispatch. */
 		  PEBinary*ptotal = new PEBinary('+',
 			new PEBinary('*', sva_id_(loc, pn_due),
 			      sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
 					      SVA_STATE_PASS_ACTION)),
-			new PEBinary('*', sva_id_(loc, pv_due),
+			new PEBinary('*', vac_actions,
 			      sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
 					      SVA_STATE_VACUOUS_ACTION)));
 		  FILE_NAME(ptotal, loc);
@@ -33613,12 +33642,14 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  IVL_PR_INITIAL, pass_start, nullptr);
 	    FILE_NAME(pd2, loc);
 
-	      /* Fail channels: domain 0's optional prefix, then domains
-		 1..M's own. All merge into one dispatcher/one user action. */
+	      /* Fail channels: domain 0's optional consequent prefix,
+		 then each later consequent domain. */
 	    std::vector<perm_string> chreq, chack, chdue;
 	    if (Tp) { chreq.push_back(fp_req); chack.push_back(fp_ack); chdue.push_back(fp_due); }
-	    for (size_t d = 1 ; d <= M ; d += 1) {
-		  chreq.push_back(ffreq[d]); chack.push_back(ffack[d]); chdue.push_back(ffdue[d]);
+	    for (size_t d = ante_domains + 1 ; d <= M ; d += 1) {
+		  chreq.push_back(miss_req[d]);
+		  chack.push_back(miss_ack[d]);
+		  chdue.push_back(miss_due[d]);
 	    }
 
 	    std::vector<PEEvent*> fev;
