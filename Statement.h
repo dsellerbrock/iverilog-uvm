@@ -498,6 +498,7 @@ class PCase  : public Statement {
 
     private:
       friend class pform_constructor_order_audit_t;
+      NetProc* elaborate_quality_match_if_(Design*des, NetScope*scope) const;
       ivl_case_quality_t quality_;
       NetCase::TYPE type_;
       PExpr*expr_;

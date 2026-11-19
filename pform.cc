@@ -2365,15 +2365,17 @@ Statement* pform_make_quality_if(const struct vlltype&loc,
       std::vector<PCase::Item*>*items = new std::vector<PCase::Item*>;
 
       auto append_condition = [&loc, items](PExpr*expr, Statement*stmt) {
-            // An if condition is true for any nonzero integral value. Reduce
-            // it to one bit before using the existing case-quality engine;
-            // `case (1'b1)` must not compare 1 against an unreduced vector.
-            PEUnary*not_expr = new PEUnary('!', expr);
-            FILE_NAME(not_expr, loc);
-            PEUnary*truth_expr = new PEUnary('!', not_expr);
-            FILE_NAME(truth_expr, loc);
+            // A match is already one bit. Keep it visible for procedural
+            // lowering so its subject can be saved for the selected arm.
+            if (!dynamic_cast<PEMatches*>(expr)) {
+                  // Reduce ordinary conditions to one-bit truth values.
+                  PEUnary*not_expr = new PEUnary('!', expr);
+                  FILE_NAME(not_expr, loc);
+                  expr = new PEUnary('!', not_expr);
+                  FILE_NAME(expr, loc);
+            }
             PCase::Item*item = new PCase::Item;
-            item->expr.push_back(truth_expr);
+            item->expr.push_back(expr);
             item->stat = stmt;
             items->push_back(item);
       };
@@ -16876,7 +16878,7 @@ Statement* pform_make_tand_if(const struct vlltype&loc,
 		  assert(match);
 		  inner = pform_pattern_finish_scope(loc, clause->block, inner,
 						     match->subject(),
-						     match->pattern());
+						     match->pattern(), true);
 	    }
 	    PCondit*test = new PCondit(clause->cond, inner, nullptr);
 	    FILE_NAME(test, loc);

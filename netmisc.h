@@ -380,6 +380,9 @@ extern NetExpr*cast_to_real(NetExpr*expr);
  */
 extern NetExpr*condition_reduce(NetExpr*expr);
 
+// Static type of an elaborated pattern subject, including untyped IR values.
+extern ivl_type_t pattern_subject_type(const NetExpr&value);
+
 /*
  * This function transforms an expression by cropping the high bits
  * off with a part select. The result has the width w passed in. This
