@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue1166_program_completion.v",
+    "iverilog-args": ["-g2023", "-s", "issue1166_program_completion"],
+    "gold": "issue1166_program_completion"
+}

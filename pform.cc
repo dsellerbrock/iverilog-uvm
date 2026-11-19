@@ -1612,10 +1612,77 @@ void pform_set_typedef(const struct vlltype&loc, perm_string name,
       }
 }
 
-void pform_set_type_referenced(const struct vlltype&loc, const char*name)
+/* IEEE 1800-2017/2023 26.2 applies at the source use, before class
+   specialization or type elaboration can change the lookup context. */
+template <typename Declaration, typename DeclMap>
+static const PPackage* package_for_unit_type(const Declaration*decl,
+					     perm_string name,
+					     DeclMap LexicalScope::*declarations)
 {
-      perm_string lex_name = lex_strings.make(name);
-      check_potential_imports(loc, lex_name, false);
+      const PPackage*package = nullptr;
+      const LexicalScope*unit = lexical_scope;
+      for (; unit->parent_scope(); unit = unit->parent_scope()) {
+	    if (!package)
+		  package = dynamic_cast<const PPackage*>(unit);
+      }
+      if (!package)
+	    return nullptr;
+
+      const DeclMap&items = unit->*declarations;
+      auto found = items.find(name);
+      return found != items.end() && found->second == decl ? package : nullptr;
+}
+
+template <typename Location>
+static void report_package_unit_type(const Location&loc, const PPackage*package,
+				     perm_string name, const char*kind)
+{
+      cerr << loc.get_fileline()
+	   << (gn_commercial_unsafe_flag ? ": warning: " : ": error: ")
+	   << "Package `" << package->pscope_name()
+	   << "' refers to compilation-unit " << kind << " `" << name
+	   << "' (IEEE 1800-2017/2023 26.2)." << endl;
+}
+
+static void check_package_unit_type(const struct vlltype&loc,
+				    const PPackage*package, perm_string name,
+				    const char*kind)
+{
+      if (!package)
+	    return;
+      report_package_unit_type(loc, package, name, kind);
+      if (gn_commercial_unsafe_flag)
+	    warn_count += 1;
+      else
+	    error_count += 1;
+}
+
+const PPackage* pform_package_for_unit_typedef(const typedef_t*type)
+{
+      return type ? package_for_unit_type(type, type->name, &LexicalScope::typedefs)
+		  : nullptr;
+}
+
+void pform_report_package_unit_type(Design*des, const LineInfo&loc,
+				    const PPackage*package, const typedef_t*type)
+{
+      report_package_unit_type(loc, package, type->name, "type");
+      if (!gn_commercial_unsafe_flag)
+	    des->errors += 1;
+}
+
+typeref_t* pform_make_type_reference(const struct vlltype&loc, typedef_t*type,
+				    PScope*scope, parmvalue_t*overrides)
+{
+      if (type) {
+	    if (!scope)
+		  check_potential_imports(loc, type->name, false);
+	    check_package_unit_type(loc, pform_package_for_unit_typedef(type),
+				    type->name, "type");
+      }
+      typeref_t*ref = new typeref_t(type, scope, overrides);
+      FILE_NAME(ref, loc);
+      return ref;
 }
 
 static nettype_t* pform_install_nettype_(const struct vlltype&loc,
@@ -1658,9 +1725,16 @@ nettype_t* pform_declare_nettype_alias(const struct vlltype&loc,
       return pform_install_nettype_(loc, name, new nettype_t(name, alias));
 }
 
-void pform_set_nettype_referenced(const struct vlltype&loc, const char*name)
+void pform_set_nettype_referenced(const struct vlltype&loc,
+				 const nettype_t*type, const PPackage*package)
 {
-      check_potential_imports(loc, lex_strings.make(name), false);
+      if (type) {
+	    if (!package)
+		  check_potential_imports(loc, type->name(), false);
+	    const PPackage*use_package = package_for_unit_type(
+		  type, type->name(), &LexicalScope::nettypes);
+	    check_package_unit_type(loc, use_package, type->name(), "nettype");
+      }
 }
 
 PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name)
@@ -1856,7 +1930,7 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
 	      // forced add_local_symbol to drop wildcard pins
 	      // unconditionally and so lost the required error for
 	      // declare-after-use (sv_wildcard_import4). Genuine type USES
-	      // pin via pform_set_type_referenced ->
+	      // pin via pform_make_type_reference ->
 	      // check_potential_imports when a type reference reduces.
       }
 
@@ -4761,13 +4835,6 @@ void pform_make_modgates(const struct vlltype&loc,
 		  }
 
 		  if (declaration_like) {
-			  // This is a genuine use of the type name (a
-			  // variable declaration through the no-port
-			  // instantiation shape), so record the type
-			  // reference — this pins a wildcard-imported type
-			  // so a later local redeclaration of the name is
-			  // correctly rejected (sv_wildcard_import4).
-			pform_set_type_referenced(loc, type);
 			  // Preserve a parameterized-class specialization:
 			  // `box #(plain) b;` reaches here as a no-port
 			  // instantiation shape whose `#(...)` module-parameter
@@ -4778,8 +4845,8 @@ void pform_make_modgates(const struct vlltype&loc,
 			  // generic netclass (all type parameters at their
 			  // defaults) was bound, and type-parameter members kept
 			  // their default types.
-			typeref_t*dtype = new typeref_t(decl_type, 0, overrides);
-			FILE_NAME(dtype, loc);
+			typeref_t*dtype = pform_make_type_reference(
+			      loc, decl_type, nullptr, overrides);
 			pform_make_var(loc, decls, dtype, attr, false);
 			delete gates;
 			return;
@@ -24369,7 +24436,7 @@ sva_property_t* pform_sva_tree_implication(
 					sva_property_t*ante,
 					sva_property_t*conseq)
 {
-      if (conseq && conseq->pa) {
+      if (conseq && (conseq->pa || conseq->grouped_clock)) {
 	    if (sva_prop_is_property_shaped_(ante)) {
 		  cerr << loc << ": error: an implication antecedent shall be a "
 		       << "sequence (IEEE 1800-2023 16.12.7)." << endl;
@@ -24515,7 +24582,7 @@ sva_property_t* pform_sva_comb_consequent_sorry(
 					std::vector<sva_seq_step_t>*ante,
 					sva_property_t*conseq)
 {
-      if (conseq && conseq->pa)
+      if (conseq && (conseq->pa || conseq->grouped_clock))
 	    return sva_composite_impl_(op_type, sva_seq_prop_(ante), conseq);
       sva_stree_t*at = sva_chain_take_tree_(ante);
       sva_stree_t*ct = sva_prop_take_tree_(loc, conseq);
@@ -24622,7 +24689,13 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	   grammar does not alter either representation. */
       if (conseq->op_type == 0 && conseq->seq && !conseq->tree
 	  && !conseq->ante_tree && !conseq->antecedent
-	  && !conseq->clk_evt && !conseq->disable_iff_expr) {
+	  && (!conseq->clk_evt || conseq->grouped_clock)
+	  && !conseq->disable_iff_expr) {
+	    if (conseq->grouped_clock) {
+		  conseq->seq_clk_evt = conseq->clk_evt;
+		  conseq->clk_evt = nullptr;
+		  conseq->grouped_clock = false;
+	    }
 	    conseq->antecedent = ante;
 	    conseq->op_type = op_type;
 	    if (conseq->seq_clk_evt && !conseq->mc_prefix
@@ -25073,10 +25146,10 @@ static bool sva_check_explicit_sampled_clock_(PExpr*expr)
    declaration clock, however (`@(c) g throughout named_seq').  The old
    parse action unconditionally overwrote that clock (and even erased it
    when the outer prefix was absent).  Preserve a sole inner clock and accept
-   two clocks only when their event controls are textually identical; a true
-   clock-flow composition needs the dedicated 16.13 representation and must
-   not be silently collapsed here.  Both disable conditions abort an attempt,
-   so nested conditions compose by OR. */
+   two clocks only when their event controls are textually identical. An
+   explicitly grouped leading event overrides the incoming clock for that
+   group (16.13.3). Both disable conditions abort an attempt, so nested
+   conditions compose by OR. */
 sva_property_t* pform_sva_apply_property_context(
 				       const struct vlltype&loc,
 				       sva_property_t*prop,
@@ -25177,7 +25250,9 @@ sva_property_t* pform_sva_apply_property_context(
 		  }
 	    }
       }
-      if (prop->clk_evt && clk) {
+      if (prop->grouped_clock && prop->clk_evt) {
+	    delete clk; // The grouped event overrides the incoming clock (16.13.3).
+      } else if (prop->clk_evt && clk) {
 	    ostringstream inner, outer;
 	    prop->clk_evt->dump_inline(inner);
 	    clk->dump_inline(outer);
@@ -25435,7 +25510,15 @@ sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
 	/* IEEE 1800-2023 16.12.4/16.12.5: with a full property (or a named
 	   property) operand this is the property-level operator. */
       if (sva_prop_is_property_shaped_(a) || sva_prop_is_property_shaped_(b)
-	  || sva_leaf_names_property_(a) || sva_leaf_names_property_(b))
+	  || sva_leaf_names_property_(a) || sva_leaf_names_property_(b)
+	  || sva_seq_names_property_(a) || sva_seq_names_property_(b))
+	    return pform_sva_prop_compose(loc, op == 'o' ? 21 : 20, a, b);
+	/* 16.13.2/16.13.3: distinct operand clocks require property verdicts.
+	   A grouped explicit clock cannot flow into an unclocked sibling. */
+      bool grouped = (a && a->grouped_clock) || (b && b->grouped_clock);
+      if (a && b && a->clk_evt != b->clk_evt
+	  && (grouped || (a->clk_evt && b->clk_evt))
+	  && !sva_event_controls_identical_(a->clk_evt, b->clk_evt))
 	    return pform_sva_prop_compose(loc, op == 'o' ? 21 : 20, a, b);
 	/* For equal-length fixed operands with exactly one local assignment,
 	   `and' and `intersect' have the same per-cycle boolean conjunction.
@@ -25468,26 +25551,14 @@ sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
 
       PEventStatement*clk = nullptr;
       if (a && b && a->clk_evt && b->clk_evt) {
-	    ostringstream left, right;
-	    a->clk_evt->dump_inline(left);
-	    b->clk_evt->dump_inline(right);
-	    if (left.str() != right.str()) {
-		  cerr << loc << ": error: property operands have incompatible "
-		       << "semantic leading clocks (IEEE 1800-2017/2023 16.16.1)."
-		       << endl;
-		  error_count += 1;
-		  pform_sva_destroy_property(a);
-		  pform_sva_destroy_property(b);
-		  return nullptr;
-	    }
 	    clk = a->clk_evt;
 	    a->clk_evt = nullptr;
 	    delete b->clk_evt;
 	    b->clk_evt = nullptr;
-	      } else if (a && a->clk_evt) {
+      } else if (a && a->clk_evt) {
 	    clk = a->clk_evt;
 	    a->clk_evt = nullptr;
-	      } else if (b && b->clk_evt) {
+      } else if (b && b->clk_evt) {
 	    clk = b->clk_evt;
 	    b->clk_evt = nullptr;
       }
@@ -25506,6 +25577,7 @@ sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
       p->tree = t;
       p->op_type = 0;
       p->clk_evt = clk;
+      p->grouped_clock = grouped;
       return p;
 }
 
@@ -34208,7 +34280,7 @@ void pform_sva_flush_pending_procedural(void)
 		  keep.push_back(p);
 		  continue;
 	    }
-	    if (owner && sva_default_clocking_owner_(p.scope)) {
+	    if (owner && (sva_default_clocking_owner_(p.scope) || p.prop->pa)) {
 		  LexicalScope*saved = lexical_scope;
 		  PGenerate*saved_generate = pform_cur_generate;
 		  bool saved_retry = sva_named_prop_retry_active_;
@@ -36579,6 +36651,7 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
       sva_property_t*p = new sva_property_t;
       bool ok = true;
       p->sequence_cover = src->sequence_cover;
+      p->grouped_clock = src->grouped_clock;
       p->local_names = src->local_names;
       p->local_input_actual_names = src->local_input_actual_names;
       p->clocking_scope = src->clocking_scope;
@@ -36709,7 +36782,7 @@ static sva_property_t* sva_leaf_to_named_ref_(sva_property_t*p)
 struct sva_rec_pool_t;
 struct sva_comp_ctx_t {
       const struct vlltype*loc;
-      PEventStatement*clk;        // the composite's resolved clock (borrowed)
+      const PEventStatement*clk;  // the composite's resolved clock (borrowed)
       unsigned*hist_idx;          // sampled-value history of the composite
       long rate = 1;              // attempts started per tick, at most
 	// Locals the parent copies into each new attempt, and a register
@@ -36752,9 +36825,8 @@ static Statement* sva_comp_pool_fatal_(const struct vlltype&loc,
       return sva_block_(loc, {task, yield});
 }
 
-/* An operand may restate the composite's own leading clock. Any other
-   operand clock is a multiclocked property (16.13), which this per-slot
-   lowering does not schedule yet. */
+/* Clock distribution must put an independently clocked leaf in its own
+   domain before the single-clock sub-monitor is planned or emitted. */
 static bool sva_comp_check_leaf_clock_(const sva_comp_ctx_t&ctx,
 				       sva_property_t*leaf)
 {
@@ -38354,22 +38426,17 @@ static sva_property_t* sva_comp_split_multiclock_(const struct vlltype&loc,
       return node;
 }
 
-/* A clock that differs from the composite's own clock, if leaf has one. */
-static bool sva_comp_leaf_other_clock_(const sva_property_t*leaf,
-				       const PEventStatement*clk)
-{
-      return leaf && leaf->clk_evt
-	  && !(clk && sva_event_controls_identical_(leaf->clk_evt, clk));
-}
-
 static bool sva_comp_has_other_clock_(const sva_property_t*p,
-				      const PEventStatement*clk)
+				      const PEventStatement*source,
+				      const PEventStatement*inherited)
 {
       if (!p) return false;
+      const PEventStatement*clk = p->clk_evt ? p->clk_evt : inherited;
       if (p->op_type == 20 || p->op_type == 21)
-	    return sva_comp_has_other_clock_(p->pa, clk)
-		|| sva_comp_has_other_clock_(p->pb, clk);
-      return !sva_prop_is_composite_(p) && sva_comp_leaf_other_clock_(p, clk);
+	    return sva_comp_has_other_clock_(p->pa, source, clk)
+		|| sva_comp_has_other_clock_(p->pb, source, clk);
+      return !sva_prop_is_composite_(p) && clk != source
+	  && !sva_event_controls_identical_(clk, source);
 }
 
 /* Put every operand reached through and/or behind a strictly-subsequent
@@ -38380,6 +38447,7 @@ static sva_property_t* sva_comp_switch_operands_(const struct vlltype&loc,
 						 bool&ok)
 {
       if (!p || !ok) return p;
+      if (p->clk_evt) clk = p->clk_evt;
       if (p->op_type == 20 || p->op_type == 21) {
 	    p->pa = sva_comp_switch_operands_(loc, p->pa, clk, ok);
 	    p->pb = sva_comp_switch_operands_(loc, p->pb, clk, ok);
@@ -38391,9 +38459,7 @@ static sva_property_t* sva_comp_switch_operands_(const struct vlltype&loc,
 	    ok = false;
 	    return p;
       }
-      PEventStatement*domain = p->clk_evt
-	    ? sva_clone_event_control_(p->clk_evt, loc)
-	    : (clk ? sva_clone_event_control_(clk, loc) : nullptr);
+      PEventStatement*domain = clk ? sva_clone_event_control_(clk, loc) : nullptr;
       if (!domain) {
 	    sva_comp_sorry_(loc, "the clock of a multiclocked `|=>' operand "
 			    "cannot be copied");
@@ -38417,7 +38483,7 @@ static void sva_comp_distribute_nonoverlap_(const struct vlltype&loc,
 					    const PEventStatement*clk, bool&ok)
 {
       if (!p || !ok || !sva_prop_is_composite_(p)) return;
-      if (p->op_type == 24 && sva_comp_has_other_clock_(p->pb, clk)) {
+      if (p->op_type == 24 && sva_comp_has_other_clock_(p->pb, clk, clk)) {
 	    p->op_type = 23;
 	    p->pb = sva_comp_switch_operands_(loc, p->pb, clk, ok);
 	    return;
@@ -38481,6 +38547,10 @@ static bool sva_comp_expand_refs_(const struct vlltype&loc, sva_property_t*p)
 						    "cannot be instantiated here");
 				    return false;
 			      }
+			      if (!body->clk_evt) {
+				    body->clk_evt = o->clk_evt;
+				    o->clk_evt = nullptr;
+			      }
 			      pform_sva_destroy_property(o);
 			      o = body;
 			}
@@ -38488,6 +38558,32 @@ static bool sva_comp_expand_refs_(const struct vlltype&loc, sva_property_t*p)
 	    }
 	    if (!sva_comp_expand_refs_(loc, o)) return false;
       }
+      return true;
+}
+
+/* 16.16.1: and/or take the union of their operands' semantic leading
+   clocks. An implication contributes only the leading clock of its
+   antecedent. A surrounding event supplies the inherited clocks. */
+static bool sva_comp_leading_clock_(const sva_property_t*p,
+				    const PEventStatement*incoming,
+				    const PEventStatement*&leading, bool&missing)
+{
+      if (p->clk_evt) incoming = p->clk_evt;
+      if (sva_prop_is_composite_(p)) {
+	    switch (p->op_type) {
+	      case 20: case 21:
+		return sva_comp_leading_clock_(p->pa, incoming, leading, missing)
+		    && sva_comp_leading_clock_(p->pb, incoming, leading, missing);
+	      case 14: case 15: case 23: case 24: case 25:
+		return sva_comp_leading_clock_(p->pa, incoming, leading, missing);
+	      default:
+		break;
+	    }
+      }
+      if (!incoming) missing = true;
+      else if (!leading) leading = incoming;
+      else if (leading != incoming && !sva_event_controls_identical_(leading, incoming))
+	    return false;
       return true;
 }
 
@@ -38724,21 +38820,38 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    sva_comp_propagate_locals_(prop, imports);
       }
 
-	/* Clock: explicit, else the default clocking (as for a plain
-	   assertion; the deferral in pform_make_assertion has already given
-	   a procedural context its chance to supply one). */
-      PEventStatement*clk = prop->clk_evt;
-      prop->clk_evt = nullptr;
-      if (!clk) {
+	/* Resolve the assertion's one leading clock after named expansion.
+	   An inferred procedural clock is already on prop. For a default
+	   clocking block use its event for semantic identity comparisons. */
+      const PEventStatement*default_clk = nullptr;
+      if (!prop->clk_evt) {
 	    const Module*mod = sva_default_clocking_owner_(lexical_scope);
-	    if (!mod || mod->default_clocking.nil()) {
-		  cerr << loc << ": error: concurrent assertion has no clocking "
-		       << "event (IEEE 1800-2017 16.14.6)." << endl;
-		  error_count += 1;
-		  delete fail_stmt; delete pass_stmt;
-		  pform_sva_destroy_property(prop);
-		  return;
+	    if (mod) {
+		  auto cb = mod->clocking_blocks.find(mod->default_clocking);
+		  if (cb != mod->clocking_blocks.end()) default_clk = cb->second->event;
 	    }
+      }
+      const PEventStatement*leading = nullptr;
+      bool missing = false;
+      if (!sva_comp_leading_clock_(prop, default_clk, leading, missing) || missing) {
+	    if (missing && !leading)
+		  cerr << loc << ": error: concurrent assertion has no clocking event, "
+		       << "no enclosing procedural event control to infer one from, "
+		       << "and no default clocking block is declared "
+		       << "(IEEE 1800-2017 16.14.6)." << endl;
+	    else
+		  cerr << loc << ": error: property operands have incompatible semantic "
+		       << "leading clocks (IEEE 1800-2017/2023 16.16.1)." << endl;
+	    error_count += 1;
+	    delete fail_stmt; delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return;
+      }
+      PEventStatement*clk;
+      if (leading == prop->clk_evt) {
+	    clk = prop->clk_evt;
+	    prop->clk_evt = nullptr;
+      } else if (leading == default_clk) {
 	    std::list<named_pexpr_t> no_parms;
 	    PECallFunction*mark = new PECallFunction(
 		  perm_string::literal("$ivl_default_clock"), no_parms);
@@ -38747,7 +38860,16 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    evs.push_back(new PEEvent(PEEvent::ANYEDGE, mark));
 	    clk = new PEventStatement(evs);
 	    FILE_NAME(clk, loc);
+      } else {
+	    clk = sva_clone_event_control_(leading, loc);
+	    if (!clk) {
+		  sva_comp_sorry_(loc, "the semantic leading clock cannot be copied");
+		  delete fail_stmt; delete pass_stmt;
+		  pform_sva_destroy_property(prop);
+		  return;
+	    }
       }
+      const PEventStatement*semantic_clk = leading == default_clk ? default_clk : clk;
       PExpr*disable = prop->disable_iff_expr;
       prop->disable_iff_expr = nullptr;
       PExpr*default_disable = sva_default_disable_for_scope_(lexical_scope);
@@ -38761,7 +38883,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 
       unsigned hist_idx = 0;
       bool distribute_ok = true;
-      sva_comp_distribute_nonoverlap_(loc, prop, clk, distribute_ok);
+      sva_comp_distribute_nonoverlap_(loc, prop, semantic_clk, distribute_ok);
       if (!distribute_ok) {
 	    delete clk; delete disable; delete fail_stmt; delete pass_stmt;
 	    pform_sva_destroy_property(prop);
@@ -38769,7 +38891,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       }
       sva_comp_ctx_t ctx;
       ctx.loc = &loc;
-      ctx.clk = clk;
+      ctx.clk = semantic_clk;
       ctx.hist_idx = &hist_idx;
       if (!imports.empty()) {
 	    ctx.imports = &imports;

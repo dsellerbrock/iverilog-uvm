@@ -8019,3 +8019,27 @@ issue3787_bad_2017 vvp_tests/issue3787_bad_2017.json
 issue3787_bad_2023 vvp_tests/issue3787_bad_2023.json
 issue3746_class_inheritance_2017 vvp_tests/issue3746_class_inheritance_2017.json
 issue3746_class_inheritance_2023 vvp_tests/issue3746_class_inheritance_2023.json
+issue1166_program_completion_2017 vvp_tests/issue1166_program_completion_2017.json
+issue1166_program_completion_2023 vvp_tests/issue1166_program_completion_2023.json
+
+# IEEE 1800-2017/2023 26.2: package calls to compilation-unit subroutines.
+issue3769_ce_2017 vvp_tests/issue3769_ce_2017.json
+issue3769_unsafe_2017 vvp_tests/issue3769_unsafe_2017.json
+issue3769_legal_2017 vvp_tests/issue3769_legal_2017.json
+issue3769_ce_2023 vvp_tests/issue3769_ce_2023.json
+issue3769_unsafe_2023 vvp_tests/issue3769_unsafe_2023.json
+issue3769_legal_2023 vvp_tests/issue3769_legal_2023.json
+
+# IEEE 1800-2017/2023 16.13.2: grouped multiclock property operands.
+issue3767_reopened_2017 vvp_tests/issue3767_reopened_2017.json
+issue3767_multiclock_2017 vvp_tests/issue3767_multiclock_2017.json
+issue3767_leading_clock_fail_2017 vvp_tests/issue3767_leading_clock_fail_2017.json
+issue3767_reopened_2023 vvp_tests/issue3767_reopened_2023.json
+issue3767_multiclock_2023 vvp_tests/issue3767_multiclock_2023.json
+issue3767_leading_clock_fail_2023 vvp_tests/issue3767_leading_clock_fail_2023.json
+
+# IEEE 1800-2017/2023 26.2: package references to compilation-unit types.
+issue3770_ce_2017 vvp_tests/issue3770_ce_2017.json
+issue3770_unsafe_2017 vvp_tests/issue3770_unsafe_2017.json
+issue3770_ce_2023 vvp_tests/issue3770_ce_2023.json
+issue3770_unsafe_2023 vvp_tests/issue3770_unsafe_2023.json

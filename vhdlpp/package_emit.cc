@@ -26,6 +26,56 @@
 
 using namespace std;
 
+string Package::type_package_name() const
+{
+      string lib = library_name().str();
+      return "__ivl_vhdl_types_" + to_string(lib.size()) + "_" + lib + "_" + name().str();
+}
+
+void Package::emit_type_import(ostream&fd) const
+{
+      if (!cur_types_.empty())
+	    fd << "import " << type_package_name() << "::*;" << endl;
+}
+
+int Package::emit_type_package(ostream&fd) const
+{
+      if (type_package_emitted_)
+	    return 0;
+      type_package_emitted_ = true;
+
+      int errors = 0;
+      const auto dependencies = type_dependencies();
+      for (const Package*package : dependencies)
+	    errors += package->emit_type_package(fd);
+      if (cur_types_.empty())
+	    return errors;
+
+      // Share each nominal type between its package subprograms and the
+      // generated modules that use them.
+      string scope = type_package_name();
+      fd << "`ifndef " << scope << endl;
+      fd << "`define " << scope << endl;
+      fd << "package " << scope << ";" << endl;
+      fd << "import __ivl_vhdl_std::*;" << endl;
+      for (const Package*package : dependencies)
+	    package->emit_type_import(fd);
+
+      typedef_context_t typedef_ctx;
+      for (const auto&entry : use_types_)
+	    if (auto*type = dynamic_cast<const VTypeDef*>(entry.second))
+		  if (type->declaring_package())
+			typedef_ctx[type] = MARKED;
+      for (const auto&entry : cur_types_)
+	    if (auto*type = dynamic_cast<const VTypeDef*>(entry.second))
+		  errors += type->emit_typedef(fd, typedef_ctx);
+
+      fd << "endpackage" << endl;
+      fd << "`endif" << endl;
+      emit_type_import(fd);
+      return errors;
+}
+
 int Package::emit_package(ostream&fd) const
 {
 	// Don't emit the package if there is nothing in it that SV
@@ -33,23 +83,10 @@ int Package::emit_package(ostream&fd) const
       if (cur_types_.empty() && cur_constants_.empty() && cur_subprograms_.empty())
 	    return 0;
 
-      int errors = 0;
+      int errors = emit_type_package(fd);
 
       fd << "`ifndef package_" << name() << endl;
       fd << "`define package_" << name() << endl;
-
-	// Only emit types that were defined within this package. Skip
-	// the types that were imported from elsewhere.
-      typedef_context_t typedef_ctx;
-      for (map<perm_string,const VType*>::const_iterator cur = cur_types_.begin()
-		 ; cur != cur_types_.end() ; ++ cur) {
-	    if(const VTypeDef*def = dynamic_cast<const VTypeDef*>(cur->second))
-		errors += def->emit_typedef(fd, typedef_ctx);
-	    //fd << "typedef ";
-	    //errors += cur->second->emit_def(fd,
-                    //dynamic_cast<const VTypeDef*>(cur->second) ? empty_perm_string : cur->first);
-	    //fd << " ;" << endl;
-      }
 
       //for (map<perm_string,struct const_t*>::const_iterator cur = use_constants_.begin()
 		 //; cur != use_constants_.end() ; ++cur) {
@@ -66,6 +103,9 @@ int Package::emit_package(ostream&fd) const
 
       fd << "package \\" << name() << " ;" << endl;
       fd << "import __ivl_vhdl_std::*;" << endl;
+      emit_type_import(fd);
+      for (const Package*package : type_dependencies())
+	    package->emit_type_import(fd);
       for (map<perm_string,SubHeaderList>::const_iterator cur = cur_subprograms_.begin()
 		 ; cur != cur_subprograms_.end() ; ++ cur) {
 	    const SubHeaderList& subp_list = cur->second;

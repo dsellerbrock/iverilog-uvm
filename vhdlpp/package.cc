@@ -26,12 +26,16 @@
 # include  "ivl_assert.h"
 # include  <list>
 # include  <iterator>
+# include  <set>
 
 using namespace std;
 
 Package::Package(perm_string n, const ActiveScope&ref)
 : Scope(ref), name_(n)
 {
+      for (const auto&entry : cur_types_)
+	    if (auto*type = dynamic_cast<const VTypeDef*>(entry.second))
+		  type->set_declaring_package(this);
 }
 
 Package::~Package()
@@ -43,6 +47,24 @@ void Package::set_library(perm_string lname)
 {
       ivl_assert(*this, from_library_.str() == 0);
       from_library_ = lname;
+}
+
+perm_string Package::library_name() const
+{
+      return from_library_.nil() ? perm_string::literal("work") : from_library_;
+}
+
+std::vector<const Package*> Package::type_dependencies() const
+{
+      std::vector<const Package*> result;
+      std::set<const Package*> seen;
+      for (const auto&entry : use_types_) {
+	    auto*type = dynamic_cast<const VTypeDef*>(entry.second);
+	    const Package*owner = type ? type->declaring_package() : nullptr;
+	    if (owner && owner != this && seen.insert(owner).second)
+		  result.push_back(owner);
+      }
+      return result;
 }
 
 int Package::elaborate()
@@ -70,6 +92,14 @@ int Package::elaborate()
  */
 void Package::write_to_stream(ostream&fd) const
 {
+      // Keep the originating declaration when the cached VHDL is parsed
+      // again for a subsequent input file.
+      for (const Package*package : type_dependencies()) {
+	    perm_string library = package->library_name();
+	    if (library != "work")
+		  fd << "library " << library << ";" << endl;
+	    fd << "use " << library << "." << package->name() << ".all;" << endl;
+      }
       fd << "package " << name_ << " is" << endl;
 
 	// Start out pre-declaring all the type definitions so that
@@ -80,6 +110,9 @@ void Package::write_to_stream(ostream&fd) const
 
 	      // Do not include global types in types dump
 	    if (is_global_type(cur->first))
+		  continue;
+	    auto*type = dynamic_cast<const VTypeDef*>(cur->second);
+	    if (type && type->declaring_package())
 		  continue;
 
 	    fd << "type " << cur->first << ";" << endl;
@@ -96,6 +129,9 @@ void Package::write_to_stream(ostream&fd) const
 
       for (map<perm_string,const VType*>::const_iterator cur = use_types_.begin()
 		 ; cur != use_types_.end() ; ++cur) {
+	    auto*type = dynamic_cast<const VTypeDef*>(cur->second);
+	    if (type && type->declaring_package())
+		  continue;
 	    cur->second->write_typedef_to_stream(fd, cur->first);
       }
       for (map<perm_string,const VType*>::const_iterator cur = cur_types_.begin()

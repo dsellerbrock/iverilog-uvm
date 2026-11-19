@@ -1,0 +1,6 @@
+issue3767_reopened_2017 normal,-g2017,-gassertions,-s,tb ivltests gold=issue3767_reopened.gold
+issue3767_multiclock_2017 normal,-g2017,-gassertions,-s,issue3767_multiclock ivltests
+issue3767_leading_clock_fail_2017 CE,-g2017,-gassertions,-s,issue3767_leading_clock_fail ivltests gold=issue3767_leading_clock_fail.gold
+issue3767_reopened_2023 normal,-g2023,-gassertions,-s,tb ivltests gold=issue3767_reopened.gold
+issue3767_multiclock_2023 normal,-g2023,-gassertions,-s,issue3767_multiclock ivltests
+issue3767_leading_clock_fail_2023 CE,-g2023,-gassertions,-s,issue3767_leading_clock_fail ivltests gold=issue3767_leading_clock_fail.gold

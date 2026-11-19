@@ -34,6 +34,7 @@ class ScopeBase;
 class Entity;
 class Expression;
 class ExpRange;
+class Package;
 class VTypeDef;
 class ScopeBase;
 
@@ -413,6 +414,10 @@ class VTypeDef : public VType {
 	// type, and this method gets it for us.
       inline const VType* peek_definition(void) const { return type_; }
 
+      const Package* declaring_package() const { return declaring_package_; }
+      void set_declaring_package(const Package*package) const
+        { declaring_package_ = package; }
+
       virtual void write_to_stream(std::ostream&fd) const override;
       void write_type_to_stream(std::ostream&fd) const override;
       int get_width(ScopeBase*scope) const override { return type_->get_width(scope); }
@@ -428,6 +433,9 @@ class VTypeDef : public VType {
     protected:
       perm_string name_;
       const VType*type_;
+
+    private:
+      mutable const Package*declaring_package_ = nullptr;
 };
 
 class VSubTypeDef : public VTypeDef {

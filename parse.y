@@ -1354,8 +1354,7 @@ static PExpr* pform_self_package_type_cast(const struct vlltype&loc,
       if (!type)
             return 0;
 
-      typeref_t*dtype = new typeref_t(type, package);
-      FILE_NAME(dtype, loc);
+      typeref_t*dtype = pform_make_type_reference(loc, type, package);
       PECastType*cast = new PECastType(dtype, base);
       FILE_NAME(cast, loc);
       delete target;
@@ -1379,19 +1378,40 @@ static PExpr* pform_unsafe_unary_chain(const YYLTYPE&loc, char outer,
       return res;
 }
 
+/* Follow the selected declaration through aliases. A second lookup by
+   spelling can pick a different class when an alias or import shadows it. */
+static PClass* class_scope_of_type(const typedef_t*type)
+{
+      std::set<const typedef_t*> seen;
+      while (type && seen.insert(type).second) {
+	    const data_type_t*definition = type->get_data_type();
+	    if (auto*cls = dynamic_cast<const class_type_t*>(definition))
+		  return cls->declaration_scope;
+	    auto*alias = dynamic_cast<const typeref_t*>(definition);
+	    type = alias ? alias->typedef_ref() : nullptr;
+      }
+      return nullptr;
+}
+
+static void retain_class_type_prefix(PEIdent*expr, typedef_t*type)
+{
+      expr->set_scoped_type_prefix();
+      expr->set_scoped_type_binding(type, pform_package_for_unit_typedef(type));
+}
+
 static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
 					      const YYLTYPE&member_loc,
-					      const char*class_name,
+					      typedef_t*qualifier_type,
 					      const char*member_name,
 					      PPackage*package_scope = nullptr,
 					      parmvalue_t*class_type_args = nullptr,
-					      bool quiet = false)
+					      PEIdent*ambiguous_prefix = nullptr)
 {
-      perm_string class_key = lex_strings.make(class_name);
       perm_string member_key = lex_strings.make(member_name);
 
-      if (!package_scope && !class_type_args
-          && class_key == perm_string::literal("process")
+      if (!package_scope && !class_type_args && qualifier_type
+          && (!ambiguous_prefix || !ambiguous_prefix->leading_type_args())
+          && qualifier_type->name == perm_string::literal("process")
           && member_key == perm_string::literal("state")) {
             // Whitespace cannot occur in a user identifier, even escaped.
             data_type_t*type = new type_parameter_t(
@@ -1400,163 +1420,66 @@ static data_type_t* make_class_scoped_typeref(const YYLTYPE&class_loc,
             return type;
       }
 
-      auto find_visible_class_scope = [] (LexicalScope*start, perm_string name) -> PClass* {
-	    for (LexicalScope*scope = start ; scope ; scope = scope->parent_scope()) {
-		  if (PScopeExtra*scopex = dynamic_cast<PScopeExtra*>(scope)) {
-			auto class_it = scopex->classes.find(name);
-			if (class_it != scopex->classes.end())
-			      return class_it->second;
-		  }
-
-		  auto imp = scope->explicit_imports.find(name);
-		  if (imp != scope->explicit_imports.end()) {
-			PPackage*pkg = imp->second;
-			auto cls = pkg->classes.find(name);
-			if (cls != pkg->classes.end())
-			      return cls->second;
-		  }
-
-		  for (PPackage*pkg : scope->potential_imports) {
-			auto cls = pkg->classes.find(name);
-			if (cls != pkg->classes.end())
-			      return cls->second;
-		  }
-	    }
-
-	    return (PClass*)0;
-      };
-
-      auto find_inherited_typedef = [&find_visible_class_scope]
-	    (PClass*start_class, perm_string name) -> typedef_t* {
-	      std::set<perm_string> seen;
-	      PClass*cur_class = start_class;
-
-	      while (cur_class && cur_class->type && cur_class->type->base_type.get()) {
-		    const typeref_t*base_ref = dynamic_cast<const typeref_t*>(cur_class->type->base_type.get());
-		    if (!base_ref)
-			  break;
-
-		    typedef_t*base_td = base_ref->typedef_ref();
-		    if (!base_td)
-			  break;
-
-		    perm_string base_name = base_td->name;
-		    if (!seen.insert(base_name).second)
-			  break;
-
-		    cur_class = find_visible_class_scope(cur_class, base_name);
-		    if (!cur_class)
-			  break;
-
-		    auto type_it = cur_class->typedefs.find(name);
-		    if (type_it != cur_class->typedefs.end())
-			  return type_it->second;
-	      }
-
-	      return (typedef_t*)0;
-      };
-
-      PClass*class_scope = nullptr;
-      if (package_scope) {
-	    auto class_it = package_scope->classes.find(class_key);
-	    if (class_it != package_scope->classes.end())
-		  class_scope = class_it->second;
-      } else {
-	    class_scope = find_visible_class_scope(pform_peek_scope(), class_key);
-      }
-      const typeref_t*class_alias_ref = 0;
-
-      /* The left side of `::` may itself be a typedef of a class
-       * specialization, for example the UVM factory idiom
-       *
-       *   typedef registry #(item) type_id;
-       *   type_id::T value;
-       *
-       * IEEE 1800-2017 6.18/8.25 makes type_id a class scope. Resolve the
-       * alias to its underlying PClass instead of requiring the spelling on
-       * the left to be the declaration's original class name. */
-      if (class_scope == 0) {
-	    typedef_t*class_alias = package_scope
-		  ? pform_test_type_identifier(package_scope, class_name)
-		  : pform_test_type_identifier(class_loc, class_name);
-	    class_alias_ref = class_alias
-		  ? dynamic_cast<const typeref_t*>(class_alias->get_data_type())
-		  : 0;
-	    typedef_t*base_td = class_alias_ref
-		  ? class_alias_ref->typedef_ref() : 0;
-	    if (base_td) {
-		  LexicalScope*lookup_scope = class_alias_ref->scope_ref()
-			? class_alias_ref->scope_ref() : pform_peek_scope();
-		  class_scope = find_visible_class_scope(lookup_scope,
-						   base_td->name);
-	    }
-      }
-
-      typedef_t*type = 0;
-
-      if (class_scope) {
-	    LexicalScope::typedef_map_t::const_iterator type_it = class_scope->typedefs.find(member_key);
-	    if (type_it != class_scope->typedefs.end())
-		  type = type_it->second;
-
-	    if (type == 0)
-		  type = find_inherited_typedef(class_scope, member_key);
-      }
-
-      if (class_scope == 0) {
-	    if (!quiet)
-		  yyerror(class_loc, "error: %s doesn't name a visible class.", class_name);
+      PClass*class_scope = class_scope_of_type(qualifier_type);
+      if (!class_scope) {
+	    if (!ambiguous_prefix)
+		  yyerror(class_loc, "error: %s doesn't name a visible class.",
+			  qualifier_type->name.str());
 	    delete_parmvalue_t(class_type_args);
-	    return 0;
+	    return nullptr;
       }
 
-      if (type == 0) {
-	    if (!quiet)
+      typedef_t*type = nullptr;
+      std::set<PClass*> seen;
+      for (PClass*cur = class_scope; cur && seen.insert(cur).second;) {
+	    auto member = cur->typedefs.find(member_key);
+	    if (member != cur->typedefs.end()) {
+		  type = member->second;
+		  break;
+	    }
+	    auto*base = dynamic_cast<const typeref_t*>(cur->type->base_type.get());
+	    cur = base ? class_scope_of_type(base->typedef_ref()) : nullptr;
+      }
+      if (!type) {
+	    if (!ambiguous_prefix)
 		  yyerror(member_loc, "error: %s doesn't name a type.", member_name);
 	    delete_parmvalue_t(class_type_args);
-	    return 0;
+	    return nullptr;
       }
 
-      /* The parameter list belongs to the class qualifier, not the selected
-         member typedef. Keep both AST nodes explicit so C#(byte)::word_t is
-         elaborated by specializing C first, then resolving word_t inside
-         that concrete class scope. */
-      typedef_t*qualifier_type = package_scope
-	    ? pform_test_type_identifier(package_scope, class_name)
-	    : pform_test_type_identifier(class_loc, class_name);
-      if (!qualifier_type) {
-	    if (!quiet)
-		  yyerror(class_loc, "error: %s doesn't name a class type.",
-			  class_name);
-	    delete_parmvalue_t(class_type_args);
-	    return 0;
-      }
-
-      typeref_t*qualifier = new typeref_t(
-	    qualifier_type, package_scope, class_type_args);
-      FILE_NAME(qualifier, class_loc);
+      /* Keep the qualifier and its specialization separate from the selected
+         member typedef, so C#(byte)::word_t resolves in the concrete class. */
+      if (ambiguous_prefix)
+	    class_type_args = ambiguous_prefix->take_leading_type_args();
+      typeref_t*qualifier = pform_make_type_reference(
+	    class_loc, qualifier_type, package_scope, class_type_args);
       class_scoped_typeref_t*tmp = new class_scoped_typeref_t(
 	    type, class_scope, qualifier);
       FILE_NAME(tmp, member_loc);
       return tmp;
 }
 
-/* The TYPE::member expression form wins the grammar conflict with a
-   class-scoped type, so `C::T' in a type position can arrive as a scoped
-   PEIdent. Return the type when the member names a typedef of class C (or
-   of pkg::C), else null without a diagnostic. */
+/* An ambiguous TYPE::member expression carries its token binding without
+   checking it. Commit the type use only if the member names a typedef. */
 static data_type_t* class_scoped_type_of_ident(const YYLTYPE&loc, PExpr*expr)
 {
       PEIdent*id = dynamic_cast<PEIdent*>(expr);
       if (!id || !id->has_scoped_type_prefix())
-	    return 0;
+	    return nullptr;
       const pform_scoped_name_t&path = id->path();
       if (path.name.size() != 2 || !path.name.front().index.empty()
 	  || !path.name.back().index.empty())
-	    return 0;
-      return make_class_scoped_typeref(loc, loc, path.name.front().name.str(),
+	    return nullptr;
+
+      typedef_t*qualifier = id->scoped_type_binding();
+      if (!qualifier) {
+	    const char*name = path.name.front().name.str();
+	    qualifier = path.package ? pform_test_type_identifier(path.package, name)
+				     : pform_test_type_identifier(loc, name);
+      }
+      return make_class_scoped_typeref(loc, loc, qualifier,
 				       path.name.back().name.str(),
-				       path.package, id->take_leading_type_args(), true);
+				       path.package, nullptr, id);
 }
 
 /* IEEE 1800-2017 6.18 permits an incomplete class prefix in a class-scoped
@@ -1565,22 +1488,17 @@ static data_type_t* class_scoped_type_of_ident(const YYLTYPE&loc, PExpr*expr)
    parsed, so retain its name and resolve it after the class becomes complete. */
 static data_type_t* make_forward_class_scoped_typeref(
       const YYLTYPE&class_loc, const YYLTYPE&member_loc,
-      const char*class_name, const char*member_name,
-      PPackage*package_scope = nullptr)
+      typedef_t*qualifier_type, const char*member_name)
 {
-      typedef_t*qualifier_type = package_scope
-            ? pform_test_type_identifier(package_scope, class_name)
-            : pform_test_type_identifier(class_loc, class_name);
       if (!qualifier_type ||
           (qualifier_type->get_basic_type() != typedef_t::CLASS &&
            qualifier_type->get_basic_type() != typedef_t::ANY)
           || qualifier_type->get_data_type())
             return nullptr;
 
-      typeref_t*qualifier = new typeref_t(qualifier_type, package_scope);
-      FILE_NAME(qualifier, class_loc);
+      typeref_t*qualifier = pform_make_type_reference(class_loc, qualifier_type);
       class_scoped_typeref_t*result = new class_scoped_typeref_t(
-            nullptr, package_scope, qualifier, lex_strings.make(member_name));
+            nullptr, nullptr, qualifier, lex_strings.make(member_name));
       FILE_NAME(result, member_loc);
       return result;
 }
@@ -2070,8 +1988,7 @@ static data_type_t* pform_make_for_identifier_type(
 
       data_type_t*res = nullptr;
       if (type) {
-	    res = new typeref_t(type);
-	    FILE_NAME(res, loc);
+	    res = pform_make_type_reference(loc, type);
       } else {
 	    yyerror(loc, "error: %s doesn't name a type.", name);
 	      /* Keep error recovery structurally valid without silently accepting
@@ -3115,7 +3032,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
 %type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
-  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
+  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
 %type <subroutine_call> sva_match_call
 %type <sva_item> sva_match_item
@@ -3128,7 +3045,7 @@ static Module::port_t *module_declare_explicit_port(
 %destructor { pform_sva_destroy_property($$); }
   property_expr property_spec sva_multiclock_seq
   sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
-  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
+  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %destructor { pform_sva_destroy_sequence($$); }
   sva_seq_expr sva_seq_atom
 %destructor { pform_sva_destroy_mc_segments($$); }
@@ -4124,8 +4041,7 @@ class_item /* IEEE1800-2005: A.1.8 */
   | property_qualifier_opt IDENTIFIER list_of_variable_decl_assignments ';'
       { typedef_t*type = pform_test_type_identifier(@2, $2);
 	if (type) {
-	      typeref_t*tmp = new typeref_t(type);
-	      FILE_NAME(tmp, @2);
+	      typeref_t*tmp = pform_make_type_reference(@2, type);
 	      pform_class_property(@2, $1, tmp, $3);
 	} else {
 	      yyerror(@2, "error: %s doesn't name a type.", $2);
@@ -4141,8 +4057,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	      type = pform_test_type_identifier(@2, $2);
 	}
 	if (type) {
-	      typeref_t*tmp = new typeref_t(type, 0, $3);
-	      FILE_NAME(tmp, @2);
+	      typeref_t*tmp = pform_make_type_reference(@2, type, nullptr, $3);
 	      pform_class_property(@2, $1, tmp, $4);
 	} else {
 	      yyerror(@2, "error: %s doesn't name a type.", $2);
@@ -4188,8 +4103,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	      type = pform_test_type_identifier(@3, $3);
 	}
 	if (type) {
-	      typeref_t*tmp = new typeref_t(type, 0, $4);
-	      FILE_NAME(tmp, @3);
+	      typeref_t*tmp = pform_make_type_reference(@3, type, nullptr, $4);
 	      pform_class_property(@3,
 				   property_qualifier_t::make_local() |
 				   property_qualifier_t::make_static(),
@@ -4206,8 +4120,7 @@ class_item /* IEEE1800-2005: A.1.8 */
 	      type = pform_test_type_identifier(@3, $3);
 	}
 	if (type) {
-	      typeref_t*tmp = new typeref_t(type, 0, $4);
-	      FILE_NAME(tmp, @3);
+	      typeref_t*tmp = pform_make_type_reference(@3, type, nullptr, $4);
 	      pform_class_property(@3,
 				   property_qualifier_t::make_local() |
 				   property_qualifier_t::make_static(),
@@ -6483,14 +6396,11 @@ package_type_identifier
 
 ps_type_identifier /* IEEE1800-2017: A.9.3 */
  : TYPE_IDENTIFIER
-      { pform_set_type_referenced(@1, $1.text);
+      { $$ = pform_make_type_reference(@1, $1.type);
 	delete[]$1.text;
-	$$ = new typeref_t($1.type);
-	FILE_NAME($$, @1);
       }
   | package_type_identifier
-      { $$ = new typeref_t($1.type, $1.package, $1.type_args);
-	FILE_NAME($$, @1);
+      { $$ = pform_make_type_reference(@1, $1.type, $1.package, $1.type_args);
 	delete[] $1.text;
       }
   ;
@@ -6713,9 +6623,7 @@ data_type_or_implicit_or_void
   : data_type_or_implicit
       { $$ = $1; }
   | TYPE_IDENTIFIER type_parameter_value dimensions_opt
-      { pform_set_type_referenced(@1, $1.text);
-	typeref_t*type = new typeref_t($1.type);
-	FILE_NAME(type, @1);
+      { typeref_t*type = pform_make_type_reference(@1, $1.type);
 	type->set_parameter_values($2);
 	delete[] $1.text;
 	if ($3) {
@@ -9055,7 +8963,7 @@ package_item /* IEEE1800-2005 A.1.10 */
       }
   | attribute_list_opt NETTYPE_IDENTIFIER delay1_opt net_variable_list ';'
       { pform_requires_sv(@2, "User-defined net declaration");
-        pform_set_nettype_referenced(@2, $2.text);
+        pform_set_nettype_referenced(@2, $2.type);
         pform_set_nettype_wires(@2, $2.type, $4, $1);
         if ($3) {
 	      yyerror(@3, "sorry: User-defined net delays are not supported.");
@@ -10209,7 +10117,9 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_clocked_paren_impl(@4, $2, 1, $3, $5); }
   | '(' event_control sva_seq_expr K_PIPE_IMPL_NOV property_expr ')'
       { $$ = pform_sva_clocked_paren_impl(@4, $2, 2, $3, $5); }
-  | '(' event_control sva_seq_expr sva_mc_tail_opt ')'
+  | sva_grouped_clocked_leaf
+      { $$ = $1; }
+  | '(' event_control sva_seq_expr sva_mc_tail ')'
       { sva_property_t*p = new sva_property_t;
         p->seq = $3;
         p->seq_clk_evt = $2;
@@ -10526,11 +10436,24 @@ property_case_items
      `intersect' (tighter, left-assoc); `sva_or_has_op' folds `or'
      (looser). Each yields an sva_property_t carrying a combinator tree
      (or a chain, from the legacy fixed-intersect path). */
+/* Share the grouped leading clock between property_expr and the combinator
+   grammar. A clock inside the sequence chain uses the separate tail rule. */
+sva_grouped_clocked_leaf
+  : '(' event_control sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->seq = $3;
+	p->clk_evt = $2;
+	p->grouped_clock = true;
+	$$ = p; }
+  ;
+
 sva_comb_atom
   : sva_seq_expr %prec sva_seq_comb_done
       { $$ = pform_sva_leaf_prop($1); }
   | event_control sva_seq_expr %prec sva_seq_comb_done
       { $$ = pform_sva_clocked_leaf_prop(@1, $1, $2); }
+  | sva_grouped_clocked_leaf
+      { $$ = $1; }
   | '(' sva_seq_comb ')'
       { $$ = $2; }
   /* IEEE 1800-2023 16.12.4/16.12.5: `or'/`and' also combine full
@@ -12074,15 +11997,13 @@ block_item_decl
 
   /* Block-scoped declarations that start from typedef/class type names. */
   | K_const_opt variable_lifetime_opt TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*tmp = new typeref_t($3.type);
-	FILE_NAME(tmp, @3);
+      { typeref_t*tmp = pform_make_type_reference(@3, $3.type);
 	pform_make_var(@3, $4, tmp, attributes_in_context, $1);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$3.text;
       }
   | K_const_opt variable_lifetime_opt TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
-      { typeref_t*tmp = new typeref_t($3.type, 0, $4);
-	FILE_NAME(tmp, @3);
+      { typeref_t*tmp = pform_make_type_reference(@3, $3.type, nullptr, $4);
 	pform_make_var(@3, $5, tmp, attributes_in_context, $1);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$3.text;
@@ -12090,8 +12011,7 @@ block_item_decl
   | K_const_opt variable_lifetime_opt IDENTIFIER list_of_variable_decl_assignments ';'
       { typedef_t*type = pform_test_type_identifier(@3, $3);
 	if (type) {
-	      typeref_t*tmp = new typeref_t(type);
-	      FILE_NAME(tmp, @3);
+	      typeref_t*tmp = pform_make_type_reference(@3, type);
 	      pform_make_var(@3, $4, tmp, attributes_in_context, $1);
 	} else {
 	      yyerror(@3, "error: %s doesn't name a type.", $3);
@@ -12108,8 +12028,7 @@ block_item_decl
 	      type = pform_test_type_identifier(@4, $4);
 	}
 	if (type) {
-	      typeref_t*tmp = new typeref_t(type, $3);
-	      FILE_NAME(tmp, @4);
+	      typeref_t*tmp = pform_make_type_reference(@4, type, $3);
 	      pform_make_var(@4, $5, tmp, attributes_in_context, $1);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -12124,8 +12043,7 @@ block_item_decl
 	      type = pform_test_type_identifier(@4, $4);
 	}
 	if (type) {
-	      typeref_t*tmp = new typeref_t(type, $3, $5);
-	      FILE_NAME(tmp, @4);
+	      typeref_t*tmp = pform_make_type_reference(@4, type, $3, $5);
 	      pform_make_var(@4, $6, tmp, attributes_in_context, $1);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -12133,16 +12051,14 @@ block_item_decl
       }
   | K_const_opt variable_lifetime_opt package_scope TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { lex_in_package_scope(0);
-	typeref_t*tmp = new typeref_t($4.type, $3);
-	FILE_NAME(tmp, @4);
+	typeref_t*tmp = pform_make_type_reference(@4, $4.type, $3);
 	pform_make_var(@4, $5, tmp, attributes_in_context, $1);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$4.text;
       }
   | K_const_opt variable_lifetime_opt package_scope TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
       { lex_in_package_scope(0);
-	typeref_t*tmp = new typeref_t($4.type, $3, $5);
-	FILE_NAME(tmp, @4);
+	typeref_t*tmp = pform_make_type_reference(@4, $4.type, $3, $5);
 	pform_make_var(@4, $6, tmp, attributes_in_context, $1);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$4.text;
@@ -12154,8 +12070,7 @@ block_item_decl
 	      type = pform_test_type_identifier(@5, $5);
 	}
 	if (type) {
-	      typeref_t*tmp = new typeref_t(type);
-	      FILE_NAME(tmp, @5);
+	      typeref_t*tmp = pform_make_type_reference(@5, type);
 	      pform_make_var(@5, $6, tmp, attributes_in_context, $1);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -12163,22 +12078,21 @@ block_item_decl
 	delete[]$5;
       }
   | K_const_opt variable_lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
-      { data_type_t*tmp = make_class_scoped_typeref(@3, @5, $3.text, $5);
+      { data_type_t*tmp = make_class_scoped_typeref(@3, @5, $3.type, $5);
 	if (tmp) pform_make_var(@3, $6, tmp, attributes_in_context, $1);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$3.text;
 	delete[]$5;
       }
   | K_const_opt variable_lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { data_type_t*tmp = make_class_scoped_typeref(@3, @5, $3.text, $5.text);
+      { data_type_t*tmp = make_class_scoped_typeref(@3, @5, $3.type, $5.text);
 	if (tmp) pform_make_var(@3, $6, tmp, attributes_in_context, $1);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$3.text;
 	delete[]$5.text;
       }
   | K_const_opt variable_lifetime_opt IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*tmp = new typeref_t($5.type);
-	FILE_NAME(tmp, @5);
+      { typeref_t*tmp = pform_make_type_reference(@5, $5.type);
 	pform_make_var(@5, $6, tmp, attributes_in_context, $1);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$3;
@@ -12191,8 +12105,7 @@ block_item_decl
 	      type = pform_test_type_identifier(@5, $5);
 	}
 	if (type) {
-	      typeref_t*tmp = new typeref_t(type, $3);
-	      FILE_NAME(tmp, @5);
+	      typeref_t*tmp = pform_make_type_reference(@5, type, $3);
 	      pform_make_var(@5, $6, tmp, attributes_in_context, $1);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -12205,23 +12118,20 @@ block_item_decl
 	      type = pform_test_type_identifier(@5, $5);
 	}
 	if (type) {
-	      typeref_t*tmp = new typeref_t(type, $3, $6);
-	      FILE_NAME(tmp, @5);
+	      typeref_t*tmp = pform_make_type_reference(@5, type, $3, $6);
 	      pform_make_var(@5, $7, tmp, attributes_in_context, $1);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$5;
       }
   | K_const_opt variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*tmp = new typeref_t($5.type, $3);
-	FILE_NAME(tmp, @5);
+      { typeref_t*tmp = pform_make_type_reference(@5, $5.type, $3);
 	pform_make_var(@5, $6, tmp, attributes_in_context, $1);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$5.text;
       }
   | K_const_opt variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
-      { typeref_t*tmp = new typeref_t($5.type, $3, $6);
-	FILE_NAME(tmp, @5);
+      { typeref_t*tmp = pform_make_type_reference(@5, $5.type, $3, $6);
 	pform_make_var(@5, $7, tmp, attributes_in_context, $1);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[]$5.text;
@@ -12287,7 +12197,7 @@ nettype_declaration
       }
   | K_nettype NETTYPE_IDENTIFIER nettype_declaration_name ';'
       { pform_requires_sv(@1, "User-defined nettype alias");
-	pform_set_nettype_referenced(@2, $2.text);
+	pform_set_nettype_referenced(@2, $2.type);
 	perm_string name = lex_strings.make($3);
 	pform_declare_nettype_alias(@3, name, $2.type);
 	delete[]$2.text;
@@ -12296,6 +12206,7 @@ nettype_declaration
   | K_nettype package_scope NETTYPE_IDENTIFIER nettype_declaration_name ';'
       { pform_requires_sv(@1, "User-defined nettype alias");
 	lex_in_package_scope(0);
+	pform_set_nettype_referenced(@3, $3.type, $2);
 	perm_string name = lex_strings.make($4);
 	pform_declare_nettype_alias(@4, name, $3.type);
 	delete[]$3.text;
@@ -12310,11 +12221,10 @@ nettype_declaration
 
 type_declaration
   : K_typedef TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER typedef_identifier_name dimensions_opt ';'
-      { pform_set_type_referenced(@2, $2.text);
-        data_type_t*type = make_forward_class_scoped_typeref(
-            @2, @4, $2.text, $4);
+      { data_type_t*type = make_forward_class_scoped_typeref(
+            @2, @4, $2.type, $4);
         if (!type)
-              type = make_class_scoped_typeref(@2, @4, $2.text, $4);
+              type = make_class_scoped_typeref(@2, @4, $2.type, $4);
         if (type)
               pform_set_typedef(@5, lex_strings.make($5), type, $6, true);
         delete[]$2.text;
@@ -12322,11 +12232,10 @@ type_declaration
         delete[]$5;
       }
   | K_typedef TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER typedef_identifier_name dimensions_opt ';'
-      { pform_set_type_referenced(@2, $2.text);
-        data_type_t*type = make_forward_class_scoped_typeref(
-            @2, @4, $2.text, $4.text);
+      { data_type_t*type = make_forward_class_scoped_typeref(
+            @2, @4, $2.type, $4.text);
         if (!type)
-              type = make_class_scoped_typeref(@2, @4, $2.text, $4.text);
+              type = make_class_scoped_typeref(@2, @4, $2.type, $4.text);
         if (type)
               pform_set_typedef(@5, lex_strings.make($5), type, $6, true);
         delete[]$2.text;
@@ -12374,8 +12283,7 @@ type_declaration
 	                    $4, interface_type->name.str());
 	            delete $6;
 	      } else {
-	            typeref_t*alias = new typeref_t(type->second, interface->second);
-	            FILE_NAME(alias, @4);
+	            typeref_t*alias = pform_make_type_reference(@4, type->second, interface->second);
 	            perm_string name = lex_strings.make($5);
 	            pform_set_typedef(@5, name, alias, $6, true);
 	      }
@@ -12399,7 +12307,7 @@ type_declaration
   | K_typedef NETTYPE_IDENTIFIER nettype_declaration_name ';'
       { if ($1) {
 	      pform_requires_sv(@1, "User-defined nettype alias");
-	      pform_set_nettype_referenced(@2, $2.text);
+	      pform_set_nettype_referenced(@2, $2.type);
 	      perm_string name = lex_strings.make($3);
 	      pform_declare_nettype_alias(@3, name, $2.type);
 	} else {
@@ -12412,6 +12320,7 @@ type_declaration
       { lex_in_package_scope(0);
 	if ($1) {
 	      pform_requires_sv(@1, "User-defined nettype alias");
+	      pform_set_nettype_referenced(@3, $3.type, $2);
 	      perm_string name = lex_strings.make($4);
 	      pform_declare_nettype_alias(@4, name, $3.type);
 	} else {
@@ -12450,8 +12359,7 @@ type_declaration
 	      yyerror(@2, "error: Unable to bind nettype or data type `%s`.", $2);
 	      delete $4;
 	} else if (typedef_t*base = pform_test_type_identifier(@2, $2)) {
-	      typeref_t*tmp = new typeref_t(base);
-	      FILE_NAME(tmp, @2);
+	      typeref_t*tmp = pform_make_type_reference(@2, base);
 	      perm_string name = lex_strings.make($3);
 	      pform_set_typedef(@3, name, tmp, $4, true);
 	} else {
@@ -12740,8 +12648,7 @@ struct_union_member /* IEEE 1800-2012 A.2.2.1 */
 	      tmp = new struct_member_t;
 	      FILE_NAME(tmp, @3);
 	      tmp->qualifier = $2;
-	      tmp->type.reset(new typeref_t(type));
-	      FILE_NAME(tmp->type.get(), @3);
+	      tmp->type.reset(pform_make_type_reference(@3, type));
 	      tmp->names.reset($4);
 	} else {
 	      yyerror(@3, "error: %s doesn't name a type.", $3);
@@ -14106,57 +14013,45 @@ for_data_type
    the lvalue before it sees the following declarator. */
 for_typed_variable_initializer
   : TYPE_IDENTIFIER for_variable_identifier '=' expression
-      { pform_set_type_referenced(@1, $1.text);
-	typeref_t*type = new typeref_t($1.type);
-	FILE_NAME(type, @1);
+      { typeref_t*type = pform_make_type_reference(@1, $1.type);
 	$$ = pform_make_for_variable_declaration(type, $2, $4, @2);
 	delete[] $1.text; }
   | TYPE_IDENTIFIER dimensions for_variable_identifier '=' expression
-      { pform_set_type_referenced(@1, $1.text);
-	typeref_t*base = new typeref_t($1.type);
-	FILE_NAME(base, @1);
+      { typeref_t*base = pform_make_type_reference(@1, $1.type);
 	parray_type_t*type = new parray_type_t(base, $2);
 	FILE_NAME(type, @1);
 	$$ = pform_make_for_variable_declaration(type, $3, $5, @3);
 	delete[] $1.text; }
   | TYPE_IDENTIFIER type_parameter_value for_variable_identifier '=' expression
-      { pform_set_type_referenced(@1, $1.text);
-	typeref_t*type = new typeref_t($1.type, nullptr, $2);
-	FILE_NAME(type, @1);
+      { typeref_t*type = pform_make_type_reference(@1, $1.type, nullptr, $2);
 	$$ = pform_make_for_variable_declaration(type, $3, $5, @3);
 	delete[] $1.text; }
   | TYPE_IDENTIFIER type_parameter_value dimensions
     for_variable_identifier '=' expression
-      { pform_set_type_referenced(@1, $1.text);
-	typeref_t*base = new typeref_t($1.type, nullptr, $2);
-	FILE_NAME(base, @1);
+      { typeref_t*base = pform_make_type_reference(@1, $1.type, nullptr, $2);
 	parray_type_t*type = new parray_type_t(base, $3);
 	FILE_NAME(type, @1);
 	$$ = pform_make_for_variable_declaration(type, $4, $6, @4);
 	delete[] $1.text; }
   | package_type_identifier for_variable_identifier '=' expression
-      { typeref_t*type = new typeref_t($1.type, $1.package, $1.type_args);
-	FILE_NAME(type, @1);
+      { typeref_t*type = pform_make_type_reference(@1, $1.type, $1.package, $1.type_args);
 	$$ = pform_make_for_variable_declaration(type, $2, $4, @2);
 	delete[] $1.text; }
   | package_type_identifier dimensions for_variable_identifier '=' expression
-      { typeref_t*base = new typeref_t($1.type, $1.package, $1.type_args);
-	FILE_NAME(base, @1);
+      { typeref_t*base = pform_make_type_reference(@1, $1.type, $1.package, $1.type_args);
 	parray_type_t*type = new parray_type_t(base, $2);
 	FILE_NAME(type, @1);
 	$$ = pform_make_for_variable_declaration(type, $3, $5, @3);
 	delete[] $1.text; }
   | TYPE_IDENTIFIER K_SCOPE_RES identifier_name
     for_variable_identifier '=' expression
-      { pform_set_type_referenced(@1, $1.text);
-	data_type_t*type = make_class_scoped_typeref(@1, @3, $1.text, $3);
+      { data_type_t*type = make_class_scoped_typeref(@1, @3, $1.type, $3);
 	$$ = pform_make_for_variable_declaration(type, $4, $6, @4);
 	delete[] $1.text;
 	delete[] $3; }
   | TYPE_IDENTIFIER K_SCOPE_RES identifier_name dimensions
     for_variable_identifier '=' expression
-      { pform_set_type_referenced(@1, $1.text);
-	data_type_t*base = make_class_scoped_typeref(@1, @3, $1.text, $3);
+      { data_type_t*base = make_class_scoped_typeref(@1, @3, $1.type, $3);
 	if (!base) {
 	      base = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
 	      FILE_NAME(base, @1);
@@ -14168,17 +14063,15 @@ for_typed_variable_initializer
 	delete[] $3; }
   | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES identifier_name
     for_variable_identifier '=' expression
-      { pform_set_type_referenced(@1, $1.text);
-	data_type_t*type = make_class_scoped_typeref(
-	      @1, @4, $1.text, $4, nullptr, $2);
+      { data_type_t*type = make_class_scoped_typeref(
+	      @1, @4, $1.type, $4, nullptr, $2);
 	$$ = pform_make_for_variable_declaration(type, $5, $7, @5);
 	delete[] $1.text;
 	delete[] $4; }
   | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES identifier_name dimensions
     for_variable_identifier '=' expression
-      { pform_set_type_referenced(@1, $1.text);
-	data_type_t*base = make_class_scoped_typeref(
-	      @1, @4, $1.text, $4, nullptr, $2);
+      { data_type_t*base = make_class_scoped_typeref(
+	      @1, @4, $1.type, $4, nullptr, $2);
 	if (!base) {
 	      base = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
 	      FILE_NAME(base, @1);
@@ -14191,14 +14084,14 @@ for_typed_variable_initializer
   | package_type_identifier K_SCOPE_RES identifier_name
     for_variable_identifier '=' expression
       { data_type_t*type = make_class_scoped_typeref(
-	      @1, @3, $1.text, $3, $1.package, $1.type_args);
+	      @1, @3, $1.type, $3, $1.package, $1.type_args);
 	$$ = pform_make_for_variable_declaration(type, $4, $6, @4);
 	delete[] $1.text;
 	delete[] $3; }
   | package_type_identifier K_SCOPE_RES identifier_name dimensions
     for_variable_identifier '=' expression
       { data_type_t*base = make_class_scoped_typeref(
-	      @1, @3, $1.text, $3, $1.package, $1.type_args);
+	      @1, @3, $1.type, $3, $1.package, $1.type_args);
 	if (!base) {
 	      base = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
 	      FILE_NAME(base, @1);
@@ -14584,7 +14477,7 @@ parameterized_scoped_identifier
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($2);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$4;
 	$$ = tmp;
@@ -14596,7 +14489,7 @@ parameterized_scoped_identifier
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($2);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$4.text;
 	$$ = tmp;
@@ -14631,7 +14524,7 @@ parameterized_scoped_identifier
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$3;
 	$$ = tmp;
@@ -14657,7 +14550,7 @@ parameterized_scoped_identifier
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$3.text;
 	$$ = tmp;
@@ -14691,7 +14584,7 @@ parameterized_scoped_identifier
 	PEIdent*tmp = new PEIdent($1.package, hident, @1.lexical_pos);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($1.type_args);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$3;
 	$$ = tmp;
@@ -14704,7 +14597,7 @@ parameterized_scoped_identifier
 	PEIdent*tmp = new PEIdent($1.package, hident, @1.lexical_pos);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($1.type_args);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$3;
 	delete[]$5;
@@ -14910,8 +14803,7 @@ expr_primary
 	$$ = tmp;
       }
   | TYPE_IDENTIFIER type_parameter_value
-      { typeref_t*dtype = new typeref_t($1.type, 0, $2);
-	FILE_NAME(dtype, @1);
+      { typeref_t*dtype = pform_make_type_reference(@1, $1.type, nullptr, $2);
 	PETypename*tmp = new PETypename(dtype);
 	FILE_NAME(tmp, @1);
 	delete[] $1.text;
@@ -15525,9 +15417,7 @@ expr_primary
      the K_new continuation on the direct prefix instead; misuse outside
      an assignment r-value is rejected at elaboration. */
   | TYPE_IDENTIFIER K_SCOPE_RES K_new argument_list_parens_opt
-      { pform_set_type_referenced(@1, $1.text);
-	typeref_t*type = new typeref_t($1.type);
-	FILE_NAME(type, @1);
+      { typeref_t*type = pform_make_type_reference(@1, $1.type);
 	PENewClass*tmp = new PENewClass(*$4, type);
 	FILE_NAME(tmp, @1);
 	delete[]$1.text;
@@ -15536,9 +15426,7 @@ expr_primary
       }
   | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES K_new
     argument_list_parens_opt
-      { pform_set_type_referenced(@1, $1.text);
-	typeref_t*type = new typeref_t($1.type, 0, $2);
-	FILE_NAME(type, @1);
+      { typeref_t*type = pform_make_type_reference(@1, $1.type, nullptr, $2);
 	PENewClass*tmp = new PENewClass(*$5, type);
 	FILE_NAME(tmp, @1);
 	delete[]$1.text;
@@ -15546,8 +15434,7 @@ expr_primary
 	$$ = tmp;
       }
   | package_type_identifier K_SCOPE_RES K_new argument_list_parens_opt
-      { typeref_t*type = new typeref_t($1.type, $1.package, $1.type_args);
-	FILE_NAME(type, @1);
+      { typeref_t*type = pform_make_type_reference(@1, $1.type, $1.package, $1.type_args);
 	PENewClass*tmp = new PENewClass(*$4, type);
 	FILE_NAME(tmp, @1);
 	delete[]$1.text;
@@ -16113,7 +16000,7 @@ expr_primary
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($2);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$4;
 	delete[]$6;
@@ -16127,7 +16014,7 @@ expr_primary
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($2);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$4.text;
 	delete[]$6;
@@ -16141,7 +16028,7 @@ expr_primary
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
 	tmp->set_leading_type_args($2);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$4.text;
 	delete[]$6.text;
@@ -16221,7 +16108,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$3;
 	delete[]$5;
@@ -16234,7 +16121,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($5)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$3.text;
 	delete[]$5;
@@ -16247,7 +16134,7 @@ expr_primary
 	hident.push_back(name_component_t(lex_strings.make($5.text)));
 	PEIdent*tmp = pform_new_ident(@1, hident);
 	FILE_NAME(tmp, @1);
-	tmp->set_scoped_type_prefix();
+	retain_class_type_prefix(tmp, $1.type);
 	delete[]$1.text;
 	delete[]$3.text;
 	delete[]$5.text;
@@ -17349,14 +17236,12 @@ list_of_port_declarations
  */
 class_scoped_type_identifier
   : TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
-      { pform_set_type_referenced(@1, $1.text);
-	$$ = make_class_scoped_typeref(@1, @3, $1.text, $3);
+      { $$ = make_class_scoped_typeref(@1, @3, $1.type, $3);
 	delete[] $1.text;
 	delete[] $3;
       }
   | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER
-      { pform_set_type_referenced(@1, $1.text);
-	$$ = make_class_scoped_typeref(@1, @3, $1.text, $3.text);
+      { $$ = make_class_scoped_typeref(@1, @3, $1.type, $3.text);
 	delete[] $1.text;
 	delete[] $3.text;
       }
@@ -17366,24 +17251,22 @@ class_scoped_type_identifier
    declarations and function return types. */
 parameterized_class_scoped_type_identifier
   : TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES IDENTIFIER
-      { pform_set_type_referenced(@1, $1.text);
-	$$ = make_class_scoped_typeref(@1, @4, $1.text, $4, nullptr, $2);
+      { $$ = make_class_scoped_typeref(@1, @4, $1.type, $4, nullptr, $2);
 	delete[] $1.text;
 	delete[] $4;
       }
   | TYPE_IDENTIFIER type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
-      { pform_set_type_referenced(@1, $1.text);
-	$$ = make_class_scoped_typeref(@1, @4, $1.text, $4.text, nullptr, $2);
+      { $$ = make_class_scoped_typeref(@1, @4, $1.type, $4.text, nullptr, $2);
 	delete[] $1.text;
 	delete[] $4.text;
       }
   | package_type_identifier_base type_parameter_value K_SCOPE_RES IDENTIFIER
-      { $$ = make_class_scoped_typeref(@1, @4, $1.text, $4, $1.package, $2);
+      { $$ = make_class_scoped_typeref(@1, @4, $1.type, $4, $1.package, $2);
 	delete[] $1.text;
 	delete[] $4;
       }
   | package_type_identifier_base type_parameter_value K_SCOPE_RES TYPE_IDENTIFIER
-      { $$ = make_class_scoped_typeref(@1, @4, $1.text, $4.text, $1.package, $2);
+      { $$ = make_class_scoped_typeref(@1, @4, $1.type, $4.text, $1.package, $2);
 	delete[] $1.text;
 	delete[] $4.text;
       }
@@ -17400,14 +17283,14 @@ port_declaration
 	      @2, $2, port_declaration_context.port_type, $3, $4);
       }
   | port_direction NETTYPE_IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
-      { pform_set_nettype_referenced(@2, $2.text);
+      { pform_set_nettype_referenced(@2, $2.type);
 	$$ = module_declare_nettype_port(@3, $3, $1, $2.type,
 					 $4, $5, nullptr);
 	delete[]$2.text;
       }
   | NETTYPE_IDENTIFIER IDENTIFIER dimensions_opt initializer_opt
       { pform_requires_sv(@2, "Partial ANSI user-defined nettype port");
-	pform_set_nettype_referenced(@1, $1.text);
+	pform_set_nettype_referenced(@1, $1.type);
 	$$ = module_declare_nettype_port(
 	      @2, $2, port_declaration_context.port_type, $1.type,
 	      $3, $4, nullptr);
@@ -18024,7 +17907,7 @@ module_item
 
   | attribute_list_opt NETTYPE_IDENTIFIER delay1_opt net_variable_list ';'
       { pform_requires_sv(@2, "User-defined net declaration");
-	pform_set_nettype_referenced(@2, $2.text);
+	pform_set_nettype_referenced(@2, $2.type);
 	pform_set_nettype_wires(@2, $2.type, $4, $1);
 	if ($3) {
 	      yyerror(@3, "sorry: User-defined net delays are not supported.");
@@ -18035,7 +17918,7 @@ module_item
 
   | attribute_list_opt NETTYPE_IDENTIFIER delay1_opt net_decl_assigns ';'
       { pform_requires_sv(@2, "User-defined net declaration assignment");
-	pform_set_nettype_referenced(@2, $2.text);
+	pform_set_nettype_referenced(@2, $2.type);
 	pform_make_nettype_wires(@2, $2.type, $3, str_strength, $4, $1);
 	delete[]$2.text;
       }
@@ -18168,7 +18051,7 @@ module_item
 
   | attribute_list_opt port_direction NETTYPE_IDENTIFIER list_of_port_identifiers ';'
       { pform_error_in_generate(@2, "port declaration");
-	pform_set_nettype_referenced(@3, $3.text);
+	pform_set_nettype_referenced(@3, $3.type);
 	pform_module_define_nettype_port(@2, $4, $2, $3.type, $1);
 	delete[]$3.text;
       }
@@ -18390,9 +18273,7 @@ module_item
      so we add an explicit rule here that shifts '[' before the error path fires. */
   | attribute_list_opt
 	TYPE_IDENTIFIER dimensions list_of_variable_decl_assignments ';'
-      { pform_set_type_referenced(@2, $2.text);
-	typeref_t*tref = new typeref_t($2.type);
-	FILE_NAME(tref, @2);
+      { typeref_t*tref = pform_make_type_reference(@2, $2.type);
 	parray_type_t*arr = new parray_type_t(tref, $3);
 	FILE_NAME(arr, @2);
 	attributes_in_context = $1;
@@ -18481,8 +18362,7 @@ module_item
   | attribute_list_opt
 	package_scope TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { lex_in_package_scope(0);
-	typeref_t*tref = new typeref_t($3.type, $2);
-	FILE_NAME(tref, @3);
+	typeref_t*tref = pform_make_type_reference(@3, $3.type, $2);
 	attributes_in_context = $1;
 	pform_make_var(@3, $4, tref, attributes_in_context, 0);
 	var_lifetime = LexicalScope::INHERITED;
@@ -18492,8 +18372,7 @@ module_item
   | attribute_list_opt
 	package_scope TYPE_IDENTIFIER dimensions list_of_variable_decl_assignments ';'
       { lex_in_package_scope(0);
-	typeref_t*tref = new typeref_t($3.type, $2);
-	FILE_NAME(tref, @3);
+	typeref_t*tref = pform_make_type_reference(@3, $3.type, $2);
 	parray_type_t*arr = new parray_type_t(tref, $4);
 	FILE_NAME(arr, @3);
 	attributes_in_context = $1;
@@ -18505,8 +18384,7 @@ module_item
   | attribute_list_opt
 	package_scope TYPE_IDENTIFIER type_parameter_value dimensions_opt list_of_variable_decl_assignments ';'
       { lex_in_package_scope(0);
-	typeref_t*tref = new typeref_t($3.type, $2, $4);
-	FILE_NAME(tref, @3);
+	typeref_t*tref = pform_make_type_reference(@3, $3.type, $2, $4);
 	data_type_t*type = tref;
 	if ($5) {
 	      type = new parray_type_t(tref, $5);
@@ -21090,8 +20968,7 @@ statement_item /* This is roughly statement_item in the LRM */
   /* Accept declaration-style statements for user types in procedural blocks.
      These are treated as declarations-only and emit no executable statement. */
   | K_const TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*tmp = new typeref_t($2.type);
-	FILE_NAME(tmp, @2);
+      { typeref_t*tmp = pform_make_type_reference(@2, $2.type);
 	pform_make_statement_var(@2, $3, tmp, nullptr, true);
 	var_lifetime = LexicalScope::INHERITED;
 	pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -21203,31 +21080,27 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($2.type);
-	FILE_NAME(dtype, @2);
+      { typeref_t*dtype = pform_make_type_reference(@2, $2.type);
 	pform_make_statement_var(@2, $3, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $2.text;
 	$$ = nullptr;
       }
   | TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($1.type);
-	FILE_NAME(dtype, @1);
+      { typeref_t*dtype = pform_make_type_reference(@1, $1.type);
 	pform_make_statement_var(@1, $2, dtype, nullptr, false);
 	delete[] $1.text;
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($2.type, 0, $3);
-	FILE_NAME(dtype, @2);
+      { typeref_t*dtype = pform_make_type_reference(@2, $2.type, nullptr, $3);
 	pform_make_statement_var(@2, $4, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $2.text;
 	$$ = nullptr;
       }
   | TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($1.type, 0, $2);
-	FILE_NAME(dtype, @1);
+      { typeref_t*dtype = pform_make_type_reference(@1, $1.type, nullptr, $2);
 	pform_make_statement_var(@1, $3, dtype, nullptr, false);
 	delete[] $1.text;
 	$$ = nullptr;
@@ -21241,8 +21114,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	}
 	lex_in_package_scope(0);
 	if (type) {
-	      typeref_t*dtype = new typeref_t(type, $2, $4);
-	      FILE_NAME(dtype, @3);
+	      typeref_t*dtype = pform_make_type_reference(@3, type, $2, $4);
 	      pform_make_statement_var(@3, $5, dtype, nullptr, false);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -21258,8 +21130,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	}
 	lex_in_package_scope(0);
 	if (type) {
-	      typeref_t*dtype = new typeref_t(type, $1, $3);
-	      FILE_NAME(dtype, @2);
+	      typeref_t*dtype = pform_make_type_reference(@2, type, $1, $3);
 	      pform_make_statement_var(@2, $4, dtype, nullptr, false);
 	}
 	delete[] $2;
@@ -21267,8 +21138,7 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | variable_lifetime_opt package_scope TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
       { lex_in_package_scope(0);
-	typeref_t*dtype = new typeref_t($3.type, $2, $4);
-	FILE_NAME(dtype, @3);
+	typeref_t*dtype = pform_make_type_reference(@3, $3.type, $2, $4);
 	pform_make_statement_var(@3, $5, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $3.text;
@@ -21276,14 +21146,13 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | package_scope TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
       { lex_in_package_scope(0);
-	typeref_t*dtype = new typeref_t($2.type, $1, $3);
-	FILE_NAME(dtype, @2);
+	typeref_t*dtype = pform_make_type_reference(@2, $2.type, $1, $3);
 	pform_make_statement_var(@2, $4, dtype, nullptr, false);
 	delete[] $2.text;
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
-      { data_type_t*dtype = make_class_scoped_typeref(@2, @4, $2.text, $4);
+      { data_type_t*dtype = make_class_scoped_typeref(@2, @4, $2.type, $4);
 	if (dtype) pform_make_statement_var(@2, $5, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $2.text;
@@ -21291,14 +21160,14 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
   | TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER list_of_variable_decl_assignments ';'
-      { data_type_t*dtype = make_class_scoped_typeref(@1, @3, $1.text, $3);
+      { data_type_t*dtype = make_class_scoped_typeref(@1, @3, $1.type, $3);
 	if (dtype) pform_make_statement_var(@1, $4, dtype, nullptr, false);
 	delete[] $1.text;
 	delete[] $3;
 	$$ = nullptr;
       }
   | variable_lifetime_opt TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { data_type_t*dtype = make_class_scoped_typeref(@2, @4, $2.text, $4.text);
+      { data_type_t*dtype = make_class_scoped_typeref(@2, @4, $2.type, $4.text);
 	if (dtype) pform_make_statement_var(@2, $5, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $2.text;
@@ -21306,7 +21175,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
   | TYPE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { data_type_t*dtype = make_class_scoped_typeref(@1, @3, $1.text, $3.text);
+      { data_type_t*dtype = make_class_scoped_typeref(@1, @3, $1.type, $3.text);
 	if (dtype) pform_make_statement_var(@1, $4, dtype, nullptr, false);
 	delete[] $1.text;
 	delete[] $3.text;
@@ -21315,8 +21184,7 @@ statement_item /* This is roughly statement_item in the LRM */
   | variable_lifetime_opt IDENTIFIER list_of_variable_decl_assignments ';'
       { typedef_t*type = pform_test_type_identifier(@2, $2);
 	if (type) {
-	      typeref_t*dtype = new typeref_t(type);
-	      FILE_NAME(dtype, @2);
+	      typeref_t*dtype = pform_make_type_reference(@2, type);
 	      pform_make_statement_var(@2, $3, dtype, nullptr, false);
 	} else {
 	      yyerror(@2, "error: %s doesn't name a type.", $2);
@@ -21328,8 +21196,7 @@ statement_item /* This is roughly statement_item in the LRM */
   | IDENTIFIER list_of_variable_decl_assignments ';'
       { typedef_t*type = pform_test_type_identifier(@1, $1);
 	if (type) {
-	      typeref_t*dtype = new typeref_t(type);
-	      FILE_NAME(dtype, @1);
+	      typeref_t*dtype = pform_make_type_reference(@1, type);
 	      pform_make_statement_var(@1, $2, dtype, nullptr, false);
 	} else {
 	      yyerror(@1, "error: %s doesn't name a type.", $1);
@@ -21344,8 +21211,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
   | variable_lifetime_opt IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($4.type);
-	FILE_NAME(dtype, @4);
+      { typeref_t*dtype = pform_make_type_reference(@4, $4.type);
 	pform_make_statement_var(@4, $5, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $2;
@@ -21353,8 +21219,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
   | IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($3.type);
-	FILE_NAME(dtype, @3);
+      { typeref_t*dtype = pform_make_type_reference(@3, $3.type);
 	pform_make_statement_var(@3, $4, dtype, nullptr, false);
 	delete[] $1;
 	delete[] $3.text;
@@ -21369,8 +21234,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	}
 	lex_in_package_scope(0);
 	if (type) {
-	      typeref_t*dtype = new typeref_t(type, $1);
-	      FILE_NAME(dtype, @2);
+	      typeref_t*dtype = pform_make_type_reference(@2, type, $1);
 	      pform_make_statement_var(@2, $3, dtype, nullptr, false);
 	}
 	delete[] $2;
@@ -21378,8 +21242,7 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | package_scope TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
       { lex_in_package_scope(0);
-	typeref_t*dtype = new typeref_t($2.type, $1);
-	FILE_NAME(dtype, @2);
+	typeref_t*dtype = pform_make_type_reference(@2, $2.type, $1);
 	pform_make_statement_var(@2, $3, dtype, nullptr, false);
 	delete[] $2.text;
 	$$ = nullptr;
@@ -21391,8 +21254,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	      type = pform_test_type_identifier(@3, $3);
 	}
 	if (type) {
-	      typeref_t*dtype = new typeref_t(type, $1);
-	      FILE_NAME(dtype, @3);
+	      typeref_t*dtype = pform_make_type_reference(@3, type, $1);
 	      pform_make_statement_var(@3, $4, dtype, nullptr, false);
 	}
 	delete[] $3;
@@ -21408,8 +21270,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	      type = pform_test_type_identifier(@4, $4);
 	}
 	if (type) {
-	      typeref_t*dtype = new typeref_t(type, $2);
-	      FILE_NAME(dtype, @4);
+	      typeref_t*dtype = pform_make_type_reference(@4, type, $2);
 	      pform_make_statement_var(@4, $5, dtype, nullptr, false);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -21417,16 +21278,14 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = nullptr;
       }
   | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($4.type, $2);
-	FILE_NAME(dtype, @4);
+      { typeref_t*dtype = pform_make_type_reference(@4, $4.type, $2);
 	pform_make_statement_var(@4, $5, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $4.text;
 	$$ = nullptr;
       }
   | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($3.type, $1);
-	FILE_NAME(dtype, @3);
+      { typeref_t*dtype = pform_make_type_reference(@3, $3.type, $1);
 	pform_make_statement_var(@3, $4, dtype, nullptr, false);
 	delete[] $3.text;
 	$$ = nullptr;
@@ -21438,8 +21297,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	      type = pform_test_type_identifier(@4, $4);
 	}
 	if (type) {
-	      typeref_t*dtype = new typeref_t(type, $2, $5);
-	      FILE_NAME(dtype, @4);
+	      typeref_t*dtype = pform_make_type_reference(@4, type, $2, $5);
 	      pform_make_statement_var(@4, $6, dtype, nullptr, false);
 	}
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
@@ -21453,24 +21311,21 @@ statement_item /* This is roughly statement_item in the LRM */
 	      type = pform_test_type_identifier(@3, $3);
 	}
 	if (type) {
-	      typeref_t*dtype = new typeref_t(type, $1, $4);
-	      FILE_NAME(dtype, @3);
+	      typeref_t*dtype = pform_make_type_reference(@3, type, $1, $4);
 	      pform_make_statement_var(@3, $5, dtype, nullptr, false);
 	}
 	delete[] $3;
 	$$ = nullptr;
       }
   | variable_lifetime_opt PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($4.type, $2, $5);
-	FILE_NAME(dtype, @4);
+      { typeref_t*dtype = pform_make_type_reference(@4, $4.type, $2, $5);
 	pform_make_statement_var(@4, $6, dtype, nullptr, false);
 	var_lifetime = LexicalScope::INHERITED; pform_set_var_lifetime(static_cast<ivl_lifetime_t>(var_lifetime));
 	delete[] $4.text;
 	$$ = nullptr;
       }
   | PACKAGE_IDENTIFIER K_SCOPE_RES TYPE_IDENTIFIER type_parameter_value list_of_variable_decl_assignments ';'
-      { typeref_t*dtype = new typeref_t($3.type, $1, $4);
-	FILE_NAME(dtype, @3);
+      { typeref_t*dtype = pform_make_type_reference(@3, $3.type, $1, $4);
 	pform_make_statement_var(@3, $5, dtype, nullptr, false);
 	delete[] $3.text;
 	$$ = nullptr;

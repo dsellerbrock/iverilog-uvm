@@ -87,6 +87,10 @@ ruled). A provisional reading an agent built on before a ruling is marked "provi
 | 2026-11-18 | 21.3.3, 6.16 | #3428 | How are zero bytes read in an unpacked byte-array format? | Leading zero bytes are omitted and later ones become spaces before the format is parsed, as for packed formats. | owner |
 | 2026-11-18 | 4.9.5, 28.8, 6.6.7 | #3074 | Does `-g2017` use joint resolution for an enabled switch between nets of one user-defined nettype? | Yes, in every language mode. | owner |
 | 2026-11-18 | 37.47 (2023 37.49), 39.3.2 | #3092 | What source range does an assertion handle report? | One-based columns, from the first character including any label through the final semicolon. Macro-expanded input uses parser positions with the existing logical file and line mapping. | owner |
+| 2026-11-18 | 39.5.2, 39.4.2, 16.14.6 | #3592 | Which attempts does `vpiAssertionKill` discard when two live attempts share a start time? | Every matching attempt; the call returns 1. | owner |
+| 2026-11-18 | 3.13, 33.2.1, 33.3.3, 33.4 | #3420 | May two libraries each declare a package with the same name in one compile? | No. Package names are unique across one compiler invocation. Same-named UDPs in different libraries remain distinct cells. | owner |
+| 2026-11-18 | 33.4, 33.4.1.5, 23.3.3.4, 25.9, 23.11 | #3421 | Which library's definition does a named interface type use under a configuration? | The declaring scope's effective configuration, with the same rules as an instance there. A `bind` directive's mapping selects the target scope in both editions. | owner |
+| 2026-11-18 | 14.3, 37.46 (2023 37.48), Annex M.2 | #3583 | What do `vpiInputEdge` and `vpiOutputEdge` return for an explicit `edge` skew? | `vpiAnyEdge` (Annex K.2), as a project extension to Annex M.2. | owner |
 
 ## Process rulings
 

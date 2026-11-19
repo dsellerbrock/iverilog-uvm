@@ -715,6 +715,9 @@ PEIdent* PEIdent::clone_for_reference() const
       res->leading_type_args_ = leading_type_args_;
       res->owns_leading_type_args_ = false;
       res->scoped_type_prefix_ = scoped_type_prefix_;
+      res->scoped_type_binding_ = scoped_type_binding_;
+      res->unit_type_use_package_ = unit_type_use_package_;
+      res->unit_type_use_reported_ = unit_type_use_reported_;
       res->dotted_suffix_ = dotted_suffix_;
       res->clocking_access_ = clocking_access_;
       res->modport_expression_access_ = modport_expression_access_;

@@ -7181,3 +7181,28 @@ issue3787_2017 normal,-g2017,-s,issue3787 ivltests gold=issue3787.gold
 issue3787_2023 normal,-g2023,-s,issue3787 ivltests gold=issue3787.gold
 issue3787_bad_2017 CE,-g2017,-s,issue3787_bad ivltests gold=issue3787_bad.gold
 issue3787_bad_2023 CE,-g2023,-s,issue3787_bad ivltests gold=issue3787_bad.gold
+issue1166_program_completion_2017 normal,-g2017,-s,issue1166_program_completion ivltests gold=issue1166_program_completion.gold
+issue1166_program_completion_2023 normal,-g2023,-s,issue1166_program_completion ivltests gold=issue1166_program_completion.gold
+
+# IEEE 1800-2017/2023 26.2: package calls to compilation-unit subroutines.
+issue3769_ce_2017 CE,-g2017,-Iivltests,-s,test ivltests gold=issue3769_ce-iverilog-stderr.gold
+issue3769_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3769_unsafe.gold
+issue3769_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests gold=issue3769_legal-vvp-stdout.gold
+issue3769_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3769_ce-iverilog-stderr.gold
+issue3769_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3769_unsafe.gold
+issue3769_legal_2023 normal,-g2023,-Iivltests,-s,test ivltests gold=issue3769_legal-vvp-stdout.gold
+
+# IEEE 1800-2017/2023 16.13.2: grouped multiclock property operands.
+issue3767_reopened_2017 normal,-g2017,-gassertions,-s,tb ivltests gold=issue3767_reopened.gold
+issue3767_multiclock_2017 normal,-g2017,-gassertions,-s,issue3767_multiclock ivltests
+issue3767_leading_clock_fail_2017 CE,-g2017,-gassertions,-s,issue3767_leading_clock_fail ivltests gold=issue3767_leading_clock_fail.gold
+issue3767_reopened_2023 normal,-g2023,-gassertions,-s,tb ivltests gold=issue3767_reopened.gold
+issue3767_multiclock_2023 normal,-g2023,-gassertions,-s,issue3767_multiclock ivltests
+issue3767_leading_clock_fail_2023 CE,-g2023,-gassertions,-s,issue3767_leading_clock_fail ivltests gold=issue3767_leading_clock_fail.gold
+
+# IEEE 1800-2017/2023 26.2: package references to compilation-unit types.
+issue3770_ce_2017 CE,-g2017,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
+issue3770_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold
+issue3770_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
+issue3770_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
+issue3770_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold

@@ -1,0 +1,7 @@
+ivltests/issue3769_calls.v:34: warning: Package `caller' calls compilation-unit subroutine `unit_task' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:35: warning: Package `caller' calls compilation-unit subroutine `unit_void' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:36: warning: Package `caller' calls compilation-unit subroutine `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:38: warning: Package `caller' calls compilation-unit subroutine `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:40: warning: Package `caller' calls compilation-unit subroutine `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:47: warning: Package `caller' calls compilation-unit subroutine `unit_quick' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:48: warning: Package `caller' calls compilation-unit subroutine `unit_void' (IEEE 1800-2017/2023 26.2).

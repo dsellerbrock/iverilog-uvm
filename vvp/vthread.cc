@@ -936,13 +936,11 @@ struct vthread_s {
 	   short, so such a thread is exempt from the of_VPI_CALL freeze
 	   until it suspends again on an event or a delay. */
       unsigned in_region_drain :1;
-	/* M6B: a program-block INITIAL procedure (IEEE 1800-2017 24.7).
-	   Counted at creation; when the last one completes, simulation
-	   implicitly finishes. */
+	/* A program-block initial procedure, counted at creation for §24.3. */
       unsigned is_program_init :1;
 	/* Program instance whose initial procedure this thread descends from.
-	   This survives detach/reparent so $exit can still identify the owning
-	   program after the originating initial thread has ended. */
+	   This survives detachment so the program can still terminate the
+	   thread after the originating initial procedure has ended. */
 	__vpiScope* program_scope;
 	// process::suspend()/resume() (IEEE 1800-2017 9.7.2). `suspended`
 	// marks the process as suspended; a suspended thread is skipped by
@@ -2202,9 +2200,7 @@ static string filter_string(const char*text)
 }
 
 static bool do_disable(vthread_t thr, vthread_t match);
-static void program_thread_add_(vthread_t thr);
 static void program_thread_remove_(vthread_t thr);
-static void program_init_completed_(void);
 static void do_join(vthread_t thr, vthread_t child);
 
 /* Trampolined-call state (M6 item 5, increment 2).  Declared here so the
@@ -13189,9 +13185,8 @@ static void vthread_reap(vthread_t thr)
 
 	// Remove myself from the containing scope if needed.
       thr->parent_scope->threads.erase(thr);
-	  program_thread_remove_(thr);
-
       thr->pc = codespace_null();
+      program_thread_remove_(thr);
 
 	/* If this thread is not scheduled, then is it safe to delete
 	   it now. Otherwise, let the schedule event (which will
@@ -13617,66 +13612,60 @@ void vthread_mark_clocking_sync(vthread_t thr)
 	    thr->is_reactive_process = 0;
 }
 
-/*
- * M6B: program-completion tracking (IEEE 1800-2017 24.7 / 3.9). A
- * program completes when all of its INITIAL procedures complete; when
- * all programs in the design have completed, $finish is implicitly
- * invoked. We count program-initial threads (marked $prog at compile
- * time — only run-once initial blocks, NOT the program's concurrent
- * assertions or clocking, which never end and must not keep the sim
- * alive). When the count returns to zero after having been non-zero,
- * the simulation finishes.
- */
-static unsigned program_init_active = 0;
-static bool     program_init_seen   = false;
-static std::map<__vpiScope*, set<vthread_t> > program_threads;
+/* IEEE 1800 §24.3: each program terminates its remaining descendants
+ * when its last initial procedure ends. The last program to finish
+ * that cleanup triggers an implicit $finish. */
+struct program_state_s {
+      set<vthread_t> threads;
+      unsigned active_initials = 0;
+      bool exiting = false;
+};
 
-static __vpiScope* program_scope_for_(vthread_t thr)
+static std::map<__vpiScope*, program_state_s> programs;
+static void program_exit_(__vpiScope*scope);
+
+static __vpiScope* program_origin_(vthread_t thr)
 {
-      if (thr->program_scope) return thr->program_scope;
-      for (__vpiScope*scope = thr->parent_scope; scope; scope = scope->scope) {
-	    if (scope->get_type_code() == vpiProgram)
-		  return scope;
+      // Subroutine frames can sit between a fork and its originating thread.
+      for (; thr; thr = thr->parent) {
+	    if (thr->program_scope)
+		  return thr->program_scope;
       }
       return 0;
 }
 
-static void program_thread_add_(vthread_t thr)
-{
-      if (!thr) return;
-      if (!thr->program_scope)
-	    thr->program_scope = program_scope_for_(thr);
-      if (thr->program_scope)
-	    program_threads[thr->program_scope].insert(thr);
-}
-
 static void program_thread_remove_(vthread_t thr)
 {
-      if (!thr || !thr->program_scope) return;
-      std::map<__vpiScope*, set<vthread_t> >::iterator cur =
-	    program_threads.find(thr->program_scope);
-      if (cur == program_threads.end()) return;
-      cur->second.erase(thr);
-      if (cur->second.empty()) program_threads.erase(cur);
+      __vpiScope*scope = thr->program_scope;
+      if (!scope) return;
+
+      auto entry = programs.find(scope);
+      assert(entry != programs.end());
+      auto& program = entry->second;
+      program.threads.erase(thr);
+      thr->program_scope = 0;
+
+      if (thr->is_program_init) {
+	    thr->is_program_init = 0;
+	    assert(program.active_initials > 0);
+	    if (--program.active_initials == 0 && !program.exiting)
+		  program_exit_(scope);
+      }
 }
 
 void vthread_mark_program_init(vthread_t thr)
 {
-      if (!thr) return;
-      thr->is_program_init = 1;
-      program_thread_add_(thr);
-      program_init_active += 1;
-      program_init_seen = true;
-}
+      __vpiScope*scope = thr->parent_scope;
+      while (scope && scope->get_type_code() != vpiProgram)
+	    scope = scope->scope;
+      // A $prog directive is only valid within a program scope.
+      if (!scope) return;
 
-static void program_init_completed_(void)
-{
-      if (program_init_active > 0)
-	    program_init_active -= 1;
-      if (program_init_active == 0 && program_init_seen
-	  && !schedule_finished()) {
-	    schedule_finish(0);
-      }
+      thr->is_program_init = 1;
+      thr->program_scope = scope;
+      auto& program = programs[scope];
+      program.threads.insert(thr);
+      program.active_initials += 1;
 }
 
 static inline bool schedule_assign_is_reactive_(vthread_t thr)
@@ -21241,10 +21230,6 @@ static bool do_disable(vthread_t thr, vthread_t match)
       thr->pc = codespace_null();
       thr->i_was_disabled = 1;
       thr->i_have_ended = 1;
-	  if (thr->is_program_init) {
-	    thr->is_program_init = 0;
-	    program_init_completed_();
-	  }
 
 	/* `disable fork' on a branch parked in mailbox.get()/semaphore.get()
 	   is the case this whole mechanism exists for. Unlink here rather
@@ -21524,30 +21509,34 @@ static bool disable_fork_detached_descendants_(vthread_t thr, vthread_t match)
  * program instance. Detached children can outlive and lose the parent
  * pointer to their initial procedure, so membership is tracked by the
  * originating program scope. */
-static void program_exit_(vthread_t thr)
+static void program_exit_(__vpiScope*scope)
 {
-      __vpiScope*scope = thr ? thr->program_scope : 0;
-      if (!scope) return;
-      std::map<__vpiScope*, set<vthread_t> >::iterator entry =
-	    program_threads.find(scope);
-      if (entry == program_threads.end()) return;
+      auto entry = programs.find(scope);
+      assert(entry != programs.end());
+      auto& program = entry->second;
+      if (program.exiting) return;
+      // An explicit $exit also reaps initial roots during this traversal.
+      program.exiting = true;
 
       std::vector<vthread_t> roots;
-      for (set<vthread_t>::const_iterator cur = entry->second.begin();
-	   cur != entry->second.end(); ++cur) {
-	    vthread_t parent = (*cur)->parent;
-	    if (!parent || !entry->second.count(parent)) roots.push_back(*cur);
+      for (vthread_t thread : program.threads) {
+	    if (!program.threads.count(thread->parent))
+		  roots.push_back(thread);
       }
 
-      for (std::vector<vthread_t>::const_iterator cur = roots.begin();
-	   cur != roots.end(); ++cur) {
-	    vthread_t root = *cur;
-	    entry = program_threads.find(scope);
-	    if (entry == program_threads.end() || !entry->second.count(root))
+      for (vthread_t root : roots) {
+	      // An earlier root may have reached this thread through a call frame.
+	    if (!program.threads.count(root))
 		  continue;
 	    disable_fork_detached_descendants_(root, 0);
 	    do_disable(root, 0);
       }
+
+      assert(program.active_initials == 0);
+      assert(program.threads.empty());
+      programs.erase(entry);
+      if (programs.empty() && !schedule_finished())
+	    schedule_finish(0);
 }
 
 /*
@@ -22009,13 +21998,6 @@ bool of_END(vthread_t thr, vvp_code_t)
 	    proc->mark_finished();
       thr->i_have_ended = 1;
       thr->pc = codespace_null();
-
-	/* M6B: a program initial procedure has completed; when the last
-	   one completes, the simulation finishes (IEEE 1800-2017 24.7). */
-      if (thr->is_program_init) {
-	    thr->is_program_init = 0;
-	    program_init_completed_();
-      }
 
 	/* Trampolined callf callee (M6 item 5, increment 2): its return
 	 * value/output args have already been poked into the caller's
@@ -23281,11 +23263,12 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
       trace_context_event_("fork", thr, child->parent_scope, child->wt_context);
 
       child->parent = thr;
-      if (thr->program_scope)
-	    child->program_scope = thr->program_scope;
-      else
-	    child->program_scope = program_scope_for_(thr);
-      program_thread_add_(child);
+      if (__vpiScope*scope = program_origin_(thr)) {
+	    auto entry = programs.find(scope);
+	    assert(entry != programs.end());
+	    entry->second.threads.insert(child);
+	    child->program_scope = scope;
+      }
       child->is_reactive_process |= thr->is_reactive_process;
 	/* Task calls compiled as %fork...%join should share the parent's
 	   logical process for process::self(), matching SV semantics where
@@ -39212,17 +39195,14 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
       if (thr && thr->is_observed_report_action)
 	    return of_END(thr, nullptr);
 
-      /* $exit is a program control task, not an alias for $finish.  The
-       * program initial procedure that calls it completes here; the
-       * program-completion counter finishes simulation only after the
-       * remaining program initial procedures have completed.  Calls from
-       * module processes (and other non-program processes) are ignored. */
+      /* $exit terminates the calling thread's originating program (§24.7). */
       const char*called_task = cp->handle
           ? vpi_get_str(vpiName, cp->handle) : nullptr;
-      if (called_task && strcmp(called_task, "$exit") == 0
-          && thr && thr->program_scope) {
-            program_exit_(thr);
-            return false;
+      if (called_task && strcmp(called_task, "$exit") == 0) {
+            if (__vpiScope*scope = program_origin_(thr)) {
+                  program_exit_(scope);
+                  return false;
+            }
       }
 
       if (trace) {

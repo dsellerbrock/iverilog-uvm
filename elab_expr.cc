@@ -4135,6 +4135,7 @@ ivl_type_t PEIdent::resolve_scoped_type_actual(Design*des, NetScope*scope) const
 
       const netclass_t*class_type = nullptr;
       bool first = true;
+      bool selected_unit_typedef = false;
       for (auto comp = path_.name.begin(); comp != path_.name.end(); ++comp) {
             auto next = comp;
             ++next;
@@ -4156,6 +4157,14 @@ ivl_type_t PEIdent::resolve_scoped_type_actual(Design*des, NetScope*scope) const
             }
             if (next == path_.name.end()) {
                   if (!member) return nullptr;
+                  // A type formal has now committed the scoped expression to
+                  // a type use. The qualification was captured in the parser,
+                  // before binding this actual in a specialization.
+                  if (selected_unit_typedef && !unit_type_use_reported_) {
+                        unit_type_use_reported_ = true;
+                        pform_report_package_unit_type(des, *this,
+                              unit_type_use_package_, scoped_type_binding_);
+                  }
                   ivl_type_t type = member->elaborate_type(des, owner);
                   return specialize_bare_class_at_concrete_use(
                         des, owner, member->get_data_type(), type, true);
@@ -4173,6 +4182,9 @@ ivl_type_t PEIdent::resolve_scoped_type_actual(Design*des, NetScope*scope) const
                   }
             }
             if (!class_type) return nullptr;
+            if (first && unit_type_use_package_)
+                  selected_unit_typedef =
+                        search_scope->find_typedef(des, comp->name) == scoped_type_binding_;
             if (first && leading_type_args()) {
                   class_type = elaborate_specialized_class_type(
                         des, scope, class_type, leading_type_args(), false);
@@ -20647,7 +20659,9 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*dscope,
 					 unsigned flags) const
 {
-	      if (!validate_program_subroutine_call(des, *this, scope, dscope))
+      check_package_unit_subroutine_call(des, *this, scope, dscope,
+					 package_unit_call_reported_);
+      if (!validate_program_subroutine_call(des, *this, scope, dscope))
 	    return nullptr;
 
       if (! check_call_matches_definition_(des, dscope))

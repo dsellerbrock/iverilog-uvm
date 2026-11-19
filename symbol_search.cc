@@ -129,6 +129,29 @@ void check_package_unit_value(Design*des, const LineInfo&loc,
 	    des->errors += 1;
 }
 
+void check_package_unit_subroutine_call(Design*des, const LineInfo&loc,
+					const NetScope*caller,
+					const NetScope*callee, bool&reported)
+{
+      const NetScope*declaration_scope = callee->parent();
+      if (reported || !declaration_scope || !declaration_scope->is_unit())
+	    return;
+
+      perm_string package = enclosing_package_name_(caller);
+      if (package.nil())
+	    return;
+
+      // IEEE 1800-2017/2023 26.2. Report once even if the source call is
+      // elaborated in several specializations. Keep the selected binding.
+      reported = true;
+      cerr << loc.get_fileline()
+	   << (gn_commercial_unsafe_flag ? ": warning: " : ": error: ")
+	   << "Package `" << package << "' calls compilation-unit subroutine `"
+	   << callee->basename() << "' (IEEE 1800-2017/2023 26.2)." << endl;
+      if (!gn_commercial_unsafe_flag)
+	    des->errors += 1;
+}
+
 /* find_typedef() and find_class() intentionally search out through lexical
  * parents.  That is useful for a type-name query, but it is too broad for the
  * per-scope fallback below: while resolving the first component of `a.m', a

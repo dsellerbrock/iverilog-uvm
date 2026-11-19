@@ -460,6 +460,7 @@ class PCallTask  : public Statement {
       struct parmvalue_t*leading_type_args_ = 0;
       bool scoped_type_prefix_ = false;
       bool void_cast_ = false;
+      mutable bool package_unit_call_reported_ = false;
       std::vector<PExpr*> with_constraints_;
       bool randomize_with_identifier_list_present_ = false;
       std::vector<perm_string> randomize_with_identifiers_;

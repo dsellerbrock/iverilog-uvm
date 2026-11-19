@@ -915,7 +915,12 @@ extern void pform_forward_typedef(const struct vlltype&loc, perm_string name,
 			      enum typedef_t::basic_type basic_type,
 			      bool explicit_typedef = false);
 
-extern void pform_set_type_referenced(const struct vlltype&loc, const char*name);
+extern typeref_t* pform_make_type_reference(const struct vlltype&loc,
+				typedef_t*type, PScope*scope = nullptr,
+				parmvalue_t*overrides = nullptr);
+extern const PPackage* pform_package_for_unit_typedef(const typedef_t*type);
+extern void pform_report_package_unit_type(Design*des, const LineInfo&loc,
+				const PPackage*package, const typedef_t*type);
 
 /* User-defined nettype registration and lookup. The declaration scope owns
  * returned descriptors; references and PWire objects borrow them. */
@@ -931,7 +936,8 @@ extern nettype_t* pform_test_nettype_identifier(
 extern nettype_t* pform_test_nettype_identifier(PPackage*pkg,
                                                 const char*name);
 extern void pform_set_nettype_referenced(const struct vlltype&loc,
-                                         const char*name);
+				const nettype_t*type,
+				const PPackage*package = nullptr);
 
 /*
  * This function makes a PECallFunction of the named function.

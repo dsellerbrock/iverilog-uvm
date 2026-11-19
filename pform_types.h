@@ -644,6 +644,8 @@ struct class_type_t : public data_type_t {
       void pform_dump(std::ostream&out, unsigned indent) const override;
       void pform_dump_init(std::ostream&out, unsigned indent) const;
 
+      PClass*declaration_scope = nullptr;
+
 	// This is the named type that is supposed to be the base
 	// class that we are extending. This is nil if there is no
 	// hierarchy. If there are arguments to the base class, then
