@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "issue3506_bad.sv",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "issue3506_bad"
+    ],
+    "gold": "issue3506_bad"
+}
