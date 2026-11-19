@@ -1,0 +1,5 @@
+ivltests/issue3771_qualifiers.v:19: error: Package `uses' refers to compilation-unit type `Alias' as a class qualifier (IEEE 1800-2017/2023 26.2).
+ivltests/issue3771_qualifiers.v:26: error: Package `uses' refers to compilation-unit type `UnitClass' as a class qualifier (IEEE 1800-2017/2023 26.2).
+ivltests/issue3771_qualifiers.v:22: error: Package `uses' refers to compilation-unit type `Alias' as a class qualifier (IEEE 1800-2017/2023 26.2).
+ivltests/issue3771_qualifiers.v:23: error: Package `uses' refers to compilation-unit type `UnitClass' as a class qualifier (IEEE 1800-2017/2023 26.2).
+4 error(s) during elaboration.

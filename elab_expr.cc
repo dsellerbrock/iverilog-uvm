@@ -3994,6 +3994,7 @@ enum scoped_class_name_kind_t {
 struct scoped_class_name_result_t {
       const netclass_t*class_type = nullptr;
       scoped_class_name_kind_t kind = SCOPED_CLASS_NAME_NONE;
+      const NetScope*owner = nullptr;
 };
 
 static const netclass_t* resolve_scoped_class_type_parameter_(Design*des,
@@ -4041,7 +4042,8 @@ static scoped_class_name_result_t resolve_scoped_class_type_name_(
 		  /* A derived class can inherit a type-parameter typedef from a
 		     specialized superclass.  Its concrete binding belongs to that
 		     superclass scope, not to the derived method's lexical parents. */
-		  NetScope*parameter_scope = scope->find_typedef_scope(des, td);
+		  NetScope*parameter_scope = scope->find_typedef_scope(des, td, false);
+		  result.owner = parameter_scope;
 		  result.class_type = resolve_scoped_class_type_parameter_(
 			des, parameter_scope ? parameter_scope : scope, name);
 		  result.kind = SCOPED_CLASS_NAME_TYPE_PARAMETER;
@@ -4054,10 +4056,12 @@ static scoped_class_name_result_t resolve_scoped_class_type_name_(
 	    if (const class_type_t*class_pf =
 		      dynamic_cast<const class_type_t*>(declared_type)) {
 		  if (class_pf->name == name) {
-			result.class_type = scope->find_class(des, name);
-			if (!result.class_type)
-			      result.class_type = ensure_visible_class_type(
-				    des, scope, name);
+			netclass_t*cls = scope->find_class(des, name);
+			if (!cls)
+			      cls = ensure_visible_class_type(des, scope, name);
+			result.class_type = cls;
+			if (cls)
+			      result.owner = cls->definition_scope();
 			result.kind = SCOPED_CLASS_NAME_DIRECT;
 			return result;
 		  }
@@ -4069,6 +4073,7 @@ static scoped_class_name_result_t resolve_scoped_class_type_name_(
 			des, scope, declared_type, alias_type, true);
 		  result.class_type = dynamic_cast<const netclass_t*>(alias_type);
 		  result.kind = SCOPED_CLASS_NAME_TYPEDEF;
+		  result.owner = scope->find_typedef_scope(des, td, false);
 		  return result;
 	    }
 
@@ -4086,11 +4091,14 @@ static scoped_class_name_result_t resolve_scoped_class_type_name_(
 
       /* Built-in classes and early/forward class declarations do not always
 	 have a usable pform typedef at this point.  They are direct names. */
-      result.class_type = scope->find_class(des, name);
-      if (!result.class_type)
-	    result.class_type = ensure_visible_class_type(des, scope, name);
-      if (result.class_type)
+      netclass_t*cls = scope->find_class(des, name);
+      if (!cls)
+	    cls = ensure_visible_class_type(des, scope, name);
+      if (cls) {
+	    result.class_type = cls;
 	    result.kind = SCOPED_CLASS_NAME_DIRECT;
+	    result.owner = cls->definition_scope();
+      }
 
       return result;
 }
@@ -4260,7 +4268,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 						   bool*illegal_bare_generic = 0,
 						   perm_string*nonclass_typedef = 0,
 						   bool declaration_probe = false,
-						   bool*illegal_nonstatic = 0)
+						   bool*illegal_nonstatic = 0,
+						   const NetScope**qualifier_owner = nullptr)
 {
       static int trace_class_method = -1;
       auto scope_text = [](const NetScope*use_scope) -> std::string {
@@ -4298,6 +4307,7 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
       }
 
       const netclass_t*class_type = nullptr;
+      const NetScope*first_owner = nullptr;
       bool first_comp = true;
       for (const auto&comp : type_path) {
 	    if (!comp.index.empty())
@@ -4330,6 +4340,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
             }
 	    if (!class_type)
 		  return nullptr;
+	    if (first_comp)
+		  first_owner = resolved.owner;
 	    if (first_comp && leading_type_args && !declaration_probe) {
 		  NetScope*spec_scope = scope;
 		  // Keep the current lexical scope so block-local typedefs used in
@@ -4391,6 +4403,8 @@ static NetScope* resolve_scoped_class_method_func_(Design*des, NetScope*scope,
 	    }
       }
 
+      if (qualifier_owner)
+	    *qualifier_owner = first_owner;
       return method_scope;
 }
 
@@ -16670,7 +16684,8 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 							   const NetExpr**parameter_value = 0,
 							   ivl_type_t*parameter_type = 0,
 							   NetScope**parameter_scope = 0,
-							   size_t*parameter_component = 0)
+							   size_t*parameter_component = 0,
+							   bool*unit_qualifier_reported = nullptr)
 {
       if (!gn_system_verilog())
 	    return nullptr;
@@ -16714,6 +16729,8 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
       const netclass_t*class_type = resolved.class_type;
       if (!class_type)
 	    return nullptr;
+      const NetScope*qualifier_owner = resolved.owner;
+      perm_string qualifier_name = comp_it->name;
 
 	// I5 (Phase 62m): when the path was parsed as
 	// `Class#(args)::var`, specialize the root before looking up the
@@ -16812,6 +16829,9 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
 			*parameter_scope = parameter_owner;
 		  if (parameter_component)
 			*parameter_component = component_index;
+		  if (use_value && unit_qualifier_reported)
+			check_package_unit_class_qualifier(des, *li, scope,
+			      qualifier_owner, qualifier_name, *unit_qualifier_reported);
 		  return nullptr;
 	    }
 
@@ -16863,6 +16883,9 @@ static NetExpr* resolve_scoped_class_static_property_expr_(Design*des,
       if (!qual.test_static())
 	    return nullptr;
 
+      if (unit_qualifier_reported)
+	    check_package_unit_class_qualifier(des, *li, scope,
+		  qualifier_owner, qualifier_name, *unit_qualifier_reported);
       if (prop_comp.index.empty())
 	    return class_static_property_expression(li, class_type, (size_t)pidx);
 
@@ -20024,12 +20047,13 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
       bool illegal_bare_generic = false;
       bool illegal_nonstatic = false;
       perm_string nonclass_typedef;
+      const NetScope*qualifier_owner = nullptr;
       bool scoped_type_call_candidate = path_.name.size() >= 2
 	    && (leading_type_args() || !search_flag || search_results.is_scope());
       if (scoped_type_call_candidate) {
 	    scoped_static_func = resolve_scoped_class_method_func_(
 		  des, scope, path_, leading_type_args(), &illegal_bare_generic,
-		  &nonclass_typedef, false, &illegal_nonstatic);
+		  &nonclass_typedef, false, &illegal_nonstatic, &qualifier_owner);
 	    if (illegal_nonstatic) {
 		  cerr << get_fileline() << ": error: Non-static method `"
 		       << peek_tail_name(path_) << "' requires an object receiver." << endl;
@@ -20064,6 +20088,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 			&& search_results.scope != scoped_static_func))) {
 		  trace_static_typecall_override_(
 			*this, path_, scope, scoped_static_func);
+		  check_package_unit_class_qualifier(des, *this, scope,
+			qualifier_owner, path_.name.front().name, package_unit_call_reported_);
 		  return elaborate_base_(des, scope, scoped_static_func, flags);
 	    }
       }
@@ -20092,6 +20118,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	  && (search_results.net || search_results.par_val || search_results.type)) {
 	    unsigned errors_before = des->errors;
 	    if (NetExpr*tmp = elaborate_expr_method_(des, scope, search_results)) {
+		  check_package_unit_class_qualifier(des, *this, scope, search_results,
+			package_unit_call_reported_);
 		  check_package_unit_value(des, *this, scope, search_results);
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
@@ -20106,8 +20134,11 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 
       // If the symbol is not found at all...
       if (!search_flag) {
-	    if (scoped_static_func)
+	    if (scoped_static_func) {
+		  check_package_unit_class_qualifier(des, *this, scope,
+			qualifier_owner, path_.name.front().name, package_unit_call_reported_);
 		  return elaborate_base_(des, scope, scoped_static_func, flags);
+	    }
 
 	      // For single-component function calls from within a class
 	      // method, walk the superclass chain to find inherited methods
@@ -20289,6 +20320,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  NetExpr*method_expr = elaborate_expr_method_(des, scope,
 						       search_results);
 		  if (method_expr) {
+		check_package_unit_class_qualifier(des, *this, scope, search_results,
+		      package_unit_call_reported_);
 		check_package_unit_value(des, *this, scope, search_results);
 			if (debug_elaborate) {
 			      cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
@@ -20449,6 +20482,8 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	    return 0;
       }
       NetScope*dscope = search_results.scope;
+      check_package_unit_class_qualifier(des, *this, scope, search_results,
+	    package_unit_call_reported_);
 
       // In SystemVerilog, a method calling another method in the current
       // class needs to be elaborated as a method with an implicit "this"
@@ -27314,7 +27349,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 		  des, scope, path_, this, leading_type_args(),
 		  &illegal_bare_generic, &nonclass_typedef,
 		  &parameter_found, &parameter_value, &parameter_type,
-		  &parameter_scope, &parameter_component);
+		  &parameter_scope, &parameter_component,
+		  quiet_bind_ ? nullptr : &package_unit_qualifier_reported_);
 	    if (!nonclass_typedef.nil()) {
 		  if (!bare_generic_scope_error_reported_) {
 			report_nonclass_typedef_class_scope_(
@@ -27349,8 +27385,12 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 	    }
       }
 
-      if (!quiet_bind_)
+      if (!quiet_bind_) {
+	    if (sr.net || sr.par_val || sr.eve)
+		  check_package_unit_class_qualifier(des, *this, scope, sr,
+			package_unit_qualifier_reported_);
 	    check_package_unit_value(des, *this, scope, sr);
+      }
       if (sr.par_val != 0) {
 	    if (!sr.path_tail.empty()) {
 		  return elaborate_expr_param_member_(des, scope, sr, flags);
@@ -28556,7 +28596,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 		  des, scope, path_, this, leading_type_args(),
 		  &illegal_bare_generic, &nonclass_typedef,
 		  &parameter_found, &parameter_value, &parameter_type,
-		  &parameter_scope, &parameter_component);
+		  &parameter_scope, &parameter_component,
+		  quiet_bind_ ? nullptr : &package_unit_qualifier_reported_);
 	    if (!nonclass_typedef.nil()) {
 		  if (!bare_generic_scope_error_reported_) {
 			report_nonclass_typedef_class_scope_(
@@ -28592,8 +28633,12 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	    }
       }
 
-      if (!quiet_bind_)
+      if (!quiet_bind_) {
+	    if (sr.net || sr.par_val || sr.eve)
+		  check_package_unit_class_qualifier(des, *this, scope, sr,
+			package_unit_qualifier_reported_);
 	    check_package_unit_value(des, *this, scope, sr);
+      }
       if (path_.size() > 1 && !scoped_class_parameter) {
 	      // Package parameters accessed via a self-package-scope reference
 	      // (pkg_b::Y inside pkg_b) may parse as a hierarchical path if the

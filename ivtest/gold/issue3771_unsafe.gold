@@ -1,0 +1,5 @@
+ivltests/issue3771_qualifiers.v:19: warning: Package `uses' refers to compilation-unit type `Alias' as a class qualifier (IEEE 1800-2017/2023 26.2).
+ivltests/issue3771_qualifiers.v:26: warning: Package `uses' refers to compilation-unit type `UnitClass' as a class qualifier (IEEE 1800-2017/2023 26.2).
+ivltests/issue3771_qualifiers.v:22: warning: Package `uses' refers to compilation-unit type `Alias' as a class qualifier (IEEE 1800-2017/2023 26.2).
+ivltests/issue3771_qualifiers.v:23: warning: Package `uses' refers to compilation-unit type `UnitClass' as a class qualifier (IEEE 1800-2017/2023 26.2).
+PASSED

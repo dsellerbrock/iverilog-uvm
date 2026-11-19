@@ -1425,7 +1425,8 @@ class NetScope : public Definitions, public Attrib {
         { return nettypes_by_name_; }
 
         /* Search the scope hierarchy for the scope where 'type' was defined. */
-      NetScope*find_typedef_scope(const Design*des, const typedef_t*type);
+      NetScope*find_typedef_scope(const Design*des, const typedef_t*type,
+				 bool allow_name_fallback = true);
       typedef_t*find_typedef(const Design*des, perm_string name);
 
 	/* Parameters exist within a scope, and these methods allow

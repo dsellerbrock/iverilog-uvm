@@ -109,6 +109,9 @@ struct symbol_search_results {
 	// Scope where symbol was located. This is set in all cases,
 	// assuming the search succeeded.
       NetScope*scope;
+	// Declaration of the first component when it was bound as a class
+	// qualifier. The member's scope and the concrete class can be elsewhere.
+      const NetScope*class_qualifier_owner = nullptr;
 	// If this was a net, the signal itself.
       NetNet*net;
 	// If this was a parameter, the value expression and the
@@ -178,6 +181,15 @@ extern void check_package_unit_value(Design*des, const LineInfo&loc,
 extern void check_package_unit_subroutine_call(Design*des, const LineInfo&loc,
 					       const NetScope*caller,
 					       const NetScope*callee,
+					       bool&reported);
+
+extern void check_package_unit_class_qualifier(Design*des, const LineInfo&loc,
+					       const NetScope*use_scope,
+					       const NetScope*owner,
+					       perm_string name, bool&reported);
+extern void check_package_unit_class_qualifier(Design*des, const LineInfo&loc,
+					       const NetScope*use_scope,
+					       const symbol_search_results&binding,
 					       bool&reported);
 
 /*

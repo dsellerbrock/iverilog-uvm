@@ -842,6 +842,7 @@ class PEIdent : public PExpr {
       bool modport_expression_access_ = false;
       mutable bool bare_generic_scope_error_reported_ = false;
       mutable bool scoped_lvalue_error_reported_ = false;
+      mutable bool package_unit_qualifier_reported_ = false;
 
     private:
 	// Common functions to calculate parts of part/bit

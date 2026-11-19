@@ -1427,6 +1427,7 @@ enum scoped_class_name_kind_task_t {
 struct scoped_class_name_result_task_t {
       const netclass_t*class_type = nullptr;
       scoped_class_name_kind_task_t kind = SCOPED_CLASS_NAME_TASK_NONE;
+      const NetScope*owner = nullptr;
 };
 
 static const netclass_t* resolve_scoped_class_type_parameter_task_(
@@ -1470,7 +1471,8 @@ static scoped_class_name_result_task_t resolve_scoped_class_type_name_task_(
 		     corresponding type parameter in the scope that owns that typedef,
 		     which may be a specialized superclass rather than a lexical
 		     parent of the derived-class method doing the lookup. */
-		  NetScope*parameter_scope = scope->find_typedef_scope(des, td);
+		  NetScope*parameter_scope = scope->find_typedef_scope(des, td, false);
+		  result.owner = parameter_scope;
 		  result.class_type = resolve_scoped_class_type_parameter_task_(
 			des, parameter_scope ? parameter_scope : scope, name);
 		  result.kind = SCOPED_CLASS_NAME_TASK_TYPE_PARAMETER;
@@ -1480,10 +1482,12 @@ static scoped_class_name_result_task_t resolve_scoped_class_type_name_task_(
 	    if (const class_type_t*class_pf =
 		      dynamic_cast<const class_type_t*>(declared_type)) {
 		  if (class_pf->name == name) {
-			result.class_type = scope->find_class(des, name);
-			if (!result.class_type)
-			      result.class_type = ensure_visible_class_type(
-				    des, scope, name);
+			netclass_t*cls = scope->find_class(des, name);
+			if (!cls)
+			      cls = ensure_visible_class_type(des, scope, name);
+			result.class_type = cls;
+			if (cls)
+			      result.owner = cls->definition_scope();
 			result.kind = SCOPED_CLASS_NAME_TASK_DIRECT;
 			return result;
 		  }
@@ -1495,6 +1499,7 @@ static scoped_class_name_result_task_t resolve_scoped_class_type_name_task_(
 			des, scope, declared_type, alias_type, true);
 		  result.class_type = dynamic_cast<const netclass_t*>(alias_type);
 		  result.kind = SCOPED_CLASS_NAME_TASK_TYPEDEF;
+		  result.owner = scope->find_typedef_scope(des, td, false);
 		  return result;
 	    }
 
@@ -1507,11 +1512,14 @@ static scoped_class_name_result_task_t resolve_scoped_class_type_name_task_(
 	    }
       }
 
-      result.class_type = scope->find_class(des, name);
-      if (!result.class_type)
-	    result.class_type = ensure_visible_class_type(des, scope, name);
-      if (result.class_type)
+      netclass_t*cls = scope->find_class(des, name);
+      if (!cls)
+	    cls = ensure_visible_class_type(des, scope, name);
+      if (cls) {
+	    result.class_type = cls;
 	    result.kind = SCOPED_CLASS_NAME_TASK_DIRECT;
+	    result.owner = cls->definition_scope();
+      }
       return result;
 }
 
@@ -1566,6 +1574,7 @@ static void report_nonclass_typedef_class_scope_task_(
 }
 
 static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
+						   NetScope*search_scope,
 						   const pform_name_t&type_path,
 						   perm_string method_name,
 						   const parmvalue_t*leading_type_args = 0,
@@ -1573,7 +1582,8 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 						   perm_string*nonclass_typedef = 0,
 						   bool*deferred_type_parameter = 0,
 						   bool*illegal_nonstatic = 0,
-						   bool*use_implicit_this = 0)
+						   bool*use_implicit_this = 0,
+						   const NetScope**qualifier_owner = nullptr)
 {
       if (!gn_system_verilog())
 	    return nullptr;
@@ -1592,12 +1602,13 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 	    *use_implicit_this = false;
 
       const netclass_t*class_type = nullptr;
+      const NetScope*first_owner = nullptr;
       bool first_comp = true;
       for (const auto&comp : type_path) {
 	    if (!comp.index.empty())
 		  return nullptr;
 
-	    NetScope*comp_scope = scope;
+	    NetScope*comp_scope = search_scope;
 	    if (!first_comp) {
 		  if (!class_type || !class_type->class_scope())
 			return nullptr;
@@ -1623,11 +1634,12 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
                   class_type = ensure_visible_class_type(des, comp_scope, comp.name);
 	    if (!class_type)
 		  return nullptr;
+	    if (first_comp)
+		  first_owner = resolved.owner;
 	    if (first_comp && leading_type_args) {
-		  NetScope*spec_scope = comp_scope;
 		  // Keep the current lexical scope so block-local typedefs used in
 		  // type arguments remain visible during specialization.
-		  class_type = elaborate_specialized_class_type(des, spec_scope,
+		  class_type = elaborate_specialized_class_type(des, scope,
 						       class_type,
 						       leading_type_args,
 						       false);
@@ -1685,6 +1697,8 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 	    if (use_implicit_this) *use_implicit_this = true;
       }
 
+      if (qualifier_owner)
+	    *qualifier_owner = first_owner;
       return method_scope;
 }
 
@@ -20859,12 +20873,13 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    bool deferred_type_parameter = false;
 	    bool illegal_nonstatic = false;
 	    bool use_implicit_this = false;
+	    const NetScope*qualifier_owner = nullptr;
 	    NetScope*static_method = receiver_is_variable ? nullptr
 		  : resolve_scoped_class_method_task_(
-		  des, pscope, type_path, method_name, leading_type_args(),
+		  des, scope, pscope, type_path, method_name, leading_type_args(),
 		  &illegal_bare_generic, &nonclass_typedef,
 		  &deferred_type_parameter, &illegal_nonstatic,
-		  &use_implicit_this);
+		  &use_implicit_this, &qualifier_owner);
 	    if (deferred_type_parameter) {
 		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 		  noop->set_line(*this);
@@ -20890,6 +20905,8 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    }
 
 	    if (static_method) {
+		  check_package_unit_class_qualifier(des, *this, scope,
+			qualifier_owner, type_path.front().name, package_unit_call_reported_);
 		  if (use_implicit_this) {
 			NetNet*this_net = find_implicit_this_handle(des, scope);
 			ivl_assert(*this, this_net);
@@ -21793,8 +21810,11 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       symbol_search_results receiver;
       NetProc*proc = elaborate_named_receiver_method_(des, scope,
 						     add_this_flag, receiver);
-      if (proc && receiver.net)
+      if (proc && receiver.net) {
+	    check_package_unit_class_qualifier(des, *this, scope, receiver,
+		  package_unit_call_reported_);
 	    check_package_unit_value(des, *this, scope, receiver);
+      }
       return proc;
 }
 
@@ -21919,10 +21939,11 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 	    perm_string nonclass_typedef;
 	    bool illegal_nonstatic = false;
 	    bool use_implicit_this = false;
+	    const NetScope*qualifier_owner = nullptr;
 	    NetScope*static_method = resolve_scoped_class_method_task_(
-		  des, search_scope, use_path, method_name, leading_type_args(),
+		  des, scope, search_scope, use_path, method_name, leading_type_args(),
 		  &illegal_bare_generic, &nonclass_typedef, nullptr,
-		  &illegal_nonstatic, &use_implicit_this);
+		  &illegal_nonstatic, &use_implicit_this, &qualifier_owner);
 	    if (!nonclass_typedef.nil()) {
 		  report_nonclass_typedef_class_scope_task_(
 			des, this, nonclass_typedef);
@@ -21942,6 +21963,8 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 	    if (static_method) {
+		  check_package_unit_class_qualifier(des, *this, scope,
+			qualifier_owner, use_path.front().name, package_unit_call_reported_);
 		  NetExpr*this_expr = nullptr;
 		  if (use_implicit_this) {
 			NetNet*this_net = find_implicit_this_handle(des, scope);

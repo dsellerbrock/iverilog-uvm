@@ -7206,3 +7206,9 @@ issue3770_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivlte
 issue3770_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
 issue3770_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
 issue3770_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold
+issue3771_ce_2017 CE,-g2017,-Iivltests,-s,top ivltests gold=issue3771_ce-iverilog-stderr.gold
+issue3771_unsafe_2017 normal,-g2017,-Iivltests,-s,top,-gcommercial-unsafe ivltests gold=issue3771_unsafe.gold
+issue3771_legal_2017 normal,-g2017,-Iivltests,-s,top ivltests gold=issue3771_legal-vvp-stdout.gold
+issue3771_ce_2023 CE,-g2023,-Iivltests,-s,top ivltests gold=issue3771_ce-iverilog-stderr.gold
+issue3771_unsafe_2023 normal,-g2023,-Iivltests,-s,top,-gcommercial-unsafe ivltests gold=issue3771_unsafe.gold
+issue3771_legal_2023 normal,-g2023,-Iivltests,-s,top ivltests gold=issue3771_legal-vvp-stdout.gold

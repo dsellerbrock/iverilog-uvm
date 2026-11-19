@@ -385,7 +385,8 @@ size_t NetScope::release_signal_connectivity()
       return released;
 }
 
-NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
+NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type,
+				    bool allow_name_fallback)
 {
       ivl_assert(*this, type);
 
@@ -476,6 +477,8 @@ NetScope*NetScope::find_typedef_scope(const Design*des, const typedef_t*type)
 
       // Some SV paths synthesize equivalent typedef_t wrappers (not pointer
       // identical to the scope entry). Fall back to the nearest visible name.
+      if (!allow_name_fallback)
+	    return nullptr;
       cur_scope = this;
       followed_imports.clear();
       while (cur_scope) {
