@@ -68,7 +68,8 @@ static uint64_t vpi_stmt_id_(ivl_statement_t stmt)
 }
 
 static int vpi_statement_visible_(ivl_statement_t stmt);
-static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent);
+static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
+			       ivl_scope_t owner, ivl_scope_t scope);
 
 static int pure_comb_expr_(ivl_expr_t expr)
 {
@@ -9299,7 +9300,7 @@ int draw_process(ivl_process_t net, void*x)
 	/* Keep statement handles and their execution points as side metadata.
 	   The .stmt_at directives below do not add instructions to the thread. */
 	  reset_vpi_stmt_ids_();
-      emit_vpi_stmt_tree_(stmt, 0);
+      emit_vpi_stmt_tree_(stmt, 0, scope, scope);
 
       if (ivl_process_type(net) == IVL_PR_ALWAYS_COMB
 	  && !ivl_scope_is_auto(scope)
@@ -9545,7 +9546,25 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       return id;
 }
 
-static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
+static void emit_vpi_while_condition_(ivl_statement_t stmt, uint64_t id,
+				    ivl_scope_t owner, ivl_scope_t scope)
+{
+      char*text;
+	/* Statement nodes belong to the task or process. The expression
+	   thunk uses the while's own lexical scope. */
+      if (scope != owner)
+	    fprintf(vvp_out, "    .scope S_%p;\n", scope);
+      text = draw_vpi_stmt_condition(ivl_stmt_cond_expr(stmt));
+      if (text) {
+	    fprintf(vvp_out, "    .vpi_3041_condition %" PRIu64 ", %s;\n", id, text);
+	    free(text);
+      }
+      if (scope != owner)
+	    fprintf(vvp_out, "    .scope S_%p;\n", owner);
+}
+
+static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
+			       ivl_scope_t owner, ivl_scope_t scope)
 {
       uint64_t id;
       unsigned idx, count = 0;
@@ -9558,13 +9577,15 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
           case IVL_ST_FORK:
           case IVL_ST_FORK_JOIN_ANY:
           case IVL_ST_FORK_JOIN_NONE:
+            if (ivl_stmt_block_scope(stmt))
+                  scope = ivl_stmt_block_scope(stmt);
             count = ivl_stmt_block_count(stmt);
             for (idx = 0; idx < count; idx += 1)
-                  emit_vpi_stmt_tree_(ivl_stmt_block_stmt(stmt, idx), id);
+                  emit_vpi_stmt_tree_(ivl_stmt_block_stmt(stmt, idx), id, owner, scope);
             break;
           case IVL_ST_CONDIT:
-            emit_vpi_stmt_tree_(ivl_stmt_cond_true(stmt), id);
-            emit_vpi_stmt_tree_(ivl_stmt_cond_false(stmt), id);
+            emit_vpi_stmt_tree_(ivl_stmt_cond_true(stmt), id, owner, scope);
+            emit_vpi_stmt_tree_(ivl_stmt_cond_false(stmt), id, owner, scope);
             break;
           case IVL_ST_CASE:
           case IVL_ST_CASER:
@@ -9572,7 +9593,12 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
           case IVL_ST_CASEZ:
             count = ivl_stmt_case_count(stmt);
             for (idx = 0; idx < count; idx += 1)
-                  emit_vpi_stmt_tree_(ivl_stmt_case_stmt(stmt, idx), id);
+                  emit_vpi_stmt_tree_(ivl_stmt_case_stmt(stmt, idx), id, owner, scope);
+            break;
+          case IVL_ST_WHILE:
+            if (vpi_stmt_conditions_flag)
+                  emit_vpi_while_condition_(stmt, id, owner, scope);
+            emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id, owner, scope);
             break;
           case IVL_ST_DELAY:
           case IVL_ST_DELAYX:
@@ -9582,24 +9608,23 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
           case IVL_ST_WAIT_OBJ:
           case IVL_ST_WAIT_ARR:
           case IVL_ST_DO_WHILE:
-          case IVL_ST_WHILE:
-            emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id);
+            emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id, owner, scope);
             break;
           case IVL_ST_WAIT_ORDER:
-            emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id);
-            emit_vpi_stmt_tree_(ivl_stmt_wait_order_fail_stmt(stmt), id);
+            emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id, owner, scope);
+            emit_vpi_stmt_tree_(ivl_stmt_wait_order_fail_stmt(stmt), id, owner, scope);
             break;
           case IVL_ST_FORLOOP:
-            emit_vpi_stmt_tree_(ivl_stmt_init_stmt(stmt), id);
-            emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id);
-            emit_vpi_stmt_tree_(ivl_stmt_step_stmt(stmt), id);
+            emit_vpi_stmt_tree_(ivl_stmt_init_stmt(stmt), id, owner, scope);
+            emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id, owner, scope);
+            emit_vpi_stmt_tree_(ivl_stmt_step_stmt(stmt), id, owner, scope);
             break;
           default:
             break;
       }
 }
 
-static void emit_vpi_task_stmt_tree_(ivl_statement_t def)
+static void emit_vpi_task_stmt_tree_(ivl_statement_t def, ivl_scope_t owner)
 {
       unsigned count = 0, idx;
       ivl_statement_t only_stmt = 0;
@@ -9617,14 +9642,15 @@ static void emit_vpi_task_stmt_tree_(ivl_statement_t def)
 		  return;
             }
 	    if (count == 1) {
+		  ivl_scope_t scope = ivl_stmt_block_scope(def);
                   /* Preserve the established vpiStmt root while retaining
 		     an execution handle for the enclosing block. */
 		  emit_vpi_stmt_node_(def, UINT64_MAX);
-		  emit_vpi_stmt_tree_(only_stmt, 0);
+		  emit_vpi_stmt_tree_(only_stmt, 0, owner, scope ? scope : owner);
 		  return;
 	    }
       }
-      emit_vpi_stmt_tree_(def, 0);
+      emit_vpi_stmt_tree_(def, 0, owner, owner);
 }
 
 void draw_stmt_callback_entry(ivl_statement_t stmt)
@@ -9664,7 +9690,7 @@ int draw_task_definition(ivl_scope_t scope)
 	 * relation. The root uses parent id zero; child records follow it in
 	 * preorder so the runtime can build stable parent/child handles. */
       {
-	    emit_vpi_task_stmt_tree_(def);
+	    emit_vpi_task_stmt_tree_(def, scope);
       }
       label = strdup(vvp_mangle_id(ivl_scope_name(scope)));
       assert(label);
@@ -10210,7 +10236,7 @@ int draw_func_definition(ivl_scope_t scope)
 	    return 0;
 
 	/* Functions use the same source statement relation as tasks. */
-      emit_vpi_task_stmt_tree_(def);
+      emit_vpi_task_stmt_tree_(def, scope);
       label = strdup(vvp_mangle_id(ivl_scope_name(scope)));
       assert(label);
 

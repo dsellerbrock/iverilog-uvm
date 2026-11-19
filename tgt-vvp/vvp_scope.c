@@ -4480,11 +4480,11 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       draw_vpi_objects_in_scope(net);
 
-	/* A system-task call records the current scope when vvp reads its
-	   instruction. Emit a task's nested scopes before its body so a .scope
-	   recall in that body can resolve to the named block instead of
-	   retaining the enclosing task scope. */
-      if (ivl_scope_type(net) == IVL_SCT_TASK) {
+	/* A system-task call or VPI expression records the current scope
+	   when vvp reads it. Declare nested scopes before the body that
+	   recalls them. */
+      if (ivl_scope_type(net) == IVL_SCT_TASK
+	  || (vpi_stmt_conditions_flag && ivl_scope_type(net) == IVL_SCT_FUNCTION)) {
 	    ivl_scope_children(net, (ivl_scope_f*) draw_scope, net);
 	    fprintf(vvp_out, "    .scope S_%p;\n", net);
 	    child_scopes_drawn = 1;

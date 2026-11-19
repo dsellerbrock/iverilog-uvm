@@ -810,9 +810,12 @@ __inline__ static void draw_execute_header(ivl_design_t des)
             fprintf(vvp_out, ":ivl_systemverilog;\n");
 }
 
+int vpi_stmt_conditions_flag;
+
 __inline__ static void draw_module_declarations(ivl_design_t des)
 {
       const char*cp = ivl_design_flag(des, "VPI_MODULE_LIST");
+      vpi_stmt_conditions_flag = strcmp(ivl_design_flag(des, "ivl-user-vpi"), "1") == 0;
 
       while (*cp) {
 	    const char*comma = strchr(cp, ',');

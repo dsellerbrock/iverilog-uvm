@@ -758,6 +758,7 @@ void process_file_name(const char*name, int lib_flag)
 
       } else if (strlen(name) > 4 && strcasecmp(".vpi", name+strlen(name)-4) == 0) {
 	    fprintf(iconfig_file,"module:%s\n", name);
+	    fprintf(iconfig_file,"flag:ivl-user-vpi=1\n");
 
       } else {
 	    fprintf(source_file, "%s\n", name);
@@ -1077,6 +1078,7 @@ static void add_vpi_file(const char *name)
       }
       if (found) {
 	    fprintf(iconfig_file, "module:%s\n", path);
+	    fprintf(iconfig_file, "flag:ivl-user-vpi=1\n");
       } else {
 	    fprintf(stderr, "Unable to find VPI module '%s'\n", name);
       }
