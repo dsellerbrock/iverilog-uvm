@@ -92,7 +92,7 @@ class LexicalScope {
 	// Names pinned from a wildcard import that were GENUINELY
 	// referenced in this scope (a value use via
 	// check_potential_imports, or a type use via
-	// pform_set_type_referenced). The lexer's is-this-a-type probe
+	// pform_make_type_reference). The lexer's is-this-a-type probe
 	// pins names into explicit_imports purely as a resolution cache
 	// and does NOT mark them here. A local declaration of a pinned
 	// but unused name silently shadows the wildcard candidate

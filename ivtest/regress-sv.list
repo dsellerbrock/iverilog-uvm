@@ -7170,3 +7170,10 @@ issue819_net_2state_2017 normal,-g2017,-gno-xtypes,-s,issue2851_net_2state ivlte
 issue819_net_2state_2023 normal,-g2023,-gno-xtypes,-s,issue2851_net_2state ivltests gold=issue2851_net_2state-vvp-stdout.gold
 issue3835_2017 normal,-g2017,-s,issue3835 ivltests gold=issue3835.gold
 issue3835_2023 normal,-g2023,-s,issue3835 ivltests gold=issue3835.gold
+
+# IEEE 1800-2017/2023 26.2: package references to compilation-unit types.
+issue3770_ce_2017 CE,-g2017,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
+issue3770_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold
+issue3770_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
+issue3770_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
+issue3770_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold

@@ -362,6 +362,7 @@ void pform_start_class_declaration(const struct vlltype&loc,
 
       PClass*class_scope = pform_push_class_scope(loc, type->name);
       class_scope->type = type;
+      type->declaration_scope = class_scope;
       pform_enclosing_classes_.push_back(pform_cur_class);
       pform_cur_class = class_scope;
 

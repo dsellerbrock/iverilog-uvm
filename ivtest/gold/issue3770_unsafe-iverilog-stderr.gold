@@ -1,0 +1,9 @@
+ivltests/issue3770_types.v:15: warning: Package `p' refers to compilation-unit type `unit_word_t' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3770_types.v:16: warning: Package `p' refers to compilation-unit type `unit_word_t' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3770_types.v:17: warning: Package `p' refers to compilation-unit type `UnitClass' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3770_types.v:18: warning: Package `p' refers to compilation-unit type `UnitClass' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3770_types.v:19: warning: Package `p' refers to compilation-unit nettype `unit_net_t' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3770_types.v:20: warning: Package `p' refers to compilation-unit nettype `unit_net_t' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3770_types.v:22: warning: Package `p' refers to compilation-unit type `unit_word_t' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3770_types.v:25: warning: Package `p' refers to compilation-unit type `UnitClass' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3770_types.v:30: warning: Package `p' refers to compilation-unit type `UnitClass' (IEEE 1800-2017/2023 26.2).

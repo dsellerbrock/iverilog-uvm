@@ -23,6 +23,7 @@
 # include  "scope.h"
 # include  "LineInfo.h"
 # include  <iostream>
+# include  <vector>
 
 class Package : public Scope, public LineInfo {
 
@@ -40,11 +41,18 @@ class Package : public Scope, public LineInfo {
       void write_to_stream(std::ostream&fd) const;
 
       int emit_package(std::ostream&fd) const;
+      void emit_type_import(std::ostream&fd) const;
       int elaborate();
 
     private:
+      perm_string library_name() const;
+      std::string type_package_name() const;
+      std::vector<const Package*> type_dependencies() const;
+      int emit_type_package(std::ostream&fd) const;
+
       perm_string from_library_;
       perm_string name_;
+      mutable bool type_package_emitted_ = false;
 };
 
 #endif /* IVL_package_H */

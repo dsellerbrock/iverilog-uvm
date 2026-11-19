@@ -1612,10 +1612,77 @@ void pform_set_typedef(const struct vlltype&loc, perm_string name,
       }
 }
 
-void pform_set_type_referenced(const struct vlltype&loc, const char*name)
+/* IEEE 1800-2017/2023 26.2 applies at the source use, before class
+   specialization or type elaboration can change the lookup context. */
+template <typename Declaration, typename DeclMap>
+static const PPackage* package_for_unit_type(const Declaration*decl,
+					     perm_string name,
+					     DeclMap LexicalScope::*declarations)
 {
-      perm_string lex_name = lex_strings.make(name);
-      check_potential_imports(loc, lex_name, false);
+      const PPackage*package = nullptr;
+      const LexicalScope*unit = lexical_scope;
+      for (; unit->parent_scope(); unit = unit->parent_scope()) {
+	    if (!package)
+		  package = dynamic_cast<const PPackage*>(unit);
+      }
+      if (!package)
+	    return nullptr;
+
+      const DeclMap&items = unit->*declarations;
+      auto found = items.find(name);
+      return found != items.end() && found->second == decl ? package : nullptr;
+}
+
+template <typename Location>
+static void report_package_unit_type(const Location&loc, const PPackage*package,
+				     perm_string name, const char*kind)
+{
+      cerr << loc.get_fileline()
+	   << (gn_commercial_unsafe_flag ? ": warning: " : ": error: ")
+	   << "Package `" << package->pscope_name()
+	   << "' refers to compilation-unit " << kind << " `" << name
+	   << "' (IEEE 1800-2017/2023 26.2)." << endl;
+}
+
+static void check_package_unit_type(const struct vlltype&loc,
+				    const PPackage*package, perm_string name,
+				    const char*kind)
+{
+      if (!package)
+	    return;
+      report_package_unit_type(loc, package, name, kind);
+      if (gn_commercial_unsafe_flag)
+	    warn_count += 1;
+      else
+	    error_count += 1;
+}
+
+const PPackage* pform_package_for_unit_typedef(const typedef_t*type)
+{
+      return type ? package_for_unit_type(type, type->name, &LexicalScope::typedefs)
+		  : nullptr;
+}
+
+void pform_report_package_unit_type(Design*des, const LineInfo&loc,
+				    const PPackage*package, const typedef_t*type)
+{
+      report_package_unit_type(loc, package, type->name, "type");
+      if (!gn_commercial_unsafe_flag)
+	    des->errors += 1;
+}
+
+typeref_t* pform_make_type_reference(const struct vlltype&loc, typedef_t*type,
+				    PScope*scope, parmvalue_t*overrides)
+{
+      if (type) {
+	    if (!scope)
+		  check_potential_imports(loc, type->name, false);
+	    check_package_unit_type(loc, pform_package_for_unit_typedef(type),
+				    type->name, "type");
+      }
+      typeref_t*ref = new typeref_t(type, scope, overrides);
+      FILE_NAME(ref, loc);
+      return ref;
 }
 
 static nettype_t* pform_install_nettype_(const struct vlltype&loc,
@@ -1658,9 +1725,16 @@ nettype_t* pform_declare_nettype_alias(const struct vlltype&loc,
       return pform_install_nettype_(loc, name, new nettype_t(name, alias));
 }
 
-void pform_set_nettype_referenced(const struct vlltype&loc, const char*name)
+void pform_set_nettype_referenced(const struct vlltype&loc,
+				 const nettype_t*type, const PPackage*package)
 {
-      check_potential_imports(loc, lex_strings.make(name), false);
+      if (type) {
+	    if (!package)
+		  check_potential_imports(loc, type->name(), false);
+	    const PPackage*use_package = package_for_unit_type(
+		  type, type->name(), &LexicalScope::nettypes);
+	    check_package_unit_type(loc, use_package, type->name(), "nettype");
+      }
 }
 
 PClass* pform_find_visible_class_scope(LexicalScope*start, perm_string name)
@@ -1856,7 +1930,7 @@ static typedef_t* pform_find_potential_imported_type(const struct vlltype&loc,
 	      // forced add_local_symbol to drop wildcard pins
 	      // unconditionally and so lost the required error for
 	      // declare-after-use (sv_wildcard_import4). Genuine type USES
-	      // pin via pform_set_type_referenced ->
+	      // pin via pform_make_type_reference ->
 	      // check_potential_imports when a type reference reduces.
       }
 
@@ -4761,13 +4835,6 @@ void pform_make_modgates(const struct vlltype&loc,
 		  }
 
 		  if (declaration_like) {
-			  // This is a genuine use of the type name (a
-			  // variable declaration through the no-port
-			  // instantiation shape), so record the type
-			  // reference — this pins a wildcard-imported type
-			  // so a later local redeclaration of the name is
-			  // correctly rejected (sv_wildcard_import4).
-			pform_set_type_referenced(loc, type);
 			  // Preserve a parameterized-class specialization:
 			  // `box #(plain) b;` reaches here as a no-port
 			  // instantiation shape whose `#(...)` module-parameter
@@ -4778,8 +4845,8 @@ void pform_make_modgates(const struct vlltype&loc,
 			  // generic netclass (all type parameters at their
 			  // defaults) was bound, and type-parameter members kept
 			  // their default types.
-			typeref_t*dtype = new typeref_t(decl_type, 0, overrides);
-			FILE_NAME(dtype, loc);
+			typeref_t*dtype = pform_make_type_reference(
+			      loc, decl_type, nullptr, overrides);
 			pform_make_var(loc, decls, dtype, attr, false);
 			delete gates;
 			return;

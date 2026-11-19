@@ -20,11 +20,13 @@
 # include  "architec.h"
 # include  "entity.h"
 # include  "expression.h"
+# include  "package.h"
 # include  "sequential.h"
 # include  "subprogram.h"
 # include  "vsignal.h"
 # include  "std_types.h"
 # include  <iostream>
+# include  <set>
 # include  <typeinfo>
 # include  <ivl_assert.h>
 
@@ -63,6 +65,15 @@ int Architecture::emit(ostream&out, Entity*entity)
 	// of the full definition.
 
       typedef_context_t typedef_ctx;
+      set<const Package*> type_packages;
+      for (const auto&entry : use_types_) {
+	    auto*type = dynamic_cast<const VTypeDef*>(entry.second);
+	    if (type && type->declaring_package()) {
+		  if (type_packages.insert(type->declaring_package()).second)
+			type->declaring_package()->emit_type_import(out);
+		  typedef_ctx[type] = MARKED;
+	    }
+      }
       for (map<perm_string,const VType*>::iterator cur = use_types_.begin()
 		 ; cur != use_types_.end() ; ++cur) {
 	    if(is_global_type(cur->first))
