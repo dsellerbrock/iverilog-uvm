@@ -4548,8 +4548,6 @@ static void finalize_resolved_struct_nets_(Design*des)
 	    }
 	    NetProcTop*always = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
 	    always->set_line(*net);
-	    always->attribute(perm_string::literal("_ivl_function_background_ok"),
-			      verinum(1));
 	    des->add_process(always);
       }
       resolved_struct_nets_.clear();
@@ -4660,8 +4658,6 @@ static bool elaborate_unpacked_struct_variable_continuous_(
 
       NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
       top->set_line(*assignment);
-      top->attribute(perm_string::literal("_ivl_function_background_ok"),
-		     verinum(1));
 	if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
 	      if (event_wait->nevents() == 1) {
 		    NetEvent*event = event_wait->event(0);
@@ -4765,8 +4761,6 @@ static bool elaborate_unpacked_union_read_continuous_(
 
       NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
       top->set_line(*assignment);
-      top->attribute(perm_string::literal("_ivl_function_background_ok"),
-		     verinum(1));
       if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
 	    if (event_wait->nevents() == 1) {
 		  NetEvent*event = event_wait->event(0);

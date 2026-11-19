@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue432_struct_nba_ok_2017.v",
+  "iverilog-args": [
+    "-g2017"
+  ]
+}
