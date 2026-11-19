@@ -1434,6 +1434,18 @@ void pform_bind_attributes(map<perm_string,PExpr*>&attributes,
 	    delete attr;
 }
 
+static void pform_bind_attributes(map<perm_string,named_pexpr_t>&attributes,
+				  list<named_pexpr_t>*attr, bool keep_attrs)
+{
+      if (!attr)
+	    return;
+
+      for (const auto&spec : *attr)
+	    attributes[spec.name] = spec;
+      if (!keep_attrs)
+	    delete attr;
+}
+
 bool pform_in_program_block()
 {
       if (pform_cur_module.empty())
@@ -3353,9 +3365,11 @@ static void checker_free_finish_(Module*m)
 		  if (wire != m->wires.end()) {
 			PExpr*marker = new PENumber(new verinum(verinum::V1));
 			FILE_NAME(marker, v.loc);
+			named_pexpr_t attr;
+			attr.name = perm_string::literal("_ivl_active_free_checker_var");
+			attr.parm = marker;
 			if (!wire->second->attributes.emplace(
-				    perm_string::literal("_ivl_active_free_checker_var"),
-				    marker).second)
+				    attr.name, attr).second)
 			      delete marker;
 		  }
 	    }
@@ -7458,7 +7472,10 @@ PExpr* pform_genvar_compressed(const struct vlltype &loc, const char *name,
 void pform_set_attrib(perm_string name, perm_string key, char*value)
 {
       if (PWire*cur = lexical_scope->wires_find(name)) {
-	    cur->attributes[key] = new PEString(value);
+	    named_pexpr_t attr;
+	    attr.name = key;
+	    attr.parm = new PEString(value);
+	    cur->attributes[key] = attr;
 
       } else if (PGate*curg = pform_cur_module.front()->get_gate(name)) {
 	    curg->attributes[key] = new PEString(value);

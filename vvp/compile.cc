@@ -57,6 +57,7 @@
 unsigned compile_errors = 0;
 static std::vector<vvp_code_t> deferred_assertion_registrations;
 static std::vector<vvp_code_t> immediate_assertion_registrations;
+static uint64_t decl_attribute_file_count = 0;
 
 static void unresolved_warn_once(const char*kind, const char*label, const char*detail);
 
@@ -2138,6 +2139,11 @@ void compile_cleanup(void)
       }
       immediate_assertion_registrations.clear();
 
+      if (decl_attribute_file_count > file_names.size()) {
+	    fprintf(stderr, "vvp: invalid .attribute file index.\n");
+	    compile_errors += 1;
+      }
+
       if (verbose_flag) {
 	    fprintf(stderr, " ... Removing symbol tables\n");
 	    fflush(stderr);
@@ -3849,6 +3855,87 @@ void compile_param_assign_real(char*label, char*value)
       vpiHandle rhs = vpip_make_real_const(crstring_to_double(value));
       compile_param_assign(label, rhs);
       free(value);
+}
+
+static bool valid_attribute_string(const char*text)
+{
+      for (; *text; ++text) {
+	    if (*text != '\\')
+		  continue;
+	    if (text[1] < '0' || text[1] > '3'
+		|| text[2] < '0' || text[2] > '7'
+		|| text[3] < '0' || text[3] > '7')
+		  return false;
+	    text += 3;
+      }
+      return true;
+}
+
+static bool valid_attribute_real(const char*text)
+{
+      if (!crstring_test(text) || text[3] != 'm')
+	    return false;
+      const char*hex = "0123456789abcdef";
+      size_t mantissa = strspn(text + 4, hex);
+      if (mantissa == 0 || mantissa > 16 || text[4 + mantissa] != 'g')
+	    return false;
+      const char*exponent = text + 5 + mantissa;
+      size_t digits = strspn(exponent, hex);
+      return digits > 0 && digits <= 4 && exponent[digits] == '>'
+	    && strtoul(exponent, nullptr, 16) <= 0x7fff;
+}
+
+void compile_decl_attribute(char*label, char*name, uint64_t file_idx,
+			    uint64_t line, char*kind, bool is_signed,
+			    char*value)
+{
+      vpiHandle owner = vvp_lookup_handle(label);
+      auto*array = dynamic_cast<__vpiArray*>(owner);
+      bool variable = owner && ((owner->backing_net() && owner->get_type_code() != vpiNet)
+			       || (array && !array->nets));
+      int natural_format = vpiObjTypeVal;
+      vpiHandle constant = nullptr;
+      if (variable && *name && file_idx <= UINT_MAX && line <= INT_MAX) {
+	    if (!kind && valid_attribute_string(value)) {
+		  constant = vpip_make_string_const(value);
+		  value = nullptr; // The string constant owns the lexer allocation.
+	    } else if (kind && strcmp(kind, "real") == 0) {
+		  if (!is_signed && valid_attribute_real(value))
+			constant = vpip_make_real_const(crstring_to_double(value));
+	    } else if (kind && c4string_test(value)) {
+		  size_t width = strlen(value) - 4;
+		  if (strcmp(kind, "vector") == 0 && width > 0 && width <= INT_MAX)
+			natural_format = vpiVectorVal;
+		  else if (strcmp(kind, "scalar") == 0 && width == 1)
+			natural_format = vpiScalarVal;
+		  else if (strcmp(kind, "integer") == 0 && width > 0 && width <= 32)
+			natural_format = vpiIntVal;
+		  else if (strcmp(kind, "time") == 0 && width == 64)
+			natural_format = vpiTimeVal;
+
+		  if (natural_format != vpiObjTypeVal)
+			constant = vpip_make_binary_const(c4string_to_vector4(value),
+							  is_signed);
+	    }
+      }
+
+      if (constant) {
+	    if (file_idx + 1 > decl_attribute_file_count)
+		  decl_attribute_file_count = file_idx + 1;
+	    vpip_register_decl_attribute(owner, name, file_idx, line, constant,
+					 natural_format);
+      } else {
+	    yyerror("invalid .attribute metadata");
+	    compile_errors += 1;
+      }
+
+      free(label);
+      delete[] name;
+      if (kind)
+	    free(value);
+      else
+	    delete[] value;
+      free(kind);
 }
 
 void compile_island(char*label, char*type)

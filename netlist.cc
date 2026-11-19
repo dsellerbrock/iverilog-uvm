@@ -1579,6 +1579,18 @@ vector<NetBUFZ*>& NetNet::mutable_net_delay_boundaries()
       return ensure_target_emit_aux_()->net_delay_boundaries;
 }
 
+void NetNet::set_decl_attributes(vector<decl_attribute_t>&&attrs)
+{
+      if (!attrs.empty())
+	    ensure_target_emit_aux_()->decl_attributes = std::move(attrs);
+}
+
+const vector<NetNet::decl_attribute_t>& NetNet::decl_attributes() const
+{
+      static const vector<decl_attribute_t> empty;
+      return target_emit_aux_ ? target_emit_aux_->decl_attributes : empty;
+}
+
 void NetNet::release_emitted_signal_aux()
 {
       if (!target_emit_aux_)
@@ -1586,6 +1598,7 @@ void NetNet::release_emitted_signal_aux()
 
       vector<NetDelaySrc*>().swap(target_emit_aux_->delay_paths);
       vector<NetBUFZ*>().swap(target_emit_aux_->net_delay_boundaries);
+      vector<decl_attribute_t>().swap(target_emit_aux_->decl_attributes);
 
 	/* Interface properties and built-in unpacked-struct members can still be
 	 * resolved while later task/function definitions and processes are

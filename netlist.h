@@ -1181,6 +1181,14 @@ class NetNet  : public NetObj, public PortType {
       ivl_drive_t declared_charge_strength() const
       { return declared_charge_strength_; }
 
+      struct decl_attribute_t : LineInfo {
+	    perm_string name;
+	    std::unique_ptr<NetExpr> value;
+	    ivl_decl_attr_kind_t integral_kind = IVL_DECL_ATTR_VECTOR;
+      };
+      void set_decl_attributes(std::vector<decl_attribute_t>&&attrs);
+      const std::vector<decl_attribute_t>& decl_attributes() const;
+
 	/* Delay-path and declaration-delay indexes are consumed by the signal
 	 * callbacks. Release their storage after that second signal pass while
 	 * retaining interface bindings needed by later procedural lowering. */
@@ -1264,6 +1272,7 @@ class NetNet  : public NetObj, public PortType {
       struct target_emit_aux_t {
             std::vector<class NetDelaySrc*> delay_paths;
             std::vector<class NetBUFZ*> net_delay_boundaries;
+	    std::vector<decl_attribute_t> decl_attributes;
             std::vector<interface_binding_t> interface_bindings;
             std::map<std::pair<unsigned,size_t>,NetNet*>
                   interface_synthesis_members;

@@ -20,6 +20,7 @@
 
 # include  "version_base.h"
 # include  "vpi_priv.h"
+# include  "compile.h"
 # include  "vvp_island.h"
 # include  "schedule.h"
 # include  "logic.h"
@@ -40,6 +41,8 @@
 # include  <cmath>
 # include  <iostream>
 # include  <climits>
+# include  <memory>
+# include  <unordered_map>
 
 #ifndef vpiCoverageMerge
 # define vpiCoverageMerge 754
@@ -497,6 +500,7 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	  case vpiAssignment: return "vpiAssignment";
 	  case vpiContAssign: return "vpiContAssign";
 	  case vpiParamAssign: return "vpiParamAssign";
+	  case vpiAttribute: return "vpiAttribute";
 	  case vpiDeassign: return "vpiDeassign";
 	  case vpiDoWhile: return "vpiDoWhile";
 	  case vpiEventStmt: return "vpiEventStmt";
@@ -1861,6 +1865,86 @@ static vpiHandle vpi_iterate_global(int type)
       return 0;
 }
 
+class __vpiDeclAttribute : public __vpiHandle {
+    public:
+      __vpiDeclAttribute(vpiHandle owner, const char*name, unsigned file_idx,
+			 int line, vpiHandle constant, int natural_format)
+      : owner_(owner), name_(name), file_idx_(file_idx), line_(line),
+	constant_(constant), natural_format_(natural_format) { }
+
+      int get_type_code() const override { return vpiAttribute; }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiDefAttribute: return 1;
+		case vpiDefLineNo:
+		case vpiLineNo: return line_;
+		default: return __vpiHandle::vpi_get(code);
+	    }
+      }
+
+      char* vpi_get_str(int code) override
+      {
+	    if (code == vpiName)
+		  return simple_set_rbuf_str(name_.c_str());
+	    if ((code == vpiDefFile || code == vpiFile) && file_idx_ < file_names.size())
+		  return simple_set_rbuf_str(file_names[file_idx_]);
+	    return nullptr;
+      }
+
+      vpiHandle vpi_handle(int code) override
+      {
+	    return (code == vpiParent) ? owner_ : nullptr;
+      }
+
+      void vpi_get_value(p_vpi_value value) override
+      {
+	    if (value->format == vpiObjTypeVal)
+		  value->format = natural_format_;
+	    if (value->format == vpiTimeVal) {
+		  if (auto*bits = dynamic_cast<__vpiBinaryConst*>(constant_.get())) {
+			value->value.time = static_cast<p_vpi_time>(
+			      need_result_buf(sizeof(s_vpi_time), RBUF_VAL));
+			vpip_vec4_get_value(bits->bits, bits->bits.size(),
+					    bits->signed_flag, value);
+			return;
+		  }
+	    }
+	    constant_->vpi_get_value(value);
+      }
+
+    private:
+      vpiHandle owner_;
+      std::string name_;
+      unsigned file_idx_;
+      int line_;
+      std::unique_ptr<__vpiHandle> constant_;
+      int natural_format_;
+};
+
+struct decl_attribute_list {
+      std::vector<vpiHandle> items;
+      ~decl_attribute_list()
+      {
+	    for (vpiHandle item : items)
+		  delete item;
+      }
+};
+
+// Attribute handles live with the design. Only annotated owners need storage.
+static std::unordered_map<vpiHandle, decl_attribute_list> decl_attributes;
+
+void vpip_register_decl_attribute(vpiHandle owner, const char*name,
+				  unsigned file_idx, int line,
+				  vpiHandle constant, int natural_format)
+{
+      // Name lookup and port expressions expose this wrapper for ref formals.
+      owner = vpip_wrap_refobj(owner);
+      decl_attributes[owner].items.push_back(
+	    new __vpiDeclAttribute(owner, name, file_idx, line, constant, natural_format));
+}
+
 vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle ref)
 {
       vpiHandle rtn = 0;
@@ -1876,6 +1960,13 @@ vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle ref)
 	    rtn = vpi_iterate_global(type);
 	  else if (type == vpiUdpDefn)
 	    rtn = vpi_iterate_global(type);
+	  else if (type == vpiAttribute) {
+	    auto it = decl_attributes.find(vpip_wrap_refobj(ref));
+	    if (it != decl_attributes.end()) {
+		  auto&items = it->second.items;
+		  rtn = vpip_make_iterator(items.size(), items.data(), false);
+	    }
+	  }
       else
 	    rtn = ref->vpi_iterate(type);
 

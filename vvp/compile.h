@@ -419,6 +419,12 @@ extern void compile_param_assign_logic(char*label, char*value,
 				       bool signed_flag);
 extern void compile_param_assign_string(char*label, char*value);
 extern void compile_param_assign_real(char*label, char*value);
+extern void compile_decl_attribute(char*label, char*name, uint64_t file_idx,
+				    uint64_t line, char*kind, bool is_signed,
+				    char*value);
+extern void vpip_register_decl_attribute(vpiHandle owner, const char*name,
+					 unsigned file_idx, int line,
+					 vpiHandle constant, int natural_format);
 
 /*
  * The resolv_list_s is the base class for a symbol resolve

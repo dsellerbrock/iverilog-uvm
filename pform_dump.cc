@@ -786,7 +786,13 @@ void PWire::dump(ostream&out, unsigned ind) const
 	    set_data_type_->pform_dump(out, 8);
       }
 
-      dump_attributes_map(out, attributes, 8);
+      for (const auto&entry : attributes) {
+	    const auto&spec = entry.second;
+	    out << "        (* " << spec.name;
+	    if (spec.parm)
+		  out << " = " << *spec.parm;
+	    out << " *)" << endl;
+      }
 }
 
 void PGate::dump_pins(ostream&out) const

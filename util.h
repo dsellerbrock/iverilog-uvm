@@ -28,6 +28,7 @@
 class PExpr;
 class Design;
 class NetScope;
+class NetExpr;
 
 /*
  * This file attempts to locate a module in a file. It operates by
@@ -42,6 +43,10 @@ struct attrib_list_t {
       perm_string key;
       verinum val;
 };
+
+// Return the evaluated constant and supply its legacy synthesis value.
+extern NetExpr* evaluate_attribute(PExpr*exp, verinum&legacy_value,
+				  Design*des, NetScope*scope);
 
 extern attrib_list_t* evaluate_attributes(const std::map<perm_string,PExpr*>&att,
 					  unsigned&natt,

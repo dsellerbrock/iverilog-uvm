@@ -3834,6 +3834,15 @@ extern "C" ivl_attribute_t ivl_signal_attr_val(ivl_signal_t net, unsigned idx)
       return net->aux_->attr + idx;
 }
 
+extern "C" const ivl_decl_attr_s* ivl_signal_decl_attr(ivl_signal_t net,
+						     unsigned idx)
+{
+      assert(net);
+      if (!net->aux_ || idx >= net->aux_->decl_attr_count)
+	    return nullptr;
+      return net->aux_->decl_attrs + idx;
+}
+
 extern "C" const char* ivl_signal_basename(ivl_signal_t net)
 {
       assert(net);
