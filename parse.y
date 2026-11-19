@@ -1560,6 +1560,14 @@ static void recover_stale_function_scope(const YYLTYPE&loc)
       current_function = 0;
 }
 
+static unsigned inline_constraint_depth = 0;
+
+static void check_local_scope_qualifier(const YYLTYPE&loc)
+{
+      if (inline_constraint_depth == 0)
+	    yyerror(loc, "error: local:: may only appear in an inline constraint block (IEEE 1800 18.7.1).");
+}
+
 void reset_parser_file_state(void)
 {
       pform_cross_reset_visibility();
@@ -1586,6 +1594,7 @@ void reset_parser_file_state(void)
       specparam_active_range = 0;
       attributes_in_context = 0;
       attribute_value_depth = 0;
+      inline_constraint_depth = 0;
       port_declaration_context.port_net_type = NetNet::NONE;
       port_declaration_context.port_type = NetNet::NOT_A_PORT;
       port_declaration_context.data_type = 0;
@@ -2663,6 +2672,7 @@ static Module::port_t *module_declare_explicit_port(
       char letter;
       int  int_val;
       unsigned sva_count;
+      unsigned constraint_depth;
 
       enum atom_type_t::type_code atom_type;
 
@@ -3236,7 +3246,9 @@ static Module::port_t *module_declare_explicit_port(
 %type <expr>  constraint_expression constraint_block_item constraint_set_item
 %type <expr>  constraint_dist_consequent
 %type <exprs> constraint_block_item_list constraint_block_item_list_opt
-%type <exprs> randomize_constraint_block_opt
+%type <exprs> inline_constraint_block randomize_constraint_block_opt
+%type <constraint_depth> inline_constraint_open
+%destructor { inline_constraint_depth = $$; } inline_constraint_open
 %type <exprs> constraint_expression_list constraint_set
 
 %type <decl_assignment> variable_decl_assignment
@@ -5148,6 +5160,20 @@ constraint_block_item_list_opt
       { $$ = $1; }
   ;
 
+/* Only the braces of a randomize with-clause establish this context.
+   The opening marker also restores it if error recovery discards it. */
+inline_constraint_open
+  : '{'
+      { $$ = inline_constraint_depth++; }
+  ;
+
+inline_constraint_block
+  : inline_constraint_open constraint_block_item_list_opt '}'
+      { inline_constraint_depth = $1;
+	$$ = $2;
+      }
+  ;
+
 /* The first item of a randomize `with (identifier_list)' is parsed through
  * the existing expression production. This keeps the long-standing array
  * method `with (expression)' grammar conflict-neutral: only a following
@@ -5165,9 +5191,9 @@ randomize_with_identifier_tail
 randomize_constraint_block_opt
   :
       { $$ = nullptr; }
-  | '{' constraint_block_item_list_opt '}'
+  | inline_constraint_block
       { /* A non-null empty list distinguishes `{}' from no block. */
-	$$ = $2 ? $2 : new std::list<PExpr*>();
+	$$ = $1 ? $1 : new std::list<PExpr*>();
       }
   ;
 
@@ -14570,7 +14596,8 @@ parameterized_scoped_identifier
 	   constraint (x == local::Config::value). The class scope keeps the
 	   local:: binding on its first component, as local::name does. */
   | K_local K_SCOPE_RES TYPE_IDENTIFIER K_SCOPE_RES IDENTIFIER
-      { pform_name_t hident;
+      { check_local_scope_qualifier(@1);
+	pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($3.text)));
 	hident.back().local_scope = true;
 	hident.push_back(name_component_t(lex_strings.make($5)));
@@ -15103,7 +15130,7 @@ expr_primary
 	$$ = tmp;
       }
 	| hierarchy_identifier attribute_list_opt argument_list_parens K_with
-	  '(' ')' '{' constraint_block_item_list_opt '}'
+	  '(' ')' inline_constraint_block
 	      { if (peek_tail_name(*$1) != "randomize") {
 		      yyerror(@4, "error: Empty identifier list can only be applied to randomize method.");
 		}
@@ -15111,10 +15138,10 @@ expr_primary
 		PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
 		tmp->set_randomize_with_identifiers(
 		      std::vector<perm_string>());
-		if ($8) {
-		      std::vector<PExpr*> wc($8->begin(), $8->end());
+		if ($7) {
+		      std::vector<PExpr*> wc($7->begin(), $7->end());
 		      tmp->set_with_constraints(std::move(wc));
-		      delete $8;
+		      delete $7;
 		}
 		delete $1;
 		pform_discard_call_attributes($2);
@@ -15172,17 +15199,17 @@ expr_primary
 		delete $1;
 		$$ = tmp;
 	      }
-	| hierarchy_identifier attribute_list_opt argument_list_parens K_with '{' constraint_block_item_list_opt '}'
+	| hierarchy_identifier attribute_list_opt argument_list_parens K_with inline_constraint_block
 	      { if (peek_tail_name(*$1) == "randomize") {
 		      pform_requires_sv(@4, "Randomize with constraint");
 		} else {
 		      yyerror(@4, "error: Constraint block can only be applied to randomize method.");
 		}
 		PECallFunction*tmp = pform_make_call_function(@1, *$1, *$3);
-		if ($6) {
-		      std::vector<PExpr*> wc($6->begin(), $6->end());
+		if ($5) {
+		      std::vector<PExpr*> wc($5->begin(), $5->end());
 		      tmp->set_with_constraints(std::move(wc));
-		      delete $6;
+		      delete $5;
 		}
 		delete $1;
 		pform_discard_call_attributes($2);
@@ -15196,17 +15223,17 @@ expr_primary
 	$$ = tmp;
       }
   /* this.randomize(vars) with { constraints } — class handle form */
-  | class_hierarchy_identifier argument_list_parens K_with '{' constraint_block_item_list_opt '}'
+  | class_hierarchy_identifier argument_list_parens K_with inline_constraint_block
       { if (peek_tail_name(*$1) == "randomize") {
 	      pform_requires_sv(@3, "Randomize with constraint");
 	} else {
 	      yyerror(@3, "error: Constraint block can only be applied to randomize method.");
 	}
 	PECallFunction*tmp = pform_make_call_function(@1, *$1, *$2);
-	if ($5) {
-	      std::vector<PExpr*> wc($5->begin(), $5->end());
+	if ($4) {
+	      std::vector<PExpr*> wc($4->begin(), $4->end());
 	      tmp->set_with_constraints(std::move(wc));
-	      delete $5;
+	      delete $4;
 	}
 	delete $1;
 	delete $2;
@@ -15490,16 +15517,16 @@ expr_primary
 	$$ = tmp;
       }
   /* pkg::randomize(vars) with { constraints } — e.g. std::randomize(x) with { x > 0; } */
-  | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}'
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with inline_constraint_block
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
 	tmp->set_scoped_type_prefix();
-	if ($7) {
-	      std::vector<PExpr*> wc($7->begin(), $7->end());
+	if ($6) {
+	      std::vector<PExpr*> wc($6->begin(), $6->end());
 	      tmp->set_with_constraints(std::move(wc));
-	      delete $7;
+	      delete $6;
 	}
 	delete[]$1;
 	delete[]$3;
@@ -15508,7 +15535,7 @@ expr_primary
       }
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with
     '(' expression randomize_with_identifier_tail ')'
-    '{' constraint_block_item_list_opt '}'
+    inline_constraint_block
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
@@ -15528,10 +15555,10 @@ expr_primary
 	      names.insert(names.begin(), first->path().name.front().name);
 	      tmp->set_randomize_with_identifiers(std::move(names));
 	}
-	if ($11) {
-	      std::vector<PExpr*> wc($11->begin(), $11->end());
+	if ($10) {
+	      std::vector<PExpr*> wc($10->begin(), $10->end());
 	      tmp->set_with_constraints(std::move(wc));
-	      delete $11;
+	      delete $10;
 	}
 	delete[]$1;
 	delete[]$3;
@@ -15541,17 +15568,17 @@ expr_primary
 	$$ = tmp;
       }
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with
-    '(' ')' '{' constraint_block_item_list_opt '}'
+    '(' ')' inline_constraint_block
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PECallFunction*tmp = pform_make_call_function(@1, hident, *$4);
 	tmp->set_scoped_type_prefix();
 	tmp->set_randomize_with_identifiers(std::vector<perm_string>());
-	if ($9) {
-	      std::vector<PExpr*> wc($9->begin(), $9->end());
+	if ($8) {
+	      std::vector<PExpr*> wc($8->begin(), $8->end());
 	      tmp->set_with_constraints(std::move(wc));
-	      delete $9;
+	      delete $8;
 	}
 	delete[]$1;
 	delete[]$3;
@@ -15749,16 +15776,16 @@ expr_primary
 	$$ = tmp;
       }
   | expr_primary '.' IDENTIFIER argument_list_parens K_with
-    '(' ')' '{' constraint_block_item_list_opt '}'
+    '(' ')' inline_constraint_block
       { PECallFunction*tmp = pform_receiver_method_call(
 	      @1, $1, lex_strings.make($3), $4, 0);
 	if (strcmp($3, "randomize") != 0)
 	      yyerror(@5, "error: Empty identifier list can only be applied to randomize method.");
 	tmp->set_randomize_with_identifiers(std::vector<perm_string>());
-	if ($9) {
-	      std::vector<PExpr*> wc($9->begin(), $9->end());
+	if ($8) {
+	      std::vector<PExpr*> wc($8->begin(), $8->end());
 	      tmp->set_with_constraints(std::move(wc));
-	      delete $9;
+	      delete $8;
 	}
 	delete[]$3;
 	$$ = tmp;
@@ -16951,24 +16978,28 @@ hierarchy_identifier
       }
   /* local::var — retain the qualifier for inline-constraint binding. */
   | K_local K_SCOPE_RES IDENTIFIER
-      { $$ = new pform_name_t;
+      { check_local_scope_qualifier(@1);
+	$$ = new pform_name_t;
 	$$->push_back(name_component_t(lex_strings.make($3)));
 	$$->back().local_scope = true;
 	delete[]$3;
       }
   | K_local K_SCOPE_RES TYPE_IDENTIFIER
-      { $$ = new pform_name_t;
+      { check_local_scope_qualifier(@1);
+	$$ = new pform_name_t;
 	$$->push_back(name_component_t(lex_strings.make($3.text)));
 	$$->back().local_scope = true;
 	delete[]$3.text;
       }
   | K_local K_SCOPE_RES K_this
-      { $$ = new pform_name_t;
+      { check_local_scope_qualifier(@1);
+	$$ = new pform_name_t;
 	$$->push_back(name_component_t(perm_string::literal(THIS_TOKEN)));
 	$$->back().local_scope = true;
       }
   | K_local K_SCOPE_RES K_super
-      { $$ = new pform_name_t;
+      { check_local_scope_qualifier(@1);
+	$$ = new pform_name_t;
 	$$->push_back(name_component_t(perm_string::literal(SUPER_TOKEN)));
 	$$->back().local_scope = true;
       }
@@ -22085,21 +22116,21 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
   | hierarchy_identifier attribute_instance_list argument_list_parens K_with
-    '(' ')' '{' constraint_block_item_list_opt '}' ';'
+    '(' ')' inline_constraint_block ';'
       { pform_requires_sv(@4, "Randomize with empty identifier list");
 	PCallTask*ct = pform_make_call_task(@1, *$1, *$3);
 	ct->set_randomize_with_identifiers(std::vector<perm_string>());
 	if (peek_tail_name(*$1) != "randomize") {
 	      yyerror(@4, "error: Empty identifier list can only be applied to randomize method.");
-	} else if ($8) {
-	      std::vector<PExpr*> wc($8->begin(), $8->end());
+	} else if ($7) {
+	      std::vector<PExpr*> wc($7->begin(), $7->end());
 	      ct->set_with_constraints(std::move(wc));
-	      delete $8;
-	      $8 = nullptr;
+	      delete $7;
+	      $7 = nullptr;
 	}
-	if ($8) {
-	      while (!$8->empty()) { delete $8->front(); $8->pop_front(); }
-	      delete $8;
+	if ($7) {
+	      while (!$7->empty()) { delete $7->front(); $7->pop_front(); }
+	      delete $7;
 	}
 	ct->void_cast();
 	delete $1;
@@ -22154,17 +22185,17 @@ statement_item /* This is roughly statement_item in the LRM */
       }
   | K_void '\'' '(' hierarchy_identifier argument_list_parens
     '.' IDENTIFIER argument_list_parens K_with
-    '(' ')' '{' constraint_block_item_list_opt '}' ')' ';'
+    '(' ')' inline_constraint_block ')' ';'
       { PECallFunction*rcv = pform_make_call_function(@4, *$4, *$5, 0);
 	PCallTask*ct = new PCallTask(rcv, lex_strings.make($7), *$8);
 	FILE_NAME(ct, @6);
 	if (strcmp($7, "randomize") != 0)
 	      yyerror(@9, "error: Empty identifier list can only be applied to randomize method.");
 	ct->set_randomize_with_identifiers(std::vector<perm_string>());
-	if ($13) {
-	      std::vector<PExpr*> wc($13->begin(), $13->end());
+	if ($12) {
+	      std::vector<PExpr*> wc($12->begin(), $12->end());
 	      ct->set_with_constraints(std::move(wc));
-	      delete $13;
+	      delete $12;
 	}
 	ct->void_cast();
 	delete $4;
@@ -22173,18 +22204,18 @@ statement_item /* This is roughly statement_item in the LRM */
 	delete $8;
 	$$ = ct;
       }
-  | K_void '\'' '(' hierarchy_identifier argument_list_parens K_with '{' constraint_block_item_list_opt '}' ')' ';'
+  | K_void '\'' '(' hierarchy_identifier argument_list_parens K_with inline_constraint_block ')' ';'
       { if (peek_tail_name(*$4) != "randomize") {
 	      yyerror(@6, "error: Constraint block can only be applied to randomize method.");
 	      $$ = new PNoop;
 	} else {
 	      pform_requires_sv(@6, "void'(randomize with constraint)");
 	      PCallTask*ct = pform_make_call_task(@4, *$4, *$5);
-	      if ($8) {
-		    std::vector<PExpr*> wc($8->begin(), $8->end());
+	      if ($7) {
+		    std::vector<PExpr*> wc($7->begin(), $7->end());
 		    ct->set_with_constraints(std::move(wc));
-		    delete $8;
-		    $8 = nullptr;
+		    delete $7;
+		    $7 = nullptr;
 	      }
 	      ct->void_cast();
 	      $4 = nullptr;
@@ -22193,14 +22224,14 @@ statement_item /* This is roughly statement_item in the LRM */
 	}
 	if ($4) delete $4;
 	if ($5) delete $5;
-	if ($8) {
-	      while (!$8->empty()) { delete $8->front(); $8->pop_front(); }
-	      delete $8;
+	if ($7) {
+	      while (!$7->empty()) { delete $7->front(); $7->pop_front(); }
+	      delete $7;
 	}
       }
   | K_void '\'' '(' hierarchy_identifier argument_list_parens K_with
     '(' expression randomize_with_identifier_tail ')'
-    '{' constraint_block_item_list_opt '}' ')' ';'
+    inline_constraint_block ')' ';'
       { PCallTask*ct = pform_make_call_task(@4, *$4, *$5);
 	if (peek_tail_name(*$4) != "randomize") {
 	      yyerror(@6, "error: Identifier-scoped constraint block can only be applied to randomize method.");
@@ -22217,10 +22248,10 @@ statement_item /* This is roughly statement_item in the LRM */
 	      names.insert(names.begin(), first->path().name.front().name);
 	      ct->set_randomize_with_identifiers(std::move(names));
 	}
-	if ($12) {
-	      std::vector<PExpr*> wc($12->begin(), $12->end());
+	if ($11) {
+	      std::vector<PExpr*> wc($11->begin(), $11->end());
 	      ct->set_with_constraints(std::move(wc));
-	      delete $12;
+	      delete $11;
 	}
 	ct->void_cast();
 	delete $4;
@@ -22230,20 +22261,20 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = ct;
       }
   | K_void '\'' '(' hierarchy_identifier argument_list_parens K_with
-    '(' ')' '{' constraint_block_item_list_opt '}' ')' ';'
+    '(' ')' inline_constraint_block ')' ';'
       { PCallTask*ct = pform_make_call_task(@4, *$4, *$5);
 	ct->set_randomize_with_identifiers(std::vector<perm_string>());
 	if (peek_tail_name(*$4) != "randomize") {
 	      yyerror(@6, "error: Empty identifier list can only be applied to randomize method.");
-	} else if ($10) {
-	      std::vector<PExpr*> wc($10->begin(), $10->end());
+	} else if ($9) {
+	      std::vector<PExpr*> wc($9->begin(), $9->end());
 	      ct->set_with_constraints(std::move(wc));
-	      delete $10;
-	      $10 = nullptr;
+	      delete $9;
+	      $9 = nullptr;
 	}
-	if ($10) {
-	      while (!$10->empty()) { delete $10->front(); $10->pop_front(); }
-	      delete $10;
+	if ($9) {
+	      while (!$9->empty()) { delete $9->front(); $9->pop_front(); }
+	      delete $9;
 	}
 	ct->void_cast();
 	delete $4;
@@ -22251,7 +22282,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = ct;
       }
   /* C6 (Phase 62e): void'(pkg::func(args) with {...}) form. */
-  | K_void '\'' '(' IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}' ')' ';'
+  | K_void '\'' '(' IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with inline_constraint_block ')' ';'
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
@@ -22261,21 +22292,21 @@ statement_item /* This is roughly statement_item in the LRM */
 	delete[]$4;
 	delete[]$6;
 	delete $7;
-	if ($10) {
+	if ($9) {
 	      std::vector<PExpr*> wc;
-	      while (!$10->empty()) {
-		    wc.push_back($10->front());
-		    $10->pop_front();
+	      while (!$9->empty()) {
+		    wc.push_back($9->front());
+		    $9->pop_front();
 	      }
 	      tmp->set_with_constraints(std::move(wc));
-	      delete $10;
+	      delete $9;
 	}
 	pform_requires_sv(@8, "void'(pkg::func with-clause)");
 	$$ = tmp;
       }
   | K_void '\'' '(' IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
     K_with '(' expression randomize_with_identifier_tail ')'
-    '{' constraint_block_item_list_opt '}' ')' ';'
+    inline_constraint_block ')' ';'
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
@@ -22296,10 +22327,10 @@ statement_item /* This is roughly statement_item in the LRM */
 	      names.insert(names.begin(), first->path().name.front().name);
 	      tmp->set_randomize_with_identifiers(std::move(names));
 	}
-	if ($14) {
-	      std::vector<PExpr*> wc($14->begin(), $14->end());
+	if ($13) {
+	      std::vector<PExpr*> wc($13->begin(), $13->end());
 	      tmp->set_with_constraints(std::move(wc));
-	      delete $14;
+	      delete $13;
 	}
 	delete[]$4;
 	delete[]$6;
@@ -22310,7 +22341,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
   | K_void '\'' '(' IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens
-    K_with '(' ')' '{' constraint_block_item_list_opt '}' ')' ';'
+    K_with '(' ')' inline_constraint_block ')' ';'
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($4)));
 	hident.push_back(name_component_t(lex_strings.make($6)));
@@ -22318,10 +22349,10 @@ statement_item /* This is roughly statement_item in the LRM */
 	tmp->set_scoped_type_prefix();
 	tmp->void_cast();
 	tmp->set_randomize_with_identifiers(std::vector<perm_string>());
-	if ($12) {
-	      std::vector<PExpr*> wc($12->begin(), $12->end());
+	if ($11) {
+	      std::vector<PExpr*> wc($11->begin(), $11->end());
 	      tmp->set_with_constraints(std::move(wc));
-	      delete $12;
+	      delete $11;
 	}
 	delete[]$4;
 	delete[]$6;
@@ -22380,29 +22411,29 @@ statement_item /* This is roughly statement_item in the LRM */
 		delete $5;
 		$$ = $1;
 	      }
-	| subroutine_call K_with '(' ')' '{' constraint_block_item_list_opt '}' ';'
+	| subroutine_call K_with '(' ')' inline_constraint_block ';'
 	      { PCallTask*ct = dynamic_cast<PCallTask*>($1);
 		if (!ct || peek_tail_name(ct->path()) != "randomize") {
 		      yyerror(@2, "error: Empty identifier list can only be applied to randomize method.");
-		      if ($6) {
-			    while (!$6->empty()) {
-				  delete $6->front();
-				  $6->pop_front();
+		      if ($5) {
+			    while (!$5->empty()) {
+				  delete $5->front();
+				  $5->pop_front();
 			    }
 		      }
 		} else {
 		      ct->set_randomize_with_identifiers(
 			    std::vector<perm_string>());
-		      if ($6) {
-			    std::vector<PExpr*> wc($6->begin(), $6->end());
+		      if ($5) {
+			    std::vector<PExpr*> wc($5->begin(), $5->end());
 			    ct->set_with_constraints(std::move(wc));
 			    ct->void_cast();
 		      }
 		}
-		delete $6;
+		delete $5;
 		$$ = $1;
 	      }
-	| subroutine_call K_with '{' constraint_block_item_list_opt '}' ';'
+	| subroutine_call K_with inline_constraint_block ';'
 	      { /* IEEE 1800-2017 18.6: randomize() is a function, but
 		   its return value may be discarded in statement position.
 		   Keep the constraint block on the PCallTask so elaboration
@@ -22412,20 +22443,20 @@ statement_item /* This is roughly statement_item in the LRM */
 		      yyerror(@2, "error: Constraint block can only be applied to randomize method.");
 		} else {
 		      pform_requires_sv(@2, "Randomize with constraint");
-		      if ($4) {
-			    std::vector<PExpr*> wc($4->begin(), $4->end());
+		      if ($3) {
+			    std::vector<PExpr*> wc($3->begin(), $3->end());
 			    ct->set_with_constraints(std::move(wc));
-			    delete $4;
-			    $4 = nullptr;
+			    delete $3;
+			    $3 = nullptr;
 		      }
 		}
-		if ($4) {
-		      while (!$4->empty()) { delete $4->front(); $4->pop_front(); }
-		      delete $4;
+		if ($3) {
+		      while (!$3->empty()) { delete $3->front(); $3->pop_front(); }
+		      delete $3;
 		}
 		$$ = $1;
 	      }
-	| class_hierarchy_identifier argument_list_parens K_with '{' constraint_block_item_list_opt '}' ';'
+	| class_hierarchy_identifier argument_list_parens K_with inline_constraint_block ';'
 	      { /* Explicit `this.randomize() with {...};' cannot reduce
 		   through subroutine_call because the expression-form rule
 		   for the same prefix wins that parser state. */
@@ -22434,10 +22465,10 @@ statement_item /* This is roughly statement_item in the LRM */
 		}
 		pform_requires_sv(@3, "Randomize with constraint");
 		PCallTask*ct = pform_make_call_task(@1, *$1, *$2);
-		if ($5) {
-		      std::vector<PExpr*> wc($5->begin(), $5->end());
+		if ($4) {
+		      std::vector<PExpr*> wc($4->begin(), $4->end());
 		      ct->set_with_constraints(std::move(wc));
-		      delete $5;
+		      delete $4;
 		}
 		delete $1;
 		delete $2;
@@ -22481,7 +22512,7 @@ statement_item /* This is roughly statement_item in the LRM */
      PCallTask. Elaboration routes std::randomize through the shared Z3
      expression/task lowering; other package-function with-clauses retain
      their compile-progress diagnostic. */
-  | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with '{' constraint_block_item_list_opt '}' ';'
+  | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with inline_constraint_block ';'
       { Statement*stmt = nullptr;
 	bool is_std_rand = ($1 && $3
 			    && strcmp($1, "std")==0
@@ -22493,15 +22524,15 @@ statement_item /* This is roughly statement_item in the LRM */
 	PCallTask*call = pform_make_call_task(@1, hident, *$4);
 	call->set_scoped_type_prefix();
 	stmt = call;
-	if (is_std_rand && $7) {
+	if (is_std_rand && $6) {
 	      std::vector<PExpr*> wc;
-	      while (!$7->empty()) {
-		    wc.push_back($7->front());
-		    $7->pop_front();
+	      while (!$6->empty()) {
+		    wc.push_back($6->front());
+		    $6->pop_front();
 	      }
 	      call->set_with_constraints(std::move(wc));
-	      delete $7;
-	      $7 = nullptr;
+	      delete $6;
+	      $6 = nullptr;
 	} else {
 	      static bool warned = false;
 	      if (!warned) {
@@ -22516,16 +22547,16 @@ statement_item /* This is roughly statement_item in the LRM */
 	delete[]$1;
 	delete[]$3;
 	delete $4;
-	if ($7) {
-	      while (!$7->empty()) { delete $7->front(); $7->pop_front(); }
-	      delete $7;
+	if ($6) {
+	      while (!$6->empty()) { delete $6->front(); $6->pop_front(); }
+	      delete $6;
 	}
 	pform_requires_sv(@5, "Statement-form pkg::func(args) with-clause");
 	$$ = stmt;
       }
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with
     '(' expression randomize_with_identifier_tail ')'
-    '{' constraint_block_item_list_opt '}' ';'
+    inline_constraint_block ';'
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
@@ -22545,10 +22576,10 @@ statement_item /* This is roughly statement_item in the LRM */
 	      names.insert(names.begin(), first->path().name.front().name);
 	      call->set_randomize_with_identifiers(std::move(names));
 	}
-	if ($11) {
-	      std::vector<PExpr*> wc($11->begin(), $11->end());
+	if ($10) {
+	      std::vector<PExpr*> wc($10->begin(), $10->end());
 	      call->set_with_constraints(std::move(wc));
-	      delete $11;
+	      delete $10;
 	}
 	delete[]$1;
 	delete[]$3;
@@ -22559,17 +22590,17 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = call;
       }
   | IDENTIFIER K_SCOPE_RES IDENTIFIER argument_list_parens K_with
-    '(' ')' '{' constraint_block_item_list_opt '}' ';'
+    '(' ')' inline_constraint_block ';'
       { pform_name_t hident;
 	hident.push_back(name_component_t(lex_strings.make($1)));
 	hident.push_back(name_component_t(lex_strings.make($3)));
 	PCallTask*call = pform_make_call_task(@1, hident, *$4);
 	call->set_scoped_type_prefix();
 	call->set_randomize_with_identifiers(std::vector<perm_string>());
-	if ($9) {
-	      std::vector<PExpr*> wc($9->begin(), $9->end());
+	if ($8) {
+	      std::vector<PExpr*> wc($8->begin(), $8->end());
 	      call->set_with_constraints(std::move(wc));
-	      delete $9;
+	      delete $8;
 	}
 	delete[]$1;
 	delete[]$3;
@@ -22578,7 +22609,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = call;
       }
 
-	| hierarchy_identifier K_with '{' constraint_block_item_list_opt '}' ';'
+	| hierarchy_identifier K_with inline_constraint_block ';'
 	      { /* randomize with { <constraints> } — the empty-
 		   parentheses form is handled through subroutine_call
 		   above; this is the legal no-parentheses sibling. */
@@ -22590,10 +22621,10 @@ statement_item /* This is roughly statement_item in the LRM */
 		list<named_pexpr_t> pt;
 		PCallTask*tmp = new PCallTask(*$1, pt);
 		FILE_NAME(tmp, @1);
-		if ($4) {
-		      std::vector<PExpr*> wc($4->begin(), $4->end());
+		if ($3) {
+		      std::vector<PExpr*> wc($3->begin(), $3->end());
 		      tmp->set_with_constraints(std::move(wc));
-		      delete $4;
+		      delete $3;
 		}
 		delete $1;
 		$$ = tmp;
