@@ -36671,8 +36671,22 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
       if (src->mc_prefix
 	  && !(p->mc_prefix = sva_clone_steps_subst_(loc, src->mc_prefix, steps_subst)))
 	    ok = false;
-      if (src->mc_more && !src->mc_more->empty())
-	    ok = false;
+      if (ok && src->mc_more) {
+	    p->mc_more = new std::vector<sva_mc_seg_t>;
+	    for (const sva_mc_seg_t&source : *src->mc_more) {
+		  p->mc_more->emplace_back();
+		  sva_mc_seg_t&segment = p->mc_more->back();
+		  segment.boundary = source.boundary;
+		  segment.inherit_property_clock = source.inherit_property_clock;
+		  if ((source.clk_evt && !(segment.clk_evt = sva_clone_event_control_(
+					  source.clk_evt, loc, subst, event_subst)))
+		      || (source.chain && !(segment.chain = sva_clone_steps_subst_(
+					       loc, source.chain, steps_subst)))) {
+			ok = false;
+			break;
+		  }
+	    }
+      }
       if (src->disable_iff_expr
 	  && !(p->disable_iff_expr = sva_clone_subst_(src->disable_iff_expr, subst)))
 	    ok = false;
@@ -40613,10 +40627,28 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			           use the same clone as composite properties so
 			           each instantiation retains its own wrapper. */
 			      sva_property_t*inst = nullptr;
-			      if (named->tree || named->pa
+			      bool linear_multiclock = named_multiclocked
+				    && !named->tree && !named->ante_tree && !named->pa;
+			      if (linear_multiclock || named->tree || named->pa
 				  || (named->mc_more && !named->mc_more->empty())) {
-				    inst = named->pa || sva_property_has_tree_first_match_(named)
+				    inst = linear_multiclock || named->pa
+					  || sva_property_has_tree_first_match_(named)
 					  ? sva_clone_property_(loc, named) : nullptr;
+				    if (!inst && linear_multiclock) {
+					  const char*reference_kind =
+						sva_property_shaped_sequences.count(pit->first)
+						? "sequence" : "property";
+					  cerr << loc << ": sorry: cannot clone the body of named multiclocked "
+					       << reference_kind << " `" << property_name
+					       << "'; the assertion is dropped." << endl;
+					  error_count += 1;
+					  delete outer_clk;
+					  delete outer_disable;
+					  pform_sva_destroy_property(prop);
+					  delete fail_stmt;
+					  delete pass_stmt;
+					  return;
+				    }
 				    if (!inst) {
 					  inst = named;
 					  pit->second = nullptr;  /* consume once */
@@ -40637,6 +40669,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  error_count += 1;
 					  delete outer_clk;
 					  delete outer_disable;
+					  if (inst != named) pform_sva_destroy_property(inst);
 					  delete id;
 					  delete prop->seq;
 					  delete prop;

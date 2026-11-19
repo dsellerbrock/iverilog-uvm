@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3801.sv",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue3801"],
+  "gold": "issue3801"
+}

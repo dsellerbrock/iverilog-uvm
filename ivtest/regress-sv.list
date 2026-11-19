@@ -7206,3 +7206,7 @@ issue3770_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivlte
 issue3770_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
 issue3770_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
 issue3770_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold
+
+# IEEE 1800-2017/2023 16.8 and 16.12.1: reusable named multiclock bodies.
+issue3801_2017 normal,-g2017,-gassertions,-s,issue3801 ivltests gold=issue3801.gold
+issue3801_2023 normal,-g2023,-gassertions,-s,issue3801 ivltests gold=issue3801.gold
