@@ -1,0 +1,4 @@
+./ivltests/issue3831_order.v:5: warning: circular 'solve before' ordering between 'a[0]' and 'b' in class index_cycle (IEEE 1800 18.5.9); nonstandard compatibility behavior.
+./ivltests/issue3831_order.v:29: warning: circular 'solve before' ordering between 'b' and 'a' in class order_cyclic (IEEE 1800 18.5.9); nonstandard compatibility behavior.
+./ivltests/issue3831_order.v:41: warning: circular 'solve before' ordering between 'fields' and 'b' in class order_packed (IEEE 1800 18.5.9); nonstandard compatibility behavior.
+PASSED

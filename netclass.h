@@ -447,6 +447,10 @@ class netclass_t : public ivl_type_s {
 	    bool is_static;
       };
       mutable std::vector<constraint_ir_t> constraint_irs_;
+	// This class's cycle filtering applies only to its flattened IR.
+      std::map<std::string, std::string> constraint_order_replacements_;
+      void constraint_order_check_cycles_(Design*des, const PClass*pclass,
+					 size_t own_count);
 	mutable std::vector<constraint_state_call_t> constraint_state_calls_;
 	// Unimplemented pure constraints inherited by this exact class type.
 	// The source location is the original pure declaration, used by the

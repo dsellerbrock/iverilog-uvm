@@ -29,18 +29,21 @@ module sv_randomize_joint_element_order_fail;
   joint_element_cap cap=new;
   string cycle_state,cycle_child_state,cap_state,cap_child_state;
   bit cap_changed;
+  bit [2:0] saved;
   initial begin
     cycle.srandom(32'h87fa11); cycle.child.srandom(32'h87fc11);
     cap.srandom(32'h87fa12); cap.child.srandom(32'h87fc12);
-    cycle_state=cycle.get_randstate(); cycle_child_state=cycle.child.get_randstate();
     cap_state=cap.get_randstate(); cap_child_state=cap.child.get_randstate();
-    if (cycle.randomize() || cycle.values[0] || cycle.values[1] ||
-        cycle.child.value || cycle.posts || cycle.get_randstate()!=cycle_state ||
+    if (!cycle.randomize() || cycle.child.value != cycle.values[1] || cycle.posts != 1)
+      $fatal(1,"element cycle lost its value constraint or callback");
+    saved = {cycle.values[0], cycle.values[1], cycle.child.value};
+    cycle_state=cycle.get_randstate(); cycle_child_state=cycle.child.get_randstate();
+    if (cycle.randomize() with { values[1] != child.value; } ||
+        {cycle.values[0], cycle.values[1], cycle.child.value} != saved ||
+        cycle.posts != 1 || cycle.get_randstate()!=cycle_state ||
         cycle.child.get_randstate()!=cycle_child_state)
-      $fatal(1,"element cycle changed state");
-    // The cyclic solve-before above must still fail (18.5.9: circular
-    // dependencies are not allowed). The cap case has 2048 legal tuples,
-    // past the solver's 1024-tuple enumeration cap.
+      $fatal(1,"unsatisfiable element call changed state");
+    // The cap case has 2048 legal tuples, past the enumeration cap.
     // IEEE 1800-2023 18.5.9: "a solve...before... constraint does not change the solution
     // space and, therefore, cannot cause the solver to fail" (#2228).
     if (!cap.randomize()) $fatal(1,"element cap failed");

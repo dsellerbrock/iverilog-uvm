@@ -1,0 +1,2 @@
+./ivltests/issue3831_order.v:5: error: circular 'solve before' ordering between 'a[0]' and 'b' in class index_cycle (IEEE 1800 18.5.9).
+1 error(s) during elaboration.

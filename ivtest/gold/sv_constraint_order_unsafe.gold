@@ -1,0 +1,2 @@
+./ivltests/sv_constraint_order_unsafe.v:5: warning: circular 'solve before' ordering between 'a' and 'b' in class sv_constraint_order_unsafe_cycle (IEEE 1800 18.5.9); nonstandard compatibility behavior.
+PASSED

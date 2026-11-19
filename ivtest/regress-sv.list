@@ -7206,3 +7206,10 @@ issue3770_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivlte
 issue3770_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
 issue3770_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
 issue3770_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold
+
+# IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9 solve-before cycles
+issue3831_ce_2017 CE,-g2017,-s,test ivltests gold=issue3831_ce-iverilog-stderr.gold
+issue3831_unsafe_2017 normal,-g2017,-gcommercial-unsafe,-DISSUE3831_UNSAFE,-s,test ivltests gold=issue3831_unsafe.gold
+issue3831_ce_2023 CE,-g2023,-s,test ivltests gold=issue3831_ce-iverilog-stderr.gold
+issue3831_unsafe_2023 normal,-g2023,-gcommercial-unsafe,-DISSUE3831_UNSAFE,-s,test ivltests gold=issue3831_unsafe.gold
+sv_constraint_order_unsafe normal,-g2017,-gcommercial-unsafe,-s,sv_constraint_order_unsafe ivltests gold=sv_constraint_order_unsafe.gold

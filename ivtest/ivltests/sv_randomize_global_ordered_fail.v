@@ -6,7 +6,7 @@ class cyclic_root;
   rand bit a, b;
   rand leaf child;
   function new(); child = new; endfunction
-  constraint c { solve a before b; solve b before a; child.value == b; }
+  constraint c { solve a before b; solve b before a; child.value == b; a != b; }
 endclass
 class array_root;
   rand bit value[2];
@@ -26,9 +26,13 @@ module main;
   array_root a = new;
   randc_root r = new;
   bit [1:0] seen;
+  bit [2:0] saved;
   initial begin
-    if (c.randomize() || c.a != 0 || c.b != 0 || c.child.value != 0)
-      $fatal(1, "cyclic order passed or changed values");
+    if (!c.randomize() || c.a == c.b || c.child.value != c.b)
+      $fatal(1, "cyclic order lost a value constraint");
+    saved = {c.a, c.b, c.child.value};
+    if (c.randomize() with { a == b; } || {c.a, c.b, c.child.value} != saved)
+      $fatal(1, "unsatisfiable call passed or changed values");
     if (!a.randomize() || a.child.value != a.value[1])
       $fatal(1, "selected-element order failed or violated child relation");
     repeat (2) begin

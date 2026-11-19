@@ -1290,6 +1290,26 @@ void netclass_t::merge_inherited_constraint_irs_() const
 		  const char*begin = entry.ir.c_str();
 		  const char*ptr = begin;
 		  while (*ptr) {
+			if (!constraint_order_replacements_.empty()
+			    && strncmp(ptr, "(order ", 7) == 0) {
+			      // Match the complete order expression, including
+			      // nested element operands. Keep entry.ir available
+			      // for subclasses that override one of the blocks.
+			      const char*end = ptr + 7;
+			      size_t depth = 1;
+			      while (*end && depth) {
+				    if (*end == '(') ++depth;
+				    else if (*end == ')') --depth;
+				    ++end;
+			      }
+			      auto replacement = constraint_order_replacements_.find(
+				    string(ptr, end));
+			      if (replacement != constraint_order_replacements_.end()) {
+				    entry.flat_ir += replacement->second;
+				    ptr = end;
+				    continue;
+			      }
+			}
 			bool token_start = ptr == begin
 			      || !(isalnum((unsigned char)ptr[-1]) || ptr[-1] == '_');
 			if (token_start && ptr[0] == 'v' && ptr[1] == ':') {

@@ -35548,19 +35548,23 @@ static bool constraint_flatten_member_path_(const PExpr*expr,
 static bool constraint_packed_solve_before_refs_(
 	  const PExpr*item, const netclass_t*cls, vector<string>&refs)
 {
-      pform_name_t path;
+      pform_scoped_name_t scoped;
+      pform_name_t&path = scoped.name;
       if (!cls || !constraint_flatten_member_path_(item, path)
 	  || path.empty()) return false;
       for (const name_component_t&component : path)
 	  if (component.local_scope || !component.index.empty()) return false;
-      if (!constraint_inline_target_name_(path.front().name)) return false;
+      const netclass_t*owner;
+      pform_name_t::const_iterator root_name;
+      if (!constraint_target_path_begin_(scoped, cls, owner, root_name))
+	    return false;
 
-      int property = cls->property_idx_from_name(path.front().name);
+      int property = owner->property_idx_from_name(root_name->name);
       if (property < 0) return false;
-      property_qualifier_t qual = cls->get_prop_qual((size_t)property);
+      property_qualifier_t qual = owner->get_prop_qual((size_t)property);
       if (!qual.test_rand() || qual.test_randc()) return false;
       const netstruct_t*root = dynamic_cast<const netstruct_t*>(
-	    cls->get_prop_type((size_t)property));
+	    owner->get_prop_type((size_t)property));
       long root_width = root ? root->packed_width() : 0;
       if (!root || !root->packed() || root->union_flag()
 	  || root->tagged_flag() || root_width <= 0
@@ -35615,16 +35619,14 @@ static bool constraint_packed_solve_before_refs_(
 	    return true;
       };
 
-      if (path.size() == 1) {
+      auto component = std::next(root_name);
+      if (component == path.end()) {
 	    if (!append_struct(root, 0)) return false;
       } else {
 	    const netstruct_t*record = root;
 	    unsigned offset = 0;
 	    ivl_type_t selected_type = nullptr;
-	    pform_name_t::const_iterator component = path.begin();
-	    ++component;
-	    for (size_t index = 1; component != path.end();
-		  ++index, ++component) {
+	    for (; component != path.end(); ++component) {
 		  long record_width = record ? record->packed_width() : 0;
 		  if (!record || !record->packed() || record->union_flag()
 		      || record->tagged_flag() || record_width <= 0) return false;
@@ -35644,7 +35646,7 @@ static bool constraint_packed_solve_before_refs_(
 		  if (offset > (unsigned)root_width
 		      || (unsigned long)width > (unsigned)root_width - offset)
 			return false;
-		  if (index + 1 < path.size()) {
+		  if (std::next(component) != path.end()) {
 			record = dynamic_cast<const netstruct_t*>(selected_type);
 			if (!record) return false;
 		  }
@@ -37296,13 +37298,18 @@ static void constraint_order_nonrandom_error_(const PExpr*site)
       constraint_ir_design_ctx_->errors += 1;
 }
 
-/* The before -> after edges of every 'solve before' in the class whose
-   constraints are being elaborated (18.5.9 forbids a circular ordering). */
-struct constraint_order_edge_t {
-      std::string from, to, from_name, to_name, where;
+struct constraint_order_operand_t {
+      string key, ir, name;
+};
+
+/* Keep the bound operands and their emitted form together so a class can
+   filter individual pairs without changing the IR inherited by subclasses. */
+struct constraint_order_form_t {
+      vector<constraint_order_operand_t> before, after;
+      string ir, where;
       perm_string constraint;
 };
-static std::vector<constraint_order_edge_t>*constraint_order_edges_ctx_ = nullptr;
+static vector<constraint_order_form_t>*constraint_order_forms_ctx_ = nullptr;
 
 /* The source spelling of an ordering operand for a diagnostic: constant
    indices print as decimals ("values[1]", not "values['sd1]"). */
@@ -42617,6 +42624,68 @@ static string constraint_local_indexed_ir_(
 	    + (element->get_signed() ? ":s" : "") + " " + index_ir + ")";
 }
 
+/* Use the bound property/member path and the selected leaf or slice as
+   the graph vertex. Width and signedness describe the IR value, except
+   for the width of a packed slice, which is part of its identity. */
+static string constraint_order_operand_key_(const string&ir)
+{
+      size_t pos = ir[0] == '(' ? 7 : 2;
+      auto field = [&]() {
+	    size_t start = pos;
+	    pos = ir.find_first_of(": )", start);
+	    string value = ir.substr(start, pos - start);
+	    if (pos != string::npos) ++pos;
+	    return value;
+      };
+      string path = field();
+      switch (ir[0]) {
+	  case 'm':
+	    return "p:" + path + "." + field();
+	  case 'r':
+	  case 'p':
+	    return "p:" + path;
+	  case 'u': {
+	    string offset = field();
+	    return "u:" + path + ":" + offset + ":" + field();
+	  }
+	  case 's':
+	    return "s:" + path + ":" + (ir[pos] == '#' ? field() : "#0");
+	  case 'a':
+	    path += "." + field();
+	    // Fall through to the element and optional row fields.
+	    [[fallthrough]];
+	  case 'e':
+	  case 'x': {
+	    field(); // Element width.
+	    string element = field();
+	    if (element == "d") element = field();
+	    if (element == "dd") element = field();
+	    if (pos != string::npos && isdigit((unsigned char)ir[pos])) {
+		  string leaf = to_string(stoull(element) + 1);
+		  return "n:" + path + ":#" + leaf + ":" + field();
+	    }
+	    return "e:" + path + ":" + element;
+	  }
+	  case '(': {
+	    // VVP reads the numerical payload of the constant index up to
+	    // its first colon. Keep the full value to avoid aliasing wide
+	    // invalid indices with live unsigned element positions.
+	    string leaf;
+	    if (ir[pos] == '#') leaf = field();
+	    size_t start = ir.find(' ', pos) + 1;
+	    constraint_const_ir_t index;
+	    bool ok = constraint_parse_const_ir_(
+		  ir.substr(start, ir.size() - start - 1), index);
+	    assert(ok);
+	    return leaf.empty()
+		  ? "e:" + path + ":" + to_string(index.value)
+		  : "n:" + path + ":" + leaf + ":" + to_string(index.value);
+	  }
+      }
+      assert(false);
+      return ir;
+}
+
 string pexpr_to_constraint_ir(const PExpr*expr,
 			      const netclass_t*cls,
 			      vector<const PExpr*>*value_slots,
@@ -47128,9 +47197,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 	    };
 	    bool omitted_operand = false;
-	    std::vector<std::pair<string,string> > bef_ops, aft_ops;
-	    std::vector<std::pair<string,string> >*ops = nullptr;
-	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
+	    constraint_order_form_t form;
+	    auto vars_to_ir = [&](const std::list<PExpr*>&items,
+				  vector<constraint_order_operand_t>&ops) -> string {
 		  string acc;
 		  for (const PExpr*item : items) {
 			if (!item) continue;
@@ -47273,9 +47342,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    && !constraint_nested_element_is_random_(
 				  s.c_str() + 2, cls))
 			      nonrandom(item);
-			if (ops)
-			      ops->push_back(std::make_pair(s,
-				    constraint_order_operand_name_(item)));
+			if (constraint_order_forms_ctx_) {
+			      string name = constraint_order_operand_name_(item);
+			      if (packed_order) {
+				    for (const string&ref : packed_refs)
+					  ops.push_back({
+						constraint_order_operand_key_(ref), ref, name});
+			      } else {
+				    ops.push_back({
+					  constraint_order_operand_key_(s), s, name});
+			      }
+			}
 			acc += acc.empty() ? s : (" " + s);
 		  }
 		  return acc;
@@ -47392,26 +47469,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    std::list<PExpr*> before_items = expand_fixed_arrays(co->before_items());
 	    std::list<PExpr*> after_items = expand_fixed_arrays(co->after_items());
 	    if (!expand_ok || nonrandom_operand) return "";
-	    ops = &bef_ops;
-	    string bef = vars_to_ir(before_items);
-	    ops = &aft_ops;
-	    string aft = vars_to_ir(after_items);
-	    ops = nullptr;
+	    string bef = vars_to_ir(before_items, form.before);
+	    string aft = vars_to_ir(after_items, form.after);
 	    if (nonrandom_operand) return "";
 	    if (bef.empty() || aft.empty())
 		  return omitted_operand ? "c:1:1" : "";
 	    string result = "(order (vars " + bef + ") (vars " + aft + "))";
-	    if (constraint_order_edges_ctx_)
-		  for (const auto&b : bef_ops)
-			for (const auto&a : aft_ops) {
-			      constraint_order_edge_t edge;
-			      edge.from = b.first;
-			      edge.to = a.first;
-			      edge.from_name = b.second;
-			      edge.to_name = a.second;
-			      edge.where = co->get_fileline();
-			      constraint_order_edges_ctx_->push_back(edge);
-			}
+	    if (constraint_order_forms_ctx_) {
+		  form.ir = result;
+		  form.where = co->get_fileline();
+		  constraint_order_forms_ctx_->push_back(std::move(form));
+	    }
 	    if (constraint_ir_references_randc_(result, cls))
 		  constraint_randc_reference_error_(co, "solve before");
 	    return result;
@@ -49722,35 +49790,37 @@ static int64_t cov_with_item_value_(uint64_t value, unsigned width,
       return (int64_t)value;
 }
 
-/* Every 'solve before' edge of each class, inherited ones included, and
-   whether that graph has a cycle (reported once, in the class that closes
-   it). IEEE 1800-2023 18.5.9: "There shall be no circular dependencies in
-   the ordering". The ordering is declared, so a cycle through a block that
-   is later disabled with constraint_mode(0) is still one. */
-static std::map<const netclass_t*, std::vector<constraint_order_edge_t> >
-      class_order_edges_;
+/* Effective source forms, before any cycle filtering. A subclass can
+   override one block of a cycle and retain the other blocks' edges. */
+static map<const netclass_t*, vector<constraint_order_form_t>> class_order_forms_;
 static std::set<const netclass_t*> class_order_cycle_;
 
+struct constraint_order_edge_t {
+      const constraint_order_operand_t*from;
+      const constraint_order_operand_t*to;
+      const constraint_order_form_t*form;
+};
+using constraint_order_graph_t = map<string, vector<const constraint_order_edge_t*>>;
+
 static bool constraint_order_find_cycle_(
-      const std::vector<constraint_order_edge_t>&edges,
-      std::vector<const constraint_order_edge_t*>&cycle)
+      const vector<constraint_order_edge_t>&edges,
+      const constraint_order_graph_t&out,
+      vector<const constraint_order_edge_t*>&cycle)
 {
-      std::map<string, std::vector<const constraint_order_edge_t*> > out;
-      for (const constraint_order_edge_t&edge : edges)
-	    out[edge.from].push_back(&edge);
       std::map<string, int> color; // 0 new, 1 on the path, 2 done
       std::vector<const constraint_order_edge_t*> path;
       std::function<bool(const string&)> visit = [&](const string&node) {
 	    color[node] = 1;
-	    for (const constraint_order_edge_t*edge : out[node]) {
+	    for (const constraint_order_edge_t*edge : out.at(node)) {
 		  path.push_back(edge);
-		  if (color[edge->to] == 1) {
+		  const string&next = edge->to->key;
+		  if (color[next] == 1) {
 			size_t first = path.size() - 1;
-			while (path[first]->from != edge->to) first -= 1;
+			while (path[first]->from->key != next) first -= 1;
 			cycle.assign(path.begin() + first, path.end());
 			return true;
 		  }
-		  if (color[edge->to] == 0 && visit(edge->to))
+		  if (color[next] == 0 && visit(next))
 			return true;
 		  path.pop_back();
 	    }
@@ -49758,34 +49828,126 @@ static bool constraint_order_find_cycle_(
 	    return false;
       };
       for (const constraint_order_edge_t&edge : edges)
-	    if (color[edge.from] == 0 && visit(edge.from))
+	    if (color[edge.from->key] == 0 && visit(edge.from->key))
 		  return true;
       return false;
 }
 
-static void constraint_order_check_cycles_(Design*des, const netclass_t*cls,
-					   const netclass_t*super,
-					   const PClass*pclass,
-					   std::vector<constraint_order_edge_t>&own)
+/* Tarjan's algorithm assigns one component to every vertex. An edge whose
+   endpoints are in the same component is cyclic, including a self-edge in
+   a singleton component. */
+static map<string, size_t> constraint_order_components_(
+      const constraint_order_graph_t&out)
 {
-      std::vector<constraint_order_edge_t>&edges = class_order_edges_[cls];
-      edges = own;
-      if (super) {
-	    for (const constraint_order_edge_t&edge : class_order_edges_[super])
-		  if (pclass->type->constraints.find(edge.constraint)
-		      == pclass->type->constraints.end())
-			edges.push_back(edge);
+      map<string, size_t> discovered, component;
+      vector<string> pending;
+      function<size_t(const string&)> visit = [&](const string&node) {
+	    size_t index = discovered.size();
+	    discovered.emplace(node, index);
+	    size_t low = index;
+	    pending.push_back(node);
+	    for (const constraint_order_edge_t*edge : out.at(node)) {
+		  const string&next = edge->to->key;
+		  auto found = discovered.find(next);
+		  if (found == discovered.end())
+			low = min(low, visit(next));
+		  else if (!component.count(next))
+			low = min(low, found->second);
+	    }
+	    if (low == index) {
+		  while (pending.back() != node) {
+			component.emplace(pending.back(), index);
+			pending.pop_back();
+		  }
+		  component.emplace(node, index);
+		  pending.pop_back();
+	    }
+	    return low;
+      };
+      for (const auto&vertex : out)
+	    if (!discovered.count(vertex.first))
+		  visit(vertex.first);
+      return component;
+}
+
+static string constraint_order_filter_form_(
+      const constraint_order_form_t&form, const map<string, size_t>&component)
+{
+      vector<string> terms;
+      bool removed = false;
+      for (const auto&before : form.before) {
+	    string after_ir;
+	    size_t before_component = component.at(before.key);
+	    for (const auto&after : form.after) {
+		  if (before_component == component.at(after.key))
+			removed = true;
+		  else
+			after_ir += " " + after.ir;
+	    }
+	    if (!after_ir.empty())
+		  terms.push_back("(order (vars " + before.ir
+				  + ") (vars" + after_ir + "))");
       }
-      std::vector<const constraint_order_edge_t*> cycle;
-      if (!constraint_order_find_cycle_(edges, cycle))
+      if (!removed) return "";
+      if (terms.empty()) return "c:1:1";
+
+      // Keep each replacement a single expression, including in a nested
+      // constraint set. Balance binary conjunctions for long operand lists.
+      string ir;
+      function<void(size_t, size_t)> append = [&](size_t first, size_t end) {
+	    if (first + 1 == end) {
+		  ir += terms[first];
+		  return;
+	    }
+	    size_t mid = first + (end - first) / 2;
+	    ir += "(and ";
+	    append(first, mid);
+	    ir += " ";
+	    append(mid, end);
+	    ir += ")";
+      };
+      append(0, terms.size());
+      return ir;
+}
+
+void netclass_t::constraint_order_check_cycles_(
+      Design*des, const PClass*pclass, size_t own_count)
+{
+      auto&forms = class_order_forms_[this];
+      if (super_) {
+	    for (const auto&form : class_order_forms_[super_])
+		  if (!pclass->type->constraints.count(form.constraint))
+			forms.push_back(form);
+      }
+      vector<constraint_order_edge_t> edges;
+      for (const auto&form : forms)
+	    for (const auto&before : form.before)
+		  for (const auto&after : form.after)
+			edges.push_back({&before, &after, &form});
+      constraint_order_graph_t out;
+      for (const auto&edge : edges) {
+	    out[edge.from->key].push_back(&edge);
+	    out[edge.to->key]; // Include vertices with no outgoing edges.
+      }
+      vector<const constraint_order_edge_t*> cycle;
+      if (!constraint_order_find_cycle_(edges, out, cycle))
 	    return;
-      class_order_cycle_.insert(cls);
-      if (super && class_order_cycle_.count(super))
+      if (gn_commercial_unsafe_flag) {
+	    auto component = constraint_order_components_(out);
+	    for (const auto&form : forms) {
+		  string replacement = constraint_order_filter_form_(form, component);
+		  if (!replacement.empty())
+			constraint_order_replacements_.emplace(form.ir, std::move(replacement));
+	    }
+      }
+
+      class_order_cycle_.insert(this);
+      if (super_ && class_order_cycle_.count(super_))
 	    return;
 
       std::vector<string> names;
       for (const constraint_order_edge_t*edge : cycle)
-	    names.push_back(edge->from_name);
+	    names.push_back(edge->from->name);
       string between;
       if (names.size() == 1) {
 	    between = "'" + names[0] + "' and itself";
@@ -49799,16 +49961,16 @@ static void constraint_order_check_cycles_(Design*des, const netclass_t*cls,
 	// Point at an edge this class declares: it closes the cycle.
       const constraint_order_edge_t*site = cycle.back();
       for (const constraint_order_edge_t*edge : cycle)
-	    if (edge < edges.data() + own.size()) {
+	    if (edge->form < forms.data() + own_count) {
 		  site = edge;
 		  break;
 	    }
-      const string&where = site->where;
+      const string&where = site->form->where;
       if (!reported.insert(where + between).second)
 	    return;
       cerr << where << (gn_commercial_unsafe_flag ? ": warning: " : ": error: ")
 	   << "circular 'solve before' ordering between " << between
-	   << " in class " << cls->get_name() << " (IEEE 1800 18.5.9)";
+	   << " in class " << get_name() << " (IEEE 1800 18.5.9)";
       if (gn_commercial_unsafe_flag)
 	    cerr << "; nonstandard compatibility behavior";
       cerr << "." << endl;
@@ -49835,15 +49997,13 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 
       /* Convert every source constraint block to solver IR after property
 	 types and specialization parameters are final. */
-      std::vector<constraint_order_edge_t> order_edges;
-      std::vector<constraint_order_edge_t>*save_order_edges =
-	    constraint_order_edges_ctx_;
+      vector<constraint_order_form_t> order_forms;
+      auto*save_order_forms = constraint_order_forms_ctx_;
+      constraint_order_forms_ctx_ = &order_forms;
       for (perm_string name : pclass->type->constraint_order) {
             auto found = pclass->type->constraints.find(name);
             if (found == pclass->type->constraints.end()) continue;
 	    const auto&cit = *found;
-	    size_t edges_before = order_edges.size();
-	    constraint_order_edges_ctx_ = &order_edges;
 	    string ir;
 	    vector<constraint_state_call_t> state_calls;
 	    vector<constraint_state_call_t>*save_state_calls =
@@ -49853,8 +50013,18 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  if (!item) continue;
 		  unsigned errors_before = des->errors;
 		  size_t calls_before = state_calls.size();
+		  size_t forms_before = order_forms.size();
 		  string s = pexpr_to_class_constraint_ir_(
 			item, this, nullptr, des, class_scope_, true);
+		  // Nested lowering can discard a subtree after collecting a
+		  // form. Only graph directives present in the emitted item.
+		  auto first = order_forms.begin() + forms_before;
+		  order_forms.erase(remove_if(first, order_forms.end(),
+			[&](const constraint_order_form_t&form) {
+			      return s.find(form.ir) == string::npos;
+			}), order_forms.end());
+		  for (size_t idx = forms_before; idx < order_forms.size(); ++idx)
+			order_forms[idx].constraint = cit.first;
 		  if (s.empty()) state_calls.resize(calls_before);
 		  if (!s.empty()) {
 			if (!ir.empty()) ir += " ";
@@ -49889,17 +50059,19 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  }
 	    }
 	    constraint_ir_state_calls_ctx_ = save_state_calls;
-	    for (size_t idx = edges_before; idx < order_edges.size(); idx += 1)
-		  order_edges[idx].constraint = cit.first;
-	    if (!ir.empty()) {
+	    if (!ir.empty() || cit.second.empty()) {
+		  // An empty named override still replaces its inherited block.
+		  if (ir.empty()) ir = "c:1:1";
 		  const auto decl = pclass->type->constraint_declarations.find(cit.first);
 		  const bool is_static = decl != pclass->type->constraint_declarations.end()
 			&& decl->second.is_static;
 		  add_constraint_ir(string(cit.first), ir, state_calls, is_static);
 	    }
       }
-      constraint_order_edges_ctx_ = save_order_edges;
-      constraint_order_check_cycles_(des, this, super_, pclass, order_edges);
+      constraint_order_forms_ctx_ = save_order_forms;
+      size_t own_count = order_forms.size();
+      class_order_forms_[this] = std::move(order_forms);
+      constraint_order_check_cycles_(des, pclass, own_count);
 
       constraints_elaborating_ = false;
       constraints_elaborated_ = true;
