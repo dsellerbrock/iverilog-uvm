@@ -1,0 +1,6 @@
+a pass 2
+b fail 4
+gate pass 6
+a fail 8
+b pass 10
+gate fail 14
