@@ -124,6 +124,33 @@ module issue3896_concat_leaves;
     #1;
     if (box.value !== 2'b01) $fatal(1, "Live force of a struct member");
     release {box.value};
+
+    begin : force_reducer
+      reg a, b;
+      reg [1:0] rhs;
+      rhs = 2'b11;
+      #1 force {a, b} = rhs;
+      $display("%b", {a, b});
+      rhs = 2'b01;
+      #1 $display("%b", {a, b});
+      rhs = 2'b00;
+      #1 $display("%b", {a, b});
+      release {a, b};
+    end
+
+    begin : assign_reducer
+      reg a, b;
+      reg [1:0] rhs;
+      rhs = 2'b10;
+      #1 assign {a, b} = rhs;
+      if ({a, b} !== 2'b10) $fatal(1, "Initial assign");
+      rhs = 2'b01;
+      #1 $display("%b", {a, b});
+      deassign {a, b};
+      rhs = 2'b10;
+      #1 $display("%b", {a, b});
+    end
+
     $display("PASSED");
   end
 endmodule
