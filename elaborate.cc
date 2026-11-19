@@ -16418,7 +16418,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  event->set_line(*event_);
 		  event->add_event(qualified);
 	    } else {
-		  NetProc*st = event_->elaborate(des, scope);
+		  NetProc*st = event_->elaborate(des, scope, /*nba_event_control=*/true);
 		  if (st == 0) {
 			cerr << get_fileline() << ": unable to elaborate "
 			        "event expression." << endl;
@@ -26954,6 +26954,7 @@ struct event_leaf_dynamic_kind_t {
       bool object = false;
       bool vif = false;
       bool compound = false;
+      bool size_observer = false;
 };
 
 struct prepared_event_leaf_t {
@@ -27036,8 +27037,15 @@ static void check_named_event_edge_(Design*des, const LineInfo&loc,
       des->errors += 1;
 }
 
-/* Dynamic object and virtual-interface event leaves are selected when the wait
- * arms. Retain each prospective leaf for whichever lowering path wins. */
+static bool event_expr_has_darray_size_(const NetExpr*expr);
+
+static bool event_expr_needs_size_observer_(const NetExpr*expr)
+{
+      return (expr->expr_type() == IVL_VT_BOOL || expr->expr_type() == IVL_VT_LOGIC)
+	  && event_expr_has_darray_size_(expr);
+}
+
+/* Retain each elaborated leaf for the shared or independent wait path. */
 static void prepare_event_leaf_(Design*des, NetScope*scope,
 			const LineInfo&loc, const PEEvent*event,
 			prepared_event_leaf_t&res)
@@ -27150,6 +27158,7 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
       }
 
       NetExpr*expr = res.expr.get();
+      res.kind.size_observer = event_expr_needs_size_observer_(expr);
 
       std::vector<class_property_mutation_dep_t> object_deps;
       collect_class_property_mutation_deps_(expr, object_deps);
@@ -27180,9 +27189,10 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 static bool prepare_event_list_(Design*des, NetScope*scope,
 			const LineInfo&loc,
 			const std::vector<PEEvent*>&events,
-			std::vector<prepared_event_leaf_t>&prepared)
+			std::vector<prepared_event_leaf_t>&prepared,
+			bool nba_event_control)
 {
-      if (!gn_system_verilog() || events.size() < 2)
+      if (!gn_system_verilog() || (events.size() < 2 && !nba_event_control))
 	    return false;
 
       prepared.resize(events.size());
@@ -27195,16 +27205,24 @@ static bool prepare_event_list_(Design*des, NetScope*scope,
       for (unsigned idx = 0; idx < events.size(); idx += 1) {
 	    prepare_event_leaf_(des, scope, loc, events[idx], prepared[idx]);
 	    const event_leaf_dynamic_kind_t&kind = prepared[idx].kind;
+	    if (kind.size_observer && nba_event_control) {
+		  // %evctl uses the raw event source, without the observer recipe.
+		  cerr << events[idx]->get_fileline() << ": sorry: a size()-dependent "
+			  "nonblocking intra-assignment event control is not supported." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
 	    has_class_event = has_class_event || prepared[idx].class_event;
 	    has_object = has_object || kind.object;
 	    has_non_object = has_non_object || !kind.object || kind.vif;
 	    has_vif = has_vif || kind.vif;
 	    has_non_vif = has_non_vif || !kind.vif || kind.object;
-	    has_compound_dynamic = has_compound_dynamic || kind.compound;
+	    has_compound_dynamic = has_compound_dynamic || kind.compound
+		|| kind.size_observer;
       }
-      return (events.size() > 1 && has_class_event) || has_compound_dynamic
-	  || (has_object && has_non_object)
-	  || (has_vif && has_non_vif);
+      return events.size() > 1
+	  && (has_class_event || has_compound_dynamic
+	      || (has_object && has_non_object) || (has_vif && has_non_vif));
 }
 
 /* Only this closed set is safe to move into an observer concat. In particular,
@@ -27568,6 +27586,18 @@ static bool event_expr_has_darray_size_(const NetExpr*expr)
 			return true;
 	    return false;
       }
+      if (const NetEUFunc*call = dynamic_cast<const NetEUFunc*>(expr)) {
+	    for (unsigned idx = 0; idx < call->parm_count(); ++idx)
+		  if (event_expr_has_darray_size_(call->parm(idx)))
+			return true;
+	    return false;
+      }
+      if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
+	    for (unsigned idx = 0; idx < concat->nparms(); ++idx)
+		  if (event_expr_has_darray_size_(concat->parm(idx)))
+			return true;
+	    return false;
+      }
       if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(expr))
 	    return event_expr_has_darray_size_(bin->left())
 		|| event_expr_has_darray_size_(bin->right());
@@ -27580,6 +27610,11 @@ static bool event_expr_has_darray_size_(const NetExpr*expr)
       if (const NetESelect*sel = dynamic_cast<const NetESelect*>(expr))
 	    return event_expr_has_darray_size_(sel->sub_expr())
 		|| event_expr_has_darray_size_(sel->select());
+      if (const NetEProperty*prop = dynamic_cast<const NetEProperty*>(expr))
+	    return event_expr_has_darray_size_(prop->get_base())
+		|| event_expr_has_darray_size_(prop->get_index());
+      if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr))
+	    return event_expr_has_darray_size_(sig->word_index());
       return false;
 }
 
@@ -27592,7 +27627,7 @@ static map<NetEvWait*, deferred_extern_sensitivity_t> deferred_extern_sensitivit
 static bool extern_functions_bound_ = false;
 
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
-				       NetProc*enet) const
+				       NetProc*enet, bool nba_event_control) const
 {
       ivl_assert(*this, scope);
 
@@ -27694,7 +27729,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
        * source-order concat and recurse through the established single-observer
        * lowering. This keeps all subscriptions in the original waiter frame. */
       const unsigned errors_before_prepared = des->errors;
-      bool split_event_list = prepare_event_list_(des, scope, *this, expr_, prepared);
+      bool split_event_list = prepare_event_list_(des, scope, *this, expr_,
+						  prepared, nba_event_control);
       if (des->errors != errors_before_prepared)
 	    return nullptr;
       if (unique_ptr<NetExpr>concat =
@@ -27708,9 +27744,9 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
             return concat_wait.elaborate_st(des, scope, enet);
       }
 
-      /* A per-instance class event or dynamically selected class/VIF leaf
-       * needs its own waiter. Lower such lists as independent one-shot waits
-       * under join_any; ordinary event-list lowering remains unchanged. */
+      /* A dynamically selected event or a size-dependent value observer
+       * may need its own waiter. Lower these lists as independent one-shot
+       * waits under join_any. */
       if (split_event_list) {
 	    std::vector<NetProc*>waiters;
 	    for (unsigned idx = 0; idx < expr_.size(); idx += 1) {
@@ -28387,33 +28423,27 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  continue;
 	    }
 
-	    /* A dynamic-array or queue size() call is represented by an internal
-	     * system-function node. It cannot be synthesized as an ordinary
-	     * expression, but its receiver inputs can trigger the existing value
-	     * observer. The observer compares successive size() results, so changes
-	     * to elements or same-sized assignments do not create false events. */
-	    if (gn_system_verilog()
-		&& expr_[idx]->type() == PEEvent::ANYEDGE) {
-		    /* IEEE 1800-2023 9.4.2: an expression that uses a size()
-		       call (da.size() > 0) is reevaluated the same way. */
-		  if (event_expr_has_darray_size_(tmp)
-		      && (tmp->expr_type() == IVL_VT_BOOL
-			  || tmp->expr_type() == IVL_VT_LOGIC)) {
-			NexusSet*source_set = tmp->nex_input();
-			if (source_set && source_set->size() > 0) {
-			      NetEvProbe*probe = new NetEvProbe(
-				    scope, scope->local_symbol(), ev,
-				    NetEvProbe::ANYEDGE, source_set->size());
-			      for (unsigned pin = 0; pin < source_set->size(); ++pin)
-				    connect(source_set->at(pin).lnk, probe->pin(pin));
-			      probe->set_event_observer_expr(tmp);
-			      tmp = nullptr;
-			      des->add_node(probe);
-			      expr_count += 1;
-			      delete source_set;
-			      continue;
-			}
-			delete source_set;
+	    /* IEEE 1800-2017/2023 9.4.2: each input can request reevaluation.
+	     * The observer applies the qualifier to the resulting value. */
+	    if (gn_system_verilog() && event_expr_needs_size_observer_(tmp)) {
+		  unique_ptr<NexusSet>sources(tmp->nex_input(
+			true, expr_has_user_function_call_(tmp)));
+		  if (sources) {
+			PEEvent::edge_t edge = expr_[idx]->type();
+			NetEvProbe::edge_t observer_edge =
+			      edge == PEEvent::POSEDGE ? NetEvProbe::POSEDGE
+			    : edge == PEEvent::NEGEDGE ? NetEvProbe::NEGEDGE
+			    : edge == PEEvent::EDGE    ? NetEvProbe::EDGE
+			    : NetEvProbe::ANYEDGE;
+			NetEvProbe*probe = new NetEvProbe(
+			      scope, scope->local_symbol(), ev,
+			      NetEvProbe::ANYEDGE, sources->size());
+			for (unsigned pin = 0; pin < sources->size(); ++pin)
+			      connect(sources->at(pin).lnk, probe->pin(pin));
+			probe->set_event_observer_expr(tmp, observer_edge);
+			des->add_node(probe);
+			expr_count += 1;
+			continue;
 		  }
 	    }
 
@@ -29947,6 +29977,12 @@ NetProc* PEventStatement::elaborate_wait_fork(Design*des, const NetScope*scope) 
 
 NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 {
+      return elaborate(des, scope, /*nba_event_control=*/false);
+}
+
+NetProc* PEventStatement::elaborate(Design*des, NetScope*scope,
+				    bool nba_event_control) const
+{
 	/* wait_order uses named-event identifiers and has two continuations, so
 	   it must not pass through the ordinary event-or lowering below. */
       if (wait_order_)
@@ -30080,7 +30116,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
       if ((expr_.size() == 1) && (expr_[0]->type() == PEEvent::POSITIVE))
 	    return elaborate_wait(des, scope, enet);
 
-      return elaborate_st(des, scope, enet);
+      return elaborate_st(des, scope, enet, nba_event_control);
 }
 
 NetProc* PEventStatement::elaborate_wait_order_(Design*des,

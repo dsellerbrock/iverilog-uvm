@@ -4053,11 +4053,10 @@ void dll_target::signal(const NetNet*net)
       if (net->attr_cnt())
 	    signal_aux_(obj)->attr = fill_in_attributes(net);
 
-      // Special case: IVL_VT_QUEUE objects don't normally show up in the
-      // network,  but can in certain special cases. In these cases, it is the
-      // object itself and not the array elements that is in the network. of
-      // course, only do this if there is at least one link to this signal.
-      if (net->net_type()->base_type()==IVL_VT_QUEUE && net->is_linked()) {
+	// A scalar queue can drive an event source through its object. Fixed
+	// arrays of queues get each word's driver from the loop below.
+      if (net->net_type()->base_type() == IVL_VT_QUEUE
+	  && net->unpacked_dimensions() == 0 && net->is_linked()) {
 	    const Nexus*nex = net->pin(0).nexus();
 	    ivl_nexus_t tmp = nexus_sig_make(obj, 0, nex);
 	    nex->t_cookie(tmp);
