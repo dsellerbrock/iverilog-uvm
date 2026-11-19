@@ -1268,6 +1268,35 @@ bool dll_target::order_processes(vector<target_process_ref_t>&processes)
 void dll_target::make_scope_contassigns_(ivl_scope_t scope)
 {
       const NetScope*net = scope->net_;
+      if (ivl_scope_t decl = ivl_scope_class_chain(scope)) {
+	    const auto&args = decl->net_->class_def()->vpi_chain_args();
+	    auto*list = new vector<ivl_expr_t>;
+	    list->reserve(args.size());
+	    for (const auto&arg : args) {
+		  assert(!expr_);
+		  if (arg)
+			arg->expr_scan(this);
+		  list->push_back(expr_);
+		  expr_ = 0;
+	    }
+	    scope->ensure_aux_()->class_chain_args = list;
+      }
+      if (net && net->class_def() && !net->class_def()->vpi_base_params().empty()) {
+	    if (ivl_scope_t base = ivl_scope_class_base_declaration(scope)) {
+		  auto*list = new vector<ivl_class_base_param_s>;
+		  for (const auto&arg : net->class_def()->vpi_base_params()) {
+			ivl_parameter_t formal = scope_find_param(base, arg.name.str());
+			if (!formal)
+			      continue;
+			assert(!expr_);
+			if (arg.expr)
+			      arg.expr->expr_scan(this);
+			list->push_back({formal, expr_, arg.by_name});
+			expr_ = 0;
+		  }
+		  scope->ensure_aux_()->class_base_params = list;
+	    }
+      }
       if (net && !net->contassigns.empty()) {
 	    std::vector<ivl_contassign_s>*list = new std::vector<ivl_contassign_s>;
 	    list->reserve(net->contassigns.size());
@@ -2447,6 +2476,7 @@ bool dll_target::ureduce(const NetUReduce*net)
 	    break;
       }
 
+      obj->reduce_signed_xz = net->signed_xz();
       obj->name = net->name();
       obj->scope = find_scope(des_, net->scope());
       assert(obj->scope);

@@ -1,0 +1,3 @@
+issue3752_2005 normal,-s,issue3752 ivltests gold=issue3752.gold
+issue3752_2017 normal,-g2017,-s,issue3752 ivltests gold=issue3752.gold
+issue3752_2023 normal,-g2023,-s,issue3752 ivltests gold=issue3752.gold

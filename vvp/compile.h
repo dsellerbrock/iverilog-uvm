@@ -354,12 +354,12 @@ extern void compile_modpath_src_part(__vpiModPath*dst,
 				     unsigned dbase, unsigned dwid,
 				     unsigned sbase, unsigned swid);
 
-extern void compile_reduce_and(char*label, const struct symb_s&arg);
-extern void compile_reduce_or(char*label, const struct symb_s&arg);
-extern void compile_reduce_xor(char*label, const struct symb_s&arg);
-extern void compile_reduce_nand(char*label, const struct symb_s&arg);
-extern void compile_reduce_nor(char*label, const struct symb_s&arg);
-extern void compile_reduce_xnor(char*label, const struct symb_s&arg);
+extern void compile_reduce_and(char*label, const struct symb_s&arg, bool signed_xz);
+extern void compile_reduce_or(char*label, const struct symb_s&arg, bool signed_xz);
+extern void compile_reduce_xor(char*label, const struct symb_s&arg, bool signed_xz);
+extern void compile_reduce_nand(char*label, const struct symb_s&arg, bool signed_xz);
+extern void compile_reduce_nor(char*label, const struct symb_s&arg, bool signed_xz);
+extern void compile_reduce_xnor(char*label, const struct symb_s&arg, bool signed_xz);
 
 extern void compile_extend_signed(char*label, long width, struct symb_s arg);
 extern void compile_sample(char*label, struct symb_s arg);
@@ -671,6 +671,11 @@ extern void compile_scope_recall(char*sym);
 extern void compile_vpi_class_defn(char*label, uint64_t is_virtual);
 extern void compile_vpi_class_typespec(char*label, uint64_t concrete);
 extern void compile_vpi_class_runtime(char*label, char*scope);
+extern void compile_vpi_class_extends(char*base, char*name);
+extern void compile_vpi_class_base(char*base, char*builtin_name);
+extern void compile_vpi_class_ctor(char*label, unsigned argc, vpiHandle*argv);
+extern void compile_vpi_class_param(char*label, uint64_t by_name,
+				    unsigned argc, vpiHandle*argv);
 extern void compile_vpi_import(char*package, char*name);
 extern void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type,
                               char*name);

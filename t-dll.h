@@ -558,6 +558,7 @@ struct ivl_lpm_s {
 	// Value returned by ivl_lpm_width;
       unsigned width;
       unsigned event_synchronous = 0;
+      bool reduce_signed_xz = false;
       ivl_expr_t*delay;
 
       union {
@@ -944,6 +945,12 @@ struct ivl_inst_array_s {
       std::vector<ivl_expr_t> conns;
 };
 
+struct ivl_class_base_param_s {
+      ivl_parameter_t formal;
+      ivl_expr_t rhs;
+      bool by_name;
+};
+
 struct ivl_scope_aux_s {
       std::vector<ivl_type_t>*classes;
       std::vector<ivl_enumtype_t>*enumerations_;
@@ -956,6 +963,8 @@ struct ivl_scope_aux_s {
       std::vector<std::pair<ivl_scope_t, const char*> >*port_ifaces;
       std::vector<ivl_expr_t>*port_lowconns;
       std::vector<struct ivl_inst_array_s>*inst_arrays;
+      std::vector<ivl_expr_t>*class_chain_args;
+      std::vector<ivl_class_base_param_s>*class_base_params;
       std::vector<ivl_tchk_t>*tchks;
       ivl_scope_objects_s*objects_;
       ivl_scope_proc_s*proc_;

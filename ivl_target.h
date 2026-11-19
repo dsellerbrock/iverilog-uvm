@@ -1658,6 +1658,8 @@ extern int            ivl_lpm_signed(ivl_lpm_t net);
 extern ivl_lpm_type_t ivl_lpm_type(ivl_lpm_t net);
 extern unsigned       ivl_lpm_width(ivl_lpm_t net);
 extern unsigned       ivl_lpm_event_synchronous(ivl_lpm_t net);
+  /* True for reductions that yield X if any operand bit is X/Z. */
+extern int            ivl_lpm_reduce_signed_xz(ivl_lpm_t net);
 extern ivl_event_t    ivl_lpm_trigger(ivl_lpm_t net);
 
   /* IVL_LPM_FF */
@@ -2149,6 +2151,19 @@ extern ivl_type_t ivl_scope_class(ivl_scope_t net, unsigned idx);
    class record. A generic declaration has a definition scope only. */
 extern ivl_scope_t ivl_scope_class_declaration(ivl_scope_t net, int*concrete);
 extern int ivl_scope_class_virtual(ivl_scope_t net);
+/* The ordinary superclass, excluding interface-class relations. */
+extern ivl_type_t ivl_scope_class_base(ivl_scope_t net);
+extern int ivl_type_class_builtin(ivl_type_t net);
+extern ivl_scope_t ivl_scope_class_base_declaration(ivl_scope_t net);
+extern const char*ivl_scope_class_base_name(ivl_scope_t net);
+extern unsigned ivl_scope_class_base_params(ivl_scope_t net);
+extern ivl_parameter_t ivl_scope_class_base_param(ivl_scope_t net, unsigned idx,
+						  ivl_expr_t*rhs, int*by_name);
+/* The declaration whose constructor this scope implements, and the
+   constructor-chain actuals in source order. */
+extern ivl_scope_t ivl_scope_class_chain(ivl_scope_t net);
+extern unsigned ivl_scope_class_chain_argc(ivl_scope_t net);
+extern ivl_expr_t ivl_scope_class_chain_arg(ivl_scope_t net, unsigned idx);
 extern ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net);
 extern unsigned       ivl_scope_enumerates(ivl_scope_t net);
 extern ivl_enumtype_t ivl_scope_enumerate(ivl_scope_t net, unsigned idx);

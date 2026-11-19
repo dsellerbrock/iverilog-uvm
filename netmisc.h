@@ -177,7 +177,7 @@ extern void check_package_unit_value(Design*des, const LineInfo&loc,
 
 /*
  * Canonical description of a whole one-dimensional fixed unpacked array or
- * a constant slice of one. Array storage is flattened in increasing numeric
+ * a slice of one. Array storage is flattened in increasing numeric
  * index order, while SystemVerilog assignment and comparison pair elements
  * in the slice's declared left-to-right order. Keeping both the canonical
  * low word and the selected range direction lets callers perform the right
@@ -191,6 +191,7 @@ extern void check_package_unit_value(Design*des, const LineInfo&loc,
 struct fixed_uarray_slice_t {
       NetNet*signal = nullptr;       // Borrowed from the design.
       long canonical_base = 0;      // Lowest canonical word in the slice.
+      NetExpr*runtime_base = nullptr; // Owned by the caller when opted in.
       unsigned long count = 0;
       netrange_t selected_range;
       ivl_type_t element_type = nullptr; // Borrowed from signal.
@@ -201,7 +202,12 @@ extern int decode_fixed_uarray_slice(Design*des, NetScope*scope,
 				     const LineInfo&loc, const PExpr*expr,
 				     bool allow_whole,
 				     fixed_uarray_slice_t&out,
-				     bool quiet = false);
+				     bool quiet = false,
+				     bool allow_runtime_base = false);
+
+// Check the entire integral index and return index - low, or X64.
+extern NetExpr* make_checked_uarray_index(NetExpr*index, int64_t low,
+					 uint64_t count, const LineInfo&loc);
 
 /* Decode a range written directly on a one-dimensional fixed unpacked-array
  * type. This is the declaration-independent counterpart used for class and

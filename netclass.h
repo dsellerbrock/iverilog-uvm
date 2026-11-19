@@ -26,6 +26,7 @@
 # include  <cstdint>
 # include  <iostream>
 # include  <map>
+# include  <memory>
 # include  <set>
 # include  <string>
 # include  <vector>
@@ -90,6 +91,32 @@ class netclass_t : public ivl_type_s {
       inline const netclass_t* get_super() const { return super_; }
       inline const std::vector<const netclass_t*>& derived_types() const { return derived_types_; }
       void set_super(const netclass_t*super);
+
+      void set_vpi_base_reference(perm_string name, bool type_parameter)
+      {
+	    vpi_base_name_ = name;
+	    vpi_base_is_type_param_ = type_parameter;
+      }
+      perm_string vpi_base_name() const { return vpi_base_name_; }
+      const NetScope* vpi_base_declaration_scope() const
+      {
+	    return super_ && !vpi_base_is_type_param_ ? super_->class_declaration_scope() : nullptr;
+      }
+
+      // Actual expressions of the declaration's superclass constructor call.
+      void set_vpi_chain_args(std::vector<std::unique_ptr<NetExpr>> args) const;
+      void elaborate_vpi_chain_args(Design*des, NetScope*scope) const;
+      const std::vector<std::unique_ptr<NetExpr>>& vpi_chain_args() const
+      { return vpi_chain_args_; }
+
+      struct vpi_base_param_t {
+	    perm_string name;
+	    std::unique_ptr<NetExpr> expr;
+	    bool by_name = false;
+      };
+      void elaborate_vpi_base_params(Design*des, NetScope*scope) const;
+      const std::vector<vpi_base_param_t>& vpi_base_params() const
+      { return vpi_base_params_; }
 
 	// Resolve the class's pure-constraint obligations after its superclass
 	// is known. Concrete classes must implement every inherited prototype.
@@ -355,6 +382,10 @@ class netclass_t : public ivl_type_s {
 	// If this is derived from another base class, point to it
 	// here.
       const netclass_t*super_;
+      perm_string vpi_base_name_;
+      bool vpi_base_is_type_param_ = false;
+      mutable std::vector<std::unique_ptr<NetExpr>> vpi_chain_args_;
+      mutable std::vector<vpi_base_param_t> vpi_base_params_;
       std::vector<const netclass_t*> derived_types_;
       std::vector<const netclass_t*> interface_types_;
 	// Map property names to property table index.

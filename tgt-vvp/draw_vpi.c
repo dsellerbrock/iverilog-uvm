@@ -429,61 +429,98 @@ static unsigned lazy_expr_count_ = 0;
    operation node of EXPR, and return the argument text: the root record's
    label, or a leaf's ordinary VPI argument. Returns nil when EXPR has a
    shape the records cannot describe; the caller then evaluates eagerly. */
-static char* draw_lazy_expr_(ivl_expr_t expr)
+static char* draw_lazy_expr_mode_(ivl_expr_t expr, int declaration)
 {
       ivl_expr_t node = lazy_strip_pad_(expr);
       struct lazy_text_ text = {0, 0, 0};
+      ivl_expr_type_t node_type = ivl_expr_type(node);
+      if (declaration && node_type == IVL_EX_NULL)
+	    return strdup("null");
+	/* A pure variable reference is already an expression handle, even
+	   for a class or container argument. */
+      if (declaration && node_type == IVL_EX_SIGNAL && node == expr
+	  && !ivl_expr_oper1(node) && !ivl_signal_dimensions(ivl_expr_signal(node))) {
+	    char buffer[64];
+	    snprintf(buffer, sizeof buffer, "v%p_0", ivl_expr_signal(node));
+	    return strdup(buffer);
+      }
 	/* Whole unpacked-array operands are ordinary array handles, not values
 	   that need an expression thunk. Use the .array label directly. */
-	if (ivl_expr_type(node) == IVL_EX_ARRAY) {
+	if (node_type == IVL_EX_ARRAY) {
 	      char buffer[64];
 	      snprintf(buffer, sizeof buffer, "v%p", ivl_expr_signal(node));
 	      return strdup(buffer);
 	}
       char kind = lazy_value_kind_(expr);
-      char**ops = calloc(ivl_expr_type(node) == IVL_EX_CONCAT
+      if (declaration && (ivl_expr_value(expr) == IVL_VT_CLASS
+			  || ivl_expr_value(expr) == IVL_VT_DARRAY
+			  || ivl_expr_value(expr) == IVL_VT_QUEUE))
+	    kind = 'o';
+      char**ops = calloc(node_type == IVL_EX_CONCAT
 			 ? ivl_expr_parms(node) + 1 : 3, sizeof(char*));
       unsigned nops = 0, idx, label, thunk, skip;
       int type = LAZY_vpiOperation, op_type = 0;
       char buffer[64];
 
-      if (!kind || !lazy_decompile_(expr, &text)) {
+      int described = kind && lazy_decompile_(expr, &text);
+      if (!kind || (!described && !declaration)) {
 	    free(text.buf);
 	    free(ops);
 	    return 0;
       }
 	/* Leaves keep their ordinary argument handles. */
       buffer[0] = 0;
-      if (ivl_expr_type(node) == IVL_EX_SIGNAL
+      if (node_type == IVL_EX_SIGNAL
 	  && ivl_signal_dimensions(ivl_expr_signal(node)) == 0)
 	    snprintf(buffer, sizeof buffer, "v%p_0", ivl_expr_signal(node));
-      if (ivl_expr_type(node) == IVL_EX_SIGNAL && ivl_expr_oper1(node)) {
+      if (node_type == IVL_EX_SIGNAL && ivl_expr_oper1(node)) {
 	    long word;
 	    if (lazy_array_word_(node, &word))
 		  snprintf(buffer, sizeof buffer, "&A<v%p, %ld>",
 			   ivl_expr_signal(node), word);
       }
-      if (ivl_expr_type(node) == IVL_EX_NUMBER && ivl_expr_parameter(node))
+      if (node_type == IVL_EX_NUMBER && ivl_expr_parameter(node))
 	    snprintf(buffer, sizeof buffer, "P_%p", ivl_expr_parameter(node));
-      if (ivl_expr_type(node) == IVL_EX_NUMBER && !ivl_expr_parameter(node)
-	  && ivl_expr_width(node) < sizeof buffer - 8) {
+      if (node_type == IVL_EX_NUMBER && !ivl_expr_parameter(node)
+	  && (declaration || ivl_expr_width(node) < sizeof buffer - 8)) {
 	    unsigned bit, wid = ivl_expr_width(node);
 	    const char*bits = ivl_expr_bits(node);
-	    char*dp = buffer + snprintf(buffer, sizeof buffer, "%u'%sb", wid,
-					ivl_expr_signed(node) ? "s" : "");
+	    size_t len = (size_t)wid + 16;
+	    char*literal = malloc(len);
+	    char*dp = literal + snprintf(literal, len, "%u'%sb", wid,
+					 ivl_expr_signed(node) ? "s" : "");
 	    for (bit = wid; bit > 0; bit -= 1) *dp++ = bits[bit-1];
 	    *dp = 0;
+	    free(text.buf);
+	    free(ops);
+	    return literal;
       }
       if (buffer[0]) {
 	    free(text.buf);
 	    free(ops);
 	    return strdup(buffer);
       }
-      switch (ivl_expr_type(node)) {
+      switch (node_type) {
 	  case IVL_EX_REALNUM:
+	    if (declaration) {
+		  ivl_parameter_t par = ivl_expr_parameter(node);
+		  free(text.buf);
+		  free(ops);
+		  if (par) {
+			snprintf(buffer, sizeof buffer, "P_%p", par);
+			return strdup(buffer);
+		  }
+		  return draw_Cr_to_string(ivl_expr_dvalue(node));
+	    }
 	    type = 7; /* vpiConstant */
 	    break;
 	  case IVL_EX_STRING: {
+	    if (declaration && ivl_expr_parameter(node)) {
+		  snprintf(buffer, sizeof buffer, "P_%p", ivl_expr_parameter(node));
+		  free(text.buf);
+		  free(ops);
+		  return strdup(buffer);
+	    }
 	    size_t len = strlen(ivl_expr_string(node)) + 3;
 	    char*str = malloc(len);
 	    snprintf(str, len, "\"%s\"", ivl_expr_string(node));
@@ -491,20 +528,26 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
 	    free(ops);
 	    return str;
 	  }
-	  case IVL_EX_BINARY:
-	    op_type = lazy_find_op_(lazy_binary_ops_, ivl_expr_opcode(node))->vpi_op;
-	    ops[nops++] = draw_lazy_expr_(ivl_expr_oper1(node));
-	    ops[nops++] = draw_lazy_expr_(ivl_expr_oper2(node));
+	  case IVL_EX_BINARY: {
+	    const struct lazy_op_*op = lazy_find_op_(lazy_binary_ops_, ivl_expr_opcode(node));
+	    if (op)
+		  op_type = op->vpi_op;
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper1(node), declaration);
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper2(node), declaration);
 	    break;
-	  case IVL_EX_UNARY:
-	    op_type = lazy_find_op_(lazy_unary_ops_, ivl_expr_opcode(node))->vpi_op;
-	    ops[nops++] = draw_lazy_expr_(ivl_expr_oper1(node));
+	  }
+	  case IVL_EX_UNARY: {
+	    const struct lazy_op_*op = lazy_find_op_(lazy_unary_ops_, ivl_expr_opcode(node));
+	    if (op)
+		  op_type = op->vpi_op;
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper1(node), declaration);
 	    break;
+	  }
 	  case IVL_EX_TERNARY:
 	    op_type = 32; /* vpiConditionOp */
-	    ops[nops++] = draw_lazy_expr_(ivl_expr_oper1(node));
-	    ops[nops++] = draw_lazy_expr_(ivl_expr_oper2(node));
-	    ops[nops++] = draw_lazy_expr_(ivl_expr_oper3(node));
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper1(node), declaration);
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper2(node), declaration);
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper3(node), declaration);
 	    break;
 	  case IVL_EX_CONCAT:
 	    op_type = ivl_expr_repeat(node) != 1 ? 34 : 33;
@@ -518,7 +561,7 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
 		  buffer[0] = 0;
 	    }
 	    for (idx = 0; idx < ivl_expr_parms(node); idx += 1)
-		  ops[nops++] = draw_lazy_expr_(ivl_expr_parm(node, idx));
+		  ops[nops++] = draw_lazy_expr_mode_(ivl_expr_parm(node, idx), declaration);
 	    break;
 	  case IVL_EX_UFUNC:
 	    type = LAZY_vpiFuncCall;
@@ -527,6 +570,11 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
 	    type = LAZY_vpiSysFuncCall;
 	    break;
 	  case IVL_EX_SELECT: {
+	    if (!described) {
+		  type = ivl_expr_width(node) == 1 ? LAZY_vpiBitSelect
+			: LAZY_vpiIndexedPartSelect;
+		  break;
+	    }
 	      /* The decompiler only describes a constant select of a whole
 		 vector signal: its operands are the signal (vpiParent) and
 		 the declared index (vpiIndex) or bounds (vpiLeftRange,
@@ -567,7 +615,7 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
       fprintf(vvp_out, "XE_%u .vpi_expr %d, %d, %u, \"%c\", T_%u.%u, \"",
 	      label, type, op_type, ivl_expr_width(expr), kind,
 	      thread_count, thunk);
-      for (idx = 0; idx < text.len; idx += 1) {
+      for (idx = 0; described && idx < text.len; idx += 1) {
 	    if (text.buf[idx] == '"' || text.buf[idx] == '\\')
 		  fputc('\\', vvp_out);
 	    fputc(text.buf[idx], vvp_out);
@@ -590,6 +638,9 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
 	  case 'S':
 	    draw_eval_string(expr);
 	    break;
+	  case 'o':
+	    draw_eval_object(expr);
+	    break;
 	  default:
 	    draw_eval_vec4(expr);
 	    break;
@@ -598,6 +649,11 @@ static char* draw_lazy_expr_(ivl_expr_t expr)
       fprintf(vvp_out, "T_%u.%u ;\n", thread_count, skip);
       snprintf(buffer, sizeof buffer, "XE_%u", label);
       return strdup(buffer);
+}
+
+static char* draw_lazy_expr_(ivl_expr_t expr)
+{
+      return draw_lazy_expr_mode_(expr, 0);
 }
 
 char* draw_vpi_lazy_expr(ivl_expr_t expr)
@@ -703,9 +759,12 @@ static void draw_inst_array_(ivl_scope_t scope, unsigned idx)
 void draw_vpi_objects_in_scope(ivl_scope_t scope)
 {
       unsigned idx, save_local = local_count, save_thread = thread_count;
+      unsigned chain_argc = ivl_scope_class_chain_argc(scope);
+      unsigned base_params = ivl_scope_class_base_params(scope);
       unsigned nports = ivl_scope_type(scope) == IVL_SCT_MODULE
 	    ? ivl_scope_mod_module_ports(scope) : 0;
-      int any = ivl_scope_contassigns(scope) || ivl_scope_defparams(scope);
+      int any = chain_argc || base_params || ivl_scope_contassigns(scope)
+	    || ivl_scope_defparams(scope);
 
       for (idx = 0; !any && idx < ivl_scope_params(scope); idx += 1)
 	    any = ivl_parameter_default_expr(ivl_scope_param(scope, idx)) != 0;
@@ -734,6 +793,39 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
       if (!any) return;
       thread_count = static_thunk_count_++;
       local_count = 0;
+      for (idx = 0; idx < base_params; idx += 1) {
+	    ivl_expr_t rhs;
+	    int by_name;
+	    ivl_parameter_t formal = ivl_scope_class_base_param(scope, idx, &rhs, &by_name);
+	    char*text = rhs ? draw_lazy_expr_mode_(rhs, 1) : 0;
+	    if (!rhs || text) {
+		  fprintf(vvp_out, " .class/param P_%p %d", formal, by_name);
+		  if (text)
+			fprintf(vvp_out, ", %s", text);
+		  fprintf(vvp_out, ";\n");
+	    }
+	    free(text);
+      }
+      if (chain_argc) {
+	    char**args = calloc(chain_argc, sizeof *args);
+	    for (idx = 0; idx < chain_argc; idx += 1) {
+		  ivl_expr_t arg = ivl_scope_class_chain_arg(scope, idx);
+		  args[idx] = arg ? draw_lazy_expr_mode_(arg, 1) : strdup("__ivl_vpi_null_op__");
+		  if (!args[idx]) {
+			fprintf(stderr, "vvp.tgt: cannot emit constructor chaining argument %u in %s\n",
+				idx + 1, ivl_scope_basename(scope));
+			vvp_errors += 1;
+		  }
+	    }
+	    fprintf(vvp_out, " .class/ctor D_%p", ivl_scope_class_chain(scope));
+	    for (idx = 0; idx < chain_argc; idx += 1) {
+		  if (args[idx])
+			fprintf(vvp_out, ", %s", args[idx]);
+		  free(args[idx]);
+	    }
+	    fprintf(vvp_out, ";\n");
+	    free(args);
+      }
       for (idx = 0; idx < ivl_scope_inst_arrays(scope); idx += 1)
 	    if (ivl_scope_inst_array_conns(scope, idx) != 0)
 		  draw_inst_array_(scope, idx);
