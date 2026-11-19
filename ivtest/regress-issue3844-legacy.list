@@ -1,0 +1,2 @@
+issue3844_real_class_property_2017 normal,-g2017,-s,issue3844_real_class_property,+REAL=4.125 ivltests gold=issue3844_real_class_property.gold
+issue3844_real_class_property_2023 normal,-g2023,-I./ivltests,-s,issue3844_real_class_property,+REAL=4.125 ivltests gold=issue3844_real_class_property.gold

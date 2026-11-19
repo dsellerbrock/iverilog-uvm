@@ -1622,6 +1622,9 @@ extern vpiHandle vpip_make_cobject_property_vec_elem(char*label,
                                                      unsigned prop_cnt,
                                                      long*prop_idx,
                                                      char*index_label);
+/* Real class property chain, optionally with a captured fixed-array slot. */
+extern vpiHandle vpip_make_cobject_property_real(char*label, unsigned prop_cnt,
+                                                long*prop_idx, char*index_label);
 
 /*
  * When a loaded VPI module announces a system task/function, one

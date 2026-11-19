@@ -3,6 +3,8 @@
 
 issue3719_value_plusargs_packed_struct_2017 normal,-g2017,-s,issue3719_value_plusargs_packed_struct,+v=123456789abcdef0123,+p=00112233445566778899aabbccddeeff,+four=12xz,+two=12xz ivltests gold=issue3719_value_plusargs_packed_struct.gold
 issue3719_value_plusargs_packed_struct_2023 normal,-g2023,-s,issue3719_value_plusargs_packed_struct,+v=123456789abcdef0123,+p=00112233445566778899aabbccddeeff,+four=12xz,+two=12xz ivltests gold=issue3719_value_plusargs_packed_struct.gold
+issue3844_real_class_property_2017 normal,-g2017,-s,issue3844_real_class_property,+REAL=4.125 ivltests gold=issue3844_real_class_property.gold
+issue3844_real_class_property_2023 normal,-g2023,-I./ivltests,-s,issue3844_real_class_property,+REAL=4.125 ivltests gold=issue3844_real_class_property.gold
 
 issue2935_ansi_port_concat_2017 normal,-g2017,-s,issue2935_ansi_port_concat_top ivltests gold=issue2935_ansi_port_concat-vvp-stdout.gold
 issue2935_ansi_port_concat_2023 normal,-g2023,-s,issue2935_ansi_port_concat_top ivltests gold=issue2935_ansi_port_concat-vvp-stdout.gold

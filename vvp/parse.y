@@ -104,7 +104,7 @@ static bool is_force_release_opcode(const char* name)
       int      vpi_enum;
 };
 
-%token K_A K_APV K_CPS K_CPV
+%token K_A K_APV K_CPS K_CPV K_CPR
 %token K_ARITH_ABS K_ARITH_DIV K_ARITH_DIV_R K_ARITH_DIV_S K_ARITH_MOD
 %token K_ARITH_MOD_R K_ARITH_MOD_S
 %token K_ARITH_MULT K_ARITH_MULT_R K_ARITH_SUB K_ARITH_SUB_R
@@ -1938,6 +1938,10 @@ symbol_access
       /* #2475: an element of a fixed-array property; the trailing handle
          (a vec4 stack reference) holds the element index. */
       { $$ = vpip_make_cobject_property_vec_elem($3, $5, $7, $9.cnt, $9.nvec, $11); }
+  | K_CPR '<' T_SYMBOL ',' numbers '>'
+      { $$ = vpip_make_cobject_property_real($3, $5.cnt, $5.nvec, nullptr); }
+  | K_CPR '<' T_SYMBOL ',' numbers ',' T_SYMBOL '>'
+      { $$ = vpip_make_cobject_property_real($3, $5.cnt, $5.nvec, $7); }
   ;
 
   /* functor operands can only be a list of symbols. */

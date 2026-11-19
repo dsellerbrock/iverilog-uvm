@@ -2077,6 +2077,132 @@ vpiHandle vpip_make_cobject_property_vec_elem(char*label, unsigned width,
       return obj;
 }
 
+class __vpiClassPropertyRealVar : public __vpiHandle {
+    public:
+      __vpiClassPropertyRealVar(unsigned prop_cnt, const long*prop_idx)
+            : cobj_net_(nullptr), index_(nullptr),
+              prop_path_(prop_idx, prop_idx + prop_cnt) {}
+
+      vvp_net_t*cobj_net_;
+      vpiHandle index_;
+
+      int get_type_code(void) const override { return vpiRealVar; }
+
+      int vpi_get(int code) override
+      {
+            switch (code) {
+                case vpiSize:      return 1;
+                case vpiAutomatic: return index_ != nullptr;
+                default:           return 0;
+            }
+      }
+
+      char* vpi_get_str(int code) override
+      {
+            return code == vpiName ? simple_set_rbuf_str("real class property")
+                                   : nullptr;
+      }
+
+      void vpi_get_value(p_vpi_value val) override
+      {
+            double current = 0.0;
+            size_t slot = 0;
+            if (resolve_slot_(slot)) {
+                  vvp_object_t obj = resolve_container_();
+                  size_t pid = prop_path_.back();
+                  if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+                        if (has_slot_(cobj, slot))
+                              current = cobj->get_real(pid, slot);
+                  } else if (vvp_vinterface*vif = obj.peek<vvp_vinterface>()) {
+                        current = vif->get_real(pid, slot);
+                  }
+            }
+            vpip_real_get_value(current, val);
+      }
+
+      vpiHandle vpi_put_value(p_vpi_value val, int) override
+      {
+            if (!vpip_real_put_format_ok(val)) return nullptr;
+            vvp_object_t obj = resolve_container_();
+            if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+                  size_t slot = 0;
+                  if (resolve_slot_(slot) && has_slot_(cobj, slot))
+                        cobj->set_real(prop_path_.back(),
+                                       real_from_vpi_value(val), slot);
+            } else if (obj.peek<vvp_vinterface>()) {
+                  report_vinterface_property_write_();
+            } else {
+                  report_null_property_container_write_();
+            }
+            return nullptr;
+      }
+
+    private:
+      const std::vector<size_t> prop_path_;
+
+      bool resolve_slot_(size_t&slot) const
+      {
+            if (!index_) return true;
+
+            // The captured index belongs to this system call's vec4 stack.
+            const auto*call = vpip_cur_task;
+            if (!call || !call->nargs
+                || std::find(call->args, call->args + call->nargs, this)
+                      == call->args + call->nargs)
+                  return false;
+
+            const vvp_vector4_t*bits = property_element_index_bits_(index_);
+            vvp_time64_t word;
+            bool overflow;
+            if (!bits || !bits->size()
+                || (index_->vpi_get(vpiSigned)
+                    && bits->value(bits->size()-1) != BIT4_0)
+                || !vector4_to_value(*bits, overflow, word)
+                || overflow || word > SIZE_MAX)
+                  return false;
+            slot = static_cast<size_t>(word);
+            return true;
+      }
+
+      bool has_slot_(const vvp_cobject*cobj, size_t slot) const
+      {
+            const class_type*defn = cobj->get_defn();
+            size_t pid = prop_path_.back();
+            return defn->property_base_type(pid) == "r"
+                && (index_ != nullptr) == !defn->property_dimensions(pid).empty()
+                && slot < defn->property_array_size(pid);
+      }
+
+      vvp_object_t resolve_container_() const
+      {
+            vvp_object_t obj;
+            vvp_fun_signal_object*fun =
+                  cobj_net_ ? vvp_fun_as_signal_object(cobj_net_->fun) : nullptr;
+            if (!fun && cobj_net_)
+                  fun = vvp_fil_as_signal_object(cobj_net_->fil);
+            if (fun) obj = fun->get_object();
+            for (size_t i = 0 ; i + 1 < prop_path_.size() ; i += 1) {
+                  vvp_cobject*cobj = obj.peek<vvp_cobject>();
+                  if (!cobj) return vvp_object_t();
+                  vvp_object_t next;
+                  cobj->get_object(prop_path_[i], next, 0);
+                  obj = next;
+            }
+            return obj;
+      }
+};
+
+vpiHandle vpip_make_cobject_property_real(char*label, unsigned prop_cnt,
+                                        long*prop_idx, char*index_label)
+{
+      auto*obj = new __vpiClassPropertyRealVar(prop_cnt, prop_idx);
+      free(prop_idx);
+      functor_ref_lookup(&obj->cobj_net_, label);
+      if (index_label)
+            compile_vpi_lookup(&obj->index_, index_label);
+      return obj;
+}
+
 /* Private system module bridge. The caller copies the returned VPI buffer
    before its next VPI call. */
 extern "C" const char*vpip_format_packed_p(vpiHandle item)

@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue3844_real_class_property_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue3844_real_class_property"],
+  "vvp-args-extended": ["+REAL=4.125"],
+  "gold": "issue3844_real_class_property"
+}

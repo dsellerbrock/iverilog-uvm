@@ -49,8 +49,8 @@ struct args_info {
       char index_sign;
       unsigned index_width;
       struct args_info *child; /* Arguments can be nested. */
-	/* An element of a fixed-array class property (#2475): text holds the
-	   &CPV<... prefix and the element index is on the vec4 stack. */
+	/* An indexed class property argument: text holds the handle prefix
+	   and the element index is on the vec4 stack. */
       int cpv_index;
       char cpv_index_sign;
       unsigned cpv_index_width;
@@ -1186,16 +1186,14 @@ static int collect_property_chain_(ivl_expr_t expr, ivl_signal_t*sig,
       return 1;
 }
 
-/* L33/L34: a writable &CPS (string) or &CPV (integral) handle on the class
-   property PROP (a chain collect_property_chain_() accepts), so a system
-   task's output updates the property rather than a discarded temporary.
-   #2475, #2745: with ELEM, the handle names that element of a fixed-array,
-   dynamic-array or queue property; the index is evaluated now, onto the
-   vec4 stack, and read when the handle is used, and the runtime handle
-   tells slots from container elements by the property's storage kind.
+/* A writable &CPS (string), &CPV (integral) or &CPR (real) handle on the
+   class property PROP, a chain collect_property_chain_() accepts.
+   With ELEM, the handle addresses a fixed-array slot. &CPS and &CPV
+   also address dynamic-array and queue elements (#2475, #2745). The
+   index is captured on the vec4 stack for the duration of the call.
    VALUE is the argument itself. For &CPV it gives the width and the flags:
    bit 0 signed, bit 1 two-state (a missing element then reads 0, not X;
-   IEEE 1800-2023 7.4.6). A task that samples its arguments after the call
+   IEEE 1800-2023 7.4.5). A task that samples its arguments after the call
    ($monitor, $strobe) cannot use an element handle, because the index it
    reads is a vec4 stack entry popped when the call returns. */
 static int cpv_elem_live_sample_ = 0;
@@ -1214,7 +1212,9 @@ static int draw_cpv_arg_(struct args_info*result, ivl_expr_t prop,
                                    sizeof chain/sizeof chain[0], elem != 0))
             return 0;
 
-      if (ivl_expr_value(value) == IVL_VT_STRING)
+      if (ivl_expr_value(value) == IVL_VT_REAL)
+            n = snprintf(buffer, sizeof buffer, "&CPR<v%p_0", (void*)root_sig);
+      else if (ivl_expr_value(value) == IVL_VT_STRING)
             n = snprintf(buffer, sizeof buffer, "&CPS<v%p_0", (void*)root_sig);
       else
             n = snprintf(buffer, sizeof buffer, "&CPV<v%p_0, %u, %u",
@@ -1246,6 +1246,22 @@ static int get_vpi_taskfunc_signal_arg(struct args_info *result,
       switch (ivl_expr_type(expr)) {
 	  case IVL_EX_SIGNAL:
 	  case IVL_EX_PROPERTY:
+	      /* Keep $monitor/$strobe on their existing sampling path. */
+	      if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		  && ivl_expr_value(expr) == IVL_VT_REAL
+		  && !cpv_elem_live_sample_) {
+		    ivl_type_t owner = property_receiver_class_type_(expr);
+		    ivl_type_t type = owner && ivl_type_base(owner) == IVL_VT_CLASS
+			  ? property_expr_type_(expr) : 0;
+		    ivl_expr_t slot = ivl_expr_oper1(expr);
+		    if (slot)
+			  type = type_is_fixed_uarray_property_(type)
+				? ivl_type_element(type) : 0;
+		    if (type && ivl_type_base(type) == IVL_VT_REAL
+			&& !ivl_type_element(type) && !ivl_type_is_shortreal(type)
+			&& draw_cpv_arg_(result, expr, slot, expr))
+			  return 1;
+	      }
 	      /* L33: for a string-typed class property, try the chain-walk
 	         FIRST, before the expr_signal_base_()-based logic below --
 	         that helper returns null for any nested property expression
