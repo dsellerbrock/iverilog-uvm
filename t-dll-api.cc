@@ -2758,6 +2758,11 @@ extern "C" int ivl_scope_class_virtual(ivl_scope_t net)
       return net->net_->class_def()->is_virtual();
 }
 
+extern "C" int ivl_scope_is_declared_class_method(ivl_scope_t net)
+{
+      return net->is_declared_class_method;
+}
+
 extern "C" ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net)
 {
       const netclass_t*type = dynamic_cast<const netclass_t*>(net);

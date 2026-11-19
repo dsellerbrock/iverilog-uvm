@@ -1007,6 +1007,7 @@ struct ivl_scope_s {
       unsigned is_program : 1;
       unsigned is_interface : 1;
       unsigned is_virtual_method : 1;
+      unsigned is_declared_class_method : 1;
       unsigned is_cell : 1;
       unsigned func_signed : 1;
       unsigned is_dpi_import : 1;

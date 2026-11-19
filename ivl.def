@@ -285,6 +285,7 @@ ivl_scope_class
 ivl_scope_classes
 ivl_scope_class_declaration
 ivl_scope_class_virtual
+ivl_scope_is_declared_class_method
 ivl_scope_def
 ivl_scope_def_file
 ivl_scope_def_lineno

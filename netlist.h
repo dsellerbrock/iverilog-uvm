@@ -1716,6 +1716,10 @@ class NetScope : public Definitions, public Attrib {
       void is_virtual_method(bool v) { is_virtual_method_ = v; };
       bool is_virtual_method() const { return is_virtual_method_; };
 
+	/* A source-declared task or function of a lexical class definition. */
+      void set_declared_class_method() { declared_class_method_ = true; }
+      bool is_declared_class_method() const { return declared_class_method_; }
+
         /* Is this scope elaborating a final procedure? */
       void in_final(bool in_final__) { in_final_ = in_final__; };
       bool in_final() const { return in_final_; };
@@ -2082,6 +2086,7 @@ class NetScope : public Definitions, public Attrib {
       bool need_const_func_, is_const_func_, is_auto_, auto_frame_, is_cell_, calls_stask_;
       bool is_disable_target_;
       bool is_virtual_method_ = false;
+      bool declared_class_method_ = false;
 
       /* Final procedures sets this to notify statements that
 	 they are part of a final procedure. */

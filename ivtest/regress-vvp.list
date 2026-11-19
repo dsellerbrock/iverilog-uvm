@@ -7957,6 +7957,8 @@ issue3648_2017 vvp_tests/issue3648_2017.json
 issue3648_2023 vvp_tests/issue3648_2023.json
 issue3745_class_discovery_2017 vvp_tests/issue3745_class_discovery_2017.json
 issue3745_class_discovery_2023 vvp_tests/issue3745_class_discovery_2023.json
+issue3747_class_methods_2017 vvp_tests/issue3747_class_methods_2017.json
+issue3747_class_methods_2023 vvp_tests/issue3747_class_methods_2023.json
 issue3751_2017 vvp_tests/issue3751_2017.json
 issue3751_2023 vvp_tests/issue3751_2023.json
 issue3782_2017 vvp_tests/issue3782_2017.json

@@ -132,6 +132,8 @@ EXTERN_C_START
 #define vpiTypedef          725
 /* IEEE 1800 Annex M: package objects imported into the current scope. */
 #define vpiImport           726
+/* IEEE 1800 Annex M: class method declarations. */
+#define vpiMethods          730
 #define vpiIntegerTypespec  635
 #define vpiLongIntTypespec  625
 #define vpiByteTypespec     627

@@ -275,6 +275,7 @@ ivl_scope_s::ivl_scope_s()
       dpi_context = false;
       dpi_legacy = false;
       is_virtual_method = false;
+      is_declared_class_method = false;
 }
 
 ivl_scope_aux_s*ivl_scope_s::ensure_aux_()
@@ -3778,6 +3779,7 @@ void dll_target::scope(const NetScope*net)
 	    scop->is_interface = net->is_interface();
 	    scop->is_cell = net->is_cell();
 	    scop->is_virtual_method = net->is_virtual_method();
+	    scop->is_declared_class_method = net->is_declared_class_method();
 
 	    scope_add_typedefs_(scop, net);
 

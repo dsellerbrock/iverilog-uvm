@@ -378,6 +378,7 @@ class __vpiScope : public __vpiHandle {
       unsigned def_file_idx;
       unsigned def_lineno;
       bool is_cell;
+      bool is_declared_class_method = false;
 	/* The scope has a system time of its own. */
       __vpiScopedTime scoped_time;
       struct __vpiScopedSTime scoped_stime;

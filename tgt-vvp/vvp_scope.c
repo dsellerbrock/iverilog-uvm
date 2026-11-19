@@ -3746,6 +3746,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
             ivl_design_flag(vvp_get_saved_design(), "DUMPPORTS");
       int emit_evcd_metadata = dumpports_flag && *dumpports_flag;
       const char *type;
+      int concrete;
 
       const char*prefix = ivl_scope_is_auto(net) ? "auto" : "";
       char suffix[32];
@@ -3872,6 +3873,11 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	  fprintf(vvp_out, "S_%p .scope %s%s%s%s",
 	      net, prefix, type, suffix, access_suffix);
 
+	/* A lexical method keeps its scope handle even without a body. */
+	  if (ivl_scope_is_declared_class_method(net) && parent
+	      && ivl_scope_class_declaration(parent, &concrete) == parent)
+	        fputs(".class_method", vvp_out);
+
 	/* Keep the DPI VPI declaration properties with the runtime scope. The
 	   identifier is hex-encoded so it cannot collide with scope type syntax. */
 	  int dpi_cstr = ivl_scope_dpi_cstr(net);
@@ -3910,7 +3916,6 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
                                                ivl_scope_time_precision(net));
 
       if (ivl_scope_type(net) == IVL_SCT_CLASS) {
-	    int concrete;
 	    ivl_scope_t decl = ivl_scope_class_declaration(net, &concrete);
 	    if (decl == net)
 		  fprintf(vvp_out, "D_%p .class/defn %d;\n", decl,

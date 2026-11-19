@@ -60,6 +60,7 @@ static vector<vpiHandle> class_definitions;
 
 static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&table);
 static vpiHandle class_definition_iter(__vpiScope*scope);
+static vpiHandle class_declared_scope_iter(__vpiScope*scope, int code);
 
 vpiHandle vpip_make_root_iterator(int type_code)
 {
@@ -844,6 +845,7 @@ static int compare_types(int code, int type, bool is_typedef = false)
 	     type == vpiFor ||
 	     type == vpiForeachStmt ||
 	     type == vpiNamedFork ||
+	     type == vpiClassDefn ||
 	     type == vpiClassTypespec ||
 	     // M12: interface instances are traversable scopes.
 	     type == vpiInterface) )
@@ -1682,6 +1684,8 @@ class vpiClassDefinition : public __vpiHandle {
 					     specializations_.data(), false);
 	    if (code == vpiClassDefn)
 		  return class_definition_iter(decl_);
+	    if (code == vpiMethods || code == vpiInternalScope)
+		  return class_declared_scope_iter(decl_, code);
 	    return __vpiHandle::vpi_iterate(code);
       }
       void add_specialization(vpiHandle spec)
@@ -1770,6 +1774,30 @@ static vpiHandle class_definition_iter(__vpiScope*scope)
 		  if (auto*defn = cls->lexical_definition())
 			definitions.push_back(defn);
       return make_subset_iterator_(vpiClassDefn, definitions);
+}
+
+static vpiHandle class_declared_scope_iter(__vpiScope*decl, int code)
+{
+      vector<vpiHandle> scopes;
+      for (vpiHandle item : decl->intern) {
+	    auto*scope = dynamic_cast<__vpiScope*>(item);
+	    if (!scope)
+		  continue;
+	    int type = scope->get_type_code();
+	    if (type == vpiTask || type == vpiFunction) {
+		  if (scope->is_declared_class_method)
+			scopes.push_back(scope);
+	    } else if (code == vpiInternalScope) {
+		    // A nested class contributes its lexical definition.
+		  if (auto*cls = dynamic_cast<vpiScopeClass*>(scope)) {
+			if (auto*defn = cls->lexical_definition())
+			      scopes.push_back(defn);
+		  } else {
+			scopes.push_back(scope);
+		  }
+	    }
+      }
+      return make_subset_iterator_(code == vpiMethods ? vpiScope : code, scopes);
 }
 
 vpiHandle vpip_declared_class_typespec(const class_type*type)
@@ -3760,6 +3788,11 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    access_type = access[4] - '0';
 	    memmove(access, access + 5, strlen(access + 5) + 1);
       }
+      char*method = strrchr(type, '.');
+      bool declared_class_method = method && strcmp(method, ".class_method") == 0;
+      if (declared_class_method)
+	    *method = 0;
+
       count_vpi_scopes += 1;
       char vec_type;
       char sign_flag;
@@ -3944,6 +3977,18 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	         system precision. */
 	    scope->time_units = vpip_get_time_precision();
 	    scope->time_precision = vpip_get_time_precision();
+      }
+
+      if (declared_class_method) {
+	    auto*cls = dynamic_cast<vpiScopeClass*>(scope->scope);
+	    int kind = scope->get_type_code();
+	    if (!cls || !cls->lexical_definition()
+	        || (kind != vpiTask && kind != vpiFunction)) {
+		  yyerror("invalid class method scope");
+		  compile_errors += 1;
+	    } else {
+		  scope->is_declared_class_method = true;
+	    }
       }
 }
 

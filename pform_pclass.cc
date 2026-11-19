@@ -622,6 +622,7 @@ void pform_end_class_declaration(const struct vlltype&loc)
 	  !pform_cur_class->type->base_args.empty() ||
 	  pform_cur_class->type->base_default || needs_extension_ctor) {
 	    PFunction*func = pform_push_function_scope(loc, "new@", LexicalScope::AUTOMATIC);
+	    func->set_implicit_constructor();
 	    if (pform_cur_class->type->base_default) {
 		  func->set_ports(pform_class_constructor_default_ports(loc, func));
 	    } else {

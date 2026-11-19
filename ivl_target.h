@@ -2149,6 +2149,7 @@ extern ivl_type_t ivl_scope_class(ivl_scope_t net, unsigned idx);
    class record. A generic declaration has a definition scope only. */
 extern ivl_scope_t ivl_scope_class_declaration(ivl_scope_t net, int*concrete);
 extern int ivl_scope_class_virtual(ivl_scope_t net);
+extern int ivl_scope_is_declared_class_method(ivl_scope_t net);
 extern ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net);
 extern unsigned       ivl_scope_enumerates(ivl_scope_t net);
 extern ivl_enumtype_t ivl_scope_enumerate(ivl_scope_t net, unsigned idx);

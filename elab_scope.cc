@@ -5053,6 +5053,8 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 	    hname_t use_name (cur->first);
 	    NetScope*method_scope = new NetScope(class_scope, use_name, NetScope::TASK);
 
+	    method_scope->set_declared_class_method();
+
 	      // Task methods are always automatic...
 	    if (!cur->second->is_auto()) {
 		  cerr << "error: Lifetime of method `"
@@ -5080,6 +5082,9 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 
 	    hname_t use_name (cur->first);
 	    NetScope*method_scope = new NetScope(class_scope, use_name, NetScope::FUNC);
+
+	    if (!cur->second->is_implicit_constructor())
+		  method_scope->set_declared_class_method();
 
 	      // Function methods are always automatic...
 	    if (!cur->second->is_auto()) {
@@ -5294,6 +5299,7 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 	    NetScope*method_scope = class_scope->child(use_name);
 	    if (!method_scope)
 		  method_scope = new NetScope(class_scope, use_name, NetScope::TASK);
+	    method_scope->set_declared_class_method();
 	    method_scope->is_auto(true);
 	    method_scope->is_virtual_method(method_scope->is_virtual_method()
 					    || cur->second->is_virtual_method());
@@ -5308,6 +5314,8 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 	    NetScope*method_scope = class_scope->child(use_name);
 	    if (!method_scope)
 		  method_scope = new NetScope(class_scope, use_name, NetScope::FUNC);
+	    if (!cur->second->is_implicit_constructor())
+		  method_scope->set_declared_class_method();
 	    method_scope->is_auto(true);
 	    method_scope->is_virtual_method(method_scope->is_virtual_method()
 					    || cur->second->is_virtual_method());

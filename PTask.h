@@ -258,6 +258,9 @@ class PFunction : public PTaskFunc {
       void set_return(data_type_t*t);
       void set_return_type_scope_local() { return_type_scope_local_ = true; }
 
+      void set_implicit_constructor() { implicit_constructor_ = true; }
+      bool is_implicit_constructor() const { return implicit_constructor_; }
+
       void set_constructor_default(bool value) { constructor_default_ = value; }
       bool has_constructor_default() const { return constructor_default_; }
       void set_constructor_default_lexical_pos(unsigned pos) {
@@ -305,6 +308,7 @@ class PFunction : public PTaskFunc {
       Statement *statement_;
       bool is_auto_;
       bool return_type_scope_local_ = false;
+      bool implicit_constructor_ = false;
       bool constructor_default_ = false;
       unsigned constructor_default_lexical_pos_ = 0;
       std::vector<perm_string> constructor_default_ports_;
