@@ -315,6 +315,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".stmt_node"    { return K_STMT_NODE; }
 ".stmt_at"      { return K_STMT_AT; }
 ".vpi_3041_condition" { return K_VPI_3041_CONDITION; }
+".vpi_nba_repeat" { return K_VPI_NBA_REPEAT; }
 ".sfunc"        { return K_SFUNC; }
 ".sfunc/e"      { return K_SFUNC_E; }
 ".shift/l"      { return K_SHIFTL; }

@@ -1088,9 +1088,17 @@ struct ivl_signal_s {
  * is defined by the ivl_statement_type_t enumeration. Given the type,
  * certain information about the statement may be available.
  */
+struct ivl_statement_repeat_s {
+      ivl_expr_t count;
+      const char*repeat_file;
+      const char*event_file;
+      unsigned repeat_line, event_line;
+};
+
 struct ivl_statement_assign_aux_s {
       ivl_expr_t delay;
       ivl_expr_t count;
+      ivl_statement_repeat_s*source_repeat;
       bool clocking_drive;
       union {
 	    ivl_event_t event;

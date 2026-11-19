@@ -138,6 +138,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
 %token K_VPI_3041_CONDITION
+%token K_VPI_NBA_REPEAT
 %token K_CLASS_DEFN K_CLASS_TYPESPEC K_CLASS_RUNTIME
 %token K_CLASS_CONSTRAINT
 %token K_CLASS_EXTENDS K_CLASS_BASE K_CLASS_CTOR K_CLASS_PARAM
@@ -189,7 +190,7 @@ static bool is_force_release_opcode(const char* name)
 %type <table> udp_table
 
 %type <argv> argument_opt argument_list
-%type <vpi>  argument symbol_access
+%type <vpi>  argument constant_argument symbol_access
 %type <cdelay> delay
 
 %type <enum_name> enum_type_name
@@ -1113,6 +1114,21 @@ statement
 	| K_VPI_3041_CONDITION T_NUMBER ',' argument ';'
 		{ compile_vpi_3041_condition($2, nullptr, $4); }
 
+  /* An explicit NBA repeat: assignment ID, both source locations, and
+     the count expression when it has a VPI representation. */
+	| K_VPI_NBA_REPEAT T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ';'
+		{ compile_vpi_nba_repeat($2, $4, $6, $8, $10, nullptr, nullptr); }
+
+	| K_VPI_NBA_REPEAT T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_SYMBOL ';'
+		{ compile_vpi_nba_repeat($2, $4, $6, $8, $10, $12, nullptr); }
+
+	| K_VPI_NBA_REPEAT T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' constant_argument ';'
+		{ compile_vpi_nba_repeat($2, $4, $6, $8, $10, nullptr, $12); }
+
+	| K_VPI_NBA_REPEAT T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER
+	  ',' K_A '<' T_SYMBOL ',' T_NUMBER '>' ';'
+		{ compile_vpi_nba_repeat($2, $4, $6, $8, $10, $14, nullptr, true, $16); }
+
 
   /* Port information for scopes... currently this is just meta-data for VPI queries */
 
@@ -1897,14 +1913,17 @@ argument_list
   ;
 
 argument
+  : constant_argument { $$ = $1; }
+  | symbol_access { $$ = $1; }
+  ;
+
+constant_argument
   : T_STRING
       { $$ = vpip_make_string_const($1); }
   | T_VECTOR
       { $$ = vpip_make_binary_const($1.idx, $1.text);
 	free($1.text);
       }
-  | symbol_access
-      { $$ = $1; }
   ;
 
 symbol_access

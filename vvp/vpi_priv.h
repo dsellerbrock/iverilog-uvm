@@ -435,6 +435,7 @@ class __vpiScope : public __vpiHandle {
 class __vpiStmtNode : public __vpiHandle {
     public:
       __vpiStmtNode(int type, const char*name, __vpiScope*scope);
+      ~__vpiStmtNode() override;
       int get_type_code(void) const override;
       char* vpi_get_str(int code) override;
       int vpi_get(int code) override;
@@ -442,6 +443,7 @@ class __vpiStmtNode : public __vpiHandle {
       vpiHandle vpi_iterate(int code) override;
       void add_child(__vpiStmtNode*child);
       bool attach_condition(char*symbol, vpiHandle expr);
+      bool attach_repeat_control(vpiHandle control);
 
       __vpiScope*scope_;
       std::vector<struct vvp_code_s*> code_addresses_;
@@ -451,6 +453,7 @@ class __vpiStmtNode : public __vpiHandle {
       __vpiStmtNode*parent_;
       std::vector<__vpiStmtNode*> children_;
       vpiHandle condition_ = nullptr;
+      vpiHandle repeat_control_ = nullptr;
       bool has_condition_ = false;
 };
 

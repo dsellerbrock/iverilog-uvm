@@ -16894,6 +16894,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 
       NetExpr*count = 0;
       NetEvWait*event = 0;
+      std::unique_ptr<NetAssignNB::RepeatControl> repeat_control;
       if (count_ != 0 || event_ != 0) {
 	    if (count_ != 0) {
 		  if (count_->has_aa_term(des, scope)) {
@@ -16975,18 +16976,25 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  ivl_assert(*this, event);
 	    }
 
+	      // Preserve the explicit source control across count optimization.
+	    if (count && !clocking_drive_) {
+		  repeat_control.reset(new NetAssignNB::RepeatControl);
+		  repeat_control->repeat_loc.set_line(repeat_location_);
+		  repeat_control->event_loc.set_line(*event_);
+	    }
+
 	      // Some constant values are special.
 	    if (const NetEConst*ce = dynamic_cast<NetEConst*>(count)) {
 		  long val = ce->value().as_long();
-		    // We only need the assignment statement.
 		  if (val <= 0) {
-			delete count;
 			delete event;
-			count = 0;
 			event = 0;
-		    // We only need the event.
-		  } else if (val == 1) {
-			delete count;
+		  }
+		  if (val <= 1) {
+			if (repeat_control)
+			      repeat_control->optimized_count.reset(count);
+			else
+			      delete count;
 			count = 0;
 		  }
 	    }
@@ -16994,6 +17002,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 
 	/* All done with this node. Mark its line number and check it in. */
       NetAssignNB*cur = new NetAssignNB(lv, rv, event, count);
+      cur->set_repeat_control(std::move(repeat_control));
       cur->set_clocking_drive(clocking_drive_);
       cur->set_delay(delay);
       cur->set_line(*this);

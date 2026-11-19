@@ -4070,6 +4070,12 @@ class NetAssign : public NetAssignBase {
 
 class NetAssignNB  : public NetAssignBase {
     public:
+      struct RepeatControl {
+	    LineInfo repeat_loc;
+	    LineInfo event_loc;
+	    std::unique_ptr<NetExpr> optimized_count;
+      };
+
       explicit NetAssignNB(NetAssign_*lv, NetExpr*rv, NetEvWait*ev,
                            NetExpr*cnt);
       ~NetAssignNB() override;
@@ -4091,9 +4097,14 @@ class NetAssignNB  : public NetAssignBase {
       const NetEvent*event(unsigned) const;
       const NetExpr* get_count() const;
 
+      void set_repeat_control(std::unique_ptr<RepeatControl> control);
+      const RepeatControl* repeat_control() const { return repeat_control_.get(); }
+      const NetExpr* source_repeat_count() const;
+
     private:
       NetEvWait*event_;
       NetExpr*count_;
+      std::unique_ptr<RepeatControl> repeat_control_;
       bool clocking_drive_ = false;
 };
 

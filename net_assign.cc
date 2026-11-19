@@ -653,6 +653,17 @@ const NetExpr*NetAssignNB::get_count() const
       return count_;
 }
 
+void NetAssignNB::set_repeat_control(std::unique_ptr<RepeatControl> control)
+{
+      repeat_control_ = std::move(control);
+}
+
+const NetExpr*NetAssignNB::source_repeat_count() const
+{
+      if (!repeat_control_) return nullptr;
+      return count_ ? count_ : repeat_control_->optimized_count.get();
+}
+
 NetCAssign::NetCAssign(NetAssign_*lv, NetExpr*rv, NetExpr*link_rv)
 : NetAssignBase(lv, rv), cassign_link_rval_(link_rv)
 {

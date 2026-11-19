@@ -2814,6 +2814,12 @@ extern unsigned ivl_stmt_case_group(ivl_statement_t net, unsigned i);
 extern ivl_expr_t      ivl_stmt_cond_expr(ivl_statement_t net);
 /* True for a parsed synchronous clocking drive with cycle delay. */
 extern unsigned        ivl_stmt_is_clocking_drive(ivl_statement_t net);
+/* The source expression of an explicit intra-assignment repeat on an NBA.
+   Returns null when absent, otherwise fills the file indices and lines
+   of the repeat and event controls. */
+extern ivl_expr_t ivl_stmt_nb_repeat_control(ivl_statement_t net,
+					    unsigned*repeat_file, unsigned*repeat_line,
+					    unsigned*event_file, unsigned*event_line);
   /* IVL_ST_CONDIT */
 extern ivl_statement_t ivl_stmt_cond_false(ivl_statement_t net);
   /* IVL_ST_CONDIT */

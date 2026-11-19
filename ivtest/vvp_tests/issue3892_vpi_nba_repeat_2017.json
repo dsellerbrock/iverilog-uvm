@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3892_vpi_nba_repeat.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3892_vpi_nba_repeat_2017"],
+  "vpi-sources": ["vpi/issue3892_vpi_nba_repeat.c"],
+  "gold": "issue3892_vpi_nba_repeat"
+}

@@ -455,6 +455,7 @@ ivl_stmt_lval
 ivl_stmt_lvals
 ivl_stmt_lwidth
 ivl_stmt_name
+ivl_stmt_nb_repeat_control
 ivl_stmt_needs_t0_trigger
 ivl_stmt_nevent
 ivl_stmt_opcode

@@ -376,6 +376,33 @@ void dll_target::proc_assign_nb(const NetAssignNB*net)
 	    expr_ = 0;
       }
 
+      if (const auto*control = net->repeat_control()) {
+	    auto*src = dll_procedure_new<ivl_statement_repeat_s>();
+	    const NetExpr*source_count = net->source_repeat_count();
+	    if (source_count == cnt_exp && !dynamic_cast<const NetEConst*>(cnt_exp)) {
+		  src->count = stmt_cur_->u_.assign_.aux_->count;
+	    } else {
+		  source_count->expr_scan(this);
+		  src->count = expr_;
+		  expr_ = 0;
+	    }
+	      /* A folded cast of a parameter can still carry its name.
+		 Reuse the parameter handle only when it has the count's type. */
+	    if (src->count->type_ == IVL_EX_NUMBER) {
+		  ivl_parameter_t param = src->count->u_.number_.parameter;
+		  if (param && param->value
+		      && (param->value->width_ != src->count->width_
+			  || param->value->signed_ != src->count->signed_
+			  || param->value->value_ != src->count->value_))
+			src->count->u_.number_.parameter = nullptr;
+	    }
+	    src->repeat_file = control->repeat_loc.get_file().str();
+	    src->repeat_line = control->repeat_loc.get_lineno();
+	    src->event_file = control->event_loc.get_file().str();
+	    src->event_line = control->event_loc.get_lineno();
+	    ensure_assign_aux_(stmt_cur_)->source_repeat = src;
+      }
+
 	/* Process the events if they exist. This is a copy of code
 	 * from NetEvWait below. */
       if (net->nevents() > 0) {

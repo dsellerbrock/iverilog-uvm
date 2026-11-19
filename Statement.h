@@ -242,6 +242,7 @@ class PAssignNB  : public PAssign_ {
       ~PAssignNB() override;
 
       void mark_clocking_drive() { clocking_drive_ = true; }
+      LineInfo& repeat_location() { return repeat_location_; }
 
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
@@ -250,6 +251,7 @@ class PAssignNB  : public PAssign_ {
       NetProc*assign_to_memory_(class NetMemory*, PExpr*,
 				Design*des, NetScope*scope) const;
       bool clocking_drive_ = false;
+      LineInfo repeat_location_;
 };
 
 /*

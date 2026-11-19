@@ -4382,6 +4382,21 @@ extern "C" unsigned ivl_stmt_is_clocking_drive(ivl_statement_t net)
 	    && net->u_.assign_.aux_->clocking_drive;
 }
 
+extern "C" ivl_expr_t ivl_stmt_nb_repeat_control(ivl_statement_t net,
+						 unsigned*repeat_file, unsigned*repeat_line,
+						 unsigned*event_file, unsigned*event_line)
+{
+      assert(net && net->type_ == IVL_ST_ASSIGN_NB);
+      const auto*aux = net->u_.assign_.aux_;
+      if (!aux || !aux->source_repeat) return nullptr;
+      const auto*src = aux->source_repeat;
+      *repeat_file = ivl_file_table_index(src->repeat_file);
+      *repeat_line = src->repeat_line;
+      *event_file = ivl_file_table_index(src->event_file);
+      *event_line = src->event_line;
+      return src->count;
+}
+
 extern "C" ivl_statement_t ivl_stmt_cond_false(ivl_statement_t net)
 {
       assert(net);

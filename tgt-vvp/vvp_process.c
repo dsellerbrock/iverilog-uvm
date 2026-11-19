@@ -9563,6 +9563,55 @@ static void emit_vpi_while_condition_(ivl_statement_t stmt, uint64_t id,
 	    fprintf(vvp_out, "    .scope S_%p;\n", owner);
 }
 
+static char* draw_vpi_nba_repeat_count_(ivl_expr_t count)
+{
+      ivl_expr_t operand = count;
+	/* The lazy renderer strips no-index selects. A conversion that
+	   changes the count's type needs a cast object of its own. */
+      while (ivl_expr_type(operand) == IVL_EX_SELECT
+	     && !ivl_expr_oper2(operand) && ivl_expr_oper1(operand)) {
+	    operand = ivl_expr_oper1(operand);
+	    if (ivl_expr_width(count) != ivl_expr_width(operand)
+		|| ivl_expr_signed(count) != ivl_expr_signed(operand)
+		|| ivl_expr_value(count) != ivl_expr_value(operand))
+		  return 0;
+      }
+      if (ivl_expr_type(operand) == IVL_EX_SIGNAL) {
+	    ivl_signal_t sig = ivl_expr_signal(operand);
+	    if ((ivl_expr_value(operand) == IVL_VT_BOOL
+		 || ivl_expr_value(operand) == IVL_VT_LOGIC)
+		&& (ivl_expr_width(operand) != ivl_signal_width(sig)
+		    || ivl_expr_signed(operand) != ivl_signal_signed(sig)))
+		  return 0;
+      }
+      return draw_vpi_stmt_condition(count);
+}
+
+static void emit_vpi_nba_repeat_(ivl_statement_t stmt, uint64_t id,
+			       ivl_scope_t owner, ivl_scope_t scope)
+{
+      unsigned repeat_file, repeat_line, event_file, event_line;
+      ivl_expr_t count = ivl_stmt_nb_repeat_control(stmt, &repeat_file,
+					&repeat_line, &event_file, &event_line);
+      char*text;
+      if (!count) return;
+      if (scope != owner)
+	    fprintf(vvp_out, "    .scope S_%p;\n", scope);
+
+	/* Use statement-mode lazy expressions so calls anywhere in the count
+	   cannot acquire a second call site. Keep the source controls even
+	   when the existing expression machinery cannot describe the count. */
+      text = draw_vpi_nba_repeat_count_(count);
+      fprintf(vvp_out, "    .vpi_nba_repeat %" PRIu64 ", %u, %u, %u, %u",
+	      id, repeat_file, repeat_line, event_file, event_line);
+      if (text)
+	    fprintf(vvp_out, ", %s", text);
+      fputs(";\n", vvp_out);
+      free(text);
+      if (scope != owner)
+	    fprintf(vvp_out, "    .scope S_%p;\n", owner);
+}
+
 static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
 			       ivl_scope_t owner, ivl_scope_t scope)
 {
@@ -9573,6 +9622,9 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
 	/* A return statement has no statements below it. */
       if (vpi_value_return_block_(stmt)) return;
       switch (ivl_statement_type(stmt)) {
+          case IVL_ST_ASSIGN_NB:
+            emit_vpi_nba_repeat_(stmt, id, owner, scope);
+            break;
           case IVL_ST_BLOCK:
           case IVL_ST_FORK:
           case IVL_ST_FORK_JOIN_ANY:

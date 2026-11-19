@@ -46,6 +46,7 @@
 # include  <cassert>
 # include  "ivl_alloc.h"
 # include  "array_common.h"
+# include  "array.h"
 
 #define IEEE_vpiFsmStateCoverage 761
 #define IEEE_vpiStatementCoverage 762
@@ -643,6 +644,11 @@ __vpiStmtNode::__vpiStmtNode(int type, const char*name, __vpiScope*scope)
 : scope_(scope), type_(type), name_(vpip_name_string(name)), parent_(0)
 { }
 
+__vpiStmtNode::~__vpiStmtNode()
+{
+      delete repeat_control_;
+}
+
 int __vpiStmtNode::get_type_code(void) const
 { return type_; }
 
@@ -670,6 +676,7 @@ vpiHandle __vpiStmtNode::vpi_handle(int code)
       if (code == vpiParent) return parent_;
       if (code == vpiScope) return scope_;
       if (code == vpiCondition && type_ == vpiWhile) return condition_;
+      if (code == vpiRepeatControl) return repeat_control_;
       if (vpiHandle rel = vpip_force_conn_relation(this, code)) return rel;
       return __vpiHandle::vpi_handle(code);
 }
@@ -697,6 +704,13 @@ bool __vpiStmtNode::attach_condition(char*symbol, vpiHandle expr)
 	    compile_vpi_lookup(&condition_, symbol);
       else
 	    condition_ = expr;
+      return true;
+}
+
+bool __vpiStmtNode::attach_repeat_control(vpiHandle control)
+{
+      if (type_ != vpiAssignment || repeat_control_) return false;
+      repeat_control_ = control;
       return true;
 }
 
@@ -4103,6 +4117,141 @@ void compile_vpi_3041_condition(uint64_t id, char*symbol, vpiHandle expr)
       if (node && node->attach_condition(symbol, expr)) return;
       free(symbol);
       yyerror("invalid .vpi_3041_condition metadata");
+      compile_errors += 1;
+}
+
+/* Source objects owned by the assignment node. This event control has no
+   statement body and has no connection to the scheduler's event handle. */
+class __vpiNBAControl : public __vpiHandle {
+    public:
+      __vpiNBAControl(int type, __vpiScope*scope, uint64_t file, int line)
+      : type_(type), scope_(scope), file_(file), line_(line) { }
+
+      int get_type_code() const override { return type_; }
+      int vpi_get(int code) override
+      { return code == vpiLineNo ? line_ : vpiUndefined; }
+      char* vpi_get_str(int code) override
+      {
+	    return code == vpiFile && valid_file()
+		  ? simple_set_rbuf_str(file_names[file_]) : nullptr;
+      }
+      vpiHandle vpi_handle(int code) override
+      { return code == vpiScope ? scope_ : nullptr; }
+      bool valid_file() const { return file_ < file_names.size(); }
+
+    private:
+      int type_;
+      __vpiScope*scope_;
+      uint64_t file_;
+      int line_;
+};
+
+class __vpiNBARepeatControl : public __vpiNBAControl {
+    public:
+      __vpiNBARepeatControl(__vpiScope*scope, uint64_t repeat_file, int repeat_line,
+			   uint64_t event_file, int event_line)
+      : __vpiNBAControl(vpiRepeatControl, scope, repeat_file, repeat_line),
+	event_(vpiEventControl, scope, event_file, event_line) { }
+
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiExpr) return count;
+	    if (code == vpiEventControl) return &event_;
+	    return __vpiNBAControl::vpi_handle(code);
+      }
+      bool valid_files() const { return valid_file() && event_.valid_file(); }
+
+      void own_count(vpiHandle expr)
+      {
+	    count = expr;
+	    owned_count_.reset(expr);
+      }
+
+      vpiHandle count = nullptr;
+
+    private:
+      __vpiNBAControl event_;
+      std::unique_ptr<__vpiHandle> owned_count_;
+};
+
+static bool valid_nba_repeat_count_(vpiHandle expr)
+{
+      if (!expr || dynamic_cast<__vpiNullConst*>(expr)
+	  || dynamic_cast<__vpiNullOp*>(expr))
+	    return false;
+      vpip_vthr_stack_kind_t kind;
+      unsigned depth;
+      if (vpip_get_vthr_stack_ref(expr, &kind, &depth)) return false;
+      if (dynamic_cast<__vpiSignal*>(expr)) return true;
+      switch (expr->get_type_code()) {
+	  case vpiConstant:
+	  case vpiParameter:
+	  case vpiOperation:
+	  case vpiRealVar:
+	  case vpiMemoryWord:
+	  case vpiBitSelect:
+	  case vpiPartSelect:
+	    return true;
+	  default:
+	    return false;
+      }
+}
+
+/* File indices are available after the footer. Count handles use the usual
+   VPI argument lookup, whose unresolved-symbol fallback is invalid here. */
+class nba_repeat_resolve : public resolv_list_s {
+    public:
+      nba_repeat_resolve(__vpiNBARepeatControl*control, bool has_count,
+			 char*array, uint64_t word)
+      : resolv_list_s(array ? array : strdup(".vpi_nba_repeat")),
+	control_(control), has_count_(has_count), array_word_(array != nullptr),
+	word_(word) { }
+
+      bool resolve(bool last) override
+      {
+	    if (control_->valid_files()) {
+		  if (array_word_ && !control_->count) {
+			vvp_array_t array = array_find(label());
+			if (array && word_ < array->get_size())
+			      control_->own_count(vpip_make_vthr_A(strdup(label()), word_));
+		  }
+		  if (!has_count_ || valid_nba_repeat_count_(control_->count))
+			return true;
+	    }
+	    if (!last) return false;
+	    fprintf(stderr, "vvp: invalid .vpi_nba_repeat source location or count reference\n");
+	    compile_errors += 1;
+	    return true;
+      }
+
+    private:
+      __vpiNBARepeatControl*control_;
+      bool has_count_;
+      bool array_word_;
+      uint64_t word_;
+};
+
+void compile_vpi_nba_repeat(uint64_t id, uint64_t repeat_file, uint64_t repeat_line,
+			    uint64_t event_file, uint64_t event_line,
+			    char*symbol, vpiHandle expr, bool array_word, uint64_t word)
+{
+      __vpiStmtNode*node = find_stmt_node_(id);
+      if (node && repeat_line && repeat_line <= INT_MAX && event_line && event_line <= INT_MAX) {
+	    std::unique_ptr<__vpiNBARepeatControl> control(new __vpiNBARepeatControl(
+		  vpip_peek_current_scope(), repeat_file, repeat_line, event_file, event_line));
+	    if (node->attach_repeat_control(control.get())) {
+		  auto*obj = control.release();
+		  obj->own_count(expr);
+		  bool has_count = symbol || expr;
+		  if (symbol && !array_word) compile_vpi_lookup(&obj->count, symbol);
+		  resolv_submit(new nba_repeat_resolve(obj, has_count,
+							array_word ? symbol : nullptr, word));
+		  return;
+	    }
+      }
+      delete expr;
+      free(symbol);
+      yyerror("invalid .vpi_nba_repeat metadata");
       compile_errors += 1;
 }
 

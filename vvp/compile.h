@@ -691,6 +691,10 @@ extern void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type,
                               char*name);
 extern void compile_stmt_at(uint64_t id);
 extern void compile_vpi_3041_condition(uint64_t id, char*symbol, vpiHandle expr);
+extern void compile_vpi_nba_repeat(uint64_t id, uint64_t repeat_file,
+				   uint64_t repeat_line, uint64_t event_file,
+				   uint64_t event_line, char*symbol, vpiHandle expr,
+				   bool array_word = false, uint64_t word = 0);
 
 /*
  * The parser uses this function to declare a thread. The start_sym is

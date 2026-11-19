@@ -21964,11 +21964,13 @@ statement_item /* This is roughly statement_item in the LRM */
   | lpvalue K_LE K_repeat '(' expression ')' event_control expression ';'
       { PAssignNB*tmp = new PAssignNB($1,$5,$7,$8);
 	FILE_NAME(tmp, @1);
+	FILE_NAME(&tmp->repeat_location(), @3);
 	$$ = tmp;
       }
   | parameterized_scoped_identifier K_LE K_repeat '(' expression ')' event_control expression ';'
       { PAssignNB*tmp = new PAssignNB($1,$5,$7,$8);
 	FILE_NAME(tmp, @1);
+	FILE_NAME(&tmp->repeat_location(), @3);
 	$$ = tmp;
       }
 

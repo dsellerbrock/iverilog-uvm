@@ -1,0 +1,2 @@
+issue3892_vpi_nba_repeat_2017 normal,-g2017,-s,top issue3892_vpi_nba_repeat.c issue3892_vpi_nba_repeat_2017.gold
+issue3892_vpi_nba_repeat_2023 normal,-g2023,-s,top issue3892_vpi_nba_repeat.c issue3892_vpi_nba_repeat_2023.gold
