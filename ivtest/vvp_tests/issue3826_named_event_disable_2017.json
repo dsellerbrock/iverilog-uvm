@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3826_named_event_disable.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3826_named_event_disable"],
+  "gold": "issue3826_named_event_disable"
+}

@@ -158,6 +158,10 @@ class class_type : public __vpiHandle {
       unsigned property_vec4_width(size_t idx) const;
       const vvp_container_layout_s*property_container_layout(size_t idx) const
       { return properties_.at(idx).container_layout.get(); }
+      unsigned property_stream_element_width(size_t idx) const
+      { return properties_.at(idx).stream_element_width; }
+      bool property_stream_element_four_state(size_t idx) const
+      { return properties_.at(idx).stream_element_four_state; }
       unsigned property_typespec_width(size_t idx) const;
       bool property_assoc_index_signed(size_t idx) const
       { return properties_.at(idx).assoc_index_signed; }
@@ -268,6 +272,8 @@ class class_type : public __vpiHandle {
 	    vpiHandle typespec = 0;
 	    uint64_t array_size = 1;
 	    vvp_container_layout_t container_layout;
+	    unsigned stream_element_width = 0;
+	    bool stream_element_four_state = false;
 	    std::vector<std::pair<int,int> > dimensions;
       };
       std::vector<prop_t> properties_;

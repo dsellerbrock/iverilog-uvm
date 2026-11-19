@@ -3340,10 +3340,12 @@ vvp_fun_force::~vvp_fun_force()
 {
 }
 
-void vvp_fun_force::activate(unsigned base, unsigned wid, unsigned full_wid)
+void vvp_fun_force::activate(unsigned base, unsigned wid, unsigned full_wid,
+			     unsigned source_base)
 {
       base_ = base;
       width_ = wid;
+      source_base_ = source_base;
       mask_ = vvp_vector2_t(vvp_vector2_t::FILL0, full_wid);
       for (unsigned idx = 0 ; idx < wid ; idx += 1)
 	    mask_.set_bit(base + idx, 1);
@@ -3391,7 +3393,7 @@ void vvp_fun_force::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
       vvp_vector4_t value;
       sig->vec4_value(value);
       source_value_ = bit;
-      vvp_vector4_t source = coerce_to_width(source_value_, width_);
+      vvp_vector4_t source = source_value_.subvalue(source_base_, width_);
       for (unsigned idx = 0 ; idx < width_ ; idx += 1)
 	    if (mask_.value(base_ + idx))
 		  value.set_bit(base_ + idx, source.value(idx));
@@ -3431,7 +3433,7 @@ void vvp_fun_force::recv_vec4_pv(vvp_net_ptr_t ptr,
       assert(sig);
       vvp_vector4_t value;
       sig->vec4_value(value);
-      vvp_vector4_t source = coerce_to_width(source_value_, width_);
+      vvp_vector4_t source = source_value_.subvalue(source_base_, width_);
       for (unsigned idx = 0 ; idx < width_ ; idx += 1)
 	    if (mask_.value(base_ + idx))
 		  value.set_bit(base_ + idx, source.value(idx));

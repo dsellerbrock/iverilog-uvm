@@ -46,8 +46,9 @@ vvp_fun_part::~vvp_fun_part()
 }
 
 vvp_fun_part_sa::vvp_fun_part_sa(unsigned base, unsigned wid,
-                                 bool event_synchronous)
-: vvp_fun_part(base, wid), event_synchronous_(event_synchronous), strength_(false)
+                                 bool event_synchronous, bool force_rhs_slice)
+: vvp_fun_part(base, wid), event_synchronous_(event_synchronous),
+  force_rhs_slice_(force_rhs_slice), strength_(false)
 {
       net_ = 0;
 }
@@ -67,7 +68,9 @@ void vvp_fun_part_sa::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       assert(port.port() == 0);
 
       vvp_vector4_t tmp (bit, base_, wid_);
-      if (!strength_ && val_ .eeq( tmp ))
+      // A force or assign can start with an immediate value that differs
+      // from our cached slice. Forward each full RHS publication to it.
+      if (!force_rhs_slice_ && !strength_ && val_.eeq(tmp))
 	    return;
 
       val_ = tmp;
@@ -100,7 +103,7 @@ void vvp_fun_part_sa::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
             else
                   tmp.set_bit(idx, vvp_scalar_t(BIT4_X, 6, 6));
       }
-      if (strength_ && val8_.eeq(tmp)) return;
+      if (!force_rhs_slice_ && strength_ && val8_.eeq(tmp)) return;
       val8_ = tmp;
       strength_ = true;
       if (event_synchronous_) {
@@ -575,14 +578,23 @@ void link_node_1(char*label, char*source, vvp_net_fun_t*fun)
 }
 
 void compile_part_select(char*label, char*source,
-			 unsigned base, unsigned wid, bool event_synchronous)
+			 unsigned base, unsigned wid, bool event_synchronous,
+			 bool force_rhs_slice)
 {
       vvp_fun_part*fun = 0;
       __vpiScope*owner = vpip_peek_context_scope();
       if (owner && owner->has_automatic_context()) {
+	    if (force_rhs_slice) {
+		  fprintf(stderr, "%s: .part/force requires a static scope.\n", label);
+		  compile_errors += 1;
+		  free(label);
+		  free(source);
+		  return;
+	    }
             fun = new vvp_fun_part_aa(base, wid, event_synchronous);
       } else {
-            fun = new vvp_fun_part_sa(base, wid, event_synchronous);
+            fun = new vvp_fun_part_sa(base, wid, event_synchronous,
+				      force_rhs_slice);
       }
       link_node_1(label, source, fun);
 }

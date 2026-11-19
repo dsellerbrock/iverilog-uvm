@@ -260,6 +260,8 @@ issue653_sequence_triggered_2017 normal,-g2017,-s,issue653_sequence_triggered iv
 issue653_sequence_triggered_2023 normal,-g2023,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
 issue3825_sequence_endpoint_observed_2017 normal,-g2017,-gassertions,-s,issue3825_sequence_endpoint_observed ivltests gold=issue3825_sequence_endpoint_observed.gold
 issue3825_sequence_endpoint_observed_2023 normal,-g2023,-gassertions,-s,issue3825_sequence_endpoint_observed ivltests gold=issue3825_sequence_endpoint_observed.gold
+issue3826_named_event_disable_2017 normal,-g2017,-gassertions,-s,issue3826_named_event_disable ivltests gold=issue3826_named_event_disable.gold
+issue3826_named_event_disable_2023 normal,-g2023,-gassertions,-s,issue3826_named_event_disable ivltests gold=issue3826_named_event_disable.gold
 issue2695_sequence_triggered_empty_2017 normal,-g2017,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
 issue2695_sequence_triggered_empty_2023 normal,-g2023,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
 issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold
@@ -6653,6 +6655,10 @@ issue1364_named_sequence_combinators_2023 CN,-g2023,-s,top ivltests
 issue1429_illegal_transition_overlap_2017 normal,-g2017,-s,issue1429_illegal_transition_overlap ivltests gold=issue1429_illegal_transition_overlap.gold
 issue1429_illegal_transition_overlap_2023 normal,-g2023,-s,issue1429_illegal_transition_overlap ivltests gold=issue1429_illegal_transition_overlap.gold
 
+issue1372_sequence_or_local_flow normal,-g2017,-gassertions,-s,top ivltests gold=issue1372_sequence_or_local_flow.gold
+issue1372_sequence_or_local_flow_2023 normal,-g2023,-gassertions,-s,top ivltests gold=issue1372_sequence_or_local_flow.gold
+issue1372_sequence_or_local_flow_fail CE,-g2017,-gassertions,-s,top ivltests gold=issue1372_sequence_or_local_flow_fail.gold
+issue1372_sequence_or_local_flow_fail_2023 CE,-g2023,-gassertions,-s,top ivltests gold=issue1372_sequence_or_local_flow_fail.gold
 issue1373_sequence_and_intersect_local_flow_2017 normal,-g2017,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2017.gold
 issue1373_sequence_and_intersect_local_flow_2023 normal,-g2023,-gassertions,-stop ivltests gold=issue1373_sequence_and_intersect_local_flow_2023.gold
 
@@ -7306,6 +7312,8 @@ issue3864_class_unpack_2017 normal,-g2017,-s,issue3864_class_unpack ivltests gol
 issue3864_class_unpack_short_2017 RE,-g2017,-s,issue3864_class_unpack_short ivltests gold=issue3864_class_unpack_short-vvp-stderr.gold
 issue3864_class_unpack_2023 normal,-g2023,-s,issue3864_class_unpack ivltests gold=issue3864_class_unpack-vvp-stdout.gold
 issue3864_class_unpack_short_2023 RE,-g2023,-s,issue3864_class_unpack_short ivltests gold=issue3864_class_unpack_short-vvp-stderr.gold
+issue3865_class_greedy_2017 normal,-g2017,-s,issue3865_class_greedy ivltests gold=issue3865_class_greedy.gold
+issue3865_class_greedy_2023 normal,-g2023,-s,issue3865_class_greedy ivltests gold=issue3865_class_greedy.gold
 
 # Clocked sequence instances with actuals and .triggered (issue #3800)
 issue3800_clocked_triggered_2017 normal,-g2017,-gassertions,-s,issue3800_clocked_triggered ivltests gold=issue3800_clocked_triggered.gold
@@ -7326,3 +7334,8 @@ issue3791_2017 normal,-g2017,-s,issue3791 ivltests gold=issue3791.gold
 issue3791_2023 normal,-g2023,-s,issue3791 ivltests gold=issue3791.gold
 issue3791_bad_2017 CE,-g2017,-s,issue3791_bad ivltests gold=issue3791_bad.gold
 issue3791_bad_2023 CE,-g2023,-s,issue3791_bad ivltests gold=issue3791_bad.gold
+# IEEE 1800-2017/2023 10.6: live RHS slices for procedural concatenations.
+issue3896_concat_leaves_2017 normal,-g2017,-s,issue3896_concat_leaves ivltests gold=issue3896_concat_leaves.gold
+issue3896_concat_leaves_2023 normal,-g2023,-s,issue3896_concat_leaves ivltests gold=issue3896_concat_leaves.gold
+issue818_unpacked_struct_net_ca_2017 normal,-g2017,-s,issue818_unpacked_struct_net_ca ivltests gold=issue818_unpacked_struct_net_ca-vvp-stdout.gold
+issue818_unpacked_struct_net_ca_2023 normal,-g2023,-s,issue818_unpacked_struct_net_ca ivltests gold=issue818_unpacked_struct_net_ca-vvp-stdout.gold

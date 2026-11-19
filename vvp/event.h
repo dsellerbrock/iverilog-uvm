@@ -559,6 +559,9 @@ class vvp_named_event : public vvp_net_fun_t, public waitable_hooks_s {
 	// and report whether the event fired in the current time step.
       void note_triggered(void);
       virtual bool triggered_now(void) const;
+	// Private source for assertion disable observers on this queue.
+      vvp_net_t* triggered_observer_source();
+      virtual void triggered_time_advance();
       virtual void collect_waiting_threads(std::vector<vthread_t>&threads) const = 0;
       void add_wait_order_observer(vvp_fun_wait_order*observer);
       void remove_wait_order_observer(vvp_fun_wait_order*observer);
@@ -566,11 +569,15 @@ class vvp_named_event : public vvp_net_fun_t, public waitable_hooks_s {
     protected:
       void notify_wait_order_observers(vvp_context_t context);
       void cancel_wait_order_context(vvp_context_t context);
+      void notify_triggered_observers();
+      bool has_triggered_observer_source() const
+      { return triggered_observer_source_ != nullptr; }
       class __vpiHandle*handle_;
 
     private:
       vvp_time64_t last_trigger_time_ = 0;
       bool ever_triggered_ = false;
+      vvp_net_t*triggered_observer_source_ = nullptr;
       std::set<vvp_fun_wait_order*> wait_order_observers_;
 };
 
@@ -585,8 +592,9 @@ class vvp_named_event_sa : public vvp_named_event {
 
       vthread_t add_waiting_thread(vthread_t thread) override;
       vthread_t add_triggered_change_waiter(vthread_t thread);
-      void triggered_time_advance();
+      void triggered_time_advance() override;
       bool triggered_now(void) const override;
+      vvp_net_t* triggered_binding_source();
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
@@ -609,6 +617,7 @@ class vvp_named_event_sa : public vvp_named_event {
 
       vthread_t threads_;
       vthread_t triggered_change_threads_;
+      vvp_net_t*triggered_binding_source_ = nullptr;
       vvp_net_t*alias_ = nullptr;
       bool detached_ = false;
 };

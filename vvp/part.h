@@ -48,7 +48,8 @@ class vvp_fun_part  : public vvp_net_fun_t {
 class vvp_fun_part_sa  : public vvp_fun_part, public vvp_gen_event_s {
 
     public:
-      vvp_fun_part_sa(unsigned base, unsigned wid, bool event_synchronous);
+      vvp_fun_part_sa(unsigned base, unsigned wid, bool event_synchronous,
+		      bool force_rhs_slice);
       ~vvp_fun_part_sa() override;
 
     public:
@@ -70,6 +71,7 @@ class vvp_fun_part_sa  : public vvp_fun_part, public vvp_gen_event_s {
       vvp_vector8_t val8_;
       vvp_net_t*net_;
       bool event_synchronous_;
+      bool force_rhs_slice_;
       bool strength_;
 };
 

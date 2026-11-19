@@ -25,6 +25,7 @@
 # include  "schedule.h"
 # include  "vpi_priv.h"
 # include  "vvp_cobject.h"
+# include  "vvp_cleanup.h"
 # include  "vvp_vinterface.h"
 # include  "config.h"
 # include  <cstring>
@@ -2223,6 +2224,11 @@ void vvp_fun_wait_order::trigger(vvp_named_event*source,
 	    vthread_resume_resource_wait(item.thread, this, item.pc);
 }
 
+/* Only events that fired in the current slot need an expiration
+ * notification. Automatic events keep their per-activation set. */
+static std::set<vvp_named_event*> triggered_in_slot;
+static std::set<named_event_aa_state_s*> triggered_aa_in_slot;
+
 vvp_named_event::vvp_named_event(__vpiHandle*h)
 {
       handle_ = h;
@@ -2230,6 +2236,39 @@ vvp_named_event::vvp_named_event(__vpiHandle*h)
 
 vvp_named_event::~vvp_named_event()
 {
+      if (triggered_observer_source_)
+	    triggered_in_slot.erase(this);
+}
+
+static vvp_net_t* new_triggered_observer_source_()
+{
+      vvp_net_t*source = new vvp_net_t;
+#ifdef CHECK_WITH_VALGRIND
+      pool_local_net(source);
+#endif
+      return source;
+}
+
+vvp_net_t* vvp_named_event::triggered_observer_source()
+{
+      if (!triggered_observer_source_) {
+	    triggered_observer_source_ = new_triggered_observer_source_();
+	    // An alias can start observing an already triggered array element.
+	    if (vvp_named_event::triggered_now())
+		  triggered_in_slot.insert(this);
+      }
+      return triggered_observer_source_;
+}
+
+void vvp_named_event::notify_triggered_observers()
+{
+      if (triggered_observer_source_)
+	    triggered_observer_source_->send_vec4(vvp_vector4_t(), nullptr);
+}
+
+void vvp_named_event::triggered_time_advance()
+{
+      notify_triggered_observers();
 }
 
 static void collect_event_wait_list_(vthread_t head,
@@ -2239,17 +2278,13 @@ static void collect_event_wait_list_(vthread_t head,
             threads.push_back(cur);
 }
 
-/* Only events that fired in the current slot need a 1-to-0 notification.
- * Swap the set before dispatch so a trigger during dispatch belongs to the
- * new slot, and erase on destruction to avoid retaining stale functors. */
-static std::set<vvp_named_event_sa*> triggered_in_slot;
-static std::set<named_event_aa_state_s*> triggered_aa_in_slot;
-
 void vvp_named_event_triggered_time_advance()
 {
-      std::set<vvp_named_event_sa*> expired;
+      // The scheduler has already advanced time, so every timestamp read
+      // sees the new slot even during the first expiration notification.
+      std::set<vvp_named_event*> expired;
       expired.swap(triggered_in_slot);
-      for (vvp_named_event_sa*event : expired)
+      for (vvp_named_event*event : expired)
             event->triggered_time_advance();
       std::set<named_event_aa_state_s*> expired_aa;
       expired_aa.swap(triggered_aa_in_slot);
@@ -2286,8 +2321,19 @@ void vvp_named_event_sa::assign(vvp_net_t*dst, vvp_net_t*src)
 	// An element of an event array owns its queue and is never an alias.
       if (!sfun && element_owner_(src))
 	    queue = src;
+      if (dfun->queue(dst) == queue)
+	    return;
       dfun->detached_ = queue == nullptr;
       dfun->alias_ = queue == dst ? nullptr : queue;
+      if (dfun->triggered_binding_source_)
+	    dfun->triggered_binding_source_->send_vec4(vvp_vector4_t(), nullptr);
+}
+
+vvp_net_t* vvp_named_event_sa::triggered_binding_source()
+{
+      if (!triggered_binding_source_)
+	    triggered_binding_source_ = new_triggered_observer_source_();
+      return triggered_binding_source_;
 }
 
 /* The array-element event whose queue NET is, if it is one. */
@@ -2339,6 +2385,7 @@ vthread_t vvp_named_event_sa::add_triggered_change_waiter(vthread_t thread)
 void vvp_named_event_sa::triggered_time_advance()
 {
       vthread_schedule_event_waiters(triggered_change_threads_);
+      vvp_named_event::triggered_time_advance();
 }
 
 void vvp_named_event::note_triggered(void)
@@ -2403,6 +2450,7 @@ void vvp_named_event_sa::deliver_(vvp_net_ptr_t port, const vvp_vector4_t&bit)
       if (first_trigger) {
             triggered_in_slot.insert(this);
             vthread_schedule_event_waiters(triggered_change_threads_);
+            notify_triggered_observers();
       }
       run_waiting_threads_(threads_);
       vvp_net_t*net = port.ptr();
@@ -2559,7 +2607,13 @@ void vvp_named_event_dyn::collect_waiting_threads(
 void vvp_named_event_dyn::recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&,
                                     vvp_context_t context)
 {
+      const bool first_observed_trigger =
+	    has_triggered_observer_source() && !triggered_now();
       note_triggered();
+      if (first_observed_trigger) {
+	    triggered_in_slot.insert(this);
+	    notify_triggered_observers();
+      }
       notify_wait_order_observers(context);
       run_waiting_threads_(threads_);
 	/* Class events have no VPI handle. Named-event array slots attach

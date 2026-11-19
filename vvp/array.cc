@@ -1076,7 +1076,7 @@ vpiHandle __vpiArrayVthrAPV::vpi_handle(int code)
 class vvp_fun_force_array : public vvp_net_fun_t {
     public:
       explicit vvp_fun_force_array(__vpiArray*array)
-      : array_(array), word_(0), base_(0), width_(0)
+      : array_(array), word_(0), base_(0), width_(0), source_base_(0)
       { }
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&value,
@@ -1086,7 +1086,7 @@ class vvp_fun_force_array : public vvp_net_fun_t {
             if (!active())
                   return;
             source_value_ = value;
-            array_->update_force_link_(word_, base_, width_, active_,
+            array_->update_force_link_(word_, base_, width_, source_base_, active_,
                                        source_value_);
       }
 
@@ -1101,7 +1101,7 @@ class vvp_fun_force_array : public vvp_net_fun_t {
                   source_value_ = vvp_vector4_t(full_wid, BIT4_Z);
             if (base <= full_wid && value.size() <= full_wid - base)
                   source_value_.set_vec(base, value);
-            array_->update_force_link_(word_, base_, width_, active_,
+            array_->update_force_link_(word_, base_, width_, source_base_, active_,
                                        source_value_);
       }
 
@@ -1111,11 +1111,12 @@ class vvp_fun_force_array : public vvp_net_fun_t {
       }
 
       void activate(unsigned word, unsigned base, unsigned wid,
-                    unsigned word_wid, vvp_net_t*source)
+                    unsigned word_wid, vvp_net_t*source, unsigned source_base)
       {
             word_ = word;
             base_ = base;
             width_ = wid;
+            source_base_ = source_base;
             active_ = vvp_vector2_t(vvp_vector2_t::FILL0, word_wid);
             for (unsigned idx = 0; idx < wid; idx += 1)
                   active_.set_bit(base + idx, 1);
@@ -1160,6 +1161,7 @@ class vvp_fun_force_array : public vvp_net_fun_t {
       unsigned word_;
       unsigned base_;
       unsigned width_;
+      unsigned source_base_;
       vvp_vector2_t active_;
       vvp_vector4_t source_value_;
 };
@@ -1265,11 +1267,11 @@ void __vpiArray::force_word(unsigned address, unsigned off,
 }
 
 void __vpiArray::force_link_word(unsigned address, unsigned off, unsigned wid,
-                                 vvp_net_t*source)
+                                 vvp_net_t*source, unsigned source_base)
 {
       __vpiArray*owner = canonical_value_owner_();
       if (owner != this) {
-            owner->force_link_word(address, off, wid, source);
+            owner->force_link_word(address, off, wid, source, source_base);
             return;
       }
 
@@ -1312,19 +1314,20 @@ void __vpiArray::force_link_word(unsigned address, unsigned off, unsigned wid,
       vvp_fun_force_array*fun =
             dynamic_cast<vvp_fun_force_array*>(slot->fun);
       assert(fun);
-      fun->activate(address, off, wid, vals_width, source);
+      fun->activate(address, off, wid, vals_width, source, source_base);
       slot->port[2] = vvp_net_ptr_t(source, 0);
       source->link(vvp_net_ptr_t(slot, 0));
 }
 
 void __vpiArray::update_force_link_(unsigned address, unsigned base,
-                                    unsigned wid,
+                                    unsigned wid, unsigned source_base,
                                     const vvp_vector2_t&active,
                                     const vvp_vector4_t&value)
 {
       __vpiArray*owner = canonical_value_owner_();
       if (owner != this) {
-            owner->update_force_link_(address, base, wid, active, value);
+            owner->update_force_link_(address, base, wid, source_base, active,
+                                      value);
             return;
       }
 
@@ -1336,7 +1339,7 @@ void __vpiArray::update_force_link_(unsigned address, unsigned base,
       force_word_state_t&state = pos->second;
       vvp_vector4_t old_visible = get_word(address);
       hist_snapshot_word_(address);
-      vvp_vector4_t source = coerce_to_width(value, wid);
+      vvp_vector4_t source = value.subvalue(source_base, wid);
       for (unsigned idx = 0; idx < wid; idx += 1) {
             unsigned bit = base + idx;
             if (bit < active.size() && active.value(bit)

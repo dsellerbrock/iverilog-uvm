@@ -7051,9 +7051,8 @@ static int show_stmt_assign_class_stream_(ivl_statement_t net, ivl_expr_t rval)
       unsigned lvals = ivl_stmt_lvals(net);
       for (unsigned idx = 0; idx < lvals; idx += 1) {
 	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
-	    if (ivl_lval_stream_range(lval) != IVL_STREAM_RANGE_NONE
-		|| stream_lval_is_dynamic_(lval)) {
-		  fprintf(stderr, "%s:%u: sorry: ranged or greedy targets cannot "
+	    if (ivl_lval_stream_range(lval) != IVL_STREAM_RANGE_NONE) {
+		  fprintf(stderr, "%s:%u: sorry: ranged targets cannot "
 			  "be combined with class streaming unpack.\n",
 			  ivl_stmt_file(net), ivl_stmt_lineno(net));
 		  return 1;
@@ -7061,6 +7060,12 @@ static int show_stmt_assign_class_stream_(ivl_statement_t net, ivl_expr_t rval)
 	    ivl_type_t type = ivl_lval_net_type(lval);
 	    if (stream_lval_is_class_(lval) && !ivl_type_is_interface(type))
 		  continue;
+	    if (stream_lval_is_dynamic_(lval)) {
+		  int errors = validate_dynamic_stream_lval_(net, lval);
+		  if (errors)
+			return errors;
+		  continue;
+	    }
 	    int property = ivl_lval_property_idx(lval);
 	    ivl_signal_t sig = ivl_lval_sig(lval);
 	    if (!type || (ivl_type_base(type) != IVL_VT_BOOL
@@ -7101,9 +7106,22 @@ static int show_stmt_assign_class_stream_(ivl_statement_t net, ivl_expr_t rval)
       // The l-value table is rightmost first. Capture in source order.
       for (unsigned pos = lvals; pos > 0; pos -= 1) {
 	    ivl_lval_t lval = ivl_stmt_lval(net, pos - 1);
+	    int property = ivl_lval_property_idx(lval);
+	    if (property >= 0 && stream_lval_is_dynamic_(lval)) {
+		  ivl_type_t owner = draw_lval_expr_(lval, 1);
+		  if (!owner || ivl_type_is_interface(owner)
+		      || property >= ivl_type_properties(owner)) {
+			fprintf(stderr, "%s:%u: sorry: cannot capture dynamic "
+				"property peer for class streaming unpack.\n",
+				ivl_stmt_file(net), ivl_stmt_lineno(net));
+			return 1;
+		  }
+		  fprintf(vvp_out, "    %%stream/class/capture/prop %d;\n",
+			  property);
+		  continue;
+	    }
 	    if (!stream_lval_is_class_(lval)) {
-		  if (ivl_lval_property_idx(lval) >= 0
-		      && draw_capture_lval_ref_(lval, 1))
+		  if (property >= 0 && draw_capture_lval_ref_(lval, 1))
 			return 1;
 		  continue;
 	    }
@@ -7126,28 +7144,42 @@ static int show_stmt_assign_class_stream_(ivl_statement_t net, ivl_expr_t rval)
       fprintf(vvp_out, "    %%stream/class/prepare \"%u:", slice);
       for (unsigned pos = lvals; pos > 0; pos -= 1) {
 	    ivl_lval_t lval = ivl_stmt_lval(net, pos - 1);
-	    int is_class = stream_lval_is_class_(lval);
+	    if (pos != lvals)
+		  fputc(',', vvp_out);
+	    int property = ivl_lval_property_idx(lval);
+	    if (stream_lval_is_dynamic_(lval)) {
+		  fputc(property < 0 ? 'g' : '0', vvp_out);
+		  continue;
+	    }
+	    if (stream_lval_is_class_(lval)) {
+		  fputc('0', vvp_out);
+		  continue;
+	    }
 	    const char*prefix = "";
-	    if (!is_class && ivl_lval_property_idx(lval) >= 0)
+	    if (property >= 0)
 		  prefix = ivl_type_base(ivl_lval_net_type(lval)) == IVL_VT_BOOL
 			? "b" : "p";
-	    fprintf(vvp_out, "%s%s%u", pos == lvals ? "" : ",",
-		    prefix, is_class ? 0 : ivl_lval_width(lval));
+	    fprintf(vvp_out, "%s%u", prefix, ivl_lval_width(lval));
       }
       fprintf(vvp_out, "\";\n");
 
       for (unsigned pos = lvals; pos > 0; pos -= 1) {
 	    ivl_lval_t lval = ivl_stmt_lval(net, pos - 1);
 	    int is_class = stream_lval_is_class_(lval);
+	    int dynamic = stream_lval_is_dynamic_(lval);
 	    fprintf(vvp_out, "    %%stream/class/next %u;\n",
-		    is_class ? 0 : ivl_lval_width(lval));
+		    is_class || dynamic ? 0 : ivl_lval_width(lval));
 	    if (!is_class && ivl_lval_property_idx(lval) < 0) {
+		  if (dynamic) {
+			errors += store_dynamic_stream_lval_(lval);
+			continue;
+		  }
 		  if (ivl_type_base(ivl_lval_net_type(lval)) == IVL_VT_BOOL)
 			fprintf(vvp_out, "    %%cast2; two-state streaming destination\n");
 		  store_vec4_to_one_lval(lval);
 	    }
       }
-      return 0;
+      return errors;
 }
 
 static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
@@ -7162,19 +7194,28 @@ static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
 	    return -1;
 
       unsigned lvals = ivl_stmt_lvals(net);
-      for (unsigned idx = 0; idx < lvals; idx += 1)
-	    if (stream_lval_is_class_(ivl_stmt_lval(net, idx)))
+      int have_fixed_property = 0;
+      int have_dynamic = 0;
+      int have_range = 0;
+      for (unsigned idx = 0; idx < lvals; idx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
+	    if (stream_lval_is_class_(lval))
 		  return show_stmt_assign_class_stream_(net, rval);
+	    have_range |= ivl_lval_stream_range(lval) != IVL_STREAM_RANGE_NONE;
+	    if (stream_lval_is_dynamic_(lval))
+		  have_dynamic = 1;
+	    else if (ivl_lval_property_idx(lval) >= 0)
+		  have_fixed_property = 1;
+      }
+      if (have_dynamic && have_fixed_property && !have_range)
+	    return show_stmt_assign_class_stream_(net, rval);
 
       unsigned greedy = 0;
       unsigned dynamic_count = 0;
       uint64_t fixed_width = 0;
-      int have_range = 0;
 
       for (unsigned idx = 0 ; idx < lvals ; idx += 1) {
 	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
-	    if (ivl_lval_stream_range(lval) != IVL_STREAM_RANGE_NONE)
-		  have_range = 1;
 	    if (stream_lval_is_dynamic_(lval)) {
 		  greedy = idx;
 		  dynamic_count += 1;

@@ -4825,6 +4825,124 @@ static bool elaborate_unpacked_struct_variable_continuous_(
       return true;
 }
 
+/* The declaration of a built-in unpacked struct is a type anchor.
+ * Collect the actual driver endpoints in member order. Within a fixed
+ * array, the bit-stream object uses the same canonical word order as the
+ * member net. */
+static bool collect_builtin_struct_net_leaves_(NetNet*signal,
+					       vector<NetNet*>&leaves,
+					       unsigned&width)
+{
+      if (signal->net_type()->packed()) {
+	    unsigned word_width = signal->vector_width();
+	    if (!word_width || signal->pin_count() > (INT_MAX - width) / word_width)
+		  return false;
+	    width += word_width * signal->pin_count();
+	    leaves.push_back(signal);
+	    return true;
+      }
+
+      const netstruct_t*record = signal->struct_type();
+      if (!record || signal->unpacked_dimensions() || record->union_flag())
+	    return false;
+      for (size_t idx = 0; idx < record->members().size(); idx += 1) {
+	    NetNet*member = signal->resolve_builtin_net_struct_member(idx);
+	    if (!member || !collect_builtin_struct_net_leaves_(member, leaves, width))
+		  return false;
+      }
+      return true;
+}
+
+static void elaborate_builtin_struct_net_continuous_(
+      Design*des, NetScope*scope, const PGAssign&assignment, NetNet*signal)
+{
+      vector<NetNet*>leaves;
+      unsigned width = 0;
+      if (!collect_builtin_struct_net_leaves_(signal, leaves, width) || !width) {
+	    cerr << assignment.get_fileline() << ": sorry: Continuous assignment "
+		 << "to this unpacked struct net layout is not supported." << endl;
+	    des->errors += 1;
+	    return;
+      }
+
+      unsigned errors_before = des->errors;
+      unique_ptr<NetExpr>rhs(elaborate_rval_expr(
+	    des, scope, signal->net_type(), assignment.pin(1)));
+      if (des->errors != errors_before)
+	    return;
+      if (!rhs || !signal->net_type()->type_equivalent(rhs->net_type())) {
+	    cerr << assignment.get_fileline() << ": error: Continuous assignment "
+		 << "requires an assignment-compatible unpacked struct value." << endl;
+	    des->errors += 1;
+	    return;
+      }
+      if (netexpr_contains_chandle_(rhs.get())) {
+	    cerr << assignment.get_fileline() << ": error: chandle is not permitted "
+		 << "in a continuous assignment (IEEE 1800-2017/2023 6.14)." << endl;
+	    des->errors += 1;
+	    return;
+      }
+
+      const netvector_t*stream_type = new netvector_t(IVL_VT_LOGIC, width-1, 0);
+      NetNet*carrier = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				   stream_type);
+      carrier->set_line(assignment);
+      carrier->local_flag(true);
+
+	// Evaluate the whole RHS once for each activation, then distribute that
+	// value to independent structural drivers (IEEE 1800 4.9.1, 10.3.2).
+      NetESFunc*stream = new NetESFunc("$ivl_stream$cast$packed$1", stream_type, 1);
+      stream->set_line(assignment);
+      stream->parm(0, rhs.release());
+      NetAssign*store = new NetAssign(new NetAssign_(carrier), stream);
+      store->set_line(assignment);
+      PEventStatement wait(true);
+      wait.set_line(assignment);
+      NetProc*body = wait.elaborate_st(des, scope, store);
+      if (!body) {
+	    delete store;
+	    return;
+      }
+      NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
+      top->set_line(assignment);
+      if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
+	    if (event_wait->nevents() == 1) {
+		  NetEvent*event = event_wait->event(0);
+		  bool anyedge = event->nprobe() != 0;
+		  for (unsigned idx = 0; anyedge && idx < event->nprobe(); idx += 1)
+		    anyedge = event->probe(idx)->edge() == NetEvProbe::ANYEDGE;
+		  if (anyedge)
+		    top->attribute(perm_string::literal("_ivl_schedule_push"), verinum(1));
+	    }
+      }
+      des->add_process(top);
+
+      unsigned offset = width;
+      for (NetNet*member : leaves) {
+	    unsigned word_width = member->vector_width();
+	    const netvector_t*word_type =
+		  new netvector_t(IVL_VT_LOGIC, word_width-1, 0);
+	    for (unsigned word = 0; word < member->pin_count(); word += 1) {
+		  offset -= word_width;
+		  NetPartSelect*slice = new NetPartSelect(
+			carrier, offset, word_width, NetPartSelect::VP);
+		  des->add_node(slice);
+		  NetNet*value = new NetNet(scope, scope->local_symbol(),
+					    NetNet::WIRE, word_type);
+		  value->set_line(assignment);
+		  value->local_flag(true);
+		  connect(slice->pin(0), value->pin(0));
+
+		  NetBUFZ*driver = new NetBUFZ(scope, scope->local_symbol(),
+					     word_width, false);
+		  driver->set_line(assignment);
+		  des->add_node(driver);
+		  connect(driver->pin(1), value->pin(0));
+		  connect(driver->pin(0), member->pin(word));
+	    }
+      }
+}
+
 static bool elaborate_unpacked_union_read_continuous_(
       Design*des, NetScope*scope, const PGAssign*assignment,
       NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
@@ -5220,6 +5338,25 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			}
 			return;
 		  }
+	    }
+      }
+
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(pin(0))) {
+	    symbol_search_results sr;
+	    if (ident->path().name.back().index.empty()
+		&& symbol_search(this, des, scope, ident->path(), UINT_MAX, &sr)
+		&& sr.net && sr.path_tail.empty()
+		&& sr.net->resolve_builtin_net_struct_member(0)) {
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  if (delay_count() || sr.net->net_delay_driver() || strength_specified()) {
+			cerr << get_fileline() << ": sorry: Delay or explicit drive strength "
+			     << "on a whole unpacked struct net assignment is not supported."
+			     << endl;
+			des->errors += 1;
+		  } else {
+			elaborate_builtin_struct_net_continuous_(des, scope, *this, sr.net);
+		  }
+		  return;
 	    }
       }
 
@@ -26447,10 +26584,10 @@ bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
       return true;
 }
 
-static bool force_rhs_needs_structural_net_(const NetExpr*expr);
-static NetScope* force_rhs_structural_scope_(NetScope*scope);
-static NetNet* force_rhs_static_alias_(NetNet*source, NetScope*scope,
-				       const LineInfo&loc);
+static NetExpr* elaborate_force_link_rval_(Design*des, NetScope*scope,
+					   const NetExpr*rval,
+					   const NetAssign_*lval,
+					   unsigned width, bool concat);
 
 /*
  * Elaborate a procedural continuous assign. This really looks very
@@ -26491,6 +26628,11 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
 
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
+      bool concat = dynamic_cast<const PEConcat*>(lval_) != nullptr
+		 && type_is_vectorable(ltype);
+      // Convert to two-state separately for each concatenation leaf.
+      if (concat)
+	    ltype = IVL_VT_LOGIC;
 
       PExprProceduralContextGuard procedural_context(false);
       NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype,
@@ -26499,27 +26641,8 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       if (rexp == 0)
 	    return 0;
 
-      NetExpr*link_rexp = 0;
-
-      /* A procedural continuous assignment needs both the expression's
-       * immediate value and a structural source whose changes can trigger
-       * the existing VVP cassign link. Keep the initial expression intact
-       * for activation-time evaluation. */
-      if (force_rhs_needs_structural_net_(rexp)) {
-	    NetScope*source_scope = force_rhs_structural_scope_(scope);
-	    NetExpr*structural_rexp = rexp->dup_expr();
-	    NetNet*source = structural_rexp->synthesize(des, source_scope,
-						       structural_rexp);
-	    source = force_rhs_static_alias_(source, source_scope,
-					     *structural_rexp);
-	    if (source) {
-		  NetESignal*continuous = new NetESignal(source);
-		  continuous->set_line(*structural_rexp);
-		  link_rexp = continuous;
-	    }
-	    delete structural_rexp;
-      }
-
+      NetExpr*link_rexp = elaborate_force_link_rval_(des, scope, rexp,
+						     lval, lwid, concat);
       dev = new NetCAssign(lval, rexp, link_rexp);
 
       if (debug_elaborate) {
@@ -28456,6 +28579,48 @@ struct deferred_extern_sensitivity_t {
 static map<NetEvWait*, deferred_extern_sensitivity_t> deferred_extern_sensitivity_;
 static bool extern_functions_bound_ = false;
 
+/* Pass the whole exact-true expression and its resolved event-state sources
+ * to the VVP observer recipe. The sources are metadata, separate from the
+ * expression that the recipe evaluates. */
+static NetExpr* sva_disable_observer_expr_(
+      Design*des, NetExpr*condition, const vector<const NetESFunc*>&reads)
+{
+      set<const NetEvent*> seen;
+      vector<const NetEEvent*> operands;
+      for (const NetESFunc*read : reads) {
+	    const NetEEvent*arg = strcmp(read->name(), "$ivl_event_method$triggered") == 0
+		  ? dynamic_cast<const NetEEvent*>(read->parm(0)) : nullptr;
+	    const NetEvent*event = arg ? arg->event() : nullptr;
+	    if (event && event->is_sequence_endpoint()) {
+		  cerr << read->get_fileline()
+		       << ": sorry: sequence endpoint in disable iff requires "
+		          "ordered assertion evaluation." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    if (!event || event->is_class_event() || event->is_event_array()
+		|| event->lifetime_override() == IVL_VLT_AUTOMATIC
+		|| (event->lifetime_override() == IVL_VLT_INHERITED
+		    && event->scope()->is_auto())) {
+		  cerr << read->get_fileline()
+		       << ": sorry: disable iff event-state observation currently "
+		          "requires a static scalar named event." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    if (seen.insert(event).second)
+		  operands.push_back(arg);
+      }
+
+      NetESFunc*observer = new NetESFunc("$ivl_sva_disable_observer",
+	    IVL_VT_BOOL, 1, operands.size() + 1);
+      observer->set_line(*condition);
+      observer->parm(0, condition);
+      for (unsigned idx = 0; idx < operands.size(); ++idx)
+	    observer->parm(idx + 1, operands[idx]->dup_expr());
+      return observer;
+}
+
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet, bool nba_event_control) const
 {
@@ -29252,6 +29417,37 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  delete tmp;
 		  continue;
 	    }
+
+    /* IEEE 1800-2017/2023 16.12: test the current disable condition
+     * synchronously on each input occurrence, including named-event state
+     * changes that have no synthesizable signal input. */
+    if (sva_disable_observer_) {
+	  ivl_assert(*this, expr_.size() == 1
+		&& expr_[idx]->type() == PEEvent::POSEDGE);
+	  vector<const NetESFunc*>reads;
+	  NetESFunc::set_nex_input_triggered_collector(&reads);
+	  unique_ptr<NexusSet>sources(tmp->nex_input(
+		true, expr_has_user_function_call_(tmp)));
+	  NetESFunc::set_nex_input_triggered_collector(nullptr);
+	  if (!reads.empty()) {
+		NetExpr*observer = sva_disable_observer_expr_(des, tmp, reads);
+		if (!observer) {
+		      delete tmp;
+		      delete wa;
+		      delete ev;
+		      return nullptr;
+		}
+		NetEvProbe*probe = new NetEvProbe(
+		      scope, scope->local_symbol(), ev,
+		      NetEvProbe::ANYEDGE, sources->size());
+		for (unsigned pin = 0; pin < sources->size(); ++pin)
+		      connect(sources->at(pin).lnk, probe->pin(pin));
+		probe->set_event_observer_expr(observer, NetEvProbe::POSEDGE);
+		des->add_node(probe);
+		expr_count += 1;
+		continue;
+	  }
+    }
 
 	    /* IEEE 1800-2017/2023 9.4.2: each input can request reevaluation.
 	     * The observer applies the qualifier to the resulting value. */
@@ -31120,6 +31316,76 @@ static NetNet* force_rhs_static_alias_(NetNet*source, NetScope*scope,
       return res;
 }
 
+/* Keep the procedural RHS for the immediate evaluation. The structural
+ * expression supplies later updates, after its nodes have settled. */
+static NetExpr* elaborate_force_link_rval_(Design*des, NetScope*scope,
+					   const NetExpr*rval,
+					   const NetAssign_*lval,
+					   unsigned width, bool concat)
+{
+      if (!force_rhs_needs_structural_net_(rval)
+	  && !(concat && dynamic_cast<const NetESignal*>(rval)))
+	    return nullptr;
+
+      NetScope*source_scope = force_rhs_structural_scope_(scope);
+      NetExpr*structural = rval->dup_expr();
+      if (concat)
+	    structural = cast_to_width(structural, width, rval->has_sign(), *rval);
+
+      NetNet*source = structural->synthesize(des, source_scope, structural);
+      delete structural;
+      source = force_rhs_static_alias_(source, source_scope, *rval);
+      if (!source)
+	    return nullptr;
+
+      if (!concat) {
+	    NetESignal*link = new NetESignal(source);
+	    link->set_line(*rval);
+	    return link;
+      }
+
+      // The link-only descriptor stores slices in the l-value chain's
+      // LSB-first order. Each source has the width of its entire leaf,
+      // including any bits that a force opcode will clip at runtime.
+      unsigned count = 0;
+      for (const NetAssign_*leaf = lval; leaf; leaf = leaf->more)
+	    count += 1;
+      NetEConcat*links = new NetEConcat(count, 1, IVL_VT_LOGIC);
+      links->set_line(*rval);
+
+      unsigned offset = 0;
+      unsigned idx = 0;
+      for (const NetAssign_*leaf = lval; leaf; leaf = leaf->more) {
+	    unsigned leaf_width = leaf->lwidth();
+	    NetPartSelect*select = new NetPartSelect(source, offset, leaf_width,
+						    NetPartSelect::VP);
+	    select->set_line(*rval);
+	    des->add_node(select);
+
+	    ivl_type_t leaf_type = leaf->lval_type();
+	    ivl_variable_type_t data_type = leaf_type ? leaf_type->base_type()
+		  : leaf->sig() ? leaf->sig()->data_type() : IVL_VT_LOGIC;
+	    // The slice net converts to two-state only for a two-state leaf.
+	    const netvector_t*type = new netvector_t(
+		  data_type == IVL_VT_BOOL ? IVL_VT_BOOL : IVL_VT_LOGIC,
+		  leaf_width - 1, 0);
+	    NetNet*slice = new NetNet(source_scope, source_scope->local_symbol(),
+				      NetNet::WIRE, type);
+	    slice->set_line(*rval);
+	    slice->local_flag(true);
+	    slice->attribute(perm_string::literal("_ivl_force_rhs_slice"),
+			     verinum("1"));
+	    connect(slice->pin(0), select->pin(0));
+
+	    NetESignal*link = new NetESignal(slice);
+	    link->set_line(*rval);
+	    links->set(idx, link);
+	    offset += leaf_width;
+	    idx += 1;
+      }
+      return links;
+}
+
 /*
  * Force is like a procedural assignment, most notably procedural
  * continuous assignment:
@@ -31198,6 +31464,10 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
 
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
+      bool concat = dynamic_cast<const PEConcat*>(lval_) != nullptr
+		 && type_is_vectorable(ltype);
+      if (concat)
+	    ltype = IVL_VT_LOGIC;
 
 	// Like a variety of other assigns, we need to figure out a
 	// better way to get a reasonable lv_net_type value, and that
@@ -31207,30 +31477,8 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
       if (rexp == 0)
 	    return 0;
 
-      NetExpr*force_link_rexp = 0;
-
-      /* IEEE 1800-2023 10.6 requires the force RHS to be reevaluated when
-       * any of its inputs change. Turn the structural subset into a hidden
-       * continuously driven signal so the VVP force-link mechanism observes
-       * those changes. Preserve the original expression for immediate force
-       * activation: the hidden continuous signal does not settle until the
-       * scheduler runs, and reading it here would incorrectly produce X/Z.
-       * A direct signal already has both required representations. */
-      if (force_rhs_needs_structural_net_(rexp)) {
-	    NetScope*source_scope = force_rhs_structural_scope_(scope);
-	    NetExpr*structural_rexp = rexp->dup_expr();
-	    NetNet*source = structural_rexp->synthesize(des, source_scope,
-						   structural_rexp);
-	    source = force_rhs_static_alias_(source, source_scope,
-					     *structural_rexp);
-	    if (source) {
-		  NetESignal*continuous = new NetESignal(source);
-		  continuous->set_line(*structural_rexp);
-		  force_link_rexp = continuous;
-	    }
-	    delete structural_rexp;
-      }
-
+      NetExpr*force_link_rexp = elaborate_force_link_rval_(des, scope, rexp,
+							  lval, lwid, concat);
       dev = new NetForce(lval, rexp, force_link_rexp);
 
       if (debug_elaborate) {
