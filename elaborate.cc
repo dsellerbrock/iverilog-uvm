@@ -11325,11 +11325,20 @@ static uint64_t streaming_lval_fixed_width_(const NetAssign_*lv)
 	    ivl_type_t type = cur->lval_type();
 	    if (dynamic_cast<const netdarray_t*>(type)
 		|| dynamic_cast<const netstring_t*>(type)
+		|| dynamic_cast<const netclass_t*>(type)
 		|| cur->stream_range() != IVL_STREAM_RANGE_NONE)
 		  continue;
 	    width += cur->lwidth();
       }
       return width;
+}
+
+static bool streaming_lval_has_class_(const NetAssign_*lv)
+{
+      for (const NetAssign_*cur = lv ; cur ; cur = cur->more)
+	    if (dynamic_cast<const netclass_t*>(cur->lval_type()))
+		  return true;
+      return false;
 }
 
 NetProc* PAssign::elaborate_compressed_(Design*des, NetScope*scope) const
@@ -15131,9 +15140,10 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 
       const PEStreaming*stream_rval =
 	    dynamic_cast<const PEStreaming*>(rval());
-      const bool dynamic_stream_target = stream_rval
-	    && stream_rval->is_lval_context()
-	    && streaming_lval_needs_runtime_(lv);
+      const bool unpack = stream_rval && stream_rval->is_lval_context();
+      const bool class_stream_target = unpack && streaming_lval_has_class_(lv);
+      const bool dynamic_stream_target = unpack
+	    && (class_stream_target || streaming_lval_needs_runtime_(lv));
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PAssign::elaborate: ";
@@ -15164,7 +15174,8 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		  delete delay;
 		  return 0;
 	    }
-	    if (!stream_rval->stream_is_dynamic(des, rval_scope)) {
+	    if (!class_stream_target
+		&& !stream_rval->stream_is_dynamic(des, rval_scope)) {
 		  PExpr::width_mode_t mode = PExpr::SIZED;
 		  unsigned source_width = stream_rval->get_inner()->test_width(
 			des, rval_scope, mode);
@@ -15181,7 +15192,10 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 			return 0;
 		  }
 	    }
-	    rv = stream_rval->elaborate_stream_sfunc(des, rval_scope, 0, 0);
+	    ivl_type_t access_class = class_stream_target
+		  ? find_method_containing_class(des, *this, scope) : nullptr;
+	    rv = stream_rval->elaborate_stream_sfunc(des, rval_scope, 0, 0,
+						   access_class);
 
 	/* If the l-value is a compound type of some sort, then use
 	   the newer net_type form of the elaborate_rval_ method to
@@ -16576,7 +16590,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       if (const PEStreaming*stream =
 	    dynamic_cast<const PEStreaming*>(rval())) {
 	    if (stream->is_lval_context()
-		&& streaming_lval_needs_runtime_(lv)) {
+		&& (streaming_lval_needs_runtime_(lv)
+		    || streaming_lval_has_class_(lv))) {
 		  cerr << get_fileline() << ": sorry: non-blocking streaming "
 		       << "assignment to a run-time-sized target needs a "
 		       << "snapshot of its receiver, range expressions, and source "

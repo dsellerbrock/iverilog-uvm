@@ -1,0 +1,10 @@
+{
+  "type": "RE",
+  "source": "issue3864_class_unpack_short.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue3864_class_unpack_short"
+  ],
+  "gold": "issue3864_class_unpack_short"
+}

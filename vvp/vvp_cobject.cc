@@ -1088,7 +1088,7 @@ bool vvp_cobject::union_member_access_ok_(size_t pid) const
 
 void vvp_cobject::activate_union_member(size_t pid)
 {
-      assert(defn_->is_tagged_union_type());
+      assert(defn_->is_union_type());
       assert(pid < defn_->property_count());
       if (union_active_member_ != (int)pid) {
 	    union_active_member_ = (int)pid;
@@ -1360,13 +1360,18 @@ void vvp_cobject::set_object(size_t pid, const vvp_object_t&val, size_t idx)
       }
 }
 
+void vvp_cobject::peek_object_storage(size_t pid, vvp_object_t&val, size_t idx) const
+{
+      defn_->get_object(properties_, pid, val, idx);
+}
+
 void vvp_cobject::get_object(size_t pid, vvp_object_t&val, size_t idx)
 {
       if (!union_member_access_ok_(pid)) {
 	    val = vvp_object_t();
 	    return;
       }
-      defn_->get_object(properties_, pid, val, idx);
+      peek_object_storage(pid, val, idx);
       if (!defn_->is_union_type() || defn_->is_tagged_union_type()
 	  || idx != 0 || union_active_member_ < 0
 	  || union_active_member_ == (int)pid

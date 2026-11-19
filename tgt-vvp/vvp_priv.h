@@ -1438,6 +1438,9 @@ extern void darray_new(ivl_type_t element_type, unsigned size_reg);
  * not a stream-pack function.
  */
 extern int draw_stream_pack_pieces(ivl_expr_t expr, unsigned tw);
+/* Leave the raw unpack source on the stack. A zero slice denotes >>. */
+extern int draw_stream_unpack_source(ivl_expr_t expr, unsigned*slice,
+				    ivl_type_t*access_class);
 /* Word count of a fixed unpacked-array dynamic-array element, stored flat
    in an object element; 0 for any other element type. */
 extern unsigned darray_fixed_element_words(ivl_type_t type, ivl_type_t*leaf);
