@@ -315,6 +315,8 @@ sv_assert_first_match_tree normal,-g2017,-gassertions ivltests gold=sv_assert_fi
 sv_assert_first_match_tree_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_tree.gold
 sv_assert_first_match_tree_property_fail CE,-g2017,-gassertions ivltests gold=sv_assert_first_match_tree_property_fail_2017.gold
 sv_assert_first_match_tree_property_fail_2023 CE,-g2023,-gassertions ivltests gold=sv_assert_first_match_tree_property_fail_2023.gold
+sv_assert_first_match_tied normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_tied.gold
+sv_assert_first_match_tied_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_tied.gold
 issue1387_if_property_dist_condition_2017 normal,-g2017,-gassertions,-s,issue1387_if_property_dist_condition ivltests gold=issue1387_if_property_dist_condition.gold
 issue1387_if_property_dist_condition_2023 normal,-g2023,-gassertions,-s,issue1387_if_property_dist_condition ivltests gold=issue1387_if_property_dist_condition.gold
 sv_assert_function_side_effect_fail CE,-g2017,-gassertions ivltests
@@ -6009,6 +6011,8 @@ sv_ref_event_nonintegral_actual normal,-g2017,-s,main ivltests gold=sv_ref_event
 sv_ref_event_nonintegral_actual_2023 normal,-g2023,-s,main ivltests gold=sv_ref_event_nonintegral_actual.gold
 sv_ref_event_fixed_word_2017 normal,-g2017,-s,sv_ref_event_fixed_word ivltests gold=sv_ref_event_fixed_word.gold
 sv_ref_event_fixed_word_2023 normal,-g2023,-s,sv_ref_event_fixed_word ivltests gold=sv_ref_event_fixed_word.gold
+sv_ref_event_auto_fixed_word_2017 normal,-g2017,-s,sv_ref_event_auto_fixed_word ivltests gold=sv_ref_event_auto_fixed_word.gold
+sv_ref_event_auto_fixed_word_2023 normal,-g2023,-s,sv_ref_event_auto_fixed_word ivltests gold=sv_ref_event_auto_fixed_word.gold
 sv_break_continue_labeled_block normal,-g2017,-s,main ivltests gold=sv_break_continue_labeled_block.gold
 sv_break_continue_labeled_block_2023 normal,-g2023,-s,main ivltests gold=sv_break_continue_labeled_block.gold
 sv_randomize_joint_fixed_var_coupling normal,-g2017,-s,main ivltests gold=sv_randomize_joint_fixed_var_coupling.gold

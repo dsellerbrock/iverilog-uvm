@@ -1282,7 +1282,8 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       { return value_owner_ ? value_owner_ : this; }
       const __vpiArray*canonical_value_owner_() const
       { return value_owner_ ? value_owner_ : this; }
-      void notify_word_change_(unsigned long address);
+      void notify_word_change_(unsigned long address, vvp_context_t frame,
+                               const vvp_vector4_t*sample = nullptr);
       void unlink_force_range_(unsigned address, unsigned off, unsigned wid);
       void update_force_link_(unsigned address, unsigned base, unsigned wid,
 			      const vvp_vector2_t&active,
@@ -1312,15 +1313,23 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 	// read ports registered through any alias.
       __vpiArray*value_owner_ = nullptr;
       std::vector<__vpiArray*> value_views_;
-      std::multimap<unsigned, vvp_net_t*> word_ref_relays_;
+      struct word_ref_relay_t {
+            vvp_net_t*relay;
+            vvp_context_t frame;
+            uint64_t generation;
+      };
+      std::multimap<unsigned, word_ref_relay_t> word_ref_relays_;
 
       friend class vvp_fun_force_array;
+      friend class vvp_ref_signal_aa;
     public:
 
       void alias_word(unsigned long addr, vpiHandle word, int msb, int lsb);
       void attach_word(unsigned addr, vpiHandle word);
       void attach_word_edge_probe(unsigned addr, vvp_net_t*probe);
-      void attach_word_ref_relay(unsigned addr, vvp_net_t*relay);
+      __vpiScope*word_context_scope() const;
+      void attach_word_ref_relay(unsigned addr, vvp_net_t*relay,
+                                 vvp_context_t frame, uint64_t generation);
       void detach_word_ref_relay(unsigned addr, vvp_net_t*relay);
       void word_change(unsigned long addr);
       void word_change_local_(unsigned long addr);
