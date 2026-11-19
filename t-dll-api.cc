@@ -1956,6 +1956,12 @@ extern "C" ivl_scope_t ivl_lpm_scope(ivl_lpm_t net)
       return net->scope;
 }
 
+extern "C" int ivl_lpm_reduce_signed_xz(ivl_lpm_t net)
+{
+      assert(net);
+      return net->reduce_signed_xz;
+}
+
 extern "C" ivl_nexus_t ivl_lpm_select(ivl_lpm_t net)
 {
       assert(net);

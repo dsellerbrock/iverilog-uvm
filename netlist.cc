@@ -3513,8 +3513,8 @@ NetEUBits::~NetEUBits()
 {
 }
 
-NetEUReduce::NetEUReduce(char op__, NetExpr*ex)
-: NetEUnary(op__, ex, 1, false)
+NetEUReduce::NetEUReduce(char op__, NetExpr*ex, bool explicit_reduction)
+: NetEUnary(op__, ex, 1, false), explicit_reduction_(explicit_reduction)
 {
 }
 
@@ -3596,8 +3596,8 @@ bool NetLogic::event_synchronous() const
 }
 
 NetUReduce::NetUReduce(NetScope*scope__, perm_string n,
-		       NetUReduce::TYPE t, unsigned wid)
-: NetNode(scope__, n, 2), type_(t), width_(wid)
+		       NetUReduce::TYPE t, unsigned wid, bool signed_xz)
+: NetNode(scope__, n, 2), type_(t), width_(wid), signed_xz_(signed_xz)
 {
       pin(0).set_dir(Link::OUTPUT);
       pin(1).set_dir(Link::INPUT);

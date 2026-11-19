@@ -3491,10 +3491,12 @@ class NetUReduce  : public NetNode {
     public:
       enum TYPE {NONE, AND, OR, XOR, NAND, NOR, XNOR};
 
-      NetUReduce(NetScope*s, perm_string n, TYPE t, unsigned wid);
+      NetUReduce(NetScope*s, perm_string n, TYPE t, unsigned wid,
+                 bool signed_xz = false);
 
       TYPE type() const;
       unsigned width() const;
+      bool signed_xz() const { return signed_xz_; }
 
       virtual void dump_node(std::ostream&, unsigned ind) const override;
       virtual bool emit_node(struct target_t*) const override;
@@ -3503,6 +3505,7 @@ class NetUReduce  : public NetNode {
     private:
       TYPE type_;
       unsigned width_;
+      bool signed_xz_;
 };
 
 /*
@@ -6534,7 +6537,7 @@ class NetEUBits : public NetEUnary {
 class NetEUReduce : public NetEUnary {
 
     public:
-      NetEUReduce(char op, NetExpr*ex);
+      NetEUReduce(char op, NetExpr*ex, bool explicit_reduction = false);
       ~NetEUReduce() override;
 
       virtual NetNet* synthesize(Design*, NetScope*scope, NetExpr*root) override;
@@ -6542,6 +6545,7 @@ class NetEUReduce : public NetEUnary {
       virtual ivl_variable_type_t expr_type() const override;
 
     private:
+      bool explicit_reduction_;
       virtual NetEConst* eval_arguments_(const NetExpr*ex) const override;
       virtual NetEConst* eval_tree_real_(const NetExpr*ex) const override;
 };

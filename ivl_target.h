@@ -1658,6 +1658,8 @@ extern int            ivl_lpm_signed(ivl_lpm_t net);
 extern ivl_lpm_type_t ivl_lpm_type(ivl_lpm_t net);
 extern unsigned       ivl_lpm_width(ivl_lpm_t net);
 extern unsigned       ivl_lpm_event_synchronous(ivl_lpm_t net);
+  /* True for reductions that yield X if any operand bit is X/Z. */
+extern int            ivl_lpm_reduce_signed_xz(ivl_lpm_t net);
 extern ivl_event_t    ivl_lpm_trigger(ivl_lpm_t net);
 
   /* IVL_LPM_FF */

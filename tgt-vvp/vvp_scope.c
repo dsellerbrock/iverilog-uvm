@@ -3179,7 +3179,8 @@ static void draw_lpm_re(ivl_lpm_t net, const char*type)
       const char*input = draw_net_input(ivl_lpm_data(net, 0));
       const char*dly = draw_lpm_output_delay(net, IVL_VT_LOGIC);
 
-      fprintf(vvp_out, "L_%p%s .reduce/%s %s;\n", net, dly, type, input);
+      const char*flag = ivl_lpm_reduce_signed_xz(net) ? ", 1" : "";
+      fprintf(vvp_out, "L_%p%s .reduce/%s %s%s;\n", net, dly, type, input, flag);
 }
 
 static void draw_lpm_repeat(ivl_lpm_t net)
