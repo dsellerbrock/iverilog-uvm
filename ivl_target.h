@@ -2810,6 +2810,9 @@ extern unsigned ivl_stmt_case_is_quality_if(ivl_statement_t net);
 extern ivl_statement_t ivl_stmt_case_stmt(ivl_statement_t net, unsigned i);
   /* IVL_ST_CONDIT IVL_ST_FORLOOP IVL_ST_CASE IVL_ST_REPEAT IVL_ST_WHILE */
 extern unsigned ivl_stmt_case_group(ivl_statement_t net, unsigned i);
+/* Source selector for VPI, if available. ivl_stmt_cond_expr() returns the
+ * execution expression, which may include case comparison conversions. */
+extern ivl_expr_t ivl_stmt_case_source_selector(ivl_statement_t net);
   /* IVL_ST_CASE, IVL_ST_CASER, IVL_ST_CASEX, IVL_ST_CASEZ */
 extern ivl_expr_t      ivl_stmt_cond_expr(ivl_statement_t net);
 /* True for a parsed synchronous clocking drive with cycle delay. */

@@ -17361,27 +17361,94 @@ static int test_case_width(Design*des, NetScope*scope, PExpr*pe,
       return expr_width;
 }
 
+/* Only copy trees that the statement expression machinery can describe.
+   Other NetExpr types need not implement deep copying. In particular,
+   copying calls is unnecessary because a statement thunk cannot emit a
+   second system-function call site. */
+static bool can_copy_case_selector(const NetExpr*expr)
+{
+      if (dynamic_cast<const NetEConst*>(expr) || dynamic_cast<const NetECReal*>(expr))
+	    return true;
+      if (auto*sig = dynamic_cast<const NetESignal*>(expr))
+	    return !sig->word_index() || dynamic_cast<const NetEConst*>(sig->word_index());
+      if (auto*sel = dynamic_cast<const NetESelect*>(expr))
+	    return can_copy_case_selector(sel->sub_expr())
+	      && (!sel->select() || dynamic_cast<const NetEConst*>(sel->select()));
+      if (auto*un = dynamic_cast<const NetEUnary*>(expr))
+	    return can_copy_case_selector(un->expr());
+      if (auto*bin = dynamic_cast<const NetEBinary*>(expr))
+	    return typeid(*bin) != typeid(NetEBinary)
+	      && !dynamic_cast<const NetEBMinMax*>(bin)
+	      && can_copy_case_selector(bin->left()) && can_copy_case_selector(bin->right());
+      if (auto*tern = dynamic_cast<const NetETernary*>(expr))
+	    return can_copy_case_selector(tern->cond_expr())
+	      && can_copy_case_selector(tern->true_expr())
+	      && can_copy_case_selector(tern->false_expr());
+      if (auto*cat = dynamic_cast<const NetEConcat*>(expr)) {
+	    for (unsigned idx = 0; idx < cat->nparms(); ++idx)
+		  if (!can_copy_case_selector(cat->parm(idx))) return false;
+	    return true;
+      }
+      return false;
+}
+
+/* The statement encoder strips implicit width/sign adjustments. Explicit
+   casts can lower to the same nodes, but must retain their cast operator. */
+static bool case_selector_has_cast(const PExpr*expr)
+{
+      if (auto*bin = dynamic_cast<const PEBinary*>(expr))
+	    return case_selector_has_cast(bin->get_left())
+	      || case_selector_has_cast(bin->get_right());
+      if (auto*un = dynamic_cast<const PEUnary*>(expr))
+	    return case_selector_has_cast(un->get_expr());
+      if (auto*tern = dynamic_cast<const PETernary*>(expr))
+	    return case_selector_has_cast(tern->get_cond())
+	      || case_selector_has_cast(tern->get_true())
+	      || case_selector_has_cast(tern->get_false());
+      if (auto*cat = dynamic_cast<const PEConcat*>(expr))
+	    return std::any_of(cat->stream_parms().begin(), cat->stream_parms().end(),
+			      case_selector_has_cast);
+      return dynamic_cast<const PECastSize*>(expr)
+	    || dynamic_cast<const PECastSign*>(expr)
+	    || dynamic_cast<const PECastType*>(expr);
+}
+
 static NetExpr*elab_and_eval_case(Design*des, NetScope*scope, PExpr*pe,
 				  bool context_is_real, bool context_is_string,
 				  bool context_unsigned,
-				  unsigned context_width)
+				  unsigned context_width,
+				  unique_ptr<NetExpr>*source_selector = nullptr)
 {
+      NetExpr*expr;
       if (context_is_string) {
-	    NetExpr*expr = pe->elaborate_expr(des, scope,
-					     &netstring_t::type_string,
-					     PExpr::NO_FLAGS);
-	    if (expr != 0) eval_expr(expr, -1);
-	    return expr;
+	    expr = pe->elaborate_expr(des, scope, &netstring_t::type_string,
+				     PExpr::NO_FLAGS);
+      } else {
+	    if (context_unsigned)
+		  pe->cast_signed(false);
+	    unsigned width = context_is_real ? pe->expr_width() : context_width;
+	    expr = pe->elaborate_expr(des, scope, width, PExpr::NO_FLAGS);
       }
-
-      if (context_unsigned)
-	    pe->cast_signed(false);
-
-      unsigned width = context_is_real ? pe->expr_width() : context_width;
-      NetExpr*expr = pe->elaborate_expr(des, scope, width, PExpr::NO_FLAGS);
       if (expr == 0) return 0;
 
-      if (context_is_real)
+	/* An identifier's padding belongs to the comparison. An operation
+	   keeps its elaborated width and signedness for evaluation. */
+      if (source_selector && !case_selector_has_cast(pe)) {
+	    const NetExpr*selector = expr;
+	    if (dynamic_cast<const PEIdent*>(pe)) {
+		  while (auto*padding = dynamic_cast<const NetESelect*>(selector)) {
+			if (padding->select()) break;
+			selector = padding->sub_expr();
+		  }
+	    }
+	    if (can_copy_case_selector(selector))
+		  source_selector->reset(selector->dup_expr());
+      }
+
+      if (context_is_string) {
+	    eval_expr(expr, -1);
+	    return expr;
+      } else if (context_is_real)
 	    expr = cast_to_real(expr);
 	/* Mixed-type and wildcard cases still compare packed bytes at the case
 	   context width. Homogeneous plain string cases retain their full value. */
@@ -18166,11 +18233,15 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
 		       << " vector, width=" << context_width << endl;
 	    }
       }
+      unique_ptr<NetExpr> source_selector;
+      const bool expose_selector = !quality_if_ && !case_inside_
+	    && strcmp(des->get_flag("ivl-user-vpi"), "1") == 0;
       NetExpr*expr = elab_and_eval_case(des, scope, expr_,
 					context_is_real,
 					context_is_string,
 					context_unsigned,
-					context_width);
+					context_width,
+					expose_selector ? &source_selector : nullptr);
       if (expr == 0) {
 	    cerr << get_fileline() << ": error: Unable to elaborate this case"
 		  " expression." << endl;
@@ -18191,6 +18262,7 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
       }
 
       NetCase*res = new NetCase(quality_, type_, expr, icount, quality_if_);
+      res->set_source_selector(std::move(source_selector));
       res->set_line(*this);
 
 	/* Iterate over all the case items (guard/statement pairs)
@@ -59522,7 +59594,7 @@ static void resolve_extern_function_sensitivity_(Design*des)
       deferred_extern_sensitivity_.clear();
 }
 
-Design* elaborate(list<perm_string>roots)
+Design* elaborate(list<perm_string>roots, const map<string,const char*>& flags)
 {
       unsigned npackages = pform_packages.size();
       if (gn_system_verilog())
@@ -59537,6 +59609,7 @@ Design* elaborate(list<perm_string>roots)
       // This is the output design. I fill it in as I scan the root
       // module and elaborate what I find.
       Design*des = new Design;
+      des->set_flags(flags);
       seed_design_precision_(des);
       pending_interface_continuous_drivers_.clear();
       pending_interface_specify_paths_.clear();

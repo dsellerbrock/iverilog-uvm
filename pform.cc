@@ -2363,6 +2363,7 @@ Statement* pform_make_case_inside(const struct vlltype&loc,
       PENumber*one = new PENumber(new verinum(verinum::V1, 1));
       FILE_NAME(one, loc);
       PCase*tmp = new PCase(qual, NetCase::EQ, one, items);
+      tmp->set_case_inside();
       FILE_NAME(tmp, loc);
       delete sel;
       return tmp;

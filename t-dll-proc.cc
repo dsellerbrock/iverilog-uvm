@@ -579,6 +579,11 @@ void dll_target::proc_case(const NetCase*net)
       if (stmt_cur_->u_.case_.cond->value_ == IVL_VT_REAL)
 	    stmt_cur_->type_ = IVL_ST_CASER;
 
+      if (const NetExpr*selector = net->source_selector())
+	    selector->expr_scan(this);
+      stmt_cur_->u_.case_.source_selector = expr_;
+      expr_ = 0;
+
       unsigned ncase = net->nitems();
       stmt_cur_->u_.case_.ncase = ncase;
 

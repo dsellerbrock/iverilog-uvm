@@ -1131,8 +1131,9 @@ struct ivl_statement_s {
 		  ivl_flow_control_t kind;
 	    } flow_;
 
-	    struct { /* IVL_ST_CASE, IVL_ST_CASEX, IVL_ST_CASEZ */
+	    struct { /* IVL_ST_CASE, IVL_ST_CASER, IVL_ST_CASEX, IVL_ST_CASEZ */
 		  ivl_expr_t cond;
+		  ivl_expr_t source_selector;
 		  ivl_expr_t*case_ex;
 		  struct ivl_statement_s*case_st;
 		  unsigned*case_group;

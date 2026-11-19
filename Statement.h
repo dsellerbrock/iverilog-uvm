@@ -488,6 +488,7 @@ class PCase  : public Statement {
       PExpr* case_expr() const { return expr_; }
       bool is_quality_if() const { return quality_if_; }
       void replace_case_expr(PExpr*expr) { delete expr_; expr_ = expr; }
+      void set_case_inside() { case_inside_ = true; }
       std::vector<Item*>* mutable_items() const { return items_; }
 
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
@@ -505,6 +506,7 @@ class PCase  : public Statement {
 
       std::vector<Item*>*items_;
       bool quality_if_;
+      bool case_inside_ = false;
 
     private: // not implemented
       PCase(const PCase&);

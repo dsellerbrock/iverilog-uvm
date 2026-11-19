@@ -4218,6 +4218,9 @@ class NetCase  : public NetProc {
       inline bool is_quality_if() const { return quality_if_; }
       TYPE type() const;
       const NetExpr*expr() const { return expr_; }
+      void set_source_selector(std::unique_ptr<NetExpr> expr)
+      { source_selector_ = std::move(expr); }
+      const NetExpr*source_selector() const { return source_selector_.get(); }
       inline unsigned nitems() const { return items_.size(); }
 
       inline const NetExpr*expr(unsigned idx) const { return items_[idx].guard;}
@@ -4261,6 +4264,7 @@ class NetCase  : public NetProc {
       };
 
       NetExpr* expr_;
+      std::unique_ptr<NetExpr> source_selector_;
       std::vector<Item>items_;
 };
 

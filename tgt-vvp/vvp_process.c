@@ -9546,15 +9546,16 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       return id;
 }
 
-static void emit_vpi_while_condition_(ivl_statement_t stmt, uint64_t id,
+static void emit_vpi_stmt_condition_(ivl_expr_t expr, uint64_t id,
 				    ivl_scope_t owner, ivl_scope_t scope)
 {
       char*text;
+      if (!expr) return;
 	/* Statement nodes belong to the task or process. The expression
-	   thunk uses the while's own lexical scope. */
+	   thunk uses the statement's own lexical scope. */
       if (scope != owner)
 	    fprintf(vvp_out, "    .scope S_%p;\n", scope);
-      text = draw_vpi_stmt_condition(ivl_stmt_cond_expr(stmt));
+      text = draw_vpi_stmt_condition(expr);
       if (text) {
 	    fprintf(vvp_out, "    .vpi_3041_condition %" PRIu64 ", %s;\n", id, text);
 	    free(text);
@@ -9591,13 +9592,16 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
           case IVL_ST_CASER:
           case IVL_ST_CASEX:
           case IVL_ST_CASEZ:
+            if (vpi_stmt_conditions_flag)
+                  emit_vpi_stmt_condition_(ivl_stmt_case_source_selector(stmt),
+                                           id, owner, scope);
             count = ivl_stmt_case_count(stmt);
             for (idx = 0; idx < count; idx += 1)
                   emit_vpi_stmt_tree_(ivl_stmt_case_stmt(stmt, idx), id, owner, scope);
             break;
           case IVL_ST_WHILE:
             if (vpi_stmt_conditions_flag)
-                  emit_vpi_while_condition_(stmt, id, owner, scope);
+                  emit_vpi_stmt_condition_(ivl_stmt_cond_expr(stmt), id, owner, scope);
             emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id, owner, scope);
             break;
           case IVL_ST_DELAY:

@@ -429,6 +429,7 @@ ivl_stmt_case_expr
 ivl_stmt_case_group
 ivl_stmt_case_is_quality_if
 ivl_stmt_case_quality
+ivl_stmt_case_source_selector
 ivl_stmt_case_stmt
 ivl_stmt_cond_expr
 ivl_stmt_cond_false
