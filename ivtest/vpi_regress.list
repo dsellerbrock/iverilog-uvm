@@ -223,6 +223,8 @@ m6b_nba_sync  normal,-g2012 m6b_nba_sync.c m6b_nba_sync.log
 m12_sv_scopes    normal,-g2012   m12_sv_scopes.c   m12_sv_scopes.log
 issue1266_vpi_process_scope_2017 normal,-g2017 issue1266_process_scope.c issue1266_vpi_process_scope_2017.log
 issue1266_vpi_process_scope_2023 normal,-g2023 issue1266_process_scope.c issue1266_vpi_process_scope_2023.log
+issue3039_vpi_process_2017 normal,-g2017 issue3039_vpi_process.c issue3039_vpi_process_2017.gold
+issue3039_vpi_process_2023 normal,-g2023 issue3039_vpi_process.c issue3039_vpi_process_2023.gold
 m12_sv_coverage  normal,-g2012   m12_sv_coverage.c m12_sv_coverage.log
 m12b_assert_vpi  normal,-g2012   m12b_assert_vpi.c m12b_assert_vpi.log
 m12bcb_assert_cb normal,-g2012   m12bcb_assert_cb.c m12bcb_assert_cb.log

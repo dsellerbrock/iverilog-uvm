@@ -3172,9 +3172,6 @@ bool pform_module_is_checker(void)
       return !pform_cur_module.empty() && pform_cur_module.front()->is_checker;
 }
 
-PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
-			      std::list<named_pexpr_t>*attr);
-
 /* IEEE 1800-2023 17.7 free checker variables, per checker definition. */
 struct checker_free_var_t {
       perm_string name;
@@ -8196,7 +8193,7 @@ static bool pform_checker_initial_assignment_(Statement*st,
 }
 
 PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
-			      list<named_pexpr_t>*attr)
+			      list<named_pexpr_t>*attr, int source_type)
 {
       if (type == IVL_PR_INITIAL && !pform_cur_module.empty()
 	  && pform_cur_module.front()->is_checker
@@ -8210,9 +8207,12 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 
 	/* Remember the named outer block of a process so the VVP backend can
 	   flush its pending deferred reports on `disable`. */
-      if (PBlock*block = dynamic_cast<PBlock*>(st))
+      if (PBlock*block = dynamic_cast<PBlock*>(st)) {
 	    if (!block->pscope_name().nil())
 		  block->deferred_assertion_process_scope();
+	    if (source_type >= 0)
+		  block->mark_vpi_process_body();
+      }
 
 	// Add an implicit @* around the statement for the always_comb and
 	// always_latch statements.
@@ -8223,7 +8223,7 @@ PProcess* pform_make_behavior(ivl_process_type_t type, Statement*st,
 	    st = tmp;
       }
 
-      PProcess*pp = new PProcess(type, st);
+      PProcess*pp = new PProcess(type, st, source_type);
       pform_mark_generated_verification_process_(pp);
 
 	// If we are in a part of the code where the meta-comment

@@ -18425,7 +18425,7 @@ module_item
 	Statement*init = pform_sva_static_always_assertion($3);
 	if (init) delete $3;
 	PProcess*tmp = pform_make_behavior(init ? IVL_PR_INITIAL : IVL_PR_ALWAYS,
-					   init ? init : $3, $1);
+					   init ? init : $3, $1, IVL_PR_ALWAYS);
 	FILE_NAME(tmp, @2);
       }
   /* Attributes between always and the body (IEEE 1800-2017 A.6.4:
@@ -18435,36 +18435,36 @@ module_item
   | attribute_list_opt K_always attribute_instance_list statement_item
       { if (pform_module_is_checker())
 	    yyerror(@2, "error: plain always procedure is not allowed in a checker.");
-	PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $4, $1);
+	PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS, $4, $1, IVL_PR_ALWAYS);
 	FILE_NAME(tmp, @2);
 	if ($3) delete $3;
       }
   | attribute_list_opt K_always_comb statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, $3, $1);
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, $3, $1, IVL_PR_ALWAYS_COMB);
 	FILE_NAME(tmp, @2);
       }
   /* Vendor-specific attributes between always_comb and the body
      (e.g., always_comb (* xprop_off *) begin) — consume and ignore. */
   | attribute_list_opt K_always_comb attribute_instance_list statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, $4, $1);
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_COMB, $4, $1, IVL_PR_ALWAYS_COMB);
 	FILE_NAME(tmp, @2);
 	if ($3) delete $3;
       }
   | attribute_list_opt K_always_ff statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_FF, $3, $1);
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_FF, $3, $1, IVL_PR_ALWAYS_FF);
 	FILE_NAME(tmp, @2);
       }
   | attribute_list_opt K_always_ff attribute_instance_list statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_FF, $4, $1);
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_FF, $4, $1, IVL_PR_ALWAYS_FF);
 	FILE_NAME(tmp, @2);
 	if ($3) delete $3;
       }
   | attribute_list_opt K_always_latch statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_LATCH, $3, $1);
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_LATCH, $3, $1, IVL_PR_ALWAYS_LATCH);
 	FILE_NAME(tmp, @2);
       }
   | attribute_list_opt K_always_latch attribute_instance_list statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_LATCH, $4, $1);
+      { PProcess*tmp = pform_make_behavior(IVL_PR_ALWAYS_LATCH, $4, $1, IVL_PR_ALWAYS_LATCH);
 	FILE_NAME(tmp, @2);
 	if ($3) delete $3;
       }
@@ -18472,11 +18472,11 @@ module_item
       { checker_initial_context = pform_module_is_checker(); }
     statement_item
       { checker_initial_context = false;
-        PProcess*tmp = pform_make_behavior(IVL_PR_INITIAL, $4, $1);
+        PProcess*tmp = pform_make_behavior(IVL_PR_INITIAL, $4, $1, IVL_PR_INITIAL);
 	FILE_NAME(tmp, @2);
       }
   | attribute_list_opt K_final statement_item
-      { PProcess*tmp = pform_make_behavior(IVL_PR_FINAL, $3, $1);
+      { PProcess*tmp = pform_make_behavior(IVL_PR_FINAL, $3, $1, IVL_PR_FINAL);
 	FILE_NAME(tmp, @2);
       }
 

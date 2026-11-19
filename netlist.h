@@ -4112,6 +4112,8 @@ class NetBlock  : public NetProc {
       { randsequence_block_ = kind; }
       ivl_randsequence_block_t randsequence_block() const
       { return randsequence_block_; }
+      void mark_vpi_process_body() { vpi_process_body_ = true; }
+      bool is_vpi_process_body() const { return vpi_process_body_; }
 
       void append(NetProc*);
       void prepend(NetProc*);
@@ -4156,6 +4158,7 @@ class NetBlock  : public NetProc {
       NetScope*subscope_;
       const NetScope*automatic_task_call_ = nullptr;
       ivl_randsequence_block_t randsequence_block_;
+      bool vpi_process_body_ = false;
 
       NetProc*last_;
 };

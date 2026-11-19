@@ -16764,6 +16764,12 @@ static NetProc*guard_function_background_event_(NetScope*scope,
       return block;
 }
 
+bool PBlock::elides_wrapper() const
+{
+      return bl_type_ == BL_SEQ && list_.size() == 1 && pscope_name() == 0
+	    && randsequence_block_ == IVL_RANDSEQ_BLOCK_NONE;
+}
+
 NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
@@ -16834,6 +16840,8 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 
       NetBlock*cur = new NetBlock(type, nscope);
       cur->randsequence_block(randsequence_block_);
+      if (vpi_process_body_)
+	    cur->mark_vpi_process_body();
       NetBlock*prefix = 0;
 
       if (nscope) {
@@ -16956,9 +16964,7 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	// only one statement. There is no need to keep the block node.
 	// Also, don't elide named blocks, because they might be
 	// referenced elsewhere.
-      if ((type == NetBlock::SEQU) && (list_.size() == 1) &&
-          (pscope_name() == 0)
-	  && (randsequence_block_ == IVL_RANDSEQ_BLOCK_NONE)) {
+      if (elides_wrapper()) {
 	    ivl_assert(*this, list_[0]);
 	    NetProc*tmp = list_[0]->elaborate(des, nscope);
 	    return tmp;
@@ -17024,7 +17030,7 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    && scope_is_within_function_(scope) && cur->proc_first();
       if (prefix) {
 	    prefix->set_line(*this);
-	    if (cur->proc_first())
+	    if (cur->proc_first() || vpi_process_body_)
 		  prefix->append(needs_function_background_guard
 				 ? guard_function_background_event_(scope, *this, cur)
 				 : cur);
@@ -33011,6 +33017,37 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       NetProcTop*top=new NetProcTop(scope, type(), cur);
       ivl_assert(*this, top);
       top->generated_verification(is_generated_verification());
+      if (source_type_ >= 0) {
+	      // Attribute transport treats a zero value as an absent payload.
+	    top->attribute(perm_string::literal("_ivl_vpi_source_process"),
+			   verinum(source_type_ + 1));
+	    const Statement*body = statement_;
+	    const NetProc*lowered_body = cur;
+	    if (type() == IVL_PR_ALWAYS_COMB || type() == IVL_PR_ALWAYS_LATCH) {
+		  body = static_cast<const PEventStatement*>(body)->statement();
+		  if (const auto*wait = dynamic_cast<const NetEvWait*>(cur))
+			lowered_body = wait->statement();
+	    }
+	    const PBlock*block = dynamic_cast<const PBlock*>(body);
+	    if (block && block->elides_wrapper())
+		  top->attribute(perm_string::literal("_ivl_vpi_restore_begin"),
+				 verinum(1));
+	    const auto*prefix = block ? dynamic_cast<const NetBlock*>(lowered_body)
+				      : nullptr;
+	    if (prefix && !prefix->is_vpi_process_body()) {
+		  // A source block with a frame can sit inside an allocation block.
+		  unsigned index = 1;
+		  for (const NetProc*child = prefix->proc_first();
+		       child; child = prefix->proc_next(child), ++index) {
+			const auto*child_block = dynamic_cast<const NetBlock*>(child);
+			if (child_block && child_block->is_vpi_process_body()) {
+			      top->attribute(perm_string::literal("_ivl_vpi_body_child"),
+					     verinum(index));
+			      break;
+			}
+		  }
+	    }
+      }
       if (!is_generated_verification()) {
 	    switch (type()) {
 		case IVL_PR_INITIAL:
@@ -33035,8 +33072,10 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       attrib_list = evaluate_attributes(attributes, attrib_list_n, des, scope);
 
       for (unsigned adx = 0 ;  adx < attrib_list_n ;  adx += 1)
-	    if (attrib_list[adx].key == "_ivl_function_background_ok") {
-		  /* This marker grants language semantics and must not be forgeable. */
+	    if (attrib_list[adx].key == "_ivl_function_background_ok"
+		|| attrib_list[adx].key == "_ivl_vpi_source_process"
+		|| attrib_list[adx].key == "_ivl_vpi_restore_begin"
+		|| attrib_list[adx].key == "_ivl_vpi_body_child") {
 		  cerr << get_fileline() << ": error: attribute `"
 		       << attrib_list[adx].key
 		       << "` is reserved for compiler use." << endl;

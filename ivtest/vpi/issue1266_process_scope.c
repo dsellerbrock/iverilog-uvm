@@ -14,7 +14,7 @@ static PLI_INT32 probe(PLI_BYTE8 *ud)
     iter = top ? vpi_iterate(vpiProcess, top) : 0;
     while (iter && (process = vpi_scan(iter))) {
         const char *name = vpi_get_str(vpiFullName, process);
-        if (vpi_get(vpiType, process) != vpiProcess) {
+        if (vpi_get(vpiType, process) != vpiInitial) {
             vpi_printf("FAIL unexpected process handle type %d\n",
                        vpi_get(vpiType, process));
             vpi_control(vpiFinish, 1);

@@ -680,6 +680,8 @@ extern void compile_vpi_import(char*package, char*name);
 extern void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type,
                               char*name);
 extern void compile_stmt_at(uint64_t id);
+extern void compile_vpi_process(uint64_t type, uint64_t always_type,
+				uint64_t body_id);
 
 /*
  * The parser uses this function to declare a thread. The start_sym is

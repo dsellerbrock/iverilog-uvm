@@ -312,6 +312,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 .iodecl         { return K_IODECL; }
 ".stmt_node"    { return K_STMT_NODE; }
 ".stmt_at"      { return K_STMT_AT; }
+".vpi_process"  { return K_VPI_PROCESS; }
 ".sfunc"        { return K_SFUNC; }
 ".sfunc/e"      { return K_SFUNC_E; }
 ".shift/l"      { return K_SHIFTL; }

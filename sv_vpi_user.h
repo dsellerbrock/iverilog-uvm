@@ -72,6 +72,7 @@ EXTERN_C_START
 #define vpiBitVar           620
 #define vpiPackedArrayVar   623
 #define vpiArrayVar         vpiRegArray
+#define vpiFinal            676
 #define vpiVirtualInterfaceVar 728
 
 /* M12-7: covergroup drill-down (Icarus extension — IEEE 1800 defines

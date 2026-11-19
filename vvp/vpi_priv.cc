@@ -493,6 +493,9 @@ const char* vpi_type_as_string(PLI_INT32 code)
       switch (code) {
 	  case VPI_IODECL_TYPE: return "vpiIODecl";
 	  case VPI_REF_OBJ_TYPE: return "vpiRefObj";
+	  case vpiAlways: return "vpiAlways";
+	  case vpiInitial: return "vpiInitial";
+	  case vpiFinal: return "vpiFinal";
 	  case vpiBegin: return "vpiBegin";
 	  case vpiAssignment: return "vpiAssignment";
 	  case vpiContAssign: return "vpiContAssign";

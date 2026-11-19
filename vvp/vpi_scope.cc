@@ -220,6 +220,9 @@ static void delete_sub_scopes(__vpiScope *scope)
 	    }
       }
       scope->intern.clear();
+	for (vpiHandle process : scope->processes)
+	      delete process;
+	scope->processes.clear();
 	for (size_t idx = 0; idx < scope->statement_nodes.size(); idx += 1)
 	      delete scope->statement_nodes[idx];
 	scope->statement_nodes.clear();
@@ -939,20 +942,47 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
 
 class __vpiProcess : public __vpiHandle {
     public:
-      explicit __vpiProcess(__vpiScope*scope) : scope_(scope) { }
+      __vpiProcess(__vpiScope*scope, int type, int always_type, vpiHandle body)
+      : scope_(scope), type_(type), always_type_(always_type), body_(body) { }
       explicit __vpiProcess(vthread_t thread)
-      : scope_(vthread_scope(thread)) { }
-      int get_type_code(void) const override { return vpiProcess; }
+      : __vpiProcess(vthread_scope(thread), vpiProcess, 0, nullptr) { }
+
+      int get_type_code(void) const override { return type_; }
+
+      int vpi_get(int code) override
+      {
+	    if (code == vpiAlwaysType && type_ == vpiAlways)
+		  return always_type_;
+	    return __vpiHandle::vpi_get(code);
+      }
 
       char* vpi_get_str(int code) override
       {
-            if (code == vpiFullName)
-                  return scope_->vpi_get_str(vpiFullName);
-            return __vpiHandle::vpi_get_str(code);
+	    if (code == vpiFullName)
+		  return scope_->vpi_get_str(vpiFullName);
+	    if (code == vpiAlwaysType && type_ == vpiAlways) {
+		  switch (always_type_) {
+		      case vpiAlways: return simple_set_rbuf_str("vpiAlways");
+		      case vpiAlwaysComb: return simple_set_rbuf_str("vpiAlwaysComb");
+		      case vpiAlwaysFF: return simple_set_rbuf_str("vpiAlwaysFF");
+		      case vpiAlwaysLatch: return simple_set_rbuf_str("vpiAlwaysLatch");
+		  }
+	    }
+	    return __vpiHandle::vpi_get_str(code);
+      }
+
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiStmt) return body_;
+	    if (code == vpiScope && body_) return scope_;
+	    return __vpiHandle::vpi_handle(code);
       }
 
     private:
       __vpiScope*scope_;
+      int type_;
+      int always_type_;
+      vpiHandle body_;
 };
 
 vpiHandle vpip_make_process_handle(vthread_t thread)
@@ -1031,16 +1061,9 @@ static vpiHandle module_iter(int code, vpiHandle obj)
       }
 
       if (code == vpiProcess) {
-            if (ref->threads.empty()) return 0;
-
-            vpiHandle*args = static_cast<vpiHandle*>(
-                  calloc(ref->threads.size(), sizeof(vpiHandle)));
-            unsigned idx = 0;
-            for (set<vthread_t>::const_iterator cur = ref->threads.begin();
-                 cur != ref->threads.end(); ++cur)
-                  args[idx++] = new __vpiProcess(ref);
-
-            return vpip_make_iterator(idx, args, true);
+	    if (ref->processes.empty()) return 0;
+	    return vpip_make_iterator(ref->processes.size(),
+				      ref->processes.data(), false);
       }
 
       if ((code == VPI_IODECL_TYPE || code == VPI_IODECL_LEGACY)
@@ -4068,6 +4091,28 @@ void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
       scope->statement_node_by_id[id] = obj;
       scope->statement_nodes.push_back(obj);
       delete[] name;
+}
+
+void compile_vpi_process(uint64_t type, uint64_t always_type, uint64_t body_id)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      bool valid_type = type == vpiAlways
+	    ? (always_type == vpiAlways || always_type == vpiAlwaysComb
+	       || always_type == vpiAlwaysFF || always_type == vpiAlwaysLatch)
+	    : ((type == vpiInitial || type == vpiFinal) && always_type == 0);
+      if (scope && valid_type) {
+	    auto body = scope->statement_node_by_id.find(body_id);
+	    if (body != scope->statement_node_by_id.end()
+		&& !body->second->vpi_handle(vpiParent)) {
+		  scope->processes.push_back(
+			new __vpiProcess(scope, static_cast<int>(type),
+					 static_cast<int>(always_type), body->second));
+		  return;
+	    }
+      }
+
+      yyerror("invalid .vpi_process metadata");
+      compile_errors += 1;
 }
 
 void compile_stmt_at(uint64_t id)

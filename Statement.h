@@ -54,8 +54,9 @@ struct typedef_t;
 class PProcess : public LineInfo {
 
     public:
-      PProcess(ivl_process_type_t t, Statement*st)
-      : type_(t), statement_(st), generated_verification_(false) { }
+      PProcess(ivl_process_type_t t, Statement*st, int source_type = -1)
+      : type_(t), statement_(st), source_type_(source_type),
+        generated_verification_(false) { }
 
       virtual ~PProcess() override;
 
@@ -79,6 +80,8 @@ class PProcess : public LineInfo {
     private:
       ivl_process_type_t type_;
       Statement*statement_;
+      // -1 for processes created by the compiler.
+      int source_type_;
       bool generated_verification_;
 };
 
@@ -285,6 +288,8 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       { concurrent_assertion_only_ = true; }
       bool is_concurrent_assertion_only() const
       { return concurrent_assertion_only_; }
+      void mark_vpi_process_body() { vpi_process_body_ = true; }
+      bool elides_wrapper() const;
       void randsequence_block(ivl_randsequence_block_t kind)
       { randsequence_block_ = kind; }
       ivl_randsequence_block_t randsequence_block() const
@@ -326,6 +331,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       bool vpi_for_scope_ = false;
       bool vpi_foreach_scope_ = false;
       bool deferred_assertion_process_scope_ = false;
+      bool vpi_process_body_ = false;
       bool concurrent_assertion_only_ = false;
       ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;
       std::vector<Statement*>list_;

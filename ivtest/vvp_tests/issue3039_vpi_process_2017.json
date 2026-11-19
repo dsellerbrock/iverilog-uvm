@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3039_vpi_process.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue3039_vpi_process_2017"],
+  "vpi-sources": ["vpi/issue3039_vpi_process.c"],
+  "gold": "issue3039_vpi_process"
+}

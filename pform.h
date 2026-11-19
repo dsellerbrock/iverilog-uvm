@@ -1304,7 +1304,8 @@ extern void pform_bind_sampled_call_to_event(const struct vlltype&loc,
 					     class PEventStatement*ev);
 
 extern PProcess*  pform_make_behavior(ivl_process_type_t, Statement*,
-				      std::list<named_pexpr_t>*attr);
+				      std::list<named_pexpr_t>*attr,
+				      int source_type = -1);
 
 /* Lower the supported deferred-immediate assertion and cover subset
    (IEEE 1800-2017 16.4) into evaluate-now / per-process queued reporting.

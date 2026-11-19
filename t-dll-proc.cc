@@ -70,6 +70,25 @@ bool dll_target::process(const NetProcTop*net)
       obj->stmt_ = stmt_cur_;
       stmt_cur_ = 0;
 
+      if (rc_flag
+	  && net->attribute(perm_string::literal("_ivl_vpi_restore_begin")).as_ulong()) {
+	      // Restore the source block after elaboration's timing checks and
+	      // scheduling decisions have used the unwrapped statement.
+	    ivl_statement_t*body = &obj->stmt_;
+	    if ((obj->type_ == IVL_PR_ALWAYS_COMB || obj->type_ == IVL_PR_ALWAYS_LATCH)
+		&& (*body)->type_ == IVL_ST_WAIT && (*body)->u_.wait_.needs_t0_trigger)
+		  body = &(*body)->u_.wait_.stmt_;
+
+	    ivl_statement_t block = new struct ivl_statement_s();
+	    FILE_NAME(block, net);
+	    block->type_ = IVL_ST_BLOCK;
+	    block->u_.block_.nstmt_ = 1;
+	    block->u_.block_.stmt_ = *body;
+	    block->u_.block_.scope = nullptr;
+	    block->u_.block_.randsequence = IVL_RANDSEQ_BLOCK_NONE;
+	    *body = block;
+      }
+
 	/* Incremental targets consume the graph synchronously while its arena is
 	 * active. Historical targets retain it on the design list. */
       if (streaming) {
@@ -470,8 +489,8 @@ bool dll_target::proc_block(const NetBlock*net)
 		 ;  cur ;  cur = net->proc_next(cur))
 	    count += 1;
 
-	/* If the block has no statements, then turn it into a no-op */
-      if (count == 0) {
+	/* Keep an explicit process body even when its block is empty. */
+      if (count == 0 && !net->is_vpi_process_body()) {
 	    stmt_cur_->type_ = IVL_ST_NOOP;
 	    return true;
       }
@@ -479,6 +498,7 @@ bool dll_target::proc_block(const NetBlock*net)
 	/* Only singleton sequential blocks can lose their wrapper. A fork
 	   child remains an independent process (IEEE 1800-2017/2023 9.3.2). */
       if ((count == 1) && (net->subscope() == 0) &&
+	  !net->is_vpi_process_body() &&
 	  (net->randsequence_block() == IVL_RANDSEQ_BLOCK_NONE) &&
 	  (net->type() == NetBlock::SEQU)) {
 	    return net->proc_first()->emit_proc(this);
@@ -504,8 +524,8 @@ bool dll_target::proc_block(const NetBlock*net)
 	    break;
       }
       stmt_cur_->u_.block_.nstmt_ = count;
-      stmt_cur_->u_.block_.stmt_ =
-	    dll_procedure_new_array<struct ivl_statement_s>(count);
+      stmt_cur_->u_.block_.stmt_ = count
+	    ? dll_procedure_new_array<struct ivl_statement_s>(count) : nullptr;
 
       if (net->subscope())
 	    stmt_cur_->u_.block_.scope = lookup_scope_(net->subscope());

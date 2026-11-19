@@ -387,7 +387,8 @@ class __vpiScope : public __vpiHandle {
       __vpiDecConst module_array_index_;
 	/* Keep an array of internal scope items. */
       std::vector<class __vpiHandle*> intern;
-	/* Source statement tree exposed by vpiStmt for tasks/functions. */
+	/* Static process declarations and source statement metadata. */
+      std::vector<vpiHandle> processes;
       vpiHandle statement_root;
       std::vector<vpiHandle> statement_nodes;
       std::map<uint64_t, vpiHandle> statement_node_by_id;

@@ -18,7 +18,7 @@
  */
 
 # include  "vvp_priv.h"
-# include  "vpi_user.h"
+# include  "sv_vpi_user.h"
 # include  <string.h>
 # include  <assert.h>
 # include  <stdlib.h>
@@ -68,7 +68,10 @@ static uint64_t vpi_stmt_id_(ivl_statement_t stmt)
 }
 
 static int vpi_statement_visible_(ivl_statement_t stmt);
+static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent);
 static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent);
+static void emit_vpi_process_(int source_type, ivl_statement_t stmt,
+			      unsigned body_child);
 
 static int pure_comb_expr_(ivl_expr_t expr)
 {
@@ -9238,6 +9241,8 @@ int draw_process(ivl_process_t net, void*x)
       int clocking_bg_flag = 0;
       int clocking_sync_flag = 0;
       int function_background_ok = 0;
+      int source_type = -1;
+      unsigned body_child = 0;
 
       (void)x; /* Parameter is not used. */
 
@@ -9246,6 +9251,14 @@ int draw_process(ivl_process_t net, void*x)
 	    ivl_attribute_t attr = ivl_process_attr_val(net, idx);
 	    if (strcmp(attr->key, "_ivl_function_background_ok") == 0)
 		  function_background_ok = 1;
+	    if (strcmp(attr->key, "_ivl_vpi_source_process") == 0) {
+		  assert(attr->type == IVL_ATT_NUM);
+		  source_type = attr->val.num - 1;
+	    }
+	    if (strcmp(attr->key, "_ivl_vpi_body_child") == 0) {
+		  assert(attr->type == IVL_ATT_NUM);
+		  body_child = attr->val.num;
+	    }
 
 	    if (strcmp(attr->key, "_ivl_schedule_init") == 0) {
 
@@ -9290,8 +9303,11 @@ int draw_process(ivl_process_t net, void*x)
 
 	/* Keep statement handles and their execution points as side metadata.
 	   The .stmt_at directives below do not add instructions to the thread. */
-	  reset_vpi_stmt_ids_();
-      emit_vpi_stmt_tree_(stmt, 0);
+      reset_vpi_stmt_ids_();
+      if (source_type >= 0)
+	    emit_vpi_process_(source_type, stmt, body_child);
+      else
+	    emit_vpi_stmt_tree_(stmt, 0);
 
       if (ivl_process_type(net) == IVL_PR_ALWAYS_COMB
 	  && !ivl_scope_is_auto(scope)
@@ -9509,7 +9525,6 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       unsigned type;
       const char *name = "";
       vpi_stmt_id_entry_t*entry;
-      if (!vpi_statement_visible_(stmt)) return 0;
       id = next_vpi_stmt_id_++;
       entry = calloc(1, sizeof *entry);
       assert(entry);
@@ -9616,6 +9631,57 @@ static void emit_vpi_task_stmt_tree_(ivl_statement_t def)
 	    }
       }
       emit_vpi_stmt_tree_(def, 0);
+}
+
+static void emit_vpi_process_(int source_type, ivl_statement_t stmt,
+			      unsigned body_child)
+{
+      unsigned type = vpiAlways;
+      unsigned always_type = 0;
+      ivl_statement_t body = stmt;
+      uint64_t id;
+
+      switch (source_type) {
+	  case IVL_PR_INITIAL: type = vpiInitial; break;
+	  case IVL_PR_FINAL: type = vpiFinal; break;
+	  case IVL_PR_ALWAYS: always_type = vpiAlways; break;
+	  case IVL_PR_ALWAYS_COMB: always_type = vpiAlwaysComb; break;
+	  case IVL_PR_ALWAYS_FF: always_type = vpiAlwaysFF; break;
+	  case IVL_PR_ALWAYS_LATCH: always_type = vpiAlwaysLatch; break;
+	  default: assert(0);
+      }
+
+      if ((source_type == IVL_PR_ALWAYS_COMB
+	   || source_type == IVL_PR_ALWAYS_LATCH)
+	  && ivl_statement_type(stmt) == IVL_ST_WAIT
+	  && ivl_stmt_needs_t0_trigger(stmt)) {
+	      /* Keep the implicit wait's execution handle separate from the
+		 process body, which begins at the source statement. */
+	    emit_vpi_stmt_node_(stmt, UINT64_MAX);
+	    body = ivl_stmt_sub_stmt(stmt);
+      }
+
+      if (body_child) {
+	    unsigned i, count;
+	    assert(ivl_statement_type(body) == IVL_ST_BLOCK);
+	    count = ivl_stmt_block_count(body);
+	    assert(body_child <= count);
+	    id = emit_vpi_stmt_node_(body, UINT64_MAX);
+	    for (i = 0; i < count; ++i)
+		  if (i != body_child - 1)
+			emit_vpi_stmt_tree_(ivl_stmt_block_stmt(body, i), id);
+	    body = ivl_stmt_block_stmt(body, body_child - 1);
+      }
+
+      if (ivl_statement_type(body) == IVL_ST_NOOP) {
+	    id = emit_vpi_stmt_node_(body, 0);
+      } else {
+	    emit_vpi_stmt_tree_(body, 0);
+	    id = vpi_stmt_id_(body);
+      }
+      assert(id);
+      fprintf(vvp_out, "    .vpi_process %u %u %" PRIu64 ";\n",
+	      type, always_type, id);
 }
 
 void draw_stmt_callback_entry(ivl_statement_t stmt)

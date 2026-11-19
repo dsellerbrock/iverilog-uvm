@@ -6825,6 +6825,8 @@ issue1279_packed_array_var_2023 vvp_tests/issue1279_packed_array_var_2023.json
 
 issue1266_vpi_process_scope_2017 vvp_tests/issue1266_vpi_process_scope_2017.json
 issue1266_vpi_process_scope_2023 vvp_tests/issue1266_vpi_process_scope_2023.json
+issue3039_vpi_process_2017 vvp_tests/issue3039_vpi_process_2017.json
+issue3039_vpi_process_2023 vvp_tests/issue3039_vpi_process_2023.json
 
 # IEEE 1800-2017/2023 §37.22 empty dynamic-array range relations
 issue1282_vpi_empty_dynamic_range_2017 vvp_tests/issue1282_vpi_empty_dynamic_range_2017.json
