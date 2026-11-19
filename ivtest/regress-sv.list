@@ -7132,3 +7132,7 @@ issue2972_constraint_scope_fail_2017 CE,-g2017,-s,top ivltests gold=issue2972_co
 issue2972_constraint_scope_fail_2023 CE,-g2023,-s,top ivltests gold=issue2972_constraint_scope_fail.gold
 issue2972_constraint_scope_2017 normal,-g2017,-s,top ivltests gold=issue2972_constraint_scope.gold
 issue2972_constraint_scope_2023 normal,-g2023,-s,top ivltests gold=issue2972_constraint_scope.gold
+issue2978_constraint_mode_purity_2017 CE,-g2017,-s,test ivltests gold=issue2978_constraint_mode_purity.gold
+issue2978_constraint_mode_purity_2023 CE,-g2023,-s,test ivltests gold=issue2978_constraint_mode_purity.gold
+issue2978_constraint_mode_all_2017 normal,-g2017,-s,test ivltests gold=issue2978_constraint_mode_all.gold
+issue2978_constraint_mode_all_2023 normal,-g2023,-s,test ivltests gold=issue2978_constraint_mode_all.gold

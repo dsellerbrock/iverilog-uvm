@@ -1,0 +1,3 @@
+./ivltests/issue2978_constraint_mode_purity.v:13: error: Function 'disable_all' used in a constraint is not pure: modifies rand_mode or constraint_mode.
+./ivltests/issue2978_constraint_mode_purity.v:14: error: Function 'indirect' used in a constraint is not pure: modifies rand_mode or constraint_mode.
+2 error(s) during elaboration.

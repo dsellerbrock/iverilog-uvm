@@ -357,6 +357,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%concati/str", of_CONCATI_STR, 1,{OA_STRING,OA_NONE,  OA_NONE} },
       { "%concati/vec4",of_CONCATI_VEC4,3,{OA_BIT1,  OA_BIT2,  OA_NUMBER} },
       { "%constraint_mode", of_CONSTRAINT_MODE, 1,{OA_NUMBER, OA_NONE,OA_NONE} },
+      { "%constraint_mode/all", of_CONSTRAINT_MODE_ALL, 0,{OA_NONE, OA_NONE,OA_NONE} },
       { "%constraint_mode/get", of_CONSTRAINT_MODE_GET, 1,{OA_NUMBER, OA_NONE,OA_NONE} },
       { "%container/layout/q",of_CONTAINER_LAYOUT_Q,1,
 	{OA_NUMBER,OA_NONE,OA_NONE} },
