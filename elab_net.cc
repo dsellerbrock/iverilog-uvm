@@ -542,6 +542,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
+      check_package_unit_value(des, *this, scope, sr);
       if (path_.name.size() > 1)
 	    note_virtual_interface_outside_reference(scope, sr.scope);
 
@@ -1773,6 +1774,7 @@ NetNet*PEIdent::elaborate_unpacked_net(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
+      check_package_unit_value(des, *this, scope, sr);
       const name_component_t&name_tail = path_.back();
       if (!name_tail.index.empty()) {
 	    const netuarray_t*target_array =

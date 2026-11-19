@@ -8066,6 +8066,14 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+      /* $ivl_class_method$constraint_mode_all(object, on_off) */
+      if (strcmp(stmt_name, "$ivl_class_method$constraint_mode_all") == 0) {
+	    draw_eval_object(ivl_stmt_parm(net, 0));
+	    draw_eval_vec4(ivl_stmt_parm(net, 1));
+	    fprintf(vvp_out, "    %%constraint_mode/all;\n");
+	    return 0;
+      }
+
       /* M3B-5 $ivl_class_method$srandom(object, seed) and
        * $ivl_class_method$set_randstate(object, state) -- IEEE 1800-2017
        * 18.13. Both opcodes want the object UNDER the value, so push the

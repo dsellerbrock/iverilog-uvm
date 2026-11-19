@@ -1783,16 +1783,17 @@ static NetEvent* resolve_named_event_member_from_search_(const symbol_search_res
  */
 static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 					      const LineInfo&loc,
-					      const pform_name_t&full_path,
+					      const pform_scoped_name_t&full_path,
 					      unsigned lexical_pos,
-					      unsigned&slot_out)
+					      unsigned&slot_out,
+					      bool check_binding = true)
 {
-      if (full_path.empty())
+      if (full_path.name.empty())
 	    return nullptr;
 
-      pform_name_t prefix = full_path;
-      name_component_t last = prefix.back();
-      prefix.pop_back();
+      pform_scoped_name_t prefix = full_path;
+      name_component_t last = prefix.name.back();
+      prefix.name.pop_back();
 
 	// The event component itself carries no index.
       if (!last.index.empty())
@@ -1800,8 +1801,11 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 
       NetExpr*obj = nullptr;
       const netclass_t*cls = nullptr;
+      symbol_search_results binding;
 
-      if (prefix.empty()) {
+      if (prefix.name.empty()) {
+	    if (prefix.package)
+		  return nullptr;
 	      // A bare member reference (`->ev` / `@ev` inside a method)
 	      // denotes this.ev. Resolve against the enclosing class and
 	      // use the implicit `this` handle as the object.
@@ -1822,17 +1826,15 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 	      // handle, or an array/assoc element of class handles) is a
 	      // candidate for a per-instance class event; everything else
 	      // falls through to the normal (scope/hierarchical) event path.
-	    symbol_search_results psr;
-	    if (!symbol_search(&loc, des, scope,
-			       pform_scoped_name_t(prefix), lexical_pos, &psr))
-		  return nullptr;
-	    if (!psr.net)
+	    if (!symbol_search(&loc, des, scope, prefix, lexical_pos, &binding)
+		|| !binding.net)
 		  return nullptr;
 
-	    PEIdent*pfx = new PEIdent(prefix, lexical_pos);
-	    pfx->set_line(loc);
-	    obj = elab_and_eval(des, scope, pfx, -1);
-	    delete pfx;
+	    PEIdent pfx(prefix.package, prefix.name, lexical_pos);
+	    pfx.set_line(loc);
+	    // This receiver only contributes a use if the event resolves.
+	    pfx.set_quiet_bind();
+	    obj = elab_and_eval(des, scope, &pfx, -1);
 	    if (!obj)
 		  return nullptr;
 	    cls = dynamic_cast<const netclass_t*>(obj->net_type());
@@ -1852,6 +1854,8 @@ static NetExpr* elaborate_class_event_target_(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
+      if (check_binding)
+	    check_package_unit_value(des, loc, scope, binding);
       slot_out = eve->obj_slot();
       return obj;
 }
@@ -1861,8 +1865,9 @@ NetExpr* elaborate_class_event_target(Design*des, NetScope*scope,
 				     const pform_name_t&full_path,
 				     unsigned&slot_out)
 {
-	      return elaborate_class_event_target_(des, scope, *id, full_path,
-					   id->lexical_pos(), slot_out);
+      return elaborate_class_event_target_(des, scope, *id,
+	    pform_scoped_name_t(id->path().package, full_path),
+	    id->lexical_pos(), slot_out, false);
 }
 
 /*
@@ -1882,7 +1887,7 @@ NetExpr* elaborate_class_event_target(Design*des, NetScope*scope,
  */
 static NetEvent* elaborate_event_array_target_(Design*des, NetScope*scope,
 					       const LineInfo&loc,
-					       const pform_name_t&full_path,
+					       const pform_scoped_name_t&full_path,
 					       unsigned lexical_pos,
 					       NetExpr*&idx_out)
 {
@@ -1924,6 +1929,7 @@ static NetEvent* elaborate_event_array_target_(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
+      check_package_unit_value(des, loc, scope, sr);
 	/* The run-time finds an element by its offset from the low bound of
 	   the declared range (NetEvent::array_index_to_word), so `ev[4]' of
 	   `event ev[4:5]' is offset 0, not 4. */
@@ -13843,9 +13849,9 @@ static NetProc* elaborate_event_assign_(Design*des, NetScope*scope,
       if (!src && !null_src) {
 	    const PEIdent*id = dynamic_cast<const PEIdent*>(assign.rval());
 	    NetExpr*index = nullptr;
-	    NetEvent*array = id && !id->path().package
+	    NetEvent*array = id
 		  ? elaborate_event_array_target_(des, scope, assign,
-						  id->path().name,
+						  id->path(),
 						  id->lexical_pos(), index)
 		  : nullptr;
 	    if (array) {
@@ -14341,6 +14347,7 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 							  val_wid, rval());
 			if (val) {
 			      vector<NetExpr*> argv;
+			      check_package_unit_value(des, *id_lval, scope, sr);
 			      argv.push_back(outer_e);
 			      for (size_t ki = 0 ; ki < keys.size() ; ki += 1)
 				    argv.push_back(keys[ki]);
@@ -20982,6 +20989,9 @@ NetProc* PCallTask::elaborate_sys_task_method_(Design*des, NetScope*scope,
 			 || method_name == perm_string::literal("try_put")))
 		  argv[idx + 1] = elab_typed_mailbox_input(
 			des, scope, method_name, args[idx], class_type);
+	    else if (method_name == perm_string::literal("constraint_mode"))
+		  argv[idx + 1] = elaborate_rval_expr(des, scope,
+						     &netvector_t::scalar_bool, args[idx]);
 	    else
 		  argv[idx + 1] = elab_sys_task_arg(des, scope, method_name,
 							idx, args[idx]);
@@ -21479,6 +21489,18 @@ static const data_type_t* task_method_property_declared_type_(
 NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 				      bool add_this_flag) const
 {
+      symbol_search_results receiver;
+      NetProc*proc = elaborate_named_receiver_method_(des, scope,
+						     add_this_flag, receiver);
+      if (proc && receiver.net)
+	    check_package_unit_value(des, *this, scope, receiver);
+      return proc;
+}
+
+NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
+						    bool add_this_flag,
+						    symbol_search_results&sr) const
+{
       static int trace_class_method = -1;
       auto scope_text = [](const NetScope*use_scope) -> std::string {
             if (!use_scope)
@@ -21525,7 +21547,6 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 	// resolve to a class object. Note that the "this" symbol
 	// (internally represented as "@") is handled by there being a
 	// "this" object in the instance scope.
-      symbol_search_results sr;
       symbol_search(this, des, search_scope, use_path, UINT_MAX, &sr);
 
       if (!package_ && sr.net == 0 && use_path.size() >= 2) {
@@ -21661,6 +21682,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 		  && (method_name == "get_coverage"
 		      || method_name == "get_inst_coverage")) {
 		    delete obj_expr;
+		    sr.net = nullptr; // The expression elaborator checks this use.
 		    return elaborate_non_void_function_(des, scope, true);
 	      }
 	      // A named coverpoint or cross is not a class property. Lower its
@@ -21837,6 +21859,7 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       if ((obj_darray || obj_uarray)
 	  && (method_name == "unique" || method_name == "unique_index")) {
 	    delete obj_expr;
+	    sr.net = nullptr; // The expression elaborator checks this use.
 	    PECallFunction*call = package_
 		  ? new PECallFunction(package_, path_, parms_)
 		  : new PECallFunction(path_, parms_);
@@ -22394,40 +22417,16 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			noop->set_line(*this);
 			return noop;
 		  }
-		  // obj.constraint_mode(en): enable/disable all constraints on the object.
-		  // Emit a separate %constraint_mode N for each N in the class.
+		  // Preserve the setter even while the class constraints are
+		  // being elaborated, so the purity checker can see it.
 		  if (method_name == perm_string::literal("constraint_mode")
 		      && parms_.size() == 1) {
-			const netclass_t*ctype = dynamic_cast<const netclass_t*>(obj_type);
-			if (ctype && ctype->constraint_ir_count() > 0) {
-			      NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
-			      blk->set_line(*this);
-			      NetExpr*mode_expr = elab_sys_task_arg(des, scope,
-						method_name, 0, parms_[0].parm);
-			      for (size_t ci = 0; ci < ctype->constraint_ir_count(); ++ci) {
-				    NetExpr*obj_copy = obj_expr->dup_expr();
-				    NetExpr*mode_copy = mode_expr->dup_expr();
-				    NetExpr*cid_expr = new NetEConst(
-					  verinum((uint64_t)ci, 32));
-				    cid_expr->set_line(*this);
-				    vector<NetExpr*> argv(3);
-				    argv[0] = obj_copy;
-				    argv[1] = mode_copy;
-				    argv[2] = cid_expr;
-				    NetSTask*sys = new NetSTask(
-					  "$ivl_class_method$constraint_mode",
-					  IVL_SFUNC_AS_TASK_IGNORE, argv);
-				    sys->set_line(*this);
-				    blk->append(sys);
-			      }
-			      delete obj_expr;
-			      delete mode_expr;
-			      return blk;
-			}
-			delete obj_expr;
-			NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
-			noop->set_line(*this);
-			return noop;
+			static const std::vector<perm_string> parm_names = {
+			      perm_string::literal("on_off")
+			};
+			return elaborate_sys_task_method_(
+			      des, scope, obj_expr, obj_type, method_name,
+			      "$ivl_class_method$constraint_mode_all", parm_names);
 		  }
 		  if (method_name == perm_string::literal("constraint_mode")) {
 			delete obj_expr;
@@ -23028,9 +23027,11 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
 			const netclass_t*cgtype = dynamic_cast<const netclass_t*>(obj_type);
 			if (cgtype && cgtype->is_covergroup()) {
 			      delete obj_expr;
-			      if (!parms_.empty())
+			      if (!parms_.empty()) {
+				    sr.net = nullptr; // Checked by the expression elaborator.
 				    return elaborate_non_void_function_(
 					  des, scope, true);
+			      }
 			      NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 			      noop->set_line(*this);
 			      return noop;
@@ -23870,15 +23871,15 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  }
 	    }
 
-	      /* A word of a static unpacked array: arr[i]. Automatic
-		 arrays live per-frame and have no run-time array object
-		 to address, so they keep the copy pair. */
+	      /* A word of a static unpacked array: arr[i]. This includes
+		 explicitly static arrays declared in automatic scopes. */
 	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
 		&& lv->word() != 0 && lv->get_base() == 0
 		&& lv->get_property_idx() < 0 && !lv->is_array_slice()
 		&& lv->sig()->darray_type() == 0
 		&& lv->sig()->unpacked_dimensions() > 0
-		&& !lv->sig()->scope()->is_auto()) {
+		&& (!lv->sig()->scope()->is_auto()
+		    || lv->sig()->lifetime_override() == IVL_VLT_STATIC)) {
 		  NetESignal*formal_e = new NetESignal(port);
 		  formal_e->set_line(*this);
 		  NetESignal*arr_e = new NetESignal(lv->sig());
@@ -24520,6 +24521,9 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 					  rv = new NetEEvent(actual_symbol.eve);
 					  rv->set_line(*event_actual);
 				    }
+				    if (rv)
+					  check_package_unit_value(
+						des, *event_actual, actual_scope, actual_symbol);
 			      }
 			}
 			if (!rv) {
@@ -24593,6 +24597,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 						delete lv;
 						continue;
 					  }
+					  check_package_unit_value(des, *rid, actual_scope, asr);
 					  block->append(make_fixed_uarray_signal_copy_(
 						des, scope, *this, lv, asr.net));
 					  continue;
@@ -26741,7 +26746,7 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 		  unsigned errors_before = des->errors;
 		  unsigned slot = 0;
 		  if (NetExpr*obj = elaborate_class_event_target_(
-			    des, scope, loc, id->path().name,
+			    des, scope, loc, id->path(),
 			    id->lexical_pos(), slot)) {
 			res.class_event_obj.reset(obj);
 			res.class_event_slot = slot;
@@ -26788,7 +26793,12 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 		  return;
 	    }
 
-	    if (!res.named_event && gn_system_verilog()
+	    if (res.named_event) {
+		  check_package_unit_value(des, *id, scope, sr);
+		  return;
+	    }
+
+	    if (gn_system_verilog()
 		&& id->path().size() == 1
 		&& id->path().back().index.empty()
 		&& id->path().back().name == perm_string::literal("on")) {
@@ -26803,9 +26813,11 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 		  }
 		  res.named_event =
 			resolve_named_event_member_from_search_(mapped_sr);
+		  if (res.named_event) {
+			check_package_unit_value(des, *id, scope, mapped_sr);
+			return;
+		  }
 	    }
-	    if (res.named_event)
-		  return;
       }
 
       if (const PECallFunction*call =
@@ -27936,6 +27948,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 			  symbol_search(this, des, scope, id->path(), id->lexical_pos(), &sr);
 
 		  if (NetEvent*named_eve = resolve_named_event_member_from_search_(sr)) {
+			check_package_unit_value(des, *id, scope, sr);
 			wa->add_event(named_eve);
 			  /* You can not look for the posedge or negedge of
 			   * an event. */
@@ -27968,6 +27981,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				symbol_search_results mapped_sr;
 				symbol_search(this, des, scope, mapped_path, id->lexical_pos(), &mapped_sr);
 				if (NetEvent*mapped_eve = resolve_named_event_member_from_search_(mapped_sr)) {
+				      check_package_unit_value(des, *id, scope, mapped_sr);
 				      wa->add_event(mapped_eve);
 				      if (expr_[idx]->type() != PEEvent::ANYEDGE) {
 					    cerr << get_fileline() << ": error: ";
@@ -29708,7 +29722,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 		  unsigned slot = 0;
 		  const unsigned errors_before_class_event = des->errors;
 		  if (NetExpr*obj = elaborate_class_event_target_(des, scope,
-				*this, id->path().name, id->lexical_pos(), slot)) {
+					*this, id->path(), id->lexical_pos(), slot)) {
 			NetProc*body = 0;
 			if (statement_) {
 			      body = statement_->elaborate(des, scope);
@@ -29734,7 +29748,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	    if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr_[0]->expr())) {
 		  NetExpr*idx = 0;
 		  if (NetEvent*ev = elaborate_event_array_target_(des, scope,
-				*this, id->path().name, id->lexical_pos(), idx)) {
+					*this, id->path(), id->lexical_pos(), idx)) {
 			NetProc*body = 0;
 			if (statement_) {
 			      body = statement_->elaborate(des, scope);
@@ -32106,7 +32120,7 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
       {
 	    unsigned slot = 0;
 	    if (NetExpr*obj = elaborate_class_event_target_(des, scope,
-					*this, event_.name, lexical_pos_, slot)) {
+					*this, event_, lexical_pos_, slot)) {
 		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, false, 0);
 		  trig->set_line(*this);
 		  return trig;
@@ -32119,7 +32133,7 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
       {
 	    NetExpr*idx = 0;
 	    if (NetEvent*ev = elaborate_event_array_target_(des, scope,
-					*this, event_.name, lexical_pos_, idx)) {
+					*this, event_, lexical_pos_, idx)) {
 		  NetEvTrigArr*trig = new NetEvTrigArr(ev, idx, false, 0);
 		  trig->set_line(*this);
 		  return trig;
@@ -32142,6 +32156,7 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
 	/* A task event formal is a run-time event handle rather than a
 	 * compile-time NetEvent. Resolve it when the task executes. */
 	if (sr.net && sr.net->is_event_formal() && sr.path_tail.empty()) {
+	      check_package_unit_value(des, *this, scope, sr);
 	      NetESignal*handle = new NetESignal(sr.net);
 	      handle->set_line(*this);
 	      NetEvTrigObj*trig = new NetEvTrigObj(handle, 0, false, 0, true);
@@ -32179,6 +32194,7 @@ NetProc* PTrigger::elaborate(Design*des, NetScope*scope) const
       }
 
       NetEvTrig*trig = new NetEvTrig(eve);
+      check_package_unit_value(des, *this, scope, sr);
       trig->set_line(*this);
       return trig;
 }
@@ -32191,7 +32207,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
       {
 	    unsigned slot = 0;
 	    if (NetExpr*obj = elaborate_class_event_target_(des, scope,
-					*this, event_, lexical_pos_, slot)) {
+					*this, pform_scoped_name_t(event_), lexical_pos_, slot)) {
 		  NetExpr*dly = 0;
 		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
 		  NetEvTrigObj*trig = new NetEvTrigObj(obj, slot, true, dly);
@@ -32204,7 +32220,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
       {
 	    NetExpr*idx = 0;
 	    if (NetEvent*ev = elaborate_event_array_target_(des, scope,
-					*this, event_, lexical_pos_, idx)) {
+					*this, pform_scoped_name_t(event_), lexical_pos_, idx)) {
 		  NetExpr*dly = 0;
 		  if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
 		  NetEvTrigArr*trig = new NetEvTrigArr(ev, idx, true, dly);
@@ -32263,6 +32279,7 @@ NetProc* PNBTrigger::elaborate(Design*des, NetScope*scope) const
 
       NetExpr*dly = 0;
       if (dly_) dly = elab_and_eval(des, scope, dly_, -1);
+      check_package_unit_value(des, *this, scope, sr);
       NetEvNBTrig*trig = new NetEvNBTrig(eve, dly);
       trig->set_line(*this);
       return guard_function_background_event_(scope, *this, trig);
@@ -35983,10 +36000,10 @@ static bool constraint_source_references_randc_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
       const map<perm_string,uint64_t>*loop_env);
-static void constraint_diagnose_randc_restrictions_(
+static void constraint_diagnose_source_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
-      const map<perm_string,uint64_t>*loop_env);
+      const map<perm_string,uint64_t>*loop_env, bool check_names = false);
 
 string pexpr_to_scope_constraint_ir(
       const PExpr*expr,
@@ -36018,7 +36035,7 @@ string pexpr_to_scope_constraint_ir(
 	 * before IR lowering. Unsupported outer shapes must not suppress a
 	 * nested soft/dist/unique/solve-before diagnostic. The recursive walker
 	 * reports each nested construct through the Design-owned source latch. */
-      constraint_diagnose_randc_restrictions_(
+      constraint_diagnose_source_(
 	    expr, nullptr, value_slots, scope, nullptr);
       string out = pexpr_to_constraint_ir(expr, nullptr, value_slots, scope);
       out = constraint_ir_shape_value_slots_(out, value_slots, des, scope);
@@ -36033,10 +36050,10 @@ string pexpr_to_scope_constraint_ir(
       return out;
 }
 
-string pexpr_to_class_constraint_ir(
+static string pexpr_to_class_constraint_ir_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, Design*des,
-      const NetScope*scope,
+      const NetScope*scope, bool check_names,
       const vector<perm_string>*inline_member_names = nullptr,
       vector<NetExpr*>*object_slots = nullptr,
       vector<bool>*function_slot_flags = nullptr,
@@ -36058,9 +36075,12 @@ string pexpr_to_class_constraint_ir(
 	/* See the scope-randomize sibling above. This prepass is semantic and
 	 * intentionally independent of whether the backend can represent the
 	 * enclosing constraint node. */
-      constraint_diagnose_randc_restrictions_(
-	    expr, cls, value_slots, scope, nullptr);
-      string out = pexpr_to_constraint_ir(expr, cls, value_slots, scope);
+      unsigned errors_before = des->errors;
+      constraint_diagnose_source_(
+	    expr, cls, value_slots, scope, nullptr, check_names);
+      string out;
+      if (!check_names || des->errors == errors_before)
+	    out = pexpr_to_constraint_ir(expr, cls, value_slots, scope);
       out = constraint_ir_shape_value_slots_(out, value_slots, des, scope);
       constraint_inline_member_names_ = save_inline;
       constraint_inline_function_slots_ = save_function_slots;
@@ -36069,6 +36089,19 @@ string pexpr_to_class_constraint_ir(
       scope_randomize_object_slots_ = save_objects;
       stateforeach_emit_ctx_ = save_foreach;
       return out;
+}
+
+string pexpr_to_class_constraint_ir(
+      const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, Design*des, const NetScope*scope,
+      const vector<perm_string>*inline_member_names = nullptr,
+      vector<NetExpr*>*object_slots = nullptr,
+      vector<bool>*function_slot_flags = nullptr,
+      vector<NetExpr*>*prebuilt_value_slots = nullptr)
+{
+      return pexpr_to_class_constraint_ir_(
+	    expr, cls, value_slots, des, scope, false, inline_member_names,
+	    object_slots, function_slot_flags, prebuilt_value_slots);
 }
 
 static string pexpr_to_covergroup_constraint_ir(
@@ -36335,6 +36368,7 @@ static string constraint_parameter_member_select_ir_(
                         slice, (unsigned)member_width, false);
             }
       }
+      check_package_unit_value(des, *id, scope, found);
       return result + ")";
 }
 
@@ -36389,7 +36423,9 @@ static string constraint_constant_ir_(const PEIdent*id,
       Design*des = constraint_ir_design_ctx_;
       if (!des || !scope || !id || id->path().name.empty()) return "";
 
-      auto const_ir = [&](const NetExpr*expr) -> string {
+      const pform_scoped_name_t&path = id->path();
+      perm_string name = path.name.back().name;
+      auto const_ir = [&](const NetExpr*expr, const NetScope*def_scope) -> string {
 	    const NetEConst*val = dynamic_cast<const NetEConst*>(expr);
 	    if (!val) return "";
 	    const verinum&v = val->value();
@@ -36404,6 +36440,7 @@ static string constraint_constant_ir_(const PEIdent*id,
 		  if (val->expr_type() == IVL_VT_STRING) return "";
 		  *full_value = v;
 	    }
+	    check_package_unit_value(des, *id, scope, def_scope, name);
 	    return constraint_const_bits_ir_(v, v.len(), v.has_sign());
       };
       auto selected_array_parameter = [&](NetScope*sc, perm_string name) {
@@ -36422,20 +36459,18 @@ static string constraint_constant_ir_(const PEIdent*id,
 		  declared = true;
 		  // A selected unpacked parameter array is lowered by its typed table.
 		  if (selected_array_parameter(sc, name)) return "";
-		  return const_ir(value);
+		  return const_ir(value, sc);
 	    }
 	    NetScope*imported = sc->find_import(des, name);
 	    if (imported) {
 		  declared = true;
 		  if (selected_array_parameter(imported, name)) return "";
 		  value = imported->get_parameter(des, name, type);
-		  return const_ir(value);
+		  return const_ir(value, imported);
 	    }
 	    return "";
       };
 
-      const pform_scoped_name_t&path = id->path();
-      perm_string name = path.name.back().name;
       if (id->leading_type_args()) return "";
 
       if (path.name.size() != 1 || id->has_scoped_type_prefix()) {
@@ -36445,7 +36480,8 @@ static string constraint_constant_ir_(const PEIdent*id,
 	    symbol_search_results found;
 	    if (symbol_search(id, des, const_cast<NetScope*>(scope), path,
 			      id->lexical_pos(), &found)) {
-		  if (found.path_tail.empty()) return const_ir(found.par_val);
+		  if (found.path_tail.empty())
+			return const_ir(found.par_val, found.scope);
 		  if (!found.par_val) return "";
 		  // A selected parameter member can be folded by ordinary expression
 		  // elaboration, but only after constraint lookup proves every index
@@ -36472,7 +36508,7 @@ static string constraint_constant_ir_(const PEIdent*id,
 			return "";
 		      }
 		  }
-		  return const_ir(member.get());
+		  return const_ir(member.get(), nullptr);
 	    }
 	    return "";
       }
@@ -36929,10 +36965,6 @@ static void constraint_randc_reference_error_(const PExpr*site,
       constraint_ir_design_ctx_->errors += 1;
 }
 
-/* A solve-before operand must name a random variable (18.5.10). Container
- * sizes carry their owning property's index in the s: token, so reject the
- * state-only case here instead of letting the runtime silently ignore an
- * ordering rank it cannot randomize. */
 /* True for a whole fixed array that 'solve before' can order element by
    element: one dimension of integral elements. */
 static bool constraint_solve_before_aggregate_is_orderable_(const netuarray_t*array)
@@ -36945,27 +36977,17 @@ static bool constraint_solve_before_aggregate_is_orderable_(const netuarray_t*ar
 	  || dynamic_cast<const netenum_t*>(element_type);
 }
 
-/* IEEE 1800-2023 18.5.9: "Only random variables are allowed, that is,
-   they shall be rand." An error; under -gcommercial-unsafe a warning, and
-   the caller omits the operand (true is returned). */
-static bool constraint_order_nonrandom_error_(const PExpr*site)
+/* IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9 require rand operands. */
+static void constraint_order_nonrandom_error_(const PExpr*site)
 {
       if (!site || !constraint_ir_design_ctx_
 	  || !constraint_ir_design_ctx_->mark_constraint_order_diagnostic(site))
-	    return gn_commercial_unsafe_flag;
+	    return;
 
-      if (gn_commercial_unsafe_flag) {
-	    cerr << site->get_fileline() << ": warning: target of 'solve "
-		 << "before' constraint must be a random variable (IEEE 1800 "
-		 << "18.5.9); the operand is omitted from the ordering; "
-		 << "nonstandard compatibility behavior." << endl;
-	    return true;
-      }
       cerr << site->get_fileline()
 	   << ": error: target of 'solve before' constraint must be a random variable."
 	   << endl;
       constraint_ir_design_ctx_->errors += 1;
-      return false;
 }
 
 /* The before -> after edges of every 'solve before' in the class whose
@@ -37602,6 +37624,107 @@ static constraint_source_type_t constraint_symbol_path_type_(
 	    constraint_source_type_apply_indices_(result, component.index);
       }
       return result;
+}
+
+/* Check source declarations before order lowering. A select or a .size
+ * primary inherits the qualifier of its container. Packed fields likewise
+ * use the qualifier of the packed property that contains them. */
+static bool constraint_order_path_is_state_(
+      const PEIdent*id, const netclass_t*cls, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      const pform_scoped_name_t&path = id->path();
+      if (path.name.empty()) return false;
+
+      const name_component_t&root = path.name.front();
+      if (!path.package && !id->has_scoped_type_prefix()
+	  && !root.local_scope) {
+	    if (constraint_array_iter_ctx_find_(root.name)
+		|| (loop_env && loop_env->count(root.name))
+		|| (dynforeach_emit_ctx_ && dynforeach_emit_ctx_->iterates(root.name)))
+		  return true;
+	    // std::randomize's arguments are the random variables (18.12).
+	    if (scope_randomize_emit_ctx_ && scope_randomize_emit_ctx_->count(root.name))
+		  return false;
+      }
+
+      const netclass_t*owner = nullptr;
+      pform_name_t::const_iterator component = path.name.begin();
+      if (id->has_scoped_type_prefix()) {
+	    owner = constraint_scoped_path_owner_(id, scope);
+	    if (owner) ++component;
+      } else {
+	    if (!constraint_target_path_begin_(path, cls, owner, component))
+		  owner = nullptr;
+      }
+
+      if (!owner) {
+	    if (!constraint_ir_design_ctx_ || !scope) return false;
+	    if (constraint_symbol_path_type_(id, scope).type
+		|| id->test_type_of_ident(constraint_ir_design_ctx_,
+					 const_cast<NetScope*>(scope)))
+		  return true;
+	    if (path.name.size() < 2 || path.name.back().name != "size"
+		|| !path.name.back().index.empty())
+		  return false;
+	    pform_name_t head(path.name.begin(), std::prev(path.name.end()));
+	    PEIdent receiver(path.package, head, id->lexical_pos());
+	    receiver.set_line(*id);
+	    receiver.set_scoped_type_prefix(id->has_scoped_type_prefix());
+	    return constraint_symbol_path_type_(&receiver, scope).unpacked_dimensions != 0;
+      }
+
+      constraint_source_type_t current = constraint_source_type_from_raw_(owner);
+      for (; component != path.name.end() && !current.unpacked_dimensions;
+	   ++component) {
+	    ivl_type_t type = nullptr;
+	    property_qualifier_t qual = property_qualifier_t::make_none();
+	    if (const netclass_t*decl = dynamic_cast<const netclass_t*>(current.type)) {
+		  int idx = decl->property_idx_from_name(component->name);
+		  if (idx < 0) return false;
+		  type = decl->get_prop_type((size_t)idx);
+		  qual = decl->get_prop_qual((size_t)idx);
+	    } else if (const netstruct_t*record =
+			 dynamic_cast<const netstruct_t*>(current.type)) {
+		  unsigned idx = record->member_index(component->name);
+		  if (record->packed() || idx >= record->members().size())
+			return false;
+		  type = record->members()[idx].net_type;
+		  qual = record->members()[idx].qualifier;
+	    } else {
+		  return false;
+	    }
+	    if (!qual.test_rand() && !qual.test_randc()) return true;
+	    current = constraint_source_type_from_raw_(type);
+	    constraint_source_type_apply_indices_(current, component->index);
+      }
+      return false;
+}
+
+static bool constraint_order_operand_is_state_(
+      const PExpr*item, const netclass_t*cls, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(item))
+	    return constraint_order_path_is_state_(id, cls, scope, loop_env);
+      if (const PEPostSelect*select = dynamic_cast<const PEPostSelect*>(item))
+	    return constraint_order_operand_is_state_(select->base(), cls, scope, loop_env);
+      if (const PEMemberAccess*member = dynamic_cast<const PEMemberAccess*>(item))
+	    return constraint_order_operand_is_state_(member->base(), cls, scope, loop_env);
+
+      const PECallFunction*call = dynamic_cast<const PECallFunction*>(item);
+      if (!call || call->path().name.empty() || call->path().name.back().name != "size"
+	  || !call->get_parms().empty() || !call->with_constraints().empty())
+	    return false;
+      if (call->receiver_expr())
+	    return constraint_order_operand_is_state_(call->receiver_expr(), cls, scope, loop_env);
+      if (call->path().name.size() < 2) return false;
+      pform_name_t head(call->path().name.begin(), std::prev(call->path().name.end()));
+      PEIdent receiver(call->path().package, head, call->lexical_pos());
+      receiver.set_line(*call);
+      receiver.set_scoped_type_prefix(call->has_scoped_type_prefix());
+      receiver.set_borrowed_leading_type_args(call->leading_type_args());
+      return constraint_order_path_is_state_(&receiver, cls, scope, loop_env);
 }
 
 struct constraint_symbol_randc_result_t {
@@ -38272,6 +38395,72 @@ static constraint_source_type_t constraint_foreach_source_type_(
       return result;
 }
 
+static perm_string constraint_array_method_argument_(const named_pexpr_t&arg)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(arg.parm);
+      if (arg.name.nil() && id && !id->path().package
+	  && id->path().size() == 1 && id->path().back().index.empty())
+	    return id->path().back().name;
+      return perm_string();
+}
+
+/* Array methods declare an iterator only in their with expression (7.12). */
+static perm_string constraint_array_method_iterator_(const PECallFunction*call)
+{
+      const pform_name_t&name = call->path().name;
+      if (call->with_constraints().empty() || name.empty()
+	  || (!call->receiver_expr() && name.size() == 1))
+	    return perm_string();
+
+      perm_string method = name.back().name;
+      if (method != "sum" && method != "product" && method != "and"
+	  && method != "or" && method != "xor"
+	  && method != "find" && method != "find_index"
+	  && method != "find_first" && method != "find_first_index"
+	  && method != "find_last" && method != "find_last_index"
+	  && method != "min" && method != "max" && method != "unique"
+	  && method != "unique_index")
+	    return perm_string();
+
+      const auto&parms = call->get_parms();
+      if (parms.empty()
+	  || (generation_flag >= GN_VER2023 && parms.size() == 2
+	      && parms.front().name.nil() && !parms.front().parm))
+	    return perm_string::literal("item");
+      return constraint_array_method_argument_(parms.front());
+}
+
+static void constraint_source_array_iter_(
+      const PECallFunction*call, perm_string iterator, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      constraint_reduction_iter_ctx_t&ctx)
+{
+      ctx.name = iterator;
+      ctx.parent = constraint_reduction_iter_ctx_;
+      constraint_source_type_t receiver_type;
+      if (call->receiver_expr()) {
+	    receiver_type = constraint_source_expr_type_(
+		  call->receiver_expr(), cls, value_slots, scope);
+      } else {
+	    pform_name_t receiver_path = call->path().name;
+	    receiver_path.pop_back();
+	    PEIdent receiver(call->path().package, receiver_path, call->lexical_pos());
+	    receiver.set_line(*call);
+	    receiver.set_borrowed_leading_type_args(call->leading_type_args());
+	    receiver.set_scoped_type_prefix(call->has_scoped_type_prefix());
+	    receiver_type = constraint_source_expr_type_(
+		  &receiver, cls, value_slots, scope);
+      }
+      if (receiver_type.type && receiver_type.unpacked_dimensions) {
+	    constraint_source_type_t element =
+		  constraint_source_type_element_(receiver_type);
+	    ctx.value_type = element.type;
+	    ctx.value_unpacked_dimensions = element.unpacked_dimensions;
+	    ctx.value_unpacked_index_types = element.unpacked_index_types;
+	    ctx.index_type = constraint_source_type_index_(receiver_type);
+      }
+}
+
 static bool constraint_source_references_randc_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
@@ -38454,40 +38643,7 @@ static bool constraint_source_references_randc_(
 			      return true;
 
 	    const pform_name_t&name = call->path().name;
-    bool array_iter_call = false;
-    if (!name.empty()
-	&& (call->receiver_expr() || name.size() > 1)) {
-		  perm_string method = name.back().name;
-		  array_iter_call = method == perm_string::literal("sum")
-			|| method == perm_string::literal("product")
-			|| method == perm_string::literal("and")
-			|| method == perm_string::literal("or")
-			|| method == perm_string::literal("xor")
-			|| method == perm_string::literal("find")
-			|| method == perm_string::literal("find_index")
-			|| method == perm_string::literal("find_first")
-			|| method == perm_string::literal("find_first_index")
-			|| method == perm_string::literal("find_last")
-			|| method == perm_string::literal("find_last_index")
-			|| method == perm_string::literal("min")
-			|| method == perm_string::literal("max")
-			|| method == perm_string::literal("unique")
-			|| method == perm_string::literal("unique_index");
-    }
-
-	    perm_string reduction_iter;
-	    if (array_iter_call && !call->with_constraints().empty()
-		&& call->get_parms().empty())
-		  reduction_iter = perm_string::literal("item");
-	    if (array_iter_call && !call->with_constraints().empty()
-		&& !call->get_parms().empty()) {
-		  const named_pexpr_t&first = call->get_parms().front();
-		  const PEIdent*iter = dynamic_cast<const PEIdent*>(first.parm);
-		  if (first.name.nil() && iter && !iter->path().package
-		      && iter->path().size() == 1
-		      && iter->path().back().index.empty())
-			reduction_iter = iter->path().back().name;
-	    }
+	    perm_string reduction_iter = constraint_array_method_iterator_(call);
 
 	    for (size_t idx = 0; idx < call->get_parms().size(); ++idx) {
 		  /* The optional first argument of an array-method with call declares
@@ -38504,42 +38660,8 @@ static bool constraint_source_references_randc_(
 	    const constraint_reduction_iter_ctx_t*saved_iter_ctx =
 		  constraint_reduction_iter_ctx_;
 	    if (!reduction_iter.nil()) {
-		  source_iter_ctx.name = reduction_iter;
-		  constraint_source_type_t receiver_type;
-		  if (call->receiver_expr()) {
-			receiver_type = constraint_source_expr_type_(
-			      call->receiver_expr(), cls, value_slots, scope);
-		  } else if (name.size() > 1) {
-			pform_name_t receiver_path = name;
-			receiver_path.pop_back();
-			unique_ptr<PEIdent> receiver_id;
-			if (call->path().package)
-			      receiver_id.reset(new PEIdent(
-				    call->path().package, receiver_path, UINT_MAX));
-			else
-			      receiver_id.reset(new PEIdent(receiver_path, UINT_MAX));
-			if (call->leading_type_args()) {
-			      receiver_id->set_borrowed_leading_type_args(
-				    call->leading_type_args());
-			}
-			receiver_id->set_scoped_type_prefix(
-			      call->has_scoped_type_prefix());
-			receiver_type = constraint_source_expr_type_(
-			      receiver_id.get(), cls, value_slots, scope);
-		  }
-		  if (receiver_type.type
-		      && receiver_type.unpacked_dimensions) {
-			constraint_source_type_t element =
-			      constraint_source_type_element_(receiver_type);
-			source_iter_ctx.value_type = element.type;
-			source_iter_ctx.value_unpacked_dimensions =
-			      element.unpacked_dimensions;
-			source_iter_ctx.value_unpacked_index_types =
-			      element.unpacked_index_types;
-			source_iter_ctx.index_type =
-			      constraint_source_type_index_(receiver_type);
-		  }
-		  source_iter_ctx.parent = saved_iter_ctx;
+		  constraint_source_array_iter_(
+			call, reduction_iter, cls, value_slots, scope, source_iter_ctx);
 		  constraint_reduction_iter_ctx_ = &source_iter_ctx;
 	    }
 	    bool with_randc = false;
@@ -38781,20 +38903,90 @@ static bool constraint_source_references_randc_(
       return false;
 }
 
-/* Exhaustively visit the semantic constraint tree and attribute each
- * forbidden randc use to the actual soft/dist/solve-before/unique source
- * node. This is separate from IR recursion: an unsupported outer foreach,
- * conditional, call, or member shape must not hide a nested mandatory
- * diagnostic. The source-reference helper answers qualifier provenance for
- * one construct; this visitor deliberately never short-circuits sibling
- * subtrees. */
-static void constraint_diagnose_randc_restrictions_(
+/* Check the declaration of the root of a value path. The path's selects
+ * are checked separately, and type/solver checks handle the rest of the
+ * path. A declaration still counts when its type is not yet concrete. */
+static bool constraint_source_name_declared_(
+      const LineInfo*site, const pform_scoped_name_t&path, unsigned lexical_pos,
+      bool scoped_type_prefix, const netclass_t*cls, const NetScope*scope)
+{
+      const name_component_t&root = path.name.front();
+      if (root.local_scope)
+	    return true; // The inline-only qualifier has its own diagnostic.
+      if (cls && !path.package && !scoped_type_prefix
+	  && (root.name == THIS_TOKEN || root.name == SUPER_TOKEN
+	      || constraint_array_iter_ctx_find_(root.name)
+	      || cls->property_idx_from_name(root.name) >= 0))
+	    return true;
+
+      Design*des = constraint_ir_design_ctx_;
+      pform_scoped_name_t base(path.package,
+	    pform_name_t{ name_component_t(root.name) });
+      auto declared_in = [&](NetScope*lookup) {
+	    if (scoped_type_prefix && !path.package
+		&& lookup->find_typedef(des, root.name))
+		  return true;
+	    unsigned errors_before = des->errors;
+	    symbol_search_results found;
+	    bool bound = symbol_search(site, des, lookup, base, lexical_pos, &found);
+	    if (des->errors != errors_before)
+		  return true;
+	    if (bound) {
+		  // A type or hierarchy scope can qualify a path, but a
+		  // standalone value needs a variable, parameter or function.
+		  return path.size() > 1 || !found.is_scope()
+			|| found.scope->type() == NetScope::FUNC;
+	    }
+
+	    // An indexed hierarchy scope may exist only with its index.
+	    if (path.size() > 1 && !root.index.empty()) {
+		  pform_scoped_name_t indexed_base(path.package, pform_name_t{ root });
+		  symbol_search_results indexed;
+		  return symbol_search(site, des, lookup, indexed_base, lexical_pos,
+			&indexed) || des->errors != errors_before;
+	    }
+	    return false;
+      };
+      if (declared_in(const_cast<NetScope*>(scope)))
+	    return true;
+      NetScope*definition = cls ? const_cast<netclass_t*>(cls)->definition_scope() : nullptr;
+      return !path.package && definition && definition != scope
+	    && declared_in(definition);
+}
+
+/* Visit source before IR lowering can skip a subtree or unroll it multiple
+ * times. The randc helper determines qualifier provenance for one construct.
+ * The walk also checks name declarations in class constraint bodies, where
+ * all lexical scopes are known before lowering. */
+static void constraint_diagnose_source_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
-      const map<perm_string,uint64_t>*loop_env)
+      const map<perm_string,uint64_t>*loop_env, bool check_names)
 {
       if (!expr)
 	    return;
+
+      auto visit = [&](const PExpr*child) {
+	    constraint_diagnose_source_(
+		  child, cls, value_slots, scope, loop_env, check_names);
+      };
+      auto visit_indices = [&](const index_component_t&index) {
+	    visit(index.msb);
+	    visit(index.lsb);
+      };
+      auto check_name = [&](const LineInfo*site, const pform_scoped_name_t&path,
+			    unsigned lexical_pos, bool scoped_type_prefix,
+			    const NetScope*let_body_scope) {
+	    if (!check_names || path.name.empty()
+		|| constraint_source_name_declared_(
+		      site, path, lexical_pos, scoped_type_prefix,
+		      let_body_scope ? nullptr : cls,
+		      let_body_scope ? let_body_scope : scope))
+		  return;
+	    cerr << site->get_fileline() << ": error: Undeclared name `"
+		 << path << "' in class constraint." << endl;
+	    constraint_ir_design_ctx_->errors += 1;
+      };
 
 	/* A let is substitution, so visit only the expanded expression. An
 	 * unused actual does not participate in the resulting constraint. */
@@ -38810,8 +39002,7 @@ static void constraint_diagnose_randc_restrictions_(
 			constraint_ir_design_ctx_, const_cast<NetScope*>(scope));
 	    if (sub && sub != expr) {
 		  ++let_depth;
-		  constraint_diagnose_randc_restrictions_(
-			sub, cls, value_slots, scope, loop_env);
+		  visit(sub);
 		  --let_depth;
 		  return;
 	    }
@@ -38821,8 +39012,7 @@ static void constraint_diagnose_randc_restrictions_(
 	    if (constraint_source_references_randc_(
 		  soft->get_inner(), cls, value_slots, scope, loop_env))
 		  constraint_randc_reference_error_(soft, "soft");
-	    constraint_diagnose_randc_restrictions_(
-		  soft->get_inner(), cls, value_slots, scope, loop_env);
+	    visit(soft->get_inner());
 	    return;
       }
       if (const PEConstraintOrder*order =
@@ -38831,11 +39021,9 @@ static void constraint_diagnose_randc_restrictions_(
 		  order, cls, value_slots, scope, loop_env))
 		  constraint_randc_reference_error_(order, "solve before");
 	    for (const PExpr*item : order->before_items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, loop_env);
+		  visit(item);
 	    for (const PExpr*item : order->after_items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, loop_env);
+		  visit(item);
 	    return;
       }
       if (const PEUnique*unique = dynamic_cast<const PEUnique*>(expr)) {
@@ -38843,8 +39031,7 @@ static void constraint_diagnose_randc_restrictions_(
 		  unique, cls, value_slots, scope, loop_env))
 		  constraint_randc_reference_error_(unique, "unique");
 	    for (const PExpr*item : unique->items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, loop_env);
+		  visit(item);
 	    return;
       }
       if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
@@ -38852,38 +39039,49 @@ static void constraint_diagnose_randc_restrictions_(
 		&& constraint_source_references_randc_(
 		      inside, cls, value_slots, scope, loop_env))
 		  constraint_randc_reference_error_(inside, "dist");
-	    constraint_diagnose_randc_restrictions_(
-		  inside->get_expr(), cls, value_slots, scope, loop_env);
+	    visit(inside->get_expr());
 	    for (const inside_range_t&range : inside->get_ranges()) {
-		  constraint_diagnose_randc_restrictions_(
-			range.lo, cls, value_slots, scope, loop_env);
-		  constraint_diagnose_randc_restrictions_(
-			range.hi, cls, value_slots, scope, loop_env);
-		  constraint_diagnose_randc_restrictions_(
-			range.weight, cls, value_slots, scope, loop_env);
+		  visit(range.lo);
+		  visit(range.hi);
+		  visit(range.weight);
 	    }
 	    return;
       }
       if (const PEDisableSoft*disable =
 	  dynamic_cast<const PEDisableSoft*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  disable->get_inner(), cls, value_slots, scope, loop_env);
+	    visit(disable->get_inner());
 	    return;
       }
       if (const PEConstraintIf*conditional =
 	  dynamic_cast<const PEConstraintIf*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  conditional->get_cond(), cls, value_slots, scope, loop_env);
+	    visit(conditional->get_cond());
 	    for (const PExpr*item : conditional->then_items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, loop_env);
+		  visit(item);
 	    for (const PExpr*item : conditional->else_items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, loop_env);
+		  visit(item);
 	    return;
       }
       if (const PEConstraintForeach*foreach =
 	  dynamic_cast<const PEConstraintForeach*>(expr)) {
+	    if (check_names) {
+		  auto simple_path = [](perm_string name) {
+			return pform_scoped_name_t(
+			      pform_name_t{ name_component_t(name) });
+		  };
+		  check_name(foreach, simple_path(foreach->array_name()),
+			foreach->lexical_pos(), false, nullptr);
+		  for (perm_string name : foreach->prefix_names()) {
+			if (name.nil() || constraint_source_name_declared_(
+			      foreach, simple_path(name), foreach->lexical_pos(),
+			      false, cls, scope))
+			      continue;
+			cerr << foreach->get_fileline()
+			     << ": error: Constraint foreach selector `"
+			     << name << "' must name an existing integral value."
+			     << endl;
+			constraint_ir_design_ctx_->errors += 1;
+		  }
+	    }
 	    map<perm_string,uint64_t> nested;
 	    if (loop_env)
 		  nested = *loop_env;
@@ -38924,105 +39122,118 @@ static void constraint_diagnose_randc_restrictions_(
 	    }
 	    constraint_reduction_iter_ctx_ = parent;
 	    for (const PExpr*item : foreach->items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, &nested);
+		  constraint_diagnose_source_(
+			item, cls, value_slots, scope, &nested, check_names);
 	    constraint_reduction_iter_ctx_ = saved_iter_ctx;
 	    return;
       }
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
 	    for (const name_component_t&component : id->path().name)
-		  for (const index_component_t&index : component.index) {
-			constraint_diagnose_randc_restrictions_(
-			      index.msb, cls, value_slots, scope, loop_env);
-			constraint_diagnose_randc_restrictions_(
-			      index.lsb, cls, value_slots, scope, loop_env);
-		  }
+		  for (const index_component_t&index : component.index)
+			visit_indices(index);
+	    check_name(id, id->path(), id->lexical_pos(),
+		  id->has_scoped_type_prefix(), id->let_body_scope());
 	    return;
       }
       if (const PECallFunction*call =
 	  dynamic_cast<const PECallFunction*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  call->receiver_expr(), cls, value_slots, scope, loop_env);
-	    for (const name_component_t&component : call->path().name)
-		  for (const index_component_t&index : component.index) {
-			constraint_diagnose_randc_restrictions_(
-			      index.msb, cls, value_slots, scope, loop_env);
-			constraint_diagnose_randc_restrictions_(
-			      index.lsb, cls, value_slots, scope, loop_env);
-		  }
-	    for (const named_pexpr_t&parm : call->get_parms())
-		  constraint_diagnose_randc_restrictions_(
-			parm.parm, cls, value_slots, scope, loop_env);
+	    visit(call->receiver_expr());
+	    const pform_scoped_name_t&path = call->path();
+	    for (const name_component_t&component : path.name)
+		  for (const index_component_t&index : component.index)
+			visit_indices(index);
+	    if (check_names && !call->receiver_expr() && path.size() > 1
+		&& path.name.front().name != "$")
+		  check_name(call, path, call->lexical_pos(),
+			call->has_scoped_type_prefix(), call->let_body_scope());
+
+	    perm_string iterator = check_names
+		  ? constraint_array_method_iterator_(call) : perm_string();
+	    const auto&parms = call->get_parms();
+	    for (size_t idx = 0; idx < parms.size(); ++idx) {
+		  // The optional 2023 index-method name is also a declaration.
+		  if (!iterator.nil() && (idx == 0
+		      || (idx == 1 && generation_flag >= GN_VER2023
+			  && !constraint_array_method_argument_(parms[idx]).nil())))
+			continue;
+		  visit(parms[idx].parm);
+	    }
+	    constraint_reduction_iter_ctx_t iter_ctx;
+	    const constraint_reduction_iter_ctx_t*saved = constraint_reduction_iter_ctx_;
+	    if (!iterator.nil()) {
+		  constraint_source_array_iter_(
+			call, iterator, cls, value_slots, scope, iter_ctx);
+		  constraint_reduction_iter_ctx_ = &iter_ctx;
+	    }
 	    for (const PExpr*with : call->with_constraints())
-		  constraint_diagnose_randc_restrictions_(
-			with, cls, value_slots, scope, loop_env);
+		  visit(with);
+	    constraint_reduction_iter_ctx_ = saved;
 	    return;
       }
       if (const PEMemberAccess*member =
 	  dynamic_cast<const PEMemberAccess*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  member->base(), cls, value_slots, scope, loop_env);
+	    visit(member->base());
 	    return;
       }
+      if (check_names) {
+	    if (const PEPostSelect*select = dynamic_cast<const PEPostSelect*>(expr)) {
+		  visit(select->base());
+		  visit_indices(select->index());
+		  return;
+	    }
+	    if (const PEStreamWith*with = dynamic_cast<const PEStreamWith*>(expr)) {
+		  visit(with->base());
+		  visit(with->range_first());
+		  visit(with->range_second());
+		  return;
+	    }
+      }
       if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  unary->get_expr(), cls, value_slots, scope, loop_env);
+	    visit(unary->get_expr());
 	    return;
       }
       if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  binary->get_left(), cls, value_slots, scope, loop_env);
-	    constraint_diagnose_randc_restrictions_(
-		  binary->get_right(), cls, value_slots, scope, loop_env);
+	    visit(binary->get_left());
+	    visit(binary->get_right());
 	    return;
       }
       if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  ternary->get_cond(), cls, value_slots, scope, loop_env);
-	    constraint_diagnose_randc_restrictions_(
-		  ternary->get_true(), cls, value_slots, scope, loop_env);
-	    constraint_diagnose_randc_restrictions_(
-		  ternary->get_false(), cls, value_slots, scope, loop_env);
+	    visit(ternary->get_cond());
+	    visit(ternary->get_true());
+	    visit(ternary->get_false());
 	    return;
       }
       if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  concat->repeat_expr(), cls, value_slots, scope, loop_env);
+	    visit(concat->repeat_expr());
 	    for (const PExpr*part : concat->stream_parms())
-		  constraint_diagnose_randc_restrictions_(
-			part, cls, value_slots, scope, loop_env);
+		  visit(part);
 	    return;
       }
       if (const PEAssignPattern*pattern =
 	  dynamic_cast<const PEAssignPattern*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  pattern->replication(), cls, value_slots, scope, loop_env);
+	    visit(pattern->replication());
 	    for (const PExpr*part : pattern->parms())
-		  constraint_diagnose_randc_restrictions_(
-			part, cls, value_slots, scope, loop_env);
+		  visit(part);
 	    return;
       }
       if (const PEStreaming*stream = dynamic_cast<const PEStreaming*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  stream->get_inner(), cls, value_slots, scope, loop_env);
+	    if (check_names)
+		  visit(stream->get_slice_expr());
+	    visit(stream->get_inner());
 	    return;
       }
       if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  cast->cast_size(), cls, value_slots, scope, loop_env);
-	    constraint_diagnose_randc_restrictions_(
-		  cast->cast_base(), cls, value_slots, scope, loop_env);
+	    visit(cast->cast_size());
+	    visit(cast->cast_base());
 	    return;
       }
       if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  cast->cast_base(), cls, value_slots, scope, loop_env);
+	    visit(cast->cast_base());
 	    return;
       }
       if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
-	    constraint_diagnose_randc_restrictions_(
-		  cast->cast_base(), cls, value_slots, scope, loop_env);
+	    visit(cast->cast_base());
 }
 
 /* Add a scalar caller-value slot while keeping the optional direct-signal
@@ -44216,7 +44427,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (!selected.empty()) return selected;
 	    }
 
-	    int idx = cls ? cls->property_idx_from_name(name) : -1;
+	      // Direct qualified references use the selected class's declaration.
+	      // Its property index is already absolute within the receiver.
+	    int idx = target_path
+		&& std::next(target_component) == id->path().name.end()
+		  ? target_owner->property_idx_from_name(target_component->name)
+		  : cls ? cls->property_idx_from_name(name) : -1;
 	      // A covergroup sample source names a sample() argument by its
 	      // formal; the value is in the group's mirror property (19.4.1).
 	    if (idx < 0 && cls && constraint_covergroup_sample_source_)
@@ -46549,18 +46765,34 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    constraint_randc_capture_t capture(co, "solve before");
 	    capture.seen = constraint_source_references_randc_(
 		  co, cls, value_slots, scope, loop_env);
+	    bool nonrandom_operand = false;
+	    auto nonrandom = [&](const PExpr*site) {
+		  constraint_order_nonrandom_error_(site);
+		  nonrandom_operand = true;
+	    };
+	    for (const auto*items : {&co->before_items(), &co->after_items()})
+		  for (const PExpr*item : *items)
+			if (constraint_order_operand_is_state_(item, cls, scope, loop_env))
+			      nonrandom(item);
+	    if (nonrandom_operand) return "";
+
+	    auto direct_property = [&](const PEIdent*id, const netclass_t*&owner) {
+		  pform_name_t::const_iterator component;
+		  if (!id || id->has_scoped_type_prefix()
+		      || !constraint_target_path_begin_(id->path(), cls, owner, component)
+		      || std::next(component) != id->path().name.end())
+			return -1;
+		  return owner->property_idx_from_name(component->name);
+	    };
 	    auto diagnose_fixed_oob = [&](const PExpr*item) {
 		  const PEIdent*id = dynamic_cast<const PEIdent*>(item);
-		  if (!id || !cls || id->path().package
-		      || id->has_scoped_type_prefix()
-		      || id->path().name.size() != 1)
-			return;
-		  const name_component_t&component = id->path().name.front();
-		  if (component.local_scope || component.index.empty()) return;
-		  int prop = cls->property_idx_from_name(component.name);
-		  const netuarray_t*array = prop < 0 ? nullptr
-			: dynamic_cast<const netuarray_t*>(
-			      cls->get_prop_type((size_t)prop));
+		  const netclass_t*owner = nullptr;
+		  int prop = direct_property(id, owner);
+		  if (prop < 0) return;
+		  const name_component_t&component = id->path().name.back();
+		  if (component.index.empty()) return;
+		  const netuarray_t*array =
+			dynamic_cast<const netuarray_t*>(owner->get_prop_type((size_t)prop));
 		  if (!array || array->static_dimensions().size()
 			!= component.index.size()) return;
 
@@ -46590,35 +46822,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 	    };
 	    bool omitted_operand = false;
-	    bool omit_item = false;
-	    auto nonrandom = [&](const PExpr*site) {
-		  if (constraint_order_nonrandom_error_(site))
-			omit_item = true;
-	    };
 	    std::vector<std::pair<string,string> > bef_ops, aft_ops;
 	    std::vector<std::pair<string,string> >*ops = nullptr;
 	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
 		  string acc;
 		  for (const PExpr*item : items) {
 			if (!item) continue;
-			omit_item = false;
-			const PEIdent*plain = dynamic_cast<const PEIdent*>(item);
-			if (cls && plain && !plain->path().package
-			    && !plain->has_scoped_type_prefix()
-			    && plain->path().name.size() == 1
-			    && !plain->path().name.front().local_scope
-			    && plain->path().name.front().index.empty()) {
-			      int prop = cls->property_idx_from_name(
-				    plain->path().name.front().name);
-			      property_qualifier_t qual = prop < 0
-				    ? property_qualifier_t::make_none()
-				    : cls->get_prop_qual((size_t)prop);
-			      if (prop >= 0 && !qual.test_rand() && !qual.test_randc()) {
-				    nonrandom(item);
-				    if (omit_item) omitted_operand = true;
-				    continue;
-			      }
-			}
 			vector<string> packed_refs;
 			bool packed_order = gn_commercial_unsafe_flag
 			      && constraint_packed_solve_before_refs_(
@@ -46634,15 +46843,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			diagnose_fixed_oob(item);
 			  if (s.compare(0, 7, "(delem ") == 0) {
 			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
-			      if (!id || !cls || id->path().package
-			          || id->has_scoped_type_prefix()
-			          || id->path().name.size() != 1)
-				    return "";
-			      const name_component_t&component = id->path().name.front();
-			      int prop = cls->property_idx_from_name(component.name);
+			      const netclass_t*owner = nullptr;
+			      int prop = direct_property(id, owner);
+			      if (prop < 0) return "";
+			      const name_component_t&component = id->path().name.back();
 			      ivl_type_t queue_element = nullptr;
 			      string fixed_queue = constraint_class_fixed_queue_element_ir_(
-				    component, cls, value_slots, scope, loop_env,
+				    component, owner, value_slots, scope, loop_env,
 				    &queue_element);
 			      if (!fixed_queue.empty()) {
 				    const index_component_t&select = component.index.back();
@@ -46651,23 +46858,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  ? pexpr_to_constraint_ir(select.msb, cls,
 						value_slots, scope, loop_env) : "";
 				    constraint_const_ir_t index;
-				    property_qualifier_t qual =
-					  cls->get_prop_qual((size_t)prop);
 				    if (!constraint_parse_const_ir_(index_ir, index)
-					  || index.width > 64 || !queue_element
-					  || (!qual.test_rand() && !qual.test_randc()))
+					  || index.width > 64 || !queue_element)
 					  return "";
 			      } else {
-			      const netdarray_t*array = prop < 0 ? nullptr
-				    : dynamic_cast<const netdarray_t*>(
-				          cls->get_prop_type((size_t)prop));
-			      if (!array || component.local_scope
-			          || component.index.size() != 1)
+			      const netdarray_t*array = dynamic_cast<const netdarray_t*>(
+				    owner->get_prop_type((size_t)prop));
+			      if (!array || component.index.size() != 1)
 				    return "";
-			      property_qualifier_t qual =
-				    cls->get_prop_qual((size_t)prop);
-			      if (!qual.test_rand() && !qual.test_randc())
-				    nonrandom(item);
 			      const index_component_t&select = component.index.front();
 			      string index_ir = select.msb && !select.lsb
 				    && select.sel == index_component_t::SEL_BIT
@@ -46730,18 +46928,6 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				      && !stype->members()[member].qualifier.test_randc()))
 				    nonrandom(item);
 			}
-			if (s.compare(0, 2, "e:") == 0 && cls) {
-			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
-			      int prop = id && id->path().name.size() == 1
-				    ? cls->property_idx_from_name(
-					  id->path().name.front().name) : -1;
-			      if (prop >= 0) {
-				    property_qualifier_t qual =
-					  cls->get_prop_qual((size_t)prop);
-				    if (!qual.test_rand() && !qual.test_randc())
-					  nonrandom(item);
-			      }
-			}
 			if (s.compare(0, 2, "a:") == 0 && cls) {
 			      const char*p = s.c_str() + 2;
 			      char*end = nullptr;
@@ -46781,10 +46967,6 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    && !constraint_nested_element_is_random_(
 				  s.c_str() + 2, cls))
 			      nonrandom(item);
-			if (omit_item) {
-			      omitted_operand = true;
-			      continue;
-			}
 			if (ops)
 			      ops->push_back(std::make_pair(s,
 				    constraint_order_operand_name_(item)));
@@ -46843,10 +47025,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      continue;
 			}
 			if (!random) {
-			      if (constraint_order_nonrandom_error_(item))
-				    omitted_operand = true;
-			      else
-				    expand_ok = false;
+			      nonrandom(item);
 			      continue;
 			}
 			if (gn_commercial_unsafe_flag
@@ -46906,12 +47085,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    };
 	    std::list<PExpr*> before_items = expand_fixed_arrays(co->before_items());
 	    std::list<PExpr*> after_items = expand_fixed_arrays(co->after_items());
-	    if (!expand_ok) return "";
+	    if (!expand_ok || nonrandom_operand) return "";
 	    ops = &bef_ops;
 	    string bef = vars_to_ir(before_items);
 	    ops = &aft_ops;
 	    string aft = vars_to_ir(after_items);
 	    ops = nullptr;
+	    if (nonrandom_operand) return "";
 	    if (bef.empty() || aft.empty())
 		  return omitted_operand ? "c:1:1" : "";
 	    string result = "(order (vars " + bef + ") (vars " + aft + "))";
@@ -49367,8 +49547,8 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  if (!item) continue;
 		  unsigned errors_before = des->errors;
 		  size_t calls_before = state_calls.size();
-		  string s = pexpr_to_class_constraint_ir(
-			item, this, nullptr, des, class_scope_);
+		  string s = pexpr_to_class_constraint_ir_(
+			item, this, nullptr, des, class_scope_, true);
 		  if (s.empty()) state_calls.resize(calls_before);
 		  if (!s.empty()) {
 			if (!ir.empty()) ir += " ";
@@ -58053,10 +58233,7 @@ Design* elaborate(list<perm_string>roots)
       }
 
 	// Elaborate the packages. Package elaboration is simpler
-	// because there are fewer sub-scopes involved. Note that
-	// in SystemVerilog, packages are not allowed to refer to
-	// the compilation unit scope, but the VHDL preprocessor
-	// assumes they can.
+	// because there are fewer sub-scopes involved.
 	// Packages are added to the work list BEFORE compilation units
 	// so that UVM/library packages are fully elaborated before user
 	// classes at the compilation-unit scope try to extend them.

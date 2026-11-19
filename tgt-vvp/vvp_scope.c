@@ -3402,25 +3402,37 @@ static ivl_signal_t evcd_port_component_signal(ivl_scope_t scope,
       }
 
       /* A selected non-ANSI port component is represented by a local
-       * temporary on this nexus and either a PART_{VP,PV} node or one input
-       * of a CONCAT leading to the declared full signal. Recover that signal
+       * temporary on this nexus connected to the declared full signal by a
+       * fixed slice, part-select node or concatenation. Recover that signal
        * and the selected range so EVCD emits one component instead of
        * duplicating the whole bus. Do this before accepting a signal on the
        * component nexus: elaboration can mark its generated _ivl temporary
        * as a port signal as well. */
       for (idx = 0; idx < ivl_nexus_ptrs(value_nexus); idx += 1) {
-            ivl_lpm_t lpm =
-                  ivl_nexus_ptr_lpm(ivl_nexus_ptr(value_nexus, idx));
+            ivl_nexus_ptr_t ptr = ivl_nexus_ptr(value_nexus, idx);
+            ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ptr);
+            ivl_switch_t sw = ivl_nexus_ptr_switch(ptr);
             ivl_nexus_t full_nexus;
-            unsigned base;
+            unsigned base, part;
             int signal_left, signal_right;
 
-            if (!lpm) continue;
-            if (ivl_lpm_type(lpm) == IVL_LPM_PART_VP)
+            if (sw && port_type == IVL_SIP_INOUT &&
+                ivl_switch_scope(sw) == scope &&
+                ivl_switch_type(sw) == IVL_SW_TRAN_VP &&
+                ivl_switch_b(sw) == value_nexus) {
+                  full_nexus = ivl_switch_a(sw);
+                  part = ivl_switch_part(sw);
+                  base = ivl_switch_offset(sw);
+            } else if (!lpm) continue;
+            else if (ivl_lpm_type(lpm) == IVL_LPM_PART_VP) {
                   full_nexus = ivl_lpm_data(lpm, 0);
-            else if (ivl_lpm_type(lpm) == IVL_LPM_PART_PV)
+                  part = ivl_lpm_width(lpm);
+                  base = ivl_lpm_base(lpm);
+            } else if (ivl_lpm_type(lpm) == IVL_LPM_PART_PV) {
                   full_nexus = ivl_lpm_q(lpm);
-            else if (ivl_lpm_type(lpm) == IVL_LPM_CONCAT ||
+                  part = ivl_lpm_width(lpm);
+                  base = ivl_lpm_base(lpm);
+            } else if (ivl_lpm_type(lpm) == IVL_LPM_CONCAT ||
                      ivl_lpm_type(lpm) == IVL_LPM_CONCATZ) {
                   unsigned data, count = ivl_lpm_size(lpm);
                   base = 0;
@@ -3431,17 +3443,12 @@ static ivl_signal_t evcd_port_component_signal(ivl_scope_t scope,
                   }
                   if (data == count) continue;
                   full_nexus = ivl_lpm_q(lpm);
+                  part = width_of_nexus(value_nexus);
             } else continue;
             sig = evcd_signal_on_nexus(scope, full_nexus, 0);
             if (!sig) continue;
 
-            if (ivl_lpm_type(lpm) == IVL_LPM_CONCAT ||
-                ivl_lpm_type(lpm) == IVL_LPM_CONCATZ)
-                  *component_width = width_of_nexus(value_nexus);
-            else {
-                  *component_width = ivl_lpm_width(lpm);
-                  base = ivl_lpm_base(lpm);
-            }
+            *component_width = part;
             signal_left = ivl_signal_packed_dimensions(sig)
                         ? ivl_signal_packed_msb(sig, 0) : 0;
             signal_right = ivl_signal_packed_dimensions(sig)
@@ -3481,6 +3488,17 @@ static ivl_switch_t evcd_port_component_switch(ivl_scope_t scope,
       return 0;
 }
 
+static int evcd_port_has_island_sources(ivl_signal_t sig)
+{
+      ivl_nexus_t nexus = ivl_signal_nex(sig, 0);
+      for (unsigned idx = 0; idx < ivl_nexus_ptrs(nexus); idx += 1) {
+	    ivl_switch_t sw = ivl_nexus_ptr_switch(ivl_nexus_ptr(nexus, idx));
+	    if (sw && (ivl_switch_a(sw) == nexus || ivl_switch_b(sw) == nexus))
+		  return evcd_island_sources(ivl_switch_island(sw));
+      }
+      return 0;
+}
+
 /* An inout port isolated for SDF INTERCONNECT (IEEE 1800 32.4.4) is one
    whole-width tran: name its inner island port so VPI can find the
    boundary. A concatenated or part-select port has no single boundary. */
@@ -3509,6 +3527,13 @@ void reset_evcd_metadata_budget(void)
       evcd_metadata_bits = 0;
       evcd_proxy_bits = 0;
       evcd_metadata_budget_failed = 0;
+      if (evcd_island_sources(0)) {
+	    ivl_scope_t*roots;
+	    unsigned count;
+	    ivl_design_roots(vvp_get_saved_design(), &roots, &count);
+	    for (unsigned idx = 0; idx < count; idx += 1)
+		  classify_evcd_islands(roots[idx]);
+      }
 }
 
 int scope_needs_call_frame(ivl_scope_t net)
@@ -4042,7 +4067,16 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 			      evcd_metadata_bits += component_width;
 			      component_name = ivl_signal_basename(sig);
 
-			      if (ptype == IVL_SIP_INOUT) {
+			      if (ptype == IVL_SIP_INOUT &&
+			          evcd_port_has_island_sources(sig)) {
+				    fprintf(vvp_out,
+				      "    .port_info/evcd %u %u %u \"%s\" \"%d\" \"%d\";\n",
+				      idx, component, component_width,
+				      vvp_mangle_name(component_name), left, right);
+				    fprintf(vvp_out,
+				      "    .evcd/port %u, %u, v%p_0;\n",
+				      idx, component, sig);
+			      } else if (ptype == IVL_SIP_INOUT) {
 				    ivl_switch_t sw = evcd_port_component_switch(net,
 				                                                   idx,
 				                                                   component);

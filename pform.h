@@ -631,6 +631,8 @@ pform_sva_tree_comb(const struct vlltype&loc, char op,
 extern sva_property_t*
 pform_sva_tree_intersect(const struct vlltype&loc,
 			 sva_property_t*a, sva_property_t*b);
+extern sva_property_t*
+pform_sva_tree_first_match(const struct vlltype&loc, sva_property_t*operand);
 /* Continue an arbitrary sequence-combinator tree through a fixed cycle
    delay and a linear suffix, e.g. `(a and b) ##0 c'. */
 extern sva_property_t*

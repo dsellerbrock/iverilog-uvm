@@ -116,12 +116,17 @@ void emit_std_types(ostream&fd)
 {
     fd << "`ifndef __VHDL_STD_TYPES" << endl;
     fd << "`define __VHDL_STD_TYPES" << endl;
-    typedef_context_t typedef_ctx;
-    for(map<perm_string, VTypeDef*>::iterator cur = std_types.begin();
-            cur != std_types.end() ; ++ cur) {
-        cur->second->emit_typedef(fd, typedef_ctx);
+    // Share one enum declaration between the generated packages and modules.
+    fd << "package __ivl_vhdl_std;" << endl;
+    for (const auto& entry : std_types) {
+        const VTypeDef*type = entry.second;
+        fd << "typedef ";
+        type->peek_definition()->emit_def(fd, type->peek_name());
+        fd << " ;" << endl;
     }
+    fd << "endpackage" << endl;
     fd << "`endif" << endl;
+    fd << "import __ivl_vhdl_std::*;" << endl;
 }
 
 bool is_global_type(perm_string name)

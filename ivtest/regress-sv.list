@@ -311,6 +311,10 @@ sv_assert_first_match_variable_call_continuation_fail CE,-g2017,-gassertions,-gn
 sv_assert_first_match_variable_call_continuation_fail_2023 CE,-g2023,-gassertions,-gno-icarus-misc,-gno-xtypes,-s,sv_assert_first_match_variable_call_continuation_fail ivltests gold=sv_assert_first_match_variable_call_continuation_fail_2023.gold
 sv_assert_first_match_sequence_combinators normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_sequence_combinators.gold
 sv_assert_first_match_sequence_combinators_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_sequence_combinators.gold
+sv_assert_first_match_tree normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_tree.gold
+sv_assert_first_match_tree_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_tree.gold
+sv_assert_first_match_tree_property_fail CE,-g2017,-gassertions ivltests gold=sv_assert_first_match_tree_property_fail_2017.gold
+sv_assert_first_match_tree_property_fail_2023 CE,-g2023,-gassertions ivltests gold=sv_assert_first_match_tree_property_fail_2023.gold
 issue1387_if_property_dist_condition_2017 normal,-g2017,-gassertions,-s,issue1387_if_property_dist_condition ivltests gold=issue1387_if_property_dist_condition.gold
 issue1387_if_property_dist_condition_2023 normal,-g2023,-gassertions,-s,issue1387_if_property_dist_condition ivltests gold=issue1387_if_property_dist_condition.gold
 sv_assert_function_side_effect_fail CE,-g2017,-gassertions ivltests
@@ -2964,6 +2968,8 @@ sv_rootless_verilog_fail CE,-g2005 ivltests gold=sv_rootless_verilog_fail.gold
 
 # IEEE 1800-2023 EVCD port dumping and controls
 sv_dumpports_runtime normal,-g2012 ivltests gold=sv_dumpports_runtime.gold
+issue3820_2017 normal,-g2017,-s,issue3820 ivltests gold=issue3820-vvp-stdout.gold
+issue3820_2023 normal,-g2023,-s,issue3820 ivltests gold=issue3820-vvp-stdout.gold
 sv_dumpports_multifile normal,-g2012 ivltests gold=sv_dumpports_multifile.gold
 sv_dumpports_limit_prestart normal,-g2012 ivltests gold=sv_dumpports_limit_prestart.gold
 sv_dumpports_finish_pending normal,-g2012 ivltests gold=sv_dumpports_finish_pending.gold
@@ -5636,6 +5642,12 @@ sv_constraint_external_handle_state normal,-g2017,-s,top ivltests gold=sv_constr
 sv_constraint_external_handle_state_2023 normal,-g2023,-s,top ivltests gold=sv_constraint_external_handle_state.gold
 sv_constraint_external_handle_order_fail CE,-g2017,-s,top ivltests gold=sv_constraint_external_handle_order_fail.gold
 sv_constraint_external_handle_order_fail_2023 CE,-g2023,-s,top ivltests gold=sv_constraint_external_handle_order_fail.gold
+issue3830_state_2017 CE,-g2017,-s,top ivltests gold=issue3830_state_2017.gold
+issue3830_state_unsafe_2017 CE,-g2017,-gcommercial-unsafe,-s,top ivltests gold=issue3830_state_2017.gold
+issue3830_qualified_2017 normal,-g2017,-s,top ivltests gold=issue3830_qualified.gold
+issue3830_state_2023 CE,-g2023,-DISSUE3830_SIZE,-s,top ivltests gold=issue3830_state_2023.gold
+issue3830_state_unsafe_2023 CE,-g2023,-gcommercial-unsafe,-DISSUE3830_SIZE,-s,top ivltests gold=issue3830_state_2023.gold
+issue3830_qualified_2023 normal,-g2023,-s,top ivltests gold=issue3830_qualified.gold
 
 # X/Z caller state in constraints (18.3).
 sv_constraint_state_xz normal,-g2017,-s,top ivltests gold=sv_constraint_state_xz.gold
@@ -5991,6 +6003,8 @@ sv_real_conversion_constant_2017 normal,-g2017,-s,main ivltests gold=sv_real_con
 sv_real_conversion_constant_2023 normal,-g2023,-s,main ivltests gold=sv_real_conversion_constant.gold
 sv_ref_event_nonintegral_actual normal,-g2017,-s,main ivltests gold=sv_ref_event_nonintegral_actual.gold
 sv_ref_event_nonintegral_actual_2023 normal,-g2023,-s,main ivltests gold=sv_ref_event_nonintegral_actual.gold
+sv_ref_event_fixed_word_2017 normal,-g2017,-s,sv_ref_event_fixed_word ivltests gold=sv_ref_event_fixed_word.gold
+sv_ref_event_fixed_word_2023 normal,-g2023,-s,sv_ref_event_fixed_word ivltests gold=sv_ref_event_fixed_word.gold
 sv_break_continue_labeled_block normal,-g2017,-s,main ivltests gold=sv_break_continue_labeled_block.gold
 sv_break_continue_labeled_block_2023 normal,-g2023,-s,main ivltests gold=sv_break_continue_labeled_block.gold
 sv_randomize_joint_fixed_var_coupling normal,-g2017,-s,main ivltests gold=sv_randomize_joint_fixed_var_coupling.gold
@@ -6750,6 +6764,14 @@ sva_assertcontrol_2017 normal,-g2017,-s,sva_assertcontrol ivltests gold=sva_asse
 sva_assertcontrol_2023 normal,-g2023,-s,sva_assertcontrol ivltests gold=sva_assertcontrol.gold
 sva_proc_queue_2017 normal,-g2017,-s,sva_proc_queue ivltests gold=sva_proc_queue.gold
 sva_proc_queue_2023 normal,-g2023,-s,sva_proc_queue ivltests gold=sva_proc_queue.gold
+sva_proc_composite_queue_2017 normal,-g2017,-s,sva_proc_composite_queue ivltests
+sva_proc_composite_queue_2023 normal,-g2023,-s,sva_proc_composite_queue ivltests
+sva_proc_composite_order_2017 normal,-g2017,-s,sva_proc_composite_order ivltests
+sva_proc_composite_order_2023 normal,-g2023,-s,sva_proc_composite_order ivltests
+sva_proc_composite_capture_fail_2017 CE,-g2017,-s,sva_proc_composite_capture_fail ivltests gold=sva_proc_composite_capture_fail.gold
+sva_proc_composite_capture_fail_2023 CE,-g2023,-s,sva_proc_composite_capture_fail ivltests gold=sva_proc_composite_capture_fail.gold
+sva_proc_composite_overflow_2017 RE,-g2017,-s,sva_proc_composite_overflow ivltests gold=sva_proc_composite_overflow.gold
+sva_proc_composite_overflow_2023 RE,-g2023,-s,sva_proc_composite_overflow ivltests gold=sva_proc_composite_overflow.gold
 
 issue2831_sdf_log_2017 normal,-g2017,-gspecify,-s,top ivltests gold=issue2831_sdf_log_2017.gold
 issue2831_sdf_log_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue2831_sdf_log_2023.gold
@@ -6946,6 +6968,8 @@ pla_ascending_3313_2023 normal,-g2023,-s,pla_ascending_3313 ivltests gold=pla_as
 issue3309_dist_property_2017 normal,-g2017,-s,issue3309_dist_property ivltests gold=issue3309_dist_property.gold
 issue3309_dist_property_2023 normal,-g2023,-s,issue3309_dist_property ivltests gold=issue3309_dist_property.gold
 issue3309_dist_default_2017 CE,-g2017 ivltests gold=issue3309_dist_default_2017.gold
+issue3317_2017 normal,-g2017,-s,issue3317 ivltests gold=issue3317.gold
+issue3317_2023 normal,-g2023,-s,issue3317 ivltests gold=issue3317.gold
 issue3318_wired_strength_2017 normal,-g2017,-s,top ivltests gold=issue3318_wired_strength_2017.gold
 issue3318_wired_strength_2023 normal,-g2023,-s,top ivltests gold=issue3318_wired_strength_2023.gold
 issue3321_vector_bit_strength_2017 normal,-g2017,-s,top ivltests gold=issue3321_vector_bit_strength.gold
@@ -7126,3 +7150,23 @@ issue3751_2017 normal,-g2017,-s,issue3751 ivltests gold=issue3751.gold
 issue3751_2023 normal,-g2023,-s,issue3751 ivltests gold=issue3751.gold
 issue3782_2017 normal,-g2017,-s,issue3782 ivltests gold=issue3782.gold
 issue3782_2023 normal,-g2023,-s,issue3782 ivltests gold=issue3782.gold
+issue2972_constraint_scope_fail_2017 CE,-g2017,-s,top ivltests gold=issue2972_constraint_scope_fail.gold
+issue2972_constraint_scope_fail_2023 CE,-g2023,-s,top ivltests gold=issue2972_constraint_scope_fail.gold
+issue2972_constraint_scope_2017 normal,-g2017,-s,top ivltests gold=issue2972_constraint_scope.gold
+issue2972_constraint_scope_2023 normal,-g2023,-s,top ivltests gold=issue2972_constraint_scope.gold
+issue2978_constraint_mode_purity_2017 CE,-g2017,-s,test ivltests gold=issue2978_constraint_mode_purity.gold
+issue2978_constraint_mode_purity_2023 CE,-g2023,-s,test ivltests gold=issue2978_constraint_mode_purity.gold
+issue2978_constraint_mode_all_2017 normal,-g2017,-s,test ivltests gold=issue2978_constraint_mode_all.gold
+issue2978_constraint_mode_all_2023 normal,-g2023,-s,test ivltests gold=issue2978_constraint_mode_all.gold
+
+# IEEE 1800-2017/2023 26.2: package references to compilation-unit values.
+issue3768_ce_2017 CE,-g2017,-Iivltests,-s,test ivltests gold=issue3768_ce-iverilog-stderr.gold
+issue3768_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3768_unsafe.gold
+issue3768_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
+issue3768_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3768_ce-iverilog-stderr.gold
+issue3768_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3768_unsafe.gold
+issue3768_legal_2023 normal,-g2023,-Iivltests,-s,test ivltests
+issue819_net_2state_2017 normal,-g2017,-gno-xtypes,-s,issue2851_net_2state ivltests gold=issue2851_net_2state-vvp-stdout.gold
+issue819_net_2state_2023 normal,-g2023,-gno-xtypes,-s,issue2851_net_2state ivltests gold=issue2851_net_2state-vvp-stdout.gold
+issue3835_2017 normal,-g2017,-s,issue3835 ivltests gold=issue3835.gold
+issue3835_2023 normal,-g2023,-s,issue3835 ivltests gold=issue3835.gold

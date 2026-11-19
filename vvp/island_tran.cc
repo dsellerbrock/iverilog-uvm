@@ -21,6 +21,8 @@
 # include  "compile.h"
 # include  "symbols.h"
 # include  "schedule.h"
+# include  "resolv.h"
+# include  "vpi_priv.h"
 # include  <list>
 
 # include  "delay.h"
@@ -35,6 +37,10 @@ class vvp_island_tran : public vvp_island {
       void run_island() override;
       void count_drivers(vvp_island_port*port, unsigned bit_idx,
                          unsigned counts[3]) override;
+      bool link_evcd_branches() override;
+      void evcd_drivers(const evcd_island_endpoint&endpoint,
+			const __vpiScope*scope, unsigned bit,
+			evcd_island_side sides[2]) const override;
 };
 
 enum tran_state_t {
@@ -263,6 +269,101 @@ void vvp_island_tran::count_drivers(vvp_island_port*port, unsigned bit_idx,
         // Now count the drivers, pushing through the network as necessary.
       vvp_branch_ptr_t endpoint(branch, side);
       count_drivers_(endpoint, false, bit_idx, counts);
+}
+
+bool vvp_island_tran::link_evcd_branches()
+{
+      for (vvp_island_branch*cur = branches_; cur; cur = cur->next_branch) {
+	    const auto*branch = BRANCH_TRAN(cur);
+	    auto*a = static_cast<vvp_island_port*>(cur->a->fun)->evcd;
+	    auto*b = static_cast<vvp_island_port*>(cur->b->fun)->evcd;
+	    if (!a || !b) return false;
+	    if (branch->width) {
+		  if (branch->width != a->width || branch->part != b->width ||
+		      branch->offset >= a->width)
+			return false;
+	    } else if (branch->resistive || branch->en || a->width != b->width) {
+		  return false;
+	    }
+	    a->anchor = vvp_branch_ptr_t(cur, 0);
+	    b->anchor = vvp_branch_ptr_t(cur, 1);
+      }
+      return true;
+}
+
+static unsigned evcd_driver_side(const __vpiScope*owner, const __vpiScope*dut)
+{
+      for (const __vpiScope*scope = owner; scope; scope = scope->scope)
+	    if (scope == dut) return 1;
+      return 0;
+}
+
+void vvp_island_tran::evcd_drivers(const evcd_island_endpoint&endpoint,
+				  const __vpiScope*scope, unsigned bit,
+				  evcd_island_side sides[2]) const
+{
+      using entry = std::pair<vvp_branch_ptr_t, unsigned>;
+      std::vector<entry> work;
+      std::set<std::pair<vvp_net_t*, unsigned>> seen;
+      auto enqueue = [&](vvp_branch_ptr_t end, unsigned index) {
+	    vvp_net_t*net = end.port() ? end.ptr()->b : end.ptr()->a;
+	    if (seen.emplace(net, index).second)
+		  work.emplace_back(end, index);
+      };
+      enqueue(endpoint.anchor, bit);
+      while (!work.empty()) {
+	    const auto item = work.back();
+	    work.pop_back();
+	    const auto end = item.first;
+	    const unsigned index = item.second;
+	    vvp_net_t*net = end.port() ? end.ptr()->b : end.ptr()->a;
+	    auto*port = static_cast<vvp_island_port*>(net->fun);
+	    const auto&local = *port->evcd;
+	    vvp_scalar_t local_value[2];
+	    // Visiting an endpoint bit once visits each of its source-slot
+	    // bits once, even when two tied port paths reach this endpoint.
+	    for (unsigned idx = 0; idx < local.sources.size(); idx += 1) {
+		  const auto&slot = local.sources[idx];
+		  if (index < slot.base || index - slot.base >= slot.width) continue;
+		  const unsigned side = evcd_driver_side(slot.scope, scope);
+		  sides[side].present = true;
+		  vvp_scalar_t value;
+		  if (idx == local.driver_count) {
+			value = vvp_scalar_t(local.pull == 1 ? BIT4_0 : BIT4_1, 5, 5);
+		  } else if (local.resolver) {
+			value = local.resolver->evcd_driver(idx, index);
+		  } else if (index < port->invalue.size()) {
+			value = port->invalue.value(index);
+		  }
+		  if (value.is_hiz()) continue;
+		  sides[side].active += 1;
+		  local_value[side] = local.resolver
+			? local.resolver->evcd_resolve(local_value[side], value)
+			: resolve(local_value[side], value);
+	    }
+	    for (unsigned side = 0; side < 2; side += 1)
+		  sides[side].value = resolve(sides[side].value, local_value[side]);
+
+	    auto edge = end;
+	    do {
+		  const auto*branch = BRANCH_TRAN(edge.ptr());
+		  unsigned mapped = index;
+		  if (branch->width) {
+			if (edge.port()) {
+			      // The selected part can extend past the wide endpoint.
+			      if (index >= branch->width - branch->offset)
+				    continue;
+			      mapped += branch->offset;
+			} else {
+			      if (index < branch->offset ||
+				  index - branch->offset >= branch->part)
+				    continue;
+			      mapped -= branch->offset;
+			}
+		  }
+		  enqueue(vvp_branch_ptr_t(edge.ptr(), edge.port() ^ 1), mapped);
+	    } while ((edge = next(edge)) != end);
+      }
 }
 
 void vvp_island_branch_tran::run_test_enabled()
@@ -518,8 +619,17 @@ void compile_island_tranif(int sense, char*island, char*pa, char*pb, char*pe,
                            bool resistive, char*desc)
 {
       vvp_island*use_island = compile_find_island(island);
-      assert(use_island);
       free(island);
+
+      if (!use_island || !use_island->find_port(pa) || !use_island->find_port(pb)) {
+	    fprintf(stderr, "vvp: invalid tran island or endpoint.\n");
+	    compile_errors += 1;
+	    free(pa);
+	    free(pb);
+	    free(pe);
+	    delete[] desc;
+	    return;
+      }
 
       vvp_net_t*en = NULL;
 
@@ -546,8 +656,16 @@ void compile_island_tranvp(char*island, char*pa, char*pb,
 			   unsigned wid, unsigned par, unsigned off)
 {
       vvp_island*use_island = compile_find_island(island);
-      assert(use_island);
       free(island);
+
+      if (!use_island || !use_island->find_port(pa) || !use_island->find_port(pb) ||
+	  !wid || !par || off >= wid) {
+	    fprintf(stderr, "vvp: invalid tranvp island, endpoint or range.\n");
+	    compile_errors += 1;
+	    free(pa);
+	    free(pb);
+	    return;
+      }
 
       vvp_island_branch_tran*br = new vvp_island_branch_tran(NULL, false,
                                                              wid, par, off, false);

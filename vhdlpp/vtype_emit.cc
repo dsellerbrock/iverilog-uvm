@@ -259,6 +259,12 @@ int VTypeDef::emit_decl(ostream&out, perm_string name, bool reg_flag) const
 
 int VTypeDef::emit_typedef(ostream&out, typedef_context_t&ctx) const
 {
+      // emit_std_types() defines these shared types once. A user typedef
+      // depending on one of them must keep that enum's identity.
+      if (this == &type_BOOLEAN || this == &type_FILE_OPEN_KIND
+	  || this == &type_FILE_OPEN_STATUS)
+	    return 0;
+
 	// The typedef_context_t is used by me to determine if this
 	// typedef has already been emitted in this architecture. If
 	// it has, then it is MARKED, give up. Otherwise, recurse the

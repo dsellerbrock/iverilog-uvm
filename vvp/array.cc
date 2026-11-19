@@ -483,7 +483,7 @@ int __vpiArray::get_word_size() const
 	    assert(vals4 == 0 && vals == 0);
 	    struct __vpiSignal*vsig = dynamic_cast<__vpiSignal*>(nets[0]);
 	    assert(vsig);
-	    width = vpip_size(vsig);
+	    width = vsig->width();
 	/* For a variable array we can get the width from vals_width. */
       } else {
 	    assert(vals4 || vals);
@@ -1547,7 +1547,7 @@ void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4
       struct __vpiSignal*vsig = dynamic_cast<__vpiSignal*>(word);
       assert(vsig);
 
-      vsig->node->send_vec4_pv(val, part_off, vpip_size(vsig), 0);
+      vsig->node->send_vec4_pv(val, part_off, vsig->width(), 0);
       word_change(address);
 }
 
@@ -1890,22 +1890,59 @@ void __vpiArray::attach_word(unsigned addr, vpiHandle word)
       }
 }
 
-static void send_word_to_edge_probe_(__vpiArray*array, unsigned addr,
-				     vvp_net_t*probe)
+template <class Probes, class Arg, class Value>
+static void send_word_sample_(const Probes&probes,
+                             void (vvp_net_fun_t::*recv)(vvp_net_ptr_t, Arg,
+                                                        vvp_context_t),
+                             const Value&value)
 {
-      assert(array);
-      assert(probe && probe->fun);
-      vvp_net_ptr_t port(probe, 0);
+      for (vvp_net_t*probe : probes)
+            if (vvp_net_fun_t*fun = probe->fun)
+                  (fun->*recv)(vvp_net_ptr_t(probe, 0), value, 0);
+}
+
+/* Read the visible word once before any probe can run callbacks. A ref
+ * relay supplies its own destination context when forwarding the sample. */
+template <class Probes>
+static void send_word_to_probes_(__vpiArray*array, unsigned addr,
+                                 const Probes&probes)
+{
       if (vpi_array_is_real(array)) {
-	    probe->fun->recv_real(port, array->get_word_r(addr), 0);
+	    send_word_sample_(probes, &vvp_net_fun_t::recv_real, array->get_word_r(addr));
       } else if (vpi_array_is_string(array)) {
-	    probe->fun->recv_string(port, array->get_word_str(addr), 0);
+	    send_word_sample_(probes, &vvp_net_fun_t::recv_string, array->get_word_str(addr));
       } else if (vpi_array_is_object(array)) {
 	    vvp_object_t value;
 	    array->get_word_obj(addr, value);
-	    probe->fun->recv_object(port, value, 0);
+	    send_word_sample_(probes, &vvp_net_fun_t::recv_object, value);
       } else {
-	    probe->fun->recv_vec4(port, array->get_word(addr), 0);
+	    send_word_sample_(probes, &vvp_net_fun_t::recv_vec4, array->get_word(addr));
+      }
+}
+
+static void send_word_to_edge_probe_(__vpiArray*array, unsigned addr,
+				     vvp_net_t*probe)
+{
+      vvp_net_t*probes[] = {probe};
+      send_word_to_probes_(array, addr, probes);
+}
+
+void __vpiArray::attach_word_ref_relay(unsigned addr, vvp_net_t*relay)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      owner->word_ref_relays_.emplace(addr, relay);
+      send_word_to_edge_probe_(owner, addr, relay);
+}
+
+void __vpiArray::detach_word_ref_relay(unsigned addr, vvp_net_t*relay)
+{
+      auto&relays = canonical_value_owner_()->word_ref_relays_;
+      auto range = relays.equal_range(addr);
+      for (auto cur = range.first; cur != range.second; ++cur) {
+            if (cur->second == relay) {
+                  relays.erase(cur);
+                  return;
+            }
       }
 }
 
@@ -2513,6 +2550,18 @@ void __vpiArray::notify_word_change_(unsigned long addr)
       if (owner != this) {
             owner->notify_word_change_(addr);
             return;
+      }
+
+      if (!word_ref_relays_.empty() && addr < get_size()) {
+            auto range = word_ref_relays_.equal_range(static_cast<unsigned>(addr));
+            if (range.first != range.second) {
+                  /* A callback may detach a relay during dispatch. Its net
+                   * stays alive with a null functor until deferred reclamation. */
+                  std::vector<vvp_net_t*> probes;
+                  for (auto cur = range.first; cur != range.second; ++cur)
+                        probes.push_back(cur->second);
+                  send_word_to_probes_(this, static_cast<unsigned>(addr), probes);
+            }
       }
 
       if (value_views_.empty()) {

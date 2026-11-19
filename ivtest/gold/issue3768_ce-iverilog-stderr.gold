@@ -1,0 +1,11 @@
+ivltests/issue3768_values.v:13: error: Package `access_values' refers to compilation-unit value `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:25: error: Package `access_values' refers to compilation-unit value `ready' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:17: error: Package `access_values' refers to compilation-unit value `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:18: error: Package `access_values' refers to compilation-unit value `ready' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:19: error: Package `access_values' refers to compilation-unit value `ready' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:21: error: Package `access_values' refers to compilation-unit value `deferred' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:8: error: Package `access_values' refers to compilation-unit value `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:9: error: Package `access_values' refers to compilation-unit value `unit_step' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:10: error: Package `access_values' refers to compilation-unit value `UNIT_ENUM' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:30: error: Package `access_values' refers to compilation-unit value `unit_value' (IEEE 1800-2017/2023 26.2).
+10 error(s) during elaboration.

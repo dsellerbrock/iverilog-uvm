@@ -1,0 +1,2 @@
+sv_ref_event_fixed_word_2017 normal,-g2017,-s,sv_ref_event_fixed_word ivltests gold=sv_ref_event_fixed_word.gold
+sv_ref_event_fixed_word_2023 normal,-g2023,-s,sv_ref_event_fixed_word ivltests gold=sv_ref_event_fixed_word.gold

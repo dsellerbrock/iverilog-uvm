@@ -975,6 +975,20 @@ class vvp_scalar_t {
       unsigned strength0() const;
       unsigned strength1() const;
 
+	// Endpoints on the signed strength scale from supply0 (-7) to supply1 (7).
+      int low_endpoint() const
+            { return (value_ & 0x08) ? (value_ & 7) : -(value_ & 7); }
+      int high_endpoint() const
+            { return (value_ & 0x80) ? ((value_ >> 4) & 7) : -((value_ >> 4) & 7); }
+      static vvp_scalar_t from_endpoints(int low, int high)
+      {
+            assert(-7 <= low && low <= high && high <= 7);
+            unsigned l = low > 0 ? low | 8 : -low;
+            // An interval ending at HiZ from below is L (logic X).
+            unsigned h = high > 0 || (high == 0 && low < 0) ? high | 8 : -high;
+            return vvp_scalar_t(static_cast<unsigned char>(l | (h << 4)));
+      }
+
       bool eeq(vvp_scalar_t that) const { return value_ == that.value_; }
       bool is_hiz() const { return (value_ & 0x77) == 0; }
 

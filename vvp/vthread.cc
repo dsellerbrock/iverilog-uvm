@@ -7308,6 +7308,32 @@ bool of_CONSTRAINT_MODE(vthread_t thr, vvp_code_t cp)
 }
 
 /*
+ * %constraint_mode/all
+ *
+ * Pop the mode and receiver once, then set every constraint on the
+ * actual object, including constraints declared in derived classes.
+ */
+bool of_CONSTRAINT_MODE_ALL(vthread_t thr, vvp_code_t)
+{
+      const vvp_vector4_t*mode_vec = thr->safe_peek_vec4(0);
+      if (!mode_vec || !mode_vec->size() || !thr->object_stack_size()) {
+	    fprintf(stderr, "vvp: malformed %%constraint_mode/all stack operands.\n");
+	    return true;
+      }
+      bool mode = (mode_vec->value(0) == BIT4_1);
+      thr->pop_vec4();
+
+      vvp_object_t obj;
+      thr->pop_object(obj);
+      if (vvp_cobject*cobj = obj.peek<vvp_cobject>()) {
+	    size_t count = cobj->get_defn()->constraint_count();
+	    for (size_t cid = 0; cid < count; ++cid)
+		  cobj->set_constraint_mode(cid, mode);
+      }
+      return true;
+}
+
+/*
  * %constraint_mode/get N
  *
  * Read constraint_mode for constraint index N of the cobject on the
@@ -16306,7 +16332,10 @@ static void resume_joining_parent_(vthread_t parent, vthread_t child)
             vthread_run(parent);
             running_thread = child;
       } else if (!parent->i_have_ended) {
-            schedule_vthread(parent, 0, true);
+	    if (parent->is_reactive_process && !parent->program_scope)
+		  schedule_vthread_reactive_front(parent);
+	    else
+		  schedule_vthread(parent, 0, true);
       }
 }
 
@@ -23355,10 +23384,11 @@ static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 		      /* A child inherits its parent's program/Reactive affinity.
 			 The front-push path is hard-wired to SEQ_ACTIVE, so use it
 			 only for an ordinary design thread. */
-		    /* Run the called task before another report overwrites its
-		       static input formals; stay in the Reactive region. */
-		    if (thr->is_observed_report_action && !child_is_process
-		        && cp->scope->get_type_code() == vpiTask)
+		    /* Calls and sequential blocks belong to this action. Run
+		       them ahead of later assertion actions in the same region. */
+		    if (child->is_fork_v_child
+			&& (thr->is_observed_report_action
+			    || (thr->is_reactive_process && !thr->program_scope)))
 			  schedule_vthread_reactive_front(child);
 		    else
 			  schedule_vthread(child, 0, !vthread_is_reactive(child));
@@ -34947,7 +34977,9 @@ bool of_REF_BIND_W(vthread_t thr, vvp_code_t cp)
 {
       vvp_vector4_t idxv = thr->pop_vec4();
       int64_t use_index = -1;
-      bool defined = vector4_to_value(idxv, use_index, true, false);
+      bool valid = cp->array && checked_property_index_value_(idxv, true, use_index)
+                   && use_index >= 0
+                   && static_cast<uint64_t>(use_index) < cp->array->get_size();
       vvp_ref_signal_aa*formal =
 	    dynamic_cast<vvp_ref_signal_aa*> (cp->net2->fil);
       if (!formal) {
@@ -34955,10 +34987,10 @@ bool of_REF_BIND_W(vthread_t thr, vvp_code_t cp)
 	    assert(formal);
 	    return true;
       }
-      if (!defined || use_index < 0)
-        formal->bind_word(cp->net2, 0, 0);
+      if (valid)
+            formal->bind_word(cp->net2, cp->array, static_cast<unsigned>(use_index));
       else
-        formal->bind_word(cp->net2, cp->array, (unsigned)use_index);
+            formal->bind_word(cp->net2, 0, 0);
       return true;
 }
 

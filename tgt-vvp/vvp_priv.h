@@ -107,6 +107,8 @@ extern int emit_vpi_primitive_metadata_scope(ivl_scope_t scope, void *unused);
    automatic declarations. */
 extern int scope_needs_call_frame(ivl_scope_t scope);
 extern void reset_evcd_metadata_budget(void);
+extern void classify_evcd_islands(ivl_scope_t scope);
+extern int evcd_island_sources(ivl_island_t island);
 extern void note_array_signal_use(ivl_signal_t sig);
 extern void draw_sampled_load(ivl_expr_t operand);
 extern void emit_deferred_array_decls(void);

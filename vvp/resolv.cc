@@ -23,6 +23,7 @@
 # include  "compile.h"
 # include  "statistics.h"
 # include  "vpi_priv.h"
+# include  "vvp_island.h"
 # include  <iostream>
 # include  <algorithm>
 # include  <cassert>
@@ -36,10 +37,8 @@ using namespace std;
  * the resolver is implemented using a balanced quaternary tree, so
  * the core functor also stores the current value for each branch
  * of the tree, to eliminate the need to re-evaluate branches whose
- * inputs haven't changed. The tree values are flattened into a linear
- * array, with the input values stored at the start of the array, then
- * the next level of branch values, and so on, down to the final array
- * array element which stores the current output value.
+ * inputs haven't changed. Nodes are numbered by level, starting with
+ * the inputs, then the first level of branches, down to the output.
  */
 
 
@@ -90,6 +89,11 @@ void resolv_core::notify_driver_activity()
             net_->fil->notify_driver_activity();
 }
 
+vvp_scalar_t resolv_core::evcd_resolve(vvp_scalar_t a, vvp_scalar_t b) const
+{
+      return resolve(a, b);
+}
+
 void resolv_core::recv_vec4_pv_(unsigned port, const vvp_vector4_t&bit,
 				unsigned base, unsigned vwid)
 {
@@ -137,34 +141,113 @@ resolv_extend::~resolv_extend()
 }
 
 
-resolv_tri::resolv_tri(unsigned nports, vvp_net_t*net, vvp_scalar_t hiz_value)
-: resolv_core(nports, net), hiz_value_(hiz_value)
-{
-        // count the input (leaf) nodes
-      unsigned nnodes = nports;
+// Keep the original ambiguous ranges separate from the strongest known
+// drivers. Resolving a partial driver set to vec8 loses that distinction.
+struct resolv_tri::strength_summary {
+      enum { ZERO = 1, ONE = 2, BOTH = ZERO | ONE };
 
-        // add in the intermediate branch nodes
+      signed char low = 7;
+      signed char high = -7;
+      unsigned char strength = 0;
+      unsigned char polarities = 0;
+
+      void add_known(unsigned char str, unsigned char mask)
+      {
+            if (str > strength) {
+                  strength = str;
+                  polarities = mask;
+            } else if (str == strength) {
+                  polarities |= mask;
+            }
+      }
+
+      void add_driver(vvp_scalar_t driver)
+      {
+            if (driver.is_hiz())
+                  return;
+            int lo = driver.low_endpoint();
+            int hi = driver.high_endpoint();
+            if (lo == hi) {
+                  add_known(lo < 0 ? -lo : lo, lo < 0 ? ZERO : ONE);
+            } else {
+                  low = min<int>(low, lo);
+                  high = max<int>(high, hi);
+            }
+      }
+
+      void merge(const strength_summary& that)
+      {
+            low = min(low, that.low);
+            high = max(high, that.high);
+            add_known(that.strength, that.polarities);
+      }
+
+      bool operator==(const strength_summary& that) const
+      {
+            return low == that.low && high == that.high
+                && strength == that.strength && polarities == that.polarities;
+      }
+
+      vvp_scalar_t result() const
+      {
+            // IEEE 1800 28.12.1-3: the strongest known drivers either
+            // form another ambiguous range or apply the mixed rule once.
+            if (polarities == BOTH)
+                  return vvp_scalar_t::from_endpoints(min<int>(low, -strength),
+                                                      max<int>(high, strength));
+
+            vvp_scalar_t ambiguous;
+            if (low <= high)
+                  ambiguous = vvp_scalar_t::from_endpoints(low, high);
+            if (polarities == 0)
+                  return ambiguous;
+            vvp_scalar_t known(polarities == ZERO ? BIT4_0 : BIT4_1,
+                               strength, strength);
+            return resolve(known, ambiguous);
+      }
+};
+
+resolv_tri::resolv_tri(unsigned nports, vvp_net_t*net, vvp_scalar_t hiz_value)
+: resolv_core(nports, net), hiz_value_(hiz_value),
+  val_(new vvp_vector8_t[nports]), branches_(nullptr)
+{
+      unsigned nbranches = 0;
       while (nports > 4) {
             nports = (nports + 3) / 4;
-            nnodes += nports;
+            nbranches += nports;
       }
-        // add one more node for storing the output value
-        // (not needed if there is only one input)
-      if (nnodes > 1)
-            nnodes += 1;
-
-      val_ = new vvp_vector8_t [nnodes];
+      if (nbranches)
+            branches_ = new vector<strength_summary>[nbranches];
 }
 
 resolv_tri::~resolv_tri()
 {
       delete[] val_;
+      delete[] branches_;
 }
 
 void resolv_tri::replay_input(unsigned port, vvp_net_ptr_t dest) const
 {
       if (val_[port].size() > 0)
 	    dest.ptr()->fun->recv_vec8(dest, val_[port]);
+}
+
+void resolv_tri::watch_evcd(vvp_island*island)
+{
+      if (!evcd_island_ && nports_ == 1 && !hiz_value_.is_hiz()) {
+	    // The one-input tree normally blends the pull into its only leaf.
+	    // Keep the raw leaf separately for EVCD before simulation starts.
+	    assert(val_[0].size() == 0);
+	    delete[] val_;
+	    val_ = new vvp_vector8_t[2];
+      }
+      resolv_core::watch_evcd(island);
+}
+
+vvp_scalar_t resolv_tri::evcd_driver(unsigned slot, unsigned bit) const
+{
+      const auto&leaf = val_[nports_ == 1 && !hiz_value_.is_hiz() ? 1 : slot];
+      return bit < leaf.size() ? leaf.value(bit) : vvp_scalar_t();
 }
 
 void resolv_tri::recv_vec4_(unsigned port, const vvp_vector4_t&bit)
@@ -176,54 +259,89 @@ void resolv_tri::recv_vec8_(unsigned port, const vvp_vector8_t&bit)
 {
       assert(port < nports_);
 
+      if (evcd_island_ && nports_ == 1 && !hiz_value_.is_hiz()) {
+	    if (!val_[1].eeq(bit)) {
+		  val_[1] = bit;
+		  evcd_island_->notify_evcd();
+	    }
+      }
       if (val_[port].eeq(bit))
 	    return;
 
       val_[port] = bit;
+      if (evcd_island_ && (nports_ != 1 || hiz_value_.is_hiz()))
+	    evcd_island_->notify_evcd();
 
-        // Starting at the leaf level, work down the tree, resolving
-        // the changed values. base is the first node in the current
-        // level and span is the number of nodes at that level. ip
-        // is the first node in the group of four nodes at that level
-        // that include the node that has changed, and op is the node
-        // at the next level that stores the resolved value from that
-        // group.
+        // Rebuild the group of up to four nodes containing the changed
+        // port. Then propagate its summary toward the root.
       unsigned base = 0;
       unsigned span = nports_;
-      while (span > 1) {
+      do {
             unsigned next_base = base + span;
-            unsigned ip = base + (port & ~0x3);
-            unsigned op = next_base + (port / 4);
-            unsigned ll = min(ip + 4, next_base);
-
-            vvp_vector8_t out = val_[ip];
-            for (ip = ip + 1; ip < ll; ip += 1) {
-                  if (val_[ip].size() == 0)
+            unsigned first = base + (port & ~0x3);
+            unsigned limit = min(first + 4, next_base);
+            unsigned width = 0;
+            for (unsigned node = first; node < limit; ++node) {
+                  unsigned size = base == 0 ? val_[node].size()
+                                           : branches_[node - nports_].size();
+                  if (size == 0)
                         continue;
-                  if (out.size() == 0)
-                        out = val_[ip];
-                  else
-                        out = resolve(out, val_[ip]);
+                  assert(width == 0 || width == size);
+                  width = size;
             }
-            if (val_[op].eeq(out)) {
+
+            const auto summarize_bit = [&](unsigned idx) {
+                  strength_summary summary;
+                  if (base == 0) {
+                        for (unsigned node = first; node < limit; ++node) {
+                              const auto& input = val_[node];
+                              if (input.size())
+                                    summary.add_driver(input.value(idx));
+                        }
+                  } else {
+                        for (unsigned node = first; node < limit; ++node) {
+                              const auto& input = branches_[node - nports_];
+                              if (!input.empty())
+                                    summary.merge(input[idx]);
+                        }
+                  }
+                  return summary;
+            };
+
+            if (span <= 4) {
+                  vvp_vector8_t out(width);
+                  for (unsigned idx = 0; idx < width; ++idx) {
+                        strength_summary summary = summarize_bit(idx);
+                        summary.add_driver(hiz_value_);
+                        out.set_bit(idx, summary.result());
+                  }
+                  if (out_.eeq(out)) {
+                        notify_driver_activity();
+                  } else {
+                        out_ = out;
+                        net_->send_vec8(out);
+                  }
+                  return;
+            }
+
+            port /= 4;
+            auto& cached = branches_[next_base + port - nports_];
+            bool changed = cached.size() != width;
+            cached.resize(width);
+            for (unsigned idx = 0; idx < width; ++idx) {
+                  strength_summary summary = summarize_bit(idx);
+                  if (!(cached[idx] == summary)) {
+                        cached[idx] = summary;
+                        changed = true;
+                  }
+            }
+            if (!changed) {
                   notify_driver_activity();
                   return;
             }
-            val_[op] = out;
-
             base = next_base;
             span = (span + 3) / 4;
-            port = port / 4;
-      }
-
-      if (! hiz_value_.is_hiz()) {
-	    for (unsigned idx = 0 ;  idx < val_[base].size() ;  idx += 1) {
-		  val_[base].set_bit(idx, resolve(val_[base].value(idx),
-						  hiz_value_));
-	    }
-      }
-
-      net_->send_vec8(val_[base]);
+      } while (span > 1);
 }
 
 void resolv_tri::count_drivers(unsigned bit_idx, unsigned counts[3])
@@ -292,6 +410,16 @@ void resolv_wired_logic::replay_input(unsigned port, vvp_net_ptr_t dest) const
 	    dest.ptr()->fun->recv_vec8(dest, val_[port]);
 }
 
+vvp_scalar_t resolv_wired_logic::evcd_driver(unsigned slot, unsigned bit) const
+{
+      return bit < val_[slot].size() ? val_[slot].value(bit) : vvp_scalar_t();
+}
+
+vvp_scalar_t resolv_wired_logic::evcd_resolve(vvp_scalar_t a, vvp_scalar_t b) const
+{
+      return resolve_wired(a, b, wired_or_());
+}
+
 void resolv_wired_logic::recv_vec4_(unsigned port, const vvp_vector4_t&bit)
 {
       recv_vec8_(port, vvp_vector8_t(bit, 6, 6));
@@ -305,6 +433,8 @@ void resolv_wired_logic::recv_vec8_(unsigned port, const vvp_vector8_t&bit)
 	    return;
 
       val_[port] = bit;
+      if (evcd_island_)
+	    evcd_island_->notify_evcd();
 
         // Starting at the leaf level, work down the tree, resolving
         // the changed values. base is the first node in the current

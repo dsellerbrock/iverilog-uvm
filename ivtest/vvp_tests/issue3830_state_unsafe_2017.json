@@ -1,0 +1,1 @@
+{"type":"CE","source":"issue3830_state_unsafe_2017.v","iverilog-args":["-g2017","-gcommercial-unsafe","-s","top"],"gold":"issue3830_state_2017"}

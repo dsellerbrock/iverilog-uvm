@@ -11630,9 +11630,15 @@ static NetExpr* resolve_class_event_method_target_(
       PEIdent event_id(event_path, lexical_pos);
       event_id.set_line(loc);
       unsigned unused_slot = 0;
-      return elaborate_class_event_target(
+      NetExpr*obj = elaborate_class_event_target(
 	    des, scope, &event_id, event_path,
 	    slot_out ? *slot_out : unused_slot);
+      if (obj && slot_out) {
+	    symbol_search_results binding;
+	    symbol_search(&loc, des, scope, path, lexical_pos, &binding);
+	    check_package_unit_value(des, loc, scope, binding);
+      }
+      return obj;
 }
 
 unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
@@ -12470,11 +12476,13 @@ static int let_expand_depth_ = 0;
 static const int LET_EXPAND_DEPTH_MAX = 64;
 
 static PExpr* let_clone_expr_(const PExpr*e,
-			      const std::map<perm_string,PExpr*>&subst);
+			      const std::map<perm_string,PExpr*>&subst,
+			      const NetScope*body_scope);
 
 static bool let_clone_index_list_(const std::list<index_component_t>&src,
 				  std::list<index_component_t>&dst,
-				  const std::map<perm_string,PExpr*>&subst)
+				  const std::map<perm_string,PExpr*>&subst,
+				  const NetScope*body_scope)
 {
       static const std::map<perm_string,PExpr*> no_subst;
       (void)no_subst;
@@ -12485,11 +12493,11 @@ static bool let_clone_index_list_(const std::list<index_component_t>&src,
 	    ic.msb = 0;
 	    ic.lsb = 0;
 	    if (cur->msb) {
-		  ic.msb = let_clone_expr_(cur->msb, subst);
+		  ic.msb = let_clone_expr_(cur->msb, subst, body_scope);
 		  if (ic.msb == 0) return false;
 	    }
 	    if (cur->lsb) {
-		  ic.lsb = let_clone_expr_(cur->lsb, subst);
+		  ic.lsb = let_clone_expr_(cur->lsb, subst, body_scope);
 		  if (ic.lsb == 0) return false;
 	    }
 	    dst.push_back(ic);
@@ -12498,7 +12506,8 @@ static bool let_clone_index_list_(const std::list<index_component_t>&src,
 }
 
 static PExpr* let_clone_expr_(const PExpr*e,
-			      const std::map<perm_string,PExpr*>&subst)
+			      const std::map<perm_string,PExpr*>&subst,
+			      const NetScope*body_scope)
 {
       static const std::map<perm_string,PExpr*> empty_subst;
 
@@ -12516,7 +12525,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 			= subst.find(head);
 		  if (path.name.size() == 1
 		      && path.name.front().index.empty()) {
-			return let_clone_expr_(bound->second, empty_subst);
+			return let_clone_expr_(bound->second, empty_subst, nullptr);
 		  }
 		    // Formal with select or member tail: graft the
 		    // tail onto the actual, which must itself be a
@@ -12529,7 +12538,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 			name_component_t comp(cur->name);
 			comp.local_scope = cur->local_scope;
 			if (!let_clone_index_list_(cur->index, comp.index,
-						   empty_subst))
+						   empty_subst, nullptr))
 			      return 0;
 			new_name.push_back(comp);
 		  }
@@ -12538,24 +12547,25 @@ static PExpr* let_clone_expr_(const PExpr*e,
 		    // tail of the actual, then any further components.
 		  pform_name_t::const_iterator bcur = path.name.begin();
 		  if (!let_clone_index_list_(bcur->index,
-					     new_name.back().index, subst))
+					     new_name.back().index, subst, body_scope))
 			return 0;
 		  for (++bcur ; bcur != path.name.end() ; ++bcur) {
 			name_component_t comp(bcur->name);
 			comp.local_scope = bcur->local_scope;
 			if (!let_clone_index_list_(bcur->index, comp.index,
-						   subst))
+						   subst, body_scope))
 			      return 0;
 			new_name.push_back(comp);
 		  }
 		  PEIdent*cp = act->path().package
-			? new PEIdent(act->path().package, new_name, UINT_MAX)
-			: new PEIdent(new_name, UINT_MAX);
+			? new PEIdent(act->path().package, new_name, act->lexical_pos())
+			: new PEIdent(new_name, act->lexical_pos());
 		  cp->set_borrowed_leading_type_args(act->leading_type_args());
 		  cp->set_scoped_type_prefix(act->has_scoped_type_prefix());
                   cp->set_dotted_suffix(act->has_dotted_suffix() || path.name.size() > 1);
 		  cp->set_clocking_access(act->clocking_access());
-		  cp->set_line(*e);
+		  cp->set_let_body_scope(act->let_body_scope());
+		  cp->set_line(*act);
 		  return cp;
 	    }
 
@@ -12566,7 +12576,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 		       ; cur != path.name.end() ; ++cur) {
 		  name_component_t comp(cur->name);
 		  comp.local_scope = cur->local_scope;
-		  if (!let_clone_index_list_(cur->index, comp.index, subst))
+		  if (!let_clone_index_list_(cur->index, comp.index, subst, body_scope))
 			return 0;
 		  new_name.push_back(comp);
 	    }
@@ -12577,6 +12587,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 	    cp->set_scoped_type_prefix(id->has_scoped_type_prefix());
             cp->set_dotted_suffix(id->has_dotted_suffix());
 	    cp->set_clocking_access(id->clocking_access());
+	    cp->set_let_body_scope(id->let_body_scope() ? id->let_body_scope() : body_scope);
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -12603,7 +12614,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
       }
 
       if (const PECastType*cast = dynamic_cast<const PECastType*>(e)) {
-	    PExpr*sub = let_clone_expr_(cast->cast_base(), subst);
+	    PExpr*sub = let_clone_expr_(cast->cast_base(), subst, body_scope);
 	    if (sub == 0) return 0;
 	    PECastType*cp = new PECastType(cast->cast_target(), sub,
 					   cast->truncate_real_to_integral());
@@ -12612,7 +12623,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
       }
 
       if (const PEUnary*un = dynamic_cast<const PEUnary*>(e)) {
-	    PExpr*sub = let_clone_expr_(un->get_expr(), subst);
+	    PExpr*sub = let_clone_expr_(un->get_expr(), subst, body_scope);
 	    if (sub == 0) return 0;
 	    PEUnary*cp = new PEUnary(un->get_op(), sub);
 	    cp->set_line(*e);
@@ -12620,8 +12631,8 @@ static PExpr* let_clone_expr_(const PExpr*e,
       }
 
       if (const PEBinary*bin = dynamic_cast<const PEBinary*>(e)) {
-	    PExpr*l = let_clone_expr_(bin->get_left(), subst);
-	    PExpr*r = let_clone_expr_(bin->get_right(), subst);
+	    PExpr*l = let_clone_expr_(bin->get_left(), subst, body_scope);
+	    PExpr*r = let_clone_expr_(bin->get_right(), subst, body_scope);
 	    if (l == 0 || r == 0) { delete l; delete r; return 0; }
 	    PEBinary*cp;
 	    if (dynamic_cast<const PEBComp*>(e))
@@ -12638,9 +12649,9 @@ static PExpr* let_clone_expr_(const PExpr*e,
       }
 
       if (const PETernary*ter = dynamic_cast<const PETernary*>(e)) {
-	    PExpr*co = let_clone_expr_(ter->get_cond(), subst);
-	    PExpr*tr = let_clone_expr_(ter->get_true(), subst);
-	    PExpr*fa = let_clone_expr_(ter->get_false(), subst);
+	    PExpr*co = let_clone_expr_(ter->get_cond(), subst, body_scope);
+	    PExpr*tr = let_clone_expr_(ter->get_true(), subst, body_scope);
+	    PExpr*fa = let_clone_expr_(ter->get_false(), subst, body_scope);
 	    if (co == 0 || tr == 0 || fa == 0) {
 		  delete co; delete tr; delete fa;
 		  return 0;
@@ -12654,13 +12665,13 @@ static PExpr* let_clone_expr_(const PExpr*e,
 	    std::list<PExpr*> parms;
 	    for (std::vector<PExpr*>::const_iterator cur = cat->stream_parms().begin()
 		       ; cur != cat->stream_parms().end() ; ++cur) {
-		  PExpr*sub = let_clone_expr_(*cur, subst);
+		  PExpr*sub = let_clone_expr_(*cur, subst, body_scope);
 		  if (sub == 0) return 0;
 		  parms.push_back(sub);
 	    }
 	    PExpr*rep = 0;
 	    if (cat->has_repeat()) {
-		  rep = let_clone_expr_(cat->repeat_expr(), subst);
+		  rep = let_clone_expr_(cat->repeat_expr(), subst, body_scope);
 		  if (rep == 0) return 0;
 	    }
 	    PEConcat*cp = new PEConcat(parms, rep);
@@ -12669,8 +12680,8 @@ static PExpr* let_clone_expr_(const PExpr*e,
       }
 
       if (const PECastSize*cast = dynamic_cast<const PECastSize*>(e)) {
-	    PExpr*size = let_clone_expr_(cast->cast_size(), subst);
-	    PExpr*base = let_clone_expr_(cast->cast_base(), subst);
+	    PExpr*size = let_clone_expr_(cast->cast_size(), subst, body_scope);
+	    PExpr*base = let_clone_expr_(cast->cast_base(), subst, body_scope);
 	    if (size == 0 || base == 0) { delete size; delete base; return 0; }
 	    PECastSize*cp = new PECastSize(size, base);
 	    cp->set_line(*e);
@@ -12678,7 +12689,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
       }
 
       if (const PECastType*cast = dynamic_cast<const PECastType*>(e)) {
-	    PExpr*base = let_clone_expr_(cast->cast_base(), subst);
+	    PExpr*base = let_clone_expr_(cast->cast_base(), subst, body_scope);
 	    if (base == 0) return 0;
 	    PECastType*cp = new PECastType(cast->cast_target(), base,
 					   cast->truncate_real_to_integral());
@@ -12688,7 +12699,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
       }
 
       if (const PECastSign*cast = dynamic_cast<const PECastSign*>(e)) {
-	    PExpr*base = let_clone_expr_(cast->cast_base(), subst);
+	    PExpr*base = let_clone_expr_(cast->cast_base(), subst, body_scope);
 	    if (base == 0) return 0;
 	    PECastSign*cp = new PECastSign(cast->has_sign(), base);
 	    cp->set_line(*e);
@@ -12709,7 +12720,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 		       ; cur != path.name.end() ; ++cur) {
 		  name_component_t comp(cur->name);
 		  comp.local_scope = cur->local_scope;
-		  if (!let_clone_index_list_(cur->index, comp.index, subst))
+		  if (!let_clone_index_list_(cur->index, comp.index, subst, body_scope))
 			return 0;
 		  new_name.push_back(comp);
 	    }
@@ -12719,7 +12730,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 		  new_parms[idx].name = src.name;
 		  new_parms[idx].parm = 0;
 		  if (src.parm) {
-			new_parms[idx].parm = let_clone_expr_(src.parm, subst);
+			new_parms[idx].parm = let_clone_expr_(src.parm, subst, body_scope);
 			if (new_parms[idx].parm == 0) return 0;
 		  }
 	    }
@@ -12735,6 +12746,8 @@ static PExpr* let_clone_expr_(const PExpr*e,
 		  cp->set_borrowed_leading_type_args(
 			call->leading_type_args());
 	    cp->set_scoped_type_prefix(call->has_scoped_type_prefix());
+	    cp->set_lexical_pos(call->lexical_pos());
+	    cp->set_let_body_scope(call->let_body_scope() ? call->let_body_scope() : body_scope);
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -12745,7 +12758,8 @@ static PExpr* let_clone_expr_(const PExpr*e,
 /* Bind call arguments to let formals and clone the body with the
    resulting substitution. Diagnoses arity/name errors loudly. */
 static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
-			  const std::vector<named_pexpr_t>&parms)
+			  const std::vector<named_pexpr_t>&parms,
+			  const NetScope*body_scope)
 {
       const std::list<PLet::let_port_t*>*ports = let->let_ports();
       std::vector<PLet::let_port_t*> plist;
@@ -12831,7 +12845,7 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
 		  des->errors += 1;
 		  return 0;
 	    }
-	    PExpr*defv = let_clone_expr_(plist[idx]->def_, binding);
+	    PExpr*defv = let_clone_expr_(plist[idx]->def_, binding, body_scope);
 	    if (defv == 0) {
 		  cerr << use.get_fileline() << ": sorry: the default "
 		       << "value expression for let port `"
@@ -12846,7 +12860,7 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
 			plist[idx]->type_, binding[plist[idx]->name_]);
       }
 
-      PExpr*body = let_clone_expr_(let->let_expr(), binding);
+      PExpr*body = let_clone_expr_(let->let_expr(), binding, body_scope);
       if (body == 0) {
 	    cerr << use.get_fileline() << ": sorry: the body of let `"
 		 << let->pscope_name() << "' (or an actual argument) has "
@@ -12868,14 +12882,15 @@ PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
       const name_component_t&comp = path_.name.front();
       if (!comp.index.empty()) return 0;
       if (comp.name[0] == '$') return 0;
-      NetScope*lookup = scope;
+      const NetScope*lookup = let_body_scope_ ? let_body_scope_ : scope;
       if (path_.package)
 	    lookup = des->find_package(path_.package->pscope_name());
-      PLet*let = lookup? lookup->find_let(des, comp.name, lexical_pos_) : 0;
+      const NetScope*owner = nullptr;
+      PLet*let = lookup ? lookup->find_let(des, comp.name, lexical_pos_, &owner) : nullptr;
       if (let == 0) return 0;
 
       let_subst_tried_ = true;
-      let_subst_ = let_expand_(des, *this, let, parms_);
+      let_subst_ = let_expand_(des, *this, let, parms_, owner);
       return let_subst_;
 }
 
@@ -12886,15 +12901,16 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
       if (path_.name.size() != 1) return 0;
       const name_component_t&comp = path_.name.front();
       if (!comp.index.empty()) return 0;
-      NetScope*lookup = scope;
+      const NetScope*lookup = let_body_scope_ ? let_body_scope_ : scope;
       if (path_.package)
 	    lookup = des->find_package(path_.package->pscope_name());
-      PLet*let = lookup? lookup->find_let(des, comp.name, lexical_pos()) : 0;
+      const NetScope*owner = nullptr;
+      PLet*let = lookup ? lookup->find_let(des, comp.name, lexical_pos(), &owner) : nullptr;
       if (let == 0) return 0;
 
       let_subst_tried_ = true;
       static const std::vector<named_pexpr_t> no_args;
-      let_subst_ = let_expand_(des, *this, let, no_args);
+      let_subst_ = let_expand_(des, *this, let, no_args, owner);
       return let_subst_;
 }
 
@@ -20064,6 +20080,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	  && (search_results.net || search_results.par_val || search_results.type)) {
 	    unsigned errors_before = des->errors;
 	    if (NetExpr*tmp = elaborate_expr_method_(des, scope, search_results)) {
+		  check_package_unit_value(des, *this, scope, search_results);
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 			     << "Elaborated method (preferred pre-scope path): "
@@ -20260,6 +20277,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  NetExpr*method_expr = elaborate_expr_method_(des, scope,
 						       search_results);
 		  if (method_expr) {
+		check_package_unit_value(des, *this, scope, search_results);
 			if (debug_elaborate) {
 			      cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 				   << "Elaborated method: " << *method_expr << endl;
@@ -27317,6 +27335,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 	    }
       }
 
+      if (!quiet_bind_)
+	    check_package_unit_value(des, *this, scope, sr);
       if (sr.par_val != 0) {
 	    if (!sr.path_tail.empty()) {
 		  return elaborate_expr_param_member_(des, scope, sr, flags);
@@ -28558,6 +28578,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	    }
       }
 
+      if (!quiet_bind_)
+	    check_package_unit_value(des, *this, scope, sr);
       if (path_.size() > 1 && !scoped_class_parameter) {
 	      // Package parameters accessed via a self-package-scope reference
 	      // (pkg_b::Y inside pkg_b) may parse as a hierarchical path if the

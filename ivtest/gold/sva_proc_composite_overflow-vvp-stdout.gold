@@ -1,0 +1,2 @@
+FATAL: ivltests/sva_proc_composite_overflow_2017.v:10: SVA: procedural composite attempt pool overflow (16 slots)
+       Time: 1  Scope: sva_proc_composite_overflow

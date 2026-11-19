@@ -1,0 +1,6 @@
+issue3830_state_2017 CE,-g2017,-s,top ivltests gold=issue3830_state_2017.gold
+issue3830_state_unsafe_2017 CE,-g2017,-gcommercial-unsafe,-s,top ivltests gold=issue3830_state_2017.gold
+issue3830_qualified_2017 normal,-g2017,-s,top ivltests gold=issue3830_qualified.gold
+issue3830_state_2023 CE,-g2023,-DISSUE3830_SIZE,-s,top ivltests gold=issue3830_state_2023.gold
+issue3830_state_unsafe_2023 CE,-g2023,-gcommercial-unsafe,-DISSUE3830_SIZE,-s,top ivltests gold=issue3830_state_2023.gold
+issue3830_qualified_2023 normal,-g2023,-s,top ivltests gold=issue3830_qualified.gold

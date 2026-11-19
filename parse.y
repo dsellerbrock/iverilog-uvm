@@ -75,6 +75,12 @@ static void FILE_NAME(PECallFunction*tmp, const struct vlltype&where)
 					tmp->path().name.front().name);
 }
 
+static void FILE_NAME(PEConstraintForeach*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      tmp->set_lexical_pos(where.lexical_pos);
+}
+
 static void FILE_NAME(PCallTask*tmp, const struct vlltype&where)
 {
       FILE_NAME(static_cast<LineInfo*>(tmp), where);
@@ -10162,11 +10168,6 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { sva_property_t*p = new sva_property_t;
 	p->seq = $1; p->op_type = 0;
 	$$ = p; }
-  /* IEEE 1800-2017/2023 16.9.8: a property-level first_match can retain
-     the operand's combinator tree. At this position only match existence
-     is observed, so first_match has no effect on assertion pass/fail. */
-  | K_first_match '(' sva_seq_comb ')'
-      { $$ = $3; }
   | sva_multiclock_seq
       { $$ = $1; }
   /* IEEE 1800-2017/2023 16.13.3: a clocked subsequence keeps its internal
@@ -10583,6 +10584,10 @@ sva_seq_comb
       { $$ = $1; }
   | sva_or_has_op
       { $$ = $1; }
+  /* IEEE 1800-2017/2023 16.9.8: keep the sequence wrapper so it
+     controls which endpoints reach a continuation or consequent. */
+  | K_first_match '(' sva_seq_comb ')'
+      { $$ = pform_sva_tree_first_match(@1, $3); }
   ;
 
 /* IEEE 1800-2017 16.9.1: a parenthesized/composite sequence remains a

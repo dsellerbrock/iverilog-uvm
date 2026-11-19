@@ -28,6 +28,7 @@
 # include  "schedule.h"
 # include  "vthread.h"
 # include  "vvp_net_sig.h"
+# include  "vvp_island.h"
 # include  "config.h"
 # include  <algorithm>
 # include  <map>
@@ -256,12 +257,25 @@ void root_table_delete(void)
 }
 #endif
 
+/* A procedural composite action's fork provides an activation frame, but
+   it is not a source scope. See sva_comp_proc_dispatch_ in pform.cc. */
+static __vpiScope* sva_action_parent_(__vpiScope*scope)
+{
+      static const char prefix[] = "$ivl_sva_action ";
+      while (scope && scope->get_type_code() == vpiNamedFork
+	     && strncmp(scope->scope_name(), prefix, sizeof prefix - 1) == 0)
+	    scope = scope->scope;
+      return scope;
+}
+
 static void construct_scope_fullname(__vpiScope*ref, char*buf)
 {
-      if (ref->scope) {
-	    construct_scope_fullname(ref->scope, buf);
+      ref = sva_action_parent_(ref);
+      if (!ref) return;
+      if (__vpiScope*parent = sva_action_parent_(ref->scope)) {
+	    construct_scope_fullname(parent, buf);
 	      // Add a "." separator, unless this is for a package
-	    if (ref->scope->get_type_code() != vpiPackage) {
+	    if (parent->get_type_code() != vpiPackage) {
 		  strcat(buf, ".");
 	    }
       }
@@ -2352,7 +2366,13 @@ class __vpiAssertion : public __vpiHandle {
 	{ proc_id_ = pid; proc_each_ = each; }
 	/* 16.14.6.1: each instance keeps the values it saved when queued. */
       void proc_matured(const std::vector<vvp_vector4_t>&saved)
-	{ proc_matured_ += 1; proc_saved_.push_back(saved); }
+	{
+	    /* A pending instance can mature after Off. It cannot start an
+	       attempt even if the assertion is reenabled before its clock. */
+	    if (!enabled_) return;
+	    proc_matured_ += 1;
+	    proc_saved_.push_back(saved);
+	}
 	/* Saved value j of the idx-th instance taken at the last clock. */
       const vvp_vector4_t* taken_value(PLI_INT32 idx, PLI_INT32 j) const
 	{
@@ -2361,9 +2381,7 @@ class __vpiAssertion : public __vpiHandle {
 	    if (j < 0 || (size_t)j >= v.size()) return 0;
 	    return &v[j];
 	}
-	/* The checker takes every matured instance at its leading clock.
-	   Under $assertoff they start no attempt and are discarded (default
-	   pending a ruling: 20.11 Off "No new attempts will be started"). */
+	/* The checker takes every matured instance at its leading clock. */
       PLI_INT32 take_matured(void)
 	{
 	    PLI_INT32 n = proc_matured_;
@@ -2454,6 +2472,10 @@ class __vpiAssertion : public __vpiHandle {
 		case 3:
 		case 4:
 		  enabled_ = ctl == 3;
+		  if (!enabled_ && proc_id_) {
+			proc_matured_ = 0;
+			proc_saved_.clear();
+		  }
 		  if (notify && was != enabled_)
 			fire(enabled_ ? cbAssertionEnable : cbAssertionDisable);
 		  return false;
@@ -3361,7 +3383,8 @@ PLI_INT32 vpip_assertion_state(vpiHandle scope, PLI_INT32 space,
       }
       switch (space) {
 	  case vpipAssertSpaceConcurrent:
-	    obj = find_assertion_up_(assertion_by_key, sc, (int)id, false);
+	    obj = find_assertion_up_(assertion_by_key, sva_action_parent_(sc),
+				     (int)id, false);
 	    break;
 	  case vpipAssertSpaceImmediate:
 	    obj = find_assertion_up_(immediate_assertion_by_key, sc, (int)id, true);
@@ -3439,11 +3462,9 @@ void vpip_deferred_assertion_report(unsigned long source_id,
 void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
-      if (!sc) return;
-      std::map<std::pair<__vpiScope*,int>, __vpiAssertion*>::iterator it =
-	    assertion_by_key.find(std::make_pair(sc, (int)idx));
-      if (it != assertion_by_key.end())
-	    it->second->fire((int)reason);
+      if (__vpiAssertion*obj = find_assertion_up_(assertion_by_key,
+				    sva_action_parent_(sc), (int)idx, false))
+	    obj->fire((int)reason);
 }
 
 void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope)
@@ -4415,6 +4436,17 @@ static bool parse_evcd_range(const char *text, int&value)
 static unsigned evcd_metadata_records;
 static unsigned long long evcd_metadata_bits;
 
+static vpiPortInfo* find_evcd_port(__vpiScope*scope, uint64_t index)
+{
+      if (!scope) return nullptr;
+      for (auto*obj : scope->intern) {
+	    auto*port = dynamic_cast<vpiPortInfo*>(obj);
+	    if (port && port->get_index() == index)
+		  return port;
+      }
+      return nullptr;
+}
+
 void vpip_reset_port_info_evcd_budget(void)
 {
       evcd_metadata_records = 0;
@@ -4434,7 +4466,7 @@ void compile_port_info_evcd(unsigned port_index,
                             char *dut)
 {
       __vpiScope *scope = vpip_peek_current_scope();
-      vpiPortInfo *port = 0;
+      vpiPortInfo *port = find_evcd_port(scope, port_index);
       vpiPortComponentInfo *component = 0;
       int left = 0, right = 0;
       bool ranges_valid = parse_evcd_range(left_text, left) &&
@@ -4443,15 +4475,6 @@ void compile_port_info_evcd(unsigned port_index,
             ? (unsigned long long)(left >= right
                   ? (long long)left-right : (long long)right-left) + 1
             : 0;
-
-      for (std::vector<__vpiHandle*>::iterator cur = scope->intern.begin();
-           cur != scope->intern.end(); ++cur) {
-            vpiPortInfo *candidate = dynamic_cast<vpiPortInfo*>(*cur);
-            if (candidate && candidate->get_index() == port_index) {
-                  port = candidate;
-                  break;
-            }
-      }
 
       if (!port || !width || width > 1024U*1024U ||
           fixture_width > 1024U*1024U || dut_width > 1024U*1024U ||
@@ -4509,6 +4532,85 @@ void compile_port_info_evcd(unsigned port_index,
       evcd_metadata_bits += width;
       delete[] left_text;
       delete[] right_text;
+}
+
+struct evcd_component_record {
+      vpiPortInfo*port;
+      vpiPortComponentInfo*component;
+      std::string signal;
+};
+static std::vector<evcd_component_record> evcd_component_links;
+
+void compile_evcd_component(uint64_t index, uint64_t component, char*signal)
+{
+      auto*port = find_evcd_port(vpip_peek_current_scope(), index);
+      if (!port || port->get_direction() != vpiInout ||
+	  component >= port->evcd_components_.size() ||
+	  evcd_component_links.size() >= EVCD_METADATA_MAX_RECORDS) {
+	    yyerror("invalid .evcd/port component or aggregate link budget");
+	    compile_errors += 1;
+      } else {
+	    evcd_component_links.push_back({port, port->evcd_components_[component],
+					    signal});
+      }
+      free(signal);
+}
+
+void link_evcd_components()
+{
+      for (const auto&rec : evcd_component_links) {
+	    auto&comp = *rec.component;
+	    auto*signal = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(rec.signal.c_str()));
+	    auto*endpoint = signal && signal->node
+		  ? dynamic_cast<vvp_island_port*>(signal->node->fun) : nullptr;
+	    if (endpoint && endpoint->evcd && signal->get_type_code() == vpiNet &&
+		!signal->is_netarray && signal->within.scope == rec.port->parent_scope() &&
+		strcmp(signal->id.name, comp.name) == 0 &&
+		!comp.evcd_endpoint && !comp.fixture_width) {
+		  int left = signal->vpi_get(vpiLeftRange);
+		  int right = signal->vpi_get(vpiRightRange);
+		  int64_t base = left >= right
+			? (int64_t)comp.right - right : (int64_t)right - comp.right;
+		  bool order = comp.width == 1 || (left >= right) == (comp.left >= comp.right);
+		  if (order && base >= 0 && (uint64_t)base < endpoint->evcd->width &&
+		      comp.width <= endpoint->evcd->width - base) {
+			comp.evcd_endpoint = endpoint;
+			comp.evcd_base = base;
+			continue;
+		  }
+	    }
+	    fprintf(stderr, "vvp: invalid .evcd/port endpoint or component range\n");
+	    compile_errors += 1;
+      }
+      evcd_component_links.clear();
+}
+
+extern "C" int vpip_sample_evcd_inout(vpiHandle ref, unsigned idx, unsigned bit,
+				     s_vpi_strengthval strengths[2],
+				     unsigned active[2], unsigned present[2])
+{
+      auto*port = dynamic_cast<vpiPortInfo*>(ref);
+      if (!port || idx >= port->evcd_components_.size()) return 0;
+      const auto&comp = *port->evcd_components_[idx];
+      if (!comp.evcd_endpoint || bit >= comp.width) return 0;
+      evcd_island_side sides[2];
+      comp.evcd_endpoint->island()->evcd_drivers(*comp.evcd_endpoint->evcd,
+						port->parent_scope(),
+						comp.evcd_base + bit, sides);
+      const int logic[] = {vpi0, vpi1, vpiZ, vpiX};
+      for (unsigned side = 0; side < 2; side += 1) {
+	    const auto&value = sides[side].value;
+	    strengths[side].logic = logic[value.value()];
+	    strengths[side].s0 = 1 << value.strength0();
+	    strengths[side].s1 = 1 << value.strength1();
+	    if (value.value() == BIT4_0)
+		  strengths[side].s0 |= strengths[side].s1;
+	    if (value.value() == BIT4_1)
+		  strengths[side].s1 |= strengths[side].s0;
+	    active[side] = sides[side].active;
+	    present[side] = sides[side].present;
+      }
+      return 1;
 }
 
 extern "C" int vpip_get_port_component(vpiHandle ref, unsigned idx,

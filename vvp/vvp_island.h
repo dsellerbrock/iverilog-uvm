@@ -57,6 +57,30 @@
 
 struct vvp_island_branch;
 class vvp_island_port;
+class resolv_core;
+class __vpiScope;
+typedef vvp_sub_pointer_t<vvp_island_branch> vvp_branch_ptr_t;
+
+struct evcd_island_source {
+      const __vpiScope*scope = nullptr;
+      unsigned base = 0;
+      unsigned width = 0;
+};
+
+struct evcd_island_endpoint {
+      unsigned width;
+      unsigned driver_count;
+      unsigned pull; // 0 = none, 1 = tri0, 2 = tri1
+      resolv_core*resolver = nullptr;
+      vvp_branch_ptr_t anchor;
+      std::vector<evcd_island_source> sources;
+};
+
+struct evcd_island_side {
+      vvp_scalar_t value;
+      unsigned active = 0;
+      bool present = false;
+};
 
 class vvp_island  : private vvp_gen_event_s {
 
@@ -81,6 +105,13 @@ class vvp_island  : private vvp_gen_event_s {
         // Support for $countdrivers.
       virtual void count_drivers(vvp_island_port*port, unsigned bit_idx,
                                  unsigned counts[3]) =0;
+
+      virtual bool link_evcd_branches() = 0;
+      virtual void evcd_drivers(const evcd_island_endpoint&endpoint,
+				const __vpiScope*scope, unsigned bit,
+				evcd_island_side sides[2]) const = 0;
+      void watch_evcd(vvp_net_t*net);
+      void notify_evcd();
 
     protected:
 	// The base class collects a list of all the branches in the
@@ -119,6 +150,7 @@ class vvp_island  : private vvp_gen_event_s {
 	// simulation time, and the time they were counted at.
       vvp_time64_t settle_time_;
       unsigned long settle_runs_;
+      std::vector<vvp_net_t*> evcd_watches_;
 
     private:
 	// During link, the vvp_island keeps these symbol tables for
@@ -164,6 +196,7 @@ class vvp_island_port  : public vvp_net_fun_t {
       vvp_vector8_t invalue;
       vvp_vector8_t outvalue;
       vvp_vector8_t value;
+      evcd_island_endpoint* evcd = nullptr;
 
     public: // SDF INTERCONNECT on an isolated inout port (IEEE 1800
 	    // 32.4.4): delayed drivers from the other side of a branch,
@@ -239,8 +272,6 @@ extern vvp_fun_intermodpath* island_tran_interconnect(vvp_net_t*inner_port,
 * of the island.
 */
 
-typedef vvp_sub_pointer_t<vvp_island_branch> vvp_branch_ptr_t;
-
 struct vvp_island_branch {
       virtual ~vvp_island_branch();
 	// Keep a list of branches in the island.
@@ -276,5 +307,17 @@ extern void island_collect_node(std::list<vvp_branch_ptr_t>&conn, vvp_branch_ptr
  */
 extern void compile_island_base(char*label, vvp_island*use_island);
 extern vvp_island* compile_find_island(const char*island_name);
+
+extern void compile_island_port_evcd(char*label, char*island, char*src,
+				     uint64_t width, uint64_t count,
+				     uint64_t pull, char*resolver);
+extern void compile_evcd_source(char*port, uint64_t slot, char*scope,
+				uint64_t base, uint64_t width);
+extern void compile_evcd_component(uint64_t index, uint64_t component,
+				   char*signal);
+extern void link_evcd_endpoints();
+extern void link_evcd_components();
+extern vvp_net_t* lookup_evcd_net(const char*label);
+extern void input_connect_evcd(vvp_net_t*dest, char*label);
 
 #endif /* IVL_vvp_island_H */

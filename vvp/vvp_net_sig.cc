@@ -780,8 +780,8 @@ void vvp_fun_signal4_aa::operator delete(void*)
  */
 namespace {
 /* A ref formal has no storage to notify its event probes. Subscribe once
- * per activation to its bound whole variable and deliver that variable's
- * changes to the formal's existing automatic event probes. */
+ * per activation to the bound variable or fixed-array word and deliver
+ * its changes to the formal's existing automatic event probes. */
 class ref_event_relay_s : public vvp_net_fun_t {
     public:
       ref_event_relay_s(vvp_net_t*formal, vvp_context_t frame,
@@ -805,7 +805,7 @@ class ref_event_relay_s : public vvp_net_fun_t {
       {
             if (!accept_(context)) return;
             value_ = bit;
-            formal_->send_vec4(value_, frame_);
+            formal_->send_vec4(bit, frame_);
       }
 
       void recv_object(vvp_net_ptr_t, vvp_object_t bit,
@@ -927,9 +927,12 @@ struct ref_aa_slot {
       ~ref_aa_slot() { clear(); }
       void clear()
       {
-            if (relay && !relay_source)
-                  if (vvp_object*watched = obj.peek<vvp_object>())
+            if (relay && !relay_source) {
+                  if (kind == REF_WORD)
+                        arr->detach_word_ref_relay(static_cast<unsigned>(index), relay);
+                  else if (vvp_object*watched = obj.peek<vvp_object>())
                         watched->remove_touch_relay(relay);
+            }
             detach_ref_event_relay_(relay_source, relay);
             kind = REF_NET;
             target = 0;
@@ -1039,6 +1042,22 @@ static void attach_ref_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
 namespace {
 void attach_ref_prop_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
                                   vvp_context_t frame);
+}
+
+static void attach_ref_word_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
+                                         vvp_context_t frame)
+{
+      if (!slot->arr || !formal || formal->out_.nil()) return;
+      if (slot->arr->automatic_storage) {
+            unsupported_ref_event_binding_(formal, "an automatic fixed-array word");
+            return;
+      }
+
+      void*storage = ::operator new(sizeof(vvp_net_t));
+      vvp_net_t*relay = ::new (storage) vvp_net_t;
+      relay->fun = new ref_event_relay_s(formal, frame, 0, false, vvp_vector4_t());
+      slot->relay = relay;
+      slot->arr->attach_word_ref_relay(static_cast<unsigned>(slot->index), relay);
 }
 
 vvp_ref_signal_aa::vvp_ref_signal_aa(unsigned wid, bool two_state)
@@ -1264,7 +1283,8 @@ void vvp_ref_signal_aa::bind_word(vvp_net_t*formal,
       slot->kind = ref_aa_slot::REF_WORD;
       slot->arr = arr;
       slot->index = index;
-      unsupported_ref_event_binding_(formal, "a fixed-array word");
+      slot->two_state = two_state_;
+      attach_ref_word_event_relay_(slot, formal, frame);
 }
 
   /* One delegated access: put the caller's frame back for the duration
@@ -1520,7 +1540,7 @@ static bool ref_inside_read_vec4_(const ref_aa_slot*slot, unsigned wid,
             if (slot->arr)
                   val = slot->arr->get_word(slot->index);
             else
-                  val = vvp_vector4_t(wid, BIT4_X);
+                  val = vvp_vector4_t(wid, slot->two_state ? BIT4_0 : BIT4_X);
             return true;
           default:
             return false;
@@ -1798,6 +1818,8 @@ void vvp_ref_signal_aa::write_binding(vvp_net_t*formal, vvp_context_t frame,
             attach_ref_event_relay_(slot, formal, frame);
       else if (slot->kind == ref_aa_slot::REF_PROP)
             attach_ref_prop_event_relay_(slot, formal, frame);
+      else if (slot->kind == ref_aa_slot::REF_WORD)
+            attach_ref_word_event_relay_(slot, formal, frame);
       else
             unsupported_ref_event_binding_(formal, "an indirect actual");
 }

@@ -1,0 +1,10 @@
+ivltests/issue3768_values.v:13: warning: Package `access_values' refers to compilation-unit value `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:25: warning: Package `access_values' refers to compilation-unit value `ready' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:17: warning: Package `access_values' refers to compilation-unit value `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:18: warning: Package `access_values' refers to compilation-unit value `ready' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:19: warning: Package `access_values' refers to compilation-unit value `ready' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:21: warning: Package `access_values' refers to compilation-unit value `deferred' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:8: warning: Package `access_values' refers to compilation-unit value `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:9: warning: Package `access_values' refers to compilation-unit value `unit_step' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:10: warning: Package `access_values' refers to compilation-unit value `UNIT_ENUM' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3768_values.v:30: warning: Package `access_values' refers to compilation-unit value `unit_value' (IEEE 1800-2017/2023 26.2).
