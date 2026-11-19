@@ -868,6 +868,15 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 				    bool is_init,
 				    bool read_only_ref) const
 {
+      return elaborate_lval(des, scope, is_cassign, is_force, is_init,
+			    read_only_ref, nullptr);
+}
+
+NetAssign_* PEIdent::elaborate_lval(Design*des, NetScope*scope,
+				    bool is_cassign, bool is_force, bool is_init,
+				    bool read_only_ref,
+				    bool*runtime_indexed_slice) const
+{
 	  if (const pform_name_t*root = modport_expression_context()) {
 	    if (!modport_expression_access() && !path_.package
 		&& !path_.name.empty()) {
@@ -879,7 +888,8 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
 		  mapped_ident.set_modport_expression_access();
 		  return mapped_ident.elaborate_lval(des, scope, is_cassign,
 						      is_force, is_init,
-						      read_only_ref);
+						      read_only_ref,
+						      runtime_indexed_slice);
 	    }
 	  }
 
@@ -1308,7 +1318,7 @@ NetAssign_* PEIdent::elaborate_lval(Design*des,
       NetAssign_*res = elaborate_lval_var_(des, scope, is_force, is_cassign,
 					 reg, sr.type, member_path,
 					 sr.path_head.back().index, is_init,
-					 read_only_ref);
+					 read_only_ref, runtime_indexed_slice);
       if (is_force && res)
 	    res->mark_force_lval();
       return res;
@@ -1319,7 +1329,8 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 					NetNet *reg, ivl_type_t data_type,
 					const pform_name_t tail_path,
 					const list<index_component_t>&base_index,
-					bool is_init, bool read_only_ref) const
+					bool is_init, bool read_only_ref,
+					bool*runtime_indexed_slice) const
 {
 	// We are processing the tail of a string of names. For
 	// example, the Verilog may be "a.b.c", so we are processing
@@ -1429,7 +1440,8 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       if (tail_path.empty()
 	  && (reg->unpacked_dimensions() > name_tail.index.size()
 	      || one_dim_range_slice)) {
-	    return elaborate_lval_array_(des, scope, is_force, reg);
+	    return elaborate_lval_array_(des, scope, is_force, reg,
+					 runtime_indexed_slice);
       }
 
 	// If we find that the matched variable is a packed struct,
@@ -1908,7 +1920,8 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 }
 
 NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
-				          bool is_force, NetNet *reg) const
+					  bool is_force, NetNet *reg,
+					  bool*runtime_indexed_slice) const
 {
       if (!gn_system_verilog()) {
 	    cerr << get_fileline() << ": error: Assignment to an entire"
@@ -1937,23 +1950,29 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 	// of a multidimensional array.
       fixed_uarray_slice_t range_slice;
       int range_slice_rc = decode_fixed_uarray_slice(
-	    des, scope, *this, this, false, range_slice);
+	    des, scope, *this, this, false, range_slice, false,
+	    runtime_indexed_slice != nullptr);
       if (range_slice_rc < 0)
 	    return 0;
       if (range_slice_rc > 0) {
 	    ivl_assert(*this, range_slice.signal == reg);
 	    if ((reg->type() == NetNet::UNRESOLVED_WIRE) && !is_force) {
 		  ivl_assert(*this, reg->coerced_to_uwire());
+		  unsigned long first = range_slice.runtime_base
+			? 0 : range_slice.canonical_base;
+		  unsigned long count = range_slice.runtime_base
+			? reg->unpacked_count() : range_slice.count;
 		  bool overlap = false;
-		  for (unsigned long word = 0;
-		       !overlap && word < range_slice.count; word += 1) {
+		  for (unsigned long word = 0; !overlap && word < count;
+		       word += 1) {
 			if (reg->test_part_driven(reg->vector_width()-1, 0,
-					  range_slice.canonical_base + word))
+					  first + word))
 			      overlap = true;
 		  }
 		  if (overlap) {
 			report_mixed_assignment_conflict_("array slice");
 			des->errors += 1;
+			delete range_slice.runtime_base;
 			return 0;
 		  }
 	    }
@@ -1962,7 +1981,11 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 	    slice_dims.push_back(range_slice.selected_range);
 	    ivl_type_t slice_type =
 		  new netuarray_t(slice_dims, range_slice.element_type);
-	    NetEConst*base = make_const_val_s(range_slice.canonical_base);
+	    NetExpr*base = range_slice.runtime_base;
+	    if (base)
+		  *runtime_indexed_slice = true;
+	    else
+		  base = make_const_val_s(range_slice.canonical_base);
 	    base->set_line(*this);
 	    NetAssign_*lv = new NetAssign_(reg);
 	    lv->set_array_slice(base, slice_type);

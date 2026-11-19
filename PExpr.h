@@ -716,6 +716,13 @@ class PEIdent : public PExpr {
 					 bool is_init = false,
 					 bool read_only_ref = false) const override;
 
+	// Untimed procedural assignments can consume a run-time slice base.
+	// A non-null result flag opts in and is set only for that slice shape.
+      NetAssign_* elaborate_lval(Design*des, NetScope*scope,
+				 bool is_cassign, bool is_force, bool is_init,
+				 bool read_only_ref,
+				 bool*runtime_indexed_slice) const;
+
       virtual NetExpr*elaborate_expr(Design*des, NetScope*scope,
 				     ivl_type_t type, unsigned flags) const override;
       virtual NetExpr*elaborate_expr(Design*des, NetScope*,
@@ -871,13 +878,15 @@ class PEIdent : public PExpr {
       void report_mixed_assignment_conflict_(const char*category) const;
 
       NetAssign_ *elaborate_lval_array_(Design *des, NetScope *scope,
-				        bool is_force, NetNet *reg) const;
+					bool is_force, NetNet *reg,
+					bool*runtime_indexed_slice) const;
       NetAssign_ *elaborate_lval_var_(Design *des, NetScope *scope,
 				      bool is_force, bool is_cassign,
 				      NetNet *reg, ivl_type_t data_type,
 				      pform_name_t tail_path,
 				      const std::list<index_component_t>&base_index,
-				      bool is_init, bool read_only_ref) const;
+				      bool is_init, bool read_only_ref,
+				      bool*runtime_indexed_slice) const;
       NetAssign_*elaborate_lval_net_word_(Design*, NetScope*, NetNet*,
 					  bool need_const_idx, bool is_force) const;
       bool elaborate_lval_net_bit_(Design*, NetScope*, NetAssign_*,

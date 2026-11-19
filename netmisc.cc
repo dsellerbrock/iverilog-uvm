@@ -988,6 +988,53 @@ void indices_to_expressions(Design*des, NetScope*scope,
       }
 }
 
+static bool constant_index_value_(const verinum&value, int64_t&result);
+static NetEConst* make_i64_index_constant_(int64_t value, const LineInfo&loc);
+static NetEConst* make_u64_index_constant_(uint64_t value, const LineInfo&loc);
+
+NetExpr* make_checked_uarray_index(NetExpr*index, int64_t low, uint64_t count,
+				   const LineInfo&loc)
+{
+      NetESFunc*checked = new NetESFunc("$ivl_checked_property_index",
+					 IVL_VT_LOGIC, 64, 4);
+      checked->set_line(loc);
+      checked->parm(0, index);
+      checked->parm(1, make_i64_index_constant_(low, loc));
+      checked->parm(2, make_u64_index_constant_(count, loc));
+      checked->parm(3, make_u64_index_constant_(1, loc));
+      return checked;
+}
+
+static NetExpr* runtime_fixed_uarray_slice_base_(NetExpr*base, long origin,
+						 long span, bool indexed_down,
+						 unsigned long array_count,
+						 const LineInfo&loc)
+{
+      // Allow room for both subtractions and for the sign of an unsigned
+      // selector. Extend according to the selector's own signedness.
+      unsigned bits = max(base->expr_width(), 64U) + 2;
+      NetExpr*low = new NetEBAdd('-', pad_to_width(base, bits, loc),
+	    pad_to_width(make_i64_index_constant_(origin, loc), bits, loc),
+	    bits, true);
+      low->set_line(loc);
+      if (indexed_down && span != 0) {
+	    low = new NetEBAdd('-', low,
+		  pad_to_width(make_i64_index_constant_(span, loc), bits, loc),
+		  bits, true);
+	    low->set_line(loc);
+      }
+
+      // A slice can reach the array when its low word is as small as
+      // -span. Keep that signed base so the subsequent word stores can
+      // discard out-of-range words individually.
+      NetExpr*checked = make_checked_uarray_index(
+	    low, -span, static_cast<uint64_t>(span) + array_count, loc);
+      NetExpr*canonical = new NetEBAdd('-', checked,
+	    make_i64_index_constant_(span, loc), 64, true);
+      canonical->set_line(loc);
+      return canonical;
+}
+
 static int decode_fixed_uarray_slice_select_(
 			      Design*des, NetScope*scope,
 			      const LineInfo&loc,
@@ -995,7 +1042,7 @@ static int decode_fixed_uarray_slice_select_(
 			      const netrange_t&declared,
 			      ivl_type_t element_type,
 			      fixed_uarray_slice_t&out,
-			      bool quiet)
+			      bool quiet, bool allow_runtime_base = false)
 {
       if (select.sel != index_component_t::SEL_PART
 	  && select.sel != index_component_t::SEL_IDX_UP
@@ -1041,21 +1088,67 @@ static int decode_fixed_uarray_slice_select_(
 	    }
       } else {
 	    long base = 0;
-	    long width = 0;
 	    NetExpr*base_expr = elab_and_eval(des, scope, select.msb,
 					   -1, false);
 	    NetExpr*width_expr = elab_and_eval(des, scope, select.lsb,
 					    -1, false);
-	    bool base_ok = base_expr && eval_as_long(base, base_expr);
-	    bool width_ok = width_expr && eval_as_long(width, width_expr)
-		  && width > 0;
-	    delete base_expr;
+	    const NetEConst*wc = dynamic_cast<const NetEConst*>(width_expr);
+	    int64_t width_value = 0;
+	    bool width_ok = wc && wc->value().is_defined()
+		  && constant_index_value_(wc->value(), width_value)
+		  && width_value > 0 && width_value <= LONG_MAX;
 	    delete width_expr;
 	    if (!width_ok) {
+		  delete base_expr;
 		  report("error: indexed unpacked-array slice width must be a "
 			 "positive constant integral expression.");
 		  return -1;
 	    }
+	    long width = static_cast<long>(width_value);
+
+	    if (allow_runtime_base) {
+		  if (!base_expr)
+			return -1;
+		  if (base_expr->expr_type() != IVL_VT_BOOL
+		      && base_expr->expr_type() != IVL_VT_LOGIC) {
+			delete base_expr;
+			report("error: indexed unpacked-array slice base must be integral.");
+			return -1;
+		  }
+		  const NetEConst*bc = dynamic_cast<const NetEConst*>(base_expr);
+		  if (!bc || !bc->value().is_defined()) {
+			if (width_value > UINT_MAX) {
+			      delete base_expr;
+			      report("sorry: run-time indexed unpacked-array slice "
+				     "width exceeds the fixed-array storage limit.");
+			      return -1;
+			}
+			long origin = min(declared.get_msb(), declared.get_lsb());
+			out.runtime_base = runtime_fixed_uarray_slice_base_(
+			      base_expr, origin, width - 1,
+			      select.sel == index_component_t::SEL_IDX_DO,
+			      declared.width(), loc);
+			out.count = width;
+			out.selected_range = declared.get_msb() < declared.get_lsb()
+			      ? netrange_t(0, width - 1)
+			      : netrange_t(width - 1, 0);
+			out.element_type = element_type;
+			out.whole = false;
+			return 1;
+		  }
+		  int64_t value = 0;
+		  if (!constant_index_value_(bc->value(), value)
+		      || value < LONG_MIN || value > LONG_MAX) {
+			delete base_expr;
+			report("error: indexed unpacked-array slice bounds overflow.");
+			return -1;
+		  }
+		  base = static_cast<long>(value);
+	    }
+
+	    bool base_ok = allow_runtime_base
+		  || (base_expr && eval_as_long(base, base_expr));
+	    delete base_expr;
 	    if (!base_ok) {
 		  report("sorry: a run-time indexed unpacked-array slice is not "
 			 "yet supported; its base must currently be constant.");
@@ -1070,14 +1163,14 @@ static int decode_fixed_uarray_slice_select_(
 			report("error: indexed unpacked-array slice bounds overflow.");
 			return -1;
 		  }
-		  high = base + width - 1;
+		  high = base + (width - 1);
 	    } else {
 		  high = base;
-		  if (base < LONG_MIN + width - 1) {
+		  if (base < LONG_MIN + (width - 1)) {
 			report("error: indexed unpacked-array slice bounds overflow.");
 			return -1;
 		  }
-		  low = base - width + 1;
+		  low = base - (width - 1);
 	    }
 
 	    if (declared.get_msb() < declared.get_lsb()) {
@@ -1131,7 +1224,7 @@ int decode_fixed_uarray_slice_select(
 int decode_fixed_uarray_slice(Design*des, NetScope*scope,
 			      const LineInfo&loc, const PExpr*expr,
 			      bool allow_whole, fixed_uarray_slice_t&out,
-			      bool quiet)
+			      bool quiet, bool allow_runtime_base)
 {
       const PEIdent*id = dynamic_cast<const PEIdent*>(expr);
       if (!id || id->path().name.empty())
@@ -1169,7 +1262,7 @@ int decode_fixed_uarray_slice(Design*des, NetScope*scope,
 
       int rc = decode_fixed_uarray_slice_select_(
 	    des, scope, loc, tail.index.front(), declared.front(),
-	    sr.net->net_type(), out, quiet);
+	    sr.net->net_type(), out, quiet, allow_runtime_base);
       if (rc > 0)
 	    out.signal = sr.net;
       return rc;
