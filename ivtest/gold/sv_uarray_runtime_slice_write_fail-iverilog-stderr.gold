@@ -1,0 +1,15 @@
+ivltests/sv_uarray_runtime_slice_write_fail.v:16: error: indexed unpacked-array slice width must be a positive constant integral expression.
+ivltests/sv_uarray_runtime_slice_write_fail.v:17: error: indexed unpacked-array slice width must be a positive constant integral expression.
+ivltests/sv_uarray_runtime_slice_write_fail.v:18: error: indexed unpacked-array slice base must be integral.
+ivltests/sv_uarray_runtime_slice_write_fail.v:19: error: unpacked array slice types are not equivalent in assignment.
+ivltests/sv_uarray_runtime_slice_write_fail.v:20: error: unpacked array slice types are not equivalent in assignment.
+ivltests/sv_uarray_runtime_slice_write_fail.v:21: error: Unpacked array assignment pattern expects 2 element(s) in this context.
+ivltests/sv_uarray_runtime_slice_write_fail.v:21:      : Found 1 element(s).
+ivltests/sv_uarray_runtime_slice_write_fail.v:22: sorry: a run-time indexed unpacked-array slice is not yet supported; its base must currently be constant.
+ivltests/sv_uarray_runtime_slice_write_fail.v:23: sorry: a run-time indexed unpacked-array slice is not yet supported; its base must currently be constant.
+ivltests/sv_uarray_runtime_slice_write_fail.v:24: sorry: this source for a run-time indexed unpacked-array slice is not yet supported; use a fixed-array signal or an assignment pattern.
+ivltests/sv_uarray_runtime_slice_write_fail.v:25: sorry: this source for a run-time indexed unpacked-array slice is not yet supported; use a fixed-array signal or an assignment pattern.
+ivltests/sv_uarray_runtime_slice_write_fail.v:26: sorry: an index-keyed pattern for a run-time indexed unpacked-array slice is not yet supported.
+ivltests/sv_uarray_runtime_slice_write_fail.v:27: sorry: nonblocking assignment to this run-time indexed unpacked-array element type is not yet supported.
+ivltests/sv_uarray_runtime_slice_write_fail.v:28: error: Cannot perform procedural assignment to array slice 'driven[i+:'sd2]' because it is also continuously assigned.
+13 error(s) during elaboration.

@@ -10391,7 +10391,8 @@ NetProc* Statement::elaborate(Design*des, NetScope*) const
 }
 
 
-NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope) const
+NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope,
+				    bool*runtime_indexed_slice) const
 {
       PExprCheckerAssignRvalGuard checker_rval_context(false);
 	// A function called as a task does not have an L-value.
@@ -10443,9 +10444,14 @@ NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope) const
 	    }
       }
 
-      NetAssign_*lval = lval_->elaborate_lval(des, scope,
-					      continuous_lval_, false,
-					      authorized_initializer);
+      const PEIdent*ident = !continuous_lval_ && runtime_indexed_slice
+	    ? dynamic_cast<const PEIdent*>(lval_) : nullptr;
+      NetAssign_*lval = ident
+	    ? ident->elaborate_lval(des, scope, false, false,
+				  authorized_initializer, false,
+				  runtime_indexed_slice)
+	    : lval_->elaborate_lval(des, scope, continuous_lval_, false,
+				    authorized_initializer);
 	if (lval && continuous_lval_)
 	      lval->mark_force_lval();
       return lval;
@@ -11809,7 +11815,8 @@ static NetExpr* make_uarray_dynamic_prefix_word_(const LineInfo&loc,
 	if (reverse) {
 	    NetEConst*last = make_const_val_s((long)count - 1);
 	    last->set_line(loc);
-	    NetEBAdd*reversed = new NetEBAdd('-', last, ordinal_read, 32, true);
+	    NetEBAdd*reversed = new NetEBAdd('-', last, ordinal_read,
+					    ordinal_read->expr_width(), true);
 	    reversed->set_line(loc);
 	    offset = reversed;
 	}
@@ -11878,10 +11885,13 @@ static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig,
 	      const NetNet*dst_base, NetNet*src_sig, const NetNet*src_base,
 	      unsigned long count, bool reverse_src, bool nonblocking,
-	      unsigned long src_stride, unsigned long src_dimension_width)
+	      unsigned long src_stride, unsigned long src_dimension_width,
+	      bool checked_destination = false)
 {
+	const netvector_t*ordinal_type = count <= INT_MAX
+	      ? &netvector_t::atom2s32 : &netvector_t::atom2s64;
 	NetNet*ordinal = new NetNet(scope, scope->local_symbol(), NetNet::REG,
-				   &netvector_t::atom2s32);
+				   ordinal_type);
 	ordinal->local_flag(true);
 	ordinal->set_line(loc);
 
@@ -11898,8 +11908,11 @@ static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 	step->set_line(loc);
 
 	NetAssign_*word_lval = new NetAssign_(dst_sig);
-	word_lval->set_word(make_uarray_dynamic_prefix_word_(
-	      loc, dst_base, ordinal, count, false, 1, 0));
+	NetExpr*word = make_uarray_dynamic_prefix_word_(
+	      loc, dst_base, ordinal, count, false, 1, 0);
+	if (checked_destination)
+	    word = make_checked_uarray_index(word, 0, dst_sig->unpacked_count(), loc);
+	word_lval->set_word(word);
 	NetESignal*word_rval = new NetESignal(src_sig,
 	      make_uarray_dynamic_prefix_word_(loc, src_base, ordinal, count,
 						 reverse_src, src_stride,
@@ -11918,7 +11931,7 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig, NetExpr*dst_base,
 	      NetNet*src_sig, NetExpr*src_base, unsigned long count,
 	      bool reverse_src, bool nonblocking, unsigned long src_stride,
-	      unsigned long src_dimension_width)
+	      unsigned long src_dimension_width, bool checked_destination)
 {
 	NetNet*dst_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
 					       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
@@ -11942,7 +11955,8 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	if (nonblocking) {
 	    block->append(make_uarray_dynamic_prefix_copy_loop_(
 		  scope, loc, dst_sig, dst_snapshot, src_sig, src_snapshot, count,
-		  reverse_src, true, src_stride, src_dimension_width));
+		  reverse_src, true, src_stride, src_dimension_width,
+		  checked_destination));
 	    return block;
 	}
 
@@ -11965,7 +11979,7 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	      reverse_src, false, src_stride, src_dimension_width));
 	block->append(make_uarray_dynamic_prefix_copy_loop_(
 	      scope, loc, dst_sig, dst_snapshot, rhs_snapshot, zero_base, count,
-	      false, false, 1, 0));
+	      false, false, 1, 0, checked_destination));
 	return block;
 }
 
@@ -12100,11 +12114,21 @@ static bool uarray_pattern_flatten_(const NetEArrayPattern*pat,
       return true;
 }
 
+static NetProc* make_uarray_pattern_snapshot_(NetScope*scope,
+					      const LineInfo&loc, NetAssign_*lv,
+					      const NetEArrayPattern*pat,
+					      bool runtime_indexed_slice,
+					      bool nonblocking);
+
 static NetProc* make_uarray_pattern_nb_(NetScope*scope, const LineInfo&loc,
 					NetAssign_*lv,
 					const NetEArrayPattern*pat,
-					const NetExpr*delay)
+					const NetExpr*delay,
+					bool runtime_indexed_slice)
 {
+      if (runtime_indexed_slice)
+	    return make_uarray_pattern_snapshot_(scope, loc, lv, pat, true, true);
+
       NetNet*sig = lv->sig();
       if (sig == 0) return 0;
 
@@ -12371,15 +12395,15 @@ static NetProc* make_uarray_function_nb_(NetScope*scope, const LineInfo&loc,
       return blk;
 }
 
-/* The vvp array-pattern emitter requires a constant slice base. Lower the
- * dynamic blocking row form before it reaches that backend path. Evaluate the
- * selector once, materialize every pattern word, then write the destination
- * row. The materialization is required for `a[i] = '{a[i][0], ...}` and also
- * guarantees RHS effects occur even when an invalid selector suppresses every
- * destination store. */
-static NetProc* make_uarray_pattern_blocking_(NetScope*scope,
+/* Evaluate the selector once and materialize the complete RHS before writing
+ * the destination. This preserves overlapping RHS reads and evaluates the
+ * pattern even if every destination word is invalid. For indexed NBA slices,
+ * also finish evaluating the pattern before scheduling any updates. */
+static NetProc* make_uarray_pattern_snapshot_(NetScope*scope,
 					      const LineInfo&loc, NetAssign_*lv,
-					      const NetEArrayPattern*pat)
+					      const NetEArrayPattern*pat,
+					      bool runtime_indexed_slice,
+					      bool nonblocking)
 {
 	NetNet*sig = lv->sig();
 	if (!sig || !lv->is_array_slice()) return 0;
@@ -12432,15 +12456,20 @@ static NetProc* make_uarray_pattern_blocking_(NetScope*scope,
 	    base_read->set_line(loc);
 	    NetEConst*offset = make_const_val_s(idx);
 	    offset->set_line(loc);
-	    NetEBAdd*dst_word = new NetEBAdd('+', base_read,
+	    NetExpr*dst_word = new NetEBAdd('+', base_read,
 					       pad_to_width(offset, 64, loc), 64, true);
 	    dst_word->set_line(loc);
+	    if (runtime_indexed_slice)
+		  dst_word = make_checked_uarray_index(
+			dst_word, 0, sig->unpacked_count(), loc);
 	    dst_lval->set_word(dst_word);
 	    NetEConst*rhs_word = make_const_val_s(idx);
 	    rhs_word->set_line(loc);
 	    NetESignal*rhs_read = new NetESignal(rhs, rhs_word);
 	    rhs_read->set_line(loc);
-	    NetAssign*store = new NetAssign(dst_lval, rhs_read);
+	    NetProc*store = nonblocking
+		  ? static_cast<NetProc*>(new NetAssignNB(dst_lval, rhs_read, 0, 0))
+		  : static_cast<NetProc*>(new NetAssign(dst_lval, rhs_read));
 	    store->set_line(loc);
 	    block->append(store);
 	}
@@ -12512,6 +12541,58 @@ static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
       return dst_elem == src_elem
 	    || (dst_elem->type_equivalent(src_elem)
 		&& src_elem->type_equivalent(dst_elem));
+}
+
+static bool check_runtime_uarray_slice_leaf_(Design*des, const LineInfo&loc,
+					    const NetNet*sig, bool nonblocking)
+{
+      switch (sig->data_type()) {
+	  case IVL_VT_BOOL:
+	  case IVL_VT_LOGIC:
+	  case IVL_VT_REAL:
+	    return true;
+	  case IVL_VT_STRING:
+	  case IVL_VT_CLASS:
+	  case IVL_VT_NO_TYPE:
+	    if (!nonblocking)
+		  return true;
+	    break;
+	  default:
+	    break;
+      }
+
+      cerr << loc.get_fileline() << ": sorry: "
+	   << (nonblocking ? "nonblocking" : "blocking")
+	   << " assignment to this run-time indexed unpacked-array element type"
+	   << " is not yet supported." << endl;
+      des->errors += 1;
+      return false;
+}
+
+// Fixed-signal sources are handled by the copy paths. Index keys would
+// require resolving the pattern against the selected bounds at run time.
+static bool check_runtime_uarray_slice_pattern_(Design*des,
+						 const LineInfo&loc,
+						 const PExpr*source)
+{
+      const PEAssignPattern*pattern = dynamic_cast<const PEAssignPattern*>(source);
+      if (!pattern) {
+	    cerr << loc.get_fileline() << ": sorry: this source for a run-time"
+		 << " indexed unpacked-array slice is not yet supported;"
+		 << " use a fixed-array signal or an assignment pattern." << endl;
+	    des->errors += 1;
+	    return false;
+      }
+      for (const auto&key : pattern->keys()) {
+	    if (key.kind == assignment_pattern_key_t::EXPR) {
+		  cerr << loc.get_fileline() << ": sorry: an index-keyed pattern"
+		       << " for a run-time indexed unpacked-array slice is not"
+		       << " yet supported." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+      }
+      return true;
 }
 
 /* A direct identifier with a constant partial prefix of a fixed unpacked
@@ -12734,14 +12815,15 @@ static int decode_multidim_uarray_slice_source_(
  * a recognized but invalid/unsupported partial-prefix source. */
 static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 					const LineInfo&loc, const PExpr*pe,
-					uarray_prefix_source_t&out)
+					uarray_prefix_source_t&out,
+					bool checked_indexed_slice = false)
 {
 	int multidim_slice = decode_multidim_uarray_slice_source_(
 	      des, scope, loc, pe, out);
 	if (multidim_slice != 0) return multidim_slice;
 
 	  const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
-	  if (ident && !ident->path().name.empty()) {
+	  if (!checked_indexed_slice && ident && !ident->path().name.empty()) {
 	      const list<index_component_t>&indices =
 		    ident->path().name.back().index;
 	      if (indices.size() == 1
@@ -12834,12 +12916,13 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 
       fixed_uarray_slice_t range_slice;
       int range_rc = decode_fixed_uarray_slice(
-	    des, scope, loc, pe, false, range_slice);
+	    des, scope, loc, pe, false, range_slice, false, checked_indexed_slice);
       if (range_rc < 0)
 	    return -1;
       if (range_rc > 0) {
 	    out.sig = range_slice.signal;
 	    out.canonical_base = range_slice.canonical_base;
+	    out.canonical_base_expr = range_slice.runtime_base;
 	    out.count = range_slice.count;
 	    out.remaining_dims.push_back(range_slice.selected_range);
 	    out.element_type = range_slice.element_type;
@@ -12923,7 +13006,8 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 static NetProc* make_uarray_prefix_copy_(NetScope*scope, const LineInfo&loc,
 					 NetAssign_*lv,
 					 uarray_prefix_source_t&src,
-					 bool reverse_src, bool nonblocking)
+					 bool reverse_src, bool nonblocking,
+					 bool checked_destination = false)
 {
 	NetNet*dst_sig = lv->sig();
 	NetExpr*dst_base_expr = lv->word()
@@ -12943,7 +13027,7 @@ static NetProc* make_uarray_prefix_copy_(NetScope*scope, const LineInfo&loc,
 	    return make_uarray_dynamic_prefix_copy_(
 		  scope, loc, dst_sig, dst_base_expr, src.sig, src_base_expr,
 		  src.count, reverse_src, nonblocking, src.stride,
-		  src.slice_dimension_width);
+		  src.slice_dimension_width, checked_destination);
 	}
 	delete dst_base_expr;
 	delete src_base_expr;
@@ -14385,8 +14469,15 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 
 	/* elaborate the lval. This detects any part selects and mux
 	   expressions that might exist. */
-      NetAssign_*lv = elaborate_lval(des, scope);
+      bool runtime_indexed_slice = false;
+      NetAssign_*lv = elaborate_lval(des, scope,
+	    has_timing_control() ? nullptr : &runtime_indexed_slice);
       if (lv == 0) return 0;
+      if (runtime_indexed_slice
+	  && !check_runtime_uarray_slice_leaf_(des, *this, lv->sig(), false)) {
+	    delete lv;
+	    return nullptr;
+      }
 
 	/* A fixed unpacked-array element of a dynamic array is addressed
 	   word by word (d[i][j]); the whole element is not an l-value yet. */
@@ -14658,7 +14749,8 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		  const PExpr*rsrc = see_through_const_ternary_(des, scope, rval());
 		  uarray_prefix_source_t src;
 		  int decoded = decode_uarray_prefix_source_(des, scope, *this,
-						       rsrc, src);
+						       rsrc, src,
+						       runtime_indexed_slice);
 		  if (decoded < 0) {
 			delete lv;
 			return 0;
@@ -14693,7 +14785,8 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 			      lv_uarray->static_dimensions()[0],
 			      src.remaining_dims[0]);
 			return make_uarray_prefix_copy_(scope, *this, lv, src,
-						 reverse_src, false);
+						 reverse_src, false,
+						 runtime_indexed_slice);
 		  }
 
 		  // A whole one-dimensional signal can also feed a fixed destination
@@ -14739,7 +14832,8 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
                                     whole.sig = sr.net;
                                     whole.count = sr.net->unpacked_count();
                                     return make_uarray_prefix_copy_(
-                                          scope, *this, lv, whole, reverse_src, false);
+                                          scope, *this, lv, whole, reverse_src,
+					  false, runtime_indexed_slice);
 			      }
 
 			      if (!uarray_copy_shapes_compatible_(
@@ -14767,6 +14861,12 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 
 	    // Same C3 reasoning as above for netuarray l-values.
 	    ivl_assert(*this, lv_net_type);
+	    if (runtime_indexed_slice
+		&& !check_runtime_uarray_slice_pattern_(des, *this, rval())) {
+		  delete lv;
+		  return nullptr;
+	    }
+	    unsigned errors_before_pattern = des->errors;
 	    rv = elaborate_rval_(des, scope, lv_net_type);
 
 	      // Supported array/subarray signals, assignment patterns and
@@ -14794,14 +14894,26 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 		&& lv->more == 0 && lv->is_array_slice()) {
 		  if (const NetEArrayPattern*pat =
 			  dynamic_cast<const NetEArrayPattern*>(rv)) {
-			NetProc*blk = make_uarray_pattern_blocking_(scope, *this,
-							     lv, pat);
+			NetProc*blk = make_uarray_pattern_snapshot_(
+			      scope, *this, lv, pat, runtime_indexed_slice, false);
 			if (blk) {
 			      delete lv;
 			      delete rv;
 			      return blk;
 			}
 		  }
+	    }
+
+	    if (runtime_indexed_slice) {
+		  if (des->errors == errors_before_pattern) {
+			cerr << get_fileline() << ": error: this assignment"
+			     << " pattern does not fill the unpacked array slice"
+			     << " exactly." << endl;
+			des->errors += 1;
+		  }
+		  delete lv;
+		  delete rv;
+		  return nullptr;
 	    }
 
 	      // Whole static-array copy from a class property source
@@ -15771,8 +15883,15 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
       }
 
 	/* Elaborate the l-value. */
-      NetAssign_*lv = elaborate_lval(des, scope);
+      bool runtime_indexed_slice = false;
+      NetAssign_*lv = elaborate_lval(des, scope,
+	    has_timing_control() ? nullptr : &runtime_indexed_slice);
       if (lv == 0) return 0;
+      if (runtime_indexed_slice
+	  && !check_runtime_uarray_slice_leaf_(des, *this, lv->sig(), true)) {
+	    delete lv;
+	    return nullptr;
+      }
 
       if (reject_chandle_assignment_(des, scope, lv->net_type())) {
             delete lv;
@@ -15871,7 +15990,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  const PExpr*rsrc = see_through_const_ternary_(des, scope, rval());
 		  uarray_prefix_source_t src;
 		  int decoded = decode_uarray_prefix_source_(des, scope, *this,
-						       rsrc, src);
+						       rsrc, src,
+						       runtime_indexed_slice);
 		  if (decoded < 0) {
 			delete lv;
 			return 0;
@@ -15906,7 +16026,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			      src.remaining_dims[0]);
 			return guard_function_background_event_(scope, *this,
 				make_uarray_prefix_copy_(scope, *this, lv, src,
-						 reverse_src, true));
+						 reverse_src, true,
+						 runtime_indexed_slice));
 		  }
 
 		  if (const PEIdent*rid = dynamic_cast<const PEIdent*>(rsrc)) {
@@ -15950,7 +16071,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
                                     whole.count = sr.net->unpacked_count();
 					return guard_function_background_event_(scope, *this,
 					      make_uarray_prefix_copy_(scope, *this, lv, whole,
-							      reverse_src, true));
+							      reverse_src, true,
+							      runtime_indexed_slice));
 			      }
 
 			      if (!uarray_copy_shapes_compatible_(
@@ -15977,9 +16099,18 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	    }
       }
 
+      if (runtime_indexed_slice
+	  && !check_runtime_uarray_slice_pattern_(des, *this, rval())) {
+	    delete lv;
+	    return nullptr;
+      }
       unsigned errors_before_rval = des->errors;
       NetExpr*rv = elaborate_rval_(des, scope, lv->net_type(), lv->expr_type(), count_lval_width(lv));
-      if (rv == 0) return 0;
+      if (rv == 0) {
+	    if (runtime_indexed_slice)
+		  delete lv;
+	    return 0;
+      }
 
 	/* A blocking unpacked-array function call is copied directly from the
 	   callee's return-array storage by the vvp target. For an NBA, first copy
@@ -16036,7 +16167,8 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  if (delay_ != 0)
 			pat_delay = elaborate_delay_expr(delay_, des, scope);
 		  NetProc*blk = make_uarray_pattern_nb_(scope, *this, lv, pat,
-							pat_delay);
+							pat_delay,
+							runtime_indexed_slice);
 		  delete pat_delay;
 		  if (blk) {
 			delete lv;
@@ -16056,6 +16188,14 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  delete rv;
 		  return 0;
 	    }
+      }
+      if (runtime_indexed_slice) {
+	    cerr << get_fileline() << ": sorry: this pattern for a run-time"
+		 << " indexed unpacked-array slice is not yet supported." << endl;
+	    des->errors += 1;
+	    delete lv;
+	    delete rv;
+	    return nullptr;
       }
 
       NetExpr*delay = 0;

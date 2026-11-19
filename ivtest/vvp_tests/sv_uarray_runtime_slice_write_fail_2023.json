@@ -1,0 +1,6 @@
+{
+    "type"          : "CE",
+    "source"        : "sv_uarray_runtime_slice_write_fail.v",
+    "iverilog-args" : [ "-g2023", "-s", "sv_uarray_runtime_slice_write_fail" ],
+    "gold"          : "sv_uarray_runtime_slice_write_fail"
+}

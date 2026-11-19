@@ -165,7 +165,8 @@ class PAssign_  : public Statement {
               delete self->rval_; self->rval_ = new_rval; }
 
     protected:
-      NetAssign_* elaborate_lval(Design*, NetScope*scope) const;
+      NetAssign_* elaborate_lval(Design*, NetScope*scope,
+				 bool*runtime_indexed_slice = nullptr) const;
       bool reject_chandle_assignment_(Design*, NetScope*, ivl_type_t) const;
       NetExpr* elaborate_rval_(Design*, NetScope*, ivl_type_t lv_net_type,
 			       ivl_variable_type_t lv_type,
