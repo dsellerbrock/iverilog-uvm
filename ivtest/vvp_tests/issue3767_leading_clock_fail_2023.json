@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "issue3767_leading_clock_fail.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "issue3767_leading_clock_fail"
+  ],
+  "gold": "issue3767_leading_clock_fail"
+}
