@@ -1,0 +1,4 @@
+empty '{} '{} '{}
+queue '{'{n:3, valid:1}}
+dynamic '{'{n:3, valid:1}, '{n:2, valid:x}}
+assoc '{-3:'{n:3, valid:1}, 2:'{n:2, valid:x}}
