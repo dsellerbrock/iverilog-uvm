@@ -7999,6 +7999,8 @@ issue3751_2023 vvp_tests/issue3751_2023.json
 issue3752_2005 vvp_tests/issue3752_2005.json
 issue3752_2017 vvp_tests/issue3752_2017.json
 issue3752_2023 vvp_tests/issue3752_2023.json
+issue3753_2017 vvp_tests/issue3753_2017.json
+issue3753_2023 vvp_tests/issue3753_2023.json
 issue3782_2017 vvp_tests/issue3782_2017.json
 issue3782_2023 vvp_tests/issue3782_2023.json
 issue3783_2017 vvp_tests/issue3783_2017.json

@@ -10421,11 +10421,12 @@ NetExpr*PEBShift::elaborate_expr_leaf(Design*des, NetExpr*lp, NetExpr*rp,
                   return tmp;
 	    }
 
+	    const bool check_signed_xz = signed_xz_operand(lp);
 	    unsigned long shift = rpc->value().as_ulong();
 
               // Special case: The shift is zero. The result is simply
               // the left operand.
-	    if (shift == 0) {
+	    if (!check_signed_xz && shift == 0) {
 
 		  if (debug_elaborate)
 			cerr << get_fileline() << ": debug: "
@@ -10440,7 +10441,7 @@ NetExpr*PEBShift::elaborate_expr_leaf(Design*des, NetExpr*lp, NetExpr*rp,
 	      // left operand, and the shift is a signed right shift.
               // Elaborate as a replication of the top bit of the left
               // expression.
-	    if ((op_=='R' && signed_flag_) && (shift >= expr_wid)) {
+	    if (!check_signed_xz && op_=='R' && signed_flag_ && shift >= expr_wid) {
 
 		  if (debug_elaborate)
 			cerr << get_fileline() << ": debug: "
@@ -10462,7 +10463,7 @@ NetExpr*PEBShift::elaborate_expr_leaf(Design*des, NetExpr*lp, NetExpr*rp,
 	      // left operand, and the shift is not a signed right shift
               // (which is caught by the previous special case). Elaborate
               // as a constant-0.
-	    if (shift >= expr_wid) {
+	    if (!check_signed_xz && shift >= expr_wid) {
 
 		  if (debug_elaborate)
 			cerr << get_fileline() << ": debug: "

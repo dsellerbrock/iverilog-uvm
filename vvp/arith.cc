@@ -956,8 +956,57 @@ void vvp_cmp_wne::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 }
 
 
-vvp_shiftl::vvp_shiftl(unsigned wid)
-: vvp_arith_(wid)
+vvp_shift_::vvp_shift_(unsigned wid, bool signed_xz, bool coalesce)
+: vvp_arith_(wid), signed_xz_(signed_xz), coalesce_(coalesce)
+{
+}
+
+bool vvp_shift_::get_shift_(unsigned long&shift) const
+{
+      bool overflow;
+      if ((signed_xz_ && op_a_.has_xz())
+	  || !vector4_to_value(op_b_, overflow, shift))
+	    return false;
+
+      if (overflow || shift > op_a_.size())
+	    shift = op_a_.size();
+      return true;
+}
+
+void vvp_shift_::deliver_(vvp_net_ptr_t port, const vvp_vector4_t&value)
+{
+      vvp_net_t*net = port.ptr();
+      if (!coalesce_) {
+	    net->send_vec4(value, 0);
+	    return;
+      }
+
+      // Match .concat: wait for both inputs, then deliver the first full
+      // value immediately if simulation has started. Coalesce later updates.
+      const unsigned both_ports = 3;
+      bool first = seen_ports_ != both_ports;
+      seen_ports_ |= 1U << port.port();
+      if (seen_ports_ != both_ports || (!first && value_.eeq(value)))
+	    return;
+
+      value_ = value;
+      if (first && schedule_simulation_started()) {
+	    net->send_vec4(value_, 0);
+      } else if (!pending_) {
+	    pending_ = net;
+	    schedule_functor(this);
+      }
+}
+
+void vvp_shift_::run_run()
+{
+      vvp_net_t*net = pending_;
+      pending_ = nullptr;
+      net->send_vec4(value_, 0);
+}
+
+vvp_shiftl::vvp_shiftl(unsigned wid, bool signed_xz, bool coalesce)
+: vvp_shift_(wid, signed_xz, coalesce)
 {
 }
 
@@ -970,28 +1019,22 @@ void vvp_shiftl::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 {
       dispatch_operand_(ptr, bit);
 
-      vvp_vector4_t out (op_a_.size());
-
-      bool overflow_flag;
       unsigned long shift = 0;
-      if (! vector4_to_value(op_b_, overflow_flag, shift)) {
-	    ptr.ptr()->send_vec4(x_val_, 0);
+      if (!get_shift_(shift)) {
+	    deliver_(ptr, x_val_);
 	    return;
       }
 
-      if (overflow_flag || shift > out.size())
-	    shift = out.size();
-
 	/* Zero fill, then move the surviving low part of A up. */
-      out.fill_bits(BIT4_0);
+      vvp_vector4_t out (op_a_.size(), BIT4_0);
       if (shift < out.size())
 	    out.set_vec(shift, vvp_vector4_t(op_a_, 0, out.size()-shift));
 
-      ptr.ptr()->send_vec4(out, 0);
+      deliver_(ptr, out);
 }
 
-vvp_shiftr::vvp_shiftr(unsigned wid, bool signed_flag)
-: vvp_arith_(wid), signed_flag_(signed_flag)
+vvp_shiftr::vvp_shiftr(unsigned wid, bool signed_flag, bool signed_xz, bool coalesce)
+: vvp_shift_(wid, signed_xz, coalesce), signed_flag_(signed_flag)
 {
 }
 
@@ -1004,17 +1047,11 @@ void vvp_shiftr::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 {
       dispatch_operand_(ptr, bit);
 
-      vvp_vector4_t out (op_a_.size());
-
-      bool overflow_flag;
       unsigned long shift = 0;
-      if (! vector4_to_value(op_b_, overflow_flag, shift)) {
-	    ptr.ptr()->send_vec4(x_val_, 0);
+      if (!get_shift_(shift)) {
+	    deliver_(ptr, x_val_);
 	    return;
       }
-
-      if (overflow_flag || shift > out.size())
-	    shift = out.size();
 
       vvp_bit4_t pad = BIT4_0;
       if (signed_flag_ && op_a_.size() > 0)
@@ -1022,11 +1059,11 @@ void vvp_shiftr::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 
 	/* Fill with the pad bit, then move the surviving high part of A
 	   down. */
-      out.fill_bits(pad);
+      vvp_vector4_t out (op_a_.size(), pad);
       if (shift < out.size())
 	    out.set_vec(0, vvp_vector4_t(op_a_, shift, out.size()-shift));
 
-      ptr.ptr()->send_vec4(out, 0);
+      deliver_(ptr, out);
 }
 
 

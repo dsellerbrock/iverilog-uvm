@@ -373,10 +373,8 @@ extern void compile_sfunc(char*label, char*name, char*format_string,
 extern void compile_repeat(char*label, long width, long repeat,
 			   struct symb_s arg);
 
-extern void compile_shiftl(char*label, long width,
-			   unsigned argc, struct symb_s*argv);
-extern void compile_shiftr(char*label, long width, bool signed_flag,
-			   unsigned argc, struct symb_s*argv);
+extern void compile_shift(char*label, uint64_t width, bool right, bool sign_fill,
+			  uint64_t flags, unsigned argc, struct symb_s*argv);
 
 extern void compile_timescale(long units, long precision);
 /* M12: modport declaration inside an interface scope. M12-6: each

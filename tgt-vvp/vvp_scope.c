@@ -2893,6 +2893,8 @@ static void draw_lpm_shiftl(ivl_lpm_t net)
       else
 	    fprintf(vvp_out, "L_%p%s .shift/l %u", net, dly, width);
 
+      if (ivl_lpm_shift_signed_xz(net))
+	    fprintf(vvp_out, ", %u", ivl_lpm_shift_coalesce(net) ? 3u : 1u);
       fprintf(vvp_out, ", %s, %s;\n", lval, rval);
 }
 

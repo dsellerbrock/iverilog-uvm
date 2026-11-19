@@ -1963,6 +1963,18 @@ extern "C" int ivl_lpm_reduce_signed_xz(ivl_lpm_t net)
       return net->reduce_signed_xz;
 }
 
+extern "C" int ivl_lpm_shift_signed_xz(ivl_lpm_t net)
+{
+      assert(net && (net->type == IVL_LPM_SHIFTL || net->type == IVL_LPM_SHIFTR));
+      return net->u_.shift.signed_xz;
+}
+
+extern "C" int ivl_lpm_shift_coalesce(ivl_lpm_t net)
+{
+      assert(net && (net->type == IVL_LPM_SHIFTL || net->type == IVL_LPM_SHIFTR));
+      return net->u_.shift.coalesce;
+}
+
 extern "C" ivl_nexus_t ivl_lpm_select(ivl_lpm_t net)
 {
       assert(net);

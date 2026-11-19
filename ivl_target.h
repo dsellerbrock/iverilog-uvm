@@ -1606,6 +1606,9 @@ extern unsigned    ivl_lpm_lineno(ivl_lpm_t net);
  *
  * The ivl_lpm_signed() flag means for IVL_LPM_SHIFTR that the right
  * shift is *signed*. For SHIFTL, then signed-ness is meaningless.
+ * For either direction, ivl_lpm_shift_signed_xz() requires an all-X
+ * result if any vector input bit is X/Z. ivl_lpm_shift_coalesce()
+ * requests concat-style delivery for fixed in-range zero-fill shifts.
  *
  * - System function call (IVL_LPM_SFUNC)
  * This device represents a netlist call to a system function. The
@@ -1660,6 +1663,8 @@ extern unsigned       ivl_lpm_width(ivl_lpm_t net);
 extern unsigned       ivl_lpm_event_synchronous(ivl_lpm_t net);
   /* True for reductions that yield X if any operand bit is X/Z. */
 extern int            ivl_lpm_reduce_signed_xz(ivl_lpm_t net);
+extern int            ivl_lpm_shift_signed_xz(ivl_lpm_t net);
+extern int            ivl_lpm_shift_coalesce(ivl_lpm_t net);
 extern ivl_event_t    ivl_lpm_trigger(ivl_lpm_t net);
 
   /* IVL_LPM_FF */
