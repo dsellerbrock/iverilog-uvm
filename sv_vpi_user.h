@@ -127,11 +127,13 @@ EXTERN_C_START
 #define vpiObjId            660
 
 /********* One-to-One ***********/
+#define vpiExtends          677
 #define vpiBaseTypespec     703
 /* IEEE 1800 Annex M: VPI iteration over explicitly declared typedefs. */
 #define vpiTypedef          725
 /* IEEE 1800 Annex M: package objects imported into the current scope. */
 #define vpiImport           726
+#define vpiDerivedClasses   727
 #define vpiIntegerTypespec  635
 #define vpiLongIntTypespec  625
 #define vpiByteTypespec     627

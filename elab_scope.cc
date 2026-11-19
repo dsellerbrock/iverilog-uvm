@@ -4379,6 +4379,32 @@ static void set_class_super_(Design*des, const PClass*pclass,
 	    des->errors += 1;
       }
       use_class->set_super(use_base_class);
+      if (use_class->class_declaration_scope() != use_class->class_scope())
+	    return;
+
+      const data_type_t*base = pclass->type->base_type.get();
+      perm_string name = use_base_class ? use_base_class->get_name() : perm_string();
+      if (const auto*ref = dynamic_cast<const typeref_t*>(base)) {
+	    if (const typedef_t*decl = ref->typedef_ref()) {
+		  if (!decl->name.nil())
+			name = decl->name;
+		  base = decl->get_data_type();
+	    }
+      }
+      bool type_parameter = false;
+      if (const auto*param = dynamic_cast<const type_parameter_t*>(base)) {
+	    if (!param->name.nil())
+		  name = param->name;
+	    // A bare class identifier can also be parsed as type_parameter_t.
+	    for (const NetScope*scope = use_class->class_scope(); scope; scope = scope->parent()) {
+		  auto found = scope->parameters.find(param->name);
+		  if (found != scope->parameters.end()) {
+			type_parameter = found->second.type_flag;
+			break;
+		  }
+	    }
+      }
+      use_class->set_vpi_base_reference(name, type_parameter);
 }
 
 static const char* type_parameter_restriction_name_(

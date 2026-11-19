@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3746_class_inheritance.sv",
+  "iverilog-args": ["-g2023", "-s", "top", "-DCHECK_DEFAULT_FORWARDING"],
+  "vpi-modules": ["issue3746_class_inheritance_2023"],
+  "vpi-sources": ["vpi/issue3746_class_inheritance.c"],
+  "gold": "issue3746_class_inheritance"
+}

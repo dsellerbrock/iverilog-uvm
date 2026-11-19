@@ -32,6 +32,7 @@
 # include  <algorithm>
 # include  <map>
 # include  <memory>
+# include  <set>
 # include  <utility>
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
@@ -1039,14 +1040,22 @@ class __vpiParamAssign : public __vpiHandle {
     public:
       __vpiParamAssign(__vpiScope*scope, vpiHandle lhs, vpiHandle rhs)
       : scope_(scope), lhs_(lhs), rhs_(rhs) { }
-      ~__vpiParamAssign() override { delete rhs_; }
+      __vpiParamAssign(vpiHandle parent, vpiHandle lhs, vpiHandle rhs, bool by_name)
+      : scope_(nullptr), lhs_(lhs), rhs_(rhs), parent_(parent), by_name_(by_name) { }
+      ~__vpiParamAssign() override { if (!parent_) delete rhs_; }
       int get_type_code(void) const override { return vpiParamAssign; }
+      int vpi_get(int code) override
+      {
+	    if (parent_ && code == vpiConnByName)
+		  return by_name_;
+	    return __vpiHandle::vpi_get(code);
+      }
       vpiHandle vpi_handle(int code) override
       {
 	    switch (code) {
 		case vpiLhs: return lhs_;
-		case vpiRhs: return rhs_;
-		case vpiParent:
+		case vpiRhs: return rhs_ ? rhs_ : lhs_->vpi_handle(vpiExpr);
+		case vpiParent: return parent_ ? parent_ : scope_;
 		case vpiScope: return scope_;
 		default: return __vpiHandle::vpi_handle(code);
 	    }
@@ -1055,6 +1064,8 @@ class __vpiParamAssign : public __vpiHandle {
       __vpiScope*scope_;
       vpiHandle lhs_;
       vpiHandle rhs_;
+      vpiHandle parent_ = nullptr;
+      bool by_name_ = false;
 };
 
 /* A def param object (IEEE 1800-2023 37.28): the defparam statement of
@@ -1648,6 +1659,72 @@ class vpiScopeForkAuto  : public __vpiScope {
       int get_type_code(void) const override { return vpiNamedFork; }
 };
 
+class vpiClassDefinition;
+
+// A lexical class type reference has its own identity and cannot expose
+// the members or parameter values of a particular specialization.
+class vpiClassReference : public __vpiHandle {
+    public:
+      explicit vpiClassReference(const char*name) : name_(name) { }
+      int get_type_code() const override { return vpiClassTypespec; }
+      char* vpi_get_str(int code) override
+      {
+	    return code == vpiName ? simple_set_rbuf_str(name_.c_str()) : nullptr;
+      }
+      vpiHandle vpi_handle(int code) override;
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code == vpiParamAssign && !parameters_.empty())
+		  return vpip_make_iterator(parameters_.size(), parameters_.data(), false);
+	    return nullptr;
+      }
+      ~vpiClassReference() override
+      {
+	    for (vpiHandle parameter : parameters_)
+		  delete parameter;
+      }
+      void add_parameter(vpiHandle lhs, vpiHandle rhs, bool by_name)
+      {
+	    parameters_.push_back(new __vpiParamAssign(this, lhs, rhs, by_name));
+      }
+
+      vpiClassDefinition*definition = nullptr;
+
+    private:
+      const string name_;
+      vector<vpiHandle> parameters_;
+};
+
+class vpiClassExtends : public __vpiHandle {
+    public:
+      explicit vpiClassExtends(const char*name) : base(name) { }
+      ~vpiClassExtends() override { free(args_); }
+      int get_type_code() const override { return vpiExtends; }
+      vpiHandle vpi_handle(int code) override
+      {
+	    return code == vpiClassTypespec ? &base : nullptr;
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    return code == vpiArgument && argc_
+		  ? vpip_make_iterator(argc_, args_, false) : nullptr;
+      }
+      bool set_args(unsigned argc, vpiHandle*args)
+      {
+	    if (!argc || argc_)
+		  return false;
+	    argc_ = argc;
+	    args_ = args;
+	    return true;
+      }
+
+      vpiClassReference base;
+
+    private:
+      unsigned argc_ = 0;
+      vpiHandle*args_ = nullptr;
+};
+
 class vpiClassDefinition : public __vpiHandle {
     public:
       vpiClassDefinition(__vpiScope*decl, bool is_virtual)
@@ -1672,6 +1749,8 @@ class vpiClassDefinition : public __vpiHandle {
       {
 	    if (code == vpiScope)
 		  return decl_->scope;
+	    if (code == vpiExtends)
+		  return extends_.get();
 	    return __vpiHandle::vpi_handle(code);
       }
       vpiHandle vpi_iterate(int code) override
@@ -1682,16 +1761,53 @@ class vpiClassDefinition : public __vpiHandle {
 					     specializations_.data(), false);
 	    if (code == vpiClassDefn)
 		  return class_definition_iter(decl_);
+	    if (code == vpiDerivedClasses)
+		  return derived_iterator();
 	    return __vpiHandle::vpi_iterate(code);
       }
       void add_specialization(vpiHandle spec)
       { specializations_.push_back(spec); }
+      void add_derived(vpiClassDefinition*defn)
+      { derived_.insert(defn); }
+      vpiClassExtends* extends() const { return extends_.get(); }
+      bool create_extends(const char*name)
+      {
+	    if (extends_)
+		  return false;
+	    extends_.reset(new vpiClassExtends(name));
+	    return true;
+      }
 
     private:
+      vpiHandle derived_iterator()
+      {
+	    set<vpiClassDefinition*> seen{this};
+	    vector<vpiHandle> descendants{this};
+	    for (size_t idx = 0; idx < descendants.size(); ++idx) {
+		  auto*derived = static_cast<vpiClassDefinition*>(descendants[idx]);
+		  for (vpiClassDefinition*child : derived->derived_)
+			if (seen.insert(child).second)
+			      descendants.push_back(child);
+	    }
+	    descendants.erase(descendants.begin());
+	    return make_subset_iterator_(vpiClassDefn, descendants);
+      }
+
       __vpiScope*const decl_;
       const bool is_virtual_;
       vector<vpiHandle> specializations_;
+      unique_ptr<vpiClassExtends> extends_;
+      set<vpiClassDefinition*> derived_;
 };
+
+vpiHandle vpiClassReference::vpi_handle(int code)
+{
+      if (code == vpiClassDefn)
+	    return definition;
+      if (code == vpiExtends && definition && definition->extends())
+	    return &definition->extends()->base;
+      return nullptr;
+}
 
 class vpiScopeClass : public __vpiScope {
     public:
@@ -1700,6 +1816,9 @@ class vpiScopeClass : public __vpiScope {
       int get_type_code(void) const override { return vpiClassTypespec; }
       vpiHandle vpi_handle(int code) override
       {
+	    if (code == vpiExtends)
+		  return concrete_ == 0 && definition_ && definition_->extends()
+			? &definition_->extends()->base : base_;
 	    if (code == vpiClassDefn) {
 		  if (linked_)
 			return definition_;
@@ -1722,6 +1841,15 @@ class vpiScopeClass : public __vpiScope {
       }
 
       bool linked() const { return linked_; }
+      bool concrete() const { return concrete_ == 1; }
+      vpiClassDefinition* definition() const { return definition_; }
+      bool bind_base(vpiHandle base)
+      {
+	    if (!concrete() || base_)
+		  return false;
+	    base_ = base;
+	    return true;
+      }
       vpiClassDefinition* lexical_definition() const
       { return lexical_definition_.get(); }
       vpiClassDefinition* create_definition(bool is_virtual)
@@ -1760,6 +1888,7 @@ class vpiScopeClass : public __vpiScope {
       unique_ptr<vpiClassDefinition> lexical_definition_;
       vpiClassDefinition*definition_ = nullptr;
       class_type*runtime_ = nullptr;
+      vpiHandle base_ = nullptr;
 };
 
 static vpiHandle class_definition_iter(__vpiScope*scope)
@@ -1831,6 +1960,139 @@ void compile_vpi_class_typespec(char*label, uint64_t concrete)
 	    return;
       }
       resolv_submit(new class_definition_link(label, scope));
+}
+
+class class_extends_link : public resolv_list_s {
+    public:
+      class_extends_link(char*label, vpiClassDefinition*derived)
+      : resolv_list_s(label), derived_(derived) { }
+      bool resolve(bool last) override
+      {
+	    vpiHandle target = vvp_lookup_handle(label());
+	    if (!target && !last)
+		  return false;
+	    if (auto*defn = dynamic_cast<vpiClassDefinition*>(target)) {
+		  derived_->extends()->base.definition = defn;
+		  defn->add_derived(derived_);
+	    } else {
+		  fprintf(stderr, "vvp: invalid .class/extends definition '%s'\n", label());
+		  compile_errors += 1;
+	    }
+	    return true;
+      }
+    private:
+      vpiClassDefinition*derived_;
+};
+
+void compile_vpi_class_extends(char*base, char*name)
+{
+      auto*scope = dynamic_cast<vpiScopeClass*>(vpip_peek_current_scope());
+      auto*decl = scope ? scope->lexical_definition() : nullptr;
+      if (!decl || !*name || !decl->create_extends(name)) {
+	    yyerror("invalid .class/extends record");
+	    free(base);
+      } else if (base) {
+	    resolv_submit(new class_extends_link(base, decl));
+      }
+      free(name);
+}
+
+class class_base_link : public resolv_list_s {
+    public:
+      class_base_link(char*label, vpiScopeClass*derived)
+      : resolv_list_s(label), derived_(derived) { }
+      bool resolve(bool last) override
+      {
+	    vpiHandle target = vvp_lookup_handle(label());
+	    auto*base = dynamic_cast<vpiScopeClass*>(target);
+	    if ((!target || (base && (!base->definition() || !derived_->definition()))) && !last)
+		  return false;
+	    if (base && base->concrete() && base->definition()
+		&& derived_->definition() && derived_->bind_base(base)) {
+		  base->definition()->add_derived(derived_->definition());
+	    } else {
+		  fprintf(stderr, "vvp: invalid .class/base typespec '%s'\n", label());
+		  compile_errors += 1;
+	    }
+	    return true;
+      }
+    private:
+      vpiScopeClass*derived_;
+};
+
+void compile_vpi_class_base(char*base, char*builtin_name)
+{
+      auto*scope = dynamic_cast<vpiScopeClass*>(vpip_peek_current_scope());
+      if (!scope || !scope->linked() || !scope->concrete()) {
+	    yyerror("invalid .class/base record");
+	    free(base);
+      } else if (builtin_name) {
+	    static map<string, unique_ptr<vpiClassReference>> builtins;
+	    auto&typespec = builtins[base];
+	    if (!typespec)
+		  typespec.reset(new vpiClassReference(builtin_name));
+	    if (!scope->bind_base(typespec.get()))
+		  yyerror("duplicate .class/base record");
+	    free(base);
+      } else {
+	    resolv_submit(new class_base_link(base, scope));
+      }
+      free(builtin_name);
+}
+
+void compile_vpi_class_ctor(char*label, unsigned argc, vpiHandle*argv)
+{
+      auto*decl = dynamic_cast<vpiClassDefinition*>(vvp_lookup_handle(label));
+      __vpiScope*ctor = vpip_peek_current_scope();
+      auto*owner = ctor ? dynamic_cast<vpiScopeClass*>(ctor->scope) : nullptr;
+      if (!owner || !decl || owner->lexical_definition() != decl
+	  || ctor->get_type_code() != vpiFunction || !decl->extends()
+	  || !decl->extends()->set_args(argc, argv)) {
+	    yyerror("invalid .class/ctor record");
+	    // Argument label lookups may still hold addresses inside argv.
+      }
+      free(label);
+}
+
+class class_base_param_link : public resolv_list_s {
+    public:
+      class_base_param_link(char*label, vpiClassReference&base, bool by_name,
+			    unsigned argc, vpiHandle*argv)
+      : resolv_list_s(label), base_(base), by_name_(by_name), argc_(argc), argv_(argv) { }
+      ~class_base_param_link() override { free(argv_); }
+      bool resolve(bool last) override
+      {
+	    vpiHandle lhs = vvp_lookup_handle(label());
+	    vpiHandle rhs = argc_ ? argv_[0] : nullptr;
+	    if ((!lhs || !base_.definition || (argc_ && !rhs)) && !last)
+		  return false;
+	    if (!lhs || lhs->get_type_code() != vpiParameter || !base_.definition
+		|| (argc_ && !rhs)) {
+		  fprintf(stderr, "vvp: invalid .class/param formal '%s'\n", label());
+		  compile_errors += 1;
+	    } else {
+		  base_.add_parameter(lhs, rhs, by_name_);
+	    }
+	    return true;
+      }
+    private:
+      vpiClassReference&base_;
+      bool by_name_;
+      unsigned argc_;
+      vpiHandle*argv_;
+};
+
+void compile_vpi_class_param(char*label, uint64_t by_name, unsigned argc, vpiHandle*argv)
+{
+      auto*scope = dynamic_cast<vpiScopeClass*>(vpip_peek_current_scope());
+      auto*decl = scope ? scope->lexical_definition() : nullptr;
+      if (!decl || !decl->extends() || argc > 1 || by_name > 1) {
+	    yyerror("invalid .class/param record");
+	    free(label);
+      } else {
+	    resolv_submit(new class_base_param_link(label, decl->extends()->base,
+						  by_name, argc, argv));
+      }
 }
 
 class class_runtime_link : public resolv_list_s {

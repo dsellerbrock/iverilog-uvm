@@ -165,6 +165,10 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".class/defn"   { return K_CLASS_DEFN; }
 ".class/typespec" { return K_CLASS_TYPESPEC; }
 ".class/runtime"  { return K_CLASS_RUNTIME; }
+".class/extends"  { return K_CLASS_EXTENDS; }
+".class/base"     { return K_CLASS_BASE; }
+".class/ctor"     { return K_CLASS_CTOR; }
+".class/param"    { return K_CLASS_PARAM; }
 ".class/union/tagged" { return K_CLASS_UNION_TAGGED; }
 ".class/union" { return K_CLASS_UNION; }
 ".class/struct" { return K_CLASS_STRUCT; }
