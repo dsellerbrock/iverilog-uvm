@@ -2877,6 +2877,13 @@ extern ivl_sfunc_as_task_t ivl_stmt_sfunc_as_task(ivl_statement_t net);
   /* IVL_ST_DELAY, IVL_ST_DELAYX, IVL_ST_FOREVER, IVL_ST_FORLOOP,
      IVL_ST_REPEAT, IVL_ST_WAIT, IVL_ST_WHILE */
 extern ivl_statement_t ivl_stmt_sub_stmt(ivl_statement_t net);
+  /* VPI source provenance for the four single-body loop statements. */
+extern int ivl_stmt_is_source_loop(ivl_statement_t net);
+extern int ivl_stmt_is_source_null(ivl_statement_t net);
+  /* Scope for naming a VPI block, which can differ from its execution scope. */
+extern ivl_scope_t ivl_stmt_vpi_block_scope(ivl_statement_t net);
+  /* IVL_ST_REPEAT: a known zero (including negative/X/Z) or one, else -1. */
+extern int ivl_stmt_small_repeat_count(ivl_statement_t net);
 /* IVL_ST_WAIT_ORDER only: failure continuation for wait_order's optional else. */
 extern ivl_statement_t ivl_stmt_wait_order_fail_stmt(ivl_statement_t net);
   /* IVL_ST_FORLOOP */

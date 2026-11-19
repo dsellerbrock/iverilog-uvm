@@ -7613,24 +7613,28 @@ loop_statement /* IEEE1800-2005: A.6.8 */
 
   | K_forever statement_or_null
       { PForever*tmp = new PForever($2);
+	tmp->parsed_loop_statement();
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
 
   | K_repeat '(' expression ')' statement_or_null
       { PRepeat*tmp = new PRepeat($3, $5);
+	tmp->parsed_loop_statement();
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
 
   | K_while '(' expression ')' statement_or_null
       { PWhile*tmp = new PWhile($3, $5);
+	tmp->parsed_loop_statement();
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
 
   | K_do statement_or_null K_while '(' expression ')' ';'
       { PDoWhile*tmp = new PDoWhile($5, $2);
+	tmp->parsed_loop_statement();
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
@@ -11334,7 +11338,7 @@ statement_or_null /* IEEE1800-2005: A.6.4 */
   : statement
       { $$ = $1; }
   | attribute_list_opt ';'
-      { PNoop*tmp = new PNoop;
+      { PNoop*tmp = new PNoop(true);
 	FILE_NAME(tmp, @2);
 	pform_bind_attributes(tmp->attributes, $1);
 	$$ = tmp;
@@ -21444,6 +21448,7 @@ statement_item /* This is roughly statement_item in the LRM */
 		      tmp = new PBlock(PBlock::BL_SEQ);
 		      FILE_NAME(tmp, @1);
 		}
+	tmp->source_begin($1->label ? PBlock::SOURCE_NAMED_BEGIN : PBlock::SOURCE_BEGIN);
 	if ($4) tmp->set_statement(*$4);
 	delete $4;
 	check_end_label(@6, "block", $1->label, $6);

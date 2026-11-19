@@ -1103,6 +1103,8 @@ struct ivl_statement_s {
       enum ivl_statement_type_e type_;
       unsigned lineno;
       perm_string file;
+      bool source_loop_;
+      bool source_null_;
 
       union {
 	    struct { /* IVL_ST_ALLOC */
@@ -1124,6 +1126,8 @@ struct ivl_statement_s {
 		  struct ivl_statement_s*stmt_;
 		  unsigned nstmt_;
 		  ivl_scope_t scope;
+		  ivl_scope_t vpi_begin_scope;
+		  bool preserve_vpi_begin;
 		  ivl_randsequence_block_t randsequence;
 	    } block_;
 
@@ -1230,9 +1234,10 @@ struct ivl_statement_s {
 		  ivl_statement_t stmt_; /* wait body, else 0 */
 	    } evarr_;
 
-	    struct { /* IVL_ST_WHILE IVL_ST_REPEAT */
+	    struct { /* IVL_ST_WHILE IVL_ST_DO_WHILE IVL_ST_REPEAT */
 		  ivl_expr_t cond_;
 		  ivl_statement_t stmt_;
+		  int small_repeat_count;
 	    } while_;
       } u_;
 

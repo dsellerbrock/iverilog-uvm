@@ -3621,6 +3621,9 @@ class NetProc : public virtual LineInfo {
       explicit NetProc();
       virtual ~NetProc() override;
 
+      void source_loop(bool flag) { source_loop_ = flag; }
+      bool is_source_loop() const { return source_loop_; }
+
 	// Find the nexa that are input by the statement. This is used
 	// for example by @* to find the inputs to the process for the
 	// sensitivity list.
@@ -3718,6 +3721,7 @@ class NetProc : public virtual LineInfo {
     private:
       friend class NetBlock;
       NetProc*next_;
+      bool source_loop_ = false;
 
     private: // not implemented
       NetProc(const NetProc&);
@@ -4115,6 +4119,12 @@ class NetBlock  : public NetProc {
 
       Type type() const    { return type_; }
       NetScope* subscope() const { return subscope_; }
+      void preserve_vpi_begin(NetScope*scope)
+      { preserve_vpi_begin_ = true; vpi_begin_scope_ = scope; }
+      bool preserves_vpi_begin() const { return preserve_vpi_begin_; }
+      NetScope* vpi_begin_scope() const { return vpi_begin_scope_; }
+      void source_null(bool flag) { source_null_ = flag; }
+      bool is_source_null() const { return source_null_; }
       void automatic_task_call(const NetScope*scope) { automatic_task_call_ = scope; }
       void add_call_external(NexusSet&out, const NexusSet&in) const;
       void randsequence_block(ivl_randsequence_block_t kind)
@@ -4165,6 +4175,9 @@ class NetBlock  : public NetProc {
       NetScope*subscope_;
       const NetScope*automatic_task_call_ = nullptr;
       ivl_randsequence_block_t randsequence_block_;
+      bool preserve_vpi_begin_ = false;
+      bool source_null_ = false;
+      NetScope*vpi_begin_scope_ = nullptr;
 
       NetProc*last_;
 };
@@ -5273,6 +5286,8 @@ class NetRepeat : public NetProc {
       ~NetRepeat() override;
 
       const NetExpr*expr() const;
+      void small_count(int value) { small_count_ = value; }
+      int small_count() const { return small_count_; }
       void emit_recurse(struct target_t*) const;
 
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
@@ -5288,6 +5303,7 @@ class NetRepeat : public NetProc {
     private:
       NetExpr*expr_;
       NetProc*statement_;
+      int small_count_ = -1;
 };
 
 /*

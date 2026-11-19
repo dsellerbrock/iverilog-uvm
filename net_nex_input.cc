@@ -945,7 +945,7 @@ NexusSet* NetRepeat::nex_input(bool rem_out, bool always_sens, bool nested_func)
 {
       NexusSet*result = expr_->nex_input(rem_out, always_sens, nested_func);
 
-      if (statement_) {
+      if (small_count() != 0 && statement_) {
 	    NexusSet*tmp = statement_->nex_input(rem_out, always_sens, nested_func);
 	    result->add(*tmp);
 	    delete tmp;

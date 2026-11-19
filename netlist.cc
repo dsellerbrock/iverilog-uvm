@@ -3878,6 +3878,7 @@ DelayType NetPDelay::delay_type(bool print_delay) const
 
 DelayType NetRepeat::delay_type(bool print_delay) const
 {
+      if (small_count() == 0) return NO_DELAY;
       return get_loop_delay_type(expr_, statement_, print_delay);
 }
 
@@ -4399,6 +4400,8 @@ bool NetRelease::check_synth(ivl_process_type_t pr_type,
 bool NetRepeat::check_synth(ivl_process_type_t pr_type,
                             const NetScope* scope) const
 {
+      if (small_count() == 0) return false;
+      if (small_count() == 1) return statement_->check_synth(pr_type, scope);
       bool result = false;
       print_synth_warning(this, "A repeat", pr_type);
       if (statement_) result |= statement_->check_synth(pr_type, scope);

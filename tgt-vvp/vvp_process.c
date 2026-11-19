@@ -68,7 +68,7 @@ static uint64_t vpi_stmt_id_(ivl_statement_t stmt)
 }
 
 static int vpi_statement_visible_(ivl_statement_t stmt);
-static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent);
+static uint64_t emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent);
 
 static int pure_comb_expr_(ivl_expr_t expr)
 {
@@ -295,6 +295,9 @@ static void pure_comb_collect_stmt_signals_(
 	  case IVL_ST_DO_WHILE:
 	  case IVL_ST_REPEAT:
 	  case IVL_ST_WHILE:
+	    if (ivl_statement_type(stmt) == IVL_ST_REPEAT
+		&& ivl_stmt_small_repeat_count(stmt) == 0)
+		  break;
 	    pure_comb_collect_expr_reads_(ivl_stmt_cond_expr(stmt), reads);
 	    pure_comb_collect_stmt_signals_(
 		  ivl_stmt_sub_stmt(stmt), reads, writes);
@@ -591,6 +594,9 @@ static int pure_comb_stmt_definite_(
 	  case IVL_ST_REPEAT: {
 	    struct pure_comb_signal_set_s body_defs = { 0, 0, 0 };
 	    int safe;
+	    if (ivl_statement_type(stmt) == IVL_ST_REPEAT
+		&& ivl_stmt_small_repeat_count(stmt) == 0)
+		  return 1;
 	    if (!pure_comb_expr_definite_(
 		  ivl_stmt_cond_expr(stmt), writes, defined))
 		  return 0;
@@ -772,6 +778,9 @@ static int pure_comb_stmt_impl_(ivl_statement_t stmt, int allow_named_scope)
 	  case IVL_ST_DO_WHILE:
 	  case IVL_ST_REPEAT:
 	  case IVL_ST_WHILE:
+	    if (ivl_statement_type(stmt) == IVL_ST_REPEAT
+		&& ivl_stmt_small_repeat_count(stmt) == 0)
+		  return 1;
 	    return pure_comb_expr_(ivl_stmt_cond_expr(stmt))
 		&& pure_comb_stmt_impl_(ivl_stmt_sub_stmt(stmt), 0);
 
@@ -1888,6 +1897,9 @@ static int named_block_stmt_can_inline_(ivl_statement_t stmt)
 	  case IVL_ST_WHILE:
 	  case IVL_ST_DO_WHILE:
 	  case IVL_ST_REPEAT:
+	    if (ivl_statement_type(stmt) == IVL_ST_REPEAT
+		&& ivl_stmt_small_repeat_count(stmt) == 0)
+		  return 1;
 	    return named_block_stmt_can_inline_(ivl_stmt_sub_stmt(stmt));
 
 	  case IVL_ST_FORLOOP:
@@ -4168,13 +4180,19 @@ static int deferred_final_task_passive_body_(ivl_statement_t stmt,
             *reason = "a nested user-subroutine call";
             return 0;
 
+          case IVL_ST_REPEAT:
+            if (ivl_stmt_small_repeat_count(stmt) == 0)
+                  return 1;
+            if (ivl_stmt_small_repeat_count(stmt) == 1)
+                  return deferred_final_task_passive_body_(
+                        ivl_stmt_sub_stmt(stmt), reason);
+            /* fall through */
           case IVL_ST_DELAY:
           case IVL_ST_DELAYX:
           case IVL_ST_WAIT:
           case IVL_ST_DO_WHILE:
           case IVL_ST_FOREVER:
           case IVL_ST_FORLOOP:
-          case IVL_ST_REPEAT:
           case IVL_ST_WHILE:
             *reason = "timing or iterative control";
             return 0;
@@ -9164,7 +9182,14 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 	    break;
 
 	  case IVL_ST_REPEAT:
-	    rc += show_stmt_repeat(net, sscope);
+	    if (ivl_stmt_small_repeat_count(net) == 0) {
+		  /* Expose the body as metadata without emitting its code. */
+		  show_stmt_file_line(net, "Repeat statement.");
+		  draw_stmt_callback_entry(net);
+		  fprintf(vvp_out, "    %%noop;\n");
+	    } else {
+		  rc += show_stmt_repeat(net, sscope);
+	    }
 	    break;
 
 	  case IVL_ST_STASK:
@@ -9433,7 +9458,7 @@ static unsigned vpi_statement_type_(ivl_statement_t stmt)
           case IVL_ST_NOOP: return vpiNullStmt;
           case IVL_ST_BLOCK:
 	    if (vpi_value_return_block_(stmt)) return vpiReturnStmt;
-	    return ivl_stmt_block_scope(stmt) ? vpiNamedBegin : vpiBegin;
+	    return ivl_stmt_vpi_block_scope(stmt) ? vpiNamedBegin : vpiBegin;
           case IVL_ST_FORK:
           case IVL_ST_FORK_JOIN_ANY:
           case IVL_ST_FORK_JOIN_NONE:
@@ -9518,7 +9543,6 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       unsigned type;
       const char *name = "";
       vpi_stmt_id_entry_t*entry;
-      if (!vpi_statement_visible_(stmt)) return 0;
       id = next_vpi_stmt_id_++;
       entry = calloc(1, sizeof *entry);
       assert(entry);
@@ -9536,8 +9560,8 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
 		|| ivl_statement_type(stmt) == IVL_ST_FORK
 		|| ivl_statement_type(stmt) == IVL_ST_FORK_JOIN_ANY
 		|| ivl_statement_type(stmt) == IVL_ST_FORK_JOIN_NONE)
-	       && ivl_stmt_block_scope(stmt))
-	    name = ivl_scope_name(ivl_stmt_block_scope(stmt));
+	       && ivl_stmt_vpi_block_scope(stmt))
+	    name = ivl_scope_name(ivl_stmt_vpi_block_scope(stmt));
       fprintf(vvp_out, "    .stmt_node %" PRIu64 " %" PRIu64 " %u ",
               id, parent, type);
       emit_vpi_stmt_name_(name);
@@ -9545,14 +9569,14 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       return id;
 }
 
-static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
+static uint64_t emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
 {
       uint64_t id;
       unsigned idx, count = 0;
-      if (!vpi_statement_visible_(stmt)) return;
+      if (!vpi_statement_visible_(stmt)) return 0;
       id = emit_vpi_stmt_node_(stmt, parent);
 	/* A return statement has no statements below it. */
-      if (vpi_value_return_block_(stmt)) return;
+      if (vpi_value_return_block_(stmt)) return id;
       switch (ivl_statement_type(stmt)) {
           case IVL_ST_BLOCK:
           case IVL_ST_FORK:
@@ -9574,15 +9598,25 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
             for (idx = 0; idx < count; idx += 1)
                   emit_vpi_stmt_tree_(ivl_stmt_case_stmt(stmt, idx), id);
             break;
-          case IVL_ST_DELAY:
-          case IVL_ST_DELAYX:
           case IVL_ST_FOREVER:
           case IVL_ST_REPEAT:
+          case IVL_ST_DO_WHILE:
+          case IVL_ST_WHILE: {
+            ivl_statement_t body = ivl_stmt_sub_stmt(stmt);
+            int source_loop = ivl_stmt_is_source_loop(stmt);
+            uint64_t body_id = source_loop && body && ivl_stmt_is_source_null(body)
+                  ? emit_vpi_stmt_node_(body, id)
+                  : emit_vpi_stmt_tree_(body, id);
+            if (source_loop && body_id)
+                  fprintf(vvp_out, "    .stmt_body %" PRIu64 " %" PRIu64 ";\n",
+                          id, body_id);
+            break;
+          }
+          case IVL_ST_DELAY:
+          case IVL_ST_DELAYX:
           case IVL_ST_WAIT:
           case IVL_ST_WAIT_OBJ:
           case IVL_ST_WAIT_ARR:
-          case IVL_ST_DO_WHILE:
-          case IVL_ST_WHILE:
             emit_vpi_stmt_tree_(ivl_stmt_sub_stmt(stmt), id);
             break;
           case IVL_ST_WAIT_ORDER:
@@ -9597,6 +9631,7 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
           default:
             break;
       }
+      return id;
 }
 
 static void emit_vpi_task_stmt_tree_(ivl_statement_t def)

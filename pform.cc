@@ -9224,8 +9224,10 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 							 loop_depth, return_target);
 		  if (copy) children.push_back(copy);
 	    }
-	    return pform_rs_block_(*stmt, children,
-				   block->randsequence_block());
+	    PBlock*copy = pform_rs_block_(*stmt, children,
+					 block->randsequence_block());
+	    copy->source_begin(block->source_begin());
+	    return copy;
       }
       if (PAssign*assign = dynamic_cast<PAssign*>(stmt)) {
 	    if (assign->has_timing_control()) goto unsupported;
@@ -9269,6 +9271,7 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 	    if (!count || !body) { delete count; delete body; goto unsupported; }
 	    sva_mark_strict_(count, false);
 	    PRepeat*copy = new PRepeat(count, body);
+	    copy->parsed_loop_statement(repeat->is_parsed_loop_statement());
 	    copy->set_line(*stmt);
 	    return copy;
       }
@@ -9353,8 +9356,8 @@ static Statement* pform_rs_clone_stmt_(pform_rs_expand_ctx_t&ctx,
 	    copy->set_line(*stmt);
 	    return copy;
       }
-      if (dynamic_cast<PNoop*>(stmt)) {
-	    PNoop*copy = new PNoop;
+      if (PNoop*noop = dynamic_cast<PNoop*>(stmt)) {
+	    PNoop*copy = new PNoop(noop->is_source_null());
 	    copy->set_line(*stmt);
 	    return copy;
       }

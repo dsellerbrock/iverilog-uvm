@@ -470,15 +470,17 @@ bool dll_target::proc_block(const NetBlock*net)
 		 ;  cur ;  cur = net->proc_next(cur))
 	    count += 1;
 
-	/* If the block has no statements, then turn it into a no-op */
-      if (count == 0) {
+	/* An explicit begin/end used as a loop body keeps its block node. */
+      if (count == 0 && !net->preserves_vpi_begin()) {
 	    stmt_cur_->type_ = IVL_ST_NOOP;
+	    stmt_cur_->source_null_ = net->is_source_null();
 	    return true;
       }
 
 	/* Only singleton sequential blocks can lose their wrapper. A fork
 	   child remains an independent process (IEEE 1800-2017/2023 9.3.2). */
       if ((count == 1) && (net->subscope() == 0) &&
+	  !net->preserves_vpi_begin() &&
 	  (net->randsequence_block() == IVL_RANDSEQ_BLOCK_NONE) &&
 	  (net->type() == NetBlock::SEQU)) {
 	    return net->proc_first()->emit_proc(this);
@@ -505,12 +507,15 @@ bool dll_target::proc_block(const NetBlock*net)
       }
       stmt_cur_->u_.block_.nstmt_ = count;
       stmt_cur_->u_.block_.stmt_ =
-	    dll_procedure_new_array<struct ivl_statement_s>(count);
+	    count ? dll_procedure_new_array<struct ivl_statement_s>(count) : nullptr;
 
       if (net->subscope())
 	    stmt_cur_->u_.block_.scope = lookup_scope_(net->subscope());
       else
 	    stmt_cur_->u_.block_.scope = 0;
+      stmt_cur_->u_.block_.preserve_vpi_begin = net->preserves_vpi_begin();
+      if (net->vpi_begin_scope())
+	    stmt_cur_->u_.block_.vpi_begin_scope = lookup_scope_(net->vpi_begin_scope());
       stmt_cur_->u_.block_.randsequence = net->randsequence_block();
 
       struct ivl_statement_s*save_cur_ = stmt_cur_;
@@ -768,6 +773,7 @@ void dll_target::proc_do_while(const NetDoWhile*net)
       FILE_NAME(stmt_cur_, net);
 
       stmt_cur_->type_ = IVL_ST_DO_WHILE;
+      stmt_cur_->source_loop_ = net->is_source_loop();
       stmt_cur_->u_.while_.stmt_ = new struct ivl_statement_s();
 
       assert(expr_ == 0);
@@ -830,6 +836,7 @@ void dll_target::proc_forever(const NetForever*net)
       FILE_NAME(stmt_cur_, net);
 
       stmt_cur_->type_ = IVL_ST_FOREVER;
+      stmt_cur_->source_loop_ = net->is_source_loop();
 
       ivl_statement_t tmp = new struct ivl_statement_s();
 
@@ -931,6 +938,8 @@ void dll_target::proc_repeat(const NetRepeat*net)
       FILE_NAME(stmt_cur_, net);
 
       stmt_cur_->type_ = IVL_ST_REPEAT;
+      stmt_cur_->source_loop_ = net->is_source_loop();
+      stmt_cur_->u_.while_.small_repeat_count = net->small_count();
 
       assert(expr_ == 0);
       net->expr()->expr_scan(this);
@@ -1308,6 +1317,7 @@ void dll_target::proc_while(const NetWhile*net)
       FILE_NAME(stmt_cur_, net);
 
       stmt_cur_->type_ = IVL_ST_WHILE;
+      stmt_cur_->source_loop_ = net->is_source_loop();
       stmt_cur_->u_.while_.stmt_ = new struct ivl_statement_s();
 
       assert(expr_ == 0);

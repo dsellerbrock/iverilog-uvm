@@ -669,6 +669,7 @@ vpiHandle __vpiStmtNode::vpi_handle(int code)
 {
       if (code == vpiParent) return parent_;
       if (code == vpiScope) return scope_;
+      if (code == vpiStmt) return body_;
       if (vpiHandle rel = vpip_force_conn_relation(this, code)) return rel;
       return __vpiHandle::vpi_handle(code);
 }
@@ -685,6 +686,17 @@ vpiHandle __vpiStmtNode::vpi_iterate(int code)
 
 void __vpiStmtNode::add_child(__vpiStmtNode*child)
 { children_.push_back(child); child->parent_ = this; }
+
+bool __vpiStmtNode::set_body(__vpiStmtNode*child)
+{
+      if (type_ != vpiRepeat && type_ != vpiForever
+	  && type_ != vpiWhile && type_ != vpiDoWhile)
+	    return false;
+      if (body_ || child->parent_ != this)
+	    return false;
+      body_ = child;
+      return true;
+}
 
 /* Annex K/M codes the public headers do not export. */
 static const int IEEE_vpiInterfaceArray = 603;
@@ -4068,6 +4080,21 @@ void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
       scope->statement_node_by_id[id] = obj;
       scope->statement_nodes.push_back(obj);
       delete[] name;
+}
+
+void compile_stmt_body(uint64_t owner_id, uint64_t child_id)
+{
+      if (__vpiScope*scope = vpip_peek_current_scope()) {
+	    const auto&nodes = scope->statement_node_by_id;
+	    const auto owner = nodes.find(owner_id);
+	    const auto child = nodes.find(child_id);
+	    if (owner != nodes.end() && child != nodes.end()
+		&& static_cast<__vpiStmtNode*>(owner->second)->set_body(
+		      static_cast<__vpiStmtNode*>(child->second)))
+		  return;
+      }
+      yyerror("invalid .stmt_body metadata");
+      compile_errors += 1;
 }
 
 void compile_stmt_at(uint64_t id)

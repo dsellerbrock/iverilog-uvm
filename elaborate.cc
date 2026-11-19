@@ -17012,6 +17012,11 @@ static NetProc*guard_function_background_event_(NetScope*scope,
 
 NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 {
+      return elaborate(des, scope, false);
+}
+
+NetProc* PBlock::elaborate(Design*des, NetScope*scope, bool loop_body) const
+{
       ivl_assert(*this, scope);
 
 	/* IEEE 1800-2017/2023 13.4.3 prohibits every fork construct in a
@@ -17081,6 +17086,8 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
       NetBlock*cur = new NetBlock(type, nscope);
       cur->randsequence_block(randsequence_block_);
       NetBlock*prefix = 0;
+      const bool preserve_begin = loop_body && source_begin_ != NO_SOURCE_BEGIN;
+      NetScope*source_scope = source_begin_ == SOURCE_NAMED_BEGIN ? nscope : nullptr;
 
       if (nscope) {
 	      /* Split declaration initializers by effective lifetime without
@@ -17204,6 +17211,7 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	// referenced elsewhere.
       if ((type == NetBlock::SEQU) && (list_.size() == 1) &&
           (pscope_name() == 0)
+	  && !preserve_begin
 	  && (randsequence_block_ == IVL_RANDSEQ_BLOCK_NONE)) {
 	    ivl_assert(*this, list_[0]);
 	    NetProc*tmp = list_[0]->elaborate(des, nscope);
@@ -17270,6 +17278,8 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    && scope_is_within_function_(scope) && cur->proc_first();
       if (prefix) {
 	    prefix->set_line(*this);
+	    if (preserve_begin)
+		  prefix->preserve_vpi_begin(source_scope);
 	    if (cur->proc_first())
 		  prefix->append(needs_function_background_guard
 				 ? guard_function_background_event_(scope, *this, cur)
@@ -17281,6 +17291,8 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    prefix->append(fp);
 	    return prefix;
       }
+      if (preserve_begin)
+	    cur->preserve_vpi_begin(source_scope);
       return needs_function_background_guard
 	    ? guard_function_background_event_(scope, *this, cur) : cur;
 }
@@ -17289,7 +17301,18 @@ NetProc* PNoop::elaborate(Design*, NetScope*) const
 {
       NetBlock*res = new NetBlock(NetBlock::SEQU, nullptr);
       res->set_line(*this);
+      res->source_null(is_source_null());
       return res;
+}
+
+static NetProc* elaborate_loop_body_(const Statement*body, Design*des,
+				     NetScope*scope, bool source_loop)
+{
+      if (!body)
+	    return new NetBlock(NetBlock::SEQU, nullptr);
+      if (const auto*block = dynamic_cast<const PBlock*>(body))
+	    return block->elaborate(des, scope, source_loop);
+      return body->elaborate(des, scope);
 }
 
 NetProc* PBreak::elaborate(Design*des, NetScope*) const
@@ -26723,11 +26746,8 @@ NetProc* PDoWhile::elaborate(Design*des, NetScope*scope) const
       } else {
 	    ce = elab_and_eval(des, scope, cond_, -1);
       }
-      NetProc*sub;
-      if (statement_)
-	    sub = statement_->elaborate(des, scope);
-      else
-	    sub = new NetBlock(NetBlock::SEQU, 0);
+      NetProc*sub = elaborate_loop_body_(statement_, des, scope,
+					is_parsed_loop_statement());
       if (ce == 0 || sub == 0) {
 	    delete ce;
 	    delete sub;
@@ -26735,6 +26755,7 @@ NetProc* PDoWhile::elaborate(Design*des, NetScope*scope) const
       }
       NetDoWhile*loop = new NetDoWhile(ce, sub);
       loop->set_line(*this);
+      loop->source_loop(is_parsed_loop_statement());
       return loop;
 }
 
@@ -30855,15 +30876,13 @@ NetProc* PEventStatement::elaborate_wait_order_(Design*des,
 NetProc* PForever::elaborate(Design*des, NetScope*scope) const
 {
       loop_context_guard_t loop_context(des);
-      NetProc*stat;
-      if (statement_)
-	    stat = statement_->elaborate(des, scope);
-      else
-	    stat = new NetBlock(NetBlock::SEQU, 0);
+      NetProc*stat = elaborate_loop_body_(statement_, des, scope,
+					 is_parsed_loop_statement());
       if (stat == 0) return 0;
 
       NetForever*proc = new NetForever(stat);
       proc->set_line(*this);
+      proc->source_loop(is_parsed_loop_statement());
       return proc;
 }
 
@@ -32763,29 +32782,41 @@ NetProc* PRepeat::elaborate(Design*des, NetScope*scope) const
       if (expr->expr_type() == IVL_VT_REAL)
 	    expr = cast_to_int4(expr, 64);
 
-      NetProc*stat;
-      if (statement_)
-	    stat = statement_->elaborate(des, scope);
-      else
-	    stat = new NetBlock(NetBlock::SEQU, 0);
-      if (stat == 0) return 0;
+      extern bool synthesis;
+      const bool preserve_loop = is_parsed_loop_statement() && !synthesis;
+      NetProc*stat = elaborate_loop_body_(statement_, des, scope, preserve_loop);
+      if (!stat) {
+	    delete expr;
+	    return nullptr;
+      }
 
-	// If the expression is a constant, handle certain special
-	// iteration counts.
+      int small_count = -1;
       if (const NetEConst*ce = dynamic_cast<NetEConst*>(expr)) {
-	    long val = ce->value().as_long();
-	    if (val <= 0) {
+	    const verinum&value = ce->value();
+	    if (!value.is_defined() || value.is_zero() || value.is_negative())
+		  small_count = 0;
+	    else if ((value == verinum(verinum::V1)) == verinum::V1)
+		  small_count = 1;
+      }
+
+	// Preserve the original lowering for generated loops and synthesis.
+	// In simulation a source loop and its body also describe VPI objects.
+      if (!preserve_loop) {
+	    if (small_count == 0) {
 		  delete expr;
 		  delete stat;
 		  return new NetBlock(NetBlock::SEQU, 0);
-	    } else if (val == 1) {
+	    }
+	    if (small_count == 1) {
 		  delete expr;
 		  return stat;
 	    }
       }
 
       NetRepeat*proc = new NetRepeat(expr, stat);
+      proc->small_count(small_count);
       proc->set_line( *this );
+      proc->source_loop(is_parsed_loop_statement());
       return proc;
 }
 
@@ -33303,11 +33334,8 @@ NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
       } else {
 	    ce = elab_and_eval(des, scope, cond_, -1);
       }
-      NetProc*sub;
-      if (statement_)
-	    sub = statement_->elaborate(des, scope);
-      else
-	    sub = new NetBlock(NetBlock::SEQU, 0);
+      NetProc*sub = elaborate_loop_body_(statement_, des, scope,
+					is_parsed_loop_statement());
       if (ce == 0 || sub == 0) {
 	    delete ce;
 	    delete sub;
@@ -33315,6 +33343,7 @@ NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
       }
       NetWhile*loop = new NetWhile(ce, sub);
       loop->set_line(*this);
+      loop->source_loop(is_parsed_loop_statement());
       return loop;
 }
 

@@ -441,6 +441,7 @@ class __vpiStmtNode : public __vpiHandle {
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_iterate(int code) override;
       void add_child(__vpiStmtNode*child);
+      bool set_body(__vpiStmtNode*child);
 
       __vpiScope*scope_;
       std::vector<struct vvp_code_s*> code_addresses_;
@@ -448,6 +449,7 @@ class __vpiStmtNode : public __vpiHandle {
       int type_;
       const char*name_;
       __vpiStmtNode*parent_;
+      __vpiStmtNode*body_ = nullptr; // Non-owning reference to a child.
       std::vector<__vpiStmtNode*> children_;
 };
 

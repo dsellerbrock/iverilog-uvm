@@ -1222,6 +1222,7 @@ bool NetForLoop::evaluate_function(const LineInfo&loc,
 bool NetRepeat::evaluate_function(const LineInfo&loc,
 				  map<perm_string,LocalVar>&context_map) const
 {
+      if (small_count() == 0) return true;
       bool flag = true;
 
 	// Evaluate the condition expression to try and get the

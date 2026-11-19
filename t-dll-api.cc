@@ -4159,6 +4159,29 @@ extern "C" ivl_scope_t ivl_stmt_block_scope(ivl_statement_t net)
       }
 }
 
+extern "C" ivl_scope_t ivl_stmt_vpi_block_scope(ivl_statement_t net)
+{
+      if (net->type_ == IVL_ST_BLOCK && net->u_.block_.preserve_vpi_begin)
+	    return net->u_.block_.vpi_begin_scope;
+      return ivl_stmt_block_scope(net);
+}
+
+extern "C" int ivl_stmt_is_source_loop(ivl_statement_t net)
+{
+      return net->source_loop_;
+}
+
+extern "C" int ivl_stmt_is_source_null(ivl_statement_t net)
+{
+      return net->type_ == IVL_ST_NOOP && net->source_null_;
+}
+
+extern "C" int ivl_stmt_small_repeat_count(ivl_statement_t net)
+{
+      assert(net->type_ == IVL_ST_REPEAT);
+      return net->u_.while_.small_repeat_count;
+}
+
 extern "C" ivl_randsequence_block_t
 ivl_stmt_block_randsequence(ivl_statement_t net)
 {

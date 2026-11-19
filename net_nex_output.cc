@@ -410,7 +410,7 @@ void NetPDelay::nex_output(NexusSet&out)
 
 void NetRepeat::nex_output(NexusSet&out)
 {
-      if (statement_) statement_->nex_output(out);
+      if (small_count() != 0 && statement_) statement_->nex_output(out);
 }
 
 /*

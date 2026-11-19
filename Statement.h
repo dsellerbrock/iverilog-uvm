@@ -98,6 +98,9 @@ class Statement : virtual public LineInfo {
       virtual void elaborate_scope(Design*des, NetScope*scope) const;
       virtual void elaborate_sig(Design*des, NetScope*scope) const;
 
+      void parsed_loop_statement(bool flag = true) { parsed_loop_ = flag; }
+      bool is_parsed_loop_statement() const { return parsed_loop_; }
+
 	// True if this statement (or a sub-statement within the same
 	// activation frame) is a detached fork — a fork/join_none or
 	// fork/join_any whose spawned branches outlive the statement.
@@ -125,6 +128,9 @@ class Statement : virtual public LineInfo {
       virtual bool detached_fork_refs_name(perm_string name) const;
 
       std::map<perm_string,PExpr*> attributes;
+
+    private:
+      bool parsed_loop_ = false;
 };
 
 /*
@@ -265,6 +271,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       bool refs_name(perm_string name) const override;
       bool detached_fork_refs_name(perm_string name) const override;
       enum BL_TYPE { BL_SEQ, BL_PAR, BL_JOIN_NONE, BL_JOIN_ANY };
+      enum SourceBegin { NO_SOURCE_BEGIN, SOURCE_BEGIN, SOURCE_NAMED_BEGIN };
 
 	// If the block has a name, it is a scope and also has a parent.
       explicit PBlock(perm_string n, LexicalScope*parent, BL_TYPE t);
@@ -273,6 +280,8 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       ~PBlock() override;
 
       BL_TYPE bl_type() const { return bl_type_; }
+      void source_begin(SourceBegin kind) { source_begin_ = kind; }
+      SourceBegin source_begin() const { return source_begin_; }
       void deferred_assertion_label_scope()
       { deferred_assertion_label_scope_ = true; }
       void vpi_for_scope() { vpi_for_scope_ = true; }
@@ -313,6 +322,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
 
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
+      NetProc* elaborate(Design*des, NetScope*scope, bool loop_body) const;
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       bool contains_detached_fork() const override;
@@ -322,6 +332,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
     private:
       friend class pform_constructor_order_audit_t;
       BL_TYPE bl_type_;
+      SourceBegin source_begin_ = NO_SOURCE_BEGIN;
       bool deferred_assertion_label_scope_ = false;
       bool vpi_for_scope_ = false;
       bool vpi_foreach_scope_ = false;
@@ -1032,9 +1043,13 @@ class PNoop  : public Statement {
 
     public:
       bool refs_name(perm_string name) const override;
-      PNoop() { }
+      explicit PNoop(bool source_null = false) : source_null_(source_null) { }
       ~PNoop() override { }
+      bool is_source_null() const { return source_null_; }
       NetProc* elaborate(Design*des, NetScope*scope) const override;
+
+    private:
+      bool source_null_;
 };
 
 class PRepeat : public Statement {

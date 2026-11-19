@@ -290,3 +290,5 @@ issue3750_class_constraints_2017 normal,-g2017,-s,top issue3750_class_constraint
 issue3750_class_constraints_2023 normal,-g2023,-s,top issue3750_class_constraints.c issue3750_class_constraints_2023.gold
 sva_step_unbounded_2017 normal,-g2017,-s,top sva_step_unbounded.c sva_step_unbounded_2017.gold
 sva_step_unbounded_2023 normal,-g2023,-s,top sva_step_unbounded.c sva_step_unbounded_2023.gold
+issue3883_vpi_loop_body_2017 normal,-g2017,-s,top issue3883_vpi_loop_body.c issue3883_vpi_loop_body_2017.gold
+issue3883_vpi_loop_body_2023 normal,-g2023,-s,top issue3883_vpi_loop_body.c issue3883_vpi_loop_body_2023.gold
