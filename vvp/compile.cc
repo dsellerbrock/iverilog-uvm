@@ -3741,6 +3741,8 @@ void compile_thread(char*start_sym, char*flag, char*flag2)
 
       if (flag && (strcmp(flag,"$init") == 0))
 	    schedule_init_vthread(thr);
+      else if (flag && (strcmp(flag,"$sva_finish") == 0))
+	    schedule_sva_finish_vthread(thr);
       else if (flag && (strcmp(flag,"$final") == 0))
 	    schedule_final_vthread(thr);
       else if (flag && (strcmp(flag,"$prog") == 0)) {

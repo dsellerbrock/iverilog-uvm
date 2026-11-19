@@ -646,6 +646,9 @@ static struct event_s* schedule_init_list = 0;
  */
 static struct event_s* schedule_final_list = 0;
 
+/* Assertion publishers run once before user final procedures. */
+static struct event_s* schedule_sva_finish_list = 0;
+
 /* Passive events pinned by a final procedure run after all final procedures,
  * followed by thread reaping. Neither list belongs to a new time slot. */
 static struct event_s* schedule_post_final_list = 0;
@@ -756,22 +759,8 @@ static void schedule_init_event(struct event_s*cur)
       schedule_init_list = cur;
 }
 
-/*
- * This function puts an event on the end of the post-simulation event queue.
- */
-static void schedule_final_event(struct event_s*cur)
-{
-      if (schedule_final_list == 0) {
-            cur->next = cur;
-      } else {
-            cur->next = schedule_final_list->next;
-            schedule_final_list->next = cur;
-      }
-      schedule_final_list = cur;
-}
-
-static void schedule_post_final_event(struct event_s*&list,
-                                      struct event_s*cur)
+/* Append to one of the end-of-simulation event queues. */
+static void schedule_end_event(struct event_s*&list, struct event_s*cur)
 {
       if (list == 0) {
             cur->next = cur;
@@ -1171,7 +1160,17 @@ void schedule_final_vthread(vthread_t thr)
       vthread_mark_final(thr);
       vthread_mark_scheduled(thr);
 
-      schedule_final_event(cur);
+      schedule_end_event(schedule_final_list, cur);
+}
+
+void schedule_sva_finish_vthread(vthread_t thr)
+{
+      struct vthread_event_s*cur = new vthread_event_s;
+
+      cur->thr = thr;
+      cur->region = SEQ_OBSERVED;
+      vthread_mark_scheduled(thr);
+      schedule_end_event(schedule_sva_finish_list, cur);
 }
 
 struct assign_prop_vec4_event_s : public event_s {
@@ -1482,7 +1481,7 @@ void schedule_del_thr(vthread_t thr)
 
       if (sim_in_final_phase) {
             cur->region = DEL_THREAD;
-            schedule_post_final_event(schedule_post_final_delete_list, cur);
+            schedule_end_event(schedule_post_final_delete_list, cur);
       } else {
             schedule_event_(cur, 0, DEL_THREAD);
       }
@@ -1508,7 +1507,7 @@ void schedule_post_final(vvp_gen_event_t obj)
       cur->obj = obj;
       cur->delete_obj_when_done = true;
       cur->region = SEQ_ROSYNC;
-      schedule_post_final_event(schedule_post_final_list, cur);
+      schedule_end_event(schedule_post_final_list, cur);
 }
 
 static bool sim_started;
@@ -1756,6 +1755,31 @@ static void run_rosync(struct event_time_s*ctim)
       }
 }
 
+/* The scheduler drains the current region through the active queue.
+ * Keep this promotion order for the finish dispatcher as well. */
+static bool promote_reactive_(struct event_time_s*ctim)
+{
+      struct event_s**queues[] = { &ctim->reactive, &ctim->re_inactive,
+				   &ctim->re_nbassign };
+      for (struct event_s**queue : queues) {
+	    if (!*queue) continue;
+	    ctim->active = *queue;
+	    *queue = 0;
+	    return true;
+      }
+      return false;
+}
+
+static struct event_s* pop_event_(struct event_s*&queue)
+{
+      struct event_s*cur = queue->next;
+      if (cur->next == cur)
+	    queue = 0;
+      else
+	    queue->next = cur->next;
+      return cur;
+}
+
 /*
  * Region-pipeline self-test (IVL_REGION_SELFTEST=1): inject one labeled
  * no-op event into each delay-permitting stratified region at time +1,
@@ -1887,6 +1911,17 @@ void schedule_simulate(void)
       vvp_time64_t last_trace_time = 0;
       vvp_time64_t last_sim_time = schedule_time;
 
+      auto same_time_watchdog = [&]() {
+	    if (same_time_limit == 0 || ++same_time_count != same_time_limit)
+		  return false;
+	    fprintf(stderr, "Watchdog: %lu events at sim time %llu ps -- bailing out\n",
+		    same_time_count, (unsigned long long)schedule_time);
+	    vthread_dump_live_threads("watchdog-zero-time-spin");
+	    vvp_pure_comb_evaluation_discard();
+	    schedule_runnable = false;
+	    return true;
+      };
+
       if (schedule_runnable) while (sched_list) {
 
 	    if (vpip_signal_pending()) {
@@ -1912,18 +1947,8 @@ void schedule_simulate(void)
 			last_sim_time = schedule_time;
 			same_time_count = 0;
 		  }
-	    } else if (same_time_limit > 0) {
-		  same_time_count += 1;
-		  if (same_time_count == same_time_limit) {
-			fprintf(stderr,
-				"Watchdog: %lu events at sim time %llu ps -- bailing out\n",
-				same_time_count,
-				(unsigned long long)schedule_time);
-			vthread_dump_live_threads("watchdog-zero-time-spin");
-			vvp_pure_comb_evaluation_discard();
-			schedule_runnable = false;
-			break;
-		  }
+	    } else if (same_time_watchdog()) {
+		  break;
 	    }
 
 	      /* If the time is advancing, then first run the
@@ -1998,21 +2023,11 @@ void schedule_simulate(void)
 	      /* If there are no more active events, advance the event
 		 queues. If there are not events at all, then release
 		 the event_time object. */
-	    if (ctim->active == 0 && sched_reactive_set_) {
-		  struct event_s**next_set[] = { &ctim->reactive,
-			&ctim->re_inactive, &ctim->re_nbassign };
-		  for (struct event_s**q : next_set) {
-			if (*q) {
-			      ctim->active = *q;
-			      *q = 0;
-			      break;
-			}
-		  }
-		  if (ctim->active == 0) {
-			sched_reactive_set_ = false;
-			ctim->active = ctim->held_active;
-			ctim->held_active = 0;
-		  }
+	    if (ctim->active == 0 && sched_reactive_set_
+		&& !promote_reactive_(ctim)) {
+		  sched_reactive_set_ = false;
+		  ctim->active = ctim->held_active;
+		  ctim->held_active = 0;
 	    }
 	    if (ctim->active == 0) {
 		  ctim->active = ctim->active_sync;
@@ -2047,18 +2062,8 @@ void schedule_simulate(void)
 			     their #0 continuations, and their
 			     nonblocking updates run after the design
 			     regions have settled. */
-			if (ctim->active == 0) {
-			      struct event_s**set[] = { &ctim->reactive,
-				    &ctim->re_inactive, &ctim->re_nbassign };
-			      for (struct event_s**q : set) {
-				    if (*q) {
-					  ctim->active = *q;
-					  *q = 0;
-					  sched_reactive_set_ = true;
-					  break;
-				    }
-			      }
-			}
+			if (ctim->active == 0 && promote_reactive_(ctim))
+			      sched_reactive_set_ = true;
 
 			if (ctim->active == 0) {
 			      ctim->active = ctim->rwsync;
@@ -2081,12 +2086,7 @@ void schedule_simulate(void)
 	      /* Pull the first item off the list. If this is the last
 		 cell in the list, then clear the list. Execute that
 		 event type, and delete it. */
-	    struct event_s*cur = ctim->active->next;
-	    if (cur->next == cur) {
-		  ctim->active = 0;
-	    } else {
-		  ctim->active->next = cur->next;
-	    }
+	    struct event_s*cur = pop_event_(ctim->active);
 
 	    if (schedule_single_step_flag) {
 		  cur->single_step_display();
@@ -2099,12 +2099,45 @@ void schedule_simulate(void)
 
 	    delete (cur);
       }
-      sched_current_region = SEQ_START;
-	/* $finish/$stop can leave the loop inside the reactive set. */
-      sched_reactive_set_ = false;
-
       if (schedule_runnable && !sched_list)
             vthread_dump_live_threads("scheduler-quiesce");
+
+      if (run_finals && schedule_sva_finish_list) {
+	      /* Publishers wake the same Reactive dispatchers as clock-time
+		 verdicts. Let this region set settle at the finish time while
+		 keeping design-region work and future slots out of the drain. */
+	    schedule_runnable = true;
+	    if (!sched_reactive_set_ && sched_list && sched_list->delay == 0) {
+		  assert(!sched_list->held_active);
+		  sched_list->held_active = sched_list->active;
+		  sched_list->active = 0;
+	    }
+	    sched_reactive_set_ = true;
+	    while (schedule_sva_finish_list) {
+		  struct event_s*cur = pop_event_(schedule_sva_finish_list);
+		  region_enter_(cur);
+		  cur->run_run();
+		  delete cur;
+	    }
+
+	    same_time_count = 0;
+	    while (sched_list && sched_list->delay == 0) {
+		  if (schedule_stopped_flag) {
+			schedule_stopped_flag = false;
+			stop_handler(0);
+			if (!schedule_runnable) break;
+		  }
+		  if (!sched_list->active && !promote_reactive_(sched_list))
+			break;
+		  if (same_time_watchdog()) break;
+		  struct event_s*cur = pop_event_(sched_list->active);
+		  region_enter_(cur);
+		  cur->run_run();
+		  delete cur;
+	    }
+      }
+      sched_current_region = SEQ_START;
+      sched_reactive_set_ = false;
 
 	// Execute final events.  There is no time slot around them, so
 	// the stratified regions are no longer reachable: work deferred

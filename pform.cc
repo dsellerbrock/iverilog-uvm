@@ -18003,6 +18003,9 @@ static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
 static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
 				 perm_string req, perm_string vac_req,
 				 Statement*action);
+static void sva_verdict_dispatcher_(const struct vlltype&loc, unsigned inst,
+				    perm_string req, perm_string vac_req,
+				    Statement*action);
 
 
 /* $past(e, d) as a sampled-value function call the SVA rewrite pass
@@ -22741,8 +22744,8 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
       }
 	/* A one-cycle `not(boolean)' is itself a one-cycle Boolean property.
 	   Preserve property truth rather than applying Verilog's ordinary !:
-	   an X/Z boolean does not match, so `not(p)' succeeds.  The case-
-	   inequality p !== 1'b1 expresses exactly that two-state property
+	   an X/Z boolean does not match, so `not(p)' succeeds. The case
+	   inequality against 1'b1 expresses that two-state property
 	   verdict and lets bounded eventual/nexttime/always compose it without
 	   introducing a detached nested monitor.  Caliptra uses
 	   `eventually [0:5] not(rst_n)' for reset-propagation handshakes. */
@@ -22755,7 +22758,10 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 	  && !sub->mc_prefix && sub->mc_boundary == -1
 	  && !sub->disable_iff_expr) {
 	    sva_seq_step_t&st = (*sub->seq)[0];
-	    PEBComp*not_true = new PEBComp('N', st.expr, sva_bit_(loc, 1));
+	    PExpr*operand = st.expr;
+	    if (op_type == 9 || op_type == 10)
+		  operand = sva_booleanize_(loc, operand);
+	    PEBComp*not_true = new PEBComp('N', operand, sva_bit_(loc, 1));
 	    FILE_NAME(not_true, loc);
 	    st.expr = not_true;
 	    sub->op_type = 0;
@@ -23093,6 +23099,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 {
       int op = prop->op_type;
       bool is_within   = (op == 8);
+      bool is_nexttime = (op == 9 || op == 10);
       bool is_liveness = (op >= 9 && op <= 13);
       bool is_abort    = (op >= 14 && op <= 17);
 	/* IEEE 1800-2017 A.2.10: implication with an s_eventually
@@ -23102,21 +23109,9 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       bool with   = (op == 5 || op == 7);
       bool strong = (op == 6 || op == 7);
 
-	/* IEEE 1800-2017 16.14.6: the action block's pass statement runs
-	   when the assertion SUCCEEDS, for any property. It used to be
-	   dropped here for every operator in this function, silently --
-	   so `assert property (a within b) $display("ok");' never said
-	   anything. It is now honoured wherever this lowering computes a
-	   definite success, and refused out loud where it does not.
-
-	   The forms it is still refused for are the ones whose obligation
-	   is not discharged cycle by cycle in this lowering: the weak
-	   `until' family (an attempt that has not failed yet has not
-	   succeeded either), the abort operators, and the liveness
-	   operators, whose per-cycle collapse settles failure but not
-	   success. Refusing out loud is the point -- they used to accept
-	   the statement and drop it. */
-      bool pass_supported = is_within;
+	/* 16.14.1: The pass statement runs on a definite success.
+	   Within and nexttime supply success verdicts in this lowering. */
+      bool pass_supported = is_within || is_nexttime;
       if (pass_stmt && !pass_supported) {
 	    cerr << loc << ": sorry: a pass action on this property "
 		 << "operator is not supported (IEEE 1800-2017 16.14.6). "
@@ -23139,6 +23134,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		       << "is declared (IEEE 1800-2017 16.14.6)." << endl;
 		  error_count += 1;
 		  delete fail_stmt;
+		  delete pass_stmt;
 		  return;
 	    }
 	    std::list<named_pexpr_t> no_parms;
@@ -23414,7 +23410,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		       << "' operator is not supported; the cover is dropped."
 		       << endl;
 		  error_count += 1;
-		  delete fail_stmt; delete clk; delete disable;
+		  delete fail_stmt; delete pass_stmt; delete clk; delete disable;
 		  return;
 	    }
 	      /* Bounded eventually (op 13) samples p across a window, so it
@@ -23424,7 +23420,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    PExpr*pe = sva_rewrite_sampled_(loc, (*prop->seq)[0].expr, inst,
 					    hist_idx, pre, post, init_zero);
 	    perm_string r_p = sva_make_reg_(loc, inst, "p", 0);
-	    pre.push_back(sva_assign_(loc, r_p, pe));
+	    pre.push_back(sva_assign_(loc, r_p,
+		  is_nexttime ? sva_booleanize_(loc, pe) : pe));
 
 	    Statement*action = fail_stmt;
 	    if (!action) {
@@ -23535,47 +23532,43 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					 sva_fail_action_(loc, inst, action), nullptr));
 		  delete p_win_src;
 	    } else {
-		    /* nexttime / s_nexttime (16.12.2): p must hold at the
-		       NEXT cycle. Per attempt at cycle S that is p@(S+1);
-		       aggregated, every cycle T>=1 requires p@T. A
-		       $past(1,1) guard suppresses the first cycle. */
-		long nt_off = (prop->win_lo >= 0) ? prop->win_lo : 1;
-		Statement*eos_action = nullptr;
-		if (op == 10 && nt_off > 0) {
-		      eos_action = sva_clone_stmt_(action);
-		      if (!eos_action) {
-			    cerr << loc << ": sorry: this action block cannot be "
-			         << "reproduced for the end-of-simulation failure "
-			         << "of s_nexttime." << endl;
-			    error_count += 1;
-		      }
-		}
-		PExpr*valid = mature_attempt(nt_off);
-		  PExpr*failexpr = sva_logic_(loc, 'a', valid,
-					      sva_not_(loc, sva_id_(loc, r_p)));
-		  PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
-						  pre, post, init_zero);
-			  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
-			  pre.push_back(sva_assign_(loc, r_ff, fs));
-			  attempt_state.push_back(r_ff);
-			  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
-					 sva_fail_action_(loc, inst, action), nullptr));
+		    /* 16.12.10: the attempt at age n consumes this tick's
+		       sample. The conditional sends 0, X and Z to failure. */
+		  long offset = (prop->win_lo >= 0) ? prop->win_lo : 1;
+		  perm_string pass_req = sva_make_reg_(loc, inst, "passreq", 0, true);
+		  perm_string vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
+		  perm_string fail_req = sva_make_reg_(loc, inst, "failreq", 0, true);
+		  for (perm_string req : {pass_req, vac_req, fail_req})
+			init_zero.push_back(sva_assign_(loc, req, sva_num32_(loc, 0)));
+		  auto publish = [&](perm_string req, PExpr*count) {
+			PEBinary*sum = new PEBinary('+', sva_id_(loc, req), count);
+			FILE_NAME(sum, loc);
+			return sva_assign_(loc, req, sum);
+		  };
+		  Statement*verdict = sva_if_(loc, sva_id_(loc, r_p),
+			publish(pass_req, sva_num32_(loc, 1)),
+			publish(fail_req, sva_num32_(loc, 1)));
+		  body.push_back(sva_if_(loc, mature_attempt(offset), verdict, nullptr));
 
-		  if (op == 10 && nt_off > 0 && eos_action) {
-			/* Every still-live attempt fails, including each pending
-			   age of an indexed s_nexttime. */
+		  if (offset > 0) {
+			  /* Each surviving age is a weak vacuous success or a
+			     strong failure (16.12.15, 16.14.8). Kill may have
+			     occurred since the last clock. */
 			PExpr*pending = sva_num32_(loc, 0);
-			for (size_t k = 0 ; k < attempt_pipe.size() ; k += 1) {
-			      PExpr*term = sva_id_(loc, attempt_pipe[k]);
-			      pending = new PEBinary('+', pending, term);
+			for (perm_string token : attempt_pipe) {
+			      pending = new PEBinary('+', pending, sva_id_(loc, token));
+			      FILE_NAME(pending, loc);
 			}
 			Statement*fc = sva_if_(loc,
 			      sva_kill_generation_current_(loc, inst, r_kill),
-			      sva_repeat_(loc, pending,
-				    sva_fail_action_(loc, inst, eos_action)), nullptr);
+			      publish(op == 9 ? vac_req : fail_req, pending), nullptr);
 			PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 			FILE_NAME(fp, loc);
+			fp->attributes[perm_string::literal("_ivl_sva_finish")]
+			      = new PENumber(new verinum((uint64_t)1, 1));
 		  }
+		  sva_pass_dispatcher_(loc, inst, pass_req, vac_req, pass_stmt);
+		  sva_verdict_dispatcher_(loc, inst, fail_req, perm_string(), action);
 	    }
       } else if (is_abort) {
 	      /* ---- abort operators (IEEE 1800-2017 16.12.9). The boolean
@@ -23822,6 +23815,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    loc, inst, r_kill, clear_temporal_state()));
       Statement*core = sva_block_(loc, body);
       if (disable) {
+	    if (is_nexttime)
+		  sva_disable_abort_(loc, inst, disable, clear_temporal_state());
 	    core = sva_if_(loc, disable, clear_temporal_state(), core);
       }
       full.push_back(core);
@@ -30481,56 +30476,65 @@ static Statement* sva_repeat_(const struct vlltype&loc, PExpr*count,
       return rep;
 }
 
-/* One owner for arbitrary user pass statements. The checker publishes
-   monotonic counts in Observed; callbacks exclude vacuity, while detached
-   Reactive user actions include it. Snapshot before dispatch so delayed
-   actions cannot stall the checker or lose a subsequent request edge. */
-static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
-				 perm_string req, perm_string vac_req,
-				 Statement*action)
+/* One owner per action arm. Snapshot each verdict count before dispatch
+   so detached Reactive actions can suspend independently of the checker. */
+static void sva_verdict_dispatcher_(const struct vlltype&loc, unsigned inst,
+				    perm_string req, perm_string vac_req,
+				    Statement*action)
 {
-      perm_string ack = sva_make_reg_(loc, inst, "passack", 0, true);
-      perm_string vac_ack = sva_make_reg_(loc, inst, "vacack", 0, true);
-      perm_string due = sva_make_reg_(loc, inst, "passdue", 0, true);
-      perm_string vac_due = sva_make_reg_(loc, inst, "vacdue", 0, true);
+      bool pass = !vac_req.nil();
+      perm_string ack = sva_make_reg_(loc, inst, pass ? "passack" : "failack",
+				      0, true);
+      perm_string due = sva_make_reg_(loc, inst, pass ? "passdue" : "faildue",
+				      0, true);
+      perm_string vac_ack, vac_due;
       std::vector<PEEvent*> evs;
       evs.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, req)));
-      evs.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, vac_req)));
+      PExpr*idle = new PEBComp('e', sva_id_(loc, req), sva_id_(loc, ack));
+      if (pass) {
+	    vac_ack = sva_make_reg_(loc, inst, "vacack", 0, true);
+	    vac_due = sva_make_reg_(loc, inst, "vacdue", 0, true);
+	    evs.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, vac_req)));
+	    idle = sva_logic_(loc, 'a', idle,
+		  new PEBComp('e', sva_id_(loc, vac_req), sva_id_(loc, vac_ack)));
+      }
       PEventStatement*wait = new PEventStatement(evs);
       FILE_NAME(wait, loc);
-      PExpr*idle = sva_logic_(loc, 'a',
-	    new PEBComp('e', sva_id_(loc, req), sva_id_(loc, ack)),
-	    new PEBComp('e', sva_id_(loc, vac_req), sva_id_(loc, vac_ack)));
       std::vector<Statement*> loop;
       loop.push_back(sva_if_(loc, idle, wait, nullptr));
       loop.push_back(sva_assign_(loc, due,
 	    new PEBinary('-', sva_id_(loc, req), sva_id_(loc, ack))));
-      loop.push_back(sva_assign_(loc, vac_due,
-	    new PEBinary('-', sva_id_(loc, vac_req), sva_id_(loc, vac_ack))));
       loop.push_back(sva_assign_(loc, ack, sva_id_(loc, req)));
-      loop.push_back(sva_assign_(loc, vac_ack, sva_id_(loc, vac_req)));
+      if (pass) {
+	    loop.push_back(sva_assign_(loc, vac_due,
+		  new PEBinary('-', sva_id_(loc, vac_req), sva_id_(loc, vac_ack))));
+	    loop.push_back(sva_assign_(loc, vac_ack, sva_id_(loc, vac_req)));
+      }
       loop.push_back(sva_reactive_wait_(loc));
       loop.push_back(sva_repeat_(loc, sva_id_(loc, due),
-	    sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
-      loop.push_back(sva_repeat_(loc, sva_id_(loc, vac_due),
-	    sva_report_stmt_(loc, inst, SVA_CB_VACUOUS_SUCCESS)));
+	    sva_report_stmt_(loc, inst, pass ? SVA_CB_SUCCESS : SVA_CB_FAILURE)));
+      if (pass)
+	    loop.push_back(sva_repeat_(loc, sva_id_(loc, vac_due),
+		  sva_report_stmt_(loc, inst, SVA_CB_VACUOUS_SUCCESS)));
       if (action) {
 	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 	    FILE_NAME(spawn, loc);
 	    std::vector<Statement*> one;
 	    one.push_back(action);
 	    spawn->set_statement(one);
-	      /* 20.11 action control, read at dispatch: vacuous and
-		 nonvacuous successes are enabled separately. */
-	    PExpr*runs = sva_self_guarded_actions_.count(action)
-		  ? new PEBinary('+', sva_id_(loc, due), sva_id_(loc, vac_due))
-		  : new PEBinary('+',
-		  new PEBinary('*', sva_id_(loc, due),
-			sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
-					SVA_STATE_PASS_ACTION)),
-		  new PEBinary('*', sva_id_(loc, vac_due),
-			sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst,
-					SVA_STATE_VACUOUS_ACTION)));
+	      /* Read action controls at dispatch, with separate enables
+		 for vacuous and nonvacuous success. */
+	    auto action_count = [&](perm_string count, unsigned state) -> PExpr* {
+		  PExpr*amount = sva_id_(loc, count);
+		  if (sva_self_guarded_actions_.count(action)) return amount;
+		  return new PEBinary('*', amount,
+			sva_state_bool_(loc, SVA_SPACE_CONCURRENT, inst, state));
+	    };
+	    PExpr*runs = action_count(due, pass ? SVA_STATE_PASS_ACTION
+						: SVA_STATE_FAIL_ACTION);
+	    if (pass)
+		  runs = new PEBinary('+', runs,
+			action_count(vac_due, SVA_STATE_VACUOUS_ACTION));
 	    loop.push_back(sva_repeat_(loc, runs, spawn));
       }
       PForever*forever = new PForever(sva_block_(loc, loop));
@@ -30543,13 +30547,22 @@ static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
       FILE_NAME(after_init, loc);
       std::vector<Statement*> init;
       init.push_back(sva_assign_(loc, ack, sva_num32_(loc, 0)));
-      init.push_back(sva_assign_(loc, vac_ack, sva_num32_(loc, 0)));
       init.push_back(sva_assign_(loc, due, sva_num32_(loc, 0)));
-      init.push_back(sva_assign_(loc, vac_due, sva_num32_(loc, 0)));
+      if (pass) {
+	    init.push_back(sva_assign_(loc, vac_ack, sva_num32_(loc, 0)));
+	    init.push_back(sva_assign_(loc, vac_due, sva_num32_(loc, 0)));
+      }
       init.push_back(after_init);
       PProcess*dispatcher = pform_make_behavior(
 	    IVL_PR_INITIAL, sva_block_(loc, init), nullptr);
       FILE_NAME(dispatcher, loc);
+}
+
+static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
+				 perm_string req, perm_string vac_req,
+				 Statement*action)
+{
+      sva_verdict_dispatcher_(loc, inst, req, vac_req, action);
 }
 
 /* A pulse between assertion clocks still cancels live attempts. Observe
