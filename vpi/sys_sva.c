@@ -554,7 +554,6 @@ static PLI_INT32 sva_nfa_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       PLI_INT32*lines;
       char**files;
       char**texts;
-      (void)name;
       if (!argv) return 0;
       for (g = 0 ; g < 6 ; g += 1) head[g] = sva_step_int_(argv, &a, 0);
       if (head[4] < 0) head[4] = 0;
@@ -580,7 +579,8 @@ static PLI_INT32 sva_nfa_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       }
       vpip_assertion_nfa(head[0], vpi_handle(vpiScope, callh), head[1],
 			 head[2], head[3], head[4], (const char*const*)files,
-			 lines, (const char*const*)texts, nwords, words);
+			 lines, (const char*const*)texts, nwords, words,
+			 strcmp(name, "$ivl_assert_nfa_consequence") == 0);
       for (g = 0 ; g < head[4] ; g += 1) {
 	    free(files[g]);
 	    free(texts[g]);
@@ -592,35 +592,57 @@ static PLI_INT32 sva_nfa_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
-/* $ivl_assert_nfa_step(idx, serial, pre, nx, guards, ob) — one tick of
-   one automaton slot; the bit vectors are read as binary strings. */
+static char* sva_step_bits_(vpiHandle argv, vpiHandle*a)
+{
+      s_vpi_value v;
+      if (!*a || !(*a = vpi_scan(argv))) return strdup("");
+      v.format = vpiBinStrVal;
+      vpi_get_value(*a, &v);
+      return strdup(v.value.str);
+}
+
+/* $ivl_assert_nfa_step(idx, serial, pre, nx, guards, ob [, machine, taken])
+   — one slot advance. Fan-out supplies the exact taken-edge bits as well. */
 static PLI_INT32 sva_nfa_step_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
       vpiHandle a = argv;
-      PLI_INT32 idx, serial, ob;
+      PLI_INT32 idx, serial, ob, machine;
       char*bits[3];
+      char*taken = 0;
       int i;
       (void)name;
       if (!argv) return 0;
       idx = sva_step_int_(argv, &a, 0);
       serial = sva_step_int_(argv, &a, 0);
-      for (i = 0 ; i < 3 ; i += 1) {
-	    s_vpi_value v;
-	    bits[i] = 0;
-	    if (a && (a = vpi_scan(argv))) {
-		  v.format = vpiBinStrVal;
-		  vpi_get_value(a, &v);
-		  bits[i] = strdup(v.value.str);
-	    }
-	    if (!bits[i]) bits[i] = strdup("");
-      }
+      for (i = 0 ; i < 3 ; i += 1) bits[i] = sva_step_bits_(argv, &a);
       ob = sva_step_int_(argv, &a, 1);
+      machine = sva_step_int_(argv, &a, vpipAssertNfaSingle);
+      if (machine != vpipAssertNfaSingle) taken = sva_step_bits_(argv, &a);
       if (a && vpi_scan(argv)) vpi_free_object(argv);
       vpip_assertion_nfa_step(idx, vpi_handle(vpiScope, callh), serial,
-			      bits[0], bits[1], bits[2], ob);
+			      bits[0], bits[1], bits[2], ob, machine, taken);
       for (i = 0 ; i < 3 ; i += 1) free(bits[i]);
+      free(taken);
+      return 0;
+}
+
+/* $ivl_assert_nfa_finish(idx, serial, verdict) — report this parent's tick
+   after every antecedent and obligation slot has advanced. */
+static PLI_INT32 sva_nfa_finish_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle a = argv;
+      PLI_INT32 idx, serial, verdict;
+      (void)name;
+      if (!argv) return 0;
+      idx = sva_step_int_(argv, &a, 0);
+      serial = sva_step_int_(argv, &a, 0);
+      verdict = sva_step_int_(argv, &a, vpipAssertNfaPending);
+      if (a && vpi_scan(argv)) vpi_free_object(argv);
+      vpip_assertion_nfa_finish(idx, vpi_handle(vpiScope, callh), serial, verdict);
       return 0;
 }
 
@@ -850,7 +872,9 @@ void sys_sva_register(void)
       register_task_("$ivl_assert_step_row", sva_step_row_calltf);
       register_task_("$ivl_assert_step", sva_step_calltf);
       register_task_("$ivl_assert_nfa", sva_nfa_calltf);
+      register_task_("$ivl_assert_nfa_consequence", sva_nfa_calltf);
       register_task_("$ivl_assert_nfa_step", sva_nfa_step_calltf);
+      register_task_("$ivl_assert_nfa_finish", sva_nfa_finish_calltf);
       register_one_("$ivl_assert_serial", sva_serial_calltf);
       register_task_("$ivl_checker_free", sva_checker_free_calltf);
       register_one_("$ivl_assert_cb_active", sva_cb_active_calltf);

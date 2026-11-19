@@ -2460,6 +2460,7 @@ class __vpiAssertion : public __vpiHandle {
 		case 5:
 		  enabled_ = false;
 		  kill_generation_ += 1;
+		  fanout_steps_.clear();
 		    /* 20.11 Kill flushes the pending procedural instances;
 		       matured ones still waiting for their clock are
 		       discarded too (default pending a ruling). */
@@ -2573,6 +2574,7 @@ class __vpiAssertion : public __vpiHandle {
 	   instead of assuming a fixed clock period or a gapless START ring. */
       void clock_tick()
       {
+	    fanout_steps_.clear();
 	    int depth = latency_ > step_depth_ ? latency_ : step_depth_;
 	    if (depth < 0) return;
 	    clocks_.push_back(schedule_simtime());
@@ -2645,18 +2647,20 @@ class __vpiAssertion : public __vpiHandle {
 	    deliver_(r.reason, start_raw, r.from, r.to, r.exprs);
       }
 
-	/* The automaton checker's description, for nfa_step(). */
+	/* The automaton checker's descriptions, for nfa_step(). */
       void nfa(int nstates, int start, int accept, int nguards,
 	       const char*const*files, const PLI_INT32*lines,
-	       const char*const*texts, int nwords, const PLI_INT32*words)
+	       const char*const*texts, int nwords, const PLI_INT32*words,
+	       bool consequence)
       {
-	    nfa_.nstates = nstates;
-	    nfa_.start = start;
-	    nfa_.accept = accept;
-	    nfa_.guards.clear();
+	    nfa_t&machine = consequence ? consequence_nfa_ : nfa_;
+	    machine.nstates = nstates;
+	    machine.start = start;
+	    machine.accept = accept;
+	    machine.guards.clear();
 	    for (int g = 0 ; g < nguards ; g += 1)
-		  nfa_.guards.push_back(expr_handle_(files[g], lines[g], texts[g]));
-	    nfa_.edges.clear();
+		  machine.guards.push_back(expr_handle_(files[g], lines[g], texts[g]));
+	    machine.edges.clear();
 	    for (int w = 0 ; w + 2 < nwords ; ) {
 		  nfa_edge_t e;
 		  e.from = words[w++];
@@ -2664,86 +2668,84 @@ class __vpiAssertion : public __vpiHandle {
 		  int n = words[w++];
 		  for (int i = 0 ; i < n && w < nwords ; i += 1)
 			e.guards.push_back(words[w++]);
-		  nfa_.edges.push_back(e);
+		  machine.edges.push_back(e);
 	    }
       }
 
-	/* IEEE 1800-2017/2023 39.4.2, one tick of the slot holding the
-	   attempt named by `serial': pre/nx are its state bits before and
-	   after the tick, gv the guard values (binary strings, bit 0 last).
-	   ob is true for a sequence or a completed implication antecedent.
-	   Step reasons describe sequence progress for cover and negation too.
-	   A live attempt reports one taken edge: into accept first, else from
-	   the lowest state id. A dying one reports its lowest active state's
-	   first guarded edge, ending with the guard that failed. An implication
-	   whose antecedent died ends vacuously (a success into state 1).
-	   State ids: start 0, accept 1, state j otherwise j+2. */
+	/* IEEE 1800-2017/2023 39.4.2: one clock tick of a single-machine
+	   attempt, or one slot's contribution to a fan-out attempt. */
       void nfa_step(int serial, const char*pre, const char*nx,
-		    const char*gv, bool ob)
+		    const char*gv, bool ob, int machine, const char*taken)
       {
-	    if (step_ctl_.empty()) return;
-	    std::map<int,vvp_time64_t>::const_iterator it =
-		  serial_start_.find(serial);
-	    if (it == serial_start_.end()) return;
-	    std::map<vvp_time64_t,bool>::const_iterator on =
-		  step_ctl_.find(it->second);
-	    if (on == step_ctl_.end() || !on->second) return;
-	    auto bit = [](const char*v, int j) {
-		  int len = (int)strlen(v);
-		  return j < len && v[len-1-j] == '1';
-	    };
-	    auto id = [&](int j) {
-		  return j == nfa_.start ? 0 : j == nfa_.accept ? 1 : j + 2;
-	    };
-	    auto exprs = [&](const nfa_edge_t&e, size_t n) {
-		  std::vector<vpiHandle> r;
-		  for (size_t i = 0 ; i < n && i < e.guards.size() ; i += 1)
-			r.push_back(nfa_.guards[e.guards[i]]);
-		  return r;
-	    };
-	    bool alive = false;
-	    for (int j = 0 ; j < nfa_.nstates ; j += 1) alive |= bit(nx, j);
-	    if (alive) {
-		  const nfa_edge_t*best = 0;
-		  for (const nfa_edge_t&e : nfa_.edges) {
-			bool taken = bit(pre, e.from) && bit(nx, e.to);
-			for (int g : e.guards) taken = taken && bit(gv, g);
-			if (!taken) continue;
-			if (!best
-			    || (e.to == nfa_.accept && best->to != nfa_.accept)
-			    || ((e.to == nfa_.accept) == (best->to == nfa_.accept)
-				&& id(e.from) < id(best->from)))
-			      best = &e;
-		  }
-		  if (best)
-			deliver_(cbAssertionStepSuccess, it->second, id(best->from),
-				 id(best->to), exprs(*best, best->guards.size()));
+	    vvp_time64_t start;
+	    if (!nfa_step_enabled_(serial, start)) return;
+	    if (machine == vpipAssertNfaSingle) {
+		  nfa_tick_t tick = select_nfa_edges_(nfa_, pre, nx, gv, nullptr,
+						     0, true);
+		  step_row_t&r = tick.accept.reason ? tick.accept : tick.progress;
+		  if (r.reason)
+			deliver_(r.reason, start, r.from, r.to, r.exprs);
+		  else if (tick.dead.reason)
+			deliver_(ob ? cbAssertionStepFailure : cbAssertionStepSuccess,
+				 start, tick.dead.from, ob ? tick.dead.to : 1,
+				 tick.dead.exprs);
 		  return;
 	    }
-	    int from = -1;
-	    for (int j = 0 ; j < nfa_.nstates ; j += 1)
-		  if (bit(pre, j) && (from < 0 || id(j) < id(from))) from = j;
-	    if (from < 0) return;
-	    const nfa_edge_t*first = 0;
-	    for (const nfa_edge_t&e : nfa_.edges)
-		  if (e.from == from
-		      && (!first || (first->guards.empty() && !e.guards.empty())))
-			first = &e;
-	    size_t n = 0;
-	    if (first) {
-		  n = first->guards.size();
-		  for (size_t i = 0 ; i < first->guards.size() ; i += 1)
-			if (!bit(gv, first->guards[i])) {
-			      n = i + 1;
-			      break;
-			}
+
+	    bool consequence = machine == vpipAssertNfaConsequence;
+	    const nfa_t&desc = consequence ? consequence_nfa_ : nfa_;
+	    int offset = consequence ? nfa_.nstates : 0;
+	    nfa_tick_t tick = select_nfa_edges_(desc, pre, nx, gv, taken,
+					       offset, false);
+	    fanout_step_t&parent = fanout_steps_[serial];
+	    prefer_lower_source_(parent.progress, tick.progress);
+	    if (consequence) {
+		  prefer_lower_source_(parent.accept, tick.accept);
+		  prefer_lower_source_(parent.failure, tick.dead);
+	    } else {
+		  parent.antecedent_dead = std::move(tick.dead);
 	    }
-	    deliver_(ob ? cbAssertionStepFailure : cbAssertionStepSuccess,
-		     it->second, id(from), !ob || !first ? 1 : id(first->to),
-		     first ? exprs(*first, n) : std::vector<vpiHandle>());
+      }
+
+      void nfa_finish(int serial, int verdict)
+      {
+	    auto it = fanout_steps_.find(serial);
+	    if (it == fanout_steps_.end()) return;
+	    fanout_step_t parent = std::move(it->second);
+	    fanout_steps_.erase(it);  // A callback may reset or kill the checker.
+	    vvp_time64_t start;
+	    if (!nfa_step_enabled_(serial, start)) return;
+
+	    if (verdict == vpipAssertNfaFail) {
+		  const step_row_t&r = parent.failure;
+		  if (r.reason) deliver_(r.reason, start, r.from, r.to, r.exprs);
+		  return;
+	    }
+	    const step_row_t*r = &parent.progress;
+	    if (verdict == vpipAssertNfaPass) {
+		    /* A child endpoint is the parent's accepting edge only
+		       on the tick the parent passes. If the last antecedent
+		       path dies after an earlier match passed (or vacuously),
+		       the dying edge explains the acceptance instead. */
+		  if (parent.accept.reason) r = &parent.accept;
+		  else if (!r->reason) r = &parent.antecedent_dead;
+	    }
+	    if (r->reason)
+		  deliver_(cbAssertionStepSuccess, start, r->from,
+			   verdict == vpipAssertNfaPass ? 1 : r->to, r->exprs);
       }
 
     private:
+      bool nfa_step_enabled_(int serial, vvp_time64_t&start) const
+      {
+	    if (step_ctl_.empty()) return false;
+	    auto it = serial_start_.find(serial);
+	    if (it == serial_start_.end()) return false;
+	    start = it->second;
+	    auto on = step_ctl_.find(start);
+	    return on != step_ctl_.end() && on->second;
+      }
+
       void deliver_(int reason, vvp_time64_t start_raw, int from, int to,
 		    const std::vector<vpiHandle>&exprs)
       {
@@ -2788,6 +2790,8 @@ class __vpiAssertion : public __vpiHandle {
 	    if (reason == cbAssertionStepSuccess
 		|| reason == cbAssertionStepFailure)
 		  return;  // steps go through step() only, per attempt
+	    if (reason == cbAssertionDisabledEvaluation)
+		  fanout_steps_.clear();
 	    if (reason != cbAssertionStart) {
 		  fire_(reason, age);
 		  return;
@@ -2951,11 +2955,98 @@ class __vpiAssertion : public __vpiHandle {
 	    int from = 0, to = 0;
 	    std::vector<int> guards;
       };
-      struct {
+      struct nfa_t {
 	    int nstates = 0, start = 0, accept = 0;
 	    std::vector<vpiHandle> guards;
 	    std::vector<nfa_edge_t> edges;
-      } nfa_;
+      } nfa_, consequence_nfa_;
+      struct nfa_tick_t {
+	    step_row_t progress, accept, dead;
+      };
+      struct fanout_step_t {
+	    step_row_t progress, accept, antecedent_dead, failure;
+      };
+      std::map<int, fanout_step_t> fanout_steps_;  // By parent START serial.
+
+      static void prefer_lower_source_(step_row_t&best, step_row_t&candidate)
+      {
+	    if (candidate.reason && (!best.reason || candidate.from < best.from))
+		  best = std::move(candidate);
+      }
+
+      static nfa_tick_t select_nfa_edges_(const nfa_t&machine,
+					  const char*pre, const char*nx,
+					  const char*gv, const char*taken,
+					  int offset, bool single)
+      {
+	    auto bit = [](const char*v, size_t len, size_t j) {
+		  return j < len && v[len - 1 - j] == '1';
+	    };
+	    const size_t pre_len = strlen(pre), nx_len = strlen(nx);
+	    const size_t gv_len = strlen(gv), taken_len = taken ? strlen(taken) : 0;
+	    auto id = [&](int j) {
+		  if (!offset && j == machine.start) return 0;
+		  if (single && j == machine.accept) return 1;
+		  return offset + j + 2;
+	    };
+	    auto row = [&](int reason, int from, const nfa_edge_t*edge, size_t n) {
+		  step_row_t r;
+		  r.reason = reason;
+		  r.from = id(from);
+		  r.to = edge ? id(edge->to) : 1;
+		  for (size_t i = 0 ; i < n ; i += 1)
+			r.exprs.push_back(machine.guards[edge->guards[i]]);
+		  return r;
+	    };
+	    nfa_tick_t tick;
+	    bool alive = false;
+	    for (int j = 0 ; j < machine.nstates ; j += 1)
+		  alive |= bit(nx, nx_len, j);
+	    if (alive) {
+		  const nfa_edge_t*best = nullptr;
+		  const nfa_edge_t*accept = nullptr;
+		  for (size_t i = 0 ; i < machine.edges.size() ; i += 1) {
+			const nfa_edge_t&e = machine.edges[i];
+			bool hit;
+			if (taken) {
+			      hit = bit(taken, taken_len, i);
+			} else {
+			      hit = bit(pre, pre_len, e.from) && bit(nx, nx_len, e.to);
+			      for (int g : e.guards) hit = hit && bit(gv, gv_len, g);
+			}
+			if (!hit) continue;
+			if (!best || id(e.from) < id(best->from)) best = &e;
+			if (e.to == machine.accept
+			    && (!accept || id(e.from) < id(accept->from)))
+			      accept = &e;
+		  }
+		  if (best)
+			tick.progress = row(cbAssertionStepSuccess, best->from,
+					    best, best->guards.size());
+		  if (accept)
+			tick.accept = row(cbAssertionStepSuccess, accept->from,
+					  accept, accept->guards.size());
+		  return tick;
+	    }
+	    int from = -1;
+	    for (int j = 0 ; j < machine.nstates ; j += 1)
+		  if (bit(pre, pre_len, j) && (from < 0 || id(j) < id(from))) from = j;
+	    if (from < 0) return tick;
+	    const nfa_edge_t*first = nullptr;
+	    for (const nfa_edge_t&e : machine.edges)
+		  if (e.from == from
+		      && (!first || (first->guards.empty() && !e.guards.empty())))
+			first = &e;
+	    size_t n = 0;
+	    if (first) {
+		  for (int g : first->guards) {
+			n += 1;
+			if (!bit(gv, gv_len, g)) break;
+		  }
+	    }
+	    tick.dead = row(cbAssertionStepFailure, from, first, n);
+	    return tick;
+      }
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
@@ -3488,25 +3579,35 @@ void vpip_assertion_nfa(PLI_INT32 idx, vpiHandle scope, PLI_INT32 nstates,
 			PLI_INT32 start, PLI_INT32 accept, PLI_INT32 nguards,
 			const char*const*files, const PLI_INT32*lines,
 			const char*const*texts, PLI_INT32 nwords,
-			const PLI_INT32*words)
+			const PLI_INT32*words, PLI_INT32 consequence)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       if (!sc) return;
       auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
       if (it != assertion_by_key.end())
 	    it->second->nfa(nstates, start, accept, nguards, files, lines, texts,
-			    nwords, words);
+			    nwords, words, consequence != 0);
 }
 
 void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
 			     const char*pre, const char*nx, const char*guards,
-			     PLI_INT32 ob)
+			     PLI_INT32 ob, PLI_INT32 machine, const char*taken)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       if (!sc) return;
       auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
       if (it != assertion_by_key.end())
-	    it->second->nfa_step(serial, pre, nx, guards, ob != 0);
+	    it->second->nfa_step(serial, pre, nx, guards, ob != 0, machine, taken);
+}
+
+void vpip_assertion_nfa_finish(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
+			       PLI_INT32 verdict)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (!sc) return;
+      auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
+      if (it != assertion_by_key.end())
+	    it->second->nfa_finish(serial, verdict);
 }
 
 PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope)

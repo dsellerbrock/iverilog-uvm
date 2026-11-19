@@ -1210,16 +1210,27 @@ extern void vpip_assertion_step(PLI_INT32 idx, vpiHandle scope,
 /* The automaton checker describes its automaton once (guards as source
    file/line/text; edges as from, to, guard count, guard indices), then
    reports each slot's tick as state and guard bit strings. */
+#define vpipAssertNfaSingle      0
+#define vpipAssertNfaAntecedent  1
+#define vpipAssertNfaConsequence 2
+
+#define vpipAssertNfaPending     0
+#define vpipAssertNfaPass        1
+#define vpipAssertNfaFail        2
+
 extern void vpip_assertion_nfa(PLI_INT32 idx, vpiHandle scope,
                                PLI_INT32 nstates, PLI_INT32 start,
                                PLI_INT32 accept, PLI_INT32 nguards,
                                const char*const*files, const PLI_INT32*lines,
                                const char*const*texts, PLI_INT32 nwords,
-                               const PLI_INT32*words);
+                               const PLI_INT32*words, PLI_INT32 consequence);
 extern void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope,
                                     PLI_INT32 serial, const char*pre,
                                     const char*nx, const char*guards,
-                                    PLI_INT32 ob);
+                                    PLI_INT32 ob, PLI_INT32 machine,
+                                    const char*taken);
+extern void vpip_assertion_nfa_finish(PLI_INT32 idx, vpiHandle scope,
+                                      PLI_INT32 serial, PLI_INT32 verdict);
 /* The serial of the most recent cbAssertionStart of (scope, idx). */
 extern PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope);
 /* M12B-rest: report an event on EVERY registered assertion (global
@@ -1385,10 +1396,12 @@ typedef struct {
     void        (*assertion_nfa)(PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32,
                                  PLI_INT32, PLI_INT32, const char*const*,
                                  const PLI_INT32*, const char*const*,
-                                 PLI_INT32, const PLI_INT32*);
+                                 PLI_INT32, const PLI_INT32*, PLI_INT32);
     void        (*assertion_nfa_step)(PLI_INT32, vpiHandle, PLI_INT32,
                                       const char*, const char*, const char*,
-                                      PLI_INT32);
+                                      PLI_INT32, PLI_INT32, const char*);
+    void        (*assertion_nfa_finish)(PLI_INT32, vpiHandle, PLI_INT32,
+                                        PLI_INT32);
     PLI_INT32   (*assertion_serial)(PLI_INT32, vpiHandle);
     void        (*proc_assert_cap)(vpiHandle);
     PLI_INT32   (*compat_get)(int, PLI_INT32, vpiHandle);

@@ -1,0 +1,33 @@
+Compiling vpi/sva_step_fanout.c...
+Making sva_step_fanout_2017.vpi from  sva_step_fanout.o...
+fan enable 5 -> 1
+fan STEP_OK t=5 start=5 0->3 [a@8]
+fan enable 15 -> 1
+fan STEP_OK t=15 start=5 3->5 [b@8]
+fan STEP_OK t=15 start=15 0->1 [a@8]
+fan enable 25 -> 1
+fan STEP_OK t=25 start=5 6->1 [c@8]
+fan STEP_OK t=25 start=25 0->1 [a@8]
+fan enable 35 -> 1
+fan STEP_OK t=35 start=35 0->1 [a@8]
+sib enable 45 -> 1
+sib STEP_OK t=45 start=45 0->3 [x@14]
+sib enable 55 -> 1
+sib STEP_OK t=55 start=45 3->5 [y@14]
+sib STEP_OK t=55 start=55 0->1 [x@14]
+sib enable 65 -> 1
+sib STEP_OK t=65 start=45 4->5 [y@14]
+sib STEP_OK t=65 start=65 0->1 [x@14]
+sib enable 75 -> 1
+sib STEP_FAIL t=75 start=45 7->8 [(saved == observed)@14 e@14]
+sib STEP_OK t=75 start=75 0->1 [x@14]
+sib enable 85 -> 1
+sib STEP_OK t=85 start=85 0->1 [x@14]
+early enable 95 -> 1
+early STEP_OK t=95 start=95 0->3 [a@19]
+early enable 105 -> 1
+early STEP_OK t=105 start=95 3->5 [b@19]
+early STEP_OK t=105 start=105 0->1 [a@19]
+early enable 115 -> 1
+early STEP_OK t=115 start=95 4->1 [b@19]
+early STEP_OK t=115 start=115 0->1 [a@19]

@@ -5,8 +5,8 @@ seq enable 5 -> 1
 seq STEP_OK t=5 start=5 0->2 [a@26]
 imp enable 5 -> 1
 imp STEP_OK t=5 start=5 0->2 [a@28]
-sorry: ivltests/sva_step_attempt.sv:31: per-attempt step callbacks are not supported for this assertion form; vpiAssertionEnableStep has no effect.
-rim enable 5 -> 0
+rim enable 5 -> 1
+rim STEP_OK t=5 start=5 0->3 [a@31]
 aim enable 5 -> 1
 aim STEP_OK t=5 start=5 0->2 [a@32]
 nxt enable 5 -> 1
@@ -21,7 +21,9 @@ seq STEP_OK t=15 start=5 2->3 [b@26]
 imp enable 15 -> 1
 imp STEP_OK t=15 start=15 0->1 [a@28]
 imp STEP_FAIL t=15 start=5 2->1 [c@28]
-rim enable 15 -> 0
+rim enable 15 -> 1
+rim STEP_FAIL t=15 start=5 6->7 [c@31]
+rim STEP_OK t=15 start=15 0->1 [a@31]
 aim enable 15 -> 1
 aim STEP_OK t=15 start=15 0->1 [a@32]
 aim STEP_FAIL t=15 start=5 2->1 [b@32 c@32]

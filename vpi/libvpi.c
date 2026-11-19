@@ -447,21 +447,28 @@ void vpip_assertion_nfa(PLI_INT32 idx, vpiHandle scope, PLI_INT32 nstates,
                         PLI_INT32 start, PLI_INT32 accept, PLI_INT32 nguards,
                         const char*const*files, const PLI_INT32*lines,
                         const char*const*texts, PLI_INT32 nwords,
-                        const PLI_INT32*words)
+                        const PLI_INT32*words, PLI_INT32 consequence)
 {
       assert(vpip_routines);
       vpip_routines->assertion_nfa(idx, scope, nstates, start, accept,
                                    nguards, files, lines, texts, nwords,
-                                   words);
+                                   words, consequence);
 }
 
 void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
                              const char*pre, const char*nx, const char*guards,
-                             PLI_INT32 ob)
+                             PLI_INT32 ob, PLI_INT32 machine, const char*taken)
 {
       assert(vpip_routines);
       vpip_routines->assertion_nfa_step(idx, scope, serial, pre, nx, guards,
-                                        ob);
+                                        ob, machine, taken);
+}
+
+void vpip_assertion_nfa_finish(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
+                              PLI_INT32 verdict)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_nfa_finish(idx, scope, serial, verdict);
 }
 
 PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope)

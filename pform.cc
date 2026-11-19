@@ -27301,12 +27301,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    init_zero.push_back(sva_assign_(loc, owner[o], sva_num32_(loc, 0)));
 	    init_zero.push_back(sva_assign_(loc, failed[o], sva_bit_(loc, 0)));
       }
-	/* IEEE 1800-2017/2023 39.4.2: a slot is one attempt. Save its
-	   START serial and report one tick of the underlying sequence at
-	   a time, including under property negation. Sub-monitors and
-	   endpoint fan-out lack a single top-level slot per attempt.
-	   Sequence coverage can have multiple matches per attempt. */
-      bool steps_ok = !sub && !endpoint_fanout && !sequence_cover;
+	/* IEEE 1800-2017/2023 39.4.2: an ordinary fan-out attempt includes
+	   the parent slot and all its consequence obligations. Procedural
+	   fan-out can inject several attempts from one START report. */
+      const bool fanout_steps = endpoint_fanout && !sub && !proc_each
+	    && (kind == 0 || kind == 1) && !negated && !forbidden;
+      const bool steps_ok = !sub && !sequence_cover
+	    && (!endpoint_fanout || fanout_steps);
       std::vector<perm_string> ob;
       bool track_ob = implication && !endpoint_fanout && !sequence_cover;
       if (track_ob) {
@@ -27329,23 +27330,34 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    r_p = sva_make_reg_(loc, inst, "p", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
-      std::vector<perm_string> ser;
+      std::vector<perm_string> ser, oser;
       perm_string r_watch;  // a callback is registered, read once per tick
-      std::vector<PExpr*> step_guards;  // distinct edge guards, in order
+      auto collect_step_guards = [](const sva_nfa_t&machine) {
+	    std::vector<PExpr*> guards;
+	    for (const sva_nfa_edge_t&edge : machine.edges)
+		  for (PExpr*g : edge.guards)
+			if (find(guards.begin(), guards.end(), g) == guards.end())
+			      guards.push_back(g);
+	    return guards;
+      };
+      std::vector<PExpr*> step_guards, consequence_step_guards;
       if (steps_ok) {
 	    r_watch = sva_make_reg_(loc, inst, "watch", 0);
 	    init_zero.push_back(sva_assign_(loc, r_watch, sva_bit_(loc, 0)));
-	    for (size_t e = 0 ; e < nfa.edges.size() ; e += 1)
-		  for (PExpr*g : nfa.edges[e].guards)
-			if (find(step_guards.begin(), step_guards.end(), g)
-			    == step_guards.end())
-			      step_guards.push_back(g);
+	    step_guards = collect_step_guards(nfa);
       }
       if (steps_ok)
 	    for (long k = 0 ; k < K ; k += 1) {
 		  ser.push_back(sva_make_reg_(loc, inst, "ser", k, true));
 		  init_zero.push_back(sva_assign_(loc, ser[k], sva_num32_(loc, 0)));
 	    }
+      if (fanout_steps) {
+	    consequence_step_guards = collect_step_guards(consequence_nfa);
+	    for (long o = 0 ; o < OK ; o += 1) {
+		  oser.push_back(sva_make_reg_(loc, inst, "oser", o, true));
+		  init_zero.push_back(sva_assign_(loc, oser[o], sva_num32_(loc, 0)));
+	    }
+      }
       perm_string r_cnt;
       if (cover) {
 	      /* Same name as the legacy engine's counter, so tests can
@@ -27476,6 +27488,21 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
 	    return hits;
       };
+      auto effective_edge = [&](const sva_nfa_edge_t&ed,
+				const std::vector<perm_string>&states,
+				std::map<perm_string,PExpr*>&lvmap,
+				const std::map<unsigned,PExpr*>&exit_hits) {
+	    PExpr*term = edge_condition(ed, states, lvmap, ed.guards);
+	    if (!ed.first_match_exit && ed.first_match_cut_group != 0) {
+		  auto hit = exit_hits.find(ed.first_match_cut_group);
+		  if (hit != exit_hits.end()) {
+			PExpr*copy = sva_clone_expr_(hit->second);
+			assert(copy);
+			term = sva_logic_(loc, 'a', term, sva_not_(loc, copy));
+		  }
+	    }
+	    return term;
+      };
       auto next_state = [&](const sva_nfa_t&machine,
 			    const std::vector<perm_string>&states,
 			    unsigned to, std::map<perm_string,PExpr*>&lvmap,
@@ -27484,17 +27511,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (size_t i = 0 ; i < machine.edges.size() ; i += 1) {
 		  const sva_nfa_edge_t&ed = machine.edges[i];
 		  if (ed.to != to) continue;
-		  PExpr*term = edge_condition(ed, states, lvmap, ed.guards);
-		  if (!ed.first_match_exit && ed.first_match_cut_group != 0) {
-			std::map<unsigned,PExpr*>::const_iterator hit =
-			      exit_hits.find(ed.first_match_cut_group);
-			if (hit != exit_hits.end()) {
-			      PExpr*copy = sva_clone_expr_(hit->second);
-			      assert(copy);
-			      term = sva_logic_(loc, 'a', term,
-					sva_not_(loc, copy));
-			}
-		  }
+		  PExpr*term = effective_edge(ed, states, lvmap, exit_hits);
 		  ordinary = ordinary ? sva_logic_(loc, 'o', ordinary, term) : term;
 	    }
 	    if (!ordinary) ordinary = sva_bit_(loc, 0);
@@ -27558,6 +27575,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (long o = OK - 1 ; o >= 0 ; o -= 1) {
 		  std::vector<Statement*>take;
 		  take.push_back(sva_assign_(loc, owner[o], sva_num32_(loc, source)));
+		  if (fanout_steps)
+			take.push_back(sva_assign_(loc, oser[o], sva_id_(loc, ser[source])));
 		  take.push_back(sva_assign_(loc, os[o][consequence_nfa.start],
 					  sva_bit_(loc, 1)));
 		  for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
@@ -27609,9 +27628,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			PECallFunction*serial = new PECallFunction(
 			      lex_strings.make("$ivl_assert_serial"), sargs);
 			FILE_NAME(serial, loc);
-			take.push_back(sva_assign_(loc, ser[k],
-			      new PETernary(sva_id_(loc, r_watch), serial,
-					    sva_num32_(loc, 0))));
+			/* A fan-out parent owns its serial even if a callback
+			   is registered after a pre-enabled attempt starts. */
+			PExpr*start_serial = serial;
+			if (!fanout_steps)
+			      start_serial = new PETernary(sva_id_(loc, r_watch),
+							    serial, sva_num32_(loc, 0));
+			take.push_back(sva_assign_(loc, ser[k], start_serial));
 		  }
 		  if (slot_dispatch)
 			take.push_back(sva_assign_(loc, sseq[k], sva_id_(loc, sqn)));
@@ -27694,8 +27717,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (long k = 0 ; k < K ; k += 1)
 		  body.push_back(set_verdict(k, 0));
 
-	/* An attempt injected while no callback is registered has no serial
-	   and cannot step: it started before any EnableStep could reach it. */
+	/* Skip step reports when no assertion callback is registered. */
       if (steps_ok) {
 	    std::list<named_pexpr_t> no_parms;
 	    PECallFunction*active = new PECallFunction(
@@ -27755,6 +27777,61 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 						  sva_bit_(loc, 0)));
 	    }
 
+	/* Send the pre-writeback snapshot for each advancing slot. In fan-out
+	   mode, include the exact edges enabled after first_match cuts. */
+      auto report_step = [&](const sva_nfa_t&machine,
+			     const std::vector<perm_string>&states,
+			     const std::vector<perm_string>&next,
+			     const std::vector<PExpr*>&guards,
+			     std::map<perm_string,PExpr*>&lvmap,
+			     const std::map<unsigned,PExpr*>&exit_hits,
+			     perm_string serial, PExpr*busy, PExpr*ob, int part) {
+	    auto bits = [&](std::vector<PExpr*>&v) {
+		  std::list<PExpr*> l (v.rbegin(), v.rend());
+		  PEConcat*c = new PEConcat(l);
+		  FILE_NAME(c, loc);
+		  return c;
+	    };
+	    std::vector<PExpr*> pre_bits, nxt, gv;
+	    for (size_t j = 0 ; j < states.size() ; j += 1) {
+		  pre_bits.push_back(sva_id_(loc, states[j]));
+		  nxt.push_back(sva_id_(loc, next[j]));
+	    }
+	    for (PExpr*g : guards) {
+		  if (has_lv && sva_expr_reads_lv_(g, lv_index))
+			gv.push_back(sva_booleanize_(loc,
+			      sva_clone_subst_(local_guard_expr.at(g), &lvmap)));
+		  else
+			gv.push_back(sva_id_(loc, guard_reg.at(g)));
+	    }
+	    if (gv.empty()) gv.push_back(sva_bit_(loc, 0));
+
+	    std::list<named_pexpr_t> args;
+	    auto arg = [&](PExpr*e) {
+		  named_pexpr_t a;
+		  a.parm = e;
+		  args.push_back(a);
+	    };
+	    arg(sva_num32_(loc, inst));
+	    arg(sva_id_(loc, serial));
+	    arg(bits(pre_bits));
+	    arg(bits(nxt));
+	    arg(bits(gv));
+	    arg(ob);
+	    if (part != vpipAssertNfaSingle) {
+		  std::vector<PExpr*> taken;
+		  for (const sva_nfa_edge_t&ed : machine.edges)
+			taken.push_back(effective_edge(ed, states, lvmap, exit_hits));
+		  if (taken.empty()) taken.push_back(sva_bit_(loc, 0));
+		  arg(sva_num32_(loc, part));
+		  arg(bits(taken));
+	    }
+	    PCallTask*t = new PCallTask(lex_strings.make("$ivl_assert_nfa_step"), args);
+	    FILE_NAME(t, loc);
+	    body.push_back(sva_if_(loc,
+		  sva_logic_(loc, 'a', sva_id_(loc, r_watch), busy), t, nullptr));
+      };
+
 	/* Per-slot advance. */
       for (long k = 0 ; k < K ; k += 1) {
 	      /* Obligation: set the sticky bit the tick the antecedent
@@ -27806,47 +27883,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  body.push_back(sva_assign_(loc, nx[j],
 			    next_state(nfa, s[k], j, lvmap, exit_hits)));
 	    }
-	      /* 39.4.2 step of this slot's attempt: its pre-advance state bits,
-		 this tick's next-state bits and guard values go to the runtime,
-		 which picks the step against the automaton registered at time
-		 0 (see vpip_assertion_nfa_step). */
-	    if (steps_ok) {
-		  auto bits = [&](std::vector<PExpr*>&v) {
-			std::list<PExpr*> l (v.rbegin(), v.rend());
-			PEConcat*c = new PEConcat(l);
-			FILE_NAME(c, loc);
-			return c;
-		  };
-		  std::vector<PExpr*> pre_bits, nxt, gv;
-		  for (unsigned j = 0 ; j < N ; j += 1) {
-			pre_bits.push_back(sva_id_(loc, s[k][j]));
-			nxt.push_back(sva_id_(loc, nx[j]));
-		  }
-		  for (size_t g = 0 ; g < step_guards.size() ; g += 1) {
-			PExpr*gk = step_guards[g];
-			if (has_lv && sva_expr_reads_lv_(gk, lv_index))
-			      gv.push_back(sva_not_(loc, sva_not_(loc,
-				    sva_clone_subst_(local_guard_expr[gk], &lvmap))));
-			else
-			      gv.push_back(sva_id_(loc, guard_reg[gk]));
-		  }
-		  if (gv.empty()) gv.push_back(sva_bit_(loc, 0));
-		  std::list<named_pexpr_t> args;
-		  named_pexpr_t a;
-		  a.parm = sva_num32_(loc, inst); args.push_back(a);
-		  a.parm = sva_id_(loc, ser[k]); args.push_back(a);
-		  a.parm = bits(pre_bits); args.push_back(a);
-		  a.parm = bits(nxt); args.push_back(a);
-		  a.parm = bits(gv); args.push_back(a);
-		  a.parm = track_ob ? (PExpr*)sva_id_(loc, ob[k]) : sva_bit_(loc, 1);
-		  args.push_back(a);
-		  PCallTask*t = new PCallTask(lex_strings.make("$ivl_assert_nfa_step"),
-					      args);
-		  FILE_NAME(t, loc);
-		  body.push_back(sva_if_(loc,
-			sva_logic_(loc, 'a', sva_id_(loc, r_watch), busy_expr(k)),
-			t, nullptr));
-	    }
+	    if (steps_ok)
+		  report_step(nfa, s[k], nx, step_guards, lvmap, exit_hits,
+			      ser[k], busy_expr(k),
+			      track_ob ? (PExpr*)sva_id_(loc, ob[k]) : sva_bit_(loc, 1),
+			      fanout_steps ? vpipAssertNfaAntecedent : vpipAssertNfaSingle);
 	      /* LV-2: capture — a slot takes a local variable's rhs sample
 		 exactly when the ASSIGNING EDGE fires (the gate matched
 		 from the pre-advance state), NOT merely when it sits in the
@@ -28002,6 +28043,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  body.push_back(sva_assign_(loc, onx[j],
 			    next_state(consequence_nfa, os[o], j, lvmap, exit_hits)));
 	    }
+	    if (fanout_steps)
+		  report_step(consequence_nfa, os[o], onx, consequence_step_guards,
+			      lvmap, exit_hits, oser[o], obligation_busy_expr(o),
+			      sva_bit_(loc, 1), vpipAssertNfaConsequence);
 	    for (std::map<unsigned,PExpr*>::iterator it = exit_hits.begin();
 		 it != exit_hits.end(); ++it) delete it->second;
 
@@ -28127,8 +28172,25 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    finish(fail);
 	    PExpr*ready = sva_not_(loc, sva_logic_(loc, 'o', busy_expr(k),
 						 pending_children(k)));
+	    Statement*ongoing = nullptr;
+	    if (fanout_steps) {
+		  auto report_parent = [&](int verdict) -> Statement* {
+			std::list<named_pexpr_t> args;
+			named_pexpr_t a;
+			a.parm = sva_num32_(loc, inst); args.push_back(a);
+			a.parm = sva_id_(loc, ser[k]); args.push_back(a);
+			a.parm = sva_num32_(loc, verdict); args.push_back(a);
+			PCallTask*t = new PCallTask(
+			      lex_strings.make("$ivl_assert_nfa_finish"), args);
+			FILE_NAME(t, loc);
+			return sva_if_(loc, sva_id_(loc, r_watch), t, nullptr);
+		  };
+		  pass.insert(pass.begin(), report_parent(vpipAssertNfaPass));
+		  fail.insert(fail.begin(), report_parent(vpipAssertNfaFail));
+		  ongoing = report_parent(vpipAssertNfaPending);
+	    }
 	    done.push_back(sva_if_(loc, bad, sva_block_(loc, fail),
-			    sva_if_(loc, ready, sva_block_(loc, pass), nullptr)));
+			    sva_if_(loc, ready, sva_block_(loc, pass), ongoing)));
 	    body.push_back(sva_if_(loc, sva_id_(loc, parent_live[k]),
 				   sva_block_(loc, done), nullptr));
       }
@@ -28446,6 +28508,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	/* Assemble: pre-captures; disable guard clears all slot state
 	   with no reports; history updates outside the guard. */
       std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
+      if (fanout_steps)
+	    full.push_back(sva_clock_stmt_(loc, inst));
 	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
@@ -28474,11 +28538,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					       : pform_sva_nfa_fixed_latency(nfa),
 					     track_ob && !cover, nullptr,
 					     steps_ok ? 0 : -1));
-	/* 39.4.2: describe the automaton once for the runtime step picker:
+	/* 39.4.2: describe each automaton once for the runtime step picker:
 	   $ivl_assert_nfa(idx, states, start, accept, guards, edges
 			   {, "file", line, "text"} x guards
 			   {, from, to, nguards, guard...} x edges) */
-      if (steps_ok) {
+      auto register_step_nfa = [&](const sva_nfa_t&machine,
+				   const std::vector<PExpr*>&guards,
+				   const char*task) {
 	    std::list<named_pexpr_t> args;
 	    auto arg = [&](PExpr*e) {
 		  named_pexpr_t a;
@@ -28486,30 +28552,34 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  args.push_back(a);
 	    };
 	    arg(sva_num32_(loc, inst));
-	    arg(sva_num32_(loc, N));
-	    arg(sva_num32_(loc, nfa.start));
-	    arg(sva_num32_(loc, nfa.accept));
-	    arg(sva_num32_(loc, step_guards.size()));
-	    arg(sva_num32_(loc, nfa.edges.size()));
-	    for (PExpr*g : step_guards) {
+	    arg(sva_num32_(loc, machine.nstates));
+	    arg(sva_num32_(loc, machine.start));
+	    arg(sva_num32_(loc, machine.accept));
+	    arg(sva_num32_(loc, guards.size()));
+	    arg(sva_num32_(loc, machine.edges.size()));
+	    for (PExpr*g : guards) {
 		  sva_step_expr_t t = sva_step_expr_(g);
 		  arg(new PEString(strdup(t.file.c_str())));
 		  arg(sva_num32_(loc, t.line));
 		  arg(new PEString(strdup(t.text.c_str())));
 	    }
-	    for (const sva_nfa_edge_t&ed : nfa.edges) {
+	    for (const sva_nfa_edge_t&ed : machine.edges) {
 		  arg(sva_num32_(loc, ed.from));
 		  arg(sva_num32_(loc, ed.to));
 		  arg(sva_num32_(loc, ed.guards.size()));
 		  for (PExpr*g : ed.guards)
-			arg(sva_num32_(loc, find(step_guards.begin(),
-						 step_guards.end(), g)
-					   - step_guards.begin()));
+			arg(sva_num32_(loc, find(guards.begin(),
+						 guards.end(), g)
+					   - guards.begin()));
 	    }
-	    PCallTask*t = new PCallTask(lex_strings.make("$ivl_assert_nfa"), args);
+	    PCallTask*t = new PCallTask(lex_strings.make(task), args);
 	    FILE_NAME(t, loc);
 	    init_zero.push_back(t);
-      }
+      };
+      if (steps_ok) register_step_nfa(nfa, step_guards, "$ivl_assert_nfa");
+      if (fanout_steps)
+	    register_step_nfa(consequence_nfa, consequence_step_guards,
+			      "$ivl_assert_nfa_consequence");
       sva_proc_each_ = false;
       if (proc_caps && sva_proc_capture_sets_[sva_active_proc_id_].inits) {
 	    sva_proc_capture_set_t&set = sva_proc_capture_sets_[sva_active_proc_id_];

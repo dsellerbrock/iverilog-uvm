@@ -15,7 +15,7 @@
 //   imp:  a |-> ##1 c     attempts 5 (fails at 15) and 15 (vacuous).
 //   off:  a ##1 b         callbacks registered, stepping never enabled.
 //   rep:  a ##1 b[*1:2] ##1 c   automaton checker, attempt 25.
-//   rim:  ranged antecedent with fan-out: EnableStep refuses (sorry, 0).
+//   rim:  ranged antecedent with fan-out: attempts 5 (fails) and 15 (vacuous).
 //   aim, nxt, nim, exl, exn: every attempt, from START, through t=25:
 //         antecedent ages, |=>, an automaton implication's vacuous end,
 //         and compound booleans.
