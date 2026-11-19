@@ -476,6 +476,7 @@ ivl_switch_basename
 ivl_switch_delay
 ivl_switch_enable
 ivl_switch_file
+ivl_switch_is_primitive
 ivl_switch_island
 ivl_switch_lineno
 ivl_switch_offset

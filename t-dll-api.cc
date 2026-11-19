@@ -4876,6 +4876,12 @@ extern "C" ivl_switch_type_t ivl_switch_type(ivl_switch_t net)
       return net->type;
 }
 
+extern "C" int ivl_switch_is_primitive(ivl_switch_t net)
+{
+      assert(net);
+      return net->is_primitive;
+}
+
 extern "C" ivl_nexus_t ivl_switch_a(ivl_switch_t net)
 {
       assert(net);

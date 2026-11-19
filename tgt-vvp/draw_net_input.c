@@ -126,8 +126,8 @@ static int unresolved_user_nettype_of_nexus(ivl_nexus_t nex)
       return 0;
 }
 
-/* Island flag 0 is used for emission. Flag 1 keeps explicit pass devices
- * and non-built-in resolution on the original EVCD sampling path. */
+/* Island flag 0 is used for emission. Flag 1 keeps non-built-in
+ * resolution on the original EVCD sampling path. */
 int evcd_island_sources(ivl_island_t island)
 {
       ivl_design_t design = vvp_get_saved_design();
@@ -157,9 +157,7 @@ void classify_evcd_islands(ivl_scope_t scope)
 	    ivl_switch_t sw = ivl_scope_switch(scope, idx);
 	    ivl_island_t island = ivl_switch_island(sw);
 	    if (ivl_island_flag_test(island, 1)) continue;
-	    if ((ivl_switch_type(sw) != IVL_SW_TRAN_VP
-		 && ivl_switch_port_index(sw) < 0)
-		|| !evcd_builtin_nexus(ivl_switch_a(sw))
+	    if (!evcd_builtin_nexus(ivl_switch_a(sw))
 		|| !evcd_builtin_nexus(ivl_switch_b(sw)))
 		  ivl_island_flag_set(island, 1, 1);
       }

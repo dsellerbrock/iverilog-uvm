@@ -773,6 +773,7 @@ struct ivl_net_logic_s {
 
 struct ivl_switch_s {
       ivl_switch_type_t type;
+      bool is_primitive;
       unsigned width;
       unsigned part;
       unsigned offset;

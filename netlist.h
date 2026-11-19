@@ -2775,6 +2775,8 @@ class NetTran  : public NetNode, public IslandBranch {
       ~NetTran() override;
 
       ivl_switch_type_t type() const { return type_; }
+      void set_primitive() { is_primitive_ = true; }
+      bool is_primitive() const { return is_primitive_; }
 
 	// These are only used for IVL_SW_TRAN_PV
       unsigned vector_width() const;
@@ -2793,6 +2795,7 @@ class NetTran  : public NetNode, public IslandBranch {
       unsigned off_;
       int port_info_index_;
       int port_component_index_;
+      bool is_primitive_ = false;
 };
 
 /* =========

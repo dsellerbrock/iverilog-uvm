@@ -2894,6 +2894,9 @@ extern ivl_statement_t ivl_stmt_step_stmt(ivl_statement_t net);
  * a fixed width. The unused bits are padded to Z on the A side.
  */
 extern ivl_switch_type_t ivl_switch_type(ivl_switch_t net);
+/* True for a source-level switch primitive. Generated hierarchy, alias
+ * and select links return false. */
+extern int ivl_switch_is_primitive(ivl_switch_t net);
 extern ivl_scope_t ivl_switch_scope(ivl_switch_t net);
 extern const char*ivl_switch_basename(ivl_switch_t net);
 extern ivl_nexus_t ivl_switch_a(ivl_switch_t net);
