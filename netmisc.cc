@@ -2468,6 +2468,35 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
       NetExpr*tmp = pe->elaborate_expr(des, scope, lv_net_type, flags);
       if (tmp == 0) return 0;
 
+      if (flags & PExpr::ASSOC_FIXED_PATTERN_ITEM) {
+	    const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(lv_net_type);
+	    if (fixed) {
+		    // The declaration or function result carries the original
+		    // array type even in the context of the fixed pattern child.
+		  ivl_type_t source_type = tmp->net_type();
+		  const NetESignal*signal = dynamic_cast<const NetESignal*>(tmp);
+		  if (const NetEUFunc*call = dynamic_cast<const NetEUFunc*>(tmp))
+			signal = call->result_sig();
+		  if (signal && signal->sig() && signal->sig()->array_type())
+			source_type = signal->word_index() ? signal->sig()->net_type()
+			      : signal->sig()->array_type();
+
+		  const netdarray_t*source = dynamic_cast<const netdarray_t*>(source_type);
+		  const netqueue_t*queue = dynamic_cast<const netqueue_t*>(source);
+		  if (source && !(queue && queue->assoc_compat())) {
+			if (uarray_element_equivalent_container_(fixed, source))
+			      return tmp;
+			cerr << pe->get_fileline() << ": error: a dynamic-array or queue "
+			     << "value in an associative fixed-array pattern requires "
+			     << "equivalent element types (IEEE 1800-2017/2023 6.22.2, 7.6)."
+			     << endl;
+			des->errors += 1;
+			delete tmp;
+			return nullptr;
+		  }
+	    }
+      }
+
 	/* IEEE 1800-2017/2023 25.9 makes the complete interface
 	 * specialization (effective parameter values AND types, plus the selected
 	 * modport) part of a virtual-interface type. Check that boundary before the
