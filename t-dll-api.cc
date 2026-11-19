@@ -2456,6 +2456,28 @@ extern "C" ivl_type_t ivl_parameter_type(ivl_parameter_t net)
       return net->is_type ? net->type : 0;
 }
 
+extern "C" int ivl_parameter_is_unbound(ivl_parameter_t net)
+{
+      return net->unbound;
+}
+
+extern "C" int ivl_parameter_has_default(ivl_parameter_t net)
+{
+      return net->has_default;
+}
+
+extern "C" ivl_type_t ivl_parameter_default_type(ivl_parameter_t net)
+{
+      return net->default_type;
+}
+
+extern "C" const char*ivl_parameter_type_alias(ivl_parameter_t net, int is_default,
+					       unsigned idx)
+{
+      const auto&names = is_default ? net->default_type_aliases : net->type_aliases;
+      return idx < names.size() ? names[idx].str() : nullptr;
+}
+
 extern "C" int ivl_parameter_signed(ivl_parameter_t net)
 {
       assert(net);
@@ -2774,6 +2796,14 @@ extern "C" ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net)
       int concrete;
       return scope && ivl_scope_class_declaration(scope, &concrete) && concrete
 	    ? scope : 0;
+}
+
+extern "C" ivl_scope_t ivl_type_class_declaration(ivl_type_t net)
+{
+      const auto*type = dynamic_cast<const netclass_t*>(net);
+      const NetScope*decl = type ? type->class_declaration_scope() : nullptr;
+      return decl && decl->class_pform() && !type->is_covergroup()
+	    ? decl->target_scope() : nullptr;
 }
 
 extern "C" ivl_type_t ivl_scope_class_base(ivl_scope_t net)
@@ -4934,6 +4964,21 @@ extern "C" ivl_type_t ivl_type_assoc_index(ivl_type_t net)
 	    return 0;
 
       return queue_type->assoc_index_type();
+}
+
+extern "C" unsigned ivl_type_static_dimensions(ivl_type_t net)
+{
+      const auto*array = dynamic_cast<const netsarray_t*>(net);
+      return array ? array->static_dimensions().size() : 0;
+}
+
+extern "C" void ivl_type_static_range(ivl_type_t net, unsigned dim, long*left,
+				      long*right)
+{
+      const auto*array = dynamic_cast<const netsarray_t*>(net);
+      const auto&range = array->static_dimensions().at(dim);
+      *left = range.get_msb();
+      *right = range.get_lsb();
 }
 
 extern "C" unsigned ivl_type_packed_width(ivl_type_t net)

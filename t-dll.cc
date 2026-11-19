@@ -817,10 +817,17 @@ void dll_target::make_scope_parameters(ivl_scope_t scop, const NetScope*net)
 	    cur_par->default_expr = 0;
 	    cur_par->default_net = cur_pit->second.default_net;
 	    const_cast<NetScope::param_expr_t&>(cur_pit->second).default_net = 0;
+	    const bool is_class = net->type() == NetScope::CLASS;
 	    cur_par->local = cur_pit->second.local_flag ||
-			     !cur_pit->second.overridable;
+			     (!is_class && !cur_pit->second.overridable);
 	    cur_par->is_type = cur_pit->second.type_flag;
+	    cur_par->unbound = is_class && !cur_pit->second.source_expr;
+	    cur_par->has_default = cur_pit->second.default_expr != nullptr;
             cur_par->type = cur_pit->second.ivl_type;
+	    cur_par->default_type = cur_pit->second.vpi_default_type;
+	    auto&source = const_cast<NetScope::param_expr_t&>(cur_pit->second);
+	    cur_par->type_aliases.swap(source.vpi_type_aliases);
+	    cur_par->default_type_aliases.swap(source.vpi_default_type_aliases);
 
 	    if (cur_pit->second.ivl_type == 0) {
 		  cerr << "?:?: internal error: "

@@ -35,9 +35,10 @@ using namespace std;
 class __vpiTypeParameter : public __vpiHandle {
     public:
       __vpiTypeParameter(__vpiScope*scope, const char*name, bool local,
-                         unsigned file_idx, unsigned lineno, vpiHandle typespec)
+                         unsigned file_idx, unsigned lineno, vpiHandle typespec,
+			 vpiHandle def)
       : scope_(scope), name_(strdup(name)), local_(local), file_idx_(file_idx),
-        lineno_(lineno), typespec_(typespec) { }
+        lineno_(lineno), typespec_(typespec), default_(def) { }
       ~__vpiTypeParameter() override { free(name_); }
       int get_type_code(void) const override { return vpiTypeParameter; }
       int vpi_get(int code) override
@@ -59,6 +60,7 @@ class __vpiTypeParameter : public __vpiHandle {
                 case vpiScope: return scope_;
                 case vpiModule: return vpip_module(scope_);
                 case vpiTypespec: return typespec_;
+		case vpiExpr: return default_;
                 default: return nullptr;
             }
       }
@@ -69,6 +71,7 @@ class __vpiTypeParameter : public __vpiHandle {
       unsigned file_idx_;
       unsigned lineno_;
       vpiHandle typespec_;
+      vpiHandle default_;
 };
 
 void vpip_type_parameter_delete(__vpiHandle*item)
@@ -354,7 +357,8 @@ struct __vpiTypespecMember : public __vpiHandle {
 };
 
 struct __vpiStructTypespec : public __vpiHandle {
-      explicit __vpiStructTypespec(int code) : code_(code) { }
+      explicit __vpiStructTypespec(int code, bool packed = true, bool tagged = false)
+      : code_(code), packed_(packed), tagged_(tagged) { }
       int get_type_code(void) const override { return code_; }
       char* vpi_get_str(int code) override
       { return code == vpiName ? const_cast<char*>(typedef_name) : 0; }
@@ -362,7 +366,8 @@ struct __vpiStructTypespec : public __vpiHandle {
       {
 	    switch (code) {
 		case vpiSize: return width;
-		case vpiPacked: return 1;
+		case vpiPacked: return packed_;
+		case vpiTagged: return tagged_;
 		default: return 0;
 	    }
       }
@@ -381,17 +386,21 @@ struct __vpiStructTypespec : public __vpiHandle {
       const char*typedef_name = 0;
     private:
       int code_;
+      bool packed_, tagged_;
 };
 
 /* A typedef alias (37.25 detail 1): its own name, vpiTypedefAlias to the
    typespec of the typedef it aliases; everything else is that typespec's. */
 class __vpiTypespecAlias : public __vpiHandle {
     public:
-      __vpiTypespecAlias(const char*name, vpiHandle aliased)
-      : name_(name), aliased_(aliased) { }
+      __vpiTypespecAlias(const char*name, vpiHandle aliased,
+			 bool has_typedef_target = true, bool declaration = false)
+      : name_(vpip_name_string(name)), aliased_(aliased),
+	has_typedef_target_(has_typedef_target), declaration_(declaration) { }
       int get_type_code(void) const override
       { return aliased_->get_type_code(); }
       int vpi_get(int code) override { return aliased_->vpi_get(code); }
+      bool is_typedef_typespec() const override { return declaration_; }
       char* vpi_get_str(int code) override
       {
 	    if (code == vpiName) return const_cast<char*>(name_);
@@ -399,14 +408,16 @@ class __vpiTypespecAlias : public __vpiHandle {
       }
       vpiHandle vpi_handle(int code) override
       {
-	    if (code == vpiTypedefAlias) return aliased_;
+	    if (code == vpiTypedefAlias) return has_typedef_target_ ? aliased_ : nullptr;
 	    return aliased_->vpi_handle(code);
       }
       vpiHandle vpi_iterate(int code) override
       { return aliased_->vpi_iterate(code); }
+      vpiHandle target() const { return aliased_; }
     private:
       const char*name_;
       vpiHandle aliased_;
+      bool has_typedef_target_, declaration_;
 };
 
 /* Render the declared type of a packed value for %p. Struct members are
@@ -414,7 +425,7 @@ class __vpiTypespecAlias : public __vpiHandle {
 std::string vpip_format_packed_value(vpiHandle spec, vvp_vector4_t value)
 {
       while (auto*alias = dynamic_cast<__vpiTypespecAlias*>(spec))
-	    spec = alias->vpi_handle(vpiTypedefAlias);
+	    spec = alias->target();
 
       if (spec->get_type_code() == vpiStructTypespec) {
 	    auto*aggregate = static_cast<__vpiStructTypespec*>(spec);
@@ -513,7 +524,7 @@ static vpiHandle parse_vartype(const char*&cp, unsigned&width, bool&missing)
 		if (end == cp+1 || *end != ':' || size == 0 || size > INT_MAX)
 		      return 0;
 		cp = end + 1;
-		size_t len = strcspn(cp, ",}");
+		size_t len = strcspn(cp, ",})");
 		if (len == 0) return 0;
 		std::string label(cp, len);
 		cp += len;
@@ -686,44 +697,262 @@ void compile_property_vartype(char*label, uint64_t idx, char*text)
       resolv_submit(new property_vartype_resolv_t(label, idx, text));
 }
 
+class __vpiAtomTypespec : public __vpiHandle {
+    public:
+      __vpiAtomTypespec(int code, int width, bool is_signed)
+      : code_(code), width_(width), signed_(is_signed) { }
+      int get_type_code() const override { return code_; }
+      int vpi_get(int code) override
+      {
+	    if (code == vpiSize) return width_;
+	    if (code == vpiSigned) return signed_;
+	    return __vpiHandle::vpi_get(code);
+      }
+    private:
+      int code_, width_;
+      bool signed_;
+};
+
+class __vpiArrayTypespec : public __vpiHandle {
+    public:
+      __vpiArrayTypespec(int code, int kind, int left, int right,
+			 vpiHandle index, vpiHandle element)
+      : code_(code), kind_(kind), left_(left), right_(right),
+	index_(index), element_(element) { }
+      int get_type_code() const override { return code_; }
+      int vpi_get(int code) override
+      {
+	    if (code == vpiArrayType) return kind_;
+	    return __vpiHandle::vpi_get(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+	    if (code == vpiElemTypespec) return element_;
+	    if (code == vpiIndexTypespec) return index_;
+	    return nullptr;
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code != vpiRange || kind_ != vpiStaticArray) return nullptr;
+	    auto*range = static_cast<vpiHandle*>(calloc(1, sizeof(vpiHandle)));
+	    range[0] = vpip_make_range(left_, right_);
+	    return vpip_make_iterator(1, range, true);
+      }
+    private:
+      int code_, kind_, left_, right_;
+      vpiHandle index_, element_;
+};
+
+static bool type_number_(const char*&cp, int&value, char delim = 0)
+{
+      char*end;
+      long number = strtol(cp, &end, 10);
+      if (end == cp || number < INT_MIN || number > INT_MAX
+	  || (delim && *end != delim))
+	    return false;
+      value = number;
+      cp = delim ? end + 1 : end;
+      return true;
+}
+
+static bool type_name_(const char*&cp, string&name)
+{
+      int len;
+      if (!type_number_(cp, len, ':') || len < 0 || size_t(len) > strlen(cp))
+	    return false;
+      name.assign(cp, len);
+      cp += len;
+      return true;
+}
+
+/* Extended typespecs are used for class declarations and specializations.
+   The packed leaves share the .vartype encoding. A forward class or enum
+   symbol is retried by the same resolver as the packed .param/type form. */
+static vpiHandle parse_class_typespec_(const char*&cp, unsigned&width,
+				      bool&missing, unsigned depth = 0)
+{
+      if (depth == 128 || !*cp) return nullptr;
+      width = 0;
+      switch (*cp) {
+	  case 'H': {
+		string name;
+		if (!type_name_(++cp, name) || name.empty()) return nullptr;
+		bool aliased = *cp == 'H' || *cp == 'T';
+		vpiHandle type = parse_class_typespec_(cp, width, missing, depth + 1);
+		return type ? new __vpiTypespecAlias(name.c_str(), type, aliased) : nullptr;
+	  }
+	  case 'C': {
+		++cp;
+		size_t len = strcspn(cp, ":");
+		if (!len || cp[len] != ':') return nullptr;
+		string label(cp, len), name;
+		cp += len + 1;
+		if (!type_name_(cp, name)) return nullptr;
+		vpiHandle target = label == "-" ? nullptr : vvp_lookup_handle(label.c_str());
+		if (!target && label != "-") {
+		      missing = true;
+		      return nullptr;
+		}
+		return vpip_make_class_typespec_reference(target, name.c_str());
+	  }
+	  case 'I': {
+		string defname, modport;
+		if (!type_name_(++cp, defname) || !type_name_(cp, modport))
+		      return nullptr;
+		return vpip_make_interface_typespec(defname.c_str(), modport.c_str());
+	  }
+	  case 'K': {
+		int code, bits, sign;
+		if (!type_number_(++cp, code, ':') || !type_number_(cp, bits, ':')
+		    || !type_number_(cp, sign) || bits < 0 || sign < 0 || sign > 1)
+		      return nullptr;
+		switch (code) {
+		    case vpiByteTypespec:
+		    case vpiShortIntTypespec:
+		    case vpiIntTypespec:
+		    case vpiLongIntTypespec:
+		    case vpiIntegerTypespec:
+		    case vpiRealTypespec:
+		    case vpiShortRealTypespec:
+		    case vpiStringTypespec:
+		    case vpiChandleTypespec:
+		    case vpiVoidTypespec:
+		      width = bits;
+		      return new __vpiAtomTypespec(code, bits, sign);
+		    default:
+		      return nullptr;
+		}
+	  }
+	  case 'A':
+	  case 'F':
+	  case 'P': {
+		char form = *cp++;
+		int kind = vpiStaticArray, left = 0, right = 0;
+		vpiHandle index = nullptr;
+		if (form == 'A') {
+		      if (!type_number_(cp, kind, '(') || kind < vpiDynamicArray
+			  || kind > vpiQueueArray)
+			    return nullptr;
+		      if (*cp != ',') {
+			    if (kind != vpiAssocArray) return nullptr;
+			    index = parse_class_typespec_(cp, width, missing, depth + 1);
+			    if (!index || *cp != ',') return nullptr;
+		      }
+		      ++cp;
+		} else if (!type_number_(cp, left, ':') || !type_number_(cp, right, '(')) {
+		      return nullptr;
+		}
+		vpiHandle elem = parse_class_typespec_(cp, width, missing, depth + 1);
+		if (!elem || *cp != ')') return nullptr;
+		++cp;
+		if (form == 'P') {
+		      unsigned long long size = llabs((long long)left - right) + 1;
+		      if (!width || size > INT_MAX / width) return nullptr;
+		      width *= size;
+		} else {
+		      width = 0;
+		}
+		return new __vpiArrayTypespec(form == 'P' ? vpiPackedArrayTypespec
+					      : vpiArrayTypespec, kind, left, right, index, elem);
+	  }
+	  case 'J': {
+		int code, packed, tagged, bits;
+		if (!type_number_(++cp, code, ':') || !type_number_(cp, packed, ':')
+		    || !type_number_(cp, tagged, ':') || !type_number_(cp, bits, '{')
+		    || (code != vpiStructTypespec && code != vpiUnionTypespec)
+		    || packed < 0 || packed > 1 || tagged < 0 || tagged > 1 || bits < 0)
+		      return nullptr;
+		auto*spec = new __vpiStructTypespec(code, packed, tagged);
+		while (*cp && *cp != '}') {
+		      string name;
+		      unsigned member_width;
+		      if (!type_name_(cp, name) || name.empty()) return nullptr;
+		      vpiHandle member = parse_class_typespec_(cp, member_width, missing, depth + 1);
+		      if (!member) return nullptr;
+		      auto*obj = new __vpiTypespecMember;
+		      obj->name = strdup(name.c_str());
+		      obj->typespec = member;
+		      obj->width = member_width;
+		      spec->members.push_back(obj);
+		      if (*cp == '}') break;
+		      if (*cp++ != ',' || *cp == '}') return nullptr;
+		}
+		if (*cp != '}' || spec->members.empty()) return nullptr;
+		++cp;
+		spec->width = width = bits;
+		return spec;
+	  }
+	  case 'B': case 'V': case 'T': case 'E':
+		return parse_vartype(cp, width, missing);
+	  default:
+		return nullptr;
+      }
+}
+
 class typeparam_resolv_t : public resolv_list_s {
     public:
-      typeparam_resolv_t(char*label, const char*name, char*text, bool local,
+      typeparam_resolv_t(char*label, char*name, char*text, char*def, bool local,
                          long file_idx, long lineno)
-      : resolv_list_s(label), name_(strdup(name)), text_(text), local_(local),
+      : resolv_list_s(label), name_(name), text_(text), def_(def), local_(local),
         file_idx_(file_idx), lineno_(lineno), scope_(vpip_peek_current_scope()) { }
-      ~typeparam_resolv_t() override { free(name_); delete[] text_; }
+      ~typeparam_resolv_t() override { delete[] name_; delete[] text_; delete[] def_; }
       bool resolve(bool message_flag) override
       {
-            const char*cp = text_;
-            unsigned width = 0;
+            bool is_typedef = !label();
+            bool extended = is_typedef || def_;
             bool missing = false;
-            vpiHandle typespec = parse_vartype(cp, width, missing);
-            if (missing && !message_flag) return false;
-            if (!typespec || *cp) {
-                  yyerror("invalid .param/type metadata");
+            if ((extended && (!scope_ || scope_->get_type_code() != vpiClassTypespec))
+                || !parse_(text_, typespec_, extended, def_ != nullptr, missing)
+                || (def_ && !parse_(def_, default_, true, true, missing))) {
+                  if (missing && !message_flag) return false;
+                  yyerror(is_typedef ? "invalid class .typedef metadata"
+                                     : "invalid .param/type metadata");
                   compile_errors += 1;
                   return true;
             }
-            vpiHandle param = new __vpiTypeParameter(scope_, name_, local_,
-                  file_idx_, lineno_, typespec);
-            compile_vpi_symbol(label(), param);
-            vpip_attach_to_scope(scope_, param);
+            if (is_typedef) {
+                  vpip_attach_to_scope(scope_, new __vpiTypespecAlias(
+                        name_, typespec_, *text_ == 'H' || *text_ == 'T', true));
+            } else {
+                  vpiHandle param = new __vpiTypeParameter(scope_, name_, local_,
+                        file_idx_, lineno_, typespec_, default_);
+                  compile_vpi_symbol(label(), param);
+                  vpip_attach_to_scope(scope_, param);
+            }
             return true;
       }
     private:
+      static bool parse_(const char*cp, vpiHandle&spec, bool extended,
+                         bool allow_empty, bool&missing)
+      {
+            if (spec || (allow_empty && !*cp)) return true;
+            unsigned width = 0;
+            vpiHandle parsed = extended ? parse_class_typespec_(cp, width, missing)
+                                        : parse_vartype(cp, width, missing);
+            if (!parsed || *cp) return false;
+            spec = parsed;
+            return true;
+      }
+
       char* name_;
       char* text_;
+      char* def_;
       bool local_;
       unsigned file_idx_;
       unsigned lineno_;
       __vpiScope* scope_;
+      vpiHandle typespec_ = nullptr;
+      vpiHandle default_ = nullptr;
 };
 
-void compile_type_param(char*label, const char*name, char*type,
+void compile_type_param(char*label, char*name, char*type, char*def,
                         bool local_flag, long file_idx, long lineno)
 {
-      resolv_submit(new typeparam_resolv_t(label, name, type, local_flag,
+      resolv_submit(new typeparam_resolv_t(label, name, type, def, local_flag,
                                            file_idx, lineno));
-      free(const_cast<char*>(name));
+}
+
+void compile_class_typedef(char*name, char*type)
+{
+      compile_type_param(nullptr, name, type, nullptr, false, 0, 0);
 }

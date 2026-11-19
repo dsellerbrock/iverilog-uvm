@@ -1555,6 +1555,7 @@ extern vpiHandle vpip_make_cobject_var(const char*name, vvp_net_t*net,
                                        bool virtual_interface = false,
                                        bool virtual_interface_modport = false);
 extern vpiHandle vpip_make_interface_typespec(const char*defname, const char*modport);
+extern vpiHandle vpip_make_class_typespec_reference(vpiHandle target, const char*name);
 
 /* M12-5: resolve one member name on a class VARIABLE handle or a
    nested class MEMBER handle (returns nil for anything else). */
@@ -1705,7 +1706,7 @@ vpiHandle vpip_make_binary_const(unsigned wid, const char*bits);
 vpiHandle vpip_make_binary_const(const vvp_vector4_t&bits, bool signed_flag);
 vpiHandle vpip_make_binary_param(const char*name, const vvp_vector4_t&bits,
 				 bool signed_flag, bool local_flag,
-				 long file_idx, long lineno);
+				 long file_idx, long lineno, bool is_null);
 
 class __vpiRealConst : public __vpiHandle {
     public:

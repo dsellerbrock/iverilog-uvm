@@ -3751,9 +3751,20 @@ void compile_param_logic(char*label, const char*name, char*value, bool signed_fl
                          bool local_flag,
                          long file_idx, long lineno)
 {
-      vvp_vector4_t value4 = c4string_to_vector4(value);
+      bool is_null = value && strcmp(value, "null") == 0;
+      auto*scope = vpip_peek_current_scope();
+      if ((!value || is_null) && (!scope || scope->get_type_code() != vpiClassTypespec)) {
+	    yyerror("invalid class .param/l metadata");
+	    compile_errors += 1;
+	    delete[] name;
+	    free(label);
+	    free(value);
+	    return;
+      }
+      vvp_vector4_t value4 = value && !is_null ? c4string_to_vector4(value)
+					     : vvp_vector4_t();
       vpiHandle obj = vpip_make_binary_param(name, value4, signed_flag,
-                                             local_flag, file_idx, lineno);
+                                             local_flag, file_idx, lineno, is_null);
       compile_vpi_symbol(label, obj);
       vpip_attach_to_current_scope(obj);
 

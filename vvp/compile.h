@@ -561,7 +561,8 @@ extern void compile_array_cleanup(void);
 extern void compile_packed_dims(char*label, char*layout);
 extern void compile_vartype(char*label, char*text);
 extern void compile_property_vartype(char*label, uint64_t idx, char*text);
-extern void compile_type_param(char*label, const char*name, char*type,
+extern void compile_class_typedef(char*name, char*type);
+extern void compile_type_param(char*label, char*name, char*type, char*def,
                                bool local_flag, long file_idx, long lineno);
 
 /*

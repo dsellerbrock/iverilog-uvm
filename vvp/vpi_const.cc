@@ -482,7 +482,8 @@ vvp_vector4_t vector4_from_text(const char*bits, unsigned wid)
 
 struct __vpiBinaryParam  : public __vpiBinaryConst {
       __vpiBinaryParam(__vpiScope*scope, const vvp_vector4_t&b, bool is_signed,
-                       const char*name, bool local_flag, long file_idx, long lineno);
+                       const char*name, bool local_flag, long file_idx, long lineno,
+		       bool is_null);
       ~__vpiBinaryParam() override;
       int get_type_code(void) const override;
       int vpi_get(int code) override;
@@ -499,13 +500,15 @@ struct __vpiBinaryParam  : public __vpiBinaryConst {
       __vpiScope*scope_;
       const char*basename_;
       bool     local_flag_;
+      bool     is_null_;
       unsigned file_idx_;
       unsigned lineno_;
 };
 
 inline __vpiBinaryParam::__vpiBinaryParam(__vpiScope*scope, const vvp_vector4_t&b,
                                           bool is_signed, const char*nam,
-                                          bool local_flag, long file_idx, long lineno)
+                                          bool local_flag, long file_idx, long lineno,
+					  bool is_null)
 {
       scope_ = scope;
       bits = b;
@@ -513,6 +516,7 @@ inline __vpiBinaryParam::__vpiBinaryParam(__vpiScope*scope, const vvp_vector4_t&
       sized_flag = 0;
       basename_ = nam;
       local_flag_ = local_flag;
+      is_null_ = is_null;
       assert(file_idx >= 0 && file_idx <= INT_MAX);
       file_idx_ = (unsigned) file_idx;
       assert(lineno >= 0 && lineno <= INT_MAX);
@@ -537,7 +541,7 @@ int __vpiBinaryParam::vpi_get(int code)
         return local_flag_;
 
       default :
-        return __vpiBinaryConst::vpi_get(code);
+        return is_null_ ? __vpiNullConst().vpi_get(code) : __vpiBinaryConst::vpi_get(code);
     }
 }
 
@@ -554,7 +558,7 @@ vpiHandle __vpiBinaryParam::vpi_handle(int code)
 {
       switch (code) {
 	  case vpiExpr:
-	    return param_default_(this);
+	    return bits.size() || is_null_ ? param_default_(this) : nullptr;
 
 	  case vpiScope:
 	    return scope_;
@@ -571,7 +575,9 @@ vpiHandle __vpiBinaryParam::vpi_handle(int code)
 void __vpiBinaryParam::vpi_get_value(p_vpi_value val)
 {
       if (storage) storage->vpi_get_value(val);
-      else __vpiBinaryConst::vpi_get_value(val);
+      else if (is_null_) __vpiNullConst().vpi_get_value(val);
+      else if (bits.size()) __vpiBinaryConst::vpi_get_value(val);
+      else val->format = vpiSuppressVal;
 }
 
 vpiHandle __vpiBinaryParam::vpi_put_value(p_vpi_value val, int flags)
@@ -584,11 +590,11 @@ vpiHandle __vpiBinaryParam::vpi_put_value(p_vpi_value val, int flags)
 
 vpiHandle vpip_make_binary_param(const char*name, const vvp_vector4_t&bits,
 				 bool signed_flag, bool local_flag,
-				 long file_idx, long lineno)
+				 long file_idx, long lineno, bool is_null)
 {
       struct __vpiBinaryParam*obj = new __vpiBinaryParam(vpip_peek_current_scope(),
                                                          bits, signed_flag, name,
-                                                         local_flag, file_idx, lineno);
+                                                         local_flag, file_idx, lineno, is_null);
 
       return obj;
 }
@@ -1009,7 +1015,8 @@ void parameter_delete(vpiHandle item)
 	    class __vpiStringParam*rfp = dynamic_cast<__vpiStringParam*>(item);
 	    delete rfp;
 	    break; }
-	  case vpiBinaryConst: {
+	  case vpiBinaryConst:
+	  case vpiNullConst: {
 	    struct __vpiBinaryParam*rfp = dynamic_cast<__vpiBinaryParam*>(item);
 	    delete rfp;
 	    break; }
@@ -1025,7 +1032,8 @@ void parameter_delete(vpiHandle item)
 
 /*
  * Default expressions of value parameters (37.28 detail 3). A parameter
- * with a .vpi_param_expr record gets that expression. Any other value
+ * with a .vpi_param_expr record gets that expression (or no expression
+ * if the record has no operand). Any other value
  * parameter has a plain constant default equal to its value, built on
  * first request.
  */
@@ -1050,13 +1058,15 @@ void compile_vpi_param_expr(char*label, unsigned argc, vpiHandle*argv)
 static vpiHandle param_default_(vpiHandle param)
 {
       for (const param_default_s&cur : param_defaults_)
-	    if (cur.param == param && cur.argc)
-		  return cur.argv[cur.argc-1];
+	    if (cur.param == param)
+		  return cur.argc ? cur.argv[cur.argc-1] : nullptr;
 
       vpiHandle&made = param_default_consts_[param];
       if (made)
 	    return made;
       if (__vpiBinaryParam*bp = dynamic_cast<__vpiBinaryParam*>(param)) {
+	    if (bp->vpi_get(vpiConstType) == vpiNullConst)
+		  return made = vpip_make_null_const();
 	    __vpiBinaryConst*obj = new __vpiBinaryConst;
 	    obj->bits = bp->bits;
 	    obj->signed_flag = bp->signed_flag;

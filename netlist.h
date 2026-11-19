@@ -1862,6 +1862,9 @@ class NetScope : public Definitions, public Attrib {
 	    // and its tree elaborated for VPI (IEEE 1800-2023 37.28 detail 3).
 	    PExpr*default_expr = nullptr;
 	    NetExpr*default_net = nullptr;
+	    ivl_type_t vpi_default_type = nullptr;
+	    std::vector<perm_string> vpi_type_aliases;
+	    std::vector<perm_string> vpi_default_type_aliases;
 	    // Is it a type parameter
 	    bool type_flag = false;
 	    // Is it an unpacked array parameter (elements stored as "name[i]")

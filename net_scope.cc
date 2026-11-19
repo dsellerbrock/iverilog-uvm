@@ -1637,6 +1637,35 @@ static bool default_is_final_value_(const NetExpr*def, const NetExpr*val)
       return dr && vr && dr->value().as_double() == vr->value().as_double();
 }
 
+// Keep the typedef names that occur in the type actual or default. The
+// elaborated type alone can be shared by several unrelated aliases.
+static std::vector<perm_string> parameter_type_aliases_(Design*des,
+						       NetScope*scope, PExpr*expr)
+{
+      const typedef_t*decl = nullptr;
+      if (const auto*type = dynamic_cast<const PETypename*>(expr)) {
+	    if (const auto*ref = dynamic_cast<const typeref_t*>(type->get_type()))
+		  if (!ref->parameter_values())
+			decl = ref->typedef_ref();
+      } else if (const auto*id = dynamic_cast<const PEIdent*>(expr)) {
+	    const auto&path = id->path();
+	    if (path.name.size() == 1 && path.name.front().index.empty()) {
+		  if (path.package)
+			scope = des->find_package(path.package->pscope_name());
+		  if (scope)
+			decl = scope->find_typedef(des, path.name.front().name);
+	    }
+      }
+      std::vector<perm_string> names;
+      std::set<const typedef_t*> seen;
+      while (decl && decl->is_explicit_typedef() && seen.insert(decl).second) {
+	    names.push_back(decl->name);
+	    const auto*ref = dynamic_cast<const typeref_t*>(decl->get_data_type());
+	    decl = ref && !ref->parameter_values() ? ref->typedef_ref() : nullptr;
+      }
+      return names;
+}
+
 /* A port whose formal is not simply its own name: a select, or a
    concatenation of several names (23.2.2.1). */
 static PExpr* port_expression_formal_(const Module::port_t*port)
@@ -1729,15 +1758,36 @@ void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 	    }
 	    vpi_inst_arrays.push_back(arr);
       }
-      if (!class_def() && type_ != TASK && type_ != FUNC) {
+      const auto*cls = class_def();
+      const bool class_params = cls && class_pform() && !cls->is_covergroup()
+	    && (!cls->specialized_instance() || !cls->generic_body_only());
+      if (class_params || (!cls && type_ != TASK && type_ != FUNC)) {
 	    for (map<perm_string,param_expr_t>::iterator cur = parameters.begin()
 		       ; cur != parameters.end() ; ++cur) {
 		  param_expr_t&ref = cur->second;
+		  if (class_params && ref.type_flag) {
+			const NetScope*decl = cls->class_declaration_scope();
+			const auto&formal = decl->parameters.at(cur->first);
+			// Explicit actuals change the effective typespec only.
+			// The default is the type from the lexical declaration.
+			if (ref.default_expr) {
+			      ref.vpi_default_type = ref.is_overridden
+				    ? formal.ivl_type : ref.ivl_type;
+			      ref.vpi_default_type_aliases = parameter_type_aliases_(
+				    des, ref.is_overridden ? const_cast<NetScope*>(decl) : this,
+				    ref.default_expr);
+			}
+			ref.vpi_type_aliases = parameter_type_aliases_(
+			      des, ref.source_scope, ref.source_expr);
+			continue;
+		  }
 		  if (!ref.default_expr || ref.type_flag || ref.is_array_param
 		      || ref.is_assoc_param || ref.is_annotatable || !ref.val)
 			continue;
 		  NetExpr*tmp = elaborate_for_vpi(des, this, ref.default_expr);
-		  if (tmp && default_is_final_value_(tmp, ref.val)) {
+		  if (tmp && !(class_params && (dynamic_cast<NetEConstParam*>(tmp)
+						|| dynamic_cast<NetECRealParam*>(tmp)))
+		      && default_is_final_value_(tmp, ref.val)) {
 			delete tmp;
 			tmp = 0;
 		  }

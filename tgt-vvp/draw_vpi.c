@@ -759,6 +759,9 @@ static void draw_inst_array_(ivl_scope_t scope, unsigned idx)
 void draw_vpi_objects_in_scope(ivl_scope_t scope)
 {
       unsigned idx, save_local = local_count, save_thread = thread_count;
+      int concrete;
+      int is_class = ivl_scope_type(scope) == IVL_SCT_CLASS
+	    && ivl_scope_class_declaration(scope, &concrete);
       unsigned chain_argc = ivl_scope_class_chain_argc(scope);
       unsigned base_params = ivl_scope_class_base_params(scope);
       unsigned nports = ivl_scope_type(scope) == IVL_SCT_MODULE
@@ -766,8 +769,12 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
       int any = chain_argc || base_params || ivl_scope_contassigns(scope)
 	    || ivl_scope_defparams(scope);
 
-      for (idx = 0; !any && idx < ivl_scope_params(scope); idx += 1)
-	    any = ivl_parameter_default_expr(ivl_scope_param(scope, idx)) != 0;
+      for (idx = 0; !any && idx < ivl_scope_params(scope); idx += 1) {
+	    ivl_parameter_t par = ivl_scope_param(scope, idx);
+	    any = ivl_parameter_default_expr(par) != 0
+		  || (is_class && !ivl_parameter_is_type(par)
+		      && !ivl_parameter_has_default(par));
+      }
 	/* An interface port: the instance it is bound to, and the modport
 	   it selects (37.14 detail 5, 37.15). These need no expression code. */
       for (idx = 0; idx < nports; idx += 1) {
@@ -832,9 +839,12 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
       for (idx = 0; idx < ivl_scope_params(scope); idx += 1) {
 	    ivl_parameter_t par = ivl_scope_param(scope, idx);
 	    ivl_expr_t def = ivl_parameter_default_expr(par);
-	    char*text = def ? draw_lazy_expr_(def) : 0;
+	    char*text = def ? draw_lazy_expr_mode_(def, is_class) : 0;
 	    if (text)
 		  fprintf(vvp_out, " .vpi_param_expr P_%p, %s;\n", par, text);
+	    else if (is_class && !ivl_parameter_is_type(par)
+		     && !ivl_parameter_has_default(par))
+		  fprintf(vvp_out, " .vpi_param_expr P_%p;\n", par);
 	    free(text);
       }
 	/* The actual of each connected port (vpiHighConn, IEEE 1800-2023

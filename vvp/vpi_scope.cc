@@ -1675,6 +1675,20 @@ class vpiScopeForkAuto  : public __vpiScope {
 
 class vpiClassDefinition;
 
+static vpiHandle class_parameter_iter(const __vpiScope*scope)
+{
+      vector<vpiHandle> parameters;
+      for (vpiHandle item : scope->intern) {
+	    int kind = item->get_type_code();
+	    if (kind == vpiParameter || kind == vpiTypeParameter)
+		  parameters.push_back(item);
+      }
+      if (parameters.empty()) return nullptr;
+      auto*items = static_cast<vpiHandle*>(calloc(parameters.size(), sizeof(vpiHandle)));
+      copy(parameters.begin(), parameters.end(), items);
+      return vpip_make_iterator(parameters.size(), items, true);
+}
+
 // A lexical class type reference has its own identity and cannot expose
 // the members or parameter values of a particular specialization.
 class vpiClassReference : public __vpiHandle {
@@ -1769,6 +1783,10 @@ class vpiClassDefinition : public __vpiHandle {
       }
       vpiHandle vpi_iterate(int code) override
       {
+	    if (code == vpiParameter)
+		  return class_parameter_iter(decl_);
+	    if (code == vpiTypedef)
+		  return make_subset_iterator_(code, decl_->intern);
 	    if (code == vpiClassTypespec)
 		  return specializations_.empty() ? nullptr
 			: vpip_make_iterator(specializations_.size(),
@@ -1828,6 +1846,14 @@ class vpiScopeClass : public __vpiScope {
       vpiScopeClass(const char*nam, const char*tnam, bool linked)
       : __vpiScope(nam,tnam), linked_(linked) { }
       int get_type_code(void) const override { return vpiClassTypespec; }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code == vpiParameter)
+		  return class_parameter_iter(this);
+	    if (code == vpiTypedef && linked_ && !concrete())
+		  return nullptr;
+	    return __vpiScope::vpi_iterate(code);
+      }
       vpiHandle vpi_handle(int code) override
       {
 	    if (code == vpiExtends)
@@ -1904,6 +1930,18 @@ class vpiScopeClass : public __vpiScope {
       class_type*runtime_ = nullptr;
       vpiHandle base_ = nullptr;
 };
+
+vpiHandle vpip_make_class_typespec_reference(vpiHandle target, const char*name)
+{
+      if (auto*scope = dynamic_cast<vpiScopeClass*>(target))
+	    return scope->concrete() ? scope : nullptr;
+      auto*definition = dynamic_cast<vpiClassDefinition*>(target);
+      if (target && !definition)
+	    return nullptr;
+      auto*ref = new vpiClassReference(name);
+      ref->definition = definition;
+      return ref;
+}
 
 static vpiHandle class_definition_iter(__vpiScope*scope)
 {

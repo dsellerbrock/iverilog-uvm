@@ -1135,6 +1135,9 @@ statement
 	|         K_TYPEDEF T_STRING T_NUMBER T_STRING T_STRING ';'
 		{ compile_typedef($2, $3, $4, $5); }
 
+	|         K_TYPEDEF T_STRING T_STRING ';'
+		{ compile_class_typedef($2, $3); }
+
 	|         K_VPI_IMPORT T_STRING T_STRING ';'
 		{ compile_vpi_import($2, $3); }
 
@@ -1397,7 +1400,13 @@ statement
 		{ compile_param_string($1, $3, $8, $4, $5, $6); }
 
 	| T_LABEL K_PARAM_TYPE T_STRING T_NUMBER T_NUMBER T_NUMBER',' T_STRING ';'
-		{ compile_type_param($1, $3, $8, $4, $5, $6); }
+		{ compile_type_param($1, $3, $8, nullptr, $4, $5, $6); }
+
+	| T_LABEL K_PARAM_TYPE T_STRING T_NUMBER T_NUMBER T_NUMBER',' T_STRING ',' T_STRING ';'
+		{ compile_type_param($1, $3, $8, $10, $4, $5, $6); }
+
+	| T_LABEL K_PARAM_L T_STRING T_NUMBER T_NUMBER T_NUMBER ';'
+		{ compile_param_logic($1, $3, nullptr, false, $4, $5, $6); }
 
 	| T_LABEL K_PARAM_L T_STRING T_NUMBER T_NUMBER T_NUMBER',' T_SYMBOL ';'
 		{ compile_param_logic($1, $3, $8, false, $4, $5, $6); }

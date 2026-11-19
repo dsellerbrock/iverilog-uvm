@@ -118,6 +118,7 @@ EXTERN_C_START
 #define vpiTypespec         605
 /* Property: true for a packed struct or union typespec. */
 #define vpiPacked           630
+#define vpiTagged           632
 
 #define vpiClassDefn        652
 #define vpiClassObj         621
@@ -136,16 +137,21 @@ EXTERN_C_START
 #define vpiDerivedClasses   727
 #define vpiIntegerTypespec  635
 #define vpiLongIntTypespec  625
+#define vpiShortRealTypespec 626
 #define vpiByteTypespec     627
 #define vpiShortIntTypespec 628
 #define vpiIntTypespec      629
 #define vpiStringTypespec   631
 #define vpiChandleTypespec  632
 #define vpiArrayTypespec    642
+#define vpiVoidTypespec     643
+#define vpiPackedArrayTypespec 692
 #define vpiTimeTypespec     636
 #define vpiRealTypespec     637
 #define vpiInterfaceTypespec 906
 #define vpiTypedefAlias     701
+#define vpiIndexTypespec    702
+#define vpiElemTypespec     704
 #define vpiIsModPort        669
 
 /********* Many-to-One ***********/

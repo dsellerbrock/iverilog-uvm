@@ -282,3 +282,5 @@ issue3745_class_discovery_2017 normal,-g2017,-s,top issue3745_class_discovery.c 
 issue3745_class_discovery_2023 normal,-g2023,-s,top issue3745_class_discovery.c issue3745_class_discovery_2023.gold
 issue3746_class_inheritance_2017 normal,-g2017,-s,top issue3746_class_inheritance.c issue3746_class_inheritance_2017.gold
 issue3746_class_inheritance_2023 normal,-g2023,-s,top,-DCHECK_DEFAULT_FORWARDING issue3746_class_inheritance.c issue3746_class_inheritance_2023.gold
+issue3749_class_declarations_2017 normal,-g2017,-s,top issue3749_class_declarations.c issue3749_class_declarations_2017.gold
+issue3749_class_declarations_2023 normal,-g2023,-s,top issue3749_class_declarations.c issue3749_class_declarations_2023.gold

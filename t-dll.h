@@ -860,6 +860,9 @@ struct ivl_parameter_s {
       perm_string basename;
       ivl_scope_t scope;
       ivl_type_t  type;
+      ivl_type_t  default_type;
+      std::vector<perm_string> type_aliases;
+      std::vector<perm_string> default_type_aliases;
       ivl_expr_t  value;
       ivl_expr_t  assign_expr;
       ivl_expr_t  default_expr;
@@ -869,6 +872,8 @@ struct ivl_parameter_s {
       bool  signed_flag;
       bool        local;
       bool      is_type;
+      bool      unbound;
+      bool      has_default;
       perm_string file;
       unsigned lineno;
 };

@@ -1980,6 +1980,12 @@ extern int         ivl_parameter_is_type(ivl_parameter_t net);
 /* Return the effective data type of a type parameter, or NULL for a value
  * parameter. */
 extern ivl_type_t  ivl_parameter_type(ivl_parameter_t net);
+/* Class declaration metadata. An unbound formal has no effective value. */
+extern int ivl_parameter_is_unbound(ivl_parameter_t net);
+extern int ivl_parameter_has_default(ivl_parameter_t net);
+extern ivl_type_t ivl_parameter_default_type(ivl_parameter_t net);
+extern const char*ivl_parameter_type_alias(ivl_parameter_t net, int is_default,
+					 unsigned idx);
 extern const char* ivl_parameter_file(ivl_parameter_t net);
 extern unsigned    ivl_parameter_lineno(ivl_parameter_t net);
 
@@ -2165,6 +2171,7 @@ extern ivl_scope_t ivl_scope_class_chain(ivl_scope_t net);
 extern unsigned ivl_scope_class_chain_argc(ivl_scope_t net);
 extern ivl_expr_t ivl_scope_class_chain_arg(ivl_scope_t net, unsigned idx);
 extern ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net);
+extern ivl_scope_t ivl_type_class_declaration(ivl_type_t net);
 extern unsigned       ivl_scope_enumerates(ivl_scope_t net);
 extern ivl_enumtype_t ivl_scope_enumerate(ivl_scope_t net, unsigned idx);
 /* Explicit user typedef declarations owned by this lexical scope. */
@@ -2949,6 +2956,10 @@ extern unsigned ivl_switch_lineno(ivl_switch_t net);
 extern ivl_variable_type_t ivl_type_base(ivl_type_t net);
 extern ivl_type_t ivl_type_element(ivl_type_t net);
 extern ivl_type_t ivl_type_assoc_index(ivl_type_t net);
+/* Static array dimensions outside the element type. */
+extern unsigned ivl_type_static_dimensions(ivl_type_t net);
+extern void ivl_type_static_range(ivl_type_t net, unsigned dim, long*left,
+				  long*right);
 extern unsigned ivl_type_packed_dimensions(ivl_type_t net);
 extern int ivl_type_packed_lsb(ivl_type_t net, unsigned dim);
 extern int ivl_type_packed_msb(ivl_type_t net, unsigned dim);

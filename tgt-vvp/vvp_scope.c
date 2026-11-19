@@ -848,6 +848,120 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
       return ivl_type_packed_width(type);
 }
 
+/* Type parameters and typedefs can name types that have no packed
+   representation. Length-prefix names so escaped identifiers survive. */
+static void vartype_put_string_(struct vartype_buf_s*buf, const char*name)
+{
+      char len[32];
+      if (!name) name = "";
+      snprintf(len, sizeof len, "%zu:", strlen(name));
+      vartype_put_(buf, len);
+      vartype_put_(buf, name);
+}
+
+static void class_type_spec_(struct vartype_buf_s*buf, ivl_type_t type,
+			     int lexical)
+{
+      char tmp[96];
+      int code = ivl_type_base(type) == IVL_VT_VOID
+	    ? vpiVoidTypespec : ivl_type_typedef_vpi_type(type);
+      if (code == vpiClassTypespec) {
+	    ivl_scope_t spec = lexical ? 0 : ivl_type_class_typespec_scope(type);
+	    ivl_scope_t decl = ivl_type_class_declaration(type);
+	    if (spec)
+		  snprintf(tmp, sizeof tmp, "CS_%p:", spec);
+	    else if (decl)
+		  snprintf(tmp, sizeof tmp, "CD_%p:", decl);
+	    else
+		  strcpy(tmp, "C-:");
+	    vartype_put_(buf, tmp);
+	    vartype_put_string_(buf, ivl_type_name(type));
+      } else if (code == vpiInterfaceTypespec) {
+	    const char*defname = ivl_type_interface_defname(type);
+	    vartype_put_(buf, "I");
+	    vartype_put_string_(buf, defname ? defname : ivl_type_name(type));
+	    vartype_put_string_(buf, ivl_type_interface_modport(type));
+      } else if (ivl_type_element(type)) {
+	    unsigned dim, dims = ivl_type_static_dimensions(type);
+	    int kind = vpiStaticArray;
+	    ivl_type_t index = 0;
+	    if (ivl_type_base(type) == IVL_VT_DARRAY)
+		  kind = vpiDynamicArray;
+	    else if (ivl_type_base(type) == IVL_VT_QUEUE) {
+		  kind = ivl_type_queue_assoc_compat(type) ? vpiAssocArray : vpiQueueArray;
+		  index = ivl_type_assoc_index(type);
+	    }
+	    if (!dims) {
+		  snprintf(tmp, sizeof tmp, "A%d(", kind);
+		  vartype_put_(buf, tmp);
+		  if (index) class_type_spec_(buf, index, lexical);
+		  vartype_put_(buf, ",");
+	    } else {
+		  int packed = ivl_type_is_packed_vector(type);
+		  for (dim = 0; dim < dims; ++dim) {
+			long left, right;
+			ivl_type_static_range(type, dim, &left, &right);
+			snprintf(tmp, sizeof tmp, "%c%ld:%ld(",
+				 packed ? 'P' : 'F', left, right);
+			vartype_put_(buf, tmp);
+		  }
+	    }
+	    class_type_spec_(buf, ivl_type_element(type), lexical);
+	    for (dim = 0; dim < (dims ? dims : 1); ++dim)
+		  vartype_put_(buf, ")");
+      } else if (ivl_type_enum(type)) {
+	    ivl_enumtype_t enumtype = ivl_type_enum(type);
+	    snprintf(tmp, sizeof tmp, "E%u:enum%p", ivl_enum_width(enumtype), enumtype);
+	    vartype_put_(buf, tmp);
+      } else if (code == vpiStructTypespec || code == vpiUnionTypespec) {
+	    int count = ivl_type_properties(type);
+	    int packed = ivl_type_base(type) == IVL_VT_BOOL || ivl_type_base(type) == IVL_VT_LOGIC;
+	    snprintf(tmp, sizeof tmp, "J%d:%d:%d:%u{", code,
+		     packed, ivl_type_is_tagged_union(type), packed ? ivl_type_packed_width(type) : 0);
+	    vartype_put_(buf, tmp);
+	    for (int idx = 0; idx < count; ++idx) {
+		  if (idx) vartype_put_(buf, ",");
+		  vartype_put_string_(buf, ivl_type_prop_name(type, idx));
+		  class_type_spec_(buf, ivl_type_prop_type(type, idx), lexical);
+	    }
+	    vartype_put_(buf, "}");
+      } else if (code == vpiLogicTypespec || code == vpiBitTypespec
+		 || code == vpiTimeTypespec) {
+	    vartype_spec_(buf, type);
+      } else {
+	    unsigned width = 0;
+	    switch (code) {
+		case vpiByteTypespec: width = 8; break;
+		case vpiShortIntTypespec: width = 16; break;
+		case vpiIntTypespec:
+		case vpiIntegerTypespec: width = 32; break;
+		case vpiLongIntTypespec:
+		case vpiRealTypespec: width = 64; break;
+	    }
+	    if (ivl_type_is_shortreal(type)) {
+		  code = vpiShortRealTypespec;
+		  width = 32;
+	    }
+	    snprintf(tmp, sizeof tmp, "K%d:%u:%d", code, width, ivl_type_signed(type));
+	    vartype_put_(buf, tmp);
+      }
+}
+
+static void class_param_type_spec_(struct vartype_buf_s*buf, ivl_parameter_t par,
+				   ivl_type_t type, int is_default, int lexical)
+{
+      buf->len = 0;
+      vartype_put_(buf, "");
+      if (!type) return;
+      for (unsigned idx = 0; ; ++idx) {
+	    const char*name = ivl_parameter_type_alias(par, is_default, idx);
+	    if (!name) break;
+	    vartype_put_(buf, "H");
+	    vartype_put_string_(buf, name);
+      }
+      class_type_spec_(buf, type, lexical);
+}
+
 void emit_vartypes(void)
 {
       unsigned idx;
@@ -3935,9 +4049,10 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
 
+      int concrete = 0;
+      ivl_scope_t decl = 0;
       if (ivl_scope_type(net) == IVL_SCT_CLASS) {
-	    int concrete;
-	    ivl_scope_t decl = ivl_scope_class_declaration(net, &concrete);
+	    decl = ivl_scope_class_declaration(net, &concrete);
 	    if (decl == net) {
 		  fprintf(vvp_out, "D_%p .class/defn %d;\n", decl,
 			  ivl_scope_class_virtual(net));
@@ -3981,6 +4096,15 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	   from vpiTypedef iteration. */
       for (idx = 0; idx < ivl_scope_typedefs(net); idx += 1) {
 	    ivl_type_t typedef_type = ivl_scope_typedef_type(net, idx);
+	    if (decl == net) {
+		  struct vartype_buf_s desc = { 0, 0, 0 };
+		  class_type_spec_(&desc, typedef_type, 1);
+		  fprintf(vvp_out, " .typedef \"%s\" ",
+			  vvp_mangle_name(ivl_scope_typedef_name(net, idx)));
+		  fprintf(vvp_out, "\"%s\";\n", vvp_mangle_name(desc.text));
+		  free(desc.text);
+		  continue;
+	    }
 	    int vpi_type = ivl_type_typedef_vpi_type(typedef_type);
 	    const char*defname = "";
 	    const char*modport = "";
@@ -4191,6 +4315,20 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
 	    if (ivl_parameter_is_type(par)) {
 	      ivl_type_t type = ivl_parameter_type(par);
+	      if (decl) {
+		    if (ivl_parameter_is_unbound(par)) type = 0;
+		    class_param_type_spec_(&param_type_buf, par, type, 0, !concrete);
+		    fprintf(vvp_out, "P_%p .param/type \"%s\" %d %u %u, ",
+			    par, vvp_mangle_name(ivl_parameter_basename(par)),
+			    ivl_parameter_local(par),
+			    ivl_file_table_index(ivl_parameter_file(par)),
+			    ivl_parameter_lineno(par));
+		    fprintf(vvp_out, "\"%s\", ", vvp_mangle_name(param_type_buf.text));
+		    class_param_type_spec_(&param_type_buf, par,
+					   ivl_parameter_default_type(par), 1, 1);
+		    fprintf(vvp_out, "\"%s\";\n", vvp_mangle_name(param_type_buf.text));
+		    continue;
+	      }
 	      param_type_buf.len = 0;
 	      vartype_put_(&param_type_buf, "");
 	        // A class, string or unpacked type parameter has no vartype
@@ -4202,6 +4340,15 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 			ivl_file_table_index(ivl_parameter_file(par)),
 			ivl_parameter_lineno(par), param_type_buf.text);
 	      continue;
+	    }
+
+	    if (decl && ivl_parameter_is_unbound(par)) {
+		  fprintf(vvp_out, "P_%p .param/l \"%s\" %d %u %u;\n",
+			  par, vvp_mangle_name(ivl_parameter_basename(par)),
+			  ivl_parameter_local(par),
+			  ivl_file_table_index(ivl_parameter_file(par)),
+			  ivl_parameter_lineno(par));
+		  continue;
 	    }
 
 	    ivl_expr_t pex = ivl_parameter_expr(par);
@@ -4241,6 +4388,16 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		    free(res);
 		  }
 		  break;
+		case IVL_EX_NULL:
+		  if (decl) {
+			fprintf(vvp_out, "P_%p .param/l \"%s\" %d %u %u, null;\n",
+				par, vvp_mangle_name(ivl_parameter_basename(par)),
+				ivl_parameter_local(par),
+				ivl_file_table_index(ivl_parameter_file(par)),
+				ivl_parameter_lineno(par));
+			break;
+		  }
+		  /* fall through */
 		default:
 		  fprintf(vvp_out, "; parameter type %d unsupported\n",
 			  ivl_expr_type(pex));
