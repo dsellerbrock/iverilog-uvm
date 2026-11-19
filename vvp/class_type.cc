@@ -2154,6 +2154,35 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 	    } else {
 		  properties_[idx].container_layout = layout;
 	    }
+	    // The class streaming shape sits between the storage code and
+	    // the declaration layout, e.g. Qv~b8!Q2.
+	    const auto shape = base_type.find('~');
+	    if (shape < base_length) {
+		  const char*state = base_type.c_str() + shape + 1;
+		  const char*digits = *state ? state + 1 : state;
+		  char*end = nullptr;
+		  errno = 0;
+		  unsigned long width = strtoul(digits, &end, 10);
+		  string storage = base_type.substr(0, shape);
+		  string elem_type = "v" + to_string(width);
+		  bool valid_storage = outer == VVP_CONTAINER_QUEUE ? storage == "Qv"
+			: outer == VVP_CONTAINER_DARRAY
+			  && (storage == "D" + elem_type || storage == "Ds" + elem_type);
+		  if ((*state != 'b' && *state != 'v')
+		      || !isdigit(static_cast<unsigned char>(*digits))
+		      || end != base_type.c_str() + base_length
+		      || errno == ERANGE || !width
+		      || width > numeric_limits<unsigned>::max()
+		      || !layout || layout->element || !valid_storage) {
+			yyerror("malformed class-property streaming element shape");
+			compile_errors += 1;
+		  } else {
+			properties_[idx].stream_element_width = static_cast<unsigned>(width);
+			properties_[idx].stream_element_four_state = *state == 'v';
+		  }
+		  base_type.erase(shape, base_length - shape);
+		  base_length = shape;
+	    }
 	    size_t index_marker = base_type.find('I');
 	    if (base_type.compare(0, 2, "Mv") == 0 && index_marker < base_length) {
 		  unsigned index_width;
@@ -2166,7 +2195,7 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 		  }
 		  base_type.erase(index_marker);
 	    } else if (layout_marker != string::npos) {
-		  base_type.erase(layout_marker);
+		  base_type.erase(base_length);
 	    }
 	} else if (layout_marker != string::npos) {
 	    yyerror("container-layout suffix attached to a non-container "

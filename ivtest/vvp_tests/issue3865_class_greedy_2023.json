@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3865_class_greedy.sv",
+  "iverilog-args": ["-g2023", "-s", "issue3865_class_greedy"],
+  "gold": "issue3865_class_greedy"
+}

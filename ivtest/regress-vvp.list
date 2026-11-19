@@ -8151,6 +8151,8 @@ issue3864_class_unpack_2017 vvp_tests/issue3864_class_unpack_2017.json
 issue3864_class_unpack_short_2017 vvp_tests/issue3864_class_unpack_short_2017.json
 issue3864_class_unpack_2023 vvp_tests/issue3864_class_unpack_2023.json
 issue3864_class_unpack_short_2023 vvp_tests/issue3864_class_unpack_short_2023.json
+issue3865_class_greedy_2017 vvp_tests/issue3865_class_greedy_2017.json
+issue3865_class_greedy_2023 vvp_tests/issue3865_class_greedy_2023.json
 
 # Clocked sequence instances with actuals and .triggered (issue #3800)
 issue3800_clocked_triggered_2017 vvp_tests/issue3800_clocked_triggered_2017.json

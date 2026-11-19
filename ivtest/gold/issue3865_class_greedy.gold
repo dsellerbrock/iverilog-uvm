@@ -1,0 +1,2 @@
+VVP error: streaming target exceeds bounded queue size 2; trailing elements are ignored.
+PASSED
