@@ -18,6 +18,7 @@
 
 # include  "vpi_user.h"
 # include  "sv_vpi_user.h"
+# include  <algorithm>
 # include  <cstdlib>
 # include  <cstring>
 # include  <cstdio>
@@ -105,6 +106,47 @@ static std::string class_cast_key_(vpiHandle ref)
       if (!(name && *name))
             name = vpi_get_str(vpiFullName, ref);
       return (name && *name) ? std::string(name) : std::string("<unnamed>");
+}
+
+/* A vpiVectorVal carries no length or signedness. Resize the source to
+ * the positional destination's declared width before passing it to VPI. */
+static void put_cast_value_(vpiHandle dest, vpiHandle src)
+{
+      unsigned from = 0, to = 0;
+      bool is_signed = false;
+      if (vpi_get(_vpiFromThr, dest) == _vpi_at_PE) {
+	    int type = vpi_get(vpiType, dest);
+	    if (type != vpiRealVar && type != vpiStringVar) {
+		  from = vpi_get(vpiSize, src);
+		  to = vpi_get(vpiSize, dest);
+		  is_signed = vpi_get(vpiSigned, src);
+	    }
+      }
+      s_vpi_value value;
+      value.format = vpiObjTypeVal;
+      vpi_get_value(src, &value);
+      if (value.format != vpiVectorVal || from >= to) {
+	    vpi_put_value(dest, &value, 0, vpiNoDelay);
+	    return;
+      }
+      if (!from)
+	    return;
+
+      std::vector<s_vpi_vecval> resized((to + 31) / 32);
+      std::copy_n(value.value.vector, (from + 31) / 32, resized.begin());
+      unsigned last = from - 1;
+      PLI_UINT32 sign = PLI_UINT32(1) << (last % 32);
+      bool aval = is_signed && (resized[last / 32].aval & sign);
+      bool bval = is_signed && (resized[last / 32].bval & sign);
+      for (unsigned bit = from; bit < to; bit += 1) {
+	    PLI_UINT32 mask = PLI_UINT32(1) << (bit % 32);
+	    resized[bit / 32].aval &= ~mask;
+	    resized[bit / 32].bval &= ~mask;
+	    if (aval) resized[bit / 32].aval |= mask;
+	    if (bval) resized[bit / 32].bval |= mask;
+      }
+      value.value.vector = resized.data();
+      vpi_put_value(dest, &value, 0, vpiNoDelay);
 }
 
 /*
@@ -230,10 +272,7 @@ static PLI_INT32 sys_cast_impl_(bool task_form)
             }
             ok = found;
             if (ok) {
-                  s_vpi_value v;
-                  v.format = vpiObjTypeVal;
-                  vpi_get_value(src_h, &v);
-                  vpi_put_value(dest_h, &v, 0, vpiNoDelay);
+                  put_cast_value_(dest_h, src_h);
             } else if (task_form) {
                   const char*file = vpi_get_str(vpiFile, callh);
                   int line = (int) vpi_get(vpiLineNo, callh);
@@ -288,10 +327,7 @@ static PLI_INT32 sys_cast_impl_(bool task_form)
             }
 
             if (ok) {
-                  s_vpi_value v;
-                  v.format = vpiObjTypeVal;
-                  vpi_get_value(src_h, &v);
-                  vpi_put_value(dest_h, &v, 0, vpiNoDelay);
+                  put_cast_value_(dest_h, src_h);
             }
       }
 

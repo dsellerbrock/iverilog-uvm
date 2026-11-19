@@ -1298,6 +1298,7 @@ extern int vpip_sample_evcd_inout(vpiHandle ref, unsigned component,
 #   define _vpi_at_PV  4
 #   define _vpi_at_A   5
 #   define _vpi_at_APV 6
+#   define _vpi_at_PE  8
 #endif
 
 #if defined(__MINGW32__) || defined (__CYGWIN__)

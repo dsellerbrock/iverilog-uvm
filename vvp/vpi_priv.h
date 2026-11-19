@@ -1623,6 +1623,15 @@ extern vpiHandle vpip_make_cobject_property_vec_elem(char*label,
                                                      long*prop_idx,
                                                      char*index_label);
 
+/* A stack-backed scalar destination for synchronous VPI built-in calls. */
+extern vpiHandle vpip_make_positional_element(uint64_t object_depth,
+					      uint64_t index_depth,
+					      uint64_t type, uint64_t width,
+					      uint64_t flags, uint64_t capacity);
+#ifdef CHECK_WITH_VALGRIND
+extern bool vpip_delete_positional_element(vpiHandle arg);
+#endif
+
 /*
  * When a loaded VPI module announces a system task/function, one
  * __vpiUserSystf object is created to hold the definition of that
