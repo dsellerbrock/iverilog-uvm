@@ -373,6 +373,8 @@ class __vpiScope : public __vpiHandle {
 
     public:
       __vpiScope *scope;
+      /* Initialized on first use by an instance's source static process. */
+      uint64_t initialization_rng_state = 0;
       unsigned file_idx;
       unsigned lineno;
       unsigned def_file_idx;

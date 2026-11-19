@@ -685,7 +685,7 @@ extern void compile_stmt_at(uint64_t id);
  * The parser uses this function to declare a thread. The start_sym is
  * the start instruction, and must already be defined.
  */
-extern void compile_thread(char*start_sym, char*flag, char*flag2);
+extern void compile_thread(char*start_sym, char*flag, char*flag2, char*flag3);
 
 /*
  * This function is called to create a var vector with the given name.

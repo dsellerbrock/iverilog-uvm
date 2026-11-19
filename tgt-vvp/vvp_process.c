@@ -9236,6 +9236,7 @@ int draw_process(ivl_process_t net, void*x)
       int clocking_bg_flag = 0;
       int clocking_sync_flag = 0;
       int function_background_ok = 0;
+      int static_rng = 0;
 
       (void)x; /* Parameter is not used. */
 
@@ -9244,6 +9245,8 @@ int draw_process(ivl_process_t net, void*x)
 	    ivl_attribute_t attr = ivl_process_attr_val(net, idx);
 	    if (strcmp(attr->key, "_ivl_function_background_ok") == 0)
 		  function_background_ok = 1;
+	    if (strcmp(attr->key, "_ivl_static_rng") == 0)
+		  static_rng = 1;
 
 	    if (strcmp(attr->key, "_ivl_schedule_init") == 0) {
 
@@ -9361,19 +9364,14 @@ int draw_process(ivl_process_t net, void*x)
 		  if (ivl_scope_program(owner))
 			thread_flag = "$prog";
 	    }
-	    if (function_background_ok) {
-		  if (thread_flag)
-			fprintf(vvp_out, "    .thread T_%u, %s, $function_background_ok;\n",
-				thread_count, thread_flag);
-		  else
-			fprintf(vvp_out, "    .thread T_%u, $function_background_ok;\n",
-				thread_count);
-	    } else if (thread_flag) {
-		  fprintf(vvp_out, "    .thread T_%u, %s;\n",
-			  thread_count, thread_flag);
-	    } else {
-		  fprintf(vvp_out, "    .thread T_%u;\n", thread_count);
-	    }
+	    fprintf(vvp_out, "    .thread T_%u", thread_count);
+	    if (thread_flag)
+		  fprintf(vvp_out, ", %s", thread_flag);
+	    if (function_background_ok)
+		  fputs(", $function_background_ok", vvp_out);
+	    if (static_rng)
+		  fputs(", $static_rng", vvp_out);
+	    fputs(";\n", vvp_out);
 	    }
 	    break;
 

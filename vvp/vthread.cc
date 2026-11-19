@@ -119,7 +119,7 @@ static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                                         vvp_net_t*root_net, const vvp_object_t&root_obj,
                                         const char*where);
 	/* R3 (IEEE 1800-2017 18.13.1) hierarchical RNG seeding -- defined in
-	   full below, next to design_root_rng_next_(), but needed here
+	   full below, next to root_rng_next_(), but needed here
 	   because of_STD_RANDOMIZE_WITH (which uses them) is textually
 	   earlier in this file than that definition. */
 static void thread_rng_srandom_(vthread_t thr, int32_t seed);
@@ -7857,23 +7857,20 @@ static bool thread_rng_set_state_(vthread_t thr, const std::string&state)
 }
 
 /*
- * R3 (IEEE 1800-2017 18.13.1): RANDOM STABILITY -- hierarchical seeding.
+ * IEEE 1800-2017/2023 18.14.1: random stability and hierarchical seeding.
  *
  * Before this, an unseeded thread/object drew from a single shared
  * generator (the vpi/ "$urandom" static or libc rand()), so an unrelated
  * $urandom/randomize() call anywhere in the design could shift every other
- * unseeded sequence -- the opposite of what 18.13.1 calls random
- * stability. Now every thread and every class object is seeded AT
- * CREATION, from the next value of its creator's own generator, forming a
- * tree rooted at the design itself:
+ * unseeded sequence. Thread and object seeds now come from the
+ * appropriate RNG at creation:
  *
- *   - A root/static thread (a module-level initial/always/final process,
- *     created directly by the compiled .vvp's fixed sequence of `.thread'
- *     directives -- see compile_thread()) is seeded from the next value of
- *     design_root_rng_next_() below, in that same fixed, deterministic
- *     order -- so re-running the same compiled design always reproduces
- *     the same root seeds (the ROADMAP's "keep init order deterministic"
- *     constraint).
+ *   - A source initial or always procedure is seeded when its .thread
+ *     directive is compiled, using the next draw from the initialization
+ *     RNG of its declaring instance. Each instance starts from the same
+ *     configured default state.
+ *   - Generated threads, final procedures and legacy .thread directives
+ *     without a static RNG role keep using the design-root stream.
  *   - A thread created by a real `fork ... join/join_any/join_none' branch
  *     (do_fork_() with child_is_process true, i.e. %fork/p) is seeded from
  *     the next value of its parent's *logical process* generator.
@@ -7904,6 +7901,8 @@ static bool thread_rng_set_state_(vthread_t thr, const std::string&state)
  * by a DIFFERENT creator never touches that sequence at all.
  */
 static uint64_t design_root_rng_state_ = 0x9E3779B97F4A7C15ull;
+// Set once during seed configuration, before any stream takes a draw.
+static uint64_t default_rng_state_ = design_root_rng_state_;
 
 bool vthread_init_design_root_seed()
 {
@@ -7956,17 +7955,18 @@ bool vthread_init_design_root_seed()
 	    z ^= z >> 31;
 	    design_root_rng_state_ = z ? z : UINT64_C(0x9E3779B97F4A7C15);
       }
+      default_rng_state_ = design_root_rng_state_;
       status = SEED_READY;
       return true;
 }
 
-static uint32_t design_root_rng_next_()
+static uint32_t root_rng_next_(uint64_t&state)
 {
-      uint64_t x = design_root_rng_state_;
+      uint64_t x = state;
       x ^= x >> 12;
       x ^= x << 25;
       x ^= x >> 27;
-      design_root_rng_state_ = x;
+      state = x;
       return (uint32_t)((x * 0x2545F4914F6CDD1Dull) >> 32);
 }
 
@@ -12924,20 +12924,12 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       thr->event_wait_link = 0;
       thr->wt_context = 0;
       thr->rd_context = 0;
-	// R3 (IEEE 1800-2017 18.13.1): every thread is seeded from the moment
-	// it exists. This is the ROOT default -- the design-root RNG, drawn
-	// in the same fixed order .thread directives always execute in (see
-	// design_root_rng_next_() for the full rationale). A real forked
-	// process (do_fork_ with child_is_process true) overwrites this
-	// right after with a seed derived from its parent instead; every
-	// other thread (callf/fork_v children -- not independent processes)
-	// simply never has this default consulted, since RNG access for
-	// those always resolves through logical_process_thread_() to a real
-	// ancestor first.
+	// Preserve the design-root default for legacy thread creation.
+	// Static procedures receive an instance-derived seed after allocation.
       thr->rng_state = 0;
       thr->rng_seeded = false;
       if (seed_process_rng)
-            thread_rng_srandom_(thr, (int32_t)design_root_rng_next_());
+            thread_rng_srandom_(thr, (int32_t)root_rng_next_(design_root_rng_state_));
 
       thr->i_am_joining  = 0;
       thr->i_am_detached = 0;
@@ -13013,6 +13005,27 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
 vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
 {
       return vthread_new_(pc, scope, true);
+}
+
+vthread_t vthread_new_static(vvp_code_t pc, __vpiScope*scope)
+{
+      for (__vpiScope*owner = scope; owner; owner = owner->scope) {
+	    switch (owner->get_type_code()) {
+	      case vpiModule:
+	      case vpiInterface:
+	      case vpiProgram:
+	      case vpiPackage: {
+		    uint64_t&state = owner->initialization_rng_state;
+		    // The generator cannot reach zero from a nonzero state.
+		    if (state == 0)
+			  state = default_rng_state_;
+		    vthread_t thr = vthread_new_(pc, scope, false);
+		    thread_rng_srandom_(thr, (int32_t)root_rng_next_(state));
+		    return thr;
+	      }
+	    }
+      }
+      return nullptr;
 }
 
 #ifdef CHECK_WITH_VALGRIND

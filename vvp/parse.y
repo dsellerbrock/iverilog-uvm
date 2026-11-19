@@ -1149,16 +1149,19 @@ statement
 
   /* Thread statements declare a thread with its starting address. The
      starting address must already be defined. The .thread statement
-     may also take an optional flag word. */
+     may also carry scheduling, function-call, and RNG flags. */
 
 	|         K_THREAD T_SYMBOL ';'
-		{ compile_thread($2, 0, 0); }
+		{ compile_thread($2, 0, 0, 0); }
 
 	|         K_THREAD T_SYMBOL ',' T_SYMBOL ';'
-		{ compile_thread($2, $4, 0); }
+		{ compile_thread($2, $4, 0, 0); }
 
 	|         K_THREAD T_SYMBOL ',' T_SYMBOL ',' T_SYMBOL ';'
-		{ compile_thread($2, $4, $6); }
+		{ compile_thread($2, $4, $6, 0); }
+
+	|         K_THREAD T_SYMBOL ',' T_SYMBOL ',' T_SYMBOL ',' T_SYMBOL ';'
+		{ compile_thread($2, $4, $6, $8); }
 
   /* Var statements declare a bit of a variable. This also implicitly
      creates a functor with the same name that acts as the output of

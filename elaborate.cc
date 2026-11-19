@@ -32661,6 +32661,9 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       NetProcTop*top=new NetProcTop(scope, type(), cur);
       ivl_assert(*this, top);
       top->generated_verification(is_generated_verification());
+      const perm_string static_rng_attr = perm_string::literal("_ivl_static_rng");
+      if (source_static_ && gn_system_verilog())
+	    top->attribute(static_rng_attr, verinum(1));
       if (!is_generated_verification()) {
 	    switch (type()) {
 		case IVL_PR_INITIAL:
@@ -32685,8 +32688,9 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       attrib_list = evaluate_attributes(attributes, attrib_list_n, des, scope);
 
       for (unsigned adx = 0 ;  adx < attrib_list_n ;  adx += 1)
-	    if (attrib_list[adx].key == "_ivl_function_background_ok") {
-		  /* This marker grants language semantics and must not be forgeable. */
+	    if (attrib_list[adx].key == "_ivl_function_background_ok"
+	        || attrib_list[adx].key == static_rng_attr) {
+		  /* The compiler alone assigns these process roles. */
 		  cerr << get_fileline() << ": error: attribute `"
 		       << attrib_list[adx].key
 		       << "` is reserved for compiler use." << endl;

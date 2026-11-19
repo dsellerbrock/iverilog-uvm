@@ -72,6 +72,8 @@ class PProcess : public LineInfo {
       bool is_generated_verification() const
       { return generated_verification_; }
 
+      void mark_source_static() { source_static_ = true; }
+
       std::map<perm_string,PExpr*> attributes;
 
       virtual void dump(std::ostream&out, unsigned ind) const;
@@ -80,6 +82,7 @@ class PProcess : public LineInfo {
       ivl_process_type_t type_;
       Statement*statement_;
       bool generated_verification_;
+      bool source_static_ = false;
 };
 
 /*

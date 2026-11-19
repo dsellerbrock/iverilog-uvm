@@ -3694,37 +3694,47 @@ void compile_vpi_func_call(char*label, char*name,
  * with the start address referenced by the program symbol passed to
  * me.
  */
-void compile_thread(char*start_sym, char*flag, char*flag2)
+void compile_thread(char*start_sym, char*flag, char*flag2, char*flag3)
 {
-      bool push_flag = false;
-      bool function_background_ok = false;
+      char*flags[] = {flag, flag2, flag3};
 
       if (!vthread_init_design_root_seed()) {
 	    free(start_sym);
-	    free(flag);
-	    free(flag2);
+	    for (char*word : flags) free(word);
 	    return;
       }
 
       symbol_value_t tmp = sym_get_value(sym_codespace, start_sym);
+      free(start_sym);
       vvp_code_t pc = reinterpret_cast<vvp_code_t>(tmp.ptr);
       if (pc == 0) {
 	    yyerror("unresolved address");
-	    free(start_sym);
-	    free(flag);
-	    free(flag2);
+	    for (char*word : flags) free(word);
 	    return;
       }
 
-      if (flag && (strcmp(flag,"$push") == 0))
-	    push_flag = true;
-	if ((flag && strcmp(flag,"$function_background_ok") == 0)
-	    || (flag2 && strcmp(flag2,"$function_background_ok") == 0))
-		function_background_ok = true;
+      bool push_flag = flag && strcmp(flag, "$push") == 0;
+      bool function_background_ok = false;
+      bool static_rng = false;
+      for (const char*word : flags) {
+	    if (!word) continue;
+	    if (strcmp(word, "$function_background_ok") == 0)
+		  function_background_ok = true;
+	    if (strcmp(word, "$static_rng") == 0)
+		  static_rng = true;
+      }
 
-      vthread_t thr = vthread_new(pc, vpip_peek_current_scope());
-	if (function_background_ok)
-	      vthread_mark_function_background_ok(thr);
+      __vpiScope*scope = vpip_peek_current_scope();
+      vthread_t thr = static_rng ? vthread_new_static(pc, scope)
+				 : vthread_new(pc, scope);
+      if (!thr) {
+	    yyerror("static thread has no initialization RNG scope");
+	    compile_errors += 1;
+	    for (char*word : flags) free(word);
+	    return;
+      }
+      if (function_background_ok)
+	    vthread_mark_function_background_ok(thr);
 	/* A synthesized clocking sampler belongs to the design-region
 	   pipeline even when its declaration scope is a program. */
       if (flag && (strcmp(flag,"$clocking") == 0))
@@ -3742,9 +3752,7 @@ void compile_thread(char*start_sym, char*flag, char*flag2)
       } else
 	    schedule_vthread(thr, 0, push_flag);
 
-      free(start_sym);
-      free(flag);
-      free(flag2);
+      for (char*word : flags) free(word);
 }
 
 void compile_param_logic(char*label, const char*name, char*value, bool signed_flag,
