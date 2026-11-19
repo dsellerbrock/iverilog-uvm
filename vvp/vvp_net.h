@@ -1499,7 +1499,7 @@ class vvp_net_fil_t  : public vvp_vpi_callback {
 	// %release instructions can undo the link as needed. */
       void force_link(vvp_net_t*dst, vvp_net_t*src);
       void force_link_pv(vvp_net_t*dst, vvp_net_t*src,
-			 unsigned base, unsigned wid);
+			 unsigned base, unsigned wid, unsigned source_base);
       void force_unlink(void);
       void force_unlink_pv(unsigned base, unsigned wid);
 
@@ -1591,7 +1591,8 @@ class vvp_fun_force : public vvp_net_fun_t {
 			vvp_context_t context) override;
       void recv_real(vvp_net_ptr_t port, double bit, vvp_context_t) override;
 
-      void activate(unsigned base, unsigned wid, unsigned full_wid);
+      void activate(unsigned base, unsigned wid, unsigned full_wid,
+		    unsigned source_base);
       void remove_range(unsigned base, unsigned wid);
       void deactivate();
       bool active() const;
@@ -1600,6 +1601,7 @@ class vvp_fun_force : public vvp_net_fun_t {
     private:
       unsigned base_ = 0;
       unsigned width_ = 0;
+      unsigned source_base_ = 0;
       vvp_vector2_t mask_;
       vvp_vector4_t source_value_;
 };

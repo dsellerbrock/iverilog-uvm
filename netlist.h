@@ -5080,9 +5080,9 @@ class NetForce  : public NetAssignBase {
       explicit NetForce(NetAssign_*l, NetExpr*r, NetExpr*link_r = 0);
       ~NetForce() override;
 
-        /* When non-null, this assignment-context-sized signal is the
-	 * continuously driven source used to keep the force live. The ordinary
-	 * rval remains the expression evaluated when the force first executes. */
+        /* The live source is a signal or a link descriptor containing one
+	 * signal per concatenation leaf. The ordinary rval is evaluated when
+	 * the force first executes. */
       const NetExpr* force_link_rval() const;
 
       virtual void dump(std::ostream&, unsigned ind) const override;

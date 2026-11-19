@@ -1,0 +1,6 @@
+issue3896_force_concat_2017 normal,-g2017,-s,issue3896_force_concat ivltests gold=issue3896_force_concat.gold
+issue3896_force_concat_2023 normal,-g2023,-s,issue3896_force_concat ivltests gold=issue3896_force_concat.gold
+issue3896_assign_concat_2017 normal,-g2017,-s,issue3896_assign_concat ivltests gold=issue3896_assign_concat.gold
+issue3896_assign_concat_2023 normal,-g2023,-s,issue3896_assign_concat ivltests gold=issue3896_assign_concat.gold
+issue3896_concat_leaves_2017 normal,-g2017,-s,issue3896_concat_leaves ivltests gold=issue3896_concat_leaves.gold
+issue3896_concat_leaves_2023 normal,-g2023,-s,issue3896_concat_leaves ivltests gold=issue3896_concat_leaves.gold

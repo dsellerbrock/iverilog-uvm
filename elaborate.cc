@@ -26280,10 +26280,10 @@ bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
       return true;
 }
 
-static bool force_rhs_needs_structural_net_(const NetExpr*expr);
-static NetScope* force_rhs_structural_scope_(NetScope*scope);
-static NetNet* force_rhs_static_alias_(NetNet*source, NetScope*scope,
-				       const LineInfo&loc);
+static NetExpr* elaborate_force_link_rval_(Design*des, NetScope*scope,
+					   const NetExpr*rval,
+					   const NetAssign_*lval,
+					   unsigned width, bool concat);
 
 /*
  * Elaborate a procedural continuous assign. This really looks very
@@ -26324,6 +26324,11 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
 
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
+      bool concat = dynamic_cast<const PEConcat*>(lval_) != nullptr
+		 && type_is_vectorable(ltype);
+      // Convert to two-state separately for each concatenation leaf.
+      if (concat)
+	    ltype = IVL_VT_LOGIC;
 
       PExprProceduralContextGuard procedural_context(false);
       NetExpr*rexp = elaborate_rval_expr(des, scope, lval->net_type(), ltype,
@@ -26332,27 +26337,8 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       if (rexp == 0)
 	    return 0;
 
-      NetExpr*link_rexp = 0;
-
-      /* A procedural continuous assignment needs both the expression's
-       * immediate value and a structural source whose changes can trigger
-       * the existing VVP cassign link. Keep the initial expression intact
-       * for activation-time evaluation. */
-      if (force_rhs_needs_structural_net_(rexp)) {
-	    NetScope*source_scope = force_rhs_structural_scope_(scope);
-	    NetExpr*structural_rexp = rexp->dup_expr();
-	    NetNet*source = structural_rexp->synthesize(des, source_scope,
-						       structural_rexp);
-	    source = force_rhs_static_alias_(source, source_scope,
-					     *structural_rexp);
-	    if (source) {
-		  NetESignal*continuous = new NetESignal(source);
-		  continuous->set_line(*structural_rexp);
-		  link_rexp = continuous;
-	    }
-	    delete structural_rexp;
-      }
-
+      NetExpr*link_rexp = elaborate_force_link_rval_(des, scope, rexp,
+						     lval, lwid, concat);
       dev = new NetCAssign(lval, rexp, link_rexp);
 
       if (debug_elaborate) {
@@ -30953,6 +30939,76 @@ static NetNet* force_rhs_static_alias_(NetNet*source, NetScope*scope,
       return res;
 }
 
+/* Keep the procedural RHS for the immediate evaluation. The structural
+ * expression supplies later updates, after its nodes have settled. */
+static NetExpr* elaborate_force_link_rval_(Design*des, NetScope*scope,
+					   const NetExpr*rval,
+					   const NetAssign_*lval,
+					   unsigned width, bool concat)
+{
+      if (!force_rhs_needs_structural_net_(rval)
+	  && !(concat && dynamic_cast<const NetESignal*>(rval)))
+	    return nullptr;
+
+      NetScope*source_scope = force_rhs_structural_scope_(scope);
+      NetExpr*structural = rval->dup_expr();
+      if (concat)
+	    structural = cast_to_width(structural, width, rval->has_sign(), *rval);
+
+      NetNet*source = structural->synthesize(des, source_scope, structural);
+      delete structural;
+      source = force_rhs_static_alias_(source, source_scope, *rval);
+      if (!source)
+	    return nullptr;
+
+      if (!concat) {
+	    NetESignal*link = new NetESignal(source);
+	    link->set_line(*rval);
+	    return link;
+      }
+
+      // The link-only descriptor stores slices in the l-value chain's
+      // LSB-first order. Each source has the width of its entire leaf,
+      // including any bits that a force opcode will clip at runtime.
+      unsigned count = 0;
+      for (const NetAssign_*leaf = lval; leaf; leaf = leaf->more)
+	    count += 1;
+      NetEConcat*links = new NetEConcat(count, 1, IVL_VT_LOGIC);
+      links->set_line(*rval);
+
+      unsigned offset = 0;
+      unsigned idx = 0;
+      for (const NetAssign_*leaf = lval; leaf; leaf = leaf->more) {
+	    unsigned leaf_width = leaf->lwidth();
+	    NetPartSelect*select = new NetPartSelect(source, offset, leaf_width,
+						    NetPartSelect::VP);
+	    select->set_line(*rval);
+	    des->add_node(select);
+
+	    ivl_type_t leaf_type = leaf->lval_type();
+	    ivl_variable_type_t data_type = leaf_type ? leaf_type->base_type()
+		  : leaf->sig() ? leaf->sig()->data_type() : IVL_VT_LOGIC;
+	    // The slice net converts to two-state only for a two-state leaf.
+	    const netvector_t*type = new netvector_t(
+		  data_type == IVL_VT_BOOL ? IVL_VT_BOOL : IVL_VT_LOGIC,
+		  leaf_width - 1, 0);
+	    NetNet*slice = new NetNet(source_scope, source_scope->local_symbol(),
+				      NetNet::WIRE, type);
+	    slice->set_line(*rval);
+	    slice->local_flag(true);
+	    slice->attribute(perm_string::literal("_ivl_force_rhs_slice"),
+			     verinum("1"));
+	    connect(slice->pin(0), select->pin(0));
+
+	    NetESignal*link = new NetESignal(slice);
+	    link->set_line(*rval);
+	    links->set(idx, link);
+	    offset += leaf_width;
+	    idx += 1;
+      }
+      return links;
+}
+
 /*
  * Force is like a procedural assignment, most notably procedural
  * continuous assignment:
@@ -31031,6 +31087,10 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
 
       unsigned lwid = count_lval_width(lval);
       ivl_variable_type_t ltype = lval->expr_type();
+      bool concat = dynamic_cast<const PEConcat*>(lval_) != nullptr
+		 && type_is_vectorable(ltype);
+      if (concat)
+	    ltype = IVL_VT_LOGIC;
 
 	// Like a variety of other assigns, we need to figure out a
 	// better way to get a reasonable lv_net_type value, and that
@@ -31040,30 +31100,8 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
       if (rexp == 0)
 	    return 0;
 
-      NetExpr*force_link_rexp = 0;
-
-      /* IEEE 1800-2023 10.6 requires the force RHS to be reevaluated when
-       * any of its inputs change. Turn the structural subset into a hidden
-       * continuously driven signal so the VVP force-link mechanism observes
-       * those changes. Preserve the original expression for immediate force
-       * activation: the hidden continuous signal does not settle until the
-       * scheduler runs, and reading it here would incorrectly produce X/Z.
-       * A direct signal already has both required representations. */
-      if (force_rhs_needs_structural_net_(rexp)) {
-	    NetScope*source_scope = force_rhs_structural_scope_(scope);
-	    NetExpr*structural_rexp = rexp->dup_expr();
-	    NetNet*source = structural_rexp->synthesize(des, source_scope,
-						   structural_rexp);
-	    source = force_rhs_static_alias_(source, source_scope,
-					     *structural_rexp);
-	    if (source) {
-		  NetESignal*continuous = new NetESignal(source);
-		  continuous->set_line(*structural_rexp);
-		  force_link_rexp = continuous;
-	    }
-	    delete structural_rexp;
-      }
-
+      NetExpr*force_link_rexp = elaborate_force_link_rval_(des, scope, rexp,
+							  lval, lwid, concat);
       dev = new NetForce(lval, rexp, force_link_rexp);
 
       if (debug_elaborate) {

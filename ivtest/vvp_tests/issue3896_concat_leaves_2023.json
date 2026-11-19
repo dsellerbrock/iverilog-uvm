@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3896_concat_leaves.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue3896_concat_leaves"
+  ],
+  "gold": "issue3896_concat_leaves"
+}

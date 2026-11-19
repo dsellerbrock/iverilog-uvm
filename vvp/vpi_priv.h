@@ -1245,7 +1245,7 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 	// non-integral arrays before calling them.
       void force_word(unsigned idx, unsigned off, const vvp_vector4_t&val);
       void force_link_word(unsigned idx, unsigned off, unsigned wid,
-			   vvp_net_t*source);
+			   vvp_net_t*source, unsigned source_base);
       void release_word(unsigned idx, unsigned off, unsigned wid);
       bool is_forceable_vec4_array() const;
       void add_packed_force_callback(value_callback*cb, unsigned word,
@@ -1287,6 +1287,7 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
                                const vvp_vector4_t*sample = nullptr);
       void unlink_force_range_(unsigned address, unsigned off, unsigned wid);
       void update_force_link_(unsigned address, unsigned base, unsigned wid,
+			      unsigned source_base,
 			      const vvp_vector2_t&active,
 			      const vvp_vector4_t&value);
 

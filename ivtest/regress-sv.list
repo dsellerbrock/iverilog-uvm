@@ -7312,3 +7312,11 @@ issue3800_triggered_delays_2017 normal,-g2017,-gassertions,-s,issue3800_triggere
 issue3800_triggered_delays_2023 normal,-g2023,-gassertions,-s,issue3800_triggered_delays ivltests gold=issue3800_triggered_delays.gold
 issue3800_triggered_clock_error_2017 CE,-g2017,-gassertions,-s,issue3800_triggered_clock_error ivltests gold=issue3800_triggered_clock_error.gold
 issue3800_triggered_clock_error_2023 CE,-g2023,-gassertions,-s,issue3800_triggered_clock_error ivltests gold=issue3800_triggered_clock_error.gold
+
+# IEEE 1800-2017/2023 10.6: live RHS slices for procedural concatenations.
+issue3896_force_concat_2017 normal,-g2017,-s,issue3896_force_concat ivltests gold=issue3896_force_concat.gold
+issue3896_force_concat_2023 normal,-g2023,-s,issue3896_force_concat ivltests gold=issue3896_force_concat.gold
+issue3896_assign_concat_2017 normal,-g2017,-s,issue3896_assign_concat ivltests gold=issue3896_assign_concat.gold
+issue3896_assign_concat_2023 normal,-g2023,-s,issue3896_assign_concat ivltests gold=issue3896_assign_concat.gold
+issue3896_concat_leaves_2017 normal,-g2017,-s,issue3896_concat_leaves ivltests gold=issue3896_concat_leaves.gold
+issue3896_concat_leaves_2023 normal,-g2023,-s,issue3896_concat_leaves ivltests gold=issue3896_concat_leaves.gold
