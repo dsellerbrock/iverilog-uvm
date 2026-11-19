@@ -244,7 +244,8 @@ extern int decode_fixed_uarray_slice_select(
 				     const std::list<index_component_t>&indices,
 				     const netsarray_t*array_type,
 				     fixed_uarray_slice_t&out,
-				     bool quiet = false);
+				     bool quiet = false,
+				     bool allow_runtime_base = false);
 
 /*
  * symbol_search() caches resolved (scope, name-path) lookups. That

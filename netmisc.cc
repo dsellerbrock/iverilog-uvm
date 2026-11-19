@@ -1217,7 +1217,7 @@ int decode_fixed_uarray_slice_select(
 			      const list<index_component_t>&indices,
 			      const netsarray_t*array_type,
 			      fixed_uarray_slice_t&out,
-			      bool quiet)
+			      bool quiet, bool allow_runtime_base)
 {
       if (!array_type || array_type->static_dimensions().size() != 1
 	  || indices.size() != 1)
@@ -1226,7 +1226,7 @@ int decode_fixed_uarray_slice_select(
       return decode_fixed_uarray_slice_select_(
 	    des, scope, loc, indices.front(),
 	    array_type->static_dimensions().front(),
-	    array_type->element_type(), out, quiet);
+	    array_type->element_type(), out, quiet, allow_runtime_base);
 }
 
 int decode_fixed_uarray_slice(Design*des, NetScope*scope,
