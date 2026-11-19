@@ -17328,7 +17328,8 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
 				     bool fail_full_latency = false,
 				     PExpr*edges_expr = nullptr,
 				     long step_depth = -1,
-				     unsigned ctl_type = 1)
+				     unsigned ctl_type = 1,
+				     bool step_wait = false)
 {
       char nbuf[64];
       if (sva_active_assertion_label_.nil())
@@ -17354,9 +17355,10 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
       named_pexpr_t a5;
 	/* bit0: failures run the full latency. bit1: the checker reports
 	   steps per attempt (IEEE 1800-2023 39.4.2), naming attempts by
-	   clock ages up to bits 8+. */
+	   clock ages up to bits 8+. bit2: a linear final unbounded wait. */
       uint64_t flags = fail_full_latency ? 1 : 0;
       if (step_depth >= 0) flags |= 2 | ((uint64_t)step_depth << 8);
+      if (step_wait) flags |= 4;
       a5.parm = new PENumber(new verinum(flags, 32));
       args.push_back(a5);
 	/* Preserve the declaration kind for its VPI assertion handle. */
@@ -17633,6 +17635,11 @@ static const int SVA_CB_STEP_FAILURE = 610;  /* cbAssertionStepFailure */
 static const int SVA_CB_VACUOUS_SUCCESS = 657; /* cbAssertionVacuousSuccess */
 static const int SVA_CB_DISABLED_EVAL = 658; /* cbAssertionDisabledEvaluation */
 
+/* Reserved serials on the private $ivl_assert_step bridge. Keep in sync
+   with the wait operations in vvp/vpi_scope.cc. */
+enum sva_step_wait_op { SVA_STEP_WAIT_ENTER = -1, SVA_STEP_WAIT_TICK = -2,
+			SVA_STEP_WAIT_CLEAR = -3 };
+
 /* Attempt/success reports update coverage even when there are no callback
    subscribers. Other callback reasons stay gated. */
 static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
@@ -17771,15 +17778,16 @@ struct sva_step_table_t {
 	    return sva_assign_(loc, reg, sva_num32_(loc, id));
       }
 
-	/* Report the step in `reg' for the attempt named by its clock age,
-	   or by the START serial its slot saved (age -1). The runtime drops
-	   it unless stepping was enabled for that attempt (39.5.2). */
+	/* Report the step in `reg' by clock age or saved START serial.
+	   Negative serials carry final-wait operations. The clear operation
+	   has no step row. */
       Statement* fire(perm_string reg, PExpr*age, PExpr*serial)
       {
 	    std::list<named_pexpr_t> args;
 	    named_pexpr_t a;
 	    a.parm = sva_num32_(loc, inst); args.push_back(a);
-	    a.parm = sva_id_(loc, reg); args.push_back(a);
+	    a.parm = reg.nil() ? sva_num32_(loc, 0) : sva_id_(loc, reg);
+	    args.push_back(a);
 	    a.parm = age ? age : sva_num32_(loc, (uint64_t)-1); args.push_back(a);
 	    a.parm = serial ? serial : sva_num32_(loc, 0); args.push_back(a);
 	    PCallTask*t = new PCallTask(lex_strings.make("$ivl_assert_step"), args);
@@ -29981,7 +29989,8 @@ static PProcess* sva_make_disable_abort_process_(
 static perm_string sva_fixed_antecedent_(const struct vlltype&loc, unsigned inst,
 	    const std::vector<std::vector<perm_string> >&checks,
 	    perm_string vac_req, std::vector<Statement*>&init,
-	    std::vector<Statement*>&body, std::vector<perm_string>&state)
+	    std::vector<Statement*>&body, std::vector<perm_string>&state,
+	    perm_string launch = perm_string())
 {
       assert(!checks.empty());
       perm_string match = sva_make_reg_(loc, inst, "avmatch", 0);
@@ -29993,8 +30002,9 @@ static perm_string sva_fixed_antecedent_(const struct vlltype&loc, unsigned inst
       }
       for (size_t k = checks.size(); k-- > 0;) {
 	    auto gate = [&]() -> PExpr* {
-		  return k ? (PExpr*)sva_id_(loc, state[k-1])
-			   : sva_enabled_expr_(loc, inst);
+		  if (k) return sva_id_(loc, state[k-1]);
+		  if (!launch.nil()) return sva_id_(loc, launch);
+		  return sva_enabled_expr_(loc, inst);
 	    };
 	    auto truth = [&]() -> PExpr* {
 		  PExpr*value = sva_bit_(loc, 1);
@@ -41994,12 +42004,24 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       }
       perm_string r_kill = sva_kill_seen_reg_(loc, inst, 0, init_zero);
 
+      long step_last = ante_span + P + (unbounded ? win_m : win_n);
+	/* One report block per age through the finite prefix. A mature
+	   unbounded wait uses one row per outcome regardless of its age. */
+      bool steps_ok = !sequence_cover && step_last <= 255
+		    && (!unbounded || (kind != 2 && !negated));
+      bool step_wait = steps_ok && unbounded;
+      sva_step_table_t step_tab (loc, inst);
+      perm_string r_launch;
+      if (step_wait) r_launch = sva_make_reg_(loc, inst, "launch", 0);
+      auto launch = [&]() -> PExpr* {
+	    return step_wait ? sva_id_(loc, r_launch) : sva_enabled_expr_(loc, inst);
+      };
       std::vector<Statement*> ante_body;
       std::vector<perm_string> ante_state;
       perm_string ante_match;
       if (fixed_antecedent_pipeline)
 	    ante_match = sva_fixed_antecedent_(loc, inst, ante_checks,
-		  vac_req, init_zero, ante_body, ante_state);
+		  vac_req, init_zero, ante_body, ante_state, r_launch);
       auto clear_attempt_state = [&]() -> Statement* {
 	    std::vector<Statement*> clr;
 	    for (size_t k = 0; k < ante_state.size(); ++k)
@@ -42010,6 +42032,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  clr.push_back(sva_assign_(loc, w_regs[q], sva_bit_(loc, 0)));
 	    if (unbounded)
 		  clr.push_back(sva_assign_(loc, r_pend, sva_bit_(loc, 0)));
+	    if (step_wait)
+		  clr.push_back(step_tab.fire(perm_string(), nullptr,
+			sva_num32_(loc, SVA_STEP_WAIT_CLEAR)));
 	    clr.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
 	    if (kind != 2) {
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
@@ -42034,12 +42059,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   ends with the one that failed. An antecedent that does not match
 	   ends the attempt vacuously, reported as a successful step into
 	   the accepting state. Under property negation the steps describe
-	   the inner sequence. A merged ##[m:$] wait has no per-attempt
-	   token, and sequence coverage can match multiple times per attempt. */
-      long step_last = ante_span + P + (has_window ? win_n : 0);
-	/* ponytail: one report block per age; very long windows refuse. */
-      bool steps_ok = !sequence_cover && !unbounded && step_last <= 255;
-      sva_step_table_t step_tab (loc, inst);
+	   the inner sequence. In a final unbounded wait, the first eligible
+	   miss leaves the attempt in a stable waiting state. */
+      std::vector<Statement*> wait_steps;
       perm_string r_step;   // the step-table row being reported
       if (steps_ok) {
 	    r_step = sva_make_reg_(loc, inst, "step", 0, true);
@@ -42049,8 +42071,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  PExpr*live;
 		  if (a == 0)
 			live = fixed_antecedent_pipeline
-			      ? sva_enabled_expr_(loc, inst)
-			      : sva_logic_(loc, 'a', sva_enabled_expr_(loc, inst),
+			      ? launch()
+			      : sva_logic_(loc, 'a', launch(),
 					   sva_id_(loc, r_ante));
 		  else if (c <= 0)
 			live = sva_id_(loc, ante_state[a-1]);
@@ -42076,7 +42098,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    check_txt.push_back(seq_text[j]);
 			      }
 		  long q = c - P;
-		  bool win = has_window && q >= win_m && q <= win_n;
+		  bool wait_enter = step_wait && a == step_last;
+		  bool win = wait_enter || (has_window && q >= win_m && q <= win_n);
 		  long from = a == 0 ? 0 : a + 1;
 		  long to = (!has_window && a == step_last) ? 1 : a + 2;
 
@@ -42087,11 +42110,32 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			PEBComp*hit = new PEBComp('E', sva_id_(loc, r_b.back()),
 						  sva_bit_(loc, 1));
 			FILE_NAME(hit, loc);
-			Statement*miss = q == win_n
-			      ? step_tab.pick(r_step, SVA_CB_STEP_FAILURE, from, 1, with_bw)
-			      : step_tab.pick(r_step, SVA_CB_STEP_SUCCESS, from, a + 2, check_txt);
+			  /* A zero lower bound folds entry into the last prefix
+			     tick. Otherwise that tick has already reached the
+			     state in which an eligible miss loops. */
+			long waiting = win_m == 0 ? a + 2 : from;
+			Statement*miss;
+			if (wait_enter)
+			      miss = step_tab.pick(r_step, SVA_CB_STEP_SUCCESS,
+						   from, waiting, check_txt);
+			else if (q == win_n)
+			      miss = step_tab.pick(r_step, SVA_CB_STEP_FAILURE,
+						   from, 1, with_bw);
+			else
+			      miss = step_tab.pick(r_step, SVA_CB_STEP_SUCCESS,
+						   from, a + 2, check_txt);
 			tail = sva_if_(loc, hit,
 			      step_tab.pick(r_step, SVA_CB_STEP_SUCCESS, from, 1, with_bw), miss);
+			if (wait_enter) {
+			      /* Advance old waiters before this clock's new one. */
+			      wait_steps.push_back(sva_if_(loc, sva_clone_expr_(hit),
+				    step_tab.pick(r_step, SVA_CB_STEP_SUCCESS,
+						  waiting, 1, {seq_text.back()}),
+				    step_tab.pick(r_step, SVA_CB_STEP_SUCCESS,
+						  waiting, waiting, {})));
+			      wait_steps.push_back(step_tab.fire(r_step, nullptr,
+				    sva_num32_(loc, SVA_STEP_WAIT_TICK)));
+			}
 		  } else {
 			tail = step_tab.pick(r_step, SVA_CB_STEP_SUCCESS, from, to, check_txt);
 		  }
@@ -42108,22 +42152,27 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  }
 		  std::vector<Statement*> one;
 		  one.push_back(tail);
-		  one.push_back(step_tab.fire(r_step, sva_num32_(loc, a), nullptr));
-		  steps.push_back(sva_if_(loc, live, sva_block_(loc, one), nullptr));
+		  one.push_back(step_tab.fire(r_step, sva_num32_(loc, a),
+			wait_enter ? sva_num32_(loc, SVA_STEP_WAIT_ENTER) : nullptr));
+		  (wait_enter ? wait_steps : steps).push_back(
+			sva_if_(loc, live, sva_block_(loc, one), nullptr));
 	    }
-	    std::list<named_pexpr_t> no_parms;
-	    PECallFunction*active = new PECallFunction(
-		  perm_string::literal("$ivl_assert_cb_active"), no_parms);
-	    FILE_NAME(active, loc);
-	    body.insert(body.begin(),
-			sva_if_(loc, active, sva_block_(loc, steps), nullptr));
+	    if (!steps.empty()) {
+		  std::list<named_pexpr_t> no_parms;
+		  PECallFunction*active = new PECallFunction(
+			perm_string::literal("$ivl_assert_cb_active"), no_parms);
+		  FILE_NAME(active, loc);
+		  Statement*report = sva_if_(loc, active, sva_block_(loc, steps), nullptr);
+		  if (step_wait) wait_steps.insert(wait_steps.begin(), report);
+		  else body.insert(body.begin(), report);
+	    }
       }
 
 	/* g is the current tick's newly launched attempt. Off suppresses only
 	   this injection; older pipeline/window tokens continue to mature. */
 	body.push_back(sva_assign_(loc, r_g,
 	      fixed_antecedent_pipeline ? (PExpr*)sva_id_(loc, ante_match)
-		: sva_logic_(loc, 'a', sva_enabled_expr_(loc, inst),
+		: sva_logic_(loc, 'a', launch(),
 			 sva_id_(loc, r_ante))));
       for (size_t j = 0 ; j < nfixed ; j += 1) {
 	    if (offs[j] != 0) continue;
@@ -42492,17 +42541,31 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       if (track_vacuity)
 	    sva_pass_dispatcher_(loc, inst, pass_req, vac_req, user_pass);
 
-      body.insert(body.begin(), sva_kill_reset_stmt_(
-	    loc, inst, r_kill, clear_attempt_state()));
-
 	/* Assemble: pre-captures; disable guard around the token
 	   machinery; history updates. */
       std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
       if (track_failure_age || steps_ok)
 	    full.push_back(sva_clock_stmt_(loc, inst));
-	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
-				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
+      Statement*sync_kill = sva_kill_reset_stmt_(
+	    loc, inst, r_kill, clear_attempt_state());
+      if (step_wait) {
+	    full.push_back(sync_kill);
+	      /* Off during a callback affects only subsequent attempts. */
+	    full.push_back(sva_assign_(loc, r_launch, sva_enabled_expr_(loc, inst)));
+      } else {
+	    body.insert(body.begin(), sync_kill);
+      }
+      full.push_back(sva_if_(loc, launch(),
+			     sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
       Statement*core = sva_block_(loc, body);
+      if (step_wait) {
+	      /* START or a step callback can kill/reset the checker. In
+		 that case no canceled attempt may reach verdict dispatch. */
+	    wait_steps.push_back(sva_if_(loc,
+		  sva_kill_generation_current_(loc, inst, r_kill), core, nullptr));
+	    core = sva_if_(loc, sva_kill_generation_current_(loc, inst, r_kill),
+			   sva_block_(loc, wait_steps), nullptr);
+      }
       if (disable) {
 	    std::vector<Statement*> disabled;
 	    disabled.push_back(sva_report_stmt_(loc, inst, SVA_CB_DISABLED_EVAL));
@@ -42532,7 +42595,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       bool cb_fail_full_latency = prop->op_type == 1 || prop->op_type == 2;
       init_zero.push_back(sva_register_stmt_(loc, inst, cb_edges,
 					     cb_fail_full_latency, nullptr,
-					     steps_ok ? step_last : -1));
+					     steps_ok ? step_last : -1, 1,
+					     step_wait));
       init_zero.insert(init_zero.end(), step_tab.rows.begin(),
 		       step_tab.rows.end());
       PProcess*ip = pform_make_behavior(IVL_PR_INITIAL,
