@@ -15813,6 +15813,52 @@ static NetExpr* elaborate_nested_method_target_property(const LineInfo*li,
 							const name_component_t&comp,
 							ivl_type_t&out_type);
 
+/* A built-in struct net has no object value at its declaration anchor.
+ * Construct the value from its resolved members, so a whole-value read
+ * also has dependencies on the concrete member nexuses. */
+static NetExpr* read_builtin_struct_net_(const LineInfo&loc, Design*des,
+					NetNet*signal)
+{
+      const netstruct_t*record = signal->struct_type();
+      vector<NetExpr*>items;
+      for (size_t idx = 0; idx < record->members().size(); idx += 1) {
+	    NetNet*member = signal->resolve_builtin_net_struct_member(idx);
+	    ivl_assert(loc, member);
+	    NetExpr*value = nullptr;
+	    if (member->resolve_builtin_net_struct_member(0)) {
+		  value = read_builtin_struct_net_(loc, des, member);
+	    } else if (member->net_type()->packed()) {
+		  if (member->unpacked_dimensions()) {
+			vector<NetExpr*>words;
+			for (unsigned word = 0; word < member->pin_count(); word += 1) {
+			      NetESignal*expr = new NetESignal(member, make_const_val(word));
+			      expr->set_line(loc);
+			      words.push_back(expr);
+			}
+			value = new NetEArrayPattern(record->members()[idx].net_type, words);
+		  } else {
+			value = new NetESignal(member);
+		  }
+	    } else {
+		  cerr << loc.get_fileline() << ": sorry: Whole-value read of unpacked "
+		       << "struct net member `" << record->members()[idx].name
+		       << "' has no bound packed words." << endl;
+		  des->errors += 1;
+	    }
+	    if (!value) {
+		  for (NetExpr*item : items)
+		    delete item;
+		  return nullptr;
+	    }
+	    value->set_line(loc);
+	    items.push_back(value);
+      }
+
+      NetEArrayPattern*value = new NetEArrayPattern(record, items);
+      value->set_line(loc);
+      return value;
+}
+
 static NetExpr* check_for_struct_members(const PEIdent*li,
 					 Design*des, NetScope*scope,
 					 NetNet*net,
@@ -16251,6 +16297,11 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 		  }
 	    }
 
+	    if (net_struct_parent
+		&& net_struct_parent->resolve_builtin_net_struct_member(0)) {
+		  delete base_expr;
+		  return read_builtin_struct_net_(*li, des, net_struct_parent);
+	    }
 	    return base_expr;
       }
 
@@ -28326,6 +28377,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
       }
 
       if (net->unpacked_dimensions() == 0) {
+	    if (net->resolve_builtin_net_struct_member(0))
+		  return read_builtin_struct_net_(*this, des, net);
 	    NetESignal*tmp = new NetESignal(net);
 	    tmp->set_line(*this);
 	    return tmp;
@@ -33427,6 +33480,9 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
       if (net->unpacked_dimensions() > 0)
 	    return elaborate_expr_net_word_(des, scope, net, found_in,
                                             expr_wid, flags);
+
+      if (path_.back().index.empty() && net->resolve_builtin_net_struct_member(0))
+	    return read_builtin_struct_net_(*this, des, net);
 
       bool need_const = NEED_CONST & flags;
 

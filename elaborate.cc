@@ -4705,6 +4705,124 @@ static bool elaborate_unpacked_struct_variable_continuous_(
       return true;
 }
 
+/* The declaration of a built-in unpacked struct is a type anchor.
+ * Collect the actual driver endpoints in member order. Within a fixed
+ * array, the bit-stream object uses the same canonical word order as the
+ * member net. */
+static bool collect_builtin_struct_net_leaves_(NetNet*signal,
+					       vector<NetNet*>&leaves,
+					       unsigned&width)
+{
+      if (signal->net_type()->packed()) {
+	    unsigned word_width = signal->vector_width();
+	    if (!word_width || signal->pin_count() > (INT_MAX - width) / word_width)
+		  return false;
+	    width += word_width * signal->pin_count();
+	    leaves.push_back(signal);
+	    return true;
+      }
+
+      const netstruct_t*record = signal->struct_type();
+      if (!record || signal->unpacked_dimensions() || record->union_flag())
+	    return false;
+      for (size_t idx = 0; idx < record->members().size(); idx += 1) {
+	    NetNet*member = signal->resolve_builtin_net_struct_member(idx);
+	    if (!member || !collect_builtin_struct_net_leaves_(member, leaves, width))
+		  return false;
+      }
+      return true;
+}
+
+static void elaborate_builtin_struct_net_continuous_(
+      Design*des, NetScope*scope, const PGAssign&assignment, NetNet*signal)
+{
+      vector<NetNet*>leaves;
+      unsigned width = 0;
+      if (!collect_builtin_struct_net_leaves_(signal, leaves, width) || !width) {
+	    cerr << assignment.get_fileline() << ": sorry: Continuous assignment "
+		 << "to this unpacked struct net layout is not supported." << endl;
+	    des->errors += 1;
+	    return;
+      }
+
+      unsigned errors_before = des->errors;
+      unique_ptr<NetExpr>rhs(elaborate_rval_expr(
+	    des, scope, signal->net_type(), assignment.pin(1)));
+      if (des->errors != errors_before)
+	    return;
+      if (!rhs || !signal->net_type()->type_equivalent(rhs->net_type())) {
+	    cerr << assignment.get_fileline() << ": error: Continuous assignment "
+		 << "requires an assignment-compatible unpacked struct value." << endl;
+	    des->errors += 1;
+	    return;
+      }
+      if (netexpr_contains_chandle_(rhs.get())) {
+	    cerr << assignment.get_fileline() << ": error: chandle is not permitted "
+		 << "in a continuous assignment (IEEE 1800-2017/2023 6.14)." << endl;
+	    des->errors += 1;
+	    return;
+      }
+
+      const netvector_t*stream_type = new netvector_t(IVL_VT_LOGIC, width-1, 0);
+      NetNet*carrier = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				   stream_type);
+      carrier->set_line(assignment);
+      carrier->local_flag(true);
+
+	// Evaluate the whole RHS once for each activation, then distribute that
+	// value to independent structural drivers (IEEE 1800 4.9.1, 10.3.2).
+      NetESFunc*stream = new NetESFunc("$ivl_stream$cast$packed$1", stream_type, 1);
+      stream->set_line(assignment);
+      stream->parm(0, rhs.release());
+      NetAssign*store = new NetAssign(new NetAssign_(carrier), stream);
+      store->set_line(assignment);
+      PEventStatement wait(true);
+      wait.set_line(assignment);
+      NetProc*body = wait.elaborate_st(des, scope, store);
+      if (!body) {
+	    delete store;
+	    return;
+      }
+      NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
+      top->set_line(assignment);
+      if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
+	    if (event_wait->nevents() == 1) {
+		  NetEvent*event = event_wait->event(0);
+		  bool anyedge = event->nprobe() != 0;
+		  for (unsigned idx = 0; anyedge && idx < event->nprobe(); idx += 1)
+		    anyedge = event->probe(idx)->edge() == NetEvProbe::ANYEDGE;
+		  if (anyedge)
+		    top->attribute(perm_string::literal("_ivl_schedule_push"), verinum(1));
+	    }
+      }
+      des->add_process(top);
+
+      unsigned offset = width;
+      for (NetNet*member : leaves) {
+	    unsigned word_width = member->vector_width();
+	    const netvector_t*word_type =
+		  new netvector_t(IVL_VT_LOGIC, word_width-1, 0);
+	    for (unsigned word = 0; word < member->pin_count(); word += 1) {
+		  offset -= word_width;
+		  NetPartSelect*slice = new NetPartSelect(
+			carrier, offset, word_width, NetPartSelect::VP);
+		  des->add_node(slice);
+		  NetNet*value = new NetNet(scope, scope->local_symbol(),
+					    NetNet::WIRE, word_type);
+		  value->set_line(assignment);
+		  value->local_flag(true);
+		  connect(slice->pin(0), value->pin(0));
+
+		  NetBUFZ*driver = new NetBUFZ(scope, scope->local_symbol(),
+					     word_width, false);
+		  driver->set_line(assignment);
+		  des->add_node(driver);
+		  connect(driver->pin(1), value->pin(0));
+		  connect(driver->pin(0), member->pin(word));
+	    }
+      }
+}
+
 static bool elaborate_unpacked_union_read_continuous_(
       Design*des, NetScope*scope, const PGAssign*assignment,
       NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
@@ -5100,6 +5218,25 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			}
 			return;
 		  }
+	    }
+      }
+
+      if (const PEIdent*ident = dynamic_cast<const PEIdent*>(pin(0))) {
+	    symbol_search_results sr;
+	    if (ident->path().name.back().index.empty()
+		&& symbol_search(this, des, scope, ident->path(), UINT_MAX, &sr)
+		&& sr.net && sr.path_tail.empty()
+		&& sr.net->resolve_builtin_net_struct_member(0)) {
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  if (delay_count() || sr.net->net_delay_driver() || strength_specified()) {
+			cerr << get_fileline() << ": sorry: Delay or explicit drive strength "
+			     << "on a whole unpacked struct net assignment is not supported."
+			     << endl;
+			des->errors += 1;
+		  } else {
+			elaborate_builtin_struct_net_continuous_(des, scope, *this, sr.net);
+		  }
+		  return;
 	    }
       }
 
