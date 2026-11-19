@@ -197,6 +197,10 @@ extern void schedule_at_active_sync(vvp_gen_event_t obj);
 
 /* True after all pre-simulation initialization events have drained. */
 extern bool schedule_simulation_started(void);
+
+/* Static initialization and start-of-simulation callbacks precede
+ * time-zero evaluation in the scheduler. */
+extern bool schedule_in_startup(void);
 /* True only while an NBA or Re-NBA update event is executing. */
 extern bool schedule_in_nba_update_region(void);
 

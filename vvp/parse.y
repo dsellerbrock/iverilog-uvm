@@ -100,6 +100,7 @@ static bool is_force_release_opcode(const char* name)
       vpiHandle vpi;
 
       vvp_delay_t*cdelay;
+      struct delay_operand_s delay_operand;
 
       int      vpi_enum;
 };
@@ -116,7 +117,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_CMP_EEQ K_CMP_EQ K_CMP_EQX K_CMP_EQZ K_CMP_WEQ K_CMP_WNE
 %token K_CMP_EQ_R K_CMP_NEE K_CMP_NE K_CMP_NE_R
 %token K_CMP_GE K_CMP_GE_R K_CMP_GE_S K_CMP_GT K_CMP_GT_R K_CMP_GT_S
-%token K_CONCAT K_CONCAT8 K_DEBUG K_DELAY K_DELAY_VECTOR K_DELAY_WHOLE
+%token K_CONCAT K_CONCAT8 K_DEBUG K_DELAY K_DELAY_VECTOR K_DELAY_WHOLE K_DELAY_EXPR
 %token K_DFF_N K_DFF_N_ACLR
 %token K_DFF_N_ACLR_ASET K_DFF_N_ASET K_DFF_N_ASET_ACLR
 %token K_DFF_P K_DFF_P_ACLR K_DFF_P_ACLR_ASET K_DFF_P_ASET K_DFF_P_ASET_ACLR
@@ -191,11 +192,13 @@ static bool is_force_release_opcode(const char* name)
 %type <argv> argument_opt argument_list
 %type <vpi>  argument symbol_access
 %type <cdelay> delay
+%type <delay_operand> delay_operand delay_decay_opt
 
 %type <enum_name> enum_type_name
 %type <enum_namev> enum_type_names enum_type_names_opt
 
 %destructor { delete $$; } covgrp_bin_tail
+%destructor { free($$.label); } delay_operand delay_decay_opt
 
 %%
 
@@ -697,6 +700,11 @@ statement
 	    compile_errors += 1;
       }
       compile_delay($1, $3, obj.cnt, obj.vect, true, false, true);
+    }
+ | T_LABEL K_DELAY_EXPR T_NUMBER T_NUMBER symbol ',' delay_operand ','
+     delay_operand delay_decay_opt ';'
+    { struct delay_operand_s operands[] = {$7, $9, $10};
+      compile_delay_expr($1, $3, $4, $5, operands);
     }
 
  | T_LABEL K_MODPATH T_NUMBER symbol symbol ','
@@ -2156,6 +2164,22 @@ delay
 		{ $$ = new vvp_delay_t($2, $4); }
 	| '(' T_NUMBER ',' T_NUMBER ',' T_NUMBER ')'
 		{ $$ = new vvp_delay_t($2, $4, $6); }
+	;
+
+delay_operand
+	: T_NUMBER
+		{ $$ = {0, $1, 't'}; }
+	| T_STRING symbol
+		{ $$ = {$2.text, 0, $1[0] && !$1[1] ? $1[0] : '?'};
+		  free($1);
+		}
+	;
+
+delay_decay_opt
+	: %empty
+		{ $$ = {0, 0, 0}; }
+	| ',' delay_operand
+		{ $$ = $2; }
 	;
 
 %%

@@ -956,13 +956,22 @@ extern bool collapse_checked_packed_property_indices(
       unsigned long packed_width, NetExpr*&off_expr,
       unsigned long&sel_wid);
 
+/* Mark a synthesized continuous-assignment driver whose delay operands
+ * still contain expressions to evaluate at runtime. */
+inline void mark_sampled_contassign_delay(NetBUFZ&driver)
+{
+      driver.attribute(perm_string::literal("_ivl_sample_contassign_delay"),
+		       verinum("1"));
+}
+
 extern void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 				      const LineInfo*loc,
 				       NetNet*lval, NetNet*rval,
 				       const NetExpr*rise_time = 0,
 				       const NetExpr*fall_time = 0,
 				       const NetExpr*decay_time = 0,
-				       bool whole_value_delay = false);
+				       bool whole_value_delay = false,
+				       bool sample_delay = false);
 
 /* Validate a driver on an unresolved net without reserving it yet. */
 extern bool check_unresolved_net_driver(Design*des, const LineInfo&loc,

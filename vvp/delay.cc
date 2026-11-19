@@ -21,6 +21,7 @@
 #include "schedule.h"
 #include "vpi_priv.h"
 #include "compile.h"
+#include "vthread.h"
 #include "config.h"
 #ifdef CHECK_WITH_VALGRIND
 #include "vvp_cleanup.h"
@@ -153,6 +154,43 @@ void vvp_delay_t::set_decay(vvp_time64_t val)
 	    calculate_min_delay_();
 }
 
+/* The startup evaluation and the delayed output have independent callbacks.
+ * A live receive can supersede the startup value without affecting a
+ * propagation already scheduled by the ordinary inertial delay path. */
+struct vvp_fun_delay::eval_state_ : public vvp_gen_event_s {
+      eval_state_(vvp_fun_delay*delay, __vpiScope*expr_scope,
+		  const vvp_delay_expr_t*operands, unsigned operand_count)
+      : owner(delay), scope(expr_scope), count(operand_count)
+      { std::copy(operands, operands + count, exprs); }
+
+      void run_run() override
+      {
+	    delay_type_t type = startup_type;
+	    startup_type = UNKNOWN_DELAY;
+	    vvp_net_ptr_t input(owner->net_, 0);
+	    switch (type) {
+		case VEC4_DELAY: owner->recv_vec4(input, vec4, 0); break;
+		case VEC8_DELAY: owner->recv_vec8(input, vec8); break;
+		case REAL_DELAY: owner->recv_real(input, real, 0); break;
+		case UNKNOWN_DELAY: break;
+	    }
+	    vec4 = vvp_vector4_t();
+	    vec8 = vvp_vector8_t();
+      }
+
+      vvp_fun_delay*const owner;
+      __vpiScope*const scope;
+      const unsigned count;
+      vvp_delay_expr_t exprs[3];
+      delay_type_t startup_type = UNKNOWN_DELAY;
+      enum { DEFERRED_INPUT = 1 };
+      unsigned sampling_depth = 0;
+      size_t queued = 0;
+      vvp_vector4_t vec4;
+      vvp_vector8_t vec8;
+      double real = 0.0;
+};
+
 vvp_fun_delay::vvp_fun_delay(vvp_net_t*n, unsigned width, const vvp_delay_t&d,
 			     bool per_bit, bool whole_vector)
 : net_(n), delay_(d), per_bit_(per_bit), whole_vector_(whole_vector)
@@ -184,6 +222,7 @@ vvp_fun_delay::vvp_fun_delay(vvp_net_t*n, unsigned width, const vvp_delay_t&d,
 
 vvp_fun_delay::~vvp_fun_delay()
 {
+      delete eval_;
       cancel_all_events_();
 
       for (bit_event_map_t::iterator bucket = bit_events_.begin();
@@ -191,6 +230,123 @@ vvp_fun_delay::~vvp_fun_delay()
 	    for (bit_event_list_t::iterator cur = bucket->second.begin();
 		 cur != bucket->second.end(); ++cur)
 		  delete *cur;
+}
+
+void vvp_fun_delay::set_delay_exprs(__vpiScope*scope, const vvp_delay_expr_t*exprs,
+				    unsigned count)
+{
+      assert(!eval_ && !per_bit_ && (count == 2 || count == 3));
+      eval_ = new eval_state_(this, scope, exprs, count);
+}
+
+bool vvp_fun_delay::preload_(delay_type_t type)
+{
+      if (!schedule_in_startup()) {
+	    eval_->startup_type = UNKNOWN_DELAY;
+	    return false;
+      }
+      if (eval_->startup_type == UNKNOWN_DELAY)
+	    schedule_generic(eval_, 0, false);
+      eval_->startup_type = type;
+      return true;
+}
+
+template<class T>
+bool vvp_fun_delay::buffer_sampled_input_(vvp_net_ptr_t port, delay_type_t type,
+					 const T&value, T eval_state_::*preload_value)
+{
+      if (port.port() == eval_state_::DEFERRED_INPUT) {
+	    assert(eval_->queued);
+	    eval_->queued -= 1;
+	    return false;
+      }
+
+      assert(port.port() == 0);
+      if (preload_(type)) {
+	    eval_->*preload_value = value;
+	    return true;
+      }
+
+      /* A delay function can write a signal that feeds back to its own
+       * assignment. Finish the current evaluation first and queue those
+       * receives (including later receives that would overtake them) in
+       * Active. Sampled nodes only connect port 0, so port 1 can deliver
+       * the queued data without using the legacy delay-control ports. */
+      if (!eval_->sampling_depth && !eval_->queued)
+	    return false;
+      eval_->queued += 1;
+      schedule_set_vector(vvp_net_ptr_t(net_, eval_state_::DEFERRED_INPUT), value);
+      return true;
+}
+
+vvp_time64_t vvp_fun_delay::delay_ticks_(const vvp_vector4_t&value) const
+{
+      // Preserve the conversion used by the dynamic delay control ports.
+      // An X or Z leaves the tick count at zero.
+      vvp_time64_t ticks = 0;
+      vector4_to_value(value, ticks);
+      return ticks * round_ * scale_;
+}
+
+vvp_time64_t vvp_fun_delay::delay_ticks_(double value) const
+{
+      if (value > -0.5)
+	    return (vvp_time64_t)(value * round_ + 0.5) * scale_;
+      vvp_time64_t ticks = 0;
+      if (!std::isnan(value)) {
+	    vvp_vector4_t vec(8*sizeof(ticks),
+			     floor(-value * round_ + 0.5) * -1 * scale_);
+	    vector4_to_value(vec, ticks);
+      }
+      return ticks;
+}
+
+bool vvp_fun_delay::sample_delays_(vvp_delay_t&delays) const
+{
+      vvp_time64_t ticks[3];
+      eval_->sampling_depth += 1;
+      for (unsigned idx = 0; idx < eval_->count; idx += 1) {
+	    const vvp_delay_expr_t&expr = eval_->exprs[idx];
+	    if (!expr.code) {
+		  ticks[idx] = expr.ticks;
+		  continue;
+	    }
+	    unsigned prev = 0;
+	    while (prev < idx && eval_->exprs[prev].code != expr.code)
+		  prev += 1;
+	    if (prev < idx) {
+		  ticks[idx] = ticks[prev];
+		  continue;
+	    }
+	    vvp_vector4_t vec;
+	    double real = 0.0;
+	    string str;
+	    vvp_object_t obj;
+	    if (!vthread_eval_thunk(0, expr.code, eval_->scope,
+				   expr.real ? 'r' : 'v', vec, real, str, obj)) {
+		  cerr << "vvp: continuous assignment delay expression did not complete."
+		       << endl;
+		  eval_->sampling_depth -= 1;
+		  schedule_finish(1);
+		  return false;
+	    }
+	    ticks[idx] = expr.real ? delay_ticks_(real) : delay_ticks_(vec);
+      }
+      eval_->sampling_depth -= 1;
+      delays = eval_->count == 2 ? vvp_delay_t(ticks[0], ticks[1])
+				 : vvp_delay_t(ticks[0], ticks[1], ticks[2]);
+      return true;
+}
+
+bool vvp_fun_delay::get_delays(vvp_time64_t (&values)[3]) const
+{
+      vvp_delay_t delays = delay_;
+      if (eval_ && schedule_simulation_started() && !sample_delays_(delays))
+	    return false;
+      values[0] = delays.get_delay(BIT4_0, BIT4_1);
+      values[1] = delays.get_delay(BIT4_1, BIT4_0);
+      values[2] = delays.get_delay(BIT4_0, BIT4_Z);
+      return true;
 }
 
 void vvp_fun_delay::initialize_udp_output(const vvp_vector4_t&bit)
@@ -450,15 +606,8 @@ vvp_time64_t vvp_fun_delay::whole_vector_delay_(const vvp_vector8_t&bit) const
 void vvp_fun_delay::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                               vvp_context_t)
 {
-      if (port.port() > 0) {
-	      // Get the integer value of the bit vector, or 0 if
-	      // there are X or Z bits.
-	    vvp_time64_t bval = 0;
-	      // The following does not work correctly for negative values.
-	      // They should be sign extended to 64 bits (1364-2001 9.7.1).
-	    vector4_to_value(bit, bval);
-	      // Integer values do not need to be rounded so just scale them.
-	    vvp_time64_t val = bval * round_ * scale_;
+      if (!eval_ && port.port() > 0) {
+	    vvp_time64_t val = delay_ticks_(bit);
 
 	    switch (port.port()) {
 		case 1:
@@ -472,6 +621,15 @@ void vvp_fun_delay::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 		  return;
 	    }
 	    return;
+      }
+
+      if (eval_) {
+	    if (buffer_sampled_input_(port, VEC4_DELAY, bit, &eval_state_::vec4))
+		  return;
+	    if (!cur_vec4_.eeq(bit)
+		&& !(list_ && list_->next->ptr_vec4.eeq(bit))
+		&& !sample_delays_(delay_))
+		  return;
       }
 
       if (per_bit_) {
@@ -561,7 +719,14 @@ void vvp_fun_delay::recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 /* See the recv_vec4 comment above. */
 void vvp_fun_delay::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
 {
-      assert(port.port() == 0);
+      if (eval_) {
+	    if (buffer_sampled_input_(port, VEC8_DELAY, bit, &eval_state_::vec8))
+		  return;
+	    if (!cur_vec8_.eeq(bit)
+		&& !(list_ && list_->next->ptr_vec8.eeq(bit))
+		&& !sample_delays_(delay_))
+		  return;
+      } else assert(port.port() == 0);
 
       if (per_bit_) {
 	    recv_vec8_per_bit_(bit);
@@ -644,19 +809,10 @@ void vvp_fun_delay::recv_vec8_pv(vvp_net_ptr_t ptr, const vvp_vector8_t&bit,
 void vvp_fun_delay::recv_real(vvp_net_ptr_t port, double bit,
                               vvp_context_t)
 {
-      if (port.port() > 0) {
+      if (!eval_ && port.port() > 0) {
 	    /* If the port is not 0, then this is a delay value that
 	    should be rounded and converted to an integer delay. */
-	    vvp_time64_t val = 0;
-	    if (bit > -0.5) {
-		  val = (vvp_time64_t) (bit * round_ + 0.5) * scale_;
-	    } else if (bit != bit) {
-		    // For a NaN we use the default (0).
-	    } else {
-		  vvp_vector4_t vec4(8*sizeof(vvp_time64_t),
-		                     floor(-bit * round_ + 0.5) * -1 * scale_);
-		  vector4_to_value(vec4, val);
-	    }
+	    vvp_time64_t val = delay_ticks_(bit);
 
 	    switch (port.port()) {
 		case 1:
@@ -670,6 +826,15 @@ void vvp_fun_delay::recv_real(vvp_net_ptr_t port, double bit,
 		  return;
 	    }
 	    return;
+      }
+
+      if (eval_) {
+	    if (buffer_sampled_input_(port, REAL_DELAY, bit, &eval_state_::real))
+		  return;
+	    if (cur_real_ != bit
+		&& !(list_ && list_->next->ptr_real == bit)
+		&& !sample_delays_(delay_))
+		  return;
       }
 
       if (initial_) {

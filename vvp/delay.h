@@ -63,6 +63,12 @@ class vvp_delay_t {
       void calculate_min_delay_();
 };
 
+struct vvp_delay_expr_t {
+      vvp_code_t code;
+      vvp_time64_t ticks;
+      bool real;
+};
+
 /* vvp_fun_delay
  * This is a lighter weight version of vvp_fun_drive, that only
  * carries delays. The output that it propagates is vvp_vector4_t so
@@ -113,11 +119,12 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
       ~vvp_fun_delay() override;
 
       void initialize_udp_output(const vvp_vector4_t&bit);
+      void set_delay_exprs(__vpiScope*scope, const vvp_delay_expr_t*exprs,
+			   unsigned count);
 
-	// The rise, fall or decay delay this functor applies (37.47
+	// The rise, fall and decay delays this functor applies (37.47
 	// vpi_get_delays() on a continuous assignment).
-      vvp_time64_t get_delay(vvp_bit4_t from, vvp_bit4_t to) const
-      { return delay_.get_delay(from, to); }
+      bool get_delays(vvp_time64_t (&values)[3]) const;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
@@ -141,6 +148,14 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
       void recv_vec8_per_bit_(const vvp_vector8_t&bit);
       vvp_time64_t whole_vector_delay_(const vvp_vector4_t&bit) const;
       vvp_time64_t whole_vector_delay_(const vvp_vector8_t&bit) const;
+      vvp_time64_t delay_ticks_(const vvp_vector4_t&value) const;
+      vvp_time64_t delay_ticks_(double value) const;
+      bool sample_delays_(vvp_delay_t&delays) const;
+      bool preload_(delay_type_t type);
+      struct eval_state_;
+      template<class T>
+      bool buffer_sampled_input_(vvp_net_ptr_t port, delay_type_t type,
+				 const T&value, T eval_state_::*preload_value);
 
     private:
       vvp_net_t*net_;
@@ -149,6 +164,7 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
       bool initial_; // Indicates if the value is still the initial value.
       bool per_bit_;
       bool whole_vector_;
+      eval_state_*eval_ = 0;
 
       vvp_vector4_t cur_vec4_;
       vvp_vector8_t cur_vec8_;

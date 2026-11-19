@@ -961,7 +961,8 @@ static void read_sources_file(const char*path)
       fclose(fd);
 }
 
-extern Design* elaborate(list <perm_string> root);
+extern Design* elaborate(list <perm_string> root,
+			 const map<string,const char*>&flags);
 
 #if defined(HAVE_TIMES)
 static double cycles_diff(const struct tms *a, const struct tms *b)
@@ -1388,7 +1389,7 @@ int main(int argc, char*argv[])
       }
 
 	/* On with the process of elaborating the module. */
-      Design*des = elaborate(roots);
+      Design*des = elaborate(roots, flags);
 
       if ((des == 0) || (des->errors > 0)) {
 	    if (des != 0) {

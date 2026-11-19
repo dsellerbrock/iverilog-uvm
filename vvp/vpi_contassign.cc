@@ -197,11 +197,8 @@ void __vpiContAssign::vpi_get_delays(p_vpi_delay del)
 {
       vvp_fun_delay*fun = driver_ ? dynamic_cast<vvp_fun_delay*>(driver_->fun) : 0;
       vvp_time64_t values[3] = {0, 0, 0};
-      if (fun) {
-	    values[0] = fun->get_delay(BIT4_0, BIT4_1);
-	    values[1] = fun->get_delay(BIT4_1, BIT4_0);
-	    values[2] = fun->get_delay(BIT4_0, BIT4_Z);
-      }
+      if (fun && !fun->get_delays(values))
+	    return;
       for (int idx = 0; idx < del->no_of_delays && idx < 3; idx += 1) {
 	    if (del->time_type == vpiSimTime)
 		  vpip_time_to_timestruct(del->da + idx, values[idx]);

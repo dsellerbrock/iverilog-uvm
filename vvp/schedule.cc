@@ -1520,10 +1520,16 @@ void schedule_post_final(vvp_gen_event_t obj)
 
 static bool sim_started;
 static bool init_events_running;
+static bool startup_done;
 
 bool schedule_simulation_started(void)
 {
       return sim_started;
+}
+
+bool schedule_in_startup(void)
+{
+      return !startup_done;
 }
 
 bool schedule_in_nba_update_region(void)
@@ -1833,6 +1839,7 @@ void schedule_simulate(void)
 {
       bool run_finals;
       sim_started = false;
+      startup_done = false;
 
       schedule_time = 0;
 
@@ -1891,6 +1898,7 @@ void schedule_simulate(void)
       vpiStartOfSim();
 
       signals_capture();
+      startup_done = true;
 
       if (verbose_flag) {
 	    vpi_mcd_printf(1, " ...run scheduler\n");

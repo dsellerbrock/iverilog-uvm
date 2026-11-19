@@ -1717,10 +1717,15 @@ static void draw_logic_delay(ivl_net_logic_t lptr)
       ivl_drive_t str0 = ivl_logic_drive0(lptr);
       ivl_drive_t str1 = ivl_logic_drive1(lptr);
       int strength = str0 != IVL_DR_STRONG || str1 != IVL_DR_STRONG;
-      draw_delay_with_suffix(lptr, delay_wid, 0, rise_exp, fall_exp, decay_exp,
-                             ivl_logic_delay_is_per_bit(lptr),
-                             ivl_logic_delay_is_whole_vector(lptr),
-                             strength ? "/delay" : "");
+      const char*output_suffix = strength ? "/delay" : "";
+      if (ivl_logic_type(lptr) == IVL_LO_BUFZ
+	  && ivl_logic_attr(lptr, "_ivl_sample_contassign_delay"))
+	    draw_sampled_delay(lptr, delay_wid, output_suffix);
+      else
+	    draw_delay_with_suffix(lptr, delay_wid, 0, rise_exp, fall_exp, decay_exp,
+				   ivl_logic_delay_is_per_bit(lptr),
+				   ivl_logic_delay_is_whole_vector(lptr),
+				   output_suffix);
       if (strength)
             fprintf(vvp_out, "L_%p .functor DRIVE_INIT %u [%d %d], L_%p/delay;\n",
                     lptr, delay_wid, str0, str1, lptr);

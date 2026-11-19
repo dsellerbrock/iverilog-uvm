@@ -3620,6 +3620,7 @@ static NetNet* make_vif_member_continuous_proxy_(
 		Design*des, NetScope*scope, const LineInfo&loc, NetNet*lval,
 		ivl_drive_t drive0, ivl_drive_t drive1,
 		NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
+		bool sample_delay,
 		NetNet**driver_carrier = 0)
 {
       ivl_assert(loc, lval);
@@ -3635,6 +3636,8 @@ static NetNet* make_vif_member_continuous_proxy_(
       driver->set_line(loc);
       driver->whole_vector_delay(
 	    (rise_time || fall_time || decay_time) && lval->vector_width() > 1);
+      if (sample_delay)
+	    mark_sampled_contassign_delay(*driver);
       des->add_node(driver);
       connect(proxy->pin(0), driver->pin(1));
 
@@ -4991,8 +4994,30 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
+      const string target = des->get_flag("DLL");
+      const size_t sep = target.find_last_of("/\\");
+      const bool vvp = target.substr(sep == string::npos ? 0 : sep + 1) == "vvp.tgt";
+      const bool keep_delay_exprs = vvp && gn_system_verilog();
+
       NetExpr* rise_time, *fall_time, *decay_time;
-      eval_delays(des, scope, rise_time, fall_time, decay_time, true);
+      eval_delays(des, scope, rise_time, fall_time, decay_time, !keep_delay_exprs);
+
+      bool sample_delay = false;
+      if (keep_delay_exprs) {
+	    for (const NetExpr*expr : {rise_time, fall_time, decay_time}) {
+		  if (!expr || dynamic_cast<const NetEConst*>(expr))
+			continue;
+		  if (expr->expr_type() != IVL_VT_REAL
+		      && !type_is_vectorable(expr->expr_type())) {
+			cerr << expr->get_fileline() << ": error: Expression " << *expr
+			     << " is not suitable as a delay expression." << endl;
+			des->errors += 1;
+			delete_unique_delays_(rise_time, fall_time, decay_time);
+			return;
+		  }
+		  sample_delay = true;
+	    }
+      }
 
       ivl_drive_t drive0 = strength0();
       ivl_drive_t drive1 = strength1();
@@ -5144,6 +5169,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			      NetNet*proxy = make_vif_member_continuous_proxy_(
 				    des, scope, *this, placeholder, drive0, drive1,
 				    rise_time, fall_time, decay_time,
+				    sample_delay,
 				    &driver_carrier);
 			      bool ok = elaborate_vif_member_assign_(
 				    des, scope, this, const_cast<PExpr*>(pin(0)),
@@ -5260,7 +5286,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 
 	    NetNet*proxy = make_vif_member_continuous_proxy_(
 		  des, scope, *this, lval, drive0, drive1,
-		  rise_time, fall_time, decay_time);
+		  rise_time, fall_time, decay_time, sample_delay);
 	    elaborate_vif_member_assign_(
 		  des, scope, this, const_cast<PExpr*>(pin(0)),
 		  const_cast<PExpr*>(pin(1)), proxy, false,
@@ -5350,7 +5376,8 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    elaborate_unpacked_array_(des, scope, lval,
 			      lval->user_nettype() ? rise_time : 0,
 			      lval->user_nettype() ? fall_time : 0,
-			      lval->user_nettype() ? decay_time : 0);
+			      lval->user_nettype() ? decay_time : 0,
+			      lval->user_nettype() && sample_delay);
 	    return;
       }
 
@@ -5448,7 +5475,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    need_driver_flag = false;
       }
 
-      if (whole_vector_delay)
+      if (whole_vector_delay || sample_delay)
 	    need_driver_flag = true;
 
       /* A select can carry the strength of a net into a switch. A
@@ -5473,6 +5500,8 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 					 rval->vector_width(), false);
 	    driver->set_line(*this);
 	    driver->whole_vector_delay(whole_vector_delay);
+	    if (sample_delay)
+		  mark_sampled_contassign_delay(*driver);
 	    des->add_node(driver);
 
 	    connect(rval->pin(0), driver->pin(1));
@@ -5719,13 +5748,14 @@ NetNet *elaborate_unpacked_array(Design *des, NetScope *scope, const LineInfo &l
 void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval,
 					NetExpr*rise_time,
 					NetExpr*fall_time,
-					NetExpr*decay_time) const
+					NetExpr*decay_time, bool sample_delay) const
 {
       NetNet *rval_net = elaborate_unpacked_array(des, scope, *this, lval, pin(1));
       if (rval_net) {
 	    assign_unpacked_with_bufz(des, scope, lval, lval, rval_net,
 			      rise_time, fall_time, decay_time,
-			      lval->user_nettype() && delay_count() > 0);
+			      lval->user_nettype() && delay_count() > 0,
+			      sample_delay);
 
 	    /* Keep the source-level assignment for VPI (IEEE 1800-2023 37.47).
 	       The structural driver for each array word is emitted above; the
@@ -59522,7 +59552,7 @@ static void resolve_extern_function_sensitivity_(Design*des)
       deferred_extern_sensitivity_.clear();
 }
 
-Design* elaborate(list<perm_string>roots)
+Design* elaborate(list<perm_string>roots, const map<string,const char*>&flags)
 {
       unsigned npackages = pform_packages.size();
       if (gn_system_verilog())
@@ -59537,6 +59567,7 @@ Design* elaborate(list<perm_string>roots)
       // This is the output design. I fill it in as I scan the root
       // module and elaborate what I find.
       Design*des = new Design;
+      des->set_flags(flags);
       seed_design_precision_(des);
       pending_interface_continuous_drivers_.clear();
       pending_interface_specify_paths_.clear();

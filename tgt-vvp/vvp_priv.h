@@ -1410,6 +1410,8 @@ extern void draw_delay(const void*ptr, unsigned wid, const char*input,
 		       ivl_expr_t rise_exp, ivl_expr_t fall_exp,
 		       ivl_expr_t decay_exp, unsigned per_bit,
 		       unsigned whole_vector);
+extern void draw_sampled_delay(ivl_net_logic_t lptr, unsigned wid,
+			       const char*output_suffix);
 
 /*
  * These functions manage word register allocation.

@@ -137,3 +137,49 @@ void draw_delay(const void*ptr, unsigned wid, const char*input, ivl_expr_t rise_
       draw_delay_with_suffix(ptr, wid, input, rise_exp, fall_exp, decay_exp,
                              per_bit, whole_vector, "");
 }
+
+/* A continuous assignment reads dynamic delays when its RHS changes.
+ * Emit one typed evaluation thunk for each distinct dynamic operand. */
+void draw_sampled_delay(ivl_net_logic_t lptr, unsigned wid,
+			const char*output_suffix)
+{
+      unsigned saved_local_count = local_count;
+      ivl_expr_t exprs[3];
+      unsigned labels[3];
+      unsigned idx, prev;
+
+      assert(!ivl_logic_delay_is_per_bit(lptr));
+      local_count = 0;
+      for (idx = 0; idx < 3; idx += 1) {
+	    exprs[idx] = ivl_logic_delay(lptr, idx);
+	    if (!exprs[idx] || number_is_immediate(exprs[idx], 64, 0))
+		  continue;
+	    for (prev = 0; prev < idx && exprs[prev] != exprs[idx]; prev += 1)
+		  ;
+	    if (prev < idx) {
+		  labels[idx] = labels[prev];
+		  continue;
+	    }
+	    labels[idx] = local_count++;
+	    fprintf(vvp_out, "T_%u.%u ;\n", thread_count, labels[idx]);
+	    if (ivl_expr_value(exprs[idx]) == IVL_VT_REAL)
+		  draw_eval_real(exprs[idx]);
+	    else
+		  draw_eval_vec4(exprs[idx]);
+	    fprintf(vvp_out, "    %%end;\n");
+      }
+
+      fprintf(vvp_out, "L_%p%s .delay/e %u %u L_%p/d", lptr, output_suffix,
+	      wid, ivl_logic_delay_is_whole_vector(lptr), lptr);
+      for (idx = 0; idx < 3 && exprs[idx]; idx += 1) {
+	    if (number_is_immediate(exprs[idx], 64, 0))
+		  fprintf(vvp_out, ", %" PRIu64, get_number_immediate64(exprs[idx]));
+	    else
+		  fprintf(vvp_out, ", \"%c\" T_%u.%u",
+			  ivl_expr_value(exprs[idx]) == IVL_VT_REAL ? 'r' : 'v',
+			  thread_count, labels[idx]);
+      }
+      fprintf(vvp_out, ";\n");
+      thread_count += 1;
+      local_count = saved_local_count;
+}

@@ -2981,6 +2981,54 @@ void compile_delay(char*label, unsigned width,
       free(label);
 }
 
+void compile_delay_expr(char*label, uint64_t width, uint64_t whole_vector,
+			struct symb_s input, struct delay_operand_s*operands)
+{
+      const unsigned count = operands[2].kind ? 3 : 2;
+      __vpiScope*scope = vpip_peek_current_scope();
+      bool valid = scope && width <= UINT_MAX && whole_vector <= 1;
+      bool dynamic = false;
+      vvp_delay_expr_t exprs[3] = {};
+      for (unsigned idx = 0; idx < count; idx += 1) {
+	    const delay_operand_s&op = operands[idx];
+	    if (!op.label) {
+		  exprs[idx].ticks = op.ticks;
+		  continue;
+	    }
+	    __vpiScope*expr_scope = 0;
+	    if ((op.kind != 'v' && op.kind != 'r')
+		|| !compile_lookup_code_scope(op.label, &exprs[idx].code,
+					      &expr_scope, true)
+		|| expr_scope != scope) {
+		  fprintf(stderr, "%s:%u: invalid .delay/e operand %s\n",
+			  yypath, yyline, op.label);
+		  valid = false;
+	    }
+	    exprs[idx].real = op.kind == 'r';
+	    for (unsigned prev = 0; prev < idx; prev += 1)
+		  if (exprs[prev].code == exprs[idx].code
+		      && exprs[prev].real != exprs[idx].real)
+			valid = false;
+	    free(op.label);
+	    dynamic = true;
+      }
+
+      if (valid && dynamic) {
+	    vvp_net_t*net = new vvp_net_t;
+	    vvp_fun_delay*fun = new vvp_fun_delay(net, width, vvp_delay_t(0, 0),
+						 false, whole_vector);
+	    net->fun = fun;
+	    fun->set_delay_exprs(scope, exprs, count);
+	    input_connect(net, 0, input.text);
+	    define_functor_symbol(label, net);
+      } else {
+	    fprintf(stderr, "%s:%u: invalid .delay/e record\n", yypath, yyline);
+	    compile_errors += 1;
+	    free(input.text);
+      }
+      free(label);
+}
+
 /*
  * Extend nodes.
  */

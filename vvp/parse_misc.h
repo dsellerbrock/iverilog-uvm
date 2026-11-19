@@ -60,6 +60,12 @@ struct symb_s {
       unsigned idx;
 };
 
+struct delay_operand_s {
+      char*label;
+      uint64_t ticks;
+      char kind;
+};
+
 struct symbv_s {
       unsigned cnt;
       struct symb_s*vect;

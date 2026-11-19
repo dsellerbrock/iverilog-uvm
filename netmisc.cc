@@ -4265,6 +4265,7 @@ static void assign_unpacked_with_bufz_dim(Design *des, NetScope *scope,
 					  const NetExpr *fall_time,
 					  const NetExpr *decay_time,
 					  bool whole_value_delay,
+					  bool sample_delay,
 					  unsigned int dim = 0,
 					  unsigned int idx_l = 0,
 					  unsigned int idx_r = 0)
@@ -4305,6 +4306,8 @@ static void assign_unpacked_with_bufz_dim(Design *des, NetScope *scope,
 						lval->vector_width(), false);
 		  driver->set_line(*loc);
 		  driver->whole_vector_delay(whole_value_delay);
+		  if (sample_delay)
+			mark_sampled_contassign_delay(*driver);
 		  des->add_node(driver);
 
 		  connect(lval->pin(idx_l), driver->pin(0));
@@ -4316,6 +4319,7 @@ static void assign_unpacked_with_bufz_dim(Design *des, NetScope *scope,
 		  assign_unpacked_with_bufz_dim(des, scope, loc, lval, rval,
 						stride, rise_time, fall_time,
 						decay_time, whole_value_delay,
+						sample_delay,
 						dim + 1, idx_l, idx_r);
 	    }
 
@@ -4330,7 +4334,7 @@ void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 			       const NetExpr*rise_time,
 			       const NetExpr*fall_time,
 			       const NetExpr*decay_time,
-			       bool whole_value_delay)
+			       bool whole_value_delay, bool sample_delay)
 {
       ivl_assert(*loc, lval->pin_count()==rval->pin_count());
 
@@ -4340,7 +4344,7 @@ void assign_unpacked_with_bufz(Design*des, NetScope*scope,
       make_strides(dims, stride);
       assign_unpacked_with_bufz_dim(des, scope, loc, lval, rval, stride,
 				    rise_time, fall_time, decay_time,
-				    whole_value_delay);
+				    whole_value_delay, sample_delay);
 }
 
 /*

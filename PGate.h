@@ -200,9 +200,8 @@ class PGAssign  : public PGate {
 	// empty unless every one of them can be.
       std::vector<NetExpr*> vpi_delays_(Design*des, NetScope*scope) const;
       void elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval,
-				     NetExpr*rise_time = 0,
-				     NetExpr*fall_time = 0,
-				     NetExpr*decay_time = 0) const;
+				     NetExpr*rise_time, NetExpr*fall_time,
+				     NetExpr*decay_time, bool sample_delay) const;
 };
 
 
