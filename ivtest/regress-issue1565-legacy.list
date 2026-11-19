@@ -1,0 +1,2 @@
+issue1565_sdf_timingenv_2017 normal,-g2017,-ginterconnect,-gspecify,-Iivltests ivltests gold=issue1565_sdf_timingenv.gold
+issue1565_sdf_timingenv_2023 normal,-g2023,-ginterconnect,-gspecify,-Iivltests ivltests gold=issue1565_sdf_timingenv.gold
