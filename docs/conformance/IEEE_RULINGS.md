@@ -81,6 +81,12 @@ ruled). A provisional reading an agent built on before a ruling is marked "provi
 | 2026-11-18 | 18.17 | #1173 | Is recursive `randsequence` supported in every language mode, or only in `-g2017` and later? | Every mode that accepts `randsequence`. A recursive production is legal, so `tests/negative/randsequence_recursion.sv` is retired. | owner |
 | 2026-11-18 | 16.12.8, 16.12.2, A.2.10 | #3012 | Do `implies` and `iff` take sequence properties as operands, as well as implication properties? | Yes. Both operands are property expressions, and a sequence expression is a property expression. `tests/negative/sva_implies_sequence_operand.sv` rejected legal code and is retired. | supervisor (explicit IEEE text) |
 | 2026-11-18 | 8.20, 8.24, A.2.7 | #3385 | May a class method prototype leave a formal unnamed while its override or out-of-block implementation names it? | Yes. An omitted name leaves the implementation free to supply one. Where both sides name the formal, the names must still match. | owner |
+| 2026-11-18 | 18.4.1, 18.5.9 | #3537 | How are coupled random `real` values sampled? | Numeric-area uniformity: equal areas of the legal region are equally likely, with rounding that keeps the result legal. | owner |
+| 2026-11-18 | 18.4.1, 18.5.3, 18.6.3 | #3540 | Does `rand shortreal` weight numeric intervals or representable values? | Equal-width numeric intervals are equally likely. A range with no representable value fails and keeps the previous value. | owner |
+| 2026-11-18 | 11.4.14.3, 11.4.14.4 | #3656 | Which bits does `<<` unpack reverse when a `with` count depends on an earlier field? | Known widths reverse the consumed leading prefix. A width that cannot be established independently of the unpacked values is a named diagnostic. | owner |
+| 2026-11-18 | 21.3.3, 6.16 | #3428 | How are zero bytes read in an unpacked byte-array format? | Leading zero bytes are omitted and later ones become spaces before the format is parsed, as for packed formats. | owner |
+| 2026-11-18 | 4.9.5, 28.8, 6.6.7 | #3074 | Does `-g2017` use joint resolution for an enabled switch between nets of one user-defined nettype? | Yes, in every language mode. | owner |
+| 2026-11-18 | 37.47 (2023 37.49), 39.3.2 | #3092 | What source range does an assertion handle report? | One-based columns, from the first character including any label through the final semicolon. Macro-expanded input uses parser positions with the existing logical file and line mapping. | owner |
 
 ## Process rulings
 
