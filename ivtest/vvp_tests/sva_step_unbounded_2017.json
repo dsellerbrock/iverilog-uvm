@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sva_step_unbounded.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["sva_step_unbounded_2017"],
+  "vpi-sources": ["vpi/sva_step_unbounded.c"],
+  "gold": "sva_step_unbounded"
+}

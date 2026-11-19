@@ -2472,6 +2472,10 @@ class __vpiAssertionInst : public __vpiHandle {
       std::string full_;
 };
 
+/* Reserved serials on $ivl_assert_step; see sva_step_wait_op in pform.cc. */
+enum sva_step_wait_op { SVA_STEP_WAIT_ENTER = -1, SVA_STEP_WAIT_TICK = -2,
+			SVA_STEP_WAIT_CLEAR = -3 };
+
 class __vpiAssertion : public __vpiHandle {
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
@@ -2492,9 +2496,10 @@ class __vpiAssertion : public __vpiHandle {
 			: assertion_kind == 2 ? vpiCover : vpiAssert),
 	ctl_dir_(assertion_kind == 4 || assertion_kind == 2 ? assertion_kind : 1)
       {
-	      // 39.4.2: bit1 = the checker reports steps per attempt; bits 8+
-	      // carry the largest clock age a step report names.
+	      // 39.4.2: bit1 = per-attempt steps, bit2 = linear unbounded wait,
+	      // bits 8+ = the largest clock age a step report names.
 	    steps_ok_ = (flags & 2) != 0;
+	    step_wait_ = (flags & 4) != 0;
 	    step_depth_ = steps_ok_ ? (flags >> 8) : -1;
       }
 
@@ -2744,6 +2749,7 @@ class __vpiAssertion : public __vpiHandle {
 		case 5:
 		  enabled_ = false;
 		  kill_generation_ += 1;
+		  if (step_wait_) clear_wait_steps_();
 		    /* 20.11 Kill flushes the pending procedural instances;
 		       matured ones still waiting for their clock are
 		       discarded too (default pending a ruling). */
@@ -2862,6 +2868,8 @@ class __vpiAssertion : public __vpiHandle {
 	    clocks_.push_back(schedule_simtime());
 	    while ((int)clocks_.size() > depth + 1)
 		  clocks_.erase(clocks_.begin());
+	    if (step_wait_)
+		  step_ctl_.erase(step_ctl_.begin(), step_ctl_.lower_bound(clocks_.front()));
       }
 
 	/* IEEE 1800-2023 39.5.2 with the 2026-11-12 ruling (SVA Q7): an
@@ -2909,9 +2917,22 @@ class __vpiAssertion : public __vpiHandle {
 
       void step(int row, int age, int serial)
       {
-	    if (step_ctl_.empty() || row < 1
-		|| (size_t)row > step_rows_.size()) return;
+	    if (step_wait_ && serial == SVA_STEP_WAIT_CLEAR) {
+		  clear_wait_steps_();
+		  return;
+	    }
+	    if (row < 1 || (size_t)row > step_rows_.size()) return;
 	    step_row_t&r = step_rows_[row-1];
+	    if (step_wait_ && serial == SVA_STEP_WAIT_TICK) {
+		    /* A callback can kill/reset the checker and clear the list.
+		       Copy each start time and recheck the size after delivery. */
+		  const size_t count = wait_starts_.size();
+		  for (size_t i = 0; i < count && i < wait_starts_.size(); ++i)
+			deliver_(r.reason, wait_starts_[i], r.from, r.to, r.exprs);
+		  if (r.to == 1) wait_starts_.clear();
+		  return;
+	    }
+	    if (step_ctl_.empty()) return;
 	    vvp_time64_t start_raw;
 	    if (serial > 0) {
 		  std::map<int,vvp_time64_t>::const_iterator it =
@@ -2923,9 +2944,15 @@ class __vpiAssertion : public __vpiHandle {
 	    } else {
 		  return;
 	    }
-	    std::map<vvp_time64_t,bool>::const_iterator on =
-		  step_ctl_.find(start_raw);
+	    auto on = step_ctl_.find(start_raw);
 	    if (on == step_ctl_.end() || !on->second) return;
+	    if (step_wait_ && serial == SVA_STEP_WAIT_ENTER) {
+		    /* At the first eligible tick, acceptance ends the attempt.
+		       A miss hands its identity off from the clock history. */
+		  if (r.reason == cbAssertionStepSuccess && r.to != 1)
+			wait_starts_.push_back(start_raw);
+		  step_ctl_.erase(on);
+	    }
 	    deliver_(r.reason, start_raw, r.from, r.to, r.exprs);
       }
 
@@ -3028,6 +3055,16 @@ class __vpiAssertion : public __vpiHandle {
       }
 
     private:
+      void clear_wait_steps_()
+      {
+	    wait_starts_.clear();
+	      /* Preserve requests for attempts that have yet to begin. */
+	    const vvp_time64_t now = schedule_simtime();
+	    auto end = step_ctl_.lower_bound(now);
+	    if (end != step_ctl_.end() && end->first == now && end->second) ++end;
+	    step_ctl_.erase(step_ctl_.begin(), end);
+      }
+
       void deliver_(int reason, vvp_time64_t start_raw, int from, int to,
 		    const std::vector<vpiHandle>&exprs)
       {
@@ -3087,7 +3124,7 @@ class __vpiAssertion : public __vpiHandle {
 	    in_start_ = true;
 	    fire_(reason, age);
 	    in_start_ = false;
-	    if (step_ctl_.count(now)) serial_start_[attempts_] = now;
+	    if (!step_wait_ && step_ctl_.count(now)) serial_start_[attempts_] = now;
       }
 
 	/* Fire every registered callback whose reason matches. age < 0 keeps
@@ -3215,15 +3252,17 @@ class __vpiAssertion : public __vpiHandle {
       bool pass_vacuous_ = true;
       std::vector<vvp_time64_t> starts_;  // M12-2: recent attempt starts
       std::vector<vvp_time64_t> clocks_;  // Raw sampled times, including off gaps
-	/* 39.5.2 per-attempt stepping. ponytail: entries for started
-	   attempts are kept for the run; they are bounded by the number of
-	   EnableStep calls, not by simulation length. */
+	/* 39.5.2 per-attempt stepping. Linear final waits retire requests
+	   at handoff or when the clock history ages out. Serial callers
+	   retain the existing start records for the run. */
       bool steps_ok_ = false;
+      bool step_wait_ = false;
       bool steps_refused_ = false;
       int step_depth_ = -1;
       bool in_start_ = false;
       vvp_time64_t start_now_ = ~(vvp_time64_t)0;
       std::map<vvp_time64_t,bool> step_ctl_;
+      std::vector<vvp_time64_t> wait_starts_;  // Mature, step-enabled attempts
       std::map<int,vvp_time64_t> serial_start_;
       std::map<std::string,vpiHandle> step_exprs_;
       struct step_row_t {
