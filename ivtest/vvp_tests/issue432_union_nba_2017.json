@@ -1,0 +1,8 @@
+{
+  "type": "RE",
+  "source": "issue432_union_nba_2017.v",
+  "iverilog-args": [
+    "-g2017"
+  ],
+  "gold": "sv_function_deferred_nba_context_fail"
+}

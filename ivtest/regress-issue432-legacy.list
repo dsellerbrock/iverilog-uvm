@@ -1,0 +1,9 @@
+# IEEE 1800-2017/2023 10.3.2 and 13.4.4 continuous-assignment NBA contexts
+issue432_struct_nba_2017 RE,-g2017 ivltests gold=sv_function_deferred_nba_context_fail.gold
+issue432_struct_nba_2023 RE,-g2023,-I./ivltests ivltests gold=sv_function_deferred_nba_context_fail.gold
+issue432_union_nba_2017 RE,-g2017 ivltests gold=sv_function_deferred_nba_context_fail.gold
+issue432_union_nba_2023 RE,-g2023,-I./ivltests ivltests gold=sv_function_deferred_nba_context_fail.gold
+issue432_nettype_nba_2017 RE,-g2017 ivltests gold=sv_function_deferred_nba_context_fail.gold
+issue432_nettype_nba_2023 RE,-g2023,-I./ivltests ivltests gold=sv_function_deferred_nba_context_fail.gold
+issue432_struct_nba_ok_2017 normal,-g2017 ivltests
+issue432_struct_nba_ok_2023 normal,-g2023,-I./ivltests ivltests
