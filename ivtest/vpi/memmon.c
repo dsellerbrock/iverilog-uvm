@@ -1,3 +1,4 @@
+#define VPI_COMPATIBILITY_VERSION_1364v1995 1
 # include  <vpi_user.h>
 # include  <stdlib.h>
 
