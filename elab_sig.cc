@@ -3370,6 +3370,8 @@ bool PGModule::elaborate_sig_mod_(Design*des, NetScope*scope,
 
       }
 
+      if (flag && gn_system_verilog() && !instance.empty())
+	    note_variable_array_port_actuals_(scope, rmod, instance.front());
       return flag;
 }
 

@@ -352,6 +352,8 @@ class PGModule  : public PGate {
       void elaborate_scope_mod_(Design*des, Module*mod, NetScope*sc) const;
       void elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*sc) const;
       bool elaborate_sig_mod_(Design*des, NetScope*scope, const Module*mod) const;
+      void note_variable_array_port_actuals_(NetScope*scope,
+					    const Module*mod, NetScope*instance) const;
 	// Not currently used.
 #if 0
       bool elaborate_sig_udp_(Design*des, NetScope*scope, PUdp*udp) const;

@@ -3338,11 +3338,128 @@ static vector<pending_variable_continuous_driver_t>
 struct pending_variable_array_continuous_driver_t {
       NetNet*signal;
       vector<unsigned> words;
-      const LineInfo*location;
+      unsigned msb;
+      unsigned lsb;
+      LineInfo location;
 };
 
 static vector<pending_variable_array_continuous_driver_t>
       pending_variable_array_continuous_drivers_;
+
+struct variable_array_port_actual_t {
+      NetScope*scope;
+      const PEIdent*ident;
+      perm_string wildcard_name;
+      const LineInfo*location;
+};
+
+static vector<variable_array_port_actual_t> variable_array_port_actuals_;
+static set<const NetNet*> retained_variable_arrays_;
+
+bool retains_variable_array_storage(const NetNet*signal)
+{
+      return retained_variable_arrays_.count(signal) != 0;
+}
+
+static bool is_fixed_variable_array_(const NetNet*signal)
+{
+      return signal && signal->unpacked_dimensions() > 0
+	    && (signal->type() == NetNet::REG || signal->type() == NetNet::IMPLICIT_REG)
+	    && !signal->user_nettype() && !signal->is_interconnect()
+	    && (signal->data_type() == IVL_VT_LOGIC
+		|| signal->data_type() == IVL_VT_BOOL
+		|| signal->data_type() == IVL_VT_REAL);
+}
+
+void PGModule::note_variable_array_port_actuals_(
+      NetScope*scope, const Module*mod, NetScope*instance) const
+{
+      vector<const PExpr*> actuals(mod->port_count(), nullptr);
+      vector<bool> explicit_actual(mod->port_count(), false);
+      bool wildcard = false;
+      if (pins_) {
+	    for (unsigned pin = 0; pin < npins_; ++pin) {
+		  if (pins_[pin].name[0] == '*') {
+			wildcard = true;
+			continue;
+		  }
+		  unsigned idx = mod->find_port(pins_[pin].name);
+		  if (idx < actuals.size()) {
+			actuals[idx] = pins_[pin].parm;
+			explicit_actual[idx] = true;
+		  }
+	    }
+      } else {
+	    for (unsigned idx = 0; idx < min(pin_count(), mod->port_count()); ++idx)
+		  actuals[idx] = pin(idx);
+      }
+
+      for (unsigned idx = 0; idx < mod->port_count(); ++idx) {
+	    const PEIdent*ident = dynamic_cast<const PEIdent*>(actuals[idx]);
+	    bool implicit = wildcard && !explicit_actual[idx];
+	    if (!ident && !implicit)
+		  continue;
+	    const auto&formals = mod->get_port(idx);
+	    if (formals.size() != 1)
+		  continue;
+	    NetNet*formal = instance->find_signal(peek_tail_name(formals[0]->path().name));
+	    if (!formal || formal->port_type() != NetNet::POUTPUT
+		|| (!is_array() && !formal->unpacked_dimensions()))
+		  continue;
+	    variable_array_port_actuals_.push_back({
+		  scope, ident, mod->get_port_name(idx), this
+	    });
+      }
+}
+
+/* Mark array actuals before any structural assignment can coerce their
+ * backing variable to a wire. Resolve the names after all signals exist
+ * so a hierarchical actual is independent of elaboration order. */
+static void mark_variable_array_port_actuals_(Design*des)
+{
+      for (const auto&entry : variable_array_port_actuals_) {
+	    symbol_search_results result;
+	    if (entry.ident) {
+		  symbol_search(entry.ident, des, entry.scope, entry.ident->path(),
+				entry.ident->lexical_pos(), &result);
+	    } else {
+		  pform_name_t path(1, name_component_t(entry.wildcard_name));
+		  symbol_search(entry.location, des, entry.scope, path, UINT_MAX, &result);
+	    }
+	    if (result.path_tail.empty() && is_fixed_variable_array_(result.net))
+		  retained_variable_arrays_.insert(result.net);
+      }
+      variable_array_port_actuals_.clear();
+}
+
+bool reserve_variable_array_driver(Design*des, const LineInfo&loc,
+				  NetNet*signal, unsigned msb, unsigned lsb,
+				  vector<unsigned> words, bool repeated)
+{
+      for (unsigned word : words) {
+	    if (repeated || signal->test_part_driven(msb, lsb, word)) {
+		  cerr << loc.get_fileline() << ": error: Variable '" << signal->name()
+		       << "' cannot have multiple continuous drivers." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+	    if (signal->test_part_procedurally_driven(msb, lsb, word)) {
+		  cerr << loc.get_fileline() << ": error: Variable '" << signal->name()
+		       << "' cannot have continuous and procedural drivers on the "
+		          "same bits." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
+      }
+      for (unsigned word : words) {
+	    bool overlap = signal->test_and_set_part_driver(msb, lsb, word);
+	    ivl_assert(loc, !overlap);
+      }
+      pending_variable_array_continuous_drivers_.push_back({
+	    signal, std::move(words), msb, lsb, loc
+      });
+      return true;
+}
 
 /* The commercial-unsafe compatibility path is deliberately closed-world:
  * only a write in an uncalled task body of the SAME concrete interface
@@ -4158,16 +4275,16 @@ static void finalize_interface_continuous_drivers_(Design*des)
 
       for (const pending_variable_array_continuous_driver_t&pending :
 	   pending_variable_array_continuous_drivers_) {
-	    unsigned msb = pending.signal->vector_width() - 1;
 	    bool conflict = false;
 	    for (unsigned word : pending.words) {
-		  if (pending.signal->test_part_procedurally_driven(msb, 0, word)) {
+		  if (pending.signal->test_part_procedurally_driven(
+			pending.msb, pending.lsb, word)) {
 			conflict = true;
 			break;
 		  }
 	    }
 	    if (conflict) {
-		  cerr << pending.location->get_fileline()
+		  cerr << pending.location.get_fileline()
 		       << ": error: Variable '" << pending.signal->name()
 		       << "' cannot have continuous and procedural drivers on the "
 			  "same bits." << endl;
@@ -5597,7 +5714,10 @@ void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval
 	       record retains the whole-array operands. */
 	    NetScope::contassign_t contassign;
 	    contassign.set_line(*this);
-	    contassign.lval = new NetESignal(lval);
+	    contassign.lval = lval->attribute(perm_string::literal(
+		  "_ivl_variable_array_driver")).as_ulong()
+		  ? elaborate_for_vpi(des, scope, const_cast<PExpr*>(pin(0)))
+		  : new NetESignal(lval);
 	    contassign.rval = new NetESignal(rval_net);
 	    for (unsigned idx = 0; idx < lval->pin_count(); idx += 1) {
 		  for (const Link*cur = lval->pin(idx).nexus()->first_nlink()
@@ -7033,9 +7153,6 @@ static bool connect_dominated_wire_port(Design*des, const LineInfo&loc,
 
 static bool unpacked_array_shapes_match_(const netranges_t&formal,
 					 const netranges_t&actual);
-static bool elaborate_variable_array_output_port_(
-		Design*des, NetScope*scope, NetNet*port_net,
-		const PEIdent*actual, unsigned port_idx);
 
 void elaborate_unpacked_port(Design *des, NetScope *scope, NetNet *port_net,
 			     PExpr *expr, NetNet::PortType port_type,
@@ -7043,13 +7160,6 @@ void elaborate_unpacked_port(Design *des, NetScope *scope, NetNet *port_net,
 {
       PEIdent*output_ident = port_type == NetNet::POUTPUT
 	    ? dynamic_cast<PEIdent*>(expr) : nullptr;
-
-	/* A selected output connection to a variable array is a continuous
-	 * assignment to the selected array elements. Keep the backing array as
-	 * variable storage so untouched elements retain their 6.8 default value. */
-      if (output_ident && elaborate_variable_array_output_port_(
-		    des, scope, port_net, output_ident, port_idx))
-	    return;
 
       NetNet *expr_net = output_ident
 	    ? output_ident->elaborate_lnet(des, scope, true)
@@ -7531,11 +7641,20 @@ struct fixed_array_port_actual_t {
       }
 };
 
+enum class fixed_array_port_use { INPUT, OUTPUT, VARIABLE_OUTPUT };
+
 // 0 leaves ordinary expressions to the usual port elaborator.
 static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 					   const PExpr*expr,
 					   fixed_array_port_actual_t&out,
-					   bool output_net = false);
+					   fixed_array_port_use use =
+						 fixed_array_port_use::INPUT);
+
+static void append_variable_array_store_(
+      NetBlock*block, const LineInfo&loc, NetNet*dst, unsigned dst_word,
+      NetNet*src, unsigned src_word, unsigned lsb, unsigned width);
+static void elaborate_variable_array_output_port_(
+      Design*des, NetScope*scope, const LineInfo&loc, NetBlock*copy);
 
 static NetNet* read_instance_array_input_word_(
       Design*des, NetScope*scope, const LineInfo&loc,
@@ -7743,19 +7862,24 @@ static bool elaborate_instance_array_input_(
       return true;
 }
 
-/* IEEE 1800-2017/2023 23.3.3.5: bind an unpacked net output actual
- * either to every instance or to distinct rows in declaration order. */
-static bool elaborate_instance_array_net_output_(
+/* IEEE 1800-2017/2023 23.3.3.5: bind an unpacked output actual either to
+ * every instance or to distinct rows in declaration order. */
+static bool elaborate_fixed_array_output_(
       Design*des, NetScope*scope, const vector<NetNet*>&formals,
-      const PExpr*expr, const Module*mod, unsigned port_idx, bool implicit)
+      const PExpr*expr, const Module*mod, unsigned port_idx, bool implicit,
+      bool instance_array)
 {
+      const bool unpacked_formal = formals.front()->unpacked_dimensions() > 0;
       fixed_array_port_actual_t view;
-      int decoded = decode_fixed_array_port_actual_(des, scope, expr, view, true);
+      int decoded = decode_fixed_array_port_actual_(des, scope, expr, view,
+	    instance_array && unpacked_formal ? fixed_array_port_use::OUTPUT
+					     : fixed_array_port_use::VARIABLE_OUTPUT);
       if (decoded < 0)
 	    return true;
       NetNet*actual = view.signal;
-      if (!actual)
+      if (!actual || (!decoded && !unpacked_formal))
 	    return false;
+      const bool variable_actual = is_fixed_variable_array_(actual);
 
       perm_string port_name = mod->get_port_name(port_idx);
       const auto report_error = [&](const char*reason) {
@@ -7767,10 +7891,12 @@ static bool elaborate_instance_array_net_output_(
       };
 
       const auto&actual_dims = view.dims;
-      const bool split = actual_dims.size() ==
+      const bool split = instance_array && actual_dims.size() ==
 	    formals.front()->unpacked_dimensions() + 1;
       if (!decoded || (split && actual_dims.front().width() != formals.size()))
 	    return report_error("incompatible unpacked-array dimensions");
+      if (variable_actual && (view.base_expr || view.slice_base_expr))
+	    return report_error("a nonconstant unpacked-array output selector");
 
       const netranges_t element_dims(actual_dims.begin() + (split ? 1 : 0),
 				     actual_dims.end());
@@ -7800,9 +7926,16 @@ static bool elaborate_instance_array_net_output_(
 							 formal, mod, port_name))
 		  return true;
 	    ivl_type_t src_type = formal->net_type();
-	    if (!src_type->type_equivalent(dst_type)
-		|| !dst_type->type_equivalent(src_type))
+	    const bool scalar_conversion = variable_actual && !unpacked_formal
+		  && !implicit && !actual->enumeration()
+		  && (type_is_vectorable(formal->data_type())
+		      || formal->data_type() == IVL_VT_REAL)
+		  && !ivl_type_contains_chandle_(src_type);
+	    if (!scalar_conversion && (!src_type->type_equivalent(dst_type)
+		|| !dst_type->type_equivalent(src_type)))
 		  return report_error("an incompatible unpacked-array element type");
+	    if (variable_actual && formal->is_interconnect())
+		  return report_error("a variable actual on an interconnect port");
 	    if (actual_udnt && formal->user_nettype()
 		&& actual_udnt != formal->user_nettype())
 		  return report_error("incompatible user-defined nettypes");
@@ -7815,8 +7948,18 @@ static bool elaborate_instance_array_net_output_(
       if (view.invalid_index)
 	    return true;
 
-      // Reserve on the declared l-value before following any delay boundary.
-      if (actual->type() == NetNet::UNRESOLVED_WIRE) {
+      // Reserve on the original words before emitting any port drivers.
+      if (variable_actual) {
+	    vector<unsigned> words;
+	    const unsigned long count = netrange_width(actual_dims);
+	    words.reserve(count);
+	    for (unsigned long word = 0; word < count; ++word)
+		  words.push_back(view.backing_word(word));
+	    if (!reserve_variable_array_driver(des, *expr, actual,
+		  actual->vector_width() - 1, 0, std::move(words),
+		  !split && formals.size() > 1))
+		  return true;
+      } else if (actual->type() == NetNet::UNRESOLVED_WIRE) {
 	    const bool repeated = !split && formals.size() > 1;
 	    const unsigned long count = netrange_width(actual_dims);
 	    const unsigned msb = actual->vector_width() - 1;
@@ -7840,6 +7983,8 @@ static bool elaborate_instance_array_net_output_(
       NetNet*target = delay_driver_net(actual);
       unsigned long instance_base = 0;
       for (NetNet*formal : formals) {
+	    NetBlock*copy = variable_actual ? new NetBlock(NetBlock::SEQU, 0)
+					   : nullptr;
 	    const bool variable = is_variable_output_port_(formal);
 	    const bool merge = (actual_udnt && actual_udnt == formal->user_nettype())
 		  || actual->is_interconnect() || formal->is_interconnect();
@@ -7849,6 +7994,12 @@ static bool elaborate_instance_array_net_output_(
 			formal->unpacked_dims(), ordinal);
 		  unsigned long dst = unpacked_array_ltr_word_(
 			actual_dims, instance_base + ordinal);
+		  if (copy) {
+			append_variable_array_store_(copy, *expr, actual,
+			      view.backing_word(dst), formal, src, 0,
+			      actual->vector_width());
+			continue;
+		  }
 		  Link&source = formal->pin(src);
 		  Link&sink = target->pin(view.backing_word(dst));
 		  if (merge) {
@@ -7867,6 +8018,8 @@ static bool elaborate_instance_array_net_output_(
 		  connect(driver->pin(0), sink);
 		  connect(driver->pin(1), source);
 	    }
+	    if (copy)
+		  elaborate_variable_array_output_port_(des, scope, *expr, copy);
 	    if (split)
 		  instance_base += formal->pin_count();
       }
@@ -9231,6 +9384,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						    pins_implicit[idx]))
 		  continue;
 
+	    if (gn_system_verilog() && ptype == NetNet::POUTPUT && mport.size() == 1
+		&& (is_array() || prts[0]->unpacked_dimensions())
+		&& elaborate_fixed_array_output_(des, scope, prts, pins[idx], rmod,
+						  idx, pins_implicit[idx], is_array()))
+		  continue;
+
 	    /* Retain the scalar output and inout mapping for whole unpacked
 	       actuals. Input array connections are handled above. */
 	    bool instance_array_actual = false;
@@ -9249,25 +9408,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	                        if (!formal || formal->unpacked_dimensions() != 0
 	                            || formal->vector_width() != actual->vector_width())
 	                              matching = false;
-	                  if (matching) {
-	                        bool output_ok = true;
-	                        if (ptype == NetNet::POUTPUT
-	                            && actual->type() == NetNet::REG) {
-	                              if (actual->peek_lref() > 0) {
-	                                    cerr << pins[idx]->get_fileline()
-	                                         << ": error: Cannot connect port `"
-	                                         << port_name << "' to variable `"
-	                                         << actual->name()
-	                                         << "'. This conflicts with a procedural "
-	                                            "assignment." << endl;
-	                                    des->errors += 1;
-	                                    output_ok = false;
-	                              } else {
-	                                    actual->type(NetNet::UNRESOLVED_WIRE);
-	                              }
-	                        }
-	                        if (!output_ok)
-	                              continue;
+	                  if (matching && (ptype != NetNet::POUTPUT
+	                                   || actual->type() != NetNet::REG)) {
 	                        for (unsigned inst = 0; inst < instance.size();
 	                             inst += 1) {
 	                              unsigned word = unpacked_array_ltr_word_(
@@ -9573,11 +9715,6 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // "r-value" expression, but since this is an
 		    // output port, we assign to it from the internal object.
 		  if (prts[0]->unpacked_dimensions() > 0) {
-			if (gn_system_verilog() && is_array() && mport.size() == 1
-			    && elaborate_instance_array_net_output_(des, scope, prts,
-							pins[idx], rmod, idx,
-							pins_implicit[idx]))
-			      continue;
 			elaborate_unpacked_port(des, scope, prts[0], pins[idx],
 						ptype, rmod, idx);
 			continue;
@@ -9882,6 +10019,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 	    } else if (sig->vector_width()==prts_vector_width/instance.size()
 		       && prts.size()/instance.size() == 1) {
+		  if (ptype == NetNet::POUTPUT && sig->attribute(perm_string::literal(
+			    "_ivl_variable_array_driver")).as_ulong()) {
+			cerr << pins[idx]->get_fileline() << ": error: Variable array "
+			     << "output actual cannot have multiple continuous drivers."
+			     << endl;
+			des->errors += 1;
+			continue;
+		  }
 
 		  if (debug_elaborate){
 			cerr << get_fileline() << ": debug: " << get_name()
@@ -11839,243 +11984,88 @@ static NetProc* make_fixed_uarray_signal_copy_(Design*des, NetScope*scope,
       return result;
 }
 
-/* Copy a fixed unpacked-array output port into a constant-prefix selection
- * of a variable array. The ordinary structural port path turns the backing
- * variable into a net; using variable word stores here leaves every
- * unselected element in its declared storage with its default value. */
-static NetProc* make_uarray_partial_output_copy_(
-		NetScope*scope, const LineInfo&loc, NetNet*dst_sig,
-		const list<long>&dst_prefix, NetNet*src_sig)
+/* Store the mapped word while retaining the variable's procedural storage.
+ * The reservation on the original variable represents this continuous
+ * driver, so its generated store is excluded from procedural accounting. */
+static void append_variable_array_store_(
+      NetBlock*block, const LineInfo&loc, NetNet*dst, unsigned dst_word,
+      NetNet*src, unsigned src_word, unsigned lsb, unsigned width)
 {
-      const netuarray_t*dst_type =
-	    dynamic_cast<const netuarray_t*>(dst_sig->array_type());
-      const netuarray_t*src_type =
-	    dynamic_cast<const netuarray_t*>(src_sig->array_type());
-      ivl_assert(loc, dst_type && src_type);
-      const netranges_t&dst_dims = dst_type->static_dimensions();
-      const netranges_t&src_dims = src_type->static_dimensions();
-      ivl_assert(loc, dst_prefix.size() < dst_dims.size());
-      ivl_assert(loc, src_dims.size() == dst_dims.size() - dst_prefix.size());
-
-      vector<NetNet*>ordinals(src_dims.size(), static_cast<NetNet*>(0));
-      list<NetExpr*>dst_indices;
-      list<NetExpr*>src_indices;
-      for (long index : dst_prefix) {
-	    NetEConst*prefix_index = make_const_val_s(index);
-	    prefix_index->set_line(loc);
-	    dst_indices.push_back(prefix_index);
-      }
-
-      for (size_t dim = 0; dim < src_dims.size(); dim += 1) {
-	    NetNet*ordinal = new NetNet(scope, scope->local_symbol(),
-					 NetNet::REG, &netvector_t::atom2s32);
-	    ordinal->local_flag(true);
-	    ordinal->set_line(loc);
-	    ordinals[dim] = ordinal;
-	    dst_indices.push_back(make_uarray_declared_index_(
-		  loc, ordinal, dst_dims[dst_prefix.size() + dim]));
-	    src_indices.push_back(make_uarray_declared_index_(
-		  loc, ordinal, src_dims[dim]));
-      }
-
-      NetExpr*dst_word = normalize_variable_unpacked(loc, dst_type,
-						      dst_indices);
-      NetExpr*src_word = normalize_variable_unpacked(loc, src_type,
-						      src_indices);
-      ivl_assert(loc, dst_word && src_word);
-
-      NetAssign_*lv = new NetAssign_(dst_sig);
-      lv->set_word(dst_word);
-	/* This process implements the continuous port assignment itself. Keep
-	 * its writes out of the variable/procedural-driver overlap query. */
+      NetAssign_*lv = new NetAssign_(dst);
+      lv->set_word(make_const_val_s(dst_word));
+      if (lsb || width != dst->vector_width())
+	    lv->set_part(make_const_val_s(lsb), width);
       lv->mark_force_lval();
-      NetESignal*rv = new NetESignal(src_sig, src_word);
-      rv->set_line(loc);
-      NetAssign*leaf = new NetAssign(lv, rv);
-      leaf->set_line(loc);
 
-      NetProc*result = leaf;
-      for (size_t dim = src_dims.size(); dim > 0; dim -= 1) {
-	    NetNet*ordinal = ordinals[dim-1];
-	    NetEConst*init_expr = make_const_val_s(0);
-	    init_expr->set_line(loc);
-	    NetESignal*cond_idx = new NetESignal(ordinal);
-	    cond_idx->set_line(loc);
-	    NetEConst*count_expr = make_const_val_s(src_dims[dim-1].width());
-	    count_expr->set_line(loc);
-	    NetEBComp*cond_expr = new NetEBComp('<', cond_idx, count_expr);
-	    cond_expr->set_line(loc);
-
-	    NetAssign_*step_lv = new NetAssign_(ordinal);
-	    NetEConst*step_val = make_const_val_s(1);
-	    step_val->set_line(loc);
-	    NetAssign*step = new NetAssign(step_lv, '+', step_val);
-	    step->set_line(loc);
-
-	    NetForLoop*loop = new NetForLoop(ordinal, init_expr, cond_expr,
-					       result, step);
-	    loop->set_line(loc);
-	    result = loop;
+      NetExpr*value = src->unpacked_dimensions()
+	    ? new NetESignal(src, make_const_val_s(src_word))
+	    : new NetESignal(src);
+      value->set_line(loc);
+      if (dst->data_type() == IVL_VT_REAL) {
+	    value = cast_to_real(value);
+      } else {
+	    value = cast_to_int4(value, width);
+	    value = cast_to_width(value, width, value->has_sign(), loc);
+	    if (dst->data_type() == IVL_VT_BOOL)
+		  value = cast_to_int2(value, width);
       }
 
-      return result;
+      NetAssign*store = new NetAssign(lv, value);
+      store->set_line(loc);
+      block->append(store);
 }
 
-static bool elaborate_variable_array_output_port_(
-		Design*des, NetScope*scope, NetNet*port_net,
-		const PEIdent*actual, unsigned port_idx)
+static void set_combinational_schedule_push_(NetProcTop*top);
+
+static void elaborate_variable_array_output_port_(
+      Design*des, NetScope*scope, const LineInfo&loc, NetBlock*copy)
 {
-      if (!port_net || !actual
-	  || (port_net->type() != NetNet::REG
-	      && port_net->type() != NetNet::IMPLICIT_REG)
-	  || port_net->unpacked_dimensions() == 0)
-	    return false;
-
-      const pform_scoped_name_t&path = actual->path();
-      if (path.package || path.name.size() != 1
-	  || path.name.front().index.empty())
-	    return false;
-      const name_component_t&tail = path.name.front();
-
-      symbol_search_results sr;
-      if (!symbol_search(actual, des, scope, path, actual->lexical_pos(), &sr)
-	  || !sr.net || !sr.path_tail.empty())
-	    return false;
-      NetNet*signal = sr.net;
-      if ((signal->type() != NetNet::REG
-	   && signal->type() != NetNet::IMPLICIT_REG)
-	  || signal->unpacked_dimensions() <= tail.index.size()
-	  || (signal->data_type() != IVL_VT_LOGIC
-	      && signal->data_type() != IVL_VT_BOOL))
-	    return false;
-
-      for (const index_component_t&index : tail.index)
-	    if (index.sel != index_component_t::SEL_BIT)
-		  return false;
-
-      indices_flags flags;
-      list<NetExpr*>index_exprs;
-      list<long>prefix_indices;
-      unsigned errors_before = des->errors;
-      indices_to_expressions(des, scope, actual, tail.index,
-			     tail.index.size(), true, flags,
-			     index_exprs, prefix_indices);
-      for (NetExpr*index : index_exprs)
-	    delete index;
-      if (flags.invalid)
-	    return des->errors != errors_before;
-      if (flags.variable || flags.undefined
-	  || prefix_indices.size() != tail.index.size())
-	    return false;
-
-      NetExpr*base_expr = normalize_variable_unpacked(signal, prefix_indices);
-      const NetEConst*base_const = dynamic_cast<const NetEConst*>(base_expr);
-      if (!base_const || !base_const->value().is_defined()) {
-	    delete base_expr;
-	    return false;
-      }
-      long base = base_const->value().as_long();
-      delete base_expr;
-
-      const netuarray_t*actual_type =
-	    dynamic_cast<const netuarray_t*>(signal->array_type());
-      const netuarray_t*port_type =
-	    dynamic_cast<const netuarray_t*>(port_net->array_type());
-      if (!actual_type || !port_type)
-	    return false;
-      const netranges_t&actual_dims = actual_type->static_dimensions();
-      const netranges_t&port_dims = port_type->static_dimensions();
-      netranges_t suffix_dims(actual_dims.begin() + tail.index.size(),
-			      actual_dims.end());
-      if (!unpacked_array_shapes_match_(port_dims, suffix_dims)
-	  || !port_net->net_type()->type_equivalent(signal->net_type()))
-	    return false;
-
-      if (signal->get_const()) {
-	    cerr << actual->get_fileline()
-		 << ": error: Continuous assignment to const signal `"
-		 << signal->name() << "` is not allowed." << endl;
-	    des->errors += 1;
-	    return true;
-      }
-
-      unsigned long count = port_net->pin_count();
-      if (base < 0 || static_cast<unsigned long>(base) > signal->pin_count()
-	  || count > signal->pin_count() - static_cast<unsigned long>(base))
-	    return false;
-      unsigned msb = signal->vector_width() - 1;
-      vector<unsigned>words;
-      words.reserve(count);
-      for (unsigned long offset = 0; offset < count; offset += 1) {
-	    unsigned word = static_cast<unsigned>(base + offset);
-	    if (signal->test_part_driven(msb, 0, word)) {
-		  cerr << actual->get_fileline() << ": error: Variable '"
-		       << signal->name()
-		       << "' cannot have multiple continuous drivers." << endl;
-		  des->errors += 1;
-		  return true;
-	    }
-	    if (signal->test_part_procedurally_driven(msb, 0, word)) {
-		  cerr << actual->get_fileline() << ": error: Variable '"
-		       << signal->name()
-		       << "' cannot have continuous and procedural drivers on the "
-			  "same bits." << endl;
-		  des->errors += 1;
-		  return true;
-	    }
-	    words.push_back(word);
-      }
-      for (unsigned word : words) {
-	    bool overlap = signal->test_and_set_part_driver(msb, 0, word);
-	    ivl_assert(*actual, !overlap);
-      }
-
-      NetProc*copy = make_uarray_partial_output_copy_(
-	    scope, *actual, signal, prefix_indices, port_net);
-      if (!copy) {
-	    cerr << actual->get_fileline() << ": error: Unable to lower output "
-		 << "port " << port_idx+1 << " to variable array `"
-		 << signal->name() << "'." << endl;
-	    des->errors += 1;
-	    return true;
-      }
-
+      copy->set_line(loc);
       PEventStatement wait(true);
-      wait.set_line(*actual);
+      wait.set_line(loc);
       NetProc*body = wait.elaborate_st(des, scope, copy);
       if (!body) {
 	    delete copy;
-	    cerr << actual->get_fileline() << ": error: Unable to derive "
-		 << "sensitivity for output port " << port_idx+1
-		 << " connected to variable array `" << signal->name() << "'."
-		 << endl;
-	    des->errors += 1;
-	    return true;
+	    return;
       }
 
       NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
-      top->set_line(*actual);
+      top->set_line(loc);
       top->attribute(perm_string::literal("_ivl_function_background_ok"),
 		     verinum(1));
-      if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
-	    if (event_wait->nevents() == 1) {
-		  NetEvent*event = event_wait->event(0);
-		  bool anyedge = event->nprobe() != 0;
-		  for (unsigned idx = 0; anyedge && idx < event->nprobe(); idx += 1)
-			if (event->probe(idx)->edge() != NetEvProbe::ANYEDGE)
-			      anyedge = false;
-		  if (anyedge)
-			top->attribute(perm_string::literal("_ivl_schedule_push"),
-				       verinum(1));
-	    }
-      }
+      set_combinational_schedule_push_(top);
       des->add_process(top);
+}
 
-      pending_variable_array_continuous_driver_t pending = {
-	    signal, words, actual
-      };
-      pending_variable_array_continuous_drivers_.push_back(pending);
-      return true;
+/* Ordinary structural drivers of a retained array use a net with the
+ * shape of the selected l-value. Give the caller a separate view so it can
+ * discard its local l-net after connecting the driver. */
+NetNet* make_variable_array_driver_bridge(
+      Design*des, NetScope*scope, const LineInfo&loc, NetNet*signal,
+      const netranges_t&dims, ivl_type_t type, unsigned first_word, unsigned lsb)
+{
+      NetNet*bridge = new NetNet(scope, scope->local_symbol(), NetNet::WIRE,
+				 dims, type);
+      bridge->set_line(loc);
+      bridge->local_flag(true);
+      bridge->attribute(perm_string::literal("_ivl_implicit_sensitivity"),
+			verinum(1));
+
+      NetNet*view = new NetNet(scope, scope->local_symbol(), NetNet::WIRE,
+			       dims, type);
+      view->set_line(loc);
+      view->local_flag(true);
+      view->attribute(perm_string::literal("_ivl_variable_array_driver"),
+		      verinum(1));
+
+      NetBlock*copy = new NetBlock(NetBlock::SEQU, 0);
+      for (unsigned word = 0; word < bridge->pin_count(); ++word) {
+	    connect(view->pin(word), bridge->pin(word));
+	    append_variable_array_store_(copy, loc, signal, first_word + word,
+		  bridge, word, lsb, bridge->vector_width());
+      }
+      elaborate_variable_array_output_port_(des, scope, loc, copy);
+      return view;
 }
 
 /* A fixed partial-prefix source and destination have compile-time word
@@ -12251,12 +12241,34 @@ static NetExpr* make_uarray_dynamic_prefix_word_(const LineInfo&loc,
 	return word;
 }
 
+/* Lowering a subarray assignment to word stores can introduce an internal
+ * run-time index even when the source l-value has a static word range. */
+static void preserve_array_write_range_(NetAssign_*store, const NetAssign_*original)
+{
+      if (original->has_array_word_prefix()) {
+	    store->set_array_word_prefix(original->array_word_first(),
+					  original->array_word_count());
+      } else if (original->is_array_slice()) {
+	    const NetEConst*base = dynamic_cast<const NetEConst*>(original->word());
+	    if (!base)
+		  return;
+	    if (!base->value().is_defined()) {
+		  store->set_array_word_prefix(0, 0);
+		  return;
+	    }
+	    long first = base->value().as_long();
+	    if (first >= 0)
+		  store->set_array_word_prefix(first,
+			netrange_width(original->net_type()->slice_dimensions()));
+      }
+}
+
 static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig,
 	      const NetNet*dst_base, NetNet*src_sig, const NetNet*src_base,
 	      unsigned long count, bool reverse_src, bool nonblocking,
 	      unsigned long src_stride, unsigned long src_dimension_width,
-	      bool checked_destination = false)
+	      bool checked_destination = false, const NetAssign_*original = nullptr)
 {
 	const netvector_t*ordinal_type = count <= INT_MAX
 	      ? &netvector_t::atom2s32 : &netvector_t::atom2s64;
@@ -12283,6 +12295,8 @@ static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 	if (checked_destination)
 	    word = make_checked_uarray_index(word, 0, dst_sig->unpacked_count(), loc);
 	word_lval->set_word(word);
+	if (original)
+	    preserve_array_write_range_(word_lval, original);
 	NetExpr*src_word = src_base
 	      ? make_uarray_dynamic_prefix_word_(loc, src_base, ordinal, count,
 						  reverse_src, src_stride,
@@ -12300,11 +12314,13 @@ static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 }
 
 static NetProc* make_uarray_dynamic_prefix_copy_(
-	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig, NetExpr*dst_base,
+	      NetScope*scope, const LineInfo&loc, const NetAssign_*dst,
+	      NetExpr*dst_base,
 	      NetNet*src_sig, NetExpr*src_base, unsigned long count,
 	      bool reverse_src, bool nonblocking, unsigned long src_stride,
 	      unsigned long src_dimension_width, bool checked_destination)
 {
+	NetNet*dst_sig = dst->sig();
 	NetNet*dst_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
 					       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
 	dst_snapshot->local_flag(true);
@@ -12328,7 +12344,7 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	    block->append(make_uarray_dynamic_prefix_copy_loop_(
 		  scope, loc, dst_sig, dst_snapshot, src_sig, src_snapshot, count,
 		  reverse_src, true, src_stride, src_dimension_width,
-		  checked_destination));
+		  checked_destination, dst));
 	    return block;
 	}
 
@@ -12351,7 +12367,7 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	      reverse_src, false, src_stride, src_dimension_width));
 	block->append(make_uarray_dynamic_prefix_copy_loop_(
 	      scope, loc, dst_sig, dst_snapshot, rhs_snapshot, zero_base, count,
-	      false, false, 1, 0, checked_destination));
+	      false, false, 1, 0, checked_destination, dst));
 	return block;
 }
 
@@ -12410,6 +12426,7 @@ static NetProc* make_uarray_signal_slice_copy_loop_(NetScope*scope,
 
       NetAssign_*lv = new NetAssign_(dst_sig);
       lv->set_word(word_index(dst_base));
+      lv->set_array_word_prefix(dst_base, count);
       NetESignal*rv = new NetESignal(
 	    src_sig, word_index(src_base, reverse_src));
       rv->set_line(loc);
@@ -12562,6 +12579,7 @@ static NetProc* make_uarray_pattern_nb_(NetScope*scope, const LineInfo&loc,
                     pad_to_width(offset, 64, loc), 64, true);
 		  widx->set_line(loc);
 		  wlv->set_word(widx);
+		  preserve_array_write_range_(wlv, lv);
 	    } else {
 		  NetEConst*widx = make_const_val_s(base + (long)idx);
 		  widx->set_line(loc);
@@ -12635,7 +12653,8 @@ static NetProc* make_uarray_function_copy_(NetScope*scope, const LineInfo&loc,
 					   bool checked_destination)
 {
       if (!scope || !lv || lv->more || lv->nest()
-	  || lv->get_property_idx() >= 0 || lv->has_array_word_prefix())
+	  || lv->get_property_idx() >= 0
+	  || (lv->has_array_word_prefix() && !lv->is_array_slice()))
 	    return 0;
 
       NetNet*sig = lv->sig();
@@ -12755,6 +12774,7 @@ static NetProc* make_uarray_function_copy_(NetScope*scope, const LineInfo&loc,
 			word = make_checked_uarray_index(
 			      word, 0, sig->unpacked_count(), loc);
 		  dst->set_word(word);
+		  preserve_array_write_range_(dst, lv);
 	    } else {
 		  NetEConst*word = make_const_val_s(base + dst_offsets[idx]);
 		  word->set_line(loc);
@@ -12843,6 +12863,7 @@ static NetProc* make_uarray_pattern_snapshot_(NetScope*scope,
 		  dst_word = make_checked_uarray_index(
 			dst_word, 0, sig->unpacked_count(), loc);
 	    dst_lval->set_word(dst_word);
+	    preserve_array_write_range_(dst_lval, lv);
 	    NetEConst*rhs_word = make_const_val_s(idx);
 	    rhs_word->set_line(loc);
 	    NetESignal*rhs_read = new NetESignal(rhs, rhs_word);
@@ -13032,7 +13053,7 @@ static NetProc* make_uarray_slice_value_copy_(
 
       NetProc*copy = make_uarray_dynamic_prefix_copy_loop_(
 	    scope, loc, lv->sig(), base, snapshot, nullptr, count, false,
-	    nonblocking, 1, 0, checked_destination);
+	    nonblocking, 1, 0, checked_destination, lv);
       if (same_count) {
 	    copy = new NetCondit(same_count, copy, nullptr);
 	    copy->set_line(loc);
@@ -13491,7 +13512,7 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 					   const PExpr*expr,
 					   fixed_array_port_actual_t&out,
-					   bool output_net)
+					   fixed_array_port_use use)
 {
       const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
       if (!ident || ident->path().name.empty())
@@ -13504,10 +13525,12 @@ static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 	  || !result.net->unpacked_dimensions())
 	    return 0;
 
-      if (output_net) {
-	    if (result.net->type() == NetNet::REG
+      if (use != fixed_array_port_use::INPUT) {
+	    const bool variable = is_fixed_variable_array_(result.net);
+	    if (!variable && (use == fixed_array_port_use::VARIABLE_OUTPUT
+		|| result.net->type() == NetNet::REG
 		|| result.net->type() == NetNet::IMPLICIT_REG
-		|| result.net->coerced_to_uwire())
+		|| result.net->coerced_to_uwire()))
 		  return 0;
 	    out.signal = result.net;
 	    if (ident->path().name.size() > 1)
@@ -13515,7 +13538,7 @@ static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
       }
 
       if (ident->path().back().index.empty()) {
-	    if (output_net)
+	    if (use != fixed_array_port_use::INPUT)
 		  check_package_unit_value(des, *expr, scope, result);
 	    out.signal = result.net;
 	    out.dims = result.net->unpacked_dims();
@@ -13601,9 +13624,9 @@ static NetProc* make_uarray_prefix_copy_(NetScope*scope, const LineInfo&loc,
               && eval_as_long(dst_base, dst_base_expr)
               && eval_as_long(src_base, src_base_expr);
 	if (!constant_bases || src.stride != 1) {
-	    delete lv;
+	    unique_ptr<NetAssign_>original(lv);
 	    return make_uarray_dynamic_prefix_copy_(
-		  scope, loc, dst_sig, dst_base_expr, src.sig, src_base_expr,
+		  scope, loc, lv, dst_base_expr, src.sig, src_base_expr,
 		  src.count, reverse_src, nonblocking, src.stride,
 		  src.slice_dimension_width, checked_destination);
 	}
@@ -13723,6 +13746,8 @@ static NetProc* make_uarray_multidim_prefix_copy_(
 			     NetExpr*src_word, bool nb) {
 	      NetAssign_*word_lv = new NetAssign_(dst_sig);
 	      word_lv->set_word(dst_word);
+	      if (dst_sig == lv->sig())
+		    preserve_array_write_range_(word_lv, lv);
 	      NetESignal*word_rv = new NetESignal(src_sig, src_word);
 	      word_rv->set_line(loc);
 	      NetProc*assign = nb
@@ -13739,7 +13764,7 @@ static NetProc* make_uarray_multidim_prefix_copy_(
 				   : make_const_val_s(src.canonical_base));
 	src.canonical_base_expr = nullptr;
 	NetNet*dst_sig = lv->sig();
-	delete lv;
+	unique_ptr<NetAssign_>original(lv);
 
 	if (nonblocking) {
 	      for (unsigned long word = 0 ; word < src.count ; word += 1)
@@ -59233,6 +59258,8 @@ Design* elaborate(list<perm_string>roots)
       extern_functions_bound_ = false;
       pending_variable_continuous_drivers_.clear();
       pending_variable_array_continuous_drivers_.clear();
+      variable_array_port_actuals_.clear();
+      retained_variable_arrays_.clear();
       pending_unsafe_interface_drivers_.clear();
       pending_direct_interface_members_.clear();
       static_clocking_output_writers_.clear();
@@ -59582,6 +59609,8 @@ Design* elaborate(list<perm_string>roots)
 
 	// Now that the structure and parameters are taken care of,
 	// run through the pform again and generate the full netlist.
+
+      mark_variable_array_port_actuals_(des);
 
       report_elaboration_perf_phase_("packages-begin", 0, pack_elems.size());
       for (i = 0; i < pack_elems.size(); i += 1) {
