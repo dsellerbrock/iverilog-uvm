@@ -18,6 +18,8 @@
  */
 
 # include  "vvp_priv.h"
+# include  "vpi_user.h"
+# include  "sv_vpi_user.h"
 # include  <string.h>
 # include  <stdlib.h>
 # include  <assert.h>
@@ -48,6 +50,10 @@ struct args_info {
       unsigned index_stack;
       char index_sign;
       unsigned index_width;
+      /* A scalar output in a captured positional container. */
+      int positional_type;
+      unsigned positional_flags;
+      uint64_t queue_capacity;
       struct args_info *child; /* Arguments can be nested. */
 	/* An element of a fixed-array class property (#2475): text holds the
 	   &CPV<... prefix and the element index is on the vec4 stack. */
@@ -1858,6 +1864,137 @@ static int get_vpi_taskfunc_lvalue_arg(struct args_info *result,
       }
 }
 
+/* Only synchronous built-in writers may use a handle backed by the caller's
+ * stacks. The positions here identify output (including inout) arguments. */
+static int vpi_arg_is_positional_output_(const char*name, unsigned arg)
+{
+      if (!strcmp(name, "$fscanf") || !strcmp(name, "$sscanf"))
+	    return arg >= 2;
+      if (!strcmp(name, "$value$plusargs") || !strcmp(name, "$ferror"))
+	    return arg == 1;
+      return arg == 0
+	  && (!strcmp(name, "$sformat") || !strcmp(name, "$swrite")
+	      || !strcmp(name, "$swriteb") || !strcmp(name, "$swriteh")
+	      || !strcmp(name, "$swriteo") || !strcmp(name, "$fgets")
+	      || !strcmp(name, "$fread") || !strcmp(name, "$cast")
+	      || !strcmp(name, "$ivl_cast_task") || !strcmp(name, "$random")
+	      || !strncmp(name, "$dist_", 6));
+}
+
+static int positional_element_vpi_type_(ivl_type_t type)
+{
+      switch (ivl_type_typedef_vpi_type(type)) {
+	  case vpiBitTypespec:      return vpiBitVar;
+	  case vpiByteTypespec:     return vpiByteVar;
+	  case vpiShortIntTypespec: return vpiShortIntVar;
+	  case vpiIntTypespec:      return vpiIntVar;
+	  case vpiLongIntTypespec:  return vpiLongIntVar;
+	  case vpiIntegerTypespec:  return vpiIntegerVar;
+	  case vpiTimeTypespec:     return vpiTimeVar;
+	  default:                 return vpiReg;
+      }
+}
+
+static int draw_positional_output_arg_(struct args_info*arg, ivl_expr_t expr)
+{
+      /* Match the flags on &PE in the VVP argument grammar. */
+      enum { SIGNED = 1, TWO_STATE = 2, INDEX_SIGNED = 4,
+	     QUEUE = 8, BARE_QUEUE = 16 };
+      ivl_expr_t receiver = 0, index = 0;
+      ivl_type_t container, element;
+      unsigned flags = 0;
+      int last = 0;
+
+      if (ivl_expr_type(expr) == IVL_EX_SELECT
+	  && ivl_expr_sel_type(expr) == IVL_SEL_OTHER) {
+	    receiver = ivl_expr_oper1(expr);
+	    index = ivl_expr_oper2(expr);
+	    container = receiver_container_type_(receiver);
+      } else if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+		 && (property_is_indexed_darray_expr_(expr)
+		     || property_is_indexed_queue_expr_(expr))) {
+	    index = ivl_expr_oper1(expr);
+	    container = property_expr_type_(expr);
+	    last = property_uses_synthesized_last_index_(expr);
+      } else if (ivl_expr_type(expr) == IVL_EX_SFUNC
+		 && !strcmp(ivl_expr_name(expr), "$ivl_queue$last")) {
+	    receiver = ivl_expr_parm(expr, 0);
+	    container = receiver_container_type_(receiver);
+	    last = 1;
+      } else {
+	    return 0;
+      }
+      if ((!index && !last) || !container)
+	    return 0;
+      if (ivl_type_base(container) == IVL_VT_QUEUE
+	  && !ivl_type_queue_assoc_compat(container)) {
+	    flags |= QUEUE;
+	    if (receiver && ivl_expr_type(receiver) == IVL_EX_SIGNAL
+		&& !ivl_expr_oper1(receiver)
+		&& ivl_signal_dimensions(ivl_expr_signal(receiver)) == 0)
+		  flags |= BARE_QUEUE;
+      } else if (ivl_type_base(container) != IVL_VT_DARRAY) {
+	    return 0;
+      }
+
+      /* Packed selects operate on the scalar element, and slices produce
+       * a container. Only a whole scalar element is writable here. */
+      element = ivl_type_element(container);
+      if (!element || type_is_fixed_uarray_property_(element)
+	  || ivl_type_base(element) != ivl_expr_value(expr))
+	    return 0;
+      switch (ivl_type_base(element)) {
+	  case IVL_VT_BOOL:
+	    flags |= TWO_STATE;
+	    /* fall through */
+	  case IVL_VT_LOGIC:
+	    arg->vec_wid = ivl_type_packed_width(element);
+	    if (!arg->vec_wid || arg->vec_wid != ivl_expr_width(expr))
+		  return 0;
+	    arg->positional_type = positional_element_vpi_type_(element);
+	    break;
+	  case IVL_VT_REAL:
+	    arg->positional_type = vpiRealVar;
+	    arg->vec_wid = 1;
+	    break;
+	  case IVL_VT_STRING:
+	    arg->positional_type = vpiStringVar;
+	    break;
+	  default:
+	    return 0;
+      }
+
+      if (receiver) {
+	    draw_eval_object(receiver);
+      } else {
+	    ivl_signal_t sig = ivl_expr_signal(expr);
+	    if (sig)
+		  fprintf(vvp_out, "    %%load/obj v%p_0; output property owner\n", sig);
+	    else
+		  draw_eval_object(ivl_expr_oper2(expr));
+
+	    unsigned null_lab = local_count++;
+	    fprintf(vvp_out, "    %%test_nul/obj;\n");
+	    fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 4;\n", thread_count, null_lab);
+	    fprintf(vvp_out, "    %%prop/obj %u, 0; output container\n",
+		    ivl_expr_property_idx(expr));
+	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, null_lab);
+      }
+
+      if (last) {
+	    fprintf(vvp_out, "    %%dup/obj/ref;\n");
+	    fprintf(vvp_out, "    %%qsize/o;\n");
+	    fprintf(vvp_out, "    %%subi 1, 0, 32;\n");
+      } else {
+	    draw_eval_vec4(index);
+      }
+      arg->positional_flags = flags | (ivl_type_signed(element) ? SIGNED : 0)
+	    | ((last || ivl_expr_signed(index)) ? INDEX_SIGNED : 0);
+      arg->queue_capacity = queue_type_max_count_(container);
+      return 1;
+}
+
 static void draw_vpi_taskfunc_args(const char*call_string,
 				   ivl_statement_t tnet,
 				   ivl_expr_t fnet,
@@ -1896,6 +2033,8 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    ivl_expr_t expr = tnet
 		  ? ivl_stmt_parm(tnet, parm_base + idx)
 		  : ivl_expr_parm(fnet, idx);
+	    int positional_output = !force_value_capture && !deferred && !lazy_args
+		  && tf_name && vpi_arg_is_positional_output_(tf_name, idx);
 
 	      /* A selected instance-array scope can arrive as a zero-extension
 	       * select around IVL_EX_SCOPE. System-task arguments use the scope as
@@ -2018,6 +2157,11 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  continue;
 
 		case IVL_EX_SFUNC:
+		  if (positional_output && draw_positional_output_arg_(&args[idx], expr)) {
+			args[idx].stack = obj_stack_need++;
+			args[idx].index_stack = vec4_stack_need++;
+			continue;
+		  }
 		  if (!force_value_capture
 		      && is_magic_sfunc(ivl_expr_name(expr))) {
 			snprintf(buffer, sizeof buffer, "%s", ivl_expr_name(expr));
@@ -2106,14 +2250,19 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		int got = get_vpi_taskfunc_signal_arg(&args[idx], expr);
 		cpv_elem_live_sample_ = 0;
 		if (got) {
-			      if (args[idx].vec_flag || args[idx].cpv_index) {
-				    vec4_stack_need += 1;
-			      } else {
-				    args[idx].stack = 0;
-			      }
-			      continue;
-			}
-			args[idx].stack = 0;
+		      if (args[idx].vec_flag || args[idx].cpv_index)
+			    vec4_stack_need += 1;
+		      else
+			    args[idx].stack = 0;
+		      continue;
+		}
+		args[idx].stack = 0;
+		if (positional_output
+		    && draw_positional_output_arg_(&args[idx], expr)) {
+		      args[idx].stack = obj_stack_need++;
+		      args[idx].index_stack = vec4_stack_need++;
+		      continue;
+		}
 	  }
 	  }
 	  break;
@@ -2281,6 +2430,13 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  fprintf(vvp_out, ", &A<v%p, S<%u,vec4,%c%u> >",
 		          args[idx].array_word_sig, pos,
 		          args[idx].vec_flag, args[idx].vec_wid);
+	    } else if (args[idx].positional_type) {
+		  unsigned object = obj_stack_need - args[idx].stack - 1;
+		  unsigned index = vec4_stack_need - args[idx].index_stack - 1;
+		  fprintf(vvp_out, ", &PE<%u, %u, %d, %u, %u, %" PRIu64 ">",
+			  object, index, args[idx].positional_type,
+			  args[idx].vec_wid, args[idx].positional_flags,
+			  args[idx].queue_capacity);
 	    } else if (args[idx].str_flag) {
 		    /* If this is a stack reference, then
 		       calculate the stack depth and use that to

@@ -25264,7 +25264,8 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
       vvp_fun_signal_object*obj = vvp_fun_as_signal_object(net->fun);
       assert(obj);
 
-      vvp_darray*darray = obj->get_object().peek<vvp_darray>();
+      vvp_object_t recv = obj->get_object();
+      vvp_darray*darray = recv.peek<vvp_darray>();
       adr = darray_canonical_index_(darray, adr);
 
       vvp_object_t word;
@@ -25294,7 +25295,17 @@ bool of_LOAD_DAR_OBJ(vthread_t thr, vvp_code_t cp)
       }
       // else word remains nil (default-constructed vvp_object_t)
 
-      thr->push_object(word);
+      if (word.peek<vvp_darray>()) {
+	    vvp_net_t*root_net = obj->get_root_net();
+	    vvp_object_t root_obj = obj->get_root_object();
+	    if (!root_net || root_obj.test_nil()) {
+		  root_net = net;
+		  root_obj = recv;
+	    }
+	    thr->push_object(word, root_net, root_obj);
+      } else {
+	    thr->push_object(word);
+      }
       return true;
 }
 
@@ -27067,21 +27078,27 @@ bool of_LOAD_QO_OBJ(vthread_t thr, vvp_code_t)
       int64_t adr = thr->words[3].w_int;
 
       vvp_object_t recv;
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      vvp_object_t root_obj = thr->peek_object_root(0);
       thr->pop_object(recv);
       vvp_darray*arr = recv.peek<vvp_darray>();
       adr = darray_canonical_index_(arr, adr);
 
       vvp_object_t word;
-      if (arr && (adr >= 0) && (thr->flags[4] == BIT4_0)
-	  && (static_cast<size_t>(adr) < arr->get_size())) {
-	    arr->get_word(adr, word);
+      if (arr && container_index_fits_runtime_api_(adr)
+	  && thr->flags[4] == BIT4_0
+	  && static_cast<uint64_t>(adr) < arr->get_size()) {
+	    arr->get_word(static_cast<unsigned>(adr), word);
 	    if (word.test_nil() && arr->elem_class()) {
 		  word = vvp_object_t(new vvp_cobject(arr->elem_class()));
 		  arr->set_word(adr, word);
 	    }
       }
 
-      thr->push_object(word);
+      if (word.peek<vvp_darray>())
+	    thr->push_object(word, root_net, root_obj);
+      else
+	    thr->push_object(word);
       return true;
 }
 
@@ -37981,6 +37998,237 @@ bool of_STORE_QDAR_V(vthread_t thr, vvp_code_t cp)
       return store_qdar<vvp_vector4_t, vvp_queue_vec4>(thr, cp, cp->bit_idx[1]);
 }
 
+/* The call owns two captured operands: the immediate container and the
+ * full-width index. The handle itself is shared by executions of the call,
+ * so type queries use only declaration metadata. */
+class vpi_positional_element : public __vpiHandle {
+    public:
+      enum flag_t { SIGNED = 1, TWO_STATE = 2, INDEX_SIGNED = 4,
+		    QUEUE = 8, BARE_QUEUE = 16 };
+
+      vpi_positional_element(unsigned object_depth, unsigned index_depth,
+			     int type, unsigned width, unsigned flags,
+			     uint64_t capacity)
+      : object_depth_(object_depth), index_depth_(index_depth), type_(type),
+	width_(width), flags_(flags), capacity_(capacity) { }
+
+      int get_type_code() const override { return type_; }
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiSize:      return width_;
+		case vpiSigned:    return (flags_ & SIGNED) != 0;
+		case vpiAutomatic: return 1;
+		case _vpiFromThr:  return _vpi_at_PE;
+		default:          return __vpiHandle::vpi_get(code);
+	    }
+      }
+
+      void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
+
+    private:
+      bool resolve_(vvp_object_t&recv, unsigned&index, bool writing) const;
+      template <typename T, typename Q>
+      void store_(vvp_object_t recv, unsigned index, const T&value) const;
+
+      const unsigned object_depth_, index_depth_;
+      const int type_;
+      const unsigned width_, flags_;
+      const uint64_t capacity_;
+};
+
+bool vpi_positional_element::resolve_(vvp_object_t&recv, unsigned&index,
+				     bool writing) const
+{
+      vthread_t thr = vpip_current_vthread;
+      if (vpi_mode_flag != VPI_MODE_CALLTF || !thr || !vpip_cur_task)
+	    return false;
+      if (object_depth_ >= vpip_cur_task->object_stack
+	  || index_depth_ >= vpip_cur_task->vec4_stack
+	  || object_depth_ >= thr->object_stack_size()
+	  || index_depth_ >= thr->vec4_stack_size()
+	  || !thr->peek_vec4(index_depth_).size()) {
+	    cerr << thr->get_fileline()
+		 << "Error: malformed positional VPI element stack operands." << endl;
+	    vpip_set_error(vpiError, "malformed positional VPI element stack operands");
+	    vpip_set_return_value(1);
+	    return false;
+      }
+
+      int64_t addr;
+      if (!vpip_vec4_to_int64_saturated(thr->peek_vec4(index_depth_),
+				       flags_ & INDEX_SIGNED, addr)) {
+	    if (writing && (flags_ & QUEUE))
+		  cerr << thr->get_fileline()
+		       << "Warning: cannot assign to an undefined queue index;"
+			  " element was not stored." << endl;
+	    return false;
+      }
+      recv = thr->peek_object(object_depth_);
+      if (addr >= INT_MIN && addr <= int64_t(UINT_MAX) + INT_MAX)
+	    addr = darray_canonical_index_(recv.peek<vvp_darray>(), addr);
+      if (addr < 0) {
+	    if (writing && (flags_ & QUEUE))
+		  cerr << thr->get_fileline()
+		       << "Warning: cannot assign to a negative queue index ("
+		       << addr << "); element was not stored." << endl;
+	    return false;
+      }
+      if (!container_index_fits_runtime_api_(addr)) {
+	    if (writing && (flags_ & QUEUE))
+		  container_index_exceeds_runtime_range_(thr, addr);
+	    return false;
+      }
+      index = static_cast<unsigned>(addr);
+      return true;
+}
+
+void vpi_positional_element::vpi_get_value(p_vpi_value val)
+{
+      vvp_object_t recv;
+      unsigned index;
+      vvp_darray*array = resolve_(recv, index, false) ? recv.peek<vvp_darray>() : 0;
+      bool valid = array && index < array->get_size();
+      if (type_ == vpiRealVar) {
+	    double value = 0.0;
+	    if (valid) array->get_word(index, value);
+	    vpip_real_get_value(value, val);
+      } else if (type_ == vpiStringVar) {
+	    string value;
+	    if (valid) array->get_word(index, value);
+	    vpip_string_get_value(value, val);
+      } else {
+	    vvp_vector4_t value;
+	    if (valid) array->get_word(index, value);
+	    if (value.size() != width_)
+		  value = vvp_vector4_t(width_, (flags_ & TWO_STATE) ? BIT4_0 : BIT4_X);
+	    vpip_vec4_get_value(value, width_, flags_ & SIGNED, val);
+      }
+}
+
+template <typename T, typename Q>
+void vpi_positional_element::store_(vvp_object_t recv, unsigned index,
+				    const T&value) const
+{
+      vthread_t thr = vpip_current_vthread;
+      vvp_net_t*root_net = thr->peek_object_source_net(object_depth_);
+      vvp_object_t root_obj = thr->peek_object_root(object_depth_);
+      vvp_fun_signal_object*root = signal_object_fun_(root_net);
+      bool fresh = false;
+      if (recv.test_nil() && (flags_ & BARE_QUEUE) && root) {
+	    /* Another output in this call can have initialized the queue. */
+	    recv = root->peek_object();
+	    root_obj = recv;
+	    if (recv.test_nil() && index == 0) {
+		  recv = vvp_object_t(new Q);
+		  recv.peek<Q>()->set_declared_container_layout(root->default_container_layout());
+		  fresh = true;
+	    }
+      }
+
+      if (flags_ & QUEUE) {
+	    Q*queue = recv.peek<Q>();
+	    if (!queue) {
+		  if (recv.test_nil() && (flags_ & BARE_QUEUE)) {
+			cerr << thr->get_fileline()
+			     << "Warning: assigning to queue[" << index
+			     << "] is outside of size (0); element was not stored." << endl;
+		  } else {
+			warn_null_queue_receiver_(thr, !recv.test_nil());
+		  }
+		  return;
+	    }
+	    uint64_t capacity = queue->declared_queue_bound_known()
+		  ? queue->declared_queue_max_size() : capacity_;
+	    size_t size = queue->get_size();
+	    queue->set_word_max(index, value, capacity);
+	    if (index > size || (index == size && capacity && size >= capacity))
+		  return;
+      } else {
+	    vvp_darray*array = recv.peek<vvp_darray>();
+	    if (!array || index >= array->get_size())
+		  return;
+	    array->set_word(index, value);
+      }
+
+      if (fresh) {
+	    vvp_send_object(vvp_net_ptr_t(root_net, 0), recv,
+			    ensure_write_context_(thr, "vpi-positional-init"));
+      } else {
+	    /* A later argument can rebind the variable holding the receiver.
+	     * Notify the captured object without restoring the old root. */
+	    if (root && root->peek_object() != root_obj)
+		  root_net = 0;
+	    notify_mutated_object_root_(thr, recv, root_net, root_obj,
+					"vpi-positional-store");
+      }
+}
+
+vpiHandle vpi_positional_element::vpi_put_value(p_vpi_value val, int flags)
+{
+      vvp_object_t recv;
+      unsigned index;
+      if (flags != vpiNoDelay || !resolve_(recv, index, true))
+	    return 0;
+      if (type_ == vpiRealVar) {
+	    if (vpip_real_put_format_ok(val))
+		  store_<double, vvp_queue_real>(recv, index, real_from_vpi_value(val));
+      } else if (type_ == vpiStringVar) {
+	    if (val->format == vpiStringVal && val->value.str)
+		  store_<string, vvp_queue_string>(recv, index, string(val->value.str));
+      } else {
+	    vvp_vector4_t value = vec4_from_vpi_value(val, width_);
+	    if (flags_ & TWO_STATE)
+		  value.cast2();
+	    store_<vvp_vector4_t, vvp_queue_vec4>(recv, index, value);
+      }
+      return 0;
+}
+
+vpiHandle vpip_make_positional_element(uint64_t object_depth, uint64_t index_depth,
+				       uint64_t type, uint64_t width,
+				       uint64_t flags, uint64_t capacity)
+{
+      if (object_depth > UINT_MAX || index_depth > UINT_MAX || width > INT_MAX
+	  || flags > 31 || (!(flags & vpi_positional_element::QUEUE)
+			    && (capacity || (flags & vpi_positional_element::BARE_QUEUE))))
+	    return 0;
+      switch (type) {
+	  case vpiRealVar:
+	    if (width != 1) return 0;
+	    break;
+	  case vpiStringVar:
+	    if (width != 0) return 0;
+	    break;
+	  case vpiReg:
+	  case vpiBitVar:
+	  case vpiByteVar:
+	  case vpiShortIntVar:
+	  case vpiIntVar:
+	  case vpiLongIntVar:
+	  case vpiIntegerVar:
+	  case vpiTimeVar:
+	    if (!width) return 0;
+	    break;
+	  default:
+	    return 0;
+      }
+      return new vpi_positional_element(object_depth, index_depth, type,
+					width, flags, capacity);
+}
+
+#ifdef CHECK_WITH_VALGRIND
+bool vpip_delete_positional_element(vpiHandle arg)
+{
+      auto*element = dynamic_cast<vpi_positional_element*>(arg);
+      if (!element)
+	    return false;
+      delete element;
+      return true;
+}
+#endif
+
 /*
  * %store/qdar/obj <var>, idx
  * Store an object into a queue element
@@ -39217,6 +39465,24 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
             trace = vpi_call_trace_match_(thr_scope, tf_name, call_scope);
       }
 
+      /* A positional handle checks its depths before accessing the stacks.
+       * Reject a missing call operand here as well, before the common
+       * call cleanup can try to pop it. */
+      auto*call = static_cast<__vpiSysTaskCall*>(cp->handle);
+      if (call && (call->object_stack > thr->object_stack_size()
+		   || call->vec4_stack > thr->vec4_stack_size()
+		   || call->string_stack > thr->str_stack_size()
+		   || call->real_stack > thr->real_stack_size())) {
+	    for (unsigned idx = 0; idx < call->nargs; ++idx) {
+		  if (dynamic_cast<vpi_positional_element*>(call->args[idx])) {
+			cerr << thr->get_fileline()
+			     << "Error: malformed positional VPI call stack operands." << endl;
+			vpip_set_return_value(1);
+			schedule_finish(0);
+			return false;
+		  }
+	    }
+      }
       vpip_execute_vpi_call(thr, cp->handle);
 
       /* A matured unique/priority case warning borrows the source VPI-call

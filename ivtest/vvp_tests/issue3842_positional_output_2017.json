@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue3842_positional_output.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3842_positional_output"],
+  "vvp-args-extended": ["+elem=-51", "+real=7.5"],
+  "gold": "issue3842_positional_output"
+}
