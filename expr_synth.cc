@@ -949,7 +949,10 @@ NetNet* NetEConcat::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		  num_parms -= 1;
 	    } else {
 		  tmp[idx] = parms_[idx]->synthesize(des, scope, root);
-		  if (tmp[idx] == 0) flag = false;
+		  if (tmp[idx] == 0) {
+			flag = false;
+			continue;
+		  }
 		    /* Set the data type to the first one found. */
 		  switch (data_type) {
 		      case IVL_VT_NO_TYPE:

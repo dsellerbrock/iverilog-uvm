@@ -940,6 +940,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%wait/handle",of_WAIT_HANDLE,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%wait/obj",of_WAIT_OBJ,1,{OA_NUMBER,  OA_NONE,     OA_NONE} },
       { "%wait/obj/expr",of_WAIT_OBJ_EXPR,2,{OA_FUNC_PTR,OA_CODE_PTR2,OA_NONE} },
+      { "%wait/obj/expr/edge",of_WAIT_OBJ_EXPR_EDGE,2,{OA_FUNC_PTR,OA_CODE_PTR2,OA_NONE} },
       { "%wait/obj/expr/negedge",of_WAIT_OBJ_EXPR_NEGEDGE,2,{OA_FUNC_PTR,OA_CODE_PTR2,OA_NONE} },
       { "%wait/obj/expr/posedge",of_WAIT_OBJ_EXPR_POSEDGE,2,{OA_FUNC_PTR,OA_CODE_PTR2,OA_NONE} },
       { "%wait/obj/mutation",of_WAIT_OBJ_MUTATION,0,{OA_NONE,OA_NONE, OA_NONE} },
