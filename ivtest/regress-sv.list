@@ -7238,3 +7238,9 @@ issue432_nettype_nba_2017 RE,-g2017 ivltests gold=sv_function_deferred_nba_conte
 issue432_nettype_nba_2023 RE,-g2023,-I./ivltests ivltests gold=sv_function_deferred_nba_context_fail.gold
 issue432_struct_nba_ok_2017 normal,-g2017 ivltests
 issue432_struct_nba_ok_2023 normal,-g2023,-I./ivltests ivltests
+
+# IEEE 1800-2017/2023 16.8 and 16.13.3: parameterized sequence clocks.
+issue3799_sequence_clock_2017 normal,-g2017,-gassertions,-s,issue3799_sequence_clock ivltests gold=issue3799_sequence_clock.gold
+issue3799_sequence_clock_2023 normal,-g2023,-gassertions,-s,issue3799_sequence_clock ivltests gold=issue3799_sequence_clock.gold
+issue3799_sequence_clock_unsupported_2017 CE,-g2017,-gassertions,-s,issue3799_sequence_clock_unsupported ivltests gold=issue3799_sequence_clock_unsupported.gold
+issue3799_sequence_clock_unsupported_2023 CE,-g2023,-gassertions,-s,issue3799_sequence_clock_unsupported ivltests gold=issue3799_sequence_clock_unsupported.gold
