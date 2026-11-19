@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue1565_sdf_timingenv.sv",
+  "iverilog-args": ["-g2017", "-ginterconnect", "-gspecify"],
+  "vvp-args-extended": ["-sdf-warn"],
+  "gold": "issue1565_sdf_timingenv"
+}
