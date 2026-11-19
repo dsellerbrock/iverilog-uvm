@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3800_triggered_clock_error_2017.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3800_triggered_clock_error"],
+  "gold": "issue3800_triggered_clock_error"
+}

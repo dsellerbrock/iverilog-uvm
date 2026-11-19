@@ -6,7 +6,6 @@ module issue3799_sequence_clock_unsupported;
   endsequence
 
   assert property (@(posedge outer_clk) 1'b1 ##1 sq(clk, data));
-  assert property (@(posedge clk) sq(clk, data).triggered);
 
   sequence fixed_clock(x);
     @(posedge clk) x;

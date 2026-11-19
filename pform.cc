@@ -16110,7 +16110,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		  cerr << loc << ": error: sequence `" << nm
 		       << "' argument " << (k+1) << " is empty." << endl;
 		  error_count += 1;
-		  pform_sva_destroy_sequence(&initializers);
+		  sva_destroy_local_init_steps_(initializers);
 		  for (PExpr*expr : owned_subst) delete expr;
 		  return nullptr;
 	    }
@@ -16122,7 +16122,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 			cerr << loc << ": sorry: sequence `" << nm
 			     << "' typed argument cannot be copied." << endl;
 			error_count += 1;
-			pform_sva_destroy_sequence(&initializers);
+			sva_destroy_local_init_steps_(initializers);
 			for (PExpr*expr : owned_subst) delete expr;
 			return nullptr;
 		  }
@@ -16151,7 +16151,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		  cerr << loc << ": sorry: sequence `" << nm
 		       << "' local input argument cannot be copied." << endl;
 		  error_count += 1;
-		  pform_sva_destroy_sequence(&initializers);
+		  sva_destroy_local_init_steps_(initializers);
 		  for (PExpr*expr : owned_subst) delete expr;
 		  return nullptr;
 	    }
@@ -16246,7 +16246,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		  delete st.rep_hi_expr;
 		  sva_destroy_match_items_(st.items);
 		  pform_sva_destroy_sequence(out);
-		  pform_sva_destroy_sequence(&initializers);
+		  sva_destroy_local_init_steps_(initializers);
 		  for (PExpr*expr : owned_subst) delete expr;
 		  return nullptr;
 	    }
@@ -21451,11 +21451,19 @@ static void sva_retag_first_match_groups_(std::vector<sva_seq_step_t>&steps)
 /* Textually identical event terms can bind different signals. In particular,
    an event copied from before a generate-local declaration still refers to
    the enclosing signal. Use the same declaration-order test as symbol_search. */
-static const LexicalScope* sva_clock_ident_scope_(const PEIdent*id)
+static const LexicalScope* sva_clock_expr_scope_(const PExpr*expr,
+						 const LexicalScope*scope)
+{
+      if (expr->sva_actual_generate()) return expr->sva_actual_generate();
+      if (expr->sva_actual_module()) return expr->sva_actual_module();
+      return scope;
+}
+
+static const LexicalScope* sva_clock_ident_scope_(const PEIdent*id,
+						  const LexicalScope*scope)
 {
       perm_string name = id->path().name.front().name;
-      for (const LexicalScope*scope = lexical_scope; scope;
-	   scope = scope->parent_scope()) {
+      for (; scope; scope = scope->parent_scope()) {
 	    auto wire = scope->wires.find(name);
 	    if (wire != scope->wires.end()) {
 		  if (wire->second->lexical_pos() <= id->lexical_pos()) return scope;
@@ -21475,9 +21483,13 @@ static const LexicalScope* sva_clock_ident_scope_(const PEIdent*id)
 
 /* Compare bindings after the full clock spelling, including the edge and iff,
    has matched. Keep complex forms conservative in nested scopes. */
-static bool sva_clock_term_bindings_match_(const PExpr*left, const PExpr*right)
+static bool sva_clock_term_bindings_match_(const PExpr*left, const PExpr*right,
+					   const LexicalScope*lhs_scope,
+					   const LexicalScope*rhs_scope)
 {
       if (!left || !right) return left == right;
+      lhs_scope = sva_clock_expr_scope_(left, lhs_scope);
+      rhs_scope = sva_clock_expr_scope_(right, rhs_scope);
       if (const PEIdent*l = dynamic_cast<const PEIdent*>(left)) {
 	    const PEIdent*r = dynamic_cast<const PEIdent*>(right);
 	    if (!r || l->path().package != r->path().package) return false;
@@ -21485,16 +21497,19 @@ static bool sva_clock_term_bindings_match_(const PExpr*left, const PExpr*right)
 	    const pform_name_t&rp = r->path().name;
 	    if (lp.size() != rp.size()) return false;
 	    if (!lp.empty() && !l->path().package
-		&& sva_clock_ident_scope_(l) != sva_clock_ident_scope_(r))
+		&& sva_clock_ident_scope_(l, lhs_scope)
+		      != sva_clock_ident_scope_(r, rhs_scope))
 		  return false;
 	    auto rcomp = rp.begin();
 	    for (const name_component_t&comp : lp) {
 		  if (comp.index.size() != rcomp->index.size()) return false;
 		  auto rindex = rcomp->index.begin();
 		  for (const index_component_t&index : comp.index) {
-			if (!sva_clock_term_bindings_match_(index.msb, rindex->msb)
+			if (!sva_clock_term_bindings_match_(index.msb, rindex->msb,
+							    lhs_scope, rhs_scope)
 			    || (index.lsb != index.msb
-				&& !sva_clock_term_bindings_match_(index.lsb, rindex->lsb)))
+				&& !sva_clock_term_bindings_match_(index.lsb, rindex->lsb,
+								   lhs_scope, rhs_scope)))
 			      return false;
 			++rindex;
 		  }
@@ -21504,32 +21519,75 @@ static bool sva_clock_term_bindings_match_(const PExpr*left, const PExpr*right)
       }
       if (const PEUnary*l = dynamic_cast<const PEUnary*>(left)) {
 	    const PEUnary*r = dynamic_cast<const PEUnary*>(right);
-	    return r && sva_clock_term_bindings_match_(l->get_expr(), r->get_expr());
+	    return r && sva_clock_term_bindings_match_(l->get_expr(), r->get_expr(),
+						       lhs_scope, rhs_scope);
       }
       if (const PEBinary*l = dynamic_cast<const PEBinary*>(left)) {
 	    const PEBinary*r = dynamic_cast<const PEBinary*>(right);
-	    return r && sva_clock_term_bindings_match_(l->get_left(), r->get_left())
-		  && sva_clock_term_bindings_match_(l->get_right(), r->get_right());
+	    return r && sva_clock_term_bindings_match_(l->get_left(), r->get_left(),
+						       lhs_scope, rhs_scope)
+		  && sva_clock_term_bindings_match_(l->get_right(), r->get_right(),
+						     lhs_scope, rhs_scope);
       }
-      for (const LexicalScope*scope = pform_cur_generate;
-	   scope && !dynamic_cast<const Module*>(scope); scope = scope->parent_scope())
-	    for (const auto&symbol : scope->local_symbols)
-		  if (left->refs_name(symbol.first)) return false;
+      for (const LexicalScope*start : {lhs_scope, rhs_scope})
+	    for (const LexicalScope*scope = start;
+		 scope && !dynamic_cast<const Module*>(scope); scope = scope->parent_scope())
+		  for (const auto&symbol : scope->local_symbols)
+			if (left->refs_name(symbol.first)) return false;
       return true;
 }
 
 static bool sva_sequence_clocks_match_(const PEventStatement*left,
-				       const PEventStatement*right)
+				       const PEventStatement*right,
+				       const LexicalScope*lhs_scope = lexical_scope,
+				       const LexicalScope*rhs_scope = lexical_scope)
 {
       if (!sva_event_controls_identical_(left, right)) return false;
       const auto&lhs = left->event_expressions();
       const auto&rhs = right->event_expressions();
       if (lhs.size() != rhs.size()) return false;
       for (size_t i = 0; i < lhs.size(); ++i)
-	    if (!sva_clock_term_bindings_match_(lhs[i]->expr(), rhs[i]->expr())
-		|| !sva_clock_term_bindings_match_(lhs[i]->condition(), rhs[i]->condition()))
+	    if (!sva_clock_term_bindings_match_(lhs[i]->expr(), rhs[i]->expr(),
+						lhs_scope, rhs_scope)
+		|| !sva_clock_term_bindings_match_(lhs[i]->condition(), rhs[i]->condition(),
+						  lhs_scope, rhs_scope))
 		  return false;
       return true;
+}
+
+static const LexicalScope* sva_sequence_decl_scope_(const sva_scoped_name_t&key,
+						    const Module*module)
+{
+      if (key.gen) return key.gen;
+      if (key.unit) return key.unit;
+      if (key.package) return key.package;
+      return module;
+}
+
+/* Splicing preserves the delay into a reference, but does not transfer
+   repetition, first_match or match-item semantics to the inserted chain. */
+static bool sva_endpoint_splice_step_(const struct vlltype&loc,
+				     perm_string name, const sva_seq_step_t&step)
+{
+      if (!step.rep_tail && !step.rep_kind && !step.grouped_repeat
+	  && !step.fm && step.items.empty()
+	  && !step.delay_lo_expr && !step.delay_hi_expr
+	  && step.delay_lo >= 0 && step.delay_hi >= 0)
+	    return true;
+      cerr << loc << ": sorry: .triggered cannot splice sequence `" << name
+	   << "' with this delay, repetition, first_match or match item."
+	   << endl;
+      error_count += 1;
+      return false;
+}
+
+static bool sva_endpoint_whole_step_(const std::vector<sva_seq_step_t>&steps)
+{
+      if (steps.size() != 1) return false;
+      const sva_seq_step_t&step = steps.front();
+      return step.delay_lo == 0 && step.delay_hi == 0
+	  && !step.rep_tail && !step.rep_kind && !step.grouped_repeat
+	  && !step.fm && step.items.empty();
 }
 
 /* Substitute named sequence references: a step whose expression is a
@@ -21546,12 +21604,28 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 				  const std::vector<perm_string>*caller_locals = nullptr,
 				  const PEventStatement*local_clock = nullptr,
 				  PEventStatement**whole_clock = nullptr,
-				  bool*clock_error = nullptr)
+				  bool*clock_error = nullptr,
+				  const LexicalScope*local_clock_scope = lexical_scope,
+				  const LexicalScope**endpoint_clock_scope = nullptr)
 {
+      const bool endpoint = endpoint_clock_scope != nullptr;
       if (!module && !pform_cur_module.empty())
 	    module = pform_cur_module.front();
       if (!local_clock && pform_cur_clocking)
 	    local_clock = pform_cur_clocking->event;
+      auto same_local_clock = [&](const PEventStatement*clock,
+				  const LexicalScope*clock_scope) {
+	    return sva_sequence_clocks_match_(local_clock, clock,
+		  local_clock_scope, endpoint ? clock_scope : lexical_scope);
+      };
+      auto adopt_clock = [&](PEventStatement*clock, const LexicalScope*scope) {
+	    if (endpoint) {
+		  sva_destroy_sequence_clock_(*whole_clock);
+		  *endpoint_clock_scope = local_clock_scope = scope;
+	    }
+	    *whole_clock = clock;
+	    local_clock = clock;
+      };
       static std::set<sva_scoped_name_t> active;
       auto enter = [&](const sva_scoped_name_t&key) {
             if (active.insert(key).second) return true;
@@ -21586,7 +21660,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    }
 	      /* M9D: parameterized sequence instantiation `name(args)`. */
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>(steps[i].expr)) {
-		  if (!cf->path().package && !cf->path().name.empty()) {
+		  if (!cf->path().package && !cf->path().name.empty()
+		      && (!endpoint || !cf->receiver_expr())) {
 			const pform_name_t&call_path = cf->path().name;
 			  bool hierarchical_call = call_path.size() > 1
 					  || expr_retained_scope || expr_hier_prefix != nullptr;
@@ -21643,7 +21718,9 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			const auto&declarations = retained ? retained->parameterized
 							     : sva_param_sequences;
 			if (pit != declarations.end() && pit->second.body) {
-			      if (whole_clock && !pit->second.clk_evt) break;
+			      if (whole_clock && !endpoint && !pit->second.clk_evt) break;
+			      if (endpoint && !sva_endpoint_splice_step_(loc, nm, steps[i]))
+				    break;
 			      if (!enter(pit->first)) { --splice_depth; return; }
 			      std::vector<sva_seq_step_t>*inst = nullptr;
 			      PEventStatement*clock = nullptr;
@@ -21681,6 +21758,13 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 					  loc, nm, pit->second, cf->get_parms(), clock,
 					  &declaration_context, &call_context,
 					  caller_locals);
+			      } else if (endpoint) {
+				    sva_clone_scope_t call_context;
+				    call_context.module = expr_module;
+				    call_context.generate = expr_scope;
+				    inst = sva_instantiate_seq_(
+					  loc, nm, pit->second, cf->get_parms(), clock,
+					  nullptr, &call_context, caller_locals);
 			      } else {
 				    inst = sva_instantiate_seq_(
 					  loc, nm, pit->second, cf->get_parms(), clock,
@@ -21688,6 +21772,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			      }
 			  if (inst) {
 				    if (clock) {
+					  const LexicalScope*clock_scope =
+						sva_sequence_decl_scope_(pit->first, decl_module);
 					  const Module::PClocking*block = pform_cur_clocking
 						? pform_cur_clocking : sva_active_clocking_scope_;
 					  if (block && !sva_sequence_clocks_match_(block->event, clock)) {
@@ -21697,10 +21783,9 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 						     << "(IEEE 1800-2017/2023 16.16(b)(3))." << endl;
 						error_count += 1;
 					  } else if (whole_clock) {
-						*whole_clock = clock;
-						local_clock = clock;
+						adopt_clock(clock, clock_scope);
 						clock = nullptr;
-					  } else if (!sva_sequence_clocks_match_(local_clock, clock)) {
+					  } else if (!same_local_clock(clock, clock_scope)) {
 						cerr << loc << ": sorry: clocked sequence `" << nm
 						     << "' requires a known, identical local clock "
 						     << "when spliced into a sequence expression." << endl;
@@ -21715,6 +21800,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 					  }
 				    }
 				sva_retag_first_match_groups_(*inst);
+				    PEventStatement**inner_clock = endpoint && whole_clock
+					  && sva_endpoint_whole_step_(*inst) ? whole_clock : nullptr;
 				    if (!inst->empty()) {
 					  (*inst)[0].delay_lo += steps[i].delay_lo;
 					  (*inst)[0].delay_hi += steps[i].delay_hi;
@@ -21727,14 +21814,17 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 					  sva_splice_sequences_(loc, *inst,
 							pit->first.gen,
 							decl_module, decl_prefix, true,
-							caller_locals, local_clock, nullptr,
-							clock_error);
+							caller_locals, local_clock, inner_clock,
+							clock_error, local_clock_scope,
+							endpoint_clock_scope);
 				    else
-					  sva_splice_sequences_(loc, *inst, expr_scope,
+					  sva_splice_sequences_(loc, *inst,
+							endpoint ? pit->first.gen : expr_scope,
 							decl_module, decl_prefix,
 							expr_retained_scope,
-							caller_locals, local_clock, nullptr,
-							clock_error);
+							caller_locals, local_clock, inner_clock,
+							clock_error, local_clock_scope,
+							endpoint_clock_scope);
 				    active.erase(pit->first);
 				    delete steps[i].expr;
 				    steps.erase(steps.begin() + i);
@@ -21746,7 +21836,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 				    continue;
 			      }
 			      active.erase(pit->first);
-			      if (pit->second.clk_evt) {
+			      if (endpoint || pit->second.clk_evt) {
 				    if (clock_error) *clock_error = true;
 				    break;
 			      }
@@ -21757,7 +21847,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			}
 		  }
 	    }
-	    if (whole_clock) break;
+	    if (whole_clock && !endpoint) break;
 	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
 	    if (!id || id->path().name.empty()) {
 		  i += 1;
@@ -21828,11 +21918,12 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    sva_scoped_name_t seq_key;
 	    std::vector<sva_seq_step_t>*seq_body = nullptr;
 	    if (!retained_declaration && !id->path().package
-		&& id->path().name.size() == 1 && sva_active_clocking_scope_) {
+		&& id->path().name.size() == 1
+		&& (sva_active_clocking_scope_ || endpoint)) {
 		  auto shaped = sva_resolve_(sva_property_shaped_sequences,
 			id->path().name.front().name, expr_scope);
 		  if (shaped != sva_property_shaped_sequences.end()
-		      && shaped->clocking == sva_active_clocking_scope_) {
+		      && (endpoint || shaped->clocking == sva_active_clocking_scope_)) {
 			auto declaration = sva_module_properties.find(*shaped);
 			const sva_property_t*body = declaration == sva_module_properties.end()
 			      ? nullptr : declaration->second;
@@ -21840,14 +21931,39 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			    || body->mc_prefix || body->mc_boundary != -1
 			    || (body->mc_more && !body->mc_more->empty())
 			    || !body->local_names.empty()) {
-			      cerr << loc << ": sorry: this clocking-block sequence "
-				   << "cannot be spliced into a sequence expression yet."
-				   << endl;
+			      if (endpoint)
+				    cerr << loc << ": sorry: .triggered cannot lower the clock flow "
+					 << "or endpoint of sequence `" << shaped->name << "'." << endl;
+			      else
+				    cerr << loc << ": sorry: this clocking-block sequence "
+					 << "cannot be spliced into a sequence expression yet."
+					 << endl;
 			      error_count += 1;
 			      break;
 			}
 			seq_key = *shaped;
 			seq_body = body->seq;
+			if (endpoint && body->clk_evt) {
+			      const LexicalScope*clock_scope =
+				    sva_sequence_decl_scope_(seq_key, decl_module);
+			      if (!whole_clock && !same_local_clock(body->clk_evt, clock_scope)) {
+				    cerr << loc << ": sorry: .triggered cannot splice sequence `"
+					 << shaped->name << "' with a different local clock."
+					 << endl;
+				    error_count += 1;
+				    break;
+			      }
+			      if (whole_clock) {
+				    PEventStatement*clock = sva_clone_event_control_(body->clk_evt, loc);
+				    if (!clock) {
+					  cerr << loc << ": sorry: .triggered cannot copy the clock "
+					       << "of sequence `" << shaped->name << "'." << endl;
+					  error_count += 1;
+					  break;
+				    }
+				    adopt_clock(clock, clock_scope);
+			      }
+			}
 		  }
 	    }
 	    if (!seq_body && seq_it != seq_declarations->end()) {
@@ -21858,6 +21974,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  i += 1;
 		  continue;
 	    }
+	    if (endpoint && !sva_endpoint_splice_step_(loc, seq_key.name, steps[i]))
+		  break;
             if (!enter(seq_key)) { --splice_depth; return; }
 	    std::set<perm_string>local_names;
 	    for (const sva_seq_step_t&step : *seq_body)
@@ -21895,11 +22013,15 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			      || (st.delay_hi_expr && !dhi_cp)
 			      || (st.rep_lo_expr && !rlo_cp)
 			      || (st.rep_hi_expr && !rhi_cp) || !items_ok;
-		  if (clone_failed && declaration_context.prefix) {
-			cerr << loc << ": error: hierarchical sequence `"
-			     << seq_key.name
-			     << "' has a body expression that cannot be copied into "
-			     << "the referencing scope." << endl;
+		  if (clone_failed && (declaration_context.prefix || endpoint)) {
+			if (endpoint)
+			      cerr << loc << ": sorry: .triggered cannot copy the "
+				   << "body of sequence `" << seq_key.name << "'." << endl;
+			else
+			      cerr << loc << ": error: hierarchical sequence `"
+				   << seq_key.name
+				   << "' has a body expression that cannot be copied into "
+				   << "the referencing scope." << endl;
 			error_count += 1;
 			delete cp;
 			delete dlo_cp;
@@ -21907,7 +22029,6 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			delete rlo_cp;
 			delete rhi_cp;
 			sva_destroy_match_items_(st.items);
-			pform_sva_destroy_sequence(&body);
 			break;
 		  }
 		  if (clone_failed) {
@@ -21966,7 +22087,15 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 		  }
 		  body.push_back(st);
 	    }
+	    if (error_count != entry_errors) {
+		  pform_sva_destroy_sequence(
+			new std::vector<sva_seq_step_t>(std::move(body)));
+		  active.erase(seq_key);
+		  break;
+	    }
 	    sva_retag_first_match_groups_(body);
+	    PEventStatement**inner_clock = endpoint && whole_clock
+		  && sva_endpoint_whole_step_(body) ? whole_clock : nullptr;
 	    if (!body.empty() && !steps[i].items.empty()) {
 		  body.back().items.insert(body.back().items.end(),
 			steps[i].items.begin(), steps[i].items.end());
@@ -21985,7 +22114,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    // to the declaration's module and generate scope.
 	    sva_splice_sequences_(loc, body, seq_key.gen,
 			  decl_module, decl_prefix, retained_declaration,
-			  &nested_locals, local_clock, nullptr, clock_error);
+			  &nested_locals, local_clock, inner_clock, clock_error,
+			  local_clock_scope, endpoint_clock_scope);
             active.erase(seq_key);
 	    delete steps[i].expr;
 	    steps.erase(steps.begin() + i);
@@ -29967,30 +30097,13 @@ static bool sva_check_first_match_(const struct vlltype&loc,
       return false;       // caller tries the bounded terminal-window fallback
 }
 
-/* M9-NFA stage C.3: sequence endpoint methods `seq.triggered' /
-   `seq.matched' (IEEE 1800-2017 16.13.6). For a FIXED-LENGTH named
-   sequence the endpoint boolean — "seq completed a match ending at this
-   cycle" — is the $past-sampled conjunction of the sequence's step
-   booleans, each delayed by its distance from the match end (`a ##1 b'
-   -> `$past(a,1) && b'). This is the same fixed-length match indicator
-   the legacy engine already builds for a fixed antecedent, so both
-   engines lower it identically. Variable-length, unbounded, repetition,
-   goto/nonconsec, or local-variable sequence bodies need the automaton
-   endpoint signal and are a loud sorry; a base that is not a declared
-   sequence is left untouched for the ordinary unresolved-reference
-   diagnostic. Under a single clock `.triggered' and `.matched' coincide
-   (the observed-region distinction is a stage-D multiclock concern).
-   Returns false (diagnosed) on an unsupported endpoint. */
-/* IEEE 1800-2017/2023 16.13.6: a sequence endpoint is "a match ending at
-   this tick"; "an empty match does not cause triggered/matched to be true".
-   For a bounded variable-length body, every nonempty match is one path of
-   its acyclic tick automaton, and a path of L ticks ending now is the
-   conjunction of each tick's guard $past-sampled by its distance from the
-   end. The endpoint is the OR of those path conjunctions. Returns null when
-   the body has locals, is unbounded, or has more than 256 paths. */
+/* IEEE 1800-2017/2023 16.9.11 and 16.13.6: for a bounded source,
+   enumerate the nonempty paths of its tick automaton. Each path is a
+   conjunction of guards sampled at their offsets from the end. An endpoint
+   exists if at least one complete path ends on this tick. */
 static PExpr* sva_endpoint_indicator_paths_(const struct vlltype&loc,
 						    std::vector<sva_seq_step_t>&body,
-						    bool empty_is_false)
+						    bool triggered)
 {
       for (const sva_seq_step_t&st : body)
 	    if (sva_step_has_assignment_(st) || sva_step_has_call_(st))
@@ -29999,6 +30112,10 @@ static PExpr* sva_endpoint_indicator_paths_(const struct vlltype&loc,
       if (!pform_sva_nfa_build_from_chain(nfa, body)
 	  || pform_sva_nfa_has_cycle(nfa))
 	    return nullptr;
+      if (triggered)
+	    for (const sva_nfa_edge_t&edge : nfa.edges)
+		  if (edge.first_match_cut_group != 0)
+			return nullptr;
 
       std::vector<std::vector<const sva_nfa_edge_t*> > paths;
       std::vector<const sva_nfa_edge_t*> path;
@@ -30022,15 +30139,19 @@ static PExpr* sva_endpoint_indicator_paths_(const struct vlltype&loc,
       if (paths.empty())
 	    /* Empty-only bounded sequences have no nonempty endpoint shape.
 	       IEEE 1800-2017/2023 16.9.11 says they cannot activate triggered. */
-	    return empty_is_false ? sva_bit_(loc, 0) : nullptr;
+	    return triggered ? sva_bit_(loc, 0) : nullptr;
 
       PExpr*any = nullptr;
       for (const std::vector<const sva_nfa_edge_t*>&one : paths) {
-	    PExpr*conj = nullptr;
+	    // A path can begin with unguarded ticks. Check its full history.
+	    PExpr*conj = triggered && one.size() > 1
+		  ? sva_past_(loc, sva_bit_(loc, 1), (long)(one.size() - 1))
+		  : nullptr;
 	    for (size_t tick = 0 ; tick < one.size() ; tick += 1) {
 		  for (PExpr*guard : one[tick]->guards) {
 			PExpr*g = sva_clone_expr_(guard);
 			if (!g) { delete conj; delete any; return nullptr; }
+			if (triggered) g = sva_booleanize_(loc, g);
 			PExpr*term = sva_past_(loc, g, (long)(one.size() - 1 - tick));
 			conj = conj ? sva_logic_(loc, 'a', conj, term) : term;
 		  }
@@ -30038,7 +30159,7 @@ static PExpr* sva_endpoint_indicator_paths_(const struct vlltype&loc,
 	    if (!conj) conj = sva_bit_(loc, 1);
 	    any = any ? sva_logic_(loc, 'o', any, conj) : conj;
       }
-      return any;
+      return triggered ? pform_sva_prop_condition(loc, any) : any;
 }
 
 /* Build the $past-conjunction indicator for `seqname.method'. Returns
@@ -30051,6 +30172,7 @@ static PExpr* sva_endpoint_indicator_body_(const struct vlltype&loc,
 					   std::vector<sva_seq_step_t>&body,
 					   bool&failed)
 {
+      const bool triggered = method == perm_string::literal("triggered");
       bool ok = !body.empty();
       long L = 0;
       std::vector<long> off (body.size(), 0);
@@ -30058,17 +30180,17 @@ static PExpr* sva_endpoint_indicator_body_(const struct vlltype&loc,
 	    const sva_seq_step_t&st = body[j];
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
 		|| st.rep_tail != 0 || st.rep_kind != 0
-		|| sva_step_has_assignment_(st))
+		|| sva_step_has_assignment_(st)
+		|| (triggered && (st.grouped_repeat || sva_step_has_call_(st))))
 		  ok = false;
 	    else { L += st.delay_lo; off[j] = L; }
       }
       if (!ok) {
-	    if (PExpr*bounded = sva_endpoint_indicator_paths_(
-			loc, body, method == perm_string::literal("triggered")))
+	    if (PExpr*bounded = sva_endpoint_indicator_paths_(loc, body, triggered))
 		  return bounded;
 	    cerr << loc << ": sorry: `" << seqname << "." << method
 		 << "' is supported only for a bounded sequence "
-		 << "(no ##[m:$]/[*m:$]/unbounded goto, local variables, "
+		 << "(no unbounded delay/repetition, variable-length first_match, match items, "
 		 << "or more than 256 match shapes); the assertion is dropped."
 		 << endl;
 	    error_count += 1;
@@ -30076,10 +30198,13 @@ static PExpr* sva_endpoint_indicator_body_(const struct vlltype&loc,
 	    return nullptr;
       }
 	/* AND over j of $past(clone(e_j), L - off[j]). */
-      PExpr*conj = nullptr;
+      // The history of constant 1 becomes true only after a real start tick.
+      PExpr*conj = triggered && L > 0 ? sva_past_(loc, sva_bit_(loc, 1), L)
+				     : nullptr;
       for (size_t j = 0 ; j < body.size() ; j += 1) {
 	    PExpr*ej = sva_clone_expr_(body[j].expr);
 	    if (!ej) { ok = false; break; }
+	    if (triggered) ej = sva_booleanize_(loc, ej);
 	    PExpr*term = sva_past_(loc, ej, L - off[j]);
 	    conj = conj ? sva_logic_(loc, 'a', conj, term) : term;
       }
@@ -30092,53 +30217,7 @@ static PExpr* sva_endpoint_indicator_body_(const struct vlltype&loc,
 	    failed = true;
 	    return nullptr;
       }
-      return conj;
-}
-
-static PExpr* sva_endpoint_indicator_key_(const struct vlltype&loc,
-					  const sva_scoped_name_t&key,
-					  perm_string method, bool&failed)
-{
-	  std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
-	    sva_module_sequences.find(key);
-      std::vector<sva_seq_step_t>*body =
-	    it != sva_module_sequences.end() ? it->second : nullptr;
-      if (!body) {
-	    /* This issue is the same-clock .triggered case.  A property-shaped
-	       source can be matched across clock domains, which needs distinct
-	       handoff semantics and must not use this single-clock indicator. */
-	    if (method != perm_string::literal("triggered")) return nullptr;
-	    /* Explicitly clocked sequence declarations keep their complete IR in
-	       the property-shaped tables.  A fixed chain there has the same
-	       endpoint expression as the plain sequence representation. */
-	    std::set<sva_scoped_name_t>::iterator tag =
-		  sva_property_shaped_sequences.find(key);
-	    if (tag == sva_property_shaped_sequences.end()) return nullptr;
-	    std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
-		  sva_module_properties.find(key);
-	    if (pit == sva_module_properties.end() || !pit->second
-		|| pit->second->tree || !pit->second->seq)
-		  return nullptr;
-	    body = pit->second->seq;
-      }
-	return sva_endpoint_indicator_body_(loc, key.name, method,
-					   *body, failed);
-}
-
-static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
-				      perm_string seqname, perm_string method,
-				      bool&failed)
-{
-	  std::map<sva_scoped_name_t, std::vector<sva_seq_step_t>*>::iterator it =
-	    sva_resolve_(sva_module_sequences, seqname);
-	  if (it != sva_module_sequences.end() && it->second)
-	    return sva_endpoint_indicator_key_(loc, it->first, method, failed);
-
-	  if (method != perm_string::literal("triggered")) return nullptr;
-	  std::set<sva_scoped_name_t>::iterator tag =
-	    sva_resolve_(sva_property_shaped_sequences, seqname);
-	  if (tag == sva_property_shaped_sequences.end()) return nullptr;
-	  return sva_endpoint_indicator_key_(loc, *tag, method, failed);
+      return triggered ? pform_sva_prop_condition(loc, conj) : conj;
 }
 
 /* IEEE 1800-2023 16.13.5/16.13.6: `seq.matched' where the source sequence
@@ -30155,11 +30234,9 @@ static PExpr* sva_endpoint_indicator_(const struct vlltype&loc,
    seen by the next tick and not this one, whatever the process order.
    Counts, not time stamps, so ticks closer than the timescale cannot
    observe one match twice. */
-static const PEventStatement*sva_endpoint_dest_clock_ = nullptr;
-
-
 static PExpr* sva_matched_cross_clock_(const struct vlltype&loc,
-				       perm_string seqname, bool&failed)
+				       perm_string seqname,
+				       const PEventStatement*dest, bool&failed)
 {
       std::set<sva_scoped_name_t>::iterator tag =
 	    sva_resolve_(sva_property_shaped_sequences, seqname);
@@ -30171,7 +30248,6 @@ static PExpr* sva_matched_cross_clock_(const struct vlltype&loc,
 	    return nullptr;
       const sva_property_t*body = pit->second;
 
-      const PEventStatement*dest = sva_endpoint_dest_clock_;
       if (!dest) {
 	    const Module*mod = sva_default_clocking_owner_(lexical_scope);
 	    if (mod && !mod->default_clocking.nil()) {
@@ -30277,6 +30353,76 @@ static PExpr* sva_matched_cross_clock_(const struct vlltype&loc,
       return pending;
 }
 
+/* A named property can carry the default clock as a marker until
+   elaboration. Endpoint identity must use the block's actual event. */
+static const PEventStatement* sva_triggered_clock_(const PEventStatement*clock,
+						    const LexicalScope*&scope)
+{
+      if (clock) {
+	    const auto&events = clock->event_expressions();
+	    if (events.size() != 1) return clock;
+	    const PECallFunction*call =
+		  dynamic_cast<const PECallFunction*>(events.front()->expr());
+	    if (!call || call->path().name.size() != 1
+		|| call->path().name.front().name
+		      != perm_string::literal("$ivl_default_clock"))
+		  return clock;
+      }
+      if (const Module*mod = sva_default_clocking_owner_(scope)) {
+	    auto cb = mod->clocking_blocks.find(mod->default_clocking);
+	    if (cb != mod->clocking_blocks.end()) {
+		  scope = mod;
+		  return cb->second->event;
+	    }
+      }
+      return nullptr;
+}
+
+static PExpr* sva_triggered_instance_(const struct vlltype&loc,
+				      perm_string name, PExpr*instance,
+				      const PEventStatement*dest, bool&failed,
+				      const PGenerate*scope = pform_cur_generate)
+{
+      const LexicalScope*dest_scope = lexical_scope;
+      dest = sva_triggered_clock_(dest, dest_scope);
+      auto*body = new std::vector<sva_seq_step_t>(1);
+      body->front().expr = instance;
+      PEventStatement*clock = nullptr;
+      const LexicalScope*source_scope = nullptr;
+      unsigned errors = error_count;
+      sva_splice_sequences_(loc, *body, scope, nullptr, nullptr,
+			    false, nullptr, dest, &clock, nullptr,
+			    dest_scope, &source_scope);
+      const PEventStatement*source = clock
+	    ? sva_triggered_clock_(clock, source_scope) : dest;
+      if (error_count == errors && clock
+	  && !sva_sequence_clocks_match_(source, dest, source_scope, dest_scope)) {
+	    if (dest)
+		  cerr << loc << ": error: the ending clock of sequence `" << name
+		       << "' used with .triggered shall be the same as the consuming "
+		       << "clock (IEEE 1800-2017/2023 16.13.5)." << endl;
+	    else
+		  cerr << loc << ": sorry: .triggered on sequence `" << name
+		       << "' requires a resolved consuming clock." << endl;
+	    error_count += 1;
+      }
+      sva_destroy_sequence_clock_(clock);
+      failed = error_count != errors;
+      PExpr*indicator = failed ? nullptr : sva_endpoint_indicator_body_(
+	    loc, name, perm_string::literal("triggered"), *body, failed);
+      pform_sva_destroy_sequence(body);
+      return indicator;
+}
+
+static PExpr* sva_named_triggered_(const struct vlltype&loc, perm_string name,
+				   const PEventStatement*clock, bool&failed)
+{
+      if (!sva_in_scope_(sva_module_sequences, name)
+	  && !sva_in_scope_(sva_property_shaped_sequences, name))
+	    return nullptr;
+      return sva_triggered_instance_(loc, name, sva_id_(loc, name), clock, failed);
+}
+
 /* Recursively rewrite `seq.triggered'/`seq.matched' references INSIDE
    a step's boolean expression (16.13.6: the endpoint methods are
    ordinary booleans and compose with any operator). The old lowering
@@ -30284,7 +30430,8 @@ static PExpr* sva_matched_cross_clock_(const struct vlltype&loc,
    `s1.triggered && e' left the reference unresolved and the assertion
    went silently wrong -- differently in each engine (recovery C5). */
 static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
-					 PExpr*e, bool&failed)
+					 PExpr*e, const PEventStatement*clock,
+					 bool&failed)
 {
       if (!e || failed) return e;
 
@@ -30302,22 +30449,19 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 		  sva_sequence_trigger_sources.find(nm.front().name);
 	    if (source != sva_sequence_trigger_sources.end()) {
 		  sva_trigger_assertion_refs_[nm.front().name] += 1;
-		  ind = sva_endpoint_indicator_key_(loc, source->second,
-						    method, failed);
+		  const auto&key = source->second;
+		  ind = sva_triggered_instance_(loc, key.name, sva_id_(loc, key.name),
+						clock, failed, key.gen);
+	    } else if (!strcmp(method, "matched")) {
+		  ind = sva_matched_cross_clock_(loc, nm.front().name, clock, failed);
 		  if (!ind && !failed) {
-			cerr << loc << ": sorry: named sequence `"
-			     << source->second.name << ".triggered' in an assertion "
-			     << "requires a fixed-length sequence endpoint here; the "
-			     << "assertion is dropped." << endl;
-			error_count += 1;
-			failed = true;
+			auto seq = sva_resolve_(sva_module_sequences, nm.front().name);
+			if (seq != sva_module_sequences.end() && seq->second)
+			      ind = sva_endpoint_indicator_body_(
+				    loc, seq->first.name, method, *seq->second, failed);
 		  }
 	    } else {
-		  if (!strcmp(method, "matched"))
-			ind = sva_matched_cross_clock_(loc, nm.front().name, failed);
-		  if (!ind && !failed)
-			ind = sva_endpoint_indicator_(loc, nm.front().name,
-						      method, failed);
+		  ind = sva_named_triggered_(loc, nm.front().name, clock, failed);
 	    }
 	    if (!ind) return e;
 	    delete e;
@@ -30333,9 +30477,9 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 	      if (sequence && !sequence->path().package
 		  && sequence->path().name.size() == 1
 		  && sequence->path().name.front().index.empty()) {
-		    PExpr*ind = sva_endpoint_indicator_(
+		    PExpr*ind = sva_named_triggered_(
 			  loc, sequence->path().name.front().name,
-			  perm_string::literal("triggered"), failed);
+			  clock, failed);
 		    if (ind) {
 			  delete e;
 			  return ind;
@@ -30345,32 +30489,19 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 	      if (instance && !instance->receiver_expr()
 		  && !instance->path().package && instance->path().name.size() == 1) {
 		perm_string seqname = instance->path().name.front().name;
-		std::map<sva_scoped_name_t,sva_param_seq_t>::iterator seq_it =
-		      sva_resolve_(sva_param_sequences, seqname);
-		if (seq_it != sva_param_sequences.end() && seq_it->second.body) {
-		      if (seq_it->second.clk_evt) {
-			    cerr << loc << ": sorry: .triggered on clocked parameterized "
-				 << "sequence `" << seqname << "' is not supported yet." << endl;
+		if (sva_in_scope_(sva_param_sequences, seqname)) {
+		      PExpr*copy = sva_clone_expr_(instance);
+		      if (!copy) {
+			    cerr << loc << ": sorry: .triggered cannot copy the "
+				 << "arguments of sequence `" << seqname << "'." << endl;
 			    error_count += 1;
 			    failed = true;
 			    return e;
 		      }
-		      PEventStatement*clock = nullptr;
-		      std::vector<sva_seq_step_t>*body = sva_instantiate_seq_(
-			    loc, seqname, seq_it->second, instance->get_parms(), clock);
-		      if (!body) { failed = true; return e; }
-		      unsigned errors_before_splice = error_count;
-		      sva_splice_sequences_(loc, *body);
-		      if (error_count != errors_before_splice) {
-			    pform_sva_destroy_sequence(body);
-			    failed = true;
-			    return e;
-		      }
-		      PExpr*ind = sva_endpoint_indicator_body_(
-			    loc, seqname, perm_string::literal("triggered"),
-			    *body, failed);
-		      pform_sva_destroy_sequence(body);
+		      PExpr*ind = sva_triggered_instance_(
+			    loc, seqname, copy, clock, failed);
 		      if (!ind) return e;
+		      sva_expr_forget_sampled_(instance);
 		      delete e;
 		      return ind;
 		}
@@ -30379,15 +30510,15 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 	  }
 
       if (PEUnary*un = dynamic_cast<PEUnary*>(e)) {
-	    PExpr*sub = sva_rewrite_endpoint_expr_(loc, un->get_expr(), failed);
+	    PExpr*sub = sva_rewrite_endpoint_expr_(loc, un->get_expr(), clock, failed);
 	    if (sub == un->get_expr()) return e;
 	    PEUnary*cp = new PEUnary(un->get_op(), sub);
 	    cp->set_line(*e);
 	    return cp;
       }
       if (PEBinary*bin = dynamic_cast<PEBinary*>(e)) {
-	    PExpr*l = sva_rewrite_endpoint_expr_(loc, bin->get_left(), failed);
-	    PExpr*r = sva_rewrite_endpoint_expr_(loc, bin->get_right(), failed);
+	    PExpr*l = sva_rewrite_endpoint_expr_(loc, bin->get_left(), clock, failed);
+	    PExpr*r = sva_rewrite_endpoint_expr_(loc, bin->get_right(), clock, failed);
 	    if (l == bin->get_left() && r == bin->get_right()) return e;
 	    PEBinary*cp;
 	    if (dynamic_cast<PEBComp*>(e))
@@ -30400,9 +30531,9 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 	    return cp;
       }
       if (PETernary*ter = dynamic_cast<PETernary*>(e)) {
-	    PExpr*c = sva_rewrite_endpoint_expr_(loc, ter->get_cond(), failed);
-	    PExpr*t = sva_rewrite_endpoint_expr_(loc, ter->get_true(), failed);
-	    PExpr*f = sva_rewrite_endpoint_expr_(loc, ter->get_false(), failed);
+	    PExpr*c = sva_rewrite_endpoint_expr_(loc, ter->get_cond(), clock, failed);
+	    PExpr*t = sva_rewrite_endpoint_expr_(loc, ter->get_true(), clock, failed);
+	    PExpr*f = sva_rewrite_endpoint_expr_(loc, ter->get_false(), clock, failed);
 	    if (c == ter->get_cond() && t == ter->get_true()
 		&& f == ter->get_false()) return e;
 	    PETernary*cp = new PETernary(c, t, f);
@@ -30414,19 +30545,20 @@ static PExpr* sva_rewrite_endpoint_expr_(const struct vlltype&loc,
 }
 
 static bool sva_lower_endpoint_methods_(const struct vlltype&loc,
-					std::vector<sva_seq_step_t>&steps)
+					std::vector<sva_seq_step_t>&steps,
+					const PEventStatement*clock)
 {
       for (size_t i = 0 ; i < steps.size() ; i += 1) {
 	    bool failed = false;
 	    steps[i].expr = sva_rewrite_endpoint_expr_(loc, steps[i].expr,
-						       failed);
+						       clock, failed);
 	    if (failed)
 		  return false;
 	    for (size_t m = 0 ; m < steps[i].items.size() ; m += 1) {
 		  sva_match_item_t&item = steps[i].items[m];
 		  if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
 		      || !item.lv_rhs) continue;
-		  item.lv_rhs = sva_rewrite_endpoint_expr_(loc, item.lv_rhs, failed);
+		  item.lv_rhs = sva_rewrite_endpoint_expr_(loc, item.lv_rhs, clock, failed);
 		  if (failed) return false;
 	    }
       }
@@ -30437,18 +30569,26 @@ static bool sva_lower_endpoint_methods_(const struct vlltype&loc,
    tree: every LEAF chain and every throughout-invariant expression
    (the tree dispatch used to bypass the lowering entirely). */
 static bool sva_lower_endpoint_methods_tree_(const struct vlltype&loc,
-					     sva_stree_t*t)
+					     sva_stree_t*t,
+					     const sva_property_t*prop,
+					     const PEventStatement*clock)
 {
       if (!t) return true;
-      if (t->chain && !sva_lower_endpoint_methods_(loc, *t->chain))
-	    return false;
+      if (t->chain) {
+	    // A named leaf may expose an endpoint expression during splicing.
+	    unsigned errors = error_count;
+	    sva_splice_property_sequences_(loc, *t->chain, prop);
+	    if (error_count != errors
+		|| !sva_lower_endpoint_methods_(loc, *t->chain, clock))
+		  return false;
+      }
       if (t->gexpr) {
 	    bool failed = false;
-	    t->gexpr = sva_rewrite_endpoint_expr_(loc, t->gexpr, failed);
+	    t->gexpr = sva_rewrite_endpoint_expr_(loc, t->gexpr, clock, failed);
 	    if (failed) return false;
       }
-      if (!sva_lower_endpoint_methods_tree_(loc, t->a)) return false;
-      if (!sva_lower_endpoint_methods_tree_(loc, t->b)) return false;
+      if (!sva_lower_endpoint_methods_tree_(loc, t->a, prop, clock)) return false;
+      if (!sva_lower_endpoint_methods_tree_(loc, t->b, prop, clock)) return false;
       return true;
 }
 
@@ -41145,11 +41285,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	         dispatch used to bypass it, leaving the references
 	         unresolved and the assertion silently wrong
 	         (recovery C5). */
-	    sva_endpoint_dest_clock_ = prop->clk_evt;
 	    bool endpoints_ok = (!prop->ante_tree
-		 || sva_lower_endpoint_methods_tree_(loc, prop->ante_tree))
-		&& sva_lower_endpoint_methods_tree_(loc, prop->tree);
-	    sva_endpoint_dest_clock_ = nullptr;
+		 || sva_lower_endpoint_methods_tree_(loc, prop->ante_tree, prop, prop->clk_evt))
+		&& sva_lower_endpoint_methods_tree_(loc, prop->tree, prop, prop->clk_evt);
 	    if (!endpoints_ok) {
 		  sva_tree_delete_(prop->ante_tree, true);
 		  prop->ante_tree = nullptr;
@@ -42046,11 +42184,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	   methods to their fixed-length $past match indicator (both engines
 	   handle the resulting boolean). Unsupported endpoints are a loud
 	   sorry with full cleanup. */
-      sva_endpoint_dest_clock_ = prop->clk_evt;
-      bool endpoints_ok = sva_lower_endpoint_methods_(loc, *prop->seq)
+      bool endpoints_ok = sva_lower_endpoint_methods_(loc, *prop->seq, prop->clk_evt)
 	  && (!prop->antecedent
-	      || sva_lower_endpoint_methods_(loc, *prop->antecedent));
-      sva_endpoint_dest_clock_ = nullptr;
+	      || sva_lower_endpoint_methods_(loc, *prop->antecedent, prop->clk_evt));
       if (!endpoints_ok) {
 	    delete fail_stmt; delete pass_stmt;
 	    delete prop->antecedent; delete prop->seq;

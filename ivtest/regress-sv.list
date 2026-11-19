@@ -7274,3 +7274,11 @@ issue3801_2023 normal,-g2023,-gassertions,-s,issue3801 ivltests gold=issue3801.g
 # IEEE 1800-2017/2023 10.10: self-determined integral queue operands.
 issue1158_signed_queue_sort_2017 normal,-g2017 ivltests gold=issue1158_signed_queue_sort.gold
 issue1158_signed_queue_sort_2023 normal,-g2023 ivltests gold=issue1158_signed_queue_sort.gold
+
+# Clocked sequence instances with actuals and .triggered (issue #3800)
+issue3800_clocked_triggered_2017 normal,-g2017,-gassertions,-s,issue3800_clocked_triggered ivltests gold=issue3800_clocked_triggered.gold
+issue3800_clocked_triggered_2023 normal,-g2023,-gassertions,-s,issue3800_clocked_triggered ivltests gold=issue3800_clocked_triggered.gold
+issue3800_triggered_delays_2017 normal,-g2017,-gassertions,-s,issue3800_triggered_delays ivltests gold=issue3800_triggered_delays.gold
+issue3800_triggered_delays_2023 normal,-g2023,-gassertions,-s,issue3800_triggered_delays ivltests gold=issue3800_triggered_delays.gold
+issue3800_triggered_clock_error_2017 CE,-g2017,-gassertions,-s,issue3800_triggered_clock_error ivltests gold=issue3800_triggered_clock_error.gold
+issue3800_triggered_clock_error_2023 CE,-g2023,-gassertions,-s,issue3800_triggered_clock_error ivltests gold=issue3800_triggered_clock_error.gold
