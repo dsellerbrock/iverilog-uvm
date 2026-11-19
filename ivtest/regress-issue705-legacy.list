@@ -1,0 +1,6 @@
+issue705_cycle_delay_zero_2017 RE,-g2017,-s,issue705_cycle_delay ivltests gold=issue705_cycle_delay_invalid_2017.gold
+issue705_cycle_delay_negative_2017 RE,-g2017,-s,issue705_cycle_delay,-Pissue705_cycle_delay.COUNT=-1 ivltests gold=issue705_cycle_delay_invalid_2017.gold
+issue705_cycle_delay_unknown_2017 RE,-g2017,-s,issue705_cycle_delay,-DISSUE705_UNKNOWN ivltests gold=issue705_cycle_delay_invalid_2017.gold
+issue705_cycle_delay_zero_2023 normal,-g2023,-s,issue705_cycle_delay ivltests gold=issue705_cycle_delay_zero_2023.gold
+issue705_cycle_delay_negative_2023 RE,-g2023,-s,issue705_cycle_delay,-Pissue705_cycle_delay.COUNT=-1 ivltests gold=issue705_cycle_delay_invalid_2023.gold
+issue705_cycle_delay_unknown_2023 RE,-g2023,-s,issue705_cycle_delay,-DISSUE705_UNKNOWN ivltests gold=issue705_cycle_delay_invalid_2023.gold
