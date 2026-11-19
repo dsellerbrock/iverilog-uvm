@@ -48,7 +48,7 @@ struct sva_nfa_t {
       unsigned nstates = 0;
       unsigned start = 0;
       unsigned accept = 0;
-      bool accepts_empty = false; // start reaches accept using epsilon only
+      unsigned empty_matches = 0; // count in endpoint trees, presence elsewhere
       std::vector<sva_nfa_edge_t> edges;
 
       unsigned new_state() { return nstates++; }
@@ -85,13 +85,20 @@ extern bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
 extern bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa,
 					  const sva_stree_t*tree);
 
+/* Build a finite tree with distinct tick-ending paths. max_endpoints
+   bounds the number of endpoints from one attempt on a single tick. */
+extern bool pform_sva_nfa_build_endpoint_tree(sva_nfa_t&nfa,
+				const sva_stree_t*tree, unsigned state_budget,
+				unsigned&max_endpoints);
+
 /* Compose an arbitrary sequence-tree antecedent with an arbitrary
    sequence-tree consequent using |-> (overlapped) or |=> (nonoverlapped)
    timing. `boundary' receives the antecedent-completion probes. */
 extern bool pform_sva_nfa_build_implication(
 				sva_nfa_t&nfa, const sva_stree_t*ante,
 				const sva_stree_t*conseq, bool nonoverlap,
-				std::vector<sva_nfa_boundary_t>&boundary);
+				std::vector<sva_nfa_boundary_t>&boundary,
+				unsigned path_budget = 0);
 
 enum sva_first_match_group_class_t {
       SVA_FIRST_MATCH_FIXED,

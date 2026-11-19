@@ -656,6 +656,60 @@ static void prune_dead_states_(sva_nfa_t&nfa,
       if (old_to_new) old_to_new->swap(remap);
 }
 
+/* In endpoint trees an epsilon join is still a choice of paths. Lift
+   each epsilon-prefix/tick pair and emit one accepting edge for each
+   epsilon suffix to the accept state. The bound also rejects cycles
+   in the epsilon graph. */
+static bool fold_path_epsilons_(sva_nfa_t&nfa, unsigned budget)
+{
+      prune_dead_states_(nfa);
+      if (nfa.nstates >= budget) return false;
+      vector<vector<unsigned>> eps(nfa.nstates), reverse_eps(nfa.nstates);
+      vector<vector<const sva_nfa_edge_t*>> ticks(nfa.nstates);
+      for (const auto&edge : nfa.edges) {
+	    if (edge.epsilon) {
+		  eps[edge.from].push_back(edge.to);
+		  reverse_eps[edge.to].push_back(edge.from);
+	    } else {
+		  ticks[edge.from].push_back(&edge);
+	    }
+      }
+      auto walk = [budget](const vector<vector<unsigned>>&adj, unsigned start,
+			   vector<unsigned>&paths) {
+	    paths.assign(1, start);
+	    for (size_t i = 0; i < paths.size(); ++i) {
+		  const auto&next = adj[paths[i]];
+		  if (next.size() > budget - paths.size()) return false;
+		  paths.insert(paths.end(), next.begin(), next.end());
+	    }
+	    return true;
+      };
+      vector<unsigned> paths;
+      if (!walk(reverse_eps, nfa.accept, paths)) return false;
+      vector<unsigned> endings(nfa.nstates, 0);
+      for (unsigned from : paths) ++endings[from];
+      nfa.empty_matches = endings[nfa.start];
+
+      vector<sva_nfa_edge_t> out;
+      const unsigned accept = nfa.nstates;
+      for (unsigned from = 0; from < nfa.nstates; ++from) {
+	    if (!walk(eps, from, paths)) return false;
+	    for (unsigned via : paths)
+		  for (const auto*edge : ticks[via]) {
+			if (1 + endings[edge->to] > budget - out.size())
+			      return false;
+			sva_nfa_edge_t copy = *edge;
+			copy.from = from;
+			out.push_back(copy);
+			copy.to = accept;
+			out.insert(out.end(), endings[edge->to], copy);
+		  }
+      }
+      nfa.accept = nfa.new_state();
+      nfa.edges.swap(out);
+      return true;
+}
+
 bool pform_sva_nfa_first_match_cuts_ok(const sva_nfa_t&nfa)
 {
       set<unsigned> groups;
@@ -732,9 +786,34 @@ bool pform_sva_nfa_first_match_cuts_ok(const sva_nfa_t&nfa)
 static bool nfa_chain_suffix_(sva_nfa_t&nfa,
                               const std::vector<sva_seq_step_t>&steps,
                               size_t k, unsigned cur, bool first,
-                              unsigned&exit)
+                              unsigned&exit, unsigned path_budget)
 {
+      if (path_budget && (nfa.nstates > path_budget || nfa.edges.size() > path_budget))
+	    return false;
       if (k == steps.size()) { exit = cur; return true; }
+      auto empty_suffix = [&](vector<sva_seq_step_t>&tail,
+			      long lo, long hi, long next_lo, long next_hi,
+			      unsigned join, bool&any) {
+	    /* Distinct pairs of finite delays can have the same total.
+	       Preserve their routes through the shortened suffix. */
+	    if (path_budget && (lo > (long)path_budget || hi > (long)path_budget
+		|| next_lo > (long)path_budget || next_hi > (long)path_budget))
+		  return false;
+	    const bool split = path_budget && lo < hi && next_lo < next_hi;
+	    for (long d = lo; d <= (split ? hi : lo); ++d) {
+		  tail[0].delay_lo = d + next_lo - 1;
+		  tail[0].delay_hi = (hi < 0 || next_hi < 0)
+			? -1 : (split ? d : hi) + next_hi - 1;
+		  unsigned end = 0;
+		  if (!nfa_chain_suffix_(nfa, tail, 0, cur, first, end, path_budget))
+			return false;
+		  if (end != ~0u) {
+			nfa.eps(end, join);
+			any = true;
+		  }
+	    }
+	    return true;
+      };
       sva_first_match_group_class_t fm_class = SVA_FIRST_MATCH_FIXED;
       if (steps[k].fm)
 	    fm_class = pform_sva_first_match_group_class(steps,
@@ -765,7 +844,8 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
 			nonempty[0].rep_lo = 1;
 			unsigned nonempty_exit = 0;
 			if (!nfa_chain_suffix_(nfa, nonempty, 0, cur, first,
-						       nonempty_exit)) return false;
+						       nonempty_exit, path_budget))
+			      return false;
 			if (nonempty_exit != ~0u) {
 			      nfa.eps(nonempty_exit, join);
 			      any = true;
@@ -825,18 +905,9 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
 		  long nh = empty[0].delay_hi;
 		  bool outer_ok = oh < 0 || oh >= ol;
 		  bool next_ok = nh < 0 || nh >= nl;
-		  if (outer_ok && next_ok) {
-			empty[0].delay_lo = ol + nl - 1;
-			empty[0].delay_hi = (oh < 0 || nh < 0)
-			      ? -1 : oh + nh - 1;
-			unsigned empty_exit = 0;
-			if (!nfa_chain_suffix_(nfa, empty, 0, cur, first,
-						       empty_exit)) return false;
-			if (empty_exit != ~0u) {
-			      nfa.eps(empty_exit, join);
-			      any = true;
-			}
-		  }
+		  if (outer_ok && next_ok
+		      && !empty_suffix(empty, ol, oh, nl, nh, join, any))
+			return false;
 		  exit = any ? join : ~0u;
 		  return true;
 	    }
@@ -851,7 +922,7 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
 		  for (size_t i = edge_first; i < nfa.edges.size(); i += 1)
 			if (!nfa.edges[i].epsilon)
 			      nfa.edges[i].first_match_cut_group = steps[k].fm_group;
-            return nfa_chain_suffix_(nfa, steps, k+1, next, false, exit);
+            return nfa_chain_suffix_(nfa, steps, k+1, next, false, exit, path_budget);
       }
 
       sva_group_repeat_t group;
@@ -914,7 +985,8 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
             }
             unsigned body_exit = 0;
             if (!nfa_chain_suffix_(nfa, body, 0, copy_cur,
-                                   first && r == 1, body_exit)) return false;
+                                   first && r == 1, body_exit, path_budget))
+                  return false;
             copy_cur = body_exit;
             // A nested body can denote the empty language even though the
             // enclosing repetition has a legal zero-copy alternative.
@@ -922,7 +994,7 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
             if (r >= lo) {
                   unsigned tail = 0;
                   if (!nfa_chain_suffix_(nfa, steps, last+1, copy_cur,
-                                         false, tail)) return false;
+                                         false, tail, path_budget)) return false;
                   if (tail != ~0u) {
                         nfa.eps(tail, join);
                         any = true;
@@ -936,6 +1008,7 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
             long outer_hi = steps[k].delay_hi
                           - group.first_delay_hi;
             if (outer_lo < 0 || outer_hi < outer_lo) return false;
+            if (path_budget && outer_hi > (long)path_budget) return false;
             if (last + 1 == steps.size()) {
                   /* `prefix ##d empty' has no match for d==0. For d>0
                      its empty endpoint is one tick earlier than d. A group
@@ -944,6 +1017,9 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
                         nfa.eps(cur, join); any = true;
                   }
                   for (long d = std::max(outer_lo, 1L); d <= outer_hi; ++d) {
+                        if (path_budget && (nfa.nstates > path_budget
+                            || d - 1 > path_budget - nfa.nstates))
+                              return false;
                         unsigned z = cur;
                         for (long tick = 1; tick < d; ++tick) {
                               unsigned zn = nfa.new_state();
@@ -960,14 +1036,9 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
                   if (next.delay_hi >= nl && outer_hi >= ol) {
                         std::vector<sva_seq_step_t>tail(
                               steps.begin()+last+1, steps.end());
-                        tail[0].delay_lo = ol + nl - 1;
-                        tail[0].delay_hi = outer_hi + next.delay_hi - 1;
-                        unsigned ze = 0;
-                        if (!nfa_chain_suffix_(nfa, tail, 0, cur, first, ze))
+                        if (!empty_suffix(tail, ol, outer_hi, nl,
+                                          next.delay_hi, join, any))
                               return false;
-                        if (ze != ~0u) {
-                              nfa.eps(ze, join); any = true;
-                        }
                   }
             }
       }
@@ -977,10 +1048,11 @@ static bool nfa_chain_suffix_(sva_nfa_t&nfa,
 
 static bool nfa_chain_fragment_(sva_nfa_t&nfa,
                                 const std::vector<sva_seq_step_t>&steps,
-                                unsigned&start, unsigned&exit)
+                                unsigned&start, unsigned&exit,
+                                unsigned path_budget = 0)
 {
       start = nfa.new_state();
-      if (!nfa_chain_suffix_(nfa, steps, 0, start, true, exit))
+      if (!nfa_chain_suffix_(nfa, steps, 0, start, true, exit, path_budget))
             return false;
       /* Preserve the empty language inside sequence composition (for
          example an OR alternative). Property uses still require the
@@ -1018,7 +1090,7 @@ bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
 	    return false;
       nfa.start = s;
       nfa.accept = e;
-      nfa.accepts_empty = nfa_accepts_empty_(nfa);
+      nfa.empty_matches = nfa_accepts_empty_(nfa);
       fold_epsilons_(nfa);
       prune_dead_states_(nfa);
       return pform_sva_nfa_first_match_cuts_ok(nfa);
@@ -1035,7 +1107,8 @@ bool pform_sva_nfa_build_from_chain(sva_nfa_t&nfa,
 static bool nfa_product_fragment_(sva_nfa_t&nfa,
 				  const sva_nfa_t&A, const sva_nfa_t&B,
 				  bool and_mode,
-				  unsigned&start, unsigned&exit)
+				  unsigned&start, unsigned&exit,
+				  unsigned path_budget)
 {
       for (size_t i = 0; i < A.edges.size(); i += 1)
 	    if (A.edges[i].first_match_cut_group != 0) return false;
@@ -1051,38 +1124,71 @@ static bool nfa_product_fragment_(sva_nfa_t&nfa,
 	    B2.tick(B2.accept, doneB, nullptr);
 	    B2.tick(doneB, doneB, nullptr);
       }
-      unsigned n2 = B2.nstates;
-      unsigned base = nfa.nstates;
-      for (unsigned i = 0; i < A2.nstates * B2.nstates; i += 1)
-	    nfa.new_state();
-      for (size_t i1 = 0; i1 < A2.edges.size(); i1 += 1) {
-	    const sva_nfa_edge_t&e1 = A2.edges[i1];
-	    if (e1.epsilon) return false;   // sides must be folded
-	    for (size_t i2 = 0; i2 < B2.edges.size(); i2 += 1) {
-		  const sva_nfa_edge_t&e2 = B2.edges[i2];
-		  if (e2.epsilon) return false;
-		  sva_nfa_edge_t e;
-		  e.from = base + e1.from * n2 + e2.from;
-		  e.to   = base + e1.to   * n2 + e2.to;
-		  e.guards = e1.guards;
-		  e.guards.insert(e.guards.end(),
-				  e2.guards.begin(), e2.guards.end());
-		  nfa.edges.push_back(e);
+      vector<vector<const sva_nfa_edge_t*>> left(A2.nstates), right(B2.nstates);
+      for (const auto&edge : A2.edges) {
+	    if (edge.epsilon) return false;
+	    left[edge.from].push_back(&edge);
+      }
+      for (const auto&edge : B2.edges) {
+	    if (edge.epsilon) return false;
+	    right[edge.from].push_back(&edge);
+      }
+
+      /* Generate only reachable pairs so the bound is on actual product
+	 states. Keep every paired edge, including parallel arrivals. */
+      using pair_t = pair<unsigned,unsigned>;
+      map<pair_t,unsigned> product;
+      vector<pair_t> pending;
+      auto state_at = [&](unsigned a, unsigned b) {
+	    pair_t key(a, b);
+	    auto found = product.find(key);
+	    if (found != product.end()) return found->second;
+	    if (path_budget && nfa.nstates >= path_budget) return ~0u;
+	    unsigned state = nfa.new_state();
+	    product.emplace(key, state);
+	    pending.push_back(key);
+	    return state;
+      };
+      start = state_at(A2.start, B2.start);
+      if (start == ~0u) return false;
+      exit = nfa.new_state();
+      if (and_mode) {
+	    /* An empty match has already finished before the first tick. */
+	    if (A.empty_matches) {
+		  unsigned done = state_at(doneA, B2.start);
+		  if (done == ~0u) return false;
+		  for (unsigned i = 0; i < A.empty_matches; ++i) nfa.eps(start, done);
+	    }
+	    if (B.empty_matches) {
+		  unsigned done = state_at(A2.start, doneB);
+		  if (done == ~0u) return false;
+		  for (unsigned i = 0; i < B.empty_matches; ++i) nfa.eps(start, done);
 	    }
       }
-      start = base + A2.start * n2 + B2.start;
-      exit = nfa.new_state();
-      nfa.eps(base + A2.accept * n2 + B2.accept, exit);
-      if (and_mode) {
-	    nfa.eps(base + doneA * n2 + B2.accept, exit);
-	    nfa.eps(base + A2.accept * n2 + doneB, exit);
-	    /* An empty match has already finished before the first tick. */
-	    if (A.accepts_empty)
-		  nfa.eps(start, base + doneA * n2 + B2.start);
-	    if (B.accepts_empty)
-		  nfa.eps(start, base + A2.start * n2 + doneB);
-	    if (A.accepts_empty && B.accepts_empty)
+      if (and_mode || path_budget) {
+	    unsigned empty = A.empty_matches * B.empty_matches;
+	    if (path_budget && empty > path_budget) return false;
+	    for (unsigned i = 0; i < empty; ++i)
 		  nfa.eps(start, exit);
+      }
+      for (size_t i = 0; i < pending.size(); ++i) {
+	    pair_t key = pending[i];
+	    unsigned from = product.at(key);
+	    if ((key.first == A2.accept && key.second == B2.accept)
+		|| (and_mode && ((key.first == doneA && key.second == B2.accept)
+			      || (key.first == A2.accept && key.second == doneB))))
+		  nfa.eps(from, exit);
+	    for (const auto*a : left[key.first])
+		  for (const auto*b : right[key.second]) {
+			if (path_budget && nfa.edges.size() >= path_budget) return false;
+			sva_nfa_edge_t edge;
+			edge.from = from;
+			edge.to = state_at(a->to, b->to);
+			if (edge.to == ~0u) return false;
+			edge.guards = a->guards;
+			edge.guards.insert(edge.guards.end(), b->guards.begin(), b->guards.end());
+			nfa.edges.push_back(std::move(edge));
+		  }
       }
       return true;
 }
@@ -1122,24 +1228,30 @@ static bool nfa_tree_has_match_items_(const sva_stree_t*t)
       return nfa_tree_has_match_items_(t->a) || nfa_tree_has_match_items_(t->b);
 }
 
+static bool nfa_build_tree_(sva_nfa_t&nfa, const sva_stree_t*tree,
+			    unsigned path_budget);
+
 static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
-			       unsigned&start, unsigned&exit)
+			       unsigned&start, unsigned&exit, unsigned path_budget)
 {
       if (!t) return false;
       switch (t->kind) {
 	  case sva_stree_t::LEAF:
 	    if (!t->chain) return false;
-	    return nfa_chain_fragment_(nfa, *t->chain, start, exit);
+	    return nfa_chain_fragment_(nfa, *t->chain, start, exit, path_budget);
 	  case sva_stree_t::SEQ_FIRST_MATCH: {
 		if (nfa_tree_has_match_items_(t->a)) return false;
 		sva_nfa_t operand;
-		if (!pform_sva_nfa_build_from_tree(operand, t->a)) return false;
+		if (!nfa_build_tree_(operand, t->a, path_budget)) return false;
 		  /* One edge cannot carry cuts for both an outer wrapper and
 		     an independent inner wrapper. */
 		for (const sva_nfa_edge_t&edge : operand.edges)
 		      if (edge.first_match_cut_group != 0) return false;
-		if (operand.accepts_empty) {
-		      start = exit = nfa.new_state();
+		if (operand.empty_matches) {
+		      start = nfa.new_state();
+		      exit = nfa.new_state();
+		      for (unsigned i = 0; i < operand.empty_matches; ++i)
+			    nfa.eps(start, exit);
 		      return true;
 		}
 
@@ -1163,11 +1275,12 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 	  }
 	  case sva_stree_t::SEQ_WITHIN: {
 		  /* s1 within s2: pad s1, then intersect with s2. */
+		if (path_budget) return false;
 		sva_nfa_t Araw, B, M;
 		if (!pform_sva_nfa_build_from_tree(Araw, t->a)) return false;
 		if (!pform_sva_nfa_build_from_tree(B, t->b)) return false;
 		nfa_pad_(M, Araw);
-		return nfa_product_fragment_(nfa, M, B, false, start, exit);
+		return nfa_product_fragment_(nfa, M, B, false, start, exit, 0);
 	  }
 	  case sva_stree_t::SEQ_THROUGHOUT: {
 		  /* exp throughout seq (16.9.9): the invariant must hold at
@@ -1177,7 +1290,7 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		     alone, checking it at the wait cycles too. */
 		if (!t->gexpr) return false;
 		sva_nfa_t A;
-		if (!pform_sva_nfa_build_from_tree(A, t->a)) return false;
+		if (!nfa_build_tree_(A, t->a, path_budget)) return false;
 		for (size_t i = 0; i < A.edges.size(); i += 1)
 		      A.edges[i].guards.push_back(t->gexpr);
 		unsigned base = nfa.nstates;
@@ -1190,6 +1303,9 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		}
 		start = base + A.start;
 		exit = base + A.accept;
+		if (path_budget)
+		      for (unsigned i = 0; i < A.empty_matches; ++i)
+			    nfa.eps(start, exit);
 		return true;
 	  }
 	  case sva_stree_t::SEQ_CONCAT: {
@@ -1200,7 +1316,7 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		sva_nfa_t M;
 		std::vector<sva_nfa_boundary_t> ignored;
 		if (!pform_sva_nfa_build_implication(
-		      M, t->a, t->b, !t->concat_overlap, ignored))
+		      M, t->a, t->b, !t->concat_overlap, ignored, path_budget))
 		      return false;
 		unsigned base = nfa.nstates;
 		for (unsigned i = 0; i < M.nstates; i += 1) nfa.new_state();
@@ -1212,12 +1328,14 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		}
 		start = base + M.start;
 		exit = base + M.accept;
+		for (unsigned i = 0; i < M.empty_matches; ++i)
+		      nfa.eps(start, exit);
 		return true;
 	  }
 	  case sva_stree_t::SEQ_OR: {
 		unsigned sa = 0, ea = 0, sb = 0, eb = 0;
-		if (!nfa_tree_fragment_(nfa, t->a, sa, ea)) return false;
-		if (!nfa_tree_fragment_(nfa, t->b, sb, eb)) return false;
+		if (!nfa_tree_fragment_(nfa, t->a, sa, ea, path_budget)) return false;
+		if (!nfa_tree_fragment_(nfa, t->b, sb, eb, path_budget)) return false;
 		start = nfa.new_state();
 		nfa.eps(start, sa);
 		nfa.eps(start, sb);
@@ -1232,37 +1350,94 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		     (recursion composes nested combinators), then the
 		     product embeds in the parent. */
 		sva_nfa_t A, B;
-		if (!pform_sva_nfa_build_from_tree(A, t->a)) return false;
-		if (!pform_sva_nfa_build_from_tree(B, t->b)) return false;
+		if (!nfa_build_tree_(A, t->a, path_budget)) return false;
+		if (!nfa_build_tree_(B, t->b, path_budget)) return false;
 		return nfa_product_fragment_(nfa, A, B,
 					     t->kind == sva_stree_t::SEQ_AND,
-					     start, exit);
+					     start, exit, path_budget);
 	  }
       }
       return false;
 }
 
-bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa, const sva_stree_t*tree)
+static bool normalize_tree_(sva_nfa_t&nfa, unsigned path_budget)
+{
+      if (path_budget) {
+	    if (!fold_path_epsilons_(nfa, path_budget)) return false;
+      } else {
+	    nfa.empty_matches = nfa_accepts_empty_(nfa);
+	    fold_epsilons_(nfa);
+      }
+      prune_dead_states_(nfa);
+      return pform_sva_nfa_first_match_cuts_ok(nfa);
+}
+
+static bool nfa_build_tree_(sva_nfa_t&nfa, const sva_stree_t*tree,
+			    unsigned path_budget)
 {
       unsigned s = 0, e = 0;
-      if (!nfa_tree_fragment_(nfa, tree, s, e))
+      if (!nfa_tree_fragment_(nfa, tree, s, e, path_budget))
 	    return false;
       nfa.start = s;
       nfa.accept = e;
-      nfa.accepts_empty = nfa_accepts_empty_(nfa);
-      fold_epsilons_(nfa);
-      prune_dead_states_(nfa);
-      return pform_sva_nfa_first_match_cuts_ok(nfa);
+      return normalize_tree_(nfa, path_budget);
+}
+
+bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa, const sva_stree_t*tree)
+{
+      return nfa_build_tree_(nfa, tree, 0);
+}
+
+bool pform_sva_nfa_build_endpoint_tree(sva_nfa_t&nfa, const sva_stree_t*tree,
+				      unsigned budget, unsigned&max_endpoints)
+{
+      if (!nfa_build_tree_(nfa, tree, budget) || pform_sva_nfa_has_cycle(nfa))
+	    return false;
+      vector<vector<const sva_nfa_edge_t*>> outgoing(nfa.nstates);
+      for (const auto&edge : nfa.edges) outgoing[edge.from].push_back(&edge);
+
+      /* Each live state now stands for one path prefix. This includes
+	 distinct arrivals at the AND product's held completion state.
+	 All terminal edges still lead to the ordinary shared accept sink. */
+      sva_nfa_t paths;
+      paths.start = paths.new_state();
+      paths.accept = paths.new_state();
+      paths.empty_matches = nfa.empty_matches;
+      struct prefix_t { unsigned state, copy, depth; };
+      vector<prefix_t> prefixes{{nfa.start, paths.start, 0}};
+      vector<unsigned> endpoints(nfa.nstates, 0);
+      max_endpoints = 0;
+      for (size_t i = 0; i < prefixes.size(); ++i) {
+	    prefix_t prefix = prefixes[i];
+	    for (const auto*edge : outgoing[prefix.state]) {
+		  if (paths.edges.size() == budget) return false;
+		  sva_nfa_edge_t copy = *edge;
+		  copy.from = prefix.copy;
+		  unsigned depth = prefix.depth + 1;
+		  if (edge->to == nfa.accept) {
+			copy.to = paths.accept;
+			max_endpoints = max(max_endpoints, ++endpoints[depth]);
+		  } else {
+			if (paths.nstates == budget) return false;
+			copy.to = paths.new_state();
+			prefixes.push_back({edge->to, copy.to, depth});
+		  }
+		  paths.edges.push_back(std::move(copy));
+	    }
+      }
+      nfa = std::move(paths);
+      return true;
 }
 
 bool pform_sva_nfa_build_implication(
 				sva_nfa_t&nfa, const sva_stree_t*ante,
 				const sva_stree_t*conseq, bool nonoverlap,
-				std::vector<sva_nfa_boundary_t>&boundary)
+				std::vector<sva_nfa_boundary_t>&boundary,
+				unsigned path_budget)
 {
       sva_nfa_t A, B;
-      if (!pform_sva_nfa_build_from_tree(A, ante)
-	  || !pform_sva_nfa_build_from_tree(B, conseq))
+      if (!nfa_build_tree_(A, ante, path_budget)
+	  || !nfa_build_tree_(B, conseq, path_budget))
 	    return false;
 
       nfa = sva_nfa_t();
@@ -1298,7 +1473,7 @@ bool pform_sva_nfa_build_implication(
 	       A followed-by `#=#' has the same explicit empty-match rule in
 	       16.12.9. Keep that branch even when the antecedent has no
 	       tick-ending edge (for example, `1'b1[*0]'). */
-	    if (A.accepts_empty)
+	    for (unsigned i = 0; i < A.empty_matches; ++i)
 		  nfa.eps(A.start, boff + B.start);
 	    /* For sequence concatenation with a positive delay, an empty match
 	       of the suffix ends one tick before its start (16.9.2.1). Preserve
@@ -1306,23 +1481,32 @@ bool pform_sva_nfa_build_implication(
 	       acceptance in B is deliberately absent from its tick NFA after
 	       folding, so composing only through B's start would silently drop
 	       it. */
-	    if (B.accepts_empty)
+	    for (unsigned i = 0; i < B.empty_matches; ++i)
 		  for (size_t ai = 0; ai < terminal.size(); ai += 1) {
+			if (path_budget && nfa.edges.size() >= path_budget) return false;
 			sva_nfa_edge_t e = terminal[ai];
 			e.to = boff + B.accept;
 			nfa.edges.push_back(e);
 		  }
+	    if (path_budget) {
+		  if (A.empty_matches * B.empty_matches > path_budget) return false;
+		  for (unsigned i = 0; i < A.empty_matches * B.empty_matches; ++i)
+			nfa.eps(A.start, nfa.accept);
+	    }
       } else {
 	      /* |->: the consequent's first tick is the antecedent's
 		 terminal tick. Pair every terminal antecedent edge with every
 		 first consequent edge. The old terminal edges become dead and
 		 are removed below; keeping them until pruning makes the
 		 construction and its boundary probes straightforward. */
-	    for (size_t ai = 0; ai < terminal.size(); ai += 1)
-		  for (size_t bi = 0; bi < B.edges.size(); bi += 1) {
-			const sva_nfa_edge_t&be = B.edges[bi];
-			if (be.from != B.start) continue;
-			sva_nfa_edge_t e = terminal[ai];
+	    vector<const sva_nfa_edge_t*> initial;
+	    for (const auto&edge : B.edges)
+		  if (edge.from == B.start) initial.push_back(&edge);
+	    for (const auto&ae : terminal)
+		  for (const auto*entry : initial) {
+			if (path_budget && nfa.edges.size() >= path_budget) return false;
+			const sva_nfa_edge_t&be = *entry;
+			sva_nfa_edge_t e = ae;
 			if (e.first_match_cut_group != 0
 			    && be.first_match_cut_group != 0)
 			      return false;
@@ -1344,6 +1528,11 @@ bool pform_sva_nfa_build_implication(
 		  }
       }
 
+      if (path_budget) {
+	    /* In endpoint mode the terminal edges are the boundary. Their
+	       prefixes and suffixes are unfolded together by the caller. */
+	    return normalize_tree_(nfa, path_budget);
+      }
       fold_epsilons_(nfa);
       std::vector<unsigned> remap;
       prune_dead_states_(nfa, &remap);
@@ -1353,7 +1542,7 @@ bool pform_sva_nfa_build_implication(
 		  return false;
 	    boundary[i].from = remap[boundary[i].from];
       }
-      return (!boundary.empty() || (nonoverlap && A.accepts_empty))
+      return (!boundary.empty() || (nonoverlap && A.empty_matches))
 	    && pform_sva_nfa_first_match_cuts_ok(nfa);
 }
 

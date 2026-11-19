@@ -23774,6 +23774,16 @@ static bool sva_tree_has_first_match_(const sva_stree_t*t)
 		   || sva_tree_has_first_match_(t->b));
 }
 
+static bool sva_tree_has_first_match_paths_(const sva_stree_t*t, bool wrapped = false)
+{
+      if (!t) return false;
+      wrapped |= t->kind == sva_stree_t::SEQ_FIRST_MATCH;
+      return (wrapped && (t->kind == sva_stree_t::SEQ_OR
+			  || t->kind == sva_stree_t::SEQ_AND))
+	  || sva_tree_has_first_match_paths_(t->a, wrapped)
+	  || sva_tree_has_first_match_paths_(t->b, wrapped);
+}
+
 static bool sva_property_has_tree_first_match_(const sva_property_t*p)
 {
       return sva_tree_has_first_match_(p->ante_tree)
@@ -24582,7 +24592,7 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
       if (op_type == 2 && !sva_chain_has_match_calls_(ante)) {
 	    sva_nfa_t nfa;
 	    if (pform_sva_nfa_build_from_chain(nfa, *ante)
-		&& nfa.accepts_empty && !nfa.edges.empty()) {
+		&& nfa.empty_matches && !nfa.edges.empty()) {
 		  sva_seq_step_t tail;
 		  tail.expr = sva_bit_(loc, 1);
 		  tail.delay_lo = 1;
@@ -26812,12 +26822,26 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  return false;
 	    }
       }
+      /* Split implications already have a larger budget for the
+	 antecedent and all its consequent obligations. */
+      const long generated_state_budget = endpoint_fanout ? 8192 : 1024;
+      const bool track_endpoints = (endpoint_fanout || sequence_cover)
+	    && sva_tree_has_first_match_paths_(endpoint_fanout ? ante_tree : prop->tree);
+      unsigned max_endpoints = 1;
+      auto build_endpoint_source = [&](const sva_stree_t*tree) {
+	    if (!track_endpoints) return pform_sva_nfa_build_from_tree(nfa, tree);
+	    if (pform_sva_nfa_build_endpoint_tree(nfa, tree, generated_state_budget,
+						 max_endpoints))
+		  return true;
+	    prop->tree_sorry = 11;
+	    return false;
+      };
       bool built = endpoint_fanout
-	    ? (pform_sva_nfa_build_from_tree(nfa, ante_tree)
+	    ? (build_endpoint_source(ante_tree)
 	       && pform_sva_nfa_build_from_tree(consequence_nfa,
 					       consequence_tree))
 	    : have_tree
-	    ? pform_sva_nfa_build_from_tree(nfa, prop->tree)
+	    ? build_endpoint_source(prop->tree)
 	    : pform_sva_nfa_build_from_chain(nfa, chain);
       if (!built)
 	    return false;
@@ -26866,12 +26890,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       const bool tick_match = accept_reachable(nfa);
       const bool first_match_antecedent = endpoint_fanout
 	    && sva_tree_has_first_match_(ante_tree);
-      const bool empty_endpoint = first_match_antecedent
-	    && prop->op_type == 2 && nfa.accepts_empty;
+      const unsigned empty_endpoints = first_match_antecedent
+	    && prop->op_type == 2 ? nfa.empty_matches : 0;
+      const unsigned empty_cover_matches = track_endpoints && sequence_cover && !endpoint_fanout
+	    ? nfa.empty_matches : 0;
       const bool empty_property = sva_tree_has_first_match_(
 	    endpoint_fanout ? consequence_tree : prop->tree)
-	    && (endpoint_fanout ? consequence_nfa.accepts_empty : nfa.accepts_empty);
-      if ((first_match_antecedent && prop->op_type == 1 && nfa.accepts_empty
+	    && (endpoint_fanout ? consequence_nfa.empty_matches : nfa.empty_matches);
+      if ((first_match_antecedent && prop->op_type == 1 && nfa.empty_matches
 	   && !tick_match) || (empty_property && !sequence_cover)) {
 	    if (empty_property && !sequence_cover)
 		  cerr << loc << ": error: a sequence used as a property shall "
@@ -26894,7 +26920,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	bool consequence_empty_proven = endpoint_fanout
 	      && !linear_wait_implication
 	      && sva_tree_proves_empty_(consequence_tree);
-      if ((!tick_match && !nfa_empty_proven && !empty_endpoint)
+      if ((!tick_match && !nfa_empty_proven && !empty_endpoints
+	   && !empty_cover_matches)
 	  || (endpoint_fanout && !accept_reachable(consequence_nfa)
 	      && !consequence_empty_proven))
 	    return false;
@@ -27000,10 +27027,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
       }
       unsigned N = nfa.nstates;
-      /* Preserve the established limit for ordinary one-pool NFAs. Split
-	 antecedent/consequence implications need a larger aggregate allowance
-	 because their exact acyclic obligation capacity is part of the checker. */
-      const long generated_state_budget = endpoint_fanout ? 8192 : 1024;
       long generated_states = 0;
       long OK = 0;
       unsigned ON = 0;
@@ -27014,27 +27037,37 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    ON = consequence_nfa.nstates;
 	    long lifetime = consequence_depth > 0 ? consequence_depth : 1;
 	    if (consequence_cyclic && lifetime < 8) lifetime = 8;
-	    /* An antecedent slot can emit at most one tick-ending endpoint
-	       per tick. A nullable nonoverlapped antecedent can also emit on
-	       injection. A cyclic consequence is necessarily
-		 finite-pool execution; retain the established loud-overflow
-		 contract and cap the generated checker size. */
-	    const long endpoints = empty_endpoint && tick_match ? 2 : 1;
-	    if (antecedent_capacity > LONG_MAX / lifetime / endpoints) return false;
-	    OK = antecedent_capacity * lifetime * endpoints;
-	    if (consequence_cyclic && OK > 256) OK = 256;
+	    /* Include all tick-ending endpoints and any empty |=> endpoints
+	       issued at injection. Cyclic consequences retain the finite-pool
+	       overflow contract, with room for a full same-tick batch. */
+	    const long endpoints = (tick_match ? max_endpoints : 0) + empty_endpoints;
+	    if (endpoints == 0) return false;
+	    const long capacity = track_endpoints && sub
+		  ? std::max(antecedent_capacity, k) : antecedent_capacity;
+	    if (capacity > LONG_MAX / lifetime / endpoints) return false;
+	    OK = capacity * lifetime * endpoints;
+	    if (consequence_cyclic && OK > 256) {
+		  if (track_endpoints && capacity > 256 / endpoints) return false;
+		  OK = 256;
+	    }
 	    if (OK < k) OK = k;
 	    return ON != 0
 		&& OK <= (generated_state_budget - generated_states) / (long)ON;
       };
 	/* The local-variable floor never costs a property its automaton. */
       if (!size_pools(K)) {
-	    if (K_unfloored <= 0 || !size_pools(K_unfloored)) return false;
+	    if (K_unfloored <= 0 || !size_pools(K_unfloored)) {
+		  if (track_endpoints) prop->tree_sorry = 11;
+		  return false;
+	    }
 	    K = K_unfloored;
       }
 	/* A sub-monitor shares its parent's slot index space. */
       if (sub && !sub->plan && sub->K > K) {
-	    if (!size_pools(sub->K)) return false;
+	    if (!size_pools(sub->K)) {
+		  if (track_endpoints) prop->tree_sorry = 11;
+		  return false;
+	    }
 	    K = sub->K;
       }
 
@@ -27420,7 +27453,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    nx[j] = sva_make_reg_(loc, inst, "nx", j);
 	    init_zero.push_back(sva_assign_(loc, nx[j], sva_bit_(loc, 0)));
       }
-	/* Independent consequence records. Each endpoint sets one spawn bit;
+	/* Independent consequence records. Each endpoint issues one request;
 	   |-> allocates before consequence advancement (same sampled tick),
 	   while |=> allocates afterward (first strictly following tick). */
       std::vector< std::vector<perm_string> > os (OK);
@@ -27440,8 +27473,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    init_zero.push_back(sva_assign_(loc, onx[j], sva_bit_(loc, 0)));
       }
       std::vector<perm_string> spawn (endpoint_fanout ? K : 0);
+      /* Tied endpoints share the attempt's antecedent values, so a
+	 request count suffices. The allocator gives each its own snapshot. */
+      const bool multiple_requests = endpoint_fanout && track_endpoints
+	    && (max_endpoints > 1 || empty_endpoints > 1);
       for (long k = 0 ; k < (long)spawn.size() ; k += 1) {
-	    spawn[k] = sva_make_reg_(loc, inst, "spawn", (unsigned)k);
+	    spawn[k] = sva_make_reg_(loc, inst, "spawn", (unsigned)k, multiple_requests);
 	    init_zero.push_back(sva_assign_(loc, spawn[k], sva_bit_(loc, 0)));
       }
       std::vector<perm_string> parent_live(spawn.size()), matched(spawn.size());
@@ -27514,9 +27551,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
       perm_string r_match;
       if (cover && match_action) {
-	      /* The admitted flat, fixed-length sequence starts at most once
-		 per sampled tick. Overlapping starts therefore end on different
-		 ticks. Track endpoint calls per tick, while r_cnt stays cumulative. */
+	    /* Track this tick's action requests while r_cnt stays cumulative. */
 	    r_match = sva_make_reg_(loc, inst, "match", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_match, sva_num32_(loc, 0)));
       }
@@ -27598,6 +27633,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    both.push_back(sva_assign_(loc, bit, sva_bit_(loc, 1)));
 	    return sva_block_(loc, both);
       };
+      auto cover_match = [&]() -> Statement* {
+	    std::vector<Statement*> hit;
+	    hit.push_back(increment_verdict(r_cnt));
+	    hit.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
+	    if (match_action) hit.push_back(increment_verdict(r_match));
+	    return sva_block_(loc, hit);
+      };
       auto edge_condition = [&](const sva_nfa_edge_t&ed,
 				const std::vector<perm_string>&states,
 				std::map<perm_string,PExpr*>&lvmap,
@@ -27634,6 +27676,21 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
 	    return hits;
       };
+      auto advance_edge = [&](const sva_nfa_edge_t&ed,
+			      const std::vector<perm_string>&states,
+			      std::map<perm_string,PExpr*>&lvmap,
+			      const std::map<unsigned,PExpr*>&exit_hits) -> PExpr* {
+	    PExpr*term = edge_condition(ed, states, lvmap, ed.guards);
+	    if (!ed.first_match_exit && ed.first_match_cut_group != 0) {
+		  auto hit = exit_hits.find(ed.first_match_cut_group);
+		  if (hit != exit_hits.end()) {
+			PExpr*copy = sva_clone_expr_(hit->second);
+			assert(copy);
+			term = sva_logic_(loc, 'a', term, sva_not_(loc, copy));
+		  }
+	    }
+	    return term;
+      };
       auto next_state = [&](const sva_nfa_t&machine,
 			    const std::vector<perm_string>&states,
 			    unsigned to, std::map<perm_string,PExpr*>&lvmap,
@@ -27642,17 +27699,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (size_t i = 0 ; i < machine.edges.size() ; i += 1) {
 		  const sva_nfa_edge_t&ed = machine.edges[i];
 		  if (ed.to != to) continue;
-		  PExpr*term = edge_condition(ed, states, lvmap, ed.guards);
-		  if (!ed.first_match_exit && ed.first_match_cut_group != 0) {
-			std::map<unsigned,PExpr*>::const_iterator hit =
-			      exit_hits.find(ed.first_match_cut_group);
-			if (hit != exit_hits.end()) {
-			      PExpr*copy = sva_clone_expr_(hit->second);
-			      assert(copy);
-			      term = sva_logic_(loc, 'a', term,
-					sva_not_(loc, copy));
-			}
-		  }
+		  PExpr*term = advance_edge(ed, states, lvmap, exit_hits);
 		  ordinary = ordinary ? sva_logic_(loc, 'o', ordinary, term) : term;
 	    }
 	    if (!ordinary) ordinary = sva_bit_(loc, 0);
@@ -27728,8 +27775,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				sva_block_(loc, take), inj);
 	    }
 	    std::vector<Statement*>fire;
+	    if (multiple_requests)
+		  fire.push_back(sva_repeat_(loc, sva_id_(loc, spawn[source]), inj));
 	    fire.push_back(sva_assign_(loc, spawn[source], sva_bit_(loc, 0)));
-	    fire.push_back(inj);
+	    if (!multiple_requests) fire.push_back(inj);
 	    return sva_if_(loc, sva_id_(loc, spawn[source]),
 			   sva_block_(loc, fire), nullptr);
       };
@@ -27793,10 +27842,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  if (endpoint_fanout) {
 			 take.push_back(sva_assign_(loc, parent_live[k], sva_bit_(loc, 1)));
 			 take.push_back(sva_assign_(loc, matched[k],
-						    sva_bit_(loc, empty_endpoint)));
-			 if (empty_endpoint)
-			       take.push_back(sva_assign_(loc, spawn[k], sva_bit_(loc, 1)));
+						    sva_bit_(loc, empty_endpoints != 0)));
+			 if (empty_endpoints)
+			       take.push_back(sva_assign_(loc, spawn[k],
+							  sva_num32_(loc, empty_endpoints)));
 		  }
+		  if (empty_cover_matches)
+			take.push_back(sva_repeat_(loc, sva_num32_(loc, empty_cover_matches),
+						   cover_match()));
 		  if (sub) {
 			sub->inject[k] = take;
 			continue;
@@ -27883,9 +27936,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    }
 
 	/* An empty |=> endpoint triggers at the attempt's own start tick
-	   (16.12.7). Allocate after injection and before any tick-ending
-	   endpoint can use the slot's spawn bit. */
-      if (empty_endpoint)
+	   (16.12.7). Drain those requests before collecting tick-ending ones. */
+      if (empty_endpoints)
 	    for (long k = 0 ; k < K ; k += 1)
 		  body.push_back(spawn_obligation_stmt(k));
 
@@ -27938,6 +27990,15 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	      /* Compute the cut from this antecedent slot's pre-advance
 		 state and sampled endpoint guards, before any consequent runs. */
 	    std::map<unsigned,PExpr*> exit_hits = first_match_hit(nfa, s[k], lvmap);
+	    if (track_endpoints)
+		  for (const sva_nfa_edge_t&ed : nfa.edges) {
+			if (ed.to != nfa.accept) continue;
+			Statement*request = !endpoint_fanout ? cover_match()
+			      : multiple_requests ? increment_verdict(spawn[k])
+			      : sva_assign_(loc, spawn[k], sva_bit_(loc, 1));
+			body.push_back(sva_if_(loc, advance_edge(ed, s[k], lvmap, exit_hits),
+					       request, nullptr));
+		  }
 	    for (unsigned j = 0 ; j < N ; j += 1) {
 		  body.push_back(sva_assign_(loc, nx[j],
 			    next_state(nfa, s[k], j, lvmap, exit_hits)));
@@ -28024,7 +28085,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
 	    std::vector<Statement*> acc_v, die_v, cont_v;
 	    if (endpoint_fanout) {
-		  acc_v.push_back(sva_assign_(loc, spawn[k], sva_bit_(loc, 1)));
+		  if (!track_endpoints)
+			acc_v.push_back(sva_assign_(loc, spawn[k], sva_bit_(loc, 1)));
 		  acc_v.push_back(sva_assign_(loc, matched[k], sva_bit_(loc, 1)));
 		  /* Remove only the accepted endpoint. Other active antecedent
 		     states represent later match endpoints from this SAME start and
@@ -28034,17 +28096,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			      j == nfa.accept ? sva_bit_(loc, 0)
 					      : sva_id_(loc, nx[j])));
 	    } else if (cover) {
-		    /* Count each accepting attempt (one per slot; a
-		       tick can accept several — same totals as the
-		       legacy per-eligible-position adds). */
-		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
-					      sva_bit_(loc, 1));
-		  FILE_NAME(add, loc);
-		  acc_v.push_back(sva_assign_(loc, r_cnt, add));
-		  acc_v.push_back(sva_report_stmt_(loc, inst,
-						    SVA_CB_SUCCESS));
-		  if (match_action)
-		    acc_v.push_back(increment_verdict(r_match));
+		  if (!track_endpoints) acc_v.push_back(cover_match());
 	    } else if (sub) {
 		  acc_v.push_back(set_verdict(k, (negated || forbidden) ? 3 : 1));
 	    } else if (implication && !forbidden) {
@@ -28116,7 +28168,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
 
 	/* |-> consumes the consequence's first tick on the endpoint tick. All
-	   endpoint spawn bits are allocated before consequence advancement, so
+	   endpoint requests are allocated before consequence advancement, so
 	   each new record observes the current Preponed guard samples. */
       if (endpoint_fanout && prop->op_type == 1)
 	    for (long k = 0 ; k < K ; k += 1)
@@ -28238,7 +28290,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    std::vector<Statement*> pass, fail, done;
 	    if (cover) {
 		  pass.push_back(sva_if_(loc, sva_id_(loc, matched[k]),
-			    increment_verdict(r_cnt), nullptr));
+			    track_endpoints ? cover_match() : increment_verdict(r_cnt),
+			    nullptr));
 	    } else if (sub) {
 		  pass.push_back(sva_if_(loc, sva_id_(loc, matched[k]),
 			    set_verdict(k, 1), set_verdict(k, 2)));
@@ -30145,7 +30198,7 @@ static bool sva_mc_bounded_chain_nfa_(
 	  || pform_sva_nfa_has_cycle(nfa))
 	    return false;
       depth = pform_sva_nfa_depth(nfa);
-      accepts_empty = nfa.accepts_empty;
+      accepts_empty = nfa.empty_matches != 0;
       if ((!accepts_empty && depth <= 0) || depth > 64) return false;
 
       bool terminal = false;
@@ -40128,7 +40181,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    sva_nfa_t ante;
 	    if (grouped && !actions
 		&& pform_sva_nfa_build_from_chain(ante, *prop->antecedent)
-		&& ante.accepts_empty && ante.edges.empty()) {
+		&& ante.empty_matches && ante.edges.empty()) {
 		  pform_sva_destroy_sequence(prop->antecedent);
 		  prop->antecedent = nullptr;
 		  prop->op_type = 0;
@@ -40251,6 +40304,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			   : "requires the automaton engine (unset "
 			     "IVL_SVA_LEGACY)")
 		       << "; the assertion is dropped." << endl;
+	    else if (prop->tree_sorry == 11)
+		  cerr << loc << ": sorry: this `first_match' shape cannot "
+		       << "preserve distinct endpoints in a finite automaton "
+		       << "within the generated-state budget; the assertion is "
+		       << "dropped." << endl;
 	    else if (prop->tree_sorry == 4 || sva_property_has_tree_first_match_(prop))
 		  cerr << loc << ": sorry: this `first_match' shape is not "
 		       << "supported by the automaton engine yet; the "
