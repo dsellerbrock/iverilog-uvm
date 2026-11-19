@@ -7245,3 +7245,7 @@ issue3799_sequence_clock_2017 normal,-g2017,-gassertions,-s,issue3799_sequence_c
 issue3799_sequence_clock_2023 normal,-g2023,-gassertions,-s,issue3799_sequence_clock ivltests gold=issue3799_sequence_clock.gold
 issue3799_sequence_clock_unsupported_2017 CE,-g2017,-gassertions,-s,issue3799_sequence_clock_unsupported ivltests gold=issue3799_sequence_clock_unsupported.gold
 issue3799_sequence_clock_unsupported_2023 CE,-g2023,-gassertions,-s,issue3799_sequence_clock_unsupported ivltests gold=issue3799_sequence_clock_unsupported.gold
+
+# IEEE 1800-2017/2023 16.8 and 16.12.1: reusable named multiclock bodies.
+issue3801_2017 normal,-g2017,-gassertions,-s,issue3801 ivltests gold=issue3801.gold
+issue3801_2023 normal,-g2023,-gassertions,-s,issue3801 ivltests gold=issue3801.gold
