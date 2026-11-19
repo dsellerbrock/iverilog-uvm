@@ -36965,10 +36965,6 @@ static void constraint_randc_reference_error_(const PExpr*site,
       constraint_ir_design_ctx_->errors += 1;
 }
 
-/* A solve-before operand must name a random variable (18.5.10). Container
- * sizes carry their owning property's index in the s: token, so reject the
- * state-only case here instead of letting the runtime silently ignore an
- * ordering rank it cannot randomize. */
 /* True for a whole fixed array that 'solve before' can order element by
    element: one dimension of integral elements. */
 static bool constraint_solve_before_aggregate_is_orderable_(const netuarray_t*array)
@@ -36981,27 +36977,17 @@ static bool constraint_solve_before_aggregate_is_orderable_(const netuarray_t*ar
 	  || dynamic_cast<const netenum_t*>(element_type);
 }
 
-/* IEEE 1800-2023 18.5.9: "Only random variables are allowed, that is,
-   they shall be rand." An error; under -gcommercial-unsafe a warning, and
-   the caller omits the operand (true is returned). */
-static bool constraint_order_nonrandom_error_(const PExpr*site)
+/* IEEE 1800-2017 18.5.10 / 1800-2023 18.5.9 require rand operands. */
+static void constraint_order_nonrandom_error_(const PExpr*site)
 {
       if (!site || !constraint_ir_design_ctx_
 	  || !constraint_ir_design_ctx_->mark_constraint_order_diagnostic(site))
-	    return gn_commercial_unsafe_flag;
+	    return;
 
-      if (gn_commercial_unsafe_flag) {
-	    cerr << site->get_fileline() << ": warning: target of 'solve "
-		 << "before' constraint must be a random variable (IEEE 1800 "
-		 << "18.5.9); the operand is omitted from the ordering; "
-		 << "nonstandard compatibility behavior." << endl;
-	    return true;
-      }
       cerr << site->get_fileline()
 	   << ": error: target of 'solve before' constraint must be a random variable."
 	   << endl;
       constraint_ir_design_ctx_->errors += 1;
-      return false;
 }
 
 /* The before -> after edges of every 'solve before' in the class whose
@@ -37638,6 +37624,107 @@ static constraint_source_type_t constraint_symbol_path_type_(
 	    constraint_source_type_apply_indices_(result, component.index);
       }
       return result;
+}
+
+/* Check source declarations before order lowering. A select or a .size
+ * primary inherits the qualifier of its container. Packed fields likewise
+ * use the qualifier of the packed property that contains them. */
+static bool constraint_order_path_is_state_(
+      const PEIdent*id, const netclass_t*cls, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      const pform_scoped_name_t&path = id->path();
+      if (path.name.empty()) return false;
+
+      const name_component_t&root = path.name.front();
+      if (!path.package && !id->has_scoped_type_prefix()
+	  && !root.local_scope) {
+	    if (constraint_array_iter_ctx_find_(root.name)
+		|| (loop_env && loop_env->count(root.name))
+		|| (dynforeach_emit_ctx_ && dynforeach_emit_ctx_->iterates(root.name)))
+		  return true;
+	    // std::randomize's arguments are the random variables (18.12).
+	    if (scope_randomize_emit_ctx_ && scope_randomize_emit_ctx_->count(root.name))
+		  return false;
+      }
+
+      const netclass_t*owner = nullptr;
+      pform_name_t::const_iterator component = path.name.begin();
+      if (id->has_scoped_type_prefix()) {
+	    owner = constraint_scoped_path_owner_(id, scope);
+	    if (owner) ++component;
+      } else {
+	    if (!constraint_target_path_begin_(path, cls, owner, component))
+		  owner = nullptr;
+      }
+
+      if (!owner) {
+	    if (!constraint_ir_design_ctx_ || !scope) return false;
+	    if (constraint_symbol_path_type_(id, scope).type
+		|| id->test_type_of_ident(constraint_ir_design_ctx_,
+					 const_cast<NetScope*>(scope)))
+		  return true;
+	    if (path.name.size() < 2 || path.name.back().name != "size"
+		|| !path.name.back().index.empty())
+		  return false;
+	    pform_name_t head(path.name.begin(), std::prev(path.name.end()));
+	    PEIdent receiver(path.package, head, id->lexical_pos());
+	    receiver.set_line(*id);
+	    receiver.set_scoped_type_prefix(id->has_scoped_type_prefix());
+	    return constraint_symbol_path_type_(&receiver, scope).unpacked_dimensions != 0;
+      }
+
+      constraint_source_type_t current = constraint_source_type_from_raw_(owner);
+      for (; component != path.name.end() && !current.unpacked_dimensions;
+	   ++component) {
+	    ivl_type_t type = nullptr;
+	    property_qualifier_t qual = property_qualifier_t::make_none();
+	    if (const netclass_t*decl = dynamic_cast<const netclass_t*>(current.type)) {
+		  int idx = decl->property_idx_from_name(component->name);
+		  if (idx < 0) return false;
+		  type = decl->get_prop_type((size_t)idx);
+		  qual = decl->get_prop_qual((size_t)idx);
+	    } else if (const netstruct_t*record =
+			 dynamic_cast<const netstruct_t*>(current.type)) {
+		  unsigned idx = record->member_index(component->name);
+		  if (record->packed() || idx >= record->members().size())
+			return false;
+		  type = record->members()[idx].net_type;
+		  qual = record->members()[idx].qualifier;
+	    } else {
+		  return false;
+	    }
+	    if (!qual.test_rand() && !qual.test_randc()) return true;
+	    current = constraint_source_type_from_raw_(type);
+	    constraint_source_type_apply_indices_(current, component->index);
+      }
+      return false;
+}
+
+static bool constraint_order_operand_is_state_(
+      const PExpr*item, const netclass_t*cls, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env)
+{
+      if (const PEIdent*id = dynamic_cast<const PEIdent*>(item))
+	    return constraint_order_path_is_state_(id, cls, scope, loop_env);
+      if (const PEPostSelect*select = dynamic_cast<const PEPostSelect*>(item))
+	    return constraint_order_operand_is_state_(select->base(), cls, scope, loop_env);
+      if (const PEMemberAccess*member = dynamic_cast<const PEMemberAccess*>(item))
+	    return constraint_order_operand_is_state_(member->base(), cls, scope, loop_env);
+
+      const PECallFunction*call = dynamic_cast<const PECallFunction*>(item);
+      if (!call || call->path().name.empty() || call->path().name.back().name != "size"
+	  || !call->get_parms().empty() || !call->with_constraints().empty())
+	    return false;
+      if (call->receiver_expr())
+	    return constraint_order_operand_is_state_(call->receiver_expr(), cls, scope, loop_env);
+      if (call->path().name.size() < 2) return false;
+      pform_name_t head(call->path().name.begin(), std::prev(call->path().name.end()));
+      PEIdent receiver(call->path().package, head, call->lexical_pos());
+      receiver.set_line(*call);
+      receiver.set_scoped_type_prefix(call->has_scoped_type_prefix());
+      receiver.set_borrowed_leading_type_args(call->leading_type_args());
+      return constraint_order_path_is_state_(&receiver, cls, scope, loop_env);
 }
 
 struct constraint_symbol_randc_result_t {
@@ -44340,7 +44427,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  if (!selected.empty()) return selected;
 	    }
 
-	    int idx = cls ? cls->property_idx_from_name(name) : -1;
+	      // Direct qualified references use the selected class's declaration.
+	      // Its property index is already absolute within the receiver.
+	    int idx = target_path
+		&& std::next(target_component) == id->path().name.end()
+		  ? target_owner->property_idx_from_name(target_component->name)
+		  : cls ? cls->property_idx_from_name(name) : -1;
 	      // A covergroup sample source names a sample() argument by its
 	      // formal; the value is in the group's mirror property (19.4.1).
 	    if (idx < 0 && cls && constraint_covergroup_sample_source_)
@@ -46673,18 +46765,34 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    constraint_randc_capture_t capture(co, "solve before");
 	    capture.seen = constraint_source_references_randc_(
 		  co, cls, value_slots, scope, loop_env);
+	    bool nonrandom_operand = false;
+	    auto nonrandom = [&](const PExpr*site) {
+		  constraint_order_nonrandom_error_(site);
+		  nonrandom_operand = true;
+	    };
+	    for (const auto*items : {&co->before_items(), &co->after_items()})
+		  for (const PExpr*item : *items)
+			if (constraint_order_operand_is_state_(item, cls, scope, loop_env))
+			      nonrandom(item);
+	    if (nonrandom_operand) return "";
+
+	    auto direct_property = [&](const PEIdent*id, const netclass_t*&owner) {
+		  pform_name_t::const_iterator component;
+		  if (!id || id->has_scoped_type_prefix()
+		      || !constraint_target_path_begin_(id->path(), cls, owner, component)
+		      || std::next(component) != id->path().name.end())
+			return -1;
+		  return owner->property_idx_from_name(component->name);
+	    };
 	    auto diagnose_fixed_oob = [&](const PExpr*item) {
 		  const PEIdent*id = dynamic_cast<const PEIdent*>(item);
-		  if (!id || !cls || id->path().package
-		      || id->has_scoped_type_prefix()
-		      || id->path().name.size() != 1)
-			return;
-		  const name_component_t&component = id->path().name.front();
-		  if (component.local_scope || component.index.empty()) return;
-		  int prop = cls->property_idx_from_name(component.name);
-		  const netuarray_t*array = prop < 0 ? nullptr
-			: dynamic_cast<const netuarray_t*>(
-			      cls->get_prop_type((size_t)prop));
+		  const netclass_t*owner = nullptr;
+		  int prop = direct_property(id, owner);
+		  if (prop < 0) return;
+		  const name_component_t&component = id->path().name.back();
+		  if (component.index.empty()) return;
+		  const netuarray_t*array =
+			dynamic_cast<const netuarray_t*>(owner->get_prop_type((size_t)prop));
 		  if (!array || array->static_dimensions().size()
 			!= component.index.size()) return;
 
@@ -46714,35 +46822,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 	    };
 	    bool omitted_operand = false;
-	    bool omit_item = false;
-	    auto nonrandom = [&](const PExpr*site) {
-		  if (constraint_order_nonrandom_error_(site))
-			omit_item = true;
-	    };
 	    std::vector<std::pair<string,string> > bef_ops, aft_ops;
 	    std::vector<std::pair<string,string> >*ops = nullptr;
 	    auto vars_to_ir = [&](const std::list<PExpr*>&items) -> string {
 		  string acc;
 		  for (const PExpr*item : items) {
 			if (!item) continue;
-			omit_item = false;
-			const PEIdent*plain = dynamic_cast<const PEIdent*>(item);
-			if (cls && plain && !plain->path().package
-			    && !plain->has_scoped_type_prefix()
-			    && plain->path().name.size() == 1
-			    && !plain->path().name.front().local_scope
-			    && plain->path().name.front().index.empty()) {
-			      int prop = cls->property_idx_from_name(
-				    plain->path().name.front().name);
-			      property_qualifier_t qual = prop < 0
-				    ? property_qualifier_t::make_none()
-				    : cls->get_prop_qual((size_t)prop);
-			      if (prop >= 0 && !qual.test_rand() && !qual.test_randc()) {
-				    nonrandom(item);
-				    if (omit_item) omitted_operand = true;
-				    continue;
-			      }
-			}
 			vector<string> packed_refs;
 			bool packed_order = gn_commercial_unsafe_flag
 			      && constraint_packed_solve_before_refs_(
@@ -46758,15 +46843,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			diagnose_fixed_oob(item);
 			  if (s.compare(0, 7, "(delem ") == 0) {
 			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
-			      if (!id || !cls || id->path().package
-			          || id->has_scoped_type_prefix()
-			          || id->path().name.size() != 1)
-				    return "";
-			      const name_component_t&component = id->path().name.front();
-			      int prop = cls->property_idx_from_name(component.name);
+			      const netclass_t*owner = nullptr;
+			      int prop = direct_property(id, owner);
+			      if (prop < 0) return "";
+			      const name_component_t&component = id->path().name.back();
 			      ivl_type_t queue_element = nullptr;
 			      string fixed_queue = constraint_class_fixed_queue_element_ir_(
-				    component, cls, value_slots, scope, loop_env,
+				    component, owner, value_slots, scope, loop_env,
 				    &queue_element);
 			      if (!fixed_queue.empty()) {
 				    const index_component_t&select = component.index.back();
@@ -46775,23 +46858,14 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					  ? pexpr_to_constraint_ir(select.msb, cls,
 						value_slots, scope, loop_env) : "";
 				    constraint_const_ir_t index;
-				    property_qualifier_t qual =
-					  cls->get_prop_qual((size_t)prop);
 				    if (!constraint_parse_const_ir_(index_ir, index)
-					  || index.width > 64 || !queue_element
-					  || (!qual.test_rand() && !qual.test_randc()))
+					  || index.width > 64 || !queue_element)
 					  return "";
 			      } else {
-			      const netdarray_t*array = prop < 0 ? nullptr
-				    : dynamic_cast<const netdarray_t*>(
-				          cls->get_prop_type((size_t)prop));
-			      if (!array || component.local_scope
-			          || component.index.size() != 1)
+			      const netdarray_t*array = dynamic_cast<const netdarray_t*>(
+				    owner->get_prop_type((size_t)prop));
+			      if (!array || component.index.size() != 1)
 				    return "";
-			      property_qualifier_t qual =
-				    cls->get_prop_qual((size_t)prop);
-			      if (!qual.test_rand() && !qual.test_randc())
-				    nonrandom(item);
 			      const index_component_t&select = component.index.front();
 			      string index_ir = select.msb && !select.lsb
 				    && select.sel == index_component_t::SEL_BIT
@@ -46854,18 +46928,6 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				      && !stype->members()[member].qualifier.test_randc()))
 				    nonrandom(item);
 			}
-			if (s.compare(0, 2, "e:") == 0 && cls) {
-			      const PEIdent*id = dynamic_cast<const PEIdent*>(item);
-			      int prop = id && id->path().name.size() == 1
-				    ? cls->property_idx_from_name(
-					  id->path().name.front().name) : -1;
-			      if (prop >= 0) {
-				    property_qualifier_t qual =
-					  cls->get_prop_qual((size_t)prop);
-				    if (!qual.test_rand() && !qual.test_randc())
-					  nonrandom(item);
-			      }
-			}
 			if (s.compare(0, 2, "a:") == 0 && cls) {
 			      const char*p = s.c_str() + 2;
 			      char*end = nullptr;
@@ -46905,10 +46967,6 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			    && !constraint_nested_element_is_random_(
 				  s.c_str() + 2, cls))
 			      nonrandom(item);
-			if (omit_item) {
-			      omitted_operand = true;
-			      continue;
-			}
 			if (ops)
 			      ops->push_back(std::make_pair(s,
 				    constraint_order_operand_name_(item)));
@@ -46967,10 +47025,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      continue;
 			}
 			if (!random) {
-			      if (constraint_order_nonrandom_error_(item))
-				    omitted_operand = true;
-			      else
-				    expand_ok = false;
+			      nonrandom(item);
 			      continue;
 			}
 			if (gn_commercial_unsafe_flag
@@ -47030,12 +47085,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    };
 	    std::list<PExpr*> before_items = expand_fixed_arrays(co->before_items());
 	    std::list<PExpr*> after_items = expand_fixed_arrays(co->after_items());
-	    if (!expand_ok) return "";
+	    if (!expand_ok || nonrandom_operand) return "";
 	    ops = &bef_ops;
 	    string bef = vars_to_ir(before_items);
 	    ops = &aft_ops;
 	    string aft = vars_to_ir(after_items);
 	    ops = nullptr;
+	    if (nonrandom_operand) return "";
 	    if (bef.empty() || aft.empty())
 		  return omitted_operand ? "c:1:1" : "";
 	    string result = "(order (vars " + bef + ") (vars " + aft + "))";

@@ -1,0 +1,1 @@
+{"type":"normal","source":"issue3830_qualified_2017.v","iverilog-args":["-g2017","-s","top"],"gold":"issue3830_qualified"}
