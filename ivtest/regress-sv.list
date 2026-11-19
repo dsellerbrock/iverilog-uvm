@@ -3,6 +3,8 @@
 
 issue3719_value_plusargs_packed_struct_2017 normal,-g2017,-s,issue3719_value_plusargs_packed_struct,+v=123456789abcdef0123,+p=00112233445566778899aabbccddeeff,+four=12xz,+two=12xz ivltests gold=issue3719_value_plusargs_packed_struct.gold
 issue3719_value_plusargs_packed_struct_2023 normal,-g2023,-s,issue3719_value_plusargs_packed_struct,+v=123456789abcdef0123,+p=00112233445566778899aabbccddeeff,+four=12xz,+two=12xz ivltests gold=issue3719_value_plusargs_packed_struct.gold
+issue3842_positional_output_2017 normal,-g2017,-Iivltests,-s,issue3842_positional_output,+elem=-51,+real=7.5 ivltests gold=issue3842_positional_output.gold
+issue3842_positional_output_2023 normal,-g2023,-Iivltests,-s,issue3842_positional_output,+elem=-51,+real=7.5 ivltests gold=issue3842_positional_output.gold
 
 issue2935_ansi_port_concat_2017 normal,-g2017,-s,issue2935_ansi_port_concat_top ivltests gold=issue2935_ansi_port_concat-vvp-stdout.gold
 issue2935_ansi_port_concat_2023 normal,-g2023,-s,issue2935_ansi_port_concat_top ivltests gold=issue2935_ansi_port_concat-vvp-stdout.gold
@@ -250,6 +252,8 @@ issue1853_uninstantiated_interface_port_2017 normal,-g2017 ivltests gold=issue18
 issue1853_uninstantiated_interface_port_2023 normal,-g2023 ivltests gold=issue1853_uninstantiated_interface_port.gold
 issue653_sequence_triggered_2017 normal,-g2017,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
 issue653_sequence_triggered_2023 normal,-g2023,-s,issue653_sequence_triggered ivltests gold=issue653_sequence_triggered.gold
+issue3825_sequence_endpoint_observed_2017 normal,-g2017,-gassertions,-s,issue3825_sequence_endpoint_observed ivltests gold=issue3825_sequence_endpoint_observed.gold
+issue3825_sequence_endpoint_observed_2023 normal,-g2023,-gassertions,-s,issue3825_sequence_endpoint_observed ivltests gold=issue3825_sequence_endpoint_observed.gold
 issue2695_sequence_triggered_empty_2017 normal,-g2017,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
 issue2695_sequence_triggered_empty_2023 normal,-g2023,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
 issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold
@@ -5732,6 +5736,8 @@ sv_joint_ordered_guard_independent_pair normal,-g2017 ivltests gold=sv_joint_ord
 sv_joint_ordered_guard_independent_pair_2023 normal,-g2023,-Iivltests ivltests gold=sv_joint_ordered_guard_independent_pair.gold
 sv_joint_ordered_guard_randc_reject normal,-g2017 ivltests gold=sv_joint_ordered_guard_randc_reject.gold
 sv_joint_ordered_guard_randc_reject_2023 normal,-g2023,-Iivltests ivltests gold=sv_joint_ordered_guard_randc_reject.gold
+sv_joint_ordered_guard_randc_fiber_2017 normal,-g2017 ivltests gold=sv_joint_ordered_guard_randc_fiber.gold
+sv_joint_ordered_guard_randc_fiber_2023 normal,-g2023,-Iivltests ivltests gold=sv_joint_ordered_guard_randc_fiber.gold
 sv_joint_ordered_guard_prefix_cap_reject normal,-g2017 ivltests gold=sv_joint_ordered_guard_prefix_cap_reject.gold
 sv_joint_ordered_guard_prefix_cap_reject_2023 normal,-g2023,-Iivltests ivltests gold=sv_joint_ordered_guard_prefix_cap_reject.gold
 sv_joint_ordered_guard_prefix_cap normal,-g2017 ivltests gold=sv_joint_ordered_guard_prefix_cap.gold
@@ -6952,6 +6958,8 @@ issue3194_readmem_enum normal,-g2017,-s,issue3194_readmem_enum ivltests gold=iss
 issue3194_readmem_enum_2023 normal,-g2023,-s,issue3194_readmem_enum ivltests gold=issue3194_readmem_enum.gold
 issue3214_nexttime_named_2017 normal,-g2017,-gassertions,-s,main ivltests gold=issue3214_nexttime_named.gold
 issue3214_nexttime_named_2023 normal,-g2023,-gassertions,-s,main ivltests gold=issue3214_nexttime_named.gold
+issue3813_nexttime_actions_2017 normal,-g2017,-gassertions,-s,issue3813_nexttime_actions ivltests gold=issue3813_nexttime_actions-vvp-stdout.gold
+issue3813_nexttime_actions_2023 normal,-g2023,-gassertions,-s,issue3813_nexttime_actions ivltests gold=issue3813_nexttime_actions-vvp-stdout.gold
 issue3197_package_empty_2017 normal,-g2017,-s,top ivltests gold=issue3197_package_empty.gold
 issue3197_package_empty_2023 normal,-g2023,-s,top ivltests gold=issue3197_package_empty.gold
 issue3204_real_dist_bad_2017 CE,-g2017,-s,top ivltests gold=issue3204_real_dist_bad_2017.gold
@@ -7191,6 +7199,8 @@ issue3782_2017 normal,-g2017,-s,issue3782 ivltests gold=issue3782.gold
 issue3782_2023 normal,-g2023,-s,issue3782 ivltests gold=issue3782.gold
 issue3783_2017 normal,-g2017,-s,issue3783 ivltests gold=issue3783.gold
 issue3783_2023 normal,-g2023,-s,issue3783 ivltests gold=issue3783.gold
+issue3784_2017 normal,-g2017,-s,issue3784 ivltests gold=issue3784.gold
+issue3784_2023 normal,-g2023,-s,issue3784 ivltests gold=issue3784.gold
 issue2972_constraint_scope_fail_2017 CE,-g2017,-s,top ivltests gold=issue2972_constraint_scope_fail.gold
 issue2972_constraint_scope_fail_2023 CE,-g2023,-s,top ivltests gold=issue2972_constraint_scope_fail.gold
 issue2972_constraint_scope_2017 normal,-g2017,-s,top ivltests gold=issue2972_constraint_scope.gold
@@ -7244,6 +7254,12 @@ issue3788_2017 normal,-g2017,-s,issue3788 ivltests gold=issue3788.gold
 issue3788_2023 normal,-g2023,-s,issue3788 ivltests gold=issue3788.gold
 issue3788_bad_2017 CE,-g2017,-s,issue3788_bad ivltests gold=issue3788_bad.gold
 issue3788_bad_2023 CE,-g2023,-s,issue3788_bad ivltests gold=issue3788_bad.gold
+issue3789_2017 normal,-g2017,-s,issue3789 ivltests gold=issue3789.gold
+issue3789_2023 normal,-g2023,-s,issue3789 ivltests gold=issue3789.gold
+issue3790_2017 normal,-g2017,-s,issue3790 ivltests gold=issue3790.gold
+issue3790_2023 normal,-g2023,-s,issue3790 ivltests gold=issue3790.gold
+issue3790_bad_2017 CE,-g2017,-s,issue3790_bad ivltests gold=issue3790_bad.gold
+issue3790_bad_2023 CE,-g2023,-s,issue3790_bad ivltests gold=issue3790_bad.gold
 issue3771_ce_2017 CE,-g2017,-Iivltests,-s,top ivltests gold=issue3771_ce-iverilog-stderr.gold
 issue3771_unsafe_2017 normal,-g2017,-Iivltests,-s,top,-gcommercial-unsafe ivltests gold=issue3771_unsafe.gold
 issue3771_legal_2017 normal,-g2017,-Iivltests,-s,top ivltests gold=issue3771_legal-vvp-stdout.gold

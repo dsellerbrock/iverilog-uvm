@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3784.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3784"],
+  "gold": "issue3784"
+}

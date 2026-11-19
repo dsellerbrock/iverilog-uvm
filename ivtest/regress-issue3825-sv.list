@@ -1,0 +1,2 @@
+issue3825_sequence_endpoint_observed_2017 normal,-g2017,-gassertions,-s,issue3825_sequence_endpoint_observed ivltests gold=issue3825_sequence_endpoint_observed.gold
+issue3825_sequence_endpoint_observed_2023 normal,-g2023,-gassertions,-s,issue3825_sequence_endpoint_observed ivltests gold=issue3825_sequence_endpoint_observed.gold

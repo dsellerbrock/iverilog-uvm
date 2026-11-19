@@ -7115,6 +7115,11 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+      if (strcmp(stmt_name,"$ivl_observed_endpoint_wait") == 0) {
+	    fprintf(vvp_out, "    %%wait/observed/endpoint;\n");
+	    return 0;
+      }
+
 	/* Suspend until the Reactive region of the current time step
 	 * (4.4.2.5: assertion pass/fail action blocks).  A no-op once no
 	 * Reactive region is reachable (final blocks / Postponed), so an
@@ -9237,6 +9242,7 @@ int draw_process(ivl_process_t net, void*x)
       int push_flag = 0;
       int clocking_bg_flag = 0;
       int clocking_sync_flag = 0;
+      int sva_finish_flag = 0;
       int function_background_ok = 0;
 
       (void)x; /* Parameter is not used. */
@@ -9246,6 +9252,8 @@ int draw_process(ivl_process_t net, void*x)
 	    ivl_attribute_t attr = ivl_process_attr_val(net, idx);
 	    if (strcmp(attr->key, "_ivl_function_background_ok") == 0)
 		  function_background_ok = 1;
+	    if (strcmp(attr->key, "_ivl_sva_finish") == 0)
+		  sva_finish_flag = 1;
 
 	    if (strcmp(attr->key, "_ivl_schedule_init") == 0) {
 
@@ -9380,7 +9388,8 @@ int draw_process(ivl_process_t net, void*x)
 	    break;
 
 	  case IVL_PR_FINAL:
-	    fprintf(vvp_out, "    .thread T_%u, $final;\n", thread_count);
+	    fprintf(vvp_out, "    .thread T_%u, %s;\n", thread_count,
+		    sva_finish_flag ? "$sva_finish" : "$final");
 	    break;
       }
 

@@ -104,7 +104,7 @@ static bool is_force_release_opcode(const char* name)
       int      vpi_enum;
 };
 
-%token K_A K_APV K_CPS K_CPV
+%token K_A K_APV K_CPS K_CPV K_PE
 %token K_ARITH_ABS K_ARITH_DIV K_ARITH_DIV_R K_ARITH_DIV_S K_ARITH_MOD
 %token K_ARITH_MOD_R K_ARITH_MOD_S
 %token K_ARITH_MULT K_ARITH_MULT_R K_ARITH_SUB K_ARITH_SUB_R
@@ -1938,6 +1938,17 @@ symbol_access
       /* #2475: an element of a fixed-array property; the trailing handle
          (a vec4 stack reference) holds the element index. */
       { $$ = vpip_make_cobject_property_vec_elem($3, $5, $7, $9.cnt, $9.nvec, $11); }
+  | K_PE '<' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
+      /* Object and index stack depths, VPI scalar type and width, flags
+         (signed, two-state, signed index, queue, bare queue), capacity. */
+      {
+	    $$ = vpip_make_positional_element($3, $5, $7, $9, $11, $13);
+	    if (!$$) {
+		  yyerror("invalid positional VPI element argument");
+		  compile_errors += 1;
+		  YYERROR;
+	    }
+      }
   ;
 
   /* functor operands can only be a list of symbols. */

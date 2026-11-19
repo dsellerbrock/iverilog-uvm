@@ -4535,6 +4535,8 @@ class NetEvent : public LineInfo {
 
       bool is_declared_event() const { return is_declared_event_; }
       void set_declared_event() { is_declared_event_ = true; }
+      bool is_sequence_endpoint() const { return sequence_endpoint_; }
+      void set_sequence_endpoint() { sequence_endpoint_ = true; }
 
 	// An ANSI event port is a handle to the connected event. Keep the formal
 	// NetEvent for its scope and lexical declaration, while all HDL references
@@ -4616,6 +4618,7 @@ class NetEvent : public LineInfo {
       bool local_flag_;
       ivl_lifetime_t lifetime_override_;
       bool is_declared_event_ = false;
+      bool sequence_endpoint_ = false;
 	// Null for an ordinary event; otherwise points at the event handle
 	// passed through an ANSI event port.
       NetEvent* alias_ = nullptr;

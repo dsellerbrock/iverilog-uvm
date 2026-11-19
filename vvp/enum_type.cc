@@ -617,13 +617,21 @@ class vartype_resolv_t : public resolv_list_s {
 	    bool packed_aggregate_width_matches =
 	          packed_aggregate_width_candidate &&
 	          packed_base_dimension_matches;
+	    const vvp_container_layout_s*layout = darray
+		  ? darray->container_layout() : nullptr;
+	    bool nested_container = layout && layout->element;
+	    bool darray_type_matches = darray && spec &&
+		  (nested_container
+		    ? spec->get_type_code() == vpiStructTypespec &&
+		      width == vvp_packed_container_leaf_width(layout)
+		    : width == darray->declared_element_width &&
+		      (spec->get_type_code() == vpiEnumTypespec ||
+		       spec->get_type_code() == vpiStructTypespec));
 	    if (((!sig && !array && !darray) || missing) && !message_flag) return false;
 	    if ((!sig && !array && !darray) || !spec || *cp ||
 	        !(signal_width_matches || packed_aggregate_width_matches ||
 	          (array && width == static_cast<unsigned>(array->get_word_size())) ||
-	          (darray && width == darray->declared_element_width &&
-	           (spec->get_type_code() == vpiEnumTypespec ||
-	            spec->get_type_code() == vpiStructTypespec)))) {
+	          darray_type_matches)) {
 		  yyerror("invalid .vartype metadata");
 		  compile_errors += 1;
 		  return true;
@@ -635,6 +643,7 @@ class vartype_resolv_t : public resolv_list_s {
 			vpip_trim_packed_base_dimension(sig);
 		  }
 	    } else if (array) array->typespec = spec;
+	    else if (nested_container) darray->packed_leaf_typespec = spec;
 	    else darray->element_typespec = spec;
 	    return true;
       }
@@ -666,7 +675,7 @@ class property_vartype_resolv_t : public resolv_list_s {
 		  vpiHandle spec = parse_vartype(cp, width, missing);
 		  if (missing && !message_flag) return false;
 		  if (spec && !*cp && spec->get_type_code() == vpiStructTypespec
-		      && width == defn->property_vec4_width(idx_)
+		      && width == defn->property_typespec_width(idx_)
 		      && !defn->property_typespec(idx_)) {
 			defn->set_property_typespec(idx_, spec);
 			return true;

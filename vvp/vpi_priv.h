@@ -1432,7 +1432,11 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
       void set_element_signed(bool flag) { element_signed_ = flag; }
       bool element_signed() const { return element_signed_; }
       vpiHandle element_typespec = 0;
+      // A nested container's typespec belongs to its packed vector leaf.
+      // The immediate VPI word is an object and has no such typespec.
+      vpiHandle packed_leaf_typespec = nullptr;
       unsigned declared_element_width = 0;
+      virtual const vvp_container_layout_s*container_layout() const;
       void set_assoc_readmem_type(unsigned element_width,
 				  unsigned index_width,
 				  bool index_signed)
@@ -1622,6 +1626,15 @@ extern vpiHandle vpip_make_cobject_property_vec_elem(char*label,
                                                      unsigned prop_cnt,
                                                      long*prop_idx,
                                                      char*index_label);
+
+/* A stack-backed scalar destination for synchronous VPI built-in calls. */
+extern vpiHandle vpip_make_positional_element(uint64_t object_depth,
+					      uint64_t index_depth,
+					      uint64_t type, uint64_t width,
+					      uint64_t flags, uint64_t capacity);
+#ifdef CHECK_WITH_VALGRIND
+extern bool vpip_delete_positional_element(vpiHandle arg);
+#endif
 
 /*
  * When a loaded VPI module announces a system task/function, one
@@ -1881,15 +1894,16 @@ extern std::string vpip_format_packed_value(vpiHandle typespec,
  * Render an object-backed struct/class instance as `'{name:value, ...}` for
  * %p and object string-value fetches. Walks the class definition's properties
  * and reads each from the live instance (real -> %g, string -> quoted, nested
- * object -> recurse, queue/associative -> placeholder, integral -> decimal).
- * A nil handle (or one with no definition) renders as "null", except where
- * NIL_IS_EMPTY says the slot is declared a queue/darray/associative array:
- * an empty container is not a null handle and prints '{} (21.2.1.6). The depth guard
- * bounds recursion so a cyclic object graph cannot loop forever.
+ * object -> recurse, packed leaf -> named assignment pattern).
+ * The declaration layout follows the recursion to the packed leaf and
+ * distinguishes a nil container slot ('{}) from a null class handle.
+ * The depth guard bounds recursion through cyclic object graphs.
  */
 extern std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth = 0,
                                         bool element_signed = false,
-                                        bool nil_is_empty = false);
+                                        const vvp_container_layout_s*layout = nullptr,
+                                        vpiHandle packed_leaf = nullptr,
+                                        bool assoc_index_signed = false);
 
 
 extern void vpip_vec4_to_hex_str(const vvp_vector4_t&bits, char*buf,

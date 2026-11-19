@@ -948,6 +948,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%wait/obj/mutation/filtered/multi",of_WAIT_OBJ_MUTATION_FILTERED_MULTI,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%wait/obj/mutation/multi",of_WAIT_OBJ_MUTATION_MULTI,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%wait/observed",of_WAIT_OBSERVED,0,{OA_NONE,OA_NONE, OA_NONE} },
+      { "%wait/observed/endpoint",of_WAIT_OBSERVED_ENDPOINT,0,{OA_NONE,OA_NONE, OA_NONE} },
       { "%wait/order",of_WAIT_ORDER,3,{OA_WAIT_ORDER_NET,OA_WAIT_ORDER_CODE,OA_WAIT_ORDER_CODE2} },
       { "%wait/reactive",of_WAIT_REACTIVE,0,{OA_NONE,OA_NONE, OA_NONE} },
       { "%wait/triggered",of_WAIT_TRIGGERED,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
@@ -3741,6 +3742,8 @@ void compile_thread(char*start_sym, char*flag, char*flag2)
 
       if (flag && (strcmp(flag,"$init") == 0))
 	    schedule_init_vthread(thr);
+      else if (flag && (strcmp(flag,"$sva_finish") == 0))
+	    schedule_sva_finish_vthread(thr);
       else if (flag && (strcmp(flag,"$final") == 0))
 	    schedule_final_vthread(thr);
       else if (flag && (strcmp(flag,"$prog") == 0)) {

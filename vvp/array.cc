@@ -538,7 +538,7 @@ void __vpiArray::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 		      vvp_object_t oval;
 		      get_word_obj(index, oval);
 		      std::string s = vvp_format_cobject_p(oval, 0, false,
-					element_container_layout_ != nullptr);
+					element_container_layout_.get());
 		      char*rbuf = (char*) need_result_buf(s.size()+1, RBUF_VAL);
 		      strcpy(rbuf, s.c_str());
 		      vp->value.str = rbuf;
@@ -905,7 +905,7 @@ void __vpiArrayVthrA::vpi_get_value(p_vpi_value vp)
 		      vvp_object_t oval;
 		      array->get_word_obj(index, oval);
 		      std::string s = vvp_format_cobject_p(oval, 0, false,
-					array->element_container_layout_ != nullptr);
+					array->element_container_layout_.get());
 		      char*rbuf = (char*) need_result_buf(s.size()+1, RBUF_VAL);
 		      strcpy(rbuf, s.c_str());
 		      vp->value.str = rbuf;

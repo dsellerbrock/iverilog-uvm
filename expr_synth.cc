@@ -1746,8 +1746,14 @@ NetNet* NetESignal::synthesize(Design*des, NetScope*scope, NetExpr*root)
             return tmp;
       }
 
-      const netvector_t*tmp_vec = new netvector_t(net_->data_type(),
-                                                  net_->vector_width()-1, 0);
+      const NetEConst*index_co = dynamic_cast<const NetEConst*>(word_);
+      // The array read port carries vec4 for integral words and can return
+      // X for an invalid address. Convert at the read, before any consumer
+      // can widen the two-state element to a four-state type.
+      bool cast_read = !index_co && net_->data_type() == IVL_VT_BOOL;
+      const netvector_t*tmp_vec = new netvector_t(
+	    cast_read ? IVL_VT_LOGIC : net_->data_type(),
+	    net_->vector_width()-1, 0, has_sign());
       NetNet*tmp = new NetNet(scope, scope->local_symbol(),
 			      NetNet::IMPLICIT, tmp_vec);
       tmp->set_line(*this);
@@ -1756,25 +1762,29 @@ NetNet* NetESignal::synthesize(Design*des, NetScope*scope, NetExpr*root)
 	// For NetExpr objects, the word index is already converted to
 	// a canonical (lsb==0) address. Just use the index directly.
 
-      if (const NetEConst*index_co = dynamic_cast<NetEConst*> (word_)) {
+      if (index_co) {
 
 	    long index = index_co->value().as_long();
 	    connect(tmp->pin(0), net_->pin(index));
 
       } else {
 	    unsigned selwid = word_->expr_width();
+	    NetNet*index_net = word_->synthesize(des, scope, root);
+	    if (!index_net) {
+		  delete tmp;
+		  return nullptr;
+	    }
 
 	    NetArrayDq*mux = new NetArrayDq(scope, scope->local_symbol(),
 					    net_, selwid);
 	    mux->set_line(*this);
 	    des->add_node(mux);
 
-	    NetNet*index_net = word_->synthesize(des, scope, root);
 	    connect(mux->pin_Address(), index_net->pin(0));
 
 	    connect(tmp->pin(0), mux->pin_Result());
       }
-      return tmp;
+      return cast_read ? cast_to_int2(des, scope, tmp, net_->vector_width()) : tmp;
 }
 
 static NetEvWait* make_func_trigger(Design*des, NetScope*scope, const NetExpr*root)
@@ -1824,22 +1834,18 @@ NetNet* NetESFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
 			delete canonical;
 			return 0;
 		  }
-		  auto raw_value = [raw_net, this]() -> NetExpr* {
-			NetExpr*value = new NetESignal(raw_net);
-			if (!raw_net->get_signed()) {
-			      value = pad_to_width(value,
-				   raw_net->vector_width()+1, *this);
-			      /* Keep the added bit zero-filled. Changing the pad node
-			       * itself to signed makes synthesis sign-extend the raw
-			       * unsigned index before the bounds comparison. */
-			      NetESelect*as_signed = new NetESelect(
-				    value, 0, value->expr_width());
-			      as_signed->set_line(*this);
-			      as_signed->cast_signed(true);
-			      value = as_signed;
-			} else {
-			      value->cast_signed(true);
-			}
+		  // Use the index expression's signedness. Its synthesized
+		  // carrier can be unsigned, such as a user-function result.
+		  bool raw_signed = parms_[idx]->has_sign();
+		  unsigned arith_width = max<unsigned>(64,
+			raw_net->vector_width() + (raw_signed ? 0 : 1));
+		  auto raw_value = [raw_net, raw_signed, arith_width, this]() -> NetExpr* {
+			NetExpr*value = pad_to_width(new NetESignal(raw_net),
+			      arith_width, raw_signed, *this);
+			// Keep the zero extension of unsigned indices before
+			// interpreting the widened value as signed.
+			if (!raw_signed)
+			      value = cast_to_width(value, arith_width, true, *this);
 			return value;
 		  };
 		  NetExpr*ge = new NetEBComp('G', raw_value(),
@@ -1854,11 +1860,9 @@ NetNet* NetESFunc::synthesize(Design*des, NetScope*scope, NetExpr*root)
 		  valid = valid ? static_cast<NetExpr*>(
 			new NetEBLogic('a', valid, dim_valid)) : dim_valid;
 
-		  unsigned arith_width = max<unsigned>(64,
-			raw_net->vector_width() + (raw_net->get_signed() ? 0 : 1));
 		  NetExpr*ordinal = new NetEBAdd('-', raw_value(),
 					      parms_[idx+1]->dup_expr(),
-					      arith_width, raw_net->get_signed());
+					      arith_width, true);
 		  NetExpr*scaled = new NetEBMult('*', ordinal,
 					    cast_to_width(parms_[idx+3]->dup_expr(),
 						  arith_width, false, *this),

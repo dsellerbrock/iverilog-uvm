@@ -934,6 +934,8 @@ void vpi_call_delete(vpiHandle item)
 	/* The object can be NULL if there was an error. */
       if (!obj) return;
       for (unsigned arg = 0; arg < obj->nargs; arg += 1) {
+	    if (vpip_delete_positional_element(obj->args[arg]))
+		  continue;
 	    switch (obj->args[arg]->get_type_code()) {
 		case vpiConstant:
 		  switch (vpi_get(_vpiFromThr, obj->args[arg])) {

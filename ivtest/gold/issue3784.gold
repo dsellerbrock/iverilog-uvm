@@ -1,0 +1,5 @@
+SOURCE='{'{raw:117}}
+HOLDER='{q:'{'{delta:-2, state:BUSY, flag:1}}, d:'{'{delta:3, state:IDLE, flag:z}}, nested:'{'{'{delta:-2, state:BUSY, flag:1}, '{delta:3, state:IDLE, flag:z}}}, mixed:'{'{}, '{'{delta:-2, state:BUSY, flag:1}, '{delta:3, state:IDLE, flag:z}}}, entries:'{-3:'{delta:-2, state:BUSY, flag:1}, 19:'{delta:3, state:IDLE, flag:z}}, tags:'{"":'{delta:3, state:IDLE, flag:z}, "q\"x":'{delta:-2, state:BUSY, flag:1}}, handles:'{null}}
+NESTED='{'{'{delta:-2, state:BUSY, flag:1}, '{delta:3, state:IDLE, flag:z}}}
+MIXED='{'{}, '{'{delta:-2, state:BUSY, flag:1}, '{delta:3, state:IDLE, flag:z}}}
+DEEP='{'{'{}, '{'{delta:-2, state:BUSY, flag:1}, '{delta:3, state:IDLE, flag:z}}}}

@@ -244,7 +244,8 @@ extern int decode_fixed_uarray_slice_select(
 				     const std::list<index_component_t>&indices,
 				     const netsarray_t*array_type,
 				     fixed_uarray_slice_t&out,
-				     bool quiet = false);
+				     bool quiet = false,
+				     bool allow_runtime_base = false);
 
 /*
  * symbol_search() caches resolved (scope, name-path) lookups. That
@@ -959,6 +960,11 @@ extern void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 				       const NetExpr*fall_time = 0,
 				       const NetExpr*decay_time = 0,
 				       bool whole_value_delay = false);
+
+/* Validate a driver on an unresolved net without reserving it yet. */
+extern bool check_unresolved_net_driver(Design*des, const LineInfo&loc,
+				       NetNet*sig, unsigned msb, unsigned lsb,
+				       unsigned long word, bool repeated = false);
 
 extern NetPartSelect* detect_partselect_lval(Link&pin);
 

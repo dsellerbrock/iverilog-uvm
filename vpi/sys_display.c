@@ -2166,6 +2166,8 @@ static int is_string_output_var(vpiHandle arg)
    * (e.g. $swrite(func_name, ...) inside a function body). These are
    * semantically writable even though VPI sees them as constants. */
   return type == vpiReg || type == vpiStringVar || type == vpiConstant
+         || (vpi_get(_vpiFromThr, arg) == _vpi_at_PE
+             && type != vpiRealVar && is_numeric_obj(arg))
          || byte_array_words(arg, &left, &step) != 0;
 }
 

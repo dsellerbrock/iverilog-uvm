@@ -171,6 +171,7 @@ static bool parse_strict_container_layout_(
       int fixed_left = 0, fixed_right = 0;
       vvp_fixed_leaf_kind_t fixed_leaf = VVP_FIXED_OBJECT;
       unsigned fixed_width = 0;
+      unsigned packed_width = 0;
       if (!cur || *cur != '!')
             return false;
       ++cur;
@@ -191,6 +192,17 @@ static bool parse_strict_container_layout_(
                   ++cur;
                   kinds.push_back(VVP_CONTAINER_ASSOC);
                   queue_bounds.push_back(0);
+            } else if (*cur == 'P') {
+                  ++cur;
+                  uint64_t width = 0;
+                  if (kinds.empty()
+                      || !parse_layout_uint64_(cur, width)
+                      || width == 0 || width > INT_MAX || *cur
+                      || (kinds.size() > 1
+                          && std::find(kinds.begin(), kinds.end(),
+                                       VVP_CONTAINER_ASSOC) != kinds.end()))
+                        return false;
+                  packed_width = static_cast<unsigned>(width);
             } else if (*cur == 'F') {
                   if (kinds.empty()
                       || kinds.back() == VVP_CONTAINER_FIXED)
@@ -243,9 +255,10 @@ static bool parse_strict_container_layout_(
                   result = vvp_make_fixed_container_layout(
                         fixed_left, fixed_right, fixed_leaf, fixed_width);
             } else {
-                  result = vvp_make_container_layout(
-                        kind, kind == VVP_CONTAINER_QUEUE,
-                        queue_bounds[idx-1], result);
+                  result = std::make_shared<vvp_container_layout_s>(
+                        kind, kind == VVP_CONTAINER_QUEUE, queue_bounds[idx-1],
+                        result, packed_width);
+                  packed_width = 0;
             }
       }
       layout = result;
