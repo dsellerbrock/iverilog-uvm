@@ -1741,6 +1741,31 @@ ostream& pattern_binding_type_t::debug_dump(ostream&out) const
       return out;
 }
 
+ivl_type_t pattern_subject_type(const NetExpr&value)
+{
+      if (ivl_type_t type = value.net_type())
+            return type;
+
+      switch (value.expr_type()) {
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC:
+            if (value.expr_width() == 0)
+                  return nullptr;
+            if (value.expr_width() == 1 && !value.has_sign())
+                  return value.expr_type() == IVL_VT_BOOL
+                        ? &netvector_t::scalar_bool : &netvector_t::scalar_logic;
+            return new netvector_t(value.expr_type(),
+                                   (long)value.expr_width() - 1, 0,
+                                   value.has_sign());
+          case IVL_VT_REAL:
+            return &netreal_t::type_real;
+          case IVL_VT_STRING:
+            return &netstring_t::type_string;
+          default:
+            return nullptr;
+      }
+}
+
 ivl_type_t pattern_binding_type_t::elaborate_type_raw(Design*des,
                                                        NetScope*scope) const
 {
@@ -1753,7 +1778,7 @@ ivl_type_t pattern_binding_type_t::elaborate_type_raw(Design*des,
                   des, subject_scope, subject_expr_->expr_width(),
                   PExpr::NO_FLAGS);
             if (value) {
-                  type = value->net_type();
+                  type = pattern_subject_type(*value);
                   delete value;
             }
       } else {

@@ -665,6 +665,17 @@ static std::set<PBlock*> procedural_blocks_with_statements;
 static stack<const PExpr*> current_case_match_subjects;
 static stack<PBlock*> current_pattern_blocks;
 
+static PEMatches* pform_statement_match(const struct vlltype&loc,
+                                        PExpr*subject, PMatchPattern*pattern)
+{
+      pform_requires_sv(loc, "pattern-matching conditional");
+      PEMatches*condition = new PEMatches(subject, pattern, NetCase::EQ);
+      FILE_NAME(condition, loc);
+      current_pattern_blocks.push(
+            pform_pattern_push_scope(loc, subject, pattern, true));
+      return condition;
+}
+
 /* Some declarations are routed through statement_item because the existing
    block-item/statement grammar conflict resolves in that direction. Keep
    track of executable statements per procedural block so those declaration
@@ -3347,6 +3358,8 @@ static Module::port_t *module_declare_explicit_port(
 %nonassoc K_XOR_EQ K_LS_EQ K_RS_EQ K_RSS_EQ K_NB_TRIGGER
 %right K_TRIGGER K_LEQUIV
 %precedence K_dist
+%precedence pattern_subject_identifier
+%precedence K_matches
 %left K_TAND
 %right '?' ':'
 %precedence COND_TAND_PREC
@@ -12899,16 +12912,15 @@ case_matches_items
       }
   ;
 
-/* The currently executable matcher accepts a variable as its subject. Keep
-   that restriction in a dedicated grammar carrier: adding K_matches to the
-   FOLLOW set of the fully ambiguous expression grammar creates unrelated
-   type/expression reduce conflicts. This can be widened with the elaborator
-   when general expression subjects are implemented. */
+/* Share the bare-identifier prefix between statement and ternary matches.
+   Shift K_matches before reducing hierarchy_identifier so these two uses
+   can still be distinguished by the token after the pattern. */
 pattern_subject
-  : IDENTIFIER
+  : IDENTIFIER K_matches
       { PEIdent*tmp = new PEIdent(lex_strings.make($1), @1.lexical_pos);
 	FILE_NAME(tmp, @1);
 	delete[] $1;
+	@$ = @2;
 	$$ = tmp;
       }
   ;
@@ -12917,14 +12929,10 @@ pattern_subject
    implicit block as soon as the predicate is complete, before parsing the
    statement, and pop it before an optional else arm is parsed. */
 pattern_condition
-  : pattern_subject K_matches match_pattern
-      { pform_requires_sv(@2, "pattern-matching conditional");
-	PEMatches*condition = new PEMatches($1, $3, NetCase::EQ);
-	FILE_NAME(condition, @2);
-	PBlock*block = pform_pattern_push_scope(@2, $1, $3);
-	current_pattern_blocks.push(block);
-	$$ = condition;
-      }
+  : pattern_subject match_pattern
+      { $$ = pform_statement_match(@1, $1, $2); }
+  | expression K_matches match_pattern
+      { $$ = pform_statement_match(@2, $1, $3); }
   ;
 
 /* IEEE 1800-2017/2023 12.4 cond_predicate: clauses joined by &&&. A pattern
@@ -12960,7 +12968,7 @@ pattern_if_prefix
 	PBlock*block = current_pattern_blocks.top();
 	current_pattern_blocks.pop();
 	Statement*if_true = pform_pattern_finish_scope(
-	      @1, block, $5, condition->subject(), condition->pattern());
+	      @1, block, $5, condition->subject(), condition->pattern(), true);
 	PCondit*tmp = new PCondit(condition, if_true, nullptr);
 	tmp->parsed_if_statement();
 	FILE_NAME(tmp, @1);
@@ -13864,12 +13872,12 @@ conditional_tand_tail
 /* Keep the pattern declarations active only while parsing the consequent;
    its elaborator owns the block through expression lowering. */
 pattern_expr_head
-  : pattern_subject K_matches match_pattern
-      { pform_requires_sv(@2, "pattern-matching conditional expression");
-	PBlock*block = pform_pattern_push_scope(@2, $1, $3);
+  : pattern_subject match_pattern
+      { pform_requires_sv(@1, "pattern-matching conditional expression");
+	PBlock*block = pform_pattern_push_scope(@1, $1, $2);
 	current_pattern_blocks.push(block);
-	PEMatches*condition = new PEMatches($1, $3, NetCase::EQ);
-	FILE_NAME(condition, @2);
+	PEMatches*condition = new PEMatches($1, $2, NetCase::EQ);
+	FILE_NAME(condition, @1);
 	$$ = condition;
       }
   ;
@@ -16908,7 +16916,7 @@ switchtype
      names. */
 
 hierarchy_identifier
-  : IDENTIFIER
+  : IDENTIFIER %prec pattern_subject_identifier
       { $$ = new pform_name_t;
 	$$->push_back(name_component_t(lex_strings.make($1)));
 	delete[]$1;
@@ -21679,27 +21687,23 @@ statement_item /* This is roughly statement_item in the LRM */
       { pform_requires_sv(@1, "qualified if statement");
 	$$ = pform_make_quality_if(@1, $1, $4, $6, $8);
       }
-  | if_qualifier K_if '(' pattern_condition ')' statement_or_null %prec less_than_K_else
+  | if_qualifier pattern_if_prefix %prec less_than_K_else
       { pform_requires_sv(@1, "qualified pattern-matching conditional");
-	assert(!current_pattern_blocks.empty());
-	PEMatches*condition = dynamic_cast<PEMatches*>($4);
-	assert(condition);
-	PBlock*block = current_pattern_blocks.top();
-	current_pattern_blocks.pop();
-	Statement*if_true = pform_pattern_finish_scope(
-	      @2, block, $6, condition->subject(), condition->pattern());
+	PCondit*prefix = dynamic_cast<PCondit*>($2);
+	assert(prefix);
+	PExpr*condition = prefix->release_cond_expr();
+	Statement*if_true = prefix->release_if_clause();
+	delete prefix;
 	$$ = pform_make_quality_if(@2, $1, condition, if_true, nullptr);
       }
-  | if_qualifier K_if '(' pattern_condition ')' statement_or_null K_else statement_or_null
+  | if_qualifier pattern_if_prefix K_else statement_or_null
       { pform_requires_sv(@1, "qualified pattern-matching conditional");
-	assert(!current_pattern_blocks.empty());
-	PEMatches*condition = dynamic_cast<PEMatches*>($4);
-	assert(condition);
-	PBlock*block = current_pattern_blocks.top();
-	current_pattern_blocks.pop();
-	Statement*if_true = pform_pattern_finish_scope(
-	      @2, block, $6, condition->subject(), condition->pattern());
-	$$ = pform_make_quality_if(@2, $1, condition, if_true, $8);
+	PCondit*prefix = dynamic_cast<PCondit*>($2);
+	assert(prefix);
+	PExpr*condition = prefix->release_cond_expr();
+	Statement*if_true = prefix->release_if_clause();
+	delete prefix;
+	$$ = pform_make_quality_if(@2, $1, condition, if_true, $4);
       }
   | K_if '(' error ')' statement_or_null %prec less_than_K_else
       { yyerror(@1, "error: Malformed conditional expression.");

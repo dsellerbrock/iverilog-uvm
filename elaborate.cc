@@ -710,16 +710,24 @@ struct pattern_subject_t {
       bool use_object_tag = false;
 };
 
-/* Evaluate the case subject into one typed temporary before any pattern is
- * tested. Besides implementing 1800-2017/2023 12.6.1's exactly-once rule,
- * this gives expression subjects (including function calls) a stable value
- * for all arms. Unpacked tagged-union values carry their active member in
- * their object, so matching this temporary must read that tag rather than a
- * declared-variable companion signal. */
-static bool capture_pattern_case_subject_(const LineInfo*loc, PExpr*subject,
-                                          Design*des, NetScope*scope,
-                                          pattern_subject_t&result,
-                                          NetProc*&capture)
+static NetNet* pattern_temporary_(const LineInfo&loc, NetScope*scope,
+                                 ivl_type_t type)
+{
+      NetNet*net = new NetNet(scope, scope->local_symbol(), NetNet::REG, type);
+      net->set_line(loc);
+      net->local_flag(true);
+      if (scope->is_auto())
+            net->lifetime_override(IVL_VLT_AUTOMATIC);
+      return net;
+}
+
+/* Evaluate the subject once. Pattern tests and bindings share the value,
+ * including the active member stored in an unpacked tagged-union object. */
+static bool capture_pattern_subject_(const LineInfo*loc, PExpr*subject,
+                                     Design*des, NetScope*scope,
+                                     pattern_subject_t&result,
+                                     NetProc*&capture,
+                                     NetScope*storage = nullptr)
 {
       PExpr::width_mode_t mode = PExpr::SIZED;
       subject->test_width(des, scope, mode);
@@ -728,7 +736,7 @@ static bool capture_pattern_case_subject_(const LineInfo*loc, PExpr*subject,
       if (!value)
             return false;
 
-      ivl_type_t type = value->net_type();
+      ivl_type_t type = pattern_subject_type(*value);
       if (!type) {
             cerr << loc->get_fileline()
                  << ": error: Unable to determine the type of the "
@@ -738,12 +746,7 @@ static bool capture_pattern_case_subject_(const LineInfo*loc, PExpr*subject,
             return false;
       }
 
-      NetNet*net = new NetNet(scope, scope->local_symbol(), NetNet::REG, type);
-      net->set_line(*loc);
-      net->local_flag(true);
-      if (scope->is_auto())
-            net->lifetime_override(IVL_VLT_AUTOMATIC);
-
+      NetNet*net = pattern_temporary_(*loc, storage ? storage : scope, type);
       NetAssign*save = new NetAssign(new NetAssign_(net), value);
       save->set_line(*loc);
       capture = save;
@@ -17628,10 +17631,7 @@ static bool pattern_filter_fallback_(NetProc*body, NetProc*fallback)
       return true;
 }
 
-/* Elaborate `case (X) matches` to an if-else cascade. The shared matcher
- * validates and lowers each complete typed pattern; the item's implicit block
- * performs pattern-variable copies before its user statement. Invalid
- * patterns leave no executable fallback branch. */
+/* The arm's implicit block copies its bindings from the tested value. */
 static void set_pattern_assignment_snapshot_(Statement*statement,
                                              NetNet*subject)
 {
@@ -17644,6 +17644,23 @@ static void set_pattern_assignment_snapshot_(Statement*statement,
             if (assignment)
                   assignment->set_subject_snapshot(subject);
       }
+}
+
+static NetExpr* elaborate_statement_match_(const PEMatches*match,
+                                           Statement*arm, Design*des,
+                                           NetScope*scope, NetProc*&capture,
+                                           NetScope*storage = nullptr)
+{
+      pattern_subject_t subject;
+      if (!capture_pattern_subject_(match, match->subject(), des, scope,
+                                    subject, capture, storage))
+            return nullptr;
+
+      NetExpr*test = elaborate_pattern_match_(match, subject, match->pattern(),
+                                             match->case_type(), des, scope);
+      if (test)
+            set_pattern_assignment_snapshot_(arm, subject.net);
+      return test;
 }
 
 NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
@@ -17670,8 +17687,8 @@ NetProc* PCaseMatches::elaborate(Design*des, NetScope*scope) const
 
       pattern_subject_t subject;
       NetProc*subject_capture = nullptr;
-      if (!capture_pattern_case_subject_(this, expr_, des, scope, subject,
-                                         subject_capture))
+      if (!capture_pattern_subject_(this, expr_, des, scope, subject,
+                                    subject_capture))
             return nullptr;
 
       /* Qualified pattern cases use the existing case-quality runtime
@@ -17814,6 +17831,103 @@ NetProc* PPatternAssign::elaborate(Design*des, NetScope*scope) const
       return assign;
 }
 
+NetProc* PCase::elaborate_quality_match_if_(Design*des, NetScope*scope) const
+{
+      // A guard can reenter a static function before its outer invocation
+      // dispatches. Keep its saved tests and subjects in a per-entry frame.
+      NetScope*frame = nullptr;
+      if (!scope->is_auto() && scope_is_within_function_(scope)) {
+            frame = new NetScope(scope, hname_t(scope->local_symbol()),
+                                 NetScope::BEGIN_END);
+            frame->is_auto(true);
+            frame->set_line(this);
+      }
+      NetScope*storage = frame ? frame : scope;
+      NetBlock*sequence = new NetBlock(NetBlock::SEQU, frame);
+      sequence->set_line(*this);
+      NetBlock*guards = new NetBlock(NetBlock::SEQU, nullptr);
+      guards->set_line(*this);
+      NetBlock*evaluate = guards;
+      NetCase*dispatch = new NetCase(quality_, NetCase::EQ, pattern_true_(this),
+                                     items_->size(), true);
+      dispatch->set_line(*this);
+
+      const bool priority = quality_ == IVL_CASE_QUALITY_PRIORITY;
+      NetNet*previous = nullptr;
+      for (unsigned idx = 0; idx < items_->size(); ++idx) {
+            Item*item = (*items_)[idx];
+            if (item->expr.empty()) {
+                  NetProc*arm = item->stat
+                        ? item->stat->elaborate(des, scope) : nullptr;
+                  dispatch->set_case(idx, nullptr, arm, idx);
+                  continue;
+            }
+
+            PExpr*guard = item->expr.front();
+            NetProc*capture = nullptr;
+            NetExpr*test;
+            if (const PEMatches*match = dynamic_cast<const PEMatches*>(guard))
+                  test = elaborate_statement_match_(match, item->stat, des,
+                                                    scope, capture, storage);
+            else
+                  test = elab_and_eval(des, scope, guard, -1);
+            if (!test) {
+                  delete capture;
+                  delete sequence;
+                  delete guards;
+                  delete dispatch;
+                  return nullptr;
+            }
+
+            NetNet*saved = pattern_temporary_(*guard, storage,
+                                             &netvector_t::scalar_logic);
+            if (priority) {
+                  // Skipped guards must read false even on a repeated entry.
+                  NetAssign*clear = new NetAssign(new NetAssign_(saved),
+                                                  make_const_0(1));
+                  clear->set_line(*guard);
+                  sequence->append(clear);
+                  if (previous) {
+                        // As in an if, zero or X/Z continues the chain.
+                        NetBlock*next = new NetBlock(NetBlock::SEQU, nullptr);
+                        next->set_line(*guard);
+                        NetCondit*skip = new NetCondit(new NetESignal(previous),
+                                                      nullptr, next);
+                        skip->set_line(*guard);
+                        evaluate->append(skip);
+                        evaluate = next;
+                  }
+                  previous = saved;
+            }
+            if (capture)
+                  evaluate->append(capture);
+            NetAssign*record = new NetAssign(new NetAssign_(saved), test);
+            record->set_line(*guard);
+            evaluate->append(record);
+
+            NetProc*arm = item->stat
+                  ? item->stat->elaborate(des, scope) : nullptr;
+            NetESignal*label = new NetESignal(saved);
+            label->set_line(*guard);
+            dispatch->set_case(idx, label, arm, idx);
+      }
+      sequence->append(guards);
+      sequence->append(dispatch);
+      if (!frame)
+            return sequence;
+
+      NetBlock*activation = new NetBlock(NetBlock::SEQU, nullptr);
+      activation->set_line(*this);
+      NetAlloc*allocate = new NetAlloc(frame);
+      allocate->set_line(*this);
+      activation->append(allocate);
+      activation->append(sequence);
+      NetFree*release = new NetFree(frame);
+      release->set_line(*this);
+      activation->append(release);
+      return activation;
+}
+
 /*
  * Elaborate a case statement.
  */
@@ -17833,6 +17947,14 @@ NetProc* PCase::elaborate(Design*des, NetScope*scope) const
                  << endl;
             des->errors += 1;
             return nullptr;
+      }
+
+      if (quality_if_) {
+            for (const Item*item : *items_) {
+                  if (!item->expr.empty()
+                      && dynamic_cast<const PEMatches*>(item->expr.front()))
+                        return elaborate_quality_match_if_(des, scope);
+            }
       }
 
 	/* A type() value has no run-time bit representation. For a type-valued
@@ -18468,6 +18590,26 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 		  is_immediate_assertion());
 	    return stmt->elaborate(des, scope);
       };
+
+      if (const PEMatches*match = dynamic_cast<const PEMatches*>(expr_)) {
+            NetProc*capture = nullptr;
+            NetExpr*test = elaborate_statement_match_(match, if_, des, scope,
+                                                     capture);
+            if (!test) {
+                  delete capture;
+                  return nullptr;
+            }
+
+            NetProc*i = elaborate_clause(if_);
+            NetProc*e = elaborate_clause(else_);
+            NetCondit*branch = new NetCondit(test, i, e);
+            branch->set_line(*this);
+            NetBlock*sequence = new NetBlock(NetBlock::SEQU, nullptr);
+            sequence->set_line(*this);
+            sequence->append(capture);
+            sequence->append(branch);
+            return sequence;
+      }
 
 	// Elaborate and try to evaluate the conditional expression.
       const unsigned errors_before_condition = des->errors;

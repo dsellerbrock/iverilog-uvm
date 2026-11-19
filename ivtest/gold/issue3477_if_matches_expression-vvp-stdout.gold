@@ -1,0 +1,4 @@
+7 1
+PASSED
+WARNING: ivltests/issue3477_if_matches_expression.sv:69: multiple conditions match for unique or unique0 if statement
+         Time: 0  Scope: issue3477_if_matches_expression
