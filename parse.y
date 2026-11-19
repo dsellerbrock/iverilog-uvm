@@ -2409,11 +2409,8 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 	  case NetNet::PINOUT:
 	    if (default_value)
 		  yyerror(loc, "error: Default port value not allowed for inout ports.");
-	    if (unpacked_dims) {
-		  yyerror(loc, "sorry: Inout ports with unpacked dimensions are not supported.");
-		  delete unpacked_dims;
-		  unpacked_dims = nullptr;
-	    }
+	    if (unpacked_dims)
+		  pform_requires_sv(loc, "Inout port with unpacked dimensions");
 	    break;
 	  case NetNet::PINPUT:
 	    if (default_value) {

@@ -1,0 +1,9 @@
+./ivltests/issue3792_bad.sv:9: error: Inout port 'p' of issue3792_bad_child must be connected to a net (IEEE 1800-2017/2023 23.3.3.2).
+./ivltests/issue3792_bad.sv:13: error: Inout port 'p' of issue3792_bad_child must be connected to a net (IEEE 1800-2017/2023 23.3.3.2).
+./ivltests/issue3792_bad.sv:16: error: Inout port 'p' of issue3792_bad_child has incompatible unpacked-array dimensions.
+./ivltests/issue3792_bad.sv:19: error: Inout port 'p' of issue3792_bad_child has an incompatible unpacked-array element type.
+./ivltests/issue3792_bad.sv:23: error: Inout port 'p' of issue3792_bad_child requires a constant in-bounds unpacked-array selection.
+./ivltests/issue3792_bad.sv:24: error: Inout port 'p' of issue3792_bad_scalar must be connected to a net (IEEE 1800-2017/2023 23.3.3.2).
+./ivltests/issue3792_bad.sv:27: error: Inout port 'p' of issue3792_bad_child has incompatible unpacked-array dimensions.
+./ivltests/issue3792_bad.sv:30: error: Inout port 'p' of issue3792_bad_child has incompatible unpacked-array dimensions.
+8 error(s) during elaboration.

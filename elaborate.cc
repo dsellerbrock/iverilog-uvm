@@ -7546,11 +7546,14 @@ struct fixed_array_port_actual_t {
       }
 };
 
+enum class fixed_array_port_use { input, net_output, inout };
+
 // 0 leaves ordinary expressions to the usual port elaborator.
 static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 					   const PExpr*expr,
 					   fixed_array_port_actual_t&out,
-					   bool output_net = false);
+					   fixed_array_port_use use =
+						 fixed_array_port_use::input);
 
 static NetNet* read_instance_array_input_word_(
       Design*des, NetScope*scope, const LineInfo&loc,
@@ -7765,7 +7768,8 @@ static bool elaborate_instance_array_net_output_(
       const PExpr*expr, const Module*mod, unsigned port_idx, bool implicit)
 {
       fixed_array_port_actual_t view;
-      int decoded = decode_fixed_array_port_actual_(des, scope, expr, view, true);
+      int decoded = decode_fixed_array_port_actual_(
+	    des, scope, expr, view, fixed_array_port_use::net_output);
       if (decoded < 0)
 	    return true;
       NetNet*actual = view.signal;
@@ -7881,6 +7885,123 @@ static bool elaborate_instance_array_net_output_(
 		  des->add_node(driver);
 		  connect(driver->pin(0), sink);
 		  connect(driver->pin(1), source);
+	    }
+	    if (split)
+		  instance_base += formal->pin_count();
+      }
+      return true;
+}
+
+static bool is_inout_net_(NetNet*net)
+{
+      return net->type() != NetNet::REG && net->type() != NetNet::IMPLICIT_REG
+	    && !net->coerced_to_uwire() && !net->get_const();
+}
+
+/* IEEE 1800-2017/2023 23.3.3.2 and 23.3.3.5. Resolve the complete
+ * connection against the declared nets before building any switches. */
+static bool elaborate_unpacked_inout_port_(
+      Design*des, NetScope*scope, const vector<NetNet*>&formals,
+      const PExpr*expr, const Module*mod, unsigned port_idx,
+      bool arrayed, bool implicit)
+{
+      fixed_array_port_actual_t view;
+      int decoded = decode_fixed_array_port_actual_(
+	    des, scope, expr, view, fixed_array_port_use::inout);
+      if (decoded < 0)
+	    return true;
+
+      const auto&formal_dims = formals.front()->unpacked_dims();
+      NetNet*actual = view.signal;
+      perm_string port_name = mod->get_port_name(port_idx);
+      const auto report_error = [&](const char*reason) {
+	    cerr << expr->get_fileline() << ": error: Inout port '"
+		 << port_name << "' of " << mod->mod_name()
+		 << " " << reason << "." << endl;
+	    des->errors += 1;
+	    return true;
+      };
+
+      if (actual && !is_inout_net_(actual))
+	    return report_error("must be connected to a net (IEEE 1800-2017/2023 23.3.3.2)");
+      if (!decoded) {
+	    if (formal_dims.empty())
+		  return false;
+	    return report_error("requires a fixed unpacked net actual");
+      }
+      if (view.base_expr || view.slice_base_expr || view.invalid_index)
+	    return report_error("requires a constant in-bounds unpacked-array selection");
+
+      const auto&actual_dims = view.dims;
+      const bool split = arrayed && actual_dims.size() == formal_dims.size() + 1;
+      if (split && actual_dims.front().width() != formals.size())
+	    return report_error("has incompatible unpacked-array dimensions");
+      const netranges_t element_dims(actual_dims.begin() + (split ? 1 : 0),
+				     actual_dims.end());
+      ivl_type_t actual_type = view.element_type();
+      const NetNetType*actual_udnt = actual->user_nettype();
+      bool warn_uwire = false;
+      for (NetNet*formal : formals) {
+	    if (!formal || formal->port_type() != NetNet::PINOUT
+		|| !unpacked_array_shapes_match_(formal->unpacked_dims(), element_dims))
+		  return report_error("has incompatible unpacked-array dimensions");
+	    if (!is_inout_net_(formal))
+		  return report_error("must be declared as a net (IEEE 1800-2017/2023 23.3.3.2)");
+	    if (implicit && !implicit_port_types_match_(des, *expr, actual,
+							formal, mod, port_name))
+		  return true;
+
+	    ivl_type_t formal_type = formal->net_type();
+	    if (!formal_type->type_equivalent(actual_type)
+		|| !actual_type->type_equivalent(formal_type)
+		|| formal->vector_width() != actual->vector_width())
+		  return report_error("has an incompatible unpacked-array element type");
+	    if (formal->user_nettype() != actual_udnt)
+		  return report_error("has incompatible user-defined nettypes");
+	    if (actual_udnt && (split || !static_cast<const PEIdent*>(expr)
+					 ->path().back().index.empty()))
+		  return report_error("cannot partially connect a user-defined net");
+	    if (!type_is_vectorable(formal->data_type())
+		|| ivl_type_contains_chandle_(formal_type))
+		  return report_error("requires a supported integral net element type");
+
+	    if (!actual_udnt && !actual->is_interconnect() && !formal->is_interconnect())
+		  warn_uwire |= actual->data_type() == IVL_VT_LOGIC
+			    && (actual->type() == NetNet::UNRESOLVED_WIRE
+				|| formal->type() == NetNet::UNRESOLVED_WIRE);
+      }
+
+      if (warn_uwire)
+	    cerr << expr->get_fileline() << ": warning: Inout port '"
+		 << port_name << "' of " << mod->mod_name()
+		 << " does not merge the uwire across the port boundary." << endl;
+
+      const bool isolate = isolate_inout_ports_();
+      NetNet*outer_driver = delay_driver_net(actual);
+      unsigned long instance_base = 0;
+      for (NetNet*formal : formals) {
+	    NetScope*tran_scope = isolate ? formal->scope() : scope;
+	    NetNet*inner_driver = delay_driver_net(formal);
+	    const bool merge = actual_udnt || actual->is_interconnect()
+			       || formal->is_interconnect();
+	    for (unsigned long ordinal = 0; ordinal < formal->pin_count(); ++ordinal) {
+		  unsigned long inner = unpacked_array_ltr_word_(
+			formal->unpacked_dims(), ordinal);
+		  unsigned long outer = unpacked_array_ltr_word_(
+			actual_dims, instance_base + ordinal);
+		  Link&outer_pin = outer_driver->pin(view.backing_word(outer));
+		  Link&inner_pin = inner_driver->pin(inner);
+		  if (merge) {
+			connect(outer_pin, inner_pin);
+			continue;
+		  }
+		  NetTran*tran = new NetTran(tran_scope, tran_scope->local_symbol(),
+			IVL_SW_TRAN, formal->vector_width(),
+			isolate ? (int)port_idx : -1, isolate ? (int)ordinal : -1);
+		  tran->set_line(*expr);
+		  des->add_node(tran);
+		  connect(tran->pin(0), outer_pin);
+		  connect(tran->pin(1), inner_pin);
 	    }
 	    if (split)
 		  instance_base += formal->pin_count();
@@ -9143,9 +9264,20 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  continue;
 	    }
 
-	      // We know by design that each instance has the same
-	      // width port. Therefore, the prts_pin_count must be an
-	      // even multiple of the instance count.
+	    /* Expression elaboration below legitimately reads an interconnect
+	       while constructing this structural net-port edge. Suppress the
+	       value-reference marker only for the dynamic extent of this port. */
+	    interconnect_port_use_guard_t interconnect_port_use(
+		  des, scope, pins[idx]);
+
+	    if (gn_system_verilog() && mport.size() == 1 && prts[0]
+		&& prts[0]->port_type() == NetNet::PINOUT
+		&& elaborate_unpacked_inout_port_(des, scope, prts, pins[idx],
+						   rmod, idx, is_array(),
+						   pins_implicit[idx]))
+		  continue;
+
+	      // The packed connection path assumes equal widths per instance.
 	    ivl_assert(*this, prts_vector_width % instance.size() == 0);
 
 	    NetNet*coercion_net = !prts.empty() ? prts[0] : 0;
@@ -9182,12 +9314,6 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		   ptype = NetNet::NOT_A_PORT;
 	    else
 		   ptype = prts[0]->port_type();
-
-	    /* Expression elaboration below legitimately reads an interconnect
-	       while constructing this structural net-port edge. Suppress the
-	       value-reference marker only for the dynamic extent of this port. */
-	    interconnect_port_use_guard_t interconnect_port_use(
-		  des, scope, pins[idx]);
 
 	      /* An interface member is a run-time object property, not a
 	         structural nexus. Bridge a scalar module port through an ordinary
@@ -9246,8 +9372,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						    pins_implicit[idx]))
 		  continue;
 
-	    /* Retain the scalar output and inout mapping for whole unpacked
-	       actuals. Input array connections are handled above. */
+	    /* Retain the scalar output and legacy inout mapping for whole
+	       unpacked actuals. Declared SystemVerilog inouts are handled above. */
 	    bool instance_array_actual = false;
 	    if ((ptype == NetNet::POUTPUT || ptype == NetNet::PINOUT)
 	        && instance.size() > 1 && mport.size() == 1
@@ -9515,8 +9641,15 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 	    } else if (ptype == NetNet::PINOUT) {
 
-		    // For now, do not support unpacked array outputs.
-		  ivl_assert(*this, prts[0]->unpacked_dimensions()==0);
+		  if (any_of(prts.begin(), prts.end(), [](NetNet*formal) {
+			return formal && formal->unpacked_dimensions() != 0;
+		      })) {
+			cerr << pins[idx]->get_fileline() << ": error: Unpacked "
+			     << "inout port '" << port_name
+			     << "' cannot be connected through a port concatenation." << endl;
+			des->errors += 1;
+			continue;
+		  }
 
 		    /* Inout to/from module. This is a more
 		       complicated case, where the expression must be
@@ -13515,7 +13648,7 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 					   const PExpr*expr,
 					   fixed_array_port_actual_t&out,
-					   bool output_net)
+					   fixed_array_port_use use)
 {
       const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
       if (!ident || ident->path().name.empty())
@@ -13528,18 +13661,22 @@ static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 	  || !result.net->unpacked_dimensions())
 	    return 0;
 
-      if (output_net) {
+      if (use == fixed_array_port_use::net_output) {
 	    if (result.net->type() == NetNet::REG
 		|| result.net->type() == NetNet::IMPLICIT_REG
 		|| result.net->coerced_to_uwire())
 		  return 0;
+      }
+      if (use != fixed_array_port_use::input) {
 	    out.signal = result.net;
+	    if (use == fixed_array_port_use::inout && !is_inout_net_(result.net))
+		  return 0;
 	    if (ident->path().name.size() > 1)
 		  note_virtual_interface_outside_reference(scope, result.scope);
       }
 
       if (ident->path().back().index.empty()) {
-	    if (output_net)
+	    if (use != fixed_array_port_use::input)
 		  check_package_unit_value(des, *expr, scope, result);
 	    out.signal = result.net;
 	    out.dims = result.net->unpacked_dims();
