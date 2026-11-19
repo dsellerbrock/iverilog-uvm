@@ -1069,6 +1069,14 @@ int __vpiLazyExpr::vpi_get(int code)
 	    return (int)width_;
 	  case vpiSigned:
 	    return signed_;
+	  case vpiConstantSelect: {
+	      /* Only a described bit- or part-select carries constant
+		 index/range operands and an identifiable parent. */
+	    if (type_ != vpiBitSelect && type_ != vpiPartSelect)
+		  return vpiUndefined;
+	    vpiHandle parent = vpi_handle(vpiParent);
+	    return parent && parent->vpi_get(vpiConstantSelect) == 1;
+	  }
 	  default:
 	    return vpiUndefined;
       }

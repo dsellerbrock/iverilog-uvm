@@ -8282,13 +8282,17 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
       NetScope::scope_vec_t&instance = scope->instance_arrays[get_name()];
 
-	/* Each port's actual, for its vpiHighConn (IEEE 1800-2023 37.14
-	   detail 3). An instance array splits its actuals, so only a single
-	   instance keeps them. */
-      if (instance.size() == 1)
-	    instance[0]->port_actuals.assign(pins.begin(), pins.end());
-      else if (!instance.empty())
+	/* Keep the source actuals for a single instance or the unsplit
+	   array-level connection list. Array element connections are
+	   recorded below once their mapping is known. */
+      if (instance.size() == 1) {
+	    auto&actuals = instance[0]->port_actuals;
+	    actuals.resize(pins.size());
+	    for (unsigned idx = 0; idx < pins.size(); idx += 1)
+		  actuals[idx].expr = pins[idx];
+      } else if (!instance.empty()) {
 	    instance[0]->array_actuals.assign(pins.begin(), pins.end());
+      }
 
 	// Capture the formal declaration kind before interface formals are
 	// retagged with the effective modport of their actual connection.
@@ -9690,13 +9694,16 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 	      /* If we are working with an instance array, then the
 		 signal width must match the port width exactly. */
+	    const unsigned port_width = prts_vector_width / instance.size();
+	    const bool broadcast = instance.size() > 1 &&
+		  sig->vector_width() == port_width;
 	    if ((instance.size() != 1)
 		&& (sig->vector_width() != prts_vector_width)
-		&& (sig->vector_width() != prts_vector_width/instance.size())) {
+		&& !broadcast) {
 		  cerr << pins[idx]->get_fileline() << ": error: "
 		       << "Port expression width " << sig->vector_width()
 		       << " does not match expected width "<< prts_vector_width
-		       << " or " << (prts_vector_width/instance.size())
+		       << " or " << port_width
 		       << "." << endl;
 		  des->errors += 1;
 		  continue;
@@ -9880,8 +9887,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			connect(formal->pin(0), sig->pin(0));
 		  }
 
-	    } else if (sig->vector_width()==prts_vector_width/instance.size()
-		       && prts.size()/instance.size() == 1) {
+	    } else if (broadcast && mport.size() == 1) {
 
 		  if (debug_elaborate){
 			cerr << get_fileline() << ": debug: " << get_name()
@@ -9924,18 +9930,21 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  }
 
 	    } else switch (ptype) {
-		case NetNet::POUTPUT:
-		  NetConcat*ctmp;
-		  ctmp = new NetConcat(scope, scope->local_symbol(),
-				       prts_vector_width, prts.size());
-		  ctmp->set_line(*this);
-		  des->add_node(ctmp);
-		  connect(ctmp->pin(0), sig->pin(0));
-		  for (unsigned ldx = 0 ;  ldx < prts.size() ;  ldx += 1) {
-			connect(ctmp->pin(ldx+1),
-				prts[prts.size()-ldx-1]->pin(0));
+		case NetNet::POUTPUT: {
+		  const unsigned group_size = broadcast ? mport.size() : prts.size();
+		  const unsigned group_width = broadcast ? port_width : prts_vector_width;
+		  for (unsigned base = 0; base < prts.size(); base += group_size) {
+			NetConcat*ctmp = new NetConcat(scope, scope->local_symbol(),
+						       group_width, group_size);
+			ctmp->set_line(*this);
+			des->add_node(ctmp);
+			connect(ctmp->pin(0), sig->pin(0));
+			for (unsigned ldx = 0; ldx < group_size; ldx += 1)
+			      connect(ctmp->pin(ldx+1),
+				      prts[prts.size()-base-ldx-1]->pin(0));
 		  }
 		  break;
+		}
 
 		case NetNet::PINPUT:
 		  if (debug_elaborate){
@@ -9959,6 +9968,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			des->add_node(ptmp);
 			connect(ptmp->pin(0), sp->pin(0));
 			spin += sp->vector_width();
+			if (broadcast && spin == port_width)
+			      spin = 0;
 		  }
 		  break;
 
@@ -9980,6 +9991,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			connect(ttmp->pin(0), sig->pin(0));
 			connect(ttmp->pin(1), sp->pin(0));
 			spin += sp->vector_width();
+			if (broadcast && spin == port_width)
+			      spin = 0;
 		  }
 		  break;
 
@@ -10001,6 +10014,22 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		  break;
 	    }
 
+	      /* IEEE 1800-2017/2023 23.3.3.5, 37.14: each element sees the
+		 whole broadcast or one slice of the full formal port. The
+		 instance vector starts at the right-hand bound, like the
+		 canonical bit offsets in the actual. */
+	    if (instance.size() > 1) {
+		  for (unsigned ordinal = 0; ordinal < instance.size(); ordinal += 1) {
+			auto&actuals = instance[ordinal]->port_actuals;
+			actuals.resize(pins.size());
+			auto&actual = actuals[idx];
+			actual.expr = pins[idx];
+			if (!broadcast) {
+			      actual.slice_width = port_width;
+			      actual.slice_offset = ordinal * port_width;
+			}
+		  }
+	    }
       }
 
 }

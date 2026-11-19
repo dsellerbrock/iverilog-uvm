@@ -1669,10 +1669,25 @@ void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 {
       if (parent() && !port_actuals.empty()) {
 	    port_highconns.assign(port_actuals.size(), nullptr);
-	    for (size_t idx = 0; idx < port_actuals.size(); idx += 1)
-		  if (port_actuals[idx])
-			port_highconns[idx] = elaborate_for_vpi(des, parent(),
-							     port_actuals[idx]);
+	    for (size_t idx = 0; idx < port_actuals.size(); idx += 1) {
+		  const port_actual_t&port = port_actuals[idx];
+		  if (!port.expr) continue;
+		  NetExpr*actual = elaborate_for_vpi(des, parent(), port.expr);
+		  if (port.slice_width && actual) {
+			const auto*signal = dynamic_cast<const NetESignal*>(actual);
+			  /* The packed projection describes a whole vector signal. */
+			if (!signal || signal->sig()->unpacked_dimensions() != 0
+			    || signal->sig()->packed_dims().size() != 1) {
+			      delete actual;
+			      continue;
+			}
+			NetExpr*offset = make_const_val(port.slice_offset);
+			offset->set_line(*port.expr);
+			actual = new NetESelect(actual, offset, port.slice_width);
+			actual->set_line(*port.expr);
+		  }
+		  port_highconns[idx] = actual;
+	    }
       }
 	/* An interface port is a class-typed handle that elaboration has
 	   bound to one interface instance. */
@@ -1719,9 +1734,11 @@ void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 	    arr.left = elems.back()->fullname().peek_number(0);
 	    arr.right = elems.front()->fullname().peek_number(0);
 	    arr.elements.assign(elems.rbegin(), elems.rend());
-	    const std::vector<PExpr*>&actuals = elems.front()->array_actuals.empty()
-		  ? elems.front()->port_actuals : elems.front()->array_actuals;
-	    for (PExpr*actual : actuals) {
+	    const auto&actuals = elems.front()->array_actuals;
+	    const auto&ports = elems.front()->port_actuals;
+	    const size_t count = actuals.empty() ? ports.size() : actuals.size();
+	    for (size_t idx = 0; idx < count; idx += 1) {
+		  PExpr*actual = actuals.empty() ? ports[idx].expr : actuals[idx];
 		  NetExpr*tmp = actual ? elaborate_for_vpi(des, this, actual) : 0;
 		  if (!tmp) {
 			for (NetExpr*done : arr.conns) delete done;

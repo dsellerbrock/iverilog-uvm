@@ -1935,7 +1935,13 @@ class NetScope : public Definitions, public Attrib {
 	/* The actual of each port of this instance, in port order (nil when
 	   unconnected), and its tree elaborated in the parent for VPI's
 	   vpiHighConn (37.14). */
-      std::vector<PExpr*> port_actuals;
+      struct port_actual_t {
+	    PExpr*expr = nullptr;
+	      /* Zero width denotes the whole expression. */
+	    unsigned slice_width = 0;
+	    unsigned slice_offset = 0;
+      };
+      std::vector<port_actual_t> port_actuals;
       std::vector<NetExpr*> port_highconns;
 	/* For an interface port, the interface instance it is bound to and
 	   the modport it selects (nil for none), for its vpiRefObj

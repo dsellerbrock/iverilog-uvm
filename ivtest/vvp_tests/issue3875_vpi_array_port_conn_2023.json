@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3875_vpi_array_port_conn.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3875_vpi_array_port_conn_2023"],
+  "vpi-sources": ["vpi/issue3875_vpi_array_port_conn.c"],
+  "gold": "issue3875_vpi_array_port_conn"
+}
