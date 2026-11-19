@@ -640,6 +640,24 @@ const char* vpi_type_as_string(PLI_INT32 code)
       return buf;
 }
 
+namespace {
+
+int internal_object_type_(vpiHandle ref, bool for_string = false)
+{
+      // Preserve the distinction between numeric and string type lookups.
+      int type = for_string ? ref->get_type_code() : ref->get_vpi_type_code();
+      if (type == vpiAssertion) {
+	    int assertion_type = ref->vpi_get(vpiType);
+	    if (assertion_type != vpiUndefined) return assertion_type;
+      }
+      if (type == vpiMemory && is_net_array(ref)) return vpiNetArray;
+      return type;
+}
+
+int compat_type_(int mode, vpiHandle ref, int type);
+
+}
+
 PLI_INT32 vpi_get(int property, vpiHandle ref)
 {
       vpip_clear_error();
@@ -654,19 +672,15 @@ PLI_INT32 vpi_get(int property, vpiHandle ref)
 	  // dispatching to type-specific property handlers.
 	  if (property == 74) return 0; // vpiIsProtected (not yet named in vpi_user.h)
 
-      if (property == vpiType) {
-	    int type = ref->get_vpi_type_code();
-	    if (type == vpiAssertion) {
-		  int assertion_type = ref->vpi_get(property);
-		  if (assertion_type != vpiUndefined) type = assertion_type;
-	    }
+      if (property == vpiType || property == _vpiInternalType) {
+	    int type = internal_object_type_(ref);
+	    if (property == vpiType)
+		  type = compat_type_(VPIP_COMPAT_1800v2012, ref, type);
 	    if (vpi_trace) {
-		  fprintf(vpi_trace, "vpi_get(vpiType, %p) --> %s\n",
+		  fprintf(vpi_trace, "vpi_get(%s, %p) --> %s\n",
+			  property == vpiType ? "vpiType" : "_vpiInternalType",
 			  ref, vpi_type_as_string(type));
 	    }
-
-	    if (type == vpiMemory && is_net_array(ref))
-		  return vpiNetArray;
 	    return type;
       }
 
@@ -723,20 +737,16 @@ char* vpi_get_str(PLI_INT32 property, vpiHandle ref)
 	    return 0;
       }
 
-      if (property == vpiType) {
-	    int type = ref->get_type_code();
-	    if (type == vpiAssertion) {
-		  int assertion_type = ref->vpi_get(property);
-		  if (assertion_type != vpiUndefined) type = assertion_type;
-	    }
+      if (property == vpiType || property == _vpiInternalType) {
+	    int type = internal_object_type_(ref, true);
+	    if (property == vpiType)
+		  type = compat_type_(VPIP_COMPAT_1800v2012, ref, type);
 	    if (vpi_trace) {
-		  fprintf(vpi_trace, "vpi_get(vpiType, %p) --> %s\n",
+		  fprintf(vpi_trace, "vpi_get_str(%s, %p) --> %s\n",
+			  property == vpiType ? "vpiType" : "_vpiInternalType",
 			  ref, vpi_type_as_string(type));
 	    }
-
-	    if (type == vpiMemory && is_net_array(ref))
-		  type = vpiNetArray;
-	    return (char *)vpi_type_as_string(type);
+	    return const_cast<char*>(vpi_type_as_string(type));
       }
 
       char*res = ref->vpi_get_str(property);
@@ -1912,8 +1922,7 @@ static vpiHandle find_name(const char *name, vpiHandle handle)
 	    if (nm && !strcmp(name, nm)) {
 		  rtn = ref->intern[i];
 		  break;
-	    } else if (vpi_get(vpiType, ref->intern[i]) == vpiMemory ||
-	               vpi_get(vpiType, ref->intern[i]) == vpiNetArray) {
+	    } else if (ref->intern[i]->get_type_code() == vpiMemory) {
 		  /* We need to iterate on the words */
 		  vpiHandle word_i, word_h;
 		  word_i = vpi_iterate(vpiMemoryWord, ref->intern[i]);
@@ -3217,9 +3226,8 @@ int compat_scalar_array_type_(int mode, compat_elem_t elem)
       }
 }
 
-int compat_type_(int mode, vpiHandle ref)
+int compat_type_(int mode, vpiHandle ref, int type)
 {
-      int type = vpi_get(vpiType, ref);
       if (type == vpiMemory) {
 	    compat_elem_t elem = compat_array_elem_(ref);
 	    if (elem == ELEM_NONE) return type;
@@ -3230,7 +3238,7 @@ int compat_type_(int mode, vpiHandle ref)
 	    return vpiRegArray;
       }
       if (type == vpiMemoryWord) {
-	    compat_elem_t elem = compat_array_elem_(vpi_handle(vpiParent, ref));
+	    compat_elem_t elem = compat_array_elem_(ref->vpi_handle(vpiParent));
 	    if (compat_scalar_array_type_(mode, elem)) return vpiVarSelect;
 	    switch (elem) {
 		  // Row 2: only IEEE 1364-1995 has vpiMemoryWord objects.
@@ -3269,8 +3277,11 @@ PLI_INT32 vpip_compat_get(int mode, PLI_INT32 property, vpiHandle ref)
 {
       if (!ref || mode < 0 || mode > VPIP_COMPAT_1800v2012)
 	    return vpi_get(property, ref);
-      if (property == vpiType) return compat_type_(mode, ref);
-      if (property == vpiArray && vpi_get(vpiType, ref) == vpiMemory
+      if (property == vpiType) {
+	    vpip_clear_error();
+	    return compat_type_(mode, ref, internal_object_type_(ref));
+      }
+      if (property == vpiArray && vpi_get(_vpiInternalType, ref) == vpiMemory
           && compat_scalar_array_type_(mode, compat_array_elem_(ref)))
 	    return 1;
       return vpi_get(property, ref);
@@ -3308,7 +3319,7 @@ vpiHandle vpip_compat_iterate(int mode, PLI_INT32 type, vpiHandle ref)
 	  case vpiVariables:
 	      // Row 5: reg variables and reg arrays are not variables.
 	    compat_collect_(vpi_iterate(type, ref), items, [&](vpiHandle h) {
-		  return vpi_get(vpiType, h) != vpiReg && !is_reg_array(h);
+		  return internal_object_type_(h) != vpiReg && !is_reg_array(h);
 	    });
 	    return compat_make_iterator_(items);
 	  case vpiRegArray:

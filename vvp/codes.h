@@ -801,6 +801,7 @@ extern bool of_WAIT_OBJ_MUTATION_FILTERED_MULTI(vthread_t thr,
 extern bool of_WAIT_OBJ_EXPR(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ_EXPR_POSEDGE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBJ_EXPR_NEGEDGE(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_OBJ_EXPR_EDGE(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_EXPR_RETURN(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_EXPR_SAVE_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_EXPR_LOAD_VEC4(vthread_t thr, vvp_code_t code);

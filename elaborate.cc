@@ -16690,7 +16690,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  event->set_line(*event_);
 		  event->add_event(qualified);
 	    } else {
-		  NetProc*st = event_->elaborate(des, scope);
+		  NetProc*st = event_->elaborate(des, scope, /*nba_event_control=*/true);
 		  if (st == 0) {
 			cerr << get_fileline() << ": unable to elaborate "
 			        "event expression." << endl;
@@ -26102,28 +26102,25 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	   condition. */
       NetExpr*count_expr = elab_and_eval(des, scope, count_, -1);
       const NetEConst*count_const = dynamic_cast<const NetEConst*>(count_expr);
-      long count_value = count_const ? count_const->value().as_long() : 1;
-      if (expression_value_ && generation_flag < GN_VER2023
-          && count_const && count_value <= 0) {
-	    cerr << get_fileline() << ": error: expression-valued ## cycle delay "
-		 << "must evaluate to a positive integer (IEEE 1800-2017 14.11)."
-		 << endl;
-	    des->errors += 1;
-	    delete count_expr;
-	    delete wait_stmt;
-	    return 0;
+      const bool allow_zero = generation_flag >= GN_VER2023;
+      const char*range_error = allow_zero
+	  ? "expression-valued ## cycle delay must evaluate to a non-negative "
+	    "integer (IEEE 1800-2023 14.11)."
+	  : "expression-valued ## cycle delay must evaluate to a positive "
+	    "integer (IEEE 1800-2017 14.11).";
+      bool zero_count = false;
+      if (count_const) {
+	    const verinum&value = count_const->value();
+	    zero_count = expression_value_ ? value.is_zero() : value.as_long() == 0;
+	    if (expression_value_ && (!value.is_defined() || value.is_negative()
+				      || (!allow_zero && zero_count))) {
+		  cerr << get_fileline() << ": error: " << range_error << endl;
+		  des->errors += 1;
+		  delete count_expr;
+		  delete wait_stmt;
+		  return 0;
+	    }
       }
-      if (expression_value_ && generation_flag >= GN_VER2023
-          && count_const && count_value < 0) {
-	    cerr << get_fileline() << ": error: expression-valued ## cycle delay "
-		 << "must evaluate to a non-negative integer (IEEE 1800-2023 14.11)."
-		 << endl;
-	    des->errors += 1;
-	    delete count_expr;
-	    delete wait_stmt;
-	    return 0;
-      }
-      bool zero_count = count_const && count_value == 0;
       bool dynamic_count = count_expr && !count_const;
       if (zero_count || dynamic_count) {
 	    string trig_name_str = string("_ivl_cbtrig$") + cb_name.str();
@@ -26136,18 +26133,22 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    PCondit*wait_if_needed = new PCondit(trig_id, nullptr, wait_stmt);
 	    wait_if_needed->set_line(*this);
 	    NetProc*proc = wait_if_needed->elaborate(des, scope);
+	    NetNet*saved = nullptr;
+	    NetAssign*save = nullptr;
+	    const bool check_range = expression_value_ && dynamic_count
+		&& type_is_vectorable(count_expr->expr_type());
 	    if (dynamic_count && proc) {
 		  if (count_expr->expr_type() == IVL_VT_REAL)
 			count_expr = cast_to_int4(count_expr, 64);
 		  const netvector_t*type = new netvector_t(
 			IVL_VT_LOGIC, count_expr->expr_width()-1, 0,
 			count_expr->has_sign());
-		  NetNet*saved = new NetNet(scope, scope->local_symbol(),
-					  NetNet::REG, type);
+		  saved = new NetNet(scope, scope->local_symbol(),
+				     NetNet::REG, type);
 		  saved->local_flag(true);
 		  if (scope->is_auto())
 			saved->lifetime_override(IVL_VLT_AUTOMATIC);
-		  NetAssign*save = new NetAssign(new NetAssign_(saved), count_expr);
+		  save = new NetAssign(new NetAssign_(saved), count_expr);
 		  save->set_line(*this);
 		  NetProc*event_wait = wait_stmt->elaborate(des, scope);
 		  if (!event_wait) {
@@ -26159,11 +26160,7 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 		  repeat->set_line(*this);
 		  NetCondit*choice = new NetCondit(new NetESignal(saved), repeat, proc);
 		  choice->set_line(*this);
-		  NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
-		  block->set_line(*this);
-		  block->append(save);
-		  block->append(choice);
-		  proc = block;
+		  proc = choice;
 	    } else {
 		  delete count_expr;
 	    }
@@ -26171,6 +26168,7 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 		  NetProc*sub = statement_->elaborate(des, scope);
 		  if (sub == 0) {
 			delete proc;
+			delete save;
 			return 0;
 		  }
 		  NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
@@ -26179,13 +26177,48 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 		  blk->append(sub);
 		  proc = blk;
 	    }
-            return proc;
+	    if (save) {
+		  // Use the same saved value for the range check and the wait.
+		  if (check_range) {
+			NetESignal*value = new NetESignal(saved);
+			verinum zero(verinum::V0, value->expr_width());
+			zero.has_sign(value->has_sign());
+			NetEBComp*valid = new NetEBComp(allow_zero ? 'G' : '>',
+						      value, new NetEConst(zero));
+			valid->set_line(*this);
+			vector<NetExpr*>args{make_const_val(1), new NetECString(range_error)};
+			NetSTask*fatal = new NetSTask("$fatal", IVL_SFUNC_AS_TASK_IGNORE, args);
+			fatal->set_line(*this);
+			// An unknown comparison also takes the error branch.
+			proc = new NetCondit(valid, proc, fatal);
+			proc->set_line(*this);
+		  }
+		  NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+		  block->set_line(*this);
+		  block->append(save);
+		  block->append(proc);
+		  proc = block;
+	    }
+	    return proc;
       }
-      delete count_expr;
-      PRepeat*rep_stmt = new PRepeat(count_, wait_stmt);
-      rep_stmt->set_line(*this);
 
-      NetProc*rep = rep_stmt->elaborate(des, scope);
+      NetProc*rep;
+      if (expression_value_ && count_const) {
+	    // Keep the full positive count. PRepeat folds through a host long.
+	    NetProc*event_wait = wait_stmt->elaborate(des, scope);
+	    delete wait_stmt;
+	    if (!event_wait) {
+		  delete count_expr;
+		  return 0;
+	    }
+	    rep = new NetRepeat(count_expr, event_wait);
+	    rep->set_line(*this);
+      } else {
+	    delete count_expr;
+	    PRepeat*rep_stmt = new PRepeat(count_, wait_stmt);
+	    rep_stmt->set_line(*this);
+	    rep = rep_stmt->elaborate(des, scope);
+      }
       if (rep == 0)
 	    return 0;
       if (statement_ == 0)
@@ -27235,6 +27268,7 @@ struct event_leaf_dynamic_kind_t {
       bool object = false;
       bool vif = false;
       bool compound = false;
+      bool size_observer = false;
 };
 
 struct prepared_event_leaf_t {
@@ -27317,8 +27351,15 @@ static void check_named_event_edge_(Design*des, const LineInfo&loc,
       des->errors += 1;
 }
 
-/* Dynamic object and virtual-interface event leaves are selected when the wait
- * arms. Retain each prospective leaf for whichever lowering path wins. */
+static bool event_expr_has_darray_size_(const NetExpr*expr);
+
+static bool event_expr_needs_size_observer_(const NetExpr*expr)
+{
+      return (expr->expr_type() == IVL_VT_BOOL || expr->expr_type() == IVL_VT_LOGIC)
+	  && event_expr_has_darray_size_(expr);
+}
+
+/* Retain each elaborated leaf for the shared or independent wait path. */
 static void prepare_event_leaf_(Design*des, NetScope*scope,
 			const LineInfo&loc, const PEEvent*event,
 			prepared_event_leaf_t&res)
@@ -27431,6 +27472,7 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
       }
 
       NetExpr*expr = res.expr.get();
+      res.kind.size_observer = event_expr_needs_size_observer_(expr);
 
       std::vector<class_property_mutation_dep_t> object_deps;
       collect_class_property_mutation_deps_(expr, object_deps);
@@ -27461,9 +27503,10 @@ static void prepare_event_leaf_(Design*des, NetScope*scope,
 static bool prepare_event_list_(Design*des, NetScope*scope,
 			const LineInfo&loc,
 			const std::vector<PEEvent*>&events,
-			std::vector<prepared_event_leaf_t>&prepared)
+			std::vector<prepared_event_leaf_t>&prepared,
+			bool nba_event_control)
 {
-      if (!gn_system_verilog() || events.size() < 2)
+      if (!gn_system_verilog() || (events.size() < 2 && !nba_event_control))
 	    return false;
 
       prepared.resize(events.size());
@@ -27476,16 +27519,24 @@ static bool prepare_event_list_(Design*des, NetScope*scope,
       for (unsigned idx = 0; idx < events.size(); idx += 1) {
 	    prepare_event_leaf_(des, scope, loc, events[idx], prepared[idx]);
 	    const event_leaf_dynamic_kind_t&kind = prepared[idx].kind;
+	    if (kind.size_observer && nba_event_control) {
+		  // %evctl uses the raw event source, without the observer recipe.
+		  cerr << events[idx]->get_fileline() << ": sorry: a size()-dependent "
+			  "nonblocking intra-assignment event control is not supported." << endl;
+		  des->errors += 1;
+		  return false;
+	    }
 	    has_class_event = has_class_event || prepared[idx].class_event;
 	    has_object = has_object || kind.object;
 	    has_non_object = has_non_object || !kind.object || kind.vif;
 	    has_vif = has_vif || kind.vif;
 	    has_non_vif = has_non_vif || !kind.vif || kind.object;
-	    has_compound_dynamic = has_compound_dynamic || kind.compound;
+	    has_compound_dynamic = has_compound_dynamic || kind.compound
+		|| kind.size_observer;
       }
-      return (events.size() > 1 && has_class_event) || has_compound_dynamic
-	  || (has_object && has_non_object)
-	  || (has_vif && has_non_vif);
+      return events.size() > 1
+	  && (has_class_event || has_compound_dynamic
+	      || (has_object && has_non_object) || (has_vif && has_non_vif));
 }
 
 /* Only this closed set is safe to move into an observer concat. In particular,
@@ -27849,6 +27900,18 @@ static bool event_expr_has_darray_size_(const NetExpr*expr)
 			return true;
 	    return false;
       }
+      if (const NetEUFunc*call = dynamic_cast<const NetEUFunc*>(expr)) {
+	    for (unsigned idx = 0; idx < call->parm_count(); ++idx)
+		  if (event_expr_has_darray_size_(call->parm(idx)))
+			return true;
+	    return false;
+      }
+      if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
+	    for (unsigned idx = 0; idx < concat->nparms(); ++idx)
+		  if (event_expr_has_darray_size_(concat->parm(idx)))
+			return true;
+	    return false;
+      }
       if (const NetEBinary*bin = dynamic_cast<const NetEBinary*>(expr))
 	    return event_expr_has_darray_size_(bin->left())
 		|| event_expr_has_darray_size_(bin->right());
@@ -27861,6 +27924,11 @@ static bool event_expr_has_darray_size_(const NetExpr*expr)
       if (const NetESelect*sel = dynamic_cast<const NetESelect*>(expr))
 	    return event_expr_has_darray_size_(sel->sub_expr())
 		|| event_expr_has_darray_size_(sel->select());
+      if (const NetEProperty*prop = dynamic_cast<const NetEProperty*>(expr))
+	    return event_expr_has_darray_size_(prop->get_base())
+		|| event_expr_has_darray_size_(prop->get_index());
+      if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr))
+	    return event_expr_has_darray_size_(sig->word_index());
       return false;
 }
 
@@ -27873,7 +27941,7 @@ static map<NetEvWait*, deferred_extern_sensitivity_t> deferred_extern_sensitivit
 static bool extern_functions_bound_ = false;
 
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
-				       NetProc*enet) const
+				       NetProc*enet, bool nba_event_control) const
 {
       ivl_assert(*this, scope);
 
@@ -27975,7 +28043,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
        * source-order concat and recurse through the established single-observer
        * lowering. This keeps all subscriptions in the original waiter frame. */
       const unsigned errors_before_prepared = des->errors;
-      bool split_event_list = prepare_event_list_(des, scope, *this, expr_, prepared);
+      bool split_event_list = prepare_event_list_(des, scope, *this, expr_,
+						  prepared, nba_event_control);
       if (des->errors != errors_before_prepared)
 	    return nullptr;
       if (unique_ptr<NetExpr>concat =
@@ -27989,9 +28058,9 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
             return concat_wait.elaborate_st(des, scope, enet);
       }
 
-      /* A per-instance class event or dynamically selected class/VIF leaf
-       * needs its own waiter. Lower such lists as independent one-shot waits
-       * under join_any; ordinary event-list lowering remains unchanged. */
+      /* A dynamically selected event or a size-dependent value observer
+       * may need its own waiter. Lower these lists as independent one-shot
+       * waits under join_any. */
       if (split_event_list) {
 	    std::vector<NetProc*>waiters;
 	    for (unsigned idx = 0; idx < expr_.size(); idx += 1) {
@@ -28668,33 +28737,27 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  continue;
 	    }
 
-	    /* A dynamic-array or queue size() call is represented by an internal
-	     * system-function node. It cannot be synthesized as an ordinary
-	     * expression, but its receiver inputs can trigger the existing value
-	     * observer. The observer compares successive size() results, so changes
-	     * to elements or same-sized assignments do not create false events. */
-	    if (gn_system_verilog()
-		&& expr_[idx]->type() == PEEvent::ANYEDGE) {
-		    /* IEEE 1800-2023 9.4.2: an expression that uses a size()
-		       call (da.size() > 0) is reevaluated the same way. */
-		  if (event_expr_has_darray_size_(tmp)
-		      && (tmp->expr_type() == IVL_VT_BOOL
-			  || tmp->expr_type() == IVL_VT_LOGIC)) {
-			NexusSet*source_set = tmp->nex_input();
-			if (source_set && source_set->size() > 0) {
-			      NetEvProbe*probe = new NetEvProbe(
-				    scope, scope->local_symbol(), ev,
-				    NetEvProbe::ANYEDGE, source_set->size());
-			      for (unsigned pin = 0; pin < source_set->size(); ++pin)
-				    connect(source_set->at(pin).lnk, probe->pin(pin));
-			      probe->set_event_observer_expr(tmp);
-			      tmp = nullptr;
-			      des->add_node(probe);
-			      expr_count += 1;
-			      delete source_set;
-			      continue;
-			}
-			delete source_set;
+	    /* IEEE 1800-2017/2023 9.4.2: each input can request reevaluation.
+	     * The observer applies the qualifier to the resulting value. */
+	    if (gn_system_verilog() && event_expr_needs_size_observer_(tmp)) {
+		  unique_ptr<NexusSet>sources(tmp->nex_input(
+			true, expr_has_user_function_call_(tmp)));
+		  if (sources) {
+			PEEvent::edge_t edge = expr_[idx]->type();
+			NetEvProbe::edge_t observer_edge =
+			      edge == PEEvent::POSEDGE ? NetEvProbe::POSEDGE
+			    : edge == PEEvent::NEGEDGE ? NetEvProbe::NEGEDGE
+			    : edge == PEEvent::EDGE    ? NetEvProbe::EDGE
+			    : NetEvProbe::ANYEDGE;
+			NetEvProbe*probe = new NetEvProbe(
+			      scope, scope->local_symbol(), ev,
+			      NetEvProbe::ANYEDGE, sources->size());
+			for (unsigned pin = 0; pin < sources->size(); ++pin)
+			      connect(sources->at(pin).lnk, probe->pin(pin));
+			probe->set_event_observer_expr(tmp, observer_edge);
+			des->add_node(probe);
+			expr_count += 1;
+			continue;
 		  }
 	    }
 
@@ -30228,6 +30291,12 @@ NetProc* PEventStatement::elaborate_wait_fork(Design*des, const NetScope*scope) 
 
 NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 {
+      return elaborate(des, scope, /*nba_event_control=*/false);
+}
+
+NetProc* PEventStatement::elaborate(Design*des, NetScope*scope,
+				    bool nba_event_control) const
+{
 	/* wait_order uses named-event identifiers and has two continuations, so
 	   it must not pass through the ordinary event-or lowering below. */
       if (wait_order_)
@@ -30361,7 +30430,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
       if ((expr_.size() == 1) && (expr_[0]->type() == PEEvent::POSITIVE))
 	    return elaborate_wait(des, scope, enet);
 
-      return elaborate_st(des, scope, enet);
+      return elaborate_st(des, scope, enet, nba_event_control);
 }
 
 NetProc* PEventStatement::elaborate_wait_order_(Design*des,
@@ -53364,11 +53433,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // ignored sequence to value sets once; the regular bins below
 			    // subtract them term by term.
 			  typedef std::vector<std::pair<uint64_t,uint64_t>> trans_ranges_t;
-			  struct detect_transition_t {
-				string name;
-				std::vector<trans_ranges_t> terms;
+			  struct trans_overlap_term_t {
+				trans_ranges_t ranges;
+				int64_t min, max;
 			  };
-			  std::vector<detect_transition_t> detect_transitions;
+			  typedef std::vector<trans_overlap_term_t> trans_overlap_seq_t;
+			  struct trans_overlap_bin_t {
+				string name;
+				std::vector<trans_overlap_seq_t> sequences;
+			  };
+			  std::vector<trans_overlap_bin_t> overlap_bins;
 			  std::vector<std::vector<trans_ranges_t>> ignored_trans;
 			  std::vector<std::vector<trans_ranges_t>> illegal_trans;
 			  std::set<const void*> resolved_ignore_bins;
@@ -53428,6 +53502,70 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      if (lo <= hi) out.push_back(std::make_pair(lo, hi));
 				}
 				return out;
+			  };
+			  auto trans_sequences_overlap = [&](const trans_overlap_seq_t&a,
+							      const trans_overlap_seq_t&b) {
+				typedef std::pair<int64_t,int64_t> interval_t;
+				typedef std::pair<size_t,size_t> term_pair_t;
+				std::map<term_pair_t, std::vector<interval_t>> pending;
+				pending[{0, 0}].emplace_back(0, 0);
+				// Each edge advances at least one term, so each pair
+				// is visited at most once, after all its predecessors.
+				while (!pending.empty()) {
+				      auto next = pending.begin();
+				      const size_t i = next->first.first;
+				      const size_t j = next->first.second;
+				      auto offsets = std::move(next->second);
+				      pending.erase(next);
+				      const auto&left = a[i];
+				      const auto&right = b[j];
+				      if (trans_ranges_intersect(left.ranges, right.ranges).empty())
+					    continue;
+
+				      // At least one term is fresh. The signed offset
+				      // is the number of samples already consumed in
+				      // the left term minus that in the right term.
+				      // Merge only contiguous reachable offsets.
+				      std::sort(offsets.begin(), offsets.end());
+				      const bool left_last = i + 1 == a.size();
+				      const bool right_last = j + 1 == b.size();
+				      for (size_t k = 0; k < offsets.size();) {
+					    auto offset = offsets[k++];
+					    while (k < offsets.size()
+						   && offsets[k].first <= offset.second + 1) {
+						  offset.second = std::max(offset.second,
+									   offsets[k++].second);
+					    }
+					    // A shared finish requires the two total
+					    // counts to differ by a reachable offset.
+					    if (left_last == right_last
+						&& left.min - right.max <= offset.second
+						&& offset.first <= left.max - right.min) {
+						  if (left_last) return true;
+						  pending[{i + 1, j + 1}].emplace_back(0, 0);
+					    }
+					    // If only one term finishes, its total
+					    // count shifts the offset. The continuing
+					    // term must have consumed 1 to max-1.
+					    if (!left_last) {
+						  int64_t lo = std::max(1 - right.max,
+									offset.first - left.max);
+						  int64_t hi = std::min(int64_t(-1),
+									offset.second - left.min);
+						  if (lo <= hi)
+							pending[{i + 1, j}].emplace_back(lo, hi);
+					    }
+					    if (!right_last) {
+						  int64_t lo = std::max(int64_t(1),
+									offset.first + right.min);
+						  int64_t hi = std::min(left.max - 1,
+									offset.second + right.max);
+						  if (lo <= hi)
+							pending[{i, j + 1}].emplace_back(lo, hi);
+					    }
+				      }
+				}
+				return false;
 			  };
 			  auto trans_ranges_subtract = [](const trans_ranges_t&a,
 							  const trans_ranges_t&b) {
@@ -53896,59 +54034,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      if (bad) continue;
 				      if (programs.empty()) continue;
 
-				  // IEEE 1800-2017/2023 19.7: detect_overlap applies to
-				  // transition lists as well as value ranges. Compare fixed,
-				  // unrepeated sequences as sets at each sample position.
-				  if (opt_uint(cp.options, "detect_overlap",
-					       cg_detect_overlap)
-				      && !bin.wildcard && !constructor_dependent) {
-					bool simple = true;
-					std::vector<detect_transition_t> current;
-					for (auto&program : programs) {
-					      detect_transition_t sequence;
-					      sequence.name = bin.name.str();
-					      for (auto&term : program) {
-						    if (term.dynamic || term.repeat !=
-							(unsigned)class_type_t::pform_cov_trans_term_t::TRANS_ONCE) {
-							  simple = false;
-							  break;
-						    }
-						    sequence.terms.push_back(term.ranges);
-					      }
-					      if (!simple) break;
-					      current.push_back(std::move(sequence));
-					}
-					if (simple) {
-					      for (auto&sequence : current) {
-						    for (auto&previous : detect_transitions) {
-							  if (sequence.terms.size() != previous.terms.size())
-								continue;
-							  bool overlaps = true;
-							  for (size_t i = 0; i < sequence.terms.size(); i++) {
-								    bool term_overlaps = false;
-								    for (auto&a : sequence.terms[i])
-								    for (auto&b : previous.terms[i])
-									  if (a.first <= b.second
-									      && b.first <= a.second)
-										term_overlaps = true;
-								    if (!term_overlaps) {
-									  overlaps = false;
-									  break;
-							    }
-							  }
-							  if (overlaps)
-								cerr << "warning: covergroup '"
-								     << cgdef->name
-								     << "' coverpoint '" << cp.label
-								     << "': bins '" << previous.name
-								     << "' and '" << sequence.name
-								     << "' overlap (option.detect_overlap)."
-								     << endl;
-						    }
-						    detect_transitions.push_back(sequence);
-					      }
-					}
-				  }
 				      if (constructor_dependent) {
 					    unsigned family = dyn_family++;
 					    for (unsigned sq = 0; sq < programs.size(); sq++)
@@ -53988,6 +54073,48 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						    bin.arrayed ? bstem + "_marker" : bstem);
 					      if (marker_added < 0) continue;
 					      unsigned marker_prop = (unsigned)marker_added;
+
+				      // IEEE 1800-2017/2023 19.7, Table 19-1.
+				      // Compare complete sequences across bin declarations.
+				      if (!bin.wildcard && opt_uint(cp.options, "detect_overlap",
+								    cg_detect_overlap)) {
+					    trans_overlap_bin_t current;
+					    current.name = bin.name.str();
+					    for (const auto&program : programs) {
+						  if (std::any_of(program.begin(), program.end(),
+							[](const trans_term_t&term) {
+							      return term.repeat > class_type_t::
+								    pform_cov_trans_term_t::TRANS_CONSECUTIVE;
+							}))
+							continue;
+						  trans_overlap_seq_t sequence;
+						  for (const auto&term : program)
+							sequence.push_back({term.ranges,
+							      int64_t(term.min), int64_t(term.max)});
+						  current.sequences.push_back(std::move(sequence));
+					    }
+					    if (!current.sequences.empty()) {
+						  for (const auto&previous : overlap_bins) {
+							for (const auto&sequence : current.sequences) {
+							      if (std::any_of(previous.sequences.begin(),
+									      previous.sequences.end(),
+								      [&](const trans_overlap_seq_t&other) {
+									    return trans_sequences_overlap(other, sequence);
+								      })) {
+								    cerr << "warning: covergroup '"
+									 << cgdef->name
+									 << "' coverpoint '" << cp.label
+									 << "': bins '" << previous.name
+									 << "' and '" << current.name
+									 << "' overlap (option.detect_overlap)."
+									 << endl;
+								    break;
+							      }
+							}
+						  }
+						  overlap_bins.push_back(std::move(current));
+					    }
+				      }
 				      unsigned family = bin.arrayed ? dyn_family++
 					    : netclass_t::COVGRP_NO_FAMILY;
 				      for (unsigned sq = 0; sq < programs.size(); sq++) {

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3799_sequence_clock_unsupported.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3799_sequence_clock_unsupported"],
+  "gold": "issue3799_sequence_clock_unsupported"
+}

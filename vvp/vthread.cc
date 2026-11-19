@@ -128,6 +128,10 @@ static std::string thread_rng_get_state_(vthread_t thr);
 static bool thread_rng_set_state_(vthread_t thr, const std::string&state);
 static vthread_t logical_process_thread_(vthread_t thr);
 static vthread_t event_expr_recipe_frame_(vthread_t thr);
+static void event_expr_record_property_read_(vthread_t thr,
+                                              const vvp_object_t&object,
+                                              unsigned property,
+                                              unsigned word);
 static bool event_expr_runtime_error_(vthread_t thr, const char*message);
 static bool do_disable(vthread_t thr, vthread_t match);
 static bool disable_fork_detached_descendants_(vthread_t thr, vthread_t match);
@@ -2473,8 +2477,7 @@ static vpiHandle lookup_scope_item_(__vpiScope*scope, const char*name)
             if (item_name && strcmp(item_name, name) == 0)
                   return item;
 
-            if (vpi_get(vpiType, item) == vpiMemory
-                || vpi_get(vpiType, item) == vpiNetArray) {
+            if (item->get_type_code() == vpiMemory) {
                   vpiHandle word_iter = item->vpi_iterate(vpiMemoryWord);
                   vpiHandle word = 0;
                   while (word_iter && (word = vpi_scan(word_iter))) {
@@ -3459,6 +3462,9 @@ bool of_QSIZE_O(vthread_t thr, vvp_code_t)
       vvp_object_t recv;
       thr->pop_object(recv);
 
+      // A selected container can resize in place without rewriting the slot
+      // that holds it. Observe this receiver's mutations during event waits.
+      event_expr_record_property_read_(thr, recv, UINT_MAX, UINT_MAX);
       size_t sz = dynamic_collection_size_(recv);
       vvp_vector4_t val;
       size_to_vec4_(sz, val);
@@ -16690,7 +16696,8 @@ static void build_method_port_copies_(__vpiScope*src_scope,
                         vpiHandle dst_item = lookup_scope_item_(dst_scope, stable_name.c_str());
                         if (!dst_item)
                               continue;
-                        if (vpi_get(vpiType, src_item) != vpi_get(vpiType, dst_item))
+                        if (vpi_get(_vpiInternalType, src_item) !=
+                            vpi_get(_vpiInternalType, dst_item))
                               continue;
 
                         copy_named_item(stable_name, src_item, false);
@@ -17205,7 +17212,8 @@ static void mirror_dynamic_dispatch_outputs_if_needed_(vthread_t thr, vthread_t 
                   vpiHandle dst_item = lookup_scope_item_(dst_scope, stable_name.c_str());
                   if (!dst_item)
                         continue;
-                  if (vpi_get(vpiType, src_item) != vpi_get(vpiType, dst_item))
+                  if (vpi_get(_vpiInternalType, src_item) !=
+                      vpi_get(_vpiInternalType, dst_item))
                         continue;
 
                   bool copied = copy_handle_value_to_context_(src_item, child,
@@ -40287,6 +40295,11 @@ bool of_WAIT_OBJ_EXPR_POSEDGE(vthread_t thr, vvp_code_t cp)
 bool of_WAIT_OBJ_EXPR_NEGEDGE(vthread_t thr, vvp_code_t cp)
 {
       return wait_obj_expr_(thr, cp, vvp_edge_negedge);
+}
+
+bool of_WAIT_OBJ_EXPR_EDGE(vthread_t thr, vvp_code_t cp)
+{
+      return wait_obj_expr_(thr, cp, vvp_edge_edge);
 }
 
 /* Filtered class-property @ event. The target pushes pid, canonical unpacked

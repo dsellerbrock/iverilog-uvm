@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue1281_vpi_memory_types.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue1281_vpi_memory_types_2017"],
+  "vpi-sources": ["vpi/issue1281_vpi_memory_types.c"],
+  "gold": "issue1281_vpi_memory_types"
+}

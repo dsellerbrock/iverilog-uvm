@@ -97,6 +97,7 @@ static PLI_INT32 my_monitor_calltf(PLI_BYTE8 *xx)
           case vpiPartSelect:
           case vpiMemoryWord:
           case vpiMemory:
+          case vpiRegArray:
             value.format = vpiIntVal;
             break;
           case vpiRealVar:

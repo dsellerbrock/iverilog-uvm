@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1442_detect_overlap_repetition.v",
+  "iverilog-args": ["-g2017", "-s", "issue1442_detect_overlap_repetition"],
+  "gold": "issue1442_detect_overlap_repetition"
+}

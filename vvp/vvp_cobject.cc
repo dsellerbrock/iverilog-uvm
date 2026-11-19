@@ -252,13 +252,23 @@ bool vvp_cobject::rand_mode_for_randomization(size_t pid, size_t leaf) const
 bool vvp_cobject::rand_mode_any(size_t pid) const
 {
       if (pid < defn_->property_count()) {
+	    const std::string&bt = defn_->property_base_type(pid);
 	    if (!defn_->property_dimensions(pid).empty()) {
 		  uint64_t count = defn_->property_array_size(pid);
 		  for (uint64_t leaf = 0; leaf < count; ++leaf)
 			if (rand_mode(pid, (size_t)leaf)) return true;
+		    // A queue element can be active even when its fixed
+		    // array slot is inactive for size randomization.
+		  if (!bt.empty() && bt[0] == 'Q') {
+			for (uint64_t leaf = 0; leaf < count; ++leaf) {
+			      vvp_object_t obj;
+			      const_cast<vvp_cobject*>(this)->get_object(pid, obj, (size_t)leaf);
+			      if (vvp_darray*queue = obj.peek<vvp_darray>())
+				    if (queue->rand_mode_any()) return true;
+			}
+		  }
 		  return false;
 	    }
-	    const std::string&bt = defn_->property_base_type(pid);
 	    bool object_backed = bt == "o" || bt.compare(0, 3, "oc:") == 0
 		  || (!bt.empty() && (bt[0] == 'D' || bt[0] == 'Q'
 				      || bt[0] == 'M'));

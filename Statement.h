@@ -870,11 +870,13 @@ class PEventStatement  : public Statement {
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
 
       bool has_aa_term(Design*des, NetScope*scope);
+      NetProc* elaborate(Design*des, NetScope*scope, bool nba_event_control) const;
       const std::vector<PEEvent*>& event_expressions() const { return expr_; }
 
 	// This method is used to elaborate, but attach a previously
 	// elaborated statement to the event.
-      NetProc* elaborate_st(Design*des, NetScope*scope, NetProc*st) const;
+      NetProc* elaborate_st(Design*des, NetScope*scope, NetProc*st,
+			    bool nba_event_control = false) const;
 
       NetProc* elaborate_wait(Design*des, NetScope*scope, NetProc*st) const;
       NetProc* elaborate_wait_fork(Design*des, const NetScope*scope) const;
