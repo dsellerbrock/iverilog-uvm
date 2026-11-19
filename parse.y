@@ -3031,6 +3031,8 @@ static Module::port_t *module_declare_explicit_port(
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
+%type <sva_prop> sva_grouped_multiclock_seq sva_grouped_multiclock_prefix
+  sva_grouped_multiclock_chain
 %type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
@@ -3044,6 +3046,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <sva_case_items> property_case_items
 %destructor { pform_sva_destroy_property($$); }
   property_expr property_spec sva_multiclock_seq
+  sva_grouped_multiclock_seq sva_grouped_multiclock_prefix sva_grouped_multiclock_chain
   sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %destructor { pform_sva_destroy_sequence($$); }
@@ -10071,6 +10074,30 @@ sva_mc_tail
 	$$ = l; }
   ;
 
+/* IEEE 1800-2017/2023 16.13.3: extra parentheses preserve the sequence
+   segments. A prefix flows into the group, while a suffix resumes the
+   enclosing clock at the strictly subsequent tick. */
+sva_grouped_multiclock_seq
+  : '(' sva_multiclock_seq ')'
+      { $$ = $2; }
+  | '(' sva_grouped_multiclock_prefix ')'
+      { $$ = $2; }
+  ;
+
+sva_grouped_multiclock_prefix
+  : sva_grouped_multiclock_seq
+      { $$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value sva_grouped_multiclock_seq
+      { $$ = pform_sva_multiclock_grouped_prefix(@2, $1, $3, $4); }
+  ;
+
+sva_grouped_multiclock_chain
+  : sva_grouped_multiclock_prefix
+      { $$ = $1; }
+  | sva_grouped_multiclock_prefix K_CYCLE_DELAY sva_cycle_delay_value sva_seq_expr
+      { $$ = pform_sva_multiclock_grouped_suffix(@2, $1, $3, $4); }
+  ;
+
 property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   : sva_seq_expr
       { sva_property_t*p = new sva_property_t;
@@ -10078,23 +10105,12 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
 	$$ = p; }
   | sva_multiclock_seq
       { $$ = $1; }
-  /* IEEE 1800-2017/2023 16.13.3: a clocked subsequence keeps its internal
-     clock flow within its parentheses. An enclosing implication resumes
-     with the property clock after the group closes. */
-  | '(' sva_multiclock_seq ')' K_PIPE_IMPL_OV sva_seq_expr
-      { $$ = pform_sva_multiclock_grouped_sequence_implication(
-		@4, 1, nullptr, nullptr, $2, $5); }
-  | '(' sva_multiclock_seq ')' K_PIPE_IMPL_NOV sva_seq_expr
-      { $$ = pform_sva_multiclock_grouped_sequence_implication(
-		@4, 2, nullptr, nullptr, $2, $5); }
-  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value
-	'(' sva_multiclock_seq ')' K_PIPE_IMPL_OV sva_seq_expr
-      { $$ = pform_sva_multiclock_grouped_sequence_implication(
-		@7, 1, $1, $3, $5, $8); }
-  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value
-	'(' sva_multiclock_seq ')' K_PIPE_IMPL_NOV sva_seq_expr
-      { $$ = pform_sva_multiclock_grouped_sequence_implication(
-		@7, 2, $1, $3, $5, $8); }
+  | sva_grouped_multiclock_prefix K_PIPE_IMPL_OV sva_seq_expr
+      { $$ = pform_sva_multiclock_sequence_implication(
+		@2, 1, $1, nullptr, $3, nullptr, true); }
+  | sva_grouped_multiclock_chain K_PIPE_IMPL_NOV sva_seq_expr
+      { $$ = pform_sva_multiclock_sequence_implication(
+		@2, 2, $1, nullptr, $3, nullptr, true); }
   /* IEEE 1800-2017 A.2.10: `property_expr ::= ( property_expr )'. A fully
      parenthesized property is the shape emitted by every macro that wraps
      its argument -- e.g. OpenTitan's `ASSERT' expands to

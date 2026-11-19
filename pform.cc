@@ -24548,45 +24548,55 @@ sva_property_t* pform_sva_multiclock_sequence_implication(
 	return ante;
 }
 
-/* Compose a multiclocked subsequence enclosed by parentheses with the
-   enclosing fixed prefix, then let the implication resume on the enclosing
-   property clock. The inherited event is resolved after property_spec (or
-   default-clock inference) supplies that clock. */
-sva_property_t* pform_sva_multiclock_grouped_sequence_implication(
-					const struct vlltype&loc, int op_type,
+/* The prefix and the first segment of the group use the enclosing clock. */
+sva_property_t* pform_sva_multiclock_grouped_prefix(const struct vlltype&loc,
 					std::vector<sva_seq_step_t>*prefix,
-					PExpr*prefix_delay,
-					sva_property_t*grouped,
-					std::vector<sva_seq_step_t>*conseq)
+					PExpr*delay, sva_property_t*grouped)
 {
-	if (!grouped || !grouped->mc_prefix || grouped->mc_prefix->empty()) {
+	if (!grouped || !grouped->mc_prefix || grouped->mc_prefix->empty()
+	    || !prefix || prefix->empty()) {
 	      pform_sva_destroy_sequence(prefix);
-	      delete prefix_delay;
+	      delete delay;
 	      pform_sva_destroy_property(grouped);
-	      pform_sva_destroy_sequence(conseq);
 	      return nullptr;
 	}
 
-	if (prefix) {
-	      if (prefix->empty()) {
-		    pform_sva_destroy_sequence(prefix);
-		    delete prefix_delay;
-		    pform_sva_destroy_property(grouped);
-		    pform_sva_destroy_sequence(conseq);
-		    return nullptr;
-	      }
-	      pform_sva_single_delay(loc, grouped->mc_prefix->front(), prefix_delay);
-	      prefix->insert(prefix->end(), grouped->mc_prefix->begin(),
-			     grouped->mc_prefix->end());
-	      grouped->mc_prefix->clear();
-	      delete grouped->mc_prefix;
-	      grouped->mc_prefix = prefix;
-	} else {
-	      delete prefix_delay;
+	pform_sva_single_delay(loc, grouped->mc_prefix->front(), delay);
+	prefix->insert(prefix->end(), grouped->mc_prefix->begin(),
+		       grouped->mc_prefix->end());
+	delete grouped->mc_prefix;
+	grouped->mc_prefix = prefix;
+	return grouped;
+}
+
+/* The first suffix tick belongs to the enclosing clock. Store the delay on
+   the handoff so it is not also counted inside the receiving segment. */
+sva_property_t* pform_sva_multiclock_grouped_suffix(const struct vlltype&loc,
+					sva_property_t*grouped, PExpr*delay,
+					std::vector<sva_seq_step_t>*suffix)
+{
+	const PENumber*num = dynamic_cast<const PENumber*>(delay);
+	bool strict = num && (num->value() == verinum(int64_t(1))) == verinum::V1;
+	delete delay;
+	if (!strict) {
+	      cerr << loc << ": sorry: only a fixed ##1 is supported after a "
+		   << "parenthesized multiclocked sequence (IEEE 1800-2017/2023 16.13)."
+		   << endl;
+	      error_count += 1;
+	}
+	if (!strict || !grouped || !suffix || suffix->empty()) {
+	      pform_sva_destroy_property(grouped);
+	      pform_sva_destroy_sequence(suffix);
+	      return nullptr;
 	}
 
-	return pform_sva_multiclock_sequence_implication(
-	      loc, op_type, grouped, nullptr, conseq, nullptr, true);
+	if (!grouped->mc_more) grouped->mc_more = new std::vector<sva_mc_seg_t>;
+	sva_mc_seg_t seg;
+	seg.boundary = 1;
+	seg.chain = suffix;
+	seg.inherit_property_clock = true;
+	grouped->mc_more->push_back(seg);
+	return grouped;
 }
 
 /* The mirror of pform_sva_comb_antecedent_sorry: move a combinator
@@ -33284,12 +33294,12 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	/* ---- domains 1..M: each a counting pipeline over its own local
 	   chain, gated by its own incoming due[d]. Every domain but the
 	   last forwards its match count to req_in[d+1] (using THAT
-	   boundary's ##0/##1 discipline) and its own fail count to
-	   ffreq[d]; the LAST domain (M) computes the real verdict exactly
-	   like the 2-domain lowering's consequent. ---- */
+	   boundary's ##0/##1 discipline). An antecedent mismatch passes
+	   vacuously, while a consequent mismatch reports failure. ---- */
       for (size_t d = 1 ; d <= M ; d += 1) {
 	    bool last = (d == M);
 	    bool overlap_in = (in_boundary[d] == 0);
+	    bool in_antecedent = d <= prop->mc_antecedent_domains;
 	    std::vector<Statement*> bodyd;
 
 	    perm_string ffail = dreg("mcbf", d, 0);
@@ -33319,14 +33329,15 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			if (k == 0) return sva_id_(loc, due[d]);
 			return sva_id_(loc, tb[d][k]);
 		  };
-		  auto raise_fail = [&](PExpr*count) -> Statement* {
-			if (cover) {
+		  auto record_mismatch = [&](PExpr*count) -> Statement* {
+			if (cover || (in_antecedent && !have_pass_action)) {
 			      delete count;
-			      return sva_assign_(loc, ffail, sva_id_(loc, ffail));
+			      return nullptr;
 			}
-			PEBinary*add = new PEBinary('+', sva_id_(loc, ffail), count);
+			perm_string target = in_antecedent ? pv_req : ffail;
+			PEBinary*add = new PEBinary('+', sva_id_(loc, target), count);
 			FILE_NAME(add, loc);
-			return sva_assign_(loc, ffail, add);
+			return sva_assign_(loc, target, add);
 		  };
 		  for (size_t k = 0 ; k + 1 < Tb[d] ; k += 1) {
 			PExpr*fb = slots[d][k];
@@ -33345,10 +33356,8 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 						       sva_id_(loc, adv)));
 			PEBinary*dead = new PEBinary('-', gate(k), sva_id_(loc, adv));
 			FILE_NAME(dead, loc);
-			if (d > prop->mc_antecedent_domains)
-			      bodyd.push_back(raise_fail(dead));
-			else
-			      delete dead;
+			if (Statement*miss = record_mismatch(dead))
+			      bodyd.push_back(miss);
 		  }
 
 		  PExpr*fb = slots[d][Tb[d] - 1];
@@ -33385,9 +33394,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 				    : sva_assign_nb_(loc, req_in[d+1], fwd);
 			}
 			bodyd.push_back(sva_if_(loc, gate(Tb[d] - 1),
-				sva_if_(loc, fb, hit,
-					d > prop->mc_antecedent_domains
-					? raise_fail(gate(Tb[d] - 1)) : nullptr),
+				sva_if_(loc, fb, hit, record_mismatch(gate(Tb[d] - 1))),
 				nullptr));
 		  } else {
 			perm_string fbv = dreg("mcbv", d, 0, false);
@@ -33435,10 +33442,9 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 				    sva_assign_(loc, pn_req, add), nullptr));
 			}
 
-			if (d > prop->mc_antecedent_domains)
+			if (Statement*miss = record_mismatch(gate(lastage)))
 			      bodyd.push_back(sva_if_(loc,
-				    sva_not_(loc, sva_id_(loc, fbv)),
-				    raise_fail(gate(lastage)), nullptr));
+				    sva_not_(loc, sva_id_(loc, fbv)), miss, nullptr));
 		  }
 	    }
 	    if (!cover) {
@@ -33558,10 +33564,9 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
       for (size_t i = 0 ; i < prop->mc_more->size() ; i += 1)
 	    (*prop->mc_more)[i].clk_evt = nullptr;
 
-	/* ---- shared dispatchers: pass (fed only by domain M) and fail
-	   (fed by domain 0's optional prefix channel plus every domain
-	   1..M's own channel). Same single-owner Reactive-region shape as
-	   the 2-domain lowering, generalized to loop over channels. ---- */
+	/* ---- Reactive dispatchers: vacuous passes come from antecedent
+	   domains, nonvacuous passes from the final domain, and failures from
+	   the consequent domains. ---- */
       if (!cover) {
 	    std::vector<PEEvent*> pev;
 	    pev.push_back(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, pv_req)));
