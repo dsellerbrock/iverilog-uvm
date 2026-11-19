@@ -1,0 +1,1 @@
+{"type":"CE","source":"issue3771_ce_2023.v","iverilog-args":["-g2023","-Iivltests","-s","top"],"gold":"issue3771_ce"}

@@ -533,6 +533,7 @@ enum scoped_lvalue_class_name_kind_t {
 struct scoped_lvalue_class_name_result_t {
       const netclass_t*class_type = nullptr;
       scoped_lvalue_class_name_kind_t kind = SCOPED_LVALUE_CLASS_NONE;
+      const NetScope*owner = nullptr;
 };
 
 struct scoped_lvalue_type_parameter_result_t {
@@ -620,6 +621,7 @@ static scoped_lvalue_class_name_result_t resolve_scoped_lvalue_class_name_(
 		  result.kind = parameter.concrete_nonclass
 			? SCOPED_LVALUE_CLASS_NONCLASS_TYPE_PARAMETER
 			: SCOPED_LVALUE_CLASS_TYPE_PARAMETER;
+		  result.owner = scope->find_typedef_scope(des, td, false);
 		  return result;
 	    }
 
@@ -629,10 +631,12 @@ static scoped_lvalue_class_name_result_t resolve_scoped_lvalue_class_name_(
 	    if (const class_type_t*class_pf =
 		  dynamic_cast<const class_type_t*>(declared_type)) {
 		  if (class_pf->name == name) {
-			result.class_type = scope->find_class(des, name);
-			if (!result.class_type)
-			      result.class_type = ensure_visible_class_type(
-				    des, scope, name);
+			netclass_t*cls = scope->find_class(des, name);
+			if (!cls)
+			      cls = ensure_visible_class_type(des, scope, name);
+			result.class_type = cls;
+			if (cls)
+			      result.owner = cls->definition_scope();
 			result.kind = SCOPED_LVALUE_CLASS_DIRECT;
 			return result;
 		  }
@@ -645,6 +649,7 @@ static scoped_lvalue_class_name_result_t resolve_scoped_lvalue_class_name_(
 		  result.class_type =
 			dynamic_cast<const netclass_t*>(alias_type);
 		  result.kind = SCOPED_LVALUE_CLASS_TYPEDEF;
+		  result.owner = scope->find_typedef_scope(des, td, false);
 		  return result;
 	    }
 
@@ -658,11 +663,14 @@ static scoped_lvalue_class_name_result_t resolve_scoped_lvalue_class_name_(
 	    }
       }
 
-      result.class_type = scope->find_class(des, name);
-      if (!result.class_type)
-	    result.class_type = ensure_visible_class_type(des, scope, name);
-      if (result.class_type)
+      netclass_t*cls = scope->find_class(des, name);
+      if (!cls)
+	    cls = ensure_visible_class_type(des, scope, name);
+      if (cls) {
+	    result.class_type = cls;
 	    result.kind = SCOPED_LVALUE_CLASS_DIRECT;
+	    result.owner = cls->definition_scope();
+      }
       return result;
 }
 
@@ -756,7 +764,7 @@ static scoped_lvalue_retarget_result_t retarget_scoped_static_lvalue_(
 
       if (leading_type_args) {
 	    class_type = elaborate_specialized_class_type(
-		  des, search_scope, class_type, leading_type_args, true);
+		  des, scope, class_type, leading_type_args, true);
       } else if (resolved.kind == SCOPED_LVALUE_CLASS_DIRECT) {
 	    if (const netclass_t*current_class =
 		  scoped_lvalue_current_specialization_(scope, class_type)) {
@@ -802,6 +810,7 @@ static scoped_lvalue_retarget_result_t retarget_scoped_static_lvalue_(
 		}
 		sr.net = target;
 		sr.scope = target->scope();
+		sr.class_qualifier_owner = resolved.owner;
 		sr.type = target->net_type();
 		sr.par_val = nullptr;
 		sr.eve = nullptr;
@@ -842,6 +851,7 @@ static scoped_lvalue_retarget_result_t retarget_scoped_static_lvalue_(
 
       sr.net = target;
       sr.scope = target->scope();
+      sr.class_qualifier_owner = resolved.owner;
       sr.type = target->net_type();
 	  sr.par_val = nullptr;
 	  sr.eve = nullptr;
@@ -1153,6 +1163,8 @@ NetAssign_* PEIdent::elaborate_lval(Design*des, NetScope*scope,
 	    return 0;
       }
 
+      check_package_unit_class_qualifier(des, *this, scope, sr,
+	    package_unit_qualifier_reported_);
       check_package_unit_value(des, *this, scope, sr);
       ivl_assert(*this, reg);
 
