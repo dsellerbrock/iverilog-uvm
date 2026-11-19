@@ -43,21 +43,23 @@ using namespace std;
 static bool at_EOS = false;
 #endif
 
-void island_send_value(vvp_net_t*net, const vvp_vector8_t&val)
+void island_send_value(vvp_net_t*net, const vvp_vector8_t&val, bool republish)
 {
       vvp_island_port*fun = dynamic_cast<vvp_island_port*>(net->fun);
-      if (fun->outvalue .eeq(val))
+      if (!republish && fun->outvalue.eeq(val))
 	    return;
 
       fun->outvalue = val;
       net->send_vec8(fun->outvalue);
 }
 
-vvp_vector8_t island_get_input(vvp_net_t*net, const void*exclude)
+vvp_vector8_t island_get_input(vvp_net_t*net, island_channel channel,
+				const void*exclude)
 {
-      vvp_vector8_t val = island_get_value(net);
       const vvp_island_port*fun = dynamic_cast<vvp_island_port*>(net->fun);
-      for (const auto&inj : fun->injections) {
+      vvp_vector8_t val = channel == island_channel::charge
+	    ? fun->invalue : island_get_value(net);
+      for (const auto&inj : fun->injections(channel)) {
 	    if (inj.first == exclude || inj.second.size() == 0)
 		  continue;
 	    if (val.size() == 0)
@@ -68,8 +70,10 @@ vvp_vector8_t island_get_input(vvp_net_t*net, const void*exclude)
       return val;
 }
 
-void vvp_island_port::set_injection(const void*from, const vvp_vector8_t&val)
+void vvp_island_port::set_injection(island_channel channel, const void*from,
+				    const vvp_vector8_t&val)
 {
+      auto&injections = injections_[static_cast<unsigned>(channel)];
       for (auto&inj : injections) {
 	    if (inj.first != from)
 		  continue;
@@ -81,6 +85,31 @@ void vvp_island_port::set_injection(const void*from, const vvp_vector8_t&val)
       }
       injections.push_back(std::make_pair(from, val));
       island_->flag_island();
+}
+
+void vvp_island::add_charge_port(vvp_island_port*port)
+{
+      charge_ports_.push_back(port);
+}
+
+bool vvp_island_port::attach_charge_feedback(vvp_net_ptr_t feedback)
+{
+      if (charge_feedback_.ptr())
+	    return false;
+      charge_feedback_ = feedback;
+      island_->add_charge_port(this);
+      return true;
+}
+
+bool vvp_island_port::send_charge_feedback()
+{
+      if (charge_value.size() == 0 || charge_value.eeq(charge_sent_))
+	    return false;
+
+      charge_sent_ = charge_value;
+      vvp_vector8_t before = invalue;
+      charge_feedback_.ptr()->fun->recv_vec8(charge_feedback_, charge_sent_);
+      return !invalue.eeq(before);
 }
 
 /*

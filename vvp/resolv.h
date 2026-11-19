@@ -228,8 +228,8 @@ class resolv_trior : public resolv_wired_logic {
  * itself (or the tran island port of the net).
  *
  *   port 0  the resolved value of the drivers of the net
- *   port 1  the final value of the net when it is in a tran island
- *           (the output of its island port); unused otherwise
+ *   port 1  the unforced charge resolution of its tran island port;
+ *           unused outside an island
  *   port 2  the charge decay time when it is not a constant
  *   port 3  the time-zero kick that sends the initial value
  *

@@ -578,11 +578,13 @@ void vvp_fun_trireg::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
 
       (port.port() == 0 ? drv_ : fb_) = bit;
 
-	// The store follows the value of the net: what a driver puts on
-	// it, and in an island what the island makes of it.
-      for (unsigned idx = 0 ; idx < wid_ ; idx += 1) {
-	    if (! bit.value(idx).is_hiz())
-		  store_.set_bit(idx, bit.value(idx).value());
+	// In an island only the charge resolution can update the store.
+	// A change at the local driver may leave that resolution unchanged.
+      if (!has_feedback_ || port.port() == 1) {
+	    for (unsigned idx = 0 ; idx < wid_ ; idx += 1) {
+		  if (!bit.value(idx).is_hiz())
+			store_.set_bit(idx, bit.value(idx).value());
+	    }
       }
       update_();
 }

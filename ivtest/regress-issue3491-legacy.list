@@ -1,0 +1,2 @@
+issue3491_2017 normal,-g2017,-gspecify,-ginterconnect,-s,issue3491 ivltests gold=issue3491.gold
+issue3491_2023 normal,-g2023,-gspecify,-ginterconnect,-s,issue3491 ivltests gold=issue3491.gold

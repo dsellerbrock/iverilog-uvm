@@ -1730,8 +1730,9 @@ struct __vpiModPathSrc* vpip_make_modpath_src(struct __vpiModPath*path,
       return obj;
 }
 
-vvp_fun_intermodpath::vvp_fun_intermodpath(vvp_net_t*net, unsigned width)
-: net_(net)
+vvp_fun_intermodpath::vvp_fun_intermodpath(vvp_net_t*net, unsigned width,
+					  const vvp_fun_intermodpath*timing)
+: net_(net), timing_(timing)
 {
       for (unsigned idx = 0 ;  idx < 12 ;  idx += 1)
 	    delay_[idx] = 0;
@@ -1855,10 +1856,12 @@ void vvp_fun_intermodpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit
       if (cur_vec4_.eeq(bit))
 	    return;
 
+      const vvp_time64_t*edge_delays = timing_ ? timing_->delay_ : delay_;
+
 	/* Given the scheduled output time, create an output event. */
       vvp_time64_t use_delay = delay_from_edge(cur_vec4_.value(0),
 					       bit.value(0),
-					       delay_);
+					       edge_delays);
 
 	/* FIXME: This bases the edge delay on only the least
 	   bit. This is WRONG! I need to find all the possible delays,
@@ -1866,7 +1869,7 @@ void vvp_fun_intermodpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit
       for (unsigned idx = 1 ;  idx < bit.size() ;  idx += 1) {
 	    vvp_time64_t tmp = delay_from_edge(cur_vec4_.value(idx),
 					       bit.value(idx),
-					       delay_);
+					       edge_delays);
 	      /* If the current and new bit values match then no delay
 	       * is needed for this bit. */
 	    if (cur_vec4_.value(idx) == bit.value(idx)) continue;

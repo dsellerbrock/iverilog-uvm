@@ -3212,6 +3212,28 @@ void compile_shift(char*label, uint64_t wid, bool right, bool sign_fill,
       make_arith(arith, label, argc, argv);
 }
 
+struct trireg_feedback_resolv_s : public resolv_list_s {
+      trireg_feedback_resolv_s(char*label, vvp_net_t*trireg)
+      : resolv_list_s(label), trireg_(trireg) { }
+
+      bool resolve(bool mes) override
+      {
+	    vvp_net_t*net = lookup_functor_symbol(label());
+	    if (!net && !mes)
+		  return false;
+
+	    auto*port = net ? dynamic_cast<vvp_island_port*>(net->fun) : nullptr;
+	    if (!port || !port->attach_charge_feedback(vvp_net_ptr_t(trireg_, 1))) {
+		  fprintf(stderr, "vvp: invalid .trireg island feedback port: %s\n", label());
+		  compile_errors += 1;
+	    }
+	    return true;
+      }
+
+    private:
+      vvp_net_t*trireg_;
+};
+
 void compile_trireg(char*label, unsigned wid, unsigned charge, unsigned mode,
 		    vvp_time64_t decay, unsigned argc, struct symb_s*argv)
 {
@@ -3235,7 +3257,7 @@ void compile_trireg(char*label, unsigned wid, unsigned charge, unsigned mode,
       if (mode & 2)
 	    input_connect(net, 2, argv[arg++].text);
       if (mode & 4)
-	    input_connect(net, 1, argv[arg++].text);
+	    resolv_submit(new trireg_feedback_resolv_s(argv[arg++].text, net));
 
       free(label);
       free(argv);

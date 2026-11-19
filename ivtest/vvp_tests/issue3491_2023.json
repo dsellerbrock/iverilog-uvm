@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3491.sv",
+  "iverilog-args": ["-g2023", "-gspecify", "-ginterconnect", "-s", "issue3491"],
+  "gold": "issue3491"
+}
