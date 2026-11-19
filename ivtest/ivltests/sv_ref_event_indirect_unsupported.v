@@ -35,17 +35,3 @@ module sv_ref_event_element_unsupported;
     #1 $fatal(1, "event-sensitive dynamic element ref silently stalled");
   end
 endmodule
-
-module sv_ref_event_word_unsupported;
-  logic values[1];
-
-  task automatic await_ready(const ref logic ready);
-    @(posedge ready);
-  endtask
-
-  initial begin
-    fork await_ready(values[0]); join_none
-    #1 values[0] = 1;
-    #1 $fatal(1, "event-sensitive fixed word ref silently stalled");
-  end
-endmodule

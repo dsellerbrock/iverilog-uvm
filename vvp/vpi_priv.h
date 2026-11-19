@@ -1310,6 +1310,7 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 	// read ports registered through any alias.
       __vpiArray*value_owner_ = nullptr;
       std::vector<__vpiArray*> value_views_;
+      std::multimap<unsigned, vvp_net_t*> word_ref_relays_;
 
       friend class vvp_fun_force_array;
     public:
@@ -1317,6 +1318,8 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       void alias_word(unsigned long addr, vpiHandle word, int msb, int lsb);
       void attach_word(unsigned addr, vpiHandle word);
       void attach_word_edge_probe(unsigned addr, vvp_net_t*probe);
+      void attach_word_ref_relay(unsigned addr, vvp_net_t*relay);
+      void detach_word_ref_relay(unsigned addr, vvp_net_t*relay);
       void word_change(unsigned long addr);
       void word_change_local_(unsigned long addr);
 

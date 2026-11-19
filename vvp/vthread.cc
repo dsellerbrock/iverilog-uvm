@@ -34947,7 +34947,9 @@ bool of_REF_BIND_W(vthread_t thr, vvp_code_t cp)
 {
       vvp_vector4_t idxv = thr->pop_vec4();
       int64_t use_index = -1;
-      bool defined = vector4_to_value(idxv, use_index, true, false);
+      bool valid = cp->array && checked_property_index_value_(idxv, true, use_index)
+                   && use_index >= 0
+                   && static_cast<uint64_t>(use_index) < cp->array->get_size();
       vvp_ref_signal_aa*formal =
 	    dynamic_cast<vvp_ref_signal_aa*> (cp->net2->fil);
       if (!formal) {
@@ -34955,10 +34957,10 @@ bool of_REF_BIND_W(vthread_t thr, vvp_code_t cp)
 	    assert(formal);
 	    return true;
       }
-      if (!defined || use_index < 0)
-        formal->bind_word(cp->net2, 0, 0);
+      if (valid)
+            formal->bind_word(cp->net2, cp->array, static_cast<unsigned>(use_index));
       else
-        formal->bind_word(cp->net2, cp->array, (unsigned)use_index);
+            formal->bind_word(cp->net2, 0, 0);
       return true;
 }
 
