@@ -202,8 +202,9 @@ NetECRealParam* NetECRealParam::dup_expr() const
 
 NetEEvent* NetEEvent::dup_expr() const
 {
-      ivl_assert(*this, 0);
-      return 0;
+      NetEEvent*tmp = new NetEEvent(event_);
+      tmp->set_line(*this);
+      return tmp;
 }
 
 NetELast* NetELast::dup_expr() const

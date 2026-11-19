@@ -324,8 +324,23 @@ NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func
 static void func_always_sens(const NetFuncDef*func, NexusSet*result,
 			     bool rem_out, bool nested_func);
 
+static vector<const NetESFunc*>*nex_input_triggered_collector = nullptr;
+
+void NetESFunc::set_nex_input_triggered_collector(
+      vector<const NetESFunc*>*collector)
+{
+      assert(!collector || !nex_input_triggered_collector);
+      nex_input_triggered_collector = collector;
+}
+
 NexusSet* NetESFunc::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
+      if (nex_input_triggered_collector
+	  && (strcmp(name(), "$ivl_event_method$triggered") == 0
+	      || strcmp(name(), "$ivl_event_method$triggered_arr") == 0
+	      || strcmp(name(), "$ivl_class_event_method$triggered") == 0))
+	    nex_input_triggered_collector->push_back(this);
+
       NexusSet*result = new NexusSet;
 
       for (unsigned idx = 0 ;  idx < parms_.size() ;  idx += 1) {

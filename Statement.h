@@ -852,6 +852,7 @@ class PEventStatement  : public Statement {
       ~PEventStatement() override;
 
       void set_statement(Statement*st);
+      void set_sva_disable_observer() { sva_disable_observer_ = true; }
 	// Preserve an explicit, possibly empty, wait_order else clause.
       void set_wait_order() { wait_order_ = true; }
       void set_wait_order_else(Statement*st)
@@ -894,6 +895,7 @@ class PEventStatement  : public Statement {
       Statement*else_statement_ = nullptr;
       bool wait_order_ = false;
       bool wait_order_else_ = false;
+      bool sva_disable_observer_ = false;
       bool always_sens_;
 };
 

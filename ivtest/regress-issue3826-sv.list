@@ -1,0 +1,2 @@
+issue3826_named_event_disable_2017 normal,-g2017,-gassertions,-s,issue3826_named_event_disable ivltests gold=issue3826_named_event_disable.gold
+issue3826_named_event_disable_2023 normal,-g2023,-gassertions,-s,issue3826_named_event_disable ivltests gold=issue3826_named_event_disable.gold

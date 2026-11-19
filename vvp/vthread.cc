@@ -379,6 +379,7 @@ struct event_expr_path_s {
 };
 
 struct event_expr_vif_source_s {
+      // The same relay can subscribe to a private named-event source.
       vvp_net_t*source;
 };
 
@@ -33585,6 +33586,15 @@ static bool event_expr_null_property_read_(vthread_t thr)
       return true;
 }
 
+static void event_expr_record_net_source_(vthread_t frame, vvp_net_t*source)
+{
+      for (const event_expr_vif_source_s&entry :
+           frame->event_expr_result_vif_sources)
+            if (entry.source == source)
+                  return;
+      frame->event_expr_result_vif_sources.push_back({source});
+}
+
 static bool event_expr_vif_property_read_(vthread_t thr,
                                            const vvp_object_t&object,
                                            unsigned property, unsigned word)
@@ -33602,12 +33612,7 @@ static bool event_expr_vif_property_read_(vthread_t thr,
             return true;
       }
 
-      for (std::vector<event_expr_vif_source_s>::const_iterator cur =
-                 frame->event_expr_result_vif_sources.begin();
-           cur != frame->event_expr_result_vif_sources.end(); ++cur)
-            if (cur->source == source)
-                  return false;
-      frame->event_expr_result_vif_sources.push_back({source});
+      event_expr_record_net_source_(frame, source);
       return false;
 }
 
@@ -40630,6 +40635,27 @@ bool of_EVENT_EXPR_LOAD_OBJECT(vthread_t thr, vvp_code_t cp)
             thr->push_object(vvp_object_t());
       else
             thr->push_object(found->second);
+      return true;
+}
+
+bool of_EVENT_EXPR_WATCH_TRIGGERED(vthread_t thr, vvp_code_t cp)
+{
+      if (!thr->event_expr_recipe_observer)
+            return event_expr_runtime_error_(
+                  thr, "%event/expr/watch/triggered executed outside an event recipe");
+      vvp_named_event_sa*event = cp->net
+            ? dynamic_cast<vvp_named_event_sa*>(cp->net->fun) : nullptr;
+      if (!event)
+            return event_expr_runtime_error_(
+                  thr, "%event/expr/watch/triggered requires a static named event");
+
+      // Follow the same synchronization queue as %evtest. Re-evaluate
+      // and rebind if an assignment changes which queue the variable names.
+      event_expr_record_net_source_(thr, event->triggered_binding_source());
+      if (vvp_net_t*queue = event->queue(cp->net)) {
+            auto*owner = static_cast<vvp_named_event*>(queue->fun);
+            event_expr_record_net_source_(thr, owner->triggered_observer_source());
+      }
       return true;
 }
 
