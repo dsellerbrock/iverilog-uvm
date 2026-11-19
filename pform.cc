@@ -24084,6 +24084,14 @@ static sva_stree_t* sva_prop_take_tree_(const struct vlltype&loc, sva_property_t
 static bool sva_prop_is_property_shaped_(const sva_property_t*p);
 static bool sva_leaf_names_property_(const sva_property_t*p);
 
+static PEventStatement* sva_take_clock_(sva_property_t*p)
+{
+      if (!p) return nullptr;
+      PEventStatement*clk = p->clk_evt;
+      p->clk_evt = nullptr;
+      return clk;
+}
+
 /* A property operator over full properties (and/or, if-else, an abort)
    as an implication consequent (A.2.10): build the per-attempt
    implication node (op 23 |->, 24 |=>). ante is a sequence property. */
@@ -24404,6 +24412,7 @@ sva_property_t* pform_sva_comb_antecedent_sorry(
 					std::vector<sva_seq_step_t>*conseq,
 					bool strong_eventually)
 {
+      std::unique_ptr<PEventStatement> clk(sva_take_clock_(ante));
       sva_stree_t*at = sva_prop_take_tree_(loc, ante);
       sva_stree_t*ct = sva_chain_take_tree_(conseq);
       if (!at || !ct) {
@@ -24430,6 +24439,7 @@ sva_property_t* pform_sva_comb_antecedent_sorry(
       p->ante_tree = at;
       p->tree = ct;
       p->op_type = op_type;
+      p->clk_evt = clk.release();
       p->strength = strong_eventually ? 1 : 0;
       return p;
 }
@@ -24446,7 +24456,10 @@ sva_property_t* pform_sva_tree_implication(
 					sva_property_t*ante,
 					sva_property_t*conseq)
 {
-      if (conseq && (conseq->pa || conseq->grouped_clock)) {
+      if (conseq && (conseq->pa || conseq->grouped_clock
+	  || (conseq->clk_evt
+	      && (!ante || !sva_event_controls_identical_(ante->clk_evt,
+							  conseq->clk_evt))))) {
 	    if (sva_prop_is_property_shaped_(ante)) {
 		  cerr << loc << ": error: an implication antecedent shall be a "
 		       << "sequence (IEEE 1800-2023 16.12.7)." << endl;
@@ -24457,6 +24470,8 @@ sva_property_t* pform_sva_tree_implication(
 	    }
 	    return sva_composite_impl_(op_type, ante, conseq);
       }
+      std::unique_ptr<PEventStatement> clk(sva_take_clock_(ante));
+      std::unique_ptr<PEventStatement> conseq_clk(sva_take_clock_(conseq));
       sva_stree_t*at = sva_prop_take_tree_(loc, ante);
       sva_stree_t*ct = sva_prop_take_tree_(loc, conseq);
       if (!at || !ct) {
@@ -24469,6 +24484,7 @@ sva_property_t* pform_sva_tree_implication(
       p->ante_tree = at;
       p->tree = ct;
       p->op_type = op_type;
+      p->clk_evt = clk.release();
       return p;
 }
 
@@ -24481,6 +24497,7 @@ sva_property_t* pform_sva_multiclock_comb_antecedent(
 					std::vector<sva_mc_seg_t>*tail)
 {
 	(void)loc;
+	std::unique_ptr<PEventStatement> ante_clk(sva_take_clock_(ante));
 	sva_stree_t*at = sva_prop_take_tree_(loc, ante);
 	if (!at || !clk || !conseq || !tail || tail->empty()) {
 	      sva_tree_delete_(at, true);
@@ -24490,6 +24507,7 @@ sva_property_t* pform_sva_multiclock_comb_antecedent(
 	      return nullptr;
 	}
 	sva_property_t*p = new sva_property_t;
+	p->clk_evt = ante_clk.release();
 	p->ante_tree = at;
 	p->seq_clk_evt = clk;
 	p->seq = conseq;
@@ -24592,20 +24610,8 @@ sva_property_t* pform_sva_comb_consequent_sorry(
 					std::vector<sva_seq_step_t>*ante,
 					sva_property_t*conseq)
 {
-      if (conseq && (conseq->pa || conseq->grouped_clock))
-	    return sva_composite_impl_(op_type, sva_seq_prop_(ante), conseq);
-      sva_stree_t*at = sva_chain_take_tree_(ante);
-      sva_stree_t*ct = sva_prop_take_tree_(loc, conseq);
-      if (!at || !ct) {
-	    sva_tree_delete_(at, true);
-	    sva_tree_delete_(ct, true);
-	    return nullptr;
-      }
-      sva_property_t*p = new sva_property_t;
-      p->ante_tree = at;
-      p->tree = ct;
-      p->op_type = op_type;
-      return p;
+      return pform_sva_tree_implication(loc, op_type, sva_seq_prop_(ante),
+				       conseq);
 }
 
 /*
@@ -24902,7 +24908,7 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
       }
 
       if (conseq->op_type == 0 && conseq->tree && !conseq->ante_tree
-	  && !conseq->clk_evt && !conseq->seq_clk_evt
+	  && !conseq->seq_clk_evt
 	  && !conseq->mc_prefix && !conseq->disable_iff_expr)
 	    return pform_sva_comb_consequent_sorry(loc, op_type, ante,
 						     conseq);
@@ -25822,247 +25828,189 @@ sva_property_t* pform_sva_followed_by(const struct vlltype&loc, int op_type,
       return p;
 }
 
-/* M9-NFA stage B.4: `within` (16.9.6). Both-fixed operands keep the
-   legacy $past-sampled combinational lowering (op 8), identical under
-   both engines. Any non-fixed operand builds a SEQ_WITHIN tree for the
-   automaton engine (s1 padded with arbitrary prefix/suffix, then
-   intersected with s2), with the legacy fixed-length sorry deferred to
-   lowering when IVL_SVA_NFA is off. Consumes both chains. */
-sva_property_t* pform_sva_seq_within(const struct vlltype&loc,
-				     std::vector<sva_seq_step_t>*s1,
-				     std::vector<sva_seq_step_t>*s2)
+/* Resolve a bare named combinator or clocked sequence as a sequence
+   operand. Ordinary named chains are handled by the linear splicer. */
+static bool sva_expand_tree_sequence_operand_(const struct vlltype&loc,
+					      sva_property_t*&p)
 {
-      if (!s1 || !s2 || s1->empty() || s2->empty()) {
-	    delete s1; delete s2;
+      std::vector<sva_seq_step_t>*chain = sva_prop_is_leaf_chain_(p)
+	    ? p->tree->chain : p->seq;
+      if (!chain || chain->size() != 1) return true;
+      const sva_seq_step_t&step = chain->front();
+      if (!sva_step_is_single_boolean_(step) || !step.items.empty())
+	    return true;
+      const PEIdent*id = dynamic_cast<const PEIdent*>(step.expr);
+      if (!id || id->path().package || id->path().name.size() != 1
+	  || !id->path().name.front().index.empty()) return true;
+
+      perm_string name = id->path().name.front().name;
+      auto decl = sva_resolve_(sva_module_properties, name);
+      if (decl == sva_module_properties.end()
+	  || !sva_property_shaped_sequences.count(decl->first)) return true;
+
+      sva_property_t*body = sva_clone_property_(loc, decl->second);
+      if (!body) {
+	    cerr << loc << ": sorry: cannot clone named sequence `" << name
+		 << "' as a sequence operand." << endl;
+	    error_count += 1;
+	    return false;
+      }
+      if (p->clk_evt && body->clk_evt
+	  && !sva_event_controls_identical_(p->clk_evt, body->clk_evt)) {
+	    cerr << loc << ": error: incompatible clocks in named sequence `"
+		 << name << "' (IEEE 1800-2017/2023 16.13.1)." << endl;
+	    error_count += 1;
+	    pform_sva_destroy_property(body);
+	    return false;
+      }
+      if (!body->clk_evt) body->clk_evt = sva_take_clock_(p);
+      pform_sva_destroy_property(p);
+      p = body;
+      return true;
+}
+
+static bool sva_validate_sequence_operand_(const struct vlltype&loc,
+					   const sva_property_t*p)
+{
+      if (!p) return false;
+      if (!sva_prop_is_property_shaped_(p) && !sva_leaf_names_property_(p)
+	  && !sva_seq_names_property_(p)) return true;
+      cerr << loc << ": error: a property is used where this operator "
+	   << "requires a sequence operand (IEEE 1800-2017/2023 16.9)."
+	   << endl;
+      error_count += 1;
+      return false;
+}
+
+/* The legacy expansions only move Boolean expressions and constant delays.
+   Keep action and repetition metadata on the tree for the automaton. */
+static bool sva_plain_fixed_chain_(const std::vector<sva_seq_step_t>&chain)
+{
+      long length = 0;
+      if (chain.empty() || !sva_chain_fixed_len_(chain, length)) return false;
+      for (const sva_seq_step_t&step : chain)
+	    if (!step.items.empty() || step.fm || step.grouped_repeat
+		|| !step.group_repeat_opens.empty()
+		|| !step.group_repeat_closes.empty()
+		|| !step.group_repeat_members.empty())
+		  return false;
+      return true;
+}
+
+sva_property_t* pform_sva_seq_within(const struct vlltype&loc,
+				     sva_property_t*a, sva_property_t*b)
+{
+      if (!sva_validate_sequence_operand_(loc, a)
+	  || !sva_validate_sequence_operand_(loc, b)
+	  || !sva_expand_tree_sequence_operand_(loc, a)
+	  || !sva_expand_tree_sequence_operand_(loc, b)
+	  || !sva_validate_sequence_operand_(loc, a)
+	  || !sva_validate_sequence_operand_(loc, b)) {
+	    pform_sva_destroy_property(a);
+	    pform_sva_destroy_property(b);
 	    return nullptr;
       }
-      std::vector<perm_string> caller_locals =
-	    sva_current_local_decl_names_();
-      sva_splice_sequences_(loc, *s1, pform_cur_generate, nullptr, nullptr, false,
-			    &caller_locals);
-      sva_splice_sequences_(loc, *s2, pform_cur_generate, nullptr, nullptr, false,
-			    &caller_locals);
-      long l1 = 0, l2 = 0;
-      if (sva_chain_fixed_len_(*s1, l1) && sva_chain_fixed_len_(*s2, l2))
-	    return pform_sva_binprop(loc, 8, s1, s2);
+      if (a->clk_evt && b->clk_evt
+	  && !sva_event_controls_identical_(a->clk_evt, b->clk_evt)) {
+	    cerr << loc << ": error: `within' requires operands with the same "
+		 << "clock (IEEE 1800-2017/2023 16.13.1)." << endl;
+	    error_count += 1;
+	    pform_sva_destroy_property(a);
+	    pform_sva_destroy_property(b);
+	    return nullptr;
+      }
+      std::unique_ptr<PEventStatement> clk(sva_take_clock_(a));
+      if (!clk) clk.reset(sva_take_clock_(b));
+      else delete sva_take_clock_(b);
 
-      sva_stree_t*la = new sva_stree_t;
-      la->chain = s1;
-      sva_stree_t*lb = new sva_stree_t;
-      lb->chain = s2;
+      sva_stree_t*left = sva_prop_take_tree_(loc, a);
+      sva_stree_t*right = sva_prop_take_tree_(loc, b);
+      if (!left || !right) {
+	    sva_tree_delete_(left, true);
+	    sva_tree_delete_(right, true);
+	    return nullptr;
+      }
       sva_stree_t*t = new sva_stree_t;
       t->kind = sva_stree_t::SEQ_WITHIN;
-      t->a = la;
-      t->b = lb;
+      t->a = left;
+      t->b = right;
       sva_property_t*p = new sva_property_t;
       p->tree = t;
       p->tree_sorry = 2;
-      p->op_type = 0;
+      p->clk_evt = clk.release();
       return p;
 }
 
-static sva_property_t* sva_make_throughout_tree_(PExpr*guard,
-				 std::vector<sva_seq_step_t>*seq,
-				 PEventStatement*clk = nullptr)
-{
-      sva_stree_t*leaf = new sva_stree_t;
-      leaf->chain = seq;
-      sva_stree_t*t = new sva_stree_t;
-      t->kind = sva_stree_t::SEQ_THROUGHOUT;
-      t->a = leaf;
-      t->gexpr = guard;
-      sva_property_t*p = new sva_property_t;
-      p->tree = t;
-      p->tree_sorry = 3;
-      p->op_type = 0;
-      p->clk_evt = clk;
-      return p;
-}
-
-/* M9-NFA stage B.5: `throughout` (16.9.9). A fixed-length sequence
-   keeps the legacy source-level lowering (`pform_sva_throughout` ANDs
-   the invariant into every step and expands ##N gaps — exact, and
-   identical under both engines). A variable-length sequence
-   (##[m:n]/##[m:$]/[*m:n]), which the legacy path diagnoses, builds a
-   SEQ_THROUGHOUT tree for the automaton engine (the invariant is
-   AND-ed onto every tick edge, including the pure-delay window ticks),
-   with the legacy sorry deferred to lowering when IVL_SVA_NFA is off.
-   Consumes guard and seq. */
+/* IEEE 1800-2017/2023 16.9.9: retain the fixed-chain rewrite where it
+   can check every tick without losing sequence metadata. */
 sva_property_t* pform_sva_seq_throughout(const struct vlltype&loc,
-					 PExpr*guard,
-					 std::vector<sva_seq_step_t>*seq)
+					 PExpr*guard, sva_property_t*p)
 {
-      if (!guard || !seq || seq->empty()) {
+      if (!guard || !sva_validate_sequence_operand_(loc, p)
+	  || !sva_expand_tree_sequence_operand_(loc, p)
+	  || !sva_validate_sequence_operand_(loc, p)) {
 	    delete guard;
-	    if (seq) {
-		  for (size_t k = 0 ; k < seq->size() ; k += 1)
-			delete (*seq)[k].expr;
-		  delete seq;
-	    }
+	    pform_sva_destroy_property(p);
 	    return nullptr;
       }
-
-      /* The legacy fixed-length source rewrite moves only Boolean
-	 expressions, so it cannot preserve a 16.11 action. Keep this as a
-	 tree: the central validator will emit the single targeted unsupported
-	 diagnostic before either engine can consume it. */
-      if (sva_chain_has_match_calls_(seq))
-	    return sva_make_throughout_tree_(guard, seq);
-
-      /* A named sequence is one sequence_expr operand here, not a design
-	 signal. Expand a plain declaration to a cloned chain, or a clocked /
-	 combinator declaration to a cloned tree. Do this before the fixed-length
-	 probe: AND-ing `guard' with the unresolved identifier would hide the
-	 name from the later ordinary sequence splicer and elaborate it as a wire. */
-      if (seq->size() == 1 && (*seq)[0].delay_lo == 0
-	  && (*seq)[0].delay_hi == 0 && (*seq)[0].rep_tail == 0
-	  && (*seq)[0].rep_kind == 0
-	  && !sva_step_has_assignment_((*seq)[0])) {
-	    PEIdent*id = dynamic_cast<PEIdent*>((*seq)[0].expr);
-	    if (id && !id->path().package && id->path().name.size() == 1
-		&& id->path().name.front().index.empty()) {
-		  perm_string nm = id->path().name.front().name;
-		  std::map<sva_scoped_name_t,
-			   std::vector<sva_seq_step_t>*>::iterator sit =
-			sva_resolve_(sva_module_sequences, nm);
-		  if (sit != sva_module_sequences.end() && sit->second) {
-			std::map<perm_string,PExpr*> no_subst;
-			std::vector<sva_seq_step_t>*body =
-			      sva_clone_steps_subst_(loc, sit->second, no_subst);
-			if (!body) {
-			      cerr << loc << ": sorry: named sequence `" << nm
-				   << "' cannot be cloned as the operand of "
-				   << "`throughout'; the assertion is dropped."
-				   << endl;
-			      error_count += 1;
-			      delete guard;
-			      pform_sva_destroy_sequence(seq);
-			      return nullptr;
-			}
-			pform_sva_destroy_sequence(seq);
-			seq = body;
-		  } else {
-			std::map<sva_scoped_name_t,sva_property_t*>::iterator pit =
-			      sva_resolve_(sva_module_properties, nm);
-			bool is_sequence = pit != sva_module_properties.end()
-			      && sva_property_shaped_sequences.count(pit->first);
-			if (is_sequence) {
-			      sva_property_t*decl = pit->second;
-			      if (!decl) {
-				    cerr << loc << ": sorry: named sequence `" << nm
-					 << "' was already consumed by an unsupported "
-					 << "single-use expansion; the assertion is dropped."
-					 << endl;
-				    error_count += 1;
-				    delete guard;
-				    pform_sva_destroy_sequence(seq);
-				    return nullptr;
-			      }
-			      if (decl->seq_clk_evt || decl->mc_prefix
-				  || (decl->mc_more && !decl->mc_more->empty())
-				  || decl->antecedent || decl->ante_tree) {
-				    cerr << loc << ": sorry: multiclocked named sequence `"
-					 << nm << "' as the operand of `throughout' is not "
-					 << "supported yet (IEEE 1800-2017 16.13); the "
-					 << "assertion is dropped." << endl;
-				    error_count += 1;
-				    delete guard;
-				    pform_sva_destroy_sequence(seq);
-				    return nullptr;
-			      }
-			      sva_stree_t*body_tree = decl->tree
-				    ? sva_tree_clone_(loc, decl->tree) : nullptr;
-			      std::map<perm_string,PExpr*> no_subst;
-			      std::vector<sva_seq_step_t>*body_seq = decl->seq
-				    ? sva_clone_steps_subst_(loc, decl->seq, no_subst)
-				    : nullptr;
-			      PEventStatement*body_clk = decl->clk_evt
-				    ? sva_clone_event_control_(decl->clk_evt, loc)
-				    : nullptr;
-			      if ((decl->tree && !body_tree)
-				  || (decl->seq && !body_seq)
-				  || (decl->clk_evt && !body_clk)) {
-				    sva_tree_delete_(body_tree, true);
-				    pform_sva_destroy_sequence(body_seq);
-				    delete body_clk;
-				    cerr << loc << ": sorry: named sequence `" << nm
-					 << "' cannot be cloned as the operand of "
-					 << "`throughout'; the assertion is dropped."
-					 << endl;
-				    error_count += 1;
-				    delete guard;
-				    pform_sva_destroy_sequence(seq);
-				    return nullptr;
-			      }
-			      pform_sva_destroy_sequence(seq);
-			      if (body_tree) {
-				    sva_stree_t*t = new sva_stree_t;
-				    t->kind = sva_stree_t::SEQ_THROUGHOUT;
-				    t->a = body_tree;
-				    t->gexpr = guard;
-				    sva_property_t*p = new sva_property_t;
-				    p->tree = t;
-				    p->tree_sorry = 3;
-				    p->op_type = 0;
-				    p->clk_evt = body_clk;
-				    pform_sva_destroy_sequence(body_seq);
-				    return p;
-			      }
-			      seq = body_seq;
-			      if (sva_chain_has_match_calls_(seq))
-				    return sva_make_throughout_tree_(guard, seq,
-							      body_clk);
-			      /* A property-shaped declaration without a tree can still
-				 carry its leading clock. Preserve it on the result below. */
-			      long len = 0;
-			      if (sva_chain_fixed_len_(*seq, len)) {
-				    std::vector<sva_seq_step_t>*tr =
-					  pform_sva_throughout(loc, guard, seq);
-				    if (!tr) { delete body_clk; return nullptr; }
-				    sva_property_t*p = new sva_property_t;
-				    p->seq = tr;
-				    p->op_type = 0;
-				    p->clk_evt = body_clk;
-				    return p;
-			      }
-			      sva_stree_t*leaf = new sva_stree_t;
-			      leaf->chain = seq;
-			      sva_stree_t*t = new sva_stree_t;
-			      t->kind = sva_stree_t::SEQ_THROUGHOUT;
-			      t->a = leaf;
-			      t->gexpr = guard;
-			      sva_property_t*p = new sva_property_t;
-			      p->tree = t;
-			      p->tree_sorry = 3;
-			      p->op_type = 0;
-			      p->clk_evt = body_clk;
-			      return p;
-			}
-	  }
-	}
+      // A grouped operand's clock does not scope over the guard.
+      p->grouped_clock = false;
+      std::vector<sva_seq_step_t>*chain = sva_prop_is_leaf_chain_(p)
+	    ? p->tree->chain : p->seq;
+      if (chain) {
+	    std::vector<perm_string> locals = sva_current_local_decl_names_();
+	    sva_splice_sequences_(loc, *chain, pform_cur_generate,
+				  nullptr, nullptr, false, &locals);
+	    if (sva_plain_fixed_chain_(*chain) && chain->front().delay_lo == 0) {
+		  if (p->tree) p->tree->chain = nullptr;
+		  p->seq = pform_sva_throughout(loc, guard, chain);
+		  sva_tree_delete_(p->tree, false);
+		  p->tree = nullptr;
+		  if (p->seq) return p;
+		  pform_sva_destroy_property(p);
+		  return nullptr;
+	    }
       }
-      if (sva_chain_has_match_calls_(seq))
-	    return sva_make_throughout_tree_(guard, seq);
-      long len = 0;
-      if (sva_chain_fixed_len_(*seq, len)) {
-	    std::vector<sva_seq_step_t>*tr = pform_sva_throughout(loc, guard, seq);
-	    if (!tr) return nullptr;
-	    sva_property_t*p = new sva_property_t;
-	    p->seq = tr;
-	    p->op_type = 0;
-	    return p;
+
+      sva_stree_t*operand = p->tree ? p->tree : sva_chain_take_tree_(p->seq);
+      p->seq = nullptr;
+      if (!operand) {
+	    delete guard;
+	    pform_sva_destroy_property(p);
+	    return nullptr;
       }
-      sva_stree_t*la = new sva_stree_t;
-      la->chain = seq;
       sva_stree_t*t = new sva_stree_t;
       t->kind = sva_stree_t::SEQ_THROUGHOUT;
-      t->a = la;
+      t->a = operand;
       t->gexpr = guard;
-      sva_property_t*p = new sva_property_t;
       p->tree = t;
       p->tree_sorry = 3;
-      p->op_type = 0;
       return p;
+}
+
+/* A whole fixed `within' property can use the sampled-history lowering.
+   Leave nested occurrences as sequence operators, with their outer endpoint. */
+static void sva_lower_fixed_within_(const struct vlltype&loc, sva_property_t*prop)
+{
+      if (!prop || prop->op_type != 0 || prop->strength
+	  || !prop->tree || prop->tree->kind != sva_stree_t::SEQ_WITHIN)
+	    return;
+      sva_stree_t*inner = prop->tree->a;
+      sva_stree_t*outer = prop->tree->b;
+      if (!inner->chain || !outer->chain) return;
+      sva_splice_property_sequences_(loc, *inner->chain, prop);
+      sva_splice_property_sequences_(loc, *outer->chain, prop);
+      if (!sva_plain_fixed_chain_(*inner->chain)
+	  || !sva_plain_fixed_chain_(*outer->chain)) return;
+
+      prop->antecedent = inner->chain;
+      prop->seq = outer->chain;
+      inner->chain = nullptr;
+      outer->chain = nullptr;
+      sva_tree_delete_(prop->tree, false);
+      prop->tree = nullptr;
+      prop->tree_sorry = 0;
+      prop->op_type = 8;
 }
 
 /* M9-NFA LV-2: does an expression read any local variable (a bare
@@ -40360,6 +40308,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    }
       }
 
+      if (!sva_sub_request_) sva_lower_fixed_within_(loc, prop);
+
 	/* Stage B combinator trees (sequence or/and): only the
 	   automaton engine lowers these — everything below assumes
 	   the chain members. */
@@ -40673,7 +40623,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      sva_property_t*inst = nullptr;
 			      if (named->tree || named->pa
 				  || (named->mc_more && !named->mc_more->empty())) {
-				    inst = named->pa || sva_property_has_tree_first_match_(named)
+				    bool reusable_tree = named->tree
+					  && sva_property_shaped_sequences.count(pit->first);
+				    inst = named->pa || reusable_tree
+					  || sva_property_has_tree_first_match_(named)
 					  ? sva_clone_property_(loc, named) : nullptr;
 				    if (!inst) {
 					  inst = named;

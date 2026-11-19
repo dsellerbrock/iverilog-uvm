@@ -3032,7 +3032,9 @@ static Module::port_t *module_declare_explicit_port(
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
 %type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
-  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
+  sva_or_has_op sva_and_operand sva_and_has_op sva_intersect_operand
+  sva_intersect_has_op sva_within_operand sva_within_has_op sva_throughout_operand
+  sva_throughout_has_op sva_comb_atom sva_grouped_clocked_leaf
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
 %type <subroutine_call> sva_match_call
 %type <sva_item> sva_match_item
@@ -3045,7 +3047,9 @@ static Module::port_t *module_declare_explicit_port(
 %destructor { pform_sva_destroy_property($$); }
   property_expr property_spec sva_multiclock_seq
   sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
-  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
+  sva_or_has_op sva_and_operand sva_and_has_op sva_intersect_operand
+  sva_intersect_has_op sva_within_operand sva_within_has_op sva_throughout_operand
+  sva_throughout_has_op sva_comb_atom sva_grouped_clocked_leaf
 %destructor { pform_sva_destroy_sequence($$); }
   sva_seq_expr sva_seq_atom
 %destructor { pform_sva_destroy_mc_segments($$); }
@@ -5026,7 +5030,7 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
       { sva_check_action(@1, $6, true);
 	  /* IEEE 1800-2017 16.14.3: count all sequence matches. */
 	if (gn_supported_assertions_flag) {
-	      $4->sequence_cover = true;
+	      if ($4) $4->sequence_cover = true;
 	      pform_sva_hold_assertion(@1, $4, 0, $7, 2);
 	} else {
 	      if (gn_unsupported_assertions_flag)
@@ -10323,22 +10327,6 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_prop_if(@1, pform_sva_prop_condition(@1, $3), $5, $7); }
   | K_case '(' expression ')' property_case_items K_endcase
       { $$ = pform_sva_case(@1, $3, $5); }
-  /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
-     same interval. For equal-length fixed operands this lowers to a
-     per-cycle AND chain the linear engine handles directly. */
-  /* IEEE 1800-2017 16.9.6: `within' — s1 occurs inside s2's interval.
-     Lowered to a $past-sampled combinational match indicator. */
-  | sva_seq_expr K_within sva_seq_expr
-      { $$ = pform_sva_seq_within(@2, $1, $3); }
-  /* IEEE 1800-2017 16.9.5-.7: sequence `and'/`or'/`intersect'. Regular-
-     language combinators the linear engine cannot express: they build
-     a stage-B combinator tree (`sva_seq_comb', below) for the
-     automaton engine (IVL_SVA_NFA=1); without it the assertion is a
-     loud sorry at lowering (previously these were raw syntax errors).
-     The combinator layer nests arbitrarily with `and'/`intersect'
-     binding tighter than `or' (16.9-1). A bare `sva_seq_expr' stays
-     op 0 (above); `sva_seq_comb' requires >=1 operator, so there is no
-     ambiguity with the op-0 rule. */
   /* IEEE 1800-2017 A.2.10 makes the antecedent of an implication a
      `sequence_expr', and 16.9.5 makes `sequence_expr or/and
      sequence_expr' one -- so `S1 or S2 |-> c' is LEGAL. A combinator
@@ -10385,14 +10373,6 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_tree_implication(@2, 2, $1, $3); }
   | sva_seq_comb %prec sva_seq_comb_done
       { $$ = $1; }
-  /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
-     every cycle of the sequence. Fixed-length seq keeps the legacy
-     source-level lowering; a variable-length seq (##[m:n]/##[m:$]/
-     [*m:n]) builds a SEQ_THROUGHOUT tree for the automaton engine. */
-  | expression K_throughout sva_seq_expr
-      { $$ = pform_sva_seq_throughout(@2, $1, $3); }
-  | sva_dist_expr K_throughout sva_seq_expr
-      { $$ = pform_sva_seq_throughout(@2, $1, $3); }
   ;
 
   /* IEEE 1800-2017 16.12.8: `case' property branches. A matched branch is
@@ -10427,15 +10407,6 @@ property_case_items
      first_match(...), or an atom with a consecutive-repetition
      suffix. Returns a step LIST (first_match/repetition yield
      sub-chains). */
-  /* M9-NFA stage B.3: the sequence-combinator precedence layer. Each
-     nonterminal REQUIRES at least one combinator operator (the
-     "has-op" invariant), so a bare chain reduces only to
-     `property_expr : sva_seq_expr' (op 0) and never through here — no
-     reduce/reduce with the op-0 rule. `sva_comb_atom' is a chain leaf
-     or a parenthesized sub-combinator; `sva_and_has_op' folds `and'/
-     `intersect' (tighter, left-assoc); `sva_or_has_op' folds `or'
-     (looser). Each yields an sva_property_t carrying a combinator tree
-     (or a chain, from the legacy fixed-intersect path). */
 /* Share the grouped leading clock between property_expr and the combinator
    grammar. A clock inside the sequence chain uses the separate tail rule. */
 sva_grouped_clocked_leaf
@@ -10477,33 +10448,78 @@ sva_grouped_seq_comb
       { $$ = $2; }
   ;
 
-sva_and_has_op
-  : sva_comb_atom K_and sva_comb_atom
-      { $$ = pform_sva_tree_comb(@2, 'a', $1, $3); }
-  | sva_comb_atom K_intersect sva_comb_atom
+/* IEEE 1800-2017/2023 Table 16-1, tightest first: ##, throughout,
+   within, intersect, and, or. The has-op paths require a combinator,
+   leaving a bare chain to the existing sva_seq_expr property rule. */
+sva_throughout_has_op
+  : sva_bool_atom K_throughout sva_throughout_operand
+      { $$ = pform_sva_seq_throughout(@2, $1, $3); }
+  ;
+
+sva_throughout_operand
+  : sva_comb_atom
+      { $$ = $1; }
+  | sva_throughout_has_op
+      { $$ = $1; }
+  ;
+
+sva_within_has_op
+  : sva_throughout_operand K_within sva_throughout_operand
+      { $$ = pform_sva_seq_within(@2, $1, $3); }
+  | sva_within_has_op K_within sva_throughout_operand
+      { $$ = pform_sva_seq_within(@2, $1, $3); }
+  ;
+
+sva_within_operand
+  : sva_throughout_operand
+      { $$ = $1; }
+  | sva_within_has_op
+      { $$ = $1; }
+  ;
+
+sva_intersect_has_op
+  : sva_within_operand K_intersect sva_within_operand
       { $$ = pform_sva_tree_intersect(@2, $1, $3); }
-  | sva_and_has_op K_and sva_comb_atom
-      { $$ = pform_sva_tree_comb(@2, 'a', $1, $3); }
-  | sva_and_has_op K_intersect sva_comb_atom
+  | sva_intersect_has_op K_intersect sva_within_operand
       { $$ = pform_sva_tree_intersect(@2, $1, $3); }
   ;
 
-sva_or_operand
-  : sva_comb_atom
+sva_intersect_operand
+  : sva_within_operand
+      { $$ = $1; }
+  | sva_intersect_has_op
+      { $$ = $1; }
+  ;
+
+sva_and_has_op
+  : sva_intersect_operand K_and sva_intersect_operand
+      { $$ = pform_sva_tree_comb(@2, 'a', $1, $3); }
+  | sva_and_has_op K_and sva_intersect_operand
+      { $$ = pform_sva_tree_comb(@2, 'a', $1, $3); }
+  ;
+
+sva_and_operand
+  : sva_intersect_operand
       { $$ = $1; }
   | sva_and_has_op
       { $$ = $1; }
   ;
 
 sva_or_has_op
-  : sva_or_operand K_or sva_or_operand
+  : sva_and_operand K_or sva_and_operand
       { $$ = pform_sva_tree_comb(@2, 'o', $1, $3); }
-  | sva_or_has_op K_or sva_or_operand
+  | sva_or_has_op K_or sva_and_operand
       { $$ = pform_sva_tree_comb(@2, 'o', $1, $3); }
   ;
 
 sva_seq_comb
-  : sva_and_has_op
+  : sva_throughout_has_op
+      { $$ = $1; }
+  | sva_within_has_op
+      { $$ = $1; }
+  | sva_intersect_has_op
+      { $$ = $1; }
+  | sva_and_has_op
       { $$ = $1; }
   | sva_or_has_op
       { $$ = $1; }

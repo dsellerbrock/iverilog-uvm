@@ -1,0 +1,3 @@
+ivltests/issue2994_sequence_operands.sv:6: error: `within' requires operands with the same clock (IEEE 1800-2017/2023 16.13.1).
+ivltests/issue2994_sequence_operands.sv:7: error: a property is used where this operator requires a sequence operand (IEEE 1800-2017/2023 16.9).
+ivltests/issue2994_sequence_operands.sv:8: error: a property is used where this operator requires a sequence operand (IEEE 1800-2017/2023 16.9).

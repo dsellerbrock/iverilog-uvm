@@ -645,21 +645,15 @@ extern sva_property_t*
 pform_sva_followed_by(const struct vlltype&loc, int op_type,
 		      sva_property_t*ante, sva_property_t*conseq);
 
-/* M9-NFA stage B.4: `within`. Both-fixed operands keep the legacy op-8
-   lowering; a non-fixed operand builds a SEQ_WITHIN tree for the
-   automaton engine. Consumes both chains. */
+/* IEEE 1800-2017/2023 16.9.10 and 16.9.9, respectively. The
+   result remains a sequence so it can be composed with other operators. */
 extern sva_property_t*
 pform_sva_seq_within(const struct vlltype&loc,
-		     std::vector<sva_seq_step_t>*s1,
-		     std::vector<sva_seq_step_t>*s2);
+		     sva_property_t*a, sva_property_t*b);
 
-/* M9-NFA stage B.5: `throughout`. A fixed-length sequence keeps the
-   legacy source-level lowering; a variable-length sequence builds a
-   SEQ_THROUGHOUT tree for the automaton engine. Consumes guard and
-   seq. */
 extern sva_property_t*
 pform_sva_seq_throughout(const struct vlltype&loc, PExpr*guard,
-			 std::vector<sva_seq_step_t>*seq);
+			 sva_property_t*operand);
 
 /* M9C temporal property operators (IEEE 1800-2017 16.12.10 `until` /
    `until_with` / `s_until` / `s_until_with`, 16.9.6 `within`). These do

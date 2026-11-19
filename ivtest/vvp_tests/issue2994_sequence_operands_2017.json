@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue2994_sequence_operands.sv",
+  "iverilog-args": ["-g2017", "-gassertions"],
+  "gold": "issue2994_sequence_operands"
+}

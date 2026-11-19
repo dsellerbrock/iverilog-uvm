@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2994_throughout_within.v",
+  "iverilog-args": ["-g2017", "-gassertions"],
+  "gold": "issue2994_throughout_within"
+}
