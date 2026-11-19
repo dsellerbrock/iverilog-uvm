@@ -785,6 +785,12 @@ class PEIdent : public PExpr {
             { scoped_type_prefix_ = flag; }
       bool has_scoped_type_prefix() const
             { return scoped_type_prefix_; }
+      // Keep the source binding until a cast, array index, or type actual
+      // commits this otherwise ambiguous scoped expression to a type use.
+      void set_scoped_type_binding(typedef_t*type, const PPackage*use_package)
+            { scoped_type_binding_ = type; unit_type_use_package_ = use_package; }
+      typedef_t* scoped_type_binding() const
+            { return scoped_type_binding_; }
       void set_dotted_suffix(bool flag = true)
             { dotted_suffix_ = flag; }
       bool has_dotted_suffix() const
@@ -827,6 +833,9 @@ class PEIdent : public PExpr {
       struct parmvalue_t* leading_type_args_ = 0;
       bool owns_leading_type_args_ = true;
       bool scoped_type_prefix_ = false;
+      typedef_t*scoped_type_binding_ = nullptr;
+      const PPackage*unit_type_use_package_ = nullptr;
+      mutable bool unit_type_use_reported_ = false;
       bool dotted_suffix_ = false;
       perm_string clocking_access_;
       bool clocking_drive_lval_ = false;

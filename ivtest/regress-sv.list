@@ -7199,3 +7199,10 @@ issue3767_leading_clock_fail_2017 CE,-g2017,-gassertions,-s,issue3767_leading_cl
 issue3767_reopened_2023 normal,-g2023,-gassertions,-s,tb ivltests gold=issue3767_reopened.gold
 issue3767_multiclock_2023 normal,-g2023,-gassertions,-s,issue3767_multiclock ivltests
 issue3767_leading_clock_fail_2023 CE,-g2023,-gassertions,-s,issue3767_leading_clock_fail ivltests gold=issue3767_leading_clock_fail.gold
+
+# IEEE 1800-2017/2023 26.2: package references to compilation-unit types.
+issue3770_ce_2017 CE,-g2017,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
+issue3770_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold
+issue3770_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
+issue3770_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
+issue3770_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold
