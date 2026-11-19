@@ -70,11 +70,19 @@ vpiHandle vpip_make_range(int left, int right)
 
 vpiHandle __vpiRange::vpi_handle(int code)
 {
+      if (empty) return 0;
       switch (code) {
           case vpiLeftRange: return &left;
           case vpiRightRange: return &right;
       }
       return 0;
+}
+
+int __vpiRange::vpi_get(int code)
+{
+      if (code == vpiSize)
+	    return empty ? 0 : std::llabs(int64_t(left.get_value()) - right.get_value()) + 1;
+      return __vpiHandle::vpi_get(code);
 }
 
 /*

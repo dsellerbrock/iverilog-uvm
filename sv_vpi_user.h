@@ -62,6 +62,7 @@ EXTERN_C_START
 #define vpiLongIntVar       610
 #define vpiShortIntVar      611
 #define vpiIntVar           612
+#define vpiShortRealVar     613
 #define vpiByteVar          614
 #define vpiLogicVar         vpiReg
 #define vpiClassVar         615
@@ -70,6 +71,7 @@ EXTERN_C_START
 #define vpiStructVar        618
 #define vpiUnionVar         619
 #define vpiBitVar           620
+#define vpiChandleVar       622
 #define vpiPackedArrayVar   623
 #define vpiArrayVar         vpiRegArray
 #define vpiVirtualInterfaceVar 728
@@ -297,6 +299,14 @@ typedef struct t_vpi_attempt_info {
 
 /********* generic object properties ***********/
 #define vpiNullConst         11
+#define vpiIsRandomized     608
+#define vpiRandType         610
+# define vpiNotRand            1
+# define vpiRand               2
+# define vpiRandC              3
+#define vpiConstantVariable 612
+#define vpiProtectedVis       2
+#define vpiLocalVis           3
 #define vpiAllocScheme      658
 # define vpiAutomaticScheme   1
 # define vpiDynamicScheme     2

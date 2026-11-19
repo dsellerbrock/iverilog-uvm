@@ -669,6 +669,17 @@ extern void compile_scope_decl(char*typ, char*lab, char*nam, char*tnam,
 extern void compile_io_decl(long direction, char*name, char*formal);
 extern void compile_scope_recall(char*sym);
 extern void compile_vpi_class_defn(char*label, uint64_t is_virtual);
+struct class_member_range {
+      bool empty;
+      int left;
+      int right;
+};
+using class_member_ranges = std::vector<class_member_range>;
+extern void compile_vpi_class_member(char*name, int64_t kind, uint64_t qual,
+				     uint64_t is_signed, uint64_t shape,
+				     uint64_t size, uint64_t array_kind,
+				     char*layout, uint64_t slot,
+				     class_member_ranges*ranges);
 extern void compile_vpi_class_typespec(char*label, uint64_t concrete);
 extern void compile_vpi_class_runtime(char*label, char*scope);
 extern void compile_vpi_import(char*package, char*name);

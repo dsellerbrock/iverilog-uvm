@@ -857,6 +857,9 @@ extern const char* ivl_event_name(ivl_event_t net);
 extern const char* ivl_event_basename(ivl_event_t net);
 extern ivl_scope_t ivl_event_scope(ivl_event_t net);
 extern ivl_lifetime_t ivl_event_lifetime(ivl_event_t net);
+/* True for a source-declared class event. An event retained solely for
+   declaration queries also sets *declaration_only. */
+extern int ivl_event_class_declaration(ivl_event_t net, int*declaration_only);
 
   /* A named-event array's group event (IEEE 1800-2017 6.20, e.g.
      `event arr[3];`) -- each element is its own independent named
@@ -2149,6 +2152,10 @@ extern ivl_type_t ivl_scope_class(ivl_scope_t net, unsigned idx);
    class record. A generic declaration has a definition scope only. */
 extern ivl_scope_t ivl_scope_class_declaration(ivl_scope_t net, int*concrete);
 extern int ivl_scope_class_virtual(ivl_scope_t net);
+extern unsigned ivl_scope_class_properties(ivl_scope_t net);
+/* Get a source declaration by ordinal. Return its index in *layout. */
+extern int ivl_scope_class_property(ivl_scope_t net, unsigned ordinal,
+				    ivl_type_t*layout, const char**name, int*qual);
 extern ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net);
 extern unsigned       ivl_scope_enumerates(ivl_scope_t net);
 extern ivl_enumtype_t ivl_scope_enumerate(ivl_scope_t net, unsigned idx);
@@ -2992,6 +2999,10 @@ extern ivl_signal_t ivl_type_prop_signal(ivl_type_t net, int idx);
  * Bit 0: static, Bit 1: protected, Bit 2: local,
  * Bit 3: rand,   Bit 4: randc,     Bit 5: const */
 extern int         ivl_type_prop_qual(ivl_type_t net, int idx);
+/* VPI variable shape for a non-array or packed array type. SHAPE is
+   0 for neither scalar nor vector, 1 for scalar, and 2 for vector. */
+extern int ivl_type_vpi_variable(ivl_type_t net, unsigned*packed_ranges,
+				 int*shape);
 
 extern int         ivl_type_constraints(ivl_type_t net);
 extern const char* ivl_type_constraint_name(ivl_type_t net, int idx);

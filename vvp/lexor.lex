@@ -163,6 +163,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".cast/real.s"  { return K_CAST_REAL_S; }
 ".class"        { return K_CLASS; }
 ".class/defn"   { return K_CLASS_DEFN; }
+".class/member" { return K_CLASS_MEMBER; }
 ".class/typespec" { return K_CLASS_TYPESPEC; }
 ".class/runtime"  { return K_CLASS_RUNTIME; }
 ".class/union/tagged" { return K_CLASS_UNION_TAGGED; }

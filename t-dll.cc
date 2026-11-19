@@ -1938,6 +1938,13 @@ void dll_target::event(const NetEvent*net)
       obj->name = net->name();
       obj->scope = scop;
       obj->lifetime = net->lifetime_override();
+      obj->class_declaration = net->scope()->type() == NetScope::CLASS
+			    && net->is_declared_event();
+      // Keep an otherwise unused instance event available to VPI without
+      // giving it an additional named-event functor in the class scope.
+      obj->declaration_only = net->is_class_event() && !net->is_event_array()
+			   && !net->nwait() && !net->ntrig()
+			   && !net->nnb_trig() && !net->nexpr();
       scope_add_event(scop, obj);
 
       obj->nany = 0;

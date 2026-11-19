@@ -54,6 +54,7 @@
 
 
 class class_type;
+class __vpiScope;
 class vvp_darray;
 class vvp_fun_arrayport;
 class vvp_fun_force_array;
@@ -156,6 +157,7 @@ class __vpiHandle {
       virtual int get_type_code(void) const =0;
       virtual int get_vpi_type_code(void) const { return get_type_code(); }
       virtual bool is_typedef_typespec(void) const { return false; }
+      virtual __vpiScope* class_member_declaration_scope() const { return nullptr; }
 	// The net that holds this object's value, for the signal-like
 	// handles (__vpiSignal, __vpiRealVar and __vpiBaseVar), or nil.
       virtual vvp_net_t*backing_net() { return 0; }
@@ -254,13 +256,16 @@ class __vpiDecConst : public __vpiHandle {
 /* A declared range returned by vpi_iterate(vpiRange, ...). */
 class __vpiRange : public __vpiHandle {
     public:
+      __vpiRange() : empty(true) { }
       __vpiRange(int left, int right) : left(left), right(right) { }
       int get_type_code(void) const override { return vpiRange; }
+      int vpi_get(int code) override;
       vpiHandle vpi_handle(int code) override;
 
     private:
       __vpiDecConst left;
       __vpiDecConst right;
+      const bool empty = false;
 };
 
 extern vpiHandle vpip_make_range(int left, int right);

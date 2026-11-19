@@ -33,6 +33,8 @@
 # include  "netvector.h"
 # include  "sv_vpi_user.h"
 # include  "Module.h"
+# include  "PClass.h"
+# include  "pform_types.h"
 # include  <algorithm>
 # include  <cstdlib>
 # include  <cstdio>
@@ -417,6 +419,12 @@ extern "C" ivl_lifetime_t ivl_event_lifetime(ivl_event_t net)
 {
       assert(net);
       return net->lifetime;
+}
+
+extern "C" int ivl_event_class_declaration(ivl_event_t net, int*declaration_only)
+{
+      *declaration_only = net->declaration_only;
+      return net->class_declaration;
 }
 
 extern "C" unsigned ivl_event_is_array(ivl_event_t net)
@@ -2758,6 +2766,25 @@ extern "C" int ivl_scope_class_virtual(ivl_scope_t net)
       return net->net_->class_def()->is_virtual();
 }
 
+extern "C" unsigned ivl_scope_class_properties(ivl_scope_t net)
+{
+      return net->net_->class_pform()->type->property_order.size();
+}
+
+extern "C" int ivl_scope_class_property(ivl_scope_t net, unsigned ordinal,
+					 ivl_type_t*layout, const char**name, int*qual)
+{
+      const auto*source = net->net_->class_pform()->type;
+      const auto*type = net->net_->class_def();
+      perm_string property = source->property_order.at(ordinal);
+      *name = property.str();
+      *qual = source->properties.at(property).qual.mask();
+      *layout = type;
+      int index = type->property_idx_from_name(property);
+      return index >= 0 && type->get_prop_declaring_class(index) == type
+	   ? index : -1;
+}
+
 extern "C" ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net)
 {
       const netclass_t*type = dynamic_cast<const netclass_t*>(net);
@@ -5080,6 +5107,58 @@ extern "C" int ivl_type_typedef_vpi_type(ivl_type_t net)
       if (ivl_type_base(net) == IVL_VT_STRING) return vpiStringTypespec;
       if (ivl_type_is_chandle(net)) return vpiChandleTypespec;
       return vpiArrayTypespec;
+}
+
+extern "C" int ivl_type_vpi_variable(ivl_type_t net, unsigned*packed_ranges,
+				      int*shape)
+{
+      *packed_ranges = 0;
+      *shape = 0;
+      if (ivl_type_is_chandle(net)) return vpiChandleVar;
+      if (ivl_type_is_shortreal(net)) return vpiShortRealVar;
+
+      if (const auto*array = dynamic_cast<const netparray_t*>(net)) {
+	    ivl_type_t element = array->element_type();
+	    while (const auto*nested = dynamic_cast<const netparray_t*>(element))
+		  element = nested->element_type();
+	    *packed_ranges = ivl_type_packed_dimensions(net);
+	    *shape = 2;
+	    if (dynamic_cast<const netenum_t*>(element)
+		|| dynamic_cast<const netstruct_t*>(element)) {
+		  *packed_ranges -= ivl_type_packed_dimensions(element);
+		  return vpiPackedArrayVar;
+	    }
+	    return net->base_type() == IVL_VT_BOOL ? vpiBitVar : vpiLogicVar;
+      }
+
+      int kind = ivl_type_typedef_vpi_type(net);
+      switch (kind) {
+	  case vpiClassTypespec:     return vpiClassVar;
+	  case vpiInterfaceTypespec: return vpiVirtualInterfaceVar;
+	  case vpiStringTypespec:    return vpiStringVar;
+	  case vpiRealTypespec:      return vpiRealVar;
+	  case vpiStructTypespec:
+	  case vpiUnionTypespec:
+	    *shape = net->packed() ? 2 : 0;
+	    return kind == vpiStructTypespec ? vpiStructVar : vpiUnionVar;
+	  case vpiEnumTypespec:
+	    ivl_type_vpi_variable(static_cast<const netenum_t*>(net)->base_type_obj(),
+				  packed_ranges, shape);
+	    *packed_ranges = 0;
+	    return vpiEnumVar;
+	  case vpiBitTypespec:
+	  case vpiLogicTypespec:
+	    *packed_ranges = ivl_type_packed_dimensions(net);
+	    *shape = *packed_ranges ? 2 : 1;
+	    return kind == vpiBitTypespec ? vpiBitVar : vpiLogicVar;
+	  case vpiIntTypespec:      *shape = 2; return vpiIntVar;
+	  case vpiLongIntTypespec:  *shape = 2; return vpiLongIntVar;
+	  case vpiShortIntTypespec: *shape = 2; return vpiShortIntVar;
+	  case vpiByteTypespec:     *shape = 2; return vpiByteVar;
+	  case vpiIntegerTypespec:  *shape = 2; return vpiIntegerVar;
+	  case vpiTimeTypespec:     *shape = 2; return vpiTimeVar;
+	  default:                 return vpiUndefined;
+      }
 }
 
 extern "C" const char* ivl_type_interface_modport(ivl_type_t net)

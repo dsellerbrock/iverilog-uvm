@@ -2080,9 +2080,25 @@ static unsigned anyedge_group_count_(ivl_event_t obj, unsigned nany,
       return count;
 }
 
-static void draw_event_in_scope(ivl_event_t obj)
+static void draw_event_in_scope(ivl_event_t obj, int class_definition)
 {
       char tmp[4][32];
+
+      int declaration_only;
+      if (ivl_event_class_declaration(obj, &declaration_only) && class_definition) {
+	    int is_array = ivl_event_is_array(obj);
+	    fprintf(vvp_out, " .class/member \"%s\" %d %d 0 0 %u 0",
+		    vvp_mangle_name(ivl_event_basename(obj)),
+		    is_array ? vpiNamedEventArray : vpiNamedEvent,
+		    ivl_event_lifetime(obj) == IVL_VLT_STATIC,
+		    is_array ? ivl_event_array_count(obj) : 0);
+	    if (is_array)
+		  fprintf(vvp_out, " [%ld:%ld]", ivl_event_array_msb(obj),
+			  ivl_event_array_lsb(obj));
+	    fputs(";\n", vvp_out);
+      }
+      if (declaration_only)
+	    return;
 
       if (ivl_event_is_array(obj)) {
 	    fprintf(vvp_out, "E_%p .event %s\"%s\", %u, %ld, %ld, %u;\n",
@@ -3934,12 +3950,16 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
 
+      int class_definition = 0;
       if (ivl_scope_type(net) == IVL_SCT_CLASS) {
 	    int concrete;
 	    ivl_scope_t decl = ivl_scope_class_declaration(net, &concrete);
-	    if (decl == net)
+	    if (decl == net) {
+		  class_definition = 1;
 		  fprintf(vvp_out, "D_%p .class/defn %d;\n", decl,
 			  ivl_scope_class_virtual(net));
+		  draw_class_properties(net);
+	    }
 	    if (decl)
 		  fprintf(vvp_out, " .class/typespec D_%p %d;\n", decl, concrete);
       }
@@ -4340,7 +4360,7 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       for (idx = 0 ;  idx < ivl_scope_events(net) ;  idx += 1) {
 	    ivl_event_t event = ivl_scope_event(net, idx);
-	    draw_event_in_scope(event);
+	    draw_event_in_scope(event, class_definition);
             if (ivl_event_vif_validity(event))
                   fprintf(vvp_out, " .eventvalid E_%p, %s;\n", event,
                           draw_net_input(ivl_event_vif_validity(event)));

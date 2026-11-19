@@ -92,6 +92,7 @@ static bool is_force_release_opcode(const char* name)
       struct enum_name_s enum_name;
       std::list<struct enum_name_s>*enum_namev;
       std::vector<std::pair<int,int> >*ranges;
+      class_member_ranges*member_ranges;
 	std::vector<uint64_t>*numvec;
 
       struct symb_s vect;
@@ -135,7 +136,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
-%token K_CLASS_DEFN K_CLASS_TYPESPEC K_CLASS_RUNTIME
+%token K_CLASS_DEFN K_CLASS_MEMBER K_CLASS_TYPESPEC K_CLASS_RUNTIME
 %token K_IODECL
 %token K_SUBSTITUTE K_SUBSTITUTE_V
 %token K_THREAD K_TIMESCALE K_TRAN K_TRANIF0 K_TRANIF1 K_TRANVP
@@ -171,6 +172,8 @@ static bool is_force_release_opcode(const char* name)
 %type <vpi_enum> port_type
 %type <numb>  signed_t_number
 %type <ranges> dimension dimensions dimensions_opt
+%type <member_ranges> class_member_dimensions
+%destructor { delete $$; } <member_ranges>
 %type <numvec> covgrp_bin_tail
 %type <numb> covgrp_guard_opt
 %type <symb>  symbol symbol_opt
@@ -1060,6 +1063,14 @@ statement
 	| T_LABEL K_CLASS_DEFN T_NUMBER ';'
 		{ compile_vpi_class_defn($1, $3); }
 
+	| K_CLASS_MEMBER T_STRING signed_t_number T_NUMBER T_NUMBER T_NUMBER
+	                 T_NUMBER T_NUMBER class_member_dimensions ';'
+		{ compile_vpi_class_member($2, $3, $4, $5, $6, $7, $8, 0, 0, $9); }
+
+	| K_CLASS_MEMBER T_STRING signed_t_number T_NUMBER T_NUMBER T_NUMBER
+	                 T_NUMBER T_NUMBER T_SYMBOL T_NUMBER class_member_dimensions ';'
+		{ compile_vpi_class_member($2, $3, $4, $5, $6, $7, $8, $9, $10, $11); }
+
 	| K_CLASS_TYPESPEC T_SYMBOL T_NUMBER ';'
 		{ compile_vpi_class_typespec($2, $3); }
 
@@ -1651,6 +1662,21 @@ dimension
 	    $$ = new vector<pair<int,int> >;
 	    $$->push_back(pair<int,int>((int)(int64_t)$2,
 					(int)(int64_t)$4));
+      }
+  ;
+
+class_member_dimensions
+  : { $$ = new class_member_ranges; }
+  | class_member_dimensions dimension
+      {
+	    $$ = $1;
+	    $$->push_back({false, $2->front().first, $2->front().second});
+	    delete $2;
+      }
+  | class_member_dimensions '[' ']'
+      {
+	    $$ = $1;
+	    $$->push_back({true, 0, 0});
       }
   ;
 

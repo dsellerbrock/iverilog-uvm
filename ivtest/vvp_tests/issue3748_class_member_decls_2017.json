@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3748_class_member_decls.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3748_class_member_decls_2017"],
+  "vpi-sources": ["vpi/issue3748_class_member_decls.c"],
+  "gold": "issue3748_class_member_decls"
+}

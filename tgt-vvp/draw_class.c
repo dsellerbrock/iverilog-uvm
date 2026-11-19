@@ -19,6 +19,7 @@
 
 
 # include  "vvp_priv.h"
+# include  "sv_vpi_user.h"
 # include  <stdlib.h>
 # include  <string.h>
 # include  <assert.h>
@@ -110,6 +111,76 @@ static void mark_struct_cobject_emitted_(ivl_type_t type)
 static int is_unpacked_array_property_type(ivl_type_t ptype)
 {
       return type_is_fixed_uarray_property_(ptype);
+}
+
+static int property_array_kind(ivl_type_t type)
+{
+      if (is_unpacked_array_property_type(type)) return vpiStaticArray;
+      if (ivl_type_base(type) == IVL_VT_DARRAY) return vpiDynamicArray;
+      if (ivl_type_base(type) == IVL_VT_QUEUE)
+	    return ivl_type_queue_assoc_compat(type) ? vpiAssocArray : vpiQueueArray;
+      return 0;
+}
+
+static uint64_t draw_member_dimensions(ivl_type_t type, unsigned dimensions,
+				       int emit)
+{
+      uint64_t count = 1;
+      for (unsigned dim = 0; dim < dimensions; ++dim) {
+	    int left = ivl_type_packed_msb(type, dim);
+	    int right = ivl_type_packed_lsb(type, dim);
+	    if (emit) fprintf(vvp_out, " [%d:%d]", left, right);
+	    count *= (uint64_t)llabs((int64_t)left - right) + 1;
+      }
+      return count;
+}
+
+void draw_class_properties(ivl_scope_t scope)
+{
+      for (unsigned i = 0; i < ivl_scope_class_properties(scope); ++i) {
+	    ivl_type_t layout;
+	    const char*name;
+	    int qual;
+	    int slot = ivl_scope_class_property(scope, i, &layout, &name, &qual);
+	    ivl_type_t type = slot >= 0 ? ivl_type_prop_type(layout, slot) : 0;
+	    int array_kind = property_array_kind(type);
+	    ivl_type_t element = type;
+	    for (int kind = array_kind; kind; kind = property_array_kind(element)) {
+		  element = ivl_type_element(element);
+	    }
+
+	    unsigned packed_ranges;
+	    int shape;
+	    int kind = ivl_type_vpi_variable(element, &packed_ranges, &shape);
+	    uint64_t size = 0;
+	    if (!array_kind) {
+		  size = shape ? ivl_type_packed_width(type) : 0;
+		  if (!shape && (kind == vpiStructVar || kind == vpiUnionVar))
+			size = ivl_type_properties(type);
+	    } else if (array_kind == vpiStaticArray) {
+		  size = 1;
+		  for (ivl_type_t dim = type; is_unpacked_array_property_type(dim);
+		       dim = ivl_type_element(dim))
+			size *= draw_member_dimensions(dim, ivl_type_packed_dimensions(dim), 0);
+	    }
+
+	    fprintf(vvp_out, " .class/member \"%s\" %d %d %d %d %" PRIu64 " %d",
+		    vvp_mangle_name(name), array_kind ? vpiArrayVar : kind, qual,
+		    element && ivl_type_signed(element), shape, size, array_kind);
+	    if (slot >= 0) fprintf(vvp_out, " C%p %d", layout, slot);
+	    if (array_kind) {
+		  for (ivl_type_t dim = type; dim != element; dim = ivl_type_element(dim)) {
+			if (is_unpacked_array_property_type(dim))
+			      draw_member_dimensions(dim,
+				    ivl_type_packed_dimensions(dim), 1);
+			else
+			      fputs(" []", vvp_out);
+		  }
+	    } else {
+		  draw_member_dimensions(type, packed_ranges, 1);
+	    }
+	    fputs(";\n", vvp_out);
+      }
 }
 
 static void emit_struct_cobject_dependencies_(ivl_type_t ptype);

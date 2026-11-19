@@ -280,3 +280,5 @@ issue3568_vpi_time_typespec_2017 normal,-g2017 issue3568_vpi_time_typespec.c iss
 issue3568_vpi_time_typespec_2023 normal,-g2023 issue3568_vpi_time_typespec.c issue3568_vpi_time_typespec_2023.gold
 issue3745_class_discovery_2017 normal,-g2017,-s,top issue3745_class_discovery.c issue3745_class_discovery_2017.gold
 issue3745_class_discovery_2023 normal,-g2023,-s,top issue3745_class_discovery.c issue3745_class_discovery_2023.gold
+issue3748_class_member_decls_2017 normal,-g2017,-s,top issue3748_class_member_decls.c issue3748_class_member_decls_2017.gold
+issue3748_class_member_decls_2023 normal,-g2023,-s,top issue3748_class_member_decls.c issue3748_class_member_decls_2023.gold

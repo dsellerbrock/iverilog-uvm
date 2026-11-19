@@ -540,6 +540,10 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiPackedArrayVar";
 	  case vpiByteVar:
 	    return "vpiByteVar";
+	  case vpiShortRealVar:
+	    return "vpiShortRealVar";
+	  case vpiChandleVar:
+	    return "vpiChandleVar";
 	  case vpiClassVar:
 	    return "vpiClassVar";
 	  case vpiVirtualInterfaceVar:
@@ -751,6 +755,8 @@ char* vpi_get_str(PLI_INT32 property, vpiHandle ref)
 
 __vpiScope*vpip_timescale_scope_from_handle(vpiHandle obj)
 {
+      if (auto*scope = obj->class_member_declaration_scope()) return scope;
+
       const struct __vpiSysTaskCall*task;
       struct __vpiSignal*signal;
       struct __vpiRealVar*real;
@@ -1363,6 +1369,12 @@ void vpi_get_value(vpiHandle expr, s_vpi_value*vp)
       assert(expr);
       assert(vp);
 
+      if (expr->class_member_declaration_scope()) {
+	    vp->format = vpiSuppressVal;
+	    vpip_set_error(vpiError, "vpi_get_value: class member declaration has no value");
+	    return;
+      }
+
 	// Never bother with suppressed values. All the derived
 	// classes can ignore this type.
       if (vp->format == vpiSuppressVal)
@@ -1520,6 +1532,11 @@ vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 		  event->canceled = true;
 		  event->scheduled = false;
 	    }
+	    return 0;
+      }
+
+      if (obj->class_member_declaration_scope()) {
+	    vpip_set_error(vpiError, "vpi_put_value: class member declaration has no value");
 	    return 0;
       }
 

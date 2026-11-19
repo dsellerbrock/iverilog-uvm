@@ -881,6 +881,8 @@ static int compare_types(int code, int type, bool is_typedef = false)
 	      type == vpiLongIntVar  ||
 	      type == vpiTimeVar     ||
 	      type == vpiRealVar     ||
+	      type == vpiShortRealVar ||
+	      type == vpiChandleVar  ||
 	      // M12: SystemVerilog variable objects are variables too.
 	      type == vpiStringVar   ||
 	      type == vpiClassVar    ||
@@ -1662,6 +1664,144 @@ class vpiScopeForkAuto  : public __vpiScope {
       int get_type_code(void) const override { return vpiNamedFork; }
 };
 
+/* A lexical member has a declaration and scope, but no value or backing
+ * net. In particular, a static member's live signal is a different handle. */
+class vpiClassMemberDeclaration : public __vpiHandle {
+    public:
+      vpiClassMemberDeclaration(vpiHandle definition, __vpiScope*scope,
+				const char*name, int kind, unsigned qual,
+				bool is_signed, int shape, int size, int array_kind,
+				const class_type*layout, size_t slot,
+				const class_member_ranges&ranges)
+      : definition_(definition), scope_(scope), name_(name), kind_(kind),
+	qual_(qual), signed_(is_signed), shape_(shape), size_(size),
+	array_kind_(array_kind), layout_(layout), slot_(slot)
+      {
+	    ranges_.reserve(ranges.size());
+	    for (const auto&range : ranges) {
+		  if (range.empty)
+			ranges_.emplace_back();
+		  else
+			ranges_.emplace_back(range.left, range.right);
+	    }
+      }
+
+      __vpiScope* class_member_declaration_scope() const override { return scope_; }
+      int get_type_code() const override { return kind_; }
+      bool is_event() const { return kind_ == vpiNamedEvent || kind_ == vpiNamedEventArray; }
+
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiAutomatic: return !(qual_ & 1);
+		case vpiAllocScheme: return vpiOtherScheme;
+		case vpiArray:
+		case vpiArrayMember: return parent_ != nullptr;
+		case vpiSize: return size_;
+		default: break;
+	    }
+	    if (is_event()) return __vpiHandle::vpi_get(code);
+	    switch (code) {
+		case vpiSigned: return signed_;
+		case vpiScalar: return shape_ == 1;
+		case vpiVector: return shape_ == 2;
+		case vpiArrayType: return array_kind_ ? array_kind_ : vpiUndefined;
+		case vpiHasActual:
+		case vpiStructUnionMember:
+		case vpiPackedArrayMember:
+		case vpiIsRandomized: return 0;
+		case vpiConstantSelect: return (qual_ & 1) != 0;
+		case vpiConstantVariable: return (qual_ & 32) != 0;
+		case vpiVisibility:
+		  if (qual_ & 4) return vpiLocalVis;
+		  if (qual_ & 2) return vpiProtectedVis;
+		  return vpiPublicVis;
+		case vpiRandType:
+		  if (qual_ & 16) return vpiRandC;
+		  if (qual_ & 8) return vpiRand;
+		  return vpiNotRand;
+		default: return __vpiHandle::vpi_get(code);
+	    }
+      }
+
+      char* vpi_get_str(int code) override
+      {
+	    if (code == vpiName || (code == vpiFullName && (is_event() || (qual_ & 1))))
+		  return generic_get_str(code, scope_, name_.c_str(), nullptr);
+	    return nullptr;
+      }
+
+      vpiHandle vpi_handle(int code) override
+      {
+	    switch (code) {
+		case vpiScope: return definition_;
+		case vpiParent: return parent_;
+		case vpiModule:
+		  for (auto*scope = scope_; scope; scope = scope->scope)
+			if (scope->get_type_code() == vpiModule) return scope;
+		  return nullptr;
+		case vpiIndex: return parent_ ? &index_ : nullptr;
+		case vpiLeftRange:
+		case vpiRightRange:
+		  return ranges_.empty() ? nullptr : ranges_.front().vpi_handle(code);
+		case vpiClassTypespec:
+		case vpiTypespec:
+		  if (!layout_) return nullptr;
+		  if (kind_ == vpiClassVar)
+			return vpip_declared_class_typespec(layout_->property_declared_class_type(slot_));
+		  if (code == vpiTypespec && kind_ != vpiArrayVar)
+			return layout_->property_typespec(slot_);
+		  return nullptr;
+		default: return nullptr;
+	    }
+      }
+
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code == vpiIndex && parent_) return vpip_make_iterator(1, &index_handle_, false);
+	    if (code != vpiRange || ranges_.empty()) return nullptr;
+	    vpiHandle*args = static_cast<vpiHandle*>(malloc(ranges_.size() * sizeof(vpiHandle)));
+	    for (size_t i = 0; i < ranges_.size(); ++i)
+		  args[i] = &ranges_[i];
+	    return vpip_make_iterator(ranges_.size(), args, true);
+      }
+
+      vpiHandle vpi_index(int index) override
+      {
+	    if (kind_ != vpiNamedEventArray) return nullptr;
+	    auto*left = static_cast<__vpiDecConst*>(vpi_handle(vpiLeftRange));
+	    auto*right = static_cast<__vpiDecConst*>(vpi_handle(vpiRightRange));
+	    if (index < min(left->get_value(), right->get_value())
+		|| index > max(left->get_value(), right->get_value())) return nullptr;
+
+	    auto&element = event_elements_[index];
+	    if (!element) {
+		  string name = name_ + "[" + to_string(index) + "]";
+		  element.reset(new vpiClassMemberDeclaration(definition_, scope_, name.c_str(),
+				vpiNamedEvent, qual_, false, 0, 0, 0, nullptr, 0, {}));
+		  element->parent_ = this;
+		  element->index_.set_value(index);
+	    }
+	    return element.get();
+      }
+
+    private:
+      vpiHandle const definition_;
+      __vpiScope*const scope_;
+      const string name_;
+      const int kind_;
+      const unsigned qual_;
+      const bool signed_;
+      const int shape_, size_, array_kind_;
+      const class_type*const layout_;
+      const size_t slot_;
+      vector<__vpiRange> ranges_;
+      map<int, unique_ptr<vpiClassMemberDeclaration>> event_elements_;
+      vpiHandle parent_ = nullptr;
+      __vpiDecConst index_;
+      vpiHandle index_handle_ = &index_;
+};
+
 class vpiClassDefinition : public __vpiHandle {
     public:
       vpiClassDefinition(__vpiScope*decl, bool is_virtual)
@@ -1696,15 +1836,29 @@ class vpiClassDefinition : public __vpiHandle {
 					     specializations_.data(), false);
 	    if (code == vpiClassDefn)
 		  return class_definition_iter(decl_);
+	    if (code == vpiVariables || code == vpiNamedEvent || code == vpiNamedEventArray) {
+		  vector<vpiHandle> members;
+		  for (const auto&member : members_) {
+			if (code == vpiVariables ? !member->is_event() : member->get_type_code() == code)
+			      members.push_back(member.get());
+		  }
+		  if (members.empty()) return nullptr;
+		  vpiHandle*args = static_cast<vpiHandle*>(malloc(members.size() * sizeof(vpiHandle)));
+		  copy(members.begin(), members.end(), args);
+		  return vpip_make_iterator(members.size(), args, true);
+	    }
 	    return __vpiHandle::vpi_iterate(code);
       }
       void add_specialization(vpiHandle spec)
       { specializations_.push_back(spec); }
+      void add_member(unique_ptr<vpiClassMemberDeclaration> member)
+      { members_.push_back(std::move(member)); }
 
     private:
       __vpiScope*const decl_;
       const bool is_virtual_;
       vector<vpiHandle> specializations_;
+      vector<unique_ptr<vpiClassMemberDeclaration>> members_;
 };
 
 class vpiScopeClass : public __vpiScope {
@@ -1814,6 +1968,39 @@ void compile_vpi_class_defn(char*label, uint64_t is_virtual)
 	    class_definitions.push_back(defn);
       }
       free(label);
+}
+
+void compile_vpi_class_member(char*name, int64_t kind, uint64_t qual,
+			      uint64_t is_signed, uint64_t shape, uint64_t size,
+			      uint64_t array_kind, char*layout_label, uint64_t slot,
+			      class_member_ranges*member_ranges)
+{
+      unique_ptr<char[]> member_name(name);
+      unique_ptr<class_member_ranges> ranges(member_ranges);
+      auto*scope = dynamic_cast<vpiScopeClass*>(vpip_peek_current_scope());
+      auto*definition = scope ? scope->lexical_definition() : nullptr;
+      auto*layout = layout_label ? dynamic_cast<class_type*>(vvp_lookup_handle(layout_label))
+				 : nullptr;
+      bool bad_layout = layout_label && (!layout || slot >= layout->property_count());
+      free(layout_label);
+
+      bool event = kind == vpiNamedEvent || kind == vpiNamedEventArray;
+      if (!definition || bad_layout || qual > 63 || is_signed > 1 || shape > 2
+	  || kind < vpiUndefined || kind > INT_MAX
+	  || (!event && kind != vpiUndefined && !compare_types(vpiVariables, kind, false))
+	  || array_kind > vpiQueueArray || ((kind == vpiArrayVar) != (array_kind != 0))
+	  || (event && (layout || qual > 1))
+	  || (kind == vpiNamedEvent && !ranges->empty())
+	  || (kind == vpiNamedEventArray && (ranges->size() != 1 || ranges->front().empty))) {
+	    yyerror("invalid .class/member record");
+	    compile_errors += 1;
+	    return;
+      }
+
+      int member_size = size <= INT_MAX ? static_cast<int>(size) : vpiUndefined;
+      definition->add_member(unique_ptr<vpiClassMemberDeclaration>(
+	    new vpiClassMemberDeclaration(definition, scope, name, kind, qual,
+		  is_signed, shape, member_size, array_kind, layout, slot, *ranges)));
 }
 
 class class_definition_link : public resolv_list_s {

@@ -1479,6 +1479,8 @@ vpiHandle vpi_register_cb(p_cb_data data)
       switch (data->reason) {
 
 	  case cbValueChange:
+	    if (data->obj && data->obj->class_member_declaration_scope())
+		  return 0;
 	    obj = make_value_change(data);
 	    break;
 
