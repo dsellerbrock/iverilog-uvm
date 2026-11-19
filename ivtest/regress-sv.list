@@ -7181,3 +7181,7 @@ issue3787_2017 normal,-g2017,-s,issue3787 ivltests gold=issue3787.gold
 issue3787_2023 normal,-g2023,-s,issue3787 ivltests gold=issue3787.gold
 issue3787_bad_2017 CE,-g2017,-s,issue3787_bad ivltests gold=issue3787_bad.gold
 issue3787_bad_2023 CE,-g2023,-s,issue3787_bad ivltests gold=issue3787_bad.gold
+issue3788_2017 normal,-g2017,-s,issue3788 ivltests gold=issue3788.gold
+issue3788_2023 normal,-g2023,-s,issue3788 ivltests gold=issue3788.gold
+issue3788_bad_2017 CE,-g2017,-s,issue3788_bad ivltests gold=issue3788_bad.gold
+issue3788_bad_2023 CE,-g2023,-s,issue3788_bad ivltests gold=issue3788_bad.gold

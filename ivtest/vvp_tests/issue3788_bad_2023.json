@@ -1,0 +1,6 @@
+{
+    "type": "CE",
+    "source": "issue3788_bad.sv",
+    "iverilog-args": ["-g2023", "-s", "issue3788_bad"],
+    "gold": "issue3788_bad"
+}
