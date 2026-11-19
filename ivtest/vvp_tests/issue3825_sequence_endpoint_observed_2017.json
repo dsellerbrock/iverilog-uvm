@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3825_sequence_endpoint_observed.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3825_sequence_endpoint_observed"],
+  "gold": "issue3825_sequence_endpoint_observed"
+}

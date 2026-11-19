@@ -1090,6 +1090,14 @@ void schedule_vthread(vthread_t thr, vvp_time64_t delay, bool push_flag)
       }
 }
 
+void schedule_vthread_observed(vthread_t thr)
+{
+      struct vthread_event_s*cur = new vthread_event_s;
+      cur->thr = thr;
+      vthread_mark_scheduled(thr);
+      schedule_event_(cur, 0, SEQ_OBSERVED);
+}
+
 void schedule_vthread_reactive_front(vthread_t thr)
 {
       if (!sched_list || sched_list->delay > 0

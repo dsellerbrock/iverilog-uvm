@@ -49,6 +49,8 @@ class PEvent : public PNamedItem {
       ivl_lifetime_t lifetime_override() const { return lifetime_override_; }
       void lifetime_override(ivl_lifetime_t val) { lifetime_override_ = val; }
 
+      void set_sequence_endpoint() { sequence_endpoint_ = true; }
+
 	// An unpacked-array bound (IEEE 1800-2017 6.20, e.g.
 	// `event arr[3];`). Takes ownership of the list. Null for an
 	// ordinary scalar event.
@@ -63,6 +65,7 @@ class PEvent : public PNamedItem {
       perm_string name_;
       unsigned lexical_pos_;
       ivl_lifetime_t lifetime_override_;
+      bool sequence_endpoint_ = false;
       std::list<pform_range_t>*array_dims_;
 
     private: // not implemented
