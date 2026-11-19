@@ -1076,6 +1076,13 @@ static bool nfa_product_fragment_(sva_nfa_t&nfa,
       if (and_mode) {
 	    nfa.eps(base + doneA * n2 + B2.accept, exit);
 	    nfa.eps(base + A2.accept * n2 + doneB, exit);
+	    /* An empty match has already finished before the first tick. */
+	    if (A.accepts_empty)
+		  nfa.eps(start, base + doneA * n2 + B2.start);
+	    if (B.accepts_empty)
+		  nfa.eps(start, base + A2.start * n2 + doneB);
+	    if (A.accepts_empty && B.accepts_empty)
+		  nfa.eps(start, exit);
       }
       return true;
 }
@@ -1106,6 +1113,15 @@ static void nfa_pad_(sva_nfa_t&M, const sva_nfa_t&Araw)
       prune_dead_states_(M);
 }
 
+static bool nfa_tree_has_match_items_(const sva_stree_t*t)
+{
+      if (!t) return false;
+      if (t->chain)
+	    for (const sva_seq_step_t&step : *t->chain)
+		  if (!step.items.empty()) return true;
+      return nfa_tree_has_match_items_(t->a) || nfa_tree_has_match_items_(t->b);
+}
+
 static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 			       unsigned&start, unsigned&exit)
 {
@@ -1114,6 +1130,37 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 	  case sva_stree_t::LEAF:
 	    if (!t->chain) return false;
 	    return nfa_chain_fragment_(nfa, *t->chain, start, exit);
+	  case sva_stree_t::SEQ_FIRST_MATCH: {
+		if (nfa_tree_has_match_items_(t->a)) return false;
+		sva_nfa_t operand;
+		if (!pform_sva_nfa_build_from_tree(operand, t->a)) return false;
+		  /* One edge cannot carry cuts for both an outer wrapper and
+		     an independent inner wrapper. */
+		for (const sva_nfa_edge_t&edge : operand.edges)
+		      if (edge.first_match_cut_group != 0) return false;
+		if (operand.accepts_empty) {
+		      start = exit = nfa.new_state();
+		      return true;
+		}
+
+		const unsigned base = nfa.nstates;
+		for (unsigned i = 0; i < operand.nstates; i += 1) nfa.new_state();
+		const unsigned group = pform_sva_new_first_match_group_id();
+		for (sva_nfa_edge_t&edge : operand.edges) {
+		      edge.first_match_cut_group = group;
+		      edge.first_match_exit = edge.to == operand.accept;
+		      if (edge.first_match_exit)
+			    edge.first_match_guards = edge.guards;
+		      else
+			    edge.first_match_guards.clear();
+		      edge.from += base;
+		      edge.to += base;
+		      nfa.edges.push_back(edge);
+		}
+		start = base + operand.start;
+		exit = base + operand.accept;
+		return true;
+	  }
 	  case sva_stree_t::SEQ_WITHIN: {
 		  /* s1 within s2: pad s1, then intersect with s2. */
 		sva_nfa_t Araw, B, M;
@@ -1261,10 +1308,8 @@ bool pform_sva_nfa_build_implication(
 	       it. */
 	    if (B.accepts_empty)
 		  for (size_t ai = 0; ai < terminal.size(); ai += 1) {
-			sva_nfa_edge_t e;
-			e.from = terminal[ai].from;
+			sva_nfa_edge_t e = terminal[ai];
 			e.to = boff + B.accept;
-			e.guards = terminal[ai].guards;
 			nfa.edges.push_back(e);
 		  }
       } else {
@@ -1277,15 +1322,24 @@ bool pform_sva_nfa_build_implication(
 		  for (size_t bi = 0; bi < B.edges.size(); bi += 1) {
 			const sva_nfa_edge_t&be = B.edges[bi];
 			if (be.from != B.start) continue;
-			sva_nfa_edge_t e;
-			e.from = terminal[ai].from;
+			sva_nfa_edge_t e = terminal[ai];
+			if (e.first_match_cut_group != 0
+			    && be.first_match_cut_group != 0)
+			      return false;
+			if (be.first_match_cut_group != 0) {
+			      e.first_match_exit = be.first_match_exit;
+			      e.first_match_cut_group = be.first_match_cut_group;
+			      if (be.first_match_exit) {
+				    e.first_match_guards = e.guards;
+				    e.first_match_guards.insert(e.first_match_guards.end(),
+					be.first_match_guards.begin(), be.first_match_guards.end());
+			      }
+			}
+			  /* A prefix exit commits on its original guards, even
+			     if the newly fused suffix cannot advance. */
 			e.to = boff + be.to;
-			e.guards = terminal[ai].guards;
 			e.guards.insert(e.guards.end(), be.guards.begin(),
 					be.guards.end());
-			e.first_match_exit = be.first_match_exit;
-			e.first_match_cut_group = be.first_match_cut_group;
-			e.first_match_guards = be.first_match_guards;
 			nfa.edges.push_back(e);
 		  }
       }

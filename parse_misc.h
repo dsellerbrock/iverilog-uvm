@@ -205,14 +205,14 @@ struct sva_property_formal_t {
 struct sva_stree_t {
       enum kind_t { LEAF = 0, SEQ_OR = 1, SEQ_AND = 2, SEQ_INTERSECT = 3,
 		    SEQ_WITHIN = 4, SEQ_THROUGHOUT = 5,
-		    SEQ_CONCAT = 6 };
+		    SEQ_CONCAT = 6, SEQ_FIRST_MATCH = 7 };
       int kind = LEAF;
       // True when the sequence language is provably empty. Set for fixed
       // intersect operands of different lengths; enclosing combinators
       // derive emptiness structurally before the NFA reachability check.
       bool known_empty = false;
       std::vector<sva_seq_step_t>* chain = nullptr;  // LEAF only
-      sva_stree_t* a = nullptr;
+      sva_stree_t* a = nullptr;   // also the operand of a unary node
       sva_stree_t* b = nullptr;
       PExpr* gexpr = nullptr;    // SEQ_THROUGHOUT invariant (a = the seq)
       // SEQ_CONCAT: true for a ##0 b (the first tick of b is fused with
