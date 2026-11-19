@@ -108,11 +108,14 @@ class Module : public PScopeExtra, public PNamedItem {
       };
 
       struct port_t {
+	    enum class AssertionKind { NONE, SEQUENCE, PROPERTY };
+
 	    perm_string name;
 	    std::vector<PEIdent*> expr;
 	    PExpr*default_value;
 	    bool event_port = false;
 	    NetNet::PortType event_direction = NetNet::PINPUT;
+	    AssertionKind assertion_kind = AssertionKind::NONE;
       };
 
     public:
