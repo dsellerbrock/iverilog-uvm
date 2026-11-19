@@ -1561,23 +1561,28 @@ void NetScope::add_tie_lo(Design*des)
    lexical parents. Continue past the design-element scope only to its
    compilation-unit scope; never cross into a containing module instance. */
 PLet* NetScope::find_let(const Design*des, perm_string name,
-                         unsigned lexical_pos) const
+		       unsigned lexical_pos, const NetScope**owner) const
 {
       const NetScope*cur = this;
       for (;;) {
 	    std::map<perm_string,PLet*>::const_iterator it
 		  = cur->lets_.find(name);
 	    if (it != cur->lets_.end() &&
-	        (lexical_pos == UINT_MAX ||
-	         it->second->lexical_pos() <= lexical_pos)) return it->second;
+		(lexical_pos == UINT_MAX ||
+		 it->second->lexical_pos() <= lexical_pos)) {
+		  *owner = cur;
+		  return it->second;
+	    }
 	    NetScope*import_scope = const_cast<NetScope*>(cur)->find_import(des, name);
 	    if (import_scope) {
 		  std::map<perm_string,PLet*>::const_iterator imported
 			= import_scope->lets_.find(name);
 		  if (imported != import_scope->lets_.end() &&
 		      (lexical_pos == UINT_MAX ||
-		       imported->second->lexical_pos() <= lexical_pos))
+		       imported->second->lexical_pos() <= lexical_pos)) {
+			*owner = import_scope;
 			return imported->second;
+		  }
 	    }
 	    if (cur->type() == MODULE && cur->parent() &&
 		cur->parent()->type() == MODULE) return 0;

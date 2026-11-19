@@ -75,6 +75,12 @@ static void FILE_NAME(PECallFunction*tmp, const struct vlltype&where)
 					tmp->path().name.front().name);
 }
 
+static void FILE_NAME(PEConstraintForeach*tmp, const struct vlltype&where)
+{
+      FILE_NAME(static_cast<LineInfo*>(tmp), where);
+      tmp->set_lexical_pos(where.lexical_pos);
+}
+
 static void FILE_NAME(PCallTask*tmp, const struct vlltype&where)
 {
       FILE_NAME(static_cast<LineInfo*>(tmp), where);

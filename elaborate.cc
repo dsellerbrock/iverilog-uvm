@@ -35983,10 +35983,10 @@ static bool constraint_source_references_randc_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
       const map<perm_string,uint64_t>*loop_env);
-static void constraint_diagnose_randc_restrictions_(
+static void constraint_diagnose_source_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
-      const map<perm_string,uint64_t>*loop_env);
+      const map<perm_string,uint64_t>*loop_env, bool check_names = false);
 
 string pexpr_to_scope_constraint_ir(
       const PExpr*expr,
@@ -36018,7 +36018,7 @@ string pexpr_to_scope_constraint_ir(
 	 * before IR lowering. Unsupported outer shapes must not suppress a
 	 * nested soft/dist/unique/solve-before diagnostic. The recursive walker
 	 * reports each nested construct through the Design-owned source latch. */
-      constraint_diagnose_randc_restrictions_(
+      constraint_diagnose_source_(
 	    expr, nullptr, value_slots, scope, nullptr);
       string out = pexpr_to_constraint_ir(expr, nullptr, value_slots, scope);
       out = constraint_ir_shape_value_slots_(out, value_slots, des, scope);
@@ -36033,10 +36033,10 @@ string pexpr_to_scope_constraint_ir(
       return out;
 }
 
-string pexpr_to_class_constraint_ir(
+static string pexpr_to_class_constraint_ir_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, Design*des,
-      const NetScope*scope,
+      const NetScope*scope, bool check_names,
       const vector<perm_string>*inline_member_names = nullptr,
       vector<NetExpr*>*object_slots = nullptr,
       vector<bool>*function_slot_flags = nullptr,
@@ -36058,9 +36058,12 @@ string pexpr_to_class_constraint_ir(
 	/* See the scope-randomize sibling above. This prepass is semantic and
 	 * intentionally independent of whether the backend can represent the
 	 * enclosing constraint node. */
-      constraint_diagnose_randc_restrictions_(
-	    expr, cls, value_slots, scope, nullptr);
-      string out = pexpr_to_constraint_ir(expr, cls, value_slots, scope);
+      unsigned errors_before = des->errors;
+      constraint_diagnose_source_(
+	    expr, cls, value_slots, scope, nullptr, check_names);
+      string out;
+      if (!check_names || des->errors == errors_before)
+	    out = pexpr_to_constraint_ir(expr, cls, value_slots, scope);
       out = constraint_ir_shape_value_slots_(out, value_slots, des, scope);
       constraint_inline_member_names_ = save_inline;
       constraint_inline_function_slots_ = save_function_slots;
@@ -36069,6 +36072,19 @@ string pexpr_to_class_constraint_ir(
       scope_randomize_object_slots_ = save_objects;
       stateforeach_emit_ctx_ = save_foreach;
       return out;
+}
+
+string pexpr_to_class_constraint_ir(
+      const PExpr*expr, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, Design*des, const NetScope*scope,
+      const vector<perm_string>*inline_member_names = nullptr,
+      vector<NetExpr*>*object_slots = nullptr,
+      vector<bool>*function_slot_flags = nullptr,
+      vector<NetExpr*>*prebuilt_value_slots = nullptr)
+{
+      return pexpr_to_class_constraint_ir_(
+	    expr, cls, value_slots, des, scope, false, inline_member_names,
+	    object_slots, function_slot_flags, prebuilt_value_slots);
 }
 
 static string pexpr_to_covergroup_constraint_ir(
@@ -38272,6 +38288,72 @@ static constraint_source_type_t constraint_foreach_source_type_(
       return result;
 }
 
+static perm_string constraint_array_method_argument_(const named_pexpr_t&arg)
+{
+      const PEIdent*id = dynamic_cast<const PEIdent*>(arg.parm);
+      if (arg.name.nil() && id && !id->path().package
+	  && id->path().size() == 1 && id->path().back().index.empty())
+	    return id->path().back().name;
+      return perm_string();
+}
+
+/* Array methods declare an iterator only in their with expression (7.12). */
+static perm_string constraint_array_method_iterator_(const PECallFunction*call)
+{
+      const pform_name_t&name = call->path().name;
+      if (call->with_constraints().empty() || name.empty()
+	  || (!call->receiver_expr() && name.size() == 1))
+	    return perm_string();
+
+      perm_string method = name.back().name;
+      if (method != "sum" && method != "product" && method != "and"
+	  && method != "or" && method != "xor"
+	  && method != "find" && method != "find_index"
+	  && method != "find_first" && method != "find_first_index"
+	  && method != "find_last" && method != "find_last_index"
+	  && method != "min" && method != "max" && method != "unique"
+	  && method != "unique_index")
+	    return perm_string();
+
+      const auto&parms = call->get_parms();
+      if (parms.empty()
+	  || (generation_flag >= GN_VER2023 && parms.size() == 2
+	      && parms.front().name.nil() && !parms.front().parm))
+	    return perm_string::literal("item");
+      return constraint_array_method_argument_(parms.front());
+}
+
+static void constraint_source_array_iter_(
+      const PECallFunction*call, perm_string iterator, const netclass_t*cls,
+      vector<const PExpr*>*value_slots, const NetScope*scope,
+      constraint_reduction_iter_ctx_t&ctx)
+{
+      ctx.name = iterator;
+      ctx.parent = constraint_reduction_iter_ctx_;
+      constraint_source_type_t receiver_type;
+      if (call->receiver_expr()) {
+	    receiver_type = constraint_source_expr_type_(
+		  call->receiver_expr(), cls, value_slots, scope);
+      } else {
+	    pform_name_t receiver_path = call->path().name;
+	    receiver_path.pop_back();
+	    PEIdent receiver(call->path().package, receiver_path, call->lexical_pos());
+	    receiver.set_line(*call);
+	    receiver.set_borrowed_leading_type_args(call->leading_type_args());
+	    receiver.set_scoped_type_prefix(call->has_scoped_type_prefix());
+	    receiver_type = constraint_source_expr_type_(
+		  &receiver, cls, value_slots, scope);
+      }
+      if (receiver_type.type && receiver_type.unpacked_dimensions) {
+	    constraint_source_type_t element =
+		  constraint_source_type_element_(receiver_type);
+	    ctx.value_type = element.type;
+	    ctx.value_unpacked_dimensions = element.unpacked_dimensions;
+	    ctx.value_unpacked_index_types = element.unpacked_index_types;
+	    ctx.index_type = constraint_source_type_index_(receiver_type);
+      }
+}
+
 static bool constraint_source_references_randc_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
@@ -38454,40 +38536,7 @@ static bool constraint_source_references_randc_(
 			      return true;
 
 	    const pform_name_t&name = call->path().name;
-    bool array_iter_call = false;
-    if (!name.empty()
-	&& (call->receiver_expr() || name.size() > 1)) {
-		  perm_string method = name.back().name;
-		  array_iter_call = method == perm_string::literal("sum")
-			|| method == perm_string::literal("product")
-			|| method == perm_string::literal("and")
-			|| method == perm_string::literal("or")
-			|| method == perm_string::literal("xor")
-			|| method == perm_string::literal("find")
-			|| method == perm_string::literal("find_index")
-			|| method == perm_string::literal("find_first")
-			|| method == perm_string::literal("find_first_index")
-			|| method == perm_string::literal("find_last")
-			|| method == perm_string::literal("find_last_index")
-			|| method == perm_string::literal("min")
-			|| method == perm_string::literal("max")
-			|| method == perm_string::literal("unique")
-			|| method == perm_string::literal("unique_index");
-    }
-
-	    perm_string reduction_iter;
-	    if (array_iter_call && !call->with_constraints().empty()
-		&& call->get_parms().empty())
-		  reduction_iter = perm_string::literal("item");
-	    if (array_iter_call && !call->with_constraints().empty()
-		&& !call->get_parms().empty()) {
-		  const named_pexpr_t&first = call->get_parms().front();
-		  const PEIdent*iter = dynamic_cast<const PEIdent*>(first.parm);
-		  if (first.name.nil() && iter && !iter->path().package
-		      && iter->path().size() == 1
-		      && iter->path().back().index.empty())
-			reduction_iter = iter->path().back().name;
-	    }
+	    perm_string reduction_iter = constraint_array_method_iterator_(call);
 
 	    for (size_t idx = 0; idx < call->get_parms().size(); ++idx) {
 		  /* The optional first argument of an array-method with call declares
@@ -38504,42 +38553,8 @@ static bool constraint_source_references_randc_(
 	    const constraint_reduction_iter_ctx_t*saved_iter_ctx =
 		  constraint_reduction_iter_ctx_;
 	    if (!reduction_iter.nil()) {
-		  source_iter_ctx.name = reduction_iter;
-		  constraint_source_type_t receiver_type;
-		  if (call->receiver_expr()) {
-			receiver_type = constraint_source_expr_type_(
-			      call->receiver_expr(), cls, value_slots, scope);
-		  } else if (name.size() > 1) {
-			pform_name_t receiver_path = name;
-			receiver_path.pop_back();
-			unique_ptr<PEIdent> receiver_id;
-			if (call->path().package)
-			      receiver_id.reset(new PEIdent(
-				    call->path().package, receiver_path, UINT_MAX));
-			else
-			      receiver_id.reset(new PEIdent(receiver_path, UINT_MAX));
-			if (call->leading_type_args()) {
-			      receiver_id->set_borrowed_leading_type_args(
-				    call->leading_type_args());
-			}
-			receiver_id->set_scoped_type_prefix(
-			      call->has_scoped_type_prefix());
-			receiver_type = constraint_source_expr_type_(
-			      receiver_id.get(), cls, value_slots, scope);
-		  }
-		  if (receiver_type.type
-		      && receiver_type.unpacked_dimensions) {
-			constraint_source_type_t element =
-			      constraint_source_type_element_(receiver_type);
-			source_iter_ctx.value_type = element.type;
-			source_iter_ctx.value_unpacked_dimensions =
-			      element.unpacked_dimensions;
-			source_iter_ctx.value_unpacked_index_types =
-			      element.unpacked_index_types;
-			source_iter_ctx.index_type =
-			      constraint_source_type_index_(receiver_type);
-		  }
-		  source_iter_ctx.parent = saved_iter_ctx;
+		  constraint_source_array_iter_(
+			call, reduction_iter, cls, value_slots, scope, source_iter_ctx);
 		  constraint_reduction_iter_ctx_ = &source_iter_ctx;
 	    }
 	    bool with_randc = false;
@@ -38781,20 +38796,90 @@ static bool constraint_source_references_randc_(
       return false;
 }
 
-/* Exhaustively visit the semantic constraint tree and attribute each
- * forbidden randc use to the actual soft/dist/solve-before/unique source
- * node. This is separate from IR recursion: an unsupported outer foreach,
- * conditional, call, or member shape must not hide a nested mandatory
- * diagnostic. The source-reference helper answers qualifier provenance for
- * one construct; this visitor deliberately never short-circuits sibling
- * subtrees. */
-static void constraint_diagnose_randc_restrictions_(
+/* Check the declaration of the root of a value path. The path's selects
+ * are checked separately, and type/solver checks handle the rest of the
+ * path. A declaration still counts when its type is not yet concrete. */
+static bool constraint_source_name_declared_(
+      const LineInfo*site, const pform_scoped_name_t&path, unsigned lexical_pos,
+      bool scoped_type_prefix, const netclass_t*cls, const NetScope*scope)
+{
+      const name_component_t&root = path.name.front();
+      if (root.local_scope)
+	    return true; // The inline-only qualifier has its own diagnostic.
+      if (cls && !path.package && !scoped_type_prefix
+	  && (root.name == THIS_TOKEN || root.name == SUPER_TOKEN
+	      || constraint_array_iter_ctx_find_(root.name)
+	      || cls->property_idx_from_name(root.name) >= 0))
+	    return true;
+
+      Design*des = constraint_ir_design_ctx_;
+      pform_scoped_name_t base(path.package,
+	    pform_name_t{ name_component_t(root.name) });
+      auto declared_in = [&](NetScope*lookup) {
+	    if (scoped_type_prefix && !path.package
+		&& lookup->find_typedef(des, root.name))
+		  return true;
+	    unsigned errors_before = des->errors;
+	    symbol_search_results found;
+	    bool bound = symbol_search(site, des, lookup, base, lexical_pos, &found);
+	    if (des->errors != errors_before)
+		  return true;
+	    if (bound) {
+		  // A type or hierarchy scope can qualify a path, but a
+		  // standalone value needs a variable, parameter or function.
+		  return path.size() > 1 || !found.is_scope()
+			|| found.scope->type() == NetScope::FUNC;
+	    }
+
+	    // An indexed hierarchy scope may exist only with its index.
+	    if (path.size() > 1 && !root.index.empty()) {
+		  pform_scoped_name_t indexed_base(path.package, pform_name_t{ root });
+		  symbol_search_results indexed;
+		  return symbol_search(site, des, lookup, indexed_base, lexical_pos,
+			&indexed) || des->errors != errors_before;
+	    }
+	    return false;
+      };
+      if (declared_in(const_cast<NetScope*>(scope)))
+	    return true;
+      NetScope*definition = cls ? const_cast<netclass_t*>(cls)->definition_scope() : nullptr;
+      return !path.package && definition && definition != scope
+	    && declared_in(definition);
+}
+
+/* Visit source before IR lowering can skip a subtree or unroll it multiple
+ * times. The randc helper determines qualifier provenance for one construct.
+ * The walk also checks name declarations in class constraint bodies, where
+ * all lexical scopes are known before lowering. */
+static void constraint_diagnose_source_(
       const PExpr*expr, const netclass_t*cls,
       vector<const PExpr*>*value_slots, const NetScope*scope,
-      const map<perm_string,uint64_t>*loop_env)
+      const map<perm_string,uint64_t>*loop_env, bool check_names)
 {
       if (!expr)
 	    return;
+
+      auto visit = [&](const PExpr*child) {
+	    constraint_diagnose_source_(
+		  child, cls, value_slots, scope, loop_env, check_names);
+      };
+      auto visit_indices = [&](const index_component_t&index) {
+	    visit(index.msb);
+	    visit(index.lsb);
+      };
+      auto check_name = [&](const LineInfo*site, const pform_scoped_name_t&path,
+			    unsigned lexical_pos, bool scoped_type_prefix,
+			    const NetScope*let_body_scope) {
+	    if (!check_names || path.name.empty()
+		|| constraint_source_name_declared_(
+		      site, path, lexical_pos, scoped_type_prefix,
+		      let_body_scope ? nullptr : cls,
+		      let_body_scope ? let_body_scope : scope))
+		  return;
+	    cerr << site->get_fileline() << ": error: Undeclared name `"
+		 << path << "' in class constraint." << endl;
+	    constraint_ir_design_ctx_->errors += 1;
+      };
 
 	/* A let is substitution, so visit only the expanded expression. An
 	 * unused actual does not participate in the resulting constraint. */
@@ -38810,8 +38895,7 @@ static void constraint_diagnose_randc_restrictions_(
 			constraint_ir_design_ctx_, const_cast<NetScope*>(scope));
 	    if (sub && sub != expr) {
 		  ++let_depth;
-		  constraint_diagnose_randc_restrictions_(
-			sub, cls, value_slots, scope, loop_env);
+		  visit(sub);
 		  --let_depth;
 		  return;
 	    }
@@ -38821,8 +38905,7 @@ static void constraint_diagnose_randc_restrictions_(
 	    if (constraint_source_references_randc_(
 		  soft->get_inner(), cls, value_slots, scope, loop_env))
 		  constraint_randc_reference_error_(soft, "soft");
-	    constraint_diagnose_randc_restrictions_(
-		  soft->get_inner(), cls, value_slots, scope, loop_env);
+	    visit(soft->get_inner());
 	    return;
       }
       if (const PEConstraintOrder*order =
@@ -38831,11 +38914,9 @@ static void constraint_diagnose_randc_restrictions_(
 		  order, cls, value_slots, scope, loop_env))
 		  constraint_randc_reference_error_(order, "solve before");
 	    for (const PExpr*item : order->before_items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, loop_env);
+		  visit(item);
 	    for (const PExpr*item : order->after_items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, loop_env);
+		  visit(item);
 	    return;
       }
       if (const PEUnique*unique = dynamic_cast<const PEUnique*>(expr)) {
@@ -38843,8 +38924,7 @@ static void constraint_diagnose_randc_restrictions_(
 		  unique, cls, value_slots, scope, loop_env))
 		  constraint_randc_reference_error_(unique, "unique");
 	    for (const PExpr*item : unique->items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, loop_env);
+		  visit(item);
 	    return;
       }
       if (const PEInside*inside = dynamic_cast<const PEInside*>(expr)) {
@@ -38852,38 +38932,49 @@ static void constraint_diagnose_randc_restrictions_(
 		&& constraint_source_references_randc_(
 		      inside, cls, value_slots, scope, loop_env))
 		  constraint_randc_reference_error_(inside, "dist");
-	    constraint_diagnose_randc_restrictions_(
-		  inside->get_expr(), cls, value_slots, scope, loop_env);
+	    visit(inside->get_expr());
 	    for (const inside_range_t&range : inside->get_ranges()) {
-		  constraint_diagnose_randc_restrictions_(
-			range.lo, cls, value_slots, scope, loop_env);
-		  constraint_diagnose_randc_restrictions_(
-			range.hi, cls, value_slots, scope, loop_env);
-		  constraint_diagnose_randc_restrictions_(
-			range.weight, cls, value_slots, scope, loop_env);
+		  visit(range.lo);
+		  visit(range.hi);
+		  visit(range.weight);
 	    }
 	    return;
       }
       if (const PEDisableSoft*disable =
 	  dynamic_cast<const PEDisableSoft*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  disable->get_inner(), cls, value_slots, scope, loop_env);
+	    visit(disable->get_inner());
 	    return;
       }
       if (const PEConstraintIf*conditional =
 	  dynamic_cast<const PEConstraintIf*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  conditional->get_cond(), cls, value_slots, scope, loop_env);
+	    visit(conditional->get_cond());
 	    for (const PExpr*item : conditional->then_items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, loop_env);
+		  visit(item);
 	    for (const PExpr*item : conditional->else_items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, loop_env);
+		  visit(item);
 	    return;
       }
       if (const PEConstraintForeach*foreach =
 	  dynamic_cast<const PEConstraintForeach*>(expr)) {
+	    if (check_names) {
+		  auto simple_path = [](perm_string name) {
+			return pform_scoped_name_t(
+			      pform_name_t{ name_component_t(name) });
+		  };
+		  check_name(foreach, simple_path(foreach->array_name()),
+			foreach->lexical_pos(), false, nullptr);
+		  for (perm_string name : foreach->prefix_names()) {
+			if (name.nil() || constraint_source_name_declared_(
+			      foreach, simple_path(name), foreach->lexical_pos(),
+			      false, cls, scope))
+			      continue;
+			cerr << foreach->get_fileline()
+			     << ": error: Constraint foreach selector `"
+			     << name << "' must name an existing integral value."
+			     << endl;
+			constraint_ir_design_ctx_->errors += 1;
+		  }
+	    }
 	    map<perm_string,uint64_t> nested;
 	    if (loop_env)
 		  nested = *loop_env;
@@ -38924,105 +39015,118 @@ static void constraint_diagnose_randc_restrictions_(
 	    }
 	    constraint_reduction_iter_ctx_ = parent;
 	    for (const PExpr*item : foreach->items())
-		  constraint_diagnose_randc_restrictions_(
-			item, cls, value_slots, scope, &nested);
+		  constraint_diagnose_source_(
+			item, cls, value_slots, scope, &nested, check_names);
 	    constraint_reduction_iter_ctx_ = saved_iter_ctx;
 	    return;
       }
 
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
 	    for (const name_component_t&component : id->path().name)
-		  for (const index_component_t&index : component.index) {
-			constraint_diagnose_randc_restrictions_(
-			      index.msb, cls, value_slots, scope, loop_env);
-			constraint_diagnose_randc_restrictions_(
-			      index.lsb, cls, value_slots, scope, loop_env);
-		  }
+		  for (const index_component_t&index : component.index)
+			visit_indices(index);
+	    check_name(id, id->path(), id->lexical_pos(),
+		  id->has_scoped_type_prefix(), id->let_body_scope());
 	    return;
       }
       if (const PECallFunction*call =
 	  dynamic_cast<const PECallFunction*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  call->receiver_expr(), cls, value_slots, scope, loop_env);
-	    for (const name_component_t&component : call->path().name)
-		  for (const index_component_t&index : component.index) {
-			constraint_diagnose_randc_restrictions_(
-			      index.msb, cls, value_slots, scope, loop_env);
-			constraint_diagnose_randc_restrictions_(
-			      index.lsb, cls, value_slots, scope, loop_env);
-		  }
-	    for (const named_pexpr_t&parm : call->get_parms())
-		  constraint_diagnose_randc_restrictions_(
-			parm.parm, cls, value_slots, scope, loop_env);
+	    visit(call->receiver_expr());
+	    const pform_scoped_name_t&path = call->path();
+	    for (const name_component_t&component : path.name)
+		  for (const index_component_t&index : component.index)
+			visit_indices(index);
+	    if (check_names && !call->receiver_expr() && path.size() > 1
+		&& path.name.front().name != "$")
+		  check_name(call, path, call->lexical_pos(),
+			call->has_scoped_type_prefix(), call->let_body_scope());
+
+	    perm_string iterator = check_names
+		  ? constraint_array_method_iterator_(call) : perm_string();
+	    const auto&parms = call->get_parms();
+	    for (size_t idx = 0; idx < parms.size(); ++idx) {
+		  // The optional 2023 index-method name is also a declaration.
+		  if (!iterator.nil() && (idx == 0
+		      || (idx == 1 && generation_flag >= GN_VER2023
+			  && !constraint_array_method_argument_(parms[idx]).nil())))
+			continue;
+		  visit(parms[idx].parm);
+	    }
+	    constraint_reduction_iter_ctx_t iter_ctx;
+	    const constraint_reduction_iter_ctx_t*saved = constraint_reduction_iter_ctx_;
+	    if (!iterator.nil()) {
+		  constraint_source_array_iter_(
+			call, iterator, cls, value_slots, scope, iter_ctx);
+		  constraint_reduction_iter_ctx_ = &iter_ctx;
+	    }
 	    for (const PExpr*with : call->with_constraints())
-		  constraint_diagnose_randc_restrictions_(
-			with, cls, value_slots, scope, loop_env);
+		  visit(with);
+	    constraint_reduction_iter_ctx_ = saved;
 	    return;
       }
       if (const PEMemberAccess*member =
 	  dynamic_cast<const PEMemberAccess*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  member->base(), cls, value_slots, scope, loop_env);
+	    visit(member->base());
 	    return;
       }
+      if (check_names) {
+	    if (const PEPostSelect*select = dynamic_cast<const PEPostSelect*>(expr)) {
+		  visit(select->base());
+		  visit_indices(select->index());
+		  return;
+	    }
+	    if (const PEStreamWith*with = dynamic_cast<const PEStreamWith*>(expr)) {
+		  visit(with->base());
+		  visit(with->range_first());
+		  visit(with->range_second());
+		  return;
+	    }
+      }
       if (const PEUnary*unary = dynamic_cast<const PEUnary*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  unary->get_expr(), cls, value_slots, scope, loop_env);
+	    visit(unary->get_expr());
 	    return;
       }
       if (const PEBinary*binary = dynamic_cast<const PEBinary*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  binary->get_left(), cls, value_slots, scope, loop_env);
-	    constraint_diagnose_randc_restrictions_(
-		  binary->get_right(), cls, value_slots, scope, loop_env);
+	    visit(binary->get_left());
+	    visit(binary->get_right());
 	    return;
       }
       if (const PETernary*ternary = dynamic_cast<const PETernary*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  ternary->get_cond(), cls, value_slots, scope, loop_env);
-	    constraint_diagnose_randc_restrictions_(
-		  ternary->get_true(), cls, value_slots, scope, loop_env);
-	    constraint_diagnose_randc_restrictions_(
-		  ternary->get_false(), cls, value_slots, scope, loop_env);
+	    visit(ternary->get_cond());
+	    visit(ternary->get_true());
+	    visit(ternary->get_false());
 	    return;
       }
       if (const PEConcat*concat = dynamic_cast<const PEConcat*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  concat->repeat_expr(), cls, value_slots, scope, loop_env);
+	    visit(concat->repeat_expr());
 	    for (const PExpr*part : concat->stream_parms())
-		  constraint_diagnose_randc_restrictions_(
-			part, cls, value_slots, scope, loop_env);
+		  visit(part);
 	    return;
       }
       if (const PEAssignPattern*pattern =
 	  dynamic_cast<const PEAssignPattern*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  pattern->replication(), cls, value_slots, scope, loop_env);
+	    visit(pattern->replication());
 	    for (const PExpr*part : pattern->parms())
-		  constraint_diagnose_randc_restrictions_(
-			part, cls, value_slots, scope, loop_env);
+		  visit(part);
 	    return;
       }
       if (const PEStreaming*stream = dynamic_cast<const PEStreaming*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  stream->get_inner(), cls, value_slots, scope, loop_env);
+	    if (check_names)
+		  visit(stream->get_slice_expr());
+	    visit(stream->get_inner());
 	    return;
       }
       if (const PECastSize*cast = dynamic_cast<const PECastSize*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  cast->cast_size(), cls, value_slots, scope, loop_env);
-	    constraint_diagnose_randc_restrictions_(
-		  cast->cast_base(), cls, value_slots, scope, loop_env);
+	    visit(cast->cast_size());
+	    visit(cast->cast_base());
 	    return;
       }
       if (const PECastType*cast = dynamic_cast<const PECastType*>(expr)) {
-	    constraint_diagnose_randc_restrictions_(
-		  cast->cast_base(), cls, value_slots, scope, loop_env);
+	    visit(cast->cast_base());
 	    return;
       }
       if (const PECastSign*cast = dynamic_cast<const PECastSign*>(expr))
-	    constraint_diagnose_randc_restrictions_(
-		  cast->cast_base(), cls, value_slots, scope, loop_env);
+	    visit(cast->cast_base());
 }
 
 /* Add a scalar caller-value slot while keeping the optional direct-signal
@@ -49367,8 +49471,8 @@ void netclass_t::elaborate_constraints(Design*des, PClass*pclass)
 		  if (!item) continue;
 		  unsigned errors_before = des->errors;
 		  size_t calls_before = state_calls.size();
-		  string s = pexpr_to_class_constraint_ir(
-			item, this, nullptr, des, class_scope_);
+		  string s = pexpr_to_class_constraint_ir_(
+			item, this, nullptr, des, class_scope_, true);
 		  if (s.empty()) state_calls.resize(calls_before);
 		  if (!s.empty()) {
 			if (!ir.empty()) ir += " ";
