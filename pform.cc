@@ -13876,6 +13876,7 @@ struct sva_local_decl_type_t {
 static std::map<perm_string,sva_local_decl_type_t> sva_local_decl_types_;
 static std::vector<perm_string> sva_local_decl_order_;
 static std::set<perm_string> sva_local_formal_names_;
+static std::map<perm_string,data_type_t*> sva_local_formal_types_;
 
 static std::vector<perm_string> sva_current_local_decl_names_()
 {
@@ -13950,8 +13951,7 @@ void pform_sva_end_local_declarations(void)
 	  }
       sva_local_decl_types_.clear();
       sva_local_decl_order_.clear();
-      sva_local_formal_names_.clear();
-      sva_decl_formal_names_.clear();
+      pform_sva_clear_decl_formals();
 }
 
 void pform_sva_begin_local_declarations(void)
@@ -13966,14 +13966,18 @@ void pform_sva_begin_local_declarations(void)
       sva_local_decl_order_.clear();
 }
 
-void pform_sva_add_local_formal(const char*name)
+void pform_sva_add_local_formal(const char*name, data_type_t*type)
 {
-      sva_local_formal_names_.insert(lex_strings.make(name));
+      perm_string key = lex_strings.make(name);
+      sva_local_formal_names_.insert(key);
+      if (type) sva_local_formal_types_[key] = type;
 }
 
 void pform_sva_clear_decl_formals(void)
 {
       sva_decl_formal_names_.clear();
+      sva_local_formal_names_.clear();
+      sva_local_formal_types_.clear();
 }
 
 void pform_sva_note_decl_formal(const char*name)
@@ -14141,6 +14145,12 @@ PExpr* pform_sva_coerce_local_assignment(const struct vlltype&loc,
       std::map<perm_string,sva_local_decl_type_t>::const_iterator it =
 	    sva_local_decl_types_.find(key);
       if (it == sva_local_decl_types_.end()) {
+	    auto formal = sva_local_formal_types_.find(key);
+	    if (formal != sva_local_formal_types_.end()) {
+		  PECastType*typed = new PECastType(formal->second, rhs);
+		  FILE_NAME(typed, loc);
+		  return typed;
+	    }
 	    if (!require_declared) return rhs;
 	    if (pform_sva_match_lvalue_declared(loc, key)) return rhs;
 	    delete rhs;
@@ -16035,6 +16045,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    snprintf(name_buf, sizeof name_buf, "_ivl_sva_local_arg_%u",
 		     sva_gensym_counter++);
 	    perm_string local_name = lex_strings.make(name_buf);
+	    lv_subst[formal.name] = local_name;
 	    subst[formal.name] = sva_id_(loc, local_name);
 	    subst[formal.name]->sva_actual_scope(true);
 	    owned_subst.push_back(subst[formal.name]);

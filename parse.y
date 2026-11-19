@@ -9743,13 +9743,16 @@ sva_property_formal_list
 	      l->push_back(formal); delete[]$2; $$ = l; }
   ;
 
-/* Record the formal names before the body is parsed: a cycle delay that
-   names one becomes constant only after substitution (16.8.1). */
+/* Record formal names before parsing the body for delay substitution
+   (16.8.1), and local input types for match-item assignments (16.8.2). */
 sva_sequence_formals
   : sva_sequence_formal_list
       { pform_sva_clear_decl_formals();
-	for (const sva_sequence_formal_t&formal : *$1)
+	for (const sva_sequence_formal_t&formal : *$1) {
 	  pform_sva_note_decl_formal(formal.name.str());
+	  if (formal.local_input)
+	    pform_sva_add_local_formal(formal.name.str(), formal.type);
+	}
 	$$ = $1; }
   ;
 

@@ -1,0 +1,2 @@
+issue1186_sequence_local_input_write_2017 normal,-g2017 ivltests gold=issue1186_sequence_local_input_write-vvp-stdout.gold
+issue1186_sequence_local_input_write_2023 normal,-g2023 ivltests gold=issue1186_sequence_local_input_write-vvp-stdout.gold

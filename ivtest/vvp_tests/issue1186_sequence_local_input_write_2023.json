@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1186_sequence_local_input_write_2017.v",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue1186_sequence_local_input_write"
+}
