@@ -18,6 +18,6 @@ initial begin
  ck("onehot0",$onehot0(8'b0)===1'b1&&$onehot0(8'b0100_0000)===1'b1&&$onehot0(8'b0110_0000)===1'b0);
  ck("isunknown",$isunknown(v8)===1'b1&&$isunknown(8'hA5)===1'b0);
  ck("onehot_x",$onehot(8'b0x01_0000)===1'b1);
- ctl[0]=1'bx; ctl[1]=1'bz; ck("var_ctl",$countbits(v8,ctl[0],ctl[1])==2);
+ ctl[0]=1'bx; ctl[1]=1'bz; ck("var_ctl",$countbits(v8,ctl[0],ctl[1])==3);
  ck("types",$bits($countbits(v8,'1))==32&&$bits($onehot(v8))==1&&$bits($countones(v8))==32);
  $display("RESULT pass=%0d fail=%0d",p,f); end endmodule
