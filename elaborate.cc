@@ -17605,6 +17605,26 @@ NetProc* PChainConstructor::elaborate(Design*des, NetScope*scope) const
 	    return tmp;
       }
 
+      const bool keep_chain = class_this->class_declaration_scope() == scope_class
+	    && !class_this->is_covergroup() && scope == class_this->get_constructor()
+	    && !parms_.empty();
+      // The parse form of the chain is already populated from extends
+      // arguments, forwarded default formals, or the explicit super.new.
+      auto keep_chain_args = [&](const vector<PExpr*>&actuals,
+				 const vector<NetExpr*>&values, unsigned off) {
+	    if (!keep_chain)
+		  return;
+	    vector<unique_ptr<NetExpr>> args;
+	    args.reserve(parms_.size());
+	    for (const named_pexpr_t&arg : parms_) {
+		  auto pos = std::find(actuals.begin(), actuals.end(), arg.parm);
+		  NetExpr*value = arg.parm && pos != actuals.end()
+			? values[off + (pos - actuals.begin())] : nullptr;
+		  args.emplace_back(value ? value->dup_expr() : nullptr);
+	    }
+	    class_this->set_vpi_chain_args(std::move(args));
+      };
+
 	// Need the "this" variable for the current constructor. We're
 	// going to pass this to the chained constructor.
       NetNet*var_this = scope->find_signal(perm_string::literal(THIS_TOKEN));
@@ -17713,6 +17733,9 @@ NetProc* PChainConstructor::elaborate(Design*des, NetScope*scope) const
 			return tmp;
 		  }
 		  resource->parm(0, value);
+		  keep_chain_args(args, {value}, 0);
+	    } else {
+		  keep_chain_args(args, {nullptr}, 0);
 	    }
 
 	    NetAssign_*lvalue = new NetAssign_(var_this);
@@ -17822,7 +17845,8 @@ NetProc* PChainConstructor::elaborate(Design*des, NetScope*scope) const
 		  des->errors += 1;
 	    }
 
-	    NetEUFunc*tmp = new NetEUFunc(scope, new_scope, eres, parms, true, true);
+    keep_chain_args(args, parms, parm_off);
+    NetEUFunc*tmp = new NetEUFunc(scope, new_scope, eres, parms, true, true);
 	    tmp->set_line(*this);
 
 	    NetNet*ret_sink = scope->find_signal(scope->basename());
@@ -57946,6 +57970,114 @@ static void bind_root_interface_synthesis_members_(Design*des)
       }
 }
 
+void netclass_t::set_vpi_chain_args(vector<unique_ptr<NetExpr>> args) const
+{
+      vpi_chain_args_ = std::move(args);
+}
+
+void netclass_t::elaborate_vpi_chain_args(Design*des, NetScope*scope) const
+{
+      if (class_declaration_scope() != scope || !super_ || is_covergroup()
+	  || !vpi_chain_args_.empty())
+	    return;
+      NetScope*ctor = get_constructor();
+      if (!ctor || ctor->parent() != scope || !ctor->func_pform())
+	    return;
+
+	// A generic constructor body can be deferred until specialization.
+	// Its first statement still carries the lexical constructor call after
+	// constructor blending, including extends and default arguments.
+      const Statement*first = ctor->func_pform()->get_statement();
+      if (const auto*block = dynamic_cast<const PBlock*>(first))
+	    first = block->statements().empty() ? nullptr : block->statements().front();
+      const auto*chain = dynamic_cast<const PChainConstructor*>(first);
+      if (!chain || chain->chain_args().empty())
+	    return;
+
+      vector<unique_ptr<NetExpr>> args;
+      for (const auto&actual : chain->chain_args()) {
+	    unique_ptr<NetExpr> expr(actual.parm ? elaborate_for_vpi(des, ctor, actual.parm) : nullptr);
+	    if (actual.parm && !expr)
+		  return;
+	    args.push_back(std::move(expr));
+      }
+      set_vpi_chain_args(std::move(args));
+}
+
+// Keep the parameter expressions where the base type was written. A
+// template seed can already have folded Base#(N) into Base#(1).
+void netclass_t::elaborate_vpi_base_params(Design*des, NetScope*scope) const
+{
+      if (class_declaration_scope() != scope || !super_ || is_covergroup())
+	    return;
+      const PClass*derived = scope->class_pform();
+      NetScope*base = const_cast<NetScope*>(vpi_base_declaration_scope());
+      const PClass*base_pform = base ? base->class_pform() : nullptr;
+      if (!derived || !base_pform || !base_pform->has_parameter_port_list)
+	    return;
+
+      const auto*ref = dynamic_cast<const typeref_t*>(derived->type->base_type.get());
+      NetScope*actual_scope = scope;
+      set<const typedef_t*> seen;
+      while (ref && !ref->parameter_values()) {
+	    const typedef_t*alias = ref->typedef_ref();
+	    if (!alias || !seen.insert(alias).second)
+		  break;
+	    const auto*next = dynamic_cast<const typeref_t*>(alias->get_data_type());
+	    if (!next)
+		  break;
+	    if (NetScope*lexical = ref->find_scope(des, actual_scope))
+		  actual_scope = lexical;
+	    ref = next;
+      }
+      const parmvalue_t*overrides = ref ? ref->parameter_values() : nullptr;
+      const list<PExpr*> empty;
+      const list<PExpr*>&ordered = overrides && overrides->by_order
+	    ? *overrides->by_order : empty;
+      map<perm_string,PExpr*> named;
+      if (overrides && overrides->by_name)
+	    for (const auto&arg : *overrides->by_name)
+		  named.emplace(arg.name, arg.parm);
+
+      auto pos = ordered.begin();
+      for (perm_string name : base_pform->parameter_order) {
+	    auto formal = base->parameters.find(name);
+	    if (formal == base->parameters.end() || formal->second.local_flag)
+		  continue;
+	    auto&param = formal->second;
+	    auto entry = named.find(name);
+	    PExpr*rhs = entry != named.end() ? entry->second : nullptr;
+	    if (pos != ordered.end())
+		  rhs = *pos++;
+
+	    vpi_base_param_t arg;
+	    arg.name = name;
+	    arg.by_name = entry != named.end();
+	    if (param.type_flag || !param.val || param.is_array_param || param.is_assoc_param)
+		  continue;
+	    if (rhs) {
+		  arg.expr.reset(elaborate_for_vpi(des, actual_scope, rhs));
+		  if (!arg.expr)
+			continue;
+	    } else if (param.default_expr && !param.default_net) {
+		  param.default_net = elaborate_for_vpi(des, base, param.default_expr);
+	    }
+	    vpi_base_params_.push_back(std::move(arg));
+      }
+}
+
+static void elaborate_vpi_class_extends_(Design*des, NetScope*scope)
+{
+      if (scope->type() == NetScope::CLASS)
+	    if (const auto*type = scope->class_def()) {
+		  type->elaborate_vpi_chain_args(des, scope);
+		  type->elaborate_vpi_base_params(des, scope);
+	    }
+
+      for (const auto&entry : scope->children())
+	    elaborate_vpi_class_extends_(des, entry.second);
+}
+
 bool elaborate_concrete_class_typedefs(Design*des, NetScope*scope)
 {
       if (!scope)
@@ -58914,10 +59046,14 @@ Design* elaborate(list<perm_string>roots)
 	/* VPI's parameter default and defparam expressions (37.28), now
 	   that every parameter is final. */
       if (rc && des->errors == 0) {
-	    for (NetScope*scope : des->find_package_scopes())
+	    for (NetScope*scope : des->find_package_scopes()) {
 		  scope->elaborate_vpi_parameter_exprs(des);
-	    for (NetScope*scope : des->find_root_scopes())
+		  elaborate_vpi_class_extends_(des, scope);
+	    }
+	    for (NetScope*scope : des->find_root_scopes()) {
 		  scope->elaborate_vpi_parameter_exprs(des);
+		  elaborate_vpi_class_extends_(des, scope);
+	    }
       }
 
       if (rc == false) {

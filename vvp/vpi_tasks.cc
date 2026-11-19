@@ -1122,6 +1122,9 @@ static void lazy_placeholder_(char kind, unsigned width, bool signed_flag,
 			      p_vpi_value vp)
 {
       switch (kind) {
+	  case 'o':
+	    vp->format = vpiSuppressVal;
+	    break;
 	  case 'r':
 	    vpip_real_get_value(0.0, vp);
 	    break;
@@ -1161,8 +1164,9 @@ void __vpiLazyExpr::vpi_get_value(p_vpi_value vp)
       vvp_vector4_t vec;
       double real = 0.0;
       std::string str;
+      vvp_object_t obj;
       bool done = vthread_eval_thunk(caller, thunk_.cptr, scope_, kind_,
-				     vec, real, str);
+				     vec, real, str, obj);
       vpi_mode_flag = saved_mode;
       vpip_cur_task = saved_task;
       vpip_current_vthread = saved_thread;
@@ -1176,6 +1180,14 @@ void __vpiLazyExpr::vpi_get_value(p_vpi_value vp)
 	    break;
 	  case 's':
 	    vpip_string_get_value(str, vp);
+	    break;
+	  case 'o':
+	    if (vp->format == vpiIntVal)
+		  vp->value.integer = obj.test_nil() ? 0 : 1;
+	    else if (vp->format == vpiScalarVal)
+		  vp->value.scalar = obj.test_nil() ? vpi0 : vpi1;
+	    else
+		  vp->format = vpiSuppressVal;
 	    break;
 	  default:
 	    vpip_vec4_get_value(vec, width_, signed_, vp);
@@ -1296,7 +1308,8 @@ void compile_vpi_expr(char*label, long type, long op_type, long width,
 		      char*kind, char*thunk, char*decompile,
 		      unsigned argc, vpiHandle*argv)
 {
-      char k = kind[0] == 'r' ? 'r' : kind[0] == 'S' ? 's' : 'v';
+      char k = kind[0] == 'r' || kind[0] == 'o' ? kind[0]
+	    : kind[0] == 'S' ? 's' : 'v';
       __vpiLazyExpr*obj = new __vpiLazyExpr((int)type, (int)op_type,
 					    (unsigned)width, k, kind[0] == 's',
 					    decompile, argc, argv);

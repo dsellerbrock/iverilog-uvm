@@ -13788,7 +13788,7 @@ static unsigned vpi_thunk_depth_ = 0;
  */
 bool vthread_eval_thunk(vthread_t caller, vvp_code_t pc, __vpiScope*scope,
                         char kind, vvp_vector4_t&vec, double&real,
-                        string&str)
+                        string&str, vvp_object_t&obj)
 {
       vthread_t thr = vthread_new_(pc, caller ? caller->parent_scope : scope,
                                    false);
@@ -13820,6 +13820,9 @@ bool vthread_eval_thunk(vthread_t caller, vvp_code_t pc, __vpiScope*scope,
             break;
           case 's':
             str = thr->pop_str();
+            break;
+          case 'o':
+            thr->pop_object(obj);
             break;
           default:
             vec = thr->pop_vec4();

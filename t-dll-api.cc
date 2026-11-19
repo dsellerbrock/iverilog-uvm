@@ -2776,6 +2776,70 @@ extern "C" ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net)
 	    ? scope : 0;
 }
 
+extern "C" ivl_type_t ivl_scope_class_base(ivl_scope_t net)
+{
+      const netclass_t*type = net->net_->class_def();
+      return type ? type->get_super() : nullptr;
+}
+
+extern "C" int ivl_type_class_builtin(ivl_type_t net)
+{
+      const auto*type = dynamic_cast<const netclass_t*>(net);
+      return type && !type->class_scope();
+}
+
+extern "C" ivl_scope_t ivl_scope_class_base_declaration(ivl_scope_t net)
+{
+      const auto*type = net->net_->class_def();
+      const NetScope*decl = type ? type->vpi_base_declaration_scope() : nullptr;
+      return decl && decl->class_pform() && !decl->class_def()->is_covergroup()
+	    ? decl->target_scope() : nullptr;
+}
+
+extern "C" const char*ivl_scope_class_base_name(ivl_scope_t net)
+{
+      const auto*type = net->net_->class_def();
+      return type ? type->vpi_base_name().str() : nullptr;
+}
+
+extern "C" unsigned ivl_scope_class_base_params(ivl_scope_t net)
+{
+      return net->aux_ && net->aux_->class_base_params
+	    ? net->aux_->class_base_params->size() : 0;
+}
+
+extern "C" ivl_parameter_t ivl_scope_class_base_param(ivl_scope_t net, unsigned idx,
+						       ivl_expr_t*rhs, int*by_name)
+{
+      const auto&arg = net->aux_->class_base_params->at(idx);
+      *rhs = arg.rhs;
+      *by_name = arg.by_name;
+      return arg.formal;
+}
+
+extern "C" ivl_scope_t ivl_scope_class_chain(ivl_scope_t net)
+{
+      if (!net->net_ || net->type_ != IVL_SCT_FUNCTION)
+	    return nullptr;
+      const NetScope*parent = net->net_->parent();
+      const netclass_t*type = parent ? parent->class_def() : nullptr;
+      if (!type || type->class_declaration_scope() != parent
+	  || type->vpi_chain_args().empty() || type->get_constructor() != net->net_)
+	    return nullptr;
+      return parent->target_scope();
+}
+
+extern "C" unsigned ivl_scope_class_chain_argc(ivl_scope_t net)
+{
+      return net->aux_ && net->aux_->class_chain_args
+	    ? net->aux_->class_chain_args->size() : 0;
+}
+
+extern "C" ivl_expr_t ivl_scope_class_chain_arg(ivl_scope_t net, unsigned idx)
+{
+      return net->aux_->class_chain_args->at(idx);
+}
+
 extern "C" ivl_statement_t ivl_scope_def(ivl_scope_t net)
 {
       assert(net);

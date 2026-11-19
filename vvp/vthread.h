@@ -149,7 +149,7 @@ extern void vthread_run(vthread_t thr);
 extern bool vthread_eval_thunk(vthread_t caller, vvp_code_t pc,
                                __vpiScope*scope, char kind,
                                vvp_vector4_t&vec, double&real,
-                               std::string&str);
+                               std::string&str, vvp_object_t&obj);
 
 /*
  * This function schedules all the threads in the list to be scheduled

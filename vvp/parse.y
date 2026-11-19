@@ -136,6 +136,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
 %token K_CLASS_DEFN K_CLASS_TYPESPEC K_CLASS_RUNTIME
+%token K_CLASS_EXTENDS K_CLASS_BASE K_CLASS_CTOR K_CLASS_PARAM
 %token K_IODECL
 %token K_SUBSTITUTE K_SUBSTITUTE_V
 %token K_THREAD K_TIMESCALE K_TRAN K_TRANIF0 K_TRANIF1 K_TRANVP
@@ -1066,6 +1067,24 @@ statement
 
 	| T_LABEL K_CLASS_RUNTIME T_SYMBOL ';'
 		{ compile_vpi_class_runtime($1, $3); }
+
+	| K_CLASS_EXTENDS T_SYMBOL T_STRING ';'
+		{ compile_vpi_class_extends($2, $3); }
+
+	| K_CLASS_EXTENDS '-' T_STRING ';'
+		{ compile_vpi_class_extends(nullptr, $3); }
+
+	| K_CLASS_BASE T_SYMBOL ';'
+		{ compile_vpi_class_base($2, nullptr); }
+
+	| K_CLASS_BASE T_SYMBOL T_STRING ';'
+		{ compile_vpi_class_base($2, $3); }
+
+	| K_CLASS_CTOR T_SYMBOL argument_opt ';'
+		{ compile_vpi_class_ctor($2, $3.argc, $3.argv); }
+
+	| K_CLASS_PARAM T_SYMBOL T_NUMBER argument_opt ';'
+		{ compile_vpi_class_param($2, $3, $4.argc, $4.argv); }
 
 	|         K_IODECL T_NUMBER T_STRING T_SYMBOL ';'
 		{ compile_io_decl($2, $3, $4); }

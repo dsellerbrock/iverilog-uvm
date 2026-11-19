@@ -3938,11 +3938,31 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       if (ivl_scope_type(net) == IVL_SCT_CLASS) {
 	    int concrete;
 	    ivl_scope_t decl = ivl_scope_class_declaration(net, &concrete);
-	    if (decl == net)
+	    if (decl == net) {
 		  fprintf(vvp_out, "D_%p .class/defn %d;\n", decl,
 			  ivl_scope_class_virtual(net));
-	    if (decl)
+		  const char*name = ivl_scope_class_base_name(net);
+		  if (name) {
+			ivl_scope_t base = ivl_scope_class_base_declaration(net);
+			if (base)
+			      fprintf(vvp_out, " .class/extends D_%p ", base);
+			else
+			      fprintf(vvp_out, " .class/extends - ");
+			fprintf(vvp_out, "\"%s\";\n", vvp_mangle_name(name));
+		  }
+	    }
+	    if (decl) {
 		  fprintf(vvp_out, " .class/typespec D_%p %d;\n", decl, concrete);
+		  if (concrete) {
+			ivl_type_t base = ivl_scope_class_base(net);
+			ivl_scope_t base_scope = ivl_type_class_typespec_scope(base);
+			if (base_scope)
+			      fprintf(vvp_out, " .class/base S_%p;\n", base_scope);
+			else if (ivl_type_class_builtin(base))
+			      fprintf(vvp_out, " .class/base B_%p \"%s\";\n",
+				      base, vvp_mangle_name(ivl_type_name(base)));
+		  }
+	    }
       }
 
 	/* Nettype declarations are scope-owned VPI objects (IEEE 1800-2023
