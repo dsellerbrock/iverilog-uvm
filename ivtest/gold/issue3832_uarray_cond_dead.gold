@@ -1,0 +1,2 @@
+./ivltests/issue3832_uarray_cond_dead.v:3: error: whole unpacked-array types in the arms of a conditional expression are not equivalent.
+Elaboration failed

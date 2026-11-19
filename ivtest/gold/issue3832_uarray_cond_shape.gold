@@ -1,0 +1,4 @@
+./ivltests/issue3832_uarray_cond_shape.v:7: error: whole unpacked-array types in the arms of a conditional expression are not equivalent.
+./ivltests/issue3832_uarray_cond_shape.v:8: error: whole unpacked-array types in the arms of a conditional expression are not equivalent.
+./ivltests/issue3832_uarray_cond_shape.v:9: error: whole unpacked-array types in the arms of a conditional expression are not equivalent.
+3 error(s) during elaboration.

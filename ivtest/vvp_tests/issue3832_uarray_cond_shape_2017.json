@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3832_uarray_cond_shape.v",
+  "iverilog-args": ["-g2017", "-s", "issue3832_uarray_cond_shape"],
+  "gold": "issue3832_uarray_cond_shape"
+}

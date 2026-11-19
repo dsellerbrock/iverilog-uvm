@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3832_uarray_cond.v",
+  "iverilog-args": ["-g2023", "-s", "issue3832_uarray_cond"],
+  "gold": "issue3832_uarray_cond"
+}

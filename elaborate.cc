@@ -12350,32 +12350,6 @@ static NetProc* make_uarray_pattern_nb_(NetScope*scope, const LineInfo&loc,
       return blk;
 }
 
-/* Convert one left-to-right ordinal into its declared index tuple. The
- * resulting indices can then be normalized independently for arrays whose
- * outer bounds or directions differ. */
-static bool uarray_declared_indices_(const netuarray_t*type,
-				     unsigned long ordinal,
-				     std::list<long>&indices)
-{
-      if (!type) return false;
-      const netranges_t&dims = type->static_dimensions();
-      std::vector<long>declared(dims.size());
-      unsigned long remaining = ordinal;
-      for (size_t dim = dims.size(); dim > 0; dim -= 1) {
-	    const netrange_t&range = dims[dim-1];
-	    unsigned long width = range.width();
-	    if (width == 0) return false;
-	    unsigned long digit = remaining % width;
-	    remaining /= width;
-	    long left = range.get_msb();
-	    declared[dim-1] = range.get_msb() <= range.get_lsb()
-		  ? left + (long)digit : left - (long)digit;
-      }
-      if (remaining != 0) return false;
-      indices.assign(declared.begin(), declared.end());
-      return true;
-}
-
 /* A fixed unpacked-array function result is held in the function's return
  * signal, which is reused by later calls. A nonblocking assignment must
  * capture the complete result before scheduling any destination update.
@@ -12639,9 +12613,7 @@ static NetProc* make_uarray_pattern_snapshot_(NetScope*scope,
  *     key_full_d = !CiphOpFwdOnly ? key_dec_q : prd_clearing_key_i;
  *
  * with the condition a module parameter. Only a constant condition is
- * folded here; a run-time one leaves the expression alone and is
- * rejected later, because there is no run-time mux for a whole
- * unpacked array.
+ * folded here; a run-time one is left for typed elaboration.
  *
  * The condition is elaborated WITHOUT need_const so a non-constant one
  * is not an error -- it simply is not folded.
@@ -12651,7 +12623,7 @@ static const PExpr* see_through_const_ternary_(Design*des, NetScope*scope,
 {
       for (unsigned guard = 0 ; guard < 32 ; guard += 1) {
 	    const PETernary*ter = dynamic_cast<const PETernary*>(pe);
-	    if (!ter) break;
+	    if (!ter || ter->pattern_scope()) break;
 
 	    NetExpr*c = elab_and_eval(des, scope, ter->get_cond(), -1, false);
 	    const NetEConst*cc = dynamic_cast<NetEConst*>(c);
@@ -12661,6 +12633,8 @@ static const PExpr* see_through_const_ternary_(Design*des, NetScope*scope,
 	    }
 	    bool take_true = !cc->value().is_zero();
 	    delete c;
+	    if (!check_direct_uarray_conditional(des, scope, scope, *ter))
+		  return nullptr;
 	    pe = take_true ? ter->get_true() : ter->get_false();
       }
       return pe;
@@ -13199,6 +13173,11 @@ static NetProc* make_uarray_multidim_prefix_copy_(
 	      return nullptr;
 
 	const PExpr*rsrc = see_through_const_ternary_(des, scope, rval);
+	if (!rsrc) {
+	      handled = true;
+	      delete lv;
+	      return nullptr;
+	}
 	uarray_prefix_source_t src;
 	int decoded = decode_uarray_prefix_source_(des, scope, loc, rsrc, src);
 	if (decoded < 0) {
@@ -14889,6 +14868,10 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 
 	    if (simple_blocking) {
 		  const PExpr*rsrc = see_through_const_ternary_(des, scope, rval());
+		  if (!rsrc) {
+			delete lv;
+			return nullptr;
+		  }
 		  uarray_prefix_source_t src;
 		  int decoded = decode_uarray_prefix_source_(des, scope, *this,
 						       rsrc, src,
@@ -16130,6 +16113,10 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		&& (!lv->word() || lv->is_array_slice())
 		&& lv_uarray->static_dimensions().size() == 1) {
 		  const PExpr*rsrc = see_through_const_ternary_(des, scope, rval());
+		  if (!rsrc) {
+			delete lv;
+			return nullptr;
+		  }
 		  uarray_prefix_source_t src;
 		  int decoded = decode_uarray_prefix_source_(des, scope, *this,
 						       rsrc, src,

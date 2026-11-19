@@ -7206,3 +7206,11 @@ issue3770_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivlte
 issue3770_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
 issue3770_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
 issue3770_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold
+
+# IEEE 1800-2017/2023 6.22.2(d), 7.6, 11.4.11: fixed-array conditionals.
+issue3832_uarray_cond normal,-g2017,-s,issue3832_uarray_cond ivltests gold=issue3832_uarray_cond.gold
+issue3832_uarray_cond_2023 normal,-g2023,-s,issue3832_uarray_cond ivltests gold=issue3832_uarray_cond.gold
+issue3832_uarray_cond_shape CE,-g2017,-s,issue3832_uarray_cond_shape ivltests gold=issue3832_uarray_cond_shape.gold
+issue3832_uarray_cond_shape_2023 CE,-g2023,-s,issue3832_uarray_cond_shape ivltests gold=issue3832_uarray_cond_shape.gold
+issue3832_uarray_cond_dead CE,-g2017,-s,issue3832_uarray_cond_dead ivltests gold=issue3832_uarray_cond_dead.gold
+issue3832_uarray_cond_dead_2023 CE,-g2023,-s,issue3832_uarray_cond_dead ivltests gold=issue3832_uarray_cond_dead.gold

@@ -26,6 +26,7 @@ class netuarray_t;
 class netdarray_t;
 class Statement;
 class PExpr;
+class PETernary;
 class netclass_t;
 struct index_component_t;
 
@@ -450,6 +451,16 @@ extern void indices_to_expressions(Design*des, NetScope*scope,
 				     // These are the outputs.
 				   indices_flags&flags,
 				   std::list<NetExpr*>&indices,std::list<long>&indices_const);
+
+// Convert a declared left-to-right ordinal into an unpacked array index tuple.
+extern bool uarray_declared_indices_(const netuarray_t*type,
+				     unsigned long ordinal,
+				     std::list<long>&indices);
+
+// Check the two declared types when both conditional arms are whole fixed arrays.
+extern bool check_direct_uarray_conditional(Design*, NetScope*true_scope,
+					    NetScope*false_scope, const PETernary&,
+					    bool*both_direct = nullptr);
 
 extern NetExpr*normalize_variable_unpacked(const NetNet*net, const std::list<long>&indices);
 extern NetExpr*normalize_variable_unpacked(const netsarray_t*net, const std::list<long>&indices);

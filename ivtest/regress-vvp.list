@@ -8043,3 +8043,11 @@ issue3770_ce_2017 vvp_tests/issue3770_ce_2017.json
 issue3770_unsafe_2017 vvp_tests/issue3770_unsafe_2017.json
 issue3770_ce_2023 vvp_tests/issue3770_ce_2023.json
 issue3770_unsafe_2023 vvp_tests/issue3770_unsafe_2023.json
+
+# IEEE 1800-2017/2023 6.22.2(d), 7.6, 11.4.11: fixed-array conditionals.
+issue3832_uarray_cond_2017 vvp_tests/issue3832_uarray_cond_2017.json
+issue3832_uarray_cond_2023 vvp_tests/issue3832_uarray_cond_2023.json
+issue3832_uarray_cond_shape_2017 vvp_tests/issue3832_uarray_cond_shape_2017.json
+issue3832_uarray_cond_shape_2023 vvp_tests/issue3832_uarray_cond_shape_2023.json
+issue3832_uarray_cond_dead_2017 vvp_tests/issue3832_uarray_cond_dead_2017.json
+issue3832_uarray_cond_dead_2023 vvp_tests/issue3832_uarray_cond_dead_2023.json

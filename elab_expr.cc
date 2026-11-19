@@ -35218,10 +35218,29 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	    con = condition_reduce(new NetEBLogic('a', con, tail));
       }
 
+      const netuarray_t*array_type = dynamic_cast<const netuarray_t*>(type);
+      const NetEConst*known_array_predicate = nullptr;
+      if (array_type) {
+	    // Reduction can wrap a multi-bit constant (e.g. literal 1).
+	    eval_expr(con, -1);
+	    const NetEConst*cv = dynamic_cast<const NetEConst*>(con);
+	    const bool known = cv && cv->value().is_defined();
+	    bool both_direct = false;
+	    if ((known || generation_flag >= GN_VER2017)
+		&& !check_direct_uarray_conditional(des, true_scope, scope,
+						    *this, &both_direct)) {
+		  delete con;
+		  return nullptr;
+	    }
+	    if (known && both_direct)
+		  known_array_predicate = cv;
+      }
+
 	// Short-circuit on a constant condition, as the width form
 	// does -- but keep elaborating the dead arm so its errors are
 	// still reported.
-      if (const NetEConst*cv = dynamic_cast<NetEConst*>(con)) {
+      if (const NetEConst*cv = known_array_predicate
+			      ? nullptr : dynamic_cast<const NetEConst*>(con)) {
 	    verinum cval = cv->value();
 	    ivl_assert(*this, cval.len()==1);
 	    if (cval.get(0) == verinum::V1 || cval.get(0) == verinum::V0) {
@@ -35293,154 +35312,125 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	    return 0;
       }
 
-	/* A procedural expression cannot carry a whole unpacked array through
-	 * the packed IVL_EX_TERNARY interface. For the common signal operands,
-	 * lower the aggregate conditional to an array pattern whose elements are
-	 * ordinary scalar conditionals. This preserves the existing four-state
-	 * mux semantics and lets the normal array assignment path perform the
-	 * value copy. */
-      if (const netuarray_t*array_type =
-		  dynamic_cast<const netuarray_t*>(type)) {
-	    /* Runtime whole-array conditionals are implemented for the editions
-	     * this change qualifies. Keep the older-edition rejection in place. */
-	    if (generation_flag < GN_VER2017) {
-	      cerr << get_fileline() << ": sorry: a conditional with whole "
-		   << "unpacked array operands is only supported when the "
-		   << "condition is a constant." << endl;
-	      des->errors += 1;
-	      delete con;
-	      delete tru;
-	      delete fal;
-	      return nullptr;
+	/* A whole fixed array cannot travel through the scalar ternary IR.
+	 * Build an assignment pattern in destination storage order. The
+	 * operand words in each slot correspond by declared position (7.6),
+	 * which each arm normalizes using its own bounds. */
+      if (array_type) {
+	    if (!known_array_predicate && generation_flag < GN_VER2017) {
+		  cerr << get_fileline() << ": sorry: a conditional with whole "
+		       << "unpacked array operands is only supported when the "
+		       << "condition is a constant." << endl;
+		  des->errors += 1;
+		  delete con;
+		  delete tru;
+		  delete fal;
+		  return nullptr;
 	    }
+
 	    const NetESignal*true_array = dynamic_cast<const NetESignal*>(tru);
 	    const NetESignal*false_array = dynamic_cast<const NetESignal*>(fal);
-	    const netranges_t&dims = array_type->static_dimensions();
-	    if (true_array && false_array
-		&& !true_array->word_index() && !false_array->word_index()
-		&& dims.size() == true_array->sig()->unpacked_dims().size()
-		&& dims.size() == false_array->sig()->unpacked_dims().size()
-		&& true_array->sig()->net_type()->type_equivalent(
-		     false_array->sig()->net_type())
-		&& false_array->sig()->net_type()->type_equivalent(
-		     true_array->sig()->net_type())
-		&& true_array->sig()->net_type()->type_equivalent(
-		     array_type->element_type())
-		&& array_type->element_type()->type_equivalent(
-		     true_array->sig()->net_type())) {
-	  bool same_shape = true;
-	  for (size_t idx = 0; idx < dims.size(); idx += 1) {
-		const netrange_t&target_dim = dims[idx];
-		const netrange_t&true_dim = true_array->sig()->unpacked_dims()[idx];
-		const netrange_t&false_dim = false_array->sig()->unpacked_dims()[idx];
-		if (target_dim.get_msb() != true_dim.get_msb()
-		    || target_dim.get_lsb() != true_dim.get_lsb()
-		    || target_dim.get_msb() != false_dim.get_msb()
-		    || target_dim.get_lsb() != false_dim.get_lsb()) {
-		      same_shape = false;
-		      break;
-		}
-	  }
-	  if (same_shape) {
-		list<long>indices;
-		  /* IEEE 1800-2023 11.4.11: under an ambiguous condition the
-		     arrays "shall be combined element by element. If the
-		     elements match, the element shall be returned. If they do
-		     not match, then the value specified in Table 7-1 for that
-		     element's type shall be returned." Applied down to each
-		     integral leaf (as Eve does): a mismatched leaf is 0 for a
-		     2-state type and all x for a 4-state type, never a bit merge. */
-		ivl_type_t leaf_type = array_type->element_type();
-		const bool integral_leaf = leaf_type && leaf_type->packed()
-		      && (leaf_type->base_type() == IVL_VT_BOOL
-			  || leaf_type->base_type() == IVL_VT_LOGIC);
-		function<NetExpr*(size_t)>build_array = [&](size_t dimension) -> NetExpr* {
-		      vector<NetExpr*>items;
-		      const netrange_t&range = dims[dimension];
-		      const long step = range.get_msb() <= range.get_lsb() ? 1 : -1;
-		      for (long index = range.get_msb(); ; index += step) {
-			    indices.push_back(index);
-			    NetExpr*item = nullptr;
-			    if (dimension + 1 == dims.size()) {
-				  NetExpr*true_index = normalize_variable_unpacked(
-					true_array->sig(), indices);
-				  NetExpr*false_index = normalize_variable_unpacked(
-					false_array->sig(), indices);
-				  if (true_index && false_index) {
-					NetExpr*true_value = new NetESignal(
-					      const_cast<NetNet*>(true_array->sig()),
-					      true_index);
-					NetExpr*false_value = new NetESignal(
-					      const_cast<NetNet*>(false_array->sig()),
-					      false_index);
-					const unsigned wid = true_value->expr_width();
-					const bool sgn = true_value->has_sign()
-					      && false_value->has_sign();
-					NetETernary*ternary = new NetETernary(
-					      con->dup_expr(), true_value, false_value,
-					      wid, sgn);
-					ternary->set_line(*this);
-					item = ternary;
-					if (integral_leaf) {
-					      NetEConst*dflt =
-						    leaf_type->base_type() == IVL_VT_BOOL
-						    ? make_const_0(wid) : make_const_x(wid);
-					      dflt->cast_signed(sgn);
-					      NetExpr*ambiguous = new NetEBComp('E',
-						    new NetEBComp('n', con->dup_expr(),
-							  make_const_0(con->expr_width())),
-						    make_const_x(1));
-					      NetExpr*match = new NetEBComp('E',
-						    true_value->dup_expr(),
-						    false_value->dup_expr());
-					      item = new NetETernary(ambiguous,
-						    new NetETernary(match,
-							  true_value->dup_expr(), dflt,
-							  wid, sgn),
-						    ternary, wid, sgn);
-					      item->set_line(*this);
-					}
-				  } else {
-					delete true_index;
-					delete false_index;
-				  }
-			    } else {
-				  item = build_array(dimension + 1);
-			    }
-			    indices.pop_back();
-			    if (!item) {
-				  for (NetExpr*existing : items) delete existing;
-				  return static_cast<NetExpr*>(nullptr);
-			    }
-			    items.push_back(item);
-			    if (index == range.get_lsb()) break;
-		      }
-		      ivl_type_t pattern_type = array_type;
-		      if (dimension != 0) {
-			    netranges_t subdims(dims.begin() + dimension, dims.end());
-			    pattern_type = new netuarray_t(
-				  subdims, array_type->element_type());
-		      }
-		      NetEArrayPattern*pattern = new NetEArrayPattern(
-			    pattern_type, items);
-		      pattern->set_line(*this);
-		      return pattern;
-		};
-		NetExpr*result = build_array(0);
-		if (result) {
-		      delete con;
-		      delete tru;
-		      delete fal;
-		      return result;
-		}
-	  }
-	}
-	cerr << get_fileline() << ": sorry: a whole unpacked-array "
-	     << "conditional requires direct, equivalent array operands." << endl;
-	    des->errors += 1;
+	    auto whole_type = [](const NetESignal*signal) -> const netuarray_t* {
+		  return signal && !signal->word_index()
+			? dynamic_cast<const netuarray_t*>(signal->sig()->array_type())
+			: nullptr;
+	    };
+	    const netuarray_t*true_type = whole_type(true_array);
+	    const netuarray_t*false_type = whole_type(false_array);
+	    NetExpr*result = nullptr;
+	    if (true_type && false_type
+		&& true_type->type_equivalent(false_type)
+		&& array_type->type_equivalent(true_type)) {
+		  const netranges_t&dims = array_type->static_dimensions();
+		  ivl_type_t leaf_type = array_type->element_type();
+		  const bool integral_leaf = leaf_type && leaf_type->packed()
+			&& (leaf_type->base_type() == IVL_VT_BOOL
+			    || leaf_type->base_type() == IVL_VT_LOGIC);
+		  unsigned long ordinal = 0;
+		  auto read_word = [&](const NetESignal*signal,
+				       const netuarray_t*arm_type) -> NetExpr* {
+			list<long>indices;
+			if (!uarray_declared_indices_(arm_type, ordinal, indices))
+			      return nullptr;
+			NetExpr*word = normalize_variable_unpacked(arm_type, indices);
+			return word ? new NetESignal(const_cast<NetNet*>(signal->sig()),
+						    word) : nullptr;
+		  };
+		  auto build_word = [&]() -> NetExpr* {
+			if (known_array_predicate) {
+			      if (!known_array_predicate->value().is_zero())
+				    return read_word(true_array, true_type);
+			      return read_word(false_array, false_type);
+			}
+
+			NetExpr*true_value = read_word(true_array, true_type);
+			NetExpr*false_value = read_word(false_array, false_type);
+			if (!true_value || !false_value) {
+			      delete true_value;
+			      delete false_value;
+			      return nullptr;
+			}
+			const unsigned wid = true_value->expr_width();
+			const bool sgn = true_value->has_sign() && false_value->has_sign();
+			NetETernary*ternary = new NetETernary(
+			      con->dup_expr(), true_value, false_value, wid, sgn);
+			ternary->set_line(*this);
+			if (!integral_leaf)
+			      return ternary;
+
+			  /* An ambiguous condition over arrays preserves matching leaves.
+			   * A differing integral leaf takes the Table 7-1 default
+			   * (11.4.11). */
+			NetEConst*dflt = leaf_type->base_type() == IVL_VT_BOOL
+			      ? make_const_0(wid) : make_const_x(wid);
+			dflt->cast_signed(sgn);
+			NetExpr*ambiguous = new NetEBComp('E',
+			      new NetEBComp('n', con->dup_expr(),
+					    make_const_0(con->expr_width())),
+			      make_const_x(1));
+			NetExpr*match = new NetEBComp('E', true_value->dup_expr(),
+						      false_value->dup_expr());
+			NetExpr*item = new NetETernary(ambiguous,
+			      new NetETernary(match, true_value->dup_expr(), dflt,
+					    wid, sgn),
+			      ternary, wid, sgn);
+			item->set_line(*this);
+			return item;
+		  };
+		  function<NetExpr*(size_t)>build_array = [&](size_t dim) -> NetExpr* {
+			const netrange_t&range = dims[dim];
+			const bool ascending = range.get_msb() <= range.get_lsb();
+			vector<NetExpr*>items(range.width(), nullptr);
+			for (size_t pos = 0; pos < items.size(); pos += 1) {
+			      NetExpr*item;
+			      if (dim + 1 == dims.size()) {
+				    item = build_word();
+				    ordinal += 1;
+			      } else {
+				    item = build_array(dim + 1);
+			      }
+			      if (!item) {
+				    for (NetExpr*existing : items) delete existing;
+				    return nullptr;
+			      }
+			      const size_t slot = ascending ? pos : items.size() - 1 - pos;
+			      items[slot] = item;
+			}
+			NetEArrayPattern*pattern = new NetEArrayPattern(array_type, items);
+			pattern->set_line(*this);
+			return pattern;
+		  };
+		  result = build_array(0);
+	    }
 	    delete con;
 	    delete tru;
 	    delete fal;
+	    if (result)
+		  return result;
+
+	    cerr << get_fileline() << ": sorry: a whole unpacked-array "
+		 << "conditional requires direct, equivalent array operands." << endl;
+	    des->errors += 1;
 	    return nullptr;
       }
 

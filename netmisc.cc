@@ -1279,6 +1279,71 @@ static void make_strides(const netranges_t&dims, vector<long>&stride)
       }
 }
 
+/* Convert one left-to-right ordinal into its declared index tuple. The
+ * resulting indices can then be normalized independently for arrays whose
+ * bounds or directions differ. */
+bool uarray_declared_indices_(const netuarray_t*type, unsigned long ordinal,
+			     std::list<long>&indices)
+{
+      if (!type) return false;
+      const netranges_t&dims = type->static_dimensions();
+      std::vector<long>declared(dims.size());
+      unsigned long remaining = ordinal;
+      for (size_t dim = dims.size(); dim > 0; dim -= 1) {
+	    const netrange_t&range = dims[dim-1];
+	    unsigned long width = range.width();
+	    if (width == 0) return false;
+	    unsigned long digit = remaining % width;
+	    remaining /= width;
+	    long left = range.get_msb();
+	    declared[dim-1] = range.get_msb() <= range.get_lsb()
+		  ? left + (long)digit : left - (long)digit;
+      }
+      if (remaining != 0) return false;
+      indices.assign(declared.begin(), declared.end());
+      return true;
+}
+
+static const netuarray_t* direct_uarray_type_(Design*des, NetScope*scope,
+					     const PExpr*expr)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident || ident->path().name.empty()
+	  || !ident->path().name.back().index.empty())
+	    return nullptr;
+
+      symbol_search_results sr;
+      if (!symbol_search(ident, des, scope, ident->path(), ident->lexical_pos(), &sr)
+	  || !sr.net || !sr.path_tail.empty())
+	    return nullptr;
+
+      return dynamic_cast<const netuarray_t*>(sr.net->array_type());
+}
+
+bool check_direct_uarray_conditional(Design*des, NetScope*true_scope,
+				     NetScope*false_scope, const PETernary&ternary,
+				     bool*both_direct)
+{
+      const unsigned errors_before = des->errors;
+      const netuarray_t*true_type =
+	    direct_uarray_type_(des, true_scope, ternary.get_true());
+      const netuarray_t*false_type = true_type
+	    ? direct_uarray_type_(des, false_scope, ternary.get_false())
+	    : nullptr;
+      if (des->errors != errors_before)
+	    return false;
+
+      if (both_direct)
+	    *both_direct = true_type && false_type;
+      if (!true_type || !false_type || true_type->type_equivalent(false_type))
+	    return true;
+
+      cerr << ternary.get_fileline() << ": error: whole unpacked-array types "
+	   << "in the arms of a conditional expression are not equivalent." << endl;
+      des->errors += 1;
+      return false;
+}
+
 /*
  * Take in a vector of constant indices and convert them to a single
  * number that is the canonical address (zero based, 1-d) of the
