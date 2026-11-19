@@ -803,6 +803,8 @@ class vvp_vector4array_aa : public vvp_vector4array_t, public automatic_hooks_s 
       vvp_vector4_t get_word(unsigned idx) const override;
       void set_word(unsigned idx, const vvp_vector4_t&that) override;
 
+      __vpiScope*context_scope() const { return context_scope_; }
+
     private:
       __vpiScope*context_scope_;
       unsigned context_idx_;

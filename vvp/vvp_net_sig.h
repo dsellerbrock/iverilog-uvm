@@ -564,7 +564,8 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
 	// Removing the element or replacing the whole container detaches the
 	// cell with its last value, as required by 13.5.2; an initially
 	// out-of-range index reads the type default and drops writes.
-	// bind_word: a word of a fixed (static) unpacked array.
+	// bind_word: a word of a fixed unpacked array, in its owning frame
+	// when the array has automatic storage.
       void bind_prop(vvp_net_t*formal, const vvp_object_t&obj, unsigned pid,
                      int64_t index = 0, vvp_net_t*root = 0);
       void bind_elem(vvp_net_t*formal, const vvp_object_t&container,
@@ -629,13 +630,15 @@ class vvp_ref_signal_aa : public vvp_fun_signal_object,
             int kind;
             vvp_net_t*target;
             vvp_context_t caller_ctx;
+            uint64_t caller_generation;
             vvp_object_t obj;
             unsigned prop_id;
             int64_t index;
             bool two_state;
             struct __vpiArray*arr;
             vvp_net_t*prop_root;
-            binding_t() : kind(0), target(0), caller_ctx(0), prop_id(0),
+            binding_t() : kind(0), target(0), caller_ctx(0),
+                          caller_generation(0), prop_id(0),
                           index(0), two_state(false), arr(0), prop_root(0) { }
       };
       bool read_binding(binding_t&out) const;
