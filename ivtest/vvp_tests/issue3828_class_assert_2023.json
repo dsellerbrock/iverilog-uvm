@@ -1,0 +1,6 @@
+{
+    "type"          : "normal",
+    "source"        : "issue3828_class_assert.sv",
+    "iverilog-args" : [ "-g2023", "-s", "top" ],
+    "gold"          : "issue3828_class_assert"
+}

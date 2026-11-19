@@ -18897,6 +18897,16 @@ static bool assertion_control_indices_defined_(Design*des, NetScope*scope,
       return all_defined;
 }
 
+/* Match the VVP assertion registry's package-qualified scope names. */
+static void assertion_control_scope_path_(ostream&out, const NetScope*scope)
+{
+      if (const NetScope*parent = scope->parent()) {
+	    assertion_control_scope_path_(out, parent);
+	    out << (parent->type() == NetScope::PACKAGE ? "::" : ".");
+      }
+      out << scope->fullname();
+}
+
 /* The assertion registry uses rooted per-instance names.  An assertion
  * control name, however, is resolved in the lexical context of the call.
  * Resolve the scope portion while the elaborator still has that context;
@@ -18932,7 +18942,7 @@ static string assertion_control_selector_(Design*des, NetScope*scope,
       if (NetScope*selected = des->find_scope(scope, canonical,
 					       NetScope::MODULE)) {
 	    ostringstream text;
-	    text << scope_path(selected);
+	    assertion_control_scope_path_(text, selected);
 	    return text.str();
       }
 
@@ -18956,7 +18966,9 @@ static string assertion_control_selector_(Design*des, NetScope*scope,
 	    return assertion_control_selector_source_(des, scope, id);
 
       ostringstream text;
-      text << scope_path(container) << "." << assertion_name;
+      assertion_control_scope_path_(text, container);
+      text << (container->type() == NetScope::PACKAGE ? "::" : ".")
+	   << assertion_name;
       return text.str();
 }
 
@@ -35204,6 +35216,7 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
 	// Elaborate the variable initialization statements, making a
 	// single initial process out of them.
       result_flag &= elaborate_var_inits_(des, scope);
+      result_flag &= elaborate_behaviors_(des, scope);
 
       return result_flag;
 }

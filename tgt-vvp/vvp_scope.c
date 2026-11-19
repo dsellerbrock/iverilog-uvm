@@ -4484,7 +4484,10 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	   when vvp reads it. Declare nested scopes before the body that
 	   recalls them. */
       if (ivl_scope_type(net) == IVL_SCT_TASK
-	  || (vpi_stmt_conditions_flag && ivl_scope_type(net) == IVL_SCT_FUNCTION)) {
+	  || (ivl_scope_type(net) == IVL_SCT_FUNCTION
+	      && (vpi_stmt_conditions_flag
+		  || (parent && (ivl_scope_type(parent) == IVL_SCT_CLASS
+				 || ivl_scope_type(parent) == IVL_SCT_PACKAGE))))) {
 	    ivl_scope_children(net, (ivl_scope_f*) draw_scope, net);
 	    fprintf(vvp_out, "    .scope S_%p;\n", net);
 	    child_scopes_drawn = 1;

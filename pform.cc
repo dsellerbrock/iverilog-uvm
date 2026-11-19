@@ -17693,9 +17693,8 @@ Statement* pform_make_immediate_assertion(const struct vlltype&loc,
 	    assertion_name = sva_parser_assertion_label_.str();
 
 	/* Register the assertion before procedural execution so VPI clients can
-	   place callbacks on a labeled immediate assertion before its first
-	   evaluation. As for immediate cover registration, keep this initializer
-	   in the containing module scope rather than a procedural block scope. */
+	   place callbacks on it before its first evaluation. Store the marker in
+	   the enclosing declaration scope, which may be a class or package. */
       std::list<named_pexpr_t> reg_args;
       named_pexpr_t reg_id;
       reg_id.parm = new PENumber(new verinum((uint64_t)id, 32));
@@ -17716,10 +17715,9 @@ Statement* pform_make_immediate_assertion(const struct vlltype&loc,
       PCallTask*reg = new PCallTask(
 	    lex_strings.make("$ivl_register_immediate_assertion"), reg_args);
       FILE_NAME(reg, loc);
-      LexicalScope*saved_scope = lexical_scope;
-	lexical_scope = registration_scope;
-      PProcess*ip = pform_make_behavior(IVL_PR_INITIAL, reg, nullptr);
-      lexical_scope = saved_scope;
+      PProcess*ip = new PProcess(IVL_PR_INITIAL, reg);
+      ip->generated_verification();
+      registration_scope->behaviors.push_back(ip);
       struct vlltype initloc = loc;
       initloc.first_line = 0;
       FILE_NAME(ip, initloc);
