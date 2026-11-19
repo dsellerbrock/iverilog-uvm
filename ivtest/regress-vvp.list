@@ -8093,3 +8093,7 @@ issue3799_sequence_clock_unsupported_2023 vvp_tests/issue3799_sequence_clock_uns
 # IEEE 1800-2017/2023 16.8 and 16.12.1: reusable named multiclock bodies.
 issue3801_2017 vvp_tests/issue3801_2017.json
 issue3801_2023 vvp_tests/issue3801_2023.json
+
+# IEEE 1800-2017/2023 10.10: self-determined integral queue operands.
+issue1158_signed_queue_sort_2017 vvp_tests/issue1158_signed_queue_sort_2017.json
+issue1158_signed_queue_sort_2023 vvp_tests/issue1158_signed_queue_sort_2023.json
