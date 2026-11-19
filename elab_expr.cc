@@ -26423,7 +26423,10 @@ static bool report_type_operator_hierarchical_reference_(const PEIdent*ident,
 								 NetScope*scope)
 {
       const pform_scoped_name_t&path = ident->path();
-      if (!scope || path.package || path.name.size() < 2)
+      // The compiler's procedural assertion prefix preserves a lexical
+      // variable reference. It does not make it a source hierarchical name.
+      if (!scope || path.package || path.name.size() < 2
+	  || path.name.front().sva_block)
 	    return false;
 
 	// A scope prefix is hierarchical; variable prefixes (including VIFs)

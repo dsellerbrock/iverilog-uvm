@@ -398,6 +398,21 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 	    }
       }
 
+	// A procedural assertion's compiler-generated path starts in the
+	// checker host, even when an operand is read from a nested action
+	// block or is evaluated at the original queue site in the procedure.
+      if (path_tail.sva_block) {
+	    if (!prefix_scope)
+		  while (scope->type() == NetScope::BEGIN_END
+			 || scope->type() == NetScope::FORK_JOIN)
+			scope = scope->parent();
+	    res->scope = scope->child(hname_t(path_tail.name));
+	    if (!res->scope) return false;
+	    path.push_back(path_tail);
+	    res->path_head = path;
+	    return true;
+      }
+
       bool passed_module_boundary = false;
 
       // At this point, we've stripped right-most components until the search
@@ -1052,7 +1067,7 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 
       for (list<name_component_t>::const_iterator cur = path.name.begin()
 		 ; use_cache && cur != path.name.end() ; ++cur) {
-	    if (! cur->index.empty())
+	    if (! cur->index.empty() || cur->sva_block)
 		  use_cache = false;
       }
 

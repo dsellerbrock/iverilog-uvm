@@ -2663,6 +2663,7 @@ static Module::port_t *module_declare_explicit_port(
       char letter;
       int  int_val;
       unsigned sva_count;
+      LexicalScope* sva_outer_scope;
 
       enum atom_type_t::type_code atom_type;
 
@@ -3310,6 +3311,8 @@ static Module::port_t *module_declare_explicit_port(
 %type <statement> compressed_statement
 %type <statement> loop_statement for_step for_step_opt jump_statement
 %type <statement> concurrent_assertion_statement
+%type <sva_outer_scope> sva_assertion_open
+%destructor { pform_sva_leave_assertion($$); } sva_assertion_open
 %type <statement> deferred_immediate_assertion_statement
 %type <statement> simple_immediate_assertion_statement
 %type <statement> procedural_assertion_statement
@@ -4984,9 +4987,14 @@ sva_action_start
   : %empty { $$ = sva_concurrent_count; }
   ;
 
+sva_assertion_open
+  : '(' { $$ = pform_sva_enter_assertion(); }
+  ;
+
 concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
-  : assert_or_assume K_property '(' property_spec ')' sva_action_start statement_or_null %prec less_than_K_else
-      { sva_check_action(@1, $6, $1 == 1);
+  : assert_or_assume K_property sva_assertion_open property_spec ')' sva_action_start statement_or_null %prec less_than_K_else
+      { pform_sva_leave_assertion($3);
+	sva_check_action(@1, $6, $1 == 1);
 	  /* M9: pass action only. */
 	if (gn_supported_assertions_flag) {
 	      pform_sva_hold_assertion(@1, $4, 0, $7, ($1==4) ? 1 : 0);
@@ -4999,8 +5007,9 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 	}
 	$$ = 0;
       }
-  | assert_or_assume K_property '(' property_spec ')' sva_action_start K_else statement_or_null
-      { sva_check_action(@1, $6, $1 == 1);
+  | assert_or_assume K_property sva_assertion_open property_spec ')' sva_action_start K_else statement_or_null
+      { pform_sva_leave_assertion($3);
+	sva_check_action(@1, $6, $1 == 1);
 	  /* M9: fail action only. */
 	if (gn_supported_assertions_flag) {
 	      /* Preserve an explicit null else action. A null pointer in the
@@ -5021,8 +5030,9 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 	}
 	$$ = 0;
       }
-  | assert_or_assume K_property '(' property_spec ')' sva_action_start statement_or_null K_else statement_or_null
-      { sva_check_action(@1, $6, $1 == 1);
+  | assert_or_assume K_property sva_assertion_open property_spec ')' sva_action_start statement_or_null K_else statement_or_null
+      { pform_sva_leave_assertion($3);
+	sva_check_action(@1, $6, $1 == 1);
 	  /* M9: pass and fail actions. */
 	if (gn_supported_assertions_flag) {
 	      /* As above, distinguish an explicit null else arm from a
@@ -5042,8 +5052,9 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 	}
 	$$ = 0;
       }
-  | K_cover K_property '(' property_spec ')' sva_action_start statement_or_null
-      { sva_check_action(@1, $6, true);
+  | K_cover K_property sva_assertion_open property_spec ')' sva_action_start statement_or_null
+      { pform_sva_leave_assertion($3);
+	sva_check_action(@1, $6, true);
 	  /* M9: cover property counts matches. */
 	if (gn_supported_assertions_flag) {
 	      pform_sva_hold_assertion(@1, $4, 0, $7, 2);
@@ -5058,8 +5069,9 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
       }
       /* For now, cheat, and use property_spec for the sequence specification.
          They are syntactically identical. */
-  | K_cover K_sequence '(' property_spec ')' sva_action_start statement_or_null
-      { sva_check_action(@1, $6, true);
+  | K_cover K_sequence sva_assertion_open property_spec ')' sva_action_start statement_or_null
+      { pform_sva_leave_assertion($3);
+	sva_check_action(@1, $6, true);
 	  /* IEEE 1800-2017 16.14.3: count all sequence matches. */
 	if (gn_supported_assertions_flag) {
 	      $4->sequence_cover = true;
@@ -5079,28 +5091,33 @@ concurrent_assertion_statement /* IEEE1800-2012 A.2.10, M9 engine */
 	pform_sva_destroy_property($4);
         $$ = 0;
       }
-  | assert_or_assume K_property '(' error ')' statement_or_null %prec less_than_K_else
-      { yyerrok;
+  | assert_or_assume K_property sva_assertion_open error ')' statement_or_null %prec less_than_K_else
+      { pform_sva_leave_assertion($3);
+	yyerrok;
         yyerror(@2, "error: Error in property_spec of concurrent assertion item.");
         $$ = 0;
       }
-  | assert_or_assume K_property '(' error ')' K_else statement_or_null
-      { yyerrok;
+  | assert_or_assume K_property sva_assertion_open error ')' K_else statement_or_null
+      { pform_sva_leave_assertion($3);
+	yyerrok;
         yyerror(@2, "error: Error in property_spec of concurrent assertion item.");
         $$ = 0;
       }
-  | assert_or_assume K_property '(' error ')' statement_or_null K_else statement_or_null
-      { yyerrok;
+  | assert_or_assume K_property sva_assertion_open error ')' statement_or_null K_else statement_or_null
+      { pform_sva_leave_assertion($3);
+	yyerrok;
         yyerror(@2, "error: Error in property_spec of concurrent assertion item.");
         $$ = 0;
       }
-  | K_cover K_property '(' error ')' statement_or_null
-      { yyerrok;
+  | K_cover K_property sva_assertion_open error ')' statement_or_null
+      { pform_sva_leave_assertion($3);
+	yyerrok;
         yyerror(@2, "error: Error in property_spec of concurrent assertion item.");
         $$ = 0;
       }
-  | K_cover K_sequence '(' error ')' statement_or_null
-      { yyerrok;
+  | K_cover K_sequence sva_assertion_open error ')' statement_or_null
+      { pform_sva_leave_assertion($3);
+	yyerrok;
         yyerror(@2, "error: Error in property_spec of concurrent assertion item.");
         $$ = 0;
       }

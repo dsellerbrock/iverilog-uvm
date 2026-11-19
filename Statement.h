@@ -285,6 +285,8 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       { concurrent_assertion_only_ = true; }
       bool is_concurrent_assertion_only() const
       { return concurrent_assertion_only_; }
+      void retain_sva_scope() { retain_sva_scope_ = true; }
+      bool retained_sva_scope() const { return retain_sva_scope_; }
       void randsequence_block(ivl_randsequence_block_t kind)
       { randsequence_block_ = kind; }
       ivl_randsequence_block_t randsequence_block() const
@@ -327,6 +329,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       bool vpi_foreach_scope_ = false;
       bool deferred_assertion_process_scope_ = false;
       bool concurrent_assertion_only_ = false;
+      bool retain_sva_scope_ = false;
       ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;
       std::vector<Statement*>list_;
 };

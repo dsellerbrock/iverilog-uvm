@@ -47,6 +47,7 @@ class NetScope;
 class Definitions;
 class PExpr;
 class PEEvent;
+class PBlock;
 class PClass;
 class PScope;
 class PPackage;
@@ -188,6 +189,9 @@ struct name_component_t {
       // being randomized. Preserve the qualifier through parsing so the
       // constraint IR can distinguish otherwise-identical names.
       bool local_scope;
+
+      // Compiler-generated scope component for a procedural assertion operand.
+      const PBlock* sva_block = nullptr;
 };
 
 struct decl_assignment_t {

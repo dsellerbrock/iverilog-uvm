@@ -44,6 +44,7 @@
 # include  "util.h"
 # include  "PConfig.h"
 # include  <list>
+# include  <iterator>
 # include  <functional>
 # include  <map>
 # include  <set>
@@ -1359,15 +1360,89 @@ PBlock* pform_pattern_finish_scope(const struct vlltype&loc,
       return block;
 }
 
-/*
- * Create a new identifier.
- */
+static LexicalScope* sva_source_scope_ = nullptr;
+
+LexicalScope* pform_sva_enter_assertion()
+{
+      LexicalScope*outer = sva_source_scope_;
+      sva_source_scope_ = gn_supported_assertions_flag
+	    ? dynamic_cast<PBlock*>(lexical_scope) : nullptr;
+      return outer;
+}
+
+void pform_sva_leave_assertion(LexicalScope*outer)
+{
+      sva_source_scope_ = outer;
+}
+
+/* The checker is generated outside the procedure. Qualify a reference to
+   a block-local static variable where the source binding is known. Keep
+   the variable in its original storage so the checker can sample it. */
+static const pform_name_t& sva_bind_block_variable_(const pform_name_t&name,
+						    unsigned lexical_pos,
+						    pform_name_t&bound)
+{
+      if (!sva_source_scope_ || name.empty()
+	  || name.front().local_scope || name.front().sva_block)
+	    return name;
+
+      perm_string base = name.front().name;
+      LexicalScope*scope = lexical_scope;
+      for (; scope != sva_source_scope_; scope = scope->parent_scope()) {
+	    if (!dynamic_cast<PBlock*>(scope)
+		|| scope->local_symbols.count(base) || scope->wires.count(base)
+		|| scope->explicit_imports.count(base))
+		  return name;
+      }
+      for (; PBlock*block = dynamic_cast<PBlock*>(scope);
+	   scope = scope->parent_scope()) {
+	    auto wire = scope->wires.find(base);
+	    if (wire != scope->wires.end() && wire->second->lexical_pos() <= lexical_pos) {
+		  ivl_lifetime_t lifetime = wire->second->lifetime_override();
+		  if (lifetime == IVL_VLT_AUTOMATIC
+		      || (lifetime == IVL_VLT_INHERITED
+			  && block->default_lifetime == LexicalScope::AUTOMATIC))
+			return name;
+
+		  bound = name;
+		  for (; block; block = dynamic_cast<PBlock*>(block->parent_scope())) {
+			block->retain_sva_scope();
+			name_component_t component(block->pscope_name());
+			component.sva_block = block;
+			bound.push_front(component);
+		  }
+		  return bound;
+	    }
+	    if (scope->local_symbols.count(base) || scope->explicit_imports.count(base))
+		  return name;
+      }
+      return name;
+}
+
 PEIdent* pform_new_ident(const struct vlltype&loc, const pform_name_t&name)
 {
       if (gn_system_verilog())
 	    check_potential_imports(loc, name.front().name, false);
 
-      return new PEIdent(name, loc.lexical_pos);
+      pform_name_t bound;
+      return new PEIdent(sva_bind_block_variable_(name, loc.lexical_pos, bound),
+			 loc.lexical_pos);
+}
+
+/* Look through the compiler-generated prefix when sizing a sample. */
+static PWire* sva_operand_wire_(const PEIdent*id)
+{
+      if (!id || id->path().package) return nullptr;
+      const pform_name_t&path = id->path().name;
+      const PBlock*block = nullptr;
+      auto name = path.begin();
+      for (; name != path.end() && name->sva_block; ++name)
+	    block = name->sva_block;
+      if (name == path.end() || std::next(name) != path.end())
+	    return nullptr;
+      if (!block) return pform_get_wire_in_scope(name->name);
+      auto wire = block->wires.find(name->name);
+      return wire == block->wires.end() ? nullptr : wire->second;
 }
 
 PTrigger* pform_new_trigger(const struct vlltype&loc, PPackage*pkg,
@@ -2210,7 +2285,10 @@ PECallFunction* pform_make_call_function(const struct vlltype&loc,
 	    cross_function_references_.push_back(reference);
 	  }
 
-      PECallFunction*tmp = new PECallFunction(name, parms);
+      pform_name_t bound;
+      PECallFunction*tmp = new PECallFunction(
+	    name.size() > 1 && !type_args
+	      ? sva_bind_block_variable_(name, loc.lexical_pos, bound) : name, parms);
       tmp->set_leading_type_args(type_args);
       tmp->set_lexical_pos(loc.lexical_pos);
       if (type_args)
@@ -2447,8 +2525,11 @@ PCallTask* pform_make_call_task(const struct vlltype&loc,
          the explicit package_scope rule (e.g. statement form
          `mypkg::func();`). */
       PPackage*pkg = nullptr;
-      if (gn_system_verilog() && name.size() >= 2) {
-	    pkg = pform_test_package_identifier(name.front().name.str());
+      pform_name_t bound;
+      const pform_name_t&path = name.size() > 1 && !type_args
+	    ? sva_bind_block_variable_(name, loc.lexical_pos, bound) : name;
+      if (gn_system_verilog() && path.size() >= 2 && !path.front().sva_block) {
+	    pkg = pform_test_package_identifier(path.front().name.str());
       }
 
       PCallTask*tmp;
@@ -2457,7 +2538,7 @@ PCallTask* pform_make_call_task(const struct vlltype&loc,
 	    tail_path.pop_front();
 	    tmp = new PCallTask(pkg, tail_path, parms);
       } else {
-	    tmp = new PCallTask(name, parms);
+	    tmp = new PCallTask(path, parms);
       }
       tmp->set_leading_type_args(type_args);
       FILE_NAME(tmp, loc);
@@ -10663,7 +10744,7 @@ static bool sva_scope_declares_function_(const Module*module,
 static bool sva_clone_should_qualify_(const pform_name_t&path)
 {
       if (!sva_clone_scope_.prefix || sva_clone_scope_.prefix->empty()
-	  || path.empty()) return false;
+	  || path.empty() || path.front().sva_block) return false;
       perm_string base = path.front().name;
       if (sva_clone_scope_.local_names
 	  && sva_clone_scope_.local_names->count(base)) return false;
@@ -13089,6 +13170,7 @@ static bool sva_clone_name_component_(
 {
       copy.name = source.name;
       copy.local_scope = source.local_scope;
+      copy.sva_block = source.sva_block;
       sva_clone_scope_t no_context;
       std::unique_ptr<sva_clone_scope_guard_t>guard;
       if (caller_context) guard.reset(new sva_clone_scope_guard_t(no_context));
@@ -14669,13 +14751,11 @@ static bool sva_uarray_operand_(PExpr*e, sva_uarray_operand_t&out)
 	    if (args.empty()) return false;
 	    out.id = dynamic_cast<PEIdent*>(args[0].parm);
       }
-      if (!out.id || out.id->path().package
-	  || out.id->path().name.size() != 1
-	  || !out.id->path().name.front().index.empty())
+      if (!out.id || out.id->path().name.empty()
+	  || !out.id->path().name.back().index.empty())
 	    return false;
 
-      out.wire = pform_get_wire_in_scope(
-	    out.id->path().name.front().name);
+      out.wire = sva_operand_wire_(out.id);
       return out.wire && out.wire->unpacked_indices().size() == 1;
 }
 
@@ -14736,7 +14816,7 @@ static bool sva_expand_uarray_operand_(PExpr*e, std::vector<PExpr*>&items)
 	    index.sel = index_component_t::SEL_BIT;
 	    index.msb = new PENumber(new verinum((int64_t)index_value));
 	    index.lsb = index.msb;
-	    path.front().index.push_back(index);
+	    path.back().index.push_back(index);
 	    PEIdent*word = new PEIdent(path, id->lexical_pos());
 	    word->set_line(*id);
 	    if (!outer) {
@@ -16432,13 +16512,9 @@ static bool sva_expr_signed_(PExpr*expr)
       if (PENumber*num = dynamic_cast<PENumber*>(expr))
 	    return num->value().has_sign();
       if (PEIdent*id = dynamic_cast<PEIdent*>(expr)) {
-	    if (!id->path().package && id->path().name.size() == 1) {
-		  PWire*wire = pform_get_wire_in_scope(
-			id->path().name.front().name);
-		  if (wire)
-			return wire->get_signed()
-			    || sva_data_type_signed_(wire->data_type());
-	    }
+	    if (PWire*wire = sva_operand_wire_(id))
+		  return wire->get_signed()
+		      || sva_data_type_signed_(wire->data_type());
 	    return false;
       }
       if (PECastSign*cast = dynamic_cast<PECastSign*>(expr))
@@ -16500,13 +16576,11 @@ static data_type_t* sva_expr_sample_type_(PExpr*expr)
       if (PECastType*cast = dynamic_cast<PECastType*>(expr))
 	    return cast->cast_target();
       PEIdent*id = dynamic_cast<PEIdent*>(expr);
-      if (!id || id->path().package || id->path().name.size() != 1)
-	    return nullptr;
-      PWire*wire = pform_get_wire_in_scope(id->path().name.front().name);
+      PWire*wire = sva_operand_wire_(id);
       if (!wire || !wire->data_type()) return nullptr;
 
       const std::list<index_component_t>&index_list =
-	    id->path().name.front().index;
+	    id->path().name.back().index;
       std::vector<index_component_t>indices(index_list.begin(),
 					     index_list.end());
       size_t unpacked = wire->unpacked_indices().size();
@@ -17029,7 +17103,7 @@ static PEIdent* sva_uarray_word_(const struct vlltype&loc, PEIdent*array,
       index_component_t select;
       select.sel = index_component_t::SEL_BIT;
       select.msb = index;
-      path.front().index.push_back(select);
+      path.back().index.push_back(select);
       PEIdent*word = new PEIdent(path, array->lexical_pos());
       word->reloc_lexical_pos_bind(false);
       word->set_line(*array);
@@ -19927,13 +20001,9 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 			      }
 			      if (const PEIdent*aid =
 				  dynamic_cast<const PEIdent*>(real_operand)) {
-				    if (aid->path().size() == 1) {
-					  PWire*w = pform_get_wire_in_scope(
-						aid->path().back().name);
-					  if (w && dynamic_cast<const real_type_t*>(
-						      w->data_type()))
-						as_real = true;
-				    }
+			      if (PWire*w = sva_operand_wire_(aid))
+				    as_real = dynamic_cast<const real_type_t*>(
+					  w->data_type()) != nullptr;
 			      }
 			}
 			bool sample_signed = wide && !as_real
@@ -43713,11 +43783,13 @@ void pform_block_decls_requires_sv(void)
       }
 }
 
-/* Returns true if the current block scope has no wires, parameters, or events
- * (i.e. no declarations were added, including inline SV-style declarations). */
+/* An unnamed block can be elided if it has no local declarations and is
+   not needed in the path to a variable used by a concurrent assertion. */
 bool pform_block_scope_is_empty(void)
 {
-      return lexical_scope->wires.empty()
+      const PBlock*block = dynamic_cast<const PBlock*>(lexical_scope);
+      return (!block || !block->retained_sva_scope())
+	  && lexical_scope->wires.empty()
 	  && lexical_scope->parameters.empty()
 	  && lexical_scope->events.empty();
 }
