@@ -1,0 +1,4 @@
+issue1372_sequence_or_local_flow normal,-g2017,-gassertions,-s,top ivltests gold=issue1372_sequence_or_local_flow.gold
+issue1372_sequence_or_local_flow_2023 normal,-g2023,-gassertions,-s,top ivltests gold=issue1372_sequence_or_local_flow.gold
+issue1372_sequence_or_local_flow_fail CE,-g2017,-gassertions,-s,top ivltests gold=issue1372_sequence_or_local_flow_fail.gold
+issue1372_sequence_or_local_flow_fail_2023 CE,-g2023,-gassertions,-s,top ivltests gold=issue1372_sequence_or_local_flow_fail.gold

@@ -26050,6 +26050,16 @@ sva_property_t* pform_sva_tree_concat(const struct vlltype&loc,
 				      sva_property_t*prefix, PExpr*delay,
 				      std::vector<sva_seq_step_t>*suffix)
 {
+      if (prefix && suffix && !suffix->empty()
+	  && pform_sva_overridable_bound(delay)) {
+	    cerr << loc << ": sorry: an instance-dependent delay after a "
+		 << "composite sequence is not supported yet." << endl;
+	    error_count += 1;
+	    delete delay;
+	    pform_sva_destroy_property(prefix);
+	    pform_sva_destroy_sequence(suffix);
+	    return nullptr;
+      }
       long cycles = 0;
       if (!prefix || !suffix || suffix->empty()
 	  || !pform_sva_const_long(delay, cycles) || cycles < 0) {
@@ -27020,6 +27030,93 @@ static bool sva_nfa_plan_path_locals_(const sva_nfa_t&nfa,
       return true;
 }
 
+static int sva_lower_local_vars_(const struct vlltype&loc,
+				 std::vector<sva_seq_step_t>&steps,
+				 const std::vector<perm_string>&initial_locals);
+
+/* IEEE 1800-2017/2023 16.10: each successful OR operand continues with
+   its own local values. For fixed chains, copy the continuation into each
+   operand and lower the locals to sampled expressions before the NFA can
+   merge the paths. Return 1 for a diagnosed error, 2 for an unsupported
+   shape and 0 for success or an inapplicable tree. */
+static int sva_lower_or_local_continuation_(
+	const struct vlltype&loc, sva_property_t*prop,
+	std::vector<std::vector<sva_seq_step_t>*>&leaves,
+	const sva_nfa_sub_t*sub)
+{
+      sva_stree_t*concat = prop->tree;
+      if (prop->op_type != 0 || !concat || concat->kind != sva_stree_t::SEQ_CONCAT)
+	    return 0;
+
+      // Declaration initializers are prepended as a same-tick leaf.
+      const sva_stree_t*prefix = nullptr;
+      if (concat->concat_overlap && concat->a->kind == sva_stree_t::LEAF
+	  && concat->b->kind == sva_stree_t::SEQ_CONCAT) {
+	    prefix = concat->a;
+	    concat = concat->b;
+      }
+      const sva_stree_t*fork = concat->a;
+      if (fork->kind != sva_stree_t::SEQ_OR
+	  || std::none_of(leaves.begin(), leaves.end(), sva_chain_local_assignment_count_))
+	    return 0;
+
+      auto fixed_chain = [](const std::vector<sva_seq_step_t>*chain) {
+	    if (chain->empty() || sva_chain_has_match_calls_(chain))
+		  return false;
+	    for (const sva_seq_step_t&st : *chain)
+		  // The automaton builder already caps a single delay at 1024.
+		  if (st.fm || st.grouped_repeat || st.delay_lo > 1024)
+			return false;
+	    long length = 0;
+	    return sva_chain_fixed_len_(*chain, length);
+      };
+      if ((sub && (sub->endpoints || !sub->imports.empty()))
+	  || prop->sequence_cover || !prop->endpoint_event.nil()
+	  || !sva_tree_only_or_(fork) || concat->b->kind != sva_stree_t::LEAF
+	  || !concat->b->chain || (prefix && !prefix->chain)
+	  || !std::all_of(leaves.begin(), leaves.end(), fixed_chain))
+	    return 2;
+
+      sva_stree_t*rewritten = sva_tree_clone_(loc, fork);
+      if (!rewritten) return 2;
+      std::vector<std::vector<sva_seq_step_t>*> branches;
+      sva_tree_leaves_(rewritten, branches);
+      const std::map<perm_string,PExpr*> no_subst;
+      for (auto branch : branches) {
+	    if (prefix) {
+		  auto start = sva_clone_steps_subst_(loc, prefix->chain, no_subst);
+		  if (!start) {
+			sva_tree_delete_(rewritten, true);
+			return 2;
+		  }
+		  start->insert(start->end(), branch->begin(), branch->end());
+		  branch->swap(*start);
+		  delete start;
+	    }
+	    auto suffix = sva_clone_steps_subst_(loc, concat->b->chain, no_subst);
+	    if (!suffix) {
+		  sva_tree_delete_(rewritten, true);
+		  return 2;
+	    }
+	    // SEQ_CONCAT stores N-1 in the suffix for a nonoverlapping ##N.
+	    if (!concat->concat_overlap) {
+		  ++suffix->front().delay_lo;
+		  ++suffix->front().delay_hi;
+	    }
+	    branch->insert(branch->end(), suffix->begin(), suffix->end());
+	    delete suffix;
+	    int result = sva_lower_local_vars_(loc, *branch, prop->local_input_actual_names);
+	    if (result != 0) {
+		  sva_tree_delete_(rewritten, true);
+		  return result;
+	    }
+      }
+      sva_tree_delete_(prop->tree, true);
+      prop->tree = rewritten;
+      leaves.swap(branches);
+      return 0;
+}
+
 /*
  * M9-NFA stage A synthesizer (design: docs/conformance/
  * m9_nfa_design_2026-07-19.md). Lower a concurrent assertion through
@@ -27096,6 +27193,18 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    sva_tree_leaves_(prop->tree, tree_leaves);
 	    for (size_t i = 0 ; i < tree_leaves.size() ; i += 1)
 		  sva_splice_property_sequences_(loc, *tree_leaves[i], prop);
+	    int result = sva_lower_or_local_continuation_(loc, prop, tree_leaves, sub);
+	    if (result == 2) {
+		  prop->tree_sorry = 13;
+		  return false;
+	    }
+	    if (result == 1) {
+		  if (sub) { sub->error = true; return false; }
+		  delete fail_stmt;
+		  delete pass_stmt;
+		  pform_sva_destroy_property(prop);
+		  return true;
+	    }
       } else {
 	    sva_splice_property_sequences_(loc, *prop->seq, prop);
 	    if (prop->antecedent)
@@ -41467,6 +41576,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		       << "a local assignment or read whose path history cannot "
 		       << "be represented by the automaton; the assertion is "
 		       << "dropped." << endl;
+	    else if (prop->tree_sorry == 13)
+		  cerr << loc << ": sorry: this sequence `or' continuation "
+		       << "requires per-path local state that the assertion "
+		       << "automaton cannot preserve in this shape." << endl;
 	    else if (prop->tree_sorry == 4 || sva_property_has_tree_first_match_(prop))
 		  cerr << loc << ": sorry: this `first_match' shape is not "
 		       << "supported by the automaton engine yet; the "
@@ -41707,18 +41820,21 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			           use the same clone as composite properties so
 			           each instantiation retains its own wrapper. */
 			      sva_property_t*inst = nullptr;
+			      bool named_sequence_tree = named->tree
+				    && sva_property_shaped_sequences.count(pit->first);
 			      bool linear_multiclock = named_multiclocked
 				    && !named->tree && !named->ante_tree && !named->pa;
 			      if (linear_multiclock || named->tree || named->pa
 				  || (named->mc_more && !named->mc_more->empty())) {
-				    inst = linear_multiclock || named->pa
+				    inst = linear_multiclock || named_sequence_tree || named->pa
 					  || sva_property_has_tree_first_match_(named)
 					  ? sva_clone_property_(loc, named) : nullptr;
-				    if (!inst && linear_multiclock) {
+				    if (!inst && (linear_multiclock || named_sequence_tree)) {
 					  const char*reference_kind =
 						sva_property_shaped_sequences.count(pit->first)
 						? "sequence" : "property";
-					  cerr << loc << ": sorry: cannot clone the body of named multiclocked "
+					  cerr << loc << ": sorry: cannot clone the body of named "
+					       << (linear_multiclock ? "multiclocked " : "")
 					       << reference_kind << " `" << property_name
 					       << "'; the assertion is dropped." << endl;
 					  error_count += 1;

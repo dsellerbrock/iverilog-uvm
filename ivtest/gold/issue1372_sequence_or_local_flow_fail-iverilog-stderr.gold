@@ -1,0 +1,2 @@
+ivltests/issue1372_sequence_or_local_flow_fail.v:4: error: local variable `x' is referenced where it is unassigned; it shall be assigned before the reference (IEEE 1800-2017/2023 16.10, F.5.4).
+ivltests/issue1372_sequence_or_local_flow_fail.v:9: error: local variable `x' is referenced where it is unassigned; it shall be assigned before the reference (IEEE 1800-2017/2023 16.10, F.5.4).

@@ -3055,6 +3055,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
 %type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
+  sva_grouped_seq_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
 %type <subroutine_call> sva_match_call
@@ -3068,6 +3069,7 @@ static Module::port_t *module_declare_explicit_port(
 %destructor { pform_sva_destroy_property($$); }
   property_expr property_spec sva_multiclock_seq
   sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
+  sva_grouped_seq_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %destructor { pform_sva_destroy_sequence($$); }
   sva_seq_expr sva_seq_atom
@@ -8353,6 +8355,12 @@ sequence_declaration /* IEEE 1800-2017/2023 16.8 */
 	pform_sva_declare_sequence_spec(@2, $2, $4);
 	delete[] $2;
       }
+  | K_sequence IDENTIFIER ';' sva_grouped_seq_concat ';'
+      K_endsequence sva_sequence_end_label_opt
+      { check_end_label(@7, "sequence", $2, $7);
+	pform_sva_declare_sequence_spec(@2, $2, $4);
+	delete[] $2;
+      }
   /* A sequence_expr can carry a leading clocking_event and can itself be a
      multiclocked/combinator sequence.  Preserve the property-shaped IR. */
   | K_sequence IDENTIFIER ';' event_control property_expr ';' K_endsequence
@@ -8415,6 +8423,12 @@ sequence_declaration /* IEEE 1800-2017/2023 16.8 */
       }
   | K_sequence IDENTIFIER ';' sva_int_local_declarations sva_seq_comb ';' K_endsequence ':' IDENTIFIER
       { check_end_label(@9, "sequence", $2, $9);
+	pform_sva_declare_sequence_spec(@2, $2, $5);
+	delete[] $2;
+      }
+  | K_sequence IDENTIFIER ';' sva_int_local_declarations sva_grouped_seq_concat ';'
+      K_endsequence sva_sequence_end_label_opt
+      { check_end_label(@8, "sequence", $2, $8);
 	pform_sva_declare_sequence_spec(@2, $2, $5);
 	delete[] $2;
       }
@@ -10158,8 +10172,8 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      including when that sequence continues through a cycle delay.  Keep the
      grouped prefix exact: a global `sva_seq_comb ## ...' alternative would
      overlap every ordinary linear sequence concatenation. */
-  | '(' sva_seq_comb ')' K_CYCLE_DELAY sva_cycle_delay_value sva_seq_expr
-      { $$ = pform_sva_tree_concat(@4, $2, $5, $6); }
+  | sva_grouped_seq_concat
+      { $$ = $1; }
   /* IEEE 1800-2017 A.2.10: the consequent is recursively a complete
      property_expr. Keeping this as the grammar's single ordinary
      implication rule is essential: `not', `always', `until', throughout,
@@ -10547,6 +10561,11 @@ sva_seq_comb
    helper preserves ##0 endpoint fusion and fixed ##N separation exactly. */
 sva_seq_comb_concat
   : sva_seq_comb K_CYCLE_DELAY sva_cycle_delay_value sva_seq_expr
+      { $$ = pform_sva_tree_concat(@2, $1, $3, $4); }
+  ;
+
+sva_grouped_seq_concat
+  : sva_grouped_seq_comb K_CYCLE_DELAY sva_cycle_delay_value sva_seq_expr
       { $$ = pform_sva_tree_concat(@2, $1, $3, $4); }
   ;
 
