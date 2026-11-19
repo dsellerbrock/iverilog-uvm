@@ -118,6 +118,8 @@ static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const ch
 static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                                         vvp_net_t*root_net, const vvp_object_t&root_obj,
                                         const char*where);
+static bool container_opcode_runtime_fatal_();
+static bool stream_class_error_(vthread_t thr, const char*message);
 	/* R3 (IEEE 1800-2017 18.13.1) hierarchical RNG seeding -- defined in
 	   full below, next to design_root_rng_next_(), but needed here
 	   because of_STD_RANDOMIZE_WITH (which uses them) is textually
@@ -27085,6 +27087,28 @@ bool of_LOAD_QO_OBJ(vthread_t thr, vvp_code_t)
       return true;
 }
 
+bool of_LOAD_QO_OBJ_PEEK(vthread_t thr, vvp_code_t)
+{
+      if (!thr->object_stack_size())
+	    return stream_class_error_(thr, "%load/qo/obj/peek object stack underflow.");
+
+      vvp_net_t*root_net = thr->peek_object_source_net(0);
+      vvp_object_t root = thr->peek_object_root(0);
+      vvp_object_t recv, word;
+      thr->pop_object(recv);
+      vvp_darray*array = recv.peek<vvp_darray>();
+      if (!recv.test_nil() && !recv.peek<vvp_darray_object>()
+	  && !recv.peek<vvp_queue_object>())
+	    return stream_class_error_(thr, "%load/qo/obj/peek requires an object array.");
+      int64_t index = darray_canonical_index_(array, thr->words[3].w_int);
+      if (array && thr->flags[4] == BIT4_0
+	  && container_index_fits_runtime_api_(index)
+	  && static_cast<uint64_t>(index) < array->get_size())
+	    array->get_word(static_cast<unsigned>(index), word);
+      thr->push_object(word, root_net, root);
+      return true;
+}
+
 /*
  * %dar/elem/proto
  *
@@ -28635,6 +28659,22 @@ bool of_LOAD_OBJA(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+bool of_LOAD_OBJA_PEEK(vthread_t thr, vvp_code_t cp)
+{
+      unsigned reg = cp->bit_idx[0];
+      vvp_array_t array = resolve_runtime_array_(cp, "%load/obja/peek");
+      if (reg >= vthread_s::WORDS_COUNT || !array)
+	    return stream_class_error_(thr, "invalid %load/obja/peek operands.");
+
+      vvp_object_t word;
+      int64_t index = thr->words[reg].w_int;
+      if (thr->flags[4] == BIT4_0 && container_index_fits_runtime_api_(index)
+	  && !array->peek_word_obj(static_cast<unsigned>(index), word))
+	    return stream_class_error_(thr, "%load/obja/peek requires an object array.");
+      thr->push_object(word);
+      return true;
+}
+
 /*
  * %load/real <var-label>
  */
@@ -29626,8 +29666,6 @@ bool of_STREAM_FLATTEN_OBJ(vthread_t thr, vvp_code_t)
       thr->push_vec4(dar->get_bitstream(true));
       return true;
 }
-
-static bool container_opcode_runtime_fatal_();
 
 static bool stream_cast_append_(vvp_vector4_t&stream,
 				const vvp_vector4_t&piece)
@@ -30653,6 +30691,25 @@ bool of_STREAM_END_R(vthread_t thr, vvp_code_t cp)
       return do_stream_end(thr, cp, false);
 }
 
+static vvp_vector4_t inverse_stream_blocks_(const vvp_vector4_t&value,
+					    unsigned slice)
+{
+      unsigned width = value.size();
+      if (slice == 0 || width <= slice)
+	    return value;
+
+      // The source's final partial block returns to the most significant end.
+      vvp_vector4_t result(width, BIT4_0);
+      unsigned full = width / slice;
+      unsigned rem = width % slice;
+      if (rem)
+	    result.set_vec(width - rem, value.subvalue(0, rem));
+      for (unsigned idx = 0; idx < full; idx += 1)
+	    result.set_vec((full - 1 - idx)*slice,
+			   value.subvalue(rem + idx*slice, slice));
+      return result;
+}
+
 /*
  * %stream/unpack/l <slice>, <tw>   (stream operator <<)
  * %stream/unpack/r <slice>, <tw>   (stream operator >>)
@@ -30696,25 +30753,7 @@ static bool do_stream_unpack(vthread_t thr, vvp_code_t cp, bool reverse)
 	    w = val.size();
       }
 
-      if (reverse && slice > 0 && w > slice) {
-	    // Inverse of the 11.4.14.2 block re-ordering: the input's
-	    // top slice-size block returns to the LSB end; the LSB-end
-	    // partial block (w % slice bits) returns to the top.
-	    vvp_vector4_t res(w, BIT4_0);
-	    unsigned full = w / slice;
-	    unsigned rem  = w % slice;
-	    if (rem)
-		  res.set_vec(w - rem, val.subvalue(0, rem));
-	    for (unsigned i = 0 ; i < full ; i += 1) {
-		    // Input block just above the rem bits maps to the
-		    // output block below the rem bits, and so on down.
-		  res.set_vec((full - 1 - i)*slice,
-			      val.subvalue(rem + i*slice, slice));
-	    }
-	    val = res;
-      }
-
-      thr->push_vec4(val);
+      thr->push_vec4(reverse ? inverse_stream_blocks_(val, slice) : val);
       return true;
 }
 
@@ -30726,6 +30765,389 @@ bool of_STREAM_UNPACK_L(vthread_t thr, vvp_code_t cp)
 bool of_STREAM_UNPACK_R(vthread_t thr, vvp_code_t cp)
 {
       return do_stream_unpack(thr, cp, false);
+}
+
+namespace {
+
+struct stream_class_leaf_run_t {
+      vvp_object_t receiver;
+      size_t property;
+      unsigned width;
+      unsigned count;
+};
+
+struct stream_class_field_t {
+      unsigned peer_width = 0;
+      bool bound_peer = false;
+      bool two_state_peer = false;
+      vvp_object_t receiver;
+      vvp_object_t root;
+      vvp_net_t*root_net = nullptr;
+      vector<stream_class_leaf_run_t> leaves;
+};
+
+struct stream_class_capture_t : vvp_object {
+      stream_class_field_t field;
+      unsigned width = 0;
+      bool consumed = false;
+};
+
+// Keep the assignment's read-only layout snapshot and retained handles on
+// the object stack until the last field is stored.
+struct stream_class_plan_t : vvp_object {
+      vector<stream_class_field_t> fields;
+      vvp_vector4_t stream;
+      unsigned remaining = 0;
+      size_t next = 0;
+};
+
+void notify_stream_class_store_(vthread_t thr, const stream_class_field_t&field,
+				const vvp_object_t&receiver)
+{
+      vvp_net_t*root_net = field.root_net;
+      vvp_fun_signal_object*root_fun = signal_object_fun_(root_net);
+      if (!root_fun || root_fun->peek_object() != field.root)
+	    root_net = nullptr;
+      notify_mutated_object_root_(thr, receiver, root_net, field.root,
+				  "stream-class-unpack");
+}
+
+// .class property qualifier bits (IEEE 1800 8.18).
+const unsigned STREAM_PROP_PROTECTED = 2;
+const unsigned STREAM_PROP_LOCAL = 4;
+// VVP also records the source type of chandle-backed integral storage.
+const unsigned STREAM_PROP_CHANDLE = 64;
+
+bool stream_class_number_(const char*&text, unsigned&value)
+{
+      if (*text < '0' || *text > '9')
+	    return false;
+      value = 0;
+      do {
+	    unsigned digit = *text++ - '0';
+	    if (value > (UINT_MAX - digit) / 10)
+		  return false;
+	    value = 10*value + digit;
+      } while (*text >= '0' && *text <= '9');
+      return true;
+}
+
+const class_type* stream_property_owner_(const class_type*type, size_t property)
+{
+      set<const class_type*> seen;
+      for (const class_type*base = type->runtime_super();
+	   base && property < base->property_count(); base = type->runtime_super()) {
+	    if (!seen.insert(type).second)
+		  return nullptr;
+	    type = base;
+      }
+      return type;
+}
+
+bool stream_property_accessible_(const class_type*owner,
+				 const class_type*access, unsigned qualifier)
+{
+      set<const class_type*> seen;
+      for (; access && seen.insert(access).second; access = access->runtime_super()) {
+	    if (access == owner
+		|| (!owner->dispatch_prefix().empty()
+		    && access->dispatch_prefix() == owner->dispatch_prefix()))
+		  return true;
+	    if (qualifier & STREAM_PROP_LOCAL)
+		  break;
+      }
+      return false;
+}
+
+uint64_t stream_dimension_size_(const pair<int,int>&dim)
+{
+      const int64_t delta = static_cast<int64_t>(dim.first) - dim.second;
+      return static_cast<uint64_t>(delta < 0 ? -delta : delta) + 1;
+}
+
+unsigned stream_class_slot_(const vector<pair<int,int>>&dims, unsigned ordinal)
+{
+      // Canonical property slots use ascending numeric indices in every
+      // dimension. A foreach traversal starts each dimension at its left
+      // bound, so reverse each descending dimension independently.
+      uint64_t slot = 0;
+      uint64_t stride = 1;
+      for (auto dim = dims.rbegin(); dim != dims.rend(); ++dim) {
+	    uint64_t size = stream_dimension_size_(*dim);
+	    uint64_t index = ordinal % size;
+	    ordinal /= size;
+	    if (dim->first > dim->second)
+		  index = size - 1 - index;
+	    slot += index*stride;
+	    stride *= size;
+      }
+      return static_cast<unsigned>(slot);
+}
+
+bool stream_class_plan_object_(vthread_t thr, const vvp_object_t&receiver,
+			       stream_class_field_t&field, unsigned&width,
+			       const class_type*access, vector<const vvp_cobject*>&active)
+{
+      if (receiver.test_nil())
+	    return true;
+      vvp_cobject*object = receiver.peek<vvp_cobject>();
+      const class_type*type = object ? object->get_defn() : nullptr;
+      if (!type || type->is_tagged_union_type() || type->is_covergroup())
+	    return stream_class_error_(thr, "unsupported object layout.");
+      if (find(active.begin(), active.end(), object) != active.end())
+	    return stream_class_error_(thr, "cyclic object layout (IEEE 1800 11.4.14.1).");
+      if (active.size() >= 128)
+	    return stream_class_error_(thr, "object layout exceeds the VVP nesting limit.");
+      active.push_back(object);
+
+      // Runtime class properties retain declaration order, including the
+      // base prefix.
+      size_t count = type->property_count();
+      if (type->is_union_type() && count)
+	    count = 1;
+      for (size_t property = 0; property < count; property += 1) {
+	    if (type->property_is_static(property))
+		  continue;
+	    unsigned qualifier = type->property_qualifier(property);
+	    const auto&dims = type->property_dimensions(property);
+	    unsigned words = 1;
+	    for (const auto&dim : dims) {
+		  uint64_t size = stream_dimension_size_(dim);
+		  if (size > UINT_MAX / words)
+			return stream_class_error_(thr, "unsupported fixed-array size.");
+		  words *= static_cast<unsigned>(size);
+	    }
+	    const unsigned bits = type->property_vec4_width(property);
+	    if (words != type->property_array_size(property))
+		  return stream_class_error_(thr, "invalid fixed-array layout.");
+	    if (type->property_is_void(property) || (qualifier & STREAM_PROP_CHANDLE))
+		  return stream_class_error_(thr, "unsupported non-bit-stream property type.");
+
+	    const class_type*declared = type->property_declared_class_type(property);
+	    bool check_access = qualifier & (STREAM_PROP_PROTECTED | STREAM_PROP_LOCAL);
+	    bool const_value = type->property_is_const(property)
+		  && (bits || (declared && declared->is_struct_type()));
+	    if (check_access || const_value) {
+		  const class_type*owner = stream_property_owner_(type, property);
+		  if (!owner)
+			return stream_class_error_(thr, "invalid declaring class.");
+		  if (check_access && !stream_property_accessible_(owner, access, qualifier)) {
+			cerr << thr->get_fileline() << "VVP error: class streaming unpack: "
+			     << "property " << owner->class_name() << "::"
+			     << type->property_name(property)
+			     << " is not accessible (IEEE 1800 8.18 and 11.4.14.1)." << endl;
+			return container_opcode_runtime_fatal_();
+		  }
+		  if (const_value) {
+			cerr << thr->get_fileline() << "VVP error: class streaming unpack: "
+			     << "cannot write const property " << owner->class_name() << "::"
+			     << type->property_name(property) << " (IEEE 1800 8.19)." << endl;
+			return container_opcode_runtime_fatal_();
+		  }
+	    }
+	    if (bits) {
+		  if (words > (UINT_MAX - width) / bits)
+			return stream_class_error_(thr, "target width exceeds the VVP limit.");
+		  width += words*bits;
+		  field.leaves.push_back({receiver, property, bits, words});
+	    } else {
+		  if (!declared || type->property_is_virtual_interface(property))
+			return stream_class_error_(thr, "unsupported non-fixed or nonintegral property layout.");
+		  size_t before = field.leaves.size();
+		  for (unsigned index = 0; index < words; index += 1) {
+			vvp_object_t member;
+			object->peek_object_storage(property, member,
+						    stream_class_slot_(dims, index));
+			if (declared->is_struct_type() && member.test_nil())
+			      return stream_class_error_(thr, "missing fixed aggregate storage.");
+			if (!stream_class_plan_object_(thr, member, field, width, access, active))
+			      return false;
+		  }
+		  // An aggregate union member is filled through its existing
+		  // value object. Mark the member active after its leaves are set.
+		  if (type->is_union_type() && field.leaves.size() != before)
+			field.leaves.push_back({receiver, property, 0, 0});
+	    }
+      }
+      active.pop_back();
+      return true;
+}
+
+bool stream_class_capture_(vthread_t thr, const class_type*access)
+{
+      if (!thr->object_stack_size())
+	    return stream_class_error_(thr, "%stream/class/capture object stack underflow.");
+      unique_ptr<stream_class_capture_t> capture(new stream_class_capture_t);
+      vector<const vvp_cobject*> active;
+      const vvp_object_t&receiver = thr->peek_object();
+      if (vvp_cobject*object = receiver.peek<vvp_cobject>())
+	    if (object->get_defn()->is_struct_type())
+		  return stream_class_error_(thr, "%stream/class/capture requires a class handle.");
+      capture->field.receiver = receiver;
+      capture->field.root_net = thr->peek_object_source_net(0);
+      capture->field.root = thr->peek_object_root(0);
+      if (capture->field.root.test_nil())
+	    capture->field.root = receiver;
+      if (!stream_class_plan_object_(thr, receiver, capture->field, capture->width,
+				     access, active))
+	    return false;
+      thr->pop_object(1);
+      thr->push_object(vvp_object_t(capture.release()));
+      return true;
+}
+
+} // namespace
+
+static bool stream_class_error_(vthread_t thr, const char*message)
+{
+      cerr << thr->get_fileline() << "VVP error: class streaming unpack: "
+	   << message << endl;
+      return container_opcode_runtime_fatal_();
+}
+
+bool of_STREAM_CLASS_CAPTURE(vthread_t thr, vvp_code_t)
+{
+      return stream_class_capture_(thr, nullptr);
+}
+
+bool of_STREAM_CLASS_CAPTURE_IN(vthread_t thr, vvp_code_t cp)
+{
+      const class_type*access = dynamic_cast<const class_type*>(cp->handle);
+      if (!access || access->is_struct_type())
+	    return stream_class_error_(thr, "invalid lexical class operand.");
+      return stream_class_capture_(thr, access);
+}
+
+bool of_STREAM_CLASS_PREPARE(vthread_t thr, vvp_code_t cp)
+{
+      // Layout: <slice>:<width for signal, [pb]<width> for property, 0 for
+      // class>,... . A zero slice denotes >>. Prefix b denotes 2-state.
+      unique_ptr<stream_class_plan_t> plan(new stream_class_plan_t);
+      const char*text = cp->text;
+      unsigned slice;
+      if (!text || !stream_class_number_(text, slice) || *text++ != ':')
+	    return stream_class_error_(thr, "malformed destination layout.");
+
+      unsigned width = 0;
+      size_t objects = 0;
+      bool has_class = false;
+      do {
+	    stream_class_field_t field;
+	    if (*text == 'p' || *text == 'b') {
+		  field.bound_peer = true;
+		  field.two_state_peer = *text == 'b';
+		  ++text;
+	    }
+	    if (!stream_class_number_(text, field.peer_width)
+		|| (field.bound_peer && !field.peer_width)
+		|| field.peer_width > UINT_MAX - width)
+		  return stream_class_error_(thr, "malformed or overflowing destination width.");
+	    width += field.peer_width;
+	    if (!field.peer_width)
+		  has_class = true;
+	    if (!field.peer_width || field.bound_peer)
+		  objects += 1;
+	    plan->fields.push_back(std::move(field));
+	    if (!*text)
+		  break;
+	    if (*text++ != ',')
+		  return stream_class_error_(thr, "malformed destination layout.");
+      } while (true);
+      if (!has_class || objects > thr->object_stack_size() || !thr->vec4_stack_size())
+	    return stream_class_error_(thr, "invalid destination layout or stack underflow.");
+
+      unsigned depth = static_cast<unsigned>(objects);
+      for (auto&field : plan->fields) {
+	    if (field.bound_peer) {
+		  depth -= 1;
+		  field.receiver = thr->peek_object(depth);
+		  field.root_net = thr->peek_object_source_net(depth);
+		  field.root = thr->peek_object_root(depth);
+		  if (!field.receiver.test_nil()) {
+			vvp_lvalue_ref*ref = field.receiver.peek<vvp_lvalue_ref>();
+			if (!ref || ref->value_kind() != vvp_lvalue_ref::VALUE_VEC4
+			    || ref->mailbox_value_width() != field.peer_width)
+			      return stream_class_error_(thr, "invalid fixed property peer.");
+		  }
+		  continue;
+	    }
+	    if (field.peer_width)
+		  continue;
+	    stream_class_capture_t*capture =
+		  thr->peek_object(--depth).peek<stream_class_capture_t>();
+	    if (!capture || capture->consumed || capture->width > UINT_MAX - width)
+		  return stream_class_error_(thr, "invalid captured receiver or overflowing target width.");
+	    width += capture->width;
+	    field = std::move(capture->field);
+	    capture->consumed = true;
+      }
+
+      vvp_vector4_t source = thr->pop_vec4();
+      if (source.size() < width) {
+	    cerr << thr->get_fileline() << "VVP error: class streaming unpack: target requires "
+		 << width << " bits, but the source provides only " << source.size()
+		 << " (IEEE 1800 11.4.14.3)." << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+      if (width)
+	    plan->stream = inverse_stream_blocks_(source.subvalue(source.size() - width, width),
+						  slice);
+      plan->remaining = width;
+      thr->pop_object(static_cast<unsigned>(objects));
+      thr->push_object(vvp_object_t(plan.release()));
+      return true;
+}
+
+bool of_STREAM_CLASS_NEXT(vthread_t thr, vvp_code_t cp)
+{
+      if (!thr->object_stack_size())
+	    return stream_class_error_(thr, "%stream/class/next object stack underflow.");
+      vvp_object_t holder = thr->peek_object();
+      stream_class_plan_t*plan = holder.peek<stream_class_plan_t>();
+      if (!plan || plan->next >= plan->fields.size())
+	    return stream_class_error_(thr, "%stream/class/next requires an unpack plan.");
+      const stream_class_field_t&field = plan->fields[plan->next];
+      if (cp->number != field.peer_width)
+	    return stream_class_error_(thr, "%stream/class/next does not match the destination layout.");
+
+      if (field.peer_width) {
+	    plan->remaining -= field.peer_width;
+	    vvp_vector4_t value = plan->stream.subvalue(plan->remaining, field.peer_width);
+	    if (field.bound_peer) {
+		  if (vvp_lvalue_ref*ref = field.receiver.peek<vvp_lvalue_ref>()) {
+			vvp_object_t receiver = ref->mutation_receiver();
+			vvp_object*object = receiver.peek<vvp_object>();
+			uint64_t epoch = object ? object->mutation_epoch() : 0;
+			if (field.two_state_peer)
+			      value.cast2();
+			ref->store_vec4(value);
+			if (object && epoch != object->mutation_epoch())
+			      notify_stream_class_store_(thr, field, receiver);
+		  }
+	    } else {
+		  thr->push_vec4(value);
+	    }
+      } else {
+	    for (const auto&leaf : field.leaves) {
+		  vvp_cobject*object = leaf.receiver.peek<vvp_cobject>();
+		  if (!leaf.width) {
+			object->activate_union_member(leaf.property);
+			notify_stream_class_store_(thr, field, leaf.receiver);
+			continue;
+		  }
+		  const auto&dims = object->get_defn()->property_dimensions(leaf.property);
+		  for (unsigned idx = 0; idx < leaf.count; idx += 1) {
+			plan->remaining -= leaf.width;
+			object->set_vec4(leaf.property,
+					 plan->stream.subvalue(plan->remaining, leaf.width),
+					 stream_class_slot_(dims, idx));
+			notify_stream_class_store_(thr, field, leaf.receiver);
+		  }
+	    }
+      }
+      if (++plan->next == plan->fields.size())
+	    thr->pop_object(1);
+      return true;
 }
 
 /*
@@ -33691,6 +34113,35 @@ bool of_PROP_OBJ(vthread_t thr, vvp_code_t cp)
 
       thr->push_object(val, thr->peek_object_source_net(0), thr->peek_object_root(0));
 
+      return true;
+}
+
+bool of_PROP_OBJ_PEEK(vthread_t thr, vvp_code_t cp)
+{
+      unsigned reg = cp->bit_idx[0];
+      if (!thr->object_stack_size() || reg >= vthread_s::WORDS_COUNT)
+	    return stream_class_error_(thr, "invalid %prop/obj/peek operands or stack.");
+      const vvp_object_t&receiver = thr->peek_object();
+      vvp_object_t value;
+      if (!receiver.test_nil()) {
+	    vvp_cobject*object = receiver.peek<vvp_cobject>();
+	    const class_type*type = object ? object->get_defn() : nullptr;
+	    uint64_t property = cp->number;
+	    if (!type || property >= type->property_count())
+		  return stream_class_error_(thr, "unsupported %prop/obj/peek receiver or property.");
+	    const string&kind = type->property_base_type(property);
+	    if (kind.empty() || (kind[0] != 'o' && kind[0] != 'D'
+				  && kind[0] != 'Q' && kind[0] != 'M'))
+		  return stream_class_error_(thr, "%prop/obj/peek requires an object property.");
+	    uint64_t index = reg ? thr->words[reg].w_uint : 0;
+	    if (type->is_tagged_union_type()
+		&& object->union_active_member() != static_cast<int>(property))
+		  return stream_class_error_(thr, "selected union member is inactive.");
+	    if (index < type->property_array_size(property))
+		  object->peek_object_storage(property, value, index);
+      }
+      thr->push_object(value, thr->peek_object_source_net(0),
+		       thr->peek_object_root(0));
       return true;
 }
 

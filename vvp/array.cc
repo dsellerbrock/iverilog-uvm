@@ -1772,6 +1772,18 @@ void __vpiArray::get_word_obj(unsigned address, vvp_object_t&val)
       return;
 }
 
+bool __vpiArray::peek_word_obj(unsigned address, vvp_object_t&val)
+{
+      __vpiArray*owner = canonical_value_owner_();
+      if (!vpi_array_is_object(owner))
+	    return false;
+      if (address < owner->vals->get_size())
+	    owner->vals->get_word(address, val);
+      else
+	    val.reset();
+      return true;
+}
+
 string __vpiArray::get_word_str(unsigned address)
 {
       __vpiArray*owner = canonical_value_owner_();

@@ -114,6 +114,15 @@ static int is_unpacked_array_property_type(ivl_type_t ptype)
 
 static void emit_struct_cobject_dependencies_(ivl_type_t ptype);
 
+static unsigned runtime_property_qualifier_(ivl_type_t type, unsigned qual)
+{
+      if (is_unpacked_array_property_type(type))
+	    type = ivl_type_element(type);
+      // Class storage encodes both chandle and a 64-bit value as b64.
+      // Preserve the distinction for the class unpack layout check.
+      return ivl_type_is_chandle(type) ? qual | 64U : qual;
+}
+
 static void emit_struct_cobject_definition_(ivl_type_t struct_type)
 {
       int idx;
@@ -146,7 +155,7 @@ static void emit_struct_cobject_definition_(ivl_type_t struct_type)
 	    const char*rand_prefix = (qual & 16) ? "rc" : (qual & 8) ? "r" : "";
 	    char qualifier_prefix[32];
 	    snprintf(qualifier_prefix, sizeof qualifier_prefix, "q%x:%s",
-		     (unsigned)qual, rand_prefix);
+		     runtime_property_qualifier_(ptype, (unsigned)qual), rand_prefix);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(struct_type, idx));
 	    show_prop_type(ptype, qualifier_prefix);
 	    note_property_vartype(struct_type, idx);
@@ -507,7 +516,7 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    const char*rand_prefix = (qual & 16) ? "rc" : (qual & 8) ? "r" : "";
 	    char qualifier_prefix[32];
 	    snprintf(qualifier_prefix, sizeof qualifier_prefix, "q%x:%s",
-		     (unsigned)qual, rand_prefix);
+		     runtime_property_qualifier_(ptype, (unsigned)qual), rand_prefix);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(classtype,idx));
 	    show_prop_type(ptype, qualifier_prefix);
 	    note_property_vartype(classtype, idx);

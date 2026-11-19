@@ -188,6 +188,9 @@ class vvp_cobject : public vvp_object {
 
       void set_object(size_t pid, const vvp_object_t&val, size_t idx);
       void get_object(size_t pid, vvp_object_t&val, size_t idx);
+      // Read the existing object storage without copying the common initial
+      // sequence of an inactive untagged union member.
+      void peek_object_storage(size_t pid, vvp_object_t&val, size_t idx) const;
 
       // IEEE 1800-2017/2023 8.19: an authorized constructor assignment
       // may initialize a non-static instance constant exactly once on each

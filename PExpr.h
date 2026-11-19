@@ -2008,7 +2008,8 @@ class PEStreaming : public PExpr {
       // vector of expr_wid bits (aligned at runtime).
       NetExpr* elaborate_stream_sfunc(Design*des, NetScope*scope,
                                       ivl_type_t rtype,
-                                      unsigned expr_wid) const;
+                                      unsigned expr_wid,
+                                      ivl_type_t access_class = nullptr) const;
     private:
       void collect_operands_(std::vector<PExpr*>&ops) const;
       unsigned resolve_slice_(Design* des, NetScope* scope) const;
