@@ -7126,3 +7126,5 @@ issue3751_2017 normal,-g2017,-s,issue3751 ivltests gold=issue3751.gold
 issue3751_2023 normal,-g2023,-s,issue3751 ivltests gold=issue3751.gold
 issue3782_2017 normal,-g2017,-s,issue3782 ivltests gold=issue3782.gold
 issue3782_2023 normal,-g2023,-s,issue3782 ivltests gold=issue3782.gold
+issue3836_mixed_storage_2017 normal,-g2017,-s,issue3836_mixed_storage ivltests gold=issue3836_mixed_storage.gold
+issue3836_mixed_storage_2023 normal,-g2023,-s,issue3836_mixed_storage ivltests gold=issue3836_mixed_storage.gold

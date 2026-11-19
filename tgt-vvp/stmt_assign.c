@@ -473,7 +473,7 @@ static void put_vec_to_ret_slice(ivl_signal_t sig, struct vec_slice_info*slice,
 static void put_vec_to_signal_part(ivl_signal_t sig, int part_off_idx,
 				   unsigned wid)
 {
-      if (ivl_signal_type(sig) == IVL_SIT_UWIRE)
+      if (signal_is_uwire_net(sig))
 	    fprintf(vvp_out, "    %%force/vec4/off v%p_0, %d;\n",
 		    sig, part_off_idx);
       else
@@ -532,7 +532,7 @@ static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 		  fprintf(vvp_out, "    %%clip/vec4/d %d, %d;\n",
 			  slice->u_.part_select_dynamic.word_idx_reg,
 			  slice->dynamic_carrier_reg);
-		  if (ivl_signal_type(sig) == IVL_SIT_UWIRE)
+		  if (signal_is_uwire_net(sig))
 			fprintf(vvp_out, "    %%force/vec4/off v%p_0, %d;\n", sig,
 				slice->u_.part_select_dynamic.word_idx_reg);
 		  else
@@ -545,7 +545,7 @@ static void put_vec_to_lval_slice(ivl_lval_t lval, struct vec_slice_info*slice,
 			  slice->carrier_wid);
 		  fprintf(vvp_out, "    %%clip/vec4/b %d;\n",
 			  slice->u_.part_select_dynamic.word_idx_reg);
-		  if (ivl_signal_type(sig) == IVL_SIT_UWIRE)
+		  if (signal_is_uwire_net(sig))
 			fprintf(vvp_out, "    %%force/vec4/off v%p_0, %d;\n", sig,
 				slice->u_.part_select_dynamic.word_idx_reg);
 		  else
@@ -1826,7 +1826,7 @@ static void store_vec4_to_one_lval(ivl_lval_t lval)
 		  if (signal_is_return_value(lsig))
 			fprintf(vvp_out, "    %%ret/vec4/v 0, %d; Assign to %s\n",
 				offset_index, ivl_signal_basename(lsig));
-		  else if (ivl_signal_type(lsig) == IVL_SIT_UWIRE)
+		  else if (signal_is_uwire_net(lsig))
 			fprintf(vvp_out, "    %%force/vec4/off v%p_0, %d;\n",
 				lsig, offset_index);
 		  else
@@ -1848,7 +1848,7 @@ static void store_vec4_to_one_lval(ivl_lval_t lval)
 		  if (signal_is_return_value(lsig))
 			fprintf(vvp_out, "    %%ret/vec4/v 0, %d; Assign to %s\n",
 				offset_index, ivl_signal_basename(lsig));
-		  else if (ivl_signal_type(lsig) == IVL_SIT_UWIRE)
+		  else if (signal_is_uwire_net(lsig))
 			fprintf(vvp_out, "    %%force/vec4/off v%p_0, %d;\n",
 				lsig, offset_index);
 		  else

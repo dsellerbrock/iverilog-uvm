@@ -1547,6 +1547,13 @@ void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4
       struct __vpiSignal*vsig = dynamic_cast<__vpiSignal*>(word);
       assert(vsig);
 
+      if (auto*storage = dynamic_cast<vvp_fun_mixed_var*>(vsig->node->fun)) {
+	      // The storage filter notifies the array through its word callback.
+	    storage->recv_vec4_pv(vvp_net_ptr_t(vsig->node, 0), val,
+	                          part_off, vpip_size(vsig), 0);
+	    return;
+      }
+
       vsig->node->send_vec4_pv(val, part_off, vpip_size(vsig), 0);
       word_change(address);
 }

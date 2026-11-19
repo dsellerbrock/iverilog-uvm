@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3836_mixed_storage.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3836_mixed_storage"],
+  "gold": "issue3836_mixed_storage"
+}

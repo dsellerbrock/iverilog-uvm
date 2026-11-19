@@ -1409,7 +1409,8 @@ static void draw_net_in_scope(ivl_signal_t sig)
 		  const char*vec8 = "";
 		  if (nex_data->flags&VVP_NEXUS_DATA_STR)
 			strength_aware_flag = 1;
-		  if (nex_data->drivers_count > 1)
+		  if (nex_data->drivers_count > 1
+		      && !(nex_data->flags & VVP_NEXUS_DATA_MIXED_VAR))
 			vec8 = "8";
 		  if (strength_aware_flag)
 			vec8 = "8";
@@ -1508,7 +1509,8 @@ static void draw_net_in_scope(ivl_signal_t sig)
 		  const char*vec8 = "";
 		  if (nex_data->flags&VVP_NEXUS_DATA_STR)
 			strength_aware_flag = 1;
-		  if (nex_data->drivers_count > 1)
+		  if (nex_data->drivers_count > 1
+		      && !(nex_data->flags & VVP_NEXUS_DATA_MIXED_VAR))
 			vec8 = "8";
 		  if (strength_aware_flag)
 			vec8 = "8";

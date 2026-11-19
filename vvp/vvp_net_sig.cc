@@ -3656,6 +3656,37 @@ bool vvp_wire_vec4::is_forced(unsigned idx) const
       return test_force_mask(idx);
 }
 
+void vvp_fun_mixed_var::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&val,
+                                 vvp_context_t context)
+{
+      recv_vec4_pv(port, val, 0, val.size(), context);
+}
+
+void vvp_fun_mixed_var::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&val,
+                                    unsigned base, unsigned width, vvp_context_t context)
+{
+      if (width != driven_.size() || base > width || val.size() > width - base) {
+	    cerr << "vvp: .var/mixed input width does not match storage width" << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(1);
+	    return;
+      }
+
+      vvp_net_t*net = port.ptr();
+      auto*fil = static_cast<vvp_wire_vec4*>(net->fil);
+      vvp_vector4_t merged = fil->vec4_unfiltered_value();
+      if (port.port() == 0) {
+	    merged.set_vec(base, val);
+      } else {
+	    assert(port.port() == 1);
+	      // A driven Z is a value. Only holes retain their stored bits.
+	    for (unsigned bit = 0; bit < val.size(); bit += 1)
+		  if (driven_.value(base + bit))
+			merged.set_bit(base + bit, val.value(bit));
+      }
+      net->send_vec4(merged, context);
+}
+
 vvp_wire_vec8::vvp_wire_vec8(unsigned wid)
 : needs_init_(true), width_error_reported_(false), bits8_(wid),
   hist_enabled_(false), hist_valid_(false), hist_time_(0), hist_prev_()

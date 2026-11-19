@@ -363,6 +363,8 @@ extern void compile_reduce_xnor(char*label, const struct symb_s&arg);
 
 extern void compile_extend_signed(char*label, long width, struct symb_s arg);
 extern void compile_sample(char*label, struct symb_s arg);
+extern void compile_mixed_var(char*label, uint64_t width, uint64_t two_state,
+                              char*mask, char*input);
 extern void compile_reactive(char*label, struct symb_s arg);
 
 extern void compile_sfunc(char*label, char*name, char*format_string,

@@ -1154,7 +1154,7 @@ static void assign_to_lvector(ivl_lval_t lval,
       const unsigned long use_word = 0;
 
       const char*assign_op = "%assign";
-      if (ivl_signal_type(sig) == IVL_SIT_UWIRE)
+      if (signal_is_uwire_net(sig))
 	    assign_op = "%force";
 
 	// Detect the case that this is actually a non-blocking assign
@@ -1295,7 +1295,7 @@ static void assign_to_lvector(ivl_lval_t lval,
 		  clr_word(delay_index);
 	    }
 
-      } else if (ivl_signal_type(sig) == IVL_SIT_UWIRE) {
+      } else if (signal_is_uwire_net(sig)) {
 	/* A whole-vector unresolved-net NBA needs the delayed force opcode.
 	 * %force/vec4 takes one operand and applies immediately; the ordinary
 	 * %assign/vec4 delay operand would make an invalid force instruction. */
@@ -1585,7 +1585,7 @@ static int show_stmt_assign_nb(ivl_statement_t net)
       if (nevents) {
 	for (unsigned idx = 0; idx < ivl_stmt_lvals(net); idx += 1) {
 	    ivl_signal_t item_sig = ivl_lval_sig(ivl_stmt_lval(net, idx));
-	    if (item_sig && ivl_signal_type(item_sig) == IVL_SIT_UWIRE) {
+	    if (item_sig && signal_is_uwire_net(item_sig)) {
 		fprintf(stderr, "%s:%u: vvp.tgt sorry: event-controlled "
 			"nonblocking assignment to an unresolved net is not "
 			"supported.\n", ivl_stmt_file(net),

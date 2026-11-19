@@ -139,7 +139,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_UFUNC_REAL K_UFUNC_VEC4 K_UFUNC_E
 %token K_UFUNC_RESOLV_REAL K_UFUNC_RESOLV_VEC2 K_UFUNC_RESOLV_VEC4
 %token K_UDP K_UDP_C K_UDP_S K_UDP_DELAY
-%token K_VAR K_VAR_COBJECT K_VAR_VIF K_VAR_VIF_MODPORT K_VAR_DARRAY
+%token K_VAR K_VAR_COBJECT K_VAR_VIF K_VAR_VIF_MODPORT K_VAR_DARRAY K_VAR_MIXED
 %token K_VAR_QUEUE
 %token K_VAR_S K_VAR_STR K_VAR_I K_VAR_R K_VAR_2S K_VAR_2U K_VAR_TIME K_REF K_REF_R K_REF_STR K_REF_2S
 %token K_vpi_call K_vpi_call_w K_vpi_call_i K_vpi_call_observed
@@ -416,6 +416,9 @@ statement
 		{ struct symbv_s obj = $11;
 		  compile_trireg($1, $3, $5, $7, $9, obj.cnt, obj.vect);
 		}
+
+	| T_LABEL K_VAR_MIXED T_NUMBER ',' T_NUMBER ',' T_STRING ',' symbol ';'
+		{ compile_mixed_var($1, $3, $5, $7, $9.text); }
 
   /* Part select statements take a single netlist input, and numbers
      that define the part to be selected out of the input. */

@@ -2522,6 +2522,11 @@ extern int         ivl_signal_comb_driven(ivl_signal_t net);
 extern ivl_drive_t ivl_signal_charge_strength(ivl_signal_t net);
 extern ivl_lifetime_t ivl_signal_lifetime(ivl_signal_t net);
 extern unsigned    ivl_signal_forced_net(ivl_signal_t net);
+/* True if elaboration converted a variable to an unresolved wire. */
+extern int         ivl_signal_coerced_to_uwire(ivl_signal_t net);
+/* Test for a recorded continuous driver on a canonical word and bit. */
+extern int         ivl_signal_word_bit_driven(ivl_signal_t net, unsigned word,
+                                               unsigned bit);
 extern unsigned    ivl_signal_npath(ivl_signal_t net);
 extern ivl_delaypath_t ivl_signal_path(ivl_signal_t net, unsigned idx);
 extern ivl_signal_type_t ivl_signal_type(ivl_signal_t net);

@@ -224,6 +224,7 @@ struct vvp_nexus_data {
       unsigned net_word;
 };
 #define VVP_NEXUS_DATA_STR 0x0001
+#define VVP_NEXUS_DATA_MIXED_VAR 0x0002
 
 
 /*
@@ -286,6 +287,12 @@ extern int draw_eval_condition(ivl_expr_t expr);
 extern int signal_is_return_value(ivl_signal_t sig);
 extern int signal_is_function_result(ivl_signal_t sig);
 extern int signal_is_materialized_return(ivl_signal_t sig);
+
+static inline int signal_is_uwire_net(ivl_signal_t sig)
+{
+      return ivl_signal_type(sig) == IVL_SIT_UWIRE
+	  && !ivl_signal_coerced_to_uwire(sig);
+}
 
 extern int number_is_unknown(ivl_expr_t ex);
 extern int number_is_immediate(ivl_expr_t ex, unsigned lim_wid, int negative_is_ok);

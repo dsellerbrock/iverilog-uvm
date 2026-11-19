@@ -33,6 +33,7 @@
 # include  "statistics.h"
 # include  "class_type.h"
 # include  "vvp_darray.h"
+# include  "vvp_net_sig.h"
 # include  "array.h"
 # include  "schedule.h"
 # include  <iostream>
@@ -44,6 +45,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <cassert>
+# include  <climits>
 # include  <stdint.h>
 
 #ifdef __MINGW32__
@@ -3096,6 +3098,32 @@ void compile_shiftr(char*label, long wid, bool signed_flag,
 
       vvp_arith_ *arith = new vvp_shiftr(wid, signed_flag);
       make_arith(arith, label, argc, argv);
+}
+
+void compile_mixed_var(char*label, uint64_t width, uint64_t two_state,
+                       char*mask, char*input)
+{
+      if (width == 0 || width > UINT_MAX || two_state > 1
+	  || strlen(mask) != width || strspn(mask, "01") != width) {
+	    yyerror("invalid .var/mixed width, state or driver mask");
+	    compile_errors += 1;
+	    free(input);
+      } else {
+	    vvp_vector2_t driven(vvp_vector2_t::FILL0, width);
+	    for (unsigned bit = 0; bit < width; bit += 1)
+		  driven.set_bit(bit, mask[width-1-bit] == '1');
+
+	    vvp_net_t*net = new vvp_net_t;
+	    net->fun = new vvp_fun_mixed_var(driven);
+	    auto*fil = new vvp_wire_vec4(width, two_state ? BIT4_0 : BIT4_X);
+	    if (two_state)
+		  fil->set_two_state();
+	    net->fil = fil;
+	    define_functor_symbol(label, net);
+	    input_connect(net, 1, input);
+      }
+      free(mask);
+      free(label);
 }
 
 void compile_trireg(char*label, unsigned wid, unsigned charge, unsigned mode,

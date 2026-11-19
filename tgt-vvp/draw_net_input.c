@@ -774,8 +774,8 @@ static char* draw_trireg(ivl_nexus_t nex, ivl_net_logic_t cap,
       return strdup(result);
 }
 
-static void draw_net_input_x(ivl_nexus_t nex,
-			     struct vvp_nexus_data*nex_data)
+static void draw_net_input_raw(ivl_nexus_t nex,
+                               struct vvp_nexus_data*nex_data)
 {
       ivl_net_logic_t trireg = 0;
       ivl_island_t island = 0;
@@ -1175,6 +1175,53 @@ static void draw_net_input_x(ivl_nexus_t nex,
 
       assert(nex_data->net_input == 0);
       nex_data->net_input = nex_private;
+}
+
+static void draw_net_input_x(ivl_nexus_t nex, struct vvp_nexus_data*nex_data)
+{
+      unsigned idx;
+      draw_net_input_raw(nex, nex_data);
+
+      for (idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+	    if (!sig || ivl_signal_type(sig) != IVL_SIT_UWIRE
+		|| !ivl_signal_coerced_to_uwire(sig))
+		  continue;
+
+	    ivl_variable_type_t type = ivl_signal_data_type(sig);
+	    if (type != IVL_VT_LOGIC && type != IVL_VT_BOOL)
+		  continue;
+
+	    unsigned word = ivl_nexus_ptr_pin(ptr);
+	    unsigned width = ivl_signal_width(sig);
+	    unsigned driven = 0;
+	    char*mask = malloc((size_t)width + 1);
+	    for (unsigned bit = 0; bit < width; bit += 1) {
+		  int has_driver = ivl_signal_word_bit_driven(sig, word, bit);
+		  mask[width-1-bit] = has_driver ? '1' : '0';
+		  driven += has_driver;
+	    }
+	    mask[width] = 0;
+
+	      /* Implicit whole-port connections can have a structural driver
+	         without a recorded mask. With no driver, an empty mask
+	         represents a word that is entirely procedural storage. */
+	    if (driven < width && (driven || nex_data->drivers_count == 0)) {
+		  char label[64];
+		  snprintf(label, sizeof label, "MV_%p", nex);
+		  fprintf(vvp_out, "%s .var/mixed %u, %u, \"%s\", %s;\n",
+			  label, width, (unsigned)(type == IVL_VT_BOOL),
+			  mask, nex_data->net_input);
+		  free((char*)nex_data->net_input);
+		  nex_data->net_input = strdup(label);
+		  nex_data->flags &= ~VVP_NEXUS_DATA_STR;
+		  nex_data->flags |= VVP_NEXUS_DATA_MIXED_VAR;
+		  free(mask);
+		  return;
+	    }
+	    free(mask);
+      }
 }
 
 /*

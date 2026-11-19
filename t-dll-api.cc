@@ -3995,6 +3995,19 @@ extern "C" ivl_delaypath_t ivl_signal_path(ivl_signal_t net, unsigned idx)
       return net->aux_->path + idx;
 }
 
+extern "C" int ivl_signal_coerced_to_uwire(ivl_signal_t net)
+{
+      return net->net_->coerced_to_uwire();
+}
+
+extern "C" int ivl_signal_word_bit_driven(ivl_signal_t net, unsigned word,
+                                         unsigned bit)
+{
+      assert(word < ivl_signal_array_count(net));
+      assert(bit < ivl_signal_width(net));
+      return net->net_->test_part_driven(bit, bit, word);
+}
+
 extern "C" ivl_signal_type_t ivl_signal_type(ivl_signal_t net)
 {
       if (!net) {

@@ -297,6 +297,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".repeat"       { return K_REPEAT; }
 ".resolv"       { return K_RESOLV; }
 ".trireg"       { return K_TRIREG; }
+".var/mixed"    { return K_VAR_MIXED; }
 ".rtran"        { return K_RTRAN; }
 ".rtranif0"     { return K_RTRANIF0; }
 ".rtranif1"     { return K_RTRANIF1; }

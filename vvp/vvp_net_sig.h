@@ -806,6 +806,8 @@ class vvp_wire_vec4 : public vvp_wire_base {
       vvp_bit4_t driven_value(unsigned idx) const override;
       bool is_forced(unsigned idx) const override;
 
+      const vvp_vector4_t& vec4_unfiltered_value() const { return bits4_; }
+
 	// Clocking-block input sampling (IEEE 1800-2017 14.13): a
 	// 1-deep visible-value history so `%load/preponed` can return
 	// the value the signal held when the current time step
@@ -832,6 +834,21 @@ class vvp_wire_vec4 : public vvp_wire_base {
       bool hist_valid_;
       vvp_time64_t hist_time_;
       vvp_vector4_t hist_prev_; // visible value before hist_time_
+};
+
+/* Storage boundary for a partially driven variable. Port 0 receives
+   procedural stores and port 1 receives the resolved structural input. */
+class vvp_fun_mixed_var : public vvp_net_fun_t {
+    public:
+      explicit vvp_fun_mixed_var(const vvp_vector2_t&driven) : driven_(driven) {}
+
+      void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&val,
+                     vvp_context_t context) override;
+      void recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&val,
+                        unsigned base, unsigned width, vvp_context_t context) override;
+
+    private:
+      const vvp_vector2_t driven_;
 };
 
 class vvp_wire_vec8 : public vvp_wire_base {
