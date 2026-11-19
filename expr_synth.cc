@@ -329,13 +329,6 @@ NetNet* NetEBAdd::synthesize(Design*des, NetScope*scope, NetExpr*root)
       return osig;
 }
 
-// IEEE 1800 11.8.2 and 11.8.4 apply to the operands after type propagation.
-static bool signed_xz_operand(const NetExpr*expr)
-{
-      extern bool synthesis;
-      return !synthesis && expr->has_sign() && expr->expr_type() == IVL_VT_LOGIC;
-}
-
 /*
  * The bitwise logic operators are turned into discrete gates pretty
  * easily. Synthesize the left and right sub-expressions to get
@@ -812,11 +805,21 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
 
       const bool right_flag  = op_ == 'r' || op_ == 'R';
       const bool signed_flag = has_sign() && op_ == 'R';
+      const bool check_signed_xz = signed_xz_operand(left_);
+      const NetEConst*rcon = dynamic_cast<NetEConst*>(right_);
+
+      bool coalesce = false;
+      if (check_signed_xz && rcon && !signed_flag && rcon->value().is_defined()) {
+	    // Match the delivery of the concat used by in-range zero-fill shifts.
+	    unsigned long shift = rcon->value().as_ulong();
+	    coalesce = shift > 0 && shift < expr_width();
+      }
 
 	/* Detect the special case where the shift amount is
 	   constant. Evaluate the shift amount, and simply reconnect
-	   the left operand to the output, but shifted. */
-      if (const NetEConst*rcon = dynamic_cast<NetEConst*>(right_)) {
+	   the left operand to the output, but shifted. A signed X/Z
+	   check needs the full operand. */
+      if (rcon && !check_signed_xz) {
 	    verinum shift_v = rcon->value();
 	    long shift = shift_v.as_long();
 
@@ -916,7 +919,8 @@ NetNet* NetEBShift::synthesize(Design*des, NetScope*scope, NetExpr*root)
       NetCLShift*dev = new NetCLShift(scope, scope->local_symbol(),
 				      osig->vector_width(),
 				      rsig->vector_width(),
-				      right_flag, signed_flag);
+				      right_flag, signed_flag,
+				      check_signed_xz, coalesce);
       dev->set_line(*this);
       des->add_node(dev);
 

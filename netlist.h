@@ -2248,7 +2248,8 @@ class NetCLShift  : public NetNode {
 
     public:
       NetCLShift(NetScope*s, perm_string n, unsigned width,
-		 unsigned width_dist, bool right_flag, bool signed_flag);
+		 unsigned width_dist, bool right_flag, bool signed_flag,
+		 bool signed_xz, bool coalesce);
       ~NetCLShift() override;
 
       unsigned width() const;
@@ -2256,6 +2257,8 @@ class NetCLShift  : public NetNode {
 
       bool right_flag() const;
       bool signed_flag() const;
+      bool signed_xz() const { return signed_xz_; }
+      bool coalesce() const { return coalesce_; }
 
       Link& pin_Data();
       Link& pin_Result();
@@ -2273,6 +2276,8 @@ class NetCLShift  : public NetNode {
       unsigned width_dist_;
       bool right_flag_;
       bool signed_flag_;
+      bool signed_xz_;
+      bool coalesce_;
 };
 
 /*

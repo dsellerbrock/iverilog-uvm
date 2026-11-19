@@ -29,6 +29,13 @@ class PExpr;
 class netclass_t;
 struct index_component_t;
 
+// IEEE 1800 11.8.2 and 11.8.4 apply after operand type propagation.
+inline bool signed_xz_operand(const NetExpr*expr)
+{
+      extern bool synthesis;
+      return !synthesis && expr->has_sign() && expr->expr_type() == IVL_VT_LOGIC;
+}
+
 /* Validate an indexed dynamic-array slice and return its ascending low
  * element address. The caller owns the expression. */
 extern NetExpr* elaborate_direct_darray_indexed_base_(

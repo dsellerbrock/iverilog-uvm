@@ -2243,10 +2243,12 @@ const Link& NetArrayDq::pin_Enable() const
  */
 NetCLShift::NetCLShift(NetScope*s, perm_string n,
 		       unsigned width__, unsigned width_dist__,
-		       bool right_flag__, bool signed_flag__)
+		       bool right_flag__, bool signed_flag__,
+		       bool signed_xz, bool coalesce)
 : NetNode(s, n, 3),
   width_(width__), width_dist_(width_dist__),
-    right_flag_(right_flag__), signed_flag_(signed_flag__)
+  right_flag_(right_flag__), signed_flag_(signed_flag__),
+  signed_xz_(signed_xz), coalesce_(coalesce)
 {
       pin(0).set_dir(Link::OUTPUT); // Result
       pin(1).set_dir(Link::INPUT);  // Data

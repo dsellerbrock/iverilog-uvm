@@ -604,6 +604,8 @@ struct ivl_lpm_s {
 	    struct ivl_lpm_shift_s {
 		  unsigned select;
 		  unsigned signed_flag :1;
+		  unsigned signed_xz :1;
+		  unsigned coalesce :1;
 		  ivl_nexus_t q, d, s;
 	    } shift;
 
