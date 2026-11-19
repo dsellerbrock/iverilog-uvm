@@ -91,6 +91,7 @@ ruled). A provisional reading an agent built on before a ruling is marked "provi
 | 2026-11-18 | 3.13, 33.2.1, 33.3.3, 33.4 | #3420 | May two libraries each declare a package with the same name in one compile? | No. Package names are unique across one compiler invocation. Same-named UDPs in different libraries remain distinct cells. | owner |
 | 2026-11-18 | 33.4, 33.4.1.5, 23.3.3.4, 25.9, 23.11 | #3421 | Which library's definition does a named interface type use under a configuration? | The declaring scope's effective configuration, with the same rules as an instance there. A `bind` directive's mapping selects the target scope in both editions. | owner |
 | 2026-11-18 | 14.3, 37.46 (2023 37.48), Annex M.2 | #3583 | What do `vpiInputEdge` and `vpiOutputEdge` return for an explicit `edge` skew? | `vpiAnyEdge` (Annex K.2), as a project extension to Annex M.2. | owner |
+| 2026-11-18 | 11.4.12.2, 6.16 | #3866 | Does a string concatenation accept an integral variable operand without a cast? | No. Write `{s, string'(bits)}`; the compile error stands. | owner |
 
 ## Process rulings
 
