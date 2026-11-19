@@ -40394,6 +40394,15 @@ bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t)
       return false;
 }
 
+/* Run the endpoint publisher with Observed region identity. Event waiters
+ * woken by the publisher still have their own process region affinity. */
+bool of_WAIT_OBSERVED_ENDPOINT(vthread_t thr, vvp_code_t)
+{
+      thr->in_region_drain = 1;
+      schedule_vthread_observed(thr);
+      return false;
+}
+
 /*
  * %wait/reactive
  *

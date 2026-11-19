@@ -7113,6 +7113,11 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+      if (strcmp(stmt_name,"$ivl_observed_endpoint_wait") == 0) {
+	    fprintf(vvp_out, "    %%wait/observed/endpoint;\n");
+	    return 0;
+      }
+
 	/* Suspend until the Reactive region of the current time step
 	 * (4.4.2.5: assertion pass/fail action blocks).  A no-op once no
 	 * Reactive region is reachable (final blocks / Postponed), so an

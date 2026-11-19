@@ -784,6 +784,7 @@ extern bool of_WAIT(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_ORDER(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_FORK(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_OBSERVED(vthread_t thr, vvp_code_t code);
+extern bool of_WAIT_OBSERVED_ENDPOINT(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_REACTIVE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_POSEDGE(vthread_t thr, vvp_code_t code);
 extern bool of_WAIT_VIF_POSEDGE_I(vthread_t thr, vvp_code_t code);

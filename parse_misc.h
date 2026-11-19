@@ -240,6 +240,8 @@ struct sva_mc_seg_t {
 };
 
 struct sva_property_t {
+      // Private event published by a standalone sequence endpoint monitor.
+      perm_string endpoint_event;
       // `cover sequence' counts every match from an attempt, unlike
       // `cover property', which records at most one success per attempt.
       bool sequence_cover = false;
