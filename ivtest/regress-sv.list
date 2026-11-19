@@ -7326,3 +7326,7 @@ issue3791_2017 normal,-g2017,-s,issue3791 ivltests gold=issue3791.gold
 issue3791_2023 normal,-g2023,-s,issue3791 ivltests gold=issue3791.gold
 issue3791_bad_2017 CE,-g2017,-s,issue3791_bad ivltests gold=issue3791_bad.gold
 issue3791_bad_2023 CE,-g2023,-s,issue3791_bad ivltests gold=issue3791_bad.gold
+
+# IEEE 1800-2017/2023 14.11-14.12: default clocking in nested modules.
+issue894_nested_default_clocking_2017 normal,-g2017,-s,top ivltests gold=issue894_nested_default_clocking.gold
+issue894_nested_default_clocking_2023 normal,-g2023,-s,top ivltests gold=issue894_nested_default_clocking.gold

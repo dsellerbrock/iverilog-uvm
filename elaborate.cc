@@ -26562,37 +26562,35 @@ NetDeassign* PDeassign::elaborate(Design*des, NetScope*scope) const
  * expression to the constructor of NetPDelay so that the code
  * generator knows to evaluate the expression at run time.
  */
-/* IEEE 1800-2017 14.11: `## count [statement]` waits `count` events of
-   the default clocking block (14.12) declared in the current
-   module/interface/program scope. Lower it to
-
-       repeat (count) @(<default clocking name>) ; <statement>
-
-   The synthesized @(name) event control resolves through the same
-   clocking-block machinery as source-level `@(cb)` references, so the
-   underlying event expression (e.g. posedge clk) is picked up from the
-   block's declaration. */
+/* IEEE 1800-2017/2023 14.11: `## count [statement]` waits on the
+   public event of the default clocking block in effect (14.12). */
 NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
-      perm_string cb_name;
-      for (const NetScope*walker = scope ; walker ; walker = walker->parent()) {
-	    if (walker->type() != NetScope::MODULE)
-		  continue;
-	    perm_string mn = walker->module_name();
-	    /* A module instance is a scope boundary for default clocking.
-	       Its parent may be a module that declares one, but IEEE 1800-2017
-	       14.12 explicitly excludes instantiated modules from that scope. */
-	    if (mn.nil()) break;
-	    auto pmod_it = pform_modules.find(mn);
-	    if (pmod_it != pform_modules.end()
-		&& !pmod_it->second->default_clocking.nil())
-		  cb_name = pmod_it->second->default_clocking;
-	    break;
+      NetScope*module_scope = scope;
+      while (module_scope && !module_scope->module_definition())
+	    module_scope = module_scope->parent();
+
+	// Select the declaration lexically, then find its enclosing instance.
+	// A separately declared child does not inherit its parent's default.
+      const Module*module = module_scope ? module_scope->module_definition() : nullptr;
+      const Module*clock_owner = nullptr;
+      for (const LexicalScope*lex = module;
+	   lex; lex = lex->parent_scope()) {
+	    const Module*owner = dynamic_cast<const Module*>(lex);
+	    if (owner && !owner->default_clocking.nil()) {
+		  clock_owner = owner;
+		  break;
+	    }
       }
 
-      if (cb_name.nil()) {
+      NetScope*clock_scope = module_scope;
+      if (clock_owner) {
+	    while (clock_scope && clock_scope->module_definition() != clock_owner)
+		  clock_scope = clock_scope->parent();
+      }
+      if (!clock_owner || !clock_scope) {
 	    cerr << get_fileline() << ": error: ## cycle delay requires a "
 		 << "default clocking block in scope (IEEE 1800 14.11)."
 		 << endl;
@@ -26600,23 +26598,12 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    return 0;
       }
 
-	/* Heap-allocate the synthesized pform fragment: PRepeat's
-	   destructor deletes its children, and pform objects normally
-	   live for the whole compilation anyway. UINT_MAX as the
-	   lexical position marks the reference as following all
-	   declarations, so no declared-after-use diagnostics fire. */
-      PEIdent*cb_id = new PEIdent(cb_name, UINT_MAX);
-      cb_id->set_line(*this);
-      PEEvent*cb_ev = new PEEvent(PEEvent::ANYEDGE, cb_id);
-      PEventStatement*wait_stmt = new PEventStatement(cb_ev);
-      wait_stmt->set_line(*this);
-
-	/* repeat (0) normally removes its body. IEEE 1800-2017 14.11
-	   instead makes ##0 wait for this time step's clocking event when
-	   that event has not happened yet. The public clocking event has a
-	   matching internal named event whose triggered property tracks that
-	   condition. */
       NetExpr*count_expr = elab_and_eval(des, scope, count_, -1);
+      if (!count_expr) {
+	    cerr << get_fileline() << ": Unable to elaborate repeat expression." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
       const NetEConst*count_const = dynamic_cast<const NetEConst*>(count_expr);
       const bool allow_zero = generation_flag >= GN_VER2023;
       const char*range_error = allow_zero
@@ -26633,27 +26620,53 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 		  cerr << get_fileline() << ": error: " << range_error << endl;
 		  des->errors += 1;
 		  delete count_expr;
-		  delete wait_stmt;
 		  return 0;
 	    }
       }
-      bool dynamic_count = count_expr && !count_const;
+      if (scope->in_func() || scope->in_final()) {
+	    cerr << get_fileline() << ": error: "
+		 << (scope->in_func() ? "functions cannot have event statements."
+				      : "final procedures cannot have event statements.")
+		 << endl;
+	    des->errors += 1;
+	    delete count_expr;
+	    return nullptr;
+      }
+
+      perm_string cb_name = clock_owner->default_clocking;
+      string trig_name = string("_ivl_cbtrig$") + cb_name.str();
+      NetEvent*trigger = clock_scope->find_event(lex_strings.make(trig_name.c_str()));
+      if (!trigger) {
+	    cerr << get_fileline() << ": error: internal clocking-block "
+		 << "synchronization event is missing for `" << cb_name << "'." << endl;
+	    des->errors += 1;
+	    delete count_expr;
+	    return nullptr;
+      }
+      auto make_wait = [this, trigger]() {
+	    NetEvWait*wait = new NetEvWait(nullptr);
+	    wait->set_line(*this);
+	    wait->add_event(trigger);
+	    return wait;
+      };
+
+      bool dynamic_count = !count_const;
       if (zero_count || dynamic_count) {
-	    string trig_name_str = string("_ivl_cbtrig$") + cb_name.str();
-	    perm_string trig_name = lex_strings.make(trig_name_str.c_str());
-	    pform_name_t trig_path;
-	    trig_path.push_back(name_component_t(trig_name));
-	    trig_path.push_back(name_component_t(perm_string::literal("triggered")));
-	    PEIdent*trig_id = new PEIdent(trig_path, UINT_MAX);
-	    trig_id->set_line(*this);
-	    PCondit*wait_if_needed = new PCondit(trig_id, nullptr, wait_stmt);
-	    wait_if_needed->set_line(*this);
-	    NetProc*proc = wait_if_needed->elaborate(des, scope);
+	      // ##0 waits only if this same clocking event has yet to fire
+	      // in the current time step.
+	    NetESFunc*triggered = new NetESFunc(
+		  "$ivl_event_method$triggered", IVL_VT_BOOL, 1, 1);
+	    NetEEvent*event = new NetEEvent(trigger);
+	    event->set_line(*this);
+	    triggered->parm(0, event);
+	    triggered->set_line(*this);
+	    NetProc*proc = new NetCondit(triggered, nullptr, make_wait());
+	    proc->set_line(*this);
 	    NetNet*saved = nullptr;
 	    NetAssign*save = nullptr;
 	    const bool check_range = expression_value_ && dynamic_count
 		&& type_is_vectorable(count_expr->expr_type());
-	    if (dynamic_count && proc) {
+	    if (dynamic_count) {
 		  if (count_expr->expr_type() == IVL_VT_REAL)
 			count_expr = cast_to_int4(count_expr, 64);
 		  const netvector_t*type = new netvector_t(
@@ -26666,13 +26679,7 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 			saved->lifetime_override(IVL_VLT_AUTOMATIC);
 		  save = new NetAssign(new NetAssign_(saved), count_expr);
 		  save->set_line(*this);
-		  NetProc*event_wait = wait_stmt->elaborate(des, scope);
-		  if (!event_wait) {
-			delete proc;
-			delete save;
-			return 0;
-		  }
-		  NetRepeat*repeat = new NetRepeat(new NetESignal(saved), event_wait);
+		  NetRepeat*repeat = new NetRepeat(new NetESignal(saved), make_wait());
 		  repeat->set_line(*this);
 		  NetCondit*choice = new NetCondit(new NetESignal(saved), repeat, proc);
 		  choice->set_line(*this);
@@ -26680,7 +26687,7 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    } else {
 		  delete count_expr;
 	    }
-	    if (proc && statement_) {
+	    if (statement_) {
 		  NetProc*sub = statement_->elaborate(des, scope);
 		  if (sub == 0) {
 			delete proc;
@@ -26719,30 +26726,21 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
       }
 
       NetProc*rep;
-      if (expression_value_ && count_const) {
-	    // Keep the full positive count. PRepeat folds through a host long.
-	    NetProc*event_wait = wait_stmt->elaborate(des, scope);
-	    delete wait_stmt;
-	    if (!event_wait) {
-		  delete count_expr;
-		  return 0;
-	    }
-	    rep = new NetRepeat(count_expr, event_wait);
-	    rep->set_line(*this);
-      } else {
+      if (!expression_value_ && count_const->value().as_long() == 1) {
 	    delete count_expr;
-	    PRepeat*rep_stmt = new PRepeat(count_, wait_stmt);
-	    rep_stmt->set_line(*this);
-	    rep = rep_stmt->elaborate(des, scope);
+	    rep = make_wait();
+      } else {
+	    rep = new NetRepeat(count_expr, make_wait());
+	    rep->set_line(*this);
       }
-      if (rep == 0)
-	    return 0;
       if (statement_ == 0)
 	    return rep;
 
       NetProc*sub = statement_->elaborate(des, scope);
-      if (sub == 0)
+      if (sub == 0) {
+	    delete rep;
 	    return 0;
+      }
 
       NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
       blk->set_line(*this);
