@@ -443,7 +443,11 @@ typedef struct t_vpi_delay  {
 #define vpiImplicitDecl 26 /* implicitly declared net (Boolean) */
 #define vpiUniqueQualifier    1
 #define vpiPriorityQualifier  2
-#define vpiType           1
+#ifdef ICARUS_VPI_INTERNAL_TYPES
+# define vpiType _vpiInternalType
+#else
+# define vpiType          1
+#endif
 #define vpiOpType         39 /* operation subtype */
 #define vpiMinusOp         1
 #define vpiPlusOp          2
@@ -716,6 +720,8 @@ typedef struct t_vpi_delay  {
   /* The &&& condition text of a vpiTchkTerm, in the form the compiler
      prints conditions (for SDF COND matching, IEEE 1800 32.4.2). */
 #define _vpiTchkConditionText    0x1000007
+  /* Object classification used by bundled system tasks for storage dispatch. */
+#define _vpiInternalType         0x1000008
 
 /* DELAY MODES */
 #define vpiNoDelay            1

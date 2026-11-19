@@ -2473,8 +2473,7 @@ static vpiHandle lookup_scope_item_(__vpiScope*scope, const char*name)
             if (item_name && strcmp(item_name, name) == 0)
                   return item;
 
-            if (vpi_get(vpiType, item) == vpiMemory
-                || vpi_get(vpiType, item) == vpiNetArray) {
+            if (item->get_type_code() == vpiMemory) {
                   vpiHandle word_iter = item->vpi_iterate(vpiMemoryWord);
                   vpiHandle word = 0;
                   while (word_iter && (word = vpi_scan(word_iter))) {
@@ -16668,7 +16667,8 @@ static void build_method_port_copies_(__vpiScope*src_scope,
                         vpiHandle dst_item = lookup_scope_item_(dst_scope, stable_name.c_str());
                         if (!dst_item)
                               continue;
-                        if (vpi_get(vpiType, src_item) != vpi_get(vpiType, dst_item))
+                        if (vpi_get(_vpiInternalType, src_item) !=
+                            vpi_get(_vpiInternalType, dst_item))
                               continue;
 
                         copy_named_item(stable_name, src_item, false);
@@ -17183,7 +17183,8 @@ static void mirror_dynamic_dispatch_outputs_if_needed_(vthread_t thr, vthread_t 
                   vpiHandle dst_item = lookup_scope_item_(dst_scope, stable_name.c_str());
                   if (!dst_item)
                         continue;
-                  if (vpi_get(vpiType, src_item) != vpi_get(vpiType, dst_item))
+                  if (vpi_get(_vpiInternalType, src_item) !=
+                      vpi_get(_vpiInternalType, dst_item))
                         continue;
 
                   bool copied = copy_handle_value_to_context_(src_item, child,
