@@ -808,7 +808,9 @@ static NetExpr* select_pattern_value_(const LineInfo*loc,
                                       const pform_pattern_path_t&path,
                                       Design*des, ivl_type_t&selected_type)
 {
-      NetExpr*value = new NetESignal(subject.net);
+      NetExpr*value = subject.net->array_type()
+            ? new NetESignal(subject.net, nullptr)
+            : new NetESignal(subject.net);
       value->set_line(*loc);
       selected_type = subject.type;
 
@@ -1187,8 +1189,12 @@ NetScope* elaborate_pattern_expression_scope(Design*des, NetScope*scope,
       if (!expression_scope) {
             block->elaborate_scope(des, scope);
             expression_scope = scope->child(name);
-            if (expression_scope)
+            if (expression_scope) {
+                  // Expression evaluation does not enter a separate block.
+                  // Bindings ride the caller's activation in automatic code.
+                  expression_scope->auto_frame(false);
                   block->elaborate_sig(des, scope);
+            }
       }
       if (!expression_scope) {
             cerr << block->get_fileline()
@@ -1278,6 +1284,136 @@ NetExpr* elaborate_pattern_expression_capture(const PEMatches*matches,
             result = pattern_and_(matches, result, captured);
       }
       return result;
+}
+
+bool pattern_expression_uses_subject_capture(const PEMatches*matches)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(matches->subject());
+      // Preserve the existing lowering for a plain identifier. Selections
+      // and qualified names now parse through the ordinary expression rules.
+      return !ident || ident->leading_type_args() || ident->path().package
+            || ident->path().name.size() != 1
+            || !ident->path().name.front().index.empty();
+}
+
+NetExpr* elaborate_pattern_expression_match(const PEMatches*matches,
+                                             Design*des, NetScope*scope,
+                                             NetScope*expression_scope,
+                                             unsigned flags)
+{
+      // Passing the subject by value evaluates it exactly once at the
+      // predicate, even if the pattern never reads the captured value.
+      PExpr*subject_expr = matches->subject();
+      PExpr::width_mode_t mode = PExpr::SIZED;
+      subject_expr->test_width(des, scope, mode);
+      unique_ptr<NetExpr> value(subject_expr->elaborate_expr(
+            des, scope, subject_expr->expr_width(), flags & PExpr::NEED_CONST));
+      if (!value)
+            return nullptr;
+      ivl_type_t type = netexpr_type_for_equivalence(value.get());
+      if (!type) {
+            cerr << matches->get_fileline()
+                 << ": error: Unable to determine the type of the "
+                    "pattern-matching subject expression." << endl;
+            des->errors += 1;
+            return nullptr;
+      }
+      perm_string name = expression_scope->local_symbol();
+      NetScope*helper = new NetScope(expression_scope, hname_t(name),
+                                    NetScope::FUNC);
+      helper->is_auto(true);
+      helper->set_line(matches);
+      helper->set_elab_stage(3);
+      NetNet*result = new NetNet(helper, name, NetNet::REG,
+                                &netvector_t::scalar_bool);
+      result->set_line(*matches);
+      netranges_t unpacked_dimensions;
+      ivl_type_t element_type = type;
+      while (const netuarray_t*array =
+                   dynamic_cast<const netuarray_t*>(element_type)) {
+            const netranges_t&dimensions = array->static_dimensions();
+            unpacked_dimensions.insert(unpacked_dimensions.end(),
+                                       dimensions.begin(), dimensions.end());
+            element_type = array->element_type();
+      }
+      NetNet*input = new NetNet(helper, helper->local_symbol(), NetNet::REG,
+                                unpacked_dimensions, element_type);
+      input->set_line(*matches);
+      input->port_type(NetNet::PINPUT);
+      pattern_subject_t subject;
+      subject.net = input;
+      subject.type = type;
+      subject.use_object_tag = true;
+
+      unique_ptr<NetExpr> condition(elaborate_pattern_match_(
+            matches, subject, matches->pattern(), matches->case_type(),
+            des, scope));
+      if (!condition)
+            return nullptr;
+
+      unique_ptr<NetBlock> success(new NetBlock(NetBlock::SEQU, nullptr));
+      success->set_line(*matches);
+      vector<pattern_capture_t> captures;
+      pform_pattern_path_t path;
+      collect_pattern_captures_(matches->pattern(), path, captures);
+      for (const pattern_capture_t&capture : captures) {
+            NetNet*destination = expression_scope->find_signal(capture.name);
+            if (!destination) {
+                  cerr << matches->get_fileline()
+                       << ": internal error: Pattern variable '"
+                       << capture.name
+                       << "' was not declared in its expression scope."
+                       << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
+            ivl_type_t selected_type = nullptr;
+            NetExpr*source = select_pattern_value_(matches, subject,
+                                                   capture.path, des,
+                                                   selected_type);
+            if (!source)
+                  return nullptr;
+            NetAssign*copy = new NetAssign(new NetAssign_(destination), source);
+            copy->set_line(*matches);
+            success->append(copy);
+
+            // A subsequent identifier match on this binding reads its
+            // companion tag. Keep it in sync with the copied object value.
+            const netstruct_t*record =
+                  dynamic_cast<const netstruct_t*>(selected_type);
+            if (record && record->tagged_flag() && !record->packed()) {
+                  perm_string companion_name = lex_strings.make(
+                        string(destination->name().str()) + "__tag_companion");
+                  NetNet*companion = expression_scope->find_signal(companion_name);
+                  ivl_assert(*matches, companion);
+                  NetEUnionTag*tag = new NetEUnionTag(new NetESignal(destination));
+                  tag->set_line(*matches);
+                  NetAssign*save_tag = new NetAssign(new NetAssign_(companion), tag);
+                  save_tag->set_line(*matches);
+                  success->append(save_tag);
+            }
+      }
+
+      NetAssign*matched = new NetAssign(new NetAssign_(result),
+                                       pattern_true_(matches));
+      matched->set_line(*matches);
+      success->append(matched);
+      NetEConst*zero = new NetEConst(verinum(verinum::V0, 1));
+      zero->set_line(*matches);
+      NetAssign*missed = new NetAssign(new NetAssign_(result), zero);
+      missed->set_line(*matches);
+      NetCondit*body = new NetCondit(condition.release(), success.release(),
+                                    missed);
+      body->set_line(*matches);
+      NetFuncDef*def = new NetFuncDef(helper, result, {input}, {nullptr});
+      def->set_proc(body);
+      helper->set_func_def(def);
+
+      vector<NetExpr*> args(1, value.release());
+      NetEUFunc*call = new NetEUFunc(scope, helper, new NetESignal(result),
+                                    args, false);
+      call->set_line(*matches);
+      return call;
 }
 
 static bool elaboration_perf_trace_enabled_()
@@ -12891,6 +13027,11 @@ static const PExpr* see_through_const_ternary_(Design*des, NetScope*scope,
       for (unsigned guard = 0 ; guard < 32 ; guard += 1) {
 	    const PETernary*ter = dynamic_cast<const PETernary*>(pe);
 	    if (!ter) break;
+
+	    const PEMatches*matches = dynamic_cast<const PEMatches*>(ter->get_cond());
+	    // Leave expression-subject matches to the typed ternary elaborator.
+	    if (matches && pattern_expression_uses_subject_capture(matches))
+		  break;
 
 	    NetExpr*c = elab_and_eval(des, scope, ter->get_cond(), -1, false);
 	    const NetEConst*cc = dynamic_cast<NetEConst*>(c);

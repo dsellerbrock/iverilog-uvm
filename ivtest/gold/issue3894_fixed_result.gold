@@ -1,0 +1,2 @@
+./ivltests/issue3894_fixed_result.sv:6: sorry: a conditional with an expression match subject and a fixed unpacked array result is not yet supported.
+Elaboration failed

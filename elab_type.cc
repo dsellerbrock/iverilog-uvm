@@ -1753,7 +1753,7 @@ ivl_type_t pattern_binding_type_t::elaborate_type_raw(Design*des,
                   des, subject_scope, subject_expr_->expr_width(),
                   PExpr::NO_FLAGS);
             if (value) {
-                  type = value->net_type();
+                  type = netexpr_type_for_equivalence(value);
                   delete value;
             }
       } else {

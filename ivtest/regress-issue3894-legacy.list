@@ -1,0 +1,4 @@
+issue3894_match_subject_2017 normal,-g2017,-s,issue3894_match_subject ivltests gold=issue3894_match_subject.gold
+issue3894_match_subject_2023 normal,-g2023,-s,issue3894_match_subject ivltests gold=issue3894_match_subject.gold
+issue3894_fixed_result_2017 CE,-g2017,-s,issue3894_fixed_result ivltests gold=issue3894_fixed_result.gold
+issue3894_fixed_result_2023 CE,-g2023,-s,issue3894_fixed_result ivltests gold=issue3894_fixed_result.gold

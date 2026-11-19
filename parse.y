@@ -3327,6 +3327,9 @@ static Module::port_t *module_declare_explicit_port(
 %precedence K_dist
 %left K_TAND
 %right '?' ':'
+/* Shift into a match before completing a ternary's false operand, but
+   finish the subject's ordinary operators before shifting matches. */
+%precedence K_matches
 %precedence COND_TAND_PREC
 %left K_LOR
 %left K_LAND
@@ -12877,29 +12880,23 @@ case_matches_items
       }
   ;
 
-/* The currently executable matcher accepts a variable as its subject. Keep
-   that restriction in a dedicated grammar carrier: adding K_matches to the
-   FOLLOW set of the fully ambiguous expression grammar creates unrelated
-   type/expression reduce conflicts. This can be widened with the elaborator
-   when general expression subjects are implemented. */
+/* Shift the delimiter in the shared rule. Reducing a bare expression to
+   pattern_subject on K_matches would compete with completing a binary
+   expression on that same lookahead. */
 pattern_subject
-  : IDENTIFIER
-      { PEIdent*tmp = new PEIdent(lex_strings.make($1), @1.lexical_pos);
-	FILE_NAME(tmp, @1);
-	delete[] $1;
-	$$ = tmp;
-      }
+  : expression K_matches
+      { @$ = @2; $$ = $1; }
   ;
 
 /* A conditional statement's true arm owns the pattern variables. Push its
    implicit block as soon as the predicate is complete, before parsing the
    statement, and pop it before an optional else arm is parsed. */
 pattern_condition
-  : pattern_subject K_matches match_pattern
-      { pform_requires_sv(@2, "pattern-matching conditional");
-	PEMatches*condition = new PEMatches($1, $3, NetCase::EQ);
-	FILE_NAME(condition, @2);
-	PBlock*block = pform_pattern_push_scope(@2, $1, $3);
+  : pattern_subject match_pattern
+      { pform_requires_sv(@1, "pattern-matching conditional");
+	PEMatches*condition = new PEMatches($1, $2, NetCase::EQ);
+	FILE_NAME(condition, @1);
+	PBlock*block = pform_pattern_push_scope(@1, $1, $2);
 	current_pattern_blocks.push(block);
 	$$ = condition;
       }
@@ -13842,12 +13839,12 @@ conditional_tand_tail
 /* Keep the pattern declarations active only while parsing the consequent;
    its elaborator owns the block through expression lowering. */
 pattern_expr_head
-  : pattern_subject K_matches match_pattern
-      { pform_requires_sv(@2, "pattern-matching conditional expression");
-	PBlock*block = pform_pattern_push_scope(@2, $1, $3);
+  : pattern_subject match_pattern
+      { pform_requires_sv(@1, "pattern-matching conditional expression");
+	PBlock*block = pform_pattern_push_scope(@1, $1, $2, true);
 	current_pattern_blocks.push(block);
-	PEMatches*condition = new PEMatches($1, $3, NetCase::EQ);
-	FILE_NAME(condition, @2);
+	PEMatches*condition = new PEMatches($1, $2, NetCase::EQ);
+	FILE_NAME(condition, @1);
 	$$ = condition;
       }
   ;

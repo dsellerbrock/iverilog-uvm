@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3894_fixed_result.sv",
+  "iverilog-args": ["-g2023", "-s", "issue3894_fixed_result"],
+  "gold": "issue3894_fixed_result"
+}
