@@ -1582,6 +1582,8 @@ class PETernary : public PExpr {
  * expressions that are passed as input to the ports of the function.
  */
 class PECallFunction : public PExpr {
+      friend class PCallTask;
+
     public:
       bool refs_name(perm_string name) const override;
       explicit PECallFunction(const pform_name_t &n, const std::vector<named_pexpr_t> &parms);
@@ -1717,6 +1719,7 @@ class PECallFunction : public PExpr {
       bool owns_leading_type_args_ = true;
       bool scoped_type_prefix_ = false;
       mutable bool bare_generic_scope_error_reported_ = false;
+      mutable bool package_unit_call_reported_ = false;
       // Non-null for method calls on arbitrary receiver expressions.
       // In that case path_ holds only the method name.
       PExpr*receiver_ = nullptr;

@@ -20809,6 +20809,8 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 
 	      ivl_assert(*this, task);
 	      ivl_assert(*this, task->type() == NetScope::TASK);
+      check_package_unit_subroutine_call(des, *this, scope, task,
+					 package_unit_call_reported_);
 		    const NetTaskDef*def = task->task_def();
 		    if (def == 0 || def->proc() == 0) {
 			  const PTask*ptask = task->task_pform();
@@ -23405,8 +23407,11 @@ NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope,
 		 << peek_tail_name(path_) << "' is being called as a task." << endl;
       }
 
-	// Elaborate the assignment to a dummy variable.
+	// Elaborate the assignment to a dummy variable. The synthetic
+	// expression shares the diagnostic state of the source call.
+      call->package_unit_call_reported_ = package_unit_call_reported_;
       NetProc*result = tmp->elaborate(des, scope);
+      package_unit_call_reported_ = call->package_unit_call_reported_;
       call->set_leading_type_args(nullptr);
       return result;
 }
@@ -23459,6 +23464,8 @@ NetProc* PCallTask::elaborate_void_function_(Design*des, NetScope*scope,
 {
       NetScope*dscope = def->scope();
 
+      check_package_unit_subroutine_call(des, *this, scope, dscope,
+					 package_unit_call_reported_);
       if (!validate_program_subroutine_call(des, *this, scope, dscope))
 	    return nullptr;
 

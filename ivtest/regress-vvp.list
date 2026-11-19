@@ -8006,3 +8006,11 @@ issue3768_unsafe_2023 vvp_tests/issue3768_unsafe_2023.json
 issue3768_legal_2023 vvp_tests/issue3768_legal_2023.json
 issue3835_2017 vvp_tests/issue3835_2017.json
 issue3835_2023 vvp_tests/issue3835_2023.json
+
+# IEEE 1800-2017/2023 26.2: package calls to compilation-unit subroutines.
+issue3769_ce_2017 vvp_tests/issue3769_ce_2017.json
+issue3769_unsafe_2017 vvp_tests/issue3769_unsafe_2017.json
+issue3769_legal_2017 vvp_tests/issue3769_legal_2017.json
+issue3769_ce_2023 vvp_tests/issue3769_ce_2023.json
+issue3769_unsafe_2023 vvp_tests/issue3769_unsafe_2023.json
+issue3769_legal_2023 vvp_tests/issue3769_legal_2023.json

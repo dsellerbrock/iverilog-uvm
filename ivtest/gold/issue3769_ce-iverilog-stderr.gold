@@ -1,0 +1,8 @@
+ivltests/issue3769_calls.v:34: error: Package `caller' calls compilation-unit subroutine `unit_task' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:35: error: Package `caller' calls compilation-unit subroutine `unit_void' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:36: error: Package `caller' calls compilation-unit subroutine `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:38: error: Package `caller' calls compilation-unit subroutine `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:40: error: Package `caller' calls compilation-unit subroutine `unit_value' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:47: error: Package `caller' calls compilation-unit subroutine `unit_quick' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3769_calls.v:48: error: Package `caller' calls compilation-unit subroutine `unit_void' (IEEE 1800-2017/2023 26.2).
+7 error(s) during elaboration.
