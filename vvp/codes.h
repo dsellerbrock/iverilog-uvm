@@ -816,6 +816,7 @@ extern bool of_EVENT_EXPR_SAVE_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_EXPR_LOAD_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_EXPR_SAVE_OBJECT(vthread_t thr, vvp_code_t code);
 extern bool of_EVENT_EXPR_LOAD_OBJECT(vthread_t thr, vvp_code_t code);
+extern bool of_EVENT_EXPR_WATCH_TRIGGERED(vthread_t thr, vvp_code_t code);
 extern bool of_XNOR(vthread_t thr, vvp_code_t code);
 extern bool of_XNORR(vthread_t thr, vvp_code_t code);
 extern bool of_XOR(vthread_t thr, vvp_code_t code);

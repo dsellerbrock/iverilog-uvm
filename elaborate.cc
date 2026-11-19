@@ -28456,6 +28456,48 @@ struct deferred_extern_sensitivity_t {
 static map<NetEvWait*, deferred_extern_sensitivity_t> deferred_extern_sensitivity_;
 static bool extern_functions_bound_ = false;
 
+/* Pass the whole exact-true expression and its resolved event-state sources
+ * to the VVP observer recipe. The sources are metadata, separate from the
+ * expression that the recipe evaluates. */
+static NetExpr* sva_disable_observer_expr_(
+      Design*des, NetExpr*condition, const vector<const NetESFunc*>&reads)
+{
+      set<const NetEvent*> seen;
+      vector<const NetEEvent*> operands;
+      for (const NetESFunc*read : reads) {
+	    const NetEEvent*arg = strcmp(read->name(), "$ivl_event_method$triggered") == 0
+		  ? dynamic_cast<const NetEEvent*>(read->parm(0)) : nullptr;
+	    const NetEvent*event = arg ? arg->event() : nullptr;
+	    if (event && event->is_sequence_endpoint()) {
+		  cerr << read->get_fileline()
+		       << ": sorry: sequence endpoint in disable iff requires "
+		          "ordered assertion evaluation." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    if (!event || event->is_class_event() || event->is_event_array()
+		|| event->lifetime_override() == IVL_VLT_AUTOMATIC
+		|| (event->lifetime_override() == IVL_VLT_INHERITED
+		    && event->scope()->is_auto())) {
+		  cerr << read->get_fileline()
+		       << ": sorry: disable iff event-state observation currently "
+		          "requires a static scalar named event." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    if (seen.insert(event).second)
+		  operands.push_back(arg);
+      }
+
+      NetESFunc*observer = new NetESFunc("$ivl_sva_disable_observer",
+	    IVL_VT_BOOL, 1, operands.size() + 1);
+      observer->set_line(*condition);
+      observer->parm(0, condition);
+      for (unsigned idx = 0; idx < operands.size(); ++idx)
+	    observer->parm(idx + 1, operands[idx]->dup_expr());
+      return observer;
+}
+
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 				       NetProc*enet, bool nba_event_control) const
 {
@@ -29252,6 +29294,37 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  delete tmp;
 		  continue;
 	    }
+
+    /* IEEE 1800-2017/2023 16.12: test the current disable condition
+     * synchronously on each input occurrence, including named-event state
+     * changes that have no synthesizable signal input. */
+    if (sva_disable_observer_) {
+	  ivl_assert(*this, expr_.size() == 1
+		&& expr_[idx]->type() == PEEvent::POSEDGE);
+	  vector<const NetESFunc*>reads;
+	  NetESFunc::set_nex_input_triggered_collector(&reads);
+	  unique_ptr<NexusSet>sources(tmp->nex_input(
+		true, expr_has_user_function_call_(tmp)));
+	  NetESFunc::set_nex_input_triggered_collector(nullptr);
+	  if (!reads.empty()) {
+		NetExpr*observer = sva_disable_observer_expr_(des, tmp, reads);
+		if (!observer) {
+		      delete tmp;
+		      delete wa;
+		      delete ev;
+		      return nullptr;
+		}
+		NetEvProbe*probe = new NetEvProbe(
+		      scope, scope->local_symbol(), ev,
+		      NetEvProbe::ANYEDGE, sources->size());
+		for (unsigned pin = 0; pin < sources->size(); ++pin)
+		      connect(sources->at(pin).lnk, probe->pin(pin));
+		probe->set_event_observer_expr(observer, NetEvProbe::POSEDGE);
+		des->add_node(probe);
+		expr_count += 1;
+		continue;
+	  }
+    }
 
 	    /* IEEE 1800-2017/2023 9.4.2: each input can request reevaluation.
 	     * The observer applies the qualifier to the resulting value. */

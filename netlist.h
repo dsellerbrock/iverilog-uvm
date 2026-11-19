@@ -6270,6 +6270,11 @@ class NetESFunc  : public NetExpr {
       void mark_vif_parm_default(unsigned idx);
       bool vif_parm_is_default(unsigned idx) const;
 
+	// Collect event-state reads during a generated assertion disable's
+	// input walk, including operands skipped by runtime short-circuiting.
+      static void set_nex_input_triggered_collector(
+	    std::vector<const NetESFunc*>*collector);
+
       virtual NetExpr* eval_tree() override;
       virtual NetExpr* evaluate_function(const LineInfo&loc,
 					 std::map<perm_string,LocalVar>&ctx) const override;

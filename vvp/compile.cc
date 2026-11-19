@@ -462,6 +462,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%event/expr/return",of_EVENT_EXPR_RETURN,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%event/expr/save/o",of_EVENT_EXPR_SAVE_OBJECT,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%event/expr/save/v",of_EVENT_EXPR_SAVE_VEC4,1,{OA_NUMBER,OA_NONE,OA_NONE} },
+      { "%event/expr/watch/triggered",of_EVENT_EXPR_WATCH_TRIGGERED,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%event/handle/load",of_EVENT_HANDLE_LOAD,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%event/isnull",of_EVENT_ISNULL,1,{OA_FUNC_PTR,OA_NONE,OA_NONE} },
       { "%event/nb", of_EVENT_NB, 2, {OA_FUNC_PTR, OA_BIT1, OA_NONE} },

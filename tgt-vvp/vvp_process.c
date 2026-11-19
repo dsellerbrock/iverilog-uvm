@@ -4464,6 +4464,18 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
                                 observer_wait, ev, observer_label);
                         fprintf(vvp_out, "    %%jmp Tevent_after_%u;\n", observer_label);
                         fprintf(vvp_out, "Tevent_%u ;\n", observer_label);
+                        if (ivl_expr_type(observer) == IVL_EX_SFUNC
+                            && strcmp(ivl_expr_name(observer),
+                                      "$ivl_sva_disable_observer") == 0) {
+                              /* Register structural dependencies before
+                               * evaluating any short-circuit operands. */
+                              for (unsigned idx = 1; idx < ivl_expr_parms(observer); ++idx) {
+                                    ivl_expr_t source = ivl_expr_parm(observer, idx);
+                                    fprintf(vvp_out, "    %%event/expr/watch/triggered E_%p;\n",
+                                            ivl_expr_event(source));
+                              }
+                              observer = ivl_expr_parm(observer, 0);
+                        }
                         event_expr_capturing_ = 1;
                         draw_eval_vec4(observer);
                         event_expr_capturing_ = 0;

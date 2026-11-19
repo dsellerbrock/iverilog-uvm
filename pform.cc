@@ -30766,6 +30766,7 @@ static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
       events.push_back(new PEEvent(PEEvent::POSEDGE, truth));
       PEventStatement*abort = new PEventStatement(events);
       FILE_NAME(abort, loc);
+      abort->set_sva_disable_observer();
       std::vector<Statement*> disabled;
       disabled.push_back(sva_report_stmt_(loc, inst, SVA_CB_DISABLED_EVAL));
       disabled.push_back(clear);
@@ -36694,6 +36695,7 @@ static bool sva_parameter_repeat_try_assertion_(
 					 disable_became_true));
 	    PEventStatement*abort = new PEventStatement(abort_evs);
 	    FILE_NAME(abort, loc);
+	    abort->set_sva_disable_observer();
 	    abort->set_statement(clear_state());
 	    PProcess*abort_process = pform_make_behavior(
 		  IVL_PR_ALWAYS, abort, nullptr);

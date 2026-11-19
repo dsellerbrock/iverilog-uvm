@@ -674,6 +674,12 @@ void dll_target::expr_event(const NetEEvent*net)
 {
       assert(expr_ == 0);
 
+      // An observer recipe is exported during the event pass and can
+      // reference a named event whose declaring scope has not been visited.
+      const NetEvent*ev = net->event();
+      scope(ev->scope());
+      event(ev);
+
       expr_ = new struct ivl_expr_s();
 
       expr_->type_ = IVL_EX_EVENT;
@@ -683,7 +689,6 @@ void dll_target::expr_event(const NetEEvent*net)
 
         /* Locate the event by name. Save the ivl_event_t in the
            expression so that the generator can find it easily. */
-      const NetEvent*ev = net->event();
       ivl_scope_t ev_scope = lookup_scope_(ev->scope());
       ivl_scope_objects_s*objects = ev_scope->objects_();
       assert(objects);
