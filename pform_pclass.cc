@@ -860,6 +860,7 @@ void pform_class_constraint(const struct vlltype&loc,
 	    decl.is_prototype = false;
 	  }
       decl.is_static = is_static;
+      decl.is_external = is_external;
 	  decl.override_specifiers = override_specifiers;
       auto pure = type->pure_constraints.find(pname);
       if (pure != type->pure_constraints.end()) {
@@ -963,6 +964,7 @@ void pform_class_pure_constraint(const struct vlltype&loc,
 
       class_type_t::pure_constraint_info_t&info =
 	type->pure_constraints[pname];
+      type->constraint_order.push_back(pname);
       FILE_NAME(&info, loc);
 	  pform_check_constraint_override_specifiers_(&info, is_static, true,
 					      override_specifiers);

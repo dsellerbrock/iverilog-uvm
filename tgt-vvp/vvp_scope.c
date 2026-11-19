@@ -3941,6 +3941,14 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    if (decl == net) {
 		  fprintf(vvp_out, "D_%p .class/defn %d;\n", decl,
 			  ivl_scope_class_virtual(net));
+		  unsigned constraints = ivl_scope_class_constraints(net);
+		  for (unsigned i = 0; i < constraints; i += 1) {
+			int is_static, is_pure, is_external;
+			const char*name = ivl_scope_class_constraint(
+			      net, i, &is_static, &is_pure, &is_external);
+			fprintf(vvp_out, " .class/constraint \"%s\" %d %d %d;\n",
+				vvp_mangle_name(name), is_static, is_pure, is_external);
+		  }
 		  const char*name = ivl_scope_class_base_name(net);
 		  if (name) {
 			ivl_scope_t base = ivl_scope_class_base_declaration(net);

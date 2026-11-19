@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3750_class_constraints.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "vpi-modules": ["issue3750_class_constraints_2017"],
+  "vpi-sources": ["vpi/issue3750_class_constraints.c"],
+  "gold": "issue3750_class_constraints"
+}
