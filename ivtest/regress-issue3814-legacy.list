@@ -1,0 +1,7 @@
+sv_assertkill_active_attempts normal,-g2012 ivltests gold=sv_assertkill_active_attempts.gold
+issue3813_nexttime_actions_2017 normal,-g2017,-gassertions,-s,issue3813_nexttime_actions ivltests gold=issue3813_nexttime_actions-vvp-stdout.gold
+issue3813_nexttime_actions_2023 normal,-g2023,-gassertions,-s,issue3813_nexttime_actions ivltests gold=issue3813_nexttime_actions-vvp-stdout.gold
+issue3814_always_zero_2017 normal,-g2017,-gassertions,-s,issue3814_always_zero ivltests gold=issue3814_always_zero-vvp-stdout.gold
+issue3814_always_zero_2023 normal,-g2023,-gassertions,-s,issue3814_always_zero ivltests gold=issue3814_always_zero-vvp-stdout.gold
+issue3814_always_actions_2017 normal,-g2017,-gassertions,-s,issue3814_always_actions ivltests gold=issue3814_always_actions-vvp-stdout.gold
+issue3814_always_actions_2023 normal,-g2023,-gassertions,-s,issue3814_always_actions ivltests gold=issue3814_always_actions-vvp-stdout.gold
