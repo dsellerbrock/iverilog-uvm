@@ -286,6 +286,8 @@ ivl_scope_class
 ivl_scope_classes
 ivl_scope_class_declaration
 ivl_scope_class_virtual
+ivl_scope_class_constraints
+ivl_scope_class_constraint
 ivl_scope_class_base
 ivl_scope_class_base_declaration
 ivl_scope_class_base_name

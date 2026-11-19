@@ -1739,10 +1739,50 @@ class vpiClassExtends : public __vpiHandle {
       vpiHandle*args_ = nullptr;
 };
 
+class vpiConstraintDecl : public __vpiHandle {
+    public:
+      vpiConstraintDecl(__vpiScope*scope, const char*name, bool is_static,
+			bool is_pure, bool is_external)
+      : scope_(scope), name_(name), is_static_(is_static), is_pure_(is_pure),
+	is_external_(is_external) { }
+
+      int get_type_code() const override { return vpiConstraint; }
+      int vpi_get(int code) override
+      {
+	    switch (code) {
+		case vpiAutomatic: return !is_static_;
+		case vpiVirtual: return is_pure_;
+		case vpiAccessType: return is_external_ ? vpiExternAcc : 0;
+		default: return __vpiHandle::vpi_get(code);
+	    }
+      }
+      char* vpi_get_str(int code) override
+      {
+	    if (code == vpiName)
+		  return simple_set_rbuf_str(name_.c_str());
+	    if (code == vpiFullName) {
+		  string fullname = scope_->vpi_get_str(vpiFullName);
+		  fullname += "." + name_;
+		  return simple_set_rbuf_str(fullname.c_str());
+	    }
+	    return __vpiHandle::vpi_get_str(code);
+      }
+
+    private:
+      __vpiScope*const scope_;
+      const string name_;
+      const bool is_static_, is_pure_, is_external_;
+};
+
 class vpiClassDefinition : public __vpiHandle {
     public:
       vpiClassDefinition(__vpiScope*decl, bool is_virtual)
       : decl_(decl), is_virtual_(is_virtual) { }
+      ~vpiClassDefinition() override
+      {
+	    for (vpiHandle constraint : constraints_)
+		  delete constraint;
+      }
 
       int get_type_code() const override { return vpiClassDefn; }
       int vpi_get(int code) override
@@ -1777,10 +1817,18 @@ class vpiClassDefinition : public __vpiHandle {
 		  return class_definition_iter(decl_);
 	    if (code == vpiDerivedClasses)
 		  return derived_iterator();
+	    if (code == vpiConstraint)
+		  return constraints_.empty() ? nullptr
+			: vpip_make_iterator(constraints_.size(), constraints_.data(), false);
 	    return __vpiHandle::vpi_iterate(code);
       }
       void add_specialization(vpiHandle spec)
       { specializations_.push_back(spec); }
+      void add_constraint(const char*name, bool is_static, bool is_pure, bool is_external)
+      {
+	    constraints_.push_back(new vpiConstraintDecl(decl_, name, is_static,
+							is_pure, is_external));
+      }
       void add_derived(vpiClassDefinition*defn)
       { derived_.insert(defn); }
       vpiClassExtends* extends() const { return extends_.get(); }
@@ -1810,6 +1858,7 @@ class vpiClassDefinition : public __vpiHandle {
       __vpiScope*const decl_;
       const bool is_virtual_;
       vector<vpiHandle> specializations_;
+      vector<vpiHandle> constraints_;
       unique_ptr<vpiClassExtends> extends_;
       set<vpiClassDefinition*> derived_;
 };
@@ -1843,6 +1892,12 @@ class vpiScopeClass : public __vpiScope {
 		  }
 	    }
 	    return __vpiScope::vpi_handle(code);
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+	    if (code == vpiConstraint)
+		  return concrete() && definition_ ? definition_->vpi_iterate(code) : nullptr;
+	    return __vpiScope::vpi_iterate(code);
       }
       char* vpi_get_str(int code) override
       {
@@ -1943,6 +1998,21 @@ void compile_vpi_class_defn(char*label, uint64_t is_virtual)
 	    class_definitions.push_back(defn);
       }
       free(label);
+}
+
+void compile_vpi_class_constraint(char*name, uint64_t is_static,
+				  uint64_t is_pure, uint64_t is_external)
+{
+      auto*scope = dynamic_cast<vpiScopeClass*>(vpip_peek_current_scope());
+      auto*defn = scope ? scope->lexical_definition() : nullptr;
+      if (!defn || !*name || is_static > 1 || is_pure > 1 || is_external > 1
+	  || (is_pure && is_external)) {
+	    yyerror("invalid .class/constraint record");
+	    compile_errors += 1;
+      } else {
+	    defn->add_constraint(name, is_static, is_pure, is_external);
+      }
+      delete[] name;
 }
 
 class class_definition_link : public resolv_list_s {

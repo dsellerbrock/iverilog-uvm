@@ -2151,6 +2151,11 @@ extern ivl_type_t ivl_scope_class(ivl_scope_t net, unsigned idx);
    class record. A generic declaration has a definition scope only. */
 extern ivl_scope_t ivl_scope_class_declaration(ivl_scope_t net, int*concrete);
 extern int ivl_scope_class_virtual(ivl_scope_t net);
+/* Source-order constraint declarations owned by the class definition. */
+extern unsigned ivl_scope_class_constraints(ivl_scope_t net);
+extern const char*ivl_scope_class_constraint(ivl_scope_t net, unsigned idx,
+					     int*is_static, int*is_pure,
+					     int*is_external);
 /* The ordinary superclass, excluding interface-class relations. */
 extern ivl_type_t ivl_scope_class_base(ivl_scope_t net);
 extern int ivl_type_class_builtin(ivl_type_t net);

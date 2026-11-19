@@ -33,6 +33,7 @@
 # include  "netvector.h"
 # include  "sv_vpi_user.h"
 # include  "Module.h"
+# include  "PClass.h"
 # include  <algorithm>
 # include  <cstdlib>
 # include  <cstdio>
@@ -2762,6 +2763,31 @@ extern "C" ivl_scope_t ivl_scope_class_declaration(ivl_scope_t net, int*concrete
 extern "C" int ivl_scope_class_virtual(ivl_scope_t net)
 {
       return net->net_->class_def()->is_virtual();
+}
+
+extern "C" unsigned ivl_scope_class_constraints(ivl_scope_t net)
+{
+      return net->net_->class_pform()->type->constraint_order.size();
+}
+
+extern "C" const char*ivl_scope_class_constraint(ivl_scope_t net, unsigned idx,
+						int*is_static, int*is_pure,
+						int*is_external)
+{
+      const class_type_t*type = net->net_->class_pform()->type;
+      perm_string name = type->constraint_order.at(idx);
+      auto pure = type->pure_constraints.find(name);
+      *is_pure = pure != type->pure_constraints.end();
+      if (*is_pure) {
+	    *is_static = pure->second.is_static;
+	    *is_external = false;
+      } else {
+	    // Explicit extern prototypes must have a body by code generation.
+	    const auto&decl = type->constraint_declarations.at(name);
+	    *is_static = decl.is_static;
+	    *is_external = decl.is_external;
+      }
+      return name;
 }
 
 extern "C" ivl_scope_t ivl_type_class_typespec_scope(ivl_type_t net)

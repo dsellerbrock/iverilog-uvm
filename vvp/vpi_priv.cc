@@ -542,6 +542,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiByteVar";
 	  case vpiClassVar:
 	    return "vpiClassVar";
+	  case vpiConstraint:
+	    return "vpiConstraint";
 	  case vpiVirtualInterfaceVar:
 	    return "vpiVirtualInterfaceVar";
 	  case vpiConstant:
