@@ -25450,6 +25450,28 @@ NetExpr* PEConcat::elaborate_expr(Design*des, NetScope*scope,
 				|| elem_type->base_type() == IVL_VT_LOGIC)) {
 			      tmp = elaborate_rval_expr(des, scope, elem_type,
 					       parms_[idx], false, false, item_flags);
+			} else if (want_type == elem_type
+				   && dynamic_cast<const netvector_t*>(elem_type)
+				   && elem_type != &netvector_t::chandle_type
+				   && type_is_vectorable(elem_type->base_type())
+				   && type_is_vectorable(parms_[idx]->expr_type())
+				   && (dynamic_cast<const PEUnary*>(parms_[idx])
+				       || dynamic_cast<const PEBinary*>(parms_[idx]))) {
+			      /* Evaluate the operator at its self-determined width
+			       * before converting the result to the element type
+			       * (IEEE 1800-2017/2023 10.10). The typed overload
+			       * falls back to a one-bit width for these operators. */
+			      tmp = elab_and_eval(des, scope, parms_[idx], -1,
+						 item_flags & PExpr::NEED_CONST,
+						 false, IVL_VT_NO_TYPE, false,
+						 item_flags);
+			      if (tmp) {
+				    unsigned width = elem_type->packed_width();
+				    tmp = cast_to_width(tmp, width, tmp->has_sign(),
+							*parms_[idx]);
+				    if (elem_type->base_type() == IVL_VT_BOOL)
+					  tmp = cast_to_int2(tmp, width);
+			      }
 			} else {
 			      tmp = parms_[idx]->elaborate_expr(
 				    des, scope, want_type, item_flags);
