@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue2572_queue_element_reenable.v",
+  "iverilog-args": ["-g2017", "-s", "main"],
+  "gold": "issue2572_queue_element_reenable",
+  "timeout": 60
+}
