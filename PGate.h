@@ -309,6 +309,10 @@ class PGModule  : public PGate {
 	// permallocated string.
       perm_string get_type() const;
 
+	// A checker declaration selected by lexical or package lookup.
+      void set_checker_type(Module*type) { checker_type_ = type; }
+      Module* checker_type() const { return checker_type_; }
+
       // Checker port lists use named_pexpr_t entries for named connections.
       bool has_duplicate_wildcard_port_connections() const;
       void mark_no_port_list() { no_port_list_ = true; }
@@ -328,6 +332,7 @@ class PGModule  : public PGate {
 
     private:
       Module*bound_type_;
+      Module*checker_type_ = nullptr;
       std::vector<bind_instance_filter_t*> bind_filter_;
       bool bind_filter_ok_(Design*des, NetScope*sc) const;
       bool is_bind_instance_;

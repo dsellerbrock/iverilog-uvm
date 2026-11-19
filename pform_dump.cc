@@ -2086,6 +2086,8 @@ void PPackage::pform_dump(std::ostream&out) const
       dump_tasks_(out, 4);
       dump_funcs_(out, 4);
       dump_var_inits_(out, 4);
+      for (const auto&entry : checkers)
+	    ::pform_dump(out, entry.second);
       out << "endpackage" << endl;
 }
 

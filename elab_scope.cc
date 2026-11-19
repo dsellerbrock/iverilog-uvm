@@ -6355,7 +6355,9 @@ void PGModule::elaborate_scope_mod_(Design*des, Module*mod, NetScope*sc) const
 
 	    if (scn->type() != NetScope::MODULE) continue;
 
-	    if (strcmp(mod->mod_name(), scn->module_name()) != 0) continue;
+	    if (mod->is_checker ? mod != scn->module_definition()
+		: strcmp(mod->mod_name(), scn->module_name()) != 0)
+		  continue;
 	    if (selected_bind_target) continue;
 
 	      // We allow nested scopes if they are inside a generate block,

@@ -1,0 +1,2 @@
+./ivltests/issue3361_wildcards.sv:13: error: Ambiguous use of 'c'. It is exported by both 'wild_first3361' and by 'wild_second3361'.
+./ivltests/issue3361_wildcards.sv:21: error: 'c' has already been imported into this scope from package 'wild_first3361'.

@@ -1,0 +1,11 @@
+ivltests/issue3361_hidden.sv:22: error: Unknown module type: bind_checker
+ivltests/issue3361_hidden.sv:13: error: Unknown module type: late_checker
+ivltests/issue3361_hidden.sv:27: error: Unknown module type: caller_checker
+ivltests/issue3361_hidden.sv:9: error: Unknown module type: unimported_checker
+4 error(s) during elaboration.
+*** These modules were missing:
+        bind_checker referenced 1 times.
+        caller_checker referenced 1 times.
+        late_checker referenced 1 times.
+        unimported_checker referenced 1 times.
+***

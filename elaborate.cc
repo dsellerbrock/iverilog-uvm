@@ -440,6 +440,8 @@ static const Module* find_default_clocking_module_(const Module*module)
 static Module* find_module_type_(Design*des, const PGModule*inst,
 				 perm_string type, const NetScope*scope)
 {
+      if (Module*checker = inst->checker_type()) return checker;
+
       for (const NetScope*cur = scope ; cur ; cur = cur->parent()) {
 	    const PGenerate*selected_generate = nullptr;
 	    auto select_generate = [&] (const PGenerate*generate) {
@@ -468,6 +470,13 @@ static Module* find_module_type_(Design*des, const PGModule*inst,
 	    if (nested != owner->nested_modules.end()
 		&& (!nested->second->is_checker || generation_flag >= GN_VER2017))
 		  return nested->second;
+
+	      // A package checker has no lexical access to design elements
+	      // nested in the scope that instantiated it.
+	    const LexicalScope*parent = owner->parent_scope();
+	    if (owner->is_checker && parent->parent_scope()
+		&& dynamic_cast<const PPackage*>(parent))
+		  break;
       }
 
 	// A config binds the instance to a library cell (IEEE 1800 33.4).
@@ -10760,15 +10769,15 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
 	    }
 
 	    const Module*target_definition = sc->module_definition();
-	    const Module*bound_definition = bound_type_;
+	    const Module*bound_definition = checker_type_ ? checker_type_ : bound_type_;
 	    if (!bound_definition) {
 		  map<perm_string,Module*>::const_iterator found
 			= pform_modules.find(type_);
 		  if (found != pform_modules.end())
 			bound_definition = found->second;
 	    }
-	    bool bound_primitive
-		  = pform_primitives.find(type_) != pform_primitives.end();
+	    bool bound_primitive = !checker_type_
+		  && pform_primitives.find(type_) != pform_primitives.end();
 	    if (!bound_definition && !bound_primitive) {
 		  int parser_errors = 0;
 		  if (load_module(type_, parser_errors)) {

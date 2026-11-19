@@ -2916,7 +2916,10 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
 	   cell of the library that is searched first keeps the plain name in
 	   pform_modules, so that every lookup by name binds as 33.6.1
 	   requires. The other cells are kept under a library-qualified key. */
-      map<perm_string,Module*>::iterator same_name = pform_cur_module.empty()
+      const bool package_checker = is_checker && !is_compilation_unit(lexical_scope)
+	    && dynamic_cast<PPackage*>(lexical_scope);
+      map<perm_string,Module*>::iterator same_name =
+	    pform_cur_module.empty() && !package_checker
 	    ? pform_modules.find(lex_name) : pform_modules.end();
       if (same_name != pform_modules.end()
 	  && same_name->second->library != library) {
@@ -3411,9 +3414,6 @@ static void checker_free_finish_(Module*m)
       checker_free_vars_.erase(it);
 }
 
-/* The checkers each package declares (IEEE 1800 17.3, #941). */
-static map<PPackage*, set<perm_string> > pform_package_checkers_;
-
 void pform_endmodule(const char*name, bool inside_celldefine,
                      Module::UCDriveType uc_drive_def)
 {
@@ -3526,6 +3526,17 @@ void pform_endmodule(const char*name, bool inside_celldefine,
       cur_module->is_cell = inside_celldefine;
       cur_module->uc_drive = uc_drive_def;
 
+      ivl_assert(*cur_module, lexical_scope == cur_module);
+      pform_pop_scope();
+
+	// Package checkers belong to the package's namespace (26.2).
+      if (cur_module->is_checker && !is_compilation_unit(lexical_scope)) {
+	    if (PPackage*pkg = dynamic_cast<PPackage*>(lexical_scope)) {
+		  pkg->checkers.emplace(mod_name, cur_module);
+		  return;
+	    }
+      }
+
 	  // If this is a root module, then there is no parent module
 	  // and we try to put this newly defined module into the global
 	  // root list of modules. Otherwise, this is a nested module
@@ -3555,47 +3566,13 @@ void pform_endmodule(const char*name, bool inside_celldefine,
 	    if (&use_module_map == &pform_modules)
 		  config_add_cell(cur_module);
       }
-
-	// The current lexical scope should be this module by now.
-      ivl_assert(*cur_module, lexical_scope == cur_module);
-      pform_pop_scope();
-
-	/* Remember which package declared a checker, for p::c instances. */
-      if (cur_module->is_checker)
-	    if (PPackage*pkg = dynamic_cast<PPackage*>(lexical_scope))
-		  pform_package_checkers_[pkg].insert(mod_name);
 }
 
-bool pform_package_declares_checker(const struct vlltype&loc, PPackage*pkg,
-				    perm_string name)
+static Module* package_checker_type_(const PPackage*pkg, perm_string name)
 {
-      map<PPackage*, set<perm_string> >::const_iterator cur
-	    = pform_package_checkers_.find(pkg);
-      if (cur != pform_package_checkers_.end() && cur->second.count(name))
-	    return true;
-      cerr << loc << ": error: Package " << pkg->pscope_name()
-	   << " has no checker " << name << "; only a checker can be "
-	   << "instantiated through a package scope (IEEE 1800 17.3)." << endl;
-      error_count += 1;
-      return false;
-}
-
-void pform_make_pkg_checker_instance(const struct vlltype&loc, PPackage*pkg,
-				     perm_string name, std::vector<lgate>*gates)
-{
-      if (!dynamic_cast<Module*>(lexical_scope)
-	  && !dynamic_cast<PGenerate*>(lexical_scope)) {
-	    cerr << loc << ": sorry: A package-scoped checker instance is "
-		 << "only supported as a module or generate item." << endl;
-	    error_count += 1;
-	    delete gates;
-	    return;
-      }
-      if (!pform_package_declares_checker(loc, pkg, name)) {
-	    delete gates;
-	    return;
-      }
-      pform_make_modgates(loc, name, nullptr, gates, nullptr);
+      if (!pkg) return nullptr;
+      auto checker = pkg->checkers.find(name);
+      return checker == pkg->checkers.end() ? nullptr : checker->second;
 }
 
 void pform_genvars(const struct vlltype&li, list<pform_ident_t>*names)
@@ -4684,7 +4661,8 @@ static void pform_make_modgate(perm_string type,
 			       const LineInfo&li,
 			       std::list<named_pexpr_t>*attr,
 			       bool no_port_list,
-			       const struct str_pair_t*strength = 0)
+			       const struct str_pair_t*strength = 0,
+			       Module*checker = nullptr)
 {
       for (list<PExpr*>::iterator idx = wires->begin()
 		 ; idx != wires->end() ; ++idx) {
@@ -4692,6 +4670,7 @@ static void pform_make_modgate(perm_string type,
       }
 
       PGModule*cur = new PGModule(type, name, wires);
+      cur->set_checker_type(checker);
       if (strength) {
 	    cur->strength0(strength->str0);
 	    cur->strength1(strength->str1);
@@ -4732,7 +4711,8 @@ static void pform_make_modgate(perm_string type,
 			       const LineInfo&li,
 			       std::list<named_pexpr_t>*attr,
 			       bool no_port_list,
-			       const struct str_pair_t*strength = 0)
+			       const struct str_pair_t*strength = 0,
+			       Module*checker = nullptr)
 {
       unsigned npins = bind->size();
       named_pexpr_t *pins = new named_pexpr_t[npins];
@@ -4742,6 +4722,7 @@ static void pform_make_modgate(perm_string type,
       std::copy(bind->begin(), bind->end(), pins);
 
       PGModule*cur = new PGModule(type, name, pins, npins);
+      cur->set_checker_type(checker);
       if (strength) {
 	    cur->strength0(strength->str0);
 	    cur->strength1(strength->str1);
@@ -4775,6 +4756,19 @@ static void pform_make_modgate(perm_string type,
       pform_bind_attributes(cur->attributes, attr);
 }
 
+static Module* pform_nested_module_type_(const LexicalScope*scope,
+					perm_string type)
+{
+      const map<perm_string,Module*>*nested_modules = nullptr;
+      if (const Module*owner = dynamic_cast<const Module*>(scope))
+	    nested_modules = &owner->nested_modules;
+      else if (const PGenerate*generate = dynamic_cast<const PGenerate*>(scope))
+	    nested_modules = &generate->nested_modules;
+      if (!nested_modules) return nullptr;
+      auto nested = nested_modules->find(type);
+      return nested == nested_modules->end() ? nullptr : nested->second;
+}
+
 /* Find a design element using the lexical declaration scopes available
  * during parsing. Local checker definitions are supported for the 2017 and
  * 2023 editions; older modes retain their existing nested-checker behavior. */
@@ -4782,22 +4776,11 @@ Module* pform_find_visible_module_type_(const LexicalScope*scope,
 						       perm_string type)
 {
       for (const LexicalScope*cur = scope; cur; cur = cur->parent_scope()) {
-	    const std::map<perm_string,Module*>*nested_modules = nullptr;
-	    if (const Module*owner = dynamic_cast<const Module*>(cur))
-		  nested_modules = &owner->nested_modules;
-	    else if (const PGenerate*generate = dynamic_cast<const PGenerate*>(cur))
-		  nested_modules = &generate->nested_modules;
-
-	    if (nested_modules) {
-		  std::map<perm_string,Module*>::const_iterator nested
-			= nested_modules->find(type);
-		  if (nested != nested_modules->end()) {
-			if (nested->second->is_checker
-			    && generation_flag < GN_VER2017)
-			      return nullptr;
-			return nested->second;
-		  }
-      }
+	    if (Module*nested = pform_nested_module_type_(cur, type)) {
+		  if (nested->is_checker && generation_flag < GN_VER2017)
+			return nullptr;
+		  return nested;
+	    }
       }
 
       std::map<perm_string,Module*>::const_iterator module
@@ -4805,12 +4788,57 @@ Module* pform_find_visible_module_type_(const LexicalScope*scope,
       return module == pform_modules.end()? nullptr : module->second;
 }
 
-void pform_make_modgates(const struct vlltype&loc,
+/* Resolve bare checker names at the reference. Bind supplies no reference
+ * location: it sees existing declarations/imports in the target and can
+ * neither realize a wildcard candidate nor see imports in $unit (23.11). */
+static Module* pform_resolve_checker_(LexicalScope*scope, perm_string type,
+				     const struct vlltype*reference)
+{
+      for (; scope; scope = scope->parent_scope()) {
+	    if (!reference && is_compilation_unit(scope)) break;
+	    if (Module*nested = pform_nested_module_type_(scope, type))
+		  return nested->is_checker && generation_flag >= GN_VER2017
+			? nested : nullptr;
+	    if (Module*checker = package_checker_type_(
+		  dynamic_cast<PPackage*>(scope), type))
+		  return checker;
+	    if (scope->local_symbols.count(type)) return nullptr;
+
+	    auto imported = scope->explicit_imports.find(type);
+	    if (imported != scope->explicit_imports.end()) {
+		  Module*checker = package_checker_type_(imported->second, type);
+		  if (reference && checker) scope->wildcard_pin_used.insert(type);
+		  return checker;
+	    }
+
+	    if (!reference) continue;
+	    for (PPackage*pkg : scope->potential_imports) {
+		  if (!package_checker_type_(pform_package_importable(pkg, type),
+					     type))
+			continue;
+		  PPackage*decl = pform_find_potential_import(*reference, scope,
+							     type, false, true);
+		  scope->wildcard_pin_used.insert(type);
+		  return package_checker_type_(decl, type);
+	    }
+      }
+      return nullptr;
+}
+
+static Module* pform_instance_type_(const LexicalScope*scope,
+				    const PGModule*instance)
+{
+      if (Module*checker = instance->checker_type()) return checker;
+      return pform_find_visible_module_type_(scope, instance->get_type());
+}
+
+static void pform_make_modgates_(const struct vlltype&loc,
 			 perm_string type,
 			 struct parmvalue_t*overrides,
 			 std::vector<lgate>*gates,
 			 std::list<named_pexpr_t>*attr,
-			 const struct str_pair_t*strength)
+			 const struct str_pair_t*strength,
+			 Module*checker)
 {
 	// SystemVerilog user-type declarations at module scope (e.g. `foo_t x;`)
 	// parse through the same no-port shape as degenerate module instances.
@@ -4819,7 +4847,7 @@ void pform_make_modgates(const struct vlltype&loc,
 	//
 	// Also handles parameterized built-in class types like `mailbox #(T) m;`
 	// where overrides contains the type parameter.
-      {
+      if (!checker) {
 	    typedef_t*decl_type = pform_test_type_identifier(loc, type);
 	    // Parameterized built-in class types (mailbox #(T)) are reinterpreted
 	    // as variable declarations even when overrides is non-null, provided
@@ -4912,9 +4940,11 @@ void pform_make_modgates(const struct vlltype&loc,
 
 	// Detect some more realistic errors.
 
-	  Module*instance_type = pform_find_visible_module_type_(lexical_scope,
-								  type);
-	  bool checker_instance = instance_type && instance_type->is_checker;
+      if (!checker)
+	    checker = pform_resolve_checker_(lexical_scope, type, &loc);
+      Module*instance_type = checker ? checker :
+	    pform_find_visible_module_type_(lexical_scope, type);
+      bool checker_instance = instance_type && instance_type->is_checker;
       if (pform_cur_module.front()->program_block && !checker_instance) {
 	    cerr << loc << ": error: Module instantiations are not allowed in "
 		 << "program blocks." << endl;
@@ -4932,7 +4962,7 @@ void pform_make_modgates(const struct vlltype&loc,
 	    if (cur.parms_by_name) {
 		  pform_make_modgate(type, cur_name, overrides,
 				     cur.parms_by_name, cur.ranges,
-				     cur, attr, cur.no_port_list, strength);
+				     cur, attr, cur.no_port_list, strength, checker);
 
 	    } else if (cur.parms) {
 
@@ -4945,17 +4975,49 @@ void pform_make_modgates(const struct vlltype&loc,
 		  }
 		  pform_make_modgate(type, cur_name, overrides,
 				     cur.parms, cur.ranges,
-				     cur, attr, cur.no_port_list, strength);
+				     cur, attr, cur.no_port_list, strength, checker);
 
 	    } else {
 		  list<PExpr*>*wires = new list<PExpr*>;
 		  pform_make_modgate(type, cur_name, overrides,
 				     wires, cur.ranges,
-				     cur, attr, cur.no_port_list, strength);
+				     cur, attr, cur.no_port_list, strength, checker);
 	    }
       }
 
       delete gates;
+}
+
+void pform_make_modgates(const struct vlltype&loc, perm_string type,
+			struct parmvalue_t*overrides, std::vector<lgate>*gates,
+			std::list<named_pexpr_t>*attr,
+			const struct str_pair_t*strength)
+{
+      pform_make_modgates_(loc, type, overrides, gates, attr, strength, nullptr);
+}
+
+void pform_make_pkg_checker_instance(const struct vlltype&loc, PPackage*pkg,
+				     perm_string name, std::vector<lgate>*gates)
+{
+      if (!dynamic_cast<Module*>(lexical_scope)
+	  && !dynamic_cast<PGenerate*>(lexical_scope)) {
+	    cerr << loc << ": sorry: A package-scoped checker instance is "
+		 << "only supported as a module or generate item." << endl;
+	    error_count += 1;
+	    delete gates;
+	    return;
+      }
+      Module*checker = package_checker_type_(pform_package_importable(pkg, name),
+					     name);
+      if (!checker) {
+	    cerr << loc << ": error: Package " << pkg->pscope_name()
+		 << " has no checker " << name << "; only a checker can be "
+		 << "instantiated through a package scope (IEEE 1800 17.3)." << endl;
+	    error_count += 1;
+	    delete gates;
+	    return;
+      }
+      pform_make_modgates_(loc, name, nullptr, gates, nullptr, nullptr, checker);
 }
 
 /*
@@ -5192,8 +5254,9 @@ static void bind_walk_instance_path_from_(
 					  diagnose))
 		  return;
 
-	    Module*child_module
-		  = bind_find_or_load_module_(modgate->get_type());
+	    Module*child_module = modgate->checker_type();
+	    if (!child_module)
+		  child_module = bind_find_or_load_module_(modgate->get_type());
 	    if (!child_module) {
 		  if (diagnose) {
 			cerr << li.get_fileline() << ": error: bind target instance "
@@ -5429,6 +5492,7 @@ static vector<PGModule*> bind_apply_one(
 		const std::vector<bind_instance_filter_t*>&inst_filter)
 {
       vector<PGModule*> created;
+      Module*checker = pform_resolve_checker_(scope, bind.type, nullptr);
       for (unsigned idx = 0 ; idx < bind.gates->size() ; idx += 1) {
 	    lgate&cur = (*bind.gates)[idx];
 	    perm_string cur_name = lex_strings.make(cur.name);
@@ -5466,6 +5530,7 @@ static vector<PGModule*> bind_apply_one(
 		  gate = new PGModule(bind.type, cur_name, wires);
 	    }
 	    if (cur.no_port_list) gate->mark_no_port_list();
+	    gate->set_checker_type(checker);
 	    gate->set_line(bind.li);
 	    gate->set_ranges(cur.ranges);
 	    gate->mark_bind_instance();
@@ -5768,18 +5833,19 @@ static void bind_resolve_batch_(const vector<pending_bind_t*>&batch,
 		  = pform_modules.find(bind->type);
 	    bool bound_primitive
 		  = pform_primitives.find(bind->type) != pform_primitives.end();
-	    if (bound_primitive) {
-		  cerr << bind->li.get_fileline() << ": error: primitive '"
-		       << bind->type << "' is not a permitted bind "
-		       << "instantiation; expected a program, module, "
-		       << "interface, or checker instantiation." << endl;
-		  error_count += 1;
-		  bind_discard_filters_(inst_filter);
-		  continue;
-	    }
-	    for (bind_target_set_t::iterator target = target_mods.begin()
-		 ; target_scope_form && target != target_mods.end() ; ++target) {
-		  Module*target_mod = *target;
+	    for (Module*target_mod : target_mods) {
+		  if (pform_resolve_checker_(target_mod, bind->type, nullptr))
+			continue;
+		  if (bound_primitive) {
+			cerr << bind->li.get_fileline() << ": error: primitive '"
+			     << bind->type << "' is not a permitted bind "
+			     << "instantiation; expected a program, module, "
+			     << "interface, or checker instantiation." << endl;
+			error_count += 1;
+			bad_target = true;
+			break;
+		  }
+		  if (!target_scope_form) continue;
 		  if (definition_target
 		      && bind->type == target_mod->mod_name()) {
 			cerr << bind->li.get_fileline() << ": error: "
@@ -5909,6 +5975,12 @@ void pform_apply_binds(void)
 
 void pform_find_bind_module_mentions(map<perm_string,bool>&mentions)
 {
+      for (const bind_application_t&application : bind_applications)
+	    for (const PGModule*gate : application.gates)
+		  if (!gate->checker_type()
+		      && pform_modules.count(gate->get_type()))
+			mentions[gate->get_type()] = true;
+
 	// A contained directive is activated only for a live declaration-scope
 	// occurrence, but its bind instantiation is still a syntactic module-like
 	// instantiation for automatic root selection, just as an instantiation in
@@ -5916,7 +5988,7 @@ void pform_find_bind_module_mentions(map<perm_string,bool>&mentions)
 	// unrelated extra root before owner activation runs.
       for (list<pending_bind_t>::const_iterator bind = pending_binds.begin()
 		 ; bind != pending_binds.end() ; ++bind) {
-	    if (pform_modules.find(bind->type) != pform_modules.end())
+	    if (!bind->applied && pform_modules.count(bind->type))
 		  mentions[bind->type] = true;
       }
 }
@@ -10504,14 +10576,18 @@ static bool sva_hier_sequence_scope_(
 	    pform_name_t child_path = module_path;
 	    child_path.insert(child_path.end(), gen_path.begin(), gen_path.end());
 	    child_path.push_back(*comp);
-	    std::map<perm_string,Module*>::const_iterator target =
-		  pform_modules.find(instance->get_type());
-	    if (target == pform_modules.end()) {
+	    const Module*target = instance->checker_type();
+	    if (!target) {
+		  auto definition = pform_modules.find(instance->get_type());
+		  if (definition != pform_modules.end())
+			target = definition->second;
+	    }
+	    if (!target) {
 		  if (unresolved_module) *unresolved_module = true;
 		  return false;
 	    }
 	    module_path.swap(child_path);
-	    module = target->second;
+	    module = target;
 	    generate = nullptr;
       }
       result.module = module;
@@ -40858,7 +40934,9 @@ Statement* pform_procedural_checker_instance(const struct vlltype&loc,
       gate->parms_by_name = nullptr;
       std::unique_ptr<std::list<named_pexpr_t>> own_by_name(by_name);
 
-      Module*checker = pform_find_visible_module_type_(lexical_scope, type);
+      Module*checker = pform_resolve_checker_(lexical_scope, type, &loc);
+      if (!checker)
+	    checker = pform_find_visible_module_type_(lexical_scope, type);
       if (!checker || !checker->is_checker) {
 	    if (checker)
 		  cerr << loc << ": error: `" << type << "' is not a checker; "
@@ -40911,8 +40989,7 @@ Statement* pform_procedural_checker_instance(const struct vlltype&loc,
       }
       for (PGate*g : checker->get_gates()) {
 	    PGModule*sub = dynamic_cast<PGModule*>(g);
-	    Module*target = sub ? pform_find_visible_module_type_(checker,
-							  sub->get_type())
+	    Module*target = sub ? pform_instance_type_(checker, sub)
 		  : nullptr;
 	    if (!refused && target && target->is_checker) {
 		  refused = "a nested checker instance";
@@ -44134,9 +44211,34 @@ static void pform_check_checker_instantiations_(const std::list<PGate*>&gates,
 	    PGModule*instance = dynamic_cast<PGModule*>(gate);
 	    if (!instance) continue;
 
-	    Module*target = pform_find_visible_module_type_(
-		  scope, instance->get_type());
-	    if (target && !target->is_checker) {
+	      // Complete forward references to checker declarations in the
+	      // enclosing package. Imports were resolved at the reference.
+	    const PPackage*package = nullptr;
+	    for (const LexicalScope*cur = scope; cur->parent_scope();
+		 cur = cur->parent_scope()) {
+		  package = dynamic_cast<const PPackage*>(cur);
+		  if (package) break;
+		  if (cur->local_symbols.count(instance->get_type())
+		      || cur->explicit_imports.count(instance->get_type()))
+			break;
+	    }
+	    if (package && !instance->checker_type()) {
+		  instance->set_checker_type(
+			package_checker_type_(package, instance->get_type()));
+	    }
+
+	    Module*target = pform_instance_type_(scope, instance);
+	    if (!target) continue;
+	    if (target->is_checker) {
+		  if (package && is_compilation_unit(target->parent_scope())) {
+			report_package_unit_type(*instance, package,
+						 instance->get_type(), "checker");
+			if (gn_commercial_unsafe_flag)
+			      warn_count += 1;
+			else
+			      error_count += 1;
+		  }
+	    } else {
 		  cerr << instance->get_fileline() << ": error: Module, interface, "
 		       << "and program instantiations are not allowed in checkers."
 		       << endl;
@@ -44153,8 +44255,7 @@ static void pform_check_checker_wildcard_connections_(
 	    if (!instance || !instance->has_duplicate_wildcard_port_connections())
 		  continue;
 
-	    Module*target = pform_find_visible_module_type_(
-		  scope, instance->get_type());
+	    Module*target = pform_instance_type_(scope, instance);
 	    if (target && target->is_checker) {
 		  cerr << instance->get_fileline() << ": error: Checker instantiation `"
 		       << instance->get_name()
@@ -44315,6 +44416,15 @@ int pform_finish()
       for (const pair<const perm_string,Module*>&module : pform_modules)
 	    pform_check_checker_wildcard_module_(module.second);
 
+      for (PPackage*package : pform_packages) {
+	    for (const auto&entry : package->checkers) {
+		  Module*checker = entry.second;
+		  pform_validate_nettype_resolvers_(checker, validated_scopes);
+		  pform_check_checker_module_instantiations_(checker);
+		  pform_check_checker_wildcard_module_(checker);
+	    }
+      }
+
       // Apply collected SystemVerilog bind directives now that every
       // target module has been parsed.
       pform_apply_binds();
@@ -44403,8 +44513,11 @@ void pform_release_elaboration_memory()
       set<LexicalScope*>seen;
       for (PPackage*unit : pform_units)
 	    pform_release_scope_memory_(unit, seen);
-      for (PPackage*package : pform_packages)
+      for (PPackage*package : pform_packages) {
 	    pform_release_scope_memory_(package, seen);
+	    for (const auto&entry : package->checkers)
+		  pform_release_scope_memory_(entry.second, seen);
+      }
       for (map<perm_string,Module*>::value_type&item : pform_modules)
 	    pform_release_scope_memory_(item.second, seen);
 }

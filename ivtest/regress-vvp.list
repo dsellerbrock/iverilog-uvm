@@ -8177,3 +8177,11 @@ issue3791_2017 vvp_tests/issue3791_2017.json
 issue3791_2023 vvp_tests/issue3791_2023.json
 issue3791_bad_2017 vvp_tests/issue3791_bad_2017.json
 issue3791_bad_2023 vvp_tests/issue3791_bad_2023.json
+
+# IEEE 1800 26.3, 26.6: package checker visibility (#3361).
+issue3361_2017 vvp_tests/issue3361_2017.json
+issue3361_2023 vvp_tests/issue3361_2023.json
+issue3361_hidden_2017 vvp_tests/issue3361_hidden_2017.json
+issue3361_hidden_2023 vvp_tests/issue3361_hidden_2023.json
+issue3361_wildcards_2017 vvp_tests/issue3361_wildcards_2017.json
+issue3361_wildcards_2023 vvp_tests/issue3361_wildcards_2023.json

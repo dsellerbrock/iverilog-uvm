@@ -1,0 +1,9 @@
+{
+    "type": "CE",
+    "source": "issue3361_wildcards.sv",
+    "iverilog-args": [
+        "-g2017",
+        "-gassertions"
+    ],
+    "gold": "issue3361_wildcards"
+}

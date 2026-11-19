@@ -1348,11 +1348,6 @@ extern void pform_makegates(const struct vlltype&loc,
 			    std::vector<lgate>*gates,
 			    std::list<named_pexpr_t>*attr);
 
-/* IEEE 1800 17.3 ps_checker_identifier: true when package PKG declares a
-   checker named NAME; otherwise reports an error at LOC. */
-extern bool pform_package_declares_checker(const struct vlltype&loc,
-					   PPackage*pkg, perm_string name);
-
 /* Instantiate checker NAME of package PKG (p::c u(...);) as a module or
    generate item. Takes GATES. */
 extern void pform_make_pkg_checker_instance(const struct vlltype&loc,

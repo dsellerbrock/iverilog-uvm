@@ -27,6 +27,7 @@
 # include  <set>
 # include  <vector>
 
+class Module;
 class PLet;
 
 /*
@@ -53,6 +54,7 @@ class PPackage : public PScopeExtra, public LineInfo {
       };
 
       std::vector<export_t> exports;
+      std::map<perm_string,Module*> checkers;
 
 	// Tasks and functions declared by an anonymous program in this
 	// package or compilation unit, which only program blocks may

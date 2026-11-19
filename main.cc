@@ -1582,7 +1582,7 @@ static void find_module_mention(map<perm_string,bool>&check_map, Module*mod)
       list<PGate*>::const_iterator gate;
       for (gate = gates.begin(); gate != gates.end(); ++ gate ) {
 	    const PGModule*tmp = dynamic_cast<PGModule*>(*gate);
-	    if (tmp) {
+	    if (tmp && !tmp->checker_type()) {
 		    // Note that this module has been instantiated
 		  check_map[tmp->get_type()] = true;
 	    }
@@ -1600,7 +1600,7 @@ static void find_module_mention(map<perm_string,bool>&check_map, PGenerate*schm)
       list<PGate*>::const_iterator gate;
       for (gate = schm->gates.begin(); gate != schm->gates.end(); ++ gate ) {
 	    const PGModule*tmp = dynamic_cast<PGModule*>(*gate);
-	    if (tmp) {
+	    if (tmp && !tmp->checker_type()) {
 		    // Note that this module has been instantiated
 		  check_map[tmp->get_type()] = true;
 	    }
