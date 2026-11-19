@@ -42,6 +42,7 @@ static int yywrap(void)
 
 
 # define yylval sdflval
+static int sdf_comment_state;
 static unsigned sdf_timingenv_depth;
 %}
 
@@ -49,17 +50,22 @@ static unsigned sdf_timingenv_depth;
 %x COND_EDGE_ID
 %x EDGE_ID
 %x TIMINGENV
+%x TIMINGENV_STRING
+
+ESCAPED_ID_CHAR \\[^ \t\b\f\r\n]
 
 %%
 
   /* Skip C++-style comments. */
-"//".* { ; }
+<INITIAL,TIMINGENV>"//".* { ; }
 
   /* Skip C-style comments. */
-"/*"           { BEGIN(CCOMMENT); }
+<INITIAL,TIMINGENV>"/*" {
+      sdf_comment_state = YY_START;
+      BEGIN(CCOMMENT);
+}
 <CCOMMENT>.    { ; }
-<CCOMMENT>\n   { sdflloc.first_line += 1; }
-<CCOMMENT>"*/" { BEGIN(0); }
+<CCOMMENT>"*/" { BEGIN(sdf_comment_state); }
 
 [ \r\t] { /* Skip white space. */; }
 
@@ -72,16 +78,20 @@ static unsigned sdf_timingenv_depth;
       if (sdf_timingenv_depth > 0)
             sdf_timingenv_depth -= 1;
       else {
-            BEGIN(0);
+            BEGIN(INITIAL);
             return ')';
       }
 }
-<TIMINGENV>"\""[^\"]*"\"" { /* Ignore quoted data, including parentheses. */; }
-<TIMINGENV>\n { sdflloc.first_line += 1; }
+<TIMINGENV>{ESCAPED_ID_CHAR} { /* Ignore escaped identifier characters. */; }
+<TIMINGENV>\" { BEGIN(TIMINGENV_STRING); }
 <TIMINGENV>. { /* Ignore all other TIMINGENV content. */; }
 
+<TIMINGENV_STRING>\\. { /* Ignore escaped characters, including quotes. */; }
+<TIMINGENV_STRING>\" { BEGIN(TIMINGENV); }
+<TIMINGENV_STRING>. { ; }
+
   /* Count lines so that the parser can assign line numbers. */
-\n { sdflloc.first_line += 1; }
+<INITIAL,CCOMMENT,TIMINGENV,TIMINGENV_STRING>\n { sdflloc.first_line += 1; }
 
   /* The other edge identifiers. */
 <COND_EDGE_ID,EDGE_ID>"01"    {return K_01; }
@@ -106,7 +116,7 @@ static unsigned sdf_timingenv_depth;
       return REAL_NUMBER;
 }
 
-([a-zA-Z_]|(\\[^ \t\b\f\r\n]))([a-zA-Z0-9$_]|(\\[^ \t\b\f\r\n]))* {
+([a-zA-Z_]|{ESCAPED_ID_CHAR})([a-zA-Z0-9$_]|{ESCAPED_ID_CHAR})* {
       return lookup_keyword(yytext);
 }
 
@@ -258,6 +268,7 @@ extern int sdfparse(void);
 void sdf_process_file(FILE*fd, const char*path)
 {
       yyrestart(fd);
+      BEGIN(INITIAL);
 
       /* The parser location is global, so start each SDF file at line 1. */
       sdflloc.first_line = 1;
