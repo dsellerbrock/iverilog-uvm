@@ -1,0 +1,4 @@
+./ivltests/issue3701_bad.sv:11: error: override of virtual method `f' argument `s' does not have a matching type (IEEE 1800-2017/2023 8.20).
+./ivltests/issue3701_bad.sv:24: error: override of virtual method `f' argument `s' does not have a matching type (IEEE 1800-2017/2023 8.20).
+./ivltests/issue3701_bad.sv:25: error: override of virtual method `make' returns a type that is neither a matching type nor a class derived from the prototype's return type (IEEE 1800-2017/2023 8.20).
+3 error(s) during elaboration.
