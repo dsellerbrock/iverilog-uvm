@@ -29,6 +29,8 @@
 struct args_info {
       char*text;
       char*obj_type;
+      ivl_type_t packed_type;
+      int packed_constant;
 	/* True ('s' or 'u' if this argument is a calculated vec4. */
       char vec_flag;
 	/* True if this argument is a calculated string. */
@@ -1034,8 +1036,8 @@ static int expr_is_class_like_(ivl_expr_t expr)
             sig = expr_signal_base_(expr);
             if (sig)
                   net_type = ivl_signal_net_type(sig);
-            /* Function calls do not carry net_type in the target expression.
-             * Recover the declared return type for object-backed aggregates. */
+            /* Fall back to the return signal for object-backed aggregates
+             * without a resolved expression type. */
             else if (ivl_expr_type(expr) == IVL_EX_UFUNC) {
                   ivl_scope_t def = ivl_expr_def(expr);
                   sig = def ? ivl_scope_port(def, 0) : 0;
@@ -2105,18 +2107,22 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  if (( par = ivl_expr_parameter(expr) )) {
 			snprintf(buffer, sizeof buffer, "P_%p", par);
 		  } else {
+			args[idx].packed_type = note_packed_expr_vartype(
+			      ivl_expr_net_type(expr), ivl_expr_width(expr));
+			args[idx].packed_constant = args[idx].packed_type != 0;
 			unsigned bit, wid = ivl_expr_width(expr);
 			const char*bits = ivl_expr_bits(expr);
 			char*dp;
 
-			snprintf(buffer, sizeof buffer, "%u'%sb",
+			/* Leave room for every bit and the literal syntax. */
+			size_t length = (size_t)wid + 16;
+			args[idx].text = malloc(length);
+			dp = args[idx].text + snprintf(args[idx].text, length, "%u'%sb",
 			         wid, ivl_expr_signed(expr)? "s" : "");
-			dp = buffer + strlen(buffer);
 			for (bit = wid ;  bit > 0 ;  bit -= 1)
 			      *dp++ = bits[bit-1];
-			*dp++ = 0;
-			assert(dp >= buffer);
-			assert((unsigned)(dp - buffer) <= sizeof buffer);
+			*dp = 0;
+			continue;
 		  }
 		  args[idx].text = strdup(buffer);
 		  continue;
@@ -2250,6 +2256,9 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		int got = get_vpi_taskfunc_signal_arg(&args[idx], expr);
 		cpv_elem_live_sample_ = 0;
 		if (got) {
+		      if (ivl_expr_type(expr) == IVL_EX_SELECT && !args[idx].cpv_index)
+			    args[idx].packed_type = note_packed_expr_vartype(
+			          ivl_expr_net_type(expr), ivl_expr_width(expr));
 		      if (args[idx].vec_flag || args[idx].cpv_index)
 			    vec4_stack_need += 1;
 		      else
@@ -2326,6 +2335,10 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  args[idx].real_flag = 0;
 		  args[idx].stack = vec4_stack_need;
 		  args[idx].vec_wid = ivl_expr_width(expr);
+		  ivl_type_t type = ivl_expr_net_type(expr);
+		  if (!type && ivl_expr_type(expr) == IVL_EX_SIGNAL)
+			type = ivl_signal_net_type(ivl_expr_signal(expr));
+		  args[idx].packed_type = note_packed_expr_vartype(type, args[idx].vec_wid);
 		  vec4_stack_need += 1;
 		  buffer[0] = 0;
 		  break;
@@ -2462,7 +2475,14 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  unsigned pos = vec4_stack_need - args[idx].stack - 1;
 		  char sign_flag = args[idx].vec_flag;
 		  unsigned wid = args[idx].vec_wid;
-		  fprintf(vvp_out, ", S<%u,vec4,%c%u>",pos, sign_flag, wid);
+		  fprintf(vvp_out, ", S<%u,vec4,%c%u", pos, sign_flag, wid);
+		  if (args[idx].packed_type)
+			fprintf(vvp_out, ",PT_%p", args[idx].packed_type);
+		  fputc('>', vvp_out);
+	    } else if (args[idx].packed_type) {
+		  fprintf(vvp_out, ", %s<%s, PT_%p>",
+		          args[idx].packed_constant ? "&PC" : "&PS", args[idx].text,
+		          args[idx].packed_type);
 	    } else {
 		  fprintf(vvp_out, ", %s", args[idx].text);
 	    }

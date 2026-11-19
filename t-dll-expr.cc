@@ -323,7 +323,7 @@ void dll_target::expr_const(const NetEConst*net)
 
       expr_ = new struct ivl_expr_s();
       expr_->value_= net->expr_type();
-      expr_->net_type=0;
+      expr_->net_type=net->net_type();
       FILE_NAME(expr_, net);
 
       if (net->value().is_string()) {
@@ -772,7 +772,7 @@ void dll_target::expr_select(const NetESelect*net)
 
       expr_->type_ = IVL_EX_SELECT;
       expr_->value_= net->expr_type();
-      expr_->net_type=0;
+      expr_->net_type=net->net_type();
       expr_->width_= net->expr_width();
       expr_->signed_ = net->has_sign()? 1 : 0;
       expr_->sized_= 1;
@@ -964,7 +964,7 @@ void dll_target::expr_ufunc(const NetEUFunc*net)
 
       expr->type_ = IVL_EX_UFUNC;
       expr->value_= net->expr_type();
-      expr->net_type=0;
+      expr->net_type=net->net_type();
       expr->width_= net->expr_width();
       expr->signed_ = net->has_sign()? 1 : 0;
       expr->sized_= 1;

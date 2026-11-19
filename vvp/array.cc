@@ -265,6 +265,7 @@ struct __vpiArrayVthrAPV : public __vpiHandle {
       unsigned word_sel;
       unsigned part_bit;
       unsigned part_wid;
+      vpiHandle typespec = nullptr;
 };
 
 vpiHandle __vpiArrayWord::as_word_t::vpi_index(int idx)
@@ -959,6 +960,10 @@ vpiHandle __vpiArrayVthrA::vpi_put_value(p_vpi_value vp, int)
 vpiHandle __vpiArrayVthrA::vpi_handle(int code)
 {
       switch (code) {
+	  case vpiTypespec:
+	    return array && array->typespec && array->typespec->get_type_code() == vpiStructTypespec
+	          ? array->typespec : nullptr;
+
 	  case vpiIndex:
 	    break;  // Not implemented!
 
@@ -1043,6 +1048,9 @@ void __vpiArrayVthrAPV::vpi_get_value(p_vpi_value vp)
 vpiHandle __vpiArrayVthrAPV::vpi_handle(int code)
 {
       switch (code) {
+	  case vpiTypespec:
+	    return typespec;
+
             // Not currently implemented. We would need to create a VPI
             // object for the memory word.
 	  case vpiParent:
@@ -3166,6 +3174,19 @@ vpiHandle vpip_make_vthr_APV(char*label, unsigned index, unsigned bit, unsigned 
       obj->part_wid = wid;
 
       return obj;
+}
+
+void vpip_bind_part_typespec(vpiHandle item, char*label)
+{
+      if (auto*part = dynamic_cast<__vpiPV*>(item)) {
+	    compile_packed_typespec_ref(&part->typespec, label, part->width);
+      } else if (auto*array_part = dynamic_cast<__vpiArrayVthrAPV*>(item)) {
+	    compile_packed_typespec_ref(&array_part->typespec, label, array_part->part_wid);
+      } else {
+	    fprintf(stderr, "vvp: packed typespec %s requires a part-select handle\n", label);
+	    compile_errors += 1;
+	    free(label);
+      }
 }
 
 void compile_array_cleanup(void)

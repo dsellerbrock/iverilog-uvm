@@ -691,6 +691,13 @@ struct property_vartype_note_s {
 static struct property_vartype_note_s*property_vartype_notes = 0;
 static unsigned nproperty_vartype_notes = 0;
 
+struct expr_vartype_note_s {
+      ivl_type_t type;
+      char*text;
+};
+static struct expr_vartype_note_s*expr_vartype_notes = 0;
+static unsigned nexpr_vartype_notes = 0;
+
 void note_property_vartype(ivl_type_t classtype, unsigned idx)
 {
       ivl_type_t type = ivl_type_prop_type(classtype, idx);
@@ -854,6 +861,29 @@ static unsigned vartype_spec_(struct vartype_buf_s*buf, ivl_type_t type)
       return ivl_type_packed_width(type);
 }
 
+/* One deferred definition per resolved struct type, shared by the live
+ * select and stack handles that carry it. */
+ivl_type_t note_packed_expr_vartype(ivl_type_t type, unsigned width)
+{
+      if (!type || !ivl_type_properties(type) || ivl_type_is_union(type) ||
+          (ivl_type_base(type) != IVL_VT_LOGIC && ivl_type_base(type) != IVL_VT_BOOL) ||
+          !width || width != ivl_type_packed_width(type))
+	    return 0;
+      for (unsigned idx = 0; idx < nexpr_vartype_notes; idx += 1)
+	    if (expr_vartype_notes[idx].type == type) return type;
+
+      struct vartype_buf_s buf = {0, 0, 0};
+      if (vartype_spec_(&buf, type) != width) {
+	    free(buf.text);
+	    return 0;
+      }
+      expr_vartype_notes = realloc(expr_vartype_notes,
+            (nexpr_vartype_notes + 1) * sizeof(*expr_vartype_notes));
+      expr_vartype_notes[nexpr_vartype_notes++] =
+            (struct expr_vartype_note_s){type, buf.text};
+      return type;
+}
+
 void emit_vartypes(void)
 {
       unsigned idx;
@@ -894,6 +924,15 @@ void emit_vartypes(void)
 		  fprintf(vvp_out, " .vartype C%p, %u, \"%s\";\n",
 		          note->classtype, note->idx, buf.text);
       }
+      for (idx = 0; idx < nexpr_vartype_notes; idx += 1) {
+	    const struct expr_vartype_note_s*note = &expr_vartype_notes[idx];
+	    fprintf(vvp_out, " .vartype/packed PT_%p, \"%s\";\n",
+	            note->type, note->text);
+	    free(note->text);
+      }
+      free(expr_vartype_notes);
+      expr_vartype_notes = 0;
+      nexpr_vartype_notes = 0;
       free(buf.text);
       free(vartype_notes);
       vartype_notes = 0;
