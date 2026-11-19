@@ -88,6 +88,8 @@ sub execute_regression {
         sv_joint_concat_dist_owned_class_2023
         sv_joint_ordered_guard_fiber
         sv_joint_ordered_guard_fiber_2023
+        sv_randomize_global_randc
+        sv_randomize_global_randc_2023
         sv_randomize_global_uniform
         sv_randomize_global_uniform_2023
     );
