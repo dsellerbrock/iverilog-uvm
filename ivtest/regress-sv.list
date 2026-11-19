@@ -29,6 +29,8 @@ issue722_followed_by_2023 normal,-g2023,-s,issue722_followed_by ivltests gold=is
 
 issue2572_fixed_queue_rand_mode_2017 normal,-g2017,-s,main ivltests gold=issue2572_fixed_queue_rand_mode-vvp-stdout.gold
 issue2572_fixed_queue_rand_mode_2023 normal,-g2023,-s,main ivltests gold=issue2572_fixed_queue_rand_mode-vvp-stdout.gold
+issue2572_queue_element_reenable_2017 normal,-g2017,-s,main ivltests gold=issue2572_queue_element_reenable-vvp-stdout.gold
+issue2572_queue_element_reenable_2023 normal,-g2023,-s,main ivltests gold=issue2572_queue_element_reenable-vvp-stdout.gold
 
 issue2406_const_ref_class_property_array_2017 normal,-g2017,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
 issue2406_const_ref_class_property_array_2023 normal,-g2023,-s,issue2406_const_ref_class_property_array ivltests gold=issue2406_const_ref_class_property_array-legacy.gold
