@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue1372_sequence_or_local_flow.v",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "top"],
+  "gold": "issue1372_sequence_or_local_flow"
+}

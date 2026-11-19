@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue1372_sequence_or_local_flow_fail.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "top"],
+  "gold": "issue1372_sequence_or_local_flow_fail"
+}
