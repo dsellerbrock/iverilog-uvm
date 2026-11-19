@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3861_checker_input_2017.v",
+  "iverilog-args": ["-g2017", "-Iivltests", "-s", "issue3861_top"],
+  "gold": "issue3861_checker_input"
+}

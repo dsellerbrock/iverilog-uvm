@@ -430,11 +430,11 @@ static struct {
       bool interconnect;
       bool is_const;
       bool is_ref_static;
-      bool checker_formals;
       bool event_type;
+      Module::port_t::AssertionKind assertion_kind;
 } port_declaration_context = {
 	NetNet::NONE, NetNet::NOT_A_PORT, 0, nullptr, false, false, false, false,
-	false
+	Module::port_t::AssertionKind::NONE
 };
 
 /* Modport port declaration lists use this structure for context. */
@@ -1582,8 +1582,8 @@ void reset_parser_file_state(void)
       port_declaration_context.interconnect = false;
       port_declaration_context.is_const = false;
       port_declaration_context.is_ref_static = false;
-      port_declaration_context.checker_formals = false;
       port_declaration_context.event_type = false;
+      port_declaration_context.assertion_kind = Module::port_t::AssertionKind::NONE;
       last_modport_port.type = MP_NONE;
       last_modport_port.direction = NetNet::NOT_A_PORT;
       lex_in_package_scope(0);
@@ -2336,6 +2336,7 @@ static void port_declaration_context_init(void)
       port_declaration_context.is_const = false;
       port_declaration_context.is_ref_static = false;
       port_declaration_context.event_type = false;
+      port_declaration_context.assertion_kind = Module::port_t::AssertionKind::NONE;
 }
 
 /* IEEE 1800-2017/2023 6.4: unpacked arrays and unpacked structures are
@@ -2370,12 +2371,27 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
 				    data_type_t *data_type,
 				    std::list<pform_range_t> *unpacked_dims,
 				    PExpr *default_value,
-				    std::list<named_pexpr_t> *attributes)
+				    std::list<named_pexpr_t> *attributes,
+				    Module::port_t::AssertionKind assertion_kind =
+					  Module::port_t::AssertionKind::NONE)
 {
       pform_ident_t name = { lex_strings.make(id), loc.lexical_pos };
       delete[] id;
 
       Module::port_t *port = pform_module_port_reference(loc, name.first);
+      port->assertion_kind = assertion_kind;
+
+      if (assertion_kind != Module::port_t::AssertionKind::NONE) {
+	    bool is_sequence = assertion_kind == Module::port_t::AssertionKind::SEQUENCE;
+	    const char*type = is_sequence ? "Sequence" : "Property";
+	    if (!pform_module_is_checker())
+		  yyerror(loc, "error: %s formal type is only valid in a checker.", type);
+	    else if (port_type != NetNet::PINPUT)
+		  yyerror(loc, "error: %s checker formal '%s' must be an input "
+			  "(IEEE 1800-2017/2023 17.2).", type, name.first.str());
+	    pform_requires_sv(loc, is_sequence ? "Sequence-typed checker formal"
+					      : "Property-typed checker formal");
+      }
 
       if (default_value && pform_module_is_checker()) {
 	    set<const typedef_t*>seen;
@@ -2435,6 +2451,7 @@ Module::port_t *module_declare_port(const YYLTYPE&loc, char *id,
       port_declaration_context.interconnect = false;
       port_declaration_context.is_ref_static = false;
       port_declaration_context.event_type = false;
+      port_declaration_context.assertion_kind = assertion_kind;
 
       return port;
 }
@@ -2481,6 +2498,7 @@ static Module::port_t *module_declare_event_port(
       port_declaration_context.is_const = false;
       port_declaration_context.is_ref_static = false;
       port_declaration_context.event_type = true;
+      port_declaration_context.assertion_kind = Module::port_t::AssertionKind::NONE;
 
       return port;
 }
@@ -2509,6 +2527,7 @@ static Module::port_t *module_declare_nettype_port(
       port_declaration_context.interconnect = false;
       port_declaration_context.is_ref_static = false;
       port_declaration_context.event_type = false;
+      port_declaration_context.assertion_kind = Module::port_t::AssertionKind::NONE;
       return port;
 }
 
@@ -2536,6 +2555,7 @@ static Module::port_t *module_declare_interconnect_port(
       port_declaration_context.interconnect = true;
       port_declaration_context.is_ref_static = false;
       port_declaration_context.event_type = false;
+      port_declaration_context.assertion_kind = Module::port_t::AssertionKind::NONE;
       return port;
 }
 
@@ -2574,7 +2594,7 @@ static Module::port_t *module_declare_port_continuation(
             loc, id, port_declaration_context.port_type,
             port_declaration_context.port_net_type,
             port_declaration_context.data_type, unpacked_dims,
-            default_value, attributes);
+            default_value, attributes, port_declaration_context.assertion_kind);
 }
 
 static bool collect_explicit_port_identifiers(
@@ -2680,6 +2700,7 @@ static Module::port_t *module_declare_explicit_port(
       std::vector<lgate>*gates;
 
       Module::port_t *mport;
+      Module::port_t::AssertionKind assertion_formal_kind;
       LexicalScope::range_t* value_range;
       std::vector<Module::port_t*>*mports;
 
@@ -3022,6 +3043,7 @@ static Module::port_t *module_declare_explicit_port(
 
 %type <mport> port port_opt port_reference port_reference_list
 %type <mport> port_declaration
+%type <assertion_formal_kind> checker_assertion_formal_type
 %type <mports> list_of_ports module_port_list_opt list_of_port_declarations module_attribute_foreign
 %type <value_range> parameter_value_range parameter_value_ranges
 %type <value_range> parameter_value_ranges_opt
@@ -17184,6 +17206,7 @@ list_of_port_declarations
         port_declaration_context.user_nettype = nullptr;
         port_declaration_context.interconnect = false;
         port_declaration_context.event_type = false;
+        port_declaration_context.assertion_kind = Module::port_t::AssertionKind::NONE;
       }
   | list_of_port_declarations ',' port_declaration
       { std::vector<Module::port_t*>*tmp = $1;
@@ -17222,6 +17245,7 @@ list_of_port_declarations
         port_declaration_context.user_nettype = nullptr;
         port_declaration_context.interconnect = false;
         port_declaration_context.event_type = false;
+        port_declaration_context.assertion_kind = Module::port_t::AssertionKind::NONE;
       }
   | list_of_port_declarations ','
       { yyerror(@2, "error: Superfluous comma in port declaration list."); }
@@ -17270,6 +17294,13 @@ parameterized_class_scoped_type_identifier
 	delete[] $1.text;
 	delete[] $4.text;
       }
+  ;
+
+/* Assertion formal types use the existing checker port representation for
+   instance lowering, with a separate kind for declaration type inheritance. */
+checker_assertion_formal_type
+  : K_sequence { $$ = Module::port_t::AssertionKind::SEQUENCE; }
+  | K_property { $$ = Module::port_t::AssertionKind::PROPERTY; }
   ;
 
   // All of port direction, port kind and data type are optional, but at least
@@ -17325,31 +17356,30 @@ port_declaration
 	      $4, $5, nullptr);
       }
   | port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
-      { if (port_declaration_context.checker_formals && !$3)
+      { if (pform_module_is_checker() && !$3)
 	    yyerror(@1, "error: Checker formal with explicit direction must include a type.");
 	$$ = module_declare_port(@4, $4, $1, $2, $3, $5, $6, nullptr);
       }
   | attribute_instance_list port_direction net_type_or_var_opt data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
-      { if (port_declaration_context.checker_formals && !$4)
+      { if (pform_module_is_checker() && !$4)
 	    yyerror(@2, "error: Checker formal with explicit direction must include a type.");
 	$$ = module_declare_port(@5, $5, $2, $3, $4, $6, $7, $1);
       }
-  /* A checker property_formal_type may be sequence or property. These
-     assertion types are not data_type productions, but checker declarations
-     use this module-like port grammar. */
-  | K_sequence IDENTIFIER dimensions_opt initializer_opt
-      { if (!port_declaration_context.checker_formals)
-	      yyerror(@1, "error: Sequence formal type is only valid in a checker.");
-	pform_requires_sv(@2, "Sequence-typed checker formal");
-	$$ = module_declare_port(@2, $2, port_declaration_context.port_type,
-	                         NetNet::IMPLICIT, nullptr, $3, $4, nullptr);
+  | port_direction checker_assertion_formal_type IDENTIFIER dimensions_opt initializer_opt
+      { $$ = module_declare_port(@3, $3, $1, NetNet::IMPLICIT,
+				 nullptr, $4, $5, nullptr, $2);
       }
-  | K_property IDENTIFIER dimensions_opt initializer_opt
-      { if (!port_declaration_context.checker_formals)
-	      yyerror(@1, "error: Property formal type is only valid in a checker.");
-	pform_requires_sv(@2, "Property-typed checker formal");
-	$$ = module_declare_port(@2, $2, port_declaration_context.port_type,
-	                         NetNet::IMPLICIT, nullptr, $3, $4, nullptr);
+  | attribute_instance_list port_direction checker_assertion_formal_type IDENTIFIER dimensions_opt initializer_opt
+      { $$ = module_declare_port(@4, $4, $2, NetNet::IMPLICIT,
+				 nullptr, $5, $6, $1, $3);
+      }
+  | checker_assertion_formal_type IDENTIFIER dimensions_opt initializer_opt
+      { $$ = module_declare_port(@2, $2, port_declaration_context.port_type,
+				 NetNet::IMPLICIT, nullptr, $3, $4, nullptr, $1);
+      }
+  | attribute_instance_list checker_assertion_formal_type IDENTIFIER dimensions_opt initializer_opt
+      { $$ = module_declare_port(@3, $3, port_declaration_context.port_type,
+				 NetNet::IMPLICIT, nullptr, $4, $5, $1, $2);
       }
   | net_type_or_var data_type_or_implicit IDENTIFIER dimensions_opt initializer_opt
       { pform_requires_sv(@3, "Partial ANSI port declaration");
@@ -17730,7 +17760,6 @@ checker_declaration
       { pform_error_in_generate(@2, "checker declaration");
         pform_startmodule(@2, $4, false, false, true, $3, $1);
         port_declaration_context_init();
-        port_declaration_context.checker_formals = true;
         port_declaration_context.port_type = NetNet::PINPUT;
       }
     module_package_import_list_opt

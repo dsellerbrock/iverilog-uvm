@@ -1,0 +1,3 @@
+ivltests/issue3861_checker_inherited_output.sv:1: error: Sequence checker formal 's' must be an input (IEEE 1800-2017/2023 17.2).
+ivltests/issue3861_checker_inherited_output.sv:2: error: Property checker formal 'p' must be an input (IEEE 1800-2017/2023 17.2).
+ivltests/issue3861_checker_inherited_output.sv:2: error: Property checker formal 'next_p' must be an input (IEEE 1800-2017/2023 17.2).
