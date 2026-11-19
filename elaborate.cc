@@ -7517,6 +7517,9 @@ struct fixed_array_port_actual_t {
       unsigned long base = 0;
       unsigned long block_words = 1;
       unsigned long stride = 1;
+      unsigned long slice_dimension_width = 0;
+      unique_ptr<NetExpr> base_expr;
+      unique_ptr<NetExpr> slice_base_expr;
       bool invalid_index = false;
 
       ivl_type_t element_type() const { return signal->net_type(); }
@@ -7532,6 +7535,34 @@ struct fixed_array_port_actual_t {
 static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 					   const PExpr*expr,
 					   fixed_array_port_actual_t&out);
+
+static NetNet* read_instance_array_input_word_(
+      Design*des, NetScope*scope, const LineInfo&loc,
+      const fixed_array_port_actual_t&view, NetNet*base, NetNet*slice_base,
+      unsigned long word)
+{
+      NetExpr*address = base ? new NetESignal(base) : nullptr;
+      uint64_t offset = view.backing_word(word);
+      if (slice_base) {
+	    // Check the slice coordinate before scaling it by the stride.
+	    // The shared low end can be negative at a partial boundary.
+	    int64_t digit = word / view.block_words;
+	    NetExpr*index = make_checked_uarray_index(new NetESignal(slice_base),
+		  -digit, view.slice_dimension_width, loc);
+	    index = scale_index_to_bits(index, view.stride, loc);
+	    address = address ? make_packed_offset_sum(&loc, address, index) : index;
+	    offset = view.base + word % view.block_words;
+      }
+      if (offset) {
+	    NetExpr*constant = new NetEConst(verinum(offset, 64));
+	    address = make_packed_offset_sum(&loc, address, constant);
+      }
+      address->set_line(loc);
+      unique_ptr<NetExpr> address_owner(address);
+      NetESignal read(view.signal, address);
+      read.set_line(loc);
+      return read.synthesize(des, scope, &read);
+}
 
 /* IEEE 1800-2017/2023 23.3.3.5: an unpacked input actual can have the
  * shape of a single formal, or an extra leading dimension indexing the
@@ -7618,6 +7649,21 @@ static bool elaborate_instance_array_input_(
 	    }
       }
 
+      // Evaluate the selectors once for the entire continuous connection.
+      NetNet*base = nullptr;
+      if (view.base_expr) {
+	    base = view.base_expr->synthesize(des, scope, view.base_expr.get());
+	    if (!base)
+		  return report_error("an unsupported unpacked-array selector");
+      }
+      NetNet*slice_base = nullptr;
+      if (view.slice_base_expr) {
+	    slice_base = view.slice_base_expr->synthesize(
+		  des, scope, view.slice_base_expr.get());
+	    if (!slice_base)
+		  return report_error("an unsupported unpacked-array slice base");
+      }
+
       // An invalid element index reads the default for each remaining word
       // (7.4.6 in 2017 and 7.4.5 in 2023).
       NetNet*invalid_word = nullptr;
@@ -7646,8 +7692,18 @@ static bool elaborate_instance_array_input_(
 			formal->unpacked_dims(), ordinal);
 		  unsigned long src = unpacked_array_ltr_word_(
 			actual_dims, instance_base + ordinal);
-		  Link*source = invalid_word ? &invalid_word->pin(0)
-					     : &actual->pin(view.backing_word(src));
+		  Link*source;
+		  if (invalid_word) {
+			source = &invalid_word->pin(0);
+		  } else if (base || slice_base) {
+			NetNet*word = read_instance_array_input_word_(
+			      des, scope, *expr, view, base, slice_base, src);
+			if (!word)
+			      return report_error("an unsupported unpacked-array read");
+			source = &word->pin(0);
+		  } else {
+			source = &actual->pin(view.backing_word(src));
+		  }
 		  if (actual->data_type() != formal->data_type()
 		      || actual->vector_width() != formal->vector_width()) {
 			// Give the existing scalar conversion nodes a view
@@ -12869,7 +12925,7 @@ static bool check_runtime_uarray_slice_pattern_(Design*des,
       return true;
 }
 
-/* A direct identifier with a constant partial prefix of a fixed unpacked
+/* A direct identifier with a partial prefix of a fixed unpacked
  * array denotes the remaining subarray. The procedural expression IR has no
  * aggregate NetExpr for this value, so decode the source before ordinary
  * typed r-value elaboration and let the array-copy loop read the original
@@ -12880,6 +12936,9 @@ struct uarray_prefix_source_t {
 	// Non-null for a run-time selected prefix. Ownership stays with this
 	// decode record until the copy lowering adopts it.
 	NetExpr*canonical_base_expr = nullptr;
+      // For an indexed port slice, keep the slice dimension separate so
+      // individual words can be checked before flattening the address.
+      unique_ptr<NetExpr> slice_base_expr;
       unsigned long count = 0;
       unsigned long stride = 1;
       unsigned long slice_dimension_width = 0;
@@ -12891,10 +12950,10 @@ struct uarray_prefix_source_t {
 
 /* Decode a slice of one unpacked dimension. The selected dimension can be
  * strided in the flattened signal when later dimensions are indexed. Port
- * selections are constant and can also leave trailing dimensions intact. */
+ * selections can also leave trailing dimensions intact. */
 static int decode_multidim_uarray_slice_source_(
 		Design*des, NetScope*scope, const LineInfo&loc, const PExpr*pe,
-		uarray_prefix_source_t&out, bool constant_port_selection)
+		uarray_prefix_source_t&out, bool port_selection)
 {
 	const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
 	if (!ident || ident->path().name.empty()) return 0;
@@ -12910,8 +12969,9 @@ static int decode_multidim_uarray_slice_source_(
 	if (!array_type) return 0;
 	const netranges_t&dims = array_type->static_dimensions();
 	const list<index_component_t>&indices = ident->path().name.back().index;
-	if (dims.size() < 2 || indices.size() > dims.size()
-	    || (!constant_port_selection && indices.size() != dims.size()))
+	if (indices.size() > dims.size()
+	    || (!port_selection
+		&& (dims.size() < 2 || indices.size() != dims.size())))
 	      return 0;
 
 	size_t slice_dim = dims.size();
@@ -12940,17 +13000,21 @@ static int decode_multidim_uarray_slice_source_(
 	netrange_t selected_range;
 	long count = 0;
 	NetExpr*slice_low_expr = nullptr;
-	if (slice->sel == index_component_t::SEL_PART || constant_port_selection) {
+	if (slice->sel == index_component_t::SEL_PART || port_selection) {
 	      netranges_t one_dim(1, declared);
 	      netsarray_t one_dim_type(one_dim, sr.net->net_type());
 	      list<index_component_t> one_select(1, *slice);
 	      fixed_uarray_slice_t decoded;
 	      int rc = decode_fixed_uarray_slice_select(
-		    des, scope, loc, one_select, &one_dim_type, decoded);
+		    des, scope, loc, one_select, &one_dim_type, decoded,
+		    false, port_selection);
 	      if (rc <= 0) return rc;
 	      selected_range = decoded.selected_range;
 	      count = static_cast<long>(decoded.count);
-	      long low = min(selected_range.get_msb(), selected_range.get_lsb());
+	      out.slice_base_expr.reset(decoded.runtime_base);
+	      long low = out.slice_base_expr
+		    ? min(declared.get_msb(), declared.get_lsb())
+		    : min(selected_range.get_msb(), selected_range.get_lsb());
 	      slice_low_expr = new NetEConst(verinum(static_cast<int64_t>(low)));
 	} else {
 	      NetExpr*base = elab_and_eval(des, scope, slice->msb, -1, false);
@@ -13103,14 +13167,14 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 					const LineInfo&loc, const PExpr*pe,
 					uarray_prefix_source_t&out,
 					bool checked_indexed_slice = false,
-					bool constant_port_selection = false)
+					bool port_selection = false)
 {
 	int multidim_slice = decode_multidim_uarray_slice_source_(
-	      des, scope, loc, pe, out, constant_port_selection);
+	      des, scope, loc, pe, out, port_selection);
 	if (multidim_slice != 0) return multidim_slice;
 
 	  const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
-	  if (!checked_indexed_slice && !constant_port_selection
+	  if (!checked_indexed_slice && !port_selection
 	      && ident && !ident->path().name.empty()) {
 	      const list<index_component_t>&indices =
 		    ident->path().name.back().index;
@@ -13321,6 +13385,12 @@ static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
       out.signal = selection.sig;
       out.dims = std::move(selection.remaining_dims);
       out.stride = selection.stride;
+      out.slice_dimension_width = selection.slice_dimension_width;
+      out.slice_base_expr = std::move(selection.slice_base_expr);
+      if (selection.range_slice) {
+	    for (size_t dim = 1; dim < out.dims.size(); ++dim)
+		  out.block_words *= out.dims[dim].width();
+      }
 
       if (selection.canonical_base_expr) {
 	    // A constant X from the checked index decoder signifies an
@@ -13331,12 +13401,13 @@ static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 		  out.invalid_index = true;
 		  return 1;
 	    }
-	    cerr << expr->get_fileline() << ": sorry: An unpacked-array "
-		 << "selection on an instance-array port must be constant."
-		 << endl;
-	    des->errors += 1;
-	    return -1;
+	    out.base_expr.reset(selection.canonical_base_expr);
+	    selection.canonical_base_expr = nullptr;
       }
+
+      out.base = selection.canonical_base;
+      if (out.base_expr || out.slice_base_expr)
+	    return 1;
 
       const unsigned long pins = out.signal->pin_count();
       unsigned long words = 1;
@@ -13348,10 +13419,6 @@ static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 	    }
 	    words *= width;
       }
-      if (selection.range_slice && words)
-	    out.block_words = words / out.dims.front().width();
-
-      out.base = selection.canonical_base;
       if (!words || out.base >= pins || !out.stride || out.stride > pins
 	  || out.backing_word(words - 1) >= pins) {
 	    cerr << expr->get_fileline() << ": error: Unpacked-array port "
