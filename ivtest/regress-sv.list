@@ -7170,3 +7170,11 @@ issue819_net_2state_2017 normal,-g2017,-gno-xtypes,-s,issue2851_net_2state ivlte
 issue819_net_2state_2023 normal,-g2023,-gno-xtypes,-s,issue2851_net_2state ivltests gold=issue2851_net_2state-vvp-stdout.gold
 issue3835_2017 normal,-g2017,-s,issue3835 ivltests gold=issue3835.gold
 issue3835_2023 normal,-g2023,-s,issue3835 ivltests gold=issue3835.gold
+
+# IEEE 1800-2017/2023 16.13.2: grouped multiclock property operands.
+issue3767_reopened_2017 normal,-g2017,-gassertions,-s,tb ivltests gold=issue3767_reopened.gold
+issue3767_multiclock_2017 normal,-g2017,-gassertions,-s,issue3767_multiclock ivltests
+issue3767_leading_clock_fail_2017 CE,-g2017,-gassertions,-s,issue3767_leading_clock_fail ivltests gold=issue3767_leading_clock_fail.gold
+issue3767_reopened_2023 normal,-g2023,-gassertions,-s,tb ivltests gold=issue3767_reopened.gold
+issue3767_multiclock_2023 normal,-g2023,-gassertions,-s,issue3767_multiclock ivltests
+issue3767_leading_clock_fail_2023 CE,-g2023,-gassertions,-s,issue3767_leading_clock_fail ivltests gold=issue3767_leading_clock_fail.gold

@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3767_multiclock.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "issue3767_multiclock"
+  ]
+}

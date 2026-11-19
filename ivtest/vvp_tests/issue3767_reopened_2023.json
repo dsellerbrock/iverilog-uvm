@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "issue3767_reopened.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "tb"
+  ],
+  "gold": "issue3767_reopened"
+}

@@ -1,0 +1,2 @@
+PASS
+ivltests/issue3767_reopened.sv:11: $finish called at 9 (1s)

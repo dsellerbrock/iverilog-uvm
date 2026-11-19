@@ -3115,7 +3115,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
 %type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
-  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
+  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
 %type <subroutine_call> sva_match_call
 %type <sva_item> sva_match_item
@@ -3128,7 +3128,7 @@ static Module::port_t *module_declare_explicit_port(
 %destructor { pform_sva_destroy_property($$); }
   property_expr property_spec sva_multiclock_seq
   sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
-  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom
+  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %destructor { pform_sva_destroy_sequence($$); }
   sva_seq_expr sva_seq_atom
 %destructor { pform_sva_destroy_mc_segments($$); }
@@ -10209,7 +10209,9 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_clocked_paren_impl(@4, $2, 1, $3, $5); }
   | '(' event_control sva_seq_expr K_PIPE_IMPL_NOV property_expr ')'
       { $$ = pform_sva_clocked_paren_impl(@4, $2, 2, $3, $5); }
-  | '(' event_control sva_seq_expr sva_mc_tail_opt ')'
+  | sva_grouped_clocked_leaf
+      { $$ = $1; }
+  | '(' event_control sva_seq_expr sva_mc_tail ')'
       { sva_property_t*p = new sva_property_t;
         p->seq = $3;
         p->seq_clk_evt = $2;
@@ -10526,11 +10528,24 @@ property_case_items
      `intersect' (tighter, left-assoc); `sva_or_has_op' folds `or'
      (looser). Each yields an sva_property_t carrying a combinator tree
      (or a chain, from the legacy fixed-intersect path). */
+/* Share the grouped leading clock between property_expr and the combinator
+   grammar. A clock inside the sequence chain uses the separate tail rule. */
+sva_grouped_clocked_leaf
+  : '(' event_control sva_seq_expr ')'
+      { sva_property_t*p = new sva_property_t;
+	p->seq = $3;
+	p->clk_evt = $2;
+	p->grouped_clock = true;
+	$$ = p; }
+  ;
+
 sva_comb_atom
   : sva_seq_expr %prec sva_seq_comb_done
       { $$ = pform_sva_leaf_prop($1); }
   | event_control sva_seq_expr %prec sva_seq_comb_done
       { $$ = pform_sva_clocked_leaf_prop(@1, $1, $2); }
+  | sva_grouped_clocked_leaf
+      { $$ = $1; }
   | '(' sva_seq_comb ')'
       { $$ = $2; }
   /* IEEE 1800-2023 16.12.4/16.12.5: `or'/`and' also combine full
