@@ -42,6 +42,7 @@ extern void schedule_inactive(vthread_t thr);
 
 extern void schedule_init_vthread(vthread_t thr);
 
+extern void schedule_sva_finish_vthread(vthread_t thr);
 extern void schedule_final_vthread(vthread_t thr);
 
 /*

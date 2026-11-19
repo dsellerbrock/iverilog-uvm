@@ -1,0 +1,6 @@
+issue3813_nexttime_actions_2017 normal,-g2017,-gassertions,-s,issue3813_nexttime_actions ivltests gold=issue3813_nexttime_actions-vvp-stdout.gold
+issue3813_nexttime_actions_2023 normal,-g2023,-gassertions,-s,issue3813_nexttime_actions ivltests gold=issue3813_nexttime_actions-vvp-stdout.gold
+issue3007_nexttime_eos normal,-g2017,-gassertions ivltests gold=issue3007_nexttime_eos.gold
+issue3214_nexttime_named_2017 normal,-g2017,-gassertions,-s,main ivltests gold=issue3214_nexttime_named.gold
+issue3214_nexttime_named_2023 normal,-g2023,-gassertions,-s,main ivltests gold=issue3214_nexttime_named.gold
+sv_assertkill_active_attempts normal,-g2012 ivltests gold=sv_assertkill_active_attempts.gold
