@@ -21470,7 +21470,9 @@ static bool sva_sequence_clocks_match_(const PEventStatement*left,
 
 /* Substitute named sequence references: a step whose expression is a
    bare identifier naming a declared sequence splices that sequence's
-   steps (first spliced delay adds the step's own delay). */
+   steps (first spliced delay adds the step's own delay). Report clocked
+   instantiation failures separately so callers can stop before lowering
+   a chain whose clock is unresolved. */
 static void sva_splice_sequences_(const struct vlltype&loc,
 				  std::vector<sva_seq_step_t>&steps,
                                   const PGenerate*scope = pform_cur_generate,
@@ -21479,7 +21481,8 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 				  bool retained_scope = false,
 				  const std::vector<perm_string>*caller_locals = nullptr,
 				  const PEventStatement*local_clock = nullptr,
-				  PEventStatement**whole_clock = nullptr)
+				  PEventStatement**whole_clock = nullptr,
+				  bool*clock_error = nullptr)
 {
       if (!module && !pform_cur_module.empty())
 	    module = pform_cur_module.front();
@@ -21641,6 +21644,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 					  }
 					  sva_destroy_sequence_clock_(clock);
 					  if (error_count != entry_errors) {
+						if (clock_error) *clock_error = true;
 						pform_sva_destroy_sequence(inst);
 						active.erase(pit->first);
 						break;
@@ -21659,12 +21663,14 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 					  sva_splice_sequences_(loc, *inst,
 							pit->first.gen,
 							decl_module, decl_prefix, true,
-							caller_locals, local_clock);
+							caller_locals, local_clock, nullptr,
+							clock_error);
 				    else
 					  sva_splice_sequences_(loc, *inst, expr_scope,
 							decl_module, decl_prefix,
 							expr_retained_scope,
-							caller_locals, local_clock);
+							caller_locals, local_clock, nullptr,
+							clock_error);
 				    active.erase(pit->first);
 				    delete steps[i].expr;
 				    steps.erase(steps.begin() + i);
@@ -21676,7 +21682,10 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 				    continue;
 			      }
 			      active.erase(pit->first);
-			      if (whole_clock || pit->second.clk_evt) break;
+			      if (pit->second.clk_evt) {
+				    if (clock_error) *clock_error = true;
+				    break;
+			      }
 			      delete steps[i].expr;
 			      steps[i].expr = sva_bit_(loc, 1);
 			      i += 1;
@@ -21912,7 +21921,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    // to the declaration's module and generate scope.
 	    sva_splice_sequences_(loc, body, seq_key.gen,
 			  decl_module, decl_prefix, retained_declaration,
-			  &nested_locals, local_clock);
+			  &nested_locals, local_clock, nullptr, clock_error);
             active.erase(seq_key);
 	    delete steps[i].expr;
 	    steps.erase(steps.begin() + i);
@@ -21944,7 +21953,8 @@ static void sva_splice_property_sequences_(
 	const struct vlltype&loc, std::vector<sva_seq_step_t>&steps,
 	const sva_property_t*prop,
 	const PGenerate*scope = pform_cur_generate,
-	PEventStatement**whole_clock = nullptr)
+	PEventStatement**whole_clock = nullptr,
+	bool*clock_error = nullptr)
 {
       std::vector<perm_string> locals;
       if (prop) {
@@ -21956,7 +21966,7 @@ static void sva_splice_property_sequences_(
       sva_splice_sequences_(loc, steps, scope, nullptr, nullptr, false,
 			    prop ? &locals : nullptr,
 			    prop ? sva_property_sequence_clock_(prop, &steps) : nullptr,
-			    whole_clock);
+			    whole_clock, clock_error);
 }
 
 /* M9-2: consecutive repetition (IEEE 1800-2017 16.9.2). e[*N]
@@ -41447,11 +41457,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  }
 	    }
       }
-      unsigned errors_before_splice = error_count;
-      sva_splice_property_sequences_(loc, *prop->seq, prop);
-      if (prop->antecedent && error_count == errors_before_splice)
-	    sva_splice_property_sequences_(loc, *prop->antecedent, prop);
-      if (error_count != errors_before_splice) {
+      bool clock_error = false;
+      sva_splice_property_sequences_(loc, *prop->seq, prop,
+				     pform_cur_generate, nullptr, &clock_error);
+      if (prop->antecedent && !clock_error)
+	    sva_splice_property_sequences_(loc, *prop->antecedent, prop,
+					   pform_cur_generate, nullptr, &clock_error);
+      if (clock_error) {
 	    if (sva_sub_request_) sva_sub_request_->error = true;
 	    delete fail_stmt;
 	    delete pass_stmt;
