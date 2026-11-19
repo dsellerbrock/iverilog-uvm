@@ -1,3 +1,2 @@
 ./ivltests/issue3799_sequence_clock_unsupported.sv:8: sorry: clocked sequence `sq' requires a known, identical local clock when spliced into a sequence expression.
-./ivltests/issue3799_sequence_clock_unsupported.sv:9: sorry: .triggered on clocked parameterized sequence `sq' is not supported yet.
-./ivltests/issue3799_sequence_clock_unsupported.sv:16: sorry: clocked sequence `fixed_clock' requires a known, identical local clock when spliced into a sequence expression.
+./ivltests/issue3799_sequence_clock_unsupported.sv:15: sorry: clocked sequence `fixed_clock' requires a known, identical local clock when spliced into a sequence expression.

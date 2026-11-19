@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3800_clocked_triggered_2023.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue3800_clocked_triggered"],
+  "gold": "issue3800_clocked_triggered"
+}
