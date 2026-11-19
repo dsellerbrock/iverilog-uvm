@@ -1,0 +1,4 @@
+issue3851_grouped_concat_2017 normal,-g2017,-gassertions,-s,issue3851_grouped_concat ivltests gold=issue3851_grouped_concat.gold
+issue3851_grouped_concat_2023 normal,-g2023,-gassertions,-s,issue3851_grouped_concat ivltests gold=issue3851_grouped_concat.gold
+issue3851_grouped_concat_bad_2017 CE,-g2017,-gassertions,-s,issue3851_grouped_concat_bad ivltests gold=issue3851_grouped_concat_bad.gold
+issue3851_grouped_concat_bad_2023 CE,-g2023,-gassertions,-s,issue3851_grouped_concat_bad ivltests gold=issue3851_grouped_concat_bad.gold

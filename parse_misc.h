@@ -215,9 +215,11 @@ struct sva_stree_t {
       sva_stree_t* a = nullptr;   // also the operand of a unary node
       sva_stree_t* b = nullptr;
       PExpr* gexpr = nullptr;    // SEQ_THROUGHOUT invariant (a = the seq)
-      // SEQ_CONCAT: true for a ##0 b (the first tick of b is fused with
-      // a's terminal tick), false for ##1-or-later continuation.
-      bool concat_overlap = false;
+      // SEQ_CONCAT: distance between the left endpoint and right start.
+      // Followed-by and generated prefixes also use the 0/1 tick boundaries.
+      long concat_delay = 1;
+      // A source ## sequence can be subject to sequence nondegeneracy checks.
+      bool source_concat = false;
 };
 
 // M9-7 residual: one further clock-flow segment past the first boundary

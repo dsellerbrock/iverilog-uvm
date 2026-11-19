@@ -11825,9 +11825,9 @@ static long sva_rec_tree_(const sva_stree_t*t, long base, bool&exact, int neg,
       long a = sva_rec_tree_(t->a, base, ea, neg, out);
       long b;
       if (t->kind == sva_stree_t::SEQ_CONCAT) {
-	      /* The continuation delay lives in b; count none here. */
 	    eb = false;
-	    b = sva_rec_tree_(t->b, a, eb, neg, out);
+	    long offset = a <= LONG_MAX - t->concat_delay ? a + t->concat_delay : a;
+	    b = sva_rec_tree_(t->b, offset, eb, neg, out);
       } else {
 	    b = sva_rec_tree_(t->b, base, eb, neg, out);
       }
@@ -15946,7 +15946,7 @@ static bool sva_prepend_property_formal_init_tree_(
 	combined->kind = sva_stree_t::SEQ_CONCAT;
 	combined->a = prefix;
 	combined->b = *root;
-	combined->concat_overlap = true;
+	combined->concat_delay = 0;
 	*root = combined;
       return true;
 }
@@ -24266,6 +24266,12 @@ static bool sva_tree_has_first_match_(const sva_stree_t*t)
 		   || sva_tree_has_first_match_(t->b));
 }
 
+static bool sva_tree_has_source_concat_(const sva_stree_t*t)
+{
+      return t && (t->source_concat || sva_tree_has_source_concat_(t->a)
+				    || sva_tree_has_source_concat_(t->b));
+}
+
 static bool sva_tree_has_first_match_paths_(const sva_stree_t*t, bool wrapped = false)
 {
       if (!t) return false;
@@ -24589,7 +24595,8 @@ static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
       sva_stree_t*out = new sva_stree_t;
       out->kind = src->kind;
       out->known_empty = src->known_empty;
-      out->concat_overlap = src->concat_overlap;
+      out->concat_delay = src->concat_delay;
+      out->source_concat = src->source_concat;
       std::map<perm_string,PExpr*> no_subst;
       if (src->chain) {
 	    out->chain = sva_clone_steps_subst_(loc, src->chain,
@@ -25389,7 +25396,7 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    both->kind = sva_stree_t::SEQ_CONCAT;
 	    both->a = outer;
 	    both->b = inner_ante;
-	    both->concat_overlap = (op_type == 1);
+	    both->concat_delay = op_type - 1;
 	    sva_property_t*p = new sva_property_t;
 	    p->ante_tree = both;
 	    p->tree = inner_seq;
@@ -26050,97 +26057,112 @@ sva_property_t* pform_sva_tree_intersect(const struct vlltype&loc,
 
 sva_property_t* pform_sva_tree_concat(const struct vlltype&loc,
 				      sva_property_t*prefix, PExpr*delay,
-				      std::vector<sva_seq_step_t>*suffix)
+				      sva_property_t*suffix)
 {
       long cycles = 0;
-      if (!prefix || !suffix || suffix->empty()
-	  || !pform_sva_const_long(delay, cycles) || cycles < 0) {
-	    if (prefix && suffix && !suffix->empty()) {
-		  cerr << loc << ": error: the cycle delay after a composite "
-		       << "sequence must be a known nonnegative constant "
-		       << "(IEEE 1800-2017 16.9.1)." << endl;
-		  error_count += 1;
-	    }
+      if (!prefix || !suffix) {
 	    delete delay;
 	    pform_sva_destroy_property(prefix);
-	    pform_sva_destroy_sequence(suffix);
+	    pform_sva_destroy_property(suffix);
+	    return nullptr;
+      }
+      if (pform_sva_overridable_bound(delay) || sva_names_decl_formal_(delay)
+	  || !pform_sva_const_long(delay, cycles) || cycles < 0) {
+	    cerr << loc << ": error: the cycle delay of a composite "
+		 << "sequence must resolve to a nonnegative constant before "
+		 << "NFA construction (IEEE 1800-2017/2023 16.9.1)." << endl;
+	    error_count += 1;
+	    delete delay;
+	    pform_sva_destroy_property(prefix);
+	    pform_sva_destroy_property(suffix);
 	    return nullptr;
       }
       delete delay;
 
-	/* Preserve a single local assignment on the deterministic fixed-delay
-	   path when a fixed composite is followed by ##N. Retaining this shape
-	   as a tree makes the NFA conservatively reject the local variable even
-	   though the continuation is a linear sequence. */
-	if (cycles > 0 && prefix && suffix && !prefix->clk_evt
-	    && !prefix->disable_iff_expr
-	    && (sva_prop_is_leaf_chain_(prefix)
-		|| (prefix->seq && !prefix->tree))) {
-	      std::vector<sva_seq_step_t>*left_chain = prefix->seq
-		    ? prefix->seq : prefix->tree->chain;
-	      long prefix_len = 0, suffix_len = 0;
-	      unsigned local_count = sva_chain_local_assignment_count_(left_chain)
-		    + sva_chain_local_assignment_count_(suffix);
-	      if (local_count == 1
-		  && sva_chain_fixed_len_(*left_chain, prefix_len)
-		  && sva_chain_fixed_len_(*suffix, suffix_len)
-		  && !sva_chain_has_match_calls_(left_chain)
-		  && !sva_chain_has_match_calls_(suffix)) {
-		    if (prefix->seq) {
-			  prefix->seq = nullptr;
-			  delete prefix;
-		    } else {
-			  prefix->tree->chain = nullptr;
-			  sva_tree_delete_(sva_prop_take_tree_(loc, prefix), false);
-		    }
-		    suffix->front().delay_lo += cycles;
-		    suffix->front().delay_hi += cycles;
-		    left_chain->insert(left_chain->end(), suffix->begin(),
-				       suffix->end());
-		    delete suffix;
-		    sva_property_t*out = new sva_property_t;
-		    out->seq = left_chain;
-		    return out;
-	      }
-	}
-
-      sva_stree_t*left = sva_prop_take_tree_(loc, prefix);
-      if (!left) {
-	    pform_sva_destroy_sequence(suffix);
+      if (sva_leaf_names_property_(prefix) || sva_leaf_names_property_(suffix)) {
+	    cerr << loc << ": error: cycle-delay concatenation requires "
+		 << "sequence operands (IEEE 1800-2017/2023 16.7)." << endl;
+	    error_count += 1;
+	    pform_sva_destroy_property(prefix);
+	    pform_sva_destroy_property(suffix);
 	    return nullptr;
       }
 
-	/* The suffix fragment consumes its first tick at relative offset zero.
-	   ##0 therefore fuses that tick with the prefix terminal edge. For ##N,
-	   N>=1, composition first crosses to a new tick and the suffix carries
-	   the remaining N-1 pure-delay ticks. */
-      bool overlap = cycles == 0;
-      if (!overlap) {
-	    sva_seq_step_t&first = suffix->front();
-	    if (first.delay_lo < 0 || first.delay_hi < 0) {
-		  cerr << loc << ": sorry: a composite-sequence continuation "
-		       << "cannot currently combine a fixed boundary with a "
-		       << "symbolic leading suffix delay; the assertion is dropped."
-		       << endl;
-		  error_count += 1;
-		  sva_tree_delete_(left, true);
-		  pform_sva_destroy_sequence(suffix);
-		  return nullptr;
-	    }
-	    first.delay_lo += cycles - 1;
-	    first.delay_hi += cycles - 1;
+      if (suffix->clk_evt && !sva_event_controls_identical_(prefix->clk_evt,
+							  suffix->clk_evt)) {
+	    cerr << loc << ": sorry: clock flow through a grouped sequence "
+		 << "concatenation requires matching clocks (IEEE 1800-2017/2023 "
+		 << "16.13.1)." << endl;
+	    error_count += 1;
+	    pform_sva_destroy_property(prefix);
+	    pform_sva_destroy_property(suffix);
+	    return nullptr;
+      }
+      PEventStatement*clk = prefix->clk_evt;
+      const bool grouped_clock = prefix->grouped_clock;
+      prefix->clk_evt = nullptr;
+      delete suffix->clk_evt;
+      suffix->clk_evt = nullptr;
+
+      sva_stree_t*left = sva_prop_take_tree_(loc, prefix);
+      sva_stree_t*right = sva_prop_take_tree_(loc, suffix);
+      if (!left || !right) {
+	    delete clk;
+	    sva_tree_delete_(left, true);
+	    sva_tree_delete_(right, true);
+	    return nullptr;
       }
 
-      sva_stree_t*right = new sva_stree_t;
-      right->chain = suffix;
+      sva_property_t*out = new sva_property_t;
+      out->clk_evt = clk;
+      out->grouped_clock = grouped_clock;
+	/* A single local assignment in a deterministic fixed composite can
+	   flow through the existing linear lowering. */
+      if (cycles > 0 && !clk && left->chain && right->chain) {
+	    auto&lhs = *left->chain;
+	    auto&rhs = *right->chain;
+	    long prefix_len = 0, suffix_len = 0;
+	    if (sva_chain_local_assignment_count_(&lhs)
+		+ sva_chain_local_assignment_count_(&rhs) == 1
+		&& sva_chain_fixed_len_(lhs, prefix_len)
+		&& sva_chain_fixed_len_(rhs, suffix_len)
+		&& !sva_chain_has_match_calls_(&lhs)
+		&& !sva_chain_has_match_calls_(&rhs)
+		&& cycles <= LONG_MAX - rhs.front().delay_lo) {
+		  rhs.front().delay_lo += cycles;
+		  rhs.front().delay_hi += cycles;
+		  lhs.insert(lhs.end(), rhs.begin(), rhs.end());
+		  out->seq = left->chain;
+		  left->chain = nullptr;
+		  sva_tree_delete_(left, false);
+		  sva_tree_delete_(right, false);
+		  return out;
+	    }
+      }
+
       sva_stree_t*tree = new sva_stree_t;
       tree->kind = sva_stree_t::SEQ_CONCAT;
       tree->a = left;
       tree->b = right;
-      tree->concat_overlap = overlap;
-      sva_property_t*out = new sva_property_t;
+      tree->concat_delay = cycles;
+      tree->source_concat = true;
       out->tree = tree;
       return out;
+}
+
+/* This grammar route has already parsed a flat right operand of a
+   fixed boundary. Keep its subsequent range in the linear chain. */
+sva_property_t* pform_sva_tree_extend_flat_suffix(sva_property_t*prefix,
+						 std::vector<sva_seq_step_t>*suffix)
+{
+      if (!prefix) {
+	    pform_sva_destroy_sequence(suffix);
+	    return nullptr;
+      }
+      auto*chain = prefix->seq ? prefix->seq : prefix->tree->b->chain;
+      chain->insert(chain->end(), suffix->begin(), suffix->end());
+      delete suffix;
+      return prefix;
 }
 
 /* IEEE 1800-2017/2023 16.12.9: for sequence consequents, followed-by is
@@ -26235,7 +26257,7 @@ sva_property_t* pform_sva_followed_by(const struct vlltype&loc, int op_type,
       tree->kind = sva_stree_t::SEQ_CONCAT;
       tree->a = left;
       tree->b = right;
-      tree->concat_overlap = (op_type == 1);
+      tree->concat_delay = op_type - 1;
 
       sva_property_t*p = new sva_property_t;
       p->tree = tree;
@@ -27542,11 +27564,42 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    return seen[machine.accept];
       };
       const bool tick_match = accept_reachable(nfa);
+      const bool concat_antecedent = endpoint_fanout
+	    && sva_tree_has_source_concat_(ante_tree);
+      const bool concat_sequence = sva_tree_has_source_concat_(
+	    endpoint_fanout ? consequence_tree : prop->tree);
+      const sva_nfa_t&sequence_nfa = endpoint_fanout ? consequence_nfa : nfa;
+      if (concat_antecedent && !tick_match
+	  && (!nfa.empty_matches || prop->op_type == 1)) {
+	    cerr << loc << ": error: an implication antecedent shall admit "
+		 << (prop->op_type == 1 ? "a nonempty match" : "a match")
+		 << " (IEEE 1800-2017/2023 16.12.22)." << endl;
+	    error_count += 1;
+	    if (sub) { sub->error = true; return false; }
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return true;
+      }
+      if (concat_sequence && !sequence_cover
+	  && (sequence_nfa.empty_matches || sequence_nfa.edges.empty())) {
+	    cerr << loc << ": error: a sequence used as a property shall "
+		 << (sequence_nfa.empty_matches ? "not admit an empty match"
+					       : "be nondegenerate")
+		 << " (IEEE 1800-2017/2023 16.12.22(a))." << endl;
+	    error_count += 1;
+	    if (sub) { sub->error = true; return false; }
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return true;
+      }
       const bool first_match_antecedent = endpoint_fanout
 	    && sva_tree_has_first_match_(ante_tree);
-      const unsigned empty_endpoints = first_match_antecedent
+      const unsigned empty_endpoints = (first_match_antecedent || concat_antecedent)
 	    && prop->op_type == 2 ? nfa.empty_matches : 0;
-      const unsigned empty_cover_matches = track_endpoints && sequence_cover && !endpoint_fanout
+      const unsigned empty_cover_matches = (track_endpoints || concat_sequence)
+	    && sequence_cover && !endpoint_fanout
 	    ? nfa.empty_matches : 0;
       const bool empty_property = sva_tree_has_first_match_(
 	    endpoint_fanout ? consequence_tree : prop->tree)
@@ -27570,7 +27623,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       }
 	bool nfa_empty_proven = endpoint_fanout
 	      ? (!linear_wait_implication && sva_tree_proves_empty_(ante_tree))
-	      : (have_tree && sva_tree_proves_empty_(prop->tree));
+	      : (have_tree && sva_tree_proves_empty_(prop->tree))
+		|| (sequence_cover && concat_sequence);
 	bool consequence_empty_proven = endpoint_fanout
 	      && !linear_wait_implication
 	      && sva_tree_proves_empty_(consequence_tree);
@@ -41711,16 +41765,20 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      sva_property_t*inst = nullptr;
 			      bool linear_multiclock = named_multiclocked
 				    && !named->tree && !named->ante_tree && !named->pa;
+			      bool named_concat_sequence =
+				    sva_property_shaped_sequences.count(pit->first)
+				    && sva_tree_has_source_concat_(named->tree);
 			      if (linear_multiclock || named->tree || named->pa
 				  || (named->mc_more && !named->mc_more->empty())) {
-				    inst = linear_multiclock || named->pa
+				    inst = linear_multiclock || named_concat_sequence || named->pa
 					  || sva_property_has_tree_first_match_(named)
 					  ? sva_clone_property_(loc, named) : nullptr;
-				    if (!inst && linear_multiclock) {
+				    if (!inst && (linear_multiclock || named_concat_sequence)) {
 					  const char*reference_kind =
 						sva_property_shaped_sequences.count(pit->first)
 						? "sequence" : "property";
-					  cerr << loc << ": sorry: cannot clone the body of named multiclocked "
+					  cerr << loc << ": sorry: cannot clone the body of named "
+					       << (linear_multiclock ? "multiclocked " : "")
 					       << reference_kind << " `" << property_name
 					       << "'; the assertion is dropped." << endl;
 					  error_count += 1;
@@ -41870,6 +41928,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      }
 			      if (inst && !inst->clocking_scope)
 				    inst->clocking_scope = outer_clocking_scope;
+			      if (inst && named_concat_sequence)
+				    inst->sequence_cover = prop->sequence_cover;
 			      if (inst && endpoint) inst->endpoint_event = endpoint_event;
 			      delete id;
 			      delete prop->seq;

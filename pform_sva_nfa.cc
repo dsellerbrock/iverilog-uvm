@@ -595,8 +595,7 @@ static void fold_epsilons_(sva_nfa_t&nfa)
  * needlessly multiply every per-attempt state bit. Edges from/to either
  * kind go too.
  */
-static void prune_dead_states_(sva_nfa_t&nfa,
-			       std::vector<unsigned>*old_to_new = nullptr)
+static void prune_dead_states_(sva_nfa_t&nfa)
 {
       std::vector<bool> can_accept (nfa.nstates, false);
       can_accept[nfa.accept] = true;
@@ -653,7 +652,6 @@ static void prune_dead_states_(sva_nfa_t&nfa,
       nfa.start = remap[nfa.start];
       nfa.accept = remap[nfa.accept];
       nfa.nstates = next;
-      if (old_to_new) old_to_new->swap(remap);
 }
 
 /* In endpoint trees an epsilon join is still a choice of paths. Lift
@@ -1165,12 +1163,12 @@ static bool nfa_product_fragment_(sva_nfa_t&nfa,
 		  for (unsigned i = 0; i < B.empty_matches; ++i) nfa.eps(start, done);
 	    }
       }
-      if (and_mode || path_budget) {
-	    unsigned empty = A.empty_matches * B.empty_matches;
-	    if (path_budget && empty > path_budget) return false;
-	    for (unsigned i = 0; i < empty; ++i)
-		  nfa.eps(start, exit);
-      }
+      if (path_budget && B.empty_matches
+	  && A.empty_matches > path_budget / B.empty_matches)
+	    return false;
+      const unsigned empty = A.empty_matches * B.empty_matches;
+      for (unsigned i = 0; i < empty; ++i)
+	    nfa.eps(start, exit);
       for (size_t i = 0; i < pending.size(); ++i) {
 	    pair_t key = pending[i];
 	    unsigned from = product.at(key);
@@ -1234,6 +1232,92 @@ static bool nfa_tree_has_unsupported_match_items_(const sva_stree_t*t,
 
 static bool nfa_build_tree_(sva_nfa_t&nfa, const sva_stree_t*tree,
 			    unsigned path_budget, bool path_locals);
+
+/* Compose two normalized sequences. Keep the accept sentinel even when
+   there is no route to it, so an enclosing OR can still match its other
+   operand. */
+static bool nfa_concat_fragment_(sva_nfa_t&nfa, const sva_nfa_t&left,
+				 const sva_nfa_t&right, long delay,
+				 unsigned&start, unsigned&exit,
+				 unsigned path_budget)
+{
+      // The fixed-delay and composed-state ceilings mirror the existing
+      // chain construction and the largest generated tree state budget.
+      const unsigned limit = path_budget ? path_budget : 8192;
+      const unsigned waits = delay > 0 ? delay - 1 : 0;
+      const size_t states = size_t(left.nstates) + right.nstates + waits;
+      const size_t edges = left.edges.size() + right.edges.size() + waits
+	    + (delay > 0 ? size_t(left.empty_matches) + right.empty_matches + 1 : 0);
+      if (nfa.nstates + states > limit || nfa.edges.size() + edges > limit)
+	    return false;
+
+      const unsigned lbase = nfa.nstates;
+      const unsigned rbase = lbase + left.nstates;
+      nfa.nstates += left.nstates + right.nstates;
+      start = lbase + left.start;
+      exit = rbase + right.accept;
+
+      vector<const sva_nfa_edge_t*> initial;
+      for (const auto&edge : right.edges) {
+	    if (delay == 0 && edge.from == right.start) initial.push_back(&edge);
+	    sva_nfa_edge_t copy = edge;
+	    copy.from += rbase;
+	    copy.to += rbase;
+	    nfa.edges.push_back(std::move(copy));
+      }
+      for (const auto&edge : left.edges) {
+	    sva_nfa_edge_t copy = edge;
+	    copy.from += lbase;
+	    copy.to += lbase;
+	    if (delay > 0 || edge.to != left.accept) {
+		  if (nfa.edges.size() == limit) return false;
+		  nfa.edges.push_back(std::move(copy));
+		  continue;
+	    }
+	    // ##0 pairs every left endpoint with every right initial tick.
+	    for (const auto*entry : initial) {
+		  if (nfa.edges.size() == limit) return false;
+		  sva_nfa_edge_t fused = copy;
+		  if (fused.first_match_cut_group && entry->first_match_cut_group)
+			return false;
+		  if (entry->first_match_cut_group
+		      || (!fused.first_match_cut_group && !fused.first_match_exit
+			  && entry->first_match_exit)) {
+			fused.first_match_cut_group = entry->first_match_cut_group;
+			fused.first_match_exit = entry->first_match_exit;
+			fused.first_match_guards.clear();
+			if (fused.first_match_exit) {
+			      fused.first_match_guards = fused.guards;
+			      fused.first_match_guards.insert(fused.first_match_guards.end(),
+				    entry->first_match_guards.begin(), entry->first_match_guards.end());
+			}
+		  }
+		  // A left first_match exit commits using its original guards.
+		  fused.to = rbase + entry->to;
+		  fused.guards.insert(fused.guards.end(), entry->guards.begin(),
+				      entry->guards.end());
+		  nfa.edges.push_back(std::move(fused));
+	    }
+      }
+
+      if (delay > 0) {
+	    // An empty operand consumes no tick. It uses the same wait
+	    // states as the nonempty operand, with the boundary one tick
+	    // earlier on the side whose match is empty (16.9.2.1).
+	    unsigned from = lbase + left.accept;
+	    for (unsigned i = 0; i < left.empty_matches; ++i)
+		  nfa.eps(start, from);
+	    for (unsigned i = 0; i < waits; ++i) {
+		  const unsigned next = nfa.new_state();
+		  nfa.tick(from, next, nullptr);
+		  from = next;
+	    }
+	    nfa.eps(from, rbase + right.start);
+	    for (unsigned i = 0; i < right.empty_matches; ++i)
+		  nfa.eps(rbase + right.start, exit);
+      }
+      return true;
+}
 
 static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 			       unsigned&start, unsigned&exit, unsigned path_budget,
@@ -1314,28 +1398,13 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		return true;
 	  }
 	  case sva_stree_t::SEQ_CONCAT: {
-		  /* Concatenation is the same regular-language composition used
-		     by an implication, without implication verdict bookkeeping.
-		     ##0 fuses the prefix terminal guards with the suffix's first
-		     tick; ##1-or-later starts the prepared suffix on a later tick. */
-		sva_nfa_t M;
-		std::vector<sva_nfa_boundary_t> ignored;
-		if (!pform_sva_nfa_build_implication(
-		      M, t->a, t->b, !t->concat_overlap, ignored, path_budget, path_locals))
+		if (t->concat_delay < 0 || t->concat_delay > 1024) return false;
+		sva_nfa_t left, right;
+		if (!nfa_build_tree_(left, t->a, path_budget, path_locals)
+		    || !nfa_build_tree_(right, t->b, path_budget, path_locals))
 		      return false;
-		unsigned base = nfa.nstates;
-		for (unsigned i = 0; i < M.nstates; i += 1) nfa.new_state();
-		for (size_t i = 0; i < M.edges.size(); i += 1) {
-		      sva_nfa_edge_t edge = M.edges[i];
-		      edge.from += base;
-		      edge.to += base;
-		      nfa.edges.push_back(edge);
-		}
-		start = base + M.start;
-		exit = base + M.accept;
-		for (unsigned i = 0; i < M.empty_matches; ++i)
-		      nfa.eps(start, exit);
-		return true;
+		return nfa_concat_fragment_(nfa, left, right, t->concat_delay,
+					    start, exit, path_budget);
 	  }
 	  case sva_stree_t::SEQ_OR: {
 		unsigned sa = 0, ea = 0, sb = 0, eb = 0;
@@ -1433,123 +1502,6 @@ bool pform_sva_nfa_build_endpoint_tree(sva_nfa_t&nfa, const sva_stree_t*tree,
       }
       nfa = std::move(paths);
       return true;
-}
-
-bool pform_sva_nfa_build_implication(
-				sva_nfa_t&nfa, const sva_stree_t*ante,
-				const sva_stree_t*conseq, bool nonoverlap,
-				std::vector<sva_nfa_boundary_t>&boundary,
-				unsigned path_budget, bool path_locals)
-{
-      sva_nfa_t A, B;
-      if (!nfa_build_tree_(A, ante, path_budget, path_locals)
-	  || !nfa_build_tree_(B, conseq, path_budget, path_locals))
-	    return false;
-
-      nfa = sva_nfa_t();
-      boundary.clear();
-      for (unsigned i = 0; i < A.nstates + B.nstates; i += 1)
-	    nfa.new_state();
-      const unsigned boff = A.nstates;
-
-      std::vector<sva_nfa_edge_t> terminal;
-      for (size_t i = 0; i < A.edges.size(); i += 1) {
-	    const sva_nfa_edge_t&e = A.edges[i];
-	    if (e.to == A.accept) {
-		  terminal.push_back(e);
-		  sva_nfa_boundary_t b;
-		  b.from = e.from;
-		  b.guards = e.guards;
-		  boundary.push_back(b);
-	    }
-	    nfa.edges.push_back(e);
-      }
-      for (size_t i = 0; i < B.edges.size(); i += 1) {
-	    sva_nfa_edge_t e = B.edges[i];
-	    e.from += boff;
-	    e.to += boff;
-	    nfa.edges.push_back(e);
-      }
-
-      nfa.start = A.start;
-      nfa.accept = boff + B.accept;
-      if (nonoverlap) {
-	    nfa.eps(A.accept, boff + B.start);
-	    /* `empty ##1 seq' starts seq at the current tick, per 16.9.2.1.
-	       A followed-by `#=#' has the same explicit empty-match rule in
-	       16.12.9. Keep that branch even when the antecedent has no
-	       tick-ending edge (for example, `1'b1[*0]'). */
-	    for (unsigned i = 0; i < A.empty_matches; ++i)
-		  nfa.eps(A.start, boff + B.start);
-	    /* For sequence concatenation with a positive delay, an empty match
-	       of the suffix ends one tick before its start (16.9.2.1). Preserve
-	       that alternative on each prefix endpoint.  The epsilon-only
-	       acceptance in B is deliberately absent from its tick NFA after
-	       folding, so composing only through B's start would silently drop
-	       it. */
-	    for (unsigned i = 0; i < B.empty_matches; ++i)
-		  for (size_t ai = 0; ai < terminal.size(); ai += 1) {
-			if (path_budget && nfa.edges.size() >= path_budget) return false;
-			sva_nfa_edge_t e = terminal[ai];
-			e.to = boff + B.accept;
-			nfa.edges.push_back(e);
-		  }
-	    if (path_budget) {
-		  if (A.empty_matches * B.empty_matches > path_budget) return false;
-		  for (unsigned i = 0; i < A.empty_matches * B.empty_matches; ++i)
-			nfa.eps(A.start, nfa.accept);
-	    }
-      } else {
-	      /* |->: the consequent's first tick is the antecedent's
-		 terminal tick. Pair every terminal antecedent edge with every
-		 first consequent edge. The old terminal edges become dead and
-		 are removed below; keeping them until pruning makes the
-		 construction and its boundary probes straightforward. */
-	    vector<const sva_nfa_edge_t*> initial;
-	    for (const auto&edge : B.edges)
-		  if (edge.from == B.start) initial.push_back(&edge);
-	    for (const auto&ae : terminal)
-		  for (const auto*entry : initial) {
-			if (path_budget && nfa.edges.size() >= path_budget) return false;
-			const sva_nfa_edge_t&be = *entry;
-			sva_nfa_edge_t e = ae;
-			if (e.first_match_cut_group != 0
-			    && be.first_match_cut_group != 0)
-			      return false;
-			if (be.first_match_cut_group != 0) {
-			      e.first_match_exit = be.first_match_exit;
-			      e.first_match_cut_group = be.first_match_cut_group;
-			      if (be.first_match_exit) {
-				    e.first_match_guards = e.guards;
-				    e.first_match_guards.insert(e.first_match_guards.end(),
-					be.first_match_guards.begin(), be.first_match_guards.end());
-			      }
-			}
-			  /* A prefix exit commits on its original guards, even
-			     if the newly fused suffix cannot advance. */
-			e.to = boff + be.to;
-			e.guards.insert(e.guards.end(), be.guards.begin(),
-					be.guards.end());
-			nfa.edges.push_back(e);
-		  }
-      }
-
-      if (path_budget) {
-	    /* In endpoint mode the terminal edges are the boundary. Their
-	       prefixes and suffixes are unfolded together by the caller. */
-	    return normalize_tree_(nfa, path_budget);
-      }
-      fold_epsilons_(nfa);
-      std::vector<unsigned> remap;
-      prune_dead_states_(nfa, &remap);
-      for (size_t i = 0; i < boundary.size(); i += 1) {
-	    if (boundary[i].from >= remap.size()
-		|| remap[boundary[i].from] == ~0u)
-		  return false;
-	    boundary[i].from = remap[boundary[i].from];
-      }
-      return (!boundary.empty() || (nonoverlap && A.empty_matches))
-	    && pform_sva_nfa_first_match_cuts_ok(nfa);
 }
 
 void pform_sva_nfa_dump(const struct vlltype&loc, const char*what,

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3851_grouped_concat_bad.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3851_grouped_concat_bad"],
+  "gold": "issue3851_grouped_concat_bad"
+}

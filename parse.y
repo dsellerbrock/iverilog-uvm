@@ -3065,9 +3065,12 @@ static Module::port_t *module_declare_explicit_port(
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
-%type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
-  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
+%type <sva_prop> sva_seq_comb sva_tree_concat sva_grouped_seq_comb
+  sva_tree_concat_flat sva_tree_concat_prefix
+  sva_or_has_op sva_or_operand sva_and_has_op sva_and_operand
+  sva_intersect_has_op sva_comb_atom sva_grouped_clocked_leaf
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
+  sva_cycle_range_flat_operand
 %type <subroutine_call> sva_match_call
 %type <sva_item> sva_match_item
 %type <sva_items> sva_match_item_list
@@ -3078,10 +3081,12 @@ static Module::port_t *module_declare_explicit_port(
 %type <sva_case_items> property_case_items
 %destructor { pform_sva_destroy_property($$); }
   property_expr property_spec sva_multiclock_seq
-  sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
-  sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
+  sva_seq_comb sva_tree_concat sva_grouped_seq_comb
+  sva_tree_concat_flat sva_tree_concat_prefix
+  sva_or_has_op sva_or_operand sva_and_has_op sva_and_operand
+  sva_intersect_has_op sva_comb_atom sva_grouped_clocked_leaf
 %destructor { pform_sva_destroy_sequence($$); }
-  sva_seq_expr sva_seq_atom
+  sva_seq_expr sva_seq_atom sva_cycle_range_flat_operand
 %destructor { pform_sva_destroy_mc_segments($$); }
   sva_mc_tail sva_mc_tail_opt
 %type <rs_item>           rs_prod_item
@@ -3412,10 +3417,7 @@ static Module::port_t *module_declare_explicit_port(
 %precedence sva_decl_expr_start
 %precedence K_int
 %precedence IDENTIFIER
-/* When a composite sequence in a sequence declaration is followed by ##,
-   continue the sequence instead of prematurely reducing it to the complete
-   property_expr alternative. This is Bison's existing default-shift choice,
-   made explicit so the focused declaration route adds no parser conflict. */
+/* Complete a fixed-delay chain before reducing it as a combinator operand. */
 %precedence sva_seq_comb_done
 %precedence K_CYCLE_DELAY
 
@@ -8381,23 +8383,6 @@ sequence_declaration /* IEEE 1800-2017/2023 16.8 */
 	pform_sva_declare_sequence_spec(@2, $2, p);
 	delete[] $2;
       }
-  /* A composite sequence is itself a sequence_expr and may continue through
-     ##delay into an ordinary linear suffix. Keep this declaration-scoped
-     route separate from property_expr: making it a global property rule
-     creates broad ambiguities with every linear `sva_seq_expr ## ...'. */
-  | K_sequence IDENTIFIER ';' event_control sva_seq_comb_concat ';' K_endsequence
-      { sva_property_t*p = $5;
-	if (p) p->clk_evt = $4; else delete $4;
-	pform_sva_declare_sequence_spec(@2, $2, p);
-	delete[] $2;
-      }
-  | K_sequence IDENTIFIER ';' event_control sva_seq_comb_concat ';' K_endsequence ':' IDENTIFIER
-      { check_end_label(@9, "sequence", $2, $9);
-	sva_property_t*p = $5;
-	if (p) p->clk_evt = $4; else delete $4;
-	pform_sva_declare_sequence_spec(@2, $2, p);
-	delete[] $2;
-      }
   | K_sequence IDENTIFIER ';' sva_int_local_declarations event_control
       property_expr ';' K_endsequence
       { sva_property_t*p = $6;
@@ -10167,12 +10152,6 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
         p->seq_clk_evt = $2;
         p->mc_more = $4;
         $$ = p; }
-  /* A grouping pair around a complete composite sequence is transparent,
-     including when that sequence continues through a cycle delay.  Keep the
-     grouped prefix exact: a global `sva_seq_comb ## ...' alternative would
-     overlap every ordinary linear sequence concatenation. */
-  | '(' sva_seq_comb ')' K_CYCLE_DELAY sva_cycle_delay_value sva_seq_expr
-      { $$ = pform_sva_tree_concat(@4, $2, $5, $6); }
   /* IEEE 1800-2017 A.2.10: the consequent is recursively a complete
      property_expr. Keeping this as the grammar's single ordinary
      implication rule is essential: `not', `always', `until', throughout,
@@ -10202,17 +10181,9 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_followed_by(@2, 1, pform_sva_leaf_prop($1), $3); }
   | sva_seq_comb K_FOLLOWED_BY_OV property_expr
       { $$ = pform_sva_followed_by(@2, 1, $1, $3); }
-  | sva_grouped_seq_comb K_FOLLOWED_BY_OV property_expr
-      { $$ = pform_sva_followed_by(@2, 1, $1, $3); }
-  | sva_seq_comb_concat K_FOLLOWED_BY_OV property_expr
-      { $$ = pform_sva_followed_by(@2, 1, $1, $3); }
   | sva_seq_expr K_FOLLOWED_BY_NOV property_expr
       { $$ = pform_sva_followed_by(@2, 2, pform_sva_leaf_prop($1), $3); }
   | sva_seq_comb K_FOLLOWED_BY_NOV property_expr
-      { $$ = pform_sva_followed_by(@2, 2, $1, $3); }
-  | sva_grouped_seq_comb K_FOLLOWED_BY_NOV property_expr
-      { $$ = pform_sva_followed_by(@2, 2, $1, $3); }
-  | sva_seq_comb_concat K_FOLLOWED_BY_NOV property_expr
       { $$ = pform_sva_followed_by(@2, 2, $1, $3); }
   /* IEEE 1800-2017 16.13.3: multiclocked implication `@(c1) a |=> @(c2) b'
      — the consequent carries its own clocking event. The leading `@(c1)'
@@ -10242,12 +10213,6 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_multiclock_comb_antecedent(
 		@2, 2, $1, $3, $4, $5); }
   | sva_seq_comb K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail
-      { $$ = pform_sva_multiclock_comb_antecedent(
-		@2, 1, $1, $3, $4, $5); }
-  | sva_grouped_seq_comb K_PIPE_IMPL_NOV event_control sva_seq_expr sva_mc_tail
-      { $$ = pform_sva_multiclock_comb_antecedent(
-		@2, 2, $1, $3, $4, $5); }
-  | sva_grouped_seq_comb K_PIPE_IMPL_OV event_control sva_seq_expr sva_mc_tail
       { $$ = pform_sva_multiclock_comb_antecedent(
 		@2, 1, $1, $3, $4, $5); }
   /* IEEE 1800-2017/2023 16.12.3: negation — the property holds iff the
@@ -10377,8 +10342,8 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      a stage-B combinator tree (`sva_seq_comb', below) for the
      automaton engine (IVL_SVA_NFA=1); without it the assertion is a
      loud sorry at lowering (previously these were raw syntax errors).
-     The combinator layer nests arbitrarily with `and'/`intersect'
-     binding tighter than `or' (16.9-1). A bare `sva_seq_expr' stays
+     The combinator layer nests with `intersect' binding tighter than
+     `and', which binds tighter than `or' (16.9.1). A bare `sva_seq_expr' stays
      op 0 (above); `sva_seq_comb' requires >=1 operator, so there is no
      ambiguity with the op-0 rule. */
   /* IEEE 1800-2017 A.2.10 makes the antecedent of an implication a
@@ -10404,26 +10369,6 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | sva_seq_comb K_PIPE_IMPL_OV sva_seq_comb
       { $$ = pform_sva_tree_implication(@2, 1, $1, $3); }
   | sva_seq_comb K_PIPE_IMPL_NOV sva_seq_comb
-      { $$ = pform_sva_tree_implication(@2, 2, $1, $3); }
-  | sva_grouped_seq_comb K_PIPE_IMPL_OV sva_seq_comb
-      { $$ = pform_sva_tree_implication(@2, 1, $1, $3); }
-  | sva_grouped_seq_comb K_PIPE_IMPL_NOV sva_seq_comb
-      { $$ = pform_sva_tree_implication(@2, 2, $1, $3); }
-  | sva_grouped_seq_comb K_PIPE_IMPL_OV sva_seq_expr
-      { $$ = pform_sva_comb_antecedent_sorry(@2, 1, $1, $3); }
-  | sva_grouped_seq_comb K_PIPE_IMPL_NOV sva_seq_expr
-      { $$ = pform_sva_comb_antecedent_sorry(@2, 2, $1, $3); }
-  | sva_seq_comb K_PIPE_IMPL_OV sva_grouped_seq_comb
-      { $$ = pform_sva_tree_implication(@2, 1, $1, $3); }
-  | sva_seq_comb K_PIPE_IMPL_NOV sva_grouped_seq_comb
-      { $$ = pform_sva_tree_implication(@2, 2, $1, $3); }
-  | sva_seq_expr K_PIPE_IMPL_OV sva_grouped_seq_comb
-      { $$ = pform_sva_comb_consequent_sorry(@2, 1, $1, $3); }
-  | sva_seq_expr K_PIPE_IMPL_NOV sva_grouped_seq_comb
-      { $$ = pform_sva_comb_consequent_sorry(@2, 2, $1, $3); }
-  | sva_grouped_seq_comb K_PIPE_IMPL_OV sva_grouped_seq_comb
-      { $$ = pform_sva_tree_implication(@2, 1, $1, $3); }
-  | sva_grouped_seq_comb K_PIPE_IMPL_NOV sva_grouped_seq_comb
       { $$ = pform_sva_tree_implication(@2, 2, $1, $3); }
   | sva_seq_comb %prec sva_seq_comb_done
       { $$ = $1; }
@@ -10473,11 +10418,8 @@ property_case_items
      nonterminal REQUIRES at least one combinator operator (the
      "has-op" invariant), so a bare chain reduces only to
      `property_expr : sva_seq_expr' (op 0) and never through here — no
-     reduce/reduce with the op-0 rule. `sva_comb_atom' is a chain leaf
-     or a parenthesized sub-combinator; `sva_and_has_op' folds `and'/
-     `intersect' (tighter, left-assoc); `sva_or_has_op' folds `or'
-     (looser). Each yields an sva_property_t carrying a combinator tree
-     (or a chain, from the legacy fixed-intersect path). */
+     reduce/reduce with the op-0 rule. Each yields an sva_property_t
+     carrying a tree (or a chain from the fixed-length local-flow path). */
 /* Share the grouped leading clock between property_expr and the combinator
    grammar. A clock inside the sequence chain uses the separate tail rule. */
 sva_grouped_clocked_leaf
@@ -10496,8 +10438,8 @@ sva_comb_atom
       { $$ = pform_sva_clocked_leaf_prop(@1, $1, $2); }
   | sva_grouped_clocked_leaf
       { $$ = $1; }
-  | '(' sva_seq_comb ')'
-      { $$ = $2; }
+  | sva_tree_concat %prec sva_seq_comb_done
+      { $$ = $1; }
   /* IEEE 1800-2023 16.12.4/16.12.5: `or'/`and' also combine full
      properties, e.g. `(a |-> b) and (c |-> d)'. A parenthesized sequence
      or sequence combinator still takes the two sequence atoms above (the
@@ -10511,27 +10453,70 @@ sva_comb_atom
       { $$ = pform_sva_clocked_paren_impl(@4, $2, 2, $3, $5); }
   ;
 
-/* At a property boundary, a complete parenthesized combinator may be the
-   whole implication operand. Keep it distinct from parenthesized leaves
-   nested inside sva_seq_comb's precedence grammar. */
+/* A tree atom cannot derive a flat chain. Sharing the grouped production
+   lets a closing parenthesis finish either a concatenation operand or a
+   complete sequence. */
 sva_grouped_seq_comb
   : '(' sva_seq_comb ')'
       { $$ = $2; }
+  | K_first_match '(' sva_seq_comb ')'
+      { $$ = pform_sva_tree_first_match(@1, $3); }
+  ;
+
+/* ## binds more tightly than the combinators. Every derivation here has
+   a tree operand, so an all-flat concatenation stays in sva_seq_expr. */
+sva_tree_concat
+  : sva_grouped_seq_comb
+      { $$ = $1; }
+  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value sva_grouped_seq_comb
+      { $$ = pform_sva_tree_concat(@2, pform_sva_leaf_prop($1), $3, $4); }
+  | sva_tree_concat_prefix sva_cycle_delay_value sva_grouped_seq_comb
+      { $$ = pform_sva_tree_concat(@1, $1, $2, $3); }
+  | sva_tree_concat_flat %prec sva_seq_comb_done
+      { $$ = $1; }
+  ;
+
+/* After a flat right operand, sharing the ## shift lets the next token
+   distinguish another fixed boundary from a range inside the flat suffix. */
+sva_tree_concat_prefix
+  : sva_tree_concat K_CYCLE_DELAY
+      { $$ = $1; }
+  | sva_tree_concat_flat K_CYCLE_DELAY
+      { $$ = $1; }
+  ;
+
+sva_tree_concat_flat
+  : sva_tree_concat_prefix sva_cycle_delay_value sva_seq_atom
+      { $$ = pform_sva_tree_concat(@1, $1, $2, pform_sva_leaf_prop($3)); }
+  | sva_tree_concat_prefix sva_cycle_delay_value sva_seq_lead_delay
+      { $$ = pform_sva_tree_concat(@1, $1, $2, pform_sva_leaf_prop($3)); }
+  | sva_tree_concat_flat K_CYCLE_DELAY sva_cycle_range_flat_operand
+      { $$ = pform_sva_tree_extend_flat_suffix($1, $3); }
+  ;
+
+sva_intersect_has_op
+  : sva_comb_atom K_intersect sva_comb_atom
+      { $$ = pform_sva_tree_intersect(@2, $1, $3); }
+  | sva_intersect_has_op K_intersect sva_comb_atom
+      { $$ = pform_sva_tree_intersect(@2, $1, $3); }
+  ;
+
+sva_and_operand
+  : sva_comb_atom
+      { $$ = $1; }
+  | sva_intersect_has_op
+      { $$ = $1; }
   ;
 
 sva_and_has_op
-  : sva_comb_atom K_and sva_comb_atom
+  : sva_and_operand K_and sva_and_operand
       { $$ = pform_sva_tree_comb(@2, 'a', $1, $3); }
-  | sva_comb_atom K_intersect sva_comb_atom
-      { $$ = pform_sva_tree_intersect(@2, $1, $3); }
-  | sva_and_has_op K_and sva_comb_atom
+  | sva_and_has_op K_and sva_and_operand
       { $$ = pform_sva_tree_comb(@2, 'a', $1, $3); }
-  | sva_and_has_op K_intersect sva_comb_atom
-      { $$ = pform_sva_tree_intersect(@2, $1, $3); }
   ;
 
 sva_or_operand
-  : sva_comb_atom
+  : sva_and_operand
       { $$ = $1; }
   | sva_and_has_op
       { $$ = $1; }
@@ -10545,22 +10530,14 @@ sva_or_has_op
   ;
 
 sva_seq_comb
-  : sva_and_has_op
+  : sva_intersect_has_op
+      { $$ = $1; }
+  | sva_and_has_op
       { $$ = $1; }
   | sva_or_has_op
       { $$ = $1; }
-  /* IEEE 1800-2017/2023 16.9.8: keep the sequence wrapper so it
-     controls which endpoints reach a continuation or consequent. */
-  | K_first_match '(' sva_seq_comb ')'
-      { $$ = pform_sva_tree_first_match(@1, $3); }
-  ;
-
-/* IEEE 1800-2017 16.9.1: a parenthesized/composite sequence remains a
-   sequence_expr and can be concatenated with a linear suffix.  The tree
-   helper preserves ##0 endpoint fusion and fixed ##N separation exactly. */
-sva_seq_comb_concat
-  : sva_seq_comb K_CYCLE_DELAY sva_cycle_delay_value sva_seq_expr
-      { $$ = pform_sva_tree_concat(@2, $1, $3, $4); }
+  | sva_tree_concat %prec sva_seq_comb_done
+      { $$ = $1; }
   ;
 
 /* IEEE 1800-2017 16.11 sequence_match_item subroutine calls. This bounded
@@ -11060,68 +11037,75 @@ sva_seq_lead_delay
   | K_CYCLE_DELAY sva_cycle_delay_value sva_seq_lead_delay
       { pform_sva_single_delay(@2, (*$3)[0], $2);
         $$ = $3; }
-  | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
-	  { pform_sva_range_delay(@2, (*$7)[0], $3, $5);
-	$$ = $7; }
-  | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_lead_delay
-	  { pform_sva_range_delay(@2, (*$7)[0], $3, $5);
-	$$ = $7; }
-  | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
+  | K_CYCLE_DELAY sva_cycle_range_flat_operand
+      { $$ = $2; }
+  ;
+
+/* Reuse the flat range encoding both at a leading delay and within the
+   flat suffix of a tree concatenation. */
+sva_cycle_range_flat_operand
+  : '[' expression ':' expression ']' sva_seq_atom
+	  { pform_sva_range_delay(@1, (*$6)[0], $2, $4);
+	$$ = $6; }
+  | '[' expression ':' expression ']' sva_seq_lead_delay
+	  { pform_sva_range_delay(@1, (*$6)[0], $2, $4);
+	$$ = $6; }
+  | '[' expression ':' '$' ']' sva_seq_atom
       { long lo = 0;
-	sva_seq_step_t&f0 = (*$7)[0];
-	if (pform_sva_const_long($3, lo)
+	sva_seq_step_t&f0 = (*$6)[0];
+	if (pform_sva_const_long($2, lo)
 	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = lo;
 	      f0.delay_hi = -1;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
-	delete $3;
-	$$ = $7; }
-  | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_lead_delay
+	delete $2;
+	$$ = $6; }
+  | '[' expression ':' '$' ']' sva_seq_lead_delay
       { long lo = 0;
-	sva_seq_step_t&f0 = (*$7)[0];
-	if (pform_sva_const_long($3, lo)
+	sva_seq_step_t&f0 = (*$6)[0];
+	if (pform_sva_const_long($2, lo)
 	    && f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = lo;
 	      f0.delay_hi = -1;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
-	delete $3;
-	$$ = $7; }
-  | K_CYCLE_DELAY K_LBSTAR ']' sva_seq_atom
-      { sva_seq_step_t&f0 = (*$4)[0];
+	delete $2;
+	$$ = $6; }
+  | K_LBSTAR ']' sva_seq_atom
+      { sva_seq_step_t&f0 = (*$3)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 0; f0.delay_hi = -1;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
-	$$ = $4; }
-  | K_CYCLE_DELAY K_LBSTAR ']' sva_seq_lead_delay
-      { sva_seq_step_t&f0 = (*$4)[0];
+	$$ = $3; }
+  | K_LBSTAR ']' sva_seq_lead_delay
+      { sva_seq_step_t&f0 = (*$3)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 0; f0.delay_hi = -1;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
+	$$ = $3; }
+  | K_LBPLUS '+' ']' sva_seq_atom
+      { sva_seq_step_t&f0 = (*$4)[0];
+	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
+	      f0.delay_lo = 1; f0.delay_hi = -1;
+	} else if (f0.delay_lo != -3) {
+	      f0.delay_lo = -2; f0.delay_hi = -2;
+	}
 	$$ = $4; }
-  | K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_atom
-      { sva_seq_step_t&f0 = (*$5)[0];
+  | K_LBPLUS '+' ']' sva_seq_lead_delay
+      { sva_seq_step_t&f0 = (*$4)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
 	} else if (f0.delay_lo != -3) {
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
-	$$ = $5; }
-  | K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_lead_delay
-      { sva_seq_step_t&f0 = (*$5)[0];
-	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
-	      f0.delay_lo = 1; f0.delay_hi = -1;
-	} else if (f0.delay_lo != -3) {
-	      f0.delay_lo = -2; f0.delay_hi = -2;
-	}
-	$$ = $5; }
+	$$ = $4; }
   ;
 
   /* The property_qualifier rule is as literally described in the LRM,

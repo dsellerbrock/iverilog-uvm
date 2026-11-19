@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3851_grouped_concat.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3851_grouped_concat"],
+  "gold": "issue3851_grouped_concat"
+}

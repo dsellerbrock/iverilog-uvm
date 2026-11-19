@@ -1,0 +1,4 @@
+./ivltests/issue3851_grouped_concat_bad.sv:5: error: the cycle delay of a composite sequence must resolve to a nonnegative constant before NFA construction (IEEE 1800-2017/2023 16.9.1).
+./ivltests/issue3851_grouped_concat_bad.sv:6: error: a property is used where this operator requires a sequence operand (IEEE 1800-2023 16.9, 16.12).
+./ivltests/issue3851_grouped_concat_bad.sv:7: error: a sequence used as a property shall be nondegenerate (IEEE 1800-2017/2023 16.12.22(a)).
+./ivltests/issue3851_grouped_concat_bad.sv:8: error: a sequence used as a property shall not admit an empty match (IEEE 1800-2017/2023 16.12.22(a)).

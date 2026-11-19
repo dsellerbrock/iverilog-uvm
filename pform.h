@@ -634,11 +634,13 @@ pform_sva_tree_intersect(const struct vlltype&loc,
 			 sva_property_t*a, sva_property_t*b);
 extern sva_property_t*
 pform_sva_tree_first_match(const struct vlltype&loc, sva_property_t*operand);
-/* Continue an arbitrary sequence-combinator tree through a fixed cycle
-   delay and a linear suffix, e.g. `(a and b) ##0 c'. */
+/* Concatenate two sequence operands at a fixed cycle delay. */
 extern sva_property_t*
 pform_sva_tree_concat(const struct vlltype&loc, sva_property_t*prefix,
-		      PExpr*delay, std::vector<sva_seq_step_t>*suffix);
+		      PExpr*delay, sva_property_t*suffix);
+extern sva_property_t*
+pform_sva_tree_extend_flat_suffix(sva_property_t*prefix,
+				 std::vector<sva_seq_step_t>*suffix);
 /* IEEE 1800-2017/2023 16.12.9: followed-by is an existential sequence
    concatenation for sequence consequents, not an implication (a missing
    antecedent match is false, not vacuously true). Consumes both operands. */
