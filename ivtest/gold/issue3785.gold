@@ -1,0 +1,9 @@
+call='{n:3, valid:1} count=1
+other='{carry:1, data:READY}
+four-state='{n:3, valid:z}
+numeric=7 binary=111
+packed='{n:3, valid:1} indexed='{n:3, valid:1}
+fixed='{n:2, valid:1} dynamic='{n:1, valid:1} member='{n:3, valid:0}
+property='{n:3, valid:1} numeric=7 binary=111
+part=7 indexed-part=7 concat=7 member-bits=6
+live-select='{n:1, valid:0} live-property='{n:0, valid:1} constant-select='{n:3, valid:1}

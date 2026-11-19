@@ -2235,7 +2235,7 @@ vpiHandle __vpiPV::vpi_put_value(p_vpi_value val, int flags)
 { return PV_put_value(this, val, flags); }
 
 vpiHandle __vpiPV::vpi_handle(int code)
-{ return PV_get_handle(code, this); }
+{ return code == vpiTypespec ? typespec : PV_get_handle(code, this); }
 
 static vpiHandle make_PV_index_const(int64_t value)
 {

@@ -116,6 +116,7 @@ extern void emit_deferred_array_decls(void);
  * emit them all, as .vartype records, once every enumeration is drawn. */
 extern void note_signal_vartype(ivl_signal_t sig, const char*suffix);
 extern void note_property_vartype(ivl_type_t classtype, unsigned idx);
+extern ivl_type_t note_packed_expr_vartype(ivl_type_t type, unsigned width);
 extern void emit_vartypes(void);
 extern int enumeration_is_drawn(ivl_enumtype_t enumtype);
 

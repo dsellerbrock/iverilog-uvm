@@ -560,6 +560,8 @@ extern void compile_packed_dims(char*label, char*layout);
 extern bool vvp_parse_assoc_index_suffix(const char*type, unsigned&width,
 					bool&is_signed, size_t&base_length);
 extern void compile_vartype(char*label, char*text);
+extern void compile_packed_vartype(char*label, char*text);
+extern void compile_packed_typespec_ref(vpiHandle*slot, char*label, unsigned width);
 extern void compile_property_vartype(char*label, uint64_t idx, char*text);
 extern void compile_type_param(char*label, const char*name, char*type,
                                bool local_flag, long file_idx, long lineno);

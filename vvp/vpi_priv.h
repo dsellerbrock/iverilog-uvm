@@ -848,6 +848,7 @@ struct __vpiPV : public __vpiHandle {
       vpiHandle vpi_handle(int code) override;
 
       vpiHandle parent;
+      vpiHandle typespec = nullptr;
       vvp_net_t*net;
       vpiHandle sbase;
       vpiHandle base_expr;
@@ -1715,15 +1716,18 @@ struct __vpiBinaryConst : public __vpiHandle {
       int get_type_code(void) const override;
       int vpi_get(int code) override;
       void vpi_get_value(p_vpi_value val) override;
+      vpiHandle vpi_handle(int code) override
+      { return code == vpiTypespec ? typespec : nullptr; }
 
       vvp_vector4_t bits;
+      vpiHandle typespec = nullptr;
 	/* TRUE if this constant is signed. */
       unsigned signed_flag :1;
 	/* TRUE if this constant has an explicit size (i.e. 19'h0 vs. 'h0) */
       unsigned sized_flag  :1;
 };
 
-vpiHandle vpip_make_binary_const(unsigned wid, const char*bits);
+vpiHandle vpip_make_binary_const(unsigned wid, const char*bits, char*type_label = nullptr);
 vpiHandle vpip_make_binary_const(const vvp_vector4_t&bits, bool signed_flag);
 vpiHandle vpip_make_binary_param(const char*name, const vvp_vector4_t&bits,
 				 bool signed_flag, bool local_flag,
@@ -1768,7 +1772,9 @@ vpiHandle vpip_make_null_op();
 
 vpiHandle vpip_make_vthr_word(unsigned base, const char*type);
 vpiHandle vpip_make_vthr_str_stack(unsigned depth);
-vpiHandle vpip_make_vthr_vec4_stack(unsigned depth, bool signed_flag, unsigned wid);
+vpiHandle vpip_make_vthr_vec4_stack(unsigned depth, bool signed_flag, unsigned wid,
+                                   vpiHandle typespec = nullptr);
+void vpip_bind_part_typespec(vpiHandle item, char*label);
 vpiHandle vpip_make_vthr_obj_stack(unsigned depth, char*type = 0);
 
 /* Identify the direct typed-stack handles accepted as deferred VPI action

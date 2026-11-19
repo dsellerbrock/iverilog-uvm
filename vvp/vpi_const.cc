@@ -430,7 +430,7 @@ void __vpiBinaryConst::vpi_get_value(p_vpi_value val)
  * ASCII string, with each letter a 4-value bit. The first character
  * may be an 's' if the vector is signed.
  */
-vpiHandle vpip_make_binary_const(unsigned wid, const char*bits)
+vpiHandle vpip_make_binary_const(unsigned wid, const char*bits, char*type_label)
 {
       struct __vpiBinaryConst*obj = new __vpiBinaryConst;
 
@@ -441,6 +441,8 @@ vpiHandle vpip_make_binary_const(unsigned wid, const char*bits)
       }
 
       obj->bits = vector4_from_text(bp, wid);
+      if (type_label)
+	    compile_packed_typespec_ref(&obj->typespec, type_label, wid);
 
       return obj;
 }

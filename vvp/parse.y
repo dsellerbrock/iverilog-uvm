@@ -104,7 +104,8 @@ static bool is_force_release_opcode(const char* name)
       int      vpi_enum;
 };
 
-%token K_A K_APV K_CPS K_CPV K_PE
+%token K_A K_APV K_CPS K_CPV K_PE K_PS K_PC
+%token K_PACKED_VARTYPE
 %token K_ARITH_ABS K_ARITH_DIV K_ARITH_DIV_R K_ARITH_DIV_S K_ARITH_MOD
 %token K_ARITH_MOD_R K_ARITH_MOD_S
 %token K_ARITH_MULT K_ARITH_MULT_R K_ARITH_SUB K_ARITH_SUB_R
@@ -267,6 +268,8 @@ statement
 		{ compile_vartype($2, $4); }
 	| K_VARTYPE T_SYMBOL ',' T_NUMBER ',' T_STRING ';'
 		{ compile_property_vartype($2, $4, $6); }
+	| K_PACKED_VARTYPE T_SYMBOL ',' T_STRING ';'
+		{ compile_packed_vartype($2, $4); }
 
 	| K_export_dpi T_STRING T_STRING T_STRING T_STRING T_STRING T_STRING ';'
 		{ compile_export_dpi($2, $3, $4, $5, $6, $7); }
@@ -1917,6 +1920,10 @@ symbol_access
       { $$ = vpip_make_PV($3, $5, $7, $9 != 0); }
   | K_APV '<' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
       { $$ = vpip_make_vthr_APV($3, $5, $7, $9); }
+  | K_PS '<' symbol_access ',' T_SYMBOL '>'
+      { $$ = $3; vpip_bind_part_typespec($$, $5); }
+  | K_PC '<' T_VECTOR ',' T_SYMBOL '>'
+      { $$ = vpip_make_binary_const($3.idx, $3.text, $5); free($3.text); }
   | K_CPS '<' T_SYMBOL ',' numbers '>'
       /* L33: numbers is 1 index for a direct property (obj.s) and more
          for a nested chain (obj.inner.s -> [inner_idx, s_idx]); see the

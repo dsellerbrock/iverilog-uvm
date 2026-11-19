@@ -477,10 +477,13 @@ vpiHandle __vpiVThrStrStack::vpi_put_value(p_vpi_value vp, int /*flags*/)
 
 class __vpiVThrVec4Stack : public __vpiHandle {
     public:
-      __vpiVThrVec4Stack(unsigned depth, bool signed_flag, unsigned wid);
+      __vpiVThrVec4Stack(unsigned depth, bool signed_flag, unsigned wid,
+                         vpiHandle typespec);
       int get_type_code(void) const override;
       int vpi_get(int code) override;
       char*vpi_get_str(int code) override;
+      vpiHandle vpi_handle(int code) override
+      { return code == vpiTypespec ? typespec_ : nullptr; }
       void vpi_get_value(p_vpi_value val) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       unsigned depth() const { return depth_; }
@@ -498,11 +501,12 @@ class __vpiVThrVec4Stack : public __vpiHandle {
       unsigned depth_;
       bool signed_flag_;
       unsigned expect_width_;
+      vpiHandle typespec_;
       const char*name;
 };
 
-__vpiVThrVec4Stack::__vpiVThrVec4Stack(unsigned d, bool sf, unsigned wid)
-: depth_(d), signed_flag_(sf), expect_width_(wid)
+__vpiVThrVec4Stack::__vpiVThrVec4Stack(unsigned d, bool sf, unsigned wid, vpiHandle spec)
+: depth_(d), signed_flag_(sf), expect_width_(wid), typespec_(spec)
 {
       name = vpip_name_string("S<,vec4,>");
 }
@@ -878,9 +882,10 @@ vpiHandle vpip_make_vthr_obj_stack(unsigned depth, char*type)
       return obj;
 }
 
-vpiHandle vpip_make_vthr_vec4_stack(unsigned depth, bool signed_flag, unsigned wid)
+vpiHandle vpip_make_vthr_vec4_stack(unsigned depth, bool signed_flag, unsigned wid,
+                                   vpiHandle typespec)
 {
-      __vpiVThrVec4Stack*obj = new __vpiVThrVec4Stack(depth, signed_flag, wid);
+      __vpiVThrVec4Stack*obj = new __vpiVThrVec4Stack(depth, signed_flag, wid, typespec);
       return obj;
 }
 
