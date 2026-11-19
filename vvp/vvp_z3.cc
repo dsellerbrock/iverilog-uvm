@@ -16446,8 +16446,13 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                   if (none_of(bindings.begin(), bindings.end(),
                         [](const JointDistBinding&b) { return b.conditional; }))
                         continue;
-                  if (defer_ordered_joint_randc)
+                  if (defer_ordered_joint_randc) {
+                        // The single-binding preflight below proves the guard
+                        // and weights with randc and earlier stages pinned.
+                        if (bindings.size() == 1 && !tables[ci].empty())
+                              continue;
                         return fail_joint("a conditional joint distribution with randc cannot be proved exactly");
+                  }
                   const auto&component = components[ci];
                   for (unsigned stage = 0; stage <= final_stage; ++stage) {
                         bool distribution_due = any_of(bindings.begin(), bindings.end(),
