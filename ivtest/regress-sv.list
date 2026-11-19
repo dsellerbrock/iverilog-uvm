@@ -6752,6 +6752,14 @@ sva_assertcontrol_2017 normal,-g2017,-s,sva_assertcontrol ivltests gold=sva_asse
 sva_assertcontrol_2023 normal,-g2023,-s,sva_assertcontrol ivltests gold=sva_assertcontrol.gold
 sva_proc_queue_2017 normal,-g2017,-s,sva_proc_queue ivltests gold=sva_proc_queue.gold
 sva_proc_queue_2023 normal,-g2023,-s,sva_proc_queue ivltests gold=sva_proc_queue.gold
+sva_proc_composite_queue_2017 normal,-g2017,-s,sva_proc_composite_queue ivltests
+sva_proc_composite_queue_2023 normal,-g2023,-s,sva_proc_composite_queue ivltests
+sva_proc_composite_order_2017 normal,-g2017,-s,sva_proc_composite_order ivltests
+sva_proc_composite_order_2023 normal,-g2023,-s,sva_proc_composite_order ivltests
+sva_proc_composite_capture_fail_2017 CE,-g2017,-s,sva_proc_composite_capture_fail ivltests gold=sva_proc_composite_capture_fail.gold
+sva_proc_composite_capture_fail_2023 CE,-g2023,-s,sva_proc_composite_capture_fail ivltests gold=sva_proc_composite_capture_fail.gold
+sva_proc_composite_overflow_2017 RE,-g2017,-s,sva_proc_composite_overflow ivltests gold=sva_proc_composite_overflow.gold
+sva_proc_composite_overflow_2023 RE,-g2023,-s,sva_proc_composite_overflow ivltests gold=sva_proc_composite_overflow.gold
 
 issue2831_sdf_log_2017 normal,-g2017,-gspecify,-s,top ivltests gold=issue2831_sdf_log_2017.gold
 issue2831_sdf_log_2023 normal,-g2023,-gspecify,-s,top ivltests gold=issue2831_sdf_log_2023.gold

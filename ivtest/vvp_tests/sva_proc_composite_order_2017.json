@@ -1,0 +1,9 @@
+{
+  "type": "normal",
+  "source": "sva_proc_composite_order.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "sva_proc_composite_order"
+  ]
+}

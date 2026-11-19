@@ -1,0 +1,1 @@
+./ivltests/sva_proc_composite_capture_fail_2017.v:10: sorry: procedural composite captures through a clock, property control expression, local declaration, recursive property or match-item call are unsupported (IEEE 1800-2017/2023 16.14.6.1); the assertion is dropped.
