@@ -4638,9 +4638,73 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    }
       }
 
-      unsigned nattrib = 0;
-      const attrib_list_t*attrib_list = evaluate_attributes(attributes, nattrib,
-                                                            des, scope);
+      vector<attrib_list_t> legacy_attrs;
+      vector<NetNet::decl_attribute_t> decl_attrs;
+      legacy_attrs.reserve(attributes.size());
+      for (const auto&entry : attributes) {
+	    const named_pexpr_t&spec = entry.second;
+	    legacy_attrs.emplace_back();
+	    auto&legacy = legacy_attrs.back();
+	    legacy.key = spec.name;
+	    unique_ptr<NetExpr> value(evaluate_attribute(spec.parm, legacy.val,
+							 des, scope));
+	    if (wtype != NetNet::REG || user_type || spec.get_file().nil()
+		|| (spec.parm && !value))
+		  continue;
+
+	    NetNet::decl_attribute_t attr;
+	    attr.name = spec.name;
+	    attr.set_line(spec);
+	    if (!spec.parm) {
+		  value.reset(new NetEConst(&netvector_t::scalar_bool,
+					    verinum(verinum::V1, 1)));
+		  attr.integral_kind = IVL_DECL_ATTR_SCALAR;
+	    } else if (const auto*constant = dynamic_cast<const NetEConst*>(value.get())) {
+		  ivl_type_t type = constant->net_type();
+		  const auto*number = dynamic_cast<const PENumber*>(spec.parm);
+		  if (const auto*cast = dynamic_cast<const PECastType*>(spec.parm)) {
+			type = cast->resolve_target_type(des, scope);
+		  } else if (const auto*par = dynamic_cast<const NetEConstParam*>(constant)) {
+			const auto&params = par->scope()->parameters;
+			auto it = params.find(par->name());
+			if (it != params.end() && it->second.ivl_type)
+			      type = it->second.ivl_type;
+		  }
+
+		    // Unsized constant folding can trim the materialized value.
+		    // Restore the self-determined width for VPI.
+		  unsigned width = max(constant->expr_width(), spec.parm->expr_width());
+		  const verinum&bits = constant->value();
+		  const bool packed_text = bits.is_string() && type && type->packed();
+		  if (packed_text || (!bits.is_string() && width > bits.len())) {
+			verinum full = cast_to_width(bits, width);
+			if (packed_text) {
+			      verinum packed(verinum::V0, width);
+			      for (unsigned i = 0; i < width; ++i)
+				    packed.set(i, full.get(i));
+			      full = packed;
+			}
+			full.has_sign(constant->has_sign());
+			value.reset(new NetEConst(full));
+		  }
+
+		  const auto*vec = dynamic_cast<const netvector_t*>(type);
+		  if (vec == &netvector_t::time_signed || vec == &netvector_t::time_unsigned)
+			attr.integral_kind = IVL_DECL_ATTR_TIME;
+		  else if (type ? type->get_scalar()
+				: width == 1 && (!number || number->value().is_single()))
+			attr.integral_kind = IVL_DECL_ATTR_SCALAR;
+		  else if (width <= 32 &&
+			   (vec == &netvector_t::atom2s32 || vec == &netvector_t::atom2u32
+			    || vec == &netvector_t::atom2s16 || vec == &netvector_t::atom2u16
+			    || vec == &netvector_t::atom2s8 || vec == &netvector_t::atom2u8
+			    || (vec && vec->get_isint())))
+			attr.integral_kind = IVL_DECL_ATTR_INTEGER;
+	    }
+	    value->set_line(spec);
+	    attr.value = std::move(value);
+	    decl_attrs.push_back(std::move(attr));
+      }
 
       if (!sig_predeclared && set_data_type_ && packed_dimensions.empty() && unpacked_.empty()) {
 	    if (ivl_type_t placeholder_type =
@@ -4934,8 +4998,9 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       if (pull)
 	    connect(delay_driver->pin(0), pull->pin(0));
 
-      for (unsigned idx = 0 ;  idx < nattrib ;  idx += 1)
-	    sig->attribute(attrib_list[idx].key, attrib_list[idx].val);
+      for (const auto&attr : legacy_attrs)
+	    sig->attribute(attr.key, attr.val);
+      sig->set_decl_attributes(std::move(decl_attrs));
 
       sig->set_const(is_const_);
       sig->set_ref_static(is_ref_static_);

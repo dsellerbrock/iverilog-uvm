@@ -120,7 +120,7 @@ class PWire : public PNamedItem {
       void set_discipline(ivl_discipline_t);
       ivl_discipline_t get_discipline(void) const;
 
-      std::map<perm_string,PExpr*> attributes;
+      std::map<perm_string,named_pexpr_t> attributes;
 
 	// Write myself to the specified stream.
       void dump(std::ostream&out, unsigned ind=4) const;

@@ -122,6 +122,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR K_EVENT_ORDER
 %token K_EXPORT K_EXTEND_S K_SAMPLE K_REACTIVE K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH K_TCHK
 %token K_PATHEXPR K_PARAM_STORAGE
+%token K_ATTRIBUTE
 %token K_PARAM_TYPE
 %token K_VIF_PROXY K_EVENT_VALID
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
@@ -710,6 +711,10 @@ statement
       pathexpr_strings.clear(); }
  | T_LABEL K_PARAM_STORAGE T_SYMBOL ';'
     { compile_param_storage($1, $3); }
+ | K_ATTRIBUTE T_SYMBOL ',' T_STRING T_NUMBER T_NUMBER ',' T_STRING ';'
+    { compile_decl_attribute($2, $4, $5, $6, nullptr, false, $8); }
+ | K_ATTRIBUTE T_SYMBOL ',' T_STRING T_NUMBER T_NUMBER ',' T_SYMBOL signed_opt T_SYMBOL ';'
+    { compile_decl_attribute($2, $4, $5, $6, $8, $9, $10); }
 
   /* .tchk <type> <file> <line>, <ref term>, <data term>,
      <n> {<limit var> <value>}, <notifier> ; */

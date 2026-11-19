@@ -932,6 +932,45 @@ static const char *event_storage_flag_str(ivl_event_t event)
  * to scan the nexus. We do have to account for the possibility that
  * the device is arrayed, though, by making a node for each array element.
  */
+static void draw_reg_attributes(ivl_signal_t sig, const char*suffix)
+{
+      const struct ivl_decl_attr_s*attr;
+      for (unsigned idx = 0; (attr = ivl_signal_decl_attr(sig, idx)); ++idx) {
+	    ivl_expr_t value = attr->value;
+	    fprintf(vvp_out, "    .attribute v%p%s, \"%s\" %u %u, ",
+		    sig, suffix, vvp_mangle_name(attr->name),
+		    ivl_file_table_index(attr->file), attr->lineno);
+	    switch (ivl_expr_type(value)) {
+		case IVL_EX_STRING:
+		  fprintf(vvp_out, "\"%s\";\n", ivl_expr_string(value));
+		  break;
+		case IVL_EX_REALNUM: {
+		  char*real = draw_Cr_to_string(ivl_expr_dvalue(value));
+		  fprintf(vvp_out, "real %s;\n", real);
+		  free(real);
+		  break;
+		}
+		case IVL_EX_NUMBER: {
+		  const char*kind = "vector";
+		  switch (attr->integral_kind) {
+		      case IVL_DECL_ATTR_VECTOR: break;
+		      case IVL_DECL_ATTR_SCALAR: kind = "scalar"; break;
+		      case IVL_DECL_ATTR_INTEGER: kind = "integer"; break;
+		      case IVL_DECL_ATTR_TIME: kind = "time"; break;
+		  }
+		  fprintf(vvp_out, "%s %sC4<", kind, ivl_expr_signed(value) ? "+" : "");
+		  const char*bits = ivl_expr_bits(value);
+		  for (unsigned bit = ivl_expr_width(value); bit > 0; --bit)
+			fputc(bits[bit-1], vvp_out);
+		  fputs(">;\n", vvp_out);
+		  break;
+		}
+		default:
+		  assert(0);
+	    }
+      }
+}
+
 static void draw_reg_in_scope(ivl_signal_t sig)
 {
       int msb;
@@ -1005,6 +1044,8 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    fprintf(vvp_out, "v%p_0 .ref/real %s\"%s\", %d %d;\n",
 		    sig, local_flag_str(sig),
 		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb);
+	    if (!ivl_signal_local(sig))
+		  draw_reg_attributes(sig, "_0");
 	    return;
       }
       if (ivl_signal_port(sig) == IVL_SIP_REF
@@ -1012,6 +1053,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 	    fprintf(vvp_out, "v%p_0 .ref/str %s\"%s\", %d %d;\n",
 		    sig, local_flag_str(sig),
 		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb);
+	    draw_reg_attributes(sig, "_0");
 	    return;
       }
       if (ivl_signal_port(sig) == IVL_SIP_REF) {
@@ -1019,6 +1061,8 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		    sig, ivl_signal_data_type(sig) == IVL_VT_BOOL ? ".ref/2s" : ".ref",
 		    local_flag_str(sig),
 		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb);
+	    if (!ivl_signal_local(sig))
+		  draw_reg_attributes(sig, "_0");
 	      /* A companion word in the same frame, for a call whose
 		 actual cannot be named -- an array element, a class
 		 property, a part select. Such a call copies the actual
@@ -1327,6 +1371,8 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		    vvp_mangle_name(ivl_signal_basename(sig)), msb, lsb,
 		    ivl_signal_local(sig)? " Local signal" : "" );
       }
+
+      draw_reg_attributes(sig, ivl_signal_dimensions(sig) > 0 ? "" : "_0");
 
 	      if (ivl_signal_data_type(sig) == IVL_VT_BOOL ||
 	          ivl_signal_data_type(sig) == IVL_VT_LOGIC) {

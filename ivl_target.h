@@ -558,6 +558,23 @@ struct ivl_attribute_s {
 };
 typedef const struct ivl_attribute_s*ivl_attribute_t;
 
+/* Source attributes on variable declarations. The expression carries the
+   full constant value. The integral kind selects its natural VPI format. */
+typedef enum ivl_decl_attr_kind_e {
+      IVL_DECL_ATTR_VECTOR,
+      IVL_DECL_ATTR_SCALAR,
+      IVL_DECL_ATTR_INTEGER,
+      IVL_DECL_ATTR_TIME
+} ivl_decl_attr_kind_t;
+
+struct ivl_decl_attr_s {
+      const char*name;
+      const char*file;
+      unsigned lineno;
+      ivl_expr_t value;
+      ivl_decl_attr_kind_t integral_kind;
+};
+
 /* BRANCH
  * Branches are analog constructs, a pair of terminals that is used in
  * branch access functions. Terminal-1 is the reference node (The
@@ -2562,6 +2579,9 @@ extern unsigned ivl_signal_lineno(ivl_signal_t net);
 
 extern unsigned        ivl_signal_attr_cnt(ivl_signal_t net);
 extern ivl_attribute_t ivl_signal_attr_val(ivl_signal_t net, unsigned idx);
+/* Return NULL at the end of the source declaration attributes. */
+extern const struct ivl_decl_attr_s* ivl_signal_decl_attr(ivl_signal_t net,
+							 unsigned idx);
 
 /* ivl_nexus_t ivl_signal_pin(ivl_signal_t net, unsigned idx); */
 /* unsigned    ivl_signal_pins(ivl_signal_t net); */

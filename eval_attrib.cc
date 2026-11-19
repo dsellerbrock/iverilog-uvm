@@ -27,6 +27,32 @@
 
 using namespace std;
 
+NetExpr* evaluate_attribute(PExpr*exp, verinum&legacy_value,
+			    Design*des, NetScope*scope)
+{
+      if (!exp) {
+	    legacy_value = verinum(1);
+	    return nullptr;
+      }
+
+      NetExpr*tmp = elab_and_eval(des, scope, exp, -1, true);
+      if (!tmp)
+	    return nullptr;
+
+      if (const auto*ce = dynamic_cast<const NetEConst*>(tmp)) {
+	    legacy_value = ce->value();
+      } else if (const auto*cer = dynamic_cast<const NetECReal*>(tmp)) {
+	    legacy_value = verinum(cer->value().as_long());
+      } else {
+	    cerr << exp->get_fileline() << ": error: ``"
+		 << *exp << "'' is not a constant expression." << endl;
+	    des->errors += 1;
+	    delete tmp;
+	    return nullptr;
+      }
+      return tmp;
+}
+
 /*
  * The evaluate_attributes function evaluates the attribute
  * expressions from the map, and returns a table in a form suitable
@@ -48,30 +74,7 @@ attrib_list_t* evaluate_attributes(const map<perm_string,PExpr*>&att,
       typedef map<perm_string,PExpr*>::const_iterator iter_t;
       for (iter_t cur = att.begin() ;  cur != att.end() ;  ++ cur , idx += 1) {
 	    table[idx].key = (*cur).first;
-	    PExpr*exp = (*cur).second;
-
-	      /* If the attribute value is given in the source, then
-		 evaluate it as a constant. If the value is not
-		 given, then assume the value is 1. */
-	    if (exp) {
-		  NetExpr *tmp = elab_and_eval(des, scope, exp, -1, true);
-		  if (!tmp)
-			continue;
-
-		  if (const NetEConst *ce = dynamic_cast<NetEConst*>(tmp)) {
-			table[idx].val = ce->value();
-		  } else if (const NetECReal *cer = dynamic_cast<NetECReal*>(tmp)) {
-			table[idx].val = verinum(cer->value().as_long());
-		  } else {
-			cerr << exp->get_fileline() << ": error: ``"
-			     << *exp << "'' is not a constant expression."
-			     << endl;
-			des->errors += 1;
-		  }
-		  delete tmp;
-	    } else {
-		  table[idx].val = verinum(1);
-	    }
+	    delete evaluate_attribute(cur->second, table[idx].val, des, scope);
       }
 
       assert(idx == natt);
