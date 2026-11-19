@@ -25821,28 +25821,25 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	   condition. */
       NetExpr*count_expr = elab_and_eval(des, scope, count_, -1);
       const NetEConst*count_const = dynamic_cast<const NetEConst*>(count_expr);
-      long count_value = count_const ? count_const->value().as_long() : 1;
-      if (expression_value_ && generation_flag < GN_VER2023
-          && count_const && count_value <= 0) {
-	    cerr << get_fileline() << ": error: expression-valued ## cycle delay "
-		 << "must evaluate to a positive integer (IEEE 1800-2017 14.11)."
-		 << endl;
-	    des->errors += 1;
-	    delete count_expr;
-	    delete wait_stmt;
-	    return 0;
+      const bool allow_zero = generation_flag >= GN_VER2023;
+      const char*range_error = allow_zero
+	  ? "expression-valued ## cycle delay must evaluate to a non-negative "
+	    "integer (IEEE 1800-2023 14.11)."
+	  : "expression-valued ## cycle delay must evaluate to a positive "
+	    "integer (IEEE 1800-2017 14.11).";
+      bool zero_count = false;
+      if (count_const) {
+	    const verinum&value = count_const->value();
+	    zero_count = expression_value_ ? value.is_zero() : value.as_long() == 0;
+	    if (expression_value_ && (!value.is_defined() || value.is_negative()
+				      || (!allow_zero && zero_count))) {
+		  cerr << get_fileline() << ": error: " << range_error << endl;
+		  des->errors += 1;
+		  delete count_expr;
+		  delete wait_stmt;
+		  return 0;
+	    }
       }
-      if (expression_value_ && generation_flag >= GN_VER2023
-          && count_const && count_value < 0) {
-	    cerr << get_fileline() << ": error: expression-valued ## cycle delay "
-		 << "must evaluate to a non-negative integer (IEEE 1800-2023 14.11)."
-		 << endl;
-	    des->errors += 1;
-	    delete count_expr;
-	    delete wait_stmt;
-	    return 0;
-      }
-      bool zero_count = count_const && count_value == 0;
       bool dynamic_count = count_expr && !count_const;
       if (zero_count || dynamic_count) {
 	    string trig_name_str = string("_ivl_cbtrig$") + cb_name.str();
@@ -25855,18 +25852,22 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    PCondit*wait_if_needed = new PCondit(trig_id, nullptr, wait_stmt);
 	    wait_if_needed->set_line(*this);
 	    NetProc*proc = wait_if_needed->elaborate(des, scope);
+	    NetNet*saved = nullptr;
+	    NetAssign*save = nullptr;
+	    const bool check_range = expression_value_ && dynamic_count
+		&& type_is_vectorable(count_expr->expr_type());
 	    if (dynamic_count && proc) {
 		  if (count_expr->expr_type() == IVL_VT_REAL)
 			count_expr = cast_to_int4(count_expr, 64);
 		  const netvector_t*type = new netvector_t(
 			IVL_VT_LOGIC, count_expr->expr_width()-1, 0,
 			count_expr->has_sign());
-		  NetNet*saved = new NetNet(scope, scope->local_symbol(),
-					  NetNet::REG, type);
+		  saved = new NetNet(scope, scope->local_symbol(),
+				     NetNet::REG, type);
 		  saved->local_flag(true);
 		  if (scope->is_auto())
 			saved->lifetime_override(IVL_VLT_AUTOMATIC);
-		  NetAssign*save = new NetAssign(new NetAssign_(saved), count_expr);
+		  save = new NetAssign(new NetAssign_(saved), count_expr);
 		  save->set_line(*this);
 		  NetProc*event_wait = wait_stmt->elaborate(des, scope);
 		  if (!event_wait) {
@@ -25878,11 +25879,7 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 		  repeat->set_line(*this);
 		  NetCondit*choice = new NetCondit(new NetESignal(saved), repeat, proc);
 		  choice->set_line(*this);
-		  NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
-		  block->set_line(*this);
-		  block->append(save);
-		  block->append(choice);
-		  proc = block;
+		  proc = choice;
 	    } else {
 		  delete count_expr;
 	    }
@@ -25890,6 +25887,7 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 		  NetProc*sub = statement_->elaborate(des, scope);
 		  if (sub == 0) {
 			delete proc;
+			delete save;
 			return 0;
 		  }
 		  NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
@@ -25898,13 +25896,48 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 		  blk->append(sub);
 		  proc = blk;
 	    }
-            return proc;
+	    if (save) {
+		  // Use the same saved value for the range check and the wait.
+		  if (check_range) {
+			NetESignal*value = new NetESignal(saved);
+			verinum zero(verinum::V0, value->expr_width());
+			zero.has_sign(value->has_sign());
+			NetEBComp*valid = new NetEBComp(allow_zero ? 'G' : '>',
+						      value, new NetEConst(zero));
+			valid->set_line(*this);
+			vector<NetExpr*>args{make_const_val(1), new NetECString(range_error)};
+			NetSTask*fatal = new NetSTask("$fatal", IVL_SFUNC_AS_TASK_IGNORE, args);
+			fatal->set_line(*this);
+			// An unknown comparison also takes the error branch.
+			proc = new NetCondit(valid, proc, fatal);
+			proc->set_line(*this);
+		  }
+		  NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+		  block->set_line(*this);
+		  block->append(save);
+		  block->append(proc);
+		  proc = block;
+	    }
+	    return proc;
       }
-      delete count_expr;
-      PRepeat*rep_stmt = new PRepeat(count_, wait_stmt);
-      rep_stmt->set_line(*this);
 
-      NetProc*rep = rep_stmt->elaborate(des, scope);
+      NetProc*rep;
+      if (expression_value_ && count_const) {
+	    // Keep the full positive count. PRepeat folds through a host long.
+	    NetProc*event_wait = wait_stmt->elaborate(des, scope);
+	    delete wait_stmt;
+	    if (!event_wait) {
+		  delete count_expr;
+		  return 0;
+	    }
+	    rep = new NetRepeat(count_expr, event_wait);
+	    rep->set_line(*this);
+      } else {
+	    delete count_expr;
+	    PRepeat*rep_stmt = new PRepeat(count_, wait_stmt);
+	    rep_stmt->set_line(*this);
+	    rep = rep_stmt->elaborate(des, scope);
+      }
       if (rep == 0)
 	    return 0;
       if (statement_ == 0)

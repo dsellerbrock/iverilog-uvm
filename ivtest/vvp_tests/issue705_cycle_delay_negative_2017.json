@@ -1,0 +1,6 @@
+{
+  "type": "RE",
+  "source": "issue705_cycle_delay.sv",
+  "iverilog-args": ["-g2017", "-s", "issue705_cycle_delay", "-Pissue705_cycle_delay.COUNT=-1"],
+  "gold": "issue705_cycle_delay_invalid_2017"
+}

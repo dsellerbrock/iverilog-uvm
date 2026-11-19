@@ -1,0 +1,2 @@
+FATAL: ./ivltests/issue705_cycle_delay.sv:19: expression-valued ## cycle delay must evaluate to a non-negative integer (IEEE 1800-2023 14.11).
+       Time: 2  Scope: issue705_cycle_delay
