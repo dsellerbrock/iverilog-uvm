@@ -3821,6 +3821,13 @@ class NetAssign_ {
 	// assignment-pattern stores into a slice (IEEE 1800-2017 7.6/10.9).
       void set_array_slice(NetExpr*base_word, ivl_type_t slice_type);
       bool is_array_slice() const { return slice_type_ != nullptr; }
+	// A multidimensional indexed slice keeps this coordinate separate
+	// from word(), which sums only the checked ordinary indices.
+      void set_array_slice_projection(NetExpr*coordinate, unsigned long stride,
+				      unsigned long dimension_width);
+      const NetExpr* array_slice_coordinate() const { return slice_coordinate_; }
+      unsigned long array_slice_stride() const { return slice_stride_; }
+      unsigned long array_slice_dimension_width() const { return slice_dim_width_; }
 	// Set a part select expression for the l-value vector. Note
 	// that the expression calculates a CANONICAL bit address.
       void set_part(NetExpr* loff, unsigned wid,
@@ -3960,6 +3967,9 @@ class NetAssign_ {
 	// index). Holds the sub-array type the slice presents; word_ holds
 	// the flat base word index. See set_array_slice().
       ivl_type_t slice_type_ = nullptr;
+      NetExpr*slice_coordinate_ = nullptr;
+      unsigned long slice_stride_ = 0;
+      unsigned long slice_dim_width_ = 0;
       ivl_stream_range_t stream_range_ = IVL_STREAM_RANGE_NONE;
       NetExpr*stream_range_first_ = nullptr;
       NetExpr*stream_range_second_ = nullptr;

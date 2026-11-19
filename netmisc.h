@@ -244,7 +244,14 @@ extern int decode_fixed_uarray_slice_select(
 				     const std::list<index_component_t>&indices,
 				     const netsarray_t*array_type,
 				     fixed_uarray_slice_t&out,
-				     bool quiet = false);
+				     bool quiet = false,
+				     bool allow_runtime_base = false);
+
+// Decode an indexed unpacked dimension of an untimed signal l-value.
+// Return 0 for other l-values, -1 on error, or 1 with an owned slice l-value.
+extern int elaborate_multidim_uarray_slice_lval(
+      Design*, NetScope*, const LineInfo&, NetNet*,
+      const std::list<index_component_t>&, NetAssign_*&);
 
 /*
  * symbol_search() caches resolved (scope, name-path) lookups. That

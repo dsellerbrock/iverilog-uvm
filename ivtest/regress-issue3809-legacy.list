@@ -1,0 +1,2 @@
+issue3809_uarray_projection_2017 normal,-g2017 ivltests gold=issue3809_uarray_projection.gold
+issue3809_uarray_projection_2023 normal,-g2023 ivltests gold=issue3809_uarray_projection.gold

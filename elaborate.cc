@@ -11970,6 +11970,85 @@ static NetProc* make_uarray_signal_range_copy_(NetScope*scope,
       return block;
 }
 
+/* Capture a selector before materializing the RHS or scheduling word stores. */
+static NetNet* snapshot_uarray_slice_base_(NetScope*scope, const LineInfo&loc,
+					 const NetExpr*word, NetBlock*block)
+{
+      NetNet*base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			      new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+      base->local_flag(true);
+      base->set_line(loc);
+      if (scope->is_auto()) base->lifetime_override(IVL_VLT_AUTOMATIC);
+      NetAssign*save = new NetAssign(new NetAssign_(base), word->dup_expr());
+      save->set_line(loc);
+      save->synth_generated_snapshot();
+      block->append(save);
+      return base;
+}
+
+class uarray_slice_projection_t {
+    public:
+      uarray_slice_projection_t(NetScope*scope, const LineInfo&loc,
+				const NetAssign_*lv, NetBlock*block)
+      {
+	    if (!lv || !lv->array_slice_coordinate()) return;
+	    coordinate_ = snapshot_uarray_slice_base_(
+		  scope, loc, lv->array_slice_coordinate(), block);
+	    stride_ = lv->array_slice_stride();
+	    width_ = lv->array_slice_dimension_width();
+	    const netranges_t&dims =
+		  dynamic_cast<const netuarray_t&>(*lv->net_type()).static_dimensions();
+	    for (size_t dim = 1; dim < dims.size(); ++dim)
+		  block_words_ *= dims[dim].width();
+      }
+
+      explicit operator bool() const { return coordinate_ != nullptr; }
+
+      // The ordinal is numeric-low-first in the slice's own shape. Split
+      // off the slice coordinate, then check it before scaling it into a
+      // physical word displacement. The unsliced trailing words are dense.
+      NetExpr* word(const LineInfo&loc, NetNet*base, NetExpr*ordinal) const
+      {
+	    ordinal = pad_to_width(ordinal, 64, loc);
+	    NetExpr*digit = ordinal;
+	    NetExpr*tail = nullptr;
+	    if (block_words_ != 1) {
+		  digit = new NetEBDiv('/', ordinal, make_const_val_s(block_words_),
+				       64, false);
+		  digit->set_line(loc);
+		  tail = new NetEBDiv('%', ordinal->dup_expr(),
+				       make_const_val_s(block_words_), 64, false);
+		  tail->set_line(loc);
+	    }
+
+	    NetESignal*low = new NetESignal(coordinate_);
+	    low->set_line(loc);
+	    NetExpr*selected = new NetEBAdd('+', low, digit, 64, true);
+	    selected->set_line(loc);
+	    NetExpr*displacement = make_checked_uarray_index(selected, 0, width_, loc);
+	    if (stride_ != 1) {
+		  displacement = new NetEBMult('*', displacement,
+					       make_const_val_s(stride_), 64, false);
+		  displacement->set_line(loc);
+	    }
+	    NetESignal*base_read = new NetESignal(base);
+	    base_read->set_line(loc);
+	    NetExpr*address = new NetEBAdd('+', base_read, displacement, 64, true);
+	    address->set_line(loc);
+	    if (tail) {
+		  address = new NetEBAdd('+', address, tail, 64, true);
+		  address->set_line(loc);
+	    }
+	    return address;
+      }
+
+    private:
+      NetNet*coordinate_ = nullptr;
+      unsigned long stride_ = 0;
+      unsigned long width_ = 0;
+      unsigned long block_words_ = 1;
+};
+
 /* Copy a fixed one-dimensional prefix whose source and/or destination base
  * is selected at run time.  The prefix selectors are evaluated once into
  * locals before the per-word lowering.  That is essential for `a[i] <=
@@ -12059,12 +12138,28 @@ static NetExpr* make_uarray_dynamic_prefix_word_(const LineInfo&loc,
 	return word;
 }
 
+static NetProc* make_uarray_word_copy_(const LineInfo&loc, NetNet*dst,
+				      NetExpr*dst_word, NetNet*src,
+				      NetExpr*src_word, bool nonblocking)
+{
+      NetAssign_*lval = new NetAssign_(dst);
+      lval->set_word(dst_word);
+      NetESignal*rval = new NetESignal(src, src_word);
+      rval->set_line(loc);
+      NetProc*copy = nonblocking
+	    ? static_cast<NetProc*>(new NetAssignNB(lval, rval, 0, 0))
+	    : static_cast<NetProc*>(new NetAssign(lval, rval));
+      copy->set_line(loc);
+      return copy;
+}
+
 static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig,
-	      const NetNet*dst_base, NetNet*src_sig, const NetNet*src_base,
+	      NetNet*dst_base, NetNet*src_sig, const NetNet*src_base,
 	      unsigned long count, bool reverse_src, bool nonblocking,
 	      unsigned long src_stride, unsigned long src_dimension_width,
-	      bool checked_destination = false)
+	      bool checked_destination = false,
+	      const uarray_slice_projection_t*projection = nullptr)
 {
 	const netvector_t*ordinal_type = count <= INT_MAX
 	      ? &netvector_t::atom2s32 : &netvector_t::atom2s64;
@@ -12085,23 +12180,22 @@ static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 					 make_const_val_s(1));
 	step->set_line(loc);
 
-	NetAssign_*word_lval = new NetAssign_(dst_sig);
-	NetExpr*word = make_uarray_dynamic_prefix_word_(
-	      loc, dst_base, ordinal, count, false, 1, 0);
-	if (checked_destination)
-	    word = make_checked_uarray_index(word, 0, dst_sig->unpacked_count(), loc);
-	word_lval->set_word(word);
+	NetExpr*word;
+	if (projection && *projection) {
+	    word = projection->word(loc, dst_base, new NetESignal(ordinal));
+	} else {
+	    word = make_uarray_dynamic_prefix_word_(
+		  loc, dst_base, ordinal, count, false, 1, 0);
+	    if (checked_destination)
+		  word = make_checked_uarray_index(word, 0, dst_sig->unpacked_count(), loc);
+	}
 	NetExpr*src_word = src_base
 	      ? make_uarray_dynamic_prefix_word_(loc, src_base, ordinal, count,
 						  reverse_src, src_stride,
 						  src_dimension_width)
 	      : new NetESignal(ordinal);
-	NetESignal*word_rval = new NetESignal(src_sig, src_word);
-	word_rval->set_line(loc);
-	NetProc*body = nonblocking
-	      ? static_cast<NetProc*>(new NetAssignNB(word_lval, word_rval, 0, 0))
-	      : static_cast<NetProc*>(new NetAssign(word_lval, word_rval));
-	body->set_line(loc);
+	NetProc*body = make_uarray_word_copy_(loc, dst_sig, word, src_sig,
+					    src_word, nonblocking);
 	NetForLoop*loop = new NetForLoop(ordinal, init, cond, body, step);
 	loop->set_line(loc);
 	return loop;
@@ -12111,7 +12205,8 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	      NetScope*scope, const LineInfo&loc, NetNet*dst_sig, NetExpr*dst_base,
 	      NetNet*src_sig, NetExpr*src_base, unsigned long count,
 	      bool reverse_src, bool nonblocking, unsigned long src_stride,
-	      unsigned long src_dimension_width, bool checked_destination)
+	      unsigned long src_dimension_width, bool checked_destination,
+	      const NetAssign_*destination)
 {
 	NetNet*dst_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
 					       new netvector_t(IVL_VT_LOGIC, 63, 0, true));
@@ -12127,6 +12222,7 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	save_dst->set_line(loc);
 	save_dst->synth_generated_snapshot();
 	block->append(save_dst);
+	uarray_slice_projection_t projection(scope, loc, destination, block);
 	NetAssign*save_src = new NetAssign(new NetAssign_(src_snapshot), src_base);
 	save_src->set_line(loc);
 	save_src->synth_generated_snapshot();
@@ -12136,7 +12232,7 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	    block->append(make_uarray_dynamic_prefix_copy_loop_(
 		  scope, loc, dst_sig, dst_snapshot, src_sig, src_snapshot, count,
 		  reverse_src, true, src_stride, src_dimension_width,
-		  checked_destination));
+		  checked_destination, &projection));
 	    return block;
 	}
 
@@ -12159,7 +12255,7 @@ static NetProc* make_uarray_dynamic_prefix_copy_(
 	      reverse_src, false, src_stride, src_dimension_width));
 	block->append(make_uarray_dynamic_prefix_copy_loop_(
 	      scope, loc, dst_sig, dst_snapshot, rhs_snapshot, zero_base, count,
-	      false, false, 1, 0, checked_destination));
+	      false, false, 1, 0, checked_destination, &projection));
 	return block;
 }
 
@@ -12415,23 +12511,6 @@ static bool uarray_declared_indices_(const netuarray_t*type,
       return true;
 }
 
-/* Capture a slice base before evaluating an aggregate RHS. The checked
- * run-time base retains enough information for partially in-bounds slices. */
-static NetNet* snapshot_uarray_slice_base_(NetScope*scope, const LineInfo&loc,
-					 const NetExpr*word, NetBlock*block)
-{
-      NetNet*base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
-			      new netvector_t(IVL_VT_LOGIC, 63, 0, true));
-      base->local_flag(true);
-      base->set_line(loc);
-      if (scope->is_auto()) base->lifetime_override(IVL_VLT_AUTOMATIC);
-      NetAssign*save = new NetAssign(new NetAssign_(base), word->dup_expr());
-      save->set_line(loc);
-      save->synth_generated_snapshot();
-      block->append(save);
-      return base;
-}
-
 /* Copy the result once into private array storage while the callee frame is
  * live. Each source and destination ordinal is normalized against its own
  * declared dimensions for the left-to-right correspondence of 7.6.
@@ -12523,7 +12602,8 @@ static NetProc* make_uarray_function_copy_(NetScope*scope, const LineInfo&loc,
       long base = 0;
       const NetExpr*wrd = lv->word();
       const NetEConst*wcon = wrd ? dynamic_cast<const NetEConst*>(wrd) : 0;
-      bool dynamic_base = wrd && (!wcon || !wcon->value().is_defined());
+      bool dynamic_base = wrd && (lv->array_slice_coordinate()
+				  || !wcon || !wcon->value().is_defined());
       if (wcon && !dynamic_base) base = wcon->value().as_long();
       if (!dynamic_base
 	  && (base < 0 || (unsigned long)base + dst_count > sig->unpacked_count()))
@@ -12534,6 +12614,7 @@ static NetProc* make_uarray_function_copy_(NetScope*scope, const LineInfo&loc,
       NetNet*base_snapshot = 0;
       if (dynamic_base)
 	    base_snapshot = snapshot_uarray_slice_base_(scope, loc, wrd, blk);
+      uarray_slice_projection_t projection(scope, loc, lv, blk);
 
 	/* Keep the same declared bounds as the function result. The existing
 	 * blocking function-result emitter copies the function's return signal
@@ -12551,7 +12632,10 @@ static NetProc* make_uarray_function_copy_(NetScope*scope, const LineInfo&loc,
 
       for (unsigned long idx = 0; idx < dst_count; idx += 1) {
 	    NetAssign_*dst = new NetAssign_(sig);
-	    if (dynamic_base) {
+	    if (projection) {
+		  dst->set_word(projection.word(loc, base_snapshot,
+						make_const_val_s(dst_offsets[idx])));
+	    } else if (dynamic_base) {
 		  NetESignal*base_read = new NetESignal(base_snapshot);
 		  base_read->set_line(loc);
 		  NetEConst*offset = make_const_val_s(dst_offsets[idx]);
@@ -12759,6 +12843,28 @@ static bool check_uarray_slice_leaf_(Design*des, const LineInfo&loc,
       return false;
 }
 
+// Map a destination's numeric-low-first word offset to the source's offset
+// by pairing the declared left-to-right positions of each dimension.
+static unsigned long uarray_source_offset_(const netranges_t&dst_dims,
+					   const netranges_t&src_dims,
+					   unsigned long count,
+					   unsigned long word)
+{
+      unsigned long offset = 0;
+      unsigned long stride = count;
+      for (size_t dim = 0; dim < dst_dims.size(); ++dim) {
+	    unsigned long width = dst_dims[dim].width();
+	    stride /= width;
+	    unsigned long coord = word / stride;
+	    word %= stride;
+	    bool dst_up = dst_dims[dim].get_msb() < dst_dims[dim].get_lsb();
+	    bool src_up = src_dims[dim].get_msb() < src_dims[dim].get_lsb();
+	    if (dst_up != src_up) coord = width - 1 - coord;
+	    offset += coord * stride;
+      }
+      return offset;
+}
+
 /* Use the whole-target marshaller to fill a slice-shaped temporary. The
  * marshaller diagnoses a size mismatch before changing the temporary. Guard
  * the final stores with the size of the same captured value so that a failed
@@ -12770,18 +12876,22 @@ static NetProc* make_uarray_slice_value_copy_(
 {
       handled = false;
       if (!value || !lv->is_array_slice() || !lv->sig() || lv->nest()
-	  || lv->get_property_idx() >= 0 || lv->sig()->unpacked_dimensions() != 1
-	  || dynamic_cast<const NetEArrayPattern*>(value))
+	  || lv->get_property_idx() >= 0)
+	    return nullptr;
+      bool projected = lv->array_slice_coordinate() != nullptr;
+      const auto*pattern = dynamic_cast<const NetEArrayPattern*>(value);
+      if ((!projected && lv->sig()->unpacked_dimensions() != 1)
+	  || (pattern && !projected))
 	    return nullptr;
 
       const netuarray_t*dst_type = dynamic_cast<const netuarray_t*>(lv->net_type());
-      if (!dst_type || dst_type->static_dimensions().size() != 1)
+      if (!dst_type || (!pattern && dst_type->static_dimensions().size() != 1))
 	    return nullptr;
       const netdarray_t*container =
 	    dynamic_cast<const netdarray_t*>(value->net_type());
       const netqueue_t*queue = dynamic_cast<const netqueue_t*>(container);
       const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(value->net_type());
-      if ((!container || (queue && queue->assoc_compat())) && !fixed)
+      if (!pattern && (!container || (queue && queue->assoc_compat())) && !fixed)
 	    return nullptr;
 
       handled = true;
@@ -12790,7 +12900,9 @@ static NetProc* make_uarray_slice_value_copy_(
 	    return nullptr;
 
       unsigned long count = dst_type->static_dimensions()[0].width();
-      bool compatible = container
+      // A typed pattern can have its own declared directions.
+      bool compatible = pattern ? fixed && dst_type->type_equivalent(fixed)
+	    : container
 	    ? uarray_element_equivalent_container_(dst_type, container)
 	    : fixed->static_dimensions().size() == 1
 	      && uarray_copy_shapes_compatible_(
@@ -12806,6 +12918,7 @@ static NetProc* make_uarray_slice_value_copy_(
       NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
       block->set_line(loc);
       NetNet*base = snapshot_uarray_slice_base_(scope, loc, lv->word(), block);
+      uarray_slice_projection_t projection(scope, loc, lv, block);
 
       NetExpr*source = value->dup_expr();
       NetExpr*same_count = nullptr;
@@ -12829,8 +12942,10 @@ static NetProc* make_uarray_slice_value_copy_(
 	    same_count->set_line(loc);
       }
 
+      const netuarray_t*snapshot_type = pattern ? fixed : dst_type;
       NetNet*snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
-				   dst_type->static_dimensions(), dst_type->element_type());
+				   snapshot_type->static_dimensions(),
+				   snapshot_type->element_type());
       snapshot->local_flag(true);
       snapshot->set_line(loc);
       if (scope->is_auto()) snapshot->lifetime_override(IVL_VLT_AUTOMATIC);
@@ -12838,9 +12953,22 @@ static NetProc* make_uarray_slice_value_copy_(
       materialize->set_line(loc);
       block->append(materialize);
 
+      if (pattern && fixed != dst_type) {
+	    count = snapshot->unpacked_count();
+	    for (unsigned long word = 0; word < count; ++word) {
+		  unsigned long src_word = uarray_source_offset_(
+			dst_type->static_dimensions(), fixed->static_dimensions(),
+			count, word);
+		  block->append(make_uarray_word_copy_(loc, lv->sig(),
+			projection.word(loc, base, make_const_val_s(word)),
+			snapshot, make_const_val_s(src_word), nonblocking));
+	    }
+	    return block;
+      }
+
       NetProc*copy = make_uarray_dynamic_prefix_copy_loop_(
-	    scope, loc, lv->sig(), base, snapshot, nullptr, count, false,
-	    nonblocking, 1, 0, checked_destination);
+	    scope, loc, lv->sig(), base, snapshot, nullptr, snapshot->unpacked_count(), false,
+	    nonblocking, 1, 0, checked_destination, &projection);
       if (same_count) {
 	    copy = new NetCondit(same_count, copy, nullptr);
 	    copy->set_line(loc);
@@ -12892,26 +13020,20 @@ struct uarray_prefix_source_t {
 /* Decode a slice of one unpacked dimension. The selected dimension can be
  * strided in the flattened signal when later dimensions are indexed. Port
  * selections are constant and can also leave trailing dimensions intact. */
-static int decode_multidim_uarray_slice_source_(
-		Design*des, NetScope*scope, const LineInfo&loc, const PExpr*pe,
-		uarray_prefix_source_t&out, bool constant_port_selection)
+static int decode_multidim_uarray_slice_(
+		Design*des, NetScope*scope, const LineInfo&loc, NetNet*sig,
+		const list<index_component_t>&indices, uarray_prefix_source_t&out,
+		bool constant_port_selection,
+		std::unique_ptr<NetExpr>*slice_coordinate = nullptr)
 {
-	const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
-	if (!ident || ident->path().name.empty()) return 0;
-
-	symbol_search_results sr;
-	if (!symbol_search(&loc, des, scope, ident->path(),
-			   ident->lexical_pos(), &sr)
-	    || !sr.net || !sr.path_tail.empty())
-	      return 0;
-
+	const bool projected_lval = slice_coordinate != nullptr;
 	const netsarray_t*array_type = dynamic_cast<const netsarray_t*>(
-	      sr.net->array_type());
+	      sig->array_type());
 	if (!array_type) return 0;
 	const netranges_t&dims = array_type->static_dimensions();
-	const list<index_component_t>&indices = ident->path().name.back().index;
 	if (dims.size() < 2 || indices.size() > dims.size()
-	    || (!constant_port_selection && indices.size() != dims.size()))
+	    || (!constant_port_selection && !projected_lval
+		&& indices.size() != dims.size()))
 	      return 0;
 
 	size_t slice_dim = dims.size();
@@ -12933,24 +13055,36 @@ static int decode_multidim_uarray_slice_source_(
 			 || !idx->msb || idx->lsb) {
 		    return 0;
 	      }
-}
-	if (slice_dim == dims.size()) return 0;
+	}
+	if (slice_dim == dims.size()
+	    || (projected_lval && slice->sel == index_component_t::SEL_PART))
+	      return 0;
 
 	const netrange_t&declared = dims[slice_dim];
 	netrange_t selected_range;
 	long count = 0;
 	NetExpr*slice_low_expr = nullptr;
-	if (slice->sel == index_component_t::SEL_PART || constant_port_selection) {
+	if (slice->sel == index_component_t::SEL_PART || constant_port_selection
+	    || projected_lval) {
 	      netranges_t one_dim(1, declared);
-	      netsarray_t one_dim_type(one_dim, sr.net->net_type());
+	      netsarray_t one_dim_type(one_dim, sig->net_type());
 	      list<index_component_t> one_select(1, *slice);
 	      fixed_uarray_slice_t decoded;
 	      int rc = decode_fixed_uarray_slice_select(
-		    des, scope, loc, one_select, &one_dim_type, decoded);
+		    des, scope, loc, one_select, &one_dim_type, decoded,
+		    false, projected_lval);
 	      if (rc <= 0) return rc;
 	      selected_range = decoded.selected_range;
 	      count = static_cast<long>(decoded.count);
 	      long low = min(selected_range.get_msb(), selected_range.get_lsb());
+	      if (projected_lval) {
+		    // Use the dimension's origin in the flat base. The actual
+		    // slice coordinate can be negative and is checked per word.
+		    slice_coordinate->reset(decoded.runtime_base
+			  ? decoded.runtime_base
+			  : make_const_val_s(decoded.canonical_base));
+		    low = min(declared.get_msb(), declared.get_lsb());
+	      }
 	      slice_low_expr = new NetEConst(verinum(static_cast<int64_t>(low)));
 	} else {
 	      NetExpr*base = elab_and_eval(des, scope, slice->msb, -1, false);
@@ -13074,7 +13208,7 @@ static int decode_multidim_uarray_slice_source_(
 	      out.canonical_base_expr = canonical_base;
 	}
 
-	out.sig = sr.net;
+	out.sig = sig;
 	out.count = static_cast<unsigned long>(count);
 	out.stride = 1;
 	out.slice_dimension_width = dims[slice_dim].width();
@@ -13092,9 +13226,58 @@ static int decode_multidim_uarray_slice_source_(
 	out.remaining_dims.push_back(selected_range);
 	out.remaining_dims.insert(out.remaining_dims.end(),
 				  dims.begin() + indices.size(), dims.end());
-	out.element_type = sr.net->net_type();
+	out.element_type = sig->net_type();
 	out.range_slice = true;
 	return 1;
+}
+
+int elaborate_multidim_uarray_slice_lval(
+		Design*des, NetScope*scope, const LineInfo&loc, NetNet*sig,
+		const list<index_component_t>&indices, NetAssign_*&lv)
+{
+      uarray_prefix_source_t slice;
+      std::unique_ptr<NetExpr> coordinate;
+      int rc = decode_multidim_uarray_slice_(
+	    des, scope, loc, sig, indices, slice, false, &coordinate);
+      if (rc <= 0) return rc;
+
+      unsigned long count = 1;
+      for (const netrange_t&dim : slice.remaining_dims) {
+	    if (!dim.width() || dim.width() > UINT_MAX / count) {
+		  cerr << loc.get_fileline() << ": sorry: run-time indexed unpacked-array"
+		       << " slice exceeds the fixed-array storage limit." << endl;
+		  des->errors += 1;
+		  return -1;
+	    }
+	    count *= dim.width();
+      }
+
+      NetExpr*base = slice.canonical_base_expr
+	    ? slice.canonical_base_expr : make_const_val_s(slice.canonical_base);
+      slice.canonical_base_expr = nullptr;
+      base->set_line(loc);
+      lv = new NetAssign_(sig);
+      lv->set_array_slice(base,
+			  new netuarray_t(slice.remaining_dims, slice.element_type));
+      lv->set_array_slice_projection(coordinate.release(), slice.stride,
+				     slice.slice_dimension_width);
+      return 1;
+}
+
+static int decode_multidim_uarray_slice_source_(
+		Design*des, NetScope*scope, const LineInfo&loc, const PExpr*pe,
+		uarray_prefix_source_t&out, bool constant_port_selection)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
+      if (!ident || ident->path().name.empty()) return 0;
+
+      symbol_search_results sr;
+      if (!symbol_search(&loc, des, scope, ident->path(), ident->lexical_pos(), &sr)
+	  || !sr.net || !sr.path_tail.empty())
+	    return 0;
+
+      return decode_multidim_uarray_slice_(des, scope, loc, sr.net,
+	    ident->path().name.back().index, out, constant_port_selection);
 }
 
 /* Return 0 when pe is not this shape, 1 on success, and -1 after diagnosing
@@ -13384,12 +13567,13 @@ static NetProc* make_uarray_prefix_copy_(NetScope*scope, const LineInfo&loc,
               && dst_constant->value().is_defined() && src_constant->value().is_defined()
               && eval_as_long(dst_base, dst_base_expr)
               && eval_as_long(src_base, src_base_expr);
-	if (!constant_bases || src.stride != 1) {
-	    delete lv;
-	    return make_uarray_dynamic_prefix_copy_(
+	if (!constant_bases || src.stride != 1 || lv->array_slice_coordinate()) {
+	    NetProc*copy = make_uarray_dynamic_prefix_copy_(
 		  scope, loc, dst_sig, dst_base_expr, src.sig, src_base_expr,
 		  src.count, reverse_src, nonblocking, src.stride,
-		  src.slice_dimension_width, checked_destination);
+		  src.slice_dimension_width, checked_destination, lv);
+	    delete lv;
+	    return copy;
 	}
 	delete dst_base_expr;
 	delete src_base_expr;
@@ -13465,22 +13649,9 @@ static NetProc* make_uarray_multidim_prefix_copy_(
 
 	  // Source canonical offset of each destination word, row-major.
 	vector<unsigned long> src_offset(src.count);
-	for (unsigned long word = 0 ; word < src.count ; word += 1) {
-	      unsigned long rest = word, offset = 0;
-	      unsigned long stride = src.count;
-	      for (size_t dim = 0 ; dim < dst_dims.size() ; dim += 1) {
-		    unsigned long width = dst_dims[dim].width();
-		    stride /= width;
-		    unsigned long coord = rest / stride;
-		    rest %= stride;
-		    bool dst_up = dst_dims[dim].get_msb() < dst_dims[dim].get_lsb();
-		    bool src_up = src.remaining_dims[dim].get_msb()
-				  < src.remaining_dims[dim].get_lsb();
-		    if (dst_up != src_up) coord = width - 1 - coord;
-		    offset += coord * stride;
-	      }
-	      src_offset[word] = offset;
-	}
+	for (unsigned long word = 0 ; word < src.count ; word += 1)
+	      src_offset[word] = uarray_source_offset_(
+		    dst_dims, src.remaining_dims, src.count, word);
 
 	NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
 	block->set_line(loc);
@@ -13505,19 +13676,18 @@ static NetProc* make_uarray_multidim_prefix_copy_(
 	};
 	auto copy_word = [&](NetNet*dst_sig, NetExpr*dst_word, NetNet*src_sig,
 			     NetExpr*src_word, bool nb) {
-	      NetAssign_*word_lv = new NetAssign_(dst_sig);
-	      word_lv->set_word(dst_word);
-	      NetESignal*word_rv = new NetESignal(src_sig, src_word);
-	      word_rv->set_line(loc);
-	      NetProc*assign = nb
-		    ? static_cast<NetProc*>(new NetAssignNB(word_lv, word_rv, 0, 0))
-		    : static_cast<NetProc*>(new NetAssign(word_lv, word_rv));
-	      assign->set_line(loc);
-	      block->append(assign);
+	      block->append(make_uarray_word_copy_(
+		    loc, dst_sig, dst_word, src_sig, src_word, nb));
 	};
 
 	NetNet*dst_base = snapshot(lv->word() ? lv->word()->dup_expr()
 					      : make_const_val_s(0));
+	uarray_slice_projection_t projection(scope, loc, lv, block);
+	auto dst_word = [&](unsigned long word) {
+	      return projection
+		    ? projection.word(loc, dst_base, make_const_val_s(word))
+		    : word_at(dst_base, word);
+	};
 	NetNet*src_base = snapshot(src.canonical_base_expr
 				   ? src.canonical_base_expr
 				   : make_const_val_s(src.canonical_base));
@@ -13527,7 +13697,7 @@ static NetProc* make_uarray_multidim_prefix_copy_(
 
 	if (nonblocking) {
 	      for (unsigned long word = 0 ; word < src.count ; word += 1)
-		    copy_word(dst_sig, word_at(dst_base, word), src.sig,
+		    copy_word(dst_sig, dst_word(word), src.sig,
 			      word_at(src_base, src_offset[word]), true);
 	      return block;
 	}
@@ -13542,7 +13712,7 @@ static NetProc* make_uarray_multidim_prefix_copy_(
 	      copy_word(rhs, make_const_val_s(word), src.sig,
 			word_at(src_base, src_offset[word]), false);
 	for (unsigned long word = 0 ; word < src.count ; word += 1)
-	      copy_word(dst_sig, word_at(dst_base, word), rhs,
+	      copy_word(dst_sig, dst_word(word), rhs,
 			make_const_val_s(word), false);
 	return block;
 }
@@ -15232,8 +15402,9 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 	    unsigned errors_before_pattern = des->errors;
 	    rv = elaborate_rval_(des, scope, lv_net_type);
 
-	    if (simple_blocking && lv->is_array_slice() && lv->sig()
-		&& lv->sig()->unpacked_dimensions() == 1
+	    if (lv->is_array_slice() && lv->sig() && !has_timing_control()
+		&& ((simple_blocking && lv->sig()->unpacked_dimensions() == 1)
+		    || lv->array_slice_coordinate())
 		&& !lv->nest() && lv->get_property_idx() < 0 && rv) {
 		  NetProc*copy = nullptr;
 		  bool handled = false;

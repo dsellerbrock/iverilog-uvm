@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "issue3809_uarray_projection_2023.v",
+    "iverilog-args" : [ "-g2023" ],
+    "gold"          : "issue3809_uarray_projection",
+    "vlog95"        : { "type" : "NI" }
+}

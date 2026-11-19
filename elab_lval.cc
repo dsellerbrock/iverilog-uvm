@@ -1449,6 +1449,28 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
 	    && (use_sel == index_component_t::SEL_PART
 		|| use_sel == index_component_t::SEL_IDX_UP
 		|| use_sel == index_component_t::SEL_IDX_DO);
+      if (gn_system_verilog() && runtime_indexed_slice && tail_path.empty()
+	  && reg->unpacked_dimensions() > 1) {
+	    NetAssign_*lv = nullptr;
+	    int rc = elaborate_multidim_uarray_slice_lval(
+		  des, scope, *this, reg, name_tail.index, lv);
+	    if (rc < 0) return nullptr;
+	    if (rc > 0) {
+		  if (reg->type() == NetNet::UNRESOLVED_WIRE) {
+			ivl_assert(*this, reg->coerced_to_uwire());
+			for (unsigned word = 0; word < reg->unpacked_count(); ++word) {
+			      if (reg->test_part_driven(reg->vector_width()-1, 0, word)) {
+				    report_mixed_assignment_conflict_("array slice");
+				    des->errors += 1;
+				    delete lv;
+				    return nullptr;
+			      }
+			}
+		  }
+		  *runtime_indexed_slice = true;
+		  return lv;
+	    }
+      }
       if (tail_path.empty()
 	  && (reg->unpacked_dimensions() > name_tail.index.size()
 	      || one_dim_range_slice)) {

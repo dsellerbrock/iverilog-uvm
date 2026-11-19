@@ -86,6 +86,7 @@ NetAssign_::~NetAssign_()
       delete more;
       delete nest_;
       delete word_;
+      delete slice_coordinate_;
       delete base_;
       delete dynamic_part_carrier_;
       delete stream_range_first_;
@@ -106,6 +107,9 @@ NetAssign_* NetAssign_::dup_lval() const
 	    else
 		  copy->set_word(word_->dup_expr());
       }
+      if (slice_coordinate_)
+	    copy->set_array_slice_projection(slice_coordinate_->dup_expr(),
+					     slice_stride_, slice_dim_width_);
       if (array_word_prefix_)
             copy->set_array_word_prefix(array_word_first_, array_word_count_);
 
@@ -217,6 +221,16 @@ void NetAssign_::set_array_slice(NetExpr*base_word, ivl_type_t slice_type)
       ivl_assert(*this, word_ == 0);
       word_ = base_word;
       slice_type_ = slice_type;
+}
+
+void NetAssign_::set_array_slice_projection(NetExpr*coordinate,
+					   unsigned long stride,
+					   unsigned long dimension_width)
+{
+      ivl_assert(*this, slice_type_ && !slice_coordinate_ && coordinate);
+      slice_coordinate_ = coordinate;
+      slice_stride_ = stride;
+      slice_dim_width_ = dimension_width;
 }
 
 NetExpr* NetAssign_::word()
