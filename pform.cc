@@ -22761,7 +22761,7 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 	  && !sub->disable_iff_expr) {
 	    sva_seq_step_t&st = (*sub->seq)[0];
 	    PExpr*operand = st.expr;
-	    if (op_type == 9 || op_type == 10)
+	    if (op_type == 9 || op_type == 10 || op_type == 12)
 		  operand = sva_booleanize_(loc, operand);
 	    PEBComp*not_true = new PEBComp('N', operand, sva_bit_(loc, 1));
 	    FILE_NAME(not_true, loc);
@@ -22789,6 +22789,20 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
       sub->seq = nullptr;
       pform_sva_destroy_property(sub);
       return p;
+}
+
+static bool sva_clone_always_range_(sva_property_t*dst, const sva_property_t*src,
+				    const std::map<perm_string,PExpr*>*subst)
+{
+      if (src->always_lo) {
+	    dst->always_lo.reset(sva_clone_subst_(src->always_lo.get(), subst));
+	    if (!dst->always_lo) return false;
+      }
+      if (src->always_hi) {
+	    dst->always_hi.reset(sva_clone_subst_(src->always_hi.get(), subst));
+	    if (!dst->always_hi) return false;
+      }
+      return true;
 }
 
 /*
@@ -23067,6 +23081,75 @@ pform_sva_case(const struct vlltype&loc, PExpr*sel,
       return result;
 }
 
+/* Keep the original bound until elaboration so parameter overrides and
+   expression width/signedness apply before conversion to a tick count. */
+class PEAlwaysWindowBound : public PExpr {
+    public:
+      explicit PEAlwaysWindowBound(std::shared_ptr<PExpr> bound,
+				   std::shared_ptr<PExpr> lower = nullptr)
+      : bound_(std::move(bound)), lower_(std::move(lower)) {}
+
+      unsigned test_width(Design*, NetScope*, width_mode_t&) override
+      {
+	    expr_type_ = IVL_VT_LOGIC;
+	    min_width_ = expr_width_ = 64;
+	    return expr_width_;
+      }
+
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+			      unsigned width, unsigned) const override
+      {
+	    auto evaluate = [&](PExpr*expr, uint64_t&value) {
+		  const PENumber*literal = dynamic_cast<const PENumber*>(expr);
+		  std::unique_ptr<NetExpr> folded;
+		  if (!literal)
+			folded.reset(elab_and_eval(des, scope, expr, -1, true));
+		  const NetEConst*constant = dynamic_cast<const NetEConst*>(folded.get());
+		  const verinum*bits = literal ? &literal->value()
+			: constant && !constant->is_unbounded() ? &constant->value()
+			: nullptr;
+		  if (!bits || !bits->is_defined() || bits->is_negative())
+			return false;
+		  for (unsigned i = 64; i < bits->len(); ++i)
+			if (bits->get(i) != verinum::V0) return false;
+		  long small;
+		  if (literal && bits->len() < sizeof(long) * CHAR_BIT
+		      && pform_sva_const_long(expr, small))
+			value = small;
+		  else
+			value = bits->as_ulong64();
+		  return true;
+	    };
+	    uint64_t bound, lower = 0;
+	    if (!evaluate(bound_.get(), bound)
+		|| (lower_ && !evaluate(lower_.get(), lower))) {
+		  cerr << get_fileline() << ": error: always range bounds must be "
+		       << "known non-negative integer constant expressions fitting "
+		       << "in 64 bits (IEEE 1800-2017/2023 16.12.11)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    if (bound < lower) {
+		  cerr << get_fileline() << ": error: the minimum of an always "
+		       << "range must not exceed its maximum (IEEE 1800-2017/2023 "
+		       << "16.12.11)." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    NetEConst*result = new NetEConst(verinum(bound - lower, width));
+	    result->set_line(*this);
+	    return result;
+      }
+
+    private:
+      std::shared_ptr<PExpr> bound_, lower_;
+};
+
+static perm_string sva_make_assoc_reg_(const struct vlltype&loc,
+		unsigned inst, const char*what, unsigned idx, unsigned value_width);
+static Statement* sva_assoc_delete_(const struct vlltype&loc,
+				    perm_string name, PExpr*index);
+
 /*
  * M9C: lower the temporal/sequence property operators that do not fit
  * the linear token pipeline.
@@ -23102,6 +23185,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       int op = prop->op_type;
       bool is_within   = (op == 8);
       bool is_nexttime = (op == 9 || op == 10);
+      bool is_always   = (op == 12);
       bool is_liveness = (op >= 9 && op <= 13);
       bool is_abort    = (op >= 14 && op <= 17);
 	/* IEEE 1800-2017 A.2.10: implication with an s_eventually
@@ -23111,9 +23195,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       bool with   = (op == 5 || op == 7);
       bool strong = (op == 6 || op == 7);
 
-	/* 16.14.1: The pass statement runs on a definite success.
-	   Within and nexttime supply success verdicts in this lowering. */
-      bool pass_supported = is_within || is_nexttime;
+	/* 16.14.1: These operators supply success verdicts in this lowering. */
+      bool pass_supported = is_within || is_nexttime || is_always;
       if (pass_stmt && !pass_supported) {
 	    cerr << loc << ": sorry: a pass action on this property "
 		 << "operator is not supported (IEEE 1800-2017 16.14.6). "
@@ -23167,6 +23250,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
       std::vector<perm_string> attempt_state;
       attempt_state.push_back(r_f);
       std::vector<perm_string> attempt_pipe;
+      std::vector<perm_string> attempt_cohorts;
 
 	/* A delayed temporal verdict is owned by the attempt that started
 	   `depth' sampled clocks earlier. Keep an explicit enabled-at-start
@@ -23189,15 +23273,6 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    if (depth <= 0) return sva_enabled_expr_(loc, inst);
 	    ensure_attempt_depth(depth);
 	    return sva_id_(loc, attempt_pipe[(size_t)depth-1]);
-      };
-      auto live_attempt_range = [&](long lo, long hi) -> PExpr* {
-	    ivl_assert(loc, lo >= 0 && hi >= lo);
-	    ensure_attempt_depth(hi);
-	    std::vector<PExpr*> terms;
-	    terms.reserve((size_t)(hi - lo + 1));
-	    for (long age = lo ; age <= hi ; age += 1)
-		  terms.push_back(mature_attempt(age));
-	    return sva_logic_reduce_(loc, 'o', terms);
       };
       bool bad = false;
 
@@ -23423,7 +23498,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					    hist_idx, pre, post, init_zero);
 	    perm_string r_p = sva_make_reg_(loc, inst, "p", 0);
 	    pre.push_back(sva_assign_(loc, r_p,
-		  is_nexttime ? sva_booleanize_(loc, pe) : pe));
+		  (is_nexttime || is_always) ? sva_booleanize_(loc, pe) : pe));
 
 	    Statement*action = fail_stmt;
 	    if (!action) {
@@ -23473,42 +23548,6 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					 sva_fail_action_(loc, inst, action), nullptr);
 		  PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 		  FILE_NAME(fp, loc);
-	    } else if (op == 12) {
-		    /* always / always[m:n] / s_always[m:n] (16.12.7): a safety
-		       obligation. With continuous checking the aggregate collapses to
-		       "p holds at every cycle T >= m". Assertion control makes the
-		       attempt lifetime observable, however: after Off, a finite
-		       always[m:n] attempt expires at age n, while unbounded `always'
-		       remains live. Keep the exact enabled-at-start age range for the
-		       finite form and a persistent aggregate only for the unbounded
-		       form. */
-		  long lo = (prop->win_lo >= 0) ? prop->win_lo : 0;
-		  bool finite = prop->win_hi >= 0;
-		  perm_string r_active;
-		  PExpr*active;
-		  if (finite) {
-			long hi = prop->win_hi < lo ? lo : prop->win_hi;
-			active = live_attempt_range(lo, hi);
-		  } else {
-			r_active = sva_make_reg_(loc, inst, "active", 0);
-			init_zero.push_back(sva_assign_(loc, r_active,
-						       sva_bit_(loc, 0)));
-			attempt_state.push_back(r_active);
-			active = sva_logic_(loc, 'o', sva_id_(loc, r_active),
-					    mature_attempt(lo));
-		  }
-		  PExpr*failexpr = sva_logic_(
-			loc, 'a', finite ? active : sva_clone_expr_(active),
-			sva_not_(loc, sva_id_(loc, r_p)));
-		  PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
-						  pre, post, init_zero);
-		  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
-		  pre.push_back(sva_assign_(loc, r_ff, fs));
-		  attempt_state.push_back(r_ff);
-		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
-					 sva_fail_action_(loc, inst, action), nullptr));
-		  if (!finite)
-			body.push_back(sva_assign_(loc, r_active, active));
 	    } else if (op == 13) {
 		    /* eventually[m:n] / s_eventually[m:n] (16.12.6): p must hold at
 		       SOME cycle in the window. Checked at the window end (cycle T for
@@ -23534,36 +23573,144 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					 sva_fail_action_(loc, inst, action), nullptr));
 		  delete p_win_src;
 	    } else {
-		    /* 16.12.10: the attempt at age n consumes this tick's
-		       sample. The conditional sends 0, X and Z to failure. */
-		  long offset = (prop->win_lo >= 0) ? prop->win_lo : 1;
 		  perm_string pass_req = sva_make_reg_(loc, inst, "passreq", 0, true);
 		  perm_string vac_req = sva_make_reg_(loc, inst, "vacreq", 0, true);
 		  perm_string fail_req = sva_make_reg_(loc, inst, "failreq", 0, true);
 		  for (perm_string req : {pass_req, vac_req, fail_req})
 			init_zero.push_back(sva_assign_(loc, req, sva_num32_(loc, 0)));
-		  auto publish = [&](perm_string req, PExpr*count) {
-			PEBinary*sum = new PEBinary('+', sva_id_(loc, req), count);
-			FILE_NAME(sum, loc);
-			return sva_assign_(loc, req, sum);
+		  auto sum = [&](PExpr*left, PExpr*right) {
+			PEBinary*expr = new PEBinary('+', left, right);
+			FILE_NAME(expr, loc);
+			return expr;
 		  };
-		  Statement*verdict = sva_if_(loc, sva_id_(loc, r_p),
-			publish(pass_req, sva_num32_(loc, 1)),
-			publish(fail_req, sva_num32_(loc, 1)));
-		  body.push_back(sva_if_(loc, mature_attempt(offset), verdict, nullptr));
+		  auto publish = [&](perm_string req, PExpr*count) {
+			return sva_assign_(loc, req,
+			      sum(sva_id_(loc, req), count));
+		  };
+		  Statement*finish = nullptr;
+		  if (is_nexttime) {
+			  /* 16.12.10: the attempt at age n consumes this tick's
+			     sample. The conditional sends 0, X and Z to failure. */
+			long offset = (prop->win_lo >= 0) ? prop->win_lo : 1;
+			Statement*verdict = sva_if_(loc, sva_id_(loc, r_p),
+			      publish(pass_req, sva_num32_(loc, 1)),
+			      publish(fail_req, sva_num32_(loc, 1)));
+			body.push_back(sva_if_(loc, mature_attempt(offset), verdict, nullptr));
 
-		  if (offset > 0) {
 			  /* Each surviving age is a weak vacuous success or a
-			     strong failure (16.12.15, 16.14.8). Kill may have
-			     occurred since the last clock. */
-			PExpr*pending = sva_num32_(loc, 0);
-			for (perm_string token : attempt_pipe) {
-			      pending = new PEBinary('+', pending, sva_id_(loc, token));
-			      FILE_NAME(pending, loc);
+			     strong failure (16.12.15, 16.14.8). */
+			if (offset > 0) {
+			      PExpr*pending = sva_num32_(loc, 0);
+			      for (perm_string token : attempt_pipe)
+				    pending = sum(pending, sva_id_(loc, token));
+			      finish = publish(op == 9 ? vac_req : fail_req, pending);
 			}
+		  } else {
+			  /* 16.12.11: visit the cohorts in clock order. A start
+			     waits under its entry tick, then a bounded window
+			     waits under its completion tick. Each map has at
+			     most one start per key. All open windows share the
+			     sample, so the unbounded form needs only a count. */
+			ivl_assert(loc, is_always);
+			bool finite = bool(prop->always_hi);
+			bool ranged = bool(prop->always_lo);
+			auto make_cohorts = [&](const char*name) {
+			      perm_string map = sva_make_assoc_reg_(loc, inst, name, 0, 1);
+			      attempt_cohorts.push_back(map);
+			      return map;
+			};
+			auto method = [&](perm_string map, const char*name,
+					  PExpr*key = nullptr) -> PExpr* {
+			      pform_name_t path;
+			      path.push_back(name_component_t(map));
+			      path.push_back(name_component_t(lex_strings.make(name)));
+			      std::vector<named_pexpr_t> args;
+			      if (key) {
+				    named_pexpr_t arg;
+				    arg.parm = key;
+				    args.push_back(arg);
+			      }
+			      PECallFunction*call = new PECallFunction(path, args);
+			      FILE_NAME(call, loc);
+			      return call;
+			};
+			perm_string tick, waiting;
+			if (ranged) {
+			      tick = sva_make_reg_(loc, inst, "tick", 0, true);
+			      init_zero.push_back(sva_assign_(loc, tick, sva_num32_(loc, 0)));
+			      body.push_back(publish(tick, sva_num32_(loc, 1)));
+			      waiting = make_cohorts("waiting");
+			}
+			perm_string open;
+			Statement*enter;
+			if (finite) {
+			      open = make_cohorts("open");
+			      PExpr*span = new PEAlwaysWindowBound(prop->always_hi,
+								 prop->always_lo);
+			      FILE_NAME(span, loc);
+			      enter = sva_assign_index_(loc, open,
+				    sum(sva_id_(loc, tick), span), sva_bit_(loc, 1));
+			} else {
+			      open = sva_make_reg_(loc, inst, "open", 0, true);
+			      init_zero.push_back(sva_assign_(loc, open, sva_num32_(loc, 0)));
+			      attempt_state.push_back(open);
+			      enter = publish(open, sva_num32_(loc, 1));
+			}
+			if (ranged) {
+			      PExpr*lo = new PEAlwaysWindowBound(prop->always_lo);
+			      FILE_NAME(lo, loc);
+			      body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+				    sva_assign_index_(loc, waiting,
+					  sum(sva_id_(loc, tick), lo),
+					  sva_bit_(loc, 1)), nullptr));
+			      body.push_back(sva_if_(loc, method(waiting, "exists", sva_id_(loc, tick)),
+				    sva_block_(loc, {enter, sva_assoc_delete_(
+					  loc, waiting, sva_id_(loc, tick))}), nullptr));
+			} else {
+			      body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
+				    enter, nullptr));
+			}
+
+			auto open_count = [&]() -> PExpr* {
+			      return finite ? method(open, "num") : sva_id_(loc, open);
+			};
+			Statement*pass = finite
+			      ? sva_if_(loc, method(open, "exists", sva_id_(loc, tick)),
+				    sva_block_(loc, {publish(pass_req, sva_num32_(loc, 1)),
+					  sva_assoc_delete_(loc, open, sva_id_(loc, tick))}), nullptr)
+			      : nullptr;
+			Statement*clear_open = finite
+			      ? sva_assoc_delete_(loc, open, nullptr)
+			      : sva_assign_(loc, open, sva_num32_(loc, 0));
+			body.push_back(sva_if_(loc, open_count(),
+			      sva_if_(loc, sva_id_(loc, r_p), pass, sva_block_(loc,
+				    {publish(fail_req, open_count()), clear_open})), nullptr));
+
+			  /* At finish, waiting weak windows have never evaluated an
+			     operand. Open weak windows already have a nonvacuous
+			     Boolean success. Both groups fail for strong always. */
+			if (prop->strength) {
+			      finish = publish(fail_req,
+				    sum(method(waiting, "num"), open_count()));
+			} else if (ranged) {
+			      finish = sva_block_(loc, {publish(pass_req, open_count()),
+				    publish(vac_req, method(waiting, "num"))});
+			} else {
+			      finish = publish(pass_req, open_count());
+			}
+		  }
+		  if (finish) {
+			if (is_always && disable) {
+			      PExpr*level = sva_clone_expr_(disable);
+			      if (level) {
+				    PExpr*enabled = new PEBComp('N', sva_booleanize_(loc, level),
+							       sva_bit_(loc, 1));
+				    finish = sva_if_(loc, enabled, finish, nullptr);
+			      }
+			}
+			/* Kill may have occurred since the last clock. */
 			Statement*fc = sva_if_(loc,
-			      sva_kill_generation_current_(loc, inst, r_kill),
-			      publish(op == 9 ? vac_req : fail_req, pending), nullptr);
+			      sva_kill_generation_current_(loc, inst, r_kill), finish, nullptr);
 			PProcess*fp = pform_make_behavior(IVL_PR_FINAL, fc, nullptr);
 			FILE_NAME(fp, loc);
 			fp->attributes[perm_string::literal("_ivl_sva_finish")]
@@ -23806,6 +23953,8 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    for (size_t k = 0 ; k < attempt_state.size() ; k += 1)
 		  clear.push_back(sva_assign_(
 			loc, attempt_state[k], sva_bit_(loc, 0)));
+	    for (perm_string map : attempt_cohorts)
+		  clear.push_back(sva_assoc_delete_(loc, map, nullptr));
 	    return sva_block_(loc, clear);
       };
 
@@ -23817,7 +23966,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    loc, inst, r_kill, clear_temporal_state()));
       Statement*core = sva_block_(loc, body);
       if (disable) {
-	    if (is_nexttime)
+	    if (is_nexttime || is_always)
 		  sva_disable_abort_(loc, inst, disable, clear_temporal_state());
 	    core = sva_if_(loc, disable, clear_temporal_state(), core);
       }
@@ -25071,10 +25220,30 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	  && !conseq->tree && !conseq->ante_tree && !conseq->clk_evt
 	  && !conseq->seq_clk_evt && !conseq->mc_prefix
 	  && !conseq->disable_iff_expr) {
+	    long lo = 0, hi = -1;
+	    auto fold = [](const std::shared_ptr<PExpr>&expr, long&value) {
+		  if (!expr) return true;
+		  const PENumber*num = dynamic_cast<const PENumber*>(expr.get());
+		  if (num && (!num->value().is_defined() || num->value().is_negative()
+			      || num->value().as_ulong64() > (uint64_t)LONG_MAX))
+			return false;
+		  return !pform_sva_overridable_bound(expr.get())
+			&& pform_sva_const_long(expr.get(), value) && value >= 0;
+	    };
+	    if (!fold(conseq->always_lo, lo) || !fold(conseq->always_hi, hi)
+		|| (hi >= 0 && hi < lo)) {
+		  cerr << loc << ": error: invalid or unsupported always range in "
+		       << "an implication consequent (IEEE 1800-2017/2023 16.12.11)."
+		       << endl;
+		  error_count += 1;
+		  pform_sva_destroy_sequence(ante);
+		  pform_sva_destroy_property(conseq);
+		  return nullptr;
+	    }
 	    sva_seq_step_t&st = (*conseq->seq)[0];
 	    st.expr = sva_not_(loc, st.expr);
-	    st.delay_lo = (conseq->win_lo < 0) ? 0 : conseq->win_lo;
-	    st.delay_hi = (conseq->win_hi < 0) ? -1 : conseq->win_hi;
+	    st.delay_lo = lo;
+	    st.delay_hi = hi;
 	    std::vector<sva_seq_step_t>*bad = conseq->seq;
 	    conseq->seq = nullptr;
 	    pform_sva_destroy_property(conseq);
@@ -37526,6 +37695,7 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
       p->forbidden_consequent = src->forbidden_consequent;
       p->win_lo = src->win_lo;
       p->win_hi = src->win_hi;
+      ok = sva_clone_always_range_(p, src, subst);
       if (src->clk_evt && !(p->clk_evt = sva_clone_event_control_(src->clk_evt, loc, subst, event_subst)))
 	    ok = false;
       if (src->seq_clk_evt
@@ -41630,6 +41800,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  named->forbidden_consequent;
 				    inst->win_lo = named->win_lo;
 				    inst->win_hi = named->win_hi;
+				    ok = sva_clone_always_range_(inst, named, &subst);
 				    inst->tree_sorry = named->tree_sorry;
 				    inst->clk_evt = outer_clk;
 				    outer_clk = nullptr;
@@ -41884,7 +42055,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  decl->forbidden_consequent;
 				    inst->win_lo = decl->win_lo;
 				    inst->win_hi = decl->win_hi;
-				    bool ok = true;
+				    bool ok = sva_clone_always_range_(inst, decl, &subst);
 				    bool nested_disable = false;
 				    inst->clk_evt = prop->clk_evt;
 				    prop->clk_evt = nullptr;

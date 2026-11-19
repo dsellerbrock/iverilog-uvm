@@ -119,6 +119,43 @@ static PExpr* make_queue_last_placeholder_(const struct vlltype&loc)
       return last;
 }
 
+/* A bare '$' in an always range denotes an unbounded maximum.
+   The expression grammar represents it as a queue-last placeholder. */
+static bool take_always_dollar_(PExpr*bound)
+{
+      for (auto it = queue_last_placeholders.begin();
+	   it != queue_last_placeholders.end(); ++it) {
+	    if (it->last == bound) {
+		  queue_last_placeholders.erase(it);
+		  return true;
+	    }
+      }
+      return false;
+}
+
+static sva_property_t* make_always_range_(const struct vlltype&loc,
+		bool strong, PExpr*lo, PExpr*hi, sva_property_t*sub)
+{
+      std::shared_ptr<PExpr> lower(lo), upper(hi);
+      bool lo_dollar = take_always_dollar_(lo);
+      bool hi_dollar = take_always_dollar_(hi);
+      bool invalid_dollar = lo_dollar || (strong && hi_dollar);
+      if (invalid_dollar)
+	    yyerror(loc, lo_dollar
+		    ? "error: the minimum of an always range cannot be '$' (IEEE 1800 16.12.11)."
+		    : "error: s_always requires a bounded range (IEEE 1800 16.12.11).");
+      if (!lo || !hi || invalid_dollar) {
+	    pform_sva_destroy_property(sub);
+	    return nullptr;
+      }
+      sva_property_t*prop = pform_sva_unprop(loc, 12, sub, -1, -1, strong);
+      if (prop) {
+	    prop->always_lo = lower;
+	    if (!hi_dollar) prop->always_hi = upper;
+      }
+      return prop;
+}
+
 /* A slice upper bound that is exactly `$ - e' keeps the SEL_PART_LAST form,
    which evaluates the receiver once and treats e as an unsigned offset
    from the last index. Returns e, or null for any other bound (including
@@ -10264,24 +10301,14 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | K_s_nexttime '[' expression ']' property_expr
       { long nn = pform_sva_nexttime_index(@3, $3, "s_nexttime");
 	$$ = pform_sva_unprop(@1, 10, $5, nn, nn); }
-  /* IEEE 1800-2017 16.12.7: `always' — p holds at every current and future
+  /* IEEE 1800-2017/2023 16.12.11: `always' — p holds at every current and future
      cycle (safety). Unbounded and bounded `always [m:n]' / `s_always [m:n]'. */
   | K_always property_expr
       { $$ = pform_sva_unprop(@1, 12, $2); }
   | K_always '[' expression ':' expression ']' property_expr
-      { PENumber*m = dynamic_cast<PENumber*>($3);
-	PENumber*n = dynamic_cast<PENumber*>($5);
-	long mm = m ? m->value().as_long() : 0;
-	long nn = n ? n->value().as_long() : mm;
-	delete $3; delete $5;
-	$$ = pform_sva_unprop(@1, 12, $7, mm, nn, 0); }
+      { $$ = make_always_range_(@1, false, $3, $5, $7); }
   | K_s_always '[' expression ':' expression ']' property_expr
-      { PENumber*m = dynamic_cast<PENumber*>($3);
-	PENumber*n = dynamic_cast<PENumber*>($5);
-	long mm = m ? m->value().as_long() : 0;
-	long nn = n ? n->value().as_long() : mm;
-	delete $3; delete $5;
-	$$ = pform_sva_unprop(@1, 12, $7, mm, nn, 1); }
+      { $$ = make_always_range_(@1, true, $3, $5, $7); }
   /* IEEE 1800-2017 16.12.6: bounded `eventually [m:n]' — p holds at some
      cycle in the window; strong `s_eventually [m:n]' adds the end-of-sim
      obligation. Unbounded `eventually' is illegal (must carry a range). */

@@ -20,6 +20,7 @@
  */
 
 # include  <list>
+# include  <memory>
 # include  <ostream>
 # include  "compiler.h"
 # include  "pform.h"
@@ -326,6 +327,9 @@ struct sva_property_t {
       // form the existing lowering already handles).
       long win_lo = -1;
       long win_hi = -1;
+      // Ranged always bounds are resolved in the assertion instance.
+      // An empty maximum denotes '$'; both empty denotes plain always.
+      std::shared_ptr<PExpr> always_lo, always_hi;
       // IEEE 1800-2017 16.12.9: abort operators (accept_on/reject_on and
       // their sync_ variants, op_type 14..17). abort_cond is the abort
       // condition expression; null for every non-abort op.
