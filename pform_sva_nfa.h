@@ -30,7 +30,8 @@ struct sva_stree_t;
  * multiple entries arise from ##0 fusion, where two chain steps share
  * one tick). Guards are BORROWED PExpr pointers into the property
  * chain — the synthesizer maps them to sample registers by pointer
- * identity and never dereferences them.
+ * identity. In path-local mode they also identify the source match items
+ * and preserve source order within a chain across same-tick fusion.
  */
 struct sva_nfa_edge_t {
       unsigned from = 0;
@@ -86,10 +87,12 @@ extern bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa,
 					  const sva_stree_t*tree);
 
 /* Build a finite tree with distinct tick-ending paths. max_endpoints
-   bounds the number of endpoints from one attempt on a single tick. */
+   bounds the number of endpoints from one attempt on a single tick.
+   Set path_locals only when the caller lowers local writes from the
+   source guards on those distinct paths. */
 extern bool pform_sva_nfa_build_endpoint_tree(sva_nfa_t&nfa,
 				const sva_stree_t*tree, unsigned state_budget,
-				unsigned&max_endpoints);
+				unsigned&max_endpoints, bool path_locals = false);
 
 /* Compose an arbitrary sequence-tree antecedent with an arbitrary
    sequence-tree consequent using |-> (overlapped) or |=> (nonoverlapped)
@@ -98,7 +101,7 @@ extern bool pform_sva_nfa_build_implication(
 				sva_nfa_t&nfa, const sva_stree_t*ante,
 				const sva_stree_t*conseq, bool nonoverlap,
 				std::vector<sva_nfa_boundary_t>&boundary,
-				unsigned path_budget = 0);
+				unsigned path_budget = 0, bool path_locals = false);
 
 enum sva_first_match_group_class_t {
       SVA_FIRST_MATCH_FIXED,
