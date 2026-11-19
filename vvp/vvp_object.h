@@ -63,16 +63,19 @@ typedef std::shared_ptr<const vvp_container_layout_s>
 struct vvp_container_layout_s {
       vvp_container_layout_s(vvp_container_layout_kind_t kind,
                              bool bound_known, uint64_t max_size,
-                             const vvp_container_layout_t&child)
+                             const vvp_container_layout_t&child,
+                             unsigned packed_width = 0)
       : kind(kind), queue_bound_known(bound_known),
         queue_max_size(max_size), element(child), fixed_left(0),
-        fixed_right(0), fixed_leaf(VVP_FIXED_OBJECT), fixed_width(0) { }
+        fixed_right(0), fixed_leaf(VVP_FIXED_OBJECT), fixed_width(0),
+        packed_leaf_width(packed_width) { }
 
       vvp_container_layout_s(int left, int right,
                              vvp_fixed_leaf_kind_t leaf, unsigned width)
       : kind(VVP_CONTAINER_FIXED), queue_bound_known(false),
         queue_max_size(0), element(), fixed_left(left),
-        fixed_right(right), fixed_leaf(leaf), fixed_width(width) { }
+        fixed_right(right), fixed_leaf(leaf), fixed_width(width),
+        packed_leaf_width(0) { }
 
       vvp_container_layout_kind_t kind;
       bool queue_bound_known;
@@ -82,7 +85,15 @@ struct vvp_container_layout_s {
       int fixed_right;
       vvp_fixed_leaf_kind_t fixed_leaf;
       unsigned fixed_width;
+      unsigned packed_leaf_width;
 };
+
+inline unsigned vvp_packed_container_leaf_width(const vvp_container_layout_s*layout)
+{
+      while (layout && layout->element)
+            layout = layout->element.get();
+      return layout ? layout->packed_leaf_width : 0;
+}
 
 extern vvp_container_layout_t vvp_make_container_layout(
       vvp_container_layout_kind_t kind, bool queue_bound_known,
@@ -95,7 +106,8 @@ extern void vvp_rebind_fixed_array_value(
       vvp_object*value, const vvp_container_layout_t&layout);
 
 /* Parse the suffix of a queue/darray/associative type record. New images use
- * !Q0,D,A,Q3 (the first layer must match expected_outer); legacy @N/#N
+ * !Q0,D,A,Q3 (the first layer must match expected_outer). A chain ending
+ * in a packed struct also records its width, e.g. !Q0,D,P16. Legacy @N/#N
  * spellings remain accepted. base_length receives the prefix before the
  * suffix so callers can normalize their element-kind record. */
 extern bool vvp_parse_container_layout_type(

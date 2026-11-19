@@ -122,10 +122,12 @@ static std::string format_cobject_property_(vvp_cobject* cobj,
 		out += "\"";
 		return out;
 	}
-	if (!bt.empty() && (bt[0] == 'o' || bt[0] == 'Q' || bt[0] == 'D')) {
+	const vvp_container_layout_s*layout = defn->property_container_layout(prop);
+	if (layout || (!bt.empty() && bt[0] == 'o')) {
 		vvp_object_t sub;
 		cobj->get_object(prop, sub, leaf);
-		return vvp_format_cobject_p(sub, depth+1, false, bt[0] != 'o');
+		return vvp_format_cobject_p(sub, depth+1, false, layout,
+		      defn->property_typespec(prop), defn->property_assoc_index_signed(prop));
 	}
 	vvp_vector4_t v;
 	cobj->get_vec4(prop, v, leaf);
@@ -151,11 +153,12 @@ static std::string format_cobject_property_(vvp_cobject* cobj,
 
 static void format_packed_property_(std::string&out, vvp_cobject*cobj,
 				    const class_type*defn, size_t prop,
-				    size_t dimension = 0, uint64_t leaf = 0)
+				    int depth = 0, size_t dimension = 0,
+				    uint64_t leaf = 0)
 {
       const auto&dims = defn->property_dimensions(prop);
       if (dimension == dims.size()) {
-	    out += format_cobject_property_(cobj, defn, prop, leaf, 0);
+	    out += format_cobject_property_(cobj, defn, prop, leaf, depth);
 	    return;
       }
 
@@ -169,11 +172,51 @@ static void format_packed_property_(std::string&out, vvp_cobject*cobj,
       // at the numeric low bound, irrespective of declared direction.
       for (int64_t idx = left;; idx += step) {
 	    if (idx != left) out += ", ";
-	    format_packed_property_(out, cobj, defn, prop, dimension + 1,
+	    format_packed_property_(out, cobj, defn, prop, depth, dimension + 1,
 				    leaf * count + (idx - low));
 	    if (idx == right) break;
       }
       out += '}';
+}
+
+static void append_string_key_(std::string&out, const std::string&key)
+{
+      out += '"';
+      for (unsigned char ch : key) {
+	    if (ch == '"' || ch == '\\') out += '\\';
+	    if (ch >= 32 && ch <= 126) {
+		  out += static_cast<char>(ch);
+	    } else {
+		  char escaped[5];
+		  snprintf(escaped, sizeof escaped, "\\%03o", static_cast<unsigned>(ch));
+		  out += escaped;
+	    }
+      }
+      out += '"';
+}
+
+static std::string format_packed_assoc_(const vvp_assoc_base&assoc,
+					vpiHandle leaf, bool signed_index)
+{
+      std::string out = "'{";
+      const size_t count = assoc.size();
+      for (size_t pos = 0; pos < count; ++pos) {
+	    std::string key, unused_str;
+	    vvp_vector4_t value;
+	    double unused_real = 0;
+	    int kind = -1;
+	    bool string_key = false;
+	    if (!assoc.peek_entry(pos, key, value, unused_real, unused_str,
+				  kind, signed_index, &string_key))
+		  break;
+	    if (pos) out += ", ";
+	    if (string_key) append_string_key_(out, key);
+	    else out += key;
+	    out += ':';
+	    out += vpip_format_packed_value(leaf, std::move(value));
+      }
+      out += '}';
+      return out;
 }
 
 /* Shared object -> `'{name:value, ...}` renderer for %p and object string
@@ -181,16 +224,24 @@ static void format_packed_property_(std::string&out, vvp_cobject*cobj,
    (array.cc), the dynamic-array/queue element path (the thread object stack
    handle in vpi_vthr_vector.cc), and any other object string fetch. */
 std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
-                                 bool element_signed, bool nil_is_empty)
+                                 bool element_signed,
+                                 const vvp_container_layout_s*layout,
+                                 vpiHandle packed_leaf, bool assoc_index_signed)
 {
-      if (nil_is_empty && obj.test_nil())
+      if (layout && obj.test_nil())
 	    return std::string("'{}");
+      if (layout && layout->kind == VVP_CONTAINER_ASSOC && packed_leaf) {
+	    if (const auto*assoc = obj.peek<vvp_assoc_vec4>())
+		  return format_packed_assoc_(*assoc, packed_leaf, assoc_index_signed);
+      }
 	// A container value (queue/darray element that is itself a
 	// queue or dynamic array — e.g. `int qq[$][$]`): render its
 	// elements recursively. Reading such an element through the
 	// vec4 path aborted the decimal formatter on a garbage width.
       if (vvp_darray*da = obj.peek<vvp_darray>()) {
-	    if (depth > 32)
+	    // A typed declaration advances through its finite layout chain.
+	    // Untyped object walks still need a guard for cyclic graphs.
+	    if (depth > 32 && !(layout && packed_leaf))
 		  return std::string("...");
 	    bool is_real = dynamic_cast<vvp_queue_real*>(da)
 		  || dynamic_cast<vvp_darray_real*>(da);
@@ -198,6 +249,8 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
 		  || dynamic_cast<vvp_darray_string*>(da);
 	    bool is_obj = dynamic_cast<vvp_queue_object*>(da)
 		  || dynamic_cast<vvp_darray_object*>(da);
+	    const vvp_container_layout_s*element_layout = layout
+		  ? layout->element.get() : da->declared_element_container_layout().get();
 	    std::string out = "'{";
 	    size_t sz = da->get_size();
 	    for (size_t i = 0 ; i < sz ; i += 1) {
@@ -218,13 +271,17 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
 			vvp_object_t sub;
 			da->get_word(i, sub);
 			out += vvp_format_cobject_p(sub, depth+1, element_signed,
-				   da->declared_element_container_layout() != nullptr);
+				   element_layout, packed_leaf);
 		  } else {
 			vvp_vector4_t v;
 			da->get_word(i, v);
-			char b[256];
-			vpip_vec4_to_dec_str(v, b, sizeof b, element_signed);
-			out += b;
+			if (packed_leaf && layout && layout->packed_leaf_width) {
+			      out += vpip_format_packed_value(packed_leaf, std::move(v));
+			} else {
+			      char b[256];
+			      vpip_vec4_to_dec_str(v, b, sizeof b, element_signed);
+			      out += b;
+			}
 		  }
 	    }
 	    out += "}";
@@ -262,12 +319,13 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
 	    out += ":";
 	    if (defn->property_base_type(i) == "V") continue;
 	    if (!defn->property_base_type(i).empty()
-		&& defn->property_base_type(i)[0] == 'M') {
+		&& defn->property_base_type(i)[0] == 'M'
+		&& !defn->property_typespec(i)) {
 		  out += "<container>";
 		  continue;
 	    }
 	    if (defn->property_typespec(i)) {
-		  format_packed_property_(out, cobj, defn, i);
+		  format_packed_property_(out, cobj, defn, i, depth);
 		  continue;
 	    }
 	    uint64_t count = defn->property_array_size(i);
@@ -605,6 +663,11 @@ class __vpiClassMember : public __vpiDarrayVar {
       {
 	    return (is_fixed_array_() || is_container_())
 		 ? vpiArrayVar : type_code_;
+      }
+
+      const vvp_container_layout_s*container_layout() const override
+      {
+	    return defn_->property_container_layout(idx_);
       }
 
       std::string format_packed_p()

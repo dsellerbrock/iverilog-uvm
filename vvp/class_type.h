@@ -156,6 +156,11 @@ class class_type : public __vpiHandle {
 	// back array-typed rand properties.
       const std::string& property_base_type(size_t idx) const;
       unsigned property_vec4_width(size_t idx) const;
+      const vvp_container_layout_s*property_container_layout(size_t idx) const
+      { return properties_.at(idx).container_layout.get(); }
+      unsigned property_typespec_width(size_t idx) const;
+      bool property_assoc_index_signed(size_t idx) const
+      { return properties_.at(idx).assoc_index_signed; }
       vpiHandle property_typespec(size_t idx) const
       { return idx < properties_.size() ? properties_[idx].typespec : nullptr; }
       void set_property_typespec(size_t idx, vpiHandle spec)
@@ -255,6 +260,7 @@ class class_type : public __vpiHandle {
 	    bool rand_flag  = false;
 	    bool randc_flag = false;
 	    bool virtual_interface = false;
+	    bool assoc_index_signed = false;
 	    std::string base_type;
 	    std::vector<vvp_vector4_t> enum_values;
 	    std::vector<std::string> enum_names;

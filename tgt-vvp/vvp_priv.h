@@ -1011,11 +1011,37 @@ static inline void emit_assoc_index_type_(ivl_type_t type)
 	      ivl_type_signed(index_type) ? 's' : 'u');
 }
 
+/* Find the packed-struct leaf of a Q/D chain or a single associative array. */
+static inline ivl_type_t packed_struct_container_leaf_(ivl_type_t type)
+{
+      ivl_type_t cur = type;
+      while (cur) {
+            if (type_is_fixed_uarray_property_(cur))
+                  return 0;
+            ivl_variable_type_t base = ivl_type_base(cur);
+            if (base != IVL_VT_QUEUE && base != IVL_VT_DARRAY)
+                  return cur != type
+                      && (base == IVL_VT_LOGIC || base == IVL_VT_BOOL)
+                      && ivl_type_properties(cur) > 0 && !ivl_type_is_union(cur)
+                      ? cur : 0;
+            if (ivl_type_queue_assoc_compat(cur)) {
+                  if (cur != type)
+                        return 0;
+                  ivl_type_t elem = ivl_type_element(cur);
+                  if (!elem || ivl_type_base(elem) == IVL_VT_QUEUE
+                      || ivl_type_base(elem) == IVL_VT_DARRAY)
+                        return 0;
+            }
+            cur = ivl_type_element(cur);
+      }
+      return 0;
+}
+
 /* Emit the strict recursive container-layout suffix understood by new VVP.
  * Q0 means a known-unbounded queue; D and A carry no bound. An associative
  * array of one-dimensional fixed arrays ends in F<left>:<right>:<leaf>.
  * The leaf is b<width>, v<width>, or o for two-state, four-state, or object
- * elements. */
+ * elements. P<width> records a packed struct's storage width. */
 static inline void emit_container_layout_suffix_(ivl_type_t type)
 {
       ivl_type_t cur = type;
@@ -1049,6 +1075,9 @@ static inline void emit_container_layout_suffix_(ivl_type_t type)
             emitted = 1;
             cur = ivl_type_element(cur);
       }
+      ivl_type_t packed_leaf = packed_struct_container_leaf_(type);
+      if (packed_leaf)
+            fprintf(vvp_out, ",P%u", ivl_type_packed_width(packed_leaf));
 }
 
 /* Keep the legacy zero-bound VVP spellings intact so older generated VVP

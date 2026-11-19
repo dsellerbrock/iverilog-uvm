@@ -46,6 +46,12 @@ __vpiDarrayVar::__vpiDarrayVar(__vpiScope*sc, const char*na, vvp_net_t*ne,
 {
 }
 
+const vvp_container_layout_s*__vpiDarrayVar::container_layout() const
+{
+      const auto*fun = dynamic_cast<vvp_fun_signal_object*>(get_net()->fun);
+      return fun ? fun->default_container_layout().get() : nullptr;
+}
+
 unsigned __vpiDarrayVar::get_size() const
 {
       const vvp_fun_signal_object*fun = dynamic_cast<vvp_fun_signal_object*> (get_net()->fun);
@@ -223,9 +229,11 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 		      // empty container (rendered '{} below), not a default
 		      // object: in a class property get_net() names the
 		      // enclosing object, so its declared type is the wrong one.
-		      bool nil_is_empty =
-			    aobj->declared_element_container_layout() != nullptr;
-		      if (oval.test_nil() && !nil_is_empty) {
+		      const vvp_container_layout_s*layout = container_layout();
+		      const vvp_container_layout_s*element_layout = layout
+			    ? layout->element.get()
+			    : aobj->declared_element_container_layout().get();
+		      if (oval.test_nil() && !element_layout) {
 			    const vvp_fun_signal_object*fun =
 				  dynamic_cast<vvp_fun_signal_object*>(get_net()->fun);
 			    class_type*defn = fun ? fun->declared_type() : 0;
@@ -233,7 +241,7 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 				  oval = vvp_object_t(new vvp_cobject(defn));
 		      }
 		      std::string s = vvp_format_cobject_p(oval, 0, false,
-				nil_is_empty);
+					element_layout, packed_leaf_typespec);
 		      char*rbuf = (char*)need_result_buf(s.size()+1, RBUF_VAL);
 		      strcpy(rbuf, s.c_str());
 		      vp->value.str = rbuf;

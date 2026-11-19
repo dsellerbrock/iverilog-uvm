@@ -1790,6 +1790,26 @@ unsigned class_type::property_vec4_width(size_t idx) const
       return width ? (unsigned)width : 1;
 }
 
+unsigned class_type::property_typespec_width(size_t idx) const
+{
+      const prop_t&prop = properties_.at(idx);
+      if (!prop.container_layout)
+	    return property_vec4_width(idx);
+
+      unsigned width = vvp_packed_container_leaf_width(prop.container_layout.get());
+      if (prop.container_layout->element)
+	    return prop.base_type == "Qo" || prop.base_type == "Do" ? width : 0;
+      if (prop.base_type == "Qv") return width;
+
+      // Dynamic and associative vector storage already encode their width.
+      const char*code = prop.base_type.c_str();
+      if (*code != 'D' && *code != 'M') return 0;
+      char outer = *code++;
+      if (outer == 'D' && *code == 's') ++code;
+      if (*code++ != 'v') return 0;
+      return strtoul(code, nullptr, 10) == width ? width : 0;
+}
+
 unsigned class_type::union_vec4_width(void) const
 {
       if (!is_union_type_)
@@ -2134,8 +2154,20 @@ void class_type::set_property(size_t idx, const string&name, const string&type,
 	    } else {
 		  properties_[idx].container_layout = layout;
 	    }
-	    if (layout_marker != string::npos)
+	    size_t index_marker = base_type.find('I');
+	    if (base_type.compare(0, 2, "Mv") == 0 && index_marker < base_length) {
+		  unsigned index_width;
+		  size_t index_end = index_marker;
+		  if (!vvp_parse_assoc_index_suffix(base_type.c_str(), index_width,
+		        properties_[idx].assoc_index_signed, index_end)
+		      || index_end != base_length) {
+			yyerror("malformed associative index in class-property type encoding");
+			compile_errors += 1;
+		  }
+		  base_type.erase(index_marker);
+	    } else if (layout_marker != string::npos) {
 		  base_type.erase(layout_marker);
+	    }
 	} else if (layout_marker != string::npos) {
 	    yyerror("container-layout suffix attached to a non-container "
 		    "class-property type encoding");
