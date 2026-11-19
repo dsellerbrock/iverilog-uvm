@@ -2085,13 +2085,36 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
             return 0;
       }
 
-      vpiHandle vpi_handle(int) override { return nullptr; }
+      vpiHandle vpi_handle(int code) override
+      {
+            if (code != vpiTypespec || index_) return nullptr;
+            const class_type*defn = get_declared_class_type_(object_fun_());
+            for (size_t i = 0 ; defn && i + 1 < prop_path_.size() ; i += 1) {
+                  if (prop_path_[i] >= defn->property_count()) return nullptr;
+                  defn = defn->property_declared_class_type(prop_path_[i]);
+            }
+            size_t prop = prop_path_.back();
+            if (!defn || prop >= defn->property_count()) return nullptr;
+            vpiHandle spec = defn->property_typespec(prop);
+            if (!spec || defn->property_container_layout(prop)
+                || !defn->property_dimensions(prop).empty()
+                || width_ != defn->property_vec4_width(prop))
+                  return nullptr;
+            return spec;
+      }
 
     private:
       unsigned width_;
       bool signed_flag_;
       bool two_state_;
       std::vector<size_t> prop_path_;
+
+      vvp_fun_signal_object*object_fun_() const
+      {
+            if (!cobj_net_) return nullptr;
+            auto*fun = vvp_fun_as_signal_object(cobj_net_->fun);
+            return fun ? fun : vvp_fil_as_signal_object(cobj_net_->fil);
+      }
 
       /* Same walk as __vpiClassPropertyStringVar::resolve_container_():
          every hop but the last is an intermediate object-typed property,
@@ -2101,11 +2124,7 @@ class __vpiClassPropertyVecVar : public __vpiHandle {
       vvp_object_t resolve_container_()
       {
             vvp_object_t obj;
-            vvp_fun_signal_object*fun =
-                  cobj_net_ ? vvp_fun_as_signal_object(cobj_net_->fun) : nullptr;
-            if (!fun)
-                  fun = cobj_net_ ? vvp_fil_as_signal_object(cobj_net_->fil) : nullptr;
-            if (fun) obj = fun->get_object();
+            if (auto*fun = object_fun_()) obj = fun->get_object();
             for (size_t i = 0 ; i + 1 < prop_path_.size() ; i += 1) {
                   vvp_cobject*cobj = obj.peek<vvp_cobject>();
                   if (!cobj) return vvp_object_t();

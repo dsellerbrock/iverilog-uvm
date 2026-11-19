@@ -116,6 +116,7 @@ extern void emit_deferred_array_decls(void);
  * emit them all, as .vartype records, once every enumeration is drawn. */
 extern void note_signal_vartype(ivl_signal_t sig, const char*suffix);
 extern void note_property_vartype(ivl_type_t classtype, unsigned idx);
+extern ivl_type_t note_packed_expr_vartype(ivl_type_t type, unsigned width);
 extern void emit_vartypes(void);
 extern int enumeration_is_drawn(ivl_enumtype_t enumtype);
 
@@ -189,6 +190,8 @@ extern void draw_vpi_func_call(ivl_expr_t expr);
 /* A VPI argument handle for EXPR (a label, a constant or a lazily
    evaluated .vpi_expr record), or nil when it cannot be described. */
 extern char* draw_vpi_lazy_expr(ivl_expr_t expr);
+extern char* draw_vpi_stmt_condition(ivl_expr_t expr);
+extern int vpi_stmt_conditions_flag;
 extern void draw_vpi_rfunc_call(ivl_expr_t expr);
 extern void draw_vpi_sfunc_call(ivl_expr_t expr);
 

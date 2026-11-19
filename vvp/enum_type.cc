@@ -657,6 +657,38 @@ void compile_vartype(char*label, char*text)
       resolv_submit(new vartype_resolv_t(label, text));
 }
 
+class packed_vartype_resolv_t : public resolv_list_s {
+    public:
+      packed_vartype_resolv_t(char*label, char*text)
+      : resolv_list_s(label), text_(text) { }
+      ~packed_vartype_resolv_t() override { delete[] text_; }
+
+      bool resolve(bool message_flag) override
+      {
+	    const char*cp = text_;
+	    unsigned width = 0;
+	    bool missing = false;
+	    vpiHandle spec = parse_vartype(cp, width, missing);
+	    if (missing && !message_flag) return false;
+	    if (spec && !*cp && spec->get_type_code() == vpiStructTypespec
+	        && !vvp_lookup_handle(label())) {
+		  compile_vpi_symbol(label(), spec);
+	    } else {
+		  yyerror("invalid .vartype/packed metadata");
+		  compile_errors += 1;
+	    }
+	    return true;
+      }
+
+    private:
+      char*text_;
+};
+
+void compile_packed_vartype(char*label, char*text)
+{
+      resolv_submit(new packed_vartype_resolv_t(label, text));
+}
+
 class property_vartype_resolv_t : public resolv_list_s {
     public:
       property_vartype_resolv_t(char*label, uint64_t idx, char*text)

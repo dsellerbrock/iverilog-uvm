@@ -29,6 +29,8 @@
 struct args_info {
       char*text;
       char*obj_type;
+      ivl_type_t packed_type;
+      int packed_constant;
 	/* True ('s' or 'u' if this argument is a calculated vec4. */
       char vec_flag;
 	/* True if this argument is a calculated string. */
@@ -231,16 +233,18 @@ static char* lazy_int_const_(long value)
 /* 37.59 detail 2: decompile with parentheses only where precedence needs
    them and a single space around each binary operator. Returns the
    precedence of EXPR's top operator, or 0 for a shape it cannot write. */
-static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
+static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t, int statement)
 {
       char buf[128];
+      if (statement && !lazy_value_kind_(expr)) return 0;
       expr = lazy_strip_pad_(expr);
       switch (ivl_expr_type(expr)) {
 	  case IVL_EX_SIGNAL: {
 	    ivl_signal_t sig = ivl_expr_signal(expr);
 	    long word;
 	    lazy_puts_(t, ivl_signal_basename(sig));
-	    if (!ivl_expr_oper1(expr)) return 100;
+	    if (!ivl_expr_oper1(expr))
+		  return !statement || !ivl_signal_dimensions(sig) ? 100 : 0;
 	      /* A constant word of a one-dimensional array, by its declared
 		 address. */
 	    if (!lazy_array_word_(expr, &word)) return 0;
@@ -297,9 +301,12 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 		  return 0;
 	    sig = ivl_expr_signal(base);
 	    if (ivl_signal_packed_dimensions(sig) != 1) return 0;
+	    if (statement && (ivl_signal_dimensions(sig) || number_is_unknown(off)))
+		  return 0;
 	    msb = ivl_signal_packed_msb(sig, 0);
 	    lsb = ivl_signal_packed_lsb(sig, 0);
 	    first = get_number_immediate(off);
+	    if (statement && first < 0) return 0;
 	    if (first + (long)wid > (long)ivl_signal_width(sig)) return 0;
 	    if (msb >= lsb) {
 		  lo = lsb + first;
@@ -334,8 +341,8 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 	    struct lazy_text_ l = {0, 0, 0}, r = {0, 0, 0};
 	    int lp, rp, ok;
 	    if (!op) return 0;
-	    lp = lazy_decompile_(ivl_expr_oper1(expr), &l);
-	    rp = lazy_decompile_(ivl_expr_oper2(expr), &r);
+	    lp = lazy_decompile_(ivl_expr_oper1(expr), &l, statement);
+	    rp = lazy_decompile_(ivl_expr_oper2(expr), &r, statement);
 	    ok = lp && rp;
 	    if (ok) {
 		    /* Left associative: a right operand of equal
@@ -360,7 +367,7 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 	    struct lazy_text_ a = {0, 0, 0};
 	    int ap, post;
 	    if (!op) return 0;
-	    ap = lazy_decompile_(ivl_expr_oper1(expr), &a);
+	    ap = lazy_decompile_(ivl_expr_oper1(expr), &a, statement);
 	    post = op->code == 'i' || op->code == 'd';
 	    if (ap) {
 		  if (!post) lazy_puts_(t, op->text);
@@ -374,9 +381,9 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 	  }
 	  case IVL_EX_TERNARY: {
 	    struct lazy_text_ c = {0, 0, 0}, a = {0, 0, 0}, b = {0, 0, 0};
-	    int cp = lazy_decompile_(ivl_expr_oper1(expr), &c);
-	    int ap = lazy_decompile_(ivl_expr_oper2(expr), &a);
-	    int bp = lazy_decompile_(ivl_expr_oper3(expr), &b);
+	    int cp = lazy_decompile_(ivl_expr_oper1(expr), &c, statement);
+	    int ap = lazy_decompile_(ivl_expr_oper2(expr), &a, statement);
+	    int bp = lazy_decompile_(ivl_expr_oper3(expr), &b, statement);
 	    int ok = cp && ap && bp;
 	    if (ok) {
 		  if (cp <= 10) lazy_puts_(t, "(");
@@ -402,7 +409,7 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 	    lazy_puts_(t, "{");
 	    for (idx = 0; ok && idx < ivl_expr_parms(expr); idx += 1) {
 		  if (idx) lazy_puts_(t, ", ");
-		  ok = lazy_decompile_(ivl_expr_parm(expr, idx), t) != 0;
+		  ok = lazy_decompile_(ivl_expr_parm(expr, idx), t, statement) != 0;
 	    }
 	    lazy_puts_(t, rep != 1 ? "}}" : "}");
 	    return ok ? 100 : 0;
@@ -411,6 +418,9 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 	  case IVL_EX_SFUNC: {
 	    unsigned idx;
 	    int ok = 1;
+	      /* A system function's thunk would register a second call site.
+		 Function calls also need their own operand representation. */
+	    if (statement) return 0;
 	    lazy_puts_(t, ivl_expr_type(expr) == IVL_EX_UFUNC
 		       ? ivl_scope_basename(ivl_expr_def(expr))
 		       : ivl_expr_name(expr));
@@ -418,7 +428,7 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 		  lazy_puts_(t, "(");
 		  for (idx = 0; ok && idx < ivl_expr_parms(expr); idx += 1) {
 			if (idx) lazy_puts_(t, ", ");
-			ok = lazy_decompile_(ivl_expr_parm(expr, idx), t) != 0;
+			ok = lazy_decompile_(ivl_expr_parm(expr, idx), t, statement) != 0;
 		  }
 		  lazy_puts_(t, ")");
 	    }
@@ -431,15 +441,19 @@ static int lazy_decompile_(ivl_expr_t expr, struct lazy_text_*t)
 
 static unsigned lazy_expr_count_ = 0;
 
+enum lazy_expr_mode_ { LAZY_ARGUMENT, LAZY_DECLARATION, LAZY_STATEMENT };
+
 /* Emit one .vpi_expr record (and the evaluation code it names) for each
    operation node of EXPR, and return the argument text: the root record's
    label, or a leaf's ordinary VPI argument. Returns nil when EXPR has a
    shape the records cannot describe; the caller then evaluates eagerly. */
-static char* draw_lazy_expr_mode_(ivl_expr_t expr, int declaration)
+static char* draw_lazy_expr_mode_(ivl_expr_t expr, enum lazy_expr_mode_ mode)
 {
       ivl_expr_t node = lazy_strip_pad_(expr);
       struct lazy_text_ text = {0, 0, 0};
       ivl_expr_type_t node_type = ivl_expr_type(node);
+      int declaration = mode == LAZY_DECLARATION;
+      int statement = mode == LAZY_STATEMENT;
       if (declaration && node_type == IVL_EX_NULL)
 	    return strdup("null");
 	/* A pure variable reference is already an expression handle, even
@@ -468,7 +482,7 @@ static char* draw_lazy_expr_mode_(ivl_expr_t expr, int declaration)
       int type = LAZY_vpiOperation, op_type = 0;
       char buffer[64];
 
-      int described = kind && lazy_decompile_(expr, &text);
+      int described = kind && lazy_decompile_(expr, &text, statement);
       if (!kind || (!described && !declaration)) {
 	    free(text.buf);
 	    free(ops);
@@ -488,7 +502,7 @@ static char* draw_lazy_expr_mode_(ivl_expr_t expr, int declaration)
       if (node_type == IVL_EX_NUMBER && ivl_expr_parameter(node))
 	    snprintf(buffer, sizeof buffer, "P_%p", ivl_expr_parameter(node));
       if (node_type == IVL_EX_NUMBER && !ivl_expr_parameter(node)
-	  && (declaration || ivl_expr_width(node) < sizeof buffer - 8)) {
+	  && (mode != LAZY_ARGUMENT || ivl_expr_width(node) < sizeof buffer - 8)) {
 	    unsigned bit, wid = ivl_expr_width(node);
 	    const char*bits = ivl_expr_bits(node);
 	    size_t len = (size_t)wid + 16;
@@ -508,7 +522,7 @@ static char* draw_lazy_expr_mode_(ivl_expr_t expr, int declaration)
       }
       switch (node_type) {
 	  case IVL_EX_REALNUM:
-	    if (declaration) {
+	    if (mode != LAZY_ARGUMENT) {
 		  ivl_parameter_t par = ivl_expr_parameter(node);
 		  free(text.buf);
 		  free(ops);
@@ -521,7 +535,7 @@ static char* draw_lazy_expr_mode_(ivl_expr_t expr, int declaration)
 	    type = 7; /* vpiConstant */
 	    break;
 	  case IVL_EX_STRING: {
-	    if (declaration && ivl_expr_parameter(node)) {
+	    if (mode != LAZY_ARGUMENT && ivl_expr_parameter(node)) {
 		  snprintf(buffer, sizeof buffer, "P_%p", ivl_expr_parameter(node));
 		  free(text.buf);
 		  free(ops);
@@ -538,22 +552,22 @@ static char* draw_lazy_expr_mode_(ivl_expr_t expr, int declaration)
 	    const struct lazy_op_*op = lazy_find_op_(lazy_binary_ops_, ivl_expr_opcode(node));
 	    if (op)
 		  op_type = op->vpi_op;
-	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper1(node), declaration);
-	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper2(node), declaration);
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper1(node), mode);
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper2(node), mode);
 	    break;
 	  }
 	  case IVL_EX_UNARY: {
 	    const struct lazy_op_*op = lazy_find_op_(lazy_unary_ops_, ivl_expr_opcode(node));
 	    if (op)
 		  op_type = op->vpi_op;
-	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper1(node), declaration);
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper1(node), mode);
 	    break;
 	  }
 	  case IVL_EX_TERNARY:
 	    op_type = 32; /* vpiConditionOp */
-	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper1(node), declaration);
-	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper2(node), declaration);
-	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper3(node), declaration);
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper1(node), mode);
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper2(node), mode);
+	    ops[nops++] = draw_lazy_expr_mode_(ivl_expr_oper3(node), mode);
 	    break;
 	  case IVL_EX_CONCAT:
 	    op_type = ivl_expr_repeat(node) != 1 ? 34 : 33;
@@ -567,7 +581,7 @@ static char* draw_lazy_expr_mode_(ivl_expr_t expr, int declaration)
 		  buffer[0] = 0;
 	    }
 	    for (idx = 0; idx < ivl_expr_parms(node); idx += 1)
-		  ops[nops++] = draw_lazy_expr_mode_(ivl_expr_parm(node, idx), declaration);
+		  ops[nops++] = draw_lazy_expr_mode_(ivl_expr_parm(node, idx), mode);
 	    break;
 	  case IVL_EX_UFUNC:
 	    type = LAZY_vpiFuncCall;
@@ -659,7 +673,7 @@ static char* draw_lazy_expr_mode_(ivl_expr_t expr, int declaration)
 
 static char* draw_lazy_expr_(ivl_expr_t expr)
 {
-      return draw_lazy_expr_mode_(expr, 0);
+      return draw_lazy_expr_mode_(expr, LAZY_ARGUMENT);
 }
 
 char* draw_vpi_lazy_expr(ivl_expr_t expr)
@@ -714,6 +728,20 @@ static unsigned contassign_count_ = 0;
 /* Pseudo-thread numbers for evaluation code that no thread runs. They
    start far above any real thread, so the real threads keep their labels. */
 static unsigned static_thunk_count_ = 1u << 30;
+
+/* Draw a fully described condition before the enclosing thread's entry
+   point, using the same labels as the scope-level expression thunks. */
+char* draw_vpi_stmt_condition(ivl_expr_t expr)
+{
+      unsigned save_local = local_count, save_thread = thread_count;
+      char*text;
+      thread_count = static_thunk_count_++;
+      local_count = 0;
+      text = draw_lazy_expr_mode_(expr, LAZY_STATEMENT);
+      local_count = save_local;
+      thread_count = save_thread;
+      return text;
+}
 
 /* Emit the VPI objects of SCOPE that describe source expressions: a
    .vpi_contassign record for each continuous assignment (IEEE 1800-2023
@@ -803,7 +831,7 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 	    ivl_expr_t rhs;
 	    int by_name;
 	    ivl_parameter_t formal = ivl_scope_class_base_param(scope, idx, &rhs, &by_name);
-	    char*text = rhs ? draw_lazy_expr_mode_(rhs, 1) : 0;
+	    char*text = rhs ? draw_lazy_expr_mode_(rhs, LAZY_DECLARATION) : 0;
 	    if (!rhs || text) {
 		  fprintf(vvp_out, " .class/param P_%p %d", formal, by_name);
 		  if (text)
@@ -816,7 +844,8 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 	    char**args = calloc(chain_argc, sizeof *args);
 	    for (idx = 0; idx < chain_argc; idx += 1) {
 		  ivl_expr_t arg = ivl_scope_class_chain_arg(scope, idx);
-		  args[idx] = arg ? draw_lazy_expr_mode_(arg, 1) : strdup("__ivl_vpi_null_op__");
+		  args[idx] = arg ? draw_lazy_expr_mode_(arg, LAZY_DECLARATION)
+				  : strdup("__ivl_vpi_null_op__");
 		  if (!args[idx]) {
 			fprintf(stderr, "vvp.tgt: cannot emit constructor chaining argument %u in %s\n",
 				idx + 1, ivl_scope_basename(scope));
@@ -1034,8 +1063,8 @@ static int expr_is_class_like_(ivl_expr_t expr)
             sig = expr_signal_base_(expr);
             if (sig)
                   net_type = ivl_signal_net_type(sig);
-            /* Function calls do not carry net_type in the target expression.
-             * Recover the declared return type for object-backed aggregates. */
+            /* Fall back to the return signal for object-backed aggregates
+             * without a resolved expression type. */
             else if (ivl_expr_type(expr) == IVL_EX_UFUNC) {
                   ivl_scope_t def = ivl_expr_def(expr);
                   sig = def ? ivl_scope_port(def, 0) : 0;
@@ -2105,18 +2134,22 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  if (( par = ivl_expr_parameter(expr) )) {
 			snprintf(buffer, sizeof buffer, "P_%p", par);
 		  } else {
+			args[idx].packed_type = note_packed_expr_vartype(
+			      ivl_expr_net_type(expr), ivl_expr_width(expr));
+			args[idx].packed_constant = args[idx].packed_type != 0;
 			unsigned bit, wid = ivl_expr_width(expr);
 			const char*bits = ivl_expr_bits(expr);
 			char*dp;
 
-			snprintf(buffer, sizeof buffer, "%u'%sb",
+			/* Leave room for every bit and the literal syntax. */
+			size_t length = (size_t)wid + 16;
+			args[idx].text = malloc(length);
+			dp = args[idx].text + snprintf(args[idx].text, length, "%u'%sb",
 			         wid, ivl_expr_signed(expr)? "s" : "");
-			dp = buffer + strlen(buffer);
 			for (bit = wid ;  bit > 0 ;  bit -= 1)
 			      *dp++ = bits[bit-1];
-			*dp++ = 0;
-			assert(dp >= buffer);
-			assert((unsigned)(dp - buffer) <= sizeof buffer);
+			*dp = 0;
+			continue;
 		  }
 		  args[idx].text = strdup(buffer);
 		  continue;
@@ -2250,6 +2283,9 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		int got = get_vpi_taskfunc_signal_arg(&args[idx], expr);
 		cpv_elem_live_sample_ = 0;
 		if (got) {
+		      if (ivl_expr_type(expr) == IVL_EX_SELECT && !args[idx].cpv_index)
+			    args[idx].packed_type = note_packed_expr_vartype(
+			          ivl_expr_net_type(expr), ivl_expr_width(expr));
 		      if (args[idx].vec_flag || args[idx].cpv_index)
 			    vec4_stack_need += 1;
 		      else
@@ -2326,6 +2362,10 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  args[idx].real_flag = 0;
 		  args[idx].stack = vec4_stack_need;
 		  args[idx].vec_wid = ivl_expr_width(expr);
+		  ivl_type_t type = ivl_expr_net_type(expr);
+		  if (!type && ivl_expr_type(expr) == IVL_EX_SIGNAL)
+			type = ivl_signal_net_type(ivl_expr_signal(expr));
+		  args[idx].packed_type = note_packed_expr_vartype(type, args[idx].vec_wid);
 		  vec4_stack_need += 1;
 		  buffer[0] = 0;
 		  break;
@@ -2462,7 +2502,14 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  unsigned pos = vec4_stack_need - args[idx].stack - 1;
 		  char sign_flag = args[idx].vec_flag;
 		  unsigned wid = args[idx].vec_wid;
-		  fprintf(vvp_out, ", S<%u,vec4,%c%u>",pos, sign_flag, wid);
+		  fprintf(vvp_out, ", S<%u,vec4,%c%u", pos, sign_flag, wid);
+		  if (args[idx].packed_type)
+			fprintf(vvp_out, ",PT_%p", args[idx].packed_type);
+		  fputc('>', vvp_out);
+	    } else if (args[idx].packed_type) {
+		  fprintf(vvp_out, ", %s<%s, PT_%p>",
+		          args[idx].packed_constant ? "&PC" : "&PS", args[idx].text,
+		          args[idx].packed_type);
 	    } else {
 		  fprintf(vvp_out, ", %s", args[idx].text);
 	    }

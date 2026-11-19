@@ -1419,6 +1419,10 @@ void NetNet::register_lref(NetAssign_*obj)
 
 void NetNet::unregister_lref(NetAssign_*obj)
 {
+      if (!lref_objs_.empty() && lref_objs_.back() == obj) {
+	    lref_objs_.pop_back();
+	    return;
+      }
       for (std::vector<NetAssign_*>::iterator cur = lref_objs_.begin()
 		 ; cur != lref_objs_.end() ; ++cur) {
 	    if (*cur == obj) {
@@ -1456,12 +1460,21 @@ bool NetNet::test_part_procedurally_driven(unsigned msb, unsigned lsb,
 	    if (!lv) continue;
 	    if (lv->is_force_lval()) continue;
 
-	      // An unpacked word index we cannot evaluate: assume it
-	      // could be the word being asked about.
+	      // A run-time index following a static prefix can only
+	      // claim words in that prefix.
+	    if (lv->has_array_word_prefix()) {
+		  unsigned first = lv->array_word_first();
+		  if (widx >= 0 && (unsigned)widx >= first
+		      && (unsigned)widx - first < lv->array_word_count())
+			return true;
+		  continue;
+	    }
 	    if (const NetExpr*w = lv->word()) {
 		  const NetEConst*wc = dynamic_cast<const NetEConst*>(w);
-		  if (!wc || !wc->value().is_defined())
+		  if (!wc)
 			return true;
+		  if (!wc->value().is_defined())
+			continue;
 
 		  long first_word = wc->value().as_long();
 		  if (lv->is_array_slice()) {

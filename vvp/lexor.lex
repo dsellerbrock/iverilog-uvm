@@ -282,6 +282,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".part/pv"      { return K_PART_PV; }
 ".packed_dims"  { return K_PACKED_DIMS; }
 ".vartype"  { return K_VARTYPE; }
+".vartype/packed" { return K_PACKED_VARTYPE; }
 ".part/v"       { return K_PART_V; }
 ".part/v.s"     { return K_PART_V_S; }
 ".port"         { return K_PORT; }
@@ -313,6 +314,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 .iodecl         { return K_IODECL; }
 ".stmt_node"    { return K_STMT_NODE; }
 ".stmt_at"      { return K_STMT_AT; }
+".vpi_3041_condition" { return K_VPI_3041_CONDITION; }
 ".sfunc"        { return K_SFUNC; }
 ".sfunc/e"      { return K_SFUNC_E; }
 ".shift/l"      { return K_SHIFTL; }
@@ -375,6 +377,8 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 "&APV" { return K_APV; }
 "&CPS" { return K_CPS; }
 "&CPV" { return K_CPV; }
+"&PS" { return K_PS; }
+"&PC" { return K_PC; }
 "&PE" { return K_PE; }
 "&PV" { return K_PV; }
 
@@ -423,7 +427,8 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
       assert(yylval.text);
       return T_SYMBOL; }
 
-"S<"[0-9]*",vec4,"[us][0-9]+">" {
+"S<"[0-9]*",vec4,"[us][0-9]+">" |
+"S<"[0-9]+",vec4,"[us][0-9]+","[.$_a-zA-Z][.$_a-zA-Z0-9/]*">" {
       yylval.text = strdup(yytext);
       assert(yylval.text);
       return T_SYMBOL; }

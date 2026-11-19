@@ -61,6 +61,8 @@ class resolv_core;
 class __vpiScope;
 typedef vvp_sub_pointer_t<vvp_island_branch> vvp_branch_ptr_t;
 
+enum class island_channel { visible, charge };
+
 struct evcd_island_source {
       const __vpiScope*scope = nullptr;
       unsigned base = 0;
@@ -100,7 +102,7 @@ class vvp_island  : private vvp_gen_event_s {
 	// This is the method that is called, eventually, to process
 	// whatever happened. The derived island class implements this
 	// method to give the island its character.
-      virtual void run_island() =0;
+      virtual void run_island(vvp_net_t*released = nullptr) =0;
 
         // Support for $countdrivers.
       virtual void count_drivers(vvp_island_port*port, unsigned bit_idx,
@@ -135,7 +137,12 @@ class vvp_island  : private vvp_gen_event_s {
 	// The branch list, for SDF INTERCONNECT lookup at run time.
       vvp_island_branch* branches() const { return branches_; }
 
+      void add_charge_port(vvp_island_port*port);
+      bool has_charge_feedback() const { return !charge_ports_.empty(); }
+
     protected:
+      std::vector<vvp_island_port*> charge_ports_;
+
 	// True once ITERATIONS zero-time settle passes at one simulation
 	// time exceed the limit: the island then reports the oscillation
 	// once (naming its switches), finishes the simulation, and the
@@ -196,17 +203,29 @@ class vvp_island_port  : public vvp_net_fun_t {
       vvp_vector8_t invalue;
       vvp_vector8_t outvalue;
       vvp_vector8_t value;
+      vvp_vector8_t charge_value;
       evcd_island_endpoint* evcd = nullptr;
+
+      bool attach_charge_feedback(vvp_net_ptr_t feedback);
+      bool send_charge_feedback();
+      vvp_vector8_t& resolution_value(island_channel channel)
+      { return channel == island_channel::charge ? charge_value : value; }
 
     public: // SDF INTERCONNECT on an isolated inout port (IEEE 1800
 	    // 32.4.4): delayed drivers from the other side of a branch,
 	    // keyed by that branch.
       vvp_island* island() const { return island_; }
-      void set_injection(const void*from, const vvp_vector8_t&val);
-      std::vector<std::pair<const void*,vvp_vector8_t> > injections;
+      void set_injection(island_channel channel, const void*from,
+			 const vvp_vector8_t&val);
+      using injection_list = std::vector<std::pair<const void*,vvp_vector8_t> >;
+      const injection_list& injections(island_channel channel) const
+      { return injections_[static_cast<unsigned>(channel)]; }
 
     private:
       vvp_island*island_;
+      vvp_net_ptr_t charge_feedback_;
+      vvp_vector8_t charge_sent_;
+      injection_list injections_[2];
 
     public: // Support for $countdrivers.
       inline void count_drivers(unsigned bit_idx, unsigned counts[3])
@@ -219,27 +238,32 @@ class vvp_island_port  : public vvp_net_fun_t {
       vvp_island_port& operator = (const vvp_island_port&);
 };
 
-inline vvp_vector8_t island_get_value(vvp_net_t*net)
+inline vvp_vector8_t island_filter_value(vvp_net_t*net, const vvp_vector8_t&raw)
 {
-      const vvp_island_port*fun = dynamic_cast<vvp_island_port*>(net->fun);
       const vvp_wire_vec8*fil = dynamic_cast<vvp_wire_vec8*>(net->fil);
 
       if (fil == 0) {
-	    return fun->invalue;
+	    return raw;
       } else {
 	      // This is painful, but necessary. If the island is
 	      // connected to a forced net, then run the input through
 	      // the force filter first. The island must used the
 	      // forced value for its deliberations.
 	    vvp_vector8_t rep;
-	    switch (fil->filter_input_vec8(fun->invalue, rep)) {
+	    switch (fil->filter_input_vec8(raw, rep)) {
 		default:
 		case vvp_net_fil_t::PROP:
-		  return fun->invalue;
+		  return raw;
 		case vvp_net_fil_t::REPL:
 		  return rep;
 	    }
       }
+}
+
+inline vvp_vector8_t island_get_value(vvp_net_t*net)
+{
+      const auto*fun = static_cast<const vvp_island_port*>(net->fun);
+      return island_filter_value(net, fun->invalue);
 }
 
 inline vvp_vector8_t island_get_sent_value(vvp_net_t*net)
@@ -248,11 +272,13 @@ inline vvp_vector8_t island_get_sent_value(vvp_net_t*net)
       return fun->outvalue;
 }
 
-extern void island_send_value(vvp_net_t*net, const vvp_vector8_t&val);
+extern void island_send_value(vvp_net_t*net, const vvp_vector8_t&val,
+			      bool republish);
 
 /* The port's input resolved with its injected drivers, leaving out the
    ones injected by the branch EXCLUDE. */
-extern vvp_vector8_t island_get_input(vvp_net_t*net, const void*exclude = 0);
+extern vvp_vector8_t island_get_input(vvp_net_t*net, island_channel channel,
+				      const void*exclude = nullptr);
 
 class vvp_fun_intermodpath;
 /* Make the tran branch whose inner end is INNER_PORT carry delayed

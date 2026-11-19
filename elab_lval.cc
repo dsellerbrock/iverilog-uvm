@@ -23,6 +23,7 @@
 # include  <cstdlib>
 # include  <sstream>
 # include  <cstring>
+# include  <memory>
 
 # include  "PExpr.h"
 # include  "PPackage.h"
@@ -1931,6 +1932,59 @@ NetAssign_*PEIdent::elaborate_lval_var_(Design *des, NetScope *scope,
       return lv;
 }
 
+/* A run-time select can only reach the words under its longest static
+ * unpacked prefix (IEEE 1800 11.5.3). Capture that range before folding
+ * the index tuple into a single canonical word expression. */
+static bool get_unpacked_word_prefix_(const NetNet*signal,
+				     const list<NetExpr*>&indices,
+				     unsigned&first, unsigned&count)
+{
+      const netsarray_t*type = dynamic_cast<const netsarray_t*>(signal->array_type());
+      if (!type)
+	    return false;
+      const netranges_t&dims = type->static_dimensions();
+      list<long>prefix;
+      for (const NetExpr*index : indices) {
+	    const NetEConst*constant = dynamic_cast<const NetEConst*>(index);
+	    if (!constant)
+		  break;
+	    const netrange_t&dim = dims[prefix.size()];
+	    if (!dim.defined() || !constant->value().is_defined())
+		  return false;
+	    bool negative;
+	    uint64_t magnitude = verinum_signed_magnitude(constant->value(), negative);
+	    if (magnitude > uint64_t(LONG_MAX) + negative) {
+		  first = count = 0;
+		  return true;
+	    }
+	    long value = negative ? -static_cast<long>(magnitude - 1) - 1
+				  : static_cast<long>(magnitude);
+	    if (value < min(dim.get_msb(), dim.get_lsb())
+		|| value > max(dim.get_msb(), dim.get_lsb())) {
+		  first = count = 0;
+		  return true;
+	    }
+	    prefix.push_back(value);
+      }
+      if (prefix.size() == indices.size())
+	    return false;
+
+      long base = 0;
+      if (!prefix.empty()) {
+	    unique_ptr<NetExpr>normalized(normalize_variable_unpacked(type, prefix));
+	    if (!normalized || !eval_as_long(base, normalized.get()) || base < 0)
+		  return false;
+      }
+      const netranges_t remaining(dims.begin() + prefix.size(), dims.end());
+      unsigned long words = netrange_width(remaining);
+      if (static_cast<unsigned long>(base) > signal->pin_count()
+	  || words > signal->pin_count() - static_cast<unsigned long>(base))
+	    return false;
+      first = base;
+      count = words;
+      return true;
+}
+
 NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 					  bool is_force, NetNet *reg,
 					  bool*runtime_indexed_slice) const
@@ -2031,8 +2085,16 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 	    // The checked canonicalizer retains X/Z as an invalid word address,
 	    // so the ordinary l-value store performs no operation while its RHS
 	    // still evaluates.
+	    list<NetExpr*>indices;
+	    list<long>constant_indices;
+	    indices_flags flags;
+	    indices_to_expressions(des, scope, this, name_tail.index, nidx,
+				   false, flags, indices, constant_indices);
+	    unsigned first = 0, count = 0;
+	    bool have_prefix = !flags.invalid && !flags.undefined && flags.variable
+		  && get_unpacked_word_prefix_(reg, indices, first, count);
 	    NetExpr*base = make_checked_canonical_property_index(
-		  des, scope, this, name_tail.index, &prefix_type, false);
+		  des, this, indices, flags, &prefix_type);
 	    if (!base) return 0;
 	    unsigned long row_words = netrange_width(sub_dims);
 	    base = scale_index_to_bits(base, row_words, *this);
@@ -2068,6 +2130,8 @@ NetAssign_*PEIdent::elaborate_lval_array_(Design *des, NetScope *scope,
 
 	    NetAssign_*lv = new NetAssign_(reg);
 	    lv->set_array_slice(base, slice_type);
+	    if (have_prefix)
+		  lv->set_array_word_prefix(first, count);
 	    return lv;
       }
 
@@ -2193,76 +2257,10 @@ NetAssign_* PEIdent::elaborate_lval_net_word_(Design*des,
 		   name_tail.index, reg->unpacked_dimensions(), false,
 		   flags, unpacked_indices, unpacked_indices_const);
 
-	      if (!flags.invalid && !flags.undefined) {
-		    const netsarray_t*fixed_array_type =
-			  dynamic_cast<const netsarray_t*>(reg->array_type());
-		    if (fixed_array_type) {
-			  const netranges_t&dims = fixed_array_type->static_dimensions();
-			  list<long>prefix_indices;
-			  size_t prefix_dims = 0;
-			  bool empty_prefix = false;
-			  bool prefix_supported = true;
-			  list<NetExpr*>::const_iterator index = unpacked_indices.begin();
-			  for (size_t dim = 0; dim < dims.size(); ++dim) {
-				if (index == unpacked_indices.end()) {
-				      prefix_supported = false;
-				      break;
-				}
-				const NetEConst*constant =
-				      dynamic_cast<const NetEConst*>(*index++);
-				if (!constant) break;
-				if (!constant->value().is_defined()) {
-				      empty_prefix = true;
-				      break;
-				}
-				if (!dims[dim].defined()
-				    || constant->value().len() > sizeof(long)*8) {
-				      prefix_supported = false;
-				      break;
-				}
-				long value = constant->value().as_long();
-				if (value < min(dims[dim].get_msb(), dims[dim].get_lsb())
-				    || value > max(dims[dim].get_msb(), dims[dim].get_lsb())) {
-				      empty_prefix = true;
-				      break;
-				}
-				prefix_indices.push_back(value);
-				prefix_dims += 1;
-			  }
-
-			  if (prefix_dims < dims.size()) {
-				if (empty_prefix) {
-				      have_array_word_prefix = true;
-				} else if (prefix_supported) {
-				      unsigned long first_word = 0;
-				      bool base_ok = true;
-				      if (prefix_dims) {
-					    NetExpr*base = normalize_variable_unpacked(
-						  fixed_array_type, prefix_indices);
-					    if (base) eval_expr(base);
-					    long value = 0;
-					    base_ok = base && eval_as_long(value, base)
-						  && value >= 0;
-					    if (base_ok)
-						  first_word = static_cast<unsigned long>(value);
-					    delete base;
-				      }
-				      netranges_t remaining_dims(
-					    dims.begin()+prefix_dims, dims.end());
-				      unsigned long word_count =
-					    netrange_width(remaining_dims);
-				      if (base_ok && first_word <= reg->pin_count()
-					  && word_count <= reg->pin_count()-first_word) {
-					    have_array_word_prefix = true;
-					    array_word_prefix_first =
-						  static_cast<unsigned>(first_word);
-					    array_word_prefix_count =
-						  static_cast<unsigned>(word_count);
-				      }
-			}
-		  }
-	    }
-	      }
+	    if (!flags.invalid && !flags.undefined && flags.variable)
+		  have_array_word_prefix = get_unpacked_word_prefix_(
+			reg, unpacked_indices, array_word_prefix_first,
+			array_word_prefix_count);
 
             // Checked canonicalization consumes the expressions. Preserve
             // their spelling for later scalar-select diagnostics.

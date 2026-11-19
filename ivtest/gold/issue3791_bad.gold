@@ -1,0 +1,8 @@
+./ivltests/issue3791_bad.sv:13: error: Variable 'overlap' cannot have multiple continuous drivers.
+./ivltests/issue3791_bad.sv:16: error: Variable 'shared' cannot have multiple continuous drivers.
+./ivltests/issue3791_bad.sv:19: error: Variable array output actual cannot have multiple continuous drivers.
+./ivltests/issue3791_bad.sv:30: error: Variable 'early_assign' cannot have multiple continuous drivers.
+./ivltests/issue3791_bad.sv:34: error: Variable 'late_assign' cannot have multiple continuous drivers.
+./ivltests/issue3791_bad.sv:22: error: Variable 'late_proc' cannot have continuous and procedural drivers on the same bits.
+./ivltests/issue3791_bad.sv:26: error: Variable 'initialized' cannot have continuous and procedural drivers on the same bits.
+7 error(s) during elaboration.

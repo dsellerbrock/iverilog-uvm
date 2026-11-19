@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3477_if_matches_expression.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3477_if_matches_expression"],
+  "gold": "issue3477_if_matches_expression"
+}

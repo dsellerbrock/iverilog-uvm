@@ -398,7 +398,10 @@ class vvp_fun_intermodpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       };
 
     public:
-      vvp_fun_intermodpath(vvp_net_t*net, unsigned width);
+	// An island's charge channel uses the same edge delays as the
+	// annotated path, with its own history and pending transitions.
+      vvp_fun_intermodpath(vvp_net_t*net, unsigned width,
+			   const vvp_fun_intermodpath*timing = nullptr);
       ~vvp_fun_intermodpath() override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
@@ -419,6 +422,7 @@ class vvp_fun_intermodpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 
     private:
       vvp_net_t*net_;
+      const vvp_fun_intermodpath* timing_;
 
       vvp_vector4_t cur_vec4_;
 

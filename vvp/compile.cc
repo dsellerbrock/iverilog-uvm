@@ -1422,6 +1422,43 @@ struct vpi_handle_resolv_list_s: public resolv_list_s {
 
 double crstring_to_double(const char*label);
 
+static bool resolve_packed_typespec_(const char*label, unsigned width,
+                                    bool message_flag, vpiHandle&spec)
+{
+      vpiHandle type = vvp_lookup_handle(label);
+      if (!type && !message_flag) return false;
+      if (type && type->get_type_code() == vpiStructTypespec
+          && type->vpi_get(vpiPacked) == 1 && width
+          && width <= INT_MAX && type->vpi_get(vpiSize) == static_cast<int>(width)) {
+	    spec = type;
+      } else {
+	    fprintf(stderr, "vvp: invalid packed typespec reference %s for width %u\n",
+	            label, width);
+	    compile_errors += 1;
+      }
+      return true;
+}
+
+class packed_typespec_ref_t : public resolv_list_s {
+    public:
+      packed_typespec_ref_t(vpiHandle*slot, char*label, unsigned width)
+      : resolv_list_s(label), slot_(slot), width_(width) { }
+
+      bool resolve(bool message_flag) override
+      {
+	    return resolve_packed_typespec_(label(), width_, message_flag, *slot_);
+      }
+
+    private:
+      vpiHandle*slot_;
+      unsigned width_;
+};
+
+void compile_packed_typespec_ref(vpiHandle*slot, char*label, unsigned width)
+{
+      resolv_submit(new packed_typespec_ref_t(slot, label, width));
+}
+
 bool vpi_handle_resolv_list_s::resolve(bool mes)
 {
       symbol_value_t val = sym_get_value(sym_vpi, label());
@@ -1436,10 +1473,43 @@ bool vpi_handle_resolv_list_s::resolve(bool mes)
       }
       if (!val.ptr) {
 	    // check for thread access symbols
-	    unsigned base, wid;
+	    unsigned base;
 	    size_t n = 0;
 	    char ss[32];
-	    if (2 == sscanf(label(), "W<%u,%[r]>%zn", &base, ss, &n)
+	    const char*vec4 = nullptr;
+	    if (strncmp(label(), "S<", 2) == 0
+		&& (vec4 = strchr(label() + 2, ','))
+		&& strncmp(vec4, ",vec4,", 6) == 0) {
+		  // S<depth,vec4,signwidth> can also carry a trailing typespec label.
+		  char*end;
+		  unsigned long long depth = strtoull(label() + 2, &end, 10);
+		  bool valid_depth = end == vec4 && end != label() + 2 && depth <= UINT_MAX;
+		  char sign = vec4[6];
+		  const char*width_start = sign ? vec4 + 7 : vec4 + 6;
+		  unsigned long long width = strtoull(width_start, &end, 10);
+		  bool typed = *end == ',';
+		  size_t suffix_len = strlen(end);
+		  bool valid_suffix = typed
+			? suffix_len >= 3 && end[suffix_len - 1] == '>' &&
+			  width && width <= INT_MAX
+			: strcmp(end, ">") == 0 && width <= UINT_MAX;
+		  vpiHandle spec = nullptr;
+		  if (!valid_depth || (sign != 's' && sign != 'u') ||
+		      end == width_start || !valid_suffix) {
+			fprintf(stderr, "vvp: invalid vector stack argument %s\n", label());
+			compile_errors += 1;
+			val.ptr = vpip_make_null_const();
+		  } else {
+			if (typed) {
+			      std::string type_label(end + 1, suffix_len - 2);
+			      if (!resolve_packed_typespec_(type_label.c_str(), width, mes, spec))
+				    return false;
+			}
+			val.ptr = vpip_make_vthr_vec4_stack(depth, sign == 's', width, spec);
+		  }
+		  sym_set_value(sym_vpi, label(), val);
+
+	    } else if (2 == sscanf(label(), "W<%u,%[r]>%zn", &base, ss, &n)
 		       && n == strlen(label())) {
 
 		  val.ptr = vpip_make_vthr_word(base, ss);
@@ -1462,23 +1532,6 @@ bool vpi_handle_resolv_list_s::resolve(bool mes)
 		       && n == strlen(label())) {
 
 		  val.ptr = vpip_make_vthr_obj_stack(base, strdup(ss));
-		  sym_set_value(sym_vpi, label(), val);
-
-	    } else if (3 == sscanf(label(), "S<%u,vec4,%[su]%u>%zn", &base, ss, &wid, &n)
-		       && n == strlen(label())) {
-
-		  bool signed_flag = false;
-		  for (char*fp = ss ;  *fp ;  fp += 1) switch (*fp) {
-		      case 's':
-			signed_flag = true;
-			break;
-		      case 'u':
-			signed_flag = false;
-			break;
-		      default:
-			break;
-		  }
-		  val.ptr = vpip_make_vthr_vec4_stack(base, signed_flag, wid);
 		  sym_set_value(sym_vpi, label(), val);
 	    }
 
@@ -3159,6 +3212,28 @@ void compile_shift(char*label, uint64_t wid, bool right, bool sign_fill,
       make_arith(arith, label, argc, argv);
 }
 
+struct trireg_feedback_resolv_s : public resolv_list_s {
+      trireg_feedback_resolv_s(char*label, vvp_net_t*trireg)
+      : resolv_list_s(label), trireg_(trireg) { }
+
+      bool resolve(bool mes) override
+      {
+	    vvp_net_t*net = lookup_functor_symbol(label());
+	    if (!net && !mes)
+		  return false;
+
+	    auto*port = net ? dynamic_cast<vvp_island_port*>(net->fun) : nullptr;
+	    if (!port || !port->attach_charge_feedback(vvp_net_ptr_t(trireg_, 1))) {
+		  fprintf(stderr, "vvp: invalid .trireg island feedback port: %s\n", label());
+		  compile_errors += 1;
+	    }
+	    return true;
+      }
+
+    private:
+      vvp_net_t*trireg_;
+};
+
 void compile_trireg(char*label, unsigned wid, unsigned charge, unsigned mode,
 		    vvp_time64_t decay, unsigned argc, struct symb_s*argv)
 {
@@ -3182,7 +3257,7 @@ void compile_trireg(char*label, unsigned wid, unsigned charge, unsigned mode,
       if (mode & 2)
 	    input_connect(net, 2, argv[arg++].text);
       if (mode & 4)
-	    input_connect(net, 1, argv[arg++].text);
+	    resolv_submit(new trireg_feedback_resolv_s(argv[arg++].text, net));
 
       free(label);
       free(argv);

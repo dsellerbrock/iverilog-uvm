@@ -566,6 +566,8 @@ extern void compile_packed_dims(char*label, char*layout);
 extern bool vvp_parse_assoc_index_suffix(const char*type, unsigned&width,
 					bool&is_signed, size_t&base_length);
 extern void compile_vartype(char*label, char*text);
+extern void compile_packed_vartype(char*label, char*text);
+extern void compile_packed_typespec_ref(vpiHandle*slot, char*label, unsigned width);
 extern void compile_property_vartype(char*label, uint64_t idx, char*text);
 extern void compile_type_param(char*label, const char*name, char*type,
                                bool local_flag, long file_idx, long lineno);
@@ -688,6 +690,7 @@ extern void compile_vpi_import(char*package, char*name);
 extern void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type,
                               char*name);
 extern void compile_stmt_at(uint64_t id);
+extern void compile_vpi_3041_condition(uint64_t id, char*symbol, vpiHandle expr);
 
 /*
  * The parser uses this function to declare a thread. The start_sym is

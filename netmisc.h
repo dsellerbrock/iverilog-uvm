@@ -380,6 +380,9 @@ extern NetExpr*cast_to_real(NetExpr*expr);
  */
 extern NetExpr*condition_reduce(NetExpr*expr);
 
+// Static type of an elaborated pattern subject, including untyped IR values.
+extern ivl_type_t pattern_subject_type(const NetExpr&value);
+
 /*
  * This function transforms an expression by cropping the high bits
  * off with a part select. The result has the width w passed in. This
@@ -965,6 +968,16 @@ extern void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 extern bool check_unresolved_net_driver(Design*des, const LineInfo&loc,
 				       NetNet*sig, unsigned msb, unsigned lsb,
 				       unsigned long word, bool repeated = false);
+
+extern bool retains_variable_array_storage(const NetNet*signal);
+extern bool reserve_variable_array_driver(Design*des, const LineInfo&loc,
+					  NetNet*signal, unsigned msb, unsigned lsb,
+					  std::vector<unsigned> words,
+					  bool repeated = false);
+extern NetNet* make_variable_array_driver_bridge(Design*des, NetScope*scope,
+						 const LineInfo&loc, NetNet*signal,
+						 const netranges_t&dims, ivl_type_t type,
+						 unsigned first_word, unsigned lsb);
 
 extern NetPartSelect* detect_partselect_lval(Link&pin);
 
