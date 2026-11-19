@@ -32793,9 +32793,14 @@ NetProc* PRepeat::elaborate(Design*des, NetScope*scope) const
       int small_count = -1;
       if (const NetEConst*ce = dynamic_cast<NetEConst*>(expr)) {
 	    const verinum&value = ce->value();
-	    if (!value.is_defined() || value.is_zero() || value.is_negative())
+	    // Keep the existing truncation diagnostic. Confirm zero and one
+	    // at full width before using either as a loop count.
+	    const long native_count = value.as_long();
+	    if (native_count < 0 ||
+		(native_count == 0 && (!value.is_defined() || value.is_zero())))
 		  small_count = 0;
-	    else if ((value == verinum(verinum::V1)) == verinum::V1)
+	    else if (native_count == 1 &&
+		     (value == verinum(verinum::V1)) == verinum::V1)
 		  small_count = 1;
       }
 
