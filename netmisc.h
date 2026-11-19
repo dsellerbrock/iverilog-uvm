@@ -179,6 +179,8 @@ extern void check_package_unit_subroutine_call(Design*des, const LineInfo&loc,
 					       const NetScope*caller,
 					       const NetScope*callee,
 					       bool&reported);
+extern void check_package_unit_let(Design*des, const LineInfo&loc,
+				   const NetScope*use_scope, const PLet*decl);
 
 /*
  * Canonical description of a whole one-dimensional fixed unpacked array or

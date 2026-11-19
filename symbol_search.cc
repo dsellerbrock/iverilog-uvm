@@ -152,6 +152,25 @@ void check_package_unit_subroutine_call(Design*des, const LineInfo&loc,
 	    des->errors += 1;
 }
 
+void check_package_unit_let(Design*des, const LineInfo&loc,
+			    const NetScope*use_scope, const PLet*decl)
+{
+      const PPackage*parent = dynamic_cast<const PPackage*>(decl->parent_scope());
+      if (!parent || parent->parent_scope())
+	    return;
+
+      perm_string package = enclosing_package_name_(use_scope);
+      if (package.nil())
+	    return;
+
+      cerr << loc.get_fileline()
+	   << (gn_commercial_unsafe_flag ? ": warning: " : ": error: ")
+	   << "Package `" << package << "' refers to compilation-unit let `"
+	   << decl->pscope_name() << "' (IEEE 1800-2017/2023 26.2)." << endl;
+      if (!gn_commercial_unsafe_flag)
+	    des->errors += 1;
+}
+
 /* find_typedef() and find_class() intentionally search out through lexical
  * parents.  That is useful for a type-name query, but it is too broad for the
  * per-scope fallback below: while resolving the first component of `a.m', a

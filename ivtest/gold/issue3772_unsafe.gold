@@ -1,0 +1,8 @@
+ivltests/issue3772_lets.v:24: warning: Package `template_pkg' refers to compilation-unit value `word' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3772_lets.v:26: warning: Package `template_pkg' calls compilation-unit subroutine `unit_function' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3772_lets.v:29: warning: Package `template_pkg' refers to compilation-unit let `L' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3772_lets.v:28: warning: Package `template_pkg' refers to compilation-unit value `word' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3772_lets.v:25: warning: Package `template_pkg' refers to compilation-unit value `word' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3772_lets.v:32: warning: Package `template_pkg' refers to compilation-unit let `bare_unit' (IEEE 1800-2017/2023 26.2).
+ivltests/issue3772_lets.v:32: warning: Package `template_pkg' refers to compilation-unit let `L' (IEEE 1800-2017/2023 26.2).
+PASSED

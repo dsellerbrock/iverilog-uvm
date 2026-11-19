@@ -1,0 +1,1 @@
+{"type": "normal", "source": "issue3772_unsafe_2023.v", "iverilog-args": ["-g2023", "-Iivltests", "-s", "test", "-gcommercial-unsafe"], "gold": "issue3772_unsafe"}

@@ -336,6 +336,7 @@ class PLet : public PTaskFunc {
       const std::list<let_port_t*>* let_ports() const { return ports_; }
       PExpr* let_expr() const { return expr_; }
       unsigned lexical_pos() const { return lexical_pos_; }
+      void check_package_unit_references(Design*des, NetScope*scope) const;
 
     private:
       std::list<let_port_t*>*ports_;

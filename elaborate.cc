@@ -34319,6 +34319,10 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
 {
       bool result_flag = true;
 
+      if (!scope->is_unit())
+	    for (const auto&entry : lets)
+		  entry.second->check_package_unit_references(des, scope);
+
 	// Elaborate class definitions before package functions/tasks. A
 	// standalone covergroup is represented by a synthesized class, and
 	// its coverpoint metadata is built by netclass_t::elaborate(). Task
