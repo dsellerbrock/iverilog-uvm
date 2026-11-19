@@ -7210,3 +7210,7 @@ issue3770_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivlte
 issue3770_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
 issue3770_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3770_ce-iverilog-stderr.gold
 issue3770_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3770_unsafe.gold
+issue3788_2017 normal,-g2017,-s,issue3788 ivltests gold=issue3788.gold
+issue3788_2023 normal,-g2023,-s,issue3788 ivltests gold=issue3788.gold
+issue3788_bad_2017 CE,-g2017,-s,issue3788_bad ivltests gold=issue3788_bad.gold
+issue3788_bad_2023 CE,-g2023,-s,issue3788_bad ivltests gold=issue3788_bad.gold

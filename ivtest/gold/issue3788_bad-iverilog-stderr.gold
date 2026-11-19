@@ -1,0 +1,5 @@
+ivltests/issue3788_bad.sv:7: error: Arrayed input port 'p' has incompatible unpacked-array dimensions.
+ivltests/issue3788_bad.sv:8: error: unpacked-array slice [8:7] is outside declared range [7:4].
+ivltests/issue3788_bad.sv:9: error: unpacked-array slice [6:7] has the opposite direction from declared range [7:4].
+ivltests/issue3788_bad.sv:10: error: unpacked-array slice bounds must be constant integral expressions.
+4 error(s) during elaboration.

@@ -1035,6 +1035,18 @@ static NetExpr* runtime_fixed_uarray_slice_base_(NetExpr*base, long origin,
       return canonical;
 }
 
+static bool constant_uarray_slice_bound_(const NetExpr*expr, long&bound)
+{
+      const NetEConst*constant = dynamic_cast<const NetEConst*>(expr);
+      int64_t value = 0;
+      if (!constant || !constant->value().is_defined()
+	  || !constant_index_value_(constant->value(), value)
+	  || value < LONG_MIN || value > LONG_MAX)
+	    return false;
+      bound = static_cast<long>(value);
+      return true;
+}
+
 static int decode_fixed_uarray_slice_select_(
 			      Design*des, NetScope*scope,
 			      const LineInfo&loc,
@@ -1063,9 +1075,8 @@ static int decode_fixed_uarray_slice_select_(
 					   -1, false);
 	    NetExpr*right_expr = elab_and_eval(des, scope, select.lsb,
 					    -1, false);
-	    bool ok = left_expr && right_expr
-		  && eval_as_long(left, left_expr)
-		  && eval_as_long(right, right_expr);
+	    bool ok = constant_uarray_slice_bound_(left_expr, left)
+		  && constant_uarray_slice_bound_(right_expr, right);
 	    delete left_expr;
 	    delete right_expr;
 	    if (!ok) {
@@ -1136,18 +1147,15 @@ static int decode_fixed_uarray_slice_select_(
 			out.whole = false;
 			return 1;
 		  }
-		  int64_t value = 0;
-		  if (!constant_index_value_(bc->value(), value)
-		      || value < LONG_MIN || value > LONG_MAX) {
+		  if (!constant_uarray_slice_bound_(bc, base)) {
 			delete base_expr;
 			report("error: indexed unpacked-array slice bounds overflow.");
 			return -1;
 		  }
-		  base = static_cast<long>(value);
 	    }
 
 	    bool base_ok = allow_runtime_base
-		  || (base_expr && eval_as_long(base, base_expr));
+		  || constant_uarray_slice_bound_(base_expr, base);
 	    delete base_expr;
 	    if (!base_ok) {
 		  report("sorry: a run-time indexed unpacked-array slice is not "
