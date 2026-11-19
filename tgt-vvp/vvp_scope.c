@@ -666,7 +666,8 @@ static void emit_unpacked_dims_(ivl_signal_t sig)
 
 /*
  * .vartype <signal>, "<type>"; gives VPI (vpiTypespec) the enum or packed
- * struct/union type of a signal. .vartype <class>, <index>, "<type>";
+ * struct/union type of a signal or the element type of an array.
+ * .vartype <class>, <index>, "<type>";
  * describes a packed-struct property (the element type for a fixed array).
  * The type string is
  *    type   ::= E<width>:<enum label> | S{member,...} | U{member,...}
@@ -721,7 +722,13 @@ void note_signal_vartype(ivl_signal_t sig, const char*suffix)
           (ivl_signal_data_type(sig) == IVL_VT_DARRAY ||
            ivl_signal_data_type(sig) == IVL_VT_QUEUE)) {
 	    type = ivl_type_element(type);
-	    if (!type || !ivl_type_enum(type)) return;
+	    if (!type) return;
+	    if (!ivl_type_enum(type)) {
+		  ivl_variable_type_t base = ivl_type_base(type);
+		  if ((base != IVL_VT_LOGIC && base != IVL_VT_BOOL) ||
+		      ivl_type_properties(type) == 0 || ivl_type_is_union(type))
+			return;
+	    }
       }
       if (type && ivl_signal_dimensions(sig) == 0 &&
           ivl_signal_packed_dimensions(sig) > 1 &&
@@ -2886,6 +2893,8 @@ static void draw_lpm_shiftl(ivl_lpm_t net)
       else
 	    fprintf(vvp_out, "L_%p%s .shift/l %u", net, dly, width);
 
+      if (ivl_lpm_shift_signed_xz(net))
+	    fprintf(vvp_out, ", %u", ivl_lpm_shift_coalesce(net) ? 3u : 1u);
       fprintf(vvp_out, ", %s, %s;\n", lval, rval);
 }
 
@@ -3941,6 +3950,14 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    if (decl == net) {
 		  fprintf(vvp_out, "D_%p .class/defn %d;\n", decl,
 			  ivl_scope_class_virtual(net));
+		  unsigned constraints = ivl_scope_class_constraints(net);
+		  for (unsigned i = 0; i < constraints; i += 1) {
+			int is_static, is_pure, is_external;
+			const char*name = ivl_scope_class_constraint(
+			      net, i, &is_static, &is_pure, &is_external);
+			fprintf(vvp_out, " .class/constraint \"%s\" %d %d %d;\n",
+				vvp_mangle_name(name), is_static, is_pure, is_external);
+		  }
 		  const char*name = ivl_scope_class_base_name(net);
 		  if (name) {
 			ivl_scope_t base = ivl_scope_class_base_declaration(net);

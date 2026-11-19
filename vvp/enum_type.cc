@@ -621,8 +621,9 @@ class vartype_resolv_t : public resolv_list_s {
 	    if ((!sig && !array && !darray) || !spec || *cp ||
 	        !(signal_width_matches || packed_aggregate_width_matches ||
 	          (array && width == static_cast<unsigned>(array->get_word_size())) ||
-	          (darray && spec->get_type_code() == vpiEnumTypespec &&
-	           width == darray->declared_element_width))) {
+	          (darray && width == darray->declared_element_width &&
+	           (spec->get_type_code() == vpiEnumTypespec ||
+	            spec->get_type_code() == vpiStructTypespec)))) {
 		  yyerror("invalid .vartype metadata");
 		  compile_errors += 1;
 		  return true;

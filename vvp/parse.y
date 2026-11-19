@@ -136,10 +136,11 @@ static bool is_force_release_opcode(const char* name)
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
 %token K_CLASS_DEFN K_CLASS_TYPESPEC K_CLASS_RUNTIME
+%token K_CLASS_CONSTRAINT
 %token K_CLASS_EXTENDS K_CLASS_BASE K_CLASS_CTOR K_CLASS_PARAM
 %token K_IODECL
 %token K_SUBSTITUTE K_SUBSTITUTE_V
-%token K_THREAD K_TIMESCALE K_TRAN K_TRANIF0 K_TRANIF1 K_TRANVP
+%token K_THREAD K_TIMESCALE K_TRAN K_TRAN_PHYSICAL K_TRANIF0 K_TRANIF1 K_TRANVP
 %token K_UFUNC_REAL K_UFUNC_VEC4 K_UFUNC_E
 %token K_UFUNC_RESOLV_REAL K_UFUNC_RESOLV_VEC2 K_UFUNC_RESOLV_VEC4
 %token K_UDP K_UDP_C K_UDP_S K_UDP_DELAY
@@ -169,7 +170,7 @@ static bool is_force_release_opcode(const char* name)
 %type <flag>  local_flag
 %type <flag>  signed_opt
 %type <flag>  reduce_signed_xz_opt
-%type <numb>  storage_flag array_storage_flag
+%type <numb>  storage_flag array_storage_flag shift_flags_opt
 %type <vpi_enum> port_type
 %type <numb>  signed_t_number
 %type <ranges> dimension dimensions dimensions_opt
@@ -834,20 +835,19 @@ statement
 
   /* Shift nodes. */
 
-	| T_LABEL K_SHIFTL T_NUMBER ',' symbols ';'
-		{ struct symbv_s obj = $5;
-		  compile_shiftl($1, $3, obj.cnt, obj.vect);
+	| T_LABEL K_SHIFTL T_NUMBER ',' shift_flags_opt symbols ';'
+		{ struct symbv_s obj = $6;
+		  compile_shift($1, $3, false, false, $5, obj.cnt, obj.vect);
 		}
 
-	| T_LABEL K_SHIFTR T_NUMBER ',' symbols ';'
-		{ struct symbv_s obj = $5;
-		      compile_shiftr($1, $3, false, obj.cnt, obj.vect);
+	| T_LABEL K_SHIFTR T_NUMBER ',' shift_flags_opt symbols ';'
+		{ struct symbv_s obj = $6;
+		  compile_shift($1, $3, true, false, $5, obj.cnt, obj.vect);
 		}
 
-
-	| T_LABEL K_SHIFTRS T_NUMBER ',' symbols ';'
-		{ struct symbv_s obj = $5;
-		      compile_shiftr($1, $3, true, obj.cnt, obj.vect);
+	| T_LABEL K_SHIFTRS T_NUMBER ',' shift_flags_opt symbols ';'
+		{ struct symbv_s obj = $6;
+		  compile_shift($1, $3, true, true, $5, obj.cnt, obj.vect);
 		}
 
 
@@ -1061,6 +1061,9 @@ statement
 
 	| T_LABEL K_CLASS_DEFN T_NUMBER ';'
 		{ compile_vpi_class_defn($1, $3); }
+
+	| K_CLASS_CONSTRAINT T_STRING T_NUMBER T_NUMBER T_NUMBER ';'
+		{ compile_vpi_class_constraint($2, $3, $4, $5); }
 
 	| K_CLASS_TYPESPEC T_SYMBOL T_NUMBER ';'
 		{ compile_vpi_class_typespec($2, $3); }
@@ -1458,6 +1461,9 @@ statement
   | K_TRAN T_SYMBOL ',' T_SYMBOL T_SYMBOL tran_desc_opt ';'
       { compile_island_tranif(0, $2, $4, $5, 0, 0, $6); }
 
+  | K_TRAN_PHYSICAL T_SYMBOL ',' T_SYMBOL T_SYMBOL tran_desc_opt ';'
+      { compile_island_tranif(0, $2, $4, $5, 0, 0, $6, true); }
+
   | K_TRANIF0 T_SYMBOL ',' T_SYMBOL T_SYMBOL ',' T_SYMBOL tran_desc_opt ';'
       { compile_island_tranif(0, $2, $4, $5, $7, 0, $8); }
 
@@ -1754,6 +1760,11 @@ reduce_signed_xz_opt
 	    $$ = $2 == 1;
       }
   |     { $$ = false; }
+  ;
+
+shift_flags_opt
+  : T_NUMBER ',' { $$ = $1; }
+  |              { $$ = 0; }
   ;
 
   /* There are a few places where the label is optional. This rule

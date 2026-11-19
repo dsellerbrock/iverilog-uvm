@@ -120,6 +120,7 @@ EXTERN_C_START
 #define vpiPacked           630
 
 #define vpiClassDefn        652
+#define vpiConstraint       653
 #define vpiClassObj         621
 #define vpiVirtual          635
 

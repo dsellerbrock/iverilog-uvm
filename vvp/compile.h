@@ -373,10 +373,8 @@ extern void compile_sfunc(char*label, char*name, char*format_string,
 extern void compile_repeat(char*label, long width, long repeat,
 			   struct symb_s arg);
 
-extern void compile_shiftl(char*label, long width,
-			   unsigned argc, struct symb_s*argv);
-extern void compile_shiftr(char*label, long width, bool signed_flag,
-			   unsigned argc, struct symb_s*argv);
+extern void compile_shift(char*label, uint64_t width, bool right, bool sign_fill,
+			  uint64_t flags, unsigned argc, struct symb_s*argv);
 
 extern void compile_timescale(long units, long precision);
 /* M12: modport declaration inside an interface scope. M12-6: each
@@ -669,6 +667,8 @@ extern void compile_scope_decl(char*typ, char*lab, char*nam, char*tnam,
 extern void compile_io_decl(long direction, char*name, char*formal);
 extern void compile_scope_recall(char*sym);
 extern void compile_vpi_class_defn(char*label, uint64_t is_virtual);
+extern void compile_vpi_class_constraint(char*name, uint64_t is_static,
+					 uint64_t is_pure, uint64_t is_external);
 extern void compile_vpi_class_typespec(char*label, uint64_t concrete);
 extern void compile_vpi_class_runtime(char*label, char*scope);
 extern void compile_vpi_class_extends(char*base, char*name);
@@ -792,7 +792,7 @@ extern void compile_island_cleanup(void);
 extern void compile_island_tran(char*label);
 extern void compile_island_tranif(int sense, char*island,
 				  char*ba, char*bb, char*src, bool resistive,
-				  char*desc);
+				  char*desc, bool physical = false);
 extern void compile_island_tranvp(char*island, char*ba, char*bb,
 				  unsigned width, unsigned part, unsigned off);
 

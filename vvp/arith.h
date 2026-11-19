@@ -20,6 +20,7 @@
  */
 
 # include  "vvp_net.h"
+# include  "schedule.h"
 
 /*
  * Base class for arithmetic functors.
@@ -299,19 +300,36 @@ class vvp_arith_sum  : public vvp_arith_ {
 
 };
 
-class vvp_shiftl  : public vvp_arith_ {
+class vvp_shift_ : public vvp_arith_, protected vvp_gen_event_s {
+
+    protected:
+      vvp_shift_(unsigned wid, bool signed_xz, bool coalesce);
+      bool get_shift_(unsigned long&shift) const;
+      void deliver_(vvp_net_ptr_t port, const vvp_vector4_t&value);
+
+    private:
+      void run_run() override;
+
+      bool signed_xz_;
+      bool coalesce_;
+      unsigned seen_ports_ = 0;
+      vvp_vector4_t value_;
+      vvp_net_t*pending_ = nullptr;
+};
+
+class vvp_shiftl  : public vvp_shift_ {
 
     public:
-      explicit vvp_shiftl(unsigned wid);
+      vvp_shiftl(unsigned wid, bool signed_xz, bool coalesce);
       ~vvp_shiftl() override;
       virtual void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                              vvp_context_t) override;
 };
 
-class vvp_shiftr  : public vvp_arith_ {
+class vvp_shiftr  : public vvp_shift_ {
 
     public:
-      explicit vvp_shiftr(unsigned wid, bool signed_flag);
+      vvp_shiftr(unsigned wid, bool signed_flag, bool signed_xz, bool coalesce);
       ~vvp_shiftr() override;
       virtual void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                              vvp_context_t) override;

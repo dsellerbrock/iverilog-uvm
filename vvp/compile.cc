@@ -45,6 +45,7 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <cassert>
+# include  <climits>
 # include  <stdint.h>
 
 #ifdef __MINGW32__
@@ -3115,24 +3116,31 @@ void compile_modpath_src_part(struct __vpiModPath*dst,
 }
 
 /*
- * A .shift/l statement creates an array of functors for the
- * width. The 0 input is the data vector to be shifted and the 1 input
- * is the amount of the shift. An unconnected shift amount is set to 0.
+ * The .shift functor takes a data vector and an unsigned shift distance.
+ * Bit 0 of the optional flags field checks the data for signed X/Z.
+ * Bit 1 preserves .concat delivery for fixed in-range zero-fill shifts.
  */
-void compile_shiftl(char*label, long wid, unsigned argc, struct symb_s*argv)
+void compile_shift(char*label, uint64_t wid, bool right, bool sign_fill,
+		   uint64_t flags, unsigned argc, struct symb_s*argv)
 {
-      assert( wid > 0 );
+      if (wid == 0 || wid > UINT_MAX || argc != 2
+	  || (flags != 0 && flags != 1 && (flags != 3 || sign_fill))) {
+	    fprintf(stderr, "invalid .shift width, flags, or input count: %s\n", label);
+	    compile_errors += 1;
+	    free(label);
+	    for (unsigned idx = 0; idx < argc; ++idx)
+		  free(argv[idx].text);
+	    free(argv);
+	    return;
+      }
 
-      vvp_arith_ *arith = new vvp_shiftl(wid);
-      make_arith(arith, label, argc, argv);
-}
-
-void compile_shiftr(char*label, long wid, bool signed_flag,
-		    unsigned argc, struct symb_s*argv)
-{
-      assert( wid > 0 );
-
-      vvp_arith_ *arith = new vvp_shiftr(wid, signed_flag);
+      bool signed_xz = flags & 1;
+      bool coalesce = flags & 2;
+      vvp_arith_*arith;
+      if (right)
+	    arith = new vvp_shiftr(wid, sign_fill, signed_xz, coalesce);
+      else
+	    arith = new vvp_shiftl(wid, signed_xz, coalesce);
       make_arith(arith, label, argc, argv);
 }
 

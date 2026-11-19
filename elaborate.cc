@@ -1427,6 +1427,7 @@ enum scoped_class_name_kind_task_t {
 struct scoped_class_name_result_task_t {
       const netclass_t*class_type = nullptr;
       scoped_class_name_kind_task_t kind = SCOPED_CLASS_NAME_TASK_NONE;
+      const NetScope*owner = nullptr;
 };
 
 static const netclass_t* resolve_scoped_class_type_parameter_task_(
@@ -1470,7 +1471,8 @@ static scoped_class_name_result_task_t resolve_scoped_class_type_name_task_(
 		     corresponding type parameter in the scope that owns that typedef,
 		     which may be a specialized superclass rather than a lexical
 		     parent of the derived-class method doing the lookup. */
-		  NetScope*parameter_scope = scope->find_typedef_scope(des, td);
+		  NetScope*parameter_scope = scope->find_typedef_scope(des, td, false);
+		  result.owner = parameter_scope;
 		  result.class_type = resolve_scoped_class_type_parameter_task_(
 			des, parameter_scope ? parameter_scope : scope, name);
 		  result.kind = SCOPED_CLASS_NAME_TASK_TYPE_PARAMETER;
@@ -1480,10 +1482,12 @@ static scoped_class_name_result_task_t resolve_scoped_class_type_name_task_(
 	    if (const class_type_t*class_pf =
 		      dynamic_cast<const class_type_t*>(declared_type)) {
 		  if (class_pf->name == name) {
-			result.class_type = scope->find_class(des, name);
-			if (!result.class_type)
-			      result.class_type = ensure_visible_class_type(
-				    des, scope, name);
+			netclass_t*cls = scope->find_class(des, name);
+			if (!cls)
+			      cls = ensure_visible_class_type(des, scope, name);
+			result.class_type = cls;
+			if (cls)
+			      result.owner = cls->definition_scope();
 			result.kind = SCOPED_CLASS_NAME_TASK_DIRECT;
 			return result;
 		  }
@@ -1495,6 +1499,7 @@ static scoped_class_name_result_task_t resolve_scoped_class_type_name_task_(
 			des, scope, declared_type, alias_type, true);
 		  result.class_type = dynamic_cast<const netclass_t*>(alias_type);
 		  result.kind = SCOPED_CLASS_NAME_TASK_TYPEDEF;
+		  result.owner = scope->find_typedef_scope(des, td, false);
 		  return result;
 	    }
 
@@ -1507,11 +1512,14 @@ static scoped_class_name_result_task_t resolve_scoped_class_type_name_task_(
 	    }
       }
 
-      result.class_type = scope->find_class(des, name);
-      if (!result.class_type)
-	    result.class_type = ensure_visible_class_type(des, scope, name);
-      if (result.class_type)
+      netclass_t*cls = scope->find_class(des, name);
+      if (!cls)
+	    cls = ensure_visible_class_type(des, scope, name);
+      if (cls) {
+	    result.class_type = cls;
 	    result.kind = SCOPED_CLASS_NAME_TASK_DIRECT;
+	    result.owner = cls->definition_scope();
+      }
       return result;
 }
 
@@ -1566,6 +1574,7 @@ static void report_nonclass_typedef_class_scope_task_(
 }
 
 static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
+						   NetScope*search_scope,
 						   const pform_name_t&type_path,
 						   perm_string method_name,
 						   const parmvalue_t*leading_type_args = 0,
@@ -1573,7 +1582,8 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 						   perm_string*nonclass_typedef = 0,
 						   bool*deferred_type_parameter = 0,
 						   bool*illegal_nonstatic = 0,
-						   bool*use_implicit_this = 0)
+						   bool*use_implicit_this = 0,
+						   const NetScope**qualifier_owner = nullptr)
 {
       if (!gn_system_verilog())
 	    return nullptr;
@@ -1592,12 +1602,13 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 	    *use_implicit_this = false;
 
       const netclass_t*class_type = nullptr;
+      const NetScope*first_owner = nullptr;
       bool first_comp = true;
       for (const auto&comp : type_path) {
 	    if (!comp.index.empty())
 		  return nullptr;
 
-	    NetScope*comp_scope = scope;
+	    NetScope*comp_scope = search_scope;
 	    if (!first_comp) {
 		  if (!class_type || !class_type->class_scope())
 			return nullptr;
@@ -1623,11 +1634,12 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
                   class_type = ensure_visible_class_type(des, comp_scope, comp.name);
 	    if (!class_type)
 		  return nullptr;
+	    if (first_comp)
+		  first_owner = resolved.owner;
 	    if (first_comp && leading_type_args) {
-		  NetScope*spec_scope = comp_scope;
 		  // Keep the current lexical scope so block-local typedefs used in
 		  // type arguments remain visible during specialization.
-		  class_type = elaborate_specialized_class_type(des, spec_scope,
+		  class_type = elaborate_specialized_class_type(des, scope,
 						       class_type,
 						       leading_type_args,
 						       false);
@@ -1685,6 +1697,8 @@ static NetScope* resolve_scoped_class_method_task_(Design*des, NetScope*scope,
 	    if (use_implicit_this) *use_implicit_this = true;
       }
 
+      if (qualifier_owner)
+	    *qualifier_owner = first_owner;
       return method_scope;
 }
 
@@ -4548,8 +4562,6 @@ static void finalize_resolved_struct_nets_(Design*des)
 	    }
 	    NetProcTop*always = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
 	    always->set_line(*net);
-	    always->attribute(perm_string::literal("_ivl_function_background_ok"),
-			      verinum(1));
 	    des->add_process(always);
       }
       resolved_struct_nets_.clear();
@@ -4660,8 +4672,6 @@ static bool elaborate_unpacked_struct_variable_continuous_(
 
       NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
       top->set_line(*assignment);
-      top->attribute(perm_string::literal("_ivl_function_background_ok"),
-		     verinum(1));
 	if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
 	      if (event_wait->nevents() == 1) {
 		    NetEvent*event = event_wait->event(0);
@@ -4765,8 +4775,6 @@ static bool elaborate_unpacked_union_read_continuous_(
 
       NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS_COMB, body);
       top->set_line(*assignment);
-      top->attribute(perm_string::literal("_ivl_function_background_ok"),
-		     verinum(1));
       if (NetEvWait*event_wait = dynamic_cast<NetEvWait*>(body)) {
 	    if (event_wait->nevents() == 1) {
 		  NetEvent*event = event_wait->event(0);
@@ -5930,6 +5938,8 @@ NetNode* PGBuiltin::create_gate_for_output_(Design*des, NetScope*scope,
 	    break;
       }
 
+      if (auto*sw = dynamic_cast<NetTran*>(gate))
+	    sw->set_primitive();
       return gate;
 }
 
@@ -7497,27 +7507,33 @@ static bool unpacked_array_shapes_match_(const netranges_t&formal,
       return true;
 }
 
-/* Find a whole fixed array without diagnosing ordinary packed actuals,
- * which still go through the regular port expression path. Only the last
- * component must be unselected: a scope in the prefix can be indexed. */
-static NetNet* whole_fixed_array_actual_(Design*des, NetScope*scope,
-					const PExpr*expr)
-{
-      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
-      if (!ident || ident->path().name.empty()
-	  || !ident->path().back().index.empty())
-	    return nullptr;
+/* A fixed array actual retains its original signal for either direction of
+ * a port connection. Canonical words in the selected shape map to contiguous
+ * blocks in that signal. An index following a slice can leave gaps between
+ * the blocks. */
+struct fixed_array_port_actual_t {
+      NetNet*signal = nullptr;
+      netranges_t dims;
+      unsigned long base = 0;
+      unsigned long block_words = 1;
+      unsigned long stride = 1;
+      bool invalid_index = false;
 
-      symbol_search_results result;
-      if (symbol_search(ident, des, scope, ident->path(), ident->lexical_pos(),
-			&result)
-	  && result.net && result.path_tail.empty()
-	  && result.net->unpacked_dimensions() > 0)
-	    return result.net;
-      return nullptr;
-}
+      ivl_type_t element_type() const { return signal->net_type(); }
 
-/* IEEE 1800-2017/2023 23.3.3.5: a whole unpacked input can have the
+      uint64_t backing_word(unsigned long word) const
+      {
+	    return base + uint64_t(word / block_words) * stride
+			+ word % block_words;
+      }
+};
+
+// 0 leaves ordinary expressions to the usual port elaborator.
+static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
+					   const PExpr*expr,
+					   fixed_array_port_actual_t&out);
+
+/* IEEE 1800-2017/2023 23.3.3.5: an unpacked input actual can have the
  * shape of a single formal, or an extra leading dimension indexing the
  * instances in declaration order. Validate every destination before
  * adding any port drivers. */
@@ -7526,16 +7542,19 @@ static bool elaborate_instance_array_input_(
       perm_string port_name, bool implicit)
 {
       const auto&first_dims = formals.front()->unpacked_dims();
-      NetNet*actual = whole_fixed_array_actual_(des, scope, expr);
-      if (!actual) {
+      fixed_array_port_actual_t view;
+      int decoded = decode_fixed_array_port_actual_(des, scope, expr, view);
+      if (decoded < 0)
+	    return true;
+      if (decoded == 0) {
 	    if (first_dims.empty())
 		  return false;
 	    // Patterns and other context-dependent array expressions use
 	    // the single formal's type and are broadcast.
 	    unsigned errors_before = des->errors;
-	    actual = elaborate_unpacked_array(des, scope, *expr,
-					     formals.front(), expr);
-	    if (!actual) {
+	    view.signal = elaborate_unpacked_array(des, scope, *expr,
+						  formals.front(), expr);
+	    if (!view.signal) {
 		  if (errors_before == des->errors) {
 			cerr << expr->get_fileline() << ": error: Failed to "
 			     << "elaborate arrayed input port '" << port_name
@@ -7544,9 +7563,11 @@ static bool elaborate_instance_array_input_(
 		  }
 		  return true;
 	    }
+	    view.dims = view.signal->unpacked_dims();
       }
 
-      const auto&actual_dims = actual->unpacked_dims();
+      NetNet*actual = view.signal;
+      const auto&actual_dims = view.dims;
       const bool split = actual_dims.size() == first_dims.size() + 1;
       const size_t leading = split ? 1 : 0;
       const netranges_t element_dims(actual_dims.begin() + leading,
@@ -7561,7 +7582,7 @@ static bool elaborate_instance_array_input_(
       if (split && actual_dims.front().width() != formals.size())
 	    return report_error("incompatible unpacked-array dimensions");
 
-      ivl_type_t src_type = actual->net_type();
+      ivl_type_t src_type = view.element_type();
       for (const NetNet*formal : formals) {
 	    if (!formal || formal->port_type() != NetNet::PINPUT
 		|| !unpacked_array_shapes_match_(formal->unpacked_dims(),
@@ -7597,6 +7618,21 @@ static bool elaborate_instance_array_input_(
 	    }
       }
 
+      // An invalid element index reads the default for each remaining word
+      // (7.4.6 in 2017 and 7.4.5 in 2023).
+      NetNet*invalid_word = nullptr;
+      if (view.invalid_index) {
+	    if (actual->data_type() == IVL_VT_REAL) {
+		  NetECReal zero(verireal(0.0));
+		  zero.set_line(*expr);
+		  invalid_word = zero.synthesize(des, scope, &zero);
+	    } else if (actual->data_type() == IVL_VT_BOOL) {
+		  invalid_word = make_const_0(des, scope, actual->vector_width());
+	    } else {
+		  invalid_word = make_const_x(des, scope, actual->vector_width());
+	    }
+      }
+
       unsigned long instance_base = 0;
       for (NetNet*formal : formals) {
 	    if (formal->type() == NetNet::REG)
@@ -7610,13 +7646,14 @@ static bool elaborate_instance_array_input_(
 			formal->unpacked_dims(), ordinal);
 		  unsigned long src = unpacked_array_ltr_word_(
 			actual_dims, instance_base + ordinal);
-		  Link*source = &actual->pin(src);
+		  Link*source = invalid_word ? &invalid_word->pin(0)
+					     : &actual->pin(view.backing_word(src));
 		  if (actual->data_type() != formal->data_type()
 		      || actual->vector_width() != formal->vector_width()) {
 			// Give the existing scalar conversion nodes a view
 			// of just this word, including its declared signedness.
 			NetNet*word = new NetNet(scope, scope->local_symbol(),
-						NetNet::IMPLICIT, actual->net_type());
+						NetNet::IMPLICIT, src_type);
 			word->local_flag(true);
 			word->set_line(*expr);
 			connect(word->pin(0), *source);
@@ -12054,10 +12091,12 @@ static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 	if (checked_destination)
 	    word = make_checked_uarray_index(word, 0, dst_sig->unpacked_count(), loc);
 	word_lval->set_word(word);
-	NetESignal*word_rval = new NetESignal(src_sig,
-	      make_uarray_dynamic_prefix_word_(loc, src_base, ordinal, count,
-						 reverse_src, src_stride,
-						 src_dimension_width));
+	NetExpr*src_word = src_base
+	      ? make_uarray_dynamic_prefix_word_(loc, src_base, ordinal, count,
+						  reverse_src, src_stride,
+						  src_dimension_width)
+	      : new NetESignal(ordinal);
+	NetESignal*word_rval = new NetESignal(src_sig, src_word);
 	word_rval->set_line(loc);
 	NetProc*body = nonblocking
 	      ? static_cast<NetProc*>(new NetAssignNB(word_lval, word_rval, 0, 0))
@@ -12376,21 +12415,32 @@ static bool uarray_declared_indices_(const netuarray_t*type,
       return true;
 }
 
-/* A fixed unpacked-array function result is held in the function's return
- * signal, which is reused by later calls. A nonblocking assignment must
- * capture the complete result before scheduling any destination update.
- * Copy the result once into private array storage, then schedule one word
- * update per element. For slices, capture the canonical destination base
- * before the call and use the same base for every word. The word walk is the
- * left-to-right order required by IEEE 1800-2017/2023 7.6; each source and
- * destination ordinal is normalized against its own declared dimensions.
- * Clause 10.4.2 supplies the NBA scheduling semantics, and 2023 7.6
- * explicitly treats a slice l-value as one assignment.
- *
- * Timing controls are deliberately left to the caller: a single event or
- * delay must not be duplicated across the generated word assignments. */
-static NetProc* make_uarray_function_nb_(NetScope*scope, const LineInfo&loc,
-					 NetAssign_*lv, const NetEUFunc*ufn)
+/* Capture a slice base before evaluating an aggregate RHS. The checked
+ * run-time base retains enough information for partially in-bounds slices. */
+static NetNet* snapshot_uarray_slice_base_(NetScope*scope, const LineInfo&loc,
+					 const NetExpr*word, NetBlock*block)
+{
+      NetNet*base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			      new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+      base->local_flag(true);
+      base->set_line(loc);
+      if (scope->is_auto()) base->lifetime_override(IVL_VLT_AUTOMATIC);
+      NetAssign*save = new NetAssign(new NetAssign_(base), word->dup_expr());
+      save->set_line(loc);
+      save->synth_generated_snapshot();
+      block->append(save);
+      return base;
+}
+
+/* Copy the result once into private array storage while the callee frame is
+ * live. Each source and destination ordinal is normalized against its own
+ * declared dimensions for the left-to-right correspondence of 7.6.
+ * A blocking slice uses its selected shape, and an NBA captures the complete
+ * result before scheduling the word updates (10.4.2). */
+static NetProc* make_uarray_function_copy_(NetScope*scope, const LineInfo&loc,
+					   NetAssign_*lv, const NetEUFunc*ufn,
+					   bool nonblocking,
+					   bool checked_destination)
 {
       if (!scope || !lv || lv->more || lv->nest()
 	  || lv->get_property_idx() >= 0 || lv->has_array_word_prefix())
@@ -12482,21 +12532,13 @@ static NetProc* make_uarray_function_nb_(NetScope*scope, const LineInfo&loc,
       NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
       blk->set_line(loc);
       NetNet*base_snapshot = 0;
-      if (dynamic_base) {
-	    base_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
-					new netvector_t(IVL_VT_LOGIC, 63, 0, true));
-	    base_snapshot->local_flag(true);
-	    base_snapshot->set_line(loc);
-	    NetAssign*save_base = new NetAssign(new NetAssign_(base_snapshot),
-						wrd->dup_expr());
-	    save_base->set_line(loc);
-	    blk->append(save_base);
-      }
+      if (dynamic_base)
+	    base_snapshot = snapshot_uarray_slice_base_(scope, loc, wrd, blk);
 
 	/* Keep the same declared bounds as the function result. The existing
 	 * blocking function-result emitter copies the function's return signal
-	 * into this temporary exactly once; subsequent NBs read only the saved
-	 * words, never the reusable function return signal. */
+	 * into this temporary exactly once. The destination stores read the
+	 * saved words after the callee frame has been released. */
       NetNet*snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
 				   result_net->unpacked_dims(), result_net->net_type());
       snapshot->local_flag(true);
@@ -12514,9 +12556,12 @@ static NetProc* make_uarray_function_nb_(NetScope*scope, const LineInfo&loc,
 		  base_read->set_line(loc);
 		  NetEConst*offset = make_const_val_s(dst_offsets[idx]);
 		  offset->set_line(loc);
-		  NetEBAdd*word = new NetEBAdd('+', base_read,
+		  NetExpr*word = new NetEBAdd('+', base_read,
 				pad_to_width(offset, 64, loc), 64, true);
 		  word->set_line(loc);
+		  if (checked_destination)
+			word = make_checked_uarray_index(
+			      word, 0, sig->unpacked_count(), loc);
 		  dst->set_word(word);
 	    } else {
 		  NetEConst*word = make_const_val_s(base + dst_offsets[idx]);
@@ -12528,9 +12573,11 @@ static NetProc* make_uarray_function_nb_(NetScope*scope, const LineInfo&loc,
 	    source_word->set_line(loc);
 	    NetESignal*source = new NetESignal(snapshot, source_word);
 	    source->set_line(loc);
-	    NetAssignNB*nb = new NetAssignNB(dst, source, 0, 0);
-	    nb->set_line(loc);
-	    blk->append(nb);
+	    NetProc*store = nonblocking
+		  ? static_cast<NetProc*>(new NetAssignNB(dst, source, 0, 0))
+		  : static_cast<NetProc*>(new NetAssign(dst, source));
+	    store->set_line(loc);
+	    blk->append(store);
       }
 
       return blk;
@@ -12684,8 +12731,9 @@ static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
 		&& src_elem->type_equivalent(dst_elem));
 }
 
-static bool check_runtime_uarray_slice_leaf_(Design*des, const LineInfo&loc,
-					    const NetNet*sig, bool nonblocking)
+static bool check_uarray_slice_leaf_(Design*des, const LineInfo&loc,
+				    const NetNet*sig, bool nonblocking,
+				    bool runtime_indexed = true)
 {
       switch (sig->data_type()) {
 	  case IVL_VT_BOOL:
@@ -12704,10 +12752,101 @@ static bool check_runtime_uarray_slice_leaf_(Design*des, const LineInfo&loc,
 
       cerr << loc.get_fileline() << ": sorry: "
 	   << (nonblocking ? "nonblocking" : "blocking")
-	   << " assignment to this run-time indexed unpacked-array element type"
-	   << " is not yet supported." << endl;
+	   << " assignment to this "
+	   << (runtime_indexed ? "run-time indexed " : "")
+	   << "unpacked-array element type is not yet supported." << endl;
       des->errors += 1;
       return false;
+}
+
+/* Use the whole-target marshaller to fill a slice-shaped temporary. The
+ * marshaller diagnoses a size mismatch before changing the temporary. Guard
+ * the final stores with the size of the same captured value so that a failed
+ * marshal cannot copy stale temporary words to the destination. */
+static NetProc* make_uarray_slice_value_copy_(
+      Design*des, NetScope*scope, const LineInfo&loc, NetAssign_*lv,
+      const NetExpr*value, bool nonblocking, bool checked_destination,
+      bool&handled)
+{
+      handled = false;
+      if (!value || !lv->is_array_slice() || !lv->sig() || lv->nest()
+	  || lv->get_property_idx() >= 0 || lv->sig()->unpacked_dimensions() != 1
+	  || dynamic_cast<const NetEArrayPattern*>(value))
+	    return nullptr;
+
+      const netuarray_t*dst_type = dynamic_cast<const netuarray_t*>(lv->net_type());
+      if (!dst_type || dst_type->static_dimensions().size() != 1)
+	    return nullptr;
+      const netdarray_t*container =
+	    dynamic_cast<const netdarray_t*>(value->net_type());
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(container);
+      const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(value->net_type());
+      if ((!container || (queue && queue->assoc_compat())) && !fixed)
+	    return nullptr;
+
+      handled = true;
+      if (nonblocking && !checked_destination
+	  && !check_uarray_slice_leaf_(des, loc, lv->sig(), true, false))
+	    return nullptr;
+
+      unsigned long count = dst_type->static_dimensions()[0].width();
+      bool compatible = container
+	    ? uarray_element_equivalent_container_(dst_type, container)
+	    : fixed->static_dimensions().size() == 1
+	      && uarray_copy_shapes_compatible_(
+		    dst_type, fixed->static_dimensions()[0].width(), fixed->element_type());
+      if (!compatible) {
+	    cerr << loc.get_fileline() << ": error: unpacked array slice and "
+		 << "source require equivalent element types and equal element counts."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+      block->set_line(loc);
+      NetNet*base = snapshot_uarray_slice_base_(scope, loc, lv->word(), block);
+
+      NetExpr*source = value->dup_expr();
+      NetExpr*same_count = nullptr;
+      if (container) {
+	    NetNet*captured = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					container);
+	    captured->local_flag(true);
+	    captured->set_line(loc);
+	    if (scope->is_auto()) captured->lifetime_override(IVL_VLT_AUTOMATIC);
+	    NetAssign*save = new NetAssign(new NetAssign_(captured), source);
+	    save->set_line(loc);
+	    save->synth_generated_snapshot();
+	    block->append(save);
+	    source = new NetESignal(captured);
+	    NetESFunc*size = new NetESFunc("$ivl_array_query$size",
+					   &netvector_t::atom2u32, 2);
+	    size->set_line(loc);
+	    size->parm(0, source->dup_expr());
+	    size->parm(1, make_const_val(1));
+	    same_count = new NetEBComp('E', size, make_const_val(count));
+	    same_count->set_line(loc);
+      }
+
+      NetNet*snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				   dst_type->static_dimensions(), dst_type->element_type());
+      snapshot->local_flag(true);
+      snapshot->set_line(loc);
+      if (scope->is_auto()) snapshot->lifetime_override(IVL_VLT_AUTOMATIC);
+      NetAssign*materialize = new NetAssign(new NetAssign_(snapshot), source);
+      materialize->set_line(loc);
+      block->append(materialize);
+
+      NetProc*copy = make_uarray_dynamic_prefix_copy_loop_(
+	    scope, loc, lv->sig(), base, snapshot, nullptr, count, false,
+	    nonblocking, 1, 0, checked_destination);
+      if (same_count) {
+	    copy = new NetCondit(same_count, copy, nullptr);
+	    copy->set_line(loc);
+      }
+      block->append(copy);
+      return block;
 }
 
 // Fixed-signal sources are handled by the copy paths. Index keys would
@@ -12717,13 +12856,7 @@ static bool check_runtime_uarray_slice_pattern_(Design*des,
 						 const PExpr*source)
 {
       const PEAssignPattern*pattern = dynamic_cast<const PEAssignPattern*>(source);
-      if (!pattern) {
-	    cerr << loc.get_fileline() << ": sorry: this source for a run-time"
-		 << " indexed unpacked-array slice is not yet supported;"
-		 << " use a fixed-array signal or an assignment pattern." << endl;
-	    des->errors += 1;
-	    return false;
-      }
+      if (!pattern) return true;
       for (const auto&key : pattern->keys()) {
 	    if (key.kind == assignment_pattern_key_t::EXPR) {
 		  cerr << loc.get_fileline() << ": sorry: an index-keyed pattern"
@@ -12756,12 +12889,12 @@ struct uarray_prefix_source_t {
 	~uarray_prefix_source_t() { delete canonical_base_expr; }
 };
 
-/* Decode a one-dimensional result from a slice of any unpacked dimension.
- * Every other dimension must have a single index. The selected dimension can
- * be strided in the flattened signal when later dimensions are indexed. */
+/* Decode a slice of one unpacked dimension. The selected dimension can be
+ * strided in the flattened signal when later dimensions are indexed. Port
+ * selections are constant and can also leave trailing dimensions intact. */
 static int decode_multidim_uarray_slice_source_(
 		Design*des, NetScope*scope, const LineInfo&loc, const PExpr*pe,
-		uarray_prefix_source_t&out)
+		uarray_prefix_source_t&out, bool constant_port_selection)
 {
 	const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
 	if (!ident || ident->path().name.empty()) return 0;
@@ -12777,7 +12910,9 @@ static int decode_multidim_uarray_slice_source_(
 	if (!array_type) return 0;
 	const netranges_t&dims = array_type->static_dimensions();
 	const list<index_component_t>&indices = ident->path().name.back().index;
-	if (dims.size() < 2 || indices.size() != dims.size()) return 0;
+	if (dims.size() < 2 || indices.size() > dims.size()
+	    || (!constant_port_selection && indices.size() != dims.size()))
+	      return 0;
 
 	size_t slice_dim = dims.size();
 	list<index_component_t>::const_iterator slice = indices.end();
@@ -12805,7 +12940,7 @@ static int decode_multidim_uarray_slice_source_(
 	netrange_t selected_range;
 	long count = 0;
 	NetExpr*slice_low_expr = nullptr;
-	if (slice->sel == index_component_t::SEL_PART) {
+	if (slice->sel == index_component_t::SEL_PART || constant_port_selection) {
 	      netranges_t one_dim(1, declared);
 	      netsarray_t one_dim_type(one_dim, sr.net->net_type());
 	      list<index_component_t> one_select(1, *slice);
@@ -12815,8 +12950,8 @@ static int decode_multidim_uarray_slice_source_(
 	      if (rc <= 0) return rc;
 	      selected_range = decoded.selected_range;
 	      count = static_cast<long>(decoded.count);
-	      slice_low_expr = make_const_val_s(min(selected_range.get_msb(),
-						 selected_range.get_lsb()));
+	      long low = min(selected_range.get_msb(), selected_range.get_lsb());
+	      slice_low_expr = new NetEConst(verinum(static_cast<int64_t>(low)));
 	} else {
 	      NetExpr*base = elab_and_eval(des, scope, slice->msb, -1, false);
 	      NetExpr*width_expr = elab_and_eval(des, scope, slice->lsb, -1, false);
@@ -12897,7 +13032,7 @@ static int decode_multidim_uarray_slice_source_(
 	flags.variable = false;
 	flags.undefined = false;
 	auto source_index = indices.begin();
-	for (size_t index_dim = 0 ; index_dim < dims.size();
+	for (size_t index_dim = 0 ; index_dim < indices.size();
 	     index_dim += 1, ++source_index) {
 	      NetExpr*value = index_dim == slice_dim ? slice_low_expr
 		    : elab_and_eval(des, scope, source_index->msb, -1, false);
@@ -12911,6 +13046,14 @@ static int decode_multidim_uarray_slice_source_(
 		    flags.variable = true;
 	      }
 	      canonical_indices.push_back(value);
+	}
+	// Start at the numeric low end of each dimension left in the result.
+	for (size_t index_dim = indices.size(); index_dim < dims.size();
+	     index_dim += 1) {
+	      const netrange_t&range = dims[index_dim];
+	      long low = min(range.get_msb(), range.get_lsb());
+	      canonical_indices.push_back(new NetEConst(
+		    verinum(static_cast<int64_t>(low))));
 	}
 	if (flags.invalid) {
 	      for (NetExpr*value : canonical_indices) delete value;
@@ -12947,6 +13090,8 @@ static int decode_multidim_uarray_slice_source_(
 	      out.stride *= width;
 	}
 	out.remaining_dims.push_back(selected_range);
+	out.remaining_dims.insert(out.remaining_dims.end(),
+				  dims.begin() + indices.size(), dims.end());
 	out.element_type = sr.net->net_type();
 	out.range_slice = true;
 	return 1;
@@ -12957,14 +13102,16 @@ static int decode_multidim_uarray_slice_source_(
 static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 					const LineInfo&loc, const PExpr*pe,
 					uarray_prefix_source_t&out,
-					bool checked_indexed_slice = false)
+					bool checked_indexed_slice = false,
+					bool constant_port_selection = false)
 {
 	int multidim_slice = decode_multidim_uarray_slice_source_(
-	      des, scope, loc, pe, out);
+	      des, scope, loc, pe, out, constant_port_selection);
 	if (multidim_slice != 0) return multidim_slice;
 
 	  const PEIdent*ident = dynamic_cast<const PEIdent*>(pe);
-	  if (!checked_indexed_slice && ident && !ident->path().name.empty()) {
+	  if (!checked_indexed_slice && !constant_port_selection
+	      && ident && !ident->path().name.empty()) {
 	      const list<index_component_t>&indices =
 		    ident->path().name.back().index;
 	      if (indices.size() == 1
@@ -13138,6 +13285,80 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 
       out.sig = sr.net;
       out.element_type = sr.net->net_type();
+      return 1;
+}
+
+static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
+					   const PExpr*expr,
+					   fixed_array_port_actual_t&out)
+{
+      const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
+      if (!ident || ident->path().name.empty())
+	    return 0;
+
+      symbol_search_results result;
+      if (!symbol_search(ident, des, scope, ident->path(), ident->lexical_pos(),
+			 &result)
+	  || !result.net || !result.path_tail.empty()
+	  || !result.net->unpacked_dimensions())
+	    return 0;
+
+      if (ident->path().back().index.empty()) {
+	    out.signal = result.net;
+	    out.dims = result.net->unpacked_dims();
+	    return 1;
+      }
+      if (!gn_system_verilog())
+	    return 0;
+
+      uarray_prefix_source_t selection;
+      int decoded = decode_uarray_prefix_source_(des, scope, *expr, expr,
+						 selection, false, true);
+      if (decoded <= 0)
+	    return decoded;
+
+      check_package_unit_value(des, *expr, scope, result);
+      out.signal = selection.sig;
+      out.dims = std::move(selection.remaining_dims);
+      out.stride = selection.stride;
+
+      if (selection.canonical_base_expr) {
+	    // A constant X from the checked index decoder signifies an
+	    // invalid index. Leave the backing signal available to callers.
+	    const NetEConst*index = dynamic_cast<const NetEConst*>(
+		  selection.canonical_base_expr);
+	    if (index && !index->value().is_defined()) {
+		  out.invalid_index = true;
+		  return 1;
+	    }
+	    cerr << expr->get_fileline() << ": sorry: An unpacked-array "
+		 << "selection on an instance-array port must be constant."
+		 << endl;
+	    des->errors += 1;
+	    return -1;
+      }
+
+      const unsigned long pins = out.signal->pin_count();
+      unsigned long words = 1;
+      for (const netrange_t&dim : out.dims) {
+	    const unsigned long width = dim.width();
+	    if (!width || width > pins / words) {
+		  words = 0;
+		  break;
+	    }
+	    words *= width;
+      }
+      if (selection.range_slice && words)
+	    out.block_words = words / out.dims.front().width();
+
+      out.base = selection.canonical_base;
+      if (!words || out.base >= pins || !out.stride || out.stride > pins
+	  || out.backing_word(words - 1) >= pins) {
+	    cerr << expr->get_fileline() << ": error: Unpacked-array port "
+		 << "selection is outside its declared bounds." << endl;
+	    des->errors += 1;
+	    return -1;
+      }
       return 1;
 }
 
@@ -14616,7 +14837,7 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 	    has_timing_control() ? nullptr : &runtime_indexed_slice);
       if (lv == 0) return 0;
       if (runtime_indexed_slice
-	  && !check_runtime_uarray_slice_leaf_(des, *this, lv->sig(), false)) {
+	  && !check_uarray_slice_leaf_(des, *this, lv->sig(), false)) {
 	    delete lv;
 	    return nullptr;
       }
@@ -15011,6 +15232,36 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 	    unsigned errors_before_pattern = des->errors;
 	    rv = elaborate_rval_(des, scope, lv_net_type);
 
+	    if (simple_blocking && lv->is_array_slice() && lv->sig()
+		&& lv->sig()->unpacked_dimensions() == 1
+		&& !lv->nest() && lv->get_property_idx() < 0 && rv) {
+		  NetProc*copy = nullptr;
+		  bool handled = false;
+		  if (const NetEUFunc*ufn = dynamic_cast<const NetEUFunc*>(rv)) {
+			if (dynamic_cast<const netuarray_t*>(ufn->net_type())) {
+			      handled = true;
+			      copy = make_uarray_function_copy_(
+				    scope, *this, lv, ufn, false, runtime_indexed_slice);
+			      if (!copy) {
+				    cerr << get_fileline() << ": error: "
+					 << "Unpacked-array function return type is not "
+					 << "assignment compatible with '" << lv->name()
+					 << "'." << endl;
+				    des->errors += 1;
+			      }
+			}
+		  }
+		  if (!handled)
+			copy = make_uarray_slice_value_copy_(
+			      des, scope, *this, lv, rv, false, runtime_indexed_slice,
+			      handled);
+		  if (handled) {
+			delete lv;
+			delete rv;
+			return copy;
+		  }
+	    }
+
 	      // Supported array/subarray signals, assignment patterns and
 	      // unpacked-array function calls have all been lowered above (or
 	      // carry their own aggregate IR). Refuse any remaining slice r-value
@@ -15048,9 +15299,9 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 
 	    if (runtime_indexed_slice) {
 		  if (des->errors == errors_before_pattern) {
-			cerr << get_fileline() << ": error: this assignment"
-			     << " pattern does not fill the unpacked array slice"
-			     << " exactly." << endl;
+			cerr << get_fileline() << ": sorry: this source for a run-time"
+			     << " indexed unpacked-array slice is not yet supported."
+			     << endl;
 			des->errors += 1;
 		  }
 		  delete lv;
@@ -16030,7 +16281,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	    has_timing_control() ? nullptr : &runtime_indexed_slice);
       if (lv == 0) return 0;
       if (runtime_indexed_slice
-	  && !check_runtime_uarray_slice_leaf_(des, *this, lv->sig(), true)) {
+	  && !check_uarray_slice_leaf_(des, *this, lv->sig(), true)) {
 	    delete lv;
 	    return nullptr;
       }
@@ -16265,8 +16516,18 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  const NetNet*result_net = result ? result->sig() : 0;
 		  if (result_net && result_net->unpacked_dimensions() > 0) {
 			NetProc*blk = 0;
-			if (event_ == 0 && count_ == 0 && delay_ == 0)
-			      blk = make_uarray_function_nb_(scope, *this, lv, ufn);
+			if (!has_timing_control()) {
+			      if (!runtime_indexed_slice && lv->is_array_slice()
+				  && lv->sig() && lv->sig()->unpacked_dimensions() == 1
+				  && !check_uarray_slice_leaf_(
+					des, *this, lv->sig(), true, false)) {
+				    delete lv;
+				    delete rv;
+				    return nullptr;
+			      }
+			      blk = make_uarray_function_copy_(
+				    scope, *this, lv, ufn, true, runtime_indexed_slice);
+			}
 			if (blk) {
 			      delete lv;
 			      delete rv;
@@ -16281,6 +16542,17 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			delete rv;
 			return 0;
 		  }
+	    }
+      }
+
+      if (!has_timing_control()) {
+	    bool handled = false;
+	    NetProc*copy = make_uarray_slice_value_copy_(
+		  des, scope, *this, lv, rv, true, runtime_indexed_slice, handled);
+	    if (handled) {
+		  delete lv;
+		  delete rv;
+		  return guard_function_background_event_(scope, *this, copy);
 	    }
       }
 
@@ -16332,7 +16604,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	    }
       }
       if (runtime_indexed_slice) {
-	    cerr << get_fileline() << ": sorry: this pattern for a run-time"
+	    cerr << get_fileline() << ": sorry: this source for a run-time"
 		 << " indexed unpacked-array slice is not yet supported." << endl;
 	    des->errors += 1;
 	    delete lv;
@@ -20859,12 +21131,13 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    bool deferred_type_parameter = false;
 	    bool illegal_nonstatic = false;
 	    bool use_implicit_this = false;
+	    const NetScope*qualifier_owner = nullptr;
 	    NetScope*static_method = receiver_is_variable ? nullptr
 		  : resolve_scoped_class_method_task_(
-		  des, pscope, type_path, method_name, leading_type_args(),
+		  des, scope, pscope, type_path, method_name, leading_type_args(),
 		  &illegal_bare_generic, &nonclass_typedef,
 		  &deferred_type_parameter, &illegal_nonstatic,
-		  &use_implicit_this);
+		  &use_implicit_this, &qualifier_owner);
 	    if (deferred_type_parameter) {
 		  NetBlock*noop = new NetBlock(NetBlock::SEQU, 0);
 		  noop->set_line(*this);
@@ -20890,6 +21163,8 @@ NetProc* PCallTask::elaborate_usr(Design*des, NetScope*scope) const
 	    }
 
 	    if (static_method) {
+		  check_package_unit_class_qualifier(des, *this, scope,
+			qualifier_owner, type_path.front().name, package_unit_call_reported_);
 		  if (use_implicit_this) {
 			NetNet*this_net = find_implicit_this_handle(des, scope);
 			ivl_assert(*this, this_net);
@@ -21793,8 +22068,11 @@ NetProc* PCallTask::elaborate_method_(Design*des, NetScope*scope,
       symbol_search_results receiver;
       NetProc*proc = elaborate_named_receiver_method_(des, scope,
 						     add_this_flag, receiver);
-      if (proc && receiver.net)
+      if (proc && receiver.net) {
+	    check_package_unit_class_qualifier(des, *this, scope, receiver,
+		  package_unit_call_reported_);
 	    check_package_unit_value(des, *this, scope, receiver);
+      }
       return proc;
 }
 
@@ -21919,10 +22197,11 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 	    perm_string nonclass_typedef;
 	    bool illegal_nonstatic = false;
 	    bool use_implicit_this = false;
+	    const NetScope*qualifier_owner = nullptr;
 	    NetScope*static_method = resolve_scoped_class_method_task_(
-		  des, search_scope, use_path, method_name, leading_type_args(),
+		  des, scope, search_scope, use_path, method_name, leading_type_args(),
 		  &illegal_bare_generic, &nonclass_typedef, nullptr,
-		  &illegal_nonstatic, &use_implicit_this);
+		  &illegal_nonstatic, &use_implicit_this, &qualifier_owner);
 	    if (!nonclass_typedef.nil()) {
 		  report_nonclass_typedef_class_scope_task_(
 			des, this, nonclass_typedef);
@@ -21942,6 +22221,8 @@ NetProc* PCallTask::elaborate_named_receiver_method_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 	    if (static_method) {
+		  check_package_unit_class_qualifier(des, *this, scope,
+			qualifier_owner, use_path.front().name, package_unit_call_reported_);
 		  NetExpr*this_expr = nullptr;
 		  if (use_implicit_this) {
 			NetNet*this_net = find_implicit_this_handle(des, scope);

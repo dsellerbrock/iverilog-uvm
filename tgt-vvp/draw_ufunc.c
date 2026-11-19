@@ -2166,7 +2166,29 @@ void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
             return;
       }
 
+      /* A complete one-dimensional object array fits the same marshaller
+       * used by whole-container assignments. It preserves class handles
+       * and copies value elements while the return frame is still live. */
+      ivl_variable_type_t dt = ivl_signal_data_type(retval);
+      if (dst_base == 0 && ivl_signal_dimensions(dst_sig) == 1
+	  && ivl_signal_dimensions(retval) == 1
+	  && (dt == IVL_VT_CLASS || dt == IVL_VT_NO_TYPE
+	      || dt == IVL_VT_DARRAY || dt == IVL_VT_QUEUE)) {
+	    unsigned kind;
+	    if (!uarray_container_kind_(retval, &kind, ivl_expr_file(expr),
+					ivl_expr_lineno(expr)))
+		  return;
+	    draw_ufunc_preamble(expr, 0);
+	    emit_load_arr_dar_(retval, kind);
+	    note_array_signal_use(dst_sig);
+	    emit_store_arr_dar_(dst_sig, kind);
+	    draw_ufunc_epilogue(expr);
+	    return;
+      }
+
       draw_ufunc_preamble(expr, 0);
+      note_array_signal_use(retval);
+      note_array_signal_use(dst_sig);
 
       int ix = allocate_word();
       for (idx = 0 ; idx < word_count ; idx += 1) {
@@ -2176,7 +2198,7 @@ void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
 	    unsigned src_word = uarray_decl_to_canonical_(retval, 0, idx);
 	    unsigned dst_word = uarray_decl_to_canonical_(dst_sig,
 						     dst_first, idx);
-	    switch (ivl_signal_data_type(retval)) {
+	    switch (dt) {
 		case IVL_VT_BOOL:
 		case IVL_VT_LOGIC:
 		  fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", ix,
@@ -2211,7 +2233,8 @@ void draw_ufunc_uarray(ivl_expr_t expr, ivl_signal_t dst_sig,
 		default:
 		  fprintf(stderr, "draw_ufunc_uarray: sorry: unsupported "
 			  "element type %d for unpacked-array return of %s\n",
-			  ivl_signal_data_type(retval), ivl_scope_name(def));
+			  dt, ivl_scope_name(def));
+		  vvp_errors += 1;
 		  break;
 	    }
       }

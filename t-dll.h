@@ -604,6 +604,8 @@ struct ivl_lpm_s {
 	    struct ivl_lpm_shift_s {
 		  unsigned select;
 		  unsigned signed_flag :1;
+		  unsigned signed_xz :1;
+		  unsigned coalesce :1;
 		  ivl_nexus_t q, d, s;
 	    } shift;
 
@@ -771,6 +773,7 @@ struct ivl_net_logic_s {
 
 struct ivl_switch_s {
       ivl_switch_type_t type;
+      bool is_primitive;
       unsigned width;
       unsigned part;
       unsigned offset;

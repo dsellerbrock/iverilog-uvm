@@ -26,7 +26,11 @@
 # include  <list>
 
 # include  "delay.h"
+# include  <algorithm>
+# include  <bitset>
 # include  <iostream>
+# include  <map>
+# include  <queue>
 # include  <set>
 
 using namespace std;
@@ -63,6 +67,7 @@ struct vvp_island_branch_tran : public vvp_island_branch {
       unsigned width, part, offset;
       bool active_high, resistive;
       tran_state_t state;
+      bool evcd_physical = false;
 
 	// SDF INTERCONNECT (IEEE 1800 32.4.4): when set, values do not
 	// cross this branch instantly. Side s's own value goes through
@@ -282,7 +287,7 @@ bool vvp_island_tran::link_evcd_branches()
 		  if (branch->width != a->width || branch->part != b->width ||
 		      branch->offset >= a->width)
 			return false;
-	    } else if (branch->resistive || branch->en || a->width != b->width) {
+	    } else if (a->width != b->width) {
 		  return false;
 	    }
 	    a->anchor = vvp_branch_ptr_t(cur, 0);
@@ -298,30 +303,135 @@ static unsigned evcd_driver_side(const __vpiScope*owner, const __vpiScope*dut)
       return 0;
 }
 
+static vvp_scalar_t pass_switch_bit(vvp_scalar_t bit, tran_state_t state,
+				    const unsigned str_map[8])
+{
+      bit = vvp_scalar_t(bit.value(), str_map[bit.strength0()],
+			 str_map[bit.strength1()]);
+      if (state == tran_unknown) {
+	    if (bit.value() == BIT4_0)
+		  return vvp_scalar_t(BIT4_X, bit.strength0(), 0);
+	    if (bit.value() == BIT4_1)
+		  return vvp_scalar_t(BIT4_X, 0, bit.strength1());
+      }
+      return bit;
+}
+
+using evcd_port_bit = std::pair<const vvp_island_port*, unsigned>;
+
+template <typename Visit>
+static void evcd_each_peer(const evcd_port_bit&node, Visit visit)
+{
+      const auto end = node.first->evcd->anchor;
+      auto edge = end;
+      do {
+	    const auto*branch = BRANCH_TRAN(edge.ptr());
+	    if (branch->state == tran_disabled || branch->delay_out[0])
+		  continue;
+	    unsigned bit = node.second;
+	    if (branch->width) {
+		  if (edge.port()) {
+			// The selected part can extend past the wide endpoint.
+			if (bit >= branch->width - branch->offset)
+			      continue;
+			bit += branch->offset;
+		  } else {
+			if (bit < branch->offset || bit - branch->offset >= branch->part)
+			      continue;
+			bit -= branch->offset;
+		  }
+	    }
+	    const auto*net = edge.port() ? branch->a : branch->b;
+	    visit(evcd_port_bit(static_cast<const vvp_island_port*>(net->fun), bit),
+		  *branch);
+      } while ((edge = next(edge)) != end);
+}
+
+struct evcd_bit_resolution {
+      vvp_scalar_t value[2];
+      // Four logic states with two three-bit strengths.
+      std::bitset<256> scheduled;
+};
+
+using evcd_network = std::map<evcd_port_bit, evcd_bit_resolution>;
+
+static vvp_scalar_t evcd_resolve_side(evcd_network&network,
+				     evcd_network::iterator observed, unsigned side)
+{
+      struct update {
+	    evcd_network::iterator node;
+	    vvp_scalar_t value;
+	    unsigned state;
+	    unsigned strength;
+
+	    bool operator<(const update&other) const { return strength < other.strength; }
+      };
+      std::priority_queue<update> work;
+      auto enqueue = [&](evcd_network::iterator node) {
+	    const auto&value = node->second.value[side];
+	    if (value.is_hiz()) return;
+	    const unsigned s0 = value.strength0(), s1 = value.strength1();
+	    const unsigned state = (value.value() << 6) | (s0 << 3) | s1;
+	    if (node->second.scheduled.test(state)) return;
+	    node->second.scheduled.set(state);
+	    work.push({node, value, state, std::max(s0, s1)});
+      };
+      for (auto it = network.begin(); it != network.end(); ++it) {
+	    it->second.scheduled.reset();
+	    enqueue(it);
+      }
+
+      // Resolve at each junction before crossing its next switch. Visit
+      // stronger changes first so a weaker drive cannot escape a junction
+      // before the drive that masks it arrives. Each bit can propagate each
+      // of its finite scalar states once.
+      while (!work.empty()) {
+	    const auto item = work.top();
+	    work.pop();
+	    if (!item.value.eeq(item.node->second.value[side])) {
+		  item.node->second.scheduled.reset(item.state);
+		  continue;
+	    }
+	    evcd_each_peer(item.node->first, [&](const evcd_port_bit&peer,
+						const vvp_island_branch_tran&branch) {
+		  auto target = network.find(peer);
+		  assert(target != network.end());
+		  auto value = item.value;
+		  if (branch.evcd_physical)
+			value = pass_switch_bit(value, branch.state,
+						vvp_switch_strength_map[branch.resistive]);
+		  auto&dst = target->second.value[side];
+		  auto merged = resolve(dst, value);
+		  if (merged.eeq(dst)) return;
+		  dst = merged;
+		  enqueue(target);
+	    });
+      }
+      return observed->second.value[side];
+}
+
 void vvp_island_tran::evcd_drivers(const evcd_island_endpoint&endpoint,
 				  const __vpiScope*scope, unsigned bit,
 				  evcd_island_side sides[2]) const
 {
-      using entry = std::pair<vvp_branch_ptr_t, unsigned>;
-      std::vector<entry> work;
-      std::set<std::pair<vvp_net_t*, unsigned>> seen;
-      auto enqueue = [&](vvp_branch_ptr_t end, unsigned index) {
-	    vvp_net_t*net = end.port() ? end.ptr()->b : end.ptr()->a;
-	    if (seen.emplace(net, index).second)
-		  work.emplace_back(end, index);
-      };
-      enqueue(endpoint.anchor, bit);
+      evcd_network network;
+      const auto end = endpoint.anchor;
+      const auto*net = end.port() ? end.ptr()->b : end.ptr()->a;
+      const auto*observed_port = static_cast<const vvp_island_port*>(net->fun);
+      auto observed = network.emplace(evcd_port_bit(observed_port, bit),
+				      evcd_bit_resolution()).first;
+      std::vector<evcd_network::iterator> work{observed};
+      bool physical = false;
+
       while (!work.empty()) {
 	    const auto item = work.back();
 	    work.pop_back();
-	    const auto end = item.first;
-	    const unsigned index = item.second;
-	    vvp_net_t*net = end.port() ? end.ptr()->b : end.ptr()->a;
-	    auto*port = static_cast<vvp_island_port*>(net->fun);
+	    const auto*port = item->first.first;
+	    const unsigned index = item->first.second;
 	    const auto&local = *port->evcd;
-	    vvp_scalar_t local_value[2];
-	    // Visiting an endpoint bit once visits each of its source-slot
-	    // bits once, even when two tied port paths reach this endpoint.
+	    auto&local_value = item->second.value;
+	    // Each endpoint/slot/bit identifies one driver, regardless of the
+	    // number of paths to it. Apply local net resolution before transfer.
 	    for (unsigned idx = 0; idx < local.sources.size(); idx += 1) {
 		  const auto&slot = local.sources[idx];
 		  if (index < slot.base || index - slot.base >= slot.width) continue;
@@ -344,26 +454,18 @@ void vvp_island_tran::evcd_drivers(const evcd_island_endpoint&endpoint,
 	    for (unsigned side = 0; side < 2; side += 1)
 		  sides[side].value = resolve(sides[side].value, local_value[side]);
 
-	    auto edge = end;
-	    do {
-		  const auto*branch = BRANCH_TRAN(edge.ptr());
-		  unsigned mapped = index;
-		  if (branch->width) {
-			if (edge.port()) {
-			      // The selected part can extend past the wide endpoint.
-			      if (index >= branch->width - branch->offset)
-				    continue;
-			      mapped += branch->offset;
-			} else {
-			      if (index < branch->offset ||
-				  index - branch->offset >= branch->part)
-				    continue;
-			      mapped -= branch->offset;
-			}
-		  }
-		  enqueue(vvp_branch_ptr_t(edge.ptr(), edge.port() ^ 1), mapped);
-	    } while ((edge = next(edge)) != end);
+	    evcd_each_peer(item->first, [&](const evcd_port_bit&peer,
+					    const vvp_island_branch_tran&branch) {
+		  physical |= branch.evcd_physical;
+		  auto entry = network.emplace(peer, evcd_bit_resolution());
+		  if (entry.second)
+			work.push_back(entry.first);
+	    });
       }
+
+      if (physical)
+	    for (unsigned side = 0; side < 2; side += 1)
+		  sides[side].value = evcd_resolve_side(network, observed, side);
 }
 
 void vvp_island_branch_tran::run_test_enabled()
@@ -455,26 +557,9 @@ inline vvp_vector8_t resolve_ambiguous(const vvp_vector8_t&a,
       assert(a.size() == b.size());
       vvp_vector8_t out (a.size());
 
-      for (unsigned idx = 0 ;  idx < out.size() ;  idx += 1) {
-	    vvp_scalar_t a_bit = a.value(idx);
-	    vvp_scalar_t b_bit = b.value(idx);
-            b_bit = vvp_scalar_t(b_bit.value(),
-                                 str_map[b_bit.strength0()],
-                                 str_map[b_bit.strength1()]);
-	    if (state == tran_unknown) {
-		  switch (b_bit.value()) {
-		      case BIT4_0:
-			b_bit = vvp_scalar_t(BIT4_X, b_bit.strength0(), 0);
-			break;
-		      case BIT4_1:
-			b_bit = vvp_scalar_t(BIT4_X, 0, b_bit.strength1());
-			break;
-		      default:
-			break;
-		  }
-	    }
-	    out.set_bit(idx, resolve(a_bit, b_bit));
-      }
+      for (unsigned idx = 0 ;  idx < out.size() ; idx += 1)
+	    out.set_bit(idx, resolve(a.value(idx),
+				     pass_switch_bit(b.value(idx), state, str_map)));
       return out;
 }
 
@@ -616,7 +701,7 @@ void compile_island_tran(char*label)
 }
 
 void compile_island_tranif(int sense, char*island, char*pa, char*pb, char*pe,
-                           bool resistive, char*desc)
+                           bool resistive, char*desc, bool physical)
 {
       vvp_island*use_island = compile_find_island(island);
       free(island);
@@ -645,6 +730,7 @@ void compile_island_tranif(int sense, char*island, char*pa, char*pb, char*pe,
                                                              0, 0, 0, resistive);
 
       br->desc = desc;
+      br->evcd_physical = physical || en || resistive;
       use_island->add_branch(br, pa, pb);
 
       free(pa);

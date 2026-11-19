@@ -1606,6 +1606,9 @@ extern unsigned    ivl_lpm_lineno(ivl_lpm_t net);
  *
  * The ivl_lpm_signed() flag means for IVL_LPM_SHIFTR that the right
  * shift is *signed*. For SHIFTL, then signed-ness is meaningless.
+ * For either direction, ivl_lpm_shift_signed_xz() requires an all-X
+ * result if any vector input bit is X/Z. ivl_lpm_shift_coalesce()
+ * requests concat-style delivery for fixed in-range zero-fill shifts.
  *
  * - System function call (IVL_LPM_SFUNC)
  * This device represents a netlist call to a system function. The
@@ -1660,6 +1663,8 @@ extern unsigned       ivl_lpm_width(ivl_lpm_t net);
 extern unsigned       ivl_lpm_event_synchronous(ivl_lpm_t net);
   /* True for reductions that yield X if any operand bit is X/Z. */
 extern int            ivl_lpm_reduce_signed_xz(ivl_lpm_t net);
+extern int            ivl_lpm_shift_signed_xz(ivl_lpm_t net);
+extern int            ivl_lpm_shift_coalesce(ivl_lpm_t net);
 extern ivl_event_t    ivl_lpm_trigger(ivl_lpm_t net);
 
   /* IVL_LPM_FF */
@@ -2151,6 +2156,11 @@ extern ivl_type_t ivl_scope_class(ivl_scope_t net, unsigned idx);
    class record. A generic declaration has a definition scope only. */
 extern ivl_scope_t ivl_scope_class_declaration(ivl_scope_t net, int*concrete);
 extern int ivl_scope_class_virtual(ivl_scope_t net);
+/* Source-order constraint declarations owned by the class definition. */
+extern unsigned ivl_scope_class_constraints(ivl_scope_t net);
+extern const char*ivl_scope_class_constraint(ivl_scope_t net, unsigned idx,
+					     int*is_static, int*is_pure,
+					     int*is_external);
 /* The ordinary superclass, excluding interface-class relations. */
 extern ivl_type_t ivl_scope_class_base(ivl_scope_t net);
 extern int ivl_type_class_builtin(ivl_type_t net);
@@ -2884,6 +2894,9 @@ extern ivl_statement_t ivl_stmt_step_stmt(ivl_statement_t net);
  * a fixed width. The unused bits are padded to Z on the A side.
  */
 extern ivl_switch_type_t ivl_switch_type(ivl_switch_t net);
+/* True for a source-level switch primitive. Generated hierarchy, alias
+ * and select links return false. */
+extern int ivl_switch_is_primitive(ivl_switch_t net);
 extern ivl_scope_t ivl_switch_scope(ivl_switch_t net);
 extern const char*ivl_switch_basename(ivl_switch_t net);
 extern ivl_nexus_t ivl_switch_a(ivl_switch_t net);

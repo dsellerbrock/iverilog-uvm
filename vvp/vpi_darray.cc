@@ -79,6 +79,10 @@ vpiHandle __vpiDarrayVar::get_right_range()
 
 int __vpiDarrayVar::get_word_size() const
 {
+      // A resolved element typespec matches the declared width even when
+      // there is no live dynamic array to read (e.g. for associative arrays).
+      if (element_typespec) return declared_element_width;
+
       vvp_vector4_t new_vec;
       vvp_darray*aobj = get_vvp_darray();
       if (!aobj || aobj->get_size() == 0)

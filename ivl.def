@@ -181,6 +181,8 @@ ivl_lpm_reduce_signed_xz
 ivl_lpm_scope
 ivl_lpm_select
 ivl_lpm_selects
+ivl_lpm_shift_coalesce
+ivl_lpm_shift_signed_xz
 ivl_lpm_signed
 ivl_lpm_size
 ivl_lpm_sset_value
@@ -286,6 +288,8 @@ ivl_scope_class
 ivl_scope_classes
 ivl_scope_class_declaration
 ivl_scope_class_virtual
+ivl_scope_class_constraints
+ivl_scope_class_constraint
 ivl_scope_class_base
 ivl_scope_class_base_declaration
 ivl_scope_class_base_name
@@ -472,6 +476,7 @@ ivl_switch_basename
 ivl_switch_delay
 ivl_switch_enable
 ivl_switch_file
+ivl_switch_is_primitive
 ivl_switch_island
 ivl_switch_lineno
 ivl_switch_offset

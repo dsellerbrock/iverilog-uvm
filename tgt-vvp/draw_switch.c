@@ -130,7 +130,11 @@ void draw_switch_in_scope(ivl_switch_t sw)
 	    break;
 	  case IVL_SW_TRAN:
 	    switch_kind = "tran";
-	    fprintf(vvp_out, " .tran");
+	    /* The EVCD observer uses a transparent transfer for generated
+	       links. Conditional and resistive opcodes already identify a
+	       physical switch. */
+	    fprintf(vvp_out, ivl_switch_is_primitive(sw) && evcd_island_sources(island)
+		    ? " .tran/physical" : " .tran");
 	    break;
 	  case IVL_SW_TRANIF0:
 	    switch_kind = "tranif0";

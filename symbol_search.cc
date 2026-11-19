@@ -152,6 +152,39 @@ void check_package_unit_subroutine_call(Design*des, const LineInfo&loc,
 	    des->errors += 1;
 }
 
+void check_package_unit_class_qualifier(Design*des, const LineInfo&loc,
+				       const NetScope*use_scope,
+				       const NetScope*owner,
+				       perm_string name, bool&reported)
+{
+      if (reported || !owner || !owner->is_unit())
+	    return;
+
+      perm_string package = enclosing_package_name_(use_scope);
+      if (package.nil())
+	    return;
+
+      reported = true;
+      cerr << loc.get_fileline()
+	   << (gn_commercial_unsafe_flag ? ": warning: " : ": error: ")
+	   << "Package `" << package << "' refers to compilation-unit type `"
+	   << name << "' as a class qualifier (IEEE 1800-2017/2023 26.2)."
+	   << endl;
+      if (!gn_commercial_unsafe_flag)
+	    des->errors += 1;
+}
+
+void check_package_unit_class_qualifier(Design*des, const LineInfo&loc,
+				       const NetScope*use_scope,
+				       const symbol_search_results&binding,
+				       bool&reported)
+{
+      if (binding.class_qualifier_owner && !binding.path_head.empty())
+	    check_package_unit_class_qualifier(des, loc, use_scope,
+		  binding.class_qualifier_owner, binding.path_head.front().name,
+		  reported);
+}
+
 /* find_typedef() and find_class() intentionally search out through lexical
  * parents.  That is useful for a type-name query, but it is too broad for the
  * per-scope fallback below: while resolving the first component of `a.m', a
@@ -162,12 +195,8 @@ void check_package_unit_subroutine_call(Design*des, const LineInfo&loc,
  * entered through symbol_search()'s existing find_import() transition, so
  * they reach their owning package without preempting intervening values.
  */
-static bool prefix_typedef_is_local_(Design*des, NetScope*scope,
-                                     typedef_t*td)
+static bool prefix_typedef_is_local_(NetScope*scope, const NetScope*owner)
 {
-      ivl_assert(*scope, td);
-
-      NetScope*owner = scope->find_typedef_scope(des, td);
       if (owner == scope)
             return true;
 
@@ -185,8 +214,8 @@ static bool prefix_typedef_is_local_(Design*des, NetScope*scope,
 }
 
 static bool prefix_class_is_local_(Design*des, NetScope*scope,
-                                   const netclass_t*cls,
-                                   perm_string name)
+				   netclass_t*cls, perm_string name,
+				   const NetScope*&owner)
 {
       ivl_assert(*scope, cls);
 
@@ -194,9 +223,12 @@ static bool prefix_class_is_local_(Design*des, NetScope*scope,
        * its actual class type was defined elsewhere. */
       ivl_type_t parameter_type = nullptr;
       (void) scope->get_parameter(des, name, parameter_type);
-      if (parameter_type == cls)
+      if (parameter_type == cls) {
+            owner = scope;
             return true;
+      }
 
+      owner = cls->definition_scope();
       if (scope->type() == NetScope::CLASS) {
             const netclass_t*containing = scope->class_def();
             if (containing == cls)
@@ -209,12 +241,13 @@ static bool prefix_class_is_local_(Design*des, NetScope*scope,
             }
       }
 
-      return const_cast<netclass_t*>(cls)->definition_scope() == scope;
+      return owner == scope;
 }
 
 static const netclass_t* resolve_prefix_class_type_(Design*des,
 						    NetScope*scope,
-						    perm_string name)
+						    perm_string name,
+						    const NetScope*&owner)
 {
       if (!gn_system_verilog() || !scope)
 	    return nullptr;
@@ -222,7 +255,8 @@ static const netclass_t* resolve_prefix_class_type_(Design*des,
       if (typedef_t*td = scope->find_typedef(des, name)) {
 	    /* Do not let an outward-searching type query jump ahead of the
 	       ordinary value lookup performed one lexical scope at a time. */
-	    if (!prefix_typedef_is_local_(des, scope, td))
+	    const NetScope*typedef_owner = scope->find_typedef_scope(des, td, false);
+	    if (!prefix_typedef_is_local_(scope, typedef_owner))
 		  return nullptr;
 
 	    const data_type_t*declared_type = td->get_data_type();
@@ -233,16 +267,20 @@ static const netclass_t* resolve_prefix_class_type_(Design*des,
 	    if (const class_type_t*class_pf =
 		  dynamic_cast<const class_type_t*>(declared_type)) {
 		  if (class_pf->name == name) {
-			if (netclass_t*cls = scope->find_class(des, name))
+			if (netclass_t*cls = scope->find_class(des, name)) {
+			      owner = cls->definition_scope();
 			      return cls;
+			}
 		  }
 	    }
 
 	    ivl_type_t td_type = td->elaborate_type(des, scope);
 	    td_type = specialize_bare_class_at_concrete_use(
 		  des, scope, declared_type, td_type, true);
-	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(td_type))
+	    if (const netclass_t*cls = dynamic_cast<const netclass_t*>(td_type)) {
+		  owner = typedef_owner;
 		  return cls;
+	    }
 
 	    /* A concrete non-class typedef hides any outer class with the same
 	       spelling.  Only a null (early/forward) typedef may recover through
@@ -252,7 +290,7 @@ static const netclass_t* resolve_prefix_class_type_(Design*des,
       }
 
       if (netclass_t*cls = scope->find_class(des, name)) {
-	    if (prefix_class_is_local_(des, scope, cls, name))
+	    if (prefix_class_is_local_(des, scope, cls, name, owner))
 		  return cls;
       }
 
@@ -289,6 +327,8 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
       ivl_assert(*li, ! path.empty());
       name_component_t path_tail = path.back();
       path.pop_back();
+      if (path.empty())
+	    res->class_qualifier_owner = nullptr;
 
       // If this is a recursive call, then we need to know that so
       // that we can enable the search for scopes. Set the
@@ -791,11 +831,14 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 		    // fallback intentionally keys off class-type lookup only after
 		    // normal object lookup fails.
 		  if (path_tail.index.empty()) {
+			const NetScope*owner = nullptr;
 			if (const netclass_t*cls = resolve_prefix_class_type_(
-				    des, scope, path_tail.name)) {
+				    des, scope, path_tail.name, owner)) {
 			      NetScope*cls_scope =
 				    const_cast<NetScope*>(cls->class_scope());
 			      if (cls_scope) {
+				    if (path.empty())
+					  res->class_qualifier_owner = owner;
 				    path.push_back(path_tail);
 				    res->scope = cls_scope;
 				    res->path_head = path;

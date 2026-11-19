@@ -1425,7 +1425,8 @@ class NetScope : public Definitions, public Attrib {
         { return nettypes_by_name_; }
 
         /* Search the scope hierarchy for the scope where 'type' was defined. */
-      NetScope*find_typedef_scope(const Design*des, const typedef_t*type);
+      NetScope*find_typedef_scope(const Design*des, const typedef_t*type,
+				 bool allow_name_fallback = true);
       typedef_t*find_typedef(const Design*des, perm_string name);
 
 	/* Parameters exist within a scope, and these methods allow
@@ -2248,7 +2249,8 @@ class NetCLShift  : public NetNode {
 
     public:
       NetCLShift(NetScope*s, perm_string n, unsigned width,
-		 unsigned width_dist, bool right_flag, bool signed_flag);
+		 unsigned width_dist, bool right_flag, bool signed_flag,
+		 bool signed_xz, bool coalesce);
       ~NetCLShift() override;
 
       unsigned width() const;
@@ -2256,6 +2258,8 @@ class NetCLShift  : public NetNode {
 
       bool right_flag() const;
       bool signed_flag() const;
+      bool signed_xz() const { return signed_xz_; }
+      bool coalesce() const { return coalesce_; }
 
       Link& pin_Data();
       Link& pin_Result();
@@ -2273,6 +2277,8 @@ class NetCLShift  : public NetNode {
       unsigned width_dist_;
       bool right_flag_;
       bool signed_flag_;
+      bool signed_xz_;
+      bool coalesce_;
 };
 
 /*
@@ -2769,6 +2775,8 @@ class NetTran  : public NetNode, public IslandBranch {
       ~NetTran() override;
 
       ivl_switch_type_t type() const { return type_; }
+      void set_primitive() { is_primitive_ = true; }
+      bool is_primitive() const { return is_primitive_; }
 
 	// These are only used for IVL_SW_TRAN_PV
       unsigned vector_width() const;
@@ -2787,6 +2795,7 @@ class NetTran  : public NetNode, public IslandBranch {
       unsigned off_;
       int port_info_index_;
       int port_component_index_;
+      bool is_primitive_ = false;
 };
 
 /* =========

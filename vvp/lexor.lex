@@ -163,6 +163,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".cast/real.s"  { return K_CAST_REAL_S; }
 ".class"        { return K_CLASS; }
 ".class/defn"   { return K_CLASS_DEFN; }
+".class/constraint" { return K_CLASS_CONSTRAINT; }
 ".class/typespec" { return K_CLASS_TYPESPEC; }
 ".class/runtime"  { return K_CLASS_RUNTIME; }
 ".class/extends"  { return K_CLASS_EXTENDS; }
@@ -321,6 +322,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".thread"       { return K_THREAD; }
 ".timescale"    { return K_TIMESCALE; }
 ".tran"         { return K_TRAN; }
+".tran/physical" { return K_TRAN_PHYSICAL; }
 ".tranif0"      { return K_TRANIF0; }
 ".tranif1"      { return K_TRANIF1; }
 ".tranvp"       { return K_TRANVP; }

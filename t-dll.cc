@@ -2304,6 +2304,7 @@ bool dll_target::tran(const NetTran*net)
 {
       struct ivl_switch_s*obj = new struct ivl_switch_s;
       obj->type = net->type();
+      obj->is_primitive = net->is_primitive();
       obj->width = net->vector_width();
       obj->part = 0;
       obj->offset = 0;
@@ -2939,6 +2940,8 @@ void dll_target::lpm_clshift(const NetCLShift*net)
 	    obj->u_.shift.signed_flag = 1;
       else
 	    obj->u_.shift.signed_flag = 0;
+      obj->u_.shift.signed_xz = net->signed_xz();
+      obj->u_.shift.coalesce = net->coalesce();
 
       obj->width = net->width();
       obj->u_.shift.select = net->width_dist();
