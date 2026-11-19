@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue3843_keyed_output.sv",
+  "iverilog-args": ["-g2023", "-s", "issue3843_keyed_output"],
+  "vvp-args-extended": ["+wide=-42"],
+  "gold": "issue3843_keyed_output"
+}

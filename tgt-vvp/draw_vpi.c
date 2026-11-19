@@ -26,6 +26,12 @@
 # include  <inttypes.h>
 # include  "ivl_alloc.h"
 
+/* Match the flags on &PE in the VVP argument grammar. */
+enum container_output_flags {
+      SIGNED = 1, TWO_STATE = 2, INDEX_SIGNED = 4, QUEUE = 8, BARE_SIGNAL = 16,
+      KEY_VEC4 = 32, KEY_STRING = 64, KEY_OBJECT = 96, KEY_MASK = 96
+};
+
 struct args_info {
       char*text;
       char*obj_type;
@@ -50,7 +56,7 @@ struct args_info {
       unsigned index_stack;
       char index_sign;
       unsigned index_width;
-      /* A scalar output in a captured positional container. */
+      /* A scalar output in a captured container. */
       int positional_type;
       unsigned positional_flags;
       uint64_t queue_capacity;
@@ -1895,11 +1901,9 @@ static int positional_element_vpi_type_(ivl_type_t type)
       }
 }
 
-static int draw_positional_output_arg_(struct args_info*arg, ivl_expr_t expr)
+static int draw_container_output_arg_(struct args_info*arg, ivl_expr_t expr,
+				      int keyed)
 {
-      /* Match the flags on &PE in the VVP argument grammar. */
-      enum { SIGNED = 1, TWO_STATE = 2, INDEX_SIGNED = 4,
-	     QUEUE = 8, BARE_QUEUE = 16 };
       ivl_expr_t receiver = 0, index = 0;
       ivl_type_t container, element;
       unsigned flags = 0;
@@ -1910,13 +1914,17 @@ static int draw_positional_output_arg_(struct args_info*arg, ivl_expr_t expr)
 	    receiver = ivl_expr_oper1(expr);
 	    index = ivl_expr_oper2(expr);
 	    container = receiver_container_type_(receiver);
-      } else if (ivl_expr_type(expr) == IVL_EX_PROPERTY
+      } else if (keyed && ivl_expr_type(expr) == IVL_EX_PROPERTY
+		 && property_is_assoc_indexed_expr_(expr)) {
+	    index = ivl_expr_oper1(expr);
+	    container = property_assoc_container_type_(expr);
+      } else if (!keyed && ivl_expr_type(expr) == IVL_EX_PROPERTY
 		 && (property_is_indexed_darray_expr_(expr)
 		     || property_is_indexed_queue_expr_(expr))) {
 	    index = ivl_expr_oper1(expr);
 	    container = property_expr_type_(expr);
 	    last = property_uses_synthesized_last_index_(expr);
-      } else if (ivl_expr_type(expr) == IVL_EX_SFUNC
+      } else if (!keyed && ivl_expr_type(expr) == IVL_EX_SFUNC
 		 && !strcmp(ivl_expr_name(expr), "$ivl_queue$last")) {
 	    receiver = ivl_expr_parm(expr, 0);
 	    container = receiver_container_type_(receiver);
@@ -1926,14 +1934,16 @@ static int draw_positional_output_arg_(struct args_info*arg, ivl_expr_t expr)
       }
       if ((!index && !last) || !container)
 	    return 0;
-      if (ivl_type_base(container) == IVL_VT_QUEUE
-	  && !ivl_type_queue_assoc_compat(container)) {
-	    flags |= QUEUE;
+      if (ivl_type_base(container) == IVL_VT_QUEUE) {
+	    if (keyed != !!ivl_type_queue_assoc_compat(container))
+		  return 0;
+	    if (!keyed)
+		  flags |= QUEUE;
 	    if (receiver && ivl_expr_type(receiver) == IVL_EX_SIGNAL
 		&& !ivl_expr_oper1(receiver)
 		&& ivl_signal_dimensions(ivl_expr_signal(receiver)) == 0)
-		  flags |= BARE_QUEUE;
-      } else if (ivl_type_base(container) != IVL_VT_DARRAY) {
+		  flags |= BARE_SIGNAL;
+      } else if (keyed || ivl_type_base(container) != IVL_VT_DARRAY) {
 	    return 0;
       }
 
@@ -1964,7 +1974,11 @@ static int draw_positional_output_arg_(struct args_info*arg, ivl_expr_t expr)
 	    return 0;
       }
 
-      if (receiver) {
+      if (keyed && (flags & BARE_SIGNAL)) {
+	    /* A regular object load can initialize the map as a side effect. */
+	    fprintf(vvp_out, "    %%load/obj/peek v%p_0; output map\n",
+		    ivl_expr_signal(receiver));
+      } else if (receiver) {
 	    draw_eval_object(receiver);
       } else {
 	    ivl_signal_t sig = ivl_expr_signal(expr);
@@ -1982,16 +1996,23 @@ static int draw_positional_output_arg_(struct args_info*arg, ivl_expr_t expr)
 	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, null_lab);
       }
 
-      if (last) {
+      if (keyed) {
+	    const char*kind = draw_eval_assoc_key_(index, 0);
+	    flags |= !strcmp(kind, "str") ? KEY_STRING
+		   : !strcmp(kind, "obj") ? KEY_OBJECT : KEY_VEC4;
+	    if ((flags & KEY_MASK) == KEY_OBJECT)
+		  fprintf(vvp_out, "    %%aa/copy/key/obj; capture object key\n");
+      } else if (last) {
 	    fprintf(vvp_out, "    %%dup/obj/ref;\n");
 	    fprintf(vvp_out, "    %%qsize/o;\n");
 	    fprintf(vvp_out, "    %%subi 1, 0, 32;\n");
       } else {
 	    draw_eval_vec4(index);
       }
-      arg->positional_flags = flags | (ivl_type_signed(element) ? SIGNED : 0)
-	    | ((last || ivl_expr_signed(index)) ? INDEX_SIGNED : 0);
-      arg->queue_capacity = queue_type_max_count_(container);
+      if (!keyed && (last || ivl_expr_signed(index)))
+	    flags |= INDEX_SIGNED;
+      arg->positional_flags = flags | (ivl_type_signed(element) ? SIGNED : 0);
+      arg->queue_capacity = keyed ? 0 : queue_type_max_count_(container);
       return 1;
 }
 
@@ -2035,6 +2056,18 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  : ivl_expr_parm(fnet, idx);
 	    int positional_output = !force_value_capture && !deferred && !lazy_args
 		  && tf_name && vpi_arg_is_positional_output_(tf_name, idx);
+
+	    /* Try keyed outputs before the legacy signal/property handles,
+	     * whose indices are positional. */
+	    if (positional_output && draw_container_output_arg_(&args[idx], expr, 1)) {
+		  args[idx].stack = obj_stack_need++;
+		  switch (args[idx].positional_flags & KEY_MASK) {
+		      case KEY_STRING: args[idx].index_stack = str_stack_need++; break;
+		      case KEY_OBJECT: args[idx].index_stack = obj_stack_need++; break;
+		      default:         args[idx].index_stack = vec4_stack_need++; break;
+		  }
+		  continue;
+	    }
 
 	      /* A selected instance-array scope can arrive as a zero-extension
 	       * select around IVL_EX_SCOPE. System-task arguments use the scope as
@@ -2157,7 +2190,7 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		  continue;
 
 		case IVL_EX_SFUNC:
-		  if (positional_output && draw_positional_output_arg_(&args[idx], expr)) {
+		  if (positional_output && draw_container_output_arg_(&args[idx], expr, 0)) {
 			args[idx].stack = obj_stack_need++;
 			args[idx].index_stack = vec4_stack_need++;
 			continue;
@@ -2258,7 +2291,7 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		}
 		args[idx].stack = 0;
 		if (positional_output
-		    && draw_positional_output_arg_(&args[idx], expr)) {
+		    && draw_container_output_arg_(&args[idx], expr, 0)) {
 		      args[idx].stack = obj_stack_need++;
 		      args[idx].index_stack = vec4_stack_need++;
 		      continue;
@@ -2432,7 +2465,10 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 		          args[idx].vec_flag, args[idx].vec_wid);
 	    } else if (args[idx].positional_type) {
 		  unsigned object = obj_stack_need - args[idx].stack - 1;
-		  unsigned index = vec4_stack_need - args[idx].index_stack - 1;
+		  unsigned key_kind = args[idx].positional_flags & KEY_MASK;
+		  unsigned key_stack = key_kind == KEY_OBJECT ? obj_stack_need
+			: key_kind == KEY_STRING ? str_stack_need : vec4_stack_need;
+		  unsigned index = key_stack - args[idx].index_stack - 1;
 		  fprintf(vvp_out, ", &PE<%u, %u, %d, %u, %u, %" PRIu64 ">",
 			  object, index, args[idx].positional_type,
 			  args[idx].vec_wid, args[idx].positional_flags,

@@ -148,6 +148,7 @@ struct opcode_table_s {
 };
 
 static const struct opcode_table_s opcode_table[] = {
+      { "%aa/copy/key/obj", of_AA_COPY_KEY_OBJ, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%aa/delete/all", of_AA_DELETE_ALL, 0, {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%aa/delete/obj", of_AA_DELETE_OBJ, 0, {OA_NONE,     OA_NONE,     OA_NONE} },
       { "%aa/delete/str", of_AA_DELETE_STR, 0, {OA_NONE,     OA_NONE,     OA_NONE} },
@@ -540,6 +541,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%load/dar/str",of_LOAD_DAR_STR,  1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%load/dar/vec4",of_LOAD_DAR_VEC4,1, {OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%load/obj",   of_LOAD_OBJ,  1,{OA_FUNC_PTR,OA_NONE, OA_NONE} },
+      { "%load/obj/peek", of_LOAD_OBJ_PEEK, 1,{OA_FUNC_PTR, OA_NONE, OA_NONE} },
       { "%load/obja",  of_LOAD_OBJA, 2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },
       { "%load/preponed", of_LOAD_PREPONED, 1,{OA_FUNC_PTR,OA_NONE, OA_NONE} },
       { "%load/preponed/av", of_LOAD_PREPONED_AV, 2,{OA_ARR_PTR, OA_BIT1, OA_NONE} },

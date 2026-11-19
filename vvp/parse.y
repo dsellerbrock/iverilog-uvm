@@ -1939,8 +1939,9 @@ symbol_access
          (a vec4 stack reference) holds the element index. */
       { $$ = vpip_make_cobject_property_vec_elem($3, $5, $7, $9.cnt, $9.nvec, $11); }
   | K_PE '<' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER '>'
-      /* Object and index stack depths, VPI scalar type and width, flags
-         (signed, two-state, signed index, queue, bare queue), capacity. */
+      /* Receiver and index/key stack depths, VPI scalar type and width,
+         flags (signed, two-state, signed index, queue, bare signal,
+         and associative key stack), and capacity. */
       {
 	    $$ = vpip_make_positional_element($3, $5, $7, $9, $11, $13);
 	    if (!$$) {

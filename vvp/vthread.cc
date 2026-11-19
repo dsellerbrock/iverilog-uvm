@@ -117,7 +117,7 @@ static void resume_joining_parent_(vthread_t parent, vthread_t child);
 static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const char*where);
 static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                                         vvp_net_t*root_net, const vvp_object_t&root_obj,
-                                        const char*where);
+                                        const char*where, bool receiver_touched = false);
 	/* R3 (IEEE 1800-2017 18.13.1) hierarchical RNG seeding -- defined in
 	   full below, next to design_root_rng_next_(), but needed here
 	   because of_STD_RANDOMIZE_WITH (which uses them) is textually
@@ -25713,7 +25713,7 @@ static void notify_mutated_object_signal_(vthread_t thr, vvp_net_t*net, const ch
 
 static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
                                         vvp_net_t*root_net, const vvp_object_t&root_obj,
-                                        const char*where)
+                                        const char*where, bool receiver_touched)
 {
       static int trace_mut = -1;
       if (trace_mut < 0) {
@@ -25770,14 +25770,14 @@ static void notify_mutated_object_root_(vthread_t thr, const vvp_object_t&recv,
 
       if (!root_net || root_obj.test_nil()) {
             if (!recv.test_nil()) {
-                  recv.touch();
+                  if (!receiver_touched) recv.touch();
                   recv.notify_signal_aliases();
             }
             return;
       }
 
       if (!recv.test_nil()) {
-            recv.touch();
+            if (!receiver_touched) recv.touch();
             recv.notify_signal_aliases();
       }
       if (root_obj != recv) {
@@ -26102,6 +26102,23 @@ static bool aa_index_has_xz_(const vvp_object_t&key)
 template <class KEY>
 static bool aa_index_has_xz_(const KEY&)
 { return false; }
+
+/* Snapshot value keys before evaluating later arguments. Handle keys
+ * already carry the identity used by associative lookup. */
+bool of_AA_COPY_KEY_OBJ(vthread_t thr, vvp_code_t)
+{
+      if (!thr->object_stack_size()) {
+	    cerr << thr->get_fileline()
+		 << "Error: %aa/copy/key/obj requires an object stack operand." << endl;
+	    vpip_set_return_value(1);
+	    schedule_finish(0);
+	    return false;
+      }
+      vvp_object_t&key = thr->peek_object();
+      if (vvp_assoc_value_key(key.peek<vvp_object>()))
+	    key = key.value_copy_element();
+      return true;
+}
 
 template <typename ELEM, class ASSOC, class KEY>
 static void aa_materialize_rmw_(vthread_t thr, ASSOC*assoc,
@@ -27843,7 +27860,7 @@ bool of_AA_LOAD_SIG_V_OBJ(vthread_t thr, vvp_code_t cp)
 /*
  * %load/obj <var-label>
  */
-bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
+static bool load_object_(vthread_t thr, vvp_code_t cp, bool peek)
 {
       vvp_net_t*net = cp->net;
       vvp_object_t staged;
@@ -27865,7 +27882,7 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
 	    return true;
       }
 
-      vvp_object_t val = fun->get_object();
+      vvp_object_t val = peek ? fun->peek_object() : fun->get_object();
       vvp_net_t*root_net = fun->get_root_net();
       vvp_object_t root_obj = fun->get_root_object();
       if (!root_net || root_obj.test_nil()) {
@@ -27908,6 +27925,17 @@ bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
       thr->push_object(val, root_net, root_obj);
 
       return true;
+}
+
+bool of_LOAD_OBJ(vthread_t thr, vvp_code_t cp)
+{
+      return load_object_(thr, cp, false);
+}
+
+/* Capture a signal receiver without materializing an empty container. */
+bool of_LOAD_OBJ_PEEK(vthread_t thr, vvp_code_t cp)
+{
+      return load_object_(thr, cp, true);
 }
 
 /*
@@ -37999,12 +38027,13 @@ bool of_STORE_QDAR_V(vthread_t thr, vvp_code_t cp)
 }
 
 /* The call owns two captured operands: the immediate container and the
- * full-width index. The handle itself is shared by executions of the call,
+ * positional index or native key. The handle is shared by executions of the call,
  * so type queries use only declaration metadata. */
 class vpi_positional_element : public __vpiHandle {
     public:
       enum flag_t { SIGNED = 1, TWO_STATE = 2, INDEX_SIGNED = 4,
-		    QUEUE = 8, BARE_QUEUE = 16 };
+		    QUEUE = 8, BARE_SIGNAL = 16,
+		    KEY_VEC4 = 32, KEY_STRING = 64, KEY_OBJECT = 96, KEY_MASK = 96 };
 
       vpi_positional_element(unsigned object_depth, unsigned index_depth,
 			     int type, unsigned width, unsigned flags,
@@ -38028,7 +38057,16 @@ class vpi_positional_element : public __vpiHandle {
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
 
     private:
+      bool keyed_() const { return (flags_ & KEY_MASK) != 0; }
+      bool valid_stack_() const;
       bool resolve_(vvp_object_t&recv, unsigned&index, bool writing) const;
+      vvp_object_t assoc_receiver_(vthread_t thr) const;
+      bool invalid_key_(vthread_t thr) const;
+      vvp_object_t capture_assoc_ref_(vthread_t thr, vvp_assoc_base*assoc) const;
+      template <typename T>
+      void get_assoc_(T&value) const;
+      template <typename T>
+      void store_assoc_(const T&value) const;
       template <typename T, typename Q>
       void store_(vvp_object_t recv, unsigned index, const T&value) const;
 
@@ -38038,24 +38076,47 @@ class vpi_positional_element : public __vpiHandle {
       const uint64_t capacity_;
 };
 
-bool vpi_positional_element::resolve_(vvp_object_t&recv, unsigned&index,
-				     bool writing) const
+bool vpi_positional_element::valid_stack_() const
 {
       vthread_t thr = vpip_current_vthread;
       if (vpi_mode_flag != VPI_MODE_CALLTF || !thr || !vpip_cur_task)
 	    return false;
-      if (object_depth_ >= vpip_cur_task->object_stack
-	  || index_depth_ >= vpip_cur_task->vec4_stack
-	  || object_depth_ >= thr->object_stack_size()
-	  || index_depth_ >= thr->vec4_stack_size()
-	  || !thr->peek_vec4(index_depth_).size()) {
+
+      bool valid_key;
+      switch (flags_ & KEY_MASK) {
+	  case KEY_OBJECT:
+	    valid_key = index_depth_ < object_depth_;
+	    break;
+	  case KEY_STRING:
+	    valid_key = index_depth_ < vpip_cur_task->string_stack
+		  && index_depth_ < thr->str_stack_size();
+	    break;
+	  default:
+	    valid_key = index_depth_ < vpip_cur_task->vec4_stack
+		  && index_depth_ < thr->vec4_stack_size()
+		  && thr->peek_vec4(index_depth_).size();
+	    break;
+      }
+      if (!valid_key || object_depth_ >= vpip_cur_task->object_stack
+	  || object_depth_ >= thr->object_stack_size()) {
+	    const char*msg = keyed_() ? "malformed keyed VPI element stack operands"
+				     : "malformed positional VPI element stack operands";
 	    cerr << thr->get_fileline()
-		 << "Error: malformed positional VPI element stack operands." << endl;
-	    vpip_set_error(vpiError, "malformed positional VPI element stack operands");
+		 << "Error: " << msg << "." << endl;
+	    vpip_set_error(vpiError, msg);
 	    vpip_set_return_value(1);
 	    return false;
       }
+      return true;
+}
 
+bool vpi_positional_element::resolve_(vvp_object_t&recv, unsigned&index,
+				     bool writing) const
+{
+      if (!valid_stack_())
+	    return false;
+
+      vthread_t thr = vpip_current_vthread;
       int64_t addr;
       if (!vpip_vec4_to_int64_saturated(thr->peek_vec4(index_depth_),
 				       flags_ & INDEX_SIGNED, addr)) {
@@ -38084,26 +38145,130 @@ bool vpi_positional_element::resolve_(vvp_object_t&recv, unsigned&index,
       return true;
 }
 
+vvp_object_t vpi_positional_element::assoc_receiver_(vthread_t thr) const
+{
+      vvp_object_t recv = thr->peek_object(object_depth_);
+      if (recv.test_nil() && (flags_ & BARE_SIGNAL)) {
+	    /* An earlier put in this call may have initialized the map. */
+	    vvp_net_t*net = thr->peek_object_source_net(object_depth_);
+	    if (vvp_fun_signal_object*fun = signal_object_fun_(net))
+		  recv = fun->peek_object();
+      }
+      return recv;
+}
+
+bool vpi_positional_element::invalid_key_(vthread_t thr) const
+{
+      switch (flags_ & KEY_MASK) {
+	  case KEY_OBJECT: return aa_index_has_xz_(thr->peek_object(index_depth_));
+	  case KEY_VEC4:   return aa_index_has_xz_(thr->peek_vec4(index_depth_));
+	  default:         return false;
+      }
+}
+
+vvp_object_t vpi_positional_element::capture_assoc_ref_(vthread_t thr,
+							vvp_assoc_base*assoc) const
+{
+      using ref = vvp_assoc_element_ref;
+      ref::kind_t kind = type_ == vpiRealVar ? ref::ELEM_REAL
+		      : type_ == vpiStringVar ? ref::ELEM_STRING : ref::ELEM_VEC4;
+      switch (flags_ & KEY_MASK) {
+	  case KEY_STRING:
+	    return assoc->capture_element_ref(thr->peek_str(index_depth_), kind, width_);
+	  case KEY_OBJECT:
+	    return assoc->capture_element_ref(thr->peek_object(index_depth_), kind, width_);
+	  default:
+	    return assoc->capture_element_ref(thr->peek_vec4(index_depth_), kind, width_);
+      }
+}
+
+template <typename T>
+void vpi_positional_element::get_assoc_(T&value) const
+{
+      if (!valid_stack_())
+	    return;
+      vthread_t thr = vpip_current_vthread;
+      vvp_object_t recv = assoc_receiver_(thr);
+      auto*assoc = recv.peek<vvp_assoc_map<T>>();
+      bool invalid = invalid_key_(thr);
+      switch (flags_ & KEY_MASK) {
+	  case KEY_STRING:
+	    aa_read_(thr, assoc, thr->peek_str(index_depth_), value);
+	    break;
+	  case KEY_OBJECT:
+	    aa_read_(thr, assoc, thr->peek_object(index_depth_), value, invalid);
+	    break;
+	  case KEY_VEC4:
+	    aa_read_(thr, assoc, thr->peek_vec4(index_depth_), value, invalid);
+	    break;
+      }
+}
+
 void vpi_positional_element::vpi_get_value(p_vpi_value val)
 {
       vvp_object_t recv;
       unsigned index;
-      vvp_darray*array = resolve_(recv, index, false) ? recv.peek<vvp_darray>() : 0;
+      vvp_darray*array = !keyed_() && resolve_(recv, index, false)
+	    ? recv.peek<vvp_darray>() : 0;
       bool valid = array && index < array->get_size();
       if (type_ == vpiRealVar) {
 	    double value = 0.0;
-	    if (valid) array->get_word(index, value);
+	    if (keyed_()) get_assoc_(value);
+	    else if (valid) array->get_word(index, value);
 	    vpip_real_get_value(value, val);
       } else if (type_ == vpiStringVar) {
 	    string value;
-	    if (valid) array->get_word(index, value);
+	    if (keyed_()) get_assoc_(value);
+	    else if (valid) array->get_word(index, value);
 	    vpip_string_get_value(value, val);
       } else {
 	    vvp_vector4_t value;
-	    if (valid) array->get_word(index, value);
+	    if (keyed_()) get_assoc_(value);
+	    else if (valid) array->get_word(index, value);
 	    if (value.size() != width_)
 		  value = vvp_vector4_t(width_, (flags_ & TWO_STATE) ? BIT4_0 : BIT4_X);
 	    vpip_vec4_get_value(value, width_, flags_ & SIGNED, val);
+      }
+}
+
+template <typename T>
+void vpi_positional_element::store_assoc_(const T&value) const
+{
+      if (!valid_stack_())
+	    return;
+      vthread_t thr = vpip_current_vthread;
+      if (invalid_key_(thr)) {
+	    aa_warn_invalid_write_(thr);
+	    return;
+      }
+
+      vvp_object_t recv = assoc_receiver_(thr);
+      vvp_net_t*root_net = thr->peek_object_source_net(object_depth_);
+      vvp_object_t root_obj = thr->peek_object_root(object_depth_);
+      vvp_fun_signal_object*root = signal_object_fun_(root_net);
+      bool fresh = recv.test_nil() && (flags_ & BARE_SIGNAL) && root;
+      if (fresh) {
+	    recv = vvp_object_t(new vvp_assoc_map<T>);
+	    recv.peek<vvp_assoc_map<T>>()->set_declared_container_layout(
+		  root->default_container_layout());
+      } else if ((flags_ & BARE_SIGNAL) && root_obj.test_nil()) {
+	    root_obj = recv;
+      }
+
+      auto*assoc = recv.peek<vvp_assoc_map<T>>();
+      if (!assoc)
+	    return;
+      vvp_object_t ref = capture_assoc_ref_(thr, assoc);
+      ref.peek<vvp_assoc_element_ref>()->set_value(value, false);
+
+      if (fresh) {
+	    vvp_send_object(vvp_net_ptr_t(root_net, 0), recv,
+			    ensure_write_context_(thr, "vpi-assoc-init"));
+      } else {
+	    if (root && root->peek_object() != root_obj)
+		  root_net = 0;
+	    notify_mutated_object_root_(thr, recv, root_net, root_obj,
+					"vpi-assoc-store", true);
       }
 }
 
@@ -38111,12 +38276,16 @@ template <typename T, typename Q>
 void vpi_positional_element::store_(vvp_object_t recv, unsigned index,
 				    const T&value) const
 {
+      if (keyed_()) {
+	    store_assoc_(value);
+	    return;
+      }
       vthread_t thr = vpip_current_vthread;
       vvp_net_t*root_net = thr->peek_object_source_net(object_depth_);
       vvp_object_t root_obj = thr->peek_object_root(object_depth_);
       vvp_fun_signal_object*root = signal_object_fun_(root_net);
       bool fresh = false;
-      if (recv.test_nil() && (flags_ & BARE_QUEUE) && root) {
+      if (recv.test_nil() && (flags_ & BARE_SIGNAL) && root) {
 	    /* Another output in this call can have initialized the queue. */
 	    recv = root->peek_object();
 	    root_obj = recv;
@@ -38130,7 +38299,7 @@ void vpi_positional_element::store_(vvp_object_t recv, unsigned index,
       if (flags_ & QUEUE) {
 	    Q*queue = recv.peek<Q>();
 	    if (!queue) {
-		  if (recv.test_nil() && (flags_ & BARE_QUEUE)) {
+		  if (recv.test_nil() && (flags_ & BARE_SIGNAL)) {
 			cerr << thr->get_fileline()
 			     << "Warning: assigning to queue[" << index
 			     << "] is outside of size (0); element was not stored." << endl;
@@ -38165,19 +38334,42 @@ void vpi_positional_element::store_(vvp_object_t recv, unsigned index,
       }
 }
 
+static bool vpi_element_vec4_format_ok_(const s_vpi_value*val)
+{
+      switch (val->format) {
+	  case vpiIntVal:
+	  case vpiScalarVal:
+	  case vpiRealVal:
+	    return true;
+	  case vpiVectorVal:
+	    return val->value.vector != nullptr;
+	  case vpiBinStrVal:
+	  case vpiOctStrVal:
+	  case vpiDecStrVal:
+	  case vpiHexStrVal:
+	  case vpiStringVal:
+	    return val->value.str != nullptr;
+	  default:
+	    return false;
+      }
+}
+
 vpiHandle vpi_positional_element::vpi_put_value(p_vpi_value val, int flags)
 {
       vvp_object_t recv;
-      unsigned index;
-      if (flags != vpiNoDelay || !resolve_(recv, index, true))
+      unsigned index = 0;
+      if (flags != vpiNoDelay || (!keyed_() && !resolve_(recv, index, true)))
 	    return 0;
       if (type_ == vpiRealVar) {
-	    if (vpip_real_put_format_ok(val))
+	    if (vpip_real_put_format_ok(val)
+		&& (!keyed_() || vpi_element_vec4_format_ok_(val)))
 		  store_<double, vvp_queue_real>(recv, index, real_from_vpi_value(val));
       } else if (type_ == vpiStringVar) {
 	    if (val->format == vpiStringVal && val->value.str)
 		  store_<string, vvp_queue_string>(recv, index, string(val->value.str));
       } else {
+	    if (keyed_() && !vpi_element_vec4_format_ok_(val))
+		  return 0;
 	    vvp_vector4_t value = vec4_from_vpi_value(val, width_);
 	    if (flags_ & TWO_STATE)
 		  value.cast2();
@@ -38190,9 +38382,13 @@ vpiHandle vpip_make_positional_element(uint64_t object_depth, uint64_t index_dep
 				       uint64_t type, uint64_t width,
 				       uint64_t flags, uint64_t capacity)
 {
+      using element = vpi_positional_element;
+      bool keyed = (flags & element::KEY_MASK) != 0;
       if (object_depth > UINT_MAX || index_depth > UINT_MAX || width > INT_MAX
-	  || flags > 31 || (!(flags & vpi_positional_element::QUEUE)
-			    && (capacity || (flags & vpi_positional_element::BARE_QUEUE))))
+	  || flags > (element::KEY_MASK | 31)
+	  || (keyed && (capacity || (flags & (element::QUEUE | element::INDEX_SIGNED))))
+	  || (!keyed && !(flags & element::QUEUE)
+	      && (capacity || (flags & element::BARE_SIGNAL))))
 	    return 0;
       switch (type) {
 	  case vpiRealVar:
@@ -39465,7 +39661,7 @@ bool of_VPI_CALL(vthread_t thr, vvp_code_t cp)
             trace = vpi_call_trace_match_(thr_scope, tf_name, call_scope);
       }
 
-      /* A positional handle checks its depths before accessing the stacks.
+      /* A container handle checks its depths before accessing the stacks.
        * Reject a missing call operand here as well, before the common
        * call cleanup can try to pop it. */
       auto*call = static_cast<__vpiSysTaskCall*>(cp->handle);

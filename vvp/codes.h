@@ -32,6 +32,7 @@ typedef bool (*vvp_code_fun)(vthread_t thr, vvp_code_t code);
  * access to the thread context.
  */
 extern bool of_ABS_WR(vthread_t thr, vvp_code_t code);
+extern bool of_AA_COPY_KEY_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_OBJ(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_ALL(vthread_t thr, vvp_code_t code);
 extern bool of_AA_DELETE_STR(vthread_t thr, vvp_code_t code);
@@ -387,6 +388,7 @@ extern bool of_LOAD_QO_R(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_QO_STR(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_QO_V(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_OBJ(vthread_t thr, vvp_code_t code);
+extern bool of_LOAD_OBJ_PEEK(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_ARR_DAR(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_ARR_DAR_SLICE(vthread_t thr, vvp_code_t code);
 extern bool of_LOAD_ARR_DAR_MD(vthread_t thr, vvp_code_t code);
