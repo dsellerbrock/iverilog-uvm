@@ -53085,11 +53085,16 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 			    // ignored sequence to value sets once; the regular bins below
 			    // subtract them term by term.
 			  typedef std::vector<std::pair<uint64_t,uint64_t>> trans_ranges_t;
-			  struct detect_transition_t {
-				string name;
-				std::vector<trans_ranges_t> terms;
+			  struct trans_overlap_term_t {
+				trans_ranges_t ranges;
+				int64_t min, max;
 			  };
-			  std::vector<detect_transition_t> detect_transitions;
+			  typedef std::vector<trans_overlap_term_t> trans_overlap_seq_t;
+			  struct trans_overlap_bin_t {
+				string name;
+				std::vector<trans_overlap_seq_t> sequences;
+			  };
+			  std::vector<trans_overlap_bin_t> overlap_bins;
 			  std::vector<std::vector<trans_ranges_t>> ignored_trans;
 			  std::vector<std::vector<trans_ranges_t>> illegal_trans;
 			  std::set<const void*> resolved_ignore_bins;
@@ -53149,6 +53154,70 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      if (lo <= hi) out.push_back(std::make_pair(lo, hi));
 				}
 				return out;
+			  };
+			  auto trans_sequences_overlap = [&](const trans_overlap_seq_t&a,
+							      const trans_overlap_seq_t&b) {
+				typedef std::pair<int64_t,int64_t> interval_t;
+				typedef std::pair<size_t,size_t> term_pair_t;
+				std::map<term_pair_t, std::vector<interval_t>> pending;
+				pending[{0, 0}].emplace_back(0, 0);
+				// Each edge advances at least one term, so each pair
+				// is visited at most once, after all its predecessors.
+				while (!pending.empty()) {
+				      auto next = pending.begin();
+				      const size_t i = next->first.first;
+				      const size_t j = next->first.second;
+				      auto offsets = std::move(next->second);
+				      pending.erase(next);
+				      const auto&left = a[i];
+				      const auto&right = b[j];
+				      if (trans_ranges_intersect(left.ranges, right.ranges).empty())
+					    continue;
+
+				      // At least one term is fresh. The signed offset
+				      // is the number of samples already consumed in
+				      // the left term minus that in the right term.
+				      // Merge only contiguous reachable offsets.
+				      std::sort(offsets.begin(), offsets.end());
+				      const bool left_last = i + 1 == a.size();
+				      const bool right_last = j + 1 == b.size();
+				      for (size_t k = 0; k < offsets.size();) {
+					    auto offset = offsets[k++];
+					    while (k < offsets.size()
+						   && offsets[k].first <= offset.second + 1) {
+						  offset.second = std::max(offset.second,
+									   offsets[k++].second);
+					    }
+					    // A shared finish requires the two total
+					    // counts to differ by a reachable offset.
+					    if (left_last == right_last
+						&& left.min - right.max <= offset.second
+						&& offset.first <= left.max - right.min) {
+						  if (left_last) return true;
+						  pending[{i + 1, j + 1}].emplace_back(0, 0);
+					    }
+					    // If only one term finishes, its total
+					    // count shifts the offset. The continuing
+					    // term must have consumed 1 to max-1.
+					    if (!left_last) {
+						  int64_t lo = std::max(1 - right.max,
+									offset.first - left.max);
+						  int64_t hi = std::min(int64_t(-1),
+									offset.second - left.min);
+						  if (lo <= hi)
+							pending[{i + 1, j}].emplace_back(lo, hi);
+					    }
+					    if (!right_last) {
+						  int64_t lo = std::max(int64_t(1),
+									offset.first + right.min);
+						  int64_t hi = std::min(left.max - 1,
+									offset.second + right.max);
+						  if (lo <= hi)
+							pending[{i, j + 1}].emplace_back(lo, hi);
+					    }
+				      }
+				}
+				return false;
 			  };
 			  auto trans_ranges_subtract = [](const trans_ranges_t&a,
 							  const trans_ranges_t&b) {
@@ -53617,59 +53686,6 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 				      if (bad) continue;
 				      if (programs.empty()) continue;
 
-				  // IEEE 1800-2017/2023 19.7: detect_overlap applies to
-				  // transition lists as well as value ranges. Compare fixed,
-				  // unrepeated sequences as sets at each sample position.
-				  if (opt_uint(cp.options, "detect_overlap",
-					       cg_detect_overlap)
-				      && !bin.wildcard && !constructor_dependent) {
-					bool simple = true;
-					std::vector<detect_transition_t> current;
-					for (auto&program : programs) {
-					      detect_transition_t sequence;
-					      sequence.name = bin.name.str();
-					      for (auto&term : program) {
-						    if (term.dynamic || term.repeat !=
-							(unsigned)class_type_t::pform_cov_trans_term_t::TRANS_ONCE) {
-							  simple = false;
-							  break;
-						    }
-						    sequence.terms.push_back(term.ranges);
-					      }
-					      if (!simple) break;
-					      current.push_back(std::move(sequence));
-					}
-					if (simple) {
-					      for (auto&sequence : current) {
-						    for (auto&previous : detect_transitions) {
-							  if (sequence.terms.size() != previous.terms.size())
-								continue;
-							  bool overlaps = true;
-							  for (size_t i = 0; i < sequence.terms.size(); i++) {
-								    bool term_overlaps = false;
-								    for (auto&a : sequence.terms[i])
-								    for (auto&b : previous.terms[i])
-									  if (a.first <= b.second
-									      && b.first <= a.second)
-										term_overlaps = true;
-								    if (!term_overlaps) {
-									  overlaps = false;
-									  break;
-							    }
-							  }
-							  if (overlaps)
-								cerr << "warning: covergroup '"
-								     << cgdef->name
-								     << "' coverpoint '" << cp.label
-								     << "': bins '" << previous.name
-								     << "' and '" << sequence.name
-								     << "' overlap (option.detect_overlap)."
-								     << endl;
-						    }
-						    detect_transitions.push_back(sequence);
-					      }
-					}
-				  }
 				      if (constructor_dependent) {
 					    unsigned family = dyn_family++;
 					    for (unsigned sq = 0; sq < programs.size(); sq++)
@@ -53709,6 +53725,48 @@ void netclass_t::elaborate(Design*des, PClass*pclass)
 						    bin.arrayed ? bstem + "_marker" : bstem);
 					      if (marker_added < 0) continue;
 					      unsigned marker_prop = (unsigned)marker_added;
+
+				      // IEEE 1800-2017/2023 19.7, Table 19-1.
+				      // Compare complete sequences across bin declarations.
+				      if (!bin.wildcard && opt_uint(cp.options, "detect_overlap",
+								    cg_detect_overlap)) {
+					    trans_overlap_bin_t current;
+					    current.name = bin.name.str();
+					    for (const auto&program : programs) {
+						  if (std::any_of(program.begin(), program.end(),
+							[](const trans_term_t&term) {
+							      return term.repeat > class_type_t::
+								    pform_cov_trans_term_t::TRANS_CONSECUTIVE;
+							}))
+							continue;
+						  trans_overlap_seq_t sequence;
+						  for (const auto&term : program)
+							sequence.push_back({term.ranges,
+							      int64_t(term.min), int64_t(term.max)});
+						  current.sequences.push_back(std::move(sequence));
+					    }
+					    if (!current.sequences.empty()) {
+						  for (const auto&previous : overlap_bins) {
+							for (const auto&sequence : current.sequences) {
+							      if (std::any_of(previous.sequences.begin(),
+									      previous.sequences.end(),
+								      [&](const trans_overlap_seq_t&other) {
+									    return trans_sequences_overlap(other, sequence);
+								      })) {
+								    cerr << "warning: covergroup '"
+									 << cgdef->name
+									 << "' coverpoint '" << cp.label
+									 << "': bins '" << previous.name
+									 << "' and '" << current.name
+									 << "' overlap (option.detect_overlap)."
+									 << endl;
+								    break;
+							      }
+							}
+						  }
+						  overlap_bins.push_back(std::move(current));
+					    }
+				      }
 				      unsigned family = bin.arrayed ? dyn_family++
 					    : netclass_t::COVGRP_NO_FAMILY;
 				      for (unsigned sq = 0; sq < programs.size(); sq++) {
