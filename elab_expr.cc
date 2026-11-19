@@ -35087,6 +35087,44 @@ NetExpr* PEString::elaborate_expr(Design*des, NetScope*scope,
 					  uarray_type->static_dimensions(), 0);
       }
 
+      if (const netdarray_t*array = dynamic_cast<const netdarray_t*>(type)) {
+	    if (!positional_byte_container_type(type)) {
+		  cerr << get_fileline() << ": error: String literal requires a "
+		       << "positional array with byte-equivalent elements."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+
+	      // IEEE 1800 5.9: place the leftmost character at index zero.
+	      // parsed_value() represents even the empty literal as one byte.
+	    const verinum&text = parsed_value();
+	    ivl_type_t element_type = array->element_type();
+	    vector<NetExpr*> elements;
+	    elements.reserve(text.len() / 8);
+	    for (unsigned offset = text.len(); offset > 0; ) {
+		  offset -= 8;
+		  verinum::V bits[8];
+		  for (unsigned bit = 0; bit < 8; ++bit)
+			bits[bit] = text[offset + bit];
+		  NetEConst*element = new NetEConst(element_type, verinum(bits, 8));
+		  element->set_line(*this);
+		  elements.push_back(element);
+	    }
+
+	    NetEArrayPattern*pattern = new NetEArrayPattern(type, elements);
+	    pattern->set_line(*this);
+	    const netqueue_t*queue = dynamic_cast<const netqueue_t*>(array);
+	    if (queue && queue->max_idx() >= 0) {
+		  NetESFunc*bounded = new NetESFunc("$ivl_bounded_queue_literal",
+						    type, 1);
+		  bounded->parm(0, pattern);
+		  bounded->set_line(*this);
+		  return bounded;
+	    }
+	    return pattern;
+      }
+
       NetECString*tmp = new NetECString(parsed_value());
       tmp->cast_signed(signed_flag_);
       tmp->set_line(*this);
