@@ -218,7 +218,8 @@ extern void compile_delay(char*label, unsigned width,
  */
 extern void compile_part_select(char*label, char*src,
 				unsigned base, unsigned wid,
-                                bool event_synchronous = false);
+                                bool event_synchronous = false,
+                                bool force_rhs_slice = false);
 extern void compile_part_select_pv(char*label, char*src,
 				   unsigned base, unsigned wid,
 				   unsigned vec_wid);

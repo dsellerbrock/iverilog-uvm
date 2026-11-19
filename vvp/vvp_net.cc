@@ -392,11 +392,12 @@ void vvp_net_fil_t::force_link(vvp_net_t*dst, vvp_net_t*src)
 {
       assert(dst->fil == this);
 
-      force_link_pv(dst, src, 0, filter_size());
+      force_link_pv(dst, src, 0, filter_size(), 0);
 }
 
 void vvp_net_fil_t::force_link_pv(vvp_net_t*dst, vvp_net_t*src,
-				   unsigned base, unsigned wid)
+				   unsigned base, unsigned wid,
+				   unsigned source_base)
 {
       assert(dst->fil == this);
 
@@ -439,7 +440,7 @@ void vvp_net_fil_t::force_link_pv(vvp_net_t*dst, vvp_net_t*src,
 
       vvp_fun_force*slot_fun = dynamic_cast<vvp_fun_force*>(slot->fun);
       assert(slot_fun);
-      slot_fun->activate(base, wid, full_wid);
+      slot_fun->activate(base, wid, full_wid, source_base);
 
       slot->port[2] = vvp_net_ptr_t(src, 0);
       vvp_net_ptr_t dst_ptr(slot, 0);

@@ -323,10 +323,11 @@ struct force_pending_s {
       unsigned word;
       unsigned base;
       unsigned width;
+      unsigned source_base;
 
       force_pending_s()
       : kind(FORCE_PENDING_NONE), expected_link_pc(0), word(0), base(0),
-	width(0)
+	width(0), source_base(0)
       {
 	    target.net = 0;
       }
@@ -339,6 +340,7 @@ struct force_pending_s {
 	    word = 0;
 	    base = 0;
 	    width = 0;
+	    source_base = 0;
       }
 };
 
@@ -1350,6 +1352,10 @@ static force_pending_s* force_pending_start_(vthread_t thr,
 	    thr->force_pending->clear();
 
       thr->force_pending->kind = kind;
+      // A code-space chunk boundary is transparent to instruction adjacency.
+      vvp_code_t next = thr->pc;
+      thr->force_pending->expected_link_pc =
+	    next->opcode == of_CHUNK_LINK ? next->cptr : next;
       return thr->force_pending;
 }
 
@@ -15816,13 +15822,14 @@ bool of_ASSIGN_VEC4(vthread_t thr, vvp_code_t cp)
 /*
  * Resizes a vector value for a partial assignment so that the value is fully
  * in-bounds of the target signal. Both `val` and `off` will be updated if
- * necessary.
+ * necessary. Pass an initially zero `source_base` to retain the RHS bit
+ * offset for a live force link.
  *
  * Returns false if the value is fully out-of-bounds and the assignment should
  * be skipped. Otherwise returns true.
  */
 static bool resize_rval_vec(vvp_vector4_t &val, int64_t &off,
-			    unsigned int sig_wid)
+			    unsigned int sig_wid, unsigned*source_base = nullptr)
 {
       unsigned int wid = val.size();
 
@@ -15858,6 +15865,8 @@ static bool resize_rval_vec(vvp_vector4_t &val, int64_t &off,
       }
 
       val = val.subvalue(base, wid);
+      if (source_base)
+	    *source_base = base;
 
       return true;
 }
@@ -22984,12 +22993,13 @@ bool of_FORCE_LINK_A(vthread_t thr, vvp_code_t cp)
       unsigned word = pending->word;
       unsigned base = pending->base;
       unsigned wid = pending->width;
+      unsigned source_base = pending->source_base;
       force_pending_clear_(thr);
 
       if (array->automatic_storage
 	  || !array->is_forceable_vec4_array() || !source->fil)
 	    return true;
-      array->force_link_word(word, base, wid, source);
+      array->force_link_word(word, base, wid, source, source_base);
       return true;
 }
 
@@ -23011,10 +23021,11 @@ bool of_FORCE_LINK_OFF(vthread_t thr, vvp_code_t cp)
       }
       unsigned base = pending->base;
       unsigned wid = pending->width;
+      unsigned source_base = pending->source_base;
       force_pending_clear_(thr);
       if (!dst->fil || !src->fil)
 	    return true;
-      dst->fil->force_link_pv(dst, src, base, wid);
+      dst->fil->force_link_pv(dst, src, base, wid, source_base);
       return true;
 }
 
@@ -23074,7 +23085,8 @@ bool of_FORCE_VEC4_A(vthread_t thr, vvp_code_t cp)
 	  || !array->is_forceable_vec4_array())
 	    return true;
 
-      if (!resize_rval_vec(value, off, array->get_word_size()))
+      unsigned source_base = 0;
+      if (!resize_rval_vec(value, off, array->get_word_size(), &source_base))
 	    return true;
       assert(off >= 0);
       unsigned use_address = (unsigned)address;
@@ -23087,7 +23099,7 @@ bool of_FORCE_VEC4_A(vthread_t thr, vvp_code_t cp)
       pending->word = use_address;
       pending->base = use_off;
       pending->width = value.size();
-      pending->expected_link_pc = thr->pc;
+      pending->source_base = source_base;
       return true;
 }
 
@@ -23111,7 +23123,8 @@ bool of_FORCE_VEC4_OFF(vthread_t thr, vvp_code_t cp)
 
 	// This is the width of the target vector.
       unsigned use_size = net->fil->filter_size();
-      if (!resize_rval_vec(value, base, use_size))
+      unsigned source_base = 0;
+      if (!resize_rval_vec(value, base, use_size, &source_base))
 	    return true;
       assert(base >= 0);
       unsigned use_base = (unsigned)base;
@@ -23141,7 +23154,7 @@ bool of_FORCE_VEC4_OFF(vthread_t thr, vvp_code_t cp)
       pending->target.net = net;
       pending->base = use_base;
       pending->width = wid;
-      pending->expected_link_pc = thr->pc;
+      pending->source_base = source_base;
       return true;
 }
 

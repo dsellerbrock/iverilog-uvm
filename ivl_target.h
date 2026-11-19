@@ -2678,10 +2678,13 @@ extern unsigned ivl_stmt_lineno(ivl_statement_t net);
  *    after its initial activation. This may differ from ivl_stmt_rval, which
  *    remains the expression evaluated when the statement executes. When no
  *    distinct structural link source exists, this returns ivl_stmt_rval.
+ *    A distinct IVL_EX_CONCAT is a link descriptor with one signal per
+ *    l-value, indexed in the same order as ivl_stmt_lval.
  *
  * ivl_stmt_cassign_link_rval
  *    For an IVL_ST_CASSIGN, return the expression used to keep the
- *    procedural continuous assignment live after initial activation.
+ *    procedural continuous assignment live after initial activation,
+ *    using the same convention as ivl_stmt_force_link_rval.
  *
  * ivl_stmt_sub_stmt
  *    Some statements contain a single, subordinate statement. An

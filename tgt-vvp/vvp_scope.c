@@ -3222,6 +3222,18 @@ static void draw_lpm_ufunc(ivl_lpm_t net)
  * Handle a PART SELECT device. This has a single input and output,
  * plus an optional extra input that is a non-constant base.
  */
+static int part_is_force_rhs_slice_(ivl_lpm_t net)
+{
+      ivl_nexus_t output = ivl_lpm_q(net);
+      for (unsigned idx = 0; idx < ivl_nexus_ptrs(output); idx += 1) {
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ivl_nexus_ptr(output, idx));
+	    if (sig && ivl_signal_local(sig)
+		&& ivl_signal_attr(sig, "_ivl_force_rhs_slice"))
+		  return 1;
+      }
+      return 0;
+}
+
 static void draw_lpm_part(ivl_lpm_t net)
 {
       unsigned width, base;
@@ -3235,8 +3247,12 @@ static void draw_lpm_part(ivl_lpm_t net)
       sel = ivl_lpm_data(net,1);
 
       if (sel == 0) {
-	    fprintf(vvp_out, "L_%p%s .part%s %s", net, dly,
-                    ivl_lpm_event_synchronous(net) ? "/event" : "", input);
+	    const char*mode = "";
+	    if (part_is_force_rhs_slice_(net))
+		  mode = "/force";
+	    else if (ivl_lpm_event_synchronous(net))
+		  mode = "/event";
+	    fprintf(vvp_out, "L_%p%s .part%s %s", net, dly, mode, input);
 	    fprintf(vvp_out, ", %u, %u;\n", base, width);
       } else {
 	    const char*sel_symbol = draw_net_input(sel);

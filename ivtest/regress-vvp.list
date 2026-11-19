@@ -8185,3 +8185,6 @@ issue3791_2017 vvp_tests/issue3791_2017.json
 issue3791_2023 vvp_tests/issue3791_2023.json
 issue3791_bad_2017 vvp_tests/issue3791_bad_2017.json
 issue3791_bad_2023 vvp_tests/issue3791_bad_2023.json
+# IEEE 1800-2017/2023 10.6: live RHS slices for procedural concatenations.
+issue3896_concat_leaves_2017 vvp_tests/issue3896_concat_leaves_2017.json
+issue3896_concat_leaves_2023 vvp_tests/issue3896_concat_leaves_2023.json

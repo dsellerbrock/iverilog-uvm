@@ -1,0 +1,10 @@
+./ivltests/issue3896_concat_leaves.sv:62: warning: ignoring out of bounds l-value array access words[3].
+./ivltests/issue3896_concat_leaves.sv:69: warning: ignoring out of bounds l-value array access words[3].
+./ivltests/issue3896_concat_leaves.sv:106: warning: ignoring out of bounds l-value array access words[3].
+./ivltests/issue3896_concat_leaves.sv:108: warning: ignoring out of bounds l-value array access words[3].
+11
+01
+00
+01
+01
+PASSED
