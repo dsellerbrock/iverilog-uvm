@@ -11677,12 +11677,82 @@ static NetExpr* resolve_class_event_method_target_(
       return obj;
 }
 
+static const netclass_t* continuous_interface_receiver_(
+		const symbol_search_results&sr)
+{
+      if (interface_continuous_context != interface_continuous_context_t::BOUND_RHS
+	  || pform_procedural_expr_context || !sr.net || sr.net->is_virtual_interface()
+	  || sr.path_tail.size() != 1 || sr.path_head.empty())
+	    return nullptr;
+      const netclass_t*type = dynamic_cast<const netclass_t*>(sr.net->net_type());
+      return type && type->is_interface() ? type : nullptr;
+}
+
+static NetScope* bound_interface_call_instance_(
+		Design*des, NetScope*scope, const symbol_search_results&sr)
+{
+      const auto&indices = sr.path_head.back().index;
+      if (indices.size() != sr.net->unpacked_dimensions())
+	    return nullptr;
+      unsigned word = 0;
+      if (!indices.empty()) {
+	    list<long>values;
+	    const auto&dimensions = sr.net->unpacked_dims();
+	    unsigned dimension = 0;
+	    for (const index_component_t&index : indices) {
+		  if (index.sel != index_component_t::SEL_BIT || !index.msb || index.lsb)
+			return nullptr;
+		  const unsigned saved_opt_const_func = opt_const_func;
+		  opt_const_func = max(opt_const_func, 2u);
+		  unique_ptr<NetExpr>value(elab_and_eval(des, scope, index.msb, -1));
+		  opt_const_func = saved_opt_const_func;
+		  const auto*constant = dynamic_cast<const NetEConst*>(value.get());
+		  if (!constant || !constant->value().is_defined())
+			return nullptr;
+		  bool negative;
+		  const uint64_t magnitude = verinum_signed_magnitude(constant->value(),
+								      negative);
+		  if (magnitude > uint64_t(LONG_MAX) + unsigned(negative))
+			return nullptr;
+		  const long index_value = magnitude > uint64_t(LONG_MAX) ? LONG_MIN
+			: negative ? -static_cast<long>(magnitude) : static_cast<long>(magnitude);
+		  const auto&range = dimensions[dimension++];
+		  if (index_value < min(range.get_msb(), range.get_lsb())
+		      || index_value > max(range.get_msb(), range.get_lsb()))
+			return nullptr;
+		  values.push_back(index_value);
+	    }
+	    unique_ptr<NetExpr>canonical(normalize_variable_unpacked(sr.net, values));
+	    long address;
+	    if (!canonical || !eval_as_long(address, canonical.get())
+		|| address < 0 || static_cast<unsigned long>(address) >= sr.net->pin_count())
+		  return nullptr;
+	    word = address;
+      }
+      return sr.net->resolve_interface_scope(word);
+}
+
 unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
 					    const symbol_search_results&search_results,
 					    width_mode_t&)
 {
       if (!gn_system_verilog())
 	    return 0;
+
+      if (continuous_interface_receiver_(search_results)) {
+	    NetScope*instance = bound_interface_call_instance_(des, scope, search_results);
+	    NetScope*method = instance
+		  ? instance->child(hname_t(search_results.path_tail.front().name))
+		  : nullptr;
+	    const NetFuncDef*def = method ? method->func_def() : nullptr;
+	    if (const NetNet*res = def ? def->return_sig() : nullptr) {
+		  expr_type_ = res->data_type();
+		  expr_width_ = min_width_ = res->vector_width();
+		  signed_flag_ = res->get_signed();
+		  return expr_width_;
+	    }
+	    return 0;
+      }
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": PECallFunction::test_width_method_: "
@@ -20702,7 +20772,8 @@ NetExpr* PECallFunction::elaborate_expr(Design*des, NetScope*scope,
 }
 
 NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*dscope,
-					 unsigned flags) const
+					 unsigned flags,
+					 const netclass_t*interface_type) const
 {
       check_package_unit_subroutine_call(des, *this, scope, dscope,
 					 package_unit_call_reported_);
@@ -20726,6 +20797,11 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 	    des->errors += 1;
 	    return 0;
       }
+
+      const vector<pform_tf_port_t>*prototype_ports = nullptr;
+      if (interface_type && !check_bound_interface_function_call(
+	    *this, des, interface_type, def, parms_, prototype_ports))
+	    return nullptr;
 
 	/* IEEE 1800-2017/2023 13.4: output, inout, and non-const ref
 	 * function arguments are only legal in a procedural statement. A
@@ -20832,7 +20908,7 @@ NetExpr* PECallFunction::elaborate_base_(Design*des, NetScope*scope, NetScope*ds
 
       unsigned parm_errors = elaborate_arguments_(des, scope,
 						  def, need_const,
-						  parms, parm_off);
+						  parms, parm_off, prototype_ports);
 
       if (need_const && !dscope->is_const_func()) {
 
@@ -20965,7 +21041,8 @@ static PExpr* function_default_actual_(const NetFuncDef*def,
 unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 					      const NetFuncDef*def, bool need_const,
 					      vector<NetExpr*>&parms,
-					      unsigned parm_off) const
+					      unsigned parm_off,
+					      const vector<pform_tf_port_t>*prototype_ports) const
 {
       unsigned parm_errors = 0;
       unsigned missing_parms = 0;
@@ -20985,7 +21062,16 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 	    des->errors += 1;
       }
 
-      auto args = map_named_args(des, def, parms_, parm_off);
+      vector<PExpr*> args;
+      if (prototype_ports) {
+	    vector<perm_string> names;
+	    names.reserve(prototype_ports->size());
+	    for (const auto&port : *prototype_ports)
+		  names.push_back(port.port->basename());
+	    args = map_named_args(des, names, parms_);
+      } else {
+	    args = map_named_args(des, def, parms_, parm_off);
+      }
       const PFunction*function_pform = def->scope()->func_pform();
       bool dpi_import = function_pform && function_pform->is_dpi_import();
 
@@ -20994,7 +21080,10 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 	    PExpr *tmp = args[idx];
 	    const NetNet*formal = def->port(pidx);
 	    NetScope*actual_scope = scope;
-	    if (!tmp && (formal->port_type() == NetNet::POUTPUT
+	    if (!tmp && prototype_ports) {
+		  tmp = prototype_ports->at(idx).defe;
+		  actual_scope = const_cast<NetScope*>(def->scope()->parent());
+	    } else if (!tmp && (formal->port_type() == NetNet::POUTPUT
 			 || formal->port_type() == NetNet::PINOUT)) {
 		  tmp = function_default_actual_(def, formal);
 		  if (tmp) actual_scope = const_cast<NetScope*>(def->scope());
@@ -21288,7 +21377,7 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 			     << " argwid=" << parms[pidx]->expr_width()
 			     << ": " << *parms[idx] << endl;
 
-	    } else if (def->port_defe(pidx)) {
+	    } else if (!prototype_ports && def->port_defe(pidx)) {
 		  if (def->port_defe(pidx)->requires_procedural_context()
 		      && !pform_procedural_expr_context) {
 			cerr << get_fileline() << ": error: Default argument for function `"
@@ -21456,6 +21545,26 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		 << "Enable SystemVerilog to support object methods." << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+      if (const netclass_t*type = continuous_interface_receiver_(search_results)) {
+	    NetScope*instance = bound_interface_call_instance_(des, scope, search_results);
+	    if (!instance) {
+		  cerr << get_fileline() << ": error: The interface function receiver "
+		       << "in a continuous assignment must select a bound interface instance."
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    perm_string name = search_results.path_tail.front().name;
+	    NetScope*method = instance->child(hname_t(name));
+	    if (!method) {
+		  cerr << get_fileline() << ": error: Interface instance "
+		       << scope_path(instance) << " has no function `" << name << "'." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    return elaborate_base_(des, scope, method, NO_FLAGS, type);
       }
 
       if (debug_elaborate) {
@@ -22754,6 +22863,17 @@ NetExpr* PECallFunction::elaborate_method_dispatch_(Design*des, NetScope*scope,
 		    }
 
 		    if (class_type->is_interface()) {
+			  const auto*signal = dynamic_cast<const NetESignal*>(sub_expr);
+			  if (interface_continuous_context != interface_continuous_context_t::NONE
+			      && !pform_procedural_expr_context
+			      && (!signal || signal->sig()->is_virtual_interface())) {
+				cerr << get_fileline() << ": error: A component of a virtual interface "
+				     << "may not be used in a continuous assignment "
+					"(IEEE 1800-2017/2023 25.9)." << endl;
+				des->errors += 1;
+				delete sub_expr;
+				return nullptr;
+			  }
 			  bool recognized = false;
 			  bool hard_error = false;
 			  NetESFunc*call = elaborate_dynamic_interface_function_call(
