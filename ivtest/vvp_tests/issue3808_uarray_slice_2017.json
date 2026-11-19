@@ -1,0 +1,7 @@
+{
+    "type"          : "normal",
+    "source"        : "issue3808_uarray_slice_2017.v",
+    "iverilog-args" : [ "-g2017" ],
+    "gold"          : "issue3808_uarray_slice",
+    "vlog95"        : { "type" : "NI" }
+}

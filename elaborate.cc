@@ -12095,10 +12095,12 @@ static NetProc* make_uarray_dynamic_prefix_copy_loop_(
 	if (checked_destination)
 	    word = make_checked_uarray_index(word, 0, dst_sig->unpacked_count(), loc);
 	word_lval->set_word(word);
-	NetESignal*word_rval = new NetESignal(src_sig,
-	      make_uarray_dynamic_prefix_word_(loc, src_base, ordinal, count,
-						 reverse_src, src_stride,
-						 src_dimension_width));
+	NetExpr*src_word = src_base
+	      ? make_uarray_dynamic_prefix_word_(loc, src_base, ordinal, count,
+						  reverse_src, src_stride,
+						  src_dimension_width)
+	      : new NetESignal(ordinal);
+	NetESignal*word_rval = new NetESignal(src_sig, src_word);
 	word_rval->set_line(loc);
 	NetProc*body = nonblocking
 	      ? static_cast<NetProc*>(new NetAssignNB(word_lval, word_rval, 0, 0))
@@ -12417,21 +12419,32 @@ static bool uarray_declared_indices_(const netuarray_t*type,
       return true;
 }
 
-/* A fixed unpacked-array function result is held in the function's return
- * signal, which is reused by later calls. A nonblocking assignment must
- * capture the complete result before scheduling any destination update.
- * Copy the result once into private array storage, then schedule one word
- * update per element. For slices, capture the canonical destination base
- * before the call and use the same base for every word. The word walk is the
- * left-to-right order required by IEEE 1800-2017/2023 7.6; each source and
- * destination ordinal is normalized against its own declared dimensions.
- * Clause 10.4.2 supplies the NBA scheduling semantics, and 2023 7.6
- * explicitly treats a slice l-value as one assignment.
- *
- * Timing controls are deliberately left to the caller: a single event or
- * delay must not be duplicated across the generated word assignments. */
-static NetProc* make_uarray_function_nb_(NetScope*scope, const LineInfo&loc,
-					 NetAssign_*lv, const NetEUFunc*ufn)
+/* Capture a slice base before evaluating an aggregate RHS. The checked
+ * run-time base retains enough information for partially in-bounds slices. */
+static NetNet* snapshot_uarray_slice_base_(NetScope*scope, const LineInfo&loc,
+					 const NetExpr*word, NetBlock*block)
+{
+      NetNet*base = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			      new netvector_t(IVL_VT_LOGIC, 63, 0, true));
+      base->local_flag(true);
+      base->set_line(loc);
+      if (scope->is_auto()) base->lifetime_override(IVL_VLT_AUTOMATIC);
+      NetAssign*save = new NetAssign(new NetAssign_(base), word->dup_expr());
+      save->set_line(loc);
+      save->synth_generated_snapshot();
+      block->append(save);
+      return base;
+}
+
+/* Copy the result once into private array storage while the callee frame is
+ * live. Each source and destination ordinal is normalized against its own
+ * declared dimensions for the left-to-right correspondence of 7.6.
+ * A blocking slice uses its selected shape, and an NBA captures the complete
+ * result before scheduling the word updates (10.4.2). */
+static NetProc* make_uarray_function_copy_(NetScope*scope, const LineInfo&loc,
+					   NetAssign_*lv, const NetEUFunc*ufn,
+					   bool nonblocking,
+					   bool checked_destination)
 {
       if (!scope || !lv || lv->more || lv->nest()
 	  || lv->get_property_idx() >= 0 || lv->has_array_word_prefix())
@@ -12523,21 +12536,13 @@ static NetProc* make_uarray_function_nb_(NetScope*scope, const LineInfo&loc,
       NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
       blk->set_line(loc);
       NetNet*base_snapshot = 0;
-      if (dynamic_base) {
-	    base_snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
-					new netvector_t(IVL_VT_LOGIC, 63, 0, true));
-	    base_snapshot->local_flag(true);
-	    base_snapshot->set_line(loc);
-	    NetAssign*save_base = new NetAssign(new NetAssign_(base_snapshot),
-						wrd->dup_expr());
-	    save_base->set_line(loc);
-	    blk->append(save_base);
-      }
+      if (dynamic_base)
+	    base_snapshot = snapshot_uarray_slice_base_(scope, loc, wrd, blk);
 
 	/* Keep the same declared bounds as the function result. The existing
 	 * blocking function-result emitter copies the function's return signal
-	 * into this temporary exactly once; subsequent NBs read only the saved
-	 * words, never the reusable function return signal. */
+	 * into this temporary exactly once. The destination stores read the
+	 * saved words after the callee frame has been released. */
       NetNet*snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
 				   result_net->unpacked_dims(), result_net->net_type());
       snapshot->local_flag(true);
@@ -12555,9 +12560,12 @@ static NetProc* make_uarray_function_nb_(NetScope*scope, const LineInfo&loc,
 		  base_read->set_line(loc);
 		  NetEConst*offset = make_const_val_s(dst_offsets[idx]);
 		  offset->set_line(loc);
-		  NetEBAdd*word = new NetEBAdd('+', base_read,
+		  NetExpr*word = new NetEBAdd('+', base_read,
 				pad_to_width(offset, 64, loc), 64, true);
 		  word->set_line(loc);
+		  if (checked_destination)
+			word = make_checked_uarray_index(
+			      word, 0, sig->unpacked_count(), loc);
 		  dst->set_word(word);
 	    } else {
 		  NetEConst*word = make_const_val_s(base + dst_offsets[idx]);
@@ -12569,9 +12577,11 @@ static NetProc* make_uarray_function_nb_(NetScope*scope, const LineInfo&loc,
 	    source_word->set_line(loc);
 	    NetESignal*source = new NetESignal(snapshot, source_word);
 	    source->set_line(loc);
-	    NetAssignNB*nb = new NetAssignNB(dst, source, 0, 0);
-	    nb->set_line(loc);
-	    blk->append(nb);
+	    NetProc*store = nonblocking
+		  ? static_cast<NetProc*>(new NetAssignNB(dst, source, 0, 0))
+		  : static_cast<NetProc*>(new NetAssign(dst, source));
+	    store->set_line(loc);
+	    blk->append(store);
       }
 
       return blk;
@@ -12725,8 +12735,9 @@ static bool uarray_copy_shapes_compatible_(const netuarray_t*dst,
 		&& src_elem->type_equivalent(dst_elem));
 }
 
-static bool check_runtime_uarray_slice_leaf_(Design*des, const LineInfo&loc,
-					    const NetNet*sig, bool nonblocking)
+static bool check_uarray_slice_leaf_(Design*des, const LineInfo&loc,
+				    const NetNet*sig, bool nonblocking,
+				    bool runtime_indexed = true)
 {
       switch (sig->data_type()) {
 	  case IVL_VT_BOOL:
@@ -12745,10 +12756,101 @@ static bool check_runtime_uarray_slice_leaf_(Design*des, const LineInfo&loc,
 
       cerr << loc.get_fileline() << ": sorry: "
 	   << (nonblocking ? "nonblocking" : "blocking")
-	   << " assignment to this run-time indexed unpacked-array element type"
-	   << " is not yet supported." << endl;
+	   << " assignment to this "
+	   << (runtime_indexed ? "run-time indexed " : "")
+	   << "unpacked-array element type is not yet supported." << endl;
       des->errors += 1;
       return false;
+}
+
+/* Use the whole-target marshaller to fill a slice-shaped temporary. The
+ * marshaller diagnoses a size mismatch before changing the temporary. Guard
+ * the final stores with the size of the same captured value so that a failed
+ * marshal cannot copy stale temporary words to the destination. */
+static NetProc* make_uarray_slice_value_copy_(
+      Design*des, NetScope*scope, const LineInfo&loc, NetAssign_*lv,
+      const NetExpr*value, bool nonblocking, bool checked_destination,
+      bool&handled)
+{
+      handled = false;
+      if (!value || !lv->is_array_slice() || !lv->sig() || lv->nest()
+	  || lv->get_property_idx() >= 0 || lv->sig()->unpacked_dimensions() != 1
+	  || dynamic_cast<const NetEArrayPattern*>(value))
+	    return nullptr;
+
+      const netuarray_t*dst_type = dynamic_cast<const netuarray_t*>(lv->net_type());
+      if (!dst_type || dst_type->static_dimensions().size() != 1)
+	    return nullptr;
+      const netdarray_t*container =
+	    dynamic_cast<const netdarray_t*>(value->net_type());
+      const netqueue_t*queue = dynamic_cast<const netqueue_t*>(container);
+      const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(value->net_type());
+      if ((!container || (queue && queue->assoc_compat())) && !fixed)
+	    return nullptr;
+
+      handled = true;
+      if (nonblocking && !checked_destination
+	  && !check_uarray_slice_leaf_(des, loc, lv->sig(), true, false))
+	    return nullptr;
+
+      unsigned long count = dst_type->static_dimensions()[0].width();
+      bool compatible = container
+	    ? uarray_element_equivalent_container_(dst_type, container)
+	    : fixed->static_dimensions().size() == 1
+	      && uarray_copy_shapes_compatible_(
+		    dst_type, fixed->static_dimensions()[0].width(), fixed->element_type());
+      if (!compatible) {
+	    cerr << loc.get_fileline() << ": error: unpacked array slice and "
+		 << "source require equivalent element types and equal element counts."
+		 << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
+
+      NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
+      block->set_line(loc);
+      NetNet*base = snapshot_uarray_slice_base_(scope, loc, lv->word(), block);
+
+      NetExpr*source = value->dup_expr();
+      NetExpr*same_count = nullptr;
+      if (container) {
+	    NetNet*captured = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+					container);
+	    captured->local_flag(true);
+	    captured->set_line(loc);
+	    if (scope->is_auto()) captured->lifetime_override(IVL_VLT_AUTOMATIC);
+	    NetAssign*save = new NetAssign(new NetAssign_(captured), source);
+	    save->set_line(loc);
+	    save->synth_generated_snapshot();
+	    block->append(save);
+	    source = new NetESignal(captured);
+	    NetESFunc*size = new NetESFunc("$ivl_array_query$size",
+					   &netvector_t::atom2u32, 2);
+	    size->set_line(loc);
+	    size->parm(0, source->dup_expr());
+	    size->parm(1, make_const_val(1));
+	    same_count = new NetEBComp('E', size, make_const_val(count));
+	    same_count->set_line(loc);
+      }
+
+      NetNet*snapshot = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				   dst_type->static_dimensions(), dst_type->element_type());
+      snapshot->local_flag(true);
+      snapshot->set_line(loc);
+      if (scope->is_auto()) snapshot->lifetime_override(IVL_VLT_AUTOMATIC);
+      NetAssign*materialize = new NetAssign(new NetAssign_(snapshot), source);
+      materialize->set_line(loc);
+      block->append(materialize);
+
+      NetProc*copy = make_uarray_dynamic_prefix_copy_loop_(
+	    scope, loc, lv->sig(), base, snapshot, nullptr, count, false,
+	    nonblocking, 1, 0, checked_destination);
+      if (same_count) {
+	    copy = new NetCondit(same_count, copy, nullptr);
+	    copy->set_line(loc);
+      }
+      block->append(copy);
+      return block;
 }
 
 // Fixed-signal sources are handled by the copy paths. Index keys would
@@ -12758,13 +12860,7 @@ static bool check_runtime_uarray_slice_pattern_(Design*des,
 						 const PExpr*source)
 {
       const PEAssignPattern*pattern = dynamic_cast<const PEAssignPattern*>(source);
-      if (!pattern) {
-	    cerr << loc.get_fileline() << ": sorry: this source for a run-time"
-		 << " indexed unpacked-array slice is not yet supported;"
-		 << " use a fixed-array signal or an assignment pattern." << endl;
-	    des->errors += 1;
-	    return false;
-      }
+      if (!pattern) return true;
       for (const auto&key : pattern->keys()) {
 	    if (key.kind == assignment_pattern_key_t::EXPR) {
 		  cerr << loc.get_fileline() << ": sorry: an index-keyed pattern"
@@ -14745,7 +14841,7 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 	    has_timing_control() ? nullptr : &runtime_indexed_slice);
       if (lv == 0) return 0;
       if (runtime_indexed_slice
-	  && !check_runtime_uarray_slice_leaf_(des, *this, lv->sig(), false)) {
+	  && !check_uarray_slice_leaf_(des, *this, lv->sig(), false)) {
 	    delete lv;
 	    return nullptr;
       }
@@ -15140,6 +15236,36 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 	    unsigned errors_before_pattern = des->errors;
 	    rv = elaborate_rval_(des, scope, lv_net_type);
 
+	    if (simple_blocking && lv->is_array_slice() && lv->sig()
+		&& lv->sig()->unpacked_dimensions() == 1
+		&& !lv->nest() && lv->get_property_idx() < 0 && rv) {
+		  NetProc*copy = nullptr;
+		  bool handled = false;
+		  if (const NetEUFunc*ufn = dynamic_cast<const NetEUFunc*>(rv)) {
+			if (dynamic_cast<const netuarray_t*>(ufn->net_type())) {
+			      handled = true;
+			      copy = make_uarray_function_copy_(
+				    scope, *this, lv, ufn, false, runtime_indexed_slice);
+			      if (!copy) {
+				    cerr << get_fileline() << ": error: "
+					 << "Unpacked-array function return type is not "
+					 << "assignment compatible with '" << lv->name()
+					 << "'." << endl;
+				    des->errors += 1;
+			      }
+			}
+		  }
+		  if (!handled)
+			copy = make_uarray_slice_value_copy_(
+			      des, scope, *this, lv, rv, false, runtime_indexed_slice,
+			      handled);
+		  if (handled) {
+			delete lv;
+			delete rv;
+			return copy;
+		  }
+	    }
+
 	      // Supported array/subarray signals, assignment patterns and
 	      // unpacked-array function calls have all been lowered above (or
 	      // carry their own aggregate IR). Refuse any remaining slice r-value
@@ -15177,9 +15303,9 @@ NetProc* PAssign::elaborate_unwrapped_(Design*des, NetScope*scope) const
 
 	    if (runtime_indexed_slice) {
 		  if (des->errors == errors_before_pattern) {
-			cerr << get_fileline() << ": error: this assignment"
-			     << " pattern does not fill the unpacked array slice"
-			     << " exactly." << endl;
+			cerr << get_fileline() << ": sorry: this source for a run-time"
+			     << " indexed unpacked-array slice is not yet supported."
+			     << endl;
 			des->errors += 1;
 		  }
 		  delete lv;
@@ -16159,7 +16285,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	    has_timing_control() ? nullptr : &runtime_indexed_slice);
       if (lv == 0) return 0;
       if (runtime_indexed_slice
-	  && !check_runtime_uarray_slice_leaf_(des, *this, lv->sig(), true)) {
+	  && !check_uarray_slice_leaf_(des, *this, lv->sig(), true)) {
 	    delete lv;
 	    return nullptr;
       }
@@ -16394,8 +16520,18 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 		  const NetNet*result_net = result ? result->sig() : 0;
 		  if (result_net && result_net->unpacked_dimensions() > 0) {
 			NetProc*blk = 0;
-			if (event_ == 0 && count_ == 0 && delay_ == 0)
-			      blk = make_uarray_function_nb_(scope, *this, lv, ufn);
+			if (!has_timing_control()) {
+			      if (!runtime_indexed_slice && lv->is_array_slice()
+				  && lv->sig() && lv->sig()->unpacked_dimensions() == 1
+				  && !check_uarray_slice_leaf_(
+					des, *this, lv->sig(), true, false)) {
+				    delete lv;
+				    delete rv;
+				    return nullptr;
+			      }
+			      blk = make_uarray_function_copy_(
+				    scope, *this, lv, ufn, true, runtime_indexed_slice);
+			}
 			if (blk) {
 			      delete lv;
 			      delete rv;
@@ -16410,6 +16546,17 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 			delete rv;
 			return 0;
 		  }
+	    }
+      }
+
+      if (!has_timing_control()) {
+	    bool handled = false;
+	    NetProc*copy = make_uarray_slice_value_copy_(
+		  des, scope, *this, lv, rv, true, runtime_indexed_slice, handled);
+	    if (handled) {
+		  delete lv;
+		  delete rv;
+		  return guard_function_background_event_(scope, *this, copy);
 	    }
       }
 
@@ -16461,7 +16608,7 @@ NetProc* PAssignNB::elaborate(Design*des, NetScope*scope) const
 	    }
       }
       if (runtime_indexed_slice) {
-	    cerr << get_fileline() << ": sorry: this pattern for a run-time"
+	    cerr << get_fileline() << ": sorry: this source for a run-time"
 		 << " indexed unpacked-array slice is not yet supported." << endl;
 	    des->errors += 1;
 	    delete lv;

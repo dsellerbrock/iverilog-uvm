@@ -26,3 +26,5 @@ sv_uarray_slice_bounds_fail CE,-g2012 ivltests gold=sv_uarray_slice_bounds_fail.
 sv_uarray_slice_size_fail CE,-g2012 ivltests gold=sv_uarray_slice_size_fail.gold
 sv_uarray_slice_width_fail CE,-g2012 ivltests gold=sv_uarray_slice_width_fail.gold
 sv_uarray_slice_type_fail CE,-g2012 ivltests gold=sv_uarray_slice_type_fail.gold
+issue3808_uarray_slice_2017 normal,-g2017 ivltests gold=issue3808_uarray_slice.gold
+issue3808_uarray_slice_2023 normal,-g2023 ivltests gold=issue3808_uarray_slice.gold
