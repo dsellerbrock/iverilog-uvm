@@ -28,6 +28,7 @@
 # include  "vvp_assoc.h"
 # include  "vvp_cobject.h"
 # include  "vvp_darray.h"
+# include  "vvp_island.h"
 # include  <vector>
 # include  <set>
 # include  <cassert>
@@ -3852,6 +3853,18 @@ void vvp_wire_vec8::force_fil_real(double, const vvp_vector2_t&)
       assert(0);
 }
 
+static bool release_charge_island_(vvp_net_t*net)
+{
+      auto*port = dynamic_cast<vvp_island_port*>(net->fun);
+      if (!port || !port->island()->has_charge_feedback())
+	    return false;
+
+	// The cached drive can include the previous force through the
+	// island. Recompute using the new mask and republish this port.
+      port->island()->run_island(net);
+      return true;
+}
+
 void vvp_wire_vec8::release(vvp_net_ptr_t ptr, bool net_flag)
 {
       hist_snapshot_();
@@ -3859,6 +3872,8 @@ void vvp_wire_vec8::release(vvp_net_ptr_t ptr, bool net_flag)
       vvp_vector2_t mask (vvp_vector2_t::FILL1, bits8_.size());
       release_mask(mask);
       if (net_flag) {
+	    if (release_charge_island_(ptr.ptr()))
+		  return;
 	    needs_init_ = !force8_ .eeq(bits8_);
 	    ptr.ptr()->send_vec8(bits8_);
       } else {
@@ -3882,9 +3897,11 @@ void vvp_wire_vec8::release_pv(vvp_net_ptr_t ptr, unsigned base, unsigned wid, b
       release_mask(mask);
 
       if (net_flag) {
-	    needs_init_ = !force8_.subvalue(base,wid) .eeq((bits8_.subvalue(base,wid)));
-	    ptr.ptr()->send_vec8_pv(bits8_.subvalue(base,wid),
-				    base, bits8_.size());
+	    if (!release_charge_island_(ptr.ptr())) {
+		  needs_init_ = !force8_.subvalue(base,wid) .eeq((bits8_.subvalue(base,wid)));
+		  ptr.ptr()->send_vec8_pv(bits8_.subvalue(base,wid),
+					  base, bits8_.size());
+	    }
 	    run_vpi_callbacks_in_boundary();
       } else {
 	// Variable do not know about strength so this should not be able

@@ -38,7 +38,7 @@ using namespace std;
 class vvp_island_tran : public vvp_island {
 
     public:
-      void run_island() override;
+      void run_island(vvp_net_t*released) override;
       void count_drivers(vvp_island_port*port, unsigned bit_idx,
                          unsigned counts[3]) override;
       bool link_evcd_branches() override;
@@ -59,9 +59,9 @@ struct vvp_island_branch_tran : public vvp_island_branch {
                              unsigned width__, unsigned part__,
                              unsigned offset__, bool resistive__);
       void run_test_enabled();
-      bool rerun_test_enabled();
-      void run_resolution();
-      void run_output();
+      bool rerun_test_enabled(bool use_scratch = false);
+      void run_resolution(island_channel channel);
+      void run_output(vvp_net_t*released);
 
       vvp_net_t*en;
       unsigned width, part, offset;
@@ -70,10 +70,17 @@ struct vvp_island_branch_tran : public vvp_island_branch {
       bool evcd_physical = false;
 
 	// SDF INTERCONNECT (IEEE 1800 32.4.4): when set, values do not
-	// cross this branch instantly. Side s's own value goes through
-	// delay_out[s] and arrives as an injected driver on the other side.
-      vvp_net_t*delay_out[2] = { 0, 0 };
-      vvp_vector8_t own_sent[2];
+	// cross this branch instantly. Each channel delays the side's
+	// own drive before injecting it into the opposite port.
+      struct delayed_channel {
+	    vvp_net_t*out[2] = { nullptr, nullptr };
+	    vvp_vector8_t sent[2];
+      };
+      delayed_channel visible_delay;
+      delayed_channel charge_delay;
+      bool delayed() const { return visible_delay.out[0] != nullptr; }
+      delayed_channel& delay(island_channel channel)
+      { return channel == island_channel::charge ? charge_delay : visible_delay; }
 };
 
 vvp_island_branch_tran::vvp_island_branch_tran(vvp_net_t*en__,
@@ -101,7 +108,8 @@ static inline vvp_island_branch_tran* BRANCH_TRAN(vvp_island_branch*tmp)
  * without what BR itself injects there. Sending the fully resolved value
  * instead would echo the other side's delayed value back to it.
  */
-static vvp_vector8_t own_value_(vvp_island_branch_tran*br, unsigned side)
+static vvp_vector8_t own_value_(vvp_island_branch_tran*br, unsigned side,
+				island_channel channel)
 {
       vvp_vector8_t val;
       set<vvp_net_t*> seen;
@@ -112,7 +120,7 @@ static vvp_vector8_t own_value_(vvp_island_branch_tran*br, unsigned side)
 	    vvp_branch_ptr_t cur = work.front();
 	    work.pop_front();
 	    vvp_net_t*net = cur.port() ? cur.ptr()->b : cur.ptr()->a;
-	    vvp_vector8_t in = island_get_input(net, br);
+	    vvp_vector8_t in = island_get_input(net, channel, br);
 	    if (in.size() != 0)
 		  val = val.size() == 0 ? in
 			: val.size() == in.size() ? resolve(val, in) : val;
@@ -121,7 +129,7 @@ static vvp_vector8_t own_value_(vvp_island_branch_tran*br, unsigned side)
 	    island_collect_node(node, cur);
 	    for (vvp_branch_ptr_t end : node) {
 		  vvp_island_branch_tran*other = BRANCH_TRAN(end.ptr());
-		  if (other->state == tran_disabled || other->delay_out[0]
+		  if (other->state == tran_disabled || other->delayed()
 		      || other->width != 0)
 			continue;
 		  vvp_branch_ptr_t far(other, end.port()^1);
@@ -133,20 +141,39 @@ static vvp_vector8_t own_value_(vvp_island_branch_tran*br, unsigned side)
       return val;
 }
 
-static void send_own_values_(vvp_island_branch*branches)
+static void send_own_value_(vvp_island_branch_tran*br, unsigned side,
+			    island_channel channel)
+{
+      auto&delay = br->delay(channel);
+      vvp_vector8_t val = own_value_(br, side, channel);
+      if (val.size() == 0 || val.eeq(delay.sent[side]))
+	    return;
+      delay.sent[side] = val;
+      vvp_net_t*out = delay.out[side];
+      out->fun->recv_vec8(vvp_net_ptr_t(out, 0), val);
+}
+
+static void send_own_values_(vvp_island_branch*branches, bool with_charge)
 {
       for (vvp_island_branch*cur = branches ; cur ; cur = cur->next_branch) {
 	    vvp_island_branch_tran*br = BRANCH_TRAN(cur);
-	    if (!br->delay_out[0])
+	    if (!br->delayed())
 		  continue;
 	    for (unsigned side = 0 ; side < 2 ; side += 1) {
-		  vvp_vector8_t val = own_value_(br, side);
-		  if (val.size() == 0 || val.eeq(br->own_sent[side]))
-			continue;
-		  br->own_sent[side] = val;
-		  vvp_net_t*out = br->delay_out[side];
-		  out->fun->recv_vec8(vvp_net_ptr_t(out, 0), val);
+		  send_own_value_(br, side, island_channel::visible);
+		  if (with_charge)
+			send_own_value_(br, side, island_channel::charge);
 	    }
+      }
+}
+
+static void clear_resolution_(vvp_island_branch*branches, island_channel channel)
+{
+      for (vvp_island_branch*cur = branches ; cur ; cur = cur->next_branch) {
+	    static_cast<vvp_island_port*>(cur->a->fun)->resolution_value(channel)
+		  = vvp_vector8_t::nil;
+	    static_cast<vvp_island_port*>(cur->b->fun)->resolution_value(channel)
+		  = vvp_vector8_t::nil;
       }
 }
 
@@ -155,7 +182,7 @@ static void send_own_values_(vvp_island_branch*branches)
  * entire island. We run the island by calling run_resolution() for
  * all the branches in the island.
 */
-void vvp_island_tran::run_island()
+void vvp_island_tran::run_island(vvp_net_t*released)
 {
 	// Test to see if any of the branches are enabled. This loop
 	// tests the enabled inputs for all the branches and caches
@@ -166,6 +193,7 @@ void vvp_island_tran::run_island()
 	    tmp->run_test_enabled();
       }
 
+      const bool with_charge = has_charge_feedback();
       unsigned long passes = 0;
 rerun:
 	// A network with no fixed point (a switch whose control it drives
@@ -174,20 +202,42 @@ rerun:
 	    return;
 
 	// Now resolve all the branches in the island.
-      for (vvp_island_branch*cur = branches_ ; cur ; cur = cur->next_branch) {
-	    vvp_island_branch_tran*tmp = dynamic_cast<vvp_island_branch_tran*>(cur);
-	    assert(tmp);
-	    tmp->run_resolution();
+      for (vvp_island_branch*cur = branches_ ; cur ; cur = cur->next_branch)
+	    BRANCH_TRAN(cur)->run_resolution(island_channel::visible);
+
+      if (with_charge) {
+	      // Settle the observable switch controls before updating any
+	      // stored charge. Both traversals use those same switch states.
+	    bool enable_changed = false;
+	    for (vvp_island_branch*cur = branches_ ; cur ; cur = cur->next_branch)
+		  enable_changed |= BRANCH_TRAN(cur)->rerun_test_enabled(true);
+	    if (enable_changed) {
+		  clear_resolution_(branches_, island_channel::visible);
+		  goto rerun;
+	    }
+
+	    for (vvp_island_branch*cur = branches_ ; cur ; cur = cur->next_branch)
+		  BRANCH_TRAN(cur)->run_resolution(island_channel::charge);
+
+	      // Feedback can change the port inputs. Deliver it only after
+	      // the traversal, so every trireg sees the same resolution.
+	    bool charge_changed = false;
+	    for (auto*port : charge_ports_)
+		  charge_changed |= port->send_charge_feedback();
+	    clear_resolution_(branches_, island_channel::charge);
+	    if (charge_changed) {
+		  clear_resolution_(branches_, island_channel::visible);
+		  goto rerun;
+	    }
       }
 
 	// Now output the resolved values.
-      for (vvp_island_branch*cur = branches_ ; cur ; cur = cur->next_branch) {
-	    vvp_island_branch_tran*tmp = dynamic_cast<vvp_island_branch_tran*>(cur);
-	    assert(tmp);
-	    tmp->run_output();
-      }
+      for (vvp_island_branch*cur = branches_ ; cur ; cur = cur->next_branch)
+	    BRANCH_TRAN(cur)->run_output(released);
 
-      send_own_values_(branches_);
+      send_own_values_(branches_, with_charge);
+      if (with_charge)
+	    return;
 
 	// Now check if the enable inputs have been affected by the resolution.
       bool enable_changed = false;
@@ -326,7 +376,7 @@ static void evcd_each_peer(const evcd_port_bit&node, Visit visit)
       auto edge = end;
       do {
 	    const auto*branch = BRANCH_TRAN(edge.ptr());
-	    if (branch->state == tran_disabled || branch->delay_out[0])
+	    if (branch->state == tran_disabled || branch->delayed())
 		  continue;
 	    unsigned bit = node.second;
 	    if (branch->width) {
@@ -515,7 +565,7 @@ void vvp_island_branch_tran::run_test_enabled()
       }
 }
 
-bool vvp_island_branch_tran::rerun_test_enabled()
+bool vvp_island_branch_tran::rerun_test_enabled(bool use_scratch)
 {
       vvp_island_port*ep = en? dynamic_cast<vvp_island_port*> (en->fun) : NULL;
 
@@ -523,12 +573,14 @@ bool vvp_island_branch_tran::rerun_test_enabled()
 	    return false;
 
 	// We are only looking for changes resulting from running the island
-	// resolution. If the outvalue is nil, we know that the enable port
-	// is an .import, so won't be affected.
-      if (ep->outvalue.size() == 0)
+	// resolution. An .import has no resolved value.
+      const vvp_vector8_t&resolved = use_scratch ? ep->value : ep->outvalue;
+      if (resolved.size() == 0)
 	    return false;
 
-      vvp_bit4_t enable_val = ep->outvalue.value(0).value();
+      vvp_bit4_t enable_val = use_scratch
+	    ? island_filter_value(en, resolved).value(0).value()
+	    : resolved.value(0).value();
 
       tran_state_t old_state = state;
 
@@ -564,16 +616,18 @@ inline vvp_vector8_t resolve_ambiguous(const vvp_vector8_t&a,
 }
 
 static void push_value_through_branches(const vvp_vector8_t&val,
-					const list<vvp_branch_ptr_t>&connections);
+					const list<vvp_branch_ptr_t>&connections,
+					island_channel channel);
 
 static void push_value_through_branch(const vvp_vector8_t&val,
-                                      vvp_branch_ptr_t cur)
+                                      vvp_branch_ptr_t cur,
+				      island_channel channel)
 {
       vvp_island_branch_tran*branch = BRANCH_TRAN(cur.ptr());
 
         // If the branch is disabled, skip. A delayed branch never
         // carries a value across instantly.
-      if (branch->state == tran_disabled || branch->delay_out[0])
+      if (branch->state == tran_disabled || branch->delayed())
             return;
 
       unsigned src_ab = cur.port();
@@ -582,55 +636,57 @@ static void push_value_through_branch(const vvp_vector8_t&val,
       vvp_net_t*dst_net = dst_ab? branch->b : branch->a;
       vvp_island_port*dst_port = dynamic_cast<vvp_island_port*>(dst_net->fun);
 
-      vvp_vector8_t old_val = dst_port->value;
+      vvp_vector8_t&dst_value = dst_port->resolution_value(channel);
+      vvp_vector8_t old_val = dst_value;
 
         // If the port on the other side has not yet been visited,
         // get its input value.
-      if (dst_port->value.size() == 0)
-            dst_port->value = island_get_input(dst_net);
+      if (dst_value.size() == 0)
+            dst_value = island_get_input(dst_net, channel);
 
         // If we don't yet have an initial value for the port, skip.
-      if (dst_port->value.size() == 0)
+      if (dst_value.size() == 0)
             return;
 
         // Now resolve the pushed value with whatever values we have
         // previously collected (and resolved) for the port.
       if (branch->width == 0) {
               // There are no part selects.
-            dst_port->value = resolve_ambiguous(dst_port->value, val, branch->state,
-                                                vvp_switch_strength_map[branch->resistive]);
+            dst_value = resolve_ambiguous(dst_value, val, branch->state,
+					  vvp_switch_strength_map[branch->resistive]);
 
       } else if (dst_ab == 1) {
               // The other side is a strict subset (part select)
               // of this side.
             vvp_vector8_t tmp = val.subvalue(branch->offset, branch->part);
-            dst_port->value = resolve(dst_port->value, tmp);
+            dst_value = resolve(dst_value, tmp);
 
       } else {
               // The other side is a superset of this side.
             vvp_vector8_t tmp = part_expand(val, branch->width, branch->offset);
-            dst_port->value = resolve(dst_port->value, tmp);
+            dst_value = resolve(dst_value, tmp);
       }
 
         // If the resolved value for the port has changed, push the new
         // value back into the network.
-      if (! dst_port->value.eeq(old_val)) {
+      if (! dst_value.eeq(old_val)) {
             list<vvp_branch_ptr_t> connections;
 
 	    vvp_branch_ptr_t dst_side(branch, dst_ab);
 	    island_collect_node(connections, dst_side);
 
-	    push_value_through_branches(dst_port->value, connections);
+	    push_value_through_branches(dst_value, connections, channel);
       }
 }
 
 static void push_value_through_branches(const vvp_vector8_t&val,
-					const list<vvp_branch_ptr_t>&connections)
+					const list<vvp_branch_ptr_t>&connections,
+					island_channel channel)
 {
       for (list<vvp_branch_ptr_t>::const_iterator idx = connections.cbegin()
 		 ; idx != connections.cend() ; ++ idx ) {
 
-            push_value_through_branch(val, *idx);
+            push_value_through_branch(val, *idx, channel);
       }
 }
 
@@ -639,42 +695,25 @@ static void push_value_through_branches(const vvp_vector8_t&val,
  * recursive descent to span the graph of branches, pushing values
  * through the network until a stable state is reached.
  */
-void vvp_island_branch_tran::run_resolution()
+void vvp_island_branch_tran::run_resolution(island_channel channel)
 {
-      list<vvp_branch_ptr_t> connections;
-      vvp_island_port*port;
-
-	// If the A side port hasn't already been visited, then push
-        // its input value through all the branches connected to it.
-      port = dynamic_cast<vvp_island_port*>(a->fun);
-      if (port->value.size() == 0) {
-	    vvp_branch_ptr_t a_side(this, 0);
-	    island_collect_node(connections, a_side);
-
-	    port->value = island_get_input(a);
-            if (port->value.size() != 0)
-	          push_value_through_branches(port->value, connections);
-
-            connections.clear();
-      }
-
-	// Do the same for the B side port. Note that if the branch
-        // is enabled, the B side port will have already been visited
-        // when we resolved the A side port.
-      port = dynamic_cast<vvp_island_port*>(b->fun);
-      if (port->value.size() == 0) {
-	    vvp_branch_ptr_t b_side(this, 1);
-	    island_collect_node(connections, b_side);
-
-	    port->value = island_get_input(b);
-	    if (port->value.size() != 0)
-	          push_value_through_branches(port->value, connections);
-
-            connections.clear();
+	// Push each endpoint's input if the traversal has not reached it yet.
+      for (unsigned side = 0 ; side < 2 ; side += 1) {
+	    vvp_net_t*net = side ? b : a;
+	    auto*port = static_cast<vvp_island_port*>(net->fun);
+	    vvp_vector8_t&value = port->resolution_value(channel);
+	    if (value.size() != 0)
+		  continue;
+	    value = island_get_input(net, channel);
+	    if (value.size() == 0)
+		  continue;
+	    list<vvp_branch_ptr_t> connections;
+	    island_collect_node(connections, vvp_branch_ptr_t(this, side));
+	    push_value_through_branches(value, connections, channel);
       }
 }
 
-void vvp_island_branch_tran::run_output()
+void vvp_island_branch_tran::run_output(vvp_net_t*released)
 {
       vvp_island_port*port;
 
@@ -682,14 +721,14 @@ void vvp_island_branch_tran::run_output()
         // resolved value to the output.
       port = dynamic_cast<vvp_island_port*>(a->fun);
       if (port->value.size() != 0) {
-	    island_send_value(a, port->value);
+	    island_send_value(a, port->value, a == released);
 	    port->value = vvp_vector8_t::nil;
       }
 
 	// Do the same for the B side port.
       port = dynamic_cast<vvp_island_port*>(b->fun);
       if (port->value.size() != 0) {
-	    island_send_value(b, port->value);
+	    island_send_value(b, port->value, b == released);
 	    port->value = vvp_vector8_t::nil;
       }
 }
@@ -769,18 +808,31 @@ void compile_island_tranvp(char*island, char*pa, char*pb,
  */
 class vvp_island_inject : public vvp_net_fun_t {
     public:
-      vvp_island_inject(vvp_net_t*port, const void*from)
-      : port_(port), from_(from) { }
+      vvp_island_inject(vvp_net_t*port, const void*from, island_channel channel)
+      : port_(port), from_(from), channel_(channel) { }
       void recv_vec4(vvp_net_ptr_t, const vvp_vector4_t&bit,
 		     vvp_context_t) override
       {
 	    vvp_island_port*fun = dynamic_cast<vvp_island_port*>(port_->fun);
-	    fun->set_injection(from_, vvp_vector8_t(bit, 6, 6));
+	    fun->set_injection(channel_, from_, vvp_vector8_t(bit, 6, 6));
       }
     private:
       vvp_net_t*port_;
       const void*from_;
+      island_channel channel_;
 };
+
+static vvp_net_t* make_island_delay_(vvp_island_branch_tran*br, unsigned side,
+				     unsigned width, island_channel channel,
+				     const vvp_fun_intermodpath*timing = nullptr)
+{
+      vvp_net_t*inj = new vvp_net_t;
+      inj->fun = new vvp_island_inject(side ? br->a : br->b, br, channel);
+      vvp_net_t*imp = new vvp_net_t;
+      imp->fun = new vvp_fun_intermodpath(imp, width, timing);
+      imp->out_ = vvp_net_ptr_t(inj, 0);
+      return imp;
+}
 
 // ponytail: the delayed value crosses as strong 0/1/x/z (intermodpath is
 // 4-state); carry strength if an inout interconnect ever needs it.
@@ -805,27 +857,27 @@ vvp_fun_intermodpath* island_tran_interconnect(vvp_net_t*inner_port,
       if (!br)
 	    return 0;
 
-      if (!br->delay_out[0]) {
+      if (!br->delayed()) {
+	    bool with_charge = port->island()->has_charge_feedback();
 	    for (unsigned side = 0 ; side < 2 ; side += 1) {
-		  vvp_net_t*inj = new vvp_net_t;
-		  inj->fun = new vvp_island_inject(side ? br->a : br->b, br);
-		  vvp_net_t*imp = new vvp_net_t;
-		  imp->fun = new vvp_fun_intermodpath(imp, width);
-		  imp->out_ = vvp_net_ptr_t(inj, 0);
-		  br->delay_out[side] = imp;
+		  vvp_net_t*visible = make_island_delay_(br, side, width,
+							island_channel::visible);
+		  br->visible_delay.out[side] = visible;
+		  if (with_charge)
+			br->charge_delay.out[side] = make_island_delay_(
+			      br, side, width, island_channel::charge,
+			      static_cast<const vvp_fun_intermodpath*>(visible->fun));
 	    }
 	      // Send the values present now while the new delays are still
 	      // zero, so the annotation delays later changes only, as for an
 	      // output-to-input interconnect.
 	    for (unsigned side = 0 ; side < 2 ; side += 1) {
-		  br->own_sent[side] = own_value_(br, side);
-		  if (br->own_sent[side].size() != 0)
-			br->delay_out[side]->fun->recv_vec8(
-			      vvp_net_ptr_t(br->delay_out[side], 0),
-			      br->own_sent[side]);
+		  send_own_value_(br, side, island_channel::visible);
+		  if (with_charge)
+			send_own_value_(br, side, island_channel::charge);
 	    }
 	    port->island()->flag_island();
       }
-      path_net = br->delay_out[into_inner ? 0 : 1];
+      path_net = br->visible_delay.out[into_inner ? 0 : 1];
       return dynamic_cast<vvp_fun_intermodpath*>(path_net->fun);
 }

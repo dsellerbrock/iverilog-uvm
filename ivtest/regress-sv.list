@@ -7290,3 +7290,7 @@ issue3801_2023 normal,-g2023,-gassertions,-s,issue3801 ivltests gold=issue3801.g
 # IEEE 1800-2017/2023 10.10: self-determined integral queue operands.
 issue1158_signed_queue_sort_2017 normal,-g2017 ivltests gold=issue1158_signed_queue_sort.gold
 issue1158_signed_queue_sort_2023 normal,-g2023 ivltests gold=issue1158_signed_queue_sort.gold
+
+# IEEE 1800-2017/2023 10.6.2 and 28.16.2: trireg charge under a tran island force.
+issue3491_2017 normal,-g2017,-gspecify,-ginterconnect,-s,issue3491 ivltests gold=issue3491.gold
+issue3491_2023 normal,-g2023,-gspecify,-ginterconnect,-s,issue3491 ivltests gold=issue3491.gold
