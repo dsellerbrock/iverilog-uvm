@@ -7050,7 +7050,16 @@ issue3517_union_cond_2023 normal,-g2023,-s,issue3517_union_cond ivltests gold=is
 issue3518_tagged_call_2017 normal,-g2017 ivltests gold=issue3518_tagged_call.gold
 issue3518_tagged_call_2023 normal,-g2023 ivltests gold=issue3518_tagged_call.gold
 issue3524_cycle_delay_2017 normal,-g2017,-s,issue3524_cycle_delay ivltests gold=issue3524_cycle_delay.gold
-issue3524_cycle_delay_2023 normal,-g2023,-s,issue3524_cycle_delay ivltests gold=issue3524_cycle_delay.gold
+issue3524_cycle_delay_2023 normal,-g2023,-s,issue3524_cycle_delay,-DISSUE3524_2023 ivltests gold=issue3524_cycle_delay.gold
+
+# IEEE 1800 14.11: runtime cycle-delay expression bounds.
+issue705_cycle_delay_zero_2017 RE,-g2017,-s,issue705_cycle_delay ivltests gold=issue705_cycle_delay_invalid_2017.gold
+issue705_cycle_delay_negative_2017 RE,-g2017,-s,issue705_cycle_delay,-Pissue705_cycle_delay.COUNT=-1 ivltests gold=issue705_cycle_delay_invalid_2017.gold
+issue705_cycle_delay_unknown_2017 RE,-g2017,-s,issue705_cycle_delay,-DISSUE705_UNKNOWN ivltests gold=issue705_cycle_delay_invalid_2017.gold
+issue705_cycle_delay_zero_2023 normal,-g2023,-s,issue705_cycle_delay ivltests gold=issue705_cycle_delay_zero_2023.gold
+issue705_cycle_delay_negative_2023 RE,-g2023,-s,issue705_cycle_delay,-Pissue705_cycle_delay.COUNT=-1 ivltests gold=issue705_cycle_delay_invalid_2023.gold
+issue705_cycle_delay_unknown_2023 RE,-g2023,-s,issue705_cycle_delay,-DISSUE705_UNKNOWN ivltests gold=issue705_cycle_delay_invalid_2023.gold
+
 issue3525_auto_task_2017 normal,-g2017,-s,issue3525_auto_task ivltests gold=issue3525_auto_task.gold
 issue3525_auto_task_2023 normal,-g2023,-s,issue3525_auto_task ivltests gold=issue3525_auto_task.gold
 issue3531_scope_randomize_method_2017 normal,-g2017,-s,tb ivltests gold=issue3531_scope_randomize_method.gold
