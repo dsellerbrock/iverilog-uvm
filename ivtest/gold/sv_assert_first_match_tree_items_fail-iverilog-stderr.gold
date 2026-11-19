@@ -1,0 +1,2 @@
+ivltests/sv_assert_first_match_tree_items_fail.v:5: sorry: sequence match-item lvalue `outside' must be an assertion local variable (IEEE 1800 16.6).
+ivltests/sv_assert_first_match_tree_items_fail.v:6: error: first_match match items cannot be attached to a sequence admitting an empty match (IEEE 1800-2017/2023 16.10, 16.11).

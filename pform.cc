@@ -10266,6 +10266,10 @@ static void sva_decl_tree_forget_sampled_(const sva_stree_t*t)
       if (!t) return;
       sva_decl_sequence_forget_sampled_(t->chain);
       sva_expr_forget_sampled_(t->gexpr);
+      for (const sva_match_item_t&item : t->items) {
+	    sva_expr_forget_sampled_(item.lv_rhs);
+	    sva_match_call_forget_sampled_(item.call);
+      }
       sva_decl_tree_forget_sampled_(t->a);
       sva_decl_tree_forget_sampled_(t->b);
 }
@@ -12452,29 +12456,37 @@ static bool sva_lv_check_read_(const struct vlltype&loc, PExpr*e,
       return true;
 }
 
+static bool sva_lv_flow_items_(const struct vlltype&loc,
+			       const std::vector<sva_match_item_t>&items,
+			       const sva_lv_set_t&locals, sva_lv_flow_t&flow,
+			       sva_lv_reads_at_t*reads_at)
+{
+      for (const sva_match_item_t&item : items) {
+	    if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT) {
+		  if (!sva_lv_check_read_(loc, item.lv_rhs, locals, flow, reads_at))
+			return false;
+		  flow.assigned[item.lv_name] = {item.lv_rhs};
+		  flow.written.insert(item.lv_name);
+		  flow.blocked.erase(item.lv_name);
+	    } else if (item.call) {
+		  for (const named_pexpr_t&arg : item.call->parms())
+			if (!sva_lv_check_read_(loc, arg.parm, locals, flow, reads_at))
+			      return false;
+	    }
+      }
+      return true;
+}
+
 static bool sva_lv_flow_chain_(const struct vlltype&loc,
 			       const std::vector<sva_seq_step_t>*chain,
 			       const sva_lv_set_t&locals,
 			       sva_lv_flow_t&flow, sva_lv_reads_at_t*reads_at = nullptr)
 {
-      if (!chain) return true;
-      for (const sva_seq_step_t&st : *chain) {
-	    if (!sva_lv_check_read_(loc, st.expr, locals, flow, reads_at))
-		  return false;
-	    for (const sva_match_item_t&item : st.items) {
-		  if (item.kind == sva_match_item_t::LOCAL_ASSIGNMENT) {
-			if (!sva_lv_check_read_(loc, item.lv_rhs, locals, flow, reads_at))
-			      return false;
-			flow.assigned[item.lv_name] = {item.lv_rhs};
-			flow.written.insert(item.lv_name);
-			flow.blocked.erase(item.lv_name);
-		  } else if (item.call) {
-			for (const named_pexpr_t&arg : item.call->parms())
-			      if (!sva_lv_check_read_(loc, arg.parm, locals, flow, reads_at))
-				    return false;
-		  }
-	    }
-      }
+      if (chain)
+	    for (const sva_seq_step_t&st : *chain)
+		  if (!sva_lv_check_read_(loc, st.expr, locals, flow, reads_at)
+		      || !sva_lv_flow_items_(loc, st.items, locals, flow, reads_at))
+			return false;
       return true;
 }
 
@@ -12490,7 +12502,8 @@ static bool sva_lv_flow_tree_(const struct vlltype&loc, const sva_stree_t*t,
 	    return sva_lv_flow_tree_(loc, t->a, locals, flow, reads_at)
 		&& sva_lv_flow_tree_(loc, t->b, locals, flow, reads_at);
 	  case sva_stree_t::SEQ_FIRST_MATCH:
-	    return sva_lv_flow_tree_(loc, t->a, locals, flow, reads_at);
+	    return sva_lv_flow_tree_(loc, t->a, locals, flow, reads_at)
+		&& sva_lv_flow_items_(loc, t->items, locals, flow, reads_at);
 	  case sva_stree_t::SEQ_THROUGHOUT:
 	    return sva_lv_check_read_(loc, t->gexpr, locals, flow, reads_at)
 		&& sva_lv_flow_tree_(loc, t->a, locals, flow, reads_at);
@@ -13327,10 +13340,14 @@ static PExpr* sva_capture_intercept_(PExpr*e,
 
    When `subst` is non-null, a matching single-name reference is replaced
    with a fresh clone of the actual argument, preserving part-selects. */
+static const std::function<PExpr*(PExpr*)>* sva_match_operand_snapshot_ = nullptr;
+
 static PExpr* sva_clone_subst_impl_(PExpr*e,
 				    const std::map<perm_string,PExpr*>*subst)
 {
       if (!e) return nullptr;
+      if (sva_match_operand_snapshot_)
+	    if (PExpr*saved = (*sva_match_operand_snapshot_)(e)) return saved;
       if (sva_capture_ctx_)
 	    if (PExpr*saved = sva_capture_intercept_(e, subst)) {
 		  if (!sva_capture_in_call_) return saved;
@@ -24147,9 +24164,38 @@ static bool sva_chain_has_match_calls_(
 
 static bool sva_tree_has_match_calls_(const sva_stree_t*tree)
 {
-      return tree && (sva_chain_has_match_calls_(tree->chain)
-		      || sva_tree_has_match_calls_(tree->a)
-		      || sva_tree_has_match_calls_(tree->b));
+      if (!tree) return false;
+      for (const sva_match_item_t&item : tree->items)
+	    if (item.call) return true;
+      return sva_chain_has_match_calls_(tree->chain)
+	  || sva_tree_has_match_calls_(tree->a)
+	  || sva_tree_has_match_calls_(tree->b);
+}
+
+static bool sva_tree_match_calls_supported_(const sva_stree_t*tree,
+					    bool terminal = true)
+{
+      if (!tree) return true;
+      if (sva_chain_has_match_calls_(tree->chain)) return false;
+      for (const sva_match_item_t&item : tree->items)
+	    if (item.call && (!terminal || !sva_match_call_is_direct_(item.call, true)))
+		  return false;
+      // Only wrapper exits that are endpoints of the retained source have
+      // one record per match. A continuation can duplicate a prefix exit.
+      bool terminal_a = terminal && tree->kind == sva_stree_t::SEQ_OR;
+      bool terminal_b = terminal && (tree->kind == sva_stree_t::SEQ_OR
+				   || tree->kind == sva_stree_t::SEQ_CONCAT);
+      return sva_tree_match_calls_supported_(tree->a, terminal_a)
+	  && sva_tree_match_calls_supported_(tree->b, terminal_b);
+}
+
+static void sva_tree_item_wrappers_(const sva_stree_t*tree,
+				    std::vector<const sva_stree_t*>&wrappers)
+{
+      if (!tree) return;
+      if (tree->item_gate) wrappers.push_back(tree);
+      sva_tree_item_wrappers_(tree->a, wrappers);
+      sva_tree_item_wrappers_(tree->b, wrappers);
 }
 
 static bool sva_property_has_match_calls_(const sva_property_t*prop)
@@ -24195,13 +24241,24 @@ static int sva_validate_match_items_(const struct vlltype&loc,
 			extra_clock_calls = true;
       if (!sva_property_has_match_calls_(prop)) return 0;
 
-      if (tree_calls)
-	    return sva_match_item_sorry_(loc,
-		  "inside a sequence-combinator tree are not supported yet");
+      if (tree_calls) {
+	    const bool implication = prop->op_type == 1 || prop->op_type == 2;
+	    const sva_stree_t*source = implication ? prop->ante_tree : prop->tree;
+	    if ((prop->op_type != 0 && !implication)
+		|| !sva_tree_match_calls_supported_(source)
+		|| (implication && sva_tree_has_match_calls_(prop->tree))
+		|| sva_chain_has_match_calls_(prop->antecedent)
+		|| sva_chain_has_match_calls_(prop->seq))
+		  return sva_match_item_sorry_(loc,
+			"inside a sequence-combinator tree are not supported yet");
+      }
       if (prop->seq_clk_evt || prop->mc_prefix || extra_clock_calls
 	  || (prop->mc_more && !prop->mc_more->empty()))
 	    return sva_match_item_sorry_(loc,
 		  "in a multiclocked sequence are not supported yet");
+      if (tree_calls)
+	    return pform_sva_nfa_enabled() ? 1 : sva_match_item_sorry_(loc,
+		  "require the automaton engine (unset IVL_SVA_LEGACY)");
       if (prop->op_type != 0 || prop->antecedent)
 	    return sva_match_item_sorry_(loc,
 		  "are supported only in a flat, non-negated sequence property");
@@ -24283,6 +24340,8 @@ static void sva_tree_delete_(sva_stree_t*t, bool with_exprs)
 	    sva_expr_forget_sampled_(t->gexpr);
 	    delete t->gexpr;
       }
+      delete t->item_gate;
+      sva_destroy_match_items_(t->items);
       delete t;
 }
 
@@ -24437,13 +24496,21 @@ static sva_stree_t* sva_chain_take_tree_(std::vector<sva_seq_step_t>*chain)
    first_match nodes. Named sequence and property bodies may be reused. */
 static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
 				    const sva_stree_t*src,
-				    const std::map<perm_string,PExpr*>*subst = nullptr)
+				    const std::map<perm_string,PExpr*>*subst = nullptr,
+				    const std::map<perm_string,perm_string>*lv_subst = nullptr)
 {
       if (!src) return nullptr;
       sva_stree_t*out = new sva_stree_t;
       out->kind = src->kind;
       out->known_empty = src->known_empty;
       out->concat_overlap = src->concat_overlap;
+      if (src->item_gate) {
+	    out->item_gate = sva_bit_(loc, 1);
+	    if (!sva_clone_match_items_(src->items, out->items, subst, lv_subst)) {
+		  sva_tree_delete_(out, true);
+		  return nullptr;
+	    }
+      }
       std::map<perm_string,PExpr*> no_subst;
       if (src->chain) {
 	    out->chain = sva_clone_steps_subst_(loc, src->chain,
@@ -24461,14 +24528,14 @@ static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
 	    }
       }
       if (src->a) {
-	    out->a = sva_tree_clone_(loc, src->a, subst);
+	    out->a = sva_tree_clone_(loc, src->a, subst, lv_subst);
 	    if (!out->a) {
 		  sva_tree_delete_(out, true);
 		  return nullptr;
 	    }
       }
       if (src->b) {
-	    out->b = sva_tree_clone_(loc, src->b, subst);
+	    out->b = sva_tree_clone_(loc, src->b, subst, lv_subst);
 	    if (!out->b) {
 		  sva_tree_delete_(out, true);
 		  return nullptr;
@@ -25774,18 +25841,29 @@ static bool sva_prop_is_leaf_chain_(sva_property_t*p)
 }
 
 sva_property_t* pform_sva_tree_first_match(const struct vlltype&loc,
-					   sva_property_t*operand)
+					   sva_property_t*operand,
+					   std::vector<sva_match_item_t>*items)
 {
-      if (!operand) return nullptr;
-      if (sva_prop_is_property_shaped_(operand) || sva_leaf_names_property_(operand)) {
+      if (operand && (sva_prop_is_property_shaped_(operand)
+		      || sva_leaf_names_property_(operand))) {
 	    cerr << loc << ": error: first_match requires a sequence operand "
 		 << "(IEEE 1800-2017/2023 16.9.8)." << endl;
 	    error_count += 1;
 	    pform_sva_destroy_property(operand);
+	    operand = nullptr;
+      }
+      if (!operand) {
+	    if (items) sva_destroy_match_items_(*items);
+	    delete items;
 	    return nullptr;
       }
       sva_stree_t*wrapper = new sva_stree_t;
       wrapper->kind = sva_stree_t::SEQ_FIRST_MATCH;
+      if (items) {
+	    wrapper->item_gate = sva_bit_(loc, 1);
+	    wrapper->items.swap(*items);
+	    delete items;
+      }
       wrapper->a = operand->tree ? operand->tree
 				 : sva_chain_take_tree_(operand->seq);
       operand->tree = wrapper;
@@ -26793,15 +26871,59 @@ struct sva_path_write_t {
       sva_path_values_t inputs;
 };
 
+struct sva_path_call_t {
+      const PCallTask* call;
+      std::vector<sva_path_values_t> inputs;
+};
+
 struct sva_path_step_t {
       sva_path_values_t inputs;
       std::vector<unsigned> writes;
+      std::vector<sva_path_call_t> calls;
 };
 
 struct sva_path_edge_t {
       std::vector<sva_path_step_t> steps;
       sva_path_values_t snapshot;
 };
+
+/* Snapshot each mutable operand in the detached fork's activation before
+   the child enters Reactive. Preserve the expression around those operands
+   so the called subroutine still supplies the argument's sizing context. */
+static PExpr* sva_snapshot_match_arg_(const struct vlltype&loc, PExpr*arg,
+				      const std::map<perm_string,PExpr*>&locals,
+				      unsigned inst, unsigned&capture_index)
+{
+      bool failed = false;
+      const std::function<PExpr*(PExpr*)> snapshot = [&](PExpr*expr) -> PExpr* {
+	    PEIdent*id = dynamic_cast<PEIdent*>(expr);
+	    PECallFunction*fn = dynamic_cast<PECallFunction*>(expr);
+	    bool local = id && !id->path().package && id->path().name.size() == 1
+		  && locals.count(id->path().name.front().name);
+	    bool sampled = fn && !fn->path().package && fn->path().name.size() == 1
+		  && fn->path().name.front().name == "$ivl_clocking_sample";
+	    if (!(id && (local || !pform_sva_ident_base_is_constant_(id))) && !sampled)
+		  return nullptr;
+
+	    sva_match_operand_snapshot_ = nullptr;
+	    std::unique_ptr<PExpr> value(sva_clone_subst_(expr, &locals));
+	    std::unique_ptr<PExpr> type(sva_clone_subst_(
+		  sampled ? fn->get_parms().front().parm : expr, &locals));
+	    sva_match_operand_snapshot_ = &snapshot;
+	    if (!value || !type) {
+		  failed = true;
+		  return nullptr;
+	    }
+	    perm_string temp = sva_capture_name_(inst, capture_index++, "match");
+	    sva_declare_capture_(loc, temp, new type_reference_t(type.release()),
+				 value.release());
+	    return sva_id_(loc, temp);
+      };
+      sva_match_operand_snapshot_ = &snapshot;
+      std::unique_ptr<PExpr> copy(sva_clone_expr_(arg));
+      sva_match_operand_snapshot_ = nullptr;
+      return failed ? nullptr : copy.release();
+}
 
 static bool sva_nfa_plan_path_locals_(const sva_nfa_t&nfa,
 				     const sva_path_items_t&items,
@@ -26862,6 +26984,16 @@ static bool sva_nfa_plan_path_locals_(const sva_nfa_t&nfa,
 		  auto found = items.find(guard);
 		  if (found == items.end()) continue;
 		  for (const sva_match_item_t*item : found->second) {
+			if (item->call) {
+			      sva_path_call_t call{item->call, {}};
+			      for (const named_pexpr_t&arg : item->call->parms()) {
+				    call.inputs.emplace_back();
+				    if (!bind_reads(arg.parm, last, call.inputs.back()))
+					  return false;
+			      }
+			      step.calls.push_back(std::move(call));
+			      continue;
+			}
 			sva_path_write_t write = {item, last, {}};
 			if (!bind_reads(item->lv_rhs, last, write.inputs)) return false;
 			last = writes.size();
@@ -26954,6 +27086,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    sva_tree_leaves_(prop->tree, tree_leaves);
 	    for (size_t i = 0 ; i < tree_leaves.size() ; i += 1)
 		  sva_splice_property_sequences_(loc, *tree_leaves[i], prop);
+	    if (sva_validate_match_items_(loc, prop, kind) < 0) {
+		  if (sub) { sub->error = true; return false; }
+		  delete fail_stmt;
+		  delete pass_stmt;
+		  pform_sva_destroy_property(prop);
+		  return true;
+	    }
       } else {
 	    sva_splice_property_sequences_(loc, *prop->seq, prop);
 	    if (prop->antecedent)
@@ -27123,9 +27262,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       std::vector<bool> lv_initialization; // declaration/formal attempt inits
       bool lv_dup_in_chain = false;
       bool fm_ambiguous_assignment = false;
-      const bool keep_path_writes = tree_implication
-	    && sva_tree_has_first_match_paths_(prop->ante_tree);
-      bool path_locals = false, path_write_shape_bad = false;
+      const sva_stree_t*path_tree = tree_implication ? prop->ante_tree : prop->tree;
+      std::vector<const sva_stree_t*> wrappers;
+      sva_tree_item_wrappers_(path_tree, wrappers);
+      const bool keep_path_writes = !wrappers.empty() || (tree_implication
+	    && sva_tree_has_first_match_paths_(path_tree));
+      bool path_locals = !wrappers.empty(), path_write_shape_bad = false;
       sva_path_items_t path_items;
       std::set<PExpr*> path_source_guards;
       {
@@ -27142,7 +27284,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  }
 	    }
 	    for (size_t vi = 0 ; vi < sources.size() ; vi += 1) {
-		  const bool path_source = keep_path_writes && vi < ante_leaf_count;
+		  const bool path_source = keep_path_writes
+			&& (!tree_implication || vi < ante_leaf_count);
 		  if (!path_source && sva_first_match_assign_ambiguous_(*sources[vi]))
 			fm_ambiguous_assignment = true;
 		  std::set<perm_string> seen_in_source;
@@ -27182,7 +27325,18 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	      }
 	    }
       }
-      if (path_locals && (path_write_shape_bad || sva_tree_has_match_calls_(prop->ante_tree))) {
+      for (const sva_stree_t*wrapper : wrappers)
+	    for (const sva_match_item_t&item : wrapper->items) {
+		  if (!item.lv_rhs && !item.call) continue;
+		  path_items[wrapper->item_gate].push_back(&item);
+		  if (!item.lv_rhs || lv_index.count(item.lv_name)) continue;
+		  lv_index[item.lv_name] = lv_list.size();
+		  lv_list.push_back(item.lv_name);
+		  lv_rhs_expr.push_back(item.lv_rhs);
+		  lv_gate_expr.push_back(wrapper->item_gate);
+		  lv_initialization.push_back(false);
+	    }
+      if (path_locals && path_write_shape_bad) {
 	    prop->tree_sorry = 12;
 	    return false;
       }
@@ -27267,10 +27421,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			path_flow.assigned[lv_list[li]] = {nullptr};
 		  }
 	    }
-	    bool flowed = sva_lv_flow_tree_(loc, ante_tree, locals, path_flow, &path_reads);
+	    bool flowed = sva_lv_flow_tree_(loc, path_tree, locals, path_flow, &path_reads);
 	    sva_lv_flow_t consequent_flow = path_flow;
 	    if (!flowed
-		|| !sva_lv_flow_tree_(loc, consequence_tree, locals, consequent_flow, &path_reads)) {
+		|| (endpoint_fanout && !sva_lv_flow_tree_(loc, consequence_tree, locals,
+							 consequent_flow, &path_reads))) {
 		  if (sub) { sub->error = true; return false; }
 		  delete fail_stmt;
 		  delete pass_stmt;
@@ -27326,13 +27481,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       /* Split implications already have a larger budget for the
 	 antecedent and all its consequent obligations. */
       const long generated_state_budget = endpoint_fanout ? 8192 : 1024;
-      const bool track_endpoints = (endpoint_fanout || sequence_cover)
-	    && sva_tree_has_first_match_paths_(endpoint_fanout ? ante_tree : prop->tree);
+      const bool track_endpoints = !wrappers.empty() || ((endpoint_fanout || sequence_cover)
+	    && sva_tree_has_first_match_paths_(endpoint_fanout ? ante_tree : prop->tree));
       unsigned max_endpoints = 1;
+      bool empty_with_items = false;
       auto build_endpoint_source = [&](const sva_stree_t*tree) {
 	    if (!track_endpoints) return pform_sva_nfa_build_from_tree(nfa, tree);
 	    if (pform_sva_nfa_build_endpoint_tree(nfa, tree, generated_state_budget,
-						 max_endpoints, path_locals))
+						 max_endpoints, path_locals, &empty_with_items))
 		  return true;
 	    prop->tree_sorry = 11;
 	    return false;
@@ -27344,6 +27500,17 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    : have_tree
 	    ? build_endpoint_source(prop->tree)
 	    : pform_sva_nfa_build_from_chain(nfa, chain);
+      if (!built && empty_with_items) {
+	    cerr << loc << ": error: first_match match items cannot be attached to "
+		 << "a sequence admitting an empty match (IEEE 1800-2017/2023 16.10, 16.11)."
+		 << endl;
+	    error_count += 1;
+	    if (sub) { sub->error = true; return false; }
+	    delete fail_stmt;
+	    delete pass_stmt;
+	    pform_sva_destroy_property(prop);
+	    return true;
+      }
       if (!built)
 	    return false;
 	  /* Initialization assignments happen before the first sampled guard of
@@ -27436,6 +27603,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 
       std::vector<sva_path_edge_t> path_edges;
       std::vector<sva_path_write_t> path_writes;
+      std::map<PExpr*, std::unique_ptr<PExpr> > path_call_args;
+      std::vector<PExpr*> path_call_arg_order;
       unsigned path_endpoints = 0;
       if (path_locals) {
 	    // An empty route has no write history; only an initial value can
@@ -27448,14 +27617,31 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			return false;
 		  }
 	    }
+	    const sva_lv_defs_t no_outgoing;
 	    if (!sva_nfa_plan_path_locals_(nfa, path_items, path_reads,
-					  path_flow.assigned, path_initial,
+					  endpoint_fanout ? path_flow.assigned : no_outgoing,
+					  path_initial,
 					  lv_analysis, path_edges, path_writes)) {
 		  prop->tree_sorry = 12;
 		  return false;
 	    }
-	    for (const sva_nfa_edge_t&edge : nfa.edges)
-		  if (edge.to == nfa.accept) ++path_endpoints;
+	    if (endpoint_fanout)
+		  for (const sva_nfa_edge_t&edge : nfa.edges)
+			if (edge.to == nfa.accept) ++path_endpoints;
+
+	    unsigned call_live_operands = 0;
+	    for (const sva_stree_t*wrapper : wrappers)
+		  for (const sva_match_item_t&item : wrapper->items) {
+			if (!item.call) continue;
+			for (const named_pexpr_t&arg : item.call->parms()) {
+			      if (!arg.parm) continue;
+			      std::unique_ptr<PExpr> sample(sva_wrap_preponed_(
+				    arg.parm, prep_sampled, call_live_operands, &lv_index));
+			      if (!sample || call_live_operands) return false;
+			      path_call_arg_order.push_back(arg.parm);
+			      path_call_args.emplace(arg.parm, std::move(sample));
+			}
+		  }
       }
 
 	/* LV-2: verify that each assigning-step gate survived construction.
@@ -27667,6 +27853,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       unsigned inst = sva_gensym_counter++;
       unsigned hist_idx = 0;
       std::vector<Statement*> pre, post, init_zero;
+      for (PExpr*arg : path_call_arg_order) {
+	    auto&sample = path_call_args.at(arg);
+	    sample.reset(sva_rewrite_sampled_(loc, sample.release(), inst,
+					      hist_idx, pre, post, init_zero));
+      }
       perm_string vacuous, pass_req, vac_req;
       if (implication && !cover && !sub) {
 	    vacuous = sva_make_reg_(loc, inst, "vac", 0, true);
@@ -27997,12 +28188,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  PExpr*width = lv_width_probe[li] ? lv_width_probe[li] : lv_rhs_expr[li];
 		  return make_carrier(tag, li, width, sva_expr_signed_(lv_rhs_expr[li]));
 	    };
-	    for (const auto&def : path_flow.assigned) {
-		  unsigned li = lv_index.at(def.first);
-		  char tag[32];
-		  snprintf(tag, sizeof tag, "endpoint_value%u", li);
-		  path_snapshot[li] = path_carrier(tag, li);
-	    }
+	    if (endpoint_fanout)
+		  for (const auto&def : path_flow.assigned) {
+			unsigned li = lv_index.at(def.first);
+			char tag[32];
+			snprintf(tag, sizeof tag, "endpoint_value%u", li);
+			path_snapshot[li] = path_carrier(tag, li);
+		  }
 	    for (long k = 0; k < K; ++k) {
 		  path_cells[k].resize(path_writes.size());
 		  for (size_t id = 1; id < path_writes.size(); ++id) {
@@ -28554,20 +28746,75 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    for (long k = 0 ; k < K ; k += 1)
 		  body.push_back(spawn_obligation_stmt(k, false));
 
-      auto path_expr = [&](long k, PExpr*expr, const sva_path_values_t&inputs,
-			   bool rhs) -> PExpr* {
+      auto path_input_map = [&](long k, const sva_path_values_t&inputs) {
 	    std::map<perm_string,PExpr*> lvmap;
 	    for (const auto&input : inputs) {
 		  perm_string cell = input.second ? path_cells[k][input.second]
 						   : vk[k][lv_index.at(input.first)];
 		  lvmap[input.first] = sva_id_(loc, cell);
 	    }
+	    return lvmap;
+      };
+      auto path_expr = [&](long k, PExpr*expr, const sva_path_values_t&inputs,
+			   bool rhs) -> PExpr* {
+	    auto lvmap = path_input_map(k, inputs);
 	    PExpr*value = rhs ? read_rhs(expr, lvmap)
 		: inputs.empty() ? sva_id_(loc, guard_reg.at(expr))
 		: sva_clone_subst_(local_guard_expr.at(expr), &lvmap);
 	    for (const auto&input : lvmap) delete input.second;
 	    assert(value);
 	    return value;
+      };
+      unsigned path_call_spawn_index = 0;
+      bool path_call_copy_error = false;
+      auto spawn_path_calls = [&](long k, const sva_path_edge_t&edge) -> Statement* {
+	    PBlock*spawn = nullptr;
+	    std::vector<Statement*> actions;
+	    unsigned capture_index = 0;
+	    for (const sva_path_step_t&step : edge.steps)
+		  for (const sva_path_call_t&call : step.calls) {
+			if (!spawn) {
+			      char name[64];
+			      snprintf(name, sizeof name, "$ivl_sva_action %u %u",
+				       inst, path_call_spawn_index++);
+			      spawn = pform_push_block_scope(loc, name, PBlock::BL_JOIN_NONE);
+			      actions.push_back(sva_reactive_wait_(loc));
+			}
+			std::vector<named_pexpr_t> args;
+			bool copied = true;
+			for (const named_pexpr_t&source : call.call->parms()) {
+			      named_pexpr_t arg = source;
+			      if (source.parm) {
+				    auto lvmap = path_input_map(k, call.inputs[args.size()]);
+				    arg.parm = sva_snapshot_match_arg_(loc,
+					  path_call_args.at(source.parm).get(), lvmap,
+					  inst, capture_index);
+				    for (const auto&input : lvmap) delete input.second;
+				    copied &= arg.parm != nullptr;
+			      }
+			      args.push_back(arg);
+			}
+			PCallTask*action = copied
+			      ? sva_clone_match_call_(call.call, nullptr, &args) : nullptr;
+			for (const named_pexpr_t&arg : args) delete arg.parm;
+			if (!action) {
+			      if (!path_call_copy_error)
+				    sva_match_item_sorry_(loc, "with arguments that "
+					  "cannot be snapshotted are not supported");
+			      path_call_copy_error = true;
+			      continue;
+			}
+			std::vector<bool> local_args;
+			for (const sva_path_values_t&input : call.inputs)
+			      local_args.push_back(!input.empty());
+			action->set_match_item_endpoint(std::move(local_args));
+			actions.push_back(action);
+		  }
+	    if (spawn) {
+		  pform_pop_scope();
+		  spawn->set_statement({sva_block_(loc, actions)});
+	    }
+	    return spawn;
       };
       auto advance_paths = [&](long k) {
 	    for (perm_string state : nx)
@@ -28622,11 +28869,17 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  std::vector<Statement*> advance{
 			sva_assign_(loc, nx[ed.to], sva_bit_(loc, 1))};
 		  if (ed.to == nfa.accept) {
-			perm_string pending = path_requests[k][request++];
-			body.push_back(sva_assign_(loc, pending, taken));
-			taken = sva_id_(loc, pending);
-			advance.push_back(multiple_requests ? increment_verdict(spawn[k])
-			      : sva_assign_(loc, spawn[k], sva_bit_(loc, 1)));
+			if (endpoint_fanout) {
+			      perm_string pending = path_requests[k][request++];
+			      body.push_back(sva_assign_(loc, pending, taken));
+			      taken = sva_id_(loc, pending);
+			      advance.push_back(multiple_requests ? increment_verdict(spawn[k])
+				    : sva_assign_(loc, spawn[k], sva_bit_(loc, 1)));
+			} else if (sequence_cover) {
+			      advance.push_back(cover_match());
+			}
+			if (Statement*calls = spawn_path_calls(k, path_edges[i]))
+			      advance.push_back(calls);
 		  }
 		  body.push_back(sva_if_(loc, taken, sva_block_(loc, advance), nullptr));
 	    }
@@ -28787,7 +29040,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			      j == nfa.accept ? sva_bit_(loc, 0)
 					      : sva_id_(loc, nx[j])));
 	    } else if (cover) {
-		  if (!track_endpoints) acc_v.push_back(cover_match());
+		  if (!track_endpoints || !sequence_cover) acc_v.push_back(cover_match());
 	    } else if (sub) {
 		  acc_v.push_back(set_verdict(k, (negated || forbidden) ? 3 : 1));
 	    } else if (implication && !forbidden) {
@@ -41596,6 +41849,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			      }
 			      if (inst && !inst->clocking_scope)
 				    inst->clocking_scope = outer_clocking_scope;
+			      if (inst && prop->sequence_cover)
+				    inst->sequence_cover = true;
 			      delete id;
 			      delete prop->seq;
 			      delete prop;
@@ -41835,8 +42090,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    }
 				    if (ok && sva_property_has_tree_first_match_(decl)) {
 					  inst->tree_sorry = decl->tree_sorry;
-					  inst->ante_tree = sva_tree_clone_(loc, decl->ante_tree, &subst);
-					  inst->tree = sva_tree_clone_(loc, decl->tree, &subst);
+					  inst->ante_tree = sva_tree_clone_(
+						loc, decl->ante_tree, &subst, &local_carriers);
+					  inst->tree = sva_tree_clone_(
+						loc, decl->tree, &subst, &local_carriers);
 					  if ((decl->ante_tree && !inst->ante_tree)
 					      || (decl->tree && !inst->tree))
 						ok = false;

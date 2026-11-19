@@ -215,6 +215,9 @@ struct sva_stree_t {
       sva_stree_t* a = nullptr;   // also the operand of a unary node
       sva_stree_t* b = nullptr;
       PExpr* gexpr = nullptr;    // SEQ_THROUGHOUT invariant (a = the seq)
+      // SEQ_FIRST_MATCH: a true guard marks the ordered items at its exit.
+      PExpr* item_gate = nullptr;
+      std::vector<sva_match_item_t> items;
       // SEQ_CONCAT: true for a ##0 b (the first tick of b is fused with
       // a's terminal tick), false for ##1-or-later continuation.
       bool concat_overlap = false;

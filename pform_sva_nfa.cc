@@ -1233,11 +1233,12 @@ static bool nfa_tree_has_unsupported_match_items_(const sva_stree_t*t,
 }
 
 static bool nfa_build_tree_(sva_nfa_t&nfa, const sva_stree_t*tree,
-			    unsigned path_budget, bool path_locals);
+			    unsigned path_budget, bool path_locals,
+			    bool*empty_with_items);
 
 static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 			       unsigned&start, unsigned&exit, unsigned path_budget,
-			       bool path_locals)
+			       bool path_locals, bool*empty_with_items)
 {
       if (!t) return false;
       switch (t->kind) {
@@ -1245,14 +1246,20 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 	    if (!t->chain) return false;
 	    return nfa_chain_fragment_(nfa, *t->chain, start, exit, path_budget);
 	  case sva_stree_t::SEQ_FIRST_MATCH: {
+		if (t->item_gate && !path_locals) return false;
 		if (nfa_tree_has_unsupported_match_items_(t->a, path_locals)) return false;
 		sva_nfa_t operand;
-		if (!nfa_build_tree_(operand, t->a, path_budget, path_locals)) return false;
+		if (!nfa_build_tree_(operand, t->a, path_budget, path_locals,
+				     empty_with_items)) return false;
 		  /* One edge cannot carry cuts for both an outer wrapper and
 		     an independent inner wrapper. */
 		for (const sva_nfa_edge_t&edge : operand.edges)
 		      if (edge.first_match_cut_group != 0) return false;
 		if (operand.empty_matches) {
+		      if (t->item_gate) {
+			    if (empty_with_items) *empty_with_items = true;
+			    return false;
+		      }
 		      start = nfa.new_state();
 		      exit = nfa.new_state();
 		      for (unsigned i = 0; i < operand.empty_matches; ++i)
@@ -1266,9 +1273,10 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		for (sva_nfa_edge_t&edge : operand.edges) {
 		      edge.first_match_cut_group = group;
 		      edge.first_match_exit = edge.to == operand.accept;
-		      if (edge.first_match_exit)
+		      if (edge.first_match_exit) {
 			    edge.first_match_guards = edge.guards;
-		      else
+			    if (t->item_gate) edge.guards.push_back(t->item_gate);
+		      } else
 			    edge.first_match_guards.clear();
 		      edge.from += base;
 		      edge.to += base;
@@ -1295,7 +1303,8 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		     alone, checking it at the wait cycles too. */
 		if (!t->gexpr) return false;
 		sva_nfa_t A;
-		if (!nfa_build_tree_(A, t->a, path_budget, path_locals)) return false;
+		if (!nfa_build_tree_(A, t->a, path_budget, path_locals,
+				     empty_with_items)) return false;
 		for (size_t i = 0; i < A.edges.size(); i += 1)
 		      A.edges[i].guards.push_back(t->gexpr);
 		unsigned base = nfa.nstates;
@@ -1321,7 +1330,8 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		sva_nfa_t M;
 		std::vector<sva_nfa_boundary_t> ignored;
 		if (!pform_sva_nfa_build_implication(
-		      M, t->a, t->b, !t->concat_overlap, ignored, path_budget, path_locals))
+		      M, t->a, t->b, !t->concat_overlap, ignored, path_budget,
+		      path_locals, empty_with_items))
 		      return false;
 		unsigned base = nfa.nstates;
 		for (unsigned i = 0; i < M.nstates; i += 1) nfa.new_state();
@@ -1339,8 +1349,10 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 	  }
 	  case sva_stree_t::SEQ_OR: {
 		unsigned sa = 0, ea = 0, sb = 0, eb = 0;
-		if (!nfa_tree_fragment_(nfa, t->a, sa, ea, path_budget, path_locals)) return false;
-		if (!nfa_tree_fragment_(nfa, t->b, sb, eb, path_budget, path_locals)) return false;
+		if (!nfa_tree_fragment_(nfa, t->a, sa, ea, path_budget, path_locals,
+					empty_with_items)) return false;
+		if (!nfa_tree_fragment_(nfa, t->b, sb, eb, path_budget, path_locals,
+					empty_with_items)) return false;
 		start = nfa.new_state();
 		nfa.eps(start, sa);
 		nfa.eps(start, sb);
@@ -1355,8 +1367,10 @@ static bool nfa_tree_fragment_(sva_nfa_t&nfa, const sva_stree_t*t,
 		     (recursion composes nested combinators), then the
 		     product embeds in the parent. */
 		sva_nfa_t A, B;
-		if (!nfa_build_tree_(A, t->a, path_budget, path_locals)) return false;
-		if (!nfa_build_tree_(B, t->b, path_budget, path_locals)) return false;
+		if (!nfa_build_tree_(A, t->a, path_budget, path_locals,
+				     empty_with_items)) return false;
+		if (!nfa_build_tree_(B, t->b, path_budget, path_locals,
+				     empty_with_items)) return false;
 		return nfa_product_fragment_(nfa, A, B,
 					     t->kind == sva_stree_t::SEQ_AND,
 					     start, exit, path_budget);
@@ -1378,10 +1392,12 @@ static bool normalize_tree_(sva_nfa_t&nfa, unsigned path_budget)
 }
 
 static bool nfa_build_tree_(sva_nfa_t&nfa, const sva_stree_t*tree,
-			    unsigned path_budget, bool path_locals)
+			    unsigned path_budget, bool path_locals,
+			    bool*empty_with_items)
 {
       unsigned s = 0, e = 0;
-      if (!nfa_tree_fragment_(nfa, tree, s, e, path_budget, path_locals))
+      if (!nfa_tree_fragment_(nfa, tree, s, e, path_budget, path_locals,
+			     empty_with_items))
 	    return false;
       nfa.start = s;
       nfa.accept = e;
@@ -1390,14 +1406,15 @@ static bool nfa_build_tree_(sva_nfa_t&nfa, const sva_stree_t*tree,
 
 bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa, const sva_stree_t*tree)
 {
-      return nfa_build_tree_(nfa, tree, 0, false);
+      return nfa_build_tree_(nfa, tree, 0, false, nullptr);
 }
 
 bool pform_sva_nfa_build_endpoint_tree(sva_nfa_t&nfa, const sva_stree_t*tree,
 				      unsigned budget, unsigned&max_endpoints,
-				      bool path_locals)
+				      bool path_locals, bool*empty_with_items)
 {
-      if (!nfa_build_tree_(nfa, tree, budget, path_locals) || pform_sva_nfa_has_cycle(nfa))
+      if (!nfa_build_tree_(nfa, tree, budget, path_locals, empty_with_items)
+	  || pform_sva_nfa_has_cycle(nfa))
 	    return false;
       vector<vector<const sva_nfa_edge_t*>> outgoing(nfa.nstates);
       for (const auto&edge : nfa.edges) outgoing[edge.from].push_back(&edge);
@@ -1439,11 +1456,12 @@ bool pform_sva_nfa_build_implication(
 				sva_nfa_t&nfa, const sva_stree_t*ante,
 				const sva_stree_t*conseq, bool nonoverlap,
 				std::vector<sva_nfa_boundary_t>&boundary,
-				unsigned path_budget, bool path_locals)
+				unsigned path_budget, bool path_locals,
+				bool*empty_with_items)
 {
       sva_nfa_t A, B;
-      if (!nfa_build_tree_(A, ante, path_budget, path_locals)
-	  || !nfa_build_tree_(B, conseq, path_budget, path_locals))
+      if (!nfa_build_tree_(A, ante, path_budget, path_locals, empty_with_items)
+	  || !nfa_build_tree_(B, conseq, path_budget, path_locals, empty_with_items))
 	    return false;
 
       nfa = sva_nfa_t();

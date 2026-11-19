@@ -23952,6 +23952,12 @@ bool validate_program_subroutine_call(Design*des, const LineInfo&loc,
 NetProc *PCallTask::elaborate_non_void_function_(Design *des, NetScope *scope,
 						 bool builtin) const
 {
+      if (match_item_endpoint_) {
+	    cerr << get_fileline() << ": error: sequence match items can call "
+		 << "tasks and void functions (IEEE 1800-2017/2023 16.11)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
 	// Generate a function call version of this task call.
       PECallFunction*call = new PECallFunction(package_, path_, parms_);
       /* void'(C#(...)::f()) is parsed as a PCallTask and converted back to
@@ -24925,24 +24931,43 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	     however, and must keep its original l-value instead of binding the
 	     sampled value expression. */
 	  vector<PExpr*> original_args(args.size(), static_cast<PExpr*>(0));
+	  vector<bool> original_uses_local(match_item_endpoint_ ? args.size() : 0);
 	  if (!match_item_original_args_.empty()) {
+		auto record_original = [&](size_t slot, size_t i) {
+		      original_args[slot] = match_item_original_args_[i].parm;
+		      if (match_item_endpoint_)
+			    original_uses_local[slot] = match_item_local_args_[i];
+		};
 		bool seen_named = false;
 		for (size_t i = 0 ; i < match_item_original_args_.size() ; ++i) {
 		      const named_pexpr_t&arg = match_item_original_args_[i];
 		      if (arg.name.nil()) {
 			    if (arg.parm && !seen_named && i < original_args.size())
-				  original_args[i] = arg.parm;
+				  record_original(i, i);
 			    continue;
 		      }
 		      seen_named = true;
 		      for (unsigned int j = off ; j < def->port_count() ; ++j) {
 			    if (def->port(j)->name() == arg.name) {
-				  original_args[j - off] = arg.parm;
+				  record_original(j - off, i);
 				  break;
 			    }
 		      }
 		}
 	  }
+	  if (match_item_endpoint_)
+		for (unsigned idx = off; idx < parm_count; ++idx) {
+		      NetNet::PortType direction = def->port(idx)->port_type();
+		      if (direction == NetNet::PINPUT
+			  || (direction == NetNet::PREF && !original_uses_local[idx - off]))
+			    continue;
+		      cerr << get_fileline() << ": error: sequence match-item arguments "
+			   << "require input or reference formals, and assertion locals "
+			   << "must be passed by value (IEEE 1800-2017/2023 16.11)." << endl;
+		      des->errors += 1;
+		      delete block;
+		      return nullptr;
+		}
 	/* Where each argument's copy pair, if it still needs one, has to
 	   land. Null means the port itself, which is the ordinary case.
 	   A bound `ref' formal is never copied; a bound ref formal whose

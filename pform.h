@@ -403,6 +403,7 @@ extern Statement* pform_make_clocking_drive(const struct vlltype&loc,
    kind: 0=assert, 1=assume, 2=cover. */
 struct sva_property_t;
 struct sva_seq_step_t;
+struct sva_match_item_t;
 struct sva_sequence_formal_t;
 struct sva_property_formal_t;
 struct sva_mc_seg_t;
@@ -633,7 +634,8 @@ extern sva_property_t*
 pform_sva_tree_intersect(const struct vlltype&loc,
 			 sva_property_t*a, sva_property_t*b);
 extern sva_property_t*
-pform_sva_tree_first_match(const struct vlltype&loc, sva_property_t*operand);
+pform_sva_tree_first_match(const struct vlltype&loc, sva_property_t*operand,
+			  std::vector<sva_match_item_t>*items = nullptr);
 /* Continue an arbitrary sequence-combinator tree through a fixed cycle
    delay and a linear suffix, e.g. `(a and b) ##0 c'. */
 extern sva_property_t*

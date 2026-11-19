@@ -1,0 +1,4 @@
+sv_assert_first_match_tree_items normal,-g2017,-gassertions ivltests gold=sv_assert_first_match_tree_items.gold
+sv_assert_first_match_tree_items_2023 normal,-g2023,-gassertions ivltests gold=sv_assert_first_match_tree_items.gold
+sv_assert_first_match_tree_items_fail CE,-g2017,-gassertions ivltests gold=sv_assert_first_match_tree_items_fail.gold
+sv_assert_first_match_tree_items_fail_2023 CE,-g2023,-gassertions ivltests gold=sv_assert_first_match_tree_items_fail.gold

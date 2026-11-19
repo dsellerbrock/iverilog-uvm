@@ -10518,6 +10518,8 @@ sva_seq_comb
      controls which endpoints reach a continuation or consequent. */
   | K_first_match '(' sva_seq_comb ')'
       { $$ = pform_sva_tree_first_match(@1, $3); }
+  | K_first_match '(' sva_seq_comb ',' sva_match_item_list ')'
+      { $$ = pform_sva_tree_first_match(@1, $3, $5); }
   ;
 
 /* IEEE 1800-2017 16.9.1: a parenthesized/composite sequence remains a

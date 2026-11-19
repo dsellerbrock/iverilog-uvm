@@ -92,7 +92,8 @@ extern bool pform_sva_nfa_build_from_tree(sva_nfa_t&nfa,
    source guards on those distinct paths. */
 extern bool pform_sva_nfa_build_endpoint_tree(sva_nfa_t&nfa,
 				const sva_stree_t*tree, unsigned state_budget,
-				unsigned&max_endpoints, bool path_locals = false);
+				unsigned&max_endpoints, bool path_locals = false,
+				bool*empty_with_items = nullptr);
 
 /* Compose an arbitrary sequence-tree antecedent with an arbitrary
    sequence-tree consequent using |-> (overlapped) or |=> (nonoverlapped)
@@ -101,7 +102,8 @@ extern bool pform_sva_nfa_build_implication(
 				sva_nfa_t&nfa, const sva_stree_t*ante,
 				const sva_stree_t*conseq, bool nonoverlap,
 				std::vector<sva_nfa_boundary_t>&boundary,
-				unsigned path_budget = 0, bool path_locals = false);
+				unsigned path_budget = 0, bool path_locals = false,
+				bool*empty_with_items = nullptr);
 
 enum sva_first_match_group_class_t {
       SVA_FIRST_MATCH_FIXED,
