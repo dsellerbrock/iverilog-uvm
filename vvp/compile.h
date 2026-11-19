@@ -354,12 +354,12 @@ extern void compile_modpath_src_part(__vpiModPath*dst,
 				     unsigned dbase, unsigned dwid,
 				     unsigned sbase, unsigned swid);
 
-extern void compile_reduce_and(char*label, const struct symb_s&arg);
-extern void compile_reduce_or(char*label, const struct symb_s&arg);
-extern void compile_reduce_xor(char*label, const struct symb_s&arg);
-extern void compile_reduce_nand(char*label, const struct symb_s&arg);
-extern void compile_reduce_nor(char*label, const struct symb_s&arg);
-extern void compile_reduce_xnor(char*label, const struct symb_s&arg);
+extern void compile_reduce_and(char*label, const struct symb_s&arg, bool signed_xz);
+extern void compile_reduce_or(char*label, const struct symb_s&arg, bool signed_xz);
+extern void compile_reduce_xor(char*label, const struct symb_s&arg, bool signed_xz);
+extern void compile_reduce_nand(char*label, const struct symb_s&arg, bool signed_xz);
+extern void compile_reduce_nor(char*label, const struct symb_s&arg, bool signed_xz);
+extern void compile_reduce_xnor(char*label, const struct symb_s&arg, bool signed_xz);
 
 extern void compile_extend_signed(char*label, long width, struct symb_s arg);
 extern void compile_sample(char*label, struct symb_s arg);

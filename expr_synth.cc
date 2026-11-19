@@ -1313,8 +1313,9 @@ NetNet* NetEUReduce::synthesize(Design*des, NetScope*scope, NetExpr*root)
 	    return 0;
       }
 
+      bool signed_xz = explicit_reduction_ && signed_xz_operand(expr_);
       NetUReduce*gate = new NetUReduce(scope, scope->local_symbol(),
-				       rtype, isig->vector_width());
+				       rtype, isig->vector_width(), signed_xz);
       gate->set_line(*this);
       des->add_node(gate);
 

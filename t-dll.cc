@@ -2447,6 +2447,7 @@ bool dll_target::ureduce(const NetUReduce*net)
 	    break;
       }
 
+      obj->reduce_signed_xz = net->signed_xz();
       obj->name = net->name();
       obj->scope = find_scope(des_, net->scope());
       assert(obj->scope);

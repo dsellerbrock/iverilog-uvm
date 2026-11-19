@@ -558,6 +558,7 @@ struct ivl_lpm_s {
 	// Value returned by ivl_lpm_width;
       unsigned width;
       unsigned event_synchronous = 0;
+      bool reduce_signed_xz = false;
       ivl_expr_t*delay;
 
       union {

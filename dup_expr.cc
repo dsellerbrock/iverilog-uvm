@@ -418,7 +418,8 @@ NetEUnary* NetEUnary::dup_expr() const
 
 NetEUReduce* NetEUReduce::dup_expr() const
 {
-      NetEUReduce*tmp = new NetEUReduce(op_, expr_->dup_expr());
+      NetEUReduce*tmp = new NetEUReduce(op_, expr_->dup_expr(),
+                                       explicit_reduction_);
       ivl_assert(*this, tmp);
       tmp->set_line(*this);
       return tmp;

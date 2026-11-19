@@ -177,6 +177,7 @@ ivl_lpm_lineno
 ivl_lpm_name
 ivl_lpm_negedge
 ivl_lpm_q
+ivl_lpm_reduce_signed_xz
 ivl_lpm_scope
 ivl_lpm_select
 ivl_lpm_selects

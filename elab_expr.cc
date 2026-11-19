@@ -36129,7 +36129,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		  des->errors += 1;
 		  return 0;
 	    }
-	    tmp = new NetEUReduce(op_, ip);
+	    tmp = new NetEUReduce(op_, ip, true);
 	    tmp->set_line(*this);
             tmp = pad_to_width(tmp, expr_wid, signed_flag_, *this);
 	    break;

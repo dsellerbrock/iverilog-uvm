@@ -164,6 +164,7 @@ static bool is_force_release_opcode(const char* name)
 
 %type <flag>  local_flag
 %type <flag>  signed_opt
+%type <flag>  reduce_signed_xz_opt
 %type <numb>  storage_flag array_storage_flag
 %type <vpi_enum> port_type
 %type <numb>  signed_t_number
@@ -777,23 +778,23 @@ statement
 
   /* The various reduction operator nodes take a single input. */
 
-        | T_LABEL K_REDUCE_AND symbol ';'
-                { compile_reduce_and($1, $3); }
+        | T_LABEL K_REDUCE_AND symbol reduce_signed_xz_opt ';'
+                { compile_reduce_and($1, $3, $4); }
 
-        | T_LABEL K_REDUCE_OR symbol ';'
-                { compile_reduce_or($1, $3); }
+        | T_LABEL K_REDUCE_OR symbol reduce_signed_xz_opt ';'
+                { compile_reduce_or($1, $3, $4); }
 
-        | T_LABEL K_REDUCE_XOR symbol ';'
-                { compile_reduce_xor($1, $3); }
+        | T_LABEL K_REDUCE_XOR symbol reduce_signed_xz_opt ';'
+                { compile_reduce_xor($1, $3, $4); }
 
-        | T_LABEL K_REDUCE_NAND symbol ';'
-                { compile_reduce_nand($1, $3); }
+        | T_LABEL K_REDUCE_NAND symbol reduce_signed_xz_opt ';'
+                { compile_reduce_nand($1, $3, $4); }
 
-        | T_LABEL K_REDUCE_NOR symbol ';'
-                { compile_reduce_nor($1, $3); }
+        | T_LABEL K_REDUCE_NOR symbol reduce_signed_xz_opt ';'
+                { compile_reduce_nor($1, $3, $4); }
 
-        | T_LABEL K_REDUCE_XNOR symbol ';'
-                { compile_reduce_xnor($1, $3); }
+        | T_LABEL K_REDUCE_XNOR symbol reduce_signed_xz_opt ';'
+                { compile_reduce_xnor($1, $3, $4); }
 
         | T_LABEL K_REPEAT T_NUMBER ',' T_NUMBER ',' symbol ';'
                 { compile_repeat($1, $3, $5, $7); }
@@ -1696,6 +1697,18 @@ array_storage_flag
      signed; absence means unsigned, so older assembly stays valid. */
 signed_opt
   : '+' { $$ = true; }
+  |     { $$ = false; }
+  ;
+
+reduce_signed_xz_opt
+  : ',' T_NUMBER
+      {
+	    if ($2 > 1) {
+		  yyerror("invalid .reduce signed X/Z flag (expected 0 or 1)");
+		  compile_errors += 1;
+	    }
+	    $$ = $2 == 1;
+      }
   |     { $$ = false; }
   ;
 

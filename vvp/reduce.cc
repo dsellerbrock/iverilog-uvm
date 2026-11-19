@@ -34,7 +34,7 @@
 class vvp_reduce_base : public vvp_net_fun_t {
 
     public:
-      vvp_reduce_base();
+      explicit vvp_reduce_base(bool signed_xz);
       virtual ~vvp_reduce_base() override;
 
       void recv_vec4(vvp_net_ptr_t prt, const vvp_vector4_t&bit,
@@ -46,9 +46,14 @@ class vvp_reduce_base : public vvp_net_fun_t {
 
     protected:
       vvp_vector4_t bits_;
+
+    private:
+      void send_result(vvp_net_ptr_t prt, vvp_context_t context) const;
+      bool signed_xz_;
 };
 
-vvp_reduce_base::vvp_reduce_base()
+vvp_reduce_base::vvp_reduce_base(bool signed_xz)
+: signed_xz_(signed_xz)
 {
 }
 
@@ -60,9 +65,7 @@ void vvp_reduce_base::recv_vec4(vvp_net_ptr_t prt, const vvp_vector4_t&bit,
                                 vvp_context_t context)
 {
       bits_ = bit;
-      vvp_bit4_t res =  calculate_result();
-      vvp_vector4_t rv (1, res);
-      prt.ptr()->send_vec4(rv, context);
+      send_result(prt, context);
 }
 
 void vvp_reduce_base::recv_vec4_pv(vvp_net_ptr_t prt, const vvp_vector4_t&bit,
@@ -74,7 +77,12 @@ void vvp_reduce_base::recv_vec4_pv(vvp_net_ptr_t prt, const vvp_vector4_t&bit,
       assert(bits_.size() == vwid);
 
       bits_.set_vec(base, bit);
-      vvp_bit4_t res = calculate_result();
+      send_result(prt, context);
+}
+
+void vvp_reduce_base::send_result(vvp_net_ptr_t prt, vvp_context_t context) const
+{
+      vvp_bit4_t res = signed_xz_ && bits_.has_xz() ? BIT4_X : calculate_result();
       vvp_vector4_t rv (1, res);
       prt.ptr()->send_vec4(rv, context);
 }
@@ -82,12 +90,13 @@ void vvp_reduce_base::recv_vec4_pv(vvp_net_ptr_t prt, const vvp_vector4_t&bit,
 class vvp_reduce_and  : public vvp_reduce_base {
 
     public:
-      vvp_reduce_and();
+      explicit vvp_reduce_and(bool signed_xz);
       ~vvp_reduce_and() override;
       vvp_bit4_t calculate_result() const override;
 };
 
-vvp_reduce_and::vvp_reduce_and()
+vvp_reduce_and::vvp_reduce_and(bool signed_xz)
+: vvp_reduce_base(signed_xz)
 {
 }
 
@@ -108,12 +117,13 @@ vvp_bit4_t vvp_reduce_and::calculate_result() const
 class vvp_reduce_or  : public vvp_reduce_base {
 
     public:
-      vvp_reduce_or();
+      explicit vvp_reduce_or(bool signed_xz);
       ~vvp_reduce_or() override;
       vvp_bit4_t calculate_result() const override;
 };
 
-vvp_reduce_or::vvp_reduce_or()
+vvp_reduce_or::vvp_reduce_or(bool signed_xz)
+: vvp_reduce_base(signed_xz)
 {
 }
 
@@ -134,12 +144,13 @@ vvp_bit4_t vvp_reduce_or::calculate_result() const
 class vvp_reduce_xor  : public vvp_reduce_base {
 
     public:
-      vvp_reduce_xor();
+      explicit vvp_reduce_xor(bool signed_xz);
       ~vvp_reduce_xor() override;
       vvp_bit4_t calculate_result() const override;
 };
 
-vvp_reduce_xor::vvp_reduce_xor()
+vvp_reduce_xor::vvp_reduce_xor(bool signed_xz)
+: vvp_reduce_base(signed_xz)
 {
 }
 
@@ -160,12 +171,13 @@ vvp_bit4_t vvp_reduce_xor::calculate_result() const
 class vvp_reduce_nand  : public vvp_reduce_base {
 
     public:
-      vvp_reduce_nand();
+      explicit vvp_reduce_nand(bool signed_xz);
       ~vvp_reduce_nand() override;
       vvp_bit4_t calculate_result() const override;
 };
 
-vvp_reduce_nand::vvp_reduce_nand()
+vvp_reduce_nand::vvp_reduce_nand(bool signed_xz)
+: vvp_reduce_base(signed_xz)
 {
 }
 
@@ -186,12 +198,13 @@ vvp_bit4_t vvp_reduce_nand::calculate_result() const
 class vvp_reduce_nor  : public vvp_reduce_base {
 
     public:
-      vvp_reduce_nor();
+      explicit vvp_reduce_nor(bool signed_xz);
       ~vvp_reduce_nor() override;
       vvp_bit4_t calculate_result() const override;
 };
 
-vvp_reduce_nor::vvp_reduce_nor()
+vvp_reduce_nor::vvp_reduce_nor(bool signed_xz)
+: vvp_reduce_base(signed_xz)
 {
 }
 
@@ -212,12 +225,13 @@ vvp_bit4_t vvp_reduce_nor::calculate_result() const
 class vvp_reduce_xnor  : public vvp_reduce_base {
 
     public:
-      vvp_reduce_xnor();
+      explicit vvp_reduce_xnor(bool signed_xz);
       ~vvp_reduce_xnor() override;
       vvp_bit4_t calculate_result() const override;
 };
 
-vvp_reduce_xnor::vvp_reduce_xnor()
+vvp_reduce_xnor::vvp_reduce_xnor(bool signed_xz)
+: vvp_reduce_base(signed_xz)
 {
 }
 
@@ -246,38 +260,38 @@ static void make_reduce(char*label, vvp_net_fun_t*red, const struct symb_s&arg)
       input_connect(ptr, 0, arg.text);
 }
 
-void compile_reduce_and(char*label, const struct symb_s&arg)
+void compile_reduce_and(char*label, const struct symb_s&arg, bool signed_xz)
 {
-      vvp_reduce_and* reduce = new vvp_reduce_and;
+      vvp_reduce_and* reduce = new vvp_reduce_and(signed_xz);
       make_reduce(label, reduce, arg);
 }
 
-void compile_reduce_or(char*label, const struct symb_s&arg)
+void compile_reduce_or(char*label, const struct symb_s&arg, bool signed_xz)
 {
-      vvp_reduce_or* reduce = new vvp_reduce_or;
+      vvp_reduce_or* reduce = new vvp_reduce_or(signed_xz);
       make_reduce(label, reduce, arg);
 }
 
-void compile_reduce_xor(char*label, const struct symb_s&arg)
+void compile_reduce_xor(char*label, const struct symb_s&arg, bool signed_xz)
 {
-      vvp_reduce_xor* reduce = new vvp_reduce_xor;
+      vvp_reduce_xor* reduce = new vvp_reduce_xor(signed_xz);
       make_reduce(label, reduce, arg);
 }
 
-void compile_reduce_nand(char*label, const struct symb_s&arg)
+void compile_reduce_nand(char*label, const struct symb_s&arg, bool signed_xz)
 {
-      vvp_reduce_nand* reduce = new vvp_reduce_nand;
+      vvp_reduce_nand* reduce = new vvp_reduce_nand(signed_xz);
       make_reduce(label, reduce, arg);
 }
 
-void compile_reduce_nor(char*label, const struct symb_s&arg)
+void compile_reduce_nor(char*label, const struct symb_s&arg, bool signed_xz)
 {
-      vvp_reduce_nor* reduce = new vvp_reduce_nor;
+      vvp_reduce_nor* reduce = new vvp_reduce_nor(signed_xz);
       make_reduce(label, reduce, arg);
 }
 
-void compile_reduce_xnor(char*label, const struct symb_s&arg)
+void compile_reduce_xnor(char*label, const struct symb_s&arg, bool signed_xz)
 {
-      vvp_reduce_xnor* reduce = new vvp_reduce_xnor;
+      vvp_reduce_xnor* reduce = new vvp_reduce_xnor(signed_xz);
       make_reduce(label, reduce, arg);
 }
