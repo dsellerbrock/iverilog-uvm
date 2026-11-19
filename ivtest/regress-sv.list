@@ -7322,3 +7322,7 @@ issue3477_if_matches_expression_2023 normal,-g2023,-s,issue3477_if_matches_expre
 # IEEE 1800-2017/2023 10.6.2 and 28.16.2: trireg charge under a tran island force.
 issue3491_2017 normal,-g2017,-gspecify,-ginterconnect,-s,issue3491 ivltests gold=issue3491.gold
 issue3491_2023 normal,-g2023,-gspecify,-ginterconnect,-s,issue3491 ivltests gold=issue3491.gold
+issue3791_2017 normal,-g2017,-s,issue3791 ivltests gold=issue3791.gold
+issue3791_2023 normal,-g2023,-s,issue3791 ivltests gold=issue3791.gold
+issue3791_bad_2017 CE,-g2017,-s,issue3791_bad ivltests gold=issue3791_bad.gold
+issue3791_bad_2023 CE,-g2023,-s,issue3791_bad ivltests gold=issue3791_bad.gold

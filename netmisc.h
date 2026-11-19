@@ -969,6 +969,16 @@ extern bool check_unresolved_net_driver(Design*des, const LineInfo&loc,
 				       NetNet*sig, unsigned msb, unsigned lsb,
 				       unsigned long word, bool repeated = false);
 
+extern bool retains_variable_array_storage(const NetNet*signal);
+extern bool reserve_variable_array_driver(Design*des, const LineInfo&loc,
+					  NetNet*signal, unsigned msb, unsigned lsb,
+					  std::vector<unsigned> words,
+					  bool repeated = false);
+extern NetNet* make_variable_array_driver_bridge(Design*des, NetScope*scope,
+						 const LineInfo&loc, NetNet*signal,
+						 const netranges_t&dims, ivl_type_t type,
+						 unsigned first_word, unsigned lsb);
+
 extern NetPartSelect* detect_partselect_lval(Link&pin);
 
 /*

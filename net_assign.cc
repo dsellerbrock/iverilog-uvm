@@ -77,7 +77,8 @@ NetAssign_::~NetAssign_()
 {
       interface_member_lvals_.erase(this);
       if (sig_) {
-	    sig_->unregister_lref(this);
+	    if (!force_lval_)
+		  sig_->unregister_lref(this);
 	    sig_->decr_lref();
 	    if (turn_sig_to_wire_on_release_ && sig_->peek_lref() == 0)
 		  sig_->type(NetNet::WIRE);
@@ -127,7 +128,8 @@ NetAssign_* NetAssign_::dup_lval() const
 		  stream_range_second_ ? stream_range_second_->dup_expr() : 0);
 
       copy->signed_ = signed_;
-      copy->force_lval_ = force_lval_;
+      if (force_lval_)
+	    copy->mark_force_lval();
       if (more)
 	    copy->more = more->dup_lval();
       return copy;
@@ -436,6 +438,8 @@ NetNet* NetAssign_::resolve_interface_member_signal() const
 
 void NetAssign_::mark_force_lval()
 {
+      if (sig_ && !force_lval_)
+	    sig_->unregister_lref(this);
       force_lval_ = true;
       if (nest_)
 	    nest_->mark_force_lval();

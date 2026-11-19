@@ -8173,3 +8173,7 @@ issue3872_vpi_while_condition_2023 vvp_tests/issue3872_vpi_while_condition_2023.
 # IEEE 1800-2017/2023 10.6.2 and 28.16.2: trireg charge under a tran island force.
 issue3491_2017 vvp_tests/issue3491_2017.json
 issue3491_2023 vvp_tests/issue3491_2023.json
+issue3791_2017 vvp_tests/issue3791_2017.json
+issue3791_2023 vvp_tests/issue3791_2023.json
+issue3791_bad_2017 vvp_tests/issue3791_bad_2017.json
+issue3791_bad_2023 vvp_tests/issue3791_bad_2023.json

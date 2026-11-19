@@ -1381,6 +1381,34 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
             }
       }
 
+	/* Keep original words as variable storage when an unpacked output
+	   connection also drives this array. The normal l-net lowering still
+	   supplies the value, strength and delay to the selected bridge. */
+      if (!bidirectional_flag && var_allowed_in_sv && gn_var_can_be_uwire()
+	  && retains_variable_array_storage(sig)) {
+	    if (selected_word_base < 0
+		|| static_cast<unsigned long>(selected_word_base) >= sig->pin_count())
+		  return nullptr;
+	    vector<unsigned> words;
+	    words.reserve(selected_word_count);
+	    for (unsigned long idx = 0; idx < selected_word_count; ++idx)
+		  words.push_back(selected_word_base + idx);
+	    if (!reserve_variable_array_driver(des, *this, sig, midx, lidx,
+					       std::move(words)))
+		  return nullptr;
+
+	    const netranges_t dims = unpacked_slice_flag ? unpacked_slice_dims
+		  : widx_flag ? netranges_t() : sig->unpacked_dims();
+	    ivl_type_t type = sig->net_type();
+	    if (subnet_wid != sig->vector_width() || explicit_vector_select) {
+		  type = member_net_type;
+		  if (!type || type->packed_width() != (long)subnet_wid)
+			type = new netvector_t(sig->data_type(), subnet_wid - 1, 0);
+	    }
+	    return make_variable_array_driver_bridge(des, scope, *this, sig, dims,
+						    type, selected_word_base, lidx);
+      }
+
 	bool procedural_overlap = false;
 	for (unsigned long word = 0; word < selected_word_count; word += 1) {
 	      if (sig->test_part_procedurally_driven(
