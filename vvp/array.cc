@@ -116,6 +116,7 @@ class vvp_fixed_darray_aa : public vvp_darray, public automatic_hooks_s {
       size_t get_size() const override { return prototype_->get_size(); }
       unsigned vec4_word_width() const override
       { return prototype_->vec4_word_width(); }
+      __vpiScope*context_scope() const { return context_scope_; }
 
       void clear() override
       {
@@ -1506,6 +1507,15 @@ vvp_vector4_t __vpiArray::get_word_preponed(unsigned address)
       return get_word(address);
 }
 
+__vpiScope*__vpiArray::word_context_scope() const
+{
+      const __vpiArray*owner = canonical_value_owner_();
+      if (!owner->automatic_storage) return nullptr;
+      if (owner->vals4)
+            return static_cast<const vvp_vector4array_aa*>(owner->vals4)->context_scope();
+      return static_cast<const vvp_fixed_darray_aa*>(owner->vals)->context_scope();
+}
+
 void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4_t&val)
 {
       __vpiArray*owner = canonical_value_owner_();
@@ -1519,6 +1529,15 @@ void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4
 
       if (vals4 || vals) {
 	    assert(nets == 0);
+	    vvp_context_t frame = nullptr;
+	    vthread_ref_ctx_save saved;
+	    if (automatic_storage) {
+		  frame = vthread_get_wt_context_for_scope(word_context_scope());
+		  if (!frame) return;
+		  /* The readable frame may differ from the destination of
+		     this write. Sample and merge in the destination. */
+		  vthread_push_ref_context(frame, &saved);
+	    }
 	    vvp_vector4_t old_visible = get_word(address);
 	    hist_snapshot_word_(address);
 	    if (part_off != 0 || val.size() != vals_width) {
@@ -1535,8 +1554,10 @@ void __vpiArray::set_word(unsigned address, unsigned part_off, const vvp_vector4
 	    } else {
 		  set_word_raw_(address, val);
 	    }
-	    if (!old_visible.eeq(get_word(address)))
-		  word_change(address);
+	    vvp_vector4_t new_visible = get_word(address);
+	    if (frame) vthread_pop_ref_context(&saved);
+	    if (!old_visible.eeq(new_visible))
+		  notify_word_change_(address, frame, &new_visible);
 	    return;
       }
 
@@ -1927,10 +1948,11 @@ static void send_word_to_edge_probe_(__vpiArray*array, unsigned addr,
       send_word_to_probes_(array, addr, probes);
 }
 
-void __vpiArray::attach_word_ref_relay(unsigned addr, vvp_net_t*relay)
+void __vpiArray::attach_word_ref_relay(unsigned addr, vvp_net_t*relay,
+                                      vvp_context_t frame, uint64_t generation)
 {
       __vpiArray*owner = canonical_value_owner_();
-      owner->word_ref_relays_.emplace(addr, relay);
+      owner->word_ref_relays_.emplace(addr, word_ref_relay_t{relay, frame, generation});
       send_word_to_edge_probe_(owner, addr, relay);
 }
 
@@ -1939,7 +1961,7 @@ void __vpiArray::detach_word_ref_relay(unsigned addr, vvp_net_t*relay)
       auto&relays = canonical_value_owner_()->word_ref_relays_;
       auto range = relays.equal_range(addr);
       for (auto cur = range.first; cur != range.second; ++cur) {
-            if (cur->second == relay) {
+            if (cur->second.relay == relay) {
                   relays.erase(cur);
                   return;
             }
@@ -2544,23 +2566,31 @@ class array_word_value_callback : public value_callback {
       long word_addr;
 };
 
-void __vpiArray::notify_word_change_(unsigned long addr)
+void __vpiArray::notify_word_change_(unsigned long addr, vvp_context_t frame,
+                                    const vvp_vector4_t*sample)
 {
-      __vpiArray*owner = canonical_value_owner_();
-      if (owner != this) {
-            owner->notify_word_change_(addr);
-            return;
-      }
-
       if (!word_ref_relays_.empty() && addr < get_size()) {
             auto range = word_ref_relays_.equal_range(static_cast<unsigned>(addr));
             if (range.first != range.second) {
                   /* A callback may detach a relay during dispatch. Its net
                    * stays alive with a null functor until deferred reclamation. */
                   std::vector<vvp_net_t*> probes;
-                  for (auto cur = range.first; cur != range.second; ++cur)
-                        probes.push_back(cur->second);
-                  send_word_to_probes_(this, static_cast<unsigned>(addr), probes);
+                  uint64_t generation = frame ? vthread_context_generation(frame) : 0;
+                  for (auto cur = range.first; cur != range.second; ++cur) {
+                        const word_ref_relay_t&ref = cur->second;
+                        if (ref.frame == frame && ref.generation == generation)
+                              probes.push_back(ref.relay);
+                  }
+                  if (!probes.empty()) {
+                        if (sample) {
+                              send_word_sample_(probes, &vvp_net_fun_t::recv_vec4, *sample);
+                        } else {
+                              vthread_ref_ctx_save saved;
+                              vthread_push_ref_context(frame, &saved);
+                              send_word_to_probes_(this, static_cast<unsigned>(addr), probes);
+                              vthread_pop_ref_context(&saved);
+                        }
+                  }
             }
       }
 
@@ -2575,7 +2605,11 @@ void __vpiArray::notify_word_change_(unsigned long addr)
 
 void __vpiArray::word_change(unsigned long addr)
 {
-      canonical_value_owner_()->notify_word_change_(addr);
+      __vpiArray*owner = canonical_value_owner_();
+      vvp_context_t frame = nullptr;
+      if (!owner->word_ref_relays_.empty() && owner->automatic_storage)
+            frame = vthread_get_wt_context_for_scope(owner->word_context_scope());
+      owner->notify_word_change_(addr, frame);
 }
 
 void __vpiArray::word_change_local_(unsigned long addr)

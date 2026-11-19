@@ -908,6 +908,7 @@ struct ref_aa_slot {
       kind_t kind;
       vvp_net_t*target;        // REF_NET: the net
       vvp_context_t caller_ctx;
+      uint64_t caller_generation; // REF_WORD with automatic storage
       vvp_object_t obj;        // REF_PROP receiver / REF_ELEM stable cell
       unsigned prop_id;        // REF_PROP
       int64_t index;           // REF_ELEM / REF_WORD
@@ -922,7 +923,8 @@ struct ref_aa_slot {
       vvp_net_t*relay;
 
       ref_aa_slot() : magic(MAGIC), kind(REF_NET), target(0), caller_ctx(0),
-                      prop_id(0), index(0), two_state(false), arr(0), prop_root(0),
+                      caller_generation(0), prop_id(0), index(0), two_state(false),
+                      arr(0), prop_root(0),
                       relay_source(0), relay(0) { }
       ~ref_aa_slot() { clear(); }
       void clear()
@@ -937,6 +939,7 @@ struct ref_aa_slot {
             kind = REF_NET;
             target = 0;
             caller_ctx = 0;
+            caller_generation = 0;
             obj = vvp_object_t();
             prop_id = 0;
             index = 0;
@@ -952,6 +955,26 @@ static ref_aa_slot* ref_aa_slot_from_raw(void*raw)
       if (!(slot && slot->magic == ref_aa_slot::MAGIC))
             return 0;
       return slot;
+}
+
+  /* Use the caller's frame for one delegated access to automatic storage. */
+class ref_delegate_ {
+    public:
+      explicit ref_delegate_(const ref_aa_slot*slot)
+      {
+            vthread_push_ref_context(slot ? slot->caller_ctx : 0, &save_);
+      }
+      ~ref_delegate_() { vthread_pop_ref_context(&save_); }
+    private:
+      struct vthread_ref_ctx_save save_;
+};
+
+static __vpiArray*ref_word_array_(const ref_aa_slot*slot)
+{
+      if (slot->caller_generation
+          && vthread_context_generation(slot->caller_ctx) != slot->caller_generation)
+            return nullptr;
+      return slot->arr;
 }
 }
 
@@ -1047,17 +1070,16 @@ void attach_ref_prop_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
 static void attach_ref_word_event_relay_(ref_aa_slot*slot, vvp_net_t*formal,
                                          vvp_context_t frame)
 {
-      if (!slot->arr || !formal || formal->out_.nil()) return;
-      if (slot->arr->automatic_storage) {
-            unsupported_ref_event_binding_(formal, "an automatic fixed-array word");
-            return;
-      }
+      __vpiArray*arr = ref_word_array_(slot);
+      if (!arr || !formal || formal->out_.nil()) return;
 
       void*storage = ::operator new(sizeof(vvp_net_t));
       vvp_net_t*relay = ::new (storage) vvp_net_t;
       relay->fun = new ref_event_relay_s(formal, frame, 0, false, vvp_vector4_t());
       slot->relay = relay;
-      slot->arr->attach_word_ref_relay(static_cast<unsigned>(slot->index), relay);
+      ref_delegate_ hold(slot);
+      arr->attach_word_ref_relay(static_cast<unsigned>(slot->index), relay,
+                                 slot->caller_ctx, slot->caller_generation);
 }
 
 vvp_ref_signal_aa::vvp_ref_signal_aa(unsigned wid, bool two_state)
@@ -1139,6 +1161,7 @@ void vvp_ref_signal_aa::bind(vvp_net_t*formal, vvp_net_t*net, bool in_frame)
                   source.kind = outer->kind;
                   source.target = outer->target;
                   source.caller_ctx = outer->caller_ctx;
+                  source.caller_generation = outer->caller_generation;
                   source.obj = outer->obj;
                   source.prop_id = outer->prop_id;
                   source.index = outer->index;
@@ -1281,26 +1304,25 @@ void vvp_ref_signal_aa::bind_word(vvp_net_t*formal,
       }
       slot->clear();
       slot->kind = ref_aa_slot::REF_WORD;
-      slot->arr = arr;
+      if (arr) {
+            arr = arr->canonical_value_owner_();
+            if (arr->automatic_storage) {
+                  slot->caller_ctx =
+                        vthread_get_ref_actual_context(arr->word_context_scope(), frame);
+                  slot->caller_generation = vthread_context_generation(slot->caller_ctx);
+                  if (!slot->caller_generation) {
+                        fprintf(stderr, "runtime error: cannot bind fixed-array word ref:"
+                                " no live caller activation.\n");
+                        vpip_set_return_value(1);
+                        schedule_finish(0);
+                        return;
+                  }
+            }
+            slot->arr = arr;
+      }
       slot->index = index;
       slot->two_state = two_state_;
       attach_ref_word_event_relay_(slot, formal, frame);
-}
-
-  /* One delegated access: put the caller's frame back for the duration
-     so that a caller-local automatic actual resolves against the frame
-     it actually lives in. */
-namespace {
-class ref_delegate_ {
-    public:
-      explicit ref_delegate_(const ref_aa_slot*slot)
-      {
-            vthread_push_ref_context(slot ? slot->caller_ctx : 0, &save_);
-      }
-      ~ref_delegate_() { vthread_pop_ref_context(&save_); }
-    private:
-      struct vthread_ref_ctx_save save_;
-};
 }
 
   /* Inside-storage accessors (REF_PROP / REF_ELEM / REF_WORD). Queue
@@ -1445,8 +1467,10 @@ static bool ref_inside_write_vec4_(ref_aa_slot*slot,
             return true;
           }
           case ref_aa_slot::REF_WORD:
-            if (slot->arr)
-                  slot->arr->set_word(slot->index, 0, bit);
+            if (__vpiArray*arr = ref_word_array_(slot)) {
+                  ref_delegate_ hold(slot);
+                  arr->set_word(slot->index, 0, bit);
+            }
             return true;
           default:
             return false;
@@ -1467,8 +1491,10 @@ static bool ref_inside_write_real_(ref_aa_slot*slot, double bit,
             return true;
           }
           case ref_aa_slot::REF_WORD:
-            if (slot->arr)
-                  slot->arr->set_word(slot->index, bit);
+            if (__vpiArray*arr = ref_word_array_(slot)) {
+                  ref_delegate_ hold(slot);
+                  arr->set_word(slot->index, bit);
+            }
             return true;
           default:
             return false;
@@ -1490,8 +1516,10 @@ static bool ref_inside_write_string_(ref_aa_slot*slot,
             return true;
           }
           case ref_aa_slot::REF_WORD:
-            if (slot->arr)
-                  slot->arr->set_word(slot->index, bit);
+            if (__vpiArray*arr = ref_word_array_(slot)) {
+                  ref_delegate_ hold(slot);
+                  arr->set_word(slot->index, bit);
+            }
             return true;
           default:
             return false;
@@ -1513,8 +1541,10 @@ static bool ref_inside_write_object_(ref_aa_slot*slot,
             return true;
           }
           case ref_aa_slot::REF_WORD:
-            if (slot->arr)
-                  slot->arr->set_word(slot->index, bit);
+            if (__vpiArray*arr = ref_word_array_(slot)) {
+                  ref_delegate_ hold(slot);
+                  arr->set_word(slot->index, bit);
+            }
             return true;
           default:
             return false;
@@ -1537,9 +1567,10 @@ static bool ref_inside_read_vec4_(const ref_aa_slot*slot, unsigned wid,
             return true;
           }
           case ref_aa_slot::REF_WORD:
-            if (slot->arr)
-                  val = slot->arr->get_word(slot->index);
-            else
+            if (__vpiArray*arr = ref_word_array_(slot)) {
+                  ref_delegate_ hold(slot);
+                  val = arr->get_word(slot->index);
+            } else
                   val = vvp_vector4_t(wid, slot->two_state ? BIT4_0 : BIT4_X);
             return true;
           default:
@@ -1562,7 +1593,11 @@ static bool ref_inside_read_real_(const ref_aa_slot*slot, double&val)
             return true;
           }
           case ref_aa_slot::REF_WORD:
-            val = slot->arr ? slot->arr->get_word_r(slot->index) : 0.0;
+            if (__vpiArray*arr = ref_word_array_(slot)) {
+                  ref_delegate_ hold(slot);
+                  val = arr->get_word_r(slot->index);
+            } else
+                  val = 0.0;
             return true;
           default:
             return false;
@@ -1584,7 +1619,11 @@ static bool ref_inside_read_string_(const ref_aa_slot*slot, std::string&val)
             return true;
           }
           case ref_aa_slot::REF_WORD:
-            val = slot->arr ? slot->arr->get_word_str(slot->index) : "";
+            if (__vpiArray*arr = ref_word_array_(slot)) {
+                  ref_delegate_ hold(slot);
+                  val = arr->get_word_str(slot->index);
+            } else
+                  val.clear();
             return true;
           default:
             return false;
@@ -1607,8 +1646,10 @@ static bool ref_inside_read_object_(const ref_aa_slot*slot, vvp_object_t&val)
           }
           case ref_aa_slot::REF_WORD:
             val = vvp_object_t();
-            if (slot->arr)
-                  slot->arr->get_word_obj(slot->index, val);
+            if (__vpiArray*arr = ref_word_array_(slot)) {
+                  ref_delegate_ hold(slot);
+                  arr->get_word_obj(slot->index, val);
+            }
             return true;
           default:
             return false;
@@ -1771,6 +1812,7 @@ bool vvp_ref_signal_aa::read_binding(binding_t&out) const
       out.kind = slot->kind;
       out.target = slot->target;
       out.caller_ctx = slot->caller_ctx;
+      out.caller_generation = slot->caller_generation;
       out.obj = slot->obj;
       out.prop_id = slot->prop_id;
       out.index = slot->index;
@@ -1808,6 +1850,7 @@ void vvp_ref_signal_aa::write_binding(vvp_net_t*formal, vvp_context_t frame,
       slot->kind = static_cast<ref_aa_slot::kind_t>(in.kind);
       slot->target = in.target;
       slot->caller_ctx = in.caller_ctx;
+      slot->caller_generation = in.caller_generation;
       slot->obj = in.obj;
       slot->prop_id = in.prop_id;
       slot->index = in.index;

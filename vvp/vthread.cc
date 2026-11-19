@@ -14692,22 +14692,37 @@ static vvp_context_t first_live_stacked_context(vvp_context_t candidate, __vpiSc
                   });
 }
 
-static vvp_context_t first_live_context_for_scope(vvp_context_t candidate, __vpiScope*ctx_scope)
+static vvp_context_t first_live_context_for_scope(vvp_context_t candidate,
+                                                  __vpiScope*ctx_scope,
+                                                  vvp_context_t exclude = 0)
 {
       if (!(candidate && ctx_scope && ctx_scope->has_automatic_context()))
             return 0;
 
       return find_stacked_context_match_(candidate, ctx_scope,
                   "first_live_context_for_scope",
-                  [ctx_scope](vvp_context_t cur) {
-                        const automatic_context_record_s*rec =
-                              automatic_context_record_(cur);
-                        if (!rec)
-                              return false;
-                        if (rec->owner != ctx_scope)
-                              return false;
-                        return rec->live;
+                  [ctx_scope, exclude](vvp_context_t cur) {
+                        return cur != exclude
+                            && context_live_matches_scope_(cur, ctx_scope);
                   });
+}
+
+vvp_context_t vthread_get_ref_actual_context(__vpiScope*scope, vvp_context_t callee)
+{
+      if (!running_thread) return 0;
+      scope = resolve_context_scope(scope);
+
+      /* Binding runs after %alloc. A recursive callee may own the same
+         scope as the actual, but its staged frame is never the source. */
+      vvp_context_t source = first_live_context_for_scope(
+            running_thread->rd_context, scope, callee);
+      if (!source)
+            source = first_live_context_for_scope(
+                  running_thread->owned_context, scope, callee);
+      if (!source)
+            source = first_live_context_for_scope(
+                  running_thread->wt_context, scope, callee);
+      return source;
 }
 
 vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx)
@@ -14766,15 +14781,12 @@ vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx)
       return vvp_get_context_item(use_context, context_idx);
 }
 
-vvp_context_item_t vthread_get_wt_context_item_scoped(unsigned context_idx,
-                                                       __vpiScope*ctx_scope)
+vvp_context_t vthread_get_wt_context_for_scope(__vpiScope*ctx_scope)
 {
       static bool warned_scoped_context_miss = false;
 
       ctx_scope = resolve_context_scope(ctx_scope);
-      if (!(ctx_scope && ctx_scope->has_automatic_context()))
-            return vthread_get_wt_context_item(context_idx);
-      if (!running_thread)
+      if (!(running_thread && ctx_scope && ctx_scope->has_automatic_context()))
             return 0;
 
       /* A caller can populate one of its automatic aggregate temporaries
@@ -14814,7 +14826,17 @@ vvp_context_item_t vthread_get_wt_context_item_scoped(unsigned context_idx,
             return 0;
       }
 
-      return vvp_get_context_item(use_context, context_idx);
+      return use_context;
+}
+
+vvp_context_item_t vthread_get_wt_context_item_scoped(unsigned context_idx,
+                                                       __vpiScope*ctx_scope)
+{
+      ctx_scope = resolve_context_scope(ctx_scope);
+      if (!(ctx_scope && ctx_scope->has_automatic_context()))
+            return vthread_get_wt_context_item(context_idx);
+      vvp_context_t context = vthread_get_wt_context_for_scope(ctx_scope);
+      return context ? vvp_get_context_item(context, context_idx) : 0;
 }
 
 vvp_context_item_t vthread_get_rd_context_item(unsigned context_idx)
@@ -34970,7 +34992,7 @@ bool of_REF_BIND_EL_EL_O(vthread_t thr, vvp_code_t cp)
  * %ref/bind/w <array>, <formal>
  *
  * Bind a ref formal to word <index> (popped from the vec4 stack,
- * already normalized to the canonical word offset) of a static
+ * already normalized to the canonical word offset) of a fixed
  * unpacked array.
  */
 bool of_REF_BIND_W(vthread_t thr, vvp_code_t cp)

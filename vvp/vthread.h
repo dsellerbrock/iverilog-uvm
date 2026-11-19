@@ -217,6 +217,7 @@ extern bool vthread_context_is_initializing(vvp_context_t context);
 extern vvp_context_item_t vthread_get_wt_context_item(unsigned context_idx);
 extern vvp_context_item_t vthread_get_wt_context_item_scoped(unsigned context_idx,
                                                              __vpiScope*scope);
+extern vvp_context_t vthread_get_wt_context_for_scope(__vpiScope*scope);
 
 /*
  * This function returns a handle to an item in the readable context
@@ -240,6 +241,8 @@ struct vthread_ref_ctx_save {
 extern void vthread_push_ref_context(vvp_context_t ctx,
                                      struct vthread_ref_ctx_save*save);
 extern void vthread_pop_ref_context(const struct vthread_ref_ctx_save*save);
+extern vvp_context_t vthread_get_ref_actual_context(__vpiScope*scope,
+                                                    vvp_context_t callee);
 extern vvp_context_t vthread_recover_context_for_scope(vvp_context_t candidate,
                                                        __vpiScope*scope);
 /* Resolve only along CANDIDATE's lexical activation stack. Unlike the

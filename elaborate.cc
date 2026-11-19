@@ -23631,7 +23631,7 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
       NetNet*sig = 0;
 	/* Storage INSIDE a variable that the runtime can address as a
 	   true reference (R25): a class property, a dynamic-array or
-	   queue element, or a static-array word. Types whose access
+	   queue element, or a fixed-array word. Types whose access
 	   opcodes are delegated generically (packed integral, real,
 	   class handle, string). */
       bool inside_ok = false;
@@ -23871,15 +23871,13 @@ NetProc* PCallTask::elaborate_ref_bind_(Design*des, NetScope*scope,
 		  }
 	    }
 
-	      /* A word of a static unpacked array: arr[i]. This includes
-		 explicitly static arrays declared in automatic scopes. */
+	      /* A word of a fixed unpacked array: arr[i]. The runtime
+		 captures the storage activation for an automatic array. */
 	    if (sig == 0 && inside_ok && lv->more == 0 && lv->sig()
 		&& lv->word() != 0 && lv->get_base() == 0
 		&& lv->get_property_idx() < 0 && !lv->is_array_slice()
 		&& lv->sig()->darray_type() == 0
-		&& lv->sig()->unpacked_dimensions() > 0
-		&& (!lv->sig()->scope()->is_auto()
-		    || lv->sig()->lifetime_override() == IVL_VLT_STATIC)) {
+		&& lv->sig()->unpacked_dimensions() > 0) {
 		  NetESignal*formal_e = new NetESignal(port);
 		  formal_e->set_line(*this);
 		  NetESignal*arr_e = new NetESignal(lv->sig());
