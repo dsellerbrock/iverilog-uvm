@@ -30,6 +30,8 @@
 # include  "vvp_net_sig.h"
 # include  "config.h"
 # include  <algorithm>
+# include  <deque>
+# include  <limits>
 # include  <map>
 # include  <memory>
 # include  <utility>
@@ -2197,6 +2199,23 @@ class __vpiAssertionInst : public __vpiHandle {
 };
 
 class __vpiAssertion : public __vpiHandle {
+      struct nexttime_attempt_t {
+	    uint64_t due;
+	    vvp_time64_t start;
+      };
+      struct nexttime_verdict_t {
+	    int reason;
+	    vvp_time64_t start;
+      };
+      struct nexttime_state_t {
+	    uint64_t tick = 0;
+	    uint64_t ordinal = 0;
+	    unsigned kill_generation = 0;
+	    std::deque<nexttime_attempt_t> targets;
+	    std::deque<nexttime_attempt_t> searching;
+	    std::vector<nexttime_verdict_t> verdicts;
+      };
+
     public:
       __vpiAssertion(int idx, const char*nam, const char*file, int line,
 		     __vpiScope*scope, int depth_arg, int flags,
@@ -2381,6 +2400,81 @@ class __vpiAssertion : public __vpiHandle {
 					 : "").append(".").append(name_).c_str());
 	    }
 	    return n;
+	}
+
+      void nexttime_clear()
+	{
+	    if (!nexttime_) return;
+	    nexttime_->targets.clear();
+	    nexttime_->searching.clear();
+	    nexttime_->tick = nexttime_->ordinal = 0;
+	    nexttime_->kill_generation = kill_generation_;
+	}
+
+      bool nexttime_tick(int sample, uint64_t starts, uint64_t offset,
+			 uint64_t lower)
+	{
+	    if (!nexttime_) nexttime_.reset(new nexttime_state_t);
+	    nexttime_state_t&s = *nexttime_;
+	    if (s.kill_generation != kill_generation_) nexttime_clear();
+
+	    const uint64_t max = std::numeric_limits<uint64_t>::max();
+	    if (s.tick == max) return nexttime_overflow_("tick");
+	    ++s.tick;
+	    for (uint64_t k = 0 ; k < starts && enabled_ ; ++k) {
+		  if (offset > max - s.tick) return nexttime_overflow_("target tick");
+		  s.targets.push_back({s.tick + offset, schedule_simtime()});
+		  fire(cbAssertionStart);
+		  if (s.kill_generation != kill_generation_) {
+			nexttime_clear();
+			return !s.verdicts.empty();
+		  }
+	    }
+
+	      /* All starts use the same offset and lower bound. Both due
+		 keys are monotonic, so only the due prefix needs processing.
+		 Mature before sampling to include the target tick itself. */
+	    while (!s.targets.empty() && s.targets.front().due == s.tick) {
+		  if (lower > max - s.ordinal)
+			return nexttime_overflow_("match ordinal");
+		  s.searching.push_back({s.ordinal + lower, s.targets.front().start});
+		  s.targets.pop_front();
+	    }
+	    if (!s.searching.empty()) {
+		  if (sample == vpi1) {
+			if (s.ordinal == max) return nexttime_overflow_("sample ordinal");
+			++s.ordinal;
+			while (!s.searching.empty() && s.searching.front().due == s.ordinal) {
+			      s.verdicts.push_back({cbAssertionSuccess, s.searching.front().start});
+			      s.searching.pop_front();
+			}
+		  } else if (sample != vpi0) {
+			/* Neither b nor !b matches an unknown sample. */
+			nexttime_fail_(s.searching);
+		  }
+	    }
+	    if (s.searching.empty()) s.ordinal = 0;
+	    return !s.verdicts.empty();
+	}
+
+      void nexttime_finish(bool outer_strong, bool child_strong)
+	{
+	    if (!nexttime_) return;
+	    if (nexttime_->kill_generation != kill_generation_) nexttime_clear();
+	    if (child_strong) nexttime_fail_(nexttime_->searching);
+	    if (outer_strong) nexttime_fail_(nexttime_->targets);
+	    nexttime_clear();
+	}
+
+      void nexttime_dispatch(uint64_t&passes, uint64_t&failures)
+	{
+	    if (!nexttime_) return;
+	    for (const nexttime_verdict_t&verdict : nexttime_->verdicts) {
+		  fire_(verdict.reason, -1, &verdict.start);
+		  if (verdict.reason == cbAssertionSuccess) ++passes;
+		  else ++failures;
+	    }
+	    nexttime_->verdicts.clear();
 	}
 
 	/* IEEE 1800-2023 20.11: a rule selects this assertion by its
@@ -2808,7 +2902,7 @@ class __vpiAssertion : public __vpiHandle {
 
 	/* Fire every registered callback whose reason matches. age < 0 keeps
 	   the established two-argument report behavior for other checkers. */
-      void fire_(int reason, int age)
+      void fire_(int reason, int age, const vvp_time64_t*start = nullptr)
       {
 	      /* A passing deferred immediate cover is reported only after its
 	         result survives the assertion report queue. A failing cover's
@@ -2856,7 +2950,9 @@ class __vpiAssertion : public __vpiHandle {
 		 (latency_ < 0) reports now, which is exact for same-tick
 		 assertions. */
 	    vvp_time64_t start_raw = now_raw;
-	    if (age >= 0) {
+	    if (start) {
+		  start_raw = *start;
+	    } else if (age >= 0) {
 		  if ((size_t)age < clocks_.size())
 			start_raw = clocks_[clocks_.size() - 1 - age];
 		  else {
@@ -2897,6 +2993,24 @@ class __vpiAssertion : public __vpiHandle {
       }
 
     private:
+      bool nexttime_overflow_(const char*counter)
+	{
+	    vpi_printf("SVA runtime error: nexttime repetition %s overflow in %s.\n",
+		       counter, vpi_get_str(vpiFullName));
+	    nexttime_clear();
+	    vpip_set_return_value(1);
+	    schedule_finish(0);
+	    return false;
+	}
+
+      void nexttime_fail_(std::deque<nexttime_attempt_t>&attempts)
+	{
+	    for (const nexttime_attempt_t&attempt : attempts)
+		  nexttime_->verdicts.push_back({cbAssertionFailure, attempt.start});
+	    attempts.clear();
+	}
+
+      std::unique_ptr<nexttime_state_t> nexttime_;
       int idx_;
       std::string name_;
       std::string file_;
@@ -3461,6 +3575,78 @@ void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
       if (!sc) return;
       auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
       if (it != assertion_by_key.end()) it->second->fire((int)reason, (int)age);
+}
+
+static uint64_t nexttime_read_uint_(vpiHandle arg)
+{
+      s_vpi_value value;
+      value.format = vpiVectorVal;
+      const bool wide = vpi_get(vpiSize, arg) > 32;
+      vpi_get_value(arg, &value);
+      uint64_t number = PLI_UINT32(value.value.vector[0].aval);
+      if (wide) number |= uint64_t(PLI_UINT32(value.value.vector[1].aval)) << 32;
+      return number;
+}
+
+static void nexttime_write_uint_(vpiHandle arg, uint64_t number)
+{
+      s_vpi_vecval words[2] = {{PLI_INT32(number), 0},
+			    {PLI_INT32(number >> 32), 0}};
+      s_vpi_value value;
+      value.format = vpiVectorVal;
+      value.value.vector = words;
+      vpi_put_value(arg, &value, nullptr, vpiNoDelay);
+}
+
+void vpip_assertion_nexttime(vpiHandle callh, PLI_INT32 op)
+{
+      unsigned nargs;
+      switch (op) {
+	  case vpipSvaNexttimeTick:     nargs = 6; break;
+	  case vpipSvaNexttimeClear:    nargs = 1; break;
+	  case vpipSvaNexttimeFinish:   nargs = 3; break;
+	  case vpipSvaNexttimeDispatch: nargs = 3; break;
+	  default: return;
+      }
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      if (!argv) return;
+      vpiHandle args[6];
+      for (unsigned k = 0 ; k < nargs ; ++k) {
+	    args[k] = vpi_scan(argv);
+	    if (!args[k]) return;
+      }
+      vpi_free_object(argv);
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(vpi_handle(vpiScope, callh));
+      auto it = assertion_by_key.find({scope, int(nexttime_read_uint_(args[0]))});
+      if (it == assertion_by_key.end()) return;
+      __vpiAssertion*obj = it->second;
+
+      switch (op) {
+	  case vpipSvaNexttimeTick: {
+	    s_vpi_value sample;
+	    sample.format = vpiScalarVal;
+	    vpi_get_value(args[1], &sample);
+	    bool ready = obj->nexttime_tick(sample.value.scalar,
+			nexttime_read_uint_(args[2]), nexttime_read_uint_(args[3]),
+			nexttime_read_uint_(args[4]));
+	    nexttime_write_uint_(args[5], ready);
+	    break;
+	  }
+	  case vpipSvaNexttimeClear:
+	    obj->nexttime_clear();
+	    break;
+	  case vpipSvaNexttimeFinish:
+	    obj->nexttime_finish(nexttime_read_uint_(args[1]),
+				 nexttime_read_uint_(args[2]));
+	    break;
+	  case vpipSvaNexttimeDispatch: {
+	    uint64_t passes = 0, failures = 0;
+	    obj->nexttime_dispatch(passes, failures);
+	    nexttime_write_uint_(args[1], passes);
+	    nexttime_write_uint_(args[2], failures);
+	    break;
+	  }
+      }
 }
 
 void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,

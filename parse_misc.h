@@ -153,6 +153,8 @@ struct sva_seq_step_t {
       int rep_kind = 0;
       long rep_lo = 0;
       long rep_hi = 0;
+      // The parse-time values may be defaults of overridable parameters.
+      bool rep_bound_overridable = false;
       // rep_kind 4 is a consecutive repetition whose bound depends on an
       // overridable module parameter.  Parse-time numeric folding would use
       // the declaration default, before an instance parameter override has
@@ -330,6 +332,8 @@ struct sva_property_t {
       // (op_type 21) or `pa and pb' (op_type 20) whose operands are full
       // properties. Owned. Lowered per attempt by the slot synthesizer's
       // sub-monitor mode (pform_make_composite_assertion_).
+      // A nexttime (9/10) over a repetition owns its sequence property
+      // in pa, keeping the child's strength independent of the operator.
       sva_property_t* pa = nullptr;
       sva_property_t* pb = nullptr;
       PExpr* pcond = nullptr;

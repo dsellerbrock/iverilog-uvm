@@ -1,0 +1,5 @@
+tick 3 pass=0 fail=0 procedural=3
+tick 4 pass=1 fail=0 procedural=0
+tick 14 pass=1 fail=0 procedural=0
+tick 16 pass=0 fail=1 procedural=0
+PASSED

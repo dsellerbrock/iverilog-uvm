@@ -21926,6 +21926,8 @@ pform_sva_goto_repeat(const struct vlltype&loc,
       bool have_lo = pform_sva_const_long(lo, lov);
       bool have_hi = hi && pform_sva_const_long(hi, hiv_eval);
       long hiv = unbounded ? -1 : (hi ? (have_hi ? hiv_eval : -1) : lov);
+      bool overridable = pform_sva_overridable_bound(lo)
+	  || pform_sva_overridable_bound(hi);
       delete lo;
       delete hi;
 
@@ -21955,6 +21957,7 @@ pform_sva_goto_repeat(const struct vlltype&loc,
       (*steps)[0].rep_kind = kind;
       (*steps)[0].rep_lo = lov;
       (*steps)[0].rep_hi = hiv;   // -1 when unbounded
+      (*steps)[0].rep_bound_overridable = overridable;
       return steps;
 }
 
@@ -22273,6 +22276,25 @@ static bool sva_step_is_single_boolean_(const sva_seq_step_t&st)
 	  && st.group_repeat_opens.empty() && !st.fm;
 }
 
+static bool sva_nexttime_repetition_(const sva_property_t*p)
+{
+      return p && (p->op_type == 9 || p->op_type == 10) && p->pa;
+}
+
+static bool sva_nexttime_repeat_operand_(const sva_property_t*p)
+{
+      if (p->op_type != 0 || p->antecedent || p->ante_tree || p->tree
+	  || p->pa || !p->seq || p->seq->size() != 1
+	  || p->mc_prefix || p->mc_boundary != -1
+	  || (p->mc_more && !p->mc_more->empty()) || p->disable_iff_expr)
+	    return false;
+      const sva_seq_step_t&st = p->seq->front();
+      return st.expr && (st.rep_kind == 1 || st.rep_kind == 2)
+	  && st.rep_lo > 0 && st.delay_lo == 0 && st.delay_hi == 0
+	  && !st.rep_tail && !st.grouped_repeat && !st.group_repeat_start
+	  && st.group_repeat_opens.empty() && !st.fm && st.items.empty();
+}
+
 /*
  * M9C: package a binary temporal/sequence property operator whose
  * semantics do not fit the linear token pipeline (`within` and the
@@ -22303,10 +22325,9 @@ pform_sva_binprop(const struct vlltype&loc, int op_type,
 
 /*
  * M9C-live: package a unary liveness operator (nexttime / s_nexttime /
- * s_eventually). The operand must be a plain boolean property; the
- * boolean is moved onto a fresh sva_property_t with the dedicated
- * op_type and lowered by pform_make_assertion. op_type: 9 nexttime,
- * 10 s_nexttime, 11 s_eventually.
+ * s_eventually). The Boolean path moves the step list onto the operator.
+ * A nexttime repetition keeps its full child property, including strength.
+ * op_type: 9 nexttime, 10 s_nexttime, 11 s_eventually.
  */
 sva_property_t*
 pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
@@ -22368,7 +22389,8 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 			return nullptr;
 		  }
 		  sub = body;
-		  if (!sub->local_names.empty() || sub->strength) {
+		  if ((!sub->local_names.empty() || sub->strength)
+		      && !sva_nexttime_repeat_operand_(sub)) {
 			cerr << loc << ": sorry: named property operands with local variables or explicit strength of `"
 			     << w << "' are not supported yet." << endl;
 			error_count += 1;
@@ -22382,6 +22404,29 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 		  "inside a unary property operator are not supported yet");
 	    pform_sva_destroy_property(sub);
 	    return nullptr;
+      }
+      if ((op_type == 9 || op_type == 10)
+	  && sva_nexttime_repeat_operand_(sub)) {
+	    if (sub->clk_evt && sub->seq_clk_evt
+		&& !sva_event_controls_identical_(sub->clk_evt, sub->seq_clk_evt)) {
+		  cerr << loc << ": sorry: a nexttime repetition with "
+		       << "different clocks is not supported." << endl;
+		  error_count += 1;
+		  pform_sva_destroy_property(sub);
+		  return nullptr;
+	    }
+	    sva_property_t*p = new sva_property_t;
+	    p->op_type = op_type;
+	    p->win_lo = win_lo;
+	    p->win_hi = win_hi;
+	    p->pa = sub;
+	    p->clk_evt = sub->clk_evt;
+	    p->clocking_scope = sub->clocking_scope;
+	    sub->clk_evt = nullptr;
+	    if (!p->clk_evt) std::swap(p->clk_evt, sub->seq_clk_evt);
+	    delete sub->seq_clk_evt;
+	    sub->seq_clk_evt = nullptr;
+	    return p;
       }
 	/* A one-cycle `not(boolean)' is itself a one-cycle Boolean property.
 	   Preserve property truth rather than applying Verilog's ordinary !:
@@ -24543,8 +24588,10 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	    return p;
       }
 
-	/* nexttime/s_nexttime and bounded eventually are regular sequence
-	   consequences once their contextual starting point is known. */
+	/* Boolean nexttime/s_nexttime and bounded eventually are regular
+	   sequence consequences once their contextual start is known.
+	   A repetition child has no seq on the wrapper and is handled as a
+	   composite operand, where the standalone lowering is diagnosed. */
       if ((conseq->op_type == 9 || conseq->op_type == 10
 	   || conseq->op_type == 13)
 	  && conseq->seq && conseq->seq->size() == 1
@@ -25076,7 +25123,9 @@ sva_property_t* pform_sva_apply_property_context(
 	    prop->clk_evt->dump_inline(inner);
 	    clk->dump_inline(outer);
 	    if (inner.str() != outer.str()) {
-		  cerr << loc << ": error: an embedded named sequence with clock `"
+		  const char*subject = sva_nexttime_repetition_(prop)
+			? "a nexttime repetition" : "an embedded named sequence";
+		  cerr << loc << ": error: " << subject << " with clock `"
 		       << inner.str() << "' is used under the incompatible clock `"
 		       << outer.str() << "'; this sequence operator cannot silently "
 		       << "collapse a multiclocked expression (IEEE 1800-2017 "
@@ -36425,7 +36474,7 @@ static sva_nfa_sub_t*sva_sub_request_ = nullptr;
 
 static bool sva_prop_is_composite_(const sva_property_t*p)
 {
-      return p && p->pa;
+      return p && p->pa && !sva_nexttime_repetition_(p);
 }
 
 /* A property that a sequence operator (intersect, ##, implication
@@ -37507,7 +37556,7 @@ static sva_property_t* sva_inst_expand_(const struct vlltype&loc,
 static bool sva_rec_mark_calls_(const struct vlltype&loc, sva_property_t*&p,
 				bool root)
 {
-      if (!p) return false;
+      if (!p || sva_nexttime_repetition_(p)) return false;
       if (p->op_type == 28) return true;
       if (p->pa) {
 	    bool a = sva_rec_mark_calls_(loc, p->pa, false);
@@ -38784,6 +38833,203 @@ static void sva_sub_refuse_(const struct vlltype&loc, sva_property_t*prop,
       pform_sva_destroy_property(prop);
 }
 
+/* Same-clock nexttime of a positive-count goto/nonconsecutive sequence
+   property (16.9.2, 16.12.2, 16.12.10). The runtime holds each start
+   until the target tick and then until the first possible match. */
+static void sva_lower_nexttime_repetition_(const struct vlltype&loc,
+	    sva_property_t*prop, Statement*fail_stmt, Statement*pass_stmt,
+	    int kind)
+{
+      std::unique_ptr<sva_property_t, decltype(&pform_sva_destroy_property)>
+	    owner(prop, pform_sva_destroy_property);
+      std::unique_ptr<Statement> fail(fail_stmt), pass(pass_stmt);
+      sva_property_t*child = prop->pa;
+      const auto*captures = sva_active_captures_();
+      if (captures) sva_proc_capture_sets_[sva_active_proc_id_].claimed = true;
+      if (kind > 1 || prop->seq_clk_evt || prop->mc_prefix
+	  || prop->mc_boundary != -1 || (prop->mc_more && !prop->mc_more->empty())
+	  || prop->antecedent || prop->ante_tree || prop->seq || prop->tree || prop->pb
+	  || !prop->local_names.empty() || !child->local_names.empty()
+	  || !prop->local_input_actual_names.empty()
+	  || !child->local_input_actual_names.empty() || captures
+	  || !sva_nexttime_repeat_operand_(child)) {
+	    cerr << loc << ": sorry: a nexttime repetition requires a standalone "
+		 << "same-clock assert or assume property without saved values "
+		 << "or assertion locals." << endl;
+	    error_count += 1;
+	    return;
+      }
+      if (child->seq->front().rep_bound_overridable) {
+	    cerr << loc << ": sorry: nexttime repetition bounds that depend "
+		 << "on an overridable parameter require instance elaboration." << endl;
+	    error_count += 1;
+	    return;
+      }
+
+      std::unique_ptr<PEventStatement> clk(prop->clk_evt);
+      prop->clk_evt = nullptr;
+      if (!clk) {
+	      /* Clockless assertions have already been retried with the
+		 enclosing procedural clock or the default clocking block. */
+	    if (!sva_default_clocking_owner_(lexical_scope)) {
+		  cerr << loc << ": error: concurrent assertion has no "
+		       << "clocking event and no default clocking block "
+		       << "is declared (IEEE 1800-2017 16.14.6)." << endl;
+		  error_count += 1;
+		  return;
+	    }
+	    std::list<named_pexpr_t> no_args;
+	    auto*mark = new PECallFunction(
+		  perm_string::literal("$ivl_default_clock"), no_args);
+	    FILE_NAME(mark, loc);
+	    clk.reset(new PEventStatement(new PEEvent(PEEvent::ANYEDGE, mark)));
+	    FILE_NAME(clk.get(), loc);
+      }
+      std::unique_ptr<PExpr> disable(prop->disable_iff_expr);
+      prop->disable_iff_expr = nullptr;
+      if (!disable) {
+	    PExpr*dflt = sva_default_disable_for_scope_(lexical_scope);
+	    disable.reset(sva_clone_expr_(dflt));
+	    if (dflt && !disable) {
+		  cerr << loc << ": sorry: cannot copy the default disable iff "
+		       << "for a nexttime repetition." << endl;
+		  error_count += 1;
+		  return;
+	    }
+      }
+
+      sva_endpoint_dest_clock_ = clk.get();
+      bool endpoints_ok = sva_lower_endpoint_methods_(loc, *child->seq);
+      sva_endpoint_dest_clock_ = nullptr;
+      if (!endpoints_ok) return;
+      auto&step = child->seq->front();
+      std::map<std::string, pform_name_t> sampled;
+      unsigned live = 0;
+      std::unique_ptr<PExpr> src(sva_wrap_preponed_(step.expr, sampled, live));
+      if (!src || live) {
+	    cerr << loc << ": sorry: cannot sample this nexttime repetition "
+		 << "operand in Preponed." << endl;
+	    error_count += 1;
+	    return;
+      }
+
+      const long offset = prop->win_lo < 0 ? 1 : prop->win_lo;
+      const bool outer_strong = prop->op_type == 10 && offset != 0;
+      const bool child_strong = child->strength == 1;
+      if (!fail) {
+	    std::list<named_pexpr_t> no_args;
+	    fail.reset(new PCallTask(perm_string::literal("$error"), no_args));
+	    FILE_NAME(fail.get(), loc);
+      }
+      std::unique_ptr<Statement> eos;
+      if (outer_strong || child_strong) {
+	    eos.reset(sva_clone_stmt_(fail.get()));
+	    if (!eos) {
+		  cerr << loc << ": sorry: cannot reproduce this nexttime "
+		       << "repetition's failure action at end of simulation." << endl;
+		  error_count += 1;
+		  return;
+	    }
+      }
+
+      unsigned inst = sva_gensym_counter++;
+      auto task = [&](const char*name, std::initializer_list<PExpr*> operands) {
+	    std::list<named_pexpr_t> args;
+	    named_pexpr_t arg;
+	    arg.parm = sva_num32_(loc, inst);
+	    args.push_back(arg);
+	    for (PExpr*operand : operands) {
+		  arg.parm = operand;
+		  args.push_back(arg);
+	    }
+	    auto*call = new PCallTask(perm_string::literal(name), args);
+	    FILE_NAME(call, loc);
+	    return call;
+      };
+      auto spawn = [&](Statement*stmt) {
+	    auto*block = new PBlock(PBlock::BL_JOIN_NONE);
+	    FILE_NAME(block, loc);
+	    std::vector<Statement*> branch{stmt};
+	    block->set_statement(branch);
+	    return block;
+      };
+      auto process = [&](ivl_process_type_t type, Statement*stmt) {
+	    PProcess*p = pform_make_behavior(type, stmt, nullptr);
+	    FILE_NAME(p, loc);
+      };
+
+      unsigned hist = 0;
+      std::vector<Statement*> pre, post, init;
+      for (const auto&entry : sampled)
+	    init.push_back(sva_hist_on_stmt_(loc, entry.second));
+      perm_string sample = sva_make_reg_(loc, inst, "ntsample", 0);
+      perm_string ready = sva_make_reg_(loc, inst, "ntready", 0);
+      perm_string passes = sva_make_reg_(loc, inst, "ntpass", 0, true);
+      perm_string failures = sva_make_reg_(loc, inst, "ntfail", 0, true);
+      PExpr*value = sva_rewrite_sampled_(loc, src.release(), inst, hist,
+					pre, post, init);
+      pre.push_back(sva_assign_(loc, sample, sva_booleanize_(loc, value)));
+
+      PExpr*starts = sva_num32_(loc, 1);
+      if (sva_active_proc_id_) {
+	    auto*is_static = new PEBComp('E', sva_id_(loc,
+		  sva_proc_static_reg_(loc, sva_active_proc_id_)), sva_bit_(loc, 1));
+	    FILE_NAME(is_static, loc);
+	    starts = new PETernary(is_static, starts,
+				   sva_id_(loc, sva_proc_take_reg_(loc)));
+	    FILE_NAME(starts, loc);
+      }
+	/* The sequence property needs only its first match (16.12.2).
+	   Both kinds can end at the lower-bound occurrence because the
+	   nonconsecutive tail can be empty (F.3.4.2.3). */
+      auto tick = task("$ivl_sva_nexttime_tick", {
+	    sva_id_(loc, sample), starts,
+	    new PENumber(new verinum(uint64_t(offset), 64)),
+	    new PENumber(new verinum(uint64_t(step.rep_lo), 64)),
+	    sva_id_(loc, ready)});
+      auto dispatch = [&]() {
+	    return task("$ivl_sva_nexttime_dispatch",
+			{sva_id_(loc, passes), sva_id_(loc, failures)});
+      };
+      std::vector<Statement*> reactive{
+	    sva_reactive_process_(loc), sva_reactive_wait_(loc), dispatch()};
+      if (pass) {
+	    reactive.push_back(sva_repeat_(loc, sva_id_(loc, passes), spawn(
+		  sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+				    SVA_STATE_PASS_ACTION, pass.release()))));
+      }
+      reactive.push_back(sva_repeat_(loc, sva_id_(loc, failures), spawn(
+	    sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+			      SVA_STATE_FAIL_ACTION, fail.release()))));
+      Statement*core = sva_block_(loc, {tick, sva_if_(loc, sva_id_(loc, ready),
+					       spawn(sva_block_(loc, reactive)), nullptr)});
+      if (disable) {
+	    auto clear = [&]() { return task("$ivl_sva_nexttime_clear", {}); };
+	    sva_disable_abort_(loc, inst, disable.get(), clear());
+	    core = sva_if_(loc, disable.release(), clear(), core);
+      }
+      std::vector<Statement*> body = sva_captures_then_observed_(loc, pre);
+      body.push_back(core);
+      body.insert(body.end(), post.begin(), post.end());
+      clk->set_statement(sva_block_(loc, body));
+      process(IVL_PR_ALWAYS, clk.release());
+
+      bool saved_proc_each = sva_proc_each_;
+      sva_proc_each_ = true;
+      init.push_back(sva_register_stmt_(loc, inst));
+      sva_proc_each_ = saved_proc_each;
+      process(IVL_PR_INITIAL, sva_block_(loc, init));
+
+      if (eos) {
+	    auto finish = task("$ivl_sva_nexttime_finish",
+			       {sva_bit_(loc, outer_strong), sva_bit_(loc, child_strong)});
+	    auto action = sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
+					    SVA_STATE_FAIL_ACTION, eos.release());
+	    process(IVL_PR_FINAL, sva_block_(loc, {finish, sva_reactive_wait_(loc),
+		  dispatch(), sva_repeat_(loc, sva_id_(loc, failures), action)}));
+      }
+}
+
 /* IEEE 1800-2023 16.14.6. concurrent_assertion_statement is reduced before
    the rule that says whether it is a module item or a procedural statement,
    so it holds its assertion here for that rule to release. */
@@ -39595,6 +39841,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					    kind);
 	    return;
       }
+      if (sva_nexttime_repetition_(prop)) {
+	    if (sva_sub_request_)
+		  sva_sub_refuse_(loc, prop, fail_stmt, pass_stmt);
+	    else
+		  sva_lower_nexttime_repetition_(loc, prop, fail_stmt, pass_stmt, kind);
+	    return;
+      }
 	/* IEEE 1800-2023 16.12.4/16.12.5: property-level and/or. */
       if (sva_prop_is_composite_(prop)) {
 	    pform_make_composite_assertion_(loc, prop, fail_stmt, pass_stmt,
@@ -40029,7 +40282,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 					  pit->second = nullptr;  /* consume once */
 				    }
 				    if (outer_clk && inst->clk_evt
-					&& outer_clocking_scope
+					&& (outer_clocking_scope
+					    || sva_nexttime_repetition_(inst))
 					&& sva_event_controls_identical_(outer_clk,
 									inst->clk_evt)) {
 					  delete outer_clk;

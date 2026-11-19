@@ -1,0 +1,5 @@
+tick 41 delayed=0/0 goto=41/0
+tick 43 delayed=39/0 goto=2/0
+tick 45 delayed=0/4 goto=0/2
+tick 47 delayed=0/2 goto=0/2
+PASSED

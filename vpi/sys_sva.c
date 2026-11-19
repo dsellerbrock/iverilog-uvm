@@ -159,6 +159,21 @@ static PLI_INT32 sva_proc_cap_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       return 0;
 }
 
+static PLI_INT32 sva_nexttime_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      PLI_INT32 op;
+      if (strcmp(name, "$ivl_sva_nexttime_tick") == 0)
+	    op = vpipSvaNexttimeTick;
+      else if (strcmp(name, "$ivl_sva_nexttime_clear") == 0)
+	    op = vpipSvaNexttimeClear;
+      else if (strcmp(name, "$ivl_sva_nexttime_finish") == 0)
+	    op = vpipSvaNexttimeFinish;
+      else
+	    op = vpipSvaNexttimeDispatch;
+      vpip_assertion_nexttime(vpi_handle(vpiSysTfCall, 0), op);
+      return 0;
+}
+
 /* Each assertion control task is the 20.11 $assertcontrol call it is
    defined as: control_type, assertion_type, directive_type. */
 static const struct {
@@ -828,6 +843,10 @@ void sys_sva_register(void)
       register_task_("$ivl_sva_proc_enqueue", sva_proc_enqueue_calltf);
       register_task_("$ivl_sva_proc_register", sva_proc_register_calltf);
       register_task_("$ivl_sva_proc_cap", sva_proc_cap_calltf);
+      register_task_("$ivl_sva_nexttime_tick", sva_nexttime_calltf);
+      register_task_("$ivl_sva_nexttime_clear", sva_nexttime_calltf);
+      register_task_("$ivl_sva_nexttime_finish", sva_nexttime_calltf);
+      register_task_("$ivl_sva_nexttime_dispatch", sva_nexttime_calltf);
       register_task_("$assertcontrol", sva_control_calltf);
       {
 	    size_t t;

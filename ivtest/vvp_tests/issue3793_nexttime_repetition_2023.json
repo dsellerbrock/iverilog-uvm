@@ -1,0 +1,18 @@
+{
+  "type": "normal",
+  "source": "issue3793_nexttime_repetition_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "main",
+    "-DCHECK_START_TIMES"
+  ],
+  "gold": "issue3793_nexttime_repetition",
+  "vpi-modules": [
+    "issue3793_nexttime_repetition_2023"
+  ],
+  "vpi-sources": [
+    "vpi/issue3793_nexttime_start.c"
+  ]
+}

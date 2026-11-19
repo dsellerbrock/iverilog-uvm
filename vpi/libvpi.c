@@ -464,6 +464,12 @@ void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
                                         ob);
 }
 
+void vpip_assertion_nexttime(vpiHandle callh, PLI_INT32 op)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_nexttime(callh, op);
+}
+
 PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope)
 {
       assert(vpip_routines);

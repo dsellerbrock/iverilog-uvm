@@ -3534,5 +3534,6 @@ vpip_routines_s vpi_routines = {
     .compat_get                 = vpip_compat_get,
     .compat_get_str             = vpip_compat_get_str,
     .compat_iterate             = vpip_compat_iterate,
+    .assertion_nexttime         = vpip_assertion_nexttime,
 };
 #endif

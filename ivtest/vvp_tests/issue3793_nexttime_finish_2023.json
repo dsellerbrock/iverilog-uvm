@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "issue3793_nexttime_finish_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "main"
+  ],
+  "gold": "issue3793_nexttime_finish"
+}

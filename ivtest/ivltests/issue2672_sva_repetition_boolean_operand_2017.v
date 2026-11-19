@@ -3,7 +3,5 @@ module issue2672_sva_repetition_boolean_operand;
   always #5 clk = ~clk;
 
   assert property (@(posedge clk) always put[->1]);
-  assert property (@(posedge clk) nexttime put[->1]);
   assert property (@(posedge clk) always put[=1]);
-  assert property (@(posedge clk) nexttime put[=1]);
 endmodule

@@ -1189,6 +1189,12 @@ extern void vpip_report_immediate_assertion(PLI_INT32 source_id,
 extern void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope);
 extern void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
                                       vpiHandle scope, PLI_INT32 age);
+/* Private task operations for nexttime over a standalone repetition. */
+enum vpip_sva_nexttime_op {
+      vpipSvaNexttimeTick, vpipSvaNexttimeClear,
+      vpipSvaNexttimeFinish, vpipSvaNexttimeDispatch
+};
+extern void vpip_assertion_nexttime(vpiHandle callh, PLI_INT32 op);
 /* M12B-cb: non-zero iff any assertion callback is registered (lets the
    synthesized checkers skip reporting when nothing is watching). */
 extern PLI_INT32 vpip_assertion_cb_active(void);
@@ -1394,6 +1400,7 @@ typedef struct {
     PLI_INT32   (*compat_get)(int, PLI_INT32, vpiHandle);
     char*       (*compat_get_str)(int, PLI_INT32, vpiHandle);
     vpiHandle   (*compat_iterate)(int, PLI_INT32, vpiHandle);
+    void        (*assertion_nexttime)(vpiHandle, PLI_INT32);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);
