@@ -7136,3 +7136,11 @@ issue2978_constraint_mode_purity_2017 CE,-g2017,-s,test ivltests gold=issue2978_
 issue2978_constraint_mode_purity_2023 CE,-g2023,-s,test ivltests gold=issue2978_constraint_mode_purity.gold
 issue2978_constraint_mode_all_2017 normal,-g2017,-s,test ivltests gold=issue2978_constraint_mode_all.gold
 issue2978_constraint_mode_all_2023 normal,-g2023,-s,test ivltests gold=issue2978_constraint_mode_all.gold
+
+# IEEE 1800-2017/2023 26.2: package references to compilation-unit values.
+issue3768_ce_2017 CE,-g2017,-Iivltests,-s,test ivltests gold=issue3768_ce-iverilog-stderr.gold
+issue3768_unsafe_2017 normal,-g2017,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3768_unsafe.gold
+issue3768_legal_2017 normal,-g2017,-Iivltests,-s,test ivltests
+issue3768_ce_2023 CE,-g2023,-Iivltests,-s,test ivltests gold=issue3768_ce-iverilog-stderr.gold
+issue3768_unsafe_2023 normal,-g2023,-Iivltests,-s,test,-gcommercial-unsafe ivltests gold=issue3768_unsafe.gold
+issue3768_legal_2023 normal,-g2023,-Iivltests,-s,test ivltests

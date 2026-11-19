@@ -1,8 +1,6 @@
 // Check that class types declared in a package can be referenced using a scoped
 // type identifier.
 
-bit failed = 1'b0;
-
 `define check(expr, val) \
   if (expr !== val) begin \
     $display("FAILED: %s, expected %0d, got %0d", `"expr`", val, expr); \
@@ -11,6 +9,7 @@ bit failed = 1'b0;
 
 package P;
 
+  bit failed = 1'b0;
   localparam A = 8;
 
   class C;

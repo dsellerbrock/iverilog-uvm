@@ -11630,9 +11630,15 @@ static NetExpr* resolve_class_event_method_target_(
       PEIdent event_id(event_path, lexical_pos);
       event_id.set_line(loc);
       unsigned unused_slot = 0;
-      return elaborate_class_event_target(
+      NetExpr*obj = elaborate_class_event_target(
 	    des, scope, &event_id, event_path,
 	    slot_out ? *slot_out : unused_slot);
+      if (obj && slot_out) {
+	    symbol_search_results binding;
+	    symbol_search(&loc, des, scope, path, lexical_pos, &binding);
+	    check_package_unit_value(des, loc, scope, binding);
+      }
+      return obj;
 }
 
 unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
@@ -20074,6 +20080,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 	  && (search_results.net || search_results.par_val || search_results.type)) {
 	    unsigned errors_before = des->errors;
 	    if (NetExpr*tmp = elaborate_expr_method_(des, scope, search_results)) {
+		  check_package_unit_value(des, *this, scope, search_results);
 		  if (debug_elaborate) {
 			cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 			     << "Elaborated method (preferred pre-scope path): "
@@ -20270,6 +20277,7 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
 		  NetExpr*method_expr = elaborate_expr_method_(des, scope,
 						       search_results);
 		  if (method_expr) {
+		check_package_unit_value(des, *this, scope, search_results);
 			if (debug_elaborate) {
 			      cerr << get_fileline() << ": PECallFunction::elaborate_expr: "
 				   << "Elaborated method: " << *method_expr << endl;
@@ -27327,6 +27335,8 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 	    }
       }
 
+      if (!quiet_bind_)
+	    check_package_unit_value(des, *this, scope, sr);
       if (sr.par_val != 0) {
 	    if (!sr.path_tail.empty()) {
 		  return elaborate_expr_param_member_(des, scope, sr, flags);
@@ -28568,6 +28578,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 	    }
       }
 
+      if (!quiet_bind_)
+	    check_package_unit_value(des, *this, scope, sr);
       if (path_.size() > 1 && !scoped_class_parameter) {
 	      // Package parameters accessed via a self-package-scope reference
 	      // (pkg_b::Y inside pkg_b) may parse as a hierarchical path if the
