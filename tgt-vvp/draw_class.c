@@ -281,6 +281,18 @@ static void show_queue_type_(const char*rand_prefix,
       if (element_enum)
 	    show_enum_domain_(element_enum);
       fputs(code, vvp_out);
+      if (code[0] == 'D' || code[0] == 'Q') {
+	    ivl_type_t elem = ivl_type_element(type);
+	    ivl_variable_type_t base = elem ? ivl_type_base(elem) : IVL_VT_NO_TYPE;
+	    if (elem && !type_is_fixed_uarray_property_(elem)
+		&& !ivl_type_is_chandle(elem)
+		&& (base == IVL_VT_BOOL || base == IVL_VT_LOGIC)) {
+		  /* The storage code alone lacks the declared state domain
+		   * (and, for queues, the width) of the element. */
+		  fprintf(vvp_out, "~%c%u", base == IVL_VT_BOOL ? 'b' : 'v',
+			  ivl_type_packed_width(elem));
+	    }
+      }
       if (code[0] == 'M' && packed_struct_container_leaf_(type))
 	    emit_assoc_index_type_(type);
       emit_container_layout_suffix_(type);

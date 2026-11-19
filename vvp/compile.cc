@@ -885,6 +885,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%stream/cast/size", of_STREAM_CAST_SIZE, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/class/capture", of_STREAM_CLASS_CAPTURE, 0, {OA_NONE, OA_NONE, OA_NONE} },
       { "%stream/class/capture/in", of_STREAM_CLASS_CAPTURE_IN, 1, {OA_VPI_PTR, OA_NONE, OA_NONE} },
+      { "%stream/class/capture/prop", of_STREAM_CLASS_CAPTURE_PROP, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/class/next", of_STREAM_CLASS_NEXT, 1, {OA_NUMBER, OA_NONE, OA_NONE} },
       { "%stream/class/prepare", of_STREAM_CLASS_PREPARE, 1, {OA_STRING, OA_NONE, OA_NONE} },
       { "%stream/end/l",  of_STREAM_END_L,  2, {OA_BIT1,   OA_BIT2,  OA_NONE} },

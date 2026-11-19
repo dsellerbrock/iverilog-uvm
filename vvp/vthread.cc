@@ -30784,19 +30784,42 @@ bool of_STREAM_UNPACK_R(vthread_t thr, vvp_code_t cp)
       return do_stream_unpack(thr, cp, false);
 }
 
+struct stream_container_encoding_t {
+      unsigned element_width = 0;
+      bool four_state = false;
+      bool strict_cast = false;
+      uint64_t queue_max = 0;
+      uint64_t fixed_count = 0;
+      vector<uint64_t> fixed_dimensions;
+};
+
+static bool stream_container_value_(vthread_t thr, const vvp_vector4_t&value,
+				    const stream_container_encoding_t&enc,
+				    bool as_queue, vvp_object_t&result);
+
 namespace {
+
+enum class stream_class_leaf_kind { fixed, union_member, string, darray, queue };
 
 struct stream_class_leaf_run_t {
       vvp_object_t receiver;
       size_t property;
       unsigned width;
       unsigned count;
+      stream_class_leaf_kind kind;
+
+      bool greedy() const
+      {
+	    return kind != stream_class_leaf_kind::fixed
+		  && kind != stream_class_leaf_kind::union_member;
+      }
 };
 
 struct stream_class_field_t {
       unsigned peer_width = 0;
       bool bound_peer = false;
       bool two_state_peer = false;
+      bool greedy_peer = false;
       vvp_object_t receiver;
       vvp_object_t root;
       vvp_net_t*root_net = nullptr;
@@ -30815,7 +30838,21 @@ struct stream_class_plan_t : vvp_object {
       vector<stream_class_field_t> fields;
       vvp_vector4_t stream;
       unsigned remaining = 0;
+      unsigned greedy_width = 0;
       size_t next = 0;
+
+      vvp_vector4_t take(unsigned width)
+      {
+	    remaining -= width;
+	    return stream.subvalue(remaining, width);
+      }
+
+      vvp_vector4_t take_greedy()
+      {
+	    unsigned width = greedy_width;
+	    greedy_width = 0;
+	    return take(width);
+      }
 };
 
 void notify_stream_class_store_(vthread_t thr, const stream_class_field_t&field,
@@ -30901,6 +30938,18 @@ unsigned stream_class_slot_(const vector<pair<int,int>>&dims, unsigned ordinal)
       return static_cast<unsigned>(slot);
 }
 
+stream_class_leaf_kind stream_class_greedy_kind_(const class_type*type,
+						size_t property)
+{
+      const string&base = type->property_base_type(property);
+      if (base == "S")
+	    return stream_class_leaf_kind::string;
+      if (type->property_stream_element_width(property))
+	    return base == "Qv" ? stream_class_leaf_kind::queue
+				: stream_class_leaf_kind::darray;
+      return stream_class_leaf_kind::fixed;
+}
+
 bool stream_class_plan_object_(vthread_t thr, const vvp_object_t&receiver,
 			       stream_class_field_t&field, unsigned&width,
 			       const class_type*access, vector<const vvp_cobject*>&active)
@@ -30941,9 +30990,11 @@ bool stream_class_plan_object_(vthread_t thr, const vvp_object_t&receiver,
 		  return stream_class_error_(thr, "unsupported non-bit-stream property type.");
 
 	    const class_type*declared = type->property_declared_class_type(property);
+	    auto greedy_kind = stream_class_greedy_kind_(type, property);
 	    bool check_access = qualifier & (STREAM_PROP_PROTECTED | STREAM_PROP_LOCAL);
 	    bool const_value = type->property_is_const(property)
-		  && (bits || (declared && declared->is_struct_type()));
+		  && (bits || greedy_kind != stream_class_leaf_kind::fixed
+		      || (declared && declared->is_struct_type()));
 	    if (check_access || const_value) {
 		  const class_type*owner = stream_property_owner_(type, property);
 		  if (!owner)
@@ -30966,10 +31017,14 @@ bool stream_class_plan_object_(vthread_t thr, const vvp_object_t&receiver,
 		  if (words > (UINT_MAX - width) / bits)
 			return stream_class_error_(thr, "target width exceeds the VVP limit.");
 		  width += words*bits;
-		  field.leaves.push_back({receiver, property, bits, words});
+		  field.leaves.push_back({receiver, property, bits, words,
+					 stream_class_leaf_kind::fixed});
+	    } else if (greedy_kind != stream_class_leaf_kind::fixed) {
+		  // Even an unallocated dynamic array has a destination slot.
+		  field.leaves.push_back({receiver, property, 0, words, greedy_kind});
 	    } else {
 		  if (!declared || type->property_is_virtual_interface(property))
-			return stream_class_error_(thr, "unsupported non-fixed or nonintegral property layout.");
+			return stream_class_error_(thr, "unsupported property layout.");
 		  size_t before = field.leaves.size();
 		  for (unsigned index = 0; index < words; index += 1) {
 			vvp_object_t member;
@@ -30983,7 +31038,8 @@ bool stream_class_plan_object_(vthread_t thr, const vvp_object_t&receiver,
 		  // An aggregate union member is filled through its existing
 		  // value object. Mark the member active after its leaves are set.
 		  if (type->is_union_type() && field.leaves.size() != before)
-			field.leaves.push_back({receiver, property, 0, 0});
+			field.leaves.push_back({receiver, property, 0, 1,
+					       stream_class_leaf_kind::union_member});
 	    }
       }
       active.pop_back();
@@ -31035,10 +31091,38 @@ bool of_STREAM_CLASS_CAPTURE_IN(vthread_t thr, vvp_code_t cp)
       return stream_class_capture_(thr, access);
 }
 
+bool of_STREAM_CLASS_CAPTURE_PROP(vthread_t thr, vvp_code_t cp)
+{
+      if (!thr->object_stack_size())
+	    return stream_class_error_(thr, "%stream/class/capture/prop object stack underflow.");
+      const vvp_object_t&receiver = thr->peek_object();
+      vvp_cobject*object = receiver.peek<vvp_cobject>();
+      const class_type*type = object ? object->get_defn() : nullptr;
+      if (!type || cp->number >= type->property_count())
+	    return stream_class_error_(thr, "invalid receiver or dynamic property slot.");
+      size_t property = cp->number;
+      auto kind = stream_class_greedy_kind_(type, property);
+      if (kind == stream_class_leaf_kind::fixed
+	  || !type->property_dimensions(property).empty()
+	  || type->property_is_const(property))
+	    return stream_class_error_(thr, "invalid dynamic property peer.");
+
+      unique_ptr<stream_class_capture_t> capture(new stream_class_capture_t);
+      capture->field.root_net = thr->peek_object_source_net(0);
+      capture->field.root = thr->peek_object_root(0);
+      if (capture->field.root.test_nil())
+	    capture->field.root = receiver;
+      capture->field.leaves.push_back({receiver, property, 0, 1, kind});
+      thr->pop_object(1);
+      thr->push_object(vvp_object_t(capture.release()));
+      return true;
+}
+
 bool of_STREAM_CLASS_PREPARE(vthread_t thr, vvp_code_t cp)
 {
-      // Layout: <slice>:<width for signal, [pb]<width> for property, 0 for
-      // class>,... . A zero slice denotes >>. Prefix b denotes 2-state.
+      // Layout: <slice>:<width for fixed signal, [pb]<width> for fixed
+      // property, 0 for captured object fields, g for greedy signal>,... .
+      // A zero slice denotes >>. Prefix b denotes 2-state.
       unique_ptr<stream_class_plan_t> plan(new stream_class_plan_t);
       const char*text = cp->text;
       unsigned slice;
@@ -31047,30 +31131,34 @@ bool of_STREAM_CLASS_PREPARE(vthread_t thr, vvp_code_t cp)
 
       unsigned width = 0;
       size_t objects = 0;
-      bool has_class = false;
+      bool has_greedy = false;
       do {
 	    stream_class_field_t field;
-	    if (*text == 'p' || *text == 'b') {
-		  field.bound_peer = true;
-		  field.two_state_peer = *text == 'b';
+	    if (*text == 'g') {
+		  field.greedy_peer = true;
+		  has_greedy = true;
 		  ++text;
+	    } else {
+		  if (*text == 'p' || *text == 'b') {
+			field.bound_peer = true;
+			field.two_state_peer = *text == 'b';
+			++text;
+		  }
+		  if (!stream_class_number_(text, field.peer_width)
+		      || (field.bound_peer && !field.peer_width)
+		      || field.peer_width > UINT_MAX - width)
+			return stream_class_error_(thr, "malformed or overflowing destination width.");
+		  width += field.peer_width;
+		  if (!field.peer_width || field.bound_peer)
+			objects += 1;
 	    }
-	    if (!stream_class_number_(text, field.peer_width)
-		|| (field.bound_peer && !field.peer_width)
-		|| field.peer_width > UINT_MAX - width)
-		  return stream_class_error_(thr, "malformed or overflowing destination width.");
-	    width += field.peer_width;
-	    if (!field.peer_width)
-		  has_class = true;
-	    if (!field.peer_width || field.bound_peer)
-		  objects += 1;
 	    plan->fields.push_back(std::move(field));
 	    if (!*text)
 		  break;
 	    if (*text++ != ',')
 		  return stream_class_error_(thr, "malformed destination layout.");
       } while (true);
-      if (!has_class || objects > thr->object_stack_size() || !thr->vec4_stack_size())
+      if (!objects || objects > thr->object_stack_size() || !thr->vec4_stack_size())
 	    return stream_class_error_(thr, "invalid destination layout or stack underflow.");
 
       unsigned depth = static_cast<unsigned>(objects);
@@ -31088,7 +31176,7 @@ bool of_STREAM_CLASS_PREPARE(vthread_t thr, vvp_code_t cp)
 		  }
 		  continue;
 	    }
-	    if (field.peer_width)
+	    if (field.peer_width || field.greedy_peer)
 		  continue;
 	    stream_class_capture_t*capture =
 		  thr->peek_object(--depth).peek<stream_class_capture_t>();
@@ -31096,6 +31184,9 @@ bool of_STREAM_CLASS_PREPARE(vthread_t thr, vvp_code_t cp)
 		  return stream_class_error_(thr, "invalid captured receiver or overflowing target width.");
 	    width += capture->width;
 	    field = std::move(capture->field);
+	    if (!has_greedy)
+		  has_greedy = any_of(field.leaves.begin(), field.leaves.end(),
+				     [](const stream_class_leaf_run_t&leaf) { return leaf.greedy(); });
 	    capture->consumed = true;
       }
 
@@ -31106,10 +31197,14 @@ bool of_STREAM_CLASS_PREPARE(vthread_t thr, vvp_code_t cp)
 		 << " (IEEE 1800 11.4.14.3)." << endl;
 	    return container_opcode_runtime_fatal_();
       }
-      if (width)
-	    plan->stream = inverse_stream_blocks_(source.subvalue(source.size() - width, width),
+      // Reserve every fixed field before allocating any greedy field. With
+      // a greedy field the selected span is the entire source.
+      unsigned span = has_greedy ? source.size() : width;
+      plan->greedy_width = span - width;
+      if (span)
+	    plan->stream = inverse_stream_blocks_(source.subvalue(source.size() - span, span),
 						  slice);
-      plan->remaining = width;
+      plan->remaining = span;
       thr->pop_object(static_cast<unsigned>(objects));
       thr->push_object(vvp_object_t(plan.release()));
       return true;
@@ -31127,9 +31222,10 @@ bool of_STREAM_CLASS_NEXT(vthread_t thr, vvp_code_t cp)
       if (cp->number != field.peer_width)
 	    return stream_class_error_(thr, "%stream/class/next does not match the destination layout.");
 
-      if (field.peer_width) {
-	    plan->remaining -= field.peer_width;
-	    vvp_vector4_t value = plan->stream.subvalue(plan->remaining, field.peer_width);
+      if (field.greedy_peer) {
+	    thr->push_vec4(plan->take_greedy());
+      } else if (field.peer_width) {
+	    vvp_vector4_t value = plan->take(field.peer_width);
 	    if (field.bound_peer) {
 		  if (vvp_lvalue_ref*ref = field.receiver.peek<vvp_lvalue_ref>()) {
 			vvp_object_t receiver = ref->mutation_receiver();
@@ -31147,17 +31243,36 @@ bool of_STREAM_CLASS_NEXT(vthread_t thr, vvp_code_t cp)
       } else {
 	    for (const auto&leaf : field.leaves) {
 		  vvp_cobject*object = leaf.receiver.peek<vvp_cobject>();
-		  if (!leaf.width) {
-			object->activate_union_member(leaf.property);
-			notify_stream_class_store_(thr, field, leaf.receiver);
-			continue;
-		  }
-		  const auto&dims = object->get_defn()->property_dimensions(leaf.property);
+		  const class_type*type = object->get_defn();
+		  const auto&dims = type->property_dimensions(leaf.property);
 		  for (unsigned idx = 0; idx < leaf.count; idx += 1) {
-			plan->remaining -= leaf.width;
-			object->set_vec4(leaf.property,
-					 plan->stream.subvalue(plan->remaining, leaf.width),
-					 stream_class_slot_(dims, idx));
+			unsigned slot = stream_class_slot_(dims, idx);
+			switch (leaf.kind) {
+			    case stream_class_leaf_kind::fixed:
+				  object->set_vec4(leaf.property, plan->take(leaf.width), slot);
+				  break;
+			    case stream_class_leaf_kind::string:
+				  object->set_string(leaf.property,
+					vector4_to_packed_string(plan->take_greedy()), slot);
+				  break;
+			    case stream_class_leaf_kind::darray:
+			    case stream_class_leaf_kind::queue: {
+				  bool as_queue = leaf.kind == stream_class_leaf_kind::queue;
+				  stream_container_encoding_t enc;
+				  enc.element_width = type->property_stream_element_width(leaf.property);
+				  enc.four_state = type->property_stream_element_four_state(leaf.property);
+				  enc.queue_max = type->property_queue_max_size(leaf.property);
+				  vvp_object_t result;
+				  if (!stream_container_value_(thr, plan->take_greedy(),
+							       enc, as_queue, result))
+					return false;
+				  object->set_object(leaf.property, result, slot);
+				  break;
+			    }
+			    case stream_class_leaf_kind::union_member:
+				  object->activate_union_member(leaf.property);
+				  break;
+			}
 			notify_stream_class_store_(thr, field, leaf.receiver);
 		  }
 	    }
@@ -31240,15 +31355,6 @@ bool of_STREAM_SPLIT_REM(vthread_t thr, vvp_code_t cp)
       thr->push_vec4(dynamic);
       return true;
 }
-
-struct stream_container_encoding_t {
-      unsigned element_width;
-      bool four_state;
-      bool strict_cast;
-      uint64_t queue_max;
-      uint64_t fixed_count;
-      vector<uint64_t> fixed_dimensions;
-};
 
 static bool decode_stream_container_encoding_(
       const char*text, bool as_queue, stream_container_encoding_t&enc)
@@ -31622,31 +31728,12 @@ static vvp_object_t stream_fixed_array_value_(const vvp_vector4_t&value,
       return vvp_object_t(array);
 }
 
-/*
- * %stream/to/queue "<t>" and %stream/to/dar "<t>"
- *
- * Pop a bit stream and materialize it as a dynamically sized
- * container with elements of the type described by <t> ("b8",
- * "sb32", "v1", ...).  Per 11.4.14, the container gets the smallest
- * number of elements that hold the whole stream; a final partial
- * element is zero-filled on the right.  Element 0 receives the
- * left-most bits (matching the flatten order above).
- */
-static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
+/* Element 0 receives the leftmost bits. Zero-fill the final partial
+ * element on the right and honor the destination's declared queue bound. */
+static bool stream_container_value_(vthread_t thr, const vvp_vector4_t&val,
+				    const stream_container_encoding_t&enc,
+				    bool as_queue, vvp_object_t&result)
 {
-      const char*text = cp->text;
-      vvp_vector4_t val = thr->pop_vec4();
-
-      stream_container_encoding_t enc;
-      if (!decode_stream_container_encoding_(text, as_queue, enc)) {
-	    cerr << thr->get_fileline()
-		 << "VVP error: malformed stream container encoding '"
-		 << (text ? text : "<null>") << "'." << endl;
-	    vvp_object_t nil;
-	    thr->push_object(nil);
-	    return container_opcode_runtime_fatal_();
-      }
-
       unsigned ewid = enc.element_width;
       bool four_state = enc.four_state;
       bool strict_cast = enc.strict_cast;
@@ -31709,13 +31796,11 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 		   * uint64_t declaration bound. */
 		  res->push_back(elem, queue_max);
 	    }
-	    vvp_object_t obj(res);
+	    result = vvp_object_t(res);
 	    res->set_declared_container_layout(vvp_make_container_layout(
 		  VVP_CONTAINER_QUEUE, true, queue_max,
 		  vvp_container_layout_t()));
-	    thr->push_object(obj);
       } else {
-	    vvp_object_t obj;
 	    if (enc.fixed_dimensions.empty() || cast_size_error
 		|| runtime_limit_error) {
 		  vvp_darray*res = four_state
@@ -31728,16 +31813,15 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
 			elem.set_vec(ewid - avail, val.subvalue(top - avail, avail));
 			res->set_word((unsigned)i, elem);
 		  }
-		  obj = vvp_object_t(res);
+		  result = vvp_object_t(res);
 		  res->set_declared_container_layout(vvp_make_container_layout(
 			VVP_CONTAINER_DARRAY, false, 0, vvp_container_layout_t()));
 	    } else {
 		  size_t element_index = 0;
-		  obj = stream_fixed_array_value_(val, ewid, four_state,
-						  enc.fixed_dimensions, 0,
-						  element_index);
+		  result = stream_fixed_array_value_(val, ewid, four_state,
+						     enc.fixed_dimensions, 0,
+						     element_index);
 	    }
-	    thr->push_object(obj);
       }
 
       if (cast_size_error || cast_bound_error
@@ -31749,6 +31833,25 @@ static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
       }
 
       return true;
+}
+
+/* %stream/to/queue "<t>" and %stream/to/dar "<t>": pop the bit stream,
+ * push a container whose element type is encoded in <t>. */
+static bool do_stream_to_container(vthread_t thr, vvp_code_t cp, bool as_queue)
+{
+      vvp_vector4_t value = thr->pop_vec4();
+      stream_container_encoding_t enc;
+      vvp_object_t result;
+      if (!decode_stream_container_encoding_(cp->text, as_queue, enc)) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: malformed stream container encoding '"
+		 << (cp->text ? cp->text : "<null>") << "'." << endl;
+	    thr->push_object(result);
+	    return container_opcode_runtime_fatal_();
+      }
+      bool ok = stream_container_value_(thr, value, enc, as_queue, result);
+      thr->push_object(result);
+      return ok;
 }
 
 bool of_STREAM_TO_QUEUE(vthread_t thr, vvp_code_t cp)

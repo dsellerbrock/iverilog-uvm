@@ -744,6 +744,7 @@ extern bool of_STREAM_FLATTEN_ASSOC(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_CAST_SIZE(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_CLASS_CAPTURE(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_CLASS_CAPTURE_IN(vthread_t thr, vvp_code_t code);
+extern bool of_STREAM_CLASS_CAPTURE_PROP(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_CLASS_NEXT(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_CLASS_PREPARE(vthread_t thr, vvp_code_t code);
 extern bool of_STREAM_FLATTEN_OBJ_WITH(vthread_t thr, vvp_code_t code);

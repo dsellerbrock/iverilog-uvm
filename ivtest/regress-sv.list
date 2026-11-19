@@ -7306,6 +7306,8 @@ issue3864_class_unpack_2017 normal,-g2017,-s,issue3864_class_unpack ivltests gol
 issue3864_class_unpack_short_2017 RE,-g2017,-s,issue3864_class_unpack_short ivltests gold=issue3864_class_unpack_short-vvp-stderr.gold
 issue3864_class_unpack_2023 normal,-g2023,-s,issue3864_class_unpack ivltests gold=issue3864_class_unpack-vvp-stdout.gold
 issue3864_class_unpack_short_2023 RE,-g2023,-s,issue3864_class_unpack_short ivltests gold=issue3864_class_unpack_short-vvp-stderr.gold
+issue3865_class_greedy_2017 normal,-g2017,-s,issue3865_class_greedy ivltests gold=issue3865_class_greedy.gold
+issue3865_class_greedy_2023 normal,-g2023,-s,issue3865_class_greedy ivltests gold=issue3865_class_greedy.gold
 
 # Clocked sequence instances with actuals and .triggered (issue #3800)
 issue3800_clocked_triggered_2017 normal,-g2017,-gassertions,-s,issue3800_clocked_triggered ivltests gold=issue3800_clocked_triggered.gold
