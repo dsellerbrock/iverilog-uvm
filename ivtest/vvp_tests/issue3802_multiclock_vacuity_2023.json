@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3802_multiclock_vacuity.v",
+  "iverilog-args": ["-g2023", "-DISSUE3802_VPI"],
+  "vpi-modules": ["issue3802_multiclock_vacuity_2023"],
+  "vpi-sources": ["vpi/sva_vacuity_log.c"],
+  "gold": "issue3802_multiclock_vacuity_cb"
+}
