@@ -441,6 +441,7 @@ class __vpiStmtNode : public __vpiHandle {
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_iterate(int code) override;
       void add_child(__vpiStmtNode*child);
+      bool attach_condition(char*symbol, vpiHandle expr);
 
       __vpiScope*scope_;
       std::vector<struct vvp_code_s*> code_addresses_;
@@ -449,6 +450,8 @@ class __vpiStmtNode : public __vpiHandle {
       const char*name_;
       __vpiStmtNode*parent_;
       std::vector<__vpiStmtNode*> children_;
+      vpiHandle condition_ = nullptr;
+      bool has_condition_ = false;
 };
 
 /* Deferred-report selectors use module/cell hierarchy depth, not the number

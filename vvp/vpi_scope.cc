@@ -669,6 +669,7 @@ vpiHandle __vpiStmtNode::vpi_handle(int code)
 {
       if (code == vpiParent) return parent_;
       if (code == vpiScope) return scope_;
+      if (code == vpiCondition && type_ == vpiWhile) return condition_;
       if (vpiHandle rel = vpip_force_conn_relation(this, code)) return rel;
       return __vpiHandle::vpi_handle(code);
 }
@@ -685,6 +686,19 @@ vpiHandle __vpiStmtNode::vpi_iterate(int code)
 
 void __vpiStmtNode::add_child(__vpiStmtNode*child)
 { children_.push_back(child); child->parent_ = this; }
+
+bool __vpiStmtNode::attach_condition(char*symbol, vpiHandle expr)
+{
+      if (type_ != vpiWhile || has_condition_ || (!symbol && !expr))
+	    return false;
+      has_condition_ = true;
+	/* A forward reference writes into this node's persistent slot. */
+      if (symbol)
+	    compile_vpi_lookup(&condition_, symbol);
+      else
+	    condition_ = expr;
+      return true;
+}
 
 /* Annex K/M codes the public headers do not export. */
 static const int IEEE_vpiInterfaceArray = 603;
@@ -4070,19 +4084,31 @@ void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
       delete[] name;
 }
 
-void compile_stmt_at(uint64_t id)
+static __vpiStmtNode* find_stmt_node_(uint64_t id)
 {
       __vpiScope*scope = vpip_peek_current_scope();
-      __vpiStmtNode*node = 0;
       while (scope) {
 	    std::map<uint64_t, vpiHandle>::iterator found =
 		  scope->statement_node_by_id.find(id);
-	    if (found != scope->statement_node_by_id.end()) {
-		  node = dynamic_cast<__vpiStmtNode*>(found->second);
-		  break;
-	    }
+	    if (found != scope->statement_node_by_id.end())
+		  return dynamic_cast<__vpiStmtNode*>(found->second);
 	    scope = scope->scope;
       }
+      return nullptr;
+}
+
+void compile_vpi_3041_condition(uint64_t id, char*symbol, vpiHandle expr)
+{
+      __vpiStmtNode*node = find_stmt_node_(id);
+      if (node && node->attach_condition(symbol, expr)) return;
+      free(symbol);
+      yyerror("invalid .vpi_3041_condition metadata");
+      compile_errors += 1;
+}
+
+void compile_stmt_at(uint64_t id)
+{
+      __vpiStmtNode*node = find_stmt_node_(id);
       if (!node) {
 	    yyerror("invalid .stmt_at metadata");
 	    compile_errors += 1;
