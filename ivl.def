@@ -421,6 +421,7 @@ ivl_stmt_block_count
 ivl_stmt_block_randsequence
 ivl_stmt_block_scope
 ivl_stmt_block_stmt
+ivl_stmt_block_vpi_source
 ivl_stmt_break_kind
 ivl_stmt_call
 ivl_stmt_case_count
@@ -464,6 +465,7 @@ ivl_stmt_rval
 ivl_stmt_sfunc_as_task
 ivl_stmt_step_stmt
 ivl_stmt_sub_stmt
+ivl_stmt_source_wait_body
 ivl_stmt_wait_order_fail_stmt
 ivl_stmt_is_super_call
 ivl_stmt_is_immediate_assertion

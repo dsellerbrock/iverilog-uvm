@@ -669,6 +669,9 @@ NexusSet* NetAssignBase::nex_input(bool rem_out, bool always_sens, bool nested_f
  */
 NexusSet* NetBlock::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
+      if (const NetProc*child = transparent_wait_stmt())
+	    return child->nex_input(rem_out, always_sens, nested_func);
+
       if (last_ == 0) return new NexusSet;
 
       if (! always_sens && (type_ != SEQU)) {

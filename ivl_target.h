@@ -2772,6 +2772,11 @@ extern ivl_scope_t ivl_stmt_block_scope(ivl_statement_t net);
 extern ivl_statement_t ivl_stmt_block_stmt(ivl_statement_t net, unsigned i);
   /* IVL_ST_BLOCK, IVL_ST_FORK, IVL_ST_FORK_JOIN_ANY, IVL_ST_FORK_JOIN_NONE */
 extern ivl_randsequence_block_t ivl_stmt_block_randsequence(ivl_statement_t net);
+  /* Source body of a wait (expr), including bodies that cannot execute.
+     Returns NULL for other statements. */
+extern ivl_statement_t ivl_stmt_source_wait_body(ivl_statement_t net);
+  /* Source statement inside an executable wrapper, or NULL. */
+extern ivl_statement_t ivl_stmt_block_vpi_source(ivl_statement_t net);
   /* IVL_ST_BREAK */
 extern ivl_flow_control_t ivl_stmt_break_kind(ivl_statement_t net);
   /* IVL_ST_UTASK IVL_ST_DISABLE */

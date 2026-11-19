@@ -1120,9 +1120,11 @@ struct ivl_statement_s {
 
 	    struct { /* IVL_ST_BLOCK, IVL_ST_FORK */
 		  struct ivl_statement_s*stmt_;
+		  struct ivl_statement_s*vpi_source_stmt_;
 		  unsigned nstmt_;
 		  ivl_scope_t scope;
 		  ivl_randsequence_block_t randsequence;
+		  bool source_wait;
 	    } block_;
 
 	    struct { /* IVL_ST_BREAK */

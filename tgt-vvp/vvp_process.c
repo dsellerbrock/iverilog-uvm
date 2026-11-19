@@ -44,6 +44,7 @@ static ivl_statement_t pure_comb_top_wait_ = 0;
 typedef struct vpi_stmt_id_entry_s {
       ivl_statement_t stmt;
       uint64_t id;
+      int separate_entry;
       struct vpi_stmt_id_entry_s*next;
 } vpi_stmt_id_entry_t;
 
@@ -59,12 +60,18 @@ static void reset_vpi_stmt_ids_(void)
       }
 }
 
-static uint64_t vpi_stmt_id_(ivl_statement_t stmt)
+static const vpi_stmt_id_entry_t* vpi_stmt_entry_(ivl_statement_t stmt)
 {
       vpi_stmt_id_entry_t*entry;
       for (entry = active_vpi_stmt_ids_; entry; entry = entry->next)
-	    if (entry->stmt == stmt) return entry->id;
+	    if (entry->stmt == stmt) return entry;
       return 0;
+}
+
+static uint64_t vpi_stmt_id_(ivl_statement_t stmt)
+{
+      const vpi_stmt_id_entry_t*entry = vpi_stmt_entry_(stmt);
+      return entry ? entry->id : 0;
 }
 
 static int vpi_statement_visible_(ivl_statement_t stmt);
@@ -9060,6 +9067,8 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 	    break;
 
 	  case IVL_ST_BLOCK:
+	    if (ivl_stmt_block_count(net) == 0)
+		  break;
 	    if (ivl_stmt_block_scope(net))
 		  rc += show_stmt_block_named(net, sscope);
 	    else {
@@ -9137,7 +9146,8 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 	  case IVL_ST_FORK:
 	  case IVL_ST_FORK_JOIN_ANY:
 	  case IVL_ST_FORK_JOIN_NONE:
-	    rc += show_stmt_fork(net, sscope);
+	    if (ivl_stmt_block_count(net) != 0)
+		  rc += show_stmt_fork(net, sscope);
 	    break;
 
 	  case IVL_ST_FORLOOP:
@@ -9421,6 +9431,7 @@ static unsigned vpi_statement_type_(ivl_statement_t stmt)
       switch (ivl_statement_type(stmt)) {
           case IVL_ST_NOOP: return vpiNullStmt;
           case IVL_ST_BLOCK:
+	    if (ivl_stmt_source_wait_body(stmt)) return vpiWait;
 	    if (vpi_value_return_block_(stmt)) return vpiReturnStmt;
 	    return ivl_stmt_block_scope(stmt) ? vpiNamedBegin : vpiBegin;
           case IVL_ST_FORK:
@@ -9501,13 +9512,13 @@ static int vpi_statement_visible_(ivl_statement_t stmt)
       }
 }
 
-static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
+static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent,
+				    int wait_body)
 {
       uint64_t id;
       unsigned type;
       const char *name = "";
       vpi_stmt_id_entry_t*entry;
-      if (!vpi_statement_visible_(stmt)) return 0;
       id = next_vpi_stmt_id_++;
       entry = calloc(1, sizeof *entry);
       assert(entry);
@@ -9516,6 +9527,9 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       entry->next = active_vpi_stmt_ids_;
       active_vpi_stmt_ids_ = entry;
       type = vpi_statement_type_(stmt);
+      entry->separate_entry = type == vpiWait
+	    || (wait_body && (type == vpiBegin || type == vpiNamedBegin
+			     || type == vpiFork || type == vpiNamedFork));
       if (ivl_statement_type(stmt) == IVL_ST_STASK && ivl_stmt_name(stmt))
             name = ivl_stmt_name(stmt);
       else if (ivl_statement_type(stmt) == IVL_ST_UTASK
@@ -9534,12 +9548,30 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       return id;
 }
 
-static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
+static ivl_statement_t vpi_source_stmt_(ivl_statement_t stmt)
 {
+      ivl_statement_t source;
+      while ((source = ivl_stmt_block_vpi_source(stmt)))
+	    stmt = source;
+      return stmt;
+}
+
+static void emit_vpi_stmt_tree_node_(ivl_statement_t stmt, uint64_t parent,
+				     int wait_body)
+{
+      ivl_statement_t body;
       uint64_t id;
       unsigned idx, count = 0;
-      if (!vpi_statement_visible_(stmt)) return;
-      id = emit_vpi_stmt_node_(stmt, parent);
+      stmt = vpi_source_stmt_(stmt);
+      if (!vpi_statement_visible_(stmt)
+	  && !(wait_body && stmt && ivl_statement_type(stmt) == IVL_ST_NOOP))
+	    return;
+      id = emit_vpi_stmt_node_(stmt, parent, wait_body);
+      body = ivl_stmt_source_wait_body(stmt);
+      if (body) {
+	    emit_vpi_stmt_tree_node_(body, id, 1);
+	    return;
+      }
 	/* A return statement has no statements below it. */
       if (vpi_value_return_block_(stmt)) return;
       switch (ivl_statement_type(stmt)) {
@@ -9588,13 +9620,20 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
       }
 }
 
+static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent)
+{
+      emit_vpi_stmt_tree_node_(stmt, parent, 0);
+}
+
 static void emit_vpi_task_stmt_tree_(ivl_statement_t def)
 {
       unsigned count = 0, idx;
       ivl_statement_t only_stmt = 0;
       reset_vpi_stmt_ids_();
+      def = vpi_source_stmt_(def);
       if (!def || !vpi_statement_visible_(def)) return;
-      if (ivl_statement_type(def) == IVL_ST_BLOCK) {
+      if (ivl_statement_type(def) == IVL_ST_BLOCK
+	  && !ivl_stmt_source_wait_body(def)) {
 	    for (idx = 0; idx < ivl_stmt_block_count(def); idx += 1) {
 		  ivl_statement_t stmt = ivl_stmt_block_stmt(def, idx);
 		  if (!vpi_statement_visible_(stmt)) continue;
@@ -9602,13 +9641,13 @@ static void emit_vpi_task_stmt_tree_(ivl_statement_t def)
 		  count += 1;
 	    }
             if (count == 0) {
-		  emit_vpi_stmt_node_(def, UINT64_MAX);
+		  emit_vpi_stmt_node_(def, UINT64_MAX, 0);
 		  return;
             }
 	    if (count == 1) {
                   /* Preserve the established vpiStmt root while retaining
 		     an execution handle for the enclosing block. */
-		  emit_vpi_stmt_node_(def, UINT64_MAX);
+		  emit_vpi_stmt_node_(def, UINT64_MAX, 0);
 		  emit_vpi_stmt_tree_(only_stmt, 0);
 		  return;
 	    }
@@ -9618,12 +9657,15 @@ static void emit_vpi_task_stmt_tree_(ivl_statement_t def)
 
 void draw_stmt_callback_entry(ivl_statement_t stmt)
 {
-      uint64_t id;
+      const vpi_stmt_id_entry_t*entry;
       if (!stmt || !vpi_statement_visible_(stmt)) return;
-      id = vpi_stmt_id_(stmt);
-      if (!id) return;
-      fprintf(vvp_out, "    .stmt_at %" PRIu64 ";\n",
-              id);
+      entry = vpi_stmt_entry_(stmt);
+      if (!entry) return;
+      fprintf(vvp_out, "    .stmt_at %" PRIu64 ";\n", entry->id);
+      /* A jump to an inner loop's predicate must not re-enter the wait
+	 or its begin/end body. Give each source entry its own address. */
+      if (entry->separate_entry)
+	    fprintf(vvp_out, "    %%noop;\n");
 }
 
 int draw_task_definition(ivl_scope_t scope)

@@ -470,8 +470,8 @@ bool dll_target::proc_block(const NetBlock*net)
 		 ;  cur ;  cur = net->proc_next(cur))
 	    count += 1;
 
-	/* If the block has no statements, then turn it into a no-op */
-      if (count == 0) {
+	/* An explicit wait body keeps its identity even when empty. */
+      if (count == 0 && !net->preserved_wait_body_block()) {
 	    stmt_cur_->type_ = IVL_ST_NOOP;
 	    return true;
       }
@@ -480,14 +480,13 @@ bool dll_target::proc_block(const NetBlock*net)
 	   child remains an independent process (IEEE 1800-2017/2023 9.3.2). */
       if ((count == 1) && (net->subscope() == 0) &&
 	  (net->randsequence_block() == IVL_RANDSEQ_BLOCK_NONE) &&
-	  (net->type() == NetBlock::SEQU)) {
+	  (net->type() == NetBlock::SEQU) && !net->is_source_wait() &&
+	  !net->preserved_wait_body_block() && !net->vpi_source_stmt()) {
 	    return net->proc_first()->emit_proc(this);
       }
 
 
-	/* Handle the general case. The block has some statements in
-	   it, so fill in the block fields of the existing statement,
-	   and generate the contents for the statement array. */
+	/* Describe the block and fill its executable statement array. */
 
       switch (net->type()) {
 	  case NetBlock::SEQU:
@@ -512,6 +511,8 @@ bool dll_target::proc_block(const NetBlock*net)
       else
 	    stmt_cur_->u_.block_.scope = 0;
       stmt_cur_->u_.block_.randsequence = net->randsequence_block();
+      stmt_cur_->u_.block_.source_wait = net->is_source_wait();
+      stmt_cur_->u_.block_.vpi_source_stmt_ = nullptr;
 
       struct ivl_statement_s*save_cur_ = stmt_cur_;
       unsigned idx = 0;
@@ -521,11 +522,21 @@ bool dll_target::proc_block(const NetBlock*net)
 		 ;  cur ;  cur = net->proc_next(cur), idx += 1) {
 	    assert(idx < count);
 	    stmt_cur_ = save_cur_->u_.block_.stmt_ + idx;
+	    if (cur == net->vpi_source_stmt())
+		  save_cur_->u_.block_.vpi_source_stmt_ = stmt_cur_;
 	    bool rc = cur->emit_proc(this);
 	    flag = flag && rc;
       }
       assert(idx == count);
 
+	/* Lower an unreachable body for the source tree only. */
+      if (const NetProc*body = net->dead_wait_body()) {
+	    stmt_cur_ = dll_procedure_new_array<struct ivl_statement_s>(1);
+	    save_cur_->u_.block_.vpi_source_stmt_ = stmt_cur_;
+	    bool rc = body->emit_proc(this);
+	    flag = flag && rc;
+      }
+      assert(!net->vpi_source_stmt() || save_cur_->u_.block_.vpi_source_stmt_);
       stmt_cur_ = save_cur_;
 
       return flag;

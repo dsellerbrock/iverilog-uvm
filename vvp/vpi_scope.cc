@@ -669,13 +669,15 @@ vpiHandle __vpiStmtNode::vpi_handle(int code)
 {
       if (code == vpiParent) return parent_;
       if (code == vpiScope) return scope_;
+      if (code == vpiStmt && type_ == vpiWait)
+	    return children_.empty() ? nullptr : children_.front();
       if (vpiHandle rel = vpip_force_conn_relation(this, code)) return rel;
       return __vpiHandle::vpi_handle(code);
 }
 
 vpiHandle __vpiStmtNode::vpi_iterate(int code)
 {
-      if (code != vpiStmt || children_.empty()) return 0;
+      if (code != vpiStmt || type_ == vpiWait || children_.empty()) return 0;
       vpiHandle*args = static_cast<vpiHandle*>(
 	    calloc(children_.size(), sizeof(vpiHandle)));
       for (size_t idx = 0; idx < children_.size(); idx += 1)

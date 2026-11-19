@@ -105,6 +105,28 @@ const NetProc* NetBlock::proc_next(const NetProc*cur) const
       return cur->next_;
 }
 
+/* These singleton blocks were elided before introducing source wait
+   metadata. Preserve the executable statement's analysis at that boundary. */
+NetProc* NetBlock::transparent_wait_stmt() const
+{
+      if ((source_wait_ || wait_body_elided_singleton_) && last_
+	  && last_->next_ == last_)
+	    return last_;
+      return nullptr;
+}
+
+bool NetBlock::is_asynchronous()
+{
+      NetProc*child = transparent_wait_stmt();
+      return child && child->is_asynchronous();
+}
+
+bool NetBlock::is_synchronous()
+{
+      NetProc*child = transparent_wait_stmt();
+      return child && child->is_synchronous();
+}
+
 NetCase::NetCase(ivl_case_quality_t q, NetCase::TYPE c, NetExpr*ex,
                  unsigned cnt, bool quality_if)
 : quality_(q), type_(c), quality_if_(quality_if), expr_(ex), items_(cnt)

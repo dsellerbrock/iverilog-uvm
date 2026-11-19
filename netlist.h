@@ -4113,6 +4113,25 @@ class NetBlock  : public NetProc {
       ivl_randsequence_block_t randsequence_block() const
       { return randsequence_block_; }
 
+      void set_source_wait(NetProc*body, bool reachable)
+      {
+	    vpi_source_stmt_ = body;
+	    source_wait_ = true;
+	    if (!reachable)
+		  dead_wait_body_.reset(body);
+      }
+      bool is_source_wait() const { return source_wait_; }
+      void set_vpi_source_stmt(const NetProc*stmt) { vpi_source_stmt_ = stmt; }
+      const NetProc* vpi_source_stmt() const { return vpi_source_stmt_; }
+      const NetProc* dead_wait_body() const { return dead_wait_body_.get(); }
+      void preserve_wait_body_block(bool elided_singleton)
+      {
+	    preserve_wait_body_block_ = true;
+	    wait_body_elided_singleton_ = elided_singleton;
+      }
+      bool preserved_wait_body_block() const { return preserve_wait_body_block_; }
+      NetProc* transparent_wait_stmt() const;
+
       void append(NetProc*);
       void prepend(NetProc*);
 
@@ -4123,10 +4142,12 @@ class NetBlock  : public NetProc {
                              std::map<perm_string,LocalVar>&ctx) const override;
 
 	// synthesize as asynchronous logic, and return true.
+      bool is_asynchronous() override;
       bool synth_async(Design*des, NetScope*scope,
                        NexusSet&nex_map, NetBus&nex_out,
                        NetBus&enables, std::vector<mask_t>&bitmasks) override;
 
+      bool is_synchronous() override;
       bool synth_sync(Design*des, NetScope*scope,
 		      bool&ff_negedge,
 		      NetNet*ff_clk, NetBus&ff_ce,
@@ -4156,6 +4177,13 @@ class NetBlock  : public NetProc {
       NetScope*subscope_;
       const NetScope*automatic_task_call_ = nullptr;
       ivl_randsequence_block_t randsequence_block_;
+      // The source wait's body, or the source statement inside an
+      // executable wrapper that supplies initialization or cleanup.
+      const NetProc*vpi_source_stmt_ = nullptr;
+      std::unique_ptr<NetProc> dead_wait_body_;
+      bool source_wait_ = false;
+      bool preserve_wait_body_block_ = false;
+      bool wait_body_elided_singleton_ = false;
 
       NetProc*last_;
 };

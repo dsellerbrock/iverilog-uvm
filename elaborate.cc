@@ -16766,6 +16766,16 @@ static NetProc*guard_function_background_event_(NetScope*scope,
 
 NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 {
+      return elaborate_(des, scope, false);
+}
+
+NetProc* PBlock::elaborate_wait_body(Design*des, NetScope*scope) const
+{
+      return elaborate_(des, scope, true);
+}
+
+NetProc* PBlock::elaborate_(Design*des, NetScope*scope, bool wait_body) const
+{
       ivl_assert(*this, scope);
 
 	/* IEEE 1800-2017/2023 13.4.3 prohibits every fork construct in a
@@ -16954,11 +16964,12 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 
 	// Handle the special case that the sequential block contains
 	// only one statement. There is no need to keep the block node.
-	// Also, don't elide named blocks, because they might be
-	// referenced elsewhere.
-      if ((type == NetBlock::SEQU) && (list_.size() == 1) &&
-          (pscope_name() == 0)
-	  && (randsequence_block_ == IVL_RANDSEQ_BLOCK_NONE)) {
+	// Keep named blocks and explicit bodies of source waits for VPI.
+      const bool elide_singleton = type == NetBlock::SEQU && list_.size() == 1
+	    && pscope_name() == 0 && randsequence_block_ == IVL_RANDSEQ_BLOCK_NONE;
+      if (wait_body)
+	    cur->preserve_wait_body_block(elide_singleton);
+      else if (elide_singleton) {
 	    ivl_assert(*this, list_[0]);
 	    NetProc*tmp = list_[0]->elaborate(des, nscope);
 	    return tmp;
@@ -17022,12 +17033,18 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
       const bool needs_function_background_guard =
 	    type == NetBlock::PARA_JOIN_NONE
 	    && scope_is_within_function_(scope) && cur->proc_first();
+      NetProc*body = cur;
+      if (needs_function_background_guard) {
+	    body = guard_function_background_event_(scope, *this, cur);
+	    if (wait_body)
+		  static_cast<NetBlock*>(body)->set_vpi_source_stmt(cur);
+      }
       if (prefix) {
 	    prefix->set_line(*this);
-	    if (cur->proc_first())
-		  prefix->append(needs_function_background_guard
-				 ? guard_function_background_event_(scope, *this, cur)
-				 : cur);
+	    if (wait_body)
+		  prefix->set_vpi_source_stmt(body);
+	    if (cur->proc_first() || wait_body)
+		  prefix->append(body);
 	    else
 		  delete cur;
 	    NetFree*fp = new NetFree(nscope);
@@ -17035,8 +17052,7 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    prefix->append(fp);
 	    return prefix;
       }
-      return needs_function_background_guard
-	    ? guard_function_background_event_(scope, *this, cur) : cur;
+      return body;
 }
 
 NetProc* PNoop::elaborate(Design*, NetScope*) const
@@ -29659,6 +29675,20 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
       return wa;
 }
 
+static NetBlock*make_source_wait_(const LineInfo&loc, NetProc*control,
+				  NetProc*body, bool reachable = true)
+{
+      ivl_assert(loc, body);
+      NetBlock*block = new NetBlock(NetBlock::SEQU, nullptr);
+      block->set_line(loc);
+      block->set_source_wait(body, reachable);
+      if (control)
+	    block->append(control);
+      if (reachable)
+	    block->append(body);
+      return block;
+}
+
 /*
  * This is the special case of the event statement, the wait
  * statement. This is elaborated into a slightly more complicated
@@ -29752,11 +29782,10 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	    verinum val = ce->value();
 	    ivl_assert(*this, val.len() == 1);
 
-	      /* Constant true -- wait(1) <s1> reduces to <s1>. */
+	      /* Constant true executes only the body. */
 	    if (val[0] == verinum::V1) {
 		  delete expr;
-		  ivl_assert(*this, enet);
-		  return enet;
+		  return make_source_wait_(*this, nullptr, enet);
 	    }
 
 	      /* Otherwise, false. wait(0) blocks permanently. */
@@ -29783,8 +29812,7 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 	    wait->set_line(*this);
 
 	    delete expr;
-	    delete enet;
-	    return wait;
+	    return make_source_wait_(*this, wait, enet, false);
       }
 
 	/* Invert the sense of the test with an exclusive NOR. In
@@ -29892,7 +29920,7 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 				warned_wait_no_event_sources = true;
 			  }
 			  delete expr;
-			  return enet;
+			  return make_source_wait_(*this, nullptr, enet);
 		    }
 	    cerr << get_fileline() << ": internal error: No NexusSet"
 		 << " from wait expression." << endl;
@@ -29911,7 +29939,7 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 			  }
 			  delete wait_set;
 			  delete expr;
-			  return enet;
+			  return make_source_wait_(*this, nullptr, enet);
 	    }
 	    cerr << get_fileline() << ": internal error: Empty NexusSet"
 		 << " from wait expression." << endl;
@@ -30165,20 +30193,7 @@ NetProc* PEventStatement::elaborate_wait(Design*des, NetScope*scope,
 
 	      NetWhile*loop = new NetWhile(expr, wait_proc);
       loop->set_line(*this);
-
-	/* If there is no real substatement (i.e., "wait (foo) ;") then
-	   we are done. */
-      if (enet == 0)
-	    return loop;
-
-	/* Create a sequential block to combine the wait loop and the
-	   delayed statement. */
-      NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
-      block->append(loop);
-      block->append(enet);
-      block->set_line(*this);
-
-      return block;
+      return make_source_wait_(*this, loop, enet);
 }
 
 /*
@@ -30224,6 +30239,19 @@ NetProc* PEventStatement::elaborate_wait_fork(Design*des, const NetScope*scope) 
 	    return 0;
       }
 
+}
+
+static NetProc*elaborate_source_wait_body_(const PEventStatement&wait,
+					   Design*des, NetScope*scope)
+{
+      if (const auto*block = dynamic_cast<const PBlock*>(wait.statement()))
+	    return block->elaborate_wait_body(des, scope);
+      if (wait.statement())
+	    return wait.statement()->elaborate(des, scope);
+
+      NetBlock*noop = new NetBlock(NetBlock::SEQU, nullptr);
+      noop->set_line(wait);
+      return noop;
 }
 
 NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
@@ -30326,6 +30354,8 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	/* A wait on a single named-event array element (`@(arr[i])`):
 	   each element is its own independent named event
 	   (IEEE 1800-2017 6.17). */
+      const bool source_wait = expr_.size() == 1
+	    && expr_[0]->type() == PEEvent::POSITIVE;
       if (expr_.size() == 1 && expr_[0]
 	  && (expr_[0]->type() == PEEvent::POSITIVE
 	      || expr_[0]->type() == PEEvent::ANYEDGE)
@@ -30335,16 +30365,25 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 		  if (NetEvent*ev = elaborate_event_array_target_(des, scope,
 					*this, id->path(), id->lexical_pos(), idx)) {
 			NetProc*body = 0;
-			if (statement_) {
-			      body = statement_->elaborate(des, scope);
+			if (source_wait || statement_) {
+			      body = source_wait
+				  ? elaborate_source_wait_body_(*this, des, scope)
+				  : statement_->elaborate(des, scope);
 			      if (body == 0) { delete idx; return 0; }
 			}
 			NetEvWaitArr*wa = new NetEvWaitArr(ev, idx);
 			wa->set_line(*this);
+			if (source_wait)
+			      return make_source_wait_(*this, wa, body);
 			wa->set_statement(body);
 			return wa;
 		  }
 	    }
+      }
+
+      if (source_wait) {
+	    NetProc*body = elaborate_source_wait_body_(*this, des, scope);
+	    return body ? elaborate_wait(des, scope, body) : nullptr;
       }
 
       NetProc*enet = 0;
@@ -30357,9 +30396,6 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope) const
 	    enet = new NetBlock(NetBlock::SEQU, 0);
 	    enet->set_line(*this);
       }
-
-      if ((expr_.size() == 1) && (expr_[0]->type() == PEEvent::POSITIVE))
-	    return elaborate_wait(des, scope, enet);
 
       return elaborate_st(des, scope, enet);
 }
@@ -32635,10 +32671,14 @@ void PTask::elaborate(Design*des, NetScope*task) const
 
       if (!per_call_inits.empty()) {
 	    NetBlock*blk = dynamic_cast<NetBlock*>(st);
-	    if (blk == 0 || blk->type() != NetBlock::SEQU) {
-		  blk = new NetBlock(NetBlock::SEQU, task);
+	    const bool source_wait = blk && blk->is_source_wait();
+	    if (blk == 0 || blk->type() != NetBlock::SEQU || source_wait) {
+		  // Wait entry follows initialization in the same activation.
+		  blk = new NetBlock(NetBlock::SEQU, source_wait ? nullptr : task);
 		  blk->set_line(*this);
 		  blk->append(st);
+		  if (source_wait)
+			blk->set_vpi_source_stmt(st);
 		  st = blk;
 	    }
 	    for (size_t idx = per_call_inits.size(); idx > 0; idx -= 1) {
@@ -32656,6 +32696,9 @@ void PTask::elaborate(Design*des, NetScope*task) const
 	    NetBlock*blk = new NetBlock(NetBlock::SEQU, task);
 	    blk->set_line(*this);
 	    blk->append(st);
+	    if (const auto*source = dynamic_cast<const NetBlock*>(st))
+		  if (source->is_source_wait() || source->vpi_source_stmt())
+			blk->set_vpi_source_stmt(st);
 	    for (NetProc*sample : end_samples)
 		  blk->append(sample);
 	    st = blk;
@@ -32900,6 +32943,19 @@ NetProc* PWhile::elaborate(Design*des, NetScope*scope) const
       return loop;
 }
 
+/* Find the event control that was the process root before retaining a
+   constant-true wait and its possibly singleton begin/end for VPI. */
+static const NetEvWait*leading_event_wait_(const NetProc*stmt)
+{
+      while (const auto*block = dynamic_cast<const NetBlock*>(stmt)) {
+	    const NetProc*child = block->transparent_wait_stmt();
+	    if (!child)
+		  break;
+	    stmt = child;
+      }
+      return dynamic_cast<const NetEvWait*>(stmt);
+}
+
 /* Start combinational waits before ordinary time-zero Active work. */
 static void set_combinational_schedule_push_(NetProcTop*top)
 {
@@ -32907,7 +32963,7 @@ static void set_combinational_schedule_push_(NetProcTop*top)
 	  && top->type() != IVL_PR_ALWAYS_FF && top->type() != IVL_PR_ALWAYS_LATCH)
 	    return;
 
-      const NetEvWait*wait = dynamic_cast<const NetEvWait*>(top->statement());
+      const NetEvWait*wait = leading_event_wait_(top->statement());
       if (!wait || wait->nevents() != 1)
 	    return;
 
@@ -32982,7 +33038,7 @@ bool PProcess::elaborate(Design*des, NetScope*scope) const
       top->set_line(*this);
       des->add_process(top);
 
-      if (auto*wait = dynamic_cast<NetEvWait*>(cur)) {
+      if (auto*wait = const_cast<NetEvWait*>(leading_event_wait_(cur))) {
 	    const auto pending = deferred_extern_sensitivity_.find(wait);
 	    if (pending != deferred_extern_sensitivity_.end())
 		  pending->second.process = top;

@@ -313,6 +313,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
 
       virtual void dump(std::ostream&out, unsigned ind) const override;
       virtual NetProc* elaborate(Design*des, NetScope*scope) const override;
+      NetProc* elaborate_wait_body(Design*des, NetScope*scope) const;
       virtual void elaborate_scope(Design*des, NetScope*scope) const override;
       virtual void elaborate_sig(Design*des, NetScope*scope) const override;
       bool contains_detached_fork() const override;
@@ -321,6 +322,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
 
     private:
       friend class pform_constructor_order_audit_t;
+      NetProc* elaborate_(Design*des, NetScope*scope, bool wait_body) const;
       BL_TYPE bl_type_;
       bool deferred_assertion_label_scope_ = false;
       bool vpi_for_scope_ = false;

@@ -4204,6 +4204,20 @@ extern "C" ivl_statement_t ivl_stmt_block_stmt(ivl_statement_t net,
       }
 }
 
+extern "C" ivl_statement_t ivl_stmt_source_wait_body(ivl_statement_t net)
+{
+      if (net && net->type_ == IVL_ST_BLOCK && net->u_.block_.source_wait)
+	    return net->u_.block_.vpi_source_stmt_;
+      return nullptr;
+}
+
+extern "C" ivl_statement_t ivl_stmt_block_vpi_source(ivl_statement_t net)
+{
+      if (net && net->type_ == IVL_ST_BLOCK && !net->u_.block_.source_wait)
+	    return net->u_.block_.vpi_source_stmt_;
+      return nullptr;
+}
+
 extern "C" ivl_scope_t ivl_stmt_call(ivl_statement_t net)
 {
       assert(net);
