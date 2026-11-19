@@ -1,0 +1,7 @@
+ivltests/issue3790_bad.sv:12: error: Output port 'q' of issue3790_bad_child has incompatible unpacked-array dimensions.
+ivltests/issue3790_bad.sv:13: error: Output port 'q' of issue3790_bad_child has an incompatible unpacked-array element type.
+ivltests/issue3790_bad.sv:14: error: Unresolved wire 'shared' cannot have multiple drivers.
+ivltests/issue3790_bad.sv:15: warning: Output port 'q' of issue3790_bad_child does not merge the uwire across the port boundary.
+ivltests/issue3790_bad.sv:16: warning: Output port 'q' of issue3790_bad_child does not merge the uwire across the port boundary.
+ivltests/issue3790_bad.sv:17: error: Unresolved wire 'rows' cannot have multiple drivers.
+4 error(s) during elaboration.

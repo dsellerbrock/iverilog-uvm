@@ -961,6 +961,11 @@ extern void assign_unpacked_with_bufz(Design*des, NetScope*scope,
 				       const NetExpr*decay_time = 0,
 				       bool whole_value_delay = false);
 
+/* Validate a driver on an unresolved net without reserving it yet. */
+extern bool check_unresolved_net_driver(Design*des, const LineInfo&loc,
+				       NetNet*sig, unsigned msb, unsigned lsb,
+				       unsigned long word, bool repeated = false);
+
 extern NetPartSelect* detect_partselect_lval(Link&pin);
 
 /*

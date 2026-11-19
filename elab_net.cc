@@ -528,6 +528,40 @@ bool PEIdent::eval_part_select_(Design*des, NetScope*scope, const NetNet*sig,
       return true;
 }
 
+bool check_unresolved_net_driver(Design*des, const LineInfo&loc,
+				 NetNet*sig, unsigned msb, unsigned lsb,
+				 unsigned long word, bool repeated)
+{
+      if (!repeated && !sig->test_part_driven(msb, lsb, word))
+	    return true;
+
+      if (sig->user_nettype() && sig->user_nettype()->has_resolution_function()) {
+	    // Only an unpacked-struct nettype net is checked here.
+	    cerr << loc.get_fileline() << ": sorry: Net `" << sig->name()
+		 << "' of a resolved unpacked-struct nettype can only be driven "
+		    "by continuous assignments in its own scope." << endl;
+      } else {
+	    cerr << loc.get_fileline() << ": error: ";
+	    if (sig->user_nettype()) {
+		  cerr << "Net `" << sig->name() << "' with user-defined nettype `"
+		       << sig->declared_user_nettype()->pform_type()->name()
+		       << "' cannot have multiple drivers because it has "
+			  "no resolution function." << endl;
+	    } else {
+		  cerr << (sig->coerced_to_uwire() ? "Variable '" : "Unresolved wire '")
+		       << sig->name() << "' cannot have multiple drivers." << endl;
+	    }
+	    if (debug_elaborate) {
+		  cerr << loc.get_fileline() << ":\t: Overlap in "
+		       << "[" << msb << ":" << lsb << "] (canonical)"
+		       << ", widx=" << word << ", vector width="
+		       << sig->vector_width() << endl;
+	    }
+      }
+      des->errors += 1;
+      return false;
+}
+
 /*
  * This is the common code for l-value nets and bi-directional
  * nets. There is very little that is different between the two cases,
@@ -1412,44 +1446,9 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
       if (sig->type() == NetNet::UNRESOLVED_WIRE) {
 	    ivl_assert(*this, widx_flag || (widx == 0));
 	    for (unsigned long idx = 0; idx < selected_word_count; idx += 1) {
-		  if (sig->test_part_driven(
-			midx, lidx, selected_word_base + idx)) {
-			if (sig->user_nettype()
-			    && sig->user_nettype()->has_resolution_function()) {
-			        // Only an unpacked-struct nettype net (a variable,
-			        // see PWire::elaborate_sig) is checked here.
-			      cerr << get_fileline() << ": sorry: Net `"
-				   << sig->name() << "' of a resolved "
-				   << "unpacked-struct nettype can only be driven "
-				   << "by continuous assignments in its own scope."
-				   << endl;
-			      des->errors += 1;
-			      return 0;
-			}
-			cerr << get_fileline() << ": error: ";
-			if (sig->user_nettype()) {
-			      cerr << "Net `" << sig->name()
-			           << "' with user-defined nettype `"
-			           << sig->declared_user_nettype()->pform_type()->name()
-			           << "' cannot have multiple drivers because it has "
-			           << "no resolution function." << endl;
-			} else if (sig->coerced_to_uwire())
-			      cerr << "Variable '";
-			else
-			      cerr << "Unresolved wire '";
-			if (!sig->user_nettype())
-			      cerr << sig->name()
-			           << "' cannot have multiple drivers." << endl;
-			if (debug_elaborate) {
-			      cerr << get_fileline() << ":	: Overlap in "
-				   << "[" << midx << ":" << lidx << "] (canonical)"
-				   << ", widx=" << selected_word_base + idx
-				   << ", vector width=" << sig->vector_width()
-				   << endl;
-			}
-			des->errors += 1;
+		  if (!check_unresolved_net_driver(des, *this, sig, midx, lidx,
+						   selected_word_base + idx))
 			return 0;
-		  }
 	    }
 	    for (unsigned long idx = 0; idx < selected_word_count; idx += 1) {
 		  bool overlap = sig->test_and_set_part_driver(

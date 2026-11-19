@@ -7534,7 +7534,8 @@ struct fixed_array_port_actual_t {
 // 0 leaves ordinary expressions to the usual port elaborator.
 static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 					   const PExpr*expr,
-					   fixed_array_port_actual_t&out);
+					   fixed_array_port_actual_t&out,
+					   bool output_net = false);
 
 static NetNet* read_instance_array_input_word_(
       Design*des, NetScope*scope, const LineInfo&loc,
@@ -7735,6 +7736,136 @@ static bool elaborate_instance_array_input_(
 		  des->add_node(driver);
 		  connect(driver->pin(0), formal->pin(dst));
 		  connect(driver->pin(1), *source);
+	    }
+	    if (split)
+		  instance_base += formal->pin_count();
+      }
+      return true;
+}
+
+/* IEEE 1800-2017/2023 23.3.3.5: bind an unpacked net output actual
+ * either to every instance or to distinct rows in declaration order. */
+static bool elaborate_instance_array_net_output_(
+      Design*des, NetScope*scope, const vector<NetNet*>&formals,
+      const PExpr*expr, const Module*mod, unsigned port_idx, bool implicit)
+{
+      fixed_array_port_actual_t view;
+      int decoded = decode_fixed_array_port_actual_(des, scope, expr, view, true);
+      if (decoded < 0)
+	    return true;
+      NetNet*actual = view.signal;
+      if (!actual)
+	    return false;
+
+      perm_string port_name = mod->get_port_name(port_idx);
+      const auto report_error = [&](const char*reason) {
+	    cerr << expr->get_fileline() << ": error: Output port '"
+		 << port_name << "' of " << mod->mod_name()
+		 << " has " << reason << "." << endl;
+	    des->errors += 1;
+	    return true;
+      };
+
+      const auto&actual_dims = view.dims;
+      const bool split = actual_dims.size() ==
+	    formals.front()->unpacked_dimensions() + 1;
+      if (!decoded || (split && actual_dims.front().width() != formals.size()))
+	    return report_error("incompatible unpacked-array dimensions");
+
+      const netranges_t element_dims(actual_dims.begin() + (split ? 1 : 0),
+				     actual_dims.end());
+      ivl_type_t dst_type = view.element_type();
+      const NetNetType*actual_udnt = actual->user_nettype();
+      const PEIdent*ident = static_cast<const PEIdent*>(expr);
+      if (actual->get_const() || (actual_udnt
+	  && (split || !ident->path().back().index.empty())))
+	    return report_error("an unpacked-array actual that cannot be driven");
+
+      // Built-in 4-state uwires need a warning if kept across a port
+      // boundary (23.3.3.6). Nonstandard real/2-state nets also use
+      // UNRESOLVED_WIRE internally.
+      const auto is_uwire = [](NetNet*net) {
+	    return net->type() == NetNet::UNRESOLVED_WIRE
+		  && net->data_type() == IVL_VT_LOGIC && !net->user_nettype()
+		  && !net->coerced_to_uwire();
+      };
+      bool warn_uwire = false;
+      for (NetNet*formal : formals) {
+	    if (!formal || formal->port_type() != NetNet::POUTPUT
+		|| !unpacked_array_shapes_match_(formal->unpacked_dims(),
+						 element_dims))
+		  return report_error("incompatible unpacked-array dimensions");
+
+	    if (implicit && !implicit_port_types_match_(des, *expr, actual,
+							 formal, mod, port_name))
+		  return true;
+	    ivl_type_t src_type = formal->net_type();
+	    if (!src_type->type_equivalent(dst_type)
+		|| !dst_type->type_equivalent(src_type))
+		  return report_error("an incompatible unpacked-array element type");
+	    if (actual_udnt && formal->user_nettype()
+		&& actual_udnt != formal->user_nettype())
+		  return report_error("incompatible user-defined nettypes");
+
+	    if (!actual->is_interconnect() && !formal->is_interconnect())
+		  warn_uwire |= is_uwire(actual) || is_uwire(formal);
+      }
+
+      // An invalid constant element index selects no destination words.
+      if (view.invalid_index)
+	    return true;
+
+      // Reserve on the declared l-value before following any delay boundary.
+      if (actual->type() == NetNet::UNRESOLVED_WIRE) {
+	    const bool repeated = !split && formals.size() > 1;
+	    const unsigned long count = netrange_width(actual_dims);
+	    const unsigned msb = actual->vector_width() - 1;
+	    for (unsigned long word = 0; word < count; word += 1) {
+		  if (!check_unresolved_net_driver(des, *expr, actual, msb, 0,
+						   view.backing_word(word), repeated))
+			return true;
+	    }
+	    for (unsigned long word = 0; word < count; word += 1) {
+		  bool overlap = actual->test_and_set_part_driver(
+			msb, 0, view.backing_word(word));
+		  ivl_assert(*expr, !overlap);
+	    }
+      }
+
+      if (warn_uwire)
+	    cerr << expr->get_fileline() << ": warning: Output port '"
+		 << port_name << "' of " << mod->mod_name()
+		 << " does not merge the uwire across the port boundary." << endl;
+
+      NetNet*target = delay_driver_net(actual);
+      unsigned long instance_base = 0;
+      for (NetNet*formal : formals) {
+	    const bool variable = is_variable_output_port_(formal);
+	    const bool merge = (actual_udnt && actual_udnt == formal->user_nettype())
+		  || actual->is_interconnect() || formal->is_interconnect();
+	    for (unsigned long ordinal = 0; ordinal < formal->pin_count();
+		 ordinal += 1) {
+		  unsigned long src = unpacked_array_ltr_word_(
+			formal->unpacked_dims(), ordinal);
+		  unsigned long dst = unpacked_array_ltr_word_(
+			actual_dims, instance_base + ordinal);
+		  Link&source = formal->pin(src);
+		  Link&sink = target->pin(view.backing_word(dst));
+		  if (merge) {
+			connect(sink, source);
+			continue;
+		  }
+		  // Keep a directional boundary. Net outputs carry strength,
+		  // while variable outputs drive a continuous assignment.
+		  NetScope*inner = formal->scope();
+		  NetBUFZ*driver = new NetBUFZ(inner, inner->local_symbol(),
+			formal->vector_width(), !variable && !actual_udnt
+			&& !formal->user_nettype());
+		  driver->reactive_output(mod->is_checker);
+		  driver->set_line(*expr);
+		  des->add_node(driver);
+		  connect(driver->pin(0), sink);
+		  connect(driver->pin(1), source);
 	    }
 	    if (split)
 		  instance_base += formal->pin_count();
@@ -9442,6 +9573,11 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		    // "r-value" expression, but since this is an
 		    // output port, we assign to it from the internal object.
 		  if (prts[0]->unpacked_dimensions() > 0) {
+			if (gn_system_verilog() && is_array() && mport.size() == 1
+			    && elaborate_instance_array_net_output_(des, scope, prts,
+							pins[idx], rmod, idx,
+							pins_implicit[idx]))
+			      continue;
 			elaborate_unpacked_port(des, scope, prts[0], pins[idx],
 						ptype, rmod, idx);
 			continue;
@@ -13354,7 +13490,8 @@ static int decode_uarray_prefix_source_(Design*des, NetScope*scope,
 
 static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 					   const PExpr*expr,
-					   fixed_array_port_actual_t&out)
+					   fixed_array_port_actual_t&out,
+					   bool output_net)
 {
       const PEIdent*ident = dynamic_cast<const PEIdent*>(expr);
       if (!ident || ident->path().name.empty())
@@ -13367,7 +13504,19 @@ static int decode_fixed_array_port_actual_(Design*des, NetScope*scope,
 	  || !result.net->unpacked_dimensions())
 	    return 0;
 
+      if (output_net) {
+	    if (result.net->type() == NetNet::REG
+		|| result.net->type() == NetNet::IMPLICIT_REG
+		|| result.net->coerced_to_uwire())
+		  return 0;
+	    out.signal = result.net;
+	    if (ident->path().name.size() > 1)
+		  note_virtual_interface_outside_reference(scope, result.scope);
+      }
+
       if (ident->path().back().index.empty()) {
+	    if (output_net)
+		  check_package_unit_value(des, *expr, scope, result);
 	    out.signal = result.net;
 	    out.dims = result.net->unpacked_dims();
 	    return 1;
