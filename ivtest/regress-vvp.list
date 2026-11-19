@@ -7961,3 +7961,5 @@ issue3751_2017 vvp_tests/issue3751_2017.json
 issue3751_2023 vvp_tests/issue3751_2023.json
 issue3782_2017 vvp_tests/issue3782_2017.json
 issue3782_2023 vvp_tests/issue3782_2023.json
+issue1166_program_completion_2017 vvp_tests/issue1166_program_completion_2017.json
+issue1166_program_completion_2023 vvp_tests/issue1166_program_completion_2023.json

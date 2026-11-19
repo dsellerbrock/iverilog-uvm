@@ -9344,13 +9344,14 @@ int draw_process(ivl_process_t net, void*x)
 	    } else if (clocking_sync_flag) {
 		  thread_flag = "$clocking";
 	    } else if (ivl_process_type(net) == IVL_PR_INITIAL
-		       && ivl_scope_program(scope) && !clocking_bg_flag) {
-		    /* M6B: a program-block INITIAL procedure. Mark it so the
-		       runtime can end the simulation when the last program
-		       initial completes (IEEE 1800-2017 24.7). Concurrent
-		       assertions/clocking in the program are ALWAYS-type and
-		       are not marked, so they do not keep the sim alive. */
-		  thread_flag = "$prog";
+		       && !clocking_bg_flag) {
+		    /* Generated initial procedures also belong to the
+		       enclosing program for IEEE 1800 §24.3 completion. */
+		  ivl_scope_t owner = scope;
+		  while (ivl_scope_type(owner) == IVL_SCT_GENERATE)
+			owner = ivl_scope_parent(owner);
+		  if (ivl_scope_program(owner))
+			thread_flag = "$prog";
 	    }
 	    if (function_background_ok) {
 		  if (thread_flag)

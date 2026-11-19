@@ -7126,3 +7126,5 @@ issue3751_2017 normal,-g2017,-s,issue3751 ivltests gold=issue3751.gold
 issue3751_2023 normal,-g2023,-s,issue3751 ivltests gold=issue3751.gold
 issue3782_2017 normal,-g2017,-s,issue3782 ivltests gold=issue3782.gold
 issue3782_2023 normal,-g2023,-s,issue3782 ivltests gold=issue3782.gold
+issue1166_program_completion_2017 normal,-g2017,-s,issue1166_program_completion ivltests gold=issue1166_program_completion.gold
+issue1166_program_completion_2023 normal,-g2023,-s,issue1166_program_completion ivltests gold=issue1166_program_completion.gold
