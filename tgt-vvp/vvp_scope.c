@@ -668,7 +668,7 @@ static void emit_unpacked_dims_(ivl_signal_t sig)
  * .vartype <signal>, "<type>"; gives VPI (vpiTypespec) the enum or packed
  * struct/union type of a signal or the element type of an array.
  * .vartype <class>, <index>, "<type>";
- * describes a packed-struct property (the element type for a fixed array).
+ * describes a packed-struct property or its packed-struct leaf type.
  * The type string is
  *    type   ::= E<width>:<enum label> | S{member,...} | U{member,...}
  *             | V<msb>:<lsb> | B<msb>:<lsb>       (4-state / 2-state vector)
@@ -696,6 +696,9 @@ void note_property_vartype(ivl_type_t classtype, unsigned idx)
       ivl_type_t type = ivl_type_prop_type(classtype, idx);
       if (type_is_fixed_uarray_property_(type))
 	    type = ivl_type_element(type);
+      if (ivl_type_base(type) == IVL_VT_QUEUE || ivl_type_base(type) == IVL_VT_DARRAY)
+	    type = packed_struct_container_leaf_(type);
+      if (!type) return;
       if (ivl_type_base(type) != IVL_VT_LOGIC && ivl_type_base(type) != IVL_VT_BOOL)
 	    return;
       if (ivl_type_properties(type) == 0 || ivl_type_is_union(type))
@@ -721,14 +724,10 @@ void note_signal_vartype(ivl_signal_t sig, const char*suffix)
       if (ivl_signal_dimensions(sig) == 0 && type &&
           (ivl_signal_data_type(sig) == IVL_VT_DARRAY ||
            ivl_signal_data_type(sig) == IVL_VT_QUEUE)) {
-	    type = ivl_type_element(type);
+	    ivl_type_t element = ivl_type_element(type);
+	    type = element && ivl_type_enum(element)
+		  ? element : packed_struct_container_leaf_(type);
 	    if (!type) return;
-	    if (!ivl_type_enum(type)) {
-		  ivl_variable_type_t base = ivl_type_base(type);
-		  if ((base != IVL_VT_LOGIC && base != IVL_VT_BOOL) ||
-		      ivl_type_properties(type) == 0 || ivl_type_is_union(type))
-			return;
-	    }
       }
       if (type && ivl_signal_dimensions(sig) == 0 &&
           ivl_signal_packed_dimensions(sig) > 1 &&

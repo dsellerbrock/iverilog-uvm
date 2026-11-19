@@ -155,11 +155,13 @@ class vvp_assoc_base : public vvp_object {
 	// the key; val_kind receives 0=vec4, 1=real, 2=string,
 	// 3=object.  Returns false when pos is out of range.
 	// SIGNED_ORDER orders and prints vector keys as signed numbers, for
-	// a signed index type (7.8.4).
+	// a signed index type (7.8.4). STRING_KEY is set for a string key,
+	// whose text is returned verbatim.
       virtual bool peek_entry(size_t pos, std::string&key_text,
 			      vvp_vector4_t&val_vec, double&val_real,
 			      std::string&val_str, int&val_kind,
-			      bool signed_order = false) const =0;
+			      bool signed_order = false,
+			      bool*string_key = nullptr) const =0;
 	  virtual bool get_vec4_bitstream(unsigned key_kind, bool signed_order,
 					  vvp_vector4_t&stream) const =0;
 
@@ -763,8 +765,10 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       bool peek_entry(size_t pos, std::string&key_text,
 		      vvp_vector4_t&val_vec, double&val_real,
 		      std::string&val_str, int&val_kind,
-		      bool signed_order = false) const override
+		      bool signed_order = false,
+		      bool*string_key = nullptr) const override
       {
+	    if (string_key) *string_key = pos < str_map_.size();
 	    if (pos < str_map_.size()) {
 		  typename std::map<std::string, TYPE>::const_iterator cur
 			= str_map_.begin();
@@ -789,9 +793,12 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 		  const vec_entry_t&entry = vec_entry_at_(pos, signed_order);
 		    // Render the stored key vector as decimal for the caller.
 		  char kbuf[128];
-		  vpip_vec4_to_dec_str(entry.key, kbuf, sizeof kbuf,
-				       signed_order ? 1 : 0);
-		  key_text = kbuf;
+		  unsigned cap = entry.key.size() * 30103ULL / 100000 + 3;
+		  std::vector<char> wide;
+		  if (cap > sizeof kbuf) wide.resize(cap);
+		  char*buf = wide.empty() ? kbuf : wide.data();
+		  vpip_vec4_to_dec_str(entry.key, buf, cap, signed_order);
+		  key_text = buf;
 		  val_kind = assign_entry_val_(entry.value, val_vec,
 					       val_real, val_str);
 		  return true;

@@ -272,6 +272,8 @@ static void show_queue_type_(const char*rand_prefix,
       if (element_enum)
 	    show_enum_domain_(element_enum);
       fputs(code, vvp_out);
+      if (code[0] == 'M' && packed_struct_container_leaf_(type))
+	    emit_assoc_index_type_(type);
       emit_container_layout_suffix_(type);
       fputc('"', vvp_out);
 }

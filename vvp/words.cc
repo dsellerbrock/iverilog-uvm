@@ -296,20 +296,19 @@ static vvp_fun_signal_object::init_obj_kind_t queue_init_kind_from_text_(const c
       return init_t::INIT_OBJ_NONE;
 }
 
-static bool assoc_index_type_from_text_(const char*type,
-					unsigned&width, bool&is_signed,
-					size_t&base_length)
+bool vvp_parse_assoc_index_suffix(const char*type, unsigned&width,
+				 bool&is_signed, size_t&base_length)
 {
       width = 0;
       is_signed = false;
-      base_length = 2;
-	  if (!type || type[0] != 'M' || type[1] == '\0' || type[2] != 'I')
+      if (strlen(type) <= base_length || type[base_length] != 'I')
 	    return true;
 
+      const char*digits = type + base_length + 1;
       char*end = 0;
       errno = 0;
-      unsigned long parsed = strtoul(type+3, &end, 10);
-      if (end == type+3 || errno || parsed == 0 || parsed > UINT_MAX)
+      unsigned long parsed = strtoul(digits, &end, 10);
+      if (end == digits || errno || parsed == 0 || parsed > UINT_MAX)
 	    return false;
       if (*end != 's' && *end != 'u')
 	    return false;
@@ -474,7 +473,7 @@ void compile_var_queue(char*label, char*name, unsigned size,
 		  const bool is_assoc = type[0] == 'M';
 		  size_t expected_base_length = 2;
 		  const bool valid_assoc_index = !is_assoc
-			|| assoc_index_type_from_text_(type, assoc_index_width,
+			|| vvp_parse_assoc_index_suffix(type, assoc_index_width,
 						       assoc_index_signed,
 						       expected_base_length);
 		  vvp_container_layout_t layout;
