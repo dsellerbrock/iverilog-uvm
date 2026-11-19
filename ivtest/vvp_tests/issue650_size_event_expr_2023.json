@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue650_size_event_expr.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "gold": "issue650_size_event_expr"
+}

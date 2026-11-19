@@ -4457,6 +4457,8 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
                               observer_wait = "obj/expr/posedge";
                         else if (ivl_event_observer_edge(ev) == 2)
                               observer_wait = "obj/expr/negedge";
+                        else if (ivl_event_observer_edge(ev) == 3)
+                              observer_wait = "obj/expr/edge";
                         fprintf(vvp_out, "    %%wait/%s E_%p, Tevent_%u;\n",
                                 observer_wait, ev, observer_label);
                         fprintf(vvp_out, "    %%jmp Tevent_after_%u;\n", observer_label);
