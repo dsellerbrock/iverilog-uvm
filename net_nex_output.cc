@@ -413,15 +413,11 @@ void NetRepeat::nex_output(NexusSet&out)
       if (statement_) statement_->nex_output(out);
 }
 
-/*
- * For the purposes of synthesis, system task calls have no output at
- * all. This is OK because most system tasks are not synthesizable in
- * the first place.
- */
+/* A system task contributes outputs only for explicit ref destinations. */
 void NetSTask::nex_output(NexusSet&out)
 {
-      if (ref_output_)
-	    ref_output_->nex_output(out);
+      for (NetAssign_*lval = ref_output_; lval; lval = lval->more)
+	    lval->nex_output(out);
 }
 
 /*

@@ -19532,6 +19532,22 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    assertion_selector_first = 1;
       const bool coverage_db_task =
 	    name == "$set_coverage_db_name" || name == "$load_coverage_db";
+      const bool pla_task =
+	   name == "$async$and$array" || name == "$async$nand$array"
+	|| name == "$async$or$array" || name == "$async$nor$array"
+	|| name == "$async$and$plane" || name == "$async$nand$plane"
+	|| name == "$async$or$plane" || name == "$async$nor$plane"
+	|| name == "$sync$and$array" || name == "$sync$nand$array"
+	|| name == "$sync$or$array" || name == "$sync$nor$array"
+	|| name == "$sync$and$plane" || name == "$sync$nand$plane"
+	|| name == "$sync$or$plane" || name == "$sync$nor$plane";
+      const bool pla_concat = pla_task && parm_count == 3
+	    && dynamic_cast<const PEConcat*>(parms_[2].parm);
+      if (pla_task && (parm_count != 3 || !parms_[2].parm)) {
+	    cerr << get_fileline() << ": error: " << name
+		 << " requires a memory, input expression, and output variable." << endl;
+	    des->errors += 1;
+      }
 
       if (name == "$system" && parm_count > 1) {
 	    cerr << get_fileline() << ": error: The $system task takes zero or one argument; found "
@@ -19637,6 +19653,9 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 		  }
 	    }
 
+	    if (pla_concat && idx == 2)
+		  continue;
+
             eparms[idx] = elab_sys_task_arg(des, scope, name, idx,
 			    parm.parm);
 
@@ -19653,20 +19672,6 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    }
       }
 
-      /* IEEE 1800-2017 20.17 / 1800-2023 20.16: PLA output_terms
-       * is a variable_lvalue. Ordinary system-task argument elaboration
-       * preserves signal l-values, but does not distinguish variables
-       * from nets. Check the resulting l-value tree before passing it to
-       * the VPI task. */
-      const bool pla_task =
-	   name == "$async$and$array" || name == "$async$nand$array"
-	|| name == "$async$or$array" || name == "$async$nor$array"
-	|| name == "$async$and$plane" || name == "$async$nand$plane"
-	|| name == "$async$or$plane" || name == "$async$nor$plane"
-	|| name == "$sync$and$array" || name == "$sync$nand$array"
-	|| name == "$sync$or$array" || name == "$sync$nor$array"
-	|| name == "$sync$and$plane" || name == "$sync$nand$plane"
-	|| name == "$sync$or$plane" || name == "$sync$nor$plane";
       if (pla_task && parm_count == 3) {
 	  for (unsigned idx = 0; idx < 3; idx += 1) {
 		const NetExpr*expr = eparms[idx];
@@ -19695,27 +19700,50 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 		}
 	  }
       }
-      if (pla_task && parm_count == 3 && eparms[2]) {
-	  std::function<bool(const NetExpr*)> variable_lvalue =
-		[&variable_lvalue](const NetExpr*expr) -> bool {
-		  if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
-			NetNet::Type type = sig->sig()->type();
-			return type == NetNet::REG || type == NetNet::IMPLICIT_REG;
+      /* IEEE 1800-2017 20.17 / 1800-2023 20.16: output_terms is a
+	 variable_lvalue. Keep the assignment destination, including every
+	 member of a concatenation, separate from the expression arguments. */
+      NetAssign_*pla_output = nullptr;
+      if (pla_task && parm_count == 3 && parms_[2].parm) {
+	    const unsigned errors = des->errors;
+	    const NetExpr*expr = eparms[2];
+	    while (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
+		  expr = select->sub_expr();
+	    const NetESignal*signal = dynamic_cast<const NetESignal*>(expr);
+	    if (pla_concat || (signal && (signal->sig()->type() == NetNet::REG
+				       || signal->sig()->type() == NetNet::IMPLICIT_REG))) {
+		  pla_output = parms_[2].parm->elaborate_lval(des, scope, false, false);
+		  unsigned parts = 0;
+		  for (const NetAssign_*part = pla_output; part; part = part->more) {
+			materialize_ref_return(part->sig());
+			parts += 1;
 		  }
-		  if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
-			return variable_lvalue(select->sub_expr());
-		  if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
-			for (unsigned idx = 0; idx < concat->nparms(); idx += 1)
-			      if (!variable_lvalue(concat->parm(idx))) return false;
-			return concat->nparms() != 0;
+		  if (pla_concat && des->errors == errors) {
+			/* Ordinary concatenation recovery can skip an unresolved
+			   leaf after a warning. PLA cannot store a partial result. */
+			std::function<unsigned(const PExpr*)> count_parts =
+			      [&count_parts](const PExpr*value) -> unsigned {
+			      const auto*concat = dynamic_cast<const PEConcat*>(value);
+			      if (!concat) return 1;
+			      unsigned count = 0;
+			      for (const PExpr*leaf : concat->stream_parms())
+				    count += count_parts(leaf);
+			      return count;
+			};
+			if (!pla_output || parts != count_parts(parms_[2].parm)) {
+			      cerr << parms_[2].get_fileline() << ": error: argument 3 of "
+				   << name << " must be a complete variable lvalue." << endl;
+			      des->errors += 1;
+			}
 		  }
-		  return false;
-		};
-	  if (!variable_lvalue(eparms[2])) {
+	    }
+	    if (!pla_output && des->errors == errors) {
 		  cerr << parms_[2].get_fileline() << ": error: argument 3 of "
 		       << name << " must be a variable lvalue." << endl;
 		  des->errors += 1;
-	  }
+	    }
+	    delete eparms[2];
+	    eparms[2] = nullptr;
       }
 
       if (name == "$cast" && parm_count == 2) {
@@ -19818,6 +19846,8 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       }
 
       NetSTask*cur = new NetSTask(name, def_sfunc_as_task, eparms);
+      if (pla_output)
+	    cur->set_ref_output(pla_output, 2);
       if (immediate_assertion_action_depth_ != 0)
 	    cur->assertion_action();
       cur->set_line(*this);

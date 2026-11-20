@@ -24,6 +24,7 @@
 # include  <stdlib.h>
 # include  <assert.h>
 # include  <inttypes.h>
+# include  <limits.h>
 # include  "ivl_alloc.h"
 
 struct args_info {
@@ -2024,6 +2025,47 @@ static int draw_positional_output_arg_(struct args_info*arg, ivl_expr_t expr)
       return 1;
 }
 
+/* The call site supplies a recipe handle. Only the PLA writer enters the
+ * store thunk, with one full-width four-state result on its stack. */
+static int draw_pla_output(ivl_statement_t net, char*label, size_t label_size)
+{
+      uint64_t width = 0;
+      for (unsigned idx = 0; idx < ivl_stmt_lvals(net); idx += 1) {
+	    ivl_lval_t lval = ivl_stmt_lval(net, idx);
+	    ivl_signal_t sig = ivl_lval_sig(lval);
+	    if (!sig || ivl_lval_property_idx(lval) >= 0
+		|| (ivl_signal_data_type(sig) != IVL_VT_LOGIC
+		    && ivl_signal_data_type(sig) != IVL_VT_BOOL)
+		|| (ivl_signal_dimensions(sig) && !ivl_lval_idx(lval))
+		|| ivl_lval_is_array_slice(lval) || !ivl_lval_width(lval)) {
+		  fprintf(stderr, "%s:%u: sorry: %s requires a packed signal "
+			  "or select in its output terms.\n",
+			  ivl_stmt_file(net), ivl_stmt_lineno(net), ivl_stmt_name(net));
+		  vvp_errors += 1;
+		  return 0;
+	    }
+	    width += ivl_lval_width(lval);
+      }
+      if (width > INT_MAX) {
+	    fprintf(stderr, "%s:%u: error: %s output width is too large.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net), ivl_stmt_name(net));
+	    vvp_errors += 1;
+	    return 0;
+      }
+
+      unsigned thunk = local_count++;
+      unsigned skip = local_count++;
+      snprintf(label, label_size, "PLA_%u.%u", thread_count, thunk);
+      fprintf(vvp_out, "%s .vpi_pla_output %" PRIu64 ", T_%u.%u;\n",
+	      label, width, thread_count, thunk);
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, skip);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, thunk);
+      store_vec4_to_lval(net, IVL_VT_LOGIC);
+      fprintf(vvp_out, "    %%end;\n");
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, skip);
+      return 1;
+}
+
 static void draw_vpi_taskfunc_args(const char*call_string,
 				   ivl_statement_t tnet,
 				   ivl_expr_t fnet,
@@ -2038,6 +2080,10 @@ static void draw_vpi_taskfunc_args(const char*call_string,
       unsigned parm_count = tnet
 	    ? ivl_stmt_parm_count(tnet) - parm_base
 	    : ivl_expr_parms(fnet);
+      unsigned ref_arg = tnet ? ivl_stmt_ref_lval_arg(tnet) : ~0U;
+      char pla_output[64];
+      if (ref_arg != ~0U && !draw_pla_output(tnet, pla_output, sizeof pla_output))
+	    return;
 
       struct args_info *args = calloc(parm_count, sizeof(struct args_info));
       int lazy_args = !force_value_capture && !deferred
@@ -2059,6 +2105,10 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	   for this task call. I won't need to evaluate expressions
 	   for items that are VPI objects directly. */
       for (idx = 0 ;  idx < parm_count ;  idx += 1) {
+	    if (parm_base + idx == ref_arg) {
+		  args[idx].text = strdup(pla_output);
+		  continue;
+	    }
 	    ivl_expr_t expr = tnet
 		  ? ivl_stmt_parm(tnet, parm_base + idx)
 		  : ivl_expr_parm(fnet, idx);

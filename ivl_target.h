@@ -2880,6 +2880,9 @@ extern ivl_expr_t ivl_stmt_parm(ivl_statement_t net, unsigned idx);
 extern unsigned ivl_stmt_parm_count(ivl_statement_t net);
   /* IVL_ST_STASK: optional compiler-known ref-output destination. */
 extern ivl_lval_t ivl_stmt_ref_lval(ivl_statement_t net);
+/* Argument index for a VPI ref-output, or ~0U if none. Its full l-value
+ * chain is available through ivl_stmt_lval and ivl_stmt_lvals. */
+extern unsigned ivl_stmt_ref_lval_arg(ivl_statement_t net);
   /* IVL_ST_STASK: exact dynamic virtual-interface method candidates. */
 extern ivl_scope_t ivl_stmt_vif_method(ivl_statement_t net, unsigned idx);
 extern unsigned    ivl_stmt_vif_methods(ivl_statement_t net);
