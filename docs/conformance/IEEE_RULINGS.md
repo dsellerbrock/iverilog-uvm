@@ -92,6 +92,7 @@ ruled). A provisional reading an agent built on before a ruling is marked "provi
 | 2026-11-18 | 33.4, 33.4.1.5, 23.3.3.4, 25.9, 23.11 | #3421 | Which library's definition does a named interface type use under a configuration? | The declaring scope's effective configuration, with the same rules as an instance there. A `bind` directive's mapping selects the target scope in both editions. | owner |
 | 2026-11-18 | 14.3, 37.46 (2023 37.48), Annex M.2 | #3583 | What do `vpiInputEdge` and `vpiOutputEdge` return for an explicit `edge` skew? | `vpiAnyEdge` (Annex K.2), as a project extension to Annex M.2. | owner |
 | 2026-11-18 | 11.4.12.2, 6.16 | #3866 | Does a string concatenation accept an integral variable operand without a cast? | No. Write `{s, string'(bits)}`; the compile error stands. | owner |
+| 2026-11-19 | 16.12.10 | #3845 | The negative fixture `m9c_nexttime_sequence_operand` requires `nexttime (a ##1 b)` to be rejected, but 16.12.10 takes `nexttime property_expr` and a sequence is a legal property. What replaces it? | The fixture was wrong: it is replaced by a genuinely illegal form, `nexttime[-1] a` (16.12.10: the index shall be a non-negative constant), renamed `m9c_nexttime_negative_index`, so negative coverage of index validation stays. #3845 adds the legal sequence operand as a positive test. | supervisor (option B, recommended; standing order to apply recommended rulings) |
 
 ## Process rulings
 
