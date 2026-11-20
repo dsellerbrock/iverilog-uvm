@@ -662,12 +662,22 @@ bool dll_target::proc_condit(const NetCondit*net)
 	    dll_procedure_new_array<struct ivl_statement_s>(2);
       stmt_cur_->u_.condit_.immediate_assertion =
 	    net->is_immediate_assertion();
+      stmt_cur_->u_.condit_.source_if_kind = net->source_if_kind();
+      stmt_cur_->u_.condit_.folded = net->is_folded();
 
       assert(expr_ == 0);
       net->expr()->expr_scan(this);
       stmt_cur_->u_.condit_.cond_ = expr_;
       if (expr_ == 0)
 	    rc_flag = false;
+      stmt_cur_->u_.condit_.source_expr = nullptr;
+      if (const NetExpr*source = net->source_expr()) {
+	    if (source != net->expr()) {
+		  expr_ = nullptr;
+		  source->expr_scan(this);
+	    }
+	    stmt_cur_->u_.condit_.source_expr = expr_;
+      }
       expr_ = 0;
 
       ivl_statement_t save_cur_ = stmt_cur_;
