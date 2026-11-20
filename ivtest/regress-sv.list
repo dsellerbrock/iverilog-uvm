@@ -7380,3 +7380,9 @@ issue3701_2017 normal,-g2017,-s,issue3701 ivltests gold=issue3701.gold
 issue3701_2023 normal,-g2023,-s,issue3701 ivltests gold=issue3701.gold
 issue3701_bad_2017 CE,-g2017,-s,issue3701_bad ivltests gold=issue3701_bad.gold
 issue3701_bad_2023 CE,-g2023,-s,issue3701_bad ivltests gold=issue3701_bad.gold
+
+# IEEE 1800-2017/2023 33.4.3: config parameter override restrictions.
+issue3422_2017 normal,-g2017,-s,cfg ivltests
+issue3422_bad_2017 CE,-g2017,-s,cfg ivltests gold=issue3422_bad.gold
+issue3422_2023 normal,-g2023,-s,cfg ivltests
+issue3422_bad_2023 CE,-g2023,-s,cfg ivltests gold=issue3422_bad.gold

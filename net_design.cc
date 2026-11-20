@@ -45,6 +45,7 @@
 # include  "netqueue.h"
 # include  "PExpr.h"
 # include  "PClass.h"
+# include  "PConfig.h"
 # include  "PPackage.h"
 # include  "PTask.h"
 # include  "PWire.h"
@@ -2058,6 +2059,12 @@ void NetScope::evaluate_parameter_(Design*des, param_ref_t cur)
       // so their resolved ivl_type remains their completion marker.
       if (cur->second.val || (cur->second.type_flag && cur->second.ivl_type))
             return;
+
+      // The config checker owns this diagnostic. Keep the explicit
+      // assignment but stop before trying to evaluate its disallowed call.
+      if (!pform_configs.empty()
+	  && config_rejects_parameter_override(cur->second.val_expr, cur->second.val_scope))
+	    return;
 
       if (cur->second.val_expr == 0) {
 	      /* A parameterized class declaration is a template. Its generic
