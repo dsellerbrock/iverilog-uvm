@@ -8651,8 +8651,18 @@ clocking_item
   /* IEEE 1800-2017/2023 14.3 and A.6.11: assertion_item_declaration
      is also a clocking_item. The declaration handler associates its SVA
      scope and implicit leading clock with this block. */
-  | property_declaration
+  | attribute_list_opt
+      { pform_set_clocking_assertion_item(true); }
+    clocking_assertion_item
+      { pform_set_clocking_assertion_item(false);
+	pform_discard_call_attributes($1);
+      }
+  ;
+
+clocking_assertion_item
+  : property_declaration
   | sequence_declaration
+  | let_declaration
   ;
 
   /* IEEE 1800-2017 A.6.11:
@@ -8992,10 +9002,7 @@ package_item /* IEEE1800-2005 A.1.10 */
      and $unit scope too (IEEE 1800-2017/2023 16.8, 16.12). */
   | property_declaration
   | sequence_declaration
-  | K_let IDENTIFIER let_port_list_opt '=' expression ';'
-      { perm_string tmp2 = lex_strings.make($2);
-        pform_make_let(@2, tmp2, $3, $5);
-      }
+  | let_declaration
   | parameter_declaration
   | type_declaration
   | package_function_declaration
@@ -10105,7 +10112,10 @@ sva_int_local_declarations
      reached that same fallback. */
 sva_cycle_delay_value
   : delay_value_simple
-      { $$ = $1; }
+      { if (PEIdent*id = dynamic_cast<PEIdent*>($1))
+	      pform_bind_clocking_let(@1, id);
+	$$ = $1;
+      }
   | '(' expression ')'
       { $$ = $2; }
   ;
@@ -12069,10 +12079,7 @@ block_item_decl
 
   /* IEEE 1800-2017 11.12: lets are declarations in sequential and
      parallel blocks and in subroutines, which share this grammar rule. */
-  | K_let IDENTIFIER let_port_list_opt '=' expression ';'
-      { perm_string tmp2 = lex_strings.make($2);
-        pform_make_let(@2, tmp2, $3, $5);
-      }
+  | let_declaration
 
   /* Blocks can have type declarations. */
 
@@ -18952,6 +18959,15 @@ module_item
   | ';'
       { }
 
+  ;
+
+let_declaration
+  : K_let IDENTIFIER
+      { pform_start_let(); }
+    let_port_list_opt '=' expression ';'
+      { pform_make_let(@2, lex_strings.make($2), $4, $6);
+	delete[] $2;
+      }
   ;
 
 let_port_list_opt

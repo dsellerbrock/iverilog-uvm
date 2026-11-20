@@ -111,4 +111,13 @@ PLet::PLet(perm_string name, LexicalScope*parent, list<let_port_t*>*ports,
 
 PLet::~PLet()
 {
+      delete expr_;
+      if (ports_) {
+	    for (let_port_t*port : *ports_) {
+		  delete port->def_;
+		  delete port->range_;
+		  delete port;
+	    }
+	    delete ports_;
+      }
 }

@@ -103,6 +103,7 @@ class Module : public PScopeExtra, public PNamedItem {
 		 arbitrary expression. Non-identifier expressions are lowered to a
 		 per-instance synthesized net for sampling and storage sizing. */
 	    std::map<perm_string,PExpr*>decl_assigns;
+	    std::map<perm_string,PLet*>lets;
 	    pform_clocking_skew_t default_in, default_out;
 	    bool default_in_set = false, default_out_set = false;
       };

@@ -457,6 +457,44 @@ static Module::PClocking*pform_cur_clocking = 0;
 static const Module::PClocking*sva_active_clocking_scope_ = nullptr;
 static bool pform_cur_clocking_is_global = false;
 static const char* pform_cur_clocking_name = nullptr;
+static bool pform_clocking_assertion_item_ = false;
+static bool pform_clocking_let_template_ = false;
+static std::set<perm_string> pform_clocking_let_formals_;
+
+static bool sva_is_decl_local_(perm_string name);
+
+static bool pform_clocking_assertion_local_(perm_string name)
+{
+      return pform_clocking_assertion_item_ && pform_cur_clocking
+	    && !pform_clocking_let_template_
+	    && pform_cur_clocking->lets.count(name) && sva_is_decl_local_(name);
+}
+
+static bool pform_clocking_name_visible_(perm_string name)
+{
+      return pform_clocking_assertion_item_ && pform_cur_clocking
+	    && !pform_clocking_let_formals_.count(name)
+	    && !pform_clocking_assertion_local_(name);
+}
+
+static PLet* pform_find_clocking_let_(const vlltype&loc, const pform_name_t&path)
+{
+      if (path.size() != 1 || !path.front().index.empty()
+	  || !pform_clocking_name_visible_(path.front().name))
+	    return nullptr;
+      auto found = pform_cur_clocking->lets.find(path.front().name);
+      if (found == pform_cur_clocking->lets.end()
+	  || found->second->lexical_pos() >= loc.lexical_pos)
+	    return nullptr;
+      return found->second;
+}
+
+void pform_bind_clocking_let(const struct vlltype&loc, PEIdent*id)
+{
+      const pform_name_t&path = id->path().name;
+      id->set_bound_let(pform_find_clocking_let_(loc, path));
+      id->set_clocking_assertion_local(pform_clocking_assertion_local_(path.front().name));
+}
 
 static void delete_modport_tf_prototype_(data_type_t*return_type,
                                          vector<pform_tf_port_t>*ports)
@@ -1364,10 +1402,18 @@ PBlock* pform_pattern_finish_scope(const struct vlltype&loc,
  */
 PEIdent* pform_new_ident(const struct vlltype&loc, const pform_name_t&name)
 {
-      if (gn_system_verilog())
+      if (pform_clocking_let_template_
+	  && pform_clocking_name_visible_(name.front().name)
+	  && pform_cur_clocking->directions.count(name.front().name)) {
+	    pform_name_t qualified = name;
+	    qualified.push_front(name_component_t(pform_cur_clocking->name));
+	    return new PEIdent(qualified, loc.lexical_pos);
+      }
+      PEIdent*id = new PEIdent(name, loc.lexical_pos);
+      pform_bind_clocking_let(loc, id);
+      if (gn_system_verilog() && !id->is_clocking_value_ref())
 	    check_potential_imports(loc, name.front().name, false);
-
-      return new PEIdent(name, loc.lexical_pos);
+      return id;
 }
 
 PTrigger* pform_new_trigger(const struct vlltype&loc, PPackage*pkg,
@@ -2195,12 +2241,14 @@ PECallFunction* pform_make_call_function(const struct vlltype&loc,
 					 const list<named_pexpr_t> &parms,
 					 struct parmvalue_t*type_args)
 {
-      if (gn_system_verilog())
+      PLet*let = type_args ? nullptr : pform_find_clocking_let_(loc, name);
+      bool local = pform_clocking_assertion_local_(name.front().name);
+      if (gn_system_verilog() && !let && !local)
 	    check_potential_imports(loc, name.front().name, true);
 
 	  /* Calls can precede the cross declaration, so retain their lexical
 	     scopes and validate them when cross-local functions are declared. */
-	  if (name.size() == 1) {
+	  if (!let && !local && name.size() == 1) {
 	    cross_function_reference_t reference = {
 		  name.front().name, lexical_scope, loc.get_fileline(), false};
 	    for (const auto&function : cross_functions_)
@@ -2211,6 +2259,8 @@ PECallFunction* pform_make_call_function(const struct vlltype&loc,
 	  }
 
       PECallFunction*tmp = new PECallFunction(name, parms);
+      tmp->set_bound_let(let);
+      tmp->set_clocking_assertion_local(local);
       tmp->set_leading_type_args(type_args);
       tmp->set_lexical_pos(loc.lexical_pos);
       if (type_args)
@@ -7716,6 +7766,22 @@ void pform_set_defparam(const pform_name_t&name, PExpr*expr)
 }
 
 static void sva_expr_forget_sampled_(PExpr*e);
+static bool sva_clocking_has_assertion_decl_(perm_string name);
+
+void pform_set_clocking_assertion_item(bool active)
+{
+      pform_clocking_assertion_item_ = active;
+      if (!active) {
+	    pform_clocking_let_template_ = false;
+	    pform_clocking_let_formals_.clear();
+      }
+}
+
+void pform_start_let()
+{
+      pform_clocking_let_template_ = pform_clocking_assertion_item_;
+      pform_clocking_let_formals_.clear();
+}
 
 void pform_make_let(const struct vlltype&loc,
                     perm_string name,
@@ -7725,8 +7791,33 @@ void pform_make_let(const struct vlltype&loc,
       /* A sampled call in the template has no clock until a use site
 	 selects one. Do not leave it in the module's standalone-call queue. */
       sva_expr_forget_sampled_(expr);
-      LexicalScope*scope =  pform_peek_scope();
-	if (scope->lets.count(name)) {
+      if (ports)
+	    for (const auto*port : *ports)
+		  sva_expr_forget_sampled_(port->def_);
+      pform_clocking_let_template_ = false;
+      pform_clocking_let_formals_.clear();
+      LexicalScope*scope = pform_peek_scope();
+      PLet*res = new PLet(name, scope, ports, expr, loc.lexical_pos);
+      FILE_NAME(res, loc);
+      if (pform_clocking_assertion_item_) {
+	    if (!pform_cur_clocking) {
+		  delete res;
+	    } else if (pform_cur_clocking_is_global) {
+		  cerr << loc << ": error: a global clocking block cannot contain a let declaration." << endl;
+		  error_count += 1;
+		  delete res;
+	    } else if (pform_cur_clocking->directions.count(name)
+		       || sva_clocking_has_assertion_decl_(name)
+		       || !pform_cur_clocking->lets.emplace(name, res).second) {
+		  cerr << loc << ": error: duplicate let declaration `" << name
+		       << "' in clocking block `" << pform_cur_clocking->name
+		       << "'." << endl;
+		  error_count += 1;
+		  delete res;
+	    }
+	    return;
+      }
+      if (scope->lets.count(name)) {
 	      PPackage*package = dynamic_cast<PPackage*>(scope);
 	      Module*mod = pform_cur_module.empty()? 0 : pform_cur_module.front();
 	      if (package)
@@ -7739,13 +7830,11 @@ void pform_make_let(const struct vlltype&loc,
 		    cerr << loc.get_fileline() << ": error: duplicate let declaration `"
 			 << name << "' in this scope." << endl;
 	    error_count += 1;
-	    delete expr;
+	    delete res;
 	    return;
       }
 
-      PLet*res = new PLet(name, scope, ports, expr, loc.lexical_pos);
-      FILE_NAME(res, loc);
-	scope->lets[name] = res;
+      scope->lets[name] = res;
 }
 
 PLet::let_port_t* pform_make_let_port(data_type_t*data_type,
@@ -7754,6 +7843,8 @@ PLet::let_port_t* pform_make_let_port(data_type_t*data_type,
                                       PExpr*def)
 {
       PLet::let_port_t*res = new PLet::let_port_t;
+      if (pform_clocking_let_template_)
+	    pform_clocking_let_formals_.insert(name);
 
       res->type_ = data_type;
       res->name_ = name;
@@ -8774,6 +8865,7 @@ void pform_start_clocking_block(const struct vlltype&loc,
       ivl_assert(loc, scope);
       /* On parse error, a previous clocking block may not have been ended. Reset it. */
       if (pform_cur_clocking) pform_cur_clocking = 0;
+      pform_set_clocking_assertion_item(false);
 
 	/* IEEE 1800-2017 14.14: global clocking declarations are not
 	   allowed in generate blocks. */
@@ -8885,7 +8977,8 @@ void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
 	    return;
       }
 
-      if (!pform_cur_clocking->add_signal(name, dir, in_skew, out_skew)) {
+      if (pform_cur_clocking->lets.count(name)
+	  || !pform_cur_clocking->add_signal(name, dir, in_skew, out_skew)) {
 	    cerr << loc << ": error: duplicate signal `" << name
 		 << "' in clocking block `" << pform_cur_clocking->name << "'." << endl;
 	    error_count += 1;
@@ -9899,6 +9992,7 @@ Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
 void pform_end_clocking_block(const struct vlltype&loc)
 {
       /* May be 0 if the block body had a parse error and was skipped */
+      pform_set_clocking_assertion_item(false);
       pform_cur_clocking = 0;
       pform_cur_clocking_is_global = false;
 }
@@ -10327,6 +10421,13 @@ static sva_scoped_name_t sva_decl_key_(perm_string nm)
       return k;
 }
 
+static bool sva_clocking_has_assertion_decl_(perm_string name)
+{
+      const auto key = sva_decl_key_(name);
+      return sva_module_properties.count(key) || sva_module_sequences.count(key)
+	    || sva_param_properties.count(key) || sva_param_sequences.count(key);
+}
+
 /* Resolve a reference from the CURRENT scope outward: the innermost
    enclosing generate first, then each enclosing generate, then module
    scope. An inner declaration shadows an outer one of the same name
@@ -10583,6 +10684,7 @@ struct sva_clone_scope_t {
 	   reads from there must keep that binding where the assertion is
 	   placed at a procedural instance. */
       const LexicalScope*free_scope = nullptr;
+      const LexicalScope*let_parent = nullptr;
 };
 
 
@@ -10597,6 +10699,32 @@ static bool sva_scope_declares_name_(const LexicalScope*sc, perm_string name)
       if (const PScopeExtra*extra = dynamic_cast<const PScopeExtra*>(sc))
 	    return extra->funcs.count(name) || extra->tasks.count(name);
       return false;
+}
+
+/* Resolve a nested let written in a template using the template's lexical
+   parent. Block-local references have already been bound by the parser. */
+static PLet* sva_template_let_(const pform_scoped_name_t&path, unsigned pos)
+{
+      if (!sva_clone_scope_.let_parent || path.name.size() != 1
+	  || !path.name.front().index.empty()) return nullptr;
+      perm_string name = path.name.front().name;
+      const LexicalScope*scope = path.package
+	    ? static_cast<const LexicalScope*>(path.package)
+	    : sva_clone_scope_.let_parent;
+      for (; scope; scope = scope->parent_scope()) {
+	    auto let = scope->lets.find(name);
+	    if (let != scope->lets.end() && let->second->lexical_pos() < pos)
+		  return let->second;
+	    if (path.package || sva_scope_declares_name_(scope, name)) break;
+	    auto imported = scope->explicit_imports.find(name);
+	    if (imported != scope->explicit_imports.end()) {
+		  auto entry = imported->second->lets.find(name);
+		  if (entry != imported->second->lets.end())
+			return entry->second;
+		  break;
+	    }
+      }
+      return nullptr;
 }
 
 /* The first free name of a checker assertion that a scope between the
@@ -10940,6 +11068,10 @@ static bool pform_sva_overridable_bound_(
 		std::set<const LexicalScope::param_expr_t*>&visiting)
 {
       if (!expr) return false;
+      // Evaluate a bound template through the instance elaborator, which
+      // preserves its argument types and declaration scope.
+      if (expr->bound_let()) return true;
+      if (expr->clocking_assertion_local()) return false;
       if (PEIdent*id = dynamic_cast<PEIdent*>(expr)) {
 	    if (id->path().name.empty())
 		  return false;
@@ -11218,7 +11350,8 @@ static bool pform_sva_const_long_(PExpr*expr, long&value,
 				  std::set<const PExpr*>&visiting,
 				  LexicalScope*lookup_scope)
 {
-      if (!expr || visiting.count(expr)) return false;
+      if (!expr || expr->is_clocking_value_ref() || visiting.count(expr))
+	    return false;
       visiting.insert(expr);
       if (PENumber*num = dynamic_cast<PENumber*>(expr)) {
 	    value = num->value().as_long();
@@ -11466,7 +11599,8 @@ bool pform_sva_const_long(PExpr*expr, long&value)
 bool pform_sva_deferred_genvar(PExpr*expr, perm_string&name)
 {
       PEIdent*id = dynamic_cast<PEIdent*>(expr);
-      if (!id || id->path().package || id->path().name.size() != 1
+      if (!id || id->is_clocking_value_ref()
+	  || id->path().package || id->path().name.size() != 1
 	  || !id->path().name.front().index.empty())
 	    return false;
 
@@ -11510,7 +11644,8 @@ static bool sva_validate_sequence_local_visibility_(
 {
       for (size_t i = 0; i < steps.size(); ++i) {
 	    PEIdent*call = dynamic_cast<PEIdent*>(steps[i].expr);
-	    if (!call || call->path().package || call->path().name.size() != 1
+	    if (!call || call->is_clocking_value_ref() || call->path().package
+		|| call->path().name.size() != 1
 		|| !call->path().name.front().index.empty()) continue;
 	    perm_string name = call->path().name.front().name;
 	    std::map<perm_string,unsigned> child_locals;
@@ -11571,6 +11706,13 @@ static bool sva_prepare_clocking_declaration_(const struct vlltype&loc,
 					      const char*name)
 {
       if (!pform_cur_clocking) return true;
+      if (pform_cur_clocking->lets.count(lex_strings.make(name))) {
+	    cerr << loc << ": error: " << kind << " declaration `" << name
+		 << "' conflicts with a let in clocking block `"
+		 << pform_cur_clocking->name << "'." << endl;
+	    error_count += 1;
+	    return false;
+      }
       bool has_multiple_clocks = prop->seq_clk_evt || prop->mc_prefix
 		    || prop->mc_boundary != -1
 		    || (prop->mc_more && !prop->mc_more->empty());
@@ -11677,6 +11819,7 @@ static bool sva_prepare_clocking_declaration_(const struct vlltype&loc,
 	  auto check_chain = [&](const std::vector<sva_seq_step_t>*chain) {
 		if (!chain) return true;
 		for (const sva_seq_step_t&step : *chain) {
+		      if (step.expr && step.expr->is_clocking_value_ref()) continue;
 		      if (PEIdent*id = dynamic_cast<PEIdent*>(step.expr)) {
 			    if (!id->path().package && id->path().name.size() == 1
 				&& id->path().name.front().index.empty()
@@ -11802,7 +11945,7 @@ struct sva_rec_occ_t {
 static void sva_rec_expr_(const PExpr*e, long w, bool exact, int neg,
 			  std::vector<sva_rec_occ_t>&out, bool whole = false)
 {
-      if (!e) return;
+      if (!e || e->is_clocking_value_ref()) return;
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(e)) {
 	    const pform_name_t&path = id->path().name;
 	    if (!id->path().package && path.size() == 1
@@ -12434,7 +12577,8 @@ static void sva_lv_reads_(PExpr*e, const sva_lv_set_t&locals,
       if (!e) return;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
 	    const pform_name_t&name = id->path().name;
-	    if (!id->path().package && name.size() == 1
+	    if (!id->bound_let() && !id->sva_let_free_name()
+		&& !id->path().package && name.size() == 1
 		&& locals.count(name.front().name))
 		  reads.insert(name.front().name);
 	    for (const name_component_t&comp : name)
@@ -12446,10 +12590,10 @@ static void sva_lv_reads_(PExpr*e, const sva_lv_set_t&locals,
 	    return;
       }
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
-	    bool system = !cf->path().name.empty()
-		  && peek_tail_name(cf->path().name).str()[0] == '$';
+	    bool reads_args = cf->bound_let() || (!cf->path().name.empty()
+		  && peek_tail_name(cf->path().name).str()[0] == '$');
 	    for (const named_pexpr_t&arg : cf->get_parms())
-		  sva_lv_reads_(arg.parm, locals, system ? reads : passed, passed);
+		  sva_lv_reads_(arg.parm, locals, reads_args ? reads : passed, passed);
 	    return;
       }
       if (PEUnary*un = dynamic_cast<PEUnary*>(e))
@@ -13407,7 +13551,10 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 				    const std::map<perm_string,PExpr*>*subst)
 {
       if (!e) return nullptr;
-      if (sva_capture_ctx_)
+      const PEIdent*source_id = dynamic_cast<const PEIdent*>(e);
+      bool let_free_name = source_id && source_id->sva_let_free_name();
+      if (sva_capture_ctx_ && !let_free_name && !e->is_clocking_value_ref()
+	  && !sva_clone_scope_.let_parent)
 	    if (PExpr*saved = sva_capture_intercept_(e, subst)) {
 		  if (!sva_capture_in_call_) return saved;
 		    /* The call's arguments are otherwise Preponed samples;
@@ -13444,7 +13591,8 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	    /* A dotted formal reference such as `x.triggered' is represented as
 	       one PEIdent path, not as PEMemberAccess. Substitute the formal base
 	       first, then preserve the member suffix as member-access nodes. */
-	    if (subst && !id->path().package && id->path().name.size() > 1) {
+	    if (subst && !let_free_name && !id->bound_let()
+		&& !id->path().package && id->path().name.size() > 1) {
 		  const name_component_t&base = id->path().name.front();
 		  std::map<perm_string,PExpr*>::const_iterator it =
 			 subst->find(base.name);
@@ -13463,7 +13611,8 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 			return value;
 		  }
 	    }
-	    if (subst && !id->path().package && id->path().name.size() == 1) {
+	    if (subst && !let_free_name && !id->bound_let()
+		&& !id->path().package && id->path().name.size() == 1) {
 		  const name_component_t&component = id->path().name.front();
 		  std::map<perm_string,PExpr*>::const_iterator it =
 			subst->find(component.name);
@@ -13517,7 +13666,11 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	       the vector name and left `idx' as an unresolved/shared live name. */
 	    pform_name_t path;
 	    PPackage*package = id->path().package;
-	    pform_name_t qualifier = sva_clone_qualifier_(id->path().name, false, package);
+	    PLet*let = id->bound_let();
+	    if (!let && !let_free_name)
+		  let = sva_template_let_(id->path(), id->lexical_pos());
+	    pform_name_t qualifier = let ? pform_name_t()
+		  : sva_clone_qualifier_(id->path().name, false, package);
 	    bool qualify = !qualifier.empty();
 	    if (qualify) {
 		  for (const name_component_t&component : qualifier) {
@@ -13551,6 +13704,10 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	    }
 	    cp->set_scoped_type_prefix(id->has_scoped_type_prefix());
             cp->set_dotted_suffix(id->has_dotted_suffix());
+	    cp->set_bound_let(let);
+	    cp->set_clocking_assertion_local(id->clocking_assertion_local());
+	    cp->set_sva_let_free_name(let_free_name
+		  || (sva_clone_scope_.let_parent && !let));
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -13736,7 +13893,11 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	    if (cf->receiver_expr()) return nullptr;
 	    pform_name_t call_path;
 	    PPackage*package = cf->path().package;
-	    pform_name_t qualifier = sva_clone_qualifier_(cf->path().name, true, package);
+	    PLet*let = cf->bound_let();
+	    if (!let && !cf->leading_type_args())
+		  let = sva_template_let_(cf->path(), cf->lexical_pos());
+	    pform_name_t qualifier = let ? pform_name_t()
+		  : sva_clone_qualifier_(cf->path().name, true, package);
 	    bool qualify_call = !qualifier.empty();
 	    if (qualify_call) {
 		  for (const name_component_t&component : qualifier) {
@@ -13795,6 +13956,9 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 		  cp->set_randomize_with_identifiers(
 			cf->randomize_with_identifiers());
 	    cp->set_scoped_type_prefix(cf->has_scoped_type_prefix());
+	    cp->set_bound_let(let);
+	    cp->set_clocking_assertion_local(cf->clocking_assertion_local());
+	    cp->set_lexical_pos(cf->lexical_pos());
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -14037,6 +14201,12 @@ struct sva_local_decl_type_t {
    property/sequence clone without adding parallel type ownership to the IR. */
 static std::map<perm_string,sva_local_decl_type_t> sva_local_decl_types_;
 static std::vector<perm_string> sva_local_decl_order_;
+
+static bool sva_is_decl_local_(perm_string name)
+{
+      return sva_decl_formal_names_.count(name)
+	    || sva_local_decl_types_.count(name);
+}
 static std::set<perm_string> sva_local_formal_names_;
 
 static std::vector<perm_string> sva_current_local_decl_names_()
@@ -14845,6 +15015,8 @@ static PExpr* sva_wrap_preponed_(
       unsigned&live_operands,
       const std::map<perm_string,unsigned>*unsampled_locals = nullptr);
 
+static PExpr* sva_expand_sampled_let_(PExpr*expr, bool&found);
+
 /* A procedural sampled-value capture can substitute a clocking input with
    its raw source only when the clocking block and inferred procedural clock
    are provably the same. The context is scoped to one recursive wrapper call
@@ -15086,6 +15258,31 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 				 const std::map<perm_string,unsigned>*unsampled_locals)
 {
       if (!e) return nullptr;
+      if (e->bound_let()) {
+	    // Rewrite the expanded body and actuals together so that free
+	    // template operands are sampled at the assertion's clock.
+	    static unsigned depth = 0;
+	    bool found = false;
+	    std::unique_ptr<PExpr>expanded(depth < 64
+		  ? sva_expand_sampled_let_(e, found) : nullptr);
+	    if (!expanded) {
+		  cerr << e->get_fileline() << ": error: cannot expand let `"
+		       << e->bound_let()->pscope_name() << "' while sampling this assertion." << endl;
+		  error_count += 1;
+		  return nullptr;
+	    }
+	    ++depth;
+	    unsigned prior_errors = error_count;
+	    PExpr*wrapped = sva_wrap_preponed_(expanded.get(), sampled,
+		  live_operands, unsampled_locals);
+	    --depth;
+	    if (!wrapped && error_count == prior_errors) {
+		  cerr << e->get_fileline() << ": sorry: cannot sample the expansion of let `"
+		       << e->bound_let()->pscope_name() << "' in this assertion." << endl;
+		  error_count += 1;
+	    }
+	    return wrapped;
+      }
 	/* IEEE 1800-2017/2023 16.5.1: const'(expr) uses the
 	   current value of expr in an assertion, rather than its Preponed
 	   value. The parser keeps this internal call as the cast marker. */
@@ -15232,6 +15429,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 					  PEIdent mapped_id(raw_ident->path().package, mapped,
 							    raw_ident->lexical_pos());
 					  mapped_id.set_line(*id);
+					  mapped_id.set_sva_let_free_name(id->sva_let_free_name());
 					  return sva_wrap_preponed_(&mapped_id, sampled,
 							live_operands, unsampled_locals);
 				    }
@@ -15252,6 +15450,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 			      }
 			      PEIdent raw_id(raw_path, id->lexical_pos());
 			      raw_id.set_line(*id);
+			      raw_id.set_sva_let_free_name(id->sva_let_free_name());
 			      return sva_wrap_preponed_(&raw_id, sampled,
 					  live_operands, unsampled_locals);
 			}
@@ -15278,7 +15477,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  cp->set_line(*e);
 		  return cp;
 	    }
-	    if (unsampled_locals && !id->path().package
+	    if (unsampled_locals && !id->sva_let_free_name() && !id->path().package
 		&& id->path().name.size() == 1
 		&& id->path().name.front().index.empty()
 		&& unsampled_locals->count(id->path().name.front().name)) {
@@ -15307,6 +15506,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		       be emitted before a later module-item declaration. Resolve
 		       its cloned operand against the completed module scope. */
 		  cp->reloc_lexical_pos_bind(false);
+		  cp->set_sva_let_free_name(id->sva_let_free_name());
 		  cp->set_line(*e);
 		  return cp;
 	    }
@@ -15319,6 +15519,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		  ? new PEIdent(id->path().package, path, id->lexical_pos())
 		  : new PEIdent(path, id->lexical_pos());
 	    cp->reloc_lexical_pos_bind(false);
+	    cp->set_sva_let_free_name(id->sva_let_free_name());
 	    cp->set_line(*e);
 
 	      /* A bare single-name read is sampled whether or not it
@@ -17060,8 +17261,6 @@ static PExpr* sva_logic_reduce_(const struct vlltype&loc, char op,
       }
       return terms.front();
 }
-
-static PExpr* sva_expand_sampled_let_(PECallFunction*call, bool&found);
 
 static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				   unsigned inst, unsigned&hist_idx,
@@ -19756,6 +19955,35 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 				   long reactive_past_offset)
 {
       if (!e) return e;
+      if (e->bound_let() || dynamic_cast<PECallFunction*>(e)) {
+	    bool is_let = false;
+	    PExpr*expanded = sva_expand_sampled_let_(e, is_let);
+	    if (is_let) {
+		  sva_expr_forget_sampled_(e);
+		  if (!expanded) {
+			cerr << loc.get_fileline()
+			     << ": sorry: cannot preserve sampled-value semantics "
+				"while expanding this let in an assertion." << endl;
+			error_count += 1;
+			return e;
+		  }
+		  static unsigned let_depth = 0;
+		  if (let_depth >= 64) {
+			cerr << loc.get_fileline()
+			     << ": error: recursive let expansion while binding "
+				"a sampled-value function to an assertion clock."
+			     << endl;
+			error_count += 1;
+			return e;
+		  }
+		  ++let_depth;
+		  PExpr*result = sva_rewrite_sampled_(loc, expanded, inst,
+				hist_idx, pre, post, init, cur_live,
+				reactive_past_offset);
+		  --let_depth;
+		  return result;
+	    }
+      }
 	/* Local-variable lowering can place sampled-value expressions inside
 	   identifier selects. Rewrite those expressions too; otherwise a
 	   $past(...) in a bit/part/array index remains live in the checker. */
@@ -19804,33 +20032,6 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 	}
 
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
-	    bool is_let = false;
-	    PExpr*expanded = sva_expand_sampled_let_(cf, is_let);
-	    if (is_let) {
-		  sva_expr_forget_sampled_(cf);
-		  if (!expanded) {
-			cerr << loc.get_fileline()
-			     << ": sorry: cannot preserve sampled-value semantics "
-				"while expanding this let in an assertion." << endl;
-			error_count += 1;
-			return e;
-		  }
-		  static unsigned let_depth = 0;
-		  if (let_depth >= 64) {
-			cerr << loc.get_fileline()
-			     << ": error: recursive let expansion while binding "
-				"a sampled-value function to an assertion clock."
-			     << endl;
-			error_count += 1;
-			return e;
-		  }
-		  ++let_depth;
-		  PExpr*result = sva_rewrite_sampled_(loc, expanded, inst,
-				hist_idx, pre, post, init, cur_live,
-				reactive_past_offset);
-		  --let_depth;
-		  return result;
-	    }
 	      /* $stable/$changed over a parameter-sized unpacked array is a
 		 comparison between a current Preponed snapshot and a one-tick
 		 history snapshot.  Lower both to equally-shaped symbolic arrays;
@@ -20570,21 +20771,24 @@ bool pform_is_sampled_value_function(const char*name)
    here, while the assertion's clock and history-register context are
    available, so the sampled call is rewritten exactly like a direct call.
    Ordinary let elaboration remains responsible for every other use. */
-static PExpr* sva_expand_sampled_let_(PECallFunction*call, bool&found)
+static PExpr* sva_expand_sampled_let_(PExpr*expr, bool&found)
 {
       found = false;
-      if (!call || call->receiver_expr() || call->path().package
-	  || call->path().name.size() != 1)
-	    return nullptr;
-      perm_string name = call->path().name.front().name;
-      PLet*let = nullptr;
-      for (LexicalScope*scope = lexical_scope; scope && !let;
-	   scope = scope->parent_scope()) {
-	    std::map<perm_string,PLet*>::const_iterator it =
-		  scope->lets.find(name);
-	    if (it != scope->lets.end()
-		&& it->second->lexical_pos() < call->lexical_pos())
-		  let = it->second;
+      PECallFunction*call = dynamic_cast<PECallFunction*>(expr);
+      PLet*let = expr->bound_let();
+      if (!let) {
+	    if (!call || call->clocking_assertion_local() || call->receiver_expr()
+		|| call->path().package
+		|| call->path().name.size() != 1)
+		  return nullptr;
+	    perm_string name = call->path().name.front().name;
+	    for (LexicalScope*scope = lexical_scope; scope && !let;
+		 scope = scope->parent_scope()) {
+		  auto it = scope->lets.find(name);
+		  if (it != scope->lets.end()
+		      && it->second->lexical_pos() < call->lexical_pos())
+			let = it->second;
+	    }
       }
       if (!let) return nullptr;
       found = true;
@@ -20592,22 +20796,28 @@ static PExpr* sva_expand_sampled_let_(PECallFunction*call, bool&found)
       const std::list<PLet::let_port_t*>*ports = let->let_ports();
       std::vector<PLet::let_port_t*> formals;
       if (ports) formals.assign(ports->begin(), ports->end());
-      const std::vector<named_pexpr_t>&args = call->get_parms();
+      static const std::vector<named_pexpr_t> no_args;
+      const std::vector<named_pexpr_t>&args = call ? call->get_parms() : no_args;
       bool empty_call = args.size() == 1 && args[0].parm == nullptr
 	    && args[0].name.nil();
       if (!empty_call && args.size() > formals.size()) return nullptr;
 
+      std::map<perm_string,std::unique_ptr<PExpr>> values;
       std::map<perm_string,PExpr*> binding;
+      std::set<perm_string> named_ports;
       bool seen_named = false;
+      auto bind = [&](PLet::let_port_t*formal, PExpr*value) {
+	    if (formal->type_) value = new PECastType(formal->type_, value);
+	    values[formal->name_].reset(value);
+	    binding[formal->name_] = value;
+      };
       for (size_t idx = 0; !empty_call && idx < args.size(); ++idx) {
 	    if (args[idx].name.nil()) {
 		  if (seen_named) return nullptr;
 		  if (args[idx].parm) {
 			PExpr*value = sva_clone_expr_(args[idx].parm);
 			if (!value) return nullptr;
-			if (formals[idx]->type_)
-			      value = new PECastType(formals[idx]->type_, value);
-			binding[formals[idx]->name_] = value;
+			bind(formals[idx], value);
 		  }
 	    } else {
 		  seen_named = true;
@@ -20615,23 +20825,33 @@ static PExpr* sva_expand_sampled_let_(PECallFunction*call, bool&found)
 		  while (formal_idx < formals.size()
 			 && formals[formal_idx]->name_ != args[idx].name)
 			++formal_idx;
-		  if (formal_idx == formals.size() || !args[idx].parm)
+		  if (formal_idx == formals.size()
+		      || binding.count(args[idx].name)
+		      || !named_ports.insert(args[idx].name).second)
 			return nullptr;
-		  PExpr*value = sva_clone_expr_(args[idx].parm);
-		  if (!value) return nullptr;
-		  if (formals[formal_idx]->type_)
-			value = new PECastType(formals[formal_idx]->type_, value);
-		  binding[formals[formal_idx]->name_] = value;
+		  if (args[idx].parm) {
+			PExpr*value = sva_clone_expr_(args[idx].parm);
+			if (!value) return nullptr;
+			bind(formals[formal_idx], value);
+		  }
 	    }
       }
+      const sva_clone_scope_t use_context = sva_clone_scope_;
+      sva_clone_scope_t body_context = use_context;
+      if (expr->bound_let()) {
+	    body_context.let_parent = let->parent_scope();
+	    body_context.local_names = nullptr;
+      }
+      sva_clone_scope_guard_t body_scope(body_context, use_context);
       for (size_t idx = 0; idx < formals.size(); ++idx) {
+	    if (expr->bound_let() && formals[idx]->range_
+		&& !formals[idx]->range_->empty())
+		  return nullptr;
 	    if (binding.count(formals[idx]->name_)) continue;
 	    if (!formals[idx]->def_) return nullptr;
 	    PExpr*value = sva_clone_subst_(formals[idx]->def_, &binding);
 	    if (!value) return nullptr;
-	    if (formals[idx]->type_)
-		  value = new PECastType(formals[idx]->type_, value);
-	    binding[formals[idx]->name_] = value;
+	    bind(formals[idx], value);
       }
       return sva_clone_subst_(let->let_expr(), &binding);
 }
@@ -21748,6 +21968,10 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    return;
       }
       for (size_t i = 0 ; i < steps.size() && error_count == entry_errors ; ) {
+	    if (steps[i].expr && steps[i].expr->is_clocking_value_ref()) {
+		  ++i;
+		  continue;
+	    }
 	    const Module*expr_module = module;
 	    const PGenerate*expr_scope = scope;
 	    const pform_name_t*expr_hier_prefix = hier_prefix;
@@ -24608,6 +24832,7 @@ static bool sva_seq_names_property_(const sva_property_t*p)
       if (st.delay_lo != 0 || st.delay_hi != 0 || st.rep_tail != 0
 	  || st.rep_kind != 0 || !st.items.empty())
 	    return false;
+      if (st.expr && st.expr->is_clocking_value_ref()) return false;
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr)) {
 	    if (id->path().package || id->path().name.size() != 1
 		|| !id->path().name.front().index.empty())
@@ -26426,7 +26651,8 @@ sva_property_t* pform_sva_seq_throughout(const struct vlltype&loc,
 	  && (*seq)[0].rep_kind == 0
 	  && !sva_step_has_assignment_((*seq)[0])) {
 	    PEIdent*id = dynamic_cast<PEIdent*>((*seq)[0].expr);
-	    if (id && !id->path().package && id->path().name.size() == 1
+	    if (id && !id->is_clocking_value_ref() && !id->path().package
+		&& id->path().name.size() == 1
 		&& id->path().name.front().index.empty()) {
 		  perm_string nm = id->path().name.front().name;
 		  std::map<sva_scoped_name_t,
@@ -26588,7 +26814,8 @@ static bool sva_expr_reads_lv_(PExpr*e,
 	       design object (`vec[v]').  Both make this a per-attempt guard;
 	       the latter was previously missed and collapsed all attempts into
 	       one shared Boolean sample with an unresolved/live `v'. */
-	    if (!id->path().package && id->path().name.size() == 1
+	    if (!id->bound_let() && !id->sva_let_free_name()
+		&& !id->path().package && id->path().name.size() == 1
 		&& lv.count(id->path().name.front().name))
 		  return true;
 	    for (pform_name_t::const_iterator comp = id->path().name.begin()
@@ -26710,7 +26937,8 @@ static bool sva_disable_reads_local_(PExpr*e,
       if (!e) return false;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
 	    const pform_name_t&name = id->path().name;
-	    if (!id->path().package && name.size() == 1
+	    if (!id->bound_let() && !id->sva_let_free_name()
+		&& !id->path().package && name.size() == 1
 		  && locals.count(name.front().name)) return true;
 	    for (pform_name_t::const_iterator comp = name.begin();
 		 comp != name.end(); ++comp)
@@ -35251,6 +35479,7 @@ static void sva_note_top_instance_(const sva_property_t*prop)
 	  || !prop->seq || prop->seq->size() != 1)
 	    return;
       const PExpr*expr = (*prop->seq)[0].expr;
+      if (!expr || expr->is_clocking_value_ref()) return;
       perm_string name;
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(expr)) {
 	    const pform_name_t&path = id->path().name;
@@ -35355,7 +35584,7 @@ static const PExpr* sva_whole_sequence_expr_(const sva_property_t*prop)
       if (!sva_step_is_single_boolean_(step) || step.delay_lo_expr
 	  || step.delay_hi_expr || !step.items.empty())
 	    return nullptr;
-      return step.expr;
+      return step.expr && !step.expr->is_clocking_value_ref() ? step.expr : nullptr;
 }
 
 static const PECallFunction* sva_whole_sequence_call_(const sva_property_t*prop)
@@ -35714,6 +35943,7 @@ static bool sva_prop_is_named_ref_(const sva_property_t*prop)
       if (sva_whole_sequence_has_clock_(prop, current_module, pform_cur_generate))
 	    return true;
       PExpr*e = (*prop->seq)[0].expr;
+      if (!e || e->is_clocking_value_ref()) return false;
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
 	    if (id->path().package) return false;
 	    const pform_name_t&path = id->path().name;
@@ -37326,6 +37556,7 @@ static bool sva_parameter_window_try_assertion_(
  * rule (empty ##1 finish) without taking a keep sample. */
 static bool sva_parameter_consequent_named_ante_pending_(PExpr*expr)
 {
+      if (!expr || expr->is_clocking_value_ref()) return false;
       if (PECallFunction*call = dynamic_cast<PECallFunction*>(expr)) {
 	    if (call->path().package || call->path().name.size() != 1)
 		  return false;
@@ -37899,7 +38130,7 @@ static bool sva_named_property_ref_(const PEIdent*id,
 				    std::map<sva_scoped_name_t,
 				    sva_property_t*>::iterator&found)
 {
-      if (!id || id->path().package) return false;
+      if (!id || id->is_clocking_value_ref() || id->path().package) return false;
       const pform_name_t&path = id->path().name;
       if (path.size() == 1 && path.front().index.empty()) {
 	    name = path.front().name;
@@ -38103,7 +38334,7 @@ static bool sva_leaf_names_property_(const sva_property_t*p)
 	  || st.rep_kind != 0 || !st.items.empty())
 	    return false;
       const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr);
-      if (!id || id->path().package || id->path().name.size() != 1
+      if (!id || id->is_clocking_value_ref() || id->path().package || id->path().name.size() != 1
 	  || !id->path().name.front().index.empty())
 	    return false;
       perm_string nm = id->path().name.front().name;
@@ -39024,7 +39255,8 @@ static bool sva_inst_step_name_(const sva_seq_step_t&st, perm_string&nm,
 				const std::vector<named_pexpr_t>**args)
 {
       if (args) *args = nullptr;
-      if (st.delay_lo != 0 || st.delay_hi != 0 || st.rep_kind || st.rep_tail
+      if (!st.expr || st.expr->is_clocking_value_ref()
+	  || st.delay_lo != 0 || st.delay_hi != 0 || st.rep_kind || st.rep_tail
 	  || !st.items.empty() || st.fm || st.grouped_repeat)
 	    return false;
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr)) {
@@ -39894,7 +40126,8 @@ static bool sva_comp_expand_refs_(const struct vlltype&loc, sva_property_t*p)
 		  const PEIdent*id = dynamic_cast<const PEIdent*>(o->seq->front().expr);
 		  perm_string nm;
 		  std::map<sva_scoped_name_t, sva_property_t*>::iterator pit;
-		  if (id && id->path().name.size() == 1 && !id->path().package
+		  if (id && !id->is_clocking_value_ref() && id->path().name.size() == 1
+		      && !id->path().package
 		      && id->path().name.front().index.empty()
 		      && !sva_in_scope_(sva_module_sequences,
 					id->path().name.front().name)) {
@@ -42248,7 +42481,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  }
 	    }
 	    if (PECallFunction*cf = dynamic_cast<PECallFunction*>((*prop->seq)[0].expr)) {
-		  if (!cf->path().package
+		  if (!cf->is_clocking_value_ref() && !cf->path().package
 		      && (cf->path().name.size() == 1
 			  || cf->path().name.size() == 2)) {
 			const pform_name_t&path = cf->path().name;

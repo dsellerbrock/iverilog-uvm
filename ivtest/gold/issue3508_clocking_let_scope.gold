@@ -1,0 +1,3 @@
+./ivltests/issue3508_clocking_let_scope.sv:8: error: No function named `local_let' found in this context (issue3508_clocking_let_scope).
+./ivltests/issue3508_clocking_let_scope.sv:9: error: No function named `cb.local_let' found in this context (issue3508_clocking_let_scope).
+2 error(s) during elaboration.

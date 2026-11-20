@@ -21,6 +21,7 @@
 
 # include  "Module.h"
 # include  "PGate.h"
+# include  "PTask.h"
 # include  "Statement.h"
 # include  "PWire.h"
 # include  "ivl_assert.h"
@@ -57,6 +58,8 @@ Module::PClocking::PClocking(perm_string n, PEventStatement*evt)
 Module::PClocking::~PClocking()
 {
       delete event;
+      for (const auto&entry : lets)
+	    delete entry.second;
 }
 
 bool Module::PClocking::add_signal(perm_string sig_name, NetNet::PortType dir,

@@ -776,6 +776,7 @@ extern void pform_set_default_clocking_ref(const struct vlltype&loc,
  * imported from other packages.
  */
 extern PEIdent* pform_new_ident(const struct vlltype&loc, const pform_name_t&name);
+extern void pform_bind_clocking_let(const struct vlltype&loc, PEIdent*id);
 
 extern PTrigger* pform_new_trigger(const struct vlltype&loc, PPackage*pkg,
 				   const pform_name_t&name, unsigned lexical_pos);
@@ -1098,6 +1099,8 @@ extern Statement* pform_make_quality_if(const struct vlltype&loc,
                                         Statement*if_clause,
                                         Statement*else_clause);
 
+extern void pform_set_clocking_assertion_item(bool active);
+extern void pform_start_let();
 extern void pform_make_let(const struct vlltype&loc,
                            perm_string name,
                            std::list<PLet::let_port_t*>*ports,

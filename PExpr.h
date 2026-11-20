@@ -141,6 +141,13 @@ class PExpr : public LineInfo {
       PExpr();
       virtual ~PExpr() override;
 
+      // Source binding for a let reference in a clocking assertion.
+      PLet* bound_let() const { return bound_let_; }
+      void set_bound_let(PLet*let) { bound_let_ = let; }
+      bool clocking_assertion_local() const { return clocking_assertion_local_; }
+      void set_clocking_assertion_local(bool local) { clocking_assertion_local_ = local; }
+      bool is_clocking_value_ref() const { return bound_let_ || clocking_assertion_local_; }
+
       // Named-sequence actuals retain the lexical scope of the call site
       // while their expression tree is cloned into a declaration scope.
       bool sva_actual_scope() const { return sva_actual_scope_; }
@@ -300,6 +307,8 @@ class PExpr : public LineInfo {
       unsigned expr_width_;
       unsigned min_width_;
       bool signed_flag_;
+      PLet*bound_let_ = nullptr;
+      bool clocking_assertion_local_ = false;
       bool sva_actual_scope_ = false;
       const Module*sva_actual_module_ = nullptr;
       const PGenerate*sva_actual_generate_ = nullptr;
@@ -754,6 +763,10 @@ class PEIdent : public PExpr {
       const NetScope*let_body_scope() const { return let_body_scope_; }
       void set_let_body_scope(const NetScope*scope) { let_body_scope_ = scope; }
 
+      // Template operands do not refer to assertion locals at the use site.
+      bool sva_let_free_name() const { return sva_let_free_name_; }
+      void set_sva_let_free_name(bool value) { sva_let_free_name_ = value; }
+
 	// Compiler-generated accesses to hidden properties that implement
 	// a modport clocking declaration carry the declared clocking-block
 	// name here. Source identifiers leave this nil.
@@ -827,6 +840,7 @@ class PEIdent : public PExpr {
       pform_scoped_name_t path_;
       unsigned lexical_pos_;
       const NetScope*let_body_scope_ = nullptr;
+      bool sva_let_free_name_ = false;
 
 	// M13: cached let-expansion for a bare let reference.
       mutable PExpr*let_subst_ = nullptr;

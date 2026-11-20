@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3508_clocking_let_scope.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue3508_clocking_let_scope"],
+  "gold": "issue3508_clocking_let_scope"
+}

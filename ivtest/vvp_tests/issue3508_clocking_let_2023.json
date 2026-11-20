@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3508_clocking_let.sv",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue3508_clocking_let"],
+  "gold": "issue3508_clocking_let"
+}

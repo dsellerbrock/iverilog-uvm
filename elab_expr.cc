@@ -44,6 +44,7 @@ bool pform_type_operator_context = false;
 # include  "PPackage.h"
 # include  "PClass.h"
 # include  "PGate.h"
+# include  "PGenerate.h"
 # include  "pform.h"
 # include  "parse_api.h"
 # include  "Module.h"
@@ -12682,6 +12683,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
                   cp->set_dotted_suffix(act->has_dotted_suffix() || path.name.size() > 1);
 		  cp->set_clocking_access(act->clocking_access());
 		  cp->set_let_body_scope(act->let_body_scope());
+		  cp->set_bound_let(act->bound_let());
 		  cp->set_line(*act);
 		  return cp;
 	    }
@@ -12705,6 +12707,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
             cp->set_dotted_suffix(id->has_dotted_suffix());
 	    cp->set_clocking_access(id->clocking_access());
 	    cp->set_let_body_scope(id->let_body_scope() ? id->let_body_scope() : body_scope);
+	    cp->set_bound_let(id->bound_let());
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -12865,6 +12868,7 @@ static PExpr* let_clone_expr_(const PExpr*e,
 	    cp->set_scoped_type_prefix(call->has_scoped_type_prefix());
 	    cp->set_lexical_pos(call->lexical_pos());
 	    cp->set_let_body_scope(call->let_body_scope() ? call->let_body_scope() : body_scope);
+	    cp->set_bound_let(call->bound_let());
 	    cp->set_line(*e);
 	    return cp;
       }
@@ -12989,10 +12993,32 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
       return body;
 }
 
+// A clocking block creates no NetScope. Its templates use the NetScope
+// corresponding to their enclosing lexical declaration.
+static const NetScope* bound_let_owner_(Design*des, const NetScope*scope,
+				       const PLet*let, const LineInfo&use)
+{
+      const LexicalScope*parent = let->parent_scope();
+      if (const PPackage*pkg = dynamic_cast<const PPackage*>(parent)) {
+	    if (const NetScope*owner = des->find_package(pkg->pscope_name()))
+		  return owner;
+      }
+      for (const NetScope*cur = scope; cur; cur = cur->parent()) {
+	    if (cur->module_definition() == parent
+		|| cur->generate_definition() == parent)
+		  return cur;
+      }
+      cerr << use.get_fileline() << ": error: cannot resolve the declaration scope of let `"
+	   << let->pscope_name() << "'." << endl;
+      des->errors += 1;
+      return nullptr;
+}
+
 PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
 {
       if (let_subst_tried_) return let_subst_;
 
+      if (clocking_assertion_local()) return nullptr;
       if (receiver_ || leading_type_args_) return 0;
       if (!with_constraints_.empty()) return 0;
       if (path_.name.size() != 1) return 0;
@@ -13003,8 +13029,12 @@ PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
       if (path_.package)
 	    lookup = des->find_package(path_.package->pscope_name());
       const NetScope*owner = nullptr;
-      PLet*let = lookup ? lookup->find_let(des, comp.name, lexical_pos_, &owner) : nullptr;
-      if (let == 0) return 0;
+      PLet*let = bound_let();
+      if (let)
+	    owner = bound_let_owner_(des, scope, let, *this);
+      else if (lookup)
+	    let = lookup->find_let(des, comp.name, lexical_pos_, &owner);
+      if (!let || !owner) return nullptr;
 
       let_subst_tried_ = true;
       let_subst_ = let_expand_(des, *this, let, parms_, owner);
@@ -13015,6 +13045,7 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
 {
       if (let_subst_tried_) return let_subst_;
 
+      if (clocking_assertion_local()) return nullptr;
       if (path_.name.size() != 1) return 0;
       const name_component_t&comp = path_.name.front();
       if (!comp.index.empty()) return 0;
@@ -13022,8 +13053,12 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
       if (path_.package)
 	    lookup = des->find_package(path_.package->pscope_name());
       const NetScope*owner = nullptr;
-      PLet*let = lookup ? lookup->find_let(des, comp.name, lexical_pos(), &owner) : nullptr;
-      if (let == 0) return 0;
+      PLet*let = bound_let();
+      if (let)
+	    owner = bound_let_owner_(des, scope, let, *this);
+      else if (lookup)
+	    let = lookup->find_let(des, comp.name, lexical_pos(), &owner);
+      if (!let || !owner) return nullptr;
 
       let_subst_tried_ = true;
       static const std::vector<named_pexpr_t> no_args;

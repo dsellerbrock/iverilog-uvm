@@ -721,6 +721,9 @@ PEIdent* PEIdent::clone_for_reference() const
       res->dotted_suffix_ = dotted_suffix_;
       res->clocking_access_ = clocking_access_;
       res->modport_expression_access_ = modport_expression_access_;
+      res->set_bound_let(bound_let());
+      res->set_clocking_assertion_local(clocking_assertion_local());
+      res->set_sva_let_free_name(sva_let_free_name());
       return res;
 }
 

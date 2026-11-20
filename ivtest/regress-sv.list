@@ -7367,3 +7367,7 @@ issue3164_2017 normal,-g2017,-s,issue3164 ivltests gold=issue3164.gold
 issue3164_2023 normal,-g2023,-s,issue3164 ivltests gold=issue3164.gold
 issue3164_bad_2017 CE,-g2017,-s,issue3164_bad ivltests gold=issue3164_bad.gold
 issue3164_bad_2023 CE,-g2023,-s,issue3164_bad ivltests gold=issue3164_bad.gold
+issue3508_clocking_let_2017 normal,-g2017,-gassertions,-s,issue3508_clocking_let ivltests gold=issue3508_clocking_let.gold
+issue3508_clocking_let_scope_2017 CE,-g2017,-gassertions,-s,issue3508_clocking_let_scope ivltests gold=issue3508_clocking_let_scope.gold
+issue3508_clocking_let_2023 normal,-g2023,-gassertions,-s,issue3508_clocking_let ivltests gold=issue3508_clocking_let.gold
+issue3508_clocking_let_scope_2023 CE,-g2023,-gassertions,-s,issue3508_clocking_let_scope ivltests gold=issue3508_clocking_let_scope.gold
