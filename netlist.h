@@ -3205,14 +3205,15 @@ class NetPartSelect  : public NetNode {
       bool event_synchronous_;
 };
 
-/* A run-time-selected virtual-interface member presented as an ordinary
- * structural vector source. Pin 0 is the vector output, pin 1 is the root
- * class/interface object handle, and pin 2 is binding validity. */
+/* A simulation-only member projection. Pin 0 is the projected value and
+ * pin 1 is the object root. Virtual-interface projections also use pin 2
+ * for binding validity. */
 class NetVifProxy : public NetNode {
     public:
       NetVifProxy(NetScope*, unsigned width, NetNet*root,
                   unsigned root_word, const std::vector<unsigned>&path,
-                  unsigned member, unsigned word);
+                  unsigned member, unsigned word,
+                  ivl_variable_type_t struct_leaf_type = IVL_VT_NO_TYPE);
       ~NetVifProxy() override;
 
       unsigned width() const { return width_; }
@@ -3220,6 +3221,7 @@ class NetVifProxy : public NetNode {
       const std::vector<unsigned>& path() const { return path_; }
       unsigned member() const { return member_; }
       unsigned word() const { return word_; }
+      ivl_variable_type_t struct_leaf_type() const { return struct_leaf_type_; }
 
       bool emit_node(struct target_t*) const override;
 
@@ -3229,6 +3231,7 @@ class NetVifProxy : public NetNode {
       std::vector<unsigned> path_;
       unsigned member_;
       unsigned word_;
+      ivl_variable_type_t struct_leaf_type_;
 };
 
 /*
@@ -6142,6 +6145,10 @@ class NetEProperty : public NetExpr {
       inline size_t property_idx() const { return pidx_; }
       inline const NetExpr*get_index() const { return index_; }
       void set_index(NetExpr*idx) { delete index_; index_ = idx; }
+
+      // A typed leaf of a scalar unpacked struct variable can drive an
+      // ordinary event probe.
+      bool is_struct_event_member() const;
 
       // Resolve a direct member of a statically bound interface port to the
       // concrete signal in the interface-instance scope. Ordinary class

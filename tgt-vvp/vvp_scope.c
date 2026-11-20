@@ -491,6 +491,20 @@ char* draw_Cr_to_string(double value)
       return strdup(tmp);
 }
 
+static int is_struct_member_projection(ivl_nexus_t nex)
+{
+      if (!nex)
+            return 0;
+      for (unsigned idx = 0; idx < ivl_nexus_ptrs(nex); idx += 1) {
+            ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ivl_nexus_ptr(nex, idx));
+            if (lpm && ivl_lpm_type(lpm) == IVL_LPM_VIF_PROXY
+                && ivl_lpm_q(lpm) == nex
+                && ivl_lpm_vif_struct_leaf_type(lpm) != IVL_VT_NO_TYPE)
+                  return 1;
+      }
+      return 0;
+}
+
 const char*draw_input_from_net(ivl_nexus_t nex, ivl_scope_t scope)
 {
       static char result[32];
@@ -544,6 +558,8 @@ const char*draw_input_from_net(ivl_nexus_t nex, ivl_scope_t scope)
             sig = signal_of_nexus(nex, &word);
       if (sig == 0)
 	    return draw_net_input(nex);
+      if (ivl_signal_local(sig) && is_struct_member_projection(nex))
+            return draw_net_input(nex);
       if (ivl_signal_type(sig)==IVL_SIT_REG && ivl_signal_dimensions(sig)>0)
 	    return draw_net_input(nex);
 
@@ -1442,6 +1458,12 @@ static void draw_reg_in_scope(ivl_signal_t sig)
  */
 static void draw_net_in_scope(ivl_signal_t sig)
 {
+      /* Projections have no separate VVP signal storage. Events and
+         synthesized expression inputs are linked to the typed driver. */
+      if (ivl_signal_local(sig) && ivl_signal_dimensions(sig) == 0
+          && is_struct_member_projection(ivl_signal_nex(sig, 0)))
+            return;
+
       int msb;
       int lsb;
       switch (ivl_signal_packed_dimensions(sig)) {
@@ -3312,6 +3334,26 @@ static void draw_lpm_sign_ext(ivl_lpm_t net)
 
 static void draw_lpm_vif_proxy(ivl_lpm_t net)
 {
+      char kind;
+      switch (ivl_lpm_vif_struct_leaf_type(net)) {
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC:  kind = 'v'; break;
+          case IVL_VT_REAL:   kind = 'r'; break;
+          case IVL_VT_STRING: kind = 's'; break;
+          case IVL_VT_CLASS:  kind = 'o'; break;
+          default:           kind = 0; break;
+      }
+      if (kind) {
+            const char*root = draw_input_from_net(ivl_lpm_data(net, 0),
+                                                ivl_lpm_scope(net));
+            fprintf(vvp_out, "L_%p .struct/leaf %s, %c, %u",
+                    net, root, kind, ivl_lpm_width(net));
+            for (unsigned idx = 0; idx < ivl_lpm_vif_path_count(net); idx += 1)
+                  fprintf(vvp_out, ", %u", ivl_lpm_vif_path(net, idx));
+            fprintf(vvp_out, ", %u;\n", ivl_lpm_vif_member(net));
+            return;
+      }
+
       const char*root = draw_net_input(ivl_lpm_data(net, 0));
       unsigned idx;
       fprintf(vvp_out, "L_%p .vifproxy L_%p/valid, %u, %s, %u, %u, %u",

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3913_struct_member_events.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3913_struct_member_events"],
+  "gold": "issue3913_struct_member_events"
+}

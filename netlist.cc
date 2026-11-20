@@ -1676,9 +1676,11 @@ NetPartSelect::~NetPartSelect()
 NetVifProxy::NetVifProxy(NetScope*scope, unsigned width, NetNet*root,
                          unsigned root_word,
                          const std::vector<unsigned>&path,
-                         unsigned member, unsigned word)
+                         unsigned member, unsigned word,
+                         ivl_variable_type_t struct_leaf_type)
 : NetNode(scope, scope->local_symbol(), 3), width_(width),
-  root_word_(root_word), path_(path), member_(member), word_(word)
+  root_word_(root_word), path_(path), member_(member), word_(word),
+  struct_leaf_type_(struct_leaf_type)
 {
       pin(0).set_dir(Link::OUTPUT);
       pin(1).set_dir(Link::INPUT);

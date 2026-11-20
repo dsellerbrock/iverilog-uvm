@@ -7339,3 +7339,5 @@ issue3896_concat_leaves_2017 normal,-g2017,-s,issue3896_concat_leaves ivltests g
 issue3896_concat_leaves_2023 normal,-g2023,-s,issue3896_concat_leaves ivltests gold=issue3896_concat_leaves.gold
 issue818_unpacked_struct_net_ca_2017 normal,-g2017,-s,issue818_unpacked_struct_net_ca ivltests gold=issue818_unpacked_struct_net_ca-vvp-stdout.gold
 issue818_unpacked_struct_net_ca_2023 normal,-g2023,-s,issue818_unpacked_struct_net_ca ivltests gold=issue818_unpacked_struct_net_ca-vvp-stdout.gold
+issue3913_struct_member_events_2017 normal,-g2017,-s,issue3913_struct_member_events ivltests gold=issue3913_struct_member_events-vvp-stdout.gold
+issue3913_struct_member_events_2023 normal,-g2023,-s,issue3913_struct_member_events ivltests gold=issue3913_struct_member_events-vvp-stdout.gold

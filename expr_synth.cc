@@ -20,6 +20,7 @@
 # include "config.h"
 # include "compiler.h"
 
+# include  <algorithm>
 # include  <cstring>
 # include  <cstdlib>
 # include  <iostream>
@@ -28,6 +29,7 @@
 # include  "netclass.h"
 # include  "netvector.h"
 # include  "netparray.h"
+# include  "netstruct.h"
 # include  "netmisc.h"
 # include  "PTask.h"
 # include  "ivl_assert.h"
@@ -210,6 +212,96 @@ void NetEProperty::set_synthesis_vif_validity_collector(
       vif_validity_collector_ = collector;
 }
 
+// Collect the property IDs from leaf to root, checking each receiver's
+// type so a class, union, or indexed aggregate cannot enter this path.
+static NetNet* struct_event_member_root(const NetEProperty*leaf,
+                                       std::vector<unsigned>*path = nullptr)
+{
+      switch (leaf->expr_type()) {
+          case IVL_VT_BOOL:
+          case IVL_VT_LOGIC:
+            if (!leaf->expr_width())
+                  return nullptr;
+            break;
+          case IVL_VT_REAL:
+          case IVL_VT_STRING:
+            break;
+          case IVL_VT_CLASS: {
+            const netclass_t*type =
+                  dynamic_cast<const netclass_t*>(leaf->net_type());
+            if (!type || type->is_interface())
+                  return nullptr;
+            break;
+          }
+          default:
+            return nullptr;
+      }
+
+      const NetEProperty*member = leaf;
+      do {
+            const NetExpr*base = member->get_base();
+            const NetNet*root = member->get_sig();
+            const netstruct_t*type = dynamic_cast<const netstruct_t*>(
+                  base ? base->net_type() : root ? root->net_type() : nullptr);
+            if (!type || type->packed() || type->union_flag()
+                || member->get_index()
+                || member->property_idx() >= type->members().size())
+                  return nullptr;
+            if (path)
+                  path->push_back(member->property_idx());
+
+            if (const NetESignal*sig = dynamic_cast<const NetESignal*>(base)) {
+                  if (sig->word_index())
+                        return nullptr;
+                  root = sig->sig();
+            }
+            if (root)
+                  return root->type() == NetNet::REG
+                      && root->unpacked_dimensions() == 0
+                      ? const_cast<NetNet*>(root) : nullptr;
+            member = dynamic_cast<const NetEProperty*>(base);
+      } while (member);
+      return nullptr;
+}
+
+bool NetEProperty::is_struct_event_member() const
+{
+      return struct_event_member_root(this) != nullptr;
+}
+
+static NetNet* synthesize_struct_event_member(const NetEProperty*leaf,
+                                              Design*des, NetScope*scope)
+{
+      std::vector<unsigned> path;
+      NetNet*root = struct_event_member_root(leaf, &path);
+      if (!root)
+            return nullptr;
+
+      ivl_variable_type_t kind = leaf->expr_type();
+      ivl_type_t type = leaf->net_type();
+      unsigned width = 1;
+      if (type_is_vectorable(kind)) {
+            width = leaf->expr_width();
+            netvector_t*vec = new netvector_t(kind, width - 1, 0);
+            vec->set_signed(leaf->has_sign());
+            type = vec;
+      }
+
+      unsigned member = path.front();
+      path.erase(path.begin());
+      std::reverse(path.begin(), path.end());
+      NetVifProxy*proxy = new NetVifProxy(scope, width, root, 0, path,
+                                         member, UINT_MAX, kind);
+      proxy->set_line(*leaf);
+      NetNet*out = new NetNet(scope, scope->local_symbol(),
+                              NetNet::IMPLICIT, type);
+      out->set_line(*leaf);
+      out->local_flag(true);
+      connect(out->pin(0), proxy->pin(0));
+      des->add_node(proxy);
+      return out;
+}
+
 // Ordinary class-property accesses cannot be synthesized to a gate-level
 // net. An interface PORT uses the same expression node for simulation, but
 // elaboration also records its static binding to a concrete interface scope.
@@ -217,6 +309,15 @@ void NetEProperty::set_synthesis_vif_validity_collector(
 // sees the structural design rather than the one-bit runtime handle.
 NetNet* NetEProperty::synthesize(Design*des, NetScope*scope, NetExpr*root)
 {
+      // String and class-handle results have direct probes. Structural
+      // expression synthesis consumes only integral and real operands.
+      if (net_expr_event_synchronous()
+          && (root == this || type_is_vectorable(expr_type())
+              || expr_type() == IVL_VT_REAL)) {
+            if (NetNet*projection = synthesize_struct_event_member(this, des, scope))
+                  return projection;
+      }
+
       NetNet*interface_port = get_sig()
             ? const_cast<NetNet*>(get_sig()) : 0;
 

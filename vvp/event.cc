@@ -3099,6 +3099,220 @@ void compile_vif_proxy(char*label, char*valid_label, unsigned width, char*root,
       input_connect(net, 0, root);
 }
 
+namespace {
+
+class vvp_fun_struct_leaf : public vvp_net_fun_t, public automatic_hooks_s,
+                            public vvp_gen_event_s {
+    public:
+      vvp_fun_struct_leaf(vvp_net_t*net, char kind, unsigned width,
+                          std::vector<unsigned> path)
+      : net_(net), kind_(kind), width_(width), path_(std::move(path))
+      {
+            __vpiScope*scope = vpip_peek_context_scope();
+            if (scope->has_automatic_context()) {
+                  scope_ = scope;
+                  context_idx_ = vpip_add_item_to_context(this, scope_);
+            }
+      }
+
+      vvp_net_t** root_ref() { return &root_; }
+
+      void run_run() override
+      {
+            if (!root_ || !vvp_fun_as_signal_object(root_->fun)) {
+                  fprintf(stderr, "runtime error: .struct/leaf requires an object signal root\n");
+                  vpip_set_return_value(1);
+                  schedule_finish(0);
+                  return;
+            }
+            // Static structs can be lazily constructed, so establish the
+            // default member value before a procedural wait can arm.
+            if (auto*root = dynamic_cast<vvp_fun_signal_object_sa*>(root_->fun))
+                  publish(root->get_object(), nullptr);
+      }
+
+      void alloc_instance(vvp_context_t context) override
+      {
+            if (kind_ == 'r')
+                  vvp_set_context_item(context, context_idx_, new real_sample);
+      }
+
+      void reset_instance(vvp_context_t context) override
+      {
+            if (kind_ == 'r')
+                  sample(context).initialized = false;
+      }
+
+      void initialize_instance(vvp_context_t context) override
+      {
+            if (auto*root = dynamic_cast<vvp_fun_signal_object_aa*>(root_->fun)) {
+                  publish(root->peek_object(context), context);
+            } else if (auto*ref = dynamic_cast<vvp_ref_signal_aa*>(root_->fun)) {
+                  // A bound ref in an enclosing activation already has a
+                  // value. A ref in this new frame will publish on binding.
+                  vthread_ref_ctx_save save;
+                  vthread_push_ref_context(context, &save);
+                  vvp_object_t value = ref->get_object();
+                  vthread_pop_ref_context(&save);
+                  publish(value, context);
+            }
+      }
+
+#ifdef CHECK_WITH_VALGRIND
+      void free_instance(vvp_context_t context) override
+      {
+            if (kind_ == 'r')
+                  delete &sample(context);
+      }
+#endif
+
+      void recv_object(vvp_net_ptr_t, vvp_object_t value,
+                       vvp_context_t context) override
+      {
+            // Static sources use the probe's shared history, including its
+            // initial value for future automatic activations.
+            if (!context || !scope_) {
+                  publish(value, nullptr);
+                  return;
+            }
+            __vpiScope*source = automatic_event_source_scope_(context, scope_);
+            if (source == scope_) {
+                  publish(value, context);
+                  return;
+            }
+            if (!source)
+                  return;
+            for (vvp_context_t child = scope_->live_contexts; child;
+                 child = vvp_get_next_context(child)) {
+                  if (vthread_recover_stacked_context_for_scope(child, source)
+                      == context)
+                        publish(value, child);
+            }
+      }
+
+    private:
+      struct real_sample {
+            bool initialized = false;
+            double value = 0;
+      };
+
+      real_sample& sample(vvp_context_t context)
+      {
+            if (!context)
+                  return static_real_;
+            return *static_cast<real_sample*>(
+                  vvp_get_context_item(context, context_idx_));
+      }
+
+      void publish(vvp_object_t value, vvp_context_t context)
+      {
+            if (value.test_nil())
+                  return; // An automatic ref can be unbound at allocation.
+
+            // Read through the currently delivered value on every write,
+            // including whole-struct and nested replacements.
+            for (unsigned idx = 0; idx < path_.size(); ++idx) {
+                  vvp_cobject*owner = value.peek<vvp_cobject>();
+                  const class_type*type = owner ? owner->get_defn() : nullptr;
+                  unsigned member = path_[idx];
+                  if (!type || !type->is_struct_type() || type->is_union_type()
+                      || member >= type->property_count()
+                      || type->property_array_size(member) != 1)
+                        break;
+
+                  const std::string&storage = type->property_base_type(member);
+                  if (idx + 1 != path_.size()) {
+                        if (storage.compare(0, 3, "oc:") != 0)
+                              break;
+                        vvp_object_t next;
+                        owner->get_object(member, next, 0);
+                        value = std::move(next);
+                        continue;
+                  }
+
+                  if (kind_ == 'v' && type->property_vec4_width(member) == width_) {
+                        vvp_vector4_t bits;
+                        owner->get_vec4(member, bits);
+                        net_->send_vec4(bits, context);
+                        return;
+                  }
+                  if (kind_ == 'r' && storage == "r") {
+                        double real = owner->get_real(member);
+                        real_sample&old = sample(context);
+                        // Keep equal stored representations (including a
+                        // held NaN) out of the native real comparator.
+                        if (!old.initialized
+                            || memcmp(&old.value, &real, sizeof real) != 0) {
+                              old.initialized = true;
+                              memcpy(&old.value, &real, sizeof real);
+                              net_->send_real(real, context);
+                        }
+                        return;
+                  }
+                  if (kind_ == 's' && storage == "S") {
+                        net_->send_string(owner->get_string(member), context);
+                        return;
+                  }
+                  if (kind_ == 'o' && storage == "o") {
+                        vvp_object_t handle;
+                        owner->get_object(member, handle, 0);
+                        net_->send_object(handle, context);
+                        return;
+                  }
+                  break;
+            }
+            fprintf(stderr, "runtime error: invalid .struct/leaf member path or type\n");
+            vpip_set_return_value(1);
+            schedule_finish(0);
+      }
+
+      vvp_net_t*net_;
+      vvp_net_t*root_ = nullptr;
+      __vpiScope*scope_ = nullptr;
+      unsigned context_idx_ = 0;
+      char kind_;
+      unsigned width_;
+      std::vector<unsigned> path_;
+      real_sample static_real_;
+};
+
+} // namespace
+
+void compile_struct_leaf(char*label, char*root, char*kind, uint64_t width,
+                         unsigned path_count, long*raw_path)
+{
+      const char leaf_kind = kind[0];
+      bool valid = leaf_kind && kind[1] == '\0' && strchr("vrso", leaf_kind)
+            && width > 0 && width <= UINT_MAX
+            && (leaf_kind == 'v' || width == 1) && path_count != 0
+            && !c4string_test(root) && !c8string_test(root) && !crstring_test(root);
+      std::vector<unsigned> path;
+      for (unsigned idx = 0; valid && idx < path_count; ++idx) {
+            if (raw_path[idx] < 0
+                || static_cast<unsigned long>(raw_path[idx]) > UINT_MAX)
+                  valid = false;
+            else
+                  path.push_back(static_cast<unsigned>(raw_path[idx]));
+      }
+      free(raw_path);
+      free(kind);
+      if (valid) {
+            vvp_net_t*net = new vvp_net_t;
+            auto*fun = new vvp_fun_struct_leaf(net, leaf_kind, width,
+                                               std::move(path));
+            net->fun = fun;
+            define_functor_symbol(label, net);
+            functor_ref_lookup(fun->root_ref(), strdup(root));
+            input_connect(net, 0, root);
+            schedule_functor(fun);
+      } else {
+            fprintf(stderr, "invalid .struct/leaf root, kind, width or member path\n");
+            compile_errors += 1;
+            free(root);
+      }
+      free(label);
+}
+
 void compile_event(char*label, char*type, unsigned argc, struct symb_s*argv)
 {
       vvp_net_fun_t*fun = 0;

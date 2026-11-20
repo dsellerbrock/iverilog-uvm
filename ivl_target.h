@@ -1734,6 +1734,8 @@ extern unsigned ivl_lpm_vif_member(ivl_lpm_t net);
 extern unsigned ivl_lpm_vif_word(ivl_lpm_t net);
 extern unsigned ivl_lpm_vif_path_count(ivl_lpm_t net);
 extern unsigned ivl_lpm_vif_path(ivl_lpm_t net, unsigned idx);
+/* IVL_VT_NO_TYPE for a virtual-interface proxy, otherwise the struct leaf type. */
+extern ivl_variable_type_t ivl_lpm_vif_struct_leaf_type(ivl_lpm_t net);
 
 /* LVAL
  * The l-values of assignments are concatenation of ivl_lval_t

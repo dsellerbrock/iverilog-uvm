@@ -125,7 +125,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_PATHEXPR K_PARAM_STORAGE
 %token K_ATTRIBUTE
 %token K_PARAM_TYPE
-%token K_VIF_PROXY K_EVENT_VALID
+%token K_VIF_PROXY K_STRUCT_LEAF K_EVENT_VALID
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_VPI_INST_ARRAY
@@ -281,6 +281,8 @@ statement
                 { compile_vif_proxy($1, $3, $5, $7, $9, $11, $13, 0, nullptr); }
         | T_LABEL K_VIF_PROXY T_SYMBOL ',' T_NUMBER ',' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' numbers ';'
                 { compile_vif_proxy($1, $3, $5, $7, $9, $11, $13, $15.cnt, $15.nvec); }
+        | T_LABEL K_STRUCT_LEAF T_SYMBOL ',' T_SYMBOL ',' T_NUMBER ',' numbers ';'
+                { compile_struct_leaf($1, $3, $5, $7, $9.cnt, $9.nvec); }
         | K_EVENT_VALID T_SYMBOL ',' T_SYMBOL ';'
                 { compile_event_valid($2, $4); }
 
