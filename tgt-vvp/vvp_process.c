@@ -9782,9 +9782,9 @@ static ivl_type_t dpi_struct_formal_type_(ivl_signal_t port)
 
 /* Describe the struct members for the runtime marshaler, one signature letter
    per member in declaration order: b/h/i/l for the integer atoms ('u' prefix
-   when unsigned), c/g for scalar bit/logic, f/r for shortreal/real and p for
-   chandle. Returns 0 when a member has no supported C layout (packed vectors,
-   strings, nested aggregates) or the struct is a union. */
+   when unsigned), c/g for scalar bit/logic, f/r for shortreal/real, p for
+   chandle and s for scalar string. Returns 0 when a member has no supported
+   C layout (packed vectors, nested aggregates) or the struct is a union. */
 static int dpi_struct_member_desc_(ivl_type_t st, char*buf, size_t cap)
 {
       size_t pos = 0;
@@ -9797,6 +9797,8 @@ static int dpi_struct_member_desc_(ivl_type_t st, char*buf, size_t cap)
 	    char letter = 0;
 	    if (mb == IVL_VT_REAL) {
 		  letter = ivl_type_is_shortreal(mt) ? 'f' : 'r';
+	    } else if (mb == IVL_VT_STRING && !ivl_type_element(mt)) {
+		  letter = 's';
 	    } else if (mb == IVL_VT_BOOL || mb == IVL_VT_LOGIC) {
 		  if (ivl_type_is_chandle(mt))
 			letter = 'p';
@@ -9953,7 +9955,8 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 				      "'%s': argument '%s' is an unpacked "
 				      "struct with a member that is not an "
 				      "integer atom, scalar bit/logic, real, "
-				      "shortreal or chandle (IEEE 1800 Annex "
+				      "shortreal, chandle or scalar string "
+				      "(IEEE 1800 Annex "
 				      "H.7.8 layouts of other members are "
 				      "not supported yet).\n",
 				      ivl_scope_def_file(scope),

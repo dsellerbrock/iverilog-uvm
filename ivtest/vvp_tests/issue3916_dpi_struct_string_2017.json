@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue3916_dpi_struct_string.sv",
+  "iverilog-args": ["-g2017"],
+  "dpi-sources": ["dpi/issue3916_dpi_struct_string.c"],
+  "gold": "issue3916_dpi_struct_string"
+}
