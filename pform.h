@@ -361,6 +361,7 @@ extern bool pform_modport_item_pending(void);
 extern bool pform_add_modport_tf_port(const struct vlltype&loc,
                                       bool is_import, perm_string name);
 extern void pform_start_modport_tf_prototype(const struct vlltype&loc);
+extern bool pform_in_modport_tf_prototype();
 extern void pform_finish_modport_tf_prototype(
                                       const struct vlltype&loc,
                                       perm_string name,

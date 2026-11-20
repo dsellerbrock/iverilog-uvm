@@ -451,6 +451,92 @@ static struct {
    task/function that is currently in progress. */
 static PTask* current_task = 0;
 static PFunction* current_function = 0;
+
+static unsigned unnamed_tf_port_index;
+
+static void start_tf_port_list()
+{
+      port_declaration_context.port_type = gn_system_verilog()
+	    ? NetNet::PINPUT : NetNet::PIMPLICIT;
+      port_declaration_context.data_type = nullptr;
+      port_declaration_context.is_const = false;
+      port_declaration_context.is_ref_static = false;
+      port_declaration_context.event_type = false;
+      unnamed_tf_port_index = 0;
+}
+
+static bool in_tf_prototype()
+{
+      if (pform_in_modport_tf_prototype())
+	    return true;
+      const PTaskFunc*tf = current_function
+	    ? static_cast<PTaskFunc*>(current_function) : current_task;
+      if (!tf)
+	    return false;
+      return tf->is_extern_prototype() || tf->is_extern_forkjoin_task()
+	    || tf->is_pure_method() || tf->is_dpi_import()
+	    || (tf->is_extern_method_declaration()
+		&& tf->pscope_name() != perm_string::literal("new"));
+}
+
+static std::vector<pform_tf_port_t>*make_unnamed_tf_port(
+      const YYLTYPE&loc,
+      pform_tf_port_direction_t spec = {NetNet::PIMPLICIT, false, false},
+      data_type_t*type = nullptr,
+      bool is_event = false)
+{
+      if (!in_tf_prototype())
+	    yyerror(loc, "error: Missing task/function port name.");
+
+      if (spec.direction == NetNet::PIMPLICIT) {
+	    spec.direction = port_declaration_context.port_type;
+	    spec.is_const = port_declaration_context.is_const;
+	    spec.is_ref_static = port_declaration_context.is_ref_static;
+	    if (!type && !is_event) {
+		  type = port_declaration_context.data_type;
+		  is_event = port_declaration_context.event_type;
+	    }
+      }
+      if (spec.direction == NetNet::PIMPLICIT)
+	    spec.direction = NetNet::PINPUT;
+      if (is_event && spec.direction != NetNet::PINPUT) {
+	    yyerror(loc, "error: An event task/function formal must have input direction.");
+	    spec = {NetNet::PINPUT, false, false};
+      }
+      if (!type && !is_event) {
+	    type = new vector_type_t(IVL_VT_LOGIC, false, nullptr);
+	    FILE_NAME(type, loc);
+      }
+      port_declaration_context.port_type = spec.direction;
+      port_declaration_context.data_type = type;
+      port_declaration_context.is_const = spec.is_const;
+      port_declaration_context.is_ref_static = spec.is_ref_static;
+      port_declaration_context.event_type = is_event;
+
+      // Even an escaped source identifier cannot contain a space.
+      std::string name = "$ivl tf arg " + std::to_string(unnamed_tf_port_index++);
+      auto*ports = new std::list<pform_port_t>;
+      ports->emplace_back(pform_ident_t{lex_strings.make(name.c_str()),
+				       loc.lexical_pos}, nullptr, nullptr);
+      auto*result = pform_make_task_ports(loc, spec.direction, type, ports,
+					 false, spec.is_const, spec.is_ref_static,
+					 is_event);
+      result->front().unnamed = true;
+      return result;
+}
+
+static std::vector<pform_tf_port_t>*append_tf_ports(
+      std::vector<pform_tf_port_t>*ports, std::vector<pform_tf_port_t>*more)
+{
+      if (!ports)
+	    return more;
+      if (more) {
+	    ports->insert(ports->end(), more->begin(), more->end());
+	    delete more;
+      }
+      return ports;
+}
+
 static PFunction* pending_cross_outer_function_ = nullptr;
 static typedef_t* pending_cross_value_typedef_ = nullptr;
 static typedef_t* pending_cross_queue_typedef_ = nullptr;
@@ -3123,7 +3209,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <data_type> enum_data_type enum_base_type
 
 %type <tf_ports> tf_item_declaration tf_item_list tf_item_list_opt
-%type <tf_ports> tf_port_declaration tf_port_item tf_port_item_list
+%type <tf_ports> tf_port_declaration tf_port_item tf_port_item_list tf_port_initial_comma
 %type <tf_ports> tf_port_list tf_port_list_opt tf_port_list_parens_opt
 
 %type <named_pexpr> named_expression named_expression_opt
@@ -4266,11 +4352,11 @@ class_item /* IEEE1800-2005: A.1.8 */
     /* Pure method prototypes in virtual classes. */
   | K_pure method_qualifier_opt class_item_method_function_keyword data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED);
-	current_function->set_method_override_specifiers($3); }
+	current_function->set_method_override_specifiers($3);
+	current_function->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	current_function->set_return($4);
-	current_function->set_pure_method(true);
 	pform_set_this_class(@5, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -4278,10 +4364,10 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure method_qualifier_opt class_item_method_task_keyword IDENTIFIER
       { current_task = pform_push_task_scope(@3, $4, LexicalScope::INHERITED);
-	current_task->set_method_override_specifiers($3); }
+	current_task->set_method_override_specifiers($3);
+	current_task->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($6);
-	current_task->set_pure_method(true);
 	pform_set_this_class(@4, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -4289,11 +4375,11 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure K_virtual class_item_method_function_keyword data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@3, $5, LexicalScope::INHERITED);
-	current_function->set_method_override_specifiers($3); }
+	current_function->set_method_override_specifiers($3);
+	current_function->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($7);
 	current_function->set_return($4);
-	current_function->set_pure_method(true);
 	pform_set_this_class(@5, current_function);
 	pform_pop_scope();
 	current_function = 0;
@@ -4301,10 +4387,10 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure K_virtual class_item_method_task_keyword lifetime_opt IDENTIFIER
       { current_task = pform_push_task_scope(@3, $5, LexicalScope::INHERITED);
-	current_task->set_method_override_specifiers($3); }
+	current_task->set_method_override_specifiers($3);
+	current_task->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
-	current_task->set_pure_method(true);
 	pform_set_this_class(@5, current_task);
 	pform_pop_scope();
 	current_task = 0;
@@ -4312,11 +4398,11 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure K_protected K_virtual class_item_method_function_keyword data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
-	current_function->set_method_override_specifiers($4); }
+	current_function->set_method_override_specifiers($4);
+	current_function->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
-	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid(false);
 	current_function->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@6, current_function);
@@ -4326,11 +4412,11 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure K_virtual K_protected class_item_method_function_keyword data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
-	current_function->set_method_override_specifiers($4); }
+	current_function->set_method_override_specifiers($4);
+	current_function->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
-	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid(false);
 	current_function->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@6, current_function);
@@ -4340,10 +4426,10 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure K_protected K_virtual class_item_method_task_keyword lifetime_opt IDENTIFIER
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED);
-	current_task->set_method_override_specifiers($4); }
+	current_task->set_method_override_specifiers($4);
+	current_task->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
-	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid(false);
 	current_task->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@6, current_task);
@@ -4353,10 +4439,10 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure K_virtual K_protected class_item_method_task_keyword lifetime_opt IDENTIFIER
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED);
-	current_task->set_method_override_specifiers($4); }
+	current_task->set_method_override_specifiers($4);
+	current_task->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
-	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid(false);
 	current_task->set_method_qualifiers(property_qualifier_t::make_protected());
 	pform_set_this_class(@6, current_task);
@@ -4366,11 +4452,11 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure method_qualifier_opt class_item_qualifier_opt class_item_method_function_keyword data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
-	current_function->set_method_override_specifiers($4); }
+	current_function->set_method_override_specifiers($4);
+	current_function->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
-	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid($3.mask() == 0);
 	current_function->set_method_qualifiers($3);
 	pform_set_this_class(@6, current_function);
@@ -4380,10 +4466,10 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure method_qualifier_opt class_item_qualifier_opt class_item_method_task_keyword IDENTIFIER
       { current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
-	current_task->set_method_override_specifiers($4); }
+	current_task->set_method_override_specifiers($4);
+	current_task->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
-	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid($3.mask() == 0);
 	current_task->set_method_qualifiers($3);
 	pform_set_this_class(@5, current_task);
@@ -4393,11 +4479,11 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure K_virtual class_item_qualifier_opt class_item_method_function_keyword data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
-	current_function->set_method_override_specifiers($4); }
+	current_function->set_method_override_specifiers($4);
+	current_function->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
-	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid($3.mask() == 0);
 	current_function->set_method_qualifiers($3);
 	pform_set_this_class(@6, current_function);
@@ -4407,10 +4493,10 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure K_virtual class_item_qualifier_opt class_item_method_task_keyword lifetime_opt IDENTIFIER
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED);
-	current_task->set_method_override_specifiers($4); }
+	current_task->set_method_override_specifiers($4);
+	current_task->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
-	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid($3.mask() == 0);
 	current_task->set_method_qualifiers($3);
 	pform_set_this_class(@6, current_task);
@@ -4420,11 +4506,11 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure class_item_qualifier_opt method_qualifier_opt class_item_method_function_keyword data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
-	current_function->set_method_override_specifiers($4); }
+	current_function->set_method_override_specifiers($4);
+	current_function->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
-	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid($2.mask() == 0);
 	current_function->set_method_qualifiers($2);
 	pform_set_this_class(@6, current_function);
@@ -4434,10 +4520,10 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure class_item_qualifier_opt method_qualifier_opt class_item_method_task_keyword lifetime_opt IDENTIFIER
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED);
-	current_task->set_method_override_specifiers($4); }
+	current_task->set_method_override_specifiers($4);
+	current_task->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
-	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid($2.mask() == 0);
 	current_task->set_method_qualifiers($2);
 	pform_set_this_class(@6, current_task);
@@ -4447,11 +4533,11 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure class_item_qualifier_opt K_virtual class_item_method_function_keyword data_type_or_implicit_or_void function_identifier
       { current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
-	current_function->set_method_override_specifiers($4); }
+	current_function->set_method_override_specifiers($4);
+	current_function->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
-	current_function->set_pure_method(true);
 	current_function->set_interface_qualifier_valid($2.mask() == 0);
 	current_function->set_method_qualifiers($2);
 	pform_set_this_class(@6, current_function);
@@ -4461,10 +4547,10 @@ class_item /* IEEE1800-2005: A.1.8 */
       }
   | K_pure class_item_qualifier_opt K_virtual class_item_method_task_keyword lifetime_opt IDENTIFIER
       { current_task = pform_push_task_scope(@4, $6, LexicalScope::INHERITED);
-	current_task->set_method_override_specifiers($4); }
+	current_task->set_method_override_specifiers($4);
+	current_task->set_pure_method(true); }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($8);
-	current_task->set_pure_method(true);
 	current_task->set_interface_qualifier_valid($2.mask() == 0);
 	current_task->set_method_qualifiers($2);
 	pform_set_this_class(@6, current_task);
@@ -8804,14 +8890,14 @@ dpi_import_export_declaration
       { assert(current_function == 0);
 	pform_check_deprecated_dpi_spec_(@1, $2);
 	current_function = pform_push_function_scope(@4, $6, LexicalScope::INHERITED);
+	current_function->set_dpi_import($6, $3 & 1, $3 & 2,
+	                                 strcmp($2, "DPI") == 0);
       }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($8);
 	current_function->set_return($5);
 	pform_check_dpi_import_c_identifier_(@6, $6);
 	pform_check_dpi_linkage_version_(@1, $6, $2);
-	current_function->set_dpi_import($6, $3 & 1, $3 & 2,
-	                                 strcmp($2, "DPI") == 0);
 	pform_check_pure_dpi_function_(@4, $3 & 1, $5, $8);
 	pform_pop_scope();
 	current_function = 0;
@@ -8823,14 +8909,14 @@ dpi_import_export_declaration
       { assert(current_function == 0);
 	pform_check_deprecated_dpi_spec_(@1, $2);
 	current_function = pform_push_function_scope(@6, $8, LexicalScope::INHERITED);
+	current_function->set_dpi_import($4, $3 & 1, $3 & 2,
+	                                 strcmp($2, "DPI") == 0);
       }
     tf_port_list_parens_opt ';'
       { current_function->set_ports($10);
 	current_function->set_return($7);
 	pform_check_dpi_import_c_identifier_(@4, $4);
 	pform_check_dpi_linkage_version_(@1, $4, $2);
-	current_function->set_dpi_import($4, $3 & 1, $3 & 2,
-	                                 strcmp($2, "DPI") == 0);
 	pform_check_pure_dpi_function_(@6, $3 & 1, $7, $10);
 	pform_pop_scope();
 	current_function = 0;
@@ -8844,13 +8930,13 @@ dpi_import_export_declaration
 	if ($3 & 1) yyerror(@4, "error: A DPI import task cannot be declared "
 			    "pure (IEEE1800-2017 35.4).");
 	current_task = pform_push_task_scope(@4, $5, LexicalScope::INHERITED);
+	current_task->set_dpi_import($5, false, $3 & 2,
+	                             strcmp($2, "DPI") == 0);
       }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($7);
 	pform_check_dpi_import_c_identifier_(@5, $5);
 	pform_check_dpi_linkage_version_(@1, $5, $2);
-	current_task->set_dpi_import($5, false, $3 & 2,
-	                             strcmp($2, "DPI") == 0);
 	pform_pop_scope();
 	current_task = 0;
 	if ($2) delete[] $2;
@@ -8862,13 +8948,13 @@ dpi_import_export_declaration
 	if ($3 & 1) yyerror(@6, "error: A DPI import task cannot be declared "
 			    "pure (IEEE1800-2017 35.4).");
 	current_task = pform_push_task_scope(@6, $7, LexicalScope::INHERITED);
+	current_task->set_dpi_import($4, false, $3 & 2,
+	                             strcmp($2, "DPI") == 0);
       }
     tf_port_list_parens_opt ';'
       { current_task->set_ports($9);
 	pform_check_dpi_import_c_identifier_(@4, $4);
 	pform_check_dpi_linkage_version_(@1, $4, $2);
-	current_task->set_dpi_import($4, false, $3 & 2,
-	                             strcmp($2, "DPI") == 0);
 	pform_pop_scope();
 	current_task = 0;
 	if ($2) delete[] $2;
@@ -9560,9 +9646,9 @@ tf_port_ref_direction
 	;
 
 tf_port_direction_opt
-	: port_direction_opt
-	  { $$.direction = $1; $$.is_const = false; $$.is_ref_static = false; }
-	| tf_port_ref_direction { $$ = $1; }
+  : tf_port_direction { $$ = $1; }
+  | %empty
+      { $$.direction = NetNet::PIMPLICIT; $$.is_const = false; $$.is_ref_static = false; }
   ;
 
 procedural_assertion_statement /* IEEE1800-2012 A.6.10 */
@@ -11620,7 +11706,8 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	      }
 	      tmp = pform_make_task_ports(@4, use_port_type,
 					  port_declaration_context.data_type,
-					  port_list, false, use_const, use_ref_static);
+					  port_list, false, use_const, use_ref_static,
+					  port_declaration_context.event_type);
 
 	} else {
 		// Otherwise, the decorations for this identifier
@@ -11629,6 +11716,7 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	      port_declaration_context.port_type = use_port_type;
 	      port_declaration_context.is_const = use_const;
 	      port_declaration_context.is_ref_static = use_ref_static;
+	      port_declaration_context.event_type = false;
 	      if ($3 == 0) {
 		    $3 = new vector_type_t(IVL_VT_LOGIC, false, 0);
 		    FILE_NAME($3, @4);
@@ -11647,37 +11735,32 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
       }
 
   | tf_port_direction_opt K_var_opt data_type_or_implicit_no_opt
-      { if (!current_function || !current_function->is_extern_prototype())
-	      yyerror(@3, "error: Missing task/function port name.");
-	NetNet::PortType direction = $1.direction == NetNet::PIMPLICIT
-	      ? port_declaration_context.port_type : $1.direction;
-	if (direction == NetNet::PIMPLICIT)
-	      direction = NetNet::PINPUT;
-	bool is_const = $1.direction == NetNet::PIMPLICIT
-	      ? port_declaration_context.is_const : $1.is_const;
-	bool is_ref_static = $1.direction == NetNet::PIMPLICIT
-	      ? port_declaration_context.is_ref_static : $1.is_ref_static;
-	port_declaration_context.port_type = direction;
-	port_declaration_context.data_type = $3;
-	port_declaration_context.is_const = is_const;
-	port_declaration_context.is_ref_static = is_ref_static;
-	std::string name = "$ivl_extern_arg$" + std::to_string(@3.lexical_pos);
-	auto*ports = new std::list<pform_port_t>;
-	ports->emplace_back(pform_ident_t{lex_strings.make(name.c_str()),
-	                                 @3.lexical_pos}, nullptr, nullptr);
-	$$ = pform_make_task_ports(@3, direction, $3, ports, false,
-				   is_const, is_ref_static);
-	$$->front().unnamed = true;
-      }
+      { $$ = make_unnamed_tf_port(@3, $1, $3); }
 
-  | tf_port_direction_opt K_event IDENTIFIER
+  | tf_port_direction
+      { $$ = make_unnamed_tf_port(@1, $1); }
+
+  | tf_port_direction_opt K_var
+      { $$ = make_unnamed_tf_port(@2, $1); }
+
+  | tf_port_direction_opt K_var_opt K_event
+      { $$ = make_unnamed_tf_port(@3, $1, nullptr, true); }
+
+  | tf_port_direction_opt K_var_opt K_event IDENTIFIER
       { NetNet::PortType use_port_type = $1.direction;
+	if (use_port_type == NetNet::PIMPLICIT)
+	      use_port_type = port_declaration_context.port_type;
 	if (use_port_type == NetNet::PIMPLICIT)
 	      use_port_type = NetNet::PINPUT;
 	if (use_port_type != NetNet::PINPUT)
-	      yyerror(@2, "error: An event task/function formal must have input direction.");
-	list<pform_port_t>*port_list = make_port_list($3, @3.lexical_pos, 0, 0);
-	$$ = pform_make_task_ports(@2, NetNet::PINPUT, nullptr, port_list,
+	      yyerror(@3, "error: An event task/function formal must have input direction.");
+	port_declaration_context.port_type = NetNet::PINPUT;
+	port_declaration_context.data_type = nullptr;
+	port_declaration_context.is_const = false;
+	port_declaration_context.is_ref_static = false;
+	port_declaration_context.event_type = true;
+	list<pform_port_t>*port_list = make_port_list($4, @4.lexical_pos, 0, 0);
+	$$ = pform_make_task_ports(@3, NetNet::PINPUT, nullptr, port_list,
 				   false, false, false, true);
       }
 
@@ -11701,11 +11784,13 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	if (($3 == 0) && ($1.direction==NetNet::PIMPLICIT)) {
 	      tmp = pform_make_task_ports(@4, use_port_type,
 					  port_declaration_context.data_type,
-					  port_list, false, use_const, use_ref_static);
+					  port_list, false, use_const, use_ref_static,
+					  port_declaration_context.event_type);
 	} else {
 	      port_declaration_context.port_type = use_port_type;
 	      port_declaration_context.is_const = use_const;
 	      port_declaration_context.is_ref_static = use_ref_static;
+	      port_declaration_context.event_type = false;
 	      if ($3 == 0) {
 		    $3 = new vector_type_t(IVL_VT_LOGIC, false, 0);
 		    FILE_NAME($3, @4);
@@ -11733,6 +11818,7 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
 	port_declaration_context.interconnect = false;
 	port_declaration_context.is_const = false;
 	port_declaration_context.is_ref_static = false;
+	port_declaration_context.event_type = false;
       }
 
   /* Rules to match error cases... */
@@ -11745,31 +11831,27 @@ tf_port_item /* IEEE1800-2005: A.2.7 */
   ;
 
 tf_port_list /* IEEE1800-2005: A.2.7 */
-  :   { port_declaration_context.port_type = gn_system_verilog() ? NetNet::PINPUT : NetNet::PIMPLICIT;
-	port_declaration_context.data_type = 0;
-	port_declaration_context.is_const = false;
-      }
+  : { start_tf_port_list(); }
     tf_port_item_list
       { $$ = $2; }
   ;
 
+  /* A comma can delimit an entirely implicit prototype formal. Keep
+     tf_port_item itself nonempty so () still means zero formals. */
+tf_port_initial_comma
+  : ',' { $$ = make_unnamed_tf_port(@1); }
+  ;
+
 tf_port_item_list
   : tf_port_item_list ',' tf_port_item
-      { std::vector<pform_tf_port_t>*tmp;
-	if ($1 && $3) {
-	      size_t s1 = $1->size();
-	      tmp = $1;
-	      tmp->resize(tmp->size()+$3->size());
-	      for (size_t idx = 0 ; idx < $3->size() ; idx += 1)
-		    tmp->at(s1+idx) = $3->at(idx);
-	      delete $3;
-	} else if ($1) {
-	      tmp = $1;
-	} else {
-	      tmp = $3;
-	}
-	$$ = tmp;
-      }
+      { $$ = append_tf_ports($1, $3); }
+
+  | tf_port_initial_comma tf_port_item
+      { $$ = append_tf_ports($1, $2); }
+
+  | tf_port_initial_comma
+      { $$ = in_tf_prototype()
+	    ? append_tf_ports($1, make_unnamed_tf_port(@1)) : $1; }
 
   | tf_port_item
       { $$ = $1; }
@@ -11781,8 +11863,12 @@ tf_port_item_list
 	$$ = $3;
       }
   | tf_port_item_list ','
-      { yyerror(@2, "error: Superfluous comma in port declaration list.");
-	$$ = $1;
+      { if (in_tf_prototype()) {
+	      $$ = append_tf_ports($1, make_unnamed_tf_port(@2));
+	} else {
+	      yyerror(@2, "error: Superfluous comma in port declaration list.");
+	      $$ = $1;
+	}
       }
   | tf_port_item_list ';'
       { yyerror(@2, "error: ';' is an invalid port declaration separator.");
@@ -22989,7 +23075,7 @@ analog_statement
 
 tf_port_list_opt
   : tf_port_list { $$ = $1; }
-  |              { $$ = 0; }
+  | %empty       { start_tf_port_list(); $$ = 0; }
   ;
 
   /* A task or function prototype can be declared with the task/function name

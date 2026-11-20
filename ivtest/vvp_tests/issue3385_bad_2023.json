@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "issue3385_bad_2023.v",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue3385_bad"
+  ],
+  "gold": "issue3385_bad"
+}

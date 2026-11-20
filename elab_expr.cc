@@ -21129,7 +21129,7 @@ unsigned PECallFunction::elaborate_arguments_(Design*des, NetScope*scope,
 	    vector<perm_string> names;
 	    names.reserve(prototype_ports->size());
 	    for (const auto&port : *prototype_ports)
-		  names.push_back(port.port->basename());
+		  names.push_back(port.unnamed ? perm_string() : port.port->basename());
 	    args = map_named_args(des, names, parms_);
       } else {
 	    args = map_named_args(des, def, parms_, parm_off);

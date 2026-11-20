@@ -8220,3 +8220,9 @@ issue3164_2017 vvp_tests/issue3164_2017.json
 issue3164_2023 vvp_tests/issue3164_2023.json
 issue3164_bad_2017 vvp_tests/issue3164_bad_2017.json
 issue3164_bad_2023 vvp_tests/issue3164_bad_2023.json
+issue3385_2017 vvp_tests/issue3385_2017.json
+issue3385_2023 vvp_tests/issue3385_2023.json
+issue3385_bad_2017 vvp_tests/issue3385_bad_2017.json
+issue3385_bad_2023 vvp_tests/issue3385_bad_2023.json
+issue3385_dpi_2017 vvp_tests/issue3385_dpi_2017.json
+issue3385_dpi_2023 vvp_tests/issue3385_dpi_2023.json
