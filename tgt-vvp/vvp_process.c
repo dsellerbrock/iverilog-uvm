@@ -6905,7 +6905,7 @@ static int show_immediate_assertion_register_(ivl_statement_t net,
       name = ivl_expr_string(name_expr);
       path = ivl_expr_string(path_expr);
       if (source_id <= 0 || !name || !*name || !path
-	  || (assertion_kind != 1 && assertion_kind != 4))
+	  || (assertion_kind != 1 && assertion_kind != 2 && assertion_kind != 4))
 	    goto malformed;
       target_scope = immediate_assertion_scope_(sscope, path);
       if (!target_scope) {

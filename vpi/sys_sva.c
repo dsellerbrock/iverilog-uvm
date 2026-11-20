@@ -142,11 +142,16 @@ static PLI_INT32 sva_proc_register_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
-      PLI_INT32 idx = sva_int_arg_(argv, 0, 0);
-      PLI_INT32 pid = sva_int_arg_(argv, 0, 0);
-      PLI_INT32 each = sva_int_arg_(argv, 0, 0);
+      PLI_INT32 idx, pid, each;
+      int present;
       (void)name;
-      if (argv) vpi_free_object(argv);
+      idx = sva_int_arg_(argv, 0, &present);
+      if (!present) return 0;
+      pid = sva_int_arg_(argv, 0, &present);
+      if (!present) return 0;
+      /* Older bytecode omits each. Scanning past the end frees argv. */
+      each = sva_int_arg_(argv, 0, &present);
+      if (present) vpi_free_object(argv);
       vpip_register_proc_assertion(idx, pid, each,
 				   vpi_handle(vpiScope, callh));
       return 0;
@@ -241,9 +246,9 @@ static PLI_INT32 sva_control_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 }
 
 /*
- * M12B: $ivl_register_assertion("name", "file", line) — a synthesized
- * concurrent-assertion checker calls this once (at time 0) to register a
- * VPI identity, so vpi_iterate(vpiAssertion, ...) enumerates it.
+ * $ivl_register_assertion records the synthesized checker's VPI identity.
+ * The compiletf phase reads the elaborated constants before simulation
+ * callbacks can enumerate the design. The calltf also accepts old bytecode.
  */
 static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
@@ -265,7 +270,7 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  v.format = vpiIntVal;
 		  vpi_get_value(a, &v);
 		  idx = v.value.integer;
-	    }
+	    } else return 0;
 	    if ((a = vpi_scan(argv))) {           /* name */
 		  v.format = vpiStringVal;
 		  vpi_get_value(a, &v);
@@ -274,7 +279,7 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 			nbuf[sizeof nbuf - 1] = 0;
 			nm = nbuf;
 		  }
-	    }
+	    } else return 0;
 	    if ((a = vpi_scan(argv))) {           /* file */
 		  v.format = vpiStringVal;
 		  vpi_get_value(a, &v);
@@ -283,14 +288,14 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 			fbuf[sizeof fbuf - 1] = 0;
 			fl = fbuf;
 		  }
-	    }
+	    } else return 0;
 	    if ((a = vpi_scan(argv))) {           /* line */
 		  v.format = vpiIntVal;
 		  vpi_get_value(a, &v);
 		  ln = v.value.integer;
-	    }
+	    } else return 0;
 	      /* M12-2: optional depth_arg (fixed attempt latency + 1;
-		 0 = variable/unknown). Absent in older .vvp output. */
+		 0 = variable/unknown). An exhausted iterator is freed. */
 	    if ((a = vpi_scan(argv))) {           /* depth_arg */
 		  v.format = vpiIntVal;
 		  vpi_get_value(a, &v);
@@ -298,7 +303,7 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 	    }
 	      /* M12-1: optional flags (bit0 = failures always run the
 		 full latency). Absent in older .vvp output. */
-	    if ((a = vpi_scan(argv))) {           /* flags */
+	    if (a && (a = vpi_scan(argv))) {      /* flags */
 		  v.format = vpiIntVal;
 		  vpi_get_value(a, &v);
 		  flags = v.value.integer;
@@ -331,10 +336,39 @@ static PLI_INT32 sva_reg_assert_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  }
 		  if (a) vpi_free_object(argv);
 	    }
-      }
+      } else return 0;
       vpip_register_assertion(idx, nm, fl, ln, vpi_handle(vpiScope, callh),
 			      depth, flags, assertion_kind, inst_kind, ibuf,
 			      control_type);
+      return 0;
+}
+
+/* Only read arguments at load time if the compiler emitted constants.
+   Older VVP calls that need runtime evaluation still use calltf. */
+static int sva_registration_is_static_(void)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle arg;
+      if (!argv) return 0;
+      while ((arg = vpi_scan(argv))) {
+	    if (vpi_get(vpiType, arg) != vpiConstant) {
+		  vpi_free_object(argv);
+		  return 0;
+	    }
+      }
+      return 1;
+}
+
+static PLI_INT32 sva_reg_assert_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      if (sva_registration_is_static_()) return sva_reg_assert_calltf(name);
+      return 0;
+}
+
+static PLI_INT32 sva_proc_register_compiletf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      if (sva_registration_is_static_()) return sva_proc_register_calltf(name);
       return 0;
 }
 
@@ -817,18 +851,25 @@ static void register_one_(const char*tfname,
       vpip_make_systf_system_defined(h);
 }
 
-static void register_task_(const char*tfname,
-			   PLI_INT32 (*calltf)(ICARUS_VPI_CONST PLI_BYTE8*))
+static void register_task_with_compiletf_(const char*tfname,
+			   PLI_INT32 (*calltf)(ICARUS_VPI_CONST PLI_BYTE8*),
+			   PLI_INT32 (*compiletf)(ICARUS_VPI_CONST PLI_BYTE8*))
 {
       s_vpi_systf_data tf_data;
       memset(&tf_data, 0, sizeof tf_data);
       tf_data.type      = vpiSysTask;
       tf_data.tfname    = (PLI_BYTE8*)tfname;
       tf_data.calltf    = calltf;
-      tf_data.compiletf = sva_compiletf;
+      tf_data.compiletf = compiletf;
       tf_data.user_data = (PLI_BYTE8*)tfname;
       vpiHandle h = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(h);
+}
+
+static void register_task_(const char*tfname,
+			   PLI_INT32 (*calltf)(ICARUS_VPI_CONST PLI_BYTE8*))
+{
+      register_task_with_compiletf_(tfname, calltf, sva_compiletf);
 }
 
 void sys_sva_register(void)
@@ -844,7 +885,9 @@ void sys_sva_register(void)
 	   synthesized checkers, and the control tasks. */
       register_one_("$ivl_sva_state", sva_state_calltf);
       register_task_("$ivl_sva_proc_enqueue", sva_proc_enqueue_calltf);
-      register_task_("$ivl_sva_proc_register", sva_proc_register_calltf);
+      register_task_with_compiletf_("$ivl_sva_proc_register",
+				    sva_proc_register_calltf,
+				    sva_proc_register_compiletf);
       register_task_("$ivl_sva_proc_cap", sva_proc_cap_calltf);
       register_task_("$assertcontrol", sva_control_calltf);
       {
@@ -856,7 +899,9 @@ void sys_sva_register(void)
 
 	/* Assertion VPI identity registration + callback reporting (used
 	   by synthesized checkers; see pform_make_assertion). */
-      register_task_("$ivl_register_assertion", sva_reg_assert_calltf);
+      register_task_with_compiletf_("$ivl_register_assertion",
+				    sva_reg_assert_calltf,
+				    sva_reg_assert_compiletf);
       register_task_("$ivl_register_immediate_cover",
 		     sva_immediate_cover_register_calltf);
       register_task_("$ivl_report_immediate_cover",
