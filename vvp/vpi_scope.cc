@@ -4770,10 +4770,41 @@ void port_bit_delete(__vpiHandle *handle)
 
 vpiHandle vpiPortBitInfo::vpi_handle(int code)
 {
-
       switch (code) {
           case vpiParent:
             return parent_;
+	  case vpiHighConn:
+	  case vpiLowConn: {
+	    auto*signal = dynamic_cast<__vpiSignal*>(parent_->vpi_handle(code));
+	    if (!signal || signal->is_netarray || signal->packed_parent ||
+	        bit_ >= signal->width() ||
+	        (signal->width() == 1 && signal->declared_packed_ranges.empty()))
+		  return 0;
+	    int type = signal->get_type_code();
+	    if (type != vpiNet && type != vpiReg && type != vpiBitVar)
+		  return 0;
+
+	    // Port bits are numbered from the least significant end.
+	    unsigned offset = bit_;
+	    const size_t dimensions = signal->packed_ranges.size();
+	    for (size_t dim = 0; dim <= dimensions; ++dim) {
+		  int64_t left = signal->msb.get_value();
+		  int64_t right = signal->lsb.get_value();
+		  int64_t count = (left >= right ? left - right : right - left) + 1;
+		  unsigned stride = signal->width() / count;
+		  if (!stride) return 0;
+		  int64_t index = offset / stride;
+		  vpiHandle conn = signal->get_index(left >= right
+		                                     ? right + index : right - index);
+		  if (!conn || conn->get_type_code() == vpiNetBit ||
+		      conn->get_type_code() == vpiRegBit)
+			return conn;
+		  signal = dynamic_cast<__vpiSignal*>(conn);
+		  if (!signal) return 0;
+		  offset %= stride;
+	    }
+	    return 0;
+	  }
           default :
             break;
       }
