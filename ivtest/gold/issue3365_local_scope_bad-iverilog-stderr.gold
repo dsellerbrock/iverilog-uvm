@@ -1,0 +1,7 @@
+ivltests/issue3365_local_scope_bad.sv:14: error: local:: may only appear in an inline constraint block (IEEE 1800 18.7.1).
+ivltests/issue3365_local_scope_bad.sv:15: error: local:: may only appear in an inline constraint block (IEEE 1800 18.7.1).
+ivltests/issue3365_local_scope_bad.sv:30: error: local:: may only appear in an inline constraint block (IEEE 1800 18.7.1).
+ivltests/issue3365_local_scope_bad.sv:30: error: local:: may only appear in an inline constraint block (IEEE 1800 18.7.1).
+ivltests/issue3365_local_scope_bad.sv:34: error: local:: may only appear in an inline constraint block (IEEE 1800 18.7.1).
+ivltests/issue3365_local_scope_bad.sv:39: error: local:: may only appear in an inline constraint block (IEEE 1800 18.7.1).
+ivltests/issue3365_local_scope_bad.sv:41: error: local:: may only appear in an inline constraint block (IEEE 1800 18.7.1).
