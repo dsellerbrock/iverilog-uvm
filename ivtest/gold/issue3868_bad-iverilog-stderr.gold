@@ -1,0 +1,5 @@
+ivltests/issue3868_bad.sv:10: error: String literal requires a positional array with byte-equivalent elements.
+ivltests/issue3868_bad.sv:11: error: String literal requires a positional array with byte-equivalent elements.
+ivltests/issue3868_bad.sv:12: error: String literal requires a positional array with byte-equivalent elements.
+ivltests/issue3868_bad.sv:13: error: String literal is not an array assignment-compatible with the dynamic-array initializer.
+4 error(s) during elaboration.
