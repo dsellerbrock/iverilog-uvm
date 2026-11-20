@@ -7367,3 +7367,7 @@ issue3164_2017 normal,-g2017,-s,issue3164 ivltests gold=issue3164.gold
 issue3164_2023 normal,-g2023,-s,issue3164 ivltests gold=issue3164.gold
 issue3164_bad_2017 CE,-g2017,-s,issue3164_bad ivltests gold=issue3164_bad.gold
 issue3164_bad_2023 CE,-g2023,-s,issue3164_bad ivltests gold=issue3164_bad.gold
+issue3863_2017 normal,-g2017,-gassertions,-s,issue3863 ivltests gold=issue3863.gold
+issue3863_error_2017 CE,-g2017,-gassertions,-sissue3863_unclocked,-sissue3863_embedded ivltests gold=issue3863_error.gold
+issue3863_2023 normal,-g2023,-gassertions,-s,issue3863 ivltests gold=issue3863.gold
+issue3863_error_2023 CE,-g2023,-gassertions,-sissue3863_unclocked,-sissue3863_embedded ivltests gold=issue3863_error.gold

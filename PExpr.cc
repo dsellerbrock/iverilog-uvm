@@ -712,6 +712,7 @@ PEIdent* PEIdent::clone_for_reference() const
       PEIdent*res = path_.package
           ? new PEIdent(path_.package, path_.name, lexical_pos_)
           : new PEIdent(path_.name, lexical_pos_);
+      res->set_lookup_scope(path_.lookup_scope);
       res->leading_type_args_ = leading_type_args_;
       res->owns_leading_type_args_ = false;
       res->scoped_type_prefix_ = scoped_type_prefix_;

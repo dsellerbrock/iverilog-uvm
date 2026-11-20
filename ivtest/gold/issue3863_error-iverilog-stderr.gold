@@ -1,0 +1,3 @@
+./ivltests/issue3863_error.sv:2: error: concurrent assertion has no clocking event and no default clocking block is declared (IEEE 1800-2017 16.14.6).
+./ivltests/issue3863_error.sv:12: sorry: temporal actual of checker formal `s' is only supported as the whole property of a static checker assertion.
+2 error(s) during elaboration.

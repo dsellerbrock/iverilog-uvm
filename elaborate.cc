@@ -8635,6 +8635,9 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    // ports (IEEE 1800-2017/2023 23.3.2.4).
 					if (sr.net != 0
 					    || (rmod->is_event_port(j) && sr.eve != 0)
+					|| (rmod->is_checker && !rmod->is_event_port(j)
+					    && pform_sva_checker_sequence_actual(
+						  *this, des, scope, rmod->ports[j]->name))
 					    || (sr.scope
 						&& sr.scope->type() == NetScope::MODULE
 						&& sr.scope->is_interface())) {
@@ -8888,6 +8891,13 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    delete checker_event_lifetime_wait;
       }
 
+      vector<bool> temporal_actuals(pins.size(), false);
+      if (rmod->is_checker && strncmp(get_name().str(), "_ivl_pchk", 9) != 0) {
+	    for (NetScope*instance_scope : instance)
+		  pform_sva_elaborate_checker(des, rmod, scope, instance_scope,
+					     pins, temporal_actuals);
+      }
+
 	// M5-5: An interface formal's member types come from the concrete
 	// ACTUAL of THIS instantiation. This is required for generic ports
 	// (`interface i`) and for explicitly typed parameterized interfaces:
@@ -9093,7 +9103,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
        * child is then elaborated with the concrete scalar/vector/real/UDNT
        * type that arrives through its port instead of the logic placeholder. */
       for (unsigned idx = 0; idx < pins.size(); idx += 1) {
-	    if (rmod->is_event_port(idx))
+	    if (rmod->is_event_port(idx) || temporal_actuals[idx])
 		  continue;
 	    if (!pins[idx] || interface_type_error[idx])
 		  continue;
@@ -9126,7 +9136,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    bool using_default = false;
 
 	    perm_string port_name = rmod->get_port_name(idx);
-	    if (interface_type_error[idx])
+	    if (interface_type_error[idx] || temporal_actuals[idx])
 		  continue;
 	    if (rmod->is_event_port(idx)) {
 		  for (NetScope*inst_scope : instance)

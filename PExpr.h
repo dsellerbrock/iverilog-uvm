@@ -671,6 +671,7 @@ class PEIdent : public PExpr {
       void set_strict_bind() { strict_bind_ = true; }
       bool strict_bind() const { return strict_bind_; }
       bool no_implicit_sig() const { return no_implicit_sig_; }
+      void set_lookup_scope(NetScope*scope) { path_.lookup_scope = scope; }
 
 	// Set on COMPILER-GENERATED references that merely shadow a name
 	// the user already wrote (the $ivl_clocking_hist_on bookkeeping
@@ -1642,6 +1643,7 @@ class PECallFunction : public PExpr {
             { path_.name = name; }
       void set_path_package(PPackage*pkg)
             { path_.package = pkg; }
+      void set_lookup_scope(NetScope*scope) { path_.lookup_scope = scope; }
       void set_receiver_method(PExpr*receiver, perm_string method)
             { receiver_ = receiver;
               path_.name.clear();
