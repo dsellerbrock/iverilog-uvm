@@ -2817,8 +2817,9 @@ unsigned NetCaseCmp::width() const
       return width_;
 }
 
-NetCondit::NetCondit(NetExpr*ex, NetProc*i, NetProc*e)
-: expr_(ex), if_(i), else_(e), owns_else_(true), immediate_assertion_(false)
+NetCondit::NetCondit(NetExpr*ex, NetProc*i, NetProc*e, bool folded)
+: expr_(ex), if_(i), else_(e), owns_else_(true), immediate_assertion_(false),
+  folded_(folded)
 {
 }
 
@@ -2842,8 +2843,19 @@ NetExpr* NetCondit::expr()
 
 void NetCondit::set_expr(NetExpr*ex)
 {
-      delete expr_;
+      if (source_expr_ && !source_owner_)
+	    source_owner_.reset(expr_);
+      else
+	    delete expr_;
       expr_ = ex;
+}
+
+void NetCondit::set_source_if(ivl_if_kind_t kind, const NetExpr*expr,
+			     std::unique_ptr<NetExpr> owner)
+{
+      source_if_kind_ = kind;
+      source_expr_ = expr;
+      source_owner_ = std::move(owner);
 }
 
 NetProc* NetCondit::if_clause()
@@ -3824,6 +3836,10 @@ DelayType NetCase::delay_type(bool print_delay) const
 
 DelayType NetCondit::delay_type(bool print_delay) const
 {
+      if (folded_) {
+	    const NetProc*arm = if_ ? if_ : else_;
+	    return arm ? arm->delay_type(print_delay) : NO_DELAY;
+      }
       DelayType if_type = if_  ? if_->delay_type(print_delay)   : NO_DELAY;
       DelayType el_type = else_? else_->delay_type(print_delay) : NO_DELAY;
       return combine_delays(if_type, el_type);
