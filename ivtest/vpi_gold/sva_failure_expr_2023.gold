@@ -1,0 +1,24 @@
+Compiling vpi/sva_failure_expr.c...
+Making sva_failure_expr_2023.vpi from  sva_failure_expr.o...
+fixed_seq failures=6
+fixed_seq t=1:15 start=1:15 failExpr=a@14
+fixed_seq t=1:25 start=1:25 failExpr=a@14
+fixed_seq t=1:25 start=1:5 failExpr=c@14
+fixed_seq t=1:35 start=1:35 failExpr=a@14
+fixed_seq t=1:65 start=1:55 failExpr=b@14
+fixed_seq t=1:65 start=1:45 failExpr=d@14 (same step handle)
+ranged_seq failures=5
+ranged_seq t=1:15 start=1:15 failExpr=a@16
+ranged_seq t=1:25 start=1:25 failExpr=a@16
+ranged_seq t=1:35 start=1:5 failExpr=c@16
+ranged_seq t=1:35 start=1:35 failExpr=a@16
+ranged_seq t=1:65 start=1:55 failExpr=b@16 (same step handle)
+local_seq failures=1
+local_seq t=1:35 start=1:5 failExpr=saved@23
+disabled_seq failures=0
+killed_seq failures=0
+deep_seq failures=1
+deep_seq t=1:2565 start=1:5 failExpr=e@29
+proc_seq failures=2
+proc_seq t=1:35 start=1:5 failExpr=c@37
+proc_seq t=1:35 start=1:25 failExpr=b@37
