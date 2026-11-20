@@ -7683,6 +7683,13 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		  return 0;
 	    }
 
+	    ivl_type_t inner_element_type = ivl_type_element(inner_type);
+	    unsigned pattern_done = 0;
+	    int stage_errors = ivl_type_queue_assoc_compat(inner_element_type)
+		  ? draw_stage_checked_assoc_pattern(val, &pattern_done) : -1;
+	    int staged_pattern = stage_errors >= 0;
+	    int errors = staged_pattern ? stage_errors : 0;
+
 	      /* Walk every navigation key against the type of its own
 	       * receiver. Associative hops preserve string/object/vector key
 	       * stacks; positional hops use numeric word 3. Each hop creates
@@ -7764,7 +7771,6 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		    int inner_keyed = spec >= 4;
 		    unsigned vkind = spec & 3;
 		    uint64_t inner_max_count = queue_live_max_operand_(inner_type);
-		    ivl_type_t inner_element_type = ivl_type_element(inner_type);
 		    unsigned inner_element_width = inner_element_type
 			  ? ivl_type_packed_width(inner_element_type) : 0;
 		    if (inner_element_width == 0)
@@ -7775,7 +7781,8 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 		     * type of the inner container — string literals may
 		     * arrive as packed vectors and need the %pushv/str
 		     * conversion. */
-		  const char*k2_kind = draw_eval_assoc_key_(k2, 0);
+		  const char*k2_kind = draw_assoc_object_store_key(
+			k2, staged_pattern ? &errors : 0, staged_pattern);
 		  if (vkind == 2) {
 			if (ivl_expr_value(val) == IVL_VT_STRING) {
 			      draw_eval_string(val);
@@ -7788,8 +7795,8 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 			draw_eval_real(val);
 			fprintf(vvp_out, "    %%aa/store/r/%s;\n", k2_kind);
 		  } else if (vkind == 3) {
-			draw_queue_element_object_value_(val,
-						 inner_element_type);
+			if (!staged_pattern)
+			      draw_queue_element_object_value_(val, inner_element_type);
 			fprintf(vvp_out, "    %%aa/store/obj/%s;\n", k2_kind);
 			  } else {
 				draw_eval_vec4(val);
@@ -7822,9 +7829,11 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 			emit_object_queue_store_('i', "r",
 			                         inner_max_count, 0);
 		  } else if (vkind == 3) {
-			draw_queue_element_object_value_(val,
-						 inner_element_type);
+			if (!staged_pattern)
+			      draw_queue_element_object_value_(val, inner_element_type);
 			draw_eval_expr_into_integer(k2, 3);
+			if (staged_pattern)
+			      fprintf(vvp_out, "    %%swap/obj; selected nested value\n");
 			emit_object_queue_store_('i', "obj",
 			                         inner_max_count, 0);
 			  } else {
@@ -7839,7 +7848,9 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 				                         inner_element_width);
 		  }
 	    }
-	    return 0;
+	    if (staged_pattern)
+		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, pattern_done);
+	    return errors;
       }
 
       if (strcmp(stmt_name, "$ivl_process$kill") == 0
