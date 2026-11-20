@@ -168,7 +168,11 @@ extern char* process_octal_codes(const char*txt, unsigned wid);
  * Note: draw_modpath drive_label must be malloc'ed by the
  * caller. This function will free the string sometime in the future.
  */
-extern void draw_modpath(ivl_signal_t path_sig, char*drive_label, unsigned drive_index);
+extern void draw_modpath(ivl_signal_t path_sig, char*drive_label,
+			 unsigned drive_index, ivl_nexus_ptr_t driver);
+extern void note_modpath_contassign(ivl_scope_t scope, const char*name,
+				    unsigned label);
+extern int vpi_logic_has_primitive(ivl_net_logic_t logic);
 extern void cleanup_modpath(void);
 
 /* Draw the .tchk timing-check records of a scope tree. */

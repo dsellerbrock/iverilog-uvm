@@ -913,6 +913,8 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 			break;
 	    if (ddx < ndel) ndel = 0;
 	    if (rhs) {
+		  note_modpath_contassign(scope, ivl_contassign_driver(ca),
+					  contassign_count_);
 		  fprintf(vvp_out, "CA_%u .vpi_contassign %d, %d, %d, %u, %u, "
 			  "\"%s\"", contassign_count_++,
 			  (ivl_contassign_net_decl(ca) ? 1 : 0) | (lhs ? 2 : 0)

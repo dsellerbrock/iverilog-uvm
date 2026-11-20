@@ -260,6 +260,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".island"       { return K_ISLAND; }
 ".latch"        { return K_LATCH; }
 ".modpath"      { return K_MODPATH; }
+".modpath_conn" { return K_MODPATH_CONN; }
 ".tchk"         { return K_TCHK; }
 ".pathexpr"     { return K_PATHEXPR; }
 ".param/storage" { return K_PARAM_STORAGE; }

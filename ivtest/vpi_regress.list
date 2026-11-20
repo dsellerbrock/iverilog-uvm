@@ -300,3 +300,5 @@ issue3873_vpi_if_condition_2017 normal,-g2017,-s,top issue3873_vpi_if_condition.
 issue3873_vpi_if_condition_2023 normal,-g2023,-s,top issue3873_vpi_if_condition.c issue3873_vpi_if_condition_2023.gold
 issue3918_delay_terms_2017 normal,-g2017,-gspecify,-s,top issue3918_delay_terms.c issue3918_delay_terms_2017.gold
 issue3918_delay_terms_2023 normal,-g2023,-gspecify,-s,top issue3918_delay_terms.c issue3918_delay_terms_2023.gold
+issue3919_modpath_connectivity_2017 normal,-g2017,-gspecify,-s,top issue3919_modpath_connectivity.c issue3919_modpath_connectivity_2017.gold
+issue3919_modpath_connectivity_2023 normal,-g2023,-gspecify,-s,top issue3919_modpath_connectivity.c issue3919_modpath_connectivity_2023.gold

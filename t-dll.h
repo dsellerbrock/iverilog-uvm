@@ -722,6 +722,7 @@ struct ivl_net_const_s {
       unsigned width_          : 24;
       unsigned signed_         :  1;
       unsigned event_synchronous : 1;
+      perm_string name;
       perm_string file;
       unsigned lineno;
       ivl_scope_t scope;

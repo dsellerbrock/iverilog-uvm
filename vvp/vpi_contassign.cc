@@ -34,6 +34,8 @@
 # include  <vector>
 # include  <algorithm>
 # include  <map>
+# include  <tuple>
+# include  <climits>
 
 /* vpi_user.h does not define these Annex K codes. */
 static const int IEEE_vpiNetDeclAssign = 43;
@@ -506,6 +508,11 @@ static std::vector<force_conn_*> force_conns_;
 /* ponytail: each query scans the whole index (and once more per joined
    net); key it by root object if iterating over many nets gets slow. */
 static std::vector<conn_item_> conn_index_;
+static std::vector<__vpiModPath*> conn_paths_;
+static std::map<vpiHandle, std::vector<conn_ref_>> conn_mediated_;
+static std::set<vpiHandle> conn_stage_ports_;
+static std::set<vpiHandle> conn_stage_bridges_;
+static std::vector<std::vector<conn_ref_>> conn_output_aliases_;
 static bool conn_built_ = false;
 
 static long conn_int_(vpiHandle ref)
@@ -631,6 +638,14 @@ static bool conn_is_net_(vpiHandle ref)
 	    && ref->get_type_code() == vpiNet;
 }
 
+static bool conn_range_(vpiHandle expr, unsigned base, unsigned width, conn_ref_&ref)
+{
+      if (!width || !conn_ref_of_(expr, ref)) return false;
+      ref.lo = (ref.lo < 0 ? 0 : ref.lo) + base;
+      ref.hi = ref.lo + width - 1;
+      return true;
+}
+
 static void conn_scan_scope_(__vpiScope*scope)
 {
       for (vpiHandle item : scope->intern) {
@@ -645,8 +660,23 @@ static void conn_scan_scope_(__vpiScope*scope)
 		  continue;
 	    }
 	    if (__vpiModPath*path = dynamic_cast<__vpiModPath*>(item)) {
-		  conn_add_(&path->delay_term_out, conn_module_(scope),
-			    true, false, path->path_term_out.expr);
+		  conn_paths_.push_back(path);
+		  continue;
+	    }
+	    if (auto*terms = vpip_primitive_terms(item)) {
+		  for (vpiHandle term : *terms) {
+			unsigned base;
+			vpiHandle net = vpip_primitive_term_net(term, base);
+			conn_ref_ ref;
+			if (!net || !conn_range_(net, base, term->vpi_get(vpiSize), ref))
+			      continue;
+			int dir = term->vpi_get(vpiDirection);
+			__vpiScope*module = conn_module_(scope);
+			if (dir != vpiInput)
+			      conn_index_.push_back({term, module, true, false, {ref}, 0});
+			if (dir != vpiOutput)
+			      conn_index_.push_back({term, module, false, false, {ref}, 0});
+		  }
 		  continue;
 	    }
 	    vpiPortInfo*port = dynamic_cast<vpiPortInfo*>(item);
@@ -656,7 +686,8 @@ static void conn_scan_scope_(__vpiScope*scope)
 	    bool out = dir == vpiOutput || dir == vpiInout;
 	    vpiHandle low = port->vpi_handle(vpiLowConn);
 	    vpiHandle high = port->vpi_handle(vpiHighConn);
-	    bool joins = conn_is_net_(low) && conn_is_net_(high);
+	    bool joins = conn_is_net_(low) && conn_is_net_(high)
+		  && low->vpi_get(vpiSize) == high->vpi_get(vpiSize);
 	      /* 37.16 detail 17: seen from a net inside the module, an input
 		 port drives it and an output port loads it. */
 	    __vpiScope*module = conn_module_(scope);
@@ -669,6 +700,8 @@ static void conn_scan_scope_(__vpiScope*scope)
 	    if (high && out) conn_add_(port, outer, true, joins, high);
       }
 }
+
+static void conn_build_modpaths_();
 
 static void conn_build_(void)
 {
@@ -691,6 +724,7 @@ static void conn_build_(void)
 	    if (rec->rval())
 		  conn_add_(obj, module, false, false, rec->rval(), rec);
       }
+      conn_build_modpaths_();
 }
 
 static bool conn_overlap_(const conn_ref_&a, const conn_ref_&b)
@@ -708,11 +742,231 @@ static bool conn_touches_(const conn_item_&item, const conn_ref_&ref)
       return false;
 }
 
+static __vpiScope*conn_root_module_(vpiHandle root);
+
+/* Walk joined ports with the same canonical bit offsets. A port that
+   supplies a stage's input is itself a driver, and separates the sides. */
+static void conn_joined_nets_(std::vector<conn_ref_>&nets)
+{
+      using range = std::tuple<long, long, long>;
+      std::map<vpiHandle, std::set<range>> visited;
+      for (const conn_ref_&ref : nets)
+	    visited[ref.root].emplace(ref.word, ref.lo, ref.hi);
+      for (size_t pos = 0; pos < nets.size(); ++pos) {
+	    const conn_ref_ cur = nets[pos];
+	    auto add = [&](conn_ref_ other) {
+		  other.lo = cur.lo;
+		  other.hi = cur.hi;
+		  if (visited[other.root].emplace(other.word, other.lo, other.hi).second)
+			nets.push_back(other);
+	    };
+	    for (const auto&aliases : conn_output_aliases_) {
+		  auto same_word = [&](const conn_ref_&ref) {
+			return cur.root == ref.root && cur.word == ref.word;
+		  };
+		  if (std::any_of(aliases.begin(), aliases.end(), same_word))
+			for (const conn_ref_&alias : aliases) add(alias);
+	    }
+	    for (const conn_item_&item : conn_index_) {
+		  if (!item.joins || conn_stage_ports_.count(item.obj)
+		      || conn_stage_bridges_.count(item.obj)
+		      || !conn_touches_(item, cur)) continue;
+		  vpiHandle low = item.obj->vpi_handle(vpiLowConn);
+		  vpiHandle high = item.obj->vpi_handle(vpiHighConn);
+		  for (vpiHandle side : {low, high}) {
+			conn_ref_ other;
+			if (conn_ref_of_(side, other)) add(other);
+		  }
+	    }
+      }
+}
+
+static std::vector<conn_ref_> conn_stage_outputs_(__vpiModPath*path)
+{
+      std::vector<conn_ref_> nets;
+      for (const auto&edge : path->connections) {
+	    conn_ref_ ref;
+	    if (edge.output && conn_range_(edge.obj, edge.net_base, edge.width, ref))
+		  nets.push_back(ref);
+      }
+	/* Images predating .modpath_conn carry just the destination. */
+      if (nets.empty()) conn_refs_(path->path_term_out.expr, nets);
+      return nets;
+}
+
+static void conn_build_modpaths_()
+{
+      for (__vpiModPath*path : conn_paths_) {
+	    for (const auto&edge : path->connections)
+		  if (edge.obj->get_type_code() == vpiPort)
+			conn_stage_ports_.insert(edge.obj);
+	    auto aliases = conn_stage_outputs_(path);
+	    if (aliases.size() > 1)
+		  conn_output_aliases_.push_back(std::move(aliases));
+      }
+
+	/* An output buffer can carry an inner output net into an outer
+	   specify stage. If the same two nets are described as a joined
+	   port, that port must not bypass the stage in either direction. */
+      for (__vpiModPath*path : conn_paths_)
+	    for (const auto&src : path->connections) {
+		  if (src.output || src.obj->get_type_code() != vpiNet || src.net_base)
+			continue;
+		  for (const conn_item_&item : conn_index_) {
+			if (!item.joins || !item.drives || conn_stage_bridges_.count(item.obj))
+			      continue;
+			auto*port = static_cast<vpiPortInfo*>(item.obj);
+			if (src.width != static_cast<unsigned>(port->get_width())) continue;
+			vpiHandle pre = port->vpi_handle(port->get_direction() == vpiInput
+							? vpiHighConn : vpiLowConn);
+			if (src.obj != pre) continue;
+			vpiHandle post = port->vpi_handle(port->get_direction() == vpiInput
+							 ? vpiLowConn : vpiHighConn);
+			for (const auto&out : path->connections)
+			      if (out.output && out.obj == post && !out.net_base
+				  && out.width == src.width) {
+				    conn_stage_bridges_.insert(port);
+				    break;
+			      }
+		  }
+	    }
+
+      for (__vpiModPath*path : conn_paths_) {
+	    __vpiScope*module = conn_module_(path->scope);
+	    auto dest = conn_stage_outputs_(path);
+	    if (!dest.empty())
+		  conn_index_.push_back({&path->delay_term_out, module, true, false, dest, 0});
+	    for (const auto&src : path->connections) {
+		  if (src.output) continue;
+		  if (src.obj->get_type_code() == vpiNet) {
+			conn_ref_ ref;
+			if (conn_range_(src.obj, src.net_base, src.width, ref))
+			      conn_index_.push_back({&path->delay_term_in,
+				  conn_root_module_(ref.root), false, false, {ref}, 0});
+			continue;
+		  }
+
+		    /* Remove only the source object's mediated destination
+		       range, including the names reached through joined ports. */
+		  std::vector<conn_ref_> mediated;
+		  for (const auto&out : path->connections) {
+			if (!out.output) continue;
+			unsigned lo = std::max(out.base, src.base);
+			unsigned hi = std::min(out.base + out.width, src.base + src.width);
+			conn_ref_ ref;
+			if (lo < hi && conn_range_(out.obj, out.net_base + lo - out.base,
+						   hi - lo, ref))
+			      mediated.push_back(ref);
+		  }
+		  conn_joined_nets_(mediated);
+		  auto&ranges = conn_mediated_[src.obj];
+		  ranges.insert(ranges.end(), mediated.begin(), mediated.end());
+	    }
+      }
+      for (auto&entry : conn_mediated_)
+	    std::sort(entry.second.begin(), entry.second.end(),
+		      [](const conn_ref_&a, const conn_ref_&b) { return a.lo < b.lo; });
+}
+
 static __vpiScope*conn_root_module_(vpiHandle root)
 {
       if (__vpiArrayBase*array = dynamic_cast<__vpiArrayBase*>(root))
 	    return conn_module_(array->get_scope());
       return conn_module_(dynamic_cast<__vpiScope*>(::vpi_handle(vpiScope, root)));
+}
+
+/* Check whether the intersection still contains any direct connection
+   after subtracting the ranges routed through delay stages. */
+static bool conn_driver_touches_(const conn_item_&item, const conn_ref_&query)
+{
+      auto pos = conn_mediated_.find(item.obj);
+      if (pos == conn_mediated_.end()) return conn_touches_(item, query);
+
+      for (const conn_ref_&ref : item.refs) {
+	    if (!conn_overlap_(ref, query)) continue;
+	    long lo = std::max(0L, std::max(ref.lo, query.lo));
+	    long word = ref.word < 0 ? query.word : ref.word;
+	    long hi = LONG_MAX;
+	    if (auto*sig = dynamic_cast<__vpiSignal*>(ref.root))
+		  hi = static_cast<long>(sig->width()) - 1;
+	    else if (auto*array = dynamic_cast<__vpiArray*>(ref.root)) {
+		  if (array->nets && word >= 0 && static_cast<unsigned long>(word) < array->get_size())
+			if (auto*element = dynamic_cast<__vpiSignal*>(array->nets[word]))
+			      hi = static_cast<long>(element->width()) - 1;
+	    }
+	    if (ref.hi >= 0) hi = std::min(hi, ref.hi);
+	    if (query.hi >= 0) hi = std::min(hi, query.hi);
+	    for (const conn_ref_&mask : pos->second)
+		  if (mask.root == ref.root && mask.word == word
+		      && mask.lo <= lo && mask.hi >= lo) {
+			if (mask.hi >= hi) {
+			      hi = -1;
+			      break;
+			}
+			lo = mask.hi + 1;
+		  }
+	    if (lo <= hi) return true;
+      }
+      return false;
+}
+
+static void conn_append_(vpiHandle obj, std::vector<vpiHandle>&found)
+{
+      if (std::find(found.begin(), found.end(), obj) == found.end())
+	    found.push_back(obj);
+}
+
+static vpiHandle conn_iterator_(const std::vector<vpiHandle>&found)
+{
+      if (found.empty()) return 0;
+      auto*args = static_cast<vpiHandle*>(calloc(found.size(), sizeof(vpiHandle)));
+      std::copy(found.begin(), found.end(), args);
+      return vpip_make_iterator(found.size(), args, true);
+}
+
+static void conn_collect_(const std::vector<conn_ref_>&nets, bool drives,
+			   bool local, __vpiScope*module, std::vector<vpiHandle>&found)
+{
+      for (const conn_item_&item : conn_index_) {
+	    if (item.drives != drives) continue;
+	    if (item.stmt && !item.stmt->active) continue;
+	    if (conn_stage_bridges_.count(item.obj)) continue;
+	    if (local ? item.module != module
+		      : (item.joins && !conn_stage_ports_.count(item.obj))) continue;
+	    for (const conn_ref_&ref : nets) {
+		  bool hit = drives ? conn_driver_touches_(item, ref) : conn_touches_(item, ref);
+		  if (!hit) continue;
+		  conn_append_(item.obj, found);
+		  break;
+	    }
+      }
+}
+
+vpiHandle vpip_modpath_conn_iterate(__vpiModPath*path, bool input, int code)
+{
+      if (code != (input ? vpiDriver : vpiLoad)) return 0;
+      conn_build_();
+      std::vector<conn_ref_> nets;
+      std::vector<vpiHandle> found;
+      if (!input) {
+	    nets = conn_stage_outputs_(path);
+      } else {
+	    for (const auto&edge : path->connections) {
+		  if (edge.output) continue;
+		  if (edge.obj->get_type_code() != vpiNet)
+			conn_append_(edge.obj, found);
+		  else {
+			conn_ref_ ref;
+			if (conn_range_(edge.obj, edge.net_base, edge.width, ref))
+			      nets.push_back(ref);
+		  }
+	    }
+      }
+      if (!nets.empty()) {
+	    conn_joined_nets_(nets);
+	    conn_collect_(nets, input, false, nullptr, found);
+      }
+      return conn_iterator_(found);
 }
 
 /* vpiUse (37.58 details 1 and 2): every continuous assignment, port and
@@ -724,16 +978,12 @@ static vpiHandle conn_uses_(const conn_ref_&query)
       conn_build_();
       std::vector<vpiHandle> found;
       for (const conn_item_&item : conn_index_) {
+	    int type = item.obj->get_type_code();
+	    if (type == vpiPrimTerm || (type == vpiDelayTerm && !item.drives)) continue;
 	    if (!conn_touches_(item, query)) continue;
-	    if (std::find(found.begin(), found.end(), item.obj) == found.end())
-		  found.push_back(item.obj);
+	    conn_append_(item.obj, found);
       }
-      if (found.empty()) return 0;
-      vpiHandle*args = static_cast<vpiHandle*>(
-	    calloc(found.size(), sizeof(vpiHandle)));
-      for (size_t idx = 0; idx < found.size(); idx += 1)
-	    args[idx] = found[idx];
-      return vpip_make_iterator(found.size(), args, true);
+      return conn_iterator_(found);
 }
 
 vpiHandle vpip_conn_iterate(int code, vpiHandle ref)
@@ -758,44 +1008,10 @@ vpiHandle vpip_conn_iterate(int code, vpiHandle ref)
 	   joined through ports (37.16 details 4 and 22). Local iteration
 	   stays inside the net's own module instance. */
       std::vector<conn_ref_> nets(1, query);
-      for (size_t cur = 0; !local && cur < nets.size(); cur += 1)
-	    for (const conn_item_&item : conn_index_) {
-		  if (!item.joins || !conn_touches_(item, nets[cur])) continue;
-		  vpiHandle low = item.obj->vpi_handle(vpiLowConn);
-		  vpiHandle high = item.obj->vpi_handle(vpiHighConn);
-		  for (vpiHandle side : {low, high}) {
-			conn_ref_ other;
-			bool seen = false;
-			if (!conn_ref_of_(side, other)) continue;
-			other.lo = nets[cur].lo;
-			other.hi = nets[cur].hi;
-			for (const conn_ref_&have : nets)
-			      if (have.root == other.root) seen = true;
-			if (!seen) nets.push_back(other);
-		  }
-	    }
-
-      __vpiScope*module = conn_root_module_(query.root);
+      if (!local) conn_joined_nets_(nets);
       std::vector<vpiHandle> found;
-      for (const conn_item_&item : conn_index_) {
-	    if (item.drives != drives) continue;
-	    if (item.stmt && !item.stmt->active) continue;
-	    if (local ? item.module != module : item.joins) continue;
-	    bool hit = false;
-	    for (const conn_ref_&cur : nets)
-		  if (conn_touches_(item, cur)) hit = true;
-	    if (!hit) continue;
-	    bool dup = false;
-	    for (vpiHandle have : found)
-		  if (have == item.obj) dup = true;
-	    if (!dup) found.push_back(item.obj);
-      }
-      if (found.empty()) return 0;
-      vpiHandle*args = static_cast<vpiHandle*>(
-	    calloc(found.size(), sizeof(vpiHandle)));
-      for (size_t idx = 0; idx < found.size(); idx += 1)
-	    args[idx] = found[idx];
-      return vpip_make_iterator(found.size(), args, true);
+      conn_collect_(nets, drives, local, conn_root_module_(query.root), found);
+      return conn_iterator_(found);
 }
 
 void compile_vpi_force_conn(char*label, uint64_t stmt_id, unsigned long nlval,

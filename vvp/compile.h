@@ -139,7 +139,8 @@ extern void compile_vpi_primitive(char*label, char*name, long prim_type,
 				  long strength1, char*udp_name);
 extern void compile_vpi_primitive_term(char*primitive_label,
 				       long direction, long term_index,
-				       long width, char*expression_label);
+				       long width, char*expression_label,
+				       char*net_label = nullptr, uint64_t base = 0);
 
 /*
  * This function is called by the parser to compile a functor
@@ -329,6 +330,8 @@ extern __vpiModPath* compile_modpath(char*label,
 				     unsigned pulse_flags,
 				     struct symb_s drv,
 				     struct symb_s dest);
+extern void compile_modpath_conn(char*stage, uint64_t base, uint64_t width,
+				 uint64_t type, char*symbol, uint64_t index);
 extern void compile_modpath_src(__vpiModPath*dst,
 				char edge,
 				const struct symb_s&src,

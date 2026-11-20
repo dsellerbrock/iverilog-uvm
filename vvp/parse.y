@@ -124,6 +124,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR K_EVENT_ORDER
 %token K_EXPORT K_EXTEND_S K_SAMPLE K_REACTIVE K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH K_TCHK
 %token K_PATHEXPR K_PARAM_STORAGE
+%token K_MODPATH_CONN
 %token K_ATTRIBUTE
 %token K_PARAM_TYPE
 %token K_VIF_PROXY K_STRUCT_LEAF K_EVENT_VALID
@@ -724,6 +725,9 @@ statement
     { modpath_dst = compile_modpath($1, $3, $4, $5, $6); }
    modpath_src_list ';'
     { modpath_dst = 0; }
+ | K_MODPATH_CONN T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ','
+                  T_SYMBOL ',' T_NUMBER ';'
+    { compile_modpath_conn($2, $4, $6, $8, $10, $12); }
 
   /* .pathexpr <modpath>, <source index>, <n> "<rpn>"... ; and
      P_<p> .param/storage <variable> ; (SDF LABEL, IEEE 1800 32.4.3) */
@@ -978,6 +982,9 @@ statement
 	| T_LABEL K_vpi_primterm T_NUMBER ',' T_NUMBER ',' T_NUMBER ','
 	  T_STRING ';'
 		{ compile_vpi_primitive_term($1, $3, $5, $7, $9); }
+	| T_LABEL K_vpi_primterm T_NUMBER ',' T_NUMBER ',' T_NUMBER ','
+	  T_STRING ',' T_SYMBOL ',' T_NUMBER ';'
+		{ compile_vpi_primitive_term($1, $3, $5, $7, $9, $11, $13); }
 
   /* %file_line statements are instructions that have unusual operand
      requirements so are handled by their own rules. */

@@ -14,6 +14,7 @@ ivl_design_root
 ivl_design_roots
 ivl_design_time_precision
 
+ivl_const_basename
 ivl_const_bits
 ivl_const_delay
 ivl_const_file
