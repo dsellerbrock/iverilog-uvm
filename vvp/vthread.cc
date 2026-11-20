@@ -32856,6 +32856,55 @@ bool of_STREAM_TO_STRUCT(vthread_t thr, vvp_code_t cp)
       return true;
 }
 
+/* Consume the formatter's internal counted buffer and materialize the
+ * string-literal assignment value (IEEE 1800 5.9 and 11.10.3). */
+static bool materialize_formatted_bytes_(vthread_t thr, bool as_queue)
+{
+      if (thr->str_stack_size() == 0) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: %container/bytes is missing its formatter result."
+		 << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+
+      const string result = thr->pop_str();
+      if (result.size() > UINT_MAX) {
+	    cerr << thr->get_fileline()
+		 << "VVP error: formatted byte container length exceeds the index range."
+		 << endl;
+	    return container_opcode_runtime_fatal_();
+      }
+      const unsigned count = result.empty() ? 1 : static_cast<unsigned>(result.size());
+      vvp_queue_vec4*queue = as_queue ? new vvp_queue_vec4 : nullptr;
+      vvp_darray*array = queue ? static_cast<vvp_darray*>(queue)
+			       : new vvp_darray_atom<int8_t>(count);
+      vvp_vector4_t word(8, BIT4_0);
+      for (unsigned idx = 0; idx < count; ++idx) {
+	    const unsigned long byte_value = result.empty() ? 0
+		  : static_cast<unsigned char>(result[idx]);
+	    word.setarray(0, 8, &byte_value);
+	    if (queue)
+		  queue->push_back(word, 0);
+	    else
+		  array->set_word(idx, word);
+      }
+      array->set_declared_container_layout(vvp_make_container_layout(
+	    as_queue ? VVP_CONTAINER_QUEUE : VVP_CONTAINER_DARRAY,
+	    as_queue, 0, vvp_container_layout_t()));
+      thr->push_object(vvp_object_t(array));
+      return true;
+}
+
+bool of_CONTAINER_BYTES_A(vthread_t thr, vvp_code_t)
+{
+      return materialize_formatted_bytes_(thr, false);
+}
+
+bool of_CONTAINER_BYTES_Q(vthread_t thr, vvp_code_t)
+{
+      return materialize_formatted_bytes_(thr, true);
+}
+
 /* Install an exact queue declaration bound on the object at the top of the
  * stack without changing the stack. This complements legacy materialization
  * instructions whose packed operands cannot carry a uint64_t maximum. */

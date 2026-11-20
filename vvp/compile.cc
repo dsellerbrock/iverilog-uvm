@@ -362,6 +362,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%constraint_mode", of_CONSTRAINT_MODE, 1,{OA_NUMBER, OA_NONE,OA_NONE} },
       { "%constraint_mode/all", of_CONSTRAINT_MODE_ALL, 0,{OA_NONE, OA_NONE,OA_NONE} },
       { "%constraint_mode/get", of_CONSTRAINT_MODE_GET, 1,{OA_NUMBER, OA_NONE,OA_NONE} },
+      { "%container/bytes/a",of_CONTAINER_BYTES_A,0,{OA_NONE,OA_NONE,OA_NONE} },
+      { "%container/bytes/q",of_CONTAINER_BYTES_Q,0,{OA_NONE,OA_NONE,OA_NONE} },
       { "%container/layout/q",of_CONTAINER_LAYOUT_Q,1,
 	{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%container/to/queue",of_CONTAINER_TO_QUEUE,2,

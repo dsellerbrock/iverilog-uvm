@@ -8285,3 +8285,9 @@ issue3863_2017 vvp_tests/issue3863_2017.json
 issue3863_error_2017 vvp_tests/issue3863_error_2017.json
 issue3863_2023 vvp_tests/issue3863_2023.json
 issue3863_error_2023 vvp_tests/issue3863_error_2023.json
+
+# IEEE 1800-2017/2023 21.3.3: formatting into resizable byte containers.
+issue3869_2017 vvp_tests/issue3869_2017.json
+issue3869_2023 vvp_tests/issue3869_2023.json
+issue3869_bad_2017 vvp_tests/issue3869_bad_2017.json
+issue3869_bad_2023 vvp_tests/issue3869_bad_2023.json
