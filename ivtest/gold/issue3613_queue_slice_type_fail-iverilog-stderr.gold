@@ -1,0 +1,4 @@
+./ivltests/issue3613_queue_slice_type_fail.sv:13: error: fixed unpacked-array slice element type is not assignment compatible with the queue element type.
+./ivltests/issue3613_queue_slice_type_fail.sv:14: error: fixed unpacked-array slice element type is not assignment compatible with the queue element type.
+./ivltests/issue3613_queue_slice_type_fail.sv:15: error: fixed unpacked-array slice element type is not assignment compatible with the queue element type.
+3 error(s) during elaboration.
