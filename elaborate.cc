@@ -11309,8 +11309,57 @@ NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope,
 				  runtime_indexed_slice)
 	    : lval_->elaborate_lval(des, scope, continuous_lval_, false,
 				    authorized_initializer);
-	if (lval && continuous_lval_)
-	      lval->mark_force_lval();
+
+      const PEStreaming*stream = dynamic_cast<const PEStreaming*>(rval());
+      if (stream && stream->is_lval_context()) {
+	    // Unpacking reverses the stream layout of 11.4.14.1: an
+	    // untagged unpacked union contributes its first declared member.
+	    // Project it before either assignment form measures the target.
+	    for (NetAssign_**link = &lval; *link; link = &(*link)->more) {
+		  NetAssign_*leaf = *link;
+		  const netstruct_t*record =
+			dynamic_cast<const netstruct_t*>(leaf->lval_type());
+		  if (!record || record->packed() || !record->union_flag()
+		      || record->tagged_flag())
+			continue;
+		  if (record->members().empty()) {
+			delete lval;
+			return nullptr; // The type declaration already failed.
+		  }
+		  const netstruct_t::member_t&first = record->members().front();
+		  ivl_type_t type = first.net_type;
+		  if (type->packed() && type_is_vectorable(type->base_type())) {
+			if (leaf->get_property_idx() >= 0 || leaf->nest() || leaf->word()) {
+			      // Keep the receiver (and any selector) separate from
+			      // the member and transfer the concatenation tail.
+			      *link = new NetAssign_(leaf);
+			      (*link)->more = leaf->more;
+			      leaf->more = nullptr;
+			      leaf = *link;
+			}
+			leaf->set_property(first.name, 0);
+			continue;
+		  }
+
+		  const netstruct_t*member_record = dynamic_cast<const netstruct_t*>(type);
+		  if ((member_record && !member_record->tagged_flag())
+		      || dynamic_cast<const netuarray_t*>(type)) {
+			cerr << get_fileline() << ": sorry: streaming unpack into "
+			     << "an unpacked aggregate first member of an untagged "
+			     << "union is not yet supported." << endl;
+		  } else {
+			cerr << get_fileline() << ": error: the first member of "
+			     << "the untagged union cannot be a streaming unpack "
+			     << "target (IEEE 1800-2017/2023 11.4.14.1)." << endl;
+		  }
+		  des->errors += 1;
+		  delete lval;
+		  return nullptr;
+	    }
+      }
+
+      if (lval && continuous_lval_)
+	    lval->mark_force_lval();
       return lval;
 }
 
