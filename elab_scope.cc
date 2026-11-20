@@ -4368,6 +4368,43 @@ static void resolve_class_interface_relations_(Design*des,
       }
 }
 
+/* Resolve the class named after `extends'. A base reached through a
+ * forward `typedef class C;' whose class is declared later does not elaborate
+ * as a type yet, so look the class up by name. Its #(...) parameter values
+ * still select the specialization (IEEE 1800-2017/2023 8.25): dropping them
+ * bound the generic class with its default parameters as the base. */
+static const netclass_t* resolve_class_base_type_(Design*des,
+						  NetScope*class_scope,
+						  const data_type_t*base)
+{
+      ivl_type_t base_type = const_cast<data_type_t*>(base)
+	    ->elaborate_type(des, class_scope);
+      base_type = specialize_bare_class_at_concrete_use(
+	    des, class_scope, base, base_type, true);
+      if (const netclass_t*resolved = dynamic_cast<const netclass_t*>(base_type))
+	    return resolved;
+
+      perm_string base_name;
+      const typeref_t*base_ref = dynamic_cast<const typeref_t*>(base);
+      if (base_ref) {
+	    if (typedef_t*base_td = base_ref->typedef_ref())
+		  base_name = base_td->name;
+      } else if (const class_type_t*base_class_type =
+		 dynamic_cast<const class_type_t*>(base)) {
+	    base_name = base_class_type->name;
+      }
+      if (!base_name)
+	    return 0;
+
+      const netclass_t*resolved = class_scope->find_class(des, base_name);
+      if (!resolved)
+	    resolved = ensure_visible_class_type(des, class_scope, base_name);
+      if (resolved && base_ref && base_ref->parameter_values())
+	    resolved = elaborate_specialized_class_type(
+		  des, class_scope, resolved, base_ref->parameter_values());
+      return resolved;
+}
+
 static void set_class_super_(Design*des, const PClass*pclass,
 			     netclass_t*use_class,
 			     const netclass_t*use_base_class)
@@ -4781,26 +4818,8 @@ const netclass_t* elaborate_specialized_class_type(Design*des, NetScope*call_sco
 
       const netclass_t*use_base_class = 0;
       if (use_type->base_type) {
-	    ivl_type_t base_type = use_type->base_type->elaborate_type(des, class_scope);
-	    base_type = specialize_bare_class_at_concrete_use(
-	          des, class_scope, use_type->base_type.get(), base_type, true);
-	    use_base_class = dynamic_cast<const netclass_t*>(base_type);
-	    if (!use_base_class) {
-		  perm_string base_name;
-		  if (const typeref_t*base_ref = dynamic_cast<const typeref_t*>(use_type->base_type.get())) {
-			if (typedef_t*base_td = base_ref->typedef_ref())
-			      base_name = base_td->name;
-		  } else if (const class_type_t*base_class_type =
-			     dynamic_cast<const class_type_t*>(use_type->base_type.get())) {
-			base_name = base_class_type->name;
-		  }
-
-		  if (base_name) {
-			use_base_class = class_scope->find_class(des, base_name);
-			if (!use_base_class)
-			      use_base_class = ensure_visible_class_type(des, class_scope, base_name);
-		  }
-	    }
+	    use_base_class = resolve_class_base_type_(
+		  des, class_scope, use_type->base_type.get());
       }
       set_class_super_(des, pclass, use_class, use_base_class);
       use_class->configure_constraint_declarations(des, pclass);
@@ -5010,26 +5029,8 @@ static void elaborate_scope_class(Design*des, NetScope*scope, PClass*pclass)
 
       const netclass_t*use_base_class = 0;
       if (use_type->base_type) {
-	    ivl_type_t base_type = use_type->base_type->elaborate_type(des, class_scope);
-	    base_type = specialize_bare_class_at_concrete_use(
-	          des, class_scope, use_type->base_type.get(), base_type, true);
-	    use_base_class = dynamic_cast<const netclass_t *>(base_type);
-	    if (!use_base_class) {
-		  perm_string base_name;
-		  if (const typeref_t*base_ref = dynamic_cast<const typeref_t*>(use_type->base_type.get())) {
-			if (typedef_t*base_td = base_ref->typedef_ref())
-			      base_name = base_td->name;
-		  } else if (const class_type_t*base_class_type =
-			     dynamic_cast<const class_type_t*>(use_type->base_type.get())) {
-			base_name = base_class_type->name;
-		  }
-
-		  if (base_name) {
-			use_base_class = class_scope->find_class(des, base_name);
-			if (!use_base_class)
-			      use_base_class = ensure_visible_class_type(des, class_scope, base_name);
-		  }
-	    }
+	    use_base_class = resolve_class_base_type_(
+		  des, class_scope, use_type->base_type.get());
 	    if (!use_base_class) {
 		  cerr << pclass->get_fileline() << ": error: "
 		       << "Base type of " << use_type->name
@@ -5282,27 +5283,8 @@ static void complete_class_scope_in_place_(Design*des, NetScope*scope,
 
       const netclass_t*use_base_class = 0;
       if (use_type->base_type) {
-	    ivl_type_t base_type = use_type->base_type->elaborate_type(des, class_scope);
-	    base_type = specialize_bare_class_at_concrete_use(
-	          des, class_scope, use_type->base_type.get(), base_type, true);
-	    use_base_class = dynamic_cast<const netclass_t*>(base_type);
-	    if (!use_base_class) {
-		  perm_string base_name;
-		  if (const typeref_t*base_ref =
-			      dynamic_cast<const typeref_t*>(use_type->base_type.get())) {
-			if (typedef_t*base_td = base_ref->typedef_ref())
-			      base_name = base_td->name;
-		  } else if (const class_type_t*base_class_type =
-			     dynamic_cast<const class_type_t*>(use_type->base_type.get())) {
-			base_name = base_class_type->name;
-		  }
-
-		  if (base_name) {
-			use_base_class = class_scope->find_class(des, base_name);
-			if (!use_base_class)
-			      use_base_class = ensure_visible_class_type(des, class_scope, base_name);
-		  }
-	    }
+	    use_base_class = resolve_class_base_type_(
+		  des, class_scope, use_type->base_type.get());
 	    if (!use_base_class) {
 		  cerr << pclass->get_fileline() << ": error: "
 		       << "Base type of " << use_type->name

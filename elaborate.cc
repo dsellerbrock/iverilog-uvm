@@ -51315,17 +51315,14 @@ static void check_override_types_(Design*des, NetScope*class_scope,
 		  in_chain = cur == owner;
 	    if (!in_chain)
 		  continue;
-	      /* A prototype in a parameterized class is no evidence: the class
-		 reached through the super chain can carry another
-		 specialization's elaborated formal types (for UVM's
-		 uvm_printer_element_proxy, the uvm_structure_proxy prototype
-		 showed uvm_component, from uvm_component_proxy). Compare types
-		 only against a class declared without parameters. */
+	      /* A prototype in a specialization carries that specialization's
+		 formal types. A generic master's formals are only its default
+		 parameter types, so skip a prototype reached through one. */
 	    const NetScope*owner_scope = owner->class_scope();
 	    const PClass*owner_pclass = owner_scope
 		  ? owner_scope->class_pform() : nullptr;
-	    if (!owner_pclass || owner_pclass->has_parameter_port_list
-		|| owner->specialized_instance())
+	    if (!owner_pclass || (owner_pclass->has_parameter_port_list
+				  && !owner->specialized_instance()))
 		  continue;
 	    bool func = method->type() == NetScope::FUNC;
 	    const NetBaseDef*def = func
