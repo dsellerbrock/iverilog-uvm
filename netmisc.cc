@@ -215,6 +215,17 @@ static bool assoc_array_type_is_direct_(ivl_type_t type)
       return queue && queue->assoc_compat();
 }
 
+bool positional_byte_container_type(ivl_type_t type)
+{
+      const netdarray_t*array = dynamic_cast<const netdarray_t*>(type);
+      if (!array || assoc_array_type_is_direct_(array))
+	    return false;
+
+      ivl_type_t element = array->element_type();
+      return element && packed_types_equivalent(&netvector_t::atom2s8,
+						 element);
+}
+
 static bool assoc_array_component_equivalent_(ivl_type_t left,
 					       ivl_type_t right);
 
