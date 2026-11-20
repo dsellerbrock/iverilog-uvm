@@ -414,6 +414,7 @@ NetEUnary* NetEUnary::dup_expr() const
 {
       NetEUnary*tmp = new NetEUnary(op_, expr_->dup_expr(), expr_width(), has_sign());
       ivl_assert(*this, tmp);
+      tmp->two_state_part_incdec(two_state_part_incdec());
       tmp->set_line(*this);
       return tmp;
 }
