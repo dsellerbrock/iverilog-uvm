@@ -68,8 +68,8 @@ static uint64_t vpi_stmt_id_(ivl_statement_t stmt)
 }
 
 static int vpi_statement_visible_(ivl_statement_t stmt);
-static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
-			       ivl_scope_t owner, ivl_scope_t scope);
+static uint64_t emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
+				    ivl_scope_t owner, ivl_scope_t scope);
 
 static int pure_comb_expr_(ivl_expr_t expr)
 {
@@ -1816,6 +1816,10 @@ static int show_stmt_block(ivl_statement_t net, ivl_scope_t sscope)
             ivl_stmt_block_randsequence(net);
       unsigned rs_out = 0;
       vvp_randsequence_flow_t saved_rs = { 0, 0 };
+
+	/* Give a preserved empty expect action an entry address of its own. */
+      if (cnt == 0)
+	    fputs("    %noop;\n", vvp_out);
 
       if (rs_kind != IVL_RANDSEQ_BLOCK_NONE) {
             rs_out = local_count++;
@@ -9474,6 +9478,7 @@ static unsigned vpi_statement_type_(ivl_statement_t stmt)
       switch (ivl_statement_type(stmt)) {
           case IVL_ST_NOOP: return vpiNullStmt;
           case IVL_ST_BLOCK:
+	    if (ivl_stmt_is_expect(stmt)) return vpiExpectStmt;
 	    if (vpi_value_return_block_(stmt)) return vpiReturnStmt;
 	    return ivl_stmt_block_scope(stmt) ? vpiNamedBegin : vpiBegin;
           case IVL_ST_FORK:
@@ -9560,7 +9565,6 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       unsigned type;
       const char *name = "";
       vpi_stmt_id_entry_t*entry;
-      if (!vpi_statement_visible_(stmt)) return 0;
       id = next_vpi_stmt_id_++;
       entry = calloc(1, sizeof *entry);
       assert(entry);
@@ -9569,7 +9573,10 @@ static uint64_t emit_vpi_stmt_node_(ivl_statement_t stmt, uint64_t parent)
       entry->next = active_vpi_stmt_ids_;
       active_vpi_stmt_ids_ = entry;
       type = vpi_statement_type_(stmt);
-      if (ivl_statement_type(stmt) == IVL_ST_STASK && ivl_stmt_name(stmt))
+      if (type == vpiExpectStmt) {
+	    const char *label = ivl_stmt_expect_label(stmt);
+	    if (label) name = label;
+      } else if (ivl_statement_type(stmt) == IVL_ST_STASK && ivl_stmt_name(stmt))
             name = ivl_stmt_name(stmt);
       else if (ivl_statement_type(stmt) == IVL_ST_UTASK
                && ivl_stmt_call(stmt))
@@ -9604,15 +9611,46 @@ static void emit_vpi_while_condition_(ivl_statement_t stmt, uint64_t id,
 	    fprintf(vvp_out, "    .scope S_%p;\n", owner);
 }
 
-static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
-			       ivl_scope_t owner, ivl_scope_t scope)
+static uint64_t emit_vpi_expect_action_(ivl_statement_t stmt, uint64_t parent,
+					ivl_scope_t owner, ivl_scope_t scope)
+{
+      if (!stmt) return 0;
+      if (ivl_statement_type(stmt) == IVL_ST_NOOP)
+	    return emit_vpi_stmt_node_(stmt, parent);
+      return emit_vpi_stmt_tree_(stmt, parent, owner, scope);
+}
+
+static uint64_t emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
+				    ivl_scope_t owner, ivl_scope_t scope)
 {
       uint64_t id;
       unsigned idx, count = 0;
-      if (!vpi_statement_visible_(stmt)) return;
+      if (!vpi_statement_visible_(stmt)) return 0;
+
+      if (ivl_statement_type(stmt) == IVL_ST_BLOCK) {
+	    ivl_statement_t source = ivl_stmt_block_vpi_source(stmt);
+	    if (source) {
+		  if (ivl_stmt_block_scope(stmt))
+			scope = ivl_stmt_block_scope(stmt);
+		  return emit_vpi_stmt_tree_(source, parent, owner, scope);
+	    }
+      }
+
       id = emit_vpi_stmt_node_(stmt, parent);
+      if (ivl_stmt_is_expect(stmt)) {
+	    uint64_t pass = emit_vpi_expect_action_(ivl_stmt_expect_action(stmt, 1),
+						    id, owner, scope);
+	    uint64_t fail = emit_vpi_expect_action_(ivl_stmt_expect_action(stmt, 0),
+						    id, owner, scope);
+	    fprintf(vvp_out, "    .stmt_expect %" PRIu64 " %" PRIu64 " %" PRIu64 " %u ",
+		    id, pass, fail, ivl_stmt_lineno(stmt));
+	    emit_vpi_stmt_name_(ivl_stmt_file(stmt));
+	    fputs(";\n", vvp_out);
+	    return id;
+      }
+
 	/* A return statement has no statements below it. */
-      if (vpi_value_return_block_(stmt)) return;
+      if (vpi_value_return_block_(stmt)) return id;
       switch (ivl_statement_type(stmt)) {
           case IVL_ST_BLOCK:
           case IVL_ST_FORK:
@@ -9663,6 +9701,7 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
           default:
             break;
       }
+      return id;
 }
 
 static void emit_vpi_task_stmt_tree_(ivl_statement_t def, ivl_scope_t owner)
@@ -9671,7 +9710,8 @@ static void emit_vpi_task_stmt_tree_(ivl_statement_t def, ivl_scope_t owner)
       ivl_statement_t only_stmt = 0;
       reset_vpi_stmt_ids_();
       if (!def || !vpi_statement_visible_(def)) return;
-      if (ivl_statement_type(def) == IVL_ST_BLOCK) {
+      if (ivl_statement_type(def) == IVL_ST_BLOCK
+	  && !ivl_stmt_is_expect(def) && !ivl_stmt_block_vpi_source(def)) {
 	    for (idx = 0; idx < ivl_stmt_block_count(def); idx += 1) {
 		  ivl_statement_t stmt = ivl_stmt_block_stmt(def, idx);
 		  if (!vpi_statement_visible_(stmt)) continue;

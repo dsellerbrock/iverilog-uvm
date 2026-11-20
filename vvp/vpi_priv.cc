@@ -510,6 +510,7 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	  case vpiForInitStmt: return "vpiForInitStmt";
 	  case vpiForIncStmt: return "vpiForIncStmt";
 	  case vpiNullStmt: return "vpiNullStmt";
+	  case vpiExpectStmt: return "vpiExpectStmt";
 	  case vpiOrderedWait: return "vpiOrderedWait";
 	  case vpiWaitFork: return "vpiWaitFork";
 	  case vpiDisableFork: return "vpiDisableFork";

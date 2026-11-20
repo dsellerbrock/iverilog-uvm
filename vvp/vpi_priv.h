@@ -32,6 +32,7 @@
 
 # include  <map>
 # include  <list>
+# include  <memory>
 # include  <set>
 # include  <string>
 # include  <vector>
@@ -440,8 +441,10 @@ class __vpiStmtNode : public __vpiHandle {
       int vpi_get(int code) override;
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_iterate(int code) override;
-      void add_child(__vpiStmtNode*child);
+      bool add_child(__vpiStmtNode*child);
       bool attach_condition(char*symbol, vpiHandle expr);
+      bool attach_expect(__vpiStmtNode*pass, __vpiStmtNode*fail,
+			 unsigned line, const char*file);
 
       __vpiScope*scope_;
       std::vector<struct vvp_code_s*> code_addresses_;
@@ -452,6 +455,13 @@ class __vpiStmtNode : public __vpiHandle {
       std::vector<__vpiStmtNode*> children_;
       vpiHandle condition_ = nullptr;
       bool has_condition_ = false;
+      struct Expect {
+	    vpiHandle pass;
+	    vpiHandle fail;
+	    unsigned line;
+	    std::string file;
+      };
+      std::unique_ptr<Expect> expect_;
 };
 
 /* Deferred-report selectors use module/cell hierarchy depth, not the number

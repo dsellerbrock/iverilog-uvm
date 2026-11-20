@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3901_vpi_expect.sv",
+  "iverilog-args": ["-g2017", "-s", "top", "-L", "work", "-m", "issue3901_vpi_expect_2017"],
+  "vpi-modules": ["issue3901_vpi_expect_2017"],
+  "vpi-sources": ["vpi/issue3901_vpi_expect.c"],
+  "gold": "issue3901_vpi_expect"
+}

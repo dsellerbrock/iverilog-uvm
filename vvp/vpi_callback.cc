@@ -125,6 +125,7 @@ static bool stmt_callback_capable_(int type)
 	  case vpiEventStmt:
 	  case vpiDelayControl:
 	  case vpiEventControl:
+	  case vpiExpectStmt:
 	  case vpiTaskCall:
 	  case vpiSysTaskCall:
 	    return true;

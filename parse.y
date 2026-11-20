@@ -1897,6 +1897,12 @@ static Statement* pform_finish_labeled_statement(
 {
       PBlock*block = pform_finish_procedural_block(scope);
       if (statement) {
+	    if (PBlock*expect = dynamic_cast<PBlock*>(statement)) {
+		  if (expect->is_expect() && expect->expect_label().nil()) {
+			expect->expect_label(block->pscope_name());
+			block->forward_expect(expect);
+		  }
+	    }
 	    std::vector<Statement*> statements(1, statement);
 	    block->set_statement(statements);
       }

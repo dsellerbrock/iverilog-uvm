@@ -1099,6 +1099,12 @@ struct ivl_statement_assign_aux_s {
       unsigned nevent;
 };
 
+struct ivl_expect_stmt_s {
+      const char*label;
+      ivl_statement_t pass;
+      ivl_statement_t fail;
+};
+
 struct ivl_statement_s {
       enum ivl_statement_type_e type_;
       unsigned lineno;
@@ -1125,6 +1131,8 @@ struct ivl_statement_s {
 		  unsigned nstmt_;
 		  ivl_scope_t scope;
 		  ivl_randsequence_block_t randsequence;
+		  ivl_expect_stmt_s*expect;
+		  ivl_statement_t vpi_source;
 	    } block_;
 
 	    struct { /* IVL_ST_BREAK */

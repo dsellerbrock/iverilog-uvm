@@ -314,6 +314,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".scope"        { return K_SCOPE; }
 .iodecl         { return K_IODECL; }
 ".stmt_node"    { return K_STMT_NODE; }
+".stmt_expect"  { return K_STMT_EXPECT; }
 ".stmt_at"      { return K_STMT_AT; }
 ".vpi_3041_condition" { return K_VPI_3041_CONDITION; }
 ".sfunc"        { return K_SFUNC; }

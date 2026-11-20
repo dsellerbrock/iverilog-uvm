@@ -458,6 +458,13 @@ void dll_target::proc_assign_nb(const NetAssignNB*net)
       }
 }
 
+/* The dispatch and its optional control guards already own the emitted
+   action statements. Keep references to those same execution nodes. */
+static ivl_statement_t expect_action_(ivl_statement_t action, bool guarded)
+{
+      return guarded ? ivl_stmt_cond_true(action) : action;
+}
+
 bool dll_target::proc_block(const NetBlock*net)
 {
       assert(stmt_cur_);
@@ -470,8 +477,8 @@ bool dll_target::proc_block(const NetBlock*net)
 		 ;  cur ;  cur = net->proc_next(cur))
 	    count += 1;
 
-	/* If the block has no statements, then turn it into a no-op */
-      if (count == 0) {
+	/* An empty source action block still has block identity. */
+      if (count == 0 && net->expect_action() != NetBlock::ExpectAction::Block) {
 	    stmt_cur_->type_ = IVL_ST_NOOP;
 	    return true;
       }
@@ -480,6 +487,8 @@ bool dll_target::proc_block(const NetBlock*net)
 	   child remains an independent process (IEEE 1800-2017/2023 9.3.2). */
       if ((count == 1) && (net->subscope() == 0) &&
 	  (net->randsequence_block() == IVL_RANDSEQ_BLOCK_NONE) &&
+	  net->expect_action() != NetBlock::ExpectAction::Block &&
+	  !net->expect_dispatch() && !net->vpi_source_stmt() &&
 	  (net->type() == NetBlock::SEQU)) {
 	    return net->proc_first()->emit_proc(this);
       }
@@ -520,9 +529,21 @@ bool dll_target::proc_block(const NetBlock*net)
       for (const NetProc*cur = net->proc_first()
 		 ;  cur ;  cur = net->proc_next(cur), idx += 1) {
 	    assert(idx < count);
-	    stmt_cur_ = save_cur_->u_.block_.stmt_ + idx;
+	    ivl_statement_t child = save_cur_->u_.block_.stmt_ + idx;
+	    stmt_cur_ = child;
 	    bool rc = cur->emit_proc(this);
 	    flag = flag && rc;
+	    if (cur == net->vpi_source_stmt())
+		  save_cur_->u_.block_.vpi_source = child;
+	    if (rc && cur == net->expect_dispatch()) {
+		  auto*expect = dll_procedure_new<ivl_expect_stmt_s>();
+		  expect->label = net->expect_label().str();
+		  expect->pass = expect_action_(ivl_stmt_cond_true(child),
+					       net->expect_pass_guard());
+		  expect->fail = expect_action_(ivl_stmt_cond_false(child),
+					       net->expect_else_guard());
+		  save_cur_->u_.block_.expect = expect;
+	    }
       }
       assert(idx == count);
 

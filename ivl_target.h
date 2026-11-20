@@ -2795,6 +2795,13 @@ extern ivl_scope_t ivl_stmt_block_scope(ivl_statement_t net);
 extern ivl_statement_t ivl_stmt_block_stmt(ivl_statement_t net, unsigned i);
   /* IVL_ST_BLOCK, IVL_ST_FORK, IVL_ST_FORK_JOIN_ANY, IVL_ST_FORK_JOIN_NONE */
 extern ivl_randsequence_block_t ivl_stmt_block_randsequence(ivl_statement_t net);
+
+/* Source expect information on its lowered execution block. The actions
+ * and any forwarded source statement point into the emitted statement tree. */
+extern int ivl_stmt_is_expect(ivl_statement_t net);
+extern const char* ivl_stmt_expect_label(ivl_statement_t net);
+extern ivl_statement_t ivl_stmt_expect_action(ivl_statement_t net, int pass);
+extern ivl_statement_t ivl_stmt_block_vpi_source(ivl_statement_t net);
   /* IVL_ST_BREAK */
 extern ivl_flow_control_t ivl_stmt_break_kind(ivl_statement_t net);
   /* IVL_ST_UTASK IVL_ST_DISABLE */

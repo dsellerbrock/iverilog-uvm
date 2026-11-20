@@ -34730,6 +34730,31 @@ static PEventStatement* sva_clone_wait_(const struct vlltype&loc,
       return w;
 }
 
+static PBlock* sva_finish_expect_(const struct vlltype&loc, unsigned inst,
+				 std::vector<Statement*>&body, perm_string result,
+				 Statement*pass_stmt, Statement*else_stmt)
+{
+      for (Statement*action : {pass_stmt, else_stmt}) {
+	    if (auto*block = dynamic_cast<PBlock*>(action))
+		  block->preserve_expect_action();
+	    if (auto*noop = dynamic_cast<PNoop*>(action))
+		  noop->preserve_expect_action();
+      }
+
+      Statement*pass = sva_action_guard_(loc, SVA_SPACE_EXPECT, inst,
+					SVA_STATE_PASS_ACTION, pass_stmt);
+      Statement*fail = sva_action_guard_(loc, SVA_SPACE_EXPECT, inst,
+					SVA_STATE_FAIL_ACTION, else_stmt);
+      Statement*dispatch = sva_if_(loc, sva_id_(loc, result), pass, fail);
+      body.push_back(dispatch);
+
+      PBlock*block = new PBlock(PBlock::BL_SEQ);
+      FILE_NAME(block, loc);
+      block->set_statement(body);
+      block->expect_dispatch(dispatch, pass != pass_stmt, fail != else_stmt);
+      return block;
+}
+
 /* M9-frontier (Phase 3): `expect (property) pass; else fail;' (IEEE
    1800-2017 16.17). Unlike `assert property' (a standing concurrent
    checker), `expect' is a PROCEDURAL statement: the executing process
@@ -34914,19 +34939,12 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 					 sva_block_(loc, inner), nullptr));
 	    }
 
-	      /* Terminal dispatch: pass on a match, else on a failure. */
-	      body.push_back(sva_if_(loc, sva_id_(loc, m),
-			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_PASS_ACTION,
-					   pass_stmt),
-			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_FAIL_ACTION,
-					   else_stmt)));
-
 	      /* The clock was cloned per wait; the original is now free. */
 	    delete prop->clk_evt;
 	    delete prop->seq;      // step exprs stolen (nulled) above
 	    delete prop;
 
-	    return sva_block_(loc, body);
+	    return sva_finish_expect_(loc, inst, body, m, pass_stmt, else_stmt);
       }
 
 	/* ---- M9-11: inline single-attempt automaton driver ----
@@ -35015,11 +35033,6 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 			       sva_block_(loc, tick));
       FILE_NAME(loop, loc);
       body.push_back(loop);
-	      body.push_back(sva_if_(loc, sva_id_(loc, ok_r),
-			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_PASS_ACTION,
-					   pass_stmt),
-			 sva_action_guard_(loc, SVA_SPACE_EXPECT, inst, SVA_STATE_FAIL_ACTION,
-					   else_stmt)));
 
 	/* Null the stolen guard expressions at their sources so the
 	   deletes below cannot double-free them. */
@@ -35036,7 +35049,7 @@ Statement* pform_make_expect(const struct vlltype&loc, sva_property_t*prop,
 	    delete prop->seq;
       delete prop;
 
-      return sva_block_(loc, body);
+      return sva_finish_expect_(loc, inst, body, ok_r, pass_stmt, else_stmt);
 }
 
 /*

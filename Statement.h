@@ -290,6 +290,18 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       ivl_randsequence_block_t randsequence_block() const
       { return randsequence_block_; }
 
+      void expect_dispatch(const Statement*stmt, bool pass_guard, bool else_guard)
+      {
+	    expect_dispatch_ = stmt;
+	    expect_pass_guard_ = pass_guard;
+	    expect_else_guard_ = else_guard;
+      }
+      bool is_expect() const { return expect_dispatch_ != nullptr; }
+      perm_string expect_label() const { return expect_label_; }
+      void expect_label(perm_string label) { expect_label_ = label; }
+      void forward_expect(const PBlock*stmt) { expect_child_ = stmt; }
+      void preserve_expect_action() { preserve_expect_action_ = true; }
+
       bool var_init_needs_explicit_lifetime() const override;
 
 	// This is only used if this block is the statement list for a
@@ -327,6 +339,12 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       bool vpi_foreach_scope_ = false;
       bool deferred_assertion_process_scope_ = false;
       bool concurrent_assertion_only_ = false;
+      bool preserve_expect_action_ = false;
+      bool expect_pass_guard_ = false;
+      bool expect_else_guard_ = false;
+      perm_string expect_label_;
+      const Statement*expect_dispatch_ = nullptr;
+      const PBlock*expect_child_ = nullptr;
       ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;
       std::vector<Statement*>list_;
 };
@@ -1037,7 +1055,11 @@ class PNoop  : public Statement {
       bool refs_name(perm_string name) const override;
       PNoop() { }
       ~PNoop() override { }
+      void preserve_expect_action() { preserve_expect_action_ = true; }
       NetProc* elaborate(Design*des, NetScope*scope) const override;
+
+    private:
+      bool preserve_expect_action_ = false;
 };
 
 class PRepeat : public Statement {

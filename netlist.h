@@ -4109,6 +4109,7 @@ class NetBlock  : public NetProc {
 
     public:
       enum Type { SEQU, PARA, PARA_JOIN_ANY, PARA_JOIN_NONE };
+      enum class ExpectAction { None, Block, Null };
 
       NetBlock(Type t, NetScope*subscope);
       ~NetBlock() override;
@@ -4121,6 +4122,26 @@ class NetBlock  : public NetProc {
       { randsequence_block_ = kind; }
       ivl_randsequence_block_t randsequence_block() const
       { return randsequence_block_; }
+
+      void expect_action(ExpectAction kind) { expect_action_ = kind; }
+      ExpectAction expect_action() const { return expect_action_; }
+
+      void expect_dispatch(const NetProc*stmt, bool pass_guard, bool else_guard,
+			   perm_string label)
+      {
+	    expect_dispatch_ = stmt;
+	    expect_pass_guard_ = pass_guard;
+	    expect_else_guard_ = else_guard;
+	    expect_label_ = label;
+      }
+      const NetProc* expect_dispatch() const { return expect_dispatch_; }
+      bool expect_pass_guard() const { return expect_pass_guard_; }
+      bool expect_else_guard() const { return expect_else_guard_; }
+      perm_string expect_label() const { return expect_label_; }
+
+	// A lexical or frame wrapper for an expect or its source action.
+      void vpi_source_stmt(const NetProc*stmt) { vpi_source_stmt_ = stmt; }
+      const NetProc* vpi_source_stmt() const { return vpi_source_stmt_; }
 
       void append(NetProc*);
       void prepend(NetProc*);
@@ -4165,6 +4186,12 @@ class NetBlock  : public NetProc {
       NetScope*subscope_;
       const NetScope*automatic_task_call_ = nullptr;
       ivl_randsequence_block_t randsequence_block_;
+      ExpectAction expect_action_ = ExpectAction::None;
+      bool expect_pass_guard_ = false;
+      bool expect_else_guard_ = false;
+      perm_string expect_label_;
+      const NetProc*expect_dispatch_ = nullptr;
+      const NetProc*vpi_source_stmt_ = nullptr;
 
       NetProc*last_;
 };

@@ -139,6 +139,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
 %token K_VPI_3041_CONDITION
+%token K_STMT_EXPECT
 %token K_CLASS_DEFN K_CLASS_TYPESPEC K_CLASS_RUNTIME
 %token K_CLASS_CONSTRAINT
 %token K_CLASS_EXTENDS K_CLASS_BASE K_CLASS_CTOR K_CLASS_PARAM
@@ -1107,6 +1108,9 @@ statement
 
 	| K_STMT_NODE T_NUMBER T_NUMBER T_NUMBER T_STRING ';'
 		{ compile_stmt_node($2, $3, $4, $5); }
+
+	| K_STMT_EXPECT T_NUMBER T_NUMBER T_NUMBER T_NUMBER T_STRING ';'
+		{ compile_stmt_expect($2, $3, $4, $5, $6); }
 
 	| K_STMT_AT T_NUMBER ';'
 		{ compile_stmt_at($2); }

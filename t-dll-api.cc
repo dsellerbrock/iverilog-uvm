@@ -4182,6 +4182,30 @@ extern "C" ivl_flow_control_t ivl_stmt_break_kind(ivl_statement_t net)
       return net->u_.flow_.kind;
 }
 
+extern "C" int ivl_stmt_is_expect(ivl_statement_t net)
+{
+      return net->type_ == IVL_ST_BLOCK && net->u_.block_.expect;
+}
+
+extern "C" const char* ivl_stmt_expect_label(ivl_statement_t net)
+{
+      assert(ivl_stmt_is_expect(net));
+      return net->u_.block_.expect->label;
+}
+
+extern "C" ivl_statement_t ivl_stmt_expect_action(ivl_statement_t net, int pass)
+{
+      assert(ivl_stmt_is_expect(net));
+      const auto*expect = net->u_.block_.expect;
+      return pass ? expect->pass : expect->fail;
+}
+
+extern "C" ivl_statement_t ivl_stmt_block_vpi_source(ivl_statement_t net)
+{
+      assert(net->type_ == IVL_ST_BLOCK);
+      return net->u_.block_.vpi_source;
+}
+
 extern "C" unsigned ivl_stmt_block_count(ivl_statement_t net)
 {
       assert(net);

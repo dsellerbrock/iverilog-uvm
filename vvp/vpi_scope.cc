@@ -650,6 +650,8 @@ char* __vpiStmtNode::vpi_get_str(int code)
 {
       if (code == vpiName && name_ && *name_)
 	    return const_cast<char*>(name_);
+      if (code == vpiFile && expect_)
+	    return simple_set_rbuf_str(expect_->file.c_str());
 	/* A force or assign statement knows its source from its identity. */
       if (code == vpiFile)
 	    if (vpiHandle id = vpip_force_conn_identity(this))
@@ -659,6 +661,7 @@ char* __vpiStmtNode::vpi_get_str(int code)
 
 int __vpiStmtNode::vpi_get(int code)
 {
+      if (code == vpiLineNo && expect_) return expect_->line;
       if (code == vpiLineNo)
 	    if (vpiHandle id = vpip_force_conn_identity(this))
 		  return id->vpi_get(code);
@@ -670,6 +673,10 @@ vpiHandle __vpiStmtNode::vpi_handle(int code)
       if (code == vpiParent) return parent_;
       if (code == vpiScope) return scope_;
       if (code == vpiCondition && type_ == vpiWhile) return condition_;
+      if (expect_) {
+	    if (code == vpiStmt) return expect_->pass;
+	    if (code == vpiElseStmt) return expect_->fail;
+      }
       if (vpiHandle rel = vpip_force_conn_relation(this, code)) return rel;
       return __vpiHandle::vpi_handle(code);
 }
@@ -684,8 +691,13 @@ vpiHandle __vpiStmtNode::vpi_iterate(int code)
       return vpip_make_iterator(children_.size(), args, true);
 }
 
-void __vpiStmtNode::add_child(__vpiStmtNode*child)
-{ children_.push_back(child); child->parent_ = this; }
+bool __vpiStmtNode::add_child(__vpiStmtNode*child)
+{
+      if (expect_) return false;
+      children_.push_back(child);
+      child->parent_ = this;
+      return true;
+}
 
 bool __vpiStmtNode::attach_condition(char*symbol, vpiHandle expr)
 {
@@ -697,6 +709,25 @@ bool __vpiStmtNode::attach_condition(char*symbol, vpiHandle expr)
 	    compile_vpi_lookup(&condition_, symbol);
       else
 	    condition_ = expr;
+      return true;
+}
+
+bool __vpiStmtNode::attach_expect(__vpiStmtNode*pass, __vpiStmtNode*fail,
+				 unsigned line, const char*file)
+{
+      if (type_ != vpiExpectStmt || expect_) return false;
+
+	/* The two relations must identify the public children in source order.
+	   An absent action has no child and uses id zero in the record. */
+      size_t next = 0;
+      for (__vpiStmtNode*action : {pass, fail}) {
+	    if (!action) continue;
+	    if (next == children_.size() || children_[next++] != action)
+		  return false;
+      }
+      if (next != children_.size()) return false;
+
+      expect_.reset(new Expect{pass, fail, line, file});
       return true;
 }
 
@@ -4077,7 +4108,10 @@ void compile_stmt_node(uint64_t id, uint64_t parent, uint64_t type, char*name)
 	    std::map<uint64_t, vpiHandle>::iterator par =
 		  scope->statement_node_by_id.find(parent);
 	    assert(par != scope->statement_node_by_id.end());
-	    static_cast<__vpiStmtNode*>(par->second)->add_child(obj);
+	    if (!static_cast<__vpiStmtNode*>(par->second)->add_child(obj)) {
+		  yyerror("unexpected child after .stmt_expect metadata");
+		  compile_errors += 1;
+	    }
       }
       scope->statement_node_by_id[id] = obj;
       scope->statement_nodes.push_back(obj);
@@ -4095,6 +4129,22 @@ static __vpiStmtNode* find_stmt_node_(uint64_t id)
 	    scope = scope->scope;
       }
       return nullptr;
+}
+
+void compile_stmt_expect(uint64_t id, uint64_t pass_id, uint64_t fail_id,
+			 uint64_t line, char*file)
+{
+      std::unique_ptr<char[]> source_file(file);
+      __vpiStmtNode*node = find_stmt_node_(id);
+      __vpiStmtNode*pass = pass_id ? find_stmt_node_(pass_id) : nullptr;
+      __vpiStmtNode*fail = fail_id ? find_stmt_node_(fail_id) : nullptr;
+      if (node && node->scope_ == vpip_peek_current_scope()
+	  && (!pass_id || pass) && (!fail_id || fail) && line <= INT_MAX
+	  && node->attach_expect(pass, fail, static_cast<unsigned>(line), file))
+	    return;
+
+      yyerror("invalid .stmt_expect metadata");
+      compile_errors += 1;
 }
 
 void compile_vpi_3041_condition(uint64_t id, char*symbol, vpiHandle expr)

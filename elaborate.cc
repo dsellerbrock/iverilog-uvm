@@ -17245,6 +17245,8 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 
       NetBlock*cur = new NetBlock(type, nscope);
       cur->randsequence_block(randsequence_block_);
+      if (preserve_expect_action_)
+	    cur->expect_action(NetBlock::ExpectAction::Block);
       NetBlock*prefix = 0;
 
       if (nscope) {
@@ -17369,6 +17371,7 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	// referenced elsewhere.
       if ((type == NetBlock::SEQU) && (list_.size() == 1) &&
           (pscope_name() == 0)
+	  && !preserve_expect_action_ && !is_expect()
 	  && (randsequence_block_ == IVL_RANDSEQ_BLOCK_NONE)) {
 	    ivl_assert(*this, list_[0]);
 	    NetProc*tmp = list_[0]->elaborate(des, nscope);
@@ -17412,12 +17415,18 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	      // Empty parallel children still terminate a process and can
 	      // release join_any (IEEE 1800-2017/2023 9.3.2, Table 9-1).
 	    if (NetBlock*tbl = dynamic_cast<NetBlock*>(tmp))
-		  if (type == NetBlock::SEQU && tbl->proc_first() == 0) {
+		  if (type == NetBlock::SEQU && tbl->proc_first() == 0
+		      && tbl->expect_action() == NetBlock::ExpectAction::None) {
 			delete tbl;
 			continue;
 		  }
 
 	    cur->append(tmp);
+	    if (list_[idx] == expect_dispatch_)
+		  cur->expect_dispatch(tmp, expect_pass_guard_, expect_else_guard_,
+				       expect_label_);
+	    if (list_[idx] == expect_child_)
+		  cur->vpi_source_stmt(tmp);
       }
 
       if (type != NetBlock::SEQU)
@@ -17435,12 +17444,15 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    && scope_is_within_function_(scope) && cur->proc_first();
       if (prefix) {
 	    prefix->set_line(*this);
-	    if (cur->proc_first())
-		  prefix->append(needs_function_background_guard
-				 ? guard_function_background_event_(scope, *this, cur)
-				 : cur);
-	    else
+	    if (cur->proc_first() || preserve_expect_action_) {
+		  NetProc*body = needs_function_background_guard
+			? guard_function_background_event_(scope, *this, cur) : cur;
+		  prefix->append(body);
+		  if (is_expect() || expect_child_ || preserve_expect_action_)
+			prefix->vpi_source_stmt(body);
+	    } else {
 		  delete cur;
+	    }
 	    NetFree*fp = new NetFree(nscope);
 	    fp->set_line(*this);
 	    prefix->append(fp);
@@ -17454,6 +17466,8 @@ NetProc* PNoop::elaborate(Design*, NetScope*) const
 {
       NetBlock*res = new NetBlock(NetBlock::SEQU, nullptr);
       res->set_line(*this);
+      if (preserve_expect_action_)
+	    res->expect_action(NetBlock::ExpectAction::Null);
       return res;
 }
 
@@ -18903,14 +18917,16 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	// empty blocks. If this is the case, remove the blocks as
 	// null statements.
       if (const NetBlock*tmp = dynamic_cast<NetBlock*>(i)) {
-	    if (tmp->proc_first() == 0) {
+	    if (tmp->proc_first() == 0
+		&& tmp->expect_action() == NetBlock::ExpectAction::None) {
 		  delete i;
 		  i = 0;
 	    }
       }
 
       if (const NetBlock*tmp = dynamic_cast<NetBlock*>(e)) {
-	    if (tmp->proc_first() == 0) {
+	    if (tmp->proc_first() == 0
+		&& tmp->expect_action() == NetBlock::ExpectAction::None) {
 		  delete e;
 		  e = 0;
 	    }

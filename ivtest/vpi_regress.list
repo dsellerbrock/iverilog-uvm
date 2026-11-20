@@ -292,3 +292,5 @@ sva_step_unbounded_2017 normal,-g2017,-s,top sva_step_unbounded.c sva_step_unbou
 sva_step_unbounded_2023 normal,-g2023,-s,top sva_step_unbounded.c sva_step_unbounded_2023.gold
 issue3872_vpi_while_condition_2017 normal,-g2017,-s,top issue3872_vpi_while_condition.c issue3872_vpi_while_condition_2017.gold
 issue3872_vpi_while_condition_2023 normal,-g2023,-s,top issue3872_vpi_while_condition.c issue3872_vpi_while_condition_2023.gold
+issue3901_vpi_expect_2017 normal,-g2017,-s,top issue3901_vpi_expect.c issue3901_vpi_expect_2017.gold
+issue3901_vpi_expect_2023 normal,-g2023,-s,top issue3901_vpi_expect.c issue3901_vpi_expect_2023.gold
