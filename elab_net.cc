@@ -46,11 +46,13 @@ using namespace std;
 NetNet* PEConcat::elaborate_lnet_common_(Design*des, NetScope*scope,
 					 bool bidirectional_flag,
 					 bool var_allowed_in_sv,
-					 bool pass_switch_flag) const
+					 bool pass_switch_flag,
+                                         net_alias_operand_t*alias) const
 {
       ivl_assert(*this, scope);
 
       std::vector<NetNet*> nets(parms_.size());
+      unsigned source_errors = des->errors;
       unsigned width = 0;
       unsigned errors = 0;
 
@@ -61,6 +63,8 @@ NetNet* PEConcat::elaborate_lnet_common_(Design*des, NetScope*scope,
 	    des->errors += 1;
 	    return 0;
       }
+
+      if (alias) alias->children.resize(nets.size());
 
 	/* Elaborate the operands of the concatenation. */
       for (unsigned idx = 0 ;  idx < nets.size() ;  idx += 1) {
@@ -82,9 +86,12 @@ NetNet* PEConcat::elaborate_lnet_common_(Design*des, NetScope*scope,
 		  if (pass_switch_flag)
 			nets[idx] = parms_[idx]->elaborate_pass_net(des, scope,
 			                                            var_allowed_in_sv);
+                  else if (alias)
+                        nets[idx] = parms_[idx]->elaborate_alias_net(
+                              des, scope, alias->children[idx]);
 		  else
-			nets[idx] = parms_[idx]->elaborate_bi_net(des, scope,
-			                                          var_allowed_in_sv);
+			nets[idx] = parms_[idx]->elaborate_bi_net(
+                              des, scope, var_allowed_in_sv);
 	    } else {
 		  nets[idx] = parms_[idx]->elaborate_lnet(des, scope, var_allowed_in_sv);
 	    }
@@ -111,6 +118,16 @@ NetNet* PEConcat::elaborate_lnet_common_(Design*des, NetScope*scope,
 	   operands, and connect it up. Scan the operands of the
 	   concat operator from most significant to least significant,
 	   which is the order they are given in the concat list. */
+
+      if (alias && source_errors == des->errors) {
+            std::unique_ptr<NetEConcat> value(new NetEConcat(
+                  nets.size(), 1, nets[0]->data_type()));
+            value->set_line(*this);
+            for (unsigned idx = 0; idx < nets.size(); ++idx)
+                  value->set(idx, alias->children[idx].value.release());
+            alias->value = std::move(value);
+            alias->is_pattern = lvalue_pattern_;
+      }
 
       const netvector_t*tmp2_vec = new netvector_t(nets[0]->data_type(),width-1,0);
       NetNet*osig = new NetNet(scope, scope->local_symbol(),
@@ -181,6 +198,12 @@ NetNet* PEConcat::elaborate_bi_net(Design*des, NetScope*scope,
                                    bool var_allowed_in_sv) const
 {
       return elaborate_lnet_common_(des, scope, true, var_allowed_in_sv);
+}
+
+NetNet* PEConcat::elaborate_alias_net(Design*des, NetScope*scope,
+                                       net_alias_operand_t&alias) const
+{
+      return elaborate_lnet_common_(des, scope, true, false, false, &alias);
 }
 
 NetNet* PEConcat::elaborate_pass_net(Design*des, NetScope*scope,
@@ -567,12 +590,55 @@ bool check_unresolved_net_driver(Design*des, const LineInfo&loc,
  * nets. There is very little that is different between the two cases,
  * so most of the work for both is done here.
  */
+/* The structural l-value has already bound and validated these constant
+   selectors. Preserve their declared coordinates before using the flattened
+   offset for the VPI expression's value. */
+static void alias_selects_(Design*des, NetScope*scope,
+                           const list<index_component_t>&indices,
+                           vector<ivl_alias_select_t>&out)
+{
+      for (const auto&idx : indices) {
+            ivl_alias_select_t sel = {};
+            switch (idx.sel) {
+                case index_component_t::SEL_BIT:
+                  sel.type = IVL_ALIAS_INDEX;
+                  break;
+                case index_component_t::SEL_PART:
+                  sel.type = IVL_ALIAS_PART;
+                  break;
+                case index_component_t::SEL_IDX_UP:
+                  sel.type = IVL_ALIAS_INDEXED_UP;
+                  break;
+                case index_component_t::SEL_IDX_DO:
+                  sel.type = IVL_ALIAS_INDEXED_DOWN;
+                  break;
+                default:
+                  continue;
+            }
+            std::unique_ptr<NetExpr> first(elab_and_eval(des, scope, idx.msb,
+                                                        -1, true));
+            const auto*left = dynamic_cast<const NetEConst*>(first.get());
+            ivl_assert(*idx.msb, left && left->value().is_defined());
+            sel.first = left->value().as_long();
+            if (idx.lsb) {
+                  std::unique_ptr<NetExpr> second(elab_and_eval(
+                        des, scope, idx.lsb, -1, true));
+                  const auto*right = dynamic_cast<const NetEConst*>(second.get());
+                  ivl_assert(*idx.lsb, right && right->value().is_defined());
+                  sel.second = right->value().as_long();
+            }
+            out.push_back(sel);
+      }
+}
+
 NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 					bool bidirectional_flag,
 					bool var_allowed_in_sv,
-					bool pass_switch_flag) const
+					bool pass_switch_flag,
+                                         net_alias_operand_t*alias) const
 {
       ivl_assert(*this, scope);
+      unsigned source_errors = des->errors;
 
       symbol_search_results sr;
       symbol_search(this, des, scope, path_, lexical_pos_, &sr);
@@ -776,6 +842,7 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 	// trailing vector select must not apply those same indices again.
       bool trailing_member_index_consumed = false;
 
+      std::vector<ivl_alias_select_t> alias_members;
       const netstruct_t*struct_type = 0;
       if ((struct_type = sig->struct_type()) && !member_path.empty()) {
 
@@ -906,6 +973,11 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
 
 		  member_off += tmp_off;
 		  member_width = member->net_type->packed_width();
+                  if (alias)
+                        alias_members.push_back({IVL_ALIAS_MEMBER,
+                              static_cast<long>(tmp_off),
+                              static_cast<long>(member_width), member_name.str(),
+                              member->net_type});
 		    // Remember what was selected. The branches below may
 		    // narrow this further (an index into a packed-array
 		    // member, a nested struct); the width guard at the
@@ -1499,6 +1571,31 @@ NetNet* PEIdent::elaborate_lnet_common_(Design*des, NetScope*scope,
        * an enclosing scope. Follow the outward chain to its canonical raw
        * resolver. The links are acyclic by construction: ownership only
        * moves from an inner scope to a dominating outer scope. */
+      if (alias && source_errors == des->errors && (!widx_flag || widx >= 0)) {
+            if (member_path.size() != alias_members.size()) {
+                  cerr << get_fileline() << ": error: Cannot bind net alias operand "
+                       << path_ << "." << endl;
+                  ++des->errors;
+                  return nullptr;
+            }
+            NetExpr*value = sig->unpacked_dimensions()
+                  ? new NetESignal(sig, new NetEConst(verinum(widx)))
+                  : new NetESignal(sig);
+            if (explicit_vector_select)
+                  value = new NetESelect(value, new NetEConst(verinum(lidx)),
+                                         subnet_wid);
+            value->set_line(*this);
+            alias->value.reset(value);
+            alias_selects_(des, scope, member_path.empty() ? path_tail.index
+                                                          : base_path.back().index,
+                           alias->selects);
+            size_t member_idx = 0;
+            for (const auto&member : member_path) {
+                  alias->selects.push_back(alias_members[member_idx++]);
+                  alias_selects_(des, scope, member.index, alias->selects);
+            }
+      }
+
       while (NetNet*raw = sig->net_delay_driver()) {
 	    ivl_assert(*this, raw != sig);
 	    sig = raw;
@@ -1606,6 +1703,12 @@ NetNet* PEIdent::elaborate_bi_net(Design*des, NetScope*scope,
                                   bool var_allowed_in_sv) const
 {
       return elaborate_lnet_common_(des, scope, true, var_allowed_in_sv);
+}
+
+NetNet* PEIdent::elaborate_alias_net(Design*des, NetScope*scope,
+                                       net_alias_operand_t&alias) const
+{
+      return elaborate_lnet_common_(des, scope, true, false, false, &alias);
 }
 
 NetNet* PEIdent::elaborate_pass_net(Design*des, NetScope*scope,

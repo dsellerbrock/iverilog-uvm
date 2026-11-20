@@ -1263,6 +1263,16 @@ bool dll_target::order_processes(vector<target_process_ref_t>&processes)
       return true;
 }
 
+static ivl_alias_operand_s make_alias_operand_(const net_alias_operand_t&src,
+                                               ivl_expr_t value)
+{
+      ivl_alias_operand_s res = {value, {}, src.selects, src.is_pattern};
+      for (unsigned idx = 0; idx < src.children.size(); ++idx)
+            res.children.push_back(make_alias_operand_(
+                  src.children[idx], ivl_expr_parm(value, idx)));
+      return res;
+}
+
 /* Translate the kept continuous assignments (37.47) once every signal
    exists, and before any target code runs. */
 void dll_target::make_scope_contassigns_(ivl_scope_t scope)
@@ -1328,6 +1338,21 @@ void dll_target::make_scope_contassigns_(ivl_scope_t scope)
 		  list->push_back(obj);
 	    }
 	    scope->ensure_aux_()->contassigns = list;
+      }
+      if (net && !net->alias_stmts.empty()) {
+            auto*list = new vector<ivl_alias_stmt_s>;
+            list->reserve(net->alias_stmts.size());
+            for (const auto&stmt : net->alias_stmts) {
+                  ivl_alias_stmt_s obj = {stmt.get_file(), stmt.get_lineno(), {}};
+                  for (const auto&operand : stmt.operands) {
+                        assert(!expr_ && operand.value);
+                        operand.value->expr_scan(this);
+                        obj.operands.push_back(make_alias_operand_(operand, expr_));
+                        expr_ = 0;
+                  }
+                  list->push_back(std::move(obj));
+            }
+            scope->ensure_aux_()->alias_stmts = list;
       }
 	/* Parameter defaults and defparam r-values (37.28). */
       if (scope->aux_ && scope->aux_->param)
@@ -2305,6 +2330,7 @@ bool dll_target::tran(const NetTran*net)
       struct ivl_switch_s*obj = new struct ivl_switch_s;
       obj->type = net->type();
       obj->is_primitive = net->is_primitive();
+      obj->is_alias = net->is_alias();
       obj->width = net->vector_width();
       obj->part = 0;
       obj->offset = 0;

@@ -499,6 +499,7 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	  case vpiBegin: return "vpiBegin";
 	  case vpiAssignment: return "vpiAssignment";
 	  case vpiContAssign: return "vpiContAssign";
+          case vpiAliasStmt: return "vpiAliasStmt";
 	  case vpiParamAssign: return "vpiParamAssign";
 	  case vpiAttribute: return "vpiAttribute";
 	  case vpiDeassign: return "vpiDeassign";

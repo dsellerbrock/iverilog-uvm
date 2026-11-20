@@ -270,6 +270,16 @@ class NetPins : public LineInfo {
       Link::DIR default_dir_;
 };
 
+/* Source shape of an alias operand, captured during its structural
+   elaboration. Only the root owns the value expression after a concatenation
+   takes ownership of its children's expressions. */
+struct net_alias_operand_t {
+      std::unique_ptr<NetExpr> value;
+      std::vector<net_alias_operand_t> children;
+      std::vector<ivl_alias_select_t> selects;
+      bool is_pattern = false;
+};
+
 /* =========
  * A NetObj is anything that has any kind of behavior in the
  * netlist. Nodes can be gates, registers, etc. and are linked
@@ -1931,6 +1941,14 @@ class NetScope : public Definitions, public Attrib {
       };
       std::vector<contassign_t> contassigns;
 
+      struct alias_stmt_t : public LineInfo {
+            alias_stmt_t() = default;
+            alias_stmt_t(alias_stmt_t&&) noexcept = default;
+
+            std::vector<net_alias_operand_t> operands;
+      };
+      std::vector<alias_stmt_t> alias_stmts;
+
 	/* Defparam statements of this scope once resolved, kept for VPI
 	   (37.28): the target parameter and the r-value elaborated here. */
       struct defparam_t : public LineInfo {
@@ -2786,6 +2804,8 @@ class NetTran  : public NetNode, public IslandBranch {
       ivl_switch_type_t type() const { return type_; }
       void set_primitive() { is_primitive_ = true; }
       bool is_primitive() const { return is_primitive_; }
+      void set_alias() { is_alias_ = true; }
+      bool is_alias() const { return is_alias_; }
 
 	// These are only used for IVL_SW_TRAN_PV
       unsigned vector_width() const;
@@ -2805,6 +2825,7 @@ class NetTran  : public NetNode, public IslandBranch {
       int port_info_index_;
       int port_component_index_;
       bool is_primitive_ = false;
+      bool is_alias_ = false;
 };
 
 /* =========

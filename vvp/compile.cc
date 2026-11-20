@@ -1676,12 +1676,14 @@ static void compile_container_prototype_lookup(
  */
 
 struct code_label_resolv_list_s: public resolv_list_s {
-      explicit code_label_resolv_list_s(char*lab, bool cptr2) : resolv_list_s(lab) {
+      code_label_resolv_list_s(char*lab, bool cptr2, bool required)
+      : resolv_list_s(lab), required_(required) {
 	    code = NULL;
 	    cptr2_flag = cptr2;
       }
       struct vvp_code_s *code;
       bool cptr2_flag;
+      bool required_;
       virtual bool resolve(bool mes) override;
 };
 
@@ -1762,6 +1764,12 @@ bool code_label_resolv_list_s::resolve(bool mes)
       }
 
       if (mes) {
+            if (required_) {
+                  fprintf(stderr, "vvp: unresolved alias expression code label %s\n",
+                          label());
+                  compile_errors += 1;
+                  return true;
+            }
 	    unresolved_warn_once("code label", label(), "using null code target");
 	    if (cptr2_flag)
 		  code->cptr2 = codespace_null();
@@ -1773,10 +1781,11 @@ bool code_label_resolv_list_s::resolve(bool mes)
       return false;
 }
 
-void code_label_lookup(struct vvp_code_s *code, char *label, bool cptr2)
+void code_label_lookup(struct vvp_code_s *code, char *label, bool cptr2,
+                       bool required)
 {
       struct code_label_resolv_list_s *res
-	    = new struct code_label_resolv_list_s(label, cptr2);
+	    = new struct code_label_resolv_list_s(label, cptr2, required);
 
       res->code  = code;
 
@@ -2113,6 +2122,7 @@ void compile_cleanup(void)
 
       link_evcd_endpoints();
       link_evcd_components();
+      compile_link_vpi_aliases();
 
       if (!nerrs) {
             for (size_t idx = 0; idx < deferred_assertion_registrations.size();

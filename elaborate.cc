@@ -5188,10 +5188,14 @@ static bool elaborate_unpacked_union_read_continuous_(
 /* Join the aliased nets with always-on bidirectional switches. */
 void PGAlias::elaborate(Design*des, NetScope*scope) const
 {
+      NetScope::alias_stmt_t stmt;
+      stmt.set_line(*this);
+      stmt.operands.resize(pin_count());
       std::vector<NetNet*> nets;
       for (unsigned idx = 0 ; idx < pin_count() ; idx += 1) {
-	    NetNet*sig = pin(idx)->elaborate_bi_net(des, scope, false);
-	    if (!sig)
+	    NetNet*sig = pin(idx)->elaborate_alias_net(des, scope,
+                                                      stmt.operands[idx]);
+	    if (!sig || !stmt.operands[idx].value)
 		  return;
 	    if (sig->pin_count() != 1) {
 		  cerr << get_fileline() << ": sorry: an alias of an unpacked "
@@ -5225,10 +5229,12 @@ void PGAlias::elaborate(Design*des, NetScope*scope) const
 	    NetTran*join = new NetTran(scope, scope->local_symbol(),
 				       IVL_SW_TRAN, nets[0]->vector_width());
 	    join->set_line(*this);
+            join->set_alias();
 	    des->add_node(join);
 	    connect(join->pin(0), nets[0]->pin(0));
 	    connect(join->pin(1), nets[idx]->pin(0));
       }
+      scope->alias_stmts.push_back(std::move(stmt));
 }
 
 std::vector<NetExpr*> PGAssign::vpi_delays_(Design*des, NetScope*scope) const

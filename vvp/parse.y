@@ -133,6 +133,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_PART_FORCE
 %token K_VPI_EXPR K_VPI_CONTASSIGN K_VPI_PARAM_EXPR K_VPI_DEFPARAM K_VPI_PORT_CONN
 %token K_VPI_FORCE_CONN
+%token K_VPI_ALIAS_STMT K_VPI_ALIAS_EXPR K_VPI_ALIAS_ACCESS
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_ISLAND_PORT_EVCD K_EVCD_SOURCE K_EVCD_PORT
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
@@ -189,7 +190,7 @@ static bool is_force_release_opcode(const char* name)
 %type <opa>  operand operands operands_opt
 %type <table> udp_table
 
-%type <argv> argument_opt argument_list
+%type <argv> argument_opt argument_list alias_arguments
 %type <vpi>  argument symbol_access
 %type <cdelay> delay
 
@@ -878,6 +879,27 @@ statement
 	  T_SYMBOL ',' T_STRING argument_opt ';'
 		{ compile_vpi_expr($1, $3, $5, $7, $9, $11, $13,
 				   $14.argc, $14.argv); }
+
+  /* Source alias operand expressions have the same value thunk as other
+     VPI expressions, but all their relationships must link successfully. */
+	| T_LABEL K_VPI_ALIAS_EXPR T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' T_STRING ','
+	  T_SYMBOL ',' T_STRING ',' alias_arguments ';'
+		{ compile_vpi_alias_expr($1, $3, $5, $7, $9, $11, $13, $15); }
+
+	| T_LABEL K_VPI_ALIAS_ACCESS T_SYMBOL ',' signed_t_number ';'
+		{ compile_vpi_alias_index($1, $3, $5); }
+
+	| T_LABEL K_VPI_ALIAS_ACCESS T_SYMBOL ',' signed_t_number ','
+	  T_NUMBER ',' T_STRING ';'
+		{ compile_vpi_alias_index($1, $3, $5, $7, $9); }
+
+	| T_LABEL K_VPI_ALIAS_ACCESS T_SYMBOL ',' T_STRING ',' T_NUMBER ','
+	  T_NUMBER ',' T_NUMBER dimensions_opt ';'
+		{ compile_vpi_alias_member($1, $3, $5, $7, $9, $11, $12); }
+
+  /* A source alias chain: file index, line, and ordered operands. */
+	| K_VPI_ALIAS_STMT T_NUMBER ',' T_NUMBER ',' symbols ';'
+		{ compile_vpi_alias_stmt($2, $4, $6); }
 
   /* A continuous assignment object (IEEE 1800-2023 37.47): flags (1 net
      declaration assignment, 2 has an l-value handle), vpiStrength0,
@@ -1898,6 +1920,17 @@ argument_list
 	argv_sym_add(&tmp, $3);
 	$$ = tmp;
       }
+  ;
+
+  /* Alias operands can only be expression labels or literal bounds. */
+alias_arguments
+  : T_SYMBOL
+      { argv_init(&$$); argv_sym_add(&$$, $1); }
+  | alias_arguments ',' T_SYMBOL
+      { $$ = $1; argv_sym_add(&$$, $3); }
+  | alias_arguments ',' T_VECTOR
+      { $$ = $1; argv_add(&$$, vpip_make_binary_const($3.idx, $3.text));
+        free($3.text); }
   ;
 
 argument

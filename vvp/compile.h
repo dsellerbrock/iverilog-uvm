@@ -489,7 +489,8 @@ extern void functor_ref_lookup(vvp_net_t**ref, char*lab);
  * The cptr2 flag tells the lookup to write the code pointer into the
  * cptr2 member of the code, instead of the cptr member.
  */
-extern void code_label_lookup(struct vvp_code_s *code, char *label, bool cptr2);
+extern void code_label_lookup(struct vvp_code_s *code, char *label, bool cptr2,
+                              bool required = false);
 extern void compile_vpi_param_expr(char*param, unsigned argc,
 				   vpiHandle*argv);
 extern void compile_vpi_force_conn(char*label, uint64_t stmt_id,
@@ -499,6 +500,19 @@ extern void compile_vpi_port_conn(long index, long flags, unsigned argc,
 				  vpiHandle*argv);
 extern void compile_vpi_defparam(char*param, long file_idx, long lineno,
 				 unsigned argc, vpiHandle*argv);
+extern void compile_vpi_alias_index(char*label, char*parent, int64_t index,
+                                    uint64_t prefix = 0, char*spelling = nullptr);
+extern void compile_vpi_alias_member(char*label, char*parent, char*member,
+                                     uint64_t offset, uint64_t width,
+                                     uint64_t is_signed,
+                                     std::vector<std::pair<int,int> >*dims);
+extern void compile_vpi_alias_expr(char*label, uint64_t type, uint64_t op_type,
+                                   uint64_t width, char*kind, char*thunk,
+                                   char*decompile, const struct argv_s&args);
+extern void compile_vpi_alias_arguments(const struct argv_s&args);
+extern void compile_vpi_alias_stmt(uint64_t file_idx, uint64_t line,
+                                   struct symbv_s operands);
+extern void compile_link_vpi_aliases();
 extern void compile_vpi_contassign(char*label, long flags, long str0,
 				   long str1, long file_idx, long lineno,
 				   char*driver, unsigned argc, vpiHandle*argv);

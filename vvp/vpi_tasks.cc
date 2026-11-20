@@ -27,6 +27,7 @@
 # include  "compile.h"
 # include  "codes.h"
 # include  "config.h"
+# include  <climits>
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
@@ -1035,10 +1036,10 @@ class __vpiLazyExpr : public __vpiHandle {
     public:
       __vpiLazyExpr(int type, int op_type, unsigned width, char kind,
 		    bool signed_flag, char*decompile, unsigned nops,
-		    vpiHandle*ops)
+		    vpiHandle*ops, bool alias_operand)
       : type_(type), op_type_(op_type), width_(width), kind_(kind),
 	signed_(signed_flag), decompile_(decompile), nops_(nops), ops_(ops),
-	scope_(vpip_peek_current_scope())
+	scope_(vpip_peek_current_scope()), alias_operand_(alias_operand)
       { thunk_.cptr = 0; }
 
       int get_type_code(void) const override { return type_; }
@@ -1056,6 +1057,7 @@ class __vpiLazyExpr : public __vpiHandle {
       unsigned nops_;
       vpiHandle*ops_;
       __vpiScope*scope_;
+      bool alias_operand_;
 	/* The evaluation code; thunk_.cptr is resolved like a jump target. */
       struct vvp_code_s thunk_;
 };
@@ -1069,6 +1071,13 @@ int __vpiLazyExpr::vpi_get(int code)
 	    return (int)width_;
 	  case vpiSigned:
 	    return signed_;
+          case vpiConstantSelect:
+            /* Every selector in an elaborated alias path is constant. */
+            return alias_operand_ && (type_ == vpiPartSelect ||
+                   type_ == vpiIndexedPartSelect) ? 1 : vpiUndefined;
+          case vpiIndexedPartSelectType:
+            return type_ == vpiIndexedPartSelect && nops_ == 3
+                  ? op_type_ : vpiUndefined;
 	  default:
 	    return vpiUndefined;
       }
@@ -1086,17 +1095,22 @@ vpiHandle __vpiLazyExpr::vpi_handle(int code)
 	   index (37.58) or left and right bounds (37.59). */
       bool bit = type_ == vpiBitSelect && nops_ == 2;
       bool part = type_ == vpiPartSelect && nops_ == 3;
+      bool indexed = type_ == vpiIndexedPartSelect && nops_ == 3;
       switch (code) {
 	  case vpiScope:
 	    return scope_;
 	  case vpiParent:
-	    return bit || part ? ops_[0] : 0;
+	    return bit || part || indexed ? ops_[0] : 0;
 	  case vpiIndex:
 	    return bit ? ops_[1] : 0;
 	  case vpiLeftRange:
 	    return part ? ops_[1] : 0;
 	  case vpiRightRange:
 	    return part ? ops_[2] : 0;
+          case vpiBaseExpr:
+            return indexed ? ops_[1] : 0;
+          case vpiWidthExpr:
+            return indexed ? ops_[2] : 0;
 	  default:
 	    return 0;
       }
@@ -1306,19 +1320,66 @@ char* vpip_decompile_str(vpiHandle ref)
       return simple_set_rbuf_str(text.c_str());
 }
 
-void compile_vpi_expr(char*label, long type, long op_type, long width,
-		      char*kind, char*thunk, char*decompile,
-		      unsigned argc, vpiHandle*argv)
+static void compile_vpi_expr_(char*label, long type, long op_type, long width,
+                              char*kind, char*thunk, char*decompile,
+                              unsigned argc, vpiHandle*argv, bool alias_operand)
 {
       char k = kind[0] == 'r' || kind[0] == 'o' ? kind[0]
 	    : kind[0] == 'S' ? 's' : 'v';
       __vpiLazyExpr*obj = new __vpiLazyExpr((int)type, (int)op_type,
 					    (unsigned)width, k, kind[0] == 's',
-					    decompile, argc, argv);
-      code_label_lookup(&obj->thunk_, thunk, false);
+					    decompile, argc, argv, alias_operand);
+      code_label_lookup(&obj->thunk_, thunk, false, alias_operand);
       compile_vpi_symbol(label, obj);
       free(label);
-      free(kind);
+      delete[] kind;
+}
+
+void compile_vpi_expr(char*label, long type, long op_type, long width,
+                      char*kind, char*thunk, char*decompile,
+                      unsigned argc, vpiHandle*argv)
+{
+      compile_vpi_expr_(label, type, op_type, width, kind, thunk, decompile,
+                        argc, argv, false);
+}
+
+void compile_vpi_alias_expr(char*label, uint64_t type, uint64_t op_type,
+                            uint64_t width, char*kind, char*thunk,
+                            char*decompile, const struct argv_s&args)
+{
+      /* Annex M, SystemVerilog operation codes. */
+      constexpr unsigned assignment_pattern_op = 75;
+      bool valid = vpip_peek_current_scope() && width && width <= INT_MAX
+            && (strcmp(kind, "u") == 0 || strcmp(kind, "s") == 0)
+            && !vvp_lookup_handle(label);
+      if (type == vpiOperation) {
+            valid = valid && (op_type == vpiConcatOp ||
+                              op_type == assignment_pattern_op);
+            for (unsigned idx = 0; idx < args.argc; ++idx)
+                  valid = valid && !args.argv[idx];
+      } else {
+            valid = valid && args.argc == 3 && !args.argv[0]
+                  && args.argv[1] && args.argv[2]
+                  && ((type == vpiPartSelect && op_type == 0) ||
+                      (type == vpiIndexedPartSelect &&
+                       (op_type == vpiPosIndexed || op_type == vpiNegIndexed)));
+      }
+      if (!valid) {
+            yyerror("invalid .vpi_alias_expr metadata");
+            compile_errors += 1;
+            for (unsigned idx = 0; idx < args.argc; ++idx)
+                  if (!args.argv[idx]) free(args.syms[idx]);
+            free(args.syms);
+            free(args.argv);
+            free(label);
+            delete[] kind;
+            free(thunk);
+            delete[] decompile;
+            return;
+      }
+      compile_vpi_alias_arguments(args);
+      compile_vpi_expr_(label, type, op_type, width, kind, thunk, decompile,
+                        args.argc, args.argv, true);
 }
 
 void vpip_execute_vpi_call(vthread_t thr, vpiHandle ref)

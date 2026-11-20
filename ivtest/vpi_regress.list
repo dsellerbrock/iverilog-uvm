@@ -294,3 +294,5 @@ issue3872_vpi_while_condition_2017 normal,-g2017,-s,top issue3872_vpi_while_cond
 issue3872_vpi_while_condition_2023 normal,-g2023,-s,top issue3872_vpi_while_condition.c issue3872_vpi_while_condition_2023.gold
 issue3873_vpi_if_condition_2017 normal,-g2017,-s,top issue3873_vpi_if_condition.c issue3873_vpi_if_condition_2017.gold
 issue3873_vpi_if_condition_2023 normal,-g2023,-s,top issue3873_vpi_if_condition.c issue3873_vpi_if_condition_2023.gold
+issue3059_vpi_alias_stmt_2017 normal,-g2017,-s,top issue3059_vpi_alias_stmt.c issue3059_vpi_alias_stmt_2017.gold
+issue3059_vpi_alias_stmt_2023 normal,-g2023,-s,top issue3059_vpi_alias_stmt.c issue3059_vpi_alias_stmt_2023.gold

@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3059_vpi_alias_stmt.sv",
+  "iverilog-args": ["-g2017", "-s", "top", "-L", "work", "-m", "issue3059_vpi_alias_stmt_2017"],
+  "vpi-modules": ["issue3059_vpi_alias_stmt_2017"],
+  "vpi-sources": ["vpi/issue3059_vpi_alias_stmt.c"],
+  "gold": "issue3059_vpi_alias_stmt"
+}

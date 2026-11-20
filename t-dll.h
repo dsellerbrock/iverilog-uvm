@@ -774,6 +774,7 @@ struct ivl_net_logic_s {
 struct ivl_switch_s {
       ivl_switch_type_t type;
       bool is_primitive;
+      bool is_alias;
       unsigned width;
       unsigned part;
       unsigned offset;
@@ -961,6 +962,7 @@ struct ivl_scope_aux_s {
       std::vector<struct ivl_parameter_s>*param;
       std::vector<ivl_switch_t>*switches;
       std::vector<struct ivl_contassign_s>*contassigns;
+      std::vector<struct ivl_alias_stmt_s>*alias_stmts;
       std::vector<struct ivl_defparam_s>*defparams;
       std::vector<ivl_expr_t>*port_highconns;
       std::vector<std::pair<ivl_scope_t, const char*> >*port_ifaces;
@@ -979,6 +981,19 @@ struct ivl_defparam_s {
       ivl_expr_t rhs;
       perm_string file;
       unsigned lineno;
+};
+
+struct ivl_alias_operand_s {
+      ivl_expr_t value;
+      std::vector<ivl_alias_operand_s> children;
+      std::vector<ivl_alias_select_t> selects;
+      bool is_pattern;
+};
+
+struct ivl_alias_stmt_s {
+      perm_string file;
+      unsigned lineno;
+      std::vector<ivl_alias_operand_s> operands;
 };
 
 struct ivl_contassign_s {

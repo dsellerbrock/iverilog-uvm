@@ -1,5 +1,14 @@
 EXPORTS
 
+ivl_alias_operand_child
+ivl_alias_operand_expr
+ivl_alias_operand_is_pattern
+ivl_alias_operand_selects
+ivl_alias_stmt_file
+ivl_alias_stmt_lineno
+ivl_alias_stmt_operand
+ivl_alias_stmt_operands
+
 ivl_branch_island
 ivl_branch_terminal
 
@@ -362,6 +371,8 @@ ivl_scope_ports
 ivl_scope_sigs
 ivl_scope_sig
 ivl_scope_contassign
+ivl_scope_alias_stmt
+ivl_scope_alias_stmts
 ivl_scope_contassigns
 ivl_scope_defparam
 ivl_scope_defparams
@@ -480,6 +491,7 @@ ivl_switch_basename
 ivl_switch_delay
 ivl_switch_enable
 ivl_switch_file
+ivl_switch_is_alias
 ivl_switch_is_primitive
 ivl_switch_island
 ivl_switch_lineno

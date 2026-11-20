@@ -203,6 +203,8 @@ typedef struct ivl_process_s  *ivl_process_t;
 typedef struct ivl_scope_s    *ivl_scope_t;
 typedef struct ivl_signal_s   *ivl_signal_t;
 typedef struct ivl_port_info_s*ivl_port_info_t;
+typedef const struct ivl_alias_stmt_s *ivl_alias_stmt_t;
+typedef const struct ivl_alias_operand_s *ivl_alias_operand_t;
 typedef struct ivl_switch_s   *ivl_switch_t;
 typedef struct ivl_contassign_s*ivl_contassign_t;
 typedef struct ivl_defparam_s*ivl_defparam_t;
@@ -2362,6 +2364,39 @@ extern ivl_expr_t       ivl_contassign_delay(ivl_contassign_t net, unsigned idx)
 extern const char*      ivl_contassign_file(ivl_contassign_t net);
 extern unsigned         ivl_contassign_lineno(ivl_contassign_t net);
 
+/* Source operands of a net alias, in order (2017 37.74 / 2023 37.76).
+   The value expression can have flattened indices; the selectors preserve
+   the corresponding source path and distinguish element and range selects. */
+typedef enum {
+      IVL_ALIAS_INDEX,
+      IVL_ALIAS_MEMBER,
+      IVL_ALIAS_PART,
+      IVL_ALIAS_INDEXED_UP,
+      IVL_ALIAS_INDEXED_DOWN
+} ivl_alias_select_type_t;
+
+typedef struct {
+      ivl_alias_select_type_t type;
+      /* For an indexed part select, second is the width. */
+      long first, second;
+      const char*member;
+      ivl_type_t member_type;
+} ivl_alias_select_t;
+
+extern unsigned ivl_scope_alias_stmts(ivl_scope_t scope);
+extern ivl_alias_stmt_t ivl_scope_alias_stmt(ivl_scope_t scope, unsigned idx);
+extern const char* ivl_alias_stmt_file(ivl_alias_stmt_t stmt);
+extern unsigned ivl_alias_stmt_lineno(ivl_alias_stmt_t stmt);
+extern unsigned ivl_alias_stmt_operands(ivl_alias_stmt_t stmt);
+extern ivl_alias_operand_t ivl_alias_stmt_operand(ivl_alias_stmt_t stmt,
+                                                  unsigned idx);
+extern ivl_expr_t ivl_alias_operand_expr(ivl_alias_operand_t operand);
+extern int ivl_alias_operand_is_pattern(ivl_alias_operand_t operand);
+extern ivl_alias_operand_t ivl_alias_operand_child(ivl_alias_operand_t operand,
+                                                    unsigned idx);
+extern const ivl_alias_select_t* ivl_alias_operand_selects(
+      ivl_alias_operand_t operand, unsigned*count);
+
 /* DEFPARAMS (IEEE 1800-2023 37.28)
  *
  * ivl_scope_defparams
@@ -2929,6 +2964,7 @@ extern ivl_switch_type_t ivl_switch_type(ivl_switch_t net);
 /* True for a source-level switch primitive. Generated hierarchy, alias
  * and select links return false. */
 extern int ivl_switch_is_primitive(ivl_switch_t net);
+extern int ivl_switch_is_alias(ivl_switch_t net);
 extern ivl_scope_t ivl_switch_scope(ivl_switch_t net);
 extern const char*ivl_switch_basename(ivl_switch_t net);
 extern ivl_nexus_t ivl_switch_a(ivl_switch_t net);

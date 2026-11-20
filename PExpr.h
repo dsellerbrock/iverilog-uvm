@@ -270,6 +270,9 @@ class PExpr : public LineInfo {
 	// ports of tran primitives.
       virtual NetNet* elaborate_bi_net(Design*des, NetScope*scope,
                                        bool var_allowed_in_sv) const;
+      virtual NetNet* elaborate_alias_net(Design*des, NetScope*scope,
+                                          net_alias_operand_t&) const
+      { return elaborate_bi_net(des, scope, false); }
       virtual NetNet* elaborate_pass_net(Design*des, NetScope*scope,
                                         bool var_allowed_in_sv) const;
 
@@ -498,6 +501,7 @@ class PEConcat : public PExpr {
       const std::vector<PExpr*>& stream_parms() const { return parms_; }
       bool has_repeat() const { return repeat_ != 0; }
       PExpr* repeat_expr() const { return repeat_; }
+      void set_lvalue_pattern() { lvalue_pattern_ = true; }
 
       virtual void dump(std::ostream&) const override;
 
@@ -519,6 +523,8 @@ class PEConcat : public PExpr {
                                      bool var_allowed_in_sv) const override;
       virtual NetNet* elaborate_bi_net(Design*des, NetScope*scope,
                                        bool var_allowed_in_sv) const override;
+      NetNet* elaborate_alias_net(Design*des, NetScope*scope,
+                                  net_alias_operand_t&alias) const override;
       virtual NetNet* elaborate_pass_net(Design*des, NetScope*scope,
                                         bool var_allowed_in_sv) const override;
 
@@ -542,12 +548,14 @@ class PEConcat : public PExpr {
       NetNet* elaborate_lnet_common_(Design*des, NetScope*scope,
 				     bool bidirectional_flag,
 				     bool var_allowed_in_sv,
-				     bool pass_switch_flag = false) const;
+				     bool pass_switch_flag = false,
+                                     net_alias_operand_t*alias = nullptr) const;
     private:
       std::vector<PExpr*>parms_;
       std::valarray<width_mode_t>width_modes_;
 
       PExpr*repeat_;
+      bool lvalue_pattern_ = false;
       NetScope*tested_scope_;
       unsigned repeat_count_;
       // Phase 63b: when a string concat has a runtime-variable
@@ -709,6 +717,8 @@ class PEIdent : public PExpr {
       virtual NetNet* elaborate_lnet(Design*des, NetScope*scope, bool var_allowed_in_sv) const override;
 
       virtual NetNet* elaborate_bi_net(Design*des, NetScope*scope, bool var_allowed_in_sv) const override;
+      NetNet* elaborate_alias_net(Design*des, NetScope*scope,
+                                  net_alias_operand_t&alias) const override;
       virtual NetNet* elaborate_pass_net(Design*des, NetScope*scope, bool var_allowed_in_sv) const override;
 
 	// Identifiers are also allowed as procedural assignment l-values.
@@ -1059,7 +1069,8 @@ class PEIdent : public PExpr {
       NetNet* elaborate_lnet_common_(Design*des, NetScope*scope,
 				     bool bidirectional_flag,
 				     bool var_allowed_in_sv,
-				     bool pass_switch_flag = false) const;
+				     bool pass_switch_flag = false,
+                                     net_alias_operand_t*alias = nullptr) const;
 
 
       bool eval_part_select_(Design*des, NetScope*scope, const NetNet*sig,

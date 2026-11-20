@@ -3629,6 +3629,64 @@ extern "C" unsigned ivl_defparam_lineno(ivl_defparam_t net)
       return net->lineno;
 }
 
+extern "C" unsigned ivl_scope_alias_stmts(ivl_scope_t scope)
+{
+      return scope->aux_ && scope->aux_->alias_stmts
+            ? scope->aux_->alias_stmts->size() : 0;
+}
+
+extern "C" ivl_alias_stmt_t ivl_scope_alias_stmt(ivl_scope_t scope, unsigned idx)
+{
+      assert(idx < ivl_scope_alias_stmts(scope));
+      return &(*scope->aux_->alias_stmts)[idx];
+}
+
+extern "C" const char* ivl_alias_stmt_file(ivl_alias_stmt_t stmt)
+{
+      return stmt->file.str();
+}
+
+extern "C" unsigned ivl_alias_stmt_lineno(ivl_alias_stmt_t stmt)
+{
+      return stmt->lineno;
+}
+
+extern "C" unsigned ivl_alias_stmt_operands(ivl_alias_stmt_t stmt)
+{
+      return stmt->operands.size();
+}
+
+extern "C" ivl_alias_operand_t ivl_alias_stmt_operand(ivl_alias_stmt_t stmt,
+                                                       unsigned idx)
+{
+      assert(idx < stmt->operands.size());
+      return &stmt->operands[idx];
+}
+
+extern "C" ivl_expr_t ivl_alias_operand_expr(ivl_alias_operand_t operand)
+{
+      return operand->value;
+}
+
+extern "C" int ivl_alias_operand_is_pattern(ivl_alias_operand_t operand)
+{
+      return operand->is_pattern;
+}
+
+extern "C" ivl_alias_operand_t ivl_alias_operand_child(ivl_alias_operand_t operand,
+                                                       unsigned idx)
+{
+      assert(idx < operand->children.size());
+      return &operand->children[idx];
+}
+
+extern "C" const ivl_alias_select_t* ivl_alias_operand_selects(
+      ivl_alias_operand_t operand, unsigned*count)
+{
+      *count = operand->selects.size();
+      return operand->selects.data();
+}
+
 extern "C" unsigned ivl_scope_contassigns(ivl_scope_t net)
 {
       assert(net);
@@ -4907,6 +4965,11 @@ extern "C" int ivl_switch_is_primitive(ivl_switch_t net)
 {
       assert(net);
       return net->is_primitive;
+}
+
+extern "C" int ivl_switch_is_alias(ivl_switch_t net)
+{
+      return net->is_alias;
 }
 
 extern "C" ivl_nexus_t ivl_switch_a(ivl_switch_t net)

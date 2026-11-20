@@ -24,6 +24,7 @@
 # include  <stdlib.h>
 # include  <assert.h>
 # include  <inttypes.h>
+# include  <limits.h>
 # include  "ivl_alloc.h"
 
 struct args_info {
@@ -219,9 +220,9 @@ static int lazy_array_word_(ivl_expr_t expr, long*word)
 /* A signed constant operand handle, as narrow as its value allows. */
 static char* lazy_int_const_(long value)
 {
-      char buf[48];
+      char buf[sizeof(long) * CHAR_BIT + 16];
       unsigned bit, wid = 2;
-      while (wid < 32 && (value >= (1L << (wid - 1)) || value < -(1L << (wid - 1))))
+      while (wid < sizeof(long) * CHAR_BIT && (value >= (1L << (wid - 1)) || value < -(1L << (wid - 1))))
 	    wid += 1;
       char*dp = buf + snprintf(buf, sizeof buf, "%u'sb", wid);
       for (bit = wid; bit > 0; bit -= 1)
@@ -443,6 +444,52 @@ static unsigned lazy_expr_count_ = 0;
 
 enum lazy_expr_mode_ { LAZY_ARGUMENT, LAZY_DECLARATION, LAZY_STATEMENT };
 
+/* Emit a VPI expression and its value thunk. Alias operands supply their
+   source relationships separately from the flattened value expression. */
+static char* draw_lazy_expr_record_(ivl_expr_t expr, int type, int op_type,
+                                   char kind, const char*text, size_t len,
+                                   unsigned nops, char*const*ops, int alias)
+{
+      char buffer[64];
+      unsigned label = lazy_expr_count_++, idx;
+      unsigned thunk = local_count++, skip = local_count++;
+      fprintf(vvp_out, "XE_%u %s %d, %d, %u, \"%c\", T_%u.%u, \"",
+              label, alias ? ".vpi_alias_expr" : ".vpi_expr",
+              type, op_type, ivl_expr_width(expr), kind,
+	      thread_count, thunk);
+      for (idx = 0; idx < len; idx += 1) {
+	    if (text[idx] == '"' || text[idx] == '\\')
+		  fputc('\\', vvp_out);
+	    fputc(text[idx], vvp_out);
+      }
+      fprintf(vvp_out, "\"");
+      for (idx = 0; idx < nops; idx += 1) {
+	    fprintf(vvp_out, ", %s", ops[idx]);
+      }
+      fprintf(vvp_out, ";\n");
+	/* The evaluation code sits out of line: the thread jumps over it. */
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, skip);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, thunk);
+      switch (kind) {
+	  case 'r':
+	    draw_eval_real(expr);
+	    break;
+	  case 'S':
+	    draw_eval_string(expr);
+	    break;
+	  case 'o':
+	    draw_eval_object(expr);
+	    break;
+	  default:
+	    draw_eval_vec4(expr);
+	    break;
+      }
+      fprintf(vvp_out, "    %%end;\n");
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, skip);
+      snprintf(buffer, sizeof buffer, "XE_%u", label);
+      return strdup(buffer);
+}
+
 /* Emit one .vpi_expr record (and the evaluation code it names) for each
    operation node of EXPR, and return the argument text: the root record's
    label, or a leaf's ordinary VPI argument. Returns nil when EXPR has a
@@ -478,7 +525,7 @@ static char* draw_lazy_expr_mode_(ivl_expr_t expr, enum lazy_expr_mode_ mode)
 	    kind = 'o';
       char**ops = calloc(node_type == IVL_EX_CONCAT
 			 ? ivl_expr_parms(node) + 1 : 3, sizeof(char*));
-      unsigned nops = 0, idx, label, thunk, skip;
+      unsigned nops = 0, idx;
       int type = LAZY_vpiOperation, op_type = 0;
       char buffer[64];
 
@@ -629,46 +676,13 @@ static char* draw_lazy_expr_mode_(ivl_expr_t expr, enum lazy_expr_mode_ mode)
 		  break;
 	    }
 
-      label = lazy_expr_count_++;
-      thunk = local_count++;
-      skip = local_count++;
-      fprintf(vvp_out, "XE_%u .vpi_expr %d, %d, %u, \"%c\", T_%u.%u, \"",
-	      label, type, op_type, ivl_expr_width(expr), kind,
-	      thread_count, thunk);
-      for (idx = 0; described && idx < text.len; idx += 1) {
-	    if (text.buf[idx] == '"' || text.buf[idx] == '\\')
-		  fputc('\\', vvp_out);
-	    fputc(text.buf[idx], vvp_out);
-      }
-      fprintf(vvp_out, "\"");
-      for (idx = 0; idx < nops; idx += 1) {
-	    fprintf(vvp_out, ", %s", ops[idx]);
-	    free(ops[idx]);
-      }
-      fprintf(vvp_out, ";\n");
-      free(text.buf);
+      char*result = draw_lazy_expr_record_(expr, type, op_type, kind,
+                                            text.buf, described ? text.len : 0,
+                                            nops, ops, 0);
+      for (idx = 0; idx < nops; ++idx) free(ops[idx]);
       free(ops);
-	/* The evaluation code sits out of line: the thread jumps over it. */
-      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, skip);
-      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, thunk);
-      switch (kind) {
-	  case 'r':
-	    draw_eval_real(expr);
-	    break;
-	  case 'S':
-	    draw_eval_string(expr);
-	    break;
-	  case 'o':
-	    draw_eval_object(expr);
-	    break;
-	  default:
-	    draw_eval_vec4(expr);
-	    break;
-      }
-      fprintf(vvp_out, "    %%end;\n");
-      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, skip);
-      snprintf(buffer, sizeof buffer, "XE_%u", label);
-      return strdup(buffer);
+      free(text.buf);
+      return result;
 }
 
 static char* draw_lazy_expr_(ivl_expr_t expr)
@@ -790,6 +804,125 @@ static void draw_inst_array_(ivl_scope_t scope, unsigned idx)
       free(conns);
 }
 
+/* Annex M, SystemVerilog operation codes. */
+enum { ALIAS_vpiAssignmentPatternOp = 75 };
+
+static char* draw_alias_operand_(ivl_alias_operand_t operand,
+                                 struct lazy_text_*text)
+{
+      ivl_expr_t value = ivl_alias_operand_expr(operand);
+      size_t start = text->len;
+      if (ivl_expr_type(value) == IVL_EX_CONCAT) {
+            unsigned idx, count = ivl_expr_parms(value);
+            int pattern = ivl_alias_operand_is_pattern(operand);
+            char**ops = calloc(count, sizeof(char*));
+            lazy_puts_(text, pattern ? "'{" : "{");
+            for (idx = 0; idx < count; ++idx) {
+                  if (idx) lazy_puts_(text, ", ");
+                  ops[idx] = draw_alias_operand_(
+                        ivl_alias_operand_child(operand, idx), text);
+            }
+            lazy_puts_(text, "}");
+            char*label = draw_lazy_expr_record_(
+                  value, vpiOperation, pattern ? ALIAS_vpiAssignmentPatternOp
+                                               : vpiConcatOp,
+                  lazy_value_kind_(value), text->buf + start, text->len - start,
+                  count, ops, 1);
+            for (idx = 0; idx < count; ++idx) free(ops[idx]);
+            free(ops);
+            return label;
+      }
+
+      ivl_expr_t ref = ivl_expr_type(value) == IVL_EX_SELECT
+            ? ivl_expr_oper1(value) : value;
+      ivl_signal_t sig = ivl_expr_signal(ref);
+      unsigned count, idx, unpacked = ivl_signal_dimensions(sig);
+      const ivl_alias_select_t*selects = ivl_alias_operand_selects(operand, &count);
+      char label[64], next[64], buffer[128];
+      snprintf(label, sizeof label, unpacked ? "v%p" : "v%p_0", sig);
+      lazy_puts_(text, ivl_signal_basename(sig));
+
+      for (idx = 0; idx < count; ++idx) {
+            const ivl_alias_select_t*sel = &selects[idx];
+            if (sel->type == IVL_ALIAS_MEMBER) {
+                  lazy_puts_(text, ".");
+                  lazy_puts_(text, sel->member);
+                  snprintf(next, sizeof next, "XA_%u", lazy_expr_count_++);
+                  fprintf(vvp_out, "%s .vpi_alias_access %s, \"%s\", %ld, %ld, %d",
+                          next, label, vvp_mangle_name(sel->member),
+                          sel->first, sel->second,
+                          ivl_type_signed(sel->member_type));
+                  unsigned dim, dims = ivl_type_packed_dimensions(sel->member_type);
+                  for (dim = 0; dim < dims; ++dim)
+                        fprintf(vvp_out, " [%d:%d]",
+                                ivl_type_packed_msb(sel->member_type, dim),
+                                ivl_type_packed_lsb(sel->member_type, dim));
+                  fprintf(vvp_out, ";\n");
+            } else if (sel->type == IVL_ALIAS_INDEX) {
+                  snprintf(buffer, sizeof buffer, "[%ld]", sel->first);
+                  lazy_puts_(text, buffer);
+                  long index = sel->first;
+                  if (idx < unpacked) {
+                        /* VVP stores all unpacked dimensions in a single
+                           array and gives each word a canonical address. */
+                        if (idx + 1 < unpacked && idx + 1 < count) continue;
+                        index = ivl_signal_array_base(sig) +
+                                get_number_immediate(ivl_expr_oper1(ref));
+                  }
+                  snprintf(next, sizeof next, "XA_%u", lazy_expr_count_++);
+                  if (idx + 1 == count && count < unpacked)
+                        fprintf(vvp_out, "%s .vpi_alias_access %s, %ld, %u, \"%s\";\n",
+                                next, label, index, count,
+                                vvp_mangle_name(text->buf + start));
+                  else
+                        fprintf(vvp_out, "%s .vpi_alias_access %s, %ld;\n",
+                                next, label, index);
+            } else {
+                  const char*sep = sel->type == IVL_ALIAS_PART ? ":"
+                        : sel->type == IVL_ALIAS_INDEXED_UP ? " +: " : " -: ";
+                  snprintf(buffer, sizeof buffer, "[%ld%s%ld]",
+                           sel->first, sep, sel->second);
+                  lazy_puts_(text, buffer);
+                  char*ops[] = {label, lazy_int_const_(sel->first),
+                                       lazy_int_const_(sel->second)};
+                  int type = sel->type == IVL_ALIAS_PART ? vpiPartSelect
+                                                         : vpiIndexedPartSelect;
+                  int op_type = type == vpiPartSelect ? 0
+                        : sel->type == IVL_ALIAS_INDEXED_UP ? vpiPosIndexed
+                                                           : vpiNegIndexed;
+                  char*result = draw_lazy_expr_record_(
+                        value, type, op_type, lazy_value_kind_(value),
+                        text->buf + start, text->len - start, 3, ops, 1);
+                  free(ops[1]);
+                  free(ops[2]);
+                  return result;
+            }
+            strcpy(label, next);
+      }
+      return strdup(label);
+}
+
+static void draw_alias_stmt_(ivl_alias_stmt_t stmt)
+{
+      unsigned idx, count = ivl_alias_stmt_operands(stmt);
+      char**refs = calloc(count, sizeof(char*));
+      for (idx = 0; idx < count; ++idx) {
+            struct lazy_text_ text = {0, 0, 0};
+            refs[idx] = draw_alias_operand_(ivl_alias_stmt_operand(stmt, idx),
+                                          &text);
+            free(text.buf);
+      }
+      fprintf(vvp_out, " .vpi_alias_stmt %u, %u",
+              ivl_file_table_index(ivl_alias_stmt_file(stmt)),
+              ivl_alias_stmt_lineno(stmt));
+      for (idx = 0; idx < count; ++idx) {
+            fprintf(vvp_out, ", %s", refs[idx]);
+            free(refs[idx]);
+      }
+      fprintf(vvp_out, ";\n");
+      free(refs);
+}
+
 void draw_vpi_objects_in_scope(ivl_scope_t scope)
 {
       unsigned idx, save_local = local_count, save_thread = thread_count;
@@ -798,7 +931,7 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
       unsigned nports = ivl_scope_type(scope) == IVL_SCT_MODULE
 	    ? ivl_scope_mod_module_ports(scope) : 0;
       int any = chain_argc || base_params || ivl_scope_contassigns(scope)
-	    || ivl_scope_defparams(scope);
+            || ivl_scope_defparams(scope) || ivl_scope_alias_stmts(scope);
 
       for (idx = 0; !any && idx < ivl_scope_params(scope); idx += 1)
 	    any = ivl_parameter_default_expr(ivl_scope_param(scope, idx)) != 0;
@@ -931,6 +1064,8 @@ void draw_vpi_objects_in_scope(ivl_scope_t scope)
 	    free(rhs);
 	    free(drv);
       }
+      for (idx = 0; idx < ivl_scope_alias_stmts(scope); ++idx)
+            draw_alias_stmt_(ivl_scope_alias_stmt(scope, idx));
       thread_count = save_thread;
       local_count = save_local;
 }

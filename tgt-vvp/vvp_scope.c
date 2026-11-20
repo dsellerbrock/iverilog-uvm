@@ -3838,6 +3838,7 @@ static void emit_vpi_primitive_metadata(ivl_scope_t scope)
 
       for (idx = 0; idx < ivl_scope_switches(scope); idx += 1) {
 	    ivl_switch_t sw = ivl_scope_switch(scope, idx);
+            if (ivl_switch_is_alias(sw)) continue;
 	    int prim_type = vpi_switch_primitive_type(ivl_switch_type(sw));
 	    if (!prim_type) continue;
 

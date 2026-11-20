@@ -176,6 +176,7 @@ static void delete_sub_scopes(__vpiScope *scope)
 		case vpiArrayVar:
 		  array_delete(item);
 		  break;
+		case vpiAliasStmt:
 		case vpiPrimitive:
 		  delete item;
 		  break;
@@ -1096,6 +1097,378 @@ class __vpiParamAssign : public __vpiHandle {
       vpiHandle parent_ = nullptr;
       bool by_name_ = false;
 };
+
+/* One relationship for each non-final operand of a source alias chain
+   (IEEE 1800-2017 37.74 / 1800-2023 37.76). */
+class __vpiAliasStmt : public __vpiHandle {
+    public:
+      __vpiAliasStmt(__vpiScope*scope, uint64_t file_idx, int line,
+                     vpiHandle lhs, vpiHandle rhs)
+      : scope_(scope), file_idx_(file_idx), line_(line), lhs_(lhs), rhs_(rhs) { }
+
+      int get_type_code() const override { return vpiAliasStmt; }
+      int vpi_get(int code) override
+      {
+            return code == vpiLineNo ? line_ : __vpiHandle::vpi_get(code);
+      }
+      char* vpi_get_str(int code) override
+      {
+            return code == vpiFile ? simple_set_rbuf_str(file_names[file_idx_])
+                                   : __vpiHandle::vpi_get_str(code);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+            switch (code) {
+                case vpiLhs: return lhs_;
+                case vpiRhs: return rhs_;
+                case vpiScope: return scope_;
+                default: return __vpiHandle::vpi_handle(code);
+            }
+      }
+    private:
+      __vpiScope*scope_;
+      uint64_t file_idx_;
+      int line_;
+      vpiHandle lhs_, rhs_;
+};
+
+namespace {
+struct alias_access_t {
+      std::string label, parent, member, spelling;
+      int index = 0;
+      unsigned prefix = 0;
+      unsigned offset = 0;
+      unsigned width = 0;
+      bool is_signed = false;
+      std::vector<std::pair<int,int> > dims;
+};
+
+struct alias_arg_t {
+      std::string symbol;
+      vpiHandle*slot;
+};
+
+struct alias_stmt_t {
+      __vpiScope*scope;
+      uint64_t file_idx;
+      int line;
+      std::vector<std::string> operands;
+};
+
+std::vector<alias_access_t> alias_accesses;
+std::vector<alias_arg_t> alias_args;
+std::vector<alias_stmt_t> alias_stmts;
+}
+
+void compile_vpi_alias_index(char*label, char*parent, int64_t index,
+                             uint64_t prefix, char*spelling)
+{
+      if (index < INT_MIN || index > INT_MAX || prefix > UINT_MAX ||
+          (spelling && (!prefix || !*spelling))) {
+            yyerror("invalid .vpi_alias_access index");
+            compile_errors += 1;
+      } else {
+            alias_access_t access;
+            access.label = label;
+            access.parent = parent;
+            access.index = static_cast<int>(index);
+            access.prefix = static_cast<unsigned>(prefix);
+            if (spelling) access.spelling = spelling;
+            alias_accesses.push_back(std::move(access));
+      }
+      free(label);
+      free(parent);
+      delete[] spelling;
+}
+
+void compile_vpi_alias_member(char*label, char*parent, char*member,
+                              uint64_t offset, uint64_t width, uint64_t is_signed,
+                              std::vector<std::pair<int,int> >*dims)
+{
+      if (!*member || !width || width > INT_MAX || offset > INT_MAX ||
+          is_signed > 1) {
+            yyerror("invalid .vpi_alias_access member");
+            compile_errors += 1;
+      } else {
+            alias_access_t access;
+            access.label = label;
+            access.parent = parent;
+            access.member = member;
+            access.offset = static_cast<unsigned>(offset);
+            access.width = static_cast<unsigned>(width);
+            access.is_signed = is_signed;
+            if (dims) access.dims.swap(*dims);
+            alias_accesses.push_back(std::move(access));
+      }
+      free(label);
+      free(parent);
+      delete[] member;
+      delete dims;
+}
+
+void compile_vpi_alias_arguments(const struct argv_s&args)
+{
+      for (unsigned idx = 0; idx < args.argc; ++idx) {
+            if (args.argv[idx]) continue;
+            alias_args.push_back({args.syms[idx], &args.argv[idx]});
+            free(args.syms[idx]);
+      }
+      free(args.syms);
+}
+
+void compile_vpi_alias_stmt(uint64_t file_idx, uint64_t line,
+                            struct symbv_s operands)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      int type = scope ? scope->get_type_code() : 0;
+      if ((type != vpiModule && type != vpiInterface && type != vpiProgram
+           && type != vpiGenScope) || operands.cnt < 2 || line > INT_MAX) {
+            yyerror("invalid .vpi_alias_stmt scope, line or operand count");
+            compile_errors += 1;
+      } else {
+            alias_stmt_t stmt = {scope, file_idx, static_cast<int>(line), {}};
+            stmt.operands.reserve(operands.cnt);
+            for (unsigned idx = 0; idx < operands.cnt; ++idx)
+                  stmt.operands.emplace_back(operands.vect[idx].text);
+            alias_stmts.push_back(std::move(stmt));
+      }
+      for (unsigned idx = 0; idx < operands.cnt; ++idx)
+            free(operands.vect[idx].text);
+      free(operands.vect);
+}
+
+static vpiHandle lookup_alias_operand_(const std::string&label)
+{
+      vpiHandle handle = vvp_lookup_handle(label.c_str());
+      if (handle) {
+            switch (handle->get_type_code()) {
+                case vpiNet:
+                case vpiNetBit:
+                case vpiNetArray:
+                case vpiReg:
+                case vpiRegBit:
+                case vpiBitSelect:
+                case vpiPartSelect:
+                case vpiIndexedPartSelect:
+                case vpiOperation:
+                  return handle;
+                case vpiMemory:
+                  if (auto*array = dynamic_cast<__vpiArray*>(handle))
+                        if (array->nets) return handle;
+                  break;
+            }
+      }
+      fprintf(stderr, "vvp: invalid or unresolved alias operand %s\n",
+              label.c_str());
+      compile_errors += 1;
+      return nullptr;
+}
+
+namespace {
+/* A partial unpacked select is accepted by structural alias elaboration
+   only when one word remains. Preserve the array prefix as the endpoint;
+   the actual word still comes from the declaration's array handle. */
+class alias_subarray_t : public __vpiHandle {
+    public:
+      alias_subarray_t(__vpiArray*array, unsigned depth, const std::string&name,
+                       vpiHandle word)
+      : array_(array), depth_(depth), name_(name), word_(word),
+        bound_(array->unpacked_ranges[depth].left) { }
+
+      int get_type_code() const override { return vpiNetArray; }
+      int vpi_get(int code) override
+      {
+            switch (code) {
+                case vpiSize:
+                case vpiArrayMember:
+                case vpiConstantSelect: return 1;
+                case vpiArrayType: return vpiStaticArray;
+                default: return __vpiHandle::vpi_get(code);
+            }
+      }
+      char* vpi_get_str(int code) override
+      {
+            if (code == vpiDecompile) return simple_set_rbuf_str(name_.c_str());
+            return generic_get_str(code, array_->get_scope(), name_.c_str(), nullptr);
+      }
+      vpiHandle vpi_handle(int code) override
+      {
+            switch (code) {
+                case vpiParent: return array_;
+                case vpiScope:
+                case vpiModule: return array_->vpi_handle(code);
+                case vpiLeftRange:
+                case vpiRightRange: return &bound_;
+                default: return __vpiHandle::vpi_handle(code);
+            }
+      }
+      vpiHandle vpi_index(int index) override
+      {
+            if (index != bound_.get_value()) return nullptr;
+            if (depth_ + 1 == array_->unpacked_ranges.size()) return word_;
+            if (!child_)
+                  child_.reset(new alias_subarray_t(array_, depth_ + 1,
+                        name_ + "[" + std::to_string(index) + "]", word_));
+            return child_.get();
+      }
+      vpiHandle vpi_iterate(int code) override
+      {
+            if (code == vpiNet) return vpip_make_iterator(1, &word_, false);
+            if (code != vpiRange) return nullptr;
+            unsigned count = array_->unpacked_ranges.size() - depth_;
+            auto*args = static_cast<vpiHandle*>(calloc(count, sizeof(vpiHandle)));
+            for (unsigned idx = 0; idx < count; ++idx) {
+                  const auto&range = array_->unpacked_ranges[depth_ + idx];
+                  args[idx] = vpip_make_range(range.left, range.right);
+            }
+            return vpip_make_iterator(count, args, true);
+      }
+    private:
+      __vpiArray*array_;
+      unsigned depth_;
+      std::string name_;
+      vpiHandle word_;
+      __vpiDecConst bound_;
+      std::unique_ptr<alias_subarray_t> child_;
+};
+
+std::vector<std::unique_ptr<alias_subarray_t> > alias_subarrays;
+
+vpiHandle link_alias_subarray_(const alias_access_t&access, vpiHandle parent)
+{
+      auto*array = dynamic_cast<__vpiArray*>(parent);
+      if (!array || !array->nets || access.prefix >= array->unpacked_ranges.size())
+            return nullptr;
+      for (size_t idx = access.prefix; idx < array->unpacked_ranges.size(); ++idx) {
+            const auto&range = array->unpacked_ranges[idx];
+            if (range.left != range.right) return nullptr;
+      }
+      vpiHandle word = array->vpi_index(access.index);
+      if (!word) return nullptr;
+      alias_subarrays.emplace_back(
+            new alias_subarray_t(array, access.prefix, access.spelling, word));
+      return alias_subarrays.back().get();
+}
+
+/* A selected member shares the original resolver. Fall back to a view
+   only when the declaration's VPI typespec could not expose the member
+   (for example, a packed structure with an escaped member name). */
+class alias_member_t : public __vpiSignal {
+    public:
+      alias_member_t(__vpiSignal*parent, const alias_access_t&access)
+      {
+            id.name = vpip_name_string(access.member.c_str());
+            within.scope = vpip_scope(parent);
+            node = parent->node;
+            value_base = parent->value_base + access.offset;
+            value_width = access.width;
+            msb.set_value(access.width - 1);
+            signed_flag = access.is_signed;
+            is_netarray = 0;
+            automatic_storage = 0;
+            packed_parent = parent;
+            packed_view_parent = parent;
+            bits = nullptr;
+      }
+      int get_type_code() const override { return vpiNet; }
+      char* vpi_get_str(int code) override
+      {
+            if (code != vpiFullName)
+                  return __vpiSignal::vpi_get_str(code);
+            std::string name = packed_parent->vpi_get_str(vpiFullName);
+            name += ".";
+            name += id.name;
+            return simple_set_rbuf_str(name.c_str());
+      }
+};
+
+std::map<vpiHandle, std::map<std::string, vpiHandle> > alias_member_views;
+
+vpiHandle link_alias_member_(const alias_access_t&access, vpiHandle parent)
+{
+      auto*signal = dynamic_cast<__vpiSignal*>(parent);
+      if (!signal || access.offset > signal->width() ||
+          access.width > signal->width() - access.offset)
+            return nullptr;
+      uint64_t width = 1;
+      for (const auto&dim : access.dims) {
+            uint64_t count = llabs(int64_t(dim.first) - dim.second) + 1;
+            if (width > access.width / count) return nullptr;
+            width *= count;
+      }
+      if (!access.dims.empty() && width != access.width) return nullptr;
+      auto*member = dynamic_cast<__vpiSignal*>(
+            vpip_packed_member_by_name(parent, access.member.c_str()));
+      if (!member) {
+            vpiHandle&view = alias_member_views[parent][access.member];
+            if (!view) view = new alias_member_t(signal, access);
+            member = static_cast<__vpiSignal*>(view);
+      }
+      if (!access.dims.empty() && member->declared_packed_ranges.empty()) {
+            for (const auto&dim : access.dims)
+                  member->declared_packed_ranges.push_back({dim.first, dim.second});
+            member->msb.set_value(access.dims.front().first);
+            member->lsb.set_value(access.dims.front().second);
+            if (access.dims.size() > 1)
+                  member->packed_ranges = member->declared_packed_ranges;
+            vpip_trim_packed_base_dimension(member);
+      }
+      return member;
+}
+}
+
+void compile_link_vpi_aliases()
+{
+      /* Other records can declare forward signal labels, array words, and
+         packed types. Resolve these paths after normal linking. The target
+         emits the components of each path from parent to child. Packed
+         member lookup traverses the typespec with the VPI iterator API. */
+      vpi_mode_t saved_mode = vpi_mode_flag;
+      vpi_mode_flag = VPI_MODE_COMPILETF;
+      for (const auto&access : alias_accesses) {
+            vpiHandle parent = lookup_alias_operand_(access.parent);
+            if (!parent) continue;
+            vpiHandle child;
+            if (!access.member.empty())
+                  child = link_alias_member_(access, parent);
+            else if (access.prefix)
+                  child = link_alias_subarray_(access, parent);
+            else
+                  child = parent->vpi_index(access.index);
+            if (child && !vvp_lookup_handle(access.label.c_str())) {
+                  compile_vpi_symbol(access.label.c_str(), child);
+            } else {
+                  fprintf(stderr, "vvp: invalid .vpi_alias_access %s\n",
+                          access.label.c_str());
+                  compile_errors += 1;
+            }
+      }
+      vpi_mode_flag = saved_mode;
+      alias_accesses.clear();
+
+      for (const auto&arg : alias_args)
+            *arg.slot = lookup_alias_operand_(arg.symbol);
+      alias_args.clear();
+
+      for (const auto&stmt : alias_stmts) {
+            if (stmt.file_idx >= file_names.size()) {
+                  fprintf(stderr, "vvp: invalid .vpi_alias_stmt file index\n");
+                  compile_errors += 1;
+                  continue;
+            }
+            std::vector<vpiHandle> refs;
+            refs.reserve(stmt.operands.size());
+            for (const auto&operand : stmt.operands)
+                  refs.push_back(lookup_alias_operand_(operand));
+            if (std::find(refs.begin(), refs.end(), nullptr) != refs.end())
+                  continue;
+            for (size_t idx = 0; idx + 1 < refs.size(); ++idx) {
+                  vpip_attach_to_scope(stmt.scope, new __vpiAliasStmt(
+                        stmt.scope, stmt.file_idx, stmt.line, refs[idx], refs.back()));
+            }
+      }
+      alias_stmts.clear();
+}
 
 /* A def param object (IEEE 1800-2023 37.28): the defparam statement of
    this scope, with the parameter it assigns and its r-value. */

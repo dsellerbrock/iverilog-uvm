@@ -17662,6 +17662,7 @@ lpvalue
      lowering.  Keyed patterns are intentionally absent from lpvalue. */
   | K_LP expression_list_proper '}'
       { PEConcat*tmp = new PEConcat(*$2);
+        tmp->set_lvalue_pattern();
 	FILE_NAME(tmp, @1);
 	delete $2;
 	$$ = tmp;
