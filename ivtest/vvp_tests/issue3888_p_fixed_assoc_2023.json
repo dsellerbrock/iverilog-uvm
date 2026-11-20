@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3888_p_fixed_assoc.sv",
+  "iverilog-args": ["-g2023"],
+  "gold": "issue3888_p_fixed_assoc"
+}
