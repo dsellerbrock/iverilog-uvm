@@ -1,0 +1,4 @@
+ERROR: global constraint sampling failed: active fixed real-array leaves require independent hard finite intervals.
+ERROR: global constraint sampling failed: active fixed real-array leaves require independent hard finite intervals.
+ERROR: global constraint sampling failed: active fixed real-array leaves require independent hard finite intervals.
+PASSED

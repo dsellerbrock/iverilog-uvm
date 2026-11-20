@@ -1008,8 +1008,16 @@ struct Z3Builder {
 
       set<unsigned> real_ast_ids;
       map<unsigned, double> real_constants;
-      map<unsigned, constraint_real_bounds_t> real_bounds;
-      map<unsigned, vector<double> > real_inside_points;
+      map<Z3_ast, constraint_real_bounds_t> real_bounds;
+      map<Z3_ast, vector<double> > real_inside_points;
+      // Keep binary64 leaves out of the integral element samplers.
+      map<pair<unsigned,unsigned>, Z3_ast> real_elem_vars;
+      struct RealIntervalAtom {
+	    Z3_ast var;
+	    string relation;
+	    double endpoint;
+      };
+      map<Z3_ast, RealIntervalAtom> real_interval_atoms;
       bool collect_real_bounds = true;
 
       void mark_real(Z3_ast value) {
@@ -1022,6 +1030,12 @@ struct Z3Builder {
 	    for (const PropVar&var : prop_vars)
 		  if (var.is_real && var.var == value) return var.idx;
 	    return UINT_MAX;
+      }
+      bool is_real_elem(Z3_ast value) const {
+	    if (!real_elem_vars.empty() && is_real(value))
+		  for (const auto&leaf : real_elem_vars)
+			if (leaf.second == value) return true;
+	    return false;
       }
       bool real_constant(Z3_ast value, double&number) const {
 	    if (!value) return false;
@@ -2215,11 +2229,19 @@ static Z3_ast fixed_real_leaf_(Z3Builder&b, unsigned idx, unsigned leaf,
 	    b.state_errors.push_back("invalid fixed real-array state leaf in constraint");
 	    return b.tag_real_constant(0.0);
       }
-      if (rand_elem_active_(b, b.prop_active, idx, leaf)) {
-	    b.state_errors.push_back("active fixed real-array leaf is not supported in constraint randomization");
-	    return b.tag_real_constant(0.0);
+      // State reads are equality-pinned by tag_real_constant, including
+      // disabled leaves and leaves omitted by an explicit selection.
+      if (!rand_elem_active_(b, b.prop_active, idx, leaf))
+	    return b.tag_real_constant(owner->get_real(pid, leaf));
+      auto entry = b.real_elem_vars.emplace(make_pair(idx, leaf), nullptr);
+      if (entry.second) {
+	    char name[48];
+	    snprintf(name, sizeof(name), "re%u_%u", idx, leaf);
+	    entry.first->second = Z3_mk_const(b.ctx,
+		  Z3_mk_string_symbol(b.ctx, name), Z3_mk_bv_sort(b.ctx, 64));
+	    b.mark_real(entry.first->second);
       }
-      return b.tag_real_constant(owner->get_real(pid, leaf));
+      return entry.first->second;
 }
 
 // Parse "e:N:W:I[:s|:r]" -- returns the selected array element.
@@ -3203,28 +3225,9 @@ static Z3_ast constraint_value_to_bool_(Z3Builder&b, Z3_ast value)
 	    Z3_mk_fpa_eq(b.ctx, z3_to_real_(b, value), zero));
 }
 
-static void record_real_bound_(Z3Builder&b, bool mandatory,
-			       const string&op, Z3_ast left, Z3_ast right)
+static void restrict_real_interval_(constraint_real_bounds_t&bounds,
+				    const string&relation, double value)
 {
-      if (!mandatory) return;
-      unsigned property = b.real_property(left);
-      double value = 0.0;
-      bool reverse = false;
-      if (property == UINT_MAX || !b.real_constant(right, value)) {
-	    property = b.real_property(right);
-	    if (property == UINT_MAX || !b.real_constant(left, value)) return;
-	    reverse = true;
-      }
-      if (!isfinite(value)) return;
-
-      string relation = op;
-      if (reverse) {
-	    if (relation == "lt") relation = "gt";
-	    else if (relation == "le") relation = "ge";
-	    else if (relation == "gt") relation = "lt";
-	    else if (relation == "ge") relation = "le";
-      }
-      constraint_real_bounds_t&bounds = b.real_bounds[property];
       auto lower = [&](bool open) {
 	    if (!bounds.has_lower || value > bounds.lower) {
 		  bounds.lower = value;
@@ -3251,6 +3254,51 @@ static void record_real_bound_(Z3Builder&b, bool mandatory,
 	    lower(false);
 	    upper(false);
       }
+}
+
+static void record_real_bound_(Z3Builder&b, bool mandatory,
+			       const string&op, Z3_ast left, Z3_ast right,
+			       Z3_ast atom)
+{
+      if (op == "ne" || (!mandatory && b.real_elem_vars.empty())) return;
+      auto bound = [&](Z3_ast variable, Z3_ast endpoint, double&value) {
+	    if (!b.is_real_elem(variable))
+		  return mandatory && b.real_property(variable) != UINT_MAX
+			&& b.real_constant(endpoint, value);
+	    // Fold index-dependent real expressions in the same binary64
+	    // arithmetic as the asserted comparison.
+	    Z3_ast fp = z3_to_real_(b, endpoint);
+	    Z3_ast bits = Z3_simplify(b.ctx, b.resolve_constant_aliases(
+		  Z3_mk_fpa_to_ieee_bv(b.ctx, fp)));
+	    uint64_t raw = 0;
+	    if (!Z3_get_numeral_uint64(b.ctx, bits, &raw)) return false;
+	    value = z3_bits_real_(raw);
+	    return true;
+      };
+      Z3_ast variable = left;
+      double value = 0.0;
+      bool reverse = false;
+      if (!bound(left, right, value)) {
+	    if (!bound(right, left, value)) return;
+	    variable = right;
+	    reverse = true;
+      }
+      if (!isfinite(value)) return;
+
+      string relation = op;
+      if (reverse) {
+	    if (relation == "lt") relation = "gt";
+	    else if (relation == "le") relation = "ge";
+	    else if (relation == "gt") relation = "lt";
+	    else if (relation == "ge") relation = "le";
+      }
+      // An array bound contributes only after the complete problem
+      // proves this particular comparison is a hard conjunct.
+      if (b.is_real_elem(variable))
+	    b.real_interval_atoms.emplace(atom,
+		  Z3Builder::RealIntervalAtom{variable, relation, value});
+      else
+	    restrict_real_interval_(b.real_bounds[variable], relation, value);
 }
 
 static Z3_ast constraint_side_conjunction_(Z3Builder&b,
@@ -6333,15 +6381,16 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 	    b.integral_context_sign = outer_sign;
 	    par.skip_ws(); par.expect(')');
 	    if (b.is_real(left) || b.is_real(right)) {
-		  record_real_bound_(b, real_bounds_parent, op, left, right);
 		  Z3_ast lhs = z3_to_real_(b, left);
 		  Z3_ast rhs = z3_to_real_(b, right);
-		  if (op == "lt") return Z3_mk_fpa_lt(b.ctx, lhs, rhs);
-		  if (op == "le") return Z3_mk_fpa_leq(b.ctx, lhs, rhs);
-		  if (op == "gt") return Z3_mk_fpa_gt(b.ctx, lhs, rhs);
-		  if (op == "ge") return Z3_mk_fpa_geq(b.ctx, lhs, rhs);
-		  Z3_ast equal = Z3_mk_fpa_eq(b.ctx, lhs, rhs);
-		  return op == "eq" ? equal : Z3_mk_not(b.ctx, equal);
+		  Z3_ast relation = op == "lt" ? Z3_mk_fpa_lt(b.ctx, lhs, rhs)
+			: op == "le" ? Z3_mk_fpa_leq(b.ctx, lhs, rhs)
+			: op == "gt" ? Z3_mk_fpa_gt(b.ctx, lhs, rhs)
+			: op == "ge" ? Z3_mk_fpa_geq(b.ctx, lhs, rhs)
+			: Z3_mk_fpa_eq(b.ctx, lhs, rhs);
+		  record_real_bound_(b, real_bounds_parent, op, left, right,
+				     relation);
+		  return op == "ne" ? Z3_mk_not(b.ctx, relation) : relation;
 	    }
 	      // A nested comparison is a one-bit SystemVerilog integral value,
 	      // although Z3 represents it as Bool. Equality and relational
@@ -6409,11 +6458,13 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 	      // (IEEE 1800-2017 11.4.13, 11.8.1).
 	    bool subj_signed = type_ok ? common_type.sign : b.is_signed(subject);
 	    bool real_subject = b.is_real(subject);
-	    unsigned real_property = real_subject
-		  ? b.real_property(subject) : UINT_MAX;
+	    bool scalar_real = real_subject && b.real_property(subject) != UINT_MAX;
+	    bool array_real = real_subject && b.is_real_elem(subject);
 	    unsigned real_range_count = 0;
 	    Z3_ast real_range_lower = nullptr;
 	    Z3_ast real_range_upper = nullptr;
+	    Z3_ast real_range_ge = nullptr;
+	    Z3_ast real_range_le = nullptr;
 
 	      // IEEE 1800-2017/2023 Table 11-21 omits inside sizing, but the
 	      // reported LRM-issue consensus and interoperable implementation
@@ -6491,6 +6542,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			if (real_range_count == 1) {
 			      real_range_lower = lo_raw;
 			      real_range_upper = hi_raw;
+			      real_range_ge = c1;
+			      real_range_le = c2;
 			}
 		  }
 			if (c1 && c2) {
@@ -6507,10 +6560,10 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			Z3_ast v = build_z3_atom(par, b);
 			if (real_subject || b.is_real(v)) {
 			      double point = 0.0;
-			      if (real_subject && real_property != UINT_MAX
+			      if (scalar_real
 				  && b.real_constant(v, point)
 				  && isfinite(point))
-				    b.real_inside_points[real_property].push_back(point);
+				    b.real_inside_points[subject].push_back(point);
 			      clauses.push_back(Z3_mk_fpa_eq(b.ctx,
 				    z3_to_real_(b, subject), z3_to_real_(b, v)));
 			} else {
@@ -6544,9 +6597,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 				    uint64_t point_bits = strtoull(tok.c_str() + 2,
 					  nullptr, 10);
 				    memcpy(&point, &point_bits, sizeof point);
-				    if (real_subject && real_property != UINT_MAX
+				    if (scalar_real
 					&& isfinite(point))
-					  b.real_inside_points[real_property].push_back(point);
+					  b.real_inside_points[subject].push_back(point);
 				    clauses.push_back(Z3_mk_fpa_eq(b.ctx,
 					  z3_to_real_(b, subject), z3_to_real_(b, value)));
 			      } else
@@ -6719,13 +6772,14 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 		  par.skip_ws();
 	    }
 	    par.expect(')');
-	    if (real_property != UINT_MAX && real_range_count == 1) {
+	    if (real_range_count == 1
+		&& (scalar_real || (array_real && clauses.size() == 1))) {
 		  if (real_range_lower)
 			record_real_bound_(b, real_bounds_parent, "ge",
-					   subject, real_range_lower);
+					   subject, real_range_lower, real_range_ge);
 		  if (real_range_upper)
 			record_real_bound_(b, real_bounds_parent, "le",
-					   subject, real_range_upper);
+					   subject, real_range_upper, real_range_le);
 	    }
 	    b.integral_context_width = outer_context;
 	    b.integral_context_sign = outer_sign;
@@ -10193,6 +10247,99 @@ static bool z3_collect_constants_(Z3_context ctx, Z3_ast value,
             }
             for (unsigned idx = 0; idx < count; ++idx)
                   pending.push_back(Z3_get_app_arg(ctx, app, idx));
+      }
+      return true;
+}
+
+/* Prove that the hard problem factors into independent real intervals
+ * and the rest of the solve. Every conjunct touching a real leaf must
+ * be a recorded comparison against a ground finite endpoint. Follow
+ * conjunctions and proven true guards. This catches dependencies through
+ * auxiliary equalities and excludes interval unions and random guards. */
+static bool z3_real_array_intervals_(Z3Builder&b, Z3_optimize opt)
+{
+      Z3_context ctx = b.ctx;
+      set<Z3_ast> leaves;
+      for (const auto&leaf : b.real_elem_vars)
+	    leaves.insert(leaf.second);
+      auto independent = [&](Z3_ast expression) {
+	    set<Z3_ast> constants;
+	    return z3_collect_constants_(ctx, expression, constants)
+		  && none_of(constants.begin(), constants.end(),
+			[&](Z3_ast var) { return leaves.count(var); });
+      };
+      auto disabled = [&](const set<Z3Builder::VarRef>&refs, size_t priority) {
+	    return any_of(refs.begin(), refs.end(), [&](const Z3Builder::VarRef&ref) {
+		  return b.soft_ref_disabled(ref, priority);
+	    });
+      };
+      for (const auto&soft : b.pending_soft)
+	    if (!disabled(soft.refs, soft.priority) && !independent(soft.a))
+		  return false;
+      for (const auto&dist : b.dist_specs) {
+	    if (dist.disableable && disabled(dist.disable_refs, dist.priority))
+		  continue;
+	    if (!independent(dist.subject)) return false;
+	    for (Z3_ast guard : dist.guards)
+		  if (!independent(guard)) return false;
+	    for (const auto&branch : dist.fallback)
+		  if (!independent(branch.a)) return false;
+	    for (const auto&branch : dist.branches)
+		  if (branch.weight_expression && !independent(branch.weight_expression))
+			return false;
+      }
+      auto ordered_leaf = [&](const Z3Builder::OrderRef&ref) {
+	    return ref.kind == Z3Builder::OrderRef::ELEM
+		  && b.real_elem_vars.count(make_pair(ref.idx, ref.elem));
+      };
+      for (const auto&order : b.order_pairs)
+	    if (ordered_leaf(order.first) || ordered_leaf(order.second))
+		  return false;
+
+      vector<Z3_ast> pending;
+      // Optimize retains the emitted atoms. The simple solver can rewrite
+      // floating-point comparisons as it receives each assertion.
+      Z3_ast_vector assertions = Z3_optimize_get_assertions(ctx, opt);
+      Z3_ast_vector_inc_ref(ctx, assertions);
+      for (unsigned i = 0; i < Z3_ast_vector_size(ctx, assertions); ++i)
+	    pending.push_back(Z3_ast_vector_get(ctx, assertions, i));
+      Z3_ast_vector_dec_ref(ctx, assertions);
+      while (!pending.empty()) {
+	    Z3_ast clause = pending.back();
+	    pending.pop_back();
+	    auto atom = b.real_interval_atoms.find(clause);
+	    if (atom != b.real_interval_atoms.end()) {
+		  const auto&bound = atom->second;
+		  restrict_real_interval_(b.real_bounds[bound.var],
+					  bound.relation, bound.endpoint);
+		  continue;
+	    }
+	    if (Z3_get_ast_kind(ctx, clause) == Z3_APP_AST) {
+		  Z3_app app = Z3_to_app(ctx, clause);
+		  Z3_decl_kind kind = Z3_get_decl_kind(ctx, Z3_get_app_decl(ctx, app));
+		  if (kind == Z3_OP_AND) {
+			for (unsigned i = 0; i < Z3_get_app_num_args(ctx, app); ++i)
+			      pending.push_back(Z3_get_app_arg(ctx, app, i));
+			continue;
+		  }
+		  if (kind == Z3_OP_IMPLIES) {
+			Z3_ast guard = b.resolve_constant_aliases(Z3_get_app_arg(ctx, app, 0));
+			if (Z3_get_bool_value(ctx, Z3_simplify(ctx, guard)) == Z3_L_TRUE) {
+			      pending.push_back(Z3_get_app_arg(ctx, app, 1));
+			      continue;
+			}
+		  }
+	    }
+	    // Logical operators emit side conditions for guarded reads. Some
+	    // contain a real operand but simplify to an unconditional truth.
+	    if (!independent(clause) && !independent(Z3_simplify(ctx, clause)))
+		  return false;
+      }
+      for (Z3_ast var : leaves) {
+	    auto bounds = b.real_bounds.find(var);
+	    if (bounds != b.real_bounds.end()
+		&& (!bounds->second.has_lower || !bounds->second.has_upper))
+		  return false;
       }
       return true;
 }
@@ -14191,6 +14338,37 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    return false;
       };
 
+      map<pair<unsigned,unsigned>, uint64_t> real_elem_samples;
+      if (!builder.real_elem_vars.empty()) {
+	    if (!builder.dyn_foreach.empty() || builder.row_pass
+		|| (graph && any_of(graph->objects.begin(), graph->objects.end(),
+		      [](const vvp_z3_object_s&owner) { return owner.staged_selection; }))
+		|| !z3_real_array_intervals_(builder, opt))
+		  return fail_joint("active fixed real-array leaves require independent hard finite intervals");
+	    // An inactive leaf can make the problem infeasible. Keep that an
+	    // ordinary randomize failure and leave the transaction to roll back.
+	    if (Z3_solver_check(ctx, base) != Z3_L_TRUE)
+		  return fail_joint(nullptr);
+	    for (const auto&leaf : builder.real_elem_vars) {
+		  Z3_ast var = leaf.second;
+		  uint64_t bits = 0;
+		  unsigned idx = leaf.first.first;
+		  auto bounds = builder.real_bounds.find(var);
+		  if (bounds == builder.real_bounds.end()) {
+			// No live constraint uses this leaf. Pin the prefill.
+			bits = z3_real_bits_(builder.object(idx)->get_real(
+			      builder.local_index(idx), leaf.first.second));
+		  } else if (!z3_sample_real_candidate_(ctx, base, var, bounds->second,
+							property_rng(idx), bits))
+			return fail_joint("could not sample the fixed real-array interval");
+		  Z3_ast value = Z3_mk_unsigned_int64(ctx, bits, Z3_get_sort(ctx, var));
+		  Z3_ast pin = Z3_mk_eq(ctx, var, value);
+		  Z3_solver_assert(ctx, base, pin);
+		  Z3_optimize_assert(ctx, opt, pin);
+		  real_elem_samples.emplace(leaf.first, bits);
+	    }
+      }
+
 	// Explicit `soft' constraints are PRIORITISED, not weighted
 	// (IEEE 1800-2017 18.5.14.1): when two of them conflict, the one
 	// declared later wins outright — no combination of earlier soft
@@ -14514,7 +14692,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       // performance fix: Z3_mk_simple_solver skips the tactic-combinator
       // setup Z3_mk_solver does (irrelevant for this quantifier-free
       // bitvector check) -- measured ~7-8ms cheaper per randomize() call.
-      if (!exact_joint && !active_real_property) {
+      if (!exact_joint && !active_real_property && builder.real_elem_vars.empty()) {
 	    Z3_solver chk = Z3_mk_simple_solver(ctx);
 	    Z3_solver_inc_ref(ctx, chk);
 	      // If the current candidate satisfies every active explicit soft
@@ -15362,7 +15540,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (sampled_real_vars.count(pv.var)) continue;
 	    if (pv.is_real) {
 		  if (dist_resolved_vars.count(pv.var)) continue;
-		  auto bounds = builder.real_bounds.find(pv.idx);
+		  auto bounds = builder.real_bounds.find(pv.var);
 		  uint64_t bits = 0;
 		  if (dist_fallback_vars.count(pv.var)
 		      || fallback_ref(Z3Builder::VarRef::PROP, pv.idx, 0)) {
@@ -15372,7 +15550,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			return;
 		  }
 		  bool real_sampled = false;
-		  auto points = builder.real_inside_points.find(pv.idx);
+		  auto points = builder.real_inside_points.find(pv.var);
 		  if (points != builder.real_inside_points.end()) {
 			vector<uint64_t> feasible_points;
 			for (double point : points->second) {
@@ -17561,7 +17739,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				  });
 		      if (real_ordered) {
 			    if (dist_resolved_vars.count(var)) continue;
-			    auto bounds = builder.real_bounds.find(ref.idx);
+			    auto bounds = builder.real_bounds.find(var);
 			    uint64_t bits = 0;
 			    if (bounds == builder.real_bounds.end()
 				|| !z3_sample_real_candidate_(ctx, base, var,
@@ -18341,6 +18519,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				  ev.nested ? ev.leaf : 0));
       }
 
+      for (const auto&sample : real_elem_samples) {
+	    unsigned idx = sample.first.first;
+	    unsigned leaf = sample.first.second;
+	    builder.object(idx)->set_real(builder.local_index(idx),
+		  z3_bits_real_(sample.second), leaf);
+      }
       Z3_model_dec_ref(ctx, model);
 
       Z3_optimize_dec_ref(ctx, opt);

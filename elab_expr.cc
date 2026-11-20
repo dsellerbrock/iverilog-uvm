@@ -330,6 +330,26 @@ string randomize_arg_selector(const std::vector<named_pexpr_t>&parms,
 		  if (des) des->errors += 1;
 		  return "*";
 	    }
+	      // An explicit argument is random even without a rand qualifier.
+	      // Apply the fixed real leaf checks at the selection as well.
+	    ivl_type_t type = class_type->get_prop_type(pid);
+	    if (type && type->base_type() == IVL_VT_REAL
+		&& dynamic_cast<const netuarray_t*>(type)) {
+		  ivl_type_t leaf = type;
+		  while (const netuarray_t*array = dynamic_cast<const netuarray_t*>(leaf))
+			leaf = array->element_type();
+		  if ((leaf == &netreal_t::type_real && generation_flag < GN_VER2023)
+		      || leaf == &netreal_t::type_shortreal) {
+			if (generation_flag < GN_VER2023)
+			      cerr << loc->get_fileline() << ": error: IEEE 1800-2017 18.4 "
+				   << "does not permit randomizing a fixed real array." << endl;
+			else
+			      cerr << loc->get_fileline() << ": sorry: randomizing a fixed "
+				   << "shortreal array is not currently supported." << endl;
+			if (des) des->errors += 1;
+			return "*";
+		  }
+	    }
 	    if (!sel.empty()) sel += ",";
 	    sel += to_string(pid);
       }
