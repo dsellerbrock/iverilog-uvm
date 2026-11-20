@@ -3327,11 +3327,9 @@ struct pending_interface_specify_path_t {
 static vector<pending_interface_specify_path_t>
       pending_interface_specify_paths_;
 
-/* The initializer expression of each interface port bound directly to an
-   interface instance, keyed by (port, word). A module path to a variable
-   member records its shadow there for the run-time handle. */
-static map<pair<const NetNet*,unsigned>,NetEScope*>
-      interface_port_scope_bindings_;
+/* Initializers of statically bound interface ports, keyed by (port, word).
+   The module path shadow pass can give each forwarded port its own handle. */
+static map<pair<NetNet*,unsigned>,NetAssign*> interface_port_initializers_;
 
 struct pending_interface_variable_continuous_driver_t {
       NetNet*port;
@@ -9175,14 +9173,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 							    actual->second[scope_word],
 							    static_cast<ivl_type_t>(ifc));
 						      se->set_line(*aid);
-						      interface_port_scope_bindings_[
-							    make_pair(prts[0], (unsigned)word)] = se;
 						      NetAssign_*lv = new NetAssign_(prts[0]);
 						      NetEConst*word_expr =
 							    make_const_val_s(word);
 						      word_expr->set_line(*aid);
 						      lv->set_word(word_expr);
 						      NetAssign*as = new NetAssign(lv, se);
+					      interface_port_initializers_[
+						    make_pair(prts[0], word)] = as;
 						      as->set_line(*this);
 						      NetProcTop*top = new NetProcTop(
 							    instance[0], IVL_PR_INITIAL, as);
@@ -9254,6 +9252,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						      formal_word_expr->set_line(*aid);
 						      lv->set_word(formal_word_expr);
 						      NetAssign*as = new NetAssign(lv, source);
+					      interface_port_initializers_[
+						    make_pair(prts[0], formal_word)] = as;
 						      as->set_line(*this);
 						      NetProcTop*top = new NetProcTop(
 							    instance[0], IVL_PR_INITIAL, as);
@@ -9358,6 +9358,9 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			      if (!vif)
 				    continue;
 
+			      NetAssign_*lv = new NetAssign_(port_var);
+			      NetAssign*as = new NetAssign(lv, vif);
+			      as->set_line(*this);
 			      /* Keep the statically-known binding in the netlist as
 			       * well as in the simulation initializer. Synthesis uses
 			       * this compiler-owned metadata to resolve formal.member
@@ -9366,8 +9369,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			       * hierarchy has been elaborated. */
 			      if (NetEScope*bound_scope =
 				    dynamic_cast<NetEScope*>(vif)) {
-				    interface_port_scope_bindings_[
-					  make_pair(port_var, 0U)] = bound_scope;
+				    interface_port_initializers_[
+					  make_pair(port_var, 0U)] = as;
 				    port_var->bind_interface_scope(
 					  0, const_cast<NetScope*>(
 						bound_scope->scope()));
@@ -9387,14 +9390,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						bound_word = static_cast<unsigned>(
 						      word_value);
 				    }
-				    if (static_word)
+				    if (static_word) {
 					  port_var->bind_interface_signal(
 						0, const_cast<NetNet*>(
 						      bound_signal->sig()), bound_word);
+					  interface_port_initializers_[
+						make_pair(port_var, 0U)] = as;
+				    }
 			      }
-			      NetAssign_*lv = new NetAssign_(port_var);
-			      NetAssign*as = new NetAssign(lv, vif);
-			      as->set_line(*this);
 			      NetScope*inst_scope =
 				    instance[instance.size()-inst-1];
 			      NetProcTop*top = new NetProcTop(
@@ -34061,6 +34064,19 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
  */
 static void prepare_interface_path_shadows_(Design*des)
 {
+      if (pending_interface_specify_paths_.empty())
+	    return;
+
+      map<NetScope*,vector<pair<NetNet*,unsigned>>> forwarded_ports;
+      for (const auto&entry : interface_port_initializers_) {
+	    if (dynamic_cast<NetEScope*>(entry.second->rval()))
+		  continue;
+	    const auto&port_word = entry.first;
+	    if (NetScope*instance =
+		  port_word.first->resolve_interface_scope(port_word.second))
+		  forwarded_ports[instance].push_back(port_word);
+      }
+
       map<NetNet*,NetNet*> shadow_owner;	// member -> its shadow
       for (const pending_interface_specify_path_t&pending :
 	   pending_interface_specify_paths_) {
@@ -34095,11 +34111,28 @@ static void prepare_interface_path_shadows_(Design*des)
 				&& mp->second.first != NetNet::PINOUT))
 			      continue;
 		  }
+		  auto bound = interface_port_initializers_.find(
+			make_pair(port, 0U));
+		  if (bound == interface_port_initializers_.end())
+			continue;
+		  NetScope*instance = port->resolve_interface_scope(0);
+		  if (!instance)
+			continue;
+
+		  if (const NetEScope*init =
+			dynamic_cast<NetEScope*>(bound->second->rval())) {
+			const auto&binds = init->vif_binds();
+			if (std::any_of(binds.begin(), binds.end(),
+				      [pid](const pair<unsigned,NetNet*>&bind) {
+					    return bind.first == unsigned(pid);
+				      }))
+			      continue;	// this port already reaches the shadow
+		  }
+
 		  NetNet*member = port->resolve_interface_member(0, pid);
-		  if (!member || member->type() != NetNet::REG
-		      || member->unpacked_dimensions() > 0
+		  if (!member || member->unpacked_dimensions() > 0
 		      || !type_is_vectorable(member->data_type()))
-			continue;	// a net member needs no shadow
+			continue;
 
 		  auto old = shadow_owner.find(member);
 		  if (old != shadow_owner.end()) {
@@ -34111,19 +34144,25 @@ static void prepare_interface_path_shadows_(Design*des)
 			des->errors += 1;
 			continue;
 		  }
+		  if (member->type() != NetNet::REG)
+			continue;	// a net member needs no shadow
 
-		  auto bound = interface_port_scope_bindings_.find(
-			make_pair(static_cast<const NetNet*>(port), 0U));
-		  if (bound == interface_port_scope_bindings_.end()) {
-			  // ponytail: a forwarded port shares its parent's
-			  // handle, so it cannot take its own view; bind the
-			  // shadow at the root binding if this is ever needed.
-			cerr << path->get_fileline() << ": warning: The delay of "
-			     << "the module path to `" << terminal << "' is ignored: "
-			     << "interface port `" << terminal.name << "' is passed "
-			     << "through from another port, not bound to an "
-			     << "interface instance." << endl;
-			continue;
+		    // Give forwarded ports of this instance independent handles
+		    // before any shadow can affect a descendant's view. Anchor
+		    // static resolution at the instance for the same reason.
+		  auto forwards = forwarded_ports.find(instance);
+		  if (forwards != forwarded_ports.end()) {
+			for (const auto&port_word : forwards->second) {
+			      NetNet*formal = port_word.first;
+			      NetAssign*init =
+				    interface_port_initializers_.at(port_word);
+			      NetEScope*vif =
+				    new NetEScope(instance, formal->net_type());
+			      vif->set_line(*init->rval());
+			      init->set_rval(vif);
+			      formal->bind_interface_scope(port_word.second, instance);
+			}
+			forwarded_ports.erase(forwards);
 		  }
 
 		  NetNet*shadow = new NetNet(scope, scope->local_symbol(),
@@ -34132,7 +34171,8 @@ static void prepare_interface_path_shadows_(Design*des)
 		    // Not local_flag: nodangle drops a local signal that shares
 		    // its nexus with the member, and the handle needs it.
 		  port->bind_interface_member(0, pid, shadow);
-		  bound->second->add_vif_bind(pid, shadow);
+		  NetEScope*init = static_cast<NetEScope*>(bound->second->rval());
+		  init->add_vif_bind(pid, shadow);
 		  shadow_owner[member] = shadow;
 
 		    // With the module's own writes now on the shadow, any
@@ -59789,7 +59829,7 @@ Design* elaborate(list<perm_string>roots)
       pending_interface_continuous_drivers_.clear();
       pending_interface_specify_paths_.clear();
       pending_interface_variable_continuous_drivers_.clear();
-      interface_port_scope_bindings_.clear();
+      interface_port_initializers_.clear();
       deferred_extern_sensitivity_.clear();
       extern_functions_bound_ = false;
       pending_variable_continuous_drivers_.clear();

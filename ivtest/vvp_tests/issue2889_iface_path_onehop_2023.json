@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2889_iface_path_onehop.sv",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "top"],
+  "gold": "issue2889_iface_path"
+}
