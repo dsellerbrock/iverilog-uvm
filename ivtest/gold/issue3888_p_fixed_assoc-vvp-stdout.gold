@@ -1,0 +1,12 @@
+signed: '{'{-7:-128, 3:-1}, '{default:-23}, '{default:'0}}
+constant: '{-7:-128, 3:-1}
+variable: '{-7:-128, 3:-1}
+empty: '{default:'0}
+unsigned: '{'{3:128, 4294967295:255}, '{default:'0}, '{default:'0}}
+strings: '{'{"q\"\\":"a\012\"\\", default:"missing"}, '{default:""}}
+objects: '{'{-5:'{tag:17}, 9:null}, '{default:null}}
+nested: '{'{-2:'{-6:-2, 3:-1}}, '{default:'{default:'0}}}
+four state: '{'{0:4'b1xz0}, '{default:'x}}
+queues: '{'{-1:'{-3, -4}}, '{default:{}}}
+enums: '{'{3:BUSY}, '{default:issue3888_state_t'(0)}} selected: '{3:BUSY}
+packed: '{'{3:'{data:4'b10xz, valid:1}}, '{default:'x}}
