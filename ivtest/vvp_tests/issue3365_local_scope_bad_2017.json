@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "issue3365_local_scope_bad.sv",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "issue3365_local_scope_bad"
+    ],
+    "gold": "issue3365_local_scope_bad"
+}
