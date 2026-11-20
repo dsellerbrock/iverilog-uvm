@@ -434,6 +434,13 @@ void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
       vpip_routines->assertion_report_age(idx, reason, scope, age);
 }
 
+void vpip_assertion_report_at(PLI_INT32 idx, PLI_INT32 reason, vpiHandle scope,
+			      const s_vpi_time*source)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_report_at(idx, reason, scope, source);
+}
+
 void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
                              PLI_INT32 reason, PLI_INT32 from, PLI_INT32 to,
                              PLI_INT32 n, const char*const*files,

@@ -1,0 +1,4 @@
+ivltests/issue3953_bad.sv:14: sorry: $future_gclk of an active free checker variable requires a Postponed sample (IEEE 1800-2017/2023 16.5.1).
+ivltests/issue3953_bad.sv:6: sorry: $future_gclk of an event triggered property requires a Postponed sample (IEEE 1800-2017/2023 16.5.1).
+ivltests/issue3953_bad.sv:7: sorry: $future_gclk is only supported in static single-step concurrent properties (IEEE 1800-2017/2023 16.9.4).
+3 error(s) during elaboration.

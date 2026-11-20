@@ -1195,6 +1195,8 @@ extern void vpip_report_immediate_assertion(PLI_INT32 source_id,
 extern void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope);
 extern void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
                                       vpiHandle scope, PLI_INT32 age);
+extern void vpip_assertion_report_at(PLI_INT32 idx, PLI_INT32 reason,
+				     vpiHandle scope, const s_vpi_time* source);
 /* M12B-cb: non-zero iff any assertion callback is registered (lets the
    synthesized checkers skip reporting when nothing is watching). */
 extern PLI_INT32 vpip_assertion_cb_active(void);
@@ -1409,6 +1411,8 @@ typedef struct {
     vpiHandle   (*compat_iterate)(int, PLI_INT32, vpiHandle);
     int         (*sample_evcd_inout)(vpiHandle, unsigned, unsigned,
                                      s_vpi_strengthval*, unsigned*, unsigned*);
+    void        (*assertion_report_at)(PLI_INT32, PLI_INT32, vpiHandle,
+				       const s_vpi_time*);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

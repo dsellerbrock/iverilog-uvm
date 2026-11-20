@@ -3214,7 +3214,7 @@ class __vpiAssertion : public __vpiHandle {
 
 	/* Fire every registered callback whose reason matches. age < 0 keeps
 	   the established two-argument report behavior for other checkers. */
-      void fire_(int reason, int age)
+      void fire_(int reason, int age, const s_vpi_time*source = nullptr)
       {
 	      /* A passing deferred immediate cover is reported only after its
 	         result survives the assertion report queue. A failing cover's
@@ -3250,7 +3250,10 @@ class __vpiAssertion : public __vpiHandle {
 	    vvp_time64_t now_raw = schedule_simtime();
 	    s_vpi_time t;
 	    t.type = vpiSimTime;
-	    vpip_time_to_timestruct(&t, now_raw);
+	    if (source)
+		  t = *source;
+	    else
+		  vpip_time_to_timestruct(&t, now_raw);
 	    t.real = 0.0;
 
 	      /* M12-2: recover a completing attempt's real start time.
@@ -3262,7 +3265,9 @@ class __vpiAssertion : public __vpiHandle {
 		 (latency_ < 0) reports now, which is exact for same-tick
 		 assertions. */
 	    vvp_time64_t start_raw = now_raw;
-	    if (age >= 0) {
+	    if (source) {
+		  start_raw = (vvp_time64_t(source->high) << 32) | source->low;
+	    } else if (age >= 0) {
 		  if ((size_t)age < clocks_.size())
 			start_raw = clocks_[clocks_.size() - 1 - age];
 		  else {
@@ -3868,6 +3873,15 @@ void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
       if (!sc) return;
       auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
       if (it != assertion_by_key.end()) it->second->fire((int)reason, (int)age);
+}
+
+void vpip_assertion_report_at(PLI_INT32 idx, PLI_INT32 reason,
+			      vpiHandle scope, const s_vpi_time*source)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (__vpiAssertion*obj = find_assertion_up_(assertion_by_key,
+				    sva_action_parent_(sc), (int)idx, false))
+	    obj->fire_((int)reason, -1, source);
 }
 
 void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,

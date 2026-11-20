@@ -1,0 +1,4 @@
+issue3953_2017 normal,-g2017,-s,issue3953 ivltests gold=issue3953.gold
+issue3953_2023 normal,-g2023,-s,issue3953 ivltests gold=issue3953.gold
+issue3953_bad_2017 CE,-g2017,-s,issue3953_bad ivltests gold=issue3953_bad.gold
+issue3953_bad_2023 CE,-g2023,-s,issue3953_bad ivltests gold=issue3953_bad.gold

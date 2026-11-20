@@ -19443,6 +19443,13 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       vector<NetExpr*>eparms (parm_count);
 
       perm_string name = peek_tail_name(path_);
+      if (name == "$future_gclk") {
+	    cerr << get_fileline() << ": error: $future_gclk may only be "
+		 << "invoked in a property or sequence expression "
+		 << "(IEEE 1800-2017/2023 16.9.4)." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
 	/* IEEE 1800-2023 20.11: identifiers in list_of_scopes_or_assertions
 	   become hierarchical selector strings. The leading integer arguments
 	   (levels; for $assertcontrol also control, assertion and directive

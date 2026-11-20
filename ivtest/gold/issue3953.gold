@@ -1,0 +1,11 @@
+begin 1 10 marker=1
+fail 1 10 marker=1
+PASS 15
+begin 2 20 marker=2
+PASS 25
+fail 2 30 marker=3
+PASS 35
+end 1 36
+PASS 45
+end 2 46
+PASS 55

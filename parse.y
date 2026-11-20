@@ -14884,6 +14884,9 @@ expr_primary
       }
   | SYSTEM_IDENTIFIER
       { perm_string tn = lex_strings.make($1);
+	if (tn == "$future_gclk")
+	      yyerror(@1, "error: $future_gclk takes exactly one expression "
+		      "argument (IEEE 1800-2017/2023 16.9.4).");
 	PECallFunction*tmp = new PECallFunction(tn);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
@@ -15731,6 +15734,10 @@ expr_primary
 	      FILE_NAME(ev, @1);
 	      pform_bind_sampled_call_to_event(@1, tmp, ev);
 	      delete ev;
+	} else if (tn == "$future_gclk") {
+	      if ($2->size() != 1 || !$2->front().parm || !$2->front().name.nil())
+		    yyerror(@1, "error: $future_gclk takes exactly one expression "
+			    "argument (IEEE 1800-2017/2023 16.9.4).");
 	} else if (pform_global_clock_future_function($1)) {
 	      yyerror(@1, "sorry: the global clocking future sampled value "
 		      "function %s is not supported yet (IEEE 1800-2017/2023 "

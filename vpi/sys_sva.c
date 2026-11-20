@@ -436,13 +436,16 @@ static PLI_INT32 sva_immediate_assertion_report_calltf(
       return 0;
 }
 
-/* M12B-cb: $ivl_assert_report(idx, reason) — a synthesized checker fires
-   a success/failure event for the (scope, idx) assertion. */
+/* $ivl_assert_report(idx, reason [, age [, source_time]]) reports a result
+   for the (scope, idx) assertion. A future sample can supply the raw source
+   tick directly, independently of how many assertion clocks have passed. */
 static PLI_INT32 sva_report_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
       vpiHandle argv  = vpi_iterate(vpiArgument, callh);
       PLI_INT32 idx = 0, reason = 0, age = -1;
+      s_vpi_time source;
+      int have_source = 0;
       (void)name;
       if (argv) {
 	    vpiHandle a;
@@ -461,10 +464,24 @@ static PLI_INT32 sva_report_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 		  v.format = vpiIntVal;
 		  vpi_get_value(a, &v);
 		  age = v.value.integer;
-		  vpi_free_object(argv);
+		if ((a = vpi_scan(argv))) {
+		      if (vpi_get(vpiSize, a) == 64) {
+			    v.format = vpiVectorVal;
+			    vpi_get_value(a, &v);
+			    source.type = vpiSimTime;
+			    source.low = v.value.vector[0].aval;
+			    source.high = v.value.vector[1].aval;
+			    source.real = 0.0;
+			    have_source = 1;
+		      }
+		      vpi_free_object(argv);
+		}
 	    }
       }
-      if (age >= 0)
+      if (have_source)
+	    vpip_assertion_report_at(idx, reason, vpi_handle(vpiScope, callh),
+				     &source);
+      else if (age >= 0)
 	    vpip_assertion_report_age(idx, reason,
 				      vpi_handle(vpiScope, callh), age);
       else

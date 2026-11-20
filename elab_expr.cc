@@ -10511,11 +10511,35 @@ NetExpr*PEBShift::elaborate_expr_leaf(Design*des, NetExpr*lp, NetExpr*rp,
 /* Operand elaboration helpers can create their own flags. Keep the
    sampled context across those calls, including argument sizing. */
 static thread_local bool elaborating_sampled_operand = false;
+static thread_local bool elaborating_gclk_future_operand = false;
+
+static void unlowered_future_call_(Design*des, const LineInfo&loc)
+{
+      cerr << loc.get_fileline() << ": sorry: $future_gclk is only supported "
+	   << "in static single-step concurrent properties "
+	   << "(IEEE 1800-2017/2023 16.9.4)." << endl;
+      des->errors += 1;
+}
+
+static NetExpr* future_postponed_event_(Design*des, const LineInfo&loc)
+{
+      cerr << loc.get_fileline() << ": sorry: $future_gclk of an event "
+	   << "triggered property requires a Postponed sample "
+	   << "(IEEE 1800-2017/2023 16.5.1)." << endl;
+      des->errors += 1;
+      return nullptr;
+}
 
 unsigned PECallFunction::test_width_sfunc_(Design*des, NetScope*scope,
                                            width_mode_t&mode)
 {
       perm_string name = peek_tail_name(path_);
+
+      if (name == "$future_gclk") {
+	    if (expr_type_ != IVL_VT_VOID) unlowered_future_call_(des, *this);
+	    expr_type_ = IVL_VT_VOID;
+	    return 0;
+      }
 
 	/* The functions behind std::weak_reference (see pform.cc). */
       if (name == "$ivl_weak$id") {
@@ -10603,11 +10627,15 @@ unsigned PECallFunction::test_width_sfunc_(Design*des, NetScope*scope,
 	   signedness -- it is x, read one region earlier. The argument has
 	   to be width-tested here or elaborate_sfunc_ would size the call
 	   from an expr_width() of 0 and produce a zero-width read. */
-      if (name=="$ivl_clocking_sample") {
+      if (name=="$ivl_clocking_sample" || name=="$ivl_sva_source_sample"
+	  || name=="$ivl_sva_future_sample" || name=="$ivl_sva_global_operand") {
 	    if (parms_.empty() || parms_[0].parm == 0)
 		  return 0;
 	    PExpr *expr = parms_[0].parm;
-	    expr_width_  = expr->test_width(des, scope, mode);
+	    const bool outer_sample = elaborating_sampled_operand;
+	    if (name != "$ivl_clocking_sample") elaborating_sampled_operand = true;
+	    expr_width_ = expr->test_width(des, scope, mode);
+	    elaborating_sampled_operand = outer_sample;
 	    expr_type_   = expr->expr_type();
 	    min_width_   = expr->min_width();
 	    signed_flag_ = expr->has_sign();
@@ -14115,6 +14143,24 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 {
       perm_string name = peek_tail_name(path_);
 
+      if (name == "$future_gclk") {
+	    if (expr_type_ != IVL_VT_VOID) unlowered_future_call_(des, *this);
+	    return nullptr;
+      }
+
+      if (name == "$ivl_sva_global_operand") {
+	    if (parms_.size() != 1 || !parms_[0].parm) {
+		  cerr << get_fileline() << ": error: invalid future sampling operand." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    const bool saved = elaborating_gclk_future_operand;
+	    elaborating_gclk_future_operand = true;
+	    NetExpr*value = parms_[0].parm->elaborate_expr(des, scope, expr_wid, flags);
+	    elaborating_gclk_future_operand = saved;
+	    return value;
+      }
+
       if (name == "$sampled") {
 	    if (parms_.size() != 1 || !parms_[0].parm || !parms_[0].name.nil()) {
 		  width_mode_t mode = SIZED;
@@ -14403,7 +14449,11 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 	   a 32-bit-wide expression with nothing to pad it: the store then
 	   tripped `val_size >= wid' in of_STORE_VEC4. Type it from the
 	   argument and let cast_to_width_ adapt it to the context. */
-      if (name=="$ivl_clocking_sample") {
+      if (name=="$ivl_clocking_sample" || name=="$ivl_sva_source_sample"
+	  || name=="$ivl_sva_future_sample") {
+	    const bool future_sample = name == "$ivl_sva_future_sample";
+	    const bool strict_sample = name != "$ivl_clocking_sample";
+	    name = perm_string::literal("$ivl_clocking_sample");
 	    if ((parms_.size() != 1) || !parms_[0].parm) {
 		  cerr << get_fileline() << ": error: The " << name
 		       << " function takes exactly one(1) argument." << endl;
@@ -14411,8 +14461,11 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  return 0;
 	    }
 	    PExpr*arg = parms_[0].parm;
+	    const bool outer_sample = elaborating_sampled_operand;
+	    if (strict_sample) elaborating_sampled_operand = true;
 	    NetExpr*sub = arg->elaborate_expr(des, scope, arg->expr_width(),
 					      flags);
+	    elaborating_sampled_operand = outer_sample;
 	    if (sub == 0) return 0;
 
 	      /* §16.6 prohibits these operand kinds outright. They cannot be
@@ -14438,6 +14491,21 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 		  des->errors += 1;
 		  delete sub;
 		  return 0;
+	    }
+	    if (future_sample) {
+		  const NetExpr*base = sub;
+		  while (const auto*select = dynamic_cast<const NetESelect*>(base))
+			base = select->sub_expr();
+		  const auto*signal = dynamic_cast<const NetESignal*>(base);
+		  if (signal && signal->sig()->attribute(
+				perm_string::literal("_ivl_active_free_checker_var")) != verinum()) {
+			cerr << get_fileline() << ": sorry: $future_gclk of an active "
+			     << "free checker variable requires a Postponed sample "
+			     << "(IEEE 1800-2017/2023 16.5.1)." << endl;
+			des->errors += 1;
+			delete sub;
+			return nullptr;
+		  }
 	    }
 
 	      /* %load/preponed reads a whole SIGNAL and pushes its full
@@ -14544,6 +14612,24 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 			       || (ssig->expr_type() == IVL_VT_REAL
 				   && ssig->word_index() == 0)));
 	    if (!samplable) {
+		  const auto*method = dynamic_cast<const NetESFunc*>(sub);
+		  if (strict_sample && method
+		      && (!strcmp(method->name(), "$ivl_event_method$triggered")
+			  || !strcmp(method->name(), "$ivl_event_method$triggered_arr")
+			  || !strcmp(method->name(), "$ivl_class_event_method$triggered"))) {
+			if (!future_sample) return cast_to_width_(sub, expr_wid);
+			delete sub;
+			return future_postponed_event_(des, *this);
+		  }
+		  if (strict_sample && !dynamic_cast<NetEConst*>(sub)
+		      && !dynamic_cast<NetECReal*>(sub)) {
+			cerr << get_fileline() << ": sorry: this operand of a "
+			     << "$future_gclk property cannot be sampled before "
+			     << "Reactive (IEEE 1800-2017/2023 16.5.1)." << endl;
+			des->errors += 1;
+			delete sub;
+			return nullptr;
+		  }
 		  if (dynamic_cast<NetEConst*>(sub) == 0
 		      && dynamic_cast<NetECReal*>(sub) == 0)
 			cerr << get_fileline() << ": warning: this operand "
@@ -19578,6 +19664,10 @@ NetExpr* PECallFunction::elaborate_expr_(Design*des, NetScope*scope,
       unsigned class_event_slot = 0;
       if (NetExpr*class_event_object = resolve_class_event_method_target_(
 		*this, des, scope, path_, UINT_MAX, &class_event_slot)) {
+	    if (elaborating_gclk_future_operand) {
+		  delete class_event_object;
+		  return future_postponed_event_(des, *this);
+	    }
 	    if (!parms_.empty()) {
 		  cerr << get_fileline() << ": error: triggered() takes no arguments."
 	       << endl;
@@ -21686,6 +21776,8 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  des->errors += 1;
 		  return nullptr;
 	    }
+	    if (elaborating_gclk_future_operand)
+		  return future_postponed_event_(des, *this);
 
 	    if (search_results.eve->is_event_array()) {
 		  if (search_results.path_head.empty()

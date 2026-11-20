@@ -15030,6 +15030,237 @@ struct sva_const_reads_scope_t {
       ~sva_const_reads_scope_t() { sva_const_live_reads_ = saved; }
 };
 
+static bool sva_call_named_(const PECallFunction*call, perm_string name)
+{
+      return call && !call->receiver_expr() && !call->path().package
+	  && call->path().name.size() == 1 && call->path().name.front().name == name;
+}
+
+static bool sva_expr_has_call_(const PExpr*expr, perm_string name)
+{
+      if (!expr || !expr->refs_name(name)) return false;
+      auto has = [name](const PExpr*e) { return sva_expr_has_call_(e, name); };
+      auto has_index = [&](const index_component_t&idx) {
+	    return has(idx.msb) || has(idx.lsb);
+      };
+      if (const auto*id = dynamic_cast<const PEIdent*>(expr)) {
+	    for (const auto&part : id->path().name)
+		  for (const auto&idx : part.index)
+			if (has_index(idx)) return true;
+      } else if (const auto*call = dynamic_cast<const PECallFunction*>(expr)) {
+	    if (sva_call_named_(call, name) || has(call->receiver_expr())) return true;
+	    for (const auto&arg : call->get_parms())
+		  if (has(arg.parm)) return true;
+	    for (const auto*item : call->with_constraints())
+		  if (has(item)) return true;
+      } else if (const auto*sel = dynamic_cast<const PEPostSelect*>(expr)) {
+	    return has(sel->base()) || has_index(sel->index());
+      } else if (const auto*member = dynamic_cast<const PEMemberAccess*>(expr)) {
+	    return has(member->base());
+      } else if (const auto*un = dynamic_cast<const PEUnary*>(expr)) {
+	    return has(un->get_expr());
+      } else if (const auto*bin = dynamic_cast<const PEBinary*>(expr)) {
+	    return has(bin->get_left()) || has(bin->get_right());
+      } else if (const auto*ter = dynamic_cast<const PETernary*>(expr)) {
+	    return has(ter->get_cond()) || has(ter->get_true()) || has(ter->get_false());
+      } else if (const auto*type_cast = dynamic_cast<const PECastType*>(expr)) {
+	    return has(type_cast->cast_base());
+      } else if (const auto*size_cast = dynamic_cast<const PECastSize*>(expr)) {
+	    return has(size_cast->cast_size()) || has(size_cast->cast_base());
+      } else if (const auto*sign_cast = dynamic_cast<const PECastSign*>(expr)) {
+	    return has(sign_cast->cast_base());
+      } else if (const auto*cat = dynamic_cast<const PEConcat*>(expr)) {
+	    for (const auto*part : cat->stream_parms())
+		  if (has(part)) return true;
+	    return has(cat->repeat_expr());
+      } else if (const auto*inside = dynamic_cast<const PEInside*>(expr)) {
+	    if (has(inside->get_expr())) return true;
+	    for (const auto&range : inside->get_ranges())
+		  if (has(range.lo) || has(range.hi) || has(range.weight)) return true;
+      }
+      return false;
+}
+
+static const auto sva_future_function_ = perm_string::literal("$future_gclk");
+static const auto sva_const_cast_ = perm_string::literal("$ivl_const_cast");
+
+static PExpr* sva_future_operand_(PExpr*value)
+{
+      if (!value) return nullptr;
+      named_pexpr_t arg;
+      arg.parm = value;
+      auto*expr = new PECallFunction(perm_string::literal("$ivl_sva_global_operand"),
+				      std::list<named_pexpr_t>{arg});
+      expr->set_line(*value);
+      return expr;
+}
+
+static PEIdent* sva_future_member_(perm_string base, perm_string member)
+{
+      pform_name_t path;
+      path.push_back(name_component_t(base));
+      path.push_back(name_component_t(member));
+      return new PEIdent(path, UINT_MAX);
+}
+
+/* The sampling walk keeps operators in the guard, so their sizing and
+   four-state semantics still come from ordinary expression elaboration.
+   Each slot has a self-determined value and a clock domain. */
+struct sva_future_slots_t {
+      enum phase_t { SOURCE, GLOBAL, SOURCE_VALUE, GLOBAL_VALUE };
+      struct slot_t {
+	    perm_string name;
+	    std::unique_ptr<PExpr> value;
+	    std::unique_ptr<PExpr> type_expr;
+      };
+      unsigned inst;
+      perm_string source_row;
+      phase_t phase = SOURCE;
+      bool invalid_arguments = false;
+      std::vector<slot_t> source, global, replay;
+      std::map<std::string, std::pair<PPackage*, pform_name_t>> package_history;
+
+      PEIdent* add(std::vector<slot_t>&slots, const char*tag,
+		    const PExpr&origin, PExpr*value, PExpr*type_expr)
+      {
+	    if (!value) {
+		  delete type_expr;
+		  return nullptr;
+	    }
+	    perm_string name = sva_capture_name_(inst, slots.size(), tag);
+	    slots.push_back({name, std::unique_ptr<PExpr>(value),
+			     std::unique_ptr<PExpr>(type_expr)});
+	    PEIdent*id = &slots == &source ? sva_future_member_(source_row, name)
+					 : new PEIdent(name, UINT_MAX);
+	    id->set_line(origin);
+	    return id;
+      }
+};
+static sva_future_slots_t* sva_future_slots_ = nullptr;
+
+static PExpr* sva_wrap_preponed_impl_(PExpr*e,
+				 std::map<std::string, pform_name_t>&sampled,
+				 unsigned&live_operands,
+				 const std::map<perm_string,unsigned>*unsampled_locals);
+
+static PExpr* sva_wrap_preponed_(PExpr*e,
+				 std::map<std::string, pform_name_t>&sampled,
+				 unsigned&live_operands,
+				 const std::map<perm_string,unsigned>*unsampled_locals)
+{
+      auto*slots = sva_future_slots_;
+      if (!e || !slots)
+	    return sva_wrap_preponed_impl_(e, sampled, live_operands, unsampled_locals);
+
+      using slots_t = sva_future_slots_t;
+      auto prepare = [&](PExpr*value, slots_t::phase_t phase) {
+	    auto saved = slots->phase;
+	    slots->phase = phase;
+	    PExpr*copy = phase == slots_t::GLOBAL
+		  ? sva_wrap_preponed_(value, sampled, live_operands, unsampled_locals)
+		  : sva_wrap_preponed_impl_(value, sampled, live_operands, unsampled_locals);
+	    slots->phase = saved;
+	    return copy;
+      };
+      auto*call = dynamic_cast<PECallFunction*>(e);
+      if (sva_call_named_(call, sva_future_function_)) {
+	    if (slots->phase != slots_t::SOURCE) {
+		  cerr << e->get_fileline() << ": error: $future_gclk cannot be "
+		       << "nested in a sampled operand (IEEE 1800-2017/2023 16.9.4)."
+		       << endl;
+		  error_count += 1;
+		  return nullptr;
+	    }
+	    if (call->get_parms().size() != 1 || !call->get_parms()[0].parm
+		|| !call->get_parms()[0].name.nil()) {
+		  slots->invalid_arguments = true;  // Diagnosed in the parser.
+		  return nullptr;
+	    }
+	    PExpr*arg = call->get_parms()[0].parm;
+	    if (sva_expr_has_call_(arg, sva_future_function_)) {
+		  cerr << e->get_fileline() << ": error: $future_gclk cannot be "
+		       << "nested (IEEE 1800-2017/2023 16.9.4)." << endl;
+		  error_count += 1;
+		  return nullptr;
+	    }
+	    if (!sva_expr_has_call_(arg, sva_const_cast_))
+		  return slots->add(slots->global, "future", *e,
+			sva_future_operand_(prepare(arg, slots_t::GLOBAL_VALUE)),
+			sva_clone_expr_(arg));
+	    return slots->add(slots->replay, "value", *e,
+		  prepare(arg, slots_t::GLOBAL), sva_clone_expr_(arg));
+      }
+
+      const bool source = slots->phase == slots_t::SOURCE;
+      const bool global = slots->phase == slots_t::GLOBAL
+		       || slots->phase == slots_t::GLOBAL_VALUE;
+      if (call && !call->receiver_expr() && !call->path().package
+	  && call->path().name.size() == 1) {
+	    const auto name = call->path().name.front().name;
+	    if (source && name == "$sampled"
+		&& sva_expr_has_call_(e, sva_future_function_)
+		&& call->get_parms().size() == 1 && call->get_parms()[0].parm) {
+		  return slots->add(slots->replay, "value", *e,
+			sva_wrap_preponed_(call->get_parms()[0].parm, sampled,
+					   live_operands, unsampled_locals), nullptr);
+	    }
+	    if (pform_is_sampled_value_function(name.str())
+		&& ((global && !call->sampled_subst())
+		    || (source && sva_expr_has_call_(e, sva_future_function_)))) {
+		  cerr << e->get_fileline() << ": sorry: this sampled-value "
+		       << "function cannot be combined with $future_gclk in a "
+		       << "single-step property (IEEE 1800-2017/2023 16.9.4)."
+		       << endl;
+		  error_count += 1;
+		  return nullptr;
+	    }
+      }
+      if ((source || slots->phase == slots_t::GLOBAL)
+	  && sva_call_named_(call, sva_const_cast_)
+	  && !sva_expr_has_call_(e, sva_future_function_)) {
+	    PExpr*arg = call->get_parms()[0].parm;
+	    return slots->add(slots->source, "source", *e,
+		  sva_clone_expr_(arg), sva_clone_expr_(arg));
+      }
+
+      if (source || slots->phase == slots_t::GLOBAL) {
+	    const auto*id = dynamic_cast<const PEIdent*>(e);
+	    bool dynamic_read = id && !pform_sva_ident_base_is_constant_(id);
+	    perm_string other = source ? sva_future_function_ : sva_const_cast_;
+	    if ((dynamic_read || call) && !sva_expr_has_call_(e, other)) {
+		  PExpr*value = prepare(e, source ? slots_t::SOURCE_VALUE
+						  : slots_t::GLOBAL_VALUE);
+		  if (!source) value = sva_future_operand_(value);
+		  return slots->add(source ? slots->source : slots->global,
+			source ? "source" : "global", *e, value,
+			id ? sva_clone_expr_(e) : nullptr);
+	    }
+	    /* Keep selects with a deferred index in the replay expression.
+	       The captured base has the original declaration's index range. */
+	    if (dynamic_read && !id->path().name.back().index.empty()) {
+		  pform_name_t path = id->path().name;
+		  pform_name_t base = path;
+		  base.back().index.clear();
+		  PEIdent bare(id->path().package, base, id->lexical_pos());
+		  bare.set_line(*e);
+		  std::unique_ptr<PExpr>captured(sva_wrap_preponed_(
+			&bare, sampled, live_operands, unsampled_locals));
+		  auto*saved = dynamic_cast<PEIdent*>(captured.get());
+		  if (!saved) return nullptr;
+		  if (!sva_wrap_name_indices_(id->path().name, path, sampled,
+					      live_operands, unsampled_locals))
+			return nullptr;
+		  pform_name_t result = saved->path().name;
+		  result.back().index = path.back().index;
+		  PEIdent*indexed = new PEIdent(result, UINT_MAX);
+		  indexed->set_line(*e);
+		  return indexed;
+	    }
+      }
+
+      return sva_wrap_preponed_impl_(e, sampled, live_operands, unsampled_locals);
+}
+
 /*
  * M6B-4 — Preponed sampling for concurrent assertions.
  *
@@ -15080,7 +15311,7 @@ struct sva_const_reads_scope_t {
  * nullptr for a shape this cannot copy -- the caller then keeps the
  * original expression, reading live.
  */
-static PExpr* sva_wrap_preponed_(PExpr*e,
+static PExpr* sva_wrap_preponed_impl_(PExpr*e,
 				 std::map<std::string, pform_name_t>&sampled,
 				 unsigned&live_operands,
 				 const std::map<perm_string,unsigned>*unsampled_locals)
@@ -15294,7 +15525,11 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		 is subtler: retain the constant base and sample only expressions
 		 inside its selects. Sampling the aggregate parameter is both
 		 meaningless and illegal for an unpacked array. */
-	    if (pform_sva_ident_base_is_constant_(id) || checker_free_name_(id)) {
+	    bool future_tick = sva_future_slots_
+		&& (sva_future_slots_->phase == sva_future_slots_t::GLOBAL
+		    || sva_future_slots_->phase == sva_future_slots_t::GLOBAL_VALUE);
+	    if (pform_sva_ident_base_is_constant_(id)
+		|| (!future_tick && checker_free_name_(id))) {
 		  pform_name_t path = id->path().name;
 		  if (!sva_wrap_name_indices_(id->path().name, path, sampled,
 					      live_operands, unsampled_locals))
@@ -15325,7 +15560,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 		 carries a select; elaboration lowers a select as the select
 		 of the sampled whole signal. A package- or hierarchy-
 		 qualified name stays a live read. */
-	    if (id->path().package || id->path().name.empty()) {
+	    if ((id->path().package && !sva_future_slots_) || id->path().name.empty()) {
 		  live_operands += 1;
 		  return cp;
 	    }
@@ -15357,10 +15592,17 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    named_pexpr_t a0;
 	    a0.parm = cp;
 	    parms.push_back(a0);
-	    PECallFunction*smp = new PECallFunction(
-		  lex_strings.make("$ivl_clocking_sample"), parms);
+	    const char*sample = "$ivl_clocking_sample";
+	    if (sva_future_slots_)
+		  sample = future_tick ? "$ivl_sva_future_sample"
+				       : "$ivl_sva_source_sample";
+	    PECallFunction*smp = new PECallFunction(lex_strings.make(sample), parms);
 	    smp->set_line(*e);
-	    sampled[key] = base;
+	    if (PPackage*package = id->path().package)
+		  sva_future_slots_->package_history[
+			std::string(package->pscope_name().str()) + "::" + key] = {package, base};
+	    else
+		  sampled[key] = base;
 	    return smp;
       }
 	/* Local substitution can leave a part-select on a non-identifier base,
@@ -15783,11 +16025,12 @@ static Statement* sva_reactive_process_(const struct vlltype&loc)
 }
 
 static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
-				    const pform_name_t&path)
+				    const pform_name_t&path, PPackage*package = nullptr)
 {
       std::list<named_pexpr_t> args;
       named_pexpr_t a0;
-      a0.parm = new PEIdent(path, loc.lexical_pos);
+      a0.parm = package ? new PEIdent(package, path, loc.lexical_pos)
+			: new PEIdent(path, loc.lexical_pos);
       FILE_NAME(a0.parm, loc);
 	/* Assertion checkers are synthesized while their source module is
 	   still being parsed. Permit this bookkeeping reference to bind a
@@ -17857,7 +18100,8 @@ enum sva_step_wait_op { SVA_STEP_WAIT_ENTER = -1, SVA_STEP_WAIT_TICK = -2,
 /* Attempt/success reports update coverage even when there are no callback
    subscribers. Other callback reasons stay gated. */
 static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
-				   int reason, PExpr*age = nullptr)
+				   int reason, PExpr*age = nullptr,
+				   PExpr*source_time = nullptr)
 {
       std::list<named_pexpr_t> args;
       named_pexpr_t a0;
@@ -17866,10 +18110,15 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
       named_pexpr_t a1;
       a1.parm = new PENumber(new verinum((uint64_t)reason, 32));
       args.push_back(a1);
-      if (age) {
+      if (age || source_time) {
 	    named_pexpr_t a2;
-	    a2.parm = age;
+	    a2.parm = age ? age : new PENumber(new verinum((uint64_t)0, 32));
 	    args.push_back(a2);
+      }
+      if (source_time) {
+	    named_pexpr_t a3;
+	    a3.parm = source_time;
+	    args.push_back(a3);
       }
       PCallTask*rep = new PCallTask(
 	    lex_strings.make("$ivl_assert_report"), args);
@@ -41441,6 +41690,351 @@ Statement* pform_procedural_checker_instance(const struct vlltype&loc,
       return result;
 }
 
+static bool sva_future_single_step_(const sva_property_t*prop)
+{
+      if (!prop || prop->op_type != 0 || prop->strength || prop->antecedent
+	  || prop->tree || prop->ante_tree || prop->seq_clk_evt || prop->mc_prefix
+	  || prop->mc_boundary != -1 || prop->mc_more || prop->abort_cond
+	  || !prop->local_names.empty() || !prop->endpoint_event.nil()
+	  || prop->sequence_cover || !prop->seq || prop->seq->size() != 1)
+	    return false;
+      const auto&step = prop->seq->front();
+      return step.delay_lo == 0 && step.delay_hi == 0
+	  && !step.rep_kind && !step.rep_tail && !step.grouped_repeat
+	  && !step.fm && step.items.empty();
+}
+
+static bool sva_future_chain_(const std::vector<sva_seq_step_t>*chain)
+{
+      if (chain)
+	    for (const auto&step : *chain) {
+		  if (sva_expr_has_call_(step.expr, sva_future_function_))
+			return true;
+		  for (const auto&item : step.items)
+			if (sva_expr_has_call_(item.lv_rhs, sva_future_function_))
+			      return true;
+	    }
+      return false;
+}
+
+static bool sva_future_tree_(const sva_stree_t*tree)
+{
+      return tree && (sva_future_chain_(tree->chain)
+		      || sva_expr_has_call_(tree->gexpr, sva_future_function_)
+		      || sva_future_tree_(tree->a) || sva_future_tree_(tree->b));
+}
+
+static bool sva_future_property_(const sva_property_t*prop)
+{
+      if (!prop) return false;
+      if (prop->mc_more)
+	    for (const auto&segment : *prop->mc_more)
+		  if (sva_future_chain_(segment.chain)) return true;
+      return sva_future_chain_(prop->seq) || sva_future_chain_(prop->antecedent)
+	  || sva_future_chain_(prop->mc_prefix) || sva_future_tree_(prop->tree)
+	  || sva_future_tree_(prop->ante_tree)
+	  || sva_expr_has_call_(prop->pcond, sva_future_function_)
+	  || sva_expr_has_call_(prop->abort_cond, sva_future_function_)
+	  || sva_future_property_(prop->pa) || sva_future_property_(prop->pb);
+}
+
+/* Use an identifier's bound type when available (for example, an enum or
+   an ascending packed range). The sampled expression also supplies the
+   type for computed values and event queries. */
+struct sva_future_capture_type_t : type_reference_t {
+      sva_future_capture_type_t(PExpr*value, PExpr*nominal)
+      : type_reference_t(value), nominal_(nominal) { }
+
+      ivl_type_t elaborate_type_raw(Design*des, NetScope*scope) const override
+      {
+	    const auto*id = dynamic_cast<const PEIdent*>(nominal_.get());
+	    if (id)
+		  if (ivl_type_t type = id->test_type_of_ident(des, scope))
+			return type;
+	    ivl_type_t type = type_reference_t::elaborate_type_raw(des, scope);
+	    // Keep elaboration of the generated row safe after a type error.
+	    return type ? type : new netvector_t(IVL_VT_LOGIC);
+      }
+
+    private:
+      std::unique_ptr<PExpr>nominal_;
+};
+
+/* IEEE 1800-2017/2023 16.9.4: the attempt belongs to the source
+   Observed slot. Only the result and its action wait for the first
+   strictly later global tick. The queue is local to the instantiated
+   checker and each push copies a complete row. */
+static bool sva_future_try_single_step_(const struct vlltype&loc,
+					 sva_property_t*prop, Statement*fail,
+					 Statement*pass, int kind)
+{
+      if (!sva_future_property_(prop)) return false;
+      auto reject = [&](const char*why) {
+	    if (why) {
+		  cerr << loc << ": sorry: $future_gclk " << why
+		       << " (IEEE 1800-2017/2023 16.9.4)." << endl;
+		  error_count += 1;
+	    }
+	    if (sva_sub_request_) sva_sub_request_->error = true;
+	    delete fail;
+	    delete pass;
+	    pform_sva_destroy_property(prop);
+	    return true;
+      };
+      if (!sva_future_single_step_(prop) || sva_active_proc_id_ || sva_sub_request_)
+	    return reject("requires a static single-step concurrent property");
+
+      const unsigned inst = sva_gensym_counter++;
+      const auto name = [inst](const char*tag) { return sva_capture_name_(inst, 0, tag); };
+      const perm_string in = name("future_in");
+      const perm_string out = name("future_out");
+      const perm_string fifo = name("future_fifo");
+      const perm_string tick = perm_string::literal("source_tick");
+      sva_future_slots_t slots;
+      slots.inst = inst;
+      slots.source_row = out;
+      std::map<std::string, pform_name_t> sampled;
+      unsigned live_operands = 0;
+      const unsigned errors_before_capture = error_count;
+      sva_future_slots_ = &slots;
+      std::unique_ptr<PExpr>guard(sva_wrap_preponed_(prop->seq->front().expr,
+						   sampled, live_operands));
+      sva_future_slots_ = nullptr;
+      if (slots.invalid_arguments || error_count != errors_before_capture)
+	    return reject(nullptr);
+      if (!guard || live_operands)
+	    return reject("could not capture all sampled operands");
+
+      PExpr*default_disable = prop->disable_iff_expr ? nullptr
+	    : sva_default_disable_for_scope_(lexical_scope);
+      std::unique_ptr<PExpr>disable(prop->disable_iff_expr
+	    ? sva_clone_expr_(prop->disable_iff_expr) : sva_clone_expr_(default_disable));
+      if ((prop->disable_iff_expr || default_disable) && !disable)
+	    return reject("could not copy the disable iff expression");
+
+      auto declare = [&](perm_string var, data_type_t*type, bool queue = false) {
+	    FILE_NAME(type, loc);
+	    std::list<decl_assignment_t*> decls;
+	    auto*decl = new decl_assignment_t;
+	    decl->name = pform_ident_t(var, loc.lexical_pos);
+	    decls.push_back(decl);
+	    if (queue) {
+		  auto*marker = new PENull;
+		  FILE_NAME(marker, loc);
+		  decl->index.emplace_back(marker, nullptr);
+	    }
+	    pform_make_var(loc, &decls, type);
+      };
+      auto assign = [&](PExpr*lhs, PExpr*rhs) {
+	    sva_mark_strict_(rhs);
+	    auto*stmt = new PAssign(lhs, rhs);
+	    FILE_NAME(stmt, loc);
+	    return stmt;
+      };
+      auto simtime = [&]() {
+	    auto*expr = new PECallFunction(perm_string::literal("$simtime"));
+	    FILE_NAME(expr, loc);
+	    return expr;
+      };
+      auto member = [&](perm_string row, perm_string field) {
+	    auto*expr = sva_future_member_(row, field);
+	    FILE_NAME(expr, loc);
+	    return expr;
+      };
+      auto method_path = [&](perm_string queue, const char*method) {
+	    pform_name_t path;
+	    path.push_back(name_component_t(queue));
+	    path.push_back(name_component_t(perm_string::literal(method)));
+	    return path;
+      };
+      auto query = [&](perm_string queue, const char*method) {
+	    std::list<named_pexpr_t>args;
+	    auto*expr = new PECallFunction(method_path(queue, method), args);
+	    FILE_NAME(expr, loc);
+	    return expr;
+      };
+      auto push = [&](perm_string queue, PExpr*value) {
+	    named_pexpr_t arg;
+	    arg.parm = value;
+	    auto*stmt = new PCallTask(method_path(queue, "push_back"), {arg});
+	    FILE_NAME(stmt, loc);
+	    return stmt;
+      };
+      auto clock_with = [&](const char*function) {
+	    auto*call = new PECallFunction(perm_string::literal(function));
+	    FILE_NAME(call, loc);
+	    auto*clk = new PEventStatement(new PEEvent(PEEvent::ANYEDGE, call));
+	    FILE_NAME(clk, loc);
+	    return clk;
+      };
+      auto process = [&](ivl_process_type_t type, Statement*body) {
+	    PProcess*pp = pform_make_behavior(type, body, nullptr);
+	    FILE_NAME(pp, loc);
+      };
+
+      auto*row_type = new struct_type_t;
+      row_type->packed_flag = row_type->union_flag = row_type->signed_flag = false;
+      row_type->members.reset(new std::list<struct_member_t*>);
+      FILE_NAME(row_type, loc);
+      auto field = [&](perm_string field_name, data_type_t*type) {
+	    FILE_NAME(type, loc);
+	    auto*member = new struct_member_t;
+	    FILE_NAME(member, loc);
+	    member->type.reset(type);
+	    member->names.reset(new std::list<decl_assignment_t*>);
+	    auto*decl = new decl_assignment_t;
+	    decl->name = pform_ident_t(field_name, loc.lexical_pos);
+	    member->names->push_back(decl);
+	    row_type->members->push_back(member);
+      };
+      field(tick, new atom_type_t(atom_type_t::TIME, false));
+      std::vector<Statement*> init, pre, post, capture;
+      unsigned hist_idx = 0;
+      capture.push_back(assign(member(in, tick), simtime()));
+      for (auto&slot : slots.source) {
+	    PExpr*expr = sva_rewrite_sampled_(loc, slot.value.release(), inst,
+					     hist_idx, pre, post, init);
+	    PExpr*type = sva_clone_expr_(expr);
+	    if (!type) return reject("could not determine a source capture type");
+	    data_type_t*nominal = sva_expr_sample_type_(expr);
+	    field(slot.name, nominal ? new type_reference_t(nominal)
+				     : new sva_future_capture_type_t(
+					   type, slot.type_expr.release()));
+	    if (nominal) delete type;
+	    capture.push_back(assign(member(in, slot.name), expr));
+      }
+      declare(in, row_type);
+      declare(out, row_type);
+      declare(fifo, row_type, true);
+
+      capture.push_back(push(fifo, sva_id_(loc, in)));
+      capture.push_back(sva_report_stmt_(loc, inst, SVA_CB_START));
+      Statement*enabled = sva_block_(loc, capture);
+      if (disable)
+	    enabled = sva_if_(loc, disable.release(),
+		  sva_block_(loc, {sva_report_stmt_(loc, inst, SVA_CB_START),
+				   sva_report_stmt_(loc, inst, SVA_CB_DISABLED_EVAL)}),
+		  enabled);
+      std::vector<Statement*> source = {sva_observed_wait_(loc)};
+      source.insert(source.end(), pre.begin(), pre.end());
+      source.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst), enabled, nullptr));
+      source.insert(source.end(), post.begin(), post.end());
+      PEventStatement*source_clock = prop->clk_evt
+	    ? prop->clk_evt : clock_with("$ivl_default_clock");
+      prop->clk_evt = nullptr;
+      source_clock->set_statement(sva_block_(loc, source));
+      process(IVL_PR_ALWAYS, source_clock);
+
+      const perm_string actions = name("future_actions");
+      const perm_string action_word = name("future_word");
+      const perm_string published = sva_make_reg_(loc, inst, "future_ready", 0);
+      auto*range = new std::list<pform_range_t>;
+      range->emplace_back(sva_num32_(loc, 64), sva_num32_(loc, 0));
+      auto*word_type = new vector_type_t(IVL_VT_LOGIC, false, range);
+      declare(actions, word_type, true);
+      declare(action_word, word_type);
+      init.push_back(sva_assign_(loc, published, sva_bit_(loc, 0)));
+      std::vector<Statement*> at_global, resolve;
+      auto bind = [&](sva_future_slots_t::slot_t&slot, std::vector<Statement*>&body) {
+	    PExpr*type = sva_clone_expr_(slot.value.get());
+	    if (!type) return false;
+	    declare(slot.name, new sva_future_capture_type_t(type, slot.type_expr.release()));
+	    body.push_back(sva_assign_(loc, slot.name, slot.value.release()));
+	    return true;
+      };
+      for (auto&slot : slots.global)
+	    if (!bind(slot, at_global)) return reject("could not determine a future capture type");
+      resolve.push_back(sva_assign_(loc, out, query(fifo, "pop_front")));
+      for (auto&slot : slots.replay)
+	    if (!bind(slot, resolve)) return reject("could not determine a future result type");
+      auto*word = new PEConcat(
+	    {member(out, tick), pform_sva_prop_condition(loc, guard.release())}, nullptr);
+      FILE_NAME(word, loc);
+      resolve.push_back(push(actions, word));
+
+      /* Publish completed guards before Reactive. A Reactive dispatcher
+	 forks an independent child for each result in FIFO order. */
+      auto word_part = [&](unsigned msb, unsigned lsb) {
+	    index_component_t idx;
+	    idx.sel = msb == lsb ? index_component_t::SEL_BIT
+				 : index_component_t::SEL_PART;
+	    idx.msb = sva_num32_(loc, msb);
+	    idx.lsb = msb == lsb ? nullptr : sva_num32_(loc, lsb);
+	    auto*expr = new PEPostSelect(sva_id_(loc, action_word), idx);
+	    FILE_NAME(expr, loc);
+	    return expr;
+      };
+      std::string scope_name = "$ivl_sva_action " + std::to_string(inst);
+      PBlock*spawn = pform_push_block_scope(loc, scope_name.c_str(),
+					   PBlock::BL_JOIN_NONE);
+      const perm_string result = name("future_action");
+      const perm_string attempt = name("future_attempt");
+      sva_declare_capture_(loc, result, new type_reference_t(word_part(0, 0)),
+			   word_part(0, 0));
+      sva_declare_capture_(loc, attempt, new type_reference_t(word_part(64, 1)),
+			   word_part(64, 1));
+      pform_pop_scope();
+      std::vector<Statement*>on_success = {
+	    sva_report_stmt_(loc, inst, SVA_CB_SUCCESS, nullptr, sva_id_(loc, attempt))};
+      if (pass)
+	    on_success.push_back(sva_action_guard_(
+		  loc, SVA_SPACE_CONCURRENT, inst, SVA_STATE_PASS_ACTION, pass));
+      Statement*failure = nullptr;
+      if (kind != 2) {
+	    if (!fail) {
+		  fail = new PCallTask(perm_string::literal("$error"), {});
+		  FILE_NAME(fail, loc);
+	    }
+	    failure = sva_block_(loc, {
+		  sva_report_stmt_(loc, inst, SVA_CB_FAILURE, nullptr, sva_id_(loc, attempt)),
+		  sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst, SVA_STATE_FAIL_ACTION, fail)});
+      } else {
+	    delete fail;
+      }
+      spawn->set_statement({sva_if_(loc, sva_id_(loc, result),
+				    sva_block_(loc, on_success), failure)});
+      auto*wait = new PEventStatement(new PEEvent(PEEvent::ANYEDGE, sva_id_(loc, published)));
+      FILE_NAME(wait, loc);
+      auto*dispatcher = new PForever(sva_block_(loc, {
+	    sva_if_(loc, sva_not_(loc, query(actions, "size")), wait, nullptr),
+	    sva_reactive_wait_(loc),
+	    sva_repeat_(loc, query(actions, "size"), sva_block_(loc, {
+		  sva_assign_(loc, action_word, query(actions, "pop_front")), spawn}))}));
+      FILE_NAME(dispatcher, loc);
+      process(IVL_PR_INITIAL, sva_block_(loc, {sva_reactive_process_(loc), dispatcher}));
+
+      auto due = [&]() {
+	    pform_name_t path;
+	    path.push_back(name_component_t(fifo));
+	    index_component_t index;
+	    index.sel = index_component_t::SEL_BIT;
+	    index.msb = sva_num32_(loc, 0);
+	    path.back().index.push_back(index);
+	    path.push_back(name_component_t(tick));
+	    auto*head = new PEIdent(path, UINT_MAX);
+	    FILE_NAME(head, loc);
+	    auto*older = new PEBComp('<', head, simtime());
+	    FILE_NAME(older, loc);
+	    return older;
+      };
+      at_global.push_back(sva_repeat_(loc, query(fifo, "size"),
+	    sva_if_(loc, due(), sva_block_(loc, resolve), nullptr)));
+      at_global.push_back(sva_assign_(loc, published,
+				       sva_not_(loc, sva_id_(loc, published))));
+      PEventStatement*global_clock = clock_with("$global_clock");
+      global_clock->set_statement(sva_if_(loc, query(fifo, "size"),
+	    sva_if_(loc, due(), sva_block_(loc, at_global), nullptr), nullptr));
+      process(IVL_PR_ALWAYS, global_clock);
+      for (const auto&signal : sampled)
+	    init.push_back(sva_hist_on_stmt_(loc, signal.second));
+      for (const auto&signal : slots.package_history)
+	    init.push_back(sva_hist_on_stmt_(loc, signal.second.second, signal.second.first));
+      init.push_back(sva_register_stmt_(loc, inst));
+      process(IVL_PR_INITIAL, sva_block_(loc, init));
+      pform_sva_destroy_property(prop);
+      return true;
+}
+
 void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			  Statement*fail_stmt, Statement*pass_stmt, int kind,
 			  perm_string label, unsigned proc_id)
@@ -41570,6 +42164,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  prop->clk_evt = sequence_clock;
 	    }
       }
+
+      if (!sva_future_single_step_(prop)
+	  && sva_future_try_single_step_(loc, prop, fail_stmt, pass_stmt, kind))
+	    return;
 
 	/* IEEE 1800-2023 16.12.17: wait for a property declared later. The
 	   end-of-module retry runs outside any generate block, so it cannot
@@ -42485,6 +43083,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    }
       }
 
+      if (sva_future_try_single_step_(loc, prop, fail_stmt, pass_stmt, kind))
+	    return;
+
 	/* M9C: temporal/sequence property operators (until family,
 	   within) do not fit the linear token pipeline; dispatch them to
 	   a dedicated lowering now that `kind` is known. */
@@ -42601,6 +43202,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    pform_sva_destroy_property(prop);
 	    return;
       }
+
+      if (sva_future_try_single_step_(loc, prop, fail_stmt, pass_stmt, kind))
+	    return;
 
 	/* IEEE 1800-2017/2023 16.12.22(a): a sequence used directly as a
 	   property may not admit an empty match. The zero-lower consecutive
