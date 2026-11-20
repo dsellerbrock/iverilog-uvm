@@ -593,6 +593,9 @@ extern bool positional_container_expr_type_match(ivl_type_t target,
 						  const NetExpr*source,
 						  bool&handled);
 
+/* True for a dynamic array or queue with elements equivalent to byte. */
+extern bool positional_byte_container_type(ivl_type_t type);
+
 extern bool commercial_unsafe_positional_container_type_match(
 		ivl_type_t target, ivl_type_t source, bool allow_same_kind);
 
