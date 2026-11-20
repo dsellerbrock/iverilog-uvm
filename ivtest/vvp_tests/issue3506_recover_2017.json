@@ -1,0 +1,10 @@
+{
+    "type": "CE",
+    "source": "issue3506_recover.sv",
+    "iverilog-args": [
+        "-g2017",
+        "-s",
+        "issue3506_recover"
+    ],
+    "gold": "issue3506_recover"
+}

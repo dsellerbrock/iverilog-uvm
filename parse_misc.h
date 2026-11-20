@@ -388,6 +388,7 @@ class data_type_t;
 class PExpr;
 struct for_variable_scope_t;
 struct procedural_block_scope_t;
+struct parser_block_scope_t;
 struct for_var_decl_t {
       // A null type continues the preceding for_variable_declaration and
       // therefore shares its data_type. A nonnull type starts the next

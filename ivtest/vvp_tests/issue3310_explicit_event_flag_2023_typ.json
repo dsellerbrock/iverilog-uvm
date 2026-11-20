@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3310_explicit_event_flag.v",
+  "iverilog-args": ["-g2023", "-gspecify", "-Ttyp", "-s", "main"],
+  "vvp-args-extended": ["+timeskew=1", "+fullskew=0"]
+}

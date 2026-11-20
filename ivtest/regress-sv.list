@@ -1171,6 +1171,8 @@ sv_foreach_fail1	CE,-g2009		ivltests
 sv_immediate_assert	normal,-g2009		ivltests gold=sv_immediate_assert.gold
 sv_immediate_assume	normal,-g2009		ivltests gold=sv_immediate_assume.gold
 sv_immediate_cover_action normal,-g2012		ivltests gold=sv_immediate_cover_action.gold
+issue3828_class_assert_2017 normal,-g2017,-s,top ivltests gold=issue3828_class_assert.gold
+issue3828_class_assert_2023 normal,-g2023,-s,top ivltests gold=issue3828_class_assert.gold
 sv_import_hier_fail1	CE,-g2005-sv		ivltests
 sv_import_hier_fail2	CE,-g2005-sv		ivltests
 sv_import_hier_fail3	CE,-g2005-sv		ivltests
@@ -6695,6 +6697,7 @@ issue941_checker_scope_2023 normal,-g2023,-gassertions,-s,issue941_checker_scope
 issue1530_fixed_target_concat_2017 normal,-g2017,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold
 issue1530_fixed_target_concat_2023 normal,-g2023,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold
 issue1713_skew_timer_expiration normal,-g2017,-gspecify,-s,main ivltests gold=issue1713_skew_timer_expiration.gold
+issue3310_explicit_event_flag normal,-g2017,-gspecify,-Ttyp,-s,main,+timeskew=1,+fullskew=0 ivltests
 issue1757_enum2_wide_2017 normal,-g2017,-s,tb ivltests gold=issue1757_enum2_wide.gold
 issue1757_enum2_wide_2023 normal,-g2023,-s,tb ivltests gold=issue1757_enum2_wide.gold
 issue1725_class_randomize_size_retry_2017 normal,-g2017,-s,tb ivltests gold=issue1725_class_randomize_size_retry.gold
@@ -7367,3 +7370,13 @@ issue3164_2017 normal,-g2017,-s,issue3164 ivltests gold=issue3164.gold
 issue3164_2023 normal,-g2023,-s,issue3164 ivltests gold=issue3164.gold
 issue3164_bad_2017 CE,-g2017,-s,issue3164_bad ivltests gold=issue3164_bad.gold
 issue3164_bad_2023 CE,-g2023,-s,issue3164_bad ivltests gold=issue3164_bad.gold
+issue3506_2017 normal,-g2017,-s,issue3506 ivltests gold=issue3506.gold
+issue3506_2023 normal,-g2023,-s,issue3506 ivltests gold=issue3506.gold
+issue3506_bad_2017 CE,-g2017,-s,issue3506_bad ivltests gold=issue3506_bad.gold
+issue3506_bad_2023 CE,-g2023,-s,issue3506_bad ivltests gold=issue3506_bad.gold
+issue3506_recover_2017 CE,-g2017,-s,issue3506_recover ivltests gold=issue3506_recover.gold
+issue3506_recover_2023 CE,-g2023,-s,issue3506_recover ivltests gold=issue3506_recover.gold
+issue3701_2017 normal,-g2017,-s,issue3701 ivltests gold=issue3701.gold
+issue3701_2023 normal,-g2023,-s,issue3701 ivltests gold=issue3701.gold
+issue3701_bad_2017 CE,-g2017,-s,issue3701_bad ivltests gold=issue3701_bad.gold
+issue3701_bad_2023 CE,-g2023,-s,issue3701_bad ivltests gold=issue3701_bad.gold

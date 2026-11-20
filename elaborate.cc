@@ -928,6 +928,17 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
                   des->errors += 1;
                   return nullptr;
             }
+              // IEEE 1800-2017/2023 12.6: "A constant expression pattern
+              // shall be of integral type", and it has the type of the
+              // value it is matched against, so that value must be packed.
+            if (current_type && !current_type->packed()) {
+                  cerr << pattern->get_fileline() << ": error: A constant "
+                       << "expression pattern shall be of integral type, but "
+                       << "the matched value is not integral (IEEE "
+                       << "1800-2017/2023 12.6)." << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
             NetExpr*left = select_pattern_value_(loc, subject, path, des,
                                                   current_type);
             NetExpr*right = elaborate_rval_expr(
@@ -19241,6 +19252,16 @@ static bool assertion_control_indices_defined_(Design*des, NetScope*scope,
       return all_defined;
 }
 
+/* Match the VVP assertion registry's package-qualified scope names. */
+static void assertion_control_scope_path_(ostream&out, const NetScope*scope)
+{
+      if (const NetScope*parent = scope->parent()) {
+	    assertion_control_scope_path_(out, parent);
+	    out << (parent->type() == NetScope::PACKAGE ? "::" : ".");
+      }
+      out << scope->fullname();
+}
+
 /* The assertion registry uses rooted per-instance names.  An assertion
  * control name, however, is resolved in the lexical context of the call.
  * Resolve the scope portion while the elaborator still has that context;
@@ -19276,7 +19297,7 @@ static string assertion_control_selector_(Design*des, NetScope*scope,
       if (NetScope*selected = des->find_scope(scope, canonical,
 					       NetScope::MODULE)) {
 	    ostringstream text;
-	    text << scope_path(selected);
+	    assertion_control_scope_path_(text, selected);
 	    return text.str();
       }
 
@@ -19300,7 +19321,9 @@ static string assertion_control_selector_(Design*des, NetScope*scope,
 	    return assertion_control_selector_source_(des, scope, id);
 
       ostringstream text;
-      text << scope_path(container) << "." << assertion_name;
+      assertion_control_scope_path_(text, container);
+      text << (container->type() == NetScope::PACKAGE ? "::" : ".")
+	   << assertion_name;
       return text.str();
 }
 
@@ -35699,6 +35722,7 @@ bool PPackage::elaborate(Design*des, NetScope*scope) const
 	// Elaborate the variable initialization statements, making a
 	// single initial process out of them.
       result_flag &= elaborate_var_inits_(des, scope);
+      result_flag &= elaborate_behaviors_(des, scope);
 
       return result_flag;
 }
@@ -51291,17 +51315,14 @@ static void check_override_types_(Design*des, NetScope*class_scope,
 		  in_chain = cur == owner;
 	    if (!in_chain)
 		  continue;
-	      /* A prototype in a parameterized class is no evidence: the class
-		 reached through the super chain can carry another
-		 specialization's elaborated formal types (for UVM's
-		 uvm_printer_element_proxy, the uvm_structure_proxy prototype
-		 showed uvm_component, from uvm_component_proxy). Compare types
-		 only against a class declared without parameters. */
+	      /* A prototype in a specialization carries that specialization's
+		 formal types. A generic master's formals are only its default
+		 parameter types, so skip a prototype reached through one. */
 	    const NetScope*owner_scope = owner->class_scope();
 	    const PClass*owner_pclass = owner_scope
 		  ? owner_scope->class_pform() : nullptr;
-	    if (!owner_pclass || owner_pclass->has_parameter_port_list
-		|| owner->specialized_instance())
+	    if (!owner_pclass || (owner_pclass->has_parameter_port_list
+				  && !owner->specialized_instance()))
 		  continue;
 	    bool func = method->type() == NetScope::FUNC;
 	    const NetBaseDef*def = func
