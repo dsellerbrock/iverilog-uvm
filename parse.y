@@ -3199,7 +3199,11 @@ static Module::port_t *module_declare_explicit_port(
 %type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
   sva_grouped_seq_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
-%type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay
+%type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay sva_seq_delayed
+%type <sva_seq>  sva_seq_grouped_delay sva_seq_postfix sva_seq_decl_expr
+%type <expr> sva_sequence_actual sva_property_initializer_opt
+%type <expr> assertion_actual
+%destructor { delete $$; } sva_sequence_actual sva_property_initializer_opt assertion_actual
 %type <subroutine_call> sva_match_call
 %type <sva_item> sva_match_item
 %type <sva_items> sva_match_item_list
@@ -3214,7 +3218,7 @@ static Module::port_t *module_declare_explicit_port(
   sva_grouped_seq_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %destructor { pform_sva_destroy_sequence($$); }
-  sva_seq_expr sva_seq_atom
+  sva_seq_expr sva_seq_atom sva_seq_lead_delay sva_seq_delayed sva_seq_grouped_delay sva_seq_postfix sva_seq_decl_expr
 %destructor { pform_sva_destroy_mc_segments($$); }
   sva_mc_tail sva_mc_tail_opt
 %type <rs_item>           rs_prod_item
@@ -3555,6 +3559,12 @@ static Module::port_t *module_declare_explicit_port(
    made explicit so the focused declaration route adds no parser conflict. */
 %precedence sva_seq_comb_done
 %precedence K_CYCLE_DELAY
+
+/* In a parenthesized sequence, close the group before reducing to a
+   complete sequence expression. At a comma after a directly written
+   expression, shift into the existing sequence match-item productions. */
+%precedence sva_group_operand
+%precedence ')' ','
 
 %%
 
@@ -9788,7 +9798,7 @@ sva_property_formal_declaration
   ;
 
 sva_property_formal_list
-  : sva_property_formal_list ',' IDENTIFIER initializer_opt
+  : sva_property_formal_list ',' IDENTIFIER sva_property_initializer_opt
       { sva_property_formal_t formal;
 	formal.name = lex_strings.make($3);
 	if (!$1->empty()) {
@@ -9800,25 +9810,25 @@ sva_property_formal_list
 	}
 	formal.default_expr = $4;
 	$1->push_back(formal); delete[]$3; $$ = $1; }
-  | sva_property_formal_list ',' data_type IDENTIFIER initializer_opt
+  | sva_property_formal_list ',' data_type IDENTIFIER sva_property_initializer_opt
       { sva_property_formal_t formal;
 	formal.name = lex_strings.make($4); formal.type = $3;
 	formal.formal_type = sva_property_formal_t::DATA_TYPE;
 	formal.default_expr = $5;
 	$1->push_back(formal); delete[]$4; $$ = $1; }
-  | IDENTIFIER initializer_opt
+  | IDENTIFIER sva_property_initializer_opt
       { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	sva_property_formal_t formal;
 	formal.name = lex_strings.make($1); formal.default_expr = $2;
 	l->push_back(formal); delete[]$1; $$ = l; }
-  | data_type IDENTIFIER initializer_opt
+  | data_type IDENTIFIER sva_property_initializer_opt
       { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	sva_property_formal_t formal;
 	formal.name = lex_strings.make($2); formal.type = $1;
 	formal.formal_type = sva_property_formal_t::DATA_TYPE;
 	formal.default_expr = $3;
 	l->push_back(formal); delete[]$2; $$ = l; }
-	| sva_property_formal_list ',' K_local K_input data_type IDENTIFIER initializer_opt
+	| sva_property_formal_list ',' K_local K_input data_type IDENTIFIER sva_property_initializer_opt
 	    { sva_property_formal_t formal;
 	      formal.name = lex_strings.make($6);
 	      formal.type = $5;
@@ -9827,7 +9837,7 @@ sva_property_formal_list
 	      formal.local_input = true;
 	      formal.default_expr = $7;
 	      $1->push_back(formal); delete[]$6; $$ = $1; }
-	| K_local K_input data_type IDENTIFIER initializer_opt
+	| K_local K_input data_type IDENTIFIER sva_property_initializer_opt
 	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	      sva_property_formal_t formal;
 	      formal.name = lex_strings.make($4);
@@ -9837,7 +9847,7 @@ sva_property_formal_list
 	      formal.local_input = true;
 	      formal.default_expr = $5;
 	      l->push_back(formal); delete[]$4; $$ = l; }
-	| sva_property_formal_list ',' K_local data_type IDENTIFIER initializer_opt
+	| sva_property_formal_list ',' K_local data_type IDENTIFIER sva_property_initializer_opt
 	    { sva_property_formal_t formal;
 	      formal.name = lex_strings.make($5);
 	      formal.type = $4;
@@ -9846,7 +9856,7 @@ sva_property_formal_list
 	      formal.local_input = true;
 	      formal.default_expr = $6;
 	      $1->push_back(formal); delete[]$5; $$ = $1; }
-	| K_local data_type IDENTIFIER initializer_opt
+	| K_local data_type IDENTIFIER sva_property_initializer_opt
 	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	      sva_property_formal_t formal;
 	      formal.name = lex_strings.make($3);
@@ -9856,7 +9866,7 @@ sva_property_formal_list
 	      formal.local_input = true;
 	      formal.default_expr = $4;
 	      l->push_back(formal); delete[]$3; $$ = l; }
-	| sva_property_formal_list ',' K_local K_inout data_type IDENTIFIER initializer_opt
+	| sva_property_formal_list ',' K_local K_inout data_type IDENTIFIER sva_property_initializer_opt
 	    { sva_property_formal_t formal;
 	      formal.name = lex_strings.make($6);
 	      formal.type = $5;
@@ -9865,7 +9875,7 @@ sva_property_formal_list
 	      formal.local_bad_direction = true;
 	      formal.default_expr = $7;
 	      $1->push_back(formal); delete[]$6; $$ = $1; }
-	| K_local K_inout data_type IDENTIFIER initializer_opt
+	| K_local K_inout data_type IDENTIFIER sva_property_initializer_opt
 	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	      sva_property_formal_t formal;
 	      formal.name = lex_strings.make($4);
@@ -9875,7 +9885,7 @@ sva_property_formal_list
 	      formal.local_bad_direction = true;
 	      formal.default_expr = $5;
 	      l->push_back(formal); delete[]$4; $$ = l; }
-	| sva_property_formal_list ',' K_local K_output data_type IDENTIFIER initializer_opt
+	| sva_property_formal_list ',' K_local K_output data_type IDENTIFIER sva_property_initializer_opt
 	    { sva_property_formal_t formal;
 	      formal.name = lex_strings.make($6);
 	      formal.type = $5;
@@ -9884,7 +9894,7 @@ sva_property_formal_list
 	      formal.local_bad_direction = true;
 	      formal.default_expr = $7;
 	      $1->push_back(formal); delete[]$6; $$ = $1; }
-	| K_local K_output data_type IDENTIFIER initializer_opt
+	| K_local K_output data_type IDENTIFIER sva_property_initializer_opt
 	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	      sva_property_formal_t formal;
 	      formal.name = lex_strings.make($4);
@@ -9894,36 +9904,36 @@ sva_property_formal_list
 	      formal.local_bad_direction = true;
 	      formal.default_expr = $5;
 	      l->push_back(formal); delete[]$4; $$ = l; }
-	| sva_property_formal_list ',' K_untyped IDENTIFIER initializer_opt
+	| sva_property_formal_list ',' K_untyped IDENTIFIER sva_property_initializer_opt
 	    { sva_property_formal_t formal;
 	      formal.name = lex_strings.make($4);
 	      formal.default_expr = $5;
 	      $1->push_back(formal); delete[]$4; $$ = $1; }
-	| K_untyped IDENTIFIER initializer_opt
+	| K_untyped IDENTIFIER sva_property_initializer_opt
 	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	      sva_property_formal_t formal;
 	      formal.name = lex_strings.make($2); formal.default_expr = $3;
 	      l->push_back(formal); delete[]$2; $$ = l; }
-	| sva_property_formal_list ',' K_property IDENTIFIER initializer_opt
+	| sva_property_formal_list ',' K_property IDENTIFIER sva_property_initializer_opt
 	    { sva_property_formal_t formal;
 	      formal.name = lex_strings.make($4);
 	      formal.formal_type = sva_property_formal_t::PROPERTY;
 	      formal.default_expr = $5;
 	      $1->push_back(formal); delete[]$4; $$ = $1; }
-	| K_property IDENTIFIER initializer_opt
+	| K_property IDENTIFIER sva_property_initializer_opt
 	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	      sva_property_formal_t formal;
 	      formal.name = lex_strings.make($2);
 	      formal.formal_type = sva_property_formal_t::PROPERTY;
 	      formal.default_expr = $3;
 	      l->push_back(formal); delete[]$2; $$ = l; }
-	| sva_property_formal_list ',' K_sequence IDENTIFIER initializer_opt
+	| sva_property_formal_list ',' K_sequence IDENTIFIER sva_property_initializer_opt
 	    { sva_property_formal_t formal;
 	      formal.name = lex_strings.make($4);
 	      formal.formal_type = sva_property_formal_t::SEQUENCE;
 	      formal.default_expr = $5;
 	      $1->push_back(formal); delete[]$4; $$ = $1; }
-	| K_sequence IDENTIFIER initializer_opt
+	| K_sequence IDENTIFIER sva_property_initializer_opt
 	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	      sva_property_formal_t formal;
 	      formal.name = lex_strings.make($2);
@@ -11048,58 +11058,68 @@ sva_seq_atom
 	  }
 	delete $5;
 	$$ = $3; }
-  | sva_seq_atom K_LBSTAR expression ']'
+  | sva_seq_postfix K_LBSTAR expression ']'
       { $$ = pform_sva_repeat(@2, $1, $3, 0); }
-  | sva_seq_atom K_LBSTAR expression ':' expression ']'
+  | sva_seq_postfix K_LBSTAR expression ':' expression ']'
       { $$ = pform_sva_repeat(@2, $1, $3, $5); }
   /* IEEE 1800-2017 16.9.2: unbounded consecutive repetition `e[*m:$]'.
      The goto and nonconsecutive forms already had their `:$' variants;
      the plain star form did not, so `a[*1:$]' was a syntax error. */
-  | sva_seq_atom K_LBSTAR expression ':' '$' ']'
+  | sva_seq_postfix K_LBSTAR expression ':' '$' ']'
       { $$ = pform_sva_repeat(@2, $1, $3, nullptr, true); }
   /* 16.9.2: [*] and [+] abbreviate [*0:$] and [*1:$]. */
-  | sva_seq_atom K_LBSTAR ']'
+  | sva_seq_postfix K_LBSTAR ']'
       { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(0)), nullptr, true); }
-  | sva_seq_atom K_LBSPACESTAR '*' ']'
+  | sva_seq_postfix K_LBSPACESTAR '*' ']'
       { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(0)), nullptr, true); }
-  | sva_seq_atom K_LBPLUS '+' ']'
+  | sva_seq_postfix K_LBPLUS '+' ']'
       { $$ = pform_sva_repeat(@2, $1, new PENumber(new verinum(1)), nullptr, true); }
   /* M9-NFA stage C.1: goto `b[->n]'/`b[->m:n]' and nonconsecutive
      `b[=n]'/`b[=m:n]' repetition of a boolean (16.9.2). kind 1 = goto,
      2 = nonconsecutive; the trailing bool marks an unbounded `:$' upper.
      For the single-count form the low expression IS the high one. */
-  | sva_seq_atom K_LBGOTO expression ']'
+  | sva_seq_postfix K_LBGOTO expression ']'
       { $$ = pform_sva_goto_repeat(@2, $1, 1, $3, nullptr, false); }
-  | sva_seq_atom K_LBGOTO expression ':' expression ']'
+  | sva_seq_postfix K_LBGOTO expression ':' expression ']'
       { $$ = pform_sva_goto_repeat(@2, $1, 1, $3, $5, false); }
-  | sva_seq_atom K_LBGOTO expression ':' '$' ']'
+  | sva_seq_postfix K_LBGOTO expression ':' '$' ']'
       { $$ = pform_sva_goto_repeat(@2, $1, 1, $3, nullptr, true); }
-  | sva_seq_atom K_LBEQ expression ']'
+  | sva_seq_postfix K_LBEQ expression ']'
       { $$ = pform_sva_goto_repeat(@2, $1, 2, $3, nullptr, false); }
-  | sva_seq_atom K_LBEQ expression ':' expression ']'
+  | sva_seq_postfix K_LBEQ expression ':' expression ']'
       { $$ = pform_sva_goto_repeat(@2, $1, 2, $3, $5, false); }
-  | sva_seq_atom K_LBEQ expression ':' '$' ']'
+  | sva_seq_postfix K_LBEQ expression ':' '$' ']'
       { $$ = pform_sva_goto_repeat(@2, $1, 2, $3, nullptr, true); }
   /* Parenthesized sub-sequence: `(a ##1 b) |-> c`. Plain
      parenthesized booleans keep the ordinary expression path (the
      reduce/reduce conflict resolves to the earlier expression
      rules); this production engages when the parens contain
      sequence structure. */
-  | '(' sva_seq_expr ')'
-      { $$ = $2; }
+  | '(' sva_seq_atom ')' { $$ = $2; }
+  ;
+
+sva_seq_postfix
+  : sva_seq_atom
+  | sva_seq_grouped_delay
   ;
 
 sva_seq_expr
-  : sva_seq_atom
-      { $$ = $1; }
-  /* Unclocked declaration bodies historically reach this path. A local
-     declaration followed by an explicit clock is handled by the exact
-     property/sequence declaration productions above. */
-  | data_type IDENTIFIER ';' sva_seq_expr
+  : sva_seq_atom %prec sva_group_operand
+  | sva_seq_decl_expr %prec sva_group_operand
+  | sva_seq_delayed %prec sva_group_operand
+  ;
+
+/* Unclocked declaration bodies historically reach this path. A local
+   declaration followed by an explicit clock is handled by the exact
+   property/sequence declaration productions above. */
+sva_seq_decl_expr
+  : data_type IDENTIFIER ';' sva_seq_expr %prec sva_seq_comb_done
       { delete $1;
-	delete[] $2;
-	$$ = $4;
+        delete[] $2;
+        $$ = $4;
       }
+  ;
+
   /* Leading cycle delay: `|-> ##2 b`, `|-> ##[1:3] b`. DD-039: the
      trailing operand is `sva_seq_lead_delay', not `sva_seq_atom'
      directly, so a second unparenthesized leading delay chains here
@@ -11109,19 +11129,20 @@ sva_seq_expr
      `sva_seq_expr' so this recursion stays confined to further delay
      prefixes and doesn't pull `until'/`implies'/`iff'/`within'/the
      concat form into a leading delay's decision point. */
-  | sva_seq_lead_delay
-      { $$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value sva_seq_atom
+sva_seq_delayed
+  : sva_seq_lead_delay
+  | sva_seq_grouped_delay
+  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value sva_seq_postfix
       { pform_sva_single_delay(@3, (*$4)[0], $3);
         $1->insert($1->end(), $4->begin(), $4->end());
         delete $4;
         $$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
+  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_postfix
 	{ pform_sva_range_delay(@3, (*$8)[0], $4, $6);
 	$1->insert($1->end(), $8->begin(), $8->end());
 	delete $8;
 	$$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
+  | sva_seq_expr K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_postfix
       { long lo = 0;
 	sva_seq_step_t&f0 = (*$8)[0];
 	if (pform_sva_const_long($4, lo)
@@ -11135,7 +11156,7 @@ sva_seq_expr
 	$1->insert($1->end(), $8->begin(), $8->end());
 	delete $8;
 	$$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY K_LBSTAR ']' sva_seq_atom
+  | sva_seq_expr K_CYCLE_DELAY K_LBSTAR ']' sva_seq_postfix
       { sva_seq_step_t&f0 = (*$5)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 0; f0.delay_hi = -1;
@@ -11145,7 +11166,7 @@ sva_seq_expr
 	$1->insert($1->end(), $5->begin(), $5->end());
 	delete $5;
 	$$ = $1; }
-  | sva_seq_expr K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_atom
+  | sva_seq_expr K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_postfix
       { sva_seq_step_t&f0 = (*$6)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -11210,6 +11231,10 @@ sva_seq_expr
 	$$ = $1; }
   ;
 
+sva_seq_grouped_delay
+  : '(' sva_seq_delayed ')' { $$ = $2; }
+  ;
+
 /* DD-039: a leading cycle delay whose trailing operand is either a
    plain atom (the base case, e.g. `##2 b') or another leading delay
    with no atom between them (`##3 ##0 b', `##[1:2] ##1 b', ...). Each
@@ -11222,19 +11247,19 @@ sva_seq_expr
    delay_lo/delay_hi rather than overwrite them, so this composes
    correctly regardless of chain length. */
 sva_seq_lead_delay
-  : K_CYCLE_DELAY sva_cycle_delay_value sva_seq_atom
+  : K_CYCLE_DELAY sva_cycle_delay_value sva_seq_postfix
       { pform_sva_single_delay(@2, (*$3)[0], $2);
         $$ = $3; }
   | K_CYCLE_DELAY sva_cycle_delay_value sva_seq_lead_delay
       { pform_sva_single_delay(@2, (*$3)[0], $2);
         $$ = $3; }
-  | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_atom
+  | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_postfix
 	  { pform_sva_range_delay(@2, (*$7)[0], $3, $5);
 	$$ = $7; }
   | K_CYCLE_DELAY '[' expression ':' expression ']' sva_seq_lead_delay
 	  { pform_sva_range_delay(@2, (*$7)[0], $3, $5);
 	$$ = $7; }
-  | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_atom
+  | K_CYCLE_DELAY '[' expression ':' '$' ']' sva_seq_postfix
       { long lo = 0;
 	sva_seq_step_t&f0 = (*$7)[0];
 	if (pform_sva_const_long($3, lo)
@@ -11258,7 +11283,7 @@ sva_seq_lead_delay
 	}
 	delete $3;
 	$$ = $7; }
-  | K_CYCLE_DELAY K_LBSTAR ']' sva_seq_atom
+  | K_CYCLE_DELAY K_LBSTAR ']' sva_seq_postfix
       { sva_seq_step_t&f0 = (*$4)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 0; f0.delay_hi = -1;
@@ -11274,7 +11299,7 @@ sva_seq_lead_delay
 	      f0.delay_lo = -2; f0.delay_hi = -2;
 	}
 	$$ = $4; }
-  | K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_atom
+  | K_CYCLE_DELAY K_LBPLUS '+' ']' sva_seq_postfix
       { sva_seq_step_t&f0 = (*$5)[0];
 	if (f0.delay_lo == 0 && f0.delay_hi == 0) {
 	      f0.delay_lo = 1; f0.delay_hi = -1;
@@ -14125,7 +14150,7 @@ expr_mintypmax
      `(a ##1 b)' and `(a[*3])' cannot reduce to an `expression', so no
      tie arises and the sub-sequence rule is the only one available. */
 sva_bool_atom
-  : expression
+  : expression %prec sva_group_operand
       { $$ = $1; }
   | sva_dist_expr
       { $$ = $1; }
@@ -14432,7 +14457,28 @@ event_actual_group
 event_initializer_opt
   : '=' expression { $$ = $2; }
   | '=' event_actual { $$ = $2; }
+  | '=' sva_sequence_actual { $$ = $2; }
   | { $$ = nullptr; }
+  ;
+
+sva_sequence_actual
+  : sva_seq_delayed
+      { pform_requires_sv(@1, "Sequence actual");
+        sva_property_t*payload = new sva_property_t;
+        payload->seq = $1;
+        $$ = new PESvaActual(PESvaActual::SEQUENCE, payload, pform_peek_scope());
+        FILE_NAME($$, @1);
+      }
+  ;
+
+sva_property_initializer_opt
+  : initializer_opt
+  | '=' sva_sequence_actual { $$ = $2; }
+  ;
+
+assertion_actual
+  : event_actual
+  | sva_sequence_actual
   ;
 
 argument
@@ -14456,7 +14502,7 @@ argument
   | named_expression_opt
       { $$ = $1;
       }
-  | '.' IDENTIFIER '(' event_actual ')'
+  | '.' IDENTIFIER '(' assertion_actual ')'
       { named_pexpr_t*tmp = new named_pexpr_t;
 	FILE_NAME(tmp, @$);
 	tmp->name = lex_strings.make($2);
@@ -14464,7 +14510,7 @@ argument
 	delete[] $2;
 	$$ = tmp;
       }
-  | '.' TYPE_IDENTIFIER '(' event_actual ')'
+  | '.' TYPE_IDENTIFIER '(' assertion_actual ')'
       { named_pexpr_t*tmp = new named_pexpr_t;
 	FILE_NAME(tmp, @$);
 	tmp->name = lex_strings.make($2.text);
@@ -14472,7 +14518,7 @@ argument
 	delete[] $2.text;
 	$$ = tmp;
       }
-  | event_actual
+  | assertion_actual
       { named_pexpr_t *tmp = new named_pexpr_t;
 	FILE_NAME(tmp, @$);
 	tmp->name = perm_string();
