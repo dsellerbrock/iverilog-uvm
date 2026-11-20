@@ -1,0 +1,2 @@
+./ivltests/issue3506_bad.sv:9: error: A constant expression pattern shall be of integral type, but the matched value is not integral (IEEE 1800-2017/2023 12.6).
+1 error(s) during elaboration.

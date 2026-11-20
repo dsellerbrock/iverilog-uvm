@@ -1852,6 +1852,39 @@ static void pform_delete_abandoned_parser_block(parser_block_scope_t*scope)
       scope->block = nullptr;
 }
 
+/* IEEE 1800-2017/2023 12.6.1: a case-matches item's pattern scope opens
+   before its filter and statement parse. Carry it in a typed midrule so a
+   syntax error that discards the item also closes and frees the scope. */
+static parser_block_scope_t* pform_start_case_match_item(
+      const struct vlltype&loc, PMatchPattern*pattern)
+{
+      assert(!current_case_match_subjects.empty());
+      parser_block_scope_t*scope = new parser_block_scope_t;
+      scope->parent_scope = pform_peek_scope();
+      scope->block_stack_depth = current_block_stack.size();
+      scope->block = pform_pattern_push_scope(
+	    loc, current_case_match_subjects.top(), pattern, true);
+      scope->active = true;
+      return scope;
+}
+
+static void pform_destroy_case_match_item(parser_block_scope_t*scope)
+{
+      if (!scope) return;
+      pform_unwind_parser_block_scope(scope);
+      pform_delete_abandoned_parser_block(scope);
+      delete scope;
+}
+
+/* The case-matches subject guard pops its subject if error recovery
+   discards the case statement before its items are reduced. */
+static void pform_pop_case_match_subject(const PExpr*subject)
+{
+      assert(!current_case_match_subjects.empty()
+	     && current_case_match_subjects.top() == subject);
+      current_case_match_subjects.pop();
+}
+
 /* Procedural blocks own their scope until their statement is reduced. The
    named parser carrier is destroyed if error recovery discards that block. */
 struct procedural_block_scope_t : parser_block_scope_t {
@@ -2716,6 +2749,8 @@ static Module::port_t *module_declare_explicit_port(
       std::vector<PCaseMatches::Item*>*cmitems;
       PMatchPattern*match_pattern;
       std::vector<PMatchPattern*>*match_patterns;
+      parser_block_scope_t*case_match_item_scope;
+      const PExpr*case_match_subject;
 
       lgate*gate;
       std::vector<lgate>*gates;
@@ -3171,6 +3206,8 @@ static Module::port_t *module_declare_explicit_port(
             delete $$;
       }
 } match_pattern_list
+%destructor { pform_destroy_case_match_item($$); } <case_match_item_scope>
+%destructor { pform_pop_case_match_subject($$); } <case_match_subject>
 
 %type <gate>  gate_instance
 %type <gates> gate_instance_list anonymous_gate_instance_list
@@ -12882,6 +12919,14 @@ match_pattern
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
+  | STRING
+      { PMatchPattern*tmp = new PMatchPattern(PMatchPattern::CONSTANT);
+	PEString*value = new PEString($1);
+	FILE_NAME(value, @1);
+	tmp->expression(value);
+	FILE_NAME(tmp, @1);
+	$$ = tmp;
+      }
   ;
 
 /* Structure patterns use the same positional or named member forms as
@@ -12905,16 +12950,15 @@ match_pattern_list
 
 case_matches_item
   : match_pattern
-      { assert(!current_case_match_subjects.empty());
-	PBlock*block = pform_pattern_push_scope(
-	      @1, current_case_match_subjects.top(), $1, true);
-	current_pattern_blocks.push(block);
-      }
+      <case_match_item_scope>{ $$ = pform_start_case_match_item(@1, $1); }
 	case_matches_filter_opt ':' statement_or_null
       { PCaseMatches::Item*it = new PCaseMatches::Item;
-	assert(!current_pattern_blocks.empty());
-	PBlock*block = current_pattern_blocks.top();
-	current_pattern_blocks.pop();
+	assert($2->active);
+	PBlock*block = $2->block;
+	$2->block = nullptr;
+	$2->active = false;
+	pform_destroy_case_match_item($2);
+	assert(pform_peek_scope() == block);
 	it->pattern = $1;
 	it->has_filter = $3 != nullptr;
 	Statement*body = $5;
@@ -21648,11 +21692,10 @@ statement_item /* This is roughly statement_item in the LRM */
      controlling expression on a stack while those items parse so nested
      pattern cases remain independent. */
   | unique_priority K_case '(' expression ')' K_matches
-      { current_case_match_subjects.push($4); }
+      <case_match_subject>{ current_case_match_subjects.push($4); $$ = $4; }
     case_matches_items K_endcase
       { pform_requires_sv(@6, "case-matches pattern matching");
-	assert(!current_case_match_subjects.empty());
-	current_case_match_subjects.pop();
+	pform_pop_case_match_subject($7);
 	PCaseMatches*tmp = new PCaseMatches($1, $4, $8, NetCase::EQ);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
@@ -21668,21 +21711,19 @@ statement_item /* This is roughly statement_item in the LRM */
 	$$ = tmp;
       }
   | unique_priority K_casex '(' expression ')' K_matches
-      { current_case_match_subjects.push($4); }
+      <case_match_subject>{ current_case_match_subjects.push($4); $$ = $4; }
     case_matches_items K_endcase
       { pform_requires_sv(@6, "casex-matches pattern matching");
-	assert(!current_case_match_subjects.empty());
-	current_case_match_subjects.pop();
+	pform_pop_case_match_subject($7);
 	PCaseMatches*tmp = new PCaseMatches($1, $4, $8, NetCase::EQX);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
   | unique_priority K_casez '(' expression ')' K_matches
-      { current_case_match_subjects.push($4); }
+      <case_match_subject>{ current_case_match_subjects.push($4); $$ = $4; }
     case_matches_items K_endcase
       { pform_requires_sv(@6, "casez-matches pattern matching");
-	assert(!current_case_match_subjects.empty());
-	current_case_match_subjects.pop();
+	pform_pop_case_match_subject($7);
 	PCaseMatches*tmp = new PCaseMatches($1, $4, $8, NetCase::EQZ);
 	FILE_NAME(tmp, @2);
 	$$ = tmp;

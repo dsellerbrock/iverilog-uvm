@@ -928,6 +928,17 @@ static NetExpr* elaborate_pattern_node_(const LineInfo*loc,
                   des->errors += 1;
                   return nullptr;
             }
+              // IEEE 1800-2017/2023 12.6: "A constant expression pattern
+              // shall be of integral type", and it has the type of the
+              // value it is matched against, so that value must be packed.
+            if (current_type && !current_type->packed()) {
+                  cerr << pattern->get_fileline() << ": error: A constant "
+                       << "expression pattern shall be of integral type, but "
+                       << "the matched value is not integral (IEEE "
+                       << "1800-2017/2023 12.6)." << endl;
+                  des->errors += 1;
+                  return nullptr;
+            }
             NetExpr*left = select_pattern_value_(loc, subject, path, des,
                                                   current_type);
             NetExpr*right = elaborate_rval_expr(

@@ -1,0 +1,4 @@
+./ivltests/issue3506_recover.sv:9: syntax error
+./ivltests/issue3506_recover.sv:9: error: Incomprehensible case expression.
+./ivltests/issue3506_recover.sv:17: syntax error
+./ivltests/issue3506_recover.sv:17: error: Incomprehensible case expression.
