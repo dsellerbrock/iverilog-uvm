@@ -1,0 +1,3 @@
+WARNING: issue3943_toggle.sv:68: $coverage_control received an invalid argument and returns SV_COV_ERROR.
+WARNING: issue3943_toggle.sv:116: $coverage_control received an invalid argument and returns SV_COV_ERROR.
+PASSED

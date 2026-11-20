@@ -378,6 +378,7 @@ class __vpiScope : public __vpiHandle {
       unsigned def_file_idx;
       unsigned def_lineno;
       bool is_cell;
+      bool toggle_coverage_unavailable = false;
 	/* The scope has a system time of its own. */
       __vpiScopedTime scoped_time;
       struct __vpiScopedSTime scoped_stime;
@@ -540,6 +541,7 @@ class vpiScopeFunction  : public __vpiScope {
 extern __vpiScope* vpip_peek_current_scope(void);
 extern void vpip_attach_to_scope(__vpiScope*scope, vpiHandle obj);
 extern void vpip_attach_to_current_scope(vpiHandle obj);
+extern void vpip_init_toggle_coverage();
 /* The error state behind vpi_chk_error() (IEEE 1800-2023 38.2), and the
    cbPLIError/cbError callbacks it runs (38.36.3). */
 extern void vpip_clear_error(void);
@@ -683,6 +685,7 @@ struct __vpiSignal : public __vpiHandle {
       unsigned source_file_idx = 0;
       unsigned source_lineno = 0;
       bool has_source_location = false;
+      bool toggle_coverage_declaration = false;
       signed char charge_strength = vpiUndefined;
 	/* The represented value is here. */
       vvp_net_t*node;

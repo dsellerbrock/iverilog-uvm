@@ -1,0 +1,7 @@
+{
+  "type": "normal",
+  "source": "issue3943_toggle_2017.v",
+  "iverilog-args": ["-g2023", "-s", "issue3943_toggle"],
+  "vvp-args-extended": ["+ivl-toggle-coverage"],
+  "gold": "issue3943_toggle_on"
+}

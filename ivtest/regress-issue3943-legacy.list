@@ -1,0 +1,4 @@
+issue3943_toggle_2017 normal,-g2017,-s,issue3943_toggle,+ivl-toggle-coverage ivltests gold=issue3943_toggle_on-vvp-stdout.gold
+issue3943_toggle_2023 normal,-g2023,-s,issue3943_toggle,+ivl-toggle-coverage ivltests gold=issue3943_toggle_on-vvp-stdout.gold
+issue3943_toggle_off_2017 normal,-g2017,-s,issue3943_toggle,+expect-disabled ivltests gold=issue3943_toggle_off-vvp-stdout.gold
+issue3943_toggle_off_2023 normal,-g2023,-s,issue3943_toggle,+expect-disabled ivltests gold=issue3943_toggle_off-vvp-stdout.gold

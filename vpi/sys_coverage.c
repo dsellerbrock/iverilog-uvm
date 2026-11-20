@@ -20,10 +20,9 @@
 /*
  * IEEE 1800-2017 40.3 code-coverage access.
  *
- * Icarus implements functional coverage (Clause 19), but it does not
- * instrument statement, toggle, FSM, or assertion code coverage.  The
- * standard specifies SV_COV_NOCOV for queries and starts, and successful
- * no-ops for stops and resets. All arguments are still validated.
+ * VVP provides opt-in instrumentation for live toggle coverage. For
+ * uninstrumented coverage, queries and starts return SV_COV_NOCOV and
+ * stops and resets are successful no-ops.
  */
 
 # include "sys_priv.h"
@@ -32,10 +31,10 @@
 # include <string.h>
 
 enum {
-      SV_COV_START = 0,
-      SV_COV_STOP = 1,
-      SV_COV_RESET = 2,
-      SV_COV_CHECK = 3,
+      SV_COV_START = VPIP_TOGGLE_START,
+      SV_COV_STOP = VPIP_TOGGLE_STOP,
+      SV_COV_RESET = VPIP_TOGGLE_RESET,
+      SV_COV_CHECK = VPIP_TOGGLE_CHECK,
       SV_COV_MODULE = 10,
       SV_COV_HIER = 11,
       SV_COV_ASSERTION = 20,
@@ -254,6 +253,20 @@ static void coverage_put_result(vpiHandle callh, int result)
       vpi_put_value(callh, &val, 0, vpiNoDelay);
 }
 
+static int coverage_toggle(int op, int scope, vpiHandle arg)
+{
+      if (vpi_get(vpiType, arg) == vpiModule)
+            return vpip_toggle_coverage(op, scope == SV_COV_HIER, arg, 0);
+      if (coverage_is_string(arg)) {
+            s_vpi_value val;
+            val.format = vpiStringVal;
+            vpi_get_value(arg, &val);
+            return vpip_toggle_coverage(op, scope == SV_COV_HIER, 0,
+                                        val.value.str);
+      }
+      return SV_COV_ERROR;
+}
+
 static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -283,11 +296,25 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
             arg = vpi_scan(argv);
             valid = valid && coverage_get_int(arg, &scope)
                  && coverage_scope_valid(scope);
-            arg = vpi_scan(argv);
-            valid = valid && coverage_target_valid(arg);
-      } else {
-            arg = vpi_scan(argv);
+      }
+
+      arg = vpi_scan(argv);
+      vpi_free_object(argv);
+      if (kind == COVERAGE_DATABASE) {
             valid = valid && coverage_is_string(arg);
+      } else if (valid && type == SV_COV_TOGGLE) {
+            int op = control;
+            if (kind == COVERAGE_QUERY)
+                  op = strcmp((const char*)name, "$coverage_get_max") == 0
+                       ? VPIP_TOGGLE_GET_MAX : VPIP_TOGGLE_GET;
+            result = coverage_toggle(op, scope, arg);
+            valid = result != SV_COV_ERROR;
+            if (valid && result != VPIP_TOGGLE_DISABLED) {
+                  coverage_put_result(callh, result);
+                  return 0;
+            }
+      } else {
+            valid = valid && coverage_target_valid(arg);
       }
 
       if (!valid) {

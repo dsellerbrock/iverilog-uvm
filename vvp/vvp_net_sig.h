@@ -41,6 +41,27 @@ class vvp_assoc_base;
 
 class __vpiScope;
 
+// One point per bit of a declaration. Collapsed declarations attach
+// separately to the same filter and retain their own masks and owner.
+struct vvp_toggle_point {
+      vvp_toggle_point(unsigned width, const bool&owner_collecting)
+      : seen_zero(vvp_vector2_t::FILL0, width),
+	seen_one(vvp_vector2_t::FILL0, width), collecting(owner_collecting) { }
+
+      void sample(unsigned bit, vvp_bit4_t value)
+      {
+	    if (value == BIT4_0)
+		  seen_zero.set_bit(bit, 1);
+	    else if (value == BIT4_1)
+		  seen_one.set_bit(bit, 1);
+      }
+
+      vvp_vector2_t seen_zero;
+      vvp_vector2_t seen_one;
+      const bool&collecting;
+      vvp_toggle_point*next = nullptr;
+};
+
 /* vvp_fun_signal
  * This node is the place holder in a vvp network for signals,
  * including nets of various sort. The output from a signal follows

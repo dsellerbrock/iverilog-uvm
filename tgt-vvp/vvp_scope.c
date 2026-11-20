@@ -4423,8 +4423,19 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	/* Scan the signals (reg and net) and draw the appropriate
 	   statements to make the signal function. */
 
+      int toggle_coverage_unavailable = 0;
       for (idx = 0 ;  idx < ivl_scope_sigs(net) ;  idx += 1) {
 	    ivl_signal_t sig = ivl_scope_sig(net, idx);
+	    ivl_variable_type_t data_type = ivl_signal_data_type(sig);
+
+	      /* Preserve the presence of declarations outside the packed
+		 integral coverage slice. Some unsupported bytecode storage
+		 types do not retain the compiler-local flag in their handles. */
+	    if (!ivl_signal_local(sig) && ivl_signal_port(sig) != IVL_SIP_REF
+		&& (ivl_signal_dimensions(sig) > 0
+		    || (data_type != IVL_VT_LOGIC && data_type != IVL_VT_BOOL
+			&& !signal_is_return_value(sig))))
+		  toggle_coverage_unavailable = 1;
 
 	    switch (ivl_signal_type(sig)) {
 		case IVL_SIT_REG:
@@ -4435,6 +4446,8 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 		  break;
 	    }
       }
+      if (toggle_coverage_unavailable)
+	    fputs("    .toggle_coverage_unavailable;\n", vvp_out);
 
 	/* A specparam annotatable by SDF LABEL (IEEE 1800 32.4.3) keeps its
 	   run-time value in a hidden local variable named _ivl_sp_<name>,

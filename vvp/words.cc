@@ -631,7 +631,10 @@ void compile_variable(char*label, char*name,
 	// If the signal has a name, then it goes into the current
 	// scope as a signal.
       if (name) {
-	    if (obj && !local_flag) vpip_attach_to_current_scope(obj);
+	    if (!local_flag) {
+		  static_cast<__vpiSignal*>(obj)->toggle_coverage_declaration = true;
+		  vpip_attach_to_current_scope(obj);
+	    }
             if (!use_auto) {
 		  vvp_vector4_t tmp;
 		  vfil->vec4_value(tmp);
@@ -928,8 +931,10 @@ static void do_compile_net(vvp_net_t*node, vvp_array_t array,
 
       if (array)
 	    array->attach_word(array_addr, obj);
-      else if (obj)
-	    vpip_attach_to_scope(scope,obj);
+      else if (obj) {
+	    static_cast<__vpiSignal*>(obj)->toggle_coverage_declaration = true;
+	    vpip_attach_to_scope(scope, obj);
+      }
 
       free(my_label);
       delete[] name;

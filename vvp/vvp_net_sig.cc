@@ -297,14 +297,14 @@ template <class T> vvp_net_fil_t::prop_t vvp_net_fil_t::filter_mask_(const T&val
 	    }
 
 	    if (propagate_flag) {
-		  run_vpi_callbacks_in_boundary();
+		  run_vector_callbacks(base, val.size());
 		  return REPL;
 	    } else {
 		  return STOP;
 	    }
 
       } else {
-	    run_vpi_callbacks_in_boundary();
+	    run_vector_callbacks(base, val.size());
 	    return PROP;
       }
 }
@@ -3610,7 +3610,7 @@ void vvp_wire_vec4::force_fil_vec4(const vvp_vector4_t&val, const vvp_vector2_t&
 		  force4_.set_bit(idx, val.value(idx));
 	    }
       }
-      run_vpi_callbacks_in_boundary();
+      run_vector_callbacks(0, mask.size(), &mask);
 }
 
 void vvp_wire_vec4::force_fil_vec8(const vvp_vector8_t&, const vvp_vector2_t&)
@@ -3847,7 +3847,7 @@ void vvp_wire_vec8::force_fil_vec8(const vvp_vector8_t&val, const vvp_vector2_t&
 		  force8_.set_bit(idx, val.value(idx));
 	    }
       }
-      run_vpi_callbacks_in_boundary();
+      run_vector_callbacks(0, mask.size(), &mask);
 }
 
 void vvp_wire_vec8::force_fil_real(double, const vvp_vector2_t&)

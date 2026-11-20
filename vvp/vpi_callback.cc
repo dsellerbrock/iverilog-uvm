@@ -1646,6 +1646,32 @@ void vvp_vpi_callback::clear_all_callbacks()
 }
 #endif
 
+void vvp_net_fil_t::attach_toggle_point(vvp_toggle_point&point)
+{
+      point.next = toggle_points_;
+      toggle_points_ = &point;
+      const vvp_signal_value&signal = *as_signal_value();
+      for (unsigned bit = 0; bit < point.seen_zero.size(); ++bit)
+	    point.sample(bit, signal.value(bit));
+}
+
+void vvp_net_fil_t::run_vector_callbacks(unsigned base, unsigned width,
+					const vvp_vector2_t*force_write)
+{
+      if (toggle_points_) {
+	    const vvp_signal_value&signal = *as_signal_value();
+	    for (auto*point = toggle_points_; point; point = point->next) {
+		  if (!point->collecting)
+			continue;
+		  for (unsigned bit = base; bit < base + width; ++bit) {
+			if (force_write ? force_write->value(bit) : !test_force_mask(bit))
+			      point->sample(bit, signal.value(bit));
+		  }
+	    }
+      }
+      run_vpi_callbacks_in_boundary();
+}
+
 void vvp_vpi_callback::run_vpi_callbacks_in_boundary()
 {
       if (vpi_callbacks_ == 0 && array_words_ == 0)

@@ -1836,6 +1836,8 @@ void schedule_simulate(void)
 
       schedule_time = 0;
 
+      vpip_init_toggle_coverage();
+
       if (verbose_flag) {
 	    vpi_mcd_printf(1, " ...execute EndOfCompile callbacks\n");
       }

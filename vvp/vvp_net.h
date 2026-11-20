@@ -1473,6 +1473,7 @@ class vvp_net_fil_t  : public vvp_vpi_callback {
        * resolved value and strength do not. */
       void notify_driver_activity() { run_driver_activity_callbacks(); }
 
+      void attach_toggle_point(struct vvp_toggle_point&point);
 
 	// These filter methods are used by the vvp_net_t::send_*()
 	// methods to test the output (from the functor) bit value
@@ -1533,6 +1534,10 @@ class vvp_net_fil_t  : public vvp_vpi_callback {
       void force_mask(const vvp_vector2_t&mask);
 	// Release the force on the bits set in the mask.
       void release_mask(const vvp_vector2_t&mask);
+	// Observe committed packed bits before entering the callback boundary.
+	// A force write supplies its mask. A driven write skips forced bits.
+      void run_vector_callbacks(unsigned base, unsigned width,
+				const vvp_vector2_t*force_write = nullptr);
 	// Test bits of the filter force mask;
       bool test_force_mask(unsigned bit) const;
       bool test_force_mask_is_zero() const;
@@ -1558,6 +1563,7 @@ class vvp_net_fil_t  : public vvp_vpi_callback {
     private:
 	// Mask of forced bits
       vvp_vector2_t force_mask_;
+      struct vvp_toggle_point*toggle_points_ = nullptr;
 	// True if the next filter must propagate. Need this to allow
 	// the forced value to get through.
       bool force_propagate_;

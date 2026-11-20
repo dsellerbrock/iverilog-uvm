@@ -3639,5 +3639,6 @@ vpip_routines_s vpi_routines = {
     .compat_get_str             = vpip_compat_get_str,
     .compat_iterate             = vpip_compat_iterate,
     .sample_evcd_inout          = vpip_sample_evcd_inout,
+    .toggle_coverage            = vpip_toggle_coverage,
 };
 #endif

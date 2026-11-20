@@ -1,0 +1,5 @@
+WARNING: issue3943_toggle.sv:53: $coverage_control returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: issue3943_toggle.sv:54: $coverage_control returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: issue3943_toggle.sv:55: $coverage_get_max returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: issue3943_toggle.sv:56: $coverage_get returns SV_COV_NOCOV because code coverage is not instrumented.
+PASSED

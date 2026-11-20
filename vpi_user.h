@@ -1107,6 +1107,19 @@ extern void vpip_set_return_value(int value);
 #define VPIP_COVGRP_DB_LOAD     1
 extern int vpip_covgrp_db(int op, const char*name);
 
+/* Private bridge for the built-in live toggle coverage functions. */
+enum {
+      VPIP_TOGGLE_START = 0,
+      VPIP_TOGGLE_STOP,
+      VPIP_TOGGLE_RESET,
+      VPIP_TOGGLE_CHECK,
+      VPIP_TOGGLE_GET,
+      VPIP_TOGGLE_GET_MAX,
+      VPIP_TOGGLE_DISABLED = -3
+};
+extern int vpip_toggle_coverage(int op, int hierarchy, vpiHandle target,
+                                const char*definition);
+
 extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
 
 /* Draw from the caller's process RNG, optionally reseeding it first.
@@ -1317,7 +1330,7 @@ extern int vpip_sample_evcd_inout(vpiHandle ref, unsigned component,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 20;
+static const PLI_UINT32 vpip_routines_version = 21;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1409,6 +1422,7 @@ typedef struct {
     vpiHandle   (*compat_iterate)(int, PLI_INT32, vpiHandle);
     int         (*sample_evcd_inout)(vpiHandle, unsigned, unsigned,
                                      s_vpi_strengthval*, unsigned*, unsigned*);
+    int         (*toggle_coverage)(int, int, vpiHandle, const char*);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

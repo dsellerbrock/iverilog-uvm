@@ -31,6 +31,7 @@
 # include  "vvp_island.h"
 # include  "config.h"
 # include  <algorithm>
+# include  <list>
 # include  <map>
 # include  <memory>
 # include  <set>
@@ -59,6 +60,196 @@ using namespace std;
 
 static vector<vpiHandle> vpip_root_table;
 static vector<vpiHandle> class_definitions;
+
+namespace {
+
+struct toggle_owner {
+      bool collecting = true;
+      bool unavailable = false;
+      list<vvp_toggle_point> points;
+};
+
+static unique_ptr<map<__vpiScope*, toggle_owner>> toggle_inventory;
+
+static bool is_toggle_owner(const __vpiScope*scope)
+{
+      int type = scope->get_type_code();
+      return type == vpiModule || type == vpiInterface || type == vpiProgram;
+}
+
+static bool is_toggle_design_scope(const __vpiScope*scope)
+{
+      int type = scope->get_type_code();
+      return type != vpiPackage && type != vpiClassTypespec;
+}
+
+static void inventory_toggle_scope(__vpiScope*scope, __vpiScope*owner)
+{
+      if (!is_toggle_design_scope(scope))
+	    return;
+      if (is_toggle_owner(scope))
+	    owner = scope;
+
+      if (owner && scope->toggle_coverage_unavailable)
+	    (*toggle_inventory)[owner].unavailable = true;
+
+      for (auto*item : scope->intern) {
+	    if (auto*child = dynamic_cast<__vpiScope*>(item)) {
+		  if (child->scope == scope)
+			inventory_toggle_scope(child, owner);
+	    } else if (owner) {
+		  auto*signal = dynamic_cast<__vpiSignal*>(item);
+		  if (!signal || !signal->toggle_coverage_declaration)
+			continue;
+		  auto&entry = (*toggle_inventory)[owner];
+		  if (signal->automatic_storage) {
+			entry.unavailable = true;
+			continue;
+		  }
+		  entry.points.emplace_back(signal->width(), entry.collecting);
+		  signal->node->fil->attach_toggle_point(entry.points.back());
+	    }
+      }
+}
+
+static void select_toggle_owner(__vpiScope*scope, vector<toggle_owner*>&selected)
+{
+      if (!toggle_inventory)
+	    return;
+      auto entry = toggle_inventory->find(scope);
+      if (entry != toggle_inventory->end())
+	    selected.push_back(&entry->second);
+}
+
+static bool select_toggle_tree(__vpiScope*scope, const char*definition,
+			       bool hierarchy, bool inside,
+			       vector<toggle_owner*>&selected)
+{
+      if (!is_toggle_design_scope(scope))
+	    return false;
+
+      bool match = definition && scope->get_type_code() == vpiModule
+		&& strcmp(definition, scope->scope_def_name()) == 0;
+      if (inside || match)
+	    select_toggle_owner(scope, selected);
+
+      // Walk each linked scope once, even if an ancestor already matched.
+      // A module nested inside a generate scope still owns its own points.
+      bool found = match;
+      for (auto*item : scope->intern) {
+	    if (found && !toggle_inventory)
+		  break;
+	    auto*child = dynamic_cast<__vpiScope*>(item);
+	    if (child && child->scope == scope
+		&& select_toggle_tree(child, definition, hierarchy,
+				      hierarchy && (inside || match), selected))
+		  found = true;
+      }
+      return found;
+}
+
+} // namespace
+
+void vpip_init_toggle_coverage()
+{
+      s_vpi_vlog_info info;
+      vpi_get_vlog_info(&info);
+      for (int idx = 0; idx < info.argc; ++idx) {
+	    if (strcmp(info.argv[idx], "+ivl-toggle-coverage") != 0)
+		  continue;
+	    toggle_inventory.reset(new map<__vpiScope*, toggle_owner>);
+	    for (auto*root : vpip_root_table)
+		  inventory_toggle_scope(static_cast<__vpiScope*>(root), nullptr);
+	    break;
+      }
+}
+
+int vpip_toggle_coverage(int op, int hierarchy, vpiHandle target,
+			 const char*definition)
+{
+      enum { overflow = -2, error = -1, nocov = 0, ok = 1, partial = 2 };
+      vector<toggle_owner*> selected;
+
+      if (target) {
+	    auto*scope = dynamic_cast<__vpiScope*>(target);
+	    if (!scope || scope->get_type_code() != vpiModule)
+		  return error;
+	    if (hierarchy && toggle_inventory)
+		  select_toggle_tree(scope, nullptr, true, true, selected);
+	    else
+		  select_toggle_owner(scope, selected);
+      } else {
+	    if (!definition || !*definition)
+		  return error;
+	    bool all_roots = strcmp(definition, "$root") == 0;
+	    if (all_roots && !hierarchy)
+		  return error;
+	    bool found = all_roots;
+	    for (auto*root : vpip_root_table) {
+		  if (found && !toggle_inventory)
+			break;
+		  if (select_toggle_tree(static_cast<__vpiScope*>(root),
+					 all_roots ? nullptr : definition,
+					 hierarchy, all_roots, selected))
+			found = true;
+	    }
+	    if (!found)
+		  return error;
+      }
+
+      if (!toggle_inventory)
+	    return VPIP_TOGGLE_DISABLED;
+
+      bool measured = false;
+      bool unavailable = false;
+      int total = 0;
+      for (auto*entry : selected) {
+	    measured |= !entry->points.empty();
+	    unavailable |= entry->unavailable;
+	    switch (op) {
+		case VPIP_TOGGLE_START:
+		case VPIP_TOGGLE_STOP:
+		  entry->collecting = op == VPIP_TOGGLE_START;
+		  break;
+		case VPIP_TOGGLE_RESET:
+		  for (auto&point : entry->points) {
+			unsigned width = point.seen_zero.size();
+			point.seen_zero = vvp_vector2_t(vvp_vector2_t::FILL0, width);
+			point.seen_one = vvp_vector2_t(vvp_vector2_t::FILL0, width);
+		  }
+		  break;
+		case VPIP_TOGGLE_GET:
+		case VPIP_TOGGLE_GET_MAX:
+		  for (const auto&point : entry->points) {
+			unsigned width = point.seen_zero.size();
+			unsigned count = width;
+			if (op == VPIP_TOGGLE_GET) {
+			      count = 0;
+			      for (unsigned bit = 0; bit < width; ++bit)
+				    count += point.seen_zero.value(bit) && point.seen_one.value(bit);
+			}
+			if (count > static_cast<unsigned>(INT_MAX - total))
+			      return overflow;
+			total += count;
+		  }
+		  break;
+	    }
+      }
+
+      switch (op) {
+	  case VPIP_TOGGLE_GET:
+	  case VPIP_TOGGLE_GET_MAX:
+	    return total;
+	  case VPIP_TOGGLE_STOP:
+	  case VPIP_TOGGLE_RESET:
+	    return ok;
+	  case VPIP_TOGGLE_START:
+	  case VPIP_TOGGLE_CHECK:
+	    return !measured ? nocov : unavailable ? partial : ok;
+	  default:
+	    return error;
+      }
+}
 
 static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&table);
 static vpiHandle class_definition_iter(__vpiScope*scope);
