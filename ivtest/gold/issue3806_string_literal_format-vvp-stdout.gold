@@ -1,0 +1,10 @@
+literal []
+parameter []
+adjacent [x]
+concat [ab]
+leading NUL [ab]
+leading space [ ab]
+formatted [] len=2
+packed zero []
+zero width []
+explicit width [  ab] [ab  ]

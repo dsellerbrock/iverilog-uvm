@@ -904,23 +904,24 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
         vpiHandle arg = info->items[*idx];
         PLI_INT32 type = vpi_get(vpiType, arg);
         char *owned_string = 0;
-        int is_integral = 0;
+        int use_string_length = 0;
         switch (type) {
           case vpiConstant:
           case vpiParameter: {
             PLI_INT32 const_type = vpi_get(vpiConstType, arg);
-            is_integral = const_type == vpiBinaryConst
-                          || const_type == vpiOctConst
-                          || const_type == vpiDecConst
-                          || const_type == vpiHexConst;
+            use_string_length = const_type == vpiBinaryConst
+                                || const_type == vpiOctConst
+                                || const_type == vpiDecConst
+                                || const_type == vpiHexConst
+                                || const_type == vpiStringConst;
             break;
           }
           case vpiSysFuncCall: {
             PLI_INT32 func_type = vpi_get(vpiFuncType, arg);
-            is_integral = func_type == vpiIntFunc
-                          || func_type == vpiTimeFunc
-                          || func_type == vpiSizedFunc
-                          || func_type == vpiSizedSignedFunc;
+            use_string_length = func_type == vpiIntFunc
+                                || func_type == vpiTimeFunc
+                                || func_type == vpiSizedFunc
+                                || func_type == vpiSizedSignedFunc;
             break;
           }
           case vpiNet:
@@ -937,7 +938,7 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
           case vpiMemoryWord:
           case vpiPartSelect:
           case vpiIndexedPartSelect:
-            is_integral = 1;
+            use_string_length = 1;
             break;
           default:
             break;
@@ -1006,10 +1007,10 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
           if (width == -1) {
             /* If all we have is a leading zero then we want a zero width. */
             if (ld_zero == 1) width = 0;
-            /* Integral %s values have already had leading zero bytes removed
-               by the VPI string conversion. Do not reintroduce them as field
-               padding when the format does not specify a width. */
-            else if (is_integral) width = strlen(value.value.str);
+            /* VPI string conversion strips leading zero bytes from integral
+               values and string constants. Use the converted length so the
+               default width adds no padding for those bytes. */
+            else if (use_string_length) width = strlen(value.value.str);
             /* Otherwise if a width was not given, use the value width. */
             else width = (vpi_get(vpiSize, info->items[*idx])+7) / 8;
           }

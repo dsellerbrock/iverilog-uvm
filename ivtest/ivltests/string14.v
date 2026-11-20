@@ -21,7 +21,7 @@ module test;
     `check($bits(""), 8);
 
     $sformat(s, ":%s:%0s:", "", "");
-    `check(s, ": ::");
+    `check(s, ":::");
 
     x = 8'h00;
     $sformat(s, ":%s:%0s:", x, x);

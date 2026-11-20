@@ -7339,3 +7339,7 @@ issue3896_concat_leaves_2017 normal,-g2017,-s,issue3896_concat_leaves ivltests g
 issue3896_concat_leaves_2023 normal,-g2023,-s,issue3896_concat_leaves ivltests gold=issue3896_concat_leaves.gold
 issue818_unpacked_struct_net_ca_2017 normal,-g2017,-s,issue818_unpacked_struct_net_ca ivltests gold=issue818_unpacked_struct_net_ca-vvp-stdout.gold
 issue818_unpacked_struct_net_ca_2023 normal,-g2023,-s,issue818_unpacked_struct_net_ca ivltests gold=issue818_unpacked_struct_net_ca-vvp-stdout.gold
+
+# IEEE 1800-2017 §21.2.1.8 / 1800-2023 §21.2.1.7: leading NULs in %s.
+issue3806_string_literal_format_2017 normal,-g2017,-s,issue3806_string_literal_format ivltests gold=issue3806_string_literal_format-vvp-stdout.gold
+issue3806_string_literal_format_2023 normal,-g2023,-s,issue3806_string_literal_format ivltests gold=issue3806_string_literal_format-vvp-stdout.gold
