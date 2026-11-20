@@ -7410,6 +7410,8 @@ issue3422_2023 normal,-g2023,-s,cfg ivltests
 issue3422_bad_2023 CE,-g2023,-s,cfg ivltests gold=issue3422_bad.gold
 issue3913_struct_member_events_2017 normal,-g2017,-s,issue3913_struct_member_events ivltests gold=issue3913_struct_member_events-vvp-stdout.gold
 issue3913_struct_member_events_2023 normal,-g2023,-s,issue3913_struct_member_events ivltests gold=issue3913_struct_member_events-vvp-stdout.gold
+issue3914_struct_array_member_events_2017 normal,-g2017,-s,issue3914_struct_array_member_events ivltests gold=issue3914_struct_array_member_events-vvp-stdout.gold
+issue3914_struct_array_member_events_2023 normal,-g2023,-s,issue3914_struct_array_member_events ivltests gold=issue3914_struct_array_member_events-vvp-stdout.gold
 # IEEE 1800-2017/2023 25.6: specify paths to forwarded interface variables.
 issue2889_iface_path_onehop_2017 normal,-g2017,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
 issue2889_iface_path_onehop_2023 normal,-g2023,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold

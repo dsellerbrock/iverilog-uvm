@@ -3225,7 +3225,7 @@ class NetPartSelect  : public NetNode {
 
 /* A simulation-only member projection. Pin 0 is the projected value and
  * pin 1 is the object root. Virtual-interface projections also use pin 2
- * for binding validity. */
+ * for binding validity. For a scalar struct, root_word is UINT_MAX. */
 class NetVifProxy : public NetNode {
     public:
       NetVifProxy(NetScope*, unsigned width, NetNet*root,
@@ -6189,8 +6189,8 @@ class NetEProperty : public NetExpr {
       inline const NetExpr*get_index() const { return index_; }
       void set_index(NetExpr*idx) { delete index_; index_ = idx; }
 
-      // A typed leaf of a scalar unpacked struct variable can drive an
-      // ordinary event probe.
+      // A typed leaf of an unpacked struct variable or a constant-selected
+      // fixed array element can drive an ordinary event probe.
       bool is_struct_event_member() const;
 
       // Resolve a direct member of a statically bound interface port to the

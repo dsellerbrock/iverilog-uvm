@@ -1685,7 +1685,7 @@ NetVifProxy::NetVifProxy(NetScope*scope, unsigned width, NetNet*root,
       pin(0).set_dir(Link::OUTPUT);
       pin(1).set_dir(Link::INPUT);
       pin(2).set_dir(Link::OUTPUT);
-      connect(pin(1), root->pin(root_word));
+      connect(pin(1), root->pin(root_word == UINT_MAX ? 0 : root_word));
 }
 
 NetVifProxy::~NetVifProxy()

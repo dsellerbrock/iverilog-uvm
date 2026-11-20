@@ -3356,10 +3356,29 @@ static void draw_lpm_vif_proxy(ivl_lpm_t net)
           default:           kind = 0; break;
       }
       if (kind) {
-            const char*root = draw_input_from_net(ivl_lpm_data(net, 0),
-                                                ivl_lpm_scope(net));
-            fprintf(vvp_out, "L_%p .struct/leaf %s, %c, %u",
-                    net, root, kind, ivl_lpm_width(net));
+            ivl_nexus_t root_nex = ivl_lpm_data(net, 0);
+            unsigned word = ivl_lpm_vif_root_word(net);
+            if (word == UINT_MAX) {
+                  const char*root = draw_input_from_net(root_nex, ivl_lpm_scope(net));
+                  fprintf(vvp_out, "L_%p .struct/leaf %s", net, root);
+            } else {
+                  ivl_signal_t array = 0;
+                  for (unsigned idx = 0; idx < ivl_nexus_ptrs(root_nex); ++idx) {
+                        ivl_nexus_ptr_t ptr = ivl_nexus_ptr(root_nex, idx);
+                        ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+                        if (sig && ivl_signal_type(sig) == IVL_SIT_REG
+                            && ivl_signal_data_type(sig) == IVL_VT_NO_TYPE
+                            && ivl_signal_dimensions(sig)
+                            && ivl_nexus_ptr_pin(ptr) == word) {
+                              array = sig;
+                              break;
+                        }
+                  }
+                  assert(array);
+                  note_array_signal_use(array);
+                  fprintf(vvp_out, "L_%p .struct/leaf v%p, %u", net, array, word);
+            }
+            fprintf(vvp_out, ", %c, %u", kind, ivl_lpm_width(net));
             for (unsigned idx = 0; idx < ivl_lpm_vif_path_count(net); idx += 1)
                   fprintf(vvp_out, ", %u", ivl_lpm_vif_path(net, idx));
             fprintf(vvp_out, ", %u;\n", ivl_lpm_vif_member(net));

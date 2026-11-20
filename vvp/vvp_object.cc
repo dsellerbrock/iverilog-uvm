@@ -589,6 +589,8 @@ void vvp_object::touch(unsigned property, unsigned word, unsigned bit)
             if (it != object_touch_relays_.end()) {
                   std::vector<vvp_net_t*> relays(it->second);
                   vvp_object_t self(this);
+                  // A touch can change multiple inputs to one expression.
+                  vvp_event_source_guard_s update;
                   for (vvp_net_t*net : relays)
                         vvp_send_object(vvp_net_ptr_t(net, 0), self, 0);
             }
