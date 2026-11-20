@@ -1020,9 +1020,8 @@ NexusSet* NetSTask::nex_input(bool rem_out, bool always_sens, bool nested_func) 
 	    }
       }
 
-      if (ref_output_) {
-	    NexusSet*tmp = ref_output_->nex_input(rem_out, always_sens,
-					   nested_func);
+      for (const NetAssign_*lval = ref_output_; lval; lval = lval->more) {
+	    NexusSet*tmp = lval->nex_input(rem_out, always_sens, nested_func);
 	    result->add(*tmp);
 	    delete tmp;
       }

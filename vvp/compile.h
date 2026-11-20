@@ -154,6 +154,8 @@ extern void compile_vpi_primitive_term(char*primitive_label,
 extern void compile_vif_proxy(char*label, char*valid_label, unsigned width,
                               char*root, unsigned root_word, unsigned member,
                               unsigned word, unsigned path_count, long*path);
+extern void compile_struct_leaf(char*label, char*root, char*kind,
+                                uint64_t width, unsigned path_count, long*path);
 extern void compile_event_valid(char*event_label, char*valid_label);
 
 extern void compile_functor(char*label, char*type, unsigned width,
@@ -509,6 +511,7 @@ extern void compile_vpi_inst_array(char*name, unsigned long nconn,
 extern void compile_vpi_expr(char*label, long type, long op_type, long width,
 			     char*kind, char*thunk, char*decompile,
 			     unsigned argc, vpiHandle*argv);
+extern void compile_vpi_pla_output(char*label, uint64_t width, char*thunk);
 
 /*
  * The `compile_udp_def' function creates a UDP.  The `table' is a
@@ -677,6 +680,7 @@ extern void compile_scope_decl(char*typ, char*lab, char*nam, char*tnam,
                                long is_cell);
 extern void compile_io_decl(long direction, char*name, char*formal);
 extern void compile_scope_recall(char*sym);
+extern void compile_scope_binding(char*library, char*config);
 extern void compile_vpi_class_defn(char*label, uint64_t is_virtual);
 extern void compile_vpi_class_constraint(char*name, uint64_t is_static,
 					 uint64_t is_pure, uint64_t is_external);

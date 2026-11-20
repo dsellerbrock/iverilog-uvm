@@ -3454,11 +3454,9 @@ struct pending_interface_specify_path_t {
 static vector<pending_interface_specify_path_t>
       pending_interface_specify_paths_;
 
-/* The initializer expression of each interface port bound directly to an
-   interface instance, keyed by (port, word). A module path to a variable
-   member records its shadow there for the run-time handle. */
-static map<pair<const NetNet*,unsigned>,NetEScope*>
-      interface_port_scope_bindings_;
+/* Initializers of statically bound interface ports, keyed by (port, word).
+   The module path shadow pass can give each forwarded port its own handle. */
+static map<pair<NetNet*,unsigned>,NetAssign*> interface_port_initializers_;
 
 struct pending_interface_variable_continuous_driver_t {
       NetNet*port;
@@ -9373,14 +9371,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 							    actual->second[scope_word],
 							    static_cast<ivl_type_t>(ifc));
 						      se->set_line(*aid);
-						      interface_port_scope_bindings_[
-							    make_pair(prts[0], (unsigned)word)] = se;
 						      NetAssign_*lv = new NetAssign_(prts[0]);
 						      NetEConst*word_expr =
 							    make_const_val_s(word);
 						      word_expr->set_line(*aid);
 						      lv->set_word(word_expr);
 						      NetAssign*as = new NetAssign(lv, se);
+					      interface_port_initializers_[
+						    make_pair(prts[0], word)] = as;
 						      as->set_line(*this);
 						      NetProcTop*top = new NetProcTop(
 							    instance[0], IVL_PR_INITIAL, as);
@@ -9452,6 +9450,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						      formal_word_expr->set_line(*aid);
 						      lv->set_word(formal_word_expr);
 						      NetAssign*as = new NetAssign(lv, source);
+					      interface_port_initializers_[
+						    make_pair(prts[0], formal_word)] = as;
 						      as->set_line(*this);
 						      NetProcTop*top = new NetProcTop(
 							    instance[0], IVL_PR_INITIAL, as);
@@ -9556,6 +9556,9 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			      if (!vif)
 				    continue;
 
+			      NetAssign_*lv = new NetAssign_(port_var);
+			      NetAssign*as = new NetAssign(lv, vif);
+			      as->set_line(*this);
 			      /* Keep the statically-known binding in the netlist as
 			       * well as in the simulation initializer. Synthesis uses
 			       * this compiler-owned metadata to resolve formal.member
@@ -9564,8 +9567,8 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 			       * hierarchy has been elaborated. */
 			      if (NetEScope*bound_scope =
 				    dynamic_cast<NetEScope*>(vif)) {
-				    interface_port_scope_bindings_[
-					  make_pair(port_var, 0U)] = bound_scope;
+				    interface_port_initializers_[
+					  make_pair(port_var, 0U)] = as;
 				    port_var->bind_interface_scope(
 					  0, const_cast<NetScope*>(
 						bound_scope->scope()));
@@ -9585,14 +9588,14 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 						bound_word = static_cast<unsigned>(
 						      word_value);
 				    }
-				    if (static_word)
+				    if (static_word) {
 					  port_var->bind_interface_signal(
 						0, const_cast<NetNet*>(
 						      bound_signal->sig()), bound_word);
+					  interface_port_initializers_[
+						make_pair(port_var, 0U)] = as;
+				    }
 			      }
-			      NetAssign_*lv = new NetAssign_(port_var);
-			      NetAssign*as = new NetAssign(lv, vif);
-			      as->set_line(*this);
 			      NetScope*inst_scope =
 				    instance[instance.size()-inst-1];
 			      NetProcTop*top = new NetProcTop(
@@ -19420,6 +19423,42 @@ NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
       }
 }
 
+static bool expr_has_user_function_call_(const NetExpr*expr);
+
+static const NetEEvent* sva_triggered_event_(const NetESFunc*read)
+{
+      return strcmp(read->name(), "$ivl_event_method$triggered") == 0
+	    ? dynamic_cast<const NetEEvent*>(read->parm(0)) : nullptr;
+}
+
+static const NetEvent* sva_triggered_endpoint_(const NetESFunc*read)
+{
+      const NetEEvent*arg = sva_triggered_event_(read);
+      const NetEvent*event = arg ? arg->event() : nullptr;
+      return event && event->is_sequence_endpoint() ? event : nullptr;
+}
+
+static const NetScope* sva_disable_condition_scope_ = nullptr;
+
+void NetEvent::validate_sva_disable_clock(Design*des, NetScope*scope,
+					 const LineInfo&use) const
+{
+      // Check during binding, even when constant folding removes the read.
+      // A called function's body has its own elaboration scope.
+      if (!sva_disable_condition_scope_ || !sequence_endpoint_
+	  || sequence_endpoint_clocked_)
+	    return;
+      while (scope != sva_disable_condition_scope_) {
+	    if (!scope || scope->type() == NetScope::FUNC) return;
+	    scope = scope->parent();
+      }
+      cerr << use.get_fileline()
+	   << ": error: a sequence used with .triggered in disable iff "
+	      "must have its own clock (IEEE 1800-2017/2023 16.13.3, 16.13.6)."
+	   << endl;
+      des->errors += 1;
+}
+
 /*
  * A call to a system task involves elaborating all the parameters,
  * then passing the list to the NetSTask object.
@@ -19443,6 +19482,41 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       vector<NetExpr*>eparms (parm_count);
 
       perm_string name = peek_tail_name(path_);
+      const bool endpoint_only = name == "$ivl_observed_if_sequence_disable_wait";
+      if ((name == "$ivl_observed_disable_wait" || endpoint_only)
+	  && parm_count == 2) {
+	    // Resolve the effective condition to distinguish a private sequence
+	    // endpoint from ordinary named-event state. The condition itself
+	    // remains live in the checker's level test.
+	    const NetScope*saved = sva_disable_condition_scope_;
+	    const unsigned errors = des->errors;
+	    sva_disable_condition_scope_ = scope;
+	    unique_ptr<NetExpr>cond(elab_and_eval(des, scope, parms_[0].parm, -1));
+	    sva_disable_condition_scope_ = saved;
+	    if (!cond || des->errors != errors) return nullptr;
+	    vector<const NetESFunc*>reads;
+	    NetESFunc::set_nex_input_triggered_collector(&reads);
+	    delete cond->nex_input(true, expr_has_user_function_call_(cond.get()));
+	    NetESFunc::set_nex_input_triggered_collector(nullptr);
+	    bool endpoint = std::any_of(reads.begin(), reads.end(),
+					sva_triggered_endpoint_);
+	    if (!endpoint && endpoint_only) {
+		  NetBlock*noop = new NetBlock(NetBlock::SEQU, scope);
+		  noop->set_line(*this);
+		  return noop;
+	    }
+	    vector<NetExpr*>args;
+	    if (endpoint) {
+		  NetExpr*order = elab_and_eval(des, scope, parms_[1].parm, -1);
+		  if (!order) return nullptr;
+		  args.push_back(order);
+	    }
+	    NetSTask*wait = new NetSTask(endpoint ? "$ivl_observed_disable_wait"
+						 : "$ivl_observed_wait",
+					 IVL_SFUNC_AS_TASK_IGNORE, args);
+	    wait->set_line(*this);
+	    return wait;
+      }
 	/* IEEE 1800-2023 20.11: identifiers in list_of_scopes_or_assertions
 	   become hierarchical selector strings. The leading integer arguments
 	   (levels; for $assertcontrol also control, assertion and directive
@@ -19458,6 +19532,22 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    assertion_selector_first = 1;
       const bool coverage_db_task =
 	    name == "$set_coverage_db_name" || name == "$load_coverage_db";
+      const bool pla_task =
+	   name == "$async$and$array" || name == "$async$nand$array"
+	|| name == "$async$or$array" || name == "$async$nor$array"
+	|| name == "$async$and$plane" || name == "$async$nand$plane"
+	|| name == "$async$or$plane" || name == "$async$nor$plane"
+	|| name == "$sync$and$array" || name == "$sync$nand$array"
+	|| name == "$sync$or$array" || name == "$sync$nor$array"
+	|| name == "$sync$and$plane" || name == "$sync$nand$plane"
+	|| name == "$sync$or$plane" || name == "$sync$nor$plane";
+      const bool pla_concat = pla_task && parm_count == 3
+	    && dynamic_cast<const PEConcat*>(parms_[2].parm);
+      if (pla_task && (parm_count != 3 || !parms_[2].parm)) {
+	    cerr << get_fileline() << ": error: " << name
+		 << " requires a memory, input expression, and output variable." << endl;
+	    des->errors += 1;
+      }
 
       if (name == "$system" && parm_count > 1) {
 	    cerr << get_fileline() << ": error: The $system task takes zero or one argument; found "
@@ -19563,6 +19653,9 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 		  }
 	    }
 
+	    if (pla_concat && idx == 2)
+		  continue;
+
             eparms[idx] = elab_sys_task_arg(des, scope, name, idx,
 			    parm.parm);
 
@@ -19579,20 +19672,6 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    }
       }
 
-      /* IEEE 1800-2017 20.17 / 1800-2023 20.16: PLA output_terms
-       * is a variable_lvalue. Ordinary system-task argument elaboration
-       * preserves signal l-values, but does not distinguish variables
-       * from nets. Check the resulting l-value tree before passing it to
-       * the VPI task. */
-      const bool pla_task =
-	   name == "$async$and$array" || name == "$async$nand$array"
-	|| name == "$async$or$array" || name == "$async$nor$array"
-	|| name == "$async$and$plane" || name == "$async$nand$plane"
-	|| name == "$async$or$plane" || name == "$async$nor$plane"
-	|| name == "$sync$and$array" || name == "$sync$nand$array"
-	|| name == "$sync$or$array" || name == "$sync$nor$array"
-	|| name == "$sync$and$plane" || name == "$sync$nand$plane"
-	|| name == "$sync$or$plane" || name == "$sync$nor$plane";
       if (pla_task && parm_count == 3) {
 	  for (unsigned idx = 0; idx < 3; idx += 1) {
 		const NetExpr*expr = eparms[idx];
@@ -19621,27 +19700,50 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 		}
 	  }
       }
-      if (pla_task && parm_count == 3 && eparms[2]) {
-	  std::function<bool(const NetExpr*)> variable_lvalue =
-		[&variable_lvalue](const NetExpr*expr) -> bool {
-		  if (const NetESignal*sig = dynamic_cast<const NetESignal*>(expr)) {
-			NetNet::Type type = sig->sig()->type();
-			return type == NetNet::REG || type == NetNet::IMPLICIT_REG;
+      /* IEEE 1800-2017 20.17 / 1800-2023 20.16: output_terms is a
+	 variable_lvalue. Keep the assignment destination, including every
+	 member of a concatenation, separate from the expression arguments. */
+      NetAssign_*pla_output = nullptr;
+      if (pla_task && parm_count == 3 && parms_[2].parm) {
+	    const unsigned errors = des->errors;
+	    const NetExpr*expr = eparms[2];
+	    while (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
+		  expr = select->sub_expr();
+	    const NetESignal*signal = dynamic_cast<const NetESignal*>(expr);
+	    if (pla_concat || (signal && (signal->sig()->type() == NetNet::REG
+				       || signal->sig()->type() == NetNet::IMPLICIT_REG))) {
+		  pla_output = parms_[2].parm->elaborate_lval(des, scope, false, false);
+		  unsigned parts = 0;
+		  for (const NetAssign_*part = pla_output; part; part = part->more) {
+			materialize_ref_return(part->sig());
+			parts += 1;
 		  }
-		  if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
-			return variable_lvalue(select->sub_expr());
-		  if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
-			for (unsigned idx = 0; idx < concat->nparms(); idx += 1)
-			      if (!variable_lvalue(concat->parm(idx))) return false;
-			return concat->nparms() != 0;
+		  if (pla_concat && des->errors == errors) {
+			/* Ordinary concatenation recovery can skip an unresolved
+			   leaf after a warning. PLA cannot store a partial result. */
+			std::function<unsigned(const PExpr*)> count_parts =
+			      [&count_parts](const PExpr*value) -> unsigned {
+			      const auto*concat = dynamic_cast<const PEConcat*>(value);
+			      if (!concat) return 1;
+			      unsigned count = 0;
+			      for (const PExpr*leaf : concat->stream_parms())
+				    count += count_parts(leaf);
+			      return count;
+			};
+			if (!pla_output || parts != count_parts(parms_[2].parm)) {
+			      cerr << parms_[2].get_fileline() << ": error: argument 3 of "
+				   << name << " must be a complete variable lvalue." << endl;
+			      des->errors += 1;
+			}
 		  }
-		  return false;
-		};
-	  if (!variable_lvalue(eparms[2])) {
+	    }
+	    if (!pla_output && des->errors == errors) {
 		  cerr << parms_[2].get_fileline() << ": error: argument 3 of "
 		       << name << " must be a variable lvalue." << endl;
 		  des->errors += 1;
-	  }
+	    }
+	    delete eparms[2];
+	    eparms[2] = nullptr;
       }
 
       if (name == "$cast" && parm_count == 2) {
@@ -19744,6 +19846,8 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       }
 
       NetSTask*cur = new NetSTask(name, def_sfunc_as_task, eparms);
+      if (pla_output)
+	    cur->set_ref_output(pla_output, 2);
       if (immediate_assertion_action_depth_ != 0)
 	    cur->assertion_action();
       cur->set_line(*this);
@@ -28034,8 +28138,6 @@ static bool has_class_property_mutation_dep_(const NetExpr*expr)
    member when its handle changes; class-property dependencies likewise have
    no static NetNet input. User functions also need the full expression to be
    reevaluated when any source operand changes. */
-static bool expr_has_user_function_call_(const NetExpr*expr);
-
 static bool selected_edge_requires_observer_(const NetExpr*expr)
 {
       if (has_class_property_mutation_dep_(expr)
@@ -28854,16 +28956,8 @@ static NetExpr* sva_disable_observer_expr_(
       set<const NetEvent*> seen;
       vector<const NetEEvent*> operands;
       for (const NetESFunc*read : reads) {
-	    const NetEEvent*arg = strcmp(read->name(), "$ivl_event_method$triggered") == 0
-		  ? dynamic_cast<const NetEEvent*>(read->parm(0)) : nullptr;
+	    const NetEEvent*arg = sva_triggered_event_(read);
 	    const NetEvent*event = arg ? arg->event() : nullptr;
-	    if (event && event->is_sequence_endpoint()) {
-		  cerr << read->get_fileline()
-		       << ": sorry: sequence endpoint in disable iff requires "
-		          "ordered assertion evaluation." << endl;
-		  des->errors += 1;
-		  return nullptr;
-	    }
 	    if (!event || event->is_class_event() || event->is_event_array()
 		|| event->lifetime_override() == IVL_VLT_AUTOMATIC
 		|| (event->lifetime_override() == IVL_VLT_INHERITED
@@ -29699,6 +29793,15 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	  unique_ptr<NexusSet>sources(tmp->nex_input(
 		true, expr_has_user_function_call_(tmp)));
 	  NetESFunc::set_nex_input_triggered_collector(nullptr);
+	  if (sva_disable_endpoints_only_
+	      && std::none_of(reads.begin(), reads.end(), sva_triggered_endpoint_)) {
+		// This engine only needs the extra abort process for an endpoint
+		// disable. Park the process on an event with no publishers.
+		delete tmp;
+		scope->add_event(ev);
+		wa->add_event(ev);
+		return wa;
+	  }
 	  if (!reads.empty()) {
 		NetExpr*observer = sva_disable_observer_expr_(des, tmp, reads);
 		if (!observer) {
@@ -30180,8 +30283,18 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                   delete prop_set;
             }
 
-	    if (gn_system_verilog()
-		&& dynamic_cast<NetEProperty*>(tmp)) {
+	    const NetEProperty*property = dynamic_cast<const NetEProperty*>(tmp);
+	    bool struct_event_member = property && property->is_struct_event_member();
+	    if (struct_event_member && expr_[idx]->type() != PEEvent::ANYEDGE
+		&& !type_is_vectorable(tmp->expr_type())) {
+		  cerr << tmp->get_fileline() << ": error: edge event "
+		       << "expression must be integral." << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  continue;
+	    }
+
+	    if (gn_system_verilog() && property && !struct_event_member) {
 		  // Compile-progress semantic support: class-property expressions
 		  // do not generally synthesize into a NetNet, but we can still
 		  // derive a sensitivity set from their input dependencies.
@@ -30477,7 +30590,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 
 	    bool direct_object_handle_event =
 	          expr_[idx]->type() == PEEvent::ANYEDGE
-	       && dynamic_cast<const NetESignal*>(tmp)
+	       && (struct_event_member || dynamic_cast<const NetESignal*>(tmp))
 	       && dynamic_cast<const netclass_t*>(tmp->net_type());
 	    event_synchronous_synthesis_scope_ event_synchronous_scope;
 	    map<const NetEProperty*,NetNet*> vif_validity_leaves;
@@ -34331,6 +34444,19 @@ void PSpecPath::elaborate(Design*des, NetScope*scope) const
  */
 static void prepare_interface_path_shadows_(Design*des)
 {
+      if (pending_interface_specify_paths_.empty())
+	    return;
+
+      map<NetScope*,vector<pair<NetNet*,unsigned>>> forwarded_ports;
+      for (const auto&entry : interface_port_initializers_) {
+	    if (dynamic_cast<NetEScope*>(entry.second->rval()))
+		  continue;
+	    const auto&port_word = entry.first;
+	    if (NetScope*instance =
+		  port_word.first->resolve_interface_scope(port_word.second))
+		  forwarded_ports[instance].push_back(port_word);
+      }
+
       map<NetNet*,NetNet*> shadow_owner;	// member -> its shadow
       for (const pending_interface_specify_path_t&pending :
 	   pending_interface_specify_paths_) {
@@ -34365,11 +34491,28 @@ static void prepare_interface_path_shadows_(Design*des)
 				&& mp->second.first != NetNet::PINOUT))
 			      continue;
 		  }
+		  auto bound = interface_port_initializers_.find(
+			make_pair(port, 0U));
+		  if (bound == interface_port_initializers_.end())
+			continue;
+		  NetScope*instance = port->resolve_interface_scope(0);
+		  if (!instance)
+			continue;
+
+		  if (const NetEScope*init =
+			dynamic_cast<NetEScope*>(bound->second->rval())) {
+			const auto&binds = init->vif_binds();
+			if (std::any_of(binds.begin(), binds.end(),
+				      [pid](const pair<unsigned,NetNet*>&bind) {
+					    return bind.first == unsigned(pid);
+				      }))
+			      continue;	// this port already reaches the shadow
+		  }
+
 		  NetNet*member = port->resolve_interface_member(0, pid);
-		  if (!member || member->type() != NetNet::REG
-		      || member->unpacked_dimensions() > 0
+		  if (!member || member->unpacked_dimensions() > 0
 		      || !type_is_vectorable(member->data_type()))
-			continue;	// a net member needs no shadow
+			continue;
 
 		  auto old = shadow_owner.find(member);
 		  if (old != shadow_owner.end()) {
@@ -34381,19 +34524,25 @@ static void prepare_interface_path_shadows_(Design*des)
 			des->errors += 1;
 			continue;
 		  }
+		  if (member->type() != NetNet::REG)
+			continue;	// a net member needs no shadow
 
-		  auto bound = interface_port_scope_bindings_.find(
-			make_pair(static_cast<const NetNet*>(port), 0U));
-		  if (bound == interface_port_scope_bindings_.end()) {
-			  // ponytail: a forwarded port shares its parent's
-			  // handle, so it cannot take its own view; bind the
-			  // shadow at the root binding if this is ever needed.
-			cerr << path->get_fileline() << ": warning: The delay of "
-			     << "the module path to `" << terminal << "' is ignored: "
-			     << "interface port `" << terminal.name << "' is passed "
-			     << "through from another port, not bound to an "
-			     << "interface instance." << endl;
-			continue;
+		    // Give forwarded ports of this instance independent handles
+		    // before any shadow can affect a descendant's view. Anchor
+		    // static resolution at the instance for the same reason.
+		  auto forwards = forwarded_ports.find(instance);
+		  if (forwards != forwarded_ports.end()) {
+			for (const auto&port_word : forwards->second) {
+			      NetNet*formal = port_word.first;
+			      NetAssign*init =
+				    interface_port_initializers_.at(port_word);
+			      NetEScope*vif =
+				    new NetEScope(instance, formal->net_type());
+			      vif->set_line(*init->rval());
+			      init->set_rval(vif);
+			      formal->bind_interface_scope(port_word.second, instance);
+			}
+			forwarded_ports.erase(forwards);
 		  }
 
 		  NetNet*shadow = new NetNet(scope, scope->local_symbol(),
@@ -34402,7 +34551,8 @@ static void prepare_interface_path_shadows_(Design*des)
 		    // Not local_flag: nodangle drops a local signal that shares
 		    // its nexus with the member, and the handle needs it.
 		  port->bind_interface_member(0, pid, shadow);
-		  bound->second->add_vif_bind(pid, shadow);
+		  NetEScope*init = static_cast<NetEScope*>(bound->second->rval());
+		  init->add_vif_bind(pid, shadow);
 		  shadow_owner[member] = shadow;
 
 		    // With the module's own writes now on the shadow, any
@@ -60037,7 +60187,7 @@ Design* elaborate(list<perm_string>roots, const map<string,const char*>&flags)
       pending_bound_interface_rhs_.clear();
       pending_interface_specify_paths_.clear();
       pending_interface_variable_continuous_drivers_.clear();
-      interface_port_scope_bindings_.clear();
+      interface_port_initializers_.clear();
       deferred_extern_sensitivity_.clear();
       extern_functions_bound_ = false;
       pending_variable_continuous_drivers_.clear();
@@ -60240,6 +60390,7 @@ Design* elaborate(list<perm_string>roots, const map<string,const char*>&flags)
         // item has completed, so a miss cannot be mistaken for an instance
         // that simply had not been elaborated yet.
       pform_check_bind_matches(des);
+      config_check_parameter_overrides(des);
 
       if (debug_elaborate) {
 	    cerr << "<toplevel>: elaborate: "

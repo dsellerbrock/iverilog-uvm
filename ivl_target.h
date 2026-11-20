@@ -1734,6 +1734,8 @@ extern unsigned ivl_lpm_vif_member(ivl_lpm_t net);
 extern unsigned ivl_lpm_vif_word(ivl_lpm_t net);
 extern unsigned ivl_lpm_vif_path_count(ivl_lpm_t net);
 extern unsigned ivl_lpm_vif_path(ivl_lpm_t net, unsigned idx);
+/* IVL_VT_NO_TYPE for a virtual-interface proxy, otherwise the struct leaf type. */
+extern ivl_variable_type_t ivl_lpm_vif_struct_leaf_type(ivl_lpm_t net);
 
 /* LVAL
  * The l-values of assignments are concatenation of ivl_lval_t
@@ -2381,6 +2383,9 @@ extern unsigned     ivl_scope_switches(ivl_scope_t net);
 extern ivl_switch_t ivl_scope_switch(ivl_scope_t net, unsigned idx);
 extern ivl_scope_type_t ivl_scope_type(ivl_scope_t net);
 extern const char*  ivl_scope_tname(ivl_scope_t net);
+/* Module library and qualified controlling config, or NULL if absent. */
+extern const char*  ivl_scope_library(ivl_scope_t net);
+extern const char*  ivl_scope_config(ivl_scope_t net);
 extern int          ivl_scope_time_precision(ivl_scope_t net);
 extern int          ivl_scope_time_units(ivl_scope_t net);
 
@@ -2875,6 +2880,9 @@ extern ivl_expr_t ivl_stmt_parm(ivl_statement_t net, unsigned idx);
 extern unsigned ivl_stmt_parm_count(ivl_statement_t net);
   /* IVL_ST_STASK: optional compiler-known ref-output destination. */
 extern ivl_lval_t ivl_stmt_ref_lval(ivl_statement_t net);
+/* Argument index for a VPI ref-output, or ~0U if none. Its full l-value
+ * chain is available through ivl_stmt_lval and ivl_stmt_lvals. */
+extern unsigned ivl_stmt_ref_lval_arg(ivl_statement_t net);
   /* IVL_ST_STASK: exact dynamic virtual-interface method candidates. */
 extern ivl_scope_t ivl_stmt_vif_method(ivl_statement_t net, unsigned idx);
 extern unsigned    ivl_stmt_vif_methods(ivl_statement_t net);

@@ -1,0 +1,4 @@
+issue3827_sequence_disable_2017 normal,-g2017,-gassertions,-s,issue3827_sequence_disable_top ivltests
+issue3827_sequence_disable_2023 normal,-g2023,-gassertions,-s,issue3827_sequence_disable_top ivltests
+issue3827_clockless_disable_2017 CE,-g2017,-gassertions,-s,issue3827_clockless_disable ivltests gold=issue3827_clockless_disable.gold
+issue3827_clockless_disable_2023 CE,-g2023,-gassertions,-s,issue3827_clockless_disable ivltests gold=issue3827_clockless_disable.gold

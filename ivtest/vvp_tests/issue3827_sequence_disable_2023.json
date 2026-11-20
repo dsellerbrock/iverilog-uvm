@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue3827_sequence_disable.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue3827_sequence_disable_top"]
+}

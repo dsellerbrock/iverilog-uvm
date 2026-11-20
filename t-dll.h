@@ -661,6 +661,7 @@ struct ivl_lpm_s {
 		  unsigned root_word, member, word;
 		  unsigned path_count;
 		  unsigned*path;
+		  ivl_variable_type_t struct_leaf_type;
 	    } vif_proxy;
 
 	    struct ivl_lpm_ufunc_s {
@@ -1196,6 +1197,8 @@ struct ivl_statement_s {
 		  ivl_scope_t*vif_method_;
 		  unsigned   vif_methods_;
 		  ivl_lval_t ref_lval_;
+		  unsigned ref_lval_count_;
+		  unsigned ref_lval_arg_;
 	    } stask_;
 
 	    struct { /* IVL_ST_UTASK */

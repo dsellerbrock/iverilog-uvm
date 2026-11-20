@@ -63,6 +63,7 @@
 # include  <tuple>
 # include  <memory>
 # include  <deque>
+# include  <list>
 # include  <unordered_map>
 # include  <unordered_set>
 # include  <typeinfo>
@@ -13839,6 +13840,81 @@ bool vthread_eval_thunk(vthread_t caller, vvp_code_t pc, __vpiScope*scope,
       return done;
 }
 
+struct vpip_pla_writer {
+      vvp_code_t pc;
+      __vpiScope*scope;
+      unsigned width;
+      vvp_context_t rd_context;
+      vvp_context_t wt_context;
+};
+
+vpip_pla_writer* vthread_bind_pla_writer(vthread_t caller, __vpiScope*scope,
+					vvp_code_t pc, unsigned width)
+{
+      if (!caller) return nullptr;
+      auto writer = new vpip_pla_writer{pc, scope, width,
+					caller->rd_context, caller->wt_context};
+      retain_context_chain_(writer->rd_context);
+      retain_context_chain_(writer->wt_context);
+      return writer;
+}
+
+static void release_pla_context_chain_(vvp_context_t context)
+{
+      while (context) {
+	    vvp_context_t next = vvp_get_stacked_context(context);
+	    vthread_free_context(context, automatic_context_owner_(context));
+	    context = next;
+      }
+}
+
+extern "C" void vpip_pla_release_output(vpip_pla_writer*writer)
+{
+      release_pla_context_chain_(writer->rd_context);
+      release_pla_context_chain_(writer->wt_context);
+      delete writer;
+}
+
+extern "C" int vpip_pla_write(vpip_pla_writer*writer, p_vpi_value value)
+{
+      vthread_t thr = vthread_new_(writer->pc, writer->scope, false);
+      vpi_mode_t saved_mode = vpi_mode_flag;
+      __vpiSysTaskCall*saved_task = vpip_cur_task;
+      vthread_t saved_vpi_thread = vpip_current_vthread;
+      vthread_t saved_running = running_thread;
+      if (saved_mode == VPI_MODE_CALLTF) {
+	    thr->parent = saved_vpi_thread;
+	    thr->is_callf_child = 1;
+      }
+      thr->rd_context = writer->rd_context;
+      thr->wt_context = writer->wt_context;
+      thr->i_am_in_function = 1;
+      thr->push_vec4(vec4_from_vpi_value(value, writer->width));
+
+      vthread_run_pin_(thr);
+      vpi_mode_flag = VPI_MODE_NONE;
+      vpi_thunk_depth_ += 1;
+      /* Run the ordinary interpreter so selector expressions can execute
+       * their own loops and calls. The store must finish in this dispatch. */
+      thr->is_scheduled = 1;
+      vthread_run(thr);
+      bool done = thr->i_have_ended && !thr->i_was_disabled
+	    && thr->vec4_stack_size() == 0;
+      vpi_thunk_depth_ -= 1;
+      vpi_mode_flag = saved_mode;
+      vpip_cur_task = saved_task;
+      vpip_current_vthread = saved_vpi_thread;
+      running_thread = saved_running;
+
+      thr->parent = nullptr;
+      thr->rd_context = nullptr;
+      thr->wt_context = nullptr;
+      if (!thr->reap_pending)
+	    vthread_reap(thr);
+      vthread_run_unpin_(thr);
+      return done;
+}
+
 void vthread_run(vthread_t thr)
 {
 #ifdef VVP_PERF_STATS
@@ -19566,6 +19642,61 @@ static bool dpi_scalar_array_letter_(char type)
       return type == 'B' || type == 'G';
 }
 
+static bool dpi_pack_string_leaves_(vvp_darray*array, int rank,
+				    vvp_dpi_open_array_t&open)
+{
+      if (!array) return true; // Unallocated dynamic dimension.
+      size_t count = array->get_size();
+      if (count > UINT_MAX) return false;
+
+      if (rank > 1) {
+	    if (!dynamic_cast<vvp_darray_object*>(array)
+		&& !dynamic_cast<vvp_queue_object*>(array))
+		  return false;
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  vvp_object_t child;
+		  array->get_word((unsigned)idx, child);
+		  vvp_darray*inner = child.peek<vvp_darray>();
+		  if ((!inner && !child.test_nil())
+		      || !dpi_pack_string_leaves_(inner, rank - 1, open))
+			return false;
+	    }
+	    return true;
+      }
+
+      if (!dynamic_cast<vvp_darray_string*>(array)
+	  && !dynamic_cast<vvp_queue_string*>(array))
+	    return false;
+      if (open.string_buffers.count(array)) return true;
+
+      vvp_dpi_string_buffer_t&buffer = open.string_buffers[array];
+      buffer.owner = array;
+      buffer.values.resize(count);
+      buffer.pointers.resize(count);
+      for (size_t idx = 0 ; idx < count ; idx += 1) {
+	    array->get_word((unsigned)idx, buffer.values[idx]);
+	    buffer.pointers[idx] = buffer.values[idx].c_str();
+      }
+      if (!open.string_rank)
+	    open.data = count ? buffer.pointers.data() : 0;
+      return true;
+}
+
+static void dpi_unpack_string_leaves_(const vvp_dpi_open_array_t&open)
+{
+	// Keep every staged string alive while copying back, since C may
+	// have swapped pointers across leaves or across separate arguments.
+      for (const auto&entry : open.string_buffers) {
+	    vvp_darray*array = entry.first;
+	    const vvp_dpi_string_buffer_t&buffer = entry.second;
+	    for (size_t idx = 0 ; idx < buffer.pointers.size() ; idx += 1) {
+		  const char*value = buffer.pointers[idx];
+		  if (value != buffer.values[idx].c_str())
+			array->set_word((unsigned)idx, string(value ? value : ""));
+	    }
+      }
+}
+
 /* Materialize a fixed unpacked array of scalar bit/logic values as the
  * byte-per-element C layout required by Annex H. A one-bit 2-state array is
  * commonly held in vvp's atom container, where logical one is represented by
@@ -19947,6 +20078,8 @@ struct dpi_sig_tok_t {
       char base;
       bool is_unsigned;
       bool is_output;
+	// 'o{rank}' describes a multidimensional string open array.
+      int string_rank;
 	// Member letters of an unpacked-struct formal ('S', 'T', 't').
       string members;
 };
@@ -19997,6 +20130,8 @@ static size_t dpi_struct_layout_(const string&desc,
 			  al = dpi_c_member_align_<double>(); break;
 		case 'p': size = sizeof(void*);
 			  al = dpi_c_member_align_<void*>(); break;
+		case 's': size = sizeof(const char*);
+			  al = dpi_c_member_align_<const char*>(); break;
 		default:
 		  return 0;
 	    }
@@ -20023,11 +20158,21 @@ static uint64_t dpi_vec4_bits_(const vvp_vector4_t&val)
  * has the members' default values. */
 static void dpi_struct_pack_(vvp_cobject*obj,
 			     const vector<dpi_struct_member_t>&members,
-			     uint8_t*dst)
+			     uint8_t*dst, list<string>&strings,
+			     const char*default_string)
 {
       for (size_t pid = 0 ; pid < members.size() ; pid += 1) {
 	    const dpi_struct_member_t&mem = members[pid];
 	    uint8_t*ptr = dst + mem.offset;
+	    if (mem.type == 's') {
+		  const char*val = default_string;
+		  if (obj) {
+			strings.push_back(obj->get_string(pid));
+			val = strings.back().c_str();
+		  }
+		  memcpy(ptr, &val, sizeof val);
+		  continue;
+	    }
 	    if (mem.type == 'f' || mem.type == 'r') {
 		  double val = obj ? obj->get_real(pid) : 0.0;
 		  if (mem.type == 'f') {
@@ -20069,7 +20214,8 @@ static void dpi_struct_pack_(vvp_cobject*obj,
 
 static void dpi_struct_unpack_(vvp_cobject*obj,
 			       const vector<dpi_struct_member_t>&members,
-			       const uint8_t*src)
+			       const uint8_t*src,
+			       list<string>::const_iterator&strings)
 {
       for (size_t pid = 0 ; pid < members.size() ; pid += 1) {
 	    const dpi_struct_member_t&mem = members[pid];
@@ -20081,6 +20227,14 @@ static void dpi_struct_unpack_(vvp_cobject*obj,
 			    obj->set_real(pid, v); continue; }
 		case 'r': { double v; memcpy(&v, ptr, sizeof v);
 			    obj->set_real(pid, v); continue; }
+		case 's': {
+		      const char*val;
+		      memcpy(&val, ptr, sizeof val);
+		      const char*original = (strings++)->c_str();
+		      if (val && val != original)
+			    obj->set_string(pid, val);
+		      continue;
+		}
 		case 'g': {
 		      static const vvp_bit4_t codes[4] = {
 			    BIT4_0, BIT4_1, BIT4_Z, BIT4_X };
@@ -20137,13 +20291,24 @@ static void dpi_parse_types_(const char*types, char dflt, unsigned nargs,
 	    tok.base = dflt;
 	    tok.is_unsigned = false;
 	    tok.is_output = false;
+	    tok.string_rank = 0;
 	    if (*cp == '+') { tok.is_output = true; cp += 1; }
 	    if (*cp == 'u') { tok.is_unsigned = true; cp += 1; }
 	    if (*cp) tok.base = *cp++;
 	    if (*cp == '{') {
 		  const char*end = strchr(cp, '}');
+		  if (tok.base == 'o')
+			tok.string_rank = -1;
 		  if (end) {
-			tok.members.assign(cp + 1, end);
+			if (tok.base == 'o') {
+			      char*rank_end;
+			      unsigned long rank = strtoul(cp + 1, &rank_end, 10);
+			      if (cp[1] >= '1' && cp[1] <= '9' && rank_end == end
+				  && rank >= 2 && rank <= INT_MAX)
+				    tok.string_rank = (int)rank;
+			} else {
+			      tok.members.assign(cp + 1, end);
+			}
 			cp = end + 1;
 		  }
 	    }
@@ -20237,6 +20402,10 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
       vector<vector<dpi_struct_member_t> > struct_members (nargs);
       vector<vector<vvp_object_t> > struct_elems (nargs);
       vector<vector<uint64_t> > struct_store (nargs);
+	// Keep the original strings stable until every argument has copied
+	// back. C can move their pointers between members or arguments.
+      vector<list<string> > struct_strings (nargs);
+      const char struct_default_string[] = "";
       for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
 	    unsigned slot = nargs - 1 - ii;
 	    vvp_dpi_arg_t&arg = args[slot];
@@ -20291,9 +20460,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.packed_width = 0;
 		      arr.packed_four_state = false;
 		      arr.shortreal_scratch = false;
-		      arr.string_scratch = false;
-		      arr.string_values.clear();
-		      arr.string_ptrs.clear();
+		      arr.string_rank = 0;
 		      arr.storage = 0;
 		      arr.outer = 0;
 		      arr.has_range = false;
@@ -20329,7 +20496,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  for (size_t idx = 0 ; idx < count ; idx += 1)
 				dpi_struct_pack_(idx < elems.size()
 				      ? elems[idx].peek<vvp_cobject>() : 0,
-				      struct_members[slot], buf + idx * bytes);
+				      struct_members[slot], buf + idx * bytes,
+				      struct_strings[slot], struct_default_string);
 			  arr.data = buf;
 			  arr.length = (unsigned)count;
 			  arr.elem_bytes = (unsigned)bytes;
@@ -20345,6 +20513,23 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  dpi_pack_scalar_array_(c_name, slot+1, da,
 				sig[slot].base == 'G', arr,
 				arr_scalar_store[slot]);
+		      } else if (sig[slot].string_rank
+				 || (da && (dynamic_cast<vvp_darray_string*>(da)
+					    || dynamic_cast<vvp_queue_string*>(da)))) {
+			    int rank = sig[slot].string_rank;
+			    arr.string_rank = rank > 1 ? rank : 0;
+			    arr.outer = arr.string_rank ? da : 0;
+			    arr.storage = da;
+			    arr.elem_bytes = sizeof(const char*);
+			    if (rank < 0 || (!da && !obj_store[slot].test_nil())
+				|| !dpi_pack_string_leaves_(da, rank ? rank : 1, arr)) {
+				  fprintf(stderr, "DPI error: '%s': cannot marshal "
+					  "string array argument %u; the call is skipped.\n",
+					  c_name, slot+1);
+				  array_marshaling_ok = false;
+			    } else if (da) {
+				  arr.length = (unsigned)da->get_size();
+			    }
 		      } else if (da && dpi_open_array_is_multidim_(da)) {
 			    /* A multidimensional actual is walked as an object tree by
 			       the dimensioned canonical-copy accessors. */
@@ -20354,19 +20539,6 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  dpi_pack_open_array_(c_name, slot+1, da,
 				sig[slot].base == 'y' || sig[slot].base == 'Y',
 				arr, arr_packed_store[slot]);
-		      } else if (da && (dynamic_cast<vvp_darray_string*>(da)
-					|| dynamic_cast<vvp_queue_string*>(da))) {
-			    arr.storage = da;
-			    arr.string_scratch = true;
-			    arr.length = (unsigned)da->get_size();
-			    arr.string_values.resize(arr.length);
-			    arr.string_ptrs.resize(arr.length);
-			    for (unsigned idx = 0 ; idx < arr.length ; idx += 1) {
-				  da->get_word(idx, arr.string_values[idx]);
-				  arr.string_ptrs[idx] = arr.string_values[idx].c_str();
-			    }
-			    arr.data = arr.length ? (void*)arr.string_ptrs.data() : 0;
-			    arr.elem_bytes = sizeof(const char*);
 		      } else if (da) {
 			    arr.storage = da;
 			    unsigned eb = da->dpi_elem_bytes();
@@ -20544,18 +20716,14 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		&& arr_store[ii].data) {
 		  const uint8_t*buf = (const uint8_t*)arr_store[ii].data;
 		  vector<vvp_object_t>&elems = struct_elems[ii];
+		  list<string>::const_iterator strings = struct_strings[ii].cbegin();
 		  for (size_t idx = 0 ; idx < elems.size() ; idx += 1)
 			if (vvp_cobject*obj = elems[idx].peek<vvp_cobject>())
 			      dpi_struct_unpack_(obj, struct_members[ii],
-				    buf + idx * arr_store[ii].elem_bytes);
+				    buf + idx * arr_store[ii].elem_bytes, strings);
 	    }
-	    if (native_call_ok && arr_store[ii].string_scratch) {
-		  vvp_dpi_open_array_t&sarr = arr_store[ii];
-		  for (unsigned idx = 0 ; idx < sarr.length ; idx += 1)
-			if (sarr.string_ptrs[idx] != sarr.string_values[idx].c_str())
-			      sarr.storage->set_word(idx, std::string(
-				    sarr.string_ptrs[idx] ? sarr.string_ptrs[idx] : ""));
-	    }
+	    if (native_call_ok)
+		  dpi_unpack_string_leaves_(arr_store[ii]);
 	    switch (args[ii].type) {
 		case 'b': dpi_push_int64(thr, args[ii].ival, 8);  break;
 		case 'h': dpi_push_int64(thr, args[ii].ival, 16); break;
@@ -41272,6 +41440,13 @@ bool of_WAIT_OBSERVED_ENDPOINT(vthread_t thr, vvp_code_t)
 {
       thr->in_region_drain = 1;
       schedule_vthread_observed(thr);
+      return false;
+}
+
+bool of_WAIT_OBSERVED_DISABLE(vthread_t thr, vvp_code_t code)
+{
+      thr->in_region_drain = 1;
+      schedule_vthread_observed_disable(thr, code->number);
       return false;
 }
 

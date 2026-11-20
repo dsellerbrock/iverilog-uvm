@@ -1611,8 +1611,9 @@ class NetScope : public Definitions, public Attrib {
       void set_func_def(NetFuncDef*);
       void set_class_def(netclass_t*);
       void set_module_name(perm_string);
-      void set_module_definition(const Module*def) { module_definition_ = def; }
+      void set_module_definition(const Module*def);
       const Module* module_definition() const { return module_definition_; }
+      perm_string module_library() const { return module_library_; }
 	/* Stable semantic owner for nominal types elaborated in detached,
 	 * parameter-specialized declaration scopes. Ordinary hierarchy scopes
 	 * leave this empty and use their parsed declaration identity. */
@@ -2061,6 +2062,7 @@ class NetScope : public Definitions, public Attrib {
       typedef std::map<perm_string,NetNet*>::const_iterator signals_map_iter_t;
       std::map <perm_string,NetNet*> signals_map_;
       perm_string module_name_;
+      perm_string module_library_;
       const Module*module_definition_;
       std::string type_owner_identity_;
       const PGenerate*generate_definition_;
@@ -3205,14 +3207,15 @@ class NetPartSelect  : public NetNode {
       bool event_synchronous_;
 };
 
-/* A run-time-selected virtual-interface member presented as an ordinary
- * structural vector source. Pin 0 is the vector output, pin 1 is the root
- * class/interface object handle, and pin 2 is binding validity. */
+/* A simulation-only member projection. Pin 0 is the projected value and
+ * pin 1 is the object root. Virtual-interface projections also use pin 2
+ * for binding validity. */
 class NetVifProxy : public NetNode {
     public:
       NetVifProxy(NetScope*, unsigned width, NetNet*root,
                   unsigned root_word, const std::vector<unsigned>&path,
-                  unsigned member, unsigned word);
+                  unsigned member, unsigned word,
+                  ivl_variable_type_t struct_leaf_type = IVL_VT_NO_TYPE);
       ~NetVifProxy() override;
 
       unsigned width() const { return width_; }
@@ -3220,6 +3223,7 @@ class NetVifProxy : public NetNode {
       const std::vector<unsigned>& path() const { return path_; }
       unsigned member() const { return member_; }
       unsigned word() const { return word_; }
+      ivl_variable_type_t struct_leaf_type() const { return struct_leaf_type_; }
 
       bool emit_node(struct target_t*) const override;
 
@@ -3229,6 +3233,7 @@ class NetVifProxy : public NetNode {
       std::vector<unsigned> path_;
       unsigned member_;
       unsigned word_;
+      ivl_variable_type_t struct_leaf_type_;
 };
 
 /*
@@ -4556,7 +4561,13 @@ class NetEvent : public LineInfo {
       bool is_declared_event() const { return is_declared_event_; }
       void set_declared_event() { is_declared_event_ = true; }
       bool is_sequence_endpoint() const { return sequence_endpoint_; }
-      void set_sequence_endpoint() { sequence_endpoint_ = true; }
+      void validate_sva_disable_clock(Design*des, NetScope*scope,
+				      const LineInfo&use) const;
+      void set_sequence_endpoint(bool clocked)
+      {
+	    sequence_endpoint_ = true;
+	    sequence_endpoint_clocked_ = clocked;
+      }
 
 	// An ANSI event port is a handle to the connected event. Keep the formal
 	// NetEvent for its scope and lexical declaration, while all HDL references
@@ -4639,6 +4650,7 @@ class NetEvent : public LineInfo {
       ivl_lifetime_t lifetime_override_;
       bool is_declared_event_ = false;
       bool sequence_endpoint_ = false;
+      bool sequence_endpoint_clocked_ = false;
 	// Null for an ordinary event; otherwise points at the event handle
 	// passed through an ANSI event port.
       NetEvent* alias_ = nullptr;
@@ -5344,9 +5356,11 @@ class NetSTask  : public NetProc {
 	/* Some built-in system tasks have a true ref-output actual. Keep its
 	 * assignment l-value separate from the ordinary expression arguments so
 	 * targets neither lose the destination shape nor evaluate it as an
-	 * r-value. This object owns the l-value after set_ref_output(). */
-      void set_ref_output(NetAssign_*lval);
+	 * r-value. This object owns the l-value after set_ref_output().
+	 * A VPI ref-output also records its zero-based argument index. */
+      void set_ref_output(NetAssign_*lval, unsigned vpi_arg = ~0U);
       const NetAssign_* ref_output() const { return ref_output_; }
+      unsigned ref_output_arg() const { return ref_output_arg_; }
 
 	/* A dynamic virtual-interface task call carries the exact concrete
 	 * method scopes represented by its instance-keyed argument rows. The
@@ -5380,6 +5394,7 @@ class NetSTask  : public NetProc {
       ivl_sfunc_as_task_t sfunc_as_task_;
       std::vector<NetExpr*>parms_;
       NetAssign_*ref_output_;
+      unsigned ref_output_arg_ = ~0U;
       std::vector<NetScope*>vif_methods_;
       bool assertion_action_ = false;
 };
@@ -6153,6 +6168,10 @@ class NetEProperty : public NetExpr {
       inline size_t property_idx() const { return pidx_; }
       inline const NetExpr*get_index() const { return index_; }
       void set_index(NetExpr*idx) { delete index_; index_ = idx; }
+
+      // A typed leaf of a scalar unpacked struct variable can drive an
+      // ordinary event probe.
+      bool is_struct_event_member() const;
 
       // Resolve a direct member of a statically bound interface port to the
       // concrete signal in the interface-instance scope. Ordinary class

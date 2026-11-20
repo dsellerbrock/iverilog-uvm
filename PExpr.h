@@ -43,6 +43,9 @@ class NetScope;
 class PPackage;
 struct symbol_search_results;
 
+// Bound recursive let expansion during expression elaboration and validation.
+constexpr int LET_EXPAND_DEPTH_MAX = 64;
+
 /* Parse-form pattern tree shared by case-matches, pattern conditionals and
  * the matches predicate of a conditional expression (IEEE 1800-2017 12.6).
  * Structure children may be positional or carry their named member key. */
@@ -767,6 +770,8 @@ class PEIdent : public PExpr {
       bool is_clocking_drive_lval() const { return clocking_drive_lval_; }
 
       virtual void reloc_lexical_pos_bind(bool parameter_context) override;
+
+      void allow_bind_parameter_reference() { bind_parameter_expr_ = true; }
 
       // I5 (Phase 62m): when path was parsed from `Class#(args)::var`,
       // these are the leading type arguments needed to identify the
@@ -1974,6 +1979,7 @@ class PEStreaming : public PExpr {
       direction_t get_dir() const { return dir_; }
       PExpr* get_inner() const { return inner_; }
       PExpr* get_slice_expr() const { return slice_expr_; }
+      const data_type_t* get_slice_type() const { return slice_type_; }
       bool is_lval_context() const { return lval_context_; }
       bool is_ranged_lval_context() const { return ranged_lval_context_; }
       // Release ownership of inner_ so a parse-time rewrite can

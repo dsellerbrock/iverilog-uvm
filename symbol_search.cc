@@ -24,6 +24,7 @@
 # include  "netmisc.h"
 # include  "compiler.h"
 # include  "Module.h"
+# include  "PConfig.h"
 # include  "PPackage.h"
 # include  "PExpr.h"
 # include  "PClass.h"
@@ -362,6 +363,12 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
 	    if (res->is_scope()) {
 		  scope = res->scope;
 		  prefix_scope = true;
+
+		  if (!pform_configs.empty()
+		      && config_check_parameter_scope(des, li, scope)) {
+			res->scope_index_error = true;
+			return false;
+		  }
 
 		  if (debug_scopes || debug_elaborate) {
 			cerr << li->get_fileline() << ": symbol_search: "
@@ -1033,9 +1040,12 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 {
       NetScope *search_scope = scope;
       bool prefix_scope = false;
+      bool config_ref = !pform_configs.empty()
+	    && config_note_parameter_search(li, scope, path);
       symbol_search_cache_key_t cache_key;
       bool use_cache = (lexical_pos == UINT_MAX
-			&& !pform_default_argument_context);
+			&& !pform_default_argument_context
+			&& !config_ref);
 
       if (path.package) {
 	    search_scope = des->find_package(path.package->pscope_name());

@@ -34,6 +34,7 @@
 # include  "sv_vpi_user.h"
 # include  "Module.h"
 # include  "PClass.h"
+# include  "PConfig.h"
 # include  <algorithm>
 # include  <cstdlib>
 # include  <cstdio>
@@ -2181,6 +2182,12 @@ extern "C" unsigned ivl_lpm_vif_path_count(ivl_lpm_t net)
       return net->u_.vif_proxy.path_count;
 }
 
+extern "C" ivl_variable_type_t ivl_lpm_vif_struct_leaf_type(ivl_lpm_t net)
+{
+      assert(net && net->type == IVL_LPM_VIF_PROXY);
+      return net->u_.vif_proxy.struct_leaf_type;
+}
+
 extern "C" unsigned ivl_lpm_vif_path(ivl_lpm_t net, unsigned idx)
 {
       assert(net && net->type == IVL_LPM_VIF_PROXY);
@@ -3742,6 +3749,23 @@ extern "C" const char* ivl_scope_tname(ivl_scope_t net)
       return net->tname_;
 }
 
+extern "C" const char* ivl_scope_library(ivl_scope_t net)
+{
+      assert(net);
+      return net->net_->module_library().str();
+}
+
+extern "C" const char* ivl_scope_config(ivl_scope_t net)
+{
+      assert(net);
+      const PConfig*cfg = config_scope_binding(net->net_);
+      if (!cfg)
+	    return nullptr;
+
+      std::string name = std::string(cfg->library.str()) + "." + cfg->name.str();
+      return api_strings.add(name.c_str());
+}
+
 extern "C" int ivl_signal_array_base(ivl_signal_t net)
 {
       assert(net);
@@ -4639,6 +4663,10 @@ extern "C" ivl_lval_t ivl_stmt_lval(ivl_statement_t net, unsigned idx)
 {
       assert(net);
       switch (net->type_) {
+	  case IVL_ST_STASK:
+	    assert(idx < net->u_.stask_.ref_lval_count_);
+	    return net->u_.stask_.ref_lval_ + idx;
+
 	  case IVL_ST_ASSIGN:
 	  case IVL_ST_ASSIGN_NB:
 	  case IVL_ST_CASSIGN:
@@ -4658,6 +4686,9 @@ extern "C" unsigned ivl_stmt_lvals(ivl_statement_t net)
 {
       assert(net);
       switch (net->type_) {
+	  case IVL_ST_STASK:
+	    return net->u_.stask_.ref_lval_count_;
+
 	  case IVL_ST_ASSIGN:
 	  case IVL_ST_ASSIGN_NB:
 	  case IVL_ST_CASSIGN:
@@ -4768,7 +4799,15 @@ extern "C" ivl_lval_t ivl_stmt_ref_lval(ivl_statement_t net)
 {
       assert(net);
       assert(net->type_ == IVL_ST_STASK);
+      assert(net->u_.stask_.ref_lval_count_ <= 1);
       return net->u_.stask_.ref_lval_;
+}
+
+extern "C" unsigned ivl_stmt_ref_lval_arg(ivl_statement_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_STASK);
+      return net->u_.stask_.ref_lval_arg_;
 }
 
 extern "C" ivl_scope_t ivl_stmt_vif_method(ivl_statement_t net,

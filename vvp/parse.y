@@ -125,7 +125,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_PATHEXPR K_PARAM_STORAGE
 %token K_ATTRIBUTE
 %token K_PARAM_TYPE
-%token K_VIF_PROXY K_EVENT_VALID
+%token K_VIF_PROXY K_STRUCT_LEAF K_EVENT_VALID
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
 %token K_NET8 K_NET8_2S K_NET8_2U K_NET8_S
 %token K_VPI_INST_ARRAY
@@ -133,11 +133,13 @@ static bool is_force_release_opcode(const char* name)
 %token K_PART_FORCE
 %token K_VPI_EXPR K_VPI_CONTASSIGN K_VPI_PARAM_EXPR K_VPI_DEFPARAM K_VPI_PORT_CONN
 %token K_VPI_FORCE_CONN
+%token K_VPI_PLA_OUTPUT
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_ISLAND_PORT_EVCD K_EVCD_SOURCE K_EVCD_PORT
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
+%token K_SCOPE_BINDING
 %token K_VPI_3041_CONDITION
 %token K_CLASS_DEFN K_CLASS_TYPESPEC K_CLASS_RUNTIME
 %token K_CLASS_CONSTRAINT
@@ -281,6 +283,8 @@ statement
                 { compile_vif_proxy($1, $3, $5, $7, $9, $11, $13, 0, nullptr); }
         | T_LABEL K_VIF_PROXY T_SYMBOL ',' T_NUMBER ',' T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ',' numbers ';'
                 { compile_vif_proxy($1, $3, $5, $7, $9, $11, $13, $15.cnt, $15.nvec); }
+        | T_LABEL K_STRUCT_LEAF T_SYMBOL ',' T_SYMBOL ',' T_NUMBER ',' numbers ';'
+                { compile_struct_leaf($1, $3, $5, $7, $9.cnt, $9.nvec); }
         | K_EVENT_VALID T_SYMBOL ',' T_SYMBOL ';'
                 { compile_event_valid($2, $4); }
 
@@ -879,6 +883,9 @@ statement
 		{ compile_vpi_expr($1, $3, $5, $7, $9, $11, $13,
 				   $14.argc, $14.argv); }
 
+	| T_LABEL K_VPI_PLA_OUTPUT T_NUMBER ',' T_SYMBOL ';'
+		{ compile_vpi_pla_output($1, $3, $5); }
+
   /* A continuous assignment object (IEEE 1800-2023 37.47): flags (1 net
      declaration assignment, 2 has an l-value handle), vpiStrength0,
      vpiStrength1, file index, vpiLineNo, driver functor label ("" for
@@ -1071,6 +1078,9 @@ statement
 
 	|         K_SCOPE T_SYMBOL ';'
 		{ compile_scope_recall($2); }
+
+	| K_SCOPE_BINDING T_STRING T_STRING ';'
+		{ compile_scope_binding($2, $3); }
 
 	| T_LABEL K_CLASS_DEFN T_NUMBER ';'
 		{ compile_vpi_class_defn($1, $3); }

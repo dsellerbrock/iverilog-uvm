@@ -262,6 +262,10 @@ issue3825_sequence_endpoint_observed_2017 normal,-g2017,-gassertions,-s,issue382
 issue3825_sequence_endpoint_observed_2023 normal,-g2023,-gassertions,-s,issue3825_sequence_endpoint_observed ivltests gold=issue3825_sequence_endpoint_observed.gold
 issue3826_named_event_disable_2017 normal,-g2017,-gassertions,-s,issue3826_named_event_disable ivltests gold=issue3826_named_event_disable.gold
 issue3826_named_event_disable_2023 normal,-g2023,-gassertions,-s,issue3826_named_event_disable ivltests gold=issue3826_named_event_disable.gold
+issue3827_sequence_disable_2017 normal,-g2017,-gassertions,-s,issue3827_sequence_disable_top ivltests
+issue3827_sequence_disable_2023 normal,-g2023,-gassertions,-s,issue3827_sequence_disable_top ivltests
+issue3827_clockless_disable_2017 CE,-g2017,-gassertions,-s,issue3827_clockless_disable ivltests gold=issue3827_clockless_disable.gold
+issue3827_clockless_disable_2023 CE,-g2023,-gassertions,-s,issue3827_clockless_disable ivltests gold=issue3827_clockless_disable.gold
 issue2695_sequence_triggered_empty_2017 normal,-g2017,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
 issue2695_sequence_triggered_empty_2023 normal,-g2023,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
 issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold
@@ -7017,6 +7021,8 @@ pla_descending_3313_2017 CE,-g2017,-s,pla_descending_3313 ivltests gold=pla_desc
 pla_descending_3313_2023 CE,-g2023,-s,pla_descending_3313 ivltests gold=pla_descending_3313-legacy.gold
 pla_ascending_3313_2017 normal,-g2017,-s,pla_ascending_3313 ivltests gold=pla_ascending_3313-vvp-stdout.gold
 pla_ascending_3313_2023 normal,-g2023,-s,pla_ascending_3313 ivltests gold=pla_ascending_3313-vvp-stdout.gold
+pla_concat_3906_2017 normal,-g2017,-s,pla_concat_3906 ivltests gold=pla_concat_3906-vvp-stdout.gold
+pla_concat_3906_2023 normal,-g2023,-s,pla_concat_3906 ivltests gold=pla_concat_3906-vvp-stdout.gold
 issue3309_dist_property_2017 normal,-g2017,-s,issue3309_dist_property ivltests gold=issue3309_dist_property.gold
 issue3309_dist_property_2023 normal,-g2023,-s,issue3309_dist_property ivltests gold=issue3309_dist_property.gold
 issue3309_dist_default_2017 CE,-g2017 ivltests gold=issue3309_dist_default_2017.gold
@@ -7380,3 +7386,16 @@ issue3701_2017 normal,-g2017,-s,issue3701 ivltests gold=issue3701.gold
 issue3701_2023 normal,-g2023,-s,issue3701 ivltests gold=issue3701.gold
 issue3701_bad_2017 CE,-g2017,-s,issue3701_bad ivltests gold=issue3701_bad.gold
 issue3701_bad_2023 CE,-g2023,-s,issue3701_bad ivltests gold=issue3701_bad.gold
+
+# IEEE 1800-2017/2023 33.4.3: config parameter override restrictions.
+issue3422_2017 normal,-g2017,-s,cfg ivltests
+issue3422_bad_2017 CE,-g2017,-s,cfg ivltests gold=issue3422_bad.gold
+issue3422_2023 normal,-g2023,-s,cfg ivltests
+issue3422_bad_2023 CE,-g2023,-s,cfg ivltests gold=issue3422_bad.gold
+issue3913_struct_member_events_2017 normal,-g2017,-s,issue3913_struct_member_events ivltests gold=issue3913_struct_member_events-vvp-stdout.gold
+issue3913_struct_member_events_2023 normal,-g2023,-s,issue3913_struct_member_events ivltests gold=issue3913_struct_member_events-vvp-stdout.gold
+# IEEE 1800-2017/2023 25.6: specify paths to forwarded interface variables.
+issue2889_iface_path_onehop_2017 normal,-g2017,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
+issue2889_iface_path_onehop_2023 normal,-g2023,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
+issue2889_iface_path_multihop_2017 normal,-g2017,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
+issue2889_iface_path_multihop_2023 normal,-g2023,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold

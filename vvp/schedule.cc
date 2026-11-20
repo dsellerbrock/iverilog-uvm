@@ -69,7 +69,8 @@ typedef enum event_queue_e { SEQ_START, SEQ_PREPONED, SEQ_ACTIVE,
                              SEQ_ACTIVE_SYNC, SEQ_INACTIVE,
 			     SEQ_NBASSIGN, SEQ_NBASYNC, SEQ_OBSERVED,
 			     SEQ_REACTIVE, SEQ_RE_INACTIVE, SEQ_RE_NBASSIGN,
-			     SEQ_RWSYNC, SEQ_ROSYNC, DEL_THREAD } event_queue_t;
+			     SEQ_RWSYNC, SEQ_ROSYNC, DEL_THREAD,
+			     SEQ_OBSERVED_DISABLE } event_queue_t;
 
 /*
  * The event_s and event_time_s structures implement the Verilog
@@ -115,6 +116,7 @@ struct event_time_s {
 	    nbassign = 0;
 	    nbasync = 0;
 	    observed = 0;
+	    observed_disable = 0;
 	    reactive = 0;
 	    re_inactive = 0;
 	    re_nbassign = 0;
@@ -134,6 +136,7 @@ struct event_time_s {
       struct event_s*nbassign;
       struct event_s*nbasync;
       struct event_s*observed;
+      struct event_s*observed_disable;
       struct event_s*reactive;
       struct event_s*re_inactive;
       struct event_s*re_nbassign;
@@ -198,6 +201,13 @@ void vthread_event_s::operator delete(void*dptr)
 {
       vthread_event_heap.free_slab(dptr);
 }
+
+struct observed_disable_event_s : public vthread_event_s {
+      uint64_t order;
+
+      static void* operator new(size_t size) { return event_s::operator new(size); }
+      static void operator delete(void*ptr) { event_s::operator delete(ptr); }
+};
 
 struct del_thr_event_s : public event_s {
       vthread_t thr;
@@ -795,6 +805,7 @@ static const char* region_name_(event_queue_t r)
 	  case SEQ_NBASSIGN:    return "NBA";
 	  case SEQ_NBASYNC:     return "NBASync";
 	  case SEQ_OBSERVED:    return "Observed";
+	  case SEQ_OBSERVED_DISABLE: return "Observed";
 	  case SEQ_REACTIVE:    return "Reactive";
 	  case SEQ_RE_INACTIVE: return "Re-Inactive";
 	  case SEQ_RE_NBASSIGN: return "Re-NBA";
@@ -901,7 +912,8 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 #ifdef VVP_PERF_STATS
       unsigned time_list_walk = 0;
 #endif
-      cur->region = select_queue;
+      cur->region = select_queue == SEQ_OBSERVED_DISABLE
+	    ? SEQ_OBSERVED : select_queue;
       region_check_schedule_(select_queue, delay);
 
       cur->next = cur;
@@ -1006,6 +1018,23 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 	    q = &ctim->observed;
 	    break;
 
+	  case SEQ_OBSERVED_DISABLE:
+	    q = &ctim->observed_disable;
+	    if (*q && static_cast<observed_disable_event_s*>(*q)->order
+			> static_cast<observed_disable_event_s*>(cur)->order) {
+		  // Earlier clock domains must issue coincident ##0 handoffs
+		  // before later domains consume them. Equal orders are FIFO.
+		  // The tail's greater order bounds the search.
+		  uint64_t order = static_cast<observed_disable_event_s*>(cur)->order;
+		  event_s*prev = *q;
+		  while (static_cast<observed_disable_event_s*>(prev->next)->order <= order)
+			prev = prev->next;
+		  cur->next = prev->next;
+		  prev->next = cur;
+		  return;
+	    }
+	    break;
+
 	  case SEQ_REACTIVE:
 	    q = &ctim->reactive;
 	    break;
@@ -1096,6 +1125,15 @@ void schedule_vthread_observed(vthread_t thr)
       cur->thr = thr;
       vthread_mark_scheduled(thr);
       schedule_event_(cur, 0, SEQ_OBSERVED);
+}
+
+void schedule_vthread_observed_disable(vthread_t thr, uint64_t order)
+{
+      observed_disable_event_s*cur = new observed_disable_event_s;
+      cur->thr = thr;
+      cur->order = order;
+      vthread_mark_scheduled(thr);
+      schedule_event_(cur, 0, SEQ_OBSERVED_DISABLE);
 }
 
 void schedule_vthread_reactive_front(vthread_t thr)
@@ -1696,7 +1734,8 @@ void schedule_get_time_queue(vector<vvp_time64_t>& times)
             time += ctim->delay;
             bool before_rosync = ctim->start || ctim->preponed || ctim->active
                   || ctim->active_sync || ctim->inactive || ctim->nbassign
-                  || ctim->nbasync || ctim->observed || ctim->reactive
+                  || ctim->nbasync || ctim->observed || ctim->observed_disable
+                  || ctim->reactive
                   || ctim->re_inactive || ctim->re_nbassign
                   || ctim->held_active || ctim->rwsync;
             bool any_event = before_rosync || ctim->rosync || ctim->del_thr;
@@ -1756,7 +1795,8 @@ static void run_rosync(struct event_time_s*ctim)
       if (ctim->preponed || ctim->active || ctim->active_sync
           || ctim->inactive || ctim->nbassign
 	  || ctim->nbasync
-	  || ctim->observed || ctim->reactive || ctim->re_inactive
+	  || ctim->observed || ctim->observed_disable
+	  || ctim->reactive || ctim->re_inactive
 	  || ctim->re_nbassign || ctim->held_active || ctim->rwsync) {
 	    cerr << "SCHEDULER ERROR: read-only sync events "
 		 << "created RW events!" << endl;
@@ -2063,6 +2103,15 @@ void schedule_simulate(void)
 			if (ctim->active == 0) {
 			      ctim->active = ctim->observed;
 			      ctim->observed = 0;
+			}
+
+			  /* Sequence-endpoint publication can make disable
+			     aborts runnable. Let both settle before resuming a
+			     dependent checker, then check the earlier queues
+			     again before each subsequent continuation. */
+			if (!ctim->active && ctim->observed_disable) {
+			      ctim->active = pop_event_(ctim->observed_disable);
+			      ctim->active->next = ctim->active;
 			}
 
 			  /* Reactive region set (IEEE 1800-2017

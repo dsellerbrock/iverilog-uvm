@@ -958,6 +958,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%wait/obj/mutation/filtered/multi",of_WAIT_OBJ_MUTATION_FILTERED_MULTI,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%wait/obj/mutation/multi",of_WAIT_OBJ_MUTATION_MULTI,1,{OA_NUMBER,OA_NONE,OA_NONE} },
       { "%wait/observed",of_WAIT_OBSERVED,0,{OA_NONE,OA_NONE, OA_NONE} },
+      { "%wait/observed/disable",of_WAIT_OBSERVED_DISABLE,1,{OA_NUMBER,OA_NONE, OA_NONE} },
       { "%wait/observed/endpoint",of_WAIT_OBSERVED_ENDPOINT,0,{OA_NONE,OA_NONE, OA_NONE} },
       { "%wait/order",of_WAIT_ORDER,3,{OA_WAIT_ORDER_NET,OA_WAIT_ORDER_CODE,OA_WAIT_ORDER_CODE2} },
       { "%wait/reactive",of_WAIT_REACTIVE,0,{OA_NONE,OA_NONE, OA_NONE} },

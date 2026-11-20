@@ -124,7 +124,17 @@ extern void config_explain_unbound(const PGModule*inst, const NetScope*sc);
 extern void config_instance_scope(Design*des, const PGModule*inst,
 				  const NetScope*sc, NetScope*inst_scope,
 				  std::map<perm_string,PExpr*>&replace);
+  /* 33.7: the config that binds this module instance, if any. */
+extern const PConfig* config_scope_binding(const NetScope*scope);
   /* 33.4.3: a config override takes precedence over a defparam. */
 extern bool config_param_locked(const NetScope*scope, perm_string name);
+  /* 33.4.3: restrictions on the expressions in config parameter overrides. */
+extern bool config_rejects_parameter_override(const PExpr*expr, const NetScope*scope);
+extern PExpr** config_let_expansion_slot(const PExpr*expr, const NetScope*scope);
+extern bool config_note_parameter_search(const LineInfo*expr, const NetScope*scope,
+					 const pform_scoped_name_t&path);
+extern bool config_check_parameter_scope(Design*des, const LineInfo*expr,
+					const NetScope*scope);
+extern void config_check_parameter_overrides(Design*des);
 
 #endif /* IVL_PConfig_H */

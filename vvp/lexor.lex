@@ -253,6 +253,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".reactive"     { return K_REACTIVE; }
 ".functor"      { return K_FUNCTOR; }
 ".vifproxy"     { return K_VIF_PROXY; }
+".struct/leaf"  { return K_STRUCT_LEAF; }
 ".eventvalid"   { return K_EVENT_VALID; }
 ".import"       { return K_IMPORT; }
 ".island"       { return K_ISLAND; }
@@ -294,6 +295,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".port_info"    { return K_PORT_INFO; }
 ".vpi_inst_array" { return K_VPI_INST_ARRAY; }
 ".vpi_expr"     { return K_VPI_EXPR; }
+".vpi_pla_output" { return K_VPI_PLA_OUTPUT; }
 ".vpi_contassign" { return K_VPI_CONTASSIGN; }
 ".vpi_param_expr" { return K_VPI_PARAM_EXPR; }
 ".vpi_defparam" { return K_VPI_DEFPARAM; }
@@ -312,6 +314,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".rtranif0"     { return K_RTRANIF0; }
 ".rtranif1"     { return K_RTRANIF1; }
 ".scope"        { return K_SCOPE; }
+".scope/binding" { return K_SCOPE_BINDING; }
 .iodecl         { return K_IODECL; }
 ".stmt_node"    { return K_STMT_NODE; }
 ".stmt_at"      { return K_STMT_AT; }

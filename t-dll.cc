@@ -2432,6 +2432,7 @@ bool dll_target::vif_proxy(const NetVifProxy*net)
       obj->u_.vif_proxy.root_word = net->root_word();
       obj->u_.vif_proxy.member = net->member();
       obj->u_.vif_proxy.word = net->word();
+      obj->u_.vif_proxy.struct_leaf_type = net->struct_leaf_type();
       obj->u_.vif_proxy.path_count = net->path().size();
       obj->u_.vif_proxy.path = obj->u_.vif_proxy.path_count
             ? new unsigned[obj->u_.vif_proxy.path_count] : 0;

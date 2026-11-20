@@ -582,10 +582,10 @@ void svPutBitselBit(svBitVecVal*d, int i, svBit s)
 /* M10B-md: walk one level of a multidim open array: the outer word at
    idx is itself a dynamic array. Returns null when out of range or not
    multidim. */
-static vvp_darray* md_inner_(const vvp_dpi_open_array_t*arr, int idx)
+static vvp_darray* md_inner_(const vvp_dpi_open_array_t*arr, int64_t idx)
 {
       if (!arr || !arr->outer) return 0;
-      if (idx < 0 || (unsigned)idx >= arr->length) return 0;
+      if (idx < 0 || (uint64_t)idx >= arr->length) return 0;
       vvp_object_t w;
       arr->outer->get_word((unsigned)idx, w);
       return w.peek<vvp_darray>();
@@ -597,6 +597,7 @@ static vvp_darray* md_inner_(const vvp_dpi_open_array_t*arr, int idx)
 static vvp_darray* md_dimension_(const vvp_dpi_open_array_t*arr, int dim)
 {
       if (!arr || !arr->outer || dim < 1) return 0;
+      if (arr->string_rank && dim > arr->string_rank) return 0;
       vvp_darray*cur = arr->outer;
       for (int d = 1 ; cur && d < dim ; d += 1) {
 	    if (cur->get_size() == 0) return 0;
@@ -621,6 +622,7 @@ int svDimensions(const void*h)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (!arr) return 0;
+      if (arr->string_rank) return arr->string_rank;
       if (!arr->outer) return 1;
 	// Count nesting depth through the first words.
       int dims = 1;
@@ -642,6 +644,7 @@ int svSize(const void*h, int dim)
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (!arr) return 0;
       if (dim == 1) return (int)arr->length;
+      if (arr->string_rank && (dim < 1 || dim > arr->string_rank)) return 0;
 	// M10B-md: inner dimensions are queried from the first row
 	// (SV unpacked arrays marshaled here are rectangular; a jagged
 	// dynamic-of-dynamic reports its first row's length).
@@ -730,7 +733,7 @@ int svIncrement(const void*h, int dim)
 int svSizeOfArray(const void*h)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      if (!arr) return 0;
+      if (!arr || arr->string_rank) return 0;
 
 	if (!arr->outer)
 	      return arr->data ? (int)(arr->length * arr->elem_bytes) : 0;
@@ -773,14 +776,14 @@ int svSizeOfArray(const void*h)
  * wrong elements and runs off the end. A plain dynamic array has no
  * declared range, so its low bound is 0 and this is the identity.
  */
-static int dpi_canon_index_(const vvp_dpi_open_array_t*arr, int indx1)
+static int64_t dpi_canon_index_(const vvp_dpi_open_array_t*arr, int indx1)
 {
       if (!arr || !arr->has_range) return indx1;
       int low = (arr->left <= arr->right) ? arr->left : arr->right;
-      return indx1 - low;
+      return (int64_t)indx1 - low;
 }
 
-static int dpi_canon_darray_index_(const vvp_darray*arr, int index)
+static int64_t dpi_canon_darray_index_(const vvp_darray*arr, int index)
 {
       if (!arr || !arr->sv_uses_declared_indexing()
 	  || !arr->dpi_has_decl_range())
@@ -788,7 +791,30 @@ static int dpi_canon_darray_index_(const vvp_darray*arr, int index)
       int left = arr->dpi_decl_left();
       int right = arr->dpi_decl_right();
       int low = left <= right ? left : right;
-      return index - low;
+      return (int64_t)index - low;
+}
+
+static void* dpi_string_element_(const vvp_dpi_open_array_t*arr,
+				 const int*indices, size_t rank)
+{
+      if (rank != (size_t)arr->string_rank) return 0;
+      vvp_darray*array = arr->outer;
+      for (size_t dim = 0 ; array && dim < rank ; dim += 1) {
+	    int64_t idx = dim == 0 ? dpi_canon_index_(arr, indices[dim])
+				  : dpi_canon_darray_index_(array, indices[dim]);
+	    if (idx < 0 || (uint64_t)idx >= array->get_size()) return 0;
+	    if (dim + 1 == rank) {
+		  auto leaf = arr->string_buffers.find(array);
+		  if (leaf == arr->string_buffers.end()
+		      || (uint64_t)idx >= leaf->second.pointers.size())
+			return 0;
+		  return const_cast<const char**>(&leaf->second.pointers[idx]);
+	    }
+	    vvp_object_t child;
+	    array->get_word((unsigned)idx, child);
+	    array = child.peek<vvp_darray>();
+      }
+      return 0;
 }
 
 void* svGetArrElemPtr1(const void*h, int indx1)
@@ -797,8 +823,8 @@ void* svGetArrElemPtr1(const void*h, int indx1)
       if (!arr) return 0;
       void*base = arr->elem_data ? arr->elem_data : arr->data;
       if (!base) return 0;
-      int k = dpi_canon_index_(arr, indx1);
-      if (k < 0 || (unsigned)k >= arr->length) return 0;
+      int64_t k = dpi_canon_index_(arr, indx1);
+      if (k < 0 || (uint64_t)k >= arr->length) return 0;
       return (char*)base + (size_t)k * arr->elem_bytes;
 }
 
@@ -807,6 +833,10 @@ void* svGetArrElemPtr1(const void*h, int indx1)
 void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (arr && arr->string_rank) {
+	    const int indices[] = {indx1, indx2};
+	    return dpi_string_element_(arr, indices, 2);
+      }
       vvp_darray*inner = md_inner_(arr, dpi_canon_index_(arr, indx1));
       if (!inner) return 0;
 	unsigned eb = arr && arr->shortreal_scratch
@@ -814,8 +844,8 @@ void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
 	void*base = arr && arr->shortreal_scratch
 	      ? dpi_shortreal_data_(arr, inner) : inner->dpi_raw_data();
       if (eb == 0 || base == 0) return 0;
-      int k2 = dpi_canon_darray_index_(inner, indx2);
-      if (k2 < 0 || (size_t)k2 >= inner->get_size()) return 0;
+      int64_t k2 = dpi_canon_darray_index_(inner, indx2);
+      if (k2 < 0 || (uint64_t)k2 >= inner->get_size()) return 0;
       return (char*)base + (size_t)k2 * eb;
 }
 
@@ -824,10 +854,14 @@ void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
 void* svGetArrElemPtr3(const void*h, int indx1, int indx2, int indx3)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (arr && arr->string_rank) {
+	    const int indices[] = {indx1, indx2, indx3};
+	    return dpi_string_element_(arr, indices, 3);
+      }
       vvp_darray*mid = md_inner_(arr, dpi_canon_index_(arr, indx1));
       if (!mid) return 0;
-      int k2 = dpi_canon_darray_index_(mid, indx2);
-      if (k2 < 0 || (size_t)k2 >= mid->get_size()) return 0;
+      int64_t k2 = dpi_canon_darray_index_(mid, indx2);
+      if (k2 < 0 || (uint64_t)k2 >= mid->get_size()) return 0;
       vvp_object_t w;
       mid->get_word((unsigned)k2, w);
       vvp_darray*inner = w.peek<vvp_darray>();
@@ -837,14 +871,34 @@ void* svGetArrElemPtr3(const void*h, int indx1, int indx2, int indx3)
 	void*base = arr && arr->shortreal_scratch
 	      ? dpi_shortreal_data_(arr, inner) : inner->dpi_raw_data();
       if (eb == 0 || base == 0) return 0;
-      int k3 = dpi_canon_darray_index_(inner, indx3);
-      if (k3 < 0 || (size_t)k3 >= inner->get_size()) return 0;
+      int64_t k3 = dpi_canon_darray_index_(inner, indx3);
+      if (k3 < 0 || (uint64_t)k3 >= inner->get_size()) return 0;
       return (char*)base + (size_t)k3 * eb;
+}
+
+static vector<int> dpi_var_indices_(const void*h, int indx1, va_list ap)
+{
+      int dims = svDimensions(h);
+      vector<int> indices;
+      if (dims <= 0) return indices;
+      indices.reserve((size_t)dims);
+      indices.push_back(indx1);
+      for (int dim = 1 ; dim < dims ; dim += 1)
+	    indices.push_back(va_arg(ap, int));
+      return indices;
 }
 
 void* svGetArrElemPtr(const void*h, int indx1, ...)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
+      if (arr && arr->string_rank) {
+	    if (!arr->length) return 0;
+	    va_list ap;
+	    va_start(ap, indx1);
+	    vector<int> indices = dpi_var_indices_(h, indx1, ap);
+	    va_end(ap);
+	    return dpi_string_element_(arr, indices.data(), indices.size());
+      }
       if (arr && arr->outer) {
 	    va_list ap;
 	    va_start(ap, indx1);
@@ -891,9 +945,9 @@ static bool dpi_element_slot_(const void*h, const vector<int>&indices,
 
       if (indices.size() == 1) {
 	    array = open->storage;
-	    int idx = dpi_canon_index_(open, indices[0]);
+	    int64_t idx = dpi_canon_index_(open, indices[0]);
 	    if (!dpi_packed_container_(array) || idx < 0
-		|| (size_t)idx >= array->get_size())
+		|| (uint64_t)idx >= array->get_size())
 		  return false;
 	    word = (unsigned)idx;
 	    return true;
@@ -901,8 +955,8 @@ static bool dpi_element_slot_(const void*h, const vector<int>&indices,
 
       vvp_darray*cur = open->outer;
       if (!cur) return false;
-      int idx = dpi_canon_index_(open, indices[0]);
-      if (idx < 0 || (size_t)idx >= cur->get_size()) return false;
+      int64_t idx = dpi_canon_index_(open, indices[0]);
+      if (idx < 0 || (uint64_t)idx >= cur->get_size()) return false;
 
       for (size_t dim = 1 ; dim < indices.size() ; dim += 1) {
 	    vvp_object_t obj;
@@ -910,7 +964,7 @@ static bool dpi_element_slot_(const void*h, const vector<int>&indices,
 	    cur = obj.peek<vvp_darray>();
 	    if (!cur) return false;
 	    idx = dpi_canon_darray_index_(cur, indices[dim]);
-	    if (idx < 0 || (size_t)idx >= cur->get_size()) return false;
+	    if (idx < 0 || (uint64_t)idx >= cur->get_size()) return false;
 	    if (dim + 1 == indices.size()) {
 		  if (!dpi_packed_container_(cur)) return false;
 		  array = cur;
@@ -919,18 +973,6 @@ static bool dpi_element_slot_(const void*h, const vector<int>&indices,
 	    }
       }
       return false;
-}
-
-static vector<int> dpi_var_indices_(const void*h, int indx1, va_list ap)
-{
-      int dims = svDimensions(h);
-      vector<int> indices;
-      if (dims <= 0) return indices;
-      indices.reserve((size_t)dims);
-      indices.push_back(indx1);
-      for (int dim = 1 ; dim < dims ; dim += 1)
-	    indices.push_back(va_arg(ap, int));
-      return indices;
 }
 
 static bool dpi_get_packed_(const void*h, const vector<int>&indices,

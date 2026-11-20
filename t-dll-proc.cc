@@ -973,6 +973,8 @@ void dll_target::proc_stask(const NetSTask*net)
       stmt_cur_->u_.stask_.parms_ = static_cast<ivl_expr_t*>(
 	    dll_procedure_calloc(nparms, sizeof(ivl_expr_t)));
       stmt_cur_->u_.stask_.ref_lval_ = 0;
+      stmt_cur_->u_.stask_.ref_lval_count_ = 0;
+      stmt_cur_->u_.stask_.ref_lval_arg_ = net->ref_output_arg();
 
 	/* Preserve the exact concrete interface task/function candidates
 	 * selected by the frontend. The scope records are Design-owned; the
@@ -998,10 +1000,14 @@ void dll_target::proc_stask(const NetSTask*net)
       }
 
       if (net->ref_output()) {
-	    stmt_cur_->u_.stask_.ref_lval_ =
-		  dll_procedure_new<struct ivl_lval_s>();
-	    make_single_lval_(net, stmt_cur_->u_.stask_.ref_lval_,
-			      net->ref_output());
+	    unsigned count = 0;
+	    for (const NetAssign_*part = net->ref_output(); part; part = part->more)
+		  count += 1;
+	    ivl_lval_t lvals = dll_procedure_new_array<struct ivl_lval_s>(count);
+	    stmt_cur_->u_.stask_.ref_lval_ = lvals;
+	    stmt_cur_->u_.stask_.ref_lval_count_ = count;
+	    for (const NetAssign_*part = net->ref_output(); part; part = part->more)
+		  make_single_lval_(net, lvals++, part);
       }
 
 }

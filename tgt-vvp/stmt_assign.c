@@ -1931,10 +1931,8 @@ void draw_store_vec4_lval(ivl_lval_t lval)
       store_vec4_to_one_lval(lval);
 }
 
-static void store_vec4_to_lval(ivl_statement_t net)
+void store_vec4_to_lval(ivl_statement_t net, ivl_variable_type_t rval_type)
 {
-	  ivl_variable_type_t rval_type = ivl_expr_value(ivl_stmt_rval(net));
-
       for (unsigned lidx = 0 ; lidx < ivl_stmt_lvals(net) ; lidx += 1) {
 	    ivl_lval_t lval = ivl_stmt_lval(net,lidx);
 	    ivl_signal_t sig = ivl_lval_sig(lval);
@@ -2438,7 +2436,7 @@ static int show_stmt_assign_vector(ivl_statement_t net)
       } else {
 	    draw_eval_vec4(rval);
 	    resize_vec4_wid(rval, wid);
-	    store_vec4_to_lval(net);
+	    store_vec4_to_lval(net, ivl_expr_value(rval));
       }
 
       return 0;

@@ -7176,6 +7176,13 @@ static int show_system_task_call(ivl_statement_t net, ivl_scope_t sscope)
 	    return 0;
       }
 
+      if (strcmp(stmt_name,"$ivl_observed_disable_wait") == 0) {
+	    assert(ivl_stmt_parm_count(net) == 1);
+	    fprintf(vvp_out, "    %%wait/observed/disable %lu;\n",
+		    ivl_expr_uvalue(ivl_stmt_parm(net, 0)));
+	    return 0;
+      }
+
 	/* Suspend until the Reactive region of the current time step
 	 * (4.4.2.5: assertion pass/fail action blocks).  A no-op once no
 	 * Reactive region is reachable (final blocks / Postponed), so an
@@ -9806,9 +9813,9 @@ static ivl_type_t dpi_struct_formal_type_(ivl_signal_t port)
 
 /* Describe the struct members for the runtime marshaler, one signature letter
    per member in declaration order: b/h/i/l for the integer atoms ('u' prefix
-   when unsigned), c/g for scalar bit/logic, f/r for shortreal/real and p for
-   chandle. Returns 0 when a member has no supported C layout (packed vectors,
-   strings, nested aggregates) or the struct is a union. */
+   when unsigned), c/g for scalar bit/logic, f/r for shortreal/real, p for
+   chandle and s for scalar string. Returns 0 when a member has no supported
+   C layout (packed vectors, nested aggregates) or the struct is a union. */
 static int dpi_struct_member_desc_(ivl_type_t st, char*buf, size_t cap)
 {
       size_t pos = 0;
@@ -9821,6 +9828,8 @@ static int dpi_struct_member_desc_(ivl_type_t st, char*buf, size_t cap)
 	    char letter = 0;
 	    if (mb == IVL_VT_REAL) {
 		  letter = ivl_type_is_shortreal(mt) ? 'f' : 'r';
+	    } else if (mb == IVL_VT_STRING && !ivl_type_element(mt)) {
+		  letter = 's';
 	    } else if (mb == IVL_VT_BOOL || mb == IVL_VT_LOGIC) {
 		  if (ivl_type_is_chandle(mt))
 			letter = 'p';
@@ -9958,11 +9967,11 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 	    }
 
 	    ivl_type_t struct_type = dpi_struct_formal_type_(port);
-	    char struct_desc[256];
+	    char descriptor[256] = "";
 	    if (struct_type) {
-		  if (!dpi_struct_member_desc_(struct_type, struct_desc,
-					       sizeof struct_desc)
-		      || types_pos + strlen(struct_desc) + 8
+		  if (!dpi_struct_member_desc_(struct_type, descriptor,
+					       sizeof descriptor)
+		      || types_pos + strlen(descriptor) + 8
 			 >= sizeof arg_types) {
 			if (ivl_type_is_union(struct_type))
 			      fprintf(stderr, "%s:%u: sorry: DPI import "
@@ -9977,7 +9986,8 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 				      "'%s': argument '%s' is an unpacked "
 				      "struct with a member that is not an "
 				      "integer atom, scalar bit/logic, real, "
-				      "shortreal or chandle (IEEE 1800 Annex "
+				      "shortreal, chandle or scalar string "
+				      "(IEEE 1800 Annex "
 				      "H.7.8 layouts of other members are "
 				      "not supported yet).\n",
 				      ivl_scope_def_file(scope),
@@ -10044,27 +10054,27 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		       the canonical svGet/Put*ArrElem*VecVal copy API. */
 		  ivl_type_t nt = ivl_signal_net_type(port);
 		  ivl_type_t et = nt ? ivl_type_element(nt) : 0;
-		    /* M10B-md: a MULTI-dimensional open array is a
-		       darray of darrays. Walk to the leaf element
-		       type; the runtime walks the same object tree
-		       (svGetArrElemPtr2/3), only the innermost
-		       storage must be contiguous atoms. */
-		  while (et && ivl_type_base(et) == IVL_VT_DARRAY)
+		    /* A multidimensional open array is a darray of darrays.
+		       Keep the rank for string staging even if the actual
+		       has no elements from which to infer it. */
+		  unsigned rank = 1;
+		  while (et && ivl_type_base(et) == IVL_VT_DARRAY) {
+			rank += 1;
 			et = ivl_type_element(et);
+		  }
 		  ivl_variable_type_t ebase = et ? ivl_type_base(et)
 			                         : IVL_VT_NO_TYPE;
 		  unsigned ewid = et ? ivl_type_packed_width(et) : 0;
-		    /* IEEE 1800-2017/2023 H.7.4: a one-dimensional string
-		       open array exposes const char* elements. */
-		  int string_elems = ebase == IVL_VT_STRING
-			&& et == (nt ? ivl_type_element(nt) : 0);
+		    /* IEEE 1800-2017/2023 H.7.4: a string element is
+		       exposed as a const char* slot. */
+		  int string_elems = ebase == IVL_VT_STRING;
 		  int elem_ok = string_elems || (ebase == IVL_VT_REAL)
 			|| ((ebase == IVL_VT_BOOL || ebase == IVL_VT_LOGIC)
 			    && ewid > 0);
 		  if (! elem_ok) {
 			fprintf(stderr, "%s:%u: sorry: DPI import '%s': "
 				"open array argument '%s' must have packed "
-				"bit/logic, real or one-dimensional string "
+				"bit/logic, real or string "
 				"elements (IEEE 1800 Annex H.7.8 aggregate "
 				"element layouts are not supported yet).\n",
 				ivl_scope_def_file(scope),
@@ -10074,9 +10084,11 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 			vvp_errors += 1;
 			break;
 		  }
-		  if (string_elems)
+		  if (string_elems) {
 			letter = 'o';
-		  else if (ebase == IVL_VT_REAL && ivl_type_is_shortreal(et))
+			if (rank > 1)
+			      snprintf(descriptor, sizeof descriptor, "%u", rank);
+		  } else if (ebase == IVL_VT_REAL && ivl_type_is_shortreal(et))
 			letter = 'q';
 		  else if (et && ivl_type_is_packed_vector(et))
 			letter = (ebase == IVL_VT_LOGIC) ? 'y' : 'x';
@@ -10135,6 +10147,22 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  break;
 	    }
 
+	    int is_unsigned = (letter == 'b' || letter == 'h' || letter == 'i'
+			       || letter == 'l') && !ivl_signal_signed(port);
+	    size_t descriptor_len = strlen(descriptor);
+	    size_t token_len = 1 + is_out + is_unsigned;
+	    if (descriptor_len)
+		  token_len += descriptor_len + 2;
+	    if (types_pos + token_len >= sizeof arg_types) {
+		  fprintf(stderr, "%s:%u: sorry: DPI import '%s' has a "
+			  "signature too long to encode.\n",
+			  ivl_scope_def_file(scope),
+			  ivl_scope_def_lineno(scope), c_name);
+		  unsupported = 1;
+		  vvp_errors += 1;
+		  break;
+	    }
+
 	      /* Load the incoming value (for outputs this seeds the
 		 pointer buffer — exact for inout, harmless for pure
 		 output whose entry value is undefined per 35.5.6.1). */
@@ -10169,13 +10197,12 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		 unmarshal the temporary back into their inline words. */
 	    if (is_out)
 		  arg_types[types_pos++] = '+';
-	    if ((letter == 'b' || letter == 'h' || letter == 'i'
-		 || letter == 'l') && ! ivl_signal_signed(port))
+	    if (is_unsigned)
 		  arg_types[types_pos++] = 'u';
 	    arg_types[types_pos++] = letter;
-	    if (struct_type) {
+	    if (descriptor_len) {
 		  arg_types[types_pos++] = '{';
-		  for (const char*cp = struct_desc ; *cp ; cp += 1)
+		  for (const char*cp = descriptor ; *cp ; cp += 1)
 			arg_types[types_pos++] = *cp;
 		  arg_types[types_pos++] = '}';
 	    }
