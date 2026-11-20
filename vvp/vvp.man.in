@@ -161,6 +161,15 @@ This extended argument enables improved compatibility with other
 simulators. At present this only affects the display format for
 real numbers when no format string is supplied.
 
+.TP 8
+.B +vvp-settle-limit=\fIN\fP
+A tran/tranif island whose switch control depends on the island's own
+nets can have no fixed point. vvp counts the zero-time settle passes of
+each island at a simulation time and, once they exceed N (default
+10000), stops with a run-time error that names the switch, its source
+line and its nets, instead of running forever. The exit status is 1.
+A network that settles in fewer passes is unaffected.
+
 .SH ENVIRONMENT
 .PP
 The vvp command also accepts some environment variables that control
