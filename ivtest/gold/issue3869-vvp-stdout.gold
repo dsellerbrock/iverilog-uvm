@@ -1,0 +1,3 @@
+WARNING: ivltests/issue3869.sv:115: $sformat has 1 extra argument(s).
+WARNING: ivltests/issue3869.sv:118: missing argument for $sformat<%c>.
+PASSED

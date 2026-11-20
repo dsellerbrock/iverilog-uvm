@@ -19652,6 +19652,50 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	}
       }
 
+      if (parm_count && eparms[0]
+	  && (name == "$sformat" || name == "$swrite" || name == "$swriteb"
+	      || name == "$swriteh" || name == "$swriteo")) {
+	    ivl_type_t type = eparms[0]->net_type();
+	    if (dynamic_cast<const netdarray_t*>(type)) {
+		  NetAssign_*lv = nullptr;
+		  if (positional_byte_container_type(type)) {
+			unsigned errors_before = des->errors;
+			lv = parms_[0].parm->elaborate_lval(des, scope, false, false);
+			if (!lv && des->errors == errors_before) {
+			      cerr << get_fileline() << ": error: " << name
+				   << "'s first argument must be a writable variable."
+				   << endl;
+			      des->errors += 1;
+			}
+		  } else {
+			cerr << get_fileline() << ": error: " << name
+			     << " requires a positional array with byte-equivalent "
+			     << "elements for a dynamic array or queue destination."
+			     << endl;
+			des->errors += 1;
+		  }
+		  delete eparms[0];
+		  if (!lv) {
+			for (unsigned idx = 1; idx < parm_count; ++idx)
+			      delete eparms[idx];
+			return nullptr;
+		  }
+
+		    // 21.3.3 assigns the formatted bytes as a string literal.
+		    // Use the ordinary store for automatic variables and properties.
+		  scope->calls_sys_task(true);
+		  string formatter = "$ivl_format_bytes" + string(name.str());
+		  NetESFunc*fmt = new NetESFunc(formatter.c_str(), type,
+						parm_count - 1);
+		  fmt->set_line(*this);
+		  for (unsigned idx = 1; idx < parm_count; ++idx)
+			fmt->parm(idx - 1, eparms[idx]);
+		  NetAssign*assign = new NetAssign(lv, fmt);
+		  assign->set_line(*this);
+		  return assign;
+	    }
+      }
+
 	// Special case: Specify blocks and interconnects are turned off,
 	// and this is an $sdf_annotate system task. There will be nothing for
 	// $sdf to annotate, and the user is intending to turn the behavior

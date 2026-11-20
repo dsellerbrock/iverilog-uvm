@@ -2126,9 +2126,9 @@ void sys_monitor_fclose(PLI_UINT32 fd_mcd)
  * IEEE 1800-2023 21.3.3: the output variable of $swrite/$sformat may be an
  * unpacked array of byte. A string is laid into it by the string literal
  * rules of 5.9, as the compiler does for `arr = "..."`: from the left bound
- * to the right bound, zero filled, cut at the right bound. Only a
- * one-dimensional fixed array is accepted: the compiler has no string
- * literal assignment to a dynamic array or queue to follow.
+ * to the right bound, zero filled, cut at the right bound. This helper
+ * handles one-dimensional fixed arrays. Resizable destinations use the
+ * counted formatter result and the compiler's assignment path.
  * Returns the element count, or 0 if ARG is not such an array.
  */
 static int byte_array_words(vpiHandle arg, PLI_INT32 *left, PLI_INT32 *step)
@@ -2191,14 +2191,29 @@ static void put_string_output(vpiHandle reg, char *str, unsigned int size)
   }
 }
 
+static void put_formatted_output(vpiHandle callh, vpiHandle reg, char *result,
+                                 unsigned int size, const struct strobe_cb_info *info)
+{
+  if (vpi_get(vpiType, callh) == vpiSysFuncCall) {
+    vpip_set_counted_string_result(callh, result, size);
+    return;
+  }
+
+  put_string_output(reg, result, size);
+  if (size != strlen(result)) {
+    vpi_printf("WARNING: %s:%d: %s returned a value with an embedded NULL "
+               "(see %%u/%%z).\n", info->filename, info->lineno, info->name);
+  }
+}
+
 static PLI_INT32 sys_swrite_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 {
   vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
   vpiHandle argv = vpi_iterate(vpiArgument, callh);
-  vpiHandle arg;
+  int counted = vpi_get(vpiType, callh) == vpiSysFuncCall;
 
   /* Check that there are arguments. */
-  if (argv == 0) {
+  if (argv == 0 && !counted) {
     vpi_printf("ERROR:%s:%d: ", vpi_get_str(vpiFile, callh),
                (int)vpi_get(vpiLineNo, callh));
     vpi_printf("%s requires at least one argument.\n", name);
@@ -2209,8 +2224,7 @@ static PLI_INT32 sys_swrite_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 
   /* The first argument must be a register, a SV string or an unpacked
    * array of byte. */
-  arg = vpi_scan(argv);  /* This should never be zero. */
-  if (!is_string_output_var(arg)) {
+  if (!counted && !is_string_output_var(vpi_scan(argv))) {
     vpi_printf("ERROR:%s:%d: ", vpi_get_str(vpiFile, callh),
                (int)vpi_get(vpiLineNo, callh));
     vpi_printf("%s's first argument must be a register, SV string or "
@@ -2231,12 +2245,12 @@ static PLI_INT32 sys_swrite_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 {
   vpiHandle callh, argv, reg, scope;
   struct strobe_cb_info info;
-  s_vpi_value val;
+  char *result;
   unsigned int size;
 
   callh = vpi_handle(vpiSysTfCall, 0);
   argv = vpi_iterate(vpiArgument, callh);
-  reg = vpi_scan(argv);
+  reg = vpi_get(vpiType, callh) == vpiSysFuncCall ? 0 : vpi_scan(argv);
 
   scope = vpi_handle(vpiScope, callh);
   assert(scope);
@@ -2251,14 +2265,10 @@ static PLI_INT32 sys_swrite_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 
   /* Because %u and %z may put embedded NULL characters into the returned
    * string strlen() may not match the real size! */
-  val.value.str = get_display(&size, &info);
-  put_string_output(reg, val.value.str, size);
-  if (size != strlen(val.value.str)) {
-    vpi_printf("WARNING: %s:%d: %s returned a value with an embedded NULL "
-               "(see %%u/%%z).\n", info.filename, info.lineno, name);
-  }
+  result = get_display(&size, &info);
+  put_formatted_output(callh, reg, result, size, &info);
 
-  free(val.value.str);
+  free(result);
   free(info.filename);
   free(info.items);
   return 0;
@@ -2283,8 +2293,8 @@ static PLI_INT32 sys_sformat_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 
   /* The first argument must be a register, a SV string or an unpacked
    * array of byte. */
-  arg = vpi_scan(argv);  /* This should never be zero. */
-  if (!is_string_output_var(arg)) {
+  if (vpi_get(vpiType, callh) != vpiSysFuncCall &&
+      !is_string_output_var(vpi_scan(argv))) {
     vpi_printf("ERROR:%s:%d: ", vpi_get_str(vpiFile, callh),
                (int)vpi_get(vpiLineNo, callh));
     vpi_printf("%s's first argument must be a register, SV string or "
@@ -2334,7 +2344,7 @@ static PLI_INT32 sys_sformat_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 
   callh = vpi_handle(vpiSysTfCall, 0);
   argv = vpi_iterate(vpiArgument, callh);
-  reg = vpi_scan(argv);
+  reg = vpi_get(vpiType, callh) == vpiSysFuncCall ? 0 : vpi_scan(argv);
   val.format = vpiStringVal;
   vpi_get_value(vpi_scan(argv), &val);
   fmt = strdup(val.value.str);
@@ -2359,14 +2369,9 @@ static PLI_INT32 sys_sformat_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
                info.nitems-idx-1);
   }
 
-  val.value.str = result;
-  put_string_output(reg, result, size);
-  if (size != strlen(val.value.str)) {
-    vpi_printf("WARNING: %s:%d: %s returned a value with an embedded NULL "
-               "(see %%u/%%z).\n", info.filename, info.lineno, name);
-  }
+  put_formatted_output(callh, reg, result, size, &info);
 
-  free(val.value.str);
+  free(result);
   free(info.filename);
   free(info.items);
   return 0;
@@ -3203,6 +3208,25 @@ void sys_display_register(void)
       tf_data.user_data = "$sformat";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
+
+      /* Private counted returns for assignment into resizable byte arrays. */
+      static const char *const counted_names[] = {
+            "$swrite", "$swriteb", "$swriteh", "$swriteo", "$sformat"
+      };
+      tf_data.type = vpiSysFunc;
+      tf_data.sysfunctype = vpiStringFunc;
+      for (unsigned idx = 0; idx < sizeof(counted_names)/sizeof(counted_names[0]); ++idx) {
+            const char *name = counted_names[idx];
+            int is_sformat = strcmp(name, "$sformat") == 0;
+            char private_name[sizeof("$ivl_format_bytes$sformat")];
+            snprintf(private_name, sizeof private_name, "$ivl_format_bytes%s", name);
+            tf_data.tfname = private_name;
+            tf_data.calltf = is_sformat ? sys_sformat_calltf : sys_swrite_calltf;
+            tf_data.compiletf = is_sformat ? sys_sformat_compiletf : sys_swrite_compiletf;
+            tf_data.user_data = name;
+            res = vpi_register_systf(&tf_data);
+            vpip_make_systf_system_defined(res);
+      }
 
       tf_data.type      = vpiSysFunc;
       tf_data.sysfunctype = vpiStringFunc;

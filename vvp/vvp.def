@@ -67,6 +67,7 @@ vpip_report_immediate_assertion
 vpip_set_return_value
 vpip_covgrp_db
 vpip_systf_call_returns_string
+vpip_set_counted_string_result
 vpip_is_system_verilog_mode
 vpip_interconnect_net_to_load
 vpip_interconnect_ports_connected

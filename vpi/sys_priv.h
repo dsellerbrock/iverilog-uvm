@@ -21,6 +21,11 @@
 
 #include "vpi_config.h"
 #include "sv_vpi_user.h"
+#include <stddef.h>
+
+/* Internal formatter return. SIZE excludes the buffer terminator. */
+extern void vpip_set_counted_string_result(vpiHandle call, const char*value,
+					   size_t size);
 
 #define IS_MCD(mcd)     !((mcd)>>31&1)
 

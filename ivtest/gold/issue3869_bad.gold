@@ -1,0 +1,5 @@
+./ivltests/issue3869_bad.sv:12: error: $swrite requires a positional array with byte-equivalent elements for a dynamic array or queue destination.
+./ivltests/issue3869_bad.sv:13: error: $sformat requires a positional array with byte-equivalent elements for a dynamic array or queue destination.
+./ivltests/issue3869_bad.sv:14: Assignment l-value too complex.
+./ivltests/issue3869_bad.sv:14: error: $swrite's first argument must be a writable variable.
+3 error(s) during elaboration.

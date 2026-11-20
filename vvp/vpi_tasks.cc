@@ -192,10 +192,23 @@ struct sysfunc_str : public sysfunc_def {
       int vpi_get(int code) override;
       vpiHandle vpi_put_value(p_vpi_value val, int flags) override;
       inline const std::string& return_value() const { return return_value_; };
+      void set_counted_result(const char*value, size_t size)
+      {
+	    return_value_.assign(value, size);
+	    put_value = true;
+      }
 
     private:
       std::string return_value_;
 };
+
+extern "C" void vpip_set_counted_string_result(vpiHandle call,
+					      const char*value, size_t size)
+{
+      sysfunc_str*func = dynamic_cast<sysfunc_str*>(call);
+      assert(func);
+      func->set_counted_result(value, size);
+}
 
 int sysfunc_str::vpi_get(int code)
 {

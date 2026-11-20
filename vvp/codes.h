@@ -229,6 +229,8 @@ extern bool of_REP_STR_U(vthread_t thr, vvp_code_t code);
 extern bool of_CONCATI_STR(vthread_t thr, vvp_code_t code);
 extern bool of_CONCAT_VEC4(vthread_t thr, vvp_code_t code);
 extern bool of_CONCATI_VEC4(vthread_t thr, vvp_code_t code);
+extern bool of_CONTAINER_BYTES_A(vthread_t thr, vvp_code_t code);
+extern bool of_CONTAINER_BYTES_Q(vthread_t thr, vvp_code_t code);
 extern bool of_CONTAINER_TO_QUEUE(vthread_t thr, vvp_code_t code);
 extern bool of_CONTAINER_LAYOUT_Q(vthread_t thr, vvp_code_t code);
 extern bool of_CVT_RV(vthread_t thr, vvp_code_t code);

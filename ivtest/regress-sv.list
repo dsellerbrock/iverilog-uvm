@@ -7367,3 +7367,9 @@ issue3164_2017 normal,-g2017,-s,issue3164 ivltests gold=issue3164.gold
 issue3164_2023 normal,-g2023,-s,issue3164 ivltests gold=issue3164.gold
 issue3164_bad_2017 CE,-g2017,-s,issue3164_bad ivltests gold=issue3164_bad.gold
 issue3164_bad_2023 CE,-g2023,-s,issue3164_bad ivltests gold=issue3164_bad.gold
+
+# IEEE 1800-2017/2023 21.3.3: formatting into resizable byte containers.
+issue3869_2017 normal,-g2017,-s,issue3869 ivltests gold=issue3869.gold
+issue3869_2023 normal,-g2023,-s,issue3869 ivltests gold=issue3869.gold
+issue3869_bad_2017 CE,-g2017,-s,issue3869_bad ivltests gold=issue3869_bad.gold
+issue3869_bad_2023 CE,-g2023,-s,issue3869_bad ivltests gold=issue3869_bad.gold
