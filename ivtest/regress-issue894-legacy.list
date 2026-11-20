@@ -1,0 +1,2 @@
+issue894_nested_default_clocking_2017 normal,-g2017,-s,top ivltests gold=issue894_nested_default_clocking.gold
+issue894_nested_default_clocking_2023 normal,-g2023,-s,top ivltests gold=issue894_nested_default_clocking.gold
