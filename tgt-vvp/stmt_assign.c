@@ -7241,8 +7241,14 @@ static int show_stmt_assign_dynamic_stream_(ivl_statement_t net)
 	    else if (ivl_lval_property_idx(lval) >= 0)
 		  have_fixed_property = 1;
       }
-      if (have_dynamic && have_fixed_property && !have_range)
-	    return show_stmt_assign_class_stream_(net, rval);
+      if (have_fixed_property && !have_range) {
+	    if (have_dynamic)
+		  return show_stmt_assign_class_stream_(net, rval);
+	    /* A dynamic source can feed an entirely fixed target. The
+	       ordinary property store evaluates the fixed-width stream. */
+	    if (ivl_expr_width(rval) > 0)
+		  return -1;
+      }
 
       unsigned greedy = 0;
       unsigned dynamic_count = 0;

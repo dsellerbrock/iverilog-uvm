@@ -1759,6 +1759,12 @@ sv_queue_slice_to_last normal,-g2012 ivltests
 sv_class_queue_slice_to_last normal,-g2012 ivltests
 sv_assoc_queue_property normal,-g2012 ivltests
 sv_mailbox_string_real normal,-g2012 ivltests
+issue3505_stream_union_2017 normal,-g2017,-s,issue3505_stream_union ivltests gold=issue3505_stream_union.gold
+issue3505_stream_union_2023 normal,-g2023,-s,issue3505_stream_union ivltests gold=issue3505_stream_union.gold
+issue3505_stream_union_contexts_2017 normal,-g2017,-s,issue3505_stream_union_contexts ivltests gold=issue3505_stream_union.gold
+issue3505_stream_union_contexts_2023 normal,-g2023,-s,issue3505_stream_union_contexts ivltests gold=issue3505_stream_union.gold
+issue3505_stream_union_fail_2017 CE,-g2017,-s,issue3505_stream_union_fail ivltests gold=issue3505_stream_union_fail.gold
+issue3505_stream_union_fail_2023 CE,-g2023,-s,issue3505_stream_union_fail ivltests gold=issue3505_stream_union_fail.gold
 sv_stream_unpacked_array normal,-g2012 ivltests
 sv_stream_unpack_fixed_array_source_2017 normal,-g2017 ivltests
 sv_stream_unpack_fixed_array_source_2023 normal,-g2023 ivltests
