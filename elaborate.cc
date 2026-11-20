@@ -2989,6 +2989,7 @@ static void collect_pform_reads_(PExpr*e, std::vector<PExpr*>&out)
 	    return;
       }
       if (PECastSize*cast = dynamic_cast<PECastSize*>(e)) {
+	    collect_pform_reads_(cast->cast_size(), out);
 	    collect_pform_reads_(cast->cast_base(), out);
 	    return;
       }
@@ -3012,6 +3013,7 @@ static void collect_pform_reads_(PExpr*e, std::vector<PExpr*>&out)
 	    return;
       }
       if (PEConcat*c = dynamic_cast<PEConcat*>(e)) {
+	    collect_pform_reads_(c->repeat_expr(), out);
 	    for (PExpr*p : c->stream_parms())
 		  collect_pform_reads_(p, out);
 	    return;
@@ -3020,12 +3022,37 @@ static void collect_pform_reads_(PExpr*e, std::vector<PExpr*>&out)
 	    // The call itself names a method receiver (q.size()) in its path.
 	    out.push_back(call);
 	    collect_pform_reads_(call->receiver_expr(), out);
+	    for (const name_component_t&component : call->path().name)
+		  for (const index_component_t&index : component.index) {
+			collect_pform_reads_(index.msb, out);
+			collect_pform_reads_(index.lsb, out);
+		  }
 	    for (const named_pexpr_t&parm : call->get_parms())
 		  collect_pform_reads_(parm.parm, out);
 	    return;
       }
       if (PEStreaming*stream = dynamic_cast<PEStreaming*>(e)) {
+	    collect_pform_reads_(stream->get_slice_expr(), out);
 	    collect_pform_reads_(stream->get_inner(), out);
+	    return;
+      }
+      if (PEStreamWith*stream = dynamic_cast<PEStreamWith*>(e)) {
+	    collect_pform_reads_(stream->base(), out);
+	    collect_pform_reads_(stream->range_first(), out);
+	    collect_pform_reads_(stream->range_second(), out);
+	    return;
+      }
+      if (PEInside*inside = dynamic_cast<PEInside*>(e)) {
+	    collect_pform_reads_(inside->get_expr(), out);
+	    for (const inside_range_t&range : inside->get_ranges()) {
+		  collect_pform_reads_(range.lo, out);
+		  collect_pform_reads_(range.hi, out);
+	    }
+	    return;
+      }
+      if (PEMatches*matches = dynamic_cast<PEMatches*>(e)) {
+	    collect_pform_reads_(matches->subject(), out);
+	    collect_pform_reads_(matches->conditional_tail(), out);
 	    return;
       }
       if (PEPostSelect*select = dynamic_cast<PEPostSelect*>(e)) {
@@ -3069,24 +3096,31 @@ static bool reads_interface_member_(const LineInfo*li, Design*des,
       return false;
 }
 
-static bool reads_virtual_interface_member_(const LineInfo*li, Design*des,
-                                             NetScope*scope, PExpr*expr)
+static bool reads_virtual_interface_member_(Design*des, NetScope*scope,
+					     PExpr*expr, bool*physical_call = nullptr)
 {
       std::vector<PExpr*> reads;
       collect_pform_reads_(expr, reads);
       for (PExpr*read : reads) {
-	    PEIdent*id = dynamic_cast<PEIdent*>(read);
-	    if (!id || id->path().package || id->path().name.size() < 2)
+	    const PEIdent*id = dynamic_cast<const PEIdent*>(read);
+	    const PECallFunction*call = dynamic_cast<const PECallFunction*>(read);
+	    if (!id && !call)
+		  continue;
+	    const auto&path = id ? id->path() : call->path();
+	    if (path.name.size() < 2)
 		  continue;
 
 	    symbol_search_results sr;
-	    symbol_search(li, des, scope, id->path(), UINT_MAX, &sr);
+	    const unsigned pos = id ? id->lexical_pos() : call->lexical_pos();
+	    symbol_search(read, des, scope, path, pos, &sr);
 	    const netclass_t*base_type = sr.net
 		  ? dynamic_cast<const netclass_t*>(sr.net->net_type()) : nullptr;
-	    if (sr.net && sr.net->is_virtual_interface()
-		&& base_type && base_type->is_interface()
-		&& !sr.path_tail.empty())
+	    if (!base_type || !base_type->is_interface() || sr.path_tail.empty())
+		  continue;
+	    if (sr.net->is_virtual_interface())
 		  return true;
+	    if (physical_call && call && sr.path_tail.size() == 1)
+		  *physical_call = true;
       }
       return false;
 }
@@ -3184,8 +3218,10 @@ static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
 						 bool continuous_lval = false)
 {
       if (signal_lval) {
+	    ivl_type_t type = signal_lval->unpacked_dimensions()
+		  ? signal_lval->array_type() : signal_lval->net_type();
 	    NetExpr*rv = elaborate_rval_expr(
-		  des, scope, signal_lval->net_type(), rval);
+		  des, scope, type, rval);
 	    if (!rv)
 		  return 0;
 	    NetAssign_*lv = new NetAssign_(signal_lval);
@@ -3217,6 +3253,86 @@ static NetProc* elaborate_vif_member_assignment_(Design*des, NetScope*scope,
 	}
       }
       return result;
+}
+
+interface_continuous_context_t interface_continuous_context =
+      interface_continuous_context_t::NONE;
+
+class InterfaceContinuousContext {
+    public:
+      explicit InterfaceContinuousContext(interface_continuous_context_t context)
+      : save_(interface_continuous_context)
+      { interface_continuous_context = context; }
+      ~InterfaceContinuousContext()
+      { interface_continuous_context = save_; }
+    private:
+      interface_continuous_context_t save_;
+};
+
+struct pending_bound_interface_rhs_t {
+      const PGAssign*assignment;
+      NetScope*scope;
+      NetNet*signal;
+      bool continuous_lval;
+      size_t vpi_index;
+};
+
+static vector<pending_bound_interface_rhs_t> pending_bound_interface_rhs_;
+
+static void elaborate_bound_interface_rhs_(Design*des)
+{
+      PExprProceduralContextGuard procedural_context(false);
+      InterfaceContinuousContext context(interface_continuous_context_t::BOUND_RHS);
+      vector<pending_bound_interface_rhs_t> work;
+      work.swap(pending_bound_interface_rhs_);
+      for (const auto&pending : work) {
+	    const PGAssign*source = pending.assignment;
+	    NetScope*scope = pending.scope;
+	    const unsigned errors_before = des->errors;
+	    NetProc*assignment = elaborate_vif_member_assignment_(
+		  des, scope, source, const_cast<PExpr*>(source->pin(0)),
+		  const_cast<PExpr*>(source->pin(1)), pending.signal,
+		  pending.continuous_lval);
+	    if (!assignment) {
+		  if (des->errors == errors_before) {
+			cerr << source->get_fileline() << ": error: Unable to elaborate r-value: "
+			     << *source->pin(1) << endl;
+			des->errors += 1;
+		  }
+		  continue;
+	    }
+
+	    if (pending.vpi_index != SIZE_MAX) {
+		  auto*store = dynamic_cast<NetAssign*>(assignment);
+		  ivl_assert(*source, store);
+		  if (netexpr_contains_chandle_(store->rval())) {
+			cerr << source->get_fileline()
+			     << ": error: chandle is not permitted in a continuous assignment "
+				"(IEEE 1800-2017/2023 6.14)." << endl;
+			des->errors += 1;
+			delete assignment;
+			continue;
+		  }
+		  scope->contassigns[pending.vpi_index].rval = store->rval()->dup_expr();
+	    }
+
+	    // Drive the proxy from one process, including its time-zero evaluation.
+	    PEventStatement event(true);
+	    event.set_line(*source);
+	    NetProc*process = event.elaborate_st(des, scope, assignment);
+	    if (!process) {
+		  delete assignment;
+		  continue;
+	    }
+	    const NetEvWait*wait = dynamic_cast<const NetEvWait*>(process);
+	    const bool one_shot = !wait || wait->nevents() == 0;
+	    NetProcTop*top = new NetProcTop(
+		  scope, one_shot ? IVL_PR_INITIAL : IVL_PR_ALWAYS, process);
+	    top->set_line(*source);
+	    top->attribute(perm_string::literal("_ivl_schedule_push"), verinum(1));
+	    des->add_process(top);
+      }
+      assert(pending_bound_interface_rhs_.empty());
 }
 
 static bool elaborate_vif_member_assign_(Design*des, NetScope*scope,
@@ -3620,39 +3736,45 @@ static NetNet* make_vif_member_continuous_proxy_(
 		Design*des, NetScope*scope, const LineInfo&loc, NetNet*lval,
 		ivl_drive_t drive0, ivl_drive_t drive1,
 		NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
-		NetNet**driver_carrier = 0)
+		NetNet**driver_carrier = 0, perm_string*driver_name = nullptr)
 {
       ivl_assert(loc, lval);
-      ivl_assert(loc, lval->pin_count() == 1);
+      ivl_assert(loc, !driver_carrier || lval->pin_count() == 1);
 
       NetNet*proxy = new NetNet(scope, scope->local_symbol(), NetNet::REG,
-				 lval->net_type());
+				 lval->unpacked_dims(), lval->net_type());
       proxy->set_line(loc);
       proxy->local_flag(true);
 
-      NetBUFZ*driver = new NetBUFZ(scope, scope->local_symbol(),
-				   lval->vector_width(), false);
-      driver->set_line(loc);
-      driver->whole_vector_delay(
-	    (rise_time || fall_time || decay_time) && lval->vector_width() > 1);
-      des->add_node(driver);
-      connect(proxy->pin(0), driver->pin(1));
-
       const netvector_t*carrier_type = new netvector_t(
 	    lval->data_type(), lval->vector_width()-1, 0);
-      NetNet*carrier = new NetNet(scope, scope->local_symbol(),
-				   NetNet::WIRE, carrier_type);
-      carrier->set_line(loc);
-      carrier->local_flag(true);
-      connect(driver->pin(0), carrier->pin(0));
-      if (driver_carrier)
-	    *driver_carrier = carrier;
+      // A fixed unpacked destination has one driver per word. The proxy has
+      // the same shape, so each driver uses the corresponding canonical word.
+      for (unsigned word = 0; word < lval->pin_count(); ++word) {
+	    NetBUFZ*driver = new NetBUFZ(scope, scope->local_symbol(),
+					 lval->vector_width(), false);
+	    driver->set_line(loc);
+	    driver->whole_vector_delay(
+		  (rise_time || fall_time || decay_time) && lval->vector_width() > 1);
+	    des->add_node(driver);
+	    if (driver_name && word == 0)
+		  *driver_name = driver->name();
+	    connect(proxy->pin(word), driver->pin(1));
 
-      if (drive0 != IVL_DR_STRONG || drive1 != IVL_DR_STRONG)
-	    carrier->pin(0).drivers_drive(drive0, drive1);
-      if (rise_time || fall_time || decay_time)
-	    carrier->pin(0).drivers_delays(rise_time, fall_time, decay_time);
-      connect(lval->pin(0), carrier->pin(0));
+	    NetNet*carrier = new NetNet(scope, scope->local_symbol(),
+					 NetNet::WIRE, carrier_type);
+	    carrier->set_line(loc);
+	    carrier->local_flag(true);
+	    connect(driver->pin(0), carrier->pin(0));
+	    if (driver_carrier)
+		  *driver_carrier = carrier;
+
+	    if (drive0 != IVL_DR_STRONG || drive1 != IVL_DR_STRONG)
+		  carrier->pin(0).drivers_drive(drive0, drive1);
+	    if (rise_time || fall_time || decay_time)
+		  carrier->pin(0).drivers_delays(rise_time, fall_time, decay_time);
+	    connect(lval->pin(word), carrier->pin(0));
+      }
 
       if (lval->local_flag())
 	    delete lval;
@@ -4474,7 +4596,7 @@ static bool diagnose_interconnect_value_reference_(Design*des,
 static bool elaborate_string_variable_continuous_(
       Design*des, NetScope*scope, const PGAssign*assignment,
       NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
-      bool default_strength)
+      bool default_strength, bool bound_call)
 {
       bool selected = false;
       NetNet*signal = direct_identifier_net_(
@@ -4538,6 +4660,15 @@ static bool elaborate_string_variable_continuous_(
                  << "' cannot have continuous and procedural drivers on the "
                     "same value." << endl;
             des->errors += 1;
+            return true;
+      }
+      if (bound_call) {
+            bool overlap = signal->test_and_set_part_driver(msb, 0, 0);
+            ivl_assert(*assignment, !overlap);
+            pending_variable_continuous_drivers_.push_back({signal, assignment});
+            pending_bound_interface_rhs_.push_back({
+                  assignment, scope, signal, true, SIZE_MAX
+            });
             return true;
       }
       NetProc*initial_assignment = elaborate_vif_member_assignment_(
@@ -4706,7 +4837,7 @@ static void finalize_resolved_struct_nets_(Design*des)
 static bool elaborate_unpacked_struct_variable_continuous_(
       Design*des, NetScope*scope, const PGAssign*assignment,
       NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
-      bool default_strength)
+      bool default_strength, bool bound_call)
 {
       bool selected = false;
       NetNet*signal = direct_identifier_net_(
@@ -4769,6 +4900,16 @@ static bool elaborate_unpacked_struct_variable_continuous_(
 		 << "' cannot have continuous and procedural drivers on the "
 		    "same value." << endl;
 	    des->errors += 1;
+	    return true;
+      }
+
+      if (bound_call) {
+	    bool overlap = signal->test_and_set_part_driver(0, 0, 0);
+	    ivl_assert(*assignment, !overlap);
+	    pending_variable_continuous_drivers_.push_back({signal, assignment});
+	    pending_bound_interface_rhs_.push_back({
+		  assignment, scope, signal, true, SIZE_MAX
+	    });
 	    return true;
       }
 
@@ -5108,6 +5249,7 @@ std::vector<NetExpr*> PGAssign::vpi_delays_(Design*des, NetScope*scope) const
 void PGAssign::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
+      InterfaceContinuousContext context(interface_continuous_context_t::SOURCE);
 
       NetExpr* rise_time, *fall_time, *decay_time;
       eval_delays(des, scope, rise_time, fall_time, decay_time, true);
@@ -5123,17 +5265,13 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       if (diagnose_interconnect_value_reference_(des, scope, pin(1)))
             return;
 
-      if (elaborate_string_variable_continuous_(
-            des, scope, this, rise_time, fall_time, decay_time,
-            var_allowed_in_sv))
-            return;
-
 	/* IEEE 1800-2017/2023 25.9 permits components reached through a
 	   virtual interface only in procedural statements. */
-      if (reads_virtual_interface_member_(this, des, scope,
+      bool bound_call = false;
+      if (reads_virtual_interface_member_(des, scope,
 					  const_cast<PExpr*>(pin(0)))
-	  || reads_virtual_interface_member_(this, des, scope,
-					      const_cast<PExpr*>(pin(1)))) {
+	  || reads_virtual_interface_member_(des, scope,
+					      const_cast<PExpr*>(pin(1)), &bound_call)) {
 	    cerr << get_fileline() << ": error: A component of a virtual interface "
 		 << "may not be used in a continuous assignment "
 		    "(IEEE 1800-2017/2023 25.9)." << endl;
@@ -5141,6 +5279,34 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    delete_unique_delays_(rise_time, fall_time, decay_time);
 	    return;
       }
+
+      if (elaborate_string_variable_continuous_(
+	    des, scope, this, rise_time, fall_time, decay_time,
+	    var_allowed_in_sv, bound_call))
+	    return;
+
+      extern bool synthesis;
+      if (bound_call && synthesis) {
+	    cerr << get_fileline() << ": sorry: Synthesis of a continuous assignment "
+		    "calling a function through an interface port is not supported."
+		 << endl;
+	    des->errors += 1;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return;
+      }
+
+      auto elaborate_interface_rhs = [&](NetNet*signal, bool continuous_lval,
+					 bool dynamic_read = false) {
+	    if (bound_call) {
+		  pending_bound_interface_rhs_.push_back({
+			this, scope, signal, continuous_lval, SIZE_MAX
+		  });
+		  return true;
+	    }
+	    return elaborate_vif_member_assign_(
+		  des, scope, this, const_cast<PExpr*>(pin(0)),
+		  const_cast<PExpr*>(pin(1)), signal, continuous_lval, dynamic_read);
+      };
 
 	/* A concatenation l-value can contain interface properties alongside
 	   ordinary packed selects. It cannot be represented by one structural
@@ -5164,9 +5330,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 		  return;
 	    }
 	    delete_unique_delays_(rise_time, fall_time, decay_time);
-	    elaborate_vif_member_assign_(des, scope, this,
-		  const_cast<PExpr*>(pin(0)), const_cast<PExpr*>(pin(1)),
-		  nullptr, true);
+	    elaborate_interface_rhs(nullptr, true);
 	    return;
       }
 
@@ -5263,9 +5427,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 				    des, scope, *this, placeholder, drive0, drive1,
 				    rise_time, fall_time, decay_time,
 				    &driver_carrier);
-			      bool ok = elaborate_vif_member_assign_(
-				    des, scope, this, const_cast<PExpr*>(pin(0)),
-				    const_cast<PExpr*>(pin(1)), proxy);
+			      bool ok = elaborate_interface_rhs(proxy, false);
 			      if (ok) {
 				    pending_interface_continuous_driver_t pending = {
 					  port, port_word, property_idx,
@@ -5324,10 +5486,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 			      return;
 			}
 			delete_unique_delays_(rise_time, fall_time, decay_time);
-			bool ok = elaborate_vif_member_assign_(
-			      des, scope, this,
-			      const_cast<PExpr*>(pin(0)),
-			      const_cast<PExpr*>(pin(1)), nullptr, true);
+			bool ok = elaborate_interface_rhs(nullptr, true);
 			if (ok) {
 			      pending_interface_variable_continuous_driver_t pending = {
 				    port, port_word, property_idx,
@@ -5375,7 +5534,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       bool struct_member_read = !iface_read && !dynamic_read
 	    && reads_unpacked_struct_member_(this, des, scope,
 					     const_cast<PExpr*>(pin(1)));
-      if (iface_read || dynamic_read || struct_member_read) {
+      if (!bound_call && (iface_read || dynamic_read || struct_member_read)) {
 	    NetNet*lval = pin(0)->elaborate_lnet(
 		  des, scope, var_allowed_in_sv);
 	    if (!lval) {
@@ -5407,7 +5566,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 
 	/* An unpacked-union member is a property read with no structural
 	   expression net. Use the variable continuous-assignment process path. */
-      if (elaborate_unpacked_union_read_continuous_(
+      if (!bound_call && elaborate_unpacked_union_read_continuous_(
 		des, scope, this, rise_time, fall_time, decay_time,
 		var_allowed_in_sv))
 	    return;
@@ -5417,7 +5576,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	 * but object-backed aggregates need the procedural store path. */
       if (elaborate_unpacked_struct_variable_continuous_(
 		des, scope, this, rise_time, fall_time, decay_time,
-		var_allowed_in_sv))
+	    var_allowed_in_sv, bound_call))
 	    return;
 
 	/* Elaborate the l-value. */
@@ -5465,6 +5624,43 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    if (lval->local_flag())
 		  delete lval;
 	    delete_unique_delays_(rise_time, fall_time, decay_time);
+	    return;
+      }
+
+      auto vpi_contassign = [&](NetExpr*rval, perm_string driver) {
+	    NetScope::contassign_t record;
+	    record.set_line(*this);
+	    record.lval = lval->local_flag()
+		  ? elaborate_for_vpi(des, scope, const_cast<PExpr*>(pin(0)))
+		  : new NetESignal(lval);
+	    record.rval = rval;
+	    record.driver = driver;
+	    record.drive0 = drive0;
+	    record.drive1 = drive1;
+	    record.net_decl = net_decl_assign;
+	    record.delays = vpi_delays_(des, scope);
+	    return record;
+      };
+
+      if (bound_call) {
+	    if (!type_is_vectorable(lval->data_type()) && lval->data_type() != IVL_VT_REAL) {
+		  cerr << get_fileline() << ": sorry: A continuous assignment calling "
+			  "a function through an interface port requires a packed integral "
+			  "or real net destination, or a supported variable destination."
+		       << endl;
+		  des->errors += 1;
+		  if (lval->local_flag()) delete lval;
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  return;
+	    }
+	    auto record = vpi_contassign(nullptr, perm_string());
+	    NetNet*proxy = make_vif_member_continuous_proxy_(
+		  des, scope, *this, lval, drive0, drive1,
+		  rise_time, fall_time, decay_time, nullptr, &record.driver);
+	    pending_bound_interface_rhs_.push_back({
+		  this, scope, proxy, false, scope->contassigns.size()
+	    });
+	    scope->contassigns.push_back(std::move(record));
 	    return;
       }
 
@@ -5638,26 +5834,17 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	   the device on the r-value side, found before the l-value joins
 	   the nexus. A part-select or concatenation l-value is a local net,
 	   so its handle is the l-value read as an expression. */
-      NetScope::contassign_t contassign;
-      contassign.set_line(*this);
-      contassign.lval = lval->local_flag()
-	    ? elaborate_for_vpi(des, scope, const_cast<PExpr*>(pin(0)))
-	    : new NetESignal(lval);
-	/* Synthesis leaves the expression intact; the record keeps it. */
-      contassign.rval = rval_expr;
+      perm_string driver;
       for (const Link*cur = rval->pin(0).nexus()->first_nlink()
 		 ; cur ; cur = cur->next_nlink()) {
 	    const NetNode*node = dynamic_cast<const NetNode*>(cur->get_obj());
 	    if (node && cur->get_dir() == Link::OUTPUT) {
-		  contassign.driver = node->name();
+		  driver = node->name();
 		  break;
 	    }
       }
-      contassign.drive0 = drive0;
-      contassign.drive1 = drive1;
-      contassign.net_decl = net_decl_assign;
-      contassign.delays = vpi_delays_(des, scope);
-      scope->contassigns.push_back(contassign);
+	/* Synthesis leaves the expression intact; the record keeps it. */
+      scope->contassigns.push_back(vpi_contassign(rval_expr, driver));
 
       connect(lval->pin(0), rval->pin(0));
 
@@ -18753,6 +18940,13 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    return stmt->elaborate(des, scope);
       };
 
+      ivl_if_kind_t source_if = IVL_IF_NONE;
+      if (is_parsed_if_statement() && !is_immediate_assertion())
+	    source_if = else_ ? IVL_IF_ELSE : IVL_IF_PLAIN;
+      extern bool synthesis;
+      const bool keep_source = source_if != IVL_IF_NONE && !synthesis
+	    && strcmp(des->get_flag("ivl-user-vpi"), "1") == 0;
+
       if (const PEMatches*match = dynamic_cast<const PEMatches*>(expr_)) {
             NetProc*capture = nullptr;
             NetExpr*test = elaborate_statement_match_(match, if_, des, scope,
@@ -18765,6 +18959,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
             NetProc*i = elaborate_clause(if_);
             NetProc*e = elaborate_clause(else_);
             NetCondit*branch = new NetCondit(test, i, e);
+            branch->set_source_if(source_if);
             branch->set_line(*this);
             NetBlock*sequence = new NetBlock(NetBlock::SEQU, nullptr);
             sequence->set_line(*this);
@@ -18845,19 +19040,26 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    for (unsigned idx = 0 ;  idx < val.len() ;  idx += 1)
 		  reduced = reduced | val[idx];
 
+	    const bool take_if = reduced == verinum::V1;
+	    if (keep_source) {
+		  NetProc*arm = elaborate_clause(take_if ? if_ : else_);
+		  NetExpr*truth = new NetEConst(verinum(
+			take_if ? verinum::V1 : verinum::V0, 1));
+		  truth->set_line(*expr);
+		  NetCondit*res = new NetCondit(truth, take_if ? arm : nullptr,
+					       take_if ? nullptr : arm, true);
+		  res->set_source_if(source_if, expr, std::unique_ptr<NetExpr>(expr));
+		  res->set_line(*this);
+		  return res;
+	    }
+
 	    delete expr;
-	    if (reduced == verinum::V1)
-		  if (if_) {
-			return elaborate_clause(if_);
-		  } else {
-			NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
-			tmp->set_line(*this);
-			return tmp;
-		  }
-	    else if (else_)
-		  return elaborate_clause(else_);
-	    else
-		  return new NetBlock(NetBlock::SEQU, 0);
+	    if (Statement*selected = take_if ? if_ : else_)
+		  return elaborate_clause(selected);
+	    NetBlock*tmp = new NetBlock(NetBlock::SEQU, 0);
+	    if (take_if)
+		  tmp->set_line(*this);
+	    return tmp;
       }
       }
 
@@ -18867,6 +19069,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 
 	// IEEE 1800-2017/2023 15.5.5.3: an event's Boolean value "shall be 0
 	// if the event is null and 1 otherwise".
+      const NetExpr*source_expr = keep_source ? expr : nullptr;
       if (NetEEvent*event = dynamic_cast<NetEEvent*>(expr)) {
 	    NetENull*null = new NetENull(nullptr);
 	    null->set_line(*this);
@@ -18881,6 +19084,8 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    if (gn_system_verilog() && expr->expr_type() == IVL_VT_CLASS) {
 		  delete expr;
 		  expr = make_const_val(1);
+		  source_if = IVL_IF_NONE;
+		  source_expr = nullptr;
 	    } else {
 		  cerr << get_fileline() << ": internal error: "
 			"incomprehensible expression width (0) in scope "
@@ -18892,7 +19097,8 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
       }
 
 	// Make sure the condition expression evaluates to a condition.
-      expr = condition_reduce(expr);
+      std::unique_ptr<NetExpr> replaced;
+      expr = condition_reduce(expr, source_expr ? &replaced : nullptr);
 
 	// Well, I actually need to generate code to handle the
 	// conditional, so elaborate.
@@ -18917,6 +19123,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
       }
 
       NetCondit*res = new NetCondit(expr, i, e);
+      res->set_source_if(source_if, source_expr, std::move(replaced));
       res->immediate_assertion(is_immediate_assertion());
       res->set_line(*this);
       return res;
@@ -20210,6 +20417,44 @@ static bool interface_modport_prototype_matches_method_(
 	    des->errors += 1;
       }
       return matches;
+}
+
+bool check_bound_interface_function_call(
+		const LineInfo&loc, Design*des, const netclass_t*interface_type,
+		const NetFuncDef*def, const vector<named_pexpr_t>&parms,
+		const vector<pform_tf_port_t>*&prototype_ports)
+{
+      const NetScope*method = def->scope();
+      perm_string name = method->basename();
+      if (!validate_interface_modport_method_access_(loc, des, interface_type, name)
+	  || reject_interface_modport_export_call_(loc, des, interface_type, name))
+	    return false;
+      const auto*prototype = find_interface_modport_method_prototype_(interface_type, name);
+      if (!prototype) {
+	    if (interface_type->interface_modport().nil())
+		  return true;
+	    if (modport_call_uses_named_arguments_(parms)) {
+		  report_modport_full_prototype_required_(loc, des, name);
+		  return false;
+	    }
+	    const auto actuals = map_named_args(des, def, parms, 0);
+	    const auto*pform = method->func_pform();
+	    const auto*formals = pform ? pform->peek_ports() : nullptr;
+	    for (unsigned idx = 0; formals && idx < actuals.size(); ++idx) {
+		  if (!actuals[idx] && formals->at(idx).defe) {
+			report_modport_full_prototype_required_(loc, des, name);
+			return false;
+		  }
+	    }
+	    return true;
+      }
+
+      if (!interface_modport_prototype_matches_method_(
+	    loc, des, prototype, method, def,
+	    modport_prototype_names_significant_(prototype, parms), true))
+	    return false;
+      prototype_ports = prototype->ports;
+      return true;
 }
 
 /* Full import prototypes are declarations whose signatures must match even if
@@ -26685,37 +26930,35 @@ NetDeassign* PDeassign::elaborate(Design*des, NetScope*scope) const
  * expression to the constructor of NetPDelay so that the code
  * generator knows to evaluate the expression at run time.
  */
-/* IEEE 1800-2017 14.11: `## count [statement]` waits `count` events of
-   the default clocking block (14.12) declared in the current
-   module/interface/program scope. Lower it to
-
-       repeat (count) @(<default clocking name>) ; <statement>
-
-   The synthesized @(name) event control resolves through the same
-   clocking-block machinery as source-level `@(cb)` references, so the
-   underlying event expression (e.g. posedge clk) is picked up from the
-   block's declaration. */
+/* IEEE 1800-2017/2023 14.11: `## count [statement]` waits on the
+   public event of the default clocking block in effect (14.12). */
 NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, scope);
 
-      perm_string cb_name;
-      for (const NetScope*walker = scope ; walker ; walker = walker->parent()) {
-	    if (walker->type() != NetScope::MODULE)
-		  continue;
-	    perm_string mn = walker->module_name();
-	    /* A module instance is a scope boundary for default clocking.
-	       Its parent may be a module that declares one, but IEEE 1800-2017
-	       14.12 explicitly excludes instantiated modules from that scope. */
-	    if (mn.nil()) break;
-	    auto pmod_it = pform_modules.find(mn);
-	    if (pmod_it != pform_modules.end()
-		&& !pmod_it->second->default_clocking.nil())
-		  cb_name = pmod_it->second->default_clocking;
-	    break;
+      NetScope*module_scope = scope;
+      while (module_scope && !module_scope->module_definition())
+	    module_scope = module_scope->parent();
+
+	// Select the declaration lexically, then find its enclosing instance.
+	// A separately declared child does not inherit its parent's default.
+      const Module*module = module_scope ? module_scope->module_definition() : nullptr;
+      const Module*clock_owner = nullptr;
+      for (const LexicalScope*lex = module;
+	   lex; lex = lex->parent_scope()) {
+	    const Module*owner = dynamic_cast<const Module*>(lex);
+	    if (owner && !owner->default_clocking.nil()) {
+		  clock_owner = owner;
+		  break;
+	    }
       }
 
-      if (cb_name.nil()) {
+      NetScope*clock_scope = module_scope;
+      if (clock_owner) {
+	    while (clock_scope && clock_scope->module_definition() != clock_owner)
+		  clock_scope = clock_scope->parent();
+      }
+      if (!clock_owner || !clock_scope) {
 	    cerr << get_fileline() << ": error: ## cycle delay requires a "
 		 << "default clocking block in scope (IEEE 1800 14.11)."
 		 << endl;
@@ -26723,23 +26966,12 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    return 0;
       }
 
-	/* Heap-allocate the synthesized pform fragment: PRepeat's
-	   destructor deletes its children, and pform objects normally
-	   live for the whole compilation anyway. UINT_MAX as the
-	   lexical position marks the reference as following all
-	   declarations, so no declared-after-use diagnostics fire. */
-      PEIdent*cb_id = new PEIdent(cb_name, UINT_MAX);
-      cb_id->set_line(*this);
-      PEEvent*cb_ev = new PEEvent(PEEvent::ANYEDGE, cb_id);
-      PEventStatement*wait_stmt = new PEventStatement(cb_ev);
-      wait_stmt->set_line(*this);
-
-	/* repeat (0) normally removes its body. IEEE 1800-2017 14.11
-	   instead makes ##0 wait for this time step's clocking event when
-	   that event has not happened yet. The public clocking event has a
-	   matching internal named event whose triggered property tracks that
-	   condition. */
       NetExpr*count_expr = elab_and_eval(des, scope, count_, -1);
+      if (!count_expr) {
+	    cerr << get_fileline() << ": Unable to elaborate repeat expression." << endl;
+	    des->errors += 1;
+	    return nullptr;
+      }
       const NetEConst*count_const = dynamic_cast<const NetEConst*>(count_expr);
       const bool allow_zero = generation_flag >= GN_VER2023;
       const char*range_error = allow_zero
@@ -26756,27 +26988,53 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 		  cerr << get_fileline() << ": error: " << range_error << endl;
 		  des->errors += 1;
 		  delete count_expr;
-		  delete wait_stmt;
 		  return 0;
 	    }
       }
-      bool dynamic_count = count_expr && !count_const;
+      if (scope->in_func() || scope->in_final()) {
+	    cerr << get_fileline() << ": error: "
+		 << (scope->in_func() ? "functions cannot have event statements."
+				      : "final procedures cannot have event statements.")
+		 << endl;
+	    des->errors += 1;
+	    delete count_expr;
+	    return nullptr;
+      }
+
+      perm_string cb_name = clock_owner->default_clocking;
+      string trig_name = string("_ivl_cbtrig$") + cb_name.str();
+      NetEvent*trigger = clock_scope->find_event(lex_strings.make(trig_name.c_str()));
+      if (!trigger) {
+	    cerr << get_fileline() << ": error: internal clocking-block "
+		 << "synchronization event is missing for `" << cb_name << "'." << endl;
+	    des->errors += 1;
+	    delete count_expr;
+	    return nullptr;
+      }
+      auto make_wait = [this, trigger]() {
+	    NetEvWait*wait = new NetEvWait(nullptr);
+	    wait->set_line(*this);
+	    wait->add_event(trigger);
+	    return wait;
+      };
+
+      bool dynamic_count = !count_const;
       if (zero_count || dynamic_count) {
-	    string trig_name_str = string("_ivl_cbtrig$") + cb_name.str();
-	    perm_string trig_name = lex_strings.make(trig_name_str.c_str());
-	    pform_name_t trig_path;
-	    trig_path.push_back(name_component_t(trig_name));
-	    trig_path.push_back(name_component_t(perm_string::literal("triggered")));
-	    PEIdent*trig_id = new PEIdent(trig_path, UINT_MAX);
-	    trig_id->set_line(*this);
-	    PCondit*wait_if_needed = new PCondit(trig_id, nullptr, wait_stmt);
-	    wait_if_needed->set_line(*this);
-	    NetProc*proc = wait_if_needed->elaborate(des, scope);
+	      // ##0 waits only if this same clocking event has yet to fire
+	      // in the current time step.
+	    NetESFunc*triggered = new NetESFunc(
+		  "$ivl_event_method$triggered", IVL_VT_BOOL, 1, 1);
+	    NetEEvent*event = new NetEEvent(trigger);
+	    event->set_line(*this);
+	    triggered->parm(0, event);
+	    triggered->set_line(*this);
+	    NetProc*proc = new NetCondit(triggered, nullptr, make_wait());
+	    proc->set_line(*this);
 	    NetNet*saved = nullptr;
 	    NetAssign*save = nullptr;
 	    const bool check_range = expression_value_ && dynamic_count
 		&& type_is_vectorable(count_expr->expr_type());
-	    if (dynamic_count && proc) {
+	    if (dynamic_count) {
 		  if (count_expr->expr_type() == IVL_VT_REAL)
 			count_expr = cast_to_int4(count_expr, 64);
 		  const netvector_t*type = new netvector_t(
@@ -26789,13 +27047,7 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 			saved->lifetime_override(IVL_VLT_AUTOMATIC);
 		  save = new NetAssign(new NetAssign_(saved), count_expr);
 		  save->set_line(*this);
-		  NetProc*event_wait = wait_stmt->elaborate(des, scope);
-		  if (!event_wait) {
-			delete proc;
-			delete save;
-			return 0;
-		  }
-		  NetRepeat*repeat = new NetRepeat(new NetESignal(saved), event_wait);
+		  NetRepeat*repeat = new NetRepeat(new NetESignal(saved), make_wait());
 		  repeat->set_line(*this);
 		  NetCondit*choice = new NetCondit(new NetESignal(saved), repeat, proc);
 		  choice->set_line(*this);
@@ -26803,7 +27055,7 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
 	    } else {
 		  delete count_expr;
 	    }
-	    if (proc && statement_) {
+	    if (statement_) {
 		  NetProc*sub = statement_->elaborate(des, scope);
 		  if (sub == 0) {
 			delete proc;
@@ -26842,30 +27094,21 @@ NetProc* PCycleDelay::elaborate(Design*des, NetScope*scope) const
       }
 
       NetProc*rep;
-      if (expression_value_ && count_const) {
-	    // Keep the full positive count. PRepeat folds through a host long.
-	    NetProc*event_wait = wait_stmt->elaborate(des, scope);
-	    delete wait_stmt;
-	    if (!event_wait) {
-		  delete count_expr;
-		  return 0;
-	    }
-	    rep = new NetRepeat(count_expr, event_wait);
-	    rep->set_line(*this);
-      } else {
+      if (!expression_value_ && count_const->value().as_long() == 1) {
 	    delete count_expr;
-	    PRepeat*rep_stmt = new PRepeat(count_, wait_stmt);
-	    rep_stmt->set_line(*this);
-	    rep = rep_stmt->elaborate(des, scope);
+	    rep = make_wait();
+      } else {
+	    rep = new NetRepeat(count_expr, make_wait());
+	    rep->set_line(*this);
       }
-      if (rep == 0)
-	    return 0;
       if (statement_ == 0)
 	    return rep;
 
       NetProc*sub = statement_->elaborate(des, scope);
-      if (sub == 0)
+      if (sub == 0) {
+	    delete rep;
 	    return 0;
+      }
 
       NetBlock*blk = new NetBlock(NetBlock::SEQU, 0);
       blk->set_line(*this);
@@ -29180,7 +29423,11 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  nset->rem(vif_roots);
 	    }
 	    if (nset->size() == 0 && implicit_vif_paths.empty()) {
-                  if (always_sens_) return wa;
+		  delete nset;
+		  if (always_sens_) {
+			delete ev;
+			return wa;
+		  }
 
 		  cerr << get_fileline() << ": warning: @* found no "
 		          "sensitivities so it will never trigger."
@@ -45753,28 +46000,6 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 					       value_slots, 32);
 	    }
 
-	      // Footnote 43 (IEEE 1800-2017/2023 A.2.11 constraint_block_item):
-	      // "The local:: qualifier shall only appear within the scope of
-	      // an inline constraint block." A plain class-body `constraint'
-	      // declaration builds its IR with value_slots == nullptr (no
-	      // randomize()-call-site scope to capture from at all), so
-	      // reaching here with local_qualified true means `local::' was
-	      // used outside an inline constraint -- illegal, not merely a
-	      // property reference. Without this check, `local::x' silently
-	      // fell through to ordinary property lookup below, resolving to
-	      // obj's OWN (live, jointly-solved) `x' instead of being
-	      // rejected -- confirmed independently: slang rejects the
-	      // identical construct ("'local' qualifier not allowed here").
-	    if (local_qualified && !value_slots) {
-		  cerr << expr->get_fileline() << ": error: The `local::' "
-		       << "qualifier is illegal outside an inline constraint "
-		       << "block (IEEE 1800-2017/2023 18.7.1, footnote 43)."
-		       << endl;
-		  if (constraint_ir_design_ctx_)
-			constraint_ir_design_ctx_->errors += 1;
-		  return "";
-	    }
-
 	      /* An explicit IEEE 18.7 `with (identifier_list)' changes only
 	       * unqualified lookup. Listed roots are target members; an omitted
 	       * root is evaluated in the caller even if the target class has a
@@ -59770,7 +59995,7 @@ static void resolve_extern_function_sensitivity_(Design*des)
       deferred_extern_sensitivity_.clear();
 }
 
-Design* elaborate(list<perm_string>roots)
+Design* elaborate(list<perm_string>roots, const map<string,const char*>&flags)
 {
       unsigned npackages = pform_packages.size();
       if (gn_system_verilog())
@@ -59785,8 +60010,10 @@ Design* elaborate(list<perm_string>roots)
       // This is the output design. I fill it in as I scan the root
       // module and elaborate what I find.
       Design*des = new Design;
+      des->set_flags(flags);
       seed_design_precision_(des);
       pending_interface_continuous_drivers_.clear();
+      pending_bound_interface_rhs_.clear();
       pending_interface_specify_paths_.clear();
       pending_interface_variable_continuous_drivers_.clear();
       interface_port_scope_bindings_.clear();
@@ -60223,6 +60450,8 @@ Design* elaborate(list<perm_string>roots)
        * installed. Attach each persistent continuous net driver now, after all
        * scalar, array, and forwarded interface bindings are complete. */
       finalize_interface_ref_actuals_();
+      if (rc && des->errors == 0)
+	    elaborate_bound_interface_rhs_(des);
       prepare_interface_path_shadows_(des);
       finalize_interface_continuous_drivers_(des);
       finalize_resolved_struct_nets_(des);

@@ -131,6 +131,9 @@ class PExpr : public LineInfo {
       // itself be an assignment-compatible array (IEEE 1800-2017/2023 7.5.1).
       // Do not apply scalar-to-element contextualization while elaborating it.
       static const unsigned DARRAY_NEW_INIT = 0x80;
+      // Check array element equivalence before scalar-context conversions
+      // for a fixed child of an associative-array assignment pattern.
+      static const unsigned ASSOC_FIXED_PATTERN_ITEM = 0x8000;
 
 	// Convert width mode to human-readable form.
       static const char*width_mode_name(width_mode_t mode);
@@ -1788,12 +1791,14 @@ class PECallFunction : public PExpr {
 				  width_mode_t&mode);
 
       NetExpr*elaborate_base_(Design*des, NetScope*scope, NetScope*dscope,
-			      unsigned flags) const;
+			      unsigned flags,
+			      const netclass_t*interface_type = nullptr) const;
 
       unsigned elaborate_arguments_(Design*des, NetScope*scope,
                                     const NetFuncDef*def, bool need_const,
                                     std::vector<NetExpr*>&parms,
-                                    unsigned parm_off) const;
+                                    unsigned parm_off,
+                                    const std::vector<pform_tf_port_t>*prototype_ports = nullptr) const;
 };
 
 /*

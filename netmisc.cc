@@ -215,6 +215,17 @@ static bool assoc_array_type_is_direct_(ivl_type_t type)
       return queue && queue->assoc_compat();
 }
 
+bool positional_byte_container_type(ivl_type_t type)
+{
+      const netdarray_t*array = dynamic_cast<const netdarray_t*>(type);
+      if (!array || assoc_array_type_is_direct_(array))
+	    return false;
+
+      ivl_type_t element = array->element_type();
+      return element && packed_types_equivalent(&netvector_t::atom2s8,
+						 element);
+}
+
 static bool assoc_array_component_equivalent_(ivl_type_t left,
 					       ivl_type_t right);
 
@@ -1964,7 +1975,7 @@ NetNet* make_const_z(Design*des, NetScope*scope, unsigned long wid)
       return make_const_net(des, scope, verinum(verinum::Vz, wid));
 }
 
-NetExpr* condition_reduce(NetExpr*expr)
+NetExpr* condition_reduce(NetExpr*expr, std::unique_ptr<NetExpr>*replaced)
 {
       if (expr->expr_type() == IVL_VT_REAL) {
 	    if (const NetECReal *tmp = dynamic_cast<NetECReal*>(expr)) {
@@ -1974,7 +1985,10 @@ NetExpr* condition_reduce(NetExpr*expr)
 		  verinum vres (res, 1, true);
 		  NetExpr *rtn = new NetEConst(vres);
 		  rtn->set_line(*expr);
-		  delete expr;
+		  if (replaced)
+			replaced->reset(expr);
+		  else
+			delete expr;
 		  return rtn;
 	    }
 
@@ -2467,6 +2481,35 @@ NetExpr* elab_and_eval(Design*des, NetScope*scope, PExpr*pe,
 
       NetExpr*tmp = pe->elaborate_expr(des, scope, lv_net_type, flags);
       if (tmp == 0) return 0;
+
+      if (flags & PExpr::ASSOC_FIXED_PATTERN_ITEM) {
+	    const netuarray_t*fixed = dynamic_cast<const netuarray_t*>(lv_net_type);
+	    if (fixed) {
+		    // The declaration or function result carries the original
+		    // array type even in the context of the fixed pattern child.
+		  ivl_type_t source_type = tmp->net_type();
+		  const NetESignal*signal = dynamic_cast<const NetESignal*>(tmp);
+		  if (const NetEUFunc*call = dynamic_cast<const NetEUFunc*>(tmp))
+			signal = call->result_sig();
+		  if (signal && signal->sig() && signal->sig()->array_type())
+			source_type = signal->word_index() ? signal->sig()->net_type()
+			      : signal->sig()->array_type();
+
+		  const netdarray_t*source = dynamic_cast<const netdarray_t*>(source_type);
+		  const netqueue_t*queue = dynamic_cast<const netqueue_t*>(source);
+		  if (source && !(queue && queue->assoc_compat())) {
+			if (uarray_element_equivalent_container_(fixed, source))
+			      return tmp;
+			cerr << pe->get_fileline() << ": error: a dynamic-array or queue "
+			     << "value in an associative fixed-array pattern requires "
+			     << "equivalent element types (IEEE 1800-2017/2023 6.22.2, 7.6)."
+			     << endl;
+			des->errors += 1;
+			delete tmp;
+			return nullptr;
+		  }
+	    }
+      }
 
 	/* IEEE 1800-2017/2023 25.9 makes the complete interface
 	 * specialization (effective parameter values AND types, plus the selected
