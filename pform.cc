@@ -18194,7 +18194,8 @@ enum sva_step_wait_op { SVA_STEP_WAIT_ENTER = -1, SVA_STEP_WAIT_TICK = -2,
 /* Attempt/success reports update coverage even when there are no callback
    subscribers. Other callback reasons stay gated. */
 static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
-				   int reason, PExpr*age = nullptr)
+				   int reason, PExpr*age = nullptr,
+				   PExpr*row = nullptr)
 {
       std::list<named_pexpr_t> args;
       named_pexpr_t a0;
@@ -18207,6 +18208,12 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
 	    named_pexpr_t a2;
 	    a2.parm = age;
 	    args.push_back(a2);
+      }
+      if (row) {
+	    assert(age);
+	    named_pexpr_t a3;
+	    a3.parm = row;
+	    args.push_back(a3);
       }
       PCallTask*rep = new PCallTask(
 	    lex_strings.make("$ivl_assert_report"), args);
@@ -18375,13 +18382,13 @@ static Statement* sva_clock_stmt_(const struct vlltype&loc, unsigned inst)
  * more (final blocks, Postponed, post-simulation).  See vvp/vthread.cc
  * of_WAIT_REACTIVE and schedule_regions_live(). */
 static Statement* sva_fail_action_(const struct vlltype&loc, unsigned inst,
-				   Statement*action)
+				   Statement*action, Statement*report = nullptr)
 {
       std::vector<Statement*> v;
       v.push_back(sva_reactive_wait_(loc));
       v.push_back(sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
 				    SVA_STATE_FAIL_ACTION, action));
-      v.push_back(sva_report_stmt_(loc, inst, SVA_CB_FAILURE));
+      v.push_back(report ? report : sva_report_stmt_(loc, inst, SVA_CB_FAILURE));
       return sva_block_(loc, v);
 }
 
@@ -28871,6 +28878,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   endpoint fan-out lack a single top-level slot per attempt.
 	   Sequence coverage can have multiple matches per attempt. */
       bool steps_ok = !sub && !endpoint_fanout && !sequence_cover;
+      const bool report_guard_failure =
+	    steps_ok && !cover && !negated && !forbidden && !endpoint;
       std::vector<perm_string> ob;
       bool track_ob = implication && !endpoint_fanout && !sequence_cover;
       if (track_ob) {
@@ -28893,9 +28902,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    r_p = sva_make_reg_(loc, inst, "p", 0, true);
 	    init_zero.push_back(sva_assign_(loc, r_p, sva_bit_(loc, 0)));
       }
-      std::vector<perm_string> ser;
+      std::vector<perm_string> ser, attempt_start;
       perm_string r_watch;  // a callback is registered, read once per tick
       std::vector<PExpr*> step_guards;  // distinct edge guards, in order
+      std::map<PExpr*, perm_string> slot_guard;
       if (steps_ok) {
 	    r_watch = sva_make_reg_(loc, inst, "watch", 0);
 	    init_zero.push_back(sva_assign_(loc, r_watch, sva_bit_(loc, 0)));
@@ -28905,10 +28915,16 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			    == step_guards.end())
 			      step_guards.push_back(g);
       }
+      if (report_guard_failure)
+	    for (size_t g = 0; g < step_guards.size(); ++g)
+		  if (local_guard_expr.count(step_guards[g]))
+			slot_guard[step_guards[g]] = sva_make_reg_(loc, inst, "slotb", g);
       if (steps_ok)
 	    for (long k = 0 ; k < K ; k += 1) {
 		  ser.push_back(sva_make_reg_(loc, inst, "ser", k, true));
 		  init_zero.push_back(sva_assign_(loc, ser[k], sva_num32_(loc, 0)));
+		  if (report_guard_failure)
+			attempt_start.push_back(sva_make_reg_(loc, inst, "start", k, true));
 	    }
       perm_string r_cnt;
       if (cover && !endpoint) {
@@ -28964,6 +28980,20 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   saved, each resolving slot also records its own verdict, so its
 	   actions run with that slot's values (see the dispatch below). */
       const bool slot_dispatch = proc_caps && !cover;
+      auto nfa_failure = [&](PExpr*index, PExpr*states = nullptr,
+			     PExpr*guards = nullptr, PExpr*start = nullptr) {
+	    std::list<named_pexpr_t> args;
+	    for (PExpr*e : {sva_num32_(loc, inst), index, states, guards, start}) {
+		  if (!e) break;
+		  named_pexpr_t arg;
+		  arg.parm = e;
+		  args.push_back(arg);
+	    }
+	    PCallTask*t = new PCallTask(
+		  perm_string::literal("$ivl_assert_nfa_failure"), args);
+	    FILE_NAME(t, loc);
+	    return t;
+      };
       std::vector<perm_string> pbit, vbit, fbit;
       if (slot_dispatch)
 	    for (long k = 0 ; k < K ; k += 1) {
@@ -29020,7 +29050,10 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    PExpr*term = sva_id_(loc, states[ed.from]);
 	    for (size_t g = 0 ; g < guards.size() ; g += 1) {
 		  PExpr*gk = guards[g];
-		  if (has_lv && sva_expr_reads_lv_(gk, lv_index)) {
+		  auto sampled = slot_guard.find(gk);
+		  if (sampled != slot_guard.end()) {
+			term = sva_logic_(loc, 'a', term, sva_id_(loc, sampled->second));
+		  } else if (has_lv && sva_expr_reads_lv_(gk, lv_index)) {
 			std::map<PExpr*,PExpr*>::iterator it = local_guard_expr.find(gk);
 			assert(it != local_guard_expr.end());
 			term = sva_logic_(loc, 'a', term,
@@ -29221,6 +29254,13 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			take.push_back(sva_assign_(loc, ser[k],
 			      new PETernary(sva_id_(loc, r_watch), serial,
 					    sva_num32_(loc, 0))));
+		  }
+		  if (report_guard_failure) {
+			std::list<named_pexpr_t> no_parms;
+			PECallFunction*start = new PECallFunction(
+			      perm_string::literal("$simtime"), no_parms);
+			FILE_NAME(start, loc);
+			take.push_back(sva_assign_(loc, attempt_start[k], start));
 		  }
 		  if (slot_dispatch)
 			take.push_back(sva_assign_(loc, sseq[k], sva_id_(loc, sqn)));
@@ -29463,6 +29503,19 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    std::map<perm_string,PExpr*> lvmap;
 	    for (unsigned li = 0 ; li < lv_list.size() ; li += 1)
 		  lvmap[lv_list[li]] = sva_id_(loc, vk[k][li]);
+	      /* Keep the guard values used to advance this slot until any
+		 failure is recorded, even when a match item updates a local. */
+	    if (!slot_guard.empty()) {
+		  std::vector<Statement*> sample;
+		  for (PExpr*g : step_guards) {
+			auto dst = slot_guard.find(g);
+			if (dst != slot_guard.end())
+			      sample.push_back(sva_assign_(loc, dst->second,
+				    sva_clone_subst_(local_guard_expr.at(g), &lvmap)));
+		  }
+		  body.push_back(sva_if_(loc, busy_expr(k),
+					sva_block_(loc, sample), nullptr));
+	    }
 	      /* Compute the cut from this antecedent slot's pre-advance
 		 state and sampled endpoint guards, before any consequent runs. */
 	    std::map<unsigned,PExpr*> exit_hits;
@@ -29485,34 +29538,40 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		 this tick's next-state bits and guard values go to the runtime,
 		 which picks the step against the automaton registered at time
 		 0 (see vpip_assertion_nfa_step). */
-	    if (steps_ok) {
-		  auto bits = [&](std::vector<PExpr*>&v) {
-			std::list<PExpr*> l (v.rbegin(), v.rend());
-			PEConcat*c = new PEConcat(l);
-			FILE_NAME(c, loc);
-			return c;
-		  };
-		  std::vector<PExpr*> pre_bits, nxt, gv;
-		  for (unsigned j = 0 ; j < N ; j += 1) {
-			pre_bits.push_back(sva_id_(loc, s[k][j]));
-			nxt.push_back(sva_id_(loc, nx[j]));
-		  }
-		  for (size_t g = 0 ; g < step_guards.size() ; g += 1) {
-			PExpr*gk = step_guards[g];
-			if (has_lv && sva_expr_reads_lv_(gk, lv_index))
-			      gv.push_back(sva_not_(loc, sva_not_(loc,
-				    sva_clone_subst_(local_guard_expr[gk], &lvmap))));
+	    auto bits = [&](const std::list<PExpr*>&values) {
+		  PEConcat*c = new PEConcat(values);
+		  FILE_NAME(c, loc);
+		  return c;
+	    };
+	    auto state_bits = [&](const std::vector<perm_string>&states) {
+		  std::list<PExpr*> values;
+		  for (perm_string state : states)
+			values.push_front(sva_id_(loc, state));
+		  return bits(values);
+	    };
+	    auto guard_bits = [&]() -> PExpr* {
+		  std::list<PExpr*> values;
+		  for (PExpr*g : step_guards) {
+			auto sampled = slot_guard.find(g);
+			auto shared = guard_reg.find(g);
+			if (sampled != slot_guard.end())
+			      values.push_front(sva_id_(loc, sampled->second));
+			else if (shared != guard_reg.end())
+			      values.push_front(sva_id_(loc, shared->second));
 			else
-			      gv.push_back(sva_id_(loc, guard_reg[gk]));
+			      values.push_front(sva_not_(loc, sva_not_(loc,
+				    sva_clone_subst_(local_guard_expr.at(g), &lvmap))));
 		  }
-		  if (gv.empty()) gv.push_back(sva_bit_(loc, 0));
+		  return values.empty() ? sva_bit_(loc, 0) : bits(values);
+	    };
+	    if (steps_ok) {
 		  std::list<named_pexpr_t> args;
 		  named_pexpr_t a;
 		  a.parm = sva_num32_(loc, inst); args.push_back(a);
 		  a.parm = sva_id_(loc, ser[k]); args.push_back(a);
-		  a.parm = bits(pre_bits); args.push_back(a);
-		  a.parm = bits(nxt); args.push_back(a);
-		  a.parm = bits(gv); args.push_back(a);
+		  a.parm = state_bits(s[k]); args.push_back(a);
+		  a.parm = state_bits(nx); args.push_back(a);
+		  a.parm = guard_bits(); args.push_back(a);
 		  a.parm = track_ob ? (PExpr*)sva_id_(loc, ob[k]) : sva_bit_(loc, 1);
 		  args.push_back(a);
 		  PCallTask*t = new PCallTask(lex_strings.make("$ivl_assert_nfa_step"),
@@ -29547,11 +29606,16 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  if (PExpr*hit = edges_taken(mid_steps[m].gate, k, lvmap, exit_hits))
 			body.push_back(sva_if_(loc, hit, sva_assign_(loc,
 				    mid_hit[k][m], sva_bit_(loc, 1)), nullptr));
-	    for (std::map<unsigned,PExpr*>::iterator it = exit_hits.begin();
-		 it != exit_hits.end(); ++it) delete it->second;
-	    for (std::map<perm_string,PExpr*>::iterator it = lvmap.begin();
-		 it != lvmap.end() ; ++it)
-		  delete it->second;
+	    auto fail_slot = [&]() -> Statement* {
+		  Statement*increment = increment_verdict(r_f, k);
+		  if (!report_guard_failure) return increment;
+		    /* Procedural dispatch selects a slot by enqueue order.
+		       Count-based dispatch consumes records in insertion order. */
+		  PExpr*index = slot_dispatch ? sva_num32_(loc, k) : sva_id_(loc, r_f);
+		  Statement*save = nfa_failure(index, state_bits(s[k]), guard_bits(),
+					       sva_id_(loc, attempt_start[k]));
+		  return sva_block_(loc, {save, increment});
+	    };
 
 	    PExpr*alive = sva_id_(loc, nx[0]);
 	    for (unsigned j = 1 ; j < N ; j += 1)
@@ -29614,11 +29678,11 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  vac.push_back(increment_verdict(r_p, k));
 		  vac.push_back(increment_verdict(vacuous, k));
 		  Statement*nonvacuous = forbidden ? increment_verdict(r_p, k)
-			: increment_verdict(r_f, k);
+			: fail_slot();
 		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
 					  nonvacuous, sva_block_(loc, vac)));
 	    } else if (!cover && !endpoint_fanout) {
-		  die_v.push_back(increment_verdict(negated ? r_p : r_f, k));
+		  die_v.push_back(negated ? increment_verdict(r_p, k) : fail_slot());
 	    }
 	    if (track_ob)
 		  die_v.push_back(sva_assign_(loc, ob[k], sva_bit_(loc, 0)));
@@ -29634,6 +29698,8 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 					   sva_block_(loc, die_v),
 					   sva_block_(loc, cont_v)));
 	    body.push_back(st);
+	    for (const auto&hit : exit_hits) delete hit.second;
+	    for (const auto&local : lvmap) delete local.second;
 	    if (sub && sub->endpoints) {
 		  PEBinary*done = new PEBinary('|', sva_id_(loc, vd[k]),
 					       sva_num32_(loc, 2));
@@ -29947,6 +30013,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 				 sva_block_(loc, run), nullptr));
       }
       const size_t slot_dispatch_at = body.size();
+      perm_string dk;
+      if (slot_dispatch || report_guard_failure)
+	    dk = sva_make_reg_(loc, inst, "dk", 0, true);
       Statement*slot_pass = nullptr;
       Statement*slot_fail = nullptr;
       bool slot_pass_guarded = false;
@@ -30011,11 +30080,18 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  action = err;
 	    }
 	    std::vector<Statement*> hit;
-	    Statement*fail_action = sva_fail_action_(loc, inst, action);
+	    Statement*report = report_guard_failure ? nfa_failure(sva_id_(loc, dk)) : nullptr;
+	    Statement*fail_action = sva_fail_action_(loc, inst, action, report);
 	    if (slot_dispatch)
 		  slot_fail = fail_action;
-	    else
+	    else {
+		  if (report_guard_failure) {
+			hit.push_back(sva_assign_(loc, dk, sva_num32_(loc, 0)));
+			fail_action = sva_block_(loc, {fail_action, sva_assign_(loc, dk,
+			      new PEBinary('+', sva_id_(loc, dk), sva_bit_(loc, 1)))});
+		  }
 		  hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f), fail_action));
+	    }
 	    hit.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
 	    body.push_back(sva_if_(loc, sva_id_(loc, r_f),
 				   sva_block_(loc, hit), nullptr));
@@ -30026,7 +30102,6 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	   values its instance saved: load them into the source registers the
 	   actions read, slot by slot, before that slot's actions run. */
       if (slot_dispatch && (slot_pass || slot_fail)) {
-	    perm_string dk = sva_make_reg_(loc, inst, "dk", 0, true);
 	    perm_string cp = sva_make_reg_(loc, inst, "dcp", 0);
 	    perm_string cv = sva_make_reg_(loc, inst, "dcv", 0);
 	    perm_string cf = sva_make_reg_(loc, inst, "dcf", 0);
@@ -44232,14 +44307,13 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	 windows and negated forms until they carry distinct attempt records. */
       bool track_failure_age = kind != 2 && !has_window && !unbounded
 				 && !negated;
-      std::vector<perm_string> failure_at_age;
+      std::map<long, perm_string> failure_at_age;
       if (track_failure_age) {
-	    failure_at_age.resize((size_t)P + 1);
-	    for (long age = 0; age <= P; ++age) {
-		  failure_at_age[(size_t)age] = sva_make_reg_(
-			loc, inst, "fage", (unsigned)age);
-		  init_zero.push_back(sva_assign_(loc,
-			failure_at_age[(size_t)age], sva_bit_(loc, 0)));
+	    for (size_t j = 0; j < nfixed; ++j) {
+		  perm_string&row = failure_at_age[offs[j]];
+		  if (!row.nil()) continue;
+		  row = sva_make_reg_(loc, inst, "fage", (unsigned)offs[j], true);
+		  init_zero.push_back(sva_assign_(loc, row, sva_bit_(loc, 0)));
 	    }
       }
       perm_string r_kill;
@@ -44282,9 +44356,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  clr.push_back(sva_assign_(loc, r_f, sva_bit_(loc, 0)));
 		  if (negated)
 			clr.push_back(sva_assign_(loc, r_neg_pass, sva_bit_(loc, 0)));
-		  for (size_t age = 0; age < failure_at_age.size(); ++age)
-			clr.push_back(sva_assign_(loc, failure_at_age[age],
-					      sva_bit_(loc, 0)));
+		  for (const auto&at : failure_at_age)
+			clr.push_back(sva_assign_(loc, at.second, sva_bit_(loc, 0)));
 	    }
 	    return sva_block_(loc, clr);
       };
@@ -44432,8 +44505,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    else if (negated)
 		  hit.push_back(increment_neg_pass());
 	    if (track_failure_age)
-		  hit.push_back(sva_assign_(loc, failure_at_age[0],
-					    sva_bit_(loc, 1)));
+		  hit.push_back(step_tab.pick(failure_at_age.at(0),
+					      SVA_CB_FAILURE, 0, 0, {seq_text[j]}));
 	    hit.push_back(sva_assign_(loc, r_g, sva_bit_(loc, 0)));
 	    PCondit*c = new PCondit(cond, sva_block_(loc, hit), nullptr);
 	    FILE_NAME(c, loc);
@@ -44457,8 +44530,8 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    else if (negated)
 		  hit.push_back(increment_neg_pass());
 	    if (track_failure_age)
-		  hit.push_back(sva_assign_(loc,
-			failure_at_age[(size_t)offs[j]], sva_bit_(loc, 1)));
+		  hit.push_back(step_tab.pick(failure_at_age.at(offs[j]),
+					      SVA_CB_FAILURE, 0, 0, {seq_text[j]}));
 	    hit.push_back(sva_assign_(loc, treg, sva_bit_(loc, 0)));
 	    PCondit*c = new PCondit(cond, sva_block_(loc, hit), nullptr);
 	    FILE_NAME(c, loc);
@@ -44758,17 +44831,17 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    if (track_failure_age) {
 		  /* Emit each callback before executing a possibly timed user
 		     action. Its raw clock-history age is still available, and
-		     one bit corresponds to one distinct failed pipeline token. */
+		     a nonzero row identifies the predicate that killed the token. */
 		  hit.push_back(sva_reactive_wait_(loc));
-		  for (long age = 0; age <= P; ++age) {
+		  for (const auto&at : failure_at_age) {
+			perm_string row = at.second;
 			std::vector<Statement*> report;
 			report.push_back(sva_report_stmt_(loc, inst,
 				SVA_CB_FAILURE,
-				sva_num32_(loc, (uint64_t)(ante_span + age))));
-			report.push_back(sva_assign_(loc,
-				failure_at_age[(size_t)age], sva_bit_(loc, 0)));
-			hit.push_back(sva_if_(loc,
-				sva_id_(loc, failure_at_age[(size_t)age]),
+				sva_num32_(loc, (uint64_t)(ante_span + at.first)),
+				sva_id_(loc, row)));
+			report.push_back(sva_assign_(loc, row, sva_bit_(loc, 0)));
+			hit.push_back(sva_if_(loc, sva_id_(loc, row),
 				sva_block_(loc, report), nullptr));
 		  }
 		  hit.push_back(sva_repeat_(loc, sva_id_(loc, r_f),

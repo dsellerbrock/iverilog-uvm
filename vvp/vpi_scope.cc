@@ -3096,13 +3096,6 @@ class __vpiAssertion : public __vpiHandle {
 	    std::map<vvp_time64_t,bool>::const_iterator on =
 		  step_ctl_.find(it->second);
 	    if (on == step_ctl_.end() || !on->second) return;
-	    auto bit = [](const char*v, int j) {
-		  int len = (int)strlen(v);
-		  return j < len && v[len-1-j] == '1';
-	    };
-	    auto id = [&](int j) {
-		  return j == nfa_.start ? 0 : j == nfa_.accept ? 1 : j + 2;
-	    };
 	    auto exprs = [&](const nfa_edge_t&e, size_t n) {
 		  std::vector<vpiHandle> r;
 		  for (size_t i = 0 ; i < n && i < e.guards.size() ; i += 1)
@@ -3110,45 +3103,57 @@ class __vpiAssertion : public __vpiHandle {
 		  return r;
 	    };
 	    bool alive = false;
-	    for (int j = 0 ; j < nfa_.nstates ; j += 1) alive |= bit(nx, j);
+	    for (int j = 0 ; j < nfa_.nstates ; j += 1) alive |= nfa_bit_(nx, j);
 	    if (alive) {
 		  const nfa_edge_t*best = 0;
 		  for (const nfa_edge_t&e : nfa_.edges) {
-			bool taken = bit(pre, e.from) && bit(nx, e.to);
-			for (int g : e.guards) taken = taken && bit(gv, g);
+			bool taken = nfa_bit_(pre, e.from) && nfa_bit_(nx, e.to);
+			for (int g : e.guards) taken = taken && nfa_bit_(gv, g);
 			if (!taken) continue;
 			if (!best
 			    || (e.to == nfa_.accept && best->to != nfa_.accept)
 			    || ((e.to == nfa_.accept) == (best->to == nfa_.accept)
-				&& id(e.from) < id(best->from)))
+				&& nfa_state_id_(e.from) < nfa_state_id_(best->from)))
 			      best = &e;
 		  }
 		  if (best)
-			deliver_(cbAssertionStepSuccess, it->second, id(best->from),
-				 id(best->to), exprs(*best, best->guards.size()));
+			deliver_(cbAssertionStepSuccess, it->second,
+				 nfa_state_id_(best->from), nfa_state_id_(best->to),
+				 exprs(*best, best->guards.size()));
 		  return;
 	    }
-	    int from = -1;
-	    for (int j = 0 ; j < nfa_.nstates ; j += 1)
-		  if (bit(pre, j) && (from < 0 || id(j) < id(from))) from = j;
+	    int from;
+	    size_t passed;
+	    const nfa_edge_t*edge = nfa_dying_edge_(pre, gv, from, passed);
 	    if (from < 0) return;
-	    const nfa_edge_t*first = 0;
-	    for (const nfa_edge_t&e : nfa_.edges)
-		  if (e.from == from
-		      && (!first || (first->guards.empty() && !e.guards.empty())))
-			first = &e;
-	    size_t n = 0;
-	    if (first) {
-		  n = first->guards.size();
-		  for (size_t i = 0 ; i < first->guards.size() ; i += 1)
-			if (!bit(gv, first->guards[i])) {
-			      n = i + 1;
-			      break;
-			}
-	    }
 	    deliver_(ob ? cbAssertionStepFailure : cbAssertionStepSuccess,
-		     it->second, id(from), !ob || !first ? 1 : id(first->to),
-		     first ? exprs(*first, n) : std::vector<vpiHandle>());
+		     it->second, nfa_state_id_(from),
+		     !ob || !edge ? 1 : nfa_state_id_(edge->to),
+		     edge ? exprs(*edge, passed + 1) : std::vector<vpiHandle>());
+      }
+
+      void nfa_failure(int record, const char*pre, const char*gv,
+		       const s_vpi_time*start)
+      {
+	    if (record < 0) return;
+	    if (start) {
+		  int from;
+		  size_t passed;
+		  const nfa_edge_t*edge = nfa_dying_edge_(pre, gv, from, passed);
+		  vpiHandle expr = edge && passed < edge->guards.size()
+				? nfa_.guards[edge->guards[passed]] : nullptr;
+		    /* The checker uses one index per verdict, bounded by its
+		       slot count. A canceled dispatch can leave an index to
+		       be overwritten when a new verdict uses it. */
+		  nfa_failures_[record] = {vpip_timestruct_to_time(start),
+					   schedule_simtime(), expr};
+	    } else {
+		  auto it = nfa_failures_.find(record);
+		  if (it == nfa_failures_.end()) return;
+		  const nfa_failure_t failure = it->second;
+		  nfa_failures_.erase(it);
+		  fire_(cbAssertionFailure, -1, failure.expr, &failure);
+	    }
       }
 
     private:
@@ -3201,13 +3206,20 @@ class __vpiAssertion : public __vpiHandle {
 	   requests for start times that passed without a start, mark this
 	   start time's request as started, and name the attempt by serial
 	   for checkers that cannot recover its start from a clock age. */
-      void fire(int reason, int age = -1)
+      void fire(int reason, int age = -1, int row = 0)
       {
 	    if (reason == cbAssertionStepSuccess
 		|| reason == cbAssertionStepFailure)
 		  return;  // steps go through step() only, per attempt
 	    if (reason != cbAssertionStart) {
-		  fire_(reason, age);
+		  vpiHandle expr = nullptr;
+		  if (reason == cbAssertionFailure && row > 0
+		      && (size_t)row <= step_rows_.size()) {
+			const step_row_t&entry = step_rows_[row-1];
+			if (entry.reason == reason && !entry.exprs.empty())
+			      expr = entry.exprs.back();
+		  }
+		  fire_(reason, age, expr);
 		  return;
 	    }
 	    vvp_time64_t now = schedule_simtime();
@@ -3224,9 +3236,16 @@ class __vpiAssertion : public __vpiHandle {
 	    if (!step_wait_ && step_ctl_.count(now)) serial_start_[attempts_] = now;
       }
 
+    private:
+      struct nfa_failure_t {
+	    vvp_time64_t start, verdict;
+	    vpiHandle expr;
+      };
+
 	/* Fire every registered callback whose reason matches. age < 0 keeps
 	   the established two-argument report behavior for other checkers. */
-      void fire_(int reason, int age)
+      void fire_(int reason, int age, vpiHandle fail_expr = nullptr,
+		 const nfa_failure_t*failure = nullptr)
       {
 	      /* A passing deferred immediate cover is reported only after its
 	         result survives the assertion report queue. A failing cover's
@@ -3259,7 +3278,7 @@ class __vpiAssertion : public __vpiHandle {
 	      default:
 		  break;
 	    }
-	    vvp_time64_t now_raw = schedule_simtime();
+	    vvp_time64_t now_raw = failure ? failure->verdict : schedule_simtime();
 	    s_vpi_time t;
 	    t.type = vpiSimTime;
 	    vpip_time_to_timestruct(&t, now_raw);
@@ -3274,7 +3293,9 @@ class __vpiAssertion : public __vpiHandle {
 		 (latency_ < 0) reports now, which is exact for same-tick
 		 assertions. */
 	    vvp_time64_t start_raw = now_raw;
-	    if (age >= 0) {
+	    if (failure) {
+		  start_raw = failure->start;
+	    } else if (age >= 0) {
 		  if ((size_t)age < clocks_.size())
 			start_raw = clocks_[clocks_.size() - 1 - age];
 		  else {
@@ -3304,7 +3325,7 @@ class __vpiAssertion : public __vpiHandle {
 	    st.real = 0.0;
 
 	    s_vpi_attempt_info info;
-	    info.detail.failExpr = 0;
+	    info.detail.failExpr = reason == cbAssertionFailure ? fail_expr : nullptr;
 	    info.attemptStartTime = st;
 	    for (size_t i = 0 ; i < cbs_.size() ; i += 1) {
 		  if (cbs_[i].callback->reason() == reason
@@ -3314,7 +3335,6 @@ class __vpiAssertion : public __vpiHandle {
 	    }
       }
 
-    private:
       int idx_;
       std::string name_;
       std::string file_;
@@ -3376,6 +3396,40 @@ class __vpiAssertion : public __vpiHandle {
 	    std::vector<vpiHandle> guards;
 	    std::vector<nfa_edge_t> edges;
       } nfa_;
+      std::map<int,nfa_failure_t> nfa_failures_;
+
+      static bool nfa_bit_(const char*value, int index)
+      {
+	    const size_t len = strlen(value);
+	    return index >= 0 && (size_t)index < len && value[len-1-index] == '1';
+      }
+
+      int nfa_state_id_(int state) const
+      {
+	    return state == nfa_.start ? 0 : state == nfa_.accept ? 1 : state + 2;
+      }
+
+      const nfa_edge_t* nfa_dying_edge_(const char*pre, const char*gv,
+				       int&from, size_t&passed) const
+      {
+	    from = -1;
+	    for (int j = 0 ; j < nfa_.nstates ; j += 1)
+		  if (nfa_bit_(pre, j)
+		      && (from < 0 || nfa_state_id_(j) < nfa_state_id_(from)))
+			from = j;
+	    const nfa_edge_t*first = nullptr;
+	    for (const nfa_edge_t&e : nfa_.edges)
+		  if (e.from == from
+		      && (!first || (first->guards.empty() && !e.guards.empty())))
+			first = &e;
+	    passed = 0;
+	    if (first)
+		  for (int g : first->guards) {
+			if (!nfa_bit_(gv, g)) break;
+			++passed;
+		  }
+	    return first;
+      }
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
@@ -3874,12 +3928,12 @@ void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope)
 }
 
 void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
-                               vpiHandle scope, PLI_INT32 age)
+                               vpiHandle scope, PLI_INT32 age, PLI_INT32 row)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       if (!sc) return;
       auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
-      if (it != assertion_by_key.end()) it->second->fire((int)reason, (int)age);
+      if (it != assertion_by_key.end()) it->second->fire(reason, age, row);
 }
 
 void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
@@ -3926,6 +3980,16 @@ void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
       auto it = assertion_by_key.find(std::make_pair(sc, (int)idx));
       if (it != assertion_by_key.end())
 	    it->second->nfa_step(serial, pre, nx, guards, ob != 0);
+}
+
+void vpip_assertion_nfa_failure(PLI_INT32 idx, vpiHandle scope, PLI_INT32 record,
+			       const char*pre, const char*guards,
+			       const s_vpi_time*start)
+{
+      __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      if (__vpiAssertion*obj = find_assertion_up_(assertion_by_key,
+				    sva_action_parent_(sc), (int)idx, false))
+	    obj->nfa_failure(record, pre, guards, start);
 }
 
 PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope)
