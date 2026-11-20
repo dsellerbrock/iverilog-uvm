@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3977_delayed_bad.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3977_delayed_bad", "-DISSUE3977_ORDINARY_FUNCTION"],
+  "gold": "issue3977_delayed_function_arg"
+}

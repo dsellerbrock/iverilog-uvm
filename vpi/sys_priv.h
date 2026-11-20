@@ -78,12 +78,17 @@ extern void sys_monitor_fclose(PLI_UINT32 fd_mcd);
 
 /* %p rendering for typed packed values. The result is a VPI string buffer. */
 extern const char*vpip_format_packed_p(vpiHandle item);
+extern void vpip_report_runtime_error(char*message, char*file, PLI_INT32 line);
 
 /* Private store recipe for a PLA's packed output lvalue. */
 struct vpip_pla_writer;
 extern struct vpip_pla_writer* vpip_pla_bind_output(vpiHandle output);
 extern int vpip_pla_write(struct vpip_pla_writer*writer, p_vpi_value value);
 extern void vpip_pla_release_output(struct vpip_pla_writer*writer);
+extern int vpip_pla_start(vpiHandle input, struct vpip_pla_writer*writer,
+			 unsigned output_width,
+			 int (*evaluate)(void*, const s_vpi_vecval*, s_vpi_vecval*),
+			 void (*cleanup)(void*), void*data);
 
 /* Private runtime support for associative-array $readmem/$writemem. */
 extern int vpip_assoc_readmem_legal(vpiHandle array);

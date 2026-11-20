@@ -407,9 +407,10 @@ class __vpiPrimitive;
 class __vpiPrimitiveTerm : public __vpiHandle {
     public:
       __vpiPrimitiveTerm(__vpiPrimitive *primitive, int direction,
-			 unsigned index, vpiHandle expression)
+			 unsigned index, vpiHandle expression,
+			 vpiHandle net, unsigned base)
 	      : primitive_(primitive), direction_(direction), index_(index),
-		expression_(expression) { }
+		expression_(expression), net_(net), base_(base) { }
       int get_type_code(void) const override { return vpiPrimTerm; }
       int vpi_get(int code) override
       {
@@ -428,11 +429,14 @@ class __vpiPrimitiveTerm : public __vpiHandle {
       vpiHandle vpi_handle(int code) override;
       __vpiPrimitive *primitive() const { return primitive_; }
       vpiHandle expression() const { return expression_; }
+      vpiHandle net(unsigned&base) const { base = base_; return net_; }
     private:
       __vpiPrimitive *primitive_;
       int direction_;
       unsigned index_;
       vpiHandle expression_;
+      vpiHandle net_;
+      unsigned base_;
 };
 
 class __vpiPrimitive : public __vpiHandle {
@@ -491,17 +495,19 @@ class __vpiPrimitive : public __vpiHandle {
 		  args[idx] = terms_[idx];
 	    return vpip_make_iterator(terms_.size(), args, true);
       }
-      bool add_term(int direction, unsigned index, vpiHandle expression)
+      bool add_term(int direction, unsigned index, vpiHandle expression,
+		    vpiHandle net, unsigned base)
       {
 	    if (index > 1024U*1024U) return false;
 	    if (terms_.size() <= index)
 		  terms_.resize(index + 1, 0);
 	    if (terms_[index]) return false;
 	    terms_[index] = new __vpiPrimitiveTerm(this, direction, index,
-						  expression);
+						  expression, net, base);
 	    return true;
       }
       __vpiScope *scope() const { return scope_; }
+      const std::vector<vpiHandle>& terms() const { return terms_; }
     private:
       __vpiScope *scope_;
       const char *name_;
@@ -513,14 +519,43 @@ class __vpiPrimitive : public __vpiHandle {
       std::vector<vpiHandle> terms_;
 };
 
+const std::vector<vpiHandle>* vpip_primitive_terms(vpiHandle ref)
+{
+      auto*prim = dynamic_cast<__vpiPrimitive*>(ref);
+      return prim ? &prim->terms() : nullptr;
+}
+
+vpiHandle vpip_primitive_term_net(vpiHandle ref, unsigned&base)
+{
+      auto*term = dynamic_cast<__vpiPrimitiveTerm*>(ref);
+      return term ? term->net(base) : nullptr;
+}
+
 class __vpiPrimitiveTermResolve : public resolv_list_s {
     public:
 	  __vpiPrimitiveTermResolve(char *label, __vpiPrimitive *primitive,
-				    int direction, unsigned index, unsigned width)
+				    int direction, unsigned index, unsigned width,
+				    const char*net_label, unsigned base)
 		  : resolv_list_s(label), primitive_(primitive), direction_(direction),
-		    index_(index), width_(width) { }
+		    index_(index), width_(width), base_(base),
+		    net_label_(net_label ? net_label : "") { }
 	  bool resolve(bool mes) override
 	  {
+		vpiHandle net = 0;
+		if (!net_label_.empty()) {
+		      auto*sig = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(net_label_.c_str()));
+		      if (!sig || sig->get_type_code() != vpiNet
+			  || base_ >= sig->width() || width_ > sig->width() - base_) {
+			    if (!mes) return false;
+			    yyerror("invalid .vpi_primterm net connection");
+			    compile_errors += 1;
+			    return true;
+		      }
+		      net = sig;
+		} else if (auto*sig = dynamic_cast<__vpiSignal*>(vvp_lookup_handle(label()))) {
+		      if (sig->get_type_code() == vpiNet && width_ == sig->width())
+			    net = sig;
+		}
 		vpiHandle expression = 0;
 		if (*label()) {
 		      vvp_net_t *node = vvp_net_lookup(label());
@@ -544,7 +579,7 @@ class __vpiPrimitiveTermResolve : public resolv_list_s {
 					   static_cast<int>(width_-1), 0, false,
 					   node);
 		}
-		if (!primitive_->add_term(direction_, index_, expression)) {
+		if (!primitive_->add_term(direction_, index_, expression, net, base_)) {
 		      if (!mes) return false;
 		      yyerror("duplicate .vpi_primterm index");
 		      compile_errors += 1;
@@ -556,6 +591,8 @@ class __vpiPrimitiveTermResolve : public resolv_list_s {
 	  int direction_;
 	  unsigned index_;
 	  unsigned width_;
+	  unsigned base_;
+	  std::string net_label_;
 };
 
 vpiHandle __vpiPrimitiveTerm::vpi_handle(int code)
@@ -605,7 +642,7 @@ void compile_vpi_primitive(char *label, char *name, long prim_type,
 
 void compile_vpi_primitive_term(char *primitive_label, long direction,
 				long term_index, long width,
-				char *expression_label)
+				char *expression_label, char*net_label, uint64_t base)
 {
       __vpiPrimitive *primitive = primitive_label
 	    ? dynamic_cast<__vpiPrimitive*>(vvp_lookup_handle(primitive_label))
@@ -615,7 +652,8 @@ void compile_vpi_primitive_term(char *primitive_label, long direction,
 	    && (direction == vpiInput || direction == vpiOutput
 		|| direction == vpiInout)
 	    && term_index >= 0 && term_index <= 1024L*1024L
-	    && width >= 0 && width <= 1024L*1024L;
+	    && width >= 0 && width <= 1024L*1024L
+	    && (!net_label || (*expression_label && width && base <= UINT_MAX));
 	  if (!valid) {
 	    yyerror("invalid .vpi_primterm metadata");
 	    compile_errors += 1;
@@ -624,10 +662,12 @@ void compile_vpi_primitive_term(char *primitive_label, long direction,
 	    resolv_submit(new __vpiPrimitiveTermResolve(resolve_label, primitive,
 						       static_cast<int>(direction),
 						       static_cast<unsigned>(term_index),
-						       static_cast<unsigned>(width)));
+						       static_cast<unsigned>(width),
+						       net_label, base));
       }
       free(primitive_label);
       delete[] expression_label;
+      free(net_label);
 }
 
 __vpiStmtNode::__vpiStmtNode(int type, const char*name, __vpiScope*scope)
@@ -3501,6 +3541,9 @@ void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 control_type)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      auto key = std::make_pair(sc, (int)idx);
+      if (sc && assertion_by_key.find(key) != assertion_by_key.end())
+	    return;
       __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line,
 					      sc, (int)depth_arg, (int)flags,
 					      (int)assertion_kind);
@@ -3511,7 +3554,7 @@ void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
       replay_assertion_control_(obj);
       if (sc) {
 	    vpip_attach_to_scope(sc, obj);
-	    assertion_by_key[std::make_pair(sc, (int)idx)] = obj;
+	    assertion_by_key[key] = obj;
       }
 }
 
@@ -3584,6 +3627,10 @@ void vpip_register_immediate_assertion(PLI_INT32 source_id, const char*name,
 				      PLI_INT32 assertion_kind,
 				      vpiHandle scope)
 {
+      if (assertion_kind == 2) {
+	    vpip_register_immediate_cover(source_id, name, file, line, scope);
+	    return;
+      }
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       int immediate_type;
       if (source_id <= 0 || !sc || !line) return;
@@ -4259,6 +4306,11 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    access_type = access[4] - '0';
 	    memmove(access, access + 5, strlen(access + 5) + 1);
       }
+      const bool randsequence_production =
+	    strcmp(type, "autotask.randseq") == 0
+	    || strcmp(type, "autofunction.void.randseq") == 0;
+      if (randsequence_production)
+	    *strrchr(type, '.') = 0;
       count_vpi_scopes += 1;
       char vec_type;
       char sign_flag;
@@ -4393,6 +4445,7 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 
       if (mixed_lifetime_function)
 	    scope->set_owns_automatic_context();
+      scope->randsequence_production = randsequence_production;
       scope->join_type = join_type;
       scope->access_type = access_type;
       scope->dpi_pure = dpi_pure;
@@ -4958,7 +5011,7 @@ static bool parse_evcd_range(const char *text, int&value)
 static unsigned evcd_metadata_records;
 static unsigned long long evcd_metadata_bits;
 
-static vpiPortInfo* find_evcd_port(__vpiScope*scope, uint64_t index)
+vpiPortInfo* vpip_find_scope_port(__vpiScope*scope, uint64_t index)
 {
       if (!scope) return nullptr;
       for (auto*obj : scope->intern) {
@@ -4988,7 +5041,7 @@ void compile_port_info_evcd(unsigned port_index,
                             char *dut)
 {
       __vpiScope *scope = vpip_peek_current_scope();
-      vpiPortInfo *port = find_evcd_port(scope, port_index);
+      vpiPortInfo *port = vpip_find_scope_port(scope, port_index);
       vpiPortComponentInfo *component = 0;
       int left = 0, right = 0;
       bool ranges_valid = parse_evcd_range(left_text, left) &&
@@ -5065,7 +5118,7 @@ static std::vector<evcd_component_record> evcd_component_links;
 
 void compile_evcd_component(uint64_t index, uint64_t component, char*signal)
 {
-      auto*port = find_evcd_port(vpip_peek_current_scope(), index);
+      auto*port = vpip_find_scope_port(vpip_peek_current_scope(), index);
       if (!port || port->get_direction() != vpiInout ||
 	  component >= port->evcd_components_.size() ||
 	  evcd_component_links.size() >= EVCD_METADATA_MAX_RECORDS) {

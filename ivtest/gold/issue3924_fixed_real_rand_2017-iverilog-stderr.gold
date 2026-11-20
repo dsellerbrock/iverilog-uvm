@@ -1,0 +1,2 @@
+ivltests/issue3924_fixed_real_rand_2017.v:2: error: property 'values' of class real_array_2017 is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+1 error(s) during elaboration.

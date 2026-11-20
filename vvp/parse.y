@@ -124,6 +124,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_ENUM2 K_ENUM2_S K_ENUM4 K_ENUM4_S K_EVENT K_EVENT_OR K_EVENT_ORDER
 %token K_EXPORT K_EXTEND_S K_SAMPLE K_REACTIVE K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH K_TCHK
 %token K_PATHEXPR K_PARAM_STORAGE
+%token K_MODPATH_CONN
 %token K_ATTRIBUTE
 %token K_PARAM_TYPE
 %token K_VIF_PROXY K_STRUCT_LEAF K_EVENT_VALID
@@ -135,6 +136,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_VPI_EXPR K_VPI_CONTASSIGN K_VPI_PARAM_EXPR K_VPI_DEFPARAM K_VPI_PORT_CONN
 %token K_VPI_FORCE_CONN
 %token K_VPI_PLA_OUTPUT
+%token K_VPI_PLA_INPUT
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_ISLAND_PORT_EVCD K_EVCD_SOURCE K_EVCD_PORT
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
@@ -290,6 +292,8 @@ statement
                 { compile_vif_proxy($1, $3, $5, $7, $9, $11, $13, $15.cnt, $15.nvec); }
         | T_LABEL K_STRUCT_LEAF T_SYMBOL ',' T_SYMBOL ',' T_NUMBER ',' numbers ';'
                 { compile_struct_leaf($1, $3, $5, $7, $9.cnt, $9.nvec); }
+        | T_LABEL K_STRUCT_LEAF T_SYMBOL ',' T_NUMBER ',' T_SYMBOL ',' T_NUMBER ',' numbers ';'
+                { compile_struct_leaf($1, $3, $7, $9, $11.cnt, $11.nvec, true, $5); }
         | K_EVENT_VALID T_SYMBOL ',' T_SYMBOL ';'
                 { compile_event_valid($2, $4); }
 
@@ -725,6 +729,9 @@ statement
     { modpath_dst = compile_modpath($1, $3, $4, $5, $6); }
    modpath_src_list ';'
     { modpath_dst = 0; }
+ | K_MODPATH_CONN T_SYMBOL ',' T_NUMBER ',' T_NUMBER ',' T_NUMBER ','
+                  T_SYMBOL ',' T_NUMBER ';'
+    { compile_modpath_conn($2, $4, $6, $8, $10, $12); }
 
   /* .pathexpr <modpath>, <source index>, <n> "<rpn>"... ; and
      P_<p> .param/storage <variable> ; (SDF LABEL, IEEE 1800 32.4.3) */
@@ -895,6 +902,8 @@ statement
 
 	| T_LABEL K_VPI_PLA_OUTPUT T_NUMBER ',' T_SYMBOL ';'
 		{ compile_vpi_pla_output($1, $3, $5); }
+	| T_LABEL K_VPI_PLA_INPUT T_NUMBER ',' T_SYMBOL ',' T_STRING ',' T_STRING ';'
+		{ compile_vpi_pla_input($1, $3, $5, $7, $9); }
 
   /* A continuous assignment object (IEEE 1800-2023 37.47): flags (1 net
      declaration assignment, 2 has an l-value handle), vpiStrength0,
@@ -982,6 +991,9 @@ statement
 	| T_LABEL K_vpi_primterm T_NUMBER ',' T_NUMBER ',' T_NUMBER ','
 	  T_STRING ';'
 		{ compile_vpi_primitive_term($1, $3, $5, $7, $9); }
+	| T_LABEL K_vpi_primterm T_NUMBER ',' T_NUMBER ',' T_NUMBER ','
+	  T_STRING ',' T_SYMBOL ',' T_NUMBER ';'
+		{ compile_vpi_primitive_term($1, $3, $5, $7, $9, $11, $13); }
 
   /* %file_line statements are instructions that have unusual operand
      requirements so are handled by their own rules. */

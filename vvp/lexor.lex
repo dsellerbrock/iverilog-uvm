@@ -261,6 +261,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".island"       { return K_ISLAND; }
 ".latch"        { return K_LATCH; }
 ".modpath"      { return K_MODPATH; }
+".modpath_conn" { return K_MODPATH_CONN; }
 ".tchk"         { return K_TCHK; }
 ".pathexpr"     { return K_PATHEXPR; }
 ".param/storage" { return K_PARAM_STORAGE; }
@@ -298,6 +299,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".vpi_inst_array" { return K_VPI_INST_ARRAY; }
 ".vpi_expr"     { return K_VPI_EXPR; }
 ".vpi_pla_output" { return K_VPI_PLA_OUTPUT; }
+".vpi_pla_input" { return K_VPI_PLA_INPUT; }
 ".vpi_contassign" { return K_VPI_CONTASSIGN; }
 ".vpi_param_expr" { return K_VPI_PARAM_EXPR; }
 ".vpi_defparam" { return K_VPI_DEFPARAM; }

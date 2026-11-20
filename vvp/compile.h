@@ -140,7 +140,8 @@ extern void compile_vpi_primitive(char*label, char*name, long prim_type,
 				  long strength1, char*udp_name);
 extern void compile_vpi_primitive_term(char*primitive_label,
 				       long direction, long term_index,
-				       long width, char*expression_label);
+				       long width, char*expression_label,
+				       char*net_label = nullptr, uint64_t base = 0);
 
 /*
  * This function is called by the parser to compile a functor
@@ -156,7 +157,8 @@ extern void compile_vif_proxy(char*label, char*valid_label, unsigned width,
                               char*root, unsigned root_word, unsigned member,
                               unsigned word, unsigned path_count, long*path);
 extern void compile_struct_leaf(char*label, char*root, char*kind,
-                                uint64_t width, unsigned path_count, long*path);
+                                uint64_t width, unsigned path_count, long*path,
+                                bool array_word = false, uint64_t word = 0);
 extern void compile_event_valid(char*event_label, char*valid_label);
 
 extern void compile_functor(char*label, char*type, unsigned width,
@@ -330,6 +332,8 @@ extern __vpiModPath* compile_modpath(char*label,
 				     unsigned pulse_flags,
 				     struct symb_s drv,
 				     struct symb_s dest);
+extern void compile_modpath_conn(char*stage, uint64_t base, uint64_t width,
+				 uint64_t type, char*symbol, uint64_t index);
 extern void compile_modpath_src(__vpiModPath*dst,
 				char edge,
 				const struct symb_s&src,
@@ -516,6 +520,8 @@ extern void compile_vpi_expr(char*label, long type, long op_type, long width,
 			     char*kind, char*thunk, char*decompile,
 			     unsigned argc, vpiHandle*argv);
 extern void compile_vpi_pla_output(char*label, uint64_t width, char*thunk);
+extern void compile_vpi_pla_input(char*label, uint64_t width, char*thunk,
+				 char*memory_probe, char*input_probe);
 
 /*
  * The `compile_udp_def' function creates a UDP.  The `table' is a
@@ -568,6 +574,7 @@ extern void compile_array_port(char*label, char*name, char*addr,
 			       long negedge);
   /* Index is a constant address */
 extern void compile_array_port(char*label, char*name, long addr);
+extern vvp_net_t*compile_array_object_port(char*name, unsigned addr);
 
 extern void compile_array_cleanup(void);
 extern void compile_packed_dims(char*label, char*layout);

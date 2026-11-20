@@ -910,7 +910,14 @@ NetFuncDef* NetScope::func_def()
 
 bool NetScope::in_func() const
 {
-      return (type_ == FUNC) ? true : false;
+      if (type_ == FUNC) return true;
+
+      // A named sequential block in a generated void function retains
+      // the production's timing restrictions. A fork child can suspend.
+      const NetScope*scope = this;
+      while (scope && scope->type() == BEGIN_END)
+	    scope = scope->parent();
+      return scope && scope->type() == FUNC && scope->is_randsequence_production();
 }
 
 const NetFuncDef* NetScope::func_def() const

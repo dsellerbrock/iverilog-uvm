@@ -630,6 +630,38 @@ class PEEventList final : public PExpr {
       std::vector<PEEvent*> events_;
 };
 
+/* Temporal syntax in an assertion actual or formal default. */
+struct sva_property_t;
+class PESvaActual final : public PExpr {
+    public:
+      enum syntax_t { SEQUENCE, PROPERTY };
+
+      PESvaActual(syntax_t syntax, sva_property_t*payload, LexicalScope*scope);
+      PESvaActual(const PESvaActual&source, sva_property_t*payload);
+      ~PESvaActual() override;
+
+      syntax_t syntax() const { return syntax_; }
+      void as_property() { syntax_ = PROPERTY; }
+      const sva_property_t* payload() const { return payload_; }
+      LexicalScope* scope() const { return scope_; }
+      bool uses_local() const { return uses_local_; }
+      std::vector<struct sva_seq_step_t>* take_sequence();
+
+      void dump(std::ostream&) const override;
+      unsigned test_width(Design*, NetScope*, width_mode_t&) override;
+      NetExpr*elaborate_expr(Design*, NetScope*, unsigned, unsigned) const override;
+
+    private:
+      PESvaActual(const PESvaActual&) = delete;
+      PESvaActual& operator=(const PESvaActual&) = delete;
+      void diagnose_value(Design*) const;
+      syntax_t syntax_;
+      sva_property_t* payload_;
+      LexicalScope* scope_;
+      bool uses_local_ = false;
+      mutable bool diagnosed_ = false;
+};
+
 /*
  * This holds a floating point constant in the source.
  */
@@ -677,6 +709,7 @@ class PEIdent : public PExpr {
       bool strict_bind() const { return strict_bind_; }
       bool no_implicit_sig() const { return no_implicit_sig_; }
       void set_lookup_scope(NetScope*scope) { path_.lookup_scope = scope; }
+      void set_sva_lookup_scope(LexicalScope*scope) { path_.sva_lookup_scope = scope; }
 
 	// Set on COMPILER-GENERATED references that merely shadow a name
 	// the user already wrote (the $ivl_clocking_hist_on bookkeeping
@@ -1652,6 +1685,7 @@ class PECallFunction : public PExpr {
       void set_path_package(PPackage*pkg)
             { path_.package = pkg; }
       void set_lookup_scope(NetScope*scope) { path_.lookup_scope = scope; }
+      void set_sva_lookup_scope(LexicalScope*scope) { path_.sva_lookup_scope = scope; }
       void set_receiver_method(PExpr*receiver, perm_string method)
             { receiver_ = receiver;
               path_.name.clear();

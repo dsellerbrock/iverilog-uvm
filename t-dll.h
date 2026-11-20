@@ -723,6 +723,7 @@ struct ivl_net_const_s {
       unsigned width_          : 24;
       unsigned signed_         :  1;
       unsigned event_synchronous : 1;
+      perm_string name;
       perm_string file;
       unsigned lineno;
       ivl_scope_t scope;
@@ -1200,6 +1201,7 @@ struct ivl_statement_s {
 		  ivl_lval_t ref_lval_;
 		  unsigned ref_lval_count_;
 		  unsigned ref_lval_arg_;
+		  ivl_event_t pla_probe_[2];
 	    } stask_;
 
 	    struct { /* IVL_ST_UTASK */

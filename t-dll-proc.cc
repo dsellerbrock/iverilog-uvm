@@ -975,6 +975,12 @@ void dll_target::proc_stask(const NetSTask*net)
       stmt_cur_->u_.stask_.ref_lval_ = 0;
       stmt_cur_->u_.stask_.ref_lval_count_ = 0;
       stmt_cur_->u_.stask_.ref_lval_arg_ = net->ref_output_arg();
+      for (unsigned arg = 0; arg < 2; arg += 1) {
+	    const NetEEvent*probe = net->pla_probe(arg);
+	    stmt_cur_->u_.stask_.pla_probe_[arg] = probe
+		  ? find_event_(probe->event()) : nullptr;
+	    assert(!probe || stmt_cur_->u_.stask_.pla_probe_[arg]);
+      }
 
 	/* Preserve the exact concrete interface task/function candidates
 	 * selected by the frontend. The scope records are Design-owned; the

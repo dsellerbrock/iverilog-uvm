@@ -25,6 +25,7 @@
 # include  "compiler.h"
 # include  "Module.h"
 # include  "PConfig.h"
+# include  "PGenerate.h"
 # include  "PPackage.h"
 # include  "PExpr.h"
 # include  "PClass.h"
@@ -1050,6 +1051,18 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 		   struct symbol_search_results *res)
 {
       NetScope *search_scope = path.lookup_scope ? path.lookup_scope : scope;
+      if (!path.lookup_scope && !path.package && path.sva_lookup_scope) {
+	    if (auto*pkg = dynamic_cast<PPackage*>(path.sva_lookup_scope)) {
+		  search_scope = pkg->parent_scope()
+			? des->find_package(pkg->pscope_name()) : scope->unit();
+	    } else {
+		  for (; search_scope; search_scope = search_scope->parent())
+			if (search_scope->module_definition() == path.sva_lookup_scope
+			    || search_scope->generate_definition() == path.sva_lookup_scope)
+			      break;
+	    }
+	    if (!search_scope) return false;
+      }
       bool prefix_scope = false;
       bool config_ref = !pform_configs.empty()
 	    && config_note_parameter_search(li, scope, path);

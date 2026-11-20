@@ -1708,7 +1708,8 @@ sv_typeparm_aggregate_property normal,-g2012 ivltests
 sv_disable_soft normal,-g2012 ivltests
 sv_randsequence normal,-g2012 ivltests gold=sv_randsequence.gold
 sv_randsequence_control_flow normal,-g2012 ivltests gold=sv_randsequence_control_flow.gold
-sv_randsequence_recursive_fail CE,-g2012 ivltests gold=sv_randsequence_recursive_fail.gold
+sv_randsequence_recursive_2017 normal,-g2017,-s,sv_randsequence_recursive ivltests gold=sv_randsequence_recursive.gold
+sv_randsequence_recursive_2023 normal,-g2023,-s,sv_randsequence_recursive ivltests gold=sv_randsequence_recursive.gold
 sv_randsequence_nonconstant_actual_fail normal,-g2012,-s,sv_randsequence_nonconstant_actual_fail ivltests gold=issue1174_randsequence_runtime_input-vvp-stdout.gold
 sv_randsequence_join_nested_lanes normal,-g2012 ivltests gold=sv_randsequence_join_nested_lanes.gold
 sv_randsequence_value_return_fail normal,-g2012 ivltests gold=sv_randsequence_value_return_fail-vvp-stdout.gold
@@ -5115,6 +5116,11 @@ sv_constraint_state_selected_fixed_array_bounds normal,-g2017 ivltests gold=sv_c
 sv_constraint_state_selected_fixed_array_bounds_2023 normal,-g2023 ivltests gold=sv_constraint_state_selected_fixed_array_bounds.gold
 sv_constraint_fixed_real_state_2017 normal,-g2017,-s,test ivltests gold=sv_constraint_fixed_real_state.gold
 sv_constraint_fixed_real_state_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_fixed_real_state.gold
+issue3924_fixed_real_free_2023 normal,-g2023,-s,test ivltests gold=issue3924_fixed_real_free_2023.gold
+issue3924_fixed_real_interval_2023 normal,-g2023,-s,test ivltests gold=issue3924_fixed_real_interval_2023.gold
+issue3924_fixed_real_rand_2017 CE,-g2017,-s,test ivltests gold=issue3924_fixed_real_rand_2017.gold
+issue3924_fixed_real_randc_2023 CE,-g2023,-s,test ivltests gold=issue3924_fixed_real_randc_2023.gold
+issue3924_fixed_real_unsupported_2023 normal,-g2023,-s,test ivltests gold=issue3924_fixed_real_unsupported_2023.gold
 sv_constraint_two_state_x_index_error normal,-g2017 ivltests gold=sv_constraint_two_state_x_index_error.gold
 sv_constraint_two_state_x_index_error_2023 normal,-g2023 ivltests gold=sv_constraint_two_state_x_index_error.gold
 
@@ -7034,6 +7040,8 @@ pla_ascending_3313_2017 normal,-g2017,-s,pla_ascending_3313 ivltests gold=pla_as
 pla_ascending_3313_2023 normal,-g2023,-s,pla_ascending_3313 ivltests gold=pla_ascending_3313-vvp-stdout.gold
 pla_concat_3906_2017 normal,-g2017,-s,pla_concat_3906 ivltests gold=pla_concat_3906-vvp-stdout.gold
 pla_concat_3906_2023 normal,-g2023,-s,pla_concat_3906 ivltests gold=pla_concat_3906-vvp-stdout.gold
+pla_live_3907_2017 normal,-g2017,-s,pla_live_3907 ivltests gold=pla_live_3907-vvp-stdout.gold
+pla_live_3907_2023 normal,-g2023,-s,pla_live_3907 ivltests gold=pla_live_3907-vvp-stdout.gold
 issue3309_dist_property_2017 normal,-g2017,-s,issue3309_dist_property ivltests gold=issue3309_dist_property.gold
 issue3309_dist_property_2023 normal,-g2023,-s,issue3309_dist_property ivltests gold=issue3309_dist_property.gold
 issue3309_dist_default_2017 CE,-g2017 ivltests gold=issue3309_dist_default_2017.gold
@@ -7407,6 +7415,8 @@ issue3422_2023 normal,-g2023,-s,cfg ivltests
 issue3422_bad_2023 CE,-g2023,-s,cfg ivltests gold=issue3422_bad.gold
 issue3913_struct_member_events_2017 normal,-g2017,-s,issue3913_struct_member_events ivltests gold=issue3913_struct_member_events-vvp-stdout.gold
 issue3913_struct_member_events_2023 normal,-g2023,-s,issue3913_struct_member_events ivltests gold=issue3913_struct_member_events-vvp-stdout.gold
+issue3914_struct_array_member_events_2017 normal,-g2017,-s,issue3914_struct_array_member_events ivltests gold=issue3914_struct_array_member_events-vvp-stdout.gold
+issue3914_struct_array_member_events_2023 normal,-g2023,-s,issue3914_struct_array_member_events ivltests gold=issue3914_struct_array_member_events-vvp-stdout.gold
 # IEEE 1800-2017/2023 25.6: specify paths to forwarded interface variables.
 issue2889_iface_path_onehop_2017 normal,-g2017,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
 issue2889_iface_path_onehop_2023 normal,-g2023,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
@@ -7436,3 +7446,11 @@ issue3941_2017 normal,-g2017,-s,issue3941 ivltests gold=issue3941.gold
 issue3941_2023 normal,-g2023,-s,issue3941 ivltests gold=issue3941.gold
 issue3634_2017 normal,-g2017,-s,issue3634 ivltests gold=issue3634.gold
 issue3634_2023 normal,-g2023,-s,issue3634 ivltests gold=issue3634.gold
+
+# IEEE 1800 16.12.18 delayed property actuals
+issue3977_delayed_actual_2017 normal,-g2017,-s,issue3977_delayed_actual ivltests gold=issue3977_delayed_actual.gold
+issue3977_delayed_data_formal_2017 CE,-g2017,-s,issue3977_delayed_bad ivltests gold=issue3977_delayed_data_formal.gold
+issue3977_delayed_function_arg_2017 CE,-g2017,-s,issue3977_delayed_bad ivltests gold=issue3977_delayed_function_arg.gold
+issue3977_delayed_actual_2023 normal,-g2023,-s,issue3977_delayed_actual ivltests gold=issue3977_delayed_actual.gold
+issue3977_delayed_data_formal_2023 CE,-g2023,-s,issue3977_delayed_bad ivltests gold=issue3977_delayed_data_formal.gold
+issue3977_delayed_function_arg_2023 CE,-g2023,-s,issue3977_delayed_bad ivltests gold=issue3977_delayed_function_arg.gold

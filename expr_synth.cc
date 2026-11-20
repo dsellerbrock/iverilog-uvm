@@ -213,10 +213,12 @@ void NetEProperty::set_synthesis_vif_validity_collector(
 }
 
 // Collect the property IDs from leaf to root, checking each receiver's
-// type so a class, union, or indexed aggregate cannot enter this path.
+// type. An indexed root must select one fixed-array word.
 static NetNet* struct_event_member_root(const NetEProperty*leaf,
+                                       unsigned&root_word,
                                        std::vector<unsigned>*path = nullptr)
 {
+      root_word = UINT_MAX;
       switch (leaf->expr_type()) {
           case IVL_VT_BOOL:
           case IVL_VT_LOGIC:
@@ -251,13 +253,21 @@ static NetNet* struct_event_member_root(const NetEProperty*leaf,
                   path->push_back(member->property_idx());
 
             if (const NetESignal*sig = dynamic_cast<const NetESignal*>(base)) {
-                  if (sig->word_index())
-                        return nullptr;
                   root = sig->sig();
+                  if (const NetExpr*index = sig->word_index()) {
+                        const auto*word = dynamic_cast<const NetEConst*>(index);
+                        if (!root->unpacked_dimensions() || ref_formal_is_bound(root) || !word
+                            || !word->value().is_defined())
+                              return nullptr;
+                        uint64_t address = word->value().as_ulong64();
+                        if (address >= root->pin_count())
+                              return nullptr;
+                        root_word = address;
+                  }
             }
             if (root)
                   return root->type() == NetNet::REG
-                      && root->unpacked_dimensions() == 0
+                      && (!root->unpacked_dimensions() || root_word != UINT_MAX)
                       ? const_cast<NetNet*>(root) : nullptr;
             member = dynamic_cast<const NetEProperty*>(base);
       } while (member);
@@ -266,14 +276,16 @@ static NetNet* struct_event_member_root(const NetEProperty*leaf,
 
 bool NetEProperty::is_struct_event_member() const
 {
-      return struct_event_member_root(this) != nullptr;
+      unsigned root_word;
+      return struct_event_member_root(this, root_word) != nullptr;
 }
 
 static NetNet* synthesize_struct_event_member(const NetEProperty*leaf,
                                               Design*des, NetScope*scope)
 {
       std::vector<unsigned> path;
-      NetNet*root = struct_event_member_root(leaf, &path);
+      unsigned root_word;
+      NetNet*root = struct_event_member_root(leaf, root_word, &path);
       if (!root)
             return nullptr;
 
@@ -290,7 +302,7 @@ static NetNet* synthesize_struct_event_member(const NetEProperty*leaf,
       unsigned member = path.front();
       path.erase(path.begin());
       std::reverse(path.begin(), path.end());
-      NetVifProxy*proxy = new NetVifProxy(scope, width, root, 0, path,
+      NetVifProxy*proxy = new NetVifProxy(scope, width, root, root_word, path,
                                          member, UINT_MAX, kind);
       proxy->set_line(*leaf);
       NetNet*out = new NetNet(scope, scope->local_symbol(),

@@ -3028,7 +3028,7 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 		       << " type=" << *use_type << endl;
 	    }
 
-	      // 1800-2023 adds scalar `rand real`; 1800-2017 remains integral-only.
+	      // 1800-2023 adds `rand real`; 1800-2017 remains integral-only.
 	      // `randc` still requires integral leaves in both editions. Class
 	      // handles and unpacked structures are legal recursive `rand` forms.
 	      // `event` never reaches this loop because the parser diagnoses
@@ -3036,9 +3036,12 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	    bool bad_type = false;
 	    if (cur->second.qual.test_rand() || cur->second.qual.test_randc()) {
 	      ivl_type_t elem_type = use_type;
+	      bool fixed_shape = true;
 		  while (elem_type) {
 			const netarray_t*arr = dynamic_cast<const netarray_t*>(elem_type);
 			if (!arr) break;
+			if (!dynamic_cast<const netuarray_t*>(arr))
+			      fixed_shape = false;
 			elem_type = arr->element_type();
 		  }
 	      const char*what = 0;
@@ -3046,11 +3049,12 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
 	      if (elem_type == &netreal_t::type_real
 		  || elem_type == &netreal_t::type_shortreal
 		  || (elem_type && elem_type->base_type() == IVL_VT_REAL)) {
-		    bool scalar_real_2023 = cur->second.qual.test_rand()
+		    bool binary64_real_2023 = cur->second.qual.test_rand()
+			  && !cur->second.qual.test_randc()
 			  && generation_flag >= GN_VER2023
 			  && elem_type == &netreal_t::type_real
-			  && use_type == elem_type;
-		    if (!scalar_real_2023) {
+			  && fixed_shape;
+		    if (!binary64_real_2023) {
 			  bad_type = true;
 			  what = "real/shortreal";
 			  if (cur->second.qual.test_rand()
@@ -4213,6 +4217,26 @@ void PBlock::elaborate_sig(Design*des, NetScope*scope) const
 		  my_scope->elaborate_nettypes(des);
 	    }
       }
+
+      // Publish every signature before descending into any production body.
+      if (!randsequence_productions_.empty()) {
+	    NetNet*flag = my_scope->find_signal(randsequence_break_flag());
+	    ivl_assert(*this, flag);
+	    flag->local_flag(true);
+      }
+      for (const auto&production : randsequence_productions_) {
+	    NetScope*callee = my_scope->child(hname_t(production.first));
+	    ivl_assert(*this, callee);
+	    if (callee->elab_stage() > 1) continue;
+	    if (callee->type() == NetScope::FUNC)
+		  callee->set_func_def(new NetFuncDef(callee, nullptr, {}, {}));
+	    else
+		  callee->set_task_def(new NetTaskDef(callee, {}, {}));
+	    callee->set_elab_stage(2);
+      }
+      for (const auto&production : randsequence_productions_)
+	    production.second->elaborate_sig(des,
+		  my_scope->child(hname_t(production.first)));
 
 	// elaborate_sig in the statements included in the
 	// block. There may be named blocks in there.

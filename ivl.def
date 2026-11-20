@@ -14,6 +14,7 @@ ivl_design_root
 ivl_design_roots
 ivl_design_time_precision
 
+ivl_const_basename
 ivl_const_bits
 ivl_const_delay
 ivl_const_file
@@ -471,6 +472,7 @@ ivl_stmt_parm
 ivl_stmt_parm_count
 ivl_stmt_ref_lval
 ivl_stmt_ref_lval_arg
+ivl_stmt_pla_probe
 ivl_stmt_rval
 ivl_stmt_sfunc_as_task
 ivl_stmt_step_stmt

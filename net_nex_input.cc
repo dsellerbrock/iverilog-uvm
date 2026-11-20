@@ -1036,6 +1036,18 @@ NexusSet* NetSTask::nex_input(bool rem_out, bool always_sens, bool nested_func) 
  */
 NexusSet* NetUTask::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
+      // A production is part of its containing statement for implicit
+      // sensitivity, even though its implementation is a subroutine.
+      if (task_->is_randsequence_production()) {
+	    static set<const NetScope*> active;
+	    const NetProc*body = task_->type() == NetScope::FUNC
+		  ? task_->func_def()->proc() : task_->task_def()->proc();
+	    if (!body || !active.insert(task_).second) return new NexusSet;
+	    NexusSet*inputs = body->nex_input(rem_out, always_sens, nested_func);
+	    active.erase(task_);
+	    return inputs;
+      }
+
       NexusSet *result = new NexusSet;
 
       /*

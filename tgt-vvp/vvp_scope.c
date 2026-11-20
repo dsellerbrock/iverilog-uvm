@@ -3356,10 +3356,29 @@ static void draw_lpm_vif_proxy(ivl_lpm_t net)
           default:           kind = 0; break;
       }
       if (kind) {
-            const char*root = draw_input_from_net(ivl_lpm_data(net, 0),
-                                                ivl_lpm_scope(net));
-            fprintf(vvp_out, "L_%p .struct/leaf %s, %c, %u",
-                    net, root, kind, ivl_lpm_width(net));
+            ivl_nexus_t root_nex = ivl_lpm_data(net, 0);
+            unsigned word = ivl_lpm_vif_root_word(net);
+            if (word == UINT_MAX) {
+                  const char*root = draw_input_from_net(root_nex, ivl_lpm_scope(net));
+                  fprintf(vvp_out, "L_%p .struct/leaf %s", net, root);
+            } else {
+                  ivl_signal_t array = 0;
+                  for (unsigned idx = 0; idx < ivl_nexus_ptrs(root_nex); ++idx) {
+                        ivl_nexus_ptr_t ptr = ivl_nexus_ptr(root_nex, idx);
+                        ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+                        if (sig && ivl_signal_type(sig) == IVL_SIT_REG
+                            && ivl_signal_data_type(sig) == IVL_VT_NO_TYPE
+                            && ivl_signal_dimensions(sig)
+                            && ivl_nexus_ptr_pin(ptr) == word) {
+                              array = sig;
+                              break;
+                        }
+                  }
+                  assert(array);
+                  note_array_signal_use(array);
+                  fprintf(vvp_out, "L_%p .struct/leaf v%p, %u", net, array, word);
+            }
+            fprintf(vvp_out, ", %c, %u", kind, ivl_lpm_width(net));
             for (unsigned idx = 0; idx < ivl_lpm_vif_path_count(net); idx += 1)
                   fprintf(vvp_out, ", %u", ivl_lpm_vif_path(net, idx));
             fprintf(vvp_out, ", %u;\n", ivl_lpm_vif_member(net));
@@ -3802,11 +3821,47 @@ static const char *vpi_primitive_name(const char *name)
 static void emit_vpi_primitive_term_ref(const char *primitive_label,
 					int direction, unsigned index,
 					unsigned width,
-					const char *expression)
+					const char *expression, ivl_nexus_t nexus)
 {
-	  if (!expression) expression = "";
-      fprintf(vvp_out, "%s .vpi_primterm %d, %u, %u, \"%s\";\n",
+      if (!expression) expression = "";
+      fprintf(vvp_out, "%s .vpi_primterm %d, %u, %u, \"%s\"",
 	      primitive_label, direction, index, width, expression);
+
+	/* The value functor can be an anonymous slice. Keep the named
+	   net and its canonical pin range for the connectivity index. */
+      unsigned base = 0;
+      while (nexus && width) {
+	    unsigned word;
+	    ivl_signal_t sig = signal_of_nexus(nexus, &word);
+	    if (sig && ivl_signal_type(sig) != IVL_SIT_REG
+		&& ivl_signal_data_type(sig) != IVL_VT_REAL) {
+		  if (base >= ivl_signal_width(sig) || width > ivl_signal_width(sig) - base)
+			break;
+		  char symbol[64];
+		  snprintf(symbol, sizeof symbol, "v%p_%u", sig, word);
+		  if (base || strcmp(symbol, expression))
+			fprintf(vvp_out, ", %s, %u", symbol, base);
+		  break;
+	    }
+	    ivl_nexus_t next = 0;
+	    for (unsigned idx = 0; idx < ivl_nexus_ptrs(nexus); ++idx) {
+		  ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ivl_nexus_ptr(nexus, idx));
+		  if (!lpm) continue;
+		  if (direction == vpiInput && ivl_lpm_type(lpm) == IVL_LPM_PART_VP
+		      && ivl_lpm_q(lpm) == nexus && !ivl_lpm_data(lpm, 1))
+			next = ivl_lpm_data(lpm, 0);
+		  if (direction == vpiOutput && ivl_lpm_type(lpm) == IVL_LPM_PART_PV
+		      && ivl_lpm_data(lpm, 0) == nexus)
+			next = ivl_lpm_q(lpm);
+		  if (next && width_of_nexus(next) > width_of_nexus(nexus)) {
+			base += ivl_lpm_base(lpm);
+			break;
+		  }
+		  next = 0;
+	    }
+	    nexus = next;
+      }
+      fputs(";\n", vvp_out);
 }
 
 static const char *draw_vpi_primitive_terminal(ivl_nexus_t nexus,
@@ -3847,25 +3902,34 @@ static void emit_vpi_primitive_term(const char *primitive_label, int direction,
 		? draw_vpi_primitive_terminal(nexus, scope) : "";
 	  if (!nexus && direction == vpiInput) expression = "C4<z>";
 	  emit_vpi_primitive_term_ref(primitive_label, direction, index, width,
-				      expression);
+				      expression, nexus);
+}
+
+int vpi_logic_has_primitive(ivl_net_logic_t logic)
+{
+      return vpi_primitive_type(ivl_logic_type(logic))
+	    && !ivl_logic_is_cassign(logic) && !ivl_logic_port_buffer(logic)
+	    && ivl_logic_pins(logic) != 0
+	    && (ivl_logic_type(logic) != IVL_LO_UDP || ivl_logic_udp(logic));
 }
 
 static void emit_vpi_primitive_metadata(ivl_scope_t scope)
 {
+      int emitted_scope = 0;
       unsigned idx;
       for (idx = 0; idx < ivl_scope_logs(scope); idx += 1) {
 	    ivl_net_logic_t logic = ivl_scope_log(scope, idx);
+	    if (!vpi_logic_has_primitive(logic)) continue;
+	    if (!emitted_scope) {
+		  fprintf(vvp_out, "  .scope S_%p;\n", scope);
+		  emitted_scope = 1;
+	    }
 	    int prim_type = vpi_primitive_type(ivl_logic_type(logic));
-	    if (!prim_type || ivl_logic_is_cassign(logic)
-		|| ivl_logic_port_buffer(logic)) continue;
-
 	    unsigned pins = ivl_logic_pins(logic);
-	    if (pins == 0) continue;
 	    unsigned input_count = pins - 1;
 	    const char *udp_name = "";
 	    if (ivl_logic_type(logic) == IVL_LO_UDP) {
 		  ivl_udp_t udp = ivl_logic_udp(logic);
-		  if (!udp) continue;
 		  prim_type = ivl_udp_sequ(udp) ? vpiSeqPrim : vpiCombPrim;
 		  udp_name = vvp_mangle_name(ivl_udp_name(udp));
 	    }
@@ -3899,6 +3963,10 @@ static void emit_vpi_primitive_metadata(ivl_scope_t scope)
 	    ivl_nexus_t b = ivl_switch_b(sw);
 	    ivl_nexus_t enable = ivl_switch_enable(sw);
 	    if (!a || !b) continue;
+	    if (!emitted_scope) {
+		  fprintf(vvp_out, "  .scope S_%p;\n", scope);
+		  emitted_scope = 1;
+	    }
 	    unsigned input_count = enable ? 1 : 0;
 	    char primitive_label[80];
 	    snprintf(primitive_label, sizeof primitive_label, "VPI_PRIM_%p", sw);
@@ -3906,14 +3974,10 @@ static void emit_vpi_primitive_metadata(ivl_scope_t scope)
 		    "%s .vpi_primitive \"%s\", %d, %u, 0, 0, \"\";\n",
 		    primitive_label, vpi_primitive_name(ivl_switch_basename(sw)),
 		    prim_type, input_count);
-	    emit_vpi_primitive_term_ref(primitive_label, vpiInout, 0,
-					width_of_nexus(a),
-					 draw_vpi_primitive_terminal(a,
-							     ivl_switch_scope(sw)));
-	    emit_vpi_primitive_term_ref(primitive_label, vpiInout, 1,
-					width_of_nexus(b),
-					 draw_vpi_primitive_terminal(b,
-							     ivl_switch_scope(sw)));
+	    emit_vpi_primitive_term(primitive_label, vpiInout, 0, a,
+				    width_of_nexus(a), scope);
+	    emit_vpi_primitive_term(primitive_label, vpiInout, 1, b,
+				    width_of_nexus(b), scope);
 	    if (enable)
 		  emit_vpi_primitive_term(primitive_label, vpiInput, 2, enable,
 					  width_of_nexus(enable), ivl_switch_scope(sw));
@@ -4058,8 +4122,20 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	       && ivl_scope_is_interface(ivl_scope_parent(net)))
 	    strcpy(access_suffix, ".acc2");
 
-	  fprintf(vvp_out, "S_%p .scope %s%s%s%s",
-	      net, prefix, type, suffix, access_suffix);
+      const char*randsequence_suffix = "";
+      if (ivl_scope_is_auto(net)
+	  && (ivl_scope_type(net) == IVL_SCT_TASK
+	      || ivl_scope_type(net) == IVL_SCT_FUNCTION)) {
+	    for (idx = 0; idx < ivl_scope_attr_cnt(net); idx += 1) {
+		  ivl_attribute_t attr = ivl_scope_attr_val(net, idx);
+		  if (strcmp(attr->key, "_ivl_randsequence_production") == 0) {
+			randsequence_suffix = ".randseq";
+			break;
+		  }
+	    }
+      }
+      fprintf(vvp_out, "S_%p .scope %s%s%s%s%s",
+	      net, prefix, type, suffix, access_suffix, randsequence_suffix);
 
 	/* Keep the DPI VPI declaration properties with the runtime scope. The
 	   identifier is hex-encoded so it cannot collide with scope type syntax. */

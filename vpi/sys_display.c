@@ -2719,12 +2719,13 @@ static PLI_INT32 sys_severity_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       char *sstr, *t, *dstr;
       unsigned int size, location=0;
       s_vpi_value finish_number;
+      const int is_fatal = strcmp(name, "$fatal") == 0;
 
       /* Set the default finish number for $fatal. */
       finish_number.value.integer = 1;
 
       /* Check that the finish number is in range. */
-      if (strncmp(name,"$fatal", 6) == 0 && argv) {
+      if (is_fatal && argv) {
             vpiHandle arg = vpi_scan(argv);
             finish_number.format = vpiIntVal;
             vpi_get_value(arg, &finish_number);
@@ -2773,12 +2774,15 @@ static PLI_INT32 sys_severity_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
                  (int)strlen(sstr), " ", now64,
                  vpi_get_str(vpiFullName, scope));
 
+      if (is_fatal || strcmp(name, "$error") == 0)
+            vpip_report_runtime_error(dstr, info.filename, info.lineno);
+
       free(--sstr);  /* Get the $ back. */
       free(info.filename);
       free(info.items);
       free(dstr);
 
-      if (strncmp(name,"$fatal",6) == 0) {
+      if (is_fatal) {
 	      /* Set the exit code from vvp as an error code. */
 	    vpip_set_return_value(1);
 	      /* Now tell the simulator to finish. */

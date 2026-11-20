@@ -18,6 +18,7 @@
  */
 
 # include  "vvp_priv.h"
+# include  "vpi_user.h"
 # include  <string.h>
 # include  <stdlib.h>
 # include  <assert.h>
@@ -212,23 +213,205 @@ struct modpath_item {
       ivl_signal_t path_sig;
       char*drive_label;
       unsigned drive_index;
+      ivl_nexus_ptr_t driver;
       struct modpath_item*next;
 };
 
 static struct modpath_item*modpath_list = 0;
 
-void draw_modpath(ivl_signal_t path_sig, char*drive_label, unsigned drive_index)
+void draw_modpath(ivl_signal_t path_sig, char*drive_label, unsigned drive_index,
+		  ivl_nexus_ptr_t driver)
 {
       struct modpath_item*cur = calloc(1, sizeof(struct modpath_item));
       cur->path_sig = path_sig;
       cur->drive_label = drive_label;
       cur->drive_index = drive_index;
+      cur->driver = driver;
       cur->next = modpath_list;
       modpath_list = cur;
 }
 
+/* Correlate the original elaborated output pin with the emitted VPI object.
+ * The functor label alone can identify a shared input after BUFZ elision. */
+struct modpath_assign {
+      ivl_scope_t scope;
+      const char*name;
+      unsigned label;
+};
+
+static struct modpath_assign*assigns;
+static size_t nassigns, assign_capacity;
+
+void note_modpath_contassign(ivl_scope_t scope, const char*name, unsigned label)
+{
+      if (!name) return;
+      if (nassigns == assign_capacity) {
+	    assign_capacity = assign_capacity ? 2 * assign_capacity : 64;
+	    assigns = realloc(assigns, assign_capacity * sizeof(*assigns));
+      }
+      assigns[nassigns++] = (struct modpath_assign){scope, name, label};
+}
+
+static int compare_assigns(const void*a, const void*b)
+{
+      const struct modpath_assign*x = a, *y = b;
+      if (x->scope != y->scope)
+	    return (uintptr_t)x->scope < (uintptr_t)y->scope ? -1 : 1;
+      return strcmp(x->name, y->name);
+}
+
+static void draw_stage_conn(const char*stage, unsigned base, unsigned width,
+			    int type, const char*symbol, unsigned index)
+{
+      fprintf(vvp_out, " .modpath_conn %s, %u, %u, %d, %s, %u;\n",
+	      stage, base, width, type, symbol, index);
+}
+
+/* Every named net on the physical nexus belongs to this side of the device. */
+static int draw_stage_nets(const char*stage, ivl_nexus_t nex, int type,
+			    unsigned base, unsigned width, unsigned net_base)
+{
+      int found = 0;
+      for (unsigned idx = 0; idx < ivl_nexus_ptrs(nex); ++idx) {
+	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+	    ivl_signal_t sig = ivl_nexus_ptr_sig(ptr);
+	    if (!sig || ivl_signal_local(sig) || ivl_signal_type(sig) == IVL_SIT_REG)
+		  continue;
+	    if (ivl_signal_data_type(sig) == IVL_VT_REAL
+		|| net_base >= ivl_signal_width(sig)
+		|| width > ivl_signal_width(sig) - net_base)
+		  continue;
+	    char symbol[64];
+	    snprintf(symbol, sizeof symbol, "v%p_%u", sig, ivl_nexus_ptr_pin(ptr));
+	    draw_stage_conn(stage, base, width, type, symbol, net_base);
+	    found = 1;
+      }
+      return found;
+}
+
+struct stage_walk {
+      ivl_nexus_t nex;
+      const struct stage_walk*parent;
+};
+
+static void draw_stage_driver(const char*stage, ivl_nexus_ptr_t ptr,
+			      unsigned base, unsigned first, unsigned width,
+			      const struct stage_walk*walk);
+
+static void draw_stage_input(const char*stage, ivl_nexus_t nex,
+			     unsigned base, unsigned first, unsigned width,
+			     const struct stage_walk*parent)
+{
+      if (!nex) return;
+      for (const struct stage_walk*cur = parent; cur; cur = cur->parent)
+	    if (cur->nex == nex) return;
+      if (draw_stage_nets(stage, nex, vpiNet, base, width, first)) return;
+
+      struct stage_walk walk = {nex, parent};
+      for (unsigned idx = 0; idx < ivl_nexus_ptrs(nex); ++idx) {
+	    ivl_nexus_ptr_t ptr = ivl_nexus_ptr(nex, idx);
+	    if (ivl_nexus_ptr_drive0(ptr) != IVL_DR_HiZ
+		|| ivl_nexus_ptr_drive1(ptr) != IVL_DR_HiZ)
+		  draw_stage_driver(stage, ptr, base, first, width, &walk);
+      }
+}
+
+static void draw_stage_driver(const char*stage, ivl_nexus_ptr_t ptr,
+			      unsigned base, unsigned first, unsigned width,
+			      const struct stage_walk*walk)
+{
+      ivl_net_logic_t logic = ivl_nexus_ptr_log(ptr);
+      ivl_lpm_t lpm = ivl_nexus_ptr_lpm(ptr);
+      ivl_net_const_t con = ivl_nexus_ptr_con(ptr);
+      struct modpath_assign key = {0, 0, 0};
+      if (logic) {
+	    key.scope = ivl_logic_scope(logic);
+	    key.name = ivl_logic_basename(logic);
+      } else if (lpm) {
+	    key.scope = ivl_lpm_scope(lpm);
+	    key.name = ivl_lpm_basename(lpm);
+      } else if (con) {
+	    key.scope = ivl_const_scope(con);
+	    key.name = ivl_const_basename(con);
+      }
+      const struct modpath_assign*ca = key.name && nassigns
+	    ? bsearch(&key, assigns, nassigns, sizeof(*assigns), compare_assigns)
+	    : 0;
+      char symbol[64];
+      if (ca) {
+	    snprintf(symbol, sizeof symbol, "CA_%u", ca->label);
+	    draw_stage_conn(stage, base, width, vpiContAssign, symbol, 0);
+	    return;
+      }
+      if (logic && vpi_logic_has_primitive(logic)) {
+	    snprintf(symbol, sizeof symbol, "VPI_PRIM_%p", logic);
+	    draw_stage_conn(stage, base, width, vpiPrimTerm, symbol,
+			    ivl_nexus_ptr_pin(ptr));
+	    return;
+      }
+      if (logic && ivl_logic_port_buffer(logic)) {
+	    for (unsigned idx = 0; idx < ivl_scope_mod_module_ports(key.scope); ++idx)
+		  if (ivl_scope_mod_module_port_buffer(key.scope, idx) == logic) {
+			snprintf(symbol, sizeof symbol, "S_%p", key.scope);
+			draw_stage_conn(stage, base, width, vpiPort, symbol, idx);
+			return;
+		  }
+      }
+
+	/* Lvalue wiring may put a part-to-vector adapter or a concatenation
+	   between a source object and the stage. Follow its bit mapping. */
+      if (logic && (ivl_logic_type(logic) == IVL_LO_BUFZ
+		    || ivl_logic_type(logic) == IVL_LO_BUFT)) {
+	    draw_stage_input(stage, ivl_logic_pin(logic, 1), base, first, width, walk);
+      } else if (lpm && ivl_lpm_type(lpm) == IVL_LPM_PART_PV) {
+	    unsigned part_base = ivl_lpm_base(lpm);
+	    unsigned lo = first > part_base ? first : part_base;
+	    unsigned hi = part_base + ivl_lpm_width(lpm);
+	    if (hi > first + width) hi = first + width;
+	    if (lo < hi)
+		  draw_stage_input(stage, ivl_lpm_data(lpm, 0),
+				   base + lo - first, lo - part_base, hi - lo, walk);
+      } else if (lpm && ivl_lpm_type(lpm) == IVL_LPM_PART_VP
+		 && !ivl_lpm_data(lpm, 1)) {
+	    draw_stage_input(stage, ivl_lpm_data(lpm, 0), base,
+			     first + ivl_lpm_base(lpm), width, walk);
+      } else if (lpm && (ivl_lpm_type(lpm) == IVL_LPM_CONCAT
+			 || ivl_lpm_type(lpm) == IVL_LPM_CONCATZ)) {
+	    unsigned offset = 0;
+	    for (unsigned idx = 0; idx < ivl_lpm_size(lpm) && offset < first + width; ++idx) {
+		  ivl_nexus_t input = ivl_lpm_data(lpm, idx);
+		  unsigned lo = first > offset ? first : offset;
+		  unsigned next = offset + width_of_nexus(input);
+		  unsigned hi = next < first + width ? next : first + width;
+		  if (lo < hi)
+			draw_stage_input(stage, input, base + lo - first,
+					 lo - offset, hi - lo, walk);
+		  offset = next;
+	    }
+      }
+}
+
+static void draw_modpath_connectivity(const char*stage, const struct modpath_item*item)
+{
+      ivl_nexus_t nex = ivl_signal_nex(item->path_sig, 0);
+      unsigned width = ivl_signal_width(item->path_sig);
+      unsigned base = 0, span = width;
+      ivl_lpm_t lpm = ivl_nexus_ptr_lpm(item->driver);
+      if (lpm && ivl_lpm_type(lpm) == IVL_LPM_PART_PV) {
+	    base = ivl_lpm_base(lpm);
+	    if (base >= width) return;
+	    span = ivl_lpm_width(lpm);
+	    if (span > width - base) span = width - base;
+      }
+      draw_stage_nets(stage, nex, vpiOutTerm, base, span, base);
+      struct stage_walk walk = {nex, 0};
+      draw_stage_driver(stage, item->driver, base, base, span, &walk);
+}
+
 void cleanup_modpath(void)
 {
+      if (modpath_list && nassigns)
+	    qsort(assigns, nassigns, sizeof(*assigns), compare_assigns);
       while (modpath_list) {
 	    struct modpath_item*cur = modpath_list;
 	    char modpath_label[64];
@@ -237,9 +420,13 @@ void cleanup_modpath(void)
 
 	    snprintf(modpath_label, sizeof modpath_label, "V_%p_%u/m", cur->path_sig, cur->drive_index);
 	    draw_modpath_record(modpath_label, cur->drive_label, cur->path_sig);
+	    draw_modpath_connectivity(modpath_label, cur);
 	    free(cur->drive_label);
 	    free(cur);
       }
+      free(assigns);
+      assigns = 0;
+      nassigns = assign_capacity = 0;
 }
 
 static void draw_tchk_term(ivl_tchk_t tchk, unsigned term)

@@ -59,6 +59,7 @@ class Link;
 class Module;
 class Nexus;
 class NetEvent;
+class NetEEvent;
 class NetNet;
 class NetNode;
 class NetObj;
@@ -1742,6 +1743,8 @@ class NetScope : public Definitions, public Attrib {
         /* Is this scope elaborating a final procedure? */
       void in_final(bool in_final__) { in_final_ = in_final__; };
       bool in_final() const { return in_final_; };
+      bool is_randsequence_production() const
+      { return attribute(perm_string::literal("_ivl_randsequence_production")).len() != 0; }
 
       const NetTaskDef* task_def() const;
       const NetFuncDef* func_def() const;
@@ -3222,7 +3225,7 @@ class NetPartSelect  : public NetNode {
 
 /* A simulation-only member projection. Pin 0 is the projected value and
  * pin 1 is the object root. Virtual-interface projections also use pin 2
- * for binding validity. */
+ * for binding validity. For a scalar struct, root_word is UINT_MAX. */
 class NetVifProxy : public NetNode {
     public:
       NetVifProxy(NetScope*, unsigned width, NetNet*root,
@@ -5375,6 +5378,9 @@ class NetSTask  : public NetProc {
       const NetAssign_* ref_output() const { return ref_output_; }
       unsigned ref_output_arg() const { return ref_output_arg_; }
 
+      void set_pla_probe(unsigned arg, NetEEvent*event) { pla_probe_[arg] = event; }
+      const NetEEvent* pla_probe(unsigned arg) const { return pla_probe_[arg]; }
+
 	/* A dynamic virtual-interface task call carries the exact concrete
 	 * method scopes represented by its instance-keyed argument rows. The
 	 * Design owns these scopes; this statement only borrows their pointers. */
@@ -5408,6 +5414,7 @@ class NetSTask  : public NetProc {
       std::vector<NetExpr*>parms_;
       NetAssign_*ref_output_;
       unsigned ref_output_arg_ = ~0U;
+      NetEEvent*pla_probe_[2] = {};
       std::vector<NetScope*>vif_methods_;
       bool assertion_action_ = false;
 };
@@ -6182,8 +6189,8 @@ class NetEProperty : public NetExpr {
       inline const NetExpr*get_index() const { return index_; }
       void set_index(NetExpr*idx) { delete index_; index_ = idx; }
 
-      // A typed leaf of a scalar unpacked struct variable can drive an
-      // ordinary event probe.
+      // A typed leaf of an unpacked struct variable or a constant-selected
+      // fixed array element can drive an ordinary event probe.
       bool is_struct_event_member() const;
 
       // Resolve a direct member of a statically bound interface port to the

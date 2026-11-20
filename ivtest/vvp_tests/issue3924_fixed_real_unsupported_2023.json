@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3924_fixed_real_unsupported_2023.v",
+  "iverilog-args": ["-g2023", "-s", "test"],
+  "gold": "issue3924_fixed_real_unsupported_2023"
+}

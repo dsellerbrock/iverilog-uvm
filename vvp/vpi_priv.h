@@ -58,6 +58,7 @@ class vvp_darray;
 class vvp_fun_arrayport;
 class vvp_fun_force_array;
 class vvp_fun_signal_base;
+class vpiPortInfo;
 struct vvp_udp_s;
 
 typedef struct __vpiArray* vvp_array_t;
@@ -374,6 +375,7 @@ class __vpiScope : public __vpiHandle {
 
     public:
       __vpiScope *scope;
+      bool randsequence_production = false;
       unsigned file_idx;
       unsigned lineno;
       unsigned def_file_idx;
@@ -545,7 +547,7 @@ extern void vpip_attach_to_current_scope(vpiHandle obj);
    cbPLIError/cbError callbacks it runs (38.36.3). */
 extern void vpip_clear_error(void);
 extern void vpip_set_error(PLI_INT32 level, const char*message);
-extern void vpip_run_error_callbacks(void);
+extern void vpip_run_error_callbacks(s_vpi_error_info& last_error);
 /* cbSignal (IEEE 1800-2023 38.36.3): the trapped signals and the
    callbacks run at the scheduler's next safe point. */
 extern bool vpip_signal_trapped(int signum);
@@ -558,6 +560,9 @@ extern vpiHandle vpip_make_contassign(int flags, int str0, int str1,
 				      unsigned file_idx, unsigned lineno,
 				      unsigned argc, vpiHandle*argv);
 extern void vpip_contassign_set_driver(vpiHandle ref, vvp_net_t*net);
+extern const std::vector<vpiHandle>* vpip_primitive_terms(vpiHandle ref);
+extern vpiHandle vpip_primitive_term_net(vpiHandle ref, unsigned&base);
+extern vpiPortInfo* vpip_find_scope_port(__vpiScope*scope, uint64_t index);
 /* vpiDriver, vpiLoad, vpiLocalDriver and vpiLocalLoad of a net, variable,
    bit, array or array word (37.16, 37.21); nil for any other code. */
 extern vpiHandle vpip_conn_iterate(int code, vpiHandle ref);
@@ -921,6 +926,7 @@ struct __vpiDelayTerm : public __vpiHandle {
       int get_type_code(void) const override { return vpiDelayTerm; }
       int vpi_get(int code) override;
       vpiHandle vpi_handle(int code) override;
+      vpiHandle vpi_iterate(int code) override;
       void vpi_get_value(p_vpi_value val) override;
 
     private:
@@ -942,10 +948,19 @@ struct __vpiModPath : public __vpiHandle {
 
       class vvp_fun_modpath*modpath;
 
+      /* The source object or named net at a stage boundary, with its
+         corresponding canonical range in the stage's vector. */
+      struct connection {
+	    vpiHandle obj;
+	    unsigned base, width, net_base;
+	    bool output;
+      };
+      std::vector<connection> connections;
       struct __vpiModPathTerm path_term_out;
       __vpiDelayTerm delay_term_in;
       __vpiDelayTerm delay_term_out;
 };
+extern vpiHandle vpip_modpath_conn_iterate(__vpiModPath*path, bool input, int code);
 
 
 /*

@@ -586,12 +586,13 @@ bool NetScope::emit_defs(struct target_t*tgt) const
 		 << "Emit definitions for " << scope_path(this) << endl;
       }
 
+      // Recursive randsequence productions can be nested under subroutines.
+      for (const auto&child : children_)
+	    flag &= child.second->emit_defs(tgt);
+
       switch (type_) {
 	  case PACKAGE:
 	  case MODULE:
-	    for (map<hname_t,NetScope*>::const_iterator cur = children_.begin()
-		       ; cur != children_.end() ; ++ cur )
-		  flag &= cur->second->emit_defs(tgt);
 	    for (map<perm_string,netclass_t*>::const_iterator cur = classes_.begin()
 		       ; cur != classes_.end() ; ++ cur)
 		  flag &= cur->second->emit_defs(tgt);
@@ -607,10 +608,7 @@ bool NetScope::emit_defs(struct target_t*tgt) const
 	    if (task_def())
 		  const_cast<NetTaskDef*>(task_def())->release_proc();
 	    break;
-	  default:  /* BEGIN_END and FORK_JOIN, GENERATE... */
-	    for (map<hname_t,NetScope*>::const_iterator cur = children_.begin()
-		       ; cur != children_.end() ; ++ cur )
-		  flag &= cur->second->emit_defs(tgt);
+	  default:
 	    break;
       }
 

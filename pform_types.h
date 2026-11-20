@@ -45,6 +45,7 @@ class PEEvent;
 class Design;
 class NetScope;
 class Definitions;
+class LexicalScope;
 class PExpr;
 class PEEvent;
 class PClass;
@@ -960,6 +961,8 @@ struct pform_scoped_name_t {
       pform_name_t name;
       // A checker actual keeps its concrete lookup scope after substitution.
       NetScope *lookup_scope = nullptr;
+      // An inlined temporal actual can be elaborated in a descendant scope.
+      LexicalScope *sva_lookup_scope = nullptr;
 };
 
 /* A user-defined nettype is a declaration-scope symbol, independent of the
