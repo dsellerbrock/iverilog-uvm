@@ -270,6 +270,8 @@ class __vpiVThrObjStack : public __vpiHandle {
       unsigned depth_;
       class_type*declared_type_;
       bool element_signed_;
+      bool fixed_assoc_word_;
+      vpiHandle fixed_array_;
 };
 
 __vpiVThrStrStack::__vpiVThrStrStack(unsigned d)
@@ -278,17 +280,22 @@ __vpiVThrStrStack::__vpiVThrStrStack(unsigned d)
 }
 
 __vpiVThrObjStack::__vpiVThrObjStack(unsigned d, char*type)
-: depth_(d), declared_type_(0), element_signed_(type && strcmp(type, "signed") == 0)
+: depth_(d), declared_type_(0), element_signed_(type && strcmp(type, "signed") == 0),
+  fixed_assoc_word_(type && strncmp(type, "Av", 2) == 0), fixed_array_(nullptr)
 {
-      if (type && !element_signed_)
+      if (fixed_assoc_word_) {
+            compile_vpi_lookup(&fixed_array_, strdup(type + 1));
+            free(type);
+      } else if (type && !element_signed_) {
             compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&declared_type_), type);
+      }
 }
 
 int __vpiVThrStrStack::get_type_code(void) const
 { return vpiConstant; }
 
 int __vpiVThrObjStack::get_type_code(void) const
-{ return vpiClassVar; }
+{ return fixed_assoc_word_ ? vpiMemoryWord : vpiClassVar; }
 
 int __vpiVThrStrStack::vpi_get(int code)
 {
@@ -375,7 +382,12 @@ void __vpiVThrObjStack::vpi_get_value(p_vpi_value vp)
 	  case vpiOctStrVal:
 	  case vpiHexStrVal:
 	  case vpiStringVal: {
-		std::string desc = describe_thread_object_(val, element_signed_);
+		const auto*array = dynamic_cast<__vpiArray*>(fixed_array_);
+		std::string desc = array
+		      ? vvp_format_cobject_p(val, 0, false,
+					     array->element_container_layout_.get(),
+					     array->packed_container_leaf_typespec())
+		      : describe_thread_object_(val, element_signed_);
 		char*rbuf = static_cast<char *>(need_result_buf(desc.size()+1, RBUF_VAL));
 		strcpy(rbuf, desc.c_str());
 		vp->value.str = rbuf;
