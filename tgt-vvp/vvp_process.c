@@ -40,6 +40,7 @@ unsigned transient_id = 0;
    control, force/release, or dynamic-object access leaves the process on the
    ordinary IEEE event path. */
 static ivl_statement_t pure_comb_top_wait_ = 0;
+static ivl_statement_t contassign_top_wait_ = 0;
 
 typedef struct vpi_stmt_id_entry_s {
       ivl_statement_t stmt;
@@ -4445,6 +4446,7 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
       static unsigned int cascade_counter = 0;
       int rc;
       int pure_comb_evaluation = (net == pure_comb_top_wait_);
+      const char*t0_event = net == contassign_top_wait_ ? "E_0x0_ca" : "E_0x0";
       ivl_statement_t body = ivl_stmt_sub_stmt(net);
 	/* Look to see if this is a SystemVerilog wait fork. */
       if ((ivl_stmt_nevent(net) == 1) && (ivl_stmt_events(net, 0) == 0)) {
@@ -4458,12 +4460,12 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 
       if (ivl_stmt_nevent(net) == 0) {
 	    assert(ivl_stmt_needs_t0_trigger(net) == 1);
-	    fprintf(vvp_out, "    %%wait E_0x0;\n");
+	    fprintf(vvp_out, "    %%wait %s;\n", t0_event);
       } else if (ivl_stmt_nevent(net) == 1) {
 	    ivl_event_t ev = ivl_stmt_events(net, 0);
 	    if (ivl_stmt_needs_t0_trigger(net)) {
-		  fprintf(vvp_out, "Ewait_%u .event/or E_%p, E_0x0;\n",
-		                   cascade_counter, ev);
+		  fprintf(vvp_out, "Ewait_%u .event/or E_%p, %s;\n",
+		                   cascade_counter, ev, t0_event);
 		  fprintf(vvp_out, "    %%wait Ewait_%u;\n", cascade_counter);
 		  cascade_counter += 1;
 	    } else if (ivl_event_is_obj_mutation(ev)
@@ -4767,7 +4769,7 @@ static int show_stmt_wait(ivl_statement_t net, ivl_scope_t sscope)
 			fprintf(vvp_out, ", E_%p", ev);
 		  }
 		  if (ivl_stmt_needs_t0_trigger(net))
-			fprintf(vvp_out, ", E_0x0");
+			fprintf(vvp_out, ", %s", t0_event);
 		  fprintf(vvp_out, ";\n    %%wait Ewait_%u;\n", cascade_counter);
 		  cascade_counter += 1;
 	    }
@@ -9306,6 +9308,8 @@ int draw_process(ivl_process_t net, void*x)
       for (idx = 0 ;  idx < ivl_process_attr_cnt(net) ;  idx += 1) {
 
 	    ivl_attribute_t attr = ivl_process_attr_val(net, idx);
+	    if (strcmp(attr->key, "_ivl_contassign_rhs") == 0)
+		  contassign_top_wait_ = stmt;
 	    if (strcmp(attr->key, "_ivl_function_background_ok") == 0)
 		  function_background_ok = 1;
 	    if (strcmp(attr->key, "_ivl_sva_finish") == 0)
@@ -9378,6 +9382,7 @@ int draw_process(ivl_process_t net, void*x)
 
 	/* Draw the contents of the thread. */
       rc += show_statement(stmt, scope);
+      contassign_top_wait_ = 0;
       if (pure_comb_flag)
 	    pure_comb_top_wait_ = 0;
 

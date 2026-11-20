@@ -125,6 +125,10 @@ module issue3941;
   assign (pull0, pull1) resolved = pull_low ? 1'b0 : 1'b1;
 
   initial begin
+    #0;
+    if (constant_result !== 9 || constant_calls != 1 ||
+        result !== 0 || calls != 1)
+      $fatal(1, "continuous assignment did not settle before #0");
     #1;
     check_result(0, 1);
     if (computed !== 5 || inner_calls != 1 || outer_calls != 1 ||

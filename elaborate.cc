@@ -5399,6 +5399,7 @@ static NetNet* elaborate_contassign_call_rhs_(Design*des, NetScope*scope,
       NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS, wait);
       top->set_line(*rhs);
       top->attribute(perm_string::literal("_ivl_schedule_push"), verinum(1));
+      top->attribute(perm_string::literal("_ivl_contassign_rhs"), verinum(1));
       // This thread implements a continuous assignment (IEEE 1800 13.4.4).
       des->add_process(top);
       return result;
@@ -6034,7 +6035,9 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
+	// The event-driven RHS needs VVP's Active-region startup trigger.
       bool call_rhs = gn_system_verilog() && !synthesis
+	    && strcmp(des->get_flag("DLL"), "vvp.tgt") == 0
 	    && (type_is_vectorable(lval->data_type()) || lval->data_type() == IVL_VT_REAL)
 	    && expr_has_user_function_call_(rval_expr);
       unsigned errors_before_rhs = des->errors;

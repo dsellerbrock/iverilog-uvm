@@ -1159,8 +1159,6 @@ vpiHandle vvp_lookup_handle(const char*label)
 
 vvp_net_t* vvp_net_lookup(const char*label)
 {
-      static bool t0_trigger_generated = false;
-
         /* First, look to see if the symbol is a vpi object of some
 	   sort. If it is, then get the vvp_ipoint_t pointer out of
 	   the vpiHandle. */
@@ -1215,22 +1213,22 @@ vvp_net_t* vvp_net_lookup(const char*label)
 	/* Failing that, look for a general functor. */
       vvp_net_t*tmp = lookup_functor_symbol(label);
 
-	// This is a special label used to create a T0 trigger for the
-	// always_comb/latch processes.
-     if (! t0_trigger_generated && (strcmp(label, "E_0x0") == 0)) {
-	      // This should never happen, but if it does then the E_0x0
-	      // event generation may need to be explicitly generated in
-	      // the compiler output instead of implicitly in this code.
-	    assert(! vpip_peek_current_scope()->is_automatic());
-	    t0_trigger_generated = true;
-	      // Create a local event with no name for the T0 trigger
-	    compile_named_event(strdup(label), strcpy(new char [1],""), 0, true);
-	    tmp = vvp_net_lookup(label);
-	    assert(tmp);
-	      // Create a trigger for the T0 event.
-	    vvp_net_ptr_t ptr (tmp, 0);
-	    schedule_t0_trigger(ptr);
-     }
+      if (!tmp) {
+	    bool contassign = strcmp(label, "E_0x0_ca") == 0;
+	    if (contassign || strcmp(label, "E_0x0") == 0) {
+		  assert(!vpip_peek_current_scope()->is_automatic());
+		  compile_named_event(strdup(label), new char[1]{0}, 0, true);
+		  tmp = vvp_net_lookup(label);
+		  assert(tmp);
+		  vvp_net_ptr_t ptr(tmp, 0);
+		  // Continuous assignments must settle in Active before #0
+		  // continuations. always_comb/latch use their Inactive trigger.
+		  if (contassign)
+			schedule_set_vector(ptr, vvp_vector4_t(1, BIT4_X));
+		  else
+			schedule_t0_trigger(ptr);
+	    }
+      }
 
       return tmp;
 }
