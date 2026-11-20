@@ -4810,6 +4810,12 @@ extern "C" unsigned ivl_stmt_ref_lval_arg(ivl_statement_t net)
       return net->u_.stask_.ref_lval_arg_;
 }
 
+extern "C" ivl_event_t ivl_stmt_pla_probe(ivl_statement_t net, unsigned arg)
+{
+      assert(net && net->type_ == IVL_ST_STASK && arg < 2);
+      return net->u_.stask_.pla_probe_[arg];
+}
+
 extern "C" ivl_scope_t ivl_stmt_vif_method(ivl_statement_t net,
 					      unsigned idx)
 {

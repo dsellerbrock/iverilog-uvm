@@ -19848,6 +19848,39 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       NetSTask*cur = new NetSTask(name, def_sfunc_as_task, eparms);
       if (pla_output)
 	    cur->set_ref_output(pla_output, 2);
+      if (pla_output && strncmp(name, "$async$", 7) == 0) {
+	    const NetExpr*input = eparms[1];
+	    if (!input || !input->expr_width()
+		|| (input->expr_type() != IVL_VT_LOGIC
+		    && input->expr_type() != IVL_VT_BOOL)
+		|| (input->net_type() && !input->net_type()->packed())) {
+		  cerr << parms_[1].get_fileline() << ": error: argument 2 of "
+		       << name << " must be a packed integral expression." << endl;
+		  des->errors += 1;
+	    } else {
+		  // Keep the expression for evaluation in the activation's frame.
+		  // The probe observes selectors and all candidate array words.
+		  // Memory has a separate probe so it can force evaluation even
+		  // when the packed input sample is unchanged.
+		  for (unsigned arg = 0; arg < 2; arg += 1) {
+			const NetExpr*expr = eparms[arg];
+			if (!expr) continue;
+			std::unique_ptr<NexusSet> reads(expr->nex_input(false));
+			if (!reads->size()) continue;
+			NetEvent*event = new NetEvent(scope->local_symbol());
+			event->set_line(*this);
+			event->local_flag(true);
+			scope->add_event(event);
+			NetEvProbe*probe = new NetEvProbe(scope, scope->local_symbol(),
+			      event, NetEvProbe::ANYEDGE, reads->size());
+			probe->set_line(*this);
+			for (unsigned pin = 0; pin < reads->size(); pin += 1)
+			      connect(reads->at(pin).lnk, probe->pin(pin));
+			des->add_node(probe);
+			cur->set_pla_probe(arg, new NetEEvent(event));
+		  }
+	    }
+      }
       if (immediate_assertion_action_depth_ != 0)
 	    cur->assertion_action();
       cur->set_line(*this);

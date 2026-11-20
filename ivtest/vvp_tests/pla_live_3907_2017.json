@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "pla_live_3907.sv",
+  "iverilog-args": ["-g2017", "-s", "pla_live_3907"],
+  "gold": "pla_live_3907"
+}

@@ -24,6 +24,7 @@
 # include  <string>
 # include  <set>
 # include  <vector>
+# include  <functional>
 
 /*
  * A vthread is a simulation thread that executes instructions when
@@ -155,6 +156,11 @@ struct vpip_pla_writer;
 extern vpip_pla_writer* vthread_bind_pla_writer(vthread_t caller,
 					       __vpiScope*scope,
 					       vvp_code_t pc, unsigned width);
+extern bool vthread_pla_context_matches(const vpip_pla_writer*writer,
+					vvp_context_t context);
+extern void vthread_with_pla_context(const vpip_pla_writer*writer, bool initial,
+				     const std::function<void(vthread_t)>&action);
+extern "C" int vpip_pla_write(vpip_pla_writer*writer, p_vpi_value value);
 
 /*
  * This function schedules all the threads in the list to be scheduled

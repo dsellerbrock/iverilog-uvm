@@ -26,6 +26,7 @@
 # include  "vthread.h"
 # include  "compile.h"
 # include  "codes.h"
+# include  "schedule.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
@@ -36,8 +37,10 @@
 # include  <cstring>
 # include  <cassert>
 # include  <climits>
+# include  <deque>
 # include  <map>
 # include  <memory>
+# include  <utility>
 # include  <vector>
 # include  "ivl_alloc.h"
 
@@ -1363,6 +1366,259 @@ extern "C" vpip_pla_writer* vpip_pla_bind_output(vpiHandle ref)
 	    return nullptr;
       return vthread_bind_pla_writer(vpip_current_vthread, output->scope_,
 				    output->thunk_.cptr, output->width_);
+}
+
+namespace {
+
+class pla_input_recipe : public __vpiHandle {
+    public:
+      explicit pla_input_recipe(unsigned width) : width(width) {}
+
+      int get_type_code() const override { return vpiUndefined; }
+      int vpi_get(int code) override
+      { return code == vpiSize ? (int)width : vpiUndefined; }
+
+      const unsigned width;
+      vvp_code_s thunk{};
+      vvp_net_t*probes[2] = {};
+};
+
+class pla_probe_ref : public resolv_list_s {
+    public:
+      pla_probe_ref(char*name, vvp_net_t*&probe)
+      : resolv_list_s(name), probe_(probe) {}
+
+      bool resolve(bool last) override
+      {
+	    vvp_net_t*net = vvp_net_lookup(label());
+	    if (net && net->fun && net->fun->as_waitable()) {
+		  probe_ = net;
+		  return true;
+	    }
+	    if (last)
+		  fprintf(stderr, "VVP error: invalid .vpi_pla_input probe %s.\n",
+			  label());
+	    return false;
+      }
+
+    private:
+      vvp_net_t*&probe_;
+};
+
+class pla_activation : public vvp_gen_event_s {
+    public:
+      pla_activation(const pla_input_recipe&recipe, vpip_pla_writer*writer,
+		     unsigned output_width,
+		     int (*evaluate)(void*, const s_vpi_vecval*, s_vpi_vecval*),
+		     void (*cleanup)(void*), void*data)
+      : recipe_(recipe), writer_(writer), result_words_((output_width + 31) / 32),
+	evaluate_(evaluate), cleanup_(cleanup), data_(data), relay_fun_(*this)
+      {
+	    relay_.fun = &relay_fun_;
+	    for (unsigned port = 0; port < 2; port += 1)
+		  if (recipe_.probes[port])
+			recipe_.probes[port]->link(vvp_net_ptr_t(&relay_, port));
+      }
+
+      ~pla_activation() override
+      {
+	    for (unsigned port = 0; port < 2; port += 1)
+		  if (recipe_.probes[port])
+			recipe_.probes[port]->unlink(vvp_net_ptr_t(&relay_, port));
+	    cleanup_(data_);
+      }
+
+      void initialize()
+      {
+	    write(sample(true, true));
+      }
+
+      void run_run() override
+      {
+	    pending_ = false;
+	    if (!results_.empty()) {
+		  result_vector result = std::move(results_.front());
+		  results_.pop_front();
+		  write(std::move(result));
+	    } else if (resample_) {
+		  bool force = personality_changed_;
+		  resample_ = false;
+		  personality_changed_ = false;
+		  write(sample(force, false));
+	    }
+	    if (!results_.empty() || resample_)
+		  schedule();
+      }
+
+    private:
+      using result_vector = std::vector<s_vpi_vecval>;
+
+      result_vector sample(bool force, bool initial)
+      {
+	    result_vector result;
+	    // An input function may itself publish a dependency. Let the
+	    // scheduler resample after this recipe returns.
+	    bool was_sampling = sampling_;
+	    sampling_ = true;
+	    vthread_with_pla_context(writer_, initial, [&](vthread_t frame) {
+		  const vpi_mode_t saved_mode = vpi_mode_flag;
+		  __vpiSysTaskCall*saved_task = vpip_cur_task;
+		  vthread_t saved_thread = vpip_current_vthread;
+		  vpi_mode_flag = VPI_MODE_NONE;
+		  vvp_vector4_t input;
+		  double real = 0.0;
+		  std::string str;
+		  vvp_object_t obj;
+		  bool done = vthread_eval_thunk(frame, recipe_.thunk.cptr,
+			nullptr, 'v', input, real, str, obj);
+		  vpi_mode_flag = saved_mode;
+		  vpip_cur_task = saved_task;
+		  vpip_current_vthread = saved_thread;
+		  if (!done || input.size() != recipe_.width) {
+			vpi_printf("VVP error: PLA input recipe did not produce its packed value.\n");
+			vpip_set_return_value(1);
+			schedule_finish(1);
+			return;
+		  }
+		  if (force || !sample_.eeq(input)) {
+			sample_ = std::move(input);
+			s_vpi_value value;
+			value.format = vpiVectorVal;
+			vpip_vec4_get_value(sample_, recipe_.width, false, &value);
+			result.resize(result_words_);
+			if (!evaluate_(data_, value.value.vector, result.data()))
+			      result.clear();
+		  }
+	    });
+	    sampling_ = was_sampling;
+	    return result;
+      }
+
+      void write(result_vector result)
+      {
+	    if (result.empty()) return;
+	    s_vpi_value value;
+	    value.format = vpiVectorVal;
+	    value.value.vector = result.data();
+	    if (!vpip_pla_write(writer_, &value)) {
+		  vpi_printf("VVP error: PLA output store did not consume its result.\n");
+		  vpip_set_return_value(1);
+		  schedule_finish(1);
+	    }
+      }
+
+      class relay_fun : public vvp_net_fun_t {
+	  public:
+	    explicit relay_fun(pla_activation&owner) : owner_(owner) {}
+	    void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&,
+			   vvp_context_t context) override
+	    { owner_.notify(port.port() == 0, context); }
+	  private:
+	    pla_activation&owner_;
+      };
+
+      void notify(bool personality, vvp_context_t context)
+      {
+	    if (!schedule_regions_live()
+		|| !vthread_pla_context_matches(writer_, context))
+		  return;
+	    if (sampling_) {
+		  resample_ = true;
+		  personality_changed_ |= personality;
+		  schedule();
+		  return;
+	    }
+	    // Capture the expression and personality for this occurrence.
+	    // Only the write goes through Active, so successive publications
+	    // in one HDL thread retain distinct samples and feedback cannot
+	    // recursively dispatch another write.
+	    result_vector result = sample(personality, false);
+	    if (!result.empty()) {
+		  results_.push_back(std::move(result));
+		  schedule();
+	    }
+      }
+
+      void schedule()
+      {
+	    if (!pending_) {
+		  pending_ = true;
+		  schedule_generic(this, 0, false);
+	    }
+      }
+
+      const pla_input_recipe&recipe_;
+      vpip_pla_writer*const writer_;
+      const unsigned result_words_;
+      int (*const evaluate_)(void*, const s_vpi_vecval*, s_vpi_vecval*);
+      void (*const cleanup_)(void*);
+      void*const data_;
+      vvp_net_t relay_;
+      relay_fun relay_fun_;
+      vvp_vector4_t sample_;
+      std::deque<result_vector> results_;
+      bool pending_ = false;
+      bool resample_ = false;
+      bool personality_changed_ = false;
+      static bool sampling_;
+};
+
+bool pla_activation::sampling_ = false;
+
+PLI_INT32 pla_end_simulation(p_cb_data cb)
+{
+      // No queued activation is dispatched after end of simulation.
+      delete reinterpret_cast<const pla_activation*>(cb->user_data);
+      return 0;
+}
+
+} // namespace
+
+void compile_vpi_pla_input(char*label, uint64_t width, char*thunk,
+			   char*memory_probe, char*input_probe)
+{
+      static std::vector<std::unique_ptr<pla_input_recipe>> recipes;
+      if (width == 0 || width > INT_MAX) {
+	    fprintf(stderr, "VVP error: invalid width for .vpi_pla_input.\n");
+	    compile_errors += 1;
+	    free(thunk);
+	    free(memory_probe);
+	    free(input_probe);
+      } else {
+	    auto recipe = new pla_input_recipe(width);
+	    recipes.emplace_back(recipe);
+	    code_label_lookup(&recipe->thunk, thunk, false);
+	    char*names[] = {memory_probe, input_probe};
+	    for (unsigned arg = 0; arg < 2; arg += 1) {
+		  if (*names[arg])
+			resolv_submit(new pla_probe_ref(names[arg], recipe->probes[arg]));
+		  else
+			free(names[arg]);
+	    }
+	    compile_vpi_symbol(label, recipe);
+      }
+      free(label);
+}
+
+extern "C" int vpip_pla_start(vpiHandle input, vpip_pla_writer*writer,
+			      unsigned output_width,
+			      int (*evaluate)(void*, const s_vpi_vecval*, s_vpi_vecval*),
+			      void (*cleanup)(void*), void*data)
+{
+      auto recipe = dynamic_cast<pla_input_recipe*>(input);
+      if (vpi_mode_flag != VPI_MODE_CALLTF || !recipe || !recipe->probes[0]
+	  || !recipe->thunk.cptr || recipe->thunk.cptr == codespace_null())
+	    return 0;
+
+      auto activation = new pla_activation(*recipe, writer, output_width,
+					  evaluate, cleanup, data);
+      s_cb_data cb{};
+      cb.reason = cbEndOfSimulation;
+      cb.cb_rtn = pla_end_simulation;
+      cb.user_data = reinterpret_cast<PLI_BYTE8*>(activation);
+      vpi_register_cb(&cb);
+      activation->initialize();
+      return 1;
 }
 
 void vpip_execute_vpi_call(vthread_t thr, vpiHandle ref)
