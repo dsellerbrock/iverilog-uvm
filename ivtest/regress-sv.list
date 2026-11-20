@@ -7363,3 +7363,7 @@ issue894_nested_default_clocking_2023 normal,-g2023,-s,top ivltests gold=issue89
 # IEEE 1800-2017/2023 16.8 and 16.16(f): clocked hierarchical sequences.
 issue3862_2017 normal,-g2017,-s,issue3862 ivltests gold=issue3862.gold
 issue3862_2023 normal,-g2023,-s,issue3862 ivltests gold=issue3862.gold
+issue3164_2017 normal,-g2017,-s,issue3164 ivltests gold=issue3164.gold
+issue3164_2023 normal,-g2023,-s,issue3164 ivltests gold=issue3164.gold
+issue3164_bad_2017 CE,-g2017,-s,issue3164_bad ivltests gold=issue3164_bad.gold
+issue3164_bad_2023 CE,-g2023,-s,issue3164_bad ivltests gold=issue3164_bad.gold

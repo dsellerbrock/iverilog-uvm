@@ -24,6 +24,7 @@
 # include  <cassert>
 # include  <typeinfo>
 # include  "compiler.h"
+# include  "elab_vif.h"
 # include  "ivl_assert.h"
 # include  "netlist.h"
 # include  "netmisc.h"
@@ -342,6 +343,39 @@ NexusSet* NetESFunc::nex_input(bool rem_out, bool always_sens, bool nested_func)
 	    nex_input_triggered_collector->push_back(this);
 
       NexusSet*result = new NexusSet;
+
+      // A helper may have been elaborated before the interface connections.
+      // Its dispatch table still describes every candidate, but a physical
+      // port in this continuous RHS can only read its bound row and body.
+      if (always_sens && vif_method_count()
+	  && interface_continuous_context == interface_continuous_context_t::BOUND_RHS) {
+	    const auto*receiver = dynamic_cast<const NetESignal*>(parms_[0]);
+	    const NetNet*port = receiver ? receiver->sig() : nullptr;
+	    if (port && !port->is_virtual_interface()) {
+		  long word = 0;
+		  if ((!receiver->word_index()
+		       || eval_as_long(word, receiver->word_index()))
+		      && word >= 0 && static_cast<unsigned long>(word) < port->pin_count()) {
+			if (const NetScope*bound = port->resolve_interface_scope(word)) {
+			      unsigned row_width = (parms_.size()-1) / vif_method_count();
+			      for (unsigned idx = 0; idx < vif_method_count(); ++idx) {
+				    const NetScope*method = vif_method(idx);
+				    if (method->parent() != bound)
+					  continue;
+				    unsigned row = 1 + idx * row_width;
+				    for (unsigned arg = row + 1; arg < row + row_width; ++arg) {
+					  unique_ptr<NexusSet> part(parms_[arg]->nex_input(
+						rem_out, always_sens, nested_func));
+					  result->add(*part);
+				    }
+				    func_always_sens(method->func_def(), result, rem_out, nested_func);
+				    break;
+			      }
+			      return result;
+			}
+		  }
+	    }
+      }
 
       for (unsigned idx = 0 ;  idx < parms_.size() ;  idx += 1) {
 	    if (parms_[idx]) {

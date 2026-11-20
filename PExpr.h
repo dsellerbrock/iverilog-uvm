@@ -1791,12 +1791,14 @@ class PECallFunction : public PExpr {
 				  width_mode_t&mode);
 
       NetExpr*elaborate_base_(Design*des, NetScope*scope, NetScope*dscope,
-			      unsigned flags) const;
+			      unsigned flags,
+			      const netclass_t*interface_type = nullptr) const;
 
       unsigned elaborate_arguments_(Design*des, NetScope*scope,
                                     const NetFuncDef*def, bool need_const,
                                     std::vector<NetExpr*>&parms,
-                                    unsigned parm_off) const;
+                                    unsigned parm_off,
+                                    const std::vector<pform_tf_port_t>*prototype_ports = nullptr) const;
 };
 
 /*

@@ -21,6 +21,17 @@ class NetFuncDef;
 class NetScope;
 class netclass_t;
 
+enum class interface_continuous_context_t { NONE, SOURCE, BOUND_RHS };
+extern interface_continuous_context_t interface_continuous_context;
+
+/* Validate the source modport call and return its default expressions, when
+ * it has a full prototype. The ordinary function-call elaborator binds the
+ * arguments to the concrete method's formals. */
+extern bool check_bound_interface_function_call(
+		const LineInfo&loc, Design*des, const netclass_t*interface_type,
+		const NetFuncDef*def, const std::vector<named_pexpr_t>&parms,
+		const std::vector<pform_tf_port_t>*&prototype_ports);
+
 /* Resolve the declaration signature and concrete run-time candidates for an
  * interface function. A declaration-only signature may be returned when the
  * design contains no concrete interface instance; it is never included in
