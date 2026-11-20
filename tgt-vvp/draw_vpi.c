@@ -2532,9 +2532,15 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 
       free(args);
 
-      fprintf(vvp_out, " {%u %u %u %u}",
+      fprintf(vvp_out, " {%u %u %u %u",
               vec4_stack_need, real_stack_need, str_stack_need, obj_stack_need);
-      fprintf(vvp_out, ";\n");
+      const char*display_roles = tnet ? ivl_stmt_display_arg_roles(tnet)
+				      : ivl_expr_display_arg_roles(fnet);
+      if (display_roles && parm_count) {
+	    assert(strlen(display_roles) == parm_count + parm_base);
+	    fprintf(vvp_out, " \"%s\"", display_roles + parm_base);
+      }
+      fprintf(vvp_out, "};\n");
 
       if (deferred) {
 	    fprintf(vvp_out, "    %%end;\n");

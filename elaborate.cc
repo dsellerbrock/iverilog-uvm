@@ -19420,10 +19420,50 @@ NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
       }
 }
 
+static bool display_task_family_(const char*name, const char*base)
+{
+      size_t len = strlen(base);
+      return strncmp(name, base, len) == 0
+	  && (!name[len]
+	      || (strchr("bho", name[len]) && !name[len + 1]));
+}
+
+/* Return the index of the first display item, after any leading controls. */
+static int display_arg_start_(perm_string name)
+{
+      if (name == "$fatal" || display_task_family_(name, "$swrite")
+	  || display_task_family_(name, "$fdisplay")
+	  || display_task_family_(name, "$fwrite")
+	  || display_task_family_(name, "$fstrobe")
+	  || display_task_family_(name, "$fmonitor"))
+	    return 1;
+      if (name == "$info" || name == "$warning" || name == "$error"
+	  || display_task_family_(name, "$display")
+	  || display_task_family_(name, "$write")
+	  || display_task_family_(name, "$strobe")
+	  || display_task_family_(name, "$monitor"))
+	    return 0;
+      if (name == "$ivl_deferred_enqueue" || name == "$ivl_deferred_final_enqueue")
+	    return 5; // The source $error/$display follows the assertion metadata.
+      return -1;
+}
+
+/* The width pass also uses IVL_VT_STRING for literal operands. A
+ * literal-only conditional is packed unless an arm is a string value. */
+static bool display_string_type_(const PExpr*source)
+{
+      if (source->expr_type() != IVL_VT_STRING
+	  || dynamic_cast<const PEString*>(source))
+	    return false;
+      if (const PETernary*conditional = dynamic_cast<const PETernary*>(source))
+	    return display_string_type_(conditional->get_true())
+		|| display_string_type_(conditional->get_false());
+      return true;
+}
+
 /*
  * A call to a system task involves elaborating all the parameters,
  * then passing the list to the NetSTask object.
- *XXXX
  * There is a single special case in the call to a system
  * task. Normally, an expression cannot take an unindexed
  * memory. However, it is possible to take a system task parameter a
@@ -19688,6 +19728,66 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	    return noop;
       }
 
+	/* Nonstandard commercial compatibility: treat a string-first $fatal
+	   as though its omitted finish number were 1. IEEE 1800-2017/2023
+	   20.10 requires an explicit finish number when arguments are present. */
+      unsigned arg_shift = 0;
+      if (gn_commercial_unsafe_flag && name == "$fatal" && !eparms.empty()
+	  && eparms[0]) {
+	    bool first_is_string = eparms[0]->expr_type() == IVL_VT_STRING;
+	    if (const NetEConst*constant = dynamic_cast<const NetEConst*>(eparms[0]))
+		  first_is_string |= constant->value().is_string();
+	    if (first_is_string) {
+		  NetEConst*finish_number = new NetEConst(verinum((uint64_t)1, 32));
+		  finish_number->set_line(*this);
+		  eparms.insert(eparms.begin(), finish_number);
+		  arg_shift = 1;
+	    }
+      }
+
+	/* IEEE 1800-2017/2023 21.2.1: only a source literal supplies
+	   format specifiers. Constant folding loses that distinction. */
+      const int display_start = generation_flag >= GN_VER2017
+	    ? display_arg_start_(name) : -1;
+      string display_roles;
+      if (display_start >= 0) {
+	    display_roles.assign(eparms.size(), 'v');
+	    for (unsigned idx = display_start; idx < eparms.size(); ++idx) {
+		  const PExpr*source = parms_[idx - arg_shift].parm;
+		  NetExpr*&arg = eparms[idx];
+		  if (dynamic_cast<const PEString*>(source)) {
+			display_roles[idx] = 'f';
+		  } else if (!source || (arg && arg->expr_type() == IVL_VT_STRING)) {
+			display_roles[idx] = 's';
+		  } else if (arg && type_is_vectorable(arg->expr_type())
+			     && display_string_type_(source)) {
+			/* Width-based elaboration can leave a string cast as
+			   its packed operand. Materialize the conversion in
+			   this self-determined argument context. */
+			NetExpr*cast = new NetECast('s', arg, 1, false);
+			cast->set_line(*arg);
+			arg = cast;
+			eval_expr(arg, -1);
+			display_roles[idx] = 's';
+		  } else if (const NetEConst*constant =
+			       dynamic_cast<const NetEConst*>(arg)) {
+			// Packed constants use the ordinary numeric radix and width.
+			const verinum&bits = constant->value();
+			if (!bits.is_string())
+			      continue;
+			verinum value(verinum::V0, bits.len(), bits.has_len());
+			value.set(0, bits);
+			ivl_type_t type = constant->net_type();
+			NetEConst*number = type && type->packed_width() == bits.len()
+			      ? new NetEConst(type, value) : new NetEConst(value);
+			number->cast_signed(constant->has_sign());
+			number->set_line(*constant);
+			delete arg;
+			arg = number;
+		  }
+	    }
+      }
+
 	/* $swrite/$sformat whose TARGET is the enclosing function's return
 	   variable wrote nothing at all, silently.
 
@@ -19696,24 +19796,35 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	   for signal_is_return_value()), so it went as a read-only copy on
 	   the string stack: $swrite's vpi_put_value updated that copy, the
 	   call popped it, and nothing ever committed it to the return slot.
-	   A plain assignment to the return variable works, so rewrite
-	       $swrite(f, fmt, args...)   ->   f = $sformatf(fmt, args...)
-	   which is the same operation through the path that does work.
+	   Assign the rendered string to the return variable. $sformat uses
+	   $sformatf, while $swrite needs the display-list renderer.
 
 	   UVM depends on this: uvm_instance_scope() does
 	   `$swrite(uvm_instance_scope, "%m")' and then walks backwards
 	   through the result, so an empty string sent it into an unbounded
 	   loop. (Reached only once M3B-5 made srandom() evaluate its
 	   argument -- the discarded call had been hiding it.) */
-      if ((name == "$swrite" || name == "$sformat") && parm_count >= 2
+      const char*swrite_return = nullptr;
+      if (display_start >= 0 && display_task_family_(name, "$swrite")) {
+	    switch (name.str()[sizeof("$swrite") - 1]) {
+		case 'b': swrite_return = "$ivl_swriteb"; break;
+		case 'h': swrite_return = "$ivl_swriteh"; break;
+		case 'o': swrite_return = "$ivl_swriteo"; break;
+		default:  swrite_return = "$ivl_swrite"; break;
+	    }
+      }
+      if ((((name == "$swrite" || name == "$sformat") && parm_count >= 2)
+	   || (swrite_return && parm_count >= 1))
 	  && eparms[0] && scope->type() == NetScope::FUNC) {
 	    NetESignal*tgt = dynamic_cast<NetESignal*>(eparms[0]);
 	    NetNet*tgt_sig = tgt ? tgt->sig() : 0;
 	    if (tgt_sig && tgt_sig->scope() == scope
 		&& tgt_sig->name() == scope->basename()) {
-		  NetESFunc*fmt = new NetESFunc("$sformatf",
+		  NetESFunc*fmt = new NetESFunc(swrite_return ? swrite_return : "$sformatf",
 						&netstring_t::type_string,
 						parm_count - 1);
+		  if (swrite_return && parm_count > 1)
+			fmt->set_display_arg_roles(lex_strings.make(display_roles.c_str() + 1));
 		  fmt->set_line(*this);
 		  for (unsigned idx = 1 ; idx < parm_count ; idx += 1)
 			fmt->parm(idx - 1, eparms[idx]);
@@ -19728,22 +19839,9 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 
       scope->calls_sys_task(true);
 
-	/* Nonstandard commercial compatibility: treat a string-first $fatal
-	   as though its omitted finish number were 1. IEEE 1800-2017/2023
-	   20.10 requires an explicit finish number when arguments are present. */
-      if (gn_commercial_unsafe_flag && name == "$fatal" && !eparms.empty()
-	  && eparms[0]) {
-	    bool first_is_string = eparms[0]->expr_type() == IVL_VT_STRING;
-	    if (const NetEConst*constant = dynamic_cast<const NetEConst*>(eparms[0]))
-		  first_is_string |= constant->value().is_string();
-	    if (first_is_string) {
-		  NetEConst*finish_number = new NetEConst(verinum((uint64_t)1, 32));
-		  finish_number->set_line(*this);
-		  eparms.insert(eparms.begin(), finish_number);
-	    }
-      }
-
       NetSTask*cur = new NetSTask(name, def_sfunc_as_task, eparms);
+      if (!display_roles.empty())
+	    cur->set_display_arg_roles(lex_strings.make(display_roles));
       if (immediate_assertion_action_depth_ != 0)
 	    cur->assertion_action();
       cur->set_line(*this);

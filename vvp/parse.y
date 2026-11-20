@@ -184,6 +184,7 @@ static bool is_force_release_opcode(const char* name)
 %type <symbv> symbols symbols_net
 %type <numbv> numbers
 %type <text> label_opt
+%type <text> display_arg_roles_opt
 %type <text> tran_desc_opt
 %type <text> modpath_condition_text_opt
 %type <opa>  operand operands operands_opt
@@ -197,6 +198,7 @@ static bool is_force_release_opcode(const char* name)
 %type <enum_namev> enum_type_names enum_type_names_opt
 
 %destructor { delete $$; } covgrp_bin_tail
+%destructor { delete[] $$; } display_arg_roles_opt
 
 %%
 
@@ -996,21 +998,21 @@ statement
 
   /* This version does not allow a function to be called as a task. */
   | label_opt K_vpi_call T_NUMBER T_NUMBER T_STRING
-    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER display_arg_roles_opt '}' ';'
       { compile_vpi_call($1, $5, true, false, $3, $4,
-			 $6.argc, $6.argv, $8, $9, $10, $11); }
+			 $6.argc, $6.argv, $8, $9, $10, $11, $12); }
 
   /* This version allows a function to be called as a task, but prints a
    * warning message. */
   | label_opt K_vpi_call_w T_NUMBER T_NUMBER T_STRING
-    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER display_arg_roles_opt '}' ';'
       { compile_vpi_call($1, $5, false, true, $3, $4,
-			 $6.argc, $6.argv, $8, $9, $10, $11); }
+			 $6.argc, $6.argv, $8, $9, $10, $11, $12); }
 
   | label_opt K_vpi_call_observed T_NUMBER T_NUMBER T_STRING
     argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
       { compile_vpi_call($1, $5, false, true, $3, $4,
-			 $6.argc, $6.argv, $8, $9, $10, $11, true); }
+			 $6.argc, $6.argv, $8, $9, $10, $11, nullptr, true); }
 
   | label_opt K_vpi_call_observed T_NUMBER T_NUMBER T_NUMBER T_STRING
     argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
@@ -1020,14 +1022,14 @@ statement
 	      compile_errors += 1;
 	}
 	compile_vpi_call($1, $6, false, true, $4, $5,
-			 $7.argc, $7.argv, $9, $10, $11, $12, $3); }
+			 $7.argc, $7.argv, $9, $10, $11, $12, nullptr, $3); }
 
   /* This version allows a function to be called as a task and does not
    * print a message. */
   | label_opt K_vpi_call_i T_NUMBER T_NUMBER T_STRING
-    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER display_arg_roles_opt '}' ';'
       { compile_vpi_call($1, $5, false, false, $3, $4,
-			 $6.argc, $6.argv, $8, $9, $10, $11); }
+			 $6.argc, $6.argv, $8, $9, $10, $11, $12); }
 
   | label_opt K_vpi_func T_NUMBER T_NUMBER T_STRING T_NUMBER
     argument_opt  '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
@@ -1040,9 +1042,9 @@ statement
 			      $6.argc, $6.argv, $8, $9, $10, $11); }
 
   | label_opt K_vpi_func_s T_NUMBER T_NUMBER T_STRING
-    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER '}' ';'
+    argument_opt '{' T_NUMBER T_NUMBER T_NUMBER T_NUMBER display_arg_roles_opt '}' ';'
       { compile_vpi_func_call($1, $5, -vpiStringVal, 0, $3, $4,
-			      $6.argc, $6.argv, $8, $9, $10, $11); }
+			      $6.argc, $6.argv, $8, $9, $10, $11, $12); }
 
   /* Scope statements come in two forms. There are the scope
      declaration and the scope recall. The declarations create the
@@ -1792,6 +1794,11 @@ shift_flags_opt
 label_opt
 	: T_LABEL { $$ = $1; }
 	|         { $$ = 0; }
+	;
+
+display_arg_roles_opt
+	: T_STRING { $$ = $1; }
+	|          { $$ = nullptr; }
 	;
 
   /* The optional source description of a .tran/.tranif switch, used in

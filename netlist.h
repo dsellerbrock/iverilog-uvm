@@ -5341,6 +5341,9 @@ class NetSTask  : public NetProc {
 
       const NetExpr* parm(unsigned idx) const;
 
+      void set_display_arg_roles(perm_string roles) { display_arg_roles_ = roles; }
+      perm_string display_arg_roles() const { return display_arg_roles_; }
+
 	/* Some built-in system tasks have a true ref-output actual. Keep its
 	 * assignment l-value separate from the ordinary expression arguments so
 	 * targets neither lose the destination shape nor evaluate it as an
@@ -5379,6 +5382,7 @@ class NetSTask  : public NetProc {
       const char* name_;
       ivl_sfunc_as_task_t sfunc_as_task_;
       std::vector<NetExpr*>parms_;
+      perm_string display_arg_roles_;
       NetAssign_*ref_output_;
       std::vector<NetScope*>vif_methods_;
       bool assertion_action_ = false;
@@ -6265,6 +6269,9 @@ class NetESFunc  : public NetExpr {
       NetExpr* parm(unsigned idx);
       const NetExpr* parm(unsigned idx) const;
 
+      void set_display_arg_roles(perm_string roles) { display_arg_roles_ = roles; }
+      perm_string display_arg_roles() const { return display_arg_roles_; }
+
 	/* Optional true ref-output actual for compiler-known system functions.
 	 * It is not an r-value parameter and is owned by this expression. */
       void set_ref_output(NetAssign_*lval);
@@ -6300,6 +6307,8 @@ class NetESFunc  : public NetExpr {
       virtual NetNet*synthesize(Design*, NetScope*scope, NetExpr*root) override;
 
     private:
+      perm_string display_arg_roles_;
+
 	/* Use the 32 bit ID as follows:
 	 *   The lower sixteen bits are used to identify the individual
 	 *   functions.

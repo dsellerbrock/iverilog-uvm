@@ -112,7 +112,7 @@ static int sysfunc_get(int type, vpiHandle ref)
 }
 
 /*
- * the get_str function only needs to support vpiName
+ * String properties of a system task or function call.
  */
 
 static char *systask_get_str(int type, vpiHandle ref)
@@ -126,6 +126,9 @@ static char *systask_get_str(int type, vpiHandle ref)
 
           case vpiName:
             return simple_set_rbuf_str(rfp->defn->info.tfname);
+
+          case _vpiDisplayArgRoles:
+            return rfp->display_arg_roles.get();
       }
 
       return 0;
@@ -814,9 +817,20 @@ vpiHandle vpip_build_vpi_call(const char*name, int val_code, unsigned return_wid
 			      unsigned argc, vpiHandle*argv,
 			      unsigned vec4_stack, unsigned real_stack,
 			      unsigned string_stack, unsigned object_stack,
-			      long file_idx, long lineno)
+			      long file_idx, long lineno,
+			      char*display_arg_roles)
 {
       assert(!(func_as_task_err && func_as_task_warn));
+
+      std::unique_ptr<char[]> roles(display_arg_roles);
+      if (roles && (strlen(roles.get()) != argc
+		    || strspn(roles.get(), "fsv") != argc)) {
+	    fprintf(stderr, "vvp: invalid display argument roles for %s\n", name);
+#ifdef CHECK_WITH_VALGRIND
+	    cleanup_vpi_call_args(argc, argv);
+#endif
+	    return nullptr;
+      }
 
       struct __vpiUserSystf*defn = vpip_find_systf(name);
       if (defn == 0) {
@@ -912,6 +926,7 @@ vpiHandle vpip_build_vpi_call(const char*name, int val_code, unsigned return_wid
       obj->defn  = defn;
       obj->nargs = argc;
       obj->args  = argv;
+      obj->display_arg_roles = std::move(roles);
       obj->vec4_stack = vec4_stack;
       obj->real_stack = real_stack;
       obj->string_stack = string_stack;

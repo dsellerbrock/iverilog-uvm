@@ -8240,3 +8240,5 @@ issue3701_2017 vvp_tests/issue3701_2017.json
 issue3701_2023 vvp_tests/issue3701_2023.json
 issue3701_bad_2017 vvp_tests/issue3701_bad_2017.json
 issue3701_bad_2023 vvp_tests/issue3701_bad_2023.json
+issue3416_display_literal_2017 vvp_tests/issue3416_display_literal_2017.json
+issue3416_display_literal_2023 vvp_tests/issue3416_display_literal_2023.json

@@ -3594,6 +3594,9 @@ ivl_variable_type_t NetECast::expr_type() const
 	  case 'r':
 	    ret = IVL_VT_REAL;
 	    break;
+	  case 's':
+	    ret = IVL_VT_STRING;
+	    break;
 	  case '2':
 	    ret = IVL_VT_BOOL;
 	    break;

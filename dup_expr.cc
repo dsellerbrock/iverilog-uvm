@@ -303,6 +303,7 @@ NetESFunc* NetESFunc::dup_expr() const
 	    tmp->set_net_type(net_type());
 
       tmp->cast_signed(has_sign());
+      tmp->set_display_arg_roles(display_arg_roles());
       for (unsigned idx = 0 ; idx < vif_method_count() ; idx += 1)
 	    tmp->add_vif_method(
 		  const_cast<NetScope*>(vif_method(idx)));

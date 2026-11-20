@@ -447,6 +447,7 @@ void dll_target::expr_last(const NetELast*net)
       FILE_NAME(expr, net);
 
       expr->u_.sfunc_.name_ = "$high";
+      expr->u_.sfunc_.display_arg_roles = 0;
 
       ivl_signal_t sig = find_signal(net->sig());
 
@@ -568,6 +569,7 @@ void dll_target::sample_signal_read_(const NetNet*signal, const LineInfo&loc)
       expr_->sized_ = operand->sized_;
       FILE_NAME(expr_, &loc);
       expr_->u_.sfunc_.name_ = "$ivl_sampled_read";
+      expr_->u_.sfunc_.display_arg_roles = 0;
       expr_->u_.sfunc_.parms = 1;
       expr_->u_.sfunc_.parm = dll_procedure_new_array<ivl_expr_t>(1);
       expr_->u_.sfunc_.parm[0] = operand;
@@ -817,6 +819,7 @@ void dll_target::expr_sfunc(const NetESFunc*net)
       FILE_NAME(expr, net);
 	/* system function names are lex_strings strings. */
       expr->u_.sfunc_.name_ = net->name();
+      expr->u_.sfunc_.display_arg_roles = net->display_arg_roles().str();
 
       unsigned cnt = net->nparms();
       expr->u_.sfunc_.parms = cnt;

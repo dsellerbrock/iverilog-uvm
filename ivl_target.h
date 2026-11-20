@@ -1122,6 +1122,9 @@ extern ivl_enumtype_t ivl_expr_enumtype(ivl_expr_t net);
   /* IVL_EX_ARRAY_SLICE IVL_EX_PROPERTY IVL_EX_SIGNAL IVL_EX_SFUNC
      IVL_EX_VARIABLE */
 extern const char* ivl_expr_name(ivl_expr_t net);
+/* Optional positional display roles on a system task or function call.
+ * 'f' is a source format literal, 's' a string value, 'v' an ordinary value. */
+extern const char* ivl_expr_display_arg_roles(ivl_expr_t net);
   /* IVL_EX_BACCESS */
 extern ivl_nature_t ivl_expr_nature(ivl_expr_t net);
   /* IVL_EX_BINARY IVL_EX_UNARY */
@@ -2865,6 +2868,7 @@ extern unsigned ivl_stmt_lvals(ivl_statement_t net);
 extern unsigned ivl_stmt_lwidth(ivl_statement_t net);
   /* IVL_ST_STASK */
 extern const char* ivl_stmt_name(ivl_statement_t net);
+extern const char* ivl_stmt_display_arg_roles(ivl_statement_t net);
   /* IVL_ST_ASSIGN */
 extern char ivl_stmt_opcode(ivl_statement_t net);
   /* IVL_ST_ASSIGN: compiler-expanded associative read-modify-write. */

@@ -649,6 +649,7 @@ extern void compile_vpi_call(char*label, char*name,
 			     unsigned real_stack,
 			     unsigned string_stack,
 			     unsigned object_stack,
+			     char*display_arg_roles,
 			     unsigned defer_observed = 0);
 
 /* Compile a function call. The vbit and vwid encode the return
@@ -662,7 +663,8 @@ extern void compile_vpi_func_call(char*label, char*name,
 				  unsigned vec4_stack,
 				  unsigned real_stack,
 				  unsigned string_stack,
-				  unsigned object_stack);
+				  unsigned object_stack,
+				  char*display_arg_roles = nullptr);
 extern void print_vpi_call_errors();
 
 extern void compile_codelabel(char*label);

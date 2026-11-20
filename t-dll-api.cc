@@ -754,6 +754,12 @@ extern "C" ivl_type_t ivl_expr_net_type(ivl_expr_t net)
       return net->net_type;
 }
 
+extern "C" const char* ivl_expr_display_arg_roles(ivl_expr_t net)
+{
+      assert(net && net->type_ == IVL_EX_SFUNC);
+      return net->u_.sfunc_.display_arg_roles;
+}
+
 extern "C" const char* ivl_expr_name(ivl_expr_t net)
 {
       assert(net);
@@ -4703,6 +4709,12 @@ extern "C" unsigned ivl_stmt_lwidth(ivl_statement_t net)
       }
 
       return sum;
+}
+
+extern "C" const char* ivl_stmt_display_arg_roles(ivl_statement_t net)
+{
+      assert(net && net->type_ == IVL_ST_STASK);
+      return net->u_.stask_.display_arg_roles_;
 }
 
 extern "C" const char* ivl_stmt_name(ivl_statement_t net)

@@ -968,6 +968,7 @@ void dll_target::proc_stask(const NetSTask*net)
       stmt_cur_->type_ = IVL_ST_STASK;
 	/* System task names are lex_strings strings. */
       stmt_cur_->u_.stask_.name_ = net->name();
+      stmt_cur_->u_.stask_.display_arg_roles_ = net->display_arg_roles().str();
       stmt_cur_->u_.stask_.sfunc_as_task_ = net->sfunc_as_task();
       stmt_cur_->u_.stask_.nparm_= nparms;
       stmt_cur_->u_.stask_.parms_ = static_cast<ivl_expr_t*>(

@@ -3735,6 +3735,7 @@ void compile_vpi_call(char*label, char*name,
                       unsigned argc, vpiHandle*argv,
 		      unsigned vec4_stack, unsigned real_stack,
 		      unsigned string_stack, unsigned object_stack,
+		      char*display_arg_roles,
 		      unsigned defer_observed)
 {
       if (label)
@@ -3750,7 +3751,7 @@ void compile_vpi_call(char*label, char*name,
 					 0, func_as_task_err, func_as_task_warn,
                                          argc, argv, vec4_stack, real_stack,
                                          string_stack, object_stack,
-					 file_idx, lineno);
+					 file_idx, lineno, display_arg_roles);
       code->bit_idx[0] = defer_observed;
       if (code->handle == 0)
 	    compile_errors += 1;
@@ -3766,7 +3767,8 @@ void compile_vpi_func_call(char*label, char*name,
 			   unsigned vec4_stack,
 			   unsigned real_stack,
 			   unsigned string_stack,
-			   unsigned object_stack)
+			   unsigned object_stack,
+			   char*display_arg_roles)
 {
       if (label)
 	    compile_codelabel(label);
@@ -3781,7 +3783,7 @@ void compile_vpi_func_call(char*label, char*name,
 					 0, true, false,
                                          argc, argv, vec4_stack, real_stack,
                                          string_stack, object_stack,
-					 file_idx, lineno);
+					 file_idx, lineno, display_arg_roles);
       if (code->handle == 0)
 	    compile_errors += 1;
 

@@ -465,6 +465,7 @@ struct ivl_expr_s {
 		  const char *name_;
 		  ivl_expr_t *parm;
 		  unsigned   parms;
+		  const char *display_arg_roles;
 		  ivl_scope_t *vif_method;
 		  unsigned   vif_methods;
 		  unsigned char *vif_parm_default;
@@ -1190,6 +1191,7 @@ struct ivl_statement_s {
 
 	    struct { /* IVL_ST_STASK */
 		  const char*name_;
+		  const char*display_arg_roles_;
 		  ivl_sfunc_as_task_t sfunc_as_task_;
 		  unsigned   nparm_;
 		  ivl_expr_t*parms_;

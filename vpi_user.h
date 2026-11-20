@@ -722,6 +722,8 @@ typedef struct t_vpi_delay  {
 #define _vpiTchkConditionText    0x1000007
   /* Object classification used by bundled system tasks for storage dispatch. */
 #define _vpiInternalType         0x1000008
+/* Internal positional display roles, valid for the lifetime of the call. */
+#define _vpiDisplayArgRoles      0x1000009
 
 /* DELAY MODES */
 #define vpiNoDelay            1

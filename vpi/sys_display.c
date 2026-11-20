@@ -89,6 +89,7 @@ struct strobe_cb_info {
       int default_format;
       vpiHandle scope;
       vpiHandle*items;
+      const char*arg_roles;
       unsigned nitems;
       unsigned fd_mcd;
 };
@@ -133,8 +134,12 @@ static int vpi_get_dec_size(vpiHandle item)
 	);
 }
 
-static void array_from_iterator(struct strobe_cb_info*info, vpiHandle argv)
+static void array_from_iterator(struct strobe_cb_info*info, vpiHandle callh,
+                                vpiHandle argv, unsigned skipped)
 {
+      const char*roles = vpi_get_str(_vpiDisplayArgRoles, callh);
+      info->arg_roles = roles ? roles + skipped : 0;
+
       if (argv) {
 	    vpiHandle item;
 	    unsigned nitems = 1;
@@ -1397,18 +1402,41 @@ static char *get_display(unsigned int *rtnsz, const struct strobe_cb_info *info)
   size = 1;
   for  (idx = 0; idx < info->nitems; idx += 1) {
     vpiHandle item = info->items[idx];
+    PLI_INT32 type = vpi_get(vpiType, item);
+    char role = info->arg_roles ? info->arg_roles[idx] : 'v';
 
-    switch (vpi_get(vpiType, item)) {
+    /* Older VVP and compiler-generated calls have no source roles. */
+    if (!info->arg_roles
+        && (type == vpiStringVar
+            || ((type == vpiConstant || type == vpiParameter)
+                && vpi_get(vpiConstType, item) == vpiStringConst)))
+      role = 'f';
+
+    if (role == 'f' || role == 's') {
+      value.format = vpiStringVal;
+      vpi_get_value(item, &value);
+      if (role == 'f') {
+        fmt = strdup(value.value.str);
+        width = get_format(&result, fmt, info, &idx);
+        free(fmt);
+        cresult = result;
+      } else {
+        result = 0;
+        cresult = value.value.str;
+        width = strlen(cresult);
+      }
+      rtn = realloc(rtn, size + width);
+      memcpy(rtn + size - 1, cresult, width);
+      free(result);
+      size += width;
+      continue;
+    }
+
+    switch (type) {
 
       case vpiConstant:
       case vpiParameter:
-        if (vpi_get(vpiConstType, item) == vpiStringConst) {
-          value.format = vpiStringVal;
-          vpi_get_value(item, &value);
-          fmt = strdup(value.value.str);
-          width = get_format(&result, fmt, info, &idx);
-          free(fmt);
-        } else if (vpi_get(vpiConstType, item) == vpiRealConst) {
+        if (vpi_get(vpiConstType, item) == vpiRealConst) {
           value.format = vpiRealVal;
           vpi_get_value(item, &value);
 #if !defined(__GNUC__)
@@ -1471,19 +1499,6 @@ static char *get_display(unsigned int *rtnsz, const struct strobe_cb_info *info)
         rtn = realloc(rtn, (size+width)*sizeof(char));
         memcpy(rtn+size-1, buf, width);
         break;
-
-       /* Process string variables like string constants: interpret
-	  the contained strings like format strings. */
-      case vpiStringVar:
-	value.format = vpiStringVal;
-	vpi_get_value(item, &value);
-	fmt = strdup(value.value.str);
-	width = get_format(&result, fmt, info, &idx);
-	free(fmt);
-        rtn = realloc(rtn, (size+width)*sizeof(char));
-        memcpy(rtn+size-1, result, width);
-        free(result);
-	break;
 
       case vpiSysFuncCall:
         func_name = vpi_get_str(vpiName, item);
@@ -1736,7 +1751,7 @@ static PLI_INT32 sys_display_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       info.lineno = (int)vpi_get(vpiLineNo, callh);
       info.default_format = get_default_format(name);
       info.scope = scope;
-      array_from_iterator(&info, argv);
+      array_from_iterator(&info, callh, argv, name[1] == 'f');
 
 	/* Because %u and %z may put embedded NULL characters into the
 	 * returned string strlen() may not match the real size! */
@@ -1856,7 +1871,7 @@ static PLI_INT32 sys_strobe_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       info->lineno = (int)vpi_get(vpiLineNo, callh);
       info->default_format = get_default_format(name);
       info->scope= scope;
-      array_from_iterator(info, argv);
+      array_from_iterator(info, callh, argv, name[1] == 'f');
 
       timerec.type = vpiSimTime;
       timerec.low = 0;
@@ -2026,7 +2041,7 @@ static PLI_INT32 sys_monitor_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       scope = vpi_handle(vpiScope, callh);
       assert(scope);
 	/* Make an array of handles from the argument list. */
-      array_from_iterator(&(monitor->strobe), argv);
+      array_from_iterator(&(monitor->strobe), callh, argv, name[1] == 'f');
       monitor->strobe.name = name;
       monitor->strobe.filename = strdup(vpi_get_str(vpiFile, callh));
       monitor->strobe.lineno = (int)vpi_get(vpiLineNo, callh);
@@ -2227,7 +2242,8 @@ static PLI_INT32 sys_swrite_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
   return 0;
 }
 
-static PLI_INT32 sys_swrite_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
+static PLI_INT32 sys_swrite_common(ICARUS_VPI_CONST PLI_BYTE8 *name,
+                                  int return_string)
 {
   vpiHandle callh, argv, reg, scope;
   struct strobe_cb_info info;
@@ -2236,7 +2252,7 @@ static PLI_INT32 sys_swrite_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 
   callh = vpi_handle(vpiSysTfCall, 0);
   argv = vpi_iterate(vpiArgument, callh);
-  reg = vpi_scan(argv);
+  reg = return_string ? 0 : vpi_scan(argv);
 
   scope = vpi_handle(vpiScope, callh);
   assert(scope);
@@ -2247,12 +2263,17 @@ static PLI_INT32 sys_swrite_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
   info.lineno = (int)vpi_get(vpiLineNo, callh);
   info.default_format = get_default_format(name);
   info.scope = scope;
-  array_from_iterator(&info, argv);
+  array_from_iterator(&info, callh, argv, !return_string);
 
   /* Because %u and %z may put embedded NULL characters into the returned
    * string strlen() may not match the real size! */
   val.value.str = get_display(&size, &info);
-  put_string_output(reg, val.value.str, size);
+  if (return_string) {
+    val.format = vpiStringVal;
+    vpi_put_value(callh, &val, 0, vpiNoDelay);
+  } else {
+    put_string_output(reg, val.value.str, size);
+  }
   if (size != strlen(val.value.str)) {
     vpi_printf("WARNING: %s:%d: %s returned a value with an embedded NULL "
                "(see %%u/%%z).\n", info.filename, info.lineno, name);
@@ -2262,6 +2283,16 @@ static PLI_INT32 sys_swrite_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
   free(info.filename);
   free(info.items);
   return 0;
+}
+
+static PLI_INT32 sys_swrite_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
+{
+  return sys_swrite_common(name, 0);
+}
+
+static PLI_INT32 sys_swrite_return_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
+{
+  return sys_swrite_common(name, 1);
 }
 
 static PLI_INT32 sys_sformat_compiletf(ICARUS_VPI_CONST PLI_BYTE8 *name)
@@ -2348,7 +2379,7 @@ static PLI_INT32 sys_sformat_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
   info.lineno = (int)vpi_get(vpiLineNo, callh);
   info.default_format = get_default_format(name);
   info.scope = scope;
-  array_from_iterator(&info, argv);
+  array_from_iterator(&info, callh, argv, 1);
   idx = -1;
   size = get_format(&result, fmt, &info, &idx);
   free(fmt);
@@ -2711,12 +2742,13 @@ static PLI_INT32 sys_severity_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       char *sstr, *t, *dstr;
       unsigned int size, location=0;
       s_vpi_value finish_number;
+      int has_finish_number = strncmp(name, "$fatal", 6) == 0 && argv;
 
       /* Set the default finish number for $fatal. */
       finish_number.value.integer = 1;
 
       /* Check that the finish number is in range. */
-      if (strncmp(name,"$fatal", 6) == 0 && argv) {
+      if (has_finish_number) {
             vpiHandle arg = vpi_scan(argv);
             finish_number.format = vpiIntVal;
             vpi_get_value(arg, &finish_number);
@@ -2742,7 +2774,7 @@ static PLI_INT32 sys_severity_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       info.lineno = (int)vpi_get(vpiLineNo, callh);
       info.default_format = vpiDecStrVal;
       info.scope = scope;
-      array_from_iterator(&info, argv);
+      array_from_iterator(&info, callh, argv, has_finish_number);
 
       vpi_printf("%s: %s:%d: ", sstr, info.filename, info.lineno);
 
@@ -3231,6 +3263,25 @@ void sys_display_register(void)
       tf_data.user_data = "$ivl_psprintf_trailing_empty";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
+
+      /* Private string result for $swrite to a function return slot. */
+      static const struct {
+	    const char*function_name;
+	    const char*task_name;
+      } swrite_returns[] = {
+	    {"$ivl_swrite",  "$swrite"},
+	    {"$ivl_swriteb", "$swriteb"},
+	    {"$ivl_swriteh", "$swriteh"},
+	    {"$ivl_swriteo", "$swriteo"}
+      };
+      tf_data.calltf    = sys_swrite_return_calltf;
+      tf_data.compiletf = sys_display_compiletf;
+      for (unsigned idx = 0; idx < sizeof(swrite_returns) / sizeof(*swrite_returns); ++idx) {
+	    tf_data.tfname    = swrite_returns[idx].function_name;
+	    tf_data.user_data = swrite_returns[idx].task_name;
+	    res = vpi_register_systf(&tf_data);
+	    vpip_make_systf_system_defined(res);
+      }
 
       /*============================ timeformat */
       tf_data.type      = vpiSysTask;

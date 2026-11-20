@@ -629,6 +629,12 @@ void draw_eval_string(ivl_expr_t expr)
 	    draw_ternary_string(expr);
 	    break;
 
+	  case IVL_EX_UNARY:
+	    if (ivl_expr_opcode(expr) == 's') {
+		  fallback_eval(ivl_expr_oper1(expr));
+		  break;
+	    }
+	    /* Fall through. */
 	  default:
 	    fallback_eval(expr);
 	    break;

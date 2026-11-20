@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3416_display_literal.sv",
+    "iverilog-args": ["-g2017", "-s", "issue3416_display_literal"],
+    "gold": "issue3416_display_literal"
+}

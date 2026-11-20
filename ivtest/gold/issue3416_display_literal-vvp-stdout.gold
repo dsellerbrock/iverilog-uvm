@@ -1,0 +1,22 @@
+var %0d|%h200200
+var 200|c8
+var %0d|%h200200
+cast %0d200
+constant=<%h200>
+dynamic=<%h200>
+var %0d|%h%%200
+packed=< 280284578885>
+concat=<4142434445>
+conditional=<41>
+signed=<  65>
+empty=< >
+first=200 second=var %0d|%h third=%%
+var %0d|%h200 hex=c8
+swrite=<var %0d|%h200|c8|end>
+return=<var %0d|%h200|c8|end>
+return hex=<var %0d|%hc8>
+sformat=<var 200|c8>
+sformatf=<var 200|c8>
+strobe=changed %%200
+monitor=changed %%200
+monitor=next %0d200

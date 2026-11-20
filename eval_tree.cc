@@ -1775,6 +1775,16 @@ NetExpr* NetECast::eval_arguments_(const NetExpr*ex) const
 {
       NetExpr*res = 0;
       switch (op_) {
+	  case 's':
+	    if (const NetEConst*packed = dynamic_cast<const NetEConst*>(ex)) {
+		  const verinum&bits = packed->value();
+		  // Zero-pad a partial byte and convert X/Z to zero (6.16).
+		  verinum bytes(verinum::V0, (bits.len() + 7) & ~7U);
+		  bytes.set(0, bits);
+		  bytes.cast_to_int2();
+		  res = new NetECString(verinum::from_raw_string(bytes.as_raw_string()));
+	    }
+	    break;
 	  case 'r':
 	    if (const NetEConst*real_source = dynamic_cast<const NetEConst*>(ex)) {
 		  verireal res_val(real_source->value().as_double());

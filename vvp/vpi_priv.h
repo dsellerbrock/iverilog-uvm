@@ -32,6 +32,7 @@
 
 # include  <map>
 # include  <list>
+# include  <memory>
 # include  <set>
 # include  <string>
 # include  <vector>
@@ -1679,6 +1680,7 @@ struct __vpiSysTaskCall : public __vpiHandle {
       struct __vpiUserSystf*defn;
       unsigned nargs;
       vpiHandle*args;
+      std::unique_ptr<char[]> display_arg_roles;
 	/* Stack consumed by this call */
       unsigned vec4_stack;
       unsigned real_stack;
@@ -1845,7 +1847,8 @@ extern vpiHandle vpip_build_vpi_call(const char*name,
 				     unsigned string_stack,
 				     unsigned object_stack,
 				     long file_idx,
-				     long lineno);
+				     long lineno,
+				     char*display_arg_roles = nullptr);
 
 extern vthread_t vpip_current_vthread;
 
