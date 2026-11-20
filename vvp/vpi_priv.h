@@ -882,6 +882,8 @@ struct __vpiModPathTerm : public __vpiHandle {
       int edge;
 };
 
+struct __vpiModPath;
+
 struct __vpiModPathSrc : public __vpiHandle {
       __vpiModPathSrc();
       int get_type_code(void) const override;
@@ -911,15 +913,26 @@ struct __vpiModPathSrc : public __vpiHandle {
 } ;
 
 
-/*
- *
- * The vpiModPath vpiHandle will define
- * a vpiModPath of record .modpath as defined
- * in the IEEE 1364
- *
- */
+struct __vpiDelayTerm : public __vpiHandle {
+      __vpiDelayTerm(__vpiModPath*device, bool input);
+      int get_type_code(void) const override { return vpiDelayTerm; }
+      int vpi_get(int code) override;
+      vpiHandle vpi_handle(int code) override;
+      void vpi_get_value(p_vpi_value val) override;
 
-struct __vpiModPath {
+    private:
+      __vpiModPath*device_;
+      bool input_;
+};
+
+/* A .modpath destination stage is one delay device shared by its
+   timing-selection probes (the individual vpiModPath handles). */
+struct __vpiModPath : public __vpiHandle {
+      __vpiModPath(__vpiScope*scope, class vvp_fun_modpath*modpath);
+      int get_type_code(void) const override { return vpiDelayDevice; }
+      int vpi_get(int code) override;
+      vpiHandle vpi_handle(int code) override;
+
       __vpiScope   *scope ;
 	/* The sources, in .modpath record order (for .pathexpr). */
       std::vector<struct __vpiModPathSrc*> srcs;
@@ -927,7 +940,8 @@ struct __vpiModPath {
       class vvp_fun_modpath*modpath;
 
       struct __vpiModPathTerm path_term_out;
-      vvp_net_t *input_net  ;
+      __vpiDelayTerm delay_term_in;
+      __vpiDelayTerm delay_term_out;
 };
 
 
@@ -942,8 +956,6 @@ extern void vpip_specparam_changed(__vpiScope*scope);
 
 extern struct __vpiModPathSrc* vpip_make_modpath_src(struct __vpiModPath*path,
                                                      vvp_net_t *net) ;
-
-extern struct __vpiModPath* vpip_make_modpath(vvp_net_t *net) ;
 
 /*
  *

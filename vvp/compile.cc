@@ -3127,14 +3127,14 @@ struct __vpiModPath* compile_modpath(char*label, unsigned width,
 
       define_functor_symbol(label, net);
 
-      __vpiModPath*modpath = vpip_make_modpath(net);
+      __vpiModPath*modpath = new __vpiModPath(vpip_peek_current_scope(), obj);
+      vpip_attach_to_current_scope(modpath);
 
       compile_vpi_lookup(&modpath->path_term_out.expr, dest.text);
 
       modpaths_by_label[label] = modpath;
       free(label);
 
-      modpath->modpath = obj;
       return modpath;
 }
 

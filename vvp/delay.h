@@ -265,8 +265,12 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
 
+      const vvp_vector4_t& delay_input() const { return input_vec4_; }
+      const vvp_vector4_t& delay_output() const { return *last_sent_; }
+
     private:
       virtual void run_run() override;
+      void send_full_(const vvp_vector4_t&bit);
       pulse_event_* enqueue_pulse_event_(vvp_time64_t time,
 					 const vvp_vector4_t& from,
 					 const vvp_vector4_t& to);
@@ -290,14 +294,17 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
     private:
       vvp_net_t*net_;
 
+      vvp_vector4_t input_vec4_;
       vvp_vector4_t cur_vec4_;
       vvp_vector4_t out_vec4_;
+      vvp_vector4_t full_vec4_;
+	/* Points to the per-bit output or the most recent whole-vector send. */
+      const vvp_vector4_t*last_sent_;
 
       vvp_fun_modpath_src*src_list_;
       vvp_fun_modpath_src*ifnone_list_;
       pulse_event_map_t pulse_events_;
       pulse_event_*pending_pulse_;
-      vvp_vector4_t pulse_vec4_;
       bool has_conditional_paths_;
       bool has_dst_parts_;
 	// When the last output change arrived (see path_input_changed_).
