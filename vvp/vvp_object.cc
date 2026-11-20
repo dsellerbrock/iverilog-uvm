@@ -172,6 +172,7 @@ static bool parse_strict_container_layout_(
       vvp_fixed_leaf_kind_t fixed_leaf = VVP_FIXED_OBJECT;
       unsigned fixed_width = 0;
       unsigned packed_width = 0;
+      vvp_assoc_layout_t assoc;
       if (!cur || *cur != '!')
             return false;
       ++cur;
@@ -190,6 +191,23 @@ static bool parse_strict_container_layout_(
                   queue_bounds.push_back(0);
             } else if (*cur == 'A') {
                   ++cur;
+                  if (*cur >= '0' && *cur <= '9') {
+                        uint64_t width = 0;
+                        if (!kinds.empty() || !parse_layout_uint64_(cur, width)
+                            || width == 0 || width > UINT_MAX
+                            || (*cur != 's' && *cur != 'u'))
+                              return false;
+                        assoc.index_width = static_cast<unsigned>(width);
+                        assoc.index_signed = *cur++ == 's';
+                        if (!*cur || !strchr("bvrSo", *cur))
+                              return false;
+                        assoc.value_kind = *cur++;
+                        if (assoc.value_kind == 'b' || assoc.value_kind == 'v') {
+                              if (*cur != 's' && *cur != 'u')
+                                    return false;
+                              assoc.value_signed = *cur++ == 's';
+                        }
+                  }
                   kinds.push_back(VVP_CONTAINER_ASSOC);
                   queue_bounds.push_back(0);
             } else if (*cur == 'P') {
@@ -248,6 +266,9 @@ static bool parse_strict_container_layout_(
 
       if (kinds.empty() || kinds.front() != expected_outer)
             return false;
+      if (assoc.index_width && (kinds.size() != 1
+          || (packed_width && assoc.value_kind != 'b' && assoc.value_kind != 'v')))
+            return false;
       vvp_container_layout_t result;
       for (size_t idx = kinds.size(); idx > 0; --idx) {
             const vvp_container_layout_kind_t kind = kinds[idx-1];
@@ -257,7 +278,7 @@ static bool parse_strict_container_layout_(
             } else {
                   result = std::make_shared<vvp_container_layout_s>(
                         kind, kind == VVP_CONTAINER_QUEUE, queue_bounds[idx-1],
-                        result, packed_width);
+                        result, packed_width, idx == 1 ? assoc : vvp_assoc_layout_t{});
                   packed_width = 0;
             }
       }

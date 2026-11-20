@@ -1,0 +1,2 @@
+issue2591_p_class_assoc_signed_2017 normal,-g2017 ivltests gold=issue2591_p_class_assoc_signed.gold
+issue2591_p_class_assoc_signed_2023 normal,-g2023 ivltests gold=issue2591_p_class_assoc_signed.gold

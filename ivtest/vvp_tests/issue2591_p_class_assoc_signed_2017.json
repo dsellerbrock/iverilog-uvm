@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2591_p_class_assoc_signed.sv",
+  "iverilog-args": ["-g2017"],
+  "gold": "issue2591_p_class_assoc_signed"
+}

@@ -993,29 +993,59 @@ static inline uint64_t queue_receiver_max_operand_(ivl_expr_t receiver,
       return queue_live_max_operand_(type);
 }
 
-/* An associative array's index type is needed by $readmem/$writemem at
- * runtime: unlike a fixed memory, the array has no declared address range.
- * Encode only integral key widths here; non-integral and legacy declarations
- * retain their old spelling and are rejected by those system tasks. */
-static inline void emit_assoc_index_type_(ivl_type_t type)
+static inline ivl_type_t integral_assoc_index_type_(ivl_type_t type)
 {
       if (!type || !ivl_type_queue_assoc_compat(type))
-	    return;
+	    return 0;
 
       ivl_type_t index_type = ivl_type_assoc_index(type);
       if (!index_type)
-	    return;
+	    return 0;
 
       const ivl_variable_type_t base = ivl_type_base(index_type);
       if (base != IVL_VT_BOOL && base != IVL_VT_LOGIC)
+	    return 0;
+
+      return ivl_type_packed_width(index_type) ? index_type : 0;
+}
+
+/* $readmem/$writemem use the integral index width and signedness at runtime. */
+static inline void emit_assoc_index_type_(ivl_type_t type)
+{
+      ivl_type_t index_type = integral_assoc_index_type_(type);
+      if (!index_type)
 	    return;
 
-      unsigned width = ivl_type_packed_width(index_type);
-      if (!width)
-	    return;
-
-      fprintf(vvp_out, "I%u%c", width,
+      fprintf(vvp_out, "I%u%c", ivl_type_packed_width(index_type),
 	      ivl_type_signed(index_type) ? 's' : 'u');
+}
+
+/* Formatting metadata for scalar values of a class's integral-key map. */
+static inline char assoc_property_value_kind_(ivl_type_t type)
+{
+      if (!integral_assoc_index_type_(type))
+            return 0;
+      ivl_type_t value = ivl_type_element(type);
+      if (!value || type_is_fixed_uarray_property_(value)
+          || ivl_type_is_chandle(value) || ivl_type_is_tagged_union(value))
+            return 0;
+      switch (ivl_type_base(value)) {
+        case IVL_VT_BOOL:   return 'b';
+        case IVL_VT_LOGIC:  return 'v';
+        case IVL_VT_REAL:   return 'r';
+        case IVL_VT_STRING: return 'S';
+        case IVL_VT_CLASS:  return ivl_type_is_interface(value) ? 0 : 'o';
+        default: return 0;
+      }
+}
+
+static inline ivl_type_t assoc_property_packed_leaf_(ivl_type_t type)
+{
+      char kind = assoc_property_value_kind_(type);
+      if (kind != 'b' && kind != 'v')
+            return 0;
+      ivl_type_t value = ivl_type_element(type);
+      return (ivl_type_enum(value) || ivl_type_properties(value) > 0) ? value : 0;
 }
 
 /* Find the packed-struct leaf of a Q/D chain or a single associative array. */
@@ -1048,8 +1078,11 @@ static inline ivl_type_t packed_struct_container_leaf_(ivl_type_t type)
  * Q0 means a known-unbounded queue; D and A carry no bound. An associative
  * array of one-dimensional fixed arrays ends in F<left>:<right>:<leaf>.
  * The leaf is b<width>, v<width>, or o for two-state, four-state, or object
- * elements. P<width> records a packed struct's storage width. */
-static inline void emit_container_layout_suffix_(ivl_type_t type)
+ * elements. P<width> records the packed typespec's storage width.
+ * A class property can append its integral index width and signedness,
+ * and the element kind and signedness, to the outer A layer. */
+static inline void emit_container_layout_suffix_(ivl_type_t type,
+                                                 int class_property)
 {
       ivl_type_t cur = type;
       int emitted = 0;
@@ -1075,6 +1108,16 @@ static inline void emit_container_layout_suffix_(ivl_type_t type)
                   fputc('D', vvp_out);
             } else if (ivl_type_queue_assoc_compat(cur)) {
                   fputc('A', vvp_out);
+                  const char kind = class_property && cur == type
+                        ? assoc_property_value_kind_(cur) : 0;
+                  if (kind) {
+                        ivl_type_t key = integral_assoc_index_type_(cur);
+                        ivl_type_t value = ivl_type_element(cur);
+                        fprintf(vvp_out, "%u%c%c", ivl_type_packed_width(key),
+                                ivl_type_signed(key) ? 's' : 'u', kind);
+                        if (kind == 'b' || kind == 'v')
+                              fputc(ivl_type_signed(value) ? 's' : 'u', vvp_out);
+                  }
             } else {
                   fprintf(vvp_out, "Q%" PRIu64,
                           ivl_type_queue_max_size(cur));
@@ -1082,7 +1125,9 @@ static inline void emit_container_layout_suffix_(ivl_type_t type)
             emitted = 1;
             cur = ivl_type_element(cur);
       }
-      ivl_type_t packed_leaf = packed_struct_container_leaf_(type);
+      ivl_type_t packed_leaf = class_property ? assoc_property_packed_leaf_(type) : 0;
+      if (!packed_leaf)
+            packed_leaf = packed_struct_container_leaf_(type);
       if (packed_leaf)
             fprintf(vvp_out, ",P%u", ivl_type_packed_width(packed_leaf));
 }

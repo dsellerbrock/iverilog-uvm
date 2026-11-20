@@ -97,6 +97,13 @@ int __vpiDarrayVar::get_word_size() const
       return new_vec.size();
 }
 
+bool __vpiDarrayVar::assoc_order_signed() const
+{
+      const auto*layout = container_layout();
+      return layout && layout->assoc.index_width
+	    ? layout->assoc.index_signed : readmem_index_signed_;
+}
+
 char*__vpiDarrayVar::get_word_str(struct __vpiArrayWord*word, int code)
 {
       unsigned index = word->get_index();
@@ -115,7 +122,7 @@ char*__vpiDarrayVar::get_word_str(struct __vpiArrayWord*word, int code)
 		  double rval = 0.0;
 		  int kind = -1;
 		  if (mobj->peek_entry(index, key, vval, rval, sval, kind,
-				       readmem_index_signed_))
+				       assoc_order_signed()))
 			return simple_set_rbuf_str(key.c_str());
 	    }
       }
@@ -136,10 +143,11 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 	    if (const vvp_assoc_base*mobj = get_vvp_assoc()) {
 		  std::string key, sval;
 		  vvp_vector4_t vval;
+		  vvp_object_t object_value;
 		  double rval = 0.0;
 		  int kind = -1;
 		  if (! mobj->peek_entry(index, key, vval, rval, sval, kind,
-				       readmem_index_signed_)) {
+				       assoc_order_signed(), nullptr, &object_value)) {
 			vp->format = vpiSuppressVal;
 			return;
 		  }
@@ -158,17 +166,6 @@ void __vpiDarrayVar::get_word_value(struct __vpiArrayWord*word, p_vpi_value vp)
 			vpip_string_get_value(sval, vp);
 			return;
 		      case 3: {
-			    int key_kind = -1;
-			    std::string string_key;
-			    const vvp_object*object_key = 0;
-			    vvp_vector4_t vector_key;
-			    vvp_object_t object_value;
-			    if (!mobj->peek_entry_identity(index, key_kind, string_key,
-						   object_key, vector_key,
-						   object_value)) {
-				  vp->format = vpiSuppressVal;
-				  return;
-			    }
 			    if (vp->format == vpiObjTypeVal) {
 				  vp->value.misc = reinterpret_cast<char*>(
 					object_value.peek<vvp_object>());
@@ -331,8 +328,9 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
 	    vvp_vector4_t cur_vec;
 	    double cur_real = 0.0;
 	    int kind = -1;
+	    const bool signed_order = assoc_order_signed();
 	    if (! mobj->peek_entry(index, key, cur_vec, cur_real,
-				   cur_str, kind, readmem_index_signed_)) {
+				   cur_str, kind, signed_order)) {
 		  fprintf(stderr, "vpi error: associative array element "
 			  "index %u does not exist.\n", index);
 		  return;
@@ -397,7 +395,7 @@ void __vpiDarrayVar::put_word_value(struct __vpiArrayWord*word, p_vpi_value vp, 
 	    }
 	    if (!ok || ! mobj->poke_entry(index, new_vec, new_real,
 					  new_str, kind,
-					  readmem_index_signed_)) {
+					  signed_order)) {
 		  fprintf(stderr, "vpi sorry: value format %d cannot be "
 			  "written to this associative array element "
 			  "(value kind %d).\n", (int)vp->format, kind);
