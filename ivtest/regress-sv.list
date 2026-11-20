@@ -7415,3 +7415,7 @@ issue3385_bad_2017 CE,-g2017,-s,issue3385_bad ivltests gold=issue3385_bad-iveril
 issue3385_bad_2023 CE,-g2023,-s,issue3385_bad ivltests gold=issue3385_bad-iverilog-stderr.gold
 issue3385_dpi_2017 CO,-g2017,-s,issue3385_dpi ivltests
 issue3385_dpi_2023 CO,-g2023,-s,issue3385_dpi ivltests
+issue3863_2017 normal,-g2017,-gassertions,-s,issue3863 ivltests gold=issue3863.gold
+issue3863_error_2017 CE,-g2017,-gassertions,-sissue3863_unclocked,-sissue3863_embedded ivltests gold=issue3863_error.gold
+issue3863_2023 normal,-g2023,-gassertions,-s,issue3863 ivltests gold=issue3863.gold
+issue3863_error_2023 CE,-g2023,-gassertions,-sissue3863_unclocked,-sissue3863_embedded ivltests gold=issue3863_error.gold

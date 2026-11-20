@@ -14561,12 +14561,23 @@ NetExpr* PECallFunction::elaborate_sfunc_(Design*des, NetScope*scope,
 				   && ssig->word_index() == 0)));
 	    if (!samplable) {
 		  if (dynamic_cast<NetEConst*>(sub) == 0
-		      && dynamic_cast<NetECReal*>(sub) == 0)
+		      && dynamic_cast<NetECReal*>(sub) == 0) {
+			if (const PEIdent*id = dynamic_cast<const PEIdent*>(arg)) {
+			      if (id->path().lookup_scope) {
+				    cerr << get_fileline() << ": sorry: this checker actual "
+					 << "operand cannot be sampled in the Preponed region "
+					 << "(IEEE 1800-2017/2023 16.5.1)." << endl;
+				    des->errors += 1;
+				    delete sub;
+				    return nullptr;
+			      }
+			}
 			cerr << get_fileline() << ": warning: this operand "
 			     << "cannot be sampled in the Preponed region "
 			     << "(IEEE 1800-2017 16.5.1) and is read live; a "
 			     << "blocking write to it in the same time slot "
 			     << "as the clock will be visible." << endl;
+		  }
 		    /* A non-samplable real still has no bit width to cast
 		       to: cast_to_width_ would wrap it in a NetESelect, and
 		       draw_select_real asserts on a select whose signal is

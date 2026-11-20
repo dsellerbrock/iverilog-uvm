@@ -448,6 +448,11 @@ extern void pform_sva_hold_assertion(const struct vlltype&loc,
 				     Statement*fail_stmt, Statement*pass_stmt,
 				     int kind);
 extern Statement* pform_sva_release_assertion(bool procedural);
+extern bool pform_sva_checker_sequence_actual(const LineInfo&, Design*,
+					     NetScope*, perm_string);
+extern void pform_sva_elaborate_checker(Design*, Module*, NetScope*caller,
+				       NetScope*instance, const std::vector<PExpr*>&,
+				       std::vector<bool>&temporal);
 /* IEEE 1800-2023 17.3: procedural checker instances. The behaviors and gates
    a checker's static assertions lowered to; a procedural instance's
    module-scope copy of the checker leaves them out. */
