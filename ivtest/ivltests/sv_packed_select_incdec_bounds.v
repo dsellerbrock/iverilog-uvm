@@ -27,7 +27,7 @@ module sv_packed_select_incdec_bounds;
     two_state=8'haa; two_state_index='x; two_result=++two_state[two_state_index];
     if (two_state!=8'hab || two_result!=1) $fatal(1,"two-state unknown bit");
     two_state=8'haa; two_part=two_state[6+:4]++;
-    if (two_state!=8'hea || two_part!=4'h2) $fatal(1,"two-state OOB part");
+    if (two_state!=8'h2a || two_part!=4'h2) $fatal(1,"two-state OOB part");
 
     ascending='0; ascending[0]=1; four_result=ascending[0]++;
     if (ascending!=='0 || four_result!==1) $fatal(1,"ascending range");

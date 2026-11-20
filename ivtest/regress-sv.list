@@ -6712,6 +6712,7 @@ issue1530_fixed_target_concat_2017 normal,-g2017,-s,issue1530_fixed_target_conca
 issue1530_fixed_target_concat_2023 normal,-g2023,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold
 issue1713_skew_timer_expiration normal,-g2017,-gspecify,-s,main ivltests gold=issue1713_skew_timer_expiration.gold
 issue3310_explicit_event_flag normal,-g2017,-gspecify,-Ttyp,-s,main,+timeskew=1,+fullskew=0 ivltests
+issue3310_omitted_event_flag normal,-g2017,-gspecify,-Ttyp,-s,main,+timeskew=1,+fullskew=0 ivltests
 issue1757_enum2_wide_2017 normal,-g2017,-s,tb ivltests gold=issue1757_enum2_wide.gold
 issue1757_enum2_wide_2023 normal,-g2023,-s,tb ivltests gold=issue1757_enum2_wide.gold
 issue1725_class_randomize_size_retry_2017 normal,-g2017,-s,tb ivltests gold=issue1725_class_randomize_size_retry.gold
@@ -7431,3 +7432,7 @@ issue3869_bad_2023 CE,-g2023,-s,issue3869_bad ivltests gold=issue3869_bad.gold
 # IEEE 1800 7.8.4: %p of class associative properties with integral keys.
 issue2591_p_class_assoc_signed_2017 normal,-g2017 ivltests gold=issue2591_p_class_assoc_signed.gold
 issue2591_p_class_assoc_signed_2023 normal,-g2023 ivltests gold=issue2591_p_class_assoc_signed.gold
+issue3941_2017 normal,-g2017,-s,issue3941 ivltests gold=issue3941.gold
+issue3941_2023 normal,-g2023,-s,issue3941 ivltests gold=issue3941.gold
+issue3634_2017 normal,-g2017,-s,issue3634 ivltests gold=issue3634.gold
+issue3634_2023 normal,-g2023,-s,issue3634 ivltests gold=issue3634.gold

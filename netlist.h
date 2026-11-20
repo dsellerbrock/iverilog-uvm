@@ -984,6 +984,8 @@ class NetNet  : public NetObj, public PortType {
       };
       void mark_interconnect(bool declared_shape);
       bool is_interconnect() const { return interconnect_type_.get() != 0; }
+      bool interconnect_declared_shape() const
+        { return interconnect_declared_shape_; }
       bool interconnect_type_resolved() const;
       bool interconnect_type_invalid() const;
       const NetInterconnectType* interconnect_component() const
@@ -6568,6 +6570,8 @@ class NetEUnary  : public NetExpr {
 
       char op() const { return op_; }
       const NetExpr* expr() const { return expr_; }
+      bool two_state_part_incdec() const { return two_state_part_incdec_; }
+      void two_state_part_incdec(bool flag) { two_state_part_incdec_ = flag; }
 
       virtual NetEUnary* dup_expr() const override;
       virtual NetExpr* eval_tree() override;
@@ -6586,6 +6590,7 @@ class NetEUnary  : public NetExpr {
       NetExpr* expr_;
 
     private:
+      bool two_state_part_incdec_ = false;
       virtual NetExpr* eval_arguments_(const NetExpr*ex) const;
       virtual NetExpr* eval_tree_real_(const NetExpr*ex) const;
 };

@@ -3318,7 +3318,6 @@ static Module::port_t *module_declare_explicit_port(
 %type <spec_optional_args> timeskew_opt_args fullskew_opt_args
 %type <spec_optional_args> timeskew_fullskew_opt_notifier timeskew_fullskew_opt_event_based_flag
 %type <spec_optional_args> timeskew_fullskew_opt_remain_active_flag
-%type <spec_optional_args> timeskew_fullskew_opt_remain_active_mtm_flag
 
 %type <expr>  sva_cycle_delay_value
 %type <expr>  assignment_pattern expression expression_opt expr_mintypmax
@@ -20601,7 +20600,7 @@ timeskew_fullskew_opt_event_based_flag
       }
   | ',' timeskew_fullskew_opt_remain_active_flag // Empty
       { $$ = $2; }
-  | ',' expression timeskew_fullskew_opt_remain_active_mtm_flag
+  | ',' expression timeskew_fullskew_opt_remain_active_flag
         {
           $$ = $3;
           $$->event_based_flag = $2;
@@ -20609,20 +20608,6 @@ timeskew_fullskew_opt_event_based_flag
   ;
 
 timeskew_fullskew_opt_remain_active_flag
-  : ',' // Empty and end of list
-      {
-        PTimingCheck::optional_args_t* args = new PTimingCheck::optional_args_t;
-        $$ = args;
-      }
-  | ',' expression // End of list
-      {
-        PTimingCheck::optional_args_t* args = new PTimingCheck::optional_args_t;
-        args->remain_active_flag = $2;
-        $$ = args;
-      }
-  ;
-
-timeskew_fullskew_opt_remain_active_mtm_flag
   : ',' // Empty and end of list
       {
         PTimingCheck::optional_args_t* args = new PTimingCheck::optional_args_t;

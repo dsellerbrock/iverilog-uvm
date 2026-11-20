@@ -812,6 +812,13 @@ extern "C" char ivl_expr_opcode(ivl_expr_t net)
       return 0;
 }
 
+extern "C" unsigned ivl_expr_two_state_part_incdec(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_UNARY);
+      return net->u_.unary_.two_state_part_incdec_;
+}
+
 extern "C" ivl_expr_t ivl_expr_oper1(ivl_expr_t net)
 {
       assert(net);
@@ -4109,6 +4116,20 @@ extern "C" ivl_type_t ivl_signal_net_type(ivl_signal_t net)
       assert(net);
       assert(net->net_);
       return net->net_->net_type();
+}
+
+extern "C" int ivl_signal_is_interconnect(ivl_signal_t net)
+{
+      assert(net);
+      assert(net->net_);
+      return net->net_->is_interconnect();
+}
+
+extern "C" int ivl_signal_interconnect_declared_shape(ivl_signal_t net)
+{
+      assert(net);
+      assert(net->net_);
+      return net->net_->interconnect_declared_shape();
 }
 
 extern "C" ivl_scope_t ivl_signal_resolution_function(ivl_signal_t net)

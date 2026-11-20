@@ -1194,7 +1194,8 @@ extern void vpip_report_immediate_assertion(PLI_INT32 source_id,
    edge, including edges on which assertion control suppresses starts. */
 extern void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope);
 extern void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
-                                      vpiHandle scope, PLI_INT32 age);
+                                      vpiHandle scope, PLI_INT32 age,
+                                      PLI_INT32 row);
 /* M12B-cb: non-zero iff any assertion callback is registered (lets the
    synthesized checkers skip reporting when nothing is watching). */
 extern PLI_INT32 vpip_assertion_cb_active(void);
@@ -1226,6 +1227,12 @@ extern void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope,
                                     PLI_INT32 serial, const char*pre,
                                     const char*nx, const char*guards,
                                     PLI_INT32 ob);
+/* Save a guarded failure at its verdict, then report and consume the
+   same record in Reactive (start == NULL). */
+extern void vpip_assertion_nfa_failure(PLI_INT32 idx, vpiHandle scope,
+                                       PLI_INT32 record, const char*pre,
+                                       const char*guards,
+                                       const s_vpi_time*start);
 /* The serial of the most recent cbAssertionStart of (scope, idx). */
 extern PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope);
 /* M12B-rest: report an event on EVERY registered assertion (global
@@ -1317,7 +1324,7 @@ extern int vpip_sample_evcd_inout(vpiHandle ref, unsigned component,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 20;
+static const PLI_UINT32 vpip_routines_version = 21;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1370,7 +1377,8 @@ typedef struct {
     void        (*register_assertion)(PLI_INT32, const char*, const char*, PLI_INT32, vpiHandle, PLI_INT32, PLI_INT32, PLI_INT32, PLI_INT32, const char*, PLI_INT32);
     void        (*assertion_report)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*assertion_clock)(PLI_INT32, vpiHandle);
-    void        (*assertion_report_age)(PLI_INT32, PLI_INT32, vpiHandle, PLI_INT32);
+    void        (*assertion_report_age)(PLI_INT32, PLI_INT32, vpiHandle,
+                                       PLI_INT32, PLI_INT32);
     PLI_INT32   (*assertion_cb_active)(void);
     vpiHandle   (*register_assertion_cb)(vpiHandle, PLI_INT32, vpi_assertion_cb_func, PLI_BYTE8*);
     void        (*assertion_report_all)(PLI_INT32);
@@ -1402,6 +1410,9 @@ typedef struct {
     void        (*assertion_nfa_step)(PLI_INT32, vpiHandle, PLI_INT32,
                                       const char*, const char*, const char*,
                                       PLI_INT32);
+    void        (*assertion_nfa_failure)(PLI_INT32, vpiHandle, PLI_INT32,
+                                         const char*, const char*,
+                                         const s_vpi_time*);
     PLI_INT32   (*assertion_serial)(PLI_INT32, vpiHandle);
     void        (*proc_assert_cap)(vpiHandle);
     PLI_INT32   (*compat_get)(int, PLI_INT32, vpiHandle);

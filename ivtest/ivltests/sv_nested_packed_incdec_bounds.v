@@ -21,7 +21,7 @@ module sv_nested_packed_incdec_bounds;
     two_state = 16'h1234;
     unknown_base = 1'bx;
     result = ++two_state[1][unknown_base+:4];
-    if (result !== 4'h1 || two_state !== 16'h1234)
+    if (result !== 4'h0 || two_state !== 16'h1234)
       $fatal(1, "two-state invalid select mismatch value=%h result=%b", two_state, result);
     $display("PASSED");
   end

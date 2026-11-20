@@ -1126,6 +1126,8 @@ extern const char* ivl_expr_name(ivl_expr_t net);
 extern ivl_nature_t ivl_expr_nature(ivl_expr_t net);
   /* IVL_EX_BINARY IVL_EX_UNARY */
 extern char        ivl_expr_opcode(ivl_expr_t net);
+/* True for ++/-- of an explicit packed part-select with a 2-state destination. */
+extern unsigned    ivl_expr_two_state_part_incdec(ivl_expr_t net);
   /* IVL_EX_BINARY  IVL_EX_UNARY, IVL_EX_MEMORY IVL_EX_NEW IVL_EX_TERNARY
      IVL_EX_UNION_TAG */
 extern ivl_expr_t  ivl_expr_oper1(ivl_expr_t net);
@@ -2574,6 +2576,10 @@ extern ivl_delaypath_t ivl_signal_path(ivl_signal_t net, unsigned idx);
 extern ivl_signal_type_t ivl_signal_type(ivl_signal_t net);
 extern ivl_variable_type_t ivl_signal_data_type(ivl_signal_t net);
 extern ivl_type_t  ivl_signal_net_type(ivl_signal_t net);
+/* The original interconnect declaration, independent of its resolved type. */
+extern int         ivl_signal_is_interconnect(ivl_signal_t net);
+/* True if the interconnect declaration specified packed or unpacked ranges. */
+extern int         ivl_signal_interconnect_declared_shape(ivl_signal_t net);
 extern ivl_scope_t ivl_signal_resolution_function(ivl_signal_t net);
 extern const char* ivl_signal_name(ivl_signal_t net);
 extern const char* ivl_signal_basename(ivl_signal_t net);

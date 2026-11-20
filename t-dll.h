@@ -507,6 +507,7 @@ struct ivl_expr_s {
 
 	    struct {
 		  char op_;
+		  bool two_state_part_incdec_;
 		  ivl_expr_t sub_;
 	    } unary_;
 

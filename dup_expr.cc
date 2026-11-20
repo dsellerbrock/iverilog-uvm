@@ -344,7 +344,8 @@ NetEShallowCopy* NetEShallowCopy::dup_expr() const
 
 NetESignal* NetESignal::dup_expr() const
 {
-      NetESignal*tmp = new NetESignal(net_, word_);
+	// A caller can replace the word index in the copy.
+      NetESignal*tmp = new NetESignal(net_, word_ ? word_->dup_expr() : 0);
       ivl_assert(*this, tmp);
 	/* The two-argument constructor interprets a null word index as a
 	   whole-array reference and therefore takes its type from
@@ -413,6 +414,7 @@ NetEUnary* NetEUnary::dup_expr() const
 {
       NetEUnary*tmp = new NetEUnary(op_, expr_->dup_expr(), expr_width(), has_sign());
       ivl_assert(*this, tmp);
+      tmp->two_state_part_incdec(two_state_part_incdec());
       tmp->set_line(*this);
       return tmp;
 }

@@ -436,42 +436,6 @@ static PLI_INT32 sva_immediate_assertion_report_calltf(
       return 0;
 }
 
-/* M12B-cb: $ivl_assert_report(idx, reason) — a synthesized checker fires
-   a success/failure event for the (scope, idx) assertion. */
-static PLI_INT32 sva_report_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
-{
-      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
-      vpiHandle argv  = vpi_iterate(vpiArgument, callh);
-      PLI_INT32 idx = 0, reason = 0, age = -1;
-      (void)name;
-      if (argv) {
-	    vpiHandle a;
-	    s_vpi_value v;
-	    if ((a = vpi_scan(argv))) {
-		  v.format = vpiIntVal;
-		  vpi_get_value(a, &v);
-		  idx = v.value.integer;
-	    }
-	    if ((a = vpi_scan(argv))) {
-		  v.format = vpiIntVal;
-		  vpi_get_value(a, &v);
-		  reason = v.value.integer;
-	    }
-	    if ((a = vpi_scan(argv))) {
-		  v.format = vpiIntVal;
-		  vpi_get_value(a, &v);
-		  age = v.value.integer;
-		  vpi_free_object(argv);
-	    }
-      }
-      if (age >= 0)
-	    vpip_assertion_report_age(idx, reason,
-				      vpi_handle(vpiScope, callh), age);
-      else
-	    vpip_assertion_report(idx, reason, vpi_handle(vpiScope, callh));
-      return 0;
-}
-
 static PLI_INT32 sva_step_int_(vpiHandle argv, vpiHandle*a, PLI_INT32 dflt)
 {
       s_vpi_value v;
@@ -481,13 +445,40 @@ static PLI_INT32 sva_step_int_(vpiHandle argv, vpiHandle*a, PLI_INT32 dflt)
       return v.value.integer;
 }
 
-static char* sva_step_str_(vpiHandle argv, vpiHandle*a)
+/* $ivl_assert_report(idx, reason [, age [, row]]) — a failure row
+   identifies the predicate that failed at the given clock age. */
+static PLI_INT32 sva_report_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle argv  = vpi_iterate(vpiArgument, callh);
+      vpiHandle a = argv;
+      PLI_INT32 idx, reason, age, row;
+      (void)name;
+      idx = sva_step_int_(argv, &a, 0);
+      reason = sva_step_int_(argv, &a, 0);
+      age = sva_step_int_(argv, &a, -1);
+      row = sva_step_int_(argv, &a, 0);
+      if (a) vpi_free_object(argv);
+      if (age >= 0)
+	    vpip_assertion_report_age(idx, reason,
+				      vpi_handle(vpiScope, callh), age, row);
+      else
+	    vpip_assertion_report(idx, reason, vpi_handle(vpiScope, callh));
+      return 0;
+}
+
+static char* sva_scan_str_(vpiHandle argv, vpiHandle*a, PLI_INT32 format)
 {
       s_vpi_value v;
       if (!*a || !(*a = vpi_scan(argv))) return 0;
-      v.format = vpiStringVal;
+      v.format = format;
       vpi_get_value(*a, &v);
       return strdup(v.value.str);
+}
+
+static char* sva_step_str_(vpiHandle argv, vpiHandle*a)
+{
+      return sva_scan_str_(argv, a, vpiStringVal);
 }
 
 /* $ivl_assert_step_row(idx, row, reason, from, to {, "file", line, "text"})
@@ -607,13 +598,7 @@ static PLI_INT32 sva_nfa_step_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       idx = sva_step_int_(argv, &a, 0);
       serial = sva_step_int_(argv, &a, 0);
       for (i = 0 ; i < 3 ; i += 1) {
-	    s_vpi_value v;
-	    bits[i] = 0;
-	    if (a && (a = vpi_scan(argv))) {
-		  v.format = vpiBinStrVal;
-		  vpi_get_value(a, &v);
-		  bits[i] = strdup(v.value.str);
-	    }
+	    bits[i] = sva_scan_str_(argv, &a, vpiBinStrVal);
 	    if (!bits[i]) bits[i] = strdup("");
       }
       ob = sva_step_int_(argv, &a, 1);
@@ -621,6 +606,39 @@ static PLI_INT32 sva_nfa_step_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpip_assertion_nfa_step(idx, vpi_handle(vpiScope, callh), serial,
 			      bits[0], bits[1], bits[2], ob);
       for (i = 0 ; i < 3 ; i += 1) free(bits[i]);
+      return 0;
+}
+
+/* $ivl_assert_nfa_failure(idx, record [, pre, guards, start]) saves a
+   verdict in Observed with the optional arguments, or reports it in Reactive. */
+static PLI_INT32 sva_nfa_failure_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
+{
+      vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle scope = vpi_handle(vpiScope, callh);
+      vpiHandle argv = vpi_iterate(vpiArgument, callh);
+      vpiHandle a = argv;
+      PLI_INT32 idx = sva_step_int_(argv, &a, 0);
+      PLI_INT32 record = sva_step_int_(argv, &a, -1);
+      char*pre = sva_scan_str_(argv, &a, vpiBinStrVal);
+      (void)name;
+      if (!pre) {
+	    vpip_assertion_nfa_failure(idx, scope, record, 0, 0, 0);
+      } else {
+	    char*guards = sva_scan_str_(argv, &a, vpiBinStrVal);
+	    if (a && (a = vpi_scan(argv)) && vpi_get(vpiSize, a) == 64) {
+		  s_vpi_value v;
+		  s_vpi_time start = {0};
+		  v.format = vpiVectorVal;
+		  vpi_get_value(a, &v);
+		  start.type = vpiSimTime;
+		  start.low = v.value.vector[0].aval;
+		  start.high = v.value.vector[1].aval;
+		  vpip_assertion_nfa_failure(idx, scope, record, pre, guards, &start);
+	    }
+	    free(guards);
+	    free(pre);
+      }
+      if (a) vpi_free_object(argv);
       return 0;
 }
 
@@ -851,6 +869,7 @@ void sys_sva_register(void)
       register_task_("$ivl_assert_step", sva_step_calltf);
       register_task_("$ivl_assert_nfa", sva_nfa_calltf);
       register_task_("$ivl_assert_nfa_step", sva_nfa_step_calltf);
+      register_task_("$ivl_assert_nfa_failure", sva_nfa_failure_calltf);
       register_one_("$ivl_assert_serial", sva_serial_calltf);
       register_task_("$ivl_checker_free", sva_checker_free_calltf);
       register_one_("$ivl_assert_cb_active", sva_cb_active_calltf);

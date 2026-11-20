@@ -26,6 +26,8 @@ issue3403_vpi_charge_strength_2017 normal,-g2017,-s,top issue3403_vpi_charge_str
 issue3403_vpi_charge_strength_2023 normal,-g2023,-s,top issue3403_vpi_charge_strength.c issue3403_vpi_charge_strength_2023.gold
 issue3178_vpi_port_bit_conn_2017 normal,-g2017,-s,top issue3178_vpi_port_bit_conn.c issue3178_vpi_port_bit_conn_2017.gold
 issue3178_vpi_port_bit_conn_2023 normal,-g2023,-s,top issue3178_vpi_port_bit_conn.c issue3178_vpi_port_bit_conn_2023.gold
+issue3959_scalar_interconnect_2017 normal,-g2017,-s,top issue3959_scalar_interconnect.c issue3959_scalar_interconnect_2017.gold
+issue3959_scalar_interconnect_2023 normal,-g2023,-s,top issue3959_scalar_interconnect.c issue3959_scalar_interconnect_2023.gold
 # The compiler option field is optional and when present will contain
 # all subsequent fields.
 #==========
@@ -294,6 +296,8 @@ issue3750_class_constraints_2017 normal,-g2017,-s,top issue3750_class_constraint
 issue3750_class_constraints_2023 normal,-g2023,-s,top issue3750_class_constraints.c issue3750_class_constraints_2023.gold
 sva_step_unbounded_2017 normal,-g2017,-s,top sva_step_unbounded.c sva_step_unbounded_2017.gold
 sva_step_unbounded_2023 normal,-g2023,-s,top sva_step_unbounded.c sva_step_unbounded_2023.gold
+sva_failure_expr_2017 normal,-g2017,-s,sva_failure_expr sva_failure_expr.c sva_failure_expr_2017.gold
+sva_failure_expr_2023 normal,-g2023,-s,sva_failure_expr sva_failure_expr.c sva_failure_expr_2023.gold
 issue3872_vpi_while_condition_2017 normal,-g2017,-s,top issue3872_vpi_while_condition.c issue3872_vpi_while_condition_2017.gold
 issue3872_vpi_while_condition_2023 normal,-g2023,-s,top issue3872_vpi_while_condition.c issue3872_vpi_while_condition_2023.gold
 issue3873_vpi_if_condition_2017 normal,-g2017,-s,top issue3873_vpi_if_condition.c issue3873_vpi_if_condition_2017.gold

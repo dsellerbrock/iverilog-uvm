@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "sva_failure_expr.sv",
+  "iverilog-args": ["-g2017", "-s", "sva_failure_expr"],
+  "vpi-modules": ["sva_failure_expr_2017"],
+  "vpi-sources": ["vpi/sva_failure_expr.c"],
+  "gold": "sva_failure_expr"
+}

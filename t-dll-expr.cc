@@ -1041,5 +1041,6 @@ void dll_target::expr_unary(const NetEUnary*net)
       expr_->sized_ = 1;
       FILE_NAME(expr_, net);
       expr_->u_.unary_.op_ = net->op();
+      expr_->u_.unary_.two_state_part_incdec_ = net->two_state_part_incdec();
       expr_->u_.unary_.sub_ = sub;
 }

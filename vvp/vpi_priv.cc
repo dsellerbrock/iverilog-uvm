@@ -602,6 +602,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiPort";
 	  case vpiNet:
 	    return "vpiNet";
+	  case vpiInterconnectNet:
+	    return "vpiInterconnectNet";
 	  case vpiNettypeDecl:
 	    return "vpiNettypeDecl";
 	  case vpiNetArray:
@@ -652,8 +654,12 @@ const char* vpi_type_as_string(PLI_INT32 code)
 
 namespace {
 
-int internal_object_type_(vpiHandle ref, bool for_string = false)
+int internal_object_type_(vpiHandle ref, int property = vpiType,
+                          bool for_string = false)
 {
+      if (property == vpiType && ref->is_interconnect_net())
+	    return vpiInterconnectNet;
+
       // Preserve the distinction between numeric and string type lookups.
       int type = for_string ? ref->get_type_code() : ref->get_vpi_type_code();
       if (type == vpiAssertion) {
@@ -683,7 +689,7 @@ PLI_INT32 vpi_get(int property, vpiHandle ref)
 	  if (property == 74) return 0; // vpiIsProtected (not yet named in vpi_user.h)
 
       if (property == vpiType || property == _vpiInternalType) {
-	    int type = internal_object_type_(ref);
+	    int type = internal_object_type_(ref, property);
 	    if (property == vpiType)
 		  type = compat_type_(VPIP_COMPAT_1800v2012, ref, type);
 	    if (vpi_trace) {
@@ -748,7 +754,7 @@ char* vpi_get_str(PLI_INT32 property, vpiHandle ref)
       }
 
       if (property == vpiType || property == _vpiInternalType) {
-	    int type = internal_object_type_(ref, true);
+	    int type = internal_object_type_(ref, property, true);
 	    if (property == vpiType)
 		  type = compat_type_(VPIP_COMPAT_1800v2012, ref, type);
 	    if (vpi_trace) {
@@ -3639,6 +3645,7 @@ vpip_routines_s vpi_routines = {
     .assertion_step             = vpip_assertion_step,
     .assertion_nfa              = vpip_assertion_nfa,
     .assertion_nfa_step         = vpip_assertion_nfa_step,
+    .assertion_nfa_failure      = vpip_assertion_nfa_failure,
     .assertion_serial           = vpip_assertion_serial,
     .proc_assert_cap            = vpip_proc_assert_cap,
     .compat_get                 = vpip_compat_get,

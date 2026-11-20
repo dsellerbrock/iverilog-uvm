@@ -428,10 +428,10 @@ void vpip_assertion_clock(PLI_INT32 idx, vpiHandle scope)
 }
 
 void vpip_assertion_report_age(PLI_INT32 idx, PLI_INT32 reason,
-                               vpiHandle scope, PLI_INT32 age)
+                               vpiHandle scope, PLI_INT32 age, PLI_INT32 row)
 {
       assert(vpip_routines);
-      vpip_routines->assertion_report_age(idx, reason, scope, age);
+      vpip_routines->assertion_report_age(idx, reason, scope, age, row);
 }
 
 void vpip_assertion_step_row(PLI_INT32 idx, vpiHandle scope, PLI_INT32 row,
@@ -470,6 +470,14 @@ void vpip_assertion_nfa_step(PLI_INT32 idx, vpiHandle scope, PLI_INT32 serial,
       assert(vpip_routines);
       vpip_routines->assertion_nfa_step(idx, scope, serial, pre, nx, guards,
                                         ob);
+}
+
+void vpip_assertion_nfa_failure(PLI_INT32 idx, vpiHandle scope, PLI_INT32 record,
+                                const char*pre, const char*guards,
+                                const s_vpi_time*start)
+{
+      assert(vpip_routines);
+      vpip_routines->assertion_nfa_failure(idx, scope, record, pre, guards, start);
 }
 
 PLI_INT32 vpip_assertion_serial(PLI_INT32 idx, vpiHandle scope)

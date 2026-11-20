@@ -2871,9 +2871,11 @@ static bool draw_assoc_elem_inc_dec_(ivl_expr_t sub, bool incr, bool pre)
       return true;
 }
 
-static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
+static void draw_unary_inc_dec(ivl_expr_t expr, bool incr, bool pre)
 {
+      ivl_expr_t sub = ivl_expr_oper1(expr);
       ivl_variable_type_t destination_type = ivl_expr_value(sub);
+      bool two_state_part = ivl_expr_two_state_part_incdec(expr);
 
       /* A two-state selected l-value may carry a width-preserving bool cast
        * around the writable expression. The increment still targets the
@@ -2927,6 +2929,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
       unsigned lab_value = 0;
       unsigned lab_skip_store = 0;
       unsigned lab_after_store = 0;
+      bool cast_packed_carrier = false;
 
 	      switch (ivl_expr_type(sub)) {
 	  case IVL_EX_SELECT: {
@@ -2983,6 +2986,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 		      break;
 		}
 		if (ivl_expr_type(e1) == IVL_EX_SELECT) {
+		      cast_packed_carrier = two_state_part
+			    && ivl_expr_value(e1) == IVL_VT_BOOL
+			    && ivl_expr_value(ivl_expr_oper1(e1)) == IVL_VT_LOGIC;
 		      ivl_expr_t root = e1;
 		      while (root && ivl_expr_type(root) == IVL_EX_SELECT) {
 			    carrier_count += 1;
@@ -3068,13 +3074,16 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	      }
 		      if (!root || ivl_expr_type(root) != IVL_EX_SIGNAL
 		          || !ivl_expr_signal(root)
-		          || ivl_signal_dimensions(ivl_expr_signal(root)) != 0) {
+		          || (ivl_signal_dimensions(ivl_expr_signal(root)) != 0
+		              && (!two_state_part || !ivl_expr_oper1(root)))) {
 			    fprintf(stderr, "%s:%u: vvp.tgt error: unsupported nested packed "
 			            "++/-- destination.\n", ivl_expr_file(sub),
 			            ivl_expr_lineno(sub));
 			    vvp_errors += 1; draw_eval_vec4(sub); return;
 		      }
 		      sig = ivl_expr_signal(root);
+		      if (ivl_signal_dimensions(sig) > 0)
+			    array_word = ivl_expr_oper1(root);
 		      carrier_index = calloc(carrier_count, sizeof *carrier_index);
 		      carrier_flag = calloc(carrier_count, sizeof *carrier_flag);
 		      carrier_width = calloc(carrier_count, sizeof *carrier_width);
@@ -3243,6 +3252,8 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    fprintf(vvp_out, "    %%dup/obj/ref; preserve packed container receiver\n");
 	    fprintf(vvp_out, "    %%load/qo/v %u; nested packed container word\n",
 	            carrier_width[0]);
+	    if (ivl_expr_value(ivl_expr_oper1(sub)) == IVL_VT_BOOL)
+		  fprintf(vvp_out, "    %%cast2; two-state container word\n");
 	    draw_inc_dec_select_part_(select_base, select_index, select_flag, wid,
 				      "nested property",
 				      "nested property selected value");
@@ -3277,6 +3288,15 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%pushi/vec4 0, 0, %u;\n", prop_carrier_width);
 		  fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_value);
 		  fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_value);
+	    } else if (array_word) {
+		  array_index = allocate_word();
+		  array_flag = allocate_flag();
+		  draw_eval_expr_into_integer(array_word, array_index);
+		  fprintf(vvp_out, "    %%flag_mov %d, 4; preserve array index validity\n",
+		          array_flag);
+		  note_array_signal_use(sig);
+		  fprintf(vvp_out, "    %%load/vec4a v%p, %d; nested packed array word\n",
+		          sig, array_index);
 	    } else if (signal_is_return_value(sig))
 	          fprintf(vvp_out, "    %%retload/vec4 0; nested packed return carrier\n");
 	    else
@@ -3296,6 +3316,8 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	                ? "    %%part/s %u; nested carrier\n"
 	                : "    %%part/u %u; nested carrier\n", carrier_width[idx]);
 	    }
+	    if (cast_packed_carrier)
+		  fprintf(vvp_out, "    %%cast2; two-state packed member\n");
 	    draw_eval_vec4(select_base);
 	    fprintf(vvp_out, "    %%dup/vec4; preserve nested select base\n");
 	    if (!ivl_expr_signed(select_base)) {
@@ -3381,7 +3403,7 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 
       const char*cmd = incr? "%add" : "%sub";
 
-      if (destination_type == IVL_VT_BOOL)
+      if (destination_type == IVL_VT_BOOL && !two_state_part)
 	    fprintf(vvp_out, "    %%cast2; increment destination\n");
 
       if (pre) {
@@ -3465,8 +3487,16 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%clip/vec4/d %d, %d; bounded nested store\n",
 			        select_index, carrier_index[idx]);
 		  }
-		  if (signal_is_return_value(sig)) fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n", select_index);
-		  else fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig, select_index);
+		  if (array_word) {
+			fprintf(vvp_out, "    %%flag_or 4, %d; combine array index validity\n",
+			        array_flag);
+			fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n",
+			        sig, array_index, select_index);
+		  } else if (signal_is_return_value(sig)) {
+			fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n", select_index);
+		  } else {
+			fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig, select_index);
+		  }
 	    } else if (is_string_character) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string character selector\n",
 		          select_flag);
@@ -3588,8 +3618,16 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 			fprintf(vvp_out, "    %%clip/vec4/d %d, %d; bounded nested store\n",
 			        select_index, carrier_index[idx]);
 		  }
-		  if (signal_is_return_value(sig)) fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n", select_index);
-		  else fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig, select_index);
+		  if (array_word) {
+			fprintf(vvp_out, "    %%flag_or 4, %d; combine array index validity\n",
+			        array_flag);
+			fprintf(vvp_out, "    %%store/vec4a v%p, %d, %d;\n",
+			        sig, array_index, select_index);
+		  } else if (signal_is_return_value(sig)) {
+			fprintf(vvp_out, "    %%ret/vec4/v 0, %d;\n", select_index);
+		  } else {
+			fprintf(vvp_out, "    %%store/vec4/v v%p_0, %d;\n", sig, select_index);
+		  }
 	    } else if (is_string_character) {
 		  fprintf(vvp_out, "    %%flag_mov 4, %d; restore string character selector\n",
 		          select_flag);
@@ -3676,6 +3714,10 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    free(carrier_width); free(carrier_base);
 	    clr_word(select_index); clr_flag(select_flag);
 	  } else if (is_nested_signal_select) {
+	    if (array_word) {
+		  clr_word(array_index);
+		  clr_flag(array_flag);
+	    }
 	    for (unsigned idx = 0; idx < carrier_count; idx += 1) {
 	          clr_word(carrier_index[idx]); clr_flag(carrier_flag[idx]);
 	    }
@@ -3699,6 +3741,9 @@ static void draw_unary_inc_dec(ivl_expr_t sub, bool incr, bool pre)
 	    clr_word(select_index);
 	    clr_flag(select_flag);
       }
+
+      if (!pre && two_state_part)
+	    fprintf(vvp_out, "    %%cast2; postfix result\n");
 }
 
 static void draw_unary_vec4(ivl_expr_t expr)
@@ -3789,22 +3834,22 @@ static void draw_unary_vec4(ivl_expr_t expr)
 	    break;
 
 	  case 'D': /* pre-decrement (--x) */
-	    draw_unary_inc_dec(sub, false, true);
+	    draw_unary_inc_dec(expr, false, true);
 	    resize_vec4_wid(sub, ivl_expr_width(expr));
 	    break;
 
 	  case 'd': /* post_decrement (x--) */
-	    draw_unary_inc_dec(sub, false, false);
+	    draw_unary_inc_dec(expr, false, false);
 	    resize_vec4_wid(sub, ivl_expr_width(expr));
 	    break;
 
 	  case 'I': /* pre-increment (++x) */
-	    draw_unary_inc_dec(sub, true, true);
+	    draw_unary_inc_dec(expr, true, true);
 	    resize_vec4_wid(sub, ivl_expr_width(expr));
 	    break;
 
 	  case 'i': /* post-increment (x++) */
-	    draw_unary_inc_dec(sub, true, false);
+	    draw_unary_inc_dec(expr, true, false);
 	    resize_vec4_wid(sub, ivl_expr_width(expr));
 	    break;
 
