@@ -677,6 +677,7 @@ extern void compile_scope_decl(char*typ, char*lab, char*nam, char*tnam,
                                long is_cell);
 extern void compile_io_decl(long direction, char*name, char*formal);
 extern void compile_scope_recall(char*sym);
+extern void compile_scope_binding(char*library, char*config);
 extern void compile_vpi_class_defn(char*label, uint64_t is_virtual);
 extern void compile_vpi_class_constraint(char*name, uint64_t is_static,
 					 uint64_t is_pure, uint64_t is_external);

@@ -793,6 +793,7 @@ int config_select_roots(list<perm_string>&roots)
 /* What a module instance scope inherits from its configuration. */
 struct context_t {
       const PConfig*cfg = 0;
+      bool binds_scope = true;
 	/* The instance name as the config writes it: the top-level cell,
 	   then the instance names. Empty if the scope cannot be named
 	   (33.4.1.3 has no notation for generate scopes or array elements). */
@@ -814,6 +815,13 @@ static map<pair<const NetScope*,const PGModule*>,
 	   pair<const PConfig*,vector<perm_string> > > unbound;
 static map<const NetScope*,set<perm_string> > locked_params;
 static set<const NetScope*> locked_scopes;
+
+const PConfig* config_scope_binding(const NetScope*scope)
+{
+      auto cur = scope_context.find(scope);
+      return cur != scope_context.end() && cur->second.binds_scope
+	    ? cur->second.cfg : nullptr;
+}
 
 static context_t top_context(const PConfig*cfg, perm_string top)
 {
@@ -1082,8 +1090,11 @@ void config_instance_scope(Design*des, const PGModule*inst, const NetScope*sc,
 	      /* A nested module is not a library cell, but the instances
 		 below it are still configured. */
 	    const NetScope*parent;
-	    if (const context_t*ctx = enclosing_context(sc, parent))
-		  scope_context[inst_scope] = child_context(*ctx, inst, sc == parent);
+	    if (const context_t*ctx = enclosing_context(sc, parent)) {
+		  context_t&context = scope_context[inst_scope];
+		  context = child_context(*ctx, inst, sc == parent);
+		  context.binds_scope = false;
+	    }
 	    return;
       }
 

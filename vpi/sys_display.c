@@ -844,17 +844,20 @@ static unsigned int get_format_char(char **rtn, int ljust, int plus,
           if (type && !strcmp(type, "vpiModule")) break;
           module = vpi_handle(vpiScope, module);
         }
-        const char *cell = module ? vpi_get_str(vpiDefName, module) : 0;
-        const char *library = "work.";
+        const char *library = module ? vpi_get_str(vpiLibrary, module) : 0;
+        // vpi_get_str uses a shared buffer for both properties.
+        char *library_copy = library ? strdup(library) : 0;
+        const char *cell = module ? vpi_get_str(vpiCell, module) : 0;
         char *binding;
 
-        if (cell) {
-          size_t binding_size = strlen(library) + strlen(cell) + 1;
+        if (library_copy && cell) {
+          size_t binding_size = strlen(library_copy) + strlen(cell) + 2;
           binding = malloc(binding_size);
-          snprintf(binding, binding_size, "%s%s", library, cell);
+          snprintf(binding, binding_size, "%s.%s", library_copy, cell);
         } else {
           binding = strdup("");
         }
+        free(library_copy);
 
         size = strlen(binding) + 1;
         if ((signed)size < (width+1)) size = width+1;

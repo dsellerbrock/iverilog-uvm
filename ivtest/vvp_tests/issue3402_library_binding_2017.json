@@ -1,0 +1,12 @@
+{
+  "type": "normal",
+  "source": "issue3402_library_binding.v",
+  "iverilog-args": [
+    "-g2017", "-s", "plain_top", "-s", "outer_cfg",
+    "--libmap=ivltests/issue3402_binding/lib.map",
+    "-livltests/issue3402_binding/gates.v"
+  ],
+  "vpi-modules": ["issue3402_library_binding_2017"],
+  "vpi-sources": ["vpi/issue3402_library_binding.c"],
+  "gold": "issue3402_library_binding"
+}

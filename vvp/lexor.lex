@@ -312,6 +312,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".rtranif0"     { return K_RTRANIF0; }
 ".rtranif1"     { return K_RTRANIF1; }
 ".scope"        { return K_SCOPE; }
+".scope/binding" { return K_SCOPE_BINDING; }
 .iodecl         { return K_IODECL; }
 ".stmt_node"    { return K_STMT_NODE; }
 ".stmt_at"      { return K_STMT_AT; }
