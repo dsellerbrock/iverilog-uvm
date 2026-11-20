@@ -34,6 +34,7 @@ module test;
     `check(x, 4'bxxxx)
 
     ->e;
+    #1; // Observe the NBA update after the trigger's time slot.
     `check(z[1], 4'bxx01);
     `check(z[0], 4'b0110);
     `check(y, 4'bxx10);
@@ -53,6 +54,7 @@ module test;
     `check(x, 4'bxxxx)
 
     ->e;
+    #1;
     `check(z[1], 4'bxx10);
     `check(z[0], 4'b0110);
     `check(y, 4'bxx01);
@@ -72,6 +74,7 @@ module test;
     `check(x, 4'bxxxx)
 
     ->e;
+    #1;
     `check(z[1], 4'bxx01);
     `check(z[0], 4'b0110);
     `check(y, 4'bxx10);
@@ -91,6 +94,7 @@ module test;
     `check(x, 4'bxxxx)
 
     ->e;
+    #1;
     `check(z[1], 4'bxx10);
     `check(z[0], 4'b0110);
     `check(y, 4'bxx01);
