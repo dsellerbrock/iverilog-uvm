@@ -4298,11 +4298,17 @@ class NetCAssign  : public NetAssignBase {
 class NetCondit  : public NetProc {
 
     public:
-      explicit NetCondit(NetExpr*ex, NetProc*i, NetProc*e);
+      explicit NetCondit(NetExpr*ex, NetProc*i, NetProc*e, bool folded = false);
       ~NetCondit() override;
 
       const NetExpr*expr() const;
       NetExpr*expr();
+
+      void set_source_if(ivl_if_kind_t kind, const NetExpr*expr = nullptr,
+			 std::unique_ptr<NetExpr> owner = nullptr);
+      ivl_if_kind_t source_if_kind() const { return source_if_kind_; }
+      const NetExpr*source_expr() const { return source_expr_; }
+      bool is_folded() const { return folded_; }
 
       NetProc* if_clause();
       NetProc* else_clause();
@@ -4360,6 +4366,11 @@ class NetCondit  : public NetProc {
       NetProc*else_;
       bool owns_else_;
       bool immediate_assertion_;
+      bool folded_;
+      ivl_if_kind_t source_if_kind_ = IVL_IF_NONE;
+	// The source expression can be part of the execution predicate's tree.
+      const NetExpr*source_expr_ = nullptr;
+      std::unique_ptr<NetExpr> source_owner_;
 };
 
 class NetContinue : public NetProc {
