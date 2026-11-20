@@ -470,6 +470,8 @@ static const char* vpi_property_str(PLI_INT32 code)
       switch (code) {
 	  case vpiConstType:
 	    return "vpiConstType";
+	  case vpiDelayType:
+	    return "vpiDelayType";
 	  case vpiName:
 	    return "vpiName";
 	  case vpiFullName:
@@ -552,6 +554,10 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiVirtualInterfaceVar";
 	  case vpiConstant:
 	    return "vpiConstant";
+	  case vpiDelayDevice:
+	    return "vpiDelayDevice";
+	  case vpiDelayTerm:
+	    return "vpiDelayTerm";
 	  case vpiEnumTypespec:
 	    return "vpiEnumTypespec";
 	  case vpiFunction:

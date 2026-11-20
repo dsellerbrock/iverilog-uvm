@@ -115,9 +115,7 @@ static void delete_sub_scopes(__vpiScope *scope)
 		  memory_delete(item);
 		  break;
 		case vpiModPath:
-		    /* The destination ModPath is cleaned up later. */
-		  delete item;
-		  break;
+		case vpiDelayDevice:
 		case vpiInterModPath:
 		case vpiTchk:
 		  delete item;

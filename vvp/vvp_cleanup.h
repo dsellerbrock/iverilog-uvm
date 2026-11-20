@@ -31,7 +31,6 @@ extern void def_table_delete(void);
 extern void island_delete(void);
 extern void vpi_mcd_delete(void);
 extern void load_module_delete(void);
-extern void modpath_delete(void);
 extern void root_table_delete(void);
 extern void schedule_delete(void);
 extern void signal_pool_delete(void);

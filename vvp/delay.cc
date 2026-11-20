@@ -789,14 +789,13 @@ void vvp_fun_delay::run_run_real_(const struct vvp_fun_delay::event_*cur)
 
 vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width,
 				 bool showcancelled, bool ondetect)
-: net_(net), src_list_(0), ifnone_list_(0), pending_pulse_(0),
+: net_(net), input_vec4_(width, BIT4_X), cur_vec4_(input_vec4_),
+  out_vec4_(input_vec4_), last_sent_(&out_vec4_),
+  src_list_(0), ifnone_list_(0), pending_pulse_(0),
   has_conditional_paths_(false), has_dst_parts_(false),
   seen_change_(false), last_change_time_(0),
   showcancelled_(showcancelled), ondetect_(ondetect)
 {
-      cur_vec4_ = vvp_vector4_t(width, BIT4_X);
-      out_vec4_ = cur_vec4_;
-      pulse_vec4_ = cur_vec4_;
       schedule_init_propagate(net_, cur_vec4_);
 }
 
@@ -953,7 +952,15 @@ void vvp_fun_modpath::bit_wakeup_::run_run()
 void vvp_fun_modpath::run_bit_event_(unsigned index, vvp_bit4_t value)
 {
       out_vec4_.set_bit(index, value);
+      last_sent_ = &out_vec4_;
       net_->send_vec4(out_vec4_, 0);
+}
+
+void vvp_fun_modpath::send_full_(const vvp_vector4_t&bit)
+{
+      full_vec4_ = bit;
+      last_sent_ = &full_vec4_;
+      net_->send_vec4(full_vec4_, 0);
 }
 
 void vvp_fun_modpath::run_pulse_events_()
@@ -966,8 +973,7 @@ void vvp_fun_modpath::run_pulse_events_()
 		  pulse_event_*event = *pos;
 		  if (pending_pulse_ == event)
 			pending_pulse_ = 0;
-		  pulse_vec4_ = event->to;
-		  net_->send_vec4(pulse_vec4_, 0);
+		  send_full_(event->to);
 		  delete event;
 	    }
 	    pulse_events_.erase(bucket);
@@ -1000,6 +1006,7 @@ void vvp_fun_modpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       if (port.port() > 0)
 	    return;
 
+      input_vec4_ = bit;
       if (!has_conditional_paths_) {
 	    schedule_transition_(bit);
 	    return;
@@ -1221,7 +1228,7 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
 
 void vvp_fun_modpath::run_run()
 {
-      net_->send_vec4(cur_vec4_, 0);
+      send_full_(cur_vec4_);
 }
 
 vvp_fun_modpath_src::vvp_fun_modpath_src(vvp_time64_t const del[12], bool active)
@@ -1376,12 +1383,7 @@ static vpiHandle modpath_src_get_handle(int code, vpiHandle ref)
 	  return rfp->dest->scope;
 
 	  case vpiModule:
-	      { __vpiScope*scope = rfp->dest->scope;
-		while (scope && scope->get_type_code() != vpiModule
-		       && scope->get_type_code() != vpiInterface)
-		      scope = scope->scope;
-		return scope && scope->get_type_code() == vpiModule ? scope : 0;
-	      }
+	    return rfp->dest->vpi_handle(code);
 
 	    // Handles to path term objects should really be obtained via
 	    // the vpi_iterate and vpi_scan functions. Continue to allow
@@ -1669,46 +1671,55 @@ static void initialize_path_term(struct __vpiModPathTerm&obj)
       obj.edge = vpiNoEdge;
 }
 
-/*
- * This function will construct a vpiModPath Object.
- * give a respective "net", and will point to his
- * respective functor
- */
-
-#ifdef CHECK_WITH_VALGRIND
-static struct __vpiModPath**mp_list = 0;
-static unsigned mp_count = 0;
-#endif
-
-struct __vpiModPath* vpip_make_modpath(vvp_net_t *net)
+__vpiDelayTerm::__vpiDelayTerm(__vpiModPath*device, bool input)
+: device_(device), input_(input)
 {
-      struct __vpiModPath*obj = new __vpiModPath;
-      obj->scope = vpip_peek_current_scope ( );
-
-      initialize_path_term(obj->path_term_out);
-      obj->input_net = net ;
-
-#ifdef CHECK_WITH_VALGRIND
-      mp_count += 1;
-      mp_list = static_cast<struct __vpiModPath **>
-                (realloc(mp_list,
-                 mp_count*sizeof(struct __vpiModPath **)));
-      mp_list[mp_count-1] = obj;
-#endif
-      return obj;
 }
 
-#ifdef CHECK_WITH_VALGRIND
-void modpath_delete()
+int __vpiDelayTerm::vpi_get(int code)
 {
-      for (unsigned idx = 0; idx < mp_count; idx += 1) {
-	    delete mp_list[idx];
+      return code == vpiDelayType ? vpiModPathDelay : vpiUndefined;
+}
+
+vpiHandle __vpiDelayTerm::vpi_handle(int code)
+{
+      return code == vpiDelayDevice ? device_ : 0;
+}
+
+void __vpiDelayTerm::vpi_get_value(p_vpi_value val)
+{
+      const vvp_vector4_t&bits =
+	    input_ ? device_->modpath->delay_input() : device_->modpath->delay_output();
+      vpip_vec4_get_value(bits, bits.size(), false, val);
+}
+
+__vpiModPath::__vpiModPath(__vpiScope*scope, vvp_fun_modpath*modpath)
+: scope(scope), modpath(modpath), delay_term_in(this, true), delay_term_out(this, false)
+{
+      initialize_path_term(path_term_out);
+}
+
+int __vpiModPath::vpi_get(int code)
+{
+      return code == vpiDelayType ? vpiModPathDelay : vpiUndefined;
+}
+
+vpiHandle __vpiModPath::vpi_handle(int code)
+{
+      switch (code) {
+	  case vpiInTerm:
+	    return &delay_term_in;
+	  case vpiOutTerm:
+	    return &delay_term_out;
+	  case vpiModule:
+	    for (__vpiScope*cur = scope; cur; cur = cur->scope) {
+		  if (cur->get_type_code() == vpiModule) return cur;
+		  if (cur->get_type_code() == vpiInterface) break;
+	    }
+	    break;
       }
-      free(mp_list);
-      mp_list = 0;
-      mp_count = 0;
+      return 0;
 }
-#endif
 
 /*
  * This function will construct a vpiModPathIn

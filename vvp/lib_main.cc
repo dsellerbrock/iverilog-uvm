@@ -300,7 +300,6 @@ static void final_cleanup()
       def_table_delete();
       vpi_mcd_delete();
       dec_str_delete();
-      modpath_delete();
       vpi_handle_delete();
       vpi_stack_delete();
       udp_defns_delete();
