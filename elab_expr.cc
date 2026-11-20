@@ -21736,6 +21736,7 @@ NetExpr* PECallFunction::elaborate_expr_method_(Design*des, NetScope*scope,
 		  return tmp;
 	    }
 
+	    search_results.eve->validate_sva_disable_clock(des, scope, *this);
 	    NetESFunc*tmp = new NetESFunc(
 		  "$ivl_event_method$triggered", IVL_VT_BOOL, 1, 1);
 	    NetEEvent*ev = new NetEEvent(search_results.eve);
@@ -30040,6 +30041,7 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 			  // (previously this was a constant-0 silent
 			  // miscompile that made wait(e.triggered) block
 			  // forever).
+			sr.eve->validate_sva_disable_clock(des, scope, *this);
 			NetESFunc*tmp = new NetESFunc(
 			      "$ivl_event_method$triggered",
 			      IVL_VT_BOOL, 1, 1);

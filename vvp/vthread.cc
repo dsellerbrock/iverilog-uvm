@@ -41275,6 +41275,13 @@ bool of_WAIT_OBSERVED_ENDPOINT(vthread_t thr, vvp_code_t)
       return false;
 }
 
+bool of_WAIT_OBSERVED_DISABLE(vthread_t thr, vvp_code_t code)
+{
+      thr->in_region_drain = 1;
+      schedule_vthread_observed_disable(thr, code->number);
+      return false;
+}
+
 /*
  * %wait/reactive
  *

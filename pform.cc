@@ -4550,12 +4550,13 @@ static void pform_interface_event_bridge_(const struct vlltype&loc,
 static void pform_make_event(const struct vlltype&loc, const pform_ident_t&name,
 			      std::list<pform_range_t>*array_dims,
 			      ivl_lifetime_t lifetime,
-			      bool is_port = false, bool sequence_endpoint = false)
+			      bool is_port = false, bool sequence_endpoint = false,
+			      bool sequence_clocked = false)
 {
       PEvent*event = new PEvent(name.first, name.second);
       FILE_NAME(event, loc);
       event->lifetime_override(lifetime);
-      if (sequence_endpoint) event->set_sequence_endpoint();
+      if (sequence_endpoint) event->set_sequence_endpoint(sequence_clocked);
       if (array_dims) event->set_array_dims(array_dims);
 
       add_local_symbol(lexical_scope, name.first, event);
@@ -15739,8 +15740,9 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
  */
 enum class sva_clock_role_t { leading, secondary };
 static Statement* sva_observed_wait_(const struct vlltype&loc,
+			PExpr*disable = nullptr,
 			sva_clock_role_t clock = sva_clock_role_t::leading,
-			bool endpoint = false);
+			bool endpoint = false, unsigned disable_order = 1);
 
 /* R2: defer an assertion ACTION block to the Reactive region of the
  * current time slot (IEEE 1800-2017 4.4.2.5), one region after the
@@ -17375,19 +17377,50 @@ static PExpr* sva_enabled_expr_(const struct vlltype&loc, long inst)
       return sva_logic_(loc, 'a', en, gate);
 }
 
+static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v);
+
+/* Resolve the effective condition at elaboration, including a late default
+   disable. Elaboration consumes the wait's metadata argument. */
+static Statement* sva_observed_disable_wait_(const struct vlltype&loc,
+	    PExpr*disable, unsigned order, bool only_for_endpoints = false)
+{
+      std::list<named_pexpr_t> args;
+      named_pexpr_t arg;
+      arg.parm = sva_clone_expr_(disable);
+      if (!arg.parm) {
+	    cerr << loc << ": sorry: cannot resolve this disable iff expression "
+		 << "for ordered assertion evaluation." << endl;
+	    error_count += 1;
+	    return new PNoop;
+      }
+      args.push_back(arg);
+      arg.parm = sva_num32_(loc, order);
+      args.push_back(arg);
+      PCallTask*t = new PCallTask(perm_string::literal(only_for_endpoints
+	    ? "$ivl_observed_if_sequence_disable_wait"
+	    : "$ivl_observed_disable_wait"), args);
+      FILE_NAME(t, loc);
+      return t;
+}
+
 /* Resume in the Observed region. A procedural assertion's checker then
    takes the instances matured for this clock (16.14.6). */
 static Statement* sva_observed_wait_(const struct vlltype&loc,
-				     sva_clock_role_t clock, bool endpoint)
+				     PExpr*disable, sva_clock_role_t clock,
+				     bool endpoint, unsigned disable_order)
 {
-      std::list<named_pexpr_t> no_args;
-      PCallTask*t = new PCallTask(
-	    perm_string::literal(endpoint ? "$ivl_observed_endpoint_wait"
-					 : "$ivl_observed_wait"), no_args);
-      FILE_NAME(t, loc);
-      if (clock != sva_clock_role_t::leading || !sva_active_proc_id_) return t;
+      Statement*wait;
+      if (disable && !endpoint) {
+	    wait = sva_observed_disable_wait_(loc, disable, disable_order);
+      } else {
+	    std::list<named_pexpr_t> no_args;
+	    wait = new PCallTask(perm_string::literal(endpoint
+		  ? "$ivl_observed_endpoint_wait" : "$ivl_observed_wait"), no_args);
+	    FILE_NAME(wait, loc);
+      }
+      if (clock != sva_clock_role_t::leading || !sva_active_proc_id_) return wait;
       std::vector<Statement*> v;
-      v.push_back(t);
+      v.push_back(wait);
       v.push_back(sva_assign_(loc, sva_proc_take_reg_(loc),
 			      sva_state_expr_(loc, SVA_SPACE_PROCEDURAL,
 					      sva_active_proc_id_,
@@ -17402,14 +17435,17 @@ static Statement* sva_observed_wait_(const struct vlltype&loc,
    with one enters Observed before capturing. */
 static std::vector<Statement*> sva_captures_then_observed_(
       const struct vlltype&loc, const std::vector<Statement*>&pre,
+      PExpr*disable,
       sva_clock_role_t clock = sva_clock_role_t::leading,
       bool endpoint = false)
 {
       std::vector<Statement*> full;
       bool observed_first = sva_const_live_reads_ != 0;
-      if (observed_first) full.push_back(sva_observed_wait_(loc, clock, endpoint));
+      if (observed_first)
+	    full.push_back(sva_observed_wait_(loc, disable, clock, endpoint));
       full.insert(full.end(), pre.begin(), pre.end());
-      if (!observed_first) full.push_back(sva_observed_wait_(loc, clock, endpoint));
+      if (!observed_first)
+	    full.push_back(sva_observed_wait_(loc, disable, clock, endpoint));
       return full;
 }
 
@@ -18093,9 +18129,9 @@ static Statement* sva_cover_spawn_(const struct vlltype&loc, unsigned inst,
    same-tick batch. */
 static Statement* sva_repeat_(const struct vlltype&loc, PExpr*count,
 			      Statement*action);
-static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v);
 static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
-                               PExpr*disable, Statement*clear);
+                               PExpr*disable, Statement*clear,
+			       bool endpoints_only = false);
 
 static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
 				 perm_string req, perm_string vac_req,
@@ -24033,13 +24069,13 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	/* Assemble: pre-captures; enter Observed before consulting run-time
 	   assertion control; disable guard around the checker body; history
 	   updates remain clock state and continue outside the attempt guard. */
-      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre, disable);
       full.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_temporal_state()));
       Statement*core = sva_block_(loc, body);
       if (disable) {
-	    if (is_nexttime)
-		  sva_disable_abort_(loc, inst, disable, clear_temporal_state());
+	    sva_disable_abort_(loc, inst, disable, clear_temporal_state(),
+			       !is_nexttime);
 	    core = sva_if_(loc, disable, clear_temporal_state(), core);
       }
       full.push_back(core);
@@ -24705,6 +24741,11 @@ static Statement* sva_publish_endpoint_(const struct vlltype&loc,
       return pform_new_trigger(loc, nullptr, path, loc.lexical_pos);
 }
 
+static bool sva_whole_sequence_has_clock_(const sva_property_t*prop,
+					 const Module*module,
+					 const PGenerate*generate,
+					 bool allow_unparsed = false);
+
 PExpr* pform_sva_sequence_triggered(const struct vlltype&loc, PExpr*expr)
 {
       PEIdent*id = dynamic_cast<PEIdent*>(expr);
@@ -24815,8 +24856,11 @@ PExpr* pform_sva_sequence_triggered(const struct vlltype&loc, PExpr*expr)
 		  ? static_cast<LexicalScope*>(const_cast<PGenerate*>(key.gen))
 		  : static_cast<LexicalScope*>(pform_cur_module.front());
 	    pform_cur_generate = const_cast<PGenerate*>(key.gen);
+	    bool clocked = monitor->clk_evt
+		|| sva_whole_sequence_has_clock_(monitor, pform_cur_module.front(),
+						 pform_cur_generate);
 	    pform_make_event(loc, pform_ident_t(event_name, loc.lexical_pos),
-			     nullptr, IVL_VLT_INHERITED, false, true);
+			     nullptr, IVL_VLT_INHERITED, false, true, clocked);
 
 	    monitor->endpoint_event = event_name;
 	    sva_sequence_trigger_events[key] = event_name;
@@ -29665,7 +29709,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	/* Assemble: pre-captures; disable guard clears all slot state
 	   with no reports; history updates outside the guard. */
       std::vector<Statement*> full = sva_captures_then_observed_(
-	    loc, pre, sva_clock_role_t::leading, endpoint);
+	    loc, pre, disable, sva_clock_role_t::leading, endpoint);
       if (!endpoint)
 	  full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 				 sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
@@ -30928,7 +30972,8 @@ static void sva_pass_dispatcher_(const struct vlltype&loc, unsigned inst,
    the exact-false-to-exact-true transition independently of the clocked
    Observed-region level check, as in the parameter-repeat engine. */
 static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
-                               PExpr*disable, Statement*clear)
+                               PExpr*disable, Statement*clear,
+			       bool endpoints_only)
 {
       PELateDefaultDisable*late =
 	    dynamic_cast<PELateDefaultDisable*>(disable);
@@ -30947,7 +30992,7 @@ static void sva_disable_abort_(const struct vlltype&loc, unsigned inst,
       events.push_back(new PEEvent(PEEvent::POSEDGE, truth));
       PEventStatement*abort = new PEventStatement(events);
       FILE_NAME(abort, loc);
-      abort->set_sva_disable_observer();
+      abort->set_sva_disable_observer(endpoints_only);
       std::vector<Statement*> disabled;
       disabled.push_back(sva_report_stmt_(loc, inst, SVA_CB_DISABLED_EVAL));
       disabled.push_back(clear);
@@ -31663,12 +31708,10 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       PExpr*dis1 = dis ? sva_clone_expr_(dis) : nullptr;
       PExpr*dis2 = dis ? sva_clone_expr_(dis) : nullptr;
       PExpr*dis3 = (dis && ranged_antecedent) ? sva_clone_expr_(dis) : nullptr;
-      PExpr*dis_async1 = (dis && ranged_antecedent)
-	    ? sva_clone_expr_(dis) : nullptr;
-      PExpr*dis_async2 = (dis && ranged_antecedent)
-	    ? sva_clone_expr_(dis) : nullptr;
-      if (dis && (!dis1 || !dis2 || (ranged_antecedent
-		&& (!dis3 || !dis_async1 || !dis_async2)))) {
+      PExpr*dis_async1 = dis ? sva_clone_expr_(dis) : nullptr;
+      PExpr*dis_async2 = dis ? sva_clone_expr_(dis) : nullptr;
+      if (dis && (!dis1 || !dis2 || !dis_async1 || !dis_async2
+		  || (ranged_antecedent && !dis3))) {
 	    cerr << loc << ": sorry: this `disable iff' condition has a "
 		 << "shape that cannot be copied into both clock domains "
 		 << "of a multiclocked property (IEEE 1800-2017 16.13.3); "
@@ -32571,6 +32614,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       }
       {
 	    std::vector<Statement*> full1 = mc_pre1;
+	    if (dis1)
+		  full1.push_back(sva_observed_disable_wait_(loc, dis1, 1, true));
 	    if (!endpoint)
 		  full1.push_back(sva_kill_reset_stmt_(
 			loc, inst, r_kill1, clear_domain1_kill()));
@@ -32582,7 +32627,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       FILE_NAME(p1, loc);
       prop->clk_evt = nullptr;    /* consumed by the always block */
       if (dis_async1) {
-	    sva_disable_abort_(loc, inst, dis_async1, clear_domain1_state());
+	    sva_disable_abort_(loc, inst, dis_async1, clear_domain1_state(),
+			       !ranged_antecedent);
 	    delete dis_async1;
 	    dis_async1 = nullptr;
       }
@@ -32614,6 +32660,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       }
 
       std::vector<Statement*> body2;
+      std::vector<Statement*> pre_eval2;
       std::vector<Statement*> boundary_pre2;
       bool empty_nonoverlap = ranged_antecedent && antecedent_accepts_empty
 	    && !overlap_boundary;
@@ -32664,25 +32711,31 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  clear.push_back(sva_assign_(loc, tb[k], sva_num32_(loc, 0)));
 	    return sva_block_(loc, clear);
       };
+      auto clear_domain2_disable = [&]() -> Statement* {
+	    std::vector<Statement*> clear;
+	    clear.push_back(clear_domain2_state(sva_id_(loc, req),
+						 sva_id_(loc, req)));
+	    // An abort can occur after this clock already took its snapshot.
+	    clear.push_back(sva_assign_(loc, req_snapshot, sva_id_(loc, req)));
+	    if (antecedent_accepts_empty)
+		  clear.push_back(sva_assign_(loc, empty_scan, sva_id_(loc, empty_req)));
+	    return sva_block_(loc, clear);
+      };
 
-	/* Capture the handoff before Observed. A coincident ##1 source update
-	   is an NBA and remains invisible; a ##0 source update is blocking and
-	   is visible after the enclosing Inactive-region #0. The epoch is
-	   captured with the count so a later lazy kill reset cannot discard a
-	   request that was launched after `$asserton'. */
+	/* A strict handoff must snapshot before coincident source advances.
+	   An overlapped handoff includes the source's work on this tick, even
+	   when the source itself waits for the disable endpoints. */
+      sva_note_multiclock_const_(loc);
+      Statement*observe2 = sva_observed_wait_(loc, dis2,
+				    sva_clock_role_t::leading, endpoint, 2);
       std::vector<Statement*>&snapshot_body = empty_nonoverlap
-	    ? boundary_pre2 : body2;
+	    ? boundary_pre2 : pre_eval2;
+      if (overlap_boundary) snapshot_body.push_back(observe2);
       snapshot_body.push_back(sva_assign_(
 	    loc, req_snapshot, sva_id_(loc, req)));
       snapshot_body.push_back(sva_assign_(
 	    loc, epoch_snapshot, sva_id_(loc, req_epoch)));
-
-	/* `due' must be captured before this wait: for ##1 it must not see a
-	   coincident c1 NBA, while for ##0 the enclosing #0 has already made
-	   the coincident blocking request visible. The verdict itself is then
-	   computed in Observed, like every other concurrent assertion. */
-      sva_note_multiclock_const_(loc);
-      body2.push_back(sva_observed_wait_(loc, sva_clock_role_t::leading, endpoint));
+      if (!overlap_boundary) pre_eval2.push_back(observe2);
       if (!endpoint)
 	    body2.push_back(sva_kill_reset_stmt_(
 		  loc, inst, r_kill2,
@@ -33158,11 +33211,12 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	   attempt neither passes nor fails. */
       if (dis2) {
 	    std::vector<Statement*> gated2;
-	    gated2.push_back(sva_if_(loc, dis2,
-		  clear_domain2_state(sva_id_(loc, req), sva_id_(loc, req)),
+	    gated2.push_back(sva_if_(loc, dis2, clear_domain2_disable(),
 				     sva_block_(loc, body2)));
 	    body2.swap(gated2);
       }
+      pre_eval2.insert(pre_eval2.end(), body2.begin(), body2.end());
+      body2.swap(pre_eval2);
       Statement*c2body;
       if (empty_nonoverlap) {
 	    std::vector<Statement*>after = body2;
@@ -33191,14 +33245,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
       PProcess*p2 = pform_make_behavior(IVL_PR_ALWAYS, c2, nullptr);
       FILE_NAME(p2, loc);
       prop->seq_clk_evt = nullptr;
-      if (dis_async2) {
-	    sva_disable_abort_(loc, inst, dis_async2,
-			       clear_domain2_state(
-				     sva_id_(loc, req), sva_id_(loc, req)));
-	    delete dis_async2;
-	    dis_async2 = nullptr;
-      }
-
+      Statement*async2_reset = dis_async2 ? clear_domain2_disable() : nullptr;
       if (ranged_antecedent) {
 	    auto at_parent = [&](perm_string store) -> PExpr* {
 		  return sva_index_(loc, store, sva_id_(loc, life_parent_tmp));
@@ -33470,7 +33517,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 	    agg_loop.push_back(sva_if_(loc,
 		  sva_logic_(loc, 'a', life_idle, result_idle), await, nullptr));
 	    sva_note_multiclock_const_(loc);
-	    agg_loop.push_back(sva_observed_wait_(loc));
+	    agg_loop.push_back(sva_observed_wait_(loc, dis3,
+				 sva_clock_role_t::leading, false, 3));
 	    std::vector<Statement*>reset_aggregate;
 	    reset_aggregate.push_back(sva_assoc_delete_(loc, par_pending, nullptr));
 	    reset_aggregate.push_back(sva_assoc_delete_(loc, par_matched, nullptr));
@@ -33493,6 +33541,15 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 						    sva_id_(loc, result_req)));
 	    reset_aggregate.push_back(sva_assign_(loc, agg_epoch,
 						    sva_id_(loc, req_epoch)));
+	    if (async2_reset) {
+		  std::vector<Statement*> clear{async2_reset};
+		  for (Statement*stmt : reset_aggregate) {
+			Statement*copy = sva_clone_stmt_(stmt);
+			ivl_assert(loc, copy);
+			clear.push_back(copy);
+		  }
+		  async2_reset = sva_block_(loc, clear);
+	    }
 	    PEBComp*same_epoch = new PEBComp(
 		  'E', sva_id_(loc, agg_epoch), sva_id_(loc, req_epoch));
 	    FILE_NAME(same_epoch, loc);
@@ -33552,6 +33609,11 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			IVL_PR_INITIAL, cover_start, nullptr);
 		  FILE_NAME(cover_dispatch, loc);
 	    }
+      }
+      if (dis_async2) {
+	    sva_disable_abort_(loc, inst, dis_async2, async2_reset,
+			       !ranged_antecedent);
+	    delete dis_async2;
       }
 
 	/* Each single-owner dispatcher snapshots and acknowledges the verdict
@@ -34313,6 +34375,8 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	}
       {
 	    std::vector<Statement*> full0 = mc_pre0;
+	    if (disable)
+		  full0.push_back(sva_observed_disable_wait_(loc, disable, 1, true));
 	    if (!endpoint)
 		  full0.push_back(sva_kill_reset_stmt_(
 			loc, inst, r_kill[0], clear_domain0_kill()));
@@ -34511,13 +34575,15 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  nullptr));
 	    epoch_body.insert(epoch_body.end(), bodyd.begin(), bodyd.end());
 	    bodyd.clear();
+	    sva_note_multiclock_const_(loc);
+	    Statement*observe = sva_observed_wait_(loc, disable_domain[d],
+		  sva_clock_role_t::leading, endpoint && last, d + 1);
+	    if (overlap_in) bodyd.push_back(observe);
 	    bodyd.push_back(sva_assign_(loc, req_snapshot[d],
 					  sva_id_(loc, req_in[d])));
 	    bodyd.push_back(sva_assign_(loc, epoch_snapshot[d],
 					  sva_id_(loc, req_epoch[d])));
-	    sva_note_multiclock_const_(loc);
-	    bodyd.push_back(sva_observed_wait_(loc, sva_clock_role_t::leading,
-					      endpoint && last));
+	    if (!overlap_in) bodyd.push_back(observe);
 	    Statement*advance = sva_block_(loc, epoch_body);
 	    if (!endpoint) {
 		  bodyd.push_back(sva_kill_reset_stmt_(
@@ -35472,7 +35538,7 @@ static bool sva_expand_whole_hier_sequence_(const struct vlltype&loc,
 static bool sva_whole_sequence_has_clock_(const sva_property_t*prop,
 					 const Module*module,
 					 const PGenerate*generate,
-					 bool allow_unparsed = false)
+					 bool allow_unparsed)
 {
       sva_hier_seq_scope_t target;
       sva_scoped_name_t key;
@@ -36967,7 +37033,7 @@ static bool sva_parameter_repeat_try_assertion_(
 	   process below clears live attempts on the exact-false-to-exact-true
 	   transition, including a pulse that falls again before that process
 	   executes. */
-      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre, disable);
       full.push_back(sva_kill_reset_stmt_(
 	    loc, inst, r_kill, clear_state()));
       Statement*core = sva_block_(loc, body);
@@ -37496,7 +37562,7 @@ static bool sva_parameter_consequent_repeat_try_assertion_(
       FILE_NAME(next, loc);
       body.push_back(sva_assign_(loc, pipe, next));
 
-      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre, disable);
       full.push_back(sva_kill_reset_stmt_(loc, inst, kill, clear()));
       Statement*core = sva_block_(loc, body);
       if (disable) {
@@ -37730,7 +37796,7 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
 					 pass_stmt, fail_action);
       body.push_back(sva_if_(loc, due, verdict, nullptr));
 
-      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre);
+      std::vector<Statement*> full = sva_captures_then_observed_(loc, pre, disable);
       Statement*core = sva_block_(loc, body);
       if (disable) {
 	    Statement*clear = sva_assign_(loc, pipe, sva_bit_(loc, 0));
@@ -40646,7 +40712,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	    decide(dbody, proc_each || endpoint ? nullptr : actions[d + 1],
 		   (unsigned)(d + 1));
 	    std::vector<Statement*> dfull = sva_captures_then_observed_(
-		  loc, dom.pre, sva_clock_role_t::secondary, endpoint);
+		  loc, dom.pre, disable, sva_clock_role_t::secondary, endpoint);
 	    Statement*dcore = sva_block_(loc, dbody);
 	    PExpr*ddisable = disable ? sva_clone_expr_(disable) : nullptr;
 	    if (ddisable) {
@@ -40664,7 +40730,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       for (Statement*st : m.recompute) delete st;
 
       std::vector<Statement*> full = sva_captures_then_observed_(
-	    loc, m.pre, sva_clock_role_t::leading, endpoint);
+	    loc, m.pre, disable, sva_clock_role_t::leading, endpoint);
       if (!proc_each && !endpoint)
 	    full.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
 				   sva_report_stmt_(loc, inst, SVA_CB_START), nullptr));
@@ -42506,6 +42572,19 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    return;
       }
       if (prop->seq_clk_evt) {
+	    if (!endpoint && !prop->disable_iff_expr) {
+		  PExpr*disable = sva_default_disable_for_scope_(lexical_scope);
+		  prop->disable_iff_expr = sva_clone_expr_(disable);
+		  if (disable && !prop->disable_iff_expr) {
+			cerr << loc << ": sorry: cannot preserve this "
+			     << "default disable iff in a multiclocked property." << endl;
+			error_count += 1;
+			delete fail_stmt;
+			delete pass_stmt;
+			pform_sva_destroy_property(prop);
+			return;
+		  }
+	    }
 	    if (prop->mc_more) {
 		  for (sva_mc_seg_t&segment : *prop->mc_more) {
 			if (!segment.inherit_property_clock) continue;
@@ -43949,7 +44028,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	/* Assemble: pre-captures; disable guard around the token
 	   machinery; history updates. */
       std::vector<Statement*> full = sva_captures_then_observed_(
-	    loc, pre, sva_clock_role_t::leading, endpoint);
+	    loc, pre, disable, sva_clock_role_t::leading, endpoint);
       if (track_failure_age || steps_ok)
 	    full.push_back(sva_clock_stmt_(loc, inst));
       if (!endpoint) {
