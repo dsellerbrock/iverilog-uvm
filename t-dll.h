@@ -661,6 +661,7 @@ struct ivl_lpm_s {
 		  unsigned root_word, member, word;
 		  unsigned path_count;
 		  unsigned*path;
+		  ivl_variable_type_t struct_leaf_type;
 	    } vif_proxy;
 
 	    struct ivl_lpm_ufunc_s {

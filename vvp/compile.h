@@ -154,6 +154,8 @@ extern void compile_vpi_primitive_term(char*primitive_label,
 extern void compile_vif_proxy(char*label, char*valid_label, unsigned width,
                               char*root, unsigned root_word, unsigned member,
                               unsigned word, unsigned path_count, long*path);
+extern void compile_struct_leaf(char*label, char*root, char*kind,
+                                uint64_t width, unsigned path_count, long*path);
 extern void compile_event_valid(char*event_label, char*valid_label);
 
 extern void compile_functor(char*label, char*type, unsigned width,

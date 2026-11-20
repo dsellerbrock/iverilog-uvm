@@ -30250,8 +30250,18 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
                   delete prop_set;
             }
 
-	    if (gn_system_verilog()
-		&& dynamic_cast<NetEProperty*>(tmp)) {
+	    const NetEProperty*property = dynamic_cast<const NetEProperty*>(tmp);
+	    bool struct_event_member = property && property->is_struct_event_member();
+	    if (struct_event_member && expr_[idx]->type() != PEEvent::ANYEDGE
+		&& !type_is_vectorable(tmp->expr_type())) {
+		  cerr << tmp->get_fileline() << ": error: edge event "
+		       << "expression must be integral." << endl;
+		  des->errors += 1;
+		  delete tmp;
+		  continue;
+	    }
+
+	    if (gn_system_verilog() && property && !struct_event_member) {
 		  // Compile-progress semantic support: class-property expressions
 		  // do not generally synthesize into a NetNet, but we can still
 		  // derive a sensitivity set from their input dependencies.
@@ -30547,7 +30557,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 
 	    bool direct_object_handle_event =
 	          expr_[idx]->type() == PEEvent::ANYEDGE
-	       && dynamic_cast<const NetESignal*>(tmp)
+	       && (struct_event_member || dynamic_cast<const NetESignal*>(tmp))
 	       && dynamic_cast<const netclass_t*>(tmp->net_type());
 	    event_synchronous_synthesis_scope_ event_synchronous_scope;
 	    map<const NetEProperty*,NetNet*> vif_validity_leaves;

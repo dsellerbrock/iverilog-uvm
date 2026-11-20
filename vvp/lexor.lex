@@ -253,6 +253,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".reactive"     { return K_REACTIVE; }
 ".functor"      { return K_FUNCTOR; }
 ".vifproxy"     { return K_VIF_PROXY; }
+".struct/leaf"  { return K_STRUCT_LEAF; }
 ".eventvalid"   { return K_EVENT_VALID; }
 ".import"       { return K_IMPORT; }
 ".island"       { return K_ISLAND; }

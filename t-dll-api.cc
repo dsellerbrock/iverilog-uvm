@@ -2182,6 +2182,12 @@ extern "C" unsigned ivl_lpm_vif_path_count(ivl_lpm_t net)
       return net->u_.vif_proxy.path_count;
 }
 
+extern "C" ivl_variable_type_t ivl_lpm_vif_struct_leaf_type(ivl_lpm_t net)
+{
+      assert(net && net->type == IVL_LPM_VIF_PROXY);
+      return net->u_.vif_proxy.struct_leaf_type;
+}
+
 extern "C" unsigned ivl_lpm_vif_path(ivl_lpm_t net, unsigned idx)
 {
       assert(net && net->type == IVL_LPM_VIF_PROXY);
