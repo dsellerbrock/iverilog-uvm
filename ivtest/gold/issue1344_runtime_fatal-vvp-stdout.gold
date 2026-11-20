@@ -1,0 +1,5 @@
+FATAL: issue1344_runtime_error.sv:20: fatal 31
+       Time: 1  Scope: top
+CB A: fatal 31
+CB B: fatal 31
+END pli=0

@@ -59,6 +59,7 @@ vpip_get_stacktrace
 vpip_print_finish_stats
 vpip_format_strength
 vpip_format_packed_p
+vpip_report_runtime_error
 vpip_make_systf_system_defined
 vpip_mcd_rawwrite
 vpip_pla_bind_output

@@ -342,10 +342,17 @@ void vpip_set_error(PLI_INT32 level, const char*message)
 {
       static std::string text;
       text = message ? message : "";
-      vpip_last_error.state = vpiPLI;
-      vpip_last_error.level = level;
-      vpip_last_error.message = const_cast<char*>(text.c_str());
-      vpip_run_error_callbacks();
+      vpip_last_error = {vpiPLI, level, const_cast<char*>(text.c_str()),
+                         0, 0, 0, 0};
+      vpip_run_error_callbacks(vpip_last_error);
+}
+
+extern "C" void vpip_report_runtime_error(char*message, char*file, PLI_INT32 line)
+{
+      vpip_last_error = {vpiRun, vpiError, message, 0, 0, file, line};
+      vpip_run_error_callbacks(vpip_last_error);
+      // The severity task owns the message and file strings.
+      vpip_clear_error();
 }
 
 PLI_INT32 vpi_chk_error(p_vpi_error_info info)
@@ -353,15 +360,13 @@ PLI_INT32 vpi_chk_error(p_vpi_error_info info)
       if (vpip_last_error.state == 0)
 	    return 0;
 
-      info->state = vpip_last_error.state;
-      info->level = vpip_last_error.level;
-      info->message = vpip_last_error.message;
-      info->product = vpi_vlog_info.product;
-      info->code = (char *)"";
-      info->file = 0;
-      info->line = 0;
+      if (info) {
+            *info = vpip_last_error;
+            info->product = vpi_vlog_info.product;
+            info->code = (char *)"";
+      }
 
-      return info->level;
+      return vpip_last_error.level;
 }
 
 PLI_INT32 vpi_compare_objects(vpiHandle obj1, vpiHandle obj2)
