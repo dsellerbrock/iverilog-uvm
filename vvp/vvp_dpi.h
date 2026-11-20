@@ -2,9 +2,11 @@
 #define IVL_vvp_dpi_H
 
 # include  <cstdint>
+# include  <map>
 # include  <string>
 # include  <vector>
 # include  "ivl_dlfcn.h"
+# include  "vvp_object.h"
 
 extern void vvp_dpi_load_lib(const char*path);
 
@@ -54,6 +56,12 @@ struct vvp_dpi_shortreal_buffer_t {
 	  std::vector<float> values;
 };
 
+struct vvp_dpi_string_buffer_t {
+      vvp_object_t owner;
+      std::vector<std::string> values;
+      std::vector<const char*> pointers;
+};
+
 struct vvp_dpi_open_array_t {
 	// Whole-array direct C layout. This remains null for a queue and for
 	// packed vector storage whose native representation is not Annex H layout.
@@ -81,12 +89,11 @@ struct vvp_dpi_open_array_t {
       bool shortreal_scratch;
       std::vector<vvp_dpi_shortreal_buffer_t> shortreal_buffers;
 	// IEEE 1800-2017/2023 Annex H.7.4: a string element is a C
-	// `const char*`. The marshaler builds a call-scoped pointer array
-	// (data) over copies of the elements; an output/inout element whose
-	// pointer the callee replaced is copied back after the call.
-      bool string_scratch;
-      std::vector<std::string> string_values;
-      std::vector<const char*> string_ptrs;
+	// `const char*`. Each leaf has call-scoped pointer slots over
+	// copies of its strings. Retain the declared rank for nested string
+	// arrays, whose actual may be empty.
+      std::map<vvp_darray*, vvp_dpi_string_buffer_t> string_buffers;
+      int string_rank;
 	// The live simulator container. Unlike data, this is also available
 	// for packed vector elements whose canonical DPI representation must
 	// be copied with svGet/Put{Bit,Logic}ArrElem*VecVal.

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3915_dpi_string_open_array_md.sv",
+  "iverilog-args": ["-g2017"],
+  "dpi-sources": ["dpi/issue3915_dpi_string_open_array_md.c"]
+}

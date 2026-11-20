@@ -19566,6 +19566,61 @@ static bool dpi_scalar_array_letter_(char type)
       return type == 'B' || type == 'G';
 }
 
+static bool dpi_pack_string_leaves_(vvp_darray*array, int rank,
+				    vvp_dpi_open_array_t&open)
+{
+      if (!array) return true; // Unallocated dynamic dimension.
+      size_t count = array->get_size();
+      if (count > UINT_MAX) return false;
+
+      if (rank > 1) {
+	    if (!dynamic_cast<vvp_darray_object*>(array)
+		&& !dynamic_cast<vvp_queue_object*>(array))
+		  return false;
+	    for (size_t idx = 0 ; idx < count ; idx += 1) {
+		  vvp_object_t child;
+		  array->get_word((unsigned)idx, child);
+		  vvp_darray*inner = child.peek<vvp_darray>();
+		  if ((!inner && !child.test_nil())
+		      || !dpi_pack_string_leaves_(inner, rank - 1, open))
+			return false;
+	    }
+	    return true;
+      }
+
+      if (!dynamic_cast<vvp_darray_string*>(array)
+	  && !dynamic_cast<vvp_queue_string*>(array))
+	    return false;
+      if (open.string_buffers.count(array)) return true;
+
+      vvp_dpi_string_buffer_t&buffer = open.string_buffers[array];
+      buffer.owner = array;
+      buffer.values.resize(count);
+      buffer.pointers.resize(count);
+      for (size_t idx = 0 ; idx < count ; idx += 1) {
+	    array->get_word((unsigned)idx, buffer.values[idx]);
+	    buffer.pointers[idx] = buffer.values[idx].c_str();
+      }
+      if (!open.string_rank)
+	    open.data = count ? buffer.pointers.data() : 0;
+      return true;
+}
+
+static void dpi_unpack_string_leaves_(const vvp_dpi_open_array_t&open)
+{
+	// Keep every staged string alive while copying back, since C may
+	// have swapped pointers across leaves or across separate arguments.
+      for (const auto&entry : open.string_buffers) {
+	    vvp_darray*array = entry.first;
+	    const vvp_dpi_string_buffer_t&buffer = entry.second;
+	    for (size_t idx = 0 ; idx < buffer.pointers.size() ; idx += 1) {
+		  const char*value = buffer.pointers[idx];
+		  if (value != buffer.values[idx].c_str())
+			array->set_word((unsigned)idx, string(value ? value : ""));
+	    }
+      }
+}
+
 /* Materialize a fixed unpacked array of scalar bit/logic values as the
  * byte-per-element C layout required by Annex H. A one-bit 2-state array is
  * commonly held in vvp's atom container, where logical one is represented by
@@ -19947,6 +20002,8 @@ struct dpi_sig_tok_t {
       char base;
       bool is_unsigned;
       bool is_output;
+	// 'o{rank}' describes a multidimensional string open array.
+      int string_rank;
 	// Member letters of an unpacked-struct formal ('S', 'T', 't').
       string members;
 };
@@ -20137,13 +20194,24 @@ static void dpi_parse_types_(const char*types, char dflt, unsigned nargs,
 	    tok.base = dflt;
 	    tok.is_unsigned = false;
 	    tok.is_output = false;
+	    tok.string_rank = 0;
 	    if (*cp == '+') { tok.is_output = true; cp += 1; }
 	    if (*cp == 'u') { tok.is_unsigned = true; cp += 1; }
 	    if (*cp) tok.base = *cp++;
 	    if (*cp == '{') {
 		  const char*end = strchr(cp, '}');
+		  if (tok.base == 'o')
+			tok.string_rank = -1;
 		  if (end) {
-			tok.members.assign(cp + 1, end);
+			if (tok.base == 'o') {
+			      char*rank_end;
+			      unsigned long rank = strtoul(cp + 1, &rank_end, 10);
+			      if (cp[1] >= '1' && cp[1] <= '9' && rank_end == end
+				  && rank >= 2 && rank <= INT_MAX)
+				    tok.string_rank = (int)rank;
+			} else {
+			      tok.members.assign(cp + 1, end);
+			}
 			cp = end + 1;
 		  }
 	    }
@@ -20291,9 +20359,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.packed_width = 0;
 		      arr.packed_four_state = false;
 		      arr.shortreal_scratch = false;
-		      arr.string_scratch = false;
-		      arr.string_values.clear();
-		      arr.string_ptrs.clear();
+		      arr.string_rank = 0;
 		      arr.storage = 0;
 		      arr.outer = 0;
 		      arr.has_range = false;
@@ -20345,6 +20411,23 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  dpi_pack_scalar_array_(c_name, slot+1, da,
 				sig[slot].base == 'G', arr,
 				arr_scalar_store[slot]);
+		      } else if (sig[slot].string_rank
+				 || (da && (dynamic_cast<vvp_darray_string*>(da)
+					    || dynamic_cast<vvp_queue_string*>(da)))) {
+			    int rank = sig[slot].string_rank;
+			    arr.string_rank = rank > 1 ? rank : 0;
+			    arr.outer = arr.string_rank ? da : 0;
+			    arr.storage = da;
+			    arr.elem_bytes = sizeof(const char*);
+			    if (rank < 0 || (!da && !obj_store[slot].test_nil())
+				|| !dpi_pack_string_leaves_(da, rank ? rank : 1, arr)) {
+				  fprintf(stderr, "DPI error: '%s': cannot marshal "
+					  "string array argument %u; the call is skipped.\n",
+					  c_name, slot+1);
+				  array_marshaling_ok = false;
+			    } else if (da) {
+				  arr.length = (unsigned)da->get_size();
+			    }
 		      } else if (da && dpi_open_array_is_multidim_(da)) {
 			    /* A multidimensional actual is walked as an object tree by
 			       the dimensioned canonical-copy accessors. */
@@ -20354,19 +20437,6 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  dpi_pack_open_array_(c_name, slot+1, da,
 				sig[slot].base == 'y' || sig[slot].base == 'Y',
 				arr, arr_packed_store[slot]);
-		      } else if (da && (dynamic_cast<vvp_darray_string*>(da)
-					|| dynamic_cast<vvp_queue_string*>(da))) {
-			    arr.storage = da;
-			    arr.string_scratch = true;
-			    arr.length = (unsigned)da->get_size();
-			    arr.string_values.resize(arr.length);
-			    arr.string_ptrs.resize(arr.length);
-			    for (unsigned idx = 0 ; idx < arr.length ; idx += 1) {
-				  da->get_word(idx, arr.string_values[idx]);
-				  arr.string_ptrs[idx] = arr.string_values[idx].c_str();
-			    }
-			    arr.data = arr.length ? (void*)arr.string_ptrs.data() : 0;
-			    arr.elem_bytes = sizeof(const char*);
 		      } else if (da) {
 			    arr.storage = da;
 			    unsigned eb = da->dpi_elem_bytes();
@@ -20549,13 +20619,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			      dpi_struct_unpack_(obj, struct_members[ii],
 				    buf + idx * arr_store[ii].elem_bytes);
 	    }
-	    if (native_call_ok && arr_store[ii].string_scratch) {
-		  vvp_dpi_open_array_t&sarr = arr_store[ii];
-		  for (unsigned idx = 0 ; idx < sarr.length ; idx += 1)
-			if (sarr.string_ptrs[idx] != sarr.string_values[idx].c_str())
-			      sarr.storage->set_word(idx, std::string(
-				    sarr.string_ptrs[idx] ? sarr.string_ptrs[idx] : ""));
-	    }
+	    if (native_call_ok)
+		  dpi_unpack_string_leaves_(arr_store[ii]);
 	    switch (args[ii].type) {
 		case 'b': dpi_push_int64(thr, args[ii].ival, 8);  break;
 		case 'h': dpi_push_int64(thr, args[ii].ival, 16); break;
