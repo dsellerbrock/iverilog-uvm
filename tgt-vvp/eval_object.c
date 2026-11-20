@@ -3075,6 +3075,16 @@ static int eval_object_sfunc(ivl_expr_t expr)
       const char*name = ivl_expr_name(expr);
       unsigned parm_count = ivl_expr_parms(expr);
 
+      if (strcmp(name, "$ivl_bounded_queue_literal") == 0) {
+	    uint64_t max_size = ivl_type_queue_max_size(ivl_expr_net_type(expr));
+	    assert(parm_count == 1 && max_size > 0);
+	    int errors = draw_eval_object(ivl_expr_parm(expr, 0));
+	      /* Warn and discard excess elements on the fresh queue before a
+	       * property store can trim it (IEEE 1800 7.10.5). */
+	    fprintf(vvp_out, "    %%container/layout/q %" PRIu64 ";\n", max_size);
+	    return errors;
+      }
+
       if (strcmp(name, "$ivl_clocking_sample") == 0 && parm_count == 1) {
 	    ivl_expr_t arg = ivl_expr_parm(expr, 0);
 	    ivl_type_t arg_type = arg && ivl_expr_signal(arg)
