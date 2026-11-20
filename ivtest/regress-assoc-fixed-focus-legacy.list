@@ -20,3 +20,5 @@ sv_assoc_fixed_pattern_variable_source_fail CE,-g2017 ivltests gold=sv_assoc_fix
 sv_assoc_fixed_pattern_variable_source_fail_2023 CE,-g2023 ivltests gold=sv_assoc_fixed_pattern_variable_source_fail.gold
 issue3718_assoc_pattern_2017 normal,-g2017 ivltests gold=issue3718_assoc_pattern.gold
 issue3718_assoc_pattern_2023 normal,-g2023 ivltests gold=issue3718_assoc_pattern.gold
+issue3888_p_fixed_assoc_2017 normal,-g2017 ivltests gold=issue3888_p_fixed_assoc.gold
+issue3888_p_fixed_assoc_2023 normal,-g2023 ivltests gold=issue3888_p_fixed_assoc.gold

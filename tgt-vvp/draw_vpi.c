@@ -1000,6 +1000,18 @@ static char* vpi_class_arg_type_label_(ivl_expr_t expr)
    when VPI formats the materialized value. */
 static char* vpi_container_arg_type_(ivl_expr_t expr)
 {
+      if (expr_selects_fixed_container_slot_(expr)) {
+            ivl_signal_t sig = ivl_expr_signal(expr);
+            ivl_type_t element = ivl_signal_net_type(sig);
+            if (ivl_type_base(element) == IVL_VT_QUEUE
+                && ivl_type_queue_assoc_compat(element)) {
+                  // A captured word can be nil before its first write.
+                  // Its fixed-array declaration still describes the map.
+                  char label[64];
+                  snprintf(label, sizeof label, "Av%p", sig);
+                  return strdup(label);
+            }
+      }
       ivl_type_t type = property_expr_type_(expr);
       if (!type) type = ivl_expr_net_type(expr);
       if (!type || !ivl_type_element(type)) return 0;
