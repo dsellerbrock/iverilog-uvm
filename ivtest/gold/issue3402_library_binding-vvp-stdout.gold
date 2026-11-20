@@ -1,0 +1,6 @@
+direct: gateLib.gate_leaf gateLib.gate_leaf
+configured: gateLib.bound_leaf gateLib.bound_leaf cfg_top.u.show_binding
+configured: gateLib.bound_leaf gateLib.bound_leaf cfg_top.branch.u.show_binding
+branch: gateLib.branch_body
+root: work.cfg_top
+PASSED

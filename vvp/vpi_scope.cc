@@ -342,16 +342,9 @@ static char* scope_get_str(int code, vpiHandle obj)
 	    break;
 
 	  case vpiLibrary:
-	    if (ref->get_type_code() != vpiModule) return NULL;
-	    // Library-based configuration binding is not supported; all
-	    // accepted module definitions belong to the default work library.
-	    p = "work";
-	    break;
-
 	  case vpiCell:
-	    if (ref->get_type_code() != vpiModule) return NULL;
-	    p = ref->scope_def_name();
-	    break;
+	  case vpiConfig:
+	    return nullptr;
 
 	  case vpiDPICIdentifier:
 	    p = ref->dpi_c_identifier;
@@ -1560,6 +1553,24 @@ class vpiScopeModule  : public __vpiScope {
       inline vpiScopeModule(const char*nam, const char*tnam)
       : __vpiScope(nam,tnam,false) { }
       int get_type_code(void) const override { return vpiModule; }
+      char* vpi_get_str(int code) override
+      {
+	    switch (code) {
+		case vpiLibrary:
+		  return simple_set_rbuf_str(library_);
+		case vpiCell:
+		  return simple_set_rbuf_str(scope_def_name());
+		case vpiConfig:
+		  return config_ ? simple_set_rbuf_str(config_) : nullptr;
+		default:
+		  return __vpiScope::vpi_get_str(code);
+	    }
+      }
+      void set_binding(const char*library, const char*config)
+      {
+	    library_ = vpip_name_string(library);
+	    config_ = *config ? vpip_name_string(config) : nullptr;
+      }
       int vpi_get(int code) override
       {
             /* These coverage types are not instrumented. */
@@ -1572,6 +1583,9 @@ class vpiScopeModule  : public __vpiScope {
                   return __vpiScope::vpi_get(code);
             }
       }
+    private:
+      const char*library_ = "work";
+      const char*config_ = nullptr;
 };
 
 /* Program-block instance scope (IEEE 1800-2017 clause 24): threads
@@ -4372,6 +4386,19 @@ void compile_scope_recall(char*symbol)
 	   type punned pointer warning from some gcc compilers. */
       compile_vpi_lookup((vpiHandle*)(void*)&current_scope, symbol);
       assert(current_scope);
+}
+
+void compile_scope_binding(char*library, char*config)
+{
+      auto*scope = dynamic_cast<vpiScopeModule*>(current_scope);
+      if (scope && *library) {
+	    scope->set_binding(library, config);
+      } else {
+	    yyerror("invalid .scope/binding metadata");
+	    compile_errors += 1;
+      }
+      delete[] library;
+      delete[] config;
 }
 
 /*

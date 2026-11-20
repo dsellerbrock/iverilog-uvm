@@ -138,6 +138,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
+%token K_SCOPE_BINDING
 %token K_VPI_3041_CONDITION
 %token K_CLASS_DEFN K_CLASS_TYPESPEC K_CLASS_RUNTIME
 %token K_CLASS_CONSTRAINT
@@ -1071,6 +1072,9 @@ statement
 
 	|         K_SCOPE T_SYMBOL ';'
 		{ compile_scope_recall($2); }
+
+	| K_SCOPE_BINDING T_STRING T_STRING ';'
+		{ compile_scope_binding($2, $3); }
 
 	| T_LABEL K_CLASS_DEFN T_NUMBER ';'
 		{ compile_vpi_class_defn($1, $3); }

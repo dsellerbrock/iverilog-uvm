@@ -34,6 +34,7 @@
 # include  "sv_vpi_user.h"
 # include  "Module.h"
 # include  "PClass.h"
+# include  "PConfig.h"
 # include  <algorithm>
 # include  <cstdlib>
 # include  <cstdio>
@@ -3740,6 +3741,23 @@ extern "C" const char* ivl_scope_tname(ivl_scope_t net)
 {
       assert(net);
       return net->tname_;
+}
+
+extern "C" const char* ivl_scope_library(ivl_scope_t net)
+{
+      assert(net);
+      return net->net_->module_library().str();
+}
+
+extern "C" const char* ivl_scope_config(ivl_scope_t net)
+{
+      assert(net);
+      const PConfig*cfg = config_scope_binding(net->net_);
+      if (!cfg)
+	    return nullptr;
+
+      std::string name = std::string(cfg->library.str()) + "." + cfg->name.str();
+      return api_strings.add(name.c_str());
 }
 
 extern "C" int ivl_signal_array_base(ivl_signal_t net)

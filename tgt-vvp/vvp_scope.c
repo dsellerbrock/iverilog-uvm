@@ -4041,6 +4041,17 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    fprintf(vvp_out, ";\n");
       }
 
+      if (ivl_scope_type(net) == IVL_SCT_MODULE &&
+	  !ivl_scope_program(net) && !ivl_scope_is_interface(net)) {
+	    const char*library = ivl_scope_library(net);
+	    const char*config = ivl_scope_config(net);
+	    if (config || (library && strcmp(library, "work") != 0)) {
+		  fprintf(vvp_out, " .scope/binding \"%s\" ",
+			  vvp_mangle_name(library ? library : "work"));
+		  fprintf(vvp_out, "\"%s\";\n", vvp_mangle_name(config ? config : ""));
+	    }
+      }
+
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
 

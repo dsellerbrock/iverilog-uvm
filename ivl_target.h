@@ -2381,6 +2381,9 @@ extern unsigned     ivl_scope_switches(ivl_scope_t net);
 extern ivl_switch_t ivl_scope_switch(ivl_scope_t net, unsigned idx);
 extern ivl_scope_type_t ivl_scope_type(ivl_scope_t net);
 extern const char*  ivl_scope_tname(ivl_scope_t net);
+/* Module library and qualified controlling config, or NULL if absent. */
+extern const char*  ivl_scope_library(ivl_scope_t net);
+extern const char*  ivl_scope_config(ivl_scope_t net);
 extern int          ivl_scope_time_precision(ivl_scope_t net);
 extern int          ivl_scope_time_units(ivl_scope_t net);
 

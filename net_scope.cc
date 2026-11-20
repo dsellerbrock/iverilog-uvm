@@ -946,6 +946,13 @@ perm_string NetScope::module_name() const
       return module_name_;
 }
 
+void NetScope::set_module_definition(const Module*def)
+{
+      module_definition_ = def;
+	/* Parsed module definitions are released before target emission. */
+      module_library_ = def ? def->library : perm_string();
+}
+
 void NetScope::set_num_ports(unsigned int num_ports)
 {
     ivl_assert(*this, type_ == MODULE);
