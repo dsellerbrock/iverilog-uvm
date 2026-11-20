@@ -7357,3 +7357,7 @@ issue3868_bad_2023 CE,-g2023,-s,issue3868_bad ivltests gold=issue3868_bad.gold
 # IEEE 1800-2017/2023 14.11-14.12: default clocking in nested modules.
 issue894_nested_default_clocking_2017 normal,-g2017,-s,top ivltests gold=issue894_nested_default_clocking.gold
 issue894_nested_default_clocking_2023 normal,-g2023,-s,top ivltests gold=issue894_nested_default_clocking.gold
+
+# IEEE 1800-2017/2023 16.8 and 16.16(f): clocked hierarchical sequences.
+issue3862_2017 normal,-g2017,-s,issue3862 ivltests gold=issue3862.gold
+issue3862_2023 normal,-g2023,-s,issue3862 ivltests gold=issue3862.gold
