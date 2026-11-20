@@ -982,10 +982,13 @@ class NetNet  : public NetObj, public PortType {
         INTERCONNECT_BIND_TYPE_CONFLICT,
         INTERCONNECT_BIND_SHAPE_CONFLICT
       };
-      void mark_interconnect(bool declared_shape);
+      void mark_interconnect(const netranges_t&packed_dims);
       bool is_interconnect() const { return interconnect_type_.get() != 0; }
       bool interconnect_declared_shape() const
         { return interconnect_declared_shape_; }
+      unsigned interconnect_packed_rank() const
+        { return interconnect_packed_rank_; }
+      const netrange_t& interconnect_packed_dim(unsigned index) const;
       bool interconnect_type_resolved() const;
       bool interconnect_type_invalid() const;
       const NetInterconnectType* interconnect_component() const
@@ -1219,6 +1222,7 @@ class NetNet  : public NetObj, public PortType {
       const NetNetType*user_nettype_ = 0;
       std::shared_ptr<NetInterconnectType>interconnect_type_;
       bool interconnect_declared_shape_ = false;
+      unsigned interconnect_packed_rank_ = 0;
       unsigned interconnect_port_use_depth_ = 0;
       bool interconnect_value_referenced_ = false;
       bool interconnect_reference_diagnosed_ = false;
@@ -1275,6 +1279,7 @@ class NetNet  : public NetObj, public PortType {
             std::vector<class NetDelaySrc*> delay_paths;
             std::vector<class NetBUFZ*> net_delay_boundaries;
 	    std::vector<decl_attribute_t> decl_attributes;
+            netranges_t interconnect_packed_dims;
             std::vector<interface_binding_t> interface_bindings;
             std::map<std::pair<unsigned,size_t>,NetNet*>
                   interface_synthesis_members;

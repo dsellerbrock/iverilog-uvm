@@ -45,6 +45,11 @@ static int real_var_get(int code, vpiHandle ref)
 	case vpiNetType:
 	    return rfp->is_interconnect ? vpiInterconnect : 0;
 
+	case vpiIndex:
+	    if (rfp->is_interconnect && rfp->is_netarray)
+		  return static_cast<__vpiDecConst*>(rfp->id.index)->get_value();
+	    return 0;
+
 	case vpiLineNo:
 	    return 0; // Not implemented for now!
 
@@ -69,7 +74,7 @@ static char* real_var_get_str(int code, vpiHandle ref)
       char *nm;
       const char *ixs;
       if (rfp->is_netarray) {
-	    nm = strdup(vpi_get_str(vpiName, rfp->within.parent));
+	    nm = strdup(vpi_get_str(vpiName, rfp->vpi_handle(vpiParent)));
 	    s_vpi_value vp;
 	    vp.format = vpiDecStrVal;
 	    vpi_get_value(rfp->id.index, &vp);
@@ -92,6 +97,9 @@ static vpiHandle real_var_get_handle(int code, vpiHandle ref)
       switch (code) {
 
 	  case vpiParent:
+	    if (rfp->is_interconnect && rfp->is_netarray)
+		  return static_cast<__vpiArray*>(rfp->within.parent)
+			->interconnect_word_parent(rfp->array_word_addr);
 	    return rfp->is_netarray ? rfp->within.parent : NULL;
 
 	  case vpiIndex:
@@ -116,6 +124,8 @@ static vpiHandle real_var_iterate(int code, vpiHandle ref)
       assert(rfp);
 
       if (code == vpiIndex) {
+	    if (rfp->is_interconnect)
+		  return vpip_iterate_interconnect_indices(rfp);
 	    return rfp->is_netarray ? rfp->id.index->vpi_iterate(code) : NULL;
       }
 

@@ -838,8 +838,8 @@ static int compare_types(int code, vpiHandle item)
       if (code == vpiTypedef)
 	    return item->is_typedef_typespec();
 
-      int type = item->is_interconnect_net() ? vpiInterconnectNet
-                                            : item->get_vpi_type_code();
+      int type = item->interconnect_vpi_type();
+      if (type == 0) type = item->get_vpi_type_code();
 
 	/* 37.10: vpiInstanceArray iterates every kind of instance array. */
       if (code == vpiInstanceArray
@@ -854,7 +854,8 @@ static int compare_types(int code, vpiHandle item)
       if (code == type)
 	    return 1;
 
-      if (code == vpiNet && type == vpiInterconnectNet)
+      if (code == vpiNet &&
+          (type == vpiInterconnectNet || type == vpiInterconnectArray))
 	    return 1;
 
       // SystemVerilog variable arrays use vpiRegArray for iteration,

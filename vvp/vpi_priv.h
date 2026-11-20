@@ -31,6 +31,7 @@
 #endif
 
 # include  <map>
+# include  <memory>
 # include  <list>
 # include  <set>
 # include  <string>
@@ -155,7 +156,7 @@ class __vpiHandle {
 
       virtual int get_type_code(void) const =0;
       virtual int get_vpi_type_code(void) const { return get_type_code(); }
-      virtual bool is_interconnect_net(void) const { return false; }
+      virtual int interconnect_vpi_type(void) const { return 0; }
       virtual bool is_typedef_typespec(void) const { return false; }
 	// The net that holds this object's value, for the signal-like
 	// handles (__vpiSignal, __vpiRealVar and __vpiBaseVar), or nil.
@@ -265,6 +266,7 @@ class __vpiRange : public __vpiHandle {
 };
 
 extern vpiHandle vpip_make_range(int left, int right);
+extern vpiHandle vpip_iterate_interconnect_indices(vpiHandle obj);
 
 /* Build runtime handles for built-in scalar and packed vector typespecs. */
 extern vpiHandle vpip_make_builtin_typespec(int type_code);
@@ -620,7 +622,7 @@ struct __vpiSignal : public __vpiHandle {
       vvp_net_t*backing_net() override { return node; }
       int vpi_get(int code) override;
       int get_vpi_type_code(void) const override;
-      bool is_interconnect_net(void) const override { return is_interconnect; }
+      int interconnect_vpi_type(void) const override;
       int64_t vpi_get64(int code) override;
       char* vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value val) override;
@@ -649,6 +651,12 @@ struct __vpiSignal : public __vpiHandle {
       struct packed_range_t {
             int left;
             int right;
+
+            uint64_t width() const
+            {
+                  int64_t diff = static_cast<int64_t>(left) - right;
+                  return (diff < 0 ? -diff : diff) + 1;
+            }
       };
       std::vector<packed_range_t> declared_packed_ranges;
       std::vector<packed_range_t> packed_ranges;
@@ -682,6 +690,8 @@ struct __vpiSignal : public __vpiHandle {
 	   lexical scope for an explicit static/automatic declaration. */
       unsigned automatic_storage : 1;
       bool is_interconnect = false;
+      unsigned interconnect_packed_rank = 0;
+      unsigned array_word_addr = 0;
 	/* The source declaration used for VPI vpiFile/vpiLineNo. */
       unsigned source_file_idx = 0;
       unsigned source_lineno = 0;
@@ -1090,7 +1100,8 @@ struct __vpiRealVar : public __vpiHandle {
       __vpiRealVar();
       vvp_net_t*backing_net() override { return net; }
       int get_type_code(void) const override;
-      bool is_interconnect_net(void) const override { return is_interconnect; }
+      int interconnect_vpi_type(void) const override
+      { return is_interconnect ? vpiInterconnectNet : 0; }
       int vpi_get(int code) override;
       char* vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value val) override;
@@ -1111,6 +1122,7 @@ struct __vpiRealVar : public __vpiHandle {
       unsigned is_wire      : 1; // This is a wire, not a variable
       unsigned automatic_storage : 1;
       bool is_interconnect = false;
+      unsigned array_word_addr = 0;
       vvp_net_t*net;
 };
 
@@ -1232,6 +1244,8 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
 
       int get_type_code(void) const override
       { return virtual_interface_array_ ? vpiArrayVar : vpiMemory; }
+      int interconnect_vpi_type(void) const override
+      { return is_interconnect_ ? vpiInterconnectArray : 0; }
       bool is_virtual_interface_array() const
       { return virtual_interface_array_; }
       unsigned get_size() const override { return array_count; }
@@ -1253,6 +1267,10 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       vpiHandle vpi_handle(int code) override;
       vpiHandle vpi_iterate(int code) override;
       vpiHandle vpi_index(int idx) override;
+      bool mark_interconnect();
+      vpiHandle interconnect_word_parent(unsigned address);
+      vpiHandle interconnect_index(vpiHandle parent, unsigned depth,
+                                   unsigned base, unsigned count, int index);
 
       void set_word(unsigned idx, unsigned off, const vvp_vector4_t&val);
       void set_word(unsigned idx, double val);
@@ -1411,6 +1429,11 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       std::map<std::string, vpiHandle> packed_views;
 
 private:
+      bool is_interconnect_ = false;
+      __vpiDecConst interconnect_left_, interconnect_right_;
+      std::map<std::pair<unsigned, unsigned>, std::unique_ptr<__vpiHandle>>
+            interconnect_views_;
+      int index_of_word_(unsigned address) const;
       unsigned array_count;
       __vpiScope*scope;
 

@@ -166,8 +166,11 @@ int64_t __vpiHandle::vpi_get64(int code)
 char* __vpiHandle::vpi_get_str(int)
 { return 0; }
 
-void __vpiHandle::vpi_get_value(p_vpi_value)
-{ }
+void __vpiHandle::vpi_get_value(p_vpi_value val)
+{
+      if (interconnect_vpi_type() == vpiInterconnectArray)
+	    val->format = vpiSuppressVal;
+}
 
 vpiHandle __vpiHandle::vpi_put_value(p_vpi_value, int)
 { return 0; }
@@ -604,6 +607,8 @@ const char* vpi_type_as_string(PLI_INT32 code)
 	    return "vpiNet";
 	  case vpiInterconnectNet:
 	    return "vpiInterconnectNet";
+	  case vpiInterconnectArray:
+	    return "vpiInterconnectArray";
 	  case vpiNettypeDecl:
 	    return "vpiNettypeDecl";
 	  case vpiNetArray:
@@ -657,8 +662,9 @@ namespace {
 int internal_object_type_(vpiHandle ref, int property = vpiType,
                           bool for_string = false)
 {
-      if (property == vpiType && ref->is_interconnect_net())
-	    return vpiInterconnectNet;
+      if (property == vpiType)
+	    if (int interconnect_type = ref->interconnect_vpi_type())
+		  return interconnect_type;
 
       // Preserve the distinction between numeric and string type lookups.
       int type = for_string ? ref->get_type_code() : ref->get_vpi_type_code();
@@ -1541,6 +1547,11 @@ vpiHandle vpi_put_value(vpiHandle obj, s_vpi_value*vp,
 	    return 0;
       }
 
+      if (obj->interconnect_vpi_type() == vpiInterconnectArray) {
+	    vpip_set_error(vpiError, "vpi_put_value: interconnect array has no value");
+	    return 0;
+      }
+
       if (flags == VPI_CANCEL_EVENT) {
 	    vpip_put_value_event* event =
 		  dynamic_cast<vpip_put_value_event*>(obj);
@@ -2025,7 +2036,8 @@ static vpiHandle find_name(const char *name, vpiHandle handle)
 	    if (nm && !strcmp(name, nm)) {
 		  rtn = ref->intern[i];
 		  break;
-	    } else if (ref->intern[i]->get_type_code() == vpiMemory) {
+	    } else if (ref->intern[i]->get_type_code() == vpiMemory &&
+	               ref->intern[i]->interconnect_vpi_type() == 0) {
 		  /* We need to iterate on the words */
 		  vpiHandle word_i, word_h;
 		  word_i = vpi_iterate(vpiMemoryWord, ref->intern[i]);

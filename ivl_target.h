@@ -2580,6 +2580,11 @@ extern ivl_type_t  ivl_signal_net_type(ivl_signal_t net);
 extern int         ivl_signal_is_interconnect(ivl_signal_t net);
 /* True if the interconnect declaration specified packed or unpacked ranges. */
 extern int         ivl_signal_interconnect_declared_shape(ivl_signal_t net);
+/* The number of packed dimensions in the interconnect declaration. */
+extern unsigned    ivl_signal_interconnect_packed_rank(ivl_signal_t net);
+/* Packed bounds as written in the interconnect declaration. */
+extern void        ivl_signal_interconnect_packed_bounds(ivl_signal_t net,
+                                 unsigned dim, int*left, int*right);
 extern ivl_scope_t ivl_signal_resolution_function(ivl_signal_t net);
 extern const char* ivl_signal_name(ivl_signal_t net);
 extern const char* ivl_signal_basename(ivl_signal_t net);

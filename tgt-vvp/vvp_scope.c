@@ -654,14 +654,21 @@ static void emit_packed_dims_(ivl_signal_t sig, const char*suffix)
 
 static void emit_declared_packed_dims_(ivl_signal_t sig, const char*suffix)
 {
-      unsigned dims = ivl_signal_packed_dimensions(sig);
+      unsigned rank = ivl_signal_interconnect_packed_rank(sig);
+      unsigned dims = rank ? rank : ivl_signal_packed_dimensions(sig);
       if (dims == 0)
             return;
       fprintf(vvp_out, " .packed_dims v%p%s, \"", sig, suffix);
       for (unsigned idx = 0; idx < dims; idx += 1) {
             if (idx) fputc(',', vvp_out);
-            fprintf(vvp_out, "%d:%d", ivl_signal_packed_msb(sig, idx),
-                    ivl_signal_packed_lsb(sig, idx));
+            int left, right;
+            if (rank)
+                  ivl_signal_interconnect_packed_bounds(sig, idx, &left, &right);
+            else {
+                  left = ivl_signal_packed_msb(sig, idx);
+                  right = ivl_signal_packed_lsb(sig, idx);
+            }
+            fprintf(vvp_out, "%d:%d", left, right);
       }
       fprintf(vvp_out, "\";\n");
 }
@@ -1490,6 +1497,8 @@ static void draw_net_in_scope(ivl_signal_t sig)
       const char*datatype_flag = ivl_signal_signed(sig)? "/s" : "";
       const char *local_flag = local_flag_str(sig);
       ivl_drive_t charge = ivl_signal_charge_strength(sig);
+      int interconnect = !ivl_signal_local(sig) && ivl_signal_is_interconnect(sig);
+      unsigned packed_rank = ivl_signal_interconnect_packed_rank(sig);
 
       unsigned iword;
 
@@ -1540,8 +1549,9 @@ static void draw_net_in_scope(ivl_signal_t sig)
 			fprintf(vvp_out, "v%p .array \"%s\", %d %d;\n",
 				sig, vvp_mangle_name(ivl_signal_basename(sig)),
 				swapped ? first : last, swapped ? last : first);
-			if (iword == 0)
-			      emit_unpacked_dims_(sig);
+			emit_unpacked_dims_(sig);
+			if (interconnect)
+			      fprintf(vvp_out, "v%p .vpi_interconnect;\n", sig);
 		  }
 		  if (dimensions > 0) {
 			/* If this is a word of an array, then use an
@@ -1584,11 +1594,14 @@ static void draw_net_in_scope(ivl_signal_t sig)
 		       signal array. this typically is an instance of
 		       port collapsing that the elaborator combined to
 		       discover that the entire array can be collapsed,
-	       so the word counts must match. Shared VPI word
-	       handles also require the same declared charge strength. */
+		       so the word counts must match. Shared VPI word
+		       handles also require the same declared charge strength.
+		       Interconnects need their own word handles for declaration
+		       identity even when the electrical connection is shared. */
 		  if (iword == 0 && ivl_signal_dimensions(nex_data->net) > 0 &&
                       word_count == ivl_signal_array_count(nex_data->net) &&
-                      charge == ivl_signal_charge_strength(nex_data->net)) {
+                      charge == ivl_signal_charge_strength(nex_data->net) &&
+                      !interconnect && !ivl_signal_is_interconnect(nex_data->net)) {
 
 			fprintf(vvp_out, "v%p .array \"%s\", v%p; Alias to %s \n",
 			        sig, vvp_mangle_name(ivl_signal_basename(sig)),
@@ -1610,6 +1623,8 @@ static void draw_net_in_scope(ivl_signal_t sig)
 				      swapped ? first : last,
 				      swapped ? last : first );
 			      emit_unpacked_dims_(sig);
+			      if (interconnect)
+			            fprintf(vvp_out, "v%p .vpi_interconnect;\n", sig);
 			}
 
 			fprintf(vvp_out, "v%p_%u .net%s v%p %u, %d %d, "
@@ -1652,18 +1667,19 @@ static void draw_net_in_scope(ivl_signal_t sig)
                 if (dimensions > 0 && iword == 0)
                       emit_packed_dims_(sig, "");
           }
-          if (dimensions > 0) {
+          /* Resolved aggregate types can fold a declared axis into their
+             base width. Keep the explicit axes for interconnect indexing. */
+          if (dimensions > 0 && packed_rank == 0) {
                 char suffix[32];
                 snprintf(suffix, sizeof suffix, "_%u", iword);
                 note_signal_vartype(sig, suffix);
           }
+          if (interconnect) {
+                fprintf(vvp_out, "v%p_%u .vpi_interconnect", sig, iword);
+                if (packed_rank != 0) fprintf(vvp_out, " %u", packed_rank);
+                fprintf(vvp_out, ";\n");
+          }
       }
-
-      /* Use the declaration's label and shape even when its nexus and
-         resolved storage type come from a concrete port. */
-      if (!ivl_signal_local(sig) && ivl_signal_is_interconnect(sig) &&
-          !ivl_signal_interconnect_declared_shape(sig))
-            fprintf(vvp_out, "v%p_0 .vpi_interconnect;\n", sig);
 
       if (charge != IVL_DR_HiZ &&
           (ivl_signal_dimensions(sig) > 0 || !ivl_signal_local(sig))) {
@@ -1682,7 +1698,8 @@ static void draw_net_in_scope(ivl_signal_t sig)
 	  && (ivl_signal_data_type(sig) == IVL_VT_BOOL
 	      || ivl_signal_data_type(sig) == IVL_VT_LOGIC)) {
 	    emit_signal_source_location_(sig, "_0");
-	    note_signal_vartype(sig, "_0");
+	    if (packed_rank == 0)
+	          note_signal_vartype(sig, "_0");
       }
 }
 

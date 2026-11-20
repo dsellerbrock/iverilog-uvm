@@ -32,6 +32,7 @@
 #ifdef CHECK_WITH_VALGRIND
 #include  "vvp_cleanup.h"
 #endif
+# include  <algorithm>
 # include  <cstdlib>
 # include  <cstring>
 # include  <climits>
@@ -683,7 +684,11 @@ int __vpiArray::vpi_get(int code)
 	    return 0; // Not implemented for now!
 
 	  case vpiSize:
+	    if (is_interconnect_) return unpacked_ranges.front().width();
 	    return get_size();
+
+	  case vpiNetType:
+	    return is_interconnect_ ? vpiInterconnect : 0;
 
 	  case vpiArrayType:
 	    return vpiStaticArray;
@@ -715,10 +720,12 @@ vpiHandle __vpiArray::vpi_handle(int code)
 {
       switch (code) {
           case vpiLeftRange:
+            if (is_interconnect_) return &interconnect_left_;
             if (swap_addr) return &last_addr;
             else return &first_addr;
 
           case vpiRightRange:
+            if (is_interconnect_) return &interconnect_right_;
             if (swap_addr) return &first_addr;
             else return &last_addr;
 
@@ -732,12 +739,151 @@ vpiHandle __vpiArray::vpi_handle(int code)
       return 0;
 }
 
+/* An unpacked prefix describes one declaration axis and a contiguous
+   span of canonical words. The root owns the storage and caches views. */
+class interconnect_array_view : public __vpiHandle {
+    public:
+      interconnect_array_view(__vpiArray&root, vpiHandle parent, int index,
+                              unsigned depth, unsigned base, unsigned count)
+      : root_(root), parent_(parent), index_(index), depth_(depth),
+        base_(base), count_(count), left_(root.unpacked_ranges[depth].left),
+        right_(root.unpacked_ranges[depth].right),
+        name_(std::string(parent->vpi_get_str(vpiName)) +
+              "[" + std::to_string(index) + "]")
+      { }
+
+      int get_type_code() const override { return vpiInterconnectArray; }
+      int interconnect_vpi_type() const override { return vpiInterconnectArray; }
+
+      int vpi_get(int code) override
+      {
+            switch (code) {
+                case vpiSize: return root_.unpacked_ranges[depth_].width();
+                case vpiIndex: return index_.get_value();
+                case vpiArray:
+                case vpiArrayMember: return 1;
+                default: return root_.vpi_get(code);
+            }
+      }
+
+      char* vpi_get_str(int code) override
+      {
+            if (code != vpiName && code != vpiFullName) return nullptr;
+            return generic_get_str(code, root_.get_scope(), name_.c_str(), nullptr);
+      }
+
+      vpiHandle vpi_handle(int code) override
+      {
+            switch (code) {
+                case vpiParent: return parent_;
+                case vpiIndex: return &index_;
+                case vpiLeftRange: return &left_;
+                case vpiRightRange: return &right_;
+                default: return root_.vpi_handle(code);
+            }
+      }
+
+      vpiHandle vpi_iterate(int code) override
+      {
+            if (code == vpiIndex) return vpip_iterate_interconnect_indices(this);
+            return nullptr;
+      }
+
+      vpiHandle vpi_index(int index) override
+      { return root_.interconnect_index(this, depth_, base_, count_, index); }
+
+    private:
+      __vpiArray&root_;
+      vpiHandle parent_;
+      __vpiDecConst index_;
+      unsigned depth_, base_, count_;
+      __vpiDecConst left_, right_;
+      const std::string name_;
+};
+
+vpiHandle vpip_iterate_interconnect_indices(vpiHandle obj)
+{
+      std::vector<vpiHandle> indices;
+      // Each parent removes one selected axis.
+      while (obj) {
+            vpiHandle index = obj->vpi_handle(vpiIndex);
+            if (!index) break;
+            indices.push_back(index);
+            obj = obj->vpi_handle(vpiParent);
+      }
+      if (indices.empty()) return nullptr;
+      auto*args = static_cast<vpiHandle*>(malloc(indices.size() * sizeof(vpiHandle)));
+      std::copy(indices.begin(), indices.end(), args);
+      return vpip_make_iterator(indices.size(), args, true);
+}
+
+bool __vpiArray::mark_interconnect()
+{
+      if (!nets || canonical_value_owner_() != this || value_views_.size() != 1 ||
+          unpacked_ranges.empty()) return false;
+      unsigned count = get_size();
+      for (const auto&range : unpacked_ranges) {
+            if (count % range.width() != 0) return false;
+            count /= range.width();
+      }
+      if (count != 1) return false;
+      interconnect_left_.set_value(unpacked_ranges.front().left);
+      interconnect_right_.set_value(unpacked_ranges.front().right);
+      is_interconnect_ = true;
+      return true;
+}
+
+vpiHandle __vpiArray::interconnect_index(vpiHandle parent, unsigned depth,
+                                        unsigned base, unsigned count, int index)
+{
+      const auto&range = unpacked_ranges[depth];
+      int low = std::min(range.left, range.right);
+      int high = std::max(range.left, range.right);
+      if (index < low || index > high) return nullptr;
+
+      // Match normalize_variable_unpacked: low first, rightmost fastest.
+      unsigned stride = count / range.width();
+      base += (static_cast<int64_t>(index) - low) * stride;
+      if (++depth == unpacked_ranges.size()) return nets[base];
+
+      auto&view = interconnect_views_[{depth, base}];
+      if (!view)
+            view.reset(new interconnect_array_view(*this, parent, index, depth,
+                                                   base, stride));
+      return view.get();
+}
+
+int __vpiArray::index_of_word_(unsigned address) const
+{
+      const auto&range = unpacked_ranges.back();
+      return static_cast<int64_t>(std::min(range.left, range.right)) +
+             static_cast<int64_t>(address % range.width());
+}
+
+vpiHandle __vpiArray::interconnect_word_parent(unsigned address)
+{
+      vpiHandle parent = this;
+      unsigned stride = get_size();
+      for (size_t depth = 0; depth + 1 < unpacked_ranges.size(); ++depth) {
+            const auto&range = unpacked_ranges[depth];
+            stride /= range.width();
+            int index = static_cast<int64_t>(std::min(range.left, range.right)) +
+                        address / stride;
+            parent = parent->vpi_index(index);
+            address %= stride;
+      }
+      return parent;
+}
+
 /*
 * VPI code passes indices that are not yet converted to canonical
 * form, so this index function does it here.
 */
 vpiHandle __vpiArray::vpi_index(int index)
 {
+      if (is_interconnect_)
+            return interconnect_index(this, 0, 0, get_size(), index);
+
       index -= first_addr.get_value();
       if (index >= (long) get_size())
 	    return 0;
@@ -1904,6 +2050,8 @@ void __vpiArray::attach_word(unsigned addr, vpiHandle word)
       assert(addr < get_size());
       assert(nets);
       nets[addr] = word;
+      int index = is_interconnect_ ? index_of_word_(addr)
+                                   : get_word_declared_index(addr);
 
       if (struct __vpiSignal*sig = dynamic_cast<__vpiSignal*>(word)) {
 	    vvp_net_t*net = sig->node;
@@ -1913,7 +2061,8 @@ void __vpiArray::attach_word(unsigned addr, vpiHandle word)
 	    fun->attach_as_word(this, addr);
 	    sig->is_netarray = 1;
 	    sig->within.parent = this;
-	    sig->id.index = new __vpiDecConst(addr + first_addr.get_value());
+	    sig->id.index = new __vpiDecConst(index);
+	    sig->array_word_addr = addr;
 	      // Now we know the data type, update the array signed_flag.
 	    signed_flag = sig->signed_flag;
 	    return;
@@ -1927,7 +2076,8 @@ void __vpiArray::attach_word(unsigned addr, vpiHandle word)
 	    fun->attach_as_word(this, addr);
 	    sig->is_netarray = 1;
 	    sig->within.parent = this;
-	    sig->id.index = new __vpiDecConst(addr + first_addr.get_value());
+	    sig->id.index = new __vpiDecConst(index);
+	    sig->array_word_addr = addr;
 	      // Now we know the data type, update the array signed_flag.
 	    signed_flag = true;
 	    return;
@@ -2679,11 +2829,9 @@ void __vpiArray::word_change_local_(unsigned long addr)
 			    && cur->cb_data.value->format != vpiSuppressVal) {
 			      __vpiArrayPackedView*view =
 			            dynamic_cast<__vpiArrayPackedView*>(cur->cb_data.obj);
-			      int declared = get_word_declared_index((unsigned)addr);
-			      vpiHandle changed_word = vpi_index(declared);
 			      if (view)
 			            view->vpi_get_value(cur->cb_data.value);
-			      else if (changed_word)
+			      else if (vpiHandle changed_word = get_iter_index(nullptr, addr))
 				    changed_word->vpi_get_value(cur->cb_data.value);
 			      else
 				    cur->cb_data.value->format = vpiSuppressVal;
