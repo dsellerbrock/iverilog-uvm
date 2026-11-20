@@ -242,6 +242,11 @@ extern "C" ivl_variable_type_t ivl_const_type(ivl_net_const_t net)
       return net->type;
 }
 
+extern "C" const char*ivl_const_basename(ivl_net_const_t net)
+{
+      return net->name;
+}
+
 extern "C" const char*ivl_const_bits(ivl_net_const_t net)
 {
       assert(net);

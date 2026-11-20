@@ -1863,6 +1863,11 @@ vpiHandle __vpiDelayTerm::vpi_handle(int code)
       return code == vpiDelayDevice ? device_ : 0;
 }
 
+vpiHandle __vpiDelayTerm::vpi_iterate(int code)
+{
+      return vpip_modpath_conn_iterate(device_, input_, code);
+}
+
 void __vpiDelayTerm::vpi_get_value(p_vpi_value val)
 {
       const vvp_vector4_t&bits =

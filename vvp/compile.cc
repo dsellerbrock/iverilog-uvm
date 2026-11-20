@@ -1308,6 +1308,7 @@ void compile_vpi_contassign(char*label, long flags, long str0, long str1,
       vpiHandle obj = vpip_make_contassign((int)flags, (int)str0, (int)str1,
 					   (unsigned)file_idx, (unsigned)lineno,
 					   argc, argv);
+      if (obj) compile_vpi_symbol(label, obj);
       if (obj && driver[0])
 	    resolv_submit(new contassign_driver_resolv_s(driver, obj));
       else
@@ -3137,6 +3138,91 @@ struct __vpiModPath* compile_modpath(char*label, unsigned width,
       free(label);
 
       return modpath;
+}
+
+class modpath_conn_resolv_s : public resolv_list_s {
+    public:
+      modpath_conn_resolv_s(char*label, __vpiModPath*path, vvp_net_t*stage,
+			    unsigned base, unsigned width, int type, unsigned index)
+      : resolv_list_s(label), path_(path), stage_(stage), base_(base),
+	width_(width), type_(type), index_(index) { }
+
+      bool resolve(bool last) override
+      {
+	    vpiHandle ref = vvp_lookup_handle(label());
+	    unsigned net_base = 0;
+	    vpiHandle obj = nullptr;
+	    switch (type_) {
+		case vpiContAssign:
+		  if (ref && ref->get_type_code() == vpiContAssign) obj = ref;
+		  break;
+		case vpiPrimTerm:
+		  if (auto*terms = vpip_primitive_terms(ref)) {
+			if (index_ < terms->size()) {
+			      vpiHandle term = (*terms)[index_];
+			      if (term && term->vpi_get(vpiDirection) != vpiInput)
+				    obj = term;
+			}
+		  }
+		  break;
+		case vpiPort:
+		  obj = vpip_find_scope_port(dynamic_cast<__vpiScope*>(ref), index_);
+		  break;
+		case vpiNet:
+		case vpiOutTerm:
+		  if (auto*sig = dynamic_cast<__vpiSignal*>(ref)) {
+			if (type_ == vpiOutTerm && sig->node != stage_) {
+				/* The path's expression can name a storage
+				   carrier, e.g. for an interface member. A
+				   direct view of the stage is also valid. */
+			      auto*dest = dynamic_cast<__vpiSignal*>(path_->path_term_out.expr);
+			      if (!dest || dest->node != sig->node) break;
+			}
+			if (sig->get_type_code() == vpiNet && index_ < sig->width()
+			    && width_ <= sig->width() - index_) {
+			      obj = sig;
+			      net_base = index_;
+			}
+		  }
+		  break;
+	    }
+	    if (obj) {
+		  path_->connections.push_back({obj, base_, width_, net_base,
+						type_ == vpiOutTerm});
+		  return true;
+	    }
+	    if (!last) return false;
+	    yyerror(".modpath_conn references an invalid terminal or net");
+	    compile_errors += 1;
+	    return true;
+      }
+
+    private:
+      __vpiModPath*path_;
+      vvp_net_t*stage_;
+      unsigned base_, width_;
+      int type_;
+      unsigned index_;
+};
+
+void compile_modpath_conn(char*stage, uint64_t base, uint64_t width,
+			  uint64_t type, char*symbol, uint64_t index)
+{
+      __vpiModPath*path = compile_find_modpath(stage);
+      uint64_t stage_width = path ? path->modpath->delay_input().size() : 0;
+      if (!path || !width || base >= stage_width || width > stage_width - base
+	  || index > UINT_MAX || (type == vpiContAssign && index != 0)
+	  || (type == vpiOutTerm && index != base)
+	  || (type != vpiContAssign && type != vpiPrimTerm && type != vpiPort
+	      && type != vpiNet && type != vpiOutTerm)) {
+	    yyerror("invalid .modpath_conn metadata");
+	    compile_errors += 1;
+	    free(symbol);
+      } else {
+	    resolv_submit(new modpath_conn_resolv_s(symbol, path,
+			 lookup_functor_symbol(stage), base, width, type, index));
+      }
+      free(stage);
 }
 
 static vvp_fun_modpath_src*last_modpath_src_ = 0;

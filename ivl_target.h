@@ -723,6 +723,9 @@ extern ivl_discipline_t ivl_design_discipline(ivl_design_t des, unsigned idx);
  * ivl_const_nex
  *    Return the ivl_nexus_t of the output for the constant.
  *
+ * ivl_const_basename
+ *    Return the constant's structural driver name within its scope.
+ *
  * ivl_const_scope
  *    Return the scope this constant was defined in.
 
@@ -749,6 +752,7 @@ extern ivl_discipline_t ivl_design_discipline(ivl_design_t des, unsigned idx);
  * output is ivl_const_real.
  */
 extern ivl_variable_type_t ivl_const_type(ivl_net_const_t net);
+extern const char* ivl_const_basename(ivl_net_const_t net);
 extern const char* ivl_const_bits(ivl_net_const_t net);
 extern ivl_expr_t  ivl_const_delay(ivl_net_const_t net, unsigned transition);
 extern ivl_nexus_t ivl_const_nex(ivl_net_const_t net);

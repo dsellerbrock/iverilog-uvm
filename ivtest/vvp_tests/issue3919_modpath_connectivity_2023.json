@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3919_modpath_connectivity.sv",
+  "iverilog-args": ["-g2023", "-gspecify", "-s", "top", "-L", "work", "-m", "issue3919_modpath_connectivity_2023"],
+  "vpi-modules": ["issue3919_modpath_connectivity_2023"],
+  "vpi-sources": ["vpi/issue3919_modpath_connectivity.c"],
+  "gold": "issue3919_modpath_connectivity"
+}
