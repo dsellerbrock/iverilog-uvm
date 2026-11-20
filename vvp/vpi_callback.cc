@@ -1096,18 +1096,25 @@ void vpip_run_signal_callbacks(void)
       }
 }
 
-void vpip_run_error_callbacks(void)
+void vpip_run_error_callbacks(s_vpi_error_info& last_error)
 {
 	/* An error raised inside one of these callbacks does not recurse. */
       static bool running = false;
       if (running) return;
       running = true;
-      for (simulator_callback*cur = PLIErrorCallbacks ; cur
-		 ; cur = dynamic_cast<simulator_callback*>(cur->next))
-	    if (cur->cb_data.cb_rtn) (cur->cb_data.cb_rtn)(&cur->cb_data);
+      const s_vpi_error_info error = last_error;
+      if (error.state == vpiPLI) {
+	    for (simulator_callback*cur = PLIErrorCallbacks ; cur
+		       ; cur = dynamic_cast<simulator_callback*>(cur->next))
+		  if (cur->cb_data.cb_rtn) (cur->cb_data.cb_rtn)(&cur->cb_data);
+      }
       for (simulator_callback*cur = ErrorCallbacks ; cur
-		 ; cur = dynamic_cast<simulator_callback*>(cur->next))
-	    if (cur->cb_data.cb_rtn) (cur->cb_data.cb_rtn)(&cur->cb_data);
+		 ; cur = dynamic_cast<simulator_callback*>(cur->next)) {
+	    if (!cur->cb_data.cb_rtn) continue;
+	    // A VPI call in one subscriber can replace the active error.
+	    if (error.state == vpiRun) last_error = error;
+	    (cur->cb_data.cb_rtn)(&cur->cb_data);
+      }
       running = false;
 }
 

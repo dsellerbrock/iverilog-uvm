@@ -1,0 +1,16 @@
+Compiling vpi/issue1344_runtime_error.c...
+Making issue1344_runtime_error_2023.vpi from  issue1344_runtime_error.o...
+ERROR: issue1344_runtime_error.sv:23: error 17
+       Time: 1  Scope: top
+CB A: error 17
+CB B: error 17
+WARNING: issue1344_runtime_error.sv:24: warning control
+         Time: 1  Scope: top
+INFO: issue1344_runtime_error.sv:25: info control
+      Time: 1  Scope: top
+ERROR: issue1344_runtime_error.sv:26: error 23
+       Time: 2  Scope: top
+CB A: error 23
+CB B: error 23
+CONTINUED
+END pli=0

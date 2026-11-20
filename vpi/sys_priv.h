@@ -78,6 +78,7 @@ extern void sys_monitor_fclose(PLI_UINT32 fd_mcd);
 
 /* %p rendering for typed packed values. The result is a VPI string buffer. */
 extern const char*vpip_format_packed_p(vpiHandle item);
+extern void vpip_report_runtime_error(char*message, char*file, PLI_INT32 line);
 
 /* Private store recipe for a PLA's packed output lvalue. */
 struct vpip_pla_writer;

@@ -546,7 +546,7 @@ extern void vpip_attach_to_current_scope(vpiHandle obj);
    cbPLIError/cbError callbacks it runs (38.36.3). */
 extern void vpip_clear_error(void);
 extern void vpip_set_error(PLI_INT32 level, const char*message);
-extern void vpip_run_error_callbacks(void);
+extern void vpip_run_error_callbacks(s_vpi_error_info& last_error);
 /* cbSignal (IEEE 1800-2023 38.36.3): the trapped signals and the
    callbacks run at the scheduler's next safe point. */
 extern bool vpip_signal_trapped(int signum);
