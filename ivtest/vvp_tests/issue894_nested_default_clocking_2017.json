@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue894_nested_default_clocking.sv",
+  "iverilog-args": ["-g2017", "-s", "top"],
+  "gold": "issue894_nested_default_clocking"
+}
