@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_constraint_fixed_real_state_2017.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "sv_constraint_fixed_real_state"
+}

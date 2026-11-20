@@ -38400,16 +38400,12 @@ static string constraint_constant_ir_(const PEIdent*id,
       return "";
 }
 
-/* Can a STATE variable of this type take part in a constraint (IEEE
- * 1800-2017 18.3)? The solver reads a state variable as the constant it
- * holds at randomize() time, which it gets from the property's raw
- * bits — so the type must have a bitvector image. A `rand` property of
- * some other type is a separate question (the solver has always given
- * those a 32-bit fallback); this gate only decides whether a NON-rand
- * property is worth emitting instead of dropping the constraint item.
- * `indexed` asks about the element type of an unpacked array, which is
- * what an `arr[i]` reference resolves to. */
-static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
+/* Can a state variable of this type take part in a constraint (IEEE
+ * 1800-2017/2023 18.3)? The solver reads the value held at randomize()
+ * time. `indexed` asks about the element type of an unpacked array.
+ * Only indexed reads carry a real leaf type through fixed-array lowering. */
+static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed,
+                                      bool fixed_real_read = false)
 {
       if (!ptype) return false;
       if (!indexed && ptype == &netreal_t::type_real)
@@ -38421,8 +38417,11 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 	    const netqueue_t*qq = dynamic_cast<const netqueue_t*>(ptype);
 	    if (qq)
 		  indexed_assoc = qq->assoc_compat();
-	    if (ua) ptype = ua->element_type();
-	    else if (da) ptype = da->element_type();
+	    if (ua) {
+		  ptype = ua->element_type();
+		  if (ptype == &netreal_t::type_real)
+			return fixed_real_read && generation_flag >= GN_VER2023;
+	    } else if (da) ptype = da->element_type();
 	    else if (qq) ptype = qq->element_type();
 	    else return false;
 	    if (!ptype) return false;
@@ -41212,14 +41211,13 @@ static string scope_randomize_select_ir_(
 
 /* A fixed unpacked array has finitely many e: leaves. Preserve a symbolic
  * state index by passing its declared dimensions to the solver, which selects
- * a matching leaf or applies the element type's invalid-read semantics. */
+ * a matching leaf and tracks invalid indices for constraint guards. */
 static string constraint_fixed_array_select_ir_(
-      unsigned property, unsigned width, bool is_signed, bool two_state,
+      unsigned property, unsigned width, const string&leaf_suffix, bool two_state,
       const netranges_t&dims, const vector<string>&indices)
 {
       if (dims.empty() || dims.size() != indices.size()) return "";
-      string header = to_string(property) + ":" + to_string(width)
-            + (is_signed ? ":s" : "");
+      string header = to_string(property) + ":" + to_string(width) + leaf_suffix;
       string result = "(fsel " + header + " c:" + to_string(dims.size())
             + " c:" + to_string(two_state ? 1 : 0);
       for (const netrange_t&dim : dims) {
@@ -46327,7 +46325,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 		  if (!q.test_rand() && !packed_select && !packed_multi_select
 		      && !constraint_state_prop_ok_(ptype,
-						    !id->path().back().index.empty()))
+						    !id->path().back().index.empty(),
+						    true))
 			return "";
 
 		    // Indexed reference to a static-array rand property
@@ -46510,6 +46509,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				  && ((tail.sel == index_component_t::SEL_BIT && !tail.lsb)
 				      || (tail.sel == index_component_t::SEL_PART
 					  && tail.lsb))) {
+				    if (sel_ua && sel_ua->element_type() == &netreal_t::type_real)
+					  return "";
 				    pform_name_t inner_path = id->path().name;
 				    inner_path.back().index.pop_back();
 				    PEIdent inner(inner_path, id->lexical_pos());
@@ -46615,14 +46616,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      ++dim;
 			}
 			ivl_type_t etype = ua->element_type();
-			unsigned ewid = etype ? etype->packed_width() : 32;
+			bool real_leaf = etype == &netreal_t::type_real;
+			unsigned ewid = real_leaf ? 64 : etype ? etype->packed_width() : 32;
 			if (ewid == 0) ewid = 32;
+			string leaf_suffix = real_leaf ? ":r"
+			      : etype && etype->get_signed() ? ":s" : "";
 			if (constant) return "e:" + to_string(idx) + ":"
 			      + to_string(ewid) + ":" + to_string(elem)
-			      + (etype && etype->get_signed() ? ":s" : "");
-			return constraint_fixed_array_select_ir_(idx, ewid,
-			      etype && etype->get_signed(),
-			      etype && etype->base_type() == IVL_VT_BOOL, dims, index_irs);
+			      + leaf_suffix;
+			return constraint_fixed_array_select_ir_(idx, ewid, leaf_suffix,
+			      real_leaf || (etype && etype->base_type() == IVL_VT_BOOL),
+			      dims, index_irs);
 		  }
 
 		  bool real_scalar = ptype == &netreal_t::type_real;
@@ -49669,7 +49673,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  && cfe->prefix_names().size() + cfe->loop_vars().size()
 		      <= ua->static_dimensions().size();
 	    if (!qual.test_rand()
-		&& !constraint_state_prop_ok_(foreach_type, true)
+		&& !constraint_state_prop_ok_(foreach_type, true, true)
 		&& !class_key_assoc && !state_fixed_queue)
 		  return "";
 	      // Dynamic array or queue property: the element count is a
