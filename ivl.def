@@ -471,6 +471,7 @@ ivl_stmt_parm
 ivl_stmt_parm_count
 ivl_stmt_ref_lval
 ivl_stmt_ref_lval_arg
+ivl_stmt_pla_probe
 ivl_stmt_rval
 ivl_stmt_sfunc_as_task
 ivl_stmt_step_stmt

@@ -2542,8 +2542,12 @@ void vvp_fun_arrayport_aa::check_word_change_(unsigned long addr,
 void vvp_fun_arrayport_aa::check_word_change(unsigned long addr)
 {
       if (arr_->automatic_storage) {
-            assert(vthread_get_wt_context());
-            check_word_change_(addr, vthread_get_wt_context());
+            vvp_context_t context = vthread_get_wt_context_for_scope(context_scope_);
+            assert(context);
+            vthread_ref_ctx_save saved;
+            vthread_push_ref_context(context, &saved);
+            check_word_change_(addr, context);
+            vthread_pop_ref_context(&saved);
       } else {
             vvp_context_t context = context_scope_->live_contexts;
             while (context) {
@@ -2768,6 +2772,12 @@ bool array_port_resolv_list_t::resolve(bool mes)
 	    assert(mem || !mes);
 	    return false;
       }
+
+      // A fixed word's net can feed probes in several scopes. Its storage
+      // determines the context, while a variable address belongs to its
+      // particular reader and retains that reader's context.
+      if (use_addr)
+            context_scope = mem->word_context_scope();
 
       vvp_fun_arrayport*fun;
       if (write_port) {

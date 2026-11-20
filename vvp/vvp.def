@@ -64,6 +64,7 @@ vpip_mcd_rawwrite
 vpip_pla_bind_output
 vpip_pla_write
 vpip_pla_release_output
+vpip_pla_start
 vpip_register_immediate_cover
 vpip_report_immediate_cover
 vpip_report_immediate_assertion

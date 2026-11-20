@@ -13837,7 +13837,10 @@ bool vthread_eval_thunk(vthread_t caller, vvp_code_t pc, __vpiScope*scope,
       thr->parent = 0;
       thr->rd_context = 0;
       thr->wt_context = 0;
-      if (done && thr->children.empty()) vthread_delete(thr);
+      if (done && thr->children.empty()) {
+	    thr->parent_scope->threads.erase(thr);
+	    vthread_delete(thr);
+      }
       return done;
 }
 
@@ -13858,6 +13861,39 @@ vpip_pla_writer* vthread_bind_pla_writer(vthread_t caller, __vpiScope*scope,
       retain_context_chain_(writer->rd_context);
       retain_context_chain_(writer->wt_context);
       return writer;
+}
+
+bool vthread_pla_context_matches(const vpip_pla_writer*writer,
+				 vvp_context_t context)
+{
+      if (!context) return true;
+      for (vvp_context_t frame : {writer->rd_context, writer->wt_context}) {
+	    for (; frame; frame = vvp_get_stacked_context(frame))
+		  if (frame == context) return true;
+      }
+      return false;
+}
+
+/* Scheduled evaluation has no calling HDL thread. Lend both the input
+ * recipe and the personality reads the same retained frame as the writer. */
+void vthread_with_pla_context(const vpip_pla_writer*writer, bool initial,
+			      const std::function<void(vthread_t)>&action)
+{
+      if (initial) {
+	    action(vpip_current_vthread);
+	    return;
+      }
+      vthread_t frame = vthread_new_(writer->pc, writer->scope, false);
+      frame->rd_context = writer->rd_context;
+      frame->wt_context = writer->wt_context;
+      vthread_t saved_running = running_thread;
+      running_thread = frame;
+      action(frame);
+      running_thread = saved_running;
+      frame->rd_context = nullptr;
+      frame->wt_context = nullptr;
+      frame->parent_scope->threads.erase(frame);
+      vthread_delete(frame);
 }
 
 static void release_pla_context_chain_(vvp_context_t context)

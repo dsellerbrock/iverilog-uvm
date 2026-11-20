@@ -3019,6 +3019,8 @@ NetSTask::~NetSTask()
       for (unsigned idx = 0 ;  idx < parms_.size() ;  idx += 1)
 	    delete parms_[idx];
       delete ref_output_;
+      for (NetEEvent*probe : pla_probe_)
+	    delete probe;
 
 	/* The name_ string is perm-allocated in lex_strings. */
 }

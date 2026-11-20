@@ -1200,6 +1200,7 @@ struct ivl_statement_s {
 		  ivl_lval_t ref_lval_;
 		  unsigned ref_lval_count_;
 		  unsigned ref_lval_arg_;
+		  ivl_event_t pla_probe_[2];
 	    } stask_;
 
 	    struct { /* IVL_ST_UTASK */

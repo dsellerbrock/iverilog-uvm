@@ -59,6 +59,7 @@ class Link;
 class Module;
 class Nexus;
 class NetEvent;
+class NetEEvent;
 class NetNet;
 class NetNode;
 class NetObj;
@@ -5377,6 +5378,9 @@ class NetSTask  : public NetProc {
       const NetAssign_* ref_output() const { return ref_output_; }
       unsigned ref_output_arg() const { return ref_output_arg_; }
 
+      void set_pla_probe(unsigned arg, NetEEvent*event) { pla_probe_[arg] = event; }
+      const NetEEvent* pla_probe(unsigned arg) const { return pla_probe_[arg]; }
+
 	/* A dynamic virtual-interface task call carries the exact concrete
 	 * method scopes represented by its instance-keyed argument rows. The
 	 * Design owns these scopes; this statement only borrows their pointers. */
@@ -5410,6 +5414,7 @@ class NetSTask  : public NetProc {
       std::vector<NetExpr*>parms_;
       NetAssign_*ref_output_;
       unsigned ref_output_arg_ = ~0U;
+      NetEEvent*pla_probe_[2] = {};
       std::vector<NetScope*>vif_methods_;
       bool assertion_action_ = false;
 };

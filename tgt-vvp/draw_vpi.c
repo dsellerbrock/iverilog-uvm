@@ -2076,6 +2076,37 @@ static int draw_pla_output(ivl_statement_t net, char*label, size_t label_size)
       return 1;
 }
 
+/* PLA sampling uses an executable recipe even for expressions that have
+ * no public VPI decompilation record. */
+static int draw_pla_input(ivl_statement_t net, char*label, size_t label_size)
+{
+      ivl_expr_t input = ivl_stmt_parm(net, 1);
+      unsigned width = ivl_expr_width(input);
+      if (!width || width > INT_MAX) {
+	    fprintf(stderr, "%s:%u: error: %s input width is invalid.\n",
+		    ivl_stmt_file(net), ivl_stmt_lineno(net), ivl_stmt_name(net));
+	    vvp_errors += 1;
+	    return 0;
+      }
+      unsigned thunk = local_count++;
+      unsigned skip = local_count++;
+      snprintf(label, label_size, "PLA_%u.%u", thread_count, thunk);
+      fprintf(vvp_out, "%s .vpi_pla_input %u, T_%u.%u", label, width,
+	      thread_count, thunk);
+      for (unsigned arg = 0; arg < 2; arg += 1) {
+	    ivl_event_t probe = ivl_stmt_pla_probe(net, arg);
+	    if (probe)
+		  fprintf(vvp_out, ", \"E_%p\"", probe);
+	    else
+		  fprintf(vvp_out, ", \"\"");
+      }
+      fprintf(vvp_out, ";\n    %%jmp T_%u.%u;\n", thread_count, skip);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, thunk);
+      draw_eval_vec4(input);
+      fprintf(vvp_out, "    %%end;\nT_%u.%u ;\n", thread_count, skip);
+      return 1;
+}
+
 static void draw_vpi_taskfunc_args(const char*call_string,
 				   ivl_statement_t tnet,
 				   ivl_expr_t fnet,
@@ -2091,8 +2122,11 @@ static void draw_vpi_taskfunc_args(const char*call_string,
 	    ? ivl_stmt_parm_count(tnet) - parm_base
 	    : ivl_expr_parms(fnet);
       unsigned ref_arg = tnet ? ivl_stmt_ref_lval_arg(tnet) : ~0U;
-      char pla_output[64];
+      int pla_async = ref_arg != ~0U && strncmp(tf_name, "$async$", 7) == 0;
+      char pla_output[64], pla_input[64];
       if (ref_arg != ~0U && !draw_pla_output(tnet, pla_output, sizeof pla_output))
+	    return;
+      if (pla_async && !draw_pla_input(tnet, pla_input, sizeof pla_input))
 	    return;
 
       struct args_info *args = calloc(parm_count, sizeof(struct args_info));
@@ -2117,6 +2151,10 @@ static void draw_vpi_taskfunc_args(const char*call_string,
       for (idx = 0 ;  idx < parm_count ;  idx += 1) {
 	    if (parm_base + idx == ref_arg) {
 		  args[idx].text = strdup(pla_output);
+		  continue;
+	    }
+	    if (pla_async && parm_base + idx == 1) {
+		  args[idx].text = strdup(pla_input);
 		  continue;
 	    }
 	    ivl_expr_t expr = tnet

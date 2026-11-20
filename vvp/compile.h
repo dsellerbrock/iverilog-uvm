@@ -516,6 +516,8 @@ extern void compile_vpi_expr(char*label, long type, long op_type, long width,
 			     char*kind, char*thunk, char*decompile,
 			     unsigned argc, vpiHandle*argv);
 extern void compile_vpi_pla_output(char*label, uint64_t width, char*thunk);
+extern void compile_vpi_pla_input(char*label, uint64_t width, char*thunk,
+				 char*memory_probe, char*input_probe);
 
 /*
  * The `compile_udp_def' function creates a UDP.  The `table' is a

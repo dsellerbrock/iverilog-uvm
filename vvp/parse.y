@@ -135,6 +135,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_VPI_EXPR K_VPI_CONTASSIGN K_VPI_PARAM_EXPR K_VPI_DEFPARAM K_VPI_PORT_CONN
 %token K_VPI_FORCE_CONN
 %token K_VPI_PLA_OUTPUT
+%token K_VPI_PLA_INPUT
 %token K_PART_V K_PART_V_S K_PORT K_PORT_INFO K_PORT_INFO_EVCD K_PV K_REDUCE_AND K_REDUCE_OR K_REDUCE_XOR
 %token K_ISLAND_PORT_EVCD K_EVCD_SOURCE K_EVCD_PORT
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
@@ -895,6 +896,8 @@ statement
 
 	| T_LABEL K_VPI_PLA_OUTPUT T_NUMBER ',' T_SYMBOL ';'
 		{ compile_vpi_pla_output($1, $3, $5); }
+	| T_LABEL K_VPI_PLA_INPUT T_NUMBER ',' T_SYMBOL ',' T_STRING ',' T_STRING ';'
+		{ compile_vpi_pla_input($1, $3, $5, $7, $9); }
 
   /* A continuous assignment object (IEEE 1800-2023 37.47): flags (1 net
      declaration assignment, 2 has an l-value handle), vpiStrength0,

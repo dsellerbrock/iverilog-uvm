@@ -84,6 +84,10 @@ struct vpip_pla_writer;
 extern struct vpip_pla_writer* vpip_pla_bind_output(vpiHandle output);
 extern int vpip_pla_write(struct vpip_pla_writer*writer, p_vpi_value value);
 extern void vpip_pla_release_output(struct vpip_pla_writer*writer);
+extern int vpip_pla_start(vpiHandle input, struct vpip_pla_writer*writer,
+			 unsigned output_width,
+			 int (*evaluate)(void*, const s_vpi_vecval*, s_vpi_vecval*),
+			 void (*cleanup)(void*), void*data);
 
 /* Private runtime support for associative-array $readmem/$writemem. */
 extern int vpip_assoc_readmem_legal(vpiHandle array);
