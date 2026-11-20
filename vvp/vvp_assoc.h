@@ -103,6 +103,23 @@ class vvp_assoc_element_ref : public vvp_object {
       vvp_object_t object_value_;
 };
 
+struct vvp_assoc_key {
+      enum { STRING, OBJECT, VECTOR };
+      int kind;
+      std::string str;
+      const vvp_object*object;
+      vvp_vector4_t vec;
+};
+
+struct vvp_assoc_value {
+      enum { VECTOR, REAL, STRING, OBJECT };
+      int kind;
+      vvp_vector4_t vec;
+      double real;
+      std::string str;
+      vvp_object_t object;
+};
+
 class vvp_assoc_base : public vvp_object {
     public:
       ~vvp_assoc_base() override;
@@ -174,6 +191,13 @@ class vvp_assoc_base : public vvp_object {
 				       const vvp_object*&obj_key,
 				       vvp_vector4_t&vec_key,
 				       vvp_object_t&obj_val) const =0;
+
+	// Read the typed key and its value from a single entry in declared
+	// order, including an object handle when the value is object-backed.
+      virtual bool peek_ordered_entry(size_t pos, bool signed_order,
+				      vvp_assoc_key&key,
+				      vvp_assoc_value&value) const =0;
+      virtual bool peek_default(vvp_assoc_value&value) const =0;
 
 	// M12-4 VPI: positional element WRITE, the mirror of
 	// peek_entry (same key order, same val_kind tags). The entry
@@ -835,36 +859,60 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 			       vvp_vector4_t&vec_key,
 			       vvp_object_t&obj_val) const override
       {
+	    const TYPE*value = entry_at_(pos, false, key_kind, str_key,
+					 obj_key, vec_key);
+	    if (!value) return false;
+	    assign_object_val_(*value, obj_val);
+	    return true;
+      }
+
+      bool peek_ordered_entry(size_t pos, bool signed_order,
+			      vvp_assoc_key&key,
+			      vvp_assoc_value&value) const override
+      {
+	    const TYPE*entry = entry_at_(pos, signed_order, key.kind, key.str,
+					 key.object, key.vec);
+	    if (!entry) return false;
+	    read_value_(*entry, value);
+	    return true;
+      }
+
+      bool peek_default(vvp_assoc_value&value) const override
+      {
+	    if (!has_default_) return false;
+	    read_value_(default_value_, value);
+	    return true;
+      }
+
+      const TYPE*entry_at_(size_t pos, bool signed_order, int&key_kind,
+			   std::string&str_key, const vvp_object*&obj_key,
+			   vvp_vector4_t&vec_key) const
+      {
 	    if (pos < str_map_.size()) {
 		  typename std::map<std::string, TYPE>::const_iterator cur
 			= str_map_.begin();
 		  std::advance(cur, pos);
-		  key_kind = 0;
+		  key_kind = vvp_assoc_key::STRING;
 		  str_key = cur->first;
-		  assign_object_val_(cur->second, obj_val);
-		  return true;
+		  return &cur->second;
 	    }
 	    pos -= str_map_.size();
 	    if (pos < obj_map_.size()) {
 		  typename std::map<const vvp_object*, TYPE>::const_iterator cur
 			= obj_map_.begin();
 		  std::advance(cur, pos);
-		  key_kind = 1;
+		  key_kind = vvp_assoc_key::OBJECT;
 		  obj_key = cur->first;
-		  assign_object_val_(cur->second, obj_val);
-		  return true;
+		  return &cur->second;
 	    }
 	    pos -= obj_map_.size();
 	    if (pos < vec_map_.size()) {
-		  typename std::map<std::string, vec_entry_t>::const_iterator cur
-			= vec_map_.begin();
-		  std::advance(cur, pos);
-		  key_kind = 2;
-		  vec_key = cur->second.key;
-		  assign_object_val_(cur->second.value, obj_val);
-		  return true;
+		  const vec_entry_t&entry = vec_entry_at_(pos, signed_order);
+		  key_kind = vvp_assoc_key::VECTOR;
+		  vec_key = entry.key;
+		  return &entry.value;
 	    }
-	    return false;
+	    return nullptr;
       }
 
       bool poke_entry(size_t pos, const vvp_vector4_t&val_vec,
@@ -963,6 +1011,12 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
       static void assign_object_val_(const VALUE&, vvp_object_t&) { }
       static void assign_object_val_(const vvp_object_t&src, vvp_object_t&dst)
       { dst = src; }
+
+      static void read_value_(const TYPE&src, vvp_assoc_value&dst)
+      {
+	    dst.kind = assign_entry_val_(src, dst.vec, dst.real, dst.str);
+	    assign_object_val_(src, dst.object);
+      }
 
 	// M12-4: overload set routing a VPI put into the stored value
 	// (mirrors assign_entry_val_). A vec4 store is resized to the
