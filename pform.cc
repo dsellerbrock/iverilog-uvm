@@ -8672,6 +8672,11 @@ bool pform_add_modport_tf_port(const struct vlltype&loc,
       return true;
 }
 
+bool pform_in_modport_tf_prototype()
+{
+      return pform_parsing_modport_tf_prototype;
+}
+
 void pform_start_modport_tf_prototype(const struct vlltype&loc)
 {
       ivl_assert(loc, pform_cur_modport);

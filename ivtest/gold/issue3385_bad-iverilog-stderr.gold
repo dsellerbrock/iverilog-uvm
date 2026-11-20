@@ -1,0 +1,4 @@
+./ivltests/issue3385_bad.sv:4: error: Missing task/function port name.
+./ivltests/issue3385_bad.sv:7: error: Formal argument `other' does not match the name `value' in the extern prototype (IEEE 1800-2017/2023 8.24).
+./ivltests/issue3385_bad.sv:11: error: Formal argument `other' does not match the name `value' in the extern prototype (IEEE 1800-2017/2023 8.24).
+./ivltests/issue3385_bad.sv:18: error: Missing task/function port name.

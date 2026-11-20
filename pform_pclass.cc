@@ -656,17 +656,25 @@ bool pform_in_class()
       return pform_cur_class != 0;
 }
 
-static void check_extern_formal_typedefs_(const PTaskFunc*proto,
-					 const PTaskFunc*definition,
-					 size_t first)
+static void check_extern_formals_(const PTaskFunc*proto,
+				  const PTaskFunc*definition)
 {
       const vector<pform_tf_port_t>*a = proto->peek_ports();
       const vector<pform_tf_port_t>*b = definition->peek_ports();
       if (!a || !b) return;
-      for (size_t idx = first; idx < a->size() && idx < b->size(); ++idx) {
+      // The implicit receiver precedes the user-declared formals.
+      for (size_t idx = 1; idx < a->size() && idx < b->size(); ++idx) {
 	    const PWire*pa = (*a)[idx].port;
 	    const PWire*pb = (*b)[idx].port;
 	    if (!pa || !pb) continue;
+	    if (!a->at(idx).unnamed && !b->at(idx).unnamed
+		&& pa->basename() != pb->basename()) {
+		  cerr << pb->get_fileline() << ": error: Formal argument `"
+		       << pb->basename() << "' does not match the name `"
+		       << pa->basename()
+		       << "' in the extern prototype (IEEE 1800-2017/2023 8.24)." << endl;
+		  error_count += 1;
+	    }
 	    const typeref_t*ta = dynamic_cast<const typeref_t*>(pa->data_type());
 	    const typeref_t*tb = dynamic_cast<const typeref_t*>(pb->data_type());
 	    if (!ta || !tb || !ta->typedef_ref() || !tb->typedef_ref()) continue;
@@ -705,7 +713,7 @@ void pform_bind_extern_func(PFunction*func)
 	    const std::vector<pform_tf_port_t>*proto_ports = proto->peek_ports();
 	    const std::vector<pform_tf_port_t>*def_ports = func->peek_ports();
 	    size_t proto_count = proto_ports && !proto_ports->empty()
-		  ? proto_ports->size() - 1 : 0; // Exclude function return value.
+		  ? proto_ports->size() - 1 : 0; // Exclude the implicit receiver.
 	    size_t def_count = def_ports && !def_ports->empty()
 		  ? def_ports->size() - 1 : 0;
 	    if (proto_count != def_count) {
@@ -715,7 +723,7 @@ void pform_bind_extern_func(PFunction*func)
 		       << " (IEEE 1800-2017/2023 8.24)." << endl;
 		  error_count += 1;
 	    }
-	    check_extern_formal_typedefs_(proto, func, 1);
+	    check_extern_formals_(proto, func);
 	    if (!func->method_of() && proto->method_of())
 		  func->set_method_type_only(proto->method_of());
 	    if (!func->is_virtual_method() && proto->is_virtual_method())
@@ -763,7 +771,7 @@ void pform_bind_extern_task(PTask*task)
 		       << " (IEEE 1800-2017/2023 8.24)." << endl;
 		  error_count += 1;
 	    }
-	    check_extern_formal_typedefs_(proto, task, 0);
+	    check_extern_formals_(proto, task);
 	    if (!task->method_of() && proto->method_of())
 		  task->set_method_type_only(proto->method_of());
 	    if (!task->is_virtual_method() && proto->is_virtual_method())

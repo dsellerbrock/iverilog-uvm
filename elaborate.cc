@@ -20324,7 +20324,8 @@ static void validate_uninstantiated_interface_method_call_(
       names.reserve(count);
       if (ports) {
 	    for (const pform_tf_port_t&port : *ports)
-		  names.push_back(port.port ? port.port->basename() : perm_string());
+		  names.push_back(port.port && !port.unnamed
+				  ? port.port->basename() : perm_string());
       }
       vector<PExpr*>actuals = map_named_args(des, names, parms);
       for (unsigned idx = 0 ; idx < count ; idx += 1) {
@@ -20534,9 +20535,14 @@ static bool interface_modport_prototype_matches_method_(
 
       const bool method_is_function = method_scope
 	    && method_scope->type() == NetScope::FUNC;
-      const PFunction*func = method_is_function ? method_scope->func_pform() : nullptr;
-      const auto*extern_ports = func && func->is_extern_prototype()
-	    ? func->peek_ports() : nullptr;
+      const PTaskFunc*method = nullptr;
+      if (method_scope) {
+	    if (method_is_function)
+		  method = method_scope->func_pform();
+	    else if (method_scope->type() == NetScope::TASK)
+		  method = method_scope->task_pform();
+      }
+      const auto*method_ports = method ? method->peek_ports() : nullptr;
 
       NetScope*declaration_scope = method_scope
 	    ? const_cast<NetScope*>(method_scope->parent()) : nullptr;
@@ -20577,8 +20583,11 @@ static bool interface_modport_prototype_matches_method_(
 	    if (!prototype_port.port || !implementation_port
 		|| prototype_port.port->get_port_type()
 		   != implementation_port->port_type()
+		|| prototype_port.port->get_const() != implementation_port->get_const()
+		|| prototype_port.port->get_ref_static() != implementation_port->get_ref_static()
 		|| (require_matching_names
-		    && (!extern_ports || !extern_ports->at(idx).unnamed)
+		    && !prototype_port.unnamed
+		    && (!method_ports || !method_ports->at(idx).unnamed)
 		    && prototype_port.port->basename()
 		       != implementation_port->name())) {
 		  matches = false;
@@ -20962,7 +20971,7 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 	    if (prototype->ports) {
 		  names.reserve(prototype->ports->size());
 		  for (const pform_tf_port_t&port : *prototype->ports)
-			names.push_back(port.port
+			names.push_back(port.port && !port.unnamed
 			      ? port.port->basename() : perm_string());
 	    }
 	    actuals = map_named_args(des, names, parms);
@@ -21365,7 +21374,7 @@ NetESFunc* elaborate_dynamic_interface_function_call(
 	    if (prototype->ports) {
 		  names.reserve(prototype->ports->size());
 		  for (const pform_tf_port_t&port : *prototype->ports)
-			names.push_back(port.port
+			names.push_back(port.port && !port.unnamed
 			      ? port.port->basename() : perm_string());
 	    }
 	    actuals = map_named_args(des, names, parms);
@@ -59914,6 +59923,32 @@ find_interface_import_task_prototype_(const Module*interface_module,
       return nullptr;
 }
 
+static bool extern_subroutine_formals_match_(
+		const NetBaseDef&prototype, const NetBaseDef&provider,
+		const vector<pform_tf_port_t>*ports)
+{
+      if (prototype.port_count() != provider.port_count())
+	    return false;
+      if (!ports)
+	    return prototype.port_count() == 0;
+
+      for (unsigned idx = 0; idx < prototype.port_count(); ++idx) {
+	    const NetNet*formal = prototype.port(idx);
+	    const NetNet*implementation = provider.port(idx);
+	    if (!formal || !implementation
+		|| (!ports->at(idx).unnamed
+		    && formal->name() != implementation->name())
+		|| formal->port_type() != implementation->port_type()
+		|| formal->get_const() != implementation->get_const()
+		|| formal->get_ref_static() != implementation->get_ref_static()
+		|| !interface_modport_prototype_type_matches_(
+		      interface_method_formal_type_(formal),
+		      interface_method_formal_type_(implementation)))
+		  return false;
+      }
+      return true;
+}
+
 static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
 {
       if (!scope)
@@ -59996,6 +60031,17 @@ static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
 			     << provider->basename()
 			     << "' has an incompatible number of arguments (IEEE "
 				"1800-2017/2023 25.7.3)." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  if (extern_task && !extern_subroutine_formals_match_(
+			*stub_def, *provider_def, stub->peek_ports())) {
+			cerr << provider->get_fileline()
+			     << ": error: Provider for extern task `"
+			     << stub_scope->basename()
+			     << "' does not match its prototype "
+				"(IEEE 1800-2017/2023 25.7)." << endl;
 			des->errors += 1;
 			continue;
 		  }
@@ -60096,30 +60142,15 @@ static void collect_extern_functions_(Design*des, NetScope*scope,
 static bool extern_function_signature_matches_(const NetFuncDef*prototype,
 					      const NetFuncDef*provider)
 {
-      if (!prototype || !provider || prototype->is_void() != provider->is_void()
-	  || prototype->port_count() != provider->port_count())
+      if (!prototype || !provider || prototype->is_void() != provider->is_void())
 	    return false;
       if (!prototype->is_void() && !interface_modport_prototype_type_matches_(
 	    interface_method_formal_type_(prototype->return_sig()),
 	    interface_method_formal_type_(provider->return_sig())))
 	    return false;
 
-      const auto*ports = prototype->scope()->func_pform()->peek_ports();
-      for (unsigned idx = 0; idx < prototype->port_count(); ++idx) {
-	    const NetNet*formal = prototype->port(idx);
-	    const NetNet*implementation = provider->port(idx);
-	    if (!formal || !implementation
-		|| (!ports->at(idx).unnamed
-		    && formal->name() != implementation->name())
-		|| formal->port_type() != implementation->port_type()
-		|| formal->get_const() != implementation->get_const()
-		|| formal->get_ref_static() != implementation->get_ref_static()
-		|| !interface_modport_prototype_type_matches_(
-		      interface_method_formal_type_(formal),
-		      interface_method_formal_type_(implementation)))
-		  return false;
-      }
-      return true;
+      return extern_subroutine_formals_match_(
+	    *prototype, *provider, prototype->scope()->func_pform()->peek_ports());
 }
 
 /* Physical interface-port bindings are complete after module elaboration.

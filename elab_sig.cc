@@ -2844,7 +2844,8 @@ static void check_override_signature_(Design*des, const NetScope*method,
 	    if (!cur.port || !base.port)
 		  continue;
 	    std::string arg = "argument " + std::to_string(idx + 1);
-	    if (cur.port->basename() != base.port->basename()) {
+	    if (!cur.unnamed && !base.unnamed
+		&& cur.port->basename() != base.port->basename()) {
 		  report(arg + " is named `" + std::string(cur.port->basename().str())
 			 + "', but the prototype names it `"
 			 + std::string(base.port->basename().str()) + "'");
