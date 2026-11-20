@@ -5146,6 +5146,16 @@ static assoc_pattern_key_result_t assoc_pattern_key_identity_(
       return ASSOC_PATTERN_KEY_OK;
 }
 
+static NetExpr*elaborate_assoc_pattern_item_(Design*des, NetScope*scope,
+					    ivl_type_t element_type,
+					    PExpr*item, bool need_const)
+{
+      unsigned flags = dynamic_cast<const netuarray_t*>(element_type)
+	    ? PExpr::ASSOC_FIXED_PATTERN_ITEM : 0;
+      return elaborate_rval_expr(des, scope, element_type, item, need_const,
+				 false, flags);
+}
+
 NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 					ivl_type_t ntype, unsigned flags) const
 {
@@ -5175,7 +5185,8 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 			    case IVL_VT_NO_TYPE:
 			      break;
 			    case IVL_VT_CLASS:
-			      if (dynamic_cast<const netclass_t*>(elem_type))
+			      if (dynamic_cast<const netclass_t*>(elem_type)
+				  || dynamic_cast<const netuarray_t*>(elem_type))
 				    break;
 			      /* A CLASS-category carrier that is not a netclass_t is
 			       * not proven to have class-handle reference semantics. */
@@ -5188,8 +5199,8 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 			      return nullptr;
 			}
 
-			NetExpr*value = elaborate_rval_expr(des, scope, elem_type,
-						     dflt, need_const);
+			NetExpr*value = elaborate_assoc_pattern_item_(
+			      des, scope, elem_type, dflt, need_const);
 			if (!value)
 			      return nullptr;
 
@@ -5321,8 +5332,8 @@ NetExpr*PEAssignPattern::elaborate_expr(Design*des, NetScope*scope,
 			    encoded_key = key_expr;
 		      }
 
-		      NetExpr*value = elaborate_rval_expr(des, scope, elem_type,
-							  parms_[idx], need_const);
+		      NetExpr*value = elaborate_assoc_pattern_item_(
+			    des, scope, elem_type, parms_[idx], need_const);
 		      if (!value) {
 			    delete encoded_key;
 			    failed = true;
@@ -28118,7 +28129,11 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				}
 			  }
 		    }
+		    // A fixed array of class handles still needs the whole source
+		    // container for the pattern item's element-equivalence check.
 		    if (ivl_type_base(ntype) == IVL_VT_CLASS
+			&& !((flags & ASSOC_FIXED_PATTERN_ITEM)
+			     && dynamic_cast<const netuarray_t*>(ntype))
 			&& (!have_type
 			    || ivl_type_base(have_type) != IVL_VT_CLASS)) {
 			  // Compile-progress fallback for unresolved container/map/index
