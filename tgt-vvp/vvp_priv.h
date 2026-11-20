@@ -1040,12 +1040,33 @@ static inline ivl_type_t packed_struct_container_leaf_(ivl_type_t type)
       return 0;
 }
 
+/* Find the packed typespec needed to print an associative fixed-array word. */
+static inline ivl_type_t assoc_container_packed_leaf_(ivl_type_t type)
+{
+      int saw_assoc = 0;
+      while (type_is_runtime_container_(type)
+             && !type_is_fixed_uarray_property_(type)) {
+            if (ivl_type_base(type) == IVL_VT_QUEUE
+                && ivl_type_queue_assoc_compat(type))
+                  saw_assoc = 1;
+            type = ivl_type_element(type);
+      }
+      return saw_assoc && type && !type_is_fixed_uarray_property_(type)
+          && (ivl_type_enum(type) ||
+              (ivl_type_is_packed_vector(type) && ivl_type_properties(type) > 0
+               && !ivl_type_is_tagged_union(type))) ? type : 0;
+}
+
 /* Emit the strict recursive container-layout suffix understood by new VVP.
- * Q0 means a known-unbounded queue; D and A carry no bound. An associative
- * array of one-dimensional fixed arrays ends in F<left>:<right>:<leaf>.
+ * Q0 means a known-unbounded queue; D and A carry no bound. At fixed-array
+ * words, A also records key signedness (s/u) and value kind (b/v/r/S/o),
+ * with value signedness (s/u) after b or v. An object container value can
+ * carry an 's' for its signed integral leaf. An associative array of
+ * one-dimensional fixed arrays ends in F<left>:<right>:<leaf>.
  * The leaf is b<width>, v<width>, or o for two-state, four-state, or object
- * elements. P<width> records a packed struct's storage width. */
-static inline void emit_container_layout_suffix_(ivl_type_t type)
+ * elements. P<width> records the packed leaf's storage width. */
+static inline void emit_container_layout_suffix_(ivl_type_t type,
+                                                 int describe_assoc)
 {
       ivl_type_t cur = type;
       int emitted = 0;
@@ -1071,6 +1092,34 @@ static inline void emit_container_layout_suffix_(ivl_type_t type)
                   fputc('D', vvp_out);
             } else if (ivl_type_queue_assoc_compat(cur)) {
                   fputc('A', vvp_out);
+                  if (describe_assoc) {
+                        ivl_type_t key = ivl_type_assoc_index(cur);
+                        ivl_type_t value = ivl_type_element(cur);
+                        char kind = 'o';
+                        if (!type_is_fixed_uarray_property_(value)) {
+                              switch (ivl_type_base(value)) {
+                              case IVL_VT_BOOL:   kind = 'b'; break;
+                              case IVL_VT_LOGIC:  kind = 'v'; break;
+                              case IVL_VT_REAL:   kind = 'r'; break;
+                              case IVL_VT_STRING: kind = 'S'; break;
+                              default: break;
+                              }
+                        }
+                        fprintf(vvp_out, "%c%c",
+                                key && ivl_type_signed(key) ? 's' : 'u', kind);
+                        if (kind == 'b' || kind == 'v')
+                              fputc(ivl_type_signed(value) ? 's' : 'u', vvp_out);
+                        else if (kind == 'o') {
+                              ivl_type_t leaf = value;
+                              while (type_is_runtime_container_(leaf)
+                                     || type_is_fixed_uarray_property_(leaf))
+                                    leaf = ivl_type_element(leaf);
+                              if (leaf && (ivl_type_base(leaf) == IVL_VT_BOOL
+                                           || ivl_type_base(leaf) == IVL_VT_LOGIC)
+                                  && ivl_type_signed(leaf))
+                                    fputc('s', vvp_out);
+                        }
+                  }
             } else {
                   fprintf(vvp_out, "Q%" PRIu64,
                           ivl_type_queue_max_size(cur));
@@ -1078,7 +1127,10 @@ static inline void emit_container_layout_suffix_(ivl_type_t type)
             emitted = 1;
             cur = ivl_type_element(cur);
       }
-      ivl_type_t packed_leaf = packed_struct_container_leaf_(type);
+      ivl_type_t packed_leaf = describe_assoc
+            ? assoc_container_packed_leaf_(type) : 0;
+      if (!packed_leaf)
+            packed_leaf = packed_struct_container_leaf_(type);
       if (packed_leaf)
             fprintf(vvp_out, ",P%u", ivl_type_packed_width(packed_leaf));
 }
