@@ -163,20 +163,40 @@ EXTERN_C_START
 #define vpiAssume            687
 #define vpiCover             688
 
-/* Coverage control operations and types (IEEE 1800-2017/2023 Annex M). */
+/* Coverage control operations (IEEE 1800-2017/2023 Annex M.2). */
 #define vpiCoverageStart     750
 #define vpiCoverageStop      751
 #define vpiCoverageReset     752
 #define vpiCoverageCheck     753
+#define vpiCoverageMerge     754
+#define vpiCoverageSave      755
+
+/* Coverage type properties. */
 #define vpiAssertCoverage    760
 #define vpiFsmStateCoverage  761
 #define vpiStatementCoverage 762
 #define vpiToggleCoverage    763
 
-/* Assertion coverage status properties: 2017 40.5.2/40.5.3,
-   2023 40.5.2. */
+/* Coverage status properties. */
+#define vpiCovered           765
+#define vpiCoverMax          766 /* Backward-compatible name. */
+#define vpiCoveredMax        766
+#define vpiCoveredCount      767
+
+/* Assertion coverage status properties. */
 #define vpiAssertAttemptCovered 770
 #define vpiAssertSuccessCovered 771
+#define vpiAssertFailureCovered 772
+#define vpiAssertVacuousSuccessCovered 773
+#define vpiAssertDisableCovered 774
+#define vpiAssertKillCovered    777
+
+/* FSM coverage properties and handle types. */
+#define vpiFsmStates          775
+#define vpiFsmStateExpression 776
+#define vpiFsm                758
+#define vpiFsmHandle          759
+
 /* Assertion source-range properties (IEEE 1800 Annex M.2). */
 #define vpiStartLine        661
 #define vpiColumn           662
