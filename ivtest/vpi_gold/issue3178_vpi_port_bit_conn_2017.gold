@@ -1,0 +1,19 @@
+Compiling vpi/issue3178_vpi_port_bit_conn.c...
+Making issue3178_vpi_port_bit_conn_2017.vpi from  issue3178_vpi_port_bit_conn.o...
+top.l.d bit 0 high=net:top.w[0] low=net:top.l.d[0]
+top.l.d bit 1 high=net:top.w[1] low=net:top.l.d[1]
+top.l.asc bit 0 high=var:top.v[4] low=net:top.l.asc[-1]
+top.l.asc bit 1 high=var:top.v[5] low=net:top.l.asc[-2]
+top.l.sel bit 0 high=NULL low=net:top.l.sel[0]
+top.l.sel bit 1 high=NULL low=net:top.l.sel[1]
+top.l.expr bit 0 high=NULL low=net:top.l.expr[0]
+top.l.expr bit 1 high=NULL low=net:top.l.expr[1]
+top.l.open_port bit 0 high=NULL low=net:top.l.open_port[0]
+top.l.open_port bit 1 high=NULL low=net:top.l.open_port[1]
+top.l.matrix bit 0 high=net:top.m[1][2] low=net:top.l.matrix[6][1]
+top.l.matrix bit 1 high=net:top.m[1][3] low=net:top.l.matrix[6][0]
+top.l.matrix bit 2 high=net:top.m[0][2] low=net:top.l.matrix[7][1]
+top.l.matrix bit 3 high=net:top.m[0][3] low=net:top.l.matrix[7][0]
+top.l.one bit 0 high=net:top.one[0] low=net:top.l.one[0]
+top.c.p bit 0 high=net:top.w[0] low=NULL
+top.c.p bit 1 high=net:top.w[1] low=NULL

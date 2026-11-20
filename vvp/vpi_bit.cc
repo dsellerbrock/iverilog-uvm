@@ -54,6 +54,7 @@ static int bit_get_type(const __vpiBit*rfp)
 	case vpiNet:
 	    return vpiNetBit;
 	case vpiReg:
+	case vpiBitVar:
 	    return vpiRegBit;
       }
       assert(0);
