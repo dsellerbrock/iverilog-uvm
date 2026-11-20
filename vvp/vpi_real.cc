@@ -42,6 +42,9 @@ static int real_var_get(int code, vpiHandle ref)
 	case vpiSize:
 	    return 1;
 
+	case vpiNetType:
+	    return rfp->is_interconnect ? vpiInterconnect : 0;
+
 	case vpiLineNo:
 	    return 0; // Not implemented for now!
 

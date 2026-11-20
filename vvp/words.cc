@@ -671,6 +671,38 @@ void compile_vpi_charge_strength(char*label, uint64_t strength)
 }
 
 
+class interconnect_resolv_t : public resolv_list_s {
+    public:
+      explicit interconnect_resolv_t(char*label) : resolv_list_s(label) { }
+
+      bool resolve(bool message_flag) override
+      {
+            vpiHandle obj = vvp_lookup_handle(label());
+            if (!obj && !message_flag) return false;
+
+            if (auto*sig = dynamic_cast<__vpiSignal*>(obj)) {
+                  if (sig->get_type_code() == vpiNet && !sig->is_netarray) {
+                        sig->is_interconnect = true;
+                        return true;
+                  }
+            } else if (auto*real = dynamic_cast<__vpiRealVar*>(obj)) {
+                  if (real->is_wire && !real->is_netarray) {
+                        real->is_interconnect = true;
+                        return true;
+                  }
+            }
+            yyerror(obj ? "VPI interconnect target is not a standalone net"
+                        : "unresolved VPI interconnect target");
+            compile_errors += 1;
+            return true;
+      }
+};
+
+void compile_vpi_interconnect(char*label)
+{
+      resolv_submit(new interconnect_resolv_t(label));
+}
+
 static void compile_ref_variable_(char*label, char*name, int msb, int lsb,
 			  bool local_flag, bool two_state)
 {

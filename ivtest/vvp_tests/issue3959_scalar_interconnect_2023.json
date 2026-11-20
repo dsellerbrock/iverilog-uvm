@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3959_scalar_interconnect.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3959_scalar_interconnect_2023"],
+  "vpi-sources": ["vpi/issue3959_scalar_interconnect.c"],
+  "gold": "issue3959_scalar_interconnect"
+}

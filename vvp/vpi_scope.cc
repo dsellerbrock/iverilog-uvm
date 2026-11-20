@@ -827,7 +827,7 @@ static vpiHandle inst_array_of_(vpiHandle elem)
 }
 
 /* compares vpiType's considering object classes */
-static int compare_types(int code, int type, bool is_typedef = false)
+static int compare_types(int code, vpiHandle item)
 {
 	/* NOTE: The Verilog VPI does not for any object support
 	   vpiScope as an iterator parameter, so it is used here as a
@@ -836,7 +836,10 @@ static int compare_types(int code, int type, bool is_typedef = false)
 	    return 1;
 
       if (code == vpiTypedef)
-	    return is_typedef;
+	    return item->is_typedef_typespec();
+
+      int type = item->is_interconnect_net() ? vpiInterconnectNet
+                                            : item->get_vpi_type_code();
 
 	/* 37.10: vpiInstanceArray iterates every kind of instance array. */
       if (code == vpiInstanceArray
@@ -849,6 +852,9 @@ static int compare_types(int code, int type, bool is_typedef = false)
 	    return 1;
 
       if (code == type)
+	    return 1;
+
+      if (code == vpiNet && type == vpiInterconnectNet)
 	    return 1;
 
       // SystemVerilog variable arrays use vpiRegArray for iteration,
@@ -919,8 +925,7 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
       };
 
       for (unsigned idx = 0; idx < table.size(); idx += 1)
-	    if (compare_types(type_code, table[idx]->get_vpi_type_code(),
-			      table[idx]->is_typedef_typespec())
+	    if (compare_types(type_code, table[idx])
 		&& !(type_code == vpiVariables
 		     && (is_vif_array_word(table[idx])
 			 || is_net_memory(table[idx]))))
@@ -931,8 +936,7 @@ static vpiHandle make_subset_iterator_(int type_code, const vector<vpiHandle>&ta
 
       args = static_cast<vpiHandle*>(calloc(mcnt, sizeof(vpiHandle)));
       for (unsigned idx = 0; idx < table.size(); idx += 1)
-	    if (compare_types(type_code, table[idx]->get_vpi_type_code(),
-			      table[idx]->is_typedef_typespec())
+	    if (compare_types(type_code, table[idx])
 		&& !(type_code == vpiVariables
 		     && (is_vif_array_word(table[idx])
 			 || is_net_memory(table[idx]))))

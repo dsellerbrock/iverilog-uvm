@@ -394,6 +394,8 @@ ivl_signal_discipline
 ivl_signal_file
 ivl_signal_forced_net
 ivl_signal_integer
+ivl_signal_interconnect_declared_shape
+ivl_signal_is_interconnect
 ivl_signal_is_time
 ivl_signal_lineno
 ivl_signal_local

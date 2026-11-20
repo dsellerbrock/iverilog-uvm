@@ -1,0 +1,2 @@
+issue3959_scalar_interconnect_2017 normal,-g2017,-s,top issue3959_scalar_interconnect.c issue3959_scalar_interconnect_2017.gold
+issue3959_scalar_interconnect_2023 normal,-g2023,-s,top issue3959_scalar_interconnect.c issue3959_scalar_interconnect_2023.gold

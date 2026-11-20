@@ -4118,6 +4118,20 @@ extern "C" ivl_type_t ivl_signal_net_type(ivl_signal_t net)
       return net->net_->net_type();
 }
 
+extern "C" int ivl_signal_is_interconnect(ivl_signal_t net)
+{
+      assert(net);
+      assert(net->net_);
+      return net->net_->is_interconnect();
+}
+
+extern "C" int ivl_signal_interconnect_declared_shape(ivl_signal_t net)
+{
+      assert(net);
+      assert(net->net_);
+      return net->net_->interconnect_declared_shape();
+}
+
 extern "C" ivl_scope_t ivl_signal_resolution_function(ivl_signal_t net)
 {
       assert(net);

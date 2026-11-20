@@ -984,6 +984,8 @@ class NetNet  : public NetObj, public PortType {
       };
       void mark_interconnect(bool declared_shape);
       bool is_interconnect() const { return interconnect_type_.get() != 0; }
+      bool interconnect_declared_shape() const
+        { return interconnect_declared_shape_; }
       bool interconnect_type_resolved() const;
       bool interconnect_type_invalid() const;
       const NetInterconnectType* interconnect_component() const

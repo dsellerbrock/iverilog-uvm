@@ -2576,6 +2576,10 @@ extern ivl_delaypath_t ivl_signal_path(ivl_signal_t net, unsigned idx);
 extern ivl_signal_type_t ivl_signal_type(ivl_signal_t net);
 extern ivl_variable_type_t ivl_signal_data_type(ivl_signal_t net);
 extern ivl_type_t  ivl_signal_net_type(ivl_signal_t net);
+/* The original interconnect declaration, independent of its resolved type. */
+extern int         ivl_signal_is_interconnect(ivl_signal_t net);
+/* True if the interconnect declaration specified packed or unpacked ranges. */
+extern int         ivl_signal_interconnect_declared_shape(ivl_signal_t net);
 extern ivl_scope_t ivl_signal_resolution_function(ivl_signal_t net);
 extern const char* ivl_signal_name(ivl_signal_t net);
 extern const char* ivl_signal_basename(ivl_signal_t net);
