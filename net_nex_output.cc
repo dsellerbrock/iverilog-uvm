@@ -425,8 +425,15 @@ void NetSTask::nex_output(NexusSet&out)
 * right, we should be listing as outputs all the output ports, but for
 * the purposes that this method is used, this will do for now.
 */
-void NetUTask::nex_output(NexusSet&)
+void NetUTask::nex_output(NexusSet&out)
 {
+      if (!task_->is_randsequence_production()) return;
+      static set<const NetScope*> active;
+      const NetProc*body = task_->type() == NetScope::FUNC
+	    ? task_->func_def()->proc() : task_->task_def()->proc();
+      if (!body || !active.insert(task_).second) return;
+      const_cast<NetProc*>(body)->nex_output(out);
+      active.erase(task_);
 }
 
 void NetWhile::nex_output(NexusSet&out)

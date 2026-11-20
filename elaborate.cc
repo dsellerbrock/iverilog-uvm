@@ -17850,6 +17850,36 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    ivl_assert(*this, nscope);
       }
 
+      if (!randsequence_productions_.empty()) {
+	    scope->is_const_func(false);
+	    if (scope->need_const_func()) {
+		  cerr << get_fileline() << ": sorry: recursive randsequence in a "
+		       << "constant function is not supported." << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    subroutine_fork_context_guard_t fork_context(des);
+	    const unsigned caller_loop_depth = des->loop_depth;
+	    des->loop_depth = 0;
+	    for (const auto&production : randsequence_productions_) {
+		  NetScope*callee = nscope->child(hname_t(production.first));
+		  if (callee->elab_stage() > 2) continue;
+		  callee->set_elab_stage(3);
+		  NetBaseDef*def = callee->type() == NetScope::FUNC
+			? static_cast<NetBaseDef*>(callee->func_def()) : callee->task_def();
+		  ivl_assert(*this, def);
+		  const unsigned errors_before = des->errors;
+		  if (NetProc*body = production.second->elaborate(des, callee))
+			def->set_proc(body);
+		  else if (des->errors == errors_before) {
+			cerr << get_fileline() << ": error: unable to elaborate "
+			     << "randsequence production body." << endl;
+			des->errors += 1;
+		  }
+	    }
+	    des->loop_depth = caller_loop_depth;
+      }
+
       NetBlock*cur = new NetBlock(type, nscope);
       cur->randsequence_block(randsequence_block_);
       NetBlock*prefix = 0;
@@ -18064,7 +18094,7 @@ NetProc* PNoop::elaborate(Design*, NetScope*) const
       return res;
 }
 
-NetProc* PBreak::elaborate(Design*des, NetScope*) const
+NetProc* PBreak::elaborate(Design*des, NetScope*scope) const
 {
       if (!gn_system_verilog()) {
 	    cerr << get_fileline() << ": error: "
@@ -18081,6 +18111,26 @@ NetProc* PBreak::elaborate(Design*des, NetScope*) const
 	    return nullptr;
       }
 
+
+      if (kind_ == IVL_FLOW_LOOP_BREAK && des->loop_depth == 0) {
+	    NetScope*target = scope;
+	    while (target && target->type() == NetScope::BEGIN_END)
+		  target = target->parent();
+	    if (target && target->is_randsequence_production()) {
+		  NetNet*flag = target->parent()->find_signal(PBlock::randsequence_break_flag());
+		  ivl_assert(*this, flag);
+		  NetAssign*set = new NetAssign(new NetAssign_(flag),
+					       new NetEConst(verinum(verinum::V1)));
+		  set->set_line(*this);
+		  PReturn leave(nullptr);
+		  leave.set_line(*this);
+		  NetBlock*exit = new NetBlock(NetBlock::SEQU, nullptr);
+		  exit->set_line(*this);
+		  exit->append(set);
+		  exit->append(leave.elaborate(des, scope));
+		  return exit;
+	    }
+      }
 
       NetBreak*res = new NetBreak(kind_);
       res->set_line(*this);
@@ -19799,6 +19849,13 @@ static bool cast_operands_assignment_compatible_(const NetExpr*dest,
 
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
+      if (randsequence_call_) {
+	    NetScope*owner = scope->is_randsequence_production() ? scope->parent() : scope;
+	    NetScope*callee = owner->child(hname_t(peek_tail_name(path_)));
+	    ivl_assert(*this, callee && callee->is_randsequence_production());
+	    return elaborate_bound_subroutine_call_(des, scope, callee);
+      }
+
 	// Method-call statement on an arbitrary receiver expression,
 	// e.g. f().method(args); (IEEE 1800-2017 8.10).
       if (receiver_)

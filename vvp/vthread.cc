@@ -886,6 +886,7 @@ struct vthread_s {
       void*resource_id_;
       vthread_resource_cancel_t resource_cancel_;
       vvp_object_t resource_ref_;
+      unsigned randsequence_depth = 0;
 
 	/* My parent sets this when it wants me to wake it up. */
       unsigned i_am_joining      :1;
@@ -16231,6 +16232,18 @@ static int callf_depth = 0;
  */
 static const int           CALLF_MAX_DEPTH   = 4096;  // absolute callf nesting depth
 
+// Bound live production frames independently of the number of calls made.
+static constexpr unsigned RANDSEQUENCE_MAX_DEPTH = 4096;
+
+[[noreturn]] static void randsequence_depth_error_(vthread_t thr)
+{
+      fprintf(stderr, "%sruntime error: randsequence production call depth exhausted.\n",
+	      thr->get_fileline().c_str());
+      // Synchronous callf can drive a paused child even after $finish.
+      // Resource exhaustion must stop execution before any caller resumes.
+      exit(EXIT_FAILURE);
+}
+
 static bool warned_callf_depth_fallback = false;
 static bool warned_callf_rd_sync = false;
 static bool warned_callf_child_not_ended = false;
@@ -17343,6 +17356,10 @@ class lazy_scope_name_s {
 
 static bool do_callf_void(vthread_t thr, vthread_t child)
 {
+      child->randsequence_depth = thr->randsequence_depth;
+      if (child->parent_scope->randsequence_production
+	  && ++child->randsequence_depth > RANDSEQUENCE_MAX_DEPTH)
+	    randsequence_depth_error_(thr);
       child->function_deferred_events_allowed =
 	    thr->function_deferred_events_allowed;
       callf_depth++;
@@ -17427,6 +17444,8 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
 	 * below, which fires first.  The absolute cap is the single depth
 	 * backstop; the same-scope check is retired. */
       if (callf_depth > CALLF_MAX_DEPTH) {
+	    if (child->randsequence_depth)
+		  randsequence_depth_error_(thr);
 	    if (!warned_callf_depth_fallback) {
 		  const char*scope_name = "<unknown>";
 		  if (child->parent_scope) {
@@ -17502,6 +17521,8 @@ static bool do_callf_void(vthread_t thr, vthread_t child)
             callf_scope_stack.pop_back();
             callf_depth--;
             if (trampoline_call_stack.size() >= TRAMPOLINE_MAX_DEPTH) {
+                  if (child->randsequence_depth)
+                        randsequence_depth_error_(thr);
                   if (!warned_callf_depth_fallback) {
                         fprintf(stderr, "%sWarning: trampoline callf depth exceeded"
                                 " %zu; using compile-progress return fallback"
@@ -23384,7 +23405,12 @@ bool of_FORCE_WR(vthread_t thr, vvp_code_t cp)
  */
 static bool do_fork_(vthread_t thr, vvp_code_t cp, bool child_is_process)
 {
+      unsigned randsequence_depth = child_is_process ? 0 : thr->randsequence_depth;
+      if (cp->scope->randsequence_production
+	  && ++randsequence_depth > RANDSEQUENCE_MAX_DEPTH)
+	    randsequence_depth_error_(thr);
       vthread_t child = vthread_new(cp->cptr2, cp->scope);
+      child->randsequence_depth = randsequence_depth;
       child->function_deferred_events_allowed =
 	    thr->function_deferred_events_allowed;
       __vpiScope*child_ctx_scope = resolve_context_scope(cp->scope);

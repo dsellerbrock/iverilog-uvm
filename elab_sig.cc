@@ -4214,6 +4214,26 @@ void PBlock::elaborate_sig(Design*des, NetScope*scope) const
 	    }
       }
 
+      // Publish every signature before descending into any production body.
+      if (!randsequence_productions_.empty()) {
+	    NetNet*flag = my_scope->find_signal(randsequence_break_flag());
+	    ivl_assert(*this, flag);
+	    flag->local_flag(true);
+      }
+      for (const auto&production : randsequence_productions_) {
+	    NetScope*callee = my_scope->child(hname_t(production.first));
+	    ivl_assert(*this, callee);
+	    if (callee->elab_stage() > 1) continue;
+	    if (callee->type() == NetScope::FUNC)
+		  callee->set_func_def(new NetFuncDef(callee, nullptr, {}, {}));
+	    else
+		  callee->set_task_def(new NetTaskDef(callee, {}, {}));
+	    callee->set_elab_stage(2);
+      }
+      for (const auto&production : randsequence_productions_)
+	    production.second->elaborate_sig(des,
+		  my_scope->child(hname_t(production.first)));
+
 	// elaborate_sig in the statements included in the
 	// block. There may be named blocks in there.
       for (unsigned idx = 0 ;  idx < list_.size() ;  idx += 1)

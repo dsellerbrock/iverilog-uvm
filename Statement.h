@@ -63,6 +63,7 @@ class PProcess : public LineInfo {
       PProcess& operator=(const PProcess&) = delete;
 
       bool elaborate(Design*des, NetScope*scope) const;
+      void elaborate_scope(Design*des, NetScope*scope) const;
 
       ivl_process_type_t type() const { return type_; }
       Statement*statement() { return statement_; }
@@ -289,6 +290,10 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       { randsequence_block_ = kind; }
       ivl_randsequence_block_t randsequence_block() const
       { return randsequence_block_; }
+      void add_randsequence_production(perm_string name, Statement*body)
+      { randsequence_productions_.emplace_back(name, body); }
+      static perm_string randsequence_break_flag()
+      { return perm_string::literal("$__ivl_rs_break"); }
 
       bool var_init_needs_explicit_lifetime() const override;
 
@@ -322,12 +327,14 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
     private:
       friend class pform_constructor_order_audit_t;
       BL_TYPE bl_type_;
+      void elaborate_scope_statements_(Design*des, NetScope*scope) const;
       bool deferred_assertion_label_scope_ = false;
       bool vpi_for_scope_ = false;
       bool vpi_foreach_scope_ = false;
       bool deferred_assertion_process_scope_ = false;
       bool concurrent_assertion_only_ = false;
       ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;
+      std::vector<std::pair<perm_string, Statement*>> randsequence_productions_;
       std::vector<Statement*>list_;
 };
 
@@ -393,6 +400,7 @@ class PCallTask  : public Statement {
       bool elaborate_elab(Design*des, NetScope*scope) const;
       NetProc* elaborate_bound_subroutine_call_(Design*des, NetScope*scope,
 						NetScope*subroutine) const;
+      void randsequence_call() { randsequence_call_ = true; }
 
       void void_cast() { void_cast_ = true; }
       bool is_void_cast() const { return void_cast_; }
@@ -404,6 +412,7 @@ class PCallTask  : public Statement {
       bool has_scoped_type_prefix() const { return scoped_type_prefix_; }
 
     private:
+      bool randsequence_call_ = false;
       NetProc* elaborate_sys(Design*des, NetScope*scope) const;
       NetProc* elaborate_usr(Design*des, NetScope*scope) const;
 

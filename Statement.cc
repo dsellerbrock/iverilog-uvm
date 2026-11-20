@@ -132,6 +132,8 @@ PBlock::~PBlock()
 {
       for (unsigned idx = 0 ;  idx < list_.size() ;  idx += 1)
 	    delete list_[idx];
+      for (const auto&production : randsequence_productions_)
+	    delete production.second;
 }
 
 bool PBlock::var_init_needs_explicit_lifetime() const
@@ -219,6 +221,8 @@ bool PBlock::contains_detached_fork() const
 {
       if (bl_type_ == BL_JOIN_NONE || bl_type_ == BL_JOIN_ANY)
 	    return true;
+      for (const auto&production : randsequence_productions_)
+	    if (production.second->contains_detached_fork()) return true;
       for (unsigned idx = 0 ; idx < list_.size() ; idx += 1)
 	    if (list_[idx] && list_[idx]->contains_detached_fork())
 		  return true;
@@ -1445,6 +1449,8 @@ bool PContinue::refs_name(perm_string) const { return false; }
 
 bool PBlock::refs_name(perm_string name) const
 {
+      for (const auto&production : randsequence_productions_)
+	    if (production.second->refs_name(name)) return true;
       for (unsigned idx = 0 ; idx < list_.size() ; idx += 1)
 	    if (list_[idx] && list_[idx]->refs_name(name))
 		  return true;
@@ -1460,6 +1466,8 @@ bool PBlock::detached_fork_refs_name(perm_string name) const
 	   initializers are not part of the statement list walked here. */
       if (bl_type_ == BL_JOIN_NONE || bl_type_ == BL_JOIN_ANY)
 	    return refs_name(name);
+      for (const auto&production : randsequence_productions_)
+	    if (production.second->detached_fork_refs_name(name)) return true;
       for (unsigned idx = 0 ; idx < list_.size() ; idx += 1)
 	    if (list_[idx] && list_[idx]->detached_fork_refs_name(name))
 		  return true;

@@ -4259,6 +4259,11 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 	    access_type = access[4] - '0';
 	    memmove(access, access + 5, strlen(access + 5) + 1);
       }
+      const bool randsequence_production =
+	    strcmp(type, "autotask.randseq") == 0
+	    || strcmp(type, "autofunction.void.randseq") == 0;
+      if (randsequence_production)
+	    *strrchr(type, '.') = 0;
       count_vpi_scopes += 1;
       char vec_type;
       char sign_flag;
@@ -4393,6 +4398,7 @@ compile_scope_decl(char*label, char*type, char*name, char*tname,
 
       if (mixed_lifetime_function)
 	    scope->set_owns_automatic_context();
+      scope->randsequence_production = randsequence_production;
       scope->join_type = join_type;
       scope->access_type = access_type;
       scope->dpi_pure = dpi_pure;
