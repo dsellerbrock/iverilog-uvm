@@ -18,6 +18,7 @@
  */
 
 # include  "event.h"
+# include  "array.h"
 # include  "scalar_event_history.h"
 # include  "compile.h"
 # include  "vthread.h"
@@ -28,6 +29,7 @@
 # include  "vvp_cleanup.h"
 # include  "vvp_vinterface.h"
 # include  "config.h"
+# include  <algorithm>
 # include  <cstring>
 # include  <cassert>
 # include  <cstdlib>
@@ -3105,8 +3107,9 @@ class vvp_fun_struct_leaf : public vvp_net_fun_t, public automatic_hooks_s,
                             public vvp_gen_event_s {
     public:
       vvp_fun_struct_leaf(vvp_net_t*net, char kind, unsigned width,
-                          std::vector<unsigned> path)
-      : net_(net), kind_(kind), width_(width), path_(std::move(path))
+                          std::vector<unsigned> path, bool array_word)
+      : net_(net), kind_(kind), width_(width), path_(std::move(path)),
+        array_word_(array_word), static_sample_(this, nullptr)
       {
             __vpiScope*scope = vpip_peek_context_scope();
             if (scope->has_automatic_context()) {
@@ -3119,6 +3122,10 @@ class vvp_fun_struct_leaf : public vvp_net_fun_t, public automatic_hooks_s,
 
       void run_run() override
       {
+            if (array_word_) {
+                  array_object_port_seed(root_, nullptr);
+                  return;
+            }
             if (!root_ || !vvp_fun_as_signal_object(root_->fun)) {
                   fprintf(stderr, "runtime error: .struct/leaf requires an object signal root\n");
                   vpip_set_return_value(1);
@@ -3133,19 +3140,28 @@ class vvp_fun_struct_leaf : public vvp_net_fun_t, public automatic_hooks_s,
 
       void alloc_instance(vvp_context_t context) override
       {
-            if (kind_ == 'r')
-                  vvp_set_context_item(context, context_idx_, new real_sample);
+            if (array_word_ || kind_ == 'r')
+                  vvp_set_context_item(context, context_idx_,
+                                       new leaf_sample(this, context));
       }
 
       void reset_instance(vvp_context_t context) override
       {
-            if (kind_ == 'r')
-                  sample(context).initialized = false;
+            if (array_word_ || kind_ == 'r')
+                  sample(context).real_initialized = false;
+      }
+
+      void release_instance(vvp_context_t context) override
+      {
+            if (array_word_)
+                  sample(context).detach();
       }
 
       void initialize_instance(vvp_context_t context) override
       {
-            if (auto*root = dynamic_cast<vvp_fun_signal_object_aa*>(root_->fun)) {
+            if (array_word_) {
+                  array_object_port_seed(root_, context);
+            } else if (auto*root = dynamic_cast<vvp_fun_signal_object_aa*>(root_->fun)) {
                   publish(root->peek_object(context), context);
             } else if (auto*ref = dynamic_cast<vvp_ref_signal_aa*>(root_->fun)) {
                   // A bound ref in an enclosing activation already has a
@@ -3161,7 +3177,7 @@ class vvp_fun_struct_leaf : public vvp_net_fun_t, public automatic_hooks_s,
 #ifdef CHECK_WITH_VALGRIND
       void free_instance(vvp_context_t context) override
       {
-            if (kind_ == 'r')
+            if (array_word_ || kind_ == 'r')
                   delete &sample(context);
       }
 #endif
@@ -3191,26 +3207,77 @@ class vvp_fun_struct_leaf : public vvp_net_fun_t, public automatic_hooks_s,
       }
 
     private:
-      struct real_sample {
-            bool initialized = false;
-            double value = 0;
+      // Keep the relay net for the lifetime of the sample slot. touch()
+      // snapshots its relay list, so a detached relay can still be called
+      // until the current fanout returns.
+      struct leaf_sample : vvp_net_fun_t {
+            leaf_sample(vvp_fun_struct_leaf*leaf, vvp_context_t context)
+            : leaf_(leaf), context_(context)
+            { relay_.fun = this; }
+
+            ~leaf_sample() override { detach(); }
+            static void operator delete(void*ptr) { ::operator delete(ptr); }
+
+            void watch(unsigned idx, const vvp_object_t&receiver)
+            {
+                  if (idx == receivers_.size()) {
+                        if (idx == 0)
+                              generation_ = vthread_context_generation(context_);
+                        receivers_.push_back(receiver);
+                  } else {
+                        if (receivers_[idx] == receiver)
+                              return;
+                        receivers_[idx].peek<vvp_object>()->remove_touch_relay(&relay_);
+                        receivers_[idx] = receiver;
+                  }
+                  receiver.peek<vvp_object>()->add_touch_relay(&relay_);
+            }
+
+            void detach()
+            {
+                  for (const vvp_object_t&receiver : receivers_)
+                        receiver.peek<vvp_object>()->remove_touch_relay(&relay_);
+                  receivers_.clear();
+                  generation_ = 0;
+            }
+
+            void recv_object(vvp_net_ptr_t, vvp_object_t touched, vvp_context_t) override
+            {
+                  if (context_ && (!generation_
+                        || vthread_context_generation(context_) != generation_))
+                        return;
+                  if (std::find(receivers_.begin(), receivers_.end(), touched)
+                      != receivers_.end())
+                        leaf_->publish(receivers_.front(), context_);
+            }
+
+            bool real_initialized = false;
+            double real_value = 0;
+
+          private:
+            vvp_fun_struct_leaf*leaf_;
+            vvp_context_t context_;
+            uint64_t generation_ = 0;
+            vvp_net_t relay_;
+            std::vector<vvp_object_t> receivers_;
       };
 
-      real_sample& sample(vvp_context_t context)
+      leaf_sample& sample(vvp_context_t context)
       {
             if (!context)
-                  return static_real_;
-            return *static_cast<real_sample*>(
+                  return static_sample_;
+            return *static_cast<leaf_sample*>(
                   vvp_get_context_item(context, context_idx_));
       }
 
       void publish(vvp_object_t value, vvp_context_t context)
       {
-            if (value.test_nil())
+            if (value.test_nil() && !array_word_)
                   return; // An automatic ref can be unbound at allocation.
 
-            // Read through the currently delivered value on every write,
-            // including whole-struct and nested replacements.
+            // Rebind the root and every nested receiver before publishing,
+            // even when the new leaf compares equal to the old one.
+            leaf_sample*subscription = array_word_ ? &sample(context) : nullptr;
             for (unsigned idx = 0; idx < path_.size(); ++idx) {
                   vvp_cobject*owner = value.peek<vvp_cobject>();
                   const class_type*type = owner ? owner->get_defn() : nullptr;
@@ -3220,6 +3287,8 @@ class vvp_fun_struct_leaf : public vvp_net_fun_t, public automatic_hooks_s,
                       || type->property_array_size(member) != 1)
                         break;
 
+                  if (subscription)
+                        subscription->watch(idx, value);
                   const std::string&storage = type->property_base_type(member);
                   if (idx + 1 != path_.size()) {
                         if (storage.compare(0, 3, "oc:") != 0)
@@ -3238,13 +3307,13 @@ class vvp_fun_struct_leaf : public vvp_net_fun_t, public automatic_hooks_s,
                   }
                   if (kind_ == 'r' && storage == "r") {
                         double real = owner->get_real(member);
-                        real_sample&old = sample(context);
+                        leaf_sample&old = sample(context);
                         // Keep equal stored representations (including a
                         // held NaN) out of the native real comparator.
-                        if (!old.initialized
-                            || memcmp(&old.value, &real, sizeof real) != 0) {
-                              old.initialized = true;
-                              memcpy(&old.value, &real, sizeof real);
+                        if (!old.real_initialized
+                            || memcmp(&old.real_value, &real, sizeof real) != 0) {
+                              old.real_initialized = true;
+                              memcpy(&old.real_value, &real, sizeof real);
                               net_->send_real(real, context);
                         }
                         return;
@@ -3273,18 +3342,21 @@ class vvp_fun_struct_leaf : public vvp_net_fun_t, public automatic_hooks_s,
       char kind_;
       unsigned width_;
       std::vector<unsigned> path_;
-      real_sample static_real_;
+      bool array_word_;
+      leaf_sample static_sample_;
 };
 
 } // namespace
 
 void compile_struct_leaf(char*label, char*root, char*kind, uint64_t width,
-                         unsigned path_count, long*raw_path)
+                         unsigned path_count, long*raw_path,
+                         bool array_word, uint64_t word)
 {
       const char leaf_kind = kind[0];
       bool valid = leaf_kind && kind[1] == '\0' && strchr("vrso", leaf_kind)
             && width > 0 && width <= UINT_MAX
             && (leaf_kind == 'v' || width == 1) && path_count != 0
+            && (!array_word || word <= UINT_MAX)
             && !c4string_test(root) && !c8string_test(root) && !crstring_test(root);
       std::vector<unsigned> path;
       for (unsigned idx = 0; valid && idx < path_count; ++idx) {
@@ -3299,11 +3371,17 @@ void compile_struct_leaf(char*label, char*root, char*kind, uint64_t width,
       if (valid) {
             vvp_net_t*net = new vvp_net_t;
             auto*fun = new vvp_fun_struct_leaf(net, leaf_kind, width,
-                                               std::move(path));
+                                               std::move(path), array_word);
             net->fun = fun;
             define_functor_symbol(label, net);
-            functor_ref_lookup(fun->root_ref(), strdup(root));
-            input_connect(net, 0, root);
+            if (array_word) {
+                  vvp_net_t*port = compile_array_object_port(root, word);
+                  *fun->root_ref() = port;
+                  port->link(vvp_net_ptr_t(net, 0));
+            } else {
+                  functor_ref_lookup(fun->root_ref(), strdup(root));
+                  input_connect(net, 0, root);
+            }
             schedule_functor(fun);
       } else {
             fprintf(stderr, "invalid .struct/leaf root, kind, width or member path\n");

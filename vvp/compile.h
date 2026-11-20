@@ -155,7 +155,8 @@ extern void compile_vif_proxy(char*label, char*valid_label, unsigned width,
                               char*root, unsigned root_word, unsigned member,
                               unsigned word, unsigned path_count, long*path);
 extern void compile_struct_leaf(char*label, char*root, char*kind,
-                                uint64_t width, unsigned path_count, long*path);
+                                uint64_t width, unsigned path_count, long*path,
+                                bool array_word = false, uint64_t word = 0);
 extern void compile_event_valid(char*event_label, char*valid_label);
 
 extern void compile_functor(char*label, char*type, unsigned width,
@@ -564,6 +565,7 @@ extern void compile_array_port(char*label, char*name, char*addr,
 			       long negedge);
   /* Index is a constant address */
 extern void compile_array_port(char*label, char*name, long addr);
+extern vvp_net_t*compile_array_object_port(char*name, unsigned addr);
 
 extern void compile_array_cleanup(void);
 extern void compile_packed_dims(char*label, char*layout);

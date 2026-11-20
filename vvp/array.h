@@ -31,6 +31,10 @@ class value_callback;
  */
 extern vvp_array_t array_find(const char*label);
 
+/* Seed a constant object-word port for a new consumer activation, or seed
+   its shared output before time zero when the array has static storage. */
+extern void array_object_port_seed(vvp_net_t*net, vvp_context_t consumer);
+
 /* VPI hooks */
 extern value_callback* vpip_array_word_change(p_cb_data data);
 extern value_callback* vpip_array_change(p_cb_data data);

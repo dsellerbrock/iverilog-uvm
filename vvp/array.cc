@@ -72,7 +72,7 @@ static bool object_matches_container_layout_(
 }
 
 class vvp_fun_arrayport;
-static void array_attach_port(vvp_array_t, vvp_fun_arrayport*);
+static void array_attach_port(vvp_array_t, vvp_fun_arrayport*, bool);
 
 /* A fixed unpacked array whose effective lifetime is automatic needs a fresh
  * value container in every activation context. Four-state arrays already use
@@ -2252,7 +2252,7 @@ class vvp_fun_arrayport  : public vvp_net_fun_t {
 
     public:
       explicit vvp_fun_arrayport(vvp_array_t mem, vvp_net_t*net);
-      explicit vvp_fun_arrayport(vvp_array_t mem, vvp_net_t*net, long addr);
+      explicit vvp_fun_arrayport(vvp_array_t mem, vvp_net_t*net, unsigned long addr);
       ~vvp_fun_arrayport() override;
 
       virtual void check_word_change(unsigned long addr) = 0;
@@ -2263,7 +2263,7 @@ class vvp_fun_arrayport  : public vvp_net_fun_t {
       vvp_net_t  *net_;
       unsigned long addr_;
 
-      friend void array_attach_port(vvp_array_t, vvp_fun_arrayport*);
+      friend void array_attach_port(vvp_array_t, vvp_fun_arrayport*, bool);
       friend void __vpiArray::word_change_local_(unsigned long);
       vvp_fun_arrayport*next_;
 };
@@ -2274,7 +2274,7 @@ vvp_fun_arrayport::vvp_fun_arrayport(vvp_array_t mem, vvp_net_t*net)
       next_ = 0;
 }
 
-vvp_fun_arrayport::vvp_fun_arrayport(vvp_array_t mem, vvp_net_t*net, long addr)
+vvp_fun_arrayport::vvp_fun_arrayport(vvp_array_t mem, vvp_net_t*net, unsigned long addr)
 : arr_(mem), net_(net), addr_(addr)
 {
       next_ = 0;
@@ -2312,7 +2312,8 @@ bool vvp_array_port_store(vvp_net_t*net, const vvp_vector4_t&value)
  * semantics for static and automatic ports. */
 static void send_array_port_word_(vvp_array_t array, vvp_net_t*net,
 				  unsigned long address,
-				  vvp_context_t context)
+				  vvp_context_t context,
+                                  vvp_context_t storage_context = nullptr)
 {
       if (vpi_array_is_real(array)) {
 	    net->send_real(array->get_word_r(address), context);
@@ -2320,11 +2321,55 @@ static void send_array_port_word_(vvp_array_t array, vvp_net_t*net,
 	    net->send_string(array->get_word_str(address), context);
       } else if (vpi_array_is_object(array)) {
 	    vvp_object_t value;
+	    vthread_ref_ctx_save saved;
+	    if (storage_context)
+		  vthread_push_ref_context(storage_context, &saved);
 	    array->get_word_obj(address, value);
+	    if (storage_context)
+		  vthread_pop_ref_context(&saved);
 	    net->send_object(value, context);
       } else {
 	    net->send_vec4(array->get_word(address), context);
       }
+}
+
+// A struct projection uses a constant port on the storage's activation.
+// Its consumers may live in separate, nested automatic activations.
+class vvp_fun_arrayport_object : public vvp_fun_arrayport {
+    public:
+      vvp_fun_arrayport_object(vvp_array_t mem, vvp_net_t*net, unsigned addr)
+      : vvp_fun_arrayport(mem, net, addr), scope_(mem->word_context_scope()) { }
+
+      void check_word_change(unsigned long addr) override
+      {
+            if (addr != addr_)
+                  return;
+            vvp_context_t source = scope_
+                  ? vthread_get_wt_context_for_scope(scope_) : nullptr;
+            if (!scope_ || source)
+                  send_array_port_word_(arr_, net_, addr_, source, source);
+      }
+
+      void seed(vvp_context_t consumer)
+      {
+            if (!scope_) {
+                  if (!consumer)
+                        send_array_port_word_(arr_, net_, addr_, nullptr);
+                  return;
+            }
+            vvp_context_t source =
+                  vthread_recover_stacked_context_for_scope(consumer, scope_);
+            if (source)
+                  send_array_port_word_(arr_, net_, addr_, consumer, source);
+      }
+
+    private:
+      __vpiScope*scope_;
+};
+
+void array_object_port_seed(vvp_net_t*net, vvp_context_t consumer)
+{
+      static_cast<vvp_fun_arrayport_object*>(net->fun)->seed(consumer);
 }
 
 class vvp_fun_arrayport_sa  : public vvp_fun_arrayport {
@@ -2553,12 +2598,13 @@ void vvp_fun_arrayport_aa::check_word_change(unsigned long addr)
       }
 }
 
-static void array_attach_port(vvp_array_t array, vvp_fun_arrayport*fun)
+static void array_attach_port(vvp_array_t array, vvp_fun_arrayport*fun,
+                              bool propagate_default)
 {
       assert(fun->next_ == 0);
       fun->next_ = array->ports_;
       array->ports_ = fun;
-      if (!array->automatic_storage &&
+      if (propagate_default && !array->automatic_storage &&
           (array->vals4 || array->vals)) {
 	      /* propagate initial values for variable arrays */
 	    if (vpi_array_is_real(array)) {
@@ -2637,8 +2683,18 @@ void __vpiArray::word_change(unsigned long addr)
 
 void __vpiArray::word_change_local_(unsigned long addr)
 {
-      for (vvp_fun_arrayport*cur = ports_; cur; cur = cur->next_)
-	    cur->check_word_change(addr);
+      auto notify_ports = [this, addr]() {
+            for (vvp_fun_arrayport*cur = ports_; cur; cur = cur->next_)
+                  cur->check_word_change(addr);
+      };
+      if (ports_ && vpi_array_is_object(this)) {
+            // All member projections observe one replacement, so a
+            // derived event expression sees their new values together.
+            vvp_event_source_guard_s update;
+            notify_ports();
+      } else {
+            notify_ports();
+      }
 
       const unsigned wildcard = static_cast<unsigned>(-1);
       for (word_edge_probe_t&probe : word_edge_probes_) {
@@ -2736,25 +2792,27 @@ class array_port_resolv_list_t : public resolv_list_s {
 
     public:
       explicit array_port_resolv_list_t(char* lab, bool use_addr__,
-					long addr__, bool write_port__ = false,
-					bool negedge__ = false);
+					int64_t addr__, bool write_port__ = false,
+					bool negedge__ = false,
+                                        bool object_word__ = false);
 
       __vpiScope*context_scope;
       vvp_net_t*ptr;
       bool use_addr;
-      long addr;
+      int64_t addr;
       bool write_port;
       bool negedge;
+      bool object_word;
       bool resolve(bool mes) override;
 
     private:
 };
 
 array_port_resolv_list_t::array_port_resolv_list_t(char *lab, bool use_addr__,
-						   long addr__, bool write_port__,
-						   bool negedge__)
+						   int64_t addr__, bool write_port__,
+						   bool negedge__, bool object_word__)
 : resolv_list_s(lab), use_addr(use_addr__), addr(addr__),
-  write_port(write_port__), negedge(negedge__)
+  write_port(write_port__), negedge(negedge__), object_word(object_word__)
 {
       __vpiScope*owner = vpip_peek_context_scope();
       context_scope = owner && owner->has_automatic_context() ? owner : 0;
@@ -2765,12 +2823,26 @@ bool array_port_resolv_list_t::resolve(bool mes)
 {
       vvp_array_t mem = array_find(label());
       if (mem == 0) {
+            if (object_word && mes) {
+                  fprintf(stderr, "unresolved .struct/leaf array %s\n", label());
+                  compile_errors += 1;
+                  return true;
+            }
 	    assert(mem || !mes);
 	    return false;
       }
 
       vvp_fun_arrayport*fun;
-      if (write_port) {
+      if (object_word) {
+            if (!vpi_array_is_object(mem) || addr < 0
+                || static_cast<uint64_t>(addr) >= mem->get_size()) {
+                  fprintf(stderr, "invalid .struct/leaf object array or word %s[%lld]\n",
+                          label(), static_cast<long long>(addr));
+                  compile_errors += 1;
+                  return true;
+            }
+            fun = new vvp_fun_arrayport_object(mem, ptr, static_cast<unsigned>(addr));
+      } else if (write_port) {
 	    // Synthesizable storage belongs to a static module/interface scope.
 	    // Keep an explicit boundary instead of sharing write-port state across
 	    // live instances of an automatic scope.
@@ -2779,9 +2851,10 @@ bool array_port_resolv_list_t::resolve(bool mes)
 	    fun = new vvp_fun_arrayport_sa(mem, ptr, negedge);
       } else if (use_addr)
             if (context_scope)
-                  fun = new vvp_fun_arrayport_aa(context_scope, mem, ptr, addr);
+                  fun = new vvp_fun_arrayport_aa(context_scope, mem, ptr,
+                                                 static_cast<long>(addr));
             else
-                  fun = new vvp_fun_arrayport_sa(mem, ptr, addr);
+                  fun = new vvp_fun_arrayport_sa(mem, ptr, static_cast<long>(addr));
       else
             if (context_scope)
                   fun = new vvp_fun_arrayport_aa(context_scope, mem, ptr);
@@ -2789,7 +2862,8 @@ bool array_port_resolv_list_t::resolve(bool mes)
                   fun = new vvp_fun_arrayport_sa(mem, ptr);
       ptr->fun = fun;
 
-      array_attach_port(mem, fun);
+      // A struct projection seeds its port from the selected storage.
+      array_attach_port(mem, fun, !object_word);
 
       return true;
 }
@@ -3017,6 +3091,15 @@ void compile_array_port(char*label, char*array, long addr)
       free(label);
 
       resolv_submit(resolv_mem);
+}
+
+vvp_net_t*compile_array_object_port(char*array, unsigned addr)
+{
+      auto*resolv_mem = new array_port_resolv_list_t(
+            array, true, addr, false, false, true);
+      vvp_net_t*net = resolv_mem->ptr;
+      resolv_submit(resolv_mem);
+      return net;
 }
 
 void compile_array_alias(char*label, char*name, char*src)

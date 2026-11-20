@@ -285,6 +285,8 @@ statement
                 { compile_vif_proxy($1, $3, $5, $7, $9, $11, $13, $15.cnt, $15.nvec); }
         | T_LABEL K_STRUCT_LEAF T_SYMBOL ',' T_SYMBOL ',' T_NUMBER ',' numbers ';'
                 { compile_struct_leaf($1, $3, $5, $7, $9.cnt, $9.nvec); }
+        | T_LABEL K_STRUCT_LEAF T_SYMBOL ',' T_NUMBER ',' T_SYMBOL ',' T_NUMBER ',' numbers ';'
+                { compile_struct_leaf($1, $3, $7, $9, $11.cnt, $11.nvec, true, $5); }
         | K_EVENT_VALID T_SYMBOL ',' T_SYMBOL ';'
                 { compile_event_valid($2, $4); }
 
