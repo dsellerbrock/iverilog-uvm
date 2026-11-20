@@ -4004,8 +4004,20 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	       && ivl_scope_is_interface(ivl_scope_parent(net)))
 	    strcpy(access_suffix, ".acc2");
 
-	  fprintf(vvp_out, "S_%p .scope %s%s%s%s",
-	      net, prefix, type, suffix, access_suffix);
+      const char*randsequence_suffix = "";
+      if (ivl_scope_is_auto(net)
+	  && (ivl_scope_type(net) == IVL_SCT_TASK
+	      || ivl_scope_type(net) == IVL_SCT_FUNCTION)) {
+	    for (idx = 0; idx < ivl_scope_attr_cnt(net); idx += 1) {
+		  ivl_attribute_t attr = ivl_scope_attr_val(net, idx);
+		  if (strcmp(attr->key, "_ivl_randsequence_production") == 0) {
+			randsequence_suffix = ".randseq";
+			break;
+		  }
+	    }
+      }
+      fprintf(vvp_out, "S_%p .scope %s%s%s%s%s",
+	      net, prefix, type, suffix, access_suffix, randsequence_suffix);
 
 	/* Keep the DPI VPI declaration properties with the runtime scope. The
 	   identifier is hex-encoded so it cannot collide with scope type syntax. */

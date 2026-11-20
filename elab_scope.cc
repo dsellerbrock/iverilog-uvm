@@ -5703,7 +5703,7 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
       for (proc_it_t cur = behaviors.begin()
 		 ; cur != behaviors.end() ; ++ cur ) {
 
-	    (*cur) -> statement() -> elaborate_scope(des, scope);
+	    (*cur) -> elaborate_scope(des, scope);
       }
 
 	// Scan through all the named events in this scope. We do not
@@ -6250,7 +6250,7 @@ void PGenerate::elaborate_subscope_(Design*des, NetScope*scope)
       typedef list<PProcess*>::const_iterator proc_it_t;
       for (proc_it_t cur = behaviors.begin()
 		 ; cur != behaviors.end() ; ++ cur ) {
-	    (*cur) -> statement() -> elaborate_scope(des, scope);
+	    (*cur) -> elaborate_scope(des, scope);
       }
 
 	// Scan through all the named events in this scope.
@@ -6702,6 +6702,32 @@ void Statement::elaborate_scope(Design*, NetScope*) const
 {
 }
 
+void PProcess::elaborate_scope(Design*des, NetScope*scope) const
+{
+      const bool saved_final = scope->in_final();
+      scope->in_final(type() == IVL_PR_FINAL);
+      statement_->elaborate_scope(des, scope);
+      scope->in_final(saved_final);
+}
+
+static bool randsequence_function_context_(Design*des, const NetScope*scope)
+{
+      for (; scope; scope = scope->parent()) {
+	    if (scope->in_final()) return true;
+	    if (scope->type() == NetScope::FUNC) return !des->is_in_fork();
+	    if (scope->type() == NetScope::TASK) return false;
+      }
+      return false;
+}
+
+void PBlock::elaborate_scope_statements_(Design*des, NetScope*scope) const
+{
+      if (bl_type_ != BL_SEQ) des->fork_enter();
+      for (Statement*statement : list_)
+	    statement->elaborate_scope(des, scope);
+      if (bl_type_ != BL_SEQ) des->fork_exit();
+}
+
 /*
  * When I get a behavioral block, check to see if it has a name. If it
  * does, then create a new scope for the statements within it,
@@ -6746,8 +6772,7 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 		  if (is_vpi_foreach_scope())
 			my_scope->attribute(perm_string::literal("_ivl_vpi_foreach_scope"),
 					    verinum((uint64_t)1, 1));
-		  for (unsigned idx = 0 ; idx < list_.size() ; idx += 1)
-			list_[idx] -> elaborate_scope(des, my_scope);
+		  elaborate_scope_statements_(des, my_scope);
 		  return;
 	    }
 
@@ -6782,7 +6807,7 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 	      // inherited siblings automatic; the declaration carries its own
 	      // lifetime marker and the backend gives this otherwise-static
 	      // block a context solely for those marked locals.
-            my_scope->is_auto(scope->is_auto());
+	    my_scope->is_auto(scope->is_auto() || !randsequence_productions_.empty());
 	      // Locals need a fresh activation on every block entry, even
 	      // without explicit initializers (IEEE 1800-2017/2023 6.21).
 	      // Sharing the task frame would retain values on loop reentry
@@ -6817,8 +6842,27 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 	    elaborate_scope_enumerations(des, my_scope, enum_sets);
       }
 
-      for (unsigned idx = 0 ;  idx < list_.size() ;  idx += 1)
-	    list_[idx] -> elaborate_scope(des, my_scope);
+      if (!randsequence_productions_.empty()) {
+	    const auto type = randsequence_function_context_(des, scope)
+		  ? NetScope::FUNC : NetScope::TASK;
+	    for (const auto&production : randsequence_productions_) {
+		  NetScope*callee = new NetScope(my_scope, hname_t(production.first), type);
+		  callee->set_line(get_file(), get_lineno());
+		  callee->is_auto(true);
+		  callee->is_const_func(false);
+		  callee->attribute(perm_string::literal("_ivl_randsequence_production"),
+				     verinum((uint64_t)1, 1));
+	    }
+	    // A detached caller's fork context ends at the subroutine boundary.
+	    auto saved_fork = des->fork_loop_context();
+	    des->restore_fork_loop_context({});
+	    for (const auto&production : randsequence_productions_)
+		  production.second->elaborate_scope(des,
+			my_scope->child(hname_t(production.first)));
+	    des->restore_fork_loop_context(saved_fork);
+      }
+
+      elaborate_scope_statements_(des, my_scope);
 }
 
 /*

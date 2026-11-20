@@ -3924,9 +3924,18 @@ DelayType NetUTask::delay_type(bool print_delay) const
 	// Is this a void function call in a final block?
       if (task()->type() == NetScope::FUNC) {
 	    return NO_DELAY;
-      } else {
-	    return task()->task_def()->delay_type(print_delay);
       }
+      if (!task()->is_randsequence_production())
+	    return task()->task_def()->delay_type(print_delay);
+
+      // Inspect the finite production graph for timing controls. On a
+      // back edge the production containing them is already being checked.
+      static set<const NetScope*> active;
+      if (!active.insert(task()).second)
+	    return NO_DELAY;
+      DelayType delay = task()->task_def()->delay_type(print_delay);
+      active.erase(task());
+      return delay;
 }
 
 static bool do_expr_event_match(const NetExpr*expr, const NetEvWait*evwt)

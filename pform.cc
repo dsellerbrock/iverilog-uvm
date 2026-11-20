@@ -8950,6 +8950,7 @@ struct pform_rs_expand_ctx_t {
       std::map<perm_string,rs_production_t*>&pmap;
       LexicalScope* lexical_parent;
       std::set<perm_string> active;
+      std::map<perm_string,perm_string> runtime_productions;
 	/* IEEE 1800-2023 18.17.7: a value-returning production that appears
 	   more than once in a rule is an implicit array [1:N]. Each such
 	   CALL item maps to that array and its 1-based syntactic position. */
@@ -9029,17 +9030,24 @@ static perm_string pform_rs_return_var_(pform_rs_expand_ctx_t&ctx,
 }
 
 static void pform_rs_collect_calls_(const rs_item_t&item,
-				    std::vector<const rs_item_t*>&calls)
+				    std::vector<const rs_item_t*>&calls,
+				    bool*has_join = nullptr)
 {
       if (item.kind == rs_item_t::CALL) {
 	    calls.push_back(&item);
 	    return;
       }
-      if (item.first) pform_rs_collect_calls_(*item.first, calls);
-      if (item.second) pform_rs_collect_calls_(*item.second, calls);
+      if (item.first) pform_rs_collect_calls_(*item.first, calls, has_join);
+      if (item.second) pform_rs_collect_calls_(*item.second, calls, has_join);
       if (item.cases) for (const rs_case_item_t&case_item : *item.cases)
-	    if (case_item.item) pform_rs_collect_calls_(*case_item.item, calls);
-	// rand join productions are void, so they return nothing here.
+	    if (case_item.item)
+		  pform_rs_collect_calls_(*case_item.item, calls, has_join);
+	// Join lanes contribute graph edges, but no implicit return values.
+      if (has_join && item.join_items) {
+	    *has_join = true;
+	    for (const rs_item_t&lane : *item.join_items)
+		  pform_rs_collect_calls_(lane, calls, has_join);
+      }
 }
 
 static unsigned pform_rs_values_var_id_ = 0;
@@ -9374,7 +9382,7 @@ static Statement* pform_rs_expand_production_(
       const std::map<perm_string,PExpr*>*outer);
 
 static Statement* pform_rs_expand_item_(
-      pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
+      pform_rs_expand_ctx_t&ctx, rs_item_t&item,
 	  std::map<perm_string,PExpr*>*subst,
 	  perm_string return_target);
 
@@ -9556,7 +9564,7 @@ static Statement* pform_rs_expand_join_(
 	    std::vector<Statement*> statements;
 	    for (size_t lane_index : schedule.lanes) {
 		  pform_rs_join_lane_t&lane = lanes[lane_index];
-		  const rs_item_t&part = (*lane.rule->items)[used[lane_index]++];
+		  rs_item_t&part = (*lane.rule->items)[used[lane_index]++];
 		  Statement*expanded = pform_rs_expand_item_(ctx, part,
 							     &lane.subst, perm_string());
 		  if (expanded) statements.push_back(expanded);
@@ -9595,12 +9603,40 @@ static Statement* pform_rs_expand_join_(
       return join_scope ? static_cast<Statement*>(join_scope) : choice;
 }
 
+static PCallTask* pform_rs_runtime_call_(pform_rs_expand_ctx_t&ctx,
+					perm_string name, const LineInfo&where)
+{
+      PCallTask*call = new PCallTask(ctx.runtime_productions.at(name), {});
+      call->randsequence_call();
+      call->set_line(where);
+      return call;
+}
+
+static PExpr* pform_rs_lower_expr_(pform_rs_expand_ctx_t&ctx, PExpr*&expr,
+				   const std::map<perm_string,PExpr*>*subst)
+{
+      if (ctx.runtime_productions.empty()) return sva_clone_subst_(expr, subst);
+      PExpr*result = expr;
+      expr = nullptr;
+      return result;
+}
+
 static Statement* pform_rs_expand_item_(
-      pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
+      pform_rs_expand_ctx_t&ctx, rs_item_t&item,
       std::map<perm_string,PExpr*>*subst, perm_string return_target)
 {
       switch (item.kind) {
       case rs_item_t::CALL: {
+	    if (!ctx.runtime_productions.empty()) {
+		  PCallTask*call = pform_rs_runtime_call_(ctx, item.name, item);
+		  PReturn*unwind = new PReturn(nullptr);
+		  unwind->set_line(item);
+		  PCondit*check = new PCondit(
+			new PEIdent(PBlock::randsequence_break_flag(), UINT_MAX),
+			unwind, nullptr);
+		  check->set_line(item);
+		  return pform_rs_block_(item, {call, check});
+	    }
 	    Statement*expanded = pform_rs_expand_production_(
 		  ctx, item.name, item.actuals, subst);
 	    std::map<perm_string,rs_production_t*>::iterator found =
@@ -9641,13 +9677,19 @@ static Statement* pform_rs_expand_item_(
 	    return expanded;
 	  }
       case rs_item_t::CODE: {
+	    if (!ctx.runtime_productions.empty()) {
+		  Statement*code = item.code;
+		  item.code = nullptr;
+		  pform_rs_mark_conditions_strict_(code);
+		  return code;
+	    }
 	    Statement*copy = pform_rs_clone_stmt_(ctx, item.code, subst, 0,
 							 return_target);
 	    pform_rs_mark_conditions_strict_(copy);
 	    return copy;
       }
       case rs_item_t::IF_ELSE: {
-	    PExpr*condition = sva_clone_subst_(item.expr, subst);
+	    PExpr*condition = pform_rs_lower_expr_(ctx, item.expr, subst);
 	    Statement*yes = item.first
 		? pform_rs_expand_item_(ctx, *item.first, subst, return_target) : nullptr;
 	    Statement*no = item.second
@@ -9665,7 +9707,7 @@ static Statement* pform_rs_expand_item_(
 	    return result;
       }
       case rs_item_t::REPEAT: {
-	    PExpr*count = sva_clone_subst_(item.expr, subst);
+	    PExpr*count = pform_rs_lower_expr_(ctx, item.expr, subst);
 	    Statement*body = item.first
 		? pform_rs_expand_item_(ctx, *item.first, subst, return_target) : nullptr;
 	    if (!count || !body) {
@@ -9680,7 +9722,7 @@ static Statement* pform_rs_expand_item_(
 	    return result;
       }
       case rs_item_t::CASE: {
-	    PExpr*selector = sva_clone_subst_(item.expr, subst);
+	    PExpr*selector = pform_rs_lower_expr_(ctx, item.expr, subst);
 	    std::vector<PCase::Item*>*items = new std::vector<PCase::Item*>;
 	    if (!selector) {
 		  cerr << item.get_fileline() << ": sorry: cannot clone this "
@@ -9690,8 +9732,8 @@ static Statement* pform_rs_expand_item_(
 	    if (item.cases) for (const rs_case_item_t&source : *item.cases) {
 		  PCase::Item*target = new PCase::Item;
 		  if (source.expressions)
-			for (PExpr*expr : *source.expressions) {
-			      PExpr*copy = sva_clone_subst_(expr, subst);
+			for (PExpr*&expr : *source.expressions) {
+			      PExpr*copy = pform_rs_lower_expr_(ctx, expr, subst);
 			      if (!copy) ctx.bad = true;
 			      else target->expr.push_back(copy);
 			}
@@ -9719,15 +9761,49 @@ static Statement* pform_rs_expand_rule_(
       std::map<perm_string,PExpr*> local_subst;
       if (subst) for (const auto&entry : *subst)
 	    local_subst[entry.first] = sva_clone_subst_(entry.second, nullptr);
-      pform_rs_number_occurrences_(ctx, rule, local_subst);
+      if (ctx.runtime_productions.empty())
+	    pform_rs_number_occurrences_(ctx, rule, local_subst);
       std::vector<Statement*> statements;
-      if (rule.items) for (const rs_item_t&item : *rule.items) {
+      if (rule.items) for (rs_item_t&item : *rule.items) {
 	    Statement*expanded = pform_rs_expand_item_(ctx, item, &local_subst,
 							 return_target);
 	    if (expanded) statements.push_back(expanded);
       }
       pform_rs_delete_subst_(local_subst);
       return pform_rs_block_(where, statements);
+}
+
+static Statement* pform_rs_lower_rules_(
+      pform_rs_expand_ctx_t&ctx, const rs_production_t&prod,
+      const std::map<perm_string,PExpr*>*subst, perm_string return_target)
+{
+      if (!prod.rules || prod.rules->empty())
+	    return pform_rs_block_(ctx.loc, {});
+
+      // A single runtime rule requires no random choice (18.17.1).
+      if (prod.rules->size() == 1
+	  && (!(*prod.rules)[0].weight || !ctx.runtime_productions.empty()))
+	    return pform_rs_expand_rule_(ctx, (*prod.rules)[0], subst, ctx.loc,
+					 return_target);
+
+      std::vector<PCase::Item*>*alternatives = new std::vector<PCase::Item*>;
+      for (rs_rule_t&rule : *prod.rules) {
+	    PCase::Item*alternative = new PCase::Item;
+	    PExpr*weight = rule.weight
+		  ? pform_rs_lower_expr_(ctx, rule.weight, subst)
+		  : new PENumber(new verinum((uint64_t)1, 32));
+	    if (!weight) {
+		  cerr << ctx.loc << ": sorry: cannot clone randsequence "
+		       << "production weight." << endl;
+		  error_count += 1; ctx.bad = true;
+	    } else alternative->expr.push_back(weight);
+	    alternative->stat = pform_rs_expand_rule_(ctx, rule, subst,
+						       ctx.loc, return_target);
+	    alternatives->push_back(alternative);
+      }
+      PRandCase*choice = new PRandCase(alternatives);
+      FILE_NAME(choice, ctx.loc);
+      return choice;
 }
 
 static Statement* pform_rs_expand_production_(
@@ -9764,36 +9840,9 @@ static Statement* pform_rs_expand_production_(
 	    return nullptr;
       ctx.active.insert(name);
 
-      Statement*body = nullptr;
       LexicalScope*saved_parent = ctx.lexical_parent;
       if (scope) ctx.lexical_parent = scope;
-      if (!prod.rules || prod.rules->empty()) {
-	    std::vector<Statement*> empty;
-	    body = pform_rs_block_(ctx.loc, empty);
-	  } else if (prod.rules->size() == 1 && !(*prod.rules)[0].weight) {
-	    body = pform_rs_expand_rule_(ctx, (*prod.rules)[0], &subst, ctx.loc,
-					 return_target);
-	  } else {
-	    std::vector<PCase::Item*>*alternatives =
-		  new std::vector<PCase::Item*>;
-	    for (const rs_rule_t&rule : *prod.rules) {
-		  PCase::Item*alternative = new PCase::Item;
-		  PExpr*weight = rule.weight
-			? sva_clone_subst_(rule.weight, &subst)
-			: new PENumber(new verinum((uint64_t)1, 32));
-		  if (!weight) {
-			cerr << ctx.loc << ": sorry: cannot clone randsequence "
-			     << "production weight." << endl;
-			error_count += 1; ctx.bad = true;
-		  } else alternative->expr.push_back(weight);
-		  alternative->stat = pform_rs_expand_rule_(ctx, rule, &subst,
-							ctx.loc, return_target);
-		  alternatives->push_back(alternative);
-	    }
-	    PRandCase*choice = new PRandCase(alternatives);
-	    FILE_NAME(choice, ctx.loc);
-	    body = choice;
-      }
+      Statement*body = pform_rs_lower_rules_(ctx, prod, &subst, return_target);
       ctx.lexical_parent = saved_parent;
       ctx.active.erase(name);
       pform_rs_delete_subst_(subst);
@@ -9807,6 +9856,88 @@ static Statement* pform_rs_expand_production_(
       if (body) one.push_back(body);
       return scope ? pform_rs_block_(ctx.loc, one)
 	    : pform_rs_block_(ctx.loc, one, IVL_RANDSEQ_BLOCK_PRODUCTION);
+}
+
+// Discover the reachable subgraph first, then detect a cycle by eliminating
+// zero-indegree vertices. A back edge in a dormant alternative still makes
+// the grammar recursive. The work lists are bounded by the grammar size.
+static bool pform_rs_recursive_(pform_rs_expand_ctx_t&ctx, perm_string start,
+				std::vector<perm_string>&reachable,
+				bool&unsupported)
+{
+      struct vertex_t {
+	    size_t indegree = 0;
+	    std::vector<const rs_item_t*> calls;
+      };
+      std::map<perm_string,vertex_t> graph;
+      graph.emplace(start, vertex_t());
+      reachable.push_back(start);
+      for (size_t idx = 0; idx < reachable.size(); ++idx) {
+	    perm_string name = reachable[idx];
+	    auto prod = ctx.pmap.find(name);
+	    if (prod == ctx.pmap.end()) {
+		  cerr << ctx.loc << ": error: randsequence production `"
+		       << name << "' is not defined." << endl;
+		  error_count += 1;
+		  ctx.bad = true;
+		  return false;
+	    }
+	    const rs_production_t&production = *prod->second;
+	    if (production.return_type
+		|| (production.formals && !production.formals->empty()))
+		  unsupported = true;
+	    auto&calls = graph.at(name).calls;
+	    if (production.rules) for (const rs_rule_t&rule : *production.rules)
+		  if (rule.items) for (const rs_item_t&item : *rule.items)
+			pform_rs_collect_calls_(item, calls, &unsupported);
+	    for (const rs_item_t*call : calls) {
+		  auto edge = graph.emplace(call->name, vertex_t());
+		  if (edge.second) reachable.push_back(call->name);
+		  ++edge.first->second.indegree;
+		  if (call->actuals && !call->actuals->empty())
+			unsupported = true;
+	    }
+      }
+
+      std::vector<vertex_t*> ready;
+      for (auto&entry : graph)
+	    if (!entry.second.indegree) ready.push_back(&entry.second);
+      for (size_t idx = 0; idx < ready.size(); ++idx) {
+	    for (const rs_item_t*call : ready[idx]->calls) {
+		  vertex_t&target = graph.at(call->name);
+		  if (!--target.indegree) ready.push_back(&target);
+	    }
+      }
+      return ready.size() != reachable.size();
+}
+
+static PBlock* pform_rs_lower_recursive_(pform_rs_expand_ctx_t&ctx,
+					  perm_string start,
+					  const std::vector<perm_string>&reachable)
+{
+      PBlock*scope = pform_push_block_scope(ctx.loc, nullptr, PBlock::BL_SEQ);
+      scope->default_lifetime = LexicalScope::AUTOMATIC;
+      perm_string flag = PBlock::randsequence_break_flag();
+      PWire*wire = pform_makewire(ctx.loc, pform_ident_t(flag, ctx.loc.lexical_pos),
+				  NetNet::REG, nullptr);
+      wire->set_data_type(new vector_type_t(IVL_VT_BOOL, false, nullptr));
+      pform_pop_scope();
+
+      for (size_t idx = 0; idx < reachable.size(); ++idx) {
+	    std::string name = "$__ivl_rs_prod_" + std::to_string(idx);
+	    ctx.runtime_productions.emplace(reachable[idx], lex_strings.make(name.c_str()));
+      }
+      for (perm_string name : reachable) {
+	    Statement*body = pform_rs_lower_rules_(ctx, *ctx.pmap.at(name), nullptr,
+						   perm_string());
+	    scope->add_randsequence_production(ctx.runtime_productions.at(name), body);
+      }
+
+      PAssign*clear = new PAssign(new PEIdent(flag, UINT_MAX),
+				   new PENumber(new verinum(verinum::V0)));
+      FILE_NAME(clear, ctx.loc);
+      scope->set_statement({clear, pform_rs_runtime_call_(ctx, start, *scope)});
+      return scope;
 }
 
 static void pform_rs_destroy_item_(rs_item_t&item)
@@ -9888,9 +10019,19 @@ Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
       pform_rs_expand_ctx_t ctx(loc, pmap, lexical_scope);
       ctx.bad = duplicate;
       if (!ctx.bad) {
-	    Statement*body = pform_rs_expand_production_(ctx, start_name,
-						    nullptr, nullptr);
-	    if (body) root_statements.push_back(body);
+	    std::vector<perm_string> reachable;
+	    bool unsupported = false;
+	    bool recursive = pform_rs_recursive_(ctx, start_name, reachable, unsupported);
+	    if (recursive && unsupported) {
+		  cerr << loc << ": sorry: recursive randsequence requires void "
+		       << "productions without arguments, formals or rand join." << endl;
+		  error_count += 1;
+	    } else if (!ctx.bad) {
+		  Statement*body = recursive
+			? pform_rs_lower_recursive_(ctx, start_name, reachable)
+			: pform_rs_expand_production_(ctx, start_name, nullptr, nullptr);
+		  if (body) root_statements.push_back(body);
+	    }
       }
       pform_rs_destroy_(prods);
       return pform_rs_block_(loc, root_statements, IVL_RANDSEQ_BLOCK_ROOT);

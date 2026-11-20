@@ -373,6 +373,7 @@ class __vpiScope : public __vpiHandle {
 
     public:
       __vpiScope *scope;
+      bool randsequence_production = false;
       unsigned file_idx;
       unsigned lineno;
       unsigned def_file_idx;
