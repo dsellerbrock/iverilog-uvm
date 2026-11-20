@@ -1194,7 +1194,7 @@ static void collect_pattern_captures_(const PMatchPattern*pattern,
 
 } // namespace
 
-NetScope* elaborate_pattern_expression_scope(Design*des, NetScope*scope,
+static NetScope* elaborate_pattern_expression_scope(Design*des, NetScope*scope,
                                               const PBlock*block)
 {
       if (!block)
@@ -1205,8 +1205,12 @@ NetScope* elaborate_pattern_expression_scope(Design*des, NetScope*scope,
       if (!expression_scope) {
             block->elaborate_scope(des, scope);
             expression_scope = scope->child(name);
-            if (expression_scope)
+            if (expression_scope) {
+                  // Expression evaluation never enters this lexical block.
+                  // Its automatic bindings belong to the enclosing activation.
+                  expression_scope->auto_frame(false);
                   block->elaborate_sig(des, scope);
+            }
       }
       if (!expression_scope) {
             cerr << block->get_fileline()
@@ -1217,7 +1221,7 @@ NetScope* elaborate_pattern_expression_scope(Design*des, NetScope*scope,
       return expression_scope;
 }
 
-NetExpr* elaborate_pattern_expression_capture(const PEMatches*matches,
+static NetExpr* elaborate_pattern_expression_capture(const PEMatches*matches,
                                                Design*des,
                                                NetScope*scope,
                                                NetScope*expression_scope)
@@ -1296,6 +1300,81 @@ NetExpr* elaborate_pattern_expression_capture(const PEMatches*matches,
             result = pattern_and_(matches, result, captured);
       }
       return result;
+}
+
+NetScope* PECondPredicate::consequent_scope(Design*des, NetScope*scope) const
+{
+      for (const cond_clause_t*clause : clauses_) {
+	    if (clause->block) {
+		  scope = elaborate_pattern_expression_scope(des, scope,
+							     clause->block);
+		  if (!scope) return nullptr;
+	    }
+      }
+      return scope;
+}
+
+bool PECondPredicate::has_aa_term(Design*des, NetScope*scope) const
+{
+      for (const cond_clause_t*clause : clauses_) {
+	    if (clause->cond->has_aa_term(des, scope))
+		  return true;
+	    if (clause->block) {
+		  scope = elaborate_pattern_expression_scope(des, scope,
+							     clause->block);
+		  if (!scope) return false;
+	    }
+      }
+      return false;
+}
+
+unsigned PECondPredicate::test_width(Design*, NetScope*, width_mode_t&)
+{
+      expr_type_ = IVL_VT_LOGIC;
+      expr_width_ = 1;
+      min_width_ = 1;
+      signed_flag_ = false;
+      return 1;
+}
+
+NetExpr* PECondPredicate::elaborate_expr(Design*des, NetScope*scope,
+					 unsigned, unsigned flags) const
+{
+      std::unique_ptr<NetExpr> predicate;
+      for (const cond_clause_t*clause : clauses_) {
+	    unsigned errors = des->errors;
+	    NetExpr*value = elab_and_eval(des, scope, clause->cond, -1,
+					 flags & NEED_CONST);
+	    if (!value || des->errors != errors) {
+		  delete value;
+		  return nullptr;
+	    }
+	    std::unique_ptr<NetExpr> term(condition_reduce(value));
+
+	    if (clause->block) {
+		  NetScope*binding_scope = elaborate_pattern_expression_scope(
+			des, scope, clause->block);
+		  if (!binding_scope || des->errors != errors)
+			return nullptr;
+		  const auto*matches = dynamic_cast<const PEMatches*>(clause->cond);
+		  ivl_assert(*this, matches);
+		  std::unique_ptr<NetExpr> capture(
+			elaborate_pattern_expression_capture(matches, des, scope,
+							     binding_scope));
+		  if (des->errors != errors)
+			return nullptr;
+
+		    // Capture only on a match and before any later clause runs.
+		  term.reset(pattern_and_(matches, term.release(), capture.release()));
+		  scope = binding_scope;
+	    }
+
+	      // Each clause is Boolean. Keep X so a later zero can resolve the
+	      // predicate to false, or the ternary can merge its alternatives.
+	    predicate.reset(pattern_and_(clause->cond, predicate.release(),
+					 term.release()));
+      }
+      return predicate.release();
 }
 
 static bool elaboration_perf_trace_enabled_()
@@ -17719,7 +17798,6 @@ PEMatches::~PEMatches()
 {
       delete subject_;
       delete pattern_;
-      delete conditional_tail_;
 }
 
 void PEMatches::dump(ostream&out) const
@@ -17735,24 +17813,24 @@ void PEMatches::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
 {
       if (subject_) subject_->declare_implicit_nets(scope, type);
       if (pattern_) pattern_->declare_implicit_nets(scope, type);
-      if (conditional_tail_)
-	    conditional_tail_->declare_implicit_nets(scope, type);
+}
+
+bool PEMatches::refs_name(perm_string name) const
+{
+      return (subject_ && subject_->refs_name(name))
+          || (pattern_ && pattern_->refs_name(name));
 }
 
 bool PEMatches::has_aa_term(Design*des, NetScope*scope) const
 {
       return (subject_ && subject_->has_aa_term(des, scope))
-          || (pattern_ && pattern_->has_aa_term(des, scope))
-          || (conditional_tail_
-	      && conditional_tail_->has_aa_term(des, scope));
+          || (pattern_ && pattern_->has_aa_term(des, scope));
 }
 
 void PEMatches::reloc_lexical_pos_bind(bool parameter_context)
 {
       if (subject_) subject_->reloc_lexical_pos_bind(parameter_context);
       if (pattern_) pattern_->reloc_lexical_pos_bind(parameter_context);
-      if (conditional_tail_)
-	    conditional_tail_->reloc_lexical_pos_bind(parameter_context);
 }
 
 unsigned PEMatches::test_width(Design*, NetScope*, width_mode_t&)

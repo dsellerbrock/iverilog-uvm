@@ -1,0 +1,3 @@
+./ivltests/issue780_cond_tand_malformed.sv:4: syntax error
+./ivltests/issue780_cond_tand_malformed.sv:4: error: Malformed consequent of conditional expression.
+./ivltests/issue780_cond_tand_malformed.sv:4: error: Malformed statement

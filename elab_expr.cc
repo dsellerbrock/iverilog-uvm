@@ -67,54 +67,6 @@ bool pform_type_operator_context = false;
 
 using namespace std;
 
-extern NetScope* elaborate_pattern_expression_scope(Design*des,
-						   NetScope*scope,
-						   const PBlock*block);
-extern NetExpr* elaborate_pattern_expression_capture(const PEMatches*matches,
-						       Design*des,
-						       NetScope*scope,
-						       NetScope*expression_scope);
-
-static NetScope* ternary_pattern_scope_(Design*des, NetScope*scope,
-					const PETernary*ternary)
-{
-      if (!ternary->pattern_scope())
-	    return scope;
-      return elaborate_pattern_expression_scope(
-	    des, scope, ternary->pattern_scope());
-}
-
-static NetExpr* ternary_pattern_capture_(Design*des, NetScope*scope,
-					 const PETernary*ternary,
-					 NetScope*expression_scope)
-{
-      if (!ternary->pattern_scope())
-	    return nullptr;
-
-      const PEMatches*matches =
-	    dynamic_cast<const PEMatches*>(ternary->get_cond());
-      if (!matches) {
-	    cerr << ternary->get_fileline()
-		 << ": internal error: Pattern-expression scope has no matches predicate."
-		 << endl;
-	    des->errors += 1;
-	    return nullptr;
-      }
-      return elaborate_pattern_expression_capture(matches, des, scope,
-						 expression_scope);
-}
-
-static NetExpr* ternary_capture_before_true_(const LineInfo&loc,
-					     NetExpr*condition,
-					     NetExpr*capture)
-{
-      if (!capture)
-	    return condition;
-      NetEBLogic*guarded = new NetEBLogic('a', condition, capture);
-      guarded->set_line(loc);
-      return condition_reduce(guarded);
-}
-
 /* IEEE 1800-2017 6.24.2 requires $cast arguments to be singular. In
  * 1800-2023, nonsingular arguments use assignment compatibility instead.
  * Packed arrays and packed records are singular; unpacked arrays and
@@ -35166,6 +35118,19 @@ NetEConst* PEString::elaborate_expr(Design*, NetScope*,
       return tmp;
 }
 
+NetScope* PETernary::consequent_scope_(Design*des, NetScope*scope) const
+{
+      const auto*predicate = dynamic_cast<const PECondPredicate*>(expr_);
+      return predicate ? predicate->consequent_scope(des, scope) : scope;
+}
+
+NetExpr* PETernary::elaborate_predicate_(Design*des, NetScope*scope,
+					unsigned flags) const
+{
+      NetExpr*condition = elab_and_eval(des, scope, expr_, -1, flags & NEED_CONST);
+      return condition ? condition_reduce(condition) : nullptr;
+}
+
 unsigned PETernary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
 	// The condition of the ternary is self-determined, so
@@ -35173,7 +35138,7 @@ unsigned PETernary::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 
 	// A pattern conditional gives its implicitly declared variables only to
 	// the consequent. Elaborate that lexical scope before sizing the true arm.
-      NetScope*true_scope = ternary_pattern_scope_(des, scope, this);
+      NetScope*true_scope = consequent_scope_(des, scope);
       if (!true_scope)
 	    return 0;
 
@@ -35290,7 +35255,7 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
       if (type == 0)
 	    return elaborate_expr(des, scope, 1u, flags);
 
-      NetScope*true_scope = ternary_pattern_scope_(des, scope, this);
+      NetScope*true_scope = consequent_scope_(des, scope);
       if (!true_scope)
 	    return nullptr;
 
@@ -35331,25 +35296,9 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, expr_ && tru_ && fal_);
 
 	// The condition is self-determined (11.4.11).
-      NetExpr*con = elab_and_eval(des, scope, expr_, -1, NEED_CONST & flags);
-      if (con == 0)
-	    return 0;
-      con = condition_reduce(con);
-
-      NetExpr*capture = ternary_pattern_capture_(des, scope, this,
-						     true_scope);
-      if (capture)
-	    con = ternary_capture_before_true_(*this, con, capture);
-
-	  const PEMatches*matches = dynamic_cast<const PEMatches*>(expr_);
-	  if (matches && matches->conditional_tail()) {
-	    PExpr*tail_expr = matches->conditional_tail();
-	    NetExpr*tail = elab_and_eval(des, true_scope,
-					 tail_expr, -1,
-					 NEED_CONST & flags);
-	    if (!tail) return nullptr;
-	    con = condition_reduce(new NetEBLogic('a', con, tail));
-      }
+      NetExpr*con = elaborate_predicate_(des, scope, flags);
+      if (!con)
+	    return nullptr;
 
 	// Short-circuit on a constant condition, as the width form
 	// does -- but keep elaborating the dead arm so its errors are
@@ -35619,7 +35568,7 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
       ivl_assert(*this, tru_);
       ivl_assert(*this, fal_);
 
-      NetScope*true_scope = ternary_pattern_scope_(des, scope, this);
+      NetScope*true_scope = consequent_scope_(des, scope);
       if (!true_scope)
 	    return nullptr;
 
@@ -35635,29 +35584,10 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 	    return nullptr;
       }
 
-	// Elaborate and evaluate the condition expression. Note that
-	// it is always self-determined.
-      NetExpr*con = elab_and_eval(des, scope, expr_, -1, NEED_CONST & flags);
-      if (con == 0)
-	    return 0;
-
-	/* Make sure the condition expression reduces to a single bit. */
-      con = condition_reduce(con);
-
-      NetExpr*capture = ternary_pattern_capture_(des, scope, this,
-						     true_scope);
-      if (capture)
-	    con = ternary_capture_before_true_(*this, con, capture);
-
-	  const PEMatches*matches = dynamic_cast<const PEMatches*>(expr_);
-	  if (matches && matches->conditional_tail()) {
-	    PExpr*tail_expr = matches->conditional_tail();
-	    NetExpr*tail = elab_and_eval(des, true_scope,
-					 tail_expr, -1,
-					 NEED_CONST & flags);
-	    if (!tail) return nullptr;
-	    con = condition_reduce(new NetEBLogic('a', con, tail));
-      }
+	// The condition is self-determined (11.4.11).
+      NetExpr*con = elaborate_predicate_(des, scope, flags);
+      if (!con)
+	    return nullptr;
 
 	// Verilog doesn't say that we must do short circuit evaluation
 	// of ternary expressions, but it doesn't disallow it.

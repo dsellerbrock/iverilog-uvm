@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue780_cond_tand_patterns.sv",
+  "iverilog-args": ["-g2017", "-s", "issue780_cond_tand_patterns"],
+  "gold": "issue780_cond_tand_patterns"
+}

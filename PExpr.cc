@@ -96,6 +96,16 @@ void PMatchPattern::declare_implicit_nets(LexicalScope*scope,
             child->declare_implicit_nets(scope, type);
 }
 
+bool PMatchPattern::refs_name(perm_string name) const
+{
+      if (expression_ && expression_->refs_name(name))
+	    return true;
+      for (const PMatchPattern*child : children_)
+	    if (child->refs_name(name))
+		  return true;
+      return false;
+}
+
 bool PMatchPattern::has_aa_term(Design*des, NetScope*scope) const
 {
       if (expression_ && expression_->has_aa_term(des, scope))
@@ -958,8 +968,62 @@ const verinum& PEString::parsed_value() const
       return parsed_value_cache_;
 }
 
-PETernary::PETernary(PExpr*e, PExpr*t, PExpr*f)
-: expr_(e), tru_(t), fal_(f), pattern_scope_(nullptr)
+PECondPredicate::PECondPredicate(std::vector<cond_clause_t*> clauses)
+: clauses_(std::move(clauses))
+{
+}
+
+PECondPredicate::~PECondPredicate()
+{
+      for (auto it = clauses_.rbegin(); it != clauses_.rend(); ++it) {
+	    delete (*it)->block;
+	    delete (*it)->cond;
+	    delete *it;
+      }
+}
+
+void PECondPredicate::dump(ostream&out) const
+{
+      const char*separator = "";
+      for (const cond_clause_t*clause : clauses_) {
+	    out << separator << *clause->cond;
+	    separator = " &&& ";
+      }
+}
+
+bool PECondPredicate::refs_name(perm_string name) const
+{
+      for (const cond_clause_t*clause : clauses_)
+	    if (clause->cond->refs_name(name))
+		  return true;
+      return false;
+}
+
+void PECondPredicate::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
+{
+      for (const cond_clause_t*clause : clauses_) {
+	    clause->cond->declare_implicit_nets(scope, type);
+	    if (clause->block)
+		  scope = clause->block;
+      }
+}
+
+LexicalScope* PECondPredicate::consequent_scope(LexicalScope*scope) const
+{
+      for (auto it = clauses_.rbegin(); it != clauses_.rend(); ++it)
+	    if ((*it)->block)
+		  return (*it)->block;
+      return scope;
+}
+
+void PECondPredicate::reloc_lexical_pos_bind(bool parameter_context)
+{
+      for (const cond_clause_t*clause : clauses_)
+	    clause->cond->reloc_lexical_pos_bind(parameter_context);
+}
+
+PETernary::PETernary(PExpr*e, PExpr*t, PExpr*f, bool owns_predicate)
+: expr_(e), tru_(t), fal_(f), owns_predicate_(owns_predicate)
 {
 }
 
@@ -972,23 +1036,27 @@ void PETernary::reloc_lexical_pos_bind(bool parameter_context)
 
 PETernary::~PETernary()
 {
-      delete pattern_scope_;
+      if (owns_predicate_)
+	    delete expr_;
 }
 
 void PETernary::declare_implicit_nets(LexicalScope*scope, NetNet::Type type)
 {
       ivl_assert(*this, expr_ && tru_ && fal_);
       expr_->declare_implicit_nets(scope, type);
-      tru_->declare_implicit_nets(scope, type);
+      const auto*predicate = dynamic_cast<const PECondPredicate*>(expr_);
+      tru_->declare_implicit_nets(predicate ? predicate->consequent_scope(scope)
+					   : scope, type);
       fal_->declare_implicit_nets(scope, type);
 }
 
 bool PETernary::has_aa_term(Design*des, NetScope*scope) const
 {
       ivl_assert(*this, expr_ && tru_ && fal_);
-      return expr_->has_aa_term(des, scope)
-           || tru_->has_aa_term(des, scope)
-           || fal_->has_aa_term(des, scope);
+      if (expr_->has_aa_term(des, scope) || fal_->has_aa_term(des, scope))
+	    return true;
+      NetScope*true_scope = consequent_scope_(des, scope);
+      return true_scope && tru_->has_aa_term(des, true_scope);
 }
 
 PETypename::PETypename(data_type_t*dt)

@@ -665,15 +665,16 @@ static std::set<PBlock*> procedural_blocks_with_statements;
 static stack<const PExpr*> current_case_match_subjects;
 static stack<PBlock*> current_pattern_blocks;
 
-static PEMatches* pform_statement_match(const struct vlltype&loc,
-                                        PExpr*subject, PMatchPattern*pattern)
+static cond_clause_t* pform_pattern_clause(const struct vlltype&loc,
+                                           PExpr*subject, PMatchPattern*pattern)
 {
       pform_requires_sv(loc, "pattern-matching conditional");
       PEMatches*condition = new PEMatches(subject, pattern, NetCase::EQ);
       FILE_NAME(condition, loc);
-      current_pattern_blocks.push(
-            pform_pattern_push_scope(loc, subject, pattern, true));
-      return condition;
+      auto*clause = new cond_clause_t;
+      clause->cond = condition;
+      clause->block = pform_pattern_push_scope(loc, subject, pattern, true);
+      return clause;
 }
 
 /* Some declarations are routed through statement_item because the existing
@@ -1843,6 +1844,66 @@ static void pform_delete_abandoned_parser_block(parser_block_scope_t*scope)
       scope->block = nullptr;
 }
 
+static void pform_destroy_cond_clause(cond_clause_t*clause)
+{
+      if (!clause) return;
+      if (PBlock*block = clause->block) {
+	    parser_block_scope_t scope = {
+		  block, block->parent_scope(), current_block_stack.size(), true
+	    };
+	    pform_unwind_parser_block_scope(&scope);
+	    pform_delete_abandoned_parser_block(&scope);
+      }
+      delete clause->cond;
+      delete clause;
+}
+
+static void pform_destroy_cond_clauses(std::vector<cond_clause_t*>*clauses)
+{
+      if (!clauses) return;
+      for (auto it = clauses->rbegin(); it != clauses->rend(); ++it)
+	    pform_destroy_cond_clause(*it);
+      delete clauses;
+}
+
+static cond_clause_t* pform_boolean_clause(PExpr*expr)
+{
+      auto*clause = new cond_clause_t;
+      clause->cond = expr;
+      return clause;
+}
+
+static PExpr* pform_finish_cond_predicate(const struct vlltype&loc,
+					 std::vector<cond_clause_t*>*clauses)
+{
+      bool has_pattern = false;
+      for (auto it = clauses->rbegin(); it != clauses->rend(); ++it) {
+	    if ((*it)->block) {
+		  assert(pform_peek_scope() == (*it)->block);
+		  pform_pop_scope();
+		  has_pattern = true;
+	    }
+      }
+
+      PExpr*condition = nullptr;
+      if (has_pattern) {
+	    condition = new PECondPredicate(std::move(*clauses));
+	    FILE_NAME(condition, loc);
+      } else {
+	    for (cond_clause_t*clause : *clauses) {
+		  if (condition) {
+			condition = new PEBLogic('a', condition, clause->cond);
+			condition->set_line(*clause->cond);
+		  } else {
+			condition = clause->cond;
+		  }
+		  delete clause;
+	    }
+      }
+      delete clauses;
+      return condition;
+}
+
 /* Procedural blocks own their scope until their statement is reduced. The
    named parser carrier is destroyed if error recovery discards that block. */
 struct procedural_block_scope_t : parser_block_scope_t {
@@ -2675,6 +2736,7 @@ static Module::port_t *module_declare_explicit_port(
       std::list<sva_sequence_formal_t>*sva_formals;
       cond_clause_t*cond_clause;
       std::vector<cond_clause_t*>*cond_clauses;
+      PExpr*closed_cond_predicate;
       std::list<sva_property_formal_t>*sva_property_formals;
 
       std::list<pform_ident_t>*identifiers;
@@ -3149,11 +3211,13 @@ static Module::port_t *module_declare_explicit_port(
 %type <match_pattern> match_pattern
 %type <match_pattern> match_pattern_item
 %type <match_patterns> match_pattern_list
-%type <expr> pattern_subject pattern_condition
+%type <expr> pattern_subject
 %type <statement> pattern_if_prefix tand_if_prefix
-%type <cond_clause> tand_clause
-%type <cond_clauses> tand_chain
-%type <expr> pattern_expr_head pattern_expr_predicate conditional_tand_tail
+%type <cond_clause> pattern_condition tand_clause
+%type <cond_clauses> tand_chain scoped_conditional_head
+%destructor { pform_destroy_cond_clause($$); } <cond_clause>
+%destructor { pform_destroy_cond_clauses($$); } <cond_clauses>
+%destructor { delete $$; } <closed_cond_predicate>
 %destructor { delete $$; } match_pattern match_pattern_item
 %destructor {
       if ($$) {
@@ -3361,10 +3425,12 @@ static Module::port_t *module_declare_explicit_port(
 %right K_TRIGGER K_LEQUIV
 %precedence K_dist
 %precedence pattern_subject_identifier
-%precedence K_matches
-%left K_TAND
 %right '?' ':'
+/* Continue a predicate inside an alternative before reducing the outer
+   ternary. End a &&& clause before '?', unless a matches pattern follows. */
+%left K_TAND
 %precedence COND_TAND_PREC
+%precedence K_matches
 %left K_LOR
 %left K_LAND
 %left '|'
@@ -12944,34 +13010,39 @@ pattern_subject
       }
   ;
 
-/* A conditional statement's true arm owns the pattern variables. Push its
-   implicit block as soon as the predicate is complete, before parsing the
-   statement, and pop it before an optional else arm is parsed. */
+/* Push the pattern scope after parsing its subject and pattern, so its
+   bindings are visible only to later clauses and the consequent. */
 pattern_condition
   : pattern_subject match_pattern
-      { $$ = pform_statement_match(@1, $1, $2); }
+      { $$ = pform_pattern_clause(@1, $1, $2); }
   | expression K_matches match_pattern
-      { $$ = pform_statement_match(@2, $1, $3); }
+      { $$ = pform_pattern_clause(@2, $1, $3); }
   ;
 
 /* IEEE 1800-2017/2023 12.4 cond_predicate: clauses joined by &&&. A pattern
    clause's scope stays open for the later clauses and the true arm. */
 tand_clause
   : expression %prec COND_TAND_PREC
-      { $$ = new cond_clause_t; $$->cond = $1; }
+      { $$ = pform_boolean_clause($1); }
   | pattern_condition %prec COND_TAND_PREC
-      { $$ = new cond_clause_t; $$->cond = $1;
-	$$->block = current_pattern_blocks.top();
-	current_pattern_blocks.pop(); }
+      { $$ = $1; }
   ;
 
 tand_chain
-  : tand_clause K_TAND tand_clause
-      { pform_requires_sv(@2, "&&& in an if predicate");
-	$$ = new std::vector<cond_clause_t*>;
-	$$->push_back($1); $$->push_back($3); }
+  : expression K_TAND tand_clause
+      { pform_requires_sv(@2, "&&& in a conditional predicate");
+	$$ = new std::vector<cond_clause_t*>{pform_boolean_clause($1), $3}; }
+  | pattern_condition K_TAND tand_clause
+      { $$ = new std::vector<cond_clause_t*>{$1, $3}; }
   | tand_chain K_TAND tand_clause
       { $1->push_back($3); $$ = $1; }
+  ;
+
+scoped_conditional_head
+  : tand_chain '?'
+      { $$ = $1; @$ = @2; }
+  | pattern_condition '?'
+      { $$ = new std::vector<cond_clause_t*>{$1}; @$ = @2; }
   ;
 
 tand_if_prefix
@@ -12981,13 +13052,11 @@ tand_if_prefix
 
 pattern_if_prefix
   : K_if '(' pattern_condition ')' statement_or_null
-      { assert(!current_pattern_blocks.empty());
-	PEMatches*condition = dynamic_cast<PEMatches*>($3);
+      { PEMatches*condition = dynamic_cast<PEMatches*>($3->cond);
 	assert(condition);
-	PBlock*block = current_pattern_blocks.top();
-	current_pattern_blocks.pop();
 	Statement*if_true = pform_pattern_finish_scope(
-	      @1, block, $5, condition->subject(), condition->pattern(), true);
+	      @1, $3->block, $5, condition->subject(), condition->pattern(), true);
+	delete $3;
 	PCondit*tmp = new PCondit(condition, if_true, nullptr);
 	tmp->parsed_if_statement();
 	FILE_NAME(tmp, @1);
@@ -13837,67 +13906,20 @@ expression
 	FILE_NAME(tmp, @2);
 	$$ = tmp;
       }
-  | expression K_TAND conditional_tand_tail '?' attribute_list_opt expression ':' expression
-      { PEBLogic*condition = new PEBLogic('a', $1, $3);
-	FILE_NAME(condition, @2);
-	PETernary*tmp = new PETernary(condition, $6, $8);
-	FILE_NAME(tmp, @4);
-	$$ = tmp;
+  | scoped_conditional_head attribute_list_opt expression
+      <closed_cond_predicate>{
+	$$ = pform_finish_cond_predicate(@1, $1);
+	$1 = nullptr;
       }
-  | pattern_expr_predicate '?' attribute_list_opt expression
-      { pform_pop_scope(); }
     ':' expression
-      { assert(!current_pattern_blocks.empty());
-	PBlock*block = current_pattern_blocks.top();
-	current_pattern_blocks.pop();
-	PETernary*tmp = new PETernary($1, $4, $7);
-	tmp->set_pattern_scope(block);
-	FILE_NAME(tmp, @2);
+      { PETernary*tmp = new PETernary($4, $3, $6, true);
+	FILE_NAME(tmp, @1);
 	$$ = tmp;
       }
-    /* Close the pattern scope opened by the head, so a malformed or
-       unsupported predicate is a diagnostic rather than a parser abort. */
-  | pattern_expr_head error
-      { yyerror(@1, "sorry: an &&& clause in a conditional-expression "
-		"predicate is not supported yet (IEEE 1800-2017/2023 12.6.3).");
-	assert(!current_pattern_blocks.empty());
-	current_pattern_blocks.pop();
-	pform_pop_scope();
-	$$ = $1;
-      }
-  ;
-
-pattern_expr_predicate
-  : pattern_expr_head %prec COND_TAND_PREC
-      { $$ = $1; }
-  | pattern_expr_head K_TAND conditional_tand_tail %prec COND_TAND_PREC
-      { PEMatches*matches = dynamic_cast<PEMatches*>($1);
-	assert(matches);
-	matches->set_conditional_tail($3);
-	$$ = $1;
-      }
-  ;
-
-conditional_tand_tail
-  : expression %prec COND_TAND_PREC
-      { $$ = $1; }
-  | conditional_tand_tail K_TAND expression %prec COND_TAND_PREC
-      { PEBLogic*tmp = new PEBLogic('a', $1, $3);
-	FILE_NAME(tmp, @2);
-	$$ = tmp;
-      }
-  ;
-
-/* Keep the pattern declarations active only while parsing the consequent;
-   its elaborator owns the block through expression lowering. */
-pattern_expr_head
-  : pattern_subject match_pattern
-      { pform_requires_sv(@1, "pattern-matching conditional expression");
-	PBlock*block = pform_pattern_push_scope(@1, $1, $2);
-	current_pattern_blocks.push(block);
-	PEMatches*condition = new PEMatches($1, $2, NetCase::EQ);
-	FILE_NAME(condition, @1);
-	$$ = condition;
+  | scoped_conditional_head attribute_list_opt error
+      { yyerror(@3, "error: Malformed consequent of conditional expression.");
+	pform_destroy_cond_clauses($1);
+	YYERROR;
       }
   ;
 

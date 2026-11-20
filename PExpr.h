@@ -67,6 +67,7 @@ class PMatchPattern : public LineInfo {
       void children(std::vector<PMatchPattern*>*children);
 
       void declare_implicit_nets(LexicalScope*scope, NetNet::Type type);
+      bool refs_name(perm_string name) const;
       bool has_aa_term(Design*des, NetScope*scope) const;
       void reloc_lexical_pos_bind(bool parameter_context = false);
       void dump(std::ostream&out) const;
@@ -354,9 +355,7 @@ class PExprTypeOperatorContextGuard {
       bool old_;
 };
 
-/* Boolean match predicate, with an optional &&& tail in a conditional
- * expression. Pattern bindings remain owned by the conditional expression's
- * implicit true-arm scope. */
+/* Boolean match predicate. The surrounding conditional owns its bindings. */
 class PEMatches : public PExpr {
     public:
       PEMatches(PExpr*subject, PMatchPattern*pattern,
@@ -366,10 +365,9 @@ class PEMatches : public PExpr {
       PExpr* subject() const { return subject_; }
       PMatchPattern* pattern() const { return pattern_; }
       NetCase::TYPE case_type() const { return case_type_; }
-      void set_conditional_tail(PExpr*tail) { conditional_tail_ = tail; }
-      PExpr* conditional_tail() const { return conditional_tail_; }
 
       void dump(std::ostream&out) const override;
+      bool refs_name(perm_string name) const override;
       void declare_implicit_nets(LexicalScope*scope,
                                  NetNet::Type type) override;
       bool has_aa_term(Design*des, NetScope*scope) const override;
@@ -384,7 +382,34 @@ class PEMatches : public PExpr {
       PExpr*subject_;
       PMatchPattern*pattern_;
       NetCase::TYPE case_type_;
-      PExpr*conditional_tail_ = nullptr;
+};
+
+/* One clause of a cond_predicate (IEEE 1800-2017/2023 12.4). A match opens
+ * a lexical block for the rest of the predicate and the consequent. */
+struct cond_clause_t {
+      PExpr*cond = nullptr;
+      PBlock*block = nullptr;
+};
+
+class PECondPredicate : public PExpr {
+    public:
+      explicit PECondPredicate(std::vector<cond_clause_t*> clauses);
+      ~PECondPredicate() override;
+
+      void dump(std::ostream&out) const override;
+      bool refs_name(perm_string name) const override;
+      void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
+      bool has_aa_term(Design*des, NetScope*scope) const override;
+      void reloc_lexical_pos_bind(bool parameter_context = false) override;
+      unsigned test_width(Design*des, NetScope*scope, width_mode_t&mode) override;
+      NetExpr* elaborate_expr(Design*des, NetScope*scope,
+                              unsigned expr_wid, unsigned flags) const override;
+
+      LexicalScope* consequent_scope(LexicalScope*scope) const;
+      NetScope* consequent_scope(Design*des, NetScope*scope) const;
+
+    private:
+      std::vector<cond_clause_t*> clauses_;
 };
 
 std::ostream& operator << (std::ostream&, const PExpr&);
@@ -1550,11 +1575,8 @@ class PETernary : public PExpr {
 
     public:
       bool refs_name(perm_string name) const override;
-      explicit PETernary(PExpr*e, PExpr*t, PExpr*f);
+      PETernary(PExpr*e, PExpr*t, PExpr*f, bool owns_predicate = false);
       ~PETernary() override;
-
-      void set_pattern_scope(PBlock*scope) { pattern_scope_ = scope; }
-      PBlock* pattern_scope() const { return pattern_scope_; }
 
       inline PExpr* get_cond()  const { return expr_; }
       inline PExpr* get_true()  const { return tru_; }
@@ -1584,6 +1606,9 @@ class PETernary : public PExpr {
 				     unsigned flags) const override;
 
     private:
+      NetScope* consequent_scope_(Design*des, NetScope*scope) const;
+      NetExpr* elaborate_predicate_(Design*des, NetScope*scope,
+				    unsigned flags) const;
       NetExpr* elab_and_eval_alternative_(Design*des, NetScope*scope,
 					  PExpr*expr, unsigned expr_wid,
                                           unsigned flags, bool short_cct) const;
@@ -1592,7 +1617,7 @@ class PETernary : public PExpr {
       PExpr*expr_;
       PExpr*tru_;
       PExpr*fal_;
-      PBlock*pattern_scope_ = nullptr;
+      bool owns_predicate_;
 };
 
 /*
