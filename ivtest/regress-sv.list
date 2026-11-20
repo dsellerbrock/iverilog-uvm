@@ -7347,3 +7347,9 @@ issue3365_local_scope_2017 normal,-g2017,-s,issue3365_local_scope ivltests gold=
 issue3365_local_scope_2023 normal,-g2023,-s,issue3365_local_scope ivltests gold=issue3365_local_scope.gold
 issue3365_local_scope_bad_2017 CE,-g2017,-s,issue3365_local_scope_bad ivltests gold=issue3365_local_scope_bad.gold
 issue3365_local_scope_bad_2023 CE,-g2023,-s,issue3365_local_scope_bad ivltests gold=issue3365_local_scope_bad.gold
+
+# IEEE 1800-2017/2023 5.9: string literals assigned to dynamic byte containers.
+issue3868_2017 normal,-g2017,-s,issue3868 ivltests gold=issue3868.gold
+issue3868_2023 normal,-g2023,-s,issue3868 ivltests gold=issue3868.gold
+issue3868_bad_2017 CE,-g2017,-s,issue3868_bad ivltests gold=issue3868_bad.gold
+issue3868_bad_2023 CE,-g2023,-s,issue3868_bad ivltests gold=issue3868_bad.gold
