@@ -3147,6 +3147,14 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
       long diag_msg;
 
       switch (operation) {
+	  case VPIP_FSM_COVERAGE: {
+	    int op = va_arg(ap, int);
+	    bool hierarchy = va_arg(ap, int) != 0;
+	    vpiHandle instance = va_arg(ap, vpiHandle);
+	    const char*definition = va_arg(ap, const char*);
+	    int*available = va_arg(ap, int*);
+	    return vpip_fsm_coverage(op, hierarchy, instance, definition, available);
+	  }
 	  case vpiCoverageStart:
 	  case vpiCoverageStop:
 	  case vpiCoverageReset:
@@ -3163,6 +3171,10 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
 
 	    switch (instance ? instance->get_type_code() : vpiUndefined) {
 		case vpiModule:
+		  if (type == vpiFsmStateCoverage)
+			return vpip_fsm_coverage(operation - vpiCoverageStart,
+			                         false, instance, nullptr);
+		  /* fall through */
 		case vpiInterface:
 		case vpiProgram:
 		case vpiPackage:
@@ -3180,6 +3192,18 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
 	    /* Code coverage has no database backend, so match the result of
 	       $coverage_merge() for this unavailable operation. */
 	    return -1;
+
+	  case vpiCoverageSave: {
+	    PLI_INT32 type = va_arg(ap, PLI_INT32);
+	    if (type == vpiFsmStateCoverage) {
+		  const char*name = va_arg(ap, const char*);
+		  if (!name || vpip_fsm_coverage(VPIP_FSM_CHECK, true, nullptr, "$root"))
+			return -1;
+		  return 0;
+	    }
+	    fprintf(stderr, "Unsupported VPI control operation %d.\n", operation);
+	    return 0;
+	  }
 
 	  case vpiFinish:
 	  case __ivl_legacy_vpiFinish:

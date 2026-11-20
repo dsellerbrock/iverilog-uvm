@@ -3636,6 +3636,22 @@ extern "C" unsigned ivl_scope_contassigns(ivl_scope_t net)
 	   ? net->aux_->contassigns->size() : 0;
 }
 
+extern "C" unsigned ivl_scope_fsm_states(ivl_scope_t net)
+{
+      return net->aux_ && net->aux_->fsm_states
+	   ? net->aux_->fsm_states->size() : 0;
+}
+
+extern "C" const char* ivl_scope_fsm_state(ivl_scope_t net, unsigned idx,
+                                          ivl_signal_t*signal, int*has_initializer)
+{
+      assert(idx < ivl_scope_fsm_states(net));
+      const auto&fsm = (*net->aux_->fsm_states)[idx];
+      *signal = fsm.signal;
+      *has_initializer = fsm.has_initializer;
+      return fsm.encodings.c_str();
+}
+
 extern "C" ivl_contassign_t ivl_scope_contassign(ivl_scope_t net, unsigned idx)
 {
       assert(net);

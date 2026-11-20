@@ -4436,6 +4436,14 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 	    }
       }
 
+      for (idx = 0; idx < ivl_scope_fsm_states(net); ++idx) {
+	    ivl_signal_t sig;
+	    int has_initializer;
+	    const char*states = ivl_scope_fsm_state(net, idx, &sig, &has_initializer);
+	    fprintf(vvp_out, "    .fsm/state v%p_0, %d, \"%s\";\n",
+		    sig, has_initializer, states);
+      }
+
 	/* A specparam annotatable by SDF LABEL (IEEE 1800 32.4.3) keeps its
 	   run-time value in a hidden local variable named _ivl_sp_<name>,
 	   present only when the design calls $sdf_annotate. */

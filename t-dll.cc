@@ -1268,6 +1268,20 @@ bool dll_target::order_processes(vector<target_process_ref_t>&processes)
 void dll_target::make_scope_contassigns_(ivl_scope_t scope)
 {
       const NetScope*net = scope->net_;
+      if (net && net->fsm_states) {
+	    auto*states = new vector<ivl_fsm_state_s>;
+	    for (const auto&fsm : *net->fsm_states) {
+		  string encodings;
+		  for (const string&state : fsm.states) {
+			if (!encodings.empty())
+			      encodings += ' ';
+			encodings += state;
+		  }
+		  states->push_back({find_signal(fsm.signal->sig()),
+		                     std::move(encodings), fsm.has_initializer});
+	    }
+	    scope->ensure_aux_()->fsm_states = states;
+      }
       if (ivl_scope_t decl = ivl_scope_class_chain(scope)) {
 	    const auto&args = decl->net_->class_def()->vpi_chain_args();
 	    auto*list = new vector<ivl_expr_t>;

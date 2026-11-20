@@ -1,0 +1,5 @@
+WARNING: issue3951_fsm_state.v:60: $coverage_control returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: issue3951_fsm_state.v:61: $coverage_get_max returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: issue3951_fsm_state.v:70: $coverage_get_max returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: issue3951_fsm_state.v:95: $coverage_save returns SV_COV_ERROR because no code-coverage database backend is available.
+PASSED

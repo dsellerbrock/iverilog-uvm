@@ -1107,6 +1107,15 @@ extern void vpip_set_return_value(int value);
 #define VPIP_COVGRP_DB_LOAD     1
 extern int vpip_covgrp_db(int op, const char*name);
 
+/* Private vpi_control dispatch for the code coverage system functions.
+ * Arguments: operation, hierarchical flag, instance, definition,
+ * and optional int* receiving whether any coverage is available. */
+#define VPIP_FSM_COVERAGE 0x49564653
+enum {
+      VPIP_FSM_START, VPIP_FSM_STOP, VPIP_FSM_RESET, VPIP_FSM_CHECK,
+      VPIP_FSM_GET, VPIP_FSM_GET_MAX
+};
+
 extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
 
 /* Draw from the caller's process RNG, optionally reseeding it first.

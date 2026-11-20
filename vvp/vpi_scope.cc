@@ -1563,9 +1563,9 @@ class vpiScopeModule  : public __vpiScope {
       int get_type_code(void) const override { return vpiModule; }
       int vpi_get(int code) override
       {
-            /* These coverage types are not instrumented. */
             switch (code) {
                 case IEEE_vpiFsmStateCoverage:
+                  return vpip_fsm_coverage(VPIP_FSM_GET, false, this, nullptr);
                 case IEEE_vpiStatementCoverage:
                 case IEEE_vpiToggleCoverage:
                   return 0;
@@ -1573,7 +1573,104 @@ class vpiScopeModule  : public __vpiScope {
                   return __vpiScope::vpi_get(code);
             }
       }
+      std::vector<std::unique_ptr<fsm_state_coverage>> fsms;
 };
+
+void vpip_add_fsm_state_coverage(__vpiScope*scope, vvp_vpi_callback*filter,
+                                bool has_initializer,
+                                std::map<std::string, bool> states)
+{
+      auto*mod = static_cast<vpiScopeModule*>(scope);
+      std::unique_ptr<fsm_state_coverage> fsm(new fsm_state_coverage);
+      fsm->states = std::move(states);
+      filter->add_fsm_state_observer(fsm.get(), has_initializer);
+      mod->fsms.push_back(std::move(fsm));
+}
+
+int vpip_fsm_coverage(int op, bool hierarchy, vpiHandle instance,
+                      const char*definition, int*available)
+{
+      enum {
+	    SV_COV_OVERFLOW = -2, SV_COV_ERROR = -1, SV_COV_NOCOV = 0,
+	    SV_COV_OK = 1, SV_COV_PARTIAL = 2
+      };
+      if (available)
+	    *available = 0;
+      if (op < VPIP_FSM_START || op > VPIP_FSM_GET_MAX)
+	    return SV_COV_ERROR;
+
+      bool root = definition && strcmp(definition, "$root") == 0;
+      bool valid_target = root;
+      bool search_definition = definition && !root;
+      vector<pair<__vpiScope*, bool>> pending;
+      if (instance) {
+	    auto*mod = dynamic_cast<vpiScopeModule*>(instance);
+	    if (!mod)
+		  return SV_COV_ERROR;
+	    pending.emplace_back(mod, true);
+	    valid_target = true;
+      } else if (!definition || !*definition) {
+	    return SV_COV_ERROR;
+      } else if (!root || hierarchy) {
+	    /* $root itself is a pseudo-scope with no module coverage. */
+	    for (vpiHandle handle : vpip_root_table)
+		  if (auto*scope = dynamic_cast<__vpiScope*>(handle))
+			pending.emplace_back(scope, root);
+      }
+
+      bool covered = false;
+      bool uncovered = false;
+      int total = 0;
+      while (!pending.empty()) {
+	    __vpiScope*scope = pending.back().first;
+	    bool selected = pending.back().second;
+	    pending.pop_back();
+	    if (auto*mod = dynamic_cast<vpiScopeModule*>(scope)) {
+		  if (search_definition && strcmp(definition, mod->scope_def_name()) == 0)
+			selected = true;
+		  if (selected) {
+			valid_target = true;
+			covered |= !mod->fsms.empty();
+			uncovered |= mod->fsms.empty();
+			for (const auto&fsm : mod->fsms) {
+			      if (op == VPIP_FSM_START || op == VPIP_FSM_STOP) {
+				    fsm->enabled = op == VPIP_FSM_START;
+			      } else if (op == VPIP_FSM_RESET) {
+				    for (auto&state : fsm->states)
+					  state.second = false;
+				    fsm->hits = 0;
+			      } else if (op != VPIP_FSM_CHECK && total >= 0) {
+				    size_t count = op == VPIP_FSM_GET
+						 ? fsm->hits : fsm->states.size();
+				    total = count > static_cast<size_t>(INT_MAX - total)
+					  ? SV_COV_OVERFLOW : total + static_cast<int>(count);
+			      }
+			}
+		  }
+	    }
+	    /* Visit each instance once, even if it matches a definition
+	       and is already selected through an ancestor. */
+	    if (hierarchy || search_definition)
+		  for (vpiHandle item : scope->intern)
+			if (auto*child = dynamic_cast<__vpiScope*>(item))
+			      if (child->scope == scope)
+				    pending.emplace_back(child, hierarchy && selected);
+      }
+      if (!valid_target)
+	    return SV_COV_ERROR;
+      if (available)
+	    *available = covered;
+      switch (op) {
+	  case VPIP_FSM_CHECK:
+	  case VPIP_FSM_START:
+	    return covered ? (uncovered ? SV_COV_PARTIAL : SV_COV_OK) : SV_COV_NOCOV;
+	  case VPIP_FSM_STOP:
+	  case VPIP_FSM_RESET:
+	    return SV_COV_OK;
+	  default:
+	    return total;
+      }
+}
 
 /* Program-block instance scope (IEEE 1800-2017 clause 24): threads
    whose scope chain includes one of these schedule in the Reactive

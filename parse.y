@@ -236,6 +236,24 @@ extern void lex_end_table();
 static data_type_t* param_data_type = 0;
 static bool param_is_local = false;
 static bool param_is_type = false;
+
+extern void pform_tag_fsm_parameters(int type_end, int list_begin, int list_end);
+extern void pform_finish_fsm_pragmas(int module_end);
+
+/* An explicit parameter declaration in an ANSI parameter port list may
+   continue through several comma-separated parameter assignments. */
+static struct {
+      int type_end, begin, end;
+} fsm_parameter_port_decl;
+
+static void finish_fsm_parameter_port_decl()
+{
+      if (fsm_parameter_port_decl.type_end)
+	    pform_tag_fsm_parameters(fsm_parameter_port_decl.type_end,
+	                             fsm_parameter_port_decl.begin,
+	                             fsm_parameter_port_decl.end);
+      fsm_parameter_port_decl = {};
+}
 static bool checker_initial_context = false;
 static type_parameter_restriction_t param_type_restriction =
 	type_parameter_restriction_t::NONE;
@@ -17834,6 +17852,7 @@ module
 		    break;
 	      }
 	}
+	pform_finish_fsm_pragmas(@15.first_column);
 	pform_endmodule($4, in_celldefine, ucd);
       }
     label_opt
@@ -17888,6 +17907,7 @@ checker_declaration
             case UCD_NONE:
             default: ucd = Module::UCD_NONE; break;
         }
+        pform_finish_fsm_pragmas(@15.first_column);
         pform_endmodule($4, in_celldefine, ucd);
       }
     label_opt
@@ -17971,9 +17991,13 @@ module_port_list_opt
 module_parameter_port_list_opt
   :
   | '#' '('
-      { pform_start_parameter_port_list(); }
+      { fsm_parameter_port_decl = {};
+	pform_start_parameter_port_list();
+      }
     module_parameter_port_list_maybe ')'
-      { pform_end_parameter_port_list(); }
+      { finish_fsm_parameter_port_decl();
+	pform_end_parameter_port_list();
+      }
   ;
 
 module_parameter_port_list_maybe
@@ -17994,8 +18018,12 @@ type_param
 
 module_parameter
   : parameter param_type parameter_assign
+      { finish_fsm_parameter_port_decl();
+	fsm_parameter_port_decl = {@2.last_column, @3.first_column, @3.last_column};
+      }
   | localparam param_type parameter_assign
-      { pform_requires_sv(@1, "Local parameter in module parameter port list");
+      { finish_fsm_parameter_port_decl();
+	pform_requires_sv(@1, "Local parameter in module parameter port list");
       }
   ;
 
@@ -18023,7 +18051,13 @@ module_parameter_port_list
         }
       }
     parameter_assign
+      { if ($3)
+	      finish_fsm_parameter_port_decl();
+	else
+	      fsm_parameter_port_decl.end = @5.last_column;
+      }
   | module_parameter_port_list ',' type_param parameter_assign
+      { finish_fsm_parameter_port_decl(); }
   ;
 
 module_item
@@ -19249,6 +19283,7 @@ localparam
 
 parameter_declaration
   : parameter_or_localparam param_type parameter_assign_list ';'
+      { pform_tag_fsm_parameters(@2.last_column, @3.first_column, @3.last_column); }
 
 parameter_or_localparam
   : parameter

@@ -205,6 +205,14 @@ class Module : public PScopeExtra, public PNamedItem {
 	   unless they are instantiated, implicitly or explicitly. */
       std::map<perm_string,Module*> nested_modules;
 
+      struct fsm_state_vector_t : public LineInfo {
+	    perm_string signal;
+	    perm_string enum_tag;
+      };
+      int fsm_pragma_start = 0;
+      std::vector<fsm_state_vector_t> fsm_state_vectors;
+      std::map<perm_string, std::vector<perm_string>> fsm_parameters;
+
 	/* An interface can contain one or more named modport lists.
            The parser will ensure these don't appear in modules or
            program blocks. */

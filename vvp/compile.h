@@ -499,6 +499,7 @@ extern void compile_vpi_port_conn(long index, long flags, unsigned argc,
 				  vpiHandle*argv);
 extern void compile_vpi_defparam(char*param, long file_idx, long lineno,
 				 unsigned argc, vpiHandle*argv);
+extern void compile_fsm_state(char*signal, uint64_t has_initializer, char*encodings);
 extern void compile_vpi_contassign(char*label, long flags, long str0,
 				   long str1, long file_idx, long lineno,
 				   char*driver, unsigned argc, vpiHandle*argv);

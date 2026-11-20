@@ -20,10 +20,9 @@
 /*
  * IEEE 1800-2017 40.3 code-coverage access.
  *
- * Icarus implements functional coverage (Clause 19), but it does not
- * instrument statement, toggle, FSM, or assertion code coverage.  The
- * standard specifies SV_COV_NOCOV for queries and starts, and successful
- * no-ops for stops and resets. All arguments are still validated.
+ * Explicit FSM state coverage is collected by the runtime. For
+ * uninstrumented coverage, queries and starts return SV_COV_NOCOV,
+ * and stops and resets are successful no-ops.
  */
 
 # include "sys_priv.h"
@@ -254,6 +253,22 @@ static void coverage_put_result(vpiHandle callh, int result)
       vpi_put_value(callh, &val, 0, vpiNoDelay);
 }
 
+static int coverage_fsm_target(int op, int scope, vpiHandle arg, int*available)
+{
+      vpiHandle instance = 0;
+      const char*definition = 0;
+      if (vpi_get(vpiType, arg) == vpiModule) {
+            instance = arg;
+      } else if (coverage_is_string(arg)) {
+            s_vpi_value val;
+            val.format = vpiStringVal;
+            vpi_get_value(arg, &val);
+            definition = val.value.str;
+      }
+      return vpi_control(VPIP_FSM_COVERAGE, op, scope == SV_COV_HIER,
+                         instance, definition, available);
+}
+
 static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -265,6 +280,8 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       int scope = -1;
       int valid = 1;
       int result = SV_COV_ERROR;
+      int fsm_result = SV_COV_NOCOV;
+      int fsm_available = 0;
 
       assert(callh);
       assert(argv);
@@ -284,11 +301,21 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
             valid = valid && coverage_get_int(arg, &scope)
                  && coverage_scope_valid(scope);
             arg = vpi_scan(argv);
-            valid = valid && coverage_target_valid(arg);
+            if (valid && type == SV_COV_FSM_STATE) {
+                  int op = control;
+                  if (kind == COVERAGE_QUERY)
+                        op = strcmp((const char*)name, "$coverage_get") == 0
+                           ? VPIP_FSM_GET : VPIP_FSM_GET_MAX;
+                  fsm_result = coverage_fsm_target(op, scope, arg, &fsm_available);
+                  valid = fsm_result != SV_COV_ERROR;
+            } else {
+                  valid = valid && coverage_target_valid(arg);
+            }
       } else {
             arg = vpi_scan(argv);
             valid = valid && coverage_is_string(arg);
       }
+      vpi_free_object(argv);
 
       if (!valid) {
             coverage_runtime_warning(callh, (const char*)name,
@@ -297,12 +324,17 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
             return 0;
       }
 
-      if (kind == COVERAGE_QUERY) {
+      if (fsm_available) {
+            result = fsm_result;
+      } else if (kind == COVERAGE_QUERY) {
             result = SV_COV_NOCOV;
             coverage_runtime_warning(callh, (const char*)name,
                  "returns SV_COV_NOCOV because code coverage is not instrumented");
       } else if (kind == COVERAGE_DATABASE) {
-            if (strcmp((const char*)name, "$coverage_save") == 0) {
+            if (strcmp((const char*)name, "$coverage_save") == 0
+                && !(type == SV_COV_FSM_STATE
+                     && vpi_control(VPIP_FSM_COVERAGE, VPIP_FSM_CHECK, 1,
+                                    (vpiHandle)0, (const char*)"$root", (int*)0))) {
                   result = SV_COV_NOCOV;
                   coverage_runtime_warning(callh, (const char*)name,
                        "returns SV_COV_NOCOV because no code coverage is available to save");

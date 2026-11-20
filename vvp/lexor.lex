@@ -295,6 +295,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".vpi_inst_array" { return K_VPI_INST_ARRAY; }
 ".vpi_expr"     { return K_VPI_EXPR; }
 ".vpi_contassign" { return K_VPI_CONTASSIGN; }
+".fsm/state"      { return K_FSM_STATE; }
 ".vpi_param_expr" { return K_VPI_PARAM_EXPR; }
 ".vpi_defparam" { return K_VPI_DEFPARAM; }
 ".vpi_port_conn" { return K_VPI_PORT_CONN; }

@@ -525,6 +525,89 @@ static bool pform_in_parameter_port_list = false;
  * Items that have scoped names are put in the lexical_scope object.
  */
 static LexicalScope* lexical_scope = 0;
+
+/* Scanner lookahead can cross declaration and module boundaries. Bind
+   these comments using the same source ordinals as the grammar tokens. */
+static map<int, Module::fsm_state_vector_t> fsm_pragmas;
+static map<int, perm_string> fsm_param_declarators;
+
+static perm_string fsm_pragma_identifier(const string&word)
+{
+      if (word.size() > 1 && word.front() == '\\')
+	    return lex_strings.make(word.c_str() + 1);
+      if (!word.empty()
+	  && word.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+				    "abcdefghijklmnopqrstuvwxyz_") != 0
+	  && word.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+				    "abcdefghijklmnopqrstuvwxyz_0123456789$")
+		 == string::npos)
+	    return lex_strings.make(word.c_str());
+      return perm_string();
+}
+
+void pform_record_fsm_pragma(const vlltype&loc, const string&comment)
+{
+      if (!gn_system_verilog())
+	    return;
+
+      istringstream words(comment);
+      string tool, kind, signal, enum_kw, tag, extra;
+      words >> tool >> kind;
+      if (tool != "tool")
+	    return;
+      Module::fsm_state_vector_t pragma;
+      if (kind == "state_vector") {
+	    if (!(words >> signal >> enum_kw) || enum_kw != "enum")
+		  return;
+	    pragma.signal = fsm_pragma_identifier(signal);
+	    if (pragma.signal.nil())
+		  return;
+      } else if (kind != "enum") {
+	    return;
+      }
+      if (!(words >> tag) || words >> extra)
+	    return;
+      pragma.enum_tag = fsm_pragma_identifier(tag);
+      if (pragma.enum_tag.nil())
+	    return;
+      FILE_NAME(&pragma, loc);
+      fsm_pragmas.emplace(loc.first_column, pragma);
+}
+
+void pform_tag_fsm_parameters(int type_end, int list_begin, int list_end)
+{
+      if (fsm_pragmas.empty() || pform_cur_module.empty()
+	  || lexical_scope != pform_cur_module.front())
+	    return;
+      auto pragma = fsm_pragmas.upper_bound(type_end);
+      while (pragma != fsm_pragmas.end() && pragma->first < list_begin
+	     && !pragma->second.signal.nil())
+	    ++pragma;
+      if (pragma == fsm_pragmas.end() || pragma->first >= list_begin)
+	    return;
+
+      Module*module = pform_cur_module.front();
+      auto decl = fsm_param_declarators.lower_bound(list_begin);
+      for (; decl != fsm_param_declarators.end() && decl->first <= list_end; ++decl)
+	    module->fsm_parameters[pragma->second.enum_tag].push_back(decl->second);
+}
+
+void pform_finish_fsm_pragmas(int module_end)
+{
+      Module*module = pform_cur_module.front();
+      if (module_end <= module->fsm_pragma_start)
+	    return;
+      auto first = fsm_pragmas.upper_bound(module->fsm_pragma_start);
+      auto last = fsm_pragmas.lower_bound(module_end);
+      if (!module->program_block && !module->is_interface && !module->is_checker)
+	    for (auto pragma = first; pragma != last; ++pragma)
+		  if (!pragma->second.signal.nil())
+			module->fsm_state_vectors.push_back(pragma->second);
+      fsm_pragmas.erase(first, last);
+      fsm_param_declarators.erase(
+	    fsm_param_declarators.upper_bound(module->fsm_pragma_start),
+	    fsm_param_declarators.lower_bound(module_end));
+}
 static bool anonymous_program_items = false;
 
 LexicalScope* pform_peek_scope(void)
@@ -2943,6 +3026,7 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
       }
 
       Module*cur_module = new Module(lexical_scope, lex_name);
+      cur_module->fsm_pragma_start = loc.first_column;
       cur_module->library = library;
       cur_module->cell = cell_name;
       if (PPackage*unit = dynamic_cast<PPackage*>(lexical_scope))
@@ -7654,6 +7738,9 @@ void pform_set_parameter(const struct vlltype&loc,
       scope->parameters[name] = parm;
       if (new_parameter)
 	    scope->parameter_order.push_back(name);
+
+      if (!fsm_pragmas.empty() && in_module && !is_local)
+	    fsm_param_declarators.emplace(loc.first_column, name);
 
       // Only a module keeps the position of the parameter.
       if (overridable && in_module)
@@ -44238,6 +44325,9 @@ int pform_parse(const char*path)
       warn_count = 0;
       if (getenv("IVL_PARSE_TRACE")) VLdebug = 1;
       int rc = VLparse();
+
+      fsm_pragmas.clear();
+      fsm_param_declarators.clear();
 
 	// The std classes written in SystemVerilog leave again when no
 	// source has named one so far.

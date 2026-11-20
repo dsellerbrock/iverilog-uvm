@@ -303,6 +303,19 @@ class value_callback : public __vpiCallback {
       unsigned force_width = 0;
 };
 
+struct fsm_state_coverage {
+      std::map<std::string, bool> states;
+      size_t hits = 0;
+      bool enabled = true;
+};
+
+extern void vpip_add_fsm_state_coverage(__vpiScope*scope,
+                                      vvp_vpi_callback*filter,
+                                      bool has_initializer,
+                                      std::map<std::string, bool> states);
+extern int vpip_fsm_coverage(int op, bool hierarchy, vpiHandle instance,
+                            const char*definition, int*available = nullptr);
+
 extern void callback_execute(struct __vpiCallback*cur);
 /* Run the cbTchkViolation callbacks for a violation of tchk. */
 extern void vpip_tchk_violation(vpiHandle tchk);

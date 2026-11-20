@@ -50,6 +50,10 @@ extern nettype_t* pform_test_nettype_identifier(PPackage*pkg,
                                                 const char*txt);
 extern bool pform_in_compilation_unit_scope();
 extern bool pform_in_task_function_scope();
+extern void pform_record_fsm_pragma(const YYLTYPE&, const std::string&);
+
+static std::string fsm_pragma_comment;
+static YYLTYPE fsm_pragma_loc;
 
 /* Each token's ordinal, kept in the otherwise unused column fields, orders
    tokens within a statement (the parser binds a queue index `$' to the
@@ -249,6 +253,8 @@ void lex_in_package_scope(PPackage*pkg)
 %x REAL_SCALE
 
 W [ \t\b\f\r]+
+FW [ \t\f\r\v\n]
+FSM "tool"{FW}+("state_vector"|"enum"){FW}+
 
 S [afpnumkKMGT]
 
@@ -275,6 +281,9 @@ TU [munpf]
 "// Icarus preprocessor had ("[0-9]+") errors."\n { pre_process_failed(yytext); }
 "//"{W}*"synthesis"{W}+"translate_on"{W}*\n { pform_mc_translate_on(true); yylloc.first_line += 1; }
 "//"{W}*"synthesis"{W}+"translate_off"{W}*\n { pform_mc_translate_on(false); yylloc.first_line += 1; }
+"//"{W}*"tool"{W}+("state_vector"|"enum"){W}+[^\n]* {
+      pform_record_fsm_pragma(yylloc, yytext + 2);
+}
 "//" { comment_enter = YY_START; BEGIN(LCOMMENT); }
 <LCOMMENT>.    { yymore(); }
 <LCOMMENT>\n   { yylloc.first_line += 1; BEGIN(comment_enter); }
@@ -293,12 +302,34 @@ TU [munpf]
 
   /* The contents of C-style comments are ignored, like white space. */
 
+"/*"{FW}*{FSM} {
+      fsm_pragma_comment.assign(yytext + 2, yyleng - 2);
+      fsm_pragma_loc = yylloc;
+      for (size_t idx = 2; idx < static_cast<size_t>(yyleng); ++idx)
+	    if (yytext[idx] == '\n')
+		  yylloc.first_line += 1;
+      comment_enter = YY_START;
+      BEGIN(CCOMMENT);
+}
 "/*" { comment_enter = YY_START; BEGIN(CCOMMENT); }
-<CCOMMENT>.    { ; }
+<CCOMMENT>.    {
+      if (!fsm_pragma_comment.empty())
+	    fsm_pragma_comment += *yytext;
+}
   /* Check for a possible nested comment. */
 <CCOMMENT>"/*" { VLerror(yylloc, "error: Possible nested comment."); }
-<CCOMMENT>\n   { yylloc.first_line += 1; }
-<CCOMMENT>"*/" { BEGIN(comment_enter); }
+<CCOMMENT>\n   {
+      yylloc.first_line += 1;
+      if (!fsm_pragma_comment.empty())
+	    fsm_pragma_comment += '\n';
+}
+<CCOMMENT>"*/" {
+      if (!fsm_pragma_comment.empty()) {
+	    pform_record_fsm_pragma(fsm_pragma_loc, fsm_pragma_comment);
+	    fsm_pragma_comment.clear();
+      }
+      BEGIN(comment_enter);
+}
 
 
 "(*" { return K_PSTAR; }
@@ -2097,6 +2128,7 @@ void reset_lexor()
       yylloc.text = set_file_name(strdupnew(vl_file.c_str()));
 
       comment_enter = 0;
+      fsm_pragma_comment.clear();
       in_module = false;
       in_UDP = false;
       in_function_header = false;

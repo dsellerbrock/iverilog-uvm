@@ -954,6 +954,12 @@ struct ivl_class_base_param_s {
       bool by_name;
 };
 
+struct ivl_fsm_state_s {
+      ivl_signal_t signal;
+      std::string encodings;
+      bool has_initializer;
+};
+
 struct ivl_scope_aux_s {
       std::vector<ivl_type_t>*classes;
       std::vector<ivl_enumtype_t>*enumerations_;
@@ -961,6 +967,7 @@ struct ivl_scope_aux_s {
       std::vector<struct ivl_parameter_s>*param;
       std::vector<ivl_switch_t>*switches;
       std::vector<struct ivl_contassign_s>*contassigns;
+      std::vector<ivl_fsm_state_s>*fsm_states;
       std::vector<struct ivl_defparam_s>*defparams;
       std::vector<ivl_expr_t>*port_highconns;
       std::vector<std::pair<ivl_scope_t, const char*> >*port_ifaces;

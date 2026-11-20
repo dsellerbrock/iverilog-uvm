@@ -36543,11 +36543,83 @@ static bool procedural_checker_copy(const NetScope*scope)
       return false;
 }
 
+static bool elaborate_fsm_states_(Design*des, NetScope*scope, const Module&mod)
+{
+      set<perm_string> initialized;
+      for (const auto*stmt : mod.var_inits) {
+	    if (auto*init = dynamic_cast<const PAssign*>(stmt))
+		  if (auto*lhs = dynamic_cast<const PEIdent*>(init->lval()))
+			if (lhs->path().name.size() == 1)
+			      initialized.insert(lhs->path().name.front().name);
+      }
+      bool ok = true;
+      set<pair<perm_string, perm_string>> seen;
+      for (const auto&pragma : mod.fsm_state_vectors) {
+	    if (!seen.emplace(pragma.signal, pragma.enum_tag).second)
+		  continue;
+	    NetNet*sig = scope->find_signal(pragma.signal);
+	    if (!sig || !type_is_vectorable(sig->data_type())
+		|| sig->unpacked_dimensions() || sig->vector_width() == 0) {
+		  cerr << pragma.get_fileline() << ": error: FSM state_vector '"
+		       << pragma.signal << "' must name a packed integral signal in "
+		       << scope_path(scope) << "." << endl;
+		  ++des->errors;
+		  ok = false;
+		  continue;
+	    }
+	    auto params = mod.fsm_parameters.find(pragma.enum_tag);
+	    if (params == mod.fsm_parameters.end()) {
+		  cerr << pragma.get_fileline() << ": error: FSM enum '"
+		       << pragma.enum_tag << "' has no tagged parameters in "
+		       << scope_path(scope) << "." << endl;
+		  ++des->errors;
+		  ok = false;
+		  continue;
+	    }
+
+	    set<string> states;
+	    bool valid = true;
+	    for (perm_string name : params->second) {
+		  ivl_type_t type;
+		  auto*value = dynamic_cast<const NetEConst*>(
+			scope->get_parameter(des, name, type));
+		  if (!value || !type_is_vectorable(value->expr_type())
+		      || scope->is_array_parameter(name)) {
+			cerr << pragma.get_fileline() << ": error: FSM enum parameter '"
+			     << name << "' must have a packed integral value in "
+			     << scope_path(scope) << "." << endl;
+			++des->errors;
+			valid = false;
+			continue;
+		  }
+		  verinum bits = cast_to_width(value->value(), sig->vector_width());
+		  if (sig->data_type() == IVL_VT_BOOL)
+			bits.cast_to_int2();
+		  string encoding(bits.len(), '0');
+		  for (unsigned idx = 0; idx < bits.len(); ++idx)
+			encoding[bits.len() - 1 - idx] = "01xz"[bits[idx]];
+		  states.insert(std::move(encoding));
+	    }
+	    if (!valid) {
+		  ok = false;
+		  continue;
+	    }
+	    if (!scope->fsm_states)
+		  scope->fsm_states.reset(new vector<NetScope::fsm_state_t>);
+	    scope->fsm_states->push_back(
+		  {unique_ptr<NetESignal>(new NetESignal(sig)), std::move(states),
+		   initialized.count(pragma.signal) != 0});
+      }
+      return ok;
+}
+
 bool Module::elaborate(Design*des, NetScope*scope) const
 {
       bool result_flag = true;
 
       elaborate_specparam_storage_(des, scope);
+      if (!fsm_state_vectors.empty())
+	    result_flag &= elaborate_fsm_states_(des, scope, *this);
 
 	// Elaborate the elaboration tasks.
       for (const auto et : elab_tasks) {

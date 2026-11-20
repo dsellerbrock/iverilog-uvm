@@ -2347,6 +2347,10 @@ extern ivl_signal_t ivl_tchk_notifier(ivl_tchk_t net);
  *    True for a net declaration assignment.
  */
 extern unsigned         ivl_scope_contassigns(ivl_scope_t net);
+/* An explicit FSM and its space-separated, MSB-first state encodings. */
+extern unsigned         ivl_scope_fsm_states(ivl_scope_t net);
+extern const char*      ivl_scope_fsm_state(ivl_scope_t net, unsigned idx,
+                                           ivl_signal_t*signal, int*has_initializer);
 extern ivl_contassign_t ivl_scope_contassign(ivl_scope_t net, unsigned idx);
 extern ivl_expr_t       ivl_contassign_lval(ivl_contassign_t net);
 extern ivl_expr_t       ivl_contassign_rval(ivl_contassign_t net);

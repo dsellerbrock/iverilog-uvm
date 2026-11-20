@@ -158,6 +158,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_NETTYPE_DECL
 %token K_TYPEDEF
 %token K_VPI_IMPORT
+%token K_FSM_STATE
 %token K_vpi_source_location
 %token K_vpi_charge_strength
 %token K_vpi_primitive K_vpi_primterm
@@ -264,6 +265,8 @@ statement
 	   of argument-net labels. */
 	: K_PACKED_DIMS T_SYMBOL ',' T_STRING ';'
 		{ compile_packed_dims($2, $4); }
+	| K_FSM_STATE T_SYMBOL ',' T_NUMBER ',' T_STRING ';'
+		{ compile_fsm_state($2, $4, $6); }
 
 	/* The enum or packed struct/union type of a signal, for VPI
 	   (vpiTypespec). Operands: signal label and type string. */

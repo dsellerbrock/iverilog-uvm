@@ -1931,6 +1931,15 @@ class NetScope : public Definitions, public Attrib {
       };
       std::vector<contassign_t> contassigns;
 
+	/* Explicit FSM state coverage. Encodings are MSB first and resolved
+	   using this instance's final parameters. */
+      struct fsm_state_t {
+	    std::unique_ptr<NetESignal> signal;
+	    std::set<std::string> states;
+	    bool has_initializer;
+      };
+      std::unique_ptr<std::vector<fsm_state_t>> fsm_states;
+
 	/* Defparam statements of this scope once resolved, kept for VPI
 	   (37.28): the target parameter and the r-value elaborated here. */
       struct defparam_t : public LineInfo {

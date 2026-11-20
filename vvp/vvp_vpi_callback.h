@@ -24,6 +24,7 @@
 
 class value_callback;
 class vvp_vector2_t;
+struct fsm_state_coverage;
 
 /* cbStmt metadata and the thread-dispatch fast path. */
 extern bool vpip_statement_callbacks_active;
@@ -65,6 +66,8 @@ class vvp_vpi_callback {
 
       void add_vpi_callback(value_callback*);
       void add_driver_activity_callback(value_callback*);
+      void add_fsm_state_observer(fsm_state_coverage*, bool has_initializer);
+      static void sample_fsm_initial_states();
 #ifdef CHECK_WITH_VALGRIND
 	/* This has only been tested at EOS. */
       void clear_all_callbacks(void);
@@ -97,6 +100,8 @@ class vvp_vpi_callback {
       value_callback*vpi_callbacks_;
       value_callback*driver_activity_callbacks_;
       struct __vpi_array_word*array_words_;
+      struct fsm_watch_s;
+      fsm_watch_s*fsm_watch_ = nullptr;
       void run_force_callbacks_(int reason, const vvp_vector2_t*mask,
                                 bool have_range, unsigned base,
                                 unsigned width);

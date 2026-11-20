@@ -1,0 +1,6 @@
+{
+    "type": "normal",
+    "source": "issue3951_fsm_state_2017.v",
+    "iverilog-args": ["-g2017", "-s", "issue3951_fsm_state", "-s", "issue3951_machine"],
+    "gold": "issue3951_fsm_state"
+}

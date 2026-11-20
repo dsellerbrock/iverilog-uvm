@@ -365,6 +365,8 @@ ivl_scope_contassign
 ivl_scope_contassigns
 ivl_scope_defparam
 ivl_scope_defparams
+ivl_scope_fsm_state
+ivl_scope_fsm_states
 ivl_scope_switch
 ivl_scope_switches
 ivl_scope_time_precision

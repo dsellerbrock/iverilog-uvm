@@ -30,6 +30,7 @@
 # include  "codes.h"
 # include  "schedule.h"
 # include  "vpi_priv.h"
+# include  "vvp_net_sig.h"
 # include  "parse_misc.h"
 # include  "statistics.h"
 # include  "class_type.h"
@@ -40,6 +41,7 @@
 # include  <list>
 # include  <map>
 # include  <set>
+# include  <sstream>
 # include  <string>
 # include  <vector>
 # include  <cstdlib>
@@ -1312,6 +1314,71 @@ void compile_vpi_contassign(char*label, long flags, long str0, long str1,
       else
 	    free(driver);
       free(label);
+}
+
+class fsm_state_resolv : public resolv_list_s {
+    public:
+      fsm_state_resolv(char*signal, __vpiScope*scope, bool has_initializer,
+                       std::map<std::string, bool> states)
+      : resolv_list_s(signal), scope_(scope), has_initializer_(has_initializer),
+        states_(std::move(states)) { }
+
+      bool resolve(bool mes) override
+      {
+	    vpiHandle obj = vvp_lookup_handle(label());
+	    if (!obj && !mes)
+		  return false;
+	    auto*sig = dynamic_cast<__vpiSignal*>(obj);
+	    if (!sig || sig->is_netarray || sig->packed_parent
+		|| sig->automatic_storage || vpip_scope(sig) != scope_ || !sig->node
+		|| (has_initializer_ && sig->get_type_code() == vpiNet)) {
+		  fprintf(stderr, "vvp: .fsm/state '%s' is not a packed integral "
+			  "signal in the current module.\n", label());
+		  ++compile_errors;
+		  return true;
+	    }
+	    auto*filter = sig->node->fil;
+	    if ((!dynamic_cast<vvp_wire_vec4*>(filter)
+		 && !dynamic_cast<vvp_wire_vec8*>(filter))
+		|| filter->filter_size() != sig->width()
+		|| states_.begin()->first.size() != sig->width()) {
+		  fprintf(stderr, "vvp: .fsm/state '%s' has incompatible state "
+			  "encodings or signal width.\n", label());
+		  ++compile_errors;
+		  return true;
+	    }
+	    vpip_add_fsm_state_coverage(scope_, filter, has_initializer_,
+	                                std::move(states_));
+	    return true;
+      }
+
+    private:
+      __vpiScope*scope_;
+      bool has_initializer_;
+      std::map<std::string, bool> states_;
+};
+
+void compile_fsm_state(char*signal, uint64_t has_initializer, char*encodings)
+{
+      auto*scope = vpip_peek_current_scope();
+      std::istringstream input(encodings);
+      delete[] encodings;
+      std::map<std::string, bool> states;
+      std::string state;
+      bool valid = scope && scope->get_type_code() == vpiModule && has_initializer <= 1;
+      while (valid && (input >> state)) {
+	    valid = state.find_first_not_of("01xz") == std::string::npos
+		 && (states.empty() || states.begin()->first.size() == state.size());
+	    states.emplace(state, false);
+      }
+      if (valid && !states.empty()) {
+	    resolv_submit(new fsm_state_resolv(signal, scope, has_initializer != 0,
+	                                      std::move(states)));
+	    return;
+      }
+      yyerror("invalid .fsm/state scope or state encodings");
+      ++compile_errors;
+      free(signal);
 }
 
 /*

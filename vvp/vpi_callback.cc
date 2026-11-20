@@ -1210,6 +1210,8 @@ void vpiEndOfCompile(void) {
 void vpiStartOfSim(void) {
       simulator_callback* cur;
 
+      vvp_vpi_callback::sample_fsm_initial_states();
+
       /*
        * Walk the list of register callbacks, executing them and
        * freeing them when done.
@@ -1588,6 +1590,46 @@ struct __vpi_array_word {
       unsigned long word;
 };
 
+struct vvp_vpi_callback::fsm_watch_s {
+      explicit fsm_watch_s(vvp_signal_value&source)
+      : signal(source), last_value(source.value_size(), '\0') { }
+
+      bool read_value()
+      {
+	    bool changed = false;
+	    for (unsigned idx = 0; idx < last_value.size(); ++idx) {
+		  char bit = vvp_bit4_to_ascii(signal.value(idx));
+		  char&stored = last_value[last_value.size() - 1 - idx];
+		  changed |= stored != bit;
+		  stored = bit;
+	    }
+	    return changed;
+      }
+
+      void sample(bool initial = false)
+      {
+	    if (!read_value() && !initial)
+		  return;
+	    pending_initial = false;
+	    for (auto*fsm : observers) {
+		  if (!fsm->enabled)
+			continue;
+		  auto state = fsm->states.find(last_value);
+		  if (state != fsm->states.end() && !state->second) {
+			state->second = true;
+			++fsm->hits;
+		  }
+	    }
+      }
+
+      vvp_signal_value& signal;
+      std::string last_value;
+      std::vector<fsm_state_coverage*> observers;
+      bool pending_initial = false;
+};
+
+static std::vector<vvp_vpi_callback*> fsm_initial_observers;
+
 vvp_vpi_callback::vvp_vpi_callback()
 {
       vpi_callbacks_ = 0;
@@ -1597,6 +1639,7 @@ vvp_vpi_callback::vvp_vpi_callback()
 
 vvp_vpi_callback::~vvp_vpi_callback()
 {
+      delete fsm_watch_;
       assert(vpi_callbacks_ == 0);
       assert(driver_activity_callbacks_ == 0);
       assert(array_words_ == 0);
@@ -1615,6 +1658,32 @@ void vvp_vpi_callback::add_vpi_callback(value_callback*cb)
 {
       cb->next = vpi_callbacks_;
       vpi_callbacks_ = cb;
+}
+
+void vvp_vpi_callback::add_fsm_state_observer(fsm_state_coverage*fsm,
+                                             bool has_initializer)
+{
+      if (!fsm_watch_) {
+	    auto*signal = dynamic_cast<vvp_signal_value*>(this);
+	    assert(signal);
+	    fsm_watch_ = new fsm_watch_s(*signal);
+      }
+      if (has_initializer && !fsm_watch_->pending_initial) {
+	    /* Detect changes from the storage default without recording it
+	       as the initial state of a variable with an initializer. */
+	    fsm_watch_->read_value();
+	    fsm_watch_->pending_initial = true;
+	    fsm_initial_observers.push_back(this);
+      }
+      fsm_watch_->observers.push_back(fsm);
+}
+
+void vvp_vpi_callback::sample_fsm_initial_states()
+{
+      for (auto*filter : fsm_initial_observers)
+	    if (filter->fsm_watch_->pending_initial)
+		  filter->fsm_watch_->sample(true);
+      fsm_initial_observers.clear();
 }
 
 void vvp_vpi_callback::add_driver_activity_callback(value_callback*cb)
@@ -1648,6 +1717,9 @@ void vvp_vpi_callback::clear_all_callbacks()
 
 void vvp_vpi_callback::run_vpi_callbacks_in_boundary()
 {
+      /* Sample the effective value before user callbacks can change it. */
+      if (fsm_watch_)
+	    fsm_watch_->sample();
       if (vpi_callbacks_ == 0 && array_words_ == 0)
 	    return;
 
