@@ -1144,6 +1144,9 @@ struct ivl_statement_s {
 	    struct { /* IVL_ST_CONDIT */
 		    /* This is the condition expression */
 		  ivl_expr_t cond_;
+		  ivl_expr_t source_expr;
+		  ivl_if_kind_t source_if_kind;
+		  bool folded;
 		    /* This is two statements, the true and false. */
 		  struct ivl_statement_s*stmt_;
 		    /* This conditional implements an immediate assertion. */
