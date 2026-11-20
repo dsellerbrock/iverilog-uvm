@@ -1,0 +1,8 @@
+{
+    "type": "normal",
+    "source": "issue3910_assoc_selected_class_2017.v",
+    "iverilog-args": [
+        "-g2017"
+    ],
+    "gold": "issue3910_assoc_selected_class"
+}

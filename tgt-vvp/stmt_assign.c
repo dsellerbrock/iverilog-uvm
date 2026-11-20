@@ -99,7 +99,8 @@ static int expr_is_numeric_container_index_(ivl_expr_t expr);
 static int prop_is_numeric_queue_index_(ivl_type_t prop_type, ivl_expr_t idx_expr);
 static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
                                             ivl_signal_t var,
-                                            ivl_type_t var_type);
+                                            ivl_type_t var_type,
+                                            int staged_pattern);
 
 
 static ivl_expr_t prop_lval_index_expr_(ivl_lval_t lval)
@@ -1381,6 +1382,8 @@ static ivl_type_t draw_lval_object_member_(ivl_lval_t lval, ivl_lval_t lval_nest
 
       prop_type = ivl_type_prop_type(sub_type, prop_idx);
       element_type = ivl_type_element(prop_type);
+      int queue_child = element_type && ivl_type_base(element_type) == IVL_VT_QUEUE
+	    && !type_is_fixed_uarray_property_(element_type);
       nested_idx_expr = ivl_lval_idx(lval_nest);
       if (nested_idx_expr) {
 	      /* A DYNAMIC ARRAY property indexes like a queue property:
@@ -1434,15 +1437,20 @@ static ivl_type_t draw_lval_object_member_(ivl_lval_t lval, ivl_lval_t lval_nest
 	    draw_eval_expr_into_integer(nested_idx_expr, 3);
 	    fprintf(vvp_out, "    %s %d, 0; Load queue property %s\n",
 		    prop_load, prop_idx, ivl_type_prop_name(sub_type, prop_idx));
-	    fprintf(vvp_out, "    %s;\n", elem_load);
+	    if (!capture && queue_child)
+		  fprintf(vvp_out, "    %%qdar/loadlv/o \"@%u\";\n",
+			  nested_queue_spec_(element_type));
+	    else
+		  fprintf(vvp_out, "    %s;\n", elem_load);
 	    fprintf(vvp_out, "    %%pop/obj 1, 1;\n");
       } else if (assoc_indexed) {
             const char*key_kind;
 	    fprintf(vvp_out, "    %s %d, 0; Load assoc property %s\n",
 		    prop_load, prop_idx, ivl_type_prop_name(sub_type, prop_idx));
             key_kind = draw_eval_assoc_key_(nested_idx_expr, 0);
-	    if (!capture && type_is_fixed_uarray_property_(element_type)) {
-		  unsigned spec = AA_VIV_FIXED;
+	    if (!capture && (queue_child || type_is_fixed_uarray_property_(element_type))) {
+		  unsigned spec = queue_child ? nested_queue_spec_(element_type)
+					      : AA_VIV_FIXED;
 		  if (strcmp(key_kind, "obj") == 0)
 			  spec += 8;
 		  fprintf(vvp_out, "    %%aa/viv/o/%s %u;\n",
@@ -3424,7 +3432,7 @@ static void draw_dar_elem_part_rval_(ivl_statement_t net, ivl_signal_t var,
       draw_stmt_assign_vector_rhs(net, lwid);
 }
 
-static int show_stmt_assign_sig_darray(ivl_statement_t net)
+static int show_stmt_assign_sig_darray(ivl_statement_t net, int staged_pattern)
 {
       int errors = 0;
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
@@ -3513,7 +3521,10 @@ static int show_stmt_assign_sig_darray(ivl_statement_t net)
       }
 
       if (ivl_lval_idx(lval)) {
-	    show_stmt_assign_sig_darray_queue_mux(net);
+	    if (staged_pattern)
+		  draw_eval_expr_into_integer(ivl_lval_idx(lval), 3);
+	    else
+		  show_stmt_assign_sig_darray_queue_mux(net);
 	    switch (ivl_type_base(element_type)) {
 		case IVL_VT_REAL:
 		  fprintf(vvp_out, "    %%store/dar/r v%p_0;\n", var);
@@ -4013,17 +4024,13 @@ static ivl_type_t checked_assoc_pattern_element_(ivl_expr_t marker)
       return leaf == IVL_VT_REAL || leaf == IVL_VT_STRING ? 0 : element_type;
 }
 
-/* Build the replacement privately. Every item is evaluated in source
- * order and a size mismatch leaves the flag set until the commit test.
- * The ordinary store copies the map and binds its fixed child layout. */
-static int draw_checked_assoc_pattern_assignment_(ivl_expr_t marker,
-						   ivl_type_t element_type,
-						   ivl_signal_t signal,
-						   int property)
+/* Build the replacement privately. Only a valid builder remains on the
+ * object stack and reaches the store, which binds its fixed child layout. */
+static int stage_checked_assoc_pattern_(ivl_expr_t marker,
+					ivl_type_t element_type, unsigned done)
 {
       int flag = allocate_flag();
       unsigned commit = local_count++;
-      unsigned done = local_count++;
       int64_t left = ivl_type_packed_msb(element_type, 0);
       int64_t right = ivl_type_packed_lsb(element_type, 0);
       unsigned size = (unsigned)((left >= right ? left - right : right - left) + 1);
@@ -4037,13 +4044,47 @@ static int draw_checked_assoc_pattern_assignment_(ivl_expr_t marker,
       fprintf(vvp_out, "    %%pop/obj 1, 0; discard invalid pattern\n");
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, commit);
+      clr_flag(flag);
+      return errors;
+}
+
+static int draw_checked_assoc_pattern_assignment_(ivl_expr_t marker,
+						   ivl_type_t element_type,
+						   ivl_signal_t signal,
+						   int property)
+{
+      unsigned done = local_count++;
+      int errors = stage_checked_assoc_pattern_(marker, element_type, done);
       if (signal)
 	    fprintf(vvp_out, "    %%store/obj v%p_0; commit pattern\n", signal);
       else
 	    fprintf(vvp_out, "    %%store/prop/obj %d, 0; commit pattern\n", property);
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
-      clr_flag(flag);
       return errors;
+}
+
+/* A staged value is below the map receiver. For an object key, first
+ * move the value above the receiver, then swap it past the key. Other
+ * keys use separate stacks, so only the final swap is needed. */
+const char*draw_assoc_object_store_key(ivl_expr_t idx, int*errors,
+				      int staged_pattern)
+{
+      if (staged_pattern && expr_is_object_assoc_key_(idx))
+	    fprintf(vvp_out, "    %%swap/obj; place receiver below object key\n");
+      const char*kind = draw_eval_assoc_key_(idx, errors);
+      if (staged_pattern)
+	    fprintf(vvp_out, "    %%swap/obj; place staged pattern above receiver and key\n");
+      return kind;
+}
+
+/* Return -1 for a nonchecked RHS so the caller can use its regular path. */
+int draw_stage_checked_assoc_pattern(ivl_expr_t marker, unsigned*done)
+{
+      ivl_type_t element_type = checked_assoc_pattern_element_(marker);
+      if (!element_type)
+	    return -1;
+      *done = local_count++;
+      return stage_checked_assoc_pattern_(marker, element_type, *done);
 }
 
 /* Store into the existing suffix selected by q[lo:$].  The l-value API bit
@@ -4118,7 +4159,7 @@ static int show_stmt_assign_sig_queue_slice(ivl_statement_t net,
       return errors;
 }
 
-static int show_stmt_assign_sig_queue(ivl_statement_t net)
+static int show_stmt_assign_sig_queue(ivl_statement_t net, int staged_pattern)
 {
       int errors = 0;
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
@@ -4147,12 +4188,13 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 		  return 1;
 	    }
 
-	    int converted = draw_eval_container_value_for_target(rval,
-							    var_type);
-	    if (converted >= 0)
-		  errors += converted;
-	    else
-		  errors += draw_eval_object_value_copy(rval, var_type);
+	    if (!staged_pattern) {
+		  int converted = draw_eval_container_value_for_target(rval, var_type);
+		  if (converted >= 0)
+			errors += converted;
+		  else
+			errors += draw_eval_object_value_copy(rval, var_type);
+	    }
 	    int word = allocate_word();
 	    draw_eval_expr_into_integer(word_expr, word);
 	    note_array_signal_use(var);
@@ -4293,13 +4335,17 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 
       } else if (ivl_lval_idx(lval)) {
             if (ivl_type_queue_assoc_compat(var_type)) {
-                  int handled_errors = show_stmt_assign_sig_assoc_index(net, var, var_type);
+                  int handled_errors = show_stmt_assign_sig_assoc_index(
+			net, var, var_type, staged_pattern);
                   if (handled_errors >= 0) {
                         clr_word(idx);
                         return errors + handled_errors;
                   }
             }
-	    show_stmt_assign_sig_darray_queue_mux(net);
+	    if (staged_pattern)
+		  draw_eval_expr_into_integer(ivl_lval_idx(lval), 3);
+	    else
+		  show_stmt_assign_sig_darray_queue_mux(net);
 	    switch (ivl_type_base(element_type)) {
 		case IVL_VT_REAL:
 		  fprintf(vvp_out, "    %%store/qdar/r v%p_0, %d;\n", var, idx);
@@ -4394,7 +4440,8 @@ static int expr_is_numeric_container_index_(ivl_expr_t expr)
 
 static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
                                             ivl_signal_t var,
-                                            ivl_type_t var_type)
+                                            ivl_type_t var_type,
+                                            int staged_pattern)
 {
       int errors = 0;
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
@@ -4528,7 +4575,10 @@ static int show_stmt_assign_sig_assoc_index(ivl_statement_t net,
           case IVL_VT_QUEUE:
           case IVL_VT_NO_TYPE:
               /* %aa/store/sig/obj applies container/struct value semantics. */
-            errors += draw_eval_nested_object_value_(rval, element_type, 1);
+            if (!staged_pattern)
+                  errors += draw_eval_nested_object_value_(rval, element_type, 1);
+            else if (key_is_object)
+                  fprintf(vvp_out, "    %%swap/obj; place staged pattern above object key\n");
             fprintf(vvp_out, "    %%aa/store/sig/obj/%s v%p_0;\n", key_kind, var);
             return errors;
           default:
@@ -4827,7 +4877,8 @@ static int show_stmt_assign_sig_prop_darray_index(ivl_statement_t net,
 
 static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
                                                  int prop_idx,
-                                                 ivl_type_t prop_type)
+                                                 ivl_type_t prop_type,
+                                                 int staged_pattern)
 {
       int errors = 0;
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
@@ -4856,8 +4907,10 @@ static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
       }
 
       fprintf(vvp_out, "    %%prop/obj %d, 0;\n", prop_idx);
+      if (staged_pattern)
+	    fprintf(vvp_out, "    %%pop/obj 1, 1; discard class receiver\n");
 
-      key_kind = draw_eval_assoc_key_(idx_expr, &errors);
+      key_kind = draw_assoc_object_store_key(idx_expr, &errors, staged_pattern);
 
       if (type_is_fixed_uarray_property_(element_type)) {
 	    errors += draw_eval_nested_object_value_(rval, element_type, 1);
@@ -4911,9 +4964,10 @@ static int show_stmt_assign_sig_prop_assoc_index(ivl_statement_t net,
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
 	      /* %aa/store/obj applies container/struct value semantics. */
-	    errors += draw_eval_nested_object_value_(rval, element_type, 1);
+	    if (!staged_pattern)
+		  errors += draw_eval_nested_object_value_(rval, element_type, 1);
 	    fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
-	    fprintf(vvp_out, "    %%pop/obj 2, 0;\n");
+	    fprintf(vvp_out, "    %%pop/obj %d, 0;\n", 2 - staged_pattern);
 	    return errors;
 	  default:
 	    return -1;
@@ -4950,10 +5004,8 @@ static int show_stmt_assign_nested_queue_slice(ivl_statement_t net)
 }
 
 /* A selected fixed-container receiver may be null because the class handle
- * is null or its fixed property slot is invalid. The write is ignored, but
- * SystemVerilog still evaluates the remaining l-value index/part offset and
- * the RHS exactly once. Emit those evaluations on the null branch and leave
- * every value stack balanced. */
+ * is null or its fixed property slot is invalid. Emit the remaining l-value
+ * evaluations and evaluate the RHS if it has not already been staged. */
 static int discard_nested_container_write_(ivl_expr_t idx_expr,
 					    ivl_expr_t part_expr,
 					    ivl_expr_t rval,
@@ -4982,6 +5034,9 @@ static int discard_nested_container_write_(ivl_expr_t idx_expr,
 	    draw_eval_expr_into_integer(part_expr, off_word);
 	    clr_word(off_word);
       }
+
+      if (!rval)
+	    return errors;
 
       switch (element_type ? ivl_type_base(element_type) : IVL_VT_VOID) {
 	  case IVL_VT_REAL:
@@ -5195,7 +5250,8 @@ static int show_stmt_assign_nested_index_vec4(ivl_statement_t net)
       return errors;
 }
 
-static int show_stmt_assign_nested_index_object(ivl_statement_t net)
+static int show_stmt_assign_nested_index_object(ivl_statement_t net,
+					       int staged_pattern)
 {
       int errors = 0;
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
@@ -5249,7 +5305,8 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
                     "nested container type for this assignment.\n",
                     ivl_stmt_file(net), ivl_stmt_lineno(net));
             fprintf(vvp_out,
-                    "    %%pop/obj 1, 0; missing nested container type\n");
+                    "    %%pop/obj %d, 0; missing nested container type\n",
+                    1 + staged_pattern);
             return 1;
       }
 
@@ -5265,7 +5322,8 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
 		    "type %d is not supported for this assignment.\n",
 		    ivl_stmt_file(net), ivl_stmt_lineno(net), element_kind);
 	    fprintf(vvp_out,
-		    "    %%pop/obj 1, 0; unsupported recovered nested receiver\n");
+		    "    %%pop/obj %d, 0; unsupported recovered nested receiver\n",
+		    1 + staged_pattern);
 	    return 1;
       }
       lab_null = local_count++;
@@ -5278,7 +5336,7 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
           && ivl_type_queue_assoc_compat(container_type)) {
             const char*key_kind;
 
-            key_kind = draw_eval_assoc_key_(idx_expr, &errors);
+            key_kind = draw_assoc_object_store_key(idx_expr, &errors, staged_pattern);
 
             switch (element_kind) {
                 case IVL_VT_REAL:
@@ -5296,8 +5354,8 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
                 case IVL_VT_DARRAY:
                 case IVL_VT_QUEUE:
                 case IVL_VT_NO_TYPE:
-                  errors += draw_eval_nested_object_value_(rval, element_type,
-                                                           1);
+                  if (!staged_pattern)
+                        errors += draw_eval_nested_object_value_(rval, element_type, 1);
                   fprintf(vvp_out, "    %%aa/store/obj/%s;\n", key_kind);
                   break;
                 default:
@@ -5350,8 +5408,10 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
                 case IVL_VT_DARRAY:
                 case IVL_VT_QUEUE:
                 case IVL_VT_NO_TYPE:
-                  errors += draw_eval_nested_object_value_(rval, element_type,
-                                                           1);
+                  if (staged_pattern)
+                        fprintf(vvp_out, "    %%swap/obj; selected nested value\n");
+                  else
+                        errors += draw_eval_nested_object_value_(rval, element_type, 1);
                   fprintf(vvp_out, "    %%flag_mov 4, %d;\n", idx_flag);
                   fprintf(vvp_out, "    %%ix/mov 3, %d;\n", idx_word);
                   /* This opcode checks flag4 and applies container value-copy
@@ -5377,9 +5437,10 @@ static int show_stmt_assign_nested_index_object(ivl_statement_t net)
 
       fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, lab_out);
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
-      errors += discard_nested_container_write_(idx_expr, 0, rval,
+      errors += discard_nested_container_write_(idx_expr, 0,
+						 staged_pattern ? 0 : rval,
 						 container_type, element_type);
-      fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+      fprintf(vvp_out, "    %%pop/obj %d, 0;\n", 1 + staged_pattern);
       fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
       return errors;
 }
@@ -5610,7 +5671,7 @@ static int draw_discard_fixed_property_rhs_(ivl_statement_t net,
       return errors;
 }
 
-static int show_stmt_assign_sig_cobject(ivl_statement_t net)
+static int show_stmt_assign_sig_cobject(ivl_statement_t net, int staged_pattern)
 {
       int errors = 0;
       ivl_lval_t lval = ivl_stmt_lval(net, 0);
@@ -5666,7 +5727,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		  && (ivl_type_base(whole_fixed_leaf) == IVL_VT_QUEUE
 		      || ivl_type_base(whole_fixed_leaf) == IVL_VT_DARRAY);
 	    ivl_type_t checked_pattern_element =
-		  ivl_type_base(sig_type) == IVL_VT_CLASS
+		  !staged_pattern && ivl_type_base(sig_type) == IVL_VT_CLASS
 		  && !ivl_type_is_interface(sig_type)
 		  && ivl_type_queue_assoc_compat(prop_type)
 		  && !ivl_lval_nest(lval) && !fixed_slot_expr
@@ -5694,7 +5755,13 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			  fixed_slot_in_range_flag);
 	    }
 
-	    if (checked_pattern_element) {
+	    if (staged_pattern && !fixed_slot_expr) {
+		  fprintf(vvp_out, "    %%swap/obj; selected property value\n");
+		  fprintf(vvp_out, "    %%store/prop/obj %d, 0; commit pattern\n",
+			  prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; pattern receiver\n");
+
+	    } else if (checked_pattern_element) {
 		  errors += draw_checked_assoc_pattern_assignment_(
 			rval, checked_pattern_element, 0, prop_idx);
 		  fprintf(vvp_out, "    %%pop/obj 1, 0; pattern receiver\n");
@@ -5772,30 +5839,29 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			/* The fixed prefix is a PROPERTY SLOT index, not a dynamic
 			 * container element index. Container property storage keeps
 			 * every fixed slot independent. */
-			if (ivl_expr_type(rval) == IVL_EX_ARRAY
-			    && ivl_type_base(fixed_slot_type) == IVL_VT_QUEUE) {
-			      errors += draw_fixed_uarray_queue_object_(
-				    rval, fixed_slot_type);
-			} else if (rv_ret && ivl_signal_dimensions(rv_ret) > 0) {
-			      if (ivl_type_base(fixed_slot_type) == IVL_VT_QUEUE) {
-				    /* Convert a fixed-array result to the selected queue
-				     * leaf and enforce that leaf's declared bound. */
-				    draw_ufunc_uarray_object(
-					  rval, 1,
-					  ivl_type_queue_max_size(fixed_slot_type));
+			if (!staged_pattern) {
+			      if (ivl_expr_type(rval) == IVL_EX_ARRAY
+				  && ivl_type_base(fixed_slot_type) == IVL_VT_QUEUE) {
+				    errors += draw_fixed_uarray_queue_object_(
+					  rval, fixed_slot_type);
+			      } else if (rv_ret && ivl_signal_dimensions(rv_ret) > 0) {
+				    if (ivl_type_base(fixed_slot_type) == IVL_VT_QUEUE) {
+					  /* Enforce the selected queue's bound. */
+					  draw_ufunc_uarray_object(
+						rval, 1,
+						ivl_type_queue_max_size(fixed_slot_type));
+				    } else {
+					  draw_ufunc_uarray_object(rval, 0, 0);
+				    }
+			      } else if (ivl_type_queue_assoc_compat(fixed_slot_type)
+				  && expr_is_assoc_default_(rval)) {
+				    errors += draw_eval_assoc_default(
+					  rval, ivl_type_element(fixed_slot_type));
 			      } else {
-				    draw_ufunc_uarray_object(rval, 0, 0);
+				    errors += draw_eval_nested_object_value_(
+					  rval, fixed_slot_type,
+					  ivl_type_base(fixed_slot_type) == IVL_VT_QUEUE);
 			      }
-			} else if (ivl_type_queue_assoc_compat(fixed_slot_type)
-			    && expr_is_assoc_default_(rval)) {
-			      errors += draw_eval_assoc_default(
-				    rval, ivl_type_element(fixed_slot_type));
-			} else if (ivl_type_base(fixed_slot_type) == IVL_VT_QUEUE) {
-			      errors += draw_eval_nested_object_value_(
-				    rval, fixed_slot_type, 1);
-			} else {
-			      errors += draw_eval_nested_object_value_(
-				    rval, fixed_slot_type, 0);
 			}
 			slot_word = allocate_word();
 			draw_fixed_uarray_slot_index_(fixed_slot_expr, prop_type,
@@ -5808,6 +5874,8 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			      fprintf(vvp_out,
 				      "    %%jmp/0xz T_%u.%u, %d; fixed property slot is OOB\n",
 				      thread_count, lab_bad_slot, slot_in_range_flag);
+			if (staged_pattern)
+			      fprintf(vvp_out, "    %%swap/obj; selected fixed slot value\n");
 			fprintf(vvp_out, "    %%store/prop/obj %d, %d; fixed-array container slot\n",
 				prop_idx, slot_word);
 			fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
@@ -5826,6 +5894,14 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			if (slot_in_range_flag >= 0)
 			      clr_flag(slot_in_range_flag);
 		  }
+
+	    } else if (staged_pattern && !ivl_type_queue_assoc_compat(prop_type)) {
+		  draw_eval_expr_into_integer(fixed_slot_expr, 3);
+		  fprintf(vvp_out, "    %%prop/obj %d, 0; selected container property\n",
+			  prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 1; discard class receiver\n");
+		  fprintf(vvp_out, "    %%swap/obj; selected container element value\n");
+		  emit_object_queue_store_('i', "obj", queue_live_max_operand_(prop_type), 0);
 
 	    } else if (whole_fixed_container_array) {
 		  /* Whole-array assignment to a fixed property whose words are
@@ -6309,7 +6385,8 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			  } else {
 				int handled_errors = show_stmt_assign_sig_prop_assoc_index(net,
 				                                                     prop_idx,
-				                                                     prop_type);
+				                                                     prop_type,
+				                                                     staged_pattern);
 				if (handled_errors >= 0) {
 				      errors += handled_errors;
 				} else {
@@ -6458,7 +6535,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 				  thread_count, lab_out);
 		    }
 		    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_null);
-		    fprintf(vvp_out, "    %%pop/obj 1, 0;\n");
+		    fprintf(vvp_out, "    %%pop/obj %d, 0;\n", 1 + staged_pattern);
 		    fprintf(vvp_out, "T_%u.%u;\n", thread_count, lab_out);
 		    if (fixed_scalar_slot) {
 			  clr_word(fixed_slot_word);
@@ -6472,7 +6549,8 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 
                     if (sig) {
                           ivl_type_t net_type = ivl_signal_net_type(sig);
-                          handled_errors = show_stmt_assign_sig_assoc_index(net, sig, net_type);
+                          handled_errors = show_stmt_assign_sig_assoc_index(
+                                net, sig, net_type, staged_pattern);
                           if (handled_errors >= 0)
                                 return errors + handled_errors;
                     }
@@ -6485,7 +6563,7 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 		    if (handled_errors >= 0)
 			  return errors + handled_errors;
 
-		    handled_errors = show_stmt_assign_nested_index_object(net);
+		    handled_errors = show_stmt_assign_nested_index_object(net, staged_pattern);
 		    if (handled_errors >= 0)
 			  return errors + handled_errors;
 
@@ -7571,19 +7649,35 @@ int show_stmt_assign(ivl_statement_t net)
 	    return show_stmt_assign_sig_string(net);
       }
 
-      if (sig && (ivl_signal_data_type(sig) == IVL_VT_DARRAY)) {
-	    return show_stmt_assign_sig_darray(net);
-      }
+      ivl_variable_type_t sig_kind = sig ? ivl_signal_data_type(sig) : IVL_VT_VOID;
+      if (sig_kind != IVL_VT_DARRAY && sig_kind != IVL_VT_QUEUE
+	  && sig_kind != IVL_VT_CLASS && sig_kind != IVL_VT_NO_TYPE
+	  && !ivl_lval_nest(lval))
+	    return show_stmt_assign_vector(net);
 
-      if (sig && (ivl_signal_data_type(sig) == IVL_VT_QUEUE)) {
-	    return show_stmt_assign_sig_queue(net);
-      }
+      /* An untimed blocking assignment may evaluate the RHS first
+       * (10.4.1). Reject a failed pattern before resolving a writable
+       * receiver, which can materialize enclosing container elements. */
+      unsigned done = 0;
+      int stage_errors = -1;
+      if (ivl_statement_type(net) == IVL_ST_ASSIGN && !ivl_stmt_delay_expr(net)
+	  && ivl_stmt_opcode(net) == 0 && ivl_stmt_lvals(net) == 1
+	  && (ivl_lval_idx(lval) || ivl_lval_nest(lval))
+	  && !ivl_lval_part_off(lval) && !ivl_lval_is_array_slice(lval)
+	  && ivl_type_queue_assoc_compat(ivl_lval_net_type(lval)))
+	    stage_errors = draw_stage_checked_assoc_pattern(ivl_stmt_rval(net), &done);
 
-      if ((sig && ((ivl_signal_data_type(sig) == IVL_VT_CLASS)
-                || (ivl_signal_data_type(sig) == IVL_VT_NO_TYPE))) ||
-          ivl_lval_nest(lval)) {
-	    return show_stmt_assign_sig_cobject(net);
-      }
+      int staged_pattern = stage_errors >= 0;
+      int errors = staged_pattern ? stage_errors : 0;
 
-      return show_stmt_assign_vector(net);
+      if (sig_kind == IVL_VT_DARRAY)
+	    errors += show_stmt_assign_sig_darray(net, staged_pattern);
+      else if (sig_kind == IVL_VT_QUEUE)
+	    errors += show_stmt_assign_sig_queue(net, staged_pattern);
+      else
+	    errors += show_stmt_assign_sig_cobject(net, staged_pattern);
+
+      if (staged_pattern)
+	    fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
+      return errors;
 }

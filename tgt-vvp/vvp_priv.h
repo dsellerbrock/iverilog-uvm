@@ -381,6 +381,9 @@ extern int draw_eval_assoc_default(ivl_expr_t marker,
                                    ivl_type_t element_type);
 extern int draw_eval_assoc_pattern(ivl_expr_t marker,
                                    ivl_type_t element_type);
+extern int draw_stage_checked_assoc_pattern(ivl_expr_t marker, unsigned*done);
+extern const char*draw_assoc_object_store_key(ivl_expr_t idx, int*errors,
+                                             int staged_pattern);
 
 /*
  * Like draw_eval_object, but applies unpacked-struct VALUE semantics when the
