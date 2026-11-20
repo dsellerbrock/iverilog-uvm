@@ -3075,6 +3075,21 @@ static int eval_object_sfunc(ivl_expr_t expr)
       const char*name = ivl_expr_name(expr);
       unsigned parm_count = ivl_expr_parms(expr);
 
+      if (strncmp(name, "$ivl_format_bytes$",
+		  sizeof("$ivl_format_bytes$") - 1) == 0) {
+	    ivl_type_t type = ivl_expr_net_type(expr);
+	    int is_queue = ivl_type_base(type) == IVL_VT_QUEUE;
+	    draw_vpi_sfunc_call(expr);
+	    fprintf(vvp_out, "    %%container/bytes/%c;\n", is_queue ? 'q' : 'a');
+	    if (is_queue) {
+		  uint64_t max_size = ivl_type_queue_max_size(type);
+		  if (max_size)
+			fprintf(vvp_out, "    %%container/layout/q %" PRIu64 ";\n",
+				max_size);
+	    }
+	    return 0;
+      }
+
       if (strcmp(name, "$ivl_bounded_queue_literal") == 0) {
 	    uint64_t max_size = ivl_type_queue_max_size(ivl_expr_net_type(expr));
 	    assert(parm_count == 1 && max_size > 0);

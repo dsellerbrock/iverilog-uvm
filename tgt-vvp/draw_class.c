@@ -43,7 +43,8 @@ static const char *covgrp_comment_metadata(const char *type_comment,
 	return metadata;
 }
 
-static void show_prop_type(ivl_type_t ptype, const char*rand_prefix);
+static void show_prop_type(ivl_type_t ptype, const char*rand_prefix,
+			   int class_property);
 
 struct emitted_struct_cobject_s {
       ivl_type_t type;
@@ -157,7 +158,7 @@ static void emit_struct_cobject_definition_(ivl_type_t struct_type)
 	    snprintf(qualifier_prefix, sizeof qualifier_prefix, "q%x:%s",
 		     runtime_property_qualifier_(ptype, (unsigned)qual), rand_prefix);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(struct_type, idx));
-	    show_prop_type(ptype, qualifier_prefix);
+	    show_prop_type(ptype, qualifier_prefix, 0);
 	    note_property_vartype(struct_type, idx);
 	    if (is_unpacked_array_property_type(ptype)) {
 		  unsigned dim;
@@ -272,7 +273,8 @@ static ivl_enumtype_t container_leaf_enum_(ivl_type_t type)
 }
 
 static void show_queue_type_(const char*rand_prefix,
-			     const char*code, ivl_type_t type)
+			     const char*code, ivl_type_t type,
+			     int class_property)
 {
       ivl_enumtype_t element_enum = container_leaf_enum_(type);
       fprintf(vvp_out, "\"%s", rand_prefix ? rand_prefix : "");
@@ -295,32 +297,33 @@ static void show_queue_type_(const char*rand_prefix,
       }
       if (code[0] == 'M' && packed_struct_container_leaf_(type))
 	    emit_assoc_index_type_(type);
-      emit_container_layout_suffix_(type);
+      emit_container_layout_suffix_(type, class_property);
       fputc('"', vvp_out);
 }
 
-static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix)
+static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix,
+				 int class_property)
 {
       ivl_type_t element_type = ivl_type_element(ptype);
       int assoc_compat = ivl_type_queue_assoc_compat(ptype);
       const char*rp = rand_prefix ? rand_prefix : "";
 
       if (!element_type) {
-	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype);
+	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype, class_property);
 	    return;
       }
 
       if (type_is_fixed_uarray_property_(element_type)) {
-	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype);
+	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype, class_property);
 	    return;
       }
 
       switch (ivl_type_base(element_type)) {
 	  case IVL_VT_REAL:
-	    show_queue_type_(rp, assoc_compat ? "Mr" : "Qr", ptype);
+	    show_queue_type_(rp, assoc_compat ? "Mr" : "Qr", ptype, class_property);
 	    break;
 	  case IVL_VT_STRING:
-	    show_queue_type_(rp, assoc_compat ? "MS" : "QS", ptype);
+	    show_queue_type_(rp, assoc_compat ? "MS" : "QS", ptype, class_property);
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
@@ -328,9 +331,9 @@ static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix)
 		  char code[32];
 		  snprintf(code, sizeof code, "Mv%u",
 			   ivl_type_packed_width(element_type));
-		  show_queue_type_(rp, code, ptype);
+		  show_queue_type_(rp, code, ptype, class_property);
 	    } else {
-		  show_queue_type_(rp, "Qv", ptype);
+		  show_queue_type_(rp, "Qv", ptype, 0);
 	    }
 	    break;
 	  case IVL_VT_CLASS:
@@ -338,10 +341,10 @@ static void show_prop_type_queue(ivl_type_t ptype, const char*rand_prefix)
 	  case IVL_VT_QUEUE:
 	  case IVL_VT_NO_TYPE:
 	  case IVL_VT_VOID:
-	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype);
+	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype, class_property);
 	    break;
 	  default:
-	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype);
+	    show_queue_type_(rp, assoc_compat ? "Mo" : "Qo", ptype, class_property);
 	    break;
       }
 }
@@ -375,7 +378,7 @@ static void show_prop_type_darray(ivl_type_t ptype, const char*rand_prefix)
 	    snprintf(dynamic_code, sizeof dynamic_code, "D%sv%u",
 		     ivl_type_signed(element_type) ? "s" : "",
 		     ivl_type_packed_width(element_type));
-	    show_queue_type_(rp, dynamic_code, ptype);
+	    show_queue_type_(rp, dynamic_code, ptype, 0);
 	    return;
 	  }
 	  default:
@@ -384,15 +387,16 @@ static void show_prop_type_darray(ivl_type_t ptype, const char*rand_prefix)
 	/* A dynamic array of dynamic arrays or queues of enums keeps the
 	   leaves' literal set too (18.4). */
       if (container_leaf_enum_(ptype)) {
-	    show_queue_type_(rp, code, ptype);
+	    show_queue_type_(rp, code, ptype, 0);
 	    return;
       }
       fprintf(vvp_out, "\"%s%s", rp, code);
-      emit_container_layout_suffix_(ptype);
+      emit_container_layout_suffix_(ptype, 0);
       fputc('"', vvp_out);
 }
 
-static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
+static void show_prop_type(ivl_type_t ptype, const char*rand_prefix,
+			   int class_property)
 {
       ivl_type_t base_ptype = ptype;
       if (is_unpacked_array_property_type(ptype)) {
@@ -432,7 +436,8 @@ static void show_prop_type(ivl_type_t ptype, const char*rand_prefix)
 	    fprintf(vvp_out, "\"%sS\"", rand_prefix ? rand_prefix : "");
 	    break;
 	  case IVL_VT_QUEUE:
-	    show_prop_type_queue(base_ptype, rand_prefix);
+	    show_prop_type_queue(base_ptype, rand_prefix,
+				 class_property && base_ptype == ptype);
 	    break;
 	  case IVL_VT_BOOL:
 	  case IVL_VT_LOGIC:
@@ -532,7 +537,8 @@ void draw_class_in_scope(ivl_type_t classtype)
 	    snprintf(qualifier_prefix, sizeof qualifier_prefix, "q%x:%s",
 		     runtime_property_qualifier_(ptype, (unsigned)qual), rand_prefix);
 	    fprintf(vvp_out, " %3d: \"%s\", ", idx, ivl_type_prop_name(classtype,idx));
-	    show_prop_type(ptype, qualifier_prefix);
+	    show_prop_type(ptype, qualifier_prefix,
+			   ivl_type_base(classtype) == IVL_VT_CLASS);
 	    note_property_vartype(classtype, idx);
 	    /* Keep the complete source qualifier in the runtime class
 	       definition. The q<hex>: prefix wraps the historical type string,

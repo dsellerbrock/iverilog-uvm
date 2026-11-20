@@ -124,7 +124,7 @@ class PGate : public PNamedItem {
 		       NetExpr*&rise_time,
 		       NetExpr*&fall_time,
 		       NetExpr*&decay_time,
-		       bool as_net_flag =false) const;
+		       PDelays::mode_t mode = PDelays::EXPRESSIONS) const;
 
       unsigned delay_count() const;
 	/* The delay expression IDX as written, or nil. */

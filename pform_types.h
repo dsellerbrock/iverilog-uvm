@@ -958,6 +958,8 @@ struct pform_scoped_name_t {
 
       PPackage *package = nullptr;
       pform_name_t name;
+      // A checker actual keeps its concrete lookup scope after substitution.
+      NetScope *lookup_scope = nullptr;
 };
 
 /* A user-defined nettype is a declaration-scope symbol, independent of the

@@ -48,11 +48,13 @@ class PDelays {
 	/* The delay expression IDX as written (rise, fall, decay), or nil. */
       PExpr* delay_expr(unsigned idx) const { return idx < 3 ? delay_[idx] : 0; }
 
+      enum mode_t { EXPRESSIONS, NETS, CONTINUOUS_ASSIGN };
+
       void eval_delays(Design*des, NetScope*scope,
 		       NetExpr*&rise_time,
 		       NetExpr*&fall_time,
 		       NetExpr*&decay_time,
-		       bool as_nets_flag =false) const;
+		       mode_t mode = EXPRESSIONS) const;
 
       void dump_delays(std::ostream&out) const;
 

@@ -1,0 +1,5 @@
+Warning: queue<vector> is bounded to have at most 3 elements, source has 4 elements.
+Warning: queue<vector> is bounded to have at most 2 elements, source has 5 elements.
+WARNING: ./ivltests/issue3869.sv:115: $sformat has 1 extra argument(s).
+WARNING: ./ivltests/issue3869.sv:118: missing argument for $sformat<%c>.
+PASSED

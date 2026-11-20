@@ -18,8 +18,11 @@
  */
 
 #include "delay.h"
+#include "class_type.h"
 #include "schedule.h"
 #include "vpi_priv.h"
+#include "vvp_cobject.h"
+#include "vvp_net_sig.h"
 #include "compile.h"
 #include "config.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -153,9 +156,26 @@ void vvp_delay_t::set_decay(vvp_time64_t val)
 	    calculate_min_delay_();
 }
 
+struct vvp_fun_delay::member_delays {
+      struct step {
+	    const class_type*owner;
+	    size_t index;
+      };
+      struct operand {
+	    const vvp_fun_signal_object_sa*root = nullptr;
+	    std::vector<step> path;
+	    bool is_real = false;
+	    bool is_signed = false;
+      };
+      operand slots[3];
+      std::unique_ptr<event_> startup;
+      delay_type_t startup_type = UNKNOWN_DELAY;
+};
+
 vvp_fun_delay::vvp_fun_delay(vvp_net_t*n, unsigned width, const vvp_delay_t&d,
-			     bool per_bit, bool whole_vector)
-: net_(n), delay_(d), per_bit_(per_bit), whole_vector_(whole_vector)
+			     bool per_bit, bool whole_vector, bool member_delay)
+: net_(n), delay_(d), per_bit_(per_bit), whole_vector_(whole_vector),
+  member_delays_(member_delay ? new member_delays : nullptr)
 {
       assert(!(per_bit_ && whole_vector_));
       cur_real_ = 0.0;
@@ -180,6 +200,140 @@ vvp_fun_delay::vvp_fun_delay(vvp_net_t*n, unsigned width, const vvp_delay_t&d,
       powr = scope->time_precision - vpip_get_time_precision();
       scale_ = 1;
       for (int lp = 0; lp < powr; lp += 1) scale_ *= 10;
+}
+
+bool vvp_fun_delay::bind_member_delay(unsigned slot,
+				     const vvp_fun_signal_object_sa*root,
+				     const std::vector<uint64_t>&path,
+				     uint64_t type)
+{
+      if (!root || path.empty() || type > 2)
+	    return false;
+
+      const class_type*owner = root->declared_type();
+      member_delays::operand operand;
+      for (size_t depth = 0; depth < path.size(); depth += 1) {
+	    uint64_t index = path[depth];
+	    if (!owner || !owner->is_struct_type() || owner->is_union_type()
+		|| index >= owner->property_count()
+		|| owner->property_is_static(index)
+		|| owner->property_array_size(index) != 1
+		|| !owner->property_dimensions(index).empty())
+		  return false;
+
+	    const std::string&base_type = owner->property_base_type(index);
+	    operand.path.push_back({owner, static_cast<size_t>(index)});
+	    if (depth + 1 < path.size()) {
+		  if (base_type.compare(0, 3, "oc:") != 0)
+			return false;
+		  owner = owner->property_declared_class_type(index);
+	    } else if (type == 2) {
+		  if (base_type != "r")
+			return false;
+	    } else if (!owner->property_vec4_width(index) || base_type == "V"
+		       || (base_type[0] == 's') != (type == 1)) {
+		  return false;
+	    }
+      }
+
+      operand.root = root;
+      operand.is_real = type == 2;
+      operand.is_signed = type == 1;
+      member_delays_->slots[slot] = std::move(operand);
+      return true;
+}
+
+void vvp_fun_delay::set_member_delay_signal_signed(unsigned slot, bool is_signed)
+{
+      member_delays_->slots[slot].is_signed = is_signed;
+}
+
+static vvp_time64_t delay_from_vec4(const vvp_vector4_t&bits, bool is_signed)
+{
+      // Check all bits for X/Z, including any above the simulator time width.
+      vvp_time64_t ticks = 0;
+      if (vector4_to_value(bits, ticks) && is_signed
+	  && bits.size() > 0 && bits.size() < 64
+	  && bits.value(bits.size() - 1) == BIT4_1)
+	    ticks |= ~vvp_time64_t(0) << bits.size();
+      return ticks;
+}
+
+static vvp_time64_t delay_from_scaled_real(double value)
+{
+      // The real-to-vector conversion rounds at local precision.
+      vvp_vector4_t bits(64, value);
+      vvp_time64_t ticks = 0;
+      vector4_to_value(bits, ticks);
+      return ticks;
+}
+
+void vvp_fun_delay::sample_member_delays_(vvp_delay_t&delay) const
+{
+      for (unsigned slot = 0; slot < 3; slot += 1) {
+	    const auto&operand = member_delays_->slots[slot];
+	    if (!operand.root)
+		  continue;
+
+	    vvp_object_t object = operand.root->get_object();
+	    vvp_time64_t ticks = 0;
+	    for (size_t depth = 0; depth < operand.path.size(); depth += 1) {
+		  const auto&step = operand.path[depth];
+		  auto*owner = object.peek<vvp_cobject>();
+		  if (!owner || owner->get_defn() != step.owner) {
+			fprintf(stderr, "vvp: invalid object value for .delay/member\n");
+			vpip_set_return_value(1);
+			schedule_finish(1);
+			return;
+		  }
+		  if (depth + 1 < operand.path.size()) {
+			vvp_object_t next;
+			owner->get_object(step.index, next, 0);
+			object = std::move(next);
+		  } else if (operand.is_real) {
+			ticks = delay_from_scaled_real(owner->get_real(step.index)
+						       * round_) * scale_;
+		  } else {
+			vvp_vector4_t bits;
+			owner->get_vec4(step.index, bits);
+			ticks = delay_from_vec4(bits, operand.is_signed) * round_ * scale_;
+		  }
+	    }
+	    if (slot == 0) delay.set_rise(ticks);
+	    else if (slot == 1) delay.set_fall(ticks);
+	    else delay.set_decay(ticks);
+      }
+}
+
+vvp_time64_t vvp_fun_delay::get_delay(vvp_bit4_t from, vvp_bit4_t to) const
+{
+      if (!member_delays_)
+	    return delay_.get_delay(from, to);
+      vvp_delay_t sampled(delay_);
+      sample_member_delays_(sampled);
+      return sampled.get_delay(from, to);
+}
+
+template <class T>
+bool vvp_fun_delay::defer_member_startup_(delay_type_t type, T event_::*field,
+					 const T&value)
+{
+      if (schedule_simulation_started()) {
+	    // An Active delivery supersedes any older buffered RHS value.
+	    member_delays_->startup.reset();
+	    sample_member_delays_(delay_);
+	    return false;
+      }
+
+      // §4.9.1, §6.8: evaluate the time-zero continuous assignment
+      // after the static initializers have set the member values.
+      if (!member_delays_->startup) {
+	    member_delays_->startup.reset(new event_(0));
+	    schedule_generic(this, 0, false);
+      }
+      member_delays_->startup_type = type;
+      member_delays_->startup.get()->*field = value;
+      return true;
 }
 
 vvp_fun_delay::~vvp_fun_delay()
@@ -451,14 +605,10 @@ void vvp_fun_delay::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                               vvp_context_t)
 {
       if (port.port() > 0) {
-	      // Get the integer value of the bit vector, or 0 if
-	      // there are X or Z bits.
-	    vvp_time64_t bval = 0;
-	      // The following does not work correctly for negative values.
-	      // They should be sign extended to 64 bits (1364-2001 9.7.1).
-	    vector4_to_value(bit, bval);
-	      // Integer values do not need to be rounded so just scale them.
-	    vvp_time64_t val = bval * round_ * scale_;
+	    // Only .delay/member records encode the delay signal's signedness.
+	    bool is_signed = member_delays_
+		  && member_delays_->slots[port.port() - 1].is_signed;
+	    vvp_time64_t val = delay_from_vec4(bit, is_signed) * round_ * scale_;
 
 	    switch (port.port()) {
 		case 1:
@@ -473,6 +623,9 @@ void vvp_fun_delay::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
 	    }
 	    return;
       }
+
+      if (member_delays_ && defer_member_startup_(VEC4_DELAY, &event_::ptr_vec4, bit))
+	    return;
 
       if (per_bit_) {
 	    recv_vec4_per_bit_(bit);
@@ -561,7 +714,14 @@ void vvp_fun_delay::recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
 /* See the recv_vec4 comment above. */
 void vvp_fun_delay::recv_vec8(vvp_net_ptr_t port, const vvp_vector8_t&bit)
 {
+      if (port.port() > 0 && member_delays_) {
+	    recv_vec4(port, reduce4(bit), nullptr);
+	    return;
+      }
       assert(port.port() == 0);
+
+      if (member_delays_ && defer_member_startup_(VEC8_DELAY, &event_::ptr_vec8, bit))
+	    return;
 
       if (per_bit_) {
 	    recv_vec8_per_bit_(bit);
@@ -648,7 +808,9 @@ void vvp_fun_delay::recv_real(vvp_net_ptr_t port, double bit,
 	    /* If the port is not 0, then this is a delay value that
 	    should be rounded and converted to an integer delay. */
 	    vvp_time64_t val = 0;
-	    if (bit > -0.5) {
+	    if (member_delays_) {
+		  val = delay_from_scaled_real(bit * round_) * scale_;
+	    } else if (bit > -0.5) {
 		  val = (vvp_time64_t) (bit * round_ + 0.5) * scale_;
 	    } else if (bit != bit) {
 		    // For a NaN we use the default (0).
@@ -671,6 +833,9 @@ void vvp_fun_delay::recv_real(vvp_net_ptr_t port, double bit,
 	    }
 	    return;
       }
+
+      if (member_delays_ && defer_member_startup_(REAL_DELAY, &event_::ptr_real, bit))
+	    return;
 
       if (initial_) {
 	    type_ = REAL_DELAY;
@@ -707,6 +872,18 @@ void vvp_fun_delay::recv_real(vvp_net_ptr_t port, double bit,
 
 void vvp_fun_delay::run_run()
 {
+      if (member_delays_ && member_delays_->startup) {
+	    auto startup = std::move(member_delays_->startup);
+	    vvp_net_ptr_t input(net_, 0);
+	    switch (member_delays_->startup_type) {
+		case VEC4_DELAY: recv_vec4(input, startup->ptr_vec4, nullptr); break;
+		case VEC8_DELAY: recv_vec8(input, startup->ptr_vec8); break;
+		case REAL_DELAY: recv_real(input, startup->ptr_real, nullptr); break;
+		default: assert(0);
+	    }
+	    return;
+      }
+
       vvp_time64_t sim_time = schedule_simtime();
 
       /* Per-bit events with the same wake time are one vector update. This
@@ -789,14 +966,13 @@ void vvp_fun_delay::run_run_real_(const struct vvp_fun_delay::event_*cur)
 
 vvp_fun_modpath::vvp_fun_modpath(vvp_net_t*net, unsigned width,
 				 bool showcancelled, bool ondetect)
-: net_(net), src_list_(0), ifnone_list_(0), pending_pulse_(0),
+: net_(net), input_vec4_(width, BIT4_X), cur_vec4_(input_vec4_),
+  out_vec4_(input_vec4_), last_sent_(&out_vec4_),
+  src_list_(0), ifnone_list_(0), pending_pulse_(0),
   has_conditional_paths_(false), has_dst_parts_(false),
   seen_change_(false), last_change_time_(0),
   showcancelled_(showcancelled), ondetect_(ondetect)
 {
-      cur_vec4_ = vvp_vector4_t(width, BIT4_X);
-      out_vec4_ = cur_vec4_;
-      pulse_vec4_ = cur_vec4_;
       schedule_init_propagate(net_, cur_vec4_);
 }
 
@@ -953,7 +1129,15 @@ void vvp_fun_modpath::bit_wakeup_::run_run()
 void vvp_fun_modpath::run_bit_event_(unsigned index, vvp_bit4_t value)
 {
       out_vec4_.set_bit(index, value);
+      last_sent_ = &out_vec4_;
       net_->send_vec4(out_vec4_, 0);
+}
+
+void vvp_fun_modpath::send_full_(const vvp_vector4_t&bit)
+{
+      full_vec4_ = bit;
+      last_sent_ = &full_vec4_;
+      net_->send_vec4(full_vec4_, 0);
 }
 
 void vvp_fun_modpath::run_pulse_events_()
@@ -966,8 +1150,7 @@ void vvp_fun_modpath::run_pulse_events_()
 		  pulse_event_*event = *pos;
 		  if (pending_pulse_ == event)
 			pending_pulse_ = 0;
-		  pulse_vec4_ = event->to;
-		  net_->send_vec4(pulse_vec4_, 0);
+		  send_full_(event->to);
 		  delete event;
 	    }
 	    pulse_events_.erase(bucket);
@@ -1000,6 +1183,7 @@ void vvp_fun_modpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
       if (port.port() > 0)
 	    return;
 
+      input_vec4_ = bit;
       if (!has_conditional_paths_) {
 	    schedule_transition_(bit);
 	    return;
@@ -1221,7 +1405,7 @@ void vvp_fun_modpath::schedule_transition_(const vvp_vector4_t&bit)
 
 void vvp_fun_modpath::run_run()
 {
-      net_->send_vec4(cur_vec4_, 0);
+      send_full_(cur_vec4_);
 }
 
 vvp_fun_modpath_src::vvp_fun_modpath_src(vvp_time64_t const del[12], bool active)
@@ -1376,12 +1560,7 @@ static vpiHandle modpath_src_get_handle(int code, vpiHandle ref)
 	  return rfp->dest->scope;
 
 	  case vpiModule:
-	      { __vpiScope*scope = rfp->dest->scope;
-		while (scope && scope->get_type_code() != vpiModule
-		       && scope->get_type_code() != vpiInterface)
-		      scope = scope->scope;
-		return scope && scope->get_type_code() == vpiModule ? scope : 0;
-	      }
+	    return rfp->dest->vpi_handle(code);
 
 	    // Handles to path term objects should really be obtained via
 	    // the vpi_iterate and vpi_scan functions. Continue to allow
@@ -1669,46 +1848,55 @@ static void initialize_path_term(struct __vpiModPathTerm&obj)
       obj.edge = vpiNoEdge;
 }
 
-/*
- * This function will construct a vpiModPath Object.
- * give a respective "net", and will point to his
- * respective functor
- */
-
-#ifdef CHECK_WITH_VALGRIND
-static struct __vpiModPath**mp_list = 0;
-static unsigned mp_count = 0;
-#endif
-
-struct __vpiModPath* vpip_make_modpath(vvp_net_t *net)
+__vpiDelayTerm::__vpiDelayTerm(__vpiModPath*device, bool input)
+: device_(device), input_(input)
 {
-      struct __vpiModPath*obj = new __vpiModPath;
-      obj->scope = vpip_peek_current_scope ( );
-
-      initialize_path_term(obj->path_term_out);
-      obj->input_net = net ;
-
-#ifdef CHECK_WITH_VALGRIND
-      mp_count += 1;
-      mp_list = static_cast<struct __vpiModPath **>
-                (realloc(mp_list,
-                 mp_count*sizeof(struct __vpiModPath **)));
-      mp_list[mp_count-1] = obj;
-#endif
-      return obj;
 }
 
-#ifdef CHECK_WITH_VALGRIND
-void modpath_delete()
+int __vpiDelayTerm::vpi_get(int code)
 {
-      for (unsigned idx = 0; idx < mp_count; idx += 1) {
-	    delete mp_list[idx];
+      return code == vpiDelayType ? vpiModPathDelay : vpiUndefined;
+}
+
+vpiHandle __vpiDelayTerm::vpi_handle(int code)
+{
+      return code == vpiDelayDevice ? device_ : 0;
+}
+
+void __vpiDelayTerm::vpi_get_value(p_vpi_value val)
+{
+      const vvp_vector4_t&bits =
+	    input_ ? device_->modpath->delay_input() : device_->modpath->delay_output();
+      vpip_vec4_get_value(bits, bits.size(), false, val);
+}
+
+__vpiModPath::__vpiModPath(__vpiScope*scope, vvp_fun_modpath*modpath)
+: scope(scope), modpath(modpath), delay_term_in(this, true), delay_term_out(this, false)
+{
+      initialize_path_term(path_term_out);
+}
+
+int __vpiModPath::vpi_get(int code)
+{
+      return code == vpiDelayType ? vpiModPathDelay : vpiUndefined;
+}
+
+vpiHandle __vpiModPath::vpi_handle(int code)
+{
+      switch (code) {
+	  case vpiInTerm:
+	    return &delay_term_in;
+	  case vpiOutTerm:
+	    return &delay_term_out;
+	  case vpiModule:
+	    for (__vpiScope*cur = scope; cur; cur = cur->scope) {
+		  if (cur->get_type_code() == vpiModule) return cur;
+		  if (cur->get_type_code() == vpiInterface) break;
+	    }
+	    break;
       }
-      free(mp_list);
-      mp_list = 0;
-      mp_count = 0;
+      return 0;
 }
-#endif
 
 /*
  * This function will construct a vpiModPathIn

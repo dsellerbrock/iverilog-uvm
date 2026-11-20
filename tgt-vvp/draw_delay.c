@@ -49,6 +49,60 @@ static char* draw_const_net(const void*ptr, const char*suffix, uint64_t value)
       return strdup(tmp);
 }
 
+static void draw_delay_member_path(ivl_expr_t member)
+{
+      ivl_signal_t sig = ivl_expr_signal(member);
+      if (!sig) {
+	    ivl_expr_t base = ivl_expr_oper2(member);
+	    if (ivl_expr_type(base) == IVL_EX_PROPERTY) {
+		  draw_delay_member_path(base);
+		  fputc(',', vvp_out);
+	    } else {
+		  assert(ivl_expr_type(base) == IVL_EX_SIGNAL);
+		  sig = ivl_expr_signal(base);
+	    }
+      }
+      if (sig)
+	    fprintf(vvp_out, "v%p_0 [", sig);
+      fprintf(vvp_out, "%d", ivl_expr_property_idx(member));
+}
+
+static void draw_member_delay(const void*ptr, unsigned width, const char*input,
+			      ivl_expr_t*delays, unsigned whole_vector,
+			      const char*output_suffix)
+{
+      const char*signals[3] = {0, 0, 0};
+      for (unsigned idx = 0; idx < 3; idx += 1) {
+	    ivl_expr_t exp = delays[idx];
+	    if (exp && ivl_expr_type(exp) == IVL_EX_SIGNAL) {
+		  ivl_signal_t sig = ivl_expr_signal(exp);
+		  assert(ivl_signal_dimensions(sig) == 0);
+		  signals[idx] = draw_net_input(ivl_signal_nex(sig, 0));
+	    }
+      }
+
+      fprintf(vvp_out, "L_%p%s .delay/member %u, %u, %s",
+	      ptr, output_suffix, width, whole_vector, input);
+      for (unsigned idx = 0; idx < 3; idx += 1) {
+	    ivl_expr_t exp = delays[idx];
+	    fputs(", ", vvp_out);
+	    if (!exp) {
+		  fputc('-', vvp_out);
+	    } else if (signals[idx]) {
+		  fprintf(vvp_out, "%s %d", signals[idx], !!ivl_expr_signed(exp));
+	    } else if (ivl_expr_type(exp) == IVL_EX_PROPERTY) {
+		  draw_delay_member_path(exp);
+		  unsigned type = ivl_expr_value(exp) == IVL_VT_REAL
+			? 2 : !!ivl_expr_signed(exp);
+		  fprintf(vvp_out, "] %u", type);
+	    } else {
+		  assert(number_is_immediate(exp, 64, 0));
+		  fprintf(vvp_out, "%" PRIu64, get_number_immediate64(exp));
+	    }
+      }
+      fputs(";\n", vvp_out);
+}
+
 /*
  * Draw the appropriate delay statement.
  */
@@ -62,6 +116,16 @@ void draw_delay_with_suffix(const void*ptr, unsigned wid, const char*input, ivl_
       if (input == 0) {
 	    snprintf(tmp, sizeof tmp, "L_%p/d", ptr);
 	    input = tmp;
+      }
+
+      ivl_expr_t delays[] = {rise_exp, fall_exp, decay_exp};
+      for (unsigned idx = 0; idx < 3; idx += 1) {
+	    if (delays[idx] && ivl_expr_type(delays[idx]) == IVL_EX_PROPERTY) {
+		  assert(!per_bit);
+		  draw_member_delay(ptr, wid, input, delays, whole_vector,
+				    output_suffix);
+		  return;
+	    }
       }
 
 	/* If the delays are all constants then process them here. */

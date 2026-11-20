@@ -593,6 +593,7 @@ static bool constraint_ir_header_type_(const string&token,
             out.sign = true; // size() returns int; alias in typed value pass
             return true;
       }
+      if (fields[0] == "e" && fields.back() == "r") return false;
       bool sign = fields.back() == "s";
       size_t count = fields.size() - (sign ? 1 : 0);
       size_t width_field = 0;
@@ -792,6 +793,8 @@ static bool infer_constraint_integral_type_(IRParser&par,
             string field;
             istringstream input(header);
             while (getline(input, field, ':')) fields.push_back(field);
+            if (op == "fsel" && !fields.empty() && fields.back() == "r")
+                  return false;
             bool sign = !fields.empty() && fields.back() == "s";
             size_t n = fields.size() - (sign ? 1 : 0);
             size_t wi = op == "psel" ? 0 : op == "qmelem" ? 2
@@ -1367,24 +1370,24 @@ struct Z3Builder {
       bool is_signed(Z3_ast a) const
 	    { return signed_vars.find(a) != signed_vars.end(); }
 
-	/* Z3 bitvector sorts do not carry SystemVerilog signedness, and Z3
+	/* Z3 bitvector sorts do not carry SystemVerilog type metadata, and Z3
 	 * hash-conses equal numeral/identity ASTs. Give each occurrence whose type
 	 * metadata changes a fresh alias, constrained equal to its raw bits, so
 	 * marking that alias cannot contaminate another occurrence of the same AST.
 	 * Property/member variables stay unaliased because ordering and write-back
 	 * depend on their stable raw identity. */
-      std::vector<std::pair<Z3_ast,Z3_ast> > signed_constant_aliases;
+      std::vector<std::pair<Z3_ast,Z3_ast> > constant_aliases;
 
 	/* Replace occurrence aliases by their raw values when a caller must fold an
 	 * item, endpoint, exponent, weight, or guard outside the surrounding
 	 * assertion. The assertion parser separately appends alias==raw clauses. */
-      Z3_ast resolve_signed_constants(Z3_ast value) const {
-	    if (!value || signed_constant_aliases.empty()) return value;
+      Z3_ast resolve_constant_aliases(Z3_ast value) const {
+	    if (!value || constant_aliases.empty()) return value;
 	    vector<Z3_ast> from;
 	    vector<Z3_ast> to;
-	    from.reserve(signed_constant_aliases.size());
-	    to.reserve(signed_constant_aliases.size());
-	    for (const auto& alias : signed_constant_aliases) {
+	    from.reserve(constant_aliases.size());
+	    to.reserve(constant_aliases.size());
+	    for (const auto& alias : constant_aliases) {
 		  from.push_back(alias.first);
 		  to.push_back(alias.second);
 	    }
@@ -1564,7 +1567,17 @@ struct Z3Builder {
 	    Z3_ast alias = Z3_mk_fresh_const(ctx, "sv_signed_constant", sort);
 	    set_sv(alias, sv_of(raw));
 	    signed_vars.insert(alias);
-	    signed_constant_aliases.push_back(std::make_pair(alias, raw));
+	    constant_aliases.push_back(std::make_pair(alias, raw));
+	    return alias;
+      }
+
+      Z3_ast tag_real_constant(double value) {
+	    Z3_sort sort = Z3_mk_bv_sort(ctx, 64);
+	    Z3_ast raw = Z3_mk_unsigned_int64(ctx, z3_real_bits_(value), sort);
+	    Z3_ast alias = Z3_mk_fresh_const(ctx, "sv_real_constant", sort);
+	    mark_real(alias);
+	    real_constants[Z3_get_ast_id(ctx, alias)] = value;
+	    constant_aliases.push_back(std::make_pair(alias, raw));
 	    return alias;
       }
 
@@ -1577,7 +1590,7 @@ struct Z3Builder {
 	    Z3_ast alias = Z3_mk_fresh_const(ctx, "sv_integral_cast", sort);
 	    set_sv(alias, width);
 	    if (is_signed) signed_vars.insert(alias);
-	    signed_constant_aliases.push_back(std::make_pair(alias, raw));
+	    constant_aliases.push_back(std::make_pair(alias, raw));
 	    return alias;
       }
 
@@ -2184,7 +2197,32 @@ static Z3_ast parse_size(Z3Builder& b, const string& tok,
       return b.get_size_var(idx, dtype, leaf, selected);
 }
 
-// Parse "e:N:W:I[:s]" -- returns the selected array-element variable.
+/* Read the current binary64 value of a fixed unpacked-array leaf. The key
+ * is the canonical property and flattened index used by integral e: leaves.
+ * Do not register an integral ElemVar for a real state read. */
+static Z3_ast fixed_real_leaf_(Z3Builder&b, unsigned idx, unsigned leaf,
+                               unsigned width)
+{
+      if (b.collect_refs_only) return b.tag_real_constant(0.0);
+      vvp_cobject*owner = b.graph && idx >= b.graph->properties.size()
+	    ? nullptr : b.object(idx);
+      const class_type*type = owner ? owner->get_defn() : nullptr;
+      unsigned pid = owner ? b.local_index(idx) : UINT_MAX;
+      if (width != 64 || !type || pid >= type->property_count()
+	  || type->property_base_type(pid) != "r"
+	  || type->property_dimensions(pid).empty()
+	  || leaf >= type->property_array_size(pid)) {
+	    b.state_errors.push_back("invalid fixed real-array state leaf in constraint");
+	    return b.tag_real_constant(0.0);
+      }
+      if (rand_elem_active_(b, b.prop_active, idx, leaf)) {
+	    b.state_errors.push_back("active fixed real-array leaf is not supported in constraint randomization");
+	    return b.tag_real_constant(0.0);
+      }
+      return b.tag_real_constant(owner->get_real(pid, leaf));
+}
+
+// Parse "e:N:W:I[:s|:r]" -- returns the selected array element.
 static Z3_ast parse_elem(IRParser&, Z3Builder& b, const string& tok)
 {
       const char*s = tok.c_str() + 2; // skip "e:"
@@ -2207,10 +2245,12 @@ static Z3_ast parse_elem(IRParser&, Z3Builder& b, const string& tok)
       if (*s == ':') { elem = (unsigned)atoi(s + 1); ++s; }
       while (*s && *s != ':') ++s;
       bool sflag = (*s == ':' && s[1] == 's');
+      bool real_leaf = strcmp(s, ":r") == 0;
       if (b.collect_refs) {
 	    Z3Builder::VarRef ref = {Z3Builder::VarRef::ELEM, idx, elem};
 	    b.collect_refs->insert(ref);
       }
+      if (real_leaf) return fixed_real_leaf_(b, idx, elem, width);
       if (b.collect_refs_only)
 	    return Z3_mk_unsigned_int64(
 		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width));
@@ -3453,9 +3493,9 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
       if (symbolic_value && state_value && !*state_value
 	  && value_builder.state_checks.empty()) {
 	    *symbolic_value = value;
-	    if (!value_builder.signed_constant_aliases.empty()) {
+	    if (!value_builder.constant_aliases.empty()) {
 		  vector<Z3_ast> alias_from, alias_to;
-		  for (const auto&alias : value_builder.signed_constant_aliases) {
+		  for (const auto&alias : value_builder.constant_aliases) {
 			alias_from.push_back(alias.first);
 			alias_to.push_back(alias.second);
 		  }
@@ -3470,16 +3510,16 @@ static bool eval_runtime_integral_ir(IRParser& par, Z3Builder& b,
       from.reserve(value_builder.prop_vars.size()
 		   + value_builder.member_vars.size()
 		   + value_builder.member_elem_vars.size()
-		   + value_builder.signed_constant_aliases.size());
+		   + value_builder.constant_aliases.size());
       to.reserve(value_builder.prop_vars.size()
 		 + value_builder.member_vars.size()
 		 + value_builder.member_elem_vars.size()
-		 + value_builder.signed_constant_aliases.size());
+		 + value_builder.constant_aliases.size());
 	/* Occurrence-specific aliases preserve constant signedness while the
 	 * expression is built. Restore their raw bits before this out-of-band
 	 * ground fold; unlike assertion parsing, there is no enclosing equality
 	 * clause here. */
-      for (const auto& alias : value_builder.signed_constant_aliases) {
+      for (const auto& alias : value_builder.constant_aliases) {
 	    from.push_back(alias.first);
 	    to.push_back(alias.second);
       }
@@ -4635,6 +4675,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 	    string hdr = par.read_token();
 	    unsigned pidx, width; bool sflag;
 	    parse_pws_header(hdr, pidx, width, sflag);
+	    bool real_leaf = hdr.size() >= 2
+		  && hdr.compare(hdr.size() - 2, 2, ":r") == 0;
 	    pidx = b.property_index(pidx);
 	    string count_token = par.read_token();
 	    if (count_token.compare(0, 2, "c:") != 0) {
@@ -4654,7 +4696,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 		  return b.mk_true();
 	    }
 	    unsigned long two_state = strtoul(state_token.c_str() + 2, &end, 10);
-	    if (end == state_token.c_str() + 2 || *end || two_state > 1) {
+	    if (end == state_token.c_str() + 2 || *end || two_state > 1
+		|| (real_leaf && !two_state)) {
 		  b.state_errors.push_back("invalid fixed-array selection state kind");
 		  return b.mk_true();
 	    }
@@ -4696,8 +4739,9 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 	    par.skip_ws(); par.expect(')');
 	    Z3_ast valid = Z3_mk_false(b.ctx);
 	    vector<Z3_ast> matches(words);
+	    unsigned result_width = real_leaf ? 64 : width;
 	    Z3_ast selected = Z3_mk_unsigned_int64(
-		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, width ? width : 32));
+		  b.ctx, 0, Z3_mk_bv_sort(b.ctx, result_width));
 	    for (unsigned long word = words; word-- > 0;) {
 		  unsigned long ordinal = word;
 		  Z3_ast match = Z3_mk_true(b.ctx);
@@ -4721,11 +4765,13 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			Z3Builder::VarRef ref = {Z3Builder::VarRef::ELEM, pidx, (unsigned)word};
 			b.collect_refs->insert(ref);
 		  }
-		  Z3_ast leaf = b.collect_refs_only
-			? Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width ? width : 32))
-			: b.get_elem_var(pidx, width, (unsigned)word);
-		  if (sflag) b.signed_vars.insert(leaf);
-		  selected = Z3_mk_ite(b.ctx, match, leaf, selected);
+		  if (!real_leaf) {
+			Z3_ast leaf = b.collect_refs_only
+			      ? Z3_mk_unsigned_int64(b.ctx, 0, Z3_mk_bv_sort(b.ctx, width))
+			      : b.get_elem_var(pidx, width, (unsigned)word);
+			if (sflag) b.signed_vars.insert(leaf);
+			selected = Z3_mk_ite(b.ctx, match, leaf, selected);
+		  }
 		  Z3_ast either[2] = {valid, match};
 		  valid = Z3_mk_or(b.ctx, 2, either);
 	    }
@@ -4764,14 +4810,18 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			}
 		    }
 		  }
-		  else if (validity == Z3_L_FALSE)
+		  else if (validity == Z3_L_FALSE) {
 			b.state_errors.push_back(
 			      two_state ? "invalid fixed-array index in constraint"
 			                : "invalid 4-state fixed-array index in constraint");
+			if (real_leaf) return b.tag_real_constant(0.0);
+		  }
 		  else for (unsigned long word = 0; word < words; ++word) {
-			if (two_state) break;
+			if (two_state && !real_leaf) break;
 			if (state_guard_truth_(b, matches[word], index_refs)
 			    != Z3_L_TRUE) continue;
+			if (real_leaf)
+			      return fixed_real_leaf_(b, pidx, (unsigned)word, width);
 			if (!rand_elem_active_(b, b.prop_active, pidx, (unsigned)word)) {
 			      vvp_vector4_t value;
 			      b.object(pidx)->get_vec4(
@@ -4783,7 +4833,15 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			break;
 		  }
 	    }
-	    b.set_sv(selected, width ? width : 32);
+	    if (real_leaf) {
+		  if (b.collect_refs_only) return b.tag_real_constant(0.0);
+		  for (unsigned long word = words; word-- > 0;) {
+			Z3_ast leaf = fixed_real_leaf_(b, pidx, (unsigned)word, width);
+			selected = Z3_mk_ite(b.ctx, matches[word], leaf, selected);
+		  }
+		  b.mark_real(selected);
+	    }
+	    b.set_sv(selected, result_width);
 	    if (sflag) b.signed_vars.insert(selected);
 	    return selected;
       }
@@ -5110,7 +5168,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			Z3_ast key_value;
 			if (!vec4_to_bv_const_(b.ctx, key, kw, key_value)) continue;
 			Z3_ast same = Z3_simplify(b.ctx, Z3_mk_eq(b.ctx,
-			      scratch.resolve_signed_constants(cast), key_value));
+			      scratch.resolve_constant_aliases(cast), key_value));
 			if (Z3_get_bool_value(b.ctx, same) == Z3_L_TRUE) {
 			      idx64 = position;
 			      ok = true;
@@ -5901,7 +5959,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 	         is ground; retain a bit-select ITE form for a solver exponent. */
 	    uint64_t exponent = 0;
 	    Z3_ast simplified = Z3_simplify(
-		  b.ctx, b.resolve_signed_constants(right));
+		  b.ctx, b.resolve_constant_aliases(right));
 	    if (z3_ground_uint64(b.ctx, simplified, exponent)) {
 		  Z3_ast base = left;
 		  while (exponent) {
@@ -5993,7 +6051,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			b.ctx, 0, Z3_get_sort(b.ctx, right));
 		  Z3_ast zero_divisor = Z3_mk_eq(b.ctx, right, zero);
 		  Z3_ast folded_zero_divisor = Z3_simplify(
-			b.ctx, b.resolve_signed_constants(zero_divisor));
+			b.ctx, b.resolve_constant_aliases(zero_divisor));
 		  bool may_be_zero = Z3_get_bool_value(
 			b.ctx, folded_zero_divisor) != Z3_L_FALSE;
 		  if (may_be_zero && !b.collect_refs_only && b.collect_preferences) {
@@ -6848,7 +6906,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			return false;
 		  unsigned source_width = b.sv_of(value);
 		  value = coerce_for_compare(value, width, use_signed);
-		  value = b.resolve_signed_constants(value);
+		  value = b.resolve_constant_aliases(value);
 		  value = Z3_simplify(b.ctx, value);
 		  if (!z3_ground_uint64(b.ctx, value, bits)) {
 			if (!source_ir) return false;
@@ -6922,7 +6980,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 				   bool use_signed, Z3_ast& out) -> bool {
 		  if (!value || width == 0) return false;
 		  value = coerce_for_compare(value, width, use_signed);
-		  value = b.resolve_signed_constants(value);
+		  value = b.resolve_constant_aliases(value);
 		  value = Z3_simplify(b.ctx, value);
 		  if (!Z3_is_numeral_ast(b.ctx, value)) return false;
 		  out = value;
@@ -7269,7 +7327,7 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 				Z3_ast point = value_raw;
 				if (!b.is_real(value_raw)) {
 				      Z3_ast integral_value =
-					    b.resolve_signed_constants(value_raw);
+					    b.resolve_constant_aliases(value_raw);
 				      Z3_ast real_value = b.is_signed(value_raw)
 					    ? Z3_mk_fpa_to_fp_signed(b.ctx,
 						  Z3_mk_fpa_rne(b.ctx), integral_value,
@@ -7454,7 +7512,7 @@ static Z3_ast parse_constraint_ir(const string& ir, Z3Builder& b)
 	/* A builder may parse many independent constraint strings. Append only
 	 * aliases created by this parse so every occurrence is constrained once
 	 * without repeatedly growing earlier conjunctions. */
-      size_t alias_begin = b.signed_constant_aliases.size();
+      size_t alias_begin = b.constant_aliases.size();
 
       while (!par.at_end()) {
 	    par.skip_ws();
@@ -7462,7 +7520,7 @@ static Z3_ast parse_constraint_ir(const string& ir, Z3Builder& b)
 	    const char* before = par.p;
 	    size_t side_begin = b.side_constraints.size();
 	    size_t checks_begin = b.state_checks.size();
-	    Z3_ast expr = bv_to_bool(b.ctx, build_z3_atom(par, b));
+	    Z3_ast expr = constraint_value_to_bool_(b, build_z3_atom(par, b));
 	    size_t side_end = b.side_constraints.size();
 	    size_t checks_end = b.state_checks.size();
 	    if (side_end != side_begin) {
@@ -7498,9 +7556,9 @@ static Z3_ast parse_constraint_ir(const string& ir, Z3Builder& b)
 	    assertions.push_back(expr);
       }
 
-      for (size_t i = alias_begin ; i < b.signed_constant_aliases.size()
+      for (size_t i = alias_begin ; i < b.constant_aliases.size()
 	   ; i += 1) {
-	    const auto& alias = b.signed_constant_aliases[i];
+	    const auto& alias = b.constant_aliases[i];
 	    assertions.push_back(Z3_mk_eq(b.ctx, alias.first, alias.second));
       }
 
@@ -9604,7 +9662,7 @@ static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
             else state_refs.insert(ref);
       }
       vector<Z3_ast> from, to;
-      for (const auto&alias : b.signed_constant_aliases) {
+      for (const auto&alias : b.constant_aliases) {
             from.push_back(alias.first);
             to.push_back(alias.second);
       }
@@ -9701,8 +9759,9 @@ static Z3_lbool state_guard_truth_(Z3Builder&b, Z3_ast value,
       for (const auto&var : b.qelem_vars)
             bits(var.var, cobj_qelem_member_bits(b.cobj, var.qprop, var.elem, var.member));
       if (random) return Z3_L_UNDEF;
+      value = constraint_value_to_bool_(b, value);
       if (!from.empty()) value = Z3_substitute(b.ctx, value, from.size(), from.data(), to.data());
-      return Z3_get_bool_value(b.ctx, Z3_simplify(b.ctx, bv_to_bool(b.ctx, value)));
+      return Z3_get_bool_value(b.ctx, Z3_simplify(b.ctx, value));
 }
 
 /* ---------------------------------------------------------------
@@ -14476,7 +14535,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 		   * itself; otherwise chk can choose an alias equal to the random
 		   * prefill and incorrectly take the accept-current fast path. */
 		  Z3_solver_assert(ctx, chk,
-				   builder.resolve_signed_constants(sa.a));
+				   builder.resolve_constant_aliases(sa.a));
 	    }
 	    bool saved_collect_preferences = builder.collect_preferences;
 	    builder.collect_preferences = false;
@@ -15916,7 +15975,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
             auto used_by_dist = [&](Z3_ast variable) {
                   for (const auto&spec : builder.dist_specs) {
                         set<Z3_ast> leaves;
-                        Z3_ast subject = builder.resolve_signed_constants(
+                        Z3_ast subject = builder.resolve_constant_aliases(
                               spec.subject);
                         if (!z3_collect_constants_(ctx, subject, leaves)
                             || leaves.count(variable)) return true;
@@ -16032,7 +16091,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         // Signed literal/cast tags are equality-pinned
                         // occurrence aliases, not extra random leaves.
                         Z3_ast unaliased =
-                              builder.resolve_signed_constants(spec.subject);
+                              builder.resolve_constant_aliases(spec.subject);
                         set<Z3_ast> leaves;
                         bool collected = z3_collect_constants_(ctx, unaliased,
                               leaves);
@@ -16248,7 +16307,7 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
                         if (!spec.exact_supported || !spec.state_weights
                             || spec.disableable || spec.requires_large_exact)
                               continue;
-                        Z3_ast subject = builder.resolve_signed_constants(
+                        Z3_ast subject = builder.resolve_constant_aliases(
                               spec.subject);
                         subject = Z3_simplify(ctx, subject);
                         if (Z3_get_ast_kind(ctx, subject) != Z3_APP_AST
@@ -19103,7 +19162,7 @@ bool vvp_z3_plan_function_stages(const vector<vvp_z3_object_s>&objects,
                               Z3_ast concrete_ast = parse_constraint_ir(
                                     concrete, collector);
                               concrete_ast = Z3_simplify(ctx,
-                                    collector.resolve_signed_constants(
+                                    collector.resolve_constant_aliases(
                                           concrete_ast));
                               if (!collector.state_errors.empty()) {
                                     plan.error = collector.state_errors.front();

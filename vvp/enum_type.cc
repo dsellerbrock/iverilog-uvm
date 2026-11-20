@@ -411,23 +411,27 @@ class __vpiTypespecAlias : public __vpiHandle {
 
 /* Render the declared type of a packed value for %p. Struct members are
    laid out MSB first. */
-std::string vpip_format_packed_value(vpiHandle spec, vvp_vector4_t value)
+std::string vpip_format_packed_value(vpiHandle spec, vvp_vector4_t value,
+				    bool assignment_pattern)
 {
       while (auto*alias = dynamic_cast<__vpiTypespecAlias*>(spec))
 	    spec = alias->vpi_handle(vpiTypedefAlias);
 
-      if (spec->get_type_code() == vpiStructTypespec) {
+      const bool is_union = spec->get_type_code() == vpiUnionTypespec;
+      if (spec->get_type_code() == vpiStructTypespec
+	  || (assignment_pattern && is_union)) {
 	    auto*aggregate = static_cast<__vpiStructTypespec*>(spec);
 	    if (value.size() != aggregate->width) return {};
 	    std::string result = "'{";
 	    unsigned remaining = value.size();
 	    for (const auto*member : aggregate->members) {
-		  remaining -= member->width;
+		  remaining = is_union ? 0 : remaining - member->width;
 		  if (member != aggregate->members.front()) result += ", ";
 		  result += member->name;
 		  result += ':';
 		  result += vpip_format_packed_value(member->typespec,
-		        value.subvalue(remaining, member->width));
+		        value.subvalue(remaining, member->width), assignment_pattern);
+		  if (is_union) break;
 	    }
 	    result += '}';
 	    return result;
@@ -445,10 +449,31 @@ std::string vpip_format_packed_value(vpiHandle spec, vvp_vector4_t value)
 	    value.cast2();
       }
 
+      const bool is_signed = spec->vpi_get(vpiSigned);
+      if (assignment_pattern)
+	    return vpip_format_integral_literal(value, is_signed);
+
       // log10(2) < 0.30103. Leave space for the sign and the terminator.
       unsigned cap = value.size() * 30103ULL / 100000 + 3;
       std::vector<char> decimal(cap);
-      vpip_vec4_to_dec_str(value, decimal.data(), cap, spec->vpi_get(vpiSigned));
+      vpip_vec4_to_dec_str(value, decimal.data(), cap, is_signed);
+      return decimal.data();
+}
+
+std::string vpip_format_integral_literal(const vvp_vector4_t&value, bool is_signed)
+{
+      if (value.has_xz()) {
+	    // Preserve every X and Z in a legal literal.
+	    std::string out = std::to_string(value.size());
+	    out += is_signed ? "'sb" : "'b";
+	    for (unsigned bit = value.size(); bit > 0; --bit)
+		  out += vvp_bit4_to_ascii(value.value(bit - 1));
+	    return out;
+      }
+
+      unsigned cap = value.size() * 30103ULL / 100000 + 3;
+      std::vector<char> decimal(cap);
+      vpip_vec4_to_dec_str(value, decimal.data(), cap, is_signed);
       return decimal.data();
 }
 
@@ -706,7 +731,11 @@ class property_vartype_resolv_t : public resolv_list_s {
 		  bool missing = false;
 		  vpiHandle spec = parse_vartype(cp, width, missing);
 		  if (missing && !message_flag) return false;
-		  if (spec && !*cp && spec->get_type_code() == vpiStructTypespec
+		  const auto*layout = defn->property_container_layout(idx_);
+		  const int kind = spec ? spec->get_type_code() : 0;
+		  if (spec && !*cp && (kind == vpiStructTypespec
+		      || (layout && layout->assoc.index_width
+			  && (kind == vpiEnumTypespec || kind == vpiUnionTypespec)))
 		      && width == defn->property_typespec_width(idx_)
 		      && !defn->property_typespec(idx_)) {
 			defn->set_property_typespec(idx_, spec);

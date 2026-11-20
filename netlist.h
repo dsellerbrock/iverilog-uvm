@@ -1625,6 +1625,16 @@ class NetScope : public Definitions, public Attrib {
             { generate_definition_ = def; }
       const PGenerate* generate_definition() const
             { return generate_definition_; }
+      void add_checker_temporal_formal(perm_string name)
+      {
+	    if (!checker_temporal_formals_)
+		  checker_temporal_formals_.reset(new std::set<perm_string>);
+	    checker_temporal_formals_->insert(name);
+      }
+      bool claim_checker_temporal_use(perm_string name)
+      {
+	    return checker_temporal_formals_ && checker_temporal_formals_->erase(name);
+      }
       void add_active_generate(const PGenerate*def)
             { active_generate_definitions_.insert(def); }
       bool has_active_generate(const PGenerate*def) const
@@ -2066,6 +2076,7 @@ class NetScope : public Definitions, public Attrib {
       const Module*module_definition_;
       std::string type_owner_identity_;
       const PGenerate*generate_definition_;
+      std::unique_ptr<std::set<perm_string>> checker_temporal_formals_;
       std::set<const PGenerate*>active_generate_definitions_;
       bool is_bind_instance_;
       std::map<perm_string,const PGModule*>bind_instance_names_;

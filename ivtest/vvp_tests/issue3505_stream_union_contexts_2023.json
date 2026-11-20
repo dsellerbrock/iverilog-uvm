@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3505_stream_union_contexts_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue3505_stream_union_contexts"],
+  "gold": "issue3505_stream_union"
+}

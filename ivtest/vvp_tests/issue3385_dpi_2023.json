@@ -1,0 +1,13 @@
+{
+  "type": "normal",
+  "source": "issue3385_dpi.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue3385_dpi"
+  ],
+  "dpi-sources": [
+    "dpi/issue3385_dpi.c"
+  ],
+  "gold": "issue3385_dpi"
+}

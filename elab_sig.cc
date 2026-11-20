@@ -2844,7 +2844,8 @@ static void check_override_signature_(Design*des, const NetScope*method,
 	    if (!cur.port || !base.port)
 		  continue;
 	    std::string arg = "argument " + std::to_string(idx + 1);
-	    if (cur.port->basename() != base.port->basename()) {
+	    if (!cur.unnamed && !base.unnamed
+		&& cur.port->basename() != base.port->basename()) {
 		  report(arg + " is named `" + std::string(cur.port->basename().str())
 			 + "', but the prototype names it `"
 			 + std::string(base.port->basename().str()) + "'");
@@ -4928,7 +4929,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    NetExpr*decay_expr = 0;
 	    if (const PDelays*dly = this->net_delay()) {
 		  dly->eval_delays(des, scope, rise_expr, fall_expr,
-				   decay_expr, true);
+				   decay_expr, PDelays::NETS);
 		  if (dly->delay_count() < 3)
 			decay_expr = 0;
 	    }
@@ -4961,7 +4962,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    NetExpr*fall_expr = 0;
 	    NetExpr*decay_expr = 0;
 	    net_delay->eval_delays(des, scope, rise_expr, fall_expr,
-				   decay_expr, true);
+				   decay_expr, PDelays::NETS);
 
 	    if (rise_expr) {
 		  /* Resolve every driver on a hidden net, then delay the one

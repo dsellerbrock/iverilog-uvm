@@ -5261,7 +5261,11 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       InterfaceContinuousContext context(interface_continuous_context_t::SOURCE);
 
       NetExpr* rise_time, *fall_time, *decay_time;
-      eval_delays(des, scope, rise_time, fall_time, decay_time, true);
+      eval_delays(des, scope, rise_time, fall_time, decay_time,
+		  PDelays::CONTINUOUS_ASSIGN);
+      bool member_delay = dynamic_cast<const NetEProperty*>(rise_time)
+	    || dynamic_cast<const NetEProperty*>(fall_time)
+	    || dynamic_cast<const NetEProperty*>(decay_time);
 
       ivl_drive_t drive0 = strength0();
       ivl_drive_t drive1 = strength1();
@@ -5678,6 +5682,16 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	// not the physical pin count: a one-element unpacked array has one pin
 	// but still uses array assignment-pattern and compatibility semantics.
       if (lval->unpacked_dimensions() > 0) {
+	    // The ordinary whole-array path does not apply assignment delays.
+	    // Keep rejecting member delays there until that path supports them.
+	    if (member_delay && !lval->user_nettype()) {
+		  cerr << get_fileline() << ": sorry: A continuous assignment "
+		       << "to this unpacked array cannot use a struct member delay."
+		       << endl;
+		  des->errors += 1;
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  return;
+	    }
 	    if (lval->user_nettype()) {
 		  if (delay_count() > 1) {
 			cerr << get_fileline() << ": error: An array of nets with "
@@ -5756,8 +5770,6 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	 * delays. */
       bool whole_vector_delay = (rise_time || fall_time || decay_time)
 	    && lval->vector_width() > 1;
-      if (whole_vector_delay)
-	    need_driver_flag = true;
 
 	// expression elaboration should have caused the rval width to
 	// match the l-value by now.
@@ -5790,7 +5802,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    need_driver_flag = false;
       }
 
-      if (whole_vector_delay)
+      if (whole_vector_delay || member_delay)
 	    need_driver_flag = true;
 
       /* A select can carry the strength of a net into a switch. A
@@ -6664,7 +6676,7 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 
       if (check_delay_count(des)) return;
       NetExpr* rise_time, *fall_time, *decay_time;
-      eval_delays(des, scope, rise_time, fall_time, decay_time, true);
+      eval_delays(des, scope, rise_time, fall_time, decay_time, PDelays::NETS);
 
       struct attrib_list_t*attrib_list;
       unsigned attrib_list_n = 0;
@@ -8644,6 +8656,9 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 				    // ports (IEEE 1800-2017/2023 23.3.2.4).
 					if (sr.net != 0
 					    || (rmod->is_event_port(j) && sr.eve != 0)
+					|| (rmod->is_checker && !rmod->is_event_port(j)
+					    && pform_sva_checker_sequence_actual(
+						  *this, des, scope, rmod->ports[j]->name))
 					    || (sr.scope
 						&& sr.scope->type() == NetScope::MODULE
 						&& sr.scope->is_interface())) {
@@ -8897,6 +8912,13 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    delete checker_event_lifetime_wait;
       }
 
+      vector<bool> temporal_actuals(pins.size(), false);
+      if (rmod->is_checker && strncmp(get_name().str(), "_ivl_pchk", 9) != 0) {
+	    for (NetScope*instance_scope : instance)
+		  pform_sva_elaborate_checker(des, rmod, scope, instance_scope,
+					     pins, temporal_actuals);
+      }
+
 	// M5-5: An interface formal's member types come from the concrete
 	// ACTUAL of THIS instantiation. This is required for generic ports
 	// (`interface i`) and for explicitly typed parameterized interfaces:
@@ -9102,7 +9124,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
        * child is then elaborated with the concrete scalar/vector/real/UDNT
        * type that arrives through its port instead of the logic placeholder. */
       for (unsigned idx = 0; idx < pins.size(); idx += 1) {
-	    if (rmod->is_event_port(idx))
+	    if (rmod->is_event_port(idx) || temporal_actuals[idx])
 		  continue;
 	    if (!pins[idx] || interface_type_error[idx])
 		  continue;
@@ -9135,7 +9157,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    bool using_default = false;
 
 	    perm_string port_name = rmod->get_port_name(idx);
-	    if (interface_type_error[idx])
+	    if (interface_type_error[idx] || temporal_actuals[idx])
 		  continue;
 	    if (rmod->is_event_port(idx)) {
 		  for (NetScope*inst_scope : instance)
@@ -10532,7 +10554,7 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 		  PDelays tmp_del;
 		  tmp_del.set_delays(overrides_, false);
 		  tmp_del.eval_delays(des, scope, rise_expr, fall_expr,
-		                      decay_expr, true);
+		                      decay_expr, PDelays::NETS);
 	    }
       }
 
@@ -11323,8 +11345,57 @@ NetAssign_* PAssign_::elaborate_lval(Design*des, NetScope*scope,
 				  runtime_indexed_slice)
 	    : lval_->elaborate_lval(des, scope, continuous_lval_, false,
 				    authorized_initializer);
-	if (lval && continuous_lval_)
-	      lval->mark_force_lval();
+
+      const PEStreaming*stream = dynamic_cast<const PEStreaming*>(rval());
+      if (stream && stream->is_lval_context()) {
+	    // Unpacking reverses the stream layout of 11.4.14.1: an
+	    // untagged unpacked union contributes its first declared member.
+	    // Project it before either assignment form measures the target.
+	    for (NetAssign_**link = &lval; *link; link = &(*link)->more) {
+		  NetAssign_*leaf = *link;
+		  const netstruct_t*record =
+			dynamic_cast<const netstruct_t*>(leaf->lval_type());
+		  if (!record || record->packed() || !record->union_flag()
+		      || record->tagged_flag())
+			continue;
+		  if (record->members().empty()) {
+			delete lval;
+			return nullptr; // The type declaration already failed.
+		  }
+		  const netstruct_t::member_t&first = record->members().front();
+		  ivl_type_t type = first.net_type;
+		  if (type->packed() && type_is_vectorable(type->base_type())) {
+			if (leaf->get_property_idx() >= 0 || leaf->nest() || leaf->word()) {
+			      // Keep the receiver (and any selector) separate from
+			      // the member and transfer the concatenation tail.
+			      *link = new NetAssign_(leaf);
+			      (*link)->more = leaf->more;
+			      leaf->more = nullptr;
+			      leaf = *link;
+			}
+			leaf->set_property(first.name, 0);
+			continue;
+		  }
+
+		  const netstruct_t*member_record = dynamic_cast<const netstruct_t*>(type);
+		  if ((member_record && !member_record->tagged_flag())
+		      || dynamic_cast<const netuarray_t*>(type)) {
+			cerr << get_fileline() << ": sorry: streaming unpack into "
+			     << "an unpacked aggregate first member of an untagged "
+			     << "union is not yet supported." << endl;
+		  } else {
+			cerr << get_fileline() << ": error: the first member of "
+			     << "the untagged union cannot be a streaming unpack "
+			     << "target (IEEE 1800-2017/2023 11.4.14.1)." << endl;
+		  }
+		  des->errors += 1;
+		  delete lval;
+		  return nullptr;
+	    }
+      }
+
+      if (lval && continuous_lval_)
+	    lval->mark_force_lval();
       return lval;
 }
 
@@ -19777,6 +19848,50 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
 	}
       }
 
+      if (parm_count && eparms[0]
+	  && (name == "$sformat" || name == "$swrite" || name == "$swriteb"
+	      || name == "$swriteh" || name == "$swriteo")) {
+	    ivl_type_t type = eparms[0]->net_type();
+	    if (dynamic_cast<const netdarray_t*>(type)) {
+		  NetAssign_*lv = nullptr;
+		  if (positional_byte_container_type(type)) {
+			unsigned errors_before = des->errors;
+			lv = parms_[0].parm->elaborate_lval(des, scope, false, false);
+			if (!lv && des->errors == errors_before) {
+			      cerr << get_fileline() << ": error: " << name
+				   << "'s first argument must be a writable variable."
+				   << endl;
+			      des->errors += 1;
+			}
+		  } else {
+			cerr << get_fileline() << ": error: " << name
+			     << " requires a positional array with byte-equivalent "
+			     << "elements for a dynamic array or queue destination."
+			     << endl;
+			des->errors += 1;
+		  }
+		  delete eparms[0];
+		  if (!lv) {
+			for (unsigned idx = 1; idx < parm_count; ++idx)
+			      delete eparms[idx];
+			return nullptr;
+		  }
+
+		    // 21.3.3 assigns the formatted bytes as a string literal.
+		    // Use the ordinary store for automatic variables and properties.
+		  scope->calls_sys_task(true);
+		  string formatter = "$ivl_format_bytes" + string(name.str());
+		  NetESFunc*fmt = new NetESFunc(formatter.c_str(), type,
+						parm_count - 1);
+		  fmt->set_line(*this);
+		  for (unsigned idx = 1; idx < parm_count; ++idx)
+			fmt->parm(idx - 1, eparms[idx]);
+		  NetAssign*assign = new NetAssign(lv, fmt);
+		  assign->set_line(*this);
+		  return assign;
+	    }
+      }
+
 	// Special case: Specify blocks and interconnects are turned off,
 	// and this is an $sdf_annotate system task. There will be nothing for
 	// $sdf to annotate, and the user is intending to turn the behavior
@@ -20263,7 +20378,8 @@ static void validate_uninstantiated_interface_method_call_(
       names.reserve(count);
       if (ports) {
 	    for (const pform_tf_port_t&port : *ports)
-		  names.push_back(port.port ? port.port->basename() : perm_string());
+		  names.push_back(port.port && !port.unnamed
+				  ? port.port->basename() : perm_string());
       }
       vector<PExpr*>actuals = map_named_args(des, names, parms);
       for (unsigned idx = 0 ; idx < count ; idx += 1) {
@@ -20473,9 +20589,14 @@ static bool interface_modport_prototype_matches_method_(
 
       const bool method_is_function = method_scope
 	    && method_scope->type() == NetScope::FUNC;
-      const PFunction*func = method_is_function ? method_scope->func_pform() : nullptr;
-      const auto*extern_ports = func && func->is_extern_prototype()
-	    ? func->peek_ports() : nullptr;
+      const PTaskFunc*method = nullptr;
+      if (method_scope) {
+	    if (method_is_function)
+		  method = method_scope->func_pform();
+	    else if (method_scope->type() == NetScope::TASK)
+		  method = method_scope->task_pform();
+      }
+      const auto*method_ports = method ? method->peek_ports() : nullptr;
 
       NetScope*declaration_scope = method_scope
 	    ? const_cast<NetScope*>(method_scope->parent()) : nullptr;
@@ -20516,8 +20637,11 @@ static bool interface_modport_prototype_matches_method_(
 	    if (!prototype_port.port || !implementation_port
 		|| prototype_port.port->get_port_type()
 		   != implementation_port->port_type()
+		|| prototype_port.port->get_const() != implementation_port->get_const()
+		|| prototype_port.port->get_ref_static() != implementation_port->get_ref_static()
 		|| (require_matching_names
-		    && (!extern_ports || !extern_ports->at(idx).unnamed)
+		    && !prototype_port.unnamed
+		    && (!method_ports || !method_ports->at(idx).unnamed)
 		    && prototype_port.port->basename()
 		       != implementation_port->name())) {
 		  matches = false;
@@ -20901,7 +21025,7 @@ static NetSTask* elaborate_dynamic_interface_method_call_(
 	    if (prototype->ports) {
 		  names.reserve(prototype->ports->size());
 		  for (const pform_tf_port_t&port : *prototype->ports)
-			names.push_back(port.port
+			names.push_back(port.port && !port.unnamed
 			      ? port.port->basename() : perm_string());
 	    }
 	    actuals = map_named_args(des, names, parms);
@@ -21304,7 +21428,7 @@ NetESFunc* elaborate_dynamic_interface_function_call(
 	    if (prototype->ports) {
 		  names.reserve(prototype->ports->size());
 		  for (const pform_tf_port_t&port : *prototype->ports)
-			names.push_back(port.port
+			names.push_back(port.port && !port.unnamed
 			      ? port.port->basename() : perm_string());
 	    }
 	    actuals = map_named_args(des, names, parms);
@@ -38388,16 +38512,12 @@ static string constraint_constant_ir_(const PEIdent*id,
       return "";
 }
 
-/* Can a STATE variable of this type take part in a constraint (IEEE
- * 1800-2017 18.3)? The solver reads a state variable as the constant it
- * holds at randomize() time, which it gets from the property's raw
- * bits — so the type must have a bitvector image. A `rand` property of
- * some other type is a separate question (the solver has always given
- * those a 32-bit fallback); this gate only decides whether a NON-rand
- * property is worth emitting instead of dropping the constraint item.
- * `indexed` asks about the element type of an unpacked array, which is
- * what an `arr[i]` reference resolves to. */
-static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
+/* Can a state variable of this type take part in a constraint (IEEE
+ * 1800-2017/2023 18.3)? The solver reads the value held at randomize()
+ * time. `indexed` asks about the element type of an unpacked array.
+ * Only indexed reads carry a real leaf type through fixed-array lowering. */
+static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed,
+                                      bool fixed_real_read = false)
 {
       if (!ptype) return false;
       if (!indexed && ptype == &netreal_t::type_real)
@@ -38409,8 +38529,11 @@ static bool constraint_state_prop_ok_(ivl_type_t ptype, bool indexed)
 	    const netqueue_t*qq = dynamic_cast<const netqueue_t*>(ptype);
 	    if (qq)
 		  indexed_assoc = qq->assoc_compat();
-	    if (ua) ptype = ua->element_type();
-	    else if (da) ptype = da->element_type();
+	    if (ua) {
+		  ptype = ua->element_type();
+		  if (ptype == &netreal_t::type_real)
+			return fixed_real_read && generation_flag >= GN_VER2023;
+	    } else if (da) ptype = da->element_type();
 	    else if (qq) ptype = qq->element_type();
 	    else return false;
 	    if (!ptype) return false;
@@ -41200,14 +41323,13 @@ static string scope_randomize_select_ir_(
 
 /* A fixed unpacked array has finitely many e: leaves. Preserve a symbolic
  * state index by passing its declared dimensions to the solver, which selects
- * a matching leaf or applies the element type's invalid-read semantics. */
+ * a matching leaf and tracks invalid indices for constraint guards. */
 static string constraint_fixed_array_select_ir_(
-      unsigned property, unsigned width, bool is_signed, bool two_state,
+      unsigned property, unsigned width, const string&leaf_suffix, bool two_state,
       const netranges_t&dims, const vector<string>&indices)
 {
       if (dims.empty() || dims.size() != indices.size()) return "";
-      string header = to_string(property) + ":" + to_string(width)
-            + (is_signed ? ":s" : "");
+      string header = to_string(property) + ":" + to_string(width) + leaf_suffix;
       string result = "(fsel " + header + " c:" + to_string(dims.size())
             + " c:" + to_string(two_state ? 1 : 0);
       for (const netrange_t&dim : dims) {
@@ -46315,7 +46437,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  }
 		  if (!q.test_rand() && !packed_select && !packed_multi_select
 		      && !constraint_state_prop_ok_(ptype,
-						    !id->path().back().index.empty()))
+						    !id->path().back().index.empty(),
+						    true))
 			return "";
 
 		    // Indexed reference to a static-array rand property
@@ -46498,6 +46621,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				  && ((tail.sel == index_component_t::SEL_BIT && !tail.lsb)
 				      || (tail.sel == index_component_t::SEL_PART
 					  && tail.lsb))) {
+				    if (sel_ua && sel_ua->element_type() == &netreal_t::type_real)
+					  return "";
 				    pform_name_t inner_path = id->path().name;
 				    inner_path.back().index.pop_back();
 				    PEIdent inner(inner_path, id->lexical_pos());
@@ -46603,14 +46728,17 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      ++dim;
 			}
 			ivl_type_t etype = ua->element_type();
-			unsigned ewid = etype ? etype->packed_width() : 32;
+			bool real_leaf = etype == &netreal_t::type_real;
+			unsigned ewid = real_leaf ? 64 : etype ? etype->packed_width() : 32;
 			if (ewid == 0) ewid = 32;
+			string leaf_suffix = real_leaf ? ":r"
+			      : etype && etype->get_signed() ? ":s" : "";
 			if (constant) return "e:" + to_string(idx) + ":"
 			      + to_string(ewid) + ":" + to_string(elem)
-			      + (etype && etype->get_signed() ? ":s" : "");
-			return constraint_fixed_array_select_ir_(idx, ewid,
-			      etype && etype->get_signed(),
-			      etype && etype->base_type() == IVL_VT_BOOL, dims, index_irs);
+			      + leaf_suffix;
+			return constraint_fixed_array_select_ir_(idx, ewid, leaf_suffix,
+			      real_leaf || (etype && etype->base_type() == IVL_VT_BOOL),
+			      dims, index_irs);
 		  }
 
 		  bool real_scalar = ptype == &netreal_t::type_real;
@@ -49657,7 +49785,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 		  && cfe->prefix_names().size() + cfe->loop_vars().size()
 		      <= ua->static_dimensions().size();
 	    if (!qual.test_rand()
-		&& !constraint_state_prop_ok_(foreach_type, true)
+		&& !constraint_state_prop_ok_(foreach_type, true, true)
 		&& !class_key_assoc && !state_fixed_queue)
 		  return "";
 	      // Dynamic array or queue property: the element count is a
@@ -59849,6 +59977,32 @@ find_interface_import_task_prototype_(const Module*interface_module,
       return nullptr;
 }
 
+static bool extern_subroutine_formals_match_(
+		const NetBaseDef&prototype, const NetBaseDef&provider,
+		const vector<pform_tf_port_t>*ports)
+{
+      if (prototype.port_count() != provider.port_count())
+	    return false;
+      if (!ports)
+	    return prototype.port_count() == 0;
+
+      for (unsigned idx = 0; idx < prototype.port_count(); ++idx) {
+	    const NetNet*formal = prototype.port(idx);
+	    const NetNet*implementation = provider.port(idx);
+	    if (!formal || !implementation
+		|| (!ports->at(idx).unnamed
+		    && formal->name() != implementation->name())
+		|| formal->port_type() != implementation->port_type()
+		|| formal->get_const() != implementation->get_const()
+		|| formal->get_ref_static() != implementation->get_ref_static()
+		|| !interface_modport_prototype_type_matches_(
+		      interface_method_formal_type_(formal),
+		      interface_method_formal_type_(implementation)))
+		  return false;
+      }
+      return true;
+}
+
 static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
 {
       if (!scope)
@@ -59931,6 +60085,17 @@ static void elaborate_modport_export_tasks_(Design*des, NetScope*scope)
 			     << provider->basename()
 			     << "' has an incompatible number of arguments (IEEE "
 				"1800-2017/2023 25.7.3)." << endl;
+			des->errors += 1;
+			continue;
+		  }
+
+		  if (extern_task && !extern_subroutine_formals_match_(
+			*stub_def, *provider_def, stub->peek_ports())) {
+			cerr << provider->get_fileline()
+			     << ": error: Provider for extern task `"
+			     << stub_scope->basename()
+			     << "' does not match its prototype "
+				"(IEEE 1800-2017/2023 25.7)." << endl;
 			des->errors += 1;
 			continue;
 		  }
@@ -60031,30 +60196,15 @@ static void collect_extern_functions_(Design*des, NetScope*scope,
 static bool extern_function_signature_matches_(const NetFuncDef*prototype,
 					      const NetFuncDef*provider)
 {
-      if (!prototype || !provider || prototype->is_void() != provider->is_void()
-	  || prototype->port_count() != provider->port_count())
+      if (!prototype || !provider || prototype->is_void() != provider->is_void())
 	    return false;
       if (!prototype->is_void() && !interface_modport_prototype_type_matches_(
 	    interface_method_formal_type_(prototype->return_sig()),
 	    interface_method_formal_type_(provider->return_sig())))
 	    return false;
 
-      const auto*ports = prototype->scope()->func_pform()->peek_ports();
-      for (unsigned idx = 0; idx < prototype->port_count(); ++idx) {
-	    const NetNet*formal = prototype->port(idx);
-	    const NetNet*implementation = provider->port(idx);
-	    if (!formal || !implementation
-		|| (!ports->at(idx).unnamed
-		    && formal->name() != implementation->name())
-		|| formal->port_type() != implementation->port_type()
-		|| formal->get_const() != implementation->get_const()
-		|| formal->get_ref_static() != implementation->get_ref_static()
-		|| !interface_modport_prototype_type_matches_(
-		      interface_method_formal_type_(formal),
-		      interface_method_formal_type_(implementation)))
-		  return false;
-      }
-      return true;
+      return extern_subroutine_formals_match_(
+	    *prototype, *provider, prototype->scope()->func_pform()->peek_ports());
 }
 
 /* Physical interface-port bindings are complete after module elaboration.

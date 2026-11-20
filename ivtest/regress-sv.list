@@ -1759,6 +1759,12 @@ sv_queue_slice_to_last normal,-g2012 ivltests
 sv_class_queue_slice_to_last normal,-g2012 ivltests
 sv_assoc_queue_property normal,-g2012 ivltests
 sv_mailbox_string_real normal,-g2012 ivltests
+issue3505_stream_union_2017 normal,-g2017,-s,issue3505_stream_union ivltests gold=issue3505_stream_union.gold
+issue3505_stream_union_2023 normal,-g2023,-s,issue3505_stream_union ivltests gold=issue3505_stream_union.gold
+issue3505_stream_union_contexts_2017 normal,-g2017,-s,issue3505_stream_union_contexts ivltests gold=issue3505_stream_union.gold
+issue3505_stream_union_contexts_2023 normal,-g2023,-s,issue3505_stream_union_contexts ivltests gold=issue3505_stream_union.gold
+issue3505_stream_union_fail_2017 CE,-g2017,-s,issue3505_stream_union_fail ivltests gold=issue3505_stream_union_fail.gold
+issue3505_stream_union_fail_2023 CE,-g2023,-s,issue3505_stream_union_fail ivltests gold=issue3505_stream_union_fail.gold
 sv_stream_unpacked_array normal,-g2012 ivltests
 sv_stream_unpack_fixed_array_source_2017 normal,-g2017 ivltests
 sv_stream_unpack_fixed_array_source_2023 normal,-g2023 ivltests
@@ -2724,8 +2730,10 @@ sv_assoc_fixed_bounds normal,-g2017 ivltests gold=sv_assoc_fixed_bounds.gold
 sv_assoc_fixed_bounds_2023 normal,-g2023 ivltests gold=sv_assoc_fixed_bounds.gold
 sv_assoc_fixed_container_source normal,-g2017 ivltests gold=sv_assoc_fixed_container_source.gold
 sv_assoc_fixed_container_source_2023 normal,-g2023 ivltests gold=sv_assoc_fixed_container_source.gold
-sv_assoc_fixed_pattern_variable_source_fail CE,-g2017 ivltests gold=sv_assoc_fixed_pattern_variable_source_fail.gold
-sv_assoc_fixed_pattern_variable_source_fail_2023 CE,-g2023 ivltests gold=sv_assoc_fixed_pattern_variable_source_fail.gold
+issue3910_assoc_selected_module_2017 normal,-g2017 ivltests gold=issue3910_assoc_selected_module.gold
+issue3910_assoc_selected_module_2023 normal,-g2023 ivltests gold=issue3910_assoc_selected_module.gold
+issue3910_assoc_selected_class_2017 normal,-g2017 ivltests gold=issue3910_assoc_selected_class.gold
+issue3910_assoc_selected_class_2023 normal,-g2023 ivltests gold=issue3910_assoc_selected_class.gold
 issue3909_assoc_fixed_pattern_2017 normal,-g2017 ivltests gold=issue3909_assoc_fixed_pattern.gold
 issue3909_assoc_fixed_pattern_2023 normal,-g2023 ivltests gold=issue3909_assoc_fixed_pattern.gold
 issue3909_assoc_fixed_pattern_type_2017 CE,-g2017 ivltests gold=issue3909_assoc_fixed_pattern_type.gold
@@ -5105,6 +5113,8 @@ sv_constraint_state_selected_fixed_array normal,-g2017 ivltests gold=sv_constrai
 sv_constraint_state_selected_fixed_array_2023 normal,-g2023 ivltests gold=sv_constraint_state_selected_fixed_array.gold
 sv_constraint_state_selected_fixed_array_bounds normal,-g2017 ivltests gold=sv_constraint_state_selected_fixed_array_bounds.gold
 sv_constraint_state_selected_fixed_array_bounds_2023 normal,-g2023 ivltests gold=sv_constraint_state_selected_fixed_array_bounds.gold
+sv_constraint_fixed_real_state_2017 normal,-g2017,-s,test ivltests gold=sv_constraint_fixed_real_state.gold
+sv_constraint_fixed_real_state_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_fixed_real_state.gold
 sv_constraint_two_state_x_index_error normal,-g2017 ivltests gold=sv_constraint_two_state_x_index_error.gold
 sv_constraint_two_state_x_index_error_2023 normal,-g2023 ivltests gold=sv_constraint_two_state_x_index_error.gold
 
@@ -7072,6 +7082,8 @@ issue3494_array_input_force_2017 normal,-g2017,-s,issue3494_array_input_force iv
 issue3494_array_input_force_2023 normal,-g2023,-s,issue3494_array_input_force ivltests gold=issue3494_array_input_force.gold
 issue3498_array_delay_2017 normal,-g2017,-s,tb ivltests gold=issue3498_array_delay.gold
 issue3498_array_delay_2023 normal,-g2023,-s,tb ivltests gold=issue3498_array_delay.gold
+issue3499_struct_member_delay_2017 normal,-g2017,-s,issue3499_struct_member_delay ivltests gold=issue3499_struct_member_delay.gold
+issue3499_struct_member_delay_2023 normal,-g2023,-s,issue3499_struct_member_delay ivltests gold=issue3499_struct_member_delay.gold
 issue3501_delayed_strength_2017 normal,-g2017,-s,issue3501_delayed_strength ivltests gold=issue3501_delayed_strength.gold
 issue3501_delayed_strength_2023 normal,-g2023,-s,issue3501_delayed_strength ivltests gold=issue3501_delayed_strength.gold
 issue3509_clocking_sequence_2017 normal,-g2017 ivltests
@@ -7399,3 +7411,23 @@ issue2889_iface_path_onehop_2017 normal,-g2017,-gspecify,-Iivltests,-s,top ivlte
 issue2889_iface_path_onehop_2023 normal,-g2023,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
 issue2889_iface_path_multihop_2017 normal,-g2017,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
 issue2889_iface_path_multihop_2023 normal,-g2023,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
+issue3385_2017 normal,-g2017,-s,issue3385 ivltests gold=issue3385-vvp-stdout.gold
+issue3385_2023 normal,-g2023,-s,issue3385 ivltests gold=issue3385-vvp-stdout.gold
+issue3385_bad_2017 CE,-g2017,-s,issue3385_bad ivltests gold=issue3385_bad-iverilog-stderr.gold
+issue3385_bad_2023 CE,-g2023,-s,issue3385_bad ivltests gold=issue3385_bad-iverilog-stderr.gold
+issue3385_dpi_2017 CO,-g2017,-s,issue3385_dpi ivltests
+issue3385_dpi_2023 CO,-g2023,-s,issue3385_dpi ivltests
+issue3863_2017 normal,-g2017,-gassertions,-s,issue3863 ivltests gold=issue3863.gold
+issue3863_error_2017 CE,-g2017,-gassertions,-sissue3863_unclocked,-sissue3863_embedded ivltests gold=issue3863_error.gold
+issue3863_2023 normal,-g2023,-gassertions,-s,issue3863 ivltests gold=issue3863.gold
+issue3863_error_2023 CE,-g2023,-gassertions,-sissue3863_unclocked,-sissue3863_embedded ivltests gold=issue3863_error.gold
+
+# IEEE 1800-2017/2023 21.3.3: formatting into resizable byte containers.
+issue3869_2017 normal,-g2017,-s,issue3869 ivltests gold=issue3869.gold
+issue3869_2023 normal,-g2023,-s,issue3869 ivltests gold=issue3869.gold
+issue3869_bad_2017 CE,-g2017,-s,issue3869_bad ivltests gold=issue3869_bad.gold
+issue3869_bad_2023 CE,-g2023,-s,issue3869_bad ivltests gold=issue3869_bad.gold
+
+# IEEE 1800 7.8.4: %p of class associative properties with integral keys.
+issue2591_p_class_assoc_signed_2017 normal,-g2017 ivltests gold=issue2591_p_class_assoc_signed.gold
+issue2591_p_class_assoc_signed_2023 normal,-g2023 ivltests gold=issue2591_p_class_assoc_signed.gold

@@ -22,10 +22,13 @@
 # include  <stddef.h>
 # include  <list>
 # include  <map>
+# include  <memory>
 # include  <set>
 # include  <vector>
 # include  "vvp_net.h"
 # include  "schedule.h"
+
+class vvp_fun_signal_object_sa;
 
 enum delay_edge_t {
       DELAY_EDGE_01 = 0, DELAY_EDGE_10, DELAY_EDGE_0z,
@@ -109,15 +112,19 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
 
     public:
       vvp_fun_delay(vvp_net_t*net, unsigned width, const vvp_delay_t&d,
-		    bool per_bit = false, bool whole_vector = false);
+		    bool per_bit = false, bool whole_vector = false,
+		    bool member_delay = false);
       ~vvp_fun_delay() override;
+
+      bool bind_member_delay(unsigned slot, const vvp_fun_signal_object_sa*root,
+			     const std::vector<uint64_t>&path, uint64_t type);
+      void set_member_delay_signal_signed(unsigned slot, bool is_signed);
 
       void initialize_udp_output(const vvp_vector4_t&bit);
 
 	// The rise, fall or decay delay this functor applies (37.47
 	// vpi_get_delays() on a continuous assignment).
-      vvp_time64_t get_delay(vvp_bit4_t from, vvp_bit4_t to) const
-      { return delay_.get_delay(from, to); }
+      vvp_time64_t get_delay(vvp_bit4_t from, vvp_bit4_t to) const;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
@@ -141,6 +148,10 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
       void recv_vec8_per_bit_(const vvp_vector8_t&bit);
       vvp_time64_t whole_vector_delay_(const vvp_vector4_t&bit) const;
       vvp_time64_t whole_vector_delay_(const vvp_vector8_t&bit) const;
+      void sample_member_delays_(vvp_delay_t&delay) const;
+      template <class T>
+      bool defer_member_startup_(delay_type_t type, T event_::*field,
+				 const T&value);
 
     private:
       vvp_net_t*net_;
@@ -149,6 +160,8 @@ class vvp_fun_delay  : public vvp_net_fun_t, private vvp_gen_event_s {
       bool initial_; // Indicates if the value is still the initial value.
       bool per_bit_;
       bool whole_vector_;
+      struct member_delays;
+      std::unique_ptr<member_delays> member_delays_;
 
       vvp_vector4_t cur_vec4_;
       vvp_vector8_t cur_vec8_;
@@ -252,8 +265,12 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
 
+      const vvp_vector4_t& delay_input() const { return input_vec4_; }
+      const vvp_vector4_t& delay_output() const { return *last_sent_; }
+
     private:
       virtual void run_run() override;
+      void send_full_(const vvp_vector4_t&bit);
       pulse_event_* enqueue_pulse_event_(vvp_time64_t time,
 					 const vvp_vector4_t& from,
 					 const vvp_vector4_t& to);
@@ -277,14 +294,17 @@ class vvp_fun_modpath  : public vvp_net_fun_t, private vvp_gen_event_s {
     private:
       vvp_net_t*net_;
 
+      vvp_vector4_t input_vec4_;
       vvp_vector4_t cur_vec4_;
       vvp_vector4_t out_vec4_;
+      vvp_vector4_t full_vec4_;
+	/* Points to the per-bit output or the most recent whole-vector send. */
+      const vvp_vector4_t*last_sent_;
 
       vvp_fun_modpath_src*src_list_;
       vvp_fun_modpath_src*ifnone_list_;
       pulse_event_map_t pulse_events_;
       pulse_event_*pending_pulse_;
-      vvp_vector4_t pulse_vec4_;
       bool has_conditional_paths_;
       bool has_dst_parts_;
 	// When the last output change arrived (see path_input_changed_).

@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3863_error_2023.v",
+  "iverilog-args": ["-g2023", "-gassertions", "-s", "issue3863_unclocked", "-s", "issue3863_embedded"],
+  "gold": "issue3863_error"
+}

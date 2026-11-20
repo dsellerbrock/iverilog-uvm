@@ -1001,6 +1001,16 @@ static char* vpi_class_arg_type_label_(ivl_expr_t expr)
    when VPI formats the materialized value. */
 static char* vpi_container_arg_type_(ivl_expr_t expr)
 {
+      if (assoc_property_packed_leaf_(property_expr_value_type_(expr))) {
+            ivl_type_t owner = property_receiver_class_type_(expr);
+            if (ivl_type_base(owner) == IVL_VT_CLASS) {
+                  char buffer[48];
+                  draw_class_in_scope(owner);
+                  snprintf(buffer, sizeof buffer, "P%u:C%p",
+                           ivl_expr_property_idx(expr), owner);
+                  return strdup(buffer);
+            }
+      }
       ivl_type_t type = property_expr_type_(expr);
       if (!type) type = ivl_expr_net_type(expr);
       if (!type || !ivl_type_element(type)) return 0;

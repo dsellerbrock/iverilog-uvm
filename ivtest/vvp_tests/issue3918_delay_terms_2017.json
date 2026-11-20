@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3918_delay_terms.sv",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "top", "-L", "work", "-m", "issue3918_delay_terms_2017"],
+  "vpi-modules": ["issue3918_delay_terms_2017"],
+  "vpi-sources": ["vpi/issue3918_delay_terms.c"],
+  "gold": "issue3918_delay_terms"
+}

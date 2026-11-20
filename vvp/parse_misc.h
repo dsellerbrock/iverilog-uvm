@@ -73,6 +73,16 @@ struct numbv_s {
       long*nvec;
 };
 
+// One .delay/member transition operand. A path uses number for its
+// numeric type (0 unsigned, 1 signed, 2 real). A signal uses number for
+// signedness. A bare number is in ticks.
+struct delay_operand_s {
+      char*signal;
+      std::vector<uint64_t>*path;
+      uint64_t number;
+      bool omitted;
+};
+
 struct enum_name_s {
       char*text;
       uint64_t val2;

@@ -459,10 +459,8 @@ vpiHandle vpip_make_contassign(int flags, int str0, int str1,
 
 /*
  * Drivers and loads (IEEE 1800-2023 37.16, 37.21, 37.46). The objects that
- * drive or load a net or variable are the continuous assignments and the
- * ports connected to it; active forces and procedural assign statements
- * are not described yet. The index is built from the assignment and port
- * records on the first iteration: a design that never asks pays nothing.
+ * drive or load a net or variable are indexed from the VPI records on the
+ * first iteration: a design that never asks pays nothing.
  */
 
 /* One object an assignment or port touches: a signal, or a word of an
@@ -644,6 +642,11 @@ static void conn_scan_scope_(__vpiScope*scope)
 		  __vpiScope*module = conn_module_(ca->scope_);
 		  if (ca->lhs()) conn_add_(ca, module, true, false, ca->lhs());
 		  conn_add_(ca, module, false, false, ca->rhs());
+		  continue;
+	    }
+	    if (__vpiModPath*path = dynamic_cast<__vpiModPath*>(item)) {
+		  conn_add_(&path->delay_term_out, conn_module_(scope),
+			    true, false, path->path_term_out.expr);
 		  continue;
 	    }
 	    vpiPortInfo*port = dynamic_cast<vpiPortInfo*>(item);

@@ -24,6 +24,8 @@ issue3052_vpi_variable_attribute_2017 normal,-g2017,-s,top issue3052_vpi_variabl
 issue3052_vpi_variable_attribute_2023 normal,-g2023,-s,top issue3052_vpi_variable_attribute.c issue3052_vpi_variable_attribute_2023.gold
 issue3403_vpi_charge_strength_2017 normal,-g2017,-s,top issue3403_vpi_charge_strength.c issue3403_vpi_charge_strength_2017.gold
 issue3403_vpi_charge_strength_2023 normal,-g2023,-s,top issue3403_vpi_charge_strength.c issue3403_vpi_charge_strength_2023.gold
+issue3178_vpi_port_bit_conn_2017 normal,-g2017,-s,top issue3178_vpi_port_bit_conn.c issue3178_vpi_port_bit_conn_2017.gold
+issue3178_vpi_port_bit_conn_2023 normal,-g2023,-s,top issue3178_vpi_port_bit_conn.c issue3178_vpi_port_bit_conn_2023.gold
 # The compiler option field is optional and when present will contain
 # all subsequent fields.
 #==========
@@ -296,3 +298,5 @@ issue3872_vpi_while_condition_2017 normal,-g2017,-s,top issue3872_vpi_while_cond
 issue3872_vpi_while_condition_2023 normal,-g2023,-s,top issue3872_vpi_while_condition.c issue3872_vpi_while_condition_2023.gold
 issue3873_vpi_if_condition_2017 normal,-g2017,-s,top issue3873_vpi_if_condition.c issue3873_vpi_if_condition_2017.gold
 issue3873_vpi_if_condition_2023 normal,-g2023,-s,top issue3873_vpi_if_condition.c issue3873_vpi_if_condition_2023.gold
+issue3918_delay_terms_2017 normal,-g2017,-gspecify,-s,top issue3918_delay_terms.c issue3918_delay_terms_2017.gold
+issue3918_delay_terms_2023 normal,-g2023,-gspecify,-s,top issue3918_delay_terms.c issue3918_delay_terms_2023.gold

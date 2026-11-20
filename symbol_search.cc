@@ -1034,11 +1034,22 @@ bool symbol_search(const LineInfo*li, Design*des, NetScope*scope,
       return false;
 }
 
+static void check_checker_temporal_use_(const LineInfo*li, Design*des,
+					const symbol_search_results&result)
+{
+      NetNet*net = result.net;
+      if (!net || !net->scope()->claim_checker_temporal_use(net->name())) return;
+      cerr << li->get_fileline() << ": sorry: temporal actual of checker formal `"
+	   << net->name() << "' is only supported as the whole property of "
+	   << "a static checker assertion." << endl;
+      des->errors += 1;
+}
+
 bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 		   const pform_scoped_name_t &path, unsigned lexical_pos,
 		   struct symbol_search_results *res)
 {
-      NetScope *search_scope = scope;
+      NetScope *search_scope = path.lookup_scope ? path.lookup_scope : scope;
       bool prefix_scope = false;
       bool config_ref = !pform_configs.empty()
 	    && config_note_parameter_search(li, scope, path);
@@ -1078,6 +1089,7 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 		  symbol_search_cache_.find(cache_key);
 	    if (cached != symbol_search_cache_.end()) {
 		  *res = cached->second;
+		  check_checker_temporal_use_(li, des, *res);
 		  return res->is_found();
 	    }
       }
@@ -1132,7 +1144,9 @@ bool symbol_search(const LineInfo *li, Design *des, NetScope *scope,
 	    }
       }
 
-      if (use_cache && found)
-	    symbol_search_cache_[cache_key] = *res;
+      if (found) {
+	    check_checker_temporal_use_(li, des, *res);
+	    if (use_cache) symbol_search_cache_[cache_key] = *res;
+      }
       return found;
 }
