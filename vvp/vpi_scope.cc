@@ -3443,6 +3443,9 @@ void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
 			     PLI_INT32 control_type)
 {
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
+      auto key = std::make_pair(sc, (int)idx);
+      if (sc && assertion_by_key.find(key) != assertion_by_key.end())
+	    return;
       __vpiAssertion*obj = new __vpiAssertion((int)idx, name, file, (int)line,
 					      sc, (int)depth_arg, (int)flags,
 					      (int)assertion_kind);
@@ -3453,7 +3456,7 @@ void vpip_register_assertion(PLI_INT32 idx, const char*name, const char*file,
       replay_assertion_control_(obj);
       if (sc) {
 	    vpip_attach_to_scope(sc, obj);
-	    assertion_by_key[std::make_pair(sc, (int)idx)] = obj;
+	    assertion_by_key[key] = obj;
       }
 }
 
@@ -3526,6 +3529,10 @@ void vpip_register_immediate_assertion(PLI_INT32 source_id, const char*name,
 				      PLI_INT32 assertion_kind,
 				      vpiHandle scope)
 {
+      if (assertion_kind == 2) {
+	    vpip_register_immediate_cover(source_id, name, file, line, scope);
+	    return;
+      }
       __vpiScope*sc = dynamic_cast<__vpiScope*>(scope);
       int immediate_type;
       if (source_id <= 0 || !sc || !line) return;

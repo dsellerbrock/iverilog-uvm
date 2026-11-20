@@ -17857,12 +17857,13 @@ static unsigned sva_active_assertion_kind_ = 1;
 static unsigned sva_active_instance_kind_ = 0;
 static perm_string sva_active_instance_name_;
 
-/* M12B: build the one-time `$ivl_register_assertion` call that gives a
+/* Build the `$ivl_register_assertion` call that gives a
    synthesized concurrent-assertion checker a VPI identity
    (vpi_iterate(vpiAssertion, ...)). idx is the compile-time instance
    number, which together with the runtime scope identifies the
    assertion for callback reporting. The call includes the source assertion
-   kind for vpiType. Placed in the checker's zero-init initial block. */
+   kind for vpiType. VVP registers it during compiletf, after elaboration
+   has folded any scope-dependent latency expression. */
 /* M12-2: `edges' is the FIXED start->accept tick-edge count of the
    assertion automaton (from pform_sva_nfa_fixed_latency), or -1 when
    the latency is variable/unknown. The attempt's real tick latency is
@@ -17938,7 +17939,8 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
 	    lex_strings.make("$ivl_register_assertion"), args);
       FILE_NAME(t, loc);
       if (!sva_active_proc_id_) return t;
-	/* 16.14.6: tie the procedural assertion id to this checker. */
+	/* 16.14.6: bind the procedural id after registering the checker in
+	   the same compiletf pass. */
       std::list<named_pexpr_t> pargs;
       named_pexpr_t p0;
       p0.parm = new PENumber(new verinum((uint64_t)inst, 32));
@@ -17958,6 +17960,10 @@ static Statement* sva_register_stmt_(const struct vlltype&loc, unsigned inst,
       return sva_block_(loc, both);
 }
 
+static void pform_register_immediate_assertion_(const struct vlltype&loc,
+						unsigned id, unsigned kind,
+						const std::string&name);
+
 /* Assign a real assertion-API identity to each simple immediate cover and
    account for every execution independently of its optional action. */
 static unsigned immediate_cover_id_ = 0;
@@ -17974,32 +17980,7 @@ Statement* pform_make_immediate_cover(const struct vlltype&loc, PExpr*expr,
       std::string cover_name = sva_parser_assertion_label_.nil()
 	    ? std::string(nbuf) : std::string(sva_parser_assertion_label_.str());
 
-      std::list<named_pexpr_t> reg_args;
-      named_pexpr_t a0;
-      a0.parm = new PENumber(new verinum((uint64_t)id, 32));
-      reg_args.push_back(a0);
-      named_pexpr_t a1;
-      a1.parm = new PEString(strdup(cover_name.c_str()));
-      reg_args.push_back(a1);
-      named_pexpr_t a2;
-      a2.parm = new PEString(strdup(loc.text ? loc.text : ""));
-      reg_args.push_back(a2);
-      named_pexpr_t a3;
-      a3.parm = new PENumber(
-	    new verinum((uint64_t)loc.first_line, 32));
-      reg_args.push_back(a3);
-      PCallTask*reg = new PCallTask(
-	    lex_strings.make("$ivl_register_immediate_cover"), reg_args);
-      FILE_NAME(reg, loc);
-      LexicalScope*saved_scope = lexical_scope;
-      while (dynamic_cast<PBlock*>(lexical_scope)
-	     && lexical_scope->parent_scope())
-	    lexical_scope = lexical_scope->parent_scope();
-      PProcess*ip = pform_make_behavior(IVL_PR_INITIAL, reg, nullptr);
-      lexical_scope = saved_scope;
-      struct vlltype initloc = loc;
-      initloc.first_line = 0;
-      FILE_NAME(ip, initloc);
+      pform_register_immediate_assertion_(loc, id, 2, cover_name);
 
       auto report = [loc,id](bool success) -> Statement* {
 	    std::list<named_pexpr_t> args;
@@ -18088,6 +18069,41 @@ static std::string immediate_assertion_scope_path_(LexicalScope*scope,
       return path;
 }
 
+static void pform_register_immediate_assertion_(const struct vlltype&loc,
+						unsigned id, unsigned kind,
+						const std::string&name)
+{
+	/* Register the assertion before procedural execution so VPI clients can
+	   place callbacks on it before its first evaluation. Store the marker in
+	   the enclosing declaration scope, which may be a class or package. */
+      std::list<named_pexpr_t> reg_args;
+      named_pexpr_t reg_id;
+      reg_id.parm = new PENumber(new verinum((uint64_t)id, 32));
+      reg_args.push_back(reg_id);
+      named_pexpr_t reg_name;
+      reg_name.parm = new PEString(strdup(name.c_str()));
+      reg_args.push_back(reg_name);
+      named_pexpr_t reg_kind;
+      reg_kind.parm = new PENumber(new verinum((uint64_t)kind, 32));
+      reg_args.push_back(reg_kind);
+      LexicalScope*registration_scope =
+	    immediate_assertion_registration_scope_(lexical_scope);
+      std::string target_scope_path = immediate_assertion_scope_path_(
+	    lexical_scope, registration_scope);
+      named_pexpr_t reg_scope;
+      reg_scope.parm = new PEString(strdup(target_scope_path.c_str()));
+      reg_args.push_back(reg_scope);
+      PCallTask*reg = new PCallTask(
+	    lex_strings.make("$ivl_register_immediate_assertion"), reg_args);
+      FILE_NAME(reg, loc);
+      PProcess*ip = new PProcess(IVL_PR_INITIAL, reg);
+      ip->generated_verification();
+      registration_scope->behaviors.push_back(ip);
+      struct vlltype initloc = loc;
+      initloc.first_line = 0;
+      FILE_NAME(ip, initloc);
+}
+
 Statement* pform_make_immediate_assertion(const struct vlltype&loc,
 						 unsigned assertion_kind,
 					 PExpr*expr,
@@ -18107,35 +18123,7 @@ Statement* pform_make_immediate_assertion(const struct vlltype&loc,
       else
 	    assertion_name = sva_parser_assertion_label_.str();
 
-	/* Register the assertion before procedural execution so VPI clients can
-	   place callbacks on it before its first evaluation. Store the marker in
-	   the enclosing declaration scope, which may be a class or package. */
-      std::list<named_pexpr_t> reg_args;
-      named_pexpr_t reg_id;
-      reg_id.parm = new PENumber(new verinum((uint64_t)id, 32));
-      reg_args.push_back(reg_id);
-      named_pexpr_t reg_name;
-      reg_name.parm = new PEString(strdup(assertion_name.c_str()));
-      reg_args.push_back(reg_name);
-      named_pexpr_t reg_kind;
-      reg_kind.parm = new PENumber(new verinum((uint64_t)assertion_kind, 32));
-      reg_args.push_back(reg_kind);
-      LexicalScope*registration_scope =
-	    immediate_assertion_registration_scope_(lexical_scope);
-      std::string target_scope_path = immediate_assertion_scope_path_(
-	    lexical_scope, registration_scope);
-      named_pexpr_t reg_scope;
-      reg_scope.parm = new PEString(strdup(target_scope_path.c_str()));
-      reg_args.push_back(reg_scope);
-      PCallTask*reg = new PCallTask(
-	    lex_strings.make("$ivl_register_immediate_assertion"), reg_args);
-      FILE_NAME(reg, loc);
-      PProcess*ip = new PProcess(IVL_PR_INITIAL, reg);
-      ip->generated_verification();
-      registration_scope->behaviors.push_back(ip);
-      struct vlltype initloc = loc;
-      initloc.first_line = 0;
-      FILE_NAME(ip, initloc);
+      pform_register_immediate_assertion_(loc, id, assertion_kind, assertion_name);
 
       auto report = [loc,id](bool success) -> Statement* {
 	    std::list<named_pexpr_t> args;

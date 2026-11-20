@@ -2174,7 +2174,8 @@ void compile_cleanup(void)
 				&assertion_kind, &file_idx, &line,
 				&consumed) != 4
 		      || !source_id || !line || file_idx >= file_names.size()
-		      || (assertion_kind != 1 && assertion_kind != 4)
+		      || (assertion_kind != 1 && assertion_kind != 2
+			  && assertion_kind != 4)
 		      || !code->text[consumed] || !scope) {
 			fprintf(stderr,
 				"vvp: invalid immediate assertion registration.\n");

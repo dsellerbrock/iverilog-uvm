@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3974_assertion_inventory.sv",
+  "iverilog-args": ["-g2017"],
+  "vpi-modules": ["issue3974_assertion_inventory_2017"],
+  "vpi-sources": ["vpi/issue3974_assertion_inventory.c"],
+  "gold": "issue3974_assertion_inventory"
+}
