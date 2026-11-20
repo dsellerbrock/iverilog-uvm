@@ -524,6 +524,10 @@ struct constraint_real_bounds_t {
       bool upper_open = false;
 };
 
+struct real_key_interval_t {
+      uint64_t lower, upper;
+};
+
 static bool infer_constraint_integral_type_(
       IRParser&par, constraint_integral_type_t&out);
 static bool infer_constraint_inside_type_(
@@ -1007,6 +1011,12 @@ struct Z3Builder {
       map<unsigned, double> real_constants;
       map<unsigned, constraint_real_bounds_t> real_bounds;
       map<unsigned, vector<double> > real_inside_points;
+      struct RealProduct {
+	    Z3_ast variable;
+	    bool decreasing;
+      };
+      map<Z3_ast, RealProduct> real_products;
+      map<Z3_ast, real_key_interval_t> real_product_ranges;
       bool collect_real_bounds = true;
 
       void mark_real(Z3_ast value) {
@@ -3152,6 +3162,110 @@ static Z3_ast z3_from_real_(Z3Builder&b, Z3_ast value)
       Z3_ast bits = Z3_mk_fpa_to_ieee_bv(b.ctx, value);
       b.mark_real(bits);
       return bits;
+}
+
+// Unsigned keys order all finite binary64 encodings numerically, with -0
+// immediately before +0. Keep both encodings for exact constraint checks.
+static const uint64_t real_sign_bit = UINT64_C(1) << 63;
+
+static uint64_t z3_real_key_(uint64_t bits)
+{
+      return bits & real_sign_bit ? ~bits : bits ^ real_sign_bit;
+}
+
+static uint64_t z3_bits_from_real_key_(uint64_t key)
+{
+      return key & real_sign_bit ? key ^ real_sign_bit : ~key;
+}
+
+static Z3_ast z3_real_key_expr_(Z3_context ctx, Z3_ast variable)
+{
+      Z3_sort sort = Z3_get_sort(ctx, variable);
+      Z3_ast zero = Z3_mk_unsigned_int64(ctx, 0, sort);
+      Z3_ast sign = Z3_mk_unsigned_int64(ctx, real_sign_bit, sort);
+      return Z3_mk_ite(ctx, Z3_mk_bvslt(ctx, variable, zero),
+		       Z3_mk_bvnot(ctx, variable), Z3_mk_bvxor(ctx, variable, sign));
+}
+
+static Z3_ast z3_real_key_range_(Z3_context ctx, Z3_ast key,
+				const real_key_interval_t&range)
+{
+      if (range.lower > range.upper) return Z3_mk_false(ctx);
+      Z3_sort sort = Z3_get_sort(ctx, key);
+      Z3_ast lo = Z3_mk_unsigned_int64(ctx, range.lower, sort);
+      if (range.lower == range.upper) return Z3_mk_eq(ctx, key, lo);
+      Z3_ast hi = Z3_mk_unsigned_int64(ctx, range.upper, sort);
+      Z3_ast bounds[2] = {Z3_mk_bvuge(ctx, key, lo), Z3_mk_bvule(ctx, key, hi)};
+      return Z3_mk_and(ctx, 2, bounds);
+}
+
+// Each probe discards at least half of the remaining keys (at most 64
+// probes). For a first boundary, test the last key of the lower half;
+// for a last boundary, test the first key of the upper half.
+template <typename Probe>
+static bool z3_real_key_boundary_(real_key_interval_t range, bool first,
+				  Probe probe, uint64_t&key)
+{
+      while (range.lower < range.upper) {
+	    uint64_t mid = range.lower + (range.upper - range.lower) / 2;
+	    Z3_lbool present = probe(first ? mid : mid + 1);
+	    if (present == Z3_L_UNDEF) return false;
+	    if ((present == Z3_L_TRUE) == first) range.upper = mid;
+	    else range.lower = mid + 1;
+      }
+      key = range.lower;
+      return true;
+}
+
+static bool z3_finite_real_constant_(Z3Builder&b, Z3_ast fp, double&value)
+{
+      Z3_ast bits = Z3_simplify(b.ctx, b.resolve_signed_constants(
+	    Z3_mk_fpa_to_ieee_bv(b.ctx, fp)));
+      uint64_t raw = 0;
+      if (!Z3_is_numeral_ast(b.ctx, bits)
+	  || !Z3_get_numeral_uint64(b.ctx, bits, &raw)) return false;
+      value = z3_bits_real_(raw);
+      return isfinite(value);
+}
+
+// A finite nonzero multiplier is monotone (in either direction) even
+// after rounding. Invert the actual inclusive comparisons on encodings
+// so that rounded plateaus, underflow and overflow are handled exactly.
+static Z3_ast z3_real_product_range_(Z3Builder&b,
+				   const Z3Builder::RealProduct&product,
+				   Z3_ast lower, Z3_ast upper)
+{
+      Z3_context ctx = b.ctx;
+      Z3_ast variable = product.variable;
+      Z3_sort sort = Z3_get_sort(ctx, variable);
+      lower = b.resolve_signed_constants(lower);
+      upper = b.resolve_signed_constants(upper);
+      if (product.decreasing) swap(lower, upper);
+      auto test = [&](Z3_ast comparison, uint64_t key) {
+	    Z3_ast value = Z3_mk_unsigned_int64(
+		  ctx, z3_bits_from_real_key_(key), sort);
+	    return Z3_get_bool_value(ctx, Z3_simplify(ctx,
+		  Z3_substitute(ctx, comparison, 1, &variable, &value)));
+      };
+
+      const double max_real = numeric_limits<double>::max();
+      const uint64_t first = z3_real_key_(z3_real_bits_(-max_real));
+      const uint64_t last = z3_real_key_(z3_real_bits_(max_real));
+      // Include a sentinel in each search for an always-false comparison.
+      real_key_interval_t range;
+      if (!z3_real_key_boundary_({first, last + 1}, true,
+	    [&](uint64_t key) { return test(lower, key); }, range.lower)
+	  || !z3_real_key_boundary_({first - 1, last}, false,
+	    [&](uint64_t key) { return test(upper, key); }, range.upper))
+	    return nullptr;
+
+      auto stored = b.real_product_ranges.emplace(variable, range);
+      if (!stored.second) {
+	    real_key_interval_t&intersection = stored.first->second;
+	    intersection.lower = max(intersection.lower, range.lower);
+	    intersection.upper = min(intersection.upper, range.upper);
+      }
+      return z3_real_key_range_(ctx, z3_real_key_expr_(ctx, variable), range);
 }
 
 static Z3_ast constraint_value_to_bool_(Z3Builder&b, Z3_ast value)
@@ -5956,7 +6070,21 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			: op == "sub" ? Z3_mk_fpa_sub(b.ctx, rounded, lhs, rhs)
 			: op == "mul" ? Z3_mk_fpa_mul(b.ctx, rounded, lhs, rhs)
 			: Z3_mk_fpa_div(b.ctx, rounded, lhs, rhs);
-		  return z3_from_real_(b, result);
+		  Z3_ast value = z3_from_real_(b, result);
+		  if (op == "mul") {
+			Z3_ast variable = left;
+			Z3_ast coefficient = rhs;
+			if (b.real_property(variable) == UINT_MAX) {
+			      variable = right;
+			      coefficient = lhs;
+			}
+			double scale;
+			if (b.real_property(variable) != UINT_MAX
+			    && z3_finite_real_constant_(b, coefficient, scale)
+			    && scale != 0.0)
+			      b.real_products[value] = {variable, signbit(scale)};
+		  }
+		  return value;
 	    }
 	    // IEEE 1800-2017 11.8.1: a binary arithmetic result is signed
 	    // only when both operands are signed. This common context also
@@ -6356,6 +6484,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 	    unsigned real_range_count = 0;
 	    Z3_ast real_range_lower = nullptr;
 	    Z3_ast real_range_upper = nullptr;
+	    Z3_ast real_range_ge = nullptr;
+	    Z3_ast real_range_le = nullptr;
 
 	      // IEEE 1800-2017/2023 Table 11-21 omits inside sizing, but the
 	      // reported LRM-issue consensus and interoperable implementation
@@ -6433,6 +6563,8 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 			if (real_range_count == 1) {
 			      real_range_lower = lo_raw;
 			      real_range_upper = hi_raw;
+			      real_range_ge = c1;
+			      real_range_le = c2;
 			}
 		  }
 			if (c1 && c2) {
@@ -6672,6 +6804,20 @@ static Z3_ast build_z3_expr(IRParser& par, Z3Builder& b, Z3_lbool*guard, bool si
 	    b.integral_context_width = outer_context;
 	    b.integral_context_sign = outer_sign;
 
+	    if (real_bounds_parent && clauses.size() == 1 && real_range_count == 1
+		&& real_range_lower && real_range_upper) {
+		  auto product = b.real_products.find(subject);
+		  double bound;
+		  if (product != b.real_products.end()
+		      && z3_finite_real_constant_(b,
+			    z3_to_real_(b, real_range_lower), bound)
+		      && z3_finite_real_constant_(b,
+			    z3_to_real_(b, real_range_upper), bound)) {
+			Z3_ast range = z3_real_product_range_(b, product->second,
+			      real_range_ge, real_range_le);
+			if (range) return range;
+		  }
+	    }
 	    if (clauses.empty()) return b.mk_true();
 	    if (clauses.size() == 1) return clauses[0];
 	    return Z3_mk_or(b.ctx, (unsigned)clauses.size(), clauses.data());
@@ -9241,6 +9387,22 @@ static bool z3_t2_apply_cached_(const class_type*defn, vvp_cobject*cobj,
       return true;
 }
 
+static double z3_draw_real_interval_(z3_rng_stream_t&rng, double lower,
+				     double upper)
+{
+      if (lower == upper) return lower;
+      const double unit = 1.0 / 9007199254740992.0;
+      uint64_t sample = ((uint64_t)rng.next() << 21)
+	    | (uint64_t)(rng.next() & 0x1fffff);
+      double fraction = (double)sample * unit;
+      double candidate = signbit(lower) != signbit(upper)
+	    ? lower * (1.0 - fraction) + upper * fraction
+	    : lower + (upper - lower) * fraction;
+      if (candidate < lower) return lower;
+      if (candidate > upper) return upper;
+      return candidate;
+}
+
 static bool z3_sample_real_candidate_(Z3_context ctx, Z3_solver solver,
 				      Z3_ast variable,
 				      const constraint_real_bounds_t&bounds,
@@ -9256,20 +9418,8 @@ static bool z3_sample_real_candidate_(Z3_context ctx, Z3_solver solver,
       if (!isfinite(lower) || !isfinite(upper) || lower > upper) return false;
       if (Z3_solver_check(ctx, solver) != Z3_L_TRUE) return false;
 
-      const double unit = 1.0 / 9007199254740992.0;
       for (unsigned attempt = 0; attempt < 65536; ++attempt) {
-	    double candidate = lower;
-	    if (lower != upper) {
-		  uint64_t sample = ((uint64_t)rng.next() << 21)
-			  | (uint64_t)(rng.next() & 0x1fffff);
-		  double fraction = (double)sample * unit;
-		  if (signbit(lower) != signbit(upper))
-			candidate = lower * (1.0 - fraction) + upper * fraction;
-		  else
-			candidate = lower + (upper - lower) * fraction;
-		  if (candidate < lower) candidate = lower;
-		  if (candidate > upper) candidate = upper;
-	    }
+	    double candidate = z3_draw_real_interval_(rng, lower, upper);
 	    if (!isfinite(candidate)) continue;
 	    uint64_t candidate_bits = z3_real_bits_(candidate);
 	    Z3_ast value = Z3_mk_unsigned_int64(
@@ -13308,6 +13458,63 @@ private:
       bool cached_;
 };
 
+enum class real_product_sample_t { sampled, empty, unsupported, unknown };
+
+static real_product_sample_t z3_sample_real_product_(
+      Z3_context ctx, Z3_solver base, Z3_ast variable, real_key_interval_t range,
+      z3_rng_stream_t&rng, uint64_t&bits)
+{
+      Z3_lbool feasible = Z3_solver_check(ctx, base);
+      if (feasible == Z3_L_FALSE) return real_product_sample_t::empty;
+      if (feasible == Z3_L_UNDEF) return real_product_sample_t::unknown;
+
+      // The isolated factor includes hard and retained soft constraints
+      // and substitutes any pins from earlier solve-before stages.
+      Z3_ast factor = nullptr;
+      if (!z3_isolated_subject_factor_(ctx, base, variable, factor))
+	    return real_product_sample_t::unsupported;
+
+      Z3_ast key = z3_real_key_expr_(ctx, variable);
+      z3_solver_lease_t proof_lease(ctx, nullptr);
+      Z3_solver proof = proof_lease.get();
+      Z3_solver_assert(ctx, proof, z3_real_key_range_(ctx, key, range));
+      Z3_ast outside = Z3_mk_not(ctx, factor);
+      Z3_lbool hole = Z3_solver_check_assumptions(ctx, proof, 1, &outside);
+      if (hole == Z3_L_UNDEF) return real_product_sample_t::unknown;
+      if (hole == Z3_L_TRUE) {
+	    Z3_lbool inside = Z3_solver_check_assumptions(ctx, proof, 1, &factor);
+	    if (inside == Z3_L_FALSE) return real_product_sample_t::empty;
+	    if (inside == Z3_L_UNDEF) return real_product_sample_t::unknown;
+
+	    Z3_sort sort = Z3_get_sort(ctx, key);
+	    auto exists = [&](uint64_t bound, bool prefix) {
+		  Z3_ast limit = Z3_mk_unsigned_int64(ctx, bound, sort);
+		  Z3_ast assumptions[2] = {factor, prefix
+			? Z3_mk_bvule(ctx, key, limit) : Z3_mk_bvuge(ctx, key, limit)};
+		  return Z3_solver_check_assumptions(ctx, proof, 2, assumptions);
+	    };
+	    if (!z3_real_key_boundary_(range, true,
+		  [&](uint64_t bound) { return exists(bound, true); }, range.lower)
+		|| !z3_real_key_boundary_(range, false,
+		  [&](uint64_t bound) { return exists(bound, false); }, range.upper))
+		  return real_product_sample_t::unknown;
+
+	    Z3_ast gap[2] = {outside, z3_real_key_range_(ctx, key, range)};
+	    hole = Z3_solver_check_assumptions(ctx, proof, 2, gap);
+	    if (hole == Z3_L_TRUE) return real_product_sample_t::unsupported;
+	    if (hole == Z3_L_UNDEF) return real_product_sample_t::unknown;
+      }
+
+      double lower = z3_bits_real_(z3_bits_from_real_key_(range.lower));
+      double upper = z3_bits_real_(z3_bits_from_real_key_(range.upper));
+      double candidate = z3_draw_real_interval_(rng, lower, upper);
+      bits = z3_real_bits_(candidate);
+      uint64_t chosen = z3_real_key_(bits);
+      if (candidate == 0.0 && (chosen < range.lower || chosen > range.upper))
+	    bits ^= real_sign_bit;
+      return real_product_sample_t::sampled;
+}
+
 static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      z3_rng_stream_t& root_rng,
                       const vector<string>& extra_ir,
@@ -15292,6 +15499,35 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
       const char* real_sampling_error = nullptr;
       map<Z3_ast, uint64_t> sampled_randc_values;
       set<Z3_ast> sampled_real_vars;
+      auto sample_real_interval = [&](unsigned idx, Z3_ast var, uint64_t&bits,
+				      const char*&error) {
+	    auto product = builder.real_product_ranges.find(var);
+	    if (product != builder.real_product_ranges.end()) {
+		  if (dist_fallback_vars.count(var)
+		      || fallback_ref(Z3Builder::VarRef::PROP, idx, 0)) {
+			error = "real-valued dist sampling is not supported";
+			return false;
+		  }
+		  switch (z3_sample_real_product_(ctx, base, var, product->second,
+						 property_rng(idx), bits)) {
+		    case real_product_sample_t::sampled:
+			  return true;
+		    case real_product_sample_t::empty:
+			  error = nullptr;
+			  return false;
+		    case real_product_sample_t::unknown:
+			  error = "the solver returned UNKNOWN for the real product interval";
+			  return false;
+		    case real_product_sample_t::unsupported:
+			  error = "the real product interval has a coupled or noncontiguous feasible domain";
+			  break;
+		  }
+	    }
+	    auto bounds = builder.real_bounds.find(idx);
+	    return bounds != builder.real_bounds.end()
+		  && z3_sample_real_candidate_(ctx, base, var, bounds->second,
+					       property_rng(idx), bits);
+      };
       auto sample_scalars = [&](bool cyclic_only) {
       if (exact_joint && defer_joint) return;
       for (auto& pv : builder.prop_vars) {
@@ -15303,7 +15539,6 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 	    if (sampled_real_vars.count(pv.var)) continue;
 	    if (pv.is_real) {
 		  if (dist_resolved_vars.count(pv.var)) continue;
-		  auto bounds = builder.real_bounds.find(pv.idx);
 		  uint64_t bits = 0;
 		  if (dist_fallback_vars.count(pv.var)
 		      || fallback_ref(Z3Builder::VarRef::PROP, pv.idx, 0)) {
@@ -15339,12 +15574,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 			      real_sampled = true;
 			}
 		  }
-		  if (!real_sampled && (bounds == builder.real_bounds.end()
-		      || !z3_sample_real_candidate_(ctx, base, pv.var,
-			    bounds->second, property_rng(pv.idx), bits))) {
-			    real_sampling_failed = true;
-			    real_sampling_error =
-				  "no feasible binary64 value satisfies the finite real interval";
+		  const char*error =
+			"no feasible binary64 value satisfies the finite real interval";
+		  if (!real_sampled
+		      && !sample_real_interval(pv.idx, pv.var, bits, error)) {
+			real_sampling_failed = true;
+			real_sampling_error = error;
 			return;
 		  }
 		  Z3_ast value = Z3_mk_unsigned_int64(
@@ -17502,14 +17737,12 @@ static int z3_solve_pass_(const class_type* defn, vvp_cobject* cobj,
 				  });
 		      if (real_ordered) {
 			    if (dist_resolved_vars.count(var)) continue;
-			    auto bounds = builder.real_bounds.find(ref.idx);
 			    uint64_t bits = 0;
-			    if (bounds == builder.real_bounds.end()
-				|| !z3_sample_real_candidate_(ctx, base, var,
-				      bounds->second, property_rng(ref.idx), bits)) {
+			    const char*error =
+				  "no feasible binary64 value satisfies the finite real solve-before interval";
+			    if (!sample_real_interval(ref.idx, var, bits, error)) {
 				  Z3_optimize_dec_ref(ctx, stage_opt);
-				  return fail_joint(
-					"no feasible binary64 value satisfies the finite real solve-before interval");
+				  return fail_joint(error);
 			    }
 			    Z3_ast value = Z3_mk_unsigned_int64(
 				  ctx, bits, Z3_get_sort(ctx, var));

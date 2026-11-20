@@ -1,0 +1,2 @@
+./ivltests/issue3538_real_product_2017.v:2: error: property 'a' of class positive_product_2017 is declared rand but has type real/shortreal. IEEE 1800-2017 18.4 does not permit rand real.
+1 error(s) during elaboration.
