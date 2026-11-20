@@ -155,6 +155,7 @@ class __vpiHandle {
 
       virtual int get_type_code(void) const =0;
       virtual int get_vpi_type_code(void) const { return get_type_code(); }
+      virtual bool is_interconnect_net(void) const { return false; }
       virtual bool is_typedef_typespec(void) const { return false; }
 	// The net that holds this object's value, for the signal-like
 	// handles (__vpiSignal, __vpiRealVar and __vpiBaseVar), or nil.
@@ -619,6 +620,7 @@ struct __vpiSignal : public __vpiHandle {
       vvp_net_t*backing_net() override { return node; }
       int vpi_get(int code) override;
       int get_vpi_type_code(void) const override;
+      bool is_interconnect_net(void) const override { return is_interconnect; }
       int64_t vpi_get64(int code) override;
       char* vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value val) override;
@@ -679,6 +681,7 @@ struct __vpiSignal : public __vpiHandle {
 	/* Effective declared storage lifetime. This can differ from the
 	   lexical scope for an explicit static/automatic declaration. */
       unsigned automatic_storage : 1;
+      bool is_interconnect = false;
 	/* The source declaration used for VPI vpiFile/vpiLineNo. */
       unsigned source_file_idx = 0;
       unsigned source_lineno = 0;
@@ -1075,6 +1078,7 @@ struct __vpiRealVar : public __vpiHandle {
       __vpiRealVar();
       vvp_net_t*backing_net() override { return net; }
       int get_type_code(void) const override;
+      bool is_interconnect_net(void) const override { return is_interconnect; }
       int vpi_get(int code) override;
       char* vpi_get_str(int code) override;
       void vpi_get_value(p_vpi_value val) override;
@@ -1094,6 +1098,7 @@ struct __vpiRealVar : public __vpiHandle {
       unsigned is_netarray  : 1; // This is word of a net array
       unsigned is_wire      : 1; // This is a wire, not a variable
       unsigned automatic_storage : 1;
+      bool is_interconnect = false;
       vvp_net_t*net;
 };
 

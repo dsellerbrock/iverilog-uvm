@@ -612,6 +612,7 @@ static int signal_get(int code, vpiHandle ref)
 	    return rfp->width();
 
 	  case vpiNetType:
+	    if (rfp->is_interconnect) return vpiInterconnect;
 	    if (ref->get_type_code()==vpiNet)
 		  return vpiWire;
 	    else

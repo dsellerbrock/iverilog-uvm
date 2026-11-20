@@ -160,6 +160,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_VPI_IMPORT
 %token K_vpi_source_location
 %token K_vpi_charge_strength
+%token K_vpi_interconnect
 %token K_vpi_primitive K_vpi_primterm
 %token K_export_dpi
 %token K_PORT_INPUT K_PORT_OUTPUT K_PORT_INOUT K_PORT_MIXED K_PORT_NODIR
@@ -954,6 +955,9 @@ statement
 
 	| T_LABEL K_vpi_charge_strength T_NUMBER ';'
 		{ compile_vpi_charge_strength($1, $3); }
+
+	| T_LABEL K_vpi_interconnect ';'
+		{ compile_vpi_interconnect($1); }
 
 	| T_LABEL K_vpi_primitive T_STRING ',' T_NUMBER ',' T_NUMBER ','
 	  T_NUMBER ',' T_NUMBER ',' T_STRING ';'

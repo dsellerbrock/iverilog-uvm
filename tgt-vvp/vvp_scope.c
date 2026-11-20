@@ -1631,6 +1631,12 @@ static void draw_net_in_scope(ivl_signal_t sig)
           }
       }
 
+      /* Use the declaration's label and shape even when its nexus and
+         resolved storage type come from a concrete port. */
+      if (!ivl_signal_local(sig) && ivl_signal_is_interconnect(sig) &&
+          !ivl_signal_interconnect_declared_shape(sig))
+            fprintf(vvp_out, "v%p_0 .vpi_interconnect;\n", sig);
+
       if (charge != IVL_DR_HiZ &&
           (ivl_signal_dimensions(sig) > 0 || !ivl_signal_local(sig))) {
             int strength;
