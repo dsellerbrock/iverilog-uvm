@@ -8190,3 +8190,9 @@ issue3896_concat_leaves_2017 vvp_tests/issue3896_concat_leaves_2017.json
 issue3896_concat_leaves_2023 vvp_tests/issue3896_concat_leaves_2023.json
 issue818_unpacked_struct_net_ca_2017 vvp_tests/issue818_unpacked_struct_net_ca_2017.json
 issue818_unpacked_struct_net_ca_2023 vvp_tests/issue818_unpacked_struct_net_ca_2023.json
+
+# IEEE 1800-2017/2023 18.7.1: local:: is restricted to inline constraint blocks.
+issue3365_local_scope_2017 vvp_tests/issue3365_local_scope_2017.json
+issue3365_local_scope_2023 vvp_tests/issue3365_local_scope_2023.json
+issue3365_local_scope_bad_2017 vvp_tests/issue3365_local_scope_bad_2017.json
+issue3365_local_scope_bad_2023 vvp_tests/issue3365_local_scope_bad_2023.json
