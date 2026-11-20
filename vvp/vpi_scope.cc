@@ -669,7 +669,7 @@ vpiHandle __vpiStmtNode::vpi_handle(int code)
 {
       if (code == vpiParent) return parent_;
       if (code == vpiScope) return scope_;
-      if (code == vpiCondition && type_ == vpiWhile) return condition_;
+      if (code == vpiCondition) return condition_;
       if (vpiHandle rel = vpip_force_conn_relation(this, code)) return rel;
       return __vpiHandle::vpi_handle(code);
 }
@@ -689,7 +689,8 @@ void __vpiStmtNode::add_child(__vpiStmtNode*child)
 
 bool __vpiStmtNode::attach_condition(char*symbol, vpiHandle expr)
 {
-      if (type_ != vpiWhile || has_condition_ || (!symbol && !expr))
+      if ((type_ != vpiWhile && type_ != vpiIf && type_ != vpiIfElse)
+	  || has_condition_ || (!symbol && !expr))
 	    return false;
       has_condition_ = true;
 	/* A forward reference writes into this node's persistent slot. */
