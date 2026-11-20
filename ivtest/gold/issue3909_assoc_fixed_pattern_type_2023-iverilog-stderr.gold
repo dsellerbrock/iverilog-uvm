@@ -1,0 +1,3 @@
+./ivltests/issue3909_assoc_fixed_pattern_type_2017.v:15: error: a dynamic-array or queue value in an associative fixed-array pattern requires equivalent element types (IEEE 1800-2017/2023 6.22.2, 7.6).
+./ivltests/issue3909_assoc_fixed_pattern_type_2017.v:16: error: a dynamic-array or queue value in an associative fixed-array pattern requires equivalent element types (IEEE 1800-2017/2023 6.22.2, 7.6).
+2 error(s) during elaboration.
