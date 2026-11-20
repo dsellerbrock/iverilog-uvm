@@ -36619,6 +36619,30 @@ unsigned PEEventList::test_width(Design*, NetScope*, width_mode_t&)
       return 1;
 }
 
+unsigned PESvaActual::test_width(Design*des, NetScope*, width_mode_t&)
+{
+      diagnose_value(des);
+      expr_width_ = min_width_ = 1;
+      expr_type_ = IVL_VT_LOGIC;
+      return expr_width_;
+}
+
+NetExpr* PESvaActual::elaborate_expr(Design*des, NetScope*, unsigned, unsigned) const
+{
+      diagnose_value(des);
+      return nullptr;
+}
+
+void PESvaActual::diagnose_value(Design*des) const
+{
+      if (diagnosed_) return;
+      diagnosed_ = true;
+      cerr << get_fileline() << ": error: a temporal assertion argument "
+	   << "cannot be used as a value expression (IEEE 1800-2017/2023 "
+	   << "16.12.18)." << endl;
+      des->errors += 1;
+}
+
 NetExpr* PEEventList::elaborate_expr(Design*des, NetScope*, unsigned, unsigned) const
 {
       pe_event_not_a_value_(this, des);

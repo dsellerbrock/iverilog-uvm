@@ -8299,3 +8299,11 @@ issue3869_bad_2023 vvp_tests/issue3869_bad_2023.json
 # IEEE 1800 7.8.4: %p of class associative properties with integral keys.
 issue2591_p_class_assoc_signed_2017 vvp_tests/issue2591_p_class_assoc_signed_2017.json
 issue2591_p_class_assoc_signed_2023 vvp_tests/issue2591_p_class_assoc_signed_2023.json
+
+# IEEE 1800 16.12.18 delayed property actuals
+issue3977_delayed_actual_2017 vvp_tests/issue3977_delayed_actual_2017.json
+issue3977_delayed_data_formal_2017 vvp_tests/issue3977_delayed_data_formal_2017.json
+issue3977_delayed_function_arg_2017 vvp_tests/issue3977_delayed_function_arg_2017.json
+issue3977_delayed_actual_2023 vvp_tests/issue3977_delayed_actual_2023.json
+issue3977_delayed_data_formal_2023 vvp_tests/issue3977_delayed_data_formal_2023.json
+issue3977_delayed_function_arg_2023 vvp_tests/issue3977_delayed_function_arg_2023.json

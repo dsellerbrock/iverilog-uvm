@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3977_delayed_actual.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3977_delayed_actual"],
+  "gold": "issue3977_delayed_actual"
+}

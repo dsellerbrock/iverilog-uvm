@@ -1,0 +1,2 @@
+./ivltests/issue3977_delayed_bad.sv:7: error: a temporal assertion argument cannot be used as a value expression (IEEE 1800-2017/2023 16.12.18).
+1 error(s) during elaboration.

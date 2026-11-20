@@ -1,0 +1,3 @@
+./ivltests/issue3977_delayed_bad.sv:12: error: property `p' formal `data' cannot take this temporal actual (IEEE 1800-2017/2023 16.12.18).
+./ivltests/issue3977_delayed_bad.sv:17: sorry: temporal actuals of property `branched' require a flat property body.
+./ivltests/issue3977_delayed_bad.sv:22: sorry: temporal actuals of property `nested' require a flat property body.
