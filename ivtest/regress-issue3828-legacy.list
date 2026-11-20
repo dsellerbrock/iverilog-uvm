@@ -1,0 +1,2 @@
+issue3828_class_assert_2017 normal,-g2017,-s,top ivltests gold=issue3828_class_assert.gold
+issue3828_class_assert_2023 normal,-g2023,-s,top ivltests gold=issue3828_class_assert.gold

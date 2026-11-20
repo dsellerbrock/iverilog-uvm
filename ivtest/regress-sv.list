@@ -1171,6 +1171,8 @@ sv_foreach_fail1	CE,-g2009		ivltests
 sv_immediate_assert	normal,-g2009		ivltests gold=sv_immediate_assert.gold
 sv_immediate_assume	normal,-g2009		ivltests gold=sv_immediate_assume.gold
 sv_immediate_cover_action normal,-g2012		ivltests gold=sv_immediate_cover_action.gold
+issue3828_class_assert_2017 normal,-g2017,-s,top ivltests gold=issue3828_class_assert.gold
+issue3828_class_assert_2023 normal,-g2023,-s,top ivltests gold=issue3828_class_assert.gold
 sv_import_hier_fail1	CE,-g2005-sv		ivltests
 sv_import_hier_fail2	CE,-g2005-sv		ivltests
 sv_import_hier_fail3	CE,-g2005-sv		ivltests

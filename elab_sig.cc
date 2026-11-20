@@ -3334,6 +3334,10 @@ void netclass_t::elaborate_sig(Design*des, PClass*pclass)
       if (specialized_instance())
 	    elaborate_constraints(des, pclass);
 
+      // Register immediate assertions even when method bodies elaborate lazily.
+      for (PProcess*process : pclass->behaviors)
+	    process->elaborate(des, class_scope_);
+
       sig_elaborating_ = false;
       sig_elaborated_ = true;
 }
