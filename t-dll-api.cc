@@ -4409,6 +4409,24 @@ extern "C" unsigned ivl_stmt_is_immediate_assertion(ivl_statement_t net)
       return net->u_.condit_.immediate_assertion;
 }
 
+extern "C" ivl_if_kind_t ivl_stmt_if_kind(ivl_statement_t net)
+{
+      assert(net && net->type_ == IVL_ST_CONDIT);
+      return net->u_.condit_.source_if_kind;
+}
+
+extern "C" ivl_expr_t ivl_stmt_if_source_expr(ivl_statement_t net)
+{
+      assert(net && net->type_ == IVL_ST_CONDIT);
+      return net->u_.condit_.source_expr;
+}
+
+extern "C" unsigned ivl_stmt_if_is_folded(ivl_statement_t net)
+{
+      assert(net && net->type_ == IVL_ST_CONDIT);
+      return net->u_.condit_.folded;
+}
+
 extern "C" ivl_expr_t ivl_stmt_delay_expr(ivl_statement_t net)
 {
       assert(net);
