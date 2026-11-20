@@ -1114,6 +1114,7 @@ struct ivl_statement_s {
 		  struct ivl_lval_s*lval_;
 		  ivl_expr_t rval_;
 		  ivl_expr_t force_link_rval_;
+		  ivl_signal_t proc_cont_previous_;
 		  ivl_statement_assign_aux_s*aux_;
 		  unsigned lvals_;
 		  char oper; // Operator if this is a compressed assignment.

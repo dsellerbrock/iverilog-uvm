@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3897_force_concat.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "issue3897_force_concat"
+  ],
+  "gold": "issue3897_proc_cont_rhs"
+}

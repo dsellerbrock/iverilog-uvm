@@ -68,7 +68,8 @@ typedef void (*vthread_resource_cancel_t)(void*owner, vthread_t thr);
  * address. The generated thread is ready to run, but is not yet
  * scheduled.
  */
-extern vthread_t vthread_new(vvp_code_t sa, __vpiScope*scope);
+extern vthread_t vthread_new(vvp_code_t sa, __vpiScope*scope,
+			    bool seed_process_rng = true);
 
 /* Apply the optional numeric DV root seed before any root thread exists. */
 extern bool vthread_init_design_root_seed(void);
@@ -117,7 +118,7 @@ extern void vthread_resume_resource_wait(vthread_t thr, void*owner_id,
 extern int vthread_is_reactive(vthread_t thr);
 /* Mark synthesized clocking scheduler infrastructure as a design process,
  * even when its lexical scope is a program. */
-extern void vthread_mark_clocking_sync(vthread_t thr);
+extern void vthread_mark_active(vthread_t thr);
 /* M6B: mark a thread as a program initial procedure (24.7). */
 extern void vthread_mark_program_init(vthread_t thr);
 

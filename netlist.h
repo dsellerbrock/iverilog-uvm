@@ -3987,6 +3987,11 @@ class NetAssignBase : public NetProc {
 
       void set_rval(NetExpr*);
 
+      // Shared, assignment-sized value cache for an executing procedural
+      // continuous assignment and its static RHS reevaluation process.
+      void set_proc_cont_previous(NetNet*);
+      const NetNet* proc_cont_previous() const { return proc_cont_previous_; }
+
       NetAssign_* l_val(unsigned);
       const NetAssign_* l_val(unsigned) const;
       unsigned l_val_count() const;
@@ -4021,6 +4026,7 @@ class NetAssignBase : public NetProc {
       NetAssign_*lval_;
       NetExpr   *rval_;
       NetExpr   *delay_;
+      NetNet*proc_cont_previous_ = nullptr;
 };
 
 class NetAssign : public NetAssignBase {

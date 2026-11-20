@@ -2939,6 +2939,56 @@ static void resize_force_vec4_wid_(ivl_expr_t rval, unsigned force_width)
 	    : "    %%pad/u %u; force RHS width\n", force_width);
 }
 
+static void seed_proc_cont_rhs_(ivl_statement_t net)
+{
+      ivl_signal_t previous = ivl_stmt_proc_cont_previous(net);
+      if (previous)
+	    fprintf(vvp_out, "    %%cassign/seed v%p_0;\n", previous);
+}
+
+/* The l-values are private carriers. Reevaluation is necessary only
+ * while at least one of them has a live procedural assignment link. */
+static int show_stmt_proc_cont_rhs_(ivl_statement_t net, ivl_signal_t previous)
+{
+      unsigned eval = local_count++;
+      unsigned unchanged = local_count++;
+      unsigned done = local_count++;
+      unsigned count = ivl_stmt_lvals(net);
+
+      for (unsigned idx = 0; idx < count; idx += 1) {
+	    ivl_signal_t carrier = ivl_lval_sig(ivl_stmt_lval(net, idx));
+	    fprintf(vvp_out, "    %%jmp/linked T_%u.%u, v%p_0;\n",
+		    thread_count, eval, carrier);
+      }
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, eval);
+
+      unsigned width = ivl_signal_width(previous);
+      ivl_expr_t rval = ivl_stmt_rval(net);
+      draw_eval_vec4(rval);
+      resize_force_vec4_wid_(rval, width);
+      fprintf(vvp_out, "    %%dup/vec4;\n");
+      fprintf(vvp_out, "    %%load/vec4 v%p_0;\n", previous);
+      fprintf(vvp_out, "    %%cmp/e;\n");
+      fprintf(vvp_out, "    %%jmp/1 T_%u.%u, 6;\n", thread_count, unchanged);
+      fprintf(vvp_out, "    %%dup/vec4;\n");
+      fprintf(vvp_out, "    %%store/vec4 v%p_0, 0, %u;\n", previous, width);
+
+      for (unsigned idx = 0; idx < count; idx += 1) {
+	    ivl_lval_t leaf = ivl_stmt_lval(net, idx);
+	    if (idx + 1 < count)
+		  fprintf(vvp_out, "    %%split/vec4 %u;\n", ivl_lval_width(leaf));
+	    cast_force_lval_vec4_(leaf);
+	    fprintf(vvp_out, "    %%cassign/queue v%p_0, v%p_0;\n",
+		    previous, ivl_lval_sig(leaf));
+      }
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, unchanged);
+      fprintf(vvp_out, "    %%pop/vec4 1;\n");
+      fprintf(vvp_out, "T_%u.%u ;\n", thread_count, done);
+      return 0;
+}
+
 static int show_stmt_cassign(ivl_statement_t net)
 {
       ivl_expr_t rval;
@@ -2972,6 +3022,7 @@ static int show_stmt_cassign(ivl_statement_t net)
 	       * selected l-value width; otherwise a wider RHS overwrites adjacent
 	       * bits and installs an over-wide live-force mask. */
 	    resize_force_vec4_wid_(rval, force_width);
+	    seed_proc_cont_rhs_(net);
 
 	      /* Write out initial continuous assign instructions to assign
 	         the expression value to the l-value. */
@@ -3397,6 +3448,7 @@ static int show_stmt_force(ivl_statement_t net)
 
             draw_eval_vec4(rval);
 	    resize_force_vec4_wid_(rval, force_width);
+	    seed_proc_cont_rhs_(net);
 
               /* Write out initial continuous assign instructions to assign
                  the expression value to the l-value. */
@@ -9100,9 +9152,12 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 	    rc += show_stmt_alloc(net);
 	    break;
 
-	  case IVL_ST_ASSIGN:
-	    rc += show_stmt_assign(net);
+	  case IVL_ST_ASSIGN: {
+	    ivl_signal_t previous = ivl_stmt_proc_cont_previous(net);
+	    rc += previous ? show_stmt_proc_cont_rhs_(net, previous)
+			   : show_stmt_assign(net);
 	    break;
+	  }
 
 	  case IVL_ST_ASSIGN_NB:
 	    rc += show_stmt_assign_nb(net);
@@ -9282,6 +9337,7 @@ int draw_process(ivl_process_t net, void*x)
 
       int init_flag = 0;
       int push_flag = 0;
+      int proc_cont_flag = 0;
       int clocking_bg_flag = 0;
       int clocking_sync_flag = 0;
       int sva_finish_flag = 0;
@@ -9296,6 +9352,8 @@ int draw_process(ivl_process_t net, void*x)
 		  function_background_ok = 1;
 	    if (strcmp(attr->key, "_ivl_sva_finish") == 0)
 		  sva_finish_flag = 1;
+	    if (strcmp(attr->key, "_ivl_proc_continuous") == 0)
+		  proc_cont_flag = 1;
 
 	    if (strcmp(attr->key, "_ivl_schedule_init") == 0) {
 
@@ -9399,6 +9457,8 @@ int draw_process(ivl_process_t net, void*x)
 		  const char*thread_flag = 0;
 	    if (init_flag) {
 		  thread_flag = "$init";
+	    } else if (proc_cont_flag) {
+		  thread_flag = "$proc_continuous";
 	    } else if (push_flag) {
 		  thread_flag = "$push";
 	    } else if (clocking_sync_flag) {

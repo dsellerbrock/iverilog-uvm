@@ -2677,7 +2677,7 @@ extern unsigned ivl_stmt_lineno(ivl_statement_t net);
  *    For an IVL_ST_FORCE, return the expression used to keep the force live
  *    after its initial activation. This may differ from ivl_stmt_rval, which
  *    remains the expression evaluated when the statement executes. When no
- *    distinct structural link source exists, this returns ivl_stmt_rval.
+ *    distinct link source exists, this returns ivl_stmt_rval.
  *    A distinct IVL_EX_CONCAT is a link descriptor with one signal per
  *    l-value, indexed in the same order as ivl_stmt_lval.
  *
@@ -2685,6 +2685,12 @@ extern unsigned ivl_stmt_lineno(ivl_statement_t net);
  *    For an IVL_ST_CASSIGN, return the expression used to keep the
  *    procedural continuous assignment live after initial activation,
  *    using the same convention as ivl_stmt_force_link_rval.
+ *
+ * ivl_stmt_proc_cont_previous
+ *    Return the private RHS cache shared by a procedural FORCE or CASSIGN
+ *    and the generated ASSIGN that reevaluates it. The generated ASSIGN's
+ *    l-values are private link sources, one per original destination.
+ *    Return null for assignments without such a process.
  *
  * ivl_stmt_sub_stmt
  *    Some statements contain a single, subordinate statement. An
@@ -2875,6 +2881,7 @@ extern ivl_expr_t ivl_stmt_rval(ivl_statement_t net);
   /* IVL_ST_FORCE */
 extern ivl_expr_t ivl_stmt_force_link_rval(ivl_statement_t net);
 extern ivl_expr_t ivl_stmt_cassign_link_rval(ivl_statement_t net);
+extern ivl_signal_t ivl_stmt_proc_cont_previous(ivl_statement_t net);
   /* IVL_ST_STASK */
 extern ivl_sfunc_as_task_t ivl_stmt_sfunc_as_task(ivl_statement_t net);
   /* IVL_ST_DELAY, IVL_ST_DELAYX, IVL_ST_FOREVER, IVL_ST_FORLOOP,

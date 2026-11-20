@@ -1,0 +1,6 @@
+issue3897_force_concat_2017 normal,-g2017,-s,issue3897_force_concat ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold
+issue3897_force_concat_2023 normal,-g2023,-s,issue3897_force_concat ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold
+issue3897_force_vector_2017 normal,-g2017,-s,issue3897_force_vector ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold
+issue3897_force_vector_2023 normal,-g2023,-s,issue3897_force_vector ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold
+issue3897_assign_select_2017 normal,-g2017,-s,issue3897_assign_select ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold
+issue3897_assign_select_2023 normal,-g2023,-s,issue3897_assign_select ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold

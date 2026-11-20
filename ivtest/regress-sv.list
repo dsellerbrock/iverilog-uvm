@@ -7339,3 +7339,11 @@ issue3896_concat_leaves_2017 normal,-g2017,-s,issue3896_concat_leaves ivltests g
 issue3896_concat_leaves_2023 normal,-g2023,-s,issue3896_concat_leaves ivltests gold=issue3896_concat_leaves.gold
 issue818_unpacked_struct_net_ca_2017 normal,-g2017,-s,issue818_unpacked_struct_net_ca ivltests gold=issue818_unpacked_struct_net_ca-vvp-stdout.gold
 issue818_unpacked_struct_net_ca_2023 normal,-g2023,-s,issue818_unpacked_struct_net_ca ivltests gold=issue818_unpacked_struct_net_ca-vvp-stdout.gold
+
+# IEEE 1800 4.9.2 and 10.6: live packed procedural assignment RHS.
+issue3897_force_concat_2017 normal,-g2017,-s,issue3897_force_concat ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold
+issue3897_force_concat_2023 normal,-g2023,-s,issue3897_force_concat ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold
+issue3897_force_vector_2017 normal,-g2017,-s,issue3897_force_vector ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold
+issue3897_force_vector_2023 normal,-g2023,-s,issue3897_force_vector ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold
+issue3897_assign_select_2017 normal,-g2017,-s,issue3897_assign_select ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold
+issue3897_assign_select_2023 normal,-g2023,-s,issue3897_assign_select ivltests gold=issue3897_proc_cont_rhs-vvp-stdout.gold

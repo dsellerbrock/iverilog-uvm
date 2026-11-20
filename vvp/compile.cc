@@ -327,6 +327,8 @@ static const struct opcode_table_s opcode_table[] = {
       { "%callf/void",      of_CALLF_VOID,      2,{OA_CODE_PTR2,OA_VPI_PTR, OA_NONE} },
       { "%callf/void/v",    of_CALLF_VOID_V,    2,{OA_CODE_PTR2,OA_VPI_PTR, OA_NONE} },
       { "%cassign/link",    of_CASSIGN_LINK,    2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%cassign/queue",   of_CASSIGN_QUEUE,   2,{OA_FUNC_PTR,OA_FUNC_PTR2,OA_NONE} },
+      { "%cassign/seed",    of_CASSIGN_SEED,    1,{OA_FUNC_PTR,OA_NONE,     OA_NONE} },
       { "%cassign/vec4",    of_CASSIGN_VEC4,    1,{OA_FUNC_PTR,OA_NONE,     OA_NONE} },
       { "%cassign/vec4/off",of_CASSIGN_VEC4_OFF,2,{OA_FUNC_PTR,OA_BIT1,     OA_NONE} },
       { "%cassign/wr",  of_CASSIGN_WR,  1,{OA_FUNC_PTR,OA_NONE,     OA_NONE} },
@@ -528,6 +530,7 @@ static const struct opcode_table_s opcode_table[] = {
       { "%jmp/1xz",of_JMP1XZ, 2,  {OA_CODE_PTR, OA_BIT1,     OA_NONE} },
       { "%jmp/flowbrk", of_JMP_FLOWBRK, 1, {OA_CODE_PTR, OA_NONE, OA_NONE} },
       { "%jmp/flowcont", of_JMP_FLOWCONT, 1, {OA_CODE_PTR, OA_NONE, OA_NONE} },
+      { "%jmp/linked",of_JMP_LINKED,2,{OA_CODE_PTR, OA_FUNC_PTR2, OA_NONE} },
       { "%jmp/vif",of_JMP_VIF,2,  {OA_CODE_PTR2,OA_VPI_PTR,  OA_NONE} },
       { "%jmp/wr/e",of_JMP_WR_EQ,3,{OA_CODE_PTR, OA_BIT1,     OA_BIT2} },
       { "%join",   of_JOIN,   0,  {OA_NONE,     OA_NONE,     OA_NONE} },
@@ -3797,6 +3800,7 @@ void compile_vpi_func_call(char*label, char*name,
 void compile_thread(char*start_sym, char*flag, char*flag2)
 {
       bool push_flag = false;
+      bool proc_cont_flag = flag && (strcmp(flag,"$proc_continuous") == 0);
       bool function_background_ok = false;
 
       if (!vthread_init_design_root_seed()) {
@@ -3816,19 +3820,20 @@ void compile_thread(char*start_sym, char*flag, char*flag2)
 	    return;
       }
 
-      if (flag && (strcmp(flag,"$push") == 0))
+      if (proc_cont_flag || (flag && (strcmp(flag,"$push") == 0)))
 	    push_flag = true;
 	if ((flag && strcmp(flag,"$function_background_ok") == 0)
 	    || (flag2 && strcmp(flag2,"$function_background_ok") == 0))
 		function_background_ok = true;
 
-      vthread_t thr = vthread_new(pc, vpip_peek_current_scope());
+      // The generated reevaluator is call-free and has no process RNG.
+      vthread_t thr = vthread_new(pc, vpip_peek_current_scope(), !proc_cont_flag);
 	if (function_background_ok)
 	      vthread_mark_function_background_ok(thr);
-	/* A synthesized clocking sampler belongs to the design-region
-	   pipeline even when its declaration scope is a program. */
-      if (flag && (strcmp(flag,"$clocking") == 0))
-	    vthread_mark_clocking_sync(thr);
+	/* These synthesized processes belong to the design-region
+	   pipeline even when their declaration scope is a program. */
+      if (proc_cont_flag || (flag && (strcmp(flag,"$clocking") == 0)))
+	    vthread_mark_active(thr);
 
       if (flag && (strcmp(flag,"$init") == 0))
 	    schedule_init_vthread(thr);

@@ -516,6 +516,8 @@ NetAssignBase::NetAssignBase(NetAssign_*lv, NetExpr*rv)
 
 NetAssignBase::~NetAssignBase()
 {
+      if (proc_cont_previous_)
+	    proc_cont_previous_->decr_eref();
       delete rval_;
       delete delay_;
       while (lval_) {
@@ -524,6 +526,13 @@ NetAssignBase::~NetAssignBase()
 	    tmp->more = 0;
 	    delete tmp;
       }
+}
+
+void NetAssignBase::set_proc_cont_previous(NetNet*previous)
+{
+      assert(!proc_cont_previous_);
+      proc_cont_previous_ = previous;
+      previous->incr_eref();
 }
 
 NetExpr* NetAssignBase::rval()

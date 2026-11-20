@@ -26587,7 +26587,8 @@ bool PCallTask::elaborate_elab(Design*des, NetScope*scope) const
 static NetExpr* elaborate_force_link_rval_(Design*des, NetScope*scope,
 					   const NetExpr*rval,
 					   const NetAssign_*lval,
-					   unsigned width, bool concat);
+					   unsigned width, bool concat,
+					   NetNet*&previous);
 
 /*
  * Elaborate a procedural continuous assign. This really looks very
@@ -26641,9 +26642,12 @@ NetCAssign* PCAssign::elaborate(Design*des, NetScope*scope) const
       if (rexp == 0)
 	    return 0;
 
+      NetNet*previous = nullptr;
       NetExpr*link_rexp = elaborate_force_link_rval_(des, scope, rexp,
-						     lval, lwid, concat);
+						     lval, lwid, concat, previous);
       dev = new NetCAssign(lval, rexp, link_rexp);
+      if (previous)
+	    dev->set_proc_cont_previous(previous);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate cassign,"
@@ -31233,8 +31237,7 @@ NetProc* PForever::elaborate(Design*des, NetScope*scope) const
 /* Return true when EXPR can be lowered to the existing structural expression
  * netlist without changing its meaning. This covers signal/select/concat
  * expressions, bitwise operators, and the supported subtract-constant force
- * form. Other procedural expressions retain the target's explicit
- * one-evaluation warning until they have an equally precise lowering. */
+ * form. Other procedural expressions require a separate lowering. */
 static bool force_rhs_is_structural_(const NetExpr*expr)
 {
       if (dynamic_cast<const NetEConst*>(expr))
@@ -31316,13 +31319,178 @@ static NetNet* force_rhs_static_alias_(NetNet*source, NetScope*scope,
       return res;
 }
 
-/* Keep the procedural RHS for the immediate evaluation. The structural
- * expression supplies later updates, after its nodes have settled. */
+static bool proc_cont_static_signal_(const NetNet*sig)
+{
+      switch (sig->lifetime_override()) {
+	  case IVL_VLT_STATIC: return true;
+	  case IVL_VLT_AUTOMATIC: return false;
+	  default: return !sig->scope()->is_auto();
+      }
+}
+
+static ivl_variable_type_t proc_cont_leaf_type_(const NetAssign_*leaf)
+{
+      ivl_type_t type = leaf->lval_type();
+      return type ? type->base_type()
+		  : leaf->sig() ? leaf->sig()->data_type() : IVL_VT_LOGIC;
+}
+
+/* Every signal read must be observable by nex_input. Only admit packed,
+ * call-free expressions with direct static operands. */
+static bool proc_cont_rhs_is_observable_(const NetExpr*expr)
+{
+      if (!expr || !type_is_vectorable(expr->expr_type()))
+	    return false;
+      if (dynamic_cast<const NetEConst*>(expr))
+	    return true;
+      if (const auto*sig = dynamic_cast<const NetESignal*>(expr)) {
+	    const NetNet*net = sig->sig();
+	    return !sig->word_index() && !net->unpacked_dimensions()
+		&& proc_cont_static_signal_(net)
+		&& (!net->local_flag() || net->attribute(perm_string::literal(
+			 "_ivl_implicit_sensitivity")).as_ulong());
+      }
+      if (const auto*sel = dynamic_cast<const NetESelect*>(expr))
+	    return proc_cont_rhs_is_observable_(sel->sub_expr())
+		&& (!sel->select() || proc_cont_rhs_is_observable_(sel->select()));
+      if (const auto*cat = dynamic_cast<const NetEConcat*>(expr)) {
+	    for (unsigned idx = 0; idx < cat->nparms(); idx += 1)
+		  if (!proc_cont_rhs_is_observable_(cat->parm(idx)))
+			return false;
+	    return true;
+      }
+      if (const auto*bin = dynamic_cast<const NetEBinary*>(expr))
+	    return proc_cont_rhs_is_observable_(bin->left())
+		&& proc_cont_rhs_is_observable_(bin->right());
+      if (const auto*un = dynamic_cast<const NetEUnary*>(expr)) {
+	    switch (un->op()) {
+		case 'I': case 'i': case 'D': case 'd': return false;
+		default: return proc_cont_rhs_is_observable_(un->expr());
+	    }
+      }
+      if (const auto*mux = dynamic_cast<const NetETernary*>(expr))
+	    return proc_cont_rhs_is_observable_(mux->cond_expr())
+		&& proc_cont_rhs_is_observable_(mux->true_expr())
+		&& proc_cont_rhs_is_observable_(mux->false_expr());
+      return false;
+}
+
+static NetNet* make_proc_cont_reg_(NetScope*scope, ivl_variable_type_t type,
+				   unsigned width, const LineInfo&loc)
+{
+      NetNet*reg = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+			     new netvector_t(type, width - 1, 0));
+      reg->set_line(loc);
+      reg->local_flag(true);
+      return reg;
+}
+
+/* IEEE 1800 4.9.2 and 10.6 require watching the RHS sources even when they
+ * also appear on the left. The static process evaluates one assignment-sized
+ * result. Each leaf's private carrier uses the existing force or cassign
+ * link and is disconnected by the existing release or replacement path. */
+static NetExpr* elaborate_proc_cont_rhs_(Design*des, NetScope*scope,
+					const NetExpr*rval,
+					const NetAssign_*lval,
+					unsigned width, NetNet*&previous)
+{
+      extern bool synthesis;
+      extern map<string,const char*> flags;
+      auto dll = flags.find("DLL");
+      if (synthesis || dll == flags.end())
+	    return nullptr;
+      const char*target = strrchr(dll->second, '/');
+      if (strcmp(target ? target + 1 : dll->second, "vvp.tgt"))
+	    return nullptr;
+
+      if (dynamic_cast<const NetESignal*>(rval)
+	  || !proc_cont_rhs_is_observable_(rval))
+	    return nullptr;
+
+      unsigned count = 0;
+      for (const NetAssign_*leaf = lval; leaf; leaf = leaf->more) {
+	    const NetNet*sig = leaf->sig();
+	    if (!sig || !proc_cont_static_signal_(sig)
+		|| leaf->get_property_idx() >= 0
+		|| !type_is_vectorable(proc_cont_leaf_type_(leaf))
+		|| (leaf->word() && !dynamic_cast<const NetEConst*>(leaf->word()))
+		|| (leaf->get_base() && !dynamic_cast<const NetEConst*>(leaf->get_base())))
+		  return nullptr;
+	    count += 1;
+      }
+
+      unique_ptr<NexusSet>inputs(rval->nex_input(false));
+      if (inputs->size() == 0)
+	    return nullptr;
+
+      // This is design infrastructure, even for a statement in a task.
+      unsafe_task_body_guard_t static_process(nullptr);
+      // Leaving or disabling the executing block must not stop the force.
+      while (scope->parent() && scope->type() != NetScope::MODULE
+	     && scope->type() != NetScope::PACKAGE)
+	    scope = scope->parent();
+      previous = make_proc_cont_reg_(scope, IVL_VT_LOGIC, width, *rval);
+      NetEConcat*links = count > 1 ? new NetEConcat(count, 1, IVL_VT_LOGIC) : nullptr;
+      NetExpr*link_rval = links;
+      if (links)
+	    links->set_line(*rval);
+      NetAssign_*carriers = nullptr;
+      NetAssign_**next = &carriers;
+      unsigned idx = 0;
+      for (const NetAssign_*leaf = lval; leaf; leaf = leaf->more, idx += 1) {
+	    NetNet*carrier = make_proc_cont_reg_(scope, proc_cont_leaf_type_(leaf),
+						leaf->lwidth(), *rval);
+	    *next = new NetAssign_(carrier);
+	    next = &(*next)->more;
+	    NetESignal*link = new NetESignal(carrier);
+	    if (links)
+		  links->set(idx, link);
+	    else
+		  link_rval = link;
+      }
+
+      NetEvent*event = new NetEvent(scope->local_symbol());
+      event->set_line(*rval);
+      event->local_flag(true);
+      scope->add_event(event);
+      NetEvProbe*probe = new NetEvProbe(scope, scope->local_symbol(), event,
+					NetEvProbe::ANYEDGE, inputs->size());
+      probe->set_line(*rval);
+      for (unsigned pin = 0; pin < inputs->size(); pin += 1)
+	    connect(inputs->at(pin).lnk, probe->pin(pin));
+      des->add_node(probe);
+
+      NetAssign*reeval = new NetAssign(carriers, rval->dup_expr());
+      reeval->set_line(*rval);
+      reeval->set_proc_cont_previous(previous);
+      NetEvWait*wait = new NetEvWait(nullptr);
+      wait->set_line(*rval);
+      wait->add_event(event);
+      // A declaration initializer can activate the statement before this
+      // process first runs. Check live links at startup as well as on wakes.
+      NetBlock*cycle = new NetBlock(NetBlock::SEQU, nullptr);
+      cycle->set_line(*rval);
+      cycle->append(reeval);
+      cycle->append(wait);
+      NetProcTop*watch = new NetProcTop(scope, IVL_PR_ALWAYS, cycle);
+      watch->set_line(*rval);
+      watch->attribute(perm_string::literal("_ivl_proc_continuous"), verinum(1));
+      des->add_process(watch);
+      return link_rval;
+}
+
+/* Keep the procedural RHS for immediate evaluation. For the expression
+ * forms still handled structurally, use the settled net for later updates. */
 static NetExpr* elaborate_force_link_rval_(Design*des, NetScope*scope,
 					   const NetExpr*rval,
 					   const NetAssign_*lval,
-					   unsigned width, bool concat)
+					   unsigned width, bool concat,
+					   NetNet*&previous)
 {
+      if (NetExpr*links = elaborate_proc_cont_rhs_(des, scope, rval, lval, width,
+							 previous))
+	    return links;
+
       if (!force_rhs_needs_structural_net_(rval)
 	  && !(concat && dynamic_cast<const NetESignal*>(rval)))
 	    return nullptr;
@@ -31362,9 +31530,7 @@ static NetExpr* elaborate_force_link_rval_(Design*des, NetScope*scope,
 	    select->set_line(*rval);
 	    des->add_node(select);
 
-	    ivl_type_t leaf_type = leaf->lval_type();
-	    ivl_variable_type_t data_type = leaf_type ? leaf_type->base_type()
-		  : leaf->sig() ? leaf->sig()->data_type() : IVL_VT_LOGIC;
+	    ivl_variable_type_t data_type = proc_cont_leaf_type_(leaf);
 	    // The slice net converts to two-state only for a two-state leaf.
 	    const netvector_t*type = new netvector_t(
 		  data_type == IVL_VT_BOOL ? IVL_VT_BOOL : IVL_VT_LOGIC,
@@ -31477,9 +31643,12 @@ NetForce* PForce::elaborate(Design*des, NetScope*scope) const
       if (rexp == 0)
 	    return 0;
 
+      NetNet*previous = nullptr;
       NetExpr*force_link_rexp = elaborate_force_link_rval_(des, scope, rexp,
-							  lval, lwid, concat);
+							  lval, lwid, concat, previous);
       dev = new NetForce(lval, rexp, force_link_rexp);
+      if (previous)
+	    dev->set_proc_cont_previous(previous);
 
       if (debug_elaborate) {
 	    cerr << get_fileline() << ": debug: Elaborate force,"

@@ -4805,6 +4805,13 @@ extern "C" ivl_expr_t ivl_stmt_cassign_link_rval(ivl_statement_t net)
 	   : net->u_.assign_.rval_;
 }
 
+extern "C" ivl_signal_t ivl_stmt_proc_cont_previous(ivl_statement_t net)
+{
+      assert(net->type_ == IVL_ST_ASSIGN || net->type_ == IVL_ST_CASSIGN
+	  || net->type_ == IVL_ST_FORCE);
+      return net->u_.assign_.proc_cont_previous_;
+}
+
 extern "C" ivl_sfunc_as_task_t ivl_stmt_sfunc_as_task(ivl_statement_t net)
 {
       assert(net);

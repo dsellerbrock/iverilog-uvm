@@ -179,6 +179,8 @@ bool dll_target::make_assign_lvals_(const NetAssignBase*net)
 	    dll_procedure_new_array<struct ivl_lval_s>(cnt);
       stmt_cur_->u_.assign_.rval_  = 0;
       stmt_cur_->u_.assign_.force_link_rval_ = 0;
+      const NetNet*previous = net->proc_cont_previous();
+      stmt_cur_->u_.assign_.proc_cont_previous_ = previous ? find_signal(previous) : 0;
       stmt_cur_->u_.assign_.aux_   = 0;
       stmt_cur_->u_.assign_.oper   = 0;
 

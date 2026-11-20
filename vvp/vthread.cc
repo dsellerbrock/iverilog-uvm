@@ -13025,9 +13025,9 @@ static vthread_t vthread_new_(vvp_code_t pc, __vpiScope*scope,
       return thr;
 }
 
-vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope)
+vthread_t vthread_new(vvp_code_t pc, __vpiScope*scope, bool seed_process_rng)
 {
-      return vthread_new_(pc, scope, true);
+      return vthread_new_(pc, scope, seed_process_rng);
 }
 
 #ifdef CHECK_WITH_VALGRIND
@@ -13621,7 +13621,7 @@ int vthread_is_reactive(vthread_t thr)
       return (thr && thr->is_reactive_process) ? 1 : 0;
 }
 
-void vthread_mark_clocking_sync(vthread_t thr)
+void vthread_mark_active(vthread_t thr)
 {
       if (thr)
 	    thr->is_reactive_process = 0;
@@ -18132,6 +18132,81 @@ bool of_CASSIGN_LINK(vthread_t, vvp_code_t cp)
       vvp_net_ptr_t dst_ptr (dst, 1);
       src->link(dst_ptr);
 
+      return true;
+}
+
+struct proc_cont_update_s;
+static std::map<vvp_net_t*,proc_cont_update_s*> proc_cont_updates;
+
+/* One Active update per reevaluation. Use the current connections so a
+ * release or replacement can remove all or part of a leaf after evaluation.
+ * A new activation of this same statement erases the pending batch. */
+struct proc_cont_update_s : public vvp_gen_event_s {
+      explicit proc_cont_update_s(vvp_net_t*cache) : previous(cache) {}
+
+      void run_run() override
+      {
+	    vvp_event_source_guard_s guard;
+	    for (const auto&leaf : leaves) {
+		  auto cur = proc_cont_updates.find(previous);
+		  if (cur == proc_cont_updates.end() || cur->second != this)
+			return;
+		  // The cache is assignment-wide. Forward the slice without a
+		  // second value-change check against an earlier activation.
+		  vvp_send_vec4(leaf.first->out_, leaf.second, 0);
+	    }
+	    auto cur = proc_cont_updates.find(previous);
+	    if (cur != proc_cont_updates.end() && cur->second == this)
+		  proc_cont_updates.erase(cur);
+      }
+
+      vvp_net_t*const previous;
+      std::vector<std::pair<vvp_net_t*,vvp_vector4_t>> leaves;
+};
+
+static bool proc_cont_vec4_reg_(vvp_net_t*net)
+{
+      return net && net->fil && dynamic_cast<vvp_fun_signal4_sa*>(net->fun);
+}
+
+static bool proc_cont_bad_operands_(const char*opcode)
+{
+      fprintf(stderr, "vvp: malformed %s operands.\n", opcode);
+      vpip_set_return_value(1);
+      schedule_finish(0);
+      return false;
+}
+
+/* Seed the cache from the activation's actual stack value. The initial
+ * assignment to the real target still consumes that value. */
+bool of_CASSIGN_SEED(vthread_t thr, vvp_code_t cp)
+{
+      if (!proc_cont_vec4_reg_(cp->net) || !thr->vec4_stack_size()
+	  || thr->peek_vec4().size() != cp->net->fil->filter_size())
+	    return proc_cont_bad_operands_("%cassign/seed");
+      proc_cont_updates.erase(cp->net);
+      vvp_send_vec4(vvp_net_ptr_t(cp->net, 0), thr->peek_vec4(), 0);
+      return true;
+}
+
+/* The generated reevaluation queues its slices without suspending. The
+ * Active publication runs after the process has rearmed its RHS probe,
+ * so a publication can itself change a watched source. */
+bool of_CASSIGN_QUEUE(vthread_t thr, vvp_code_t cp)
+{
+      if (!proc_cont_vec4_reg_(cp->net) || !proc_cont_vec4_reg_(cp->net2)
+	  || !thr->vec4_stack_size()
+	  || thr->peek_vec4().size() != cp->net2->fil->filter_size())
+	    return proc_cont_bad_operands_("%cassign/queue");
+      vvp_vector4_t value = thr->pop_vec4();
+      if (cp->net2->out_.nil())
+	    return true;
+      proc_cont_update_s*&pending = proc_cont_updates[cp->net];
+      if (!pending) {
+	    pending = new proc_cont_update_s(cp->net);
+	    schedule_generic(pending, 0, false, false, true);
+      }
+      pending->leaves.emplace_back(cp->net2, std::move(value));
       return true;
 }
 
@@ -23870,6 +23945,13 @@ bool of_JMP_VIF(vthread_t thr, vvp_code_t cp)
       vvp_vinterface*vif = top.peek<vvp_vinterface>();
       if (vif && vif->vif_scope() == cp->scope)
 	    thr->pc = cp->cptr2;
+      return true;
+}
+
+bool of_JMP_LINKED(vthread_t thr, vvp_code_t cp)
+{
+      if (!cp->net2->out_.nil())
+	    thr->pc = cp->cptr;
       return true;
 }
 

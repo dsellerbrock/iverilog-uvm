@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3897_assign_select.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue3897_assign_select"
+  ],
+  "gold": "issue3897_proc_cont_rhs"
+}
