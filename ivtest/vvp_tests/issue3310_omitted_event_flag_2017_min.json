@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3310_omitted_event_flag.v",
+  "iverilog-args": ["-g2017", "-gspecify", "-Tmin", "-s", "main"],
+  "vvp-args-extended": ["+timeskew=0", "+fullskew=0"]
+}
