@@ -126,11 +126,11 @@ void PGate::eval_delays(Design*des, NetScope*scope,
 			NetExpr*&rise_expr,
 			NetExpr*&fall_expr,
 			NetExpr*&decay_expr,
-			bool as_net_flag) const
+			PDelays::mode_t mode) const
 {
       delay_.eval_delays(des, scope,
 			 rise_expr, fall_expr, decay_expr,
-			 as_net_flag);
+			 mode);
 }
 
 unsigned PGate::delay_count() const

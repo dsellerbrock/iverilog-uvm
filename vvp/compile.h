@@ -214,6 +214,9 @@ extern void compile_delay(char*label, unsigned width,
 			  bool ignore_decay, bool per_bit = false,
 			  bool whole_vector = false);
 
+extern void compile_member_delay(char*label, uint64_t width, uint64_t whole,
+				 char*input, struct delay_operand_s*operands);
+
 /*
  * This is called by the parser to create a part select node.
  * See the PART SELECT STATEMENT section in the README.txt

@@ -4928,7 +4928,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    NetExpr*decay_expr = 0;
 	    if (const PDelays*dly = this->net_delay()) {
 		  dly->eval_delays(des, scope, rise_expr, fall_expr,
-				   decay_expr, true);
+				   decay_expr, PDelays::NETS);
 		  if (dly->delay_count() < 3)
 			decay_expr = 0;
 	    }
@@ -4961,7 +4961,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    NetExpr*fall_expr = 0;
 	    NetExpr*decay_expr = 0;
 	    net_delay->eval_delays(des, scope, rise_expr, fall_expr,
-				   decay_expr, true);
+				   decay_expr, PDelays::NETS);
 
 	    if (rise_expr) {
 		  /* Resolve every driver on a hidden net, then delay the one

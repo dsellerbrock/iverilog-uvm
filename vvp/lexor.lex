@@ -229,6 +229,7 @@ inline uint64_t strtouint64(const char*str, char**endptr, int base)
 ".concat8"      { return K_CONCAT8; }
 ".delay/w"      { return K_DELAY_WHOLE; }
 ".delay/v"      { return K_DELAY_VECTOR; }
+".delay/member" { return K_DELAY_MEMBER; }
 ".delay"        { return K_DELAY; }
 ".dff/n"        { return K_DFF_N; }
 ".dff/n/aclr"   { return K_DFF_N_ACLR; }

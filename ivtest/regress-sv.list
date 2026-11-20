@@ -7072,6 +7072,8 @@ issue3494_array_input_force_2017 normal,-g2017,-s,issue3494_array_input_force iv
 issue3494_array_input_force_2023 normal,-g2023,-s,issue3494_array_input_force ivltests gold=issue3494_array_input_force.gold
 issue3498_array_delay_2017 normal,-g2017,-s,tb ivltests gold=issue3498_array_delay.gold
 issue3498_array_delay_2023 normal,-g2023,-s,tb ivltests gold=issue3498_array_delay.gold
+issue3499_struct_member_delay_2017 normal,-g2017,-s,issue3499_struct_member_delay ivltests gold=issue3499_struct_member_delay.gold
+issue3499_struct_member_delay_2023 normal,-g2023,-s,issue3499_struct_member_delay ivltests gold=issue3499_struct_member_delay.gold
 issue3501_delayed_strength_2017 normal,-g2017,-s,issue3501_delayed_strength ivltests gold=issue3501_delayed_strength.gold
 issue3501_delayed_strength_2023 normal,-g2023,-s,issue3501_delayed_strength ivltests gold=issue3501_delayed_strength.gold
 issue3509_clocking_sequence_2017 normal,-g2017 ivltests
