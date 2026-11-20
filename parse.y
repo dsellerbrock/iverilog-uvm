@@ -9878,7 +9878,7 @@ sva_sequence_formals
 sva_sequence_formal_list
   /* IEEE 1800-2017/2023 16.8: "A type shall apply to all formal arguments
      whose identifiers both follow the type and precede the next type". */
-  : sva_sequence_formal_list ',' IDENTIFIER initializer_opt
+  : sva_sequence_formal_list ',' IDENTIFIER event_initializer_opt
       { sva_sequence_formal_t formal;
 	formal.name = lex_strings.make($3);
 	if (!$1->empty()) {
@@ -9952,7 +9952,7 @@ sva_sequence_formal_list
 	l->push_back(formal);
 	delete[]$2;
 	$$ = l; }
-  | sva_sequence_formal_list ',' K_event IDENTIFIER initializer_opt
+  | sva_sequence_formal_list ',' K_event IDENTIFIER event_initializer_opt
       { sva_sequence_formal_t formal;
 	formal.name = lex_strings.make($4);
 	formal.event_type = true;
@@ -9960,7 +9960,7 @@ sva_sequence_formal_list
 	$1->push_back(formal);
 	delete[]$4;
 	$$ = $1; }
-  | K_event IDENTIFIER initializer_opt
+  | K_event IDENTIFIER event_initializer_opt
       { std::list<sva_sequence_formal_t>*l =
 	      new std::list<sva_sequence_formal_t>;
 	sva_sequence_formal_t formal;
@@ -14305,9 +14305,10 @@ expression_list_with_nuls
       }
   ;
 
-  /* IEEE 1800-2017/2023 16.12.18: an event formal takes an event expression.
-     A bare expression already parses as an ordinary argument. An "or"
-     list is one actual; a comma at this level separates arguments. */
+  /* IEEE 1800-2017/2023 16.8.1 and 16.12.18: an event formal takes an
+     event expression. A bare expression already parses as an ordinary
+     argument. An "or" list is one actual; a comma at this level separates
+     arguments. */
 event_actual
   : explicit_event_expression
       { $$ = $1; }

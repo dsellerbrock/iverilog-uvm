@@ -1,0 +1,5 @@
+ivltests/issue708_sequence_event_ce.sv:5: error: event formal `ev' can only be used as an event expression (IEEE 1800-2017/2023 16.8.1).
+ivltests/issue708_sequence_event_ce.sv:9: error: event formal `ev' can only be used as an event expression (IEEE 1800-2017/2023 16.8.1).
+ivltests/issue708_sequence_event_ce.sv:22: error: sequence `data_clock' formal `sig' cannot take an event expression actual (IEEE 1800-2017/2023 16.8.1).
+ivltests/issue708_sequence_event_ce.sv:23: sorry: clocked sequence `with_clock' requires a known, identical local clock when spliced into a sequence expression.
+ivltests/issue708_sequence_event_ce.sv:24: error: the ending clock of sequence `with_clock' used with .triggered shall be the same as the consuming clock (IEEE 1800-2017/2023 16.13.5).

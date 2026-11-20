@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue708_sequence_event_ce.sv",
+  "iverilog-args": ["-g2017", "-gassertions", "-s", "issue708_sequence_event_ce"],
+  "gold": "issue708_sequence_event_ce"
+}

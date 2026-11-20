@@ -10580,6 +10580,8 @@ struct sva_clone_scope_t {
       bool qualify_sequence_refs = false;
       const pform_name_t*module_prefix = nullptr;
       const std::map<const PGenerate*, name_component_t>*generate_components = nullptr;
+      const LexicalScope*binding_scope = nullptr;
+      const std::map<perm_string,const PEventStatement*>*event_formals = nullptr;
 	/* 17.3: the $unit a checker is declared in. A name its assertion
 	   reads from there must keep that binding where the assertion is
 	   placed at a procedural instance. */
@@ -10724,7 +10726,7 @@ static pform_name_t sva_clone_qualifier_(const pform_name_t&path, bool call,
 					PPackage*&package)
 {
       const auto&ctx = sva_clone_scope_;
-      if (package || path.empty()
+      if (package || path.empty() || path.front().sva_binding_scope
 	  || (!ctx.module_prefix && (!ctx.prefix || ctx.prefix->empty())))
 	    return {};
       perm_string base = path.front().name;
@@ -10748,6 +10750,14 @@ static pform_name_t sva_clone_qualifier_(const pform_name_t&path, bool call,
       if (!ctx.module_prefix) return *ctx.prefix;
       return sva_qualifier_for_scope_(ctx.module_prefix, ctx.module,
 	    dynamic_cast<const PGenerate*>(decl_scope), ctx.generate_components);
+}
+
+static void sva_bind_cloned_name_(pform_name_t&path)
+{
+      if (!path.empty() && !path.front().sva_binding_scope
+	  && (!sva_clone_scope_.local_names
+	      || !sva_clone_scope_.local_names->count(path.front().name)))
+	    path.front().sva_binding_scope = sva_clone_scope_.binding_scope;
 }
 
 /* A sequence event is a procedural one-shot wait for a sequence match
@@ -13016,7 +13026,16 @@ void pform_sva_declare_sequence_p(const struct vlltype&loc, const char*name,
       if (formals) {
 	    for (sva_sequence_formal_t f : *formals) {
 	      rec.formals.push_back(f);
-	      if (!f.type || f.local_input || !steps) continue;
+	      if ((f.type || f.sequence_type)
+		  && (dynamic_cast<PEEvent*>(f.default_expr)
+		      || dynamic_cast<PEEventList*>(f.default_expr))) {
+		    cerr << loc << ": error: sequence `" << use_name << "' formal `"
+			 << f.name << "' cannot take an event expression default "
+			 << "(IEEE 1800-2017/2023 16.8.1)." << endl;
+		    error_count += 1;
+	      }
+	      if (f.event_type) sva_expr_forget_sampled_(f.default_expr);
+	      if ((!f.type && !f.event_type) || f.local_input || !steps) continue;
 	      for (const sva_seq_step_t&step : *steps) {
 		    for (const sva_match_item_t&item : step.items) {
 			  if (item.kind != sva_match_item_t::LOCAL_ASSIGNMENT
@@ -13148,6 +13167,7 @@ static bool sva_clone_name_component_(
 {
       copy.name = source.name;
       copy.local_scope = source.local_scope;
+      copy.sva_binding_scope = source.sva_binding_scope;
       sva_clone_scope_t no_context;
       std::unique_ptr<sva_clone_scope_guard_t>guard;
       if (caller_context) guard.reset(new sva_clone_scope_guard_t(no_context));
@@ -13398,6 +13418,20 @@ static PExpr* sva_capture_intercept_(PExpr*e,
       return nullptr;
 }
 
+/* Event formals use a separate clock substitution. Diagnose a value
+   reference even when a design signal has the same name. */
+static bool sva_reject_event_value_(const LineInfo&loc, perm_string name,
+				     const std::map<perm_string,PExpr*>*subst)
+{
+      const auto*events = sva_clone_scope_.event_formals;
+      if (!subst || !events || !events->count(name)) return false;
+      cerr << loc.get_fileline() << ": error: event formal `" << name
+	   << "' can only be used as an event expression "
+	   << "(IEEE 1800-2017/2023 16.8.1)." << endl;
+      error_count += 1;
+      return true;
+}
+
 /* Structural clone for the expression shapes that appear in disable
    iff conditions and reusable named-property bodies. Returns nil for
    shapes it cannot copy; callers fall back to consume-once.
@@ -13441,7 +13475,18 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	    copy->set_line(*e);
 	    return copy.release();
       }
+      if (PEEvent*event = dynamic_cast<PEEvent*>(e)) {
+	    std::unique_ptr<PExpr> expr(sva_clone_subst_(event->expr(), subst));
+	    std::unique_ptr<PExpr> condition(sva_clone_subst_(event->condition(), subst));
+	    if (!expr || (event->condition() && !condition)) return nullptr;
+	    PEEvent*copy = new PEEvent(event->type(), expr.release(), condition.release());
+	    copy->set_line(*event);
+	    return copy;
+      }
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    if (!id->path().package && !id->path().name.empty()
+		&& sva_reject_event_value_(*id, id->path().name.front().name, subst))
+		  return nullptr;
 	    /* A dotted formal reference such as `x.triggered' is represented as
 	       one PEIdent path, not as PEMemberAccess. Substitute the formal base
 	       first, then preserve the member suffix as member-access nodes. */
@@ -13539,8 +13584,10 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 		  }
 		  path.push_back(copy);
 	    }
-	    if (!package && !qualify)
+	    if (!package && !qualify) {
+		  sva_bind_cloned_name_(path);
 		  sva_check_free_name_(id->path().name.front().name);
+	    }
 	    PEIdent*cp = package
 		  ? new PEIdent(package, path, id->lexical_pos())
 		  : new PEIdent(path, id->lexical_pos());
@@ -13735,6 +13782,9 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	   sampled-value function of a parameterized body. */
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
 	    if (cf->receiver_expr()) return nullptr;
+	    if (!cf->path().package && !cf->path().name.empty()
+		&& sva_reject_event_value_(*cf, cf->path().name.front().name, subst))
+		  return nullptr;
 	    pform_name_t call_path;
 	    PPackage*package = cf->path().package;
 	    pform_name_t qualifier = sva_clone_qualifier_(cf->path().name, true, package);
@@ -13770,8 +13820,13 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 		  }
 		  np.push_back(a);
 	    }
-	    if (!package && !qualify_call && cf->path().name.size() == 1)
-		  sva_check_free_name_(cf->path().name.front().name);
+	    if (!package && !qualify_call) {
+		  if (!call_path.empty() && !call_path.front().name.nil()
+		      && call_path.front().name.str()[0] != '$')
+			sva_bind_cloned_name_(call_path);
+		  if (cf->path().name.size() == 1)
+			sva_check_free_name_(cf->path().name.front().name);
+	    }
 	    PECallFunction*cp = package
 		  ? new PECallFunction(package, call_path, np)
 		  : new PECallFunction(call_path, np);
@@ -16087,6 +16142,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		     const sva_param_seq_t&decl,
 		     const std::vector<named_pexpr_t>&parms,
 		     PEventStatement*&clock,
+		     const LexicalScope*declaration_scope,
 		     const sva_clone_scope_t*decl_context = nullptr,
 		     const sva_clone_scope_t*call_context = nullptr,
 		     const std::vector<perm_string>*caller_locals = nullptr)
@@ -16095,9 +16151,15 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	  sva_clone_scope_t empty_context;
 	  const sva_clone_scope_t&caller = call_context
 		? *call_context : empty_context;
+	  const sva_clone_scope_t&declaration = decl_context
+		? *decl_context : empty_context;
 	  sva_clone_scope_guard_t call_scope(caller);
       std::map<perm_string,PExpr*> subst;
       std::vector<PExpr*> owned_subst;
+      std::map<perm_string,const PEventStatement*> event_subst;
+      using owned_clock_t =
+	    std::unique_ptr<PEventStatement, decltype(&sva_destroy_sequence_clock_)>;
+      std::vector<owned_clock_t> owned_events;
       std::vector<const named_pexpr_t*> actuals(decl.formals.size(), nullptr);
       size_t positional = 0;
       for (size_t k = 0 ; k < parms.size() ; k += 1) {
@@ -16143,12 +16205,6 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		  cerr << loc << ": error: sequence `" << nm
 		       << "' is missing required argument `"
 		       << decl.formals[k].name << "'." << endl;
-		  error_count += 1;
-		  return nullptr;
-	    }
-	    if (decl.formals[k].event_type) {
-		  cerr << loc << ": sorry: sequence `" << nm << "' event formal `"
-		       << decl.formals[k].name << "' is not supported yet." << endl;
 		  error_count += 1;
 		  return nullptr;
 	    }
@@ -16202,12 +16258,64 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
       std::vector<sva_seq_step_t> initializers;
       for (size_t k = 0 ; k < decl.formals.size() ; k += 1) {
 	    const sva_sequence_formal_t&formal = decl.formals[k];
+	    if (formal.event_type) {
+		  const bool explicit_actual = actuals[k] && actuals[k]->parm;
+		  PExpr*actual = explicit_actual ? actuals[k]->parm : formal.default_expr;
+		  if (!actual || dynamic_cast<PEUnbounded*>(actual)) {
+			cerr << loc << ": error: sequence `" << nm << "' formal `"
+			     << formal.name << "' requires an event expression "
+			     << "(IEEE 1800-2017/2023 16.8.1)." << endl;
+			error_count += 1;
+			sva_destroy_local_init_steps_(initializers);
+			for (PExpr*expr : owned_subst) delete expr;
+			return nullptr;
+		  }
+		  // The parser supplies edge/iff terms and event lists explicitly.
+		  // A bare expression is an implicit value-change or named event.
+		  PEEvent change(PEEvent::ANYEDGE, actual);
+		  PEEvent*term = dynamic_cast<PEEvent*>(actual);
+		  const PEEventList*list = dynamic_cast<const PEEventList*>(actual);
+		  PEventStatement source(list ? list->events()
+					       : std::vector<PEEvent*>{term ? term : &change});
+		  sva_clone_scope_t context = explicit_actual ? caller : declaration;
+		  context.binding_scope = explicit_actual ? lexical_scope : declaration_scope;
+		  sva_clone_scope_guard_t bind_scope(context);
+		  owned_clock_t bound(sva_clone_event_control_(&source, loc),
+				      sva_destroy_sequence_clock_);
+		  if (!bound) {
+			cerr << loc << ": sorry: cannot copy the event expression for sequence `"
+			     << nm << "' formal `" << formal.name << "'." << endl;
+			error_count += 1;
+			sva_destroy_local_init_steps_(initializers);
+			for (PExpr*expr : owned_subst) delete expr;
+			return nullptr;
+		  }
+		  // The clock body is expanded in declaration scope. Keep the
+		  // already bound operands and guards from being qualified again.
+		  for (const PEEvent*event : bound->event_expressions()) {
+			sva_mark_actual_scope_(event->expr(), empty_context);
+			sva_mark_actual_scope_(event->condition(), empty_context);
+		  }
+		  event_subst[formal.name] = bound.get();
+		  owned_events.push_back(std::move(bound));
+		  continue;
+	    }
 	    /* A default actual is resolved in the declaration's scope, like
 	       the body text, so it is substituted without the actual mark. */
 	    PExpr*parm = actuals[k] ? actuals[k]->parm : formal.default_expr;
 	    if (!parm) {
 		  cerr << loc << ": error: sequence `" << nm
 		       << "' argument " << (k+1) << " is empty." << endl;
+		  error_count += 1;
+		  sva_destroy_local_init_steps_(initializers);
+		  for (PExpr*expr : owned_subst) delete expr;
+		  return nullptr;
+	    }
+	    if ((formal.type || formal.sequence_type)
+		&& (dynamic_cast<PEEvent*>(parm) || dynamic_cast<PEEventList*>(parm))) {
+		  cerr << loc << ": error: sequence `" << nm << "' formal `"
+		       << formal.name << "' cannot take an event expression actual "
+		       << "(IEEE 1800-2017/2023 16.8.1)." << endl;
 		  error_count += 1;
 		  sva_destroy_local_init_steps_(initializers);
 		  for (PExpr*expr : owned_subst) delete expr;
@@ -16267,12 +16375,13 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    initializers.push_back(init);
       }
       std::vector<sva_seq_step_t>*out = new std::vector<sva_seq_step_t>;
-	  const sva_clone_scope_t&declaration = decl_context
-		? *decl_context : empty_context;
-	  sva_clone_scope_guard_t body_scope(declaration, caller);
+      sva_clone_scope_t body_context = declaration;
+      body_context.event_formals = &event_subst;
+      sva_clone_scope_guard_t body_scope(body_context, caller);
       for (size_t k = 0 ; k < decl.body->size() ; k += 1) {
 	    sva_seq_step_t st = (*decl.body)[k];   /* copies delays */
 	    st.items.clear();
+	    unsigned errors_before_clone = error_count;
 	    st.expr = sva_clone_subst_((*decl.body)[k].expr, &subst);
 	    st.delay_lo_expr = (*decl.body)[k].delay_lo_expr
 		? sva_clone_subst_((*decl.body)[k].delay_lo_expr, &subst) : nullptr;
@@ -16334,10 +16443,12 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		|| ((*decl.body)[k].rep_lo_expr && !st.rep_lo_expr)
 		|| ((*decl.body)[k].rep_hi_expr && !st.rep_hi_expr)
 		|| !items_ok) {
-		  cerr << loc << ": sorry: sequence `" << nm << "' has a body "
-		       << "expression that cannot be instantiated with "
-		       << "arguments; the assertion is dropped." << endl;
-		  error_count += 1;
+		  if (error_count == errors_before_clone) {
+			cerr << loc << ": sorry: sequence `" << nm << "' has a body "
+			     << "expression that cannot be instantiated with "
+			     << "arguments; the assertion is dropped." << endl;
+			error_count += 1;
+		  }
 		  delete st.expr;
 		  delete st.delay_lo_expr;
 		  delete st.delay_hi_expr;
@@ -16354,11 +16465,17 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
       out->insert(out->begin(), initializers.begin(), initializers.end());
       initializers.clear();
       if (decl.clk_evt) {
-	    clock = sva_clone_event_control_(decl.clk_evt, loc, &subst);
+	    sva_clone_scope_t context = body_context;
+	    if (!event_subst.empty()) context.binding_scope = declaration_scope;
+	    sva_clone_scope_guard_t clock_scope(context, caller);
+	    unsigned errors_before_clone = error_count;
+	    clock = sva_clone_event_control_(decl.clk_evt, loc, &subst, &event_subst);
 	    if (!clock) {
-		  cerr << loc << ": sorry: cannot instantiate the leading clock of "
-		       << "sequence `" << nm << "'." << endl;
-		  error_count += 1;
+		  if (error_count == errors_before_clone) {
+			cerr << loc << ": sorry: cannot instantiate the leading clock of "
+			     << "sequence `" << nm << "'." << endl;
+			error_count += 1;
+		  }
 		  pform_sva_destroy_sequence(out);
 		  out = nullptr;
 	    }
@@ -20937,6 +21054,15 @@ static void sva_expr_forget_sampled_(PExpr*e)
 {
       if (!e) return;
 
+      if (PEEventList*list = dynamic_cast<PEEventList*>(e)) {
+	    for (PEEvent*event : list->events()) sva_expr_forget_sampled_(event);
+	    return;
+      }
+      if (PEEvent*event = dynamic_cast<PEEvent*>(e)) {
+	    sva_expr_forget_sampled_(event->expr());
+	    sva_expr_forget_sampled_(event->condition());
+	    return;
+      }
       if (PECallFunction*cf = dynamic_cast<PECallFunction*>(e)) {
 	    sampled_pending_drop_(cf);
 	      // A sampled call can nest inside another call's arguments.
@@ -21598,6 +21724,8 @@ static const LexicalScope* sva_clock_expr_scope_(const PExpr*expr,
 static const LexicalScope* sva_clock_ident_scope_(const PEIdent*id,
 						  const LexicalScope*scope)
 {
+      if (const LexicalScope*binding = id->path().name.front().sva_binding_scope)
+	    scope = binding;
       perm_string name = id->path().name.front().name;
       for (; scope; scope = scope->parent_scope()) {
 	    auto wire = scope->wires.find(name);
@@ -21866,6 +21994,10 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 			      if (!enter(pit->first)) { --splice_depth; return; }
 			      std::vector<sva_seq_step_t>*inst = nullptr;
 			      PEventStatement*clock = nullptr;
+			      const LexicalScope*clock_scope =
+				    sva_sequence_decl_scope_(pit->first, decl_module);
+			      const LexicalScope*declaration_scope = clock_scope
+				    ? clock_scope : sva_scope_module_(lexical_scope);
 			      if (hierarchical_call) {
 				    std::set<perm_string>local_names;
 				    for (const sva_seq_step_t&step : *pit->second.body)
@@ -21893,7 +22025,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 				    call_context.qualify_sequence_refs = true;
 				    inst = sva_instantiate_seq_(
 					  loc, nm, pit->second, cf->get_parms(), clock,
-					  &declaration_context, &call_context,
+					  declaration_scope, &declaration_context, &call_context,
 					  caller_locals);
 			      } else if (endpoint) {
 				    sva_clone_scope_t call_context;
@@ -21901,16 +22033,14 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 				    call_context.generate = expr_scope;
 				    inst = sva_instantiate_seq_(
 					  loc, nm, pit->second, cf->get_parms(), clock,
-					  nullptr, &call_context, caller_locals);
+					  declaration_scope, nullptr, &call_context, caller_locals);
 			      } else {
 				    inst = sva_instantiate_seq_(
 					  loc, nm, pit->second, cf->get_parms(), clock,
-					  nullptr, nullptr, caller_locals);
+					  declaration_scope, nullptr, nullptr, caller_locals);
 			      }
 			  if (inst) {
 				    if (clock) {
-					  const LexicalScope*clock_scope =
-						sva_sequence_decl_scope_(pit->first, decl_module);
 					  const Module::PClocking*block = pform_cur_clocking
 						? pform_cur_clocking : sva_active_clocking_scope_;
 					  if (block && !sva_sequence_clocks_match_(block->event, clock)) {
@@ -35351,6 +35481,13 @@ static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
 	/* The enclosing always block owns its own event control, and the
 	   synthesizer takes ownership of whatever it is given, so clone. */
       std::vector<PEEvent*> copy;
+      auto discard_copy = [&]() {
+	    for (PEEvent*event : copy) {
+		  delete event->expr();
+		  delete event->condition();
+		  delete event;
+	    }
+      };
       for (size_t idx = 0 ; idx < evs.size() ; idx += 1) {
 	    if (!evs[idx]) continue;
 	    /* `@(event_formal)' adopts the inferred clock event expression,
@@ -35366,6 +35503,13 @@ static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
 		  if (found != event_subst->end()) event_control = found->second;
 	    }
 	    if (event_control) {
+		  // A sequence event formal replaces a complete event expression.
+		  if ((evs[idx]->type() != PEEvent::ANYEDGE || evs[idx]->condition())
+		      && sva_reject_event_value_(*evs[idx],
+						 event_id->path().name.front().name, subst)) {
+			discard_copy();
+			return nullptr;
+		  }
 		  const std::vector<PEEvent*>&inferred_events =
 			 event_control->event_expressions();
 		  for (const PEEvent*inferred : inferred_events) {
@@ -35375,7 +35519,7 @@ static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
 			      ? sva_clone_subst_(inferred->condition(), nullptr) : nullptr;
 			if (!expr || (inferred->condition() && !condition)) {
 			      delete expr; delete condition;
-			      for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
+			      discard_copy();
 			      return nullptr;
 			}
 			PEEvent*event = new PEEvent(inferred->type(), expr, condition);
@@ -35386,14 +35530,14 @@ static PEventStatement* sva_clone_event_control_(const PEventStatement*src,
 	    }
 	    PExpr*sub = sva_clone_subst_(evs[idx]->expr(), subst);
 	    if (!sub) {
-		  for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
+		  discard_copy();
 		  return nullptr;
 	    }
 	    PExpr*condition = evs[idx]->condition()
 		  ? sva_clone_subst_(evs[idx]->condition(), subst) : nullptr;
 	    if (evs[idx]->condition() && !condition) {
 		  delete sub;
-		  for (size_t k = 0 ; k < copy.size() ; k += 1) delete copy[k];
+		  discard_copy();
 		  return nullptr;
 	    }
 	    PEEvent*ev = new PEEvent(evs[idx]->type(), sub, condition);
