@@ -1,0 +1,11 @@
+./ivltests/issue3422.v:73: error: A hierarchical identifier must be the entire configuration parameter override expression (IEEE 1800 33.4.3).
+./ivltests/issue3422.v:76: error: A hierarchical identifier must be the entire configuration parameter override expression (IEEE 1800 33.4.3).
+./ivltests/issue3422.v:78: error: A hierarchical identifier must be the entire configuration parameter override expression (IEEE 1800 33.4.3).
+./ivltests/issue3422.v:79: error: A configuration parameter override cannot reference a generate scope (IEEE 1800 33.4.3).
+./ivltests/issue3422.v:80: error: A configuration parameter override cannot reference an instance array scope (IEEE 1800 33.4.3).
+./ivltests/issue3422.v:74: error: A configuration parameter override may call only built-in constant system functions (IEEE 1800 33.4.3).
+./ivltests/issue3422.v:75: error: A configuration parameter override may call only built-in constant system functions (IEEE 1800 33.4.3).
+./ivltests/issue3422.v:77: error: A hierarchical identifier must be the entire configuration parameter override expression (IEEE 1800 33.4.3).
+./ivltests/issue3422.v:32: error: A configuration parameter override may call only built-in constant system functions (IEEE 1800 33.4.3).
+./ivltests/issue3422.v:82: error: A configuration parameter override may call only built-in constant system functions (IEEE 1800 33.4.3).
+10 error(s) during elaboration.

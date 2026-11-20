@@ -5252,7 +5252,12 @@ static void replace_scope_parameters(Design *des, NetScope*scope, const LineInfo
 		  cerr << loc.get_fileline() << ":      : "
 		       << "Type=" << val->expr_type() << endl;
 	    }
-	    scope->replace_parameter(des, (*cur).first, val, scope->parent());
+	    NetScope*use_scope = scope->parent();
+	    // A config can override a top-level instance, which has no
+	    // instance parent. Start its lookup in the compilation unit.
+	    if (!use_scope && config_param_locked(scope, (*cur).first))
+		  use_scope = scope->unit();
+	    scope->replace_parameter(des, (*cur).first, val, use_scope);
       }
 }
 

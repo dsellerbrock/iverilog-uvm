@@ -59744,6 +59744,7 @@ Design* elaborate(list<perm_string>roots)
         // item has completed, so a miss cannot be mistaken for an instance
         // that simply had not been elaborated yet.
       pform_check_bind_matches(des);
+      config_check_parameter_overrides(des);
 
       if (debug_elaborate) {
 	    cerr << "<toplevel>: elaborate: "

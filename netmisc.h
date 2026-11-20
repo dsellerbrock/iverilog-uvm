@@ -133,9 +133,9 @@ struct symbol_search_results {
 	// one is retained.
       const LineInfo*decl_after_use;
 
-        // A scope component existed, but one of its instance-array indices
-        // was not a constant expression. Callers must not replace that
-        // specific diagnostic with a generic unresolved-name warning.
+        // A scope component was diagnosed, for example for a nonconstant
+        // instance-array index or an illegal config override reference.
+        // Callers must not replace that diagnostic with a generic warning.
       bool scope_index_error;
 
         // A declared genvar was referenced where no loop-generate index is active.

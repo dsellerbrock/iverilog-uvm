@@ -43,6 +43,7 @@ bool pform_type_operator_context = false;
 
 # include  "PPackage.h"
 # include  "PClass.h"
+# include  "PConfig.h"
 # include  "PGate.h"
 # include  "pform.h"
 # include  "parse_api.h"
@@ -12509,7 +12510,6 @@ unsigned PECallFunction::test_width_method_(Design*des, NetScope*scope,
  * a LOUD sorry, never a silent drop.
  */
 static int let_expand_depth_ = 0;
-static const int LET_EXPAND_DEPTH_MAX = 64;
 
 static PExpr* let_clone_expr_(const PExpr*e,
 			      const std::map<perm_string,PExpr*>&subst,
@@ -12910,7 +12910,12 @@ static PExpr* let_expand_(Design*des, const LineInfo&use, PLet*let,
 
 PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
 {
-      if (let_subst_tried_) return let_subst_;
+      PExpr**config_subst = pform_configs.empty()
+	    ? nullptr : config_let_expansion_slot(this, scope);
+      if (config_subst && *config_subst)
+	    return *config_subst;
+      if (!config_subst && let_subst_tried_)
+	    return let_subst_;
 
       if (receiver_ || leading_type_args_) return 0;
       if (!with_constraints_.empty()) return 0;
@@ -12925,6 +12930,9 @@ PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
       PLet*let = lookup ? lookup->find_let(des, comp.name, lexical_pos_, &owner) : nullptr;
       if (let == 0) return 0;
 
+      if (config_subst)
+	    return *config_subst = let_expand_(des, *this, let, parms_, owner);
+
       let_subst_tried_ = true;
       let_subst_ = let_expand_(des, *this, let, parms_, owner);
       return let_subst_;
@@ -12932,7 +12940,12 @@ PExpr* PECallFunction::let_substitution_(Design*des, NetScope*scope) const
 
 PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
 {
-      if (let_subst_tried_) return let_subst_;
+      PExpr**config_subst = pform_configs.empty()
+	    ? nullptr : config_let_expansion_slot(this, scope);
+      if (config_subst && *config_subst)
+	    return *config_subst;
+      if (!config_subst && let_subst_tried_)
+	    return let_subst_;
 
       if (path_.name.size() != 1) return 0;
       const name_component_t&comp = path_.name.front();
@@ -12944,8 +12957,11 @@ PExpr* PEIdent::let_substitution_(Design*des, NetScope*scope) const
       PLet*let = lookup ? lookup->find_let(des, comp.name, lexical_pos(), &owner) : nullptr;
       if (let == 0) return 0;
 
-      let_subst_tried_ = true;
       static const std::vector<named_pexpr_t> no_args;
+      if (config_subst)
+	    return *config_subst = let_expand_(des, *this, let, no_args, owner);
+
+      let_subst_tried_ = true;
       let_subst_ = let_expand_(des, *this, let, no_args, owner);
       return let_subst_;
 }
