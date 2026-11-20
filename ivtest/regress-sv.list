@@ -6695,6 +6695,7 @@ issue941_checker_scope_2023 normal,-g2023,-gassertions,-s,issue941_checker_scope
 issue1530_fixed_target_concat_2017 normal,-g2017,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold
 issue1530_fixed_target_concat_2023 normal,-g2023,-s,issue1530_fixed_target_concat ivltests gold=issue1530_fixed_target_concat.gold
 issue1713_skew_timer_expiration normal,-g2017,-gspecify,-s,main ivltests gold=issue1713_skew_timer_expiration.gold
+issue3310_explicit_event_flag normal,-g2017,-gspecify,-Ttyp,-s,main,+timeskew=1,+fullskew=0 ivltests
 issue1757_enum2_wide_2017 normal,-g2017,-s,tb ivltests gold=issue1757_enum2_wide.gold
 issue1757_enum2_wide_2023 normal,-g2023,-s,tb ivltests gold=issue1757_enum2_wide.gold
 issue1725_class_randomize_size_retry_2017 normal,-g2017,-s,tb ivltests gold=issue1725_class_randomize_size_retry.gold
