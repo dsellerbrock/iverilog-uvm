@@ -9813,14 +9813,10 @@ int draw_task_definition(ivl_scope_t scope)
  * the call is not emitted — the body pushes a zero/empty result so
  * simulation can proceed deterministically.
  */
-/* IEEE 1800-2017/2023 H.7.8: an unpacked struct formal, or a fixed or open
-   one-dimensional array of them, is passed in the C compiler's struct layout.
-   Return the struct type for these shapes, otherwise NULL. */
-static ivl_type_t dpi_struct_formal_type_(ivl_signal_t port)
+/* IEEE 1800-2017/2023 H.7.8: an unpacked struct, including an element of
+   a fixed or open array, is passed in the C compiler's struct layout. */
+static ivl_type_t dpi_struct_formal_type_(ivl_type_t nt)
 {
-      ivl_type_t nt = ivl_signal_net_type(port);
-      if (nt && ivl_signal_data_type(port) == IVL_VT_DARRAY)
-	    nt = ivl_type_element(nt);
       if (nt && ivl_type_base(nt) == IVL_VT_NO_TYPE
 	  && ivl_type_properties(nt) > 0)
 	    return nt;
@@ -9982,13 +9978,22 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		  break;
 	    }
 
-	    ivl_type_t struct_type = dpi_struct_formal_type_(port);
-	    char descriptor[256] = "";
+	    ivl_type_t elem_type = ivl_signal_net_type(port);
+	    unsigned rank = 0;
+	    while (ivl_type_base(elem_type) == IVL_VT_DARRAY) {
+		  rank += 1;
+		  elem_type = ivl_type_element(elem_type);
+	    }
+
+	    ivl_type_t struct_type = dpi_struct_formal_type_(elem_type);
+	    char descriptor[256 + 16] = "";
 	    if (struct_type) {
-		  if (!dpi_struct_member_desc_(struct_type, descriptor,
-					       sizeof descriptor)
-		      || types_pos + strlen(descriptor) + 8
-			 >= sizeof arg_types) {
+		    /* Keep the existing t{members} encoding for rank one. */
+		  size_t prefix = rank > 1
+			? snprintf(descriptor, sizeof descriptor, "%u:", rank)
+			: 0;
+		  if (!dpi_struct_member_desc_(struct_type, descriptor + prefix,
+					       256)) {
 			if (ivl_type_is_union(struct_type))
 			      fprintf(stderr, "%s:%u: sorry: DPI import "
 				      "'%s': argument '%s' is an unpacked "
@@ -10068,16 +10073,7 @@ static void draw_dpi_func_body(ivl_scope_t scope, int is_task)
 		       Atom/real elements may expose direct storage through
 		       svGetArrElemPtr; arbitrary packed bit/logic elements use
 		       the canonical svGet/Put*ArrElem*VecVal copy API. */
-		  ivl_type_t nt = ivl_signal_net_type(port);
-		  ivl_type_t et = nt ? ivl_type_element(nt) : 0;
-		    /* A multidimensional open array is a darray of darrays.
-		       Keep the rank for string staging even if the actual
-		       has no elements from which to infer it. */
-		  unsigned rank = 1;
-		  while (et && ivl_type_base(et) == IVL_VT_DARRAY) {
-			rank += 1;
-			et = ivl_type_element(et);
-		  }
+		  ivl_type_t et = elem_type;
 		  ivl_variable_type_t ebase = et ? ivl_type_base(et)
 			                         : IVL_VT_NO_TYPE;
 		  unsigned ewid = et ? ivl_type_packed_width(et) : 0;
