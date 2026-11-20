@@ -33,7 +33,6 @@
 # include  <cstring>
 # include  <cerrno>
 # include  <climits>
-# include  <algorithm>
 
 using namespace std;
 
@@ -162,21 +161,52 @@ static bool parse_layout_int_(const char*&cur, int&value)
       return true;
 }
 
+static bool parse_assoc_layout_(const char*&cur, vvp_assoc_layout_t&assoc)
+{
+      if (*cur == '\0' || *cur == ',')
+            return true; // Legacy bare A.
+      if (*cur != 's' && *cur != 'u')
+            return false;
+      assoc.key_signed = *cur++ == 's';
+      switch (*cur) {
+          case 'b': assoc.value_kind = vvp_assoc_layout_t::BOOL; break;
+          case 'v': assoc.value_kind = vvp_assoc_layout_t::LOGIC; break;
+          case 'r': assoc.value_kind = vvp_assoc_layout_t::REAL; break;
+          case 'S': assoc.value_kind = vvp_assoc_layout_t::STRING; break;
+          case 'o': assoc.value_kind = vvp_assoc_layout_t::OBJECT; break;
+          default: return false;
+      }
+      ++cur;
+      if (assoc.value_kind == vvp_assoc_layout_t::BOOL
+          || assoc.value_kind == vvp_assoc_layout_t::LOGIC) {
+            if (*cur != 's' && *cur != 'u')
+                  return false;
+            assoc.value_signed = *cur++ == 's';
+      } else if (assoc.value_kind == vvp_assoc_layout_t::OBJECT && *cur == 's') {
+            assoc.value_signed = true;
+            ++cur;
+      }
+      return true;
+}
+
 static bool parse_strict_container_layout_(
       const char*cur, vvp_container_layout_kind_t expected_outer,
       vvp_container_layout_t&layout)
 {
       vector<vvp_container_layout_kind_t> kinds;
       vector<uint64_t> queue_bounds;
+      vector<vvp_assoc_layout_t> assoc_layouts;
       int fixed_left = 0, fixed_right = 0;
       vvp_fixed_leaf_kind_t fixed_leaf = VVP_FIXED_OBJECT;
       unsigned fixed_width = 0;
       unsigned packed_width = 0;
+      bool legacy_assoc = false;
       if (!cur || *cur != '!')
             return false;
       ++cur;
 
       while (*cur) {
+            vvp_assoc_layout_t assoc;
             if (*cur == 'Q') {
                   ++cur;
                   uint64_t bound = 0;
@@ -190,6 +220,9 @@ static bool parse_strict_container_layout_(
                   queue_bounds.push_back(0);
             } else if (*cur == 'A') {
                   ++cur;
+                  if (!parse_assoc_layout_(cur, assoc))
+                        return false;
+                  legacy_assoc |= assoc.value_kind == vvp_assoc_layout_t::UNKNOWN;
                   kinds.push_back(VVP_CONTAINER_ASSOC);
                   queue_bounds.push_back(0);
             } else if (*cur == 'P') {
@@ -198,11 +231,10 @@ static bool parse_strict_container_layout_(
                   if (kinds.empty()
                       || !parse_layout_uint64_(cur, width)
                       || width == 0 || width > INT_MAX || *cur
-                      || (kinds.size() > 1
-                          && std::find(kinds.begin(), kinds.end(),
-                                       VVP_CONTAINER_ASSOC) != kinds.end()))
+                      || (kinds.size() > 1 && legacy_assoc))
                         return false;
                   packed_width = static_cast<unsigned>(width);
+                  break;
             } else if (*cur == 'F') {
                   if (kinds.empty()
                       || kinds.back() == VVP_CONTAINER_FIXED)
@@ -237,6 +269,7 @@ static bool parse_strict_container_layout_(
             } else {
                   return false;
             }
+            assoc_layouts.push_back(assoc);
             if (!*cur)
                   break;
             if (*cur != ',')
@@ -251,13 +284,24 @@ static bool parse_strict_container_layout_(
       vvp_container_layout_t result;
       for (size_t idx = kinds.size(); idx > 0; --idx) {
             const vvp_container_layout_kind_t kind = kinds[idx-1];
+            const vvp_assoc_layout_t&assoc = assoc_layouts[idx-1];
+            if (assoc.value_kind != vvp_assoc_layout_t::UNKNOWN) {
+                  const bool object_value =
+                        assoc.value_kind == vvp_assoc_layout_t::OBJECT;
+                  if ((result && !object_value)
+                      || (!result && object_value && assoc.value_signed))
+                        return false;
+                  if (packed_width && assoc.value_kind != vvp_assoc_layout_t::BOOL
+                                   && assoc.value_kind != vvp_assoc_layout_t::LOGIC)
+                        return false;
+            }
             if (kind == VVP_CONTAINER_FIXED) {
                   result = vvp_make_fixed_container_layout(
                         fixed_left, fixed_right, fixed_leaf, fixed_width);
             } else {
                   result = std::make_shared<vvp_container_layout_s>(
                         kind, kind == VVP_CONTAINER_QUEUE, queue_bounds[idx-1],
-                        result, packed_width);
+                        result, packed_width, assoc);
                   packed_width = 0;
             }
       }
