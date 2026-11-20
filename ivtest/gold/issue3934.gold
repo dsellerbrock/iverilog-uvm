@@ -1,0 +1,8 @@
+WARNING: ./ivltests/issue3934_2017.v:86: $coverage_control returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: ./ivltests/issue3934_2017.v:87: $coverage_control returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: ./ivltests/issue3934_2017.v:88: $coverage_get_max returns SV_COV_NOCOV because code coverage is not instrumented.
+WARNING: ./ivltests/issue3934_2017.v:90: $coverage_get received an invalid argument and returns SV_COV_ERROR.
+WARNING: ./ivltests/issue3934_2017.v:130: $coverage_save returns SV_COV_ERROR because no code-coverage database backend is available.
+WARNING: ./ivltests/issue3934_2017.v:131: $coverage_merge returns SV_COV_ERROR because no code-coverage database backend is available.
+PASSED
+./ivltests/issue3934_2017.v:133: $finish called at 12 (1s)

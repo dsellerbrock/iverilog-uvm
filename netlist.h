@@ -1598,6 +1598,8 @@ class NetScope : public Definitions, public Attrib {
       PLet* find_let(const Design*des, perm_string nm,
 		     unsigned lexical_pos, const NetScope**owner) const;
       inline TYPE type() const { return type_; }
+
+      bool statement_coverage_unavailable = false;
       void print_type(std::ostream&) const;
 
 	// This provides a link to the variable initialization process
@@ -3620,6 +3622,9 @@ class NetProc : public virtual LineInfo {
     public:
       explicit NetProc();
       virtual ~NetProc() override;
+
+      unsigned statement_coverage_ordinal = 0;
+      std::unique_ptr<std::vector<unsigned>> enclosing_coverage_ordinals;
 
 	// Find the nexa that are input by the statement. This is used
 	// for example by @* to find the inputs to the process for the

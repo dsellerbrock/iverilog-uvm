@@ -3629,6 +3629,7 @@ vpip_routines_s vpi_routines = {
     .report_immediate_assertion = vpip_report_immediate_assertion,
     .print_finish_stats         = vpip_print_finish_stats,
     .covgrp_db                  = vpip_covgrp_db,
+    .stmt_coverage              = vpip_stmt_coverage,
     .assertion_step_row         = vpip_assertion_step_row,
     .assertion_step             = vpip_assertion_step,
     .assertion_nfa              = vpip_assertion_nfa,

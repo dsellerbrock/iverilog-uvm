@@ -2233,6 +2233,8 @@ extern int ivl_scope_modport_port_dir(ivl_scope_t net,
                                       unsigned idx, unsigned pidx);
 extern unsigned ivl_scope_is_cell(ivl_scope_t net);
 extern unsigned ivl_scope_lineno(ivl_scope_t net);
+/* True for a module instance with no unsupported source statements. */
+extern int ivl_scope_stmt_coverage(ivl_scope_t net);
 extern unsigned     ivl_scope_logs(ivl_scope_t net);
 extern ivl_net_logic_t ivl_scope_log(ivl_scope_t net, unsigned idx);
 extern unsigned     ivl_scope_lpms(ivl_scope_t net);
@@ -2640,6 +2642,9 @@ extern ivl_statement_type_t ivl_statement_type(ivl_statement_t net);
 
 extern const char* ivl_stmt_file(ivl_statement_t net);
 extern unsigned ivl_stmt_lineno(ivl_statement_t net);
+/* Lexical source ordinals sharing an entry, from outermost to innermost.
+   Zero ends the list. */
+extern unsigned ivl_stmt_coverage_ordinal(ivl_statement_t net, unsigned index);
 
 /*
  * The following functions retrieve specific single values from the

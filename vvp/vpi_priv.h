@@ -573,6 +573,13 @@ extern __vpiScope* vpip_peek_context_scope(void);
 extern unsigned vpip_add_item_to_context(automatic_hooks_s*item,
                                          __vpiScope*scope);
 extern vpiHandle vpip_make_root_iterator(int type_code);
+
+extern void compile_stmt_cov_owner(uint64_t enabled);
+extern void compile_stmt_cov_point(uint64_t ordinal);
+extern void compile_stmt_cov_at(uint64_t ordinal);
+extern bool vpip_stmt_coverage_active;
+struct vvp_code_s;
+extern void vpip_record_stmt_coverage(vvp_code_s* code);
 extern vpiHandle vpip_make_class_defn_iterator();
 extern vpiHandle vpip_declared_class_typespec(const class_type*type);
 /* M12: iterator over all covergroup types (vpi_iterate(vpiCovergroup, 0)). */

@@ -45,6 +45,21 @@
 
 using namespace std;
 
+static Statement* coverage_source_statement(Statement*stmt, bool supported)
+{
+      extern map<string, const char*> flags;
+      static const bool requested = [] {
+	    const auto flag = flags.find("statement_coverage");
+	    return flag != flags.end() && strcmp(flag->second, "1") == 0;
+      }();
+      static unsigned next_ordinal = 0;
+      if (requested && stmt && stmt->coverage_ordinal() == 0) {
+	    assert(next_ordinal != UINT_MAX);
+	    stmt->mark_coverage_source(++next_ordinal, supported);
+      }
+      return stmt;
+}
+
 /* Count reductions inside assertion actions, including those in nested
    procedural statements. Immediate assertions do not change this count. */
 static unsigned sva_concurrent_count = 0;
@@ -3320,7 +3335,7 @@ static Module::port_t *module_declare_explicit_port(
 %destructor { PEEventList events(std::move(*$$)); delete $$; }
   event_actual_list event_actual_term event_actual_group
 %type <event_statement> event_control
-%type <statement> statement statement_item statement_or_null
+%type <statement> statement statement_item statement_item_unmarked statement_or_null
 %type <statement> compressed_statement
 %type <statement> loop_statement for_step for_step_opt jump_statement
 %type <statement> concurrent_assertion_statement
@@ -18510,7 +18525,10 @@ module_item
 	    yyerror(@2, "error: plain always procedure is not allowed in a checker.");
 	/* IEEE 1800-2023 16.14.5: `always assert property' is static. */
 	Statement*init = pform_sva_static_always_assertion($3);
-	if (init) delete $3;
+	if (init) {
+	      coverage_source_statement(init, false);
+	      delete $3;
+	}
 	PProcess*tmp = pform_make_behavior(init ? IVL_PR_INITIAL : IVL_PR_ALWAYS,
 					   init ? init : $3, $1);
 	FILE_NAME(tmp, @2);
@@ -20941,7 +20959,14 @@ subroutine_call
       }
   ;
 
-statement_item /* This is roughly statement_item in the LRM */
+statement_item
+  : statement_item_unmarked
+      { const PAssign_*assign = dynamic_cast<const PAssign_*>($1);
+	$$ = coverage_source_statement($1, assign && !assign->has_timing_control());
+      }
+  ;
+
+statement_item_unmarked /* This is roughly statement_item in the LRM */
 
   /* assign and deassign statements are procedural code to do
      structural assignments, and to turn that structural assignment
@@ -21005,7 +21030,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	check_end_label(@6, "block", $1->label, $6);
 	pform_destroy_procedural_block($1);
 	$1 = nullptr;
-	$$ = tmp;
+	$$ = coverage_source_statement(tmp, true);
       }
   /* Work around ivlpp macro-default-arg expansion that may emit a stray
      ')' token immediately before a begin-end statement block. */
@@ -21020,7 +21045,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	check_end_label(@6, "block", $1->label, $6);
 	pform_destroy_procedural_block($1);
 	$1 = nullptr;
-	$$ = tmp;
+	$$ = coverage_source_statement(tmp, true);
       }
 
   | K_deassign lpvalue ';'
@@ -21507,7 +21532,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	check_end_label(@6, "block", $1->label, $6);
 	pform_destroy_procedural_block($1);
 	$1 = nullptr;
-	$$ = tmp;
+	$$ = coverage_source_statement(tmp, true);
       }
 
   /* fork-join blocks are very similar to begin-end blocks. In fact,
@@ -21709,7 +21734,7 @@ statement_item /* This is roughly statement_item in the LRM */
       { PCondit*tmp = new PCondit($3, $5, 0);
 	tmp->parsed_if_statement();
 	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	$$ = coverage_source_statement(tmp, true);
       }
   | pattern_if_prefix %prec less_than_K_else
       { $$ = $1; }
@@ -21727,7 +21752,7 @@ statement_item /* This is roughly statement_item in the LRM */
       { PCondit*tmp = new PCondit($3, $5, $7);
 	tmp->parsed_if_statement();
 	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	$$ = coverage_source_statement(tmp, true);
       }
   | if_qualifier K_if '(' expression ')' statement_or_null %prec less_than_K_else
       { pform_requires_sv(@1, "qualified if statement");
@@ -21785,7 +21810,7 @@ statement_item /* This is roughly statement_item in the LRM */
 	}
 	PDelayStatement*tmp = new PDelayStatement(del, $2);
 	FILE_NAME(tmp, @1);
-	$$ = tmp;
+	$$ = coverage_source_statement(tmp, true);
       }
 
   /* IEEE 1800-2017 14.11 procedural cycle delay: `## cycle_delay_value
@@ -21816,20 +21841,20 @@ statement_item /* This is roughly statement_item in the LRM */
 	      /* M9-10: a concurrent assertion inside this statement with
 		 no clock of its own inherits this event (16.14.6). */
 	      if (!is_sequence_event) pform_sva_infer_procedural_clock(tmp);
-	      $$ = sequence_stmt;
+	      $$ = coverage_source_statement(sequence_stmt, !is_sequence_event);
 	}
       }
   | '@' '*' statement_or_null
       { PEventStatement*tmp = new PEventStatement;
 	FILE_NAME(tmp, @1);
 	tmp->set_statement($3);
-	$$ = tmp;
+	$$ = coverage_source_statement(tmp, true);
       }
   | '@' '(' '*' ')' statement_or_null
       { PEventStatement*tmp = new PEventStatement;
 	FILE_NAME(tmp, @1);
 	tmp->set_statement($5);
-	$$ = tmp;
+	$$ = coverage_source_statement(tmp, true);
       }
 
   /* Various assignment statements */

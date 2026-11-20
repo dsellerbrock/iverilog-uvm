@@ -9035,6 +9035,16 @@ static int deferred_task_ref_bind_ok_(ivl_statement_t net)
  * switches on the statement type and draws code based on the type and
  * further specifics.
  */
+static int emit_statement_coverage_;
+
+static void emit_stmt_coverage_records_(ivl_statement_t stmt, const char*record)
+{
+      unsigned idx, ordinal;
+      if (!emit_statement_coverage_ || !stmt) return;
+      for (idx = 0; (ordinal = ivl_stmt_coverage_ordinal(stmt, idx)) != 0; ++idx)
+	    fprintf(vvp_out, "    .stmt_cov_%s %u;\n", record, ordinal);
+}
+
 int show_statement(ivl_statement_t net, ivl_scope_t sscope)
 {
       const ivl_statement_type_t code = ivl_statement_type(net);
@@ -9101,6 +9111,8 @@ int show_statement(ivl_statement_t net, ivl_scope_t sscope)
                   return 1;
             }
       }
+
+      emit_stmt_coverage_records_(net, "at");
 
 	/* Loop headers place their callback at the control-flow target so a
 	   re-entry reaches the callback before the next condition/body. */
@@ -9352,6 +9364,12 @@ int draw_process(ivl_process_t net, void*x)
       local_count = 0;
       fprintf(vvp_out, "    .scope S_%p;\n", scope);
 
+      ivl_scope_t coverage_owner = scope;
+      while (coverage_owner && ivl_scope_type(coverage_owner) != IVL_SCT_MODULE)
+	    coverage_owner = ivl_scope_parent(coverage_owner);
+      emit_statement_coverage_ = coverage_owner && ivl_scope_stmt_coverage(coverage_owner)
+	    && strcmp(ivl_design_flag(vvp_get_saved_design(), "statement_coverage"), "1") == 0;
+
 	/* Keep statement handles and their execution points as side metadata.
 	   The .stmt_at directives below do not add instructions to the thread. */
 	  reset_vpi_stmt_ids_();
@@ -9378,6 +9396,7 @@ int draw_process(ivl_process_t net, void*x)
 
 	/* Draw the contents of the thread. */
       rc += show_statement(stmt, scope);
+      emit_statement_coverage_ = 0;
       if (pure_comb_flag)
 	    pure_comb_top_wait_ = 0;
 
@@ -9629,7 +9648,15 @@ static void emit_vpi_stmt_tree_(ivl_statement_t stmt, uint64_t parent,
 {
       uint64_t id;
       unsigned idx, count = 0;
+      emit_stmt_coverage_records_(stmt, "point");
       if (!vpi_statement_visible_(stmt)) return;
+      /* A coverage point can retain an otherwise elided singleton block.
+	 Keep that block transparent to VPI statement traversal. */
+      if (ivl_stmt_coverage_ordinal(stmt, 0) && ivl_statement_type(stmt) == IVL_ST_BLOCK
+	  && !ivl_stmt_block_scope(stmt) && ivl_stmt_block_count(stmt) == 1) {
+	    emit_vpi_stmt_tree_(ivl_stmt_block_stmt(stmt, 0), parent, owner, scope);
+	    return;
+      }
       id = emit_vpi_stmt_node_(stmt, parent);
 	/* A return statement has no statements below it. */
       if (vpi_value_return_block_(stmt)) return;

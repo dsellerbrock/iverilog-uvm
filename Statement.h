@@ -98,6 +98,22 @@ class Statement : virtual public LineInfo {
       virtual void elaborate_scope(Design*des, NetScope*scope) const;
       virtual void elaborate_sig(Design*des, NetScope*scope) const;
 
+      void mark_coverage_source(unsigned ordinal, bool supported)
+      {
+	    if (coverage_ordinal_ == 0) {
+		  coverage_ordinal_ = ordinal;
+		  coverage_supported_ = supported;
+	    }
+      }
+      unsigned coverage_ordinal() const { return coverage_ordinal_; }
+      bool coverage_supported() const { return coverage_supported_; }
+
+      NetProc* elaborate_statement(Design*des, NetScope*scope) const
+      {
+	    return coverage_ordinal_ ? elaborate_covered(des, scope)
+				     : elaborate(des, scope);
+      }
+
 	// True if this statement (or a sub-statement within the same
 	// activation frame) is a detached fork — a fork/join_none or
 	// fork/join_any whose spawned branches outlive the statement.
@@ -125,6 +141,11 @@ class Statement : virtual public LineInfo {
       virtual bool detached_fork_refs_name(perm_string name) const;
 
       std::map<perm_string,PExpr*> attributes;
+
+    private:
+      NetProc* elaborate_covered(Design*des, NetScope*scope) const;
+      unsigned coverage_ordinal_ = 0;
+      bool coverage_supported_ = false;
 };
 
 /*

@@ -1107,6 +1107,14 @@ extern void vpip_set_return_value(int value);
 #define VPIP_COVGRP_DB_LOAD     1
 extern int vpip_covgrp_db(int op, const char*name);
 
+/* Internal bridge for live statement coverage. Control operations use
+   the SV_COV_START through SV_COV_CHECK values. */
+#define VPIP_STMT_COV_GET 4
+#define VPIP_STMT_COV_GET_MAX 5
+#define VPIP_STMT_COV_UNAVAILABLE (-3)
+extern int vpip_stmt_coverage(int op, int hierarchy, vpiHandle instance,
+                             const char*definition);
+
 extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
 
 /* Draw from the caller's process RNG, optionally reseeding it first.
@@ -1317,7 +1325,7 @@ extern int vpip_sample_evcd_inout(vpiHandle ref, unsigned component,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 20;
+static const PLI_UINT32 vpip_routines_version = 21;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1389,6 +1397,7 @@ typedef struct {
     void        (*report_immediate_assertion)(PLI_INT32, PLI_INT32, vpiHandle);
     void        (*print_finish_stats)(void);
     int         (*covgrp_db)(int, const char*);
+    int         (*stmt_coverage)(int, int, vpiHandle, const char*);
     void        (*assertion_step_row)(PLI_INT32, vpiHandle, PLI_INT32,
                                       PLI_INT32, PLI_INT32, PLI_INT32,
                                       PLI_INT32, const char*const*,

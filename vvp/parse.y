@@ -138,6 +138,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_REDUCE_NAND K_REDUCE_NOR K_REDUCE_XNOR K_REPEAT
 %token K_RESOLV K_RTRAN K_RTRANIF0 K_RTRANIF1 K_TRIREG
 %token K_SCOPE K_STMT_AT K_STMT_NODE K_SFUNC K_SFUNC_E K_SHIFTL K_SHIFTR K_SHIFTRS
+%token K_STMT_COV_OWNER K_STMT_COV_POINT K_STMT_COV_AT
 %token K_VPI_3041_CONDITION
 %token K_CLASS_DEFN K_CLASS_TYPESPEC K_CLASS_RUNTIME
 %token K_CLASS_CONSTRAINT
@@ -1110,6 +1111,15 @@ statement
 
 	| K_STMT_AT T_NUMBER ';'
 		{ compile_stmt_at($2); }
+
+	| K_STMT_COV_OWNER T_NUMBER ';'
+		{ compile_stmt_cov_owner($2); }
+
+	| K_STMT_COV_POINT T_NUMBER ';'
+		{ compile_stmt_cov_point($2); }
+
+	| K_STMT_COV_AT T_NUMBER ';'
+		{ compile_stmt_cov_at($2); }
 
 	| K_VPI_3041_CONDITION T_NUMBER ',' T_SYMBOL ';'
 		{ compile_vpi_3041_condition($2, $4, nullptr); }

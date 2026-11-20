@@ -11238,6 +11238,50 @@ void PGModule::elaborate_scope(Design*des, NetScope*sc) const
 }
 
 
+static NetScope* statement_coverage_owner(NetScope*scope)
+{
+      while (scope && scope->type() != NetScope::MODULE)
+	    scope = scope->parent();
+      return scope;
+}
+
+static void disable_statement_coverage(NetScope*scope)
+{
+      if (NetScope*owner = statement_coverage_owner(scope))
+	    owner->statement_coverage_unavailable = true;
+}
+
+static bool has_coverage_source(const Statement*stmt)
+{
+      if (!stmt) return false;
+      if (stmt->coverage_ordinal()) return true;
+      if (const PBlock*block = dynamic_cast<const PBlock*>(stmt))
+	    for (const Statement*child : block->statements())
+		  if (has_coverage_source(child)) return true;
+      return false;
+}
+
+NetProc* Statement::elaborate_covered(Design*des, NetScope*scope) const
+{
+      NetScope*owner = statement_coverage_owner(scope);
+      if (owner && !coverage_supported())
+	    owner->statement_coverage_unavailable = true;
+
+      NetProc*proc = elaborate(des, scope);
+      if (proc && owner && !owner->statement_coverage_unavailable) {
+	    /* A singleton block and its child can share a lowered node.
+	       Keep both entries without changing the procedure's shape. */
+	    if (proc->statement_coverage_ordinal) {
+		  if (!proc->enclosing_coverage_ordinals)
+			proc->enclosing_coverage_ordinals.reset(new vector<unsigned>);
+		  proc->enclosing_coverage_ordinals->push_back(coverage_ordinal());
+	    } else {
+		  proc->statement_coverage_ordinal = coverage_ordinal();
+	    }
+      }
+      return proc;
+}
+
 NetProc* Statement::elaborate(Design*des, NetScope*) const
 {
       cerr << get_fileline() << ": internal error: elaborate: "
@@ -17558,7 +17602,7 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
           (pscope_name() == 0)
 	  && (randsequence_block_ == IVL_RANDSEQ_BLOCK_NONE)) {
 	    ivl_assert(*this, list_[0]);
-	    NetProc*tmp = list_[0]->elaborate(des, nscope);
+	    NetProc*tmp = list_[0]->elaborate_statement(des, nscope);
 	    return tmp;
       }
 
@@ -17586,7 +17630,7 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 		  }
 	    }
 
-	    NetProc*tmp = list_[idx]->elaborate(des, nscope);
+	    NetProc*tmp = list_[idx]->elaborate_statement(des, nscope);
 	      // If the statement fails to elaborate, then simply
 	      // ignore it. Presumably, the elaborate for the
 	      // statement already generated an error message and
@@ -17599,7 +17643,8 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	      // Empty parallel children still terminate a process and can
 	      // release join_any (IEEE 1800-2017/2023 9.3.2, Table 9-1).
 	    if (NetBlock*tbl = dynamic_cast<NetBlock*>(tmp))
-		  if (type == NetBlock::SEQU && tbl->proc_first() == 0) {
+		  if (type == NetBlock::SEQU && tbl->proc_first() == 0
+		      && !tbl->statement_coverage_ordinal) {
 			delete tbl;
 			continue;
 		  }
@@ -18937,7 +18982,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 		  return 0;
 	    immediate_assertion_action_scope_t action_scope(
 		  is_immediate_assertion());
-	    return stmt->elaborate(des, scope);
+	    return stmt->elaborate_statement(des, scope);
       };
 
       ivl_if_kind_t source_if = IVL_IF_NONE;
@@ -18972,6 +19017,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
       const unsigned errors_before_condition = des->errors;
       NetExpr*expr = elab_and_eval(des, scope, expr_, -1);
       if (expr == 0) {
+	    if (coverage_supported()) disable_statement_coverage(scope);
 	    /* If the expression already produced a hard diagnostic, do not
 	       obscure it with the compile-progress warning or fabricate an
 	       else-only statement. The fallback below is reserved for the
@@ -19030,6 +19076,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	// action block as observable verification behavior.
       if (!is_immediate_assertion()) {
       if (const NetEConst*ce = dynamic_cast<NetEConst*>(expr)) {
+	    if (coverage_supported()) disable_statement_coverage(scope);
 	    verinum val = ce->value();
 	    if (debug_elaborate) {
 		  cerr << get_fileline() << ": debug: Condition expression "
@@ -19082,6 +19129,7 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	    // variables with class-type keys) have width 0. Replace with a
 	    // 1-bit true constant so the if-branch elaborates.
 	    if (gn_system_verilog() && expr->expr_type() == IVL_VT_CLASS) {
+		  if (coverage_supported()) disable_statement_coverage(scope);
 		  delete expr;
 		  expr = make_const_val(1);
 		  source_if = IVL_IF_NONE;
@@ -19109,14 +19157,14 @@ NetProc* PCondit::elaborate(Design*des, NetScope*scope) const
 	// empty blocks. If this is the case, remove the blocks as
 	// null statements.
       if (const NetBlock*tmp = dynamic_cast<NetBlock*>(i)) {
-	    if (tmp->proc_first() == 0) {
+	    if (tmp->proc_first() == 0 && !tmp->statement_coverage_ordinal) {
 		  delete i;
 		  i = 0;
 	    }
       }
 
       if (const NetBlock*tmp = dynamic_cast<NetBlock*>(e)) {
-	    if (tmp->proc_first() == 0) {
+	    if (tmp->proc_first() == 0 && !tmp->statement_coverage_ordinal) {
 		  delete e;
 		  e = 0;
 	    }
@@ -27144,7 +27192,7 @@ NetProc* PDelayStatement::elaborate(Design*des, NetScope*scope) const
       if (const NetEConst*tmp = dynamic_cast<NetEConst*>(dex)) {
 	    if (statement_)
 		  obj = new NetPDelay(tmp->value().as_ulong64(),
-		                      statement_->elaborate(des, scope));
+		                      statement_->elaborate_statement(des, scope));
 	    else
 		  obj = new NetPDelay(tmp->value().as_ulong64(), 0);
 
@@ -27152,7 +27200,7 @@ NetProc* PDelayStatement::elaborate(Design*des, NetScope*scope) const
 
       } else {
 	    if (statement_)
-		  obj = new NetPDelay(dex, statement_->elaborate(des, scope));
+		  obj = new NetPDelay(dex, statement_->elaborate_statement(des, scope));
 	    else
 		  obj = new NetPDelay(dex, 0);
       }
@@ -30556,6 +30604,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
       }
 
       if (ignored_class_property_event_expr && expr_count == 0 && wa->nevents() == 0) {
+	    if (coverage_supported()) disable_statement_coverage(scope);
 	    if (!warned_event_control_empty_set) {
 		  cerr << get_fileline() << ": warning: event control has empty event set; "
 		       << "ignoring event control (compile-progress fallback,"
@@ -30630,6 +30679,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
       //  - Automatic (class tasks/functions): return just the body (skip wait)
       //    because E_0x0 is invalid inside automatic scopes.
       if (gn_system_verilog() && wa->nevents() == 0 && !wa->has_t0_trigger()) {
+	    if (coverage_supported()) disable_statement_coverage(scope);
 	    if (scope->is_auto()) {
 		  // Can't use E_0x0 in automatic scope — skip the wait entirely.
 		  NetProc*body = wa->statement();
@@ -31286,7 +31336,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope,
       if (has_conditional_event_()) {
 	    NetProc*enet = nullptr;
 	    if (statement_) {
-		  enet = statement_->elaborate(des, scope);
+		  enet = statement_->elaborate_statement(des, scope);
 		  if (!enet) return nullptr;
 	    } else {
 		  enet = new NetBlock(NetBlock::SEQU, nullptr);
@@ -31312,7 +31362,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope,
 			NetESignal*handle = new NetESignal(sr.net);
 			handle->set_line(*this);
 			NetProc*body = statement_
-			      ? statement_->elaborate(des, scope) : nullptr;
+			      ? statement_->elaborate_statement(des, scope) : nullptr;
 			if (statement_ && !body) {
 			      delete handle;
 			      return nullptr;
@@ -31338,7 +31388,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope,
 					*this, id->path(), id->lexical_pos(), slot)) {
 			NetProc*body = 0;
 			if (statement_) {
-			      body = statement_->elaborate(des, scope);
+			      body = statement_->elaborate_statement(des, scope);
 			      if (body == 0) { delete obj; return 0; }
 			}
 			NetEvWaitObj*wa = new NetEvWaitObj(obj, slot);
@@ -31364,7 +31414,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope,
 					*this, id->path(), id->lexical_pos(), idx)) {
 			NetProc*body = 0;
 			if (statement_) {
-			      body = statement_->elaborate(des, scope);
+			      body = statement_->elaborate_statement(des, scope);
 			      if (body == 0) { delete idx; return 0; }
 			}
 			NetEvWaitArr*wa = new NetEvWaitArr(ev, idx);
@@ -31377,7 +31427,7 @@ NetProc* PEventStatement::elaborate(Design*des, NetScope*scope,
 
       NetProc*enet = 0;
       if (statement_) {
-	    enet = statement_->elaborate(des, scope);
+	    enet = statement_->elaborate_statement(des, scope);
 	    if (enet == 0)
 		  return 0;
 
@@ -33270,6 +33320,10 @@ void PFunction::elaborate(Design*des, NetScope*scope) const
 
       scope->set_elab_stage(3);
 
+      if (strcmp(des->get_flag("statement_coverage"), "1") == 0
+	  && has_coverage_source(statement_))
+	    disable_statement_coverage(scope);
+
       if (def == 0) {
 	    cerr << get_fileline() << ": internal error: "
 		 << "No function definition for function "
@@ -33667,6 +33721,10 @@ void PTask::elaborate(Design*des, NetScope*task) const
       task->set_elab_stage(3);
       ivl_assert(*this, def);
 
+      if (strcmp(des->get_flag("statement_coverage"), "1") == 0
+	  && has_coverage_source(statement_))
+	    disable_statement_coverage(task);
+
       /* An exported task can be entered from C without an SV call site. */
       if (gn_commercial_unsafe_flag && is_dpi_export())
 	unsafe_task_calls_.push_back(make_pair(nullptr, task));
@@ -34004,15 +34062,18 @@ static void set_combinational_schedule_push_(NetProcTop*top)
 bool PProcess::elaborate(Design*des, NetScope*scope) const
 {
 	  if (const PBlock*block = dynamic_cast<const PBlock*>(statement_))
-	    if (block->is_concurrent_assertion_only())
+	    if (block->is_concurrent_assertion_only()) {
+		  if (block->coverage_ordinal())
+			disable_statement_coverage(scope);
 		  return true;
+	    }
 
       scope->in_final(type() == IVL_PR_FINAL);
       NetProc*cur;
       {
 	    procedural_process_type_guard_t process_type(type());
 	    PExprProceduralContextGuard procedural_context(true);
-	    cur = statement_->elaborate(des, scope);
+	    cur = statement_->elaborate_statement(des, scope);
       }
       scope->in_final(false);
       if (cur == 0) {

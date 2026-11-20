@@ -20,10 +20,8 @@
 /*
  * IEEE 1800-2017 40.3 code-coverage access.
  *
- * Icarus implements functional coverage (Clause 19), but it does not
- * instrument statement, toggle, FSM, or assertion code coverage.  The
- * standard specifies SV_COV_NOCOV for queries and starts, and successful
- * no-ops for stops and resets. All arguments are still validated.
+ * VVP supplies opt-in live statement coverage. Other code coverage
+ * types retain their unavailable results after argument validation.
  */
 
 # include "sys_priv.h"
@@ -42,6 +40,7 @@ enum {
       SV_COV_FSM_STATE = 21,
       SV_COV_STATEMENT = 22,
       SV_COV_TOGGLE = 23,
+      SV_COV_OVERFLOW = -2,
       SV_COV_ERROR = -1,
       SV_COV_NOCOV = 0,
       SV_COV_OK = 1
@@ -254,6 +253,19 @@ static void coverage_put_result(vpiHandle callh, int result)
       vpi_put_value(callh, &val, 0, vpiNoDelay);
 }
 
+static int statement_coverage_call(vpiHandle arg, int op, int scope)
+{
+      if (vpi_get(vpiType, arg) == vpiModule)
+            return vpip_stmt_coverage(op, scope == SV_COV_HIER, arg, 0);
+      if (coverage_is_string(arg)) {
+            s_vpi_value val;
+            val.format = vpiStringVal;
+            vpi_get_value(arg, &val);
+            return vpip_stmt_coverage(op, scope == SV_COV_HIER, 0, val.value.str);
+      }
+      return SV_COV_ERROR;
+}
+
 static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
 {
       vpiHandle callh = vpi_handle(vpiSysTfCall, 0);
@@ -284,11 +296,21 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
             valid = valid && coverage_get_int(arg, &scope)
                  && coverage_scope_valid(scope);
             arg = vpi_scan(argv);
-            valid = valid && coverage_target_valid(arg);
+            if (valid && type == SV_COV_STATEMENT) {
+                  int op = control;
+                  if (kind == COVERAGE_QUERY)
+                        op = strcmp((const char*)name, "$coverage_get_max") == 0
+                              ? VPIP_STMT_COV_GET_MAX : VPIP_STMT_COV_GET;
+                  result = statement_coverage_call(arg, op, scope);
+                  valid = result != SV_COV_ERROR;
+            } else {
+                  valid = valid && coverage_target_valid(arg);
+            }
       } else {
             arg = vpi_scan(argv);
             valid = valid && coverage_is_string(arg);
       }
+      vpi_free_object(argv);
 
       if (!valid) {
             coverage_runtime_warning(callh, (const char*)name,
@@ -297,15 +319,30 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
             return 0;
       }
 
-      if (kind == COVERAGE_QUERY) {
+      if (type == SV_COV_STATEMENT && kind != COVERAGE_DATABASE) {
+            if (result == VPIP_STMT_COV_UNAVAILABLE
+                || (kind == COVERAGE_CONTROL && result == SV_COV_NOCOV)) {
+                  result = SV_COV_NOCOV;
+                  coverage_runtime_warning(callh, (const char*)name,
+                       "returns SV_COV_NOCOV because code coverage is not instrumented");
+            }
+      } else if (kind == COVERAGE_QUERY) {
             result = SV_COV_NOCOV;
             coverage_runtime_warning(callh, (const char*)name,
                  "returns SV_COV_NOCOV because code coverage is not instrumented");
       } else if (kind == COVERAGE_DATABASE) {
             if (strcmp((const char*)name, "$coverage_save") == 0) {
-                  result = SV_COV_NOCOV;
-                  coverage_runtime_warning(callh, (const char*)name,
-                       "returns SV_COV_NOCOV because no code coverage is available to save");
+                  int statement_max = type == SV_COV_STATEMENT
+                        ? vpip_stmt_coverage(VPIP_STMT_COV_GET_MAX, 1, 0, "$root") : 0;
+                  if (statement_max > 0 || statement_max == SV_COV_OVERFLOW) {
+                        result = SV_COV_ERROR;
+                        coverage_runtime_warning(callh, (const char*)name,
+                             "returns SV_COV_ERROR because no code-coverage database backend is available");
+                  } else {
+                        result = SV_COV_NOCOV;
+                        coverage_runtime_warning(callh, (const char*)name,
+                             "returns SV_COV_NOCOV because no code coverage is available to save");
+                  }
             } else {
                   result = SV_COV_ERROR;
                   coverage_runtime_warning(callh, (const char*)name,

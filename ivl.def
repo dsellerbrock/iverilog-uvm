@@ -371,6 +371,7 @@ ivl_scope_time_precision
 ivl_scope_time_units
 ivl_scope_type
 ivl_scope_tname
+ivl_scope_stmt_coverage
 
 ivl_signal_array_addr_swapped
 ivl_signal_array_base
@@ -454,6 +455,7 @@ ivl_stmt_is_assoc_rmw
 ivl_stmt_is_clocking_drive
 ivl_stmt_lexp
 ivl_stmt_lineno
+ivl_stmt_coverage_ordinal
 ivl_stmt_lval
 ivl_stmt_lvals
 ivl_stmt_lwidth

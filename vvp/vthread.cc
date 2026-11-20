@@ -13967,6 +13967,8 @@ void vthread_run(vthread_t thr)
 			do {
 			      cp = thr->pc;
 			      thr->pc += 1;
+			      if (vpip_stmt_coverage_active && cp->opcode == of_NOOP)
+				    vpip_record_stmt_coverage(cp);
 			      if (vpip_statement_callbacks_active)
 				    vpip_run_statement_callbacks(cp);
 #ifdef VVP_PERF_STATS
@@ -13986,6 +13988,8 @@ void vthread_run(vthread_t thr)
 			      trace_step = step_trace_enabled_(step_scope_name);
 			}
 			thr->pc += 1;
+			if (vpip_stmt_coverage_active && cp->opcode == of_NOOP)
+			      vpip_record_stmt_coverage(cp);
 			if (vpip_statement_callbacks_active)
 			      vpip_run_statement_callbacks(cp);
 #ifdef VVP_PERF_STATS

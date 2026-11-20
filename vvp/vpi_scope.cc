@@ -35,6 +35,7 @@
 # include  <memory>
 # include  <set>
 # include  <utility>
+# include  <unordered_map>
 #ifdef CHECK_WITH_VALGRIND
 # include  "vvp_cleanup.h"
 #endif
@@ -4121,6 +4122,184 @@ void compile_stmt_at(uint64_t id)
 	    if (node->code_addresses_[idx] == code) return;
       node->code_addresses_.push_back(code);
       vpip_note_statement_code(code, node);
+}
+
+namespace {
+
+struct stmt_coverage_owner {
+      bool enabled;
+      bool collecting;
+      uint64_t maximum = 0;
+      uint64_t hits = 0;
+      /* Generate iterations share lexical ordinals, but have distinct
+	 elaborated scopes. Each declared point has a stable hit bit. */
+      std::map<__vpiScope*, std::map<unsigned, bool>> points;
+
+      explicit stmt_coverage_owner(bool enable)
+      : enabled(enable), collecting(enable) {}
+};
+
+struct stmt_coverage_entry {
+      stmt_coverage_owner* owner;
+      bool* hit;
+};
+
+std::map<__vpiScope*, stmt_coverage_owner> stmt_coverage_owners;
+std::unordered_map<vvp_code_t, stmt_coverage_entry> stmt_coverage_entries;
+
+stmt_coverage_owner* find_stmt_coverage_owner(__vpiScope*scope)
+{
+      while (scope && scope->get_type_code() != vpiModule) {
+	    if (scope->get_type_code() != vpiGenScope
+		&& scope->get_type_code() != vpiNamedBegin)
+		  return nullptr;
+	    scope = scope->scope;
+      }
+      auto found = stmt_coverage_owners.find(scope);
+      return found == stmt_coverage_owners.end() ? nullptr : &found->second;
+}
+
+void select_stmt_coverage_modules(vpiHandle item, bool selected, bool hierarchy,
+				  const char*definition, std::set<__vpiScope*>& owners)
+{
+      int type = item->get_type_code();
+      if (type != vpiModule && type != vpiGenScope) return;
+      auto*scope = static_cast<__vpiScope*>(item);
+      if (type == vpiModule) {
+	    if (definition && strcmp(scope->scope_def_name(), definition) == 0)
+		  selected = true;
+	    if (selected) owners.insert(scope);
+	    selected = selected && hierarchy;
+      }
+      if (selected || definition)
+	    for (vpiHandle child : scope->intern)
+		  select_stmt_coverage_modules(child, selected, hierarchy, definition, owners);
+}
+
+} // namespace
+
+bool vpip_stmt_coverage_active = false;
+
+void compile_stmt_cov_owner(uint64_t enabled)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      if (!scope || scope->get_type_code() != vpiModule || enabled > 1
+	  || !stmt_coverage_owners.emplace(scope, stmt_coverage_owner(enabled != 0)).second) {
+	    yyerror("invalid .stmt_cov_owner metadata");
+	    compile_errors += 1;
+      }
+}
+
+void compile_stmt_cov_point(uint64_t ordinal)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      stmt_coverage_owner*owner = find_stmt_coverage_owner(scope);
+      if (!owner || !owner->enabled || ordinal == 0 || ordinal > UINT_MAX
+	  || (scope->get_type_code() != vpiModule && scope->get_type_code() != vpiGenScope)
+	  || !owner->points[scope].emplace(static_cast<unsigned>(ordinal), false).second) {
+	    yyerror("invalid .stmt_cov_point metadata");
+	    compile_errors += 1;
+	    return;
+      }
+      ++owner->maximum;
+}
+
+void compile_stmt_cov_at(uint64_t ordinal)
+{
+      __vpiScope*scope = vpip_peek_current_scope();
+      stmt_coverage_owner*owner = find_stmt_coverage_owner(scope);
+      if (owner && owner->enabled && ordinal != 0 && ordinal <= UINT_MAX) {
+	    for (__vpiScope*cur = scope; cur; cur = cur->scope) {
+		  auto declaration = owner->points.find(cur);
+		  if (declaration != owner->points.end()) {
+			auto point = declaration->second.find(static_cast<unsigned>(ordinal));
+			if (point != declaration->second.end()) {
+			      /* Give each entry its own address, including empty
+				 blocks and other points with no emitted opcode. */
+			      vvp_code_t code = codespace_allocate();
+			      code->opcode = of_NOOP;
+			      stmt_coverage_entries.emplace(code,
+				    stmt_coverage_entry{owner, &point->second});
+			      vpip_stmt_coverage_active = true;
+			      return;
+			}
+		  }
+		  if (cur->get_type_code() == vpiModule) break;
+	    }
+      }
+      yyerror("invalid .stmt_cov_at reference");
+      compile_errors += 1;
+}
+
+void vpip_record_stmt_coverage(vvp_code_t code)
+{
+      auto entry = stmt_coverage_entries.find(code);
+      if (entry == stmt_coverage_entries.end()) return;
+      const auto& point = entry->second;
+      if (point.owner->collecting && !*point.hit) {
+	    *point.hit = true;
+	    ++point.owner->hits;
+      }
+}
+
+int vpip_stmt_coverage(int op, int hierarchy, vpiHandle instance,
+		       const char*definition)
+{
+      enum { SV_COV_START, SV_COV_STOP, SV_COV_RESET, SV_COV_CHECK };
+      enum { SV_COV_OVERFLOW = -2, SV_COV_ERROR = -1, SV_COV_NOCOV = 0,
+	     SV_COV_OK = 1, SV_COV_PARTIAL = 2 };
+      std::set<__vpiScope*> selected;
+      bool all_roots = !instance && definition && strcmp(definition, "$root") == 0;
+      if (instance && instance->get_type_code() == vpiModule) {
+	    select_stmt_coverage_modules(instance, true, hierarchy, nullptr, selected);
+      } else if (definition && *definition) {
+	    for (vpiHandle root : vpip_root_table)
+		  select_stmt_coverage_modules(root, all_roots, hierarchy,
+					       all_roots ? nullptr : definition, selected);
+      }
+      if (selected.empty() && !all_roots) return SV_COV_ERROR;
+
+      size_t enabled = 0;
+      uint64_t count = 0;
+      for (__vpiScope*scope : selected) {
+	    auto found = stmt_coverage_owners.find(scope);
+	    if (found == stmt_coverage_owners.end() || !found->second.enabled)
+		  continue;
+	    auto& owner = found->second;
+	    ++enabled;
+	    switch (op) {
+		case SV_COV_START: owner.collecting = true; break;
+		case SV_COV_STOP: owner.collecting = false; break;
+		case SV_COV_RESET:
+		  if (owner.hits) {
+			for (auto& scoped_points : owner.points)
+			      for (auto& point : scoped_points.second)
+				    point.second = false;
+			owner.hits = 0;
+		  }
+		  break;
+		case SV_COV_CHECK: break;
+		case VPIP_STMT_COV_GET: count += owner.hits; break;
+		case VPIP_STMT_COV_GET_MAX: count += owner.maximum; break;
+		default: return SV_COV_ERROR;
+	    }
+	    if (count > INT_MAX) return SV_COV_OVERFLOW;
+      }
+
+      switch (op) {
+	  case SV_COV_START:
+	  case SV_COV_CHECK:
+	    if (enabled == 0) return SV_COV_NOCOV;
+	    return enabled == selected.size() ? SV_COV_OK : SV_COV_PARTIAL;
+	  case SV_COV_STOP:
+	  case SV_COV_RESET:
+	    return SV_COV_OK;
+	  case VPIP_STMT_COV_GET:
+	  case VPIP_STMT_COV_GET_MAX:
+	    return enabled ? static_cast<int>(count) : VPIP_STMT_COV_UNAVAILABLE;
+	  default:
+	    return SV_COV_ERROR;
+      }
 }
 
 /*

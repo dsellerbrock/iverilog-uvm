@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3934_2017.v",
+  "iverilog-args": ["-g2023", "-pstatement_coverage=1", "-s", "issue3934", "-s", "stmt_cov_other_root"],
+  "gold": "issue3934"
+}

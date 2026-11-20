@@ -479,6 +479,7 @@ bool dll_target::proc_block(const NetBlock*net)
 	/* Only singleton sequential blocks can lose their wrapper. A fork
 	   child remains an independent process (IEEE 1800-2017/2023 9.3.2). */
       if ((count == 1) && (net->subscope() == 0) &&
+	  !net->statement_coverage_ordinal &&
 	  (net->randsequence_block() == IVL_RANDSEQ_BLOCK_NONE) &&
 	  (net->type() == NetBlock::SEQU)) {
 	    return net->proc_first()->emit_proc(this);

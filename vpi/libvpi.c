@@ -573,6 +573,13 @@ int vpip_covgrp_db(int op, const char*name)
       return vpip_routines->covgrp_db(op, name);
 }
 
+int vpip_stmt_coverage(int op, int hierarchy, vpiHandle instance,
+                       const char*definition)
+{
+      assert(vpip_routines);
+      return vpip_routines->stmt_coverage(op, hierarchy, instance, definition);
+}
+
 DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version)
 {
       if (version != vpip_routines_version)

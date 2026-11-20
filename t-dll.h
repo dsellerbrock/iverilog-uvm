@@ -1103,6 +1103,7 @@ struct ivl_statement_s {
       enum ivl_statement_type_e type_;
       unsigned lineno;
       perm_string file;
+      const NetProc*coverage_source;
 
       union {
 	    struct { /* IVL_ST_ALLOC */
@@ -1293,6 +1294,12 @@ static inline void FILE_NAME(ivl_statement_t stmt, const LineInfo*info)
 {
       stmt->file = info->get_file();
       stmt->lineno = info->get_lineno();
+}
+
+static inline void FILE_NAME(ivl_statement_t stmt, const NetProc*proc)
+{
+      FILE_NAME(stmt, static_cast<const LineInfo*>(proc));
+      stmt->coverage_source = proc->statement_coverage_ordinal ? proc : nullptr;
 }
 
 static inline void FILE_NAME(ivl_switch_t net, const LineInfo*info)

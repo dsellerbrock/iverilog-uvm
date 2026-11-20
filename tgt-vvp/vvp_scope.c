@@ -4044,6 +4044,12 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
                                                ivl_scope_time_precision(net));
 
+      if (ivl_scope_type(net) == IVL_SCT_MODULE
+	  && !ivl_scope_program(net) && !ivl_scope_is_interface(net)
+	  && strcmp(ivl_design_flag(vvp_get_saved_design(),
+				   "statement_coverage"), "1") == 0)
+	    fprintf(vvp_out, " .stmt_cov_owner %d;\n", ivl_scope_stmt_coverage(net));
+
       if (ivl_scope_type(net) == IVL_SCT_CLASS) {
 	    int concrete;
 	    ivl_scope_t decl = ivl_scope_class_declaration(net, &concrete);

@@ -3193,6 +3193,14 @@ extern "C" unsigned ivl_scope_lineno(ivl_scope_t net)
       return net->net_->get_lineno();
 }
 
+extern "C" int ivl_scope_stmt_coverage(ivl_scope_t net)
+{
+      assert(net);
+      return net->net_ && net->type_ == IVL_SCT_MODULE
+	    && !net->is_program && !net->is_interface
+	    && !net->net_->statement_coverage_unavailable;
+}
+
 extern "C" unsigned ivl_scope_logs(ivl_scope_t net)
 {
       assert(net);
@@ -4142,6 +4150,20 @@ extern "C" unsigned ivl_stmt_lineno(ivl_statement_t net)
 {
       assert(net);
       return net->lineno;
+}
+
+extern "C" unsigned ivl_stmt_coverage_ordinal(ivl_statement_t net, unsigned index)
+{
+      assert(net);
+      const NetProc*source = net->coverage_source;
+      if (!source) return 0;
+      const auto& enclosing = source->enclosing_coverage_ordinals;
+      if (enclosing) {
+	    if (index < enclosing->size())
+		  return (*enclosing)[enclosing->size() - index - 1];
+	    index -= enclosing->size();
+      }
+      return index == 0 ? source->statement_coverage_ordinal : 0;
 }
 
 extern "C" ivl_scope_t ivl_stmt_block_scope(ivl_statement_t net)
