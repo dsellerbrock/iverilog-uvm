@@ -7367,3 +7367,5 @@ issue3164_2017 normal,-g2017,-s,issue3164 ivltests gold=issue3164.gold
 issue3164_2023 normal,-g2023,-s,issue3164 ivltests gold=issue3164.gold
 issue3164_bad_2017 CE,-g2017,-s,issue3164_bad ivltests gold=issue3164_bad.gold
 issue3164_bad_2023 CE,-g2023,-s,issue3164_bad ivltests gold=issue3164_bad.gold
+issue3634_2017 normal,-g2017,-s,issue3634 ivltests gold=issue3634.gold
+issue3634_2023 normal,-g2023,-s,issue3634 ivltests gold=issue3634.gold

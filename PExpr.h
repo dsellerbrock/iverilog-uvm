@@ -134,6 +134,8 @@ class PExpr : public LineInfo {
       // Check array element equivalence before scalar-context conversions
       // for a fixed child of an associative-array assignment pattern.
       static const unsigned ASSOC_FIXED_PATTERN_ITEM = 0x8000;
+      // Keep the member boundary when reading a packed part-select for ++/--.
+      static const unsigned PACKED_PART_INCDEC = 0x10000;
 
 	// Convert width mode to human-readable form.
       static const char*width_mode_name(width_mode_t mode);
@@ -1018,7 +1020,8 @@ class PEIdent : public PExpr {
 				       NetScope*scope,
 				       NetESignal*net,
 				       NetScope*found,
-				       unsigned expr_wid) const;
+				       unsigned expr_wid,
+				       unsigned flags) const;
       NetExpr*elaborate_expr_net_idx_up_(Design*des,
 				         NetScope*scope,
 				         NetESignal*net,

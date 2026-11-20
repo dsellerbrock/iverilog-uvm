@@ -1126,6 +1126,8 @@ extern const char* ivl_expr_name(ivl_expr_t net);
 extern ivl_nature_t ivl_expr_nature(ivl_expr_t net);
   /* IVL_EX_BINARY IVL_EX_UNARY */
 extern char        ivl_expr_opcode(ivl_expr_t net);
+/* True for ++/-- of an explicit packed part-select with a 2-state destination. */
+extern unsigned    ivl_expr_two_state_part_incdec(ivl_expr_t net);
   /* IVL_EX_BINARY  IVL_EX_UNARY, IVL_EX_MEMORY IVL_EX_NEW IVL_EX_TERNARY
      IVL_EX_UNION_TAG */
 extern ivl_expr_t  ivl_expr_oper1(ivl_expr_t net);

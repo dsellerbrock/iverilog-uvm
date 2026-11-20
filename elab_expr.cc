@@ -15944,7 +15944,8 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 					 Design*des, NetScope*scope,
 					 NetNet*net,
 					 const list<index_component_t>&base_index,
-					 pform_name_t member_path)
+					 pform_name_t member_path,
+					 bool part_incdec = false)
 {
       const netstruct_t*struct_type = net->struct_type();
       if (!struct_type && !base_index.empty() && net->array_type()
@@ -16399,6 +16400,8 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 	// member vectors/arrays, recovery C4). Added to the constant
 	// base at the final select.
       NetExpr*var_off = 0;
+      unique_ptr<NetExpr> member_tail;
+      unsigned long member_tail_width = 0;
 
       pform_name_t completed_path;
       ivl_type_t member_type = 0;
@@ -16508,6 +16511,41 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
 		  if (!member_comp.index.empty()) {
 			  // These are the dimensions defined by the type
 			const netranges_t&mem_packed_dims = mem_vec->packed_dims();
+
+			if (part_incdec && member_path.size() == 1
+			    && mem_vec->base_type() == IVL_VT_BOOL
+			    && member_comp.index.size() <= mem_packed_dims.size()) {
+			      // Keep the terminal select relative to the member (or
+			      // its selected packed row) so a partial or invalid
+			      // select cannot read or write a neighboring member.
+			      auto tail = prev(member_comp.index.end());
+			      size_t prefix_size = member_comp.index.size() - 1;
+			      auto tail_dim = mem_packed_dims.begin() + prefix_size;
+			      netranges_t tail_dims(tail_dim, mem_packed_dims.end());
+			      NetExpr*tail_base = nullptr;
+			      if (!collapse_packed_member_indices(des, scope, li,
+					tail_dims, {*tail}, tail_base, member_tail_width)) {
+				    delete var_off;
+				    return nullptr;
+			      }
+			      member_tail.reset(tail_base);
+			      for (size_t idx = 0; idx < prefix_size; ++idx)
+				    use_width /= mem_packed_dims[idx].width();
+			      if (prefix_size) {
+				    NetExpr*prefix = make_checked_canonical_packed_prefix(
+					  des, scope, li, {member_comp.index.begin(), tail},
+					  netranges_t(mem_packed_dims.begin(), tail_dim),
+					  use_width, false);
+				    if (!prefix) {
+					  delete var_off;
+					  return nullptr;
+				    }
+				    var_off = var_off
+					  ? make_packed_offset_sum(li, var_off, prefix)
+					  : prefix;
+			      }
+			      break;
+			}
 
 			  // One canonical member-select calculation (recovery C4):
 			  // constant and run-time indices alike, incl. a trailing
@@ -16664,6 +16702,18 @@ static NetExpr* check_for_struct_members(const PEIdent*li,
       NetExpr   *base = packed_base? packed_base : make_const_val(off);
       if (var_off)
 	    base = make_packed_offset_sum(li, base, var_off);
+      if (member_tail) {
+	    ivl_type_t carrier_type = new netvector_t(IVL_VT_BOOL,
+						      (long)use_width - 1, 0);
+	    NetESelect*carrier = new NetESelect(sig, base, use_width, carrier_type);
+	    carrier->set_line(*li);
+	    ivl_type_t tail_type = new netvector_t(IVL_VT_LOGIC,
+						   (long)member_tail_width - 1, 0);
+	    NetESelect*sel = new NetESelect(carrier, member_tail.release(),
+					    member_tail_width, tail_type);
+	    sel->set_line(*li);
+	    return sel;
+      }
 	// A mixed-state packed struct is represented by one 4-state vector,
 	// even when the selected member is 2-state. The select's type alone
 	// does not convert X/Z bits on a read, so keep the selected value
@@ -29121,7 +29171,8 @@ NetExpr* PEIdent::elaborate_expr_(Design*des, NetScope*scope,
 
 		  return check_for_struct_members(this, des, scope, sr.net,
 						  sr.path_head.back().index,
-						  sr.path_tail);
+						  sr.path_tail,
+						  flags & PACKED_PART_INCDEC);
 	    }
 
 	      ivl_type_t indexed_member_type = sr.type;
@@ -32600,7 +32651,7 @@ NetExpr* PEIdent::elaborate_expr_net_word_(Design*des, NetScope*scope,
 
       if (word_sel == index_component_t::SEL_PART)
 	    return elaborate_expr_net_part_(des, scope, res, found_in,
-                                            expr_wid);
+                                            expr_wid, flags);
 
       if (word_sel == index_component_t::SEL_IDX_UP)
 	    return elaborate_expr_net_idx_up_(des, scope, res, found_in,
@@ -32662,12 +32713,18 @@ static NetExpr* make_packed_bit_select_(const PEIdent&ident,
       return res;
 }
 
+static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
+					const PEIdent*ident, NetESignal*net,
+					bool need_const, bool allow_outer_select,
+					NetExpr*&carrier, size_t&selected_depth);
+
 /*
  * Handle part selects of NetNet identifiers.
  */
 NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
 				           NetESignal*net, NetScope*,
-                                           unsigned expr_wid) const
+                                           unsigned expr_wid,
+					   unsigned flags) const
 {
 	// Queue/darray slice q[a:b] (IEEE 1800-2017 7.10.1): a NEW
 	// queue holding elements a..b. Lower to the runtime slice
@@ -32799,6 +32856,28 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
 
       unsigned long wid = sb_msb - sb_lsb + 1;
 
+      if ((flags & PACKED_PART_INCDEC) && net->expr_type() == IVL_VT_BOOL
+	  && !prefix_indices.empty()) {
+	    // A constant range can also reach outside the selected packed row.
+	    // Keep it relative to that row for the read and clipped store.
+	    const NetNet*sig = net->sig();
+	    NetExpr*carrier = nullptr;
+	    size_t depth = 0;
+	    if (make_packed_prefix_carrier_(des, scope, this, net,
+					   flags & NEED_CONST, true, carrier, depth)) {
+		  if (!carrier)
+			return nullptr;
+		  const netrange_t&dim = sig->packed_dims()[depth-1];
+		  long offset = dim.get_msb() >= dim.get_lsb()
+			? lsv - dim.get_lsb() : dim.get_lsb() - lsv;
+		  NetExpr*base = new NetEConst(verinum(offset));
+		  unsigned long stride = sig->slice_width(depth);
+		  if (stride > 1)
+			base = scale_index_to_bits(base, stride, *this);
+		  return make_four_state_packed_select_(*this, carrier, base, wid);
+	    }
+      }
+
 	/* Do not erase a full-width part select. Besides being unsigned, a
 	   select loses the named type of the whole object; returning `net'
 	   here made `enum_dst = enum_src[3:0]' look like an enum-to-enum
@@ -32823,7 +32902,7 @@ NetExpr* PEIdent::elaborate_expr_net_part_(Design*des, NetScope*scope,
  */
 static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
 					const PEIdent*ident, NetESignal*net,
-					bool need_const, bool variable_base,
+					bool need_const, bool allow_outer_select,
 					NetExpr*&carrier,
 					size_t&selected_depth)
 {
@@ -32838,16 +32917,17 @@ static bool make_packed_prefix_carrier_(Design*des, NetScope*scope,
       for (size_t idx = 0 ; idx < sig->unpacked_dimensions() ; idx += 1)
 	    indices.pop_front();
 
-	/* The final indexed part-select may address any packed dimension. The
+	/* The final part-select may address any packed dimension. The
 	 * preceding indices identify the carrier, while selected_depth records
 	 * the dimension whose elements the part-select spans. */
       if (indices.size() > dims.size())
 	    return false;
-	  if (indices.size() < dims.size() && !variable_base)
+      if (indices.size() < dims.size() && !allow_outer_select)
 	    return false;
       list<index_component_t>::const_iterator last = indices.end();
       --last;
-      if (last->sel != index_component_t::SEL_IDX_UP
+      if (last->sel != index_component_t::SEL_PART
+	  && last->sel != index_component_t::SEL_IDX_UP
 	  && last->sel != index_component_t::SEL_IDX_DO)
 	    return false;
       for (list<index_component_t>::const_iterator cur = indices.begin()
@@ -33957,7 +34037,7 @@ NetExpr* PEIdent::elaborate_expr_net(Design*des, NetScope*scope,
 	// the foo[msb:lsb] expression in the original.
       if (use_sel == index_component_t::SEL_PART)
 	    return elaborate_expr_net_part_(des, scope, node, found_in,
-                                            expr_wid);
+                                            expr_wid, flags);
 
       if (use_sel == index_component_t::SEL_BIT)
 	    return elaborate_expr_net_bit_(des, scope, node, found_in,
@@ -36231,7 +36311,19 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
             expr_->cast_signed(signed_flag_);
 	    break;
       }
-      NetExpr*ip = expr_->elaborate_expr(des, scope, sub_width, flags);
+      bool part_incdec = false;
+      if (inc_lval) {
+	    if (const PEIdent*ident = dynamic_cast<const PEIdent*>(expr_)) {
+		  if (ident->path().size() && !ident->path().back().index.empty()) {
+			auto kind = ident->path().back().index.back().sel;
+			part_incdec = kind == index_component_t::SEL_PART
+			      || kind == index_component_t::SEL_IDX_UP
+			      || kind == index_component_t::SEL_IDX_DO;
+		  }
+	    }
+      }
+      NetExpr*ip = expr_->elaborate_expr(des, scope, sub_width,
+	    flags | (part_incdec ? PACKED_PART_INCDEC : NO_FLAGS));
       if (ip == 0) {
 	    delete inc_lval;
 	    return 0;
@@ -36261,7 +36353,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	  case 'i':
 	  case 'I':
 	  case 'D':
-	  case 'd':
+	  case 'd': {
 		/* Keep a statically invalid array word as a writable signal
 		 * expression. Its read supplies the element type's default and
 		 * its store is suppressed at run time. */
@@ -36301,10 +36393,25 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		      ip->set_line(*this);
 		      ip->cast_signed(signed_flag_);
 		}
-		/* A part-select read can be four-state to preserve X for an
-		 * out-of-range read, while ++/-- still yields the l-value's type. */
-		if (inc_lval->sig()
-		    && inc_lval->sig()->data_type() == IVL_VT_BOOL
+		/* A packed part-select reads X for missing bits (11.5.1).
+		 * Carry its source selector kind separately from the cast that
+		 * represents the type of the stored and yielded value. */
+		bool two_state_part = false;
+		if (part_incdec) {
+		      const NetExpr*selected = ip;
+		      if (const NetECast*cast = dynamic_cast<const NetECast*>(ip)) {
+			    if (cast->op() == '2'
+			        && cast->expr_width() == cast->expr()->expr_width())
+				  selected = cast->expr();
+		      }
+		      const NetESelect*sel = dynamic_cast<const NetESelect*>(selected);
+		      two_state_part = sel && sel->select() && !sel->enumeration()
+			    && (inc_lval->expr_type() == IVL_VT_BOOL
+			        || ip->expr_type() == IVL_VT_BOOL
+			        || sel->sub_expr()->expr_type() == IVL_VT_BOOL);
+		}
+		if ((two_state_part || (inc_lval->sig()
+				       && inc_lval->sig()->data_type() == IVL_VT_BOOL))
 		    && ip->expr_type() == IVL_VT_LOGIC) {
 		      NetExpr*cast = cast_to_int2(ip, ip->expr_width());
 		      cast->set_line(*this);
@@ -36349,7 +36456,9 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 			 * evaluation and for LOGIC/BOOLEAN draw_unary_expr()
 			 * is called for evaluation.
 			 */
-			tmp = new NetEUnary(op_, ip, expr_wid, signed_flag_);
+			NetEUnary*unary = new NetEUnary(op_, ip, expr_wid, signed_flag_);
+			unary->two_state_part_incdec(two_state_part);
+			tmp = unary;
 			tmp->set_line(*this);
 		} else {
 			cerr << get_fileline() << ": error: "
@@ -36360,6 +36469,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 			return 0;
 		}
 		break;
+	  }
 
 	  default:
 	    tmp = new NetEUnary(op_, ip, expr_wid, signed_flag_);

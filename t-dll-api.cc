@@ -811,6 +811,13 @@ extern "C" char ivl_expr_opcode(ivl_expr_t net)
       return 0;
 }
 
+extern "C" unsigned ivl_expr_two_state_part_incdec(ivl_expr_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_EX_UNARY);
+      return net->u_.unary_.two_state_part_incdec_;
+}
+
 extern "C" ivl_expr_t ivl_expr_oper1(ivl_expr_t net)
 {
       assert(net);

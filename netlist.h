@@ -6538,6 +6538,8 @@ class NetEUnary  : public NetExpr {
 
       char op() const { return op_; }
       const NetExpr* expr() const { return expr_; }
+      bool two_state_part_incdec() const { return two_state_part_incdec_; }
+      void two_state_part_incdec(bool flag) { two_state_part_incdec_ = flag; }
 
       virtual NetEUnary* dup_expr() const override;
       virtual NetExpr* eval_tree() override;
@@ -6556,6 +6558,7 @@ class NetEUnary  : public NetExpr {
       NetExpr* expr_;
 
     private:
+      bool two_state_part_incdec_ = false;
       virtual NetExpr* eval_arguments_(const NetExpr*ex) const;
       virtual NetExpr* eval_tree_real_(const NetExpr*ex) const;
 };

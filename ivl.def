@@ -116,6 +116,7 @@ ivl_expr_signal
 ivl_expr_signed
 ivl_expr_sized
 ivl_expr_string
+ivl_expr_two_state_part_incdec
 ivl_expr_uvalue
 ivl_expr_value
 ivl_expr_vif_bind
