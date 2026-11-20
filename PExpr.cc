@@ -720,8 +720,26 @@ PEIdent* PEIdent::clone_for_reference() const
       res->unit_type_use_reported_ = unit_type_use_reported_;
       res->dotted_suffix_ = dotted_suffix_;
       res->clocking_access_ = clocking_access_;
+      res->sva_clocking_scope_ = sva_clocking_scope_;
       res->modport_expression_access_ = modport_expression_access_;
       return res;
+}
+
+const Module::PClocking* PEIdent::sva_clocking_input() const
+{
+      if (!sva_clocking_scope_ || path_.package || path_.name.empty())
+	    return nullptr;
+      return sva_clocking_scope_->has_input(path_.name.front().name)
+	  ? sva_clocking_scope_ : nullptr;
+}
+
+bool PEIdent::sva_clocking_input_path(pform_name_t&path) const
+{
+      const Module::PClocking*cb = sva_clocking_input();
+      if (!cb) return false;
+      path = path_.name;
+      path.push_front(name_component_t(cb->name));
+      return true;
 }
 
 PEMemberAccess::PEMemberAccess(PExpr*base, perm_string member_name)

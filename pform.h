@@ -386,6 +386,7 @@ extern void pform_start_clocking_block(const struct vlltype&loc,
 				       bool is_default = false,
 				       bool is_global = false);
 extern const char* pform_clocking_block_name();
+extern void pform_clocking_assertion_context(bool enter);
 extern void pform_add_clocking_signal(const struct vlltype&loc, perm_string name,
 				      NetNet::PortType dir,
 				      const pform_clocking_skew_t*in_skew,

@@ -8625,8 +8625,14 @@ clocking_item
   /* IEEE 1800-2017/2023 14.3 and A.6.11: assertion_item_declaration
      is also a clocking_item. The declaration handler associates its SVA
      scope and implicit leading clock with this block. */
-  | property_declaration
-  | sequence_declaration
+  | clocking_assertion_start property_declaration
+      { pform_clocking_assertion_context(false); }
+  | clocking_assertion_start sequence_declaration
+      { pform_clocking_assertion_context(false); }
+  ;
+
+clocking_assertion_start
+  : { pform_clocking_assertion_context(true); }
   ;
 
   /* IEEE 1800-2017 A.6.11:
@@ -14828,6 +14834,7 @@ expr_primary
 	      yyerror(@1, "error: Only $root may prefix a hierarchical path.");
 	}
 	PEIdent*tmp = pform_new_ident(@3, *$3);
+	tmp->set_sva_clocking_scope(nullptr);
 	FILE_NAME(tmp, @1);
 	$$ = tmp;
 	delete[]$1;

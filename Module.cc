@@ -86,21 +86,34 @@ void Module::PClocking::set_default_skews(const pform_clocking_skew_t*in_skew,
       }
 }
 
-/* Classify the effective input skew of a signal: an explicit numeric
-   delay (including #0) means "sample a delayed shadow after the NBA
-   region" and returns the delay expression; everything else (#1step,
-   no skew, edge-only skews) is the default Preponed sample. */
-Module::PClocking::skew_kind_t
-Module::PClocking::input_skew(perm_string sig_name, PExpr*&delay) const
+const pform_clocking_skew_t* Module::PClocking::declared_input_skew(
+      perm_string sig_name) const
 {
-      const pform_clocking_skew_t*sk = nullptr;
       std::map<perm_string,pform_clocking_skew_t>::const_iterator cur =
 	    in_skews.find(sig_name);
       if (cur != in_skews.end())
-	    sk = &cur->second;
-      else if (default_in_set)
-	    sk = &default_in;
+	    return &cur->second;
+      return default_in_set ? &default_in : nullptr;
+}
 
+bool Module::PClocking::input_uses_1step(perm_string sig_name) const
+{
+      const pform_clocking_skew_t*sk = declared_input_skew(sig_name);
+      return !sk || (sk->one_step && !sk->edge);
+}
+
+bool Module::PClocking::has_input(perm_string sig_name) const
+{
+      auto dir = directions.find(sig_name);
+      return dir != directions.end()
+	  && (dir->second == NetNet::PINPUT || dir->second == NetNet::PINOUT);
+}
+
+/* Classify the effective input skew for clocking-block runtime lowering. */
+Module::PClocking::skew_kind_t
+Module::PClocking::input_skew(perm_string sig_name, PExpr*&delay) const
+{
+      const pform_clocking_skew_t*sk = declared_input_skew(sig_name);
       if (!sk || sk->one_step || !sk->delay)
 	    return SKEW_1STEP;
       delay = sk->delay;

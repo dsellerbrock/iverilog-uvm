@@ -1,0 +1,13 @@
+./ivltests/issue3510_clockvar_fail.sv:19: error: clocking-block input `cb.a' used in a concurrent assertion must be sampled with #1step (IEEE 1800-2017/2023 16.5.1).
+./ivltests/issue3510_clockvar_fail.sv:43: warning: this assertion has 1 operand(s) that are read live instead of sampled in the Preponed region (IEEE 1800-2017 16.5.1); a blocking write to one of them in the clock time slot can be visible to the assertion.
+./ivltests/issue3510_clockvar_fail.sv:22: error: clocking-block input `cb.b' used in a concurrent assertion must be sampled with #1step (IEEE 1800-2017/2023 16.5.1).
+./ivltests/issue3510_clockvar_fail.sv:44: warning: this assertion has 1 operand(s) that are read live instead of sampled in the Preponed region (IEEE 1800-2017 16.5.1); a blocking write to one of them in the clock time slot can be visible to the assertion.
+./ivltests/issue3510_clockvar_fail.sv:28: error: clocking-block input `cb.c' used in a concurrent assertion must be sampled with #1step (IEEE 1800-2017/2023 16.5.1).
+./ivltests/issue3510_clockvar_fail.sv:45: warning: this assertion has 1 operand(s) that are read live instead of sampled in the Preponed region (IEEE 1800-2017 16.5.1); a blocking write to one of them in the clock time slot can be visible to the assertion.
+./ivltests/issue3510_clockvar_fail.sv:30: error: clocking-block input `cb.d' used in a concurrent assertion must be sampled with #1step (IEEE 1800-2017/2023 16.5.1).
+./ivltests/issue3510_clockvar_fail.sv:46: warning: this assertion has 1 operand(s) that are read live instead of sampled in the Preponed region (IEEE 1800-2017 16.5.1); a blocking write to one of them in the clock time slot can be visible to the assertion.
+./ivltests/issue3510_clockvar_fail.sv:34: error: clocking-block input `cb.e' used in a concurrent assertion must be sampled with #1step (IEEE 1800-2017/2023 16.5.1).
+./ivltests/issue3510_clockvar_fail.sv:47: warning: this assertion has 1 operand(s) that are read live instead of sampled in the Preponed region (IEEE 1800-2017 16.5.1); a blocking write to one of them in the clock time slot can be visible to the assertion.
+./ivltests/issue3510_clockvar_fail.sv:37: error: clocking-block input `cb.colliding_array' used in a concurrent assertion must be sampled with #1step (IEEE 1800-2017/2023 16.5.1).
+./ivltests/issue3510_clockvar_fail.sv:37: error: clocking-block input `cb.colliding_array' used in a concurrent assertion must be sampled with #1step (IEEE 1800-2017/2023 16.5.1).
+./ivltests/issue3510_clockvar_fail.sv:48: warning: this assertion has 1 operand(s) that are read live instead of sampled in the Preponed region (IEEE 1800-2017 16.5.1); a blocking write to one of them in the clock time slot can be visible to the assertion.

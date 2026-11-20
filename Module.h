@@ -78,6 +78,7 @@ class Module : public PScopeExtra, public PNamedItem {
 			    const pform_clocking_skew_t*in_skew = nullptr,
 			    const pform_clocking_skew_t*out_skew = nullptr);
 	    NetNet::PortType signal_direction(perm_string sig_name) const;
+	    bool has_input(perm_string sig_name) const;
 
 	      /* 14.4 skew application. Input skew classification:
 		 #1step (or none/edge-only) samples the Preponed value;
@@ -87,6 +88,7 @@ class Module : public PScopeExtra, public PNamedItem {
 		 block `default input/output` skews. */
 	    enum skew_kind_t { SKEW_1STEP, SKEW_DELAY };
 	    skew_kind_t input_skew(perm_string sig_name, PExpr*&delay) const;
+	    bool input_uses_1step(perm_string sig_name) const;
 	    const pform_clocking_skew_t* output_skew(perm_string sig_name) const;
 	    PExpr* output_skew_delay(perm_string sig_name) const;
 	    void set_default_skews(const pform_clocking_skew_t*in_skew,
@@ -105,6 +107,9 @@ class Module : public PScopeExtra, public PNamedItem {
 	    std::map<perm_string,PExpr*>decl_assigns;
 	    pform_clocking_skew_t default_in, default_out;
 	    bool default_in_set = false, default_out_set = false;
+
+	  private:
+	    const pform_clocking_skew_t* declared_input_skew(perm_string sig_name) const;
       };
 
       struct port_t {

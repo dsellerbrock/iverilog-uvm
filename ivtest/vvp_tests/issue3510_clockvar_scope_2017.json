@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3510_clockvar_scope.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "issue3510_clockvar_scope"
+  ],
+  "gold": "issue3510_clockvar_scope"
+}

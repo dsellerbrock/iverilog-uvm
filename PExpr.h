@@ -28,10 +28,10 @@
 # include  "netlist.h"
 # include  "verinum.h"
 # include  "LineInfo.h"
+# include  "Module.h"
 # include  "pform_types.h"
 
 class Design;
-class Module;
 class PGenerate;
 class LexicalScope;
 class NetNet;
@@ -693,6 +693,13 @@ class PEIdent : public PExpr {
       // the original identifier remains their owner.
       PEIdent* clone_for_reference() const;
 
+      // Source scope of a name written in a clocking-block SVA declaration.
+      void set_sva_clocking_scope(const Module::PClocking*scope)
+      { sva_clocking_scope_ = scope; }
+      const Module::PClocking* sva_clocking_scope() const
+      { return sva_clocking_scope_; }
+      const Module::PClocking* sva_clocking_input() const;
+
       virtual void dump(std::ostream&) const override;
 
       virtual void declare_implicit_nets(LexicalScope*scope, NetNet::Type type) override;
@@ -838,6 +845,7 @@ class PEIdent : public PExpr {
       mutable bool unit_type_use_reported_ = false;
       bool dotted_suffix_ = false;
       perm_string clocking_access_;
+      const Module::PClocking*sva_clocking_scope_ = nullptr;
       bool clocking_drive_lval_ = false;
       bool modport_expression_access_ = false;
       mutable bool bare_generic_scope_error_reported_ = false;
@@ -845,6 +853,8 @@ class PEIdent : public PExpr {
       mutable bool package_unit_qualifier_reported_ = false;
 
     private:
+      bool sva_clocking_input_path(pform_name_t&path) const;
+
 	// Common functions to calculate parts of part/bit
 	// selects. These methods return true if the expressions
 	// elaborate/calculate, or false if there is some sort of

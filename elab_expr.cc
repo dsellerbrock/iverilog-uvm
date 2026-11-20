@@ -26681,6 +26681,17 @@ static NetExpr* paren_less_class_method_call_(Design*des, NetScope*scope,
 
 unsigned PEIdent::test_width(Design*des, NetScope*scope, width_mode_t&mode)
 {
+      pform_name_t clocking_path;
+      if (sva_clocking_input_path(clocking_path)) {
+	    PEIdent qualified(clocking_path, lexical_pos_);
+	    qualified.set_line(*this);
+	    unsigned width = qualified.test_width(des, scope, mode);
+	    expr_type_ = qualified.expr_type();
+	    expr_width_ = qualified.expr_width();
+	    min_width_ = qualified.min_width();
+	    signed_flag_ = qualified.has_sign();
+	    return width;
+      }
 	  if (const pform_name_t*root = modport_expression_context()) {
 	    if (!modport_expression_access() && !path_.package
 		&& !path_.name.empty()) {
@@ -27362,6 +27373,12 @@ static bool reject_left_last_in_fixed_unpacked_prefix_(
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 ivl_type_t ntype, unsigned flags) const
 {
+      pform_name_t clocking_path;
+      if (sva_clocking_input_path(clocking_path)) {
+	    PEIdent qualified(clocking_path, lexical_pos_);
+	    qualified.set_line(*this);
+	    return qualified.elaborate_expr(des, scope, ntype, flags);
+      }
 	  if (reject_static_method_this_(des, scope, this))
 	    return nullptr;
 	  if (const pform_name_t*root = modport_expression_context()) {
@@ -28453,6 +28470,12 @@ NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 NetExpr* PEIdent::elaborate_expr(Design*des, NetScope*scope,
 				 unsigned expr_wid, unsigned flags) const
 {
+      pform_name_t clocking_path;
+      if (sva_clocking_input_path(clocking_path)) {
+	    PEIdent qualified(clocking_path, lexical_pos_);
+	    qualified.set_line(*this);
+	    return qualified.elaborate_expr(des, scope, expr_wid, flags);
+      }
 	  if (reject_static_method_this_(des, scope, this))
 	    return nullptr;
 	  if (const pform_name_t*root = modport_expression_context()) {

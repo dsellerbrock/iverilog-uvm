@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "issue3510_clockvar_fail.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue3510_clockvar_fail"
+  ],
+  "gold": "issue3510_clockvar_fail"
+}

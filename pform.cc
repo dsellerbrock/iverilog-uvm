@@ -454,6 +454,8 @@ static bool pform_pending_modport_tf_is_function = false;
 static data_type_t*pform_pending_modport_tf_return_type = nullptr;
 static vector<pform_tf_port_t>*pform_pending_modport_tf_ports = nullptr;
 static Module::PClocking*pform_cur_clocking = 0;
+static bool pform_in_clocking_assertion_ = false;
+static vector<pair<perm_string, string> > pform_clocking_reference_errors_;
 static const Module::PClocking*sva_active_clocking_scope_ = nullptr;
 static bool pform_cur_clocking_is_global = false;
 static const char* pform_cur_clocking_name = nullptr;
@@ -1359,15 +1361,19 @@ PBlock* pform_pattern_finish_scope(const struct vlltype&loc,
       return block;
 }
 
-/*
- * Create a new identifier.
- */
+static bool sva_source_name_is_local_(perm_string name);
+
 PEIdent* pform_new_ident(const struct vlltype&loc, const pform_name_t&name)
 {
       if (gn_system_verilog())
 	    check_potential_imports(loc, name.front().name, false);
 
-      return new PEIdent(name, loc.lexical_pos);
+      PEIdent*id = new PEIdent(name, loc.lexical_pos);
+      if (pform_in_clocking_assertion_
+	  && !name.front().local_scope
+	  && !sva_source_name_is_local_(name.front().name))
+	    id->set_sva_clocking_scope(pform_cur_clocking);
+      return id;
 }
 
 PTrigger* pform_new_trigger(const struct vlltype&loc, PPackage*pkg,
@@ -8774,6 +8780,8 @@ void pform_start_clocking_block(const struct vlltype&loc,
       ivl_assert(loc, scope);
       /* On parse error, a previous clocking block may not have been ended. Reset it. */
       if (pform_cur_clocking) pform_cur_clocking = 0;
+      pform_in_clocking_assertion_ = false;
+      pform_clocking_reference_errors_.clear();
 
 	/* IEEE 1800-2017 14.14: global clocking declarations are not
 	   allowed in generate blocks. */
@@ -9896,10 +9904,24 @@ Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
       return pform_rs_block_(loc, root_statements, IVL_RANDSEQ_BLOCK_ROOT);
 }
 
+void pform_clocking_assertion_context(bool enter)
+{
+      pform_in_clocking_assertion_ = enter;
+}
+
 void pform_end_clocking_block(const struct vlltype&loc)
 {
+      if (pform_cur_clocking) {
+	    for (const auto&ref : pform_clocking_reference_errors_) {
+		  if (pform_cur_clocking->has_input(ref.first)) continue;
+		  cerr << ref.second << endl;
+		  error_count += 1;
+	    }
+      }
+      pform_clocking_reference_errors_.clear();
       /* May be 0 if the block body had a parse error and was skipped */
       pform_cur_clocking = 0;
+      pform_in_clocking_assertion_ = false;
       pform_cur_clocking_is_global = false;
 }
 
@@ -11465,7 +11487,8 @@ static bool sva_validate_sequence_local_visibility_(
       for (size_t i = 0; i < steps.size(); ++i) {
 	    PEIdent*call = dynamic_cast<PEIdent*>(steps[i].expr);
 	    if (!call || call->path().package || call->path().name.size() != 1
-		|| !call->path().name.front().index.empty()) continue;
+		|| !call->path().name.front().index.empty()
+		|| call->sva_clocking_input()) continue;
 	    perm_string name = call->path().name.front().name;
 	    std::map<perm_string,unsigned> child_locals;
 	    std::map<sva_scoped_name_t,sva_property_t*>::iterator shaped =
@@ -11549,7 +11572,23 @@ static bool sva_prepare_clocking_declaration_(const struct vlltype&loc,
 	     inherits this block's event; an explicit clock is legal only when the
 	     event expression is identical. Multiclock declarations are rejected
 	     even when their first event happens to match. */
-	  auto check_reference = [&](perm_string reference) {
+	  auto bad_reference = [&](perm_string reference, const char*reference_kind,
+				   bool may_be_clockvar) {
+		ostringstream msg;
+		msg << loc << ": error: named " << reference_kind << " `" << reference
+		    << "' instantiated in clocking block `" << pform_cur_clocking->name
+		    << "' shall be singly clocked by the block's identical event "
+		    << "(IEEE 1800-2017/2023 16.16(b)(3)).";
+		/* A later clockvar declaration can shadow an outer declaration. */
+		if (may_be_clockvar) {
+		      pform_clocking_reference_errors_.emplace_back(reference, msg.str());
+		      return true;
+		}
+		cerr << msg.str() << endl;
+		error_count += 1;
+		return false;
+	  };
+	  auto check_reference = [&](perm_string reference, bool may_be_clockvar) {
 		std::map<sva_scoped_name_t,sva_property_t*>::iterator declared =
 		      sva_resolve_(sva_module_properties, reference);
 		if (declared != sva_module_properties.end()) {
@@ -11565,15 +11604,8 @@ static bool sva_prepare_clocking_declaration_(const struct vlltype&loc,
 			    || (target->mc_more && !target->mc_more->empty());
 		      if (multiclocked || (target->clk_evt
 			    && !sva_event_controls_identical_(target->clk_evt,
-							 pform_cur_clocking->event))) {
-			    cerr << loc << ": error: named " << reference_kind << " `"
-				 << reference << "' instantiated in clocking block `"
-				 << pform_cur_clocking->name
-				 << "' shall be singly clocked by the block's identical event "
-				 << "(IEEE 1800-2017/2023 16.16(b)(3))." << endl;
-			    error_count += 1;
-			    return false;
-		      }
+							 pform_cur_clocking->event)))
+			    return bad_reference(reference, reference_kind, may_be_clockvar);
 		      return true;
 		}
 		std::map<sva_scoped_name_t,sva_param_prop_t>::iterator parameterized =
@@ -11587,16 +11619,9 @@ static bool sva_prepare_clocking_declaration_(const struct vlltype&loc,
 			    || (target->mc_more && !target->mc_more->empty());
 		      if (multiclocked || (target->clk_evt
 			   && !sva_event_controls_identical_(target->clk_evt,
-						 pform_cur_clocking->event))) {
-			    cerr << loc << ": error: named property `" << reference
-				 << "' instantiated in clocking block `"
-				 << pform_cur_clocking->name
-				 << "' shall be singly clocked by the block's identical event "
-				 << "(IEEE 1800-2017/2023 16.16(b)(3))." << endl;
-			    error_count += 1;
-			    return false;
-	      }
-	}
+						 pform_cur_clocking->event)))
+			    return bad_reference(reference, "property", may_be_clockvar);
+		}
 		std::map<sva_scoped_name_t,std::vector<sva_seq_step_t>*>::iterator plain =
 		      sva_resolve_(sva_module_sequences, reference);
 		if (plain != sva_module_sequences.end()
@@ -11615,15 +11640,8 @@ static bool sva_prepare_clocking_declaration_(const struct vlltype&loc,
 				  || (body->mc_more && !body->mc_more->empty());
 			    if (multiclocked || (body->clk_evt
 						 && !sva_event_controls_identical_(body->clk_evt,
-								pform_cur_clocking->event))) {
-				  cerr << loc << ": error: named sequence `" << reference
-				       << "' instantiated in clocking block `"
-				       << pform_cur_clocking->name
-				       << "' shall be singly clocked by the block's identical event "
-				       << "(IEEE 1800-2017/2023 16.16(b)(3))." << endl;
-				  error_count += 1;
-				  return false;
-			    }
+								pform_cur_clocking->event)))
+				  return bad_reference(reference, "sequence", may_be_clockvar);
 		      }
 		}
 		return true;
@@ -11632,14 +11650,16 @@ static bool sva_prepare_clocking_declaration_(const struct vlltype&loc,
 		if (!chain) return true;
 		for (const sva_seq_step_t&step : *chain) {
 		      if (PEIdent*id = dynamic_cast<PEIdent*>(step.expr)) {
-			    if (!id->path().package && id->path().name.size() == 1
+			    if (!id->sva_clocking_input() && !id->path().package
+				&& id->path().name.size() == 1
 				&& id->path().name.front().index.empty()
-				&& !check_reference(id->path().name.front().name))
+				&& !check_reference(id->path().name.front().name,
+						    id->sva_clocking_scope() != nullptr))
 				  return false;
 		      } else if (PECallFunction*call =
 				 dynamic_cast<PECallFunction*>(step.expr)) {
 			    if (!call->path().package && call->path().name.size() == 1
-				&& !check_reference(call->path().name.front().name))
+				&& !check_reference(call->path().name.front().name, false))
 				  return false;
 		      }
 		}
@@ -11759,7 +11779,7 @@ static void sva_rec_expr_(const PExpr*e, long w, bool exact, int neg,
       if (!e) return;
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(e)) {
 	    const pform_name_t&path = id->path().name;
-	    if (!id->path().package && path.size() == 1
+	    if (!id->sva_clocking_input() && !id->path().package && path.size() == 1
 		&& path.front().index.empty())
 		  out.push_back({e, path.front().name, w, exact, neg, whole});
 	    return;
@@ -13383,19 +13403,33 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	    return copy.release();
       }
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
-	    /* A dotted formal reference such as `x.triggered' is represented as
-	       one PEIdent path, not as PEMemberAccess. Substitute the formal base
-	       first, then preserve the member suffix as member-access nodes. */
-	    if (subst && !id->path().package && id->path().name.size() > 1) {
+	    bool clockvar = id->sva_clocking_input() != nullptr;
+	    /* Substitute a dotted formal's base first. Keep a clockvar actual
+	       and its suffix in one path so the sampler can resolve the alias. */
+	    if (subst && !clockvar && !id->path().package && id->path().name.size() > 1) {
 		  const name_component_t&base = id->path().name.front();
 		  std::map<perm_string,PExpr*>::const_iterator it =
 			 subst->find(base.name);
 		  if (it != subst->end() && base.index.empty()) {
 			PExpr*value = sva_clone_actual_argument_(it->second, nullptr);
 			if (!value) return nullptr;
+			PEIdent*actual_id = dynamic_cast<PEIdent*>(value);
+			const bool clockvar_actual =
+			      actual_id && actual_id->sva_clocking_input();
 			for (pform_name_t::const_iterator comp =
 			       ++id->path().name.begin();
 			     comp != id->path().name.end(); ++comp) {
+			      if (clockvar_actual) {
+				    name_component_t member;
+				    if (!sva_clone_name_component_(*comp, subst, false, member)) {
+					  delete value;
+					  return nullptr;
+				    }
+				    actual_id->append_name(member.name);
+				    for (const index_component_t&index : member.index)
+					  actual_id->append_index(index);
+				    continue;
+			      }
 			      if (!comp->index.empty()) { delete value; return nullptr; }
 			      PEMemberAccess*member = new PEMemberAccess(value, comp->name);
 			      sva_copy_actual_scope_(value, member);
@@ -13405,7 +13439,7 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 			return value;
 		  }
 	    }
-	    if (subst && !id->path().package && id->path().name.size() == 1) {
+	    if (subst && !clockvar && !id->path().package && id->path().name.size() == 1) {
 		  const name_component_t&component = id->path().name.front();
 		  std::map<perm_string,PExpr*>::const_iterator it =
 			subst->find(component.name);
@@ -13458,7 +13492,7 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	       the new PEIdent.  Otherwise the per-attempt substitution stopped at
 	       the vector name and left `idx' as an unresolved/shared live name. */
 	    pform_name_t path;
-	    bool qualify = !id->path().package
+	    bool qualify = !clockvar && !id->path().package
 		  && sva_clone_should_qualify_(id->path().name);
 	    if (qualify) {
 		  for (const name_component_t&component :
@@ -13485,6 +13519,7 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	    PEIdent*cp = id->path().package
 		  ? new PEIdent(id->path().package, path, id->lexical_pos())
 		  : new PEIdent(path, id->lexical_pos());
+	    cp->set_sva_clocking_scope(id->sva_clocking_scope());
 	    if (id->leading_type_args()) {
 		  parmvalue_t*type_args = sva_clone_parmvalue_(
 			id->leading_type_args(), subst);
@@ -13985,6 +14020,13 @@ struct sva_local_decl_type_t {
 static std::map<perm_string,sva_local_decl_type_t> sva_local_decl_types_;
 static std::vector<perm_string> sva_local_decl_order_;
 static std::set<perm_string> sva_local_formal_names_;
+
+static bool sva_source_name_is_local_(perm_string name)
+{
+      return sva_local_decl_types_.count(name)
+	  || sva_local_formal_names_.count(name)
+	  || sva_decl_formal_names_.count(name);
+}
 
 static std::vector<perm_string> sva_current_local_decl_names_()
 {
@@ -14643,6 +14685,9 @@ static int sva_match_item_sorry_(const struct vlltype&loc,
    than the later procedural/default-clock binder. */
 static void sampled_pending_drop_(const PECallFunction*cf);
 
+struct pform_procedural_sampling_context_t;
+static pform_procedural_sampling_context_t* pform_procedural_sampling_context_ = nullptr;
+
 /* Describe the narrow whole-array shapes the assertion sampler can lower
    element-wise.  Keep this query separate from the old numeric expansion:
    an unpacked bound such as [N] may name an overridable module parameter,
@@ -14651,6 +14696,7 @@ struct sva_uarray_operand_t {
       PEIdent*id = nullptr;
       PECallFunction*outer = nullptr;
       PWire*wire = nullptr;
+      std::shared_ptr<PEIdent> clockvar_backing;
 };
 
 static bool sva_uarray_operand_(PExpr*e, sva_uarray_operand_t&out)
@@ -14674,9 +14720,34 @@ static bool sva_uarray_operand_(PExpr*e, sva_uarray_operand_t&out)
 	  || !out.id->path().name.front().index.empty())
 	    return false;
 
-      out.wire = pform_get_wire_in_scope(
-	    out.id->path().name.front().name);
-      return out.wire && out.wire->unpacked_indices().size() == 1;
+      perm_string name = out.id->path().name.front().name;
+      const PEIdent*backing = nullptr;
+      if (const Module::PClocking*cb = out.id->sva_clocking_input()) {
+	    /* Leave invalid skews and procedural clock checks to the normal
+	       sampler. For a valid local array, sample the design signal's
+	       words in the Preponed region. */
+	    if (!cb->input_uses_1step(name) || pform_procedural_sampling_context_)
+		  return false;
+	    backing = out.id;
+	    auto alias = cb->decl_assigns.find(name);
+	    if (alias != cb->decl_assigns.end()) {
+		  backing = dynamic_cast<const PEIdent*>(alias->second);
+		  if (!backing || backing->path().package
+		      || backing->path().name.size() != 1
+		      || !backing->path().name.front().index.empty())
+			return false;
+		  name = backing->path().name.front().name;
+	    }
+      }
+      out.wire = pform_get_wire_in_scope(name);
+      if (!out.wire || out.wire->unpacked_indices().size() != 1)
+	    return false;
+      if (backing) {
+	    out.clockvar_backing = std::make_shared<PEIdent>(name, backing->lexical_pos());
+	    out.clockvar_backing->set_line(*out.id);
+	    out.id = out.clockvar_backing.get();
+      }
+      return true;
 }
 
 static bool sva_uarray_bound_is_overridable_(const sva_uarray_operand_t&op)
@@ -14775,8 +14846,6 @@ struct pform_procedural_sampling_context_t {
       PEventStatement* event;
       std::string error;
 };
-
-static pform_procedural_sampling_context_t* pform_procedural_sampling_context_ = nullptr;
 
 /* The variables used in the event control of the checker always_ff
    procedure being lowered (17.5): they are read live, not sampled. */
@@ -14923,7 +14992,9 @@ static PExpr* sva_preserve_uarray_operand_(
 	    arg.name = src[k].name;
 	    arg.parm = nullptr;
 	    if (src[k].parm) {
-		  if (k == 0 || k == 1)
+		  if (k == 0)
+			arg.parm = sva_clone_expr_(op.id);
+		  else if (k == 1)
 			arg.parm = sva_clone_expr_(src[k].parm);
 		  else
 			arg.parm = sva_wrap_preponed_(src[k].parm, sampled,
@@ -15023,14 +15094,15 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	}
 
       if (PEIdent*id = dynamic_cast<PEIdent*>(e)) {
+	    const Module::PClocking*source_cb = id->sva_clocking_input();
 	      /* IEEE 1800-2017/2023 16.5.1: a clocking-block input used
 		as a concurrent-assertion operand must itself have #1step
-		sampling. Numeric input skews (including #0) cannot be
+		sampling. Other skews (including #0) cannot be
 		reinterpreted as the assertion's Preponed sample. */
 	      /* The same rule for `inst.cb.sig', a clocking block of an
 		 interface instance named hierarchically: sample the raw
 		 `inst.sig' with the #1step Preponed mechanism. */
-	    if (!id->path().package && id->path().name.size() >= 3
+	    if (!source_cb && !id->path().package && id->path().name.size() >= 3
 		&& !pform_cur_module.empty() && !pform_procedural_sampling_context_) {
 		  const pform_name_t&path = id->path().name;
 		  pform_name_t::const_iterator cb_name = path.begin(); ++cb_name;
@@ -15050,14 +15122,9 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 				     : std::map<perm_string,Module::PClocking*>::const_iterator();
 		  const Module::PClocking*cb = iface
 			&& cb_it != iface->clocking_blocks.end() ? cb_it->second : nullptr;
-		  PExpr*skew_delay = nullptr;
-		  if (cb && std::find(cb->signals.begin(), cb->signals.end(),
-				      signal->name) != cb->signals.end()
-		      && (cb->signal_direction(signal->name) == NetNet::PINPUT
-			  || cb->signal_direction(signal->name) == NetNet::PINOUT)
+		  if (cb && cb->has_input(signal->name)
 		      && !cb->decl_assigns.count(signal->name)) {
-			if (cb->input_skew(signal->name, skew_delay)
-			    == Module::PClocking::SKEW_DELAY) {
+			if (!cb->input_uses_1step(signal->name)) {
 			      cerr << id->get_fileline() << ": error: clocking-block input `"
 				   << path.front().name << "." << cb->name << "."
 				   << signal->name << "' used in a concurrent assertion "
@@ -15075,25 +15142,21 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 						  live_operands, unsampled_locals);
 		  }
 	    }
-	    if (!id->path().package && id->path().name.size() >= 2
-		&& !pform_cur_module.empty()) {
+	    if (source_cb || (!id->path().package && id->path().name.size() >= 2
+			      && !pform_cur_module.empty())) {
 		  const pform_name_t&path = id->path().name;
-		  Module*mod = pform_cur_module.front();
-		  std::map<perm_string,Module::PClocking*>::const_iterator cb_it =
-			mod->clocking_blocks.find(path.front().name);
-		  if (cb_it != mod->clocking_blocks.end()) {
-			const Module::PClocking*cb = cb_it->second;
-			pform_name_t::const_iterator signal = path.begin();
+		  const Module::PClocking*cb = source_cb;
+		  auto signal = path.begin();
+		  if (!cb) {
+			const auto&blocks = pform_cur_module.front()->clocking_blocks;
+			auto cb_it = blocks.find(path.front().name);
+			if (cb_it != blocks.end()) cb = cb_it->second;
 			++signal;
-			bool clocking_input =
-			      std::find(cb->signals.begin(), cb->signals.end(),
-					signal->name) != cb->signals.end()
-			      && (cb->signal_direction(signal->name) == NetNet::PINPUT
-				  || cb->signal_direction(signal->name) == NetNet::PINOUT);
-			PExpr*skew_delay = nullptr;
+		  }
+		  if (cb) {
+			bool clocking_input = cb->has_input(signal->name);
 		    if (clocking_input && pform_procedural_sampling_context_
-			&& cb->input_skew(signal->name, skew_delay)
-			     == Module::PClocking::SKEW_DELAY) {
+			&& !cb->input_uses_1step(signal->name)) {
 			  pform_procedural_sampling_context_->error =
 				string("clocking-block input `") + cb->name.str() + "."
 				+ signal->name.str()
@@ -15109,9 +15172,7 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 				+ "' in a procedural sampled-value function requires the clocking event to match the inferred procedural clock (IEEE 1800-2017/2023 16.9.3, 16.14.6)";
 			  return nullptr;
 		    }
-			if (clocking_input
-			    && cb->input_skew(signal->name, skew_delay)
-				 == Module::PClocking::SKEW_DELAY) {
+			if (clocking_input && !cb->input_uses_1step(signal->name)) {
 			  cerr << id->get_fileline() << ": error: clocking-block input `"
 			       << cb->name << "." << signal->name
 			   << "' used in a concurrent assertion must be sampled with "
@@ -15159,13 +15220,15 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 				    }
 				    PExpr*raw_copy = sva_clone_expr_(raw_source);
 				    if (!raw_copy) return nullptr;
-				    if (after_signal != path.end()) {
-					  delete raw_copy;
-					  return nullptr;
-				    }
-				    for (const index_component_t&index : signal->index) {
-					  raw_copy = sva_clone_postselect_(raw_copy, index, id, nullptr);
-					  if (!raw_copy) return nullptr;
+				    for (auto component = signal; component != path.end(); ++component) {
+					  if (component != signal) {
+						raw_copy = new PEMemberAccess(raw_copy, component->name);
+						raw_copy->set_line(*id);
+					  }
+					  for (const index_component_t&index : component->index) {
+						raw_copy = sva_clone_postselect_(raw_copy, index, id, nullptr);
+						if (!raw_copy) return nullptr;
+					  }
 				    }
 				    PExpr*sampled_raw = sva_wrap_preponed_(raw_copy,
 					  sampled, live_operands, unsampled_locals);
@@ -15284,6 +15347,14 @@ static PExpr* sva_wrap_preponed_(PExpr*e,
 	    smp->set_line(*e);
 	    sampled[key] = base;
 	    return smp;
+      }
+      if (PEMemberAccess*member = dynamic_cast<PEMemberAccess*>(e)) {
+	    PExpr*base = sva_wrap_preponed_(member->base(), sampled,
+					    live_operands, unsampled_locals);
+	    if (!base) return nullptr;
+	    PEMemberAccess*copy = new PEMemberAccess(base, member->member_name());
+	    copy->set_line(*e);
+	    return copy;
       }
 	/* Local substitution can leave a part-select on a non-identifier base,
 	   for example `$past(value)[3:0]'. */
@@ -19719,6 +19790,7 @@ static PExpr* sva_rewrite_sampled_(const struct vlltype&loc, PExpr*e,
 	      PEIdent*copy = id->path().package
 		    ? new PEIdent(id->path().package, path, id->lexical_pos())
 		    : new PEIdent(path, id->lexical_pos());
+	      copy->set_sva_clocking_scope(id->sva_clocking_scope());
 	      copy->set_scoped_type_prefix(id->has_scoped_type_prefix());
 	      copy->set_dotted_suffix(id->has_dotted_suffix());
 	      copy->set_line(*e);
@@ -21873,7 +21945,7 @@ static void sva_splice_sequences_(const struct vlltype&loc,
 	    }
 	    if (whole_clock && !endpoint) break;
 	    PEIdent*id = dynamic_cast<PEIdent*>(steps[i].expr);
-	    if (!id || id->path().name.empty()) {
+	    if (!id || id->sva_clocking_input() || id->path().name.empty()) {
 		  i += 1;
 		  continue;
 	    }
@@ -37699,7 +37771,7 @@ static bool sva_named_property_ref_(const PEIdent*id,
 				    std::map<sva_scoped_name_t,
 				    sva_property_t*>::iterator&found)
 {
-      if (!id || id->path().package) return false;
+      if (!id || id->sva_clocking_input() || id->path().package) return false;
       const pform_name_t&path = id->path().name;
       if (path.size() == 1 && path.front().index.empty()) {
 	    name = path.front().name;
@@ -37903,7 +37975,8 @@ static bool sva_leaf_names_property_(const sva_property_t*p)
 	  || st.rep_kind != 0 || !st.items.empty())
 	    return false;
       const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr);
-      if (!id || id->path().package || id->path().name.size() != 1
+      if (!id || id->sva_clocking_input() || id->path().package
+	  || id->path().name.size() != 1
 	  || !id->path().name.front().index.empty())
 	    return false;
       perm_string nm = id->path().name.front().name;
@@ -38828,7 +38901,8 @@ static bool sva_inst_step_name_(const sva_seq_step_t&st, perm_string&nm,
 	  || !st.items.empty() || st.fm || st.grouped_repeat)
 	    return false;
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr)) {
-	    if (id->path().package || id->path().name.size() != 1
+	    if (id->sva_clocking_input() || id->path().package
+		|| id->path().name.size() != 1
 		|| !id->path().name.front().index.empty())
 		  return false;
 	    nm = id->path().name.front().name;
@@ -39694,7 +39768,8 @@ static bool sva_comp_expand_refs_(const struct vlltype&loc, sva_property_t*p)
 		  const PEIdent*id = dynamic_cast<const PEIdent*>(o->seq->front().expr);
 		  perm_string nm;
 		  std::map<sva_scoped_name_t, sva_property_t*>::iterator pit;
-		  if (id && id->path().name.size() == 1 && !id->path().package
+		  if (id && !id->sva_clocking_input()
+		      && id->path().name.size() == 1 && !id->path().package
 		      && id->path().name.front().index.empty()
 		      && !sva_in_scope_(sva_module_sequences,
 					id->path().name.front().name)) {
