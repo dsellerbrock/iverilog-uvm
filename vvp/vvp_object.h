@@ -56,6 +56,13 @@ enum vvp_fixed_leaf_kind_t {
       VVP_FIXED_OBJECT
 };
 
+struct vvp_assoc_layout_t {
+      unsigned index_width = 0;
+      bool index_signed = false;
+      char value_kind = 0;
+      bool value_signed = false;
+};
+
 struct vvp_container_layout_s;
 typedef std::shared_ptr<const vvp_container_layout_s>
       vvp_container_layout_t;
@@ -64,11 +71,12 @@ struct vvp_container_layout_s {
       vvp_container_layout_s(vvp_container_layout_kind_t kind,
                              bool bound_known, uint64_t max_size,
                              const vvp_container_layout_t&child,
-                             unsigned packed_width = 0)
+                             unsigned packed_width = 0,
+                             vvp_assoc_layout_t assoc_layout = {})
       : kind(kind), queue_bound_known(bound_known),
         queue_max_size(max_size), element(child), fixed_left(0),
         fixed_right(0), fixed_leaf(VVP_FIXED_OBJECT), fixed_width(0),
-        packed_leaf_width(packed_width) { }
+        packed_leaf_width(packed_width), assoc(assoc_layout) { }
 
       vvp_container_layout_s(int left, int right,
                              vvp_fixed_leaf_kind_t leaf, unsigned width)
@@ -86,6 +94,7 @@ struct vvp_container_layout_s {
       vvp_fixed_leaf_kind_t fixed_leaf;
       unsigned fixed_width;
       unsigned packed_leaf_width;
+      vvp_assoc_layout_t assoc;
 };
 
 inline unsigned vvp_packed_container_leaf_width(const vvp_container_layout_s*layout)

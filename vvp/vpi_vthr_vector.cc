@@ -27,6 +27,7 @@
 # include  "compile.h"
 # include  "class_type.h"
 # include  "vvp_cobject.h"
+# include  "vvp_assoc.h"
 # include  "vthread.h"
 # include  "vvp_darray.h"
 # include  "config.h"
@@ -38,13 +39,17 @@
 # include  <cstring>
 # include  <cstdlib>
 # include  <cassert>
+# include  <climits>
+# include  <cerrno>
 # include  "ivl_alloc.h"
 
 using namespace std;
 
 namespace {
 
-static std::string describe_thread_object_(const vvp_object_t&obj, bool element_signed)
+static std::string describe_thread_object_(const vvp_object_t&obj,
+                                          bool element_signed,
+                                          vpiHandle packed_leaf)
 {
       if (obj.test_nil())
             return std::string("null");
@@ -56,6 +61,13 @@ static std::string describe_thread_object_(const vvp_object_t&obj, bool element_
 	// have no property list to walk.
       if (obj.peek<vvp_cobject>())
             return vvp_format_cobject_p(obj);
+
+      if (const auto*assoc = obj.peek<vvp_assoc_base>()) {
+            const auto*layout = assoc->declared_container_layout().get();
+            if (layout && layout->assoc.index_width)
+                  return vvp_format_cobject_p(obj, 0, element_signed,
+                                             layout, packed_leaf);
+      }
 
 	// A container value (queue/darray — e.g. a queue-slice
 	// expression q[1:2] passed to %p): the shared renderer walks
@@ -270,6 +282,8 @@ class __vpiVThrObjStack : public __vpiHandle {
       unsigned depth_;
       class_type*declared_type_;
       bool element_signed_;
+      vpiHandle property_owner_ = nullptr;
+      unsigned property_index_ = 0;
 };
 
 __vpiVThrStrStack::__vpiVThrStrStack(unsigned d)
@@ -280,8 +294,23 @@ __vpiVThrStrStack::__vpiVThrStrStack(unsigned d)
 __vpiVThrObjStack::__vpiVThrObjStack(unsigned d, char*type)
 : depth_(d), declared_type_(0), element_signed_(type && strcmp(type, "signed") == 0)
 {
-      if (type && !element_signed_)
+      if (type && type[0] == 'P') {
+            // Packed leaf of a class associative property: P<index>:C<label>.
+            char*end;
+            errno = 0;
+            unsigned long index = strtoul(type + 1, &end, 10);
+            if (type[1] < '0' || type[1] > '9' || errno == ERANGE
+                || index > UINT_MAX || *end != ':' || end[1] != 'C') {
+                  fprintf(stderr, "vvp: invalid associative property argument %s\n", type);
+                  compile_errors += 1;
+            } else {
+                  property_index_ = static_cast<unsigned>(index);
+                  compile_vpi_lookup(&property_owner_, strdup(end + 1));
+            }
+            free(type);
+      } else if (type && !element_signed_) {
             compile_vpi_lookup(reinterpret_cast<vpiHandle*>(&declared_type_), type);
+      }
 }
 
 int __vpiVThrStrStack::get_type_code(void) const
@@ -375,7 +404,12 @@ void __vpiVThrObjStack::vpi_get_value(p_vpi_value vp)
 	  case vpiOctStrVal:
 	  case vpiHexStrVal:
 	  case vpiStringVal: {
-		std::string desc = describe_thread_object_(val, element_signed_);
+		vpiHandle packed_leaf = nullptr;
+		if (auto*owner = dynamic_cast<class_type*>(property_owner_)) {
+		      if (property_index_ < owner->property_count())
+			    packed_leaf = owner->property_typespec(property_index_);
+		}
+		std::string desc = describe_thread_object_(val, element_signed_, packed_leaf);
 		char*rbuf = static_cast<char *>(need_result_buf(desc.size()+1, RBUF_VAL));
 		strcpy(rbuf, desc.c_str());
 		vp->value.str = rbuf;

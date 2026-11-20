@@ -179,10 +179,10 @@ static void format_packed_property_(std::string&out, vvp_cobject*cobj,
       out += '}';
 }
 
-static void append_string_key_(std::string&out, const std::string&key)
+static void append_quoted_string_(std::string&out, const std::string&value)
 {
       out += '"';
-      for (unsigned char ch : key) {
+      for (unsigned char ch : value) {
 	    if (ch == '"' || ch == '\\') out += '\\';
 	    if (ch >= 32 && ch <= 126) {
 		  out += static_cast<char>(ch);
@@ -210,10 +210,79 @@ static std::string format_packed_assoc_(const vvp_assoc_base&assoc,
 				  kind, signed_index, &string_key))
 		  break;
 	    if (pos) out += ", ";
-	    if (string_key) append_string_key_(out, key);
+	    if (string_key) append_quoted_string_(out, key);
 	    else out += key;
 	    out += ':';
 	    out += vpip_format_packed_value(leaf, std::move(value));
+      }
+      out += '}';
+      return out;
+}
+
+static std::string format_integral_assoc_(const vvp_assoc_base*assoc,
+					  const vvp_container_layout_s&layout,
+					  vpiHandle packed_leaf, int depth)
+{
+      std::string out = "'{";
+      const auto&decl = layout.assoc;
+      const size_t count = assoc ? assoc->size() : 0;
+      size_t pos = 0;
+      for (; pos <= count; ++pos) {
+	    const bool fallback = pos == count;
+	    std::string key, text;
+	    vvp_vector4_t vec;
+	    vvp_object_t object;
+	    double real = 0;
+	    int kind = -1;
+	    if (fallback) {
+		  if (assoc) kind = assoc->peek_default(vec, real, text, object);
+		  if (kind < 0 && count) break;
+		  key = "default";
+	    } else if (!assoc->peek_entry(pos, key, vec, real, text, kind,
+					   decl.index_signed, nullptr, &object)) {
+		  break;
+	    }
+	    if (pos) out += ", ";
+	    out += key;
+	    out += ':';
+	    switch (kind) {
+		case 0:
+		  out += packed_leaf
+			? vpip_format_packed_value(packed_leaf, std::move(vec), true)
+			: vpip_format_integral_literal(vec, decl.value_signed);
+		  break;
+		case 1: {
+		  char buf[64];
+		  snprintf(buf, sizeof buf, "%g", real);
+		  out += buf;
+		  break;
+		}
+		case 2:
+		  append_quoted_string_(out, text);
+		  break;
+		case 3:
+		  out += vvp_format_cobject_p(object, depth + 1);
+		  break;
+		default:
+		  // The empty map needs a legal default-only pattern.
+		  switch (decl.value_kind) {
+		      case 'b':
+		      case 'v':
+			if (packed_leaf && layout.packed_leaf_width) {
+			      vvp_vector4_t value(layout.packed_leaf_width,
+					  decl.value_kind == 'b' ? BIT4_0 : BIT4_X);
+			      out += vpip_format_packed_value(packed_leaf, std::move(value), true);
+			} else {
+			      out += decl.value_kind == 'b' ? "'0" : "'x";
+			}
+			break;
+		      case 'r': out += "0.0"; break;
+		      case 'S': out += "\"\""; break;
+		      case 'o': out += "null"; break;
+		  }
+		  break;
+	    }
+	    if (fallback) break;
       }
       out += '}';
       return out;
@@ -228,6 +297,12 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
                                  const vvp_container_layout_s*layout,
                                  vpiHandle packed_leaf, bool assoc_index_signed)
 {
+      if (layout && layout->assoc.index_width) {
+	    const auto*assoc = obj.peek<vvp_assoc_base>();
+	    if (assoc || obj.test_nil())
+		  return depth > 32 ? "..."
+			: format_integral_assoc_(assoc, *layout, packed_leaf, depth);
+      }
       if (layout && obj.test_nil())
 	    return std::string("'{}");
       if (layout && layout->kind == VVP_CONTAINER_ASSOC && packed_leaf) {
@@ -318,9 +393,11 @@ std::string vvp_format_cobject_p(const vvp_object_t&obj, int depth,
 		  continue;
 	    out += ":";
 	    if (defn->property_base_type(i) == "V") continue;
+	    const auto*property_layout = defn->property_container_layout(i);
 	    if (!defn->property_base_type(i).empty()
 		&& defn->property_base_type(i)[0] == 'M'
-		&& !defn->property_typespec(i)) {
+		&& !defn->property_typespec(i)
+		&& !(property_layout && property_layout->assoc.index_width)) {
 		  out += "<container>";
 		  continue;
 	    }
@@ -672,6 +749,11 @@ class __vpiClassMember : public __vpiDarrayVar {
 
       std::string format_packed_p()
       {
+	    const auto*layout = container_layout();
+	    if (layout && layout->assoc.index_width
+		&& defn_->property_dimensions(idx_).empty())
+		  return vvp_format_cobject_p(live_member_value_(), 0, false,
+					      layout, defn_->property_typespec(idx_));
 	    if (!defn_->property_typespec(idx_)) return {};
 	    vvp_cobject*cobj = live_object_();
 	    if (!cobj) return {};
@@ -1143,7 +1225,8 @@ class __vpiClassMember : public __vpiDarrayVar {
 		  vvp_vector4_t vval;
 		  double rval = 0.0;
 		  int value_kind = -1;
-		  if (assoc->peek_entry(index, key, vval, rval, sval, value_kind))
+		  if (assoc->peek_entry(index, key, vval, rval, sval, value_kind,
+					assoc_order_signed()))
 			label = key;
 	    }
 	    if (label.empty()) {
@@ -1297,6 +1380,10 @@ class __vpiClassMember : public __vpiDarrayVar {
 		  kind_ = 'q'; type_code_ = vpiArrayVar; width_ = 0;
 		  declared_array_type_ = t[0] == 'M'
 					   ? vpiAssocArray : vpiQueueArray;
+		  if (const auto*layout = container_layout()) {
+			signed_ = layout->assoc.value_signed;
+			set_element_signed(signed_);
+		  }
 		  return;
 	    }
 	    if (bt.size() >= 2 && t[0] == 'D') {

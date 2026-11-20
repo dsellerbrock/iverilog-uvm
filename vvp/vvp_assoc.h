@@ -156,12 +156,14 @@ class vvp_assoc_base : public vvp_object {
 	// 3=object.  Returns false when pos is out of range.
 	// SIGNED_ORDER orders and prints vector keys as signed numbers, for
 	// a signed index type (7.8.4). STRING_KEY is set for a string key,
-	// whose text is returned verbatim.
+	// whose text is returned verbatim. OBJECT_VALUE receives the payload
+	// from the same entry when the map holds objects.
       virtual bool peek_entry(size_t pos, std::string&key_text,
 			      vvp_vector4_t&val_vec, double&val_real,
 			      std::string&val_str, int&val_kind,
 			      bool signed_order = false,
-			      bool*string_key = nullptr) const =0;
+			      bool*string_key = nullptr,
+			      vvp_object_t*object_value = nullptr) const =0;
 	  virtual bool get_vec4_bitstream(unsigned key_kind, bool signed_order,
 					  vvp_vector4_t&stream) const =0;
 
@@ -174,6 +176,10 @@ class vvp_assoc_base : public vvp_object {
 				       const vvp_object*&obj_key,
 				       vvp_vector4_t&vec_key,
 				       vvp_object_t&obj_val) const =0;
+
+	// An explicit fallback uses the same payload tags. -1 means absent.
+      virtual int peek_default(vvp_vector4_t&vec, double&real,
+                               std::string&str, vvp_object_t&object) const =0;
 
 	// M12-4 VPI: positional element WRITE, the mirror of
 	// peek_entry (same key order, same val_kind tags). The entry
@@ -766,7 +772,8 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 		      vvp_vector4_t&val_vec, double&val_real,
 		      std::string&val_str, int&val_kind,
 		      bool signed_order = false,
-		      bool*string_key = nullptr) const override
+		      bool*string_key = nullptr,
+		      vvp_object_t*object_value = nullptr) const override
       {
 	    if (string_key) *string_key = pos < str_map_.size();
 	    if (pos < str_map_.size()) {
@@ -775,7 +782,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 		  std::advance(cur, pos);
 		  key_text = cur->first;
 		  val_kind = assign_entry_val_(cur->second, val_vec,
-					       val_real, val_str);
+					       val_real, val_str, object_value);
 		  return true;
 	    }
 	    pos -= str_map_.size();
@@ -785,7 +792,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 		  std::advance(cur, pos);
 		  key_text = "<object>";
 		  val_kind = assign_entry_val_(cur->second, val_vec,
-					       val_real, val_str);
+					       val_real, val_str, object_value);
 		  return true;
 	    }
 	    pos -= obj_map_.size();
@@ -800,7 +807,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 		  vpip_vec4_to_dec_str(entry.key, buf, cap, signed_order);
 		  key_text = buf;
 		  val_kind = assign_entry_val_(entry.value, val_vec,
-					       val_real, val_str);
+					       val_real, val_str, object_value);
 		  return true;
 	    }
 	    return false;
@@ -867,6 +874,13 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 	    return false;
       }
 
+      int peek_default(vvp_vector4_t&vec, double&real, std::string&str,
+                       vvp_object_t&object) const override
+      {
+	    return has_default_ ? assign_entry_val_(default_value_, vec, real,
+						    str, &object) : -1;
+      }
+
       bool poke_entry(size_t pos, const vvp_vector4_t&val_vec,
 		      double val_real, const std::string&val_str,
 		      int val_kind, bool signed_order = false) override
@@ -916,7 +930,7 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 	// Overload set routing the stored value into the right VPI
 	// payload slot; returns the val_kind tag.
       static int assign_entry_val_(const vvp_vector4_t&src2, vvp_vector4_t&vv,
-				   double&, std::string&)
+				   double&, std::string&, vvp_object_t*)
       { vv = src2; return 0; }
       static bool vec4_entry_width_(const vvp_vector4_t&src, unsigned&width)
 	  { width = src.size(); return true; }
@@ -951,14 +965,17 @@ template <class TYPE> class vvp_assoc_map : public vvp_assoc_base {
 	    return true;
 	  }
       static int assign_entry_val_(const double&src2, vvp_vector4_t&,
-				   double&rv, std::string&)
+				   double&rv, std::string&, vvp_object_t*)
       { rv = src2; return 1; }
       static int assign_entry_val_(const std::string&src2, vvp_vector4_t&,
-				   double&, std::string&sv)
+				   double&, std::string&sv, vvp_object_t*)
       { sv = src2; return 2; }
-      static int assign_entry_val_(const vvp_object_t&, vvp_vector4_t&,
-				   double&, std::string&)
-      { return 3; }
+      static int assign_entry_val_(const vvp_object_t&src, vvp_vector4_t&,
+				   double&, std::string&, vvp_object_t*dst)
+      {
+	    if (dst) *dst = src;
+	    return 3;
+      }
       template <class VALUE>
       static void assign_object_val_(const VALUE&, vvp_object_t&) { }
       static void assign_object_val_(const vvp_object_t&src, vvp_object_t&dst)

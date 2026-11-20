@@ -1495,6 +1495,7 @@ class __vpiDarrayVar : public __vpiBaseVar, public __vpiArrayBase {
     protected:
       virtual vvp_darray*get_vvp_darray() const;
       virtual const class vvp_assoc_base*get_vvp_assoc() const;
+      bool assoc_order_signed() const;
       __vpiDecConst left_range_, right_range_;
 	// M12: reported when the live object cannot decide (null
 	// handle): vpiDynamicArray for darrays, vpiQueueArray for
@@ -1899,7 +1900,10 @@ extern unsigned vpip_vec4_to_dec_str(const vvp_vector4_t&vec4,
 				     int signed_flag);
 
 extern std::string vpip_format_packed_value(vpiHandle typespec,
-                                           vvp_vector4_t value);
+                                            vvp_vector4_t value,
+                                            bool assignment_pattern = false);
+extern std::string vpip_format_integral_literal(const vvp_vector4_t&value,
+                                               bool is_signed);
 
 /*
  * Render an object-backed struct/class instance as `'{name:value, ...}` for

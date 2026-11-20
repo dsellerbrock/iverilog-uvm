@@ -701,15 +701,21 @@ static unsigned nexpr_vartype_notes = 0;
 void note_property_vartype(ivl_type_t classtype, unsigned idx)
 {
       ivl_type_t type = ivl_type_prop_type(classtype, idx);
+      ivl_type_t assoc_leaf = ivl_type_base(classtype) == IVL_VT_CLASS
+	    ? assoc_property_packed_leaf_(type) : 0;
       if (type_is_fixed_uarray_property_(type))
 	    type = ivl_type_element(type);
-      if (ivl_type_base(type) == IVL_VT_QUEUE || ivl_type_base(type) == IVL_VT_DARRAY)
-	    type = packed_struct_container_leaf_(type);
-      if (!type) return;
-      if (ivl_type_base(type) != IVL_VT_LOGIC && ivl_type_base(type) != IVL_VT_BOOL)
-	    return;
-      if (ivl_type_properties(type) == 0 || ivl_type_is_union(type))
-	    return;
+      if (assoc_leaf) {
+	    type = assoc_leaf;
+      } else {
+	    if (ivl_type_base(type) == IVL_VT_QUEUE || ivl_type_base(type) == IVL_VT_DARRAY)
+		  type = packed_struct_container_leaf_(type);
+	    if (!type || (ivl_type_base(type) != IVL_VT_LOGIC
+			  && ivl_type_base(type) != IVL_VT_BOOL))
+		  return;
+	    if (ivl_type_properties(type) == 0 || ivl_type_is_union(type))
+		  return;
+      }
       property_vartype_notes = realloc(property_vartype_notes,
             (nproperty_vartype_notes + 1) * sizeof(*property_vartype_notes));
       property_vartype_notes[nproperty_vartype_notes++] =
@@ -1232,7 +1238,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 			fputc('A', vvp_out);
 		  else
 			fputc('Q', vvp_out);
-		  emit_container_layout_suffix_(arr_elem_type);
+		  emit_container_layout_suffix_(arr_elem_type, 0);
 		  fputc('"', vvp_out);
 	    }
 	    fprintf(vvp_out, ";\n");
@@ -1286,7 +1292,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		         vpiDecStrVal render negatives correctly. */
 		    (element_type && ivl_type_signed(element_type)) ? "+" : "");
 	    fprintf(vvp_out, ", \"D");
-	    emit_container_layout_suffix_(var_type);
+	    emit_container_layout_suffix_(var_type, 0);
 	    fputc('"', vvp_out);
 	    if (struct_obj_elem)
 		  fprintf(vvp_out, ", C%p", element_type);
@@ -1351,7 +1357,7 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 		    (element_type && ivl_type_signed(element_type)) ? "+" : "",
 		    queue_kind);
 	    emit_assoc_index_type_(var_type);
-	    emit_container_layout_suffix_(var_type);
+	    emit_container_layout_suffix_(var_type, 0);
 	    fprintf(vvp_out, "\"");
 	    if (struct_obj_elem)
 		  fprintf(vvp_out, ", C%p", element_type);
