@@ -25,6 +25,7 @@
 # include  "PExpr.h"
 # include  "verinum.h"
 # include  "netmisc.h"
+# include  "netstruct.h"
 
 using namespace std;
 
@@ -114,10 +115,50 @@ static NetExpr*calculate_val(Design*des, NetScope*scope, PExpr*expr)
       return dex;
 }
 
-static NetExpr* make_delay_nets(Design*des, NetScope*scope, NetExpr*expr)
+// A continuous-assignment delay can read unindexed numeric fields of a
+// static unpacked struct directly from its object storage at an RHS change.
+static bool is_struct_delay_member(const NetEProperty*member)
+{
+      if (!member || (member->expr_type() != IVL_VT_REAL
+		      && !type_is_vectorable(member->expr_type())))
+	    return false;
+
+      while (member) {
+	    if (member->get_index())
+		  return false;
+	    const NetNet*sig = member->get_sig();
+	    const NetExpr*base = member->get_base();
+	    const auto*owner = dynamic_cast<const netstruct_t*>(
+		  sig ? sig->net_type() : base->net_type());
+	    if (!owner || owner->packed() || owner->union_flag())
+		  return false;
+
+	    if (const auto*root = dynamic_cast<const NetESignal*>(base)) {
+		  if (root->word_index())
+			return false;
+		  sig = root->sig();
+	    }
+	    if (sig)
+		  return sig->type() == NetNet::REG
+			&& sig->port_type() != NetNet::PREF
+			&& sig->unpacked_dimensions() == 0
+			&& sig->lifetime_override() != IVL_VLT_AUTOMATIC
+			&& (sig->lifetime_override() == IVL_VLT_STATIC
+			    || !sig->scope()->is_auto());
+	    member = dynamic_cast<const NetEProperty*>(base);
+      }
+      return false;
+}
+
+static NetExpr* make_delay_nets(Design*des, NetScope*scope, NetExpr*expr,
+			       PDelays::mode_t mode)
 {
       if (expr == 0)
             return 0;
+
+      if (mode == PDelays::CONTINUOUS_ASSIGN
+	  && is_struct_delay_member(dynamic_cast<const NetEProperty*>(expr)))
+	    return expr;
 
       if (NetESignal*sig = dynamic_cast<NetESignal*> (expr))
 	    if (!sig->word_index()) return expr;
@@ -158,26 +199,26 @@ void PDelays::eval_delays(Design*des, NetScope*scope,
 			  NetExpr*&rise_time,
 			  NetExpr*&fall_time,
 			  NetExpr*&decay_time,
-			  bool as_nets_flag) const
+			  mode_t mode) const
 {
       assert(scope);
 
 
       if (delay_[0]) {
 	    rise_time = calculate_val(des, scope, delay_[0]);
-	    if (as_nets_flag)
-		  rise_time = make_delay_nets(des, scope, rise_time);
+	    if (mode != EXPRESSIONS)
+		  rise_time = make_delay_nets(des, scope, rise_time, mode);
 
 	    if (delay_[1]) {
 		  fall_time = calculate_val(des, scope, delay_[1]);
-		  if (as_nets_flag)
-			fall_time = make_delay_nets(des, scope, fall_time);
+		  if (mode != EXPRESSIONS)
+			fall_time = make_delay_nets(des, scope, fall_time, mode);
 
 		  if (delay_[2]) {
 			decay_time = calculate_val(des, scope, delay_[2]);
-			if (as_nets_flag)
+			if (mode != EXPRESSIONS)
 			      decay_time = make_delay_nets(des, scope,
-			                                   decay_time);
+			                                   decay_time, mode);
 
 		  } else {
 			// If this is zero then we need to do the min()

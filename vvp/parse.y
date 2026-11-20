@@ -88,6 +88,7 @@ static bool is_force_release_opcode(const char* name)
       struct symbv_s symbv;
 
       struct numbv_s numbv;
+      struct delay_operand_s delay_operand;
 
       struct enum_name_s enum_name;
       std::list<struct enum_name_s>*enum_namev;
@@ -116,7 +117,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_CMP_EEQ K_CMP_EQ K_CMP_EQX K_CMP_EQZ K_CMP_WEQ K_CMP_WNE
 %token K_CMP_EQ_R K_CMP_NEE K_CMP_NE K_CMP_NE_R
 %token K_CMP_GE K_CMP_GE_R K_CMP_GE_S K_CMP_GT K_CMP_GT_R K_CMP_GT_S
-%token K_CONCAT K_CONCAT8 K_DEBUG K_DELAY K_DELAY_VECTOR K_DELAY_WHOLE
+%token K_CONCAT K_CONCAT8 K_DEBUG K_DELAY K_DELAY_VECTOR K_DELAY_WHOLE K_DELAY_MEMBER
 %token K_DFF_N K_DFF_N_ACLR
 %token K_DFF_N_ACLR_ASET K_DFF_N_ASET K_DFF_N_ASET_ACLR
 %token K_DFF_P K_DFF_P_ACLR K_DFF_P_ACLR_ASET K_DFF_P_ASET K_DFF_P_ASET_ACLR
@@ -183,6 +184,8 @@ static bool is_force_release_opcode(const char* name)
 %type <symb>  symbol symbol_opt
 %type <symbv> symbols symbols_net
 %type <numbv> numbers
+%type <numvec> delay_member_path
+%type <delay_operand> delay_operand
 %type <text> label_opt
 %type <text> tran_desc_opt
 %type <text> modpath_condition_text_opt
@@ -196,7 +199,8 @@ static bool is_force_release_opcode(const char* name)
 %type <enum_name> enum_type_name
 %type <enum_namev> enum_type_names enum_type_names_opt
 
-%destructor { delete $$; } covgrp_bin_tail
+%destructor { delete $$; } covgrp_bin_tail delay_member_path
+%destructor { free($$.signal); delete $$.path; } delay_operand
 
 %%
 
@@ -701,6 +705,11 @@ statement
 	    compile_errors += 1;
       }
       compile_delay($1, $3, obj.cnt, obj.vect, true, false, true);
+    }
+ | T_LABEL K_DELAY_MEMBER T_NUMBER ',' T_NUMBER ',' symbol ','
+			   delay_operand ',' delay_operand ',' delay_operand ';'
+    { struct delay_operand_s operands[] = {$9, $11, $13};
+      compile_member_delay($1, $3, $5, $7.text, operands);
     }
 
  | T_LABEL K_MODPATH T_NUMBER symbol symbol ','
@@ -1989,6 +1998,24 @@ symbols
 		}
 	;
 
+
+delay_operand
+	: T_NUMBER
+		{ $$ = {nullptr, nullptr, $1, false}; }
+	| symbol T_NUMBER
+		{ $$ = {$1.text, nullptr, $2, false}; }
+	| symbol '[' delay_member_path ']' T_NUMBER
+		{ $$ = {$1.text, $3, $5, false}; }
+	| '-'
+		{ $$ = {nullptr, nullptr, 0, true}; }
+	;
+
+delay_member_path
+	: T_NUMBER
+		{ $$ = new std::vector<uint64_t>{$1}; }
+	| delay_member_path ',' T_NUMBER
+		{ $$ = $1; $$->push_back($3); }
+	;
 
 numbers
 	: T_NUMBER

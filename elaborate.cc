@@ -5110,7 +5110,11 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
       ivl_assert(*this, scope);
 
       NetExpr* rise_time, *fall_time, *decay_time;
-      eval_delays(des, scope, rise_time, fall_time, decay_time, true);
+      eval_delays(des, scope, rise_time, fall_time, decay_time,
+		  PDelays::CONTINUOUS_ASSIGN);
+      bool member_delay = dynamic_cast<const NetEProperty*>(rise_time)
+	    || dynamic_cast<const NetEProperty*>(fall_time)
+	    || dynamic_cast<const NetEProperty*>(decay_time);
 
       ivl_drive_t drive0 = strength0();
       ivl_drive_t drive1 = strength1();
@@ -5473,6 +5477,16 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	// not the physical pin count: a one-element unpacked array has one pin
 	// but still uses array assignment-pattern and compatibility semantics.
       if (lval->unpacked_dimensions() > 0) {
+	    // The ordinary whole-array path does not apply assignment delays.
+	    // Keep rejecting member delays there until that path supports them.
+	    if (member_delay && !lval->user_nettype()) {
+		  cerr << get_fileline() << ": sorry: A continuous assignment "
+		       << "to this unpacked array cannot use a struct member delay."
+		       << endl;
+		  des->errors += 1;
+		  delete_unique_delays_(rise_time, fall_time, decay_time);
+		  return;
+	    }
 	    if (lval->user_nettype()) {
 		  if (delay_count() > 1) {
 			cerr << get_fileline() << ": error: An array of nets with "
@@ -5551,8 +5565,6 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	 * delays. */
       bool whole_vector_delay = (rise_time || fall_time || decay_time)
 	    && lval->vector_width() > 1;
-      if (whole_vector_delay)
-	    need_driver_flag = true;
 
 	// expression elaboration should have caused the rval width to
 	// match the l-value by now.
@@ -5585,7 +5597,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    need_driver_flag = false;
       }
 
-      if (whole_vector_delay)
+      if (whole_vector_delay || member_delay)
 	    need_driver_flag = true;
 
       /* A select can carry the strength of a net into a switch. A
@@ -6468,7 +6480,7 @@ void PGBuiltin::elaborate(Design*des, NetScope*scope) const
 
       if (check_delay_count(des)) return;
       NetExpr* rise_time, *fall_time, *decay_time;
-      eval_delays(des, scope, rise_time, fall_time, decay_time, true);
+      eval_delays(des, scope, rise_time, fall_time, decay_time, PDelays::NETS);
 
       struct attrib_list_t*attrib_list;
       unsigned attrib_list_n = 0;
@@ -10331,7 +10343,7 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 		  PDelays tmp_del;
 		  tmp_del.set_delays(overrides_, false);
 		  tmp_del.eval_delays(des, scope, rise_expr, fall_expr,
-		                      decay_expr, true);
+		                      decay_expr, PDelays::NETS);
 	    }
       }
 

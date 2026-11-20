@@ -2983,6 +2983,88 @@ void compile_delay(char*label, unsigned width,
       free(label);
 }
 
+struct delay_member_resolv_s : public resolv_list_s {
+      delay_member_resolv_s(char*label, vvp_fun_delay*target, unsigned slot,
+			     std::vector<uint64_t>*path, uint64_t type)
+      : resolv_list_s(label), target_(target), slot_(slot), path_(path),
+	type_(type) { }
+
+      bool resolve(bool last) override
+      {
+	    vvp_net_t*net = lookup_functor_symbol(label());
+	    const auto*root = net
+		  ? dynamic_cast<const vvp_fun_signal_object_sa*>(net->fun) : nullptr;
+	    if (target_->bind_member_delay(slot_, root, *path_, type_))
+		  return true;
+
+	    // The object and nested struct types can be forward references.
+	    if (!last)
+		  return false;
+	    fprintf(stderr, "vvp: invalid .delay/member property path: %s\n", label());
+	    compile_errors += 1;
+	    return true;
+      }
+
+    private:
+      vvp_fun_delay*target_;
+      unsigned slot_;
+      std::unique_ptr<std::vector<uint64_t>> path_;
+      uint64_t type_;
+};
+
+void compile_member_delay(char*label, uint64_t width, uint64_t whole,
+			  char*input, struct delay_operand_s*operands)
+{
+      bool valid = width <= UINT_MAX && whole <= 1
+	    && !operands[0].omitted && !operands[1].omitted
+	    && (operands[0].path || operands[1].path || operands[2].path);
+      for (unsigned idx = 0; idx < 3; idx += 1)
+	    if (operands[idx].signal && !operands[idx].path
+		&& operands[idx].number > 1)
+		  valid = false;
+      if (!valid) {
+	    fprintf(stderr, "vvp: invalid .delay/member statement: %s\n", label);
+	    compile_errors += 1;
+	    // Preserve the output label while the linker finishes diagnosing
+	    // errors. Simulation cannot run with this invalid statement.
+	    vvp_net_t*net = new vvp_net_t;
+	    net->fun = new vvp_fun_bufz;
+	    define_functor_symbol(label, net);
+	    for (unsigned idx = 0; idx < 3; idx += 1) {
+		  free(operands[idx].signal);
+		  delete operands[idx].path;
+	    }
+	    free(input);
+	    free(label);
+	    return;
+      }
+
+      vvp_time64_t ticks[3] = {0, 0, 0};
+      for (unsigned idx = 0; idx < 3; idx += 1)
+	    if (!operands[idx].signal)
+		  ticks[idx] = operands[idx].number;
+      vvp_delay_t delay(ticks[0], ticks[1], ticks[2]);
+      if (operands[2].omitted)
+	    delay.set_ignore_decay();
+
+      vvp_net_t*net = new vvp_net_t;
+      auto*fun = new vvp_fun_delay(net, width, delay, false, whole, true);
+      net->fun = fun;
+      input_connect(net, 0, input);
+      for (unsigned idx = 0; idx < 3; idx += 1) {
+	    const auto&arg = operands[idx];
+	    if (arg.path)
+		  resolv_submit(new delay_member_resolv_s(
+			arg.signal, fun, idx, arg.path, arg.number));
+	    else if (arg.signal) {
+		  fun->set_member_delay_signal_signed(idx, arg.number != 0);
+		  input_connect(net, idx + 1, arg.signal);
+	    }
+      }
+      define_functor_symbol(label, net);
+      free(label);
+}
+
 /*
  * Extend nodes.
  */
