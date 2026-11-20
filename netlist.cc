@@ -887,15 +887,24 @@ static bool interconnect_shapes_equivalent_(const NetNet*left,
                                    right->unpacked_dims());
 }
 
-void NetNet::mark_interconnect(bool declared_shape)
+void NetNet::mark_interconnect(const netranges_t&packed_dims)
 {
       if (!interconnect_type_) {
             interconnect_type_.reset(new NetInterconnectType);
             interconnect_type_->members_.push_back(this);
       }
-      interconnect_declared_shape_ = declared_shape;
-      if (declared_shape)
+      interconnect_packed_rank_ = packed_dims.size();
+      if (!packed_dims.empty())
+            ensure_target_emit_aux_()->interconnect_packed_dims = packed_dims;
+      interconnect_declared_shape_ = !packed_dims.empty() || unpacked_dimensions() != 0;
+      if (interconnect_declared_shape_)
             interconnect_type_->declared_shape_source_ = this;
+}
+
+const netrange_t& NetNet::interconnect_packed_dim(unsigned index) const
+{
+      ivl_assert(*this, index < interconnect_packed_rank_ && target_emit_aux_);
+      return target_emit_aux_->interconnect_packed_dims[index];
 }
 
 bool NetNet::interconnect_type_resolved() const
@@ -1613,11 +1622,10 @@ void NetNet::release_emitted_signal_aux()
       vector<NetBUFZ*>().swap(target_emit_aux_->net_delay_boundaries);
       vector<decl_attribute_t>().swap(target_emit_aux_->decl_attributes);
 
-	/* Interface properties and built-in unpacked-struct members can still be
-	 * resolved while later task/function definitions and processes are
-	 * converted. Retain those bindings, but avoid keeping an otherwise empty
-	 * auxiliary record. */
+	/* Interface and unpacked-struct bindings are used during later process
+	 * conversion. The VVP target reads interconnect bounds at emission. */
       if (target_emit_aux_->interface_bindings.empty()
+	  && target_emit_aux_->interconnect_packed_dims.empty()
 	  && target_emit_aux_->interface_synthesis_members.empty()
 	  && target_emit_aux_->builtin_net_struct_members.empty()) {
 	    delete target_emit_aux_;

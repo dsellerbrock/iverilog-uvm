@@ -982,7 +982,10 @@ statement
 		{ compile_vpi_charge_strength($1, $3); }
 
 	| T_LABEL K_vpi_interconnect ';'
-		{ compile_vpi_interconnect($1); }
+		{ compile_vpi_interconnect($1, 0); }
+
+	| T_LABEL K_vpi_interconnect T_NUMBER ';'
+		{ compile_vpi_interconnect($1, $3); }
 
 	| T_LABEL K_vpi_primitive T_STRING ',' T_NUMBER ',' T_NUMBER ','
 	  T_NUMBER ',' T_NUMBER ',' T_STRING ';'

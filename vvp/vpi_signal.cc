@@ -593,12 +593,15 @@ static int signal_get(int code, vpiHandle ref)
 	    return 0;
 
 	  case vpiPacked:
+	    if (rfp->interconnect_vpi_type() == vpiInterconnectArray) return 1;
 	    if (rfp->get_vpi_type_code() == vpiStructVar ||
 	        rfp->get_vpi_type_code() == vpiUnionVar)
 	      return vpi_get(vpiPacked, rfp->typespec);
 	    return rfp->get_vpi_type_code() == vpiPackedArrayVar;
 
 	  case vpiIndex: // This only works while we have a single index.
+	    if (rfp->is_interconnect && rfp->has_packed_index)
+		  return rfp->packed_index.get_value();
 	    if (rfp->is_netarray) {
 		  s_vpi_value vp;
 		  vp.format = vpiIntVal;
@@ -609,6 +612,8 @@ static int signal_get(int code, vpiHandle ref)
 	    }
 
 	  case vpiSize:
+	    if (rfp->interconnect_vpi_type() == vpiInterconnectArray)
+		  return rfp->packed_ranges[rfp->packed_depth].width();
 	    return rfp->width();
 
 	  case vpiNetType:
@@ -722,7 +727,7 @@ static char* signal_get_str(int code, vpiHandle ref)
       char *nm;
       const char *ixs;
       if (rfp->is_netarray) {
-	    nm = strdup(vpi_get_str(vpiName, rfp->within.parent));
+	    nm = strdup(vpi_get_str(vpiName, rfp->vpi_handle(vpiParent)));
 	    s_vpi_value vp;
 	    vp.format = vpiDecStrVal;
 	    vpi_get_value(rfp->id.index, &vp);
@@ -746,6 +751,12 @@ static vpiHandle signal_get_handle(int code, vpiHandle ref)
       switch (code) {
 
 	  case vpiParent:
+	    if (rfp->is_interconnect) {
+		  if (rfp->packed_view_parent) return rfp->packed_view_parent;
+		  if (rfp->is_netarray)
+			return static_cast<__vpiArray*>(rfp->within.parent)
+			      ->interconnect_word_parent(rfp->array_word_addr);
+	    }
 	    if (rfp->packed_parent) return rfp->packed_parent;
 	    return rfp->is_netarray? rfp->within.parent : NULL;
 
@@ -765,6 +776,8 @@ static vpiHandle signal_get_handle(int code, vpiHandle ref)
 	    return vpip_module(vpip_scope(rfp));
 
 	  case vpiTypespec:
+	    if (rfp->interconnect_vpi_type() == vpiInterconnectArray)
+		  return nullptr;
 	    if (!rfp->typespec) {
 		  int type_code = rfp->get_type_code();
 		  if (type_code == vpiReg || type_code == vpiBitVar) {
@@ -835,6 +848,8 @@ static vpiHandle signal_iterate(int code, vpiHandle ref)
       }
 
       if (code == vpiIndex) {
+	    if (rfp->is_interconnect)
+		  return vpip_iterate_interconnect_indices(rfp);
 	    unsigned count = 0;
 	    __vpiSignal*root = rfp;
 	    for (__vpiSignal*cur = rfp; cur && cur->has_packed_index;
@@ -883,6 +898,9 @@ void __vpiSignal::make_bits()
 
 vpiHandle __vpiSignal::get_index(int idx)
 {
+      if (is_interconnect && is_netarray && declared_packed_ranges.empty())
+            return nullptr;
+
 	/* Check to see if the index is in range. */
       if (msb.get_value() >= lsb.get_value()) {
 	    if ((idx > msb.get_value()) || (idx < lsb.get_value())) return 0;
@@ -1378,7 +1396,12 @@ char* __vpiSignal::vpi_get_str(int code)
 { return signal_get_str(code, this); }
 
 void __vpiSignal::vpi_get_value(p_vpi_value val)
-{ signal_get_value(this, val); }
+{
+      if (interconnect_vpi_type() == vpiInterconnectArray)
+	    __vpiHandle::vpi_get_value(val);
+      else
+	    signal_get_value(this, val);
+}
 
 int __vpiSignal::get_vpi_type_code(void) const
 {
@@ -1393,6 +1416,13 @@ int __vpiSignal::get_vpi_type_code(void) const
       }
       if (packed_depth < packed_ranges.size()) return vpiPackedArrayVar;
       return object_type;
+}
+
+int __vpiSignal::interconnect_vpi_type(void) const
+{
+      if (!is_interconnect) return 0;
+      return packed_depth < interconnect_packed_rank
+            ? vpiInterconnectArray : vpiInterconnectNet;
 }
 
 vpiHandle __vpiSignal::vpi_put_value(p_vpi_value val, int flags)
@@ -1570,6 +1600,9 @@ static __vpiSignal*make_packed_signal_view_(__vpiSignal*parent, int index,
       obj->packed_ranges = parent->packed_ranges;
       obj->packed_depth = next_depth;
       obj->packed_base_width = parent->packed_base_width;
+      obj->is_interconnect = parent->interconnect_vpi_type() == vpiInterconnectArray;
+      if (obj->is_interconnect)
+            obj->interconnect_packed_rank = parent->interconnect_packed_rank;
       obj->value_base = base;
       obj->value_width = width;
       obj->packed_view_parent = parent;

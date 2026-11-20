@@ -4901,8 +4901,8 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
       sig->set_virtual_interface(resolved_virtual_interface);
 
       if (is_interconnect()) {
-            sig->mark_interconnect(!sig->packed_dims().empty()
-                                   || !unpacked_dimensions.empty());
+            // Preserve the declaration axes before port binding resolves the type.
+            sig->mark_interconnect(packed_dimensions);
             des->register_interconnect(sig);
       }
 

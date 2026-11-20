@@ -1,0 +1,2 @@
+issue3960_interconnect_arrays_2017 normal,-g2017,-s,top issue3960_interconnect_arrays.c issue3960_interconnect_arrays_2017.gold
+issue3960_interconnect_arrays_2023 normal,-g2023,-s,top issue3960_interconnect_arrays.c issue3960_interconnect_arrays_2023.gold

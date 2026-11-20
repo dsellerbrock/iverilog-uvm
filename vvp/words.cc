@@ -673,7 +673,8 @@ void compile_vpi_charge_strength(char*label, uint64_t strength)
 
 class interconnect_resolv_t : public resolv_list_s {
     public:
-      explicit interconnect_resolv_t(char*label) : resolv_list_s(label) { }
+      interconnect_resolv_t(char*label, unsigned packed_rank)
+      : resolv_list_s(label), packed_rank_(packed_rank) { }
 
       bool resolve(bool message_flag) override
       {
@@ -681,26 +682,51 @@ class interconnect_resolv_t : public resolv_list_s {
             if (!obj && !message_flag) return false;
 
             if (auto*sig = dynamic_cast<__vpiSignal*>(obj)) {
-                  if (sig->get_type_code() == vpiNet && !sig->is_netarray) {
+                  if (sig->get_type_code() == vpiNet &&
+                      (!sig->is_netarray || sig->within.parent->interconnect_vpi_type() ==
+                                           vpiInterconnectArray)) {
+                        if (packed_rank_ > sig->declared_packed_ranges.size()) {
+                              if (!message_flag) return false;
+                              yyerror("VPI interconnect packed rank exceeds dimension metadata");
+                              compile_errors += 1;
+                              return true;
+                        }
+                        if (packed_rank_ != 0 && sig->packed_ranges.empty())
+                              sig->packed_ranges = sig->declared_packed_ranges;
+                        sig->interconnect_packed_rank = packed_rank_;
                         sig->is_interconnect = true;
                         return true;
                   }
             } else if (auto*real = dynamic_cast<__vpiRealVar*>(obj)) {
-                  if (real->is_wire && !real->is_netarray) {
+                  if (real->is_wire && packed_rank_ == 0 &&
+                      (!real->is_netarray || real->within.parent->interconnect_vpi_type() ==
+                                            vpiInterconnectArray)) {
                         real->is_interconnect = true;
                         return true;
                   }
+            } else if (auto*array = dynamic_cast<__vpiArray*>(obj)) {
+                  if (packed_rank_ == 0 && array->mark_interconnect())
+                        return true;
             }
-            yyerror(obj ? "VPI interconnect target is not a standalone net"
+            yyerror(obj ? "invalid VPI interconnect declaration metadata target"
                         : "unresolved VPI interconnect target");
             compile_errors += 1;
             return true;
       }
+
+    private:
+      unsigned packed_rank_;
 };
 
-void compile_vpi_interconnect(char*label)
+void compile_vpi_interconnect(char*label, uint64_t packed_rank)
 {
-      resolv_submit(new interconnect_resolv_t(label));
+      if (packed_rank > UINT_MAX) {
+            yyerror("VPI interconnect packed rank is out of range");
+            compile_errors += 1;
+            free(label);
+            return;
+      }
+      resolv_submit(new interconnect_resolv_t(label, packed_rank));
 }
 
 static void compile_ref_variable_(char*label, char*name, int msb, int lsb,

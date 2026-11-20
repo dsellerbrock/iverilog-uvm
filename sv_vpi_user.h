@@ -44,6 +44,7 @@ EXTERN_C_START
 
 /********* OBJECT TYPES ***********/
 #define vpiInterconnectNet  533
+#define vpiInterconnectArray 534
 #define vpiPackage          600
 #define vpiInterface        601
 #define vpiProgram          602
