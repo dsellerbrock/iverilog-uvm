@@ -1,0 +1,2 @@
+Warning: queue<vector> is bounded to have at most 3 elements, source has 4 elements.
+Warning: queue<vector> is bounded to have at most 2 elements, source has 5 elements.
