@@ -5410,8 +5410,11 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 
       // A direct variable read can reach this driver during static
       // initialization. Its first continuous-assignment update is Active.
+      // Keep the existing scheduling for a net declaration delay, whose
+      // input is the hidden raw net returned by elaborate_lnet().
       bool active_start = gn_system_verilog() && !net_decl_assign
 	    && !rise_time && !fall_time && !decay_time
+	    && !lval->net_delay_public()
 	    && rhs_signal && !rhs_signal->word_index()
 	    && rhs_signal->sig()->type() == NetNet::REG
 	    && (rval->data_type() == IVL_VT_LOGIC
