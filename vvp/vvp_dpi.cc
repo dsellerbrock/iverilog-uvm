@@ -597,7 +597,7 @@ static vvp_darray* md_inner_(const vvp_dpi_open_array_t*arr, int64_t idx)
 static vvp_darray* md_dimension_(const vvp_dpi_open_array_t*arr, int dim)
 {
       if (!arr || !arr->outer || dim < 1) return 0;
-      if (arr->string_rank && dim > arr->string_rank) return 0;
+      if (arr->staged_rank && dim > arr->staged_rank) return 0;
       vvp_darray*cur = arr->outer;
       for (int d = 1 ; cur && d < dim ; d += 1) {
 	    if (cur->get_size() == 0) return 0;
@@ -622,7 +622,7 @@ int svDimensions(const void*h)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (!arr) return 0;
-      if (arr->string_rank) return arr->string_rank;
+      if (arr->staged_rank) return arr->staged_rank;
       if (!arr->outer) return 1;
 	// Count nesting depth through the first words.
       int dims = 1;
@@ -644,7 +644,7 @@ int svSize(const void*h, int dim)
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
       if (!arr) return 0;
       if (dim == 1) return (int)arr->length;
-      if (arr->string_rank && (dim < 1 || dim > arr->string_rank)) return 0;
+      if (arr->staged_rank && (dim < 1 || dim > arr->staged_rank)) return 0;
 	// M10B-md: inner dimensions are queried from the first row
 	// (SV unpacked arrays marshaled here are rectangular; a jagged
 	// dynamic-of-dynamic reports its first row's length).
@@ -733,7 +733,7 @@ int svIncrement(const void*h, int dim)
 int svSizeOfArray(const void*h)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      if (!arr || arr->string_rank) return 0;
+      if (!arr || arr->staged_rank) return 0;
 
 	if (!arr->outer)
 	      return arr->data ? (int)(arr->length * arr->elem_bytes) : 0;
@@ -794,21 +794,20 @@ static int64_t dpi_canon_darray_index_(const vvp_darray*arr, int index)
       return (int64_t)index - low;
 }
 
-static void* dpi_string_element_(const vvp_dpi_open_array_t*arr,
+static void* dpi_staged_element_(const vvp_dpi_open_array_t*arr,
 				 const int*indices, size_t rank)
 {
-      if (rank != (size_t)arr->string_rank) return 0;
+      if (rank != (size_t)arr->staged_rank) return 0;
       vvp_darray*array = arr->outer;
       for (size_t dim = 0 ; array && dim < rank ; dim += 1) {
 	    int64_t idx = dim == 0 ? dpi_canon_index_(arr, indices[dim])
 				  : dpi_canon_darray_index_(array, indices[dim]);
 	    if (idx < 0 || (uint64_t)idx >= array->get_size()) return 0;
 	    if (dim + 1 == rank) {
-		  auto leaf = arr->string_buffers.find(array);
-		  if (leaf == arr->string_buffers.end()
-		      || (uint64_t)idx >= leaf->second.pointers.size())
+		  auto leaf = arr->leaves.find(array);
+		  if (leaf == arr->leaves.end() || (uint64_t)idx >= leaf->second.length)
 			return 0;
-		  return const_cast<const char**>(&leaf->second.pointers[idx]);
+		  return (char*)leaf->second.data + (size_t)idx * arr->elem_bytes;
 	    }
 	    vvp_object_t child;
 	    array->get_word((unsigned)idx, child);
@@ -833,9 +832,9 @@ void* svGetArrElemPtr1(const void*h, int indx1)
 void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      if (arr && arr->string_rank) {
+      if (arr && arr->staged_rank) {
 	    const int indices[] = {indx1, indx2};
-	    return dpi_string_element_(arr, indices, 2);
+	    return dpi_staged_element_(arr, indices, 2);
       }
       vvp_darray*inner = md_inner_(arr, dpi_canon_index_(arr, indx1));
       if (!inner) return 0;
@@ -854,9 +853,9 @@ void* svGetArrElemPtr2(const void*h, int indx1, int indx2)
 void* svGetArrElemPtr3(const void*h, int indx1, int indx2, int indx3)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      if (arr && arr->string_rank) {
+      if (arr && arr->staged_rank) {
 	    const int indices[] = {indx1, indx2, indx3};
-	    return dpi_string_element_(arr, indices, 3);
+	    return dpi_staged_element_(arr, indices, 3);
       }
       vvp_darray*mid = md_inner_(arr, dpi_canon_index_(arr, indx1));
       if (!mid) return 0;
@@ -891,13 +890,13 @@ static vector<int> dpi_var_indices_(const void*h, int indx1, va_list ap)
 void* svGetArrElemPtr(const void*h, int indx1, ...)
 {
       const vvp_dpi_open_array_t*arr = (const vvp_dpi_open_array_t*)h;
-      if (arr && arr->string_rank) {
+      if (arr && arr->staged_rank) {
 	    if (!arr->length) return 0;
 	    va_list ap;
 	    va_start(ap, indx1);
 	    vector<int> indices = dpi_var_indices_(h, indx1, ap);
 	    va_end(ap);
-	    return dpi_string_element_(arr, indices.data(), indices.size());
+	    return dpi_staged_element_(arr, indices.data(), indices.size());
       }
       if (arr && arr->outer) {
 	    va_list ap;

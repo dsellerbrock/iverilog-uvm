@@ -19642,28 +19642,33 @@ static bool dpi_scalar_array_letter_(char type)
       return type == 'B' || type == 'G';
 }
 
-static bool dpi_pack_string_leaves_(vvp_darray*array, int rank,
-				    vvp_dpi_open_array_t&open)
+template <class VisitLeaf>
+static bool dpi_visit_open_leaves_(const vvp_object_t&actual, int rank,
+				    const VisitLeaf&visit_leaf)
 {
-      if (!array) return true; // Unallocated dynamic dimension.
+      if (actual.test_nil()) return true; // Unallocated dynamic dimension.
+      vvp_darray*array = actual.peek<vvp_darray>();
+      if (!array) return false;
       size_t count = array->get_size();
       if (count > UINT_MAX) return false;
 
-      if (rank > 1) {
-	    if (!dynamic_cast<vvp_darray_object*>(array)
-		&& !dynamic_cast<vvp_queue_object*>(array))
-		  return false;
-	    for (size_t idx = 0 ; idx < count ; idx += 1) {
-		  vvp_object_t child;
-		  array->get_word((unsigned)idx, child);
-		  vvp_darray*inner = child.peek<vvp_darray>();
-		  if ((!inner && !child.test_nil())
-		      || !dpi_pack_string_leaves_(inner, rank - 1, open))
-			return false;
-	    }
-	    return true;
-      }
+      if (rank == 1)
+	    return visit_leaf(actual, array);
 
+      if (!dynamic_cast<vvp_darray_object*>(array)
+	  && !dynamic_cast<vvp_queue_object*>(array))
+	    return false;
+      for (size_t idx = 0 ; idx < count ; idx += 1) {
+	    vvp_object_t child;
+	    array->get_word((unsigned)idx, child);
+	    if (!dpi_visit_open_leaves_(child, rank - 1, visit_leaf))
+		  return false;
+      }
+      return true;
+}
+
+static bool dpi_pack_string_leaf_(vvp_darray*array, vvp_dpi_open_array_t&open)
+{
       if (!dynamic_cast<vvp_darray_string*>(array)
 	  && !dynamic_cast<vvp_queue_string*>(array))
 	    return false;
@@ -19671,13 +19676,16 @@ static bool dpi_pack_string_leaves_(vvp_darray*array, int rank,
 
       vvp_dpi_string_buffer_t&buffer = open.string_buffers[array];
       buffer.owner = array;
+      size_t count = array->get_size();
       buffer.values.resize(count);
       buffer.pointers.resize(count);
       for (size_t idx = 0 ; idx < count ; idx += 1) {
 	    array->get_word((unsigned)idx, buffer.values[idx]);
 	    buffer.pointers[idx] = buffer.values[idx].c_str();
       }
-      if (!open.string_rank)
+      if (open.staged_rank)
+	    open.leaves.emplace(array, vvp_dpi_leaf_t{buffer.pointers.data(), count});
+      else
 	    open.data = count ? buffer.pointers.data() : 0;
       return true;
 }
@@ -20078,8 +20086,8 @@ struct dpi_sig_tok_t {
       char base;
       bool is_unsigned;
       bool is_output;
-	// 'o{rank}' describes a multidimensional string open array.
-      int string_rank;
+	// Multidimensional string ('o{rank}') or struct ('t{rank:members}').
+      int staged_rank;
 	// Member letters of an unpacked-struct formal ('S', 'T', 't').
       string members;
 };
@@ -20158,14 +20166,13 @@ static uint64_t dpi_vec4_bits_(const vvp_vector4_t&val)
  * has the members' default values. */
 static void dpi_struct_pack_(vvp_cobject*obj,
 			     const vector<dpi_struct_member_t>&members,
-			     uint8_t*dst, list<string>&strings,
-			     const char*default_string)
+			     uint8_t*dst, list<string>&strings)
 {
       for (size_t pid = 0 ; pid < members.size() ; pid += 1) {
 	    const dpi_struct_member_t&mem = members[pid];
 	    uint8_t*ptr = dst + mem.offset;
 	    if (mem.type == 's') {
-		  const char*val = default_string;
+		  const char*val = "";
 		  if (obj) {
 			strings.push_back(obj->get_string(pid));
 			val = strings.back().c_str();
@@ -20281,6 +20288,81 @@ static void dpi_struct_elements_(const vvp_object_t&actual,
       }
 }
 
+struct dpi_struct_row_t {
+      vvp_object_t owner;
+      vector<vvp_object_t> elems;
+      vector<std::max_align_t> storage;
+};
+
+struct dpi_struct_buffer_t {
+      vector<dpi_struct_member_t> members;
+      list<dpi_struct_row_t> rows;
+	// C may move string pointers across rows, members or arguments.
+      list<string> strings;
+};
+
+static bool dpi_pack_struct_row_(const vvp_object_t&actual, vvp_darray*array,
+				 vvp_dpi_open_array_t&open,
+				 dpi_struct_buffer_t&buffer, bool scalar)
+{
+      if (open.staged_rank && open.leaves.count(array)) return true;
+      if (array && !dynamic_cast<vvp_darray_object*>(array)
+	  && !dynamic_cast<vvp_queue_object*>(array))
+	    return false;
+
+      size_t count = array ? array->get_size() : (scalar || !actual.test_nil());
+      size_t stride = open.elem_bytes;
+      if (count > UINT_MAX || count > SIZE_MAX / stride)
+	    return false;
+      size_t bytes = count * stride;
+      size_t align_word = sizeof(std::max_align_t);
+      size_t words = bytes / align_word + (bytes % align_word != 0);
+
+      buffer.rows.emplace_back();
+      dpi_struct_row_t&row = buffer.rows.back();
+      if (words > row.storage.max_size() || count > row.elems.max_size())
+	    return false;
+      row.owner = actual;
+      dpi_struct_elements_(actual, row.elems);
+      row.storage.resize(words ? words : 1);
+      auto*data = reinterpret_cast<uint8_t*>(row.storage.data());
+      for (size_t idx = 0 ; idx < count ; idx += 1) {
+	    vvp_cobject*obj = idx < row.elems.size()
+		  ? row.elems[idx].peek<vvp_cobject>() : 0;
+	    if (open.staged_rank && !obj)
+		  return false;
+	    dpi_struct_pack_(obj, buffer.members, data + idx * stride, buffer.strings);
+      }
+      if (open.staged_rank)
+	    open.leaves.emplace(array, vvp_dpi_leaf_t{data, count});
+      else {
+	    open.data = data;
+	    open.length = (unsigned)count;
+      }
+      return true;
+}
+
+static void dpi_unpack_struct_rows_(const dpi_struct_buffer_t&buffer,
+				    unsigned stride)
+{
+      auto strings = buffer.strings.cbegin();
+      for (const auto&row : buffer.rows) {
+	    auto*data = reinterpret_cast<const uint8_t*>(row.storage.data());
+	    for (size_t idx = 0 ; idx < row.elems.size() ; idx += 1)
+		  if (vvp_cobject*obj = row.elems[idx].peek<vvp_cobject>())
+			dpi_struct_unpack_(obj, buffer.members,
+					   data + idx * stride, strings);
+      }
+}
+
+static int dpi_parse_rank_(const char*begin, const char*end)
+{
+      if (*begin < '1' || *begin > '9') return -1;
+      char*rank_end;
+      unsigned long rank = strtoul(begin, &rank_end, 10);
+      return rank_end == end && rank >= 2 && rank <= INT_MAX ? (int)rank : -1;
+}
+
 static void dpi_parse_types_(const char*types, char dflt, unsigned nargs,
 			     vector<dpi_sig_tok_t>&sig)
 {
@@ -20291,23 +20373,28 @@ static void dpi_parse_types_(const char*types, char dflt, unsigned nargs,
 	    tok.base = dflt;
 	    tok.is_unsigned = false;
 	    tok.is_output = false;
-	    tok.string_rank = 0;
+	    tok.staged_rank = 0;
 	    if (*cp == '+') { tok.is_output = true; cp += 1; }
 	    if (*cp == 'u') { tok.is_unsigned = true; cp += 1; }
 	    if (*cp) tok.base = *cp++;
 	    if (*cp == '{') {
 		  const char*end = strchr(cp, '}');
 		  if (tok.base == 'o')
-			tok.string_rank = -1;
+			tok.staged_rank = -1;
 		  if (end) {
 			if (tok.base == 'o') {
-			      char*rank_end;
-			      unsigned long rank = strtoul(cp + 1, &rank_end, 10);
-			      if (cp[1] >= '1' && cp[1] <= '9' && rank_end == end
-				  && rank >= 2 && rank <= INT_MAX)
-				    tok.string_rank = (int)rank;
+			      tok.staged_rank = dpi_parse_rank_(cp + 1, end);
 			} else {
-			      tok.members.assign(cp + 1, end);
+			      const char*members = cp + 1;
+			      if (tok.base == 't') {
+				    const char*sep = (const char*)memchr(
+					  members, ':', end - members);
+				    if (sep) {
+					  tok.staged_rank = dpi_parse_rank_(members, sep);
+					  members = sep + 1;
+				    }
+			      }
+			      tok.members.assign(members, end);
 			}
 			cp = end + 1;
 		  }
@@ -20397,15 +20484,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
       vector<vvp_object_t> obj_store (nargs);
       vector<vector<uint8_t> > arr_scalar_store (nargs);
       vector<vector<uint32_t> > arr_packed_store (nargs);
-	// Unpacked-struct formals: C layout, element objects, call buffer
-	// (uint64_t words keep every member type aligned).
-      vector<vector<dpi_struct_member_t> > struct_members (nargs);
-      vector<vector<vvp_object_t> > struct_elems (nargs);
-      vector<vector<uint64_t> > struct_store (nargs);
-	// Keep the original strings stable until every argument has copied
-	// back. C can move their pointers between members or arguments.
-      vector<list<string> > struct_strings (nargs);
-      const char struct_default_string[] = "";
+      vector<dpi_struct_buffer_t> struct_buffers (nargs);
       for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
 	    unsigned slot = nargs - 1 - ii;
 	    vvp_dpi_arg_t&arg = args[slot];
@@ -20460,7 +20539,7 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		      arr.packed_width = 0;
 		      arr.packed_four_state = false;
 		      arr.shortreal_scratch = false;
-		      arr.string_rank = 0;
+		      arr.staged_rank = 0;
 		      arr.storage = 0;
 		      arr.outer = 0;
 		      arr.has_range = false;
@@ -20478,30 +20557,36 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			    arr.right = da->dpi_decl_right();
 		      }
 	      if (dpi_struct_letter_(sig[slot].base)) {
+		    dpi_struct_buffer_t&buffer = struct_buffers[slot];
 		    size_t bytes = dpi_struct_layout_(sig[slot].members,
-						      struct_members[slot]);
-		    if (bytes == 0) {
+						      buffer.members);
+		    int rank = sig[slot].staged_rank;
+		    if (!bytes || bytes > UINT_MAX || rank < 0) {
 			  fprintf(stderr, "DPI error: '%s': argument %u has a "
 				  "malformed struct descriptor \"%s\".\n",
 				  c_name, slot+1, sig[slot].members.c_str());
 			  array_marshaling_ok = false;
 		    } else {
-			  vector<vvp_object_t>&elems = struct_elems[slot];
-			  dpi_struct_elements_(obj_store[slot], elems);
-			  size_t count = sig[slot].base == 'S' ? 1 : elems.size();
-			  struct_store[slot].assign(
-				(bytes * count + sizeof(uint64_t) - 1)
-				/ sizeof(uint64_t) + 1, 0);
-			  uint8_t*buf = (uint8_t*)struct_store[slot].data();
-			  for (size_t idx = 0 ; idx < count ; idx += 1)
-				dpi_struct_pack_(idx < elems.size()
-				      ? elems[idx].peek<vvp_cobject>() : 0,
-				      struct_members[slot], buf + idx * bytes,
-				      struct_strings[slot], struct_default_string);
-			  arr.data = buf;
-			  arr.length = (unsigned)count;
 			  arr.elem_bytes = (unsigned)bytes;
 			  arr.storage = da;
+			  arr.staged_rank = rank;
+			  arr.outer = rank ? da : 0;
+			  bool ok = rank
+				? dpi_visit_open_leaves_(obj_store[slot], rank,
+				      [&](const vvp_object_t&leaf, vvp_darray*array) {
+					    return dpi_pack_struct_row_(leaf, array, arr,
+									buffer, false);
+				      })
+				: dpi_pack_struct_row_(obj_store[slot], da, arr, buffer,
+						       sig[slot].base == 'S');
+			  if (!ok) {
+				fprintf(stderr, "DPI error: '%s': cannot marshal "
+					"struct argument %u; the call is skipped.\n",
+					c_name, slot+1);
+				array_marshaling_ok = false;
+			  } else if (rank && da) {
+				arr.length = (unsigned)da->get_size();
+			  }
 		    }
 	      } else if (da && dpi_shortreal_array_letter_(sig[slot].base)) {
 		    if (dpi_shortreal_array_letter_(sig[slot].base)
@@ -20513,16 +20598,19 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  dpi_pack_scalar_array_(c_name, slot+1, da,
 				sig[slot].base == 'G', arr,
 				arr_scalar_store[slot]);
-		      } else if (sig[slot].string_rank
+		      } else if (sig[slot].staged_rank
 				 || (da && (dynamic_cast<vvp_darray_string*>(da)
 					    || dynamic_cast<vvp_queue_string*>(da)))) {
-			    int rank = sig[slot].string_rank;
-			    arr.string_rank = rank > 1 ? rank : 0;
-			    arr.outer = arr.string_rank ? da : 0;
+			    int rank = sig[slot].staged_rank;
+			    arr.staged_rank = rank > 1 ? rank : 0;
+			    arr.outer = arr.staged_rank ? da : 0;
 			    arr.storage = da;
 			    arr.elem_bytes = sizeof(const char*);
-			    if (rank < 0 || (!da && !obj_store[slot].test_nil())
-				|| !dpi_pack_string_leaves_(da, rank ? rank : 1, arr)) {
+			    if (rank < 0
+				|| !dpi_visit_open_leaves_(obj_store[slot], rank ? rank : 1,
+				      [&](const vvp_object_t&, vvp_darray*array) {
+					    return dpi_pack_string_leaf_(array, arr);
+				      })) {
 				  fprintf(stderr, "DPI error: '%s': cannot marshal "
 					  "string array argument %u; the call is skipped.\n",
 					  c_name, slot+1);
@@ -20712,16 +20800,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 	    if (dpi_packed_open_letter_(args[ii].type)
 		&& arr_store[ii].packed_scratch)
 		  dpi_unpack_open_array_(arr_store[ii]);
-	    if (native_call_ok && dpi_struct_letter_(args[ii].type)
-		&& arr_store[ii].data) {
-		  const uint8_t*buf = (const uint8_t*)arr_store[ii].data;
-		  vector<vvp_object_t>&elems = struct_elems[ii];
-		  list<string>::const_iterator strings = struct_strings[ii].cbegin();
-		  for (size_t idx = 0 ; idx < elems.size() ; idx += 1)
-			if (vvp_cobject*obj = elems[idx].peek<vvp_cobject>())
-			      dpi_struct_unpack_(obj, struct_members[ii],
-				    buf + idx * arr_store[ii].elem_bytes, strings);
-	    }
+	    if (native_call_ok && dpi_struct_letter_(args[ii].type))
+		  dpi_unpack_struct_rows_(struct_buffers[ii], arr_store[ii].elem_bytes);
 	    if (native_call_ok)
 		  dpi_unpack_string_leaves_(arr_store[ii]);
 	    switch (args[ii].type) {
