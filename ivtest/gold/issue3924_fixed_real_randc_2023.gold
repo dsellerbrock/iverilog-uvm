@@ -1,0 +1,2 @@
+./ivltests/issue3924_fixed_real_randc_2023.v:2: error: property 'values' of class real_randc_array is declared randc but has type real/shortreal. IEEE 1800-2017/2023 18.4 restricts randc variables to integral values.
+1 error(s) during elaboration.

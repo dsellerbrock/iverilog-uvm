@@ -76,6 +76,7 @@
 # include  <cctype>
 # include  <cstdlib>
 # include  <climits>
+# include  <limits>
 # include  <cstddef>
 # include  <cstring>
 # include  <cmath>
@@ -6364,6 +6365,20 @@ static bool randomize_cobject_(randomize_graph_session_t&session,
 			if (defn->property_is_static(pid))
 			      defn->static_randomize_transaction_mark_dirty(
 				    pid, (size_t)leaf);
+		  }
+		  continue;
+	    }
+
+	      // The scalar draw is a unit variate. Scale to the finite real
+	      // range without forming its overflowing width (2 * max).
+	    if (bt == "r" && !defn->property_dimensions(pid).empty()) {
+		  const double max_real = std::numeric_limits<double>::max();
+		  uint64_t count = defn->property_array_size(pid);
+		  for (uint64_t leaf = 0; leaf < count; ++leaf) {
+			if (!rand_leaf_active_(defn, cobj, sel, pid, leaf))
+			      continue;
+			double unit = randomize_rand_real_(next_random);
+			cobj->set_real(pid, (2.0 * unit - 1.0) * max_real, leaf);
 		  }
 		  continue;
 	    }

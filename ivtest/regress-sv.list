@@ -5116,6 +5116,11 @@ sv_constraint_state_selected_fixed_array_bounds normal,-g2017 ivltests gold=sv_c
 sv_constraint_state_selected_fixed_array_bounds_2023 normal,-g2023 ivltests gold=sv_constraint_state_selected_fixed_array_bounds.gold
 sv_constraint_fixed_real_state_2017 normal,-g2017,-s,test ivltests gold=sv_constraint_fixed_real_state.gold
 sv_constraint_fixed_real_state_2023 normal,-g2023,-s,test ivltests gold=sv_constraint_fixed_real_state.gold
+issue3924_fixed_real_free_2023 normal,-g2023,-s,test ivltests gold=issue3924_fixed_real_free_2023.gold
+issue3924_fixed_real_interval_2023 normal,-g2023,-s,test ivltests gold=issue3924_fixed_real_interval_2023.gold
+issue3924_fixed_real_rand_2017 CE,-g2017,-s,test ivltests gold=issue3924_fixed_real_rand_2017.gold
+issue3924_fixed_real_randc_2023 CE,-g2023,-s,test ivltests gold=issue3924_fixed_real_randc_2023.gold
+issue3924_fixed_real_unsupported_2023 normal,-g2023,-s,test ivltests gold=issue3924_fixed_real_unsupported_2023.gold
 sv_constraint_two_state_x_index_error normal,-g2017 ivltests gold=sv_constraint_two_state_x_index_error.gold
 sv_constraint_two_state_x_index_error_2023 normal,-g2023 ivltests gold=sv_constraint_two_state_x_index_error.gold
 
