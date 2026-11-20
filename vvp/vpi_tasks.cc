@@ -35,7 +35,9 @@
 # include  <cstdlib>
 # include  <cstring>
 # include  <cassert>
+# include  <climits>
 # include  <map>
+# include  <memory>
 # include  <vector>
 # include  "ivl_alloc.h"
 
@@ -1319,6 +1321,48 @@ void compile_vpi_expr(char*label, long type, long op_type, long width,
       compile_vpi_symbol(label, obj);
       free(label);
       free(kind);
+}
+
+/* The bytecode handle describes a store recipe. Every invocation binds
+ * its own writer so callbacks from different activations can coexist. */
+class __vpiPlaOutput : public __vpiHandle {
+    public:
+      explicit __vpiPlaOutput(unsigned width)
+      : width_(width), scope_(vpip_peek_current_scope()), thunk_{} {}
+
+      int get_type_code(void) const override { return vpiUndefined; }
+      int vpi_get(int code) override
+      { return code == vpiSize ? (int)width_ : vpiUndefined; }
+
+      const unsigned width_;
+      __vpiScope*const scope_;
+      struct vvp_code_s thunk_;
+};
+
+void compile_vpi_pla_output(char*label, uint64_t width, char*thunk)
+{
+      static std::vector<std::unique_ptr<__vpiPlaOutput>> recipes;
+      if (width == 0 || width > INT_MAX) {
+	    fprintf(stderr, "VVP error: invalid width for .vpi_pla_output.\n");
+	    compile_errors += 1;
+	    free(thunk);
+      } else {
+	    auto output = new __vpiPlaOutput(width);
+	    recipes.emplace_back(output);
+	    code_label_lookup(&output->thunk_, thunk, false);
+	    compile_vpi_symbol(label, output);
+      }
+      free(label);
+}
+
+extern "C" vpip_pla_writer* vpip_pla_bind_output(vpiHandle ref)
+{
+      auto output = dynamic_cast<__vpiPlaOutput*>(ref);
+      if (vpi_mode_flag != VPI_MODE_CALLTF || !output || !output->scope_
+	  || !output->thunk_.cptr || output->thunk_.cptr == codespace_null())
+	    return nullptr;
+      return vthread_bind_pla_writer(vpip_current_vthread, output->scope_,
+				    output->thunk_.cptr, output->width_);
 }
 
 void vpip_execute_vpi_call(vthread_t thr, vpiHandle ref)

@@ -4621,6 +4621,10 @@ extern "C" ivl_lval_t ivl_stmt_lval(ivl_statement_t net, unsigned idx)
 {
       assert(net);
       switch (net->type_) {
+	  case IVL_ST_STASK:
+	    assert(idx < net->u_.stask_.ref_lval_count_);
+	    return net->u_.stask_.ref_lval_ + idx;
+
 	  case IVL_ST_ASSIGN:
 	  case IVL_ST_ASSIGN_NB:
 	  case IVL_ST_CASSIGN:
@@ -4640,6 +4644,9 @@ extern "C" unsigned ivl_stmt_lvals(ivl_statement_t net)
 {
       assert(net);
       switch (net->type_) {
+	  case IVL_ST_STASK:
+	    return net->u_.stask_.ref_lval_count_;
+
 	  case IVL_ST_ASSIGN:
 	  case IVL_ST_ASSIGN_NB:
 	  case IVL_ST_CASSIGN:
@@ -4750,7 +4757,15 @@ extern "C" ivl_lval_t ivl_stmt_ref_lval(ivl_statement_t net)
 {
       assert(net);
       assert(net->type_ == IVL_ST_STASK);
+      assert(net->u_.stask_.ref_lval_count_ <= 1);
       return net->u_.stask_.ref_lval_;
+}
+
+extern "C" unsigned ivl_stmt_ref_lval_arg(ivl_statement_t net)
+{
+      assert(net);
+      assert(net->type_ == IVL_ST_STASK);
+      return net->u_.stask_.ref_lval_arg_;
 }
 
 extern "C" ivl_scope_t ivl_stmt_vif_method(ivl_statement_t net,

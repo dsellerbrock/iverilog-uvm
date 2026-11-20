@@ -3029,11 +3029,12 @@ const NetExpr* NetSTask::parm(unsigned idx) const
       return parms_[idx];
 }
 
-void NetSTask::set_ref_output(NetAssign_*lval)
+void NetSTask::set_ref_output(NetAssign_*lval, unsigned vpi_arg)
 {
       ivl_assert(*this, lval);
       ivl_assert(*this, ref_output_ == 0);
       ref_output_ = lval;
+      ref_output_arg_ = vpi_arg;
 }
 
 /* A fixed unpacked function return uses the result NetNet's array_type();

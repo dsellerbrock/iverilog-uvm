@@ -5333,9 +5333,11 @@ class NetSTask  : public NetProc {
 	/* Some built-in system tasks have a true ref-output actual. Keep its
 	 * assignment l-value separate from the ordinary expression arguments so
 	 * targets neither lose the destination shape nor evaluate it as an
-	 * r-value. This object owns the l-value after set_ref_output(). */
-      void set_ref_output(NetAssign_*lval);
+	 * r-value. This object owns the l-value after set_ref_output().
+	 * A VPI ref-output also records its zero-based argument index. */
+      void set_ref_output(NetAssign_*lval, unsigned vpi_arg = ~0U);
       const NetAssign_* ref_output() const { return ref_output_; }
+      unsigned ref_output_arg() const { return ref_output_arg_; }
 
 	/* A dynamic virtual-interface task call carries the exact concrete
 	 * method scopes represented by its instance-keyed argument rows. The
@@ -5369,6 +5371,7 @@ class NetSTask  : public NetProc {
       ivl_sfunc_as_task_t sfunc_as_task_;
       std::vector<NetExpr*>parms_;
       NetAssign_*ref_output_;
+      unsigned ref_output_arg_ = ~0U;
       std::vector<NetScope*>vif_methods_;
       bool assertion_action_ = false;
 };

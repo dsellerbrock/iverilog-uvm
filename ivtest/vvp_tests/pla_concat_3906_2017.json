@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "pla_concat_3906.sv",
+  "iverilog-args": ["-g2017", "-s", "pla_concat_3906"],
+  "gold": "pla_concat_3906"
+}

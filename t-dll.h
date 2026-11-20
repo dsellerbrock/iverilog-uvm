@@ -1193,6 +1193,8 @@ struct ivl_statement_s {
 		  ivl_scope_t*vif_method_;
 		  unsigned   vif_methods_;
 		  ivl_lval_t ref_lval_;
+		  unsigned ref_lval_count_;
+		  unsigned ref_lval_arg_;
 	    } stask_;
 
 	    struct { /* IVL_ST_UTASK */

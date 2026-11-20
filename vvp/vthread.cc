@@ -13839,6 +13839,81 @@ bool vthread_eval_thunk(vthread_t caller, vvp_code_t pc, __vpiScope*scope,
       return done;
 }
 
+struct vpip_pla_writer {
+      vvp_code_t pc;
+      __vpiScope*scope;
+      unsigned width;
+      vvp_context_t rd_context;
+      vvp_context_t wt_context;
+};
+
+vpip_pla_writer* vthread_bind_pla_writer(vthread_t caller, __vpiScope*scope,
+					vvp_code_t pc, unsigned width)
+{
+      if (!caller) return nullptr;
+      auto writer = new vpip_pla_writer{pc, scope, width,
+					caller->rd_context, caller->wt_context};
+      retain_context_chain_(writer->rd_context);
+      retain_context_chain_(writer->wt_context);
+      return writer;
+}
+
+static void release_pla_context_chain_(vvp_context_t context)
+{
+      while (context) {
+	    vvp_context_t next = vvp_get_stacked_context(context);
+	    vthread_free_context(context, automatic_context_owner_(context));
+	    context = next;
+      }
+}
+
+extern "C" void vpip_pla_release_output(vpip_pla_writer*writer)
+{
+      release_pla_context_chain_(writer->rd_context);
+      release_pla_context_chain_(writer->wt_context);
+      delete writer;
+}
+
+extern "C" int vpip_pla_write(vpip_pla_writer*writer, p_vpi_value value)
+{
+      vthread_t thr = vthread_new_(writer->pc, writer->scope, false);
+      vpi_mode_t saved_mode = vpi_mode_flag;
+      __vpiSysTaskCall*saved_task = vpip_cur_task;
+      vthread_t saved_vpi_thread = vpip_current_vthread;
+      vthread_t saved_running = running_thread;
+      if (saved_mode == VPI_MODE_CALLTF) {
+	    thr->parent = saved_vpi_thread;
+	    thr->is_callf_child = 1;
+      }
+      thr->rd_context = writer->rd_context;
+      thr->wt_context = writer->wt_context;
+      thr->i_am_in_function = 1;
+      thr->push_vec4(vec4_from_vpi_value(value, writer->width));
+
+      vthread_run_pin_(thr);
+      vpi_mode_flag = VPI_MODE_NONE;
+      vpi_thunk_depth_ += 1;
+      /* Run the ordinary interpreter so selector expressions can execute
+       * their own loops and calls. The store must finish in this dispatch. */
+      thr->is_scheduled = 1;
+      vthread_run(thr);
+      bool done = thr->i_have_ended && !thr->i_was_disabled
+	    && thr->vec4_stack_size() == 0;
+      vpi_thunk_depth_ -= 1;
+      vpi_mode_flag = saved_mode;
+      vpip_cur_task = saved_task;
+      vpip_current_vthread = saved_vpi_thread;
+      running_thread = saved_running;
+
+      thr->parent = nullptr;
+      thr->rd_context = nullptr;
+      thr->wt_context = nullptr;
+      if (!thr->reap_pending)
+	    vthread_reap(thr);
+      vthread_run_unpin_(thr);
+      return done;
+}
+
 void vthread_run(vthread_t thr)
 {
 #ifdef VVP_PERF_STATS

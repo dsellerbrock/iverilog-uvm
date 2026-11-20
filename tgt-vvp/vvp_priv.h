@@ -962,6 +962,7 @@ extern void draw_fixed_uarray_slot_index_(ivl_expr_t expr, ivl_type_t type,
  * %ref/store/mbx. */
 extern int draw_capture_lval_ref(ivl_lval_t lval);
 extern void draw_store_vec4_lval(ivl_lval_t lval);
+extern void store_vec4_to_lval(ivl_statement_t net, ivl_variable_type_t rval_type);
 extern void draw_store_real_lval(ivl_lval_t lval);
 
 /* Runtime queue mutation operands are exact 64-bit element counts. Zero is

@@ -151,6 +151,11 @@ extern bool vthread_eval_thunk(vthread_t caller, vvp_code_t pc,
                                vvp_vector4_t&vec, double&real,
                                std::string&str, vvp_object_t&obj);
 
+struct vpip_pla_writer;
+extern vpip_pla_writer* vthread_bind_pla_writer(vthread_t caller,
+					       __vpiScope*scope,
+					       vvp_code_t pc, unsigned width);
+
 /*
  * This function schedules all the threads in the list to be scheduled
  * for execution with delay 0. The thr pointer is taken to be the head

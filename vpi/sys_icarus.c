@@ -47,7 +47,7 @@ static PLI_INT32 finish_and_return_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
 typedef struct pla_task_s {
       vpiHandle memory;
       vpiHandle input;
-      vpiHandle output;
+      struct vpip_pla_writer *output;
       PLI_INT32 mem_left, mem_right;
       unsigned input_width, output_width;
       unsigned is_async, is_plane, is_and, invert;
@@ -143,7 +143,11 @@ static void pla_evaluate(pla_task_t *task)
       }
       value.format = vpiVectorVal;
       value.value.vector = vec;
-      vpi_put_value(task->output, &value, 0, vpiNoDelay);
+      if (!vpip_pla_write(task->output, &value)) {
+            vpi_printf("VVP error: PLA output store did not consume its result.\n");
+            vpip_set_return_value(1);
+            vpi_control(vpiFinish, 1);
+      }
       free(vec);
 }
 
@@ -164,6 +168,7 @@ static PLI_INT32 pla_end_simulation(p_cb_data cb)
             if (task->callbacks[idx]) vpi_remove_cb(task->callbacks[idx]);
       free(task->callbacks);
       free(task->words);
+      vpip_pla_release_output(task->output);
       free(task);
       return 0;
 }
@@ -195,7 +200,7 @@ static PLI_INT32 pla_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
       }
       task = calloc(1, sizeof(*task));
       if (!task) return 0;
-      task->memory = arg[0]; task->input = arg[1]; task->output = arg[2];
+      task->memory = arg[0]; task->input = arg[1];
       task->input_width = vpi_get(vpiSize, arg[1]);
       task->output_width = vpi_get(vpiSize, arg[2]);
       {
@@ -237,6 +242,16 @@ static PLI_INT32 pla_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
             free(task);
             return 0;
       }
+      task->output = vpip_pla_bind_output(arg[2]);
+      if (!task->output) {
+            vpi_printf("ERROR: %s:%d: %s requires a writable PLA output.\n",
+                       vpi_get_str(vpiFile, callh), (int)vpi_get(vpiLineNo, callh), name);
+            vpip_set_return_value(1);
+            vpi_control(vpiFinish, 1);
+            free(task->words);
+            free(task);
+            return 0;
+      }
       if (task->is_async) {
             task->callbacks = calloc(task->word_count + 2, sizeof(*task->callbacks));
             memset(&cb, 0, sizeof(cb));
@@ -257,6 +272,7 @@ static PLI_INT32 pla_calltf(ICARUS_VPI_CONST PLI_BYTE8* name)
       }
       pla_evaluate(task);
       if (!task->is_async) {
+            vpip_pla_release_output(task->output);
             free(task->words);
             free(task);
       }
