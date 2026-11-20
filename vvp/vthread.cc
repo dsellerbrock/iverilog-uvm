@@ -63,6 +63,7 @@
 # include  <tuple>
 # include  <memory>
 # include  <deque>
+# include  <list>
 # include  <unordered_map>
 # include  <unordered_set>
 # include  <typeinfo>
@@ -20054,6 +20055,8 @@ static size_t dpi_struct_layout_(const string&desc,
 			  al = dpi_c_member_align_<double>(); break;
 		case 'p': size = sizeof(void*);
 			  al = dpi_c_member_align_<void*>(); break;
+		case 's': size = sizeof(const char*);
+			  al = dpi_c_member_align_<const char*>(); break;
 		default:
 		  return 0;
 	    }
@@ -20080,11 +20083,21 @@ static uint64_t dpi_vec4_bits_(const vvp_vector4_t&val)
  * has the members' default values. */
 static void dpi_struct_pack_(vvp_cobject*obj,
 			     const vector<dpi_struct_member_t>&members,
-			     uint8_t*dst)
+			     uint8_t*dst, list<string>&strings,
+			     const char*default_string)
 {
       for (size_t pid = 0 ; pid < members.size() ; pid += 1) {
 	    const dpi_struct_member_t&mem = members[pid];
 	    uint8_t*ptr = dst + mem.offset;
+	    if (mem.type == 's') {
+		  const char*val = default_string;
+		  if (obj) {
+			strings.push_back(obj->get_string(pid));
+			val = strings.back().c_str();
+		  }
+		  memcpy(ptr, &val, sizeof val);
+		  continue;
+	    }
 	    if (mem.type == 'f' || mem.type == 'r') {
 		  double val = obj ? obj->get_real(pid) : 0.0;
 		  if (mem.type == 'f') {
@@ -20126,7 +20139,8 @@ static void dpi_struct_pack_(vvp_cobject*obj,
 
 static void dpi_struct_unpack_(vvp_cobject*obj,
 			       const vector<dpi_struct_member_t>&members,
-			       const uint8_t*src)
+			       const uint8_t*src,
+			       list<string>::const_iterator&strings)
 {
       for (size_t pid = 0 ; pid < members.size() ; pid += 1) {
 	    const dpi_struct_member_t&mem = members[pid];
@@ -20138,6 +20152,14 @@ static void dpi_struct_unpack_(vvp_cobject*obj,
 			    obj->set_real(pid, v); continue; }
 		case 'r': { double v; memcpy(&v, ptr, sizeof v);
 			    obj->set_real(pid, v); continue; }
+		case 's': {
+		      const char*val;
+		      memcpy(&val, ptr, sizeof val);
+		      const char*original = (strings++)->c_str();
+		      if (val && val != original)
+			    obj->set_string(pid, val);
+		      continue;
+		}
 		case 'g': {
 		      static const vvp_bit4_t codes[4] = {
 			    BIT4_0, BIT4_1, BIT4_Z, BIT4_X };
@@ -20305,6 +20327,10 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
       vector<vector<dpi_struct_member_t> > struct_members (nargs);
       vector<vector<vvp_object_t> > struct_elems (nargs);
       vector<vector<uint64_t> > struct_store (nargs);
+	// Keep the original strings stable until every argument has copied
+	// back. C can move their pointers between members or arguments.
+      vector<list<string> > struct_strings (nargs);
+      const char struct_default_string[] = "";
       for (unsigned ii = 0 ; ii < nargs ; ii += 1) {
 	    unsigned slot = nargs - 1 - ii;
 	    vvp_dpi_arg_t&arg = args[slot];
@@ -20395,7 +20421,8 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 			  for (size_t idx = 0 ; idx < count ; idx += 1)
 				dpi_struct_pack_(idx < elems.size()
 				      ? elems[idx].peek<vvp_cobject>() : 0,
-				      struct_members[slot], buf + idx * bytes);
+				      struct_members[slot], buf + idx * bytes,
+				      struct_strings[slot], struct_default_string);
 			  arr.data = buf;
 			  arr.length = (unsigned)count;
 			  arr.elem_bytes = (unsigned)bytes;
@@ -20614,10 +20641,11 @@ static bool dpi_call_common_(vthread_t thr, vvp_code_t cp, char ret_type,
 		&& arr_store[ii].data) {
 		  const uint8_t*buf = (const uint8_t*)arr_store[ii].data;
 		  vector<vvp_object_t>&elems = struct_elems[ii];
+		  list<string>::const_iterator strings = struct_strings[ii].cbegin();
 		  for (size_t idx = 0 ; idx < elems.size() ; idx += 1)
 			if (vvp_cobject*obj = elems[idx].peek<vvp_cobject>())
 			      dpi_struct_unpack_(obj, struct_members[ii],
-				    buf + idx * arr_store[ii].elem_bytes);
+				    buf + idx * arr_store[ii].elem_bytes, strings);
 	    }
 	    if (native_call_ok)
 		  dpi_unpack_string_leaves_(arr_store[ii]);
