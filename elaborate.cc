@@ -5093,6 +5093,327 @@ static void elaborate_builtin_struct_net_continuous_(
       }
 }
 
+class event_synchronous_synthesis_scope_ {
+    public:
+      event_synchronous_synthesis_scope_()
+      : previous_(net_expr_event_synchronous(true)) { }
+
+      ~event_synchronous_synthesis_scope_()
+      { net_expr_event_synchronous(previous_); }
+
+    private:
+      bool previous_;
+};
+
+/* Connect an any-change probe to exact nexus ranges, including a word
+   of an unpacked array. A full-width operand needs no select device. */
+static void connect_event_probe_inputs_(Design*des, NetScope*scope,
+				       const LineInfo&loc, NetEvProbe*probe,
+				       NexusSet&inputs, bool use_ranges)
+{
+      for (unsigned idx = 0; idx < inputs.size(); ++idx) {
+	    NexusSet::elem_t&input = inputs.at(idx);
+	    unsigned width = input.lnk.nexus()->vector_width();
+	    if (!use_ranges || input.wid == width) {
+		  connect(input.lnk, probe->pin(idx));
+		  continue;
+	    }
+
+	    ivl_assert(loc, input.base < width);
+	    unsigned selected_width = std::min(input.wid, width - input.base);
+	    const netvector_t*carrier_type =
+		  new netvector_t(IVL_VT_LOGIC, width - 1, 0);
+	    NetNet*carrier = new NetNet(scope, scope->local_symbol(),
+					 NetNet::IMPLICIT, carrier_type);
+	    carrier->set_line(loc);
+	    carrier->local_flag(true);
+	    connect(carrier->pin(0), input.lnk);
+
+	    NetPartSelect*select = new NetPartSelect(carrier, input.base,
+						     selected_width,
+						     NetPartSelect::VP);
+	    select->set_line(loc);
+	    des->add_node(select);
+
+	    const netvector_t*selected_type =
+		  new netvector_t(IVL_VT_LOGIC, selected_width - 1, 0);
+	    NetNet*selected = new NetNet(scope, scope->local_symbol(),
+					  NetNet::IMPLICIT, selected_type);
+	    selected->set_line(loc);
+	    selected->local_flag(true);
+	    connect(selected->pin(0), select->pin(0));
+	    connect(selected->pin(0), probe->pin(idx));
+      }
+}
+
+template <typename Visit>
+static bool any_expr_child_(const NetExpr*expr, const Visit&visit)
+{
+      if (const auto*binary = dynamic_cast<const NetEBinary*>(expr))
+	    return visit(binary->left()) || visit(binary->right());
+      if (const auto*unary = dynamic_cast<const NetEUnary*>(expr))
+	    return visit(unary->expr());
+      if (const auto*ternary = dynamic_cast<const NetETernary*>(expr))
+	    return visit(ternary->cond_expr()) || visit(ternary->true_expr())
+		  || visit(ternary->false_expr());
+      if (const auto*select = dynamic_cast<const NetESelect*>(expr))
+	    return visit(select->sub_expr()) || visit(select->select());
+      if (const auto*property = dynamic_cast<const NetEProperty*>(expr))
+	    return visit(property->get_base()) || visit(property->get_index());
+      if (const auto*signal = dynamic_cast<const NetESignal*>(expr))
+	    return visit(signal->word_index());
+      if (const auto*tag = dynamic_cast<const NetEUnionTag*>(expr))
+	    return visit(tag->value());
+      if (const auto*created = dynamic_cast<const NetENew*>(expr))
+	    return visit(created->size_expr()) || visit(created->init_expr());
+      if (const auto*pattern = dynamic_cast<const NetEArrayPattern*>(expr)) {
+	    for (size_t idx = 0; idx < pattern->item_size(); ++idx)
+		  if (visit(pattern->item(idx))) return true;
+      } else if (const auto*concat = dynamic_cast<const NetEConcat*>(expr)) {
+	    for (unsigned idx = 0; idx < concat->nparms(); ++idx)
+		  if (visit(concat->parm(idx))) return true;
+      } else if (const auto*user = dynamic_cast<const NetEUFunc*>(expr)) {
+	    for (unsigned idx = 0; idx < user->parm_count(); ++idx)
+		  if (visit(user->parm(idx))) return true;
+      } else if (const auto*system = dynamic_cast<const NetESFunc*>(expr)) {
+	    for (unsigned idx = 0; idx < system->nparms(); ++idx)
+		  if (visit(system->parm(idx))) return true;
+      }
+      return false;
+}
+
+static bool expr_has_user_function_call_(const NetExpr*expr)
+{
+      if (dynamic_cast<const NetEUFunc*>(expr))
+	    return true;
+      if (const auto*system = dynamic_cast<const NetESFunc*>(expr)) {
+	    if (system->vif_method_count() > 0
+		|| strncmp(system->name(), "$ivl_vif_func$", 14) == 0)
+		  return true;
+      }
+      return any_expr_child_(expr, expr_has_user_function_call_);
+}
+
+static bool expr_has_function_call_(const NetExpr*expr)
+{
+      return dynamic_cast<const NetEUFunc*>(expr)
+	  || dynamic_cast<const NetESFunc*>(expr)
+	  || any_expr_child_(expr, expr_has_function_call_);
+}
+
+static bool is_packed_source_operand_(const NetExpr*expr)
+{
+      if (!type_is_vectorable(expr->expr_type()))
+	    return false;
+      if (dynamic_cast<const NetESignal*>(expr))
+	    return true;
+      if (const auto*select = dynamic_cast<const NetESelect*>(expr))
+	    return is_packed_source_operand_(select->sub_expr());
+      if (const auto*property = dynamic_cast<const NetEProperty*>(expr))
+	    return property->resolve_interface_member_signal();
+      return false;
+}
+
+static bool collect_contassign_inputs_(Design*des, NetScope*scope,
+				       const NetExpr*expr, NexusSet&inputs);
+
+/* An index containing a call is evaluated by the RHS process. Save its
+   value at the point where the select is evaluated, so the read port can
+   observe the selected data without making that call again. The select
+   readers propagate synchronously while the process is outside its wait. */
+template <typename SetIndex>
+static bool copy_contassign_index_(Design*des, NetScope*scope,
+				    const NetExpr*index, const SetIndex&set_index,
+				    NexusSet&inputs, unique_ptr<NetExpr>&read_index)
+{
+      if (!index)
+	    return true;
+      if (!expr_has_function_call_(index)) {
+	    read_index.reset(index->dup_expr());
+	    return true;
+      }
+
+      if (!collect_contassign_inputs_(des, scope, index, inputs))
+	    return false;
+
+      const netvector_t*type = new netvector_t(IVL_VT_LOGIC,
+	    index->expr_width() - 1, 0, index->has_sign());
+      NetNet*saved = new NetNet(scope, scope->local_symbol(), NetNet::REG, type);
+      saved->set_line(*index);
+      saved->local_flag(true);
+
+      NetEAssignExpr*save = new NetEAssignExpr("$ivl_assign_expr$=",
+	    IVL_VT_LOGIC, index->expr_width(), false);
+      save->set_line(*index);
+      save->cast_signed(index->has_sign());
+      save->parm(0, new NetESignal(saved));
+      save->parm(1, index->dup_expr());
+      set_index(save);
+      read_index.reset(new NetESignal(saved));
+      return true;
+}
+
+/* This operates on the process's private copy of the typed RHS. Only
+   selects of source data build a reader. A select of a calculated value
+   (for example, of a call result) contributes the calculation's operands. */
+static NetExpr* make_contassign_select_reader_(Design*des, NetScope*scope,
+					     const NetExpr*expr, NexusSet&inputs)
+{
+      if (!expr_has_function_call_(expr))
+	    return expr->dup_expr();
+
+      unique_ptr<NetExpr>index;
+      if (const auto*signal = dynamic_cast<const NetESignal*>(expr)) {
+	    auto*editable = const_cast<NetESignal*>(signal);
+	    if (!copy_contassign_index_(des, scope, signal->word_index(),
+		  [editable](NetExpr*saved) { editable->set_word_index(saved); },
+		  inputs, index))
+		  return nullptr;
+	    NetESignal*reader = signal->dup_expr();
+	    reader->set_word_index(index.release());
+	    return reader;
+      }
+
+      if (const auto*property = dynamic_cast<const NetEProperty*>(expr)) {
+	    auto*editable = const_cast<NetEProperty*>(property);
+	    if (!copy_contassign_index_(des, scope, property->get_index(),
+		  [editable](NetExpr*saved) { editable->set_index(saved); },
+		  inputs, index))
+		  return nullptr;
+	    NetEProperty*reader = property->dup_expr();
+	    reader->set_index(index.release());
+	    return reader;
+      }
+
+      const auto*select = dynamic_cast<const NetESelect*>(expr);
+      ivl_assert(*expr, select);
+      unique_ptr<NetExpr>data(make_contassign_select_reader_(
+	    des, scope, select->sub_expr(), inputs));
+      if (!data)
+	    return nullptr;
+      auto*editable = const_cast<NetESelect*>(select);
+      if (!copy_contassign_index_(des, scope, select->select(),
+	    [editable](NetExpr*saved) { editable->set_select(saved); },
+	    inputs, index))
+	    return nullptr;
+      NetESelect*reader = select->net_type()
+	    ? new NetESelect(data.release(), index.release(), select->expr_width(),
+			     select->net_type(), select->select_type())
+	    : new NetESelect(data.release(), index.release(), select->expr_width(),
+			     select->select_type());
+      reader->set_line(*select);
+      reader->cast_signed(select->has_sign());
+      return reader;
+}
+
+static bool add_contassign_selected_input_(Design*des, NetScope*scope,
+					   const NetExpr*expr, NexusSet&inputs)
+{
+      unique_ptr<NetExpr>reader(make_contassign_select_reader_(des, scope, expr,
+							      inputs));
+      if (!reader)
+	    return false;
+      NetNet*selected = reader->synthesize(des, scope, reader.get());
+      if (!selected)
+	    return false;
+      inputs.add(selected->pin(0).nexus(), 0, selected->vector_width());
+      return true;
+}
+
+/* IEEE 1800 10.3.2: watch source operands rather than the results of
+   operators or calls. A selected signal contributes its selected value.
+   Descend into actual arguments without following reads in the body. */
+static bool collect_contassign_inputs_(Design*des, NetScope*scope,
+				       const NetExpr*expr, NexusSet&inputs)
+{
+      if (const auto*select = dynamic_cast<const NetESelect*>(expr)) {
+	    if (select->select() && is_packed_source_operand_(select->sub_expr())) {
+		  const auto*signal = dynamic_cast<const NetESignal*>(
+			select->sub_expr());
+		  const auto*base = dynamic_cast<const NetEConst*>(select->select());
+		  if (signal && base && base->value().is_defined()
+		      && (!signal->word_index()
+			  || dynamic_cast<const NetEConst*>(signal->word_index()))) {
+			bool negative;
+			uint64_t offset = verinum_signed_magnitude(base->value(), negative);
+			if (!negative && offset < signal->sig()->vector_width()) {
+			      unsigned available = signal->sig()->vector_width() - offset;
+			      unsigned width = std::min(select->expr_width(), available);
+			      unique_ptr<NexusSet>selected(signal->nex_input_base(
+				    false, true, false, offset, width));
+			      inputs.add(*selected);
+			      return true;
+			}
+		  }
+		  return add_contassign_selected_input_(des, scope, select, inputs);
+	    }
+      } else if (const auto*signal = dynamic_cast<const NetESignal*>(expr)) {
+	    const NetExpr*word = signal->word_index();
+	    if (word && !dynamic_cast<const NetEConst*>(word))
+		  return add_contassign_selected_input_(des, scope, signal, inputs);
+
+	    unique_ptr<NexusSet>selected(signal->nex_input(false, true));
+	    inputs.add(*selected);
+	    return true;
+      } else if (const auto*property = dynamic_cast<const NetEProperty*>(expr)) {
+	    if (property->resolve_interface_member_signal())
+		  return add_contassign_selected_input_(des, scope, property, inputs);
+	    cerr << property->get_fileline() << ": sorry: Continuous assignment "
+		 << "sensitivity to a nonstatic property is not supported." << endl;
+	    des->errors += 1;
+	    return false;
+      } else if (const auto*slice = dynamic_cast<const NetEArraySlice*>(expr)) {
+	    unique_ptr<NexusSet>words(slice->nex_input(false, true));
+	    inputs.add(*words);
+	    return true;
+      }
+
+      return !any_expr_child_(expr, [&](const NetExpr*child) {
+	    return !collect_contassign_inputs_(des, scope, child, inputs);
+      });
+}
+
+static NetNet* elaborate_contassign_call_rhs_(Design*des, NetScope*scope,
+					     const NetNet*lval, const NetExpr*rhs)
+{
+      event_synchronous_synthesis_scope_ synchronous_readers;
+      NexusSet inputs;
+      unique_ptr<NetExpr>value(rhs->dup_expr());
+      if (!collect_contassign_inputs_(des, scope, value.get(), inputs))
+	    return nullptr;
+
+      NetNet*result = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				  lval->net_type());
+      result->set_line(*rhs);
+      result->local_flag(true);
+      NetAssign*store = new NetAssign(new NetAssign_(result), value.release());
+      store->set_line(*rhs);
+
+      NetEvWait*wait = new NetEvWait(store);
+      wait->set_line(*rhs);
+      wait->set_t0_trigger();
+      if (inputs.size() != 0) {
+	    NetEvent*event = new NetEvent(scope->local_symbol());
+	    event->set_line(*rhs);
+	    event->local_flag(true);
+	    scope->add_event(event);
+	    NetEvProbe*probe = new NetEvProbe(scope, scope->local_symbol(), event,
+					      NetEvProbe::ANYEDGE, inputs.size());
+	    probe->set_line(*rhs);
+	    connect_event_probe_inputs_(des, scope, *rhs, probe, inputs, true);
+	    des->add_node(probe);
+	    wait->add_event(event);
+      }
+
+      NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS, wait);
+      top->set_line(*rhs);
+      top->attribute(perm_string::literal("_ivl_schedule_push"), verinum(1));
+      top->attribute(perm_string::literal("_ivl_contassign_rhs"), verinum(1));
+      // This thread implements a continuous assignment (IEEE 1800 13.4.4).
+      des->add_process(top);
+      return result;
+}
+
 static bool elaborate_unpacked_union_read_continuous_(
       Design*des, NetScope*scope, const PGAssign*assignment,
       NetExpr*rise_time, NetExpr*fall_time, NetExpr*decay_time,
@@ -5737,12 +6058,27 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
-      NetNet*rval = rval_expr->synthesize(des, scope, rval_expr);
+	// The event-driven RHS needs VVP's Active-region startup trigger.
+      bool call_rhs = gn_system_verilog() && !synthesis
+	    && strcmp(des->get_flag("DLL"), "vvp.tgt") == 0
+	    && (type_is_vectorable(lval->data_type()) || lval->data_type() == IVL_VT_REAL)
+	    && expr_has_user_function_call_(rval_expr);
+      unsigned errors_before_rhs = des->errors;
+      NetNet*rval = call_rhs
+	    ? elaborate_contassign_call_rhs_(des, scope, lval, rval_expr)
+	    : rval_expr->synthesize(des, scope, rval_expr);
 
       if (rval == 0) {
-	    cerr << get_fileline() << ": internal error: "
-		 << "Failed to synthesize expression: " << *rval_expr << endl;
-	    des->errors += 1;
+	    if (!call_rhs || des->errors == errors_before_rhs) {
+		  cerr << get_fileline() << ": internal error: "
+		       << (call_rhs ? "Failed to construct continuous assignment probes: "
+				    : "Failed to synthesize expression: ")
+		       << *rval_expr << endl;
+		  des->errors += 1;
+	    }
+	    delete rval_expr;
+	    if (lval->local_flag()) delete lval;
+	    delete_unique_delays_(rise_time, fall_time, decay_time);
 	    return;
       }
 
@@ -5759,9 +6095,8 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	// Detect the case that the rvalue-expression is a simple
 	// expression. In this case, we will need to create a driver
 	// (later) to carry strengths.
-      bool need_driver_flag = false;
-      if (dynamic_cast<NetESignal*>(rval_expr) ||!rval->is_linked())
-	    need_driver_flag = true;
+      bool need_driver_flag = call_rhs
+	    || dynamic_cast<NetESignal*>(rval_expr) || !rval->is_linked();
 
       /* A delayed continuous assignment to a complete vector selects one
 	 * rise/fall/turn-off delay from the complete RHS value (1800-2023
@@ -28314,47 +28649,6 @@ static bool nexus_has_automatic_local_(const Nexus*nexus)
    explicit AST operands (notably fields reached through the implicit method
    receiver). Preserve conservative root delivery sensitivity for the whole
    wait expression until those hidden reads have precise mutation metadata. */
-static bool expr_has_user_function_call_(const NetExpr*expr)
-{
-      if (!expr)
-            return false;
-      if (dynamic_cast<const NetEUFunc*>(expr))
-            return true;
-      if (const NetEBinary*binary = dynamic_cast<const NetEBinary*>(expr))
-            return expr_has_user_function_call_(binary->left())
-                || expr_has_user_function_call_(binary->right());
-      if (const NetEUnary*unary = dynamic_cast<const NetEUnary*>(expr))
-            return expr_has_user_function_call_(unary->expr());
-      if (const NetETernary*ternary = dynamic_cast<const NetETernary*>(expr))
-            return expr_has_user_function_call_(ternary->cond_expr())
-                || expr_has_user_function_call_(ternary->true_expr())
-                || expr_has_user_function_call_(ternary->false_expr());
-      if (const NetESelect*select = dynamic_cast<const NetESelect*>(expr))
-            return expr_has_user_function_call_(select->sub_expr())
-                || expr_has_user_function_call_(select->select());
-      if (const NetEProperty*property =
-                dynamic_cast<const NetEProperty*>(expr))
-            return expr_has_user_function_call_(property->get_base())
-                || expr_has_user_function_call_(property->get_index());
-      if (const NetESignal*signal = dynamic_cast<const NetESignal*>(expr))
-            return expr_has_user_function_call_(signal->word_index());
-      if (const NetEConcat*concat = dynamic_cast<const NetEConcat*>(expr)) {
-            for (unsigned idx = 0; idx < concat->nparms(); idx += 1)
-                  if (expr_has_user_function_call_(concat->parm(idx)))
-                        return true;
-            return false;
-      }
-      if (const NetESFunc*system = dynamic_cast<const NetESFunc*>(expr)) {
-	    if (system->vif_method_count() > 0
-		|| strncmp(system->name(), "$ivl_vif_func$", 14) == 0)
-		  return true;
-            for (unsigned idx = 0; idx < system->nparms(); idx += 1)
-                  if (expr_has_user_function_call_(system->parm(idx)))
-                        return true;
-      }
-      return false;
-}
-
 bool PEventStatement::has_conditional_event_() const
 {
       for (const PEEvent*event : expr_)
@@ -28845,18 +29139,6 @@ static NetExpr*vif_valid_const_(bool value)
 {
       return new NetEConst(verinum(value ? verinum::V1 : verinum::V0, 1));
 }
-
-class event_synchronous_synthesis_scope_ {
-    public:
-      event_synchronous_synthesis_scope_()
-      : previous_(net_expr_event_synchronous(true)) { }
-
-      ~event_synchronous_synthesis_scope_()
-      { net_expr_event_synchronous(previous_); }
-
-    private:
-      bool previous_;
-};
 
 static NetExpr*vif_valid_and_(NetExpr*left, NetExpr*right)
 {
@@ -29700,47 +29982,8 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 		  NetEvProbe*pr = new NetEvProbe(scope, scope->local_symbol(),
 						 ev, NetEvProbe::ANYEDGE,
 						 nset->size());
-		  for (unsigned idx = 0 ;  idx < nset->size() ;  idx += 1) {
-		  unsigned wid = nset->at(idx).wid;
-		  unsigned vwid = nset->at(idx).lnk.nexus()->vector_width();
-		    // Is this a part select?
-		  if (always_sens_ && (wid != vwid)) {
-			unsigned base = nset->at(idx).base;
-			ivl_assert(*this, base < vwid);
-			if (base + wid > vwid) wid = vwid - base;
-
-			  // A NexusSet element identifies a nexus plus an exact
-			  // base/width. Create a one-pin carrier for that nexus so
-			  // this also works for a selected word of an unpacked array;
-			  // pick_any_net() alone would lose the word pin.
-			const netvector_t*carrier_type =
-			      new netvector_t(IVL_VT_LOGIC, vwid - 1, 0);
-			NetNet*carrier =
-			      new NetNet(scope, scope->local_symbol(),
-					 NetNet::IMPLICIT, carrier_type);
-			carrier->local_flag(true);
-			carrier->set_line(*this);
-			connect(carrier->pin(0), nset->at(idx).lnk);
-
-			NetPartSelect*select =
-			      new NetPartSelect(carrier, base, wid,
-						NetPartSelect::VP);
-			select->set_line(*this);
-			des->add_node(select);
-
-			const netvector_t*selected_type =
-			      new netvector_t(IVL_VT_LOGIC, wid - 1, 0);
-			NetNet*selected =
-			      new NetNet(scope, scope->local_symbol(),
-					 NetNet::IMPLICIT, selected_type);
-			selected->local_flag(true);
-			selected->set_line(*this);
-			connect(selected->pin(0), select->pin(0));
-			connect(selected->pin(0), pr->pin(idx));
-		  } else {
-			connect(nset->at(idx).lnk, pr->pin(idx));
-		  }
-		  }
+		  connect_event_probe_inputs_(des, scope, *this, pr, *nset,
+						      always_sens_);
 
 		  des->add_node(pr);
 	    }

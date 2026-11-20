@@ -7431,3 +7431,5 @@ issue3869_bad_2023 CE,-g2023,-s,issue3869_bad ivltests gold=issue3869_bad.gold
 # IEEE 1800 7.8.4: %p of class associative properties with integral keys.
 issue2591_p_class_assoc_signed_2017 normal,-g2017 ivltests gold=issue2591_p_class_assoc_signed.gold
 issue2591_p_class_assoc_signed_2023 normal,-g2023 ivltests gold=issue2591_p_class_assoc_signed.gold
+issue3941_2017 normal,-g2017,-s,issue3941 ivltests gold=issue3941.gold
+issue3941_2023 normal,-g2023,-s,issue3941 ivltests gold=issue3941.gold
