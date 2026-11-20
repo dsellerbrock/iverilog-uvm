@@ -262,6 +262,10 @@ issue3825_sequence_endpoint_observed_2017 normal,-g2017,-gassertions,-s,issue382
 issue3825_sequence_endpoint_observed_2023 normal,-g2023,-gassertions,-s,issue3825_sequence_endpoint_observed ivltests gold=issue3825_sequence_endpoint_observed.gold
 issue3826_named_event_disable_2017 normal,-g2017,-gassertions,-s,issue3826_named_event_disable ivltests gold=issue3826_named_event_disable.gold
 issue3826_named_event_disable_2023 normal,-g2023,-gassertions,-s,issue3826_named_event_disable ivltests gold=issue3826_named_event_disable.gold
+issue3827_sequence_disable_2017 normal,-g2017,-gassertions,-s,issue3827_sequence_disable_top ivltests
+issue3827_sequence_disable_2023 normal,-g2023,-gassertions,-s,issue3827_sequence_disable_top ivltests
+issue3827_clockless_disable_2017 CE,-g2017,-gassertions,-s,issue3827_clockless_disable ivltests gold=issue3827_clockless_disable.gold
+issue3827_clockless_disable_2023 CE,-g2023,-gassertions,-s,issue3827_clockless_disable ivltests gold=issue3827_clockless_disable.gold
 issue2695_sequence_triggered_empty_2017 normal,-g2017,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
 issue2695_sequence_triggered_empty_2023 normal,-g2023,-s,issue2695_sequence_triggered_empty ivltests gold=issue2695_sequence_triggered_empty.gold
 issue1322_vpi_loop_types_2017 normal,-g2017,-s,top ivltests gold=issue1322_vpi_loop_types_2017.gold

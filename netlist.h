@@ -4545,7 +4545,13 @@ class NetEvent : public LineInfo {
       bool is_declared_event() const { return is_declared_event_; }
       void set_declared_event() { is_declared_event_ = true; }
       bool is_sequence_endpoint() const { return sequence_endpoint_; }
-      void set_sequence_endpoint() { sequence_endpoint_ = true; }
+      void validate_sva_disable_clock(Design*des, NetScope*scope,
+				      const LineInfo&use) const;
+      void set_sequence_endpoint(bool clocked)
+      {
+	    sequence_endpoint_ = true;
+	    sequence_endpoint_clocked_ = clocked;
+      }
 
 	// An ANSI event port is a handle to the connected event. Keep the formal
 	// NetEvent for its scope and lexical declaration, while all HDL references
@@ -4628,6 +4634,7 @@ class NetEvent : public LineInfo {
       ivl_lifetime_t lifetime_override_;
       bool is_declared_event_ = false;
       bool sequence_endpoint_ = false;
+      bool sequence_endpoint_clocked_ = false;
 	// Null for an ordinary event; otherwise points at the event handle
 	// passed through an ANSI event port.
       NetEvent* alias_ = nullptr;

@@ -19190,6 +19190,42 @@ NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
       }
 }
 
+static bool expr_has_user_function_call_(const NetExpr*expr);
+
+static const NetEEvent* sva_triggered_event_(const NetESFunc*read)
+{
+      return strcmp(read->name(), "$ivl_event_method$triggered") == 0
+	    ? dynamic_cast<const NetEEvent*>(read->parm(0)) : nullptr;
+}
+
+static const NetEvent* sva_triggered_endpoint_(const NetESFunc*read)
+{
+      const NetEEvent*arg = sva_triggered_event_(read);
+      const NetEvent*event = arg ? arg->event() : nullptr;
+      return event && event->is_sequence_endpoint() ? event : nullptr;
+}
+
+static const NetScope* sva_disable_condition_scope_ = nullptr;
+
+void NetEvent::validate_sva_disable_clock(Design*des, NetScope*scope,
+					 const LineInfo&use) const
+{
+      // Check during binding, even when constant folding removes the read.
+      // A called function's body has its own elaboration scope.
+      if (!sva_disable_condition_scope_ || !sequence_endpoint_
+	  || sequence_endpoint_clocked_)
+	    return;
+      while (scope != sva_disable_condition_scope_) {
+	    if (!scope || scope->type() == NetScope::FUNC) return;
+	    scope = scope->parent();
+      }
+      cerr << use.get_fileline()
+	   << ": error: a sequence used with .triggered in disable iff "
+	      "must have its own clock (IEEE 1800-2017/2023 16.13.3, 16.13.6)."
+	   << endl;
+      des->errors += 1;
+}
+
 /*
  * A call to a system task involves elaborating all the parameters,
  * then passing the list to the NetSTask object.
@@ -19213,6 +19249,41 @@ NetProc* PCallTask::elaborate_sys(Design*des, NetScope*scope) const
       vector<NetExpr*>eparms (parm_count);
 
       perm_string name = peek_tail_name(path_);
+      const bool endpoint_only = name == "$ivl_observed_if_sequence_disable_wait";
+      if ((name == "$ivl_observed_disable_wait" || endpoint_only)
+	  && parm_count == 2) {
+	    // Resolve the effective condition to distinguish a private sequence
+	    // endpoint from ordinary named-event state. The condition itself
+	    // remains live in the checker's level test.
+	    const NetScope*saved = sva_disable_condition_scope_;
+	    const unsigned errors = des->errors;
+	    sva_disable_condition_scope_ = scope;
+	    unique_ptr<NetExpr>cond(elab_and_eval(des, scope, parms_[0].parm, -1));
+	    sva_disable_condition_scope_ = saved;
+	    if (!cond || des->errors != errors) return nullptr;
+	    vector<const NetESFunc*>reads;
+	    NetESFunc::set_nex_input_triggered_collector(&reads);
+	    delete cond->nex_input(true, expr_has_user_function_call_(cond.get()));
+	    NetESFunc::set_nex_input_triggered_collector(nullptr);
+	    bool endpoint = std::any_of(reads.begin(), reads.end(),
+					sva_triggered_endpoint_);
+	    if (!endpoint && endpoint_only) {
+		  NetBlock*noop = new NetBlock(NetBlock::SEQU, scope);
+		  noop->set_line(*this);
+		  return noop;
+	    }
+	    vector<NetExpr*>args;
+	    if (endpoint) {
+		  NetExpr*order = elab_and_eval(des, scope, parms_[1].parm, -1);
+		  if (!order) return nullptr;
+		  args.push_back(order);
+	    }
+	    NetSTask*wait = new NetSTask(endpoint ? "$ivl_observed_disable_wait"
+						 : "$ivl_observed_wait",
+					 IVL_SFUNC_AS_TASK_IGNORE, args);
+	    wait->set_line(*this);
+	    return wait;
+      }
 	/* IEEE 1800-2023 20.11: identifiers in list_of_scopes_or_assertions
 	   become hierarchical selector strings. The leading integer arguments
 	   (levels; for $assertcontrol also control, assertion and directive
@@ -27768,8 +27839,6 @@ static bool has_class_property_mutation_dep_(const NetExpr*expr)
    member when its handle changes; class-property dependencies likewise have
    no static NetNet input. User functions also need the full expression to be
    reevaluated when any source operand changes. */
-static bool expr_has_user_function_call_(const NetExpr*expr);
-
 static bool selected_edge_requires_observer_(const NetExpr*expr)
 {
       if (has_class_property_mutation_dep_(expr)
@@ -28588,16 +28657,8 @@ static NetExpr* sva_disable_observer_expr_(
       set<const NetEvent*> seen;
       vector<const NetEEvent*> operands;
       for (const NetESFunc*read : reads) {
-	    const NetEEvent*arg = strcmp(read->name(), "$ivl_event_method$triggered") == 0
-		  ? dynamic_cast<const NetEEvent*>(read->parm(0)) : nullptr;
+	    const NetEEvent*arg = sva_triggered_event_(read);
 	    const NetEvent*event = arg ? arg->event() : nullptr;
-	    if (event && event->is_sequence_endpoint()) {
-		  cerr << read->get_fileline()
-		       << ": sorry: sequence endpoint in disable iff requires "
-		          "ordered assertion evaluation." << endl;
-		  des->errors += 1;
-		  return nullptr;
-	    }
 	    if (!event || event->is_class_event() || event->is_event_array()
 		|| event->lifetime_override() == IVL_VLT_AUTOMATIC
 		|| (event->lifetime_override() == IVL_VLT_INHERITED
@@ -29429,6 +29490,15 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	  unique_ptr<NexusSet>sources(tmp->nex_input(
 		true, expr_has_user_function_call_(tmp)));
 	  NetESFunc::set_nex_input_triggered_collector(nullptr);
+	  if (sva_disable_endpoints_only_
+	      && std::none_of(reads.begin(), reads.end(), sva_triggered_endpoint_)) {
+		// This engine only needs the extra abort process for an endpoint
+		// disable. Park the process on an event with no publishers.
+		delete tmp;
+		scope->add_event(ev);
+		wa->add_event(ev);
+		return wa;
+	  }
 	  if (!reads.empty()) {
 		NetExpr*observer = sva_disable_observer_expr_(des, tmp, reads);
 		if (!observer) {

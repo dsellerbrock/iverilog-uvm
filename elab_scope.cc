@@ -6585,7 +6585,7 @@ void PEvent::elaborate_scope(Design*des, NetScope*scope) const
 {
       NetEvent*ev = new NetEvent(name_);
       ev->set_declared_event();
-      if (sequence_endpoint_) ev->set_sequence_endpoint();
+      if (sequence_endpoint_) ev->set_sequence_endpoint(sequence_endpoint_clocked_);
       ev->lexical_pos(lexical_pos_);
       ev->lifetime_override(lifetime_override_);
       ev->set_line(*this);
