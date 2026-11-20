@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue2889_iface_path_multihop.sv",
+  "iverilog-args": ["-g2017", "-gspecify", "-s", "top"],
+  "gold": "issue2889_iface_path"
+}

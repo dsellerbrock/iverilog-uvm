@@ -1,0 +1,4 @@
+issue2889_iface_path_onehop_2017 normal,-g2017,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
+issue2889_iface_path_onehop_2023 normal,-g2023,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
+issue2889_iface_path_multihop_2017 normal,-g2017,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
+issue2889_iface_path_multihop_2023 normal,-g2023,-gspecify,-Iivltests,-s,top ivltests gold=issue2889_iface_path.gold
