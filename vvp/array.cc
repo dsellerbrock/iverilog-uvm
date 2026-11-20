@@ -691,6 +691,9 @@ int __vpiArray::vpi_get(int code)
 	  case vpiChargeStrength:
 	    return charge_strength;
 
+	  case vpiNetType:
+	    return nets ? net_type : 0;
+
 	  case vpiAutomatic:
 	    return automatic_storage ? 1 : 0;
 

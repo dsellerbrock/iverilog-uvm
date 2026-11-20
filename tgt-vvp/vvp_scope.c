@@ -1458,6 +1458,24 @@ static void draw_reg_in_scope(ivl_signal_t sig)
 }
 
 
+static int declared_vpi_net_type(ivl_net_kind_t kind)
+{
+      switch (kind) {
+          case IVL_NET_WAND:    return vpiWand;
+          case IVL_NET_WOR:     return vpiWor;
+          case IVL_NET_TRI:     return vpiTri;
+          case IVL_NET_TRI0:    return vpiTri0;
+          case IVL_NET_TRI1:    return vpiTri1;
+          case IVL_NET_TRIREG:  return vpiTriReg;
+          case IVL_NET_TRIAND:  return vpiTriAnd;
+          case IVL_NET_TRIOR:   return vpiTriOr;
+          case IVL_NET_SUPPLY0: return vpiSupply0;
+          case IVL_NET_SUPPLY1: return vpiSupply1;
+          case IVL_NET_UWIRE:   return vpiUwire;
+          default:             return vpiWire;
+      }
+}
+
 /*
  * This function draws a net. This is a bit more complicated as we
  * have to find an appropriate functor to connect to the input.
@@ -1490,6 +1508,8 @@ static void draw_net_in_scope(ivl_signal_t sig)
       const char*datatype_flag = ivl_signal_signed(sig)? "/s" : "";
       const char *local_flag = local_flag_str(sig);
       ivl_drive_t charge = ivl_signal_charge_strength(sig);
+      ivl_net_kind_t net_kind = ivl_signal_net_kind(sig);
+      int net_type = declared_vpi_net_type(net_kind);
 
       unsigned iword;
 
@@ -1585,9 +1605,10 @@ static void draw_net_in_scope(ivl_signal_t sig)
 		       port collapsing that the elaborator combined to
 		       discover that the entire array can be collapsed,
 	       so the word counts must match. Shared VPI word
-	       handles also require the same declared charge strength. */
+	       handles also require the same declared net kind and charge strength. */
 		  if (iword == 0 && ivl_signal_dimensions(nex_data->net) > 0 &&
                       word_count == ivl_signal_array_count(nex_data->net) &&
+                      net_kind == ivl_signal_net_kind(nex_data->net) &&
                       charge == ivl_signal_charge_strength(nex_data->net)) {
 
 			fprintf(vvp_out, "v%p .array \"%s\", v%p; Alias to %s \n",
@@ -1664,6 +1685,11 @@ static void draw_net_in_scope(ivl_signal_t sig)
       if (!ivl_signal_local(sig) && ivl_signal_is_interconnect(sig) &&
           !ivl_signal_interconnect_declared_shape(sig))
             fprintf(vvp_out, "v%p_0 .vpi_interconnect;\n", sig);
+
+      if (net_type != vpiWire &&
+          (ivl_signal_dimensions(sig) > 0 || !ivl_signal_local(sig)))
+            fprintf(vvp_out, "v%p%s .vpi_net_type %d;\n", sig,
+                    ivl_signal_dimensions(sig) > 0 ? "" : "_0", net_type);
 
       if (charge != IVL_DR_HiZ &&
           (ivl_signal_dimensions(sig) > 0 || !ivl_signal_local(sig))) {

@@ -687,6 +687,7 @@ struct __vpiSignal : public __vpiHandle {
       unsigned source_lineno = 0;
       bool has_source_location = false;
       signed char charge_strength = vpiUndefined;
+      unsigned char net_type = vpiWire;
 	/* The represented value is here. */
       vvp_net_t*node;
 
@@ -1111,6 +1112,7 @@ struct __vpiRealVar : public __vpiHandle {
       unsigned is_wire      : 1; // This is a wire, not a variable
       unsigned automatic_storage : 1;
       bool is_interconnect = false;
+      unsigned char net_type = vpiWire;
       vvp_net_t*net;
 };
 
@@ -1389,6 +1391,7 @@ struct __vpiArray : public __vpiArrayBase, public __vpiHandle {
       bool automatic_storage;
       bool virtual_interface_array_ = false;
       signed char charge_strength = vpiUndefined;
+      unsigned char net_type = vpiWire;
 	// Declared `integer` (.array/i), distinct from a 32-bit signed reg
 	// array only for the IEEE 1364 VPI compatibility modes (36.12.1).
       bool integer_array = false;

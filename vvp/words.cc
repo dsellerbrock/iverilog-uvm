@@ -181,6 +181,42 @@ class charge_strength_resolv_t : public resolv_list_s {
       int strength_;
 };
 
+class net_type_resolv_t : public resolv_list_s {
+    public:
+      net_type_resolv_t(char*label, int net_type)
+      : resolv_list_s(label), net_type_(net_type) { }
+
+      bool resolve(bool message_flag) override
+      {
+            vpiHandle obj = vvp_lookup_handle(label());
+            if (!obj && !message_flag) return false;
+
+            if (auto*sig = dynamic_cast<__vpiSignal*>(obj)) {
+                  if (sig->get_type_code() == vpiNet && !sig->is_netarray) {
+                        sig->net_type = net_type_;
+                        return true;
+                  }
+            } else if (auto*real = dynamic_cast<__vpiRealVar*>(obj)) {
+                  if (real->is_wire && !real->is_netarray) {
+                        real->net_type = net_type_;
+                        return true;
+                  }
+            } else if (auto*array = dynamic_cast<__vpiArray*>(obj)) {
+                  if (array->nets) {
+                        array->net_type = net_type_;
+                        return true;
+                  }
+            }
+            yyerror(obj ? "VPI net type target is not a net declaration"
+                        : "unresolved VPI net type target");
+            compile_errors += 1;
+            return true;
+      }
+
+    private:
+      int net_type_;
+};
+
 void compile_packed_dims(char*label, char*layout)
 {
       vector<__vpiSignal::packed_range_t> ranges;
@@ -666,6 +702,19 @@ void compile_vpi_charge_strength(char*label, uint64_t strength)
             return;
       }
       yyerror("invalid VPI charge strength");
+      compile_errors += 1;
+      free(label);
+}
+
+void compile_vpi_net_type(char*label, uint64_t net_type)
+{
+      // vpiNone falls between the original net kinds and vpiUwire.
+      if ((net_type >= vpiWire && net_type <= vpiSupply0) ||
+          net_type == vpiUwire) {
+            resolv_submit(new net_type_resolv_t(label, net_type));
+            return;
+      }
+      yyerror("invalid VPI net type");
       compile_errors += 1;
       free(label);
 }

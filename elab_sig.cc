@@ -4862,6 +4862,8 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 	    sig->lexical_pos(lexical_pos_);
       }
       sig->set_event_formal(is_event_formal_);
+      if (!user_type && !is_interconnect())
+	    sig->declared_net_kind(declared_wtype);
 	/* The typedef aliases of the declared type (37.25 detail 1). */
       sig->set_typedef_aliases(typedef_alias_names(data_type(),
             type == &netvector_t::time_signed || type == &netvector_t::time_unsigned));

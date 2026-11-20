@@ -1176,6 +1176,9 @@ class NetNet  : public NetObj, public PortType {
       Type net_delay_declared_type() const
 	    { return net_delay_declared_type_ == NONE
 		   ? type_ : net_delay_declared_type_; }
+      // The source declaration's kind survives simulated-net retyping.
+      void declared_net_kind(Type type) { declared_net_kind_ = type; }
+      Type declared_net_kind() const { return declared_net_kind_; }
       void net_delay_pull(class NetLogic*net) { net_delay_pull_ = net; }
       class NetLogic* net_delay_pull() const { return net_delay_pull_; }
       void declared_charge_strength(ivl_drive_t strength)
@@ -1258,6 +1261,7 @@ class NetNet  : public NetObj, public PortType {
       NetNet*net_delay_driver_ = 0;
       NetNet*net_delay_public_ = 0;
       Type net_delay_declared_type_ = NONE;
+      Type declared_net_kind_ = NONE;
       ivl_drive_t declared_charge_strength_ = IVL_DR_HiZ;
       class NetLogic*net_delay_pull_ = 0;
       int       port_index_ = -1;

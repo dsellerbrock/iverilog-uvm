@@ -426,6 +426,24 @@ typedef enum ivl_signal_type_e {
       IVL_SIT_UWIRE  = 9
 } ivl_signal_type_t;
 
+/* Built-in net kind as declared, independent of the simulated resolver
+   category returned by ivl_signal_type. */
+typedef enum ivl_net_kind_e {
+      IVL_NET_NONE = 0,
+      IVL_NET_WIRE,
+      IVL_NET_WAND,
+      IVL_NET_WOR,
+      IVL_NET_TRI,
+      IVL_NET_TRI0,
+      IVL_NET_TRI1,
+      IVL_NET_TRIREG,
+      IVL_NET_TRIAND,
+      IVL_NET_TRIOR,
+      IVL_NET_SUPPLY0,
+      IVL_NET_SUPPLY1,
+      IVL_NET_UWIRE
+} ivl_net_kind_t;
+
 /* This is the type code for ivl_statement_t objects. */
 typedef enum ivl_statement_type_e {
       IVL_ST_NONE    = 0,
@@ -2574,6 +2592,7 @@ extern unsigned    ivl_signal_forced_net(ivl_signal_t net);
 extern unsigned    ivl_signal_npath(ivl_signal_t net);
 extern ivl_delaypath_t ivl_signal_path(ivl_signal_t net, unsigned idx);
 extern ivl_signal_type_t ivl_signal_type(ivl_signal_t net);
+extern ivl_net_kind_t ivl_signal_net_kind(ivl_signal_t net);
 extern ivl_variable_type_t ivl_signal_data_type(ivl_signal_t net);
 extern ivl_type_t  ivl_signal_net_type(ivl_signal_t net);
 /* The original interconnect declaration, independent of its resolved type. */

@@ -4035,6 +4035,26 @@ extern "C" ivl_drive_t ivl_signal_charge_strength(ivl_signal_t net)
       return net->net_->declared_charge_strength();
 }
 
+extern "C" ivl_net_kind_t ivl_signal_net_kind(ivl_signal_t net)
+{
+      assert(net && net->net_);
+      switch (net->net_->declared_net_kind()) {
+	  case NetNet::WIRE:            return IVL_NET_WIRE;
+	  case NetNet::WAND:            return IVL_NET_WAND;
+	  case NetNet::WOR:             return IVL_NET_WOR;
+	  case NetNet::TRI:             return IVL_NET_TRI;
+	  case NetNet::TRI0:            return IVL_NET_TRI0;
+	  case NetNet::TRI1:            return IVL_NET_TRI1;
+	  case NetNet::TRIREG:          return IVL_NET_TRIREG;
+	  case NetNet::TRIAND:          return IVL_NET_TRIAND;
+	  case NetNet::TRIOR:           return IVL_NET_TRIOR;
+	  case NetNet::SUPPLY0:         return IVL_NET_SUPPLY0;
+	  case NetNet::SUPPLY1:         return IVL_NET_SUPPLY1;
+	  case NetNet::UNRESOLVED_WIRE: return IVL_NET_UWIRE;
+	  default:                     return IVL_NET_NONE;
+      }
+}
+
 extern "C" ivl_lifetime_t ivl_signal_lifetime(ivl_signal_t net)
 {
       assert(net);

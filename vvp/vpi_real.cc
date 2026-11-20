@@ -43,7 +43,10 @@ static int real_var_get(int code, vpiHandle ref)
 	    return 1;
 
 	case vpiNetType:
-	    return rfp->is_interconnect ? vpiInterconnect : 0;
+	    if (rfp->is_interconnect) return vpiInterconnect;
+	    if (rfp->is_netarray)
+		  return vpi_get(code, rfp->within.parent);
+	    return rfp->is_wire ? rfp->net_type : 0;
 
 	case vpiLineNo:
 	    return 0; // Not implemented for now!

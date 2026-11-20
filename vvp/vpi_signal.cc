@@ -613,8 +613,12 @@ static int signal_get(int code, vpiHandle ref)
 
 	  case vpiNetType:
 	    if (rfp->is_interconnect) return vpiInterconnect;
+	    if (rfp->packed_view_parent)
+		  return vpi_get(code, rfp->packed_view_parent);
+	    if (rfp->is_netarray)
+		  return vpi_get(code, rfp->within.parent);
 	    if (ref->get_type_code()==vpiNet)
-		  return vpiWire;
+		  return rfp->net_type;
 	    else
 		  return vpiUndefined;
 
