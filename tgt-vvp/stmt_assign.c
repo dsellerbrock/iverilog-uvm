@@ -3674,12 +3674,9 @@ static int expr_is_assoc_default_(ivl_expr_t expr)
 	  && ivl_expr_parms(expr) == 1;
 }
 
-/* A variable-size pattern item is evaluated before the new associative map
- * has its destination fixed-child layout. If its size is wrong, replacing
- * the map would discard existing keys before a run-time check can reject it.
- * Keep this legal 7.6 form as an explicit unsupported compile boundary until
- * pattern installation can be validated transactionally. Ordinary keyed
- * dynamic/queue-to-fixed assignments are checked at run time. */
+/* A variable-size item needs a size check before the enclosing assignment
+ * can commit the pattern. Contexts without that commit boundary diagnose
+ * the unsupported form rather than allowing a partial replacement. */
 static int variable_fixed_assoc_pattern_value_(ivl_expr_t value)
 {
       ivl_type_t source = receiver_container_type_(value);
@@ -3999,6 +3996,58 @@ int draw_eval_assoc_pattern(ivl_expr_t marker, ivl_type_t element_type)
       return draw_eval_assoc_pattern_checked_(marker, element_type, -1, 0);
 }
 
+static ivl_type_t checked_assoc_pattern_element_(ivl_expr_t marker)
+{
+      if (ivl_expr_type(marker) != IVL_EX_SFUNC || !ivl_expr_name(marker)
+	  || (!expr_is_assoc_default_(marker)
+	      && strcmp(ivl_expr_name(marker), "$ivl_assoc_pattern") != 0))
+	    return 0;
+
+      ivl_type_t map_type = ivl_expr_net_type(marker);
+      if (!ivl_type_queue_assoc_compat(map_type))
+	    return 0;
+      ivl_type_t element_type = ivl_type_element(map_type);
+      if (!type_is_fixed_uarray_property_(element_type)
+	  || ivl_type_packed_dimensions(element_type) != 1)
+	    return 0;
+      /* The fixed-child layout can bind vector and object words. */
+      ivl_variable_type_t leaf = ivl_type_base(ivl_type_element(element_type));
+      return leaf == IVL_VT_REAL || leaf == IVL_VT_STRING ? 0 : element_type;
+}
+
+/* Build the replacement privately. Every item is evaluated in source
+ * order and a size mismatch leaves the flag set until the commit test.
+ * The ordinary store copies the map and binds its fixed child layout. */
+static int draw_checked_assoc_pattern_assignment_(ivl_expr_t marker,
+						   ivl_type_t element_type,
+						   ivl_signal_t signal,
+						   int property)
+{
+      int flag = allocate_flag();
+      unsigned commit = local_count++;
+      unsigned done = local_count++;
+      int64_t left = ivl_type_packed_msb(element_type, 0);
+      int64_t right = ivl_type_packed_lsb(element_type, 0);
+      unsigned size = (unsigned)((left >= right ? left - right : right - left) + 1);
+
+      fprintf(vvp_out, "    %%flag_set/imm %d, 0; pattern transaction\n", flag);
+      int errors = expr_is_assoc_default_(marker)
+	    ? draw_eval_assoc_default_checked_(marker, element_type, flag, size)
+	    : draw_eval_assoc_pattern_checked_(marker, element_type, flag, size);
+      fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d; valid pattern\n",
+	      thread_count, commit, flag);
+      fprintf(vvp_out, "    %%pop/obj 1, 0; discard invalid pattern\n");
+      fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, commit);
+      if (signal)
+	    fprintf(vvp_out, "    %%store/obj v%p_0; commit pattern\n", signal);
+      else
+	    fprintf(vvp_out, "    %%store/prop/obj %d, 0; commit pattern\n", property);
+      fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
+      clr_flag(flag);
+      return errors;
+}
+
 /* Store into the existing suffix selected by q[lo:$].  The l-value API bit
  * is essential here: ivl_lval_idx alone also denotes q[lo], whose assignment
  * is an element store with append-at-size behavior.  A suffix-slice store is
@@ -4218,42 +4267,17 @@ static int show_stmt_assign_sig_queue(ivl_statement_t net)
 
       assert(ivl_type_base(var_type) == IVL_VT_QUEUE);
 
+      if (ivl_type_queue_assoc_compat(var_type) && !ivl_lval_idx(lval)
+	  && !ivl_lval_nest(lval) && !part && ivl_stmt_opcode(net) == 0) {
+	    ivl_type_t fixed = checked_assoc_pattern_element_(rval);
+	    if (fixed)
+		  return draw_checked_assoc_pattern_assignment_(rval, fixed, var, -1);
+      }
+
       int idx = allocate_word();
       assert(idx >= 0);
         /* Save the queue maximum index value to an integer register. */
       fprintf(vvp_out, "    %%ix/load %d, %u, 0;\n", idx, ivl_signal_array_count(var));
-
-      /* Only direct module-signal stores have the commit boundary needed
-       * for a variable-source fixed-array pattern. Other contexts keep the
-       * existing explicit unsupported diagnostic. */
-      if (ivl_type_queue_assoc_compat(var_type) && !ivl_lval_idx(lval)
-          && ivl_scope_type(ivl_signal_scope(var)) == IVL_SCT_MODULE
-          && type_is_fixed_uarray_property_(element_type)
-          && ivl_type_packed_dimensions(element_type) == 1
-          && ivl_expr_type(rval) == IVL_EX_SFUNC && ivl_expr_name(rval)
-          && (expr_is_assoc_default_(rval)
-              || strcmp(ivl_expr_name(rval), "$ivl_assoc_pattern") == 0)) {
-            int flag = allocate_flag();
-            unsigned done = local_count++;
-            unsigned commit = local_count++;
-            int64_t left = ivl_type_packed_msb(element_type, 0);
-            int64_t right = ivl_type_packed_lsb(element_type, 0);
-            unsigned size = (unsigned)(left >= right ? left - right + 1 : right - left + 1);
-            fprintf(vvp_out, "    %%flag_set/imm %d, 0; pattern transaction\n", flag);
-            if (expr_is_assoc_default_(rval))
-                  errors += draw_eval_assoc_default_checked_(rval, element_type, flag, size);
-            else
-                  errors += draw_eval_assoc_pattern_checked_(rval, element_type, flag, size);
-            fprintf(vvp_out, "    %%jmp/0 T_%u.%u, %d; valid pattern\n", thread_count, commit, flag);
-            fprintf(vvp_out, "    %%pop/obj 1, 0; discard invalid pattern\n");
-            fprintf(vvp_out, "    %%jmp T_%u.%u;\n", thread_count, done);
-            fprintf(vvp_out, "T_%u.%u;\n", thread_count, commit);
-            fprintf(vvp_out, "    %%store/obj v%p_0; commit pattern\n", var);
-            fprintf(vvp_out, "T_%u.%u;\n", thread_count, done);
-            clr_flag(flag);
-            clr_word(idx);
-            return errors;
-      }
 
       if (ivl_type_queue_assoc_compat(var_type)
 	  && !ivl_lval_idx(lval)
@@ -5643,6 +5667,13 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 	    int whole_fixed_container_array = whole_fixed_leaf
 		  && (ivl_type_base(whole_fixed_leaf) == IVL_VT_QUEUE
 		      || ivl_type_base(whole_fixed_leaf) == IVL_VT_DARRAY);
+	    ivl_type_t checked_pattern_element =
+		  ivl_type_base(sig_type) == IVL_VT_CLASS
+		  && !ivl_type_is_interface(sig_type)
+		  && ivl_type_queue_assoc_compat(prop_type)
+		  && !ivl_lval_nest(lval) && !fixed_slot_expr
+		  && !ivl_lval_part_off(lval) && ivl_stmt_opcode(net) == 0
+		  ? checked_assoc_pattern_element_(rval) : 0;
 
 	    /* A null class receiver suppresses a property store. A null VIF
 	       receiver is fatal before the shared null-class guard can skip it. */
@@ -5665,7 +5696,12 @@ static int show_stmt_assign_sig_cobject(ivl_statement_t net)
 			  fixed_slot_in_range_flag);
 	    }
 
-	    if (fixed_array_slice) {
+	    if (checked_pattern_element) {
+		  errors += draw_checked_assoc_pattern_assignment_(
+			rval, checked_pattern_element, 0, prop_idx);
+		  fprintf(vvp_out, "    %%pop/obj 1, 0; pattern receiver\n");
+
+	    } else if (fixed_array_slice) {
 		  ivl_type_t slice_element_type = ivl_type_element(lval_type);
 
 		  if (ivl_lval_part_off(lval) || ivl_stmt_opcode(net) != 0
