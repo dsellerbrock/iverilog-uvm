@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "issue3978_property_position.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "issue3978_property_position"
+  ],
+  "gold": "issue3978_property_position"
+}

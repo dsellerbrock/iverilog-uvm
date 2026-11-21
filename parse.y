@@ -3196,14 +3196,16 @@ static Module::port_t *module_declare_explicit_port(
 %type <event_statement> clocking_event_opt
 %type <clocking_skew> clocking_skew clocking_skew_opt clocking_skew_delay_opt
 %type <sva_prop> property_expr property_spec sva_multiclock_seq
+  sva_property_operator sva_property_sequence sva_grouped_property_operator
+  sva_comb_actual
 %type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
   sva_grouped_seq_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay sva_seq_delayed
 %type <sva_seq>  sva_seq_grouped_delay sva_seq_postfix sva_seq_decl_expr
-%type <expr> sva_sequence_actual sva_property_initializer_opt
+%type <expr> sva_sequence_actual sva_property_actual sva_property_initializer_opt
 %type <expr> assertion_actual
-%destructor { delete $$; } sva_sequence_actual sva_property_initializer_opt assertion_actual
+%destructor { delete $$; } sva_sequence_actual sva_property_actual sva_property_initializer_opt assertion_actual
 %type <subroutine_call> sva_match_call
 %type <sva_item> sva_match_item
 %type <sva_items> sva_match_item_list
@@ -3214,6 +3216,8 @@ static Module::port_t *module_declare_explicit_port(
 %type <sva_case_items> property_case_items
 %destructor { pform_sva_destroy_property($$); }
   property_expr property_spec sva_multiclock_seq
+  sva_property_operator sva_property_sequence sva_grouped_property_operator
+  sva_comb_actual
   sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
   sva_grouped_seq_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
@@ -3564,6 +3568,9 @@ static Module::port_t *module_declare_explicit_port(
    complete sequence expression. At a comma after a directly written
    expression, shift into the existing sequence match-item productions. */
 %precedence sva_group_operand
+/* Preserve the existing conditional-event parse for a bare `a iff b'
+   actual. Named-property binding also recognizes its property reading. */
+%precedence K_iff
 %precedence ')' ','
 
 %%
@@ -10287,51 +10294,19 @@ sva_mc_tail
   ;
 
 property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
+  : sva_property_sequence
+      { $$ = $1; }
+  | sva_property_operator
+      { $$ = $1; }
+  ;
+
+sva_property_sequence
   : sva_seq_expr
       { sva_property_t*p = new sva_property_t;
 	p->seq = $1; p->op_type = 0;
 	$$ = p; }
   | sva_multiclock_seq
       { $$ = $1; }
-  /* IEEE 1800-2017/2023 16.13.3: a clocked subsequence keeps its internal
-     clock flow within its parentheses. An enclosing implication resumes
-     with the property clock after the group closes. */
-  | '(' sva_multiclock_seq ')' K_PIPE_IMPL_OV sva_seq_expr
-      { $$ = pform_sva_multiclock_grouped_sequence_implication(
-		@4, 1, nullptr, nullptr, $2, $5); }
-  | '(' sva_multiclock_seq ')' K_PIPE_IMPL_NOV sva_seq_expr
-      { $$ = pform_sva_multiclock_grouped_sequence_implication(
-		@4, 2, nullptr, nullptr, $2, $5); }
-  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value
-	'(' sva_multiclock_seq ')' K_PIPE_IMPL_OV sva_seq_expr
-      { $$ = pform_sva_multiclock_grouped_sequence_implication(
-		@7, 1, $1, $3, $5, $8); }
-  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value
-	'(' sva_multiclock_seq ')' K_PIPE_IMPL_NOV sva_seq_expr
-      { $$ = pform_sva_multiclock_grouped_sequence_implication(
-		@7, 2, $1, $3, $5, $8); }
-  /* IEEE 1800-2017 A.2.10: `property_expr ::= ( property_expr )'. A fully
-     parenthesized property is the shape emitted by every macro that wraps
-     its argument -- e.g. OpenTitan's `ASSERT' expands to
-     `assert property (@(posedge clk) disable iff (...) (__prop))'.
-     Parens holding only a sequence (or a plain boolean) stay on the
-     sva_seq_atom path: that is a shift/reduce conflict on the closing
-     ')' which bison resolves as a shift, so `(a)' and `(a ##1 b)' keep
-     their existing sequence meaning. This production engages only when
-     the parens contain property structure that no sequence rule accepts,
-     such as an implication. */
-  | '(' property_expr ')'
-      { $$ = $2; }
-  /* A clocked sequence property may itself be grouped. Preserve the
-     explicit consequent clock until an enclosing implication supplies
-     its overlapping/nonoverlapping clock-flow boundary (16.13). */
-  /* IEEE 1800-2023 16.13.2: a parenthesized implication with its own
-     leading clock, e.g. the operands of 16.13.7's
-     `(@(posedge clk1) s1 |-> p1) and (@(posedge clk2) s2 |-> p2)'. */
-  | '(' event_control sva_seq_expr K_PIPE_IMPL_OV property_expr ')'
-      { $$ = pform_sva_clocked_paren_impl(@4, $2, 1, $3, $5); }
-  | '(' event_control sva_seq_expr K_PIPE_IMPL_NOV property_expr ')'
-      { $$ = pform_sva_clocked_paren_impl(@4, $2, 2, $3, $5); }
   | sva_grouped_clocked_leaf
       { $$ = $1; }
   | '(' event_control sva_seq_expr sva_mc_tail ')'
@@ -10345,6 +10320,49 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
      grouped prefix exact: a global `sva_seq_comb ## ...' alternative would
      overlap every ordinary linear sequence concatenation. */
   | sva_grouped_seq_concat
+      { $$ = $1; }
+  /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
+     same interval. For equal-length fixed operands this lowers to a
+     per-cycle AND chain the linear engine handles directly. */
+  /* IEEE 1800-2017 16.9.6: `within' — s1 occurs inside s2's interval.
+     Lowered to a $past-sampled combinational match indicator. */
+  | sva_seq_expr K_within sva_seq_expr
+      { $$ = pform_sva_seq_within(@2, $1, $3); }
+  | sva_seq_comb %prec sva_seq_comb_done
+      { $$ = $1; }
+  /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
+     every cycle of the sequence. Fixed-length seq keeps the legacy
+     source-level lowering; a variable-length seq (##[m:n]/##[m:$]/
+     [*m:n]) builds a SEQ_THROUGHOUT tree for the automaton engine. */
+  | expression K_throughout sva_seq_expr
+      { $$ = pform_sva_seq_throughout(@2, $1, $3); }
+  | sva_dist_expr K_throughout sva_seq_expr
+      { $$ = pform_sva_seq_throughout(@2, $1, $3); }
+  | '(' sva_property_sequence ')'
+      { $$ = $2; }
+  ;
+
+/* Property-only syntax can also appear as an actual or a formal default.
+   Keep its kind here since a constructor can lower it to a plain chain. */
+sva_property_operator
+  /* IEEE 1800-2017/2023 16.13.3: a clocked subsequence keeps its internal
+     clock flow within its parentheses. An enclosing implication resumes
+     with the property clock after the group closes. */
+  : '(' sva_multiclock_seq ')' K_PIPE_IMPL_OV sva_seq_expr
+      { $$ = pform_sva_multiclock_grouped_sequence_implication(
+		@4, 1, nullptr, nullptr, $2, $5); }
+  | '(' sva_multiclock_seq ')' K_PIPE_IMPL_NOV sva_seq_expr
+      { $$ = pform_sva_multiclock_grouped_sequence_implication(
+		@4, 2, nullptr, nullptr, $2, $5); }
+  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value
+	'(' sva_multiclock_seq ')' K_PIPE_IMPL_OV sva_seq_expr
+      { $$ = pform_sva_multiclock_grouped_sequence_implication(
+		@7, 1, $1, $3, $5, $8); }
+  | sva_seq_expr K_CYCLE_DELAY sva_cycle_delay_value
+	'(' sva_multiclock_seq ')' K_PIPE_IMPL_NOV sva_seq_expr
+      { $$ = pform_sva_multiclock_grouped_sequence_implication(
+		@7, 2, $1, $3, $5, $8); }
+  | sva_grouped_property_operator
       { $$ = $1; }
   /* IEEE 1800-2017 A.2.10: the consequent is recursively a complete
      property_expr. Keeping this as the grammar's single ordinary
@@ -10436,10 +10454,12 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
   | K_strong '(' sva_seq_expr ')'
       { sva_property_t*p = new sva_property_t;
 	p->seq = $3; p->op_type = 0; p->strength = 1;
+	p->explicit_sequence_strength = true;
 	$$ = p; }
   | K_weak '(' sva_seq_expr ')'
       { sva_property_t*p = new sva_property_t;
 	p->seq = $3; p->op_type = 0; p->strength = 0;
+	p->explicit_sequence_strength = true;
 	$$ = p; }
   /* Diagnosed sorries: liveness/product operators the token-pipeline
      engine does not implement. The assertion is dropped with a clear
@@ -10538,13 +10558,6 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_prop_if(@1, pform_sva_prop_condition(@1, $3), $5, $7); }
   | K_case '(' expression ')' property_case_items K_endcase
       { $$ = pform_sva_case(@1, $3, $5); }
-  /* IEEE 1800-2017 16.9.6: `intersect' — both operands match over the
-     same interval. For equal-length fixed operands this lowers to a
-     per-cycle AND chain the linear engine handles directly. */
-  /* IEEE 1800-2017 16.9.6: `within' — s1 occurs inside s2's interval.
-     Lowered to a $past-sampled combinational match indicator. */
-  | sva_seq_expr K_within sva_seq_expr
-      { $$ = pform_sva_seq_within(@2, $1, $3); }
   /* IEEE 1800-2017 16.9.5-.7: sequence `and'/`or'/`intersect'. Regular-
      language combinators the linear engine cannot express: they build
      a stage-B combinator tree (`sva_seq_comb', below) for the
@@ -10598,16 +10611,17 @@ property_expr /* IEEE1800-2012 A.2.10, M9 sequence chains */
       { $$ = pform_sva_tree_implication(@2, 1, $1, $3); }
   | sva_grouped_seq_comb K_PIPE_IMPL_NOV sva_grouped_seq_comb
       { $$ = pform_sva_tree_implication(@2, 2, $1, $3); }
-  | sva_seq_comb %prec sva_seq_comb_done
-      { $$ = $1; }
-  /* IEEE 1800-2017 16.9.9: `guard throughout seq` — guard must hold at
-     every cycle of the sequence. Fixed-length seq keeps the legacy
-     source-level lowering; a variable-length seq (##[m:n]/##[m:$]/
-     [*m:n]) builds a SEQ_THROUGHOUT tree for the automaton engine. */
-  | expression K_throughout sva_seq_expr
-      { $$ = pform_sva_seq_throughout(@2, $1, $3); }
-  | sva_dist_expr K_throughout sva_seq_expr
-      { $$ = pform_sva_seq_throughout(@2, $1, $3); }
+  ;
+
+/* Plain parenthesized expressions and sequences take their own grammar. */
+sva_grouped_property_operator
+  : '(' sva_property_operator ')'
+      { $$ = $2; if ($$) $$->grouped_property_operator = true; }
+  /* IEEE 1800-2023 16.13.2: a grouped implication may carry its own clock. */
+  | '(' event_control sva_seq_expr K_PIPE_IMPL_OV property_expr ')'
+      { $$ = pform_sva_clocked_paren_impl(@4, $2, 1, $3, $5); }
+  | '(' event_control sva_seq_expr K_PIPE_IMPL_NOV property_expr ')'
+      { $$ = pform_sva_clocked_paren_impl(@4, $2, 2, $3, $5); }
   ;
 
   /* IEEE 1800-2017 16.12.8: `case' property branches. A matched branch is
@@ -10671,17 +10685,11 @@ sva_comb_atom
       { $$ = $1; }
   | '(' sva_seq_comb ')'
       { $$ = $2; }
-  /* IEEE 1800-2023 16.12.4/16.12.5: `or'/`and' also combine full
-     properties, e.g. `(a |-> b) and (c |-> d)'. A parenthesized sequence
-     or sequence combinator still takes the two sequence atoms above (the
-     shift on `)' is preferred), so only property structure reaches this
-     atom, and pform_sva_tree_comb then builds a property-level operator. */
-  | '(' property_expr ')'
+  /* Use the same grouped property productions as assertions and actuals. */
+  | '(' sva_property_sequence ')'
       { $$ = $2; }
-  | '(' event_control sva_seq_expr K_PIPE_IMPL_OV property_expr ')'
-      { $$ = pform_sva_clocked_paren_impl(@4, $2, 1, $3, $5); }
-  | '(' event_control sva_seq_expr K_PIPE_IMPL_NOV property_expr ')'
-      { $$ = pform_sva_clocked_paren_impl(@4, $2, 2, $3, $5); }
+  | sva_grouped_property_operator
+      { $$ = $1; }
   ;
 
 /* At a property boundary, a complete parenthesized combinator may be the
@@ -14471,14 +14479,36 @@ sva_sequence_actual
       }
   ;
 
+sva_property_actual
+  : sva_property_operator
+      { pform_requires_sv(@1, "Property actual");
+        $$ = $1 ? new PESvaActual(PESvaActual::PROPERTY, $1, pform_peek_scope())
+                : nullptr;
+        if ($$) FILE_NAME($$, @1);
+      }
+  | sva_comb_actual
+      { pform_requires_sv(@1, "Assertion actual");
+        $$ = $1 ? new PESvaActual($1->pa ? PESvaActual::PROPERTY : PESvaActual::SEQUENCE,
+                                  $1, pform_peek_scope()) : nullptr;
+        if ($$) FILE_NAME($$, @1);
+      }
+  ;
+
+sva_comb_actual
+  : sva_seq_comb
+  | sva_grouped_seq_comb
+  ;
+
 sva_property_initializer_opt
   : initializer_opt
+  | '=' sva_property_actual { $$ = $2; }
   | '=' sva_sequence_actual { $$ = $2; }
   ;
 
 assertion_actual
   : event_actual
   | sva_sequence_actual
+  | sva_property_actual
   ;
 
 argument

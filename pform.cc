@@ -10558,6 +10558,7 @@ static void sva_decl_property_forget_sampled_(const sva_property_t*p)
       if (!p) return;
       sva_expr_forget_sampled_(p->disable_iff_expr);
       sva_expr_forget_sampled_(p->abort_cond);
+      sva_expr_forget_sampled_(p->pcond);
       sva_decl_sequence_forget_sampled_(p->antecedent);
       sva_decl_sequence_forget_sampled_(p->mc_prefix);
       sva_decl_sequence_forget_sampled_(p->seq);
@@ -10566,15 +10567,18 @@ static void sva_decl_property_forget_sampled_(const sva_property_t*p)
       if (p->mc_more)
 	    for (size_t i = 0 ; i < p->mc_more->size() ; i += 1)
 		  sva_decl_sequence_forget_sampled_((*p->mc_more)[i].chain);
+      sva_decl_property_forget_sampled_(p->pa);
+      sva_decl_property_forget_sampled_(p->pb);
 }
 
-static bool sva_actual_refs_name_(const sva_property_t*payload, perm_string name)
+static bool sva_actual_chain_refs_name_(
+      const std::vector<sva_seq_step_t>*chain, perm_string name)
 {
-      if (!payload->seq) return false;
+      if (!chain) return false;
       auto refers = [name](const PExpr*expr) {
 	    return expr && expr->refs_name(name);
       };
-      for (const sva_seq_step_t&step : *payload->seq) {
+      for (const sva_seq_step_t&step : *chain) {
 	    if (refers(step.expr) || refers(step.delay_lo_expr)
 		|| refers(step.delay_hi_expr) || refers(step.rep_lo_expr)
 		|| refers(step.rep_hi_expr))
@@ -10587,13 +10591,38 @@ static bool sva_actual_refs_name_(const sva_property_t*payload, perm_string name
       return false;
 }
 
+static bool sva_actual_tree_refs_name_(const sva_stree_t*tree, perm_string name)
+{
+      return tree && (sva_actual_chain_refs_name_(tree->chain, name)
+	  || (tree->gexpr && tree->gexpr->refs_name(name))
+	  || sva_actual_tree_refs_name_(tree->a, name)
+	  || sva_actual_tree_refs_name_(tree->b, name));
+}
+
+static bool sva_actual_refs_name_(const sva_property_t*p, perm_string name)
+{
+      if (!p) return false;
+      for (const PExpr*expr : {p->pcond, p->abort_cond, p->disable_iff_expr})
+	    if (expr && expr->refs_name(name)) return true;
+      if (p->mc_more)
+	    for (const auto&segment : *p->mc_more)
+		  if (sva_actual_chain_refs_name_(segment.chain, name)) return true;
+      return sva_actual_chain_refs_name_(p->seq, name)
+	  || sva_actual_chain_refs_name_(p->antecedent, name)
+	  || sva_actual_chain_refs_name_(p->mc_prefix, name)
+	  || sva_actual_tree_refs_name_(p->tree, name)
+	  || sva_actual_tree_refs_name_(p->ante_tree, name)
+	  || sva_actual_refs_name_(p->pa, name)
+	  || sva_actual_refs_name_(p->pb, name);
+}
+
 static bool sva_actual_uses_assertion_locals_(const sva_property_t*payload);
 
 PESvaActual::PESvaActual(syntax_t syntax, sva_property_t*payload,
 			 LexicalScope*scope)
 : syntax_(syntax), payload_(payload), scope_(scope)
 {
-      uses_local_ = sva_actual_uses_assertion_locals_(payload_);
+      uses_local_ = scope_ && sva_actual_uses_assertion_locals_(payload_);
       /* The monitor is hoisted out of procedural blocks, and the parser
 	 can discard an empty block. Preserve the enclosing scope for its
 	 design operands and diagnose actuals that need a block-local value. */
@@ -10624,6 +10653,18 @@ std::vector<sva_seq_step_t>* PESvaActual::take_sequence()
       auto*seq = payload_->seq;
       payload_->seq = nullptr;
       return seq;
+}
+
+sva_property_t* PESvaActual::take_property()
+{
+      sva_property_t*p = payload_;
+      payload_ = nullptr;
+      return p;
+}
+
+bool PESvaActual::refs_name(perm_string name) const
+{
+      return sva_actual_refs_name_(payload_, name);
 }
 
 void PESvaActual::dump(std::ostream&out) const
@@ -12229,6 +12270,8 @@ static bool sva_names_(const PExpr*e, perm_string name)
       if (!e) return false;
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(e))
 	    return pform_name_refs_name(id->path().name, name);
+      if (const auto*actual = dynamic_cast<const PESvaActual*>(e))
+	    return actual->refs_name(name);
       if (const PECallFunction*c = dynamic_cast<const PECallFunction*>(e)) {
 	    if (pform_name_refs_name(c->path().name, name)) return true;
 	    for (const named_pexpr_t&a : c->get_parms())
@@ -12305,10 +12348,23 @@ struct sva_rec_occ_t {
       bool whole;           // the occurrence is a whole sequence step
 };
 
+static void sva_rec_walk_(const sva_property_t*p, long base, bool exact,
+			  int neg, std::vector<sva_rec_occ_t>&out);
+
 static void sva_rec_expr_(const PExpr*e, long w, bool exact, int neg,
 			  std::vector<sva_rec_occ_t>&out, bool whole = false)
 {
       if (!e) return;
+      if (const auto*actual = dynamic_cast<const PESvaActual*>(e)) {
+	    // Only substitution establishes when (and if) the actual runs.
+	    size_t first = out.size();
+	    sva_rec_walk_(actual->payload(), w, false, neg, out);
+	    for (size_t i = first; i < out.size(); ++i) {
+		  out[i].weight = w;
+		  out[i].whole = false;
+	    }
+	    return;
+      }
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(e)) {
 	    const pform_name_t&path = id->path().name;
 	    if (!id->path().package && path.size() == 1
@@ -12425,6 +12481,11 @@ static void sva_rec_walk_(const sva_property_t*p, long base, bool exact,
       if (p->mc_prefix || p->seq_clk_evt
 	  || (p->mc_more && !p->mc_more->empty()))
 	    exact = false;
+      bool mc_exact = false;
+      sva_rec_chain_(p->mc_prefix, base, mc_exact, pneg, &out);
+      if (p->mc_more)
+	    for (const auto&segment : *p->mc_more)
+		  sva_rec_chain_(segment.chain, base, mc_exact, pneg, &out);
       if (p->pa) {
 	    bool e = exact;
 	    if (op == 23 || op == 24 || op == 25) {
@@ -12525,6 +12586,10 @@ static void sva_rec_graph_(sva_rec_graph_t&g, sva_rec_occs_t&occs)
 	    const sva_property_t*body = sva_rec_body_(p, &formals);
 	    std::vector<sva_rec_occ_t> all;
 	    sva_rec_walk_(body, 0, true, 0, all);
+	    if (formals)
+		  for (const auto&formal : *formals)
+			if (dynamic_cast<const PESvaActual*>(formal.default_expr))
+			      sva_rec_expr_(formal.default_expr, 0, false, 0, all);
 	    std::map<sva_scoped_name_t, sva_rec_edge_t>&out = g[p];
 	    std::vector<sva_rec_occ_t>&kept = occs[p];
 	    for (const sva_rec_occ_t&o : all) {
@@ -13937,7 +14002,7 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	    if (actual->uses_local()) {
 		  cerr << actual->get_fileline() << ": sorry: a temporal actual "
 		       << "that refers to a caller local is not supported in "
-		       << "flat named-property substitution." << endl;
+		       << "named-property substitution." << endl;
 		  error_count += 1;
 		  return nullptr;
 	    }
@@ -14343,9 +14408,11 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
       return nullptr;
 }
 
-/* A substituted formal can be forwarded to another named sequence. Keep a
-   marker on the actual's expression root so that later clones do not rebind
-   its identifiers in the declaration scope of the intermediate sequence. */
+static bool sva_prop_is_plain_seq_(const sva_property_t*prop);
+static bool sva_step_is_single_boolean_(const sva_seq_step_t&step);
+
+/* Keep the call-site scope of substituted expressions, including when
+   they are forwarded to an intermediate declaration. */
 static PExpr* sva_clone_subst_(PExpr*e,
 			       const std::map<perm_string,PExpr*>*subst)
 {
@@ -14367,6 +14434,30 @@ static PExpr* sva_clone_subst_(PExpr*e,
       }
       PExpr*copy = sva_clone_subst_impl_(e, subst);
       if (copy && actual_scope) sva_copy_actual_scope_(e, copy);
+      // A property constructor may have lowered this operand to Boolean
+      // IR before the actual was available. Unwrap only a complete
+      // single-tick operand at that marked position.
+      if (copy && e->sva_property_operand()) {
+	    if (auto*actual = dynamic_cast<PESvaActual*>(copy)) {
+		  const auto*operand = actual->payload();
+		  if (!sva_prop_is_plain_seq_(operand) || operand->seq->size() != 1
+		      || !sva_step_is_single_boolean_(operand->seq->front())
+		      || !operand->seq->front().items.empty()
+		      || !operand->seq->front().expr) {
+			cerr << e->get_fileline() << ": sorry: this property "
+			     << "operator requires a single Boolean operand "
+			     << "in this lowering." << endl;
+			error_count += 1;
+			delete actual;
+			return nullptr;
+		  }
+		  sva_seq_step_t&step = operand->seq->front();
+		  copy = step.expr;
+		  step.expr = nullptr;
+		  delete actual;
+	    }
+	    copy->mark_sva_property_operand();
+      }
       return copy;
 }
 
@@ -14487,6 +14578,7 @@ static bool sva_names_decl_formal_(const PExpr*expr)
 void pform_sva_single_delay(const struct vlltype&loc,
                            sva_seq_step_t&step, PExpr*delay)
 {
+      step.explicit_sequence = true;
       if (pform_sva_overridable_bound(delay)
           && step.delay_lo >= 0 && step.delay_hi >= 0) {
             PExpr*copy = sva_clone_expr_(delay);
@@ -16464,6 +16556,7 @@ static Statement* sva_hist_on_stmt_(const struct vlltype&loc,
 
 static bool sva_expr_reads_lv_(PExpr*e,
 			       const std::map<perm_string,unsigned>&lv);
+static sva_property_t* sva_wrap_bool_(PExpr*e);
 
 /* Bind property actuals using their retained formal types and defaults.
    Local input formals map to generated local names and separate initializer
@@ -16554,6 +16647,37 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 	    PEEvent*event = dynamic_cast<PEEvent*>(actual);
 	    PEEventList*events = dynamic_cast<PEEventList*>(actual);
 	    if (event || events) {
+		  // Without an edge keyword, a single `a iff b' can also be
+		  // a property. Keep the event reading available to clock uses.
+		  const PEEvent*term = event;
+		  if (events && events->events().size() == 1)
+			term = events->events().front();
+		  if (term && term->type() == PEEvent::ANYEDGE && term->condition()
+		      && (formal.formal_type == sva_property_formal_t::PROPERTY
+			  || formal.formal_type == sva_property_formal_t::UNTYPED)) {
+			PExpr*left = sva_clone_subst_(term->expr(), nullptr);
+			PExpr*right = sva_clone_subst_(term->condition(), nullptr);
+			if (!left || !right) {
+			      delete left;
+			      delete right;
+			      cerr << loc << ": sorry: cannot copy the operands of "
+				   << "the property actual for `" << formal.name << "'." << endl;
+			      error_count += 1;
+			      return false;
+			}
+			auto*lhs = sva_wrap_bool_(left);
+			auto*rhs = sva_wrap_bool_(right);
+			auto*payload = pform_sva_prop_iff(loc, lhs->seq, rhs->seq);
+			delete lhs;
+			delete rhs;
+			auto*temporal = new PESvaActual(PESvaActual::PROPERTY,
+			      payload, pform_peek_scope());
+			temporal->set_line(*actual);
+			owned.push_back(temporal);
+			subst[formal.name] = temporal;
+			if (formal.formal_type == sva_property_formal_t::PROPERTY)
+			      continue;
+		  }
 		  if (formal.formal_type != sva_property_formal_t::EVENT
 		      && formal.formal_type != sva_property_formal_t::UNTYPED) {
 			cerr << loc << ": error: property `" << nm << "' formal `"
@@ -16631,6 +16755,24 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 		       << "' is missing required argument `" << formal.name << "'." << endl;
 		  error_count += 1;
 		  return false;
+	    }
+	    if (formal.formal_type == sva_property_formal_t::PROPERTY) {
+		  // The formal occupies a property position even when the
+		  // actual uses ordinary expression syntax.
+		  if (actuals[k] && actuals[k]->parm)
+			value = sva_clone_actual_argument_(value, nullptr);
+		  if (!value) {
+			cerr << loc << ": sorry: cannot copy the actual for property "
+			     << "formal `" << formal.name << "'." << endl;
+			error_count += 1;
+			return false;
+		  }
+		  auto*temporal = new PESvaActual(PESvaActual::PROPERTY,
+			sva_wrap_bool_(value), nullptr);
+		  temporal->set_line(*value);
+		  owned.push_back(temporal);
+		  subst[formal.name] = temporal;
+		  continue;
 	    }
 	    if (formal.local_input) {
 		  if (!formal.type) {
@@ -18995,6 +19137,7 @@ static void tc_edge_vals_(PTimingCheck::EdgeType e, double&a, double&b)
 void pform_sva_range_delay(const struct vlltype&loc, sva_seq_step_t&step,
                            PExpr*lo_expr, PExpr*hi_expr)
 {
+      step.explicit_sequence = true;
       long lo = 0, hi = 0;
       if ((pform_sva_overridable_bound(lo_expr)
            || pform_sva_overridable_bound(hi_expr))
@@ -23159,6 +23302,7 @@ pform_sva_repeat(const struct vlltype&loc,
 	    delete hi;
 	    return steps;
       }
+      steps->front().explicit_sequence = true;
 
       for (size_t i = 0 ; i < steps->size() ; i += 1)
 	    if (sva_step_has_call_((*steps)[i])) {
@@ -23850,6 +23994,8 @@ pform_sva_unprop(const struct vlltype&loc, int op_type, sva_property_t*sub,
 	  && !sub->disable_iff_expr) {
 	    sva_seq_step_t&st = (*sub->seq)[0];
 	    PExpr*operand = st.expr;
+	    if (!st.explicit_sequence && st.items.empty())
+		  operand->mark_sva_property_operand();
 	    if (op_type == 9 || op_type == 10)
 		  operand = sva_booleanize_(loc, operand);
 	    PEBComp*not_true = new PEBComp('N', operand, sva_bit_(loc, 1));
@@ -23953,6 +24099,8 @@ static PExpr* sva_take_bool_seq_(const struct vlltype&loc, const char*w,
       PExpr*e = nullptr;
       if (seq->size() == 1 && sva_step_is_single_boolean_((*seq)[0])) {
 	    e = (*seq)[0].expr;
+	    if (e && !seq->front().explicit_sequence && seq->front().items.empty())
+		  e->mark_sva_property_operand();
 	    (*seq)[0].expr = nullptr;
       } else {
 	    cerr << loc << ": sorry: `" << w << "' is supported only with "
@@ -23984,6 +24132,9 @@ static PExpr* sva_take_bool_prop_(const struct vlltype&loc, const char*w,
       PExpr*e = nullptr;
       if (ok) {
 	    e = (*sub->seq)[0].expr;
+	    if (e && !sub->explicit_sequence_strength
+		&& !sub->seq->front().explicit_sequence && sub->seq->front().items.empty())
+		  e->mark_sva_property_operand();
 	    (*sub->seq)[0].expr = nullptr;
       } else {
 	    cerr << loc << ": sorry: `" << w << "' is supported only with a "
@@ -25470,14 +25621,15 @@ static bool sva_prop_is_plain_seq_(const sva_property_t*prop)
 	     && !prop->disable_iff_expr && prop->strength == 0;
 }
 
-static bool sva_call_has_temporal_actual_(const PExpr*expr)
+static bool sva_call_has_temporal_actual_(const PExpr*expr, bool sequence_only = false)
 {
       const auto*call = dynamic_cast<const PECallFunction*>(expr);
       if (!call) return false;
       const auto&args = call->get_parms();
-      return std::any_of(args.begin(), args.end(), [](const named_pexpr_t&arg) {
-	    return dynamic_cast<const PESvaActual*>(arg.parm)
-		  || sva_call_has_temporal_actual_(arg.parm);
+      return std::any_of(args.begin(), args.end(), [sequence_only](const named_pexpr_t&arg) {
+	    const auto*actual = dynamic_cast<const PESvaActual*>(arg.parm);
+	    return (actual && (!sequence_only || actual->syntax() == PESvaActual::SEQUENCE))
+		  || sva_call_has_temporal_actual_(arg.parm, sequence_only);
       });
 }
 
@@ -25486,8 +25638,8 @@ static bool sva_tree_has_temporal_actual_(const sva_stree_t*tree)
       if (!tree) return false;
       if (tree->chain)
 	    for (const sva_seq_step_t&step : *tree->chain)
-		  if (sva_call_has_temporal_actual_(step.expr)) return true;
-      return sva_call_has_temporal_actual_(tree->gexpr)
+		  if (sva_call_has_temporal_actual_(step.expr, true)) return true;
+      return sva_call_has_temporal_actual_(tree->gexpr, true)
 	  || sva_tree_has_temporal_actual_(tree->a)
 	  || sva_tree_has_temporal_actual_(tree->b);
 }
@@ -25509,8 +25661,9 @@ static bool sva_materialize_actuals_(const struct vlltype&loc,
 	    }
 	    auto*payload = actual->payload();
 	    bool zero_gap = step.delay_lo == 0 && step.delay_hi == 0;
-	    bool unmodified = zero_gap && step.items.empty()
-		  && !step.rep_tail && !step.rep_kind && !step.grouped_repeat && !step.fm;
+	    bool unmodified = sva_step_is_single_boolean_(step) && step.items.empty()
+		  && !step.explicit_sequence
+		  && !step.delay_lo_expr && !step.delay_hi_expr;
 	    if (actual->syntax() == PESvaActual::PROPERTY
 		&& !(property_position && steps->size() == 1 && unmodified)) {
 		  cerr << loc << ": error: a property formal requires a property "
@@ -26175,11 +26328,12 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
       if (sva_prop_is_plain_seq_(conseq)) {
 	    std::vector<sva_seq_step_t>*chain = conseq->seq;
 	    conseq->seq = nullptr;
-	    pform_sva_destroy_property(conseq);
 	    sva_property_t*p = new sva_property_t;
 	    p->antecedent = ante;
 	    p->seq = chain;
 	    p->op_type = op_type;
+	    p->explicit_sequence_strength = conseq->explicit_sequence_strength;
+	    pform_sva_destroy_property(conseq);
 	    return p;
       }
 
@@ -26246,6 +26400,8 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 		  pform_sva_destroy_property(conseq);
 		  return nullptr;
 	    }
+	    if (!st.explicit_sequence && st.items.empty())
+		  st.expr->mark_sva_property_operand();
 	    st.delay_lo = lo;
 	    st.delay_hi = hi;
 	    std::vector<sva_seq_step_t>*chain = conseq->seq;
@@ -26289,6 +26445,8 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 	  && !conseq->seq_clk_evt && !conseq->mc_prefix
 	  && !conseq->disable_iff_expr) {
 	    sva_seq_step_t&st = (*conseq->seq)[0];
+	    if (!st.explicit_sequence && st.items.empty())
+		  st.expr->mark_sva_property_operand();
 	    st.expr = sva_not_(loc, st.expr);
 	    st.delay_lo = (conseq->win_lo < 0) ? 0 : conseq->win_lo;
 	    st.delay_hi = (conseq->win_hi < 0) ? -1 : conseq->win_hi;
@@ -26320,6 +26478,10 @@ sva_property_t* pform_sva_paren_conseq(const struct vlltype&loc,
 		       && ps.rep_tail == 0 && ps.rep_kind == 0
 		       && qs.delay_lo == 0 && qs.delay_hi == 0
 		       && qs.rep_tail == 0 && qs.rep_kind == 0;
+	    if (plain && !ps.explicit_sequence && ps.items.empty())
+		  ps.expr->mark_sva_property_operand();
+	    if (plain && !qs.explicit_sequence && qs.items.empty())
+		  qs.expr->mark_sva_property_operand();
 	    PExpr*pc = plain ? sva_clone_expr_(ps.expr) : nullptr;
 	    PExpr*qc = plain ? sva_clone_expr_(qs.expr) : nullptr;
 	    if (!plain || !pc || !qc) {
@@ -39082,7 +39244,8 @@ static bool sva_prop_is_property_shaped_(const sva_property_t*p)
       return p && (p->pa || p->op_type != 0 || p->antecedent || p->ante_tree
 		   || p->seq_clk_evt || p->mc_prefix
 		   || (p->mc_more && !p->mc_more->empty())
-		   || p->strength != 0 || p->disable_iff_expr);
+		   || p->strength != 0 || p->disable_iff_expr
+		   || p->grouped_property_operator);
 }
 
 /* Deep copy of a property, used to instantiate a named property operand
@@ -39109,6 +39272,8 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
       p->mc_antecedent_domains = src->mc_antecedent_domains;
       p->tree_sorry = src->tree_sorry;
       p->strength = src->strength;
+      p->explicit_sequence_strength = src->explicit_sequence_strength;
+      p->grouped_property_operator = src->grouped_property_operator;
       p->op_type = src->op_type;
       p->forbidden_consequent = src->forbidden_consequent;
       p->win_lo = src->win_lo;
@@ -39164,6 +39329,213 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
 	    return nullptr;
       }
       return p;
+}
+
+static bool sva_materialize_tree_actuals_(const struct vlltype&loc, sva_stree_t*t)
+{
+      return !t || (sva_materialize_actuals_(loc, t->chain, false)
+	  && sva_materialize_tree_actuals_(loc, t->a)
+	  && sva_materialize_tree_actuals_(loc, t->b));
+}
+
+static PESvaActual* sva_whole_property_actual_(
+      const std::vector<sva_seq_step_t>*chain)
+{
+      if (!chain || chain->size() != 1) return nullptr;
+      const sva_seq_step_t&step = chain->front();
+      auto*actual = dynamic_cast<PESvaActual*>(step.expr);
+      return actual && actual->syntax() == PESvaActual::PROPERTY
+	  && sva_step_is_single_boolean_(step) && step.items.empty()
+	  && !step.explicit_sequence
+	  && !step.delay_lo_expr && !step.delay_hi_expr ? actual : nullptr;
+}
+
+/* A shared sequence/property AND or OR becomes a property operator if
+   substitution supplies a property operand. A sequence-only operator
+   still rejects the same actual, even beneath an AND or OR. */
+static bool sva_tree_has_property_operand_(const sva_stree_t*t)
+{
+      if (!t) return false;
+      if (t->kind == sva_stree_t::LEAF)
+	    return sva_whole_property_actual_(t->chain) != nullptr;
+      return (t->kind == sva_stree_t::SEQ_AND || t->kind == sva_stree_t::SEQ_OR)
+	  && (sva_tree_has_property_operand_(t->a)
+	      || sva_tree_has_property_operand_(t->b));
+}
+
+static void sva_lift_property_consequent_(sva_property_t*p, sva_property_t*operand)
+{
+      p->pa = sva_seq_prop_(p->antecedent);
+      p->pa->tree = p->ante_tree;
+      p->antecedent = nullptr;
+      p->ante_tree = nullptr;
+      p->pb = operand;
+      p->op_type = p->op_type == 1 ? 23 : 24;
+}
+
+/* The clone owns each carrier. A whole operand can take its property
+   directly; a sequence-only position must keep the sequence grammar. */
+static bool sva_materialize_property_actuals_(const struct vlltype&loc,
+					      sva_property_t*&p,
+					      bool property_position = true)
+{
+      if (!p) return true;
+      const int op = p->op_type;
+      if (p->pa) {
+	    bool implication = op == 23 || op == 24 || op == 25;
+	    return sva_materialize_property_actuals_(loc, p->pa, !implication)
+		  && sva_materialize_property_actuals_(loc, p->pb);
+      }
+      if (!sva_materialize_actuals_(loc, p->antecedent, op >= 4 && op <= 7)
+	  || !sva_materialize_actuals_(loc, p->mc_prefix, false)
+	  || !sva_materialize_tree_actuals_(loc, p->ante_tree))
+	    return false;
+      if (p->mc_more)
+	    for (auto&segment : *p->mc_more)
+		  if (!sva_materialize_actuals_(loc, segment.chain, false))
+			return false;
+
+      property_position &= !p->explicit_sequence_strength && !p->seq_clk_evt
+	    && !p->mc_prefix && p->mc_boundary == -1 && op != 8;
+      bool implication = (op == 1 || op == 2) && !p->forbidden_consequent;
+      if (property_position && sva_tree_has_property_operand_(p->tree)) {
+	    sva_stree_t*t = p->tree;
+	    if (implication) {
+		  p->tree = nullptr;
+		  auto*operand = new sva_property_t;
+		  operand->tree = t;
+		  sva_lift_property_consequent_(p, operand);
+		  return sva_materialize_property_actuals_(loc, p->pb);
+	    }
+	    if (op == 0) {
+		  p->tree = nullptr;
+		  if (t->kind == sva_stree_t::LEAF) {
+			p->seq = t->chain;
+		  } else {
+			p->op_type = t->kind == sva_stree_t::SEQ_AND ? 20 : 21;
+			p->pa = new sva_property_t;
+			p->pa->tree = t->a;
+			p->pb = new sva_property_t;
+			p->pb->tree = t->b;
+		  }
+		  delete t;
+		  return sva_materialize_property_actuals_(loc, p);
+	    }
+      }
+      if (!sva_materialize_tree_actuals_(loc, p->tree)) return false;
+      if (property_position) {
+	    if (auto*actual = sva_whole_property_actual_(p->seq)) {
+		  if (op == 0) {
+			sva_property_t*operand = actual->take_property();
+			if (!operand->clk_evt) {
+			      operand->clk_evt = p->clk_evt;
+			      p->clk_evt = nullptr;
+			}
+			if (p->disable_iff_expr) {
+			      operand->disable_iff_expr = p->disable_iff_expr;
+			      p->disable_iff_expr = nullptr;
+			}
+			if (!operand->clocking_scope)
+			      operand->clocking_scope = p->clocking_scope;
+			operand->endpoint_event = p->endpoint_event;
+			operand->sequence_cover = p->sequence_cover;
+			operand->local_names = std::move(p->local_names);
+			operand->local_input_actual_names =
+			      std::move(p->local_input_actual_names);
+			pform_sva_destroy_property(p);
+			p = operand;
+			return sva_materialize_property_actuals_(loc, p);
+		  }
+		  if (implication) {
+			sva_lift_property_consequent_(p, actual->take_property());
+			pform_sva_destroy_sequence(p->seq);
+			p->seq = nullptr;
+			return sva_materialize_property_actuals_(loc, p->pb);
+		  }
+		  if (op >= 9 && op <= 19) {
+			const auto*operand = actual->payload();
+			bool boolean_operand = sva_prop_is_plain_seq_(operand)
+			      && operand->seq->size() == 1
+			      && sva_step_is_single_boolean_(operand->seq->front());
+			if (!boolean_operand && op >= 14 && op <= 17) {
+			      p->pa = actual->take_property();
+			      pform_sva_destroy_sequence(p->seq);
+			      p->seq = nullptr;
+			      return sva_materialize_property_actuals_(loc, p->pa);
+			}
+			if (!boolean_operand) {
+			      cerr << loc << ": sorry: this temporal property "
+				   << "operator requires a single Boolean operand "
+				   << "in this lowering." << endl;
+			      error_count += 1;
+			      return false;
+			}
+		  }
+	    }
+      }
+      return sva_materialize_actuals_(loc, p->seq, property_position);
+}
+
+/* Shared binding and cloning for whole assertions and property operands. */
+static sva_property_t* sva_instantiate_property_(const struct vlltype&loc,
+			perm_string name, const sva_param_prop_t&decl,
+			const std::vector<named_pexpr_t>&args,
+			const PEventStatement*clock,
+			const std::vector<perm_string>&caller_locals,
+			std::vector<perm_string>local_reads)
+{
+      std::map<perm_string,PExpr*> subst;
+      std::map<perm_string,const PEventStatement*> event_subst;
+      std::list<PEventStatement> event_controls;
+      std::map<perm_string,perm_string> local_carriers;
+      std::vector<PExpr*> owned;
+      auto*initializers = new std::vector<sva_seq_step_t>;
+      bool ok = sva_build_property_subst_(loc, name, decl.formals, args,
+	    clock, sva_default_disable_for_scope_(lexical_scope), subst,
+	    event_subst, event_controls, owned, *initializers, local_carriers,
+	    caller_locals, local_reads);
+      const sva_property_t*body = decl.body;
+      if (ok && (body->tree || body->ante_tree || body->pa || body->op_type > 2)
+	  && (sva_tree_has_temporal_actual_(body->tree)
+	      || sva_tree_has_temporal_actual_(body->ante_tree)
+	      || std::any_of(subst.begin(), subst.end(),
+		    [](const std::pair<const perm_string,PExpr*>&binding) {
+		    const auto*actual = dynamic_cast<PESvaActual*>(binding.second);
+		    return actual && actual->syntax() == PESvaActual::SEQUENCE;
+	      }))) {
+	    cerr << loc << ": sorry: temporal actuals of property `"
+		 << name << "' require a flat property body." << endl;
+	    error_count += 1;
+	    ok = false;
+      }
+      unsigned errors = error_count;
+      sva_property_t*inst = ok ? sva_clone_property_(loc, body, &subst, &event_subst)
+				: nullptr;
+      if (inst) {
+	    for (perm_string&local : inst->local_names) {
+		  auto carrier = local_carriers.find(local);
+		  if (carrier != local_carriers.end()) local = carrier->second;
+	    }
+	    inst->local_input_actual_names = local_reads;
+	    for (perm_string local : local_reads)
+		  if (std::find(inst->local_names.begin(), inst->local_names.end(), local)
+		      == inst->local_names.end())
+			inst->local_names.push_back(local);
+	    if (!sva_materialize_property_actuals_(loc, inst)
+		|| !sva_prepend_property_formal_inits_(loc, inst, *initializers)) {
+		  pform_sva_destroy_property(inst);
+		  inst = nullptr;
+	    }
+      }
+      if (ok && !inst && error_count == errors) {
+	    cerr << loc << ": sorry: property `" << name
+		 << "' has a body expression that cannot be instantiated with "
+		 << "arguments; the assertion is dropped." << endl;
+	    error_count += 1;
+      }
+      for (PExpr*value : owned) delete value;
+      pform_sva_destroy_sequence(initializers);
+      return inst;
 }
 
 /* `( @(c) s |-> p )': an implication with its own leading clock. */
@@ -40175,48 +40547,50 @@ static bool sva_rec_single_call_(const std::vector<sva_seq_step_t>*steps)
 	  && sva_rec_step_target_((*steps)[0], nm, nullptr);
 }
 
-/* IEEE 1800-2023 16.12: an instance of a non-recursive property whose body
-   is itself a property operator, as an operand of another property
-   operator: the body with its actuals bound. nullptr when the step is not
-   such an instance, or the body needs a path of its own (disable iff,
-   its own clock, local variables). */
+/* Nonrecursive expansion when a named property is itself an operand. */
 static sva_property_t* sva_inst_expand_(const struct vlltype&loc,
-					const sva_seq_step_t&st)
+					const sva_seq_step_t&st,
+					const PEventStatement*clock,
+					const std::vector<perm_string>&locals)
 {
       perm_string nm;
       const std::vector<named_pexpr_t>*args;
       if (!sva_inst_step_name_(st, nm, &args) || sva_rec_is_recursive_(nm))
 	    return nullptr;
-      sva_scoped_name_t key;
-      std::map<sva_scoped_name_t, sva_property_t*>::iterator a =
-	    sva_resolve_(sva_module_properties, nm);
-      std::map<sva_scoped_name_t, sva_param_prop_t>::iterator b =
-	    sva_resolve_(sva_param_properties, nm);
-      if (a != sva_module_properties.end() && a->second) key = a->first;
-      else if (b != sva_param_properties.end() && b->second.body) key = b->first;
-      else return nullptr;
-      const std::vector<sva_property_formal_t>*formals;
-      const sva_property_t*body = sva_rec_body_(key, &formals);
-      if (!body || !body->pa || body->disable_iff_expr || body->clk_evt
-	  || body->seq_clk_evt || !body->local_names.empty())
-	    return nullptr;
-      size_t nf = formals ? formals->size() : 0;
-      size_t na = args ? args->size() : 0;
-      if (na > nf) return nullptr;
-      std::map<perm_string,PExpr*> subst;
-      for (size_t j = 0 ; j < nf ; j += 1) {
-	    const sva_property_formal_t&f = (*formals)[j];
-	    if (f.local_formal) return nullptr;
-	    PExpr*act = nullptr;
-	    for (size_t i = 0 ; i < na ; i += 1) {
-		  const named_pexpr_t&x = (*args)[i];
-		  if (x.name.nil() ? i == j : x.name == f.name) act = x.parm;
-	    }
-	    if (!act) act = f.default_expr;
-	    if (!act) return nullptr;
-	    subst[f.name] = act;
+      if (!args) {
+	    auto it = sva_resolve_(sva_module_properties, nm);
+	    if (it == sva_module_properties.end() || !it->second)
+		  return nullptr;
+	    const auto*body = it->second;
+	    if (!body->pa || body->disable_iff_expr || body->clk_evt
+		|| body->seq_clk_evt || !body->local_names.empty())
+		  return nullptr;
+	    return sva_clone_property_(loc, body);
       }
-      return sva_clone_property_(loc, body, &subst);
+      auto it = sva_resolve_(sva_param_properties, nm);
+      if (it == sva_param_properties.end() || !it->second.body)
+	    return nullptr;
+      const auto*body = it->second.body;
+      if (body->disable_iff_expr) {
+	    cerr << loc << ": error: a property instance with a `disable iff' "
+		 << "clause cannot be an operand of another property "
+		 << "(IEEE 1800-2017/2023 16.12.1)." << endl;
+	    error_count += 1;
+	    return nullptr;
+      }
+      if (!body->local_names.empty())
+	    return nullptr;
+      if ((body->clk_evt || body->seq_clk_evt)
+	  && !std::any_of(args->begin(), args->end(), [](const named_pexpr_t&arg) {
+		return dynamic_cast<const PESvaActual*>(arg.parm) != nullptr;
+	  })
+	  && !std::any_of(it->second.formals.begin(), it->second.formals.end(),
+		  [](const sva_property_formal_t&formal) {
+		return formal.formal_type == sva_property_formal_t::PROPERTY
+		    || dynamic_cast<const PESvaActual*>(formal.default_expr) != nullptr;
+	  }))
+	    return nullptr;
+      return sva_instantiate_property_(loc, nm, it->second, *args, clock, locals, {});
 }
 
 /* Mark every instance of a recursive property as a CALL operand, and
@@ -40226,13 +40600,16 @@ static sva_property_t* sva_inst_expand_(const struct vlltype&loc,
    is left to the assertion's own expansion. True when the property
    changed shape (it now needs the composite engine). */
 static bool sva_rec_mark_calls_(const struct vlltype&loc, sva_property_t*&p,
-				bool root)
+				bool root, const PEventStatement*clock = nullptr)
 {
       if (!p) return false;
+      if (p->clk_evt) clock = p->clk_evt;
       if (p->op_type == 28) return true;
       if (p->pa) {
-	    bool a = sva_rec_mark_calls_(loc, p->pa, false);
-	    bool b = sva_rec_mark_calls_(loc, p->pb, false);
+	    bool implication = p->op_type == 23 || p->op_type == 24
+		  || p->op_type == 25;
+	    bool a = !implication && sva_rec_mark_calls_(loc, p->pa, false, clock);
+	    bool b = sva_rec_mark_calls_(loc, p->pb, false, clock);
 	    return a || b;
       }
       if (p->mc_prefix || p->seq_clk_evt || p->mc_boundary != -1)
@@ -40250,11 +40627,11 @@ static bool sva_rec_mark_calls_(const struct vlltype&loc, sva_property_t*&p,
       bool leaf = p->op_type == 0 && !p->antecedent && !p->ante_tree;
       bool impl = (p->op_type == 1 || p->op_type == 2)
 		&& (p->antecedent || p->ante_tree) && !p->forbidden_consequent;
-      if (!leaf && !impl) return false;
+      if ((!leaf && !impl) || p->explicit_sequence_strength) return false;
       bool call = sva_rec_single_call_(cons);
       sva_property_t*expanded = nullptr;
       if (!call && !(leaf && root)) {
-	    expanded = sva_inst_expand_(loc, (*cons)[0]);
+	    expanded = sva_inst_expand_(loc, (*cons)[0], clock, p->local_names);
 	    if (!expanded) return false;
       } else if (!call) {
 	    return false;
@@ -40270,16 +40647,19 @@ static bool sva_rec_mark_calls_(const struct vlltype&loc, sva_property_t*&p,
 		  p->op_type = 28;
 		  return true;
 	    }
-	    expanded->local_names = p->local_names;
+	    if (!expanded->clk_evt) {
+		  expanded->clk_evt = p->clk_evt;
+		  p->clk_evt = nullptr;
+	    }
+	    for (perm_string local : p->local_names)
+		  if (std::find(expanded->local_names.begin(), expanded->local_names.end(),
+				local) == expanded->local_names.end())
+			expanded->local_names.push_back(local);
 	    pform_sva_destroy_property(p);
 	    p = expanded;
-	    sva_rec_mark_calls_(loc, p, false);
+	    sva_rec_mark_calls_(loc, p, false, clock);
 	    return true;
       }
-      sva_property_t*ante = new sva_property_t;
-      ante->seq = p->antecedent;
-      ante->tree = p->ante_tree;
-      ante->local_names = p->local_names;
       sva_property_t*conseq;
       if (call) {
 	    conseq = new sva_property_t;
@@ -40288,15 +40668,12 @@ static bool sva_rec_mark_calls_(const struct vlltype&loc, sva_property_t*&p,
       } else {
 	    pform_sva_destroy_sequence(p->seq);
 	    conseq = expanded;
-	    sva_rec_mark_calls_(loc, conseq, false);
+	    sva_rec_mark_calls_(loc, conseq, false, clock);
       }
       conseq->local_names = p->local_names;
-      p->antecedent = nullptr;
-      p->ante_tree = nullptr;
       p->seq = nullptr;
-      p->op_type = (p->op_type == 1) ? 23 : 24;
-      p->pa = ante;
-      p->pb = conseq;
+      sva_lift_property_consequent_(p, conseq);
+      p->pa->local_names = p->local_names;
       return true;
 }
 
@@ -40429,7 +40806,9 @@ static bool sva_comp_emit_call_(const sva_comp_ctx_t&ctx, sva_property_t*p,
 		  ok = false;
 		  break;
 	    }
-	    PExpr*copy = sva_clone_expr_(act);
+	    const bool temporal = dynamic_cast<PESvaActual*>(act)
+		  || f.formal_type == sva_property_formal_t::PROPERTY;
+	    PExpr*copy = temporal ? nullptr : sva_clone_expr_(act);
 	    if (!copy) {
 		  sva_comp_sorry_(loc, "an actual argument of a recursive "
 				  "property instance cannot be copied");
@@ -43041,10 +43420,19 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
       }
 	/* IEEE 1800-2023 16.12.17: an instance of a recursive property is
 	   evaluated by the composite's recursion pool. */
-      if (!sva_sub_request_ && prop && sva_rec_mark_calls_(loc, prop, true)) {
-	    pform_make_composite_assertion_(loc, prop, fail_stmt, pass_stmt,
-					    kind);
-	    return;
+      if (!sva_sub_request_ && prop) {
+	    unsigned errors = error_count;
+	    bool changed = sva_rec_mark_calls_(loc, prop, true);
+	    if (error_count != errors) {
+		  pform_sva_destroy_property(prop);
+		  delete fail_stmt;
+		  delete pass_stmt;
+		  return;
+	    }
+	    if (changed) {
+		  pform_make_composite_assertion_(loc, prop, fail_stmt, pass_stmt, kind);
+		  return;
+	    }
       }
 	/* IEEE 1800-2023 16.12.4/16.12.5: property-level and/or. */
       if (sva_prop_is_composite_(prop)) {
@@ -43752,202 +44140,63 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 				    error_count += 1;
 				    fatal = true;
 			      }
-			      std::map<perm_string,PExpr*> subst;
-			      std::vector<PExpr*> owned_subst;
-			      std::vector<sva_seq_step_t>*formal_initializers =
-				    new std::vector<sva_seq_step_t>;
-			      std::map<perm_string,perm_string> local_carriers;
 			      std::vector<perm_string> caller_locals = prop->local_names;
 			      for (perm_string local : prop->local_input_actual_names)
 				    if (std::find(caller_locals.begin(), caller_locals.end(),
 						  local) == caller_locals.end())
 					  caller_locals.push_back(local);
-			      std::vector<perm_string> actual_local_reads =
-				    prop->local_input_actual_names;
-			      std::map<perm_string,const PEventStatement*> event_subst;
-			      std::list<PEventStatement> event_controls;
 			      PEventStatement*inferred_clock = prop->clk_evt;
 			      bool owns_inferred_clock = false;
 			      if (!inferred_clock) {
-			    const Module*mod =
-				  sva_default_clocking_owner_(lexical_scope);
+				    const Module*mod =
+					  sva_default_clocking_owner_(lexical_scope);
 				    if (mod && !mod->default_clocking.nil()) {
 					  std::list<named_pexpr_t> no_parms;
 					  PECallFunction*mark = new PECallFunction(
 						perm_string::literal("$ivl_default_clock"), no_parms);
 					  FILE_NAME(mark, loc);
 					  PEEvent*event = new PEEvent(PEEvent::ANYEDGE, mark);
-					  std::vector<PEEvent*> events;
-					  events.push_back(event);
-					  inferred_clock = new PEventStatement(events);
+					  inferred_clock = new PEventStatement(event);
 					  FILE_NAME(inferred_clock, loc);
 					  owns_inferred_clock = true;
 				    }
 			      }
-			      if (!fatal && !sva_build_property_subst_(loc, nm,
-				    pit->second.formals, cf->get_parms(), inferred_clock,
-				    sva_default_disable_for_scope_(lexical_scope), subst,
-				    event_subst, event_controls,
-				    owned_subst, *formal_initializers, local_carriers,
-				    caller_locals, actual_local_reads))
-				    fatal = true;
-			      if (!fatal && (decl->tree || decl->ante_tree
-					     || decl->pa || decl->pb || decl->op_type > 2)
-				  && (sva_tree_has_temporal_actual_(decl->tree)
-				      || sva_tree_has_temporal_actual_(decl->ante_tree)
-				      || std::any_of(subst.begin(), subst.end(),
-				       [](const std::pair<const perm_string,PExpr*>&binding) {
-					     return dynamic_cast<PESvaActual*>(binding.second) != nullptr;
-				       }))) {
-				    cerr << loc << ": sorry: temporal actuals of property `"
-					 << nm << "' require a flat property body." << endl;
+			      if (!fatal && prop->disable_iff_expr && decl->disable_iff_expr) {
+				    cerr << loc << ": error: a property instance with a `disable iff' "
+					 << "clause cannot be nested under another `disable iff' clause "
+					 << "(IEEE 1800-2017/2023 16.12.1)." << endl;
 				    error_count += 1;
 				    fatal = true;
 			      }
-			      sva_property_t*inst = nullptr;
-			      if (!fatal) {
-				    inst = new sva_property_t;
-				    inst->local_names = decl->local_names;
-			    inst->clocking_scope = decl->clocking_scope
-				  ? decl->clocking_scope : prop->clocking_scope;
-				    for (perm_string&local : inst->local_names) {
-					  std::map<perm_string,perm_string>::const_iterator carrier =
-						local_carriers.find(local);
-					  if (carrier != local_carriers.end())
-						local = carrier->second;
-				    }
-				    inst->local_input_actual_names = actual_local_reads;
-				    for (perm_string local : actual_local_reads)
-					  if (std::find(inst->local_names.begin(),
-							inst->local_names.end(), local)
-					      == inst->local_names.end())
-						inst->local_names.push_back(local);
-				    inst->endpoint_event = endpoint_event;
-				    inst->op_type = decl->op_type;
-				    inst->mc_boundary = decl->mc_boundary;
-				    inst->strength = decl->strength;
-				    inst->forbidden_consequent =
-					  decl->forbidden_consequent;
-				    inst->win_lo = decl->win_lo;
-				    inst->win_hi = decl->win_hi;
-				    bool ok = true;
-				    bool nested_disable = false;
-				    inst->clk_evt = prop->clk_evt;
-				    prop->clk_evt = nullptr;
-				    inst->disable_iff_expr = prop->disable_iff_expr;
-				    prop->disable_iff_expr = nullptr;
-				    if (inst->disable_iff_expr && decl->disable_iff_expr) {
-					  cerr << loc << ": error: a property instance with a `disable iff' clause "
-					       << "cannot be nested under another `disable iff' clause "
-					       << "(IEEE 1800-2017/2023 16.12.1)." << endl;
-					  error_count += 1;
-					  ok = false;
-					  nested_disable = true;
-				    }
-				    if (decl->clk_evt) {
-					  if (inst->clk_evt) {
-						cerr << loc << ": sorry: parameterized property `"
-						     << nm << "' has a leading clock and cannot "
-						     << "also be instantiated under another "
-						     << "explicit clock yet; the assertion is "
-						     << "dropped." << endl;
-						error_count += 1;
-						ok = false;
-					  } else {
-						inst->clk_evt = sva_clone_event_control_(
-						      decl->clk_evt, loc, &subst,
-						      &event_subst);
-						if (!inst->clk_evt) ok = false;
-					  }
-				    }
-				    if (ok && decl->seq_clk_evt) {
-					  inst->seq_clk_evt = sva_clone_event_control_(
-						decl->seq_clk_evt, loc, &subst,
-						&event_subst);
-					  if (!inst->seq_clk_evt) ok = false;
-				    }
-				    if (ok && decl->disable_iff_expr) {
-					  PExpr*dd = sva_clone_subst_(
-						decl->disable_iff_expr, &subst);
-					  if (!dd) {
-						ok = false;
-					  } else if (inst->disable_iff_expr) {
-						PEBLogic*both = new PEBLogic(
-						      'o', inst->disable_iff_expr, dd);
-						FILE_NAME(both, loc);
-						inst->disable_iff_expr = both;
-					  } else {
-						inst->disable_iff_expr = dd;
-					  }
-				    }
-				    if (ok && decl->abort_cond) {
-					  inst->abort_cond = sva_clone_subst_(
-						decl->abort_cond, &subst);
-					  if (!inst->abort_cond) ok = false;
-				    }
-				    if (decl->seq) {
-					  inst->seq = sva_clone_steps_subst_(loc, decl->seq, subst);
-					  if (!inst->seq) ok = false;
-				    }
-				    if (ok && decl->antecedent) {
-					  inst->antecedent = sva_clone_steps_subst_(loc, decl->antecedent, subst);
-					  if (!inst->antecedent) ok = false;
-				    }
-				    if (ok && decl->mc_prefix) {
-					  inst->mc_prefix = sva_clone_steps_subst_(
-						loc, decl->mc_prefix, subst);
-					  if (!inst->mc_prefix) ok = false;
-				    }
-				    if (ok && sva_property_has_tree_first_match_(decl)) {
-					  inst->tree_sorry = decl->tree_sorry;
-					  inst->ante_tree = sva_tree_clone_(loc, decl->ante_tree, &subst);
-					  inst->tree = sva_tree_clone_(loc, decl->tree, &subst);
-					  if ((decl->ante_tree && !inst->ante_tree)
-					      || (decl->tree && !inst->tree))
-						ok = false;
-				    }
-				    if (ok && decl->pa) {
-					  inst->pa = sva_clone_property_(loc, decl->pa,
-						&subst, &event_subst);
-					  inst->pb = decl->pb ? sva_clone_property_(
-						loc, decl->pb, &subst, &event_subst) : nullptr;
-					  inst->pcond = decl->pcond
-						? sva_clone_subst_(decl->pcond, &subst) : nullptr;
-					  if (!inst->pa || (decl->pb && !inst->pb)
-					      || (decl->pcond && !inst->pcond))
-						ok = false;
-				    }
-				    unsigned body_errors = error_count;
-				    if (ok && (!sva_materialize_actuals_(loc, inst->antecedent, false)
-					       || !sva_materialize_actuals_(loc, inst->seq, inst->op_type < 3)
-					       || !sva_materialize_actuals_(loc, inst->mc_prefix, false)))
-					  ok = false;
-				    if (ok && !sva_prepend_property_formal_inits_(
-					  loc, inst, *formal_initializers))
-					  ok = false;
-				      for (PExpr*value : owned_subst) delete value;
-				      owned_subst.clear();
-				    if (!ok) {
-					  if (!nested_disable && error_count == body_errors) {
-						cerr << loc << ": sorry: property `" << nm
-						     << "' has a body expression that cannot "
-						     << "be instantiated with arguments; the "
-						     << "assertion is dropped." << endl;
-						 error_count += 1;
-					  }
-					  pform_sva_destroy_property(inst);
-					  inst = nullptr;
-					  fatal = true;
-				    }
+			      if (!fatal && prop->clk_evt && decl->clk_evt) {
+				    cerr << loc << ": sorry: parameterized property `"
+					 << nm << "' has a leading clock and cannot "
+					 << "also be instantiated under another "
+					 << "explicit clock yet; the assertion is "
+					 << "dropped." << endl;
+				    error_count += 1;
+				    fatal = true;
 			      }
+			      sva_property_t*inst = fatal ? nullptr :
+				    sva_instantiate_property_(loc, nm, pit->second,
+					  cf->get_parms(), inferred_clock, caller_locals,
+					  prop->local_input_actual_names);
 			      if (owns_inferred_clock) delete inferred_clock;
-			      pform_sva_destroy_sequence(formal_initializers);
-			      formal_initializers = nullptr;
-			      for (PExpr*value : owned_subst) delete value;
-			      delete (*prop->seq)[0].expr;
-			      delete prop->seq;
-			      delete prop;
-			      if (fatal) { delete fail_stmt; delete pass_stmt; return; }
+			      if (inst) {
+				    if (!inst->clk_evt) {
+					  inst->clk_evt = prop->clk_evt;
+					  prop->clk_evt = nullptr;
+				    }
+				    if (prop->disable_iff_expr) {
+					  inst->disable_iff_expr = prop->disable_iff_expr;
+					  prop->disable_iff_expr = nullptr;
+				    }
+				    if (!inst->clocking_scope)
+					  inst->clocking_scope = prop->clocking_scope;
+				    inst->endpoint_event = endpoint_event;
+			      }
+			      pform_sva_destroy_property(prop);
+			      if (!inst) { delete fail_stmt; delete pass_stmt; return; }
 			      pform_make_assertion(loc, inst, fail_stmt, pass_stmt, kind);
 			      return;
 			}

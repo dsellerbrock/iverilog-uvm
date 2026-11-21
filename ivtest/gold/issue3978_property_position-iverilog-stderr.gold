@@ -1,0 +1,4 @@
+ivltests/issue3978_property_position.sv:20: error: a property formal requires a property expression position (IEEE 1800-2017/2023 16.12.18).
+ivltests/issue3978_property_position.sv:21: error: a property formal requires a property expression position (IEEE 1800-2017/2023 16.12.18).
+ivltests/issue3978_property_position.sv:22: error: a property formal requires a property expression position (IEEE 1800-2017/2023 16.12.18).
+ivltests/issue3978_property_position.sv:23: error: property `sequence_use' formal `x' cannot take this temporal actual (IEEE 1800-2017/2023 16.12.18).
