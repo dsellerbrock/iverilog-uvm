@@ -4301,6 +4301,13 @@ extern "C" ivl_scope_t ivl_stmt_call(ivl_statement_t net)
       }
 }
 
+extern "C" unsigned ivl_stmt_lane_slot(ivl_statement_t net)
+{
+      assert(net->type_ == IVL_ST_ALLOC || net->type_ == IVL_ST_FREE);
+      return net->type_ == IVL_ST_ALLOC
+	    ? net->u_.alloc_.lane_slot : net->u_.free_.lane_slot;
+}
+
 extern "C" unsigned ivl_stmt_is_super_call(ivl_statement_t net)
 {
       assert(net);

@@ -1451,7 +1451,11 @@ static int show_stmt_alloc(ivl_statement_t net)
 {
       ivl_scope_t scope = ivl_stmt_call(net);
 
-      fprintf(vvp_out, "    %%alloc S_%p;\n", scope);
+      unsigned slot = ivl_stmt_lane_slot(net);
+      if (slot)
+	    fprintf(vvp_out, "    %%alloc/rs_lane S_%p, %u;\n", scope, slot);
+      else
+	    fprintf(vvp_out, "    %%alloc S_%p;\n", scope);
       return 0;
 }
 
@@ -3606,7 +3610,11 @@ static int show_stmt_free(ivl_statement_t net, ivl_scope_t sscope)
 {
       ivl_scope_t scope = ivl_stmt_call(net);
 
-      fprintf(vvp_out, "    %%free S_%p;\n", scope);
+      unsigned slot = ivl_stmt_lane_slot(net);
+      if (slot)
+	    fprintf(vvp_out, "    %%free/rs_lane S_%p, %u;\n", scope, slot);
+      else
+	    fprintf(vvp_out, "    %%free S_%p;\n", scope);
       if (ivl_scope_type(scope) == IVL_SCT_BEGIN
 	  || ivl_scope_type(scope) == IVL_SCT_FORK)
 	    draw_nested_flow_dispatch(sscope);

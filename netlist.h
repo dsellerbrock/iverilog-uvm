@@ -3755,12 +3755,13 @@ class NetProc : public virtual LineInfo {
 class NetAlloc  : public NetProc {
 
     public:
-      explicit NetAlloc(NetScope*);
+      explicit NetAlloc(NetScope*, unsigned lane_slot = 0);
       ~NetAlloc() override;
 
       const std::string name() const;
 
       const NetScope* scope() const;
+      unsigned lane_slot() const { return lane_slot_; }
 
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                                   bool nested_func = false) const override;
@@ -3773,6 +3774,7 @@ class NetAlloc  : public NetProc {
 
     private:
       NetScope*scope_;
+      unsigned lane_slot_;
 };
 
 /*
@@ -5206,12 +5208,13 @@ class NetForLoop : public NetProc {
 class NetFree   : public NetProc {
 
     public:
-      explicit NetFree(NetScope*);
+      explicit NetFree(NetScope*, unsigned lane_slot = 0);
       ~NetFree() override;
 
       const std::string name() const;
 
       const NetScope* scope() const;
+      unsigned lane_slot() const { return lane_slot_; }
 
       virtual NexusSet* nex_input(bool rem_out = true, bool always_sens = false,
                                   bool nested_func = false) const override;
@@ -5224,6 +5227,7 @@ class NetFree   : public NetProc {
 
     private:
       NetScope*scope_;
+      unsigned lane_slot_;
 };
 
 /*

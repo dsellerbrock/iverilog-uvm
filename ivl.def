@@ -464,6 +464,7 @@ ivl_stmt_is_assoc_rmw
 ivl_stmt_is_clocking_drive
 ivl_stmt_lexp
 ivl_stmt_lineno
+ivl_stmt_lane_slot
 ivl_stmt_lval
 ivl_stmt_lvals
 ivl_stmt_lwidth

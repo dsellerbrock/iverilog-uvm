@@ -8979,6 +8979,7 @@ struct pform_rs_expand_ctx_t {
       LexicalScope* lexical_parent;
       std::set<perm_string> active;
       std::map<perm_string,perm_string> runtime_productions;
+      std::set<perm_string> runtime_lanes;
       perm_string runtime_owner;
 	/* IEEE 1800-2017/2023 18.17.7: each typed call maps to its rule's
 	   scalar result (index zero) or a syntactic position in [1:N]. */
@@ -9059,23 +9060,24 @@ static perm_string pform_rs_return_var_(pform_rs_expand_ctx_t&ctx,
 
 static void pform_rs_collect_calls_(const rs_item_t&item,
 				    std::vector<const rs_item_t*>&calls,
-				    bool*has_join = nullptr)
+				    std::set<perm_string>*lanes = nullptr)
 {
       if (item.kind == rs_item_t::CALL) {
 	    calls.push_back(&item);
 	    return;
       }
 	// Visit each syntactic arm in source order and visit a repeat body once.
-      if (item.first) pform_rs_collect_calls_(*item.first, calls, has_join);
-      if (item.second) pform_rs_collect_calls_(*item.second, calls, has_join);
+      if (item.first) pform_rs_collect_calls_(*item.first, calls, lanes);
+      if (item.second) pform_rs_collect_calls_(*item.second, calls, lanes);
       if (item.cases) for (const rs_case_item_t&case_item : *item.cases)
 	    if (case_item.item)
-		  pform_rs_collect_calls_(*case_item.item, calls, has_join);
+		  pform_rs_collect_calls_(*case_item.item, calls, lanes);
 	// Join lanes contribute graph edges, but no implicit return values.
-      if (has_join && item.join_items) {
-	    *has_join = true;
-	    for (const rs_item_t&lane : *item.join_items)
-		  pform_rs_collect_calls_(lane, calls, has_join);
+      if (lanes && item.join_items) {
+	    for (const rs_item_t&lane : *item.join_items) {
+		  lanes->insert(lane.name);
+		  pform_rs_collect_calls_(lane, calls, lanes);
+	    }
       }
 }
 
@@ -9458,6 +9460,10 @@ static Statement* pform_rs_expand_item_(
 	  std::map<perm_string,PExpr*>*subst,
 	  perm_string return_target);
 
+static PCallTask* pform_rs_runtime_call_(pform_rs_expand_ctx_t&ctx,
+					perm_string name, const LineInfo&where,
+					rs_item_t*item = nullptr);
+
 struct pform_rs_join_lane_t {
       const rs_production_t*production = nullptr;
       const rs_rule_t*rule = nullptr;
@@ -9549,8 +9555,25 @@ static bool pform_rs_join_probability_(pform_rs_expand_ctx_t&ctx,
       return true;
 }
 
+static const rs_rule_t* pform_rs_join_lane_rule_(const rs_production_t&prod)
+{
+      if (prod.return_type || !prod.rules || prod.rules->size() != 1
+	  || prod.rules->front().weight)
+	    return nullptr;
+      return &prod.rules->front();
+}
+
+static void pform_rs_invalid_join_lane_(pform_rs_expand_ctx_t&ctx)
+{
+      cerr << ctx.loc << ": sorry: randsequence rand join currently "
+	   << "requires each joined production to have one unweighted void rule."
+	   << endl;
+      error_count += 1;
+      ctx.bad = true;
+}
+
 static Statement* pform_rs_expand_join_(
-      pform_rs_expand_ctx_t&ctx, const rs_item_t&item,
+      pform_rs_expand_ctx_t&ctx, rs_item_t&item,
       const std::map<perm_string,PExpr*>*outer)
 {
       double length_priority;
@@ -9561,6 +9584,22 @@ static Statement* pform_rs_expand_join_(
 	    cerr << ctx.loc << ": error: randsequence rand join requires at "
 		 << "least two productions." << endl;
 	    error_count += 1; ctx.bad = true; return nullptr;
+      }
+
+      if (!ctx.runtime_productions.empty()) {
+	    std::unique_ptr<PRandJoin> join(new PRandJoin(length_priority));
+	    join->set_line(item);
+	    for (rs_item_t&call : *item.join_items) {
+		  const rs_rule_t*rule = pform_rs_join_lane_rule_(*ctx.pmap.at(call.name));
+		  if (!rule) {
+			pform_rs_invalid_join_lane_(ctx);
+			return nullptr;
+		  }
+		  PCallTask*invoke = pform_rs_runtime_call_(ctx, call.name, call, &call);
+		  if (!invoke) return nullptr;
+		  join->add_lane(invoke, rule->items->size());
+	    }
+	    return join.release();
       }
 
       std::vector<pform_rs_join_lane_t> lanes;
@@ -9591,24 +9630,21 @@ static Statement* pform_rs_expand_join_(
 		       << prod->name << "' is not supported." << endl;
 		  error_count += 1; ctx.bad = true; break;
 	    }
-	    if (prod->return_type || !prod->rules || prod->rules->size() != 1
-		|| (*prod->rules)[0].weight) {
-		  cerr << ctx.loc << ": sorry: randsequence rand join currently "
-		       << "requires each joined production to have one unweighted "
-		       << "void rule." << endl;
-		  error_count += 1; ctx.bad = true; break;
+	    const rs_rule_t*rule = pform_rs_join_lane_rule_(*prod);
+	    if (!rule) {
+		  pform_rs_invalid_join_lane_(ctx);
+		  break;
 	    }
-	    const rs_rule_t&rule = (*prod->rules)[0];
 	    pform_rs_join_lane_t lane;
 	    lane.production = prod;
-	    lane.rule = &rule;
+	    lane.rule = rule;
 	    char prefix[48];
 	    snprintf(prefix, sizeof prefix, "$lane_%lu",
 		     (unsigned long)lanes.size());
 	    if (!pform_rs_bind_actuals_(ctx, *prod, call.actuals, outer,
 					  lane.subst, join_scope, initializers,
 					  lex_strings.make(prefix))) break;
-	    pform_rs_number_occurrences_(ctx, rule, lane.subst);
+	    pform_rs_number_occurrences_(ctx, *rule, lane.subst);
 	    lanes.push_back(lane);
       }
       ctx.lexical_parent = saved_parent;
@@ -9677,7 +9713,7 @@ static Statement* pform_rs_expand_join_(
 
 static PCallTask* pform_rs_runtime_call_(pform_rs_expand_ctx_t&ctx,
 					perm_string name, const LineInfo&where,
-					rs_item_t*item = nullptr)
+					rs_item_t*item)
 {
       std::list<named_pexpr_t> actuals;
       if (item && item->actuals) {
@@ -9945,8 +9981,7 @@ static Statement* pform_rs_expand_production_(
 // zero-indegree vertices. A back edge in a dormant alternative still makes
 // the grammar recursive. The work lists are bounded by the grammar size.
 static bool pform_rs_recursive_(pform_rs_expand_ctx_t&ctx, perm_string start,
-				std::vector<perm_string>&reachable,
-				bool&has_join)
+				std::vector<perm_string>&reachable)
 {
       struct vertex_t {
 	    size_t indegree = 0;
@@ -9969,7 +10004,7 @@ static bool pform_rs_recursive_(pform_rs_expand_ctx_t&ctx, perm_string start,
 	    auto&calls = graph.at(name).calls;
 	    if (production.rules) for (const rs_rule_t&rule : *production.rules)
 		  if (rule.items) for (const rs_item_t&item : *rule.items)
-			pform_rs_collect_calls_(item, calls, &has_join);
+			pform_rs_collect_calls_(item, calls, &ctx.runtime_lanes);
 	    for (const rs_item_t*call : calls) {
 		  auto edge = graph.emplace(call->name, vertex_t());
 		  if (edge.second) reachable.push_back(call->name);
@@ -9987,6 +10022,68 @@ static bool pform_rs_recursive_(pform_rs_expand_ctx_t&ctx, perm_string start,
 	    }
       }
       return ready.size() != reachable.size();
+}
+
+// A lane and an ordinary call share the production body. In lane mode its
+// frame survives each call, and the selector runs only the next item.
+static Statement* pform_rs_lower_lane_(pform_rs_expand_ctx_t&ctx,
+				       const rs_rule_t&rule, PTask*definition)
+{
+      const perm_string mode = PBlock::randsequence_lane_mode();
+      const perm_string remaining = PBlock::randsequence_lane_remaining();
+      auto declare = [&](perm_string name, data_type_t*type) {
+	    PWire*wire = new PWire(name, 0, NetNet::REG, NetNet::NOT_A_PORT);
+	    wire->set_data_type(type);
+	    wire->set_line(*definition);
+	    add_local_symbol(definition, name, wire);
+	    definition->wires[name] = wire;
+      };
+      declare(mode, new vector_type_t(IVL_VT_BOOL, false, nullptr));
+      declare(remaining, new atom_type_t(atom_type_t::INT, false));
+      auto count = [](unsigned n) { return new PENumber(new verinum(uint64_t(n), 32)); };
+      auto store = [&](unsigned n, const LineInfo&where) {
+	    PAssign*assign = new PAssign(new PEIdent(remaining, UINT_MAX), count(n));
+	    assign->set_line(where);
+	    return assign;
+      };
+
+      std::map<perm_string,PExpr*> subst;
+      std::unique_ptr<PBlock> storage(pform_rs_scope_(ctx));
+      pform_rs_number_occurrences_(ctx, rule, subst, storage.get());
+      const unsigned length = rule.items->size();
+      auto*steps = new std::vector<PCase::Item*>;
+      unsigned left = length;
+      for (rs_item_t&item : *rule.items) {
+	    PCase::Item*step = new PCase::Item;
+	    step->expr.push_back(count(left--));
+	    // A direct return leaves zero in the cursor. An ordinary production
+	    // call returns to this body and advances the cursor below.
+	    std::vector<Statement*> body{store(0, item)};
+	    Statement*part = pform_rs_expand_item_(ctx, item, &subst, perm_string());
+	    if (part) body.push_back(part);
+	    body.push_back(store(left, item));
+	    step->stat = pform_rs_block_(item, body);
+	    steps->push_back(step);
+      }
+
+      PCase*dispatch = new PCase(IVL_CASE_QUALITY_BASIC, NetCase::EQ,
+				 new PEIdent(remaining, UINT_MAX), steps);
+      dispatch->set_line(*definition);
+      PCondit*init = new PCondit(new PEIdent(mode, UINT_MAX), nullptr,
+				 store(length, *definition));
+      init->set_line(*definition);
+      PRepeat*run = new PRepeat(new PETernary(new PEIdent(mode, UINT_MAX),
+					      count(1), count(length)), dispatch);
+      run->set_line(*definition);
+      run->randsequence_dispatch();
+      if (!storage->wires.empty()) {
+	    // Keep the rule's implicit result variables lexically separate from
+	    // the formals, but store them in the frame retained by the join.
+	    storage->randsequence_lane_storage();
+	    storage->set_statement({init, run});
+	    return storage.release();
+      }
+      return pform_rs_block_(*definition, {init, run});
 }
 
 static PBlock* pform_rs_lower_recursive_(pform_rs_expand_ctx_t&ctx,
@@ -10041,8 +10138,13 @@ static PBlock* pform_rs_lower_recursive_(pform_rs_expand_ctx_t&ctx,
 	    definition->set_ports(ports);
 	    LexicalScope*saved_parent = ctx.lexical_parent;
 	    ctx.lexical_parent = definition;
-	    definition->set_statement(pform_rs_lower_rules_(ctx, prod, nullptr,
-							  perm_string()));
+	    const rs_rule_t*lane = ctx.runtime_lanes.count(name)
+		  ? pform_rs_join_lane_rule_(prod) : nullptr;
+	    if (lane)
+		  definition->set_statement(pform_rs_lower_lane_(ctx, *lane, definition));
+	    else
+		  definition->set_statement(pform_rs_lower_rules_(ctx, prod, nullptr,
+								    perm_string()));
 	    ctx.lexical_parent = saved_parent;
 	    scope->add_randsequence_production(definition);
       }
@@ -10134,13 +10236,8 @@ Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
       ctx.bad = duplicate;
       if (!ctx.bad) {
 	    std::vector<perm_string> reachable;
-	    bool has_join = false;
-	    bool recursive = pform_rs_recursive_(ctx, start_name, reachable, has_join);
-	    if (recursive && has_join) {
-		  cerr << loc << ": sorry: recursive randsequence does not support "
-		       << "rand join." << endl;
-		  error_count += 1;
-	    } else if (!ctx.bad) {
+	    bool recursive = pform_rs_recursive_(ctx, start_name, reachable);
+	    if (!ctx.bad) {
 		  Statement*body = recursive
 			? pform_rs_lower_recursive_(ctx, start_name, reachable)
 			: pform_rs_expand_production_(ctx, start_name, nullptr, nullptr);

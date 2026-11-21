@@ -2821,6 +2821,8 @@ extern ivl_randsequence_block_t ivl_stmt_block_randsequence(ivl_statement_t net)
 extern ivl_flow_control_t ivl_stmt_break_kind(ivl_statement_t net);
   /* IVL_ST_UTASK IVL_ST_DISABLE */
 extern ivl_scope_t ivl_stmt_call(ivl_statement_t net);
+/* On ALLOC and FREE, a nonzero slot resumes or parks a rand join lane. */
+extern unsigned ivl_stmt_lane_slot(ivl_statement_t net);
   /* IVL_ST_UTASK */
 extern unsigned ivl_stmt_is_super_call(ivl_statement_t net);
   /* IVL_ST_CASE,IVL_ST_CASER,IVL_ST_CASEX,IVL_ST_CASEZ */
