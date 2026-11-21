@@ -588,6 +588,12 @@ PLI_INT32 vpip_assertion_coverage(PLI_INT32 op, PLI_INT32 hierarchical,
       return vpip_routines->assertion_coverage(op, hierarchical, instance, definition);
 }
 
+PLI_INT32 vpip_coverage_snapshot(PLI_INT32 save, PLI_INT32 type, const char*name)
+{
+      assert(vpip_routines);
+      return vpip_routines->coverage_snapshot(save, type, name);
+}
+
 DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version)
 {
       if (version != vpip_routines_version)
