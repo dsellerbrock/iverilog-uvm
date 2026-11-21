@@ -17861,15 +17861,15 @@ NetProc* PBlock::elaborate(Design*des, NetScope*scope) const
 	    subroutine_fork_context_guard_t fork_context(des);
 	    const unsigned caller_loop_depth = des->loop_depth;
 	    des->loop_depth = 0;
-	    for (const auto&production : randsequence_productions_) {
-		  NetScope*callee = nscope->child(hname_t(production.first));
+	    for (const PTask*production : randsequence_productions_) {
+		  NetScope*callee = nscope->child(hname_t(production->pscope_name()));
 		  if (callee->elab_stage() > 2) continue;
 		  callee->set_elab_stage(3);
 		  NetBaseDef*def = callee->type() == NetScope::FUNC
 			? static_cast<NetBaseDef*>(callee->func_def()) : callee->task_def();
 		  ivl_assert(*this, def);
 		  const unsigned errors_before = des->errors;
-		  if (NetProc*body = production.second->elaborate(des, callee))
+		  if (NetProc*body = production->get_statement()->elaborate(des, callee))
 			def->set_proc(body);
 		  else if (des->errors == errors_before) {
 			cerr << get_fileline() << ": error: unable to elaborate "
@@ -18122,12 +18122,12 @@ NetProc* PBreak::elaborate(Design*des, NetScope*scope) const
 		  NetAssign*set = new NetAssign(new NetAssign_(flag),
 					       new NetEConst(verinum(verinum::V1)));
 		  set->set_line(*this);
-		  PReturn leave(nullptr);
-		  leave.set_line(*this);
+		  NetDisable*leave = new NetDisable(target, true);
+		  leave->set_line(*this);
 		  NetBlock*exit = new NetBlock(NetBlock::SEQU, nullptr);
 		  exit->set_line(*this);
 		  exit->append(set);
-		  exit->append(leave.elaborate(des, scope));
+		  exit->append(leave);
 		  return exit;
 	    }
       }
@@ -19850,10 +19850,30 @@ static bool cast_operands_assignment_compatible_(const NetExpr*dest,
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
       if (randsequence_call_) {
-	    NetScope*owner = scope->is_randsequence_production() ? scope->parent() : scope;
+	    NetScope*owner = scope;
+	    NetScope*caller = nullptr;
+	    NetNet*flag = nullptr;
+	    for (; owner; owner = owner->parent()) {
+		  flag = owner->find_signal(PBlock::randsequence_break_flag());
+		  if (flag) break;
+		  if (owner->is_randsequence_production()) caller = owner;
+	    }
+	    ivl_assert(*this, owner && flag);
 	    NetScope*callee = owner->child(hname_t(peek_tail_name(path_)));
 	    ivl_assert(*this, callee && callee->is_randsequence_production());
-	    return elaborate_bound_subroutine_call_(des, scope, callee);
+	    NetProc*call = elaborate_bound_subroutine_call_(des, scope, callee);
+	    if (!call || !caller) return call;
+
+	    // Unwind this invocation only, after releasing the callee's frame.
+	    NetDisable*leave = new NetDisable(caller, true);
+	    leave->set_line(*this);
+	    NetCondit*check = new NetCondit(new NetESignal(flag), leave, nullptr);
+	    check->set_line(*this);
+	    NetBlock*body = new NetBlock(NetBlock::SEQU, nullptr);
+	    body->set_line(*this);
+	    body->append(call);
+	    body->append(check);
+	    return body;
       }
 
 	// Method-call statement on an arbitrary receiver expression,
@@ -26336,7 +26356,8 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	      const NetBaseDef*def = 0;
 		      if (task->type() == NetScope::TASK) {
 			    def = task->task_def();
-			    if (def == 0 || def->proc() == 0) {
+			    if ((def == 0 || def->proc() == 0)
+				&& !task->is_randsequence_production()) {
 				  const PTask*ptask = task->task_pform();
 				  if (ptask) {
 					ptask->elaborate_sig(des, task);
@@ -26425,6 +26446,34 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
       NetBlock*block = new NetBlock(NetBlock::SEQU, 0);
       block->set_line(*this);
+
+      // A recursive production may call its own lexical scope. Evaluate
+      // actuals while the caller frame is current, and stage port values
+      // before switching from the callee back to the caller for copy-back.
+      const bool stage_production_args = randsequence_call_ && parm_count;
+      NetBlock*before_frame = block;
+      NetBlock*after_frame = block;
+      if (stage_production_args) {
+	    before_frame = new NetBlock(NetBlock::SEQU, nullptr);
+	    after_frame = new NetBlock(NetBlock::SEQU, nullptr);
+	    before_frame->set_line(*this);
+	    after_frame->set_line(*this);
+      }
+      auto make_port_temp = [&](const NetNet*port) {
+	    NetNet*temp = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				    port->unpacked_dims(), port->net_type());
+	    temp->set_line(*this);
+	    temp->local_flag(true);
+	    return temp;
+      };
+      auto copy_port = [&](NetNet*dst, NetNet*src) -> NetProc* {
+	    NetAssign_*lv = new NetAssign_(dst);
+	    if (dst->unpacked_dimensions())
+		  return make_fixed_uarray_signal_copy_(des, scope, *this, lv, src);
+	    NetAssign*copy = new NetAssign(lv, new NetESignal(src));
+	    copy->set_line(*this);
+	    return copy;
+      };
 
       if (task->type() == NetScope::TASK && task->is_auto())
 	    block->automatic_task_call(task);
@@ -26527,11 +26576,15 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
       vector<bool> copy_in_error (parm_count, false);
       vector<subroutine_uarray_slice_actual_t> slice_actuals (parm_count);
       vector<NetNet*> slice_temps (parm_count, static_cast<NetNet*>(0));
+      vector<NetNet*> production_inputs(stage_production_args ? parm_count : 0);
       for (unsigned int idx = off; idx < parm_count; idx++) {
 	    size_t parms_idx = idx - off;
 
 	    NetNet*port = def->port(idx);
 	    ivl_assert(*this, port->port_type() != NetNet::NOT_A_PORT);
+	    NetNet*input = port;
+	    if (stage_production_args && port->port_type() == NetNet::PINPUT)
+		  input = production_inputs[idx] = make_port_temp(port);
 	    PExpr*actual = args[parms_idx];
 	    if (port->port_type() == NetNet::PREF
 		&& parms_idx < original_args.size()
@@ -26541,7 +26594,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (!actual && (port->port_type() == NetNet::POUTPUT
 		    || port->port_type() == NetNet::PINOUT)) {
 		  actual = subroutine_default_actual_(task, port);
-		  if (actual) actual_scope = task;
+		  if (actual) actual_scope = randsequence_call_ ? task->parent() : task;
 	    }
 
 	      /* Copy-bound ref formals bypass the bind helper below. Validate
@@ -26599,19 +26652,19 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			      scope, *this, slice);
 			slice_temps[idx] = tmp;
 			if (needs_copy_in) {
-			      block->append(copy_subroutine_uarray_slice_to_signal_(
+			      before_frame->append(copy_subroutine_uarray_slice_to_signal_(
 				    des, scope, *this, tmp, 0, slice));
 			      NetESignal*rv = new NetESignal(tmp);
 			      rv->set_line(*this);
-			      NetAssign*copy = new NetAssign(new NetAssign_(port), rv);
+			      NetAssign*copy = new NetAssign(new NetAssign_(input), rv);
 			      copy->set_line(*this);
-			      block->append(copy);
+			      before_frame->append(copy);
 			}
 		  } else {
 			ivl_assert(*this, fixed_formal);
 			if (needs_copy_in)
-			      block->append(copy_subroutine_uarray_slice_to_signal_(
-				    des, scope, *this, port, 0, slice));
+			      before_frame->append(copy_subroutine_uarray_slice_to_signal_(
+				    des, scope, *this, input, 0, slice));
 		  }
 		  continue;
 	    }
@@ -26643,7 +26696,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		&& !dpi_open_array_formal_needs_copy_in_(port, task))
 		  continue;
 
-	    NetAssign_*lv = new NetAssign_(copy_via[idx] ? copy_via[idx] : port);
+	    NetAssign_*lv = new NetAssign_(copy_via[idx] ? copy_via[idx] : input);
 	    unsigned wid = count_lval_width(lv);
 	    ivl_variable_type_t lv_type = lv->expr_type();
 
@@ -26757,7 +26810,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 						continue;
 					  }
 					  check_package_unit_value(des, *rid, actual_scope, asr);
-					  block->append(make_fixed_uarray_signal_copy_(
+					  before_frame->append(make_fixed_uarray_signal_copy_(
 						des, scope, *this, lv, asr.net));
 					  continue;
 				    }
@@ -26787,7 +26840,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 						  des, scope, *this, lv,
 						  src_count, 0, rprop, false,
 						  0, 0, reverse_src);
-					    block->append(copy);
+					    before_frame->append(copy);
 					    delete rv;
 					    continue;
 				      }
@@ -26855,8 +26908,13 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	    NetAssign*pr = new NetAssign(lv, rv);
 	    pr->set_line(*this);
-	    block->append(pr);
+	    before_frame->append(pr);
       }
+
+      if (stage_production_args)
+	    for (unsigned idx = off; idx < parm_count; ++idx)
+		  if (NetNet*input = production_inputs[idx])
+			block->append(copy_port(def->port(idx), input));
 
 	/* Generate the task call proper... */
       NetUTask*cur = new NetUTask(task, super_call);
@@ -26880,11 +26938,14 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	    NetNet*port = def->port(idx);
 	    PExpr*actual = args[parms_idx];
+	    const bool production_result = randsequence_call_
+		  && port->name() == PBlock::randsequence_result_port();
+	    if (production_result && !actual) continue; // Start production.
 	    NetScope*actual_scope = scope;
 	    if (!actual && (port->port_type() == NetNet::POUTPUT
 		    || port->port_type() == NetNet::PINOUT)) {
 		  actual = subroutine_default_actual_(task, port);
-		  if (actual) actual_scope = task;
+		  if (actual) actual_scope = randsequence_call_ ? task->parent() : task;
 	    }
 
 	      /* Skip input ports, and any ref port that was bound to its
@@ -26905,6 +26966,26 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (copy_in_error[idx])
 		  continue;
 
+	    NetBlock*copy_out = after_frame;
+	    if (production_result) {
+		  // A sequence break produces no result for the suspended caller.
+		  NetNet*flag = task->parent()->find_signal(PBlock::randsequence_break_flag());
+		  ivl_assert(*this, flag);
+		  copy_out = new NetBlock(NetBlock::SEQU, nullptr);
+		  copy_out->set_line(*this);
+		  NetCondit*completed = new NetCondit(new NetESignal(flag), nullptr,
+						     copy_out);
+		  completed->set_line(*this);
+		  after_frame->append(completed);
+	    }
+
+	    NetNet*copy_src = copy_via[idx] ? copy_via[idx] : port;
+	    if (stage_production_args && actual) {
+		  NetNet*temp = make_port_temp(copy_src);
+		  block->append(copy_port(temp, copy_src));
+		  copy_src = temp;
+	    }
+
 	      /* Direction-correct companion of the slice copy-in above.
 		 Fixed formals can be copied straight back into the selected
 		 canonical words. An open formal first copies into the fixed
@@ -26913,7 +26994,6 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    if (slice_actuals[idx].valid) {
 		  const subroutine_uarray_slice_actual_t&slice =
 			slice_actuals[idx];
-		  NetNet*copy_src = copy_via[idx] ? copy_via[idx] : port;
 		  if (dynamic_cast<const netdarray_t*>(copy_src->net_type())) {
 			NetNet*tmp = slice_temps[idx];
 			ivl_assert(*this, tmp);
@@ -26921,10 +27001,10 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			rv->set_line(*this);
 			NetAssign*to_tmp = new NetAssign(new NetAssign_(tmp), rv);
 			to_tmp->set_line(*this);
-			block->append(to_tmp);
+			copy_out->append(to_tmp);
 			copy_src = tmp;
 		  }
-		  block->append(copy_signal_to_subroutine_uarray_slice_(
+		  copy_out->append(copy_signal_to_subroutine_uarray_slice_(
 			des, scope, *this, slice, copy_src, 0));
 		  continue;
 	    }
@@ -26969,8 +27049,6 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
 	    if (lv == 0)
 		  continue;
-
-	    NetNet*copy_src = copy_via[idx] ? copy_via[idx] : port;
 
 	      /* A pure output port has no copy-in, so its actual has not yet
 		 been checked against the formal type. Validate every associative
@@ -27117,6 +27195,17 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		       calls such as fixed-array DPI wrappers. */
 		  const netuarray_t*src_fixed =
 			dynamic_cast<const netuarray_t*>(copy_src->array_type());
+		  if (production_result && lv->is_array_slice() && src_fixed) {
+			// A repeated fixed-array result occupies a subarray whose
+			// trailing dimensions have exactly the return type's bounds.
+			ivl_assert(*this, fixed_uarray_shapes_compatible_(lv_ua, src_fixed));
+			uarray_prefix_source_t source;
+			source.sig = copy_src;
+			source.count = copy_src->unpacked_count();
+			copy_out->append(make_uarray_prefix_copy_(scope, *this, lv,
+								 source, false, false));
+			continue;
+		  }
 		  if (plain_signal_dst && src_fixed) {
 			if (!fixed_uarray_shapes_compatible_(lv_ua, src_fixed)) {
 			      cerr << get_fileline() << ": error: fixed unpacked-array "
@@ -27128,7 +27217,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			      delete lv;
 			      continue;
 			}
-			block->append(make_fixed_uarray_signal_copy_(
+			copy_out->append(make_fixed_uarray_signal_copy_(
 			      des, scope, *this, lv, copy_src));
 			continue;
 		  }
@@ -27145,7 +27234,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			      bool reverse_src = uarray_ranges_need_reverse_(
 				    lv_ua->static_dimensions()[0],
 				    src_fixed->static_dimensions()[0]);
-			      block->append(make_uarray_copy_loop_(
+			      copy_out->append(make_uarray_copy_loop_(
 				    des, scope, *this, lv, count,
 				    copy_src, 0, false, 0, 0, reverse_src));
 			      continue;
@@ -27179,7 +27268,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 			}
 			NetAssign*ass = new NetAssign(lv, new NetESignal(copy_src));
 			ass->set_line(*this);
-			block->append(ass);
+			copy_out->append(ass);
 			continue;
 		  }
 	    }
@@ -27253,7 +27342,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		NetAssign*ass = new NetAssign(lv, rv);
 	    ass->set_line(*this);
 
-	    block->append(ass);
+	    copy_out->append(ass);
       }
 
         /* Release the automatic declarations' call frame. */
@@ -27263,7 +27352,11 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    block->append(fp);
       }
 
-      return block;
+      if (!stage_production_args) return block;
+
+      before_frame->append(block);
+      before_frame->append(after_frame);
+      return before_frame;
 }
 
 static bool check_parm_is_const(NetExpr*param)
@@ -34078,6 +34171,35 @@ NetProc* PReturn::elaborate(Design*des, NetScope*scope) const
 		 << "Cannot \"return\" from this scope: " << scope_path(target) << endl;
 	    des->errors += 1;
 	    return 0;
+      }
+
+      if (target->is_randsequence_production()) {
+	    NetNet*result = target->find_signal(PBlock::randsequence_result_port());
+	    if (bool(expr_) != bool(result)) {
+		  cerr << get_fileline() << ": error: "
+		       << (result ? "A typed randsequence production requires a return value."
+			          : "A void randsequence production cannot return a value.")
+		       << endl;
+		  des->errors += 1;
+		  return nullptr;
+	    }
+	    NetDisable*leave = new NetDisable(target, true);
+	    leave->set_line(*this);
+	    if (!result) return leave;
+
+	    PAssign assign(new PEIdent(result->name(), UINT_MAX), expr_,
+			   false, false, false);
+	    assign.set_line(*this);
+	    NetProc*store = assign.elaborate(des, scope);
+	    if (!store) {
+		  delete leave;
+		  return nullptr;
+	    }
+	    NetBlock*body = new NetBlock(NetBlock::SEQU, nullptr);
+	    body->set_line(*this);
+	    body->append(store);
+	    body->append(leave);
+	    return body;
       }
 
       if (target->type() == NetScope::TASK) {
