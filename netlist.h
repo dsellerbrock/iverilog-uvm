@@ -6520,7 +6520,8 @@ class NetEShallowCopy : public NetExpr {
 class NetETernary  : public NetExpr {
 
     public:
-      NetETernary(NetExpr*c, NetExpr*t, NetExpr*f, unsigned wid, bool signed_flag);
+      NetETernary(NetExpr*c, NetExpr*t, NetExpr*f, unsigned wid,
+		  bool signed_flag, ivl_type_t type = nullptr);
       ~NetETernary() override;
 
       const netenum_t* enumeration() const override;

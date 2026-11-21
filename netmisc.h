@@ -539,6 +539,8 @@ extern NetNet*sub_net_from(Design*des, NetScope*scope, long val, NetNet*sig);
  */
 extern NetEConst*make_const_x(unsigned long wid);
 extern NetEConst*make_const_0(unsigned long wid);
+extern NetExpr*unpacked_conditional_word(const LineInfo&, ivl_type_t leaf_type,
+					const NetExpr*cond, NetExpr*tru, NetExpr*fal);
 extern NetEConst*make_const_val(unsigned long val);
 extern NetEConst*make_const_val_s(long val);
 

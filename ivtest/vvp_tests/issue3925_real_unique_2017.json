@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3925_real_unique_2017.v",
+  "iverilog-args": ["-g2017", "-s", "test"],
+  "gold": "issue3925_real_unique_2017"
+}

@@ -1,0 +1,16 @@
+(DELAYFILE
+  (SDFVERSION "3.0")
+  (DESIGN "top")
+  (DIVIDER .)
+  (TIMESCALE 1 ns)
+  (CELL
+    (CELLTYPE "top")
+    (INSTANCE)
+    (DELAY (ABSOLUTE (INTERCONNECT source.y delayed.a (3) (3))))
+  )
+  (CELL
+    (CELLTYPE "issue3920_sampled")
+    (INSTANCE sampled)
+    (DELAY (ABSOLUTE (INTERCONNECT y delayed.a (3) (3))))
+  )
+)

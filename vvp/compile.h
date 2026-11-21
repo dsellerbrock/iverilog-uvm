@@ -488,7 +488,7 @@ class resolv_list_s {
  * The text for the label will be deleted by this function, or the
  * cleanup that completes the binding.
  */
-extern void functor_ref_lookup(vvp_net_t**ref, char*lab);
+extern void functor_ref_lookup(vvp_net_t**ref, char*lab, bool track_input = false);
 
 /*
  * This function schedules a lookup of the labeled instruction. The

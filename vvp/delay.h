@@ -29,6 +29,7 @@
 # include  "schedule.h"
 
 class vvp_fun_signal_object_sa;
+struct __vpiInterModPathDelay;
 
 enum delay_edge_t {
       DELAY_EDGE_01 = 0, DELAY_EDGE_10, DELAY_EDGE_0z,
@@ -422,13 +423,19 @@ class vvp_fun_intermodpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 	// annotated path, with its own history and pending transitions.
       vvp_fun_intermodpath(vvp_net_t*net, unsigned width,
 			   const vvp_fun_intermodpath*timing = nullptr);
+      vvp_fun_intermodpath(vvp_net_t*net, const vvp_vector4_t&live);
       ~vvp_fun_intermodpath() override;
 
       void recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                      vvp_context_t) override;
+      void recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
+			unsigned base, unsigned vwid, vvp_context_t) override;
 
       void get_delay12(vvp_time64_t out[12]) const;
       void put_delay12(const vvp_time64_t in[12]);
+      const vvp_vector4_t& delay_input() const { return input_; }
+      const vvp_vector4_t& delay_output() const { return output_; }
+      std::unique_ptr<__vpiInterModPathDelay> delay_device;
 
     private:
       void run_run() override;
@@ -436,15 +443,15 @@ class vvp_fun_intermodpath  : public vvp_net_fun_t, private vvp_gen_event_s {
 						 const vvp_vector4_t& from,
 						 const vvp_vector4_t& to);
       void cancel_pulse_event_(pulse_event_*event);
-      void schedule_pulse_transition_(vvp_time64_t delay,
-					      const vvp_vector4_t&bit);
+      void schedule_pulse_transition_(vvp_time64_t delay, vvp_vector4_t from);
       void run_pulse_events_();
 
     private:
       vvp_net_t*net_;
       const vvp_fun_intermodpath* timing_;
 
-      vvp_vector4_t cur_vec4_;
+      vvp_vector4_t input_;
+      vvp_vector4_t output_;
 
       vvp_time64_t delay_[12];
       pulse_event_map_t pulse_events_;
@@ -477,6 +484,7 @@ class vvp_fun_sample  : public vvp_net_fun_t, private vvp_gen_event_s {
                      vvp_context_t) override;
       void recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
                         unsigned base, unsigned vwid, vvp_context_t) override;
+      const vvp_vector4_t& input_value() const { return value_; }
 
     private:
       void run_run() override;

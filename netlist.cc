@@ -3447,8 +3447,8 @@ ivl_variable_type_t NetESignal::expr_type() const
 * has to be done in elaboration.
 */
 NetETernary::NetETernary(NetExpr*c, NetExpr*t, NetExpr*f,
-                         unsigned wid, bool signed_flag)
-: cond_(c), true_val_(t), false_val_(f)
+                         unsigned wid, bool signed_flag, ivl_type_t type)
+: NetExpr(type), cond_(c), true_val_(t), false_val_(f)
 {
       expr_width(wid);
       cast_signed_base_(signed_flag);
@@ -3503,6 +3503,8 @@ ivl_variable_type_t NetETernary::expr_type() const
 {
       ivl_assert(*this, true_val_);
       ivl_assert(*this, false_val_);
+      if (net_type())
+	    return net_type()->base_type();
 
 	// IEEE 1800-2017 11.4.11: two operands of the same enumeration
 	// type make the conditional expression that enumeration type.  In

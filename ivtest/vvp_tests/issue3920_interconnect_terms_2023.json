@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3920_interconnect_terms.sv",
+  "iverilog-args": ["-g2023", "-gspecify", "-ginterconnect", "-s", "top", "-L", "work", "-m", "issue3920_interconnect_terms_2023"],
+  "vpi-modules": ["issue3920_interconnect_terms_2023"],
+  "vpi-sources": ["vpi/issue3920_interconnect_terms.c"],
+  "gold": "issue3920_interconnect_terms"
+}

@@ -22,6 +22,7 @@
 # include  "vvp_net.h"
 # include  "schedule.h"
 # include  <cstddef>
+# include  <memory>
 
 /*
  * vvp_fun_boolean_ is just a common hook for holding operands.
@@ -163,7 +164,13 @@ class vvp_fun_bufz: public vvp_net_fun_t {
       void recv_real(vvp_net_ptr_t p, double bit,
                      vvp_context_t) override;
 
-    private:
+      // Enabled for input port boundaries that can be rewired by SDF.
+      void track_input() { input_.reset(new vvp_vector4_t); }
+      const vvp_vector4_t* input_value() const { return input_.get(); }
+
+    protected:
+      std::unique_ptr<vvp_vector4_t> input_;
+
 };
 
 /*

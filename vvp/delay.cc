@@ -1848,14 +1848,14 @@ static void initialize_path_term(struct __vpiModPathTerm&obj)
       obj.edge = vpiNoEdge;
 }
 
-__vpiDelayTerm::__vpiDelayTerm(__vpiModPath*device, bool input)
+__vpiDelayTerm::__vpiDelayTerm(__vpiDelayDevice*device, bool input)
 : device_(device), input_(input)
 {
 }
 
 int __vpiDelayTerm::vpi_get(int code)
 {
-      return code == vpiDelayType ? vpiModPathDelay : vpiUndefined;
+      return device_->vpi_get(code);
 }
 
 vpiHandle __vpiDelayTerm::vpi_handle(int code)
@@ -1865,28 +1865,27 @@ vpiHandle __vpiDelayTerm::vpi_handle(int code)
 
 vpiHandle __vpiDelayTerm::vpi_iterate(int code)
 {
-      return vpip_modpath_conn_iterate(device_, input_, code);
+      return device_->term_iterate(input_, code);
 }
 
 void __vpiDelayTerm::vpi_get_value(p_vpi_value val)
 {
-      const vvp_vector4_t&bits =
-	    input_ ? device_->modpath->delay_input() : device_->modpath->delay_output();
+      const vvp_vector4_t&bits = device_->term_value(input_);
       vpip_vec4_get_value(bits, bits.size(), false, val);
 }
 
-__vpiModPath::__vpiModPath(__vpiScope*scope, vvp_fun_modpath*modpath)
-: scope(scope), modpath(modpath), delay_term_in(this, true), delay_term_out(this, false)
+__vpiDelayDevice::__vpiDelayDevice(__vpiScope*scope, int delay_type)
+: scope(scope), delay_term_in(this, true), delay_term_out(this, false),
+  delay_type_(delay_type)
 {
-      initialize_path_term(path_term_out);
 }
 
-int __vpiModPath::vpi_get(int code)
+int __vpiDelayDevice::vpi_get(int code)
 {
-      return code == vpiDelayType ? vpiModPathDelay : vpiUndefined;
+      return code == vpiDelayType ? delay_type_ : vpiUndefined;
 }
 
-vpiHandle __vpiModPath::vpi_handle(int code)
+vpiHandle __vpiDelayDevice::vpi_handle(int code)
 {
       switch (code) {
 	  case vpiInTerm:
@@ -1901,6 +1900,17 @@ vpiHandle __vpiModPath::vpi_handle(int code)
 	    break;
       }
       return 0;
+}
+
+__vpiModPath::__vpiModPath(__vpiScope*scope, vvp_fun_modpath*modpath)
+: __vpiDelayDevice(scope, vpiModPathDelay), modpath(modpath)
+{
+      initialize_path_term(path_term_out);
+}
+
+const vvp_vector4_t& __vpiModPath::term_value(bool input) const
+{
+      return input ? modpath->delay_input() : modpath->delay_output();
 }
 
 /*
@@ -1925,14 +1935,18 @@ struct __vpiModPathSrc* vpip_make_modpath_src(struct __vpiModPath*path,
 
 vvp_fun_intermodpath::vvp_fun_intermodpath(vvp_net_t*net, unsigned width,
 					  const vvp_fun_intermodpath*timing)
-: net_(net), timing_(timing)
+: net_(net), timing_(timing), input_(width, BIT4_X), output_(input_),
+  delay_{}, pending_pulse_(nullptr)
 {
-      for (unsigned idx = 0 ;  idx < 12 ;  idx += 1)
-	    delay_[idx] = 0;
+      schedule_init_propagate(net_, output_);
+}
 
-      cur_vec4_ = vvp_vector4_t(width, BIT4_X);
-      pending_pulse_ = 0;
-      schedule_init_propagate(net_, cur_vec4_);
+/* Both sides of a newly inserted stage already carry the last value
+   delivered over the old edge. There is no new event to propagate. */
+vvp_fun_intermodpath::vvp_fun_intermodpath(vvp_net_t*net, const vvp_vector4_t&live)
+: net_(net), timing_(nullptr), input_(live), output_(live),
+  delay_{}, pending_pulse_(nullptr)
+{
 }
 
 vvp_fun_intermodpath::~vvp_fun_intermodpath()
@@ -1971,10 +1985,8 @@ void vvp_fun_intermodpath::cancel_pulse_event_(pulse_event_*event)
 }
 
 void vvp_fun_intermodpath::schedule_pulse_transition_(vvp_time64_t delay,
-						      const vvp_vector4_t&bit)
+						      vvp_vector4_t from)
 {
-      vvp_vector4_t from = cur_vec4_;
-      cur_vec4_ = bit;
       vvp_time64_t due = schedule_simtime() + delay;
 
       if (pending_pulse_) {
@@ -1987,14 +1999,14 @@ void vvp_fun_intermodpath::schedule_pulse_transition_(vvp_time64_t delay,
 		  // known value. Reject the edge, but retain that final value.
 		  from = pending_pulse_->from;
 		  cancel_pulse_event_(pending_pulse_);
-		  if (bit.eeq(from))
+		  if (input_.eeq(from))
 			return;
 	    }
 	    else if (width < error)
-		  pending_pulse_->to = vvp_vector4_t(bit.size(), BIT4_X);
+		  pending_pulse_->to = vvp_vector4_t(input_.size(), BIT4_X);
       }
 
-      pending_pulse_ = enqueue_pulse_event_(due, from, bit);
+      pending_pulse_ = enqueue_pulse_event_(due, from, input_);
       schedule_generic(new pulse_wakeup_(this), delay, false, true, true);
 }
 
@@ -2013,7 +2025,8 @@ void vvp_fun_intermodpath::run_pulse_events_()
 		  pulse_event_*event = *pos;
 		  if (pending_pulse_ == event)
 			pending_pulse_ = 0;
-		  net_->send_vec4(event->to, 0);
+		  output_ = event->to;
+		  net_->send_vec4(output_, 0);
 		  delete event;
 	    }
 	    pulse_events_.erase(bucket);
@@ -2046,13 +2059,13 @@ void vvp_fun_intermodpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit
       if (port.port() > 0)
 	    return;
 
-      if (cur_vec4_.eeq(bit))
+      if (input_.eeq(bit))
 	    return;
 
       const vvp_time64_t*edge_delays = timing_ ? timing_->delay_ : delay_;
 
 	/* Given the scheduled output time, create an output event. */
-      vvp_time64_t use_delay = delay_from_edge(cur_vec4_.value(0),
+      vvp_time64_t use_delay = delay_from_edge(input_.value(0),
 					       bit.value(0),
 					       edge_delays);
 
@@ -2060,27 +2073,38 @@ void vvp_fun_intermodpath::recv_vec4(vvp_net_ptr_t port, const vvp_vector4_t&bit
 	   bit. This is WRONG! I need to find all the possible delays,
 	   and schedule an event for each partial change. Hard! */
       for (unsigned idx = 1 ;  idx < bit.size() ;  idx += 1) {
-	    vvp_time64_t tmp = delay_from_edge(cur_vec4_.value(idx),
+	    vvp_time64_t tmp = delay_from_edge(input_.value(idx),
 					       bit.value(idx),
 					       edge_delays);
 	      /* If the current and new bit values match then no delay
 	       * is needed for this bit. */
-	    if (cur_vec4_.value(idx) == bit.value(idx)) continue;
+	    if (input_.value(idx) == bit.value(idx)) continue;
 	    assert(tmp == use_delay);
       }
 
       if (bit.size() == 1) {
-	    schedule_pulse_transition_(use_delay, bit);
+	    vvp_vector4_t previous = input_;
+	    input_ = bit;
+	    schedule_pulse_transition_(use_delay, std::move(previous));
 	    return;
       }
 
-      cur_vec4_ = bit;
+      input_ = bit;
       schedule_generic(this, use_delay, false);
+}
+
+void vvp_fun_intermodpath::recv_vec4_pv(vvp_net_ptr_t port, const vvp_vector4_t&bit,
+				      unsigned base, unsigned vwid, vvp_context_t context)
+{
+      vvp_vector4_t full = input_.size() == vwid ? input_ : vvp_vector4_t(vwid);
+      full.set_vec(base, bit);
+      recv_vec4(port, full, context);
 }
 
 void vvp_fun_intermodpath::run_run()
 {
-      net_->send_vec4(cur_vec4_, 0);
+      output_ = input_;
+      net_->send_vec4(output_, 0);
 }
 
 /*
@@ -2284,7 +2308,8 @@ static void intermodpath_get_delays ( vpiHandle ref, p_vpi_delay delays )
 * The __vpiInterModPath class is what the VPI client sees as a
 * vpiInterModPath object.
 */
-inline __vpiInterModPath::__vpiInterModPath()
+inline __vpiInterModPath::__vpiInterModPath(bool stage_owned)
+: stage_owned_(stage_owned)
 { }
 
 int __vpiInterModPath::get_type_code(void) const
@@ -2318,7 +2343,27 @@ static int intermodpath_free_object( vpiHandle ref )
 }
 
 __vpiHandle::free_object_fun_t __vpiInterModPath::free_object_fun(void)
-{ return &intermodpath_free_object; }
+{
+      return stage_owned_ ? __vpiHandle::free_object_fun() : &intermodpath_free_object;
+}
+
+__vpiInterModPathDelay::__vpiInterModPathDelay(vvp_net_t*net, vvp_fun_intermodpath*fun,
+					     vpiPortInfo*source, vpiPortInfo*load)
+: __vpiDelayDevice(load->parent_scope(), vpiInterModPathDelay), path(true),
+  actual(load->vpi_handle(vpiHighConn)), formal(load->vpi_handle(vpiLowConn))
+{
+      /* Keep the timing scale of the existing vpiInterModPath API. */
+      path.scope = vpip_peek_current_scope();
+      path.net = net;
+      path.intermodpath = fun;
+      path.port1 = source;
+      path.port2 = load;
+}
+
+const vvp_vector4_t& __vpiInterModPathDelay::term_value(bool input) const
+{
+      return input ? path.intermodpath->delay_input() : path.intermodpath->delay_output();
+}
 
 /*
  * This function will construct a vpiInterModPath Object.

@@ -312,3 +312,5 @@ issue1344_runtime_error_2017 normal,-g2017,-s,top issue1344_runtime_error.c issu
 issue1344_runtime_error_2023 normal,-g2023,-s,top issue1344_runtime_error.c issue1344_runtime_error_2023.gold
 issue3919_modpath_connectivity_2017 normal,-g2017,-gspecify,-s,top issue3919_modpath_connectivity.c issue3919_modpath_connectivity_2017.gold
 issue3919_modpath_connectivity_2023 normal,-g2023,-gspecify,-s,top issue3919_modpath_connectivity.c issue3919_modpath_connectivity_2023.gold
+issue3920_interconnect_terms_2017 normal,-g2017,-gspecify,-ginterconnect,-s,top issue3920_interconnect_terms.c issue3920_interconnect_terms_2017.gold
+issue3920_interconnect_terms_2023 normal,-g2023,-gspecify,-ginterconnect,-s,top issue3920_interconnect_terms.c issue3920_interconnect_terms_2023.gold

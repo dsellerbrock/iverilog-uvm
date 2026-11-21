@@ -931,8 +931,10 @@ struct __vpiModPathSrc : public __vpiHandle {
 } ;
 
 
+struct __vpiDelayDevice;
+
 struct __vpiDelayTerm : public __vpiHandle {
-      __vpiDelayTerm(__vpiModPath*device, bool input);
+      __vpiDelayTerm(__vpiDelayDevice*device, bool input);
       int get_type_code(void) const override { return vpiDelayTerm; }
       int vpi_get(int code) override;
       vpiHandle vpi_handle(int code) override;
@@ -940,19 +942,33 @@ struct __vpiDelayTerm : public __vpiHandle {
       void vpi_get_value(p_vpi_value val) override;
 
     private:
-      __vpiModPath*device_;
+      __vpiDelayDevice*device_;
       bool input_;
+};
+
+struct __vpiDelayDevice : public __vpiHandle {
+      __vpiDelayDevice(__vpiScope*scope, int delay_type);
+      int get_type_code(void) const override { return vpiDelayDevice; }
+      int vpi_get(int code) override;
+      vpiHandle vpi_handle(int code) override;
+      virtual const vvp_vector4_t& term_value(bool input) const = 0;
+      virtual vpiHandle term_iterate(bool input, int code) = 0;
+
+      __vpiScope*const scope;
+      __vpiDelayTerm delay_term_in;
+      __vpiDelayTerm delay_term_out;
+
+    private:
+      const int delay_type_;
 };
 
 /* A .modpath destination stage is one delay device shared by its
    timing-selection probes (the individual vpiModPath handles). */
-struct __vpiModPath : public __vpiHandle {
+struct __vpiModPath : public __vpiDelayDevice {
       __vpiModPath(__vpiScope*scope, class vvp_fun_modpath*modpath);
-      int get_type_code(void) const override { return vpiDelayDevice; }
-      int vpi_get(int code) override;
-      vpiHandle vpi_handle(int code) override;
+      const vvp_vector4_t& term_value(bool input) const override;
+      vpiHandle term_iterate(bool input, int code) override;
 
-      __vpiScope   *scope ;
 	/* The sources, in .modpath record order (for .pathexpr). */
       std::vector<struct __vpiModPathSrc*> srcs;
 
@@ -967,10 +983,7 @@ struct __vpiModPath : public __vpiHandle {
       };
       std::vector<connection> connections;
       struct __vpiModPathTerm path_term_out;
-      __vpiDelayTerm delay_term_in;
-      __vpiDelayTerm delay_term_out;
 };
-extern vpiHandle vpip_modpath_conn_iterate(__vpiModPath*path, bool input, int code);
 
 
 /*
@@ -994,7 +1007,7 @@ extern struct __vpiModPathSrc* vpip_make_modpath_src(struct __vpiModPath*path,
  */
 
 struct __vpiInterModPath : public __vpiHandle {
-      __vpiInterModPath();
+      explicit __vpiInterModPath(bool stage_owned = false);
       int get_type_code(void) const override;
       int vpi_get(int code) override;
       void vpi_get_value(p_vpi_value val) override;
@@ -1013,8 +1026,24 @@ struct __vpiInterModPath : public __vpiHandle {
 
       vpiPortInfo* port1;
       vpiPortInfo* port2;
+
+    private:
+      const bool stage_owned_;
 };
 
+/* The device and its handles belong to the one inserted delay stage. */
+struct __vpiInterModPathDelay : public __vpiDelayDevice {
+      __vpiInterModPathDelay(vvp_net_t*net, vvp_fun_intermodpath*fun,
+			    vpiPortInfo*source, vpiPortInfo*load);
+      const vvp_vector4_t& term_value(bool input) const override;
+      vpiHandle term_iterate(bool input, int code) override;
+
+      __vpiInterModPath path;
+      const vpiHandle actual;
+      const vpiHandle formal;
+};
+
+extern void vpip_index_intermodpath(__vpiInterModPathDelay*device);
 
 /*
  * The Function is used to create the vpiHandle
@@ -1023,7 +1052,8 @@ struct __vpiInterModPath : public __vpiHandle {
 
 extern struct __vpiInterModPath* vpip_make_intermodpath(vvp_net_t *net, vpiPortInfo* port1, vpiPortInfo* port2);
 extern "C" vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
-                                                        vpiHandle load);
+                                                       vpiHandle load,
+                                                       bool point_to_point);
 extern "C" bool vpip_interconnect_port_uses_part_select(vpiHandle port);
 extern "C" bool vpip_interconnect_through_net(vpiHandle net,
                                                vpiHandle load);

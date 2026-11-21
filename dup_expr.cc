@@ -369,7 +369,7 @@ NetETernary* NetETernary::dup_expr() const
 					true_val_->dup_expr(),
 					false_val_->dup_expr(),
                                         expr_width(),
-                                        has_sign());
+                                        has_sign(), net_type());
       ivl_assert(*this, tmp);
       tmp->set_line(*this);
       return tmp;
