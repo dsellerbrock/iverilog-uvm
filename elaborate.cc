@@ -8495,6 +8495,29 @@ static bool unpacked_array_shapes_match_(const netranges_t&formal,
       return true;
 }
 
+static bool instance_array_prefix_matches_(
+      const NetScope::instance_dims_t&instance_dims,
+      const netranges_t&actual, size_t instance_count)
+{
+      if (instance_dims.size() == 1)
+	    return !actual.empty() && actual.front().width() == instance_count;
+      return actual.size() >= instance_dims.size()
+	    && std::equal(instance_dims.begin(), instance_dims.end(), actual.begin(),
+			  [](const NetScope::instance_range_t&instance,
+			     const netrange_t&dim) {
+				return instance.width() == dim.width();
+			  });
+}
+
+static bool unsupported_multidim_instance_port_(Design*des, const PExpr*expr)
+{
+      cerr << expr->get_fileline() << ": sorry: Unpacked port connections on "
+	   << "multidimensional module instance arrays require a whole unpacked "
+	   << "actual and a packed formal." << endl;
+      des->errors += 1;
+      return true;
+}
+
 /* A fixed array actual retains its original signal for either direction of
  * a port connection. Canonical words in the selected shape map to contiguous
  * blocks in that signal. An index following a slice can leave gaps between
@@ -8563,18 +8586,22 @@ static NetNet* read_instance_array_input_word_(
 }
 
 /* IEEE 1800-2017/2023 23.3.3.5: an unpacked input actual can have the
- * shape of a single formal, or an extra leading dimension indexing the
+ * shape of a single formal, or extra leading dimensions indexing the
  * instances in declaration order. Validate every destination before
  * adding any port drivers. */
 static bool elaborate_instance_array_input_(
       Design*des, NetScope*scope, const vector<NetNet*>&formals, PExpr*expr,
-      perm_string port_name, bool implicit)
+      perm_string port_name, bool implicit,
+      const NetScope::instance_dims_t&instance_dims)
 {
       const auto&first_dims = formals.front()->unpacked_dims();
       fixed_array_port_actual_t view;
       int decoded = decode_fixed_array_port_actual_(des, scope, expr, view);
       if (decoded < 0)
 	    return true;
+      if (decoded > 0 && instance_dims.size() > 1
+	  && !static_cast<const PEIdent*>(expr)->path().back().index.empty())
+	    return unsupported_multidim_instance_port_(des, expr);
       if (decoded == 0) {
 	    if (first_dims.empty())
 		  return false;
@@ -8594,11 +8621,11 @@ static bool elaborate_instance_array_input_(
 	    }
 	    view.dims = view.signal->unpacked_dims();
       }
-
       NetNet*actual = view.signal;
       const auto&actual_dims = view.dims;
-      const bool split = actual_dims.size() == first_dims.size() + 1;
-      const size_t leading = split ? 1 : 0;
+      const bool split = actual_dims.size() ==
+	    first_dims.size() + instance_dims.size();
+      const size_t leading = split ? instance_dims.size() : 0;
       const netranges_t element_dims(actual_dims.begin() + leading,
 				     actual_dims.end());
       const auto report_error = [&](const char*reason) {
@@ -8608,7 +8635,8 @@ static bool elaborate_instance_array_input_(
 	    return true;
       };
 
-      if (split && actual_dims.front().width() != formals.size())
+      if (split && !instance_array_prefix_matches_(
+	    instance_dims, actual_dims, formals.size()))
 	    return report_error("incompatible unpacked-array dimensions");
 
       ivl_type_t src_type = view.element_type();
@@ -8745,18 +8773,22 @@ static bool elaborate_instance_array_input_(
 static bool elaborate_fixed_array_output_(
       Design*des, NetScope*scope, const vector<NetNet*>&formals,
       const PExpr*expr, const Module*mod, unsigned port_idx, bool implicit,
-      bool instance_array)
+      const NetScope::instance_dims_t&instance_dims)
 {
+      const bool instance_array = !instance_dims.empty();
       const bool unpacked_formal = formals.front()->unpacked_dimensions() > 0;
       fixed_array_port_actual_t view;
       int decoded = decode_fixed_array_port_actual_(des, scope, expr, view,
-	    instance_array && unpacked_formal ? fixed_array_port_use::OUTPUT
-					     : fixed_array_port_use::VARIABLE_OUTPUT);
+	    (instance_array && unpacked_formal) || instance_dims.size() > 1
+	    ? fixed_array_port_use::OUTPUT : fixed_array_port_use::VARIABLE_OUTPUT);
       if (decoded < 0)
 	    return true;
       NetNet*actual = view.signal;
       if (!actual || (!decoded && !unpacked_formal))
 	    return false;
+      if (instance_dims.size() > 1
+	  && !static_cast<const PEIdent*>(expr)->path().back().index.empty())
+	    return unsupported_multidim_instance_port_(des, expr);
       const bool variable_actual = is_fixed_variable_array_(actual);
 
       perm_string port_name = mod->get_port_name(port_idx);
@@ -8770,13 +8802,16 @@ static bool elaborate_fixed_array_output_(
 
       const auto&actual_dims = view.dims;
       const bool split = instance_array && actual_dims.size() ==
-	    formals.front()->unpacked_dimensions() + 1;
-      if (!decoded || (split && actual_dims.front().width() != formals.size()))
+	    formals.front()->unpacked_dimensions() + instance_dims.size();
+      if (!decoded
+	  || (split && !instance_array_prefix_matches_(
+		instance_dims, actual_dims, formals.size())))
 	    return report_error("incompatible unpacked-array dimensions");
       if (variable_actual && (view.base_expr || view.slice_base_expr))
 	    return report_error("a nonconstant unpacked-array output selector");
 
-      const netranges_t element_dims(actual_dims.begin() + (split ? 1 : 0),
+      const size_t leading = split ? instance_dims.size() : 0;
+      const netranges_t element_dims(actual_dims.begin() + leading,
 				     actual_dims.end());
       ivl_type_t dst_type = view.element_type();
       const NetNetType*actual_udnt = actual->user_nettype();
@@ -9315,6 +9350,12 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	// later.
 
       NetScope::scope_vec_t&instance = scope->instance_arrays[get_name()];
+      const NetScope::instance_dims_t no_dims;
+      const auto bounds = scope->instance_array_dims.find(get_name());
+      const auto&instance_dims = bounds == scope->instance_array_dims.end()
+	    ? no_dims : bounds->second;
+      const bool multidimensional = instance_dims.size() > 1;
+      const bool check_array_width = instance.size() > 1 || multidimensional;
 
 	/* Each port's actual, for its vpiHighConn (IEEE 1800-2023 37.14
 	   detail 3). An instance array splits its actuals, so only a single
@@ -10220,6 +10261,11 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    interconnect_port_use_guard_t interconnect_port_use(
 		  des, scope, pins[idx]);
 
+	    if (multidimensional && !prts.empty() && prts[0]->unpacked_dimensions()) {
+		  unsupported_multidim_instance_port_(des, pins[idx]);
+		  continue;
+	    }
+
 	      /* An interface member is a run-time object property, not a
 	         structural nexus. Bridge a scalar module port through an ordinary
 	         signal and use the same event-driven member assignment as a source
@@ -10274,65 +10320,93 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 	    if (ptype == NetNet::PINPUT && is_array() && mport.size() == 1
 		&& elaborate_instance_array_input_(des, elab_scope_inst[0], prts,
 						    pins[idx], port_name,
-						    pins_implicit[idx]))
+						    pins_implicit[idx], instance_dims))
 		  continue;
 
 	    if (gn_system_verilog() && ptype == NetNet::POUTPUT && mport.size() == 1
 		&& (is_array() || prts[0]->unpacked_dimensions())
 		&& elaborate_fixed_array_output_(des, scope, prts, pins[idx], rmod,
-						  idx, pins_implicit[idx], is_array()))
+						  idx, pins_implicit[idx], instance_dims))
 		  continue;
 
-	    /* Retain the scalar output and inout mapping for whole unpacked
-	       actuals. Input array connections are handled above. */
+	    /* Map whole unpacked inout actuals and retain the one-dimensional
+	       net output path. Other array connections are handled above. */
 	    bool instance_array_actual = false;
-	    if ((ptype == NetNet::POUTPUT || ptype == NetNet::PINOUT)
-	        && instance.size() > 1 && mport.size() == 1
+	    if ((ptype == NetNet::PINOUT || (ptype == NetNet::POUTPUT && !multidimensional))
+	        && check_array_width && mport.size() == 1
 	        && prts.size() == instance.size() && !prts.empty()
 	        && prts[0] && prts[0]->unpacked_dimensions() == 0) {
 	      const PEIdent*aid = dynamic_cast<const PEIdent*>(pins[idx]);
-	      if (aid && aid->path().name.size() == 1
-	          && aid->path().name.front().index.empty()) {
-	            NetNet*actual = aid->elaborate_unpacked_net(des, scope);
-	            if (actual && actual->unpacked_dimensions() == 1
-	                && actual->unpacked_dims()[0].width() == instance.size()) {
-	                  bool matching = true;
-	                  for (NetNet*formal : prts)
-	                        if (!formal || formal->unpacked_dimensions() != 0
-	                            || formal->vector_width() != actual->vector_width())
-	                              matching = false;
-	                  if (matching && (ptype != NetNet::POUTPUT
-	                                   || actual->type() != NetNet::REG)) {
-	                        for (unsigned inst = 0; inst < instance.size();
-	                             inst += 1) {
-	                              unsigned word = unpacked_array_ltr_word_(
-	                                    actual->unpacked_dims(), inst);
-	                              NetNet*formal = prts[inst];
-	                              if (ptype == NetNet::POUTPUT) {
-	                                    NetBUFZ*buffer = new NetBUFZ(
-	                                          scope, scope->local_symbol(),
-	                                          formal->vector_width(), false);
-	                                    buffer->set_line(*this);
-	                                    des->add_node(buffer);
-	                                    connect(actual->pin(word),
-	                                            buffer->pin(0));
-	                                    connect(buffer->pin(1),
-	                                            formal->pin(0));
-	                              } else {
-	                                    NetTran*tran = new NetTran(
-	                                          scope, scope->local_symbol(),
-	                                          actual->vector_width(),
-	                                          formal->vector_width(), 0);
-	                                    tran->set_line(*this);
-	                                    des->add_node(tran);
-	                                    connect(tran->pin(0),
-	                                            actual->pin(word));
-	                                    connect(tran->pin(1),
-	                                            formal->pin(0));
-	                              }
-	                        }
-	                        instance_array_actual = true;
+	      NetNet*actual = nullptr;
+	      if (multidimensional) {
+	            fixed_array_port_actual_t view;
+	            int decoded = decode_fixed_array_port_actual_(
+	                  des, scope, pins[idx], view, fixed_array_port_use::OUTPUT);
+	            if (decoded < 0)
+	                  continue;
+	            if (decoded > 0) {
+	                  if (!aid->path().back().index.empty()) {
+	                        unsupported_multidim_instance_port_(des, pins[idx]);
+	                        continue;
 	                  }
+	                  actual = view.signal;
+	            }
+	      } else if (aid && aid->path().name.size() == 1
+	                 && aid->path().name.front().index.empty()) {
+	            actual = aid->elaborate_unpacked_net(des, scope);
+	      }
+	      if (actual) {
+	            const auto&actual_dims = actual->unpacked_dims();
+	            const bool shape_matches = actual_dims.size() == instance_dims.size()
+	                  && instance_array_prefix_matches_(
+	                        instance_dims, actual_dims, instance.size());
+	            if (multidimensional && !shape_matches) {
+	                  cerr << aid->get_fileline() << ": error: Arrayed port '"
+	                       << port_name << "' has incompatible unpacked-array dimensions."
+	                       << endl;
+	                  des->errors += 1;
+	                  continue;
+	            }
+	            if (multidimensional && (actual->type() == NetNet::REG
+	                                     || actual->type() == NetNet::IMPLICIT_REG
+	                                     || actual->coerced_to_uwire())) {
+	                  cerr << aid->get_fileline() << ": error: Inout port '"
+	                       << port_name << "' requires an unpacked net array."
+	                       << endl;
+	                  des->errors += 1;
+	                  continue;
+	            }
+	            bool matching = shape_matches;
+	            for (NetNet*formal : prts)
+	                  if (!formal || formal->unpacked_dimensions() != 0
+	                      || formal->vector_width() != actual->vector_width())
+	                        matching = false;
+	            if (matching && (ptype != NetNet::POUTPUT
+	                             || actual->type() != NetNet::REG)) {
+	                  for (unsigned inst = 0; inst < instance.size(); inst += 1) {
+	                        unsigned word = unpacked_array_ltr_word_(
+	                              actual->unpacked_dims(), inst);
+	                        NetNet*formal = prts[inst];
+	                        if (ptype == NetNet::POUTPUT) {
+	                              NetBUFZ*buffer = new NetBUFZ(
+	                                    scope, scope->local_symbol(),
+	                                    formal->vector_width(), false);
+	                              buffer->set_line(*this);
+	                              des->add_node(buffer);
+	                              connect(actual->pin(word), buffer->pin(0));
+	                              connect(buffer->pin(1), formal->pin(0));
+	                        } else {
+	                              NetTran*tran = new NetTran(
+	                                    scope, scope->local_symbol(),
+	                                    actual->vector_width(),
+	                                    formal->vector_width(), 0);
+	                              tran->set_line(*this);
+	                              des->add_node(tran);
+	                              connect(tran->pin(0), actual->pin(word));
+	                              connect(tran->pin(1), formal->pin(0));
+	                        }
+	                  }
+	                  instance_array_actual = true;
 	            }
 	      }
 	    }
@@ -10407,7 +10481,7 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 		     width for port conversion diagnostics and implicit type checks. */
 		  if (!pins_implicit[idx]
 		      && !dynamic_cast<const PEIdent*>(pins[idx])) {
-			if (instance.size() > 1) {
+			if (check_array_width) {
 			      /* Keep an array actual's own width so the packed-actual
 			         mapper can distinguish broadcast from per-instance
 			         slices. The unbased unsized literal still needs the
@@ -10720,14 +10794,15 @@ void PGModule::elaborate_mod_(Design*des, Module*rmod, NetScope*scope) const
 
 	      /* If we are working with an instance array, then the
 		 signal width must match the port width exactly. */
-	    if ((instance.size() != 1)
+	    if (check_array_width
 		&& (sig->vector_width() != prts_vector_width)
 		&& (sig->vector_width() != prts_vector_width/instance.size())) {
 		  cerr << pins[idx]->get_fileline() << ": error: "
 		       << "Port expression width " << sig->vector_width()
-		       << " does not match expected width "<< prts_vector_width
-		       << " or " << (prts_vector_width/instance.size())
-		       << "." << endl;
+		       << " does not match expected width " << prts_vector_width;
+		  if (instance.size() > 1)
+			cerr << " or " << prts_vector_width/instance.size();
+		  cerr << "." << endl;
 		  des->errors += 1;
 		  continue;
 	    }
@@ -11312,15 +11387,17 @@ static bool bind_filter_component_match_(Design*des, NetScope*eval_scope,
         // A bind target names one module/interface instance. An unselected
         // component therefore cannot match an element of an instance array;
         // Syntax 23-9 requires the constant bit select that names the element.
-      if (expected.index.empty()) {
-	    if (!actual.has_numbers())
-		  return true;
+      if (expected.index.size() < actual.has_numbers()) {
 	    if (occurrence)
 		  filter->unselected_array_origins.insert(occurrence);
 	    else
 		  filter->unselected_array = true;
 	    return false;
       }
+      if (expected.index.size() > actual.has_numbers())
+	    return false;
+      if (expected.index.empty())
+	    return true;
 
       if (occurrence) {
 	    if (filter->invalid_origins.count(occurrence))
@@ -11329,66 +11406,49 @@ static bool bind_filter_component_match_(Design*des, NetScope*eval_scope,
 	    return false;
       }
 
-      ivl_assert(*filter, expected.index.size() == 1);
-      const index_component_t&select = expected.index.front();
-      ivl_assert(*filter, select.sel == index_component_t::SEL_BIT);
+      vector<int> indices;
+      for (const index_component_t&select : expected.index) {
+	    ivl_assert(*filter, select.sel == index_component_t::SEL_BIT);
 
-      unsigned saved_opt_const_func = opt_const_func;
-      opt_const_func = std::max(opt_const_func, 2u);
-      unsigned errors_before = des->errors;
-      unique_ptr<NetExpr>index_expr(
-	    elab_and_eval(des, eval_scope, select.msb, -1, false));
-      opt_const_func = saved_opt_const_func;
+	    unsigned saved_opt_const_func = opt_const_func;
+	    opt_const_func = std::max(opt_const_func, 2u);
+	    unsigned errors_before = des->errors;
+	    unique_ptr<NetExpr>index_expr(
+		  elab_and_eval(des, eval_scope, select.msb, -1, false));
+	    opt_const_func = saved_opt_const_func;
 
-      const NetEConst*constant
-	    = index_expr? dynamic_cast<const NetEConst*>(index_expr.get()) : 0;
-      if (!constant) {
-	    if (des->errors == errors_before) {
-		  cerr << select.msb->get_fileline() << ": error: bind target "
-		       << "instance select expression is not constant: "
-		       << *select.msb << endl;
-		  des->errors += 1;
+	    const NetEConst*constant =
+		  dynamic_cast<const NetEConst*>(index_expr.get());
+	    if (!constant) {
+		  if (des->errors == errors_before) {
+			cerr << select.msb->get_fileline() << ": error: bind target "
+			     << "instance select expression is not constant: "
+			     << *select.msb << endl;
+			des->errors += 1;
+		  }
+		  break;
 	    }
-	    if (occurrence)
-		  filter->invalid_origins.insert(occurrence);
-	    else
-		  filter->invalid = true;
-	    return false;
-      }
 
-      const verinum&value = constant->value();
-      if (!value.is_defined()) {
-	    cerr << select.msb->get_fileline() << ": error: bind target "
-		 << "instance select contains x/z bits: " << value << endl;
-	    des->errors += 1;
-	    if (occurrence)
-		  filter->invalid_origins.insert(occurrence);
-	    else
-		  filter->invalid = true;
-	    return false;
+	    const verinum&value = constant->value();
+	    int index;
+	    if (!verinum_to_scope_index(value, index)) {
+		  cerr << select.msb->get_fileline() << ": error: bind target "
+		       << (value.is_defined()
+			   ? "instance select is outside the supported instance-index range: "
+			   : "instance select contains x/z bits: ")
+		       << value << endl;
+		  des->errors += 1;
+		  break;
+	    }
+	    indices.push_back(index);
       }
-
-      bool negative = false;
-      uint64_t magnitude = verinum_signed_magnitude(value, negative);
-      uint64_t negative_limit
-	    = static_cast<uint64_t>(-(static_cast<int64_t>(INT_MIN)));
-      if ((!negative && magnitude > static_cast<uint64_t>(INT_MAX))
-	  || (negative && magnitude > negative_limit)) {
-	    cerr << select.msb->get_fileline() << ": error: bind target "
-		 << "instance select is outside the supported instance-index "
-		 << "range: " << value << endl;
-	    des->errors += 1;
-	    if (occurrence)
-		  filter->invalid_origins.insert(occurrence);
-	    else
-		  filter->invalid = true;
-	    return false;
-      }
-      int selected_value = negative
-	    ? (magnitude == negative_limit? INT_MIN
-	       : -static_cast<int>(magnitude))
-	    : static_cast<int>(magnitude);
-      return hname_t(expected.name, selected_value) == actual;
+      if (indices.size() == expected.index.size())
+	    return indices == actual.peek_numbers();
+      if (occurrence)
+	    filter->invalid_origins.insert(occurrence);
+      else
+	    filter->invalid = true;
+      return false;
 }
 
 static NetScope* bind_filter_declaration_scope_(

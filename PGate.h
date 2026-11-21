@@ -115,6 +115,7 @@ class PGate : public PNamedItem {
 
       void set_ranges(std::list<pform_range_t>*ranges);
       bool is_array() const { return ranges_ != 0; }
+      size_t array_rank() const { return ranges_ ? ranges_->size() : 0; }
 
       perm_string get_name() const { return name_; }
 
@@ -153,6 +154,7 @@ class PGate : public PNamedItem {
 
     protected:
       const std::vector<PExpr*>& get_pins() const { return pins_; }
+      const std::list<pform_range_t>*get_ranges() const { return ranges_; }
 
       unsigned calculate_array_size_(Design*, NetScope*,
 				     long&high, long&low) const;

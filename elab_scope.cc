@@ -25,6 +25,7 @@
 # include  "netvector.h"
 # include  "netparray.h"
 # include  <cstring>
+# include  <climits>
 # include  <iostream>
 # include  <cstdlib>
 # include  <cstdio>
@@ -6462,15 +6463,83 @@ static bool module_is_lexically_nested_(const Module*module)
       return false;
 }
 
+static bool evaluate_module_array_bound_(Design*des, NetScope*scope,
+					  PExpr*bound, int&index)
+{
+      unsigned errors_before = des->errors;
+      unique_ptr<NetExpr> expr(elab_and_eval(des, scope, bound, -1, true));
+      const NetEConst*constant = dynamic_cast<const NetEConst*>(expr.get());
+      if (constant && verinum_to_scope_index(constant->value(), index))
+	    return true;
+
+      if (des->errors == errors_before) {
+	    cerr << bound->get_fileline() << ": error: Module instance array "
+		 << "bound must be a defined integral constant in the "
+		 << "supported scope-index range: " << *bound << endl;
+	    des->errors += 1;
+      }
+      return false;
+}
+
 void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*sc) const
 {
-      long instance_low  = 0;
-      long instance_high = 0;
-      long instance_count = calculate_array_size_(des, sc, instance_high, instance_low);
-      if (instance_count == 0)
-	    return;
+      NetScope::scope_vec_t instances;
+      NetScope::instance_dims_t dims;
+      size_t instance_count = 1;
+      long legacy_left = 0, legacy_right = 0;
+      const bool module_array = is_array() && gn_system_verilog()
+	    && !mod->is_interface && !mod->program_block && !mod->is_checker;
+      if (module_array) {
+	    const size_t limit = min(instances.max_size(),
+				     static_cast<size_t>(INT_MAX));
+	    for (const pform_range_t&range : *get_ranges()) {
+		  if (!range.first || dynamic_cast<PENull*>(range.first)
+		      || dynamic_cast<PEAssocType*>(range.first)) {
+			cerr << get_fileline() << ": error: Module instance arrays "
+			     << "require fixed dimensions." << endl;
+			des->errors += 1;
+			return;
+		  }
 
-      NetScope::scope_vec_t instances (instance_count);
+		  int left, right;
+		  if (!evaluate_module_array_bound_(des, sc, range.first, left))
+			return;
+		  if (range.second) {
+			if (!evaluate_module_array_bound_(des, sc, range.second, right))
+			      return;
+		  } else {
+			if (left <= 0) {
+			      cerr << range.first->get_fileline() << ": error: "
+				   << "Dimension size must be greater than zero." << endl;
+			      des->errors += 1;
+			      return;
+			}
+			right = left - 1;
+			left = 0;
+		  }
+
+		  const NetScope::instance_range_t dim{left, right};
+		  const uint64_t extent = dim.width();
+		  if (extent > limit / instance_count) {
+			cerr << get_fileline() << ": error: Module instance array '"
+			     << get_name() << "' has too many elements." << endl;
+			des->errors += 1;
+			return;
+		  }
+		  instance_count *= static_cast<size_t>(extent);
+		  dims.push_back(dim);
+	    }
+      } else if (is_array()) {
+	      // Preserve the existing rules for non-SystemVerilog, interfaces,
+	      // programs and checkers.
+	    instance_count = calculate_array_size_(des, sc, legacy_left, legacy_right);
+	    if (instance_count == 0)
+		  return;
+      }
+      instances.resize(instance_count);
+      vector<int> indices(array_rank());
+      for (size_t dim = 0; dim < dims.size(); ++dim)
+	    indices[dim] = dims[dim].right;
 
       struct attrib_list_t*attrib_list;
       unsigned attrib_list_n = 0;
@@ -6481,19 +6550,13 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	// Run through the module instances, and make scopes out of
 	// them. Also do parameter overrides that are done on the
 	// instantiation line.
-      for (int idx = 0 ;  idx < instance_count ;  idx += 1) {
-
-	    hname_t use_name (get_name());
-
-	    if (is_array()) {
-		  int instance_idx;
-		  if (instance_low < instance_high)
-			instance_idx = instance_low + idx;
-		  else
-			instance_idx = instance_low - idx;
-
-		  use_name = hname_t(get_name(), instance_idx);
+      for (size_t idx = 0 ;  idx < instance_count ;  idx += 1) {
+	    if (!module_array && is_array()) {
+		  long offset = static_cast<long>(idx);
+		  indices.front() = legacy_right
+			+ (legacy_right < legacy_left ? offset : -offset);
 	    }
+	    hname_t use_name(get_name(), indices);
 
 	    if (debug_scopes) {
 		  cerr << get_fileline() << ": debug: Module instance " << use_name
@@ -6601,6 +6664,18 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	      // later.)
 	    mod->elaborate_scope(des, my_scope, replace);
 
+	      // Advance from the right bounds toward the left bounds, with
+	      // the rightmost dimension changing fastest.
+	    for (size_t dim = dims.size(); dim > 0; --dim) {
+		  int&index = indices[dim-1];
+		  const int left = dims[dim-1].left;
+		  const int right = dims[dim-1].right;
+		  if (index != left) {
+			index += left > right ? 1 : -1;
+			break;
+		  }
+		  index = right;
+	    }
       }
 	    delete[]attrib_list;
 
@@ -6611,7 +6686,13 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	   Note that the array is ordered from LSB to MSB. We will use
 	   that fact in the main elaborate to connect things in the
 	   correct order. */
-      sc->instance_arrays[get_name()] = instances;
+      // Legacy arrays keep the indices produced by their existing path.
+      if (!module_array && is_array())
+	    dims.push_back({instances.back()->fullname().peek_number(0),
+			    instances.front()->fullname().peek_number(0)});
+      if (!dims.empty())
+	    sc->instance_array_dims[get_name()] = std::move(dims);
+      sc->instance_arrays[get_name()] = std::move(instances);
 }
 
 /*

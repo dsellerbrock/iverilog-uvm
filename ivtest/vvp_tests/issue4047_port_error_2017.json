@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue4047_port_error_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue4047_port_error"],
+  "gold": "issue4047_port_error"
+}
