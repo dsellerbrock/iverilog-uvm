@@ -32,6 +32,7 @@
 # include  "resolv.h"
 # include  "vvp_island.h"
 # include  "vvp_net_sig.h"
+# include  "class_type.h"
 # include  "compile.h"
 # include  "config.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -486,6 +487,39 @@ static value_callback*make_value_change_part(p_cb_data data)
       return cbh;
 }
 
+extern bool vvp_object_value_equal(const vvp_object_t&left,
+                                  const vvp_object_t&right);
+
+class tagged_union_value_callback : public value_callback {
+    public:
+      tagged_union_value_callback(p_cb_data data, vvp_fun_signal_object*signal)
+      : value_callback(data), signal_(signal),
+        previous_(signal->get_object().value_copy_element())
+      {
+      }
+
+      bool test_value_callback_ready() override
+      {
+            vvp_object_t current = signal_->get_object();
+            if (vvp_object_value_equal(previous_, current))
+                  return false;
+
+            previous_ = current.value_copy_element();
+            return true;
+      }
+
+      PLI_INT32 remove() override
+      {
+            PLI_INT32 result = value_callback::remove();
+            previous_.reset();
+            return result;
+      }
+
+    private:
+      vvp_fun_signal_object*const signal_;
+      vvp_object_t previous_;
+};
+
 /*
  * A value change callback is tripped when a bit of a signal
  * changes. This function creates that value change callback and
@@ -705,7 +739,6 @@ static value_callback* make_value_change(p_cb_data data)
 	    delete obj;
 	    return 0;
       }
-	value_callback*obj = new value_callback(data);
 	/* Scalar members of object-backed structs are variable views over the
 	 * owning object signal, not standalone __vpiSignal instances. Attach
 	 * their callbacks to that signal while retaining the member handle for
@@ -719,11 +752,20 @@ static value_callback* make_value_change(p_cb_data data)
 		    if (!fun && net)
 			  fun = dynamic_cast<vvp_fun_signal_base*>(net->fil);
 		    if (fun) {
+			  vvp_fun_signal_object*signal = fun->as_signal_object();
+			  const class_type*type = signal ? signal->declared_type() : 0;
+			  value_callback*obj;
+			  if (dynamic_cast<__vpiCobjectVar*>(target)
+			      && type && type->is_tagged_union_type())
+				obj = new tagged_union_value_callback(data, signal);
+			  else
+				obj = new value_callback(data);
 			  fun->add_vpi_callback(obj);
 			  return obj;
 		    }
 	      }
 	}
+	value_callback*obj = new value_callback(data);
 	 switch (target->get_type_code()) {
 
 	  case vpiReg:
