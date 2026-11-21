@@ -7472,3 +7472,7 @@ issue3978_property_cycle_2017 CE,-g2017,-s,issue3978_property_cycle ivltests gol
 issue3978_property_actual_2023 normal,-g2023,-s,issue3978_property_actual ivltests gold=issue3978_property_actual.gold
 issue3978_property_position_2023 CE,-g2023,-s,issue3978_property_position ivltests gold=issue3978_property_position.gold
 issue3978_property_cycle_2023 CE,-g2023,-s,issue3978_property_cycle ivltests gold=issue3978_property_cycle.gold
+issue3979_sequence_actual_2017 normal,-g2017,-gassertions,-s,issue3979_sequence_actual ivltests gold=issue3979_sequence_actual.gold
+issue3979_invalid_actual_2017 CE,-g2017,-gassertions,-s,issue3979_invalid_actual ivltests gold=issue3979_invalid_actual.gold
+issue3979_sequence_actual_2023 normal,-g2023,-gassertions,-s,issue3979_sequence_actual ivltests gold=issue3979_sequence_actual.gold
+issue3979_invalid_actual_2023 CE,-g2023,-gassertions,-s,issue3979_invalid_actual ivltests gold=issue3979_invalid_actual.gold

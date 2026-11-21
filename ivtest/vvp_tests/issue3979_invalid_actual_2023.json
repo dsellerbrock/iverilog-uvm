@@ -1,0 +1,11 @@
+{
+  "type": "CE",
+  "source": "issue3979_invalid_actual.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-gassertions",
+    "-s",
+    "issue3979_invalid_actual"
+  ],
+  "gold": "issue3979_invalid_actual"
+}

@@ -213,6 +213,9 @@ struct sva_stree_t {
       // intersect operands of different lengths; enclosing combinators
       // derive emptiness structurally before the NFA reachability check.
       bool known_empty = false;
+      // Binding a formal can change a Boolean leaf into a sequence. Defer
+      // fixed-chain and/intersect optimizations until its shape is known.
+      bool deferred_combine = false;
       std::vector<sva_seq_step_t>* chain = nullptr;  // LEAF only
       sva_stree_t* a = nullptr;   // also the operand of a unary node
       sva_stree_t* b = nullptr;

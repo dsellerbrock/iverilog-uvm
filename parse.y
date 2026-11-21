@@ -253,6 +253,13 @@ static void sva_destroy_parser_match_items_(
 	delete items;
 }
 
+static std::vector<sva_seq_step_t>* sva_boolean_sequence_(PExpr*expr)
+{
+      auto*steps = new std::vector<sva_seq_step_t>(1);
+      steps->front().expr = expr;
+      return steps;
+}
+
 /* IEEE 1800-2017/2023 16.10: "The subsequence to which a local variable
  * assignment is attached shall not admit an empty match", as `b[*0:1]' does
  * while `a ##1 b[*0:1]' does not. Only a lone boolean repeated from zero
@@ -3201,7 +3208,7 @@ static Module::port_t *module_declare_explicit_port(
 %type <sva_prop> sva_seq_comb sva_grouped_seq_comb sva_seq_comb_concat
   sva_grouped_seq_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
-%type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_lead_delay sva_seq_delayed
+%type <sva_seq>  sva_seq_expr sva_seq_atom sva_seq_temporal_atom sva_seq_lead_delay sva_seq_delayed
 %type <sva_seq>  sva_seq_grouped_delay sva_seq_postfix sva_seq_decl_expr
 %type <expr> sva_sequence_actual sva_property_actual sva_property_initializer_opt
 %type <expr> assertion_actual
@@ -3222,7 +3229,7 @@ static Module::port_t *module_declare_explicit_port(
   sva_grouped_seq_concat
   sva_or_has_op sva_or_operand sva_and_has_op sva_comb_atom sva_grouped_clocked_leaf
 %destructor { pform_sva_destroy_sequence($$); }
-  sva_seq_expr sva_seq_atom sva_seq_lead_delay sva_seq_delayed sva_seq_grouped_delay sva_seq_postfix sva_seq_decl_expr
+  sva_seq_expr sva_seq_atom sva_seq_temporal_atom sva_seq_lead_delay sva_seq_delayed sva_seq_grouped_delay sva_seq_postfix sva_seq_decl_expr
 %destructor { pform_sva_destroy_mc_segments($$); }
   sva_mc_tail sva_mc_tail_opt
 %type <rs_item>           rs_prod_item
@@ -3445,11 +3452,11 @@ static Module::port_t *module_declare_explicit_port(
 %type <event_expr> event_expression block_event_expression
 %type <event_expr> explicit_event_expression
 %type <event_expr> checker_event_expression
-%type <expr> event_actual event_initializer_opt
-%type <event_exprs> event_actual_list event_actual_term event_actual_group
-%destructor { delete $$; } event_actual event_initializer_opt
-%destructor { PEEventList events(std::move(*$$)); delete $$; }
-  event_actual_list event_actual_term event_actual_group
+%type <expr> event_actual
+%type <event_exprs> event_actual_list event_actual_operand event_actual_atom
+%destructor { delete $$; } event_actual
+%destructor { if ($$) { PEEventList events(std::move(*$$)); delete $$; } }
+  event_actual_list event_actual_operand event_actual_atom
 %type <event_statement> event_control
 %type <statement> statement statement_item statement_or_null
 %type <statement> compressed_statement
@@ -9947,13 +9954,13 @@ sva_property_formal_list
 	      formal.formal_type = sva_property_formal_t::SEQUENCE;
 	      formal.default_expr = $3;
 	      l->push_back(formal); delete[]$2; $$ = l; }
-	| sva_property_formal_list ',' K_event IDENTIFIER event_initializer_opt
+	| sva_property_formal_list ',' K_event IDENTIFIER sva_property_initializer_opt
 	    { sva_property_formal_t formal;
 	      formal.name = lex_strings.make($4);
 	      formal.formal_type = sva_property_formal_t::EVENT;
 	      formal.default_expr = $5;
 	      $1->push_back(formal); delete[]$4; $$ = $1; }
-	| K_event IDENTIFIER event_initializer_opt
+	| K_event IDENTIFIER sva_property_initializer_opt
 	    { std::list<sva_property_formal_t>*l = new std::list<sva_property_formal_t>;
 	      sva_property_formal_t formal;
 	      formal.name = lex_strings.make($2);
@@ -10683,8 +10690,8 @@ sva_comb_atom
       { $$ = pform_sva_clocked_leaf_prop(@1, $1, $2); }
   | sva_grouped_clocked_leaf
       { $$ = $1; }
-  | '(' sva_seq_comb ')'
-      { $$ = $2; }
+  | sva_grouped_seq_comb
+      { $$ = $1; }
   /* Use the same grouped property productions as assertions and actuals. */
   | '(' sva_property_sequence ')'
       { $$ = $2; }
@@ -10692,11 +10699,12 @@ sva_comb_atom
       { $$ = $1; }
   ;
 
-/* At a property boundary, a complete parenthesized combinator may be the
-   whole implication operand. Keep it distinct from parenthesized leaves
-   nested inside sva_seq_comb's precedence grammar. */
+/* Share grouped combinators at assertion and actual boundaries, including
+   nested grouping in an unguarded disjunction that can be an event. */
 sva_grouped_seq_comb
   : '(' sva_seq_comb ')'
+      { $$ = $2; }
+  | '(' sva_grouped_seq_comb ')'
       { $$ = $2; }
   ;
 
@@ -10733,6 +10741,8 @@ sva_seq_comb
   /* IEEE 1800-2017/2023 16.9.8: keep the sequence wrapper so it
      controls which endpoints reach a continuation or consequent. */
   | K_first_match '(' sva_seq_comb ')'
+      { $$ = pform_sva_tree_first_match(@1, $3); }
+  | K_first_match '(' sva_grouped_seq_comb ')'
       { $$ = pform_sva_tree_first_match(@1, $3); }
   ;
 
@@ -10833,14 +10843,16 @@ sva_match_item_list
   ;
 
 sva_seq_atom
-    /* `sva_bool_atom' is an expression or distribution. See its definition for why
+    /* See `sva_bool_atom' for why
        the indirection is required (reduce/reduce tie-break on ')'). */
   : sva_bool_atom
-      { std::vector<sva_seq_step_t>*steps = new std::vector<sva_seq_step_t>;
-	sva_seq_step_t st;
-	st.expr = $1;
-	steps->push_back(st);
-	$$ = steps; }
+      { $$ = sva_boolean_sequence_($1); }
+  | sva_seq_temporal_atom %prec sva_group_operand
+  ;
+
+sva_seq_temporal_atom
+  : sva_dist_expr
+      { $$ = sva_boolean_sequence_($1); }
   /* M9-NFA LV-1: sequence-match local-variable assignment
      `(bool, v = rhs)' (IEEE 1800-2017 16.10). The boolean gates the
      step; when it matches, v takes rhs. Reads of v later in the
@@ -11103,7 +11115,7 @@ sva_seq_atom
      reduce/reduce conflict resolves to the earlier expression
      rules); this production engages when the parens contain
      sequence structure. */
-  | '(' sva_seq_atom ')' { $$ = $2; }
+  | '(' sva_seq_temporal_atom ')' { $$ = $2; }
   ;
 
 sva_seq_postfix
@@ -14160,8 +14172,6 @@ expr_mintypmax
 sva_bool_atom
   : expression %prec sva_group_operand
       { $$ = $1; }
-  | sva_dist_expr
-      { $$ = $1; }
   ;
 
 sva_dist_expr
@@ -14423,60 +14433,52 @@ expression_list_with_nuls
       }
   ;
 
-  /* IEEE 1800-2017/2023 16.12.18: an event formal takes an event expression.
-     A bare expression already parses as an ordinary argument. An "or"
-     list is one actual; a comma at this level separates arguments. */
+  /* An unguarded disjunction is parsed by the shared sequence grammar.
+     Reuse its operands here, committing to an event list only when a
+     term has an explicit edge or iff. At this boundary a comma separates
+     actual arguments, so only 'or' can extend the list. */
 event_actual
-  : explicit_event_expression
-      { $$ = $1; }
+  : event_actual_atom
+      { $$ = $1 ? new PEEventList(std::move(*$1)) : new PEEventList;
+        FILE_NAME($$, @1);
+        delete $1; }
   | event_actual_list
-      { $$ = new PEEventList(std::move(*$1));
-	FILE_NAME($$, @1);
-	delete $1;
-      }
+      { $$ = $1 ? new PEEventList(std::move(*$1)) : new PEEventList;
+        FILE_NAME($$, @1);
+        delete $1; }
   ;
 
 event_actual_list
-  : event_expression K_or event_actual_term
-      { $3->insert($3->begin(), $1);
-	$$ = $3;
-      }
-  | event_actual_list K_or event_actual_term
-      { $1->insert($1->end(), $3->begin(), $3->end());
-	delete $3;
-	$$ = $1;
-      }
-  | event_actual_group
+  : event_actual_atom K_or event_actual_operand
+      { $$ = pform_sva_join_actual_events($1, $3); }
+  | event_actual_list K_or event_actual_operand
+      { $$ = pform_sva_join_actual_events($1, $3); }
+  | sva_or_operand K_or event_actual_atom
+      { $$ = pform_sva_join_actual_events(pform_sva_take_actual_events(@1, $1), $3); }
+  | sva_or_has_op K_or event_actual_atom
+      { $$ = pform_sva_join_actual_events(pform_sva_take_actual_events(@1, $1), $3); }
   ;
 
-event_actual_term
-  : event_expression
+event_actual_operand
+  : event_actual_atom
+  | sva_or_operand
+      { $$ = pform_sva_take_actual_events(@1, $1); }
+  ;
+
+event_actual_atom
+  : explicit_event_expression
       { $$ = new std::vector<PEEvent*>(1, $1); }
-  | event_actual_group
-  ;
-
-event_actual_group
-  : '(' event_actual_list ')'
+  | '(' event_actual_list ')'
       { $$ = $2; }
-  | '(' explicit_event_expression ')'
-      { $$ = new std::vector<PEEvent*>(1, $2); }
-  ;
-
-event_initializer_opt
-  : '=' expression { $$ = $2; }
-  | '=' event_actual { $$ = $2; }
-  | '=' sva_sequence_actual { $$ = $2; }
-  | { $$ = nullptr; }
+  | '(' event_actual_atom ')'
+      { $$ = $2; }
   ;
 
 sva_sequence_actual
   : sva_seq_delayed
-      { pform_requires_sv(@1, "Sequence actual");
-        sva_property_t*payload = new sva_property_t;
-        payload->seq = $1;
-        $$ = new PESvaActual(PESvaActual::SEQUENCE, payload, pform_peek_scope());
-        FILE_NAME($$, @1);
-      }
+      { $$ = pform_sva_sequence_actual(@1, $1); }
+  | sva_seq_temporal_atom
+      { $$ = pform_sva_sequence_actual(@1, $1); }
   ;
 
 sva_property_actual
@@ -14497,12 +14499,12 @@ sva_property_actual
 sva_comb_actual
   : sva_seq_comb
   | sva_grouped_seq_comb
+  | sva_grouped_seq_concat
   ;
 
 sva_property_initializer_opt
   : initializer_opt
-  | '=' sva_property_actual { $$ = $2; }
-  | '=' sva_sequence_actual { $$ = $2; }
+  | '=' assertion_actual { $$ = $2; }
   ;
 
 assertion_actual

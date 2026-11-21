@@ -1,0 +1,4 @@
+issue3979_sequence_actual_2017 normal,-g2017,-gassertions,-s,issue3979_sequence_actual ivltests gold=issue3979_sequence_actual.gold
+issue3979_invalid_actual_2017 CE,-g2017,-gassertions,-s,issue3979_invalid_actual ivltests gold=issue3979_invalid_actual.gold
+issue3979_sequence_actual_2023 normal,-g2023,-gassertions,-s,issue3979_sequence_actual ivltests gold=issue3979_sequence_actual.gold
+issue3979_invalid_actual_2023 CE,-g2023,-gassertions,-s,issue3979_invalid_actual ivltests gold=issue3979_invalid_actual.gold
