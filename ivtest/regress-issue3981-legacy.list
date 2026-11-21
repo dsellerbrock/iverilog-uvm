@@ -1,0 +1,4 @@
+issue3981_sequence_defaults_2017 normal,-g2017,-gassertions ivltests gold=issue3981_sequence_defaults.gold
+issue3981_sequence_missing_fail_2017 CE,-g2017,-gassertions ivltests gold=issue3981_sequence_missing_fail.gold
+issue3981_sequence_defaults_2023 normal,-g2023,-gassertions ivltests gold=issue3981_sequence_defaults.gold
+issue3981_sequence_missing_fail_2023 CE,-g2023,-gassertions ivltests gold=issue3981_sequence_missing_fail.gold
