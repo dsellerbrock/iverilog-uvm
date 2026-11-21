@@ -10714,6 +10714,7 @@ static bool sva_actual_refs_name_(const sva_property_t*p, perm_string name)
 }
 
 static bool sva_actual_uses_assertion_locals_(const sva_property_t*payload);
+static bool sva_tree_has_property_operand_(const sva_stree_t*t);
 
 PESvaActual::PESvaActual(syntax_t syntax, sva_property_t*payload,
 			 LexicalScope*scope)
@@ -14111,7 +14112,11 @@ static PExpr* sva_clone_subst_impl_(PExpr*e,
 	    loc.first_line = e->get_lineno();
 	    auto*payload = sva_clone_property_(loc, actual->payload(), subst);
 	    if (!payload) return nullptr;
-	    return new PESvaActual(*actual, payload);
+	    auto*copy = new PESvaActual(*actual, payload);
+	    // An actual containing an and/or of formals may now have a property
+	    // operand. Carry that kind through another property call.
+	    if (sva_tree_has_property_operand_(payload->tree)) copy->as_property();
+	    return copy;
       }
       if (PEEventList*events = dynamic_cast<PEEventList*>(e)) {
 	    std::unique_ptr<PEEventList> copy(new PEEventList);
@@ -16655,6 +16660,91 @@ static bool sva_expr_reads_lv_(PExpr*e,
 			       const std::map<perm_string,unsigned>&lv);
 static sva_property_t* sva_wrap_bool_(PExpr*e);
 
+PExpr* pform_sva_sequence_actual(const struct vlltype&loc,
+				 std::vector<sva_seq_step_t>*chain)
+{
+      pform_requires_sv(loc, "Sequence actual");
+      auto*payload = new sva_property_t;
+      payload->seq = chain;
+      auto*actual = new PESvaActual(PESvaActual::SEQUENCE, payload, lexical_scope);
+      FILE_NAME(actual, loc);
+      return actual;
+}
+
+static bool sva_actual_event_leaf_(const std::vector<sva_seq_step_t>*chain)
+{
+      if (!chain || chain->size() != 1) return false;
+      const auto&step = chain->front();
+      const auto*inside = dynamic_cast<const PEInside*>(step.expr);
+      return step.expr && sva_step_is_single_boolean_(step)
+	  && !step.explicit_sequence && step.items.empty()
+	  && !(inside && inside->is_dist())
+	  && !dynamic_cast<const PESvaActual*>(step.expr)
+	  && !dynamic_cast<const PEEventList*>(step.expr);
+}
+
+static bool sva_actual_event_tree_(const sva_stree_t*t)
+{
+      if (!t) return false;
+      if (t->kind == sva_stree_t::LEAF) return sva_actual_event_leaf_(t->chain);
+      return t->kind == sva_stree_t::SEQ_OR
+	  && sva_actual_event_tree_(t->a) && sva_actual_event_tree_(t->b);
+}
+
+static bool sva_actual_can_be_events_(const sva_property_t*p)
+{
+      return p && p->op_type == 0 && !p->clk_evt && !p->seq_clk_evt
+	  && !p->mc_prefix && !p->mc_more && !p->grouped_property_operator
+	  && (p->tree ? sva_actual_event_tree_(p->tree)
+		      : sva_actual_event_leaf_(p->seq));
+}
+
+static void sva_take_actual_event_tree_(sva_stree_t*t, std::vector<PEEvent*>&events)
+{
+      if (t->kind == sva_stree_t::SEQ_OR) {
+	    sva_take_actual_event_tree_(t->a, events);
+	    sva_take_actual_event_tree_(t->b, events);
+      } else {
+	    PExpr*&expr = t->chain->front().expr;
+	    auto*event = new PEEvent(PEEvent::ANYEDGE, expr);
+	    event->set_line(*expr);
+	    expr = nullptr;
+	    events.push_back(event);
+      }
+}
+
+std::vector<PEEvent*>* pform_sva_take_actual_events(const struct vlltype&loc,
+						    sva_property_t*operand)
+{
+      std::vector<PEEvent*>*events = nullptr;
+      if (sva_actual_can_be_events_(operand)) {
+	    sva_stree_t leaf;
+	    leaf.chain = operand->seq;
+	    events = new std::vector<PEEvent*>;
+	    sva_take_actual_event_tree_(operand->tree ? operand->tree : &leaf, *events);
+      } else if (operand) {
+	    cerr << loc << ": error: a temporal sequence is not an event "
+		 << "expression (IEEE 1800-2017/2023 16.12.18)." << endl;
+	    error_count += 1;
+      }
+      pform_sva_destroy_property(operand);
+      return events;
+}
+
+std::vector<PEEvent*>* pform_sva_join_actual_events(std::vector<PEEvent*>*left,
+						  std::vector<PEEvent*>*right)
+{
+      if (!left || !right) {
+	    std::unique_ptr<std::vector<PEEvent*>>other(left ? left : right);
+	    if (other)
+		  for (auto*term : *other) delete term;
+	    return nullptr;
+      }
+      left->insert(left->end(), right->begin(), right->end());
+      delete right;
+      return left;
+}
+
 /* Bind property actuals using their retained formal types and defaults.
    Local input formals map to generated local names and separate initializer
    match items, so each property attempt snapshots its actual. */
@@ -16717,6 +16807,27 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 	    PExpr*actual = actuals[k] && actuals[k]->parm
 		  ? actuals[k]->parm : formal.default_expr;
 	    if (auto*temporal = dynamic_cast<PESvaActual*>(actual)) {
+		  if ((formal.formal_type == sva_property_formal_t::EVENT
+		       || formal.formal_type == sva_property_formal_t::UNTYPED)
+		      && temporal->syntax() == PESvaActual::SEQUENCE
+		      && temporal->payload()->tree
+		      && sva_actual_can_be_events_(temporal->payload())) {
+			std::unique_ptr<PESvaActual>copy(
+			      static_cast<PESvaActual*>(sva_clone_subst_(temporal, nullptr)));
+			if (!copy) return false;
+			auto*terms = pform_sva_take_actual_events(loc, copy->take_property());
+			auto*events = new PEEventList(std::move(*terms));
+			delete terms;
+			events->set_line(*actual);
+			owned.push_back(events);
+			event_controls.emplace_back(events->events());
+			event_controls.back().set_line(*actual);
+			event_subst[formal.name] = &event_controls.back();
+			if (formal.formal_type == sva_property_formal_t::EVENT) {
+			      subst[formal.name] = events;
+			      continue;
+			}
+		  }
 		  if (formal.formal_type == sva_property_formal_t::DATA_TYPE
 		      || formal.formal_type == sva_property_formal_t::EVENT
 		      || (formal.formal_type == sva_property_formal_t::SEQUENCE
@@ -16743,6 +16854,7 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 	    }
 	    PEEvent*event = dynamic_cast<PEEvent*>(actual);
 	    PEEventList*events = dynamic_cast<PEEventList*>(actual);
+	    if (events && events->events().empty()) return false; // Diagnosed by the parser.
 	    if (event || events) {
 		  // Without an edge keyword, a single `a iff b' can also be
 		  // a property. Keep the event reading available to clock uses.
@@ -16792,6 +16904,7 @@ static bool sva_build_property_subst_(const struct vlltype&loc,
 		  PEventStatement&control = event_controls.back();
 		  control.set_line(*actual);
 		  event_subst[formal.name] = &control;
+		  if (!subst.count(formal.name) && events) subst[formal.name] = events;
 		  continue;
 	    }
 	    if (actuals[k] && actuals[k]->parm) {
@@ -22544,6 +22657,28 @@ static void sva_retag_first_match_groups_(std::vector<sva_seq_step_t>&steps)
       }
 }
 
+static unsigned sva_new_repeat_group_id_()
+{
+      static unsigned next_id = 1;
+      return next_id++;
+}
+
+static void sva_retag_repeat_groups_(std::vector<sva_seq_step_t>&steps)
+{
+      std::map<unsigned,unsigned> remap;
+      auto tag = [&](unsigned& id) {
+	    auto found = remap.find(id);
+	    if (found == remap.end())
+		  found = remap.emplace(id, sva_new_repeat_group_id_()).first;
+	    id = found->second;
+      };
+      for (auto&step : steps) {
+	    for (auto&group : step.group_repeat_opens) tag(group.id);
+	    for (auto&id : step.group_repeat_closes) tag(id);
+	    for (auto&id : step.group_repeat_members) tag(id);
+      }
+}
+
 /* Textually identical event terms can bind different signals. In particular,
    an event copied from before a generate-local declaration still refers to
    the enclosing signal. Use the same declaration-order test as symbol_search. */
@@ -23501,8 +23636,7 @@ pform_sva_repeat(const struct vlltype&loc,
 	    /* Retain the whole fragment.  The NFA builder repeats the fragment,
 	       including every interior delay and Boolean, and exposes an exit
 	       after each permitted copy count. */
-	    static unsigned next_group_repeat_id = 1;
-	    unsigned id = next_group_repeat_id++;
+	    unsigned id = sva_new_repeat_group_id_();
 	    sva_group_repeat_t group;
 	    group.id = id;
 	    group.lo = lov;
@@ -23745,6 +23879,7 @@ pform_sva_throughout(const struct vlltype&loc, PExpr*guard,
 
       delete guard;
       delete seq;      // step exprs were moved into `out`
+      out->front().explicit_sequence = true;
       return out;
 
  unclonable:
@@ -23950,6 +24085,7 @@ pform_sva_intersect(const struct vlltype&loc,
 	    out->push_back(st);
       }
       delete s1; delete s2;
+      out->front().explicit_sequence = true;
       return out;
 }
 
@@ -25329,7 +25465,7 @@ static bool sva_nfa_chain_fixed_(const std::vector<sva_seq_step_t>&steps,
       for (size_t j = 0 ; j < steps.size() ; j += 1) {
 	    const sva_seq_step_t&st = steps[j];
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_tail != 0 || st.rep_kind != 0)
+		|| st.rep_tail != 0 || st.rep_kind != 0 || st.grouped_repeat)
 		  return false;
 	    edge_span += (j == 0 && st.delay_lo == 0) ? 1 : st.delay_lo;
 	    delay_sum += st.delay_lo;
@@ -25411,7 +25547,7 @@ static bool sva_nfa_unique_wait_implication_(
       for (size_t i = 0 ; i < wi ; i += 1) {
 	    const sva_seq_step_t&st = ante[i];
 	    if (st.delay_lo < 0 || st.delay_lo != st.delay_hi
-		|| st.rep_kind != 0 || st.rep_tail != 0
+		|| st.rep_kind != 0 || st.rep_tail != 0 || st.grouped_repeat
 		|| sva_step_has_call_(st))
 		  return false;
       }
@@ -25718,27 +25854,15 @@ static bool sva_prop_is_plain_seq_(const sva_property_t*prop)
 	     && !prop->disable_iff_expr && prop->strength == 0;
 }
 
-static bool sva_call_has_temporal_actual_(const PExpr*expr, bool sequence_only = false)
+static bool sva_call_has_temporal_actual_(const PExpr*expr)
 {
       const auto*call = dynamic_cast<const PECallFunction*>(expr);
       if (!call) return false;
       const auto&args = call->get_parms();
-      return std::any_of(args.begin(), args.end(), [sequence_only](const named_pexpr_t&arg) {
-	    const auto*actual = dynamic_cast<const PESvaActual*>(arg.parm);
-	    return (actual && (!sequence_only || actual->syntax() == PESvaActual::SEQUENCE))
-		  || sva_call_has_temporal_actual_(arg.parm, sequence_only);
+      return std::any_of(args.begin(), args.end(), [](const named_pexpr_t&arg) {
+	    return dynamic_cast<const PESvaActual*>(arg.parm)
+		  || sva_call_has_temporal_actual_(arg.parm);
       });
-}
-
-static bool sva_tree_has_temporal_actual_(const sva_stree_t*tree)
-{
-      if (!tree) return false;
-      if (tree->chain)
-	    for (const sva_seq_step_t&step : *tree->chain)
-		  if (sva_call_has_temporal_actual_(step.expr, true)) return true;
-      return sva_call_has_temporal_actual_(tree->gexpr, true)
-	  || sva_tree_has_temporal_actual_(tree->a)
-	  || sva_tree_has_temporal_actual_(tree->b);
 }
 
 /* Materialize a fresh copy at a whole formal step. Keep a leading gap on
@@ -25805,6 +25929,7 @@ static bool sva_materialize_actuals_(const struct vlltype&loc,
 		  }
 	    }
 	    sva_splice_endpoint_(step, *chain);
+	    sva_retag_repeat_groups_(*chain);
 	    actual->take_sequence();
 	    delete actual;
 	    steps->erase(steps->begin() + i);
@@ -25817,36 +25942,32 @@ static bool sva_materialize_actuals_(const struct vlltype&loc,
 
 static sva_stree_t* sva_prop_take_tree_(const struct vlltype&loc, sva_property_t*p);
 static bool sva_prop_is_property_shaped_(const sva_property_t*p);
-static bool sva_leaf_names_property_(const sva_property_t*p);
 
 /* A property operator over full properties (and/or, if-else, an abort)
    as an implication consequent (A.2.10): build the per-attempt
    implication node (op 23 |->, 24 |=>). ante is a sequence property. */
 static sva_property_t* sva_composite_impl_(int op_type, sva_property_t*ante,
-					   sva_property_t*conseq)
+					   sva_property_t*conseq,
+					   sva_property_t*p = nullptr)
 {
-      sva_property_t*p = new sva_property_t;
+      if (!p) p = new sva_property_t;
       p->op_type = op_type == 1 ? 23 : 24;
       p->pa = ante;
       p->pb = conseq;
       return p;
 }
 
-/* IEEE 1800-2023 16.12.1: an instance of a named property is a
-   property_expr. A bare consequent `p' or `p(args)' naming a property
-   declared so far (not a sequence) is such an instance. */
-static bool sva_seq_names_property_(const sva_property_t*p)
+/* Named property instances can appear in either a chain or a tree leaf. */
+static bool sva_chain_names_property_(const std::vector<sva_seq_step_t>*chain)
 {
-      if (!p || p->op_type != 0 || p->tree || p->antecedent || p->pa
-	  || p->seq_clk_evt || p->mc_prefix || !p->seq || p->seq->size() != 1)
-	    return false;
-      const sva_seq_step_t&st = p->seq->front();
-      if (st.delay_lo != 0 || st.delay_hi != 0 || st.rep_tail != 0
-	  || st.rep_kind != 0 || !st.items.empty())
+      if (!chain || chain->size() != 1) return false;
+      const sva_seq_step_t&st = chain->front();
+      if (!sva_step_is_single_boolean_(st) || st.explicit_sequence
+	  || !st.items.empty())
 	    return false;
       if (const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr)) {
 	    if (id->path().package || id->path().name.size() != 1
-		|| !id->path().name.front().index.empty())
+		|| !id->path().name.front().index.empty() || sva_names_decl_formal_(id))
 		  return false;
 	    perm_string nm = id->path().name.front().name;
 	    if (sva_in_scope_(sva_module_sequences, nm)) return false;
@@ -25863,6 +25984,18 @@ static bool sva_seq_names_property_(const sva_property_t*p)
 	    return sva_resolve_(sva_param_properties, nm) != sva_param_properties.end();
       }
       return false;
+}
+
+static bool sva_seq_names_property_(const sva_property_t*p)
+{
+      return p && p->op_type == 0 && !p->tree && !p->antecedent && !p->pa
+	  && !p->seq_clk_evt && !p->mc_prefix && sva_chain_names_property_(p->seq);
+}
+
+static bool sva_leaf_names_property_(const sva_property_t*p)
+{
+      return p && p->tree && p->tree->kind == sva_stree_t::LEAF
+	  && sva_chain_names_property_(p->tree->chain);
 }
 
 static sva_property_t* sva_seq_prop_(std::vector<sva_seq_step_t>*chain)
@@ -25899,6 +26032,7 @@ static sva_stree_t* sva_tree_clone_(const struct vlltype&loc,
       sva_stree_t*out = new sva_stree_t;
       out->kind = src->kind;
       out->known_empty = src->known_empty;
+      out->deferred_combine = src->deferred_combine;
       out->concat_overlap = src->concat_overlap;
       std::map<perm_string,PExpr*> no_subst;
       if (src->chain) {
@@ -27244,11 +27378,19 @@ static bool sva_prop_is_leaf_chain_(sva_property_t*p)
 	     && p->tree->chain && !p->seq;
 }
 
+static bool sva_leaf_uses_decl_formal_(sva_property_t*p)
+{
+      return sva_prop_is_leaf_chain_(p)
+	  && std::any_of(p->tree->chain->begin(), p->tree->chain->end(),
+			 [](const sva_seq_step_t&st) { return sva_names_decl_formal_(st.expr); });
+}
+
 sva_property_t* pform_sva_tree_first_match(const struct vlltype&loc,
 					   sva_property_t*operand)
 {
       if (!operand) return nullptr;
-      if (sva_prop_is_property_shaped_(operand) || sva_leaf_names_property_(operand)) {
+      if (sva_prop_is_property_shaped_(operand) || sva_leaf_names_property_(operand)
+	  || sva_seq_names_property_(operand)) {
 	    cerr << loc << ": error: first_match requires a sequence operand "
 		 << "(IEEE 1800-2017/2023 16.9.8)." << endl;
 	    error_count += 1;
@@ -27284,7 +27426,9 @@ sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
 	   `and' and `intersect' have the same per-cycle boolean conjunction.
 	   Preserve the match item in the linear chain so the variable flows
 	   out into a following sequence expression. */
-	if (op == 'a' && a && b && !a->clk_evt && !b->clk_evt
+      bool defer = op == 'a' && (sva_leaf_uses_decl_formal_(a)
+				|| sva_leaf_uses_decl_formal_(b));
+	if (op == 'a' && !defer && a && b && !a->clk_evt && !b->clk_evt
 	    && sva_prop_is_leaf_chain_(a) && sva_prop_is_leaf_chain_(b)) {
 	      std::vector<sva_seq_step_t>*s1 = a->tree->chain;
 	      std::vector<sva_seq_step_t>*s2 = b->tree->chain;
@@ -27331,6 +27475,7 @@ sva_property_t* pform_sva_tree_comb(const struct vlltype&loc, char op,
       }
       sva_stree_t*t = new sva_stree_t;
       t->kind = (op == 'o') ? sva_stree_t::SEQ_OR : sva_stree_t::SEQ_AND;
+      t->deferred_combine = defer;
       t->a = ta;
       t->b = tb;
       sva_property_t*p = new sva_property_t;
@@ -27348,7 +27493,8 @@ sva_property_t* pform_sva_tree_intersect(const struct vlltype&loc,
 	   legacy AND-chain parity, unequal-fixed -> sorry, non-fixed ->
 	   product tree). This keeps a top-level `seq intersect seq'
 	   identical to B.2. */
-      if (sva_prop_is_leaf_chain_(a) && sva_prop_is_leaf_chain_(b)) {
+      bool defer = sva_leaf_uses_decl_formal_(a) || sva_leaf_uses_decl_formal_(b);
+      if (!defer && sva_prop_is_leaf_chain_(a) && sva_prop_is_leaf_chain_(b)) {
 	    std::vector<sva_seq_step_t>*c1 = a->tree->chain;
 	    a->tree->chain = nullptr;
 	    std::vector<sva_seq_step_t>*c2 = b->tree->chain;
@@ -27366,6 +27512,7 @@ sva_property_t* pform_sva_tree_intersect(const struct vlltype&loc,
       }
       sva_stree_t*t = new sva_stree_t;
       t->kind = sva_stree_t::SEQ_INTERSECT;
+      t->deferred_combine = defer;
       t->a = ta;
       t->b = tb;
       sva_property_t*p = new sva_property_t;
@@ -28979,17 +29126,14 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 	    return seen[machine.accept];
       };
       const bool tick_match = accept_reachable(nfa);
-      const bool first_match_antecedent = endpoint_fanout
-	    && sva_tree_has_first_match_(ante_tree);
-      const unsigned empty_endpoints = first_match_antecedent
+      const unsigned empty_endpoints = endpoint_fanout
 	    && prop->op_type == 2 ? nfa.empty_matches : 0;
       const unsigned empty_cover_matches = track_endpoints && sequence_cover && !endpoint_fanout
 	    ? nfa.empty_matches : 0;
-      const bool empty_property = sva_tree_has_first_match_(
-	    endpoint_fanout ? consequence_tree : prop->tree)
-	    && (endpoint_fanout ? consequence_nfa.empty_matches : nfa.empty_matches);
-      if ((first_match_antecedent && prop->op_type == 1 && nfa.empty_matches
-	   && !tick_match) || (empty_property && !sequence_cover)) {
+      const bool empty_property = endpoint_fanout
+	    ? consequence_nfa.empty_matches : !implication && nfa.empty_matches;
+      if ((endpoint_fanout && prop->op_type == 1 && nfa.empty_matches && !tick_match)
+	  || (empty_property && !sequence_cover)) {
 	    if (empty_property && !sequence_cover)
 		  cerr << loc << ": error: a sequence used as a property shall "
 		       << "not admit an empty match (IEEE 1800-2017/2023 16.12.22(a))."
@@ -39428,11 +39572,82 @@ static sva_property_t* sva_clone_property_(const struct vlltype&loc,
       return p;
 }
 
-static bool sva_materialize_tree_actuals_(const struct vlltype&loc, sva_stree_t*t)
+static bool sva_materialize_tree_actuals_(const struct vlltype&loc,
+					  sva_stree_t*&t, int&tree_sorry);
+
+/* A tree actual already belongs to this copy of the formal reference.
+   Keep its match language in the tree IR instead of splicing its leaves. */
+static bool sva_materialize_sequence_actuals_(const struct vlltype&loc,
+		std::vector<sva_seq_step_t>*&chain, sva_stree_t*&tree,
+		bool property_position, int&tree_sorry, bool tree_position)
 {
-      return !t || (sva_materialize_actuals_(loc, t->chain, false)
-	  && sva_materialize_tree_actuals_(loc, t->a)
-	  && sva_materialize_tree_actuals_(loc, t->b));
+      if (!chain || chain->empty())
+	    return true;
+      const auto&step = chain->front();
+      auto*actual = dynamic_cast<PESvaActual*>(step.expr);
+      const auto*payload = actual ? actual->payload() : nullptr;
+      if (!tree_position || chain->size() != 1 || !payload
+	  || actual->syntax() != PESvaActual::SEQUENCE
+	  || sva_prop_is_property_shaped_(payload) || payload->clk_evt
+	  || !step.items.empty())
+	    return sva_materialize_actuals_(loc, chain, property_position);
+
+      sva_seq_step_t bare = step;
+      bare.fm = false;
+      bool first_match = step.fm && step.delay_lo == step.fm_first_delay_lo
+	    && step.delay_hi == step.fm_first_delay_hi;
+      if ((!payload->tree && !(first_match && payload->seq))
+	  || !sva_step_is_single_boolean_(bare)
+	  || (step.fm ? !first_match : step.explicit_sequence))
+	    return sva_materialize_actuals_(loc, chain, property_position);
+
+      auto*operand = actual->take_property();
+      if (!tree_sorry) tree_sorry = operand->tree_sorry;
+      if (first_match) operand = pform_sva_tree_first_match(loc, operand);
+      tree = sva_prop_take_tree_(loc, operand);
+      pform_sva_destroy_sequence(chain);
+      chain = nullptr;
+      if (!tree) return false;
+      std::vector<std::vector<sva_seq_step_t>*> leaves;
+      sva_tree_leaves_(tree, leaves);
+      for (auto*leaf : leaves) {
+	    sva_retag_first_match_groups_(*leaf);
+	    sva_retag_repeat_groups_(*leaf);
+      }
+      return sva_materialize_tree_actuals_(loc, tree, tree_sorry);
+}
+
+static bool sva_materialize_tree_actuals_(const struct vlltype&loc,
+					  sva_stree_t*&t, int&tree_sorry)
+{
+      if (!t) return true;
+      if (t->kind == sva_stree_t::LEAF) {
+	    sva_stree_t*replacement = nullptr;
+	    bool ok = sva_materialize_sequence_actuals_(loc, t->chain,
+							replacement, false, tree_sorry, true);
+	    if (replacement) {
+		  delete t;
+		  t = replacement;
+	    }
+	    return ok;
+      }
+      if (!sva_materialize_tree_actuals_(loc, t->a, tree_sorry)
+	  || !sva_materialize_tree_actuals_(loc, t->b, tree_sorry))
+	    return false;
+      if (t->deferred_combine) {
+	    auto*a = new sva_property_t;
+	    auto*b = new sva_property_t;
+	    a->tree = t->a;
+	    b->tree = t->b;
+	    bool intersection = t->kind == sva_stree_t::SEQ_INTERSECT;
+	    delete t;
+	    auto*combined = intersection ? pform_sva_tree_intersect(loc, a, b)
+					 : pform_sva_tree_comb(loc, 'a', a, b);
+	    if (combined && !tree_sorry) tree_sorry = combined->tree_sorry;
+	    t = sva_prop_take_tree_(loc, combined);
+	    return t != nullptr;
+      }
+      return true;
 }
 
 static PESvaActual* sva_whole_property_actual_(
@@ -39462,12 +39677,12 @@ static bool sva_tree_has_property_operand_(const sva_stree_t*t)
 
 static void sva_lift_property_consequent_(sva_property_t*p, sva_property_t*operand)
 {
-      p->pa = sva_seq_prop_(p->antecedent);
-      p->pa->tree = p->ante_tree;
+      auto*ante = sva_seq_prop_(p->antecedent);
+      ante->tree = p->ante_tree;
+      ante->tree_sorry = p->tree_sorry;
       p->antecedent = nullptr;
       p->ante_tree = nullptr;
-      p->pb = operand;
-      p->op_type = p->op_type == 1 ? 23 : 24;
+      sva_composite_impl_(p->op_type, ante, operand, p);
 }
 
 /* The clone owns each carrier. A whole operand can take its property
@@ -39483,9 +39698,13 @@ static bool sva_materialize_property_actuals_(const struct vlltype&loc,
 	    return sva_materialize_property_actuals_(loc, p->pa, !implication)
 		  && sva_materialize_property_actuals_(loc, p->pb);
       }
-      if (!sva_materialize_actuals_(loc, p->antecedent, op >= 4 && op <= 7)
-	  || !sva_materialize_actuals_(loc, p->mc_prefix, false)
-	  || !sva_materialize_tree_actuals_(loc, p->ante_tree))
+      const bool tree_implication = (op == 1 || op == 2)
+	    && !p->seq_clk_evt && !p->mc_prefix && p->mc_boundary == -1
+	    && !p->forbidden_consequent;
+      if (!sva_materialize_tree_actuals_(loc, p->ante_tree, p->tree_sorry)
+	  || !sva_materialize_sequence_actuals_(loc, p->antecedent, p->ante_tree,
+					op >= 4 && op <= 7, p->tree_sorry, tree_implication)
+	  || !sva_materialize_actuals_(loc, p->mc_prefix, false))
 	    return false;
       if (p->mc_more)
 	    for (auto&segment : *p->mc_more)
@@ -39508,18 +39727,35 @@ static bool sva_materialize_property_actuals_(const struct vlltype&loc,
 		  p->tree = nullptr;
 		  if (t->kind == sva_stree_t::LEAF) {
 			p->seq = t->chain;
-		  } else {
-			p->op_type = t->kind == sva_stree_t::SEQ_AND ? 20 : 21;
-			p->pa = new sva_property_t;
-			p->pa->tree = t->a;
-			p->pb = new sva_property_t;
-			p->pb->tree = t->b;
+			delete t;
+			return sva_materialize_property_actuals_(loc, p);
 		  }
+		  auto*a = new sva_property_t;
+		  auto*b = new sva_property_t;
+		  a->tree = t->a;
+		  b->tree = t->b;
+		  char comb = t->kind == sva_stree_t::SEQ_AND ? 'a' : 'o';
 		  delete t;
-		  return sva_materialize_property_actuals_(loc, p);
+		  bool a_is_property = sva_tree_has_property_operand_(a->tree);
+		  bool b_is_property = sva_tree_has_property_operand_(b->tree);
+		  if (!sva_materialize_property_actuals_(loc, a)
+		      || !sva_materialize_property_actuals_(loc, b)) {
+			pform_sva_destroy_property(a);
+			pform_sva_destroy_property(b);
+			return false;
+		  }
+		  a->grouped_property_operator |= a_is_property;
+		  b->grouped_property_operator |= b_is_property;
+		  auto*combined = pform_sva_tree_comb(loc, comb, a, b);
+		  if (!combined) return false;
+		  p->op_type = combined->op_type;
+		  p->pa = combined->pa;
+		  p->pb = combined->pb;
+		  delete combined;
+		  return true;
 	    }
       }
-      if (!sva_materialize_tree_actuals_(loc, p->tree)) return false;
+      if (!sva_materialize_tree_actuals_(loc, p->tree, p->tree_sorry)) return false;
       if (property_position) {
 	    if (auto*actual = sva_whole_property_actual_(p->seq)) {
 		  if (op == 0) {
@@ -39570,7 +39806,21 @@ static bool sva_materialize_property_actuals_(const struct vlltype&loc,
 		  }
 	    }
       }
-      return sva_materialize_actuals_(loc, p->seq, property_position);
+      if (!sva_materialize_sequence_actuals_(loc, p->seq, p->tree, property_position,
+					   p->tree_sorry, op == 0 || tree_implication))
+	    return false;
+      if (tree_implication && (p->ante_tree || p->tree)) {
+	    if (!p->ante_tree) {
+		  p->ante_tree = sva_chain_take_tree_(p->antecedent);
+		  p->antecedent = nullptr;
+	    }
+	    if (!p->tree) {
+		  p->tree = sva_chain_take_tree_(p->seq);
+		  p->seq = nullptr;
+	    }
+	    return p->ante_tree && p->tree;
+      }
+      return true;
 }
 
 /* Shared binding and cloning for whole assertions and property operands. */
@@ -39592,19 +39842,6 @@ static sva_property_t* sva_instantiate_property_(const struct vlltype&loc,
 	    event_subst, event_controls, owned, *initializers, local_carriers,
 	    caller_locals, local_reads);
       const sva_property_t*body = decl.body;
-      if (ok && (body->tree || body->ante_tree || body->pa || body->op_type > 2)
-	  && (sva_tree_has_temporal_actual_(body->tree)
-	      || sva_tree_has_temporal_actual_(body->ante_tree)
-	      || std::any_of(subst.begin(), subst.end(),
-		    [](const std::pair<const perm_string,PExpr*>&binding) {
-		    const auto*actual = dynamic_cast<PESvaActual*>(binding.second);
-		    return actual && actual->syntax() == PESvaActual::SEQUENCE;
-	      }))) {
-	    cerr << loc << ": sorry: temporal actuals of property `"
-		 << name << "' require a flat property body." << endl;
-	    error_count += 1;
-	    ok = false;
-      }
       unsigned errors = error_count;
       sva_property_t*inst = ok ? sva_clone_property_(loc, body, &subst, &event_subst)
 				: nullptr;
@@ -39675,29 +39912,6 @@ sva_property_t* pform_sva_prop_compose(const struct vlltype&loc, int op_type,
       p->pa = a;
       p->pb = b;
       return p;
-}
-
-/* A single-step leaf chain that names a declared (non-sequence) property:
-   `p1 and p2' combines two properties, not two sequences. */
-static bool sva_leaf_names_property_(const sva_property_t*p)
-{
-      if (!p || !p->tree || p->tree->kind != sva_stree_t::LEAF
-	  || !p->tree->chain || p->tree->chain->size() != 1)
-	    return false;
-      const sva_seq_step_t&st = p->tree->chain->front();
-      if (st.delay_lo != 0 || st.delay_hi != 0 || st.rep_tail != 0
-	  || st.rep_kind != 0 || !st.items.empty())
-	    return false;
-      const PEIdent*id = dynamic_cast<const PEIdent*>(st.expr);
-      if (!id || id->path().package || id->path().name.size() != 1
-	  || !id->path().name.front().index.empty())
-	    return false;
-      perm_string nm = id->path().name.front().name;
-      if (sva_in_scope_(sva_module_sequences, nm)) return false;
-      std::map<sva_scoped_name_t, sva_property_t*>::iterator pit =
-	    sva_resolve_(sva_module_properties, nm);
-      return pit != sva_module_properties.end()
-	  && !sva_property_shaped_sequences.count(pit->first);
 }
 
 /* Normalize a leaf-tree reference to the plain named-reference shape that

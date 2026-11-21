@@ -632,6 +632,12 @@ pform_sva_seq_intersect(const struct vlltype&loc,
    All consume their operands. */
 extern sva_property_t*
 pform_sva_leaf_prop(std::vector<sva_seq_step_t>*chain);
+extern PExpr* pform_sva_sequence_actual(const struct vlltype&loc,
+				       std::vector<sva_seq_step_t>*chain);
+extern std::vector<PEEvent*>* pform_sva_take_actual_events(
+				const struct vlltype&loc, sva_property_t*operand);
+extern std::vector<PEEvent*>* pform_sva_join_actual_events(
+				std::vector<PEEvent*>*left, std::vector<PEEvent*>*right);
 extern sva_property_t*
 pform_sva_tree_comb(const struct vlltype&loc, char op,
 		    sva_property_t*a, sva_property_t*b);

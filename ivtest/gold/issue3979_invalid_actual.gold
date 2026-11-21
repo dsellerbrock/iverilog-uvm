@@ -1,0 +1,4 @@
+./ivltests/issue3979_invalid_actual.sv:9: error: an overlapping implication antecedent shall admit a nonempty match (IEEE 1800-2017/2023 16.12.22(b)).
+./ivltests/issue3979_invalid_actual.sv:10: error: a sequence used as a property shall not admit an empty match (IEEE 1800-2017/2023 16.12.22(a)).
+./ivltests/issue3979_invalid_actual.sv:14: error: property `event_clock' formal `e' cannot take this temporal actual (IEEE 1800-2017/2023 16.12.18).
+./ivltests/issue3979_invalid_actual.sv:15: error: a temporal sequence is not an event expression (IEEE 1800-2017/2023 16.12.18).
