@@ -1,0 +1,15 @@
+12/2 calls=1
+nested=21/2/3/99 calls=1
+single=33 calls=1
+choice=00000101/2 select=1 true=1 false=0
+12/9 calls=2
+nested=21/9/3/99 calls=2
+single=40 calls=2
+choice=00000101/9 select=2 true=2 false=0
+13/9 calls=3
+nested=21/9/4/99 calls=3
+single=40 calls=2
+choice=00000101/9 select=2 true=2 false=0
+choice=00000111/9 select=3 true=2 false=1
+choice=xxxxxxxx/9 select=4 true=3 false=2
+choice=xxxxxxxx/9 select=5 true=4 false=3

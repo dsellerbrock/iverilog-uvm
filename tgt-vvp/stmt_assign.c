@@ -2053,6 +2053,21 @@ static void draw_array_pattern_snapshot(ivl_signal_t var, ivl_expr_t rval,
       assert(store_idx == array_idx);
 }
 
+static int array_pattern_has_scalar_leaves_(ivl_expr_t pattern)
+{
+      for (unsigned idx = 0; idx < ivl_expr_parms(pattern); ++idx) {
+	    ivl_expr_t item = ivl_expr_parm(pattern, idx);
+	    if (ivl_expr_type(item) == IVL_EX_ARRAY_PATTERN) {
+		  if (!array_pattern_has_scalar_leaves_(item))
+			return 0;
+	    } else if (vvp_expr_is_fixed_uarray_value(item)
+		       || fixed_uarray_expr_type_(item)) {
+		  return 0;
+	    }
+      }
+      return 1;
+}
+
 static unsigned int draw_array_pattern(ivl_signal_t var, ivl_expr_t rval,
 					   unsigned int array_idx)
 {
@@ -7595,6 +7610,19 @@ int show_stmt_assign(ivl_statement_t net)
       lval = ivl_stmt_lval(net, 0);
 
       sig = ivl_lval_sig(lval);
+
+      // A continuous RHS pattern publishes its words after evaluating all
+      // scalar leaves. Patterns with subarray operands use the typed
+      // whole-array store below.
+      if (lval_is_whole_uarray_(lval, sig) && ivl_signal_local(sig)
+	  && ivl_signal_attr(sig, "_ivl_contassign_snapshot")) {
+	    ivl_expr_t rv = ivl_stmt_rval(net);
+	    if (ivl_expr_type(rv) == IVL_EX_ARRAY_PATTERN
+		&& array_pattern_has_scalar_leaves_(rv)) {
+		  draw_array_pattern_snapshot(sig, rv, 0, ivl_signal_net_type(sig));
+		  return 0;
+	    }
+      }
 
       {
 	    int stream_errors = show_stmt_assign_dynamic_stream_(net);

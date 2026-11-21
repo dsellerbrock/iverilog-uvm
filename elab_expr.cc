@@ -35553,6 +35553,33 @@ bool NetETernary::test_operand_compat(ivl_variable_type_t l,
       return false;
 }
 
+/* Apply 11.4.11 to unpacked-array leaves. For an ambiguous condition,
+   matching words keep their value and a mismatch takes the entire
+   integral leaf's Table 7-1 default. */
+NetExpr*unpacked_conditional_word(const LineInfo&loc, ivl_type_t leaf_type,
+				  const NetExpr*cond, NetExpr*tru, NetExpr*fal)
+{
+      const unsigned wid = tru->expr_width();
+      const bool sgn = tru->has_sign() && fal->has_sign();
+      NetExpr*word = new NetETernary(cond->dup_expr(), tru, fal, wid, sgn);
+      word->set_line(loc);
+      if (leaf_type && leaf_type->packed()
+	  && type_is_vectorable(leaf_type->base_type())) {
+	    NetEConst*dflt = leaf_type->base_type() == IVL_VT_BOOL
+		  ? make_const_0(wid) : make_const_x(wid);
+	    dflt->cast_signed(sgn);
+	    NetExpr*ambiguous = new NetEBComp('E',
+		  new NetEBComp('n', cond->dup_expr(),
+				make_const_0(cond->expr_width())), make_const_x(1));
+	    NetExpr*match = new NetEBComp('E', tru->dup_expr(), fal->dup_expr());
+	    word = new NetETernary(ambiguous,
+		  new NetETernary(match, tru->dup_expr(), dflt, wid, sgn),
+		  word, wid, sgn);
+	    word->set_line(loc);
+      }
+      return word;
+}
+
 /*
  * Elaborate the Ternary operator. I know that the expressions were
  * parsed so I can presume that they exist, and call elaboration
@@ -35786,9 +35813,6 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 		     integral leaf (as Eve does): a mismatched leaf is 0 for a
 		     2-state type and all x for a 4-state type, never a bit merge. */
 		ivl_type_t leaf_type = array_type->element_type();
-		const bool integral_leaf = leaf_type && leaf_type->packed()
-		      && (leaf_type->base_type() == IVL_VT_BOOL
-			  || leaf_type->base_type() == IVL_VT_LOGIC);
 		function<NetExpr*(size_t)>build_array = [&](size_t dimension) -> NetExpr* {
 		      vector<NetExpr*>items;
 		      const netrange_t&range = dims[dimension];
@@ -35808,33 +35832,9 @@ NetExpr*PETernary::elaborate_expr(Design*des, NetScope*scope,
 					NetExpr*false_value = new NetESignal(
 					      const_cast<NetNet*>(false_array->sig()),
 					      false_index);
-					const unsigned wid = true_value->expr_width();
-					const bool sgn = true_value->has_sign()
-					      && false_value->has_sign();
-					NetETernary*ternary = new NetETernary(
-					      con->dup_expr(), true_value, false_value,
-					      wid, sgn);
-					ternary->set_line(*this);
-					item = ternary;
-					if (integral_leaf) {
-					      NetEConst*dflt =
-						    leaf_type->base_type() == IVL_VT_BOOL
-						    ? make_const_0(wid) : make_const_x(wid);
-					      dflt->cast_signed(sgn);
-					      NetExpr*ambiguous = new NetEBComp('E',
-						    new NetEBComp('n', con->dup_expr(),
-							  make_const_0(con->expr_width())),
-						    make_const_x(1));
-					      NetExpr*match = new NetEBComp('E',
-						    true_value->dup_expr(),
-						    false_value->dup_expr());
-					      item = new NetETernary(ambiguous,
-						    new NetETernary(match,
-							  true_value->dup_expr(), dflt,
-							  wid, sgn),
-						    ternary, wid, sgn);
-					      item->set_line(*this);
-					}
+					item = unpacked_conditional_word(
+					      *this, leaf_type, con,
+					      true_value, false_value);
 				  } else {
 					delete true_index;
 					delete false_index;
