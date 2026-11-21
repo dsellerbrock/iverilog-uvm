@@ -1,0 +1,2 @@
+ivltests/issue3925_real_unique_2017.v:4: error: unique constraint members must be integral in IEEE 1800-2017 (18.5.5).
+1 error(s) during elaboration.

@@ -41789,6 +41789,13 @@ static string constraint_fixed_array_select_ir_(
       return result + ")";
 }
 
+static string constraint_fixed_array_leaf_ir_(
+      unsigned property, unsigned width, unsigned long word, const string&suffix)
+{
+      return "e:" + to_string(property) + ":" + to_string(width) + ":"
+	    + to_string(word) + suffix;
+}
+
 struct constraint_const_ir_t {
       uint64_t value = 0;
       unsigned width = 32;
@@ -42355,6 +42362,90 @@ static bool constraint_fixed_array_leaf_word_(
                   return false;
             word = word * dims[dim].width() + digit;
             ++dim;
+      }
+      return true;
+}
+
+// Expand a fixed real subarray or slice in canonical word order. A state
+// selector in the prefix uses the same typed selection as an ordinary leaf.
+static bool constraint_fixed_real_unique_terms_(
+      const netuarray_t*array, unsigned property, const list<index_component_t>&indices,
+      const netclass_t*cls, vector<const PExpr*>*value_slots, const NetScope*scope,
+      const map<perm_string,uint64_t>*loop_env, vector<string>&atoms)
+{
+      const netranges_t&dims = array->static_dimensions();
+      if (dims.empty() || indices.size() > dims.size()) return false;
+      uint64_t size = 1, first_word = 0, count = 1;
+      bool symbolic = false;
+      vector<pair<uint64_t, uint64_t> > ranges;
+      vector<string> index_irs;
+      auto select = indices.begin();
+      for (const netrange_t&dim : dims) {
+	    if (!dim.defined()) return false;
+	    uint64_t width = dim.width();
+	    if (!width || size > UINT_MAX / width) return false;
+	    size *= width;
+	    int64_t low = min(dim.get_msb(), dim.get_lsb());
+	    auto offset = [&](const string&ir, uint64_t&digit) {
+		  constraint_const_ir_t index;
+		  return constraint_parse_const_ir_(ir, index)
+			&& index.width <= 64
+			&& constraint_fixed_index_offset_(index, low, width, digit);
+	    };
+	    uint64_t first = 0, length = width;
+	    string index_ir;
+	    if (select != indices.end()) {
+		  const index_component_t&index = *select++;
+		  if (!index.msb) return false;
+		  if (index.sel == index_component_t::SEL_BIT && !index.lsb) {
+			length = 1;
+			index_ir = pexpr_to_constraint_ir(index.msb, cls, value_slots, scope, loop_env);
+			if (index_ir.empty()) return false;
+			if (!offset(index_ir, first)) symbolic = true;
+		  } else if (index.sel == index_component_t::SEL_PART && index.lsb
+			     && select == indices.end()) {
+			auto bound = [&](PExpr*expr, uint64_t&digit) {
+			      unique_ptr<NetExpr> folded(elab_and_eval(
+				    constraint_ir_design_ctx_, const_cast<NetScope*>(scope),
+				    expr, -1, false, false));
+			      const NetEConst*constant = dynamic_cast<const NetEConst*>(folded.get());
+			      if (!constant || !constant->value().is_defined()) return false;
+			      const verinum&bits = constant->value();
+			      return bits.len() && bits.len() <= 64
+				    && offset(constraint_const_bits_ir_(bits, bits.len(),
+							  bits.has_sign()), digit);
+			};
+			uint64_t last = 0;
+			if (!bound(index.msb, first) || !bound(index.lsb, last)) return false;
+			if (last < first) swap(first, last);
+			length = last - first + 1;
+		  } else {
+			return false;
+		  }
+	    }
+	    first_word = first_word * width + first;
+	    count *= length;
+	    ranges.emplace_back(first, length);
+	    index_irs.push_back(index_ir);
+      }
+      for (uint64_t word = 0; word < count; ++word) {
+	    if (!symbolic) {
+		  atoms.push_back(constraint_fixed_array_leaf_ir_(property, 64,
+								first_word + word, ":r"));
+		  continue;
+	    }
+	    vector<string> selected = index_irs;
+	    uint64_t ordinal = word;
+	    for (size_t dim = dims.size(); dim-- > 0;) {
+		  if (!selected[dim].empty()) continue;
+		  const auto&range = ranges[dim];
+		  int64_t low = min(dims[dim].get_msb(), dims[dim].get_lsb());
+		  uint64_t index = (uint64_t)low + range.first + ordinal % range.second;
+		  selected[dim] = "c:" + to_string(index) + ":64:s";
+		  ordinal /= range.second;
+	    }
+	    atoms.push_back(constraint_fixed_array_select_ir_(
+		  property, 64, ":r", true, dims, selected));
       }
       return true;
 }
@@ -47181,9 +47272,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			if (ewid == 0) ewid = 32;
 			string leaf_suffix = real_leaf ? ":r"
 			      : etype && etype->get_signed() ? ":s" : "";
-			if (constant) return "e:" + to_string(idx) + ":"
-			      + to_string(ewid) + ":" + to_string(elem)
-			      + leaf_suffix;
+			if (constant) return constraint_fixed_array_leaf_ir_(
+			      idx, ewid, elem, leaf_suffix);
 			return constraint_fixed_array_select_ir_(idx, ewid, leaf_suffix,
 			      real_leaf || (etype && etype->base_type() == IVL_VT_BOOL),
 			      dims, index_irs);
@@ -50492,18 +50582,22 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    return acc;
       }
 
-	// unique {...} (IEEE 1800-2017 18.5.5): the listed scalars and
-	// array elements take pairwise distinct values. Un-indexed
-	// identifiers naming a rand unpacked-array property expand to all
-	// their elements; every other operand (scalar rand property,
-	// indexed element, constant) is emitted through the ordinary
-      // expression path. The result is a conjunction of pairwise (ne).
+      // IEEE 1800-2017 18.5.5 / 1800-2023 18.5.4: lower a uniqueness
+      // group to pairwise inequalities over its scalar variables and leaves.
       if (const PEUnique*uq = dynamic_cast<const PEUnique*>(expr)) {
 	    /* Syntax 18-4's footnote restricts each operand to a variable
 	     * reference. Check that before lowering: the ordinary expression
 	     * emitter accepts operators and constants, which would turn them into
 	     * solver terms even though they are not uniqueness-group members. */
 	    ivl_type_t member_type = nullptr;
+	    bool fixed_real_group = false;
+	    auto direct_property = [&](const PEIdent*id, const netclass_t*&owner) {
+		  pform_name_t::const_iterator component;
+		  if (constraint_target_path_begin_(id->path(), cls, owner, component)
+		      && std::next(component) == id->path().name.end())
+			return owner->property_idx_from_name(component->name);
+		  return -1;
+	    };
 	    for (const PExpr*item : uq->items()) {
 		  const PEIdent*id = dynamic_cast<const PEIdent*>(item);
 		  if (!id) {
@@ -50516,14 +50610,13 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			return "";
 		  }
 		  ivl_type_t type = nullptr;
-		  if (id->path().size() == 1) {
-			perm_string name = id->path().back().name;
-			if (cls) {
-			      int idx = cls->property_idx_from_name(name);
-			      if (idx >= 0)
-				    type = cls->get_prop_type((size_t)idx);
-			} else if (scope_randomize_type_ctx_) {
-			      auto found = scope_randomize_type_ctx_->find(name);
+		  const netclass_t*owner = nullptr;
+		  int property = direct_property(id, owner);
+		  if (property >= 0) {
+			type = owner->get_prop_type((size_t)property);
+		  } else if (id->path().size() == 1) {
+			if (!cls && scope_randomize_type_ctx_) {
+			      auto found = scope_randomize_type_ctx_->find(id->path().back().name);
 			      if (found != scope_randomize_type_ctx_->end())
 				    type = found->second;
 			}
@@ -50559,10 +50652,7 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      constraint_ir_design_ctx_->errors += 1;
 			return "";
 		  }
-		  const netuarray_t*array = dynamic_cast<const netuarray_t*>(type);
-		  const netdarray_t*darray = dynamic_cast<const netdarray_t*>(type);
-		  if (array) type = array->element_type();
-		  else if (darray) type = darray->element_type();
+		  const bool fixed_array = dynamic_cast<const netuarray_t*>(type);
 		  ivl_type_t leaf_type = type;
 		  while (true) {
 			const netuarray_t*ua = dynamic_cast<const netuarray_t*>(leaf_type);
@@ -50578,9 +50668,10 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 			      constraint_ir_design_ctx_->errors += 1;
 			return "";
 		  }
-		  if (!member_type) member_type = type;
-		  else if (!member_type->type_equivalent(type)
-			   || !type->type_equivalent(member_type)) {
+		  fixed_real_group |= cls && fixed_array && leaf_type == &netreal_t::type_real;
+		  if (!member_type) member_type = leaf_type;
+		  else if (!member_type->type_equivalent(leaf_type)
+			   || !leaf_type->type_equivalent(member_type)) {
 			cerr << uq->get_fileline() << ": error: all members of a unique "
 			     << "constraint group shall have equivalent types "
 			     << "(IEEE 1800-2017 18.5.5 / 1800-2023 18.5.4)." << endl;
@@ -50623,12 +50714,30 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 				    + " L) (delem " + hdr + " M)))))";
 			}
 		  }
+		  const netclass_t*owner = nullptr;
+		  int pidx = id ? direct_property(id, owner) : -1;
+		  if (pidx >= 0) {
+			const netuarray_t*array = dynamic_cast<const netuarray_t*>(
+			      owner->get_prop_type((size_t)pidx));
+			if (array && array->element_type() == &netreal_t::type_real) {
+			      const auto&indices = id->path().back().index;
+			      if (indices.size() == array->static_dimensions().size()
+				  && !indices.empty() && indices.back().sel == index_component_t::SEL_BIT) {
+				    string leaf = pexpr_to_constraint_ir(item, cls, value_slots, scope, loop_env);
+				    if (leaf.empty()) return "";
+				    atoms.push_back(leaf);
+			      } else if (!constraint_fixed_real_unique_terms_(
+					  array, pidx, indices, cls, value_slots, scope, loop_env, atoms)) {
+				    return "";
+			      }
+			      continue;
+			}
+		  }
 		  if (cls && id && id->path().size() == 1) {
 			perm_string pname = id->path().back().name;
 			  // `x inside {tbl}' where tbl is a state array
 			  // (18.3): its elements are the set members, at
 			  // the values they hold now.
-			int pidx = cls->property_idx_from_name(pname);
 			  /* `unique {q}' over a rand dynamic array or queue: every
 			     pair of elements differs (IEEE 1800-2017/2023 18.5.5).
 			     The element count is solved first, so emit the pairwise
@@ -50694,9 +50803,9 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						if (!constraint_fixed_index_offset_(index,
 						      min(dims[0].get_msb(), dims[0].get_lsb()),
 						      dims[0].width(), offset)) return "";
-						atoms.push_back("e:" + to_string(pidx) + ":"
-						      + to_string(ewid) + ":" + to_string(offset)
-						      + ((etype && etype->get_signed()) ? ":s" : ""));
+						atoms.push_back(constraint_fixed_array_leaf_ir_(
+						      pidx, ewid, offset,
+						      (etype && etype->get_signed()) ? ":s" : ""));
 					  }
 					  expanded = true;
 				    }
@@ -50757,10 +50866,8 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 						? ":s" : "";
 				    for (unsigned long k = 0
 					       ; k < count ; k += 1)
-					  atoms.push_back("e:"
-						+ to_string(pidx) + ":"
-						+ to_string(ewid) + ":"
-						+ to_string(k) + esfx);
+					  atoms.push_back(constraint_fixed_array_leaf_ir_(
+						pidx, ewid, k, esfx));
 				    expanded = true;
 			      }
 			}
@@ -50783,9 +50890,12 @@ string pexpr_to_constraint_ir(const PExpr*expr,
 	    if (atoms.size() < 2)
 		  return "(ne c:0 c:1)";
 	    string acc;
+	    // Retain the source of real inequalities so the runtime can group
+	    // array uniqueness without changing scalar-only sampling.
+	    const char*op = fixed_real_group ? "(real-unique-ne " : "(ne ";
 	    for (size_t i = 0 ; i < atoms.size() ; i += 1) {
 		  for (size_t j = i + 1 ; j < atoms.size() ; j += 1) {
-			string term = "(ne " + atoms[i] + " " + atoms[j] + ")";
+			string term = op + atoms[i] + " " + atoms[j] + ")";
 			acc = acc.empty() ? term
 					  : "(and " + acc + " " + term + ")";
 		  }
