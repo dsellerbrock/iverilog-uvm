@@ -97,6 +97,7 @@ using namespace std;
 
 static void release_owned_context_(vthread_t thr);
 static void release_active_call_context_(vthread_t thr, const char*where);
+static void release_randsequence_lanes_(vthread_t thr);
 static void retain_context_chain_(vvp_context_t context);
 static void trace_context_event_(const char*where, vthread_t thr,
                                  __vpiScope*extra_scope = 0,
@@ -1050,6 +1051,8 @@ struct vthread_s {
          explicitly: process::kill() can terminate the complete logical
          call stack, in which case source execution never reaches %free. */
       std::vector<active_call_context_s> active_call_contexts;
+      // The dispatcher owns each parked lane frame until it resumes or exits.
+      std::map<unsigned, active_call_context_s> randsequence_lanes;
       vvp_context_t skip_free_context;
       vvp_context_t staged_alloc_rd_context;
       std::vector<saved_staged_read_s> saved_staged_reads;
@@ -1115,6 +1118,7 @@ struct vthread_s {
 	    force_pending = 0;
 	    if (i_was_disabled)
 		release_active_call_context_(this, "disabled-thread-cleanup");
+	    release_randsequence_lanes_(this);
 	    release_owned_context_(this);
 	    while (!awaited_processes_.empty()) {
 		  vvp_process*proc = *awaited_processes_.begin();
@@ -15612,15 +15616,16 @@ static void restore_staged_read_(vthread_t thr, vvp_context_t allocation)
       thr->staged_alloc_rd_scope = saved.scope;
 }
 
-bool of_ALLOC(vthread_t thr, vvp_code_t cp)
+static void release_randsequence_lanes_(vthread_t thr)
 {
-      __vpiScope*ctx_scope = resolve_context_scope(cp->scope);
-      if (ctx_scope && cp->scope && ctx_scope != cp->scope) {
-            trace_context_event_("alloc-shared", thr, cp->scope, 0);
-            return true;
-      }
-        /* Allocate a context. */
-      vvp_context_t child_context = vthread_alloc_context(ctx_scope);
+      for (const auto&lane : thr->randsequence_lanes)
+	    vthread_free_context(lane.second.context, lane.second.scope);
+      thr->randsequence_lanes.clear();
+}
+
+static void stage_call_context_(vthread_t thr, __vpiScope*ctx_scope,
+				vvp_context_t child_context)
+{
       if (thr->staged_alloc_rd_context) {
             saved_staged_read_s saved = { child_context,
                   thr->staged_alloc_rd_context, thr->staged_alloc_rd_scope };
@@ -15672,10 +15677,45 @@ bool of_ALLOC(vthread_t thr, vvp_code_t cp)
       thr->pending_alloc_scope = ctx_scope;
       thr->pending_alloc_prev_wt = prev_wt;
       thr->pending_alloc_prev_rd = prev_rd;
+}
 
+bool of_ALLOC(vthread_t thr, vvp_code_t cp)
+{
+      __vpiScope*ctx_scope = resolve_context_scope(cp->scope);
+      if (ctx_scope && cp->scope && ctx_scope != cp->scope) {
+            trace_context_event_("alloc-shared", thr, cp->scope, 0);
+            return true;
+      }
+      vvp_context_t child_context = vthread_alloc_context(ctx_scope);
+      stage_call_context_(thr, ctx_scope, child_context);
       vthread_initialize_context(ctx_scope, child_context);
       trace_context_event_("alloc", thr, ctx_scope, child_context);
 
+      return true;
+}
+
+static bool randsequence_lane_error_(const char*reason)
+{
+      cerr << "runtime error: randsequence lane " << reason << endl;
+      vpip_set_return_value(1);
+      schedule_finish(1);
+      return false;
+}
+
+bool of_ALLOC_RS_LANE(vthread_t thr, vvp_code_t cp)
+{
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
+      auto lane = thr->randsequence_lanes.find(cp->bit_idx[0]);
+      if (!scope || lane == thr->randsequence_lanes.end()
+	  || lane->second.scope != scope)
+	    return randsequence_lane_error_("resume requires a matching parked frame");
+      active_call_context_s frame = lane->second;
+      thr->randsequence_lanes.erase(lane);
+      stage_call_context_(thr, scope, frame.context);
+      // The function-call opcode records ownership itself. A lane task uses
+      // fork/join and needs the record here for abnormal dispatcher exit.
+      if (scope->get_type_code() == vpiTask)
+	    thr->active_call_contexts.push_back(frame);
       return true;
 }
 
@@ -23813,9 +23853,12 @@ bool of_FORK_V(vthread_t thr, vvp_code_t cp)
 	      return true;
 }
 
-bool of_FREE(vthread_t thr, vvp_code_t cp)
+static bool free_call_context_(vthread_t thr, __vpiScope*scope, unsigned lane_slot)
 {
-      __vpiScope*ctx_scope = resolve_context_scope(cp->scope);
+      __vpiScope*ctx_scope = resolve_context_scope(scope);
+      vvp_context_t prepared = nullptr;
+      if (lane_slot && thr->pending_alloc_scope == ctx_scope)
+	    prepared = thr->pending_alloc_context;
       if (thr->pending_alloc_scope
           && (!ctx_scope || thr->pending_alloc_scope == ctx_scope)) {
             thr->pending_alloc_context = 0;
@@ -23826,8 +23869,8 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
             thr->staged_alloc_rd_context = 0;
             thr->staged_alloc_rd_scope = 0;
       }
-      if (ctx_scope && cp->scope && ctx_scope != cp->scope) {
-            trace_context_event_("free-shared", thr, cp->scope, 0);
+      if (ctx_scope && scope && ctx_scope != scope) {
+            trace_context_event_("free-shared", thr, scope, 0);
             return true;
       }
       if (thr->skip_free_context
@@ -23861,8 +23904,8 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
            frame may no longer be at the top of rd_context, so free the live
            frame for this scope from the write stack first and scrub it from
            both chains. */
-      vvp_context_t child_context = 0;
-      if (ctx_scope && ctx_scope->has_automatic_context()) {
+      vvp_context_t child_context = prepared;
+      if (!child_context && ctx_scope && ctx_scope->has_automatic_context()) {
             if (thr->rd_context
                 && context_live_matches_scope_(thr->rd_context, ctx_scope))
                   child_context = thr->rd_context;
@@ -23873,8 +23916,18 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
             }
               /* (A deeper rd-chain search lived here; the 2026-07
                  engagement census never saw it find anything.) */
-      } else {
+      } else if (!child_context) {
             child_context = thr->wt_context ? thr->wt_context : thr->rd_context;
+      }
+      if (lane_slot) {
+	    if (!child_context || !context_live_matches_scope_(child_context, scope))
+		  return randsequence_lane_error_("park requires a live frame");
+	    if (!prepared && (thr->active_call_contexts.empty()
+		|| thr->active_call_contexts.back().context != child_context))
+		  return randsequence_lane_error_("park requires a resumed frame");
+	    thr->randsequence_lanes.emplace(lane_slot,
+		  active_call_context_s(child_context, ctx_scope));
+	    retain_automatic_context_(child_context);
       }
       if (!child_context) {
             ctx_stats_bump("free.null");
@@ -23933,6 +23986,21 @@ bool of_FREE(vthread_t thr, vvp_code_t cp)
       trace_context_event_("free", thr, ctx_scope, child_context);
 
       return true;
+}
+
+bool of_FREE(vthread_t thr, vvp_code_t cp)
+{
+      return free_call_context_(thr, cp->scope, 0);
+}
+
+bool of_FREE_RS_LANE(vthread_t thr, vvp_code_t cp)
+{
+      __vpiScope*scope = dynamic_cast<__vpiScope*>(cp->handle);
+      const unsigned slot = cp->bit_idx[0];
+      if (!scope || !scope->randsequence_production || !scope->has_automatic_context()
+	  || !slot || thr->randsequence_lanes.count(slot))
+	    return randsequence_lane_error_("park requires an unused slot and a production scope");
+      return free_call_context_(thr, scope, slot);
 }
 
 /*

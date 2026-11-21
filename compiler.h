@@ -157,6 +157,8 @@ bool evaluated_parameter_signatures(Design*des, NetScope*scope,
                                     std::string&layout_result);
 bool evaluated_type_signature(Design*des, ivl_type_t type,
                               std::string&result);
+std::string coverage_design_signature(const Design*des,
+                                      const std::string&input_fingerprint);
 extern const netclass_t* elaborate_builtin_mailbox_specialization(
                                                           Design*des,
                                                           NetScope*call_scope,

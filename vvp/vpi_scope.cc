@@ -30,6 +30,7 @@
 # include  "vvp_net_sig.h"
 # include  "vvp_island.h"
 # include  "config.h"
+# include  "coverage_hash.h"
 # include  <algorithm>
 # include  <map>
 # include  <memory>
@@ -44,6 +45,15 @@
 # include  <cstring>
 # include  <cstdlib>
 # include  <cassert>
+# include  <fcntl.h>
+# include  <sys/stat.h>
+# include  <unistd.h>
+#if defined(_WIN32)
+# ifndef NOMINMAX
+#  define NOMINMAX
+# endif
+# include  <windows.h>
+#endif
 # include  "ivl_alloc.h"
 # include  "array_common.h"
 
@@ -2666,10 +2676,11 @@ class __vpiAssertion : public __vpiHandle {
 	  ctl_type_(is_final ? 8 : 4), ctl_dir_(immediate_dir_(deferred_type)) { }
 
       __vpiAssertion(const char*name, const char*file, int line,
-		     __vpiScope*scope, int immediate_type)
+		     __vpiScope*scope, int immediate_type, int source_id = 0)
 	: idx_(-1), name_(name ? name : ""), file_(file ? file : ""),
 	  line_(line), scope_(scope), latency_(-1),
-	  fail_full_latency_(false), immediate_type_(immediate_type),
+	  fail_full_latency_(false), immediate_source_id_(source_id),
+	  immediate_type_(immediate_type),
 	  ctl_type_(2), ctl_dir_(immediate_dir_(immediate_type)) { }
 
       static int immediate_dir_(int type)
@@ -3009,6 +3020,27 @@ class __vpiAssertion : public __vpiHandle {
       void coverage_start(bool enabled) { coverage_enabled_ = enabled; }
       void coverage_reset() { coverage_hit_ = false; }
       bool coverage_hit() const { return coverage_hit_; }
+      void coverage_merge_hit() { coverage_hit_ = true; }
+      string coverage_identity() const
+      {
+	    // Length-delimit path components, since escaped identifiers can
+	    // contain a dot. Source ordinals separate assertions on one line.
+	    string key;
+	    auto field = [&key](const string&value) {
+		  key += to_string(value.size()) + ':' + value;
+	    };
+	    for (auto*scope = scope_; scope; scope = scope->scope)
+		  field(scope->scope_name());
+	    key += '|';
+	    field(file_);
+	    field(to_string(line_));
+	    field(name_);
+	    field(to_string(ctl_type_));
+	    field(to_string(ctl_dir_));
+	    field(to_string(idx_ >= 0 ? idx_ : deferred_source_id_
+				 ? deferred_source_id_ : immediate_source_id_));
+	    return key;
+      }
 
       void report_immediate_assertion(bool success)
       {
@@ -3440,6 +3472,7 @@ class __vpiAssertion : public __vpiHandle {
       bool coverage_source_ = true;
       unsigned long deferred_source_id_ = 0;
       int deferred_type_ = vpiUndefined;
+      int immediate_source_id_ = 0;
       int immediate_type_ = vpiUndefined;
 	/* IEEE 1800-2023 20.11 control state. */
       int ctl_type_ = 1;                 // Table 20-6 assertion_type bit
@@ -3525,6 +3558,176 @@ class __vpiAssertion : public __vpiHandle {
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
+
+static string coverage_design_signature;
+
+bool compile_coverage_design(const char*signature)
+{
+      if (!coverage_design_signature.empty() || strlen(signature) != 16
+	  || strspn(signature, "0123456789abcdef") != 16)
+	    return false;
+      coverage_design_signature = signature;
+      return true;
+}
+
+// Clause 40 snapshots contain one coverage type. Assertion rows are in
+// canonical identity order, followed by a checksum of the header and rows.
+static const char coverage_snapshot_magic[] = "IVL_COVERAGE_DB 1\n";
+static const PLI_INT32 coverage_assertion_type = 20;
+
+static string coverage_snapshot_prefix()
+{
+      return coverage_snapshot_magic + coverage_design_signature + "\nASSERTION\n";
+}
+
+static int coverage_snapshot_stat(const char*path, struct stat*status)
+{
+#if defined(_WIN32)
+      return stat(path, status);
+#else
+      return lstat(path, status);
+#endif
+}
+
+static void coverage_snapshot_remove(const char*path)
+{
+      struct stat status;
+      if (path && coverage_snapshot_stat(path, &status) == 0 && S_ISREG(status.st_mode))
+	    unlink(path);
+}
+
+static bool coverage_snapshot_write(const char*path, const string&contents)
+{
+      struct stat status;
+      int found = coverage_snapshot_stat(path, &status);
+      if (found == 0 ? !S_ISREG(status.st_mode) : errno != ENOENT)
+	    return false;
+
+      string temp = string(path) + ".tmp." + to_string(getpid());
+      int flags = O_WRONLY | O_CREAT | O_EXCL;
+#ifdef O_BINARY
+      flags |= O_BINARY;
+#endif
+      int fd = open(temp.c_str(), flags, 0666);
+      if (fd >= 0) {
+	    FILE*file = fdopen(fd, "wb");
+	    bool written = false;
+	    if (file) {
+		  written = fwrite(contents.data(), 1, contents.size(), file) == contents.size();
+		  if (fclose(file) != 0) written = false;
+	    } else {
+		  close(fd);
+	    }
+	    if (written) {
+#if defined(_WIN32)
+		  if (MoveFileExA(temp.c_str(), path, MOVEFILE_REPLACE_EXISTING))
+#else
+		  if (rename(temp.c_str(), path) == 0)
+#endif
+			return true;
+	    }
+	    unlink(temp.c_str());
+      }
+
+      // Clause 40.3.2.5 removes the named entry on a failed save,
+      // including an earlier snapshot that the call tried to overwrite.
+      coverage_snapshot_remove(path);
+      return false;
+}
+
+static bool coverage_snapshot_match(FILE*file, const string&expected)
+{
+      char buffer[256];
+      for (size_t pos = 0; pos < expected.size(); ) {
+	    size_t size = min(sizeof buffer, expected.size() - pos);
+	    if (fread(buffer, 1, size, file) != size
+		|| memcmp(buffer, expected.data() + pos, size) != 0)
+		  return false;
+	    pos += size;
+      }
+      return true;
+}
+
+using coverage_rows = map<string, __vpiAssertion*>;
+
+static bool coverage_snapshot_read(const char*path, const coverage_rows&rows,
+				    vector<__vpiAssertion*>&hits)
+{
+      int flags = O_RDONLY;
+#ifdef O_BINARY
+      flags |= O_BINARY;
+#endif
+#ifdef O_NONBLOCK
+      flags |= O_NONBLOCK;
+#endif
+      int fd = open(path, flags);
+      if (fd < 0) return false;
+      struct stat status;
+      FILE*input = fstat(fd, &status) == 0 && S_ISREG(status.st_mode)
+		 ? fdopen(fd, "rb") : nullptr;
+      if (!input) {
+	    close(fd);
+	    return false;
+      }
+      unique_ptr<FILE, decltype(&fclose)> file(input, fclose);
+
+      coverage_hash checksum;
+      const string prefix = coverage_snapshot_prefix();
+      if (!coverage_snapshot_match(input, prefix)) return false;
+      checksum.add(prefix.data(), prefix.size());
+      for (const auto&row : rows) {
+	    if (!coverage_snapshot_match(input, row.first)) return false;
+	    char bit[2];
+	    if (fread(bit, 1, sizeof bit, input) != sizeof bit
+		|| (bit[0] != '0' && bit[0] != '1') || bit[1] != '\n')
+		  return false;
+	    checksum.add(row.first.data(), row.first.size());
+	    checksum.add(bit, sizeof bit);
+	    if (bit[0] == '1') hits.push_back(row.second);
+      }
+      return coverage_snapshot_match(input, "END " + checksum.hex() + '\n')
+	    && fgetc(input) == EOF && !ferror(input);
+}
+
+PLI_INT32 vpip_coverage_snapshot(PLI_INT32 save, PLI_INT32 type,
+			       const char*name)
+{
+      if (save && type != coverage_assertion_type) return 0;
+
+      coverage_rows rows;
+      for (auto*assertion : assertion_registry) {
+	    if (assertion->coverable() &&
+		!rows.emplace(assertion->coverage_identity(), assertion).second) {
+		  if (save) coverage_snapshot_remove(name);
+		  return -1;
+	    }
+      }
+
+      if (save && rows.empty()) return 0;
+      if (rows.empty() || coverage_design_signature.empty() || !name || !*name) {
+	    if (save) coverage_snapshot_remove(name);
+	    return -1;
+      }
+
+      if (save) {
+	    string contents = coverage_snapshot_prefix();
+	    for (const auto&row : rows) {
+		  contents += row.first;
+		  contents += row.second->coverage_hit() ? "1\n" : "0\n";
+	    }
+	    coverage_hash checksum;
+	    checksum.add(contents.data(), contents.size());
+	    contents += "END " + checksum.hex() + '\n';
+	    return coverage_snapshot_write(name, contents) ? 1 : -1;
+      }
+
+      vector<__vpiAssertion*> hits;
+      if (!coverage_snapshot_read(name, rows, hits)) return -1;
+      if (type != coverage_assertion_type) return 0;
+      for (auto*assertion : hits)
+	    assertion->coverage_merge_hit();
+      return 1;
+}
 
 static bool coverage_instance_(const __vpiScope*scope)
 {
@@ -3716,7 +3919,7 @@ void vpip_register_immediate_cover(PLI_INT32 source_id, const char*name,
       if (immediate_cover_by_key.find(key) != immediate_cover_by_key.end())
 	    return;
       __vpiAssertion*obj = new __vpiAssertion(name, file, line, sc,
-						      vpiImmediateCover);
+					      vpiImmediateCover, source_id);
       assertion_registry.push_back(obj);
       replay_assertion_control_(obj);
       immediate_cover_by_key[key] = obj;
@@ -3761,7 +3964,7 @@ void vpip_register_immediate_assertion(PLI_INT32 source_id, const char*name,
 	  != immediate_assertion_by_key.end())
 	    return;
       __vpiAssertion*obj = new __vpiAssertion(name, file, line, sc,
-						     immediate_type);
+					      immediate_type, source_id);
       assertion_registry.push_back(obj);
       replay_assertion_control_(obj);
       immediate_assertion_by_key[key] = obj;

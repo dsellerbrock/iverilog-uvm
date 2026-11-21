@@ -278,6 +278,7 @@ void dll_target::proc_alloc(const NetAlloc*net)
 
       stmt_cur_->type_ = IVL_ST_ALLOC;
       stmt_cur_->u_.alloc_.scope = lookup_scope_(net->scope());
+      stmt_cur_->u_.alloc_.lane_slot = net->lane_slot();
 }
 
 /*
@@ -918,6 +919,7 @@ void dll_target::proc_free(const NetFree*net)
 
       stmt_cur_->type_ = IVL_ST_FREE;
       stmt_cur_->u_.free_.scope = lookup_scope_(net->scope());
+      stmt_cur_->u_.free_.lane_slot = net->lane_slot();
 }
 
 bool dll_target::proc_release(const NetRelease*net)

@@ -58,6 +58,7 @@ extern void pform_dump(std::ostream&out, const PTaskFunc*tf);
  * through the command specified by ivlpp_string before being parsed.
  */
 extern int pform_parse(const char*path);
+extern std::string lexor_coverage_input_fingerprint();
 
 extern int pform_finish();
 extern void pform_release_elaboration_memory();

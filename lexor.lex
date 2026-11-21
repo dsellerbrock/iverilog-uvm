@@ -34,13 +34,34 @@
 # include  "parse_api.h"
 # include  "parse.h"
 # include  <cctype>
+# include  <cerrno>
 # include  <cstring>
 # include  "lexor_keyword.h"
 # include  "discipline.h"
+# include  "coverage_hash.h"
 # include  <string>
 # include  <list>
 
 using namespace std;
+
+static coverage_hash coverage_input_hash;
+
+string lexor_coverage_input_fingerprint()
+{
+      return coverage_input_hash.hex();
+}
+
+// Keep Flex's noninteractive read and hash its input, including on-demand
+// library sources and the output of preprocessing pipes.
+# define YY_INPUT(buf, result, max_size) do { \
+      errno = 0; \
+      while ((result = fread(buf, 1, max_size, yyin)) == 0 && ferror(yyin)) { \
+	    if (errno != EINTR) YY_FATAL_ERROR("input in flex scanner failed"); \
+	    errno = 0; \
+	    clearerr(yyin); \
+      } \
+      coverage_input_hash.add(buf, result); \
+} while (0)
 
 /* Nettype probes live in pform.cc. Keep these declarations local until the
  * legacy parse_misc interface is split into type-specific scanner hooks. */

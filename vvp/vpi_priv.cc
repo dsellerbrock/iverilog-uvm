@@ -3247,8 +3247,7 @@ extern "C" PLI_INT32 vpi_sim_vcontrol(int operation, va_list ap)
 	  }
 
 	  case vpiCoverageMerge:
-	    /* Code coverage has no database backend, so match the result of
-	       $coverage_merge() for this unavailable operation. */
+	    /* The VPI coverage database operation is unavailable. */
 	    return -1;
 
 	  case vpiFinish:
@@ -3711,5 +3710,6 @@ vpip_routines_s vpi_routines = {
     .compat_iterate             = vpip_compat_iterate,
     .sample_evcd_inout          = vpip_sample_evcd_inout,
     .assertion_coverage         = vpip_assertion_coverage,
+    .coverage_snapshot          = vpip_coverage_snapshot,
 };
 #endif

@@ -1,0 +1,3 @@
+WARNING: ./ivltests/issue3976_assertion_snapshot.sv:92: $coverage_merge returns SV_COV_ERROR because the coverage snapshot is missing, invalid, or from a different design.
+WARNING: ./ivltests/issue3976_assertion_snapshot.sv:107: $coverage_merge returns SV_COV_ERROR because the coverage snapshot is missing, invalid, or from a different design.
+PASSED

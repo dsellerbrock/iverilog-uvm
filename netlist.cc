@@ -3130,8 +3130,8 @@ bool NetUTask::super_call() const
       return super_call_;
 }
 
-NetAlloc::NetAlloc(NetScope*scope__)
-: scope_(scope__)
+NetAlloc::NetAlloc(NetScope*scope__, unsigned lane_slot)
+: scope_(scope__), lane_slot_(lane_slot)
 {
 }
 
@@ -3149,8 +3149,8 @@ const NetScope* NetAlloc::scope() const
       return scope_;
 }
 
-NetFree::NetFree(NetScope*scope__)
-: scope_(scope__)
+NetFree::NetFree(NetScope*scope__, unsigned lane_slot)
+: scope_(scope__), lane_slot_(lane_slot)
 {
 }
 
@@ -3552,6 +3552,7 @@ NetEUnary::NetEUnary(char op__, NetExpr*ex, unsigned wid, bool signed_flag)
 NetEUnary::~NetEUnary()
 {
       delete expr_;
+      delete incdec_lval_;
 }
 
 ivl_variable_type_t NetEUnary::expr_type() const

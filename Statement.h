@@ -292,10 +292,15 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       { return randsequence_block_; }
       void add_randsequence_production(PTask*production)
       { randsequence_productions_.push_back(production); }
+      void randsequence_lane_storage() { randsequence_lane_storage_ = true; }
       static perm_string randsequence_break_flag()
       { return perm_string::literal("$__ivl_rs_break"); }
       static perm_string randsequence_result_port()
       { return perm_string::literal("$__ivl_rs_result"); }
+      static perm_string randsequence_lane_mode()
+      { return perm_string::literal("$__ivl_rs_lane_mode"); }
+      static perm_string randsequence_lane_remaining()
+      { return perm_string::literal("$__ivl_rs_lane_remaining"); }
 
       bool var_init_needs_explicit_lifetime() const override;
 
@@ -336,6 +341,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       bool deferred_assertion_process_scope_ = false;
       bool concurrent_assertion_only_ = false;
       ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;
+      bool randsequence_lane_storage_ = false;
       std::vector<PTask*> randsequence_productions_;
       std::vector<Statement*>list_;
 };
@@ -352,6 +358,8 @@ class PBreak : public Statement {
     private:
       ivl_flow_control_t kind_;
 };
+
+class PRandJoin;
 
 class PCallTask  : public Statement {
 
@@ -414,7 +422,16 @@ class PCallTask  : public Statement {
       bool has_scoped_type_prefix() const { return scoped_type_prefix_; }
 
     private:
+      friend class PRandJoin;
+      struct randsequence_lane_t {
+	    unsigned slot;
+	    unsigned length;
+	    NetBlock* setup;
+	    NetNet* remaining;
+      };
       bool randsequence_call_ = false;
+      NetProc* elaborate_randsequence_call_(Design*, NetScope*,
+					    randsequence_lane_t* = nullptr) const;
       NetProc* elaborate_sys(Design*des, NetScope*scope) const;
       NetProc* elaborate_usr(Design*des, NetScope*scope) const;
 
@@ -432,7 +449,8 @@ class PCallTask  : public Statement {
 
       NetProc*elaborate_build_call_(Design*des, NetScope*scope,
 				    NetScope*task, NetExpr*use_this,
-				    bool super_call = false) const;
+				    bool super_call = false,
+				    randsequence_lane_t*lane = nullptr) const;
 	// Bind a `ref' formal to its actual (IEEE 1800-2017 13.5.2).
 	// Sets *via to a temporary when the actual could not be named
 	// directly, in which case the caller copies through it.
@@ -892,8 +910,10 @@ class PEventStatement  : public Statement {
 
 	// This method is used to elaborate, but attach a previously
 	// elaborated statement to the event.
+	// A continuous RHS requests only its function-body dependencies.
       NetProc* elaborate_st(Design*des, NetScope*scope, NetProc*st,
-			    bool nba_event_control = false) const;
+			    bool nba_event_control = false,
+			    const NetExpr*contassign_rhs = nullptr) const;
 
       NetProc* elaborate_wait(Design*des, NetScope*scope, NetProc*st) const;
       NetProc* elaborate_wait_fork(Design*des, const NetScope*scope) const;
@@ -1056,6 +1076,18 @@ class PNoop  : public Statement {
       NetProc* elaborate(Design*des, NetScope*scope) const override;
 };
 
+class PRandJoin : public Statement {
+    public:
+      explicit PRandJoin(double priority) : priority_(priority) {}
+      ~PRandJoin() override;
+      void add_lane(PCallTask*call, unsigned length);
+      NetProc* elaborate(Design*, NetScope*) const override;
+
+    private:
+      double priority_;
+      std::vector<std::pair<PCallTask*, unsigned>> lanes_;
+};
+
 class PRepeat : public Statement {
     public:
       bool refs_name(perm_string name) const override;
@@ -1074,11 +1106,13 @@ class PRepeat : public Statement {
       PExpr* count_expr() const { return expr_; }
       void replace_count_expr(PExpr*expr) { delete expr_; expr_ = expr; }
       Statement* body() const { return statement_; }
+      void randsequence_dispatch() { randsequence_dispatch_ = true; }
 
     private:
       friend class pform_constructor_order_audit_t;
       PExpr*expr_;
       Statement*statement_;
+      bool randsequence_dispatch_ = false;
 };
 
 class PRelease  : public Statement {

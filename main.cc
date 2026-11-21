@@ -1421,6 +1421,10 @@ int main(int argc, char*argv[])
             if (prior != flags.end()) free((void *)prior->second);
             flags["ivl-systemverilog"] = strdup(gn_system_verilog() ? "1" : "0");
       }
+      if (const char*prior = flags["ivl-coverage-design"])
+	    free((void*)prior);
+      flags["ivl-coverage-design"] =
+	    strdup(coverage_design_signature(des, lexor_coverage_input_fingerprint()).c_str());
       des->set_flags(flags);
 
       switch(min_typ_max_flag) {

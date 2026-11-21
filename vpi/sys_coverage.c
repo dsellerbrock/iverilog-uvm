@@ -20,8 +20,8 @@
 /*
  * IEEE 1800-2017 40.3 code-coverage access.
  *
- * Live assertion coverage is collected in VVP. Statement, toggle and
- * FSM coverage and the code-coverage database backend are unavailable.
+ * VVP collects and persists assertion coverage. Statement, toggle and
+ * FSM coverage are unavailable.
  */
 
 # include "sys_priv.h"
@@ -259,6 +259,7 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       enum coverage_call_kind kind = coverage_kind((const char*)name);
       vpiHandle arg;
       vpiHandle target = 0;
+      vpiHandle database = 0;
       int control = -1;
       int type = -1;
       int scope = -1;
@@ -287,8 +288,8 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
                             ? coverage_is_target(target)
                             : coverage_target_valid(target));
       } else {
-            arg = vpi_scan(argv);
-            valid = valid && coverage_is_string(arg);
+            database = vpi_scan(argv);
+            valid = valid && coverage_is_string(database);
       }
 
       vpi_free_object(argv);
@@ -327,14 +328,18 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
             coverage_runtime_warning(callh, (const char*)name,
                  "returns SV_COV_NOCOV because code coverage is not instrumented");
       } else if (kind == COVERAGE_DATABASE) {
-            if (strcmp((const char*)name, "$coverage_save") == 0) {
-                  result = SV_COV_NOCOV;
+            int save = strcmp((const char*)name, "$coverage_save") == 0;
+            s_vpi_value val;
+            val.format = vpiStringVal;
+            vpi_get_value(database, &val);
+            result = vpip_coverage_snapshot(save, type, val.value.str);
+            if (save && result == SV_COV_NOCOV) {
                   coverage_runtime_warning(callh, (const char*)name,
                        "returns SV_COV_NOCOV because no code coverage is available to save");
-            } else {
-                  result = SV_COV_ERROR;
+            } else if (result == SV_COV_ERROR) {
                   coverage_runtime_warning(callh, (const char*)name,
-                       "returns SV_COV_ERROR because no code-coverage database backend is available");
+                       save ? "returns SV_COV_ERROR because the coverage snapshot could not be saved"
+                            : "returns SV_COV_ERROR because the coverage snapshot is missing, invalid, or from a different design");
             }
       } else if (control == SV_COV_START || control == SV_COV_CHECK) {
             result = SV_COV_NOCOV;
