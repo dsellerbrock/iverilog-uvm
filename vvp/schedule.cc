@@ -33,6 +33,7 @@
 # include  <cstring>
 # include  <cassert>
 # include  <iostream>
+# include  <algorithm>
 # include  "vvp_cobject.h"
 # include  "vvp_vinterface.h"
 #ifdef CHECK_WITH_VALGRIND
@@ -88,6 +89,8 @@ struct event_s {
 	// Stamped by schedule_event_ / schedule_event_push_; used by
 	// the run loop for region tracing and transition invariants.
       event_queue_t region = SEQ_ACTIVE;
+	// Set on insertion into the NBA or Re-NBA queue.
+      uint64_t nba_order;
       virtual ~event_s() { }
       virtual void run_run(void) =0;
 
@@ -148,6 +151,8 @@ struct event_time_s {
       struct event_s*del_thr;
 
       struct event_time_s*next;
+      bool nbassign_needs_sort = false;
+      bool re_nbassign_needs_sort = false;
 
       static void* operator new (size_t);
       static void operator delete(void*obj, size_t s);
@@ -900,6 +905,12 @@ static inline void region_enter_(struct event_s*cur)
       }
 }
 
+uint64_t schedule_nba_order()
+{
+      static uint64_t order = 0;
+      return ++order;
+}
+
 /*
  * This function does all the hard work of putting an event into the
  * event queue. The event delay is taken from the event structure
@@ -907,7 +918,7 @@ static inline void region_enter_(struct event_s*cur)
  * queue.
  */
 static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
-			    event_queue_t select_queue)
+			    event_queue_t select_queue, uint64_t nba_order = 0)
 {
 #ifdef VVP_PERF_STATS
       unsigned time_list_walk = 0;
@@ -1008,6 +1019,9 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 
 	  case SEQ_NBASSIGN:
 	    q = &ctim->nbassign;
+	    cur->nba_order = nba_order ? nba_order : schedule_nba_order();
+	    if (*q && (*q)->nba_order > cur->nba_order)
+		  ctim->nbassign_needs_sort = true;
 	    break;
 
 	  case SEQ_NBASYNC:
@@ -1046,6 +1060,9 @@ static void schedule_event_(struct event_s*cur, vvp_time64_t delay,
 
 	  case SEQ_RE_NBASSIGN:
 	    q = &ctim->re_nbassign;
+	    cur->nba_order = nba_order ? nba_order : schedule_nba_order();
+	    if (*q && (*q)->nba_order > cur->nba_order)
+		  ctim->re_nbassign_needs_sort = true;
 	    break;
 
 	  case SEQ_RWSYNC:
@@ -1262,12 +1279,12 @@ struct assign_prop_vec4_event_s : public event_s {
 void schedule_assign_prop_vec4(const vvp_object_t&obj, unsigned pid,
 			       const vvp_vector4_t&val,
 			       const vvp_object_t&root_obj,
-			       vvp_time64_t delay, bool reactive)
+			       vvp_time64_t delay, bool reactive, uint64_t order)
 {
       struct assign_prop_vec4_event_s*cur =
 	    new assign_prop_vec4_event_s(obj, pid, val, root_obj);
 	  schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
-					       : SEQ_NBASSIGN);
+					       : SEQ_NBASSIGN, order);
 }
 
 struct assign_prop_vec4_bits_event_s : public event_s {
@@ -1351,28 +1368,52 @@ void schedule_assign_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
 				    const vvp_vector4_t&val,
 				    const vvp_object_t&root_obj,
 				    vvp_time64_t delay, bool reactive,
-				    bool signed_offset, size_t elem)
+				    bool signed_offset, size_t elem, uint64_t order)
 {
       struct assign_prop_vec4_bits_event_s*cur =
 	    new assign_prop_vec4_bits_event_s(obj, pid, bitoff, val, root_obj,
 					       signed_offset, elem);
       schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
-					  : SEQ_NBASSIGN);
+					  : SEQ_NBASSIGN, order);
 }
 
 void schedule_assign_vector(vvp_net_ptr_t ptr,
 			    unsigned base, unsigned vwid,
 			    const vvp_vector4_t&bit,
-			    vvp_time64_t delay, bool reactive)
+			    vvp_time64_t delay, bool reactive, uint64_t order)
 {
       struct assign_vector4_event_s*cur = new struct assign_vector4_event_s(bit);
       cur->ptr = ptr;
       cur->base = base;
       cur->vwid = vwid;
 	/* Nonblocking assignments from program-block processes
-	   schedule in the Re-NBA region (IEEE 1800-2017 4.4.2.7). */
+	   schedule in the Re-NBA region (IEEE 1800-2017 4.4.2.8). */
       schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
-					   : SEQ_NBASSIGN);
+					   : SEQ_NBASSIGN, order);
+}
+
+struct assign_real_handle_event_s : public event_s {
+      __vpiHandle*handle;
+      double val;
+      void run_run() override
+      {
+	    count_assign_events += 1;
+	    t_vpi_value value;
+	    value.format = vpiRealVal;
+	    value.value.real = val;
+	    vpi_put_value(handle, &value, 0, vpiNoDelay);
+      }
+};
+
+void schedule_assign_real_handle(__vpiHandle*handle, double val,
+                                 vvp_time64_t delay, bool reactive,
+                                 uint64_t order)
+{
+      assign_real_handle_event_s*cur = new assign_real_handle_event_s;
+      cur->handle = handle;
+      cur->val = val;
+      schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN : SEQ_NBASSIGN,
+                      order);
 }
 
 void schedule_force_vector(vvp_net_t*net,
@@ -1414,7 +1455,7 @@ void schedule_assign_array_word(vvp_array_t mem,
 				unsigned word_addr,
 				unsigned off,
 				const vvp_vector4_t&val,
-				vvp_time64_t delay, bool reactive)
+				vvp_time64_t delay, bool reactive, uint64_t order)
 {
       struct assign_array_word_s*cur = new struct assign_array_word_s;
       cur->mem = mem;
@@ -1422,20 +1463,20 @@ void schedule_assign_array_word(vvp_array_t mem,
       cur->off = off;
       cur->val = val;
       schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
-					   : SEQ_NBASSIGN);
+					   : SEQ_NBASSIGN, order);
 }
 
 void schedule_assign_array_word(vvp_array_t mem,
 				unsigned word_addr,
 				double val,
-				vvp_time64_t delay, bool reactive)
+				vvp_time64_t delay, bool reactive, uint64_t order)
 {
       struct assign_array_r_word_s*cur = new struct assign_array_r_word_s;
       cur->mem = mem;
       cur->adr = word_addr;
       cur->val = val;
       schedule_event_(cur, delay, reactive ? SEQ_RE_NBASSIGN
-					   : SEQ_NBASSIGN);
+					   : SEQ_NBASSIGN, order);
 }
 
 void schedule_set_vector(vvp_net_ptr_t ptr, const vvp_vector4_t&bit)
@@ -1803,19 +1844,50 @@ static void run_rosync(struct event_time_s*ctim)
       }
 }
 
+/* A released event control can arrive after a later statement's update.
+ * Restore IEEE 1800 4.6 execution order within this promotion only. Events
+ * released while the promoted queue drains belong to the next round. */
+static event_s* take_nba_queue_(event_s*&queue, bool&needs_sort)
+{
+      event_s*tail = queue;
+      queue = 0;
+      if (!needs_sort)
+	    return tail;
+
+      assert(tail);
+      needs_sort = false;
+      vector<event_s*> ordered;
+      event_s*cur = tail;
+      do {
+	    cur = cur->next;
+	    ordered.push_back(cur);
+      } while (cur != tail);
+      sort(ordered.begin(), ordered.end(), [](event_s*a, event_s*b) {
+	    return a->nba_order < b->nba_order;
+      });
+
+      cur = ordered.back();
+      for (event_s*event : ordered) {
+	    cur->next = event;
+	    cur = event;
+      }
+      return cur;
+}
+
 /* The scheduler drains the current region through the active queue.
  * Keep this promotion order for the finish dispatcher as well. */
 static bool promote_reactive_(struct event_time_s*ctim)
 {
-      struct event_s**queues[] = { &ctim->reactive, &ctim->re_inactive,
-				   &ctim->re_nbassign };
+      struct event_s**queues[] = { &ctim->reactive, &ctim->re_inactive };
       for (struct event_s**queue : queues) {
 	    if (!*queue) continue;
 	    ctim->active = *queue;
 	    *queue = 0;
 	    return true;
       }
-      return false;
+      ctim->active = take_nba_queue_(ctim->re_nbassign,
+				   ctim->re_nbassign_needs_sort);
+      return ctim->active != 0;
 }
 
 static struct event_s* pop_event_(struct event_s*&queue)
@@ -2091,8 +2163,8 @@ void schedule_simulate(void)
 			}
 
 			if (ctim->active == 0) {
-			      ctim->active = ctim->nbassign;
-			      ctim->nbassign = 0;
+			      ctim->active = take_nba_queue_(
+				    ctim->nbassign, ctim->nbassign_needs_sort);
 
 			  /* Observed region (IEEE 1800-2017 4.4.2.4):
 			     concurrent assertions are evaluated after the

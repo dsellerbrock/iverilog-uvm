@@ -28,7 +28,13 @@ module top;
     #15;
     count = 0;
     result <= repeat(count) @(posedge clk) in;
-    #0; // This may not work since there is no delay.
+    #0;
+    if (result != 0.0) begin
+      $display("Failed repeat(0) updated before NBA, got %f", result);
+      pass = 1'b0;
+    end else begin
+      @(result);
+    end
     if ($simtime != 65 || result != 3.0) begin
       $display("Failed repeat(0) at %0t, expected 3.0, got %f",
                $simtime, result);
@@ -38,7 +44,13 @@ module top;
     #20;
     count = -1;
     result <= repeat(count) @(posedge clk) in;
-    #0; // This may not work since there is no delay.
+    #0;
+    if (result != 3.0) begin
+      $display("Failed repeat(-1) updated before NBA, got %f", result);
+      pass = 1'b0;
+    end else begin
+      @(result);
+    end
     if ($simtime != 85 || result != 4.0) begin
       $display("Failed repeat(-1) at %0t, expected 4.0, got %f",
                $simtime, result);
@@ -49,7 +61,12 @@ module top;
     result <= @(posedge clk) 0.0;
     result <= @(posedge clk) in; // This one sets the final value.
     @(result);
-    if ($simtime != 110 || result != 5.0) begin
+    if ($simtime != 110) begin
+      $display("Failed @ updated at %0t, expected 110", $simtime);
+      pass = 1'b0;
+    end
+    #1; // Both updates in the same NBA round have settled.
+    if (result != 5.0) begin
       $display("Failed @ at %0t, expected 5.0, got %f",
                $simtime, result);
       pass = 1'b0;

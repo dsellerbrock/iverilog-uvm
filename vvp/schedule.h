@@ -47,6 +47,10 @@ extern void schedule_init_vthread(vthread_t thr);
 extern void schedule_sva_finish_vthread(vthread_t thr);
 extern void schedule_final_vthread(vthread_t thr);
 
+/* Reserve statement execution order for an NBA waiting on an event.
+ * A zero order passed to an assignment helper reserves it at enqueue time. */
+extern uint64_t schedule_nba_order();
+
 /*
  * Create an assignment event. The val passed here will be assigned to
  * the specified input when the delay times out. This is scheduled
@@ -62,7 +66,8 @@ extern void schedule_final_vthread(vthread_t thr);
 extern void schedule_assign_prop_vec4(const vvp_object_t&obj, unsigned pid,
 				      const vvp_vector4_t&val,
 				      const vvp_object_t&root_obj,
-				      vvp_time64_t delay, bool reactive);
+				      vvp_time64_t delay, bool reactive,
+				      uint64_t order = 0);
 extern void schedule_assign_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
 					   uint64_t bitoff,
 					   const vvp_vector4_t&val,
@@ -70,26 +75,31 @@ extern void schedule_assign_prop_vec4_bits(const vvp_object_t&obj, unsigned pid,
 					   vvp_time64_t delay,
 					   bool reactive,
 					   bool signed_offset = false,
-					   size_t elem = 0);
+					   size_t elem = 0,
+					   uint64_t order = 0);
 
 extern void schedule_assign_vector(vvp_net_ptr_t ptr,
 				   unsigned base, unsigned vwid,
 				   const vvp_vector4_t&val,
 				   vvp_time64_t  delay,
-				   bool reactive =false);
+				   bool reactive =false, uint64_t order = 0);
+
+extern void schedule_assign_real_handle(class __vpiHandle*handle, double val,
+                                        vvp_time64_t delay, bool reactive,
+                                        uint64_t order = 0);
 
 extern void schedule_assign_array_word(vvp_array_t mem,
 				       unsigned word_address,
 				       unsigned off,
 				       const vvp_vector4_t&val,
 				       vvp_time64_t delay,
-				       bool reactive =false);
+				       bool reactive =false, uint64_t order = 0);
 
 extern void schedule_assign_array_word(vvp_array_t mem,
 				       unsigned word_address,
 				       double val,
 				       vvp_time64_t delay,
-				       bool reactive =false);
+				       bool reactive =false, uint64_t order = 0);
 
 /*
  * Create an event to force the output of a net.
