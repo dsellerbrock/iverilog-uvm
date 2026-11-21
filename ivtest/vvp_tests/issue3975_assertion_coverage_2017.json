@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3975_assertion_coverage.sv",
+  "iverilog-args": ["-g2017", "-s", "issue3975_assertion_coverage"],
+  "gold": "issue3975_assertion_coverage"
+}

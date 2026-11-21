@@ -40,6 +40,12 @@
 
 using namespace std;
 
+extern "C" const char* ivl_scope_module_definition_key(ivl_scope_t scope)
+{
+      assert(scope && scope->net_);
+      return scope->net_->module_definition_key().str();
+}
+
 struct dll_target dll_target_obj;
 
 namespace {

@@ -1621,6 +1621,7 @@ class NetScope : public Definitions, public Attrib {
       void set_module_name(perm_string);
       void set_module_definition(const Module*def);
       const Module* module_definition() const { return module_definition_; }
+      perm_string module_definition_key() const { return module_definition_key_; }
       perm_string module_library() const { return module_library_; }
 	/* Stable semantic owner for nominal types elaborated in detached,
 	 * parameter-specialized declaration scopes. Ordinary hierarchy scopes
@@ -2084,6 +2085,7 @@ class NetScope : public Definitions, public Attrib {
       perm_string module_name_;
       perm_string module_library_;
       const Module*module_definition_;
+      perm_string module_definition_key_;
       std::string type_owner_identity_;
       const PGenerate*generate_definition_;
       std::unique_ptr<std::set<perm_string>> checker_temporal_formals_;

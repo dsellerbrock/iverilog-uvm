@@ -20,10 +20,8 @@
 /*
  * IEEE 1800-2017 40.3 code-coverage access.
  *
- * Icarus implements functional coverage (Clause 19), but it does not
- * instrument statement, toggle, FSM, or assertion code coverage.  The
- * standard specifies SV_COV_NOCOV for queries and starts, and successful
- * no-ops for stops and resets. All arguments are still validated.
+ * Live assertion coverage is collected in VVP. Statement, toggle and
+ * FSM coverage and the code-coverage database backend are unavailable.
  */
 
 # include "sys_priv.h"
@@ -32,10 +30,10 @@
 # include <string.h>
 
 enum {
-      SV_COV_START = 0,
-      SV_COV_STOP = 1,
-      SV_COV_RESET = 2,
-      SV_COV_CHECK = 3,
+      SV_COV_START = vpipCovStart,
+      SV_COV_STOP = vpipCovStop,
+      SV_COV_RESET = vpipCovReset,
+      SV_COV_CHECK = vpipCovCheck,
       SV_COV_MODULE = 10,
       SV_COV_HIER = 11,
       SV_COV_ASSERTION = 20,
@@ -260,6 +258,7 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
       vpiHandle argv = vpi_iterate(vpiArgument, callh);
       enum coverage_call_kind kind = coverage_kind((const char*)name);
       vpiHandle arg;
+      vpiHandle target = 0;
       int control = -1;
       int type = -1;
       int scope = -1;
@@ -283,11 +282,37 @@ static PLI_INT32 coverage_calltf(ICARUS_VPI_CONST PLI_BYTE8*name)
             arg = vpi_scan(argv);
             valid = valid && coverage_get_int(arg, &scope)
                  && coverage_scope_valid(scope);
-            arg = vpi_scan(argv);
-            valid = valid && coverage_target_valid(arg);
+            target = vpi_scan(argv);
+            valid = valid && (type == SV_COV_ASSERTION
+                            ? coverage_is_target(target)
+                            : coverage_target_valid(target));
       } else {
             arg = vpi_scan(argv);
             valid = valid && coverage_is_string(arg);
+      }
+
+      vpi_free_object(argv);
+
+      if (valid && target && type == SV_COV_ASSERTION) {
+            const char*definition = 0;
+            vpiHandle instance = target;
+            if (coverage_is_string(target)) {
+                  s_vpi_value val;
+                  val.format = vpiStringVal;
+                  vpi_get_value(target, &val);
+                  definition = val.value.str;
+                  instance = 0;
+            }
+            int op = kind == COVERAGE_CONTROL ? control
+                   : strcmp((const char*)name, "$coverage_get_max") == 0
+                     ? vpipCovGetMax : vpipCovGet;
+            result = vpip_assertion_coverage(op, scope == SV_COV_HIER,
+                                            instance, definition);
+            valid = result != SV_COV_ERROR;
+            if (valid) {
+                  coverage_put_result(callh, result);
+                  return 0;
+            }
       }
 
       if (!valid) {

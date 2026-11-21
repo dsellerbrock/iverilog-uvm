@@ -1,0 +1,5 @@
+WARNING: ./ivltests/issue3975_assertion_coverage.sv:239: $coverage_control received an invalid argument and returns SV_COV_ERROR.
+WARNING: ./ivltests/issue3975_assertion_coverage.sv:240: $coverage_get_max received an invalid argument and returns SV_COV_ERROR.
+WARNING: ./ivltests/issue3975_assertion_coverage.sv:241: $coverage_get received an invalid argument and returns SV_COV_ERROR.
+WARNING: ./ivltests/issue3975_assertion_coverage.sv:242: $coverage_control received an invalid argument and returns SV_COV_ERROR.
+PASSED

@@ -1107,6 +1107,19 @@ extern void vpip_set_return_value(int value);
 #define VPIP_COVGRP_DB_LOAD     1
 extern int vpip_covgrp_db(int op, const char*name);
 
+/* Internal HDL assertion-coverage operations (40.3.2.1–40.3.2.3).
+   The first four values match the SystemVerilog control constants. */
+enum {
+      vpipCovStart = 0,
+      vpipCovStop = 1,
+      vpipCovReset = 2,
+      vpipCovCheck = 3,
+      vpipCovGet,
+      vpipCovGetMax
+};
+extern PLI_INT32 vpip_assertion_coverage(PLI_INT32 op, PLI_INT32 hierarchical,
+					 vpiHandle instance, const char*definition);
+
 extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
 
 /* Draw from the caller's process RNG, optionally reseeding it first.
@@ -1176,6 +1189,11 @@ extern void vpip_register_assertion(PLI_INT32 idx, const char*name,
                                     PLI_INT32 control_type);
 /* M12B-cb: report a success/failure event for the assertion identified
    by (scope, idx); fires any matching registered callbacks. */
+enum {
+      vpipAssertReportCoverageSuccess = -1,
+      vpipAssertReportDispatchSuccess = -2,
+      vpipAssertReportDispatchVacuousSuccess = -3
+};
 extern void vpip_assertion_report(PLI_INT32 idx, PLI_INT32 reason,
                                   vpiHandle scope);
 /* Immediate-cover source identities and evaluation results (IEEE 1800-2017
@@ -1324,7 +1342,7 @@ extern int vpip_sample_evcd_inout(vpiHandle ref, unsigned component,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 21;
+static const PLI_UINT32 vpip_routines_version = 22;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1420,6 +1438,7 @@ typedef struct {
     vpiHandle   (*compat_iterate)(int, PLI_INT32, vpiHandle);
     int         (*sample_evcd_inout)(vpiHandle, unsigned, unsigned,
                                      s_vpi_strengthval*, unsigned*, unsigned*);
+    PLI_INT32   (*assertion_coverage)(PLI_INT32, PLI_INT32, vpiHandle, const char*);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

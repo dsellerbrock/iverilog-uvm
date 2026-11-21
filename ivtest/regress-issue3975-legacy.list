@@ -1,0 +1,2 @@
+issue3975_assertion_coverage_2017 normal,-g2017,-s,issue3975_assertion_coverage ivltests gold=issue3975_assertion_coverage.gold
+issue3975_assertion_coverage_2023 normal,-g2023,-s,issue3975_assertion_coverage ivltests gold=issue3975_assertion_coverage.gold
