@@ -436,6 +436,7 @@ void vvp_fun_bufz::recv_vec4(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
       if (ptr.port() != 0)
 	    return;
 
+      if (input_) *input_ = bit;
       ptr.ptr()->send_vec4(bit, 0);
 }
 
@@ -445,6 +446,10 @@ void vvp_fun_bufz::recv_vec4_pv(vvp_net_ptr_t ptr, const vvp_vector4_t&bit,
       if (ptr.port() != 0)
 	    return;
 
+      if (input_) {
+	    if (input_->size() != vwid) input_->resize(vwid);
+	    input_->set_vec(base, bit);
+      }
       ptr.ptr()->send_vec4_pv(bit, base, vwid, 0);
 }
 
@@ -462,6 +467,7 @@ void vvp_fun_buft::recv_vec8(vvp_net_ptr_t ptr, const vvp_vector8_t&bit)
       if (ptr.port() != 0)
 	    return;
 
+      if (input_) *input_ = reduce4(bit);
       ptr.ptr()->send_vec8(bit);
 }
 

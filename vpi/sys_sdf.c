@@ -26,7 +26,8 @@
 # include  <strings.h>
 
 extern vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
-                                                  vpiHandle load);
+                                                  vpiHandle load,
+                                                  bool point_to_point);
 extern bool vpip_interconnect_port_uses_part_select(vpiHandle port);
 extern bool vpip_interconnect_through_net(vpiHandle net, vpiHandle load);
 extern vpiHandle vpip_interconnect_net_to_load(vpiHandle net,
@@ -461,7 +462,7 @@ static void sdf_interconnect_delays_one(struct interconnect_port_s port1, struct
 	    if (port1.has_index || port2.has_index || part_select_endpoint)
 		  intermodpath = vpi_handle_multi(vpiInterModPath, port1_handle, port2_handle);
 	    else
-		  intermodpath = vpip_interconnect_ports_connected(port1_handle, port2_handle);
+		  intermodpath = vpip_interconnect_ports_connected(port1_handle, port2_handle, true);
 	    int source_direction = port1_handle ? vpi_get(vpiDirection, port1_handle) : vpiOutput;
 	    int load_direction = vpi_get(vpiDirection, port2_handle);
 	    bool valid_endpoint_directions =
@@ -471,7 +472,7 @@ static void sdf_interconnect_delays_one(struct interconnect_port_s port1, struct
 	        !port2.has_index && !part_select_endpoint && valid_endpoint_directions) {
 		  vpi_printf("SDF WARNING: %s:%d: INTERCONNECT source port %s and load port %s are not on the same net; annotating load port anyway.\n",
 		             sdf_fname, sdf_lineno, port1.name, port2.name);
-		  intermodpath = vpip_interconnect_ports_connected(NULL, port2_handle);
+		  intermodpath = vpip_interconnect_ports_connected(NULL, port2_handle, false);
 	    }
 
 	    if (intermodpath) {
@@ -528,7 +529,7 @@ static int sdf_apply_sources_to_load(vpiHandle scope, vpiHandle load,
       while (ports && (port = vpi_scan(ports))) {
             int direction = vpi_get(vpiDirection, port);
             if (direction != vpiOutput && direction != vpiInout) continue;
-            vpiHandle path = vpip_interconnect_ports_connected(port, load);
+            vpiHandle path = vpip_interconnect_ports_connected(port, load, false);
             if (path) {
                   sdf_put_interconnect_delays(path, delval_list, sdf_lineno);
                   matches += 1;
@@ -555,7 +556,7 @@ static int sdf_apply_load_delay(vpiHandle load,
       int matches = sdf_apply_sources_to_load(sdf_scope, load, delval_list,
                                               sdf_lineno);
       if (matches) return matches;
-      vpiHandle path = vpip_interconnect_ports_connected(NULL, load);
+      vpiHandle path = vpip_interconnect_ports_connected(NULL, load, false);
       if (!path) return 0;
       sdf_put_interconnect_delays(path, delval_list, sdf_lineno);
       return 1;
