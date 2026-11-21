@@ -1,0 +1,10 @@
+{
+  "type": "normal",
+  "source": "issue3978_property_actual.sv",
+  "iverilog-args": [
+    "-g2023",
+    "-s",
+    "issue3978_property_actual"
+  ],
+  "gold": "issue3978_property_actual"
+}

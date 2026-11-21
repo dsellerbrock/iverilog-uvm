@@ -1,0 +1,2 @@
+ivltests/issue3978_property_cycle.sv:8: sorry: cannot show that recursive property `actual_cycle' advances time before instantiating itself (actual_cycle -> actual_cycle); a delay on that path has a form this check does not measure (IEEE 1800-2023 16.12.17, restriction 3).
+ivltests/issue3978_property_cycle.sv:12: sorry: cannot show that recursive property `default_cycle' advances time before instantiating itself (default_cycle -> default_cycle); a delay on that path has a form this check does not measure (IEEE 1800-2023 16.12.17, restriction 3).

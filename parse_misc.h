@@ -120,6 +120,8 @@ struct sva_seq_step_t {
       // -6 preserves an exact symbolic ##delay for the same boundary.
       PExpr* delay_lo_expr = nullptr;
       PExpr* delay_hi_expr = nullptr;
+      // Delay or repetition syntax can normalize to an unmodified tick.
+      bool explicit_sequence = false;
       long rep_tail = 0;    // e[*m:n] expands to [*m]; the final
 			    // expanded step carries n-m here. Valid
 			    // only in the last chain position
@@ -306,6 +308,10 @@ struct sva_property_t {
       // succeeds); 1 = strong (`strong(seq)': a pending attempt at end of
       // simulation is a FAILURE). Automaton-engine-only.
       int strength = 0;
+      // An explicit strong/weak operand must remain a sequence after substitution.
+      bool explicit_sequence_strength = false;
+      // A grouped property operator can have folded to a sequence chain.
+      bool grouped_property_operator = false;
       // 0=plain sequence, 1=|->, 2=|=>; 4..17 the temporal/liveness/
       // abort operators (see pform_make_temporal_assertion_).
       // IEEE 1800-2017 A.2.10 makes an implication CONSEQUENT a full

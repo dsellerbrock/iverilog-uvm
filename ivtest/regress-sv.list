@@ -7454,3 +7454,9 @@ issue3977_delayed_function_arg_2017 CE,-g2017,-s,issue3977_delayed_bad ivltests 
 issue3977_delayed_actual_2023 normal,-g2023,-s,issue3977_delayed_actual ivltests gold=issue3977_delayed_actual.gold
 issue3977_delayed_data_formal_2023 CE,-g2023,-s,issue3977_delayed_bad ivltests gold=issue3977_delayed_data_formal.gold
 issue3977_delayed_function_arg_2023 CE,-g2023,-s,issue3977_delayed_bad ivltests gold=issue3977_delayed_function_arg.gold
+issue3978_property_actual_2017 normal,-g2017,-s,issue3978_property_actual ivltests gold=issue3978_property_actual.gold
+issue3978_property_position_2017 CE,-g2017,-s,issue3978_property_position ivltests gold=issue3978_property_position.gold
+issue3978_property_cycle_2017 CE,-g2017,-s,issue3978_property_cycle ivltests gold=issue3978_property_cycle.gold
+issue3978_property_actual_2023 normal,-g2023,-s,issue3978_property_actual ivltests gold=issue3978_property_actual.gold
+issue3978_property_position_2023 CE,-g2023,-s,issue3978_property_position ivltests gold=issue3978_property_position.gold
+issue3978_property_cycle_2023 CE,-g2023,-s,issue3978_property_cycle ivltests gold=issue3978_property_cycle.gold

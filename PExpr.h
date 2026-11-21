@@ -150,6 +150,9 @@ class PExpr : public LineInfo {
       // while their expression tree is cloned into a declaration scope.
       bool sva_actual_scope() const { return sva_actual_scope_; }
       void sva_actual_scope(bool value) { sva_actual_scope_ = value; }
+      // A whole property operand retained in a Boolean lowering.
+      bool sva_property_operand() const { return sva_property_operand_; }
+      void mark_sva_property_operand() { sva_property_operand_ = true; }
       const Module* sva_actual_module() const { return sva_actual_module_; }
       const PGenerate* sva_actual_generate() const
       { return sva_actual_generate_; }
@@ -306,6 +309,7 @@ class PExpr : public LineInfo {
       unsigned min_width_;
       bool signed_flag_;
       bool sva_actual_scope_ = false;
+      bool sva_property_operand_ = false;
       const Module*sva_actual_module_ = nullptr;
       const PGenerate*sva_actual_generate_ = nullptr;
       std::vector<perm_string>sva_actual_prefix_;
@@ -646,7 +650,9 @@ class PESvaActual final : public PExpr {
       LexicalScope* scope() const { return scope_; }
       bool uses_local() const { return uses_local_; }
       std::vector<struct sva_seq_step_t>* take_sequence();
+      sva_property_t* take_property();
 
+      bool refs_name(perm_string name) const override;
       void dump(std::ostream&) const override;
       unsigned test_width(Design*, NetScope*, width_mode_t&) override;
       NetExpr*elaborate_expr(Design*, NetScope*, unsigned, unsigned) const override;

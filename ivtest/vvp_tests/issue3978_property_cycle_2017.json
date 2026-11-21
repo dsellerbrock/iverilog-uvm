@@ -1,0 +1,10 @@
+{
+  "type": "CE",
+  "source": "issue3978_property_cycle.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-s",
+    "issue3978_property_cycle"
+  ],
+  "gold": "issue3978_property_cycle"
+}
