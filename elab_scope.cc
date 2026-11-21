@@ -5626,15 +5626,8 @@ bool Module::elaborate_scope(Design*des, NetScope*scope,
 	    scope->defparams.push_back(make_pair(cur->first, cur->second));
       }
 
-	// Evaluate the attributes. Evaluate them in the scope of the
-	// module that the attribute is attached to. Is this correct?
-      unsigned nattr;
-      attrib_list_t*attr = evaluate_attributes(attributes, nattr, des, scope);
-
-      for (unsigned idx = 0 ;  idx < nattr ;  idx += 1)
-	    scope->attribute(attr[idx].key, attr[idx].val);
-
-      delete[]attr;
+      if (!attributes.empty())
+	    des->module_attribute_jobs.push_back({&attributes, scope, {scope}, true});
 
 	// Generate schemes need to have their scopes elaborated, but
 	// we can not do that until defparams are run, so push it off
@@ -6419,10 +6412,6 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 
       NetScope::scope_vec_t instances (instance_count);
 
-      struct attrib_list_t*attrib_list;
-      unsigned attrib_list_n = 0;
-      attrib_list = evaluate_attributes(attributes, attrib_list_n, des, sc);
-
       bool nested_module = module_is_lexically_nested_(mod);
 
 	// Run through the module instances, and make scopes out of
@@ -6461,9 +6450,6 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	                       get_lineno(), mod->get_lineno());
 	    my_scope->set_module_name(mod->mod_name());
 	    my_scope->add_imports(&mod->explicit_imports);
-
-	    for (unsigned adx = 0 ;  adx < attrib_list_n ;  adx += 1)
-	      my_scope->attribute(attrib_list[adx].key, attrib_list[adx].val);
 
 	    instances[idx] = my_scope;
 
@@ -6549,7 +6535,8 @@ void PGModule::elaborate_scope_mod_instances_(Design*des, Module*mod, NetScope*s
 	    mod->elaborate_scope(des, my_scope, replace);
 
       }
-	    delete[]attrib_list;
+      if (instance_attributes && !instance_attributes->empty())
+	    des->module_attribute_jobs.push_back({instance_attributes.get(), sc, instances, false});
 
 	/* Stash the instance array of scopes into the parent
 	   scope. Later elaboration passes will use this vector to

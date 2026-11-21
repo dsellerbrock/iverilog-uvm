@@ -2164,6 +2164,9 @@ extern unsigned    ivl_parameter_lineno(ivl_parameter_t net);
 
 extern unsigned        ivl_scope_attr_cnt(ivl_scope_t net);
 extern ivl_attribute_t ivl_scope_attr_val(ivl_scope_t net, unsigned idx);
+/* Source attributes on module instances. Return NULL at the end. */
+extern const struct ivl_decl_attr_s* ivl_scope_decl_attr(ivl_scope_t net,
+							unsigned idx, int*on_definition);
 
 extern int          ivl_scope_children(ivl_scope_t net,
 				       ivl_scope_f func, void*cd);

@@ -39,6 +39,7 @@
 # include  <iostream>
 # include  <list>
 # include  <map>
+# include  <memory>
 # include  <set>
 # include  <string>
 # include  <vector>
@@ -57,7 +58,17 @@
 unsigned compile_errors = 0;
 static std::vector<vvp_code_t> deferred_assertion_registrations;
 static std::vector<vvp_code_t> immediate_assertion_registrations;
-static uint64_t decl_attribute_file_count = 0;
+struct pending_decl_attribute {
+      vpiHandle owner;
+      std::unique_ptr<char[]> name;
+      std::unique_ptr<__vpiHandle> constant;
+      unsigned file_idx;
+      int line;
+      int natural_format;
+      bool module;
+      bool on_definition;
+};
+static std::vector<pending_decl_attribute> pending_decl_attributes;
 
 static void unresolved_warn_once(const char*kind, const char*label, const char*detail);
 
@@ -2197,10 +2208,18 @@ void compile_cleanup(void)
       }
       immediate_assertion_registrations.clear();
 
-      if (decl_attribute_file_count > file_names.size()) {
-	    fprintf(stderr, "vvp: invalid .attribute file index.\n");
-	    compile_errors += 1;
+      for (auto&attr : pending_decl_attributes) {
+	    if (attr.file_idx >= file_names.size()) {
+		  fprintf(stderr, "vvp: invalid %s file index.\n",
+			  attr.module ? ".vpi_attribute" : ".attribute");
+		  compile_errors += 1;
+		  continue;
+	    }
+	    vpip_register_decl_attribute(attr.owner, attr.name.get(),
+					 attr.file_idx, attr.line, attr.constant.release(),
+					 attr.natural_format, attr.on_definition);
       }
+      pending_decl_attributes.clear();
 
       if (verbose_flag) {
 	    fprintf(stderr, " ... Removing symbol tables\n");
@@ -4134,15 +4153,18 @@ static bool valid_attribute_real(const char*text)
 
 void compile_decl_attribute(char*label, char*name, uint64_t file_idx,
 			    uint64_t line, char*kind, bool is_signed,
-			    char*value)
+			    char*value, bool module, uint64_t on_definition)
 {
       vpiHandle owner = vvp_lookup_handle(label);
-      auto*array = dynamic_cast<__vpiArray*>(owner);
-      bool variable = owner && ((owner->backing_net() && owner->get_type_code() != vpiNet)
-			       || (array && !array->nets));
+      auto*array = module ? nullptr : dynamic_cast<__vpiArray*>(owner);
+      bool valid_owner = owner && (module
+	    ? owner->get_type_code() == vpiModule
+	    : ((owner->backing_net() && owner->get_type_code() != vpiNet)
+	       || (array && !array->nets)));
       int natural_format = vpiObjTypeVal;
       vpiHandle constant = nullptr;
-      if (variable && *name && file_idx <= UINT_MAX && line <= INT_MAX) {
+      if (valid_owner && *name && file_idx <= UINT_MAX && line <= INT_MAX
+	  && on_definition <= 1) {
 	    if (!kind && valid_attribute_string(value)) {
 		  constant = vpip_make_string_const(value);
 		  value = nullptr; // The string constant owns the lexer allocation.
@@ -4167,12 +4189,13 @@ void compile_decl_attribute(char*label, char*name, uint64_t file_idx,
       }
 
       if (constant) {
-	    if (file_idx + 1 > decl_attribute_file_count)
-		  decl_attribute_file_count = file_idx + 1;
-	    vpip_register_decl_attribute(owner, name, file_idx, line, constant,
-					 natural_format);
+	    // The source file table follows the bytecode statements.
+	    pending_decl_attributes.push_back({owner, std::unique_ptr<char[]>(name),
+		  std::unique_ptr<__vpiHandle>(constant), static_cast<unsigned>(file_idx),
+		  static_cast<int>(line), natural_format, module, on_definition != 0});
+	    name = nullptr;
       } else {
-	    yyerror("invalid .attribute metadata");
+	    yyerror(module ? "invalid .vpi_attribute metadata" : "invalid .attribute metadata");
 	    compile_errors += 1;
       }
 

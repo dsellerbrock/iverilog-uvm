@@ -22,6 +22,8 @@ issue1268_vpi_import_2017 normal,-g2017 issue1268_vpi_import.c issue1268_vpi_imp
 issue1268_vpi_import_2023 normal,-g2023 issue1268_vpi_import.c issue1268_vpi_import_2023.gold
 issue3052_vpi_variable_attribute_2017 normal,-g2017,-s,top issue3052_vpi_variable_attribute.c issue3052_vpi_variable_attribute_2017.gold
 issue3052_vpi_variable_attribute_2023 normal,-g2023,-s,top issue3052_vpi_variable_attribute.c issue3052_vpi_variable_attribute_2023.gold
+issue3069_vpi_module_attribute_2017 normal,-g2017,-s,top issue3069_vpi_module_attribute.c issue3069_vpi_module_attribute_2017.gold
+issue3069_vpi_module_attribute_2023 normal,-g2023,-s,top issue3069_vpi_module_attribute.c issue3069_vpi_module_attribute_2023.gold
 issue3403_vpi_charge_strength_2017 normal,-g2017,-s,top issue3403_vpi_charge_strength.c issue3403_vpi_charge_strength_2017.gold
 issue3403_vpi_charge_strength_2023 normal,-g2023,-s,top issue3403_vpi_charge_strength.c issue3403_vpi_charge_strength_2023.gold
 issue3178_vpi_port_bit_conn_2017 normal,-g2017,-s,top issue3178_vpi_port_bit_conn.c issue3178_vpi_port_bit_conn_2017.gold

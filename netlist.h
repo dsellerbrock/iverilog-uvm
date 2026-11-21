@@ -1191,6 +1191,7 @@ class NetNet  : public NetObj, public PortType {
 	    perm_string name;
 	    std::unique_ptr<NetExpr> value;
 	    ivl_decl_attr_kind_t integral_kind = IVL_DECL_ATTR_VECTOR;
+	    bool on_definition = true;
       };
       void set_decl_attributes(std::vector<decl_attribute_t>&&attrs);
       const std::vector<decl_attribute_t>& decl_attributes() const;
@@ -1393,6 +1394,11 @@ class Definitions {
       std::map<perm_string,netclass_t*> classes_;
 
 };
+
+// Finish the type and width of a source attribute after constant evaluation.
+NetNet::decl_attribute_t make_decl_attribute(const named_pexpr_t&spec,
+					    std::unique_ptr<NetExpr> value,
+					    Design*des, NetScope*scope);
 
 /*
  * This object type is used to contain a logical scope within a
@@ -1621,6 +1627,16 @@ class NetScope : public Definitions, public Attrib {
       void set_module_name(perm_string);
       void set_module_definition(const Module*def);
       const Module* module_definition() const { return module_definition_; }
+
+      using module_attribute_list_t = std::vector<std::shared_ptr<const NetNet::decl_attribute_t>>;
+      const module_attribute_list_t* module_attributes() const
+      { return module_attributes_.get(); }
+      void add_module_attribute(const std::shared_ptr<const NetNet::decl_attribute_t>&attr)
+      {
+	    if (!module_attributes_)
+		  module_attributes_.reset(new module_attribute_list_t);
+	    module_attributes_->push_back(attr);
+      }
       perm_string module_library() const { return module_library_; }
 	/* Stable semantic owner for nominal types elaborated in detached,
 	 * parameter-specialized declaration scopes. Ordinary hierarchy scopes
@@ -2084,6 +2100,7 @@ class NetScope : public Definitions, public Attrib {
       perm_string module_name_;
       perm_string module_library_;
       const Module*module_definition_;
+      std::unique_ptr<module_attribute_list_t> module_attributes_;
       std::string type_owner_identity_;
       const PGenerate*generate_definition_;
       std::unique_ptr<std::set<perm_string>> checker_temporal_formals_;
@@ -6801,6 +6818,15 @@ class Design {
       void run_elaboration_work(void);
 
       std::set<NetScope*> defparams_later;
+
+      struct module_attribute_job_t {
+	    const std::map<perm_string,named_pexpr_t>*specs;
+	    NetScope*eval_scope;
+	    NetScope::scope_vec_t owners;
+	    bool on_definition;
+      };
+      std::vector<module_attribute_job_t> module_attribute_jobs;
+      void evaluate_module_attributes();
 
 	// PARAMETERS
 

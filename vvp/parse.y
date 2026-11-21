@@ -125,7 +125,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_EXPORT K_EXTEND_S K_SAMPLE K_REACTIVE K_FUNCTOR K_IMPORT K_ISLAND K_LATCH K_MODPATH K_TCHK
 %token K_PATHEXPR K_PARAM_STORAGE
 %token K_MODPATH_CONN
-%token K_ATTRIBUTE
+%token K_ATTRIBUTE K_VPI_ATTRIBUTE
 %token K_PARAM_TYPE
 %token K_VIF_PROXY K_STRUCT_LEAF K_EVENT_VALID
 %token K_NET K_NET_S K_NET_R K_NET_2S K_NET_2U
@@ -744,6 +744,10 @@ statement
     { compile_decl_attribute($2, $4, $5, $6, nullptr, false, $8); }
  | K_ATTRIBUTE T_SYMBOL ',' T_STRING T_NUMBER T_NUMBER ',' T_SYMBOL signed_opt T_SYMBOL ';'
     { compile_decl_attribute($2, $4, $5, $6, $8, $9, $10); }
+ | K_VPI_ATTRIBUTE T_SYMBOL ',' T_STRING T_NUMBER T_NUMBER T_NUMBER ',' T_STRING ';'
+    { compile_decl_attribute($2, $4, $5, $6, nullptr, false, $9, true, $7); }
+ | K_VPI_ATTRIBUTE T_SYMBOL ',' T_STRING T_NUMBER T_NUMBER T_NUMBER ',' T_SYMBOL signed_opt T_SYMBOL ';'
+    { compile_decl_attribute($2, $4, $5, $6, $9, $10, $11, true, $7); }
 
   /* .tchk <type> <file> <line>, <ref term>, <data term>,
      <n> {<limit var> <value>}, <notifier> ; */

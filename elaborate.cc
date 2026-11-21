@@ -10910,13 +10910,17 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
       net->fall_time(fall_expr);
       net->decay_time(decay_expr);
 
-      struct attrib_list_t*attrib_list;
-      unsigned attrib_list_n = 0;
-      attrib_list = evaluate_attributes(attributes, attrib_list_n,
-					des, scope);
-
-      for (unsigned adx = 0 ;  adx < attrib_list_n ;  adx += 1)
-	    net->attribute(attrib_list[adx].key, attrib_list[adx].val);
+      vector<attrib_list_t> udp_attributes;
+      if (instance_attributes) {
+	    udp_attributes.reserve(instance_attributes->size());
+	    for (const auto&entry : *instance_attributes) {
+		  udp_attributes.emplace_back();
+		  auto&attr = udp_attributes.back();
+		  attr.key = entry.first;
+		  delete evaluate_attribute(entry.second.parm, attr.val, des, scope);
+		  net->attribute(attr.key, attr.val);
+	    }
+      }
 
 	// This is the array of pin expressions, shuffled to match the
 	// order of the declaration. If the source instantiation uses
@@ -11002,9 +11006,8 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 	    instances[idx]->rise_time(rise_expr);
 	    instances[idx]->fall_time(fall_expr);
 	    instances[idx]->decay_time(decay_expr);
-	    for (unsigned adx = 0; adx < attrib_list_n; adx += 1)
-		  instances[idx]->attribute(attrib_list[adx].key,
-					    attrib_list[adx].val);
+	    for (const auto&attr : udp_attributes)
+		  instances[idx]->attribute(attr.key, attr.val);
       }
 
 	/* Handle the output terminal as an l-value. */
@@ -11109,7 +11112,6 @@ void PGModule::elaborate_udp_(Design*des, PUdp*udp, NetScope*scope) const
 	  }
 	  for (unsigned idx = 0; idx < instances.size(); idx += 1)
 		des->add_node(instances[idx]);
-      delete[]attrib_list;
 }
 
 
@@ -60883,6 +60885,8 @@ Design* elaborate(list<perm_string>roots, const map<string,const char*>&flags)
 	// Look for residual defparams (that point to a non-existent
 	// scope) and clean them out.
       des->residual_defparams();
+      if (des->errors == 0)
+	    des->evaluate_module_attributes();
 
 	// Errors already? Probably missing root modules. Just give up
 	// now and return nothing.

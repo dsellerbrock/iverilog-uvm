@@ -2981,7 +2981,7 @@ void pform_startmodule(const struct vlltype&loc, const char*name,
 
       lexical_scope = cur_module;
 
-      pform_bind_attributes(cur_module->attributes, attr);
+      pform_bind_attributes(cur_module->attributes, attr, false);
 }
 
 void pform_start_parameter_port_list()
@@ -4741,7 +4741,10 @@ static void pform_make_modgate(perm_string type,
 	    if (name != "") add_local_symbol(pform_cur_module.front(), name, cur);
 	    pform_cur_module.front()->add_gate(cur);
       }
-      pform_bind_attributes(cur->attributes, attr);
+      if (attr) {
+	    cur->instance_attributes.reset(new map<perm_string,named_pexpr_t>);
+	    pform_bind_attributes(*cur->instance_attributes, attr, true);
+      }
 }
 
 static void pform_make_modgate(perm_string type,
@@ -4793,7 +4796,10 @@ static void pform_make_modgate(perm_string type,
 	    add_local_symbol(pform_cur_module.front(), name, cur);
 	    pform_cur_module.front()->add_gate(cur);
       }
-      pform_bind_attributes(cur->attributes, attr);
+      if (attr) {
+	    cur->instance_attributes.reset(new map<perm_string,named_pexpr_t>);
+	    pform_bind_attributes(*cur->instance_attributes, attr, true);
+      }
 }
 
 /* Find a design element using the lexical declaration scopes available
@@ -4833,6 +4839,8 @@ void pform_make_modgates(const struct vlltype&loc,
 			 std::list<named_pexpr_t>*attr,
 			 const struct str_pair_t*strength)
 {
+      unique_ptr<list<named_pexpr_t>> owned_attr(attr);
+
 	// SystemVerilog user-type declarations at module scope (e.g. `foo_t x;`)
 	// parse through the same no-port shape as degenerate module instances.
 	// If the left token is a visible type and every item is a no-port
@@ -4885,7 +4893,7 @@ void pform_make_modgates(const struct vlltype&loc,
 			  // their default types.
 			typeref_t*dtype = pform_make_type_reference(
 			      loc, decl_type, nullptr, overrides);
-			pform_make_var(loc, decls, dtype, attr, false);
+			pform_make_var(loc, decls, dtype, owned_attr.release(), false);
 			delete gates;
 			return;
 		  }
@@ -7503,7 +7511,16 @@ void pform_set_attrib(perm_string name, perm_string key, char*value)
 	    cur->attributes[key] = attr;
 
       } else if (PGate*curg = pform_cur_module.front()->get_gate(name)) {
-	    curg->attributes[key] = new PEString(value);
+	    if (auto*instance = dynamic_cast<PGModule*>(curg)) {
+		  if (!instance->instance_attributes)
+			instance->instance_attributes.reset(new map<perm_string,named_pexpr_t>);
+		  named_pexpr_t spec;
+		  spec.name = key;
+		  spec.parm = new PEString(value);
+		  (*instance->instance_attributes)[key] = spec;
+	    } else {
+		  curg->attributes[key] = new PEString(value);
+	    }
 
       } else {
 	    delete[] value;

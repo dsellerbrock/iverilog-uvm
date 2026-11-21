@@ -925,6 +925,32 @@ void dll_target::make_scope_param_expr(ivl_parameter_t cur_par, const NetExpr*et
       expr_ = 0;
 }
 
+void dll_target::make_decl_attr(const NetNet::decl_attribute_t&src, ivl_decl_attr_s&dst)
+{
+      dst.name = src.name.str();
+      dst.file = src.get_file().str();
+      dst.lineno = src.get_lineno();
+      dst.integral_kind = src.integral_kind;
+      make_scope_param_expr(nullptr, src.value.get(), &dst.value);
+}
+
+void dll_target::make_scope_decl_attrs(ivl_scope_t scope, const NetScope*net)
+{
+      const auto*attrs = net->module_attributes();
+      if (!attrs)
+	    return;
+
+      auto*aux = scope->ensure_aux_();
+      aux->decl_attr_count = attrs->size();
+      aux->decl_attrs = dll_procedure_new_array<ivl_scope_decl_attr_s>(attrs->size());
+      for (unsigned idx = 0; idx < attrs->size(); ++idx) {
+	    const auto&src = *(*attrs)[idx];
+	    auto&dst = aux->decl_attrs[idx];
+	    make_decl_attr(src, dst.attr);
+	    dst.on_definition = src.on_definition;
+      }
+}
+
 static void fill_in_scope_function(ivl_scope_t scope, const NetScope*net)
 {
       scope->type_ = IVL_SCT_FUNCTION;
@@ -1019,6 +1045,7 @@ void dll_target::add_root(const NetScope *s)
       root_->name_ = name;
       root_->parent = 0;
       make_scope_parameters(root_, s);
+      make_scope_decl_attrs(root_, s);
       const_cast<NetScope*>(s)->release_parameters();
       root_->tname_ = root_->name_;
       root_->time_precision = s->time_precision();
@@ -3802,6 +3829,7 @@ void dll_target::scope(const NetScope*net)
 	    net->target_scope(scop);
 	    scope_add_child_(scop->parent, scop);
 	    make_scope_parameters(scop, net);
+	    make_scope_decl_attrs(scop, net);
 	    const_cast<NetScope*>(net)->release_parameters();
 	    scop->time_precision = net->time_precision();
 	    scop->time_units = net->time_unit();
@@ -4064,15 +4092,8 @@ void dll_target::signal(const NetNet*net)
 	    ivl_signal_aux_s*aux = signal_aux_(obj);
 	    aux->decl_attr_count = decl_attrs.size();
 	    aux->decl_attrs = dll_procedure_new_array<ivl_decl_attr_s>(decl_attrs.size());
-	    for (unsigned idx = 0; idx < decl_attrs.size(); ++idx) {
-		  const auto&src = decl_attrs[idx];
-		  auto&dst = aux->decl_attrs[idx];
-		  dst.name = src.name.str();
-		  dst.file = src.get_file().str();
-		  dst.lineno = src.get_lineno();
-		  dst.integral_kind = src.integral_kind;
-		  make_scope_param_expr(nullptr, src.value.get(), &dst.value);
-	    }
+	    for (unsigned idx = 0; idx < decl_attrs.size(); ++idx)
+		  make_decl_attr(decl_attrs[idx], aux->decl_attrs[idx]);
       }
 
 	// A scalar queue can drive an event source through its object. Fixed

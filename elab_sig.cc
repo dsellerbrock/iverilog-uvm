@@ -4683,58 +4683,7 @@ NetNet* PWire::elaborate_sig(Design*des, NetScope*scope)
 		|| (spec.parm && !value))
 		  continue;
 
-	    NetNet::decl_attribute_t attr;
-	    attr.name = spec.name;
-	    attr.set_line(spec);
-	    if (!spec.parm) {
-		  value.reset(new NetEConst(&netvector_t::scalar_bool,
-					    verinum(verinum::V1, 1)));
-		  attr.integral_kind = IVL_DECL_ATTR_SCALAR;
-	    } else if (const auto*constant = dynamic_cast<const NetEConst*>(value.get())) {
-		  ivl_type_t type = constant->net_type();
-		  const auto*number = dynamic_cast<const PENumber*>(spec.parm);
-		  if (const auto*cast = dynamic_cast<const PECastType*>(spec.parm)) {
-			type = cast->resolve_target_type(des, scope);
-		  } else if (const auto*par = dynamic_cast<const NetEConstParam*>(constant)) {
-			const auto&params = par->scope()->parameters;
-			auto it = params.find(par->name());
-			if (it != params.end() && it->second.ivl_type)
-			      type = it->second.ivl_type;
-		  }
-
-		    // Unsized constant folding can trim the materialized value.
-		    // Restore the self-determined width for VPI.
-		  unsigned width = max(constant->expr_width(), spec.parm->expr_width());
-		  const verinum&bits = constant->value();
-		  const bool packed_text = bits.is_string() && type && type->packed();
-		  if (packed_text || (!bits.is_string() && width > bits.len())) {
-			verinum full = cast_to_width(bits, width);
-			if (packed_text) {
-			      verinum packed(verinum::V0, width);
-			      for (unsigned i = 0; i < width; ++i)
-				    packed.set(i, full.get(i));
-			      full = packed;
-			}
-			full.has_sign(constant->has_sign());
-			value.reset(new NetEConst(full));
-		  }
-
-		  const auto*vec = dynamic_cast<const netvector_t*>(type);
-		  if (vec == &netvector_t::time_signed || vec == &netvector_t::time_unsigned)
-			attr.integral_kind = IVL_DECL_ATTR_TIME;
-		  else if (type ? type->get_scalar()
-				: width == 1 && (!number || number->value().is_single()))
-			attr.integral_kind = IVL_DECL_ATTR_SCALAR;
-		  else if (width <= 32 &&
-			   (vec == &netvector_t::atom2s32 || vec == &netvector_t::atom2u32
-			    || vec == &netvector_t::atom2s16 || vec == &netvector_t::atom2u16
-			    || vec == &netvector_t::atom2s8 || vec == &netvector_t::atom2u8
-			    || (vec && vec->get_isint())))
-			attr.integral_kind = IVL_DECL_ATTR_INTEGER;
-	    }
-	    value->set_line(spec);
-	    attr.value = std::move(value);
-	    decl_attrs.push_back(std::move(attr));
+	    decl_attrs.push_back(make_decl_attribute(spec, std::move(value), des, scope));
       }
 
       if (!sig_predeclared && set_data_type_ && packed_dimensions.empty() && unpacked_.empty()) {

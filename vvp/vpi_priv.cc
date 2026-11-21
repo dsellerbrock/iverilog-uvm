@@ -1896,16 +1896,16 @@ static vpiHandle vpi_iterate_global(int type)
 class __vpiDeclAttribute : public __vpiHandle {
     public:
       __vpiDeclAttribute(vpiHandle owner, const char*name, unsigned file_idx,
-			 int line, vpiHandle constant, int natural_format)
+			 int line, vpiHandle constant, int natural_format, bool on_definition)
       : owner_(owner), name_(name), file_idx_(file_idx), line_(line),
-	constant_(constant), natural_format_(natural_format) { }
+	constant_(constant), natural_format_(natural_format), on_definition_(on_definition) { }
 
       int get_type_code() const override { return vpiAttribute; }
 
       int vpi_get(int code) override
       {
 	    switch (code) {
-		case vpiDefAttribute: return 1;
+		case vpiDefAttribute: return on_definition_;
 		case vpiDefLineNo:
 		case vpiLineNo: return line_;
 		default: return __vpiHandle::vpi_get(code);
@@ -1949,6 +1949,7 @@ class __vpiDeclAttribute : public __vpiHandle {
       int line_;
       std::unique_ptr<__vpiHandle> constant_;
       int natural_format_;
+      bool on_definition_;
 };
 
 struct decl_attribute_list {
@@ -1965,12 +1966,13 @@ static std::unordered_map<vpiHandle, decl_attribute_list> decl_attributes;
 
 void vpip_register_decl_attribute(vpiHandle owner, const char*name,
 				  unsigned file_idx, int line,
-				  vpiHandle constant, int natural_format)
+				  vpiHandle constant, int natural_format, bool on_definition)
 {
       // Name lookup and port expressions expose this wrapper for ref formals.
       owner = vpip_wrap_refobj(owner);
       decl_attributes[owner].items.push_back(
-	    new __vpiDeclAttribute(owner, name, file_idx, line, constant, natural_format));
+	    new __vpiDeclAttribute(owner, name, file_idx, line, constant,
+				   natural_format, on_definition));
 }
 
 vpiHandle vpi_iterate(PLI_INT32 type, vpiHandle ref)

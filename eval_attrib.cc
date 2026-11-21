@@ -22,6 +22,9 @@
 # include  "PExpr.h"
 # include  "netlist.h"
 # include  "netmisc.h"
+# include  "netvector.h"
+# include  "Module.h"
+# include  <algorithm>
 # include  <iostream>
 # include  <cassert>
 
@@ -79,4 +82,95 @@ attrib_list_t* evaluate_attributes(const map<perm_string,PExpr*>&att,
 
       assert(idx == natt);
       return table;
+}
+
+NetNet::decl_attribute_t make_decl_attribute(const named_pexpr_t&spec,
+					    unique_ptr<NetExpr> value,
+					    Design*des, NetScope*scope)
+{
+      NetNet::decl_attribute_t attr;
+      attr.name = spec.name;
+      attr.set_line(spec);
+      if (!spec.parm) {
+	    value.reset(new NetEConst(&netvector_t::scalar_bool,
+				      verinum(verinum::V1, 1)));
+	    attr.integral_kind = IVL_DECL_ATTR_SCALAR;
+      } else if (const auto*constant = dynamic_cast<const NetEConst*>(value.get())) {
+	    ivl_type_t type = constant->net_type();
+	    const auto*number = dynamic_cast<const PENumber*>(spec.parm);
+	    if (const auto*cast = dynamic_cast<const PECastType*>(spec.parm)) {
+		  type = cast->resolve_target_type(des, scope);
+	    } else if (const auto*par = dynamic_cast<const NetEConstParam*>(constant)) {
+		  const auto&params = par->scope()->parameters;
+		  auto it = params.find(par->name());
+		  if (it != params.end() && it->second.ivl_type)
+			type = it->second.ivl_type;
+	    }
+
+	      // Unsized constant folding can trim the materialized value.
+	      // Restore the self-determined width for VPI.
+	    unsigned width = max(constant->expr_width(), spec.parm->expr_width());
+	    const verinum&bits = constant->value();
+	    const bool packed_text = bits.is_string() && type && type->packed();
+	    if (packed_text || (!bits.is_string() && width > bits.len())) {
+		  verinum full = cast_to_width(bits, width);
+		  if (packed_text) {
+			verinum packed(verinum::V0, width);
+			for (unsigned i = 0; i < width; ++i)
+			      packed.set(i, full.get(i));
+			full = packed;
+		  }
+		  full.has_sign(constant->has_sign());
+		  value.reset(new NetEConst(full));
+	    }
+
+	    const auto*vec = dynamic_cast<const netvector_t*>(type);
+	    if (vec == &netvector_t::time_signed || vec == &netvector_t::time_unsigned)
+		  attr.integral_kind = IVL_DECL_ATTR_TIME;
+	    else if (type ? type->get_scalar()
+			  : width == 1 && (!number || number->value().is_single()))
+		  attr.integral_kind = IVL_DECL_ATTR_SCALAR;
+	    else if (width <= 32 &&
+		     (vec == &netvector_t::atom2s32 || vec == &netvector_t::atom2u32
+		      || vec == &netvector_t::atom2s16 || vec == &netvector_t::atom2u16
+		      || vec == &netvector_t::atom2s8 || vec == &netvector_t::atom2u8
+		      || (vec && vec->get_isint())))
+		  attr.integral_kind = IVL_DECL_ATTR_INTEGER;
+      }
+      value->set_line(spec);
+      attr.value = std::move(value);
+      return attr;
+}
+
+void Design::evaluate_module_attributes()
+{
+      // Keep the legacy target map's precedence while retaining both origins for VPI.
+      for (bool on_definition : {false, true}) {
+	    for (const auto&job : module_attribute_jobs) {
+		  if (job.on_definition != on_definition)
+			continue;
+
+		  const Module*module = job.owners.front()->module_definition();
+		  const bool publish_vpi = !module->program_block && !module->is_interface
+			&& !module->is_checker;
+		  for (const auto&entry : *job.specs) {
+			const auto&spec = entry.second;
+			verinum legacy;
+			unique_ptr<NetExpr> value(evaluate_attribute(spec.parm, legacy, this,
+								     job.eval_scope));
+			for (NetScope*owner : job.owners)
+			      owner->attribute(spec.name, legacy);
+
+			if (!publish_vpi || spec.get_file().nil() || (spec.parm && !value))
+			      continue;
+
+			auto attr = make_shared<NetNet::decl_attribute_t>(
+			      make_decl_attribute(spec, std::move(value), this, job.eval_scope));
+			attr->on_definition = on_definition;
+			for (NetScope*owner : job.owners)
+			      owner->add_module_attribute(attr);
+		  }
+	    }
+      }
+      module_attribute_jobs.clear();
 }

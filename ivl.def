@@ -283,6 +283,7 @@ ivl_process_type
 
 ivl_scope_attr_cnt
 ivl_scope_attr_val
+ivl_scope_decl_attr
 ivl_scope_basename
 ivl_scope_children
 ivl_scope_child

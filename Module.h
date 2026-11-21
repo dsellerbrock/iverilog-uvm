@@ -195,7 +195,7 @@ class Module : public PScopeExtra, public PNamedItem {
 	   named array of PEident pointers. */
       std::vector<port_t*> ports;
 
-      std::map<perm_string,PExpr*> attributes;
+      std::map<perm_string,named_pexpr_t> attributes;
 
 	/* The module has a list of generate schemes that appear in
 	   the module definition. These are used at elaboration time. */

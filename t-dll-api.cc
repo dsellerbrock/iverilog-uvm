@@ -2712,6 +2712,18 @@ extern "C" ivl_attribute_t ivl_scope_attr_val(ivl_scope_t net,
       return net->aux_->attr + idx;
 }
 
+extern "C" const ivl_decl_attr_s* ivl_scope_decl_attr(ivl_scope_t net,
+						      unsigned idx, int*on_definition)
+{
+      assert(net);
+      if (!net->aux_ || idx >= net->aux_->decl_attr_count)
+	    return nullptr;
+      const auto&entry = net->aux_->decl_attrs[idx];
+      if (on_definition)
+	    *on_definition = entry.on_definition;
+      return &entry.attr;
+}
+
 extern "C" const char* ivl_scope_basename(ivl_scope_t net)
 {
       assert(net);

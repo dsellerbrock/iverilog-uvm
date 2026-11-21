@@ -6838,6 +6838,9 @@ issue1268_vpi_import_2023 vvp_tests/issue1268_vpi_import_2023.json
 # IEEE 1800-2017 §37.81 / 2023 §37.83 variable declaration attributes
 issue3052_vpi_variable_attribute_2017 vvp_tests/issue3052_vpi_variable_attribute_2017.json
 issue3052_vpi_variable_attribute_2023 vvp_tests/issue3052_vpi_variable_attribute_2023.json
+# IEEE 1800-2017 §37.81 / 2023 §37.83 module instance attributes
+issue3069_vpi_module_attribute_2017 vvp_tests/issue3069_vpi_module_attribute_2017.json
+issue3069_vpi_module_attribute_2023 vvp_tests/issue3069_vpi_module_attribute_2023.json
 # IEEE 1800-2017/2023 Annex K VPI loop statement object types
 issue1322_vpi_loop_types_2017 vvp_tests/issue1322_vpi_loop_types_2017.json
 issue1322_vpi_loop_types_2023 vvp_tests/issue1322_vpi_loop_types_2023.json

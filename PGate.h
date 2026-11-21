@@ -311,6 +311,8 @@ class PGModule  : public PGate {
 
       // Checker port lists use named_pexpr_t entries for named connections.
       bool has_duplicate_wildcard_port_connections() const;
+
+      std::unique_ptr<std::map<perm_string,named_pexpr_t>> instance_attributes;
       void mark_no_port_list() { no_port_list_ = true; }
       void mark_drive_strength() { drive_strength_specified_ = true; }
 

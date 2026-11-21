@@ -263,6 +263,8 @@ struct dll_target  : public target_t, public expr_scan_t {
       bool validate_scope_event_pins_(ivl_scope_t scope) const;
 
       void add_root(const NetScope *s);
+      void make_decl_attr(const NetNet::decl_attribute_t&src, ivl_decl_attr_s&dst);
+      void make_scope_decl_attrs(ivl_scope_t scope, const NetScope*net);
 
       bool make_assign_lvals_(const NetAssignBase*net);
       bool make_single_lval_(const LineInfo*li, struct ivl_lval_s*cur, const NetAssign_*asn);
@@ -957,6 +959,11 @@ struct ivl_class_base_param_s {
       bool by_name;
 };
 
+struct ivl_scope_decl_attr_s {
+      ivl_decl_attr_s attr;
+      bool on_definition;
+};
+
 struct ivl_scope_aux_s {
       std::vector<ivl_type_t>*classes;
       std::vector<ivl_enumtype_t>*enumerations_;
@@ -975,6 +982,8 @@ struct ivl_scope_aux_s {
       ivl_scope_objects_s*objects_;
       ivl_scope_proc_s*proc_;
       struct ivl_attribute_s*attr;
+      ivl_scope_decl_attr_s*decl_attrs;
+      unsigned decl_attr_count;
 };
 
 struct ivl_defparam_s {

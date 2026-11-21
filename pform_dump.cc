@@ -958,7 +958,15 @@ void PGModule::dump(ostream&out, unsigned ind) const
 	    dump_pins(out);
       }
       out << ");" << endl;
-      dump_attributes_map(out, attributes, 8);
+      if (instance_attributes) {
+	    for (const auto&entry : *instance_attributes) {
+		  const auto&spec = entry.second;
+		  out << "        (* " << spec.name;
+		  if (spec.parm)
+			out << " = " << *spec.parm;
+		  out << " *)" << endl;
+	    }
+      }
 }
 
 void Statement::dump(ostream&out, unsigned ind) const
@@ -1885,14 +1893,14 @@ void Module::dump(ostream&out) const
 {
       if (attributes.begin() != attributes.end()) {
 	    out << "(* ";
-	    for (map<perm_string,PExpr*>::const_iterator idx = attributes.begin()
+	    for (auto idx = attributes.begin()
 		 ; idx != attributes.end() ; ++ idx ) {
 		    if (idx != attributes.begin()) {
 			out << " , ";
 		    }
 		    out << (*idx).first;
-		    if ((*idx).second) {
-			out << " = " << *(*idx).second;
+		    if (idx->second.parm) {
+			out << " = " << *idx->second.parm;
 		    }
 	    }
 	    out << " *)  ";

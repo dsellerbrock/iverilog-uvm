@@ -993,51 +993,56 @@ static const char *event_storage_flag_str(ivl_event_t event)
       }
 }
 
+static void draw_attribute_value(const struct ivl_decl_attr_s*attr)
+{
+      ivl_expr_t value = attr->value;
+      switch (ivl_expr_type(value)) {
+	  case IVL_EX_STRING:
+	    fprintf(vvp_out, "\"%s\";\n", ivl_expr_string(value));
+	    break;
+	  case IVL_EX_REALNUM: {
+	    char*real = draw_Cr_to_string(ivl_expr_dvalue(value));
+	    fprintf(vvp_out, "real %s;\n", real);
+	    free(real);
+	    break;
+	  }
+	  case IVL_EX_NUMBER: {
+	    const char*kind = "vector";
+	    switch (attr->integral_kind) {
+		case IVL_DECL_ATTR_VECTOR: break;
+		case IVL_DECL_ATTR_SCALAR: kind = "scalar"; break;
+		case IVL_DECL_ATTR_INTEGER: kind = "integer"; break;
+		case IVL_DECL_ATTR_TIME: kind = "time"; break;
+	    }
+	    fprintf(vvp_out, "%s %sC4<", kind, ivl_expr_signed(value) ? "+" : "");
+	    const char*bits = ivl_expr_bits(value);
+	    for (unsigned bit = ivl_expr_width(value); bit > 0; --bit)
+		  fputc(bits[bit-1], vvp_out);
+	    fputs(">;\n", vvp_out);
+	    break;
+	  }
+	  default:
+	    assert(0);
+      }
+}
+
+static void draw_reg_attributes(ivl_signal_t sig, const char*suffix)
+{
+      const struct ivl_decl_attr_s*attr;
+      for (unsigned idx = 0; (attr = ivl_signal_decl_attr(sig, idx)); ++idx) {
+	    fprintf(vvp_out, "    .attribute v%p%s, \"%s\" %u %u, ",
+		    sig, suffix, vvp_mangle_name(attr->name),
+		    ivl_file_table_index(attr->file), attr->lineno);
+	    draw_attribute_value(attr);
+      }
+}
+
 /*
  * This function draws a reg/int/variable in the scope. This is a very
  * simple device to draw as there are no inputs to connect so no need
  * to scan the nexus. We do have to account for the possibility that
  * the device is arrayed, though, by making a node for each array element.
  */
-static void draw_reg_attributes(ivl_signal_t sig, const char*suffix)
-{
-      const struct ivl_decl_attr_s*attr;
-      for (unsigned idx = 0; (attr = ivl_signal_decl_attr(sig, idx)); ++idx) {
-	    ivl_expr_t value = attr->value;
-	    fprintf(vvp_out, "    .attribute v%p%s, \"%s\" %u %u, ",
-		    sig, suffix, vvp_mangle_name(attr->name),
-		    ivl_file_table_index(attr->file), attr->lineno);
-	    switch (ivl_expr_type(value)) {
-		case IVL_EX_STRING:
-		  fprintf(vvp_out, "\"%s\";\n", ivl_expr_string(value));
-		  break;
-		case IVL_EX_REALNUM: {
-		  char*real = draw_Cr_to_string(ivl_expr_dvalue(value));
-		  fprintf(vvp_out, "real %s;\n", real);
-		  free(real);
-		  break;
-		}
-		case IVL_EX_NUMBER: {
-		  const char*kind = "vector";
-		  switch (attr->integral_kind) {
-		      case IVL_DECL_ATTR_VECTOR: break;
-		      case IVL_DECL_ATTR_SCALAR: kind = "scalar"; break;
-		      case IVL_DECL_ATTR_INTEGER: kind = "integer"; break;
-		      case IVL_DECL_ATTR_TIME: kind = "time"; break;
-		  }
-		  fprintf(vvp_out, "%s %sC4<", kind, ivl_expr_signed(value) ? "+" : "");
-		  const char*bits = ivl_expr_bits(value);
-		  for (unsigned bit = ivl_expr_width(value); bit > 0; --bit)
-			fputc(bits[bit-1], vvp_out);
-		  fputs(">;\n", vvp_out);
-		  break;
-		}
-		default:
-		  assert(0);
-	    }
-      }
-}
-
 static void draw_reg_in_scope(ivl_signal_t sig)
 {
       int msb;
@@ -4197,6 +4202,15 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 			  vvp_mangle_name(library ? library : "work"));
 		  fprintf(vvp_out, "\"%s\";\n", vvp_mangle_name(config ? config : ""));
 	    }
+      }
+
+      const struct ivl_decl_attr_s*attr;
+      int on_definition;
+      for (idx = 0; (attr = ivl_scope_decl_attr(net, idx, &on_definition)); ++idx) {
+	    fprintf(vvp_out, "    .vpi_attribute S_%p, \"%s\" %u %u %d, ",
+		    net, vvp_mangle_name(attr->name),
+		    ivl_file_table_index(attr->file), attr->lineno, on_definition);
+	    draw_attribute_value(attr);
       }
 
       fprintf(vvp_out, " .timescale %d %d;\n", ivl_scope_time_units(net),
