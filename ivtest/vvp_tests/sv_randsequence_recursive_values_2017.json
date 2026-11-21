@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "sv_randsequence_recursive_values.sv",
+  "iverilog-args": ["-g2017", "-s", "sv_randsequence_recursive_values"],
+  "gold": "sv_randsequence_recursive_values"
+}

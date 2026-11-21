@@ -6850,20 +6850,23 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
       if (!randsequence_productions_.empty()) {
 	    const auto type = randsequence_function_context_(des, scope)
 		  ? NetScope::FUNC : NetScope::TASK;
-	    for (const auto&production : randsequence_productions_) {
-		  NetScope*callee = new NetScope(my_scope, hname_t(production.first), type);
+	    for (const PTask*production : randsequence_productions_) {
+		  NetScope*callee = new NetScope(my_scope,
+						hname_t(production->pscope_name()), type);
 		  callee->set_line(get_file(), get_lineno());
 		  callee->is_auto(true);
 		  callee->is_const_func(false);
 		  callee->attribute(perm_string::literal("_ivl_randsequence_production"),
 				     verinum((uint64_t)1, 1));
+		  callee->set_task_pform(production);
+		  collect_scope_signals(callee, production->wires);
 	    }
 	    // A detached caller's fork context ends at the subroutine boundary.
 	    auto saved_fork = des->fork_loop_context();
 	    des->restore_fork_loop_context({});
-	    for (const auto&production : randsequence_productions_)
-		  production.second->elaborate_scope(des,
-			my_scope->child(hname_t(production.first)));
+	    for (const PTask*production : randsequence_productions_)
+		  production->get_statement()->elaborate_scope(des,
+			my_scope->child(hname_t(production->pscope_name())));
 	    des->restore_fork_loop_context(saved_fork);
       }
 

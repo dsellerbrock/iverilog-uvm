@@ -42,6 +42,8 @@ enum method_override_specifier_t {
 
 class PTaskFunc : public PScope, public PNamedItem {
 
+      friend class PBlock;
+
     public:
       PTaskFunc(perm_string name, LexicalScope*parent);
       ~PTaskFunc() override;
