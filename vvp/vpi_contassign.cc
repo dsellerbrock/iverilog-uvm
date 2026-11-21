@@ -509,11 +509,18 @@ static std::vector<force_conn_*> force_conns_;
    net); key it by root object if iterating over many nets gets slow. */
 static std::vector<conn_item_> conn_index_;
 static std::vector<__vpiModPath*> conn_paths_;
+static std::set<__vpiInterModPathDelay*> conn_intermodpaths_;
 static std::map<vpiHandle, std::vector<conn_ref_>> conn_mediated_;
 static std::set<vpiHandle> conn_stage_ports_;
 static std::set<vpiHandle> conn_stage_bridges_;
 static std::vector<std::vector<conn_ref_>> conn_output_aliases_;
 static bool conn_built_ = false;
+
+void vpip_index_intermodpath(__vpiInterModPathDelay*device)
+{
+      if (conn_intermodpaths_.insert(device).second)
+	    conn_built_ = false;
+}
 
 static long conn_int_(vpiHandle ref)
 {
@@ -707,6 +714,12 @@ static void conn_build_(void)
 {
       if (conn_built_) return;
       conn_built_ = true;
+      conn_index_.clear();
+      conn_paths_.clear();
+      conn_mediated_.clear();
+      conn_stage_ports_.clear();
+      conn_stage_bridges_.clear();
+      conn_output_aliases_.clear();
       vpiHandle*table;
       unsigned ntable;
       vpip_make_root_iterator(table, ntable);
@@ -723,6 +736,16 @@ static void conn_build_(void)
 		  conn_add_(obj, module, true, false, rec->lval(idx), rec);
 	    if (rec->rval())
 		  conn_add_(obj, module, false, false, rec->rval(), rec);
+      }
+
+      for (__vpiInterModPathDelay*device : conn_intermodpaths_) {
+	    /* Replace only the delayed port's direct connection. Other
+	       loads of the actual remain joined as before. */
+	    conn_stage_bridges_.insert(device->path.port2);
+	    conn_add_(&device->delay_term_in, conn_module_(device->scope->scope),
+		      false, false, device->actual);
+	    conn_add_(&device->delay_term_out, conn_module_(device->scope),
+		      true, false, device->formal);
       }
       conn_build_modpaths_();
 }
@@ -942,16 +965,16 @@ static void conn_collect_(const std::vector<conn_ref_>&nets, bool drives,
       }
 }
 
-vpiHandle vpip_modpath_conn_iterate(__vpiModPath*path, bool input, int code)
+vpiHandle __vpiModPath::term_iterate(bool input, int code)
 {
       if (code != (input ? vpiDriver : vpiLoad)) return 0;
       conn_build_();
       std::vector<conn_ref_> nets;
       std::vector<vpiHandle> found;
       if (!input) {
-	    nets = conn_stage_outputs_(path);
+	    nets = conn_stage_outputs_(this);
       } else {
-	    for (const auto&edge : path->connections) {
+	    for (const auto&edge : connections) {
 		  if (edge.output) continue;
 		  if (edge.obj->get_type_code() != vpiNet)
 			conn_append_(edge.obj, found);
@@ -966,6 +989,18 @@ vpiHandle vpip_modpath_conn_iterate(__vpiModPath*path, bool input, int code)
 	    conn_joined_nets_(nets);
 	    conn_collect_(nets, input, false, nullptr, found);
       }
+      return conn_iterator_(found);
+}
+
+vpiHandle __vpiInterModPathDelay::term_iterate(bool input, int code)
+{
+      if (code != (input ? vpiDriver : vpiLoad)) return 0;
+      conn_build_();
+      std::vector<conn_ref_> nets;
+      conn_refs_(input ? actual : formal, nets);
+      conn_joined_nets_(nets);
+      std::vector<vpiHandle> found;
+      conn_collect_(nets, input, false, nullptr, found);
       return conn_iterator_(found);
 }
 

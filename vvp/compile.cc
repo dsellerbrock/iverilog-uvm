@@ -1377,6 +1377,7 @@ struct functor_gen_resolv_list_s: public resolv_list_s {
 	    ref = 0;
       }
       vvp_net_t**ref;
+      bool track_input;
       virtual bool resolve(bool mes) override;
 };
 
@@ -1386,6 +1387,9 @@ bool functor_gen_resolv_list_s::resolve(bool mes)
 
       if (tmp) {
 	    *ref = tmp;
+	    if (track_input)
+		  if (auto*buf = dynamic_cast<vvp_fun_bufz*>(tmp->fun))
+			buf->track_input();
 	    return true;
       }
 
@@ -1402,12 +1406,13 @@ bool functor_gen_resolv_list_s::resolve(bool mes)
       return mes;
 }
 
-void functor_ref_lookup(vvp_net_t**ref, char*lab)
+void functor_ref_lookup(vvp_net_t**ref, char*lab, bool track_input)
 {
       struct functor_gen_resolv_list_s*res =
 	    new struct functor_gen_resolv_list_s(lab);
 
       res->ref    = ref;
+      res->track_input = track_input;
 
       resolv_submit(res);
 }

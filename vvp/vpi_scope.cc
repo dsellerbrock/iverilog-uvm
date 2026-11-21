@@ -4640,7 +4640,7 @@ vpiPortInfo::vpiPortInfo( __vpiScope *parent,
       width_(width),
       name_(name)
 {
-      if (buffer != nullptr) functor_ref_lookup(&ref_, buffer);
+      if (buffer != nullptr) functor_ref_lookup(&ref_, buffer, direction_ == vpiInput);
       else ref_ = nullptr;
 }
 

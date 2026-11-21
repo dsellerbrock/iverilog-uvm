@@ -2519,6 +2519,9 @@ static bool quiet_intermodpath_lookup = false;
      delay is from all sources, never one source/load pair. */
 static bool any_source_lookup = false;
 
+static vpiHandle intermodpath_handle(PLI_INT32 type, vpiHandle source,
+				     vpiHandle load, bool point_to_point);
+
 /*
  * IEEE 1800-2023 32.4.4: "In the case of multisource nets, unique delays
  * can be annotated between each source/load pair". The load port reads a
@@ -2670,11 +2673,12 @@ static bool interconnect_net_on_load_path(vvp_net_t* named_net,
 }
 
 extern "C" vpiHandle vpip_interconnect_ports_connected(vpiHandle source,
-                                                        vpiHandle load)
+                                                       vpiHandle load,
+                                                       bool point_to_point)
 {
       bool saved_quiet = quiet_intermodpath_lookup;
       quiet_intermodpath_lookup = true;
-      vpiHandle path = vpi_handle_multi(vpiInterModPath, source, load);
+      vpiHandle path = intermodpath_handle(vpiInterModPath, source, load, point_to_point);
       quiet_intermodpath_lookup = saved_quiet;
       return path;
 }
@@ -2726,7 +2730,7 @@ extern "C" vpiHandle vpip_interconnect_net_to_load(vpiHandle net,
                                                    vpiHandle load)
 {
       if (!vpip_interconnect_through_net(net, load)) return nullptr;
-      return vpip_interconnect_ports_connected(nullptr, load);
+      return vpip_interconnect_ports_connected(nullptr, load, false);
 }
 
 /*
@@ -2788,10 +2792,15 @@ static vpiHandle load_side_intermodpath(vpiHandle ref)
       return nullptr;
 }
 
-// Used to get intermodpath for two ports
 vpiHandle vpi_handle_multi(PLI_INT32 type,
                            vpiHandle ref1,
                            vpiHandle ref2)
+{
+      return intermodpath_handle(type, ref1, ref2, true);
+}
+
+static vpiHandle intermodpath_handle(PLI_INT32 type, vpiHandle ref1,
+				     vpiHandle ref2, bool point_to_point)
 {
       if (type == vpiInterModPath && !ref1 && ref2) {
 	    vpiHandle scope = vpi_handle(vpiScope, ref2);
@@ -2963,6 +2972,11 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	return nullptr;
       }
 
+      const bool whole_ports = !port1_has_index && !port2_has_index && !island1
+	    && port1->get_direction() == vpiOutput && port2->get_direction() == vpiInput;
+      const bool expose_device = point_to_point && !any_source_lookup;
+      const vvp_net_ptr_t load_edge(net2, 0);
+
 	// If port1 is actually a port bit, we have to get to the correct vvp_fun_part
 	// after which we insert the intermodpath delay
       if (port1_has_index) {
@@ -3010,6 +3024,17 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 	    }
 
 	      while (cur.ptr()) {
+	    if (whole_ports && cur.port() == 0 && cur.ptr()->out_ == load_edge) {
+		  if (auto*stage = dynamic_cast<vvp_fun_intermodpath*>(cur.ptr()->fun)) {
+			if (auto*device = stage->delay_device.get()) {
+			      if (device->path.port1 == port1 && device->path.port2 == port2) {
+				    if (expose_device) vpip_index_intermodpath(device);
+				    return &device->path;
+			      }
+			}
+		  }
+	    }
+
 	      // Either port2 is directly connected to port1
 	      // Or in the second case port2 is indirectly connected
 	      // to port1 through a net of concat8s
@@ -3023,10 +3048,20 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 		    check_connected_through_part_pv(cur, net2);
 	    if ( (!port2_has_index && cur.ptr() == net2) || is_connected ) {
 		  vvp_net_t*new_net = new vvp_net_t;
-
-		    // Create new node with intermodpath and connect port2 to it
-		  int width = 1; // TODO
-		  vvp_fun_intermodpath*obj = new vvp_fun_intermodpath(new_net, width);
+		  const bool direct = whole_ports && cur == load_edge;
+		  vvp_fun_intermodpath*obj;
+		  if (direct) {
+			const vvp_vector4_t*live;
+			if (auto*sampler = dynamic_cast<vvp_fun_sample*>(net2->fun))
+			      live = &sampler->input_value();
+			else
+			      live = static_cast<vvp_fun_bufz*>(net2->fun)->input_value();
+			unsigned width = port2->get_width();
+			obj = new vvp_fun_intermodpath(new_net,
+			      live && live->size() == width ? *live : vvp_vector4_t(width));
+		  } else {
+			obj = new vvp_fun_intermodpath(new_net, 1);
+		  }
 
 		  if (is_connected) {
 			if (is_output) {
@@ -3063,6 +3098,12 @@ vpiHandle vpi_handle_multi(PLI_INT32 type,
 			net2->fil = net1->fil;
 			net1->fil = nullptr;
 			output_signal->node = net2;
+		  }
+
+		  if (direct) {
+			obj->delay_device.reset(new __vpiInterModPathDelay(new_net, obj, port1, port2));
+			if (expose_device) vpip_index_intermodpath(obj->delay_device.get());
+			return &obj->delay_device->path;
 		  }
 
 		    // Create the VPI intermodpath object
