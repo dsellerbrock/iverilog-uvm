@@ -1,0 +1,3 @@
+./ivltests/issue3981_sequence_missing_fail.sv:7: error: sequence `s' is missing required argument `y'.
+./ivltests/issue3981_sequence_missing_fail.sv:8: error: sequence `s' is missing required argument `y'.
+./ivltests/issue3981_sequence_missing_fail.sv:11: error: sequence `s' formal argument `x' is specified more than once.

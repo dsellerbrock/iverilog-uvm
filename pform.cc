@@ -16955,13 +16955,15 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		  error_count += 1;
 		  return nullptr;
 	    }
+	    /* An empty slot still occupies its position for duplicate checks. */
 	    actuals[formal_idx] = &parms[k];
       }
 	/* IEEE 1800-2017/2023 16.8: "The instance shall provide an actual
 	 * argument ... for each formal argument that does not have a default
 	 * actual argument declared." */
       for (size_t k = 0 ; k < actuals.size() ; k += 1) {
-	    if (!actuals[k] && !decl.formals[k].default_expr) {
+	    if ((!actuals[k] || !actuals[k]->parm)
+		&& !decl.formals[k].default_expr) {
 		  cerr << loc << ": error: sequence `" << nm
 		       << "' is missing required argument `"
 		       << decl.formals[k].name << "'." << endl;
@@ -16996,6 +16998,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 			}
 		  }
 	    if (!assigned) continue;
+	    /* Only an explicit expression can refer to the caller's local. */
 	    PEIdent*actual = actuals[k]
 		  ? dynamic_cast<PEIdent*>(actuals[k]->parm) : nullptr;
 	    if (!actual || actual->path().package
@@ -17026,17 +17029,10 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 	    const sva_sequence_formal_t&formal = decl.formals[k];
 	    /* A default actual is resolved in the declaration's scope, like
 	       the body text, so it is substituted without the actual mark. */
-	    PExpr*parm = actuals[k] ? actuals[k]->parm : formal.default_expr;
-	    if (!parm) {
-		  cerr << loc << ": error: sequence `" << nm
-		       << "' argument " << (k+1) << " is empty." << endl;
-		  error_count += 1;
-		  sva_destroy_local_init_steps_(initializers);
-		  for (PExpr*expr : owned_subst) delete expr;
-		  return nullptr;
-	    }
+	    PExpr*explicit_actual = actuals[k] ? actuals[k]->parm : nullptr;
+	    PExpr*parm = explicit_actual ? explicit_actual : formal.default_expr;
 	    std::unique_ptr<sva_clone_scope_guard_t>default_scope;
-	    if (!actuals[k] && declaration.concrete_scope)
+	    if (!explicit_actual && declaration.concrete_scope)
 		  default_scope.reset(new sva_clone_scope_guard_t(declaration, declaration));
 	    if (!formal.local_input && formal.type) {
 		  /* 16.8.1 c): a non-lvalue actual "shall be cast to the type
@@ -17052,7 +17048,7 @@ sva_instantiate_seq_(const struct vlltype&loc, perm_string nm,
 		  }
 		  PECastType*typed = new PECastType(formal.type, actual);
 		  FILE_NAME(typed, loc);
-		  if (actuals[k]) typed->sva_actual_scope(true);
+		  if (explicit_actual) typed->sva_actual_scope(true);
 		  subst[formal.name] = typed;
 		  owned_subst.push_back(typed);
 		  continue;
