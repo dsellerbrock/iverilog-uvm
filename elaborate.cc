@@ -5105,6 +5105,15 @@ class event_synchronous_synthesis_scope_ {
       bool previous_;
 };
 
+struct deferred_extern_sensitivity_t {
+      NetScope*scope;
+      NetProcTop*process = nullptr;
+      const NetExpr*contassign_rhs = nullptr;
+};
+
+static map<NetEvWait*, deferred_extern_sensitivity_t> deferred_extern_sensitivity_;
+static bool extern_functions_bound_ = false;
+
 /* Connect an any-change probe to exact nexus ranges, including a word
    of an unpacked array. A full-width operand needs no select device. */
 static void connect_event_probe_inputs_(Design*des, NetScope*scope,
@@ -5199,6 +5208,18 @@ static bool expr_has_function_call_(const NetExpr*expr)
       return dynamic_cast<const NetEUFunc*>(expr)
 	  || dynamic_cast<const NetESFunc*>(expr)
 	  || any_expr_child_(expr, expr_has_function_call_);
+}
+
+static void collect_contassign_function_inputs_(const NetExpr*expr,
+					       NexusSet&inputs,
+					       NexusSet&outputs)
+{
+      if (const auto*call = dynamic_cast<const NetEUFunc*>(expr))
+	    call->nex_input_body(inputs, outputs);
+      any_expr_child_(expr, [&](const NetExpr*child) {
+	    collect_contassign_function_inputs_(child, inputs, outputs);
+	    return false;
+      });
 }
 
 static bool is_packed_source_operand_(const NetExpr*expr)
@@ -5322,7 +5343,7 @@ static bool add_contassign_selected_input_(Design*des, NetScope*scope,
 
 /* IEEE 1800 10.3.2: watch source operands rather than the results of
    operators or calls. A selected signal contributes its selected value.
-   Descend into actual arguments without following reads in the body. */
+   The implicit wait separately collects reads from called functions. */
 static bool collect_contassign_inputs_(Design*des, NetScope*scope,
 				       const NetExpr*expr, NexusSet&inputs)
 {
@@ -5460,28 +5481,69 @@ static NetNet* elaborate_contassign_call_rhs_(Design*des, NetScope*scope,
       if (!collect_contassign_inputs_(des, scope, value.get(), inputs))
 	    return nullptr;
 
+      const bool is_array = lval->unpacked_dimensions() > 0;
+      NetEvWait*wait;
+      if (is_array) {
+	    wait = new NetEvWait(nullptr);
+      } else {
+	    PEventStatement event(true);
+	    event.set_line(*rhs);
+	    NetProc*implicit_wait = event.elaborate_st(des, scope, nullptr,
+						      false, rhs);
+	    if (!implicit_wait)
+		  return nullptr;
+	    wait = dynamic_cast<NetEvWait*>(implicit_wait);
+	    ivl_assert(*rhs, wait);
+      }
+      wait->set_line(*rhs);
+
       NetNet*result = make_contassign_storage_(scope, lval, *rhs);
-      NetProc*store = lval->unpacked_dimensions()
+      NetProc*store = is_array
 	    ? make_contassign_array_store_(result, std::move(value))
 	    : make_contassign_store_(result, value.release(), *rhs);
 
-      NetEvWait*wait = new NetEvWait(store);
-      wait->set_line(*rhs);
-      wait->set_t0_trigger();
-      if (inputs.size() != 0) {
+      // A deferred extern body may add events after the ports are bound.
+      // If no operands can wake the wait, give it an inert event meanwhile.
+      if (inputs.size() != 0 || (wait->nevents() == 0
+	  && deferred_extern_sensitivity_.count(wait))) {
 	    NetEvent*event = new NetEvent(scope->local_symbol());
 	    event->set_line(*rhs);
 	    event->local_flag(true);
 	    scope->add_event(event);
-	    NetEvProbe*probe = new NetEvProbe(scope, scope->local_symbol(), event,
-					      NetEvProbe::ANYEDGE, inputs.size());
-	    probe->set_line(*rhs);
-	    connect_event_probe_inputs_(des, scope, *rhs, probe, inputs, true);
-	    des->add_node(probe);
+	    if (inputs.size() != 0) {
+		  NetEvProbe*probe = new NetEvProbe(scope, scope->local_symbol(), event,
+						    NetEvProbe::ANYEDGE, inputs.size());
+		  probe->set_line(*rhs);
+		  connect_event_probe_inputs_(des, scope, *rhs, probe, inputs, true);
+		  des->add_node(probe);
+	    }
 	    wait->add_event(event);
       }
 
-      NetProcTop*top = new NetProcTop(scope, IVL_PR_ALWAYS, wait);
+      ivl_process_type_t kind = IVL_PR_ALWAYS;
+      if (is_array) {
+	    wait->set_statement(store);
+      } else {
+	    // Start once in Active, then re-evaluate only on dependency changes.
+	    // Placing the first evaluation before arming the recurring wait
+	    // prevents both startup and a dependency from waking it for the
+	    // same initial value.
+	    if (wait->nevents() != 0) {
+		  NetBlock*cycle = new NetBlock(NetBlock::SEQU, nullptr);
+		  cycle->set_line(*rhs);
+		  cycle->append(store);
+		  cycle->append(wait);
+		  store = new NetForever(cycle);
+		  store->set_line(*rhs);
+	    } else {
+		  delete wait;
+	    }
+	    wait = new NetEvWait(store);
+	    wait->set_line(*rhs);
+	    kind = IVL_PR_INITIAL;
+      }
+      wait->set_t0_trigger();
+      NetProcTop*top = new NetProcTop(scope, kind, wait);
       top->set_line(*rhs);
       top->attribute(perm_string::literal("_ivl_schedule_push"), verinum(1));
       top->attribute(perm_string::literal("_ivl_contassign_rhs"), verinum(1));
@@ -29550,14 +29612,6 @@ static bool event_expr_has_darray_size_(const NetExpr*expr)
       return false;
 }
 
-struct deferred_extern_sensitivity_t {
-      NetScope*scope;
-      NetProcTop*process = nullptr;
-};
-
-static map<NetEvWait*, deferred_extern_sensitivity_t> deferred_extern_sensitivity_;
-static bool extern_functions_bound_ = false;
-
 /* Pass the whole exact-true expression and its resolved event-state sources
  * to the VVP observer recipe. The sources are metadata, separate from the
  * expression that the recipe evaluates. */
@@ -29593,7 +29647,8 @@ static NetExpr* sva_disable_observer_expr_(
 }
 
 NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
-				       NetProc*enet, bool nba_event_control) const
+				       NetProc*enet, bool nba_event_control,
+				       const NetExpr*contassign_rhs) const
 {
       ivl_assert(*this, scope);
 
@@ -30090,7 +30145,7 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	   @* statement. Generate an expression to use. */
 
 	      if (expr_.size() == 0) {
-	    ivl_assert(*this, enet);
+	    ivl_assert(*this, enet || contassign_rhs);
 	     /* For synthesis or always_comb/latch we want just the inputs,
 	      * but for the rest we want inputs and outputs that may cause
 	      * a value to change. */
@@ -30101,14 +30156,25 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	    }
 	      // If this is an always_comb/latch then we need an implicit T0
 	      // trigger of the event expression.
-	    if (always_sens_) wa->set_t0_trigger();
+	    if (always_sens_ && !contassign_rhs) wa->set_t0_trigger();
 	    std::vector<const NetEProperty*> implicit_vif_props;
 	    if (gn_system_verilog() && !synthesis)
 		  NetEProperty::set_nex_input_vif_collector(&implicit_vif_props);
 	    bool extern_pending = false;
 	    if (always_sens_ && !extern_functions_bound_)
 		  NetFuncDef::set_extern_sensitivity_collector(&extern_pending);
-	    NexusSet*nset = enet->nex_input(rem_out, always_sens_);
+	    NexusSet*nset;
+	    if (contassign_rhs) {
+		  // The assignment already has exact probes for explicit
+		  // operands. Add the transitive reads from function bodies.
+		  nset = new NexusSet;
+		  NexusSet outputs;
+		  collect_contassign_function_inputs_(contassign_rhs, *nset, outputs);
+		  if (outputs.size() != 0)
+			nset->rem_intersect(outputs);
+	    } else {
+		  nset = enet->nex_input(rem_out, always_sens_);
+	    }
 	    if (always_sens_ && !extern_functions_bound_)
 		  NetFuncDef::set_extern_sensitivity_collector(nullptr);
 	    if (gn_system_verilog() && !synthesis)
@@ -30116,7 +30182,9 @@ NetProc* PEventStatement::elaborate_st(Design*des, NetScope*scope,
 	    if (extern_pending) {
 		  delete nset;
 		  delete ev;
-		  deferred_extern_sensitivity_[wa].scope = scope;
+		  auto&pending = deferred_extern_sensitivity_[wa];
+		  pending.scope = scope;
+		  pending.contassign_rhs = contassign_rhs;
 		  return wa;
 	    }
 	    for (const NetEProperty*prop : implicit_vif_props) {
@@ -60859,7 +60927,8 @@ static void resolve_extern_function_sensitivity_(Design*des)
 	    PEventStatement event(true);
 	    event.set_line(*wait);
 	    NetProc*body = wait->statement();
-	    NetProc*resolved = event.elaborate_st(des, entry.second.scope, body);
+	    NetProc*resolved = event.elaborate_st(des, entry.second.scope, body,
+						 false, entry.second.contassign_rhs);
 	    if (resolved == body)
 		  continue;
 	    auto*complete = dynamic_cast<NetEvWait*>(resolved);

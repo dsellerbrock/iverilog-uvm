@@ -7450,6 +7450,10 @@ issue3941_2017 normal,-g2017,-s,issue3941 ivltests gold=issue3941.gold
 issue3941_2023 normal,-g2023,-s,issue3941 ivltests gold=issue3941.gold
 issue3942_2017 normal,-g2017,-s,issue3942 ivltests gold=issue3942.gold
 issue3942_2023 normal,-g2023,-s,issue3942 ivltests gold=issue3942.gold
+issue3741_2017 normal,-g2017,-s,issue3741 ivltests gold=issue3741.gold
+issue3741_2023 normal,-g2023,-s,issue3741 ivltests gold=issue3741.gold
+issue3741_clocking_fail_2017 RE,-g2017 ivltests gold=sv_function_deferred_clocking_context_fail.gold
+issue3741_clocking_fail_2023 RE,-g2023 ivltests gold=sv_function_deferred_clocking_context_fail.gold
 issue3634_2017 normal,-g2017,-s,issue3634 ivltests gold=issue3634.gold
 issue3634_2023 normal,-g2023,-s,issue3634 ivltests gold=issue3634.gold
 

@@ -8341,6 +8341,10 @@ issue3941_2017 vvp_tests/issue3941_2017.json
 issue3941_2023 vvp_tests/issue3941_2023.json
 issue3942_2017 vvp_tests/issue3942_2017.json
 issue3942_2023 vvp_tests/issue3942_2023.json
+issue3741_2017 vvp_tests/issue3741_2017.json
+issue3741_2023 vvp_tests/issue3741_2023.json
+issue3741_clocking_fail_2017 vvp_tests/issue3741_clocking_fail_2017.json
+issue3741_clocking_fail_2023 vvp_tests/issue3741_clocking_fail_2023.json
 issue3634_2017 vvp_tests/issue3634_2017.json
 issue3634_2023 vvp_tests/issue3634_2023.json
 

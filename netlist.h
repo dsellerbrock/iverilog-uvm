@@ -5495,6 +5495,7 @@ class NetEUFunc  : public NetExpr {
 
       const NetScope* func() const;
       bool super_call() const;
+      void nex_input_body(NexusSet&inputs, NexusSet&outputs) const;
 
       virtual void dump(std::ostream&) const override;
 
@@ -6585,6 +6586,7 @@ class NetEUnary  : public NetExpr {
       const NetExpr* expr() const { return expr_; }
       bool two_state_part_incdec() const { return two_state_part_incdec_; }
       void two_state_part_incdec(bool flag) { two_state_part_incdec_ = flag; }
+      void set_incdec_lval(NetAssign_*lval) { incdec_lval_ = lval; }
 
       virtual NetEUnary* dup_expr() const override;
       virtual NetExpr* eval_tree() override;
@@ -6604,6 +6606,7 @@ class NetEUnary  : public NetExpr {
 
     private:
       bool two_state_part_incdec_ = false;
+      NetAssign_*incdec_lval_ = nullptr;
       virtual NetExpr* eval_arguments_(const NetExpr*ex) const;
       virtual NetExpr* eval_tree_real_(const NetExpr*ex) const;
 };

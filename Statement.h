@@ -890,8 +890,10 @@ class PEventStatement  : public Statement {
 
 	// This method is used to elaborate, but attach a previously
 	// elaborated statement to the event.
+	// A continuous RHS requests only its function-body dependencies.
       NetProc* elaborate_st(Design*des, NetScope*scope, NetProc*st,
-			    bool nba_event_control = false) const;
+			    bool nba_event_control = false,
+			    const NetExpr*contassign_rhs = nullptr) const;
 
       NetProc* elaborate_wait(Design*des, NetScope*scope, NetProc*st) const;
       NetProc* elaborate_wait_fork(Design*des, const NetScope*scope) const;
