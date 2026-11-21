@@ -1,0 +1,11 @@
+{
+  "type": "normal",
+  "source": "issue3979_sequence_actual.sv",
+  "iverilog-args": [
+    "-g2017",
+    "-gassertions",
+    "-s",
+    "issue3979_sequence_actual"
+  ],
+  "gold": "issue3979_sequence_actual"
+}
