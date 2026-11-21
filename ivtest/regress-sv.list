@@ -7444,6 +7444,8 @@ issue2591_p_class_assoc_signed_2017 normal,-g2017 ivltests gold=issue2591_p_clas
 issue2591_p_class_assoc_signed_2023 normal,-g2023 ivltests gold=issue2591_p_class_assoc_signed.gold
 issue3941_2017 normal,-g2017,-s,issue3941 ivltests gold=issue3941.gold
 issue3941_2023 normal,-g2023,-s,issue3941 ivltests gold=issue3941.gold
+issue3942_2017 normal,-g2017,-s,issue3942 ivltests gold=issue3942.gold
+issue3942_2023 normal,-g2023,-s,issue3942 ivltests gold=issue3942.gold
 issue3634_2017 normal,-g2017,-s,issue3634 ivltests gold=issue3634.gold
 issue3634_2023 normal,-g2023,-s,issue3634 ivltests gold=issue3634.gold
 

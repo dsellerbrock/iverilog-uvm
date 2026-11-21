@@ -5373,6 +5373,84 @@ static bool collect_contassign_inputs_(Design*des, NetScope*scope,
       });
 }
 
+static NetNet* make_contassign_storage_(NetScope*scope, const NetNet*like,
+				       const LineInfo&loc)
+{
+      NetNet*result = new NetNet(scope, scope->local_symbol(), NetNet::REG,
+				  like->unpacked_dims(), like->net_type());
+      result->set_line(loc);
+      result->local_flag(true);
+      if (like->unpacked_dimensions())
+	    result->attribute(perm_string::literal("_ivl_contassign_snapshot"),
+			      verinum(string("true")));
+      return result;
+}
+
+static NetAssign* make_contassign_store_(NetNet*target, NetExpr*value,
+					const LineInfo&loc)
+{
+      NetAssign*store = new NetAssign(new NetAssign_(target), value);
+      store->set_line(loc);
+      return store;
+}
+
+static NetProc* make_contassign_array_store_(NetNet*target,
+					     unique_ptr<NetExpr>value)
+{
+      const auto*tern = dynamic_cast<const NetETernary*>(value.get());
+      if (!tern)
+	    return make_contassign_store_(target, value.release(), *target);
+
+      // Sample the condition once. A known condition stages only its
+      // selected arm, and an ambiguous condition stages both before merging.
+      NetScope*scope = target->scope();
+      const netvector_t*logic_bit = new netvector_t(IVL_VT_LOGIC, 0, 0);
+      NetNet*cond = new NetNet(scope, scope->local_symbol(), NetNet::REG, logic_bit);
+      cond->set_line(*tern);
+      cond->local_flag(true);
+      NetBlock*block = new NetBlock(NetBlock::SEQU, nullptr);
+      block->set_line(*tern);
+      block->append(make_contassign_store_(cond, tern->cond_expr()->dup_expr(), *tern));
+
+      NetNet*true_value = make_contassign_storage_(scope, target, *tern);
+      NetNet*false_value = make_contassign_storage_(scope, target, *tern);
+      auto stage_arm = [&](NetNet*storage, const NetExpr*arm, verinum::V skip) {
+	    NetExpr*guard = new NetEBComp('N', new NetESignal(cond),
+					  new NetEConst(verinum(skip)));
+	    NetProc*store = make_contassign_array_store_(storage,
+		  unique_ptr<NetExpr>(arm->dup_expr()));
+	    NetCondit*branch = new NetCondit(guard, store, nullptr);
+	    branch->set_line(*tern);
+	    block->append(branch);
+      };
+      stage_arm(true_value, tern->true_expr(), verinum::V0);
+      stage_arm(false_value, tern->false_expr(), verinum::V1);
+
+      // The buffers and destination have identical canonical word layout.
+      const netranges_t&dims = target->unpacked_dims();
+      NetESignal sampled_cond(cond);
+      unsigned word = 0;
+      function<NetExpr*(size_t)>merge = [&](size_t dim) -> NetExpr* {
+	    vector<NetExpr*>items(dims[dim].width());
+	    for (NetExpr*&item : items) {
+		  if (dim + 1 < dims.size()) {
+			item = merge(dim + 1);
+		  } else {
+			item = unpacked_conditional_word(*tern, target->net_type(),
+			      &sampled_cond,
+			      new NetESignal(true_value, make_const_val(word)),
+			      new NetESignal(false_value, make_const_val(word)));
+			++word;
+		  }
+	    }
+	    NetExpr*pattern = new NetEArrayPattern(target->array_type(), items);
+	    pattern->set_line(*tern);
+	    return pattern;
+      };
+      block->append(make_contassign_store_(target, merge(0), *tern));
+      return block;
+}
+
 static NetNet* elaborate_contassign_call_rhs_(Design*des, NetScope*scope,
 					     const NetNet*lval, const NetExpr*rhs)
 {
@@ -5382,12 +5460,10 @@ static NetNet* elaborate_contassign_call_rhs_(Design*des, NetScope*scope,
       if (!collect_contassign_inputs_(des, scope, value.get(), inputs))
 	    return nullptr;
 
-      NetNet*result = new NetNet(scope, scope->local_symbol(), NetNet::REG,
-				  lval->net_type());
-      result->set_line(*rhs);
-      result->local_flag(true);
-      NetAssign*store = new NetAssign(new NetAssign_(result), value.release());
-      store->set_line(*rhs);
+      NetNet*result = make_contassign_storage_(scope, lval, *rhs);
+      NetProc*store = lval->unpacked_dimensions()
+	    ? make_contassign_array_store_(result, std::move(value))
+	    : make_contassign_store_(result, value.release(), *rhs);
 
       NetEvWait*wait = new NetEvWait(store);
       wait->set_line(*rhs);
@@ -5412,6 +5488,15 @@ static NetNet* elaborate_contassign_call_rhs_(Design*des, NetScope*scope,
       // This thread implements a continuous assignment (IEEE 1800 13.4.4).
       des->add_process(top);
       return result;
+}
+
+static bool use_contassign_rhs_evaluator_(Design*des, const NetNet*lval)
+{
+      extern bool synthesis;
+      // The event-driven evaluator needs VVP's Active-region startup trigger.
+      return gn_system_verilog() && !synthesis
+	  && strcmp(des->get_flag("DLL"), "vvp.tgt") == 0
+	  && (type_is_vectorable(lval->data_type()) || lval->data_type() == IVL_VT_REAL);
 }
 
 static bool elaborate_unpacked_union_read_continuous_(
@@ -6058,10 +6143,7 @@ void PGAssign::elaborate(Design*des, NetScope*scope) const
 	    return;
       }
 
-	// The event-driven RHS needs VVP's Active-region startup trigger.
-      bool call_rhs = gn_system_verilog() && !synthesis
-	    && strcmp(des->get_flag("DLL"), "vvp.tgt") == 0
-	    && (type_is_vectorable(lval->data_type()) || lval->data_type() == IVL_VT_REAL)
+      bool call_rhs = use_contassign_rhs_evaluator_(des, lval)
 	    && expr_has_user_function_call_(rval_expr);
       unsigned errors_before_rhs = des->errors;
       NetNet*rval = call_rhs
@@ -6274,126 +6356,161 @@ static NetExpr*unpacked_bitstream_cast_pattern_(Design*des, NetScope*scope,
       return pattern;
 }
 
-NetNet *elaborate_unpacked_array(Design *des, NetScope *scope, const LineInfo &loc,
-			         const NetNet *lval, PExpr *expr)
+static bool check_unpacked_array_rhs_(Design*des, const LineInfo&loc,
+				      const NetNet*lval, const NetNet*rval,
+				      const PExpr*expr)
 {
-      NetNet *expr_net;
-
-	/* IEEE 1800-2017 11.4.11 applies the assignment context to both
-	   conditional arms. For whole unpacked arrays, lower that conditional
-	   structurally to one mux per array word; a scalar NetETernary cannot
-	   represent an aggregate value. */
-      if (const PETernary*tern = dynamic_cast<const PETernary*>(expr)) {
-	    NetExpr*cond_expr = elab_and_eval(des, scope, tern->get_cond(),
-					       -1, false);
-	    if (!cond_expr)
-		  return nullptr;
-	    cond_expr = condition_reduce(cond_expr);
-	    NetNet*cond_net = cond_expr->synthesize(des, scope, cond_expr);
-	    if (!cond_net) {
-		  delete cond_expr;
-		  return nullptr;
-	    }
-
-	    NetNet*true_net = elaborate_unpacked_array(
-		  des, scope, loc, lval, tern->get_true());
-	    NetNet*false_net = elaborate_unpacked_array(
-		  des, scope, loc, lval, tern->get_false());
-	    if (!true_net || !false_net
-		|| true_net->pin_count() != lval->pin_count()
-		|| false_net->pin_count() != lval->pin_count()) {
-		  delete cond_expr;
-		  return nullptr;
-	    }
-
-	    NetNet*result = new NetNet(scope, scope->local_symbol(),
-					 NetNet::IMPLICIT, lval->unpacked_dims(),
-					 lval->net_type());
-	    result->set_line(loc);
-	    result->local_flag(true);
-	    for (unsigned idx = 0 ; idx < result->pin_count() ; idx += 1) {
-		  NetMux*mux = new NetMux(scope, scope->local_symbol(),
-				       lval->vector_width(), 2, 1);
-		  mux->set_line(loc);
-		  connect(true_net->pin(idx), mux->pin_Data(1));
-		  connect(false_net->pin(idx), mux->pin_Data(0));
-		  connect(cond_net->pin(0), mux->pin_Sel());
-		  connect(result->pin(idx), mux->pin_Result());
-		  des->add_node(mux);
-	    }
-	    delete cond_expr;
-	    return result;
-      }
-
-      const PEIdent* ident = dynamic_cast<PEIdent*> (expr);
-      if (!ident) {
-	    /* IEEE 1800-2017 10.10: in an unpacked-array assignment
-	       context, an unpacked array concatenation is elaborated one
-	       element at a time using the destination array's element type.
-	       PEConcat's typed elaboration produces the same structural
-	       NetEArrayPattern representation as the apostrophe spelling,
-	       so both forms can use the existing per-word continuous drivers. */
-	    if (dynamic_cast<PEConcat*> (expr)
-		|| dynamic_cast<PEAssignPattern*> (expr)
-		|| dynamic_cast<PEString*> (expr)) {
-		  auto net_expr = elaborate_rval_expr(des, scope, lval->array_type(), expr);
-		  if (! net_expr) return nullptr;
-		  expr_net = net_expr->synthesize(des, scope, net_expr);
-	    } else if (const PECastType*cast = dynamic_cast<PECastType*>(expr)) {
-		  bool reported;
-		  NetExpr*pattern = unpacked_bitstream_cast_pattern_(
-			des, scope, lval, cast, reported);
-		  if (!pattern) {
-			if (!reported) {
-			      cerr << loc.get_fileline() << ": sorry: This cast "
-				   << "to an unpacked array is not supported in "
-				   << "a continuous assignment." << endl;
-			      des->errors++;
-			}
-			return nullptr;
-		  }
-		  expr_net = pattern->synthesize(des, scope, pattern);
-	    } else {
-		  cout << loc.get_fileline() << ": error: Can not assign"
-		       << " non-array expression `" << *expr << "` to array."
-		       << endl;
-		  des->errors++;
-		  return nullptr;
-	    }
-      } else {
-	    expr_net = ident->elaborate_unpacked_net(des, scope,
-					       lval->array_type());
-      }
-
-      if (!expr_net)
-	    return nullptr;
-
-      auto const &lval_dims = lval->unpacked_dims();
-      auto const &expr_dims = expr_net->unpacked_dims();
-
-      if (expr_dims.empty()) {
+      if (rval->unpacked_dims().empty()) {
 	    cerr << loc.get_fileline() << ": error: Can not assign"
-	         << " non-array identifier `" << *expr << "` to array."
+		 << " non-array identifier `" << *expr << "` to array."
 		 << endl;
 	    des->errors++;
-	    return nullptr;
+	    return false;
       }
-
-      if (!netrange_equivalent(lval_dims, expr_dims)) {
+      if (!netrange_equivalent(lval->unpacked_dims(), rval->unpacked_dims())) {
 	    cerr << loc.get_fileline() << ": error: Unpacked dimensions"
 		 << " are not compatible in array assignment." << endl;
 	    des->errors++;
-	    return nullptr;
+	    return false;
       }
-
-      if (!lval->net_type()->type_equivalent(expr_net->net_type())) {
+      if (!lval->net_type()->type_equivalent(rval->net_type())) {
 	    cerr << loc.get_fileline() << ": error: Element types are not"
-	         << " compatible in array assignment." << endl;
+		 << " compatible in array assignment." << endl;
 	    des->errors++;
-	    return nullptr;
+	    return false;
+      }
+      return true;
+}
+
+static NetExpr* elaborate_unpacked_array_rhs_(Design*des, NetScope*scope,
+					      const LineInfo&loc,
+					      const NetNet*lval, PExpr*expr,
+					      bool&allow_call_rhs)
+{
+      if (const auto*tern = dynamic_cast<const PETernary*>(expr)) {
+	    unique_ptr<NetExpr>cond(elab_and_eval(des, scope, tern->get_cond(),
+						  -1, false));
+	    if (!cond)
+		  return nullptr;
+	    cond.reset(condition_reduce(cond.release()));
+	    unique_ptr<NetExpr>tru(elaborate_unpacked_array_rhs_(
+		  des, scope, loc, lval, tern->get_true(), allow_call_rhs));
+	    unique_ptr<NetExpr>fal(elaborate_unpacked_array_rhs_(
+		  des, scope, loc, lval, tern->get_false(), allow_call_rhs));
+	    if (!tru || !fal)
+		  return nullptr;
+
+	    NetExpr*res = new NetETernary(cond.release(), tru.release(),
+		  fal.release(), lval->vector_width(), lval->get_signed(),
+		  lval->array_type());
+	    res->set_line(*tern);
+	    return res;
       }
 
-      return expr_net;
+      if (const auto*ident = dynamic_cast<const PEIdent*>(expr)) {
+	    NetNet*net = ident->elaborate_unpacked_net(des, scope, lval->array_type());
+	    if (!net || !check_unpacked_array_rhs_(des, loc, lval, net, expr))
+		  return nullptr;
+	    // An unpacked slice view is a source operand despite being local.
+	    if (net->local_flag() && allow_call_rhs)
+		  net->attribute(perm_string::literal("_ivl_implicit_sensitivity"),
+				 verinum(1));
+	    return new NetESignal(net, nullptr);
+      }
+
+      // Typed unpacked concatenations and assignment patterns share IR.
+      if (dynamic_cast<PEConcat*>(expr) || dynamic_cast<PEAssignPattern*>(expr)
+	  || dynamic_cast<PEString*>(expr))
+	    return elaborate_rval_expr(des, scope, lval->array_type(), expr);
+
+      if (const auto*cast = dynamic_cast<const PECastType*>(expr)) {
+	    bool reported;
+	    NetExpr*pattern = unpacked_bitstream_cast_pattern_(
+		  des, scope, lval, cast, reported);
+	    // The structural cast duplicates its source across the words.
+	    if (allow_call_rhs && expr_has_user_function_call_(pattern))
+		  allow_call_rhs = false;
+	    if (!pattern && !reported) {
+		  cerr << loc.get_fileline() << ": sorry: This cast "
+		       << "to an unpacked array is not supported in "
+		       << "a continuous assignment." << endl;
+		  des->errors++;
+	    }
+	    return pattern;
+      }
+
+      cout << loc.get_fileline() << ": error: Can not assign"
+	   << " non-array expression `" << *expr << "` to array." << endl;
+      des->errors++;
+      return nullptr;
+}
+
+static NetNet* synthesize_unpacked_array_rhs_(Design*des, NetScope*scope,
+					      const LineInfo&loc,
+					      const NetNet*lval, NetExpr*rhs)
+{
+      if (auto*signal = dynamic_cast<NetESignal*>(rhs))
+	    return signal->sig();
+      const auto*tern = dynamic_cast<const NetETernary*>(rhs);
+      if (!tern)
+	    return rhs->synthesize(des, scope, rhs);
+
+      // The structural path retains one mux per word for call-free RHSs.
+      NetExpr*cond = const_cast<NetExpr*>(tern->cond_expr());
+      NetNet*cond_net = cond->synthesize(des, scope, cond);
+      if (!cond_net)
+	    return nullptr;
+      NetNet*true_net = synthesize_unpacked_array_rhs_(
+	    des, scope, loc, lval, const_cast<NetExpr*>(tern->true_expr()));
+      NetNet*false_net = synthesize_unpacked_array_rhs_(
+	    des, scope, loc, lval, const_cast<NetExpr*>(tern->false_expr()));
+      if (!true_net || !false_net
+	  || true_net->pin_count() != lval->pin_count()
+	  || false_net->pin_count() != lval->pin_count())
+	    return nullptr;
+
+      NetNet*result = new NetNet(scope, scope->local_symbol(),
+				  NetNet::IMPLICIT, lval->unpacked_dims(),
+				  lval->net_type());
+      result->set_line(loc);
+      result->local_flag(true);
+      for (unsigned idx = 0; idx < result->pin_count(); ++idx) {
+	    NetMux*mux = new NetMux(scope, scope->local_symbol(),
+				 lval->vector_width(), 2, 1);
+	    mux->set_line(loc);
+	    connect(true_net->pin(idx), mux->pin_Data(1));
+	    connect(false_net->pin(idx), mux->pin_Data(0));
+	    connect(cond_net->pin(0), mux->pin_Sel());
+	    connect(result->pin(idx), mux->pin_Result());
+	    des->add_node(mux);
+      }
+      return result;
+}
+
+NetNet* elaborate_unpacked_array(Design*des, NetScope*scope, const LineInfo&loc,
+				 const NetNet*lval, PExpr*expr,
+				 bool allow_call_rhs = false)
+{
+      unsigned errors_before = des->errors;
+      unique_ptr<NetExpr>rhs(elaborate_unpacked_array_rhs_(
+	    des, scope, loc, lval, expr, allow_call_rhs));
+      if (!rhs || des->errors != errors_before)
+	    return nullptr;
+
+      if (allow_call_rhs && expr_has_user_function_call_(rhs.get())) {
+	    NetNet*result = elaborate_contassign_call_rhs_(des, scope, lval, rhs.get());
+	    if (!result && des->errors == errors_before) {
+		  cerr << loc.get_fileline() << ": internal error: "
+		       << "Failed to construct continuous assignment probes: "
+		       << *rhs << endl;
+		  des->errors++;
+	    }
+	    return result;
+      }
+
+      NetNet*result = synthesize_unpacked_array_rhs_(des, scope, loc, lval, rhs.get());
+      return result && check_unpacked_array_rhs_(des, loc, lval, result, expr)
+	    ? result : nullptr;
 }
 
 void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval,
@@ -6401,7 +6518,8 @@ void PGAssign::elaborate_unpacked_array_(Design*des, NetScope*scope, NetNet*lval
 					NetExpr*fall_time,
 					NetExpr*decay_time) const
 {
-      NetNet *rval_net = elaborate_unpacked_array(des, scope, *this, lval, pin(1));
+      NetNet*rval_net = elaborate_unpacked_array(
+	    des, scope, *this, lval, pin(1), use_contassign_rhs_evaluator_(des, lval));
       if (rval_net) {
 	    assign_unpacked_with_bufz(des, scope, lval, lval, rval_net,
 			      rise_time, fall_time, decay_time,
