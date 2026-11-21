@@ -8979,9 +8979,9 @@ struct pform_rs_expand_ctx_t {
       LexicalScope* lexical_parent;
       std::set<perm_string> active;
       std::map<perm_string,perm_string> runtime_productions;
-	/* IEEE 1800-2023 18.17.7: a value-returning production that appears
-	   more than once in a rule is an implicit array [1:N]. Each such
-	   CALL item maps to that array and its 1-based syntactic position. */
+      perm_string runtime_owner;
+	/* IEEE 1800-2017/2023 18.17.7: each typed call maps to its rule's
+	   scalar result (index zero) or a syntactic position in [1:N]. */
       std::map<const rs_item_t*, std::pair<perm_string,unsigned> > occurrence;
       size_t nodes = 0;
       unsigned scope_id = 0;
@@ -9065,6 +9065,7 @@ static void pform_rs_collect_calls_(const rs_item_t&item,
 	    calls.push_back(&item);
 	    return;
       }
+	// Visit each syntactic arm in source order and visit a repeat body once.
       if (item.first) pform_rs_collect_calls_(*item.first, calls, has_join);
       if (item.second) pform_rs_collect_calls_(*item.second, calls, has_join);
       if (item.cases) for (const rs_case_item_t&case_item : *item.cases)
@@ -9080,13 +9081,28 @@ static void pform_rs_collect_calls_(const rs_item_t&item,
 
 static unsigned pform_rs_values_var_id_ = 0;
 
-/* IEEE 1800-2023 18.17.7: "If a production appears multiple times, the
-   type is an array where the element type is the return type of the
-   production. The array is indexed from 1 to the number of times the
-   production appears within the rule", assigned in syntactic order. */
+// Resolve the result type where the production is declared. A caller's
+// formal might shadow a parameter used in an inline packed dimension.
+struct pform_rs_result_type_t : type_reference_t {
+      pform_rs_result_type_t(data_type_t*type, perm_string owner)
+      : type_reference_t(type), owner_(owner) { }
+
+      NetScope*find_scope(Design*, NetScope*scope) const override
+      {
+	    while (scope && scope->basename() != owner_) scope = scope->parent();
+	    ivl_assert(*this, scope);
+	    return scope;
+      }
+
+    private:
+      perm_string owner_;
+};
+
+// IEEE 1800-2017/2023 18.17.7 assigns typed results in syntactic order.
 static void pform_rs_number_occurrences_(pform_rs_expand_ctx_t&ctx,
 					 const rs_rule_t&rule,
-					 std::map<perm_string,PExpr*>&subst)
+					 std::map<perm_string,PExpr*>&subst,
+					 PBlock*runtime_scope = nullptr)
 {
       if (!rule.items) return;
       std::vector<const rs_item_t*> calls;
@@ -9100,28 +9116,56 @@ static void pform_rs_number_occurrences_(pform_rs_expand_ctx_t&ctx,
 		  by_name[call->name].push_back(call);
       }
       for (const auto&entry : by_name) {
-	    if (entry.second.size() < 2) continue;
-	    std::ostringstream text;
-	    text << "$ivl_randsequence_values_" << pform_rs_values_var_id_++;
-	    perm_string name = lex_strings.make(text.str().c_str());
-	    PWire*wire = new PWire(name, UINT_MAX, NetNet::REG,
+	    const bool is_array = entry.second.size() > 1;
+	    if (!is_array && !runtime_scope) continue;
+	    perm_string name = entry.first;
+	    if (!runtime_scope) {
+		  std::ostringstream text;
+		  text << "$ivl_randsequence_values_" << pform_rs_values_var_id_++;
+		  name = lex_strings.make(text.str().c_str());
+	    }
+	    PWire*wire = new PWire(name, runtime_scope ? 0 : UINT_MAX, NetNet::REG,
 				   NetNet::NOT_A_PORT);
-	    wire->set_data_type(ctx.pmap[entry.first]->return_type);
-	    std::list<pform_range_t> dims;
-	    dims.push_back(pform_range_t(
-		  new PENumber(new verinum((uint64_t)1, 32)),
-		  new PENumber(new verinum((uint64_t)entry.second.size(), 32))));
-	    wire->set_unpacked_idx(dims);
+	    data_type_t*type = ctx.pmap[entry.first]->return_type;
+	    wire->set_data_type(runtime_scope
+		  ? new pform_rs_result_type_t(type, ctx.runtime_owner) : type);
+	    if (is_array) {
+		  std::list<pform_range_t> dims;
+		  dims.emplace_back(new PENumber(new verinum((uint64_t)1, 32)),
+			new PENumber(new verinum((uint64_t)entry.second.size(), 32)));
+		  wire->set_unpacked_idx(dims);
+	    }
 	    FILE_NAME(wire, ctx.loc);
-	    pform_put_wire_in_scope(name, wire);
-	    pform_rs_value_arrays_.insert(name);
+	    if (runtime_scope) {
+		  runtime_scope->wires[name] = wire;
+		  runtime_scope->local_symbols[name] = wire;
+	    } else {
+		  pform_put_wire_in_scope(name, wire);
+		  pform_rs_value_arrays_.insert(name);
+		  std::map<perm_string,PExpr*>::iterator old = subst.find(entry.first);
+		  if (old != subst.end()) delete old->second;
+		  subst[entry.first] = new PEIdent(name, UINT_MAX);
+	    }
 	    for (size_t idx = 0 ; idx < entry.second.size() ; ++idx)
 		  ctx.occurrence[entry.second[idx]] =
-			std::make_pair(name, (unsigned)idx + 1);
-	    std::map<perm_string,PExpr*>::iterator old = subst.find(entry.first);
-	    if (old != subst.end()) delete old->second;
-	    subst[entry.first] = new PEIdent(name, UINT_MAX);
+			std::make_pair(name, is_array ? (unsigned)idx + 1 : 0);
       }
+}
+
+static PEIdent* pform_rs_result_slot_(const std::pair<perm_string,unsigned>&slot,
+				     const LineInfo&where)
+{
+      pform_name_t path;
+      path.push_back(name_component_t(slot.first));
+      if (slot.second) {
+	    index_component_t select;
+	    select.sel = index_component_t::SEL_BIT;
+	    select.msb = new PENumber(new verinum((uint64_t)slot.second, 32));
+	    path.back().index.push_back(select);
+      }
+      PEIdent*result = new PEIdent(path, UINT_MAX);
+      result->set_line(where);
+      return result;
 }
 
 static void pform_rs_delete_subst_(std::map<perm_string,PExpr*>&subst)
@@ -9632,9 +9676,30 @@ static Statement* pform_rs_expand_join_(
 }
 
 static PCallTask* pform_rs_runtime_call_(pform_rs_expand_ctx_t&ctx,
-					perm_string name, const LineInfo&where)
+					perm_string name, const LineInfo&where,
+					rs_item_t*item = nullptr)
 {
-      PCallTask*call = new PCallTask(ctx.runtime_productions.at(name), {});
+      std::list<named_pexpr_t> actuals;
+      if (item && item->actuals) {
+	    const auto*formals = ctx.pmap.at(name)->formals;
+	    if (item->actuals->size() > (formals ? formals->size() : 0)) {
+		  cerr << where.get_fileline() << ": error: too many actuals "
+		       << "for randsequence production `" << name << "'." << endl;
+		  error_count += 1;
+		  ctx.bad = true;
+		  return nullptr;
+	    }
+	    actuals.splice(actuals.end(), *item->actuals);
+      }
+      auto slot = ctx.occurrence.find(item);
+      if (slot != ctx.occurrence.end()) {
+	    named_pexpr_t result;
+	    result.name = PBlock::randsequence_result_port();
+	    result.parm = pform_rs_result_slot_(slot->second, where);
+	    result.set_line(where);
+	    actuals.push_back(result);
+      }
+      PCallTask*call = new PCallTask(ctx.runtime_productions.at(name), actuals);
       call->randsequence_call();
       call->set_line(where);
       return call;
@@ -9655,16 +9720,8 @@ static Statement* pform_rs_expand_item_(
 {
       switch (item.kind) {
       case rs_item_t::CALL: {
-	    if (!ctx.runtime_productions.empty()) {
-		  PCallTask*call = pform_rs_runtime_call_(ctx, item.name, item);
-		  PReturn*unwind = new PReturn(nullptr);
-		  unwind->set_line(item);
-		  PCondit*check = new PCondit(
-			new PEIdent(PBlock::randsequence_break_flag(), UINT_MAX),
-			unwind, nullptr);
-		  check->set_line(item);
-		  return pform_rs_block_(item, {call, check});
-	    }
+	    if (!ctx.runtime_productions.empty())
+		  return pform_rs_runtime_call_(ctx, item.name, item, &item);
 	    Statement*expanded = pform_rs_expand_production_(
 		  ctx, item.name, item.actuals, subst);
 	    std::map<perm_string,rs_production_t*>::iterator found =
@@ -9677,15 +9734,7 @@ static Statement* pform_rs_expand_item_(
 			/* Copy this instance's value into its element at once,
 			   before another instance (or join lane) reuses the
 			   production's return variable. */
-			pform_name_t element;
-			element.push_back(name_component_t(occ->second.first));
-			index_component_t select;
-			select.sel = index_component_t::SEL_BIT;
-			select.msb = new PENumber(new verinum(
-			      (uint64_t)occ->second.second, 32));
-			element.back().index.push_back(select);
-			PEIdent*lval = new PEIdent(element, UINT_MAX);
-			lval->set_line(item);
+			PEIdent*lval = pform_rs_result_slot_(occ->second, item);
 			PEIdent*rval = new PEIdent(name, UINT_MAX);
 			rval->set_line(item);
 			PAssign*copy = new PAssign(lval, rval);
@@ -9789,8 +9838,10 @@ static Statement* pform_rs_expand_rule_(
       std::map<perm_string,PExpr*> local_subst;
       if (subst) for (const auto&entry : *subst)
 	    local_subst[entry.first] = sva_clone_subst_(entry.second, nullptr);
-      if (ctx.runtime_productions.empty())
-	    pform_rs_number_occurrences_(ctx, rule, local_subst);
+      std::unique_ptr<PBlock> runtime_scope;
+      if (!ctx.runtime_productions.empty())
+	    runtime_scope.reset(pform_rs_scope_(ctx));
+      pform_rs_number_occurrences_(ctx, rule, local_subst, runtime_scope.get());
       std::vector<Statement*> statements;
       if (rule.items) for (rs_item_t&item : *rule.items) {
 	    Statement*expanded = pform_rs_expand_item_(ctx, item, &local_subst,
@@ -9798,6 +9849,10 @@ static Statement* pform_rs_expand_rule_(
 	    if (expanded) statements.push_back(expanded);
       }
       pform_rs_delete_subst_(local_subst);
+      if (runtime_scope && !runtime_scope->wires.empty()) {
+	    runtime_scope->set_statement(statements);
+	    return runtime_scope.release();
+      }
       return pform_rs_block_(where, statements);
 }
 
@@ -9891,7 +9946,7 @@ static Statement* pform_rs_expand_production_(
 // the grammar recursive. The work lists are bounded by the grammar size.
 static bool pform_rs_recursive_(pform_rs_expand_ctx_t&ctx, perm_string start,
 				std::vector<perm_string>&reachable,
-				bool&unsupported)
+				bool&has_join)
 {
       struct vertex_t {
 	    size_t indegree = 0;
@@ -9911,19 +9966,14 @@ static bool pform_rs_recursive_(pform_rs_expand_ctx_t&ctx, perm_string start,
 		  return false;
 	    }
 	    const rs_production_t&production = *prod->second;
-	    if (production.return_type
-		|| (production.formals && !production.formals->empty()))
-		  unsupported = true;
 	    auto&calls = graph.at(name).calls;
 	    if (production.rules) for (const rs_rule_t&rule : *production.rules)
 		  if (rule.items) for (const rs_item_t&item : *rule.items)
-			pform_rs_collect_calls_(item, calls, &unsupported);
+			pform_rs_collect_calls_(item, calls, &has_join);
 	    for (const rs_item_t*call : calls) {
 		  auto edge = graph.emplace(call->name, vertex_t());
 		  if (edge.second) reachable.push_back(call->name);
 		  ++edge.first->second.indegree;
-		  if (call->actuals && !call->actuals->empty())
-			unsupported = true;
 	    }
       }
 
@@ -9945,6 +9995,7 @@ static PBlock* pform_rs_lower_recursive_(pform_rs_expand_ctx_t&ctx,
 {
       PBlock*scope = pform_push_block_scope(ctx.loc, nullptr, PBlock::BL_SEQ);
       scope->default_lifetime = LexicalScope::AUTOMATIC;
+      ctx.runtime_owner = scope->pscope_name();
       perm_string flag = PBlock::randsequence_break_flag();
       PWire*wire = pform_makewire(ctx.loc, pform_ident_t(flag, ctx.loc.lexical_pos),
 				  NetNet::REG, nullptr);
@@ -9956,9 +10007,44 @@ static PBlock* pform_rs_lower_recursive_(pform_rs_expand_ctx_t&ctx,
 	    ctx.runtime_productions.emplace(reachable[idx], lex_strings.make(name.c_str()));
       }
       for (perm_string name : reachable) {
-	    Statement*body = pform_rs_lower_rules_(ctx, *ctx.pmap.at(name), nullptr,
-						   perm_string());
-	    scope->add_randsequence_production(ctx.runtime_productions.at(name), body);
+	    const rs_production_t&prod = *ctx.pmap.at(name);
+	    PTask*definition = new PTask(ctx.runtime_productions.at(name), scope, true);
+	    FILE_NAME(definition, ctx.loc);
+	    definition->default_lifetime = LexicalScope::AUTOMATIC;
+	    auto*ports = new std::vector<pform_tf_port_t>;
+	    auto add_port = [&](perm_string port_name, NetNet::PortType direction,
+				data_type_t*type, const LineInfo&loc, PExpr*def) {
+		  PWire*wire = new PWire(port_name, 0, NetNet::REG, direction);
+		  wire->set_data_type(type);
+		  wire->set_line(loc);
+		  add_local_symbol(definition, port_name, wire);
+		  definition->wires[port_name] = wire;
+		  ports->emplace_back(wire);
+		  ports->back().defe = def;
+	    };
+	    if (prod.formals) for (rs_formal_t&formal : *prod.formals) {
+		  if (formal.direction != NetNet::PINPUT
+		      && formal.direction != NetNet::POUTPUT) {
+			cerr << formal.get_fileline() << ": sorry: randsequence inout and "
+			     << "ref production formals are not supported yet." << endl;
+			error_count += 1;
+			ctx.bad = true;
+		  }
+		  add_port(formal.name, formal.direction,
+			   new type_reference_t(formal.type), formal, formal.default_expr);
+		  formal.default_expr = nullptr;
+	    }
+	    if (prod.return_type)
+		  add_port(PBlock::randsequence_result_port(), NetNet::POUTPUT,
+			   new pform_rs_result_type_t(prod.return_type, ctx.runtime_owner),
+			   *definition, nullptr);
+	    definition->set_ports(ports);
+	    LexicalScope*saved_parent = ctx.lexical_parent;
+	    ctx.lexical_parent = definition;
+	    definition->set_statement(pform_rs_lower_rules_(ctx, prod, nullptr,
+							  perm_string()));
+	    ctx.lexical_parent = saved_parent;
+	    scope->add_randsequence_production(definition);
       }
 
       PAssign*clear = new PAssign(new PEIdent(flag, UINT_MAX),
@@ -10048,11 +10134,11 @@ Statement* pform_make_randsequence(const struct vlltype&loc, perm_string start,
       ctx.bad = duplicate;
       if (!ctx.bad) {
 	    std::vector<perm_string> reachable;
-	    bool unsupported = false;
-	    bool recursive = pform_rs_recursive_(ctx, start_name, reachable, unsupported);
-	    if (recursive && unsupported) {
-		  cerr << loc << ": sorry: recursive randsequence requires void "
-		       << "productions without arguments, formals or rand join." << endl;
+	    bool has_join = false;
+	    bool recursive = pform_rs_recursive_(ctx, start_name, reachable, has_join);
+	    if (recursive && has_join) {
+		  cerr << loc << ": sorry: recursive randsequence does not support "
+		       << "rand join." << endl;
 		  error_count += 1;
 	    } else if (!ctx.bad) {
 		  Statement*body = recursive

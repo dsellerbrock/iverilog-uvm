@@ -4064,6 +4064,9 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 		      // that expression here.
 		    if (ports_->at(idx).defe != 0) {
 			  if (tmp->port_type() == NetNet::PINPUT) {
+				// 13.5.3 binds a default where the production is declared.
+				NetScope*default_scope = scope->is_randsequence_production()
+				      ? scope->parent() : scope;
 				ivl_type_t formal_type = tmp->unpacked_dimensions() > 0
 				      && tmp->array_type()
 				      ? static_cast<ivl_type_t>(tmp->array_type())
@@ -4113,9 +4116,9 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 				      if (interface_method_default)
 					    scope->need_const_func(true);
 				      NetScope*saved_default_scope = elab_port_default_scope;
-				      elab_port_default_scope = scope;
+				      elab_port_default_scope = default_scope;
 				      tmp_def = elaborate_rval_expr(
-					    des, scope, formal_type,
+					    des, default_scope, formal_type,
 					    ports_->at(idx).defe,
 					    scope->need_const_func()
 					    || interface_method_default);
@@ -4133,9 +4136,9 @@ void PTaskFunc::elaborate_sig_ports_(Design*des, NetScope*scope,
 					    || default_requires_procedural_context;
 				} else {
 				      NetScope*saved_default_scope = elab_port_default_scope;
-				      elab_port_default_scope = scope;
+				      elab_port_default_scope = default_scope;
 				      tmp_def = elab_and_eval(
-					    des, scope, ports_->at(idx).defe, -1,
+					    des, default_scope, ports_->at(idx).defe, -1,
 					    scope->need_const_func());
 				      elab_port_default_scope = saved_default_scope;
 				}
@@ -4224,19 +4227,24 @@ void PBlock::elaborate_sig(Design*des, NetScope*scope) const
 	    ivl_assert(*this, flag);
 	    flag->local_flag(true);
       }
-      for (const auto&production : randsequence_productions_) {
-	    NetScope*callee = my_scope->child(hname_t(production.first));
+      for (const PTask*production : randsequence_productions_) {
+	    NetScope*callee = my_scope->child(hname_t(production->pscope_name()));
 	    ivl_assert(*this, callee);
 	    if (callee->elab_stage() > 1) continue;
-	    if (callee->type() == NetScope::FUNC)
-		  callee->set_func_def(new NetFuncDef(callee, nullptr, {}, {}));
-	    else
-		  callee->set_task_def(new NetTaskDef(callee, {}, {}));
 	    callee->set_elab_stage(2);
+	    production->elaborate_sig_wires_(des, callee);
+	    vector<NetNet*> ports;
+	    vector<NetExpr*> defaults;
+	    vector<perm_string> port_names;
+	    production->elaborate_sig_ports_(des, callee, ports, defaults, port_names);
+	    if (callee->type() == NetScope::FUNC)
+		  callee->set_func_def(new NetFuncDef(callee, nullptr, ports, defaults));
+	    else
+		  callee->set_task_def(new NetTaskDef(callee, ports, defaults));
       }
-      for (const auto&production : randsequence_productions_)
-	    production.second->elaborate_sig(des,
-		  my_scope->child(hname_t(production.first)));
+      for (const PTask*production : randsequence_productions_)
+	    production->get_statement()->elaborate_sig(des,
+		  my_scope->child(hname_t(production->pscope_name())));
 
 	// elaborate_sig in the statements included in the
 	// block. There may be named blocks in there.

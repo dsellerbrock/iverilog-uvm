@@ -290,10 +290,12 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       { randsequence_block_ = kind; }
       ivl_randsequence_block_t randsequence_block() const
       { return randsequence_block_; }
-      void add_randsequence_production(perm_string name, Statement*body)
-      { randsequence_productions_.emplace_back(name, body); }
+      void add_randsequence_production(PTask*production)
+      { randsequence_productions_.push_back(production); }
       static perm_string randsequence_break_flag()
       { return perm_string::literal("$__ivl_rs_break"); }
+      static perm_string randsequence_result_port()
+      { return perm_string::literal("$__ivl_rs_result"); }
 
       bool var_init_needs_explicit_lifetime() const override;
 
@@ -334,7 +336,7 @@ class PBlock  : public PScope, public Statement, public PNamedItem {
       bool deferred_assertion_process_scope_ = false;
       bool concurrent_assertion_only_ = false;
       ivl_randsequence_block_t randsequence_block_ = IVL_RANDSEQ_BLOCK_NONE;
-      std::vector<std::pair<perm_string, Statement*>> randsequence_productions_;
+      std::vector<PTask*> randsequence_productions_;
       std::vector<Statement*>list_;
 };
 
