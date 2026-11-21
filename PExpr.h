@@ -637,7 +637,8 @@ class PESvaActual final : public PExpr {
       enum syntax_t { SEQUENCE, PROPERTY };
 
       PESvaActual(syntax_t syntax, sva_property_t*payload, LexicalScope*scope);
-      PESvaActual(const PESvaActual&source, sva_property_t*payload);
+      PESvaActual(const PESvaActual&source, sva_property_t*payload,
+		  bool needs_formal_subst);
       ~PESvaActual() override;
 
       syntax_t syntax() const { return syntax_; }
@@ -645,8 +646,10 @@ class PESvaActual final : public PExpr {
       const sva_property_t* payload() const { return payload_; }
       LexicalScope* scope() const { return scope_; }
       bool uses_local() const { return uses_local_; }
+      bool needs_formal_subst() const { return needs_formal_subst_; }
       std::vector<struct sva_seq_step_t>* take_sequence();
 
+      bool refs_name(perm_string name) const override;
       void dump(std::ostream&) const override;
       unsigned test_width(Design*, NetScope*, width_mode_t&) override;
       NetExpr*elaborate_expr(Design*, NetScope*, unsigned, unsigned) const override;
@@ -659,6 +662,7 @@ class PESvaActual final : public PExpr {
       sva_property_t* payload_;
       LexicalScope* scope_;
       bool uses_local_ = false;
+      bool needs_formal_subst_ = false;
       mutable bool diagnosed_ = false;
 };
 
@@ -1711,6 +1715,9 @@ class PECallFunction : public PExpr {
 
       const pform_scoped_name_t& path() const { return path_; }
       const std::vector<named_pexpr_t>& get_parms() const { return parms_; }
+      // The parser and SVA cloner transfer their fresh temporal arguments.
+      // Other arguments in a call can be borrowed.
+      void own_sva_actuals();
       PExpr* receiver_expr() const { return receiver_; }
       virtual void dump(std::ostream &) const override;
 
@@ -1769,6 +1776,7 @@ class PECallFunction : public PExpr {
       bool sampled_explicit_clock_ = false;
       pform_scoped_name_t path_;
       std::vector<named_pexpr_t> parms_;
+      std::unique_ptr<std::vector<std::unique_ptr<PESvaActual>>> sva_actuals_;
       std::vector<PExpr*> with_constraints_;
       bool randomize_with_identifier_list_present_ = false;
       std::vector<perm_string> randomize_with_identifiers_;

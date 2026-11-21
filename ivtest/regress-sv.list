@@ -7462,3 +7462,11 @@ issue3977_delayed_data_formal_2023 CE,-g2023,-s,issue3977_delayed_bad ivltests g
 issue3977_delayed_function_arg_2023 CE,-g2023,-s,issue3977_delayed_bad ivltests gold=issue3977_delayed_function_arg.gold
 issue3682_event_nba_2017 normal,-g2017,-s,top ivltests gold=issue3682_event_nba.gold
 issue3682_event_nba_2023 normal,-g2023,-s,top ivltests gold=issue3682_event_nba.gold
+
+# IEEE 1800 16.8 delayed sequence actuals
+issue3551_delayed_actual_2017 normal,-g2017,-s,issue3551_delayed_actual ivltests gold=issue3551_delayed_actual.gold
+issue3551_delayed_actual_2023 normal,-g2023,-s,issue3551_delayed_actual ivltests gold=issue3551_delayed_actual.gold
+issue3551_forwarded_actual_2017 normal,-g2017,-s,issue3551_forwarded_actual ivltests gold=issue3551_forwarded_actual.gold
+issue3551_forwarded_actual_2023 normal,-g2023,-s,issue3551_forwarded_actual ivltests gold=issue3551_forwarded_actual.gold
+issue3551_data_formal_2017 CE,-g2017,-s,issue3551_data_formal ivltests gold=issue3551_data_formal.gold
+issue3551_data_formal_2023 CE,-g2023,-s,issue3551_data_formal ivltests gold=issue3551_data_formal.gold

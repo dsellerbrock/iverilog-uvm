@@ -9963,7 +9963,7 @@ sva_sequence_formals
 	pform_sva_clear_decl_formals();
 	for (const sva_sequence_formal_t&formal : *$1) {
 	  pform_sva_note_decl_formal(formal.name.str());
-	  pform_sva_add_local_formal(formal.name.str());
+	  pform_sva_add_local_formal(formal.name.str(), formal.local_input);
 	}
 	$$ = $1; }
   ;

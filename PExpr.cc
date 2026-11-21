@@ -464,6 +464,17 @@ PECallFunction::~PECallFunction()
       delete receiver_;
 }
 
+void PECallFunction::own_sva_actuals()
+{
+      for (const named_pexpr_t&arg : parms_) {
+	    if (auto*actual = dynamic_cast<PESvaActual*>(arg.parm)) {
+		  if (!sva_actuals_)
+			sva_actuals_.reset(new std::vector<std::unique_ptr<PESvaActual>>);
+		  sva_actuals_->emplace_back(actual);
+	    }
+      }
+}
+
 void PECallFunction::reloc_lexical_pos_bind(bool parameter_context)
 {
       if (receiver_) receiver_->reloc_lexical_pos_bind(parameter_context);

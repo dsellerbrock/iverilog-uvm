@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue3551_data_formal.sv",
+  "iverilog-args": ["-g2023", "-s", "issue3551_data_formal"],
+  "gold": "issue3551_data_formal"
+}
