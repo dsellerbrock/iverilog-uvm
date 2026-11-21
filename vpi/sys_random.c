@@ -729,6 +729,71 @@ static PLI_INT32 sys_urandom_range_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
       return 0;
 }
 
+/* Compiler-generated rand join dispatch. Exhausted lanes have weight zero.
+ * Interpolate between inverse-length, uniform, and length weights just as
+ * the acyclic scheduler does, recalculating the totals at every step. */
+static PLI_INT32 randsequence_join_pick_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
+{
+      vpiHandle call = vpi_handle(vpiSysTfCall, 0);
+      vpiHandle args = vpi_iterate(vpiArgument, call);
+      vpiHandle arg = args ? vpi_scan(args) : 0;
+      s_vpi_value val;
+      double priority, total_length = 0.0, total_inverse = 0.0;
+      uint32_t live = 0, index = 0, selected = UINT32_MAX;
+      (void)name;
+
+      if (!arg) return 0;
+      val.format = vpiRealVal;
+      vpi_get_value(arg, &val);
+      priority = val.value.real;
+      val.format = vpiIntVal;
+      while ((arg = vpi_scan(args))) {
+            uint32_t remaining;
+            vpi_get_value(arg, &val);
+            remaining = (uint32_t)val.value.integer;
+            if (remaining) {
+                  ++live;
+                  selected = index;
+                  total_length += remaining;
+                  total_inverse += 1.0 / remaining;
+            }
+            ++index;
+      }
+
+      if (live > 1) {
+            unsigned int bits;
+            double pick, uniform;
+            if (!vpip_object_urandom(0, &bits))
+                  bits = urandom(0, UINT32_MAX, 0);
+            pick = bits / 4294967296.0;
+            uniform = 1.0 / live;
+
+            args = vpi_iterate(vpiArgument, call);
+            vpi_scan(args); /* Skip the priority. */
+            for (index = 0; index < selected; ++index) {
+                  uint32_t remaining;
+                  double weight;
+                  vpi_get_value(vpi_scan(args), &val);
+                  remaining = (uint32_t)val.value.integer;
+                  if (!remaining) continue;
+                  weight = priority <= 0.5
+                        ? (1.0 - 2.0 * priority) / remaining / total_inverse
+                          + 2.0 * priority * uniform
+                        : (2.0 - 2.0 * priority) * uniform
+                          + (2.0 * priority - 1.0) * remaining / total_length;
+                  if (pick < weight) {
+                        selected = index;
+                        break;
+                  }
+                  pick -= weight;
+            }
+            vpi_free_object(args);
+      }
+      val.value.integer = (PLI_INT32)selected;
+      vpi_put_value(call, &val, 0, vpiNoDelay);
+      return 0;
+}
+
 static PLI_INT32 sys_dist_uniform_calltf(ICARUS_VPI_CONST PLI_BYTE8 *name)
 {
       vpiHandle callh, argv, seed, start, end;
@@ -1069,6 +1134,13 @@ void sys_random_register(void)
       tf_data.compiletf = sys_urandom_range_compiletf;
       tf_data.sizetf = sys_rand_func_sizetf;
       tf_data.user_data = "$urandom_range";
+      res = vpi_register_systf(&tf_data);
+      vpip_make_systf_system_defined(res);
+
+      tf_data.tfname = "$ivl_randsequence_join_pick";
+      tf_data.calltf = randsequence_join_pick_calltf;
+      tf_data.compiletf = 0;
+      tf_data.user_data = "$ivl_randsequence_join_pick";
       res = vpi_register_systf(&tf_data);
       vpip_make_systf_system_defined(res);
 

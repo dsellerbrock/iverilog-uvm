@@ -6870,10 +6870,12 @@ void PBlock::elaborate_scope(Design*des, NetScope*scope) const
 	      // without explicit initializers (IEEE 1800-2017/2023 6.21).
 	      // Sharing the task frame would retain values on loop reentry
 	      // and alias locals captured by detached children. Empty blocking
-	      // scopes can still use the enclosing activation.
+	      // scopes can still use the enclosing activation. A synthetic
+	      // randsequence lane's result scope does the same so its
+	      // implicit variables survive each dispatch.
 	    if (my_scope->is_auto() && scope->is_auto()
 		&& (bl_type_ == BL_SEQ || bl_type_ == BL_PAR)
-		&& wires.empty() && events.empty())
+		&& ((wires.empty() && events.empty()) || randsequence_lane_storage_))
 		  my_scope->auto_frame(false);
 	    my_scope->add_imports(&explicit_imports);
 	    for (std::map<perm_string,PLet*>::const_iterator lt = lets.begin()

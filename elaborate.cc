@@ -1380,9 +1380,9 @@ class loop_context_guard_t {
     public:
       explicit loop_context_guard_t(Design*des) : des_(des)
       {
-	    des_->loop_enter();
+	    if (des_) des_->loop_enter();
       }
-      ~loop_context_guard_t() { des_->loop_exit(); }
+      ~loop_context_guard_t() { if (des_) des_->loop_exit(); }
     private:
       Design*des_;
 };
@@ -20026,32 +20026,7 @@ static bool cast_operands_assignment_compatible_(const NetExpr*dest,
 
 NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 {
-      if (randsequence_call_) {
-	    NetScope*owner = scope;
-	    NetScope*caller = nullptr;
-	    NetNet*flag = nullptr;
-	    for (; owner; owner = owner->parent()) {
-		  flag = owner->find_signal(PBlock::randsequence_break_flag());
-		  if (flag) break;
-		  if (owner->is_randsequence_production()) caller = owner;
-	    }
-	    ivl_assert(*this, owner && flag);
-	    NetScope*callee = owner->child(hname_t(peek_tail_name(path_)));
-	    ivl_assert(*this, callee && callee->is_randsequence_production());
-	    NetProc*call = elaborate_bound_subroutine_call_(des, scope, callee);
-	    if (!call || !caller) return call;
-
-	    // Unwind this invocation only, after releasing the callee's frame.
-	    NetDisable*leave = new NetDisable(caller, true);
-	    leave->set_line(*this);
-	    NetCondit*check = new NetCondit(new NetESignal(flag), leave, nullptr);
-	    check->set_line(*this);
-	    NetBlock*body = new NetBlock(NetBlock::SEQU, nullptr);
-	    body->set_line(*this);
-	    body->append(call);
-	    body->append(check);
-	    return body;
-      }
+      if (randsequence_call_) return elaborate_randsequence_call_(des, scope);
 
 	// Method-call statement on an arbitrary receiver expression,
 	// e.g. f().method(args); (IEEE 1800-2017 8.10).
@@ -20081,6 +20056,76 @@ NetProc* PCallTask::elaborate(Design*des, NetScope*scope) const
 		  return elaborate_non_void_function_(des, scope, true);
 	    return elaborate_usr(des, scope);
       }
+}
+
+NetProc* PCallTask::elaborate_randsequence_call_(
+      Design*des, NetScope*scope, randsequence_lane_t*lane) const
+{
+      NetScope*owner = scope;
+      NetScope*caller = nullptr;
+      NetNet*flag = nullptr;
+      for (; owner; owner = owner->parent()) {
+	    flag = owner->find_signal(PBlock::randsequence_break_flag());
+	    if (flag) break;
+	    if (owner->is_randsequence_production()) caller = owner;
+      }
+      ivl_assert(*this, owner && flag);
+      NetScope*callee = owner->child(hname_t(peek_tail_name(path_)));
+      ivl_assert(*this, callee && callee->is_randsequence_production());
+      NetProc*call = elaborate_build_call_(des, scope, callee, nullptr, false, lane);
+      if (!call || !caller) return call;
+
+      // Unwind this invocation only, after releasing the callee's frame.
+      NetDisable*leave = new NetDisable(caller, true);
+      leave->set_line(*this);
+      NetCondit*check = new NetCondit(new NetESignal(flag), leave, nullptr);
+      check->set_line(*this);
+      NetBlock*body = new NetBlock(NetBlock::SEQU, nullptr);
+      body->set_line(*this);
+      body->append(call);
+      body->append(check);
+      return body;
+}
+
+PRandJoin::~PRandJoin()
+{
+      for (const auto&lane : lanes_) delete lane.first;
+}
+
+void PRandJoin::add_lane(PCallTask*call, unsigned length)
+{
+      lanes_.emplace_back(call, length);
+}
+
+NetProc* PRandJoin::elaborate(Design*des, NetScope*scope) const
+{
+      std::unique_ptr<NetBlock> setup(new NetBlock(NetBlock::SEQU, nullptr));
+      setup->set_line(*this);
+      const unsigned count = lanes_.size();
+      NetESFunc*pick = new NetESFunc("$ivl_randsequence_join_pick",
+				    &netvector_t::atom2u32, count + 1);
+      pick->set_line(*this);
+      pick->parm(0, new NetECReal(verireal(priority_)));
+      std::unique_ptr<NetCase> dispatch(new NetCase(
+	    IVL_CASE_QUALITY_BASIC, NetCase::EQ, pick, count + 1));
+      dispatch->set_line(*this);
+      unsigned limit = 0;
+      for (unsigned idx = 0; idx < count; ++idx) {
+	    const auto&entry = lanes_[idx];
+	    PCallTask::randsequence_lane_t lane{idx + 1, entry.second, setup.get(), nullptr};
+	    NetProc*step = entry.first->elaborate_randsequence_call_(des, scope, &lane);
+	    if (!step) return nullptr;
+	    dispatch->set_case(idx, new NetEConst(verinum(uint64_t(idx), 32)), step, idx);
+	    pick->parm(idx + 1, new NetESignal(lane.remaining));
+	    limit += lane.length;
+      }
+      NetBreak*done = new NetBreak(IVL_FLOW_LOOP_BREAK);
+      done->set_line(*this);
+      dispatch->set_case(count, nullptr, done, count);
+      NetRepeat*run = new NetRepeat(make_const_val(limit), dispatch.release());
+      run->set_line(*this);
+      setup->append(run);
+      return setup.release();
 }
 
 static bool expr_has_user_function_call_(const NetExpr*expr);
@@ -26522,7 +26567,8 @@ static NetProc* copy_signal_to_subroutine_uarray_slice_(
 
 NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 					  NetScope*task, NetExpr*use_this,
-					  bool super_call) const
+					  bool super_call,
+					  randsequence_lane_t*lane) const
 {
 	      if (!protected_method_accessible_(des, *this, scope, task))
 	    return nullptr;
@@ -26627,7 +26673,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
       // A recursive production may call its own lexical scope. Evaluate
       // actuals while the caller frame is current, and stage port values
       // before switching from the callee back to the caller for copy-back.
-      const bool stage_production_args = randsequence_call_ && parm_count;
+      const bool stage_production_args = randsequence_call_ && (parm_count || lane);
       NetBlock*before_frame = block;
       NetBlock*after_frame = block;
       if (stage_production_args) {
@@ -26652,7 +26698,7 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 	    return copy;
       };
 
-      if (task->type() == NetScope::TASK && task->is_auto())
+      if (!lane && task->type() == NetScope::TASK && task->is_auto())
 	    block->automatic_task_call(task);
 
       if (!use_this && scope_method_uses_implicit_this(des, task)) {
@@ -27093,11 +27139,50 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  if (NetNet*input = production_inputs[idx])
 			block->append(copy_port(def->port(idx), input));
 
+      NetBlock*lane_step = nullptr;
+      if (lane) {
+	    NetNet*mode = task->find_signal(PBlock::randsequence_lane_mode());
+	    NetNet*remaining = task->find_signal(PBlock::randsequence_lane_remaining());
+	    ivl_assert(*this, needs_call_frame && mode && remaining);
+	    lane->remaining = make_port_temp(remaining);
+	    auto set_count = [&](NetNet*dest, unsigned value) {
+		  NetAssign*assign = new NetAssign(new NetAssign_(dest),
+			new NetEConst(verinum(uint64_t(value), dest->vector_width())));
+		  assign->set_line(*this);
+		  return assign;
+	    };
+	    // Evaluate and copy in the actuals on join entry, then park the
+	    // initialized frame until this occurrence is selected.
+	    before_frame->append(set_count(lane->remaining, lane->length));
+	    block->append(set_count(mode, 1));
+	    block->append(set_count(remaining, lane->length));
+	    NetFree*park = new NetFree(task, lane->slot);
+	    park->set_line(*this);
+	    block->append(park);
+	    before_frame->append(block);
+	    lane->setup->append(before_frame);
+
+	    lane_step = new NetBlock(NetBlock::SEQU, nullptr);
+	    lane_step->set_line(*this);
+	    NetAlloc*resume = new NetAlloc(task, lane->slot);
+	    resume->set_line(*this);
+	    lane_step->append(resume);
+      }
+
 	/* Generate the task call proper... */
       NetUTask*cur = new NetUTask(task, super_call);
       note_unsafe_task_call_(task, !super_call && task->is_virtual_method());
       cur->set_line(*this);
-      block->append(cur);
+      if (lane) {
+	    lane_step->append(cur);
+	    lane_step->append(copy_port(lane->remaining,
+				  task->find_signal(PBlock::randsequence_lane_remaining())));
+	    // The ordinary output copy-back is only reached on lane completion.
+	    block = new NetBlock(NetBlock::SEQU, nullptr);
+	    block->set_line(*this);
+      } else {
+	    block->append(cur);
+      }
 
 	/* Generate assignment statements for the output and INOUT
 	   ports of the task. The l-value in this case is the
@@ -27144,17 +27229,6 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 		  continue;
 
 	    NetBlock*copy_out = after_frame;
-	    if (production_result) {
-		  // A sequence break produces no result for the suspended caller.
-		  NetNet*flag = task->parent()->find_signal(PBlock::randsequence_break_flag());
-		  ivl_assert(*this, flag);
-		  copy_out = new NetBlock(NetBlock::SEQU, nullptr);
-		  copy_out->set_line(*this);
-		  NetCondit*completed = new NetCondit(new NetESignal(flag), nullptr,
-						     copy_out);
-		  completed->set_line(*this);
-		  after_frame->append(completed);
-	    }
 
 	    NetNet*copy_src = copy_via[idx] ? copy_via[idx] : port;
 	    if (stage_production_args && actual) {
@@ -27531,8 +27605,36 @@ NetProc* PCallTask::elaborate_build_call_(Design*des, NetScope*scope,
 
       if (!stage_production_args) return block;
 
+      if (lane) {
+	    block->append(after_frame);
+	    NetFree*park = new NetFree(task, lane->slot);
+	    park->set_line(*this);
+	    NetEBComp*live = new NetEBComp('n', new NetESignal(lane->remaining),
+					  make_const_val(0));
+	    NetCondit*next = new NetCondit(live, park, block);
+	    next->set_line(*this);
+	    NetFree*release = new NetFree(task);
+	    release->set_line(*this);
+	    NetNet*flag = task->parent()->find_signal(PBlock::randsequence_break_flag());
+	    ivl_assert(*this, flag);
+	    NetCondit*check = new NetCondit(new NetESignal(flag), release, next);
+	    check->set_line(*this);
+	    lane_step->append(check);
+	    return lane_step;
+      }
+
       before_frame->append(block);
-      before_frame->append(after_frame);
+      // Aborting the sequence also skips pending output copy-back in ordinary
+      // production callers, including evaluation of their output lvalues.
+      if (after_frame->proc_first()) {
+	    NetNet*flag = task->parent()->find_signal(PBlock::randsequence_break_flag());
+	    ivl_assert(*this, flag);
+	    NetCondit*completed = new NetCondit(new NetESignal(flag), nullptr, after_frame);
+	    completed->set_line(*this);
+	    before_frame->append(completed);
+      } else {
+	    delete after_frame;
+      }
       return before_frame;
 }
 
@@ -34271,7 +34373,8 @@ NetProc* PRelease::elaborate(Design*des, NetScope*scope) const
 
 NetProc* PRepeat::elaborate(Design*des, NetScope*scope) const
 {
-      loop_context_guard_t loop_context(des);
+      // The generated lane dispatcher must not intercept a source break.
+      loop_context_guard_t loop_context(randsequence_dispatch_ ? nullptr : des);
       ivl_assert(*this, scope);
 
       NetExpr*expr = nullptr;

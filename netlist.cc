@@ -3130,8 +3130,8 @@ bool NetUTask::super_call() const
       return super_call_;
 }
 
-NetAlloc::NetAlloc(NetScope*scope__)
-: scope_(scope__)
+NetAlloc::NetAlloc(NetScope*scope__, unsigned lane_slot)
+: scope_(scope__), lane_slot_(lane_slot)
 {
 }
 
@@ -3149,8 +3149,8 @@ const NetScope* NetAlloc::scope() const
       return scope_;
 }
 
-NetFree::NetFree(NetScope*scope__)
-: scope_(scope__)
+NetFree::NetFree(NetScope*scope__, unsigned lane_slot)
+: scope_(scope__), lane_slot_(lane_slot)
 {
 }
 

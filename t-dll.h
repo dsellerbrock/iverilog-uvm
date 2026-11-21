@@ -1110,6 +1110,7 @@ struct ivl_statement_s {
       union {
 	    struct { /* IVL_ST_ALLOC */
 		  ivl_scope_t scope;
+		  unsigned lane_slot;
 	    } alloc_;
 
 	    struct { /* IVL_ST_ASSIGN IVL_ST_ASSIGN_NB, IVL_ST_CASSIGN,
@@ -1189,6 +1190,7 @@ struct ivl_statement_s {
 
 	    struct { /* IVL_ST_FREE */
 		  ivl_scope_t scope;
+		  unsigned lane_slot;
 	    } free_;
 
 	    struct { /* IVL_ST_STASK */
