@@ -160,6 +160,7 @@ static bool is_force_release_opcode(const char* name)
 %token K_vpi_call K_vpi_call_w K_vpi_call_i K_vpi_call_observed
 %token K_vpi_func K_vpi_func_r K_vpi_func_s
 %token K_ivl_version K_ivl_systemverilog K_ivl_delay_selection
+%token K_ivl_coverage_design
 %token K_vpi_module K_vpi_time_precision K_file_names K_file_line
 %token K_NETTYPE_DECL
 %token K_TYPEDEF
@@ -227,6 +228,12 @@ header_line
 		{ verify_version($2, $3); }
 	| K_ivl_systemverilog ';'
 		{ compile_systemverilog_mode(); }
+	| K_ivl_coverage_design T_STRING ';'
+		{ if (!compile_coverage_design($2)) {
+			yyerror("invalid coverage design signature");
+			compile_errors += 1;
+		  }
+		  free($2); }
 	| K_ivl_delay_selection T_STRING ';'
 		{ set_delay_selection($2); }
 	| K_vpi_module T_STRING ';'

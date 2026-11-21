@@ -1119,6 +1119,9 @@ enum {
 };
 extern PLI_INT32 vpip_assertion_coverage(PLI_INT32 op, PLI_INT32 hierarchical,
 					 vpiHandle instance, const char*definition);
+/* Internal Clause 40 snapshot API. The coverage type is the HDL constant. */
+extern PLI_INT32 vpip_coverage_snapshot(PLI_INT32 save, PLI_INT32 type,
+                                       const char*name);
 
 extern s_vpi_vecval vpip_calc_clog2(vpiHandle arg);
 
@@ -1342,7 +1345,7 @@ extern int vpip_sample_evcd_inout(vpiHandle ref, unsigned component,
  */
 
 // Increment the version number any time vpip_routines_s is changed.
-static const PLI_UINT32 vpip_routines_version = 22;
+static const PLI_UINT32 vpip_routines_version = 23;
 
 typedef struct {
     vpiHandle   (*register_cb)(p_cb_data);
@@ -1439,6 +1442,7 @@ typedef struct {
     int         (*sample_evcd_inout)(vpiHandle, unsigned, unsigned,
                                      s_vpi_strengthval*, unsigned*, unsigned*);
     PLI_INT32   (*assertion_coverage)(PLI_INT32, PLI_INT32, vpiHandle, const char*);
+    PLI_INT32   (*coverage_snapshot)(PLI_INT32, PLI_INT32, const char*);
 } vpip_routines_s;
 
 extern DLLEXPORT PLI_UINT32 vpip_set_callback(vpip_routines_s*routines, PLI_UINT32 version);

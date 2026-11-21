@@ -58,7 +58,7 @@ module test;
           $coverage_get(`SV_COV_STATEMENT, `SV_COV_MODULE, unit1),
           `SV_COV_NOCOV);
     check("merge",
-          $coverage_merge(`SV_COV_ASSERTION, "snapshot"),
+          $coverage_merge(`SV_COV_ASSERTION, "work/sv_ch20_coverage-missing.db"),
           `SV_COV_ERROR);
     check("save",
           $coverage_save(`SV_COV_FSM_STATE, "snapshot"),

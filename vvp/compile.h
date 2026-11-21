@@ -135,6 +135,7 @@ extern const char* module_path;
 extern void compile_load_vpi_module(char*name);
 
 extern void compile_vpi_time_precision(long pre);
+extern bool compile_coverage_design(const char*signature);
 extern void compile_vpi_primitive(char*label, char*name, long prim_type,
 				  long input_count, long strength0,
 				  long strength1, char*udp_name);

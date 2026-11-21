@@ -20,6 +20,7 @@
 
 # include  "config.h"
 # include  "compiler.h"
+# include  "coverage_hash.h"
 # include  "netmisc.h"
 # include  "netvector.h"
 # include  "netparray.h"
@@ -1063,6 +1064,58 @@ static void append_cache_netexpr_value_key_(std::ostringstream&out,
 	  << ":dump-size=" << dump.size() << ":";
       out.write(dump.data(), dump.size());
       out << ">";
+}
+
+static void coverage_scope_signature_(coverage_hash&hash, const NetScope*scope)
+{
+      if (scope->type() == NetScope::MODULE || scope->type() == NetScope::PACKAGE
+	  || !scope->parameters.empty()) {
+	    ostringstream scope_key;
+	    scope_key << scope_path(scope);
+	    hash.field(scope_key.str());
+	    hash.field(to_string(scope->type()));
+	    if (scope->type() == NetScope::MODULE || scope->type() == NetScope::PACKAGE) {
+		  hash.field(scope->module_name().str());
+		  hash.field(scope->module_definition_key().str());
+		  hash.field(scope->module_library().str());
+		  hash.field(scope->get_def_file().str());
+		  hash.field(to_string(scope->get_def_lineno()));
+	    }
+	    hash.field(to_string(scope->time_unit()));
+	    hash.field(to_string(scope->time_precision()));
+	    hash.field(to_string(scope->parameters.size()));
+	    for (const auto&entry : scope->parameters) {
+		  const auto&parameter = entry.second;
+		  ostringstream value;
+		  value << parameter.type_flag << ':' << parameter.array_dims << ':';
+		  // Source and binding identify nominal types. Include the
+		  // elaborated layout without using process-local type addresses.
+		  if (parameter.ivl_type) {
+			auto*type = parameter.ivl_type;
+			value << type->base_type() << ':' << type->get_signed()
+			      << ':' << type->slice_dimensions() << ':';
+		  }
+		  append_cache_netexpr_value_key_(value, parameter.val);
+		  hash.field(entry.first.str());
+		  hash.field(value.str());
+	    }
+      }
+      for (const auto&child : scope->children())
+	    coverage_scope_signature_(hash, child.second);
+}
+
+string coverage_design_signature(const Design*des, const string&input_fingerprint)
+{
+      coverage_hash hash;
+      hash.field(input_fingerprint);
+      hash.field(to_string(generation_flag));
+      hash.field(to_string(gn_strict_expr_width_flag));
+      hash.field(to_string(min_typ_max_flag));
+      for (const auto*scope : des->find_package_scopes())
+	    coverage_scope_signature_(hash, scope);
+      for (const auto*scope : des->find_root_scopes())
+	    coverage_scope_signature_(hash, scope);
+      return hash.hex();
 }
 
 static const std::string& cached_type_dump_(ivl_type_t type)

@@ -1,0 +1,6 @@
+{
+  "type": "normal",
+  "source": "issue3976_assertion_snapshot_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue3976_assertion_snapshot"],
+  "gold": "issue3976_assertion_snapshot"
+}
