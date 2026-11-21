@@ -1,8 +1,9 @@
-// IEEE 1800-2017/2023 7.4.6, 7.6: a fixed unpacked-array slice remains
+// IEEE 1800-2017/2023 7.6: a fixed unpacked-array slice remains
 // an unpacked value, with its elements copied to a queue left to right.
 class holder_t;
   bit [7:0] descending[8:1];
   bit [7:0] ascending[-1:3];
+  logic [0:7] four_state[8:1];
 
   task run;
     bit [7:0] q[$];
@@ -13,10 +14,14 @@ class holder_t;
     q = descending[6:4];
     if (q.size() != 3 || q[0] != 6 || q[1] != 5 || q[2] != 4)
       $fatal(1, "descending property slice order");
-    four_state_q = descending[6:4];
-    if (four_state_q.size() != 3 || four_state_q[0] != 6
-        || four_state_q[1] != 5 || four_state_q[2] != 4)
-      $fatal(1, "two-state to four-state element copy");
+    four_state[6] = 8'ha3;
+    four_state[5] = 8'b1x01_0110;
+    four_state[4] = 8'b0110_0z11;
+    four_state_q = four_state[6:4];
+    if (four_state_q.size() != 3 || four_state_q[0] !== 8'ha3
+        || four_state_q[1] !== 8'b1x01_0110
+        || four_state_q[2] !== 8'b0110_0z11)
+      $fatal(1, "four-state property slice order and value");
 
     q = descending[4 +: 3];
     if (q.size() != 3 || q[0] != 6 || q[1] != 5 || q[2] != 4)

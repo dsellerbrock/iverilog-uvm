@@ -15030,10 +15030,7 @@ static NetExpr* elaborate_fixed_uarray_slice_container_rval_(
       netranges_t dimensions;
       dimensions.push_back(slice.selected_range);
       netuarray_t source_type(dimensions, slice.element_type);
-      bool compatible = dynamic_cast<const netqueue_t*>(target_type)
-	    ? uarray_element_matches_container_(&source_type, target_container)
-	    : uarray_element_equivalent_container_(&source_type, target_container);
-      if (!compatible) {
+      if (!uarray_element_equivalent_container_(&source_type, target_container)) {
 	cerr << loc.get_fileline() << ": error: fixed unpacked-array "
 	     << "slice element type is not assignment compatible with "
 	     << "the " << kind << " element type." << endl;
