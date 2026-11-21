@@ -40,6 +40,11 @@ using namespace std;
    expressions) instead of maintaining a second incomplete statement walk. */
 static vector<const NetEProperty*>*nex_input_vif_collector = nullptr;
 
+/* A continuous-assignment RHS shares the function-body read walk with
+   always_comb. Collect its writes across the call tree so a read in one
+   function and a write in another can be matched by nexus and range. */
+static NexusSet*contassign_function_outputs = nullptr;
+
 void NetEProperty::set_nex_input_vif_collector(
       vector<const NetEProperty*>*collector)
 {
@@ -285,8 +290,25 @@ NexusSet* NetESelect::nex_input(bool rem_out, bool always_sens, bool nested_func
 			 * select; it stays sensitive to the whole value. */
 		  } else if (sig) {
 			delete tmp;
-			tmp = sig->nex_input_base(rem_out, always_sens, nested_func,
-                                                  val->value().as_unsigned(), expr_width());
+			if (contassign_function_outputs) {
+			      // Bits outside the signal read as X and have no
+			      // sensitivity. Clip before subtracting written ranges.
+			      auto overlap = val->value().is_defined()
+				    ? verinum_part_select_overlap(val->value(),
+					  expr_width(), sig->sig()->vector_width())
+				    : verinum_part_select_t();
+			      if (overlap.width) {
+				    tmp = sig->nex_input_base(rem_out, always_sens,
+					  nested_func, overlap.destination_base, overlap.width);
+			      } else {
+				    const NetExpr*word = sig->word_index();
+				    tmp = word ? word->nex_input(rem_out, always_sens,
+								 nested_func) : new NexusSet;
+			      }
+			} else {
+			      tmp = sig->nex_input_base(rem_out, always_sens, nested_func,
+						       val->value().as_unsigned(), expr_width());
+			}
 		  } else if (const NetEProperty*prop =
 				dynamic_cast<const NetEProperty*>(expr_)) {
 			/* A property of a statically bound interface port is
@@ -423,6 +445,20 @@ NexusSet* NetEAssignExpr::nex_input(bool rem_out, bool always_sens,
                                     bool nested_func) const
 {
       NexusSet*result = new NexusSet;
+
+      if (contassign_function_outputs) {
+	    if (ref_output()) {
+		  for (const NetAssign_*lval = ref_output(); lval; lval = lval->more) {
+			const_cast<NetAssign_*>(lval)->nex_output(*contassign_function_outputs);
+			unique_ptr<NexusSet>indices(lval->nex_input(rem_out, always_sens,
+								  nested_func));
+			result->add(*indices);
+		  }
+	    } else if (const auto*signal = dynamic_cast<const NetESignal*>(parm(0))) {
+		  Nexus*nx = const_cast<Nexus*>(signal->sig()->pin(0).nexus());
+		  contassign_function_outputs->add(nx, 0, nx->vector_width());
+	    }
+      }
 
       unsigned first = reads_left_ ? 0 : 1;
       for (unsigned idx = first ; idx < nparms() ; idx += 1) {
@@ -574,6 +610,8 @@ static void func_always_sens(const NetFuncDef*func, NexusSet*result,
 	      return;
 
 	std::unique_ptr<NexusSet> tmp(func->proc()->nex_input(rem_out, true, true));
+	if (contassign_function_outputs)
+	      const_cast<NetProc*>(func->proc())->nex_output(*contassign_function_outputs);
 	  /* IEEE 1800-2017 9.2.2.2.1: the implicit sensitivity excludes
 	     anything declared within a called function -- its arguments and
 	     locals. Drop every entry on such a signal whatever its range: a
@@ -605,6 +643,23 @@ static void func_always_sens(const NetFuncDef*func, NexusSet*result,
 	}
 }
 
+void NetEUFunc::nex_input_body(NexusSet&inputs, NexusSet&outputs) const
+{
+      assert(!contassign_function_outputs);
+      bool saved_partsel = nex_output_precise_partsel;
+      bool saved_array_word = nex_output_precise_array_word;
+      bool saved_array_prefix = nex_output_static_array_prefix;
+      nex_output_precise_partsel = true;
+      nex_output_precise_array_word = true;
+      nex_output_static_array_prefix = true;
+      contassign_function_outputs = &outputs;
+      func_always_sens(func_->func_def(), &inputs, true, false);
+      contassign_function_outputs = nullptr;
+      nex_output_precise_partsel = saved_partsel;
+      nex_output_precise_array_word = saved_array_word;
+      nex_output_static_array_prefix = saved_array_prefix;
+}
+
 NexusSet* NetEUFunc::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
       NexusSet*result = new NexusSet;
@@ -623,6 +678,8 @@ NexusSet* NetEUFunc::nex_input(bool rem_out, bool always_sens, bool nested_func)
 
 NexusSet* NetEUnary::nex_input(bool rem_out, bool always_sens, bool nested_func) const
 {
+      if (contassign_function_outputs && incdec_lval_)
+	    incdec_lval_->nex_output(*contassign_function_outputs);
       return expr_->nex_input(rem_out, always_sens, nested_func);
 }
 

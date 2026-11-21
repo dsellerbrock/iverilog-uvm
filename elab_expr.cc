@@ -36319,7 +36319,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 	    return nullptr;
       }
       ivl_variable_type_t t;
-      NetAssign_*inc_lval = 0;
+      unique_ptr<NetAssign_>inc_lval;
 
       if (op_ == 'i' || op_ == 'I' || op_ == 'd' || op_ == 'D') {
 	    if (concurrent_assertion_expr_) {
@@ -36327,7 +36327,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		  des->errors += 1;
 		  return 0;
 	    }
-	    inc_lval = expr_->elaborate_lval(des, scope, false, false);
+	    inc_lval.reset(expr_->elaborate_lval(des, scope, false, false));
 	    if (!inc_lval) return 0;
       }
 
@@ -36373,10 +36373,8 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
       }
       NetExpr*ip = expr_->elaborate_expr(des, scope, sub_width,
 	    flags | (part_incdec ? PACKED_PART_INCDEC : NO_FLAGS));
-      if (ip == 0) {
-	    delete inc_lval;
+      if (ip == 0)
 	    return 0;
-      }
 
       if (op_ != '!' && netexpr_is_chandle_(ip)) {
 	    cerr << get_fileline() << ": error: chandle is not permitted with the '"
@@ -36384,7 +36382,6 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		 << "' operator (IEEE 1800-2017/2023 6.14)." << endl;
 	    des->errors += 1;
 	    delete ip;
-	    delete inc_lval;
 	    return nullptr;
       }
 
@@ -36466,8 +36463,6 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 		      cast->set_line(*this);
 		      ip = cast;
 		}
-		delete inc_lval;
-		inc_lval = 0;
 		if (ip->enumeration()) {
 		      // IEEE 1800-2017 6.19.4: increment/decrement is a
 		      // numerical expression, so an enum operand first becomes
@@ -36507,6 +36502,7 @@ NetExpr* PEUnary::elaborate_expr(Design*des, NetScope*scope,
 			 */
 			NetEUnary*unary = new NetEUnary(op_, ip, expr_wid, signed_flag_);
 			unary->two_state_part_incdec(two_state_part);
+			unary->set_incdec_lval(inc_lval.release());
 			tmp = unary;
 			tmp->set_line(*this);
 		} else {

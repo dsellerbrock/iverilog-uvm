@@ -3552,6 +3552,7 @@ NetEUnary::NetEUnary(char op__, NetExpr*ex, unsigned wid, bool signed_flag)
 NetEUnary::~NetEUnary()
 {
       delete expr_;
+      delete incdec_lval_;
 }
 
 ivl_variable_type_t NetEUnary::expr_type() const
