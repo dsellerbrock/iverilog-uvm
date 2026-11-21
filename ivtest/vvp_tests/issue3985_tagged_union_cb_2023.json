@@ -1,0 +1,8 @@
+{
+  "type": "normal",
+  "source": "issue3985_tagged_union_cb.sv",
+  "iverilog-args": ["-g2023", "-s", "top"],
+  "vpi-modules": ["issue3985_tagged_union_cb_2023"],
+  "vpi-sources": ["vpi/issue3985_tagged_union_cb.c"],
+  "gold": "issue3985_tagged_union_cb"
+}
