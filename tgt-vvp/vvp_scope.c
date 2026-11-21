@@ -4190,6 +4190,9 @@ int draw_scope(ivl_scope_t net, ivl_scope_t parent)
 
       if (ivl_scope_type(net) == IVL_SCT_MODULE &&
 	  !ivl_scope_program(net) && !ivl_scope_is_interface(net)) {
+	    const char*key = ivl_scope_module_definition_key(net);
+	    if (key)
+		  fprintf(vvp_out, " .scope/defkey \"%s\";\n", vvp_mangle_name(key));
 	    const char*library = ivl_scope_library(net);
 	    const char*config = ivl_scope_config(net);
 	    if (config || (library && strcmp(library, "work") != 0)) {

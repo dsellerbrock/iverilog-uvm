@@ -7464,3 +7464,5 @@ issue3977_delayed_data_formal_2023 CE,-g2023,-s,issue3977_delayed_bad ivltests g
 issue3977_delayed_function_arg_2023 CE,-g2023,-s,issue3977_delayed_bad ivltests gold=issue3977_delayed_function_arg.gold
 issue3682_event_nba_2017 normal,-g2017,-s,top ivltests gold=issue3682_event_nba.gold
 issue3682_event_nba_2023 normal,-g2023,-s,top ivltests gold=issue3682_event_nba.gold
+issue3975_assertion_coverage_2017 normal,-g2017,-s,issue3975_assertion_coverage ivltests gold=issue3975_assertion_coverage.gold
+issue3975_assertion_coverage_2023 normal,-g2023,-s,issue3975_assertion_coverage ivltests gold=issue3975_assertion_coverage.gold

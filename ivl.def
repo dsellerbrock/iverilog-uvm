@@ -376,6 +376,7 @@ ivl_scope_type
 ivl_scope_tname
 ivl_scope_library
 ivl_scope_config
+ivl_scope_module_definition_key
 
 ivl_signal_array_addr_swapped
 ivl_signal_array_base

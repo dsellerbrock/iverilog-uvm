@@ -18567,7 +18567,6 @@ static const int SVA_CB_FAILURE = 608;   /* cbAssertionFailure */
    advanced (STEP_SUCCESS) or failed (STEP_FAILURE); see sva_step_table_t. */
 static const int SVA_CB_STEP_SUCCESS = 609;  /* cbAssertionStepSuccess */
 static const int SVA_CB_STEP_FAILURE = 610;  /* cbAssertionStepFailure */
-static const int SVA_CB_VACUOUS_SUCCESS = 657; /* cbAssertionVacuousSuccess */
 static const int SVA_CB_DISABLED_EVAL = 658; /* cbAssertionDisabledEvaluation */
 
 /* Reserved serials on the private $ivl_assert_step bridge. Keep in sync
@@ -18602,7 +18601,9 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
       PCallTask*rep = new PCallTask(
 	    lex_strings.make("$ivl_assert_report"), args);
       FILE_NAME(rep, loc);
-      if (reason == SVA_CB_START || reason == SVA_CB_SUCCESS)
+      if (reason == SVA_CB_START || reason == SVA_CB_SUCCESS
+	  || reason == vpipAssertReportCoverageSuccess
+	  || reason == vpipAssertReportDispatchSuccess)
 	    return rep;
 
       std::list<named_pexpr_t> no_parms;
@@ -18612,6 +18613,28 @@ static Statement* sva_report_stmt_(const struct vlltype&loc, unsigned inst,
       PCondit*c = new PCondit(active, rep, nullptr);
       FILE_NAME(c, loc);
       return c;
+}
+
+/* A verdict is covered when the evaluator produces it. Action dispatch
+   may occur later in Reactive, after collection has been changed. */
+static Statement* sva_coverage_success_(const struct vlltype&loc, unsigned inst,
+					PExpr*count = nullptr)
+{
+      Statement*report = sva_report_stmt_(loc, inst, vpipAssertReportCoverageSuccess);
+      return count ? sva_if_(loc, count, report, nullptr) : report;
+}
+
+/* Publish a batch of successful verdicts. Count is a side-effect-free
+   expression over the checker's sampled values and attempt state. */
+static Statement* sva_publish_success_(const struct vlltype&loc, unsigned inst,
+				       perm_string req, PExpr*count)
+{
+      PExpr*nonzero = sva_clone_expr_(count);
+      assert(nonzero);
+      PEBinary*sum = new PEBinary('+', sva_id_(loc, req), count);
+      FILE_NAME(sum, loc);
+      return sva_block_(loc, {sva_coverage_success_(loc, inst, nonzero),
+			     sva_assign_(loc, req, sum)});
 }
 
 static PExpr* sva_num32_(const struct vlltype&loc, uint64_t v);
@@ -18781,11 +18804,12 @@ static Statement* sva_fail_action_(const struct vlltype&loc, unsigned inst,
  * (4.4.2.5).  Folding the deferral in here keeps both engines' success
  * paths in the same region as their failure paths. */
 static Statement* sva_pass_action_(const struct vlltype&loc, unsigned inst,
-				   Statement*pass_stmt)
+				   Statement*pass_stmt, bool record_coverage = true)
 {
       std::vector<Statement*> v;
+      if (record_coverage) v.push_back(sva_coverage_success_(loc, inst));
       v.push_back(sva_reactive_wait_(loc));
-      v.push_back(sva_report_stmt_(loc, inst, SVA_CB_SUCCESS));
+      v.push_back(sva_report_stmt_(loc, inst, vpipAssertReportDispatchSuccess));
       if (pass_stmt)
 	    v.push_back(sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
 					  SVA_STATE_PASS_ACTION, pass_stmt));
@@ -24336,6 +24360,14 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    Statement*clr_pend = sva_assign_(loc, r_pend, sva_bit_(loc, 0));
 	    PExpr*open_cond = sva_logic_(
 		  loc, 'a', sva_id_(loc, r_a), sva_enabled_expr_(loc, inst));
+	    PExpr*vacuous = sva_logic_(loc, 'a', sva_enabled_expr_(loc, inst),
+		  new PEBComp('N', sva_id_(loc, r_a), sva_bit_(loc, 1)));
+	    PExpr*ready = sva_id_(loc, r_pend);
+	    if (op == 18)
+		  ready = sva_logic_(loc, 'o', ready, sva_clone_expr_(open_cond));
+	    body.push_back(sva_coverage_success_(loc, inst,
+		  sva_logic_(loc, 'o', vacuous,
+			sva_logic_(loc, 'a', ready, sva_id_(loc, r_b)))));
 	    if (op == 18) {
 		    /* Overlapped: if (b) pend = 0; else if (a) pend = 1; */
 		  Statement*open = sva_if_(loc, open_cond, set_pend, nullptr);
@@ -24420,6 +24452,11 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    body.push_back(sva_if_(loc, fcond,
 				   sva_assign_(loc, r_f, sva_bit_(loc, 1)),
 				   nullptr));
+	    PExpr*matched = sva_logic_(loc, 'a', sva_clone_expr_(active),
+					 sva_id_(loc, r_q));
+	    if (with)
+		  matched = sva_logic_(loc, 'a', matched, sva_id_(loc, r_p));
+	    body.push_back(sva_coverage_success_(loc, inst, matched));
 
 	      /* q releases every pending attempt. A valid p keeps the collapsed
 		 live set open; a failed cycle kills those attempts after their
@@ -24529,6 +24566,10 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  attempt_state.push_back(r_pend);
 		  Statement*open = sva_if_(loc, sva_enabled_expr_(loc, inst),
 			sva_assign_(loc, r_pend, sva_bit_(loc, 1)), nullptr);
+		  PExpr*active = sva_logic_(loc, 'o', sva_id_(loc, r_pend),
+						  sva_enabled_expr_(loc, inst));
+		  body.push_back(sva_coverage_success_(loc, inst,
+			sva_logic_(loc, 'a', active, sva_id_(loc, r_p))));
 		  body.push_back(sva_if_(loc, sva_id_(loc, r_p),
 			sva_assign_(loc, r_pend, sva_bit_(loc, 0)), open));
 		  PExpr*pending = sva_logic_(
@@ -24554,6 +24595,22 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  if (finite) {
 			long hi = prop->win_hi < lo ? lo : prop->win_hi;
 			active = live_attempt_range(lo, hi);
+			perm_string run = sva_make_reg_(loc, inst, "good", 0, true);
+			init_zero.push_back(sva_assign_(loc, run, sva_num32_(loc, 0)));
+			attempt_state.push_back(run);
+			auto full_window = [&]() -> PExpr* {
+			      return new PEBComp('G', sva_id_(loc, run),
+						  sva_num32_(loc, hi - lo));
+			};
+			Statement*record = sva_coverage_success_(loc, inst,
+			      sva_logic_(loc, 'a', mature_attempt(hi), full_window()));
+			Statement*advance = sva_if_(loc, sva_not_(loc, full_window()),
+			      sva_assign_(loc, run, new PEBinary('+', sva_id_(loc, run),
+								  sva_num32_(loc, 1))),
+			      nullptr);
+			body.push_back(sva_if_(loc, sva_id_(loc, r_p),
+			      sva_block_(loc, {record, advance}),
+			      sva_assign_(loc, run, sva_num32_(loc, 0))));
 		  } else {
 			r_active = sva_make_reg_(loc, inst, "active", 0);
 			init_zero.push_back(sva_assign_(loc, r_active,
@@ -24583,6 +24640,27 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  long lo = (prop->win_lo >= 0) ? prop->win_lo : 0;
 		  long hi = (prop->win_hi >= 0) ? prop->win_hi : lo;
 		  if (hi < lo) hi = lo;
+		    /* A true sample discharges all eligible attempts. The gap
+		       since the preceding true sample identifies which ages
+		       were too young to have already succeeded there. */
+		  perm_string gap = sva_make_reg_(loc, inst, "gap", 0, true);
+		  init_zero.push_back(sva_assign_(loc, gap, sva_num32_(loc, hi - lo)));
+		  attempt_state.push_back(gap);
+		  std::vector<PExpr*> pending;
+		  for (long age = lo ; age <= hi ; ++age) {
+			PExpr*fresh = new PEBComp('G', sva_id_(loc, gap),
+						 sva_num32_(loc, age - lo));
+			pending.push_back(sva_logic_(loc, 'a', mature_attempt(age), fresh));
+		  }
+		  Statement*record = sva_coverage_success_(loc, inst,
+			sva_logic_reduce_(loc, 'o', pending));
+		  PExpr*short_gap = new PEBComp('<', sva_id_(loc, gap),
+							 sva_num32_(loc, hi - lo));
+		  Statement*advance = sva_if_(loc, short_gap,
+			sva_assign_(loc, gap, new PEBinary('+', sva_id_(loc, gap),
+							    sva_num32_(loc, 1))), nullptr);
+		  body.push_back(sva_if_(loc, sva_id_(loc, r_p), sva_block_(loc,
+			{record, sva_assign_(loc, gap, sva_num32_(loc, 0))}), advance));
 		  PExpr*anyp = sva_clone_expr_(p_win_src);   /* p@T */
 		  for (long k = 1 ; k <= hi - lo ; k += 1) {
 			PExpr*pk = sva_past_(loc, sva_clone_expr_(p_win_src), k);
@@ -24607,7 +24685,9 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 		  perm_string fail_req = sva_make_reg_(loc, inst, "failreq", 0, true);
 		  for (perm_string req : {pass_req, vac_req, fail_req})
 			init_zero.push_back(sva_assign_(loc, req, sva_num32_(loc, 0)));
-		  auto publish = [&](perm_string req, PExpr*count) {
+		  auto publish = [&](perm_string req, PExpr*count) -> Statement* {
+			if (req != fail_req)
+			      return sva_publish_success_(loc, inst, req, count);
 			PEBinary*sum = new PEBinary('+', sva_id_(loc, req), count);
 			FILE_NAME(sum, loc);
 			return sva_assign_(loc, req, sum);
@@ -24654,58 +24734,49 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    PExpr*pe = (*prop->seq)[0].expr;   /* operand p (consumed below) */
 	    PExpr*ce = prop->abort_cond;       /* abort condition (consumed) */
 	    prop->abort_cond = nullptr;
+	    PExpr*outcome = accept ? sva_logic_(loc, 'o', ce, pe)
+		  : sva_logic_(loc, 'a', sva_not_(loc, ce), pe);
+	    PExpr*sampled = sva_rewrite_sampled_(loc, outcome, inst, hist_idx,
+						pre, post, init_zero);
+	    perm_string result = sva_make_reg_(loc, inst, "aborted", 0);
+	    perm_string enabled = sva_make_reg_(loc, inst, "abort_en", 0);
+	    pre.push_back(sva_assign_(loc, enabled, sva_enabled_expr_(loc, inst)));
+	    attempt_state.push_back(enabled);
 	    if (kind == 2) {
-		  /* A cover succeeds when the abort property's result is true:
-		     accept_on succeeds on the abort condition or p, while
-		     reject_on succeeds only when the condition is false and p.
-		     Both operands are sampled by the same clocked checker. */
-		  PExpr*passexpr = accept
-			? sva_logic_(loc, 'o', ce, pe)
-			: sva_logic_(loc, 'a', sva_not_(loc, ce), pe);
-		  PExpr*ps = sva_rewrite_sampled_(loc, passexpr, inst, hist_idx,
-						  pre, post, init_zero);
-		  perm_string r_c = sva_make_reg_(loc, inst, "m", 0);
-		  pre.push_back(sva_assign_(loc, r_c, ps));
-		  attempt_state.push_back(r_c);
+		  pre.push_back(sva_assign_(loc, result, sampled));
+		  attempt_state.push_back(result);
 		  perm_string r_cnt = sva_make_reg_(loc, inst, "cnt", 0, true);
 		  init_zero.push_back(sva_assign_(loc, r_cnt,
 			new PENumber(new verinum((uint64_t)0, 32))));
 		  PEBinary*add = new PEBinary('+', sva_id_(loc, r_cnt),
-					      sva_id_(loc, r_c));
+					      sva_id_(loc, result));
 		  FILE_NAME(add, loc);
 		  body.push_back(sva_assign_(loc, r_cnt, add));
-		  body.push_back(sva_if_(loc, sva_id_(loc, r_c),
-				 sva_report_stmt_(loc, inst, SVA_CB_SUCCESS), nullptr));
+		  body.push_back(sva_if_(loc, sva_id_(loc, result),
+			sva_block_(loc, {sva_coverage_success_(loc, inst, sva_id_(loc, enabled)),
+					 sva_report_stmt_(loc, inst, vpipAssertReportDispatchSuccess)}),
+			nullptr));
 		  if (pass_stmt) {
-			body.push_back(sva_if_(loc, sva_id_(loc, r_c),
+			body.push_back(sva_if_(loc, sva_id_(loc, result),
 				       sva_cover_spawn_(loc, inst, pass_stmt), nullptr));
 			pass_stmt = nullptr;
 		  }
 		  delete fail_stmt;
 	    } else {
-	    PExpr*failexpr;
-	    if (accept)
-		  failexpr = sva_logic_(loc, 'a', sva_not_(loc, ce),
-					sva_not_(loc, pe));
-	    else
-		  failexpr = sva_logic_(loc, 'o', ce, sva_not_(loc, pe));
-	    failexpr = sva_logic_(loc, 'a', sva_enabled_expr_(loc, inst),
-				 failexpr);
-	    PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
-					    pre, post, init_zero);
-		    perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
-		    pre.push_back(sva_assign_(loc, r_ff, fs));
-		    attempt_state.push_back(r_ff);
-		    Statement*action = fail_stmt;
-	    if (!action) {
-		  std::list<named_pexpr_t> no_args;
-		  PCallTask*err = new PCallTask(lex_strings.make("$error"),
-						no_args);
-		  FILE_NAME(err, loc);
-		  action = err;
-	    }
-	    body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
-				   sva_fail_action_(loc, inst, action), nullptr));
+		  pre.push_back(sva_if_(loc, sva_id_(loc, enabled),
+			sva_assign_(loc, result, sampled), nullptr));
+		  Statement*action = fail_stmt;
+		  if (!action) {
+			std::list<named_pexpr_t> no_args;
+			PCallTask*err = new PCallTask(lex_strings.make("$error"), no_args);
+			FILE_NAME(err, loc);
+			action = err;
+		  }
+		  Statement*failure = sva_if_(loc, sva_not_(loc, sva_id_(loc, result)),
+			sva_fail_action_(loc, inst, action), nullptr);
+		  body.push_back(sva_if_(loc, sva_id_(loc, enabled),
+			sva_if_(loc, sva_id_(loc, result),
+			      sva_coverage_success_(loc, inst), failure), nullptr));
 	    }
       } else {
 	      /* ---- within (fixed-length sequences). ---- */
@@ -24773,10 +24844,6 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 	    if (!s2term) s2term = sva_bit_(loc, 1);
 	    if (!s1embed) s1embed = sva_bit_(loc, 1);
 	    PExpr*wmatch = sva_logic_(loc, 'a', s2term, s1embed);
-	      /* Kept for the success test: building the failure expression
-		 below hands wmatch to it, and the sampled-value rewrite
-		 then rebuilds that tree. */
-	    PExpr*wmatch_pass = pass_stmt ? sva_clone_expr_(wmatch) : nullptr;
 
 	    if (kind == 2) {
 		    /* cover: count each window that matches. Warm-up
@@ -24795,6 +24862,7 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 					      sva_id_(loc, r_c));
 		  FILE_NAME(add, loc);
 		  body.push_back(sva_assign_(loc, r_cnt, add));
+		  body.push_back(sva_coverage_success_(loc, inst, sva_id_(loc, r_c)));
 		    /* 16.14.3: the pass statement runs for each matching
 		       window, as for the other cover operators here. */
 		  if (pass_stmt) {
@@ -24803,19 +24871,18 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 			pass_stmt = nullptr;
 		  }
 		  delete fail_stmt;
-		  delete wmatch_pass;
 	    } else {
-		    /* assert/assume: every mature window must match. A
-		       `$past(1, L2)` guard is 0 until L2 cycles elapse, so
-		       obligations that predate time 0 never fire. */
-		  PExpr*valid = mature_attempt(L2);
-		  PExpr*failexpr = sva_logic_(loc, 'a', valid, sva_not_(loc, wmatch));
-		  PExpr*fs = sva_rewrite_sampled_(loc, failexpr, inst, hist_idx,
-						  pre, post, init_zero);
-			  perm_string r_ff = sva_make_reg_(loc, inst, "ff", 0);
-			  pre.push_back(sva_assign_(loc, r_ff, fs));
-			  attempt_state.push_back(r_ff);
-			  Statement*action = fail_stmt;
+		    /* Reuse the same sampled window for either verdict. A
+		       token is eligible only after its entire window elapsed. */
+		  perm_string valid = sva_make_reg_(loc, inst, "valid", 0);
+		  perm_string result = sva_make_reg_(loc, inst, "within", 0);
+		  PExpr*sampled = sva_rewrite_sampled_(loc, wmatch, inst, hist_idx,
+						      pre, post, init_zero);
+		  pre.push_back(sva_assign_(loc, valid, mature_attempt(L2)));
+		  pre.push_back(sva_if_(loc, sva_id_(loc, valid),
+			sva_assign_(loc, result, sampled), nullptr));
+		  attempt_state.push_back(valid);
+		  Statement*action = fail_stmt;
 		  if (!action) {
 			std::list<named_pexpr_t> no_args;
 			PCallTask*err = new PCallTask(lex_strings.make("$error"),
@@ -24823,31 +24890,13 @@ static void pform_make_temporal_assertion_(const struct vlltype&loc,
 			FILE_NAME(err, loc);
 			action = err;
 		  }
-		  body.push_back(sva_if_(loc, sva_id_(loc, r_ff),
-					 sva_fail_action_(loc, inst, action), nullptr));
-
-		    /* Success: a MATURE window that matched. `valid' is the
-		       same warm-up guard the failure uses, so a window that
-		       predates time 0 reports neither way. Emitted only when
-		       the user wrote a pass statement -- the cbAssertionSuccess
-		       report for this operator is a separate gap, and adding
-		       it here would change what every existing `within'
-		       assertion reports to VPI. */
-		  if (pass_stmt) {
-			PExpr*passexpr = sva_logic_(
-			      loc, 'a', mature_attempt(L2), wmatch_pass);
-			wmatch_pass = nullptr;
-			PExpr*ps = sva_rewrite_sampled_(loc, passexpr, inst,
-							hist_idx, pre, post,
-							init_zero);
-				perm_string r_pf = sva_make_reg_(loc, inst, "pf", 0);
-				pre.push_back(sva_assign_(loc, r_pf, ps));
-				attempt_state.push_back(r_pf);
-				body.push_back(sva_if_(loc, sva_id_(loc, r_pf),
-				 sva_pass_action_(loc, inst, pass_stmt),
-				 nullptr));
-			pass_stmt = nullptr;
-		  }
+		  Statement*success = pass_stmt ? sva_pass_action_(loc, inst, pass_stmt)
+						: sva_coverage_success_(loc, inst);
+		  Statement*failure = sva_if_(loc, sva_not_(loc, sva_id_(loc, result)),
+			sva_fail_action_(loc, inst, action), nullptr);
+		  body.push_back(sva_if_(loc, sva_id_(loc, valid),
+			sva_if_(loc, sva_id_(loc, result), success, failure), nullptr));
+		  pass_stmt = nullptr;
 	    }
       }
 
@@ -29019,7 +29068,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 		  match_action = nullptr;
 	    }
 	    if (!implication)
-		  pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
+		  pass_stmt = sva_pass_action_(loc, inst, pass_stmt, false);
 	  } else if (cover && pass_stmt) {
 		/* A timed match-item task must not delay the pass action. */
 		if (match_action) {
@@ -30171,6 +30220,9 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			: fail_slot();
 		  die_v.push_back(sva_if_(loc, sva_id_(loc, ob[k]),
 					  nonvacuous, sva_block_(loc, vac)));
+	    } else if (track_ob && cover && !endpoint) {
+		  die_v.push_back(sva_coverage_success_(loc, inst,
+					sva_not_(loc, sva_id_(loc, ob[k]))));
 	    } else if (!cover && !endpoint_fanout) {
 		  die_v.push_back(negated ? increment_verdict(r_p, k) : fail_slot());
 	    }
@@ -30319,9 +30371,12 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
 			    sva_id_(loc, failed[o])));
 	    std::vector<Statement*> pass, fail, done;
 	    if (cover) {
+		  Statement*matched_cover = track_endpoints ? cover_match() :
+			sva_block_(loc, {sva_coverage_success_(loc, inst),
+					 increment_verdict(r_cnt)});
 		  pass.push_back(sva_if_(loc, sva_id_(loc, matched[k]),
-			    track_endpoints ? cover_match() : increment_verdict(r_cnt),
-			    nullptr));
+			    matched_cover,
+			    endpoint ? nullptr : sva_coverage_success_(loc, inst)));
 	    } else if (sub) {
 		  pass.push_back(sva_if_(loc, sva_id_(loc, matched[k]),
 			    set_verdict(k, 1), set_verdict(k, 2)));
@@ -30511,6 +30566,7 @@ bool pform_sva_nfa_try_assertion(const struct vlltype&loc,
       bool slot_pass_guarded = false;
       if (!cover) {
 	    std::vector<Statement*> hit;
+	    if (!sub) hit.push_back(sva_coverage_success_(loc, inst));
 	    if (implication && slot_dispatch) {
 		  PExpr*nonvacuous = new PEBinary('-', sva_id_(loc, r_p),
 						 sva_id_(loc, vacuous));
@@ -31887,10 +31943,11 @@ static void sva_verdict_dispatcher_(const struct vlltype&loc, unsigned inst,
       }
       loop.push_back(sva_reactive_wait_(loc));
       loop.push_back(sva_repeat_(loc, sva_id_(loc, due),
-	    sva_report_stmt_(loc, inst, pass ? SVA_CB_SUCCESS : SVA_CB_FAILURE)));
+	    sva_report_stmt_(loc, inst,
+			     pass ? vpipAssertReportDispatchSuccess : SVA_CB_FAILURE)));
       if (pass)
 	    loop.push_back(sva_repeat_(loc, sva_id_(loc, vac_due),
-		  sva_report_stmt_(loc, inst, SVA_CB_VACUOUS_SUCCESS)));
+		  sva_report_stmt_(loc, inst, vpipAssertReportDispatchVacuousSuccess)));
       if (action) {
 	    PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
 	    FILE_NAME(spawn, loc);
@@ -32030,15 +32087,11 @@ static perm_string sva_fixed_antecedent_(const struct vlltype&loc, unsigned inst
 		  return value;
 	    };
 	    if (!checks[k].empty()) {
-		  if (!vac_req.nil()) {
-			PExpr*dead = sva_logic_(
-			      loc, 'a', gate(), sva_not_(loc, truth()));
-			PExpr*add = new PEBinary(
-			      '+', sva_id_(loc, vac_req), sva_num32_(loc, 1));
-			FILE_NAME(add, loc);
-			body.push_back(sva_if_(loc, dead,
-			      sva_assign_(loc, vac_req, add), nullptr));
-		  }
+		  PExpr*dead = sva_logic_(loc, 'a', gate(), sva_not_(loc, truth()));
+		  Statement*success = vac_req.nil()
+			? sva_coverage_success_(loc, inst)
+			: sva_publish_success_(loc, inst, vac_req, sva_num32_(loc, 1));
+		  body.push_back(sva_if_(loc, dead, success, nullptr));
 	    }
 	    body.push_back(sva_assign_(loc,
 		  k+1 == checks.size() ? match : state[k],
@@ -33401,7 +33454,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 				  : (PExpr*)sva_id_(loc, pa[k]);
 	    };
 	    perm_string vcount;
-	    if (!plain && !cover && have_pass_action) {
+	    if (!plain && !endpoint) {
 		  vcount = sva_make_reg_(loc, inst, "mcva", 0, true);
 		  body1.push_back(sva_assign_(loc, vcount,
 					      sva_num32_(loc, 0)));
@@ -33418,7 +33471,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      FILE_NAME(advx, loc);
 			      body1.push_back(sva_assign_(loc, adv, advx));
 			      advance = sva_id_(loc, adv);
-			      if (!cover && have_pass_action) {
+			      if (!endpoint) {
 				    PEBinary*dead = new PEBLogic(
 					      'a', ante_gate(k),
 					      sva_not_(loc, sva_id_(loc, adv)));
@@ -33510,12 +33563,12 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  ? sva_assign_(loc, req, inc)
 		  : sva_assign_nb_(loc, req, inc);
 	    body1.push_back(sva_if_(loc, match, bump, nullptr));
-	    if (!plain && !cover && have_pass_action) {
-		  PEBinary*add = new PEBinary(
-			'+', sva_id_(loc, pv_req), sva_id_(loc, vcount));
-		  FILE_NAME(add, loc);
-		  body1.push_back(sva_if_(loc, sva_id_(loc, vcount),
-				sva_assign_(loc, pv_req, add), nullptr));
+	    if (!plain && !endpoint) {
+		  PExpr*count = sva_id_(loc, vcount);
+		  body1.push_back(!cover && have_pass_action
+			? sva_if_(loc, sva_id_(loc, vcount),
+			      sva_publish_success_(loc, inst, pv_req, count), nullptr)
+			: sva_coverage_success_(loc, inst, count));
 	    }
 	    if (Tp && !cover) {
 		  PEBinary*add = new PEBinary(
@@ -33783,11 +33836,8 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			if (endpoint) {
 			      hit = sva_publish_endpoint_(loc, endpoint_event);
 			} else if (cover) {
-			      PEBinary*add = new PEBinary('+',
-					sva_id_(loc, r_cnt), gate(Tb - 1));
-			      FILE_NAME(add, loc);
 			      std::vector<Statement*> hitv;
-			      hitv.push_back(sva_assign_(loc, r_cnt, add));
+			      hitv.push_back(sva_publish_success_(loc, inst, r_cnt, gate(Tb - 1)));
 			      if (coverstmt) {
 				    hitv.push_back(sva_repeat_(loc,
 					  gate(Tb - 1), coverstmt));
@@ -33795,10 +33845,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      }
 			      hit = sva_block_(loc, hitv);
 			} else {
-			      PEBinary*add = new PEBinary(
-				    '+', sva_id_(loc, pn_req), gate(Tb - 1));
-			      FILE_NAME(add, loc);
-			      hit = sva_assign_(loc, pn_req, add);
+			      hit = sva_publish_success_(loc, inst, pn_req, gate(Tb - 1));
 			}
 			epoch_body.push_back(sva_if_(loc, gate(Tb - 1),
 				sva_if_(loc, fb, hit,
@@ -33836,24 +33883,16 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 			      epoch_body.push_back(sva_if_(loc, sva_id_(loc, fpass),
 				    sva_publish_endpoint_(loc, endpoint_event), nullptr));
 			} else if (cover) {
-			      PEBinary*add = new PEBinary('+',
-					sva_id_(loc, r_cnt),
-					sva_id_(loc, fpass));
-			      FILE_NAME(add, loc);
-			      epoch_body.push_back(sva_assign_(loc, r_cnt, add));
+			      epoch_body.push_back(sva_publish_success_(loc, inst, r_cnt, sva_id_(loc, fpass)));
 			      if (coverstmt) {
 				    epoch_body.push_back(sva_repeat_(loc,
 					  sva_id_(loc, fpass), coverstmt));
 				    coverstmt = nullptr;
 			      }
 			} else {
-			      PEBinary*add = new PEBinary(
-				    '+', sva_id_(loc, pn_req),
-				    sva_id_(loc, fpass));
-			      FILE_NAME(add, loc);
 			      epoch_body.push_back(sva_if_(
 				    loc, sva_id_(loc, fpass),
-				    sva_assign_(loc, pn_req, add), nullptr));
+				    sva_publish_success_(loc, inst, pn_req, sva_id_(loc, fpass)), nullptr));
 			}
 
 			  /* The last age with a false boolean is the only
@@ -34239,11 +34278,12 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		  }
 		  if (cover) {
 			std::vector<Statement*>hit;
-			hit.push_back(bump(r_cnt));
+			hit.push_back(sva_publish_success_(loc, inst, r_cnt, sva_num32_(loc, 1)));
 			hit.push_back(bump(cover_req));
 			return sva_block_(loc, hit);
 		  }
-		  return bump(vacuous ? pv_req : pn_req);
+		  return sva_publish_success_(loc, inst, vacuous ? pv_req : pn_req,
+					      sva_num32_(loc, 1));
 	    };
 	    auto parent_failure = [&]() -> Statement* {
 		  if (cover)
@@ -34646,7 +34686,7 @@ static void pform_make_multiclock_assertion_(const struct vlltype&loc,
 		 or lose the assertion callback. */
 	    ploop.push_back(sva_repeat_(
 		  loc, sva_id_(loc, pn_due),
-		  sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
+		  sva_report_stmt_(loc, inst, vpipAssertReportDispatchSuccess)));
 
 	    if (have_pass_action) {
 		  PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
@@ -35166,7 +35206,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
       std::vector<Statement*> body0;
       {
 	    perm_string vcount;
-	    if (!plain && !cover && have_pass_action) {
+	    if (!plain && !endpoint) {
 		  vcount = sva_make_reg_(loc, inst, "mcva", 0, true);
 		  body0.push_back(sva_assign_(loc, vcount, sva_num32_(loc, 0)));
 	    }
@@ -35197,7 +35237,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 				    FILE_NAME(advx, loc);
 				    body0.push_back(sva_assign_(loc, adv, advx));
 				    advance = sva_id_(loc, adv);
-				    if (!branched && !cover && have_pass_action) {
+				    if (!branched && !endpoint) {
 					  PEBinary*dead = new PEBLogic(
 						    'a', ante_gate(k),
 						    sva_not_(loc, sva_id_(loc, adv)));
@@ -35300,12 +35340,12 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 		  ? sva_assign_(loc, req_in[1], inc)
 		  : sva_assign_nb_(loc, req_in[1], inc);
 	    body0.push_back(sva_if_(loc, match, bump, nullptr));
-	    if (!plain && !cover && have_pass_action) {
-		  PEBinary*add = new PEBinary(
-			'+', sva_id_(loc, pv_req), sva_id_(loc, vcount));
-		  FILE_NAME(add, loc);
-		  body0.push_back(sva_if_(loc, sva_id_(loc, vcount),
-				sva_assign_(loc, pv_req, add), nullptr));
+	    if (!plain && !endpoint) {
+		  PExpr*count = sva_id_(loc, vcount);
+		  body0.push_back(!cover && have_pass_action
+			? sva_if_(loc, sva_id_(loc, vcount),
+			      sva_publish_success_(loc, inst, pv_req, count), nullptr)
+			: sva_coverage_success_(loc, inst, count));
 	    }
 	    if (Tp && !cover) {
 		  PEBinary*add = new PEBinary(
@@ -35371,6 +35411,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 	    std::vector<Statement*> bodyd;
 
 	    perm_string misses = dreg("mcbm", d, 0);
+	    bool cover_vacuity = cover && !endpoint && d <= ante_domains;
 	    domain_misses[d] = misses;
 	    auto clear_domaind = [&]() -> Statement* {
 		  std::vector<Statement*> clear;
@@ -35398,7 +35439,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			return sva_id_(loc, tb[d][k]);
 		  };
 		  auto count_miss = [&](PExpr*count) -> Statement* {
-			if (cover) {
+			if (cover && !cover_vacuity) {
 			      delete count;
 			      return nullptr;
 			}
@@ -35421,7 +35462,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			      nullptr));
 			bodyd.push_back(sva_assign_nb_(loc, tb[d][k+1],
 						       sva_id_(loc, adv)));
-			if (!cover) {
+			if (!cover || cover_vacuity) {
 			      PEBinary*dead = new PEBinary('-', gate(k), sva_id_(loc, adv));
 			      FILE_NAME(dead, loc);
 			      bodyd.push_back(count_miss(dead));
@@ -35437,11 +35478,8 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			      if (endpoint) {
 				    hit = sva_publish_endpoint_(loc, endpoint_event);
 			      } else if (cover) {
-				    PEBinary*add = new PEBinary('+',
-					      sva_id_(loc, r_cnt), gate(Tb[d] - 1));
-				    FILE_NAME(add, loc);
 				    std::vector<Statement*> hitv;
-				    hitv.push_back(sva_assign_(loc, r_cnt, add));
+				    hitv.push_back(sva_publish_success_(loc, inst, r_cnt, gate(Tb[d] - 1)));
 				    if (coverstmt) {
 					  hitv.push_back(sva_repeat_(loc,
 						gate(Tb[d] - 1), coverstmt));
@@ -35449,10 +35487,7 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 				    }
 				    hit = sva_block_(loc, hitv);
 			      } else {
-				    PEBinary*add = new PEBinary(
-					  '+', sva_id_(loc, pn_req), gate(Tb[d] - 1));
-				    FILE_NAME(add, loc);
-				    hit = sva_assign_(loc, pn_req, add);
+				    hit = sva_publish_success_(loc, inst, pn_req, gate(Tb[d] - 1));
 			      }
 			} else {
 			      PEBinary*fwd = new PEBinary(
@@ -35496,24 +35531,16 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 			      bodyd.push_back(sva_if_(loc, sva_id_(loc, fpass),
 				    sva_publish_endpoint_(loc, endpoint_event), nullptr));
 			} else if (cover) {
-			      PEBinary*add = new PEBinary('+',
-					sva_id_(loc, r_cnt),
-					sva_id_(loc, fpass));
-			      FILE_NAME(add, loc);
-			      bodyd.push_back(sva_assign_(loc, r_cnt, add));
+			      bodyd.push_back(sva_publish_success_(loc, inst, r_cnt, sva_id_(loc, fpass)));
 			      if (coverstmt) {
 				    bodyd.push_back(sva_repeat_(loc,
 					  sva_id_(loc, fpass), coverstmt));
 				    coverstmt = nullptr;
 			      }
 			} else {
-			      PEBinary*add = new PEBinary(
-				    '+', sva_id_(loc, pn_req),
-				    sva_id_(loc, fpass));
-			      FILE_NAME(add, loc);
 			      bodyd.push_back(sva_if_(
 				    loc, sva_id_(loc, fpass),
-				    sva_assign_(loc, pn_req, add), nullptr));
+				    sva_publish_success_(loc, inst, pn_req, sva_id_(loc, fpass)), nullptr));
 			}
 
 			if (!cover && d > ante_domains)
@@ -35522,7 +35549,13 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 				    count_miss(gate(lastage)), nullptr));
 		  }
 	    }
-	    if (!cover) {
+	    if (cover_vacuity) {
+		  bodyd.push_back(sva_coverage_success_(loc, inst, sva_id_(loc, misses)));
+	    } else if (!cover && d <= ante_domains) {
+		  bodyd.push_back(sva_if_(loc, sva_id_(loc, misses),
+			      sva_publish_success_(loc, inst, miss_req[d], sva_id_(loc, misses)),
+			      nullptr));
+	    } else if (!cover) {
 		  PEBinary*add = new PEBinary(
 			'+', sva_id_(loc, miss_req[d]), sva_id_(loc, misses));
 		  FILE_NAME(add, loc);
@@ -35696,10 +35729,10 @@ static void pform_make_multiclock_chain_assertion_(const struct vlltype&loc,
 
 	    ploop.push_back(sva_repeat_(
 		  loc, sva_id_(loc, pn_due),
-		  sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
+		  sva_report_stmt_(loc, inst, vpipAssertReportDispatchSuccess)));
 	    if (stage_vac)
 		  ploop.push_back(sva_repeat_(loc, stage_vac,
-			sva_report_stmt_(loc, inst, SVA_CB_VACUOUS_SUCCESS)));
+			sva_report_stmt_(loc, inst, vpipAssertReportDispatchVacuousSuccess)));
 
 	    if (have_pass_action) {
 		  PBlock*spawn = new PBlock(PBlock::BL_JOIN_NONE);
@@ -37585,6 +37618,10 @@ static bool sva_parameter_repeat_try_assertion_(
 		 << "the clock time slot can be visible to the assertion."
 		 << endl;
 
+      auto publish_vacuous = [&](PExpr*count) -> Statement* {
+	    return cover ? sva_coverage_success_(loc, inst, count)
+			 : sva_publish_success_(loc, inst, r_vac_req, count);
+      };
       if (replay_checker) {
             auto binary = [&](char op, PExpr*a, PExpr*b) -> PExpr* {
                   PExpr*expr = new PEBinary(op, a, b);
@@ -37614,6 +37651,8 @@ static bool sva_parameter_repeat_try_assertion_(
                   return unbounded ? sva_id_(loc, r_mature) : number32(0);
             };
             auto add = [&](perm_string reg, PExpr*count) -> Statement* {
+                  if (reg == r_count || reg == r_pass_req)
+                        return sva_publish_success_(loc, inst, reg, count);
                   return sva_assign_(loc, reg,
                         binary('+', sva_id_(loc, reg), count));
             };
@@ -37647,7 +37686,7 @@ static bool sva_parameter_repeat_try_assertion_(
 
             /* Vacuity is observable before a delayed child could exist.
                Retain only real-time ages that have never matched. */
-            if (!cover) {
+            {
             if (direct_repeat) {
                   PExpr*nonzero = new PEBComp('n', lower(), number32(0));
                   FILE_NAME(nonzero, loc);
@@ -37660,7 +37699,7 @@ static bool sva_parameter_repeat_try_assertion_(
             growing.push_back(sva_assign_(loc, r_young,
                   shift('l', sva_id_(loc, r_young), number32(1))));
             growing.push_back(sva_assign_(loc, r_young, young(r_young)));
-            dead.push_back(add(r_vac_req, countones(sva_id_(loc, r_young))));
+            dead.push_back(publish_vacuous(countones(sva_id_(loc, r_young))));
             dead.push_back(sva_assign_(loc, r_young, number32(0)));
             body.push_back(sva_if_(loc, exact_true(sva_id_(loc, r_keep)),
                   sva_block_(loc, growing), sva_block_(loc, dead)));
@@ -37672,10 +37711,10 @@ static bool sva_parameter_repeat_try_assertion_(
                   body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
                         sva_if_(loc, exact_true(sva_id_(loc, r_prefix)),
                               sva_if_(loc, nonzero, inject, nullptr),
-                              add(r_vac_req, number32(1))), nullptr));
+                              publish_vacuous(number32(1))), nullptr));
             }
 
-            } // real-time vacuity belongs only to assertions
+            }
 
             /* Replay sampled antecedents when their children are due.
                Positive lag makes the following original keep sample
@@ -37775,7 +37814,7 @@ static bool sva_parameter_repeat_try_assertion_(
                         sva_if_(loc, lo_is_zero(), zero, inject()), nullptr));
             }
       } else {
-      if (!cover && !fixed_ante) {
+      if (!fixed_ante) {
             /* Only ages below lo have never produced an antecedent
                endpoint. A later failed extension is not vacuity. */
             PExpr*old = new PEBShift('r', age_source(),
@@ -37784,18 +37823,15 @@ static bool sva_parameter_repeat_try_assertion_(
             PExpr*unmatched = new PEBinary('-', countones(age_source()),
                   countones(old));
             FILE_NAME(unmatched, loc);
-            PExpr*add = new PEBinary('+', sva_id_(loc, r_vac_req), unmatched);
-            FILE_NAME(add, loc);
             body.push_back(sva_if_(loc,
                   sva_not_(loc, exact_true(sva_id_(loc, r_keep))),
-                  sva_assign_(loc, r_vac_req, add), nullptr));
+                  publish_vacuous(unmatched), nullptr));
             if (prefix) {
                   PExpr*dead = sva_logic_(loc, 'a', sva_enabled_expr_(loc, inst),
                         sva_not_(loc, exact_true(sva_id_(loc, r_prefix))));
-                  PExpr*one = new PEBinary('+', sva_id_(loc, r_vac_req), number32(1));
-                  FILE_NAME(one, loc);
                   body.push_back(sva_if_(loc, dead,
-                        sva_assign_(loc, r_vac_req, one), nullptr));
+                        publish_vacuous(number32(1)),
+                        nullptr));
             }
       }
       body.push_back(sva_if_(loc, sva_enabled_expr_(loc, inst),
@@ -37827,17 +37863,8 @@ static bool sva_parameter_repeat_try_assertion_(
 		  'l', sva_id_(loc, r_cpipe), number32(1));
 	    FILE_NAME(advance_all, loc);
 	    std::vector<Statement*> matched;
-	    if (cover) {
-		  PEBinary*count_add = new PEBinary(
-			'+', sva_id_(loc, r_count), active_count);
-		  FILE_NAME(count_add, loc);
-		  matched.push_back(sva_assign_(loc, r_count, count_add));
-	    } else {
-		  PEBinary*pass_add = new PEBinary(
-			'+', sva_id_(loc, r_pass_req), active_count);
-		  FILE_NAME(pass_add, loc);
-		  matched.push_back(sva_assign_(loc, r_pass_req, pass_add));
-	    }
+	    matched.push_back(sva_publish_success_(loc, inst,
+		  cover ? r_count : r_pass_req, active_count));
 	    matched.push_back(sva_assign_(loc, r_cpipe, advance_young));
 	    std::vector<Statement*> waiting;
 	    if (!cover) {
@@ -37939,10 +37966,8 @@ static bool sva_parameter_repeat_try_assertion_(
 		  Statement*matched_now = nullptr;
 		  Statement*not_matched = nullptr;
 		  if (cover) {
-			PEBinary*count_add = new PEBinary(
-			      '+', sva_id_(loc, r_count), sva_id_(loc, r_end));
-			FILE_NAME(count_add, loc);
-			matched_now = sva_assign_(loc, r_count, count_add);
+			matched_now = sva_publish_success_(loc, inst, r_count,
+							   sva_id_(loc, r_end));
 			PEBComp*hi_nonzero = new PEBComp(
 			      'n', sva_clone_expr_(cons.delay_hi_expr),
 			      number32(0));
@@ -37950,10 +37975,7 @@ static bool sva_parameter_repeat_try_assertion_(
 			not_matched = sva_if_(loc, hi_nonzero,
 					      inject_age_one(), nullptr);
 		  } else {
-			PEBinary*pass_one = new PEBinary(
-			      '+', sva_id_(loc, r_pass_req), number32(1));
-			FILE_NAME(pass_one, loc);
-			matched_now = sva_assign_(loc, r_pass_req, pass_one);
+			matched_now = sva_publish_success_(loc, inst, r_pass_req, number32(1));
 			PEBinary*fail_one = new PEBinary(
 			      '+', sva_id_(loc, r_fail_req), number32(1));
 			FILE_NAME(fail_one, loc);
@@ -38021,22 +38043,17 @@ static bool sva_parameter_repeat_try_assertion_(
 	   process set even after their own #delay or @event continuation. */
       if (!windowed_cons) {
 	    if (cover) {
-		  PEBinary*count_add = new PEBinary(
-			'+', sva_id_(loc, r_count), sva_id_(loc, r_fire));
-		  FILE_NAME(count_add, loc);
 		  body.push_back(sva_if_(
 			loc, exact_true(sva_id_(loc, r_cons)),
-			sva_assign_(loc, r_count, count_add), nullptr));
+			sva_publish_success_(loc, inst, r_count, sva_id_(loc, r_fire)),
+			nullptr));
 	    } else {
-		  PEBinary*pass_add = new PEBinary(
-			'+', sva_id_(loc, r_pass_req), sva_id_(loc, r_fire));
-		  FILE_NAME(pass_add, loc);
 		  PEBinary*fail_add = new PEBinary(
 			'+', sva_id_(loc, r_fail_req), sva_id_(loc, r_fire));
 		  FILE_NAME(fail_add, loc);
 		  Statement*verdict = sva_if_(
 			loc, sva_id_(loc, r_cons),
-			sva_assign_(loc, r_pass_req, pass_add),
+			sva_publish_success_(loc, inst, r_pass_req, sva_id_(loc, r_fire)),
 			sva_assign_(loc, r_fail_req, fail_add));
 		  body.push_back(sva_if_(loc, sva_id_(loc, r_fire),
 					 verdict, nullptr));
@@ -38547,6 +38564,8 @@ static bool sva_parameter_consequent_repeat_try_assertion_(
       init.push_back(sva_assign_(loc, fail_due, sva_num32_(loc, 0)));
       perm_string kill = sva_kill_seen_reg_(loc, inst, 0, init);
       auto add = [&](perm_string reg, PExpr*count) -> Statement* {
+            if (reg == pass_req)
+                  return sva_publish_success_(loc, inst, reg, count);
             PExpr*sum = new PEBinary('+', sva_id_(loc, reg), count);
             FILE_NAME(sum, loc);
             return sva_assign_(loc, reg, sum);
@@ -38744,9 +38763,7 @@ static bool sva_genvar_delay_try_assertion_(const struct vlltype&loc,
       init_zero.push_back(sva_assign_(loc, pass_req, sva_num32_(loc, 0)));
       init_zero.push_back(sva_assign_(loc, vac_req, sva_num32_(loc, 0)));
       Statement*user_pass = pass_stmt;
-      PExpr*add_pass = new PEBinary('+', sva_id_(loc, pass_req), sva_num32_(loc, 1));
-      FILE_NAME(add_pass, loc);
-      pass_stmt = sva_assign_(loc, pass_req, add_pass);
+      pass_stmt = sva_publish_success_(loc, inst, pass_req, sva_num32_(loc, 1));
       Statement*fail_action = fail_stmt;
       if (!fail_action) {
 	    std::list<named_pexpr_t> no_args;
@@ -41187,8 +41204,8 @@ static void sva_comp_proc_dispatch_(const struct vlltype&loc, unsigned inst,
 
       std::vector<Statement*> on_pass, on_fail;
       on_pass.push_back(sva_if_(loc, sva_comp_eq_(loc, snapshot, 2),
-		  sva_report_stmt_(loc, inst, SVA_CB_VACUOUS_SUCCESS),
-		  sva_report_stmt_(loc, inst, SVA_CB_SUCCESS)));
+		  sva_report_stmt_(loc, inst, vpipAssertReportDispatchVacuousSuccess),
+		  sva_report_stmt_(loc, inst, vpipAssertReportDispatchSuccess)));
       if (pass && sva_self_guarded_actions_.count(pass)) {
 	    on_pass.push_back(pass);
       } else if (pass) {
@@ -41624,6 +41641,9 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
       for (long k = 0 ; k < K ; k += 1) {
 	    std::vector<Statement*> done;
 	    if (proc_each) {
+		  PExpr*passed = sva_logic_(loc, 'o', sva_comp_eq_(loc, m.vd[k], 1),
+						   sva_comp_eq_(loc, m.vd[k], 2));
+		  done.push_back(sva_coverage_success_(loc, inst, passed));
 		  done.push_back(sva_assign_(loc, verdict[k], sva_id_(loc, m.vd[k])));
 		  done.push_back(sva_assign_(loc, ready, new PEBinary('+',
 				sva_id_(loc, ready), sva_num32_(loc, 1))));
@@ -41663,6 +41683,7 @@ static void pform_make_composite_assertion_(const struct vlltype&loc,
 	   engine. */
       {
 	    std::vector<Statement*> hit;
+	    hit.push_back(sva_coverage_success_(loc, inst));
 	    PExpr*nonvac = new PEBinary('-', sva_id_(loc, r_p), sva_id_(loc, r_vac));
 	    hit.push_back(sva_assign_(loc, pass_req,
 		  new PEBinary('+', sva_id_(loc, pass_req), nonvac)));
@@ -44634,10 +44655,9 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 	    }
       } else if (track_vacuity) {
 	    user_pass = pass_stmt;
-	    pass_stmt = sva_assign_(loc, pass_req,
-		  new PEBinary('+', sva_id_(loc, pass_req), sva_num32_(loc, 1)));
+	    pass_stmt = sva_publish_success_(loc, inst, pass_req, sva_num32_(loc, 1));
       } else if (kind != 2) {
-	    pass_stmt = sva_pass_action_(loc, inst, pass_stmt);
+	    pass_stmt = sva_pass_action_(loc, inst, pass_stmt, false);
       }
 
 	/* Clock: explicit, else the module's default clocking. */
@@ -45136,10 +45156,11 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  FILE_NAME(satisfied, loc);
 		  Statement*action = kind == 2
 			? sva_cover_spawn_(loc, inst, pass_stmt)
-			: sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
-					    SVA_STATE_PASS_ACTION, pass_stmt);
-		  PCondit*pm = new PCondit(anyw,
-			sva_repeat_(loc, satisfied, action), nullptr);
+			: pass_stmt;
+		  Statement*dispatch = sva_repeat_(loc, satisfied, action);
+		  if (kind != 2 && !track_vacuity)
+			dispatch = sva_block_(loc, {sva_coverage_success_(loc, inst), dispatch});
+		  PCondit*pm = new PCondit(anyw, dispatch, nullptr);
 		  FILE_NAME(pm, loc);
 		  sat.push_back(pm);
 		  pass_stmt = nullptr;
@@ -45247,11 +45268,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 			new PEBinary('+', sva_id_(loc, r_pend),
 				     sva_id_(loc, r_mat)));
 		  FILE_NAME(satisfied, loc);
-		  PCondit*pm = new PCondit(elig,
-			sva_repeat_(loc, satisfied,
-			      sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
-						SVA_STATE_PASS_ACTION, pass_stmt)),
-			nullptr);
+		  Statement*dispatch = sva_repeat_(loc, satisfied, pass_stmt);
+		  if (!track_vacuity)
+			dispatch = sva_block_(loc, {sva_coverage_success_(loc, inst), dispatch});
+		  PCondit*pm = new PCondit(elig, dispatch, nullptr);
 		  FILE_NAME(pm, loc);
 		  sat.push_back(pm);
 		  pass_stmt = nullptr;
@@ -45331,10 +45351,10 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 		  FILE_NAME(nm, loc);
 		  body.push_back(nm);
 	    } else {
-		  PCondit*pm = new PCondit(match,
-			sva_action_guard_(loc, SVA_SPACE_CONCURRENT, inst,
-					  SVA_STATE_PASS_ACTION, pass_stmt),
-			nullptr);
+		  Statement*dispatch = pass_stmt;
+		  if (!track_vacuity)
+			dispatch = sva_block_(loc, {sva_coverage_success_(loc, inst), dispatch});
+		  PCondit*pm = new PCondit(match, dispatch, nullptr);
 		  FILE_NAME(pm, loc);
 		  body.push_back(pm);
 		  pass_stmt = nullptr;
@@ -45351,6 +45371,7 @@ void pform_make_assertion(const struct vlltype&loc, sva_property_t*prop,
 
       if (negated) {
 	    std::vector<Statement*> hit;
+	    hit.push_back(sva_coverage_success_(loc, inst));
 	    hit.push_back(sva_repeat_(loc, sva_id_(loc, r_neg_pass), pass_stmt));
 	    hit.push_back(sva_assign_(loc, r_neg_pass, sva_bit_(loc, 0)));
 	    body.push_back(sva_if_(loc, sva_id_(loc, r_neg_pass),

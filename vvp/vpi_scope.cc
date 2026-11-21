@@ -1615,6 +1615,14 @@ class vpiScopeModule  : public __vpiScope {
 	    library_ = vpip_name_string(library);
 	    config_ = *config ? vpip_name_string(config) : nullptr;
       }
+      void set_definition_key(const char*key)
+      {
+	    definition_key_ = vpip_name_string(key);
+      }
+      const char*definition_key() const
+      {
+	    return definition_key_ ? definition_key_ : scope_def_name();
+      }
       int vpi_get(int code) override
       {
             /* These coverage types are not instrumented. */
@@ -1630,6 +1638,7 @@ class vpiScopeModule  : public __vpiScope {
     private:
       const char*library_ = "work";
       const char*config_ = nullptr;
+      const char*definition_key_ = nullptr;
 };
 
 /* Program-block instance scope (IEEE 1800-2017 clause 24): threads
@@ -2636,6 +2645,7 @@ class __vpiAssertion : public __vpiHandle {
 	fail_full_latency_((flags & 1) != 0),
 	assertion_type_(assertion_kind == 4 ? vpiAssume
 			: assertion_kind == 2 ? vpiCover : vpiAssert),
+	coverage_source_(assertion_kind == 1 || assertion_kind == 2 || assertion_kind == 4),
 	ctl_dir_(assertion_kind == 4 || assertion_kind == 2 ? assertion_kind : 1)
       {
 	      // 39.4.2: bit1 = per-attempt steps, bit2 = linear unbounded wait,
@@ -2983,8 +2993,22 @@ class __vpiAssertion : public __vpiHandle {
       void report_immediate_cover(bool success)
       {
 	    attempts_ += 1;
-	    if (success) successes_ += 1;
+	    if (success) {
+		  successes_ += 1;
+		  coverage_success();
+	    }
       }
+
+      __vpiScope* coverage_scope() const { return scope_; }
+      bool coverable() const
+      {
+	      // Concurrent and immediate assert, cover and assume. The other
+	      // control types include expect and nonassertion violation checks.
+	    return scope_ && coverage_source_ && (ctl_type_ & (1 | 2 | 4 | 8));
+      }
+      void coverage_start(bool enabled) { coverage_enabled_ = enabled; }
+      void coverage_reset() { coverage_hit_ = false; }
+      bool coverage_hit() const { return coverage_hit_; }
 
       void report_immediate_assertion(bool success)
       {
@@ -3253,6 +3277,21 @@ class __vpiAssertion : public __vpiHandle {
 	   for checkers that cannot recover its start from a clock age. */
       void fire(int reason, int age = -1, int row = 0)
       {
+	    switch (reason) {
+		case vpipAssertReportCoverageSuccess:
+		  coverage_success();
+		  return;
+		case cbAssertionSuccess:
+		case cbAssertionVacuousSuccess:
+		  coverage_success();
+		  break;
+		case vpipAssertReportDispatchSuccess:
+		  reason = cbAssertionSuccess;
+		  break;
+		case vpipAssertReportDispatchVacuousSuccess:
+		  reason = cbAssertionVacuousSuccess;
+		  break;
+	    }
 	    if (reason == cbAssertionStepSuccess
 		|| reason == cbAssertionStepFailure)
 		  return;  // steps go through step() only, per attempt
@@ -3282,6 +3321,11 @@ class __vpiAssertion : public __vpiHandle {
       }
 
     private:
+      void coverage_success()
+      {
+	    if (coverage_enabled_) coverage_hit_ = true;
+      }
+
       struct nfa_failure_t {
 	    vvp_time64_t start, verdict;
 	    vpiHandle expr;
@@ -3388,9 +3432,12 @@ class __vpiAssertion : public __vpiHandle {
       std::vector<assert_cb_t> cbs_;
       int attempts_ = 0;
       int successes_ = 0;
+      bool coverage_enabled_ = true;
+      bool coverage_hit_ = false;
       int latency_;                    // M12-2: fixed tick latency, or -1
       bool fail_full_latency_;         // M12-1: failures run full latency
       int assertion_type_ = vpiAssert;
+      bool coverage_source_ = true;
       unsigned long deferred_source_id_ = 0;
       int deferred_type_ = vpiUndefined;
       int immediate_type_ = vpiUndefined;
@@ -3478,6 +3525,75 @@ class __vpiAssertion : public __vpiHandle {
 };
 
 static std::vector<__vpiAssertion*> assertion_registry;
+
+static bool coverage_instance_(const __vpiScope*scope)
+{
+      int type = scope->get_type_code();
+      return type == vpiModule || type == vpiInterface || type == vpiProgram;
+}
+
+PLI_INT32 vpip_assertion_coverage(PLI_INT32 op, PLI_INT32 hierarchical,
+				 vpiHandle instance, const char*definition)
+{
+      if (op < vpipCovStart || op > vpipCovGetMax) return -1;
+
+      std::set<const __vpiScope*> selected;
+      bool root = definition && strcmp(definition, "$root") == 0;
+      if (instance) {
+	    auto*module = dynamic_cast<vpiScopeModule*>(instance);
+	    if (!module || definition) return -1;
+	    selected.insert(module);
+      } else if (!root) {
+	    if (!definition || !*definition) return -1;
+	      // Walk through generate scopes to find module instances. Each
+	      // scope has a single parent, and the registry is visited once.
+	    std::vector<vpiHandle> pending(vpip_root_table);
+	    while (!pending.empty()) {
+		  auto*scope = dynamic_cast<__vpiScope*>(pending.back());
+		  pending.pop_back();
+		  if (!scope) continue;
+		  if (auto*module = dynamic_cast<vpiScopeModule*>(scope))
+			if (strcmp(definition, module->definition_key()) == 0)
+			      selected.insert(module);
+		  for (auto*item : scope->intern) {
+			auto*child = dynamic_cast<__vpiScope*>(item);
+			if (child && child->scope == scope)
+			      pending.push_back(child);
+		  }
+	    }
+	    if (selected.empty()) return -1;
+      }
+
+      bool available = false;
+      uint64_t count = 0;
+      for (auto*assertion : assertion_registry) {
+	    if (!assertion->coverable()) continue;
+	    if (!root || !hierarchical) {
+		  const __vpiScope*scope = assertion->coverage_scope();
+		  while (scope && !selected.count(scope)) {
+			if (!hierarchical && coverage_instance_(scope)) break;
+			scope = scope->scope;
+		  }
+		  if (root ? scope != nullptr : !scope || !selected.count(scope))
+			continue;
+	    }
+
+	    available = true;
+	    switch (op) {
+		case vpipCovStart: assertion->coverage_start(true); break;
+		case vpipCovStop: assertion->coverage_start(false); break;
+		case vpipCovReset: assertion->coverage_reset(); break;
+		case vpipCovCheck: return 1;
+		case vpipCovGet: count += assertion->coverage_hit(); break;
+		case vpipCovGetMax: count += 1; break;
+	    }
+	    if (count > INT32_MAX) return -2;
+      }
+      if (op == vpipCovGet || op == vpipCovGetMax) return (PLI_INT32)count;
+      if (op == vpipCovStart || op == vpipCovCheck) return available ? 1 : 0;
+      return 1;
+}
+
 static std::map<std::pair<__vpiScope*,int>, __vpiAssertion*> assertion_by_key;
 static std::map<std::pair<__vpiScope*,unsigned long>, __vpiAssertion*>
       deferred_assertion_by_key;
@@ -4520,6 +4636,18 @@ void compile_scope_binding(char*library, char*config)
       }
       delete[] library;
       delete[] config;
+}
+
+void compile_scope_defkey(char*key)
+{
+      auto*scope = dynamic_cast<vpiScopeModule*>(current_scope);
+      if (scope && *key) {
+	    scope->set_definition_key(key);
+      } else {
+	    yyerror("invalid .scope/defkey metadata");
+	    compile_errors += 1;
+      }
+      delete[] key;
 }
 
 /*

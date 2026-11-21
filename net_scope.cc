@@ -30,6 +30,7 @@
 # include  "netvector.h"
 # include  "PExpr.h"
 # include  "Module.h"
+# include  "PGenerate.h"
 # include  "PConfig.h"
 # include  <sstream>
 # include  "PPackage.h"
@@ -958,6 +959,36 @@ void NetScope::set_module_definition(const Module*def)
       module_definition_ = def;
 	/* Parsed module definitions are released before target emission. */
       module_library_ = def ? def->library : perm_string();
+      module_definition_key_ = perm_string();
+      if (!def) return;
+
+      std::vector<perm_string> path;
+      for (const LexicalScope*scope = def->parent_scope(); scope; scope = scope->parent_scope()) {
+	    if (auto*mod = dynamic_cast<const Module*>(scope))
+		  path.push_back(mod->mod_name());
+	    else if (auto*gen = dynamic_cast<const PGenerate*>(scope)) {
+		  if (!gen->directly_nested && !gen->scope_name.nil())
+			path.push_back(gen->scope_name);
+	    }
+      }
+      auto needs_escape = [](perm_string name) {
+	    return strchr(name.str(), '.') || strchr(name.str(), '\\') || name == "$root";
+      };
+      if (path.empty() && !needs_escape(def->mod_name())) return;
+
+      std::string key;
+      auto append = [&](perm_string name) {
+	      // Preserve identifier boundaries if an escaped name has a dot.
+	    if (needs_escape(name)) key += '\\';
+	    key += name.str();
+	    if (needs_escape(name)) key += ' ';
+      };
+      for (auto it = path.rbegin(); it != path.rend(); ++it) {
+	    append(*it);
+	    key += '.';
+      }
+      append(def->mod_name());
+      module_definition_key_ = lex_strings.make(key.c_str());
 }
 
 void NetScope::set_num_ports(unsigned int num_ports)
