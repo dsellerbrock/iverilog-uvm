@@ -5128,41 +5128,28 @@ static PGenerate* bind_find_generate_(Module*mod, PGenerate*gen,
 static bool bind_validate_select_(const LineInfo&li,
 				  const pform_name_t&path,
 				  const name_component_t&component,
-				  bool is_array, bool require_select,
+				  size_t rank,
 				  const char*kind, bool diagnose)
 {
-      if (component.index.size() > 1) {
-	    if (diagnose) {
-		  cerr << li.get_fileline() << ": error: bind target instance "
-		       << "path '" << path << "': " << kind << " '"
-		       << component.name << "' has more than one select; "
-		       << "Icarus supports one-dimensional instance arrays."
-		       << endl;
-		  error_count += 1;
-	    }
-	    return false;
+      if (component.index.size() == rank)
+	    return true;
+      if (diagnose) {
+	    cerr << li.get_fileline() << ": error: bind target instance "
+		 << "path '" << path << "': ";
+	    if (rank == 0)
+		  cerr << kind << " '" << component.name
+		       << "' is not arrayed and cannot be selected";
+	    else if (rank == 1 && component.index.empty())
+		  cerr << "arrayed " << kind << " '" << component.name
+		       << "' requires a constant element select";
+	    else
+		  cerr << "arrayed " << kind << " '" << component.name
+		       << "' requires " << rank << " constant element "
+		       << (rank == 1 ? "select" : "selects");
+	    cerr << "." << endl;
+	    error_count += 1;
       }
-      if (!component.index.empty() && !is_array) {
-	    if (diagnose) {
-		  cerr << li.get_fileline() << ": error: bind target instance "
-		       << "path '" << path << "': " << kind << " '"
-		       << component.name << "' is not arrayed and cannot be "
-		       << "selected." << endl;
-		  error_count += 1;
-	    }
-	    return false;
-      }
-	      if (component.index.empty() && is_array && require_select) {
-	    if (diagnose) {
-		  cerr << li.get_fileline() << ": error: bind target instance "
-		       << "path '" << path << "': arrayed " << kind
-		       << " '" << component.name << "' requires a constant "
-		       << "element select." << endl;
-		  error_count += 1;
-	    }
-	    return false;
-      }
-      return true;
+      return false;
 }
 
 static void bind_walk_instance_path_from_(
@@ -5201,15 +5188,9 @@ static void bind_walk_instance_path_from_(
 		  }
 		  return;
 	    }
-	    if (cur->index.size() > 1) {
-		  bind_validate_select_(li, path, *cur, modgate->is_array(),
-					modgate->is_array(), "module instance",
-					diagnose);
-		  return;
-	    }
 	    if (!defer_shape
-		&& !bind_validate_select_(li, path, *cur, modgate->is_array(),
-					  modgate->is_array(), "module instance",
+		&& !bind_validate_select_(li, path, *cur, modgate->array_rank(),
+					  "module instance",
 					  diagnose))
 		  return;
 
@@ -5246,12 +5227,12 @@ static void bind_walk_instance_path_from_(
 		  mixed_shape = mixed_shape || candidate_array != loop_array;
 	    }
 	    if (cur->index.size() > 1) {
-		  bind_validate_select_(li, path, *cur, loop_array, true,
+		  bind_validate_select_(li, path, *cur, loop_array,
 					"generate scope", diagnose);
 		  return;
 	    }
 	    if (!defer_shape && !mixed_shape
-		&& !bind_validate_select_(li, path, *cur, loop_array, true,
+		&& !bind_validate_select_(li, path, *cur, loop_array,
 					  "generate scope", diagnose))
 		  return;
 	    if (final_component) {

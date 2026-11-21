@@ -1755,14 +1755,16 @@ void NetScope::elaborate_vpi_parameter_exprs(Design*des)
 	   their names, and elaboration keeps them from the right bound to
 	   the left one. Their actuals are kept on that first element. */
       for (const auto&cur : instance_arrays) {
+	    auto dims = instance_array_dims.find(cur.first);
+	    if (dims == instance_array_dims.end() || dims->second.size() != 1)
+		  continue;
 	    const scope_vec_t&elems = cur.second;
-	    if (elems.empty() || !elems.front()
-		|| !elems.front()->fullname().has_numbers())
+	    if (elems.empty() || !elems.front())
 		  continue;
 	    vpi_inst_array_t arr;
 	    arr.name = cur.first;
-	    arr.left = elems.back()->fullname().peek_number(0);
-	    arr.right = elems.front()->fullname().peek_number(0);
+	    arr.left = dims->second.front().left;
+	    arr.right = dims->second.front().right;
 	    arr.elements.assign(elems.rbegin(), elems.rend());
 	    const std::vector<PExpr*>&actuals = elems.front()->array_actuals.empty()
 		  ? elems.front()->port_actuals : elems.front()->array_actuals;

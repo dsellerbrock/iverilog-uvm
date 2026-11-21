@@ -2014,6 +2014,18 @@ class NetScope : public Definitions, public Attrib {
       typedef std::vector<NetScope*> scope_vec_t;
       std::map<perm_string, scope_vec_t>instance_arrays;
 
+      // Evaluated bounds in declaration order for arrayed instances.
+      struct instance_range_t {
+	    int left, right;
+	    uint64_t width() const
+	    {
+		  int64_t distance = static_cast<int64_t>(left) - right;
+		  return (distance < 0 ? -distance : distance) + 1;
+	    }
+      };
+      typedef std::vector<instance_range_t> instance_dims_t;
+      std::map<perm_string, instance_dims_t> instance_array_dims;
+
 	/* Loop generate uses this as scratch space during
 	   elaboration. Expression evaluation can use this to match
 	   names. */

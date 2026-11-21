@@ -3404,6 +3404,22 @@ uint64_t verinum_signed_magnitude(const verinum&value, bool&negative)
       return overflow ? ~uint64_t(0) : magnitude;
 }
 
+bool verinum_to_scope_index(const verinum&value, int&index)
+{
+      if (!value.is_defined())
+	    return false;
+
+      bool negative;
+      uint64_t magnitude = verinum_signed_magnitude(value, negative);
+      const uint64_t negative_limit = static_cast<uint64_t>(INT_MAX) + 1;
+      if (magnitude > (negative ? negative_limit : INT_MAX))
+	    return false;
+
+      index = !negative ? static_cast<int>(magnitude)
+	    : magnitude == negative_limit ? INT_MIN : -static_cast<int>(magnitude);
+      return true;
+}
+
 verinum_part_select_t verinum_part_select_overlap(
 		const verinum&base, uint64_t select_width,
 		uint64_t carrier_width)
@@ -3505,22 +3521,8 @@ hname_t eval_path_component(Design*des, NetScope*scope,
 
 	    NetEConst*ctmp = dynamic_cast<NetEConst*>(tmp);
 	    if (ctmp && ctmp->value().is_defined()) {
-		  bool negative = false;
-		  uint64_t magnitude = verinum_signed_magnitude(
-			ctmp->value(), negative);
-		  /* hname_t stores every elaborated scope index as an int. */
-		  uint64_t negative_limit =
-			static_cast<uint64_t>(INT_MAX) + 1;
-		  bool in_range = negative ? magnitude <= negative_limit
-					   : magnitude <= INT_MAX;
-		  if (in_range) {
-			int use_index;
-			if (!negative)
-			      use_index = static_cast<int>(magnitude);
-			else if (magnitude == negative_limit)
-			      use_index = INT_MIN;
-			else
-			      use_index = -static_cast<int>(magnitude);
+		  int use_index;
+		  if (verinum_to_scope_index(ctmp->value(), use_index)) {
 			index_values.push_back(use_index);
 			delete ctmp;
 			continue;

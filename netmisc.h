@@ -763,6 +763,9 @@ bool eval_as_double(double&value, NetExpr*expr);
  * host-long truncation and, in particular, never negates INT64_MIN. */
 uint64_t verinum_signed_magnitude(const verinum&value, bool&negative);
 
+/* Convert a defined integral value to the index type stored by hname_t. */
+bool verinum_to_scope_index(const verinum&value, int&index);
+
 /* Exact intersection of a constant-base indexed part select with a packed
  * carrier. source_base is the first replacement bit that survives clipping;
  * destination_base is the first carrier bit written. A zero width means the

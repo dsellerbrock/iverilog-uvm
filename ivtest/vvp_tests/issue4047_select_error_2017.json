@@ -1,0 +1,6 @@
+{
+  "type": "CE",
+  "source": "issue4047_select_error_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue4047_select_error"],
+  "gold": "issue4047_select_error"
+}

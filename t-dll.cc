@@ -21,6 +21,7 @@
 # include "config.h"
 
 # include  <iostream>
+# include  <sstream>
 
 # include  <cstring>
 # include  <cstdint>
@@ -491,19 +492,9 @@ static perm_string make_scope_name(const hname_t&name)
       if (! name.has_numbers())
 	    return name.peek_name();
 
-      char buf[1024];
-      snprintf(buf, sizeof buf, "%s", name.peek_name().str());
-
-      char*cp = buf + strlen(buf);
-      size_t ncp = sizeof buf - (cp-buf);
-
-      for (size_t idx = 0 ; idx < name.has_numbers() ; idx += 1) {
-	    int len = snprintf(cp, ncp, "[%d]", name.peek_number(idx));
-	    cp += len;
-	    ncp -= len;
-      }
-
-      return lex_strings.make(buf);
+      ostringstream text;
+      text << name;
+      return lex_strings.make(text.str());
 }
 
 static void drive_from_link(const Link&lnk, ivl_drive_t&drv0, ivl_drive_t&drv1)

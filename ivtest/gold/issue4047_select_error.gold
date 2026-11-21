@@ -1,0 +1,8 @@
+./ivltests/issue4047.sv:131: error: Scope index for `u' is out of range.
+./ivltests/issue4047.sv:131: error: Scope index for `u' is out of range.
+./ivltests/issue4047.sv:131: error: Scope index for `u' is out of range.
+./ivltests/issue4047.sv:132: error: Scope index for `u' is out of range.
+./ivltests/issue4047.sv:132: error: Scope index for `u' is out of range.
+./ivltests/issue4047.sv:132: error: Scope index for `u' is out of range.
+./ivltests/issue4047.sv:133: error: Scope index expression is not constant: row
+7 error(s) during elaboration.

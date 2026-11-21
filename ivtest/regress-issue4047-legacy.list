@@ -1,0 +1,6 @@
+issue4047_2017 normal,-g2017,-s,issue4047 ivltests
+issue4047_2023 normal,-g2023,-s,issue4047 ivltests
+issue4047_select_error_2017 CE,-g2017,-s,issue4047_select_error ivltests gold=issue4047_select_error.gold
+issue4047_select_error_2023 CE,-g2023,-s,issue4047_select_error ivltests gold=issue4047_select_error.gold
+issue4047_port_error_2017 CE,-g2017,-s,issue4047_port_error ivltests gold=issue4047_port_error.gold
+issue4047_port_error_2023 CE,-g2023,-s,issue4047_port_error ivltests gold=issue4047_port_error.gold
