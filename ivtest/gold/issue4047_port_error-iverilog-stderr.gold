@@ -1,0 +1,6 @@
+./ivltests/issue4047.sv:142: error: Arrayed input port 'd' has incompatible unpacked-array dimensions.
+./ivltests/issue4047.sv:143: error: Port expression width 2 does not match expected width 4.
+./ivltests/issue4047.sv:145: sorry: Unpacked port connections on multidimensional module instance arrays require a whole unpacked actual and a packed formal.
+./ivltests/issue4047.sv:146: error: Output port 'q' of issue4047_copy has incompatible unpacked-array dimensions.
+./ivltests/issue4047.sv:148: error: Arrayed port 'bus' has incompatible unpacked-array dimensions.
+5 error(s) during elaboration.

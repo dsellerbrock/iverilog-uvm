@@ -8377,3 +8377,11 @@ issue3979_sequence_actual_2023 vvp_tests/issue3979_sequence_actual_2023.json
 issue3979_invalid_actual_2023 vvp_tests/issue3979_invalid_actual_2023.json
 issue3985_tagged_union_cb_2017 vvp_tests/issue3985_tagged_union_cb_2017.json
 issue3985_tagged_union_cb_2023 vvp_tests/issue3985_tagged_union_cb_2023.json
+
+# Multidimensional module instance arrays (IEEE 1800 23.3.3.5 and 23.6).
+issue4047_2017 vvp_tests/issue4047_2017.json
+issue4047_2023 vvp_tests/issue4047_2023.json
+issue4047_select_error_2017 vvp_tests/issue4047_select_error_2017.json
+issue4047_select_error_2023 vvp_tests/issue4047_select_error_2023.json
+issue4047_port_error_2017 vvp_tests/issue4047_port_error_2017.json
+issue4047_port_error_2023 vvp_tests/issue4047_port_error_2023.json

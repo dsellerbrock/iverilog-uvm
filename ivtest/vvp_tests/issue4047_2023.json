@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue4047_2023.v",
+  "iverilog-args": ["-g2023", "-s", "issue4047"]
+}

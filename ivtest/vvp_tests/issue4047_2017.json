@@ -1,0 +1,5 @@
+{
+  "type": "normal",
+  "source": "issue4047_2017.v",
+  "iverilog-args": ["-g2017", "-s", "issue4047"]
+}
